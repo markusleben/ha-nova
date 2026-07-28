@@ -8,9 +8,9 @@ import {
 
 export function registerCloudSourceMaterializationWindowBehaviorTests(): void {
   describe("Cloud source PR materialization window", () => {
-    it("accepts a PR association materialized after the prior attempt cap", () => {
+    it("accepts a PR association materialized at the deadline", () => {
       const { result, trace } = runSourceGate({
-        associationPresentSequence: [...Array<boolean>(21).fill(false), true],
+        associationPresentSequence: [...Array<boolean>(30).fill(false), true],
       });
       expect(result.status, `${result.stdout}\n${result.stderr}`).toBe(0);
       const exactCheckIndex = trace.findIndex(
@@ -24,7 +24,7 @@ export function registerCloudSourceMaterializationWindowBehaviorTests(): void {
               entry.method === "GET" &&
               entry.path.endsWith(`/commits/${headSHA}/pulls`),
           ),
-      ).toHaveLength(22);
+      ).toHaveLength(31);
       expect(
         trace.some(
           (entry) =>
@@ -33,9 +33,9 @@ export function registerCloudSourceMaterializationWindowBehaviorTests(): void {
       ).toBe(true);
     });
 
-    it("accepts a merge commit materialized after the prior attempt cap", () => {
+    it("accepts a merge commit materialized at the deadline", () => {
       const { result, trace } = runSourceGate({
-        mergeCommitSHASequence: [...Array<null>(21).fill(null), mergeSHA],
+        mergeCommitSHASequence: [...Array<null>(30).fill(null), mergeSHA],
       });
       expect(result.status, `${result.stdout}\n${result.stderr}`).toBe(0);
       const exactCheckIndex = trace.findIndex(
@@ -48,7 +48,7 @@ export function registerCloudSourceMaterializationWindowBehaviorTests(): void {
             (entry) =>
               entry.method === "GET" && entry.path.endsWith("/pulls/449"),
           ),
-      ).toHaveLength(22);
+      ).toHaveLength(31);
       expect(
         trace.some(
           (entry) =>
@@ -61,11 +61,11 @@ export function registerCloudSourceMaterializationWindowBehaviorTests(): void {
       ["absent", null],
       ["inconsistent", "c".repeat(40)],
     ] as const)(
-      "accepts a merge ref that becomes consistent after the prior attempt cap: %s",
+      "accepts a merge ref that becomes consistent at the deadline: %s",
       (_name, delayedRef) => {
         const { result, trace } = runSourceGate({
           gitSHASequence: [
-            ...Array<null | string>(21).fill(delayedRef),
+            ...Array<null | string>(30).fill(delayedRef),
             mergeSHA,
             mergeSHA,
           ],
@@ -193,7 +193,7 @@ export function registerCloudSourceMaterializationWindowBehaviorTests(): void {
     it.each([
       ["pending during reconciliation after terminal", 2, 1],
       ["pending during cleanup after terminal", 2, 4],
-      ["terminal during reconciliation after pending", 3, 0],
+      ["terminal during final reconciliation scan after pending", 4, 0],
     ] as const)(
       "cleans an accepted hidden POST beside a late terminal success %s",
       (_label, lateVisibleChecksDelay, postVisibilityDelay) => {

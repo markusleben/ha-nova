@@ -24,7 +24,7 @@ export function registerCloudSourceMaterializationBehaviorTests(): void {
           (entry) =>
             entry.method === "GET" && entry.path.endsWith("/pulls/449"),
         ),
-      ).toHaveLength(30);
+      ).toHaveLength(31);
       const retryDelays = trace.filter((entry) => entry.method === "TIMER");
       expect(retryDelays).toHaveLength(30);
       expect(retryDelays.every((entry) => entry.path === "3000")).toBe(true);
@@ -276,7 +276,7 @@ export function registerCloudSourceMaterializationBehaviorTests(): void {
             entry.method === "GET" &&
             entry.path.endsWith(`/commits/${headSHA}/pulls`),
         ),
-      ).toHaveLength(30);
+      ).toHaveLength(31);
     });
 
     it("reports a fail-safe rejection when the merge ref stays absent", () => {

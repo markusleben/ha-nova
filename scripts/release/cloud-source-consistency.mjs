@@ -18,7 +18,7 @@ export function createCloudSourceConsistencyResolver({
     const deadline = now() + pullRequestWindowMs;
     let reason = "workflow run no longer identifies a current pull request";
     for (let attempt = 1; attempt <= pullRequestAttempts; attempt += 1) {
-      if (attempt > 1 && now() >= deadline) {
+      if (attempt > 1 && now() > deadline) {
         break;
       }
       const pull = await currentPullRequest(headSHA);
