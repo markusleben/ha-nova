@@ -1,6 +1,9 @@
 package main
 
-import "fmt"
+import (
+	"bytes"
+	"fmt"
+)
 
 // saveProfileConfig writes cfg into the selected profile of the on-disk
 // document. All read-modify-write config sites go through here (via
@@ -32,5 +35,51 @@ func saveProfileConfig(paths runtimePaths, cfg runtimeConfig) error {
 		top,
 		0o600,
 		doc.source,
+	)
+}
+
+func saveProfileConfigIfUnchanged(
+	paths runtimePaths,
+	cfg runtimeConfig,
+	expected []byte,
+	expectedExists bool,
+) ([]byte, error) {
+	cfg.SchemaVersion = configSchemaVersion
+	doc, err := loadConfigDocumentOrEmpty(paths.ConfigFile)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"read existing server configuration: %w",
+			err,
+		)
+	}
+	if expectedExists && !bytes.Equal(doc.source, expected) {
+		return nil, errConditionalJSONConflictRestored
+	}
+	if !expectedExists && len(doc.source) != 0 {
+		return nil, errConditionalJSONConflictRestored
+	}
+	if err := validateSupportedConfigDocument(doc); err != nil {
+		return nil, err
+	}
+	name, err := saveTargetProfileName(doc)
+	if err != nil {
+		return nil, err
+	}
+	top, err := doc.withProfile(name, cfg)
+	if err != nil {
+		return nil, err
+	}
+	if !expectedExists {
+		return writeJSONFileIfAbsentSnapshot(
+			paths.ConfigFile,
+			top,
+			0o600,
+		)
+	}
+	return writeJSONFileIfUnchangedSnapshot(
+		paths.ConfigFile,
+		top,
+		0o600,
+		expected,
 	)
 }

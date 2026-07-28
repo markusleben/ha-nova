@@ -9,11 +9,14 @@ import (
 
 // Sentinel errors the setup/uninstall flows branch on.
 var (
-	errPairingCodeRejected = errors.New("pairing code is invalid or expired")
-	errPairingInactive     = errors.New("no active pairing code; ask the owner to click Connect a device in NOVA")
-	errPinMismatch         = errors.New("relay TLS identity did not match the pinned fingerprint")
-	errDeviceUnauthorized  = errors.New("device credential was rejected")
-	errRelayNotV1          = errors.New("this relay does not support secure device pairing; update the NOVA Relay App")
+	errPairingCodeRejected   = errors.New("pairing code is invalid or expired")
+	errPairingInactive       = errors.New("no active pairing code; ask the owner to click Connect a device in NOVA")
+	errPinMismatch           = errors.New("relay TLS identity did not match the pinned fingerprint")
+	errDeviceUnauthorized    = errors.New("device credential was rejected")
+	errRelayNotV1            = errors.New("this relay does not support secure device pairing; update the NOVA Relay App")
+	errPairingOutcomeUnknown = errors.New(
+		"pairing finish may have reached NOVA Relay; do not submit another code",
+	)
 )
 
 // parsedDeviceCredential mirrors nova/src/security/device-credential.ts:

@@ -28,6 +28,7 @@ func TestPairFinishCloudV2ReplaysExactCommittedRequestAfterLostResponse(
 			}
 			if attempts == 1 {
 				committedRequest = append([]byte(nil), body...)
+				markPairingFinishRequestWritten(request)
 				return nil, errors.New("response lost after server commit")
 			}
 			if !bytes.Equal(body, committedRequest) {
@@ -155,9 +156,10 @@ func TestPairFinishCloudV2RetriesOnlyAmbiguousOutcomes(t *testing.T) {
 			attempts := 0
 			client := newProtocolTestCloudIngressClient(
 				t,
-				roundTripFunc(func(*http.Request) (*http.Response, error) {
+				roundTripFunc(func(request *http.Request) (*http.Response, error) {
 					attempts++
 					if attempts == 1 {
+						markPairingFinishRequestWritten(request)
 						return test.first()
 					}
 					return pairingFinishTestResponse(
@@ -196,21 +198,121 @@ func TestPairFinishCloudV2AmbiguousRetriesAreBounded(t *testing.T) {
 	attempts := 0
 	client := newProtocolTestCloudIngressClient(
 		t,
-		roundTripFunc(func(*http.Request) (*http.Response, error) {
+		roundTripFunc(func(request *http.Request) (*http.Response, error) {
 			attempts++
+			markPairingFinishRequestWritten(request)
 			return nil, errors.New("response remains lost")
 		}),
 	)
 	var finish map[string]any
-	if err := cloudPairingFinishCall(
+	err := cloudPairingFinishCall(
 		context.Background(),
 		client,
 		map[string]any{"handshake_id": "handshake"},
 		&finish,
-	); err == nil {
-		t.Fatal("persistent transport loss unexpectedly succeeded")
+	)
+	if !IsCloudErrorCode(err, CloudErrOutcomeUnknown) {
+		t.Fatalf("persistent transport loss err=%v, want outcome unknown", err)
 	}
 	if attempts != pairingFinishAttempts {
 		t.Fatalf("attempts=%d, want=%d", attempts, pairingFinishAttempts)
+	}
+	if problem := cloudProblemForError(err); problem.Remediation !=
+		cloudRemediationVerifyState {
+		t.Fatalf("persistent transport loss problem=%+v", problem)
+	}
+}
+
+func TestPairFinishCloudV2PreDispatchFailureIsDefinitive(t *testing.T) {
+	attempts := 0
+	client := newProtocolTestCloudIngressClient(
+		t,
+		roundTripFunc(func(*http.Request) (*http.Response, error) {
+			attempts++
+			return nil, errors.New("dial tcp: connection refused")
+		}),
+	)
+	var finish map[string]any
+	err := cloudPairingFinishCall(
+		context.Background(),
+		client,
+		map[string]any{"handshake_id": "handshake"},
+		&finish,
+	)
+	if err == nil || IsCloudErrorCode(err, CloudErrOutcomeUnknown) {
+		t.Fatalf("pre-dispatch finish err=%v, want definitive failure", err)
+	}
+	if attempts != 1 {
+		t.Fatalf("attempts=%d, want=1", attempts)
+	}
+}
+
+func TestPairFinishCloudV2ContextEndAfterSendIsOutcomeUnknown(
+	t *testing.T,
+) {
+	ctx, cancel := context.WithCancel(context.Background())
+	attempts := 0
+	client := newProtocolTestCloudIngressClient(
+		t,
+		roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			attempts++
+			markPairingFinishRequestWritten(request)
+			cancel()
+			return nil, request.Context().Err()
+		}),
+	)
+	var finish map[string]any
+	err := cloudPairingFinishCall(
+		ctx,
+		client,
+		map[string]any{"handshake_id": "handshake"},
+		&finish,
+	)
+	if !IsCloudErrorCode(err, CloudErrOutcomeUnknown) {
+		t.Fatalf("cancelled post-send finish err=%v, want outcome unknown", err)
+	}
+	if attempts != 1 {
+		t.Fatalf("attempts=%d, want=1", attempts)
+	}
+	if problem := cloudProblemForError(err); problem.Remediation !=
+		cloudRemediationVerifyState {
+		t.Fatalf("cancelled post-send finish problem=%+v", problem)
+	}
+}
+
+func TestPairFinishCloudV2DoesNotDowngradeAmbiguousOutcome(t *testing.T) {
+	attempts := 0
+	client := newProtocolTestCloudIngressClient(
+		t,
+		roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			attempts++
+			if attempts == 1 {
+				markPairingFinishRequestWritten(request)
+				return nil, errors.New("response lost after server commit")
+			}
+			return pairingFinishTestResponse(
+				http.StatusUnauthorized,
+				io.NopCloser(strings.NewReader("")),
+				true,
+			), nil
+		}),
+	)
+	var finish map[string]any
+	err := cloudPairingFinishCall(
+		context.Background(),
+		client,
+		map[string]any{"handshake_id": "handshake"},
+		&finish,
+	)
+	if !IsCloudErrorCode(err, CloudErrOutcomeUnknown) ||
+		IsCloudErrorCode(err, CloudErrPairingRejected) {
+		t.Fatalf("mixed finish outcome err=%v", err)
+	}
+	if attempts != 2 {
+		t.Fatalf("attempts=%d, want=2", attempts)
+	}
+	if problem := cloudProblemForError(err); problem.Remediation !=
+		cloudRemediationVerifyState {
+		t.Fatalf("mixed finish outcome problem=%+v", problem)
 	}
 }
