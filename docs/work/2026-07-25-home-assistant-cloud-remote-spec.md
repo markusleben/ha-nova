@@ -625,8 +625,8 @@ credential-broker design is reviewed and validated.
 
 ```json
 {
-  "cloud_remote_enabled": false,
-  "cloud_remote_platforms": []
+  "cloud_remote_enabled": true,
+  "cloud_remote_platforms": ["darwin", "linux", "windows"]
 }
 ```
 
