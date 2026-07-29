@@ -26,6 +26,7 @@ type FixtureChange =
   | "wrong-check-event"
   | "wrong-workflow-pr"
   | "later-pending-workflow"
+  | "large-workflow-history"
   | "stale-check-base"
   | "wrong-cloud-target"
   | "later-pending-check"
@@ -242,6 +243,15 @@ function runResolver(
       : []),
   ];
   const workflowRuns = [
+    ...(change === "large-workflow-history"
+      ? [
+          {
+            id: 0,
+            path: ".github/workflows/history.yml",
+            padding: "x".repeat(3 * 1024 * 1024),
+          },
+        ]
+      : []),
     {
       id: 1,
       path: ".github/workflows/ci.yml",
@@ -565,6 +575,11 @@ describe("Cloud candidate source resolver", () => {
 
   it("accepts GitHub's passing check conclusions", () => {
     const result = runResolver("passing-conclusions");
+    expect(result.status, `${result.stdout}\n${result.stderr}`).toBe(0);
+  });
+
+  it("accepts workflow history larger than the process argument limit", () => {
+    const result = runResolver("large-workflow-history");
     expect(result.status, `${result.stdout}\n${result.stderr}`).toBe(0);
   });
 

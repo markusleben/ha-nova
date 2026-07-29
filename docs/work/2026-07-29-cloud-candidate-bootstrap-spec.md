@@ -24,6 +24,8 @@ cannot produce the first candidate needed to collect the evidence.
   workflow and event, expected App, pull request, current base/head, and merge
   target; reject all same-name commit statuses and revalidate the complete
   check state before returning.
+- Keep paginated GitHub API payloads out of process arguments so normal check
+  history cannot exceed the operating system's argument-size limit.
 - Require a real clean Codex bot result bound to the current pull-request head;
   an advisory workflow timeout is insufficient. Reject requested changes,
   unresolved threads, and later Codex findings.

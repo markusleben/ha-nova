@@ -248,6 +248,7 @@ for (const marker of [
   ".app.id == $app_id",
   'repos/${REPO}/commits/${head_sha}/status?per_page=100',
   'repos/${REPO}/actions/runs?head_sha=${head_sha}&per_page=100',
+  "--slurpfile workflows",
   '.github/workflows/codeql.yml',
   '.github/workflows/ci.yml',
   '.github/workflows/dependency-review.yml',

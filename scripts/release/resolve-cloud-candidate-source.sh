@@ -104,7 +104,7 @@ source_app_id="$(
 github_actions_app_id=15368
 
 verify_checks() {
-  local check_pages status_pages workflow_pages checks statuses workflows
+  local check_pages status_pages workflow_pages checks statuses
   local check_name expected_workflow expected_event
   workflow_pages="$(
     gh api --paginate --slurp \
@@ -120,7 +120,6 @@ verify_checks() {
   )"
   checks="$(jq -c '[.[].check_runs[]]' <<<"${check_pages}")"
   statuses="$(jq -c '[.[].statuses[]]' <<<"${status_pages}")"
-  workflows="$(jq -c '[.[].workflow_runs[]]' <<<"${workflow_pages}")"
 
   while IFS= read -r check_name; do
     [[ -n "${check_name}" ]] || continue
@@ -141,9 +140,11 @@ verify_checks() {
       --argjson pr "${PR_NUMBER}" \
       --arg base "${base_sha}" \
       --arg head "${head_sha}" \
-      --argjson workflows "${workflows}" '
+      --slurpfile workflows <(
+        jq -c '[.[].workflow_runs[]]' <<<"${workflow_pages}"
+      ) '
         (
-          [ $workflows[]
+          [ $workflows[0][]
             | select(
                 .path == $workflow
                 and .event == $event
