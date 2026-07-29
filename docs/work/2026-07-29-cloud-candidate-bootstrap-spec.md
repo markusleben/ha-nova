@@ -37,6 +37,8 @@ cannot produce the first candidate needed to collect the evidence.
   3.2.
 - Build official-tag Linux, Windows, and signed macOS binaries, then sign
   exact-tree install-bundle provenance with protected production secrets.
+- Sign with the exactly validated Developer ID common name so current macOS
+  runners do not depend on legacy SHA-1 identity lookup.
 - Smoke the exact raw binaries natively on Linux, macOS, and Windows before
   provenance signing; raw binaries must reject missing Cloud provenance.
 - After all native smokes, revalidate the complete reviewed state, build the

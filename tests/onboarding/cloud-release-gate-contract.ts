@@ -421,6 +421,8 @@ export function registerCloudReleaseGateContractTests(): void {
       ),
     ).toBeLessThan(darwinBuilder.indexOf("go build -trimpath"));
     expect(darwinBuilder).toContain("-T /usr/bin/codesign");
+    expect(darwinBuilder).toContain('--sign "${EXPECTED_IDENTITY}"');
+    expect(darwinBuilder).not.toContain("identity_hash");
     expect(darwinBuilder).toContain("umask 077");
     expect(darwinBuilder).not.toContain("\n  -A \\\n");
     expect(darwinBuilder).toContain(
