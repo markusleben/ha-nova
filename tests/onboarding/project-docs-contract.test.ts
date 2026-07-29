@@ -27,6 +27,10 @@ describe("project docs contract", () => {
     expect(project).toContain("the dispatch table in `skills/ha-nova/SKILL.md` is the authoritative inventory");
     expect(project).toContain("`POST /files` (opt-in, default off)");
     expect(project).toContain("documentation-governance.md");
+    expect(project).toContain(
+      "Release metadata enables it\nonly for exact candidates",
+    );
+    expect(project).not.toContain("Release metadata keeps it disabled");
     expect(project).not.toContain("## Active Documentation");
     expect(project).not.toContain("## Current Product Surfaces");
   });
@@ -80,6 +84,10 @@ describe("project docs contract", () => {
     expect(novaDocs).not.toContain("raw.githubusercontent.com/markusleben/ha-nova/main/install.sh");
     expect(novaDocs).toContain('"ok": true');
     expect(novaDocs).toContain('"data": {');
+    expect(novaDocs).toContain("Enabled release builds support Cloud Remote");
+    expect(novaDocs).not.toContain(
+      "Release metadata currently keeps Cloud Remote disabled",
+    );
   });
 
   it("treats superpowers docs as archive-only history", () => {

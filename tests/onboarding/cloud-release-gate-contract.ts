@@ -49,7 +49,7 @@ export function registerCloudReleaseGateContractTests(): void {
   );
   const releasing = readFileSync("docs/releasing.md", "utf8");
 
-  it("keeps Cloud publication disabled until commit-bound real-device evidence exists", () => {
+  it("keeps Cloud publication enabled only for the validated desktop platforms", () => {
     const version = JSON.parse(readFileSync("version.json", "utf8")) as {
       cloud_remote_enabled?: unknown;
       cloud_remote_platforms?: unknown;
@@ -58,8 +58,12 @@ export function registerCloudReleaseGateContractTests(): void {
       cloud_remote_enabled?: unknown;
       cloud_remote_platforms?: unknown;
     };
-    expect(version.cloud_remote_enabled).toBe(false);
-    expect(version.cloud_remote_platforms).toEqual([]);
+    expect(version.cloud_remote_enabled).toBe(true);
+    expect(version.cloud_remote_platforms).toEqual([
+      "darwin",
+      "linux",
+      "windows",
+    ]);
     expect(appVersion.cloud_remote_enabled).toBe(version.cloud_remote_enabled);
     expect(appVersion.cloud_remote_platforms).toEqual(version.cloud_remote_platforms);
 

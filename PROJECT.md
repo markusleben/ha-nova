@@ -24,9 +24,9 @@ Shipped and current:
 3. Context skill `ha-nova` plus 29 task skills, flat under `skills/` — the dispatch table in `skills/ha-nova/SKILL.md` is the authoritative inventory
 4. Shared references under `skills/ha-nova/` (relay API contract, output rules, write safety, batch safety, schemas, agent templates)
 
-Current `main` also contains the release-gated implementation of an opt-in Home
-Assistant Cloud remote transport Beta for Home Assistant OS/Supervised. Release
-metadata keeps it disabled until the real validation matrix passes:
+HA NOVA also contains a release-gated, opt-in Home Assistant Cloud remote
+transport Beta for Home Assistant OS/Supervised. Release metadata enables it
+only for exact candidates that pass the real validation matrix:
 
 1. The wizard offers `Local + Home Assistant Cloud`, `Local only`, and
    `Home Assistant Cloud only`. Service and headless setup stay local-only.
@@ -41,9 +41,9 @@ metadata keeps it disabled until the real validation matrix passes:
    failure. Security, identity, protocol, or authorization errors never fall
    back.
 
-The Beta is not release-ready until the real Nabu Casa parity, native-keyring,
-identity/role, lifecycle, and stress gates in
-`docs/work/2026-07-25-home-assistant-cloud-remote-spec.md` pass.
+Publication stays fail-closed unless the exact candidate passes the real Nabu
+Casa parity, native-keyring, identity/role, lifecycle, and stress gates in
+`docs/work/2026-07-25-home-assistant-cloud-remote-spec.md`.
 
 ## Tech Stack
 

@@ -5,6 +5,8 @@ import { describe, expect, it } from "vitest";
 describe("release notes contract", () => {
   const goreleaser = readFileSync(".goreleaser.yml", "utf8");
   const readme = readFileSync("README.md", "utf8");
+  const privacy = readFileSync("PRIVACY.md", "utf8");
+  const safety = readFileSync("docs/reference/safety.md", "utf8");
   const stableNotes = goreleaser
     .split("{{ else }}", 2)[1]
     ?.split("Stable install commands are release-pinned", 1)[0];
@@ -35,21 +37,41 @@ describe("release notes contract", () => {
     expect(goreleaser).not.toContain("winget");
   });
 
-  it("keeps v0.21.3 release-facing wording aligned to distinct private Census counts", () => {
+  it("keeps v0.22.0 release-facing wording aligned to Cloud Beta availability", () => {
     expect(goreleaser).toContain(
-      "Existing Census Yes choices will be asked again",
+      "Home Assistant Cloud access is an optional desktop Beta",
     );
-    expect(goreleaser).toContain("Reporting stays off until Yes");
-    expect(goreleaser).toContain("dedicated random Census ID");
-    expect(goreleaser).toContain("Private maintainer stats");
-    expect(goreleaser).toContain("Official Relay totals stay separate");
-    expect(goreleaser).toContain("Cloudflare's role stays explicit");
-    expect(goreleaser).toContain("receives source-IP/connection metadata");
-    expect(goreleaser).toContain("does not read or store the IP");
-    expect(goreleaser).toContain("no sooner than seven days later");
-    expect(goreleaser).toContain("Home Status explains unavailable entities");
-    expect(goreleaser).toContain("Unicode-safe Relay files");
-    expect(goreleaser).not.toContain("ISO week");
+    expect(goreleaser).toContain("Update NOVA Relay first");
+    expect(goreleaser).toContain("requires Relay 0.8.0");
+    expect(goreleaser).toContain("Automatic mode prefers local access");
+    expect(goreleaser).toContain("Secure away-from-home fallback");
+    expect(goreleaser).toContain("another HA NOVA tunnel or hosted broker");
+    expect(goreleaser).toContain("Cleaner setup and diagnostics");
+    expect(goreleaser).toContain("Keychain password prompts");
+    expect(readme).toContain(
+      "Optional remote access with Home Assistant Cloud (Beta)",
+    );
+    expect(readme).toContain("Local only");
+    expect(readme).toContain("automatic remote fallback");
+    expect(readme).toContain("HA NOVA runs no additional public tunnel");
+    expect(readme).toContain("ha-nova cloud add --server default");
+    expect(readme).toContain("Headless, SSH, WSL");
+    expect(readme).toContain(
+      "OAuth authorization in this computer's native credential store",
+    );
+    expect(readme).toContain("Optional Cloud mode uses your Nabu Casa service");
+    expect(readme).not.toContain(
+      "Your Home Assistant credentials never leave the server",
+    );
+    expect(privacy).toContain(
+      "available\nonly in release-gated desktop Beta builds",
+    );
+    expect(safety).toContain(
+      "Every publication remains gated on separate exact-commit real-device evidence",
+    );
+  });
+
+  it("keeps the stable Census privacy promises in the README", () => {
     expect(readme).toContain("Census off by default");
     expect(readme).toContain("dedicated random Census installation ID");
     expect(readme).toContain("private maintainer statistics");

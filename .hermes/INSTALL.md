@@ -41,8 +41,9 @@ Current support/evidence truth lives in [docs/reference/hermes-platform-validati
 - The simple path today is to run Hermes on a machine you control with direct private reachability to Home Assistant and the HA NOVA Relay.
 - In practice, that usually means the same home network or a private VPN/overlay route.
 - A generic public VPS is not the intended beginner path today. It changes the trust and networking model, and it is not the current maintainer-validated Hermes story.
-- If you want remote access later, the clean model is still local execution: a future remote entrypoint can forward requests into your trusted local Hermes + HA NOVA flow instead of moving execution onto a public server.
-- Do not expose the HA NOVA Relay directly to the public internet. If you need remote reachability, use a private tunnel or VPN path you control.
+- On a supported native desktop session, the optional Home Assistant Cloud Beta can provide local-first remote fallback through `ha-nova cloud add`; this overlay's platform evidence limits still apply.
+- Service, headless, SSH, WSL2, and generic VPS sessions stay local-only. Use a private VPN or overlay when they need remote reachability.
+- Do not expose the HA NOVA Relay directly to the public internet.
 
 ## Linux Notes
 
