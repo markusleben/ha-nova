@@ -423,6 +423,15 @@ export function registerCloudReleaseGateContractTests(): void {
     expect(darwinBuilder).toContain("-T /usr/bin/codesign");
     expect(darwinBuilder).toContain('--sign "${EXPECTED_IDENTITY}"');
     expect(darwinBuilder).not.toContain("identity_hash");
+    expect(darwinBuilder).toContain(
+      'security list-keychains -d user -s "${keychain_path}"',
+    );
+    expect(darwinBuilder).toContain(
+      "if (( ${#original_keychains[@]} > 0 )); then",
+    );
+    expect(darwinBuilder.indexOf(
+      'security list-keychains -d user -s "${original_keychains[@]}"',
+    )).toBeLessThan(darwinBuilder.indexOf("security delete-keychain"));
     expect(darwinBuilder).toContain("umask 077");
     expect(darwinBuilder).not.toContain("\n  -A \\\n");
     expect(darwinBuilder).toContain(

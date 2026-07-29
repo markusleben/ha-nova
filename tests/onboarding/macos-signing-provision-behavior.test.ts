@@ -12,6 +12,7 @@ import { delimiter, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
 const script = "scripts/release/provision-macos-signing-secrets.sh";
+const scriptContent = readFileSync(script, "utf8");
 const temporaryRoots: string[] = [];
 
 function executable(path: string, body: string): void {
@@ -102,7 +103,7 @@ esac
 `,
   );
 
-  const result = spawnSync("bash", [script, p12], {
+  const result = spawnSync("/bin/bash", [script, p12], {
     encoding: "utf8",
     env: {
       ...process.env,
@@ -135,6 +136,12 @@ afterEach(() => {
 });
 
 describe("macOS signing secret provisioning", () => {
+  it("guards empty OpenSSL arguments for macOS Bash 3.2", () => {
+    expect(scriptContent).toContain(
+      "if (( ${#openssl_pkcs12_args[@]} > 0 )); then",
+    );
+  });
+
   it("requests one hidden password and uploads only the two protected secrets", () => {
     const result = runProvision({});
     expect(result.status, `${result.stdout}\n${result.stderr}`).toBe(0);

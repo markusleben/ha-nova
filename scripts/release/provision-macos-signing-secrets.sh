@@ -41,6 +41,14 @@ if [[ "${openssl_version}" == "OpenSSL 3."* ]]; then
   openssl_pkcs12_args=(-legacy)
 fi
 
+run_openssl_pkcs12() {
+  if (( ${#openssl_pkcs12_args[@]} > 0 )); then
+    openssl pkcs12 "${openssl_pkcs12_args[@]}" "$@"
+  else
+    openssl pkcs12 "$@"
+  fi
+}
+
 gh auth status --hostname github.com >/dev/null \
   || fail "GitHub CLI authentication is unavailable"
 active_user="$(gh api user --jq .login)" \
@@ -61,8 +69,7 @@ printf '\n' >&2
 [[ -n "${certificate_password}" ]] \
   || fail "certificate password must not be empty"
 
-if ! openssl pkcs12 \
-    "${openssl_pkcs12_args[@]}" \
+if ! run_openssl_pkcs12 \
     -in "${certificate_path}" \
     -passin fd:3 \
     -nocerts \
@@ -74,8 +81,7 @@ if ! openssl pkcs12 \
 fi
 
 certificate_subject="$(
-  openssl pkcs12 \
-      "${openssl_pkcs12_args[@]}" \
+  run_openssl_pkcs12 \
       -in "${certificate_path}" \
       -passin fd:3 \
       -clcerts \
