@@ -42,6 +42,8 @@ cannot produce the first candidate needed to collect the evidence.
   list during cleanup.
 - Smoke the exact raw binaries natively on Linux, macOS, and Windows before
   provenance signing; raw binaries must reject missing Cloud provenance.
+  The Windows negative smoke must then return success instead of leaking that
+  expected native rejection code into the workflow step.
 - After all native smokes, revalidate the complete reviewed state, build the
   final hash-bound signed bundles, verify every archive's binary identity and
   signed platform/architecture provenance, then revalidate again immediately

@@ -139,6 +139,11 @@ requireText(
   "Raw Windows binary accepted missing Cloud provenance",
   "Windows raw-binary provenance rejection",
 );
+requireText(
+  workflow,
+  'throw "Raw Windows binary accepted missing Cloud provenance"\n          }\n          exit 0',
+  "successful Windows negative-smoke completion",
+);
 requireCount(
   workflow,
   'chmod 755 "$binary"',

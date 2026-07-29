@@ -304,6 +304,7 @@ jobs:
           if ($LASTEXITCODE -eq 0) {
             throw "Raw Windows binary accepted missing Cloud provenance"
           }
+          exit 0
 
   finalize-candidate:
     name: Finalize current reviewed candidate
