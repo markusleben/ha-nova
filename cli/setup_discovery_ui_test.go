@@ -64,7 +64,7 @@ func TestSelectDefaultHAHostWithFeedbackListsEveryReachableInstanceAndSource(t *
 	discoverReachableHAHostsForSetup = func(runtimeConfig) ([]setupDiscoveryCandidate, string) {
 		return []setupDiscoveryCandidate{
 			{Host: "192.168.1.20", HAURL: "http://192.168.1.20:8123", Via: "homeassistant.local", Source: "mDNS"},
-			{Host: "192.168.1.30", HAURL: "https://192.168.1.30", Source: "local network cache"},
+			{Host: "192.168.1.30", HAURL: "https://192.168.1.30", Source: "mDNS"},
 		}, ""
 	}
 
@@ -79,7 +79,7 @@ func TestSelectDefaultHAHostWithFeedbackListsEveryReachableInstanceAndSource(t *
 	for _, want := range []string{
 		"Found 2 reachable Home Assistant instances",
 		"192.168.1.20 (mDNS via homeassistant.local)",
-		"192.168.1.30 (local network cache)",
+		"192.168.1.30 (mDNS)",
 		"Enter a different address",
 	} {
 		if !strings.Contains(output.String(), want) {
@@ -95,7 +95,7 @@ func TestPromptSetupDiscoveryCandidateSkipsStaleEnterBeforeDefault(t *testing.T)
 
 	candidates := []setupDiscoveryCandidate{
 		{Host: "192.168.1.20", Source: "mDNS"},
-		{Host: "192.168.1.30", Source: "local network cache"},
+		{Host: "192.168.1.30", Source: "mDNS"},
 	}
 	output := &strings.Builder{}
 	answer, err := promptSetupDiscoveryCandidateFromReader(
@@ -166,7 +166,7 @@ func TestSelectDefaultHAHostWithFeedbackShowsSpinnerAfterDebounceForSlowTTYDisco
 	})
 	discoverReachableHAHostsForSetup = func(runtimeConfig) ([]setupDiscoveryCandidate, string) {
 		time.Sleep(1200 * time.Millisecond)
-		return []setupDiscoveryCandidate{{Host: "192.168.1.124", HAURL: "http://192.168.1.124:8123", Source: "local network cache"}}, ""
+		return []setupDiscoveryCandidate{{Host: "192.168.1.124", HAURL: "http://192.168.1.124:8123", Source: "mDNS"}}, ""
 	}
 	writerSupportsTTYForSetup = func(io.Writer) bool { return true }
 	uiInputSupportsTTY = func() bool { return true }

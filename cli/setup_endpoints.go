@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"io"
+	"net"
 	"net/url"
 	"strings"
 	"time"
@@ -147,16 +148,17 @@ func promptValidHAHostFromReader(reader *bufio.Reader, out io.Writer, defaultHos
 }
 
 func deriveRelayURLFromHA(haURL, host string) string {
+	relayHost := strings.TrimSpace(host)
 	if parsed, err := url.Parse(haURL); err == nil && parsed.Host != "" {
 		hostname := parsed.Hostname()
 		if hostname != "" {
-			return "http://" + hostname + ":8791"
+			relayHost = hostname
 		}
 	}
-	if host == "" {
+	if relayHost == "" {
 		return ""
 	}
-	return "http://" + host + ":8791"
+	return "http://" + net.JoinHostPort(strings.Trim(relayHost, "[]"), "8791")
 }
 
 // setRelayBaseURL updates the relay URL and, when it actually changes, clears the

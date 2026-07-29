@@ -1,27 +1,29 @@
 package main
 
 import (
-	"bytes"
 	"context"
+	"encoding/hex"
+	"errors"
 	"net"
-	"os/exec"
-	"regexp"
-	"runtime"
+	"net/url"
+	"sort"
+	"strconv"
 	"strings"
 	"time"
+	"unicode"
+
+	"github.com/brutella/dnssd"
 )
 
 var resolveHAURLBaseWithinTimeoutForDiscovery = resolveHomeAssistantURLBaseWithinTimeout
 var discoverHAViaMDNSForDiscovery = discoverHAViaMDNS
-var collectARPHostsForDiscovery = collectARPHosts
-var runMDNSBrowseForDiscovery = runMDNSBrowse
-var runMDNSLookupForDiscovery = runMDNSLookup
-var mdnsAvailableForDiscovery = defaultMDNSDiscoveryAvailable
-var setupDiscoveryPlatformOS = runtime.GOOS
-var setupDiscoveryOverallTimeout = 20 * time.Second
+var lookupDNSSDForDiscovery = dnssd.LookupType
+var setupDiscoveryOverallTimeout = 6 * time.Second
 var resolveHostToIPv4ForDiscovery = resolveHostToIPv4
 var setupDiscoveryIPResolveTimeout = 2 * time.Second
 var setupDiscoveryIPProbeTimeout = 3 * time.Second
+var setupDiscoveryMDNSTimeout = 2 * time.Second
+var setupDiscoveryCandidateProbeReserve = 2 * time.Second
 
 const setupDiscoveryMaxCandidateCount = 12
 
@@ -60,6 +62,27 @@ func detectDefaultHAHostChoice(cfg runtimeConfig) (string, string, bool) {
 // IP address.
 func discoverReachableHAHosts(cfg runtimeConfig) ([]setupDiscoveryCandidate, string) {
 	deadline := time.Now().Add(setupDiscoveryOverallTimeout)
+	fallback := preferredUnverifiedHAHost(cfg)
+	if input, source := preferredConfiguredHAInput(cfg); input != "" {
+		timeout := min(
+			setupDiscoveryMaxProbeTimeout,
+			time.Until(deadline)-
+				setupDiscoveryMDNSTimeout-
+				setupDiscoveryCandidateProbeReserve,
+		)
+		if timeout > 0 {
+			resolved, err :=
+				resolveHAURLBaseWithinTimeoutForDiscovery(input, timeout)
+			if err == nil {
+				return []setupDiscoveryCandidate{{
+					Host:   normalizeHostInput(resolved),
+					HAURL:  strings.TrimRight(resolved, "/"),
+					Source: source,
+				}}, fallback
+			}
+		}
+	}
+
 	probes := collectDiscoveryProbes(cfg)
 	found := make([]setupDiscoveryCandidate, 0, len(probes))
 	seen := map[string]struct{}{}
@@ -91,12 +114,12 @@ func discoverReachableHAHosts(cfg runtimeConfig) ([]setupDiscoveryCandidate, str
 		if probeDeadline.After(deadline) {
 			probeDeadline = deadline
 		}
-		if host, haURL := confirmedDiscoveryIPv4(probe.Host, probeDeadline); host != "" {
+		if host, haURL := confirmedDiscoveryIPv4(candidate.HAURL, probeDeadline); host != "" {
 			candidate.Host = host
 			candidate.HAURL = haURL
-			candidate.Via = probe.Host
+			candidate.Via = normalizeHostInput(probe.Host)
 		}
-		key := strings.ToLower(normalizeHostInput(candidate.Host))
+		key := setupDiscoveryEndpointKey(candidate.HAURL)
 		if key == "" {
 			continue
 		}
@@ -107,27 +130,39 @@ func discoverReachableHAHosts(cfg runtimeConfig) ([]setupDiscoveryCandidate, str
 		found = append(found, candidate)
 	}
 
-	return found, preferredUnverifiedHAHost(cfg)
+	return found, fallback
 }
 
-func confirmedDiscoveryIPv4(host string, deadline time.Time) (string, string) {
+func confirmedDiscoveryIPv4(haURL string, deadline time.Time) (string, string) {
 	remaining := time.Until(deadline)
 	if remaining <= 0 {
 		return "", ""
 	}
-	trimmed := strings.TrimSuffix(strings.ToLower(host), ".")
-	if !strings.HasSuffix(trimmed, ".local") {
+	parsed, err := url.Parse(haURL)
+	if err != nil || parsed.Scheme != "http" {
+		return "", ""
+	}
+	host := strings.TrimSuffix(strings.ToLower(parsed.Hostname()), ".")
+	if !strings.HasSuffix(host, ".local") {
 		return "", ""
 	}
 	ip := resolveHostToIPv4ForDiscovery(host, min(setupDiscoveryIPResolveTimeout, remaining))
 	if ip == "" || ip == host {
 		return "", ""
 	}
+	port := parsed.Port()
+	parsed.Host = ip
+	if port != "" {
+		parsed.Host = net.JoinHostPort(ip, port)
+	}
 	remaining = time.Until(deadline)
 	if remaining <= 0 {
 		return "", ""
 	}
-	resolved, err := resolveHAURLBaseWithinTimeoutForDiscovery(ip, min(setupDiscoveryIPProbeTimeout, remaining))
+	resolved, err := resolveHAURLBaseWithinTimeoutForDiscovery(
+		parsed.String(),
+		min(setupDiscoveryIPProbeTimeout, remaining),
+	)
 	if err != nil {
 		return "", ""
 	}
@@ -152,30 +187,51 @@ func resolveHostToIPv4(host string, timeout time.Duration) string {
 func collectDiscoveryProbes(cfg runtimeConfig) []setupDiscoveryProbe {
 	candidates := []setupDiscoveryProbe{}
 	appendUnique := func(value, source string) {
-		host := normalizeHostInput(value)
-		if host == "" || len(candidates) >= setupDiscoveryMaxCandidateCount {
+		value = strings.TrimSpace(value)
+		key := setupDiscoveryEndpointKey(value)
+		if key == "" || len(candidates) >= setupDiscoveryMaxCandidateCount {
 			return
 		}
 		for _, existing := range candidates {
-			if strings.EqualFold(existing.Host, host) {
+			if setupDiscoveryEndpointKey(existing.Host) == key {
 				return
 			}
 		}
-		candidates = append(candidates, setupDiscoveryProbe{Host: host, Source: source})
+		candidates = append(candidates, setupDiscoveryProbe{Host: value, Source: source})
 	}
 
 	appendUnique(cfg.HAHost, "saved Home Assistant address")
 	appendUnique(cfg.HAURL, "saved Home Assistant address")
-	appendUnique(cfg.RelayBaseURL, "saved Relay address")
-	appendUnique(discoverHAViaMDNSForDiscovery(), "mDNS")
-	appendUnique("homeassistant.local", "common network name")
-	appendUnique("home-assistant.local", "common network name")
-	appendUnique("hass.local", "common network name")
-	for _, candidate := range collectARPHostsForDiscovery() {
-		appendUnique(candidate, "local network cache")
+	appendUnique(normalizeHostInput(cfg.RelayBaseURL), "saved Relay address")
+	for _, discovered := range discoverHAViaMDNSForDiscovery() {
+		appendUnique(discovered.Host, discovered.Source)
 	}
 
 	return candidates
+}
+
+func setupDiscoveryEndpointKey(value string) string {
+	trimmed := strings.TrimRight(strings.TrimSpace(value), "/")
+	parsed, err := url.Parse(trimmed)
+	if err == nil && parsed.Host != "" {
+		parsed.Scheme = strings.ToLower(parsed.Scheme)
+		parsed.Host = strings.ToLower(parsed.Host)
+		return parsed.String()
+	}
+	return strings.ToLower(trimmed)
+}
+
+func preferredConfiguredHAInput(cfg runtimeConfig) (string, string) {
+	if value := strings.TrimSpace(cfg.HAURL); value != "" {
+		return value, "saved Home Assistant address"
+	}
+	if value := strings.TrimSpace(cfg.HAHost); value != "" {
+		return value, "saved Home Assistant address"
+	}
+	if value := normalizeHostInput(cfg.RelayBaseURL); value != "" {
+		return value, "saved Relay address"
+	}
+	return "", ""
 }
 
 func preferredUnverifiedHAHost(cfg runtimeConfig) string {
@@ -187,175 +243,113 @@ func preferredUnverifiedHAHost(cfg runtimeConfig) string {
 	return ""
 }
 
-func discoverHAViaMDNS() string {
-	if !mdnsAvailableForDiscovery() {
-		return ""
-	}
-
-	instanceOut, err := runMDNSBrowseForDiscovery()
-	if err != nil {
-		return ""
-	}
-	if setupDiscoveryPlatformOS == "linux" {
-		return parseAvahiBrowseHost(instanceOut)
-	}
-	instance := parseMDNSBrowseInstance(instanceOut)
-	if instance == "" {
-		return ""
-	}
-
-	txtOut, err := runMDNSLookupForDiscovery(instance)
-	if err != nil {
-		return ""
-	}
-	return parseMDNSLookupHost(txtOut)
-}
-
-func collectARPHosts() []string {
-	if _, err := exec.LookPath("arp"); err != nil {
-		return nil
-	}
-	args := []string{"-an"}
-	if runtime.GOOS == "windows" {
-		args = []string{"-a"}
-	}
-	out, err := exec.Command("arp", args...).Output()
-	if err != nil {
-		return nil
-	}
-	return parseARPHosts(string(out))
-}
-
-func parseARPHosts(output string) []string {
-	re := regexp.MustCompile(`\b(?:\d{1,3}\.){3}\d{1,3}\b`)
-	lines := strings.Split(output, "\n")
-	matches := make([]string, 0, len(lines))
-	for _, rawLine := range lines {
-		line := strings.TrimSpace(rawLine)
-		if line == "" {
-			continue
-		}
-		lower := strings.ToLower(line)
-		if strings.HasPrefix(lower, "interface:") || strings.Contains(lower, "internet address") {
-			continue
-		}
-		lineMatches := re.FindAllString(line, -1)
-		if len(lineMatches) == 0 {
-			continue
-		}
-		matches = append(matches, lineMatches...)
-	}
-	if len(matches) == 0 {
-		return nil
-	}
-
-	capHint := len(matches)
-	if capHint > 4 {
-		capHint = 4
-	}
-	hosts := make([]string, 0, capHint)
-	seen := map[string]struct{}{}
-	for _, match := range matches {
-		if _, ok := seen[match]; ok {
-			continue
-		}
-		seen[match] = struct{}{}
-		hosts = append(hosts, match)
-		if len(hosts) == 4 {
-			break
-		}
-	}
-	return hosts
-}
-
-func defaultMDNSDiscoveryAvailable() bool {
-	var binary string
-	switch setupDiscoveryPlatformOS {
-	case "darwin":
-		binary = "dns-sd"
-	case "linux":
-		binary = "avahi-browse"
-	default:
-		return false
-	}
-	_, err := exec.LookPath(binary)
-	return err == nil
-}
-
-func runMDNSBrowse() (string, error) {
-	switch setupDiscoveryPlatformOS {
-	case "darwin":
-		return runCommandAllowingTimeoutOutput(3*time.Second, "dns-sd", "-B", "_home-assistant._tcp", "local")
-	case "linux":
-		return runCommandAllowingTimeoutOutput(3*time.Second, "avahi-browse", "-rt", "_home-assistant._tcp")
-	default:
-		return "", exec.ErrNotFound
-	}
-}
-
-func runMDNSLookup(instance string) (string, error) {
-	return runCommandAllowingTimeoutOutput(3*time.Second, "dns-sd", "-L", instance, "_home-assistant._tcp", "local")
-}
-
-func runCommandAllowingTimeoutOutput(timeout time.Duration, name string, args ...string) (string, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+func discoverHAViaMDNS() []setupDiscoveryProbe {
+	ctx, cancel := context.WithTimeout(
+		context.Background(),
+		setupDiscoveryMDNSTimeout,
+	)
 	defer cancel()
-
-	cmd := exec.CommandContext(ctx, name, args...)
-	var stdout bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &bytes.Buffer{}
-	err := cmd.Run()
-	if err == nil {
-		return stdout.String(), nil
+	discovered := []setupDiscoveryProbe{}
+	seen := map[string]struct{}{}
+	err := lookupDNSSDForDiscovery(
+		ctx,
+		"_home-assistant._tcp.local.",
+		func(entry dnssd.BrowseEntry) {
+			endpoint := homeAssistantDNSSDURL(entry)
+			if endpoint == "" {
+				return
+			}
+			key := setupDiscoveryEndpointKey(endpoint)
+			if _, exists := seen[key]; exists {
+				return
+			}
+			seen[key] = struct{}{}
+			source := "mDNS"
+			if name := safeDNSSDName(entry.Text["location_name"]); name != "" {
+				source += ": " + name
+			} else if name := safeDNSSDName(entry.Name); name != "" {
+				source += ": " + name
+			}
+			discovered = append(discovered, setupDiscoveryProbe{
+				Host:   endpoint,
+				Source: source,
+			})
+		},
+		func(dnssd.BrowseEntry) {},
+	)
+	if err != nil &&
+		!errors.Is(err, context.Canceled) &&
+		!errors.Is(err, context.DeadlineExceeded) {
+		return nil
 	}
-	if ctx.Err() == context.DeadlineExceeded && stdout.Len() > 0 {
-		return stdout.String(), nil
-	}
-	return "", err
+	sort.Slice(discovered, func(i, j int) bool {
+		left := setupDiscoveryEndpointKey(discovered[i].Host)
+		right := setupDiscoveryEndpointKey(discovered[j].Host)
+		if left == right {
+			return discovered[i].Source < discovered[j].Source
+		}
+		return left < right
+	})
+	return discovered
 }
 
-func parseMDNSBrowseInstance(output string) string {
-	re := regexp.MustCompile(`(?m)^\s*\S+\s+Add\b.*\s_home-assistant\._tcp\.\s+(.+?)\s*$`)
-	match := re.FindStringSubmatch(output)
-	if len(match) < 2 {
+func safeDNSSDName(value string) string {
+	return strings.Map(func(char rune) rune {
+		if unicode.IsControl(char) {
+			return -1
+		}
+		return char
+	}, strings.TrimSpace(value))
+}
+
+func homeAssistantDNSSDURL(entry dnssd.BrowseEntry) string {
+	uuid := strings.TrimSpace(entry.Text["uuid"])
+	if len(uuid) != 32 {
 		return ""
 	}
-	return strings.TrimSpace(match[1])
-}
-
-func parseMDNSLookupHost(output string) string {
-	for _, marker := range []string{"internal_url=", "base_url="} {
-		if idx := strings.Index(output, marker); idx >= 0 {
-			value := output[idx+len(marker):]
-			value = strings.Fields(value)[0]
-			return normalizeHostInput(value)
+	if _, err := hex.DecodeString(uuid); err != nil {
+		return ""
+	}
+	internalURL := strings.TrimSpace(entry.Text["internal_url"])
+	if internalURL == "" {
+		host := strings.TrimSuffix(strings.TrimSpace(entry.Host), ".")
+		if !strings.EqualFold(host, uuid+".local") || entry.Port < 1 || entry.Port > 65535 {
+			return ""
+		}
+		for _, ip := range entry.IPs {
+			if v4 := ip.To4(); v4 != nil {
+				return "http://" + net.JoinHostPort(v4.String(), strconv.Itoa(entry.Port))
+			}
+		}
+		for _, ip := range entry.IPs {
+			if ip != nil && !ip.IsUnspecified() && !ip.IsLoopback() &&
+				!ip.IsLinkLocalUnicast() {
+				return "http://" + net.JoinHostPort(ip.String(), strconv.Itoa(entry.Port))
+			}
+		}
+		return "http://" + net.JoinHostPort(host, strconv.Itoa(entry.Port))
+	}
+	parsed, err := url.Parse(internalURL)
+	if err != nil ||
+		(parsed.Scheme != "http" && parsed.Scheme != "https") ||
+		parsed.Hostname() == "" ||
+		parsed.User != nil {
+		return ""
+	}
+	if parsed.Scheme == "http" && strings.HasSuffix(
+		strings.TrimSuffix(strings.ToLower(parsed.Hostname()), "."),
+		".local",
+	) {
+		for _, ip := range entry.IPs {
+			if v4 := ip.To4(); v4 != nil {
+				port := parsed.Port()
+				parsed.Host = v4.String()
+				if port != "" {
+					parsed.Host = net.JoinHostPort(v4.String(), port)
+				}
+				break
+			}
 		}
 	}
-	return ""
-}
-
-func parseAvahiBrowseHost(output string) string {
-	urlPattern := regexp.MustCompile(`(?:internal_url|base_url)=([^"\s]+)`)
-	if match := urlPattern.FindStringSubmatch(output); len(match) >= 2 {
-		return normalizeHostInput(match[1])
-	}
-
-	addressPattern := regexp.MustCompile(`(?m)^\s*address = \[([^\]]+)\]\s*$`)
-	matches := addressPattern.FindAllStringSubmatch(output, -1)
-	for _, match := range matches {
-		candidate := strings.TrimSpace(match[1])
-		if ip := net.ParseIP(candidate); ip != nil && ip.To4() != nil {
-			return candidate
-		}
-	}
-	if len(matches) > 0 {
-		return strings.TrimSpace(matches[0][1])
-	}
-
-	hostPattern := regexp.MustCompile(`(?m)^\s*hostname = \[([^\]]+)\]\s*$`)
-	if match := hostPattern.FindStringSubmatch(output); len(match) >= 2 {
-		return normalizeHostInput(match[1])
-	}
-	return ""
+	return strings.TrimRight(parsed.String(), "/")
 }

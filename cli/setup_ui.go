@@ -226,6 +226,21 @@ func renderSetupAlreadyDoneBanner(out io.Writer, legacyToken bool) {
 	fmt.Fprintln(out)
 }
 
+func renderSetupCloudFallbackReadyBanner(out io.Writer) {
+	session := resolveSetupUISession(out)
+	renderSetupHeader(out)
+	fmt.Fprintln(out)
+	fmt.Fprintf(out, "  %s Setup complete!\n", session.style("success", session.successMarker()))
+	fmt.Fprintln(out)
+	fmt.Fprintln(out, "  Connections:")
+	fmt.Fprintln(out, "    Local:          Ready — preferred")
+	fmt.Fprintln(out, "    Away from home: Ready — Home Assistant Cloud")
+	fmt.Fprintln(out, "    Routing:        Automatic — Cloud is used only when local access is unavailable")
+	fmt.Fprintln(out)
+	fmt.Fprintln(out, "  Run 'ha-nova doctor' for full diagnostics.")
+	fmt.Fprintln(out)
+}
+
 func renderSetupIncompleteBanner(out io.Writer, issue string) {
 	session := resolveSetupUISession(out)
 	fmt.Fprintln(out)

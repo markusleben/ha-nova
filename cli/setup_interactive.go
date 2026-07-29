@@ -68,6 +68,15 @@ func maybeHandleInteractiveSetupCurrentState(reader *bufio.Reader, out io.Writer
 		if cloudAttempted && cfg.Cloud != nil && !cfg.Cloud.ready() {
 			return true, cloudCode
 		}
+		if err := completeSetupLifecycle(paths, lifecycleMarker...); err != nil {
+			printHumanErr("cannot finalize setup lifecycle: %s", err)
+			return true, 1
+		}
+		if cloudAttempted && cfg.Cloud.ready() &&
+			cfg.RoutePolicy == routePolicyAutomatic {
+			renderSetupCloudFallbackReadyBanner(out)
+			return true, 0
+		}
 		renderSetupAlreadyDoneBanner(out, cfg.RelaySecureBaseURL == "" && cfg.RelayBaseURL != "")
 		return true, 0
 	}
@@ -506,15 +515,12 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 
 	current := detectSetupStateForAssessment(paths, cfg, state, target, savedTokenBeforeSetup, hadSavedTokenBeforeSetup)
 	if tokenStoragePreflightErr == nil {
-		if handled, code := maybeHandleInteractiveSetupCurrentState(reader, os.Stdout, paths, cfg, current, overrideApplied, serviceMode, lifecycleMarker...); handled {
-			needsLifecycleFinalization := setupChanged || overrideApplied ||
-				(len(lifecycleMarker) > 1 && len(lifecycleMarker[1]) > 0)
-			if code == 0 && current.IsComplete() && needsLifecycleFinalization {
-				if err := completeSetupLifecycle(paths, lifecycleMarker...); err != nil {
-					printHumanErr("cannot finalize setup lifecycle: %s", err)
-					return 1
-				}
-			}
+		currentLifecycleMarker := lifecycleMarker
+		if !setupChanged && !overrideApplied &&
+			!(len(lifecycleMarker) > 1 && len(lifecycleMarker[1]) > 0) {
+			currentLifecycleMarker = nil
+		}
+		if handled, code := maybeHandleInteractiveSetupCurrentState(reader, os.Stdout, paths, cfg, current, overrideApplied, serviceMode, currentLifecycleMarker...); handled {
 			if code == 0 && current.IsComplete() {
 				askCensusIfEligible(paths, "setup", reader, os.Stdout)
 			}
@@ -1189,27 +1195,54 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 						return err
 					}
 					finalizeServiceTokenFileMigration(formerServiceTokenFile, token)
-					return completeSetupLifecycleUnlocked(paths, lifecycleMarker...)
+					return nil
 				})
 			}); err != nil {
 				printHumanErr("client installation failed: %s", err)
 				renderSetupIncompleteBanner(os.Stdout, setupIssueSkillsInstall)
 				return 1
 			}
-			if exit := renderSetupCompletionOutcomeWithCloudPause(
-				os.Stdout,
-				selectedClients,
-				cloudSetupIncomplete,
-				cloudSetupPaused,
-			); exit != 0 {
+			exit := 0
+			if cloudSetupIncomplete || cloudSetupPaused {
+				exit = renderSetupCompletionOutcomeWithCloudPause(
+					os.Stdout,
+					selectedClients,
+					cloudSetupIncomplete,
+					cloudSetupPaused,
+				)
+			}
+			if exit == 0 && !connectionModePrompted && !serviceMode {
+				armSetupNextPromptSkipsStaleBlankInput()
+				var cloudAttempted bool
+				var cloudCode int
+				cfg, cloudAttempted, cloudCode = maybeOfferCloudForCompletedSetup(
+					reader,
+					os.Stdout,
+					paths,
+					cfg,
+					false,
+					lifecycleMarker...,
+				)
+				clearSetupNextPromptSkipsStaleBlankInput()
+				if cloudAttempted && cloudCode != 0 {
+					exit = cloudCode
+				}
+				if exit == 0 && cloudAttempted &&
+					cfg.Cloud != nil && !cfg.Cloud.ready() {
+					exit = cloudCode
+				}
+			}
+			if err := completeSetupLifecycle(paths, lifecycleMarker...); err != nil {
+				printHumanErr("cannot finalize setup lifecycle: %s", err)
+				return 1
+			}
+			if exit != 0 {
 				return exit
 			}
-			if !connectionModePrompted {
-				renderOptionalCloudAddNextStep(
-					os.Stdout,
-					cfg,
-					serviceMode,
-				)
+			if cfg.Cloud.ready() && cfg.RoutePolicy == routePolicyAutomatic {
+				renderSetupCloudFallbackReadyBanner(os.Stdout)
+			} else if !cloudSetupPaused {
+				renderSetupCompleteBanner(os.Stdout, selectedClients)
 			}
 			// One-time census ask AFTER the complete banner — clearly outside
 			// the numbered wizard steps, never readable as a setup hurdle.

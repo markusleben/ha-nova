@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"fmt"
 	"io"
-	"strings"
 )
 
 func promptToOpenNOVAForPairing(
@@ -39,25 +38,4 @@ func promptToOpenNOVAForPairing(
 	}
 	openAnnouncedBrowserURL(out, appTarget.URL)
 	return nil
-}
-
-func renderOptionalCloudAddNextStep(
-	out io.Writer,
-	cfg runtimeConfig,
-	serviceMode bool,
-) {
-	if serviceMode ||
-		cfg.Cloud != nil ||
-		strings.TrimSpace(cfg.RelaySecureBaseURL) == "" ||
-		strings.TrimSpace(cfg.RelaySpkiPin) == "" ||
-		!cloudRemoteFeatureAvailable() ||
-		cloudCoordinatorForSetup == nil ||
-		!cloudCoordinatorForSetup.Available() {
-		return
-	}
-	renderSetupParagraph(
-		out,
-		"Away-from-home access is optional and not configured.",
-		"Add it later with: "+cloudFreshAddCommand(),
-	)
 }
