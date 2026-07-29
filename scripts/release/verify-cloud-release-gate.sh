@@ -7,13 +7,15 @@ if [[ "$#" -gt 0 ]]; then
 fi
 ROOT_DIR="${1:-$(cd -- "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
 TRUSTED_REPO_ROOT="$(cd -- "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+EVIDENCE_MODE="${2:-require-evidence}"
 
-node - "${ROOT_DIR}" "${TARGET_ROOT_MODE}" "${TRUSTED_REPO_ROOT}" <<'NODE'
+node - "${ROOT_DIR}" "${TARGET_ROOT_MODE}" "${TRUSTED_REPO_ROOT}" "${EVIDENCE_MODE}" <<'NODE'
 const fs = require("node:fs");
 const path = require("node:path");
 const { execFileSync } = require("node:child_process");
 
-const [rootDir, targetRootMode, trustedRepoRoot] = process.argv.slice(2);
+const [rootDir, targetRootMode, trustedRepoRoot, evidenceMode] =
+  process.argv.slice(2);
 const allowedPlatforms = new Set(["darwin", "linux", "windows"]);
 const requiredChecks = [
   "domains_mfa",
@@ -27,6 +29,10 @@ const requiredChecks = [
   "stress_10000",
 ];
 const maxEvidenceBytes = 32 * 1024;
+
+if (!["require-evidence", "metadata-only"].includes(evidenceMode)) {
+  fail("evidence mode must be require-evidence or metadata-only");
+}
 
 function fail(message) {
   console.error(`[verify-cloud-release-gate] ERROR: ${message}`);
@@ -184,6 +190,36 @@ function validateEvidenceIdentity(evidence, target) {
         stdio: ["ignore", "pipe", "ignore"],
       },
     ).trim();
+  } catch {
+    try {
+      execFileSync(
+        "git",
+        [
+          "fetch",
+          "--no-tags",
+          "--depth=1",
+          "origin",
+          evidence.commit_sha,
+        ],
+        {
+          cwd: trustedRepoRoot,
+          stdio: ["ignore", "ignore", "ignore"],
+        },
+      );
+      evidenceCommitTree = execFileSync(
+        "git",
+        ["rev-parse", "--verify", `${evidence.commit_sha}^{tree}`],
+        {
+          cwd: trustedRepoRoot,
+          encoding: "utf8",
+          stdio: ["ignore", "pipe", "ignore"],
+        },
+      ).trim();
+    } catch {
+      fail("Home Assistant Cloud evidence commit must exist in the repository");
+    }
+  }
+  try {
     targetCommitTree = execFileSync(
       "git",
       ["rev-parse", "--verify", `${target.commit}^{tree}`],
@@ -194,7 +230,7 @@ function validateEvidenceIdentity(evidence, target) {
       },
     ).trim();
   } catch {
-    fail("Home Assistant Cloud evidence and target commits must exist locally");
+    fail("Home Assistant Cloud target commit must exist locally");
   }
   if (evidenceCommitTree !== evidence.tree_sha) {
     fail(
@@ -204,10 +240,7 @@ function validateEvidenceIdentity(evidence, target) {
   if (targetCommitTree !== target.tree) {
     fail("Home Assistant Cloud gate target tree must match its target commit");
   }
-  if (
-    evidence.tree_sha === target.tree &&
-    evidence.commit_sha === target.commit
-  ) {
+  if (evidence.tree_sha === target.tree) {
     return;
   }
   try {
@@ -296,6 +329,19 @@ if (
   fail(
     "Cloud remote requires a Relay App version newer than the pre-Cloud 0.7.1 release",
   );
+}
+
+if (evidenceMode === "metadata-only") {
+  if (
+    targetRootMode !== "1" ||
+    process.env.HA_NOVA_CLOUD_GATE_TRUSTED_PR_MODE !== "1"
+  ) {
+    fail("metadata-only verification is reserved for trusted candidate source checks");
+  }
+  console.log(
+    `[verify-cloud-release-gate] OK: enabled Cloud metadata verified for ${platforms.length} platform(s); external evidence intentionally pending`,
+  );
+  process.exit(0);
 }
 
 const rawEvidence =

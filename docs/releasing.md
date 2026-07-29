@@ -221,9 +221,11 @@ trusted check completions re-evaluate normally.
 
 While the target enables Cloud, the evidence
 always binds its own exact evidence commit and full source tree. It may cover a
-newer target only when that evidence commit is an ancestor and the complete
-evidence-to-target tree delta consists exclusively of the permitted existing
-non-sensitive `uses:` version changes. Such a change must retain the action
+different commit only when the complete Git tree is byte-identical, as with the
+reviewed activation PR's squash commit. Otherwise, it may cover a newer target
+only when that evidence commit is an ancestor and the complete evidence-to-target
+tree delta consists exclusively of the permitted existing non-sensitive
+`uses:` version changes. Such a change must retain the action
 identity, move forward within the same major release, use full commit SHAs, and
 have both SHAs resolve to their stated canonical `vX.Y.Z` release tags through
 the GitHub API. Workflow additions,
@@ -311,12 +313,132 @@ value attests the complete real-device matrix rather than a unit-test proxy:
 - `signing_and_update_matrix`: stable signing identity plus the complete
   stable/RC/reinstall Keychain authorization matrix.
 
-Run the stress proof from the exact enabled candidate bundle on each selected
-server profile:
+For the first evidence on an activation pull request, dispatch the
+non-publishing candidate builder exactly once from current `main`.
+
+The pull request must be ready, same-repository, current with `main`, and green
+on every protected/advisory check except the expected failing
+`cloud-source-gate`. It must also have a real clean Codex bot result for the
+current head; an advisory gate timeout does not qualify. The workflow resolves
+GitHub's exact synthetic merge commit, uses only trusted build/signing scripts
+from `main`, smokes the exact raw binaries natively on all three platforms,
+then revalidates and creates the hash-bound signed bundles. It verifies the
+binary identity and signed platform/architecture provenance in all five
+archives with the public release key. Raw transport artifacts lack Cloud
+provenance, fail closed, and expire after one day. The final
+`cloud-candidate-install-bundles` artifact is retained for seven days.
+The workflow never creates a deployment, tag, or release. The normal RC and
+release workflows remain evidence-first. In this solo-maintainer repository,
+dispatch by the exact maintainer account is the candidate approval when GitHub
+reports `REVIEW_REQUIRED`; requested changes and unresolved threads still
+block the run.
+
+Dispatch, capture, and monitor that single run:
 
 ```bash
-ha-nova internal-cloud-release-check
-ha-nova internal-cloud-stress --server <name>
+PR_NUMBER=469 # replace
+VERSION_TAG=v0.22.0-rc1 # replace
+REQUEST_ID="$(date -u +%Y%m%dT%H%M%SZ)-$$"
+RUN_NAME="Cloud candidate PR #${PR_NUMBER} ${VERSION_TAG} (${REQUEST_ID})"
+RUN_URL="$(
+  gh workflow run cloud-candidate-bundle.yml --ref main \
+    -f pull_request="${PR_NUMBER}" -f version_tag="${VERSION_TAG}" \
+    -f request_id="${REQUEST_ID}" | tail -n 1
+)"
+RUN_ID="${RUN_URL##*/}"
+if [[ ! "${RUN_ID}" =~ ^[0-9]+$ ]]; then
+  for _ in 1 2 3 4 5 6; do
+    RUN_IDS="$(
+      gh run list --workflow cloud-candidate-bundle.yml --event workflow_dispatch \
+        --branch main --limit 20 --json databaseId,displayTitle \
+        --jq '.[] | [.databaseId, .displayTitle] | @tsv' \
+        | awk -F '\t' -v name="${RUN_NAME}" '$2 == name { print $1 }'
+    )
+    RUN_COUNT="$(awk 'NF { count += 1 } END { print count + 0 }' <<<"${RUN_IDS}")"
+    [[ "${RUN_COUNT}" -gt 1 ]] && {
+      echo "More than one matching run exists; stop." >&2
+      exit 1
+    }
+    [[ "${RUN_COUNT}" -eq 1 ]] && RUN_ID="${RUN_IDS}" && break
+    sleep 5
+  done
+fi
+[[ "${RUN_ID}" =~ ^[0-9]+$ ]] || {
+  echo "Dispatched run not found; do not dispatch again." >&2
+  exit 1
+}
+if ! gh run watch "${RUN_ID}" --exit-status; then
+  gh run view "${RUN_ID}" --log
+  exit 1
+fi
+gh run view "${RUN_ID}" --json url,headSha,status,conclusion
+gh run download "${RUN_ID}" -n cloud-candidate-install-bundles \
+  -D cloud-candidate-install-bundles
+(
+  cd cloud-candidate-install-bundles
+  for checksum in *.sha256; do shasum -a 256 -c "${checksum}"; done
+)
+```
+
+Record the run URL, candidate commit, and tree from the run summary. Download
+the artifact promptly. If the run fails, inspect its logs and fix the cause in
+a reviewed pull request; workflow reruns are rejected, so use one new explicit
+dispatch only after the fix is reviewed.
+
+Run the stress proof from the exact enabled candidate bundle on each selected
+server profile. Never call a `ha-nova` found through `PATH`: extract the
+matching platform archive, verify its bundle identity against the run summary,
+and invoke that contained binary by its explicit path. For macOS or Linux:
+
+```bash
+EXPECTED_TREE=0123456789abcdef0123456789abcdef01234567 # replace
+VERSION_TAG=v0.22.0-rc1 # replace
+CANDIDATE_OS=macos
+CANDIDATE_ARCH=arm64
+SERVER_NAME=default
+CANDIDATE_DIR="$(mktemp -d)"
+tar -xzf "cloud-candidate-install-bundles/ha-nova-installer-bundle-${CANDIDATE_OS}-${CANDIDATE_ARCH}.tar.gz" \
+  -C "${CANDIDATE_DIR}"
+CANDIDATE_BIN="${CANDIDATE_DIR}/ha-nova/ha-nova"
+node - "${CANDIDATE_DIR}/ha-nova/bundle.json" "${VERSION_TAG#v}" "${EXPECTED_TREE}" <<'NODE'
+const fs = require("node:fs");
+const [path, version, tree] = process.argv.slice(2);
+const bundle = JSON.parse(fs.readFileSync(path, "utf8"));
+if (bundle.version !== version || bundle.cloud_release?.source_tree_sha !== tree) {
+  throw new Error("candidate bundle identity does not match the recorded run");
+}
+NODE
+HA_NOVA_NO_CENSUS=1 "${CANDIDATE_BIN}" internal-cloud-release-check
+HA_NOVA_NO_CENSUS=1 "${CANDIDATE_BIN}" internal-cloud-stress \
+  --server "${SERVER_NAME}"
+```
+
+On the Windows Proxmox test machine, use PowerShell and the contained
+executable explicitly:
+
+```powershell
+$ExpectedTree = "0123456789abcdef0123456789abcdef01234567" # replace
+$Version = "0.22.0-rc1" # replace
+$ServerName = "default"
+$CandidateDir = Join-Path $env:TEMP ("ha-nova-cloud-candidate-" + [guid]::NewGuid())
+Expand-Archive `
+  -LiteralPath "cloud-candidate-install-bundles\ha-nova-installer-bundle-windows-amd64.zip" `
+  -DestinationPath $CandidateDir
+$CandidateRoot = Join-Path $CandidateDir "ha-nova"
+$Bundle = Get-Content (Join-Path $CandidateRoot "bundle.json") -Raw |
+  ConvertFrom-Json
+if (
+  $Bundle.version -ne $Version -or
+  $Bundle.cloud_release.source_tree_sha -ne $ExpectedTree
+) {
+  throw "candidate bundle identity does not match the recorded run"
+}
+$CandidateBin = Join-Path $CandidateRoot "ha-nova.exe"
+$env:HA_NOVA_NO_CENSUS = "1"
+& $CandidateBin internal-cloud-release-check
+if ($LASTEXITCODE -ne 0) { throw "candidate provenance check failed" }
+& $CandidateBin internal-cloud-stress --server $ServerName
+if ($LASTEXITCODE -ne 0) { throw "candidate Cloud stress proof failed" }
 ```
 
 `internal-cloud-stress` resolves Cloud once and sends exactly 10,000 read-only
@@ -327,9 +449,11 @@ not run Census or update checks. A pass from a developer build, a different
 commit, or a command restarted after failure is not release evidence.
 
 The checked-out `HEAD` must equal `GITHUB_SHA`; `commit_sha` and `tree_sha` must
-exactly identify the evidence commit and its full Git tree. They may differ
-from the target only through the ancestor-bound safe `uses:` normalization
-described above. Every other earlier evidence is rejected, including for an
+exactly identify the evidence commit and its full Git tree. The evidence commit
+is fetched by exact SHA when it is no longer in the local clone. Evidence may
+differ from the target commit only when the full target tree is identical or
+through the ancestor-bound safe `uses:` normalization described above. Every
+other earlier evidence is rejected, including for an
 apparently metadata-only activation: `nova/version.json` is copied into the App
 and directly controls its Cloud runtime, so evidence from the disabled source
 cannot attest the enabled runtime. The activation PR must reach a stable head,
@@ -343,14 +467,12 @@ non-sensitive `uses:` version changes may reuse evidence from its exact
 ancestor instead. If a merge queue is used, `merge_group` creates another
 synthetic checkout commit and follows the same rule.
 
-After squash merge, the resulting `main` commit has a different SHA. For any
-product or metadata delta, its first push CI run fails closed with the PR
-evidence: run the matrix again on that exact `main` commit, update both the
-repository and production environment secrets, and rerun CI before release
-preparation continues. A squash or merge containing only the verified safe
-`uses:`-version delta may reuse exact ancestor evidence. Every other later
-enabled commit requires fresh evidence. This also closes direct-to-main
-App-source and unknown-path bypasses.
+After squash merge, the resulting `main` commit has a different SHA but may
+reuse the reviewed PR evidence only while its complete Git tree is identical
+to the tested synthetic merge tree. This exact-tree bridge is the sole
+commit-only rewrite exception. Every tree delta still requires fresh evidence,
+except for the narrowly verified ancestor-bound safe `uses:` version changes.
+This also closes direct-to-main App-source and unknown-path bypasses.
 
 `relay_app.source_commit` and `relay_app.source_tree_sha` must repeat the
 top-level identity, and the evidence App version must equal its

@@ -365,6 +365,7 @@ describe("dependabot automation contract", () => {
       protection_rule_types: ["branch_policy"],
     });
     expect(policy.cloud_source_gate.sensitive_workflows).toEqual([
+      ".github/workflows/cloud-candidate-bundle.yml",
       ".github/workflows/cloud-source-gate.yml",
       ".github/workflows/ci.yml",
       ".github/workflows/release.yml",

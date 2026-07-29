@@ -52,6 +52,10 @@ export function registerCloudReleaseGateContractTests(): void {
     "docs/work/2026-07-25-home-assistant-cloud-remote-spec.md",
     "utf8",
   );
+  const releaseEvidenceVerifier = readFileSync(
+    "scripts/release/verify-cloud-release-evidence.mjs",
+    "utf8",
+  );
 
   it("keeps Cloud publication enabled only for the validated desktop platforms", () => {
     const version = JSON.parse(readFileSync("version.json", "utf8")) as {
@@ -327,6 +331,7 @@ export function registerCloudReleaseGateContractTests(): void {
     const codeowners = readFileSync(".github/CODEOWNERS", "utf8");
     for (const workflow of [
       "cloud-source-gate.yml",
+      "cloud-candidate-bundle.yml",
       "ci.yml",
       "release.yml",
       "release-candidate.yml",
@@ -357,8 +362,19 @@ export function registerCloudReleaseGateContractTests(): void {
     expect(provenance).toContain("BinarySHA256");
     expect(provenance).toContain("SourceTreeSHA");
     expect(provenance).toContain("cloudReleaseEvidencePublicKey");
+    const publicKey = Buffer.from(
+      [...provenance.matchAll(/0x([0-9a-f]{2})/g)].map((match) =>
+        Number.parseInt(match[1]!, 16),
+      ),
+    ).toString("base64url");
+    expect(publicKey).toHaveLength(43);
+    expect(releaseEvidenceVerifier).toContain(`x: "${publicKey}"`);
+    expect(releaseEvidenceVerifier).toContain("verify(");
     expect(rcWorkflow).toContain(
-      'bash scripts/release/build-rc-binaries.sh "${{ inputs.version_tag }}"',
+      "VERSION_TAG: ${{ inputs.version_tag }}",
+    );
+    expect(rcWorkflow).toContain(
+      'bash scripts/release/build-rc-binaries.sh "${VERSION_TAG}"',
     );
     for (const workflow of [releaseWorkflow, rcWorkflow]) {
       expect(workflow).toContain(

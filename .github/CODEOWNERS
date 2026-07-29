@@ -12,6 +12,7 @@
 # They must always receive maintainer review; the later exact matches restore
 # ownership without disabling the uses:-only Dependabot lane for other workflows.
 /.github/workflows/cloud-source-gate.yml @markusleben
+/.github/workflows/cloud-candidate-bundle.yml @markusleben
 /.github/workflows/ci.yml @markusleben
 /.github/workflows/release.yml @markusleben
 /.github/workflows/release-candidate.yml @markusleben
