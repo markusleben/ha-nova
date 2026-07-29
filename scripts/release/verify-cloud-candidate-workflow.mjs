@@ -134,10 +134,20 @@ requireText(
   "candidate bundle version does not match workflow input",
   "Unix bundle-version assertion",
 );
-requireText(
+const windowsSmoke = jobBody(
   workflow,
-  "Raw Windows binary accepted missing Cloud provenance",
-  "Windows raw-binary provenance rejection",
+  "smoke-windows-binary",
+  "finalize-candidate",
+);
+requireText(
+  windowsSmoke,
+  '$provenanceExitCode -ne 1 -or\n            $provenanceOutput -ne "[ha-nova] ERROR: official Cloud release provenance is not enabled"',
+  "exact Windows raw-binary provenance rejection",
+);
+requireText(
+  windowsSmoke,
+  "$global:LASTEXITCODE = 0",
+  "successful Windows negative-smoke completion",
 );
 requireCount(
   workflow,

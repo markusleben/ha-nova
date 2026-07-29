@@ -64,6 +64,16 @@ describe("release contract", () => {
     expect(existsSync("release/winget-publication-state.json")).toBe(false);
   });
 
+  it("accepts only the exact expected Windows negative provenance result", () => {
+    for (const workflow of [releaseWorkflow, rcWorkflow]) {
+      expect(workflow).toContain("$provenanceExitCode -ne 1 -or");
+      expect(workflow).toContain(
+        '$provenanceOutput -ne "[ha-nova] ERROR: official Cloud release provenance is not enabled"',
+      );
+      expect(workflow).toContain("$global:LASTEXITCODE = 0");
+    }
+  });
+
   it.each(["v0.22.0-rc0", "v0.22.0-rc01", "v01.22.0-rc1"])(
     "rejects non-canonical RC tag %s across release entry points",
     (tag) => {
@@ -250,7 +260,7 @@ describe("release contract", () => {
       'elif "$workdir/ha-nova/ha-nova" internal-cloud-release-check; then',
     );
     expect(rcWorkflow).toContain(
-      "unlisted Windows runtime accepted Cloud release provenance",
+      "unlisted Windows runtime returned an unexpected provenance result",
     );
   });
 

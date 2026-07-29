@@ -300,10 +300,15 @@ jobs:
           if ($LASTEXITCODE -ne 0) {
             throw "Windows candidate binary version check failed"
           }
-          & $binary internal-cloud-release-check
-          if ($LASTEXITCODE -eq 0) {
-            throw "Raw Windows binary accepted missing Cloud provenance"
+          $provenanceOutput = (& $binary internal-cloud-release-check 2>&1 | Out-String).Trim()
+          $provenanceExitCode = $LASTEXITCODE
+          if (
+            $provenanceExitCode -ne 1 -or
+            $provenanceOutput -ne "[ha-nova] ERROR: official Cloud release provenance is not enabled"
+          ) {
+            throw "Raw Windows binary returned an unexpected provenance result"
           }
+          $global:LASTEXITCODE = 0
 
   finalize-candidate:
     name: Finalize current reviewed candidate

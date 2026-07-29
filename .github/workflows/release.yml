@@ -320,12 +320,21 @@ jobs:
             $metadata.cloud_remote_enabled -eq $true -and
             @($metadata.cloud_remote_platforms) -contains "windows"
           )
-          & $binary internal-cloud-release-check
-          if ($listed -and $LASTEXITCODE -ne 0) {
-            throw "enabled Windows Cloud release provenance check failed"
-          }
-          if (-not $listed -and $LASTEXITCODE -eq 0) {
-            throw "unlisted Windows runtime accepted Cloud release provenance"
+          if ($listed) {
+            & $binary internal-cloud-release-check
+            if ($LASTEXITCODE -ne 0) {
+              throw "enabled Windows Cloud release provenance check failed"
+            }
+          } else {
+            $provenanceOutput = (& $binary internal-cloud-release-check 2>&1 | Out-String).Trim()
+            $provenanceExitCode = $LASTEXITCODE
+            if (
+              $provenanceExitCode -ne 1 -or
+              $provenanceOutput -ne "[ha-nova] ERROR: official Cloud release provenance is not enabled"
+            ) {
+              throw "unlisted Windows runtime returned an unexpected provenance result"
+            }
+            $global:LASTEXITCODE = 0
           }
 
   publish-release:
