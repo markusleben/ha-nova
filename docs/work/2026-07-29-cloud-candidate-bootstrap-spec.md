@@ -16,8 +16,14 @@ cannot produce the first candidate needed to collect the evidence.
 - Accept one open same-repository pull request targeting the current `main`.
 - Resolve and bind GitHub's exact synthetic pull-request merge commit, tree,
   base parent, and head parent.
-- Require every current protected check except `cloud-source-gate` to pass.
-  That one check is expected to fail until this candidate produces evidence.
+- Require the current `main` commit to be an ancestor of the pull-request head,
+  so the head-bound checks cover the exact candidate tree.
+- Require the latest run of every current protected check on the pull-request
+  head except `cloud-source-gate` to pass. That one check is expected to fail
+  until this candidate produces evidence. Bind check runs to the exact
+  workflow and event, expected App, pull request, current base/head, and merge
+  target; reject all same-name commit statuses and revalidate the complete
+  check state before returning.
 - Require a real clean Codex bot result bound to the current pull-request head;
   an advisory workflow timeout is insufficient. Reject requested changes,
   unresolved threads, and later Codex findings.
