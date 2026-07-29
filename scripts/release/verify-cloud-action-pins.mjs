@@ -45,6 +45,7 @@ function sensitiveJobIDs(workflowPath, jobs) {
       return new Set(["disposable-ha"]);
     case "release.yml":
     case "release-candidate.yml":
+    case "cloud-candidate-bundle.yml":
       return new Set(jobs.map((job) => job.id));
     default:
       fail(workflowPath, "is not a recognized Cloud-sensitive workflow");

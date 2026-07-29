@@ -126,6 +126,7 @@ esac
   return {
     fixture,
     prGate,
+    targetGate,
     trustedHead,
     workflowDir,
     env: { PATH: `${fakeBin}:${process.env.PATH ?? ""}` },
@@ -159,6 +160,40 @@ function runPRGate(
 
 export function registerCloudReleaseCommitGateBehaviorTests(): void {
   describe("Home Assistant Cloud full-tree evidence behavior", () => {
+    it("permits only trusted candidate metadata to remain evidence-pending", () => {
+      const { fixture, targetGate, trustedHead } =
+        preparePRGateFixture(true);
+      execFileSync(
+        "git",
+        ["update-ref", "refs/pull/1/merge", trustedHead],
+        { cwd: fixture.root },
+      );
+      const env = {
+        ...process.env,
+        HA_NOVA_CLOUD_GATE_SOURCE_REF: "refs/pull/1/merge",
+        HA_NOVA_CLOUD_GATE_EXPECTED_TARGET_COMMIT: trustedHead,
+      };
+      const candidate = spawnSync("bash", [targetGate, "candidate"], {
+        cwd: fixture.root,
+        encoding: "utf8",
+        env,
+      });
+      expect(
+        candidate.status,
+        `${candidate.stdout}\n${candidate.stderr}`,
+      ).toBe(0);
+
+      const release = spawnSync("bash", [targetGate], {
+        cwd: fixture.root,
+        encoding: "utf8",
+        env,
+      });
+      expect(release.status).not.toBe(0);
+      expect(`${release.stdout}\n${release.stderr}`).toContain(
+        "HA_NOVA_CLOUD_GATE_EVIDENCE_JSON is required",
+      );
+    });
+
     it("binds a pull request merge commit to the expected base and head", () => {
       const { fixture, prGate, trustedHead } = preparePRGateFixture();
       execFileSync("git", ["checkout", "-qb", "feature"], {
@@ -355,7 +390,7 @@ export function registerCloudReleaseCommitGateBehaviorTests(): void {
       },
     );
 
-    it("rejects an identical tree after a commit-only rewrite", () => {
+    it("accepts an identical tree after a squash-style commit rewrite", () => {
       const enabled = {
         min_relay_version: "0.8.0",
         cloud_remote_enabled: true,
@@ -372,10 +407,7 @@ export function registerCloudReleaseCommitGateBehaviorTests(): void {
       expect(head).not.toBe(fixture.sha);
 
       const result = runCloudGate(fixture, validCloudEvidence(fixture, ["linux"]), head);
-      expect(result.status, `${result.stdout}\n${result.stderr}`).not.toBe(0);
-      expect(`${result.stdout}\n${result.stderr}`).toContain(
-        "stale Home Assistant Cloud evidence may cover only",
-      );
+      expect(result.status, `${result.stdout}\n${result.stderr}`).toBe(0);
     });
 
     it("rejects disabled-source evidence for a later enabled runtime", () => {

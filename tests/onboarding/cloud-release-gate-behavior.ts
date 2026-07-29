@@ -1,3 +1,4 @@
+import { spawnSync } from "node:child_process";
 import { describe, expect, it } from "vitest";
 import {
   CLOUD_CHECK_NAMES,
@@ -107,6 +108,32 @@ export function registerCloudReleaseGateBehaviorTests(): void {
       const result = runCloudGate(fixture, `{"${marker}":`);
       expect(result.status).not.toBe(0);
       expect(`${result.stdout}\n${result.stderr}`).not.toContain(marker);
+    });
+    it("allows evidence-pending metadata only in trusted candidate mode", () => {
+      const fixture = cloudGateFixture({
+        cloud_remote_enabled: true,
+        cloud_remote_platforms: ["linux"],
+      });
+      const trusted = spawnSync(
+        "bash",
+        [fixture.script, fixture.root, "metadata-only"],
+        {
+          encoding: "utf8",
+          env: {
+            ...process.env,
+            HA_NOVA_CLOUD_GATE_TRUSTED_PR_MODE: "1",
+          },
+        },
+      );
+      expect(trusted.status, `${trusted.stdout}\n${trusted.stderr}`).toBe(0);
+      expect(trusted.stdout).toContain("external evidence intentionally pending");
+
+      const untrusted = spawnSync(
+        "bash",
+        [fixture.script, fixture.root, "metadata-only"],
+        { encoding: "utf8", env: process.env },
+      );
+      expect(untrusted.status).not.toBe(0);
     });
     it("accepts complete evidence bound to the exact checked-out commit", () => {
       const platforms: CloudPlatform[] = ["linux", "windows"];

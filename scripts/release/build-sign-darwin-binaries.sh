@@ -2,7 +2,8 @@
 set -euo pipefail
 umask 077
 
-ROOT_DIR="$(cd -- "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+TRUSTED_ROOT="$(cd -- "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+ROOT_DIR="$(cd -- "${HA_NOVA_SOURCE_ROOT:-${TRUSTED_ROOT}}" && pwd)"
 DIST_DIR="${DIST_DIR:-${ROOT_DIR}/dist}"
 RAW_TAG="${1:-}"
 EXPECTED_IDENTITY="Developer ID Application: Markus Leben (CTF9J94274)"
@@ -91,7 +92,7 @@ for arch in amd64 arm64; do
     --options runtime,hard,kill,library \
     --identifier "${SIGNING_IDENTIFIER}" \
     "${output}"
-  bash "${ROOT_DIR}/scripts/release/verify-macos-signature.sh" "${output}"
+  bash "${TRUSTED_ROOT}/scripts/release/verify-macos-signature.sh" "${output}"
 done
 
 echo "[build-sign-darwin-binaries] Signed Darwin binaries ready for v${version}"

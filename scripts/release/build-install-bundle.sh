@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT_DIR="$(cd -- "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+TRUSTED_ROOT="$(cd -- "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+ROOT_DIR="$(cd -- "${HA_NOVA_SOURCE_ROOT:-${TRUSTED_ROOT}}" && pwd)"
 DIST_DIR="${DIST_DIR:-${ROOT_DIR}/dist}"
 OUTPUT_DIR="${DIST_DIR}/install-bundles"
 VERSION="${1:-$(sed -n 's/.*"skill_version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "${ROOT_DIR}/version.json" | head -1)}"
@@ -93,7 +94,7 @@ write_bundle_metadata() {
   local evidence_json="null"
   if [[ "${CLOUD_REMOTE_ENABLED}" == "true" ]]; then
     evidence_json="$(
-      node "${ROOT_DIR}/scripts/release/sign-cloud-release-evidence.mjs" \
+      node "${TRUSTED_ROOT}/scripts/release/sign-cloud-release-evidence.mjs" \
         "${VERSION}" "${os_name}" "${arch_name}" "${binary_name}" \
         "${bundle_root}/${binary_name}" "${SOURCE_TREE_SHA}" \
         "${CLOUD_REMOTE_PLATFORMS}"

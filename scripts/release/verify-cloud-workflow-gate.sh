@@ -7,6 +7,7 @@ if [[ "$#" -eq 0 ]]; then
   set -- \
     "${ROOT_DIR}/.github/workflows/release.yml" \
     "${ROOT_DIR}/.github/workflows/release-candidate.yml" \
+    "${ROOT_DIR}/.github/workflows/cloud-candidate-bundle.yml" \
     "${ROOT_DIR}/.github/workflows/cloud-source-gate.yml" \
     "${ROOT_DIR}/.github/workflows/ci.yml" \
     "${ROOT_DIR}/.github/workflows/e2e-disposable-ha.yml"
@@ -26,5 +27,8 @@ done
   echo "[verify-cloud-workflow-gate] ERROR: release workflows are required" >&2
   exit 1
 }
+node "${ROOT_DIR}/scripts/release/verify-cloud-candidate-workflow.mjs" \
+  "${ROOT_DIR}/.github/workflows/cloud-candidate-bundle.yml" \
+  "${ROOT_DIR}/scripts/release/resolve-cloud-candidate-source.sh"
 exec node "${ROOT_DIR}/scripts/release/verify-cloud-workflow-gate.mjs" \
   "${release_workflows[@]}"

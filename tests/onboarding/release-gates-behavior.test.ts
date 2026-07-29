@@ -15,6 +15,7 @@ import { describe, expect, it } from "vitest";
 
 import { registerCloudReleaseGateBehaviorTests } from "./cloud-release-gate-behavior.js";
 import { registerCloudWorkflowGateBehaviorTests } from "./cloud-workflow-gate-behavior.js";
+import "./cloud-candidate-workflow-behavior.js";
 import "./cloud-evidence-normalization-behavior.js";
 
 const ACCOUNT_ID = "58e387e1204bdfe78781caca64f2cd15";

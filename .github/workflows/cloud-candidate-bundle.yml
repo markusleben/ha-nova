@@ -1,0 +1,452 @@
+name: Cloud Candidate Bundle
+run-name: Cloud candidate PR #${{ inputs.pull_request }} ${{ inputs.version_tag }} (${{ inputs.request_id }})
+
+on:
+  workflow_dispatch:
+    inputs:
+      pull_request:
+        description: "Ready pull request whose exact merge commit will be built"
+        required: true
+        type: string
+      version_tag:
+        description: "Exact prerelease version, for example v0.22.0-rc1"
+        required: true
+        type: string
+      request_id:
+        description: "Unique operator request ID used to recover this one dispatch"
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  checks: read
+  contents: read
+  deployments: read
+  issues: read
+  pull-requests: read
+
+concurrency:
+  group: cloud-candidate-bundle-${{ inputs.pull_request }}
+  cancel-in-progress: true
+
+jobs:
+  resolve-source:
+    name: Resolve exact reviewed candidate
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      commit_sha: ${{ steps.source.outputs.commit_sha }}
+      tree_sha: ${{ steps.source.outputs.tree_sha }}
+      base_sha: ${{ steps.source.outputs.base_sha }}
+      head_sha: ${{ steps.source.outputs.head_sha }}
+    steps:
+      - name: Checkout trusted main
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Resolve exact pull request source
+        id: source
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ inputs.pull_request }}
+        run: |
+          scripts/release/resolve-cloud-candidate-source.sh \
+            "${PR_NUMBER}"
+
+      - name: Checkout exact candidate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ steps.source.outputs.commit_sha }}
+          path: target
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify exact candidate checkout
+        env:
+          EXPECTED_COMMIT: ${{ steps.source.outputs.commit_sha }}
+          EXPECTED_TREE: ${{ steps.source.outputs.tree_sha }}
+        run: |
+          test "$(git -C target rev-parse HEAD)" = "${EXPECTED_COMMIT}"
+          test "$(git -C target rev-parse HEAD^{tree})" = "${EXPECTED_TREE}"
+
+      - name: Verify candidate release metadata
+        env:
+          HA_NOVA_SOURCE_ROOT: ${{ github.workspace }}/target
+          VERSION_TAG: ${{ inputs.version_tag }}
+        run: |
+          bash scripts/release/verify-release-metadata.sh \
+            "${VERSION_TAG}"
+
+      - name: Verify candidate Cloud platforms
+        run: |
+          node - "${GITHUB_WORKSPACE}/target" <<'NODE'
+          const fs = require("node:fs");
+          const path = require("node:path");
+          const root = process.argv[2];
+          const version = JSON.parse(fs.readFileSync(path.join(root, "version.json")));
+          const app = JSON.parse(fs.readFileSync(path.join(root, "nova/version.json")));
+          const allowed = new Set(["darwin", "linux", "windows"]);
+          const platforms = version.cloud_remote_platforms;
+          if (
+            version.cloud_remote_enabled !== true ||
+            !Array.isArray(platforms) ||
+            platforms.length === 0 ||
+            new Set(platforms).size !== platforms.length ||
+            platforms.some((platform) => !allowed.has(platform)) ||
+            app.cloud_remote_enabled !== true ||
+            JSON.stringify(app.cloud_remote_platforms) !== JSON.stringify(platforms)
+          ) {
+            throw new Error("candidate must enable matching supported Cloud platforms");
+          }
+          NODE
+
+  build-signed-darwin:
+    name: Build signed Darwin candidate binaries
+    needs: resolve-source
+    runs-on: macos-latest
+    timeout-minutes: 25
+    environment:
+      name: production
+      deployment: false
+    steps:
+      - name: Checkout trusted main
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          path: trusted
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Checkout exact candidate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.resolve-source.outputs.commit_sha }}
+          path: target
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Setup Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: "1.26.5"
+          cache-dependency-path: target/cli/go.sum
+
+      - name: Verify production environment policy
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash trusted/scripts/release/verify-github-production-environment.sh
+
+      - name: Verify live main protection
+        env:
+          HA_NOVA_SOURCE_ROOT: ${{ github.workspace }}/target
+          HA_NOVA_CLOUD_SOURCE_CHECK_APP_ID: ${{ secrets.HA_NOVA_CLOUD_SOURCE_CHECK_APP_ID }}
+          HA_NOVA_CLOUD_SOURCE_CHECK_APP_PRIVATE_KEY: ${{ secrets.HA_NOVA_CLOUD_SOURCE_CHECK_APP_PRIVATE_KEY }}
+        run: bash trusted/scripts/release/verify-cloud-publication-main-protection.sh
+
+      - name: Revalidate reviewed state before Darwin signing
+        working-directory: trusted
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ inputs.pull_request }}
+          HA_NOVA_CLOUD_CANDIDATE_EXPECTED_COMMIT: ${{ needs.resolve-source.outputs.commit_sha }}
+          HA_NOVA_CLOUD_CANDIDATE_EXPECTED_TREE: ${{ needs.resolve-source.outputs.tree_sha }}
+          HA_NOVA_CLOUD_CANDIDATE_EXPECTED_BASE: ${{ needs.resolve-source.outputs.base_sha }}
+          HA_NOVA_CLOUD_CANDIDATE_EXPECTED_HEAD: ${{ needs.resolve-source.outputs.head_sha }}
+        run: scripts/release/resolve-cloud-candidate-source.sh "${PR_NUMBER}"
+
+      - name: Build and sign exact Darwin candidate binaries
+        env:
+          HA_NOVA_SOURCE_ROOT: ${{ github.workspace }}/target
+          DIST_DIR: ${{ github.workspace }}/dist
+          EXPECTED_COMMIT: ${{ needs.resolve-source.outputs.commit_sha }}
+          HA_NOVA_MACOS_CERTIFICATE_P12_BASE64: ${{ secrets.HA_NOVA_MACOS_CERTIFICATE_P12_BASE64 }}
+          HA_NOVA_MACOS_CERTIFICATE_PASSWORD: ${{ secrets.HA_NOVA_MACOS_CERTIFICATE_PASSWORD }}
+          VERSION_TAG: ${{ inputs.version_tag }}
+        run: |
+          test "$(git -C target rev-parse HEAD)" = "${EXPECTED_COMMIT}"
+          bash trusted/scripts/release/build-sign-darwin-binaries.sh \
+            "${VERSION_TAG}"
+
+      - name: Upload signed Darwin candidate binaries
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: cloud-candidate-signed-darwin-binaries
+          path: dist/ha-nova-darwin-*
+          if-no-files-found: error
+          retention-days: 1
+
+  build-raw-binaries:
+    name: Build raw candidate binaries
+    needs:
+      - resolve-source
+      - build-signed-darwin
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout trusted main
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          path: trusted
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Checkout exact candidate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.resolve-source.outputs.commit_sha }}
+          path: target
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Setup Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: "1.26.5"
+          cache-dependency-path: target/cli/go.sum
+
+      - name: Build exact candidate binaries
+        env:
+          HA_NOVA_SOURCE_ROOT: ${{ github.workspace }}/target
+          DIST_DIR: ${{ github.workspace }}/dist
+          EXPECTED_COMMIT: ${{ needs.resolve-source.outputs.commit_sha }}
+          VERSION_TAG: ${{ inputs.version_tag }}
+        run: |
+          test "$(git -C target rev-parse HEAD)" = "${EXPECTED_COMMIT}"
+          bash trusted/scripts/release/build-rc-binaries.sh \
+            "${VERSION_TAG}"
+
+      - name: Download signed Darwin candidate binaries
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: cloud-candidate-signed-darwin-binaries
+          path: dist
+
+      - name: Upload raw candidate binaries
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: cloud-candidate-raw-binaries
+          path: |
+            dist/ha-nova-darwin-*
+            dist/ha-nova-linux-*
+            dist/ha-nova-windows-*.exe
+          if-no-files-found: error
+          retention-days: 1
+
+  smoke-darwin-binary:
+    name: Smoke Darwin candidate binary
+    needs: build-raw-binaries
+    runs-on: macos-latest
+    timeout-minutes: 10
+    steps:
+      - name: Download raw candidate binaries
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: cloud-candidate-raw-binaries
+          path: dist
+
+      - name: Smoke raw Darwin candidate binary
+        run: |
+          arch="$(uname -m | sed 's/x86_64/amd64/;s/arm64/arm64/')"
+          binary="dist/ha-nova-darwin-${arch}"
+          chmod 755 "$binary"
+          "$binary" version
+          if "$binary" internal-cloud-release-check; then
+            echo "::error::Raw Darwin binary accepted missing Cloud provenance."
+            exit 1
+          fi
+
+  smoke-linux-binary:
+    name: Smoke Linux candidate binary
+    needs: build-raw-binaries
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Download raw candidate binaries
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: cloud-candidate-raw-binaries
+          path: dist
+
+      - name: Smoke raw Linux candidate binary
+        run: |
+          binary="dist/ha-nova-linux-amd64"
+          chmod 755 "$binary"
+          "$binary" version
+          if "$binary" internal-cloud-release-check; then
+            echo "::error::Raw Linux binary accepted missing Cloud provenance."
+            exit 1
+          fi
+
+  smoke-windows-binary:
+    name: Smoke Windows candidate binary
+    needs: build-raw-binaries
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - name: Download raw candidate binaries
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: cloud-candidate-raw-binaries
+          path: dist
+
+      - name: Smoke raw Windows candidate binary
+        shell: pwsh
+        run: |
+          $binary = "dist/ha-nova-windows-amd64.exe"
+          & $binary version
+          if ($LASTEXITCODE -ne 0) {
+            throw "Windows candidate binary version check failed"
+          }
+          & $binary internal-cloud-release-check
+          if ($LASTEXITCODE -eq 0) {
+            throw "Raw Windows binary accepted missing Cloud provenance"
+          }
+
+  finalize-candidate:
+    name: Finalize current reviewed candidate
+    needs:
+      - resolve-source
+      - build-raw-binaries
+      - smoke-darwin-binary
+      - smoke-linux-binary
+      - smoke-windows-binary
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment:
+      name: production
+      deployment: false
+    steps:
+      - name: Checkout trusted main
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "20"
+
+      - name: Verify production environment policy
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash scripts/release/verify-github-production-environment.sh
+
+      - name: Checkout exact candidate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.resolve-source.outputs.commit_sha }}
+          path: target
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify live main protection
+        env:
+          HA_NOVA_SOURCE_ROOT: ${{ github.workspace }}/target
+          HA_NOVA_CLOUD_SOURCE_CHECK_APP_ID: ${{ secrets.HA_NOVA_CLOUD_SOURCE_CHECK_APP_ID }}
+          HA_NOVA_CLOUD_SOURCE_CHECK_APP_PRIVATE_KEY: ${{ secrets.HA_NOVA_CLOUD_SOURCE_CHECK_APP_PRIVATE_KEY }}
+        run: bash scripts/release/verify-cloud-publication-main-protection.sh
+
+      - name: Download smoke-bound raw candidate binaries
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: cloud-candidate-raw-binaries
+          path: dist
+
+      - name: Revalidate reviewed state before signing
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ inputs.pull_request }}
+          HA_NOVA_CLOUD_CANDIDATE_EXPECTED_COMMIT: ${{ needs.resolve-source.outputs.commit_sha }}
+          HA_NOVA_CLOUD_CANDIDATE_EXPECTED_TREE: ${{ needs.resolve-source.outputs.tree_sha }}
+          HA_NOVA_CLOUD_CANDIDATE_EXPECTED_BASE: ${{ needs.resolve-source.outputs.base_sha }}
+          HA_NOVA_CLOUD_CANDIDATE_EXPECTED_HEAD: ${{ needs.resolve-source.outputs.head_sha }}
+        run: scripts/release/resolve-cloud-candidate-source.sh "${PR_NUMBER}"
+
+      - name: Build exact signed candidate bundles
+        env:
+          HA_NOVA_SOURCE_ROOT: ${{ github.workspace }}/target
+          DIST_DIR: ${{ github.workspace }}/dist
+          HA_NOVA_CLOUD_RELEASE_SIGNING_KEY_PEM: ${{ secrets.HA_NOVA_CLOUD_RELEASE_SIGNING_KEY_PEM }}
+          VERSION_TAG: ${{ inputs.version_tag }}
+        run: |
+          bash scripts/release/build-install-bundle.sh "${VERSION_TAG#v}"
+
+      - name: Verify exact signed candidate bundles
+        env:
+          EXPECTED_TREE: ${{ needs.resolve-source.outputs.tree_sha }}
+          VERSION_TAG: ${{ inputs.version_tag }}
+        run: |
+          test "$(git -C target rev-parse HEAD^{tree})" = "${EXPECTED_TREE}"
+          platforms="$(
+            node -e '
+              const version = require(process.argv[1]);
+              process.stdout.write(version.cloud_remote_platforms.join(","));
+            ' target/version.json
+          )"
+          verify_evidence() {
+            local bundle_json="$1" binary="$2" os="$3" arch="$4" binary_name="$5"
+            node "${GITHUB_WORKSPACE}/scripts/release/verify-cloud-release-evidence.mjs" \
+              "$bundle_json" "$binary" "${VERSION_TAG#v}" "$os" "$arch" \
+              "$binary_name" "${EXPECTED_TREE}" "$platforms"
+          }
+          cd dist/install-bundles
+          for checksum in *.sha256; do sha256sum --check "$checksum"; done
+          verify_tar_binary() {
+            local bundle="$1" raw="$2" os="$3" arch="$4" workdir
+            workdir="$(mktemp -d)"
+            tar -xzf "$bundle" -C "$workdir"
+            cmp "$workdir/ha-nova/ha-nova" "../$raw"
+            verify_evidence \
+              "$workdir/ha-nova/bundle.json" "../$raw" "$os" "$arch" ha-nova
+          }
+          verify_tar_binary ha-nova-installer-bundle-linux-amd64.tar.gz ha-nova-linux-amd64 linux amd64
+          verify_tar_binary ha-nova-installer-bundle-linux-arm64.tar.gz ha-nova-linux-arm64 linux arm64
+          verify_tar_binary ha-nova-installer-bundle-macos-amd64.tar.gz ha-nova-darwin-amd64 macos amd64
+          verify_tar_binary ha-nova-installer-bundle-macos-arm64.tar.gz ha-nova-darwin-arm64 macos arm64
+          windows_dir="$(mktemp -d)"
+          unzip -q ha-nova-installer-bundle-windows-amd64.zip -d "$windows_dir"
+          cmp "$windows_dir/ha-nova/ha-nova.exe" ../ha-nova-windows-amd64.exe
+          verify_evidence \
+            "$windows_dir/ha-nova/bundle.json" ../ha-nova-windows-amd64.exe \
+            windows amd64 ha-nova.exe
+          workdir="$(mktemp -d)"
+          tar -xzf ha-nova-installer-bundle-linux-amd64.tar.gz -C "$workdir"
+          node -e '
+            const bundle = require(process.argv[1]);
+            if (bundle.version !== process.argv[2].replace(/^v/, "")) {
+              throw new Error("candidate bundle version does not match workflow input");
+            }
+          ' "$workdir/ha-nova/bundle.json" "${VERSION_TAG}"
+
+      - name: Revalidate complete reviewed state
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ inputs.pull_request }}
+          HA_NOVA_CLOUD_CANDIDATE_EXPECTED_COMMIT: ${{ needs.resolve-source.outputs.commit_sha }}
+          HA_NOVA_CLOUD_CANDIDATE_EXPECTED_TREE: ${{ needs.resolve-source.outputs.tree_sha }}
+          HA_NOVA_CLOUD_CANDIDATE_EXPECTED_BASE: ${{ needs.resolve-source.outputs.base_sha }}
+          HA_NOVA_CLOUD_CANDIDATE_EXPECTED_HEAD: ${{ needs.resolve-source.outputs.head_sha }}
+        run: scripts/release/resolve-cloud-candidate-source.sh "${PR_NUMBER}"
+
+      - name: Upload final candidate bundles
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: cloud-candidate-install-bundles
+          path: dist/install-bundles/*
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Record exact candidate identity
+        env:
+          COMMIT_SHA: ${{ needs.resolve-source.outputs.commit_sha }}
+          TREE_SHA: ${{ needs.resolve-source.outputs.tree_sha }}
+        run: |
+          {
+            echo "Candidate commit: \`${COMMIT_SHA}\`"
+            echo "Candidate tree: \`${TREE_SHA}\`"
+            echo "Artifact: \`cloud-candidate-install-bundles\`"
+          } >>"${GITHUB_STEP_SUMMARY}"

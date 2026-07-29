@@ -1,4 +1,11 @@
-const allowedRootKeys = new Set(["name", "on", "permissions", "jobs"]);
+const allowedRootKeys = new Set([
+  "name",
+  "run-name",
+  "on",
+  "permissions",
+  "concurrency",
+  "jobs",
+]);
 const nonCanonicalNestedKey =
   /^(?: {4}| {8})(?:["']|[?:]\s|<<\s*:|[!&*]|[^#\s][^:]*[ \t]+:)/;
 

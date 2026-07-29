@@ -66,6 +66,7 @@ function workflowGateFixture(mutateRelease?: (workflow: string) => string): {
   script: string;
   releaseWorkflow: string;
   rcWorkflow: string;
+  candidateWorkflow: string;
   sourceWorkflow: string;
   ciWorkflow: string;
 } {
@@ -78,13 +79,30 @@ function workflowGateFixture(mutateRelease?: (workflow: string) => string): {
   const script = join(releaseDir, "verify-cloud-workflow-gate.sh");
   const module = join(releaseDir, "verify-cloud-workflow-gate.mjs");
   const actionPins = join(releaseDir, "verify-cloud-action-pins.mjs");
+  const candidateVerifier = join(
+    releaseDir,
+    "verify-cloud-candidate-workflow.mjs",
+  );
+  const candidateResolver = join(
+    releaseDir,
+    "resolve-cloud-candidate-source.sh",
+  );
   const releaseWorkflow = join(workflowDir, "release.yml");
   const rcWorkflow = join(workflowDir, "release-candidate.yml");
+  const candidateWorkflow = join(workflowDir, "cloud-candidate-bundle.yml");
   const sourceWorkflow = join(workflowDir, "cloud-source-gate.yml");
   const ciWorkflow = join(workflowDir, "ci.yml");
   copyFileSync("scripts/release/verify-cloud-workflow-gate.sh", script);
   copyFileSync("scripts/release/verify-cloud-workflow-gate.mjs", module);
   copyFileSync("scripts/release/verify-cloud-action-pins.mjs", actionPins);
+  copyFileSync(
+    "scripts/release/verify-cloud-candidate-workflow.mjs",
+    candidateVerifier,
+  );
+  copyFileSync(
+    "scripts/release/resolve-cloud-candidate-source.sh",
+    candidateResolver,
+  );
   copyFileSync(
     "scripts/release/verify-cloud-workflow-syntax.mjs",
     join(releaseDir, "verify-cloud-workflow-syntax.mjs"),
@@ -97,6 +115,10 @@ function workflowGateFixture(mutateRelease?: (workflow: string) => string): {
     "utf8",
   );
   copyFileSync(".github/workflows/release-candidate.yml", rcWorkflow);
+  copyFileSync(
+    ".github/workflows/cloud-candidate-bundle.yml",
+    candidateWorkflow,
+  );
   copyFileSync(".github/workflows/cloud-source-gate.yml", sourceWorkflow);
   copyFileSync(".github/workflows/ci.yml", ciWorkflow);
   return {
@@ -104,6 +126,7 @@ function workflowGateFixture(mutateRelease?: (workflow: string) => string): {
     script,
     releaseWorkflow,
     rcWorkflow,
+    candidateWorkflow,
     sourceWorkflow,
     ciWorkflow,
   };
@@ -118,6 +141,7 @@ function runWorkflowGate(
       fixture.script,
       fixture.releaseWorkflow,
       fixture.rcWorkflow,
+      fixture.candidateWorkflow,
       fixture.sourceWorkflow,
       fixture.ciWorkflow,
     ],
@@ -148,7 +172,9 @@ export function registerCloudWorkflowGateBehaviorTests(): void {
         ),
         "utf8",
       );
-      expect(() => parse(readFileSync(fixture.ciWorkflow, "utf8"))).not.toThrow();
+      expect(() =>
+        parse(readFileSync(fixture.ciWorkflow, "utf8")),
+      ).not.toThrow();
       const result = runWorkflowGate(fixture);
       expect(result.status, `${result.stdout}\n${result.stderr}`).not.toBe(0);
       expect(result.stderr).toContain("uses non-canonical step syntax");
@@ -216,9 +242,28 @@ export function registerCloudWorkflowGateBehaviorTests(): void {
       );
     });
 
+    it("rejects dispatch inputs interpolated directly into shell source", () => {
+      const fixture = workflowGateFixture();
+      const workflow = readFileSync(fixture.rcWorkflow, "utf8");
+      writeFileSync(
+        fixture.rcWorkflow,
+        workflow.replace(
+          'run: bash scripts/release/build-rc-binaries.sh "${VERSION_TAG}"',
+          'run: bash scripts/release/build-rc-binaries.sh "${{ inputs.version_tag }}"',
+        ),
+        "utf8",
+      );
+      const result = runWorkflowGate(fixture);
+      expect(result.status).not.toBe(0);
+      expect(result.stderr).toContain(
+        "workflow_dispatch inputs must reach run scripts only through env",
+      );
+    });
+
     it.each([
       ["release", "releaseWorkflow"],
       ["release candidate", "rcWorkflow"],
+      ["Cloud candidate", "candidateWorkflow"],
       ["source gate", "sourceWorkflow"],
       ["direct-main CI gate", "ciWorkflow"],
     ] as const)(
