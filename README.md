@@ -111,7 +111,7 @@ The wizard keeps **Local only** as the recommended default. If you have a paid H
 
 Cloud Remote requires Home Assistant OS/Supervised and a supported desktop session. Headless, SSH, WSL, service, gateway, Container, and Core setups stay local-only. Remote-first pairing uses a separate private Owner session to create the one-time NOVA device code; the OAuth user can remain a standard Home Assistant user.
 
-Already installed locally? Run `ha-nova cloud add --server default`, or rerun `ha-nova setup` for the same guided choice.
+Already installed locally? Run `ha-nova cloud add`, or rerun `ha-nova setup` for the same guided choice.
 
 Once it finishes, try: *"Show me all my automations."*
 

@@ -54,7 +54,8 @@ describe("release notes contract", () => {
     expect(readme).toContain("Local only");
     expect(readme).toContain("automatic remote fallback");
     expect(readme).toContain("HA NOVA runs no additional public tunnel");
-    expect(readme).toContain("ha-nova cloud add --server default");
+    expect(readme).toContain("ha-nova cloud add");
+    expect(readme).not.toContain("ha-nova cloud add --server default");
     expect(readme).toContain("Headless, SSH, WSL");
     expect(readme).toContain(
       "OAuth authorization in this computer's native credential store",
