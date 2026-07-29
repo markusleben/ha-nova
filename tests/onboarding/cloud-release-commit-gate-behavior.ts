@@ -44,6 +44,7 @@ function commitFixtureChanges(fixture: CloudGateFixture, files: Record<string, s
 function preparePRGateFixture(
   cloudEnabled = false,
   strictProtection = true,
+  sourceGateProvisioned = true,
 ) {
   const fixture = cloudGateFixture({
     min_relay_version: "0.8.0",
@@ -65,17 +66,29 @@ function preparePRGateFixture(
     "utf8",
   );
   copyFileSync(".github/policy/repo-policy.json", join(policyDir, "repo-policy.json"));
-  if (cloudEnabled) {
-    const policyPath = join(policyDir, "repo-policy.json");
-    const policy = JSON.parse(readFileSync(policyPath, "utf8"));
-    const source = policy.cloud_source_gate.check_name;
+  const policyPath = join(policyDir, "repo-policy.json");
+  const policy = JSON.parse(readFileSync(policyPath, "utf8"));
+  const source = policy.cloud_source_gate.check_name;
+  policy.main_branch_protection.strict_required_status_checks =
+    strictProtection;
+  if (sourceGateProvisioned) {
     policy.cloud_source_gate.reporter_app_id = 42;
-    policy.main_branch_protection.strict_required_status_checks =
-      strictProtection;
-    policy.main_branch_protection.required_status_checks.push(source);
+    policy.main_branch_protection.required_status_checks = [
+      ...new Set([
+        ...policy.main_branch_protection.required_status_checks,
+        source,
+      ]),
+    ];
     policy.main_branch_protection.required_status_check_apps[source] = 42;
-    writeFileSync(policyPath, `${JSON.stringify(policy, null, 2)}\n`, "utf8");
+  } else {
+    policy.cloud_source_gate.reporter_app_id = 0;
+    policy.main_branch_protection.required_status_checks =
+      policy.main_branch_protection.required_status_checks.filter(
+        (name: string) => name !== source,
+      );
+    delete policy.main_branch_protection.required_status_check_apps[source];
   }
+  writeFileSync(policyPath, `${JSON.stringify(policy, null, 2)}\n`, "utf8");
   const prGate = join(releaseDir, "verify-cloud-pr-source-gate.sh");
   const usesOnlyGate = join(releaseDir, "verify-cloud-workflow-uses-only.mjs");
   const targetGate = join(releaseDir, "verify-cloud-target-source-gate.sh");
@@ -178,7 +191,8 @@ export function registerCloudReleaseCommitGateBehaviorTests(): void {
     });
 
     it("allows disabled workflow maintenance but rejects unprovisioned activation", () => {
-      const { fixture, prGate, trustedHead, workflowDir, env } = preparePRGateFixture();
+      const { fixture, prGate, trustedHead, workflowDir, env } =
+        preparePRGateFixture(false, true, false);
       const clean = runPRGate(fixture.root, prGate, trustedHead);
       expect(clean.status, `${clean.stdout}\n${clean.stderr}`).toBe(0);
 

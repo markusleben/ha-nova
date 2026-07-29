@@ -44,11 +44,14 @@
     "required_status_checks": [
       "analyze",
       "ci-gate",
+      "cloud-source-gate",
       "dependency-review",
       "manifest-review-gate",
       "readme-release-gate"
     ],
-    "required_status_check_apps": {},
+    "required_status_check_apps": {
+      "cloud-source-gate": 4400145
+    },
     "advisory_checks": [
       "codex-review-gate"
     ],
