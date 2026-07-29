@@ -1276,6 +1276,38 @@ func TestInteractiveSetupAlreadyDoneUsesResumeBanner(t *testing.T) {
 	}
 }
 
+func TestCompleteSetupLifecycleFailurePreventsSuccessBanner(t *testing.T) {
+	paths := setupServerCommandTest(t, `{"schema_version":1}`)
+	lifecycleMarker := [][]byte{
+		captureInstallLifecycleGeneration(paths),
+		captureCensusLifecycleMarker(paths),
+	}
+	release, acquired := acquireCensusLock(paths)
+	if !acquired {
+		t.Fatal("acquireCensusLock() = false")
+	}
+	defer release()
+
+	var output strings.Builder
+	handled, code := maybeHandleInteractiveSetupCurrentState(
+		bufio.NewReader(strings.NewReader("")),
+		&output,
+		paths,
+		runtimeConfig{},
+		setupState{ConfigOK: true, TokenOK: true, RelayOK: true, WSOK: true, SkillsOK: true},
+		false,
+		false,
+		lifecycleMarker...,
+	)
+	if !handled || code != 1 {
+		t.Fatalf("handled=%v code=%d output=%s", handled, code, output.String())
+	}
+	if strings.Contains(output.String(), "Everything is already set up!") ||
+		strings.Contains(output.String(), "Setup complete!") {
+		t.Fatalf("lifecycle failure reported success:\n%s", output.String())
+	}
+}
+
 func TestInteractiveSetupPartialResumeSkipsTokenChoiceAndVerifiesFirstWhenWSIsPending(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)

@@ -2,6 +2,22 @@ package main
 
 import "testing"
 
+func TestDeriveRelayURLFromHAJoinsIPv6Host(t *testing.T) {
+	for name, tc := range map[string]struct {
+		haURL string
+		host  string
+	}{
+		"URL":      {"http://[2001:db8::5]:8123", ""},
+		"fallback": {"", "2001:db8::5"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			if got := deriveRelayURLFromHA(tc.haURL, tc.host); got != "http://[2001:db8::5]:8791" {
+				t.Fatalf("deriveRelayURLFromHA() = %q", got)
+			}
+		})
+	}
+}
+
 // Regression: pointing setup at a different relay must clear the pinned secure
 // endpoint (tied to the OLD relay's TLS identity), or functional calls keep
 // hitting the stale pinned host until the next re-pair.

@@ -137,6 +137,19 @@ func TestCompletedSetupAddsCloudByReusingExistingDevice(t *testing.T) {
 		}
 		previous = index
 	}
+	for _, want := range []string{
+		"Setup complete!",
+		"Local:          Ready — preferred",
+		"Away from home: Ready — Home Assistant Cloud",
+		"Routing:        Automatic — Cloud is used only when local access is unavailable",
+	} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("Cloud completion missing %q:\n%s", want, output)
+		}
+	}
+	if strings.Contains(output, "Everything is already set up!") {
+		t.Fatalf("Cloud completion must not fall back to the generic resume banner:\n%s", output)
+	}
 	if coordinator.preflightID == "" {
 		t.Fatal("secure-storage preflight did not receive the stable profile id")
 	}

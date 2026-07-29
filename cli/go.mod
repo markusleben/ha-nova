@@ -3,6 +3,7 @@ module github.com/markusleben/ha-nova/cli
 go 1.26.5
 
 require (
+	github.com/brutella/dnssd v1.2.14
 	github.com/bytemare/ksf v0.5.0
 	github.com/bytemare/opaque v0.18.0
 	github.com/coder/websocket v1.8.15
@@ -26,4 +27,11 @@ require (
 	github.com/danieljoos/wincred v1.2.2 // indirect
 	github.com/gtank/ristretto255 v0.2.0 // indirect
 	github.com/itchyny/timefmt-go v0.1.7 // indirect
+	github.com/miekg/dns v1.1.61 // indirect
+	github.com/vishvananda/netlink v1.2.1-beta.2 // indirect
+	github.com/vishvananda/netns v0.0.0-20200728191858-db3c7e526aae // indirect
+	golang.org/x/mod v0.18.0 // indirect
+	golang.org/x/net v0.56.0 // indirect
+	golang.org/x/sync v0.7.0 // indirect
+	golang.org/x/tools v0.22.0 // indirect
 )

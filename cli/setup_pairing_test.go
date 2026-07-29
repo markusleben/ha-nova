@@ -461,6 +461,12 @@ func TestInteractiveSetupPairedDeviceReRunVerifiesWithoutNewCode(t *testing.T) {
 	if err := saveConfig(paths, cfg); err != nil {
 		t.Fatalf("saveConfig() error: %v", err)
 	}
+	installCloudSetupTestSeams(
+		t,
+		successfulCloudCoordinatorForTest(),
+		true,
+		true,
+	)
 
 	originalTransport := relayFunctionalTransportForDoctor
 	relayFunctionalTransportForDoctor = func(runtimeConfig) (string, *http.Client, string, bool, error) {
@@ -473,9 +479,18 @@ func TestInteractiveSetupPairedDeviceReRunVerifiesWithoutNewCode(t *testing.T) {
 		verifyDeviceHealth = originalVerify
 	}()
 
+	configSnapshot, err := readSetupConfigSnapshot(paths)
+	if err != nil {
+		t.Fatalf("readSetupConfigSnapshot() error = %v", err)
+	}
+	lifecycleMarker := [][]byte{
+		captureInstallLifecycleGeneration(paths),
+		captureCensusLifecycleMarker(paths),
+		configSnapshot,
+	}
 	exitCode := 0
-	stdout, stderr := captureInteractiveSetupIO(t, "\n\n\n", func() int {
-		exitCode = interactiveSetup(paths, cfg, loadStateOrDefault(paths), "codex", "", "", "", "", false)
+	stdout, stderr := captureInteractiveSetupIO(t, "\ny\nn\n", func() int {
+		exitCode = interactiveSetup(paths, cfg, loadStateOrDefault(paths), "codex", "", "", "", "", false, lifecycleMarker...)
 		return exitCode
 	})
 	if exitCode != 0 {
@@ -484,10 +499,29 @@ func TestInteractiveSetupPairedDeviceReRunVerifiesWithoutNewCode(t *testing.T) {
 	output := stdout + stderr
 	// The precheck must reflect the device transport, and the run must verify
 	// the existing pairing instead of demanding a fresh code.
-	for _, want := range []string{"Secure connection verified", "Setup complete!"} {
+	for _, want := range []string{
+		"Secure connection verified",
+		"Setup complete!",
+		"Local:          Ready — preferred",
+		"Away from home: Ready — Home Assistant Cloud",
+		"Routing:        Automatic — Cloud is used only when local access is unavailable",
+	} {
 		if !strings.Contains(output, want) {
 			t.Fatalf("output missing %q:\n%s", want, output)
 		}
+	}
+	completionIndex := strings.Index(output, "Setup complete!")
+	cloudPromptIndex := strings.Index(
+		output,
+		"Add Home Assistant Cloud fallback now? [y/N]",
+	)
+	if cloudPromptIndex == -1 || completionIndex <= cloudPromptIndex {
+		t.Fatalf("setup must finalize before reporting completion:\n%s", output)
+	}
+	saved, err := loadConfig(paths)
+	if err != nil || !saved.Cloud.ready() ||
+		saved.RoutePolicy != routePolicyAutomatic {
+		t.Fatalf("saved Cloud config = %+v, err = %v", saved.Cloud, err)
 	}
 	for _, forbidden := range []string{"Six-digit code", "Relay not reachable", "No auth token found"} {
 		if strings.Contains(output, forbidden) {
