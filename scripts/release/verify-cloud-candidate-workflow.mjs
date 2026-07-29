@@ -134,6 +134,11 @@ requireText(
   "candidate bundle version does not match workflow input",
   "Unix bundle-version assertion",
 );
+requireText(
+  workflow,
+  "' ./target/version.json",
+  "resolvable candidate version path",
+);
 const windowsSmoke = jobBody(
   workflow,
   "smoke-windows-binary",

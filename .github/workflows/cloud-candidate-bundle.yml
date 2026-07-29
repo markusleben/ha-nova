@@ -390,7 +390,7 @@ jobs:
             node -e '
               const version = require(process.argv[1]);
               process.stdout.write(version.cloud_remote_platforms.join(","));
-            ' target/version.json
+            ' ./target/version.json
           )"
           verify_evidence() {
             local bundle_json="$1" binary="$2" os="$3" arch="$4" binary_name="$5"

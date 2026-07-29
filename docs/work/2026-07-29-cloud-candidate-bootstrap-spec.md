@@ -47,8 +47,8 @@ cannot produce the first candidate needed to collect the evidence.
   workflow step ends.
 - After all native smokes, revalidate the complete reviewed state, build the
   final hash-bound signed bundles, verify every archive's binary identity and
-  signed platform/architecture provenance, then revalidate again immediately
-  before upload.
+  signed platform/architecture provenance using paths resolvable from the
+  trusted workspace, then revalidate again immediately before upload.
 - Serialize duplicate dispatches for one pull request.
 - Retain Cloud-ineligible raw transport artifacts for one day and final
   candidate bundles for seven days.
