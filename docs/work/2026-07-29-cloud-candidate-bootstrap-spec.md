@@ -33,6 +33,8 @@ cannot produce the first candidate needed to collect the evidence.
   the expected evidence-pending state.
 - Use trusted build and signing scripts from `main`; treat the candidate
   checkout only as source and bundle data.
+- Keep shared trusted shell checks compatible with the macOS runner's Bash
+  3.2.
 - Build official-tag Linux, Windows, and signed macOS binaries, then sign
   exact-tree install-bundle provenance with protected production secrets.
 - Smoke the exact raw binaries natively on Linux, macOS, and Windows before
@@ -72,3 +74,5 @@ automatic dispatch. One explicit run creates one immutable candidate.
   unresolved threads still fail closed.
 - The complete local release-contract suite passes before one reviewed
   bootstrap workflow run is allowed.
+- The live main-protection check passes when invoked with `/bin/bash` on
+  macOS.
