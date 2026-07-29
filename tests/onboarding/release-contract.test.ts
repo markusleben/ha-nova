@@ -260,7 +260,7 @@ describe("release contract", () => {
       'elif "$workdir/ha-nova/ha-nova" internal-cloud-release-check; then',
     );
     expect(rcWorkflow).toContain(
-      "unlisted Windows runtime accepted Cloud release provenance",
+      "unlisted Windows runtime returned an unexpected provenance result",
     );
   });
 
