@@ -129,11 +129,22 @@ requireText(
   "verify-cloud-release-evidence.mjs",
   "public-key verification for every signed archive",
 );
-requireText(
-  workflow,
-  "candidate bundle version does not match workflow input",
-  "Unix bundle-version assertion",
+const candidateVerificationRuns = runBodies(
+  jobBody(workflow, "finalize-candidate"),
+).filter((body) =>
+  body.includes("candidate bundle version does not match workflow input")
 );
+if (candidateVerificationRuns.length !== 1) {
+  fail("candidate bundle verification run must occur exactly once");
+}
+requireText(
+  candidateVerificationRuns[0],
+  "' ./target/version.json",
+  "resolvable candidate version path",
+);
+if (candidateVerificationRuns[0].includes("' target/version.json")) {
+  fail("candidate version path must not use a package-style lookup");
+}
 const windowsSmoke = jobBody(
   workflow,
   "smoke-windows-binary",
