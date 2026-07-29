@@ -234,7 +234,7 @@ jq -e --arg clean_at "${clean_at}" '
       | select(
           .user.login == "chatgpt-codex-connector[bot]"
           and .user.id == 199175422
-          and .user.type == "User"
+          and (.user.type == "User" or .user.type == "Bot")
         )
     ][];
     (.created_at <= $clean_at) or .content == "+1"

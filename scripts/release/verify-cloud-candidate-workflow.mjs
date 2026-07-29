@@ -241,7 +241,7 @@ for (const marker of [
   '.user.login == "chatgpt-codex-connector[bot]"',
   ".user.id == 199175422",
   '.user.type == "Bot"',
-  '.user.type == "User"',
+  '(.user.type == "User" or .user.type == "Bot")',
   "pull request has requested changes or unresolved review threads",
   "a later Codex inline finding supersedes the clean result",
   '**Reviewed commit:** `" + $prefix + "`',

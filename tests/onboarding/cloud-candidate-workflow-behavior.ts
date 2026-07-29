@@ -24,6 +24,7 @@ type FixtureChange =
   | "spoofed-codex"
   | "later-codex-finding"
   | "later-codex-reaction"
+  | "later-codex-bot-reaction"
   | "unresolved-thread"
   | "changes-requested"
   | "moved-late"
@@ -187,13 +188,15 @@ function runResolver(
   writeFileSync(
     reactionsPath,
     JSON.stringify([
-      change === "later-codex-reaction"
+      change === "later-codex-reaction" ||
+      change === "later-codex-bot-reaction"
         ? [
             {
               user: {
                 login: "chatgpt-codex-connector[bot]",
                 id: 199175422,
-                type: "User",
+                type:
+                  change === "later-codex-bot-reaction" ? "Bot" : "User",
               },
               created_at: "2026-07-29T10:01:00Z",
               content: "eyes",
@@ -335,6 +338,7 @@ describe("Cloud candidate source resolver", () => {
     ["a prefixed Codex impersonator", "spoofed-codex"],
     ["a later Codex finding", "later-codex-finding"],
     ["a later Codex reaction", "later-codex-reaction"],
+    ["a later Codex bot reaction", "later-codex-bot-reaction"],
     ["an unresolved review thread", "unresolved-thread"],
     ["requested changes", "changes-requested"],
     ["a pull request that moves during resolution", "moved-late"],
