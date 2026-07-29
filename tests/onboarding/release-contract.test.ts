@@ -68,7 +68,7 @@ describe("release contract", () => {
     for (const workflow of [releaseWorkflow, rcWorkflow]) {
       expect(workflow).toContain("$provenanceExitCode -ne 1 -or");
       expect(workflow).toContain(
-        '$provenanceOutput -notmatch "official Cloud release provenance is not enabled"',
+        '$provenanceOutput -ne "[ha-nova] ERROR: official Cloud release provenance is not enabled"',
       );
       expect(workflow).toContain("$global:LASTEXITCODE = 0");
     }

@@ -258,7 +258,7 @@ jobs:
             $provenanceExitCode = $LASTEXITCODE
             if (
               $provenanceExitCode -ne 1 -or
-              $provenanceOutput -notmatch "official Cloud release provenance is not enabled"
+              $provenanceOutput -ne "[ha-nova] ERROR: official Cloud release provenance is not enabled"
             ) {
               throw "unlisted Windows runtime returned an unexpected provenance result"
             }

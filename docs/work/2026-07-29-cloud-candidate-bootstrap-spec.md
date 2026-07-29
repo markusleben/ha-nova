@@ -42,9 +42,9 @@ cannot produce the first candidate needed to collect the evidence.
   list during cleanup.
 - Smoke the exact raw binaries natively on Linux, macOS, and Windows before
   provenance signing; raw binaries must reject missing Cloud provenance.
-  Windows negative smokes must accept only the documented exit code and
-  message, then clear that expected native rejection before the workflow step
-  ends.
+  Windows negative smokes must accept only the documented exit code and exact
+  complete message, then clear that expected native rejection before the
+  workflow step ends.
 - After all native smokes, revalidate the complete reviewed state, build the
   final hash-bound signed bundles, verify every archive's binary identity and
   signed platform/architecture provenance, then revalidate again immediately

@@ -141,7 +141,7 @@ const windowsSmoke = jobBody(
 );
 requireText(
   windowsSmoke,
-  '$provenanceExitCode -ne 1 -or\n            $provenanceOutput -notmatch "official Cloud release provenance is not enabled"',
+  '$provenanceExitCode -ne 1 -or\n            $provenanceOutput -ne "[ha-nova] ERROR: official Cloud release provenance is not enabled"',
   "exact Windows raw-binary provenance rejection",
 );
 requireText(
