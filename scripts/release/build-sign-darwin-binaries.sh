@@ -28,8 +28,13 @@ temporary_base="${RUNNER_TEMP:-${TMPDIR:-/tmp}}"
 signing_dir="$(mktemp -d "${temporary_base%/}/ha-nova-signing.XXXXXX")"
 certificate_path="${signing_dir}/developer-id.p12"
 keychain_path="${signing_dir}/ha-nova-signing.keychain-db"
+original_keychains=()
+keychain_search_list_changed=false
 
 cleanup() {
+  if [[ "${keychain_search_list_changed}" == true ]]; then
+    /usr/bin/security list-keychains -d user -s "${original_keychains[@]}" >/dev/null 2>&1 || true
+  fi
   /usr/bin/security delete-keychain "${keychain_path}" >/dev/null 2>&1 || true
   /bin/chmod -R u+rwX "${signing_dir}" >/dev/null 2>&1 || true
   /bin/rm -rf "${signing_dir}"
@@ -43,6 +48,14 @@ printf '%s' "${HA_NOVA_MACOS_CERTIFICATE_P12_BASE64}" \
   || fail "could not decode Developer ID certificate"
 unset HA_NOVA_MACOS_CERTIFICATE_P12_BASE64
 unset HA_NOVA_MACOS_CERTIFICATE_PASSWORD
+
+original_keychain_lines="$(
+  /usr/bin/security list-keychains -d user \
+    | /usr/bin/sed -E 's/^[[:space:]]*"//; s/"$//'
+)" || fail "could not read the user keychain search list"
+while IFS= read -r original_keychain; do
+  [[ -z "${original_keychain}" ]] || original_keychains+=("${original_keychain}")
+done <<< "${original_keychain_lines}"
 
 /usr/bin/security create-keychain -p "${keychain_password}" "${keychain_path}"
 /usr/bin/security set-keychain-settings -lut 21600 "${keychain_path}"
@@ -58,6 +71,8 @@ unset HA_NOVA_MACOS_CERTIFICATE_PASSWORD
   -s \
   -k "${keychain_password}" \
   "${keychain_path}" >/dev/null
+/usr/bin/security list-keychains -d user -s "${keychain_path}"
+keychain_search_list_changed=true
 unset certificate_password
 unset keychain_password
 
