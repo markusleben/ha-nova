@@ -254,8 +254,13 @@ jobs:
               throw "enabled Cloud runtime provenance check failed"
             }
           } else {
-            & $binary internal-cloud-release-check
-            if ($LASTEXITCODE -eq 0) {
-              throw "unlisted Windows runtime accepted Cloud release provenance"
+            $provenanceOutput = (& $binary internal-cloud-release-check 2>&1 | Out-String).Trim()
+            $provenanceExitCode = $LASTEXITCODE
+            if (
+              $provenanceExitCode -ne 1 -or
+              $provenanceOutput -notmatch "official Cloud release provenance is not enabled"
+            ) {
+              throw "unlisted Windows runtime returned an unexpected provenance result"
             }
+            $global:LASTEXITCODE = 0
           }

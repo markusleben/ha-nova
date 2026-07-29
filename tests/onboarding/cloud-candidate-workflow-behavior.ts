@@ -681,6 +681,26 @@ describe("Cloud candidate workflow contract", () => {
     );
   });
 
+  it("rejects a Windows negative smoke without explicit completion", () => {
+    const root = mkdtempSync(
+      join(tmpdir(), "ha-nova-cloud-candidate-contract-"),
+    );
+    const unsafeWorkflow = join(root, "cloud-candidate-bundle.yml");
+    writeFileSync(
+      unsafeWorkflow,
+      workflow.replace("          $global:LASTEXITCODE = 0\n", ""),
+    );
+    const result = spawnSync(
+      "node",
+      [verifierPath, unsafeWorkflow, resolverPath],
+      { encoding: "utf8" },
+    );
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toContain(
+      "successful Windows negative-smoke completion is missing",
+    );
+  });
+
   it("uses trusted scripts with an explicit immutable source root", () => {
     for (const path of [
       "scripts/release/build-rc-binaries.sh",
