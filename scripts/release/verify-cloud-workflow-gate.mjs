@@ -338,6 +338,28 @@ function assertArtifactStepStatus(workflowPath, lines, job, artifactLine) {
     );
   }
 }
+function assertNoRawDispatchInputInRun(workflowPath, lines) {
+  for (let index = 0; index < lines.length; index += 1) {
+    const match = /^(\s*)run:\s*(.*)$/.exec(lines[index]);
+    if (match === null) continue;
+    const indent = match[1].length;
+    const body = [match[2]];
+    while (index + 1 < lines.length) {
+      const next = lines[index + 1];
+      if (next.trim() !== "" && next.length - next.trimStart().length <= indent) {
+        break;
+      }
+      body.push(next);
+      index += 1;
+    }
+    if (body.some((line) => line.includes("${{ inputs."))) {
+      fail(
+        workflowPath,
+        "workflow_dispatch inputs must reach run scripts only through env",
+      );
+    }
+  }
+}
 function verifyWorkflow(workflowPath) {
   let lines;
   try {
@@ -349,6 +371,7 @@ function verifyWorkflow(workflowPath) {
   if (syntaxProblem !== null) {
     fail(workflowPath, syntaxProblem);
   }
+  assertNoRawDispatchInputInRun(workflowPath, lines);
   const metadata = assertRequiredStep(workflowPath, lines, metadataStepName);
   const mainProtection = assertRequiredStep(
     workflowPath,

@@ -84,7 +84,8 @@ jobs:
         env:
           HA_NOVA_MACOS_CERTIFICATE_P12_BASE64: ${{ secrets.HA_NOVA_MACOS_CERTIFICATE_P12_BASE64 }}
           HA_NOVA_MACOS_CERTIFICATE_PASSWORD: ${{ secrets.HA_NOVA_MACOS_CERTIFICATE_PASSWORD }}
-        run: bash scripts/release/build-sign-darwin-binaries.sh "${{ inputs.version_tag }}"
+          VERSION_TAG: ${{ inputs.version_tag }}
+        run: bash scripts/release/build-sign-darwin-binaries.sh "${VERSION_TAG}"
 
       - name: Upload signed Darwin RC binaries
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -127,7 +128,9 @@ jobs:
         run: npm run verify
 
       - name: Build exact RC binaries
-        run: bash scripts/release/build-rc-binaries.sh "${{ inputs.version_tag }}"
+        env:
+          VERSION_TAG: ${{ inputs.version_tag }}
+        run: bash scripts/release/build-rc-binaries.sh "${VERSION_TAG}"
 
       - name: Download signed Darwin RC binaries
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
@@ -173,6 +176,8 @@ jobs:
       - name: Smoke Unix bundles
         if: runner.os != 'Windows'
         shell: bash
+        env:
+          VERSION_TAG: ${{ inputs.version_tag }}
         run: |
           case "${RUNNER_OS}" in
             macOS) bundle="dist/install-bundles/ha-nova-installer-bundle-macos-$(uname -m | sed 's/x86_64/amd64/;s/arm64/arm64/').tar.gz" ;;
@@ -188,7 +193,7 @@ jobs:
             if (bundle.version !== process.argv[2].replace(/^v/, "")) {
               throw new Error("RC bundle version does not match workflow input");
             }
-          ' "$workdir/ha-nova/bundle.json" "${{ inputs.version_tag }}"
+          ' "$workdir/ha-nova/bundle.json" "${VERSION_TAG}"
           "$workdir/ha-nova/ha-nova" version
           case "${RUNNER_OS}" in
             macOS) platform="darwin" ;;
@@ -217,6 +222,8 @@ jobs:
       - name: Smoke Windows bundle
         if: runner.os == 'Windows'
         shell: pwsh
+        env:
+          VERSION_TAG: ${{ inputs.version_tag }}
         run: |
           $workdir = Join-Path $env:RUNNER_TEMP "ha-nova-rc"
           Remove-Item -LiteralPath $workdir -Recurse -Force -ErrorAction SilentlyContinue
@@ -226,7 +233,7 @@ jobs:
             throw "bundle.json missing from Windows RC bundle"
           }
           $bundle = Get-Content -LiteralPath $bundlePath -Raw | ConvertFrom-Json
-          $expectedVersion = "${{ inputs.version_tag }}".Substring(1)
+          $expectedVersion = $env:VERSION_TAG.Substring(1)
           if ($bundle.version -ne $expectedVersion) {
             throw "Windows RC bundle version does not match workflow input"
           }

@@ -87,12 +87,14 @@ function runPublicationProtectionGate(
   enabled: boolean,
   provisioned: boolean,
   appId = "42",
+  sourceEnabled?: boolean,
 ) {
   const root = mkdtempSync(join(tmpdir(), "ha-nova-publication-protection-"));
   const releaseDirectory = join(root, "scripts", "release");
   const policyDirectory = join(root, ".github", "policy");
   mkdirSync(releaseDirectory, { recursive: true });
   mkdirSync(policyDirectory, { recursive: true });
+  const sourceRoot = join(root, "candidate");
   copyFileSync(
     "scripts/release/verify-cloud-publication-main-protection.sh",
     join(releaseDirectory, "verify-cloud-publication-main-protection.sh"),
@@ -105,10 +107,23 @@ function runPublicationProtectionGate(
     }),
     "utf8",
   );
+  if (sourceEnabled !== undefined) {
+    mkdirSync(sourceRoot);
+    writeFileSync(
+      join(sourceRoot, "version.json"),
+      JSON.stringify({
+        cloud_remote_enabled: sourceEnabled,
+        cloud_remote_platforms: sourceEnabled ? ["linux"] : [],
+      }),
+      "utf8",
+    );
+  }
   writeFileSync(
     join(policyDirectory, "repo-policy.json"),
     JSON.stringify({
-      cloud_source_gate: { reporter_app_id: enabled ? 42 : 0 },
+      cloud_source_gate: {
+        reporter_app_id: enabled || sourceEnabled === true ? 42 : 0,
+      },
     }),
     "utf8",
   );
@@ -142,6 +157,9 @@ set -euo pipefail
       env: {
         ...process.env,
         GITHUB_REPOSITORY: "owner/repo",
+        ...(sourceEnabled === undefined
+          ? {}
+          : { HA_NOVA_SOURCE_ROOT: sourceRoot }),
         HA_NOVA_CLOUD_SOURCE_CHECK_APP_ID: provisioned ? appId : "",
         HA_NOVA_CLOUD_SOURCE_CHECK_APP_PRIVATE_KEY: provisioned
           ? "-----BEGIN PRIVATE KEY-----"
@@ -161,6 +179,12 @@ describe("Cloud publication main protection gate", () => {
   it("mints an administration-read token before enabled publication", () => {
     const result = runPublicationProtectionGate(true, true);
     expect(result.status, `${result.stdout}\n${result.stderr}`).toBe(0);
+  });
+
+  it("checks protection for an enabled candidate while trusted main is disabled", () => {
+    const result = runPublicationProtectionGate(false, true, "42", true);
+    expect(result.status, `${result.stdout}\n${result.stderr}`).toBe(0);
+    expect(result.stdout).not.toContain("Cloud Remote disabled");
   });
 
   it("fails enabled publication when the read App is unprovisioned", () => {

@@ -6,6 +6,7 @@ SOURCE_REF="${HA_NOVA_CLOUD_GATE_SOURCE_REF:-}"
 EXPECTED_TARGET="${HA_NOVA_CLOUD_GATE_EXPECTED_TARGET_COMMIT:-}"
 EXPECTED_HEAD="${HA_NOVA_CLOUD_GATE_EXPECTED_HEAD_COMMIT:-}"
 EXPECTED_BASE="${HA_NOVA_CLOUD_GATE_EXPECTED_BASE_COMMIT:-}"
+MODE="${1:-release}"
 
 fail() {
   echo "[verify-cloud-target-source-gate] ERROR: $*" >&2
@@ -15,6 +16,8 @@ fail() {
 [[ "${SOURCE_REF}" == refs/pull/*/merge \
   || "${SOURCE_REF}" == refs/heads/gh-readonly-queue/main/* ]] \
   || fail "source ref must identify a pull request merge or main merge queue"
+[[ "${MODE}" == "release" || "${MODE}" == "candidate" ]] \
+  || fail "mode must be release or candidate"
 [[ -z "${EXPECTED_TARGET}" || "${EXPECTED_TARGET}" =~ ^[0-9a-f]{40}$ ]] \
   || fail "expected target commit must be a full lowercase SHA-1"
 [[ -z "${EXPECTED_HEAD}" || "${EXPECTED_HEAD}" =~ ^[0-9a-f]{40}$ ]] \
@@ -55,18 +58,19 @@ for relative_path in version.json nova/version.json nova/config.yaml; do
     || fail "target commit is missing ${relative_path}"
 done
 
-HA_NOVA_CLOUD_GATE_TARGET_COMMIT="${target_commit}" \
-HA_NOVA_CLOUD_GATE_TARGET_TREE="${target_tree}" \
-HA_NOVA_CLOUD_GATE_TRUSTED_PR_MODE=1 \
-  bash "${ROOT_DIR}/scripts/release/verify-cloud-release-gate.sh" \
-    "${target_root}"
-
 cloud_enabled="$(
   node -e \
     'process.stdout.write(String(JSON.parse(require("node:fs").readFileSync(process.argv[1], "utf8")).cloud_remote_enabled))' \
     "${target_root}/version.json"
 )"
 if [[ "${cloud_enabled}" == "false" ]]; then
+  [[ "${MODE}" == "release" ]] \
+    || fail "candidate source must enable Home Assistant Cloud"
+  HA_NOVA_CLOUD_GATE_TARGET_COMMIT="${target_commit}" \
+  HA_NOVA_CLOUD_GATE_TARGET_TREE="${target_tree}" \
+  HA_NOVA_CLOUD_GATE_TRUSTED_PR_MODE=1 \
+    bash "${ROOT_DIR}/scripts/release/verify-cloud-release-gate.sh" \
+      "${target_root}"
   exit 0
 fi
 [[ "${cloud_enabled}" == "true" ]] \
@@ -122,3 +126,18 @@ target_workflows_tree="$(
   || node "${ROOT_DIR}/scripts/release/verify-cloud-workflow-uses-only.mjs" \
     "${ROOT_DIR}" "$(git -C "${ROOT_DIR}" rev-parse HEAD)" "${target_commit}" \
     workflow-tree-only
+
+if [[ "${MODE}" == "candidate" ]]; then
+  HA_NOVA_CLOUD_GATE_TARGET_COMMIT="${target_commit}" \
+  HA_NOVA_CLOUD_GATE_TARGET_TREE="${target_tree}" \
+  HA_NOVA_CLOUD_GATE_TRUSTED_PR_MODE=1 \
+    bash "${ROOT_DIR}/scripts/release/verify-cloud-release-gate.sh" \
+      "${target_root}" metadata-only
+  exit 0
+fi
+
+HA_NOVA_CLOUD_GATE_TARGET_COMMIT="${target_commit}" \
+HA_NOVA_CLOUD_GATE_TARGET_TREE="${target_tree}" \
+HA_NOVA_CLOUD_GATE_TRUSTED_PR_MODE=1 \
+  bash "${ROOT_DIR}/scripts/release/verify-cloud-release-gate.sh" \
+    "${target_root}"

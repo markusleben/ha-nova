@@ -86,6 +86,7 @@
     "reporter_app_slug": "ha-nova-cloud-source-gate",
     "reporter_app_id": 4400145,
     "sensitive_workflows": [
+      ".github/workflows/cloud-candidate-bundle.yml",
       ".github/workflows/cloud-source-gate.yml",
       ".github/workflows/ci.yml",
       ".github/workflows/release.yml",
