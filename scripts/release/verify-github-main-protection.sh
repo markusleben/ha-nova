@@ -122,12 +122,15 @@ if [[ "${strict}" != "${expected_strict}" ]]; then
   exit 1
 fi
 
-mapfile -t advisory_checks < <(jq -r '.main_branch_protection.advisory_checks[]?' "${POLICY_FILE}")
-for advisory_check in "${advisory_checks[@]}"; do
+advisory_checks="$(
+  jq -r '.main_branch_protection.advisory_checks[]?' "${POLICY_FILE}"
+)"
+while IFS= read -r advisory_check; do
+  [[ -z "${advisory_check}" ]] && continue
   if printf '%s' "${actual_contexts_json}" | grep -Fq "\"${advisory_check}\""; then
     echo "::error::${advisory_check} must remain advisory on ${REPO}:${BRANCH}."
     exit 1
   fi
-done
+done <<< "${advisory_checks}"
 
 echo "[verify-github-main-protection] OK: ${REPO}:${BRANCH}"
