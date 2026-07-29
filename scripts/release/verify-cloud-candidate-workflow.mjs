@@ -245,14 +245,29 @@ for (const marker of [
   "pull request has requested changes or unresolved review threads",
   "a later Codex inline finding supersedes the clean result",
   '**Reviewed commit:** `" + $prefix + "`',
-  '.name == "cloud-source-gate" and .app.id == $app_id',
+  ".app.id == $app_id",
+  'repos/${REPO}/commits/${head_sha}/status?per_page=100',
+  'repos/${REPO}/actions/runs?head_sha=${head_sha}&per_page=100',
+  '.github/workflows/codeql.yml',
+  '.github/workflows/ci.yml',
+  '.github/workflows/dependency-review.yml',
+  '.github/workflows/manifest-review-gate.yml',
+  '.github/workflows/readme-release-gate.yml',
+  '.github/workflows/codex-review-gate.yml',
+  ".event == $event",
+  "$latest_workflow.id",
+  "must not be shadowed by a commit status",
+  '.name == "cloud-source-gate"',
+  ":target:${merge_sha}",
   '.conclusion == "failure"',
+  "pull request head must contain current main",
   "bash scripts/release/verify-cloud-target-source-gate.sh candidate",
   "pull request changed while candidate source was resolved",
   "final pull request merge ref",
 ]) {
   requireText(resolver, marker, `resolver guard ${marker}`);
 }
+requireCount(resolver, "verify_checks", 3, "initial plus final check validation");
 
 console.log(
   "[verify-cloud-candidate-workflow] OK: exact reviewed source -> native raw-binary smoke -> final signed bundles -> complete-state check; no publication",

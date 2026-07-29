@@ -92,28 +92,151 @@ jq -e \
     and .parents[1].sha == $head
   ' >/dev/null <<<"${commit}" \
   || fail "pull request merge commit does not bind the current base and head"
+git merge-base --is-ancestor "${base_sha}" "${head_sha}" \
+  || fail "pull request head must contain current main"
 
-check_pages="$(
-  gh api --paginate --slurp \
-    "repos/${REPO}/commits/${merge_sha}/check-runs?filter=latest&per_page=100"
+source_app_id="$(
+  jq -r '.main_branch_protection.required_status_check_apps["cloud-source-gate"]' \
+    "${POLICY_FILE}"
 )"
-checks="$(jq -c '[.[].check_runs[]]' <<<"${check_pages}")"
+[[ "${source_app_id}" =~ ^[1-9][0-9]*$ ]] \
+  || fail "cloud-source-gate App ID is not provisioned"
+github_actions_app_id=15368
 
-while IFS= read -r check_name; do
-  [[ -n "${check_name}" ]] || continue
-  jq -e --arg name "${check_name}" '
-    [ .[] | select(.name == $name) ] as $matches
-    | ($matches | length) > 0
-      and all($matches[]; .status == "completed" and .conclusion == "success")
-  ' >/dev/null <<<"${checks}" \
-    || fail "required pre-evidence check ${check_name} is not successful"
-done < <(
-  jq -r '
-    .main_branch_protection
-    | ((.required_status_checks - ["cloud-source-gate"]) + .advisory_checks)
-    | unique[]
-  ' "${POLICY_FILE}"
-)
+verify_checks() {
+  local check_pages status_pages workflow_pages checks statuses workflows
+  local check_name expected_workflow expected_event
+  workflow_pages="$(
+    gh api --paginate --slurp \
+      "repos/${REPO}/actions/runs?head_sha=${head_sha}&per_page=100"
+  )"
+  status_pages="$(
+    gh api --paginate --slurp \
+      "repos/${REPO}/commits/${head_sha}/status?per_page=100"
+  )"
+  check_pages="$(
+    gh api --paginate --slurp \
+      "repos/${REPO}/commits/${head_sha}/check-runs?filter=latest&per_page=100"
+  )"
+  checks="$(jq -c '[.[].check_runs[]]' <<<"${check_pages}")"
+  statuses="$(jq -c '[.[].statuses[]]' <<<"${status_pages}")"
+  workflows="$(jq -c '[.[].workflow_runs[]]' <<<"${workflow_pages}")"
+
+  while IFS= read -r check_name; do
+    [[ -n "${check_name}" ]] || continue
+    case "${check_name}" in
+      analyze) expected_workflow=".github/workflows/codeql.yml"; expected_event="pull_request" ;;
+      ci-gate) expected_workflow=".github/workflows/ci.yml"; expected_event="pull_request" ;;
+      dependency-review) expected_workflow=".github/workflows/dependency-review.yml"; expected_event="pull_request" ;;
+      manifest-review-gate) expected_workflow=".github/workflows/manifest-review-gate.yml"; expected_event="pull_request_target" ;;
+      readme-release-gate) expected_workflow=".github/workflows/readme-release-gate.yml"; expected_event="pull_request_target" ;;
+      codex-review-gate) expected_workflow=".github/workflows/codex-review-gate.yml"; expected_event="pull_request" ;;
+      *) fail "required pre-evidence check ${check_name} has no trusted workflow binding" ;;
+    esac
+    jq -e \
+      --arg name "${check_name}" \
+      --arg workflow "${expected_workflow}" \
+      --arg event "${expected_event}" \
+      --argjson app_id "${github_actions_app_id}" \
+      --argjson pr "${PR_NUMBER}" \
+      --arg base "${base_sha}" \
+      --arg head "${head_sha}" \
+      --argjson workflows "${workflows}" '
+        (
+          [ $workflows[]
+            | select(
+                .path == $workflow
+                and .event == $event
+                and .head_sha == $head
+                and any(
+                  .pull_requests[];
+                  .number == $pr
+                  and .base.sha == $base
+                  and .head.sha == $head
+                )
+              )
+          ] | max_by(.id)
+        ) as $latest_workflow
+        | (
+          [ .[]
+            | select(
+                .name == $name
+                and .app.id == $app_id
+                and .head_sha == $head
+                and any(
+                  .pull_requests[];
+                  .number == $pr
+                  and .base.sha == $base
+                  and .head.sha == $head
+                )
+              )
+          ] | max_by(.id)
+        ) as $latest
+        | (
+            $latest.details_url
+            | capture(
+                "^https://github\\.com/markusleben/ha-nova/actions/runs/(?<run>[0-9]+)/job/[0-9]+$"
+              ).run
+          ) as $run
+        | $latest != null
+          and $latest_workflow != null
+          and $latest.status == "completed"
+          and (
+            $latest.conclusion == "success"
+            or $latest.conclusion == "skipped"
+            or $latest.conclusion == "neutral"
+          )
+          and ($latest_workflow.id | tostring) == $run
+          and $latest_workflow.status == "completed"
+          and $latest_workflow.conclusion == "success"
+      ' >/dev/null <<<"${checks}" \
+      || fail "required pre-evidence check ${check_name} is not successful"
+    jq -e --arg name "${check_name}" '
+      [ .[] | select(.context == $name) ] | length == 0
+    ' >/dev/null <<<"${statuses}" \
+      || fail "required pre-evidence check ${check_name} must not be shadowed by a commit status"
+  done < <(
+    jq -r '
+      .main_branch_protection
+      | ((.required_status_checks - ["cloud-source-gate"]) + .advisory_checks)
+      | unique[]
+    ' "${POLICY_FILE}"
+  )
+
+  jq -e \
+    --argjson app_id "${source_app_id}" \
+    --argjson pr "${PR_NUMBER}" \
+    --arg base "${base_sha}" \
+    --arg head "${head_sha}" \
+    --arg target "workflow-run:" \
+    --arg suffix ":target:${merge_sha}" '
+      [ .[]
+        | select(
+            .name == "cloud-source-gate"
+            and .app.id == $app_id
+            and .head_sha == $head
+            and (.external_id | type == "string")
+            and (.external_id | startswith($target) and endswith($suffix))
+            and any(
+              .pull_requests[];
+              .number == $pr
+              and .base.sha == $base
+              and .head.sha == $head
+            )
+          )
+      ] | max_by(.id) as $latest
+      | $latest != null
+        and $latest.status == "completed"
+        and $latest.conclusion == "failure"
+    ' >/dev/null <<<"${checks}" \
+    || fail "cloud-source-gate must be the sole expected failed evidence check"
+  jq -e '
+    [ .[] | select(.context == "cloud-source-gate") ] | length == 0
+  ' >/dev/null <<<"${statuses}" \
+    || fail "cloud-source-gate must not be shadowed by a commit status"
+}
+
+verify_checks
 
 issue_comment_pages="$(
   gh api --paginate --slurp \
@@ -242,43 +365,11 @@ jq -e --arg clean_at "${clean_at}" '
 ' >/dev/null <<<"${reaction_pages}" \
   || fail "a later Codex reaction supersedes the clean result"
 
-source_app_id="$(
-  jq -r '.main_branch_protection.required_status_check_apps["cloud-source-gate"]' \
-    "${POLICY_FILE}"
-)"
-[[ "${source_app_id}" =~ ^[1-9][0-9]*$ ]] \
-  || fail "cloud-source-gate App ID is not provisioned"
-jq -e --argjson app_id "${source_app_id}" '
-  [ .[]
-    | select(.name == "cloud-source-gate" and .app.id == $app_id)
-  ] as $matches
-  | ($matches | length) > 0
-    and all($matches[]; .status == "completed" and .conclusion == "failure")
-' >/dev/null <<<"${checks}" \
-  || fail "cloud-source-gate must be the sole expected failed evidence check"
-
 HA_NOVA_CLOUD_GATE_SOURCE_REF="${source_ref}" \
 HA_NOVA_CLOUD_GATE_EXPECTED_TARGET_COMMIT="${merge_sha}" \
 HA_NOVA_CLOUD_GATE_EXPECTED_HEAD_COMMIT="${head_sha}" \
 HA_NOVA_CLOUD_GATE_EXPECTED_BASE_COMMIT="${base_sha}" \
   bash scripts/release/verify-cloud-target-source-gate.sh candidate
-
-latest_pr="$(gh api "repos/${REPO}/pulls/${PR_NUMBER}")"
-jq -e \
-  --arg base "${base_sha}" \
-  --arg head "${head_sha}" \
-  --arg merge "${merge_sha}" '
-    .state == "open"
-    and .draft == false
-    and .base.sha == $base
-    and .head.sha == $head
-    and .merge_commit_sha == $merge
-  ' >/dev/null <<<"${latest_pr}" \
-  || fail "pull request changed while candidate source was resolved"
-[[ "$(resolve_remote_sha refs/heads/main "final remote main")" == "${base_sha}" ]] \
-  || fail "main changed while candidate source was resolved"
-[[ "$(resolve_remote_sha "${source_ref}" "final pull request merge ref")" == "${merge_sha}" ]] \
-  || fail "pull request merge ref changed while candidate source was resolved"
 
 expected_commit="${HA_NOVA_CLOUD_CANDIDATE_EXPECTED_COMMIT:-}"
 expected_tree="${HA_NOVA_CLOUD_CANDIDATE_EXPECTED_TREE:-}"
@@ -298,6 +389,25 @@ if [[ -n "${expected_commit}${expected_tree}${expected_base}${expected_head}" ]]
     && "${head_sha}" == "${expected_head}" ]] \
     || fail "candidate identity changed since the initial resolution"
 fi
+
+verify_checks
+
+latest_pr="$(gh api "repos/${REPO}/pulls/${PR_NUMBER}")"
+jq -e \
+  --arg base "${base_sha}" \
+  --arg head "${head_sha}" \
+  --arg merge "${merge_sha}" '
+    .state == "open"
+    and .draft == false
+    and .base.sha == $base
+    and .head.sha == $head
+    and .merge_commit_sha == $merge
+  ' >/dev/null <<<"${latest_pr}" \
+  || fail "pull request changed while candidate source was resolved"
+[[ "$(resolve_remote_sha refs/heads/main "final remote main")" == "${base_sha}" ]] \
+  || fail "main changed while candidate source was resolved"
+[[ "$(resolve_remote_sha "${source_ref}" "final pull request merge ref")" == "${merge_sha}" ]] \
+  || fail "pull request merge ref changed while candidate source was resolved"
 
 {
   printf 'commit_sha=%s\n' "${merge_sha}"
