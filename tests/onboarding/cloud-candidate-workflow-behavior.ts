@@ -20,6 +20,18 @@ type FixtureChange =
   | "wrong-head-repo"
   | "wrong-parent"
   | "failed-check"
+  | "older-failed-check"
+  | "spoofed-check"
+  | "same-app-spoofed-check"
+  | "wrong-check-event"
+  | "wrong-workflow-pr"
+  | "later-pending-workflow"
+  | "stale-check-base"
+  | "wrong-cloud-target"
+  | "later-pending-check"
+  | "failed-commit-status"
+  | "successful-commit-status"
+  | "passing-conclusions"
   | "stale-codex"
   | "spoofed-codex"
   | "later-codex-finding"
@@ -28,6 +40,7 @@ type FixtureChange =
   | "unresolved-thread"
   | "changes-requested"
   | "moved-late"
+  | "moved-during-final-checks"
   | "source-rejected"
   | "identity-mismatch"
   | "cloud-success";
@@ -106,44 +119,248 @@ function runResolver(
     tree: { sha: tree },
     parents: [{ sha: change === "wrong-parent" ? head : base }, { sha: head }],
   };
+  const checkBinding = {
+    head_sha: head,
+    pull_requests: [
+      {
+        number: 42,
+        base: {
+          sha: change === "stale-check-base" ? "f".repeat(40) : base,
+        },
+        head: { sha: head },
+      },
+    ],
+  };
+  const workflowBinding = {
+    ...checkBinding,
+    pull_requests: checkBinding.pull_requests.map((pullRequest) => ({
+      ...pullRequest,
+      number: change === "wrong-workflow-pr" ? 43 : pullRequest.number,
+    })),
+  };
   const checks = [
+    ...(change === "older-failed-check"
+      ? [
+          {
+            id: 0,
+            name: "cloud-source-gate",
+            status: "completed",
+            conclusion: "success",
+            app: { id: 4400145 },
+            details_url:
+              "https://github.com/markusleben/ha-nova/actions/runs/0/job/0",
+            external_id: `workflow-run:1:attempt:1:target:${merge}`,
+            ...checkBinding,
+          },
+          {
+            id: 1,
+            name: "ci-gate",
+            status: "completed",
+            conclusion: "failure",
+            app: { id: 15368 },
+            details_url:
+              "https://github.com/markusleben/ha-nova/actions/runs/1/job/1",
+            ...checkBinding,
+          },
+        ]
+      : []),
     {
+      id: 2,
       name: "analyze",
       status: "completed",
-      conclusion: "success",
-      app: { id: 1 },
+      conclusion: change === "passing-conclusions" ? "neutral" : "success",
+      app: { id: 15368 },
+      details_url:
+        "https://github.com/markusleben/ha-nova/actions/runs/2/job/2",
+      ...checkBinding,
     },
     {
+      id: 3,
       name: "ci-gate",
       status: "completed",
-      conclusion: change === "failed-check" ? "failure" : "success",
-      app: { id: 1 },
+      conclusion:
+        change === "failed-check" || change === "spoofed-check"
+          ? "failure"
+          : change === "passing-conclusions"
+            ? "skipped"
+            : "success",
+      app: { id: 15368 },
+      details_url:
+        "https://github.com/markusleben/ha-nova/actions/runs/3/job/3",
+      ...checkBinding,
     },
     {
+      id: 4,
       name: "codex-review-gate",
       status: "completed",
       conclusion: "success",
-      app: { id: 1 },
+      app: { id: 15368 },
+      details_url:
+        "https://github.com/markusleben/ha-nova/actions/runs/4/job/4",
+      ...checkBinding,
     },
     {
+      id: 5,
       name: "cloud-source-gate",
       status: "completed",
       conclusion: change === "cloud-success" ? "success" : "failure",
       app: { id: 4400145 },
+      details_url:
+        "https://github.com/markusleben/ha-nova/actions/runs/5/job/5",
+      external_id: `workflow-run:1:attempt:1:target:${
+        change === "wrong-cloud-target" ? "e".repeat(40) : merge
+      }`,
+      ...checkBinding,
     },
+    ...(change === "spoofed-check"
+      ? [
+          {
+            id: 99,
+            name: "ci-gate",
+            status: "completed",
+            conclusion: "success",
+            app: { id: 999 },
+            details_url:
+              "https://github.com/markusleben/ha-nova/actions/runs/99/job/99",
+            ...checkBinding,
+          },
+        ]
+      : []),
+    ...(change === "same-app-spoofed-check"
+      ? [
+          {
+            id: 99,
+            name: "ci-gate",
+            status: "completed",
+            conclusion: "success",
+            app: { id: 15368 },
+            details_url:
+              "https://github.com/markusleben/ha-nova/actions/runs/99/job/99",
+            ...checkBinding,
+          },
+        ]
+      : []),
+  ];
+  const workflowRuns = [
+    {
+      id: 1,
+      path: ".github/workflows/ci.yml",
+      event: "pull_request",
+      status: "completed",
+      conclusion: "failure",
+      ...workflowBinding,
+    },
+    {
+      id: 2,
+      path: ".github/workflows/codeql.yml",
+      event: "pull_request",
+      status: "completed",
+      conclusion: "success",
+      ...workflowBinding,
+    },
+    {
+      id: 3,
+      path: ".github/workflows/ci.yml",
+      event: change === "wrong-check-event" ? "push" : "pull_request",
+      status: "completed",
+      conclusion: "success",
+      ...workflowBinding,
+    },
+    {
+      id: 4,
+      path: ".github/workflows/codex-review-gate.yml",
+      event: "pull_request",
+      status: "completed",
+      conclusion: "success",
+      ...workflowBinding,
+    },
+    ...(change === "same-app-spoofed-check"
+      ? [
+          {
+            id: 99,
+            path: ".github/workflows/spoof.yml",
+            event: "pull_request",
+            status: "completed",
+            conclusion: "success",
+            ...workflowBinding,
+          },
+        ]
+      : []),
+    ...(change === "later-pending-workflow"
+      ? [
+          {
+            id: 100,
+            path: ".github/workflows/ci.yml",
+            event: "pull_request",
+            status: "in_progress",
+            conclusion: null,
+            ...workflowBinding,
+          },
+        ]
+      : []),
   ];
   const prPath = join(root, "pr.json");
   const commitPath = join(root, "commit.json");
   const checksPath = join(root, "checks.json");
+  const laterChecksPath = join(root, "later-checks.json");
+  const statusesPath = join(root, "statuses.json");
+  const workflowRunsPath = join(root, "workflow-runs.json");
   const commentsPath = join(root, "comments.json");
   const reviewsPath = join(root, "reviews.json");
   const inlineCommentsPath = join(root, "inline-comments.json");
   const reactionsPath = join(root, "reactions.json");
   const threadsPath = join(root, "threads.json");
   const prCallsPath = join(root, "pr-calls");
+  const checkCallsPath = join(root, "check-calls");
   writeFileSync(prPath, JSON.stringify(pr));
   writeFileSync(commitPath, JSON.stringify(commit));
   writeFileSync(checksPath, JSON.stringify([{ check_runs: checks }]));
+  writeFileSync(
+    laterChecksPath,
+    JSON.stringify([
+      {
+        check_runs:
+          change === "later-pending-check"
+            ? [
+                ...checks,
+                {
+                  id: 100,
+                  name: "ci-gate",
+                  status: "in_progress",
+                  conclusion: null,
+                  app: { id: 15368 },
+                  ...checkBinding,
+                },
+              ]
+            : checks,
+      },
+    ]),
+  );
+  writeFileSync(
+    statusesPath,
+    JSON.stringify([
+      {
+        statuses:
+          change === "failed-commit-status" ||
+          change === "successful-commit-status"
+            ? [
+                {
+                  id: 1,
+                  context: "ci-gate",
+                  state:
+                    change === "successful-commit-status"
+                      ? "success"
+                      : "failure",
+                },
+              ]
+            : [],
+      },
+    ]),
+  );
+  writeFileSync(
+    workflowRunsPath,
+    JSON.stringify([{ workflow_runs: workflowRuns }]),
+  );
   writeFileSync(
     commentsPath,
     JSON.stringify([
@@ -229,6 +446,7 @@ function runResolver(
     ]),
   );
   writeFileSync(prCallsPath, "0\n");
+  writeFileSync(checkCallsPath, "0\n");
   writeExecutable(
     join(root, "scripts", "release", "verify-cloud-target-source-gate.sh"),
     `#!/usr/bin/env bash
@@ -249,14 +467,25 @@ case "$*" in
   "api repos/markusleben/ha-nova/pulls/42")
     calls="$(( $(<"$FAKE_PR_CALLS") + 1 ))"
     printf '%s\n' "$calls" >"$FAKE_PR_CALLS"
-    if [[ "$FAKE_CHANGE" == "moved-late" && "$calls" -gt 1 ]]; then
+    if [[ "$FAKE_CHANGE" == "moved-late" && "$calls" -gt 1 ]] || \
+       [[ "$FAKE_CHANGE" == "moved-during-final-checks" && $(<"$FAKE_CHECK_CALLS") -gt 1 ]]; then
       sed 's/"state":"open"/"state":"closed"/' "$FAKE_PR"
     else
       cat "$FAKE_PR"
     fi
     ;;
   "api repos/markusleben/ha-nova/git/commits/$FAKE_MERGE") cat "$FAKE_COMMIT" ;;
-  "api --paginate --slurp repos/markusleben/ha-nova/commits/$FAKE_MERGE/check-runs?filter=latest&per_page=100") cat "$FAKE_CHECKS" ;;
+  "api --paginate --slurp repos/markusleben/ha-nova/commits/$FAKE_HEAD/check-runs?filter=latest&per_page=100")
+    calls="$(( $(<"$FAKE_CHECK_CALLS") + 1 ))"
+    printf '%s\n' "$calls" >"$FAKE_CHECK_CALLS"
+    if [[ "$FAKE_CHANGE" == "later-pending-check" && "$calls" -gt 1 ]]; then
+      cat "$FAKE_LATER_CHECKS"
+    else
+      cat "$FAKE_CHECKS"
+    fi
+    ;;
+  "api --paginate --slurp repos/markusleben/ha-nova/commits/$FAKE_HEAD/status?per_page=100") cat "$FAKE_STATUSES" ;;
+  "api --paginate --slurp repos/markusleben/ha-nova/actions/runs?head_sha=$FAKE_HEAD&per_page=100") cat "$FAKE_WORKFLOW_RUNS" ;;
   "api --paginate --slurp repos/markusleben/ha-nova/issues/42/comments?per_page=100") cat "$FAKE_COMMENTS" ;;
   "api --paginate --slurp repos/markusleben/ha-nova/pulls/42/reviews?per_page=100") cat "$FAKE_REVIEWS" ;;
   "api --paginate --slurp repos/markusleben/ha-nova/pulls/42/comments?per_page=100") cat "$FAKE_INLINE_COMMENTS" ;;
@@ -284,12 +513,16 @@ esac
         FAKE_PR: prPath,
         FAKE_COMMIT: commitPath,
         FAKE_CHECKS: checksPath,
+        FAKE_LATER_CHECKS: laterChecksPath,
+        FAKE_STATUSES: statusesPath,
+        FAKE_WORKFLOW_RUNS: workflowRunsPath,
         FAKE_COMMENTS: commentsPath,
         FAKE_REVIEWS: reviewsPath,
         FAKE_INLINE_COMMENTS: inlineCommentsPath,
         FAKE_REACTIONS: reactionsPath,
         FAKE_THREADS: threadsPath,
         FAKE_PR_CALLS: prCallsPath,
+        FAKE_CHECK_CALLS: checkCallsPath,
         FAKE_CHANGE: change ?? "valid",
         FAKE_BASE: base,
         FAKE_HEAD: head,
@@ -325,6 +558,16 @@ describe("Cloud candidate source resolver", () => {
     expect(result.stdout).toContain("OK: PR #42");
   });
 
+  it("uses the latest protected and evidence check runs", () => {
+    const result = runResolver("older-failed-check");
+    expect(result.status, `${result.stdout}\n${result.stderr}`).toBe(0);
+  });
+
+  it("accepts GitHub's passing check conclusions", () => {
+    const result = runResolver("passing-conclusions");
+    expect(result.status, `${result.stdout}\n${result.stderr}`).toBe(0);
+  });
+
   it.each([
     ["a draft", "draft"],
     ["a non-maintainer dispatcher", "wrong-actor"],
@@ -334,6 +577,16 @@ describe("Cloud candidate source resolver", () => {
     ["a fork", "wrong-head-repo"],
     ["wrong merge parents", "wrong-parent"],
     ["another failed check", "failed-check"],
+    ["a same-name check from another App", "spoofed-check"],
+    ["a same-name check from another workflow", "same-app-spoofed-check"],
+    ["a check backed by the wrong workflow event", "wrong-check-event"],
+    ["a check backed by another pull request", "wrong-workflow-pr"],
+    ["an older check behind a newer pending workflow", "later-pending-workflow"],
+    ["checks from a stale pull-request base", "stale-check-base"],
+    ["a Cloud check for another merge target", "wrong-cloud-target"],
+    ["a later pending check", "later-pending-check"],
+    ["a failed same-name commit status", "failed-commit-status"],
+    ["a successful same-name commit status", "successful-commit-status"],
     ["a stale Codex result", "stale-codex"],
     ["a prefixed Codex impersonator", "spoofed-codex"],
     ["a later Codex finding", "later-codex-finding"],
@@ -342,6 +595,7 @@ describe("Cloud candidate source resolver", () => {
     ["an unresolved review thread", "unresolved-thread"],
     ["requested changes", "changes-requested"],
     ["a pull request that moves during resolution", "moved-late"],
+    ["a pull request that moves during final check validation", "moved-during-final-checks"],
     ["a source rejected by the trusted bootstrap verifier", "source-rejected"],
     ["a changed expected identity", "identity-mismatch"],
     ["an already-successful evidence gate", "cloud-success"],
