@@ -349,6 +349,7 @@ describe("dependabot automation contract", () => {
     expect(protectionScript).toContain("dismiss_stale_reviews");
     expect(protectionScript).toContain("required_conversation_resolution");
     expect(protectionScript).toContain("strict_required_status_checks");
+    expect(protectionScript).not.toContain("mapfile");
   });
 
   it("pins production deployment refs and keeps only the existing safe actions lane", () => {
