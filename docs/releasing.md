@@ -221,9 +221,11 @@ trusted check completions re-evaluate normally.
 
 While the target enables Cloud, the evidence
 always binds its own exact evidence commit and full source tree. It may cover a
-newer target only when that evidence commit is an ancestor and the complete
-evidence-to-target tree delta consists exclusively of the permitted existing
-non-sensitive `uses:` version changes. Such a change must retain the action
+different commit only when the complete Git tree is byte-identical, as with the
+reviewed activation PR's squash commit. Otherwise, it may cover a newer target
+only when that evidence commit is an ancestor and the complete evidence-to-target
+tree delta consists exclusively of the permitted existing non-sensitive
+`uses:` version changes. Such a change must retain the action
 identity, move forward within the same major release, use full commit SHAs, and
 have both SHAs resolve to their stated canonical `vX.Y.Z` release tags through
 the GitHub API. Workflow additions,
@@ -447,9 +449,11 @@ not run Census or update checks. A pass from a developer build, a different
 commit, or a command restarted after failure is not release evidence.
 
 The checked-out `HEAD` must equal `GITHUB_SHA`; `commit_sha` and `tree_sha` must
-exactly identify the evidence commit and its full Git tree. They may differ
-from the target only through the ancestor-bound safe `uses:` normalization
-described above. Every other earlier evidence is rejected, including for an
+exactly identify the evidence commit and its full Git tree. The evidence commit
+is fetched by exact SHA when it is no longer in the local clone. Evidence may
+differ from the target commit only when the full target tree is identical or
+through the ancestor-bound safe `uses:` normalization described above. Every
+other earlier evidence is rejected, including for an
 apparently metadata-only activation: `nova/version.json` is copied into the App
 and directly controls its Cloud runtime, so evidence from the disabled source
 cannot attest the enabled runtime. The activation PR must reach a stable head,
@@ -463,14 +467,12 @@ non-sensitive `uses:` version changes may reuse evidence from its exact
 ancestor instead. If a merge queue is used, `merge_group` creates another
 synthetic checkout commit and follows the same rule.
 
-After squash merge, the resulting `main` commit has a different SHA. For any
-product or metadata delta, its first push CI run fails closed with the PR
-evidence: run the matrix again on that exact `main` commit, update both the
-repository and production environment secrets, and rerun CI before release
-preparation continues. A squash or merge containing only the verified safe
-`uses:`-version delta may reuse exact ancestor evidence. Every other later
-enabled commit requires fresh evidence. This also closes direct-to-main
-App-source and unknown-path bypasses.
+After squash merge, the resulting `main` commit has a different SHA but may
+reuse the reviewed PR evidence only while its complete Git tree is identical
+to the tested synthetic merge tree. This exact-tree bridge is the sole
+commit-only rewrite exception. Every tree delta still requires fresh evidence,
+except for the narrowly verified ancestor-bound safe `uses:` version changes.
+This also closes direct-to-main App-source and unknown-path bypasses.
 
 `relay_app.source_commit` and `relay_app.source_tree_sha` must repeat the
 top-level identity, and the evidence App version must equal its

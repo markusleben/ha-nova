@@ -390,7 +390,7 @@ export function registerCloudReleaseCommitGateBehaviorTests(): void {
       },
     );
 
-    it("rejects an identical tree after a commit-only rewrite", () => {
+    it("accepts an identical tree after a squash-style commit rewrite", () => {
       const enabled = {
         min_relay_version: "0.8.0",
         cloud_remote_enabled: true,
@@ -407,10 +407,7 @@ export function registerCloudReleaseCommitGateBehaviorTests(): void {
       expect(head).not.toBe(fixture.sha);
 
       const result = runCloudGate(fixture, validCloudEvidence(fixture, ["linux"]), head);
-      expect(result.status, `${result.stdout}\n${result.stderr}`).not.toBe(0);
-      expect(`${result.stdout}\n${result.stderr}`).toContain(
-        "stale Home Assistant Cloud evidence may cover only",
-      );
+      expect(result.status, `${result.stdout}\n${result.stderr}`).toBe(0);
     });
 
     it("rejects disabled-source evidence for a later enabled runtime", () => {

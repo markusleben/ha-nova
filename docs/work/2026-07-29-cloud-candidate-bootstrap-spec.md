@@ -44,6 +44,8 @@ cannot produce the first candidate needed to collect the evidence.
   in the real-device matrix.
 - Fail closed on a moved pull request, stale base, missing merge ref, source
   mismatch, failed check, invalid version, or missing signing secret.
+- Preserve evidence across the required squash merge only when the resulting
+  full Git tree is identical to the tested synthetic merge tree.
 
 ## KISS boundary
 
