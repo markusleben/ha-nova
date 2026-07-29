@@ -414,6 +414,9 @@ export function registerCloudReleaseGateContractTests(): void {
     expect(darwinBuilder).toContain(
       'security list-keychains -d user -s "${keychain_path}"',
     );
+    expect(darwinBuilder).toContain(
+      "if (( ${#original_keychains[@]} > 0 )); then",
+    );
     expect(darwinBuilder.indexOf(
       'security list-keychains -d user -s "${original_keychains[@]}"',
     )).toBeLessThan(darwinBuilder.indexOf("security delete-keychain"));

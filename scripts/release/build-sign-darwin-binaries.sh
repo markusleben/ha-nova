@@ -33,7 +33,11 @@ keychain_search_list_changed=false
 
 cleanup() {
   if [[ "${keychain_search_list_changed}" == true ]]; then
-    /usr/bin/security list-keychains -d user -s "${original_keychains[@]}" >/dev/null 2>&1 || true
+    if (( ${#original_keychains[@]} > 0 )); then
+      /usr/bin/security list-keychains -d user -s "${original_keychains[@]}" >/dev/null 2>&1 || true
+    else
+      /usr/bin/security list-keychains -d user -s >/dev/null 2>&1 || true
+    fi
   fi
   /usr/bin/security delete-keychain "${keychain_path}" >/dev/null 2>&1 || true
   /bin/chmod -R u+rwX "${signing_dir}" >/dev/null 2>&1 || true
