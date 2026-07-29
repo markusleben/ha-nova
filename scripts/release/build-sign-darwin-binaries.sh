@@ -68,9 +68,6 @@ identity_lines="$(
 identity_count="$(grep -c . <<<"${identity_lines}" || true)"
 [[ "${identity_count}" == "1" ]] \
   || fail "expected exactly one ${EXPECTED_IDENTITY} identity"
-identity_hash="$(awk '{print $2}' <<<"${identity_lines}")"
-[[ "${identity_hash}" =~ ^[0-9A-Fa-f]{40}$ ]] \
-  || fail "could not resolve the Developer ID identity hash"
 
 mkdir -p "${DIST_DIR}"
 for arch in amd64 arm64; do
@@ -86,7 +83,7 @@ for arch in amd64 arm64; do
   )
   /usr/bin/codesign \
     --force \
-    --sign "${identity_hash}" \
+    --sign "${EXPECTED_IDENTITY}" \
     --keychain "${keychain_path}" \
     --timestamp \
     --options runtime,hard,kill,library \
