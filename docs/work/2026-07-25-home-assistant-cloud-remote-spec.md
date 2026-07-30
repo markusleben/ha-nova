@@ -696,7 +696,9 @@ non-secret qualification ledger in the activation or release pull request.
 Changes to a deterministic substitute test invalidate its qualification.
 Exact-target CI, candidate provenance on all enabled OSes, the installed Relay
 App, and one downloaded-candidate `relay health --via cloud` smoke with Census
-suppressed never carry forward. See
+suppressed never carry forward. The smoke must parse the JSON and require the
+expected App version and `ha_ws_connected: true`; a zero exit code alone is not
+evidence. See
 `2026-07-30-cloud-release-evidence-risk-scope-spec.md`.
 
 The feature stays unavailable if any security or full-parity gate fails. The

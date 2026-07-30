@@ -302,7 +302,8 @@ Missing or uncertain ledger data means rerun.
 Every target still runs CI, candidate signature/provenance checks on all
 enabled platforms, the exact installed Relay App, and one real Cloud health
 smoke on a reference platform. The smoke uses the downloaded candidate binary,
-`--via cloud`, the exact installed App, and `HA_NOVA_NO_CENSUS=1`.
+`--via cloud`, the exact installed App, and `HA_NOVA_NO_CENSUS=1`; its JSON must
+report the expected App version and `ha_ws_connected: true`.
 
 - `parity`: `/health`, `/ws`, `/core`, `/files`, and `/backups` through real
   Home Assistant Cloud on one reference platform after a transport change;
@@ -431,6 +432,7 @@ VERSION_TAG=v0.22.0-rc1 # replace
 CANDIDATE_OS=macos
 CANDIDATE_ARCH=arm64
 SERVER_NAME=default
+EXPECTED_RELAY_APP_VERSION=0.7.1 # replace from exact-target nova/config.yaml
 CANDIDATE_DIR="$(mktemp -d)"
 tar -xzf "cloud-candidate-install-bundles/ha-nova-installer-bundle-${CANDIDATE_OS}-${CANDIDATE_ARCH}.tar.gz" \
   -C "${CANDIDATE_DIR}"
@@ -453,6 +455,7 @@ executable explicitly:
 $ExpectedTree = "0123456789abcdef0123456789abcdef01234567" # replace
 $Version = "0.22.0-rc1" # replace
 $ServerName = "default"
+$ExpectedRelayAppVersion = "0.7.1" # replace from exact-target nova/config.yaml
 $CandidateDir = Join-Path $env:TEMP ("ha-nova-cloud-candidate-" + [guid]::NewGuid())
 Expand-Archive `
   -LiteralPath "cloud-candidate-install-bundles\ha-nova-installer-bundle-windows-amd64.zip" `
@@ -476,14 +479,38 @@ Choose exactly one reference platform for the exact-target Cloud health smoke.
 Use the same explicit downloaded candidate binary and exact installed App:
 
 ```bash
-HA_NOVA_NO_CENSUS=1 "${CANDIDATE_BIN}" relay health \
-  --server "${SERVER_NAME}" --via cloud
+HEALTH_JSON="$(
+  HA_NOVA_NO_CENSUS=1 "${CANDIDATE_BIN}" relay health \
+    --server "${SERVER_NAME}" --via cloud
+)"
+node -e '
+  const fs = require("node:fs");
+  const payload = JSON.parse(fs.readFileSync(0, "utf8"));
+  if (
+    payload.ok !== true ||
+    payload.data?.status !== "ok" ||
+    payload.data?.ha_ws_connected !== true ||
+    payload.data?.version !== process.argv[1]
+  ) {
+    throw new Error("candidate Cloud health payload is not release-ready");
+  }
+' "${EXPECTED_RELAY_APP_VERSION}" <<<"${HEALTH_JSON}"
 ```
 
 ```powershell
 $env:HA_NOVA_NO_CENSUS = "1"
-& $CandidateBin relay health --server $ServerName --via cloud
+$HealthJson = (& $CandidateBin relay health --server $ServerName --via cloud |
+  Out-String)
 if ($LASTEXITCODE -ne 0) { throw "candidate Cloud health smoke failed" }
+$Health = $HealthJson | ConvertFrom-Json
+if (
+  $Health.ok -ne $true -or
+  $Health.data.status -ne "ok" -or
+  $Health.data.ha_ws_connected -ne $true -or
+  $Health.data.version -ne $ExpectedRelayAppVersion
+) {
+  throw "candidate Cloud health payload is not release-ready"
+}
 ```
 
 Only after a Cloud or Relay transport change, run one stress proof on that
