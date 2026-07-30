@@ -6,8 +6,8 @@ Last verified: 2026-07-11 — `npm run verify`, `go test ./...`, and the live en
 
 The Home Assistant Cloud remote transport on current `main` is a Beta and is
 not covered by that earlier live proof. It remains release-gated on the
-real-device matrix in
-`docs/work/2026-07-25-home-assistant-cloud-remote-spec.md`.
+exact-target checks and risk-scoped real-device qualifications in
+`docs/work/2026-07-30-cloud-release-evidence-risk-scope-spec.md`.
 
 ## Writes
 

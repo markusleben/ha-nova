@@ -57,7 +57,7 @@ cannot produce the first candidate needed to collect the evidence.
 - Expose no Cloud-runnable bundle before smoke tests and final revalidation.
 - Never execute candidate code in an artifact-producing or secret-bearing job;
   the first positive signed-runtime check uses the downloaded final artifact
-  in the real-device matrix.
+  in the required real-device qualification.
 - Fail closed on a moved pull request, stale base, missing merge ref, source
   mismatch, failed check, invalid version, or missing signing secret.
 - Preserve evidence across the required squash merge only when the resulting
