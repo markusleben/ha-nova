@@ -42,7 +42,8 @@ qualification ledger before the boolean is set to `true`.
 ## Invalidation map
 
 Use the narrowest matching row. A change that matches multiple rows invalidates
-their union.
+their union. A qualification trigger includes changes to every deterministic
+substitute and real evidence collection/validation harness it relies on.
 
 | Changed surface | Qualification to repeat | Real platform scope |
 |---|---|---|
@@ -54,7 +55,7 @@ their union.
 | Relay App startup, identity, device registry, or installation | `installed_relay_app`; relevant lifecycle and redirect paths | One reference platform |
 | CLI setup, install, update, uninstall, signing identity, or authorization retention | `signing_and_update_matrix`; relevant lifecycle path | Affected OS only; exact provenance still runs on all enabled OSes |
 | Config, argv, logs, diagnostics, or AI-visible output | `redirects_non_disclosure` | Affected surface; one retained real artifact scan |
-| A deterministic test or harness used in place of a real branch | Its owning qualification | Same scope as that qualification |
+| A deterministic substitute or real evidence collection/validation harness | Its owning qualification | Same scope as that qualification |
 | Release workflow or provenance machinery only | `signing_and_update_matrix` | Exact provenance on all enabled OSes |
 | Unrelated docs, tests, process, or product code | None | Exact-target layer only |
 

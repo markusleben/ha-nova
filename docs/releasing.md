@@ -348,7 +348,8 @@ forward. See
 Carry-forward applies only to the qualification behind a check boolean: create
 a new exact-target JSON envelope and never copy an older commit/tree identity.
 The complete bounded change-class map is in that spec. A test or harness change
-invalidates every qualification that relies on it as substitute evidence.
+invalidates every qualification that relies on it as deterministic or real
+evidence.
 
 For the first evidence on an activation pull request, dispatch the
 non-publishing candidate builder exactly once from current `main`.

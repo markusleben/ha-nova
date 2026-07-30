@@ -693,7 +693,8 @@ Cloud setup/resume remain blocked.
 Real-device qualifications remain applicable across unrelated changes only
 after reviewing the complete qualification-to-target diff and recording the
 non-secret qualification ledger in the activation or release pull request.
-Changes to a deterministic substitute test invalidate its qualification.
+Changes to a deterministic substitute or real evidence harness invalidate its
+qualification.
 Exact-target CI, candidate provenance on all enabled OSes, the installed Relay
 App, and one downloaded-candidate `relay health --via cloud` smoke with Census
 suppressed never carry forward. The smoke must parse the JSON and require the
