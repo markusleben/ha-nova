@@ -49,6 +49,7 @@ their union.
 | Cloud or Relay transport, Ingress session, endpoint, or route selection | `parity`, `stress_10000`, `routing`, relevant lifecycle and non-disclosure paths | One reference platform |
 | Shared native-secret orchestration | `keyrings` | One reference platform, plus any OS with different behavior |
 | macOS, Windows, or Linux native-store adapter | `keyrings`; relevant lifecycle path | Affected OS only |
+| `internal-cloud-stress` or its evidence collection/validation harness | `stress_10000` | One reference platform |
 | OAuth, Home Assistant user binding, or App discovery | `roles`, `domains_mfa`; relevant authorization lifecycle | One reference platform |
 | Relay App startup, identity, device registry, or installation | `installed_relay_app`; relevant lifecycle and redirect paths | One reference platform |
 | CLI setup, install, update, uninstall, signing identity, or authorization retention | `signing_and_update_matrix`; relevant lifecycle path | Affected OS only; exact provenance still runs on all enabled OSes |
@@ -61,8 +62,8 @@ their union.
 
 - `parity`: real `/health`, `/ws`, `/core`, `/files`, and `/backups` parity on
   one reference platform for every Cloud or Relay transport change.
-- `stress_10000`: one real bounded run per Cloud or Relay transport change,
-  not once per operating system.
+- `stress_10000`: one real bounded run per Cloud or Relay transport change or
+  stress-harness change, not once per operating system.
 - `keyrings`: real happy-path and fail-closed no-UI behavior on every enabled
   OS for first support. A shared orchestration change repeats one reference OS;
   an adapter change repeats only its affected OS. Deterministic platform tests

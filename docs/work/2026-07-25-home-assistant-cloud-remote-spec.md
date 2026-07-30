@@ -665,13 +665,13 @@ Cloud setup/resume remain blocked.
 ## Release gates
 
 - Full route parity on one real reference platform and bounded Ingress memory
-  under one 10,000-command stress run after a Cloud or Relay transport change.
-  The hidden `internal-cloud-stress` command resolves one explicit Cloud
-  transport, then performs exactly 10,000 read-only authenticated `/health`
-  requests through that one process-local Ingress session. It has fixed
-  per-request and overall deadlines, stops on the first redirect, transport,
-  status, size, encoding, or Relay-identity failure, and never runs Census or
-  update checks.
+  under one 10,000-command stress run after a Cloud or Relay transport change
+  or stress-harness change. The hidden `internal-cloud-stress` command resolves
+  one explicit Cloud transport, then performs exactly 10,000 read-only
+  authenticated `/health` requests through that one process-local Ingress
+  session. It has fixed per-request and overall deadlines, stops on the first
+  redirect, transport, status, size, encoding, or Relay-identity failure, and
+  never runs Census or update checks.
 - Real keyring happy-path and fail-closed no-UI behavior on every advertised
   OS for first support. Shared orchestration changes repeat one reference OS;
   adapter changes repeat only the affected OS. Deterministic platform tests

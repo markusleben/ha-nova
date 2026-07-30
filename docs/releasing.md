@@ -308,7 +308,8 @@ report the expected App version and `ha_ws_connected: true`.
 - `parity`: `/health`, `/ws`, `/core`, `/files`, and `/backups` through real
   Home Assistant Cloud on one reference platform after a transport change;
 - `stress_10000`: one bounded Ingress-session stress run with 10,000 commands
-  after a Cloud or Relay transport change, not once per operating system;
+  after a Cloud or Relay transport change or stress-harness change, not once
+  per operating system;
 - `keyrings`: real happy-path and fail-closed no-UI behavior on each enabled
   platform for first support; shared orchestration changes repeat one reference
   OS and adapter changes repeat only their affected OS; deterministic tests
@@ -513,8 +514,9 @@ if (
 }
 ```
 
-Only after a Cloud or Relay transport change, run one stress proof on that
-reference platform and profile:
+Only after a Cloud or Relay transport change or a change to
+`internal-cloud-stress` or its evidence collection/validation harness, run one
+stress proof on that reference platform and profile:
 
 ```bash
 HA_NOVA_NO_CENSUS=1 "${CANDIDATE_BIN}" internal-cloud-stress \

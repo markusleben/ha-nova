@@ -185,7 +185,8 @@ OSes, the installed Relay App, and the reference Cloud health smoke always run:
 - `automatic` routing chooses Cloud only for a pure local network failure and
   never after authentication, pin, identity, protocol, or dispatch failure;
 - one 10,000-command Ingress-session stress run with bounded memory after a
-  Cloud or Relay transport change, not once per operating system;
+  Cloud or Relay transport change or stress-harness change, not once per
+  operating system;
 - real native-storage happy-path and fail-closed no-UI behavior on every
   advertised desktop OS for first support; shared orchestration changes repeat
   one reference OS and adapter changes repeat only the affected OS;
