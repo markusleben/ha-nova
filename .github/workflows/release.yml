@@ -283,7 +283,14 @@ jobs:
           workdir="${RUNNER_TEMP}/ha-nova-release-smoke"
           test -f "$workdir/$archive"
           tar -xzf "$workdir/$archive" -C "$workdir"
-          root="$workdir/ha-nova"
+          # Unix builds resolve their install root from HOME only (no
+          # executable-directory fallback like Windows), so the provenance
+          # check requires the bundle to sit in a real installed layout.
+          smoke_home="$workdir/home"
+          install_root="$smoke_home/.local/share/ha-nova"
+          mkdir -p "$smoke_home/.local/share"
+          mv "$workdir/ha-nova" "$install_root"
+          root="$install_root"
           test -f "$root/bundle.json"
           test -x "$root/ha-nova"
           node -e '
@@ -292,7 +299,7 @@ jobs:
               throw new Error("release bundle version does not match tag");
             }
           ' "$root/bundle.json" "$GITHUB_REF_NAME"
-          "$root/ha-nova" version
+          HOME="$smoke_home" "$root/ha-nova" version
           if [[ "${RUNNER_OS}" == "macOS" ]]; then
             raw_binary="$workdir/ha-nova-darwin-${arch}"
             test -f "$raw_binary"
@@ -309,8 +316,8 @@ jobs:
             ' "$root/version.json" "$platform"
           )"
           if [[ "$listed" == "true" ]]; then
-            "$root/ha-nova" internal-cloud-release-check
-          elif "$root/ha-nova" internal-cloud-release-check; then
+            HOME="$smoke_home" "$root/ha-nova" internal-cloud-release-check
+          elif HOME="$smoke_home" "$root/ha-nova" internal-cloud-release-check; then
             echo "::error::Unlisted $platform runtime accepted Cloud release provenance."
             exit 1
           fi

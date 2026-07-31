@@ -186,22 +186,30 @@ jobs:
           esac
           workdir="$(mktemp -d)"
           tar -xzf "$bundle" -C "$workdir"
-          test -f "$workdir/ha-nova/bundle.json"
-          test -x "$workdir/ha-nova/ha-nova"
+          # Unix builds resolve their install root from HOME only (no
+          # executable-directory fallback like Windows), so the provenance
+          # check requires the bundle to sit in a real installed layout.
+          smoke_home="$workdir/home"
+          install_root="$smoke_home/.local/share/ha-nova"
+          mkdir -p "$smoke_home/.local/share"
+          mv "$workdir/ha-nova" "$install_root"
+          root="$install_root"
+          test -f "$root/bundle.json"
+          test -x "$root/ha-nova"
           node -e '
             const bundle = require(process.argv[1]);
             if (bundle.version !== process.argv[2].replace(/^v/, "")) {
               throw new Error("RC bundle version does not match workflow input");
             }
-          ' "$workdir/ha-nova/bundle.json" "${VERSION_TAG}"
-          "$workdir/ha-nova/ha-nova" version
+          ' "$root/bundle.json" "${VERSION_TAG}"
+          HOME="$smoke_home" "$root/ha-nova" version
           case "${RUNNER_OS}" in
             macOS) platform="darwin" ;;
             Linux) platform="linux" ;;
             *) exit 1 ;;
           esac
           if [[ "${RUNNER_OS}" == "macOS" ]]; then
-            bash scripts/release/verify-macos-signature.sh "$workdir/ha-nova/ha-nova"
+            bash scripts/release/verify-macos-signature.sh "$root/ha-nova"
           fi
           listed="$(
             node -e '
@@ -210,11 +218,11 @@ jobs:
                 metadata.cloud_remote_enabled === true
                 && metadata.cloud_remote_platforms.includes(process.argv[2])
               ));
-            ' "$workdir/ha-nova/version.json" "$platform"
+            ' "$root/version.json" "$platform"
           )"
           if [[ "$listed" == "true" ]]; then
-            "$workdir/ha-nova/ha-nova" internal-cloud-release-check
-          elif "$workdir/ha-nova/ha-nova" internal-cloud-release-check; then
+            HOME="$smoke_home" "$root/ha-nova" internal-cloud-release-check
+          elif HOME="$smoke_home" "$root/ha-nova" internal-cloud-release-check; then
             echo "::error::Unlisted $platform runtime accepted Cloud release provenance."
             exit 1
           fi
