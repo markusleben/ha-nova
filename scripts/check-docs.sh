@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
-# check-docs.sh — Verify that factual claims in README.md and CONTRIBUTING.md
-# match the actual codebase. Run in CI to catch stale docs.
+# check-docs.sh — Verify documentation facts and lifecycle rules against the
+# actual codebase. Run in CI to catch stale docs.
 #
 # Exit 0 = all claims verified. Exit 1 = at least one mismatch.
 #
@@ -261,6 +261,45 @@ if node "$REPO_ROOT/scripts/test/check-census-worker-request-access.mjs"; then
 else
   fail "Census Worker request access escaped its allowlist — update the privacy contract before adding any new request metadata."
 fi
+
+# ── 13. Work docs stay temporary and genuinely active ──
+echo "[13] Work-document lifecycle"
+while IFS= read -r work_doc_path; do
+  declared_status_line=$(grep -m1 '^Status:' "$work_doc_path" || true)
+  if [[ ! "$declared_status_line" =~ ^Status:\ (active|merged|superseded|abandoned)($|[[:space:]]) ]]; then
+    fail "${work_doc_path#"$REPO_ROOT/"} must declare Status: active, merged, superseded, or abandoned"
+  elif [[ ! "$declared_status_line" =~ ^Status:\ active($|[[:space:]]) ]]; then
+    fail "${work_doc_path#"$REPO_ROOT/"} is not active — move it to docs/archive/work or delete it"
+  else
+    pass "${work_doc_path#"$REPO_ROOT/"} declares active status"
+  fi
+done < <(
+  find "$REPO_ROOT/docs/work" -maxdepth 1 -type f -name '*.md' \
+    ! -name 'README.md' -print | sort
+)
+
+current_client_version=$(node -p "require('$REPO_ROOT/package.json').version")
+while IFS= read -r release_body_path; do
+  release_body_name=$(basename "$release_body_path")
+  release_body_version=${release_body_name%-release-body.md}
+  if node -e '
+    const [candidate, current] = process.argv.slice(1).map((value) =>
+      value.split(".").map((part) => Number.parseInt(part, 10)),
+    );
+    for (let index = 0; index < 3; index += 1) {
+      if (candidate[index] > current[index]) process.exit(0);
+      if (candidate[index] < current[index]) process.exit(1);
+    }
+    process.exit(1);
+  ' "$release_body_version" "$current_client_version"; then
+    pass "$release_body_name targets a future version"
+  else
+    fail "$release_body_name is not newer than v$current_client_version — archive it during release prep"
+  fi
+done < <(
+  find "$REPO_ROOT/docs/work" -maxdepth 1 -type f \
+    -name '*-release-body.md' -print | sort
+)
 
 # ── Results ──
 echo ""

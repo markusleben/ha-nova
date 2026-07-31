@@ -33,11 +33,10 @@ stable release. Concretely:
 - unreleased feature/version claims collect in the active
   `docs/work/<version>-release-body.md` draft, never in `README.md`
 - the release-prep PR carries ALL release-bound `README.md` edits plus the
-  version bump and the `.goreleaser.yml` release-notes update
+  version bump and the `.goreleaser.yml` release-notes update, then moves the
+  consumed release-body draft to `docs/archive/work/`
 - merging the release-prep PR starts the RC/final tag sequence immediately
   (AGENTS.md: the main-ahead-of-stable window stays minutes, not days)
-- after the release ships, archive the release-body draft to
-  `docs/archive/work/`
 
 ## Verify
 

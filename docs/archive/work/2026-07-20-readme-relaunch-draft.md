@@ -7,14 +7,14 @@
 >
 > Status 2026-07-20: **Fully approved by the maintainer** — all sections, the
 > release-notes draft, the launch spine, and all four images (see
-> `docs/work/2026-07-20-asset-specs.md`). Image files stay unreferenced by the
+> `docs/archive/work/2026-07-20-asset-specs.md`). Image files stay unreferenced by the
 > published README until the release-prep PR.
 
 > **Release-prep PR checklist (collected during drafting):**
 > `version.json` bump (readme-release-gate) · `nova/config.yaml` 0.6.0 → 0.7.0
 > (release notes already say 0.7.0) · replace `assets/how-it-works.png` with
 > `how-it-works-v2.png` content (and retire the stale `how-it-works.svg` and
-> `banner.svg` — superseded by the vector sources in `docs/work/`; keep
+> `banner.svg` — superseded by the vector sources in `docs/archive/work/`; keep
 > `logo.svg` [the star geometry source], `icon.svg`, `logo-dark-text.svg`) ·
 > update `docs/reference/safety.md` (still describes pre-v1 pairing/Home Base
 > in places) · swap `assets/social-preview.png` for `social-preview-v2.png`
@@ -42,12 +42,12 @@
 > model) on top of the general v0.19 update already listed;
 > `.hermes/INSTALL.md` service-credential wording — DONE in this PR (device credential file; the keyring-password sentence keeps its test-pinned phrasing).
 
-<!-- PUBLISHED FILE STARTS BELOW THIS LINE — everything above stays in docs/work -->
+<!-- PUBLISHED FILE STARTS BELOW THIS LINE — everything above stays in docs/archive/work -->
 
 ---
 
 <p align="center">
-  <img src="assets/hero-banner.png" alt="HA NOVA — a four-point star, and the line: one code to connect, every change checked" width="100%">
+  <img src="../../../assets/hero-banner.png" alt="HA NOVA — a four-point star, and the line: one code to connect, every change checked" width="100%">
 </p>
 
 <p align="center">
@@ -76,7 +76,7 @@
 3. **Type the six-digit code** — done. Your AI is paired.
 
 <p align="center">
-  <img src="assets/pairing-flow.png" alt="Pairing flow: run the installer, click Connect a device on the NOVA page, type the six-digit code">
+  <img src="../../../assets/pairing-flow.png" alt="Pairing flow: run the installer, click Connect a device on the NOVA page, type the six-digit code">
 </p>
 
 *No tokens to create, no secrets to keep — the code is one-time and expires in minutes. Each device gets its own connection you can revoke anytime from NOVA. Simpler and more secure at the same time.*
@@ -136,7 +136,7 @@ We built this because we didn't trust AI with our own config either.
 
 One installer. One wizard. One code. It even finds your Home Assistant automatically.
 
-> **You need:** Home Assistant — any install type. HA OS and Supervised get the NOVA Relay App, and the wizard below walks you through it. Container and Core run the same relay as a [standalone container](docs/reference/relay-container.md) — same skills, same safety guarantees, with a token-based setup: skip the steps below and follow that guide end to end instead.
+> **You need:** Home Assistant — any install type. HA OS and Supervised get the NOVA Relay App, and the wizard below walks you through it. Container and Core run the same relay as a [standalone container](../../../docs/reference/relay-container.md) — same skills, same safety guarantees, with a token-based setup: skip the steps below and follow that guide end to end instead.
 
 **macOS / Linux:**
 
@@ -170,7 +170,7 @@ Once it finishes, try: *"Show me all my automations."*
 - Google Antigravity has basic validation
 - Codex and OpenCode are still early
 - Native prerequisites: Claude Code needs Git for Windows / Git Bash; Google Antigravity Desktop or CLI must be installed
-- See [.claude/INSTALL.md](.claude/INSTALL.md) and [.antigravity/INSTALL.md](.antigravity/INSTALL.md)
+- See [.claude/INSTALL.md](../../../.claude/INSTALL.md) and [.antigravity/INSTALL.md](../../../.antigravity/INSTALL.md)
 
 > Do not download the `ha-nova-installer-bundle-*.tar.gz` / `.zip` assets manually. Those archives are used by the installer behind the scenes. Always use the one-liner or `ha-nova update`.
 
@@ -204,7 +204,7 @@ Once it finishes, try: *"Show me all my automations."*
 ## ⚙️ How It Works
 
 <p align="center">
-  <img src="assets/how-it-works-v2.png" alt="How HA NOVA works: your AI client and markdown skills on your machine talk to the NOVA Relay on your Home Assistant server over a pinned, per-device connection. The relay is the only part that talks to Home Assistant.">
+  <img src="../../../assets/how-it-works-v2.png" alt="How HA NOVA works: your AI client and markdown skills on your machine talk to the NOVA Relay on your Home Assistant server over a pinned, per-device connection. The relay is the only part that talks to Home Assistant.">
 </p>
 
 **Skills** live on your machine as plain markdown. They're the AI's playbook — what to check, what to show you first, what to verify after a change. You can open them, read them, even edit them.
@@ -215,7 +215,7 @@ Most new HA NOVA workflows are text-file skill updates on your machine. The Rela
 
 And because the Relay sits right next to Home Assistant, it can do things a remote client can't — like snapshotting an automation before it updates it, so you can revert the latest verified update with a single word. Deletes of snapshot-covered config items — automations, scripts, scenes, dashboards, and most helpers — capture a config snapshot first, so they can be restored through the same preview-and-confirm flow; paths without a snapshot fall back to a suitable Home Assistant Backup.
 
-Every safety guarantee above is backed by a file and a test — the **[safety page](docs/reference/safety.md)** maps each claim to what enforces and verifies it.
+Every safety guarantee above is backed by a file and a test — the **[safety page](../../../docs/reference/safety.md)** maps each claim to what enforces and verifies it.
 
 ---
 
@@ -224,7 +224,7 @@ Every safety guarantee above is backed by a file and a test — the **[safety pa
 Fair question — we built one first. 88,000 lines of it, never shipped. What it taught us is exactly what HA NOVA does differently:
 
 <p align="center">
-  <img src="assets/skills-vs-tools.png" alt="Left: a tool server lists its whole catalog by default. Right: HA NOVA sends one markdown skill on demand, and the credential stays locked on the server.">
+  <img src="../../../assets/skills-vs-tools.png" alt="Left: a tool server lists its whole catalog by default. Right: HA NOVA sends one markdown skill on demand, and the credential stays locked on the server.">
 </p>
 
 | | Tool-based MCP server | ✦ HA NOVA |
@@ -236,7 +236,7 @@ Fair question — we built one first. 88,000 lines of it, never shipped. What it
 
 > **The honest bit:** the MCP side is ahead on breadth today — more tools (add-on and HACS management, dashboard screenshots, ZHA inspection), more contributors, more stars. It's the older project. But the asymmetry matters: **our gaps close one markdown file at a time — turning a tool server's Python into plain text you can read would be a rewrite.**
 
-Full detail, named, dated, honest in both directions: **[comparison page](docs/reference/comparison.md)**.
+Full detail, named, dated, honest in both directions: **[comparison page](../../../docs/reference/comparison.md)**.
 
 ---
 
@@ -289,7 +289,7 @@ Full detail, named, dated, honest in both directions: **[comparison page](docs/r
 
 </details>
 
-Want to add a new capability? → [CONTRIBUTING.md](CONTRIBUTING.md)
+Want to add a new capability? → [CONTRIBUTING.md](../../../CONTRIBUTING.md)
 
 The skills declare the NOVA Relay version they need (see `version.json`) and warn at runtime when the installed relay app is older — update it in Home Assistant under **Settings > Apps > NOVA Relay**.
 
@@ -308,7 +308,7 @@ The skills declare the NOVA Relay version they need (see `version.json`) and war
 
 > Google Antigravity is the current Google client path. `ha-nova setup gemini` remains a legacy alias for existing Gemini-era installs.
 
-> **Hermes is in preview.** The Linux desktop route (GNOME Keyring) is maintainer-validated; macOS and Windows-via-WSL2 are experimental, and native Windows isn't supported. Details: [.hermes/INSTALL.md](.hermes/INSTALL.md).
+> **Hermes is in preview.** The Linux desktop route (GNOME Keyring) is maintainer-validated; macOS and Windows-via-WSL2 are experimental, and native Windows isn't supported. Details: [.hermes/INSTALL.md](../../../.hermes/INSTALL.md).
 
 ---
 
@@ -333,7 +333,7 @@ This is the best time to get involved.
 - **Improve docs** — make HA NOVA clearer for the next person
 - **Tackle an [open issue](https://github.com/markusleben/ha-nova/issues)** — especially if you want a workflow to become first-class
 
-→ [CONTRIBUTING.md](CONTRIBUTING.md)
+→ [CONTRIBUTING.md](../../../CONTRIBUTING.md)
 
 ---
 
@@ -349,7 +349,7 @@ HA NOVA is what came out of that. **[Here's an early demo](https://youtu.be/ylak
 
 ## 📄 License
 
-[MIT](LICENSE)
+[MIT](../../../LICENSE)
 
 ## 🙏 Acknowledgments
 

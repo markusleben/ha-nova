@@ -1244,7 +1244,7 @@ describe("ha-nova contract", () => {
       "census-worker/src/census.ts",
       "docs/reference/census.md",
       "docs/reference/safety.md",
-      "docs/work/2026-07-23-launch-posts-v0.21.md",
+      "docs/work/2026-07-31-launch-posts-v0.22.md",
       "skills/ha-nova/session-bootstrap.md",
       "cli/census.go",
       "cli/census_ask.go",

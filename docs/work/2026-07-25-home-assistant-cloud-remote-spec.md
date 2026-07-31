@@ -617,9 +617,9 @@ PR. The process follows the approved v0.19 asset pipeline
 (`docs/archive/work/2026-07-20-asset-specs.md`): backgrounds are generated
 star-free via `codex exec` (built-in `image_gen`, native 1774×887 output,
 then a deterministic content-band crop + resize with `sips`), the canonical
-star block is composited via wrapper SVGs in `docs/work/`, and every PNG
+star block is composited via wrapper SVGs in `docs/archive/work/`, and every PNG
 renders at 2× supersampling (`rsvg-convert -w 2W -h 2H` → `sips -z H W`, run
-from `docs/work/`). Background rasters and wrapper SVGs are committed so a
+from `docs/archive/work/`). Background rasters and wrapper SVGs are committed so a
 fresh checkout reproduces both assets.
 
 Shared rules (unchanged from the v0.19 system): byte-identical `star-grad-v3`
@@ -641,11 +641,11 @@ dimmer amber arc over a small cloud outline = "Home Assistant Cloud"
 fallback. Only readable text: `Your machine`, `Home Assistant`,
 `Home Assistant Cloud`.
 
-Sources: `docs/work/cloud-fallback-bg-nostar.png` +
-`docs/work/2026-07-31-cloud-fallback-composite.svg`.
+Sources: `docs/archive/work/cloud-fallback-bg-nostar.png` +
+`docs/archive/work/2026-07-31-cloud-fallback-composite.svg`.
 
 Prompt (via `codex exec`, style-referenced with
-`-i docs/work/howitworks-bg-nostar.png`):
+`-i docs/archive/work/howitworks-bg-nostar.png`):
 
 > Dark minimal network diagram, wide landscape composed for a wide center
 > crop. Background: deep space navy gradient from #0A0E1A to #0A1628 with
@@ -677,11 +677,11 @@ cloud outline to the house. Only readable text: `Your machine`, `Skills`,
 Additional fallback for this image only: keep the approved v2 background
 untouched and add arc + label as a crisp vector overlay in the wrapper.
 
-Sources: `docs/work/howitworks-bg-v3-nostar.png` +
-`docs/work/2026-07-31-how-it-works-v3-composite.svg`.
+Sources: `docs/archive/work/howitworks-bg-v3-nostar.png` +
+`docs/archive/work/2026-07-31-how-it-works-v3-composite.svg`.
 
 Prompt (via `codex exec`, edit-referenced with
-`-i docs/work/howitworks-bg-nostar.png`):
+`-i docs/archive/work/howitworks-bg-nostar.png`):
 
 > Recreate the attached network diagram precisely: same layout, same objects,
 > same colors, same label positions — an open laptop in thin blue wireframe,

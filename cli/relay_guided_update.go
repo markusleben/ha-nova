@@ -12,11 +12,10 @@ import (
 	"time"
 )
 
-// Stage 2 of the guided relay update
-// (docs/work/2026-07-12-relay-guided-update-spec.md): after the
-// relay-outdated warning on an interactive terminal, `ha-nova update` and
-// `ha-nova doctor` can show the currently observed App-update preview and ask
-// for confirmation to install the latest available version — never automatic.
+// After the relay-outdated warning on an interactive terminal, `ha-nova
+// update` and `ha-nova doctor` can show the currently observed App-update
+// preview and ask for confirmation to install the latest available version —
+// never automatic.
 // Supervisor App updates cannot bind a target version. Everything here is
 // client-side and generic HA transport through the existing /core proxy; the
 // relay stays dumb.
