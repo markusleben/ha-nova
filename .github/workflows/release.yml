@@ -220,15 +220,21 @@ jobs:
           - ubuntu-latest
           - macos-latest
           - windows-latest
-    env:
-      GH_TOKEN: ${{ github.token }}
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The downloaded bundle binaries run below; keep git credentials
+          # out of the workspace they can read.
+          persist-credentials: false
 
       - name: Download and smoke Unix release bundle
         if: runner.os != 'Windows'
         shell: bash
+        env:
+          # Step-scoped write token: draft releases are invisible to read
+          # tokens. It is unset before any downloaded binary executes.
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           case "${RUNNER_OS}" in
@@ -248,6 +254,15 @@ jobs:
             --repo "$GITHUB_REPOSITORY" \
             --pattern "$archive" \
             --dir "$workdir"
+          if [[ "${RUNNER_OS}" == "macOS" ]]; then
+            gh release download "$GITHUB_REF_NAME" \
+              --repo "$GITHUB_REPOSITORY" \
+              --pattern "ha-nova-darwin-${arch}" \
+              --dir "$workdir"
+          fi
+          # Downloads are done; the binaries under test must never see the
+          # write token.
+          unset GH_TOKEN
           test -f "$workdir/$archive"
           tar -xzf "$workdir/$archive" -C "$workdir"
           root="$workdir/ha-nova"
@@ -262,10 +277,6 @@ jobs:
           "$root/ha-nova" version
           if [[ "${RUNNER_OS}" == "macOS" ]]; then
             raw_binary="$workdir/ha-nova-darwin-${arch}"
-            gh release download "$GITHUB_REF_NAME" \
-              --repo "$GITHUB_REPOSITORY" \
-              --pattern "ha-nova-darwin-${arch}" \
-              --dir "$workdir"
             test -f "$raw_binary"
             cmp "$root/ha-nova" "$raw_binary"
             bash scripts/release/verify-macos-signature.sh "$root/ha-nova"
@@ -289,6 +300,10 @@ jobs:
       - name: Download and smoke Windows release bundle
         if: runner.os == 'Windows'
         shell: pwsh
+        env:
+          # Step-scoped write token: draft releases are invisible to read
+          # tokens. It is removed before any downloaded binary executes.
+          GH_TOKEN: ${{ github.token }}
         run: |
           $archive = "ha-nova-installer-bundle-windows-amd64.zip"
           $workdir = Join-Path $env:RUNNER_TEMP "ha-nova-release"
@@ -298,6 +313,9 @@ jobs:
             --repo "$env:GITHUB_REPOSITORY" `
             --pattern $archive `
             --dir $workdir
+          # Downloads are done; the binary under test must never see the
+          # write token.
+          Remove-Item Env:GH_TOKEN -ErrorAction SilentlyContinue
           $archivePath = Join-Path $workdir $archive
           if (-not (Test-Path -LiteralPath $archivePath)) {
             throw "Exact Windows release bundle was not downloaded"
@@ -413,6 +431,10 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The installed binaries run below; keep git credentials out of
+          # the workspace they can read.
+          persist-credentials: false
 
       - name: Smoke Unix installer
         if: runner.os != 'Windows'
