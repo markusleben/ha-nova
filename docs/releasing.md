@@ -292,26 +292,64 @@ The JSON is commit-specific and has this exact schema:
 ```
 
 The `keyrings` keys must exactly match `cloud_remote_platforms`. Each `true`
-value attests the complete real-device matrix rather than a unit-test proxy:
+value attests the exact-target checks plus every still-applicable risk-scoped
+qualification. Before carrying a qualification forward, inspect the complete
+qualification-to-target diff. In the activation or release pull request,
+record each carried check and keyring OS with its qualified commit/tree,
+non-secret evidence reference, inspected target, and change-class decision.
+Missing or uncertain ledger data means rerun.
+
+Every target still runs CI, candidate signature/provenance checks on all
+enabled platforms, the exact installed Relay App, and one real Cloud health
+smoke on a reference platform. The smoke uses the downloaded candidate binary,
+`--via cloud`, the exact installed App, and `HA_NOVA_NO_CENSUS=1`; its JSON must
+report the expected App version and `ha_ws_connected: true`.
 
 - `parity`: `/health`, `/ws`, `/core`, `/files`, and `/backups` through real
-  Home Assistant Cloud;
-- `stress_10000`: one bounded Ingress-session stress run with 10,000 commands;
-- `keyrings`: real lock, unlock, cancellation, timeout, and no-UI behavior on
-  each enabled platform;
-- `roles`: Owner, admin, standard, and read-only user binding;
-- `domains_mfa`: default/custom domains, MFA, inactive subscription, disabled
-  remote access, and authorization abort;
-- `lifecycle`: durable-boundary recovery, reconnect, revoke, restart, update,
-  reinstall, instance mismatch, standard uninstall, and full purge;
+  Home Assistant Cloud on one reference platform after a transport change;
+- `stress_10000`: one bounded Ingress-session stress run with 10,000 commands
+  after a Cloud or Relay transport change or stress-harness change, not once
+  per operating system;
+- `keyrings`: real happy-path and fail-closed no-UI behavior on each enabled
+  platform for first support; shared orchestration changes repeat one reference
+  OS and adapter changes repeat only their affected OS; deterministic tests
+  cover cancellation and timeout branches;
+- `roles`: one real standard non-administrator binding plus exact-target user
+  and Relay identity-binding tests; Owner and administrator add no separate
+  transport path;
+- `domains_mfa`: one real canonical Nabu Casa OAuth flow plus deterministic
+  custom-origin, inactive-subscription, disabled-remote, and
+  authorization-abort branches; Home Assistant owns its MFA challenge before
+  returning the same OAuth callback;
+- `lifecycle`: one isolated Cloud-authorized profile first proves Relay App
+  restart and reinstall recovery, then HA NOVA CLI standard
+  uninstall/reinstall with retained authorization, then full purge last; the
+  purge revokes and verifies the active remote authorization and device before
+  local cleanup; deterministic durable-boundary and concurrency recovery
+  covers the other branches, with real update or instance-mismatch runs after
+  those paths change;
 - `redirects_non_disclosure`: redirect rejection plus credential absence from
-  config, argv, logs, diagnostics, and AI-visible output;
+  config, argv, logs, diagnostics, and AI-visible output, with one retained
+  real artifact scan after a relevant transport, config, argv, log,
+  diagnostics, or AI-output change;
 - `installed_relay_app`: the App installed for the real-device proof was built
   by Supervisor from the exact reviewed source commit, reports the exact
   `nova/config.yaml` version, and contains the reviewed Cloud endpoints;
-- `routing`: automatic fallback only before functional dispatch; and
-- `signing_and_update_matrix`: stable signing identity plus the complete
-  stable/RC/reinstall Keychain authorization matrix.
+- `routing`: one real automatic fallback after a routing change plus
+  exact-target fail-closed selection tests; and
+- `signing_and_update_matrix`: exact candidate signature and provenance on all
+  enabled platforms, with real install/update repetition only after installer,
+  updater, signing-identity, or native-authorization changes.
+
+No mock replaces a required real positive path. Exact-target CI, candidate
+provenance, `installed_relay_app`, and the Cloud health smoke are never carried
+forward. See
+`docs/work/2026-07-30-cloud-release-evidence-risk-scope-spec.md`.
+Carry-forward applies only to the qualification behind a check boolean: create
+a new exact-target JSON envelope and never copy an older commit/tree identity.
+The complete bounded change-class map is in that spec. A test or harness change
+invalidates every qualification that relies on it as deterministic or real
+evidence.
 
 For the first evidence on an activation pull request, dispatch the
 non-publishing candidate builder exactly once from current `main`.
@@ -385,10 +423,10 @@ the artifact promptly. If the run fails, inspect its logs and fix the cause in
 a reviewed pull request; workflow reruns are rejected, so use one new explicit
 dispatch only after the fix is reviewed.
 
-Run the stress proof from the exact enabled candidate bundle on each selected
-server profile. Never call a `ha-nova` found through `PATH`: extract the
-matching platform archive, verify its bundle identity against the run summary,
-and invoke that contained binary by its explicit path. For macOS or Linux:
+Never call a `ha-nova` found through `PATH`: extract each matching platform
+archive, verify its bundle identity against the run summary, and invoke that
+contained binary by its explicit path. On every enabled platform run the
+provenance check. For macOS or Linux:
 
 ```bash
 EXPECTED_TREE=0123456789abcdef0123456789abcdef01234567 # replace
@@ -396,6 +434,7 @@ VERSION_TAG=v0.22.0-rc1 # replace
 CANDIDATE_OS=macos
 CANDIDATE_ARCH=arm64
 SERVER_NAME=default
+EXPECTED_RELAY_APP_VERSION=0.7.1 # replace from exact-target nova/config.yaml
 CANDIDATE_DIR="$(mktemp -d)"
 tar -xzf "cloud-candidate-install-bundles/ha-nova-installer-bundle-${CANDIDATE_OS}-${CANDIDATE_ARCH}.tar.gz" \
   -C "${CANDIDATE_DIR}"
@@ -409,8 +448,6 @@ if (bundle.version !== version || bundle.cloud_release?.source_tree_sha !== tree
 }
 NODE
 HA_NOVA_NO_CENSUS=1 "${CANDIDATE_BIN}" internal-cloud-release-check
-HA_NOVA_NO_CENSUS=1 "${CANDIDATE_BIN}" internal-cloud-stress \
-  --server "${SERVER_NAME}"
 ```
 
 On the Windows Proxmox test machine, use PowerShell and the contained
@@ -420,6 +457,7 @@ executable explicitly:
 $ExpectedTree = "0123456789abcdef0123456789abcdef01234567" # replace
 $Version = "0.22.0-rc1" # replace
 $ServerName = "default"
+$ExpectedRelayAppVersion = "0.7.1" # replace from exact-target nova/config.yaml
 $CandidateDir = Join-Path $env:TEMP ("ha-nova-cloud-candidate-" + [guid]::NewGuid())
 Expand-Archive `
   -LiteralPath "cloud-candidate-install-bundles\ha-nova-installer-bundle-windows-amd64.zip" `
@@ -437,6 +475,56 @@ $CandidateBin = Join-Path $CandidateRoot "ha-nova.exe"
 $env:HA_NOVA_NO_CENSUS = "1"
 & $CandidateBin internal-cloud-release-check
 if ($LASTEXITCODE -ne 0) { throw "candidate provenance check failed" }
+```
+
+Choose exactly one reference platform for the exact-target Cloud health smoke.
+Use the same explicit downloaded candidate binary and exact installed App:
+
+```bash
+HEALTH_JSON="$(
+  HA_NOVA_NO_CENSUS=1 "${CANDIDATE_BIN}" relay health \
+    --server "${SERVER_NAME}" --via cloud
+)"
+node -e '
+  const fs = require("node:fs");
+  const payload = JSON.parse(fs.readFileSync(0, "utf8"));
+  if (
+    payload.ok !== true ||
+    payload.data?.status !== "ok" ||
+    payload.data?.ha_ws_connected !== true ||
+    payload.data?.version !== process.argv[1]
+  ) {
+    throw new Error("candidate Cloud health payload is not release-ready");
+  }
+' "${EXPECTED_RELAY_APP_VERSION}" <<<"${HEALTH_JSON}"
+```
+
+```powershell
+$env:HA_NOVA_NO_CENSUS = "1"
+$HealthJson = (& $CandidateBin relay health --server $ServerName --via cloud |
+  Out-String)
+if ($LASTEXITCODE -ne 0) { throw "candidate Cloud health smoke failed" }
+$Health = $HealthJson | ConvertFrom-Json
+if (
+  $Health.ok -ne $true -or
+  $Health.data.status -ne "ok" -or
+  $Health.data.ha_ws_connected -ne $true -or
+  $Health.data.version -ne $ExpectedRelayAppVersion
+) {
+  throw "candidate Cloud health payload is not release-ready"
+}
+```
+
+Only after a Cloud or Relay transport change or a change to
+`internal-cloud-stress` or its evidence collection/validation harness, run one
+stress proof on that reference platform and profile:
+
+```bash
+HA_NOVA_NO_CENSUS=1 "${CANDIDATE_BIN}" internal-cloud-stress \
+  --server "${SERVER_NAME}"
+```
+
+```powershell
 & $CandidateBin internal-cloud-stress --server $ServerName
 if ($LASTEXITCODE -ne 0) { throw "candidate Cloud stress proof failed" }
 ```
@@ -459,13 +547,15 @@ and directly controls its Cloud runtime, so evidence from the disabled source
 cannot attest the enabled runtime. The activation PR must reach a stable head,
 but in `pull_request` CI that checked-out head is GitHub's synthetic
 `refs/pull/<number>/merge` commit, not the PR branch head. Product, release
-metadata, or sensitive workflow changes require the enabled real-device matrix
-on that exact merge commit, followed by a repository-secret update and a CI
-rerun without changing the PR or its base. If the merge commit changes, repeat
-the proof. A target containing only the narrowly verified existing
-non-sensitive `uses:` version changes may reuse evidence from its exact
-ancestor instead. If a merge queue is used, `merge_group` creates another
-synthetic checkout commit and follows the same rule.
+metadata, or sensitive workflow changes require a new exact-target evidence
+envelope and every qualification row invalidated by that delta, followed by a
+repository-secret update and a CI rerun without changing the PR or its base.
+If the merge commit changes, rebuild the exact-target envelope; repeat only
+the qualification rows invalidated by the new delta. A target containing only
+the narrowly verified existing non-sensitive `uses:` version changes may
+reuse evidence from its exact ancestor instead. If a merge queue is used,
+`merge_group` creates another synthetic checkout commit and follows the same
+rule.
 
 After squash merge, the resulting `main` commit has a different SHA but may
 reuse the reviewed PR evidence only while its complete Git tree is identical
