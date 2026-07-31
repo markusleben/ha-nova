@@ -1,6 +1,6 @@
 # Cloud Candidate Bootstrap
 
-Status: implemented; awaiting GitHub review.
+Status: merged — reviewed and shipped via #470
 
 ## Problem
 

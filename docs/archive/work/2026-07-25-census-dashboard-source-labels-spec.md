@@ -1,7 +1,7 @@
 # Census Dashboard Source Labels
 
 Date: 2026-07-25
-Status: active
+Status: merged — shipped via #441
 
 ## Goal
 

@@ -1,6 +1,6 @@
 # Cloud Source Gate Efficiency Fix
 
-Status: locally verified; one follow-up canary remains after reviewed merge.
+Status: merged — follow-up canary completed on 2026-07-28
 
 ## Problem
 

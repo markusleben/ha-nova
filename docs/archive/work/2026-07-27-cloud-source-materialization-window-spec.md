@@ -1,6 +1,6 @@
 # Cloud Source Materialization Window Follow-up
 
-Status: follow-up required after the reviewed single-shot canary on `main`.
+Status: merged — single-shot post-fix canary passed on 2026-07-28
 
 ## Problem
 
