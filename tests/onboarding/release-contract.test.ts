@@ -257,7 +257,7 @@ describe("release contract", () => {
     expect(rcWorkflow).toContain('platform="darwin"');
     expect(rcWorkflow).toContain('platform="linux"');
     expect(rcWorkflow).toContain(
-      'elif "$workdir/ha-nova/ha-nova" internal-cloud-release-check; then',
+      'elif HOME="$smoke_home" "$root/ha-nova" internal-cloud-release-check; then',
     );
     expect(rcWorkflow).toContain(
       "unlisted Windows runtime returned an unexpected provenance result",
