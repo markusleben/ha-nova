@@ -1,6 +1,6 @@
 # Cloud Release Evidence Risk Scope
 
-Status: proposed.
+Status: active
 
 ## Problem
 
