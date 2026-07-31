@@ -228,13 +228,44 @@ jobs:
           # out of the workspace they can read.
           persist-credentials: false
 
-      - name: Download and smoke Unix release bundle
+      - name: Download Unix release assets
         if: runner.os != 'Windows'
         shell: bash
         env:
-          # Step-scoped write token: draft releases are invisible to read
-          # tokens. It is unset before any downloaded binary executes.
+          # Draft releases are invisible to read tokens. The write token
+          # lives only in this download step's shell; the smoke step below
+          # runs the downloaded binaries in a fresh process without it, so
+          # not even /proc/<ppid>/environ can leak it to them.
           GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          case "${RUNNER_OS}" in
+            macOS)
+              arch="$(uname -m | sed 's/x86_64/amd64/;s/arm64/arm64/')"
+              archive="ha-nova-installer-bundle-macos-${arch}.tar.gz"
+              ;;
+            Linux)
+              archive="ha-nova-installer-bundle-linux-$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/;s/arm64/arm64/').tar.gz"
+              ;;
+            *) exit 1 ;;
+          esac
+          workdir="${RUNNER_TEMP}/ha-nova-release-smoke"
+          rm -rf "$workdir"
+          mkdir -p "$workdir"
+          gh release download "$GITHUB_REF_NAME" \
+            --repo "$GITHUB_REPOSITORY" \
+            --pattern "$archive" \
+            --dir "$workdir"
+          if [[ "${RUNNER_OS}" == "macOS" ]]; then
+            gh release download "$GITHUB_REF_NAME" \
+              --repo "$GITHUB_REPOSITORY" \
+              --pattern "ha-nova-darwin-${arch}" \
+              --dir "$workdir"
+          fi
+
+      - name: Smoke Unix release bundle
+        if: runner.os != 'Windows'
+        shell: bash
         run: |
           set -euo pipefail
           case "${RUNNER_OS}" in
@@ -249,20 +280,7 @@ jobs:
               ;;
             *) exit 1 ;;
           esac
-          workdir="$(mktemp -d)"
-          gh release download "$GITHUB_REF_NAME" \
-            --repo "$GITHUB_REPOSITORY" \
-            --pattern "$archive" \
-            --dir "$workdir"
-          if [[ "${RUNNER_OS}" == "macOS" ]]; then
-            gh release download "$GITHUB_REF_NAME" \
-              --repo "$GITHUB_REPOSITORY" \
-              --pattern "ha-nova-darwin-${arch}" \
-              --dir "$workdir"
-          fi
-          # Downloads are done; the binaries under test must never see the
-          # write token.
-          unset GH_TOKEN
+          workdir="${RUNNER_TEMP}/ha-nova-release-smoke"
           test -f "$workdir/$archive"
           tar -xzf "$workdir/$archive" -C "$workdir"
           root="$workdir/ha-nova"
@@ -297,12 +315,13 @@ jobs:
             exit 1
           fi
 
-      - name: Download and smoke Windows release bundle
+      - name: Download Windows release bundle
         if: runner.os == 'Windows'
         shell: pwsh
         env:
-          # Step-scoped write token: draft releases are invisible to read
-          # tokens. It is removed before any downloaded binary executes.
+          # Draft releases are invisible to read tokens. The write token
+          # lives only in this download step's shell; the smoke step below
+          # runs the downloaded binary in a fresh process without it.
           GH_TOKEN: ${{ github.token }}
         run: |
           $archive = "ha-nova-installer-bundle-windows-amd64.zip"
@@ -313,9 +332,16 @@ jobs:
             --repo "$env:GITHUB_REPOSITORY" `
             --pattern $archive `
             --dir $workdir
-          # Downloads are done; the binary under test must never see the
-          # write token.
-          Remove-Item Env:GH_TOKEN -ErrorAction SilentlyContinue
+          if (-not (Test-Path -LiteralPath (Join-Path $workdir $archive))) {
+            throw "Exact Windows release bundle was not downloaded"
+          }
+
+      - name: Smoke Windows release bundle
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $archive = "ha-nova-installer-bundle-windows-amd64.zip"
+          $workdir = Join-Path $env:RUNNER_TEMP "ha-nova-release"
           $archivePath = Join-Path $workdir $archive
           if (-not (Test-Path -LiteralPath $archivePath)) {
             throw "Exact Windows release bundle was not downloaded"
