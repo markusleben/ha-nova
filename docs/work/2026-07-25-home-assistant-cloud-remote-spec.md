@@ -664,19 +664,43 @@ Cloud setup/resume remain blocked.
 
 ## Release gates
 
-- Full route parity and bounded Ingress memory under a 10,000-command stress
-  run. The hidden `internal-cloud-stress` command resolves one explicit Cloud
-  transport, then performs exactly 10,000 read-only authenticated `/health`
-  requests through that one process-local Ingress session. It has fixed
-  per-request and overall deadlines, stops on the first redirect, transport,
-  status, size, encoding, or Relay-identity failure, and never runs Census or
-  update checks.
-- Real keyrings on every advertised OS and all Home Assistant user roles.
-- Default/custom domains, MFA, recovery/concurrency, App lifecycle, inactive
-  subscriptions, and disabled remote access.
+- Full route parity on one real reference platform and bounded Ingress memory
+  under one 10,000-command stress run after a Cloud or Relay transport change
+  or stress-harness change. The hidden `internal-cloud-stress` command resolves
+  one explicit Cloud transport, then performs exactly 10,000 read-only
+  authenticated `/health` requests through that one process-local Ingress
+  session. It has fixed per-request and overall deadlines, stops on the first
+  redirect, transport, status, size, encoding, or Relay-identity failure, and
+  never runs Census or update checks.
+- Real keyring happy-path and fail-closed no-UI behavior on every advertised
+  OS for first support. Shared orchestration changes repeat one reference OS;
+  adapter changes repeat only the affected OS. Deterministic platform tests
+  cover prompt cancellation and timeout.
+- One real standard non-administrator role binding and one canonical Nabu Casa
+  OAuth flow. Home Assistant owns its MFA challenge before returning the same
+  OAuth callback. Deterministic authorization tests cover custom origins,
+  inactive subscriptions, disabled remote access, and authorization abort.
+- One isolated Cloud-authorized lifecycle profile first covers Relay App
+  restart and reinstall recovery, then HA NOVA CLI standard uninstall/reinstall
+  with retained authorization, then full purge last. The purge revokes and
+  verifies the active remote authorization and device before local cleanup.
+  Deterministic tests cover durable recovery and concurrency; update and
+  instance mismatch receive real runs when those paths change.
 - Redirect rejection and credential non-disclosure tests at every network hop.
 - Crash-point tests for every durable-state transition and credential rotation.
 - Proof that local automatic fallback occurs only before functional dispatch.
+
+Real-device qualifications remain applicable across unrelated changes only
+after reviewing the complete qualification-to-target diff and recording the
+non-secret qualification ledger in the activation or release pull request.
+Changes to a deterministic substitute or real evidence harness invalidate its
+qualification.
+Exact-target CI, candidate provenance on all enabled OSes, the installed Relay
+App, and one downloaded-candidate `relay health --via cloud` smoke with Census
+suppressed never carry forward. The smoke must parse the JSON and require the
+expected App version and `ha_ws_connected: true`; a zero exit code alone is not
+evidence. See
+`2026-07-30-cloud-release-evidence-risk-scope-spec.md`.
 
 The feature stays unavailable if any security or full-parity gate fails. The
 GitHub `production` environment accepts only branch `main` and tags matching

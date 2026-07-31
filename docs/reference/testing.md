@@ -87,8 +87,14 @@ interface. Normal development and release binaries deliberately ignore it.
 Host-safe tests prove parsing, lifecycle, redirect rejection, no-UI policy, and
 transport selection with injected stores and servers. They do not prove a
 native keyring, a Nabu Casa OAuth flow, or a real Supervisor Ingress session.
-The Cloud Beta therefore requires a separate real-device proof on the exact
-candidate commit.
+The Cloud Beta therefore requires an exact-candidate evidence envelope plus
+every real-device qualification invalidated by the candidate diff.
+
+Every candidate still uses its downloaded binary with `HA_NOVA_NO_CENSUS=1`
+to run one reference-platform `relay health --via cloud` against the exact
+installed Relay App. The proof parses the JSON and requires the expected App
+version plus `ha_ws_connected: true`; command success alone is insufficient.
+This smoke is separate from full route parity and never carries forward.
 
 Use an isolated CLI as described above, but do not set a file-backed device
 credential or test-keyring override for a release proof. Cloud OAuth refresh
@@ -155,29 +161,44 @@ remote-first case:
 "${cloud_test_binary}" cloud remove --server <test-profile>
 ```
 
-Required evidence:
+Required evidence is exact-target plus risk-scoped qualification. Repeat a
+real-device row only for first support or after a relevant implementation
+or evidence-harness change; exact-target CI, signed provenance on all enabled
+OSes, the installed Relay App, and the reference Cloud health smoke always run:
 
 - `/health`, `/ws`, `/core`, `/files`, and `/backups` parity through a real
-  Home Assistant Cloud route;
-- default and custom Cloud domains, MFA, inactive subscription, disabled remote
-  access, authorization abort, and recovery after each durable-state boundary;
-- Owner, admin, standard, and read-only Home Assistant users, including proof
-  that functional calls are bound to the authenticated user and Relay instance;
-- App restart, update, and reinstall; device revoke; concurrent reconnect; and
-  Relay-instance mismatch;
+  Home Assistant Cloud route on one reference platform after a transport
+  change;
+- one real canonical Nabu Casa OAuth flow and one real standard
+  non-administrator binding; Home Assistant owns the MFA challenge before
+  returning the same OAuth callback, while deterministic tests cover custom
+  origins, inactive subscription, disabled remote access, and authorization
+  abort;
+- one isolated Cloud-authorized profile first proves Relay App restart and
+  reinstall recovery, then HA NOVA CLI standard uninstall/reinstall with
+  retained authorization, then full purge last; the purge revokes and verifies
+  the active remote authorization and device before local cleanup;
+  deterministic tests cover durable-state recovery and concurrent reconnect,
+  while update and instance mismatch run for relevant changes;
 - redirect rejection and absence of credentials from config, argv, logs,
   diagnostics, and AI-visible output at every network hop;
 - `automatic` routing chooses Cloud only for a pure local network failure and
   never after authentication, pin, identity, protocol, or dispatch failure;
-- a 10,000-command Ingress-session stress run with bounded memory;
-- real native-storage lock, unlock, cancellation, timeout, and no-UI behavior
-  on every advertised macOS, Windows, and Linux desktop context.
+- one 10,000-command Ingress-session stress run with bounded memory after a
+  Cloud or Relay transport change or stress-harness change, not once per
+  operating system;
+- real native-storage happy-path and fail-closed no-UI behavior on every
+  advertised desktop OS for first support; shared orchestration changes repeat
+  one reference OS and adapter changes repeat only the affected OS;
+  deterministic platform tests cover cancellation and timeout.
 
 Standard uninstall must keep the test profile, device pairing, and Cloud
 authorization. Full purge must revoke and verify the Cloud authorization before
 removing local config or secrets. If any security, full-parity, or native-store
-gate fails, the Beta is not eligible for release. The complete matrix lives in
-`docs/work/2026-07-25-home-assistant-cloud-remote-spec.md`.
+gate fails, the Beta is not eligible for release. The complete contract lives
+in `docs/work/2026-07-30-cloud-release-evidence-risk-scope-spec.md`.
+The activation or release pull request carries the non-secret qualification
+ledger required there; no private Cloud URL belongs in it.
 
 ## Headless and cross-platform
 
