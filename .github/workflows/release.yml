@@ -209,7 +209,10 @@ jobs:
     needs: release
     runs-on: ${{ matrix.os }}
     permissions:
-      contents: read
+      # Draft releases are visible only to tokens with write access; this job
+      # downloads the still-draft assets before publication, so read is not
+      # enough ("release not found" on every runner otherwise).
+      contents: write
     strategy:
       fail-fast: false
       matrix:
