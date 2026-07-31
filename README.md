@@ -34,7 +34,7 @@
 *On HA OS or Supervised, there is no token to create or copy — the code is one-time and expires in minutes. Each device gets its own connection you can revoke anytime from NOVA.*
 
 <p align="center">
-  <b><a href="#-what-you-can-do">What it does</a></b> · <b><a href="#%EF%B8%8F-safe-by-design">Is it safe?</a></b> · <b><a href="#-get-started">Get started</a></b> · <b><a href="#%EF%B8%8F-how-it-works">How it works</a></b>
+  <b><a href="#-what-you-can-do">What it does</a></b> · <b><a href="#%EF%B8%8F-safe-by-design">Is it safe?</a></b> · <b><a href="#-get-started">Get started</a></b> · <b><a href="#optional-remote-access-with-home-assistant-cloud-beta">Cloud</a></b> · <b><a href="#%EF%B8%8F-how-it-works">How it works</a></b>
 </p>
 
 > **Actively developed.** Core workflows are proven end-to-end on macOS, Linux, and Windows — and the product is young enough that your feedback still shapes it. Back up your configs before letting AI touch anything. Hit a problem? [Open an issue](https://github.com/markusleben/ha-nova/issues).
@@ -113,6 +113,12 @@ Cloud Remote requires Home Assistant OS/Supervised and a supported desktop sessi
 
 Already installed locally? Run `ha-nova cloud add`, or rerun `ha-nova setup` for the same guided choice.
 
+<p align="center">
+  <img src="assets/cloud-fallback.png" alt="Local first, Cloud fallback: at home your machine reaches Home Assistant over the direct local connection; away, the same session falls back through your Home Assistant Cloud remote access.">
+</p>
+
+*Local stays first: the CLI prefers the direct connection and uses your Home Assistant Cloud remote access only as an automatic fallback — no manual URL switching.*
+
 Once it finishes, try: *"Show me all my automations."*
 
 > **More than one Home Assistant?** Add each further instance with `ha-nova pair --server <name> --relay-url http://<ha-host>:8791` — every server gets its own profile and its own isolated credential. Select one with the `--server <name>` flag on relay calls or the `HA_NOVA_SERVER` environment variable, and manage profiles with `ha-nova server list|default|rename|remove`.
@@ -167,7 +173,7 @@ Once it finishes, try: *"Show me all my automations."*
 ## ⚙️ How It Works
 
 <p align="center">
-  <img src="assets/how-it-works-v2.png" alt="HA NOVA's local path: your AI client and markdown skills on your machine talk to the NOVA Relay on your Home Assistant server over a pinned, per-device connection.">
+  <img src="assets/how-it-works-v3.png" alt="How HA NOVA connects: your AI client and markdown skills on your machine talk to the NOVA Relay on your Home Assistant server over a pinned, per-device connection, with optional Home Assistant Cloud as the automatic remote fallback.">
 </p>
 
 **Skills** live on your machine as plain markdown. They're the AI's playbook — what to check, what to show you first, what to verify after a change. You can open them, read them, even edit them.

@@ -610,6 +610,97 @@ wizard description. It does not land in `README.md` before the version bump:
 > create the one-time NOVA device code; the OAuth user can remain a standard
 > Home Assistant user.
 
+## README visuals (0.22.0 release-prep)
+
+The two release-prep README images below ship with the v0.22.0 release-prep
+PR. The process follows the approved v0.19 asset pipeline
+(`docs/archive/work/2026-07-20-asset-specs.md`): backgrounds are generated
+star-free via `codex exec` (built-in `image_gen`, native 1774×887 output,
+then a deterministic content-band crop + resize with `sips`), the canonical
+star block is composited via wrapper SVGs in `docs/work/`, and every PNG
+renders at 2× supersampling (`rsvg-convert -w 2W -h 2H` → `sips -z H W`, run
+from `docs/work/`). Background rasters and wrapper SVGs are committed so a
+fresh checkout reproduces both assets.
+
+Shared rules (unchanged from the v0.19 system): byte-identical `star-grad-v3`
+star block only — never a model-drawn star; backgrounds request "NO star, NO
+sparkle"; the star never sits on AI pixels (dark inset behind it); no
+glow/blur in the vector layer; cyan = client/local, amber = server/secure;
+minimal exact text whitelist per image with a glyph check on every attempt and
+up to 3 attempts, then the documented hybrid fallback (background without the
+failing label + vector system-font label in the wrapper).
+
+### Image A — Cloud fallback (`assets/cloud-fallback.png`, 1600×640)
+
+Placement: inside "Optional remote access with Home Assistant Cloud (Beta)",
+after the `ha-nova cloud add` paragraph. Scene: laptop wireframe left ("Your
+machine"), Home Assistant house right ("Home Assistant") with a small empty
+rounded app tile attached (the canonical star is composited there), one
+straight bright cyan line with a padlock = preferred local path, one slightly
+dimmer amber arc over a small cloud outline = "Home Assistant Cloud"
+fallback. Only readable text: `Your machine`, `Home Assistant`,
+`Home Assistant Cloud`.
+
+Sources: `docs/work/cloud-fallback-bg-nostar.png` +
+`docs/work/2026-07-31-cloud-fallback-composite.svg`.
+
+Prompt (via `codex exec`, style-referenced with
+`-i docs/work/howitworks-bg-nostar.png`):
+
+> Dark minimal network diagram, wide landscape composed for a wide center
+> crop. Background: deep space navy gradient from #0A0E1A to #0A1628 with
+> sparse tiny white stars at low opacity. Style exactly like the attached
+> reference: thin luminous neon wireframe line-art, flat, straight-on, no 3D,
+> no isometric perspective. LEFT: an open laptop in thin cyan #4FC3F7
+> wireframe outline, label below in bold white sans-serif: "Your machine".
+> RIGHT: a house silhouette in thin cyan wireframe with a warm amber door,
+> label below: "Home Assistant"; attached to the upper edge of the house one
+> small empty rounded-square app tile with a soft warm amber outline, its
+> interior completely dark and empty. LOWER CENTER: one straight thin glowing
+> cyan horizontal connection line from the laptop to the house with a small
+> cyan padlock icon at its middle. UPPER CENTER: one thin glowing amber arc
+> from the laptop rising over a small amber cloud outline at the top middle
+> and descending to the house, with the label "Home Assistant Cloud" in bold
+> white sans-serif near the cloud. The cyan line is the primary bright path;
+> the amber arc is visible but slightly dimmer. Only readable text, exactly
+> spelled, nothing else: "Your machine", "Home Assistant",
+> "Home Assistant Cloud". NO star shapes, NO sparkles, no four-point stars
+> anywhere. No watermarks, no extra text, no UI chrome.
+
+### Image B — How it works v3 (`assets/how-it-works-v3.png`, 1600×700)
+
+Replaces `assets/how-it-works-v2.png` (deleted in the same PR; historical
+tags keep their copy). Same approved v2 composition plus exactly one amber
+Cloud fallback arc ("Home Assistant Cloud") from the laptop over a small
+cloud outline to the house. Only readable text: `Your machine`, `Skills`,
+`NOVA Relay`, `428 316`, `Home Assistant`, `Home Assistant Cloud`.
+Additional fallback for this image only: keep the approved v2 background
+untouched and add arc + label as a crisp vector overlay in the wrapper.
+
+Sources: `docs/work/howitworks-bg-v3-nostar.png` +
+`docs/work/2026-07-31-how-it-works-v3-composite.svg`.
+
+Prompt (via `codex exec`, edit-referenced with
+`-i docs/work/howitworks-bg-nostar.png`):
+
+> Recreate the attached network diagram precisely: same layout, same objects,
+> same colors, same label positions — an open laptop in thin blue wireframe,
+> three markdown document sheets labeled "Skills", a straight thin cyan
+> glowing line with a small cyan padlock leading to a central rounded-square
+> app tile with a warm amber outline and a completely dark empty interior, an
+> amber code chip reading "428 316" below it, the label "NOVA Relay" under
+> the tile, then a short thin amber glowing line to a house wireframe labeled
+> "Home Assistant". ADD exactly one new element: a thin glowing amber arc
+> that rises from the laptop area, passes over a small amber cloud outline
+> near the top center, and descends to the house on the right, with the label
+> "Home Assistant Cloud" in bold white sans-serif near the cloud. Everything
+> else stays unchanged: deep navy space background from #0A0E1A to #0A1628
+> with sparse tiny dim white stars, flat straight-on neon wireframe style, no
+> 3D. Only readable text, exactly spelled, nothing else: "Your machine",
+> "Skills", "NOVA Relay", "428 316", "Home Assistant",
+> "Home Assistant Cloud". The app tile interior stays completely dark and
+> empty. NO star shapes, NO sparkles anywhere. No watermarks, no extra text.
+
 ## Supported beta contexts
 
 - macOS desktop terminal

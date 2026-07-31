@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 1600 700" width="1600" height="700">
+  <defs>
+    <linearGradient id="star-grad-v3" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#18BCF2"/>
+      <stop offset="45%" stop-color="#8FD9E8"/>
+      <stop offset="70%" stop-color="#FFD9A0"/>
+      <stop offset="100%" stop-color="#FFB347"/>
+    </linearGradient>
+    <radialGradient id="core-grad" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#FFFFFF"/>
+      <stop offset="100%" stop-color="#FFE4B5"/>
+    </radialGradient>
+    <radialGradient id="node-space" cx="50%" cy="50%" r="70%">
+      <stop offset="0%" stop-color="#101B2E"/>
+      <stop offset="100%" stop-color="#0A0E1A"/>
+    </radialGradient>
+  </defs>
+  <image xlink:href="howitworks-bg-v3-nostar.png" x="0" y="0" width="1600" height="700"/>
+  <rect x="775" y="303" width="230" height="230" rx="30" fill="url(#node-space)"/>
+  <g transform="translate(890, 418) scale(2.1)">
+    <path d="M0,-45 C5,-12 12,-5 45,0 C12,5 5,12 0,45 C-5,12 -12,5 -45,0 C-12,-5 -5,-12 0,-45 Z" fill="url(#star-grad-v3)"/>
+    <circle cx="0" cy="0" r="10" fill="url(#core-grad)"/>
+  </g>
+</svg>
