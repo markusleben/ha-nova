@@ -15,10 +15,9 @@ to the relay with its own secure device credential — created by pairing, never
 copied or pasted by hand. Intelligence lives in the AI client's skills, not in
 the relay.
 
-The optional Home Assistant Cloud path is a release-gated Beta on current
-`main`. Release metadata keeps it disabled until the real validation matrix
-passes. It uses the user's existing Nabu Casa remote service; HA NOVA runs no
-public tunnel or broker. Local-only operation is unchanged.
+The optional Home Assistant Cloud path is a release-gated desktop Beta.
+Enabled release builds use the user's existing Nabu Casa remote service; HA
+NOVA runs no public tunnel or broker. Local-only operation is unchanged.
 
 ## The NOVA page
 
@@ -276,13 +275,13 @@ before destructive local cleanup.
 
 ## Cloud Beta Availability
 
-Release metadata currently keeps Cloud Remote disabled. The implementation is
-desktop-only on macOS desktop terminals, Windows console/RDP sessions after
-real-device validation, and validated Linux desktop Secret Service providers.
-SSH, WSL, containers, services, gateways, and other headless contexts stay
-local-only. Release remains blocked until real Home Assistant Cloud parity,
-native-keyring, user-role, redirect, lifecycle, App restart/update/reinstall,
-and 10,000-command Ingress-session stress gates pass. See
+Enabled release builds support Cloud Remote only on macOS desktop terminals,
+Windows console/RDP sessions, and validated Linux desktop Secret Service
+providers. SSH, WSL, containers, services, gateways, and other headless
+contexts stay local-only. Every publication remains gated on exact-source Home
+Assistant Cloud parity, native-keyring, user-role, redirect, lifecycle, App
+restart/update/reinstall, and 10,000-command Ingress-session stress evidence.
+See
 [`docs/work/2026-07-25-home-assistant-cloud-remote-spec.md`](../docs/work/2026-07-25-home-assistant-cloud-remote-spec.md).
 
 ## Logs

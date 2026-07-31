@@ -9,6 +9,17 @@ The format follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic
 Recent changes are tracked in [GitHub releases](https://github.com/markusleben/ha-nova/releases)
 and merged PRs. This changelog will be updated with the next tagged relay version.
 
+## [Relay 0.8.0] - 2026-07-29
+
+### Added
+- Optional Home Assistant Cloud ingress for the existing Relay routes, with user-bound device authentication and separately revocable pairings.
+- Persistent Relay instance identity so local and Cloud routes cannot silently bind to different App installations.
+
+### Security
+- Functional Cloud routes require the Supervisor ingress peer, one Home Assistant user identity, the matching active device, and the current Relay instance.
+- Credential-bearing Home Assistant and Supervisor HTTP clients reject redirects.
+- Disabled builds expose only Cloud capability discovery and self-revocation; setup and functional Cloud routes remain unavailable.
+
 ## [Relay 0.7.1] - 2026-07-23
 
 ### Changed

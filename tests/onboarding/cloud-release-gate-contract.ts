@@ -48,12 +48,16 @@ export function registerCloudReleaseGateContractTests(): void {
     ciWorkflow.indexOf("  go-build:"),
   );
   const releasing = readFileSync("docs/releasing.md", "utf8");
+  const cloudSpec = readFileSync(
+    "docs/work/2026-07-25-home-assistant-cloud-remote-spec.md",
+    "utf8",
+  );
   const releaseEvidenceVerifier = readFileSync(
     "scripts/release/verify-cloud-release-evidence.mjs",
     "utf8",
   );
 
-  it("keeps Cloud publication disabled until commit-bound real-device evidence exists", () => {
+  it("keeps Cloud publication enabled only for the validated desktop platforms", () => {
     const version = JSON.parse(readFileSync("version.json", "utf8")) as {
       cloud_remote_enabled?: unknown;
       cloud_remote_platforms?: unknown;
@@ -62,10 +66,18 @@ export function registerCloudReleaseGateContractTests(): void {
       cloud_remote_enabled?: unknown;
       cloud_remote_platforms?: unknown;
     };
-    expect(version.cloud_remote_enabled).toBe(false);
-    expect(version.cloud_remote_platforms).toEqual([]);
+    expect(version.cloud_remote_enabled).toBe(true);
+    expect(version.cloud_remote_platforms).toEqual([
+      "darwin",
+      "linux",
+      "windows",
+    ]);
     expect(appVersion.cloud_remote_enabled).toBe(version.cloud_remote_enabled);
     expect(appVersion.cloud_remote_platforms).toEqual(version.cloud_remote_platforms);
+    expect(cloudSpec).toContain('"cloud_remote_enabled": true');
+    expect(cloudSpec).toContain(
+      '"cloud_remote_platforms": ["darwin", "linux", "windows"]',
+    );
 
     for (const workflow of [releaseWorkflow, rcWorkflow]) {
       const protectionIndex = workflow.indexOf(

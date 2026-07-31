@@ -34,7 +34,7 @@
 *On HA OS or Supervised, there is no token to create or copy — the code is one-time and expires in minutes. Each device gets its own connection you can revoke anytime from NOVA.*
 
 <p align="center">
-  <b><a href="#-what-you-can-do">What it does</a></b> · <b><a href="#%EF%B8%8F-safe-by-design">Is it safe?</a></b> · <b><a href="#-get-started">Get started</a></b> · <b><a href="#%EF%B8%8F-how-it-works">How it works</a></b>
+  <b><a href="#-what-you-can-do">What it does</a></b> · <b><a href="#%EF%B8%8F-safe-by-design">Is it safe?</a></b> · <b><a href="#-get-started">Get started</a></b> · <b><a href="#optional-remote-access-with-home-assistant-cloud-beta">Cloud</a></b> · <b><a href="#%EF%B8%8F-how-it-works">How it works</a></b>
 </p>
 
 > **Actively developed.** Core workflows are proven end-to-end on macOS, Linux, and Windows — and the product is young enough that your feedback still shapes it. Back up your configs before letting AI touch anything. Hit a problem? [Open an issue](https://github.com/markusleben/ha-nova/issues).
@@ -76,11 +76,11 @@ We built this because we didn't trust AI with our own config either.
 
 **The ground rules — always:**
 
-- 🔒 **Your Home Assistant credentials never leave the server.** The App connects through Home Assistant's own built-in access — there is no token for you to create, and the AI never sees any Home Assistant credential. (Standalone Container/Core keeps its token server-side the same way.)
+- 🔒 **Relay credentials stay out of the AI.** The App's Home Assistant credential stays inside the Relay. Optional Cloud access uses a separate Home Assistant OAuth authorization in this computer's native credential store; neither credential is exposed to the AI.
 - 🔑 **Every device is paired on its own.** The six-digit code is one-time and short-lived; what it creates is a per-device credential over an encrypted, pinned connection (OPAQUE, RFC 9807 + SPKI-pinned TLS 1.3 under the hood). (On App installs; the standalone container uses one shared token instead.)
 - 🗑️ **Revoke with one click on App installs.** Lost a laptop? Retired a machine? Cut off that paired device from the NOVA page — everything else keeps working.
 - 📖 **Every rule the AI follows is a markdown file you can read.**
-- 🏠 **No cloud relay or usage analytics.** Your Home Assistant data stays between your machine and your Home Assistant.
+- 🏠 **No HA NOVA-operated cloud relay or usage analytics.** Local mode stays between your machine and Home Assistant. Optional Cloud mode uses your Nabu Casa service; HA NOVA receives none of that traffic.
 - 📊 **Census off by default.** Only after your explicit opt-in, the [Census](docs/reference/census.md) sends the payload schema, a dedicated random Census installation ID, HA NOVA version, operating system, and a recently observed Relay version when available. The ID lets repeat reports from the same participating installation count once; it is not a person count or the complete installed base. HA NOVA sends the first report immediately and another no sooner than seven days later. Cloudflare is the hosting provider and processes source-IP and connection metadata for HTTPS; HA NOVA ingest does not read or store the IP. Aggregate active/known version, OS, and Relay breakdowns stay in private maintainer statistics, with official Relay App totals shown separately. Turn it off anytime with `ha-nova census off`; see [the privacy details](PRIVACY.md).
 
 ---
@@ -104,6 +104,20 @@ irm https://raw.githubusercontent.com/markusleben/ha-nova/main/install.ps1 | iex
 ```
 
 The installer selects the latest stable release. Run the command for your OS; the wizard discovers your Home Assistant, walks you through installing the NOVA Relay App, and configures your AI clients. At the pairing step it opens Home Assistant for you — open **NOVA** in the sidebar (or "Open Web UI" on the app page), click **"Connect a device"**, type the six-digit code, done.
+
+### Optional remote access with Home Assistant Cloud (Beta)
+
+The wizard keeps **Local only** as the recommended default. If you have a paid Home Assistant Cloud subscription from Nabu Casa with Remote UI enabled, choose **Local + Home Assistant Cloud** for automatic remote fallback or **Home Assistant Cloud only** for remote-first setup. The wizard validates your Cloud URL, opens Home Assistant OAuth, and stores the authorization in the native macOS, Windows, or Linux desktop credential store. HA NOVA runs no additional public tunnel or hosted broker.
+
+Cloud Remote requires Home Assistant OS/Supervised and a supported desktop session. Headless, SSH, WSL, service, gateway, Container, and Core setups stay local-only. Remote-first pairing uses a separate private Owner session to create the one-time NOVA device code; the OAuth user can remain a standard Home Assistant user.
+
+Already installed locally? Run `ha-nova cloud add`, or rerun `ha-nova setup` for the same guided choice.
+
+<p align="center">
+  <img src="assets/cloud-fallback.png" alt="Local first, Cloud fallback: at home your machine reaches Home Assistant over the direct local connection; away, the same session falls back through your Home Assistant Cloud remote access.">
+</p>
+
+*Local stays first: the CLI prefers the direct connection and uses your Home Assistant Cloud remote access only as an automatic fallback — no manual URL switching.*
 
 Once it finishes, try: *"Show me all my automations."*
 
@@ -159,12 +173,12 @@ Once it finishes, try: *"Show me all my automations."*
 ## ⚙️ How It Works
 
 <p align="center">
-  <img src="assets/how-it-works-v2.png" alt="How HA NOVA works: your AI client and markdown skills on your machine talk to the NOVA Relay on your Home Assistant server over a pinned, per-device connection. The relay is the only part that talks to Home Assistant.">
+  <img src="assets/how-it-works-v3.png" alt="How HA NOVA connects: your AI client and markdown skills on your machine talk to the NOVA Relay on your Home Assistant server over a pinned, per-device connection, with optional Home Assistant Cloud as the automatic remote fallback.">
 </p>
 
 **Skills** live on your machine as plain markdown. They're the AI's playbook — what to check, what to show you first, what to verify after a change. You can open them, read them, even edit them.
 
-**The Relay** lives on your Home Assistant server. It's the only part that talks to Home Assistant directly, and whatever credential that takes stays inside it — never on your laptop, never in a prompt. (In the App there's nothing to create at all: it uses Home Assistant's own built-in access.) Each device you pair reaches the relay over its own encrypted, pinned connection, and the NOVA page is where you pair new devices or cut old ones off.
+**The Relay** lives on your Home Assistant server. On the local path it is the only part that talks to Home Assistant directly, and its upstream credential stays inside it. Optional Cloud mode lets the CLI establish the Nabu Casa connection with OAuth authorization from native desktop secure storage; neither credential enters a prompt. Each paired device still reaches the Relay with its own encrypted credential, and the NOVA page is where you connect or revoke devices.
 
 Most new HA NOVA workflows are text-file skill updates on your machine. The Relay only changes when a workflow needs something genuinely new from Home Assistant — and even then it stays the dumb pipe: all the know-how stays in the skills.
 

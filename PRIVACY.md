@@ -8,13 +8,13 @@ for private maintainer statistics.
 
 ## Optional Home Assistant Cloud transport
 
-Home Assistant Cloud remote access is separate from the Census and remains
-disabled until its release gates pass. When enabled in a validated build,
-selecting `Local only` sends no Home Assistant traffic through Home Assistant
-Cloud. Selecting either Cloud mode uses the user's Nabu Casa service to reach
-that user's own Home Assistant through Home Assistant OAuth and Supervisor
-Ingress. HA NOVA operates no additional public tunnel, hosted broker, or Cloud
-endpoint for Home Assistant requests.
+Home Assistant Cloud remote access is separate from the Census and is available
+only in release-gated desktop Beta builds. Selecting `Local only` sends no Home
+Assistant traffic through Home Assistant Cloud. Selecting either Cloud mode
+uses the user's Nabu Casa service to reach that user's own Home Assistant
+through Home Assistant OAuth and Supervisor Ingress. HA NOVA operates no
+additional public tunnel, hosted broker, or Cloud endpoint for Home Assistant
+requests.
 
 The OAuth refresh token is stored only in a dedicated native OS credential
 store. It is not written to HA NOVA config, a file fallback, an environment

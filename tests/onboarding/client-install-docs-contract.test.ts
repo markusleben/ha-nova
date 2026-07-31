@@ -162,6 +162,10 @@ describe("client install docs contract", () => {
     expect(hermesInstall).toContain("local-first HA NOVA client");
     expect(hermesInstall).toContain("same home network or a private VPN/overlay route");
     expect(hermesInstall).toContain("generic public VPS");
+    expect(hermesInstall).toContain("ha-nova cloud add");
+    expect(hermesInstall).toContain(
+      "Service, headless, SSH, WSL2, and generic VPS sessions stay local-only",
+    );
     expect(hermesInstall).toContain("Do not expose the HA NOVA Relay directly to the public internet.");
     expect(hermesInstall).toContain("docs/reference/hermes-platform-validation.md");
     expect(hermesInstall).toContain("~/.hermes/skills/ha-nova/");

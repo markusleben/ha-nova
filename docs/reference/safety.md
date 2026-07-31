@@ -4,9 +4,9 @@ What HA NOVA promises, what enforces it, and what proves it. Every row names a f
 
 Last verified: 2026-07-11 — `npm run verify`, `go test ./...`, and the live end-to-end run against a real, disposable Home Assistant (`bash scripts/e2e/disposable-ha/run.sh`), all green. Re-verify this date on the exact release commit before publishing.
 
-The Home Assistant Cloud remote transport on current `main` is a Beta and is
-not covered by that earlier live proof. It remains release-gated on the
-exact-target checks and risk-scoped real-device qualifications in
+The Home Assistant Cloud rows below document the Beta's enforced contracts.
+Every publication remains gated on the exact-target checks and risk-scoped
+real-device qualifications in
 `docs/work/2026-07-30-cloud-release-evidence-risk-scope-spec.md`.
 
 ## Writes

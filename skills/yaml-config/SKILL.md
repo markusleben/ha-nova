@@ -23,11 +23,11 @@ Read and follow `../ha-nova/session-bootstrap.md`.
 Verify relay CLI: `ha-nova relay health`
 If this fails: `ha-nova setup`
 
-This skill needs **Relay 0.7.1 or newer** AND file access enabled. Both are the user's decision, not yours:
+This skill needs **Relay 0.8.0 or newer** AND file access enabled. Both are the user's decision, not yours:
 - Probe once: `ha-nova relay files --data-file <payload-file>` with `{"action":"list_dir","path":"/config"}`.
 - `FILE_ACCESS_DISABLED` -> file access is OFF (the default). Tell the user how to turn it on (App: Settings > Apps > NOVA Relay > Configuration > `file_access`: `readwrite`, restart; container: `FILE_ACCESS=readwrite` plus a config mount) and what it means, then continue with the manual path below. Do not nag.
 - `FILE_ACCESS_READONLY` -> reads work, writes do not. Offer the manual path below instead of asking for more permission.
-- If the relay is older than 0.7.1, report the compatibility failure and offer the Relay update. Do not bypass the enforced floor even if an older Relay happens to expose the endpoint.
+- If the relay is older than 0.8.0, report the compatibility failure and offer the Relay update. Do not bypass the enforced floor even if an older Relay happens to expose the endpoint.
 
 ## Relay Contract
 
