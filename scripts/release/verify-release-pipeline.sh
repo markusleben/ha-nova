@@ -44,6 +44,11 @@ note() { echo "::notice::$*"; }
 [[ "${REPO}" == "markusleben/ha-nova" ]] \
   || fail "release pipeline audit is hard-pinned to markusleben/ha-nova (got ${REPO})."
 
+# A disabled workflow receives no events, so its checks and release jobs
+# silently never run. Catches ci.yml itself and the merge→tag window, which
+# the in-CI gate cannot see.
+bash "${SCRIPT_DIR}/verify-required-workflows-active.sh" "${REPO}" "${POLICY_FILE}"
+
 # Skip a live check when it cannot run — but never in strict mode. The release
 # preflight sets HA_NOVA_RELEASE_AUDIT_REQUIRE_BYPASS=1 precisely to prove the
 # live tag-ruleset / no-App-bypass guard, so any inability to run it there is a
