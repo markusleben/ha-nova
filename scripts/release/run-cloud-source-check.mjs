@@ -340,6 +340,15 @@ try {
     ["scripts/release/verify-github-main-protection.sh", repository, "main"],
     { GH_TOKEN: checkToken },
   );
+  // Disabled workflows deliver no events, so their required checks silently
+  // never appear and PRs hang BLOCKED with no red anywhere. Executed here from
+  // the trusted default branch because enabled Cloud freezes workflow files
+  // to uses:-only PR deltas, so the guard cannot live as a workflow step.
+  run(
+    "bash",
+    ["scripts/release/verify-required-workflows-active.sh", repository],
+    { GH_TOKEN: githubToken },
+  );
   if (resolveRemoteRef(sourceRef) !== verifiedTargetSHA) {
     fail("source ref changed while the trusted source gate was running");
   }

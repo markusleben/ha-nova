@@ -18,6 +18,14 @@ if (( ${#guarded[@]} == 0 )); then
   exit 1
 fi
 
+# Exit 3 = the token cannot read workflow states at all (callers may treat
+# that as skippable). After this probe succeeds, a per-workflow failure is a
+# renamed/deleted guarded file — real policy drift, so it stays exit 1.
+if ! gh api "repos/${REPO}/actions/workflows?per_page=1" --jq '.total_count' >/dev/null 2>&1; then
+  echo "::notice::cannot read workflow states for ${REPO} (gh unavailable or missing Actions: read)"
+  exit 3
+fi
+
 failures=()
 for workflow in "${guarded[@]}"; do
   file_name="$(basename "${workflow}")"

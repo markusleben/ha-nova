@@ -37,7 +37,7 @@ Work style: Be radically precise. No fluff. Pure information only (drop grammar;
 - Simplicity first: handle only important cases; no enterprise over-engineering.
 - New functionality: small OR absolutely necessary.
 - NEVER delete files, folders, or other data unless explicitly approved or part of a plan.
-- NEVER run `gh workflow disable`/`enable`, change branch protection/rulesets, or flip repository settings to get past a blocker unless the user explicitly ordered that exact change. Report the blocker instead. Disabled workflows deliver no events, so required checks silently never appear; `ci-gate` and the release preflight fail via `scripts/release/verify-required-workflows-active.sh` when a guarded workflow is not active.
+- NEVER run `gh workflow disable`/`enable`, change branch protection/rulesets, or flip repository settings to get past a blocker unless the user explicitly ordered that exact change. Report the blocker instead. Disabled workflows deliver no events, so required checks silently never appear; `cloud-source-gate` and the release preflight fail via `scripts/release/verify-required-workflows-active.sh` when a guarded workflow is not active.
 - Before writing code, strictly follow the research rules below.
 
 ## Research

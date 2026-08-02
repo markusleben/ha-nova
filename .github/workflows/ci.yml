@@ -57,22 +57,12 @@ jobs:
   ci-gate:
     name: ci-gate
     runs-on: ubuntu-latest
-    permissions:
-      actions: read
-      contents: read
 
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
-
-      # Runs inside the required ci-gate check so a disabled guarded workflow
-      # blocks merges instead of only coloring an advisory job red.
-      - name: Guarded workflows must be active
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: bash scripts/release/verify-required-workflows-active.sh
 
       - name: Setup Node
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0

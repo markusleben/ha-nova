@@ -44,11 +44,6 @@ note() { echo "::notice::$*"; }
 [[ "${REPO}" == "markusleben/ha-nova" ]] \
   || fail "release pipeline audit is hard-pinned to markusleben/ha-nova (got ${REPO})."
 
-# A disabled workflow receives no events, so its checks and release jobs
-# silently never run. Catches ci.yml itself and the merge→tag window, which
-# the in-CI gate cannot see.
-bash "${SCRIPT_DIR}/verify-required-workflows-active.sh" "${REPO}" "${POLICY_FILE}"
-
 # Skip a live check when it cannot run — but never in strict mode. The release
 # preflight sets HA_NOVA_RELEASE_AUDIT_REQUIRE_BYPASS=1 precisely to prove the
 # live tag-ruleset / no-App-bypass guard, so any inability to run it there is a
@@ -146,6 +141,19 @@ if ! command -v gh >/dev/null 2>&1; then
 fi
 if ! gh auth status --hostname github.com >/dev/null 2>&1; then
   skip_or_fail "gh is not authenticated for github.com."
+fi
+
+# A disabled workflow receives no events, so its checks and release jobs
+# silently never run. Catches ci.yml itself and the merge→tag window, which
+# the in-PR gate cannot see. Exit 3 means the token cannot read workflow
+# states (skippable when non-strict); any other failure is a real disable.
+workflow_state_rc=0
+bash "${SCRIPT_DIR}/verify-required-workflows-active.sh" "${REPO}" "${POLICY_FILE}" \
+  || workflow_state_rc=$?
+if [[ "${workflow_state_rc}" -eq 3 ]]; then
+  skip_or_fail "Cannot read ${REPO} workflow states with the current token (needs Actions: read)."
+elif [[ "${workflow_state_rc}" -ne 0 ]]; then
+  fail "A guarded workflow is disabled; re-enable it before releasing."
 fi
 
 if [[ "${REQUIRE_BYPASS}" == "1" ]]; then

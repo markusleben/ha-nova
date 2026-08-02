@@ -23,14 +23,6 @@ const requiredCheckWorkflows: Record<string, string> = {
   "cloud-source-gate": ".github/workflows/cloud-source-gate.yml",
 };
 
-function jobSection(workflowYaml: string, jobId: string): string {
-  const match = workflowYaml.match(
-    new RegExp(`^  ${jobId}:\\n([\\s\\S]*?)(?=^  [a-z0-9-]+:|(?![\\s\\S]))`, "m"),
-  );
-  expect(match, `job ${jobId} not found`).not.toBeNull();
-  return match![0];
-}
-
 function runGate(ghScript: string): { status: number | null; output: string } {
   const dir = mkdtempSync(join(tmpdir(), "guarded-wf-"));
   const gh = join(dir, "gh");
@@ -78,19 +70,28 @@ describe("guarded workflows contract", () => {
     }
   });
 
-  it("runs the active-state gate as an uncommented step of the required ci-gate job", () => {
-    const ciGate = jobSection(
-      readFileSync(".github/workflows/ci.yml", "utf8"),
-      "ci-gate",
+  it("runs the active-state gate inside the required cloud-source-gate check", () => {
+    const reporter = readFileSync(
+      "scripts/release/run-cloud-source-check.mjs",
+      "utf8",
     );
-    const gateLine = ciGate
+    const callLine = reporter
       .split("\n")
-      .find((line) =>
-        line.includes("bash scripts/release/verify-required-workflows-active.sh"),
-      );
-    expect(gateLine, "gate step missing from ci-gate job").toBeDefined();
-    expect(gateLine!.trimStart().startsWith("#")).toBe(false);
-    expect(ciGate).toContain("actions: read");
+      .find((line) => line.includes("verify-required-workflows-active.sh"));
+    expect(callLine, "gate call missing from run-cloud-source-check.mjs").toBeDefined();
+    expect(callLine!.trimStart().startsWith("//")).toBe(false);
+    // The cloud-source-gate workflow needs actions:read for this call.
+    expect(
+      readFileSync(".github/workflows/cloud-source-gate.yml", "utf8"),
+    ).toContain("actions: read");
+  });
+
+  it("never wires the gate as a workflow step (enabled Cloud freezes workflow files)", () => {
+    for (const workflow of policy.guarded_workflows) {
+      expect(readFileSync(workflow, "utf8"),
+        `${workflow} must not call the gate directly; use a script executed from the trusted default branch`,
+      ).not.toContain("verify-required-workflows-active");
+    }
   });
 
   it("runs the active-state gate inside the release preflight", () => {
@@ -110,6 +111,12 @@ describe("guarded workflows contract", () => {
     const { status, output } = runGate('echo "active"');
     expect(status).toBe(0);
     expect(output).toContain("guarded workflows are active");
+  });
+
+  it("exits 3 when the token cannot read workflow states at all", () => {
+    const { status, output } = runGate("exit 1");
+    expect(status).toBe(3);
+    expect(output).toContain("cannot read workflow states");
   });
 
   it("fails loudly when the policy lists no guarded workflows", () => {
