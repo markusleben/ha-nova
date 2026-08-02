@@ -153,6 +153,7 @@ Use below list to store and recall user notes when asked to do so.
 - For graphics/diagrams, labels must stay consistent across all views (top view, side view, etc.).
 - Relay stays dumb, Skills stay smart. No business logic in the server.
 - Preferred terminology (2026+): use "App" instead of "Add-on", except where technical API paths force legacy terms (for example `/addons/*`).
+- Pairing/onboarding copy rule (2026-08-02): describe pairing by what happens (one-time six-digit code, per-device connection, revocable anytime) — never define the product by the absence of tokens or legacy flows ("no token to copy" confuses users who never saw the old flow). Technical token documentation (standalone container LLAT, relay auth token, OAuth storage) is exempt.
 - Priority: deliver a working MVP first, but keep the architecture modular from day one for later extension.
 - Skills remain pure `*.md` files; no hidden business logic outside this model.
 - Relay implementation must remain lean, clean, and efficient (KISS + DRY, clear responsibilities).
