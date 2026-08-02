@@ -98,13 +98,20 @@ plus `ha_ws_connected: true`; command success alone is insufficient. This
 smoke is separate from full route parity; maintenance deltas refresh the
 envelope and provenance without it.
 
-Use an isolated CLI as described above, but do not set a file-backed device
-credential or test-keyring override for a release proof. Cloud OAuth refresh
-tokens have no production file backend or environment-variable override. Keep
-the real login `HOME`: macOS Keychain and Linux Secret Service resolve the
-interactive user's native store from that desktop identity. Relocate HA NOVA's
-non-secret config and checkpoints with `HA_NOVA_CONFIG_DIR`, and additionally
-set a cryptographically unique relay-token service before the first command:
+This isolation procedure serves the real-device qualification runs below. The
+exact-candidate provenance check and health smoke follow a different layout:
+the `SMOKE_HOME` procedure in `docs/releasing.md`, because Unix provenance
+resolves the installed bundle from `$HOME/.local/share/ha-nova` and the smoke
+profile isolates its own authorization there.
+
+For qualification runs, use an isolated CLI as described above, but do not set
+a file-backed device credential or test-keyring override for a release proof.
+Cloud OAuth refresh tokens have no production file backend or
+environment-variable override. Keep the real login `HOME`: macOS Keychain and
+Linux Secret Service resolve the interactive user's native store from that
+desktop identity. Relocate HA NOVA's non-secret config and checkpoints with
+`HA_NOVA_CONFIG_DIR`, and additionally set a cryptographically unique
+relay-token service before the first command:
 
 ```bash
 cloud_test_root="$(mktemp -d)"

@@ -299,10 +299,12 @@ non-secret evidence reference, inspected target, and change-class decision.
 Missing or uncertain ledger data means rerun.
 
 Every target still runs CI, candidate signature/provenance checks on all
-enabled platforms, the exact installed Relay App, and one real Cloud health
-smoke on a reference platform. The smoke uses the downloaded candidate binary,
-`--via cloud`, the exact installed App, and `HA_NOVA_NO_CENSUS=1`; its JSON must
-report the expected App version and `ha_ws_connected: true`.
+enabled platforms, and the exact installed Relay App. A target whose delta
+matches an invalidation-map row with real-platform scope also runs one real
+Cloud health smoke on a reference platform; maintenance deltas skip it. The
+smoke uses the downloaded candidate binary, `--via cloud`, the exact installed
+App, and `HA_NOVA_NO_CENSUS=1`; its JSON must report the expected App version
+and `ha_ws_connected: true`.
 
 - `parity`: `/health`, `/ws`, `/core`, `/files`, and `/backups` through real
   Home Assistant Cloud on one reference platform after a transport change;
