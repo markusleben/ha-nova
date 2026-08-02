@@ -434,7 +434,10 @@ EXPECTED_TREE=0123456789abcdef0123456789abcdef01234567 # replace
 VERSION_TAG=v0.22.0-rc1 # replace
 CANDIDATE_OS=macos
 CANDIDATE_ARCH=arm64
-SERVER_NAME=default
+# A unique name also isolates the OS-keyring device-credential slot, which is
+# keyed by server name; "default" would reuse (and `cloud remove` would
+# revoke) the production device credential.
+SERVER_NAME="smoke-$(uuidgen | tr 'A-F' 'a-f' | cut -c1-8)"
 EXPECTED_RELAY_APP_VERSION=0.7.1 # replace from exact-target nova/config.yaml
 # Unix builds resolve their install root from HOME, so the provenance check
 # passes only from an installed layout (see be0c5e2); calling the extracted
@@ -463,7 +466,9 @@ executable explicitly:
 ```powershell
 $ExpectedTree = "0123456789abcdef0123456789abcdef01234567" # replace
 $Version = "0.22.0-rc1" # replace
-$ServerName = "default"
+# Unique name: the device-credential slot is keyed by server name; "default"
+# would reuse or revoke the production device credential.
+$ServerName = "smoke-" + [guid]::NewGuid().ToString("N").Substring(0, 8)
 $ExpectedRelayAppVersion = "0.7.1" # replace from exact-target nova/config.yaml
 $CandidateDir = Join-Path $env:TEMP ("ha-nova-cloud-candidate-" + [guid]::NewGuid())
 Expand-Archive `
