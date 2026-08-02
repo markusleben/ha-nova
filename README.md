@@ -8,6 +8,10 @@
   <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey" alt="macOS | Windows | Linux">
 </p>
 
+<p align="center">
+  <b><a href="https://hanova.app/">hanova.app</a></b> · the 5-minute tour
+</p>
+
 <h2 align="center">One code to connect. Every change checked.</h2>
 
 <p align="center">
