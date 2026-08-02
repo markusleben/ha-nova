@@ -341,8 +341,10 @@ report the expected App version and `ha_ws_connected: true`.
   updater, signing-identity, or native-authorization changes.
 
 No mock replaces a required real positive path. Exact-target CI, candidate
-provenance, `installed_relay_app`, and the Cloud health smoke are never carried
-forward. See
+provenance, and `installed_relay_app` are never carried forward. The Cloud
+health smoke repeats only when the delta matches an invalidation-map row with
+real-platform scope; maintenance deltas (docs, tests, process, release
+machinery) refresh the envelope and provenance without it. See
 `docs/work/2026-07-30-cloud-release-evidence-risk-scope-spec.md`.
 Carry-forward applies only to the qualification behind a check boolean: create
 a new exact-target JSON envelope and never copy an older commit/tree identity.
@@ -434,11 +436,17 @@ CANDIDATE_OS=macos
 CANDIDATE_ARCH=arm64
 SERVER_NAME=default
 EXPECTED_RELAY_APP_VERSION=0.7.1 # replace from exact-target nova/config.yaml
+# Unix builds resolve their install root from HOME, so the provenance check
+# passes only from an installed layout (see be0c5e2); calling the extracted
+# binary in place fails with "official Cloud release provenance is not
+# enabled".
 CANDIDATE_DIR="$(mktemp -d)"
+SMOKE_HOME="${CANDIDATE_DIR}/home"
+mkdir -p "${SMOKE_HOME}/.local/share"
 tar -xzf "cloud-candidate-install-bundles/ha-nova-installer-bundle-${CANDIDATE_OS}-${CANDIDATE_ARCH}.tar.gz" \
-  -C "${CANDIDATE_DIR}"
-CANDIDATE_BIN="${CANDIDATE_DIR}/ha-nova/ha-nova"
-node - "${CANDIDATE_DIR}/ha-nova/bundle.json" "${VERSION_TAG#v}" "${EXPECTED_TREE}" <<'NODE'
+  -C "${SMOKE_HOME}/.local/share"
+CANDIDATE_BIN="${SMOKE_HOME}/.local/share/ha-nova/ha-nova"
+node - "${SMOKE_HOME}/.local/share/ha-nova/bundle.json" "${VERSION_TAG#v}" "${EXPECTED_TREE}" <<'NODE'
 const fs = require("node:fs");
 const [path, version, tree] = process.argv.slice(2);
 const bundle = JSON.parse(fs.readFileSync(path, "utf8"));
@@ -446,7 +454,7 @@ if (bundle.version !== version || bundle.cloud_release?.source_tree_sha !== tree
   throw new Error("candidate bundle identity does not match the recorded run");
 }
 NODE
-HA_NOVA_NO_CENSUS=1 "${CANDIDATE_BIN}" internal-cloud-release-check
+HOME="${SMOKE_HOME}" HA_NOVA_NO_CENSUS=1 "${CANDIDATE_BIN}" internal-cloud-release-check
 ```
 
 On the Windows Proxmox test machine, use PowerShell and the contained
@@ -477,11 +485,32 @@ if ($LASTEXITCODE -ne 0) { throw "candidate provenance check failed" }
 ```
 
 Choose exactly one reference platform for the exact-target Cloud health smoke.
+The smoke is required only when the delta matches an invalidation-map row with
+real-platform scope (Cloud or Relay transport, product, or qualification
+harness — see the evidence risk-scope spec); maintenance deltas (docs, tests,
+process, release machinery) refresh the envelope and provenance without it.
+
+The smoke needs its own Cloud authorization inside the smoke HOME. NEVER copy
+the production `~/.config/ha-nova` there: the copied profile keeps the
+production ProfileID, which is the keychain account under the fixed
+`ha-nova.oauth.home-assistant-cloud.*` services — `cloud add` on top of it
+rotates the PRODUCTION Cloud authorization. A fresh profile in an empty smoke
+HOME gets a new ProfileID and is collision-free by design. Set it up once per
+smoke (browser OAuth opens interactively) and remove it afterwards:
+
+```bash
+HOME="${SMOKE_HOME}" HA_NOVA_NO_CENSUS=1 "${CANDIDATE_BIN}" cloud add \
+  --server "${SERVER_NAME}" --url "https://<ha-host>"
+# ... run the health smoke below ...
+HOME="${SMOKE_HOME}" HA_NOVA_NO_CENSUS=1 "${CANDIDATE_BIN}" cloud remove \
+  --server "${SERVER_NAME}"
+```
+
 Use the same explicit downloaded candidate binary and exact installed App:
 
 ```bash
 HEALTH_JSON="$(
-  HA_NOVA_NO_CENSUS=1 "${CANDIDATE_BIN}" relay health \
+  HOME="${SMOKE_HOME}" HA_NOVA_NO_CENSUS=1 "${CANDIDATE_BIN}" relay health \
     --server "${SERVER_NAME}" --via cloud
 )"
 node -e '

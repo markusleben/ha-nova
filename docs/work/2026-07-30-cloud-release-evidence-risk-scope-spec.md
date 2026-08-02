@@ -101,9 +101,13 @@ substitute and real evidence collection/validation harness it relies on.
 No mock may replace the required real positive path. No carried
 qualification may cross a relevant implementation change.
 
-The exact-target Cloud health smoke is not `parity`. On every target, the
-official downloaded candidate binary must run with `HA_NOVA_NO_CENSUS=1`
-against the exact installed Relay App:
+The exact-target Cloud health smoke is not `parity`. It repeats only for a
+target whose delta matches an invalidation-map row with real-platform scope;
+a maintenance delta (the `None` and release-machinery rows) refreshes the
+envelope and provenance without a new smoke. When due, the official
+downloaded candidate binary must run with `HA_NOVA_NO_CENSUS=1`
+against the exact installed Relay App (from an isolated smoke profile — see
+`docs/releasing.md` for the collision-safe setup):
 
 ```bash
 HA_NOVA_NO_CENSUS=1 <candidate-binary> relay health \
