@@ -1,4 +1,16 @@
 {
+  "guarded_workflows": [
+    ".github/workflows/ci.yml",
+    ".github/workflows/codeql.yml",
+    ".github/workflows/dependency-review.yml",
+    ".github/workflows/manifest-review-gate.yml",
+    ".github/workflows/readme-release-gate.yml",
+    ".github/workflows/cloud-source-gate.yml",
+    ".github/workflows/dependabot-safe-lane-prepare.yml",
+    ".github/workflows/dependabot-safe-auto-merge.yml",
+    ".github/workflows/release.yml",
+    ".github/workflows/release-candidate.yml"
+  ],
   "manifest_review": {
     "label": "manifest-review:approved",
     "approvers": [
