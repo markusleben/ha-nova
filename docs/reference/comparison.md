@@ -53,7 +53,7 @@ Being honest about this is the point of the page:
 
 ## Where HA NOVA is ahead (as of 2026-07-20)
 
-- **Per-device pairing you can see and revoke.** One six-digit code per device, a console that lists every paired machine, one-click revocation — and no Home Assistant token to create anywhere in the App flow.
+- **Per-device pairing you can see and revoke.** One six-digit code per device, a console that lists every paired machine, one-click revocation.
 - **Media, notifications, MQTT, and voice** have dedicated skills with real domain rules — feature-bit gating before a media call, the iOS/Android payload split for notifications, retained-vs-live distinction when listening to MQTT, utterance testing that says plainly it executes what it understands.
 - **Root-cause diagnosis** as a workflow (traces → logs → bounded history → template probe), not just raw log access.
 - **The safety model above**, enforced structurally rather than configured per tool.

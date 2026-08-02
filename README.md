@@ -11,7 +11,7 @@
 <h2 align="center">One code to connect. Every change checked.</h2>
 
 <p align="center">
-  On HA OS or Supervised, pair your AI with one six-digit code — no token to create or copy.<br>
+  On HA OS or Supervised, pair your AI with one six-digit code from the NOVA page.<br>
   Every change is previewed and approved first, then verified by reading it back.
 </p>
 
@@ -31,7 +31,7 @@
   <img src="assets/pairing-flow.png" alt="Pairing flow: run the installer, click Connect a device on the NOVA page, type the six-digit code">
 </p>
 
-*On HA OS or Supervised, there is no token to create or copy — the code is one-time and expires in minutes. Each device gets its own connection you can revoke anytime from NOVA.*
+*The code is one-time and expires in minutes. Each device gets its own connection you can revoke anytime from NOVA.*
 
 <p align="center">
   <b><a href="#-what-you-can-do">What it does</a></b> · <b><a href="#%EF%B8%8F-safe-by-design">Is it safe?</a></b> · <b><a href="#-get-started">Get started</a></b> · <b><a href="#optional-remote-access-with-home-assistant-cloud-beta">Cloud</a></b> · <b><a href="#%EF%B8%8F-how-it-works">How it works</a></b>

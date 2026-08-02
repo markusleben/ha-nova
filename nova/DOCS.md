@@ -137,7 +137,7 @@ from the NOVA page, then pairs securely: the device receives its own credential
 (kept in the client's OS credential store — or in a private file for
 `--service` installs, explicit `ha-nova pair --credential-store=file` opt-ins,
 and headless systems without a keyring) and talks to the Relay over pinned TLS.
-Nothing to copy or paste. Existing saved tokens, `--relay-token`, service token
+Existing saved tokens, `--relay-token`, service token
 files, and standalone Container/Core setups keep their explicit-token paths.
 
 Cloud OAuth refresh tokens are separate from Relay/device credentials and live
