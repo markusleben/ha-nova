@@ -232,7 +232,7 @@ function renderPage(m: PageModel): string {
          <p class="code">${escapeHtml(formatCode(m.pairing.code))}</p>
          <p class="muted waiting">Waiting for the device… this page updates on its own once it connects.</p>
          ${formOpen}${csrfField("cancel_code")}<button class="secondary" type="submit">Cancel</button></form>`
-      : `<p class="muted">Generate a one-time code, then enter it on your computer when NOVA asks. Each device gets its own secure connection — no tokens to copy.</p>
+      : `<p class="muted">Generate a one-time code, then enter it on your computer when NOVA asks. Each device gets its own secure connection.</p>
          ${formOpen}${csrfField("generate_code")}<button type="submit">Connect a device</button></form>${
           m.pairing.phase === "consumed" ? `<p class="ok">✓ A device was just connected.</p>` : ""
         }`;
@@ -324,7 +324,7 @@ function renderPage(m: PageModel): string {
 </style></head><body>
 <main>
 <h1>${star}NOVA</h1>
-<p class="intro">Let your AI assistant work with Home Assistant — safely. Connect each computer once with a one-time code; there are no tokens to copy or paste.</p>
+<p class="intro">Let your AI assistant work with Home Assistant — safely. Connect each computer once with a one-time code; every device gets its own connection.</p>
 ${errorSection}<section><h2>Home Assistant</h2><p>${m.connection.haConnected ? "Connected." : `<span class="muted">Not connected — check the App logs.</span>`}</p></section>
 ${recoverySection}<section><h2>Update</h2><p>${updateLine}</p></section>
 <section><h2>Pairing</h2>${pairingSection}</section>
