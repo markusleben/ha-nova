@@ -438,8 +438,9 @@ CANDIDATE_OS=macos
 CANDIDATE_ARCH=arm64
 # A unique name also isolates the OS-keyring device-credential slot, which is
 # keyed by server name; "default" would reuse (and `cloud remove` would
-# revoke) the production device credential.
-SERVER_NAME="smoke-$(uuidgen | tr 'A-F' 'a-f' | cut -c1-8)"
+# revoke) the production device credential. Node is required anyway and fails
+# loudly, unlike optional generators whose absence a pipeline would swallow.
+SERVER_NAME="smoke-$(node -e 'console.log(require("node:crypto").randomBytes(4).toString("hex"))')"
 EXPECTED_RELAY_APP_VERSION=0.7.1 # replace from exact-target nova/config.yaml
 # Unix builds resolve their install root from HOME, so the provenance check
 # passes only from an installed layout (see be0c5e2); calling the extracted
@@ -508,12 +509,11 @@ smoke (browser OAuth opens interactively) and remove it afterwards:
 ```bash
 HOME="${SMOKE_HOME}" HA_NOVA_NO_CENSUS=1 "${CANDIDATE_BIN}" cloud add \
   --server "${SERVER_NAME}" --url "https://<ha-host>"
-# ... run the health smoke below — and, when a transport or stress-harness
-# delta requires it, the internal-cloud-stress proof too. Remove the profile
-# only after the LAST Cloud command:
-HOME="${SMOKE_HOME}" HA_NOVA_NO_CENSUS=1 "${CANDIDATE_BIN}" cloud remove \
-  --server "${SERVER_NAME}"
 ```
+
+Run the health smoke below, plus the `internal-cloud-stress` proof when a
+transport or stress-harness delta requires it. The profile removal command is
+in the cleanup step at the end of this section, after the last Cloud command.
 
 On Windows the install root resolves from the executable directory
 (be0c5e2), so no HOME override exists or is needed; create the same isolated
@@ -523,8 +523,6 @@ carries no production profile) and remove it after the last Cloud command:
 ```powershell
 $env:HA_NOVA_NO_CENSUS = "1"
 & $CandidateBin cloud add --server $ServerName --url "https://<ha-host>"
-# ... health smoke / stress proof ...
-& $CandidateBin cloud remove --server $ServerName
 ```
 
 Use the same explicit downloaded candidate binary and exact installed App:
@@ -576,6 +574,18 @@ HOME="${SMOKE_HOME}" HA_NOVA_NO_CENSUS=1 "${CANDIDATE_BIN}" internal-cloud-stres
 ```powershell
 & $CandidateBin internal-cloud-stress --server $ServerName
 if ($LASTEXITCODE -ne 0) { throw "candidate Cloud stress proof failed" }
+```
+
+Cleanup: after the last Cloud command, remove the smoke profile — this revokes
+its device authorization and deletes its keyring entries:
+
+```bash
+HOME="${SMOKE_HOME}" HA_NOVA_NO_CENSUS=1 "${CANDIDATE_BIN}" cloud remove \
+  --server "${SERVER_NAME}"
+```
+
+```powershell
+& $CandidateBin cloud remove --server $ServerName
 ```
 
 `internal-cloud-stress` resolves Cloud once and sends exactly 10,000 read-only
