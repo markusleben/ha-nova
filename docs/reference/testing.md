@@ -90,19 +90,28 @@ native keyring, a Nabu Casa OAuth flow, or a real Supervisor Ingress session.
 The Cloud Beta therefore requires an exact-candidate evidence envelope plus
 every real-device qualification invalidated by the candidate diff.
 
-Every candidate still uses its downloaded binary with `HA_NOVA_NO_CENSUS=1`
-to run one reference-platform `relay health --via cloud` against the exact
-installed Relay App. The proof parses the JSON and requires the expected App
-version plus `ha_ws_connected: true`; command success alone is insufficient.
-This smoke is separate from full route parity and never carries forward.
+A candidate whose delta matches an invalidation-map row with real-platform
+scope uses its downloaded binary with `HA_NOVA_NO_CENSUS=1` to run one
+reference-platform `relay health --via cloud` against the exact installed
+Relay App. The proof parses the JSON and requires the expected App version
+plus `ha_ws_connected: true`; command success alone is insufficient. This
+smoke is separate from full route parity; maintenance deltas refresh the
+envelope and provenance without it.
 
-Use an isolated CLI as described above, but do not set a file-backed device
-credential or test-keyring override for a release proof. Cloud OAuth refresh
-tokens have no production file backend or environment-variable override. Keep
-the real login `HOME`: macOS Keychain and Linux Secret Service resolve the
-interactive user's native store from that desktop identity. Relocate HA NOVA's
-non-secret config and checkpoints with `HA_NOVA_CONFIG_DIR`, and additionally
-set a cryptographically unique relay-token service before the first command:
+This isolation procedure serves the real-device qualification runs below. The
+exact-candidate provenance check and health smoke follow a different layout:
+the `SMOKE_HOME` procedure in `docs/releasing.md`, because Unix provenance
+resolves the installed bundle from `$HOME/.local/share/ha-nova` and the smoke
+profile isolates its own authorization there.
+
+For qualification runs, use an isolated CLI as described above, but do not set
+a file-backed device credential or test-keyring override for a release proof.
+Cloud OAuth refresh tokens have no production file backend or
+environment-variable override. Keep the real login `HOME`: macOS Keychain and
+Linux Secret Service resolve the interactive user's native store from that
+desktop identity. Relocate HA NOVA's non-secret config and checkpoints with
+`HA_NOVA_CONFIG_DIR`, and additionally set a cryptographically unique
+relay-token service before the first command:
 
 ```bash
 cloud_test_root="$(mktemp -d)"
@@ -164,7 +173,8 @@ remote-first case:
 Required evidence is exact-target plus risk-scoped qualification. Repeat a
 real-device row only for first support or after a relevant implementation
 or evidence-harness change; exact-target CI, signed provenance on all enabled
-OSes, the installed Relay App, and the reference Cloud health smoke always run:
+OSes, and the installed Relay App always run, and the reference Cloud health
+smoke runs for deltas with real-platform scope:
 
 - `/health`, `/ws`, `/core`, `/files`, and `/backups` parity through a real
   Home Assistant Cloud route on one reference platform after a transport

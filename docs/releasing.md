@@ -299,10 +299,12 @@ non-secret evidence reference, inspected target, and change-class decision.
 Missing or uncertain ledger data means rerun.
 
 Every target still runs CI, candidate signature/provenance checks on all
-enabled platforms, the exact installed Relay App, and one real Cloud health
-smoke on a reference platform. The smoke uses the downloaded candidate binary,
-`--via cloud`, the exact installed App, and `HA_NOVA_NO_CENSUS=1`; its JSON must
-report the expected App version and `ha_ws_connected: true`.
+enabled platforms, and the exact installed Relay App. A target whose delta
+matches an invalidation-map row with real-platform scope also runs one real
+Cloud health smoke on a reference platform; maintenance deltas skip it. The
+smoke uses the downloaded candidate binary, `--via cloud`, the exact installed
+App, and `HA_NOVA_NO_CENSUS=1`; its JSON must report the expected App version
+and `ha_ws_connected: true`.
 
 - `parity`: `/health`, `/ws`, `/core`, `/files`, and `/backups` through real
   Home Assistant Cloud on one reference platform after a transport change;
@@ -341,8 +343,11 @@ report the expected App version and `ha_ws_connected: true`.
   updater, signing-identity, or native-authorization changes.
 
 No mock replaces a required real positive path. Exact-target CI, candidate
-provenance, `installed_relay_app`, and the Cloud health smoke are never carried
-forward. See
+provenance, and `installed_relay_app` are never carried forward. The Cloud
+health smoke repeats only when the delta matches an invalidation-map row with
+real-platform scope; deltas matching only the map's `None` and
+release-machinery rows refresh the envelope and provenance without it. The
+map, not any summary, decides. See
 `docs/work/2026-07-30-cloud-release-evidence-risk-scope-spec.md`.
 Carry-forward applies only to the qualification behind a check boolean: create
 a new exact-target JSON envelope and never copy an older commit/tree identity.
@@ -432,13 +437,23 @@ EXPECTED_TREE=0123456789abcdef0123456789abcdef01234567 # replace
 VERSION_TAG=v0.22.0-rc1 # replace
 CANDIDATE_OS=macos
 CANDIDATE_ARCH=arm64
-SERVER_NAME=default
+# A unique name also isolates the OS-keyring device-credential slot, which is
+# keyed by server name; "default" would reuse (and `cloud remove` would
+# revoke) the production device credential. Node is required anyway and fails
+# loudly, unlike optional generators whose absence a pipeline would swallow.
+SERVER_NAME="smoke-$(node -e 'console.log(require("node:crypto").randomBytes(4).toString("hex"))')"
 EXPECTED_RELAY_APP_VERSION=0.7.1 # replace from exact-target nova/config.yaml
+# Unix builds resolve their install root from HOME, so the provenance check
+# passes only from an installed layout (see be0c5e2); calling the extracted
+# binary in place fails with "official Cloud release provenance is not
+# enabled".
 CANDIDATE_DIR="$(mktemp -d)"
+SMOKE_HOME="${CANDIDATE_DIR}/home"
+mkdir -p "${SMOKE_HOME}/.local/share"
 tar -xzf "cloud-candidate-install-bundles/ha-nova-installer-bundle-${CANDIDATE_OS}-${CANDIDATE_ARCH}.tar.gz" \
-  -C "${CANDIDATE_DIR}"
-CANDIDATE_BIN="${CANDIDATE_DIR}/ha-nova/ha-nova"
-node - "${CANDIDATE_DIR}/ha-nova/bundle.json" "${VERSION_TAG#v}" "${EXPECTED_TREE}" <<'NODE'
+  -C "${SMOKE_HOME}/.local/share"
+CANDIDATE_BIN="${SMOKE_HOME}/.local/share/ha-nova/ha-nova"
+node - "${SMOKE_HOME}/.local/share/ha-nova/bundle.json" "${VERSION_TAG#v}" "${EXPECTED_TREE}" <<'NODE'
 const fs = require("node:fs");
 const [path, version, tree] = process.argv.slice(2);
 const bundle = JSON.parse(fs.readFileSync(path, "utf8"));
@@ -446,7 +461,7 @@ if (bundle.version !== version || bundle.cloud_release?.source_tree_sha !== tree
   throw new Error("candidate bundle identity does not match the recorded run");
 }
 NODE
-HA_NOVA_NO_CENSUS=1 "${CANDIDATE_BIN}" internal-cloud-release-check
+HOME="${SMOKE_HOME}" HA_NOVA_NO_CENSUS=1 "${CANDIDATE_BIN}" internal-cloud-release-check
 ```
 
 On the Windows Proxmox test machine, use PowerShell and the contained
@@ -455,7 +470,9 @@ executable explicitly:
 ```powershell
 $ExpectedTree = "0123456789abcdef0123456789abcdef01234567" # replace
 $Version = "0.22.0-rc1" # replace
-$ServerName = "default"
+# Unique name: the device-credential slot is keyed by server name; "default"
+# would reuse or revoke the production device credential.
+$ServerName = "smoke-" + [guid]::NewGuid().ToString("N").Substring(0, 8)
 $ExpectedRelayAppVersion = "0.7.1" # replace from exact-target nova/config.yaml
 $CandidateDir = Join-Path $env:TEMP ("ha-nova-cloud-candidate-" + [guid]::NewGuid())
 Expand-Archive `
@@ -477,11 +494,45 @@ if ($LASTEXITCODE -ne 0) { throw "candidate provenance check failed" }
 ```
 
 Choose exactly one reference platform for the exact-target Cloud health smoke.
+The smoke is required only when the delta matches an invalidation-map row with
+real-platform scope; deltas matching only the map's `None` and
+release-machinery rows refresh the envelope and provenance without it. Consult
+the map in the evidence risk-scope spec rather than any shorthand.
+
+The smoke needs its own Cloud authorization inside the smoke HOME. NEVER copy
+the production `~/.config/ha-nova` there: the copied profile keeps the
+production ProfileID, which is the keychain account under the fixed
+`ha-nova.oauth.home-assistant-cloud.*` services — `cloud add` on top of it
+rotates the PRODUCTION Cloud authorization. A fresh profile in an empty smoke
+HOME gets a new ProfileID and is collision-free by design. `<cloud-host>` is
+the Nabu Casa remote origin (or a custom domain on it), not the LAN host. Set
+it up once per smoke (browser OAuth opens interactively) and remove it
+afterwards:
+
+```bash
+HOME="${SMOKE_HOME}" HA_NOVA_NO_CENSUS=1 "${CANDIDATE_BIN}" cloud add \
+  --server "${SERVER_NAME}" --url "https://<cloud-host>"
+```
+
+Run the health smoke below, plus the `internal-cloud-stress` proof when a
+transport or stress-harness delta requires it. The profile removal command is
+in the cleanup step at the end of this section, after the last Cloud command.
+
+On Windows the install root resolves from the executable directory
+(be0c5e2), so no HOME override exists or is needed; create the same isolated
+authorization with the extracted binary on the dedicated test machine (which
+carries no production profile) and remove it after the last Cloud command:
+
+```powershell
+$env:HA_NOVA_NO_CENSUS = "1"
+& $CandidateBin cloud add --server $ServerName --url "https://<cloud-host>"
+```
+
 Use the same explicit downloaded candidate binary and exact installed App:
 
 ```bash
 HEALTH_JSON="$(
-  HA_NOVA_NO_CENSUS=1 "${CANDIDATE_BIN}" relay health \
+  HOME="${SMOKE_HOME}" HA_NOVA_NO_CENSUS=1 "${CANDIDATE_BIN}" relay health \
     --server "${SERVER_NAME}" --via cloud
 )"
 node -e '
@@ -519,13 +570,29 @@ Only after a Cloud or Relay transport change or a change to
 stress proof on that reference platform and profile:
 
 ```bash
-HA_NOVA_NO_CENSUS=1 "${CANDIDATE_BIN}" internal-cloud-stress \
+HOME="${SMOKE_HOME}" HA_NOVA_NO_CENSUS=1 "${CANDIDATE_BIN}" internal-cloud-stress \
   --server "${SERVER_NAME}"
 ```
 
 ```powershell
 & $CandidateBin internal-cloud-stress --server $ServerName
 if ($LASTEXITCODE -ne 0) { throw "candidate Cloud stress proof failed" }
+```
+
+Cleanup: after the last Cloud command — including after a failed smoke —
+remove the smoke profile with `--yes` (without it the command asks for
+confirmation, defaults to No, and exits before revoking anything when no TTY
+is attached). This revokes the device authorization and deletes the keyring
+entries:
+
+```bash
+HOME="${SMOKE_HOME}" HA_NOVA_NO_CENSUS=1 "${CANDIDATE_BIN}" cloud remove \
+  --server "${SERVER_NAME}" --yes
+```
+
+```powershell
+& $CandidateBin cloud remove --server $ServerName --yes
+if ($LASTEXITCODE -ne 0) { throw "smoke profile cleanup failed" }
 ```
 
 `internal-cloud-stress` resolves Cloud once and sends exactly 10,000 read-only
