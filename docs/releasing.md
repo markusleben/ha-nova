@@ -567,7 +567,7 @@ Only after a Cloud or Relay transport change or a change to
 stress proof on that reference platform and profile:
 
 ```bash
-HA_NOVA_NO_CENSUS=1 "${CANDIDATE_BIN}" internal-cloud-stress \
+HOME="${SMOKE_HOME}" HA_NOVA_NO_CENSUS=1 "${CANDIDATE_BIN}" internal-cloud-stress \
   --server "${SERVER_NAME}"
 ```
 

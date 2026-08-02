@@ -112,8 +112,8 @@ against the exact installed Relay App (from an isolated smoke profile — see
 `docs/releasing.md` for the collision-safe setup):
 
 ```bash
-HA_NOVA_NO_CENSUS=1 <candidate-binary> relay health \
-  --server <profile> --via cloud
+HOME=<smoke-home> HA_NOVA_NO_CENSUS=1 <candidate-binary> relay health \
+  --server <smoke-profile> --via cloud
 ```
 
 The result must identify the expected App version and a healthy Home Assistant
