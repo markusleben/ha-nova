@@ -164,7 +164,8 @@ remote-first case:
 Required evidence is exact-target plus risk-scoped qualification. Repeat a
 real-device row only for first support or after a relevant implementation
 or evidence-harness change; exact-target CI, signed provenance on all enabled
-OSes, the installed Relay App, and the reference Cloud health smoke always run:
+OSes, and the installed Relay App always run, and the reference Cloud health
+smoke runs for deltas with real-platform scope:
 
 - `/health`, `/ws`, `/core`, `/files`, and `/backups` parity through a real
   Home Assistant Cloud route on one reference platform after a transport

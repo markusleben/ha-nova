@@ -501,9 +501,23 @@ smoke (browser OAuth opens interactively) and remove it afterwards:
 ```bash
 HOME="${SMOKE_HOME}" HA_NOVA_NO_CENSUS=1 "${CANDIDATE_BIN}" cloud add \
   --server "${SERVER_NAME}" --url "https://<ha-host>"
-# ... run the health smoke below ...
+# ... run the health smoke below — and, when a transport or stress-harness
+# delta requires it, the internal-cloud-stress proof too. Remove the profile
+# only after the LAST Cloud command:
 HOME="${SMOKE_HOME}" HA_NOVA_NO_CENSUS=1 "${CANDIDATE_BIN}" cloud remove \
   --server "${SERVER_NAME}"
+```
+
+On Windows the install root resolves from the executable directory
+(be0c5e2), so no HOME override exists or is needed; create the same isolated
+authorization with the extracted binary on the dedicated test machine (which
+carries no production profile) and remove it after the last Cloud command:
+
+```powershell
+$env:HA_NOVA_NO_CENSUS = "1"
+& $CandidateBin cloud add --server $ServerName --url "https://<ha-host>"
+# ... health smoke / stress proof ...
+& $CandidateBin cloud remove --server $ServerName
 ```
 
 Use the same explicit downloaded candidate binary and exact installed App:

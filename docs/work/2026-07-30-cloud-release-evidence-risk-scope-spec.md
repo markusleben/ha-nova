@@ -16,9 +16,10 @@ Keep the existing evidence schema and fail-closed verifier. Split evidence
 into two layers:
 
 1. Exact-target checks always run: CI, security and recovery contracts,
-   candidate provenance on every enabled platform, the exact installed Relay
-   App, and one real reference-platform Cloud health smoke using the
-   downloaded candidate binary with Census suppressed.
+   candidate provenance on every enabled platform, and the exact installed
+   Relay App. For deltas that match an invalidation-map row with
+   real-platform scope, one real reference-platform Cloud health smoke also
+   runs, using the downloaded candidate binary with Census suppressed.
 2. Risk-scoped qualification runs on first support and after a relevant
    implementation or evidence-harness change. A passing qualification remains
    applicable across unrelated changes.
@@ -34,8 +35,9 @@ exact target; it does not infer the maintainer's invalidation decision. Missing
 or uncertain ledger data means rerun.
 
 Carry-forward applies only to the qualification behind a check boolean. The
-JSON envelope, commit/tree identity, candidate provenance, installed App, and
-reference health smoke remain exact-target; never reuse an older JSON envelope.
+JSON envelope, commit/tree identity, candidate provenance, and installed App
+remain exact-target; the reference health smoke is exact-target for deltas
+with real-platform scope. Never reuse an older JSON envelope.
 The verifier binds that new envelope to the exact target. Reviewers verify the
 qualification ledger before the boolean is set to `true`.
 
