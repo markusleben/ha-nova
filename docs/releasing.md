@@ -345,8 +345,9 @@ and `ha_ws_connected: true`.
 No mock replaces a required real positive path. Exact-target CI, candidate
 provenance, and `installed_relay_app` are never carried forward. The Cloud
 health smoke repeats only when the delta matches an invalidation-map row with
-real-platform scope; maintenance deltas (docs, tests, process, release
-machinery) refresh the envelope and provenance without it. See
+real-platform scope; deltas matching only the map's `None` and
+release-machinery rows refresh the envelope and provenance without it. The
+map, not any summary, decides. See
 `docs/work/2026-07-30-cloud-release-evidence-risk-scope-spec.md`.
 Carry-forward applies only to the qualification behind a check boolean: create
 a new exact-target JSON envelope and never copy an older commit/tree identity.
@@ -494,21 +495,23 @@ if ($LASTEXITCODE -ne 0) { throw "candidate provenance check failed" }
 
 Choose exactly one reference platform for the exact-target Cloud health smoke.
 The smoke is required only when the delta matches an invalidation-map row with
-real-platform scope (Cloud or Relay transport, product, or qualification
-harness — see the evidence risk-scope spec); maintenance deltas (docs, tests,
-process, release machinery) refresh the envelope and provenance without it.
+real-platform scope; deltas matching only the map's `None` and
+release-machinery rows refresh the envelope and provenance without it. Consult
+the map in the evidence risk-scope spec rather than any shorthand.
 
 The smoke needs its own Cloud authorization inside the smoke HOME. NEVER copy
 the production `~/.config/ha-nova` there: the copied profile keeps the
 production ProfileID, which is the keychain account under the fixed
 `ha-nova.oauth.home-assistant-cloud.*` services — `cloud add` on top of it
 rotates the PRODUCTION Cloud authorization. A fresh profile in an empty smoke
-HOME gets a new ProfileID and is collision-free by design. Set it up once per
-smoke (browser OAuth opens interactively) and remove it afterwards:
+HOME gets a new ProfileID and is collision-free by design. `<cloud-host>` is
+the Nabu Casa remote origin (or a custom domain on it), not the LAN host. Set
+it up once per smoke (browser OAuth opens interactively) and remove it
+afterwards:
 
 ```bash
 HOME="${SMOKE_HOME}" HA_NOVA_NO_CENSUS=1 "${CANDIDATE_BIN}" cloud add \
-  --server "${SERVER_NAME}" --url "https://<ha-host>"
+  --server "${SERVER_NAME}" --url "https://<cloud-host>"
 ```
 
 Run the health smoke below, plus the `internal-cloud-stress` proof when a
@@ -522,7 +525,7 @@ carries no production profile) and remove it after the last Cloud command:
 
 ```powershell
 $env:HA_NOVA_NO_CENSUS = "1"
-& $CandidateBin cloud add --server $ServerName --url "https://<ha-host>"
+& $CandidateBin cloud add --server $ServerName --url "https://<cloud-host>"
 ```
 
 Use the same explicit downloaded candidate binary and exact installed App:
