@@ -576,16 +576,20 @@ HOME="${SMOKE_HOME}" HA_NOVA_NO_CENSUS=1 "${CANDIDATE_BIN}" internal-cloud-stres
 if ($LASTEXITCODE -ne 0) { throw "candidate Cloud stress proof failed" }
 ```
 
-Cleanup: after the last Cloud command, remove the smoke profile — this revokes
-its device authorization and deletes its keyring entries:
+Cleanup: after the last Cloud command — including after a failed smoke —
+remove the smoke profile with `--yes` (without it the command asks for
+confirmation, defaults to No, and exits before revoking anything when no TTY
+is attached). This revokes the device authorization and deletes the keyring
+entries:
 
 ```bash
 HOME="${SMOKE_HOME}" HA_NOVA_NO_CENSUS=1 "${CANDIDATE_BIN}" cloud remove \
-  --server "${SERVER_NAME}"
+  --server "${SERVER_NAME}" --yes
 ```
 
 ```powershell
-& $CandidateBin cloud remove --server $ServerName
+& $CandidateBin cloud remove --server $ServerName --yes
+if ($LASTEXITCODE -ne 0) { throw "smoke profile cleanup failed" }
 ```
 
 `internal-cloud-stress` resolves Cloud once and sends exactly 10,000 read-only
