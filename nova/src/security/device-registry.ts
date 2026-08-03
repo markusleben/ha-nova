@@ -12,12 +12,12 @@ import { withCloudDeviceRevoked } from "./device-registry-cloud.js";
 import type { DeviceRecord, DeviceRegistry } from "./device-registry-types.js";
 import { digestsEqual } from "./device-credential.js";
 import {
-  MAX_ACTIVE_DEVICES,
   PENDING_TTL_MS,
-  activeCountIn,
   isValidCloudBinding,
   pendingExpired,
   trimPairingResponses,
+  withActivated,
+  withLastUsedTouch,
   withPending,
 } from "./device-registry-mutations.js";
 
@@ -27,6 +27,7 @@ import {
 // closed and recovery requires a deliberate owner reset.
 
 export {
+  LAST_USED_PERSIST_WINDOW_MS,
   MAX_ACTIVE_DEVICES,
   MAX_PAIRING_RESPONSES,
   MAX_PENDING_DEVICES,
@@ -61,8 +62,6 @@ export function archiveCorruptRegistry(dataDir: string, now: number): void {
 // Loads the registry (fail-closed on corruption) or starts an empty one when the
 // file is absent. An absent file is a fresh install; a present-but-unparseable
 // file is corruption and must not be masked.
-export const LAST_USED_PERSIST_WINDOW_MS = 5 * 60 * 1000;
-
 export function openDeviceRegistry(dataDir: string): DeviceRegistry {
   const path = join(dataDir, DEVICE_REGISTRY_FILE);
   let data = loadRegistryData(path);
@@ -84,34 +83,20 @@ export function openDeviceRegistry(dataDir: string): DeviceRegistry {
     }
   }
 
-  // Records a successful device authentication. Persisted at most once per
-  // window so the hot auth path does not rewrite the registry file on every
-  // request; the on-disk value may lag by up to the window, which is precise
-  // enough for the owner console's access review.
-  // ponytail: fixed 5-minute throttle; make it configurable only if a real
-  // deployment needs finer freshness.
+  // Records a successful device authentication (throttling lives in
+  // withLastUsedTouch).
   function touchLastUsed(device: DeviceRecord, now: number): void {
-    if (
-      device.lastUsedAtMs !== undefined &&
-      now - device.lastUsedAtMs < LAST_USED_PERSIST_WINDOW_MS
-    ) {
+    const next = withLastUsedTouch(data, device, now);
+    if (next === null) {
       return;
     }
-    const touched = { ...device, lastUsedAtMs: now };
-    const next = {
-      ...data,
-      devices: data.devices.map((d) =>
-        d.deviceId === device.deviceId ? touched : d,
-      ),
-    };
     try {
       persist(next);
     } catch {
       // Auth must survive a broken disk (ENOSPC/EROFS): the stamp is
       // best-effort metadata, never worth failing authentication over. Keep
       // the fresh value in memory so retries stay throttled to once per
-      // window; the durable write catches up on the next touch once /data is
-      // writable again.
+      // window; the durable write catches up once /data is writable again.
       data = next;
     }
   }
@@ -356,67 +341,10 @@ export function openDeviceRegistry(dataDir: string): DeviceRegistry {
     now: number,
     cloudBinding?: { userId: string; relayInstanceId: string },
   ): DeviceRecord {
-    const devices = data.devices.filter(
-      (d) => !(d.state === "pending" && pendingExpired(d, now)),
-    );
-    const target = devices.find((d) => d.deviceId === deviceId);
-    if (!target) {
-      throw new Error("no such pending credential");
+    const activated = withActivated(data, deviceId, now, cloudBinding);
+    if (activated.changed) {
+      persist(activated.data);
     }
-    if (target.state === "active") {
-      if (
-        cloudBinding === undefined ||
-        (target.cloudUserId === cloudBinding.userId &&
-          target.cloudRelayInstanceId === cloudBinding.relayInstanceId)
-      ) {
-        return { ...target }; // idempotent re-activation
-      }
-      throw new Error("device is bound to another cloud identity");
-    }
-    if (
-      cloudBinding === undefined
-        ? target.cloudUserId !== undefined
-        : target.cloudUserId !== cloudBinding.userId ||
-          target.cloudRelayInstanceId !== cloudBinding.relayInstanceId
-    ) {
-      throw new Error("activation route does not match pairing provenance");
-    }
-    // Activation promotes this install's pending record and retires every other
-    // record for the SAME install (re-pairing replaces on activation).
-    const promoted: DeviceRecord = {
-      deviceId: target.deviceId,
-      secretDigest: target.secretDigest,
-      state: "active",
-      clientInstallId: target.clientInstallId,
-      name: target.name,
-      platform: target.platform,
-      client: target.client,
-      createdAtMs: target.createdAtMs,
-      // Activation is itself a use; seeds the owner console's "last used".
-      lastUsedAtMs: now,
-      ...(target.cloudUserId !== undefined
-        ? {
-            cloudUserId: target.cloudUserId,
-            cloudRelayInstanceId: target.cloudRelayInstanceId!,
-          }
-        : {}),
-    };
-    // Drop the old active credential AND any older pending re-pair from the same
-    // install. Leaving a stale same-install pending behind would let someone still
-    // holding that older provisional credential activate it moments later and
-    // silently replace this freshly promoted one without another owner code —
-    // mirroring the same-install cleanup revoke() already performs.
-    const kept = devices.filter(
-      (d) =>
-        d.deviceId !== deviceId && d.clientInstallId !== target.clientInstallId,
-    );
-    // Count AFTER retiring the same-install active record: re-pairing at the cap
-    // is a replacement (net count unchanged) and must be allowed; only a
-    // genuinely new install pushing past the cap is rejected.
-    if (activeCountIn(kept) >= MAX_ACTIVE_DEVICES) {
-      throw new Error("active device limit reached");
-    }
-    persist({ ...data, devices: [...kept, promoted] });
-    return { ...promoted };
+    return activated.record;
   }
 }

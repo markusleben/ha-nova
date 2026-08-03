@@ -10,6 +10,7 @@ import {
   readSync,
   renameSync,
   statSync,
+  unlinkSync,
   writeSync,
   type Stats,
 } from "node:fs";
@@ -51,18 +52,30 @@ export function writeFileAtomicSync(path: string, data: Buffer | string): void {
   const tempPath = `${path}.tmp-${randomBytes(9).toString("hex")}`;
   const fd = openSync(tempPath, "wx", FILE_MODE);
   try {
-    // Loop until every byte is written: a single writeSync may be short, and a
-    // torn temp file must never be renamed into place (invariant: no partial
-    // record).
-    let written = 0;
-    while (written < buffer.length) {
-      written += writeSync(fd, buffer, written, buffer.length - written);
+    try {
+      // Loop until every byte is written: a single writeSync may be short, and a
+      // torn temp file must never be renamed into place (invariant: no partial
+      // record).
+      let written = 0;
+      while (written < buffer.length) {
+        written += writeSync(fd, buffer, written, buffer.length - written);
+      }
+      fsyncSync(fd);
+    } finally {
+      closeSync(fd);
     }
-    fsyncSync(fd);
-  } finally {
-    closeSync(fd);
+    renameSync(tempPath, path);
+  } catch (error) {
+    // Never leave the temp snapshot behind on a failed write: retry loops on a
+    // persistently failing disk (ENOSPC) would otherwise accumulate one orphan
+    // per attempt. Removal is best-effort on an already-failing disk.
+    try {
+      unlinkSync(tempPath);
+    } catch {
+      // Ignore — the disk is already failing; the write error below is the signal.
+    }
+    throw error;
   }
-  renameSync(tempPath, path);
   fsyncDir(dir);
 }
 
