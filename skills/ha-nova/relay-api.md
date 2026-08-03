@@ -188,9 +188,9 @@ Parsing rule:
   - `.data.entity` is only a fallback seed when automation/script arrays are absent
 - `search/related` consumer scan (`item_type:"entity"`): use `skills/ha-nova/search-related-consumers.jq`; if unavailable (flat-copy installs), recreate exactly:
   ```jq
-  if .ok and (.data | type == "object") then ((.data.automation // []) + (.data.script // [])) else error("search/related failed: \(.error.message // "unexpected response shape")") end
+  if .ok and (.data | type == "object") then ((.data.automation // []) + (.data.script // []) + (.data.scene // [])) else error("search/related failed: \(.error.message // "unexpected response shape")") end
   ```
-  It errors loudly on `ok=false` or a non-object `data`, so an empty result is distinguishable from a wrong read path. A hand-written filter that misses the documented path returns empty and is indistinguishable from "no consumers" — never improvise beyond this exact recreate. Scans that also need other families (`scene[]`, `group[]`, ...) project those keys the same way under the same `ok`/object guard.
+  It errors loudly on `ok=false` or a non-object `data`, so an empty result is distinguishable from a wrong read path. A hand-written filter that misses the documented path returns empty and is indistinguishable from "no consumers" — never improvise beyond this exact recreate. Scans that also need further families (`group[]`, dashboards via their own scan, ...) project those keys the same way under the same `ok`/object guard.
 - `get_states`: treat as `(.data // [])[]`, filter only object entries with string `entity_id`.
 
 ## /core Contract

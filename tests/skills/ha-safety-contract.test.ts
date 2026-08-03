@@ -178,9 +178,11 @@ describe("ha safety contract", () => {
     const writeSkill = readFileSync("skills/write/SKILL.md", "utf8");
     const consumerFilter = readFileSync("skills/ha-nova/search-related-consumers.jq", "utf8");
 
-    // The canonical filter errors loudly instead of failing open
+    // The canonical filter errors loudly instead of failing open, and its
+    // projection covers scenes — an entity consumed only by a scene must
+    // never read as consumer-free (Codex P1 on #489).
     expect(consumerFilter.trim()).toBe(
-      'if .ok and (.data | type == "object") then ((.data.automation // []) + (.data.script // [])) else error("search/related failed: \\(.error.message // "unexpected response shape")") end',
+      'if .ok and (.data | type == "object") then ((.data.automation // []) + (.data.script // []) + (.data.scene // [])) else error("search/related failed: \\(.error.message // "unexpected response shape")") end',
     );
 
     // Both write-flow call sites route through the canonical filter, and the
