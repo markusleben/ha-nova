@@ -20,6 +20,5 @@ Scope: successor to [masterplan-2026-h2.md](../archive/work/masterplan-2026-h2.m
 
 ## Process notes
 
-- Every product PR needs a fresh Cloud evidence envelope while `cloud_remote_enabled` is true. Skills/docs/tests deltas match the invalidation map's "None" row (envelope refresh, no new real-platform smoke); see `docs/releasing.md` and [2026-07-30-cloud-release-evidence-risk-scope-spec.md](2026-07-30-cloud-release-evidence-risk-scope-spec.md).
-- #482 touches the device registry surface → expect a reference-platform Cloud health smoke (fresh isolated smoke profile only; never `cloud add` with a copied production config).
+- **Evidence batching (maintainer decision 2026-08-03, supersedes the per-PR cycle for this program):** no per-PR Cloud evidence cycles and no release until the program's end. `cloud-source-gate` stays red on PRs and on `main` until ONE final evidence refresh directly before the release; merges proceed via admin merge after the full review cycle (real Codex clean on the head SHA + all non-evidence checks green + threads resolved). The final pre-release evidence cycle covers the accumulated delta — including the reference-platform Cloud health smoke that #482's device-registry delta makes due (fresh isolated smoke profile only; never `cloud add` with a copied production config).
 - #446's static gate must live in scripts executed from the trusted default branch — workflow files are frozen to uses:-only deltas.
