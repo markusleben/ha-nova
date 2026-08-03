@@ -38,3 +38,37 @@ simple = { limit = 10, period = 60 }
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["CensusCounter"]
+
+# Isolated functional-test deployment (#446): a DISTINCT Worker with its own
+# Durable Object storage. Census functional checks (ping/dedup/withdraw) run
+# only here — production statistics represent voluntary real participants and
+# are verified read-only. Deploy with: npx wrangler@4.113.0 deploy --env test
+[env.test]
+name = "ha-nova-census-test"
+workers_dev = true
+
+[env.test.observability]
+enabled = false
+
+[env.test.observability.logs]
+enabled = false
+invocation_logs = false
+
+[env.test.version_metadata]
+binding = "CF_VERSION_METADATA"
+
+[[env.test.durable_objects.bindings]]
+name = "CENSUS"
+class_name = "CensusCounter"
+
+[[env.test.unsafe.bindings]]
+name = "CENSUS_PING_RATE_LIMITER"
+type = "ratelimit"
+namespace_id = "23680031"
+simple = { limit = 10, period = 60 }
+
+[[env.test.unsafe.bindings]]
+name = "CENSUS_WITHDRAW_RATE_LIMITER"
+type = "ratelimit"
+namespace_id = "23680032"
+simple = { limit = 10, period = 60 }

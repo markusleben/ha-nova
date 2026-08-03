@@ -771,16 +771,20 @@ release changes the census Worker.
    the hard-pinned `markusleben/ha-nova` main history, exercises real
    Worker/SQLite deduplication and withdrawal locally, pins Wrangler 4.113.0
    plus the production account/config/name, and attests the deployed
-   Cloudflare version before repeating the same proof with one ephemeral
-   production ID. A post-deploy verification failure automatically restores
-   the previously active 100-percent Worker version:
+   Cloudflare version READ-ONLY. A post-deploy verification failure
+   automatically restores the previously active 100-percent Worker version:
    ```bash
    bash scripts/release/deploy-census-worker.sh <reviewed-merge-sha>
    ```
    The production verifier reads private `/stats/api` through Cloudflare
-   Access, checks the required SHA/version headers, sends the same schema-2 ID
-   twice and requires exactly one active installation, then withdraws it and
-   requires the pre-smoke version count to be restored.
+   Access and checks the required SHA/version headers and the schema-2 stats
+   contract. Production isolation (#446): it never sends a production ping or
+   withdrawal — production statistics represent voluntary real participants
+   only, enforced statically by
+   `scripts/test/check-census-production-isolation.mjs`. The functional
+   ping/deduplication/withdrawal proof runs against the ISOLATED test Worker
+   instead: `cd census-worker && npx wrangler@4.113.0 deploy --env test`, then
+   `bash scripts/release/verify-census-functional.sh`.
 6. Only after the rehearsal and every applicable external gate are clean — or
    the RC was skipped per the conditional gate above (skills/docs-only delta) —
    cut the final tag (see "Final Publish"). A skipped RC never skips the

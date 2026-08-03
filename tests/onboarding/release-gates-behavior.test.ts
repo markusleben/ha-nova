@@ -243,8 +243,6 @@ fi
 if [[ "$args" == *" --request POST "* ]]; then
   if [[ "\${FAKE_MODE:-valid}" == "local_post_fail" ]]; then
     printf '500'
-  elif [[ "\${FAKE_MODE:-valid}" == "cleanup_withdraw_fail" && "$args" == *"ha-nova-census.markusleben.workers.dev/withdraw"* ]]; then
-    printf '500'
   else
     printf '204'
   fi
@@ -404,7 +402,6 @@ describe("release gate behavior", () => {
     "malformed_public_stats",
     "malformed_relay_analytics",
     "stale_relay_analytics",
-    "cleanup_withdraw_fail",
   ])("fails closed for %s", (mode) => {
     const fixture = releaseFixture();
     const result = runGate(fixture, mode);
@@ -439,12 +436,24 @@ describe("release gate behavior", () => {
     },
   );
 
-  it("withdraws the ephemeral production ID when verification fails after ping", () => {
+  it("never mutates the production census during a full release run (#446)", () => {
+    // Regression for the production-isolation invariant: a complete
+    // deploy+verify chain must not send a single mutation to the production
+    // Worker — no /ping, no /withdraw, no POST to the production host. The
+    // only POSTs allowed are the local wrangler-dev smoke (127.0.0.1).
     const fixture = releaseFixture();
-    const result = runGate(fixture, "dedup_failed");
-    expect(result.status).not.toBe(0);
+    const result = runGate(fixture, "valid");
+    expect(result.status, `${result.stdout}\n${result.stderr}`).toBe(0);
     const calls = readFileSync(fixture.callLog, "utf8");
-    expect(calls).toContain("/withdraw");
+    const productionCalls = calls
+      .split("\n")
+      .filter((line) => line.includes("ha-nova-census.markusleben.workers.dev"));
+    expect(productionCalls.length).toBeGreaterThan(0); // read-only checks did run
+    for (const line of productionCalls) {
+      expect(line).not.toContain("--request POST");
+      expect(line).not.toContain("/ping");
+      expect(line).not.toContain("/withdraw");
+    }
   });
 
   it("rolls back to the newest deployment when Wrangler lists oldest first", () => {
@@ -553,14 +562,6 @@ describe("release gate behavior", () => {
     );
   });
 
-  it("blocks with the exact manual cleanup action when withdrawal stays non-204", () => {
-    const fixture = releaseFixture();
-    const result = runGate(fixture, "cleanup_withdraw_fail");
-    expect(result.status).not.toBe(0);
-    expect(result.stderr).toContain("automatic cleanup failed");
-    expect(result.stderr).toContain('"installation_id":"cns-');
-    expect(result.stderr).toContain("/withdraw");
-  });
 });
 
 registerCloudReleaseGateBehaviorTests();
