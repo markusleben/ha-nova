@@ -1,7 +1,7 @@
 # Backlog Sequencing 2026-08
 
 Status: active
-Scope: successor to [masterplan-2026-h2.md](../archive/work/masterplan-2026-h2.md) as the SSOT for sequencing and decisions. Orders the 12 open issues (as of 2026-08-03) into three phases following the proven "harden what exists before widening surface" logic.
+Scope: successor to [masterplan-2026-h2.md](../archive/work/masterplan-2026-h2.md) as the SSOT for sequencing and decisions. Orders the open issues (13 as of 2026-08-03) into three phases following the proven "harden what exists before widening surface" logic.
 
 ## Maintainer decisions (2026-08-03)
 
@@ -14,7 +14,7 @@ Scope: successor to [masterplan-2026-h2.md](../archive/work/masterplan-2026-h2.m
 
 | Phase | Theme | Issues (order) | Release |
 |-------|-------|----------------|---------|
-| 1 | Safety & correctness | #493+#489 (one PR: write-path fail-closed) → #482 ∥ #446 | — (collect in 0.23.0 draft) |
+| 1 | Safety & correctness | #493+#489+#494 (one PR: write-path fail-closed + output-contract allowlist) → #482 ∥ #446 | — (collect in 0.23.0 draft) |
 | 2 | Quality & visibility of existing features | #452 → #483 → #484 → #440 → #444 (release prep) | v0.23.0 bundled, with RC |
 | 3 | New capabilities | #478 (spec → impl) → #411; #463 parked | one release per feature, with RC |
 

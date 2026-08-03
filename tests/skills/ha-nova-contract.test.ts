@@ -32,6 +32,18 @@ describe("ha-nova contract", () => {
     expect(context).not.toContain("Orchestration Hard Gate");
   });
 
+  it("keeps the output-contract files on the write-flow latency allowlist (#494)", () => {
+    const context = readFileSync("skills/ha-nova/SKILL.md", "utf8");
+
+    // The Latency Policy allowlist must include the files that define the
+    // output contract — excluding them silently degrades preview Cards and
+    // permits hand-written diffs.
+    const latencySection = context.split("keep main-thread file reads minimal:")[1] ?? "";
+    const allowlist = latencySection.split("- No proactive doctor")[0];
+    expect(allowlist).toContain("`skills/ha-nova/output-rules.md`");
+    expect(allowlist).toContain("`skills/ha-nova/write-safety.md`");
+  });
+
   it("routes dashboard, organization, and history intents to dedicated skills", () => {
     const context = readFileSync("skills/ha-nova/SKILL.md", "utf8");
 
