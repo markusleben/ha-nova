@@ -42,7 +42,7 @@ new_sqlite_classes = ["CensusCounter"]
 # Isolated functional-test deployment (#446): a DISTINCT Worker with its own
 # Durable Object storage. Census functional checks (ping/dedup/withdraw) run
 # only here — production statistics represent voluntary real participants and
-# are verified read-only. Deploy with: npx wrangler@4.113.0 deploy --env test
+# are verified read-only. Deploy with: npx wrangler@4.113.0 deploy --env test --tag <reviewed-sha>
 [env.test]
 name = "ha-nova-census-test"
 workers_dev = true

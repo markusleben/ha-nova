@@ -783,7 +783,7 @@ release changes the census Worker.
    only, enforced statically by
    `scripts/test/check-census-production-isolation.mjs`. The functional
    ping/deduplication/withdrawal proof runs against the ISOLATED test Worker
-   instead: `cd census-worker && npx wrangler@4.113.0 deploy --env test`, then
+   instead: `cd census-worker && npx wrangler@4.113.0 deploy --env test --tag <reviewed-sha>`, then
    `bash scripts/release/verify-census-functional.sh <reviewed-sha> <test-version-id>`
    (it attests the test deployment's SHA/version headers, so a stale test
    Worker can never green-light broken mutation routes). One-time prerequisite:

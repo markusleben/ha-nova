@@ -191,7 +191,7 @@ the production Worker's `/ping` or `/withdraw`:
   stats contract, nothing else.
 - Functional ping/deduplication/withdrawal checks run exclusively against the
   isolated test Worker (`census-worker/wrangler.toml` → `[env.test]`, its own
-  Durable Object storage): `npx wrangler@4.113.0 deploy --env test`, then
+  Durable Object storage): `npx wrangler@4.113.0 deploy --env test --tag <reviewed-sha>`, then
   `bash scripts/release/verify-census-functional.sh <reviewed-sha>
   <test-version-id>` (attests the test deployment's identity headers).
   One-time setup: an
