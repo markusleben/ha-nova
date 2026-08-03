@@ -784,7 +784,9 @@ release changes the census Worker.
    `scripts/test/check-census-production-isolation.mjs`. The functional
    ping/deduplication/withdrawal proof runs against the ISOLATED test Worker
    instead: `cd census-worker && npx wrangler@4.113.0 deploy --env test`, then
-   `bash scripts/release/verify-census-functional.sh`. One-time prerequisite:
+   `bash scripts/release/verify-census-functional.sh <reviewed-sha> <test-version-id>`
+   (it attests the test deployment's SHA/version headers, so a stale test
+   Worker can never green-light broken mutation routes). One-time prerequisite:
    a Cloudflare Access application for the test hostname with the same
    service-token policy, plus `ACCESS_TEAM_DOMAIN`/`ACCESS_AUD` secrets set
    via `wrangler secret put … --env test` (secrets are per-worker; without

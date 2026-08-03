@@ -3,7 +3,7 @@ set -euo pipefail
 
 usage() {
   cat >&2 <<'EOF'
-Usage: bash scripts/release/verify-census-functional.sh
+Usage: bash scripts/release/verify-census-functional.sh <expected-sha> <expected-version-id>
 
 Functional census verification — ping, deduplication, and withdrawal — run
 EXCLUSIVELY against the isolated test Worker (wrangler env "test", its own
@@ -27,12 +27,17 @@ fail() {
   exit 1
 }
 
-if [[ "$#" -ne 0 ]]; then
+if [[ "$#" -ne 2 ]]; then
   usage
   exit 2
 fi
 
-for command in curl jq openssl; do
+expected_sha="$1"
+expected_version_id="$2"
+[[ "$expected_sha" =~ ^[0-9a-f]{40}$ ]] || fail "expected SHA must be 40 lowercase hexadecimal characters"
+[[ "$expected_version_id" =~ ^[0-9A-Za-z][0-9A-Za-z._-]{0,63}$ ]] || fail "invalid Cloudflare version ID"
+
+for command in awk curl jq openssl; do
   command -v "$command" >/dev/null 2>&1 || fail "required command not found: ${command}"
 done
 
@@ -116,6 +121,13 @@ withdraw_smoke_and_restore() {
 }
 
 fetch_stats "$(date -u +%s)-$$-baseline" || fail "test worker stats unavailable (HTTP 403 means the Access app or ACCESS_TEAM_DOMAIN/ACCESS_AUD secrets for env test are missing — see usage); deploy with: cd census-worker && npx wrangler@4.113.0 deploy --env test"
+# Bind the functional proof to the REVIEWED deployment: a stale but healthy
+# test Worker must never green-light a release whose mutation routes broke —
+# production verification is read-only and would not catch it.
+deployment_sha="$(awk 'tolower($1) == "x-ha-nova-deployment-sha:" { gsub("\\r", "", $2); value=$2 } END { print value }' "$headers_file")"
+version_id="$(awk 'tolower($1) == "x-ha-nova-version-id:" { gsub("\\r", "", $2); value=$2 } END { print value }' "$headers_file")"
+[[ "$deployment_sha" == "$expected_sha" ]] || fail "test worker runs deployment ${deployment_sha:-<none>}, expected ${expected_sha} — deploy the reviewed SHA to env test first"
+[[ "$version_id" == "$expected_version_id" ]] || fail "test worker runs version ${version_id:-<none>}, expected ${expected_version_id} — deploy the reviewed SHA to env test first"
 baseline_smoke_count="$(read_smoke_count)" || fail "test worker stats do not expose the schema-2 smoke count"
 installation_id="cns-$(openssl rand -hex 16)"
 ping_body="$(jq -cn --arg id "$installation_id" --arg version "$smoke_version" \
@@ -145,4 +157,4 @@ withdraw_smoke_and_restore \
   || fail "withdrawal did not return HTTP 204 and restore the pre-smoke count"
 installation_id=""
 
-echo "[verify-census-functional] OK (isolated test worker): one-ID deduplication and withdrawal"
+echo "[verify-census-functional] OK (isolated test worker ${expected_sha}/${expected_version_id}): one-ID deduplication and withdrawal"

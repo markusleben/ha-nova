@@ -440,6 +440,14 @@ describe("release contract", () => {
     expect(censusFunctionalVerifier).toContain(
       'base_url="https://ha-nova-census-test.markusleben.workers.dev"',
     );
+    // The functional proof is bound to the reviewed deployment: a stale but
+    // healthy test worker must never green-light broken mutation routes.
+    expect(censusFunctionalVerifier).toContain(
+      '"$deployment_sha" == "$expected_sha"',
+    );
+    expect(censusFunctionalVerifier).toContain(
+      '"$version_id" == "$expected_version_id"',
+    );
     expect(censusFunctionalVerifier).not.toContain(
       "https://ha-nova-census.markusleben.workers.dev",
     );
