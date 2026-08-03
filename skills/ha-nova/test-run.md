@@ -54,7 +54,10 @@ change belong in the high-consequence row.
 Co-listeners escalate: the risk class covers everything the run can set in
 motion, not just the tested automation's own actions. Before recommending
 any run option, check `search/related` on every entity the test will change
-— manipulated trigger sources and action targets alike. If a named
+— manipulated trigger sources and action targets alike (fail-closed read per
+`skills/ha-nova/relay-api.md` → Parsing rule; a failed scan means the
+co-listener check is incomplete — say so on the card, never treat it as
+"no co-listeners"). If a named
 co-listener performs physical or high-consequence actions (the classic
 pattern: a helper toggle that another automation answers by unlocking a
 door), that run option inherits the risk level — even when the tested

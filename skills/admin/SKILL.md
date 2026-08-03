@@ -73,6 +73,7 @@ Render the Report shape (output-rules.md); person/zone/user inventories render t
 - Never guess entity, service, or config IDs — resolve them or ask.
 - Home Assistant is reached exclusively through `ha-nova relay`.
 - For any HA write this skill does not cover, STOP and invoke `ha-nova:fallback` first — never probe unfamiliar write endpoints.
+- `search/related` verdicts fail closed: verify `ok=true` and `data` is an object before projecting family keys (`skills/ha-nova/relay-api.md` → Parsing rule); a failed or unexecuted scan is inconclusive — never a no-consumer result.
 
 - Zone and person deletes take the typed confirmation code, and the preview must first name the automations that depend on them (`search/related`).
 - User deletion is the strictest operation in HA NOVA: owner, system-generated, and the relay's own account are refused outright, and everything else needs the typed confirmation code plus a plain statement of what is lost.

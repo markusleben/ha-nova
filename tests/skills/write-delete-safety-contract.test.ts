@@ -12,7 +12,8 @@ const resolveAgent = readFileSync("skills/ha-nova/agents/resolve-agent.md", "utf
 describe("write delete safety contract", () => {
   it("requires delete previews to surface consumer-check results before confirmation", () => {
     expect(writeSkill).toContain("Delete preview MUST include the consumer-check result before confirmation");
-    expect(writeSkill).toContain("either the affected consumers or an explicit no-consumer result");
+    expect(writeSkill).toContain('an explicit "consumer check inconclusive" line when the scan failed or did not run');
+    expect(writeSkill).toContain("Never present a failed or skipped scan as a no-consumer result");
   });
 
   it("requires destructive writes to stay unclaimed until verification proves the target is gone", () => {

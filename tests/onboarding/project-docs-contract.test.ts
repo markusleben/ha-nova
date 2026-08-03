@@ -23,7 +23,7 @@ describe("project docs contract", () => {
   });
 
   it("tracks the active architecture surfaces and current skill inventory", () => {
-    expect(project).toContain("docs/work/masterplan-2026-h2.md");
+    expect(project).toContain("docs/work/2026-08-03-backlog-sequencing.md");
     expect(project).toContain("the dispatch table in `skills/ha-nova/SKILL.md` is the authoritative inventory");
     expect(project).toContain("`POST /files` (opt-in, default off)");
     expect(project).toContain("documentation-governance.md");

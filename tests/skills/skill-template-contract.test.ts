@@ -120,7 +120,10 @@ const WORD_BUDGETS: Record<string, number> = {
   // write again for the Phase 5 test offer (test-run.md).
   // pre-delete snapshot capture + config-snapshots reference (Wave 2).
   // input-capability gate (#396) + consumer-discovery routing (#397).
-  write: 1750,
+  // Fail-closed consumer scan: canonical filter with inline recreate
+  // fallback at both search/related call sites + delete-direction
+  // clarification (#489).
+  write: 2000,
   // Cards adoption pointer (#389).
   diagnose: 1500,
   // Report-shape declaration line (shared output shapes); repair dedup,
@@ -131,7 +134,8 @@ const WORD_BUDGETS: Record<string, number> = {
   mqtt: 1500,
   // pre-delete snapshot capture (Wave 2); apply-test offer with the
   // high-consequence carve-out (Wave 3).
-  scene: 1600,
+  // Fail-closed consumer check with canonical-filter recreate pointer (#489).
+  scene: 1650,
   // buffering settle-window on verify (2026-h2 Wave 1a).
   // Cards adoption pointer (#389).
   media: 1250,
@@ -164,7 +168,9 @@ const WORD_BUDGETS: Record<string, number> = {
   maintenance: 1400,
   // blueprint payload examples; integration onboarding and runtime
   // events/webhooks moved to owning skills in Wave 4.
-  fallback: 2300,
+  // Custom-integration configuration APIs section + write-probing
+  // asymmetry guardrails (#493).
+  fallback: 2700,
   // semantic-slot note on the read templates (Wave 0); pre-write cross-field
   // constraint checks + drift-check step (Wave 1); pre-delete snapshot
   // capture (Wave 2).

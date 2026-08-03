@@ -92,7 +92,7 @@ Persistence routing per `skills/ha-nova/best-practices.md` → Persistence Model
 
 ### Delete
 1. Resolve id + platform (Editability Guard).
-2. Consumer check: `{"type":"search/related","item_type":"entity","item_id":"scene.<slug>"}` — show referencing automations/scripts, or an explicit no-consumer result (an empty `data` object means no consumers).
+2. Consumer check: `{"type":"search/related","item_type":"entity","item_id":"scene.<slug>"}` — read through `skills/ha-nova/search-related-consumers.jq` (recreate per `skills/ha-nova/relay-api.md` → Parsing rule on flat-copy installs); show referencing automations/scripts, or an explicit no-consumer result (only a verified-shape empty `data` object means no consumers; a failed read is inconclusive, never a no-consumer claim).
 3. Require exact confirmation code `confirm:<token>` — generate a short code, display it in the Options slot, and proceed only when the user types it back exactly. Deleting several storage scenes at once follows `skills/ha-nova/batch-safety.md` (Editability Guard per target).
 4. Capture the auto config snapshot of the current config first (`skills/ha-nova/config-snapshots.md`; on capture failure follow its capture-failure stop).
 5. `ha-nova relay core --method DELETE --path /api/config/scene/config/<id>`

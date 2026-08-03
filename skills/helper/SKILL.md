@@ -475,6 +475,7 @@ Never show raw JSON to the user.
 - Never guess entity, service, or config IDs — resolve them or ask.
 - Home Assistant is reached exclusively through `ha-nova relay`.
 - For any HA write this skill does not cover, STOP and invoke `ha-nova:fallback` first — never probe unfamiliar write endpoints.
+- `search/related` verdicts fail closed: verify `ok=true` and `data` is an object before projecting family keys (`skills/ha-nova/relay-api.md` → Parsing rule); a failed or unexecuted scan is inconclusive — never a no-consumer result.
 
 - No guessing entity IDs, linked entities, or config entry IDs; resolve or ask
 - `entry_id` is the canonical write identity for the config-entry family

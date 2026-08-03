@@ -59,6 +59,8 @@ Every discovery result names BOTH lists:
 - families checked (with per-family hit counts, zero included);
 - families not checkable (unregistered adapters, templated listeners, anything
   `search/related` does not index — dashboards and templates included).
+- a failed `search/related` read (canonical-filter error, `skills/ha-nova/relay-api.md`
+  → Parsing rule) moves that family to not checkable — never a zero-hit row.
 
 While any family is not checkable, never claim the input is unused and never claim
 complete cleanup. The strongest allowed claim: "no consumers found in the checked

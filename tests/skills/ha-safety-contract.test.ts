@@ -158,6 +158,43 @@ describe("ha safety contract", () => {
     expect(fallback).toContain("Write Safety by Endpoint Type");
   });
 
+  it("pins the write-probing asymmetry between WS and /core POST (#493)", () => {
+    const relayApi = readFileSync("skills/ha-nova/relay-api.md", "utf8");
+    const fallback = readFileSync("skills/fallback/SKILL.md", "utf8");
+
+    // relay-api.md is the SSOT for the transport asymmetry
+    expect(relayApi).toContain("Write-Probing Asymmetry");
+    expect(relayApi).toContain("NEVER send an empty or partial body");
+
+    // Fallback: the rule sits at the point of use, and the class of
+    // custom-integration configuration APIs is mapped explicitly
+    expect(fallback).toContain("Write-Probing Asymmetry");
+    expect(fallback).toContain("Custom-Integration Configuration APIs");
+    expect(fallback).toContain("Custom-integration configuration APIs (Alarmo, Scheduler, Adaptive Lighting, Frigate, ...)");
+  });
+
+  it("pins the fail-closed consumer-scan read path (#489)", () => {
+    const relayApi = readFileSync("skills/ha-nova/relay-api.md", "utf8");
+    const writeSkill = readFileSync("skills/write/SKILL.md", "utf8");
+    const consumerFilter = readFileSync("skills/ha-nova/search-related-consumers.jq", "utf8");
+
+    // The canonical filter errors loudly instead of failing open
+    expect(consumerFilter.trim()).toBe(
+      'if .ok and (.data | type == "object") then ((.data.automation // []) + (.data.script // [])) else error("search/related failed: \\(.error.message // "unexpected response shape")") end',
+    );
+
+    // Both write-flow call sites route through the canonical filter, and the
+    // inline recreate fallback matches it exactly
+    expect(writeSkill).toContain("skills/ha-nova/search-related-consumers.jq");
+    expect(writeSkill).toContain(consumerFilter.trim());
+    expect(writeSkill).toContain("same canonical `search-related-consumers.jq`");
+    expect(writeSkill).toContain("NEVER on the item's own `entity_id`");
+
+    // relay-api.md documents the empty-vs-error distinction next to the shape
+    expect(relayApi).toContain("search-related-consumers.jq");
+    expect(relayApi).toContain("distinguishable from a wrong read path");
+  });
+
   it("requires concise correction of invalid Home Assistant premises", () => {
     const router = readFileSync("skills/ha-nova/SKILL.md", "utf8");
     const writeSkill = readFileSync("skills/write/SKILL.md", "utf8");

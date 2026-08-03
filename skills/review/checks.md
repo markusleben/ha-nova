@@ -21,6 +21,8 @@ Self-contained catalog: load this file before evaluating findings — from `skil
 
 ## Application (family matrix + evidence boundaries)
 
+Orphan/no-consumer verdicts (F-09, H-07, SC-07, collision scans) fail closed: read `search/related` through `skills/ha-nova/search-related-consumers.jq` (recreate per `skills/ha-nova/relay-api.md` → Parsing rule on flat-copy installs); a failed or unexecuted scan is inconclusive — never evidence of an orphan. F-09 additionally projects `scene[]` under the same guard (its verdict includes scene invocation).
+
 **Apply these families by domain:**
 - Automation: S-01..S-03, R-01..R-28, P-01..P-05, M-01..M-05
 - Script: automation families plus F-01..F-09

@@ -63,10 +63,14 @@ Input-device remaps (buttons, remotes, switches): run the capability preflight p
      - If R-23 matches: boolean-like template values are compared to string `"True"`/`"False"`; use the boolean directly or direct negation.
      - If R-24 matches: `available_energy` may be current charge, not capacity; ask user to verify maximum/nominal source. Never auto-rewrite integration-specific entity IDs.
      Track findings by check type for dedup in Phase 4, except R-18.
-   - **3c) Pre-Write Impact (update only)**: run `search/related` on the top target entities (max 3 related configs); show affected automations/scripts as advisory. Skip `create`/`delete`.
+   - **3c) Pre-Write Impact (update only)**: run `search/related` (`item_type:"entity"`) on the top entities the automation/script acts on or reads — taken from its triggers/conditions/actions, NEVER on the item's own `entity_id` (that direction answers who references this item — the delete-check direction — not what else consumes its target entities). Read the response ONLY through the canonical filter — copy `skills/ha-nova/search-related-consumers.jq`; if unavailable (flat-copy installs), recreate exactly:
+     ```jq
+     if .ok and (.data | type == "object") then ((.data.automation // []) + (.data.script // [])) else error("search/related failed: \(.error.message // "unexpected response shape")") end
+     ```
+     Show affected automations/scripts as advisory (read max 3 related configs). Fail closed: an empty filter result means "no linked automations/scripts found for the scanned entities" — name the scanned entities; a filter error or a scan that did not run renders as "consumer check inconclusive". NEVER turn a failed, skipped, or wrong-path scan into a no-consumer claim. Skip `create`/`delete`.
 4. Preview (see `skills/ha-nova/write-safety.md` for the fixed shape):
    - update: **run** `ha-nova diff` (prefer `--out <diff-file>`), print the diff output **verbatim** in the Changes slot — never write it yourself; state the behavioral effect in the summary sentence (write-safety → Behavior narrative). create: summary. Create/update previews show `apply`, `show yaml`, and `cancel` options.
-   - Delete preview MUST include the consumer-check result before confirmation: either the affected consumers or an explicit no-consumer result.
+   - Delete preview MUST include the consumer-check result before confirmation: the affected consumers, an explicit no-consumer result (empty result through the canonical filter), or an explicit "consumer check inconclusive" line when the scan failed or did not run. Never present a failed or skipped scan as a no-consumer result. The delete consumer check scans the deleted item's OWN `entity_id` — who references it; the 3c NEVER-own-id rule applies only to the update-impact direction.
    - Delete previews do not show `apply`, `show yaml`, `cancel`, or any menu; ask only for the exact `confirm:<token>` or cancellation.
    - Batch delete of a reviewed same-family workset (automations OR scripts, never mixed) follows `skills/ha-nova/batch-safety.md`; per-item consumer checks and absence verification stay.
 5. Confirmation: create/update=natural, delete=typed confirmation code `confirm:<token>`. Active Preview Confirmation is required; delete is the typed confirmation code, never a menu. Pre-preview consent is draft-only; payload/diff changes need preview.
@@ -105,9 +109,9 @@ Do NOT invoke `ha-nova:review` separately.
     - `R-19` follows normal dedup; R-23/R-24 do too. If already shown pre-write, do not repeat unless it becomes a new category.
     - If persisted R-18 remains, inspect traces after the next real run. Do not auto-trigger or auto-read traces outside an accepted Phase 5 test plan.
     - If actions reference helpers: always run H-01..H-11.
-3. Collision scan: `{"type":"search/related","item_type":"entity","item_id":"<entity_id>"}` via `ha-nova relay ws --data-file <payload-file>`; read max 3 related configs.
+3. Collision scan: `{"type":"search/related","item_type":"entity","item_id":"<entity_id>"}` via `ha-nova relay ws --data-file <payload-file> --jq-file <filter-file>`, where `<filter-file>` is the same canonical `search-related-consumers.jq` (and the same fail-closed rule) as Phase 2 step 3c; read max 3 related configs.
 4. Post-Write Review output (localized; see `skills/ha-nova/output-rules.md`) — report only what has substance; scans still run, only empty output is suppressed:
-   - **Findings**: real issues only. **Collision check**: only when related items exist (list them + the verdict). **Advisory**: only when non-empty. Omit any section with nothing to report — never print an empty "none" bucket.
+   - **Findings**: real issues only. **Collision check**: only when related items exist (list them + the verdict); a failed scan is NOT empty output — report it as "consumer check inconclusive". **Advisory**: only when non-empty. Omit any section with nothing to report — never print an empty "none" bucket.
    - If nothing is worth reporting, collapse to one scope-honest confirmation line (write-safety → Verification Honesty).
    - Never emit `Questions to consider`, `Suggestions`, or `Instant help` post-write; never repeat an item across **Findings** and **Advisory**.
 5. Update-Revert: updates only → **run `ha-nova snapshot save`** and offer `revert` (see `skills/ha-nova/write-safety.md`). Creates → cleanup via normal HA NOVA delete flow with preview, `confirm:<token>`, and absence verification. Deletes → name the captured config snapshot as the restore path (`skills/ha-nova/config-snapshots.md`); when no snapshot was captured (store missing/full), Home Assistant Backups.
