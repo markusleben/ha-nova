@@ -12,7 +12,7 @@ point at production; the production deployment check is read-only by contract
 (#446, scripts/release/verify-census-deployment.sh).
 
 One-time prerequisites (secrets are per-worker, never inherited):
-  1. cd census-worker && npx wrangler@4.113.0 deploy --env test --tag <reviewed-sha>
+  1. (cd census-worker && npx wrangler@4.113.0 deploy --env test --tag <reviewed-sha>)
   2. Cloudflare Access application for the test hostname with the same
      service-token policy as production, then:
        npx wrangler@4.113.0 secret put ACCESS_TEAM_DOMAIN --env test
@@ -120,7 +120,7 @@ withdraw_smoke_and_restore() {
   return 1
 }
 
-fetch_stats "$(date -u +%s)-$$-baseline" || fail "test worker stats unavailable (HTTP 403 means the Access app or ACCESS_TEAM_DOMAIN/ACCESS_AUD secrets for env test are missing — see usage); deploy with: cd census-worker && npx wrangler@4.113.0 deploy --env test --tag <reviewed-sha>"
+fetch_stats "$(date -u +%s)-$$-baseline" || fail "test worker stats unavailable (HTTP 403 means the Access app or ACCESS_TEAM_DOMAIN/ACCESS_AUD secrets for env test are missing — see usage); deploy with: (cd census-worker && npx wrangler@4.113.0 deploy --env test --tag <reviewed-sha>) --tag <reviewed-sha>"
 # Bind the functional proof to the REVIEWED deployment: a stale but healthy
 # test Worker must never green-light a release whose mutation routes broke —
 # production verification is read-only and would not catch it.
