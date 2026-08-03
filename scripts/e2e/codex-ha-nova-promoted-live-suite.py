@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import json
 import os
-
 import re
 import signal
 import shutil
@@ -44,15 +43,19 @@ PROMOTED_AREA_RE = re.compile(r"^nova_codex_area_\d+$")
 PROMOTED_FLOOR_RE = re.compile(r"^nova_codex_floor_\d+$")
 PROMOTED_LABEL_RE = re.compile(r"^nova_codex_label_\d+$")
 
+
 def log(message: str) -> None:
     print(f"[codex-promoted-live-suite] {message}", flush=True)
+
 
 def die(message: str) -> None:
     raise SystemExit(f"[codex-promoted-live-suite] {message}")
 
+
 def require_cmd(command: str) -> None:
     if shutil.which(command) is None:
         die(f"Required command not found: {command}")
+
 
 def stop_process_group(process: subprocess.Popen[str], sig: signal.Signals) -> None:
     if process.poll() is not None:
@@ -72,6 +75,7 @@ def stop_process_group(process: subprocess.Popen[str], sig: signal.Signals) -> N
         os.killpg(process.pid, sig)
     except ProcessLookupError:
         return
+
 
 def run_python(args: list[str], env: dict[str, str] | None = None, timeout_sec: int | None = None) -> subprocess.CompletedProcess[str]:
     popen_kwargs: dict[str, object] = {
@@ -104,11 +108,13 @@ def run_python(args: list[str], env: dict[str, str] | None = None, timeout_sec: 
             exc.stderr or stderr or "",
         )
 
+
 def discover_all_scenarios() -> list[str]:
     result = run_python(["--list-scenarios"], timeout_sec=SUITE_DISCOVERY_TIMEOUT_SEC)
     if result.returncode != 0:
         raise RuntimeError(result.stderr or result.stdout or "failed to list scenarios")
     return [line.strip() for line in result.stdout.splitlines() if line.strip()]
+
 
 def parse_requested(argv: list[str]) -> list[str]:
     all_scenarios = discover_all_scenarios()
@@ -120,6 +126,7 @@ def parse_requested(argv: list[str]) -> list[str]:
     if invalid:
         die("Unknown scenario(s): " + ", ".join(invalid))
     return argv
+
 
 def relay_ws(payload: dict[str, Any]) -> dict[str, Any]:
     with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as handle:
@@ -137,6 +144,7 @@ def relay_ws(payload: dict[str, Any]) -> dict[str, Any]:
         return parsed
     finally:
         payload_path.unlink(missing_ok=True)
+
 
 def collect_residue() -> dict[str, Any]:
     dashboards = relay_ws({"type": "lovelace/dashboards/list"}).get("data", [])
@@ -179,8 +187,10 @@ def collect_residue() -> dict[str, Any]:
         "entity_residue": entity_residue,
     }
 
+
 def residue_empty(residue: dict[str, Any]) -> bool:
     return all(not residue[key] for key in residue)
+
 
 def main(argv: list[str]) -> int:
     require_cmd("ha-nova")
@@ -257,6 +267,7 @@ def main(argv: list[str]) -> int:
         return exit_code
     finally:
         run_python(["--cleanup-only"], env=cleanup_env, timeout_sec=SUITE_CLEANUP_TIMEOUT_SEC)
+
 
 if __name__ == "__main__":
     raise SystemExit(main(sys.argv[1:]))

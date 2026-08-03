@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import json
 import os
-
 import platform
 import queue
 import re
@@ -52,6 +51,7 @@ SCENARIO_ORDER = (
     "area_review",
 )
 
+
 @dataclass
 class ScenarioResult:
     fixture_key: str
@@ -61,21 +61,27 @@ class ScenarioResult:
     codex_exit: int
     raw_log: str
 
+
 def log(message: str) -> None:
     print(f"[codex-bulk-live-e2e] {message}", flush=True)
+
 
 def die(message: str) -> None:
     raise SystemExit(f"[codex-bulk-live-e2e] {message}")
 
+
 def normalize_heading(text: str) -> str:
     return re.sub(r"\s+", " ", text.strip().casefold())
+
 
 def relay_jq_invocations(command: str) -> list[str]:
     return re.findall(r"ha-nova relay jq[^\n]*", command)
 
+
 def require_cmd(command: str) -> None:
     if shutil.which(command) is None:
         die(f"Required command not found: {command}")
+
 
 def relay_ws_data_files(commands: list[str]) -> set[str]:
     data_files: set[str] = set()
@@ -86,6 +92,7 @@ def relay_ws_data_files(commands: list[str]) -> set[str]:
             if data_file:
                 data_files.add(data_file)
     return data_files
+
 
 def stages_known_ws_data_file(command: str, data_files: set[str]) -> bool:
     for data_file in data_files:
@@ -98,6 +105,7 @@ def stages_known_ws_data_file(command: str, data_files: set[str]) -> bool:
         ):
             return True
     return False
+
 
 def resolve_codex_binary() -> str:
     wrapper = shutil.which("codex")
@@ -138,6 +146,7 @@ def resolve_codex_binary() -> str:
 
     return wrapper
 
+
 def relay_ws(payload: dict) -> dict:
     with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as handle:
         json.dump(payload, handle)
@@ -151,6 +160,7 @@ def relay_ws(payload: dict) -> dict:
         return json.loads(raw)
     finally:
         Path(payload_path).unlink(missing_ok=True)
+
 
 def parse_requested_scenarios(argv: list[str]) -> list[str]:
     if not argv:
@@ -173,6 +183,7 @@ def parse_requested_scenarios(argv: list[str]) -> list[str]:
         seen.add(scenario)
         requested.append(scenario)
     return requested
+
 
 def discover_prefix_fixture(compact: list[dict]) -> dict:
     prefix_candidates: dict[str, list[str]] = defaultdict(list)
@@ -205,6 +216,7 @@ def discover_prefix_fixture(compact: list[dict]) -> dict:
         "displayed": prefix_matches[:20],
     }
 
+
 def discover_label_fixture(registry: list[dict], labels: list[dict]) -> dict:
     label_names = {item["label_id"]: item["name"] for item in labels}
     automation_labels: dict[str, list[str]] = defaultdict(list)
@@ -235,6 +247,7 @@ def discover_label_fixture(registry: list[dict], labels: list[dict]) -> dict:
         "displayed": label_fixture["matches"][:20],
     }
 
+
 def discover_area_fixture(areas: list[dict]) -> dict:
     area_candidates = []
     for area in areas:
@@ -254,6 +267,7 @@ def discover_area_fixture(areas: list[dict]) -> dict:
         die("Need at least one area fixture with 6+ automation matches")
     area_candidates.sort(key=lambda item: (len(item["matches"]), item["area_id"]))
     return area_candidates[0]
+
 
 def discover_fixtures(requested_scenarios: list[str]) -> dict:
     requested = set(requested_scenarios)
@@ -291,6 +305,7 @@ def discover_fixtures(requested_scenarios: list[str]) -> dict:
             }
 
     return fixtures
+
 
 def build_inventory_prompt(scenario_id: str, request: str) -> str:
     return f"""Use the repo-local read skill for this task.
@@ -334,6 +349,7 @@ Hard requirements:
 30. End the final answer with exactly one machine-readable status line:
    NOVA_BULK_INVENTORY_RESULT id={scenario_id} matched=<int> displayed=<int> remaining=<int> values=<json_array_of_displayed_entity_ids>
 """
+
 
 def build_review_prompt(scenario_id: str, request: str) -> str:
     return f"""Use the repo-local review skill for this task.
@@ -397,10 +413,12 @@ Hard requirements:
    NOVA_BULK_REVIEW_RESULT id={scenario_id} matched=<int> audited=<int> remaining=<int> item_ids=<json_array_of_audited_entity_ids> quick_fix_offered=<true|false> sections=<json_array_of_exact_section_titles>
 """
 
+
 def final_status_marker(mode: str, scenario_id: str) -> str:
     if mode == "inventory":
         return f"NOVA_BULK_INVENTORY_RESULT id={scenario_id} "
     return f"NOVA_BULK_REVIEW_RESULT id={scenario_id} "
+
 
 def stop_process_group(process: subprocess.Popen[str], sig: signal.Signals) -> None:
     if process.poll() is not None:
@@ -421,6 +439,7 @@ def stop_process_group(process: subprocess.Popen[str], sig: signal.Signals) -> N
         os.killpg(process.pid, sig)
     except ProcessLookupError:
         return
+
 
 def run_codex(prompt: str, raw_log: Path, marker: str) -> int:
     with raw_log.open("w", encoding="utf-8") as handle:
@@ -528,6 +547,7 @@ def run_codex(prompt: str, raw_log: Path, marker: str) -> int:
             if process.poll() is not None or saw_eof:
                 reader.join(timeout=1)
 
+
 def load_events(raw_log: Path) -> list[dict]:
     events: list[dict] = []
     for line in raw_log.read_text(encoding="utf-8").splitlines():
@@ -542,6 +562,7 @@ def load_events(raw_log: Path) -> list[dict]:
             events.append(payload)
     return events
 
+
 def started_and_completed_command_items(events: list[dict]) -> tuple[list[dict], list[dict]]:
     started = [
         event["item"]
@@ -554,6 +575,7 @@ def started_and_completed_command_items(events: list[dict]) -> tuple[list[dict],
         if event.get("type") == "item.completed" and event.get("item", {}).get("type") == "command_execution"
     ]
     return started, completed
+
 
 def structural_errors(events: list[dict], raw_text: str) -> list[str]:
     errors: list[str] = []
@@ -640,9 +662,11 @@ def structural_errors(events: list[dict], raw_text: str) -> list[str]:
 
     return errors
 
+
 def require(condition: bool, error: str, errors: list[str]) -> None:
     if not condition:
         errors.append(error)
+
 
 def extract_config_read_ids(output: str) -> list[str]:
     config_read_ids: list[str] = []
@@ -683,6 +707,7 @@ def extract_config_read_ids(output: str) -> list[str]:
     )
     return config_read_ids
 
+
 def is_related_collision_evidence(item: dict) -> bool:
     command = item.get("command", "")
     aggregated_output = item.get("aggregated_output", "")
@@ -703,6 +728,7 @@ def is_related_collision_evidence(item: dict) -> bool:
     if not isinstance(aggregated_output, str):
         return False
     return re.search(r"(?mi)^COLLISION_EVIDENCE=.+$", aggregated_output) is not None
+
 
 def validate_inventory(events: list[dict], fixture: dict, selector_pattern: str) -> list[str]:
     errors: list[str] = []
@@ -748,6 +774,7 @@ def validate_inventory(events: list[dict], fixture: dict, selector_pattern: str)
     ):
         require(re.search(pattern, joined_commands) is None, f"forbidden_command:{pattern}", errors)
     return errors
+
 
 def validate_review(events: list[dict], fixture: dict, raw_text: str) -> list[str]:
     errors: list[str] = []
@@ -863,6 +890,7 @@ def validate_review(events: list[dict], fixture: dict, raw_text: str) -> list[st
         require(entity_id not in joined_commands, f"review_prefetch_outside_workset:{entity_id}", errors)
     return errors
 
+
 def validate_case(mode: str, fixture_key: str, fixture: dict, raw_log: Path, codex_exit: int) -> ScenarioResult:
     events = load_events(raw_log)
     raw_text = raw_log.read_text(encoding="utf-8")
@@ -893,6 +921,7 @@ def validate_case(mode: str, fixture_key: str, fixture: dict, raw_log: Path, cod
 
     status = "pass" if not errors else "fail"
     return ScenarioResult(fixture_key, mode, status, errors, codex_exit, str(raw_log))
+
 
 def main() -> None:
     global CODEX_BINARY
@@ -977,6 +1006,7 @@ def main() -> None:
         die(f"Suite failed. See {SUMMARY_FILE}")
     log("Suite passed")
     print(f"NOVA_BULK_E2E_RESULT ok reason=bulk_live_validation_clean summary={SUMMARY_FILE}")
+
 
 if __name__ == "__main__":
     try:

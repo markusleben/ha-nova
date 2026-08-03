@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import json
 import os
-
 import queue
 import re
 import shlex
@@ -76,6 +75,7 @@ NEUTRAL_HISTORY_ENTITY_RE = re.compile(
     re.IGNORECASE,
 )
 
+
 @dataclass
 class ScenarioResult:
     scenario_id: str
@@ -84,20 +84,25 @@ class ScenarioResult:
     codex_exit: int
     raw_log: str
 
+
 def log(message: str) -> None:
     print(f"[codex-promoted-live-e2e] {message}", flush=True)
 
+
 def die(message: str) -> None:
     raise SystemExit(f"[codex-promoted-live-e2e] {message}")
+
 
 def require_cmd(command: str) -> None:
     if shutil.which(command) is None:
         die(f"Required command not found: {command}")
 
+
 def trash_path(path: Path) -> None:
     if not path.exists():
         return
     subprocess.run(["trash", str(path)], cwd=ROOT, check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
 
 def relay_ws(payload: dict[str, Any]) -> dict[str, Any]:
     with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as handle:
@@ -116,6 +121,7 @@ def relay_ws(payload: dict[str, Any]) -> dict[str, Any]:
     finally:
         Path(payload_path).unlink(missing_ok=True)
 
+
 def relay_core_get(path: str) -> dict[str, Any]:
     raw = subprocess.check_output(
         ["ha-nova", "relay", "core", "--method", "GET", "--path", path],
@@ -126,6 +132,7 @@ def relay_core_get(path: str) -> dict[str, Any]:
     if not parsed.get("ok"):
         raise subprocess.CalledProcessError(1, "ha-nova relay core", output=raw)
     return parsed
+
 
 def stop_process_group(process: subprocess.Popen[str], sig: signal.Signals) -> None:
     if process.poll() is not None:
@@ -146,6 +153,7 @@ def stop_process_group(process: subprocess.Popen[str], sig: signal.Signals) -> N
         os.killpg(process.pid, sig)
     except ProcessLookupError:
         return
+
 
 def parse_requested_scenarios(argv: list[str]) -> list[str]:
     if "--list-scenarios" in argv or "--cleanup-only" in argv:
@@ -170,12 +178,14 @@ def parse_requested_scenarios(argv: list[str]) -> list[str]:
         requested.append(scenario)
     return requested
 
+
 def cleanup_promoted_residue() -> None:
     cleanup_stale_promoted_dashboards()
     cleanup_stale_promoted_resources()
     cleanup_stale_promoted_categories()
     cleanup_stale_promoted_organize_metadata()
     cleanup_promoted_output_dirs()
+
 
 def run_codex(prompt: str, raw_log: Path, marker: str) -> int:
     with raw_log.open("w", encoding="utf-8") as handle:
@@ -283,6 +293,7 @@ def run_codex(prompt: str, raw_log: Path, marker: str) -> int:
             if process.poll() is not None or saw_eof:
                 reader.join(timeout=1)
 
+
 def load_events(raw_log: Path) -> tuple[list[dict[str, Any]], list[str]]:
     events: list[dict[str, Any]] = []
     invalid_lines: list[str] = []
@@ -303,12 +314,14 @@ def load_events(raw_log: Path) -> tuple[list[dict[str, Any]], list[str]]:
             invalid_lines.append(line)
     return events, invalid_lines
 
+
 def extract_completed_commands(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return [
         event["item"]
         for event in events
         if event.get("type") == "item.completed" and event.get("item", {}).get("type") == "command_execution"
     ]
+
 
 def extract_agent_messages(events: list[dict[str, Any]]) -> list[str]:
     return [
@@ -317,8 +330,10 @@ def extract_agent_messages(events: list[dict[str, Any]]) -> list[str]:
         if event.get("type") == "item.completed" and event.get("item", {}).get("type") == "agent_message"
     ]
 
+
 def command_output(item: dict[str, Any]) -> str:
     return f'{item.get("aggregated_output", "")}\n{item.get("raw_output", "")}'
+
 
 def transcript_text(commands: list[dict[str, Any]]) -> str:
     chunks: list[str] = []
@@ -326,6 +341,7 @@ def transcript_text(commands: list[dict[str, Any]]) -> str:
         chunks.append(item.get("command", ""))
         chunks.append(command_output(item))
     return "\n".join(chunks)
+
 
 def contains_helper_script(commands: list[str]) -> bool:
     for command in commands:
@@ -379,6 +395,7 @@ def contains_helper_script(commands: list[str]) -> bool:
                 return True
     return False
 
+
 def is_benign_failed_command(command: dict[str, Any]) -> bool:
     exit_code = command.get("exit_code")
     if not isinstance(exit_code, int) or exit_code == 0:
@@ -390,11 +407,14 @@ def is_benign_failed_command(command: dict[str, Any]) -> bool:
 
     return False
 
+
 def count_ws_mentions(text: str, ws_type: str) -> int:
     return len(re.findall(rf"\b{re.escape(ws_type)}\b", text))
 
+
 def latest_agent_message(messages: list[str]) -> str:
     return messages[-1] if messages else ""
+
 
 def common_errors(events: list[dict[str, Any]], invalid_lines: list[str], expected_status_line: str) -> tuple[list[str], list[dict[str, Any]], list[str], str]:
     errors: list[str] = []
@@ -436,6 +456,7 @@ def common_errors(events: list[dict[str, Any]], invalid_lines: list[str], expect
 
     return errors, commands, messages, final_message
 
+
 def dashboard_seed(url_path: str, title: str, with_config: bool) -> dict[str, Any]:
     created = relay_ws(
         {
@@ -469,6 +490,7 @@ def dashboard_seed(url_path: str, title: str, with_config: bool) -> dict[str, An
         "title": title,
     }
 
+
 def dashboard_card_seed(url_path: str, title: str, view_title: str) -> dict[str, Any]:
     seeded = dashboard_seed(url_path, title, with_config=False)
     relay_ws(
@@ -492,6 +514,7 @@ def dashboard_card_seed(url_path: str, title: str, view_title: str) -> dict[str,
     seeded["view_title"] = view_title
     return seeded
 
+
 def cleanup_dashboard(fixture: dict[str, Any] | None) -> None:
     if not fixture:
         return
@@ -499,6 +522,7 @@ def cleanup_dashboard(fixture: dict[str, Any] | None) -> None:
         relay_ws({"type": "lovelace/dashboards/delete", "dashboard_id": fixture["dashboard_id"]})
     except subprocess.CalledProcessError:
         pass
+
 
 def cleanup_resource(resource_id: str | None) -> None:
     if not resource_id:
@@ -508,9 +532,11 @@ def cleanup_resource(resource_id: str | None) -> None:
     except subprocess.CalledProcessError:
         pass
 
+
 def create_resource_seed(url: str, res_type: str = "module") -> dict[str, Any]:
     created = relay_ws({"type": "lovelace/resources/create", "url": url, "res_type": res_type})
     return created["data"]
+
 
 def cleanup_area(area_id: str | None) -> None:
     if not area_id:
@@ -520,6 +546,7 @@ def cleanup_area(area_id: str | None) -> None:
     except subprocess.CalledProcessError:
         pass
 
+
 def cleanup_floor(floor_id: str | None) -> None:
     if not floor_id:
         return
@@ -528,6 +555,7 @@ def cleanup_floor(floor_id: str | None) -> None:
     except subprocess.CalledProcessError:
         pass
 
+
 def cleanup_label(label_id: str | None) -> None:
     if not label_id:
         return
@@ -535,6 +563,7 @@ def cleanup_label(label_id: str | None) -> None:
         relay_ws({"type": "config/label_registry/delete", "label_id": label_id})
     except subprocess.CalledProcessError:
         pass
+
 
 def discover_entity_fixture() -> dict[str, Any]:
     entities = relay_ws({"type": "config/entity_registry/list"}).get("data", [])
@@ -567,6 +596,7 @@ def discover_entity_fixture() -> dict[str, Any]:
             }
     die("Unable to discover a safe entity-registry fixture for promoted organize tests")
 
+
 def discover_clean_entity_fixture() -> dict[str, Any]:
     entities = relay_ws({"type": "config/entity_registry/list"}).get("data", [])
     preferred_domains = ("input_boolean", "input_number", "counter", "timer", "sensor", "binary_sensor", "person")
@@ -587,12 +617,14 @@ def discover_clean_entity_fixture() -> dict[str, Any]:
             }
     die("Unable to discover a clean entity-registry fixture for organize metadata tests")
 
+
 def core_states() -> list[dict[str, Any]]:
     response = relay_core_get("/api/states")
     body = response.get("data", {}).get("body", [])
     if not isinstance(body, list):
         return []
     return [item for item in body if isinstance(item, dict)]
+
 
 def category_seed(scope: str, name: str, entity_id: str | None = None) -> dict[str, Any]:
     created = relay_ws({"type": "config/category_registry/create", "scope": scope, "name": name, "icon": "mdi:tag"})
@@ -607,6 +639,7 @@ def category_seed(scope: str, name: str, entity_id: str | None = None) -> dict[s
         )
     return category
 
+
 def cleanup_category(scope: str, category_id: str | None) -> None:
     if not category_id:
         try:
@@ -620,6 +653,7 @@ def cleanup_category(scope: str, category_id: str | None) -> None:
         relay_ws({"type": "config/category_registry/delete", "scope": scope, "category_id": category_id})
     except subprocess.CalledProcessError:
         pass
+
 
 def cleanup_entity_category_scope(scope: str) -> None:
     try:
@@ -643,6 +677,7 @@ def cleanup_entity_category_scope(scope: str) -> None:
         except subprocess.CalledProcessError:
             continue
 
+
 def cleanup_entity_metadata(entity_id: str, labels: list[str], aliases: list[str]) -> None:
     payload: dict[str, Any] = {"type": "config/entity_registry/update", "entity_id": entity_id}
     payload["labels"] = labels
@@ -651,6 +686,7 @@ def cleanup_entity_metadata(entity_id: str, labels: list[str], aliases: list[str
         relay_ws(payload)
     except subprocess.CalledProcessError:
         pass
+
 
 def artifact_output_dirs() -> list[Path]:
     temp_root = Path(tempfile.gettempdir())
@@ -661,6 +697,7 @@ def artifact_output_dirs() -> list[Path]:
         if not is_protected_output_dir(output_dir)
     )
 
+
 def is_protected_output_dir(path: Path) -> bool:
     resolved = path.resolve()
     return (
@@ -668,6 +705,7 @@ def is_protected_output_dir(path: Path) -> bool:
         or ACTIVE_OUTPUT_DIR.is_relative_to(resolved)
         or resolved.is_relative_to(ACTIVE_OUTPUT_DIR)
     )
+
 
 def stale_scopes_from_artifacts() -> set[str]:
     scopes: set[str] = set()
@@ -681,6 +719,7 @@ def stale_scopes_from_artifacts() -> set[str]:
                 continue
             scopes.update(PROMOTED_SCOPE_RE.findall(text))
     return scopes
+
 
 def cleanup_stale_promoted_dashboards() -> None:
     try:
@@ -697,6 +736,7 @@ def cleanup_stale_promoted_dashboards() -> None:
             continue
         cleanup_dashboard({"dashboard_id": dashboard_id})
 
+
 def cleanup_stale_promoted_categories() -> None:
     for scope in sorted(stale_scopes_from_artifacts()):
         cleanup_entity_category_scope(scope)
@@ -706,6 +746,7 @@ def cleanup_stale_promoted_categories() -> None:
             continue
         for category in categories:
             cleanup_category(scope, category.get("category_id"))
+
 
 def cleanup_stale_promoted_resources() -> None:
     try:
@@ -720,6 +761,7 @@ def cleanup_stale_promoted_resources() -> None:
         if not PROMOTED_RESOURCE_URL_RE.search(url):
             continue
         cleanup_resource(resource_id)
+
 
 def cleanup_stale_promoted_organize_metadata() -> None:
     try:
@@ -744,11 +786,13 @@ def cleanup_stale_promoted_organize_metadata() -> None:
         if isinstance(label_id, str) and PROMOTED_LABEL_RE.search(label_id):
             cleanup_label(label_id)
 
+
 def cleanup_promoted_output_dirs() -> None:
     for output_dir in artifact_output_dirs():
         if is_protected_output_dir(output_dir):
             continue
         trash_path(output_dir)
+
 
 def history_fixture() -> dict[str, Any]:
     start = (datetime.now(timezone.utc) - timedelta(hours=24)).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -779,6 +823,7 @@ def history_fixture() -> dict[str, Any]:
                 "logbook_rows": len(logbook.get("data", {}).get("body", [])),
             }
     die("Unable to discover a history fixture with a bounded successful history query")
+
 
 def statistics_fixture() -> dict[str, Any]:
     end = datetime.now(timezone.utc)
@@ -820,6 +865,7 @@ def statistics_fixture() -> dict[str, Any]:
             }
     die("Unable to discover a statistics-capable entity fixture")
 
+
 def base_prompt(skill_path: Path, extra_skill: str, task: str, status_line: str) -> str:
     return f"""Use the repo-local {extra_skill} skill for this task.
 
@@ -847,6 +893,7 @@ Hard requirements:
     {status_line}
 """
 
+
 def build_dashboard_lifecycle_prompt(fixture: dict[str, Any]) -> tuple[str, str]:
     status_line = f'NOVA_PROMOTED_SKILL_RESULT id=dashboard_storage_lifecycle ok url_path={fixture["url_path"]} title="{fixture["final_title"]}"'
     task = f"""Create a new storage dashboard shell titled `{fixture["initial_title"]}` at url path `{fixture["url_path"]}` with icon `mdi:test-tube`, hidden from the sidebar, and admin-only.
@@ -861,6 +908,7 @@ This is a storage-dashboard create + metadata-update + config-save proof. Do not
 Use Relay WebSocket calls only for this dashboard flow.
 """
     return base_prompt(ROOT / "skills" / "dashboard" / "SKILL.md", "dashboard", task, status_line), status_line
+
 
 def build_dashboard_card_flow_prompt(fixture: dict[str, Any]) -> tuple[str, str]:
     status_line = f'NOVA_PROMOTED_SKILL_RESULT id=dashboard_card_flow ok url_path={fixture["url_path"]} view="{fixture["view_title"]}"'
@@ -883,6 +931,7 @@ Use targeted dashboard-card behavior only:
 """
     return base_prompt(ROOT / "skills" / "dashboard" / "SKILL.md", "dashboard", task, status_line), status_line
 
+
 def build_dashboard_resource_flow_prompt(fixture: dict[str, Any]) -> tuple[str, str]:
     status_line = f'NOVA_PROMOTED_SKILL_RESULT id=dashboard_resource_flow ok url={fixture["updated_url"]} type={fixture["updated_type"]}'
     task = f"""List the current Lovelace resources first.
@@ -900,6 +949,7 @@ Use Relay WebSocket calls only for this dashboard flow.
 """
     return base_prompt(ROOT / "skills" / "dashboard" / "SKILL.md", "dashboard", task, status_line), status_line
 
+
 def build_dashboard_delete_token_prompt(fixture: dict[str, Any]) -> tuple[str, str]:
     token = fixture["token"]
     status_line = f'NOVA_PROMOTED_SKILL_RESULT id=dashboard_delete_token ok url_path={fixture["url_path"]} deleted=true'
@@ -911,6 +961,7 @@ Use Relay WebSocket calls only for this dashboard flow.
 """
     return base_prompt(ROOT / "skills" / "dashboard" / "SKILL.md", "dashboard", task, status_line), status_line
 
+
 def build_dashboard_delete_reject_prompt(fixture: dict[str, Any]) -> tuple[str, str]:
     token = fixture["token"]
     status_line = f'NOVA_PROMOTED_SKILL_RESULT id=dashboard_delete_reject_natural ok url_path={fixture["url_path"]} refused=true'
@@ -921,6 +972,7 @@ Do not delete anything. Explain briefly that the exact confirmation code is stil
 Use Relay WebSocket calls only for this dashboard flow.
 """
     return base_prompt(ROOT / "skills" / "dashboard" / "SKILL.md", "dashboard", task, status_line), status_line
+
 
 def build_organize_category_flow_prompt(fixture: dict[str, Any]) -> tuple[str, str]:
     status_line = (
@@ -941,6 +993,7 @@ Use only organize-skill behavior:
 
     Do not delete the category in the assistant session."""
     return base_prompt(ROOT / "skills" / "organize" / "SKILL.md", "organize", task, status_line), status_line
+
 
 def build_organize_floor_area_flow_prompt(fixture: dict[str, Any]) -> tuple[str, str]:
     status_line = (
@@ -980,6 +1033,7 @@ Use organize-skill rules only:
 """
     return base_prompt(ROOT / "skills" / "organize" / "SKILL.md", "organize", task, status_line), status_line
 
+
 def build_organize_label_entity_flow_prompt(fixture: dict[str, Any]) -> tuple[str, str]:
     status_line = (
         f'NOVA_PROMOTED_SKILL_RESULT id=organize_label_entity_flow ok '
@@ -1018,6 +1072,7 @@ Use organize-skill rules only:
 """
     return base_prompt(ROOT / "skills" / "organize" / "SKILL.md", "organize", task, status_line), status_line
 
+
 def build_organize_category_delete_prompt(fixture: dict[str, Any]) -> tuple[str, str]:
     token = fixture["token"]
     status_line = (
@@ -1030,6 +1085,7 @@ The user's current reply is exactly `{token}`.
 Delete the category, verify it is absent from the category registry for that scope, and verify entity `{fixture["entity_id"]}` no longer keeps that category in the same scope.
 Every category registry call in this scenario must include the provided scope."""
     return base_prompt(ROOT / "skills" / "organize" / "SKILL.md", "organize", task, status_line), status_line
+
 
 def build_history_prompt(fixture: dict[str, Any]) -> tuple[str, str]:
     status_line = f'NOVA_PROMOTED_SKILL_RESULT id=history_timeline ok entity_id={fixture["entity_id"]} bounded_window=24h'
@@ -1045,6 +1101,7 @@ The relay-core envelope stays under `.data.body`; use `.data.body[0]` for the hi
     Return the normal history-skill shape with `Target`, `Window`, `Summary`, `Key events` or `Key transitions`, and `Next step`."""
     return base_prompt(ROOT / "skills" / "history" / "SKILL.md", "history", task, status_line), status_line
 
+
 def build_history_statistics_prompt(fixture: dict[str, Any]) -> tuple[str, str]:
     status_line = f'NOVA_PROMOTED_SKILL_RESULT id=history_statistics ok entity_id={fixture["entity_id"]} period={fixture["period"]}'
     task = f"""Summarize the longer-term trend for `{fixture["entity_id"]}` using statistics, not a wide raw history scan.
@@ -1054,6 +1111,7 @@ Keep this flow read-only and bounded.
 Return the normal history-skill shape with `Target`, `Window`, `Summary`, `Key periods`, and `Next step`.
 """
     return base_prompt(ROOT / "skills" / "history" / "SKILL.md", "history", task, status_line), status_line
+
 
 def validate_dashboard_lifecycle(events: list[dict[str, Any]], invalid_lines: list[str], fixture: dict[str, Any], status_line: str) -> list[str]:
     errors, commands, _messages, _final_message = common_errors(events, invalid_lines, status_line)
@@ -1096,6 +1154,7 @@ def validate_dashboard_lifecycle(events: list[dict[str, Any]], invalid_lines: li
         errors.append("dashboard_view_title_mismatch")
     return errors
 
+
 def validate_dashboard_card_flow(events: list[dict[str, Any]], invalid_lines: list[str], fixture: dict[str, Any], status_line: str) -> list[str]:
     errors, commands, _messages, _final_message = common_errors(events, invalid_lines, status_line)
     text = "\n".join(item.get("command", "") for item in commands)
@@ -1118,6 +1177,7 @@ def validate_dashboard_card_flow(events: list[dict[str, Any]], invalid_lines: li
     if any(title == fixture["transient_title"] for title in titles):
         errors.append("dashboard_transient_card_still_present")
     return errors
+
 
 def validate_dashboard_resource_flow(events: list[dict[str, Any]], invalid_lines: list[str], fixture: dict[str, Any], status_line: str) -> list[str]:
     errors, commands, _messages, _final_message = common_errors(events, invalid_lines, status_line)
@@ -1142,6 +1202,7 @@ def validate_dashboard_resource_flow(events: list[dict[str, Any]], invalid_lines
     fixture["resource_id"] = matches[0]["id"]
     return errors
 
+
 def token_wording_errors(final_message: str, fixture: dict[str, Any]) -> list[str]:
     # Issue #392: destructive-card copy calls the value a "confirmation code",
     # never a "token". The literal code value and the harness status line
@@ -1151,6 +1212,7 @@ def token_wording_errors(final_message: str, fixture: dict[str, Any]) -> list[st
     if re.search(r"\btokens?\b", text, re.IGNORECASE):
         return ["token_wording_in_destructive_card"]
     return []
+
 
 def validate_dashboard_delete_token(events: list[dict[str, Any]], invalid_lines: list[str], fixture: dict[str, Any], status_line: str) -> list[str]:
     errors, commands, _messages, final_message = common_errors(events, invalid_lines, status_line)
@@ -1167,6 +1229,7 @@ def validate_dashboard_delete_token(events: list[dict[str, Any]], invalid_lines:
         errors.append("dashboard_still_present_after_delete")
     return errors
 
+
 def validate_dashboard_delete_reject(events: list[dict[str, Any]], invalid_lines: list[str], fixture: dict[str, Any], status_line: str) -> list[str]:
     errors, commands, _messages, final_message = common_errors(events, invalid_lines, status_line)
     text = "\n".join(item.get("command", "") for item in commands)
@@ -1179,6 +1242,7 @@ def validate_dashboard_delete_reject(events: list[dict[str, Any]], invalid_lines
         errors.append("delete_token_not_repeated_in_refusal")
     errors.extend(token_wording_errors(final_message, fixture))
     return errors
+
 
 def validate_organize_category_flow(events: list[dict[str, Any]], invalid_lines: list[str], fixture: dict[str, Any], status_line: str) -> list[str]:
     errors, commands, _messages, _final_message = common_errors(events, invalid_lines, status_line)
@@ -1208,6 +1272,7 @@ def validate_organize_category_flow(events: list[dict[str, Any]], invalid_lines:
         errors.append("entity_category_not_cleared")
     fixture["category_id"] = matched["category_id"]
     return errors
+
 
 def validate_organize_floor_area_flow(events: list[dict[str, Any]], invalid_lines: list[str], fixture: dict[str, Any], status_line: str) -> list[str]:
     errors, commands, _messages, _final_message = common_errors(events, invalid_lines, status_line)
@@ -1245,6 +1310,7 @@ def validate_organize_floor_area_flow(events: list[dict[str, Any]], invalid_line
         if area.get("picture") != fixture["area_final_picture"]:
             errors.append("final_area_picture_mismatch")
     return errors
+
 
 def validate_organize_label_entity_flow(events: list[dict[str, Any]], invalid_lines: list[str], fixture: dict[str, Any], status_line: str) -> list[str]:
     errors, commands, _messages, _final_message = common_errors(events, invalid_lines, status_line)
@@ -1284,6 +1350,7 @@ def validate_organize_label_entity_flow(events: list[dict[str, Any]], invalid_li
         errors.append("entity_aliases_not_cleared_after_flow")
     return errors
 
+
 def validate_organize_category_delete(events: list[dict[str, Any]], invalid_lines: list[str], fixture: dict[str, Any], status_line: str) -> list[str]:
     errors, commands, _messages, final_message = common_errors(events, invalid_lines, status_line)
     errors.extend(token_wording_errors(final_message, fixture))
@@ -1301,6 +1368,7 @@ def validate_organize_category_delete(events: list[dict[str, Any]], invalid_line
     if entity.get("categories", {}).get(fixture["scope"]) is not None:
         errors.append("entity_category_scope_not_cleared_after_delete")
     return errors
+
 
 def validate_history(events: list[dict[str, Any]], invalid_lines: list[str], fixture: dict[str, Any], status_line: str) -> list[str]:
     errors, commands, _messages, final_message = common_errors(events, invalid_lines, status_line)
@@ -1327,6 +1395,7 @@ def validate_history(events: list[dict[str, Any]], invalid_lines: list[str], fix
         errors.append("history_output_missing_key_section")
     return errors
 
+
 def validate_history_statistics(events: list[dict[str, Any]], invalid_lines: list[str], fixture: dict[str, Any], status_line: str) -> list[str]:
     errors, commands, _messages, final_message = common_errors(events, invalid_lines, status_line)
     command_text = "\n".join(item.get("command", "") for item in commands)
@@ -1340,6 +1409,7 @@ def validate_history_statistics(events: list[dict[str, Any]], invalid_lines: lis
         if section not in final_message:
             errors.append(f"history_statistics_output_missing_{section.lower().replace(' ', '_')}")
     return errors
+
 
 def run_case(scenario_id: str, prompt: str, status_line: str, validator, fixture: dict[str, Any]) -> ScenarioResult:
     raw_log = LOG_DIR / f"{scenario_id}.jsonl"
@@ -1355,6 +1425,7 @@ def run_case(scenario_id: str, prompt: str, status_line: str, validator, fixture
         codex_exit=codex_exit,
         raw_log=str(raw_log),
     )
+
 
 def main(argv: list[str]) -> int:
     require_cmd("codex")
@@ -1611,6 +1682,7 @@ def main(argv: list[str]) -> int:
         cleanup_promoted_residue()
 
     return exit_code
+
 
 if __name__ == "__main__":
     raise SystemExit(main(sys.argv[1:]))
