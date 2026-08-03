@@ -335,6 +335,8 @@ Dispatch to `ha-nova:review` instead when there is no concrete incident: config-
   - context skill (this file)
   - `skills/ha-nova/bulk-patterns.md` only for multi-target discovery/review work
   - `skills/ha-nova/relay-api.md`
+  - `skills/ha-nova/output-rules.md`
+  - `skills/ha-nova/write-safety.md`
   - one agent template per phase
 - No proactive doctor in success path.
 - Re-read full state snapshot only with explicit reason.

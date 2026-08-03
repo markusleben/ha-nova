@@ -175,7 +175,7 @@ Expected success body:
 - Area registry (`config/area_registry/list`): `data[]` with canonical `area_id`; do not expect a generic `id`
 - Recorder statistics (`recorder/statistics_during_period`): `data.<statistic_id>[]`
 - `search/related` for `item_type:"area"`: `data` is a keyed object such as `automation[]`, `script[]`, `entity[]`, `device[]`
-- `search/related` for `item_type:"entity"`: `data` is a related-item collection; filter by the requested target family before counting or follow-up reads
+- `search/related` for `item_type:"entity"`: `data` is the same kind of keyed object (`automation[]`, `script[]`, `scene[]`, `device[]`, ...); a target with no linked items yields an EMPTY object `{}` — the keys themselves are absent, which is not an error
 - `get_states`: `data` is an array of full state objects (thousands of entries — avoid for discovery)
 
 Parsing rule:
@@ -186,6 +186,11 @@ Parsing rule:
   - script shortlist -> `(.data.script // [])[]`
   - entity shortlist -> `(.data.entity // [])[]`
   - `.data.entity` is only a fallback seed when automation/script arrays are absent
+- `search/related` consumer scan (`item_type:"entity"`): use `skills/ha-nova/search-related-consumers.jq`; if unavailable (flat-copy installs), recreate exactly:
+  ```jq
+  if .ok and (.data | type == "object") then ((.data.automation // []) + (.data.script // []) + (.data.scene // [])) else error("search/related failed: \(.error.message // "unexpected response shape")") end
+  ```
+  It errors loudly on `ok=false` or a non-object `data`, so an empty result is distinguishable from a wrong read path. A hand-written filter that misses the documented path returns empty and is indistinguishable from "no consumers" — never improvise beyond this exact recreate. Scans that also need further families (`group[]`, dashboards via their own scan, ...) project those keys the same way under the same `ok`/object guard.
 - `get_states`: treat as `(.data // [])[]`, filter only object entries with string `entity_id`.
 
 ## /core Contract
@@ -217,6 +222,15 @@ Parsing rule:
 - Upstream status: `.data.status`
 - Upstream payload: `.data.body`
 - Preferred config-body jq file: `skills/ha-nova/config-body-filter.jq`
+
+### Write-Probing Asymmetry (WS vs /core)
+
+The two transports react in OPPOSITE ways to an empty or partial write body:
+
+- `relay ws`: commands WITH required fields validate fail-closed — an empty body returns a validation error naming them, and nothing changes. But a parameterless command IS already complete: sending its bare `type` EXECUTES it (`backup/generate_with_automatic_settings` immediately starts a backup). The transport is not protection.
+- `relay core` HTTP POST: many endpoints have NO schema check. A missing identifier is read as "create a new object" — `POST` with `{}` can silently create an empty object instead of returning an error (observed: an empty Alarmo area plus its entity from `POST /api/alarmo/area {}`).
+
+Therefore: NEVER send an empty or partial body to a `/core` POST path to discover its schema, and never send a bare WS `type` you have not verified to be read-only. Schema discovery for unfamiliar write endpoints belongs in `ha-nova:fallback` (web search first); empty-body probing is limited to WS commands already documented as read-only — the write schema still comes from web search or documentation.
 
 ## Frequent HA API Paths
 

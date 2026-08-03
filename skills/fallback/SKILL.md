@@ -35,6 +35,7 @@ For every Relay-Ready call in this skill:
 - use `ha-nova relay ws --data-file <payload-file>` or `ha-nova relay core --method <METHOD> --path <PATH> --body-file <payload-file>`
 - use `--out <result-file>` for large responses
 - treat inline `-d` as an optional tiny diagnostic path, not the canonical contract
+- transports diverge on empty write bodies: WS validates missing required fields fail-closed, but a parameterless WS write executes on its bare `type`, and `/core` POST may silently CREATE — read `skills/ha-nova/relay-api.md` → Write-Probing Asymmetry before any experimental write
 
 ## Capability Map
 
@@ -81,6 +82,7 @@ For every Relay-Ready call in this skill:
 | Device config-entry detach | Relay-Ready | this skill |
 | Integration onboarding (add / re-auth an integration via config flow) | Covered | integration-setup |
 | Firing custom events / triggering webhooks | Relay-Ready | this skill |
+| Custom-integration configuration APIs (Alarmo, Scheduler, Adaptive Lighting, Frigate, ...) | Relay-Ready | this skill |
 | Event Subscriptions | Roadmap Phase 1c | -- |
 | Backups (status, create, inspect, delete) | Covered | backup |
 | Config snapshots (targeted capture/restore of automations, scripts, scenes, dashboards, helpers, energy prefs, metadata, YAML files) | Covered | the owning family skill (see `skills/ha-nova/config-snapshots.md`) |
@@ -198,6 +200,25 @@ ha-nova relay ws --data-file <payload-file>
 
 **Risks:** Device detach depends on integration support (`supports_remove_device`) and can sever the current device/config-entry relationship. Preview impact first.
 
+### Custom-Integration Configuration APIs -- RELAY-READY
+
+Integrations that ship their OWN configuration API outside the config-entry flow (Alarmo, Scheduler, Adaptive Lighting, Frigate, ...). Runtime control of their entities stays with the owning skills (for example alarm arm/disarm via `service-call`); this section covers the configuration layer only.
+
+**Search:** `<integration name> home assistant configuration api endpoints 2026` — prefer the integration's own repository docs for payload schemas.
+
+**Experimental relay calls (no skill guardrails):**
+```text
+ha-nova relay core --method GET --path /api/<integration>/<resource> --out <result-file>
+ha-nova relay core --method POST --path /api/<integration>/<resource> --body-file <payload-file>
+```
+
+**Observed API behavior (Alarmo; treat as the default assumption for this class):**
+- Write commands often exist only as HTTP POST paths, not WS commands (`unknown_command`); such paths answer GET with `405`, which reveals their existence.
+- Whether a POST creates or updates depends solely on whether an identifier is present in the body (`area_id`, `entity_id`, `automation_id`, ...) — `POST` with `{}` silently CREATES an empty object (`skills/ha-nova/relay-api.md` → Write-Probing Asymmetry).
+- Nested blocks must be sent complete; partial objects overwrite the rest.
+
+**Risks:** These APIs are private and version-dependent. Never probe schemas with empty or partial POST bodies — resolve the schema via web search first. After ANY write, read the affected list/config back and verify no unintended object appeared; an accidental create can trigger integration side effects (Alarmo auto-enables its master panel at two areas).
+
 ## Roadmap Features
 
 ### Event Subscriptions -- ROADMAP (Phase 1c)
@@ -270,6 +291,8 @@ Rules for all experimental relay calls in this skill:
 - **Full-document overwrites** (e.g., `lovelace/config/save`): MUST read full config, merge changes in memory, preview merged result with a plain-language behavior line (`skills/ha-nova/write-safety.md` → Behavior narrative), then write. There is no partial update endpoint — the entire config is replaced. After the write, read the document back and verify both the intended change and the survival of unrelated content (views, cards, sources) before reporting success.
 - **Field-level list replacements** (e.g., `energy/save_prefs`): omitted top-level keys are preserved, but each provided key replaces its entire list. To add one item, read the existing list first, append, then save back the full list. After the write, read the prefs back and verify the pre-existing list items survived alongside the new one.
 - **Web search before write**: always search for current payload schema before constructing any write payload. HA APIs evolve across versions — the examples in this skill are starting points, not authoritative schemas.
+- **Schema discovery never probes writes**: never send an empty or partial body to a `/core` POST path to elicit a validation error — `/core` has no schema check and may CREATE an object instead — and never send a bare WS `type` you have not verified to be read-only, because a parameterless write command executes immediately (`skills/ha-nova/relay-api.md` → Write-Probing Asymmetry). Empty-body probing is limited to WS commands already documented as read-only; the write schema still comes from web search.
+- **Pre-delete `search/related` verdicts fail closed**: verify `ok=true` and `data` is an object before projecting family keys (`skills/ha-nova/relay-api.md` → Parsing rule); a failed or unexecuted scan is inconclusive — never a no-consumer result.
 - Every experimental call must show: "EXPERIMENTAL: No dedicated subskill schema guardrails. Proceed with caution."
 - **No diff or auto-undo here**: these writes have no `## Changes` preview or `revert`. When a write may be hard to reverse, say so plainly and point to Home Assistant Backups (Settings > System > Backups) as the safety net before confirming.
 - One resource at a time (no batch writes)
@@ -291,5 +314,6 @@ No HA WS endpoint has optimistic locking (no ETags, no version numbers). Last wr
 - Sending `lovelace/config/save` with a guessed or partial payload — this overwrites the ENTIRE dashboard config, destroying all other views and cards
 - Sending `energy/save_prefs` with a single source — this replaces the entire `energy_sources` list, deleting all existing sources
 - Probing write endpoints to "see what happens" — read the Relay-Ready section first
+- Sending an empty or partial body to a `/core` POST path to discover its schema — WS validates fail-closed, HTTP POST silently creates (`relay-api.md` → Write-Probing Asymmetry)
 - Skipping this skill and going straight to `ha-nova relay ws`/`ha-nova relay core` for unfamiliar operations
 - Using trial-and-error to discover payload schemas — search web for the WS type schema instead

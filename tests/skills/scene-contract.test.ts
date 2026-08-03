@@ -38,7 +38,8 @@ describe("scene contract", () => {
 
   it("gates deletes on consumer check plus token confirmation and verifies absence", () => {
     expect(sceneSkill).toContain('`{"type":"search/related","item_type":"entity","item_id":"scene.<slug>"}`');
-    expect(sceneSkill).toContain("an empty `data` object means no consumers");
+    expect(sceneSkill).toContain("only a verified-shape empty `data` object means no consumers");
+    expect(sceneSkill).toContain("a failed read is inconclusive, never a no-consumer claim");
     expect(sceneSkill).toContain("`confirm:<token>`");
     expect(sceneSkill).toContain("proceed only when the user types it back exactly");
     expect(sceneSkill).toContain("config GET returns status 404 and the entity is gone");

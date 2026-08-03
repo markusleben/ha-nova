@@ -244,8 +244,9 @@ Branch by target family:
    - helper (config-entry family): use up to 3 `linked_entities[]` from the canonical metadata item
 2. For the top 3 most significant candidate entities, run `search/related`:
    ```text
-   ha-nova relay ws --data-file <payload-file>
+   ha-nova relay ws --data-file <payload-file> --jq-file <filter-file>
    ```
+   `<filter-file>` is the canonical `skills/ha-nova/search-related-consumers.jq` (recreate per `skills/ha-nova/relay-api.md` → Parsing rule on flat-copy installs).
 3. Collect related automations/scripts (exclude current target).
 4. Read configs of related items (max 5 for a single standalone target; keep a tighter shared budget across a bulk workset; post-write scans inside `write`/`helper` deliberately use a tighter budget of max 3 related configs). Resolve `unique_id` first for automation/script targets (see Target Resolution step 5), then:
    ```text
@@ -254,7 +255,7 @@ Branch by target family:
    # Script:
    ha-nova relay core --method GET --path /api/config/script/config/<unique_id> --jq-file <config-filter-file> --out <related-file>
    ```
-5. If no related items found, report "no conflicts" in the Conflicts section and skip Step 3.
+5. If no related items found, report "no conflicts" in the Conflicts section and skip Step 3. On a filter error, report the collision scan as inconclusive — never as "no conflicts".
 
 ### Trace Analysis (on request)
 

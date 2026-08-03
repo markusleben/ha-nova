@@ -16,7 +16,7 @@ Active doc ownership lives in `docs/reference/documentation-governance.md`.
 
 ## Current Phase
 
-**Post-masterplan-2026 program** — the active roadmap is `docs/work/masterplan-2026-h2.md`.
+**Post-masterplan-2026 program** — the active roadmap is `docs/work/2026-08-03-backlog-sequencing.md` (masterplan-2026-h2 completed in full, archived).
 
 Shipped and current:
 1. Relay: `GET /health`, `POST /ws`, `POST /core`, `POST /files` (opt-in, default off); App + standalone container from one codebase

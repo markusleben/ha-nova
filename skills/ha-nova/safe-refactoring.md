@@ -127,6 +127,7 @@ If no automations or scripts reference it, it's an orphan candidate.
 
 ## search/related Signal Strength
 
+- Read discipline: parse consumer checks through `skills/ha-nova/search-related-consumers.jq` (automation/script/scene projection; recreate per `skills/ha-nova/relay-api.md` → Parsing rule on flat-copy installs). Only a verified-shape empty result is a no-consumer signal; a filter error or a scan that did not run is inconclusive and never justifies a cleanup verdict.
 - Helpers: strong signal for direct consumers
 - Automations and scripts: medium signal; direct refs are good, templates can still hide usage
 - Scenes: weak signal; always do a manual check before destructive cleanup

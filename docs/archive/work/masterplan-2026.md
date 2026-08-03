@@ -1,7 +1,7 @@
 # HA NOVA Masterplan 2026
 
 Status: superseded — program complete (v0.14.0 shipped 2026-07-12);
-succeeded by [masterplan-2026-h2.md](../../work/masterplan-2026-h2.md)
+succeeded by [masterplan-2026-h2.md](masterplan-2026-h2.md)
 Scope: program-level plan for releases 0.14 → 1.0. Each release breaks down into its own short spec + PRs before implementation; this doc is the SSOT for sequencing and decisions until superseded.
 
 ## Context
