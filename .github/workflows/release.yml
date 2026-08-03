@@ -472,6 +472,10 @@ jobs:
       - name: Smoke Unix installer
         if: runner.os != 'Windows'
         shell: bash
+        env:
+          # #446: smoke runs never touch production census statistics —
+          # defense-in-depth on top of the consent-default-off state.
+          HA_NOVA_NO_CENSUS: "1"
         run: |
           bash install.sh
           ~/.local/bin/ha-nova version
@@ -482,6 +486,9 @@ jobs:
       - name: Smoke Windows installer
         if: runner.os == 'Windows'
         shell: pwsh
+        env:
+          # #446: smoke runs never touch production census statistics.
+          HA_NOVA_NO_CENSUS: "1"
         run: |
           ./install.ps1
           $binary = Join-Path $env:LOCALAPPDATA "Programs\ha-nova\ha-nova.exe"

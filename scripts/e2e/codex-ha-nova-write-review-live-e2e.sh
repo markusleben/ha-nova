@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# #446: live E2E sessions must never mutate production census statistics or
+# accrue passive relay-version stamps on an opted-in machine.
+export HA_NOVA_NO_CENSUS=1
+
 SCRIPT_DIR="$(cd -- "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd -- "${SCRIPT_DIR}/../.." && pwd)"
 SCENARIO_FILE="${SCENARIO_FILE:-${SCRIPT_DIR}/codex-ha-nova-write-review-live-scenarios.json}"

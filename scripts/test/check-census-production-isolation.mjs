@@ -65,13 +65,14 @@ for (const root of SCAN_ROOTS) {
     const sameLine = content
       .split("\n")
       .some((line) => line.includes(PRODUCTION_HOST) && MUTATION_PATTERN.test(line));
-    // (b) A URL variable assigned the production host, later used to build a
-    // mutation URL (shell `${var}/ping` or template `${var}/withdraw`).
+    // (b) A variable assigned anything containing the production host (full
+    // URL, default expansion, or bare hostname for scheme-splitting), later
+    // used to build a mutation URL — braced or unbraced expansion.
     const assignedVars = [...content.matchAll(
-      /(\w+)\s*=\s*["'`]https:\/\/ha-nova-census\.markusleben\.workers\.dev["'`]/g,
+      /(\w+)\s*=\s*["'`]?[^"'`\s\n]*ha-nova-census\.markusleben\.workers\.dev[^"'`\s\n]*["'`]?/g,
     )].map((m) => m[1]);
     const viaVariable = assignedVars.some((name) =>
-      new RegExp(`\\$\\{${name}\\}\\/(ping|withdraw)\\b`).test(content),
+      new RegExp(`\\$\\{?${name}\\}?"?\\/(ping|withdraw)\\b`).test(content),
     );
     if (sameLine || viaVariable) {
       violations.push(rel);

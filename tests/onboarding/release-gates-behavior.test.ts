@@ -276,13 +276,7 @@ done
 public_sha="$TEST_SHA"
 public_version="$TEST_VERSION_ID"
 smoke_count=0
-[[ "$args" != *"dedup-"* ]] || smoke_count=1
-[[ "\${FAKE_MODE:-valid}" != "dedup_failed" ]] || smoke_count=0
 active_count=$smoke_count
-if [[ "\${FAKE_MODE:-valid}" == "unrelated_linux_install" ]]; then
-  [[ "$args" != *"dedup-"* ]] || active_count=2
-  [[ "$args" != *"withdraw-"* ]] || active_count=1
-fi
 relay_analytics='{"status":"available","source":"https://analytics.home-assistant.io/addons.json","slug":"2368fcfa_ha_nova_relay","total":9,"by_version":{"0.7.0":7,"0.6.0":1,"0.2.0":1}}'
 [[ "\${FAKE_MODE:-valid}" != "analytics_unavailable" ]] || relay_analytics='{"status":"unavailable","source":"https://analytics.home-assistant.io/addons.json","slug":"2368fcfa_ha_nova_relay","error":"upstream timeout"}'
 [[ "\${FAKE_MODE:-valid}" != "malformed_relay_analytics" ]] || relay_analytics='{"status":"unavailable","source":"https://analytics.home-assistant.io/addons.json","slug":"2368fcfa_ha_nova_relay"}'
@@ -423,7 +417,7 @@ describe("release gate behavior", () => {
     expect(calls).not.toContain("wrangler@4.113.0 rollback");
   });
 
-  it.each(["valid", "analytics_unavailable", "unrelated_linux_install"])(
+  it.each(["valid", "analytics_unavailable"])(
     "accepts the exact deployment chain in %s mode",
     (mode) => {
       const fixture = releaseFixture();

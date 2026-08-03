@@ -11,10 +11,14 @@ Durable Object namespace). This script hardcodes the test host and must never
 point at production; the production deployment check is read-only by contract
 (#446, scripts/release/verify-census-deployment.sh).
 
-Deploy the target first:  cd census-worker && npx wrangler@4.113.0 deploy --env test
-
-Optional HA_NOVA_CENSUS_ACCESS_CLIENT_ID / HA_NOVA_CENSUS_ACCESS_CLIENT_SECRET
-are sent when set (if the test Worker sits behind the same Access policy).
+One-time prerequisites (secrets are per-worker, never inherited):
+  1. cd census-worker && npx wrangler@4.113.0 deploy --env test
+  2. Cloudflare Access application for the test hostname with the same
+     service-token policy as production, then:
+       npx wrangler@4.113.0 secret put ACCESS_TEAM_DOMAIN --env test
+       npx wrangler@4.113.0 secret put ACCESS_AUD --env test
+Provide HA_NOVA_CENSUS_ACCESS_CLIENT_ID / HA_NOVA_CENSUS_ACCESS_CLIENT_SECRET
+for the stats fetches — without them /stats/api answers 403 (fail-closed).
 EOF
 }
 
@@ -111,7 +115,7 @@ withdraw_smoke_and_restore() {
   return 1
 }
 
-fetch_stats "$(date -u +%s)-$$-baseline" || fail "test worker stats unavailable — deploy with: cd census-worker && npx wrangler@4.113.0 deploy --env test"
+fetch_stats "$(date -u +%s)-$$-baseline" || fail "test worker stats unavailable (HTTP 403 means the Access app or ACCESS_TEAM_DOMAIN/ACCESS_AUD secrets for env test are missing — see usage); deploy with: cd census-worker && npx wrangler@4.113.0 deploy --env test"
 baseline_smoke_count="$(read_smoke_count)" || fail "test worker stats do not expose the schema-2 smoke count"
 installation_id="cns-$(openssl rand -hex 16)"
 ping_body="$(jq -cn --arg id "$installation_id" --arg version "$smoke_version" \
@@ -127,7 +131,7 @@ done
 
 deduplicated=0
 for ((attempt = 1; attempt <= 15; attempt++)); do
-  fetch_stats "dedup-$(date -u +%s)-$$-${attempt}"
+  fetch_stats "dedup-$(date -u +%s)-$$-${attempt}" || { sleep 1; continue; }
   current="$(read_smoke_count)" || current=""
   if [[ -n "$current" && "$current" -eq $((baseline_smoke_count + 1)) ]]; then
     deduplicated=1

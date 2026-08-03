@@ -192,7 +192,9 @@ the production Worker's `/ping` or `/withdraw`:
 - Functional ping/deduplication/withdrawal checks run exclusively against the
   isolated test Worker (`census-worker/wrangler.toml` → `[env.test]`, its own
   Durable Object storage): `npx wrangler@4.113.0 deploy --env test`, then
-  `bash scripts/release/verify-census-functional.sh`.
+  `bash scripts/release/verify-census-functional.sh`. One-time setup: an
+  Access application for the test hostname plus `ACCESS_TEAM_DOMAIN` /
+  `ACCESS_AUD` secrets per `wrangler secret put … --env test`.
 - The invariant is enforced statically by
   `scripts/test/check-census-production-isolation.mjs`
   (tests/onboarding/census-production-isolation.test.ts).

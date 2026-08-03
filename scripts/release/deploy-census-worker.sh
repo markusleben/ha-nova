@@ -8,7 +8,9 @@ Usage: bash scripts/release/deploy-census-worker.sh <reviewed-merge-sha>
 From a clean checkout of the exact reviewed merge, exercises the Worker and
 SQLite Durable Object locally, deploys the pinned production Worker, attests
 Wrangler's exact worker/target/version output, then verifies that same
-Cloudflare version, private dashboard contract, deduplication, and withdrawal.
+Cloudflare version and private dashboard contract READ-ONLY (#446); the
+ping/deduplication/withdrawal proof runs locally pre-deploy and against the
+isolated test Worker via scripts/release/verify-census-functional.sh.
 Cloudflare Access must already protect /stats*.
 EOF
 }

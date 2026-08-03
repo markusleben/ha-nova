@@ -784,7 +784,11 @@ release changes the census Worker.
    `scripts/test/check-census-production-isolation.mjs`. The functional
    ping/deduplication/withdrawal proof runs against the ISOLATED test Worker
    instead: `cd census-worker && npx wrangler@4.113.0 deploy --env test`, then
-   `bash scripts/release/verify-census-functional.sh`.
+   `bash scripts/release/verify-census-functional.sh`. One-time prerequisite:
+   a Cloudflare Access application for the test hostname with the same
+   service-token policy, plus `ACCESS_TEAM_DOMAIN`/`ACCESS_AUD` secrets set
+   via `wrangler secret put … --env test` (secrets are per-worker; without
+   them the fail-closed Worker answers 403).
 6. Only after the rehearsal and every applicable external gate are clean — or
    the RC was skipped per the conditional gate above (skills/docs-only delta) —
    cut the final tag (see "Final Publish"). A skipped RC never skips the
