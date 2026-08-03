@@ -1,5 +1,6 @@
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
+import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
@@ -16,6 +17,22 @@ describe("census production isolation (#446)", () => {
       { encoding: "utf8" },
     );
     expect(out).toContain("[census-production-isolation] OK");
+  });
+
+  it("keeps every live E2E entry point on the census kill switch", () => {
+    // Shell launchers AND Python entry points: any executable added to
+    // scripts/e2e/ must export HA_NOVA_NO_CENSUS=1 before driving the built
+    // binary (session-bootstrap runs `ha-nova check-update --quiet`).
+    const entries = readdirSync("scripts/e2e").filter(
+      (name) => name.endsWith(".sh") || name.endsWith(".py"),
+    );
+    expect(entries.length).toBeGreaterThan(0);
+    for (const name of entries) {
+      const content = readFileSync(join("scripts/e2e", name), "utf8");
+      expect(content, `${name} must set HA_NOVA_NO_CENSUS`).toContain(
+        "HA_NOVA_NO_CENSUS",
+      );
+    }
   });
 
   it("provides an isolated test worker environment with its own storage", () => {
