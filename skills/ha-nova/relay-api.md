@@ -227,10 +227,10 @@ Parsing rule:
 
 The two transports react in OPPOSITE ways to an empty or partial write body:
 
-- `relay ws`: HA validates the command schema fail-closed — an empty body returns a validation error naming the required fields, and nothing changes.
+- `relay ws`: commands WITH required fields validate fail-closed — an empty body returns a validation error naming them, and nothing changes. But a parameterless command IS already complete: sending its bare `type` EXECUTES it (`backup/generate_with_automatic_settings` immediately starts a backup). The transport is not protection.
 - `relay core` HTTP POST: many endpoints have NO schema check. A missing identifier is read as "create a new object" — `POST` with `{}` can silently create an empty object instead of returning an error (observed: an empty Alarmo area plus its entity from `POST /api/alarmo/area {}`).
 
-Therefore: NEVER send an empty or partial body to a `/core` POST path to discover its schema. Schema discovery for unfamiliar write endpoints belongs in `ha-nova:fallback` (web search first); empty-body probing is acceptable only for WS command types, and only as an existence check — the write schema still comes from web search or documentation.
+Therefore: NEVER send an empty or partial body to a `/core` POST path to discover its schema, and never send a bare WS `type` you have not verified to be read-only. Schema discovery for unfamiliar write endpoints belongs in `ha-nova:fallback` (web search first); empty-body probing is limited to WS commands already documented as read-only — the write schema still comes from web search or documentation.
 
 ## Frequent HA API Paths
 

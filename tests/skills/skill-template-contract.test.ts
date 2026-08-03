@@ -169,8 +169,9 @@ const WORD_BUDGETS: Record<string, number> = {
   // blueprint payload examples; integration onboarding and runtime
   // events/webhooks moved to owning skills in Wave 4.
   // Custom-integration configuration APIs section + write-probing
-  // asymmetry guardrails (#493).
-  fallback: 2700,
+  // asymmetry guardrails (#493), incl. the parameterless-WS-write
+  // restriction (Codex P1).
+  fallback: 2750,
   // semantic-slot note on the read templates (Wave 0); pre-write cross-field
   // constraint checks + drift-check step (Wave 1); pre-delete snapshot
   // capture (Wave 2).

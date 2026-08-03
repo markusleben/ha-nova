@@ -162,9 +162,13 @@ describe("ha safety contract", () => {
     const relayApi = readFileSync("skills/ha-nova/relay-api.md", "utf8");
     const fallback = readFileSync("skills/fallback/SKILL.md", "utf8");
 
-    // relay-api.md is the SSOT for the transport asymmetry
+    // relay-api.md is the SSOT for the transport asymmetry; probing is
+    // limited to documented read-only WS commands — the WS transport itself
+    // is not protection (parameterless writes execute on their bare type).
     expect(relayApi).toContain("Write-Probing Asymmetry");
     expect(relayApi).toContain("NEVER send an empty or partial body");
+    expect(relayApi).toContain("already documented as read-only");
+    expect(relayApi).toContain("The transport is not protection");
 
     // Fallback: the rule sits at the point of use, and the class of
     // custom-integration configuration APIs is mapped explicitly
