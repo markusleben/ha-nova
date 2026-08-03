@@ -61,6 +61,8 @@ export function archiveCorruptRegistry(dataDir: string, now: number): void {
 // Loads the registry (fail-closed on corruption) or starts an empty one when the
 // file is absent. An absent file is a fresh install; a present-but-unparseable
 // file is corruption and must not be masked.
+export const LAST_USED_PERSIST_WINDOW_MS = 5 * 60 * 1000;
+
 export function openDeviceRegistry(dataDir: string): DeviceRegistry {
   const path = join(dataDir, DEVICE_REGISTRY_FILE);
   let data = loadRegistryData(path);
@@ -82,6 +84,38 @@ export function openDeviceRegistry(dataDir: string): DeviceRegistry {
     }
   }
 
+  // Records a successful device authentication. Persisted at most once per
+  // window so the hot auth path does not rewrite the registry file on every
+  // request; the on-disk value may lag by up to the window, which is precise
+  // enough for the owner console's access review.
+  // ponytail: fixed 5-minute throttle; make it configurable only if a real
+  // deployment needs finer freshness.
+  function touchLastUsed(device: DeviceRecord, now: number): void {
+    if (
+      device.lastUsedAtMs !== undefined &&
+      now - device.lastUsedAtMs < LAST_USED_PERSIST_WINDOW_MS
+    ) {
+      return;
+    }
+    const touched = { ...device, lastUsedAtMs: now };
+    const next = {
+      ...data,
+      devices: data.devices.map((d) =>
+        d.deviceId === device.deviceId ? touched : d,
+      ),
+    };
+    try {
+      persist(next);
+    } catch {
+      // Auth must survive a broken disk (ENOSPC/EROFS): the stamp is
+      // best-effort metadata, never worth failing authentication over. Keep
+      // the fresh value in memory so retries stay throttled to once per
+      // window; the durable write catches up on the next touch once /data is
+      // writable again.
+      data = next;
+    }
+  }
+
   return {
     list() {
       return data.devices.map((d) => ({ ...d }));
@@ -99,7 +133,7 @@ export function openDeviceRegistry(dataDir: string): DeviceRegistry {
       if (!device || !digestsEqual(device.secretDigest, secretDigest)) {
         return null;
       }
-      void now;
+      touchLastUsed(device, now);
       return { kind: "device", deviceId };
     },
     resolveCloudDeviceSecret(
@@ -123,7 +157,7 @@ export function openDeviceRegistry(dataDir: string): DeviceRegistry {
       ) {
         return null;
       }
-      void now;
+      touchLastUsed(device, now);
       return { kind: "device", deviceId };
     },
     resolveLegacySecret(secretDigest) {
@@ -358,6 +392,8 @@ export function openDeviceRegistry(dataDir: string): DeviceRegistry {
       platform: target.platform,
       client: target.client,
       createdAtMs: target.createdAtMs,
+      // Activation is itself a use; seeds the owner console's "last used".
+      lastUsedAtMs: now,
       ...(target.cloudUserId !== undefined
         ? {
             cloudUserId: target.cloudUserId,

@@ -297,3 +297,97 @@ describe("device-registry", () => {
     expect(reg.list()).toHaveLength(0);
   });
 });
+
+describe("last-used tracking", () => {
+  it("seeds last-used on activation, persists on auth, and throttles rewrites", async () => {
+    const { LAST_USED_PERSIST_WINDOW_MS } = await import(
+      "../../nova/src/security/device-registry.js"
+    );
+    const reg = openDeviceRegistry(dir);
+    const c = generateCredential();
+    reg.createPending(
+      { ...base({ deviceId: c.deviceId, secretDigest: c.secretDigest }) },
+      1000,
+    );
+    reg.activate(c.deviceId, 1000);
+    expect(reg.list()[0]?.lastUsedAtMs).toBe(1000);
+
+    // Within the throttle window an auth does not rewrite the file.
+    const inWindow = 1000 + LAST_USED_PERSIST_WINDOW_MS - 1;
+    expect(reg.resolveDeviceSecret(c.deviceId, c.secretDigest, inWindow)).not.toBeNull();
+    expect(openDeviceRegistry(dir).list()[0]?.lastUsedAtMs).toBe(1000);
+
+    // Past the window the next auth persists the fresh stamp durably.
+    const pastWindow = 1000 + LAST_USED_PERSIST_WINDOW_MS;
+    expect(reg.resolveDeviceSecret(c.deviceId, c.secretDigest, pastWindow)).not.toBeNull();
+    expect(openDeviceRegistry(dir).list()[0]?.lastUsedAtMs).toBe(pastWindow);
+
+  });
+
+  it("loads registries written before the field existed and rejects garbage values", async () => {
+    const { writeFileSync } = await import("node:fs");
+    const path = join(dir, "device-registry.json");
+    const device = {
+      deviceId: "d1",
+      secretDigest: digestSecret("s"),
+      state: "active",
+      clientInstallId: "i",
+      name: "Old",
+      platform: "darwin",
+      client: "claude",
+      createdAtMs: 1000,
+    };
+    const file = {
+      version: 1,
+      devices: [device],
+      legacy: null,
+      legacyImportCompleted: false,
+      pairingResponses: [],
+      cloudRevocations: [],
+    };
+    // Pre-field registry loads; the field simply stays absent.
+    writeFileSync(path, JSON.stringify(file), { mode: 0o600 });
+    expect(openDeviceRegistry(dir).list()[0]?.lastUsedAtMs).toBeUndefined();
+
+    // A non-number value is corruption, not a silent default.
+    writeFileSync(
+      path,
+      JSON.stringify({ ...file, devices: [{ ...device, lastUsedAtMs: null }] }),
+      { mode: 0o600 },
+    );
+    expect(() => openDeviceRegistry(dir)).toThrow(/lastUsedAtMs/);
+  });
+
+  it("keeps authenticating when the last-used write fails (broken disk)", async () => {
+    const { LAST_USED_PERSIST_WINDOW_MS } = await import(
+      "../../nova/src/security/device-registry.js"
+    );
+    const { chmodSync } = await import("node:fs");
+    const reg = openDeviceRegistry(dir);
+    const c = generateCredential();
+    reg.createPending(
+      { ...base({ deviceId: c.deviceId, secretDigest: c.secretDigest }) },
+      1000,
+    );
+    reg.activate(c.deviceId, 1000);
+
+    // Make the data dir unwritable (ENOSPC/EROFS stand-in). On platforms where
+    // chmod does not block writes the assertions still hold — the contract is
+    // "auth never fails over the stamp", not "the write failed".
+    chmodSync(dir, 0o555);
+    try {
+      const late = 1000 + LAST_USED_PERSIST_WINDOW_MS;
+      expect(
+        reg.resolveDeviceSecret(c.deviceId, c.secretDigest, late),
+      ).not.toBeNull();
+      // The fresh stamp stays in memory, so the next auth is throttled instead
+      // of retrying the failing write on every request.
+      expect(
+        reg.resolveDeviceSecret(c.deviceId, c.secretDigest, late + 1),
+      ).not.toBeNull();
+      expect(reg.list()[0]?.lastUsedAtMs).toBe(late);
+    } finally {
+      chmodSync(dir, 0o755);
+    }
+  });
+});
