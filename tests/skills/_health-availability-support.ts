@@ -37,6 +37,7 @@ export type AvailabilityFixture = {
   lowBatteries?: number;
   failedSystemHealth?: number;
   unavailableSources?: string[];
+  privacyMode?: "private" | "shareable" | "aggregate";
 };
 
 export const inventoryDomains = new Set([

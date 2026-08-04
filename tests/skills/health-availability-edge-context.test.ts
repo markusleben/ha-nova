@@ -54,7 +54,7 @@ function groupFixture(groups: GroupInput[]): AvailabilityFixture {
 }
 
 describe("health availability adversarial edge fixtures", () => {
-  it("routes one sorted top-five group ledger across both owners", () => {
+  it("routes one sorted budgeted group ledger across both owners", () => {
     const report = summarizeAvailability(
       groupFixture([
         { platform: "loaded_a", count: 10, state: "loaded" },
@@ -76,15 +76,21 @@ describe("health availability adversarial edge fixtures", () => {
           /entity states \(\d+ restored\)/.test(line) ||
           /; impact \d+ entity states/.test(line),
       );
+    // #440: the 50-row Explained budget selects attention-joined groups
+    // first, then other current groups until the budget is exhausted —
+    // loaded_d (4) and loaded_e (2) no longer fit after 49 spent rows.
     expect(detailedGroups).toEqual([
       expect.stringMatching(/^loaded_a:/),
       expect.stringMatching(/^loaded_b:/),
       expect.stringMatching(/^loaded_c:/),
       expect.stringMatching(/^failed_a: setup_error; impact 9/),
       expect.stringMatching(/^failed_b: setup_retry; impact 7/),
+      expect.stringMatching(/^failed_c: migration_error; impact 5/),
+      expect.stringMatching(/^failed_d: failed_unload; impact 3/),
+      expect.stringMatching(/^failed_e: not_loaded; impact 1/),
     ]);
-    expect(report).toContain("5 group details omitted (15 entity states).");
-    expect(report.match(/; impact \d+ entity states/g)).toHaveLength(2);
+    expect(report).toContain("2 group details omitted (6 entity states).");
+    expect(report.match(/; impact \d+ entity states/g)).toHaveLength(5);
   });
 
   it("chooses attention entries by state priority independently of group size", () => {
@@ -109,11 +115,12 @@ describe("health availability adversarial edge fixtures", () => {
       ]),
     );
     expect(capped).toContain("urgent: setup_error; impact 1 entity states");
-    expect(capped).toContain(
-      "1 attention entries omitted by integration-entry cap.",
-    );
+    // #440: the integration cap is 25 rows — all six entries render, still
+    // ordered by state priority (setup_error before every not_loaded).
+    expect(capped).not.toContain("omitted by integration-entry cap");
+    expect(capped.match(/not_loaded/g)).toHaveLength(5);
+    // Budget: 10+9+8+7+6+1 = 41 rows fit the 50-row budget — no omission.
     expect(capped).not.toContain("group details omitted");
-    expect(capped.match(/not_loaded/g)).toHaveLength(4);
   });
 
   it("keeps transitions, unknown states, and disabled failures as context", () => {
@@ -247,10 +254,11 @@ describe("health availability adversarial edge fixtures", () => {
   });
 
   it("uses both sides of restored/current 60 percent thresholds", () => {
+    // #440: only RESTORED tracker/stateless rows count as inventory.
     const states = Array.from({ length: 10 }, (_, index) => ({
       entity_id: `${index < 6 ? "device_tracker" : "sensor"}.private_${index}`,
       state: "unavailable",
-      attributes: { restored: false },
+      attributes: { restored: index < 6 },
     }));
     const registry = states.map((row, index) => ({
       entity_id: row.entity_id,
@@ -267,10 +275,33 @@ describe("health availability adversarial edge fixtures", () => {
       summarizeAvailability({ states, registry, entries, devices: [] }),
     ).toContain("mostly restored or tracker-style inventory");
     states[5]!.entity_id = "sensor.private_5";
+    states[5]!.attributes = { restored: false };
     registry[5]!.entity_id = "sensor.private_5";
     expect(
       summarizeAvailability({ states, registry, entries, devices: [] }),
     ).not.toContain("mostly restored or tracker-style inventory");
+
+    // The #440 regression: CURRENT tracker rows are visible findings, never
+    // harmless inventory.
+    const currentTrackers = states.map((row, index) => ({
+      ...row,
+      entity_id: `device_tracker.current_${index}`,
+      attributes: { restored: false },
+    }));
+    const currentReport = summarizeAvailability({
+      states: currentTrackers,
+      registry: currentTrackers.map((row, index) => ({
+        entity_id: row.entity_id,
+        config_entry_id: `entry-${index}`,
+        platform: `platform_${index}`,
+      })),
+      entries,
+      devices: [],
+    });
+    expect(currentReport).not.toContain(
+      "mostly restored or tracker-style inventory",
+    );
+    expect(currentReport).toContain("tracker/presence 10");
 
     const broadStates = Array.from({ length: 10 }, (_, index) => ({
       entity_id: `sensor.broad_${index}`,

@@ -72,7 +72,9 @@ function concentratedFixture(): AvailabilityFixture {
 
 describe("health availability context acceptance fixtures", () => {
   it("keeps high-fan-out failures aggregate, deterministic, capped, and private", () => {
-    const fixture = concentratedFixture();
+    // #440: this acceptance case verifies the AGGREGATE privacy mode — the
+    // Private default now legitimately shows entity IDs for small groups.
+    const fixture = { ...concentratedFixture(), privacyMode: "aggregate" as const };
     const report = summarizeAvailability(fixture);
 
     expect(report).toContain(
@@ -93,7 +95,9 @@ describe("health availability context acceptance fixtures", () => {
     );
     expect(report).toContain("unattributed: 1");
     expect(report).toContain("displayed group details cover");
-    expect(report).toContain("group details omitted");
+    // #440: within the 50-row Explained budget nothing is omitted — every
+    // group carries either full detail (1-10) or five examples.
+    expect(report).not.toContain("group details omitted");
     expect(report).not.toContain("sensor.unattributed_secret:");
     for (const secret of [
       ...fixture.states.map((row) => row.entity_id),

@@ -163,10 +163,12 @@ pair `🔴`/`🟠`/`🟡` with a plain-language title or status ("act", "check",
   an ignored warning is context; never invent a "resolved" category. Show top 3 by severity/created date in `Compact`; `Explained` shows every active repair.
 - **Low values keep their semantics.** Structured metadata is the primary
   detector: numeric `device_class: battery` under 20, plus `device_class:
-  battery` state `low`. Classify replaceable device battery, rechargeable
-  phone/watch battery, vehicle/storage SOC, and unclassified low percentage
-  ONLY from structured device class, domain/component, or explicit typed
-  attributes — never from an entity name. Render the four classes separately;
+  battery` state `low`. Classify with this ordered mapping, first match wins: (1) owning
+  integration/platform `mobile_app` → rechargeable phone/watch battery;
+  (2) an explicit vehicle or storage component/typed attribute → vehicle/storage SOC;
+  (3) `device_class: battery` on a non-mobile device → replaceable device battery;
+  (4) otherwise → unclassified low percentage. Structured evidence only —
+  never from an entity name. Render the four classes separately;
   do not imply a battery replacement unless the entity is clearly a device battery — never recommend replacement for a phone/watch; never call vehicle SOC 0% a Home Assistant failure without connection context.
 - **System and coverage stay compact and honest.** System health: failed object-shaped `update` events first, then max 3 object-shaped `initial.data` highlights; ignore scalars and `finish`. System: HA version/mode,
   loaded component count, explicit system-health failures, storage/DB signals
@@ -205,7 +207,7 @@ Deterministic internal sorting happens before localization; localize every
 generic label, ordinal, classification, overall phrase, mode name, and next
 step at runtime. No installation-specific text is hard-coded:
 
-- `Status` (answer-first lead. Compute overall internally as `ok`, `attention`, or `limited`, but show the overall value as a localized human phrase, not the raw enum — plus active modes, checked time, and source coverage)
+- `Status` (answer-first lead. Compute overall internally as `ok`, `attention`, or `limited`, but show the overall value as a localized human phrase, not the raw enum — plus active modes, checked time, and the one-sentence conclusion; all source coverage lives in `Coverage`, never here)
 - `Actions` (prioritized action summary)
 - `Repairs`
 - `Integrations`
@@ -219,7 +221,9 @@ step at runtime. No installation-specific text is hard-coded:
 Keep Home Assistant state values such as `unavailable`, `unknown`, `setup_error`, `setup_retry`, and `not_loaded` literal when they are evidence, with a short localized explanation when helpful; entity IDs stay literal. Do not dump raw JSON, full logs, or full unrequested inventories —
 detail follows the mode and the budgets in `availability-analysis.md`.
 
-Choose one safest `Next step`:
+Choose one safest `Next step` from the same ranked finding ledger as
+`Actions` (finding priority, Availability Analysis). When ranked evidence
+does not separate candidates, break ties in this order:
 - repairs first
 - then any config-entry attention/failure state from Availability Analysis
 - then low battery/SOC

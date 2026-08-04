@@ -136,7 +136,7 @@ const WORD_BUDGETS: Record<string, number> = {
   // Table-first redesign: report modes, block shape, ten-block order,
   // behavior rules, private source fields, canonical detector/system
   // blocks retained (#440).
-  health: 2000,
+  health: 2100,
   // post-publish device verification step (2026-h2 Wave 1a).
   // User-assisted capture readiness sequence (#394).
   mqtt: 1500,

@@ -31,6 +31,7 @@ type Group = {
   classificationCount: number;
   deviceMatchedRows: number;
   deviceIDs: Set<string>;
+  entityIDs: string[];
   entry: ConfigEntry | undefined;
   isPlatformOnly: boolean;
 };
@@ -62,6 +63,16 @@ export function summarizeAvailability(fixture: AvailabilityFixture): string {
   let lowSignal = 0;
   let unavailable = 0;
   let deviceMatchedRows = 0;
+  // #440 six-category assignment (every raw row exactly once).
+  const categories = {
+    integrationFailure: 0,
+    restored: 0,
+    lowSignalUnknown: 0,
+    trackerPresence: 0,
+    attributedCurrent: 0,
+    unattributed: 0,
+  };
+  const trackerDomains = new Set(["device_tracker", "person", "geo_location"]);
 
   for (const row of candidates) {
     const rawDomain = row.entity_id.split(".", 1)[0] ?? "";
@@ -94,12 +105,28 @@ export function summarizeAvailability(fixture: AvailabilityFixture): string {
     );
     if (hasAttribution) attributed += 1;
 
+    // Assign exactly one category in precedence order (#440).
+    if (isAttentionEntry(entry) && entry !== undefined && !entry.disabled_by) {
+      categories.integrationFailure += 1;
+    } else if (isRestored) {
+      categories.restored += 1;
+    } else if (row.state === "unknown" && lowSignalDomains.has(domain)) {
+      categories.lowSignalUnknown += 1;
+    } else if (trackerDomains.has(domain)) {
+      categories.trackerPresence += 1;
+    } else if (hasAttribution) {
+      categories.attributedCurrent += 1;
+    } else {
+      categories.unattributed += 1;
+    }
+
     const classificationEligible = !isAttentionEntry(entry);
     if (classificationEligible) {
       classificationTotal += 1;
       if (hasAttribution) classificationAttributed += 1;
       if (!isRestored) classificationCurrent += 1;
-      if (isRestored || inventoryDomains.has(domain)) inventoryContext += 1;
+      if (isRestored && inventoryDomains.has(domain)) inventoryContext += 1;
+      else if (isRestored) inventoryContext += 1;
       if (registeredDeviceID) {
         classificationDeviceClusterCounts.set(
           registeredDeviceID,
@@ -125,9 +152,11 @@ export function summarizeAvailability(fixture: AvailabilityFixture): string {
       classificationCount: 0,
       deviceMatchedRows: 0,
       deviceIDs: new Set<string>(),
+      entityIDs: [] as string[],
       entry,
       isPlatformOnly: key.startsWith("platform:"),
     };
+    group.entityIDs.push(row.entity_id);
     group.count += 1;
     if (compareCodePoint(baseLabel, group.baseLabel) < 0) {
       group.baseLabel = baseLabel;
@@ -221,7 +250,7 @@ export function summarizeAvailability(fixture: AvailabilityFixture): string {
         compareCodePoint(left.domain, right.domain) ||
         compareCodePoint(left.entry_id, right.entry_id),
     );
-  const selectedAttentionEntries = failedEntries.slice(0, 5);
+  const selectedAttentionEntries = failedEntries.slice(0, 25);
   const selectedAttentionIDs = new Set(
     selectedAttentionEntries.map((entry) => entry.entry_id),
   );
@@ -230,7 +259,28 @@ export function summarizeAvailability(fixture: AvailabilityFixture): string {
       !isAttentionEntry(group.entry) ||
       selectedAttentionIDs.has(group.entry!.entry_id),
   );
-  const displayed = detailCandidates.slice(0, 5);
+  // #440 Explained selection: pooled order, global 50-row budget,
+  // cost = full size for 1-10 groups else 5; skip when over budget.
+  const isCurrentTracker = (group: Group): boolean =>
+    group.count > group.restored &&
+    [...trackerDomains].some((d) => group.baseLabel === d || group.key.includes(`platform:${d}`));
+  const pooled = [
+    ...detailCandidates.filter((g) => isCurrentTracker(g)),
+    ...detailCandidates.filter(
+      (g) => !isCurrentTracker(g) && isAttentionEntry(g.entry),
+    ),
+    ...detailCandidates.filter(
+      (g) => !isCurrentTracker(g) && !isAttentionEntry(g.entry),
+    ),
+  ];
+  let budget = 50;
+  const displayed: Group[] = [];
+  for (const group of pooled) {
+    const cost = group.count <= 10 ? group.count : 5;
+    if (cost > budget) continue;
+    displayed.push(group);
+    budget -= cost;
+  }
   const displayedKeys = new Set(displayed.map((group) => group.key));
   const displayedCount = displayed.reduce((sum, group) => sum + group.count, 0);
   const missingSources = [
@@ -286,6 +336,7 @@ export function summarizeAvailability(fixture: AvailabilityFixture): string {
   } else {
     lines.push(
       `${candidates.length} entity states: unavailable ${unavailable}, unknown ${candidates.length - unavailable}; restored ${restored}, current ${candidates.length - restored}. Not a device or independent-problem count.`,
+      `Categories: integration failure ${categories.integrationFailure}, restored ${categories.restored}, low-signal unknown ${categories.lowSignalUnknown}, tracker/presence ${categories.trackerPresence}, attributed current ${categories.attributedCurrent}, unattributed ${categories.unattributed}; sum ${categories.integrationFailure + categories.restored + categories.lowSignalUnknown + categories.trackerPresence + categories.attributedCurrent + categories.unattributed}/${candidates.length}.`,
       `Low-signal/stateless: ${lowSignal} entity states, retained in the raw total.`,
       `Classification: ${classification}; population ${classificationTotal}/${candidates.length}. Registry match: ${registryMatched}/${candidates.length}; attribution: ${attributed}/${candidates.length}; unattributed: ${candidates.length - attributed}. Top three cover ${topThreeCount}/${classificationTotal} (${percent(topThreeCount, classificationTotal)}); displayed group details cover ${displayedCount}/${candidates.length} (${percent(displayedCount, candidates.length)}).`,
       fixture.devices === undefined
@@ -316,6 +367,11 @@ export function summarizeAvailability(fixture: AvailabilityFixture): string {
     lines.push(
       `${safeLabel(group)}: ${group.count} entity states (${group.restored} restored), ${deviceContext}, ${entryState}`,
     );
+    if ((fixture.privacyMode ?? "private") === "private" && group.count <= 10) {
+      for (const id of group.entityIDs) {
+        lines.push(`  - ${id}`);
+      }
+    }
   }
   const omittedDetails = detailCandidates.filter(
     (group) => !displayedKeys.has(group.key),

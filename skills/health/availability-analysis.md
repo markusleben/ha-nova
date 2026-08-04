@@ -53,7 +53,12 @@ Join validity: join state `entity_id` to exact entity-registry `entity_id`;
 device-registry `id`. Before using any row, require entity IDs to match
 `^[a-z0-9_]+\.[a-z0-9_]+$` and every user-visible domain/platform to match
 `^[a-z0-9_]{1,128}$`; otherwise mark that source malformed; never echo or derive a visible label
-from the invalid value.
+from the invalid value. Scope of "exactly once": the reconciliation
+population is every `unavailable`/`unknown` STATE row with a valid
+`entity_id`; state rows with an invalid `entity_id` are counted separately as
+"invalid rows" in Coverage (never silently dropped), while a malformed
+REGISTRY source invalidates that source as a whole (attribution limitation),
+not individual state rows.
 
 ## Cause owns impact
 
@@ -92,7 +97,12 @@ count/share, and omitted device-cluster/entity-state counts. A failed entry
 plus affected states is one finding: state is cause evidence; entity-state/
 device counts are impact.
 
-Per-group rendering in `Explained + Private`:
+Detail and privacy compose orthogonally: the Detail mode fixes WHICH rows
+and budgets render (identical in every privacy mode); the Privacy mode fixes
+only each row's identity form — `Private` shows name + exact ID, `Shareable`
+replaces both with the stable alias, `Aggregate` collapses detail rows into
+their group counts. Per-group rendering in `Explained` (identity form per
+privacy mode):
 
 | Group size | Behavior |
 |---:|---|
@@ -100,11 +110,15 @@ Per-group rendering in `Explained + Private`:
 | 11–50 | five prioritized examples plus total/shown/omitted counts |
 | >50 | group/subgroup totals, five prioritized examples, and a Full-view instruction |
 
-`Explained` has a GLOBAL budget of 50 entity-detail rows. Selection order:
-current tracker/presence groups and joined impact groups of displayed
-actionable integrations in finding-priority order, then other current groups.
-Never split a 1–10 group merely to fill remaining budget — summarize it and
-provide its detail request. The two-current-tracker regression case must
+`Explained` has a GLOBAL budget of 50 entity-detail rows. Exact selection:
+iterate candidate groups in one pooled order — (a) current tracker/presence
+groups by finding priority, (b) joined impact groups of displayed actionable
+integrations by finding priority, (c) other current groups by finding
+priority; ties inside each pool break by the group-catalog sort. A group's
+row cost is its full size for 1–10 groups, otherwise 5 (its example rows).
+Take a group when its cost fits the remaining budget; otherwise skip it and
+continue with the next candidate — skipped groups summarize with their detail
+request. Never split a 1–10 group merely to fill remaining budget. The two-current-tracker regression case must
 always fit and be selected. Every remaining group appears in the group catalog
 with total/shown/omitted counts and a precise group-detail request
 (output-rules.md → Progressive Detail). `Full` exposes every group; a selected
@@ -160,8 +174,11 @@ Availability classification alone never changes overall Home Status.
   plus area/device context and a sanitized config-entry title when supplied.
   Valid Home Assistant entity IDs and user-visible friendly/device/area names
   are explicitly permitted, even when the user chose a personal label.
-- `Shareable`: deterministic neutral aliases within the report; no personal,
-  account, room, host, or device identity.
+- `Shareable`: deterministic neutral aliases within the report — per-type
+  numbered labels (localized `sensor 1`, `integration 2`, ...) assigned by
+  hidden code-point sort of the underlying IDs, so numbering is stable within
+  a report and collisions cannot occur; no personal, account, room, host, or
+  device identity.
 - `Aggregate`: counts and groups only.
 
 Display-name precedence: state `attributes.friendly_name`, entity-registry
