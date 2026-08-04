@@ -14,8 +14,10 @@ An UPDATE to an existing automation, script, or `threshold` helper
 - its `for:` duration,
 - a `wait_for_trigger` / `wait_template` timeout,
 - the compared signal itself — swapping the trigger/condition `entity_id` or
-  tested `attribute` while keeping existing values; a replacement signal has
-  its own unit, scale, and noise, so inherited boundaries are uncalibrated,
+  tested `attribute`, or changing its `value_template` (a transform can
+  rescale or redefine the signal entirely, watts to kilowatts, while keeping
+  the same entity), while keeping existing values; a changed signal has its
+  own unit, scale, and noise, so inherited boundaries are uncalibrated,
 
 where the compared entity measures a physical process (power, energy, current,
 temperature, humidity, flow, level, …). It does NOT apply to unrelated
@@ -28,7 +30,11 @@ effective threshold of every `numeric_state` consumer that references that
 helper as `above`/`below`. Before such a service call, resolve the helper's
 direct consumers (`search/related`); when one compares a physical-process
 signal, run this preflight and carry its findings into the service-call
-preview.
+preview. The direct call is not the only path: an automation or script
+UPDATE that adds or changes an ACTION invoking those setter services on a
+threshold-backing helper moves the threshold on every future run — the
+stored action triggers this preflight at update time, because no service
+call happens while the config is written.
 
 ## Evidence (read-only, bounded)
 
@@ -41,12 +47,16 @@ preview.
    names the available fields and the statistics unit. Only measurement-class
    statistics carry `min`/`mean`/`max`. For metered `total`/`total_increasing`
    statistics (energy, water, gas), match the field to the COMPARED dimension:
-   a threshold on the absolute reading shortlists from per-bucket `state`
-   (last absolute value — per-bucket `change` is interval consumption and can
-   miss the crossing window); only a consumption-style comparison shortlists
-   from `change`. When no statistics field represents the tested value, skip
-   the shortlist and go straight to bounded raw
-   history. When the statistics unit differs from the entity's current unit
+   a threshold on the absolute reading shortlists RANGE-SAFELY from
+   per-bucket `state` — take every bucket whose value range (previous
+   bucket's `state` through this bucket's `state`) straddles or touches the
+   boundary. Endpoint-only tests miss in-bucket crossings (a bucket rising 4
+   to 6 already ends across `below: 5`), and meter resets can hide an
+   `above` phase — treat a decreasing absolute reading as a reset marker
+   that forces raw-history inspection. Per-bucket `change` is interval
+   consumption; only a consumption-style comparison shortlists from it. When
+   no statistics field represents the tested value, skip the shortlist and
+   go straight to bounded raw history. When the statistics unit differs from the entity's current unit
    (unit changed mid-history), normalize those samples into the threshold's
    unit or exclude them as a named data gap — never compare mixed units.
    Hourly `recorder/statistics_during_period` only

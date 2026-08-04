@@ -71,12 +71,22 @@ describe("threshold calibration preflight (#484)", () => {
       "compared `entity_id` is swapped",
     );
     // Statistics fields follow the state class AND the compared dimension;
-    // units follow the metadata (Codex round 6).
+    // absolute readings shortlist by bucket RANGE, not endpoints; units
+    // follow the metadata (Codex rounds 6-8).
     expect(calibration).toContain("recorder/list_statistic_ids");
     expect(calibration).toContain("match the field to the COMPARED dimension");
     expect(calibration).toContain("per-bucket `state`");
-    expect(calibration).toContain("can\n   miss the crossing window");
+    expect(calibration).toContain("straddles or touches the\n   boundary");
+    expect(calibration).toContain("miss in-bucket crossings");
+    expect(calibration).toContain("reset marker");
     expect(calibration).toContain("never compare mixed units");
+    // Signal identity includes the transform; stored setter actions trigger
+    // the preflight at update time.
+    expect(calibration).toContain("changing its `value_template`");
+    expect(calibration).toContain("the\nstored action triggers this preflight at update time");
+    expect(writeSkill).toContain(
+      "adds/changes an action setting a threshold-backing `input_number`",
+    );
     // Helper VALUE changes through service calls trigger the same preflight.
     expect(calibration).toContain("The same duty applies OUTSIDE config updates");
     expect(readFileSync("skills/service-call/SKILL.md", "utf8")).toContain(
