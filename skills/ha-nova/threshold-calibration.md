@@ -26,7 +26,10 @@ classifies nothing and needs no history.
    SHORTLISTS candidate windows — hourly aggregates cannot order events or
    time a pause. Inspect the shortlisted windows with bounded raw `history`
    reads, and report durations as "longest observed at the available
-   resolution". Never unbounded.
+   resolution". When the sensor is recorded but has no long-term statistics
+   (no buckets returned), fall back to bounded, chunked raw `history` reads
+   over the window — statistics absence is not evidence absence. Never
+   unbounded.
 2. Type-specific run evidence when it exists: for automations and scripts,
    bounded reads of ALREADY-EXISTING traces (`trace/list`, `trace/get`) — an
    explicit preflight exception to the write flow's no-auto-trace rule; never
@@ -44,6 +47,11 @@ classifies nothing and needs no history.
 
 - Report the observed ranges, the longest ambiguous phase versus the proposed
   `for:`/timeout, and missing-data limitations — numbers, not adjectives.
+- Hysteresis is an amplitude, not a duration: for a `threshold` helper's
+  `hysteresis` change, evaluate value-domain evidence instead — observed
+  noise and excursions against the effective on/off boundaries
+  (`lower`/`upper` ± hysteresis) — so the false-toggle guard is validated,
+  not just assumed.
 - The behavior narrative states BOTH failure directions: what fires too early
   or falsely with the new values, and what fires late or never.
 - Insufficient evidence (short history, large gaps, entity renamed recently)

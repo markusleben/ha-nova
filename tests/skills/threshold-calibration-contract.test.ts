@@ -27,7 +27,7 @@ describe("threshold calibration preflight (#484)", () => {
   it("bounds the evidence and derives the ambiguity numbers honestly", () => {
     expect(calibration).toContain("up to 30 days, bounded reads");
     expect(calibration).toContain("recorder/statistics_during_period");
-    expect(calibration).toContain("Never unbounded");
+    expect(calibration).toContain("Never\n   unbounded");
     expect(calibration).toContain("LONGEST ambiguous phase");
     expect(calibration).toContain("data gaps");
     // Hourly aggregates only shortlist; durations carry their resolution.
