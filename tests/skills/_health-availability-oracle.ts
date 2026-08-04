@@ -31,7 +31,8 @@ type Group = {
   classificationCount: number;
   deviceMatchedRows: number;
   deviceIDs: Set<string>;
-  entityIDs: string[];
+  entityRows: { id: string; restored: boolean }[];
+  currentTrackerRows: number;
   entry: ConfigEntry | undefined;
   isPlatformOnly: boolean;
 };
@@ -152,11 +153,15 @@ export function summarizeAvailability(fixture: AvailabilityFixture): string {
       classificationCount: 0,
       deviceMatchedRows: 0,
       deviceIDs: new Set<string>(),
-      entityIDs: [] as string[],
+      entityRows: [] as { id: string; restored: boolean }[],
+      currentTrackerRows: 0,
       entry,
       isPlatformOnly: key.startsWith("platform:"),
     };
-    group.entityIDs.push(row.entity_id);
+    group.entityRows.push({ id: row.entity_id, restored: isRestored });
+    if (!isRestored && trackerDomains.has(domain)) {
+      group.currentTrackerRows += 1;
+    }
     group.count += 1;
     if (compareCodePoint(baseLabel, group.baseLabel) < 0) {
       group.baseLabel = baseLabel;
@@ -261,9 +266,10 @@ export function summarizeAvailability(fixture: AvailabilityFixture): string {
   );
   // #440 Explained selection: pooled order, global 50-row budget,
   // cost = full size for 1-10 groups else 5; skip when over budget.
+  // Tracker membership comes from the group's member domains, not its label:
+  // a mobile_app config-entry group holds device_tracker rows.
   const isCurrentTracker = (group: Group): boolean =>
-    group.count > group.restored &&
-    [...trackerDomains].some((d) => group.baseLabel === d || group.key.includes(`platform:${d}`));
+    group.currentTrackerRows > 0;
   const pooled = [
     ...detailCandidates.filter((g) => isCurrentTracker(g)),
     ...detailCandidates.filter(
@@ -368,13 +374,20 @@ export function summarizeAvailability(fixture: AvailabilityFixture): string {
       `${safeLabel(group)}: ${group.count} entity states (${group.restored} restored), ${deviceContext}, ${entryState}`,
     );
     if ((fixture.privacyMode ?? "private") === "private") {
+      // Finding priority for example rows: current non-restored impact
+      // before contextual inventory, then entity_id — never input order.
+      const prioritized = [...group.entityRows].sort(
+        (left, right) =>
+          Number(left.restored) - Number(right.restored) ||
+          compareCodePoint(left.id, right.id),
+      );
       if (group.count <= 10) {
-        for (const id of group.entityIDs) {
-          lines.push(`  - ${id}`);
+        for (const row of prioritized) {
+          lines.push(`  - ${row.id}`);
         }
       } else {
-        for (const id of group.entityIDs.slice(0, 5)) {
-          lines.push(`  - ${id}`);
+        for (const row of prioritized.slice(0, 5)) {
+          lines.push(`  - ${row.id}`);
         }
         lines.push(
           `  total ${group.count}, shown 5, omitted ${group.count - 5}.`,

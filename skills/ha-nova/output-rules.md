@@ -146,8 +146,10 @@ Shape specializations: the status/summary slot is the answer-first lead, and
 ## List Frame (Inventories & Discovery)
 
 Any list of items — entities, configs, helpers, backups, updates, to-do items,
-media browse results: a count line first ("12 found, showing first 10" —
-state the cap whenever rows are truncated), then compact pipe tables
+media browse results: a count line first ("12 found, showing first 10,
+2 omitted — say 'show all' for the rest" — whenever rows are truncated,
+carry the Progressive Detail fields: total, shown, omitted, and the exact
+follow-up), then compact pipe tables
 (max 4 short columns — they degrade to plain pipe text in raw terminals) or
 grouped lists with counts; never raw JSON. Canonical column order: ID, Name,
 one or two domain-specific columns (Type, State, Reason), Area. Domains keep
@@ -155,7 +157,7 @@ their own columns — the frame (count line, column order, stated cap) is what
 is shared.
 
 ```
-23 automations found, showing first 10.
+23 automations found, showing first 10, 13 omitted — say "show all automations" for the rest.
 
 | Entity ID | Name | Area |
 |---|---|---|

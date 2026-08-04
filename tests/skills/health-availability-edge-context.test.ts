@@ -391,6 +391,99 @@ describe("health availability adversarial edge fixtures", () => {
     expect(systemHealth).toContain("Next step: Review failed system health.");
   });
 
+  it("gives integration-attributed tracker groups first-pool selection under budget pressure", () => {
+    const states: StateRow[] = [];
+    const registry: RegistryRow[] = [];
+    const entries: ConfigEntry[] = [];
+    for (let groupIndex = 0; groupIndex < 10; groupIndex += 1) {
+      const entryID = `private-sensor-${groupIndex}`;
+      entries.push({
+        entry_id: entryID,
+        domain: "private_sensors",
+        state: "loaded",
+        title: `Private ${groupIndex}`,
+      });
+      for (let rowIndex = 0; rowIndex < 5; rowIndex += 1) {
+        const entityID = `sensor.private_${groupIndex}_${rowIndex}`;
+        states.push({ entity_id: entityID, state: "unavailable" });
+        registry.push({
+          entity_id: entityID,
+          config_entry_id: entryID,
+          platform: "private_sensors",
+        });
+      }
+    }
+    // Tracker rows attributed to a mobile_app config entry: the group label
+    // is the integration platform, only its MEMBER domains reveal trackers.
+    entries.push({
+      entry_id: "private-tracker",
+      domain: "mobile_app",
+      state: "loaded",
+      title: "Private tracker",
+    });
+    for (const suffix of ["a", "b", "c"]) {
+      const entityID = `device_tracker.private_${suffix}`;
+      states.push({ entity_id: entityID, state: "unavailable" });
+      registry.push({
+        entity_id: entityID,
+        config_entry_id: "private-tracker",
+        platform: "mobile_app",
+      });
+    }
+    const report = summarizeAvailability({
+      states,
+      registry,
+      entries,
+      devices: [],
+    });
+    expect(report).toContain("device_tracker.private_a");
+    expect(report).toContain("device_tracker.private_c");
+    expect(report).toContain("group details omitted");
+  });
+
+  it("prioritizes current rows over restored rows in large-group examples regardless of input order", () => {
+    const states: StateRow[] = [];
+    const registry: RegistryRow[] = [];
+    for (let rowIndex = 0; rowIndex < 7; rowIndex += 1) {
+      states.push({
+        entity_id: `sensor.private_r${rowIndex}`,
+        state: "unavailable",
+        attributes: { restored: true },
+      });
+    }
+    for (let rowIndex = 0; rowIndex < 5; rowIndex += 1) {
+      states.push({
+        entity_id: `sensor.private_c${rowIndex}`,
+        state: "unavailable",
+      });
+    }
+    for (const row of states) {
+      registry.push({
+        entity_id: row.entity_id,
+        config_entry_id: "private-entry",
+        platform: "private_platform",
+      });
+    }
+    const report = summarizeAvailability({
+      states,
+      registry,
+      entries: [
+        {
+          entry_id: "private-entry",
+          domain: "private_platform",
+          state: "loaded",
+          title: "Private",
+        },
+      ],
+      devices: [],
+    });
+    for (const suffix of ["c0", "c1", "c2", "c3", "c4"]) {
+      expect(report).toContain(`  - sensor.private_${suffix}`);
+    }
+    expect(report).not.toContain("sensor.private_r0");
+    expect(report).toContain("total 12, shown 5, omitted 7.");
+  });
+
   it("uses code-point ordering for equal-count groups", () => {
     const report = summarizeAvailability(
       groupFixture([

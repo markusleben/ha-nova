@@ -99,7 +99,14 @@ describe("output design system (Cards)", () => {
     // Answer first, canonical closing slot, honest truncation, diagnosis lead.
     expect(outputRules).toContain("lead with the answer");
     expect(outputRules).toContain("`Next step` (localized; never `Next Step`)");
-    expect(outputRules).toContain("state the cap whenever rows are truncated");
+    // The canonical count-line example carries the full Progressive Detail
+    // fields — total, shown, omitted, exact follow-up (#440 Codex round 2).
+    expect(outputRules).toContain(
+      "carry the Progressive Detail fields: total, shown, omitted, and the exact\nfollow-up",
+    );
+    expect(outputRules).toContain(
+      '23 automations found, showing first 10, 13 omitted — say "show all automations" for the rest.',
+    );
     expect(outputRules).toContain("root cause (or ranked hypotheses)");
   });
 
