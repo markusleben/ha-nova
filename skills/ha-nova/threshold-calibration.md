@@ -7,7 +7,8 @@ exactly like "finished" until the history proves the pause lasts 40 minutes.
 
 ## When it applies
 
-An UPDATE to an existing automation that changes any of:
+An UPDATE to an existing automation, script, or `threshold` helper
+(`lower`/`upper`/`hysteresis`) that changes any of:
 
 - a `numeric_state` trigger/condition `above` or `below` value,
 - its `for:` duration,
@@ -26,10 +27,11 @@ classifies nothing and needs no history.
    time a pause. Inspect the shortlisted windows with bounded raw `history`
    reads, and report durations as "longest observed at the available
    resolution". Never unbounded.
-2. Existing traces of THIS automation when available (`trace/list`,
-   `trace/get`) — bounded reads of ALREADY-EXISTING traces are an explicit
-   preflight exception to the write flow's no-auto-trace rule; never trigger
-   a run to create one.
+2. Type-specific run evidence when it exists: for automations and scripts,
+   bounded reads of ALREADY-EXISTING traces (`trace/list`, `trace/get`) — an
+   explicit preflight exception to the write flow's no-auto-trace rule; never
+   trigger a run to create one. Threshold helpers have no traces and rely on
+   history evidence alone.
 3. From the data derive: the observed normal range on each side of the
    proposed value, the LONGEST ambiguous phase (time the signal sat on the
    "done" side of the threshold while the process was still running), and

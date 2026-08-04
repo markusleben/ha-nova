@@ -13,7 +13,9 @@ const calibration = readFileSync(
 const writeSkill = readFileSync("skills/write/SKILL.md", "utf8");
 
 describe("threshold calibration preflight (#484)", () => {
-  it("scopes the preflight to physical-process classification updates", () => {
+  it("scopes the preflight to every wired target type", () => {
+    expect(calibration).toContain("automation, script, or `threshold` helper");
+    expect(calibration).toContain("Threshold helpers have no traces");
     expect(calibration).toContain("`numeric_state` trigger/condition `above` or `below`");
     expect(calibration).toContain("`for:` duration");
     expect(calibration).toContain("`wait_for_trigger` / `wait_template` timeout");
@@ -35,7 +37,7 @@ describe("threshold calibration preflight (#484)", () => {
     expect(calibration).toContain("needs independent evidence");
     expect(calibration).toContain("mark the\n   ambiguous phase as unverified");
     // Bounded reads of existing traces are the explicit no-auto-trace exception.
-    expect(calibration).toContain("never trigger\n   a run to create one");
+    expect(calibration).toContain("never\n   trigger a run to create one");
   });
 
   it("makes the preview honest about both failure directions and thin evidence", () => {
