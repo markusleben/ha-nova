@@ -358,3 +358,20 @@ func TestDNSSDAdvertisedLocalHostSurvivesIPv4Rewrite(t *testing.T) {
 		t.Fatalf("non-.local internal_url must not produce a Via: %q", got)
 	}
 }
+
+func TestCollectDiscoveryProbesKeepsAdvertisedVia(t *testing.T) {
+	originalMDNS := discoverHAViaMDNSForDiscovery
+	discoverHAViaMDNSForDiscovery = func() []setupDiscoveryProbe {
+		return []setupDiscoveryProbe{{
+			Host:   "http://192.168.1.5:8123",
+			Source: "mDNS",
+			Via:    "homeassistant.local",
+		}}
+	}
+	t.Cleanup(func() { discoverHAViaMDNSForDiscovery = originalMDNS })
+
+	probes := collectDiscoveryProbes(runtimeConfig{})
+	if len(probes) != 1 || probes[0].Via != "homeassistant.local" {
+		t.Fatalf("advertised Via flattened away in probe collection: %+v", probes)
+	}
+}

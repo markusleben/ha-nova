@@ -193,9 +193,9 @@ func resolveHostToIPv4(host string, timeout time.Duration) string {
 
 func collectDiscoveryProbes(cfg runtimeConfig) []setupDiscoveryProbe {
 	candidates := []setupDiscoveryProbe{}
-	appendUnique := func(value, source string) {
-		value = strings.TrimSpace(value)
-		key := setupDiscoveryEndpointKey(value)
+	appendUnique := func(probe setupDiscoveryProbe) {
+		probe.Host = strings.TrimSpace(probe.Host)
+		key := setupDiscoveryEndpointKey(probe.Host)
 		if key == "" || len(candidates) >= setupDiscoveryMaxCandidateCount {
 			return
 		}
@@ -204,14 +204,16 @@ func collectDiscoveryProbes(cfg runtimeConfig) []setupDiscoveryProbe {
 				return
 			}
 		}
-		candidates = append(candidates, setupDiscoveryProbe{Host: value, Source: source})
+		candidates = append(candidates, probe)
 	}
 
-	appendUnique(cfg.HAHost, "saved Home Assistant address")
-	appendUnique(cfg.HAURL, "saved Home Assistant address")
-	appendUnique(normalizeHostInput(cfg.RelayBaseURL), "saved Relay address")
+	appendUnique(setupDiscoveryProbe{Host: cfg.HAHost, Source: "saved Home Assistant address"})
+	appendUnique(setupDiscoveryProbe{Host: cfg.HAURL, Source: "saved Home Assistant address"})
+	appendUnique(setupDiscoveryProbe{Host: normalizeHostInput(cfg.RelayBaseURL), Source: "saved Relay address"})
 	for _, discovered := range discoverHAViaMDNSForDiscovery() {
-		appendUnique(discovered.Host, discovered.Source)
+		// Pass the whole probe through — flattening to (Host, Source) would
+		// drop the advertised-.local Via the add-server filter relies on.
+		appendUnique(discovered)
 	}
 
 	return candidates
