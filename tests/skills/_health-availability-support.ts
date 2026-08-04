@@ -90,7 +90,7 @@ export function safeDisplayName(candidate: unknown, entityID: string): string {
   if (
     trimmed === "" ||
     trimmed === entityID ||
-    trimmed.length > 64 ||
+    trimmed.length > 120 ||
     /[\p{Cc}\p{Cf}]/u.test(trimmed) ||
     FORBIDDEN_NAME_PATTERN.test(trimmed)
   ) {

@@ -323,7 +323,7 @@ describe("health availability detail selection and budgets", () => {
       ),
     );
     expect(manyAttention).toContain(
-      "1 attention entries omitted by integration-entry cap. Request the full integration-entry list for the rest; results may have changed (fresh live read).",
+      "Integration-entry cap: total 26, shown 25, omitted 1. Request the full integration-entry list for the rest; results may have changed (fresh live read).",
     );
   });
 

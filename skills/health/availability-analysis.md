@@ -170,10 +170,11 @@ Availability classification alone never changes overall Home Status.
 
 ## Privacy modes and display names
 
-- `Private` (default): safely renderable friendly name and exact `entity_id`,
-  plus area/device context and a sanitized config-entry title when supplied.
-  Valid Home Assistant entity IDs and user-visible friendly/device/area names
-  are explicitly permitted, even when the user chose a personal label.
+- `Private` (default): the safely renderable friendly name and the exact
+  `entity_id` — deliberately nothing more per row; group lines already carry
+  the integration and device aggregates. Valid Home Assistant entity IDs and
+  user-visible friendly names are explicitly permitted, even when the user
+  chose a personal label.
 - `Shareable`: deterministic neutral aliases within the report — per-type
   numbered labels (localized `sensor 1`, `integration 2`, ...) assigned by
   hidden code-point sort of the underlying IDs, so numbering is stable within

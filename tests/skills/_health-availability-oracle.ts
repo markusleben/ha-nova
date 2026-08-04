@@ -109,11 +109,15 @@ export function summarizeAvailability(fixture: AvailabilityFixture): string {
     const platform = isSafeHASlug(registry?.platform) ? registry.platform : "";
     const entryDomain = isSafeHASlug(entry?.domain) ? entry.domain : "";
     const baseLabel = platform || entryDomain || domain;
-    const rawKey = registry?.config_entry_id
-      ? `entry:${registry.config_entry_id}`
-      : platform
-        ? `platform:${platform}`
-        : "";
+    // A config_entry_id with no matching entry attributes nothing and must
+    // not invent a group either — only an exact entry join or a platform
+    // grants group membership.
+    const rawKey =
+      registry?.config_entry_id && entry !== undefined
+        ? `entry:${registry.config_entry_id}`
+        : platform
+          ? `platform:${platform}`
+          : "";
     const key = baseLabel ? rawKey : "";
     const registeredDeviceID =
       registry?.device_id && registeredDeviceIDs.has(registry.device_id)
@@ -406,7 +410,7 @@ export function summarizeAvailability(fixture: AvailabilityFixture): string {
   }
   if (omittedAttentionEntryCount > 0) {
     lines.push(
-      `${omittedAttentionEntryCount} attention entries omitted by integration-entry cap. Request the full integration-entry list for the rest; results may have changed (fresh live read).`,
+      `Integration-entry cap: total ${selectedAttentionEntries.length + omittedAttentionEntryCount}, shown ${selectedAttentionEntries.length}, omitted ${omittedAttentionEntryCount}. Request the full integration-entry list for the rest; results may have changed (fresh live read).`,
     );
   }
   lines.push(`Next step: ${nextStep}`);

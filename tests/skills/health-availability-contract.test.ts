@@ -30,7 +30,7 @@ describe("health availability source contract", () => {
       "Transitional, disabled, unknown-state, loaded, and missing-entry-metadata groups stay contextual in `Entities`.",
       "Availability classification alone never changes overall",
       "`Aggregate`: counts and groups only.",
-      "`Private` (default): safely renderable friendly name and exact `entity_id`",
+      "`Private` (default): the safely renderable friendly name and the exact `entity_id` — deliberately nothing more per row",
       "Deterministic internal sorting happens before localization",
       "then any config-entry attention/failure state from Availability Analysis",
       "Render unrecognized config-entry state strings as a localized generic unknown state",
