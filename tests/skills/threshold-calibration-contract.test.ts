@@ -85,7 +85,10 @@ describe("threshold calibration preflight (#484)", () => {
     // the preflight at update time.
     expect(calibration).toContain("changing its `value_template`");
     expect(calibration).toContain(
-      "apply the same transform to each\n   historical sample",
+      "replay the same transform/predicate against the\n   historical samples",
+    );
+    expect(calibration).toContain(
+      "EXTEND each shortlisted window forward",
     );
     expect(calibration).toContain("cannot be reproduced offline");
     expect(calibration).toContain("the\nstored action triggers this preflight at update time");

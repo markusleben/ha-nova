@@ -54,12 +54,14 @@ clamps are named as the only remaining guard.
    When the trigger/condition tests an `attribute`, calibrate that attribute
    from bounded raw history — primary-state statistics describe a different
    value and may only shortlist windows when they represent exactly the
-   tested attribute. When a `value_template` transforms the signal, the raw
-   entity history is NOT the tested value: apply the same transform to each
-   historical sample before deriving ranges and phases; a transform that
-   cannot be reproduced offline (external entities, `now()`, non-pure
-   inputs) makes the calibration insufficient — say so rather than
-   calibrating the untransformed values.
+   tested attribute. When a `value_template` — or the numeric predicate of a
+   wait template — transforms or derives the signal, the raw entity history
+   is NOT the tested value: replay the same transform/predicate against the
+   historical samples of its input entities before deriving ranges and
+   phases; a template that cannot be reproduced offline (external entities,
+   `now()`, non-pure or multi-source arithmetic without joint history) makes
+   the calibration insufficient — say so rather than calibrating the
+   untransformed values.
    Check the statistics metadata first (`recorder/list_statistic_ids`): it
    names the available fields and the statistics unit. Only measurement-class
    statistics carry `min`/`mean`/`max`. For metered `total`/`total_increasing`
@@ -67,7 +69,10 @@ clamps are named as the only remaining guard.
    a threshold on the absolute reading shortlists RANGE-SAFELY from
    per-bucket `state` — take every bucket whose value range (previous
    bucket's `state` through this bucket's `state`) straddles or touches the
-   boundary. Endpoint-only tests miss in-bucket crossings (a bucket rising 4
+   boundary, and EXTEND each shortlisted window forward through the
+   following buckets until the signal crosses back — the ambiguous phase
+   lives in those done-side buckets, and truncating at the crossing bucket
+   understates its duration. Endpoint-only tests miss in-bucket crossings (a bucket rising 4
    to 6 already ends across `below: 5`), and meter resets can hide an
    `above` phase — treat a decreasing absolute reading as a reset marker
    that forces raw-history inspection. Per-bucket `change` is interval
