@@ -103,6 +103,11 @@ describe("threshold calibration preflight (#484)", () => {
     expect(calibration).toContain(
       "clamps are named as the only remaining guard",
     );
+    // Direct template triggers/conditions are the same threshold class.
+    expect(calibration).toContain(
+      "a numeric comparison in a direct `template` trigger or condition",
+    );
+    expect(calibration).toContain("direct template comparisons");
     // Wait-predicate edits reclassify without touching the timeout.
     expect(calibration).toContain("the numeric predicate\n  INSIDE the wait template itself");
     expect(readFileSync("skills/service-call/SKILL.md", "utf8")).toContain(

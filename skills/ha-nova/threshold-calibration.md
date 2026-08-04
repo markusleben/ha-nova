@@ -15,6 +15,8 @@ An UPDATE to an existing automation, script, or `threshold` helper
 - a `wait_for_trigger` / `wait_template` timeout — or the numeric predicate
   INSIDE the wait template itself (washer power `< 5` to `< 20` reclassifies
   "finished" even with the timeout untouched),
+- a numeric comparison in a direct `template` trigger or condition — the
+  same threshold class in template form,
 - the compared signal itself — swapping the trigger/condition `entity_id` or
   tested `attribute`, or changing its `value_template` (a transform can
   rescale or redefine the signal entirely, watts to kilowatts, while keeping
@@ -28,8 +30,9 @@ classifies nothing and needs no history.
 
 The same duty applies OUTSIDE config updates: setting a helper's VALUE
 (`input_number.set_value`/`increment`/`decrement` or equivalent) changes the
-effective threshold of every `numeric_state` consumer that references that
-helper as `above`/`below`. Before such a service call, resolve the helper's
+effective threshold of every consumer that references that helper as a
+boundary — `numeric_state` `above`/`below` AND direct template comparisons
+alike. Before such a service call, resolve the helper's
 direct consumers (`search/related`); when one compares a physical-process
 signal, run this preflight and carry its findings into the service-call
 preview. The direct call is not the only path: an automation or script
