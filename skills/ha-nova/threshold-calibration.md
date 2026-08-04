@@ -22,6 +22,14 @@ temperature, humidity, flow, level, …). It does NOT apply to unrelated
 numeric-state edits — setting a light's brightness value or a volume level
 classifies nothing and needs no history.
 
+The same duty applies OUTSIDE config updates: setting a helper's VALUE
+(`input_number.set_value`/`increment`/`decrement` or equivalent) changes the
+effective threshold of every `numeric_state` consumer that references that
+helper as `above`/`below`. Before such a service call, resolve the helper's
+direct consumers (`search/related`); when one compares a physical-process
+signal, run this preflight and carry its findings into the service-call
+preview.
+
 ## Evidence (read-only, bounded)
 
 1. Recorder history for the compared VALUE, up to 30 days, bounded reads.
@@ -31,10 +39,14 @@ classifies nothing and needs no history.
    tested attribute.
    Check the statistics metadata first (`recorder/list_statistic_ids`): it
    names the available fields and the statistics unit. Only measurement-class
-   statistics carry `min`/`mean`/`max`; metered `total`/`total_increasing`
-   statistics (energy, water, gas) carry consumption — shortlist their
-   windows from per-bucket `change` instead of requesting measurement
-   fields. When the statistics unit differs from the entity's current unit
+   statistics carry `min`/`mean`/`max`. For metered `total`/`total_increasing`
+   statistics (energy, water, gas), match the field to the COMPARED dimension:
+   a threshold on the absolute reading shortlists from per-bucket `state`
+   (last absolute value — per-bucket `change` is interval consumption and can
+   miss the crossing window); only a consumption-style comparison shortlists
+   from `change`. When no statistics field represents the tested value, skip
+   the shortlist and go straight to bounded raw
+   history. When the statistics unit differs from the entity's current unit
    (unit changed mid-history), normalize those samples into the threshold's
    unit or exclude them as a named data gap — never compare mixed units.
    Hourly `recorder/statistics_during_period` only

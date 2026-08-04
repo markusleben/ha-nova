@@ -70,10 +70,18 @@ describe("threshold calibration preflight (#484)", () => {
     expect(readFileSync("skills/helper/SKILL.md", "utf8")).toContain(
       "compared `entity_id` is swapped",
     );
-    // Statistics fields follow the state class; units follow the metadata.
+    // Statistics fields follow the state class AND the compared dimension;
+    // units follow the metadata (Codex round 6).
     expect(calibration).toContain("recorder/list_statistic_ids");
-    expect(calibration).toContain("per-bucket `change`");
+    expect(calibration).toContain("match the field to the COMPARED dimension");
+    expect(calibration).toContain("per-bucket `state`");
+    expect(calibration).toContain("can\n   miss the crossing window");
     expect(calibration).toContain("never compare mixed units");
+    // Helper VALUE changes through service calls trigger the same preflight.
+    expect(calibration).toContain("The same duty applies OUTSIDE config updates");
+    expect(readFileSync("skills/service-call/SKILL.md", "utf8")).toContain(
+      "run the calibration preflight per `skills/ha-nova/threshold-calibration.md`",
+    );
     // Helper-backed boundaries move over the window.
     expect(calibration).toContain("time-align each sensor sample");
     expect(calibration).toContain("assuming a constant\n   boundary");

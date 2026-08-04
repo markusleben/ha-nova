@@ -131,6 +131,8 @@ Example:
 {"method":"POST","path":"/api/services/input_number/set_value","body":{"entity_id":"input_number.target_temperature","value":22.5}}
 ```
 
+Before `input_number.set_value`/`increment`/`decrement`, resolve the helper's direct consumers (`search/related`): when a `numeric_state` automation/script compares a physical-process signal against this helper, the value change moves that threshold — run the calibration preflight per `skills/ha-nova/threshold-calibration.md` and carry its findings into the preview.
+
 For helper CRUD (create/update/delete helpers themselves), use `ha-nova:helper` instead.
 
 ## Automation And Script Runtime Calls
