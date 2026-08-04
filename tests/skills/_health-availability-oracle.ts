@@ -4,6 +4,7 @@ import {
   compareCodePoint,
   inventoryDomains,
   isAttentionEntry,
+  isSafeEntityID,
   isSafeHASlug,
   lowSignalDomains,
   percent,
@@ -31,16 +32,22 @@ type Group = {
   classificationCount: number;
   deviceMatchedRows: number;
   deviceIDs: Set<string>;
-  entityRows: { id: string; restored: boolean }[];
+  entityRows: { id: string; restored: boolean; lowSignal: boolean }[];
   currentTrackerRows: number;
   entry: ConfigEntry | undefined;
   isPlatformOnly: boolean;
 };
 
 export function summarizeAvailability(fixture: AvailabilityFixture): string {
-  const candidates = fixture.states.filter(
+  const stateRows = fixture.states.filter(
     (row) => row.state === "unavailable" || row.state === "unknown",
   );
+  // Invalid state entity IDs are counted separately in Coverage and never
+  // rendered, grouped, or reconciled (availability-analysis.md → Join validity).
+  const invalidRowCount = stateRows.filter(
+    (row) => !isSafeEntityID(row.entity_id),
+  ).length;
+  const candidates = stateRows.filter((row) => isSafeEntityID(row.entity_id));
   const registryByEntity = new Map(
     (fixture.registry ?? []).map((row) => [row.entity_id, row]),
   );
@@ -153,12 +160,16 @@ export function summarizeAvailability(fixture: AvailabilityFixture): string {
       classificationCount: 0,
       deviceMatchedRows: 0,
       deviceIDs: new Set<string>(),
-      entityRows: [] as { id: string; restored: boolean }[],
+      entityRows: [] as { id: string; restored: boolean; lowSignal: boolean }[],
       currentTrackerRows: 0,
       entry,
       isPlatformOnly: key.startsWith("platform:"),
     };
-    group.entityRows.push({ id: row.entity_id, restored: isRestored });
+    group.entityRows.push({
+      id: row.entity_id,
+      restored: isRestored,
+      lowSignal: lowSignalDomains.has(domain),
+    });
     if (!isRestored && trackerDomains.has(domain)) {
       group.currentTrackerRows += 1;
     }
@@ -270,13 +281,29 @@ export function summarizeAvailability(fixture: AvailabilityFixture): string {
   // a mobile_app config-entry group holds device_tracker rows.
   const isCurrentTracker = (group: Group): boolean =>
     group.currentTrackerRows > 0;
+  // Pool (b) iterates in the failure-priority order of the chosen attention
+  // entries, not catalog order; pool (c) holds only CURRENT groups —
+  // restored-only inventory stays summarized in the catalog.
+  const detailCandidateKeys = new Set(detailCandidates.map((g) => g.key));
+  const groupByEntryID = new Map(
+    [...groups.values()]
+      .filter((g) => g.entry)
+      .map((g) => [g.entry!.entry_id, g] as const),
+  );
+  const attentionPool = selectedAttentionEntries
+    .map((entry) => groupByEntryID.get(entry.entry_id))
+    .filter(
+      (g): g is Group =>
+        g !== undefined && detailCandidateKeys.has(g.key) && !isCurrentTracker(g),
+    );
   const pooled = [
     ...detailCandidates.filter((g) => isCurrentTracker(g)),
+    ...attentionPool,
     ...detailCandidates.filter(
-      (g) => !isCurrentTracker(g) && isAttentionEntry(g.entry),
-    ),
-    ...detailCandidates.filter(
-      (g) => !isCurrentTracker(g) && !isAttentionEntry(g.entry),
+      (g) =>
+        !isCurrentTracker(g) &&
+        !isAttentionEntry(g.entry) &&
+        g.count > g.restored,
     ),
   ];
   let budget = 50;
@@ -289,6 +316,46 @@ export function summarizeAvailability(fixture: AvailabilityFixture): string {
   }
   const displayedKeys = new Set(displayed.map((group) => group.key));
   const displayedCount = displayed.reduce((sum, group) => sum + group.count, 0);
+  const privacyMode = fixture.privacyMode ?? "private";
+  // Finding priority for example rows: current findings first, current
+  // stateless/low-signal context second, restored context last, then
+  // entity_id — never input order (availability-analysis.md → Finding priority).
+  const exampleRank = (row: {
+    restored: boolean;
+    lowSignal: boolean;
+  }): number => (row.restored ? 2 : row.lowSignal ? 1 : 0);
+  const exampleRowsFor = (
+    group: Group,
+  ): { id: string; restored: boolean; lowSignal: boolean }[] => {
+    const prioritized = [...group.entityRows].sort(
+      (left, right) =>
+        exampleRank(left) - exampleRank(right) ||
+        compareCodePoint(left.id, right.id),
+    );
+    return group.count <= 10 ? prioritized : prioritized.slice(0, 5);
+  };
+  // Shareable mode keeps the identical detail selection but replaces each
+  // identity with a deterministic per-type alias assigned by hidden
+  // code-point sort of the underlying IDs.
+  const aliasByID = new Map<string, string>();
+  if (privacyMode === "shareable") {
+    const shownIDs = new Set<string>();
+    for (const group of displayed.filter(
+      (item) => !isAttentionEntry(item.entry),
+    )) {
+      for (const row of exampleRowsFor(group)) shownIDs.add(row.id);
+    }
+    const byType = new Map<string, string[]>();
+    for (const id of [...shownIDs].sort(compareCodePoint)) {
+      const type = id.split(".", 1)[0] ?? "entity";
+      const list = byType.get(type) ?? [];
+      list.push(id);
+      byType.set(type, list);
+    }
+    for (const [type, ids] of byType) {
+      ids.forEach((id, index) => aliasByID.set(id, `${type} ${index + 1}`));
+    }
+  }
   const missingSources = [
     ...new Set([
       ...(fixture.unavailableSources ?? []),
@@ -334,7 +401,7 @@ export function summarizeAvailability(fixture: AvailabilityFixture): string {
 
   const lines = [
     `Status: ${overall}.`,
-    `Coverage unavailable: ${missingSources.length > 0 ? missingSources.join(", ") : "none"}.`,
+    `Coverage unavailable: ${missingSources.length > 0 ? missingSources.join(", ") : "none"}.${invalidRowCount > 0 ? ` Invalid rows: ${invalidRowCount} (excluded from reconciliation, never rendered).` : ""}`,
     "Entities:",
   ];
   if (candidates.length === 0) {
@@ -373,22 +440,14 @@ export function summarizeAvailability(fixture: AvailabilityFixture): string {
     lines.push(
       `${safeLabel(group)}: ${group.count} entity states (${group.restored} restored), ${deviceContext}, ${entryState}`,
     );
-    if ((fixture.privacyMode ?? "private") === "private") {
-      // Finding priority for example rows: current non-restored impact
-      // before contextual inventory, then entity_id — never input order.
-      const prioritized = [...group.entityRows].sort(
-        (left, right) =>
-          Number(left.restored) - Number(right.restored) ||
-          compareCodePoint(left.id, right.id),
-      );
-      if (group.count <= 10) {
-        for (const row of prioritized) {
-          lines.push(`  - ${row.id}`);
-        }
-      } else {
-        for (const row of prioritized.slice(0, 5)) {
-          lines.push(`  - ${row.id}`);
-        }
+    if (privacyMode !== "aggregate") {
+      const shown = exampleRowsFor(group);
+      for (const row of shown) {
+        lines.push(
+          `  - ${privacyMode === "private" ? row.id : (aliasByID.get(row.id) ?? "entity")}`,
+        );
+      }
+      if (group.count > 10) {
         lines.push(
           `  total ${group.count}, shown 5, omitted ${group.count - 5}.`,
         );

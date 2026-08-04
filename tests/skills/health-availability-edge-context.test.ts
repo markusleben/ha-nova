@@ -484,6 +484,152 @@ describe("health availability adversarial edge fixtures", () => {
     expect(report).toContain("total 12, shown 5, omitted 7.");
   });
 
+  it("selects attention details in failure-priority order under budget pressure", () => {
+    const report = summarizeAvailability(
+      groupFixture([
+        { platform: "nl_a", count: 10, state: "not_loaded" },
+        { platform: "nl_b", count: 10, state: "not_loaded" },
+        { platform: "nl_c", count: 10, state: "not_loaded" },
+        { platform: "nl_d", count: 10, state: "not_loaded" },
+        { platform: "nl_e", count: 10, state: "not_loaded" },
+        { platform: "nl_f", count: 10, state: "not_loaded" },
+        { platform: "urgent", count: 2, state: "setup_error" },
+      ]),
+    );
+    expect(report).toContain("urgent: setup_error; impact 2 entity states");
+    expect(report.match(/; impact \d+ entity states/g)).toHaveLength(5);
+    expect(report.indexOf("urgent: setup_error; impact")).toBeLessThan(
+      report.indexOf("nl_a: not_loaded; impact"),
+    );
+  });
+
+  it("keeps restored-only inventory out of the current pool", () => {
+    const states: StateRow[] = [];
+    const registry: RegistryRow[] = [];
+    const entries: ConfigEntry[] = [];
+    for (let groupIndex = 0; groupIndex < 5; groupIndex += 1) {
+      const entryID = `private-restored-${groupIndex}`;
+      entries.push({
+        entry_id: entryID,
+        domain: `restored_${groupIndex}`,
+        state: "loaded",
+        title: `Private ${groupIndex}`,
+      });
+      for (let rowIndex = 0; rowIndex < 10; rowIndex += 1) {
+        const entityID = `sensor.private_${groupIndex}_${rowIndex}`;
+        states.push({
+          entity_id: entityID,
+          state: "unavailable",
+          attributes: { restored: true },
+        });
+        registry.push({
+          entity_id: entityID,
+          config_entry_id: entryID,
+          platform: `restored_${groupIndex}`,
+        });
+      }
+    }
+    entries.push({
+      entry_id: "private-current",
+      domain: "current_small",
+      state: "loaded",
+      title: "Private current",
+    });
+    for (const suffix of ["a", "b", "c"]) {
+      const entityID = `sensor.private_current_${suffix}`;
+      states.push({ entity_id: entityID, state: "unavailable" });
+      registry.push({
+        entity_id: entityID,
+        config_entry_id: "private-current",
+        platform: "current_small",
+      });
+    }
+    const report = summarizeAvailability({
+      states,
+      registry,
+      entries,
+      devices: [],
+    });
+    expect(report).toContain("current_small: 3 entity states (0 restored)");
+    expect(report).toContain("sensor.private_current_a");
+    expect(report).toContain("5 group details omitted (50 entity states).");
+  });
+
+  it("replaces identities with deterministic per-type aliases in shareable mode", () => {
+    const report = summarizeAvailability({
+      ...groupFixture([{ platform: "one", count: 3, state: "loaded" }]),
+      privacyMode: "shareable",
+    });
+    expect(report).toContain("  - sensor 1");
+    expect(report).toContain("  - sensor 3");
+    expect(report).not.toContain("sensor.private_0_0");
+  });
+
+  it("counts malformed state entity IDs separately and never renders them", () => {
+    const fixture = groupFixture([
+      { platform: "one", count: 2, state: "loaded" },
+    ]);
+    fixture.states.push({
+      entity_id: "sensor.Secret-Host.local",
+      state: "unavailable",
+    });
+    const report = summarizeAvailability(fixture);
+    expect(report).not.toContain("Secret-Host");
+    expect(report).toContain(
+      "Invalid rows: 1 (excluded from reconciliation, never rendered).",
+    );
+    expect(report).toContain("2 entity states: unavailable 2");
+  });
+
+  it("ranks current stateless rows after current findings in examples", () => {
+    const states: StateRow[] = [];
+    const registry: RegistryRow[] = [];
+    for (let rowIndex = 0; rowIndex < 4; rowIndex += 1) {
+      states.push({
+        entity_id: `button.private_b${rowIndex}`,
+        state: "unknown",
+      });
+    }
+    for (let rowIndex = 0; rowIndex < 5; rowIndex += 1) {
+      states.push({
+        entity_id: `sensor.private_s${rowIndex}`,
+        state: "unavailable",
+      });
+    }
+    for (let rowIndex = 0; rowIndex < 3; rowIndex += 1) {
+      states.push({
+        entity_id: `sensor.private_r${rowIndex}`,
+        state: "unavailable",
+        attributes: { restored: true },
+      });
+    }
+    for (const row of states) {
+      registry.push({
+        entity_id: row.entity_id,
+        config_entry_id: "private-entry",
+        platform: "private_platform",
+      });
+    }
+    const report = summarizeAvailability({
+      states,
+      registry,
+      entries: [
+        {
+          entry_id: "private-entry",
+          domain: "private_platform",
+          state: "loaded",
+          title: "Private",
+        },
+      ],
+      devices: [],
+    });
+    for (const suffix of ["s0", "s1", "s2", "s3", "s4"]) {
+      expect(report).toContain(`  - sensor.private_${suffix}`);
+    }
+    expect(report).not.toContain("  - button.private_b0");
+    expect(report).toContain("total 12, shown 5, omitted 7.");
+  });
+
   it("uses code-point ordering for equal-count groups", () => {
     const report = summarizeAvailability(
       groupFixture([
