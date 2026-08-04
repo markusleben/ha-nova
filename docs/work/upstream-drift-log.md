@@ -20,4 +20,4 @@ stopped.
 - CLEAN — HACS 2.0.5 WS command surface matches the pinned map in
   `skills/hacs/hacs-commands.md` (source-verified 2026-08-04 and
   runtime-verified read-only against the reference instance).
-- Next window starts after HA 2026.8.
+- Next window starts WITH HA 2026.8 (everything after the 2026.7 post and HACS 2.0.5 is unscreened).
