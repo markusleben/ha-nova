@@ -64,6 +64,23 @@ export function isSafeHASlug(value: unknown): value is string {
   return typeof value === "string" && /^[a-z0-9_]{1,128}$/.test(value);
 }
 
+// Display-name precedence lives with the caller; this only decides whether a
+// candidate name is safely renderable next to the exact entity ID: printable,
+// single-line, bounded, and adding information beyond the ID itself.
+export function safeDisplayName(candidate: unknown, entityID: string): string {
+  if (typeof candidate !== "string") return "";
+  const trimmed = candidate.trim();
+  if (
+    trimmed === "" ||
+    trimmed === entityID ||
+    trimmed.length > 64 ||
+    /[\p{Cc}\p{Cf}]/u.test(trimmed)
+  ) {
+    return "";
+  }
+  return trimmed;
+}
+
 export function isSafeEntityID(value: unknown): value is string {
   return typeof value === "string" && /^[a-z0-9_]+\.[a-z0-9_]+$/.test(value);
 }

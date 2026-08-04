@@ -27,7 +27,9 @@ Apply these rules to every user-facing HA NOVA response, including direct sub-sk
 For any truncated listing — capped groups, top-N rows, bounded chunks — the
 output MUST carry the total count, the shown count, the omitted count, and a
 precise way to request the full set (the exact follow-up phrase or mode, e.g.
-"say 'full report' or 'show all entities in MQTT'"). Never end with a bare
+"say 'full report' or 'show all entities in MQTT'"). A detail follow-up
+widens only the DETAIL dimension — identity form stays in the active
+privacy/identity mode until the user explicitly switches it. Never end with a bare
 "N more", "other groups", or similar. When an active mode hides identities or
 detail, name the mode and how to switch. Follow-ups are fresh live reads —
 say that results may have changed since the previous report.

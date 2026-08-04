@@ -1,6 +1,11 @@
 import {
+  type Group,
+  buildExampleRenderer,
+  buildGroupLabeler,
+  selectAvailabilityDetail,
+} from "./_health-availability-detail.js";
+import {
   type AvailabilityFixture,
-  type ConfigEntry,
   compareCodePoint,
   inventoryDomains,
   isAttentionEntry,
@@ -8,6 +13,7 @@ import {
   isSafeHASlug,
   lowSignalDomains,
   percent,
+  safeDisplayName,
   safeEntryState,
   safeReason,
 } from "./_health-availability-support.js";
@@ -24,19 +30,9 @@ export type {
 // ordering, caps, and privacy. Runtime localization belongs to the skill agent
 // and is intentionally outside this unit oracle.
 
-type Group = {
-  key: string;
-  baseLabel: string;
-  count: number;
-  restored: number;
-  classificationCount: number;
-  deviceMatchedRows: number;
-  deviceIDs: Set<string>;
-  entityRows: { id: string; restored: boolean; lowSignal: boolean }[];
-  currentTrackerRows: number;
-  entry: ConfigEntry | undefined;
-  isPlatformOnly: boolean;
-};
+// Group, selection pools, budget, and privacy rendering live in
+// _health-availability-detail.ts; this file owns reconciliation, joins,
+// classification, and report assembly.
 
 export function summarizeAvailability(fixture: AvailabilityFixture): string {
   const stateRows = fixture.states.filter(
@@ -117,8 +113,10 @@ export function summarizeAvailability(fixture: AvailabilityFixture): string {
       registry?.device_id && registeredDeviceIDs.has(registry.device_id)
         ? registry.device_id
         : "";
+    // Attribution requires an EXACT join: a config_entry_id with no matching
+    // entry attributes nothing (availability-analysis.md → Join validity).
     const hasAttribution = Boolean(
-      registry && (platform || registry.config_entry_id || registeredDeviceID),
+      registry && (platform || entry !== undefined || registeredDeviceID),
     );
     if (hasAttribution) attributed += 1;
 
@@ -169,8 +167,14 @@ export function summarizeAvailability(fixture: AvailabilityFixture): string {
       classificationCount: 0,
       deviceMatchedRows: 0,
       deviceIDs: new Set<string>(),
-      entityRows: [] as { id: string; restored: boolean; lowSignal: boolean }[],
+      entityRows: [] as {
+        id: string;
+        restored: boolean;
+        lowSignal: boolean;
+        name: string;
+      }[],
       currentTrackerRows: 0,
+      currentFindingRows: 0,
       entry,
       isPlatformOnly: key.startsWith("platform:"),
     };
@@ -178,9 +182,16 @@ export function summarizeAvailability(fixture: AvailabilityFixture): string {
       id: row.entity_id,
       restored: isRestored,
       lowSignal: lowSignalDomains.has(domain),
+      name: safeDisplayName(
+        row.attributes?.friendly_name ?? registry?.name,
+        row.entity_id,
+      ),
     });
     if (!isRestored && trackerDomains.has(domain)) {
       group.currentTrackerRows += 1;
+    }
+    if (!isRestored && !lowSignalDomains.has(domain)) {
+      group.currentFindingRows += 1;
     }
     group.count += 1;
     if (compareCodePoint(baseLabel, group.baseLabel) < 0) {
@@ -195,31 +206,7 @@ export function summarizeAvailability(fixture: AvailabilityFixture): string {
     groups.set(key, group);
   }
 
-  const groupsByBaseLabel = new Map<string, Group[]>();
-  for (const group of groups.values()) {
-    const siblings = groupsByBaseLabel.get(group.baseLabel) ?? [];
-    siblings.push(group);
-    groupsByBaseLabel.set(group.baseLabel, siblings);
-  }
-  const entryOrdinals = new Map<string, number>();
-  for (const siblings of groupsByBaseLabel.values()) {
-    const entries = siblings
-      .filter((group) => !group.isPlatformOnly)
-      .sort((left, right) => compareCodePoint(left.key, right.key));
-    if (siblings.length > 1) {
-      entries.forEach((group, index) =>
-        entryOrdinals.set(group.key, index + 1),
-      );
-    }
-  }
-
-  const safeLabel = (group: Group): string => {
-    if (group.isPlatformOnly) {
-      return `${group.baseLabel} (no config-entry attribution)`;
-    }
-    const ordinal = entryOrdinals.get(group.key);
-    return ordinal ? `${group.baseLabel} entry ${ordinal}` : group.baseLabel;
-  };
+  const safeLabel = buildGroupLabeler([...groups.values()]);
   const sorted = [...groups.values()].sort(
     (left, right) =>
       right.count - left.count ||
@@ -259,137 +246,16 @@ export function summarizeAvailability(fixture: AvailabilityFixture): string {
             ? "fully explained by integration failures"
             : "insufficient registry evidence";
 
-  const failurePriority = new Map([
-    ["setup_error", 0],
-    ["setup_retry", 1],
-    ["migration_error", 2],
-    ["failed_unload", 3],
-    ["not_loaded", 4],
-  ]);
-  const failedEntries = fixture.entries
-    .filter(isAttentionEntry)
-    .sort(
-      (left, right) =>
-        (failurePriority.get(left.state) ?? 4) -
-          (failurePriority.get(right.state) ?? 4) ||
-        compareCodePoint(left.domain, right.domain) ||
-        compareCodePoint(left.entry_id, right.entry_id),
-    );
-  const selectedAttentionEntries = failedEntries.slice(0, 25);
-  const selectedAttentionIDs = new Set(
-    selectedAttentionEntries.map((entry) => entry.entry_id),
-  );
-  const detailCandidates = sorted.filter(
-    (group) =>
-      !isAttentionEntry(group.entry) ||
-      selectedAttentionIDs.has(group.entry!.entry_id),
-  );
-  // #440 Explained selection: pooled order, global 50-row budget,
-  // cost = full size for 1-10 groups else 5; skip when over budget.
-  // Tracker membership comes from the group's member domains, not its label:
-  // a mobile_app config-entry group holds device_tracker rows.
-  const isCurrentTracker = (group: Group): boolean =>
-    group.currentTrackerRows > 0;
-  // Pool (b) iterates in the failure-priority order of the chosen attention
-  // entries, not catalog order; pool (c) holds only CURRENT groups —
-  // restored-only inventory stays summarized in the catalog.
-  const detailCandidateKeys = new Set(detailCandidates.map((g) => g.key));
-  const groupByEntryID = new Map(
-    [...groups.values()]
-      .filter((g) => g.entry)
-      .map((g) => [g.entry!.entry_id, g] as const),
-  );
-  const attentionPool = selectedAttentionEntries
-    .map((entry) => groupByEntryID.get(entry.entry_id))
-    .filter(
-      (g): g is Group =>
-        g !== undefined && detailCandidateKeys.has(g.key) && !isCurrentTracker(g),
-    );
-  // Pool (a) orders current tracker groups by their available finding
-  // priority (attention state first); the stable sort keeps catalog order
-  // as the tie-break.
-  const trackerRank = (group: Group): number =>
-    group.entry && isAttentionEntry(group.entry)
-      ? (failurePriority.get(group.entry.state) ?? 4)
-      : 5;
-  const pooled = [
-    ...detailCandidates
-      .filter((g) => isCurrentTracker(g))
-      .sort((left, right) => trackerRank(left) - trackerRank(right)),
-    ...attentionPool,
-    ...detailCandidates.filter(
-      (g) =>
-        !isCurrentTracker(g) &&
-        !isAttentionEntry(g.entry) &&
-        g.count > g.restored,
-    ),
-  ];
-  let budget = 50;
-  const displayed: Group[] = [];
-  for (const group of pooled) {
-    const cost = group.count <= 10 ? group.count : 5;
-    if (cost > budget) continue;
-    displayed.push(group);
-    budget -= cost;
-  }
-  const displayedKeys = new Set(displayed.map((group) => group.key));
+  const {
+    selectedAttentionEntries,
+    omittedAttentionEntryCount,
+    detailCandidates,
+    displayed,
+    displayedKeys,
+  } = selectAvailabilityDetail([...groups.values()], sorted, fixture.entries);
   const displayedCount = displayed.reduce((sum, group) => sum + group.count, 0);
   const privacyMode = fixture.privacyMode ?? "private";
-  // Finding priority for example rows: current findings first, current
-  // stateless/low-signal context second, restored context last, then
-  // entity_id — never input order (availability-analysis.md → Finding priority).
-  const exampleRank = (row: {
-    restored: boolean;
-    lowSignal: boolean;
-  }): number => (row.restored ? 2 : row.lowSignal ? 1 : 0);
-  const exampleRowsFor = (
-    group: Group,
-  ): { id: string; restored: boolean; lowSignal: boolean }[] => {
-    const prioritized = [...group.entityRows].sort(
-      (left, right) =>
-        exampleRank(left) - exampleRank(right) ||
-        compareCodePoint(left.id, right.id),
-    );
-    return group.count <= 10 ? prioritized : prioritized.slice(0, 5);
-  };
-  // Shareable mode keeps the identical detail selection but replaces each
-  // identity with a deterministic per-type alias assigned by hidden
-  // code-point sort of the underlying IDs.
-  const aliasByID = new Map<string, string>();
-  if (privacyMode === "shareable") {
-    const shownIDs = new Set<string>();
-    for (const group of displayed) {
-      for (const row of exampleRowsFor(group)) shownIDs.add(row.id);
-    }
-    const byType = new Map<string, string[]>();
-    for (const id of [...shownIDs].sort(compareCodePoint)) {
-      const type = id.split(".", 1)[0] ?? "entity";
-      const list = byType.get(type) ?? [];
-      list.push(id);
-      byType.set(type, list);
-    }
-    for (const [type, ids] of byType) {
-      ids.forEach((id, index) => aliasByID.set(id, `${type} ${index + 1}`));
-    }
-  }
-  // Every truncation path carries the exact follow-up plus the fresh-live-read
-  // notice (output-rules.md → Progressive Detail). A selected group renders
-  // its rows through one shared path for both owners.
-  const renderExampleRows = (group: Group): string[] => {
-    if (privacyMode === "aggregate") return [];
-    const out: string[] = [];
-    for (const row of exampleRowsFor(group)) {
-      out.push(
-        `  - ${privacyMode === "private" ? row.id : (aliasByID.get(row.id) ?? "entity")}`,
-      );
-    }
-    if (group.count > 10) {
-      out.push(
-        `  total ${group.count}, shown 5, omitted ${group.count - 5}. Request this group's full detail for all rows; results may have changed (fresh live read).`,
-      );
-    }
-    return out;
-  };
+  const renderExampleRows = buildExampleRenderer(displayed, privacyMode);
   const missingSources = [
     ...new Set([
       ...(fixture.unavailableSources ?? []),
@@ -405,7 +271,7 @@ export function summarizeAvailability(fixture: AvailabilityFixture): string {
   const overall = missingSource
     ? "Limited"
     : (fixture.activeRepairs ?? 0) > 0 ||
-        failedEntries.length > 0 ||
+        selectedAttentionEntries.length > 0 ||
         (fixture.lowBatteries ?? 0) > 0 ||
         (fixture.failedSystemHealth ?? 0) > 0
       ? "Attention"
@@ -413,7 +279,7 @@ export function summarizeAvailability(fixture: AvailabilityFixture): string {
   const nextStep =
     (fixture.activeRepairs ?? 0) > 0
       ? "Review active repairs."
-      : failedEntries.length > 0
+      : selectedAttentionEntries.length > 0
         ? "Review failed integrations."
         : (fixture.lowBatteries ?? 0) > 0
           ? "Review low batteries."
@@ -513,9 +379,9 @@ export function summarizeAvailability(fixture: AvailabilityFixture): string {
     );
     lines.push(...renderExampleRows(group));
   }
-  if (failedEntries.length > selectedAttentionEntries.length) {
+  if (omittedAttentionEntryCount > 0) {
     lines.push(
-      `${failedEntries.length - selectedAttentionEntries.length} attention entries omitted by integration-entry cap. Request the full integration-entry list for the rest; results may have changed (fresh live read).`,
+      `${omittedAttentionEntryCount} attention entries omitted by integration-entry cap. Request the full integration-entry list for the rest; results may have changed (fresh live read).`,
     );
   }
   lines.push(`Next step: ${nextStep}`);

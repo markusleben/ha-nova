@@ -728,6 +728,112 @@ describe("health availability adversarial edge fixtures", () => {
     );
   });
 
+  it("renders the safely renderable friendly name beside the exact ID in private mode", () => {
+    const report = summarizeAvailability({
+      states: [
+        {
+          entity_id: "sensor.private_named",
+          state: "unavailable",
+          attributes: { friendly_name: "Private kitchen sensor" },
+        },
+        {
+          entity_id: "sensor.private_hostile",
+          state: "unavailable",
+          attributes: { friendly_name: "line\nbreak" },
+        },
+      ],
+      registry: [
+        {
+          entity_id: "sensor.private_named",
+          config_entry_id: "private-entry",
+          platform: "private_platform",
+        },
+        {
+          entity_id: "sensor.private_hostile",
+          config_entry_id: "private-entry",
+          platform: "private_platform",
+        },
+      ],
+      entries: [
+        {
+          entry_id: "private-entry",
+          domain: "private_platform",
+          state: "loaded",
+          title: "Private",
+        },
+      ],
+      devices: [],
+    });
+    expect(report).toContain("  - sensor.private_named (Private kitchen sensor)");
+    // A control-character name is not safely renderable — ID only.
+    expect(report).toContain("  - sensor.private_hostile\n");
+    expect(report).not.toContain("line\nbreak");
+  });
+
+  it("prioritizes current findings over stateless context in the current pool", () => {
+    const states: StateRow[] = [];
+    const registry: RegistryRow[] = [];
+    const entries: ConfigEntry[] = [];
+    for (let groupIndex = 0; groupIndex < 5; groupIndex += 1) {
+      const entryID = `private-buttons-${groupIndex}`;
+      entries.push({
+        entry_id: entryID,
+        domain: `buttons_${groupIndex}`,
+        state: "loaded",
+        title: `Private ${groupIndex}`,
+      });
+      for (let rowIndex = 0; rowIndex < 10; rowIndex += 1) {
+        const entityID = `button.private_${groupIndex}_${rowIndex}`;
+        states.push({ entity_id: entityID, state: "unknown" });
+        registry.push({
+          entity_id: entityID,
+          config_entry_id: entryID,
+          platform: `buttons_${groupIndex}`,
+        });
+      }
+    }
+    entries.push({
+      entry_id: "private-finding",
+      domain: "finding_small",
+      state: "loaded",
+      title: "Private finding",
+    });
+    for (const suffix of ["a", "b"]) {
+      const entityID = `sensor.private_finding_${suffix}`;
+      states.push({ entity_id: entityID, state: "unavailable" });
+      registry.push({
+        entity_id: entityID,
+        config_entry_id: "private-finding",
+        platform: "finding_small",
+      });
+    }
+    const report = summarizeAvailability({
+      states,
+      registry,
+      entries,
+      devices: [],
+    });
+    expect(report).toContain("finding_small: 2 entity states (0 restored)");
+    expect(report).toContain("  - sensor.private_finding_a");
+    expect(report).toContain("group details omitted");
+  });
+
+  it("attributes nothing on a config_entry_id without a matching entry", () => {
+    const report = summarizeAvailability({
+      states: [{ entity_id: "sensor.private", state: "unavailable" }],
+      registry: [
+        {
+          entity_id: "sensor.private",
+          config_entry_id: "private-ghost-entry",
+        },
+      ],
+      entries: [],
+      devices: [],
+    });
+    expect(report).toContain("Registry match: 1/1; attribution: 0/1");
+    expect(report).toContain("unattributed: 1");
+  });
+
   it("uses code-point ordering for equal-count groups", () => {
     const report = summarizeAvailability(
       groupFixture([
