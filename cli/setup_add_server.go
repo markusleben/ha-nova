@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/url"
 	"strings"
 )
@@ -284,6 +285,7 @@ func selectAddServerHAHost(
 ) (string, string, error) {
 	result := runSetupDiscoveryWithFeedback(out, runtimeConfig{})
 	configured := configuredServerHostPortKeys(doc)
+	expandConfiguredLocalAliases(configured)
 	candidates := make([]setupDiscoveryCandidate, 0, len(result.candidates))
 	for _, candidate := range result.candidates {
 		if configured[addServerHostPortKey(candidate.HAURL)] ||
@@ -374,6 +376,21 @@ func addServerViaHostPortKey(candidate setupDiscoveryCandidate) string {
 		return ""
 	}
 	return strings.ToLower(via) + urlKey[separator:]
+}
+
+// Profiles configured under a .local name additionally claim their RESOLVED
+// IPv4 (bounded lookup), so the same server rediscovered or manually entered
+// by IP is recognized even without a Via alias.
+func expandConfiguredLocalAliases(configured map[string]bool) {
+	for key := range configured {
+		host, port, splitErr := net.SplitHostPort(key)
+		if splitErr != nil || !strings.HasSuffix(host, ".local") {
+			continue
+		}
+		if ip := resolveHostToIPv4ForDiscovery(host, setupDiscoveryIPResolveTimeout); ip != "" && ip != host {
+			configured[ip+":"+port] = true
+		}
+	}
 }
 
 func configuredServerHostPortKeys(doc *configDocument) map[string]bool {

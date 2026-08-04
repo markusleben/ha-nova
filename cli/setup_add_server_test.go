@@ -10,6 +10,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/brutella/dnssd"
 )
@@ -364,6 +365,29 @@ func TestAddServerHostPortIdentityKeys(t *testing.T) {
 	}
 	if got := addServerViaHostPortKey(portlessVia); got != "portless.local:80" {
 		t.Fatalf("portless Via key = %q", got)
+	}
+}
+
+func TestExpandConfiguredLocalAliasesClaimsResolvedIPv4(t *testing.T) {
+	originalResolve := resolveHostToIPv4ForDiscovery
+	resolveHostToIPv4ForDiscovery = func(host string, _ time.Duration) string {
+		if host == "homeassistant.local" {
+			return "192.168.1.5"
+		}
+		return ""
+	}
+	t.Cleanup(func() { resolveHostToIPv4ForDiscovery = originalResolve })
+
+	configured := map[string]bool{
+		"homeassistant.local:8123": true,
+		"192.168.1.9:8123":         true,
+	}
+	expandConfiguredLocalAliases(configured)
+	if !configured["192.168.1.5:8123"] {
+		t.Fatal("the .local profile must claim its resolved IPv4 at the same port")
+	}
+	if len(configured) != 3 {
+		t.Fatalf("only the .local key may expand, got %v", configured)
 	}
 }
 
