@@ -124,7 +124,7 @@ describe("health and calendar skill contracts", () => {
       "A failed entry plus affected states is one finding",
     );
     expect(healthNormalized).toContain(
-      "Display at most five group details across both owners.",
+      "GLOBAL budget of 50 entity-detail rows",
     );
     expect(healthNormalized).toContain(
       "internal group key ascending as a hidden tie-breaker",
@@ -142,9 +142,9 @@ describe("health and calendar skill contracts", () => {
       "`insufficient registry evidence`: otherwise fails the rules above.",
     );
     expect(healthNormalized).toContain(
-      "Never expose entity IDs, config-entry IDs, device IDs, config-entry titles/account names",
+      "`Aggregate`: counts and groups only.",
     );
-    expect(healthNormalized).toContain("never title/account name");
+    expect(healthNormalized).toContain("sanitized config-entry title");
     expect(healthNormalized).toContain(
       "Without an exact join, state attribution unavailable.",
     );

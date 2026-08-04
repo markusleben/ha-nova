@@ -22,6 +22,16 @@ Apply these rules to every user-facing HA NOVA response, including direct sub-sk
 - Scratch payload/filter/result files are internal execution artifacts. Do not create them under the repo working tree. Do not mention or echo scratch file paths, "edited files", payload files, or jq files in progress updates, command summaries, status, or final output unless the user asks for debugging details. If the client surfaces scratch files as workspace edits, or visible command text contains absolute scratch paths, the scratch location/tooling was wrong.
 - Internal task, card, or payload labels are execution artifacts too. Do not surface labels such as `Automation Payload`, `Empty Payload`, `Apply And Verify`, `Collision Payload`, `Run Post Write`, scratch file names, filter names, or generated helper-step titles in the user-facing answer.
 
+## Progressive Detail
+
+For any truncated listing — capped groups, top-N rows, bounded chunks — the
+output MUST carry the total count, the shown count, the omitted count, and a
+precise way to request the full set (the exact follow-up phrase or mode, e.g.
+"say 'full report' or 'show all entities in MQTT'"). Never end with a bare
+"N more", "other groups", or similar. When an active mode hides identities or
+detail, name the mode and how to switch. Follow-ups are fresh live reads —
+say that results may have changed since the previous report.
+
 ## Terminal-Friendly Shape
 
 - Prefer plain short labels over decorative Markdown headings in terminal-like clients.
