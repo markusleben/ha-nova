@@ -2,7 +2,7 @@
 
 ## Overview
 
-HA NOVA uses a flat skill layout with one context skill and 29 independent sub-skills under `skills/`.
+HA NOVA uses a flat skill layout with one context skill and 30 independent sub-skills under `skills/`.
 
 The repo skill tree is the single source of truth. Client installers adapt that same tree to each client's packaging rules:
 - Claude: plugin marketplace payload
@@ -42,6 +42,7 @@ skills/
   history/SKILL.md                      (ha-nova:history — bounded history/logbook/statistics reads)
   health/SKILL.md                       (ha-nova:health — read-only home status, repairs, system health)
   calendar/SKILL.md                     (ha-nova:calendar — bounded calendar reads and single-event writes)
+  hacs/SKILL.md                         (ha-nova:hacs — HACS package lifecycle: registration, download, update, uninstall, migration)
   todo/SKILL.md                         (ha-nova:todo — to-do list items + Local To-do lifecycle)
   backup/SKILL.md                       (ha-nova:backup — backup status/create/inspect/delete; restore stays in HA UI)
   updates/SKILL.md                      (ha-nova:updates — pending updates, release notes, feature-gated installs)
@@ -292,6 +293,29 @@ Rules:
 - localize output slot headings and labels; keep HA state values literal when used as evidence
 
 ## Calendar Architecture
+
+`ha-nova:hacs` owns the HACS package lifecycle end to end — registration,
+download/install, update, redownload, uninstall, and custom-integration
+migration:
+- a pinned, schema-guarded WS command map for the supported HACS major line;
+  capability detection reads `hacs/info` first and fails closed with the
+  HACS-UI pointer on an unrecognized schema — never guessed commands, never
+  `.storage` edits, never a transport outside the Relay
+- registration, downloaded files, and config entries are three distinct
+  lifecycle objects, named as such in output
+- a Relay timeout is an UNKNOWN outcome: bounded reconcile loops re-read
+  HACS/HA API state over a settle window; non-idempotent mutations never
+  auto-retry
+- every uninstall/removal runs HACS-specific consumer discovery first
+  (search/related plus, for frontend packages, Lovelace resources and
+  storage dashboards; template consumers disclosed as unscanned)
+- migrations require a CURRENT completed full HA Backup before the first
+  destructive step; config entries sit outside config snapshots
+- verification is category-appropriate (integration manifest/config-entry
+  state vs. frontend resource registration vs. theme version) and
+  distinguishes INSTALLED from ACTIVE (restart pending)
+- update ownership: `update.*` entity flows stay in `ha-nova:updates`; this
+  skill owns what the entity flow cannot do
 
 `ha-nova:calendar` owns bounded calendar reads and single-event writes:
 - list calendars through `/api/calendars`

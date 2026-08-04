@@ -118,7 +118,9 @@ A snapshot restores the ITEM, never the reference graph: when the original op
 had consumers (search/related findings), the restore preview repeats that
 consumers may still point at nothing. NOT covered (never offer): config-entry
 helpers, areas/floors/labels/categories, users, recorder data, update installs,
-backup archives — those keep their family's own recovery story.
+backup archives, and HACS package/registration state (downloads, config
+entries — a full HA Backup is the recovery net there, per `ha-nova:hacs`) —
+those keep their family's own recovery story.
 
 ## Relation to other mechanisms
 

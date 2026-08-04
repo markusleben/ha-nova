@@ -61,6 +61,7 @@ const FORBIDDEN_HEADINGS = [
 ];
 
 const MUTATION_SKILLS = new Set([
+  "hacs",
   "write",
   "diagnose",
   "media",
@@ -129,6 +130,9 @@ const WORD_BUDGETS: Record<string, number> = {
   // setters (Codex round 6). Merge-train combination with the #483 receipt
   // lines and the #452 draft rule (measured 2182).
   write: 2200,
+  // HACS lifecycle: schema guard, reconcile loops, consumer discovery,
+  // migration backup gate, category-appropriate verification (#478).
+  hacs: 2200,
   // Cards adoption pointer (#389).
   diagnose: 1500,
   // Report-shape declaration line (shared output shapes); repair dedup,
