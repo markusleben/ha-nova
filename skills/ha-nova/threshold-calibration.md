@@ -34,7 +34,10 @@ preview. The direct call is not the only path: an automation or script
 UPDATE that adds or changes an ACTION invoking those setter services on a
 threshold-backing helper moves the threshold on every future run — the
 stored action triggers this preflight at update time, because no service
-call happens while the config is written.
+call happens while the config is written. A stored SCENE that assigns a
+new state to such a helper is the same class: a scene update adding or
+changing that member, and a `scene.apply` carrying it, both trigger the
+preflight before the write or call.
 
 ## Evidence (read-only, bounded)
 
@@ -42,7 +45,12 @@ call happens while the config is written.
    When the trigger/condition tests an `attribute`, calibrate that attribute
    from bounded raw history — primary-state statistics describe a different
    value and may only shortlist windows when they represent exactly the
-   tested attribute.
+   tested attribute. When a `value_template` transforms the signal, the raw
+   entity history is NOT the tested value: apply the same transform to each
+   historical sample before deriving ranges and phases; a transform that
+   cannot be reproduced offline (external entities, `now()`, non-pure
+   inputs) makes the calibration insufficient — say so rather than
+   calibrating the untransformed values.
    Check the statistics metadata first (`recorder/list_statistic_ids`): it
    names the available fields and the statistics unit. Only measurement-class
    statistics carry `min`/`mean`/`max`. For metered `total`/`total_increasing`

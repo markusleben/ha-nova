@@ -80,12 +80,21 @@ describe("threshold calibration preflight (#484)", () => {
     expect(calibration).toContain("miss in-bucket crossings");
     expect(calibration).toContain("reset marker");
     expect(calibration).toContain("never compare mixed units");
-    // Signal identity includes the transform; stored setter actions trigger
+    // Signal identity includes the transform (and its history must be
+    // reconstructed through it); stored setter actions and scenes trigger
     // the preflight at update time.
     expect(calibration).toContain("changing its `value_template`");
+    expect(calibration).toContain(
+      "apply the same transform to each\n   historical sample",
+    );
+    expect(calibration).toContain("cannot be reproduced offline");
     expect(calibration).toContain("the\nstored action triggers this preflight at update time");
+    expect(calibration).toContain("A stored SCENE that assigns a\nnew state");
     expect(writeSkill).toContain(
       "adds/changes an action setting a threshold-backing `input_number`",
+    );
+    expect(readFileSync("skills/scene/SKILL.md", "utf8")).toContain(
+      "run the calibration preflight per `skills/ha-nova/threshold-calibration.md`",
     );
     // Helper VALUE changes through service calls trigger the same preflight.
     expect(calibration).toContain("The same duty applies OUTSIDE config updates");
