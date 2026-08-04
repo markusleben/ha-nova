@@ -27,9 +27,17 @@ The two hard problems are handled skill-side:
    a failure: every mutation follows read → mutate → bounded reconcile loop
    (re-read HACS repository state, HA integration/manifest state via the
    API, config entries, pending flows) until the outcome is proven
-   completed/failed/still-running; no automatic retry until the read-back
-   proves no mutation happened; duplicate registrations, downloads, and
-   config flows are prevented by re-reading identity before every retry.
+   completed/failed/still-running. A single unchanged read-back after a
+   timeout proves NOTHING — the Relay only abandons its wait while the
+   upstream operation keeps running and can land later. Automatic retries
+   are therefore forbidden after an unresolved timeout: the reconcile loop
+   re-reads over a bounded settle window, and only a mutation that is
+   idempotent-verifiable by identity (the exact registration/download
+   already present → done; provably absent after the settle window AND
+   safe to repeat) may be retried without the user; anything else stops
+   with the observed state and asks. Duplicate registrations, downloads,
+   and config flows are prevented by re-reading identity before every
+   retry.
    Filesystem evidence is explicitly UNAVAILABLE: the Relay's file endpoint
    denies `custom_components` and `www` by design (executable paths,
    `DENIED_SEGMENTS` in `nova/src/http/handlers/files-paths.ts`), so
@@ -50,11 +58,14 @@ The two hard problems are handled skill-side:
   prerelease only on explicit request, update, redownload, uninstall; read
   available releases before choosing; verify CATEGORY-appropriately after
   every mutation — integrations verify manifest/domain/version and
-  config-entry state, frontend/plugin packages verify HACS repository
-  state, installed version, and the Lovelace resource registration, themes
-  verify repository state and version (neither has an integration
-  manifest); surface restart/frontend-reload needs without performing them
-  silently.
+  config-entry state, distinguishing INSTALLED (repository/files updated)
+  from ACTIVE (the running component, which requires a Home Assistant
+  restart): the result names which one was proven and never claims the
+  new version is live before that restart; frontend/plugin packages
+  verify HACS repository state, installed version, and the Lovelace
+  resource registration, themes verify repository state and version
+  (neither has an integration manifest); surface restart/frontend-reload
+  needs without performing them silently.
 - **Migration coordination:** HACS-specific consumer discovery before
   destructive steps — config entries, devices, entities, automations,
   scripts, and helpers through the canonical `search/related` filter, PLUS
