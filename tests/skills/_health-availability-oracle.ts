@@ -99,7 +99,9 @@ export function summarizeAvailability(fixture: AvailabilityFixture): string {
     const isRestored = row.attributes?.restored === true;
     if (row.state === "unavailable") unavailable += 1;
     if (isRestored) restored += 1;
-    if (lowSignalDomains.has(domain)) lowSignal += 1;
+    // Same state predicate as the category/example logic: only UNKNOWN
+    // rows in these domains are stateless context.
+    if (row.state === "unknown" && lowSignalDomains.has(domain)) lowSignal += 1;
 
     const registry = registryByEntity.get(row.entity_id);
     if (registry) registryMatched += 1;
