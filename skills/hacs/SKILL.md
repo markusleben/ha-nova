@@ -113,9 +113,13 @@ act on a name match alone.
 
 EVERY uninstall/removal — standalone or inside a migration — runs
 HACS-specific consumer discovery FIRST and shows the result in the preview:
-- the integration's OWN footprint through the HA registries: config entries
-  of its domain (`config_entries/get`), their devices and entities
-  (entity/device registry lists filtered by those entry IDs)
+- the integration's OWN footprint through the HA registries: entities whose
+  registry `platform` equals the integration's domain (this also covers
+  YAML-configured setups that have NO config entry), config entries of that
+  domain (`config_entries/get`) with their devices, plus a bounded
+  `/api/states` scan for the domain's entities missing from the registry.
+  When none of these sources yields the footprint, the preview says the
+  footprint is incomplete — never that there is none
 - REFERENCING automations/scripts/scenes through `search/related` on those
   entities — read the response ONLY through the canonical filter
   `skills/ha-nova/search-related-consumers.jq` (recreate it per
