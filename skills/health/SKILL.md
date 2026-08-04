@@ -166,8 +166,11 @@ pair `🔴`/`🟠`/`🟡` with a plain-language title or status ("act", "check",
   battery` state `low`. Classify with this ordered mapping, first match wins: (1) owning
   integration/platform `mobile_app` → rechargeable phone/watch battery;
   (2) an explicit vehicle or storage component/typed attribute → vehicle/storage SOC;
-  (3) `device_class: battery` on a non-mobile device → replaceable device battery;
-  (4) otherwise → unclassified low percentage. Structured evidence only —
+  (3) explicit replaceable evidence — a battery-type/battery-replaced style
+  typed attribute or a device explicitly modeled as battery-powered →
+  replaceable device battery; (4) otherwise — including bare
+  `device_class: battery`, which indicates a level, not replaceability →
+  unclassified low percentage. Structured evidence only —
   never from an entity name. Render the four classes separately;
   do not imply a battery replacement unless the entity is clearly a device battery — never recommend replacement for a phone/watch; never call vehicle SOC 0% a Home Assistant failure without connection context.
 - **System and coverage stay compact and honest.** System health: failed object-shaped `update` events first, then max 3 object-shaped `initial.data` highlights; ignore scalars and `finish`. System: HA version/mode,

@@ -367,9 +367,18 @@ export function summarizeAvailability(fixture: AvailabilityFixture): string {
     lines.push(
       `${safeLabel(group)}: ${group.count} entity states (${group.restored} restored), ${deviceContext}, ${entryState}`,
     );
-    if ((fixture.privacyMode ?? "private") === "private" && group.count <= 10) {
-      for (const id of group.entityIDs) {
-        lines.push(`  - ${id}`);
+    if ((fixture.privacyMode ?? "private") === "private") {
+      if (group.count <= 10) {
+        for (const id of group.entityIDs) {
+          lines.push(`  - ${id}`);
+        }
+      } else {
+        for (const id of group.entityIDs.slice(0, 5)) {
+          lines.push(`  - ${id}`);
+        }
+        lines.push(
+          `  total ${group.count}, shown 5, omitted ${group.count - 5}.`,
+        );
       }
     }
   }

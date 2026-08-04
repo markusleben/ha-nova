@@ -261,7 +261,7 @@ describe("health and calendar skill contracts", () => {
       "skip `system_health/info` when the relay is below the enforced floor (`min_relay_version`)",
     );
     expect(architecture).toContain(
-      "capped findings/groups, sanitized integration reasons",
+      "visible Detail×Privacy modes (default `Explained + Private`), prioritized actions, sanitized integration reasons (#440)",
     );
     expect(architecture).toContain(
       "label unavailable/unknown totals as entity-state counts, never device/problem counts",
@@ -269,7 +269,8 @@ describe("health and calendar skill contracts", () => {
     expect(architecture).toContain(
       "best-effort join full entity/device registries and config entries",
     );
-    expect(architecture).toContain("cap them at five");
+    expect(architecture).toContain("Explained budget of 50 entity-detail rows");
+    expect(architecture).toContain("exact entity IDs, friendly names, and sanitized config-entry titles are legitimate output");
     expect(architecture).toContain("deprioritize noisy/stateless domains");
     expect(architecture).not.toContain("current-session error log");
     expect(architecture).toContain(

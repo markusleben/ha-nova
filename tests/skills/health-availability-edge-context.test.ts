@@ -303,6 +303,14 @@ describe("health availability adversarial edge fixtures", () => {
     );
     expect(currentReport).toContain("tracker/presence 10");
 
+    // #440: an 11-50 group in Private+Explained emits five prioritized
+    // examples plus total/shown/omitted — never zero detail.
+    const midGroup = summarizeAvailability(
+      groupFixture([{ platform: "mid", count: 12, state: "loaded" }]),
+    );
+    expect(midGroup.match(/^ {2}- /gm) ?? []).toHaveLength(5);
+    expect(midGroup).toContain("total 12, shown 5, omitted 7.");
+
     const broadStates = Array.from({ length: 10 }, (_, index) => ({
       entity_id: `sensor.broad_${index}`,
       state: "unavailable",
