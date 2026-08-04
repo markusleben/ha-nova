@@ -106,8 +106,11 @@ act on a name match alone.
   (duplicate/rename detection happens on the same re-read). Registration
   does not download anything; say so.
 - Remove registration: typed confirmation code, and only with exact identity
-  plus installation state known — removing a registration never deletes
-  files (that is uninstall).
+  plus installation state known — and only when `installed == false`.
+  Unregistering an installed repository strands its files (the ID vanishes
+  from `list`, so a later uninstall would need re-registration): when it is
+  still installed, run the separately confirmed uninstall FIRST, then
+  unregister. Removing a registration never deletes files.
 
 ### Uninstall / removal
 
