@@ -102,6 +102,10 @@ describe("updates contract", () => {
       "never part of the one batch confirmation",
     );
     expect(updatesSkill).toContain("offer ONE restart at the end");
+    // Pinned HACS repos keep reporting pending — a batch never overrides a pin.
+    expect(updatesSkill).toContain(
+      "EXCLUDE repositories with a `selected_tag`",
+    );
     expect(updatesSkill).toContain("Never install anything the user did not ask about or confirm");
     expect(updatesSkill).toContain("say so instead of installing them unprompted; an explicit, confirmed user request may still install");
   });
