@@ -31,11 +31,13 @@ The two hard problems are handled skill-side:
    timeout proves NOTHING — the Relay only abandons its wait while the
    upstream operation keeps running and can land later. Automatic retries
    are therefore forbidden after an unresolved timeout: the reconcile loop
-   re-reads over a bounded settle window, and only a mutation that is
-   idempotent-verifiable by identity (the exact registration/download
-   already present → done; provably absent after the settle window AND
-   safe to repeat) may be retried without the user; anything else stops
-   with the observed state and asks. Duplicate registrations, downloads,
+   re-reads over a bounded settle window, and only an IDEMPOTENT
+   mutation (repeating it is harmless even if the timed-out original
+   lands later) may be retried without the user — identity present →
+   done, otherwise retry. Non-idempotent mutations NEVER auto-retry: an
+   absent identity after the settle window still proves nothing while the
+   upstream operation may complete later, so they stop with the observed
+   state and ask. Duplicate registrations, downloads,
    and config flows are prevented by re-reading identity before every
    retry.
    Filesystem evidence is explicitly UNAVAILABLE: the Relay's file endpoint
@@ -62,8 +64,10 @@ The two hard problems are handled skill-side:
   from ACTIVE (the running component, which requires a Home Assistant
   restart): the result names which one was proven and never claims the
   new version is live before that restart; frontend/plugin packages
-  verify HACS repository state, installed version, and the Lovelace
-  resource registration, themes verify repository state and version
+  verify HACS repository state, installed version, and — in storage
+  resource mode — the Lovelace resource registration (YAML resource mode
+  manages resources by hand: say the resource is user-managed instead of
+  failing the check), themes verify repository state and version
   (neither has an integration manifest); surface restart/frontend-reload
   needs without performing them silently.
 - **Migration coordination:** HACS-specific consumer discovery before
@@ -72,7 +76,11 @@ The two hard problems are handled skill-side:
   a frontend-package scan the standard preflight cannot provide: read the
   Lovelace resource list and storage dashboard configs for the package's
   custom element/resource references (manual YAML dashboards are not
-  enumerable — that gap is disclosed, never claimed clean). Same-domain
+  enumerable — that gap is disclosed, never claimed clean). Entities
+  referenced only inside templates are equally not enumerable via
+  `search/related` (the preflight's documented template limit) — the
+  preview names template consumers as an unscanned surface instead of
+  claiming no consumers. Same-domain
   replacement risk, entity-ID preservation honesty, hand-off to
   `integration-setup` for config flows, hard stop for UI-only
   credentials/OAuth/pairing, never delete a working config entry before
