@@ -124,7 +124,8 @@ const WORD_BUDGETS: Record<string, number> = {
   // fallback at both search/related call sites + delete-direction
   // clarification (#489).
   // Self-describing update-revert checkpoint receipts (#483).
-  write: 2025,
+  // Threshold-calibration preflight step (#484).
+  write: 2050,
   // Cards adoption pointer (#389).
   diagnose: 1500,
   // Report-shape declaration line (shared output shapes); repair dedup,
@@ -180,6 +181,7 @@ const WORD_BUDGETS: Record<string, number> = {
   // capture (Wave 2).
   // Grouped-change-set opt-in + final-block clarifier (#391).
   // Smallest-complete-solution routing for feature offers (#452).
+  // Threshold-family calibration preflight wiring (#484).
   helper: 3950,
   // Suggestion Block item-shape pointer (shared output shapes); scene/
   // dashboard first-class targets with flow adaptation (2026-h2 Wave 3).
