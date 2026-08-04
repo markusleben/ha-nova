@@ -21,8 +21,9 @@ The two hard problems are handled skill-side:
    `hacs/repository/*` families), guarded by capability detection: read the
    HACS version first (config-entry/manifest or `hacs/info`), proceed only on
    a recognized schema version, and fail closed with the HACS-UI pointer on an
-   unrecognized one. Never guess schemas; never edit `.storage` as the normal
-   path; SSH stays a last resort requiring explicit user authorization.
+   unrecognized one. Never guess schemas; never edit `.storage`; never SSH —
+   the Safety Core binds every operation to the Relay path, so unrecognized
+   schemas and failed operations stop with the HACS-UI pointer, full stop.
 2. **Long-running operations.** A Relay timeout is an UNKNOWN outcome, never
    a failure: every mutation follows read → mutate → bounded reconcile loop
    (re-read HACS repository state, HA integration/manifest state via the
@@ -93,8 +94,10 @@ The two hard problems are handled skill-side:
   HACS-specific consumer discovery first, so live config entries,
   automations, or dashboards depending on the package surface in the
   preview instead of breaking silently; **mandatory safety
-  backup gate for migrations** — create (or require) a full Home Assistant
-  Backup before the first destructive step, since config-entry create/delete
+  backup gate for migrations** — create a full Home Assistant Backup before
+  the first destructive step, or accept an existing one only when it is
+  COMPLETED and CURRENT per the safety-backup contract (a backup predating
+  the present configuration does not satisfy the gate), since config-entry create/delete
   sits outside the config-snapshot layer (community-log lesson); record
   pre-change state (versions, repository identity) so manual recovery or
   reinstalling the previous version is always explainable; no credentials in
