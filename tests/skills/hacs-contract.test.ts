@@ -79,13 +79,13 @@ describe("hacs lifecycle skill (#478)", () => {
   it("wires ownership across fallback, updates, dispatch, and safety surfaces", () => {
     const fallback = readFileSync("skills/fallback/SKILL.md", "utf8");
     expect(fallback).toContain(
-      "| HACS (registration, download, update, uninstall, migration) | Covered | hacs |",
+      "| HACS (registration, download, version switching, uninstall, migration) | Covered | hacs |",
     );
     expect(fallback).toContain("never probe\n`hacs/*` WS commands");
     const updates = readFileSync("skills/updates/SKILL.md", "utf8");
     expect(updates).toContain("(`ha-nova:hacs`)");
     const context = readFileSync("skills/ha-nova/SKILL.md", "utf8");
-    expect(context).toContain("| install, update, pin, redownload, or remove HACS packages");
+    expect(context).toContain("| install, pin or downgrade to a specific version, redownload, or remove HACS packages");
     const writeSafety = readFileSync("skills/ha-nova/write-safety.md", "utf8");
     expect(writeSafety).toContain("| `hacs` |");
     const snapshots = readFileSync("skills/ha-nova/config-snapshots.md", "utf8");

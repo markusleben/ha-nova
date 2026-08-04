@@ -292,7 +292,7 @@ Rules:
 - deprioritize noisy/stateless domains (`button`, `event`, `scene`, `stt`) for attention while retaining their contextualized counts
 - localize output slot headings and labels; keep HA state values literal when used as evidence
 
-## Calendar Architecture
+## HACS Architecture
 
 `ha-nova:hacs` owns the HACS package lifecycle end to end — registration,
 download/install, update, redownload, uninstall, and custom-integration
@@ -316,6 +316,8 @@ migration:
   distinguishes INSTALLED from ACTIVE (restart pending)
 - update ownership: `update.*` entity flows stay in `ha-nova:updates`; this
   skill owns what the entity flow cannot do
+
+## Calendar Architecture
 
 `ha-nova:calendar` owns bounded calendar reads and single-event writes:
 - list calendars through `/api/calendars`

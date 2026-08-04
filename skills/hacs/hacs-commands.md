@@ -16,8 +16,8 @@ Proceed only when ALL hold; otherwise fail closed with the HACS-UI pointer on
 an unrecognized or unhealthy install:
 
 - `version` parses and is a recognized 2.x line, and the payload has NO
-  `experimental` key (1.x sent it; 2.x removed it — its presence means the
-  1.x command names below do not exist under these types).
+  `experimental` key (1.x lines sent it; 2.0 removed it — its presence
+  marks a pre-2.0 install whose command surface this map does not cover).
 - `disabled_reason` is null (`rate_limit`, `removed`, `invalid_token`,
   `constrains`, `load_hacs`, `restore` all mean HACS itself is not
   operational).
@@ -25,7 +25,8 @@ an unrecognized or unhealthy install:
   otherwise data is incomplete; reads may proceed with that caveat stated.
 
 `lovelace_mode` decides frontend verification: `storage` → the Lovelace
-resource registration is checkable; `yaml` → resources are user-managed.
+resource registration is checkable; any other mode (`yaml`, `auto`,
+`auto-gen`) → resources are user-managed.
 
 1.x background (fail-closed rationale only — never call these): the pre-1.26
 API used `hacs/config`/`hacs/status`, `hacs/repositories`, and action-based
@@ -53,14 +54,15 @@ never guessed, reused across sessions, or derived from names.
   `downloads`, `last_updated`.
 - `{"type":"hacs/repository/info","repository_id":"<id>"}` → the row plus
   `releases` (published tags), `selected_tag`, `beta`, `default_branch`,
-  `version_or_commit`, rendered README. Side effects: forces a GitHub
+  `version_or_commit`, raw README/info markdown. Side effects: forces a GitHub
   refresh on first call and clears the `new` flag. Clean
   `repository_not_found` error on a bad ID.
 - `{"type":"hacs/repository/releases","repository_id":"<id>"}` →
   `[{name, tag, published_at, prerelease}]` (live GitHub fetch; error code
   `unknown` on failure).
 - `{"type":"hacs/repository/release_notes","repository":"<id>"}` →
-  `[{name, body, tag}]` for releases newer than the installed version.
+  `[{name, body, tag}]` for releases newer than the installed version
+  (ALL cached releases when nothing is installed).
 - `{"type":"hacs/repositories/removed"}` → repositories removed from the
   default store (surface these as warnings when installed).
 - `{"type":"hacs/critical/list"}` → critical repositories
@@ -69,10 +71,12 @@ never guessed, reused across sessions, or derived from names.
 ## Mutations
 
 - `{"type":"hacs/repositories/add","repository":"<url-or-owner/repo>","category":"<category>"}` —
-  registers a custom repository; does NOT download. Returns `{}` EVEN ON
-  FAILURE — the socket never reports add errors. Verify by re-listing for
-  the canonical `full_name` (or subscribe to `hacs_dispatch_error` first);
-  an add that does not appear in the re-list failed.
+  registers a custom repository; does NOT download. The socket cannot
+  report add failures reliably: parseable requests return `{}` even on
+  failure, an unparseable URL returns NOTHING (a Relay timeout), and an
+  invalid category fails log-only. The canonical re-list for the expected
+  `full_name` is the ONLY complete verification; an add that does not
+  appear in the re-list failed.
 - `{"type":"hacs/repositories/remove","repository":"<id>"}` — unregisters a
   custom repository; downloaded files stay (file removal is
   `hacs/repository/remove`).
@@ -82,12 +86,23 @@ never guessed, reused across sessions, or derived from names.
 - `{"type":"hacs/repository/remove","repository":"<id>"}` — uninstall:
   deletes the downloaded files.
 - `{"type":"hacs/repository/version","repository":"<id>","version":"<tag>"}` —
-  selects a version (sets `selected_tag`); does NOT download — follow with
-  `download` to apply.
+  sets `selected_tag`; does NOT download. Ordering is critical: a `download`
+  WITHOUT `version` resolves to the LATEST release, and EVERY download
+  clears `selected_tag` when it finishes — so installing a specific version
+  means passing `version` DIRECTLY to `download`, and a persistent pin is
+  set with this command AFTER the verified download. HACS still reports a
+  tag-pinned repository as `pending_upgrade`; a pin never suppresses update
+  signaling — disclose that.
 - `{"type":"hacs/repository/beta","repository":"<id>","show_beta":true}` —
   toggles prerelease visibility; re-fetches releases.
 - `{"type":"hacs/repository/refresh","repository":"<id>"}` — forced GitHub
   data refresh (no file changes); also refreshes the `update.*` entities.
+- `{"type":"hacs/repository/ignore","repository":"<id>"}` — hides the
+  repository from HACS listings (visibility flag, no file changes); clean
+  `repository_not_found` on a bad ID. Only on explicit request.
+- `{"type":"hacs/critical/acknowledge","repository":"<full_name>"}` —
+  acknowledges a critical-repository notice (takes `full_name`, not the
+  ID). Only on explicit request, after showing the critical reason.
 - `{"type":"hacs/repositories/clear_new", ...}` and
   `{"type":"hacs/repository/state", ...}` are UI housekeeping — this skill
   does not send them.
@@ -111,7 +126,10 @@ Integration downloads generally leave the new code INSTALLED but not ACTIVE:
 every upgrade — and the first install of a non-config-flow integration —
 requires a Home Assistant restart before the running component changes (the
 one exception is the first install of a `config_flow` integration, which HACS
-live-loads). Pending state surfaces as `status: "pending-restart"` in
-`list`/`info` and as a fixable `hacs` repair issue (`restart_required_*`).
+live-loads). Uninstalling a non-config-flow integration ALSO sets pending
+restart — the files are gone but the loaded component keeps RUNNING until
+Home Assistant restarts. Pending state surfaces as
+`status: "pending-restart"` in `list`/`info` and as a fixable `hacs` repair
+issue (`restart_required_*`).
 `plugin`/`theme`/`template`/`python_script`/`appdaemon` never set
 pending-restart; frontend packages need a browser/frontend reload instead.

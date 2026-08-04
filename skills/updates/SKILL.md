@@ -18,7 +18,7 @@ Lifecycle:
 Not in scope:
 - auto-update settings: HA UI
 - HACS store operations beyond `update.*` entities (`ha-nova:hacs`)
-- rollbacks: not downgradable; recovery is a Home Assistant Backup
+- rollbacks: not downgradable (HACS downgrades: `ha-nova:hacs`); recovery is a Home Assistant Backup
 
 ## Bootstrap (once per session)
 

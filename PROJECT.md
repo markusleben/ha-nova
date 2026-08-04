@@ -21,7 +21,7 @@ Active doc ownership lives in `docs/reference/documentation-governance.md`.
 Shipped and current:
 1. Relay: `GET /health`, `POST /ws`, `POST /core`, `POST /files` (opt-in, default off); App + standalone container from one codebase
 2. Go CLI: install, setup wizard, doctor, update (incl. guided relay update), uninstall (incl. guided server-side teardown), relay proxy
-3. Context skill `ha-nova` plus 29 task skills, flat under `skills/` — the dispatch table in `skills/ha-nova/SKILL.md` is the authoritative inventory
+3. Context skill `ha-nova` plus 30 task skills, flat under `skills/` — the dispatch table in `skills/ha-nova/SKILL.md` is the authoritative inventory
 4. Shared references under `skills/ha-nova/` (relay API contract, output rules, write safety, batch safety, schemas, agent templates)
 
 HA NOVA also contains a release-gated, opt-in Home Assistant Cloud remote

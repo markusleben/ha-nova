@@ -1,6 +1,6 @@
 ---
 name: hacs
-description: Use when installing, updating, pinning, redownloading, or removing HACS packages, adding custom HACS repositories, or migrating to a custom integration through HA NOVA Relay.
+description: Use when installing, version-pinning or downgrading, redownloading, or removing HACS packages, adding custom HACS repositories, or migrating to a custom integration through HA NOVA Relay.
 license: MIT
 compatibility: Requires the ha-nova CLI (run 'ha-nova setup' first) and the HA NOVA Relay in Home Assistant (App, or standalone container on Container/Core). HACS 2.x must already be installed in Home Assistant.
 ---
@@ -33,9 +33,15 @@ If this fails: `ha-nova setup`
 ## Relay Contract
 
 File-based relay requests only:
-- `ha-nova relay ws --data-file <payload-file> --out <result-file>`
+- `ha-nova relay ws --data-file <payload-file> --out <result-file>` — all
+  `hacs/*` commands, plus the WS-only frontend reads
+  `{"type":"lovelace/resources"}` and
+  `{"type":"lovelace/config","url_path":<dashboard>}`
 - `ha-nova relay core --method GET --path <path> --out <result-file>` for HA
-  reads (config entries, states, Lovelace resources)
+  REST reads (config entries, states)
+- `ha-nova relay core --method DELETE --path /api/config/config_entries/entry/<entry_id>`
+  — ONLY for a dependent config-entry deletion inside this skill's
+  uninstall/migration flow, after its own typed confirmation
 - `--jq-file <filter-file>` for non-trivial filters
 
 Envelope parsing follows `skills/ha-nova/relay-api.md` → Standard Envelope;
@@ -101,8 +107,12 @@ act on a name match alone.
 EVERY uninstall/removal — standalone or inside a migration — runs
 HACS-specific consumer discovery FIRST and shows the result in the preview:
 - config entries, devices, entities, automations, scripts, helpers through
-  `search/related` on the package's entities/domain (canonical filter per
-  `skills/ha-nova/search-related-consumers.jq`)
+  `search/related` on the package's entities/domain — read the response ONLY
+  through the canonical filter `skills/ha-nova/search-related-consumers.jq`
+  (recreate it per `skills/ha-nova/relay-api.md` → Parsing rule on flat-copy
+  installs). Fail closed: only a verified-shape empty result means "no
+  linked consumers found"; a failed, skipped, or wrong-path scan renders as
+  "consumer check inconclusive", NEVER as a no-consumer claim
 - for frontend packages additionally the Lovelace resource list and storage
   dashboard configs for the package's custom element references; manual YAML
   dashboards and template consumers are not enumerable — name them as an
@@ -114,10 +124,15 @@ previous version stays explainable.
 
 ### Migration (custom integration replaces another)
 
-Follows `docs`-specified coordination: a CURRENT completed full Home
+A CURRENT completed full Home
 Assistant Backup is MANDATORY before the first destructive step — create
-one, or accept an existing backup only when completed and current (config
-entries sit outside config snapshots; the Backup is the recovery net).
+one via `ha-nova:backup`, or accept an existing backup only when it is
+COMPLETED and CURRENT (a backup predating the present configuration does
+not satisfy the gate; config entries sit outside config snapshots — the
+Backup is the recovery net).
+Check same-domain replacement risk before installing the replacement: a
+fork that keeps the original integration domain collides with the
+installed one — name which registration/entry survives and in what order.
 Never delete a working config entry before the replacement is resolvable;
 hand config flows to `ha-nova:integration-setup`; hard stop for UI-only
 credentials/OAuth/pairing; entity-ID preservation is verified, never
@@ -151,7 +166,9 @@ Command success alone is never a result. Verify by category:
   frontend reload note replaces restart talk.
 - theme/template/python_script/appdaemon: repository state and version.
 Also verify survival of unrelated objects and absence of duplicates after
-adds/migrations.
+adds/migrations. Evidence comes from the HACS/HA APIs ONLY — never file
+reads; the Relay file endpoint denies `custom_components` and `www` by
+design.
 
 ## Error Handling
 
