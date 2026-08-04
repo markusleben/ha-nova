@@ -184,19 +184,27 @@ export function summarizeAvailability(fixture: AvailabilityFixture): string {
       entry,
       isPlatformOnly: key.startsWith("platform:"),
     };
+    // Stateless/low-signal context is the UNKNOWN state in those domains —
+    // an unavailable button is a current finding like any other row.
+    const isLowSignalContext =
+      row.state === "unknown" && lowSignalDomains.has(domain);
     group.entityRows.push({
       id: row.entity_id,
       restored: isRestored,
-      lowSignal: lowSignalDomains.has(domain),
+      lowSignal: isLowSignalContext,
+      // Documented precedence: friendly_name → registry name →
+      // registry original_name → exact ID.
       name: safeDisplayName(
-        row.attributes?.friendly_name ?? registry?.name,
+        row.attributes?.friendly_name ??
+          registry?.name ??
+          registry?.original_name,
         row.entity_id,
       ),
     });
     if (!isRestored && trackerDomains.has(domain)) {
       group.currentTrackerRows += 1;
     }
-    if (!isRestored && !lowSignalDomains.has(domain)) {
+    if (!isRestored && !isLowSignalContext) {
       group.currentFindingRows += 1;
     }
     group.count += 1;
@@ -354,8 +362,11 @@ export function summarizeAvailability(fixture: AvailabilityFixture): string {
   if (omittedDetails.length > 0) {
     // Every remaining group appears in the catalog with its own counts and
     // an exact, label-addressed detail request — an aggregate line alone
-    // gives the user no usable name to ask for.
-    for (const group of omittedDetails) {
+    // gives the user no usable name to ask for. Attention-owned groups keep
+    // their whole finding (impact + catalog) under Integrations instead.
+    for (const group of omittedDetails.filter(
+      (item) => !isAttentionEntry(item.entry),
+    )) {
       lines.push(
         `${safeLabel(group)}: total ${group.count}, shown 0, omitted ${group.count}. Request the "${safeLabel(group)}" group's detail for its rows; results may have changed (fresh live read).`,
       );
@@ -380,7 +391,7 @@ export function summarizeAvailability(fixture: AvailabilityFixture): string {
     }
     if (!displayedKeys.has(group.key)) {
       lines.push(
-        `${safeLabel(group)}: ${entry.state}${safeReason(entry)}; joined impact detail omitted by shared group-detail cap`,
+        `${safeLabel(group)}: ${entry.state}${safeReason(entry)}; impact ${group.count} entity states — detail omitted by shared group-detail cap: total ${group.count}, shown 0, omitted ${group.count}. Request the "${safeLabel(group)}" group's detail for its rows; results may have changed (fresh live read).`,
       );
       continue;
     }

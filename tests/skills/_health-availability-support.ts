@@ -10,6 +10,7 @@ export type RegistryRow = {
   device_id?: string | null;
   platform?: string | null;
   name?: string;
+  original_name?: string;
 };
 
 export type ConfigEntry = {
@@ -99,7 +100,12 @@ export function safeDisplayName(candidate: unknown, entityID: string): string {
 }
 
 export function isSafeEntityID(value: unknown): value is string {
-  return typeof value === "string" && /^[a-z0-9_]+\.[a-z0-9_]+$/.test(value);
+  // The domain bound mirrors the user-visible domain contract (max 128);
+  // the object part gets a generous but finite bound.
+  return (
+    typeof value === "string" &&
+    /^[a-z0-9_]{1,128}\.[a-z0-9_]{1,255}$/.test(value)
+  );
 }
 
 const knownEntryStates = new Set([

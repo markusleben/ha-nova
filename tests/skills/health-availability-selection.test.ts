@@ -117,7 +117,12 @@ describe("health availability detail selection and budgets", () => {
       ]),
     );
     expect(report).toContain("urgent: setup_error; impact 2 entity states");
-    expect(report.match(/; impact \d+ entity states/g)).toHaveLength(5);
+    // Codex R7: every attention entry keeps its impact under Integrations —
+    // budget-omitted entries carry it inline with their catalog counts.
+    expect(report.match(/; impact \d+ entity states/g)).toHaveLength(7);
+    expect(report).toMatch(
+      /not_loaded; impact 10 entity states — detail omitted by shared group-detail cap: total 10, shown 0, omitted 10\./,
+    );
     expect(report.indexOf("urgent: setup_error; impact")).toBeLessThan(
       report.indexOf("nl_a: not_loaded; impact"),
     );
