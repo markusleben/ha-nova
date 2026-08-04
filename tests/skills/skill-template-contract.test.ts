@@ -176,7 +176,8 @@ const WORD_BUDGETS: Record<string, number> = {
   // constraint checks + drift-check step (Wave 1); pre-delete snapshot
   // capture (Wave 2).
   // Grouped-change-set opt-in + final-block clarifier (#391).
-  helper: 3900,
+  // Smallest-complete-solution routing for feature offers (#452).
+  helper: 3950,
   // Suggestion Block item-shape pointer (shared output shapes); scene/
   // dashboard first-class targets with flow adaptation (2026-h2 Wave 3).
   // Quick-fix Preview Card reference (#389).

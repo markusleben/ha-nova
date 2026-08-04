@@ -117,6 +117,8 @@ When you need the user to choose between options:
 
 Use this for: Suggestion Blocks (output-rules.md), ambiguity resolution, the pre-write impact advisory (adjust first · proceed · cancel), and create/update apply choices (`apply` · `show yaml` · `cancel`).
 
+Solution design across all write-capable skills follows `skills/ha-nova/smallest-solution.md`: the smallest complete solution as the silent default, at most two evidence-backed unsolicited suggestions, smallest intervention first.
+
 ## User-Assisted Readiness
 
 When evidence needs the user to act physically (press a button, walk past a sensor, open a door), never give the instruction first. Sequence:

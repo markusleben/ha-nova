@@ -73,6 +73,9 @@ Critical behavior:
 
 ## Flow
 
+Drafts follow `skills/ha-nova/smallest-solution.md`: the complete requested outcome in the simplest safe design, nothing for hypothetical future needs.
+
+
 1. Resolve the dashboard target.
    - Always list dashboards first with `lovelace/dashboards/list`.
    - Match by `url_path`, title, or current identity.

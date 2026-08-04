@@ -157,7 +157,11 @@ is shared.
 One shape for every improvement offer: write-flow enhancement suggestions,
 helper suggested defaults, review Suggestions items, and separate
 notification-copy offers. 💡 header line (single space after 💡), numbered
-items, max 4. Item shape: short title + what it does + why it helps; value
+items. Caps: unsolicited improvement suggestions max 2, smallest intervention
+first, none when the requested solution is already complete
+(`skills/ha-nova/smallest-solution.md`); value-default suggestions (filling
+fields of the requested item, e.g. helper defaults) max 4.
+Item shape: short title + what it does + why it helps; value
 suggestions (helper defaults) may use the value assignment as the title and
 drop the benefit when it is obvious. Menu mechanics follow context skill →
 Interactive Choices; skip/decline is always valid; omit the block entirely

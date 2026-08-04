@@ -38,6 +38,9 @@ This skill needs **Relay 0.8.0 or newer** AND file access enabled. Both are the 
 
 ## Flow
 
+Drafts follow `skills/ha-nova/smallest-solution.md`: the complete requested outcome in the simplest safe design, nothing for hypothetical future needs.
+
+
 Never skip a step.
 
 1. **Read before write.** `read_file` the target (or `list_dir` to find it). Never write a file you have not read: `write_file` replaces the whole file, so an unread file means an unknown loss.

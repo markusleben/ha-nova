@@ -47,6 +47,9 @@ Family-specific transport:
 
 ## Flow
 
+Drafts follow `skills/ha-nova/smallest-solution.md`: the complete requested outcome in the simplest safe design — never an extra helper, option, or abstraction the request does not need.
+
+
 ### Family 1: Storage-based helpers
 
 #### Listing helpers
@@ -100,7 +103,7 @@ If 0 results: try synonyms or shorter stems. Never dump entire domains.
 2. Use-case defaults (create only, skip on update/delete):
    - Infer use-case from helper name + type using general HA knowledge.
    - Consult `skills/ha-nova/helper-schemas.md` → Suggested Defaults for principles and field name reminders.
-   - If sensible defaults can be inferred: render them as the Suggestion Block (output-rules.md), max 4 as numbered list. Group related fields into one item.
+   - If sensible defaults can be inferred: render them as the Suggestion Block (output-rules.md), max 4 as numbered list (value defaults fill the requested item; feature-style improvement offers follow `skills/ha-nova/smallest-solution.md` — max 2). Group related fields into one item.
      ```
      💡 Suggested defaults for "{name}" ({type}):
      1. min: 16, max: 30, step: 0.5
