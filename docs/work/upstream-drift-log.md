@@ -17,7 +17,12 @@ stopped.
   core/OS/Supervisor; HACS update entities participate. Modeled in
   `skills/updates/SKILL.md` (mirror the guardrails, deliberately not the
   call shape) via PR #506.
-- CLEAN — HACS 2.0.5 WS command surface matches the pinned map in
-  `skills/hacs/hacs-commands.md` (source-verified 2026-08-04 and
-  runtime-verified read-only against the reference instance).
-- Next window starts WITH HA 2026.8 (everything after the 2026.7 post and HACS 2.0.5 is unscreened).
+- CLEAN — HACS 2.0.5 WS command surface matches the pinned map added in
+  PR #506 (`skills/hacs/hacs-commands.md`, landing with the same train;
+  source-verified 2026-08-04 and runtime-verified read-only against the
+  reference instance).
+- NOT SCREENED — the HA developer-blog breaking-change check for 2026.7
+  did not run in this pass; it carries into the next window.
+- Next window starts WITH HA 2026.8 AND includes the carried-over 2026.7
+  developer-blog backlog (everything after the 2026.7 release post and
+  HACS 2.0.5 is unscreened).
