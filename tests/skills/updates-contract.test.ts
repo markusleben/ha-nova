@@ -106,6 +106,9 @@ describe("updates contract", () => {
     expect(updatesSkill).toContain(
       "EXCLUDE repositories with a `selected_tag`",
     );
+    expect(updatesSkill).toContain(
+      "before ANY install — single or batched",
+    );
     expect(updatesSkill).toContain("Never install anything the user did not ask about or confirm");
     expect(updatesSkill).toContain("say so instead of installing them unprompted; an explicit, confirmed user request may still install");
   });
