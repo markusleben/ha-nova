@@ -45,13 +45,18 @@ classifies nothing and needs no history.
 
 ## Preview duties
 
-- Report the observed ranges, the longest ambiguous phase versus the proposed
-  `for:`/timeout, and missing-data limitations — numbers, not adjectives.
-- Hysteresis is an amplitude, not a duration: for a `threshold` helper's
-  `hysteresis` change, evaluate value-domain evidence instead — observed
-  noise and excursions against the effective on/off boundaries
-  (`lower`/`upper` ± hysteresis) — so the false-toggle guard is validated,
-  not just assumed.
+- Report the observed ranges and missing-data limitations — numbers, not
+  adjectives. Compare the RIGHT duration to the right evidence: a debounce
+  `for:` duration compares against the longest ambiguous phase; a
+  `wait_for_trigger`/`wait_template` TIMEOUT runs from wait start until the
+  trigger/template succeeds, so it compares against the observed
+  start-to-crossing/completion latency — an ambiguous-dip comparison would
+  falsely validate a timeout that always expires first.
+- Threshold-helper changes are value-domain: for EVERY `lower`, `upper`, or
+  `hysteresis` update, evaluate observed noise and excursions against the
+  effective on/off boundaries (`lower`/`upper` ± hysteresis) so a boundary
+  moved through noise — or an unvalidated false-toggle guard — cannot pass
+  the preview unexamined.
 - The behavior narrative states BOTH failure directions: what fires too early
   or falsely with the new values, and what fires late or never.
 - Insufficient evidence (short history, large gaps, entity renamed recently)

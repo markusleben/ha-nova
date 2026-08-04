@@ -40,6 +40,15 @@ describe("threshold calibration preflight (#484)", () => {
     expect(calibration).toContain("never\n   trigger a run to create one");
   });
 
+  it("compares the right duration to the right evidence", () => {
+    // Debounce vs timeout semantics (Codex round 3).
+    expect(calibration).toContain("longest ambiguous phase");
+    expect(calibration).toContain("start-to-crossing/completion latency");
+    expect(calibration).toContain("falsely validate a timeout");
+    // Every helper boundary field is value-domain validated.
+    expect(calibration).toContain("EVERY `lower`, `upper`, or\n  `hysteresis` update");
+  });
+
   it("makes the preview honest about both failure directions and thin evidence", () => {
     expect(calibration).toContain("BOTH failure directions");
     expect(calibration).toContain("fires too early");
