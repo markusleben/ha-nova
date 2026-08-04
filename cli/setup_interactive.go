@@ -68,6 +68,11 @@ func maybeHandleInteractiveSetupCurrentState(reader *bufio.Reader, out io.Writer
 		if cloudAttempted && cfg.Cloud != nil && !cfg.Cloud.ready() {
 			return true, cloudCode
 		}
+		// Offered before completeSetupLifecycle so the add flow's config
+		// saves run under the same lifecycle marker as this setup pass.
+		if addAttempted, addCode := maybeOfferAddServerForCompletedSetup(reader, out, paths, serviceMode, lifecycleMarker...); addAttempted && addCode != 0 {
+			return true, addCode
+		}
 		if err := completeSetupLifecycle(paths, lifecycleMarker...); err != nil {
 			printHumanErr("cannot finalize setup lifecycle: %s", err)
 			return true, 1
