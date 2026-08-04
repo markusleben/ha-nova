@@ -66,7 +66,23 @@ export function isSafeHASlug(value: unknown): value is string {
 
 // Display-name precedence lives with the caller; this only decides whether a
 // candidate name is safely renderable next to the exact entity ID: printable,
-// single-line, bounded, and adding information beyond the ID itself.
+// single-line, bounded, adding information beyond the ID itself, and free of
+// the patterns the privacy contract forbids in every mode (URLs, hostnames,
+// IPs, Markdown delimiters, secret-like values). Fail closed — dropping a
+// name loses nothing, the exact ID is always shown.
+const FORBIDDEN_NAME_PATTERN = new RegExp(
+  [
+    String.raw`https?://`,
+    String.raw`www\.`,
+    String.raw`\d{1,3}(?:\.\d{1,3}){3}`,
+    // Dot-joined tokens are hostname-shaped (host.local, nas.lan, x.example.com).
+    String.raw`[^\s.]+\.[^\s.]{2,}`,
+    String.raw`[\\|\x60*_#\[\]<>]`,
+    String.raw`(?:token|secret|passwor|api[-_ ]?key)`,
+  ].join("|"),
+  "iu",
+);
+
 export function safeDisplayName(candidate: unknown, entityID: string): string {
   if (typeof candidate !== "string") return "";
   const trimmed = candidate.trim();
@@ -74,7 +90,8 @@ export function safeDisplayName(candidate: unknown, entityID: string): string {
     trimmed === "" ||
     trimmed === entityID ||
     trimmed.length > 64 ||
-    /[\p{Cc}\p{Cf}]/u.test(trimmed)
+    /[\p{Cc}\p{Cf}]/u.test(trimmed) ||
+    FORBIDDEN_NAME_PATTERN.test(trimmed)
   ) {
     return "";
   }

@@ -59,8 +59,14 @@ export function summarizeAvailability(fixture: AvailabilityFixture): string {
   const entryByID = new Map(
     fixture.entries.map((entry) => [entry.entry_id, entry]),
   );
+  // Whole-source invalidation applies to EITHER registry: one malformed
+  // device row (missing/empty id) makes the device registry unavailable.
+  const devicesSourceValid = (fixture.devices ?? []).every(
+    (device) => typeof device.id === "string" && device.id !== "",
+  );
+  const deviceRows = devicesSourceValid ? fixture.devices : undefined;
   const registeredDeviceIDs = new Set(
-    (fixture.devices ?? []).map((device) => device.id),
+    (deviceRows ?? []).map((device) => device.id),
   );
   const groups = new Map<string, Group>();
   const overallDeviceIDs = new Set<string>();
@@ -262,7 +268,7 @@ export function summarizeAvailability(fixture: AvailabilityFixture): string {
       ...(candidates.length > 0 && registryRows === undefined
         ? ["entity registry"]
         : []),
-      ...(candidates.length > 0 && fixture.devices === undefined
+      ...(candidates.length > 0 && deviceRows === undefined
         ? ["device registry"]
         : []),
     ]),
@@ -312,12 +318,12 @@ export function summarizeAvailability(fixture: AvailabilityFixture): string {
       `Categories: integration failure ${categories.integrationFailure}, restored ${categories.restored}, low-signal unknown ${categories.lowSignalUnknown}, tracker/presence ${categories.trackerPresence}, attributed current ${categories.attributedCurrent}, unattributed ${categories.unattributed}; sum ${categories.integrationFailure + categories.restored + categories.lowSignalUnknown + categories.trackerPresence + categories.attributedCurrent + categories.unattributed}/${candidates.length}.`,
       `Low-signal/stateless: ${lowSignal} entity states, retained in the raw total.`,
       `Classification: ${classification}; population ${classificationTotal}/${candidates.length}. Registry match: ${registryMatched}/${candidates.length}; attribution: ${attributed}/${candidates.length}; unattributed: ${candidates.length - attributed}. Top three cover ${topThreeCount}/${classificationTotal} (${percent(topThreeCount, classificationTotal)}); displayed group details cover ${displayedCount}/${candidates.length} (${percent(displayedCount, candidates.length)}).`,
-      fixture.devices === undefined
+      deviceRows === undefined
         ? "Device registry unavailable; device attribution is limited."
         : `${overallDeviceIDs.size} known device-registry records; device attribution ${deviceMatchedRows}/${candidates.length} entity states.`,
     );
   }
-  if (candidates.length > 0 && fixture.devices !== undefined) {
+  if (candidates.length > 0 && deviceRows !== undefined) {
     const omittedDeviceClusters = deviceClusters.slice(3);
     const omittedDeviceStates = omittedDeviceClusters.reduce(
       (sum, [, count]) => sum + count,
@@ -326,7 +332,7 @@ export function summarizeAvailability(fixture: AvailabilityFixture): string {
     lines.push(
       displayedDeviceClusters.length === 0
         ? "No device-attributed subclusters."
-        : `Largest device subclusters: ${displayedDeviceClusters.map(([, count]) => count).join(", ")} entity states; top three cover ${displayedDeviceStates}/${deviceMatchedRows} device-attributed states; ${omittedDeviceClusters.length} device clusters omitted (${omittedDeviceStates} entity states).`,
+        : `Largest device subclusters: ${displayedDeviceClusters.map(([, count]) => count).join(", ")} entity states; top three cover ${displayedDeviceStates}/${deviceMatchedRows} device-attributed states; ${omittedDeviceClusters.length} device clusters omitted (${omittedDeviceStates} entity states). Request the full device-subcluster list for all clusters; results may have changed (fresh live read).`,
     );
   }
   for (const group of displayed.filter(
@@ -334,7 +340,7 @@ export function summarizeAvailability(fixture: AvailabilityFixture): string {
   )) {
     const entryState = safeEntryState(group.entry);
     const deviceContext =
-      fixture.devices === undefined
+      deviceRows === undefined
         ? "device registry unavailable"
         : `${group.deviceIDs.size} known device-registry records; device attribution ${group.deviceMatchedRows}/${group.count} entity states`;
     lines.push(
@@ -346,8 +352,16 @@ export function summarizeAvailability(fixture: AvailabilityFixture): string {
     (group) => !displayedKeys.has(group.key),
   );
   if (omittedDetails.length > 0) {
+    // Every remaining group appears in the catalog with its own counts and
+    // an exact, label-addressed detail request — an aggregate line alone
+    // gives the user no usable name to ask for.
+    for (const group of omittedDetails) {
+      lines.push(
+        `${safeLabel(group)}: total ${group.count}, shown 0, omitted ${group.count}. Request the "${safeLabel(group)}" group's detail for its rows; results may have changed (fresh live read).`,
+      );
+    }
     lines.push(
-      `${omittedDetails.length} group details omitted (${omittedDetails.reduce((sum, group) => sum + group.count, 0)} entity states). Request a group's detail by name for its full rows; results may have changed (fresh live read).`,
+      `${omittedDetails.length} group details omitted (${omittedDetails.reduce((sum, group) => sum + group.count, 0)} entity states).`,
     );
   }
   lines.push("Integrations:");
@@ -371,7 +385,7 @@ export function summarizeAvailability(fixture: AvailabilityFixture): string {
       continue;
     }
     const deviceContext =
-      fixture.devices === undefined
+      deviceRows === undefined
         ? "device registry unavailable"
         : `${group.deviceIDs.size} known device-registry records; device attribution ${group.deviceMatchedRows}/${group.count} entity states`;
     lines.push(

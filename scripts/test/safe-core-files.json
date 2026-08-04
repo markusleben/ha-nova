@@ -84,6 +84,8 @@
   "tests/skills/health-availability-context.test.ts",
   "tests/skills/health-availability-contract.test.ts",
   "tests/skills/health-availability-edge-context.test.ts",
+  "tests/skills/health-availability-privacy.test.ts",
+  "tests/skills/health-availability-selection.test.ts",
   "tests/skills/health-calendar-contract.test.ts",
   "tests/skills/health-source-shapes.test.ts",
   "tests/skills/helper-contract.test.ts",
