@@ -232,9 +232,11 @@ Scope: **update only**. A create is undone by deleting the new item through the
 normal HA NOVA delete flow; that delete still requires a delete preview, exact
 `confirm:<token>`, and absence verification, even when the item was created earlier in the same session.
 Do not call this `revert`, and do not imply that manual deletion or a full Home Assistant Backup restore is the only cleanup path.
-A delete has no HA NOVA `revert`; rollback requires restoring a suitable existing
-Home Assistant Backup, or recreating the item. Point the user to HA Backups
-(Settings > System > Backups) for that case.
+A delete has no HA NOVA `revert`; a snapshot-covered delete restores from its
+auto config snapshot (`skills/ha-nova/config-snapshots.md`) — that is the
+first rollback path. When no config snapshot was captured, rollback requires
+restoring a suitable existing Home Assistant Backup (Settings > System >
+Backups), or recreating the item.
 
 ### 1. Capture the snapshot (after a verified update)
 
@@ -270,8 +272,17 @@ Record shape:
 
 ```json
 {"op":"update","domain":"automation","target_id":"<config id>",
+ "name":"<the item's alias/friendly name>",
  "before_config":{ ... },"expected_after":{ ... }}
 ```
+
+Include `name` so the checkpoint stays recognizable in listings. The CLI
+prints a structured receipt with the keys `action` (`created` | `replaced`),
+`op`, `domain`, `target_id`, `name`, `saved_at`, `coverage`, and `evicted[]`
+(each evicted entry carries the same listing keys) — repeat its essence in
+the result line: a `replaced` receipt means the target's PREVIOUS checkpoint
+is gone and only the newest update stays revertible; name evicted targets as
+no longer revertible.
 
 ### 2. Offer the revert
 

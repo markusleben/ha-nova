@@ -81,3 +81,24 @@ describe("config snapshots contract", () => {
     expect(reference).toContain("Never use batch delete to emulate prune or to widen `keep_named`");
   });
 });
+
+describe("update-revert checkpoint observability (#483)", () => {
+  const writeSafety = readFileSync("skills/ha-nova/write-safety.md", "utf8");
+  const updateRevert = readFileSync("skills/ha-nova/update-revert.md", "utf8");
+  const writeSkill = readFileSync("skills/write/SKILL.md", "utf8");
+
+  it("carries the alias in the record and reflects the CLI receipt", () => {
+    expect(writeSafety).toContain('"name":"<the item\'s alias/friendly name>"');
+    expect(writeSafety).toContain("structured receipt");
+    expect(writeSafety).toContain("`replaced` receipt means the target's PREVIOUS checkpoint");
+    expect(writeSkill).toContain("reflect the save receipt in the result");
+    expect(writeSkill).toContain("evicted targets are no longer revertible");
+  });
+
+  it("separates the three recovery layers explicitly", () => {
+    expect(updateRevert).toContain("Three recovery layers, never conflated");
+    expect(updateRevert).toContain("Update-revert checkpoint");
+    expect(updateRevert).toContain("Config snapshot");
+    expect(updateRevert).toContain("Home Assistant Backup");
+  });
+});
