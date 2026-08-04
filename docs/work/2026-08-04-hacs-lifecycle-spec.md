@@ -80,7 +80,11 @@ The two hard problems are handled skill-side:
 - **Safety:** read-before-write everywhere; preview names repository,
   category, installed → target version, domain, restart impact; natural
   confirmation for install/update/redownload; typed `confirm:<token>` for
-  uninstall/removal and dependent config-entry deletion; **mandatory safety
+  uninstall/removal and dependent config-entry deletion — and EVERY
+  uninstall/removal, standalone or inside a migration, runs the
+  HACS-specific consumer discovery first, so live config entries,
+  automations, or dashboards depending on the package surface in the
+  preview instead of breaking silently; **mandatory safety
   backup gate for migrations** — create (or require) a full Home Assistant
   Backup before the first destructive step, since config-entry create/delete
   sits outside the config-snapshot layer (community-log lesson); record
@@ -99,6 +103,13 @@ The two hard problems are handled skill-side:
 - `skills/fallback/SKILL.md`: HACS row moves External → Covered
   (`skills/hacs`); the custom-integration configuration section keeps owning
   non-HACS config APIs.
+- Update ownership is explicit: `skills/updates/SKILL.md` keeps `update.*`
+  ENTITY updates (including HACS-provided update entities — the plain
+  "update this integration" path stays there), while the HACS skill owns
+  everything the entity flow cannot do: version pinning/downgrades,
+  redownload, prerelease switches, registration, uninstall/removal, and
+  migrations. The implementation PR adds the matching deferral lines to
+  both skills so neither claims the other's half.
 - Context skill dispatch row + smallest-solution contract + output-rules
   Cards; capability map, safety matrix, and config-snapshots "NOT covered"
   notes updated consistently.
