@@ -56,6 +56,10 @@ describe("hacs lifecycle skill (#478)", () => {
   });
 
   it("keeps version choices explicit and confirmation gates tiered", () => {
+    // Branch-only repositories install from the default branch without a
+    // version and verify the commit-ish installed_version.
+    expect(normalized).toContain("Branch-only repositories");
+    expect(normalized).toContain("verify against the commit-ish `installed_version`");
     expect(normalized).toContain("never silently replaced by a newer release");
     expect(normalized).toContain("prerelease only on explicit request");
     expect(skill).toContain("confirm:<token>");

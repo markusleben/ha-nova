@@ -90,7 +90,12 @@ act on a name match alone.
    confirmation for install/update/redownload binds to this exact preview.
 3. Apply: `hacs/repository/download` with the chosen `version` — never
    version-then-download (a version-less download resolves to LATEST, and
-   every download clears the selection; see `hacs-commands.md`). A Relay
+   every download clears the selection; see `hacs-commands.md`). Branch-only
+   repositories (`releases` empty, `version_or_commit` = `commit`) are the
+   one case WITHOUT a `version`: preview the default-branch install, send
+   `download` without `version`, and verify against the commit-ish
+   `installed_version` — pinning and downgrades are unavailable there; say
+   so instead of blocking the install. A Relay
    timeout is an UNKNOWN outcome — enter the reconcile loop below; never
    fire a second download on a timeout. For a persistent pin, send
    `hacs/repository/version` AFTER the verified download and disclose that
