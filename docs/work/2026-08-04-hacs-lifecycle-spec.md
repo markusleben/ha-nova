@@ -48,17 +48,24 @@ The two hard problems are handled skill-side:
 - **Package lifecycle:** install exact version (a user-pinned version is
   never silently replaced by a newer release), install selected stable,
   prerelease only on explicit request, update, redownload, uninstall; read
-  available releases before choosing; verify manifest/domain/version after
-  every mutation; surface restart/frontend-reload needs without performing
-  them silently.
-- **Migration coordination:** consumer discovery before destructive steps
-  (config entries, devices, entities, automations, scripts, dashboards,
-  helpers — reusing `consumer-discovery-preflight` and the canonical
-  search/related filter), same-domain replacement risk, entity-ID
-  preservation honesty, hand-off to `integration-setup` for config flows,
-  hard stop for UI-only credentials/OAuth/pairing, never delete a working
-  config entry before the replacement is resolvable, delayed cleanup until
-  verification.
+  available releases before choosing; verify CATEGORY-appropriately after
+  every mutation — integrations verify manifest/domain/version and
+  config-entry state, frontend/plugin packages verify HACS repository
+  state, installed version, and the Lovelace resource registration, themes
+  verify repository state and version (neither has an integration
+  manifest); surface restart/frontend-reload needs without performing them
+  silently.
+- **Migration coordination:** HACS-specific consumer discovery before
+  destructive steps — config entries, devices, entities, automations,
+  scripts, and helpers through the canonical `search/related` filter, PLUS
+  a frontend-package scan the standard preflight cannot provide: read the
+  Lovelace resource list and storage dashboard configs for the package's
+  custom element/resource references (manual YAML dashboards are not
+  enumerable — that gap is disclosed, never claimed clean). Same-domain
+  replacement risk, entity-ID preservation honesty, hand-off to
+  `integration-setup` for config flows, hard stop for UI-only
+  credentials/OAuth/pairing, never delete a working config entry before
+  the replacement is resolvable, delayed cleanup until verification.
 - **Safety:** read-before-write everywhere; preview names repository,
   category, installed → target version, domain, restart impact; natural
   confirmation for install/update/redownload; typed `confirm:<token>` for
