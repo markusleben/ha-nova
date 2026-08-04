@@ -389,6 +389,15 @@ func TestExpandConfiguredLocalAliasesClaimsResolvedIPv4(t *testing.T) {
 	if len(configured) != 3 {
 		t.Fatalf("only the .local key may expand, got %v", configured)
 	}
+	// The reverse direction: a typed .local hostname matches a profile
+	// configured by its resolved IPv4.
+	ipOnly := map[string]bool{"192.168.1.5:8123": true}
+	if !manualHostIsConfigured(ipOnly, "http://homeassistant.local:8123") {
+		t.Fatal("a typed .local hostname must match its IPv4-configured profile")
+	}
+	if manualHostIsConfigured(ipOnly, "http://other.local:8123") {
+		t.Fatal("an unresolvable .local hostname must not match")
+	}
 }
 
 func TestDNSSDAdvertisedLocalHostSurvivesIPv4Rewrite(t *testing.T) {

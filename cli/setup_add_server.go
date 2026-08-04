@@ -58,6 +58,15 @@ func maybeOfferAddServerForCompletedSetup(
 	if !add {
 		return false, 0
 	}
+	// The completed re-run path deliberately drops its lifecycle markers
+	// before this screen — but the add flow's saves still need uninstall
+	// protection, so capture a fresh generation now.
+	if len(lifecycleMarker) == 0 {
+		lifecycleMarker = [][]byte{
+			captureInstallLifecycleGeneration(paths),
+			captureCensusLifecycleMarker(paths),
+		}
+	}
 	// attempted=true from here on — the flow's own closing output (success,
 	// cancel note, or partial-profile guidance) replaces the done banner.
 	return true, runAddServerFlow(reader, out, paths, lifecycleMarker...)
@@ -303,7 +312,7 @@ func selectAddServerHAHost(
 			if err != nil {
 				return "", "", err
 			}
-			if configured[addServerHostPortKey(haURL)] {
+			if manualHostIsConfigured(configured, haURL) {
 				renderSetupErrorLine(out, "This Home Assistant is already configured as a server profile. Enter a different address.")
 				defaultHost = ""
 				continue
@@ -376,6 +385,23 @@ func addServerViaHostPortKey(candidate setupDiscoveryCandidate) string {
 		return ""
 	}
 	return strings.ToLower(via) + urlKey[separator:]
+}
+
+// The manual check works in BOTH alias directions: a typed .local hostname
+// also matches a profile configured by that host's resolved IPv4.
+func manualHostIsConfigured(configured map[string]bool, haURL string) bool {
+	key := addServerHostPortKey(haURL)
+	if configured[key] {
+		return true
+	}
+	host, port, splitErr := net.SplitHostPort(key)
+	if splitErr != nil || !strings.HasSuffix(host, ".local") {
+		return false
+	}
+	if ip := resolveHostToIPv4ForDiscovery(host, setupDiscoveryIPResolveTimeout); ip != "" && ip != host {
+		return configured[ip+":"+port]
+	}
+	return false
 }
 
 // Profiles configured under a .local name additionally claim their RESOLVED
