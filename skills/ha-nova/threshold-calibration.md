@@ -21,7 +21,11 @@ classifies nothing and needs no history.
 
 ## Evidence (read-only, bounded)
 
-1. Recorder history for the compared entity, up to 30 days, bounded reads.
+1. Recorder history for the compared VALUE, up to 30 days, bounded reads.
+   When the trigger/condition tests an `attribute`, calibrate that attribute
+   from bounded raw history — primary-state statistics describe a different
+   value and may only shortlist windows when they represent exactly the
+   tested attribute.
    Hourly `recorder/statistics_during_period` (`min`/`mean`/`max`) only
    SHORTLISTS candidate windows — hourly aggregates cannot order events or
    time a pause. Inspect the shortlisted windows with bounded raw `history`
