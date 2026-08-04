@@ -161,7 +161,7 @@ From the ideation pass; each needs its own decision before entering a wave:
 
 ## Deliberately NOT
 - SSE streaming as a headline feature (Sentinel + bounded windows cover the user-visible value; streaming invites relay session state).
-- HACS management parity (checklist-chasing; concierge-style coverage is higher leverage).
+- HACS management parity (checklist-chasing; concierge-style coverage is higher leverage). — Superseded 2026-08 by #478: maintainer-confirmed lifecycle scope, spec in `docs/work/2026-08-04-hacs-lifecycle-spec.md`.
 - A hosted skills registry (charter: no cloud).
 - Snapshots for recorder data or user credentials (false confidence).
 
