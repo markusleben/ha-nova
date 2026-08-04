@@ -60,11 +60,18 @@ func maybeOfferAddServerForCompletedSetup(
 	}
 	// The completed re-run path deliberately drops its lifecycle markers
 	// before this screen — but the add flow's saves still need uninstall
-	// protection, so capture a fresh generation now.
+	// protection AND the config-snapshot CAS, so capture the full
+	// three-element marker exactly like runSetup does.
 	if len(lifecycleMarker) == 0 {
+		configSnapshot, snapshotErr := readSetupConfigSnapshot(paths)
+		if snapshotErr != nil {
+			printHumanErr("cannot inspect server configuration: %s", snapshotErr)
+			return true, 1
+		}
 		lifecycleMarker = [][]byte{
 			captureInstallLifecycleGeneration(paths),
 			captureCensusLifecycleMarker(paths),
+			configSnapshot,
 		}
 	}
 	// attempted=true from here on — the flow's own closing output (success,
