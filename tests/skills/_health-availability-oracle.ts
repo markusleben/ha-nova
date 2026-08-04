@@ -48,8 +48,17 @@ export function summarizeAvailability(fixture: AvailabilityFixture): string {
     (row) => !isSafeEntityID(row.entity_id),
   ).length;
   const candidates = stateRows.filter((row) => isSafeEntityID(row.entity_id));
+  // One malformed registry row invalidates the whole source (attribution
+  // limitation, never per-row salvage) — availability-analysis.md → Join
+  // validity.
+  const registrySourceValid = (fixture.registry ?? []).every(
+    (row) =>
+      isSafeEntityID(row.entity_id) &&
+      (row.platform === undefined || isSafeHASlug(row.platform)),
+  );
+  const registryRows = registrySourceValid ? fixture.registry : undefined;
   const registryByEntity = new Map(
-    (fixture.registry ?? []).map((row) => [row.entity_id, row]),
+    (registryRows ?? []).map((row) => [row.entity_id, row]),
   );
   const entryByID = new Map(
     fixture.entries.map((entry) => [entry.entry_id, entry]),
@@ -296,8 +305,17 @@ export function summarizeAvailability(fixture: AvailabilityFixture): string {
       (g): g is Group =>
         g !== undefined && detailCandidateKeys.has(g.key) && !isCurrentTracker(g),
     );
+  // Pool (a) orders current tracker groups by their available finding
+  // priority (attention state first); the stable sort keeps catalog order
+  // as the tie-break.
+  const trackerRank = (group: Group): number =>
+    group.entry && isAttentionEntry(group.entry)
+      ? (failurePriority.get(group.entry.state) ?? 4)
+      : 5;
   const pooled = [
-    ...detailCandidates.filter((g) => isCurrentTracker(g)),
+    ...detailCandidates
+      .filter((g) => isCurrentTracker(g))
+      .sort((left, right) => trackerRank(left) - trackerRank(right)),
     ...attentionPool,
     ...detailCandidates.filter(
       (g) =>
@@ -340,9 +358,7 @@ export function summarizeAvailability(fixture: AvailabilityFixture): string {
   const aliasByID = new Map<string, string>();
   if (privacyMode === "shareable") {
     const shownIDs = new Set<string>();
-    for (const group of displayed.filter(
-      (item) => !isAttentionEntry(item.entry),
-    )) {
+    for (const group of displayed) {
       for (const row of exampleRowsFor(group)) shownIDs.add(row.id);
     }
     const byType = new Map<string, string[]>();
@@ -356,10 +372,28 @@ export function summarizeAvailability(fixture: AvailabilityFixture): string {
       ids.forEach((id, index) => aliasByID.set(id, `${type} ${index + 1}`));
     }
   }
+  // Every truncation path carries the exact follow-up plus the fresh-live-read
+  // notice (output-rules.md → Progressive Detail). A selected group renders
+  // its rows through one shared path for both owners.
+  const renderExampleRows = (group: Group): string[] => {
+    if (privacyMode === "aggregate") return [];
+    const out: string[] = [];
+    for (const row of exampleRowsFor(group)) {
+      out.push(
+        `  - ${privacyMode === "private" ? row.id : (aliasByID.get(row.id) ?? "entity")}`,
+      );
+    }
+    if (group.count > 10) {
+      out.push(
+        `  total ${group.count}, shown 5, omitted ${group.count - 5}. Request this group's full detail for all rows; results may have changed (fresh live read).`,
+      );
+    }
+    return out;
+  };
   const missingSources = [
     ...new Set([
       ...(fixture.unavailableSources ?? []),
-      ...(candidates.length > 0 && fixture.registry === undefined
+      ...(candidates.length > 0 && registryRows === undefined
         ? ["entity registry"]
         : []),
       ...(candidates.length > 0 && fixture.devices === undefined
@@ -440,26 +474,14 @@ export function summarizeAvailability(fixture: AvailabilityFixture): string {
     lines.push(
       `${safeLabel(group)}: ${group.count} entity states (${group.restored} restored), ${deviceContext}, ${entryState}`,
     );
-    if (privacyMode !== "aggregate") {
-      const shown = exampleRowsFor(group);
-      for (const row of shown) {
-        lines.push(
-          `  - ${privacyMode === "private" ? row.id : (aliasByID.get(row.id) ?? "entity")}`,
-        );
-      }
-      if (group.count > 10) {
-        lines.push(
-          `  total ${group.count}, shown 5, omitted ${group.count - 5}.`,
-        );
-      }
-    }
+    lines.push(...renderExampleRows(group));
   }
   const omittedDetails = detailCandidates.filter(
     (group) => !displayedKeys.has(group.key),
   );
   if (omittedDetails.length > 0) {
     lines.push(
-      `${omittedDetails.length} group details omitted (${omittedDetails.reduce((sum, group) => sum + group.count, 0)} entity states).`,
+      `${omittedDetails.length} group details omitted (${omittedDetails.reduce((sum, group) => sum + group.count, 0)} entity states). Request a group's detail by name for its full rows; results may have changed (fresh live read).`,
     );
   }
   lines.push("Integrations:");
@@ -489,10 +511,11 @@ export function summarizeAvailability(fixture: AvailabilityFixture): string {
     lines.push(
       `${safeLabel(group)}: ${entry.state}${safeReason(entry)}; impact ${group.count} entity states, ${deviceContext}`,
     );
+    lines.push(...renderExampleRows(group));
   }
   if (failedEntries.length > selectedAttentionEntries.length) {
     lines.push(
-      `${failedEntries.length - selectedAttentionEntries.length} attention entries omitted by integration-entry cap.`,
+      `${failedEntries.length - selectedAttentionEntries.length} attention entries omitted by integration-entry cap. Request the full integration-entry list for the rest; results may have changed (fresh live read).`,
     );
   }
   lines.push(`Next step: ${nextStep}`);

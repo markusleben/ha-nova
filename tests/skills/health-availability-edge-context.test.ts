@@ -211,7 +211,10 @@ describe("health availability adversarial edge fixtures", () => {
     });
     expect(report).not.toContain("private-host.local");
     expect(report).not.toContain("token-secret");
-    expect(report).toContain("sensor:");
+    // Codex R4: one malformed registry row (unsafe platform) invalidates the
+    // whole registry source — no derived group survives, coverage is limited.
+    expect(report).toContain("Coverage unavailable: entity registry");
+    expect(report).not.toContain("sensor:");
 
     const unjoinedAttention = summarizeAvailability({
       states: [],
@@ -628,6 +631,101 @@ describe("health availability adversarial edge fixtures", () => {
     }
     expect(report).not.toContain("  - button.private_b0");
     expect(report).toContain("total 12, shown 5, omitted 7.");
+  });
+
+  it("renders owned entity details for displayed failed integrations", () => {
+    const report = summarizeAvailability(
+      groupFixture([{ platform: "hue", count: 3, state: "setup_error" }]),
+    );
+    expect(report).toContain("hue: setup_error; impact 3 entity states");
+    for (const idx of [0, 1, 2]) {
+      expect(report).toContain(`  - sensor.private_0_${idx}`);
+    }
+  });
+
+  it("orders the tracker pool by finding priority under budget pressure", () => {
+    const states: StateRow[] = [];
+    const registry: RegistryRow[] = [];
+    const entries: ConfigEntry[] = [];
+    for (let groupIndex = 0; groupIndex < 5; groupIndex += 1) {
+      const entryID = `private-tracker-${groupIndex}`;
+      entries.push({
+        entry_id: entryID,
+        domain: `tracker_${groupIndex}`,
+        state: "loaded",
+        title: `Private ${groupIndex}`,
+      });
+      for (let rowIndex = 0; rowIndex < 10; rowIndex += 1) {
+        const entityID = `device_tracker.private_${groupIndex}_${rowIndex}`;
+        states.push({ entity_id: entityID, state: "unavailable" });
+        registry.push({
+          entity_id: entityID,
+          config_entry_id: entryID,
+          platform: `tracker_${groupIndex}`,
+        });
+      }
+    }
+    entries.push({
+      entry_id: "private-urgent",
+      domain: "tracker_urgent",
+      state: "setup_error",
+      title: "Private urgent",
+    });
+    states.push({
+      entity_id: "device_tracker.private_urgent",
+      state: "unavailable",
+    });
+    registry.push({
+      entity_id: "device_tracker.private_urgent",
+      config_entry_id: "private-urgent",
+      platform: "tracker_urgent",
+    });
+    const report = summarizeAvailability({
+      states,
+      registry,
+      entries,
+      devices: [],
+    });
+    expect(report).toContain(
+      "tracker_urgent: setup_error; impact 1 entity states",
+    );
+    expect(report).toContain("  - device_tracker.private_urgent");
+    expect(report).toContain("group details omitted");
+  });
+
+  it("attaches exact follow-ups to every truncation path", () => {
+    const largeGroup = summarizeAvailability(
+      groupFixture([{ platform: "one", count: 12, state: "loaded" }]),
+    );
+    expect(largeGroup).toContain(
+      "total 12, shown 5, omitted 7. Request this group's full detail for all rows; results may have changed (fresh live read).",
+    );
+
+    const manyGroups = summarizeAvailability(
+      groupFixture(
+        Array.from({ length: 11 }, (_, index) => ({
+          platform: `many_${String.fromCharCode(97 + index)}`,
+          count: 10,
+          state: "loaded",
+        })),
+      ),
+    );
+    expect(manyGroups).toMatch(
+      /group details omitted \(\d+ entity states\)\. Request a group's detail by name for its full rows; results may have changed \(fresh live read\)\./,
+    );
+
+    const manyAttention = summarizeAvailability(
+      groupFixture(
+        Array.from({ length: 26 }, (_, index) => ({
+          platform: `attn_${String.fromCharCode(97 + index)}`,
+          count: 1,
+          state: "setup_error",
+        })),
+      ),
+    );
+    expect(manyAttention).toContain(
+      "1 attention entries omitted by integration-entry cap. Request the full integration-entry list for the rest; results may have changed (fresh live read).",
+    );
   });
 
   it("uses code-point ordering for equal-count groups", () => {
