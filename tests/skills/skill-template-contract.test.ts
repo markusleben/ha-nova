@@ -150,7 +150,8 @@ const WORD_BUDGETS: Record<string, number> = {
   // event/webhook and alarm/lock contracts (2026-h2 Wave 4).
   // User-assisted proof bullet (#394).
   // Grouped-change-set opt-in + grouped-menu exception (#391).
-  "service-call": 2750,
+  // Threshold-calibration hook incl. scene.apply coverage (#484 R10).
+  "service-call": 2775,
   // Carries the canonical File-Change Preview example — the only layout
   // source for file edits; concrete examples are what make a card renderable.
   // Sibling-survival verification (Wave 1b) + yaml snapshot capture with

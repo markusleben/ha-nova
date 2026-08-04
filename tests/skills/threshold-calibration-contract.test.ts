@@ -90,6 +90,15 @@ describe("threshold calibration preflight (#484)", () => {
     expect(calibration).toContain("cannot be reproduced offline");
     expect(calibration).toContain("the\nstored action triggers this preflight at update time");
     expect(calibration).toContain("A stored SCENE that assigns a\nnew state");
+    // Dynamic setters calibrate against the reachable range, and scene.apply
+    // routes through the same service-call hook (Codex round 10).
+    expect(calibration).toContain("derive the REACHABLE range");
+    expect(calibration).toContain(
+      "min/max clamps are named as the only remaining guard",
+    );
+    expect(readFileSync("skills/service-call/SKILL.md", "utf8")).toContain(
+      "before a `scene.apply` whose entities map assigns such a helper",
+    );
     expect(writeSkill).toContain(
       "adds/changes an action setting a threshold-backing `input_number`",
     );

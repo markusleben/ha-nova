@@ -37,7 +37,12 @@ stored action triggers this preflight at update time, because no service
 call happens while the config is written. A stored SCENE that assigns a
 new state to such a helper is the same class: a scene update adding or
 changing that member, and a `scene.apply` carrying it, both trigger the
-preflight before the write or call.
+preflight before the write or call. Dynamic setters have no single
+proposed boundary: for `increment`/`decrement` derive the REACHABLE range
+from the helper's step and min/max clamps and calibrate against its
+endpoints; for a templated `set_value`, reproduce the template offline
+when possible — otherwise the calibration is insufficient and the
+helper's min/max clamps are named as the only remaining guard.
 
 ## Evidence (read-only, bounded)
 
