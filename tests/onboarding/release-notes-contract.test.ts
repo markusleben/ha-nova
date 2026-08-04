@@ -37,17 +37,15 @@ describe("release notes contract", () => {
     expect(goreleaser).not.toContain("winget");
   });
 
-  it("keeps v0.22.0 release-facing wording aligned to Cloud Beta availability", () => {
-    expect(goreleaser).toContain(
-      "Home Assistant Cloud access is an optional desktop Beta",
-    );
+  it("keeps v0.23.0 release-facing wording aligned to the shipped stack", () => {
+    expect(goreleaser).toContain("Home Status output changed deliberately");
     expect(goreleaser).toContain("Update NOVA Relay first");
-    expect(goreleaser).toContain("requires Relay 0.8.0");
-    expect(goreleaser).toContain("Automatic mode prefers local access");
-    expect(goreleaser).toContain("Secure away-from-home fallback");
-    expect(goreleaser).toContain("another HA NOVA tunnel or hosted broker");
-    expect(goreleaser).toContain("Cleaner setup and diagnostics");
-    expect(goreleaser).toContain("Keychain password prompts");
+    expect(goreleaser).toContain("Revoking a device now asks first");
+    expect(goreleaser).toContain("typing RESET");
+    expect(goreleaser).toContain("Thresholds calibrated against your real history");
+    expect(goreleaser).toContain("Checkpoints tell you what they did");
+    expect(goreleaser).toContain("smallest solution that completely works");
+    expect(goreleaser).toContain("consumer check inconclusive");
     expect(readme).toContain(
       "Optional remote access with Home Assistant Cloud (Beta)",
     );

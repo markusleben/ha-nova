@@ -73,10 +73,11 @@ We built this because we didn't trust AI with our own config either.
 1. **Researches first.** Finds your devices, checks your setup, resolves entity names. No guessing.
 2. **Shows you the change.** A clear before/after table of exactly what will change, before anything is written.
 3. **You approve it.** Deletes require a specific confirmation code — not just "yes." A reviewed batch delete takes one code bound to the exact list of items.
-4. **Writes and verifies.** Reads the config back to confirm the change stuck.
-5. **Audits itself.** Checks for mistakes, conflicts, and reliability issues.
-6. **Offers a safe test.** After saving a new or changed automation or script, you get a test plan matched to the risk — from a zero-impact logic check to a real run that names exactly which devices will switch before you say go.
-7. **Offers a way back when supported.** Reply `revert` to undo the latest verified update. For operations without automatic revert — including deletes, dashboards, scenes, and registry changes — HA NOVA says so before writing.
+4. **Captures a recovery point first.** Before a covered delete or full-configuration replacement, HA NOVA snapshots the item it is about to change — so "gone" has a way back.
+5. **Writes and verifies.** Reads the config back to confirm the change stuck.
+6. **Audits itself.** Checks for mistakes, conflicts, and reliability issues.
+7. **Offers a safe test.** After saving a new or changed automation or script, you get a test plan matched to the risk — from a zero-impact logic check to a real run that names exactly which devices will switch before you say go.
+8. **Offers a way back — three clearly separated layers.** Reply `revert` to undo the latest verified update. Restore a deleted automation, script, scene, dashboard, or storage helper from its config snapshot through the same preview-and-confirm flow — "restore the kitchen automation you deleted yesterday" works. For everything beyond that, a Home Assistant Backup. `revert` and config snapshots cover changes made **through HA NOVA** only — edits made directly in the Home Assistant UI, by other tools, or by hand in YAML are not captured, and a config snapshot restores the item itself, not every reference to it. Home Assistant Backups remain system-wide.
 
 **The ground rules — always:**
 

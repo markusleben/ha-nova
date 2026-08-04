@@ -71,16 +71,20 @@ release:
     Windows uses a single supported install path: `install.ps1`. Return an RC install to stable later with `ha-nova update`.
     {{ else }}## What To Watch
 
-    - **Update NOVA Relay first.** This release requires Relay 0.8.0. Update the App, or update the standalone container image, before using the new client.
-    - **Home Assistant Cloud access is an optional desktop Beta.** It requires Home Assistant OS/Supervised, Remote UI, and native secure storage. Automatic mode prefers local access; Cloud-only remains available.
+    - **Home Status output changed deliberately.** Reports are table-first with visible detail/privacy modes; the default names affected entities and integrations. Say "aggregate" for count-only output.
+    - **Update NOVA Relay first.** Update the App — with its new device-list confirmation screens — before using the new client, and take a backup before updating, as always.
 
     ## New Features
 
-    - **Secure away-from-home fallback.** New and existing installs can add Nabu Casa Cloud access without another HA NOVA tunnel or hosted broker. Each computer keeps a revocable device pairing.
+    - **Revoking a device now asks first.** Revoking a paired device shows exactly which computer you are disconnecting — name, added, last used, cloud badge. Registry reset requires typing RESET.
+    - **Home Status you can act on.** Table-first, cause-oriented reports name exact integrations and entities; large groups stay summarized with precise follow-ups; detail and privacy modes are yours.
+    - **Thresholds calibrated against your real history.** Changing a threshold, debounce, or timeout on a physical process reads up to 30 days of history and shows ranges and both failure directions first.
+    - **Checkpoints tell you what they did.** Every checkpoint save prints a receipt — created or replaced, for which item, when — and the list shows names, saved times, and what one `revert` covers.
+    - **The smallest solution that completely works.** Every skill designs the simplest safe configuration that fully covers your request and offers at most two evidence-backed improvements.
 
     ## Bug Fixes
 
-    - **Cleaner setup and diagnostics.** Official discovery avoids unrelated network devices, completed local installs offer Cloud fallback, and routine macOS checks no longer open Keychain password prompts.
+    - **Write previews fail closed.** A failed consumer scan reads "consumer check inconclusive" instead of claiming nothing is affected; unfamiliar write endpoints are never probed in ways that create objects.
 
     Stable install commands are release-pinned for this tag.
 
