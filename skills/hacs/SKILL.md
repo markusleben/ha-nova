@@ -80,14 +80,21 @@ act on a name match alone.
 1. Read `hacs/repository/releases` (and `release_notes` for updates) before
    choosing. A user-pinned version (`selected_tag`) is never silently
    replaced by a newer release — say the pin exists and ask; prerelease only
-   on explicit request (`hacs/repository/beta` first, then choose the tag).
+   on explicit request — choose the tag from `releases` (its `prerelease`
+   flag marks them; no visibility toggle needed to install one). The
+   `hacs/repository/beta` toggle is itself a mutation: send it only after
+   the confirmed preview, when the user wants prereleases to STAY visible.
 2. Preview per the Preview Card: repository `full_name`, category,
    installed → target version, HA domain, restart/reload impact, and — for
    updates — the release-notes summary with breaking changes. Natural
    confirmation for install/update/redownload binds to this exact preview.
-3. Apply: `hacs/repository/version` (when pinning) then
-   `hacs/repository/download`. A Relay timeout is an UNKNOWN outcome — enter
-   the reconcile loop below; never fire a second download on a timeout.
+3. Apply: `hacs/repository/download` with the chosen `version` — never
+   version-then-download (a version-less download resolves to LATEST, and
+   every download clears the selection; see `hacs-commands.md`). A Relay
+   timeout is an UNKNOWN outcome — enter the reconcile loop below; never
+   fire a second download on a timeout. For a persistent pin, send
+   `hacs/repository/version` AFTER the verified download and disclose that
+   HACS keeps flagging the repository `pending_upgrade`.
 4. Verify category-appropriately (Verification below) and report INSTALLED
    vs ACTIVE honestly.
 
@@ -106,13 +113,18 @@ act on a name match alone.
 
 EVERY uninstall/removal — standalone or inside a migration — runs
 HACS-specific consumer discovery FIRST and shows the result in the preview:
-- config entries, devices, entities, automations, scripts, helpers through
-  `search/related` on the package's entities/domain — read the response ONLY
-  through the canonical filter `skills/ha-nova/search-related-consumers.jq`
-  (recreate it per `skills/ha-nova/relay-api.md` → Parsing rule on flat-copy
-  installs). Fail closed: only a verified-shape empty result means "no
-  linked consumers found"; a failed, skipped, or wrong-path scan renders as
-  "consumer check inconclusive", NEVER as a no-consumer claim
+- the integration's OWN footprint through the HA registries: config entries
+  of its domain (`config_entries/get`), their devices and entities
+  (entity/device registry lists filtered by those entry IDs)
+- REFERENCING automations/scripts/scenes through `search/related` on those
+  entities — read the response ONLY through the canonical filter
+  `skills/ha-nova/search-related-consumers.jq` (recreate it per
+  `skills/ha-nova/relay-api.md` → Parsing rule on flat-copy installs). Fail
+  closed: only a verified-shape empty result means "no linked consumers
+  found"; a failed, skipped, or wrong-path scan renders as "consumer check
+  inconclusive", NEVER as a no-consumer claim. The canonical filter covers
+  exactly those three referencer arrays — helpers and other referencer
+  kinds are disclosed as unscanned
 - for frontend packages additionally the Lovelace resource list and storage
   dashboard configs for the package's custom element references; manual YAML
   dashboards and template consumers are not enumerable — name them as an
