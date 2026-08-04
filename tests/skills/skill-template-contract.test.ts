@@ -178,7 +178,9 @@ const WORD_BUDGETS: Record<string, number> = {
   dashboard: 1450,
   // Cards adoption pointer (#389); pre-write update-state drift gate.
   // #452 canonical smallest-solution draft rule (17 words).
-  updates: 1325,
+  // HA 2026.7 "Update all" semantics: guardrails mirrored, call shape
+  // deliberately not (#478 follow-up).
+  updates: 1450,
   // batch-safety alignment: batch code format + cap-split rule (#327);
   // purge quantification, glob expansion, apply_filter semantics
   // (2026-h2 Wave 1b).
