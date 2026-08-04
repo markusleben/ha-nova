@@ -62,6 +62,23 @@ describe("threshold calibration preflight (#484)", () => {
     expect(calibration).toContain("read-only");
   });
 
+  it("keeps calibration attached to the signal, its units, and moving boundaries", () => {
+    // Swapping the compared entity/attribute is a calibration trigger (Codex round 5).
+    expect(calibration).toContain("the compared signal itself");
+    expect(calibration).toContain("inherited boundaries are uncalibrated");
+    expect(writeSkill).toContain("swaps the compared `entity_id`/`attribute`");
+    expect(readFileSync("skills/helper/SKILL.md", "utf8")).toContain(
+      "compared `entity_id` is swapped",
+    );
+    // Statistics fields follow the state class; units follow the metadata.
+    expect(calibration).toContain("recorder/list_statistic_ids");
+    expect(calibration).toContain("per-bucket `change`");
+    expect(calibration).toContain("never compare mixed units");
+    // Helper-backed boundaries move over the window.
+    expect(calibration).toContain("time-align each sensor sample");
+    expect(calibration).toContain("assuming a constant\n   boundary");
+  });
+
   it("wires the preflight into the write and helper update flows", () => {
     expect(writeSkill).toContain("3d) Threshold Calibration (update only)");
     expect(writeSkill).toContain("skills/ha-nova/threshold-calibration.md");

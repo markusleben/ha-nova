@@ -124,8 +124,9 @@ const WORD_BUDGETS: Record<string, number> = {
   // fallback at both search/related call sites + delete-direction
   // clarification (#489).
   // Self-describing update-revert checkpoint receipts (#483).
-  // Threshold-calibration preflight step (#484).
-  write: 2050,
+  // Threshold-calibration preflight step (#484), extended to
+  // compared-signal swaps (Codex round 5).
+  write: 2075,
   // Cards adoption pointer (#389).
   diagnose: 1500,
   // Report-shape declaration line (shared output shapes); repair dedup,

@@ -8,11 +8,14 @@ exactly like "finished" until the history proves the pause lasts 40 minutes.
 ## When it applies
 
 An UPDATE to an existing automation, script, or `threshold` helper
-(`lower`/`upper`/`hysteresis`) that changes any of:
+(`lower`/`upper`/`hysteresis`, or its compared `entity_id`) that changes any of:
 
 - a `numeric_state` trigger/condition `above` or `below` value,
 - its `for:` duration,
 - a `wait_for_trigger` / `wait_template` timeout,
+- the compared signal itself — swapping the trigger/condition `entity_id` or
+  tested `attribute` while keeping existing values; a replacement signal has
+  its own unit, scale, and noise, so inherited boundaries are uncalibrated,
 
 where the compared entity measures a physical process (power, energy, current,
 temperature, humidity, flow, level, …). It does NOT apply to unrelated
@@ -26,7 +29,15 @@ classifies nothing and needs no history.
    from bounded raw history — primary-state statistics describe a different
    value and may only shortlist windows when they represent exactly the
    tested attribute.
-   Hourly `recorder/statistics_during_period` (`min`/`mean`/`max`) only
+   Check the statistics metadata first (`recorder/list_statistic_ids`): it
+   names the available fields and the statistics unit. Only measurement-class
+   statistics carry `min`/`mean`/`max`; metered `total`/`total_increasing`
+   statistics (energy, water, gas) carry consumption — shortlist their
+   windows from per-bucket `change` instead of requesting measurement
+   fields. When the statistics unit differs from the entity's current unit
+   (unit changed mid-history), normalize those samples into the threshold's
+   unit or exclude them as a named data gap — never compare mixed units.
+   Hourly `recorder/statistics_during_period` only
    SHORTLISTS candidate windows — hourly aggregates cannot order events or
    time a pause. Inspect the shortlisted windows with bounded raw `history`
    reads, and report durations as "longest observed at the available
@@ -34,12 +45,19 @@ classifies nothing and needs no history.
    (no buckets returned), fall back to bounded, chunked raw `history` reads
    over the window — statistics absence is not evidence absence. Never
    unbounded.
-2. Type-specific run evidence when it exists: for automations and scripts,
+2. When `above`/`below` references an `input_number`/helper instead of a
+   literal, the boundary itself moved over the window: read the helper's
+   bounded history too and time-align each sensor sample with the boundary
+   value active at that moment — classifying old samples against only the
+   proposed value misreads history. When the helper history is unavailable,
+   mark the calibration insufficient rather than assuming a constant
+   boundary.
+3. Type-specific run evidence when it exists: for automations and scripts,
    bounded reads of ALREADY-EXISTING traces (`trace/list`, `trace/get`) — an
    explicit preflight exception to the write flow's no-auto-trace rule; never
    trigger a run to create one. Threshold helpers have no traces and rely on
    history evidence alone.
-3. From the data derive: the observed normal range on each side of the
+4. From the data derive: the observed normal range on each side of the
    proposed value, the LONGEST ambiguous phase (time the signal sat on the
    "done" side of the threshold while the process was still running), and
    any data gaps (recorder downtime, entity unavailable windows).
