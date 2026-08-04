@@ -63,7 +63,11 @@ preview.
    value active at that moment — classifying old samples against only the
    proposed value misreads history. When the helper history is unavailable,
    mark the calibration insufficient rather than assuming a constant
-   boundary.
+   boundary. A numeric_state CONDITION evaluates at automation run time,
+   not at sensor-sample time: align both histories to the
+   condition-evaluation moments from existing traces; without usable
+   traces, mark condition-time conclusions unverified instead of deriving
+   them from sample-time alignment alone.
 3. Type-specific run evidence when it exists: for automations and scripts,
    bounded reads of ALREADY-EXISTING traces (`trace/list`, `trace/get`) — an
    explicit preflight exception to the write flow's no-auto-trace rule; never

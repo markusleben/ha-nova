@@ -82,9 +82,14 @@ describe("threshold calibration preflight (#484)", () => {
     expect(readFileSync("skills/service-call/SKILL.md", "utf8")).toContain(
       "run the calibration preflight per `skills/ha-nova/threshold-calibration.md`",
     );
-    // Helper-backed boundaries move over the window.
+    // Helper-backed boundaries move over the window; conditions evaluate at
+    // run time, so condition conclusions bind to trace evaluation moments.
     expect(calibration).toContain("time-align each sensor sample");
     expect(calibration).toContain("assuming a constant\n   boundary");
+    expect(calibration).toContain("evaluates at automation run time");
+    expect(calibration).toContain(
+      "mark condition-time conclusions unverified",
+    );
   });
 
   it("wires the preflight into the write and helper update flows", () => {
