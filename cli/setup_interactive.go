@@ -70,7 +70,8 @@ func maybeHandleInteractiveSetupCurrentState(reader *bufio.Reader, out io.Writer
 		}
 		// Offered before completeSetupLifecycle so the add flow's config
 		// saves run under the same lifecycle marker as this setup pass.
-		if addAttempted, addCode := maybeOfferAddServerForCompletedSetup(reader, out, paths, serviceMode, lifecycleMarker...); addAttempted && addCode != 0 {
+		addAttempted, addCode := maybeOfferAddServerForCompletedSetup(reader, out, paths, serviceMode, lifecycleMarker...)
+		if addAttempted && addCode != 0 {
 			return true, addCode
 		}
 		if err := completeSetupLifecycle(paths, lifecycleMarker...); err != nil {
@@ -82,7 +83,12 @@ func maybeHandleInteractiveSetupCurrentState(reader *bufio.Reader, out io.Writer
 			renderSetupCloudFallbackReadyBanner(out)
 			return true, 0
 		}
-		renderSetupAlreadyDoneBanner(out, cfg.RelaySecureBaseURL == "" && cfg.RelayBaseURL != "")
+		// After a ran add flow (success or cancel) its own closing lines are
+		// the message — the already-done banner would bury a cancelled or
+		// partial add under "Everything is already set up!".
+		if !addAttempted {
+			renderSetupAlreadyDoneBanner(out, cfg.RelaySecureBaseURL == "" && cfg.RelayBaseURL != "")
+		}
 		return true, 0
 	}
 	if summary := current.SkipSummary(); summary != "" {

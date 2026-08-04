@@ -303,11 +303,17 @@ func discoverHAViaMDNS() []setupDiscoveryProbe {
 	return discovered
 }
 
-// The advertised internal_url .local hostname survives the IPv4 rewrite in
-// homeAssistantDNSSDURL only through this side channel.
+// The advertised .local hostname survives the IPv4 rewrite in
+// homeAssistantDNSSDURL only through this side channel. Without an
+// internal_url the record's own .local entry.Host is the advertised name
+// that got rewritten.
 func dnssdAdvertisedLocalHost(entry dnssd.BrowseEntry) string {
 	internalURL := strings.TrimSpace(entry.Text["internal_url"])
 	if internalURL == "" {
+		host := strings.TrimSuffix(strings.TrimSpace(entry.Host), ".")
+		if strings.HasSuffix(strings.ToLower(host), ".local") {
+			return normalizeHostInput(host)
+		}
 		return ""
 	}
 	parsed, err := url.Parse(internalURL)

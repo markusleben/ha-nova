@@ -57,6 +57,8 @@ func maybeOfferAddServerForCompletedSetup(
 	if !add {
 		return false, 0
 	}
+	// attempted=true from here on — the flow's own closing output (success,
+	// cancel note, or partial-profile guidance) replaces the done banner.
 	return true, runAddServerFlow(reader, out, paths, lifecycleMarker...)
 }
 
@@ -290,11 +292,28 @@ func selectAddServerHAHost(
 		}
 		candidates = append(candidates, candidate)
 	}
+	// Manually entered addresses get the same already-configured check as
+	// discovery — typing the existing server would create the duplicate
+	// profile the filter exists to prevent.
+	promptUnconfiguredHost := func(defaultHost string) (string, string, error) {
+		for {
+			host, haURL, err := promptValidHAHostFromReader(reader, out, defaultHost)
+			if err != nil {
+				return "", "", err
+			}
+			if configured[addServerHostPortKey(haURL)] {
+				renderSetupErrorLine(out, "This Home Assistant is already configured as a server profile. Enter a different address.")
+				defaultHost = ""
+				continue
+			}
+			return host, haURL, nil
+		}
+	}
 	if len(candidates) == 0 {
 		if len(result.candidates) > 0 {
 			renderSetupParagraphTight(out, "Every discovered Home Assistant instance is already configured.")
 		}
-		return promptValidHAHostFromReader(reader, out, "")
+		return promptUnconfiguredHost("")
 	}
 	fmt.Fprintf(out, "  Found %d Home Assistant instance(s) that are not configured yet.\n", len(candidates))
 	candidate, selected, err := promptSetupDiscoveryCandidateInteractive(reader, out, candidates)
@@ -304,7 +323,7 @@ func selectAddServerHAHost(
 	if selected {
 		return candidate.Host, candidate.HAURL, nil
 	}
-	return promptValidHAHostFromReader(reader, out, candidate.Host)
+	return promptUnconfiguredHost(candidate.Host)
 }
 
 // Instance identity is host:HA-port. A port difference on the same host is a
@@ -342,14 +361,19 @@ func addServerHostPortKey(value string) string {
 }
 
 func addServerViaHostPortKey(candidate setupDiscoveryCandidate) string {
-	if strings.TrimSpace(candidate.Via) == "" {
+	via := strings.TrimSuffix(strings.TrimSpace(candidate.Via), ".")
+	if via == "" {
 		return ""
 	}
-	port := "8123"
-	if parsed, err := url.Parse(candidate.HAURL); err == nil && parsed.Port() != "" {
-		port = parsed.Port()
+	// The alias must carry the SAME effective port as the candidate URL —
+	// including scheme defaults — or a portless advertised URL (keyed :80 on
+	// the configured side) never matches.
+	urlKey := addServerHostPortKey(candidate.HAURL)
+	separator := strings.LastIndex(urlKey, ":")
+	if separator < 0 {
+		return ""
 	}
-	return strings.ToLower(strings.TrimSuffix(strings.TrimSpace(candidate.Via), ".")) + ":" + port
+	return strings.ToLower(via) + urlKey[separator:]
 }
 
 func configuredServerHostPortKeys(doc *configDocument) map[string]bool {
@@ -365,9 +389,12 @@ func configuredServerHostPortKeys(doc *configDocument) map[string]bool {
 			continue
 		}
 		add(profile.HAURL)
-		// Bare hosts and relay-only profiles carry no HA port; assume the
-		// default so the same box is still recognized.
-		add(profile.HAHost)
+		// The bare HAHost implies the default port ONLY when no URL pins the
+		// real one — otherwise a second instance on :8123 of the same host
+		// would be hidden by a profile that actually lives on another port.
+		if profile.HAURL == "" {
+			add(profile.HAHost)
+		}
 		if profile.HAURL == "" && profile.HAHost == "" {
 			add(normalizeHostInput(profile.RelayBaseURL))
 		}

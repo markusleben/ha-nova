@@ -116,6 +116,9 @@ func TestAddServerOfferDeclineKeepsConfig(t *testing.T) {
 	if !strings.Contains(output, "Add another Home Assistant server?") {
 		t.Fatalf("expected add-server offer on the completed screen:\n%s", output)
 	}
+	if !strings.Contains(output, "Everything is already set up!") {
+		t.Fatalf("declining the offer keeps the done banner:\n%s", output)
+	}
 	after, err := os.ReadFile(paths.ConfigFile)
 	if err != nil {
 		t.Fatalf("read config after: %v", err)
@@ -284,6 +287,11 @@ func TestAddServerDiscoveryFiltersConfiguredInstances(t *testing.T) {
 	if !strings.Contains(output, "was saved but is not paired yet") {
 		t.Fatalf("expected the partial-profile note after cancelling:\n%s", output)
 	}
+	// A ran add flow replaces the done banner — ending a cancelled add with
+	// "Everything is already set up!" would bury the partial-profile state.
+	if strings.Contains(output, "Everything is already set up!") {
+		t.Fatalf("done banner must not follow a ran add flow:\n%s", output)
+	}
 	doc, err := loadConfigDocument(paths.ConfigFile)
 	if err != nil {
 		t.Fatalf("load config document: %v", err)
@@ -305,7 +313,8 @@ func TestAddServerHostPortIdentityKeys(t *testing.T) {
 		"default_server": "default",
 		"servers": {
 			"default": {"ha_host": "homeassistant.local", "ha_url": "http://homeassistant.local:8123"},
-			"relayonly": {"relay_base_url": "http://192.168.1.9:8791"}
+			"relayonly": {"relay_base_url": "http://192.168.1.9:8791"},
+			"proxied": {"ha_host": "ha2.example", "ha_url": "https://ha2.example"}
 		}
 	}`))
 	if err != nil {
@@ -337,6 +346,25 @@ func TestAddServerHostPortIdentityKeys(t *testing.T) {
 	if got := addServerHostPortKey("ha.example"); got != "ha.example:8123" {
 		t.Fatalf("bare host key = %q", got)
 	}
+	// A profile whose URL pins a non-default port must NOT also claim the
+	// host at 8123 through its bare HAHost — that would hide a genuinely
+	// separate instance there.
+	if configured["ha2.example:8123"] {
+		t.Fatal("bare HAHost must not add a default-port key when the URL pins another port")
+	}
+	if !configured["ha2.example:443"] {
+		t.Fatal("the URL's scheme-default port key is the profile's identity")
+	}
+	// The Via alias inherits the candidate URL's EFFECTIVE port, including
+	// scheme defaults for portless URLs.
+	portlessVia := setupDiscoveryCandidate{
+		Host:  "192.168.1.6",
+		HAURL: "http://192.168.1.6",
+		Via:   "portless.local",
+	}
+	if got := addServerViaHostPortKey(portlessVia); got != "portless.local:80" {
+		t.Fatalf("portless Via key = %q", got)
+	}
 }
 
 func TestDNSSDAdvertisedLocalHostSurvivesIPv4Rewrite(t *testing.T) {
@@ -356,6 +384,15 @@ func TestDNSSDAdvertisedLocalHostSurvivesIPv4Rewrite(t *testing.T) {
 	entry.Text["internal_url"] = "https://ha.example.com"
 	if got := dnssdAdvertisedLocalHost(entry); got != "" {
 		t.Fatalf("non-.local internal_url must not produce a Via: %q", got)
+	}
+	// Without an internal_url the record's own .local Host is the advertised
+	// name the IPv4 rewrite replaced.
+	noInternal := dnssd.BrowseEntry{
+		Host: "0123456789abcdef0123456789abcdef.local.",
+		Text: map[string]string{"uuid": "0123456789abcdef0123456789abcdef"},
+	}
+	if got := dnssdAdvertisedLocalHost(noInternal); got != "0123456789abcdef0123456789abcdef.local" {
+		t.Fatalf("entry.Host .local name lost without internal_url: %q", got)
 	}
 }
 
