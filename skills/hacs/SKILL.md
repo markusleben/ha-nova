@@ -34,9 +34,14 @@ If this fails: `ha-nova setup`
 
 File-based relay requests only:
 - `ha-nova relay ws --data-file <payload-file> --out <result-file>` — all
-  `hacs/*` commands, plus the WS-only frontend reads
+  `hacs/*` commands, the WS-only frontend reads
   `{"type":"lovelace/resources"}` and
-  `{"type":"lovelace/config","url_path":<dashboard>}`
+  `{"type":"lovelace/config","url_path":<dashboard>}`, and the preflight
+  reads the uninstall/migration flow depends on:
+  `{"type":"config_entries/get"}`,
+  `{"type":"config/entity_registry/list"}`,
+  `{"type":"config/device_registry/list"}`, and
+  `{"type":"search/related","item_type":"entity","item_id":<entity_id>}`
 - `ha-nova relay core --method GET --path <path> --out <result-file>` for HA
   REST reads (config entries, states)
 - `ha-nova relay core --method DELETE --path /api/config/config_entries/entry/<entry_id>`
