@@ -25,11 +25,15 @@ The two hard problems are handled skill-side:
    path; SSH stays a last resort requiring explicit user authorization.
 2. **Long-running operations.** A Relay timeout is an UNKNOWN outcome, never
    a failure: every mutation follows read → mutate → bounded reconcile loop
-   (re-read repository state, files/manifest via the existing opt-in file
-   read when enabled, config entries, pending flows) until the outcome is
-   proven completed/failed/still-running; no automatic retry until the
-   read-back proves no mutation happened; duplicate registrations, downloads,
-   and config flows are prevented by re-reading identity before every retry.
+   (re-read HACS repository state, HA integration/manifest state via the
+   API, config entries, pending flows) until the outcome is proven
+   completed/failed/still-running; no automatic retry until the read-back
+   proves no mutation happened; duplicate registrations, downloads, and
+   config flows are prevented by re-reading identity before every retry.
+   Filesystem evidence is explicitly UNAVAILABLE: the Relay's file endpoint
+   denies `custom_components` and `www` by design (executable paths,
+   `DENIED_SEGMENTS` in `nova/src/http/handlers/files-paths.ts`), so
+   reconciliation never relies on file reads.
 
 ## Skill scope (skills/hacs/SKILL.md + reference files)
 
@@ -66,10 +70,11 @@ The two hard problems are handled skill-side:
   reinstalling the previous version is always explainable; no credentials in
   chat/output ever.
 - **Verification:** read back canonical registration, exact installed
-  version, manifest, expected files (when file access is enabled), pending
-  states, config-entry count/state, entity creation/preservation, survival
-  of unrelated objects, absence of duplicates. Command success alone is
-  never a result.
+  version, manifest/integration state through the HACS/HA APIs (never file
+  reads — `custom_components`/`www` are denied by the Relay's file
+  endpoint), pending states, config-entry count/state, entity
+  creation/preservation, survival of unrelated objects, absence of
+  duplicates. Command success alone is never a result.
 
 ## Wiring
 
