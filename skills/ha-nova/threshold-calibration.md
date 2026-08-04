@@ -12,7 +12,9 @@ An UPDATE to an existing automation, script, or `threshold` helper
 
 - a `numeric_state` trigger/condition `above` or `below` value,
 - its `for:` duration,
-- a `wait_for_trigger` / `wait_template` timeout,
+- a `wait_for_trigger` / `wait_template` timeout — or the numeric predicate
+  INSIDE the wait template itself (washer power `< 5` to `< 20` reclassifies
+  "finished" even with the timeout untouched),
 - the compared signal itself — swapping the trigger/condition `entity_id` or
   tested `attribute`, or changing its `value_template` (a transform can
   rescale or redefine the signal entirely, watts to kilowatts, while keeping
@@ -39,10 +41,12 @@ new state to such a helper is the same class: a scene update adding or
 changing that member, and a `scene.apply` carrying it, both trigger the
 preflight before the write or call. Dynamic setters have no single
 proposed boundary: for `increment`/`decrement` derive the REACHABLE range
-from the helper's step and min/max clamps and calibrate against its
-endpoints; for a templated `set_value`, reproduce the template offline
-when possible — otherwise the calibration is insufficient and the
-helper's min/max clamps are named as the only remaining guard.
+from the helper's step and min/max clamps, and evaluate every reachable
+boundary that falls INSIDE the observed signal range (a noisy region
+anywhere in the middle is a false-toggle risk endpoint checks miss); for
+a templated `set_value`, reproduce the template offline when possible —
+otherwise the calibration is insufficient and the helper's min/max
+clamps are named as the only remaining guard.
 
 ## Evidence (read-only, bounded)
 
