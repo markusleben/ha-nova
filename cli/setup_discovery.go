@@ -39,6 +39,10 @@ type setupDiscoveryCandidate struct {
 type setupDiscoveryProbe struct {
 	Host   string
 	Source string
+	// Via carries the advertised .local hostname when the discovery path
+	// rewrote it to an IPv4 URL — the add-server filter matches it against
+	// profiles configured with the .local spelling.
+	Via string
 }
 
 func detectDefaultHAHost(cfg runtimeConfig) string {
@@ -110,6 +114,7 @@ func discoverReachableHAHosts(cfg runtimeConfig) ([]setupDiscoveryCandidate, str
 			Host:   normalizeHostInput(resolved),
 			HAURL:  strings.TrimRight(resolved, "/"),
 			Source: probe.Source,
+			Via:    probe.Via,
 		}
 		if probeDeadline.After(deadline) {
 			probeDeadline = deadline
@@ -117,7 +122,9 @@ func discoverReachableHAHosts(cfg runtimeConfig) ([]setupDiscoveryCandidate, str
 		if host, haURL := confirmedDiscoveryIPv4(candidate.HAURL, probeDeadline); host != "" {
 			candidate.Host = host
 			candidate.HAURL = haURL
-			candidate.Via = normalizeHostInput(probe.Host)
+			if candidate.Via == "" {
+				candidate.Via = normalizeHostInput(probe.Host)
+			}
 		}
 		key := setupDiscoveryEndpointKey(candidate.HAURL)
 		if key == "" {
@@ -273,6 +280,7 @@ func discoverHAViaMDNS() []setupDiscoveryProbe {
 			discovered = append(discovered, setupDiscoveryProbe{
 				Host:   endpoint,
 				Source: source,
+				Via:    dnssdAdvertisedLocalHost(entry),
 			})
 		},
 		func(dnssd.BrowseEntry) {},
@@ -291,6 +299,24 @@ func discoverHAViaMDNS() []setupDiscoveryProbe {
 		return left < right
 	})
 	return discovered
+}
+
+// The advertised internal_url .local hostname survives the IPv4 rewrite in
+// homeAssistantDNSSDURL only through this side channel.
+func dnssdAdvertisedLocalHost(entry dnssd.BrowseEntry) string {
+	internalURL := strings.TrimSpace(entry.Text["internal_url"])
+	if internalURL == "" {
+		return ""
+	}
+	parsed, err := url.Parse(internalURL)
+	if err != nil || parsed.Hostname() == "" {
+		return ""
+	}
+	host := strings.TrimSuffix(strings.ToLower(parsed.Hostname()), ".")
+	if !strings.HasSuffix(host, ".local") {
+		return ""
+	}
+	return normalizeHostInput(host)
 }
 
 func safeDNSSDName(value string) string {

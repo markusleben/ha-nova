@@ -2,6 +2,7 @@ package main
 
 import (
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -9,6 +10,8 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/brutella/dnssd"
 )
 
 // Fixture: a fully completed default-profile install, mirroring
@@ -322,5 +325,36 @@ func TestAddServerHostPortIdentityKeys(t *testing.T) {
 	}
 	if configured[addServerHostPortKey("http://homeassistant.local:8124")] {
 		t.Fatal("a different HA port on the same host is a different instance")
+	}
+	// Scheme-default ports: an explicit URL without a port means 80/443,
+	// never the HA default — only bare hosts imply 8123.
+	if got := addServerHostPortKey("https://ha.example"); got != "ha.example:443" {
+		t.Fatalf("https default port key = %q", got)
+	}
+	if got := addServerHostPortKey("http://ha.example"); got != "ha.example:80" {
+		t.Fatalf("http default port key = %q", got)
+	}
+	if got := addServerHostPortKey("ha.example"); got != "ha.example:8123" {
+		t.Fatalf("bare host key = %q", got)
+	}
+}
+
+func TestDNSSDAdvertisedLocalHostSurvivesIPv4Rewrite(t *testing.T) {
+	entry := dnssd.BrowseEntry{
+		Text: map[string]string{
+			"uuid":         "0123456789abcdef0123456789abcdef",
+			"internal_url": "http://homeassistant.local:8123",
+		},
+		IPs: []net.IP{net.ParseIP("192.168.1.5")},
+	}
+	if got := homeAssistantDNSSDURL(entry); got != "http://192.168.1.5:8123" {
+		t.Fatalf("expected the IPv4 rewrite, got %q", got)
+	}
+	if got := dnssdAdvertisedLocalHost(entry); got != "homeassistant.local" {
+		t.Fatalf("advertised .local host lost in rewrite: %q", got)
+	}
+	entry.Text["internal_url"] = "https://ha.example.com"
+	if got := dnssdAdvertisedLocalHost(entry); got != "" {
+		t.Fatalf("non-.local internal_url must not produce a Via: %q", got)
 	}
 }

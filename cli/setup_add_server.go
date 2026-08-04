@@ -169,7 +169,7 @@ func runAddServerStages(
 			return cancelKeepingPartialProfile()
 		}
 		printHumanErr("%s", err)
-		return 1
+		return failKeepingPartialProfile()
 	}
 
 	for {
@@ -316,7 +316,11 @@ func addServerHostPortKey(value string) string {
 	if trimmed == "" {
 		return ""
 	}
-	if !strings.Contains(trimmed, "://") {
+	// A bare host implies the HA default port; an explicit URL without a
+	// port means the SCHEME default (80/443) — conflating https://ha.example
+	// with ha.example:8123 would hide a genuinely different instance.
+	hadScheme := strings.Contains(trimmed, "://")
+	if !hadScheme {
 		trimmed = "http://" + trimmed
 	}
 	parsed, err := url.Parse(trimmed)
@@ -325,7 +329,14 @@ func addServerHostPortKey(value string) string {
 	}
 	port := parsed.Port()
 	if port == "" {
-		port = "8123"
+		switch {
+		case !hadScheme:
+			port = "8123"
+		case parsed.Scheme == "https":
+			port = "443"
+		default:
+			port = "80"
+		}
 	}
 	return strings.ToLower(strings.TrimSuffix(parsed.Hostname(), ".")) + ":" + port
 }
