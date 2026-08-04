@@ -198,18 +198,33 @@ func runAddServerStages(
 		return failKeepingPartialProfile()
 	}
 
+	// After errSetupDevicePaired the credential and secure endpoint are
+	// already persisted — a verification failure is a reachability problem,
+	// never an unpaired profile, so the guidance must not suggest pairing
+	// again (that would replace a working credential).
+	renderPairedButUnverified := func() {
+		renderSetupParagraph(out,
+			fmt.Sprintf("The server %q is paired; only the verification could not reach it yet.", name),
+			"Make sure the NOVA Relay App is running, then check with:",
+			fmt.Sprintf("  ha-nova doctor --server %s", name),
+		)
+	}
 	if !verifyDeviceHealth(cfg) {
 		renderSetupErrorLine(out, "Paired, but the secure device endpoint did not answer yet. The App may still be starting.")
 		if _, err := promptWizardLineFromReader(reader, out, "Press Enter to retry once", ""); err != nil {
 			if err == errSetupBack || err == errSetupExit {
-				return cancelKeepingPartialProfile()
+				renderSetupCancelledNote(out)
+				renderPairedButUnverified()
+				return 0
 			}
 			printHumanErr("%s", err)
+			renderPairedButUnverified()
 			return 1
 		}
 		if !verifyDeviceHealth(cfg) {
 			printHumanErr("the secure device endpoint for %q did not answer", name)
-			return failKeepingPartialProfile()
+			renderPairedButUnverified()
+			return 1
 		}
 	}
 	renderSetupSuccessLine(out, "Server %q is paired and verified", name)
