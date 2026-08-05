@@ -76,6 +76,8 @@ release:
 
     ## New Features
 
+    - **Manage HACS from chat.** Browse, install, update, pin, and remove custom integrations and frontend packages — with safety previews, honest restart reporting, and a mandatory backup before store migrations.
+    - **Add another Home Assistant server.** The completed-setup screen now offers a wizard that discovers additional servers and pairs them as named profiles — switch anytime with `--server <name>`.
     - **Revoking a device now asks first.** Revoking a paired device shows exactly which computer you are disconnecting — name, added, last used, cloud badge. Registry reset requires typing RESET.
     - **Home Status you can act on.** Table-first, cause-oriented reports name exact integrations and entities; large groups stay summarized with precise follow-ups; detail and privacy modes are yours.
     - **Thresholds calibrated against your real history.** Changing a threshold, debounce, or timeout on a physical process reads up to 30 days of history and shows ranges and both failure directions first.
