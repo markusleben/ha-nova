@@ -35,11 +35,15 @@ boundary — `numeric_state` `above`/`below` AND direct template comparisons
 alike. Before such a service call, resolve the helper's
 direct consumers (`search/related`); when one compares a physical-process
 signal, run this preflight and carry its findings into the service-call
-preview. The direct call is not the only path: an automation or script
-UPDATE that adds or changes an ACTION invoking those setter services on a
+preview. The direct call is not the only path: an automation or script CREATE or
+UPDATE that stores an ACTION invoking those setter services on a
 threshold-backing helper moves the threshold on every future run — the
-stored action triggers this preflight at update time, because no service
-call happens while the config is written. A stored SCENE that assigns a
+stored action triggers this preflight at write time, because no service
+call happens while the config is written. On create, resolve the target
+helper's consumers first (one bounded `search/related` on that helper);
+the duty applies when an existing consumer compares a physical-process
+signal, and the preview marks the setter uncalibrated when that
+consumer history is unavailable. A stored SCENE that assigns a
 new state to such a helper is the same class: a scene update adding or
 changing that member, and a `scene.apply` carrying it, both trigger the
 preflight before the write or call. Dynamic setters have no single

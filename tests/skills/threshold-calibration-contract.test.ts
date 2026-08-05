@@ -91,7 +91,9 @@ describe("threshold calibration preflight (#484)", () => {
       "EXTEND each shortlisted window forward",
     );
     expect(calibration).toContain("cannot be reproduced offline");
-    expect(calibration).toContain("the\nstored action triggers this preflight at update time");
+    expect(calibration).toContain("the\nstored action triggers this preflight at write time");
+    expect(calibration).toContain("CREATE or\nUPDATE that stores an ACTION");
+    expect(calibration).toContain("marks the setter uncalibrated");
     expect(calibration).toContain("A stored SCENE that assigns a\nnew state");
     // Dynamic setters calibrate every reachable boundary inside the observed
     // range, and scene.apply routes through the same service-call hook
@@ -135,7 +137,10 @@ describe("threshold calibration preflight (#484)", () => {
   });
 
   it("wires the preflight into the write and helper update flows", () => {
-    expect(writeSkill).toContain("3d) Threshold Calibration (update only)");
+    expect(writeSkill).toContain(
+      "3d) Threshold Calibration (update; create for stored threshold setters)",
+    );
+    expect(writeSkill).toContain("otherwise create keeps its 3c skip");
     expect(writeSkill).toContain("skills/ha-nova/threshold-calibration.md");
     expect(writeSkill).toContain("longest ambiguous phase");
     expect(writeSkill).toContain("Unrelated numeric edits skip it.");
