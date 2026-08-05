@@ -21,7 +21,17 @@ The two hard problems are handled skill-side:
    `hacs/repository/*` families), guarded by capability detection: read the
    HACS version first (config-entry/manifest or `hacs/info`), proceed only on
    a recognized schema version, and fail closed with the HACS-UI pointer on an
-   unrecognized one. Never guess schemas; never edit `.storage`; never SSH —
+   unrecognized one. The probe itself sits behind an ADMIN gate: HACS
+   registers `hacs/info` and every repository list/mutation command
+   admin-only, so a Relay backed by a non-admin credential (standalone
+   LLAT of a regular user, non-admin Cloud OAuth user) fails the probe
+   with WS error `unauthorized` — a PERMISSION class, never evidence
+   about HACS presence. The skill distinguishes the two probe failures:
+   `unknown_command` → HACS is missing/not loaded (remediation: install
+   or restart guidance); `unauthorized` → credential lacks admin
+   (remediation: switch the Relay upstream credential to an admin
+   account) — and never advertises HACS coverage before the probe
+   succeeds. Never guess schemas; never edit `.storage`; never SSH —
    the Safety Core binds every operation to the Relay path, so unrecognized
    schemas and failed operations stop with the HACS-UI pointer, full stop.
 2. **Long-running operations.** A Relay timeout is an UNKNOWN outcome, never
