@@ -214,7 +214,16 @@ Command success alone is never a result. Verify by category:
   resource mode also the Lovelace resource registration — in YAML mode the
   resource is user-managed: say so instead of failing the check. A
   frontend reload note replaces restart talk.
-- theme/template/python_script/appdaemon: repository state and version.
+- theme: repository state and version (no integration manifest exists).
+- python_script: repository state and version, PLUS the real activation
+  anchor — after the user-confirmed reload, the `python_script.<name>`
+  service exists in the service registry; before that reload, report
+  installed-but-not-active.
+- template/appdaemon: repository state and version are the ONLY
+  Relay-verifiable evidence (no config entry, no Lovelace resource, no
+  readable files; appdaemon runs outside HA). Run the lifecycle, but NEVER
+  report these as activation-verified: name the limit and point to the
+  HACS UI / AppDaemon's own logs for activation proof.
 Also verify survival of unrelated objects and absence of duplicates after
 adds/migrations. Evidence comes from the HACS/HA APIs ONLY — never file
 reads; the Relay file endpoint denies `custom_components` and `www` by
