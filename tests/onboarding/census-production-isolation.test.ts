@@ -19,6 +19,20 @@ describe("census production isolation (#446)", () => {
     expect(out).toContain("[census-production-isolation] OK");
   });
 
+  it("guards the production endpoint against CI runs in the product itself", () => {
+    // Workflow files are frozen to uses:-only deltas while Cloud remote is
+    // enabled, so the smoke isolation lives in the census client: CI runs
+    // skip the ping and the shared send layer refuses the BUILT-IN endpoint
+    // (stubbed test endpoints stay unaffected).
+    const census = readFileSync("cli/census.go", "utf8");
+    expect(census).toContain("censusBuiltinEndpointURL");
+    expect(census).toContain('os.Getenv("CI") != ""');
+    expect(census).toContain("censusPingSkipCI");
+    expect(census).toContain(
+      "refusing census %s against the production endpoint in CI",
+    );
+  });
+
   it("keeps every live E2E entry point on the census kill switch", () => {
     // Shell launchers AND Python entry points: any executable added to
     // scripts/e2e/ must export HA_NOVA_NO_CENSUS=1 before driving the built

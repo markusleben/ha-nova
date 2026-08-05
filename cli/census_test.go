@@ -288,3 +288,26 @@ func TestCensusPayloadOmitsFutureDatedRelayObservation(t *testing.T) {
 		t.Fatalf("future-dated relay observation must be omitted, got %q", payload.Relay)
 	}
 }
+
+func TestCensusCIGuardProtectsProductionEndpointOnly(t *testing.T) {
+	// CI + untouched built-in endpoint: the ping skips and the send layer
+	// refuses — production statistics stay clean during installer smokes.
+	t.Setenv("CI", "true")
+	paths := setupCensusTest(t)
+	result := sendCensusPingOnce(paths)
+	if result.Skipped != censusPingSkipCI {
+		t.Fatalf("expected CI skip against the built-in endpoint, got %+v", result)
+	}
+	if err := postCensusJSON("/ping", []byte("{}")); err == nil {
+		t.Fatal("send layer must refuse the production endpoint in CI")
+	}
+
+	// CI + stubbed endpoint (every other test): fully unaffected.
+	payloads := stubCensusTransport(t, 204, nil)
+	if err := postCensusJSON("/ping", []byte("{}")); err != nil {
+		t.Fatalf("stubbed endpoint must pass in CI: %v", err)
+	}
+	if len(*payloads) != 1 {
+		t.Fatalf("stubbed send did not happen: %d payloads", len(*payloads))
+	}
+}
