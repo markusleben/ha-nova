@@ -22,6 +22,18 @@ Apply these rules to every user-facing HA NOVA response, including direct sub-sk
 - Scratch payload/filter/result files are internal execution artifacts. Do not create them under the repo working tree. Do not mention or echo scratch file paths, "edited files", payload files, or jq files in progress updates, command summaries, status, or final output unless the user asks for debugging details. If the client surfaces scratch files as workspace edits, or visible command text contains absolute scratch paths, the scratch location/tooling was wrong.
 - Internal task, card, or payload labels are execution artifacts too. Do not surface labels such as `Automation Payload`, `Empty Payload`, `Apply And Verify`, `Collision Payload`, `Run Post Write`, scratch file names, filter names, or generated helper-step titles in the user-facing answer.
 
+## Progressive Detail
+
+For any truncated listing — capped groups, top-N rows, bounded chunks — the
+output MUST carry the total count, the shown count, the omitted count, and a
+precise way to request the full set (the exact follow-up phrase or mode, e.g.
+"say 'full report' or 'show all entities in MQTT'"). A detail follow-up
+widens only the DETAIL dimension — identity form stays in the active
+privacy/identity mode until the user explicitly switches it. Never end with a bare
+"N more", "other groups", or similar. When an active mode hides identities or
+detail, name the mode and how to switch. Follow-ups are fresh live reads —
+say that results may have changed since the previous report.
+
 ## Terminal-Friendly Shape
 
 - Prefer plain short labels over decorative Markdown headings in terminal-like clients.
@@ -136,8 +148,11 @@ Shape specializations: the status/summary slot is the answer-first lead, and
 ## List Frame (Inventories & Discovery)
 
 Any list of items — entities, configs, helpers, backups, updates, to-do items,
-media browse results: a count line first ("12 found, showing first 10" —
-state the cap whenever rows are truncated), then compact pipe tables
+media browse results: a count line first ("12 found, showing first 10,
+2 omitted — say 'show all' for the rest; fresh read, results may have
+changed" — whenever rows are truncated, carry the Progressive Detail
+fields: total, shown, omitted, the exact follow-up, and the fresh-read
+notice), then compact pipe tables
 (max 4 short columns — they degrade to plain pipe text in raw terminals) or
 grouped lists with counts; never raw JSON. Canonical column order: ID, Name,
 one or two domain-specific columns (Type, State, Reason), Area. Domains keep
@@ -145,7 +160,7 @@ their own columns — the frame (count line, column order, stated cap) is what
 is shared.
 
 ```
-23 automations found, showing first 10.
+23 automations found, showing first 10, 13 omitted — say "show all automations" for the rest (fresh read — results may have changed).
 
 | Entity ID | Name | Area |
 |---|---|---|

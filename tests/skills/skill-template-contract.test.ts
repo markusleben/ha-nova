@@ -133,7 +133,10 @@ const WORD_BUDGETS: Record<string, number> = {
   diagnose: 1500,
   // Report-shape declaration line (shared output shapes); repair dedup,
   // attention-threshold definition, cause↔symptom linking (2026-h2 Wave 1c).
-  health: 1350,
+  // Table-first redesign: report modes, block shape, ten-block order,
+  // behavior rules, private source fields, canonical detector/system
+  // blocks retained (#440).
+  health: 2100,
   // post-publish device verification step (2026-h2 Wave 1a).
   // User-assisted capture readiness sequence (#394).
   mqtt: 1500,

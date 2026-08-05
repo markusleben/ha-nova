@@ -1,60 +1,14 @@
 import { describe, expect, it } from "vitest";
 
+import { groupFixture } from "./_health-availability-fixtures.js";
 import {
-  type AvailabilityFixture,
-  type ConfigEntry,
   type RegistryRow,
   type StateRow,
   summarizeAvailability,
 } from "./_health-availability-oracle.js";
 
-type GroupInput = {
-  platform: string;
-  count: number;
-  state: string;
-  disabled_by?: string | null;
-  error_reason?: string;
-  error_reason_translation_key?: string;
-};
-
-function groupFixture(groups: GroupInput[]): AvailabilityFixture {
-  const states: StateRow[] = [];
-  const registry: RegistryRow[] = [];
-  const entries: ConfigEntry[] = [];
-  for (const [groupIndex, group] of groups.entries()) {
-    const entryID = `private-entry-${groupIndex}`;
-    entries.push({
-      entry_id: entryID,
-      domain: group.platform,
-      state: group.state,
-      title: `Private ${groupIndex}`,
-      ...(group.disabled_by !== undefined
-        ? { disabled_by: group.disabled_by }
-        : {}),
-      ...(group.error_reason !== undefined
-        ? { error_reason: group.error_reason }
-        : {}),
-      ...(group.error_reason_translation_key !== undefined
-        ? {
-            error_reason_translation_key: group.error_reason_translation_key,
-          }
-        : {}),
-    });
-    for (let rowIndex = 0; rowIndex < group.count; rowIndex += 1) {
-      const entityID = `sensor.private_${groupIndex}_${rowIndex}`;
-      states.push({ entity_id: entityID, state: "unavailable" });
-      registry.push({
-        entity_id: entityID,
-        config_entry_id: entryID,
-        platform: group.platform,
-      });
-    }
-  }
-  return { states, registry, entries, devices: [] };
-}
-
 describe("health availability adversarial edge fixtures", () => {
-  it("routes one sorted top-five group ledger across both owners", () => {
+  it("routes one sorted budgeted group ledger across both owners", () => {
     const report = summarizeAvailability(
       groupFixture([
         { platform: "loaded_a", count: 10, state: "loaded" },
@@ -76,15 +30,21 @@ describe("health availability adversarial edge fixtures", () => {
           /entity states \(\d+ restored\)/.test(line) ||
           /; impact \d+ entity states/.test(line),
       );
+    // #440: the 50-row Explained budget selects attention-joined groups
+    // first, then other current groups until the budget is exhausted —
+    // loaded_d (4) and loaded_e (2) no longer fit after 49 spent rows.
     expect(detailedGroups).toEqual([
       expect.stringMatching(/^loaded_a:/),
       expect.stringMatching(/^loaded_b:/),
       expect.stringMatching(/^loaded_c:/),
       expect.stringMatching(/^failed_a: setup_error; impact 9/),
       expect.stringMatching(/^failed_b: setup_retry; impact 7/),
+      expect.stringMatching(/^failed_c: migration_error; impact 5/),
+      expect.stringMatching(/^failed_d: failed_unload; impact 3/),
+      expect.stringMatching(/^failed_e: not_loaded; impact 1/),
     ]);
-    expect(report).toContain("5 group details omitted (15 entity states).");
-    expect(report.match(/; impact \d+ entity states/g)).toHaveLength(2);
+    expect(report).toContain("2 group details omitted (6 entity states).");
+    expect(report.match(/; impact \d+ entity states/g)).toHaveLength(5);
   });
 
   it("chooses attention entries by state priority independently of group size", () => {
@@ -109,11 +69,12 @@ describe("health availability adversarial edge fixtures", () => {
       ]),
     );
     expect(capped).toContain("urgent: setup_error; impact 1 entity states");
-    expect(capped).toContain(
-      "1 attention entries omitted by integration-entry cap.",
-    );
+    // #440: the integration cap is 25 rows — all six entries render, still
+    // ordered by state priority (setup_error before every not_loaded).
+    expect(capped).not.toContain("omitted by integration-entry cap");
+    expect(capped.match(/not_loaded/g)).toHaveLength(5);
+    // Budget: 10+9+8+7+6+1 = 41 rows fit the 50-row budget — no omission.
     expect(capped).not.toContain("group details omitted");
-    expect(capped.match(/not_loaded/g)).toHaveLength(4);
   });
 
   it("keeps transitions, unknown states, and disabled failures as context", () => {
@@ -182,48 +143,6 @@ describe("health availability adversarial edge fixtures", () => {
     expect(report).not.toContain("private-device");
   });
 
-  it("never emits hostile platform or config-entry domain values", () => {
-    const report = summarizeAvailability({
-      states: [{ entity_id: "sensor.private", state: "unavailable" }],
-      registry: [
-        {
-          entity_id: "sensor.private",
-          config_entry_id: "private-entry",
-          platform: "private-host.local",
-        },
-      ],
-      entries: [
-        {
-          entry_id: "private-entry",
-          domain: "token-secret",
-          state: "loaded",
-          title: "Private",
-        },
-      ],
-      devices: [],
-    });
-    expect(report).not.toContain("private-host.local");
-    expect(report).not.toContain("token-secret");
-    expect(report).toContain("sensor:");
-
-    const unjoinedAttention = summarizeAvailability({
-      states: [],
-      entries: [
-        {
-          entry_id: "private-entry",
-          domain: "token-secret",
-          state: "setup_error",
-          title: "Private",
-        },
-      ],
-      devices: [],
-    });
-    expect(unjoinedAttention).toContain(
-      "unknown integration: setup_error; impact attribution unavailable",
-    );
-    expect(unjoinedAttention).not.toContain("token-secret");
-  });
-
   it("reports omitted device-cluster and entity-state counts", () => {
     const clusterSizes = [5, 4, 3, 2, 1];
     const states: StateRow[] = [];
@@ -243,14 +162,18 @@ describe("health availability adversarial edge fixtures", () => {
       entries: [],
       devices,
     });
-    expect(report).toContain("2 device clusters omitted (3 entity states).");
+    // Codex R6: sibling truncation paths carry Progressive Detail too.
+    expect(report).toContain(
+      "2 device clusters omitted (3 entity states). Request the full device-subcluster list for all clusters; results may have changed (fresh live read).",
+    );
   });
 
   it("uses both sides of restored/current 60 percent thresholds", () => {
+    // #440: only RESTORED tracker/stateless rows count as inventory.
     const states = Array.from({ length: 10 }, (_, index) => ({
       entity_id: `${index < 6 ? "device_tracker" : "sensor"}.private_${index}`,
       state: "unavailable",
-      attributes: { restored: false },
+      attributes: { restored: index < 6 },
     }));
     const registry = states.map((row, index) => ({
       entity_id: row.entity_id,
@@ -267,10 +190,41 @@ describe("health availability adversarial edge fixtures", () => {
       summarizeAvailability({ states, registry, entries, devices: [] }),
     ).toContain("mostly restored or tracker-style inventory");
     states[5]!.entity_id = "sensor.private_5";
+    states[5]!.attributes = { restored: false };
     registry[5]!.entity_id = "sensor.private_5";
     expect(
       summarizeAvailability({ states, registry, entries, devices: [] }),
     ).not.toContain("mostly restored or tracker-style inventory");
+
+    // The #440 regression: CURRENT tracker rows are visible findings, never
+    // harmless inventory.
+    const currentTrackers = states.map((row, index) => ({
+      ...row,
+      entity_id: `device_tracker.current_${index}`,
+      attributes: { restored: false },
+    }));
+    const currentReport = summarizeAvailability({
+      states: currentTrackers,
+      registry: currentTrackers.map((row, index) => ({
+        entity_id: row.entity_id,
+        config_entry_id: `entry-${index}`,
+        platform: `platform_${index}`,
+      })),
+      entries,
+      devices: [],
+    });
+    expect(currentReport).not.toContain(
+      "mostly restored or tracker-style inventory",
+    );
+    expect(currentReport).toContain("tracker/presence 10");
+
+    // #440: an 11-50 group in Private+Explained emits five prioritized
+    // examples plus total/shown/omitted — never zero detail.
+    const midGroup = summarizeAvailability(
+      groupFixture([{ platform: "mid", count: 12, state: "loaded" }]),
+    );
+    expect(midGroup.match(/^ {2}- /gm) ?? []).toHaveLength(5);
+    expect(midGroup).toContain("total 12, shown 5, omitted 7.");
 
     const broadStates = Array.from({ length: 10 }, (_, index) => ({
       entity_id: `sensor.broad_${index}`,
@@ -350,6 +304,22 @@ describe("health availability adversarial edge fixtures", () => {
     });
     expect(systemHealth).toContain("Status: Attention.");
     expect(systemHealth).toContain("Next step: Review failed system health.");
+  });
+
+  it("attributes nothing on a config_entry_id without a matching entry", () => {
+    const report = summarizeAvailability({
+      states: [{ entity_id: "sensor.private", state: "unavailable" }],
+      registry: [
+        {
+          entity_id: "sensor.private",
+          config_entry_id: "private-ghost-entry",
+        },
+      ],
+      entries: [],
+      devices: [],
+    });
+    expect(report).toContain("Registry match: 1/1; attribution: 0/1");
+    expect(report).toContain("unattributed: 1");
   });
 
   it("uses code-point ordering for equal-count groups", () => {

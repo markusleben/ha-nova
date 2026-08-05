@@ -10,6 +10,7 @@ export type RegistryRow = {
   device_id?: string | null;
   platform?: string | null;
   name?: string;
+  original_name?: string;
 };
 
 export type ConfigEntry = {
@@ -37,6 +38,7 @@ export type AvailabilityFixture = {
   lowBatteries?: number;
   failedSystemHealth?: number;
   unavailableSources?: string[];
+  privacyMode?: "private" | "shareable" | "aggregate";
 };
 
 export const inventoryDomains = new Set([
@@ -63,8 +65,47 @@ export function isSafeHASlug(value: unknown): value is string {
   return typeof value === "string" && /^[a-z0-9_]{1,128}$/.test(value);
 }
 
+// Display-name precedence lives with the caller; this only decides whether a
+// candidate name is safely renderable next to the exact entity ID: printable,
+// single-line, bounded, adding information beyond the ID itself, and free of
+// the patterns the privacy contract forbids in every mode (URLs, hostnames,
+// IPs, Markdown delimiters, secret-like values). Fail closed — dropping a
+// name loses nothing, the exact ID is always shown.
+const FORBIDDEN_NAME_PATTERN = new RegExp(
+  [
+    String.raw`https?://`,
+    String.raw`www\.`,
+    String.raw`\d{1,3}(?:\.\d{1,3}){3}`,
+    // Dot-joined tokens are hostname-shaped (host.local, nas.lan, x.example.com).
+    String.raw`[^\s.]+\.[^\s.]{2,}`,
+    String.raw`[\\|\x60*_#\[\]<>]`,
+    String.raw`(?:token|secret|passwor|api[-_ ]?key)`,
+  ].join("|"),
+  "iu",
+);
+
+export function safeDisplayName(candidate: unknown, entityID: string): string {
+  if (typeof candidate !== "string") return "";
+  const trimmed = candidate.trim();
+  if (
+    trimmed === "" ||
+    trimmed === entityID ||
+    trimmed.length > 120 ||
+    /[\p{Cc}\p{Cf}]/u.test(trimmed) ||
+    FORBIDDEN_NAME_PATTERN.test(trimmed)
+  ) {
+    return "";
+  }
+  return trimmed;
+}
+
 export function isSafeEntityID(value: unknown): value is string {
-  return typeof value === "string" && /^[a-z0-9_]+\.[a-z0-9_]+$/.test(value);
+  // The domain bound mirrors the user-visible domain contract (max 128);
+  // the object part gets a generous but finite bound.
+  return (
+    typeof value === "string" &&
+    /^[a-z0-9_]{1,128}\.[a-z0-9_]{1,255}$/.test(value)
+  );
 }
 
 const knownEntryStates = new Set([

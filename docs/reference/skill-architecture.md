@@ -278,11 +278,11 @@ Rules:
 - no restart/reload/service calls
 - check `ha-nova relay health` and skip `system_health/info` when the relay is below the enforced floor (`min_relay_version`)
 - summarize by source and bind conclusions to evidence
-- keep Home Status compact: overall state, source coverage, capped findings/groups, sanitized integration reasons
+- keep Home Status table-first and cause-oriented: overall state + visible Detail×Privacy modes (default `Explained + Private`), prioritized actions, sanitized integration reasons (#440)
 - label unavailable/unknown totals as entity-state counts, never device/problem counts
 - when availability states exist, best-effort join full entity/device registries and config entries for restored/current, integration, config-entry-state, and device-attribution coverage
-- use one capped finding ledger across Entities and Integrations; a failed entry owns its joined impact once under Integrations
-- sort availability groups by count then the unlocalized safe integration label, cap them at five, and keep internal IDs, entity names, config-entry titles, addresses, and hosts out of output
+- use one finding ledger across Entities and Integrations; a failed entry owns its joined impact once under Integrations ("associated states" wording)
+- assign every raw availability row to exactly one of six categories (sum equals the raw total); render groups under the Explained budget of 50 entity-detail rows (1-10 full detail, 11-50 five examples, >50 summarized) — in `Private` mode exact entity IDs, friendly names, and sanitized config-entry titles are legitimate output, while `Shareable`/`Aggregate` hide identity; secrets, addresses, and hosts stay out in every mode
 - report known device-registry records plus entity-state row coverage, never an inferred exact device total
 - aggregate and cap privacy-safe device-subcluster sizes independently of integration attribution; device IDs remain hidden tie-breakers only
 - treat setup/unload progress as context, and only the explicit config-entry failure set as attention

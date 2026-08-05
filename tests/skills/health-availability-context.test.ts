@@ -38,7 +38,9 @@ function concentratedFixture(): AvailabilityFixture {
           : group.entry === "entry-b"
             ? "button"
             : "sensor";
-      const entityID = `${domain}.secret_${group.entry}_${index}`;
+      // Valid HA entity IDs (no hyphens): invalid state IDs are now counted
+      // separately and never grouped, so this fixture must not rely on them.
+      const entityID = `${domain}.secret_${group.entry.replace(/-/g, "_")}_${index}`;
       const deviceID = `device-${group.entry}-${index % 2}`;
       states.push({
         entity_id: entityID,
@@ -72,7 +74,9 @@ function concentratedFixture(): AvailabilityFixture {
 
 describe("health availability context acceptance fixtures", () => {
   it("keeps high-fan-out failures aggregate, deterministic, capped, and private", () => {
-    const fixture = concentratedFixture();
+    // #440: this acceptance case verifies the AGGREGATE privacy mode — the
+    // Private default now legitimately shows entity IDs for small groups.
+    const fixture = { ...concentratedFixture(), privacyMode: "aggregate" as const };
     const report = summarizeAvailability(fixture);
 
     expect(report).toContain(
@@ -93,7 +97,10 @@ describe("health availability context acceptance fixtures", () => {
     );
     expect(report).toContain("unattributed: 1");
     expect(report).toContain("displayed group details cover");
-    expect(report).toContain("group details omitted");
+    // #440 Codex R3: restored-only inventory never enters the current pool —
+    // the fully-restored mqtt group stays summarized in the catalog even
+    // though the 50-row budget would have room for it.
+    expect(report).toContain("1 group details omitted (2 entity states).");
     expect(report).not.toContain("sensor.unattributed_secret:");
     for (const secret of [
       ...fixture.states.map((row) => row.entity_id),
