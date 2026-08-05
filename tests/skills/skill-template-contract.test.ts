@@ -131,8 +131,10 @@ const WORD_BUDGETS: Record<string, number> = {
   // lines and the #452 draft rule (measured 2182).
   write: 2200,
   // HACS lifecycle: schema guard, reconcile loops, consumer discovery,
-  // migration backup gate, category-appropriate verification (#478).
-  hacs: 2200,
+  // migration backup gate, category-appropriate verification (#478);
+  // review rounds added pin-durability branches, the uninstall apply
+  // step, and the prerelease-toggle rule (measured 2217).
+  hacs: 2250,
   // Cards adoption pointer (#389).
   diagnose: 1500,
   // Report-shape declaration line (shared output shapes); repair dedup,
