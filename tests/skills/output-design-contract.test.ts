@@ -102,10 +102,10 @@ describe("output design system (Cards)", () => {
     // The canonical count-line example carries the full Progressive Detail
     // fields — total, shown, omitted, exact follow-up (#440 Codex round 2).
     expect(outputRules).toContain(
-      "carry the Progressive Detail fields: total, shown, omitted, and the exact\nfollow-up",
+      "carry the Progressive Detail\nfields: total, shown, omitted, the exact follow-up, and the fresh-read\nnotice",
     );
     expect(outputRules).toContain(
-      '23 automations found, showing first 10, 13 omitted — say "show all automations" for the rest.',
+      '23 automations found, showing first 10, 13 omitted — say "show all automations" for the rest (fresh read — results may have changed).',
     );
     expect(outputRules).toContain("root cause (or ranked hypotheses)");
   });
