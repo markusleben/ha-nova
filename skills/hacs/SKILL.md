@@ -104,7 +104,13 @@ act on a name match alone.
    `selected_tag` is still set); pinning the CURRENT latest clears itself
    (HACS resets it) and is not a pin. On a repository WITHOUT releases,
    only the default branch pins durably — any other ref installs one-off
-   with the default-branch fallback named in the preview. A repository with NO releases installs its
+   with the default-branch fallback named in the preview. A PRERELEASE
+   tag pins durably only with beta visibility ON for that repository
+   (the confirmed `hacs/repository/beta` toggle): with it off, a
+   prerelease-only repository has no `last_version` and its prereleases
+   are absent from `published_tags`, so later downloads fall back to the
+   default branch — without the toggle, such an install is one-off,
+   named as such. A repository with NO releases installs its
    default branch — first-class, not unsupported: name the branch and
    resolved commit in the preview and verify the installed ref on
    read-back. A user-pinned version (`selected_tag`) is never silently
