@@ -87,6 +87,8 @@ Use stable localized slot labels in this order; omit empty slots. Triage renders
 - Never guess entity, service, or config IDs — resolve them or ask.
 - Home Assistant is reached exclusively through `ha-nova relay`.
 - For any HA write this skill does not cover, STOP and invoke `ha-nova:fallback` first — never probe unfamiliar write endpoints.
+
+- Drafts follow `skills/ha-nova/smallest-solution.md`: the complete requested outcome in the simplest safe design, nothing for hypothetical future needs.
 - `search/related` verdicts fail closed: verify `ok=true` and `data` is an object before projecting family keys (`skills/ha-nova/relay-api.md` → Parsing rule); a failed or unexecuted scan is inconclusive — never a no-consumer result. An inconclusive scan fails the ghost-entity removal gate: report only, never remove.
 
 - Every write: preview → confirmation → per-item verification. Clear/purge/registry remove take the typed confirmation code; the reversible spike adjustment and unit relabel take payload-bound natural confirmation — offer the spike rollback.

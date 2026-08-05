@@ -475,6 +475,8 @@ For resolved targets `> 1`, return exactly these 6 sections:
 - Home Assistant is reached exclusively through `ha-nova relay`.
 - For any HA write this skill does not cover, STOP and invoke `ha-nova:fallback` first — never probe unfamiliar write endpoints.
 
+- Drafts follow `skills/ha-nova/smallest-solution.md`: the complete requested outcome in the simplest safe design, nothing for hypothetical future needs.
+
 - Read-only analysis: no config writes through the relay (see Scope for the single Quick-Fix exception).
 - The Quick-Fix service call requires confirmation bound to its exact preview; bulk mode disables it entirely.
 

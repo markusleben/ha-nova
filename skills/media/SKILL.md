@@ -100,6 +100,8 @@ Render the Report shape (output-rules.md): what is playing where — player, sta
 - Home Assistant is reached exclusively through `ha-nova relay`.
 - For any HA write this skill does not cover, STOP and invoke `ha-nova:fallback` first — never probe unfamiliar write endpoints.
 
+- Drafts follow `skills/ha-nova/smallest-solution.md`: the complete requested outcome in the simplest safe design, nothing for hypothetical future needs.
+
 - Volume: preview the target level; treat a large jump (or anything above ~0.8) as disruptive and confirm explicitly — a loud announcement at night is a real-world side effect.
 - Announcements interrupt whatever is playing; say so before sending one.
 - An announcement or TTS to a grouped player plays on every member — name the full member list in the preview, not just the target.

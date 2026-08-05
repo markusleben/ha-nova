@@ -95,6 +95,8 @@ Render the Report shape (output-rules.md): the resolved target, the sent title/m
 - Home Assistant is reached exclusively through `ha-nova relay`.
 - For any HA write this skill does not cover, STOP and invoke `ha-nova:fallback` first — never probe unfamiliar write endpoints.
 
+- Drafts follow `skills/ha-nova/smallest-solution.md`: the complete requested outcome in the simplest safe design, nothing for hypothetical future needs.
+
 - A notification is irreversible and user-visible: always preview the exact payload and confirm before sending, even for a single short message.
 - Never send test notifications unprompted, and never send to every discovered target at once.
 - Repeated/looping sends are not supported here; if the user wants recurring notifications, that is an automation — hand off to `ha-nova:write`.

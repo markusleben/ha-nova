@@ -63,6 +63,8 @@ Render the Report shape (output-rules.md). For a snapshot, describe what is visi
 - Home Assistant is reached exclusively through `ha-nova relay`.
 - For any HA write this skill does not cover, STOP and invoke `ha-nova:fallback` first — never probe unfamiliar write endpoints.
 
+- Drafts follow `skills/ha-nova/smallest-solution.md`: the complete requested outcome in the simplest safe design, nothing for hypothetical future needs.
+
 - A camera frame is private data: keep it in client-private scratch storage, never write it into the project workspace, and never send it anywhere outside this conversation.
 - `camera.snapshot` / `camera.record` write files on the Home Assistant server — preview the exact path and confirm; they can overwrite an existing file.
 - Do not fetch frames repeatedly to simulate a live view.

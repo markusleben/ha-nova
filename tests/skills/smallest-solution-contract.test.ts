@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 
 import { describe, expect, it } from "vitest";
 
@@ -58,15 +58,27 @@ describe("smallest complete solution contract (#452)", () => {
       "Drafts follow `skills/ha-nova/smallest-solution.md`",
     );
     expect(helperSkill).toContain("max 2");
-    // independently loaded design skills carry the draft rule themselves
-    for (const [name, content] of [
-      ["scene", readFileSync("skills/scene/SKILL.md", "utf8")],
-      ["dashboard", readFileSync("skills/dashboard/SKILL.md", "utf8")],
-      ["yaml-config", readFileSync("skills/yaml-config/SKILL.md", "utf8")],
-      ["fallback", readFileSync("skills/fallback/SKILL.md", "utf8")],
-    ] as const) {
-      expect(content, `${name} must wire the draft rule`).toContain(
-        "Drafts follow `skills/ha-nova/smallest-solution.md`",
+    // Every skill with the canonical write flow loads independently and must
+    // carry the draft rule itself — the pre-preview sentence marks that class,
+    // so new mutating skills are enforced automatically.
+    const skillFiles = readdirSync("skills", { withFileTypes: true })
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => `skills/${entry.name}/SKILL.md`)
+      .filter((path) => existsSync(path));
+    const writeFlowSkills = skillFiles.filter((path) =>
+      readFileSync(path, "utf8").includes(
+        "authorize drafting and preview only",
+      ),
+    );
+    expect(writeFlowSkills.length).toBeGreaterThanOrEqual(23);
+    for (const path of writeFlowSkills) {
+      expect(
+        readFileSync(path, "utf8"),
+        `${path} has the write flow and must wire the draft rule`,
+      ).toContain(
+        /skills\/(write|helper)\//.test(path)
+          ? "`skills/ha-nova/smallest-solution.md`"
+          : "Drafts follow `skills/ha-nova/smallest-solution.md`",
       );
     }
     // context skill carries the baseline for dispatch-level awareness
