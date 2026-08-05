@@ -25,7 +25,7 @@ func validSnapshotJSON() []byte {
 func TestSnapshotSaveShowRoundTrip(t *testing.T) {
 	paths := testSnapshotPaths(t)
 
-	if err := saveUndoSnapshotBytes(paths, validSnapshotJSON()); err != nil {
+	if _, err := saveUndoSnapshotBytes(paths, validSnapshotJSON()); err != nil {
 		t.Fatalf("save failed: %v", err)
 	}
 
@@ -60,7 +60,7 @@ func TestSnapshotStackKeepsMultipleTargetsAndReplacesSameTarget(t *testing.T) {
 	}
 	// Three targets, then a re-update of the second: 3 entries, second replaced + moved to top.
 	for _, r := range []string{record("t1", "b1"), record("t2", "b2"), record("t3", "b3"), record("t2", "b2-new")} {
-		if err := saveUndoSnapshotBytes(paths, []byte(r)); err != nil {
+		if _, err := saveUndoSnapshotBytes(paths, []byte(r)); err != nil {
 			t.Fatalf("save failed: %v", err)
 		}
 	}
@@ -87,7 +87,7 @@ func TestSnapshotStackKeepsMultipleTargetsAndReplacesSameTarget(t *testing.T) {
 	}
 	// Same target_id in a second domain: target-only selection must refuse
 	// to guess, and --domain must disambiguate.
-	if err := saveUndoSnapshotBytes(paths, []byte(`{"op":"update","domain":"script","target_id":"t1","before_config":{"a":1},"expected_after":{"a":2}}`)); err != nil {
+	if _, err := saveUndoSnapshotBytes(paths, []byte(`{"op":"update","domain":"script","target_id":"t1","before_config":{"a":1},"expected_after":{"a":2}}`)); err != nil {
 		t.Fatalf("save script t1: %v", err)
 	}
 	if _, err := selectUndoSnapshot(paths, "t1", ""); err == nil || !strings.Contains(err.Error(), "ambiguous") {
@@ -105,7 +105,7 @@ func TestSnapshotStackEvictsOldestBeyondLimit(t *testing.T) {
 	paths := testSnapshotPaths(t)
 	for i := 0; i < undoSnapshotStackLimit+2; i++ {
 		r := `{"op":"update","domain":"automation","target_id":"t` + string(rune('a'+i)) + `","before_config":{"a":1},"expected_after":{"a":2}}`
-		if err := saveUndoSnapshotBytes(paths, []byte(r)); err != nil {
+		if _, err := saveUndoSnapshotBytes(paths, []byte(r)); err != nil {
 			t.Fatalf("save %d failed: %v", i, err)
 		}
 	}
@@ -137,7 +137,7 @@ func TestSnapshotLegacySingleFileMigratesIntoStack(t *testing.T) {
 	}
 	// Write path: a new save folds the legacy record in and removes the file.
 	next := `{"op":"update","domain":"automation","target_id":"new","before_config":{"b":1},"expected_after":{"b":2}}`
-	if err := saveUndoSnapshotBytes(paths, []byte(next)); err != nil {
+	if _, err := saveUndoSnapshotBytes(paths, []byte(next)); err != nil {
 		t.Fatalf("save after legacy: %v", err)
 	}
 	stack, err := loadUndoSnapshotStack(paths)
@@ -163,7 +163,7 @@ func TestSnapshotSaveRejectsMissingFields(t *testing.T) {
 	}
 	for name, payload := range cases {
 		t.Run(name, func(t *testing.T) {
-			if err := saveUndoSnapshotBytes(paths, []byte(payload)); err == nil {
+			if _, err := saveUndoSnapshotBytes(paths, []byte(payload)); err == nil {
 				t.Fatalf("expected validation error for %q", name)
 			}
 			if _, err := os.Stat(undoSnapshotPath(paths)); !os.IsNotExist(err) {
@@ -184,7 +184,7 @@ func TestSnapshotSaveRejectsNonObjectBodies(t *testing.T) {
 	}
 	for name, payload := range cases {
 		t.Run(name, func(t *testing.T) {
-			if err := saveUndoSnapshotBytes(paths, []byte(payload)); err == nil {
+			if _, err := saveUndoSnapshotBytes(paths, []byte(payload)); err == nil {
 				t.Fatalf("expected validation error for %q", name)
 			}
 			if _, err := os.Stat(undoSnapshotPath(paths)); !os.IsNotExist(err) {
@@ -212,7 +212,7 @@ func TestRunSnapshotSaveFromDataFile(t *testing.T) {
 
 func TestSnapshotSaveRejectsInvalidJSON(t *testing.T) {
 	paths := testSnapshotPaths(t)
-	if err := saveUndoSnapshotBytes(paths, []byte("{not json")); err == nil {
+	if _, err := saveUndoSnapshotBytes(paths, []byte("{not json")); err == nil {
 		t.Fatal("expected error for invalid JSON")
 	}
 }
@@ -223,10 +223,10 @@ func TestSnapshotSaveOverwritesSingleSlot(t *testing.T) {
 	first := []byte(`{"op":"update","domain":"automation","target_id":"AAA","before_config":{"v":1},"expected_after":{"v":2}}`)
 	second := []byte(`{"op":"update","domain":"script","target_id":"BBB","before_config":{"v":3},"expected_after":{"v":4}}`)
 
-	if err := saveUndoSnapshotBytes(paths, first); err != nil {
+	if _, err := saveUndoSnapshotBytes(paths, first); err != nil {
 		t.Fatalf("first save failed: %v", err)
 	}
-	if err := saveUndoSnapshotBytes(paths, second); err != nil {
+	if _, err := saveUndoSnapshotBytes(paths, second); err != nil {
 		t.Fatalf("second save failed: %v", err)
 	}
 
@@ -248,7 +248,7 @@ func TestSnapshotShowMissing(t *testing.T) {
 
 func TestSnapshotVerifyMatchIgnoresKeyOrder(t *testing.T) {
 	paths := testSnapshotPaths(t)
-	if err := saveUndoSnapshotBytes(paths, validSnapshotJSON()); err != nil {
+	if _, err := saveUndoSnapshotBytes(paths, validSnapshotJSON()); err != nil {
 		t.Fatalf("save failed: %v", err)
 	}
 	snap, err := loadUndoSnapshot(paths)
@@ -269,7 +269,7 @@ func TestSnapshotVerifyMatchIgnoresKeyOrder(t *testing.T) {
 
 func TestSnapshotVerifyDetectsDrift(t *testing.T) {
 	paths := testSnapshotPaths(t)
-	if err := saveUndoSnapshotBytes(paths, validSnapshotJSON()); err != nil {
+	if _, err := saveUndoSnapshotBytes(paths, validSnapshotJSON()); err != nil {
 		t.Fatalf("save failed: %v", err)
 	}
 	snap, err := loadUndoSnapshot(paths)

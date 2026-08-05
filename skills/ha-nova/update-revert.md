@@ -1,5 +1,17 @@
 # HA NOVA Update-Revert Execution
 
+## Three recovery layers, never conflated
+
+- **Update-revert checkpoint** (this file): client-local, per domain+target,
+  ONE step back to the last verified update; a same-target update replaces
+  it. `ha-nova snapshot show --list` shows alias, saved time, and coverage —
+  records saved by older CLI versions carry neither alias nor saved time.
+- **Config snapshot** (`skills/ha-nova/config-snapshots.md`): captured before
+  covered destructive HA NOVA operations; restores the deleted/overwritten
+  item itself.
+- **Home Assistant Backup**: full system recovery, the safety net when
+  neither targeted layer covers the case.
+
 Load this file whenever the user asks to revert, undo, or restore a verified
 update — any of those intents, not only the literal word `revert`.
 Snapshot capture and the revert offer live in `skills/ha-nova/write-safety.md`

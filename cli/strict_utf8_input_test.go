@@ -360,7 +360,7 @@ func TestSnapshotDiffAndJQRejectInvalidUTF8(t *testing.T) {
 
 	paths := testSnapshotPaths(t)
 	invalidSnapshot := append(append([]byte(`{"op":"update","domain":"automation","target_id":"1","before_config":{"alias":"`), 0xDC), []byte(`"},"expected_after":{"alias":"ok"}}`)...)
-	if err := saveUndoSnapshotBytes(paths, invalidSnapshot); err == nil || !strings.Contains(err.Error(), "UTF-8") {
+	if _, err := saveUndoSnapshotBytes(paths, invalidSnapshot); err == nil || !strings.Contains(err.Error(), "UTF-8") {
 		t.Fatalf("snapshot error = %v, want UTF-8 rejection", err)
 	}
 	if _, err := os.Stat(undoSnapshotStackPath(paths)); !os.IsNotExist(err) {

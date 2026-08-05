@@ -164,7 +164,7 @@ func TestSnapshotRejectsEmptyOrAmbiguousSelectionBeforeNewestFallback(t *testing
 		`{"op":"update","domain":"automation","target_id":"t1","before_config":{"v":0},"expected_after":{"v":1}}`,
 		`{"op":"update","domain":"automation","target_id":"t2","before_config":{"v":1},"expected_after":{"v":2}}`,
 	} {
-		if err := saveUndoSnapshotBytes(paths, []byte(record)); err != nil {
+		if _, err := saveUndoSnapshotBytes(paths, []byte(record)); err != nil {
 			t.Fatal(err)
 		}
 	}

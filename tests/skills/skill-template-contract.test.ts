@@ -123,7 +123,8 @@ const WORD_BUDGETS: Record<string, number> = {
   // Fail-closed consumer scan: canonical filter with inline recreate
   // fallback at both search/related call sites + delete-direction
   // clarification (#489).
-  write: 2000,
+  // Self-describing update-revert checkpoint receipts (#483).
+  write: 2025,
   // Cards adoption pointer (#389).
   diagnose: 1500,
   // Report-shape declaration line (shared output shapes); repair dedup,
