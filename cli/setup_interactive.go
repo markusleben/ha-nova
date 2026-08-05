@@ -78,7 +78,10 @@ func maybeHandleInteractiveSetupCurrentState(reader *bufio.Reader, out io.Writer
 			printHumanErr("cannot finalize setup lifecycle: %s", err)
 			return true, 1
 		}
-		if cloudAttempted && cfg.Cloud.ready() &&
+		// Same suppression as the done banner below: after a ran add flow
+		// its own closing lines are the message — never bury a cancelled or
+		// partial add under a success banner.
+		if !addAttempted && cloudAttempted && cfg.Cloud.ready() &&
 			cfg.RoutePolicy == routePolicyAutomatic {
 			renderSetupCloudFallbackReadyBanner(out)
 			return true, 0

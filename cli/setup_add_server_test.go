@@ -445,3 +445,42 @@ func TestCollectDiscoveryProbesKeepsAdvertisedVia(t *testing.T) {
 		t.Fatalf("advertised Via flattened away in probe collection: %+v", probes)
 	}
 }
+
+func TestAddServerCancelSuppressesCloudFallbackReadyBanner(t *testing.T) {
+	paths, cfg, state, marker := setupCompletedInstallFixture(t)
+	stubAddServerTTY(t)
+	// A secure-paired install accepting the fresh Cloud offer on this
+	// pass: the accepted offer ends Cloud-ready with the automatic route
+	// policy — exactly the state whose success banner must not bury a
+	// cancelled add flow.
+	cfg.RelaySecureBaseURL = "https://ha:18792"
+	cfg.RelaySpkiPin = "PIN"
+	if err := saveConfig(paths, cfg); err != nil {
+		t.Fatalf("saveConfig() error: %v", err)
+	}
+	coordinator := successfulCloudCoordinatorForTest()
+	installCloudSetupTestSeams(t, coordinator, true, true)
+
+	// "y" accepts the Cloud fallback offer; the next "y" accepts the add
+	// offer; "exit" cancels at the profile-name prompt; "2" answers the
+	// census ask.
+	stdout, stderr := captureInteractiveSetupIO(t, "y\ny\nexit\n2\n", func() int {
+		return interactiveSetup(paths, cfg, state, "claude", "", "", "", "", false, marker...)
+	})
+	output := stdout + stderr
+	if !strings.Contains(output, "Add Home Assistant Cloud fallback now?") {
+		t.Fatalf("expected the fresh Cloud offer:\n%s", output)
+	}
+	if !strings.Contains(output, "Add another Home Assistant server?") {
+		t.Fatalf("expected the add-server offer after the Cloud accept:\n%s", output)
+	}
+	if !strings.Contains(output, "Setup cancelled.") {
+		t.Fatalf("expected the cancelled note from the aborted add flow:\n%s", output)
+	}
+	if strings.Contains(output, "Setup complete!") {
+		t.Fatalf("cancelled add flow must suppress the Cloud fallback ready banner:\n%s", output)
+	}
+	if strings.Contains(output, "Everything is already set up!") {
+		t.Fatalf("cancelled add flow must suppress the already-done banner:\n%s", output)
+	}
+}
