@@ -30,9 +30,13 @@ The two hard problems are handled skill-side:
    `unknown_command` → HACS is missing, not loaded, OR an unsupported
    line that does not register the pinned commands — one signal, three
    states, so remediation needs a second read (HACS config entry /
-   integration manifest via the API): entry present → unsupported-schema
-   fail-closed path with the HACS-UI pointer; entry absent → install or
-   restart guidance. `unauthorized` → credential lacks admin
+   integration manifest via the API), and the entry STATE picks the path
+   (the config-entry taxonomy of
+   `skills/health/availability-analysis.md` applies): entry present AND
+   loaded → unsupported-schema fail-closed path with the HACS-UI pointer;
+   entry present but not_loaded/setup_error/setup_retry/migration_error →
+   load/restart/repair remediation for the broken install, never schema
+   guidance; entry absent → install guidance. `unauthorized` → credential lacks admin
    (remediation: switch the Relay upstream credential to an admin
    account) — and never advertises HACS coverage before the probe
    succeeds. Never guess schemas; never edit `.storage`; never SSH —
@@ -78,7 +82,11 @@ The two hard problems are handled skill-side:
 - **Package lifecycle:** install exact version (a user-pinned version is
   never silently replaced by a newer release), install selected stable,
   prerelease only on explicit request, update, redownload, uninstall; read
-  available releases before choosing; verify CATEGORY-appropriately after
+  available releases before choosing — and when a repository publishes NO
+  releases, HACS installs its default branch: that is a first-class path
+  (name the branch and resolved commit in the preview, verify by readback
+  of the installed ref), never a reason to call the repository
+  uninstallable or unsupported; verify CATEGORY-appropriately after
   every mutation — integrations verify manifest/domain/version and
   config-entry state, distinguishing INSTALLED (repository/files updated)
   from ACTIVE (the running component, which requires a Home Assistant
