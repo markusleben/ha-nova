@@ -98,11 +98,13 @@ act on a name match alone.
    only the newest page (~30): a user-named tag/ref outside it can still
    be installed one-off; bind that exact ref in the preview and let the
    download validate it (a rejected ref fails the mutation loudly, which
-   the read-back confirms). But a DURABLE pin (`selected_tag`) only holds
-   for the default branch or a tag HACS has fetched (`releases` in the
-   repository info) — outside that set, later downloads fall back to the
-   default branch: say so in the preview and treat such an install as
-   one-off, never as a durable pin. A repository with NO releases installs its
+   the read-back confirms). Durable-pin rules (2.0.5 `version_to_download`): on a repository WITH
+   releases, any non-null `selected_tag` is honored — older tags outside
+   the newest page pin durably (confirm with the post-pin read-back that
+   `selected_tag` is still set); pinning the CURRENT latest clears itself
+   (HACS resets it) and is not a pin. On a repository WITHOUT releases,
+   only the default branch pins durably — any other ref installs one-off
+   with the default-branch fallback named in the preview. A repository with NO releases installs its
    default branch — first-class, not unsupported: name the branch and
    resolved commit in the preview and verify the installed ref on
    read-back. A user-pinned version (`selected_tag`) is never silently
