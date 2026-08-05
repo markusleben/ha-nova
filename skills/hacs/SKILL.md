@@ -94,9 +94,14 @@ act on a name match alone.
 ### Install / update / redownload / pin
 
 1. Read `hacs/repository/releases` (and `release_notes` for updates) before
-   choosing. A repository with NO releases installs its default branch —
-   first-class, not unsupported: name the branch and resolved commit in the
-   preview and verify the installed ref on read-back. A user-pinned version (`selected_tag`) is never silently
+   choosing. The list is DISCOVERY, not the complete chooser — it returns
+   only the newest page (~30): a user-named tag/ref outside it is still
+   valid for pin/downgrade; bind that exact ref in the preview and let the
+   download validate it (a rejected ref fails the mutation loudly, which
+   the read-back confirms). A repository with NO releases installs its
+   default branch — first-class, not unsupported: name the branch and
+   resolved commit in the preview and verify the installed ref on
+   read-back. A user-pinned version (`selected_tag`) is never silently
    replaced by a newer release — say the pin exists and ask; prerelease only
    on explicit request — choose the tag from `releases` (its `prerelease`
    flag marks them; no visibility toggle needed to install one). The
