@@ -108,8 +108,10 @@ act on a name match alone.
    `hacs/repository/beta` toggle is itself a mutation: send it only after
    the confirmed preview, when the user wants prereleases to STAY visible.
 2. Preview per the Preview Card: repository `full_name`, category,
-   installed → target version, HA domain, restart/reload impact, and — for
-   updates — the release-notes summary with breaking changes. Natural
+   installed → target version, HA domain (from a fresh
+   `hacs/repository/info` read — list rows carry no domain),
+   restart/reload impact, and — for updates — the release-notes summary
+   with breaking changes. Natural
    confirmation for install/update/redownload binds to this exact preview.
 3. Apply: `hacs/repository/download` with the chosen `version` — never
    version-then-download (a version-less download resolves to LATEST, and

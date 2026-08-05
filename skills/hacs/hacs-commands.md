@@ -49,9 +49,11 @@ never guessed, reused across sessions, or derived from names.
 - `{"type":"hacs/repositories/list","categories":[...]}` (categories
   optional; default all active) → rows with `id`, `full_name`, `name`,
   `category`, `custom`, `installed`, `installed_version`,
-  `available_version`, `pending_upgrade`, `config_flow`, `domain`,
+  `available_version`, `pending_upgrade`, `config_flow`,
   `can_download`, `status`, `homeassistant` (min HA version), `stars`,
-  `downloads`, `last_updated`.
+  `downloads`, `last_updated`. List rows carry NO `domain` — any
+  domain-dependent step (install/uninstall previews, footprint and
+  consumer scans) requires a fresh `hacs/repository/info` read first.
 - `{"type":"hacs/repository/info","repository_id":"<id>"}` → the row plus
   `releases` (published tags), `selected_tag`, `beta`, `default_branch`,
   `version_or_commit`, raw README/info markdown. Side effects: forces a GitHub
