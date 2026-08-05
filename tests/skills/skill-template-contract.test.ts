@@ -181,7 +181,9 @@ const WORD_BUDGETS: Record<string, number> = {
   // HA 2026.7 "Update all" semantics: guardrails mirrored, call shape
   // deliberately not; batches never override selected_tag pins (#478
   // follow-up, Codex P1).
-  updates: 1500,
+  // #452 canonical draft rule on top of the update-all semantics
+  // (measured 1517).
+  updates: 1525,
   // batch-safety alignment: batch code format + cap-split rule (#327);
   // purge quantification, glob expansion, apply_filter semantics
   // (2026-h2 Wave 1b).

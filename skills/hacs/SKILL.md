@@ -30,6 +30,17 @@ Read and follow `../ha-nova/session-bootstrap.md`.
 Verify relay CLI: `ha-nova relay health`
 If this fails: `ha-nova setup`
 
+Then probe HACS once via `hacs/info` and classify the failure before
+advertising any coverage: WS error `unauthorized` → the Relay upstream
+credential lacks HA admin (HACS registers every command admin-only) —
+remediation is switching that credential to an admin account, never an
+install hint. `unknown_command` is ambiguous (missing, not loaded, or an
+unsupported line that does not register the pinned commands): read the HACS
+config entry via the API — entry absent → install guidance; entry present
+but `not_loaded`/`setup_error`/`setup_retry`/`migration_error` →
+load/restart/repair remediation; entry present and loaded → unsupported
+schema, fail closed with the HACS-UI pointer.
+
 ## Relay Contract
 
 File-based relay requests only:
@@ -83,7 +94,9 @@ act on a name match alone.
 ### Install / update / redownload / pin
 
 1. Read `hacs/repository/releases` (and `release_notes` for updates) before
-   choosing. A user-pinned version (`selected_tag`) is never silently
+   choosing. A repository with NO releases installs its default branch —
+   first-class, not unsupported: name the branch and resolved commit in the
+   preview and verify the installed ref on read-back. A user-pinned version (`selected_tag`) is never silently
    replaced by a newer release — say the pin exists and ask; prerelease only
    on explicit request — choose the tag from `releases` (its `prerelease`
    flag marks them; no visibility toggle needed to install one). The
@@ -110,7 +123,10 @@ act on a name match alone.
 
 ### Custom repositories
 
-- Add: validate the GitHub reference, then `hacs/repositories/add`. The
+- Add: validate the GitHub reference AND resolve the repository category —
+  `add` requires it: derive it from repository evidence (manifest, topics,
+  structure), ask the user when ambiguous, and bind the chosen category in
+  the preview; never guess silently. Then `hacs/repositories/add`. The
   socket reports success EVEN ON FAILURE — verify by re-listing for the
   canonical `full_name`; missing after the re-read means the add failed
   (duplicate/rename detection happens on the same re-read). Registration
@@ -225,6 +241,8 @@ at runtime.
 - Never guess entity, service, or config IDs — resolve them or ask.
 - Home Assistant is reached exclusively through `ha-nova relay`.
 - For any HA write this skill does not cover, STOP and invoke `ha-nova:fallback` first — never probe unfamiliar write endpoints.
+
+- Drafts follow `skills/ha-nova/smallest-solution.md`: the complete requested outcome in the simplest safe design, nothing for hypothetical future needs.
 
 - Confirmation tiers: natural confirmation for install/update/redownload;
   the typed confirmation code for uninstall, registration removal, and
