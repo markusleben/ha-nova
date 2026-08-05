@@ -222,6 +222,7 @@ Match user intent to exactly one skill:
 | test what the voice assistant understands, manage Assist pipelines, or control which entities voice can see | `ha-nova:assist` |
 | manage persons, zones, tags, or user accounts | `ha-nova:admin` |
 | create or edit configuration that only exists as YAML (template/REST/command-line sensors, packages, themes) | `ha-nova:yaml-config` |
+| install, pin or downgrade to a specific version, redownload, or remove HACS packages, add custom HACS repositories, or migrate to a custom integration | `ha-nova:hacs` |
 | query long-term history from InfluxDB or another external store Home Assistant writes to but cannot read back | `ha-nova:external-sources` |
 | list calendars; read, create, update, or delete calendar events | `ha-nova:calendar` |
 | show, add, complete, update, remove to-do or shopping-list items; create/delete to-do lists | `ha-nova:todo` |

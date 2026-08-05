@@ -81,6 +81,7 @@
   "tests/skills/ha-nova-contract.test.ts",
   "tests/skills/ha-nova-skill-contract.test.ts",
   "tests/skills/ha-safety-contract.test.ts",
+  "tests/skills/hacs-contract.test.ts",
   "tests/skills/health-availability-context.test.ts",
   "tests/skills/health-availability-contract.test.ts",
   "tests/skills/health-availability-edge-context.test.ts",

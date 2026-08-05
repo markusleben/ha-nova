@@ -99,12 +99,15 @@ The two hard problems are handled skill-side:
   (neither has an integration manifest); surface restart/frontend-reload
   needs without performing them silently. The HACS category enum is wider
   than these three: `appdaemon`, `python_script`, and `template`
-  repositories have no config-entry or Lovelace-resource anchor the Relay
-  API can verify (and filesystem evidence is unavailable by design), so
-  the MVP handles them fail-closed as UNSUPPORTED categories — named as
-  such in the probe/inventory output with the HACS-UI pointer for their
-  lifecycle, never routed through a wrong verification branch and never
-  reported installed/uninstalled without category-appropriate evidence.
+  repositories have no config-entry or Lovelace-resource anchor (and
+  filesystem evidence is unavailable by design). The shipped skill runs
+  their lifecycle on HACS-state evidence with the verification tier named
+  explicitly: `python_script` gains a real activation anchor (the
+  `python_script.<name>` service after the confirmed reload); `template`
+  and `appdaemon` are never reported activation-verified — the output
+  names the limit and points to the HACS UI / external logs for
+  activation proof. Fail-closed applies to the VERIFICATION CLAIM, not to
+  the lifecycle itself.
 - **Migration coordination:** HACS-specific consumer discovery before
   destructive steps — config entries, devices, entities, automations,
   scripts, and helpers through the canonical `search/related` filter, PLUS
@@ -164,6 +167,11 @@ The two hard problems are handled skill-side:
 ## Delivery
 
 Two PRs after this spec: (1) `skills/hacs/` + fallback/dispatch wiring +
-contract tests (skills-only); (2) migration reference + live E2E scenario
-addition. No Relay, CLI, or workflow changes; evidence class stays in the
-"None" row.
+contract tests — plus ONE Go line the install contract demanded:
+`cli/client_hermes.go` registers the new skill directory in
+hermesRequiredSkillDirs (caught by TestHermesRequiredSkillDirsCoverRepoSkillTree);
+(2) migration reference + live E2E scenario addition. No Relay or workflow
+changes. The Cloud invalidation-map row stays "None" (local install wiring,
+no qualified Cloud check surface — the evidence ledger names the delta),
+but the RELEASE carrying PR 1 is Go/delivery-machinery class: the tag-first
+RC rehearsal applies per the release gate.

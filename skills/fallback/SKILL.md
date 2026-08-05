@@ -1,6 +1,6 @@
 ---
 name: fallback
-description: Mandatory fallback for any HA NOVA task without a dedicated subskill. Must be invoked before any raw relay write operation. Covers blueprints, device config-entry detach, Apps, HACS, Zigbee/Z-Wave, and unsupported config-entry helper families.
+description: Mandatory fallback for any HA NOVA task without a dedicated subskill. Must be invoked before any raw relay write operation. Covers blueprints, device config-entry detach, Apps, Zigbee/Z-Wave, and unsupported config-entry helper families.
 license: MIT
 compatibility: Requires the ha-nova CLI (run 'ha-nova setup' first) and the HA NOVA Relay in Home Assistant (App, or standalone container on Container/Core).
 ---
@@ -88,7 +88,7 @@ For every Relay-Ready call in this skill:
 | Config snapshots (targeted capture/restore of automations, scripts, scenes, dashboards, helpers, energy prefs, metadata, YAML files) | Covered | the owning family skill (see `skills/ha-nova/config-snapshots.md`) |
 | Updates (pending, release notes, install, skip) | Covered | updates |
 | Apps / Supervisor | External | -- |
-| HACS | External | -- |
+| HACS (registration, download, version switching, uninstall, migration) | Covered | hacs |
 | Zigbee / Z-Wave Config | External | -- (MQTT-level inspection of a Zigbee2MQTT setup: `mqtt`) |
 | Alarm / lock code management (lock user codes, alarm PINs) | External | -- (Home Assistant UI; codes never enter chat) |
 
@@ -240,13 +240,11 @@ Supervisor API is separate from HA Core API. Requires different auth and endpoin
 
 **Alternative:** HA UI: Settings > Apps. Or `ha` CLI on HA OS.
 
-### HACS (Home Assistant Community Store) -- EXTERNAL
+### HACS (Home Assistant Community Store) -- COVERED
 
-Third-party integration with no stable public API.
-
-**Search:** `home assistant hacs install custom integration repository 2026`
-
-**Alternative:** HACS sidebar panel in HA UI.
+Owned by `ha-nova:hacs` (schema-guarded WS command map, reconcile loops,
+consumer discovery, migration backup gate). Hand off there; never probe
+`hacs/*` WS commands from this skill.
 
 ### Zigbee / Z-Wave / Network Configuration -- EXTERNAL
 

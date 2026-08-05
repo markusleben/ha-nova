@@ -89,6 +89,26 @@ describe("updates contract", () => {
   it("keeps installs consent-bound — one per confirmation, batches need a confirmed plan", () => {
     expect(updatesSkill).toContain("One update per confirmation");
     expect(updatesSkill).toContain("confirm the batch explicitly, then install sequentially, verifying each before the next");
+    // HA 2026.7 "Update all" is one concurrent multi-target update.install
+    // with no backup flag and first-failure-only reporting — the skill keeps
+    // sequential per-item gates and mirrors only the UI guardrails.
+    expect(updatesSkill).toContain(
+      "ONE multi-target `update.install`",
+    );
+    expect(updatesSkill).toContain(
+      "deliberately does NOT mirror that call shape",
+    );
+    expect(updatesSkill).toContain(
+      "never part of the one batch confirmation",
+    );
+    expect(updatesSkill).toContain("offer ONE restart at the end");
+    // Pinned HACS repos keep reporting pending — a batch never overrides a pin.
+    expect(updatesSkill).toContain(
+      "EXCLUDE repositories with a `selected_tag`",
+    );
+    expect(updatesSkill).toContain(
+      "before ANY install — single or batched",
+    );
     expect(updatesSkill).toContain("Never install anything the user did not ask about or confirm");
     expect(updatesSkill).toContain("say so instead of installing them unprompted; an explicit, confirmed user request may still install");
   });

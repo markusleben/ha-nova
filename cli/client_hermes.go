@@ -24,6 +24,7 @@ var hermesRequiredSkillDirs = []string{
 	"ha-nova-entity-discovery",
 	"ha-nova-external-sources",
 	"ha-nova-fallback",
+	"ha-nova-hacs",
 	"ha-nova-health",
 	"ha-nova-helper",
 	"ha-nova-history",

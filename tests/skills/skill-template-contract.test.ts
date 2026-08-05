@@ -61,6 +61,7 @@ const FORBIDDEN_HEADINGS = [
 ];
 
 const MUTATION_SKILLS = new Set([
+  "hacs",
   "write",
   "diagnose",
   "media",
@@ -129,6 +130,11 @@ const WORD_BUDGETS: Record<string, number> = {
   // setters (Codex round 6). Merge-train combination with the #483 receipt
   // lines and the #452 draft rule (measured 2182).
   write: 2200,
+  // HACS lifecycle: schema guard, reconcile loops, consumer discovery,
+  // migration backup gate, category-appropriate verification (#478);
+  // review rounds added pin-durability branches, the uninstall apply
+  // step, and the prerelease-toggle rule (measured 2217).
+  hacs: 2250,
   // Cards adoption pointer (#389).
   diagnose: 1500,
   // Report-shape declaration line (shared output shapes); repair dedup,
@@ -174,7 +180,12 @@ const WORD_BUDGETS: Record<string, number> = {
   dashboard: 1450,
   // Cards adoption pointer (#389); pre-write update-state drift gate.
   // #452 canonical smallest-solution draft rule (17 words).
-  updates: 1325,
+  // HA 2026.7 "Update all" semantics: guardrails mirrored, call shape
+  // deliberately not; batches never override selected_tag pins (#478
+  // follow-up, Codex P1).
+  // #452 canonical draft rule on top of the update-all semantics, plus the
+  // explicit-version handoff to ha-nova:hacs (measured 1569).
+  updates: 1590,
   // batch-safety alignment: batch code format + cap-split rule (#327);
   // purge quantification, glob expansion, apply_filter semantics
   // (2026-h2 Wave 1b).
