@@ -72,7 +72,7 @@ release:
     {{ else }}## What To Watch
 
     - **Home Status output changed deliberately.** Reports are table-first with visible detail/privacy modes; the default names affected entities and integrations. Say "aggregate" for count-only output.
-    - **Update NOVA Relay first.** Update the App — with its new device-list confirmation screens — before using the new client, and take a backup before updating, as always.
+    - **Update NOVA Relay first.** Update the App — or pull the new standalone relay container image on Container/Core installs — before using the new client, and take a backup first, as always.
 
     ## New Features
 
