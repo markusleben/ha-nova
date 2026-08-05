@@ -94,6 +94,8 @@ Use stable localized slot labels in this order; omit empty slots. Status renders
 - Home Assistant is reached exclusively through `ha-nova relay`.
 - For any HA write this skill does not cover, STOP and invoke `ha-nova:fallback` first — never probe unfamiliar write endpoints.
 
+- Drafts follow `skills/ha-nova/smallest-solution.md`: the complete requested outcome in the simplest safe design, nothing for hypothetical future needs.
+
 - Create uses natural confirmation; delete uses exact confirmation code only.
 - Restore is never executed here — it reboots the system; always route to the HA UI.
 - A backup is only real once it appears completed in Status — initiation is not success.

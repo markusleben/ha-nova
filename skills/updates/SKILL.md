@@ -107,6 +107,8 @@ Use stable localized slot labels in this order; omit empty slots. The overview r
 - Home Assistant is reached exclusively through `ha-nova relay`.
 - For any HA write this skill does not cover, STOP and invoke `ha-nova:fallback` first — never probe unfamiliar write endpoints.
 
+- Drafts follow `skills/ha-nova/smallest-solution.md`: the complete requested outcome in the simplest safe design, nothing for hypothetical future needs.
+
 - Installs: natural confirmation per update after preview; batches need an explicitly confirmed plan.
 - Updates are effectively irreversible — for core/OS name the safety-backup offer before, not after.
 - Never install anything the user did not ask about or confirm; `auto_update: true` items update themselves — say so instead of installing them unprompted; an explicit, confirmed user request may still install.

@@ -91,6 +91,8 @@ Use stable localized slot labels in this order; omit empty slots. Analysis answe
 - Home Assistant is reached exclusively through `ha-nova relay`.
 - For any HA write this skill does not cover, STOP and invoke `ha-nova:fallback` first — never probe unfamiliar write endpoints.
 
+- Drafts follow `skills/ha-nova/smallest-solution.md`: the complete requested outcome in the simplest safe design, nothing for hypothetical future needs.
+
 - Config writes: preview + confirmation per save (natural for single edits; typed confirmation code for empty/wholesale-replace saves — step 5); verify by read-back + validate.
 - No update-revert — recovery after an entry-removing save is the `auto-prefs` config snapshot (restore = corrective `save_prefs` of the loaded document, `skills/ha-nova/config-snapshots.md`); otherwise a corrective save or HA Backups (see `skills/ha-nova/write-safety.md`).
 - Analysis flows are strictly read-only; never call `save_prefs` while answering an analysis question.

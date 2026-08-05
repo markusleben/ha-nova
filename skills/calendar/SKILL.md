@@ -111,6 +111,8 @@ These slots render the Report shape (output-rules.md); event groups follow the L
 - Home Assistant is reached exclusively through `ha-nova relay`.
 - For any HA write this skill does not cover, STOP and invoke `ha-nova:fallback` first — never probe unfamiliar write endpoints.
 
+- Drafts follow `skills/ha-nova/smallest-solution.md`: the complete requested outcome in the simplest safe design, nothing for hypothetical future needs.
+
 - Create and update require natural confirmation; delete retains the core typed confirmation-code gate.
 - Calendar event writes have no HA NOVA revert. A provider recycle bin may exist but is not guaranteed; recreate only from a user-approved preview.
 - Always use bounded windows.

@@ -47,6 +47,9 @@ ha-nova relay ws --data-file <payload-file> --out <registry-file>
 
 ## Flow
 
+Drafts follow `skills/ha-nova/smallest-solution.md`: the complete requested outcome in the simplest safe design, nothing for hypothetical future needs.
+
+
 ### List
 1. Registry: create `<payload-file>` with `{"type":"config/entity_registry/list"}`, then:
 ```text

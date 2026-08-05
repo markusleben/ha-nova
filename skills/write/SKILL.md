@@ -35,6 +35,10 @@ Multi-target logical changes: present the plan first per `skills/ha-nova/write-s
 
 Input-device remaps (buttons, remotes, switches): run the capability preflight per `skills/ha-nova/input-capability-preflight.md` before drafting; the write stays blocked while the chosen gesture is only assumed or its evidence conflicts. Repurposing or cleaning up an input additionally runs `skills/ha-nova/consumer-discovery-preflight.md`; incomplete coverage is disclosed, never claimed as "unused".
 
+Every draft follows `skills/ha-nova/smallest-solution.md`: the complete
+explicit outcome in the simplest safe design, nothing for hypothetical
+future needs, native primitives when equally safe and clearer.
+
 ### Phase 1: Resolve (Agent)
 
 1. Read `skills/ha-nova/agents/resolve-agent.md`.
@@ -51,7 +55,7 @@ Input-device remaps (buttons, remotes, switches): run the capability preflight p
    - Treat notification copy as user-authored content: preserve notification titles, messages, templates, metadata. Rename/timing changes must not restyle, relocalize, or restructure existing text; requested wording changes change only the requested copy.
 2. BP gate (`skills/ha-nova/write-safety.md`): fresh/stale+simple->continue, stale+complex->block.
 3. Suggestions + Pre-Write Checks (skip for `delete`):
-   - **3a) Suggestions**: Render `suggested_enhancements` as the Suggestion Block (output-rules.md; max 4, numbered/menu). User accepts numbers or "skip" → merge accepted into config BEFORE preview. Skip when `SUGGESTED_ENHANCEMENTS: none`.
+   - **3a) Suggestions**: Render `suggested_enhancements` as the Suggestion Block (output-rules.md; max 2, smallest intervention first, numbered/menu — `skills/ha-nova/smallest-solution.md`). User accepts numbers or "skip" → merge accepted into config BEFORE preview. Skip when `SUGGESTED_ENHANCEMENTS: none`.
    - **3b) Static Checks**: Use `skills/review/checks.md` → Application (family matrix + evidence boundaries). Run S/R/P/M checks analytically on the draft YAML — no relay calls (scripts: F-01..F-08; helper refs: H-01..H-08. Defer H-09/H-10 to Phase 4).
      One pre-write verdict line before apply:
      - clean draft → localized equivalent of "Pre-write check: no issues worth flagging before save."
@@ -150,7 +154,7 @@ See `skills/ha-nova/SKILL.md` → Response Format.
 ## References
 
 Always load:
-- `skills/ha-nova/relay-api.md`, `skills/ha-nova/payload-schemas.md`, `skills/ha-nova/best-practices.md`, `skills/ha-nova/write-safety.md`
+- `skills/ha-nova/relay-api.md`, `skills/ha-nova/payload-schemas.md`, `skills/ha-nova/best-practices.md`, `skills/ha-nova/write-safety.md`, `skills/ha-nova/smallest-solution.md`
 - Agent templates: `skills/ha-nova/agents/resolve-agent.md`, `skills/ha-nova/agents/apply-agent.md`
 - Review checks: `skills/review/checks.md` (self-contained catalog + Application)
 

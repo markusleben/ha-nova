@@ -97,6 +97,8 @@ Render the Report shape (output-rules.md). For a listen: the topic, the window l
 - Home Assistant is reached exclusively through `ha-nova relay`.
 - For any HA write this skill does not cover, STOP and invoke `ha-nova:fallback` first — never probe unfamiliar write endpoints.
 
+- Drafts follow `skills/ha-nova/smallest-solution.md`: the complete requested outcome in the simplest safe design, nothing for hypothetical future needs.
+
 - Retained publishes and command/`set` topics take the typed `confirm:<token>` — they change device state or broker state persistently, which is a stricter tier than an ordinary service call.
 - Listening is read-only, but keep windows short and topics narrow: a broad subscription on a busy broker is noise, and the relay caps it anyway.
 - Never publish to `homeassistant/...` discovery topics unless the user explicitly asks and understands that it can create or delete entities.

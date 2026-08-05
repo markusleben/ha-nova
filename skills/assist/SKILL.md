@@ -68,6 +68,8 @@ Render the Report shape (output-rules.md). For an utterance test: the exact resp
 - Home Assistant is reached exclusively through `ha-nova relay`.
 - For any HA write this skill does not cover, STOP and invoke `ha-nova:fallback` first — never probe unfamiliar write endpoints.
 
+- Drafts follow `skills/ha-nova/smallest-solution.md`: the complete requested outcome in the simplest safe design, nothing for hypothetical future needs.
+
 - **A test utterance is a live command.** `conversation/process` executes what it understands. Anything that could change state gets a preview and confirmation, exactly like a service call.
 - Exposing entities to voice grants voice control over them — show the full list before changing exposure.
 - Pipeline updates resend every settings field: read first, or you silently drop settings.

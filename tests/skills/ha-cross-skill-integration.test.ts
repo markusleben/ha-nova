@@ -59,7 +59,7 @@ describe("ha cross-skill integration", () => {
 
     // Phase 2 Step 3a: suggestions flow
     expect(writeSkill).toContain("3a) Suggestions");
-    expect(writeSkill).toContain("max 4, numbered");
+    expect(writeSkill).toContain("max 2, smallest intervention first");
     expect(writeSkill).toContain('or "skip"');
     expect(writeSkill).toContain("merge accepted into config BEFORE preview");
     expect(writeSkill).toContain("SUGGESTED_ENHANCEMENTS: none");

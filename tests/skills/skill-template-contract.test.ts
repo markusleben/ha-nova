@@ -154,14 +154,16 @@ const WORD_BUDGETS: Record<string, number> = {
   // stored path (Wave 2) + TS-check application at write time (Wave 3).
   "yaml-config": 1450,
   // Confirmation-code terminology replacing "token" wording (#392).
-  todo: 1250,
+  // #452 canonical smallest-solution draft rule (17 words).
+  todo: 1275,
   // batch-safety opt-in with the merged-save card rule (#327);
   // safety-backup offer (Wave 0) + drift check before the full-document
   // save (Wave 1a) + pre-delete/pre-save snapshot capture (Wave 2).
   // Cards adoption pointer (#389).
   dashboard: 1450,
   // Cards adoption pointer (#389); pre-write update-state drift gate.
-  updates: 1300,
+  // #452 canonical smallest-solution draft rule (17 words).
+  updates: 1325,
   // batch-safety alignment: batch code format + cap-split rule (#327);
   // purge quantification, glob expansion, apply_filter semantics
   // (2026-h2 Wave 1b).
@@ -176,11 +178,17 @@ const WORD_BUDGETS: Record<string, number> = {
   // constraint checks + drift-check step (Wave 1); pre-delete snapshot
   // capture (Wave 2).
   // Grouped-change-set opt-in + final-block clarifier (#391).
-  helper: 3900,
+  // Smallest-complete-solution routing for feature offers (#452).
+  helper: 3950,
   // Suggestion Block item-shape pointer (shared output shapes); scene/
   // dashboard first-class targets with flow adaptation (2026-h2 Wave 3).
   // Quick-fix Preview Card reference (#389).
-  review: 4550,
+  review: 4575,
+  // #452 wires the canonical 17-word smallest-solution draft rule into every
+  // write-flow skill; calendar and integration-setup sat within 17 words of
+  // the default cap (review/todo/updates ratchets applied on their entries).
+  calendar: 1175,
+  "integration-setup": 1175,
 };
 const DEFAULT_WORD_BUDGET = 1150;
 

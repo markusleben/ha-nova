@@ -105,6 +105,8 @@ Use the Preview Card for flow start, menu selection, and each non-secret form su
 - Home Assistant is reached exclusively through `ha-nova relay`.
 - For any HA write this skill does not cover, STOP and invoke `ha-nova:fallback` first — never probe unfamiliar write endpoints.
 
+- Drafts follow `skills/ha-nova/smallest-solution.md`: the complete requested outcome in the simplest safe design, nothing for hypothetical future needs.
+
 - Declared exception to the core delete rule above: canceling an unfinished add flow created by this skill, including cleanup before a required credential, external/OAuth, or progress UI restart, deletes only ephemeral flow state; an explicit `cancel` or the UI-restart branch is sufficient, and this exception never applies to a config entry.
 - Never request, echo, persist, or submit credentials from chat; finish credential-bearing steps in the Home Assistant UI.
 - Starting or submitting a flow may contact an external service; always use the bound preview.

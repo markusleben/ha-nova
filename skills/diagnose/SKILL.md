@@ -95,6 +95,8 @@ Render the Report shape, Diagnosis specialization (output-rules.md → Report Sh
 - Home Assistant is reached exclusively through `ha-nova relay`.
 - For any HA write this skill does not cover, STOP and invoke `ha-nova:fallback` first — never probe unfamiliar write endpoints.
 
+- Drafts follow `skills/ha-nova/smallest-solution.md`: the complete requested outcome in the simplest safe design, nothing for hypothetical future needs.
+
 - The debug escalation (`logger.set_level`) is this skill's single declared mutation: read the current level via `logger/log_info` first, preview + natural confirmation, and always schedule the restore of THAT recorded level (never a hard-coded default) in the same interaction.
 - Never "fix" anything from here — fixes hand off to the owning skill after the diagnosis.
 
