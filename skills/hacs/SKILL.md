@@ -169,10 +169,16 @@ HACS-specific consumer discovery FIRST and shows the result in the preview:
   dashboard configs for the package's custom element references; manual YAML
   dashboards and template consumers are not enumerable — name them as an
   unscanned surface, never claim "no consumers"
-Then the Delete Card with the typed `confirm:<token>`; dependent
-config-entry deletion carries its own typed confirmation. Record pre-change
-state (versions, repository identity) in the result so reinstalling the
-previous version stays explainable.
+Then the Delete Card with the typed `confirm:<token>`. On confirmation
+APPLY the uninstall — `hacs/repository/remove` (deletes the downloaded
+files) — and read back until `installed == false` in the repository info
+(reconcile loop on timeout); only that read-back is success. Dependent
+config-entry deletion carries its own typed confirmation. For
+non-config-flow integrations the running component stays loaded until the
+HA restart — report removed-but-still-loaded and offer the restart as its
+own confirmed step. Record pre-change state (versions, repository
+identity) in the result so reinstalling the previous version stays
+explainable.
 
 ### Migration (custom integration replaces another)
 
