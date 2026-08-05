@@ -89,7 +89,14 @@ The two hard problems are handled skill-side:
   manages resources by hand: say the resource is user-managed instead of
   failing the check), themes verify repository state and version
   (neither has an integration manifest); surface restart/frontend-reload
-  needs without performing them silently.
+  needs without performing them silently. The HACS category enum is wider
+  than these three: `appdaemon`, `python_script`, and `template`
+  repositories have no config-entry or Lovelace-resource anchor the Relay
+  API can verify (and filesystem evidence is unavailable by design), so
+  the MVP handles them fail-closed as UNSUPPORTED categories — named as
+  such in the probe/inventory output with the HACS-UI pointer for their
+  lifecycle, never routed through a wrong verification branch and never
+  reported installed/uninstalled without category-appropriate evidence.
 - **Migration coordination:** HACS-specific consumer discovery before
   destructive steps — config entries, devices, entities, automations,
   scripts, and helpers through the canonical `search/related` filter, PLUS
