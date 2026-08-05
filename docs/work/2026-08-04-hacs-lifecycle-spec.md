@@ -27,8 +27,12 @@ The two hard problems are handled skill-side:
    LLAT of a regular user, non-admin Cloud OAuth user) fails the probe
    with WS error `unauthorized` — a PERMISSION class, never evidence
    about HACS presence. The skill distinguishes the two probe failures:
-   `unknown_command` → HACS is missing/not loaded (remediation: install
-   or restart guidance); `unauthorized` → credential lacks admin
+   `unknown_command` → HACS is missing, not loaded, OR an unsupported
+   line that does not register the pinned commands — one signal, three
+   states, so remediation needs a second read (HACS config entry /
+   integration manifest via the API): entry present → unsupported-schema
+   fail-closed path with the HACS-UI pointer; entry absent → install or
+   restart guidance. `unauthorized` → credential lacks admin
    (remediation: switch the Relay upstream credential to an admin
    account) — and never advertises HACS coverage before the probe
    succeeds. Never guess schemas; never edit `.storage`; never SSH —
@@ -64,8 +68,13 @@ The two hard problems are handled skill-side:
   removable/blocked. Registration, downloaded files, and config entries are
   three distinct lifecycle objects, named as such in output.
 - **Custom repository lifecycle:** validate + add by canonical GitHub
-  reference (duplicate/rename detection, canonical-identity verification),
-  remove registration only with exact identity + installation state known.
+  reference (duplicate/rename detection, canonical-identity verification)
+  PLUS a resolved repository category — `hacs/repositories/add` requires
+  it, so the preflight derives the category from repository evidence
+  (manifest/topics/structure), asks the user when the evidence is
+  ambiguous, and binds the chosen category in the preview; never guess
+  silently, never defer the category to mutation-time failure. Remove
+  registration only with exact identity + installation state known.
 - **Package lifecycle:** install exact version (a user-pinned version is
   never silently replaced by a newer release), install selected stable,
   prerelease only on explicit request, update, redownload, uninstall; read
