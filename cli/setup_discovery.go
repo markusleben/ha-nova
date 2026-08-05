@@ -259,7 +259,7 @@ func discoverHAViaMDNS() []setupDiscoveryProbe {
 	)
 	defer cancel()
 	discovered := []setupDiscoveryProbe{}
-	seen := map[string]struct{}{}
+	seen := map[string]int{}
 	err := lookupDNSSDForDiscovery(
 		ctx,
 		"_home-assistant._tcp.local.",
@@ -269,10 +269,16 @@ func discoverHAViaMDNS() []setupDiscoveryProbe {
 				return
 			}
 			key := setupDiscoveryEndpointKey(endpoint)
-			if _, exists := seen[key]; exists {
+			if idx, exists := seen[key]; exists {
+				// A duplicate announcement may be the one carrying the
+				// .local alias — losing it would let the add-server filter
+				// miss a profile configured with that spelling.
+				if discovered[idx].Via == "" {
+					discovered[idx].Via = dnssdAdvertisedLocalHost(entry)
+				}
 				return
 			}
-			seen[key] = struct{}{}
+			seen[key] = len(discovered)
 			source := "mDNS"
 			if name := safeDNSSDName(entry.Text["location_name"]); name != "" {
 				source += ": " + name
