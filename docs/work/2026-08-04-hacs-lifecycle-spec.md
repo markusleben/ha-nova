@@ -167,6 +167,11 @@ The two hard problems are handled skill-side:
 ## Delivery
 
 Two PRs after this spec: (1) `skills/hacs/` + fallback/dispatch wiring +
-contract tests (skills-only); (2) migration reference + live E2E scenario
-addition. No Relay, CLI, or workflow changes; evidence class stays in the
-"None" row.
+contract tests — plus ONE Go line the install contract demanded:
+`cli/client_hermes.go` registers the new skill directory in
+hermesRequiredSkillDirs (caught by TestHermesRequiredSkillDirsCoverRepoSkillTree);
+(2) migration reference + live E2E scenario addition. No Relay or workflow
+changes. The Cloud invalidation-map row stays "None" (local install wiring,
+no qualified Cloud check surface — the evidence ledger names the delta),
+but the RELEASE carrying PR 1 is Go/delivery-machinery class: the tag-first
+RC rehearsal applies per the release gate.
