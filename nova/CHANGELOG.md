@@ -9,6 +9,15 @@ The format follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic
 Recent changes are tracked in [GitHub releases](https://github.com/markusleben/ha-nova/releases)
 and merged PRs. This changelog will be updated with the next tagged relay version.
 
+## [Relay 0.9.0] - 2026-08-04
+
+- NOVA page device list: two-step arm/confirm for revoke, legacy revoke, and
+  registry reset (device-bound CSRF tokens; typed RESET for the strongest
+  gate); per-device added/last-used timestamps; cloud badge and bound HA user
+  on the confirm screen.
+- Device registry: throttled last-used tracking that survives a broken disk;
+  atomic writes clean up their temp files on failure.
+
 ## [Relay 0.8.0] - 2026-07-29
 
 ### Added
