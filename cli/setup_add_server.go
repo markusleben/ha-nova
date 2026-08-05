@@ -120,7 +120,9 @@ func runAddServerFlow(
 func printAddServerPartialGuidance(out io.Writer, name string) {
 	renderSetupParagraph(out,
 		fmt.Sprintf("The server %q was saved but is not paired yet.", name),
-		fmt.Sprintf("Finish pairing with: ha-nova pair --server %s --relay-url <relay-url>", name),
+		// The saved profile already carries the derived relay URL — pair
+		// reuses it, and a retyped value would overwrite the saved target.
+		fmt.Sprintf("Finish pairing with: ha-nova pair --server %s", name),
 		fmt.Sprintf("Or remove it with: ha-nova server remove %s", name),
 	)
 }
