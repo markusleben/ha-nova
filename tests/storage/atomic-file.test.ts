@@ -43,6 +43,16 @@ describe("atomic-file", () => {
     expect(readdirSync(dir).filter((n) => n.includes(".tmp-"))).toEqual([]);
   });
 
+  it("removes its temp file when the atomic write fails (no orphan snapshots)", () => {
+    // Force the rename step to fail: the target "file" is a non-empty
+    // directory. Retry loops on a persistently failing disk must not
+    // accumulate one orphaned temp snapshot per attempt.
+    const target = join(dir, "as-dir");
+    mkdirSync(join(target, "sub"), { recursive: true });
+    expect(() => writeFileAtomicSync(target, "x")).toThrow();
+    expect(readdirSync(dir).filter((n) => n.includes(".tmp-"))).toEqual([]);
+  });
+
   it("returns null for a missing file", () => {
     expect(readPrivateFileSync(join(dir, "nope"), 1 << 20)).toBeNull();
   });

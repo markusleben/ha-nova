@@ -130,6 +130,9 @@ function validateDevice(value: unknown): DeviceRecord {
     client: stringField("client"),
     createdAtMs: numberField("createdAtMs"),
   };
+  if (raw.lastUsedAtMs !== undefined) {
+    record.lastUsedAtMs = numberField("lastUsedAtMs");
+  }
   if (raw.pendingExpiresAtMs !== undefined) {
     record.pendingExpiresAtMs = numberField("pendingExpiresAtMs");
   }

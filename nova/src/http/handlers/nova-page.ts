@@ -2,16 +2,27 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 
 import { checkOwner, type HaAuthUser } from "../../security/owner-check.js";
 import type { CsrfStore } from "../../security/csrf.js";
-import type { DeviceRecord, DeviceRegistry } from "../../security/device-registry.js";
+import type { DeviceRegistry } from "../../security/device-registry.js";
 import type { PairingV1Manager } from "../../security/pairing-v1.js";
 import type { RouteHandler } from "../router.js";
+import {
+  escapeHtml,
+  parseConfirm,
+  renderPage,
+  type ConnectionStatus,
+  type NovaAction,
+  type UpdateStatus,
+} from "./nova-page-view.js";
 
 // The NOVA owner console, served over Supervisor ingress. Server-rendered HTML
 // with NO JavaScript and no external resources; every mutating action is a POST
 // form guarded by a single-use CSRF token, Sec-Fetch/Origin checks, and a fresh
 // owner re-check. Post/Redirect/Get avoids re-submission. The visible name is
 // only "NOVA"; the code is shown solely while a pairing is active and is never
-// logged.
+// logged. Rendering lives in nova-page-view.ts; this module owns the HTTP,
+// action, and CSRF handling.
+
+export type { ConnectionStatus, NovaAction, UpdateStatus } from "./nova-page-view.js";
 
 const CSP = [
   "default-src 'none'",
@@ -22,18 +33,7 @@ const CSP = [
   "frame-ancestors 'self'",
 ].join("; ");
 
-export type NovaAction = "generate_code" | "cancel_code" | "revoke_device" | "revoke_legacy" | "reset_registry";
 const ACTIONS = new Set<NovaAction>(["generate_code", "cancel_code", "revoke_device", "revoke_legacy", "reset_registry"]);
-
-export interface ConnectionStatus {
-  haConnected: boolean;
-}
-export interface UpdateStatus {
-  version: string;
-  versionLatest: string | null;
-  updateAvailable: boolean;
-  error: boolean;
-}
 
 export interface NovaPageDeps {
   fetchAuthUsers: () => Promise<HaAuthUser[]>;
@@ -73,6 +73,7 @@ export function createNovaPageHandler(deps: NovaPageDeps): RouteHandler {
       return;
     }
     const [update] = await Promise.all([safeUpdate(deps)]);
+    const query = new URLSearchParams((request.url ?? "").split("?")[1] ?? "");
     const html = renderPage({
       ownerName: owner.name,
       csrf: deps.csrf,
@@ -86,9 +87,10 @@ export function createNovaPageHandler(deps: NovaPageDeps): RouteHandler {
       update,
       relayVersion: deps.relayVersion,
       ingressPath: singleHeader(request, "x-ingress-path") ?? "/home",
-      // The action handler redirects here with ?err=1 when an owner action threw
-      // (e.g. generate_code with no mapped secure port), so the owner sees why.
-      actionError: new URLSearchParams((request.url ?? "").split("?")[1] ?? "").get("err") === "1",
+      // The action handler redirects here with ?err=<code> when an owner action
+      // threw ("1") or the typed reset confirmation did not match ("confirm").
+      errorCode: query.get("err"),
+      confirm: parseConfirm(query),
     });
     setHeaders(response);
     response.statusCode = 200;
@@ -118,18 +120,32 @@ export function createNovaActionHandler(deps: NovaPageDeps): RouteHandler {
       fail(response, 400, "Unknown action.");
       return;
     }
-    if (!deps.csrf.consume(owner.userId, action, token, deps.now())) {
+    // Destructive actions are two-step: their CSRF token is issued ONLY by the
+    // confirm screen, and the revoke token is bound to the exact device id — a
+    // token armed for one device cannot revoke another, and no token for these
+    // actions exists outside an open confirm screen.
+    const deviceId = typeof form.device_id === "string" ? form.device_id : "";
+    const csrfAction =
+      action === "revoke_device" ? `revoke_device:${deviceId}` : action;
+    if (!deps.csrf.consume(owner.userId, csrfAction, token, deps.now())) {
       fail(response, 403, "This form expired. Reload the page and try again.");
       return;
     }
 
-    let failed = false;
-    try {
-      applyAction(deps, action as NovaAction, form);
-    } catch {
-      // Do not leak internals, but tell the owner it failed via ?err=1 below so a
-      // failed "Connect a device" is not a silent reload with no code.
-      failed = true;
+    let errCode: string | null = null;
+    // The strongest gate: resetting the registry additionally requires the
+    // owner to type RESET verbatim on the confirm screen. The consumed token
+    // stays consumed on a mismatch — re-arming means opening the screen again.
+    if (action === "reset_registry" && form.confirm_text !== "RESET") {
+      errCode = "confirm";
+    } else {
+      try {
+        applyAction(deps, action as NovaAction, form);
+      } catch {
+        // Do not leak internals, but tell the owner it failed via ?err=1 below
+        // so a failed "Connect a device" is not a silent reload with no code.
+        errCode = "1";
+      }
     }
 
     // Post/Redirect/Get back to the page. The redirect target MUST keep the
@@ -139,7 +155,15 @@ export function createNovaActionHandler(deps: NovaPageDeps): RouteHandler {
     const base = `${ingressPath.replace(/\/$/, "")}/`;
     setHeaders(response);
     response.statusCode = 303;
-    response.setHeader("location", failed ? `${base}?err=1` : base);
+    // A RESET mismatch redirects back INTO the armed confirm screen (fresh
+    // token) so the error's "type RESET" instruction has an input to point at.
+    const location =
+      errCode === null
+        ? base
+        : errCode === "confirm"
+          ? `${base}?err=confirm&confirm=reset_registry`
+          : `${base}?err=${errCode}`;
+    response.setHeader("location", location);
     response.end();
   };
 }
@@ -180,176 +204,7 @@ async function safeUpdate(deps: NovaPageDeps): Promise<UpdateStatus> {
   }
 }
 
-interface PageModel {
-  ownerName: string;
-  csrf: CsrfStore;
-  userId: string;
-  now: number;
-  pairing: { phase: string; code?: string; expiresAtMs?: number };
-  devices: DeviceRecord[];
-  hasLegacy: boolean;
-  registryCorrupt: boolean;
-  connection: ConnectionStatus;
-  update: UpdateStatus;
-  relayVersion: string;
-  ingressPath: string;
-  actionError: boolean;
-}
-
-function renderPage(m: PageModel): string {
-  const formOpen = `<form method="post" action="${escapeAttr(joinIngress(m.ingressPath, "action"))}">`;
-  // One token per action per render, not per form: the page can show up to
-  // MAX_ACTIVE revoke forms, but a single-use token per device would evict the
-  // earliest ones (CSRF cap) and break those buttons. Forms of one action
-  // submit one at a time (PRG re-renders with a fresh token), so they share it.
-  const csrfTokens = new Map<NovaAction, string>();
-  const csrfField = (action: NovaAction): string => {
-    let token = csrfTokens.get(action);
-    if (token === undefined) {
-      token = m.csrf.issue(m.userId, action, m.now);
-      csrfTokens.set(action, token);
-    }
-    return `<input type="hidden" name="csrf" value="${escapeAttr(token)}"><input type="hidden" name="action" value="${action}">`;
-  };
-
-  // A corrupt registry disables device auth and pairing (a code would fail at
-  // finish). Surface it plainly with a one-click recovery instead of leaving
-  // the owner staring at an empty page or editing /data by hand.
-  const recoverySection = m.registryCorrupt
-    ? `<section><h2>Recovery needed</h2><p class="muted">The device registry is damaged, so device pairing and existing device access are disabled. Reset it to start fresh — the damaged file is kept aside, and every computer will need to pair again.</p>${formOpen}${csrfField("reset_registry")}<button class="danger" type="submit">Reset device registry</button></form></section>`
-    : "";
-
-  // Shown after an owner action threw (redirected here with ?err=1) so a failure
-  // is visible instead of a silent reload.
-  const errorSection = m.actionError
-    ? `<section class="error"><h2>That did not work</h2><p>The action could not be completed. If you were connecting a device, the relay's secure port may be unavailable — check the App is running, then try again.</p></section>`
-    : "";
-
-  const pairingSection = m.registryCorrupt
-    ? `<p class="muted">Unavailable until the device registry is reset (see Recovery above).</p>`
-    : m.pairing.phase === "active" && m.pairing.code
-      ? `<p class="muted">On your computer, run <code>ha-nova setup</code> and enter this code when asked. It works once and expires in 10 minutes. Click the code to select it for copying.</p>
-         <p class="code">${escapeHtml(formatCode(m.pairing.code))}</p>
-         <p class="muted waiting">Waiting for the device… this page updates on its own once it connects.</p>
-         ${formOpen}${csrfField("cancel_code")}<button class="secondary" type="submit">Cancel</button></form>`
-      : `<p class="muted">Generate a one-time code, then enter it on your computer when NOVA asks. Each device gets its own secure connection.</p>
-         ${formOpen}${csrfField("generate_code")}<button type="submit">Connect a device</button></form>${
-          m.pairing.phase === "consumed" ? `<p class="ok">✓ A device was just connected.</p>` : ""
-        }`;
-
-  const activeDevices = m.devices.filter((d) => d.state === "active");
-  const deviceRows = m.registryCorrupt
-    ? `<p class="muted">Device access is disabled until the registry is reset.</p>`
-    : activeDevices.length === 0
-      ? `<p class="muted">No devices are connected yet. Use “Connect a device” above to add your first one.</p>`
-      : `<p class="muted">Computers allowed to control Home Assistant through NOVA. Revoke one to cut its access immediately.</p><ul>${activeDevices
-          .map(
-            (d) =>
-              `<li><span class="device"><strong>${escapeHtml(d.name)}</strong><span class="muted">${escapeHtml(d.platform)} · ${escapeHtml(d.client)}</span></span>${formOpen}${csrfField("revoke_device")}<input type="hidden" name="device_id" value="${escapeAttr(d.deviceId)}"><button class="secondary danger" type="submit">Revoke</button></form></li>`
-          )
-          .join("")}</ul>`;
-
-  // Shown only while a migrated shared token still exists, so the owner can
-  // cut off pre-pairing access that would otherwise outlive every device.
-  const legacySection = m.hasLegacy
-    ? `<section><h2>Legacy access</h2><p class="muted">A shared token from before device pairing can still control Home Assistant. Once every computer is paired, revoke it so only paired devices keep access.</p>${formOpen}${csrfField("revoke_legacy")}<button class="secondary danger" type="submit">Revoke legacy access</button></form></section>`
-    : "";
-
-  const updateLine = m.update.error
-    ? `<span class="muted">Update status unavailable.</span>`
-    : m.update.updateAvailable
-      ? `Update available: <strong>${escapeHtml(m.update.versionLatest ?? "")}</strong> (installed ${escapeHtml(m.update.version)}). Update from the Apps page.`
-      : `<span class="muted">Up to date (${escapeHtml(m.update.version)}).</span>`;
-
-  const star = `<svg class="logo" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 2l2.2 7.8L22 12l-7.8 2.2L12 22l-2.2-7.8L2 12l7.8-2.2z"/></svg>`;
-
-  // Colours are Home Assistant's own default theme tokens; prefers-color-scheme
-  // follows the dark/light preference (HA does not inject theme CSS into ingress
-  // iframes, and this page runs without JavaScript by design).
-  // While a code is active we auto-refresh so the owner sees the device appear
-  // without reloading — pure HTML (this page runs no JavaScript by design). The
-  // refresh stops the moment pairing is consumed or cancelled.
-  const autoRefresh = m.pairing.phase === "active" ? `<meta http-equiv="refresh" content="5">` : "";
-
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">${autoRefresh}
-<title>NOVA</title>
-<style>
-  :root {
-    --bg: #f5f5f7; --card: #ffffff; --text: #212121; --muted: #727272;
-    --border: rgba(0,0,0,.10); --primary: #03a9f4; --on-primary: #ffffff;
-    --danger: #db4437; --shadow: 0 2px 6px rgba(0,0,0,.08);
-  }
-  @media (prefers-color-scheme: dark) {
-    :root {
-      --bg: #111111; --card: #1c1c1c; --text: #e1e1e1; --muted: #9b9b9b;
-      --border: rgba(225,225,225,.12); --primary: #03a9f4; --on-primary: #ffffff;
-      --danger: #e57373; --shadow: none;
-    }
-  }
-  * { box-sizing: border-box; }
-  body { font-family: Roboto, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    background: var(--bg); color: var(--text); margin: 0; padding: 1.5rem 1rem;
-    -webkit-font-smoothing: antialiased; line-height: 1.5; }
-  main { max-width: 34rem; margin: 0 auto; }
-  h1 { display: flex; align-items: center; gap: .55rem; font-size: 1.5rem; font-weight: 500; margin: 0 0 1.25rem; }
-  .logo { width: 1.7rem; height: 1.7rem; color: var(--primary); }
-  section { background: var(--card); border: 1px solid var(--border); border-radius: 12px;
-    box-shadow: var(--shadow); padding: 1rem 1.25rem; margin: 0 0 1rem; }
-  section h2 { font-size: .8rem; text-transform: uppercase; letter-spacing: .04em;
-    color: var(--muted); margin: 0 0 .5rem; font-weight: 600; }
-  p { margin: .35rem 0; }
-  .muted { color: var(--muted); }
-  .ok { color: var(--primary); }
-  .error { border-color: var(--danger); }
-  .error h2, .error p { color: var(--danger); }
-  .waiting { font-style: italic; animation: pulse 1.6s ease-in-out infinite; }
-  @keyframes pulse { 0%, 100% { opacity: .55; } 50% { opacity: 1; } }
-  /* One click selects the whole code for copying — the page runs no
-     JavaScript (CSP), so this replaces a clipboard button. */
-  .code { font-size: 2.25rem; letter-spacing: .3rem; font-weight: 700; color: var(--primary); margin: .5rem 0; user-select: all; -webkit-user-select: all; cursor: pointer; }
-  form { display: inline; margin: 0; }
-  button { font: inherit; font-weight: 500; padding: .5rem 1.1rem; border-radius: 10px;
-    border: none; background: var(--primary); color: var(--on-primary); cursor: pointer; }
-  button.secondary { background: transparent; color: var(--text); border: 1px solid var(--border); }
-  button.danger { color: var(--danger); }
-  ul { list-style: none; padding: 0; margin: 0; }
-  li { display: flex; align-items: center; justify-content: space-between; gap: 1rem;
-    padding: .6rem 0; border-top: 1px solid var(--border); }
-  li:first-child { border-top: none; }
-  .device { display: flex; flex-direction: column; }
-  footer { color: var(--muted); font-size: .8rem; margin-top: 1.5rem; text-align: center; }
-  code { background: var(--border); padding: .05rem .35rem; border-radius: 5px; font-size: .9em; }
-  .intro { color: var(--muted); margin: -.75rem 0 1.5rem; }
-</style></head><body>
-<main>
-<h1>${star}NOVA</h1>
-<p class="intro">Let your AI assistant work with Home Assistant — safely. Connect each computer once with a one-time code; every device gets its own connection.</p>
-${errorSection}<section><h2>Home Assistant</h2><p>${m.connection.haConnected ? "Connected." : `<span class="muted">Not connected — check the App logs.</span>`}</p></section>
-${recoverySection}<section><h2>Update</h2><p>${updateLine}</p></section>
-<section><h2>Pairing</h2>${pairingSection}</section>
-<section><h2>Devices</h2>${deviceRows}</section>
-${legacySection}<footer>Signed in as ${escapeHtml(m.ownerName)} · Relay ${escapeHtml(m.relayVersion)}</footer>
-</main>
-</body></html>`;
-}
-
-function formatCode(code: string): string {
-  return code.length === 6 ? `${code.slice(0, 3)} ${code.slice(3)}` : code;
-}
-
-function joinIngress(ingressPath: string, leaf: string): string {
-  return `${ingressPath.replace(/\/$/, "")}/${leaf}`;
-}
-
 function singleHeader(request: IncomingMessage, name: string): string | null {
   const value = request.headers[name];
   return typeof value === "string" ? value : null;
-}
-
-function escapeHtml(value: string): string {
-  return value.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c] ?? c);
-}
-function escapeAttr(value: string): string {
-  return escapeHtml(value);
 }

@@ -231,14 +231,14 @@ describe("nova-page", () => {
     expect(r.statusCode).toBe(403);
   });
 
-  it("revokes a device via its form", async () => {
+  function addActiveDevice(name = "Mac", installId = "i") {
     const c = generateCredential();
     registry.createPending(
       {
         deviceId: c.deviceId,
         secretDigest: c.secretDigest,
-        clientInstallId: "i",
-        name: "Mac",
+        clientInstallId: installId,
+        name,
         platform: "darwin",
         client: "claude",
         createdAtMs: 1,
@@ -246,17 +246,98 @@ describe("nova-page", () => {
       now(),
     );
     registry.activate(c.deviceId, now());
-    const token = csrf.issue("owner-1", "revoke_device", now());
-    const r = await call(createNovaActionHandler(deps), req(), {
+    return c;
+  }
+
+  function extractCsrf(html: string): string {
+    const match = html.match(/name="csrf" value="([^"]+)"/);
+    expect(match).not.toBeNull();
+    return match![1]!;
+  }
+
+  it("revokes a device only through the armed confirm flow", async () => {
+    const c = addActiveDevice();
+
+    // The base render arms, it does not fire: no revoke form, no revoke token —
+    // only a link to the confirm screen.
+    let r = await call(createNovaPageHandler(deps), req());
+    expect(r.body).not.toContain('name="action" value="revoke_device"');
+    // The & is HTML-escaped inside the href attribute.
+    expect(r.body).toContain(`confirm=revoke_device&amp;device=${c.deviceId}`);
+
+    // The confirm render shows the device context and mints the only token.
+    r = await call(
+      createNovaPageHandler(deps),
+      req({ url: `/?confirm=revoke_device&device=${c.deviceId}` }),
+    );
+    expect(r.body).toContain("Confirm revoke");
+    expect(r.body).toContain("Mac");
+    expect(r.body).toContain("added");
+    expect(r.body).toContain("last used");
+    const token = extractCsrf(r.body);
+
+    const ar = await call(createNovaActionHandler(deps), req(), {
       action: "revoke_device",
       csrf: token,
       device_id: c.deviceId,
     });
-    expect(r.statusCode).toBe(303);
+    expect(ar.statusCode).toBe(303);
     expect(registry.list()).toHaveLength(0);
   });
 
-  it("shows a legacy-access section only while a legacy credential exists, and revokes it", async () => {
+  it("binds the armed revoke token to the exact device", async () => {
+    const a = addActiveDevice("A", "ia");
+    const b = addActiveDevice("B", "ib");
+
+    const r = await call(
+      createNovaPageHandler(deps),
+      req({ url: `/?confirm=revoke_device&device=${a.deviceId}` }),
+    );
+    const tokenForA = extractCsrf(r.body);
+
+    // A token armed for device A must not revoke device B.
+    const cross = await call(createNovaActionHandler(deps), req(), {
+      action: "revoke_device",
+      csrf: tokenForA,
+      device_id: b.deviceId,
+    });
+    expect(cross.statusCode).toBe(403);
+    expect(registry.list()).toHaveLength(2);
+
+    // The token still only works for its own device.
+    const ok = await call(createNovaActionHandler(deps), req(), {
+      action: "revoke_device",
+      csrf: tokenForA,
+      device_id: a.deviceId,
+    });
+    expect(ok.statusCode).toBe(303);
+    expect(registry.list().map((d) => d.deviceId)).toEqual([b.deviceId]);
+  });
+
+  it("shows created, last used, and a cloud badge per device row", async () => {
+    const c = addActiveDevice("Cloudy");
+    const RELAY_ID = `hanova-relay-v1.${"a".repeat(22)}`;
+    expect(
+      registry.bindCloudUser(c.deviceId, c.secretDigest, "ha-user-9", RELAY_ID),
+    ).toMatchObject({ ok: true });
+
+    const r = await call(createNovaPageHandler(deps), req());
+    expect(r.body).toContain("added");
+    // Activation seeds last-used, so the row never claims a working device was
+    // never used.
+    expect(r.body).not.toContain("last used never");
+    expect(r.body).toContain(`<span class="badge">cloud</span>`);
+
+    // The confirm screen names the bound HA user for an informed decision.
+    const confirm = await call(
+      createNovaPageHandler(deps),
+      req({ url: `/?confirm=revoke_device&device=${c.deviceId}` }),
+    );
+    expect(confirm.body).toContain("ha-user-9");
+    expect(confirm.body).toContain("Home Assistant Cloud");
+  });
+
+  it("shows a legacy-access section only while a legacy credential exists, and revokes it through the confirm flow", async () => {
     // No legacy credential -> no section, no way to revoke something that
     // does not exist.
     let r = await call(createNovaPageHandler(deps), req());
@@ -265,8 +346,14 @@ describe("nova-page", () => {
     registry.importLegacy("legacy-digest-abc", now());
     r = await call(createNovaPageHandler(deps), req());
     expect(r.body).toContain("Revoke legacy access");
+    // The base render arms only — no legacy form or token exists yet.
+    expect(r.body).not.toContain('name="action" value="revoke_legacy"');
+    expect(r.body).toContain("confirm=revoke_legacy");
 
-    const token = csrf.issue("owner-1", "revoke_legacy", now());
+    // Arm, then confirm with the token minted by the confirm render.
+    r = await call(createNovaPageHandler(deps), req({ url: "/?confirm=revoke_legacy" }));
+    expect(r.body).toContain("Confirm revoke of legacy access");
+    const token = extractCsrf(r.body);
     const ar = await call(createNovaActionHandler(deps), req(), {
       action: "revoke_legacy",
       csrf: token,
@@ -274,12 +361,12 @@ describe("nova-page", () => {
     expect(ar.statusCode).toBe(303);
     expect(registry.hasLegacy()).toBe(false);
 
-    // Gone again once revoked.
-    r = await call(createNovaPageHandler(deps), req());
+    // Gone again once revoked — and the armed confirm renders nothing.
+    r = await call(createNovaPageHandler(deps), req({ url: "/?confirm=revoke_legacy" }));
     expect(r.body).not.toContain("Revoke legacy access");
   });
 
-  it("surfaces a corrupt registry with a reset action, and disables pairing until reset", async () => {
+  it("gates the registry reset behind the confirm screen plus typed RESET", async () => {
     let corrupt = true;
     let resets = 0;
     deps.registryCorrupt = () => corrupt;
@@ -289,15 +376,46 @@ describe("nova-page", () => {
     };
 
     let r = await call(createNovaPageHandler(deps), req());
-    expect(r.body).toContain("Reset device registry");
     expect(r.body).toContain("Recovery needed");
+    expect(r.body).toContain("confirm=reset_registry");
+    // The base render arms only — no reset token exists yet.
+    expect(r.body).not.toContain('name="action" value="reset_registry"');
     // Pairing is disabled while corrupt — no generate button.
     expect(r.body).not.toContain("Connect a device");
 
-    const token = csrf.issue("owner-1", "reset_registry", now());
-    const ar = await call(createNovaActionHandler(deps), req(), {
+    // Wrong confirmation text: token is consumed, nothing is reset, and the
+    // owner is told via ?err=confirm.
+    r = await call(createNovaPageHandler(deps), req({ url: "/?confirm=reset_registry" }));
+    expect(r.body).toContain('name="confirm_text"');
+    let token = extractCsrf(r.body);
+    let ar = await call(createNovaActionHandler(deps), req(), {
       action: "reset_registry",
       csrf: token,
+      confirm_text: "reset",
+    });
+    expect(ar.statusCode).toBe(303);
+    // The mismatch redirect re-arms the confirm screen so the error's "type
+    // RESET" instruction has an input to point at.
+    expect(String(ar.headers.location)).toContain("err=confirm");
+    expect(String(ar.headers.location)).toContain("confirm=reset_registry");
+    expect(resets).toBe(0);
+
+    // The consumed token cannot be replayed even with the right text.
+    ar = await call(createNovaActionHandler(deps), req(), {
+      action: "reset_registry",
+      csrf: token,
+      confirm_text: "RESET",
+    });
+    expect(ar.statusCode).toBe(403);
+    expect(resets).toBe(0);
+
+    // Re-arm and confirm with the exact text.
+    r = await call(createNovaPageHandler(deps), req({ url: "/?confirm=reset_registry" }));
+    token = extractCsrf(r.body);
+    ar = await call(createNovaActionHandler(deps), req(), {
+      action: "reset_registry",
+      csrf: token,
+      confirm_text: "RESET",
     });
     expect(ar.statusCode).toBe(303);
     expect(resets).toBe(1);
@@ -308,37 +426,42 @@ describe("nova-page", () => {
     expect(r.body).toContain("Connect a device");
   });
 
-  it("issues one CSRF token per action, not per device, so many devices don't evict earlier forms", async () => {
-    // More active devices than CSRF_MAX_PENDING (8): a per-device token would
-    // evict the earliest forms' tokens mid-render and break their buttons.
+  it("mints no destructive tokens on the base render, and one bound token per confirm", async () => {
+    // Many devices: the base render must not mint any revoke tokens at all
+    // (arming is a link), so the CSRF cap can never evict working forms.
     for (let i = 0; i < 12; i++) {
-      const c = generateCredential();
-      registry.createPending(
-        {
-          deviceId: c.deviceId,
-          secretDigest: c.secretDigest,
-          clientInstallId: `i${i}`,
-          name: `d${i}`,
-          platform: "darwin",
-          client: "claude",
-          createdAtMs: 1,
-        },
-        now(),
-      );
-      registry.activate(c.deviceId, now());
+      addActiveDevice(`d${i}`, `i${i}`);
     }
     const r = await call(createNovaPageHandler(deps), req());
     const tokens = [...r.body.matchAll(/name="csrf" value="([^"]+)"/g)].map(
       (m) => m[1],
     );
-    // 12 revoke forms + the pairing form, but only distinct-per-action tokens.
-    expect(tokens.length).toBeGreaterThan(12);
-    expect(new Set(tokens).size).toBeLessThanOrEqual(3);
-    // The shared revoke_device token (device forms render after the pairing
-    // form) still verifies — it was never evicted.
-    const revokeToken = tokens[tokens.length - 1]!;
-    expect(csrf.consume("owner-1", "revoke_device", revokeToken, now())).toBe(
-      true,
+    // Only the pairing form mints a token on the base render.
+    expect(tokens).toHaveLength(1);
+    expect(csrf.consume("owner-1", "generate_code", tokens[0]!, now())).toBe(true);
+
+    // A confirm render mints exactly one more, bound to that device.
+    const target = registry.list()[0]!;
+    const confirm = await call(
+      createNovaPageHandler(deps),
+      req({ url: `/?confirm=revoke_device&device=${target.deviceId}` }),
     );
+    const confirmTokens = [...confirm.body.matchAll(/name="csrf" value="([^"]+)"/g)].map(
+      (m) => m[1],
+    );
+    expect(confirmTokens).toHaveLength(2); // pairing + the bound revoke token
+    const bound = confirmTokens.find(
+      (t) => t !== undefined && csrf.consume("owner-1", `revoke_device:${target.deviceId}`, t, now()),
+    );
+    expect(bound).toBeDefined();
+  });
+
+  it("ignores a confirm request for an unknown or inactive device", async () => {
+    const r = await call(
+      createNovaPageHandler(deps),
+      req({ url: "/?confirm=revoke_device&device=nope" }),
+    );
+    expect(r.body).not.toContain("Confirm revoke");
+    expect(r.body).not.toContain('name="action" value="revoke_device"');
   });
 });

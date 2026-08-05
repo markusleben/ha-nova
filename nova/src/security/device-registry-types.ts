@@ -9,6 +9,8 @@ export interface DeviceRecord {
   platform: string;
   client: string;
   createdAtMs: number;
+  // Last successful authentication, persisted at most once per throttle window.
+  lastUsedAtMs?: number;
   pendingExpiresAtMs?: number;
   cloudUserId?: string;
   cloudRelayInstanceId?: string;

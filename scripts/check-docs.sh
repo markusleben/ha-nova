@@ -42,18 +42,21 @@ echo ""
 # credentials and revocation, ingress-only OPAQUE pairing v2, strict shared
 # ingress identity and principal gates, bounded request bodies, atomic
 # pairing-response persistence with replay protection, and cleanup-only routes
-# while Cloud is disabled. The current reviewed tree is about 8850 lines; the
-# 9000 ceiling leaves only narrow refactoring headroom and still fails further
-# unreviewed Relay growth.
+# while Cloud is disabled; and to 9200 for the #482 owner-console safety
+# rework: the armed two-step confirm flow with device-bound CSRF tokens, the
+# typed registry-reset gate, and throttled last-used tracking with disk-failure
+# fallback in the device auth path. The current reviewed tree is about 9030
+# lines; the 9200 ceiling leaves only narrow refactoring headroom and still
+# fails further unreviewed Relay growth.
 # Growth here is security surface, and it is reviewed as such. The README's own
 # number is updated in the release-prep PR — README describes the STABLE
 # release, not main.
 echo "[1] Relay LOC (must stay readable in one sitting)"
 ACTUAL_LOC=$(find "$REPO_ROOT/nova/src" -name '*.ts' -exec cat {} + | wc -l | tr -d ' ')
-if (( ACTUAL_LOC >= 1000 && ACTUAL_LOC <= 9000 )); then
-  pass "src/ = ${ACTUAL_LOC} LOC (within 1000–9000 range)"
+if (( ACTUAL_LOC >= 1000 && ACTUAL_LOC <= 9200 )); then
+  pass "src/ = ${ACTUAL_LOC} LOC (within 1000–9200 range)"
 else
-  fail "src/ = ${ACTUAL_LOC} LOC — outside the 1000–9000 range. Justify real Relay growth in active architecture docs; update README only in a release-prep PR."
+  fail "src/ = ${ACTUAL_LOC} LOC — outside the 1000–9200 range. Justify real Relay growth in active architecture docs; update README only in a release-prep PR."
 fi
 
 # ── 2. Skill count ──
