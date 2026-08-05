@@ -49,11 +49,14 @@ never guessed, reused across sessions, or derived from names.
 - `{"type":"hacs/repositories/list","categories":[...]}` (categories
   optional; default all active) → rows with `id`, `full_name`, `name`,
   `category`, `custom`, `installed`, `installed_version`,
-  `available_version`, `pending_upgrade`, `config_flow`,
+  `available_version`, `pending_upgrade`, `config_flow`, `domain`,
   `can_download`, `status`, `homeassistant` (min HA version), `stars`,
-  `downloads`, `last_updated`. List rows carry NO `domain` — any
-  domain-dependent step (install/uninstall previews, footprint and
-  consumer scans) requires a fresh `hacs/repository/info` read first.
+  `downloads`, `last_updated`. Use the list row's `domain` for
+  domain-dependent steps; reserve `hacs/repository/info` for the fields
+  it exclusively owns (releases, `selected_tag`, `beta`,
+  `default_branch`, README) — its first read forces a GitHub refresh and
+  clears the repository's `new` flag, so a read-only preview that calls
+  it mutates HACS UI state.
 - `{"type":"hacs/repository/info","repository_id":"<id>"}` → the row plus
   `releases` (published tags), `selected_tag`, `beta`, `default_branch`,
   `version_or_commit`, raw README/info markdown. Side effects: forces a GitHub
