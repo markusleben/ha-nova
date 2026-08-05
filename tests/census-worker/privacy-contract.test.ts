@@ -101,16 +101,18 @@ describe("Census privacy and cross-contract guards", () => {
     expect(censusSources).toContain(
       `censusMaxVersionLength = ${MAX_VERSION_LENGTH}`,
     );
-    const deploymentVerifier = readFileSync(
+    // #446: the smoke version lives in the FUNCTIONAL verifier (isolated test
+    // worker); the production deployment verifier is read-only and sends none.
+    const functionalVerifier = readFileSync(
       join(
         process.cwd(),
         "scripts",
         "release",
-        "verify-census-deployment.sh",
+        "verify-census-functional.sh",
       ),
       "utf8",
     );
-    expect(deploymentVerifier).toContain(
+    expect(functionalVerifier).toContain(
       `smoke_version="${RELEASE_SMOKE_VERSION}"`,
     );
     expect(censusSources).toContain(

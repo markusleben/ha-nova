@@ -24,6 +24,10 @@ describe("release contract", () => {
     "scripts/release/verify-census-deployment.sh",
     "utf8",
   );
+  const censusFunctionalVerifier = readFileSync(
+    "scripts/release/verify-census-functional.sh",
+    "utf8",
+  );
   const censusDeployer = readFileSync(
     "scripts/release/deploy-census-worker.sh",
     "utf8",
@@ -388,7 +392,7 @@ describe("release contract", () => {
     );
   });
 
-  it("verifies private Census stats, exact deployment, deduplication, and withdrawal", () => {
+  it("verifies private Census stats and exact deployment READ-ONLY (#446)", () => {
     expect(censusDeploymentVerifier).toContain(
       'base_url="https://ha-nova-census.markusleben.workers.dev"',
     );
@@ -420,20 +424,36 @@ describe("release contract", () => {
     expect(censusDeploymentVerifier).toContain(
       '.relay_app_installations.status == "unavailable"',
     );
-    expect(censusDeploymentVerifier).toContain("installation_id=");
-    expect(censusDeploymentVerifier).toContain("for attempt in 1 2");
-    expect(censusDeploymentVerifier).toContain("${base_url}/ping");
-    expect(censusDeploymentVerifier).toContain("${base_url}/withdraw");
-    expect(censusDeploymentVerifier).toContain("baseline_smoke_count + 1");
-    expect(censusDeploymentVerifier).toContain(
-      '"$current" == "$baseline_smoke_count"',
-    );
     expect(censusDeploymentVerifier).toContain(
       ".client_installations.release_smoke_installations",
     );
     expect(censusDeploymentVerifier).not.toContain(
       ".client_installations.by_version[$version]",
     );
+    // #446: production verification is read-only — it must never build a
+    // mutation URL or send a POST. Functional checks live in
+    // verify-census-functional.sh against the isolated test worker.
+    expect(censusDeploymentVerifier).toContain("READ-ONLY by contract");
+    expect(censusDeploymentVerifier).not.toContain("/ping");
+    expect(censusDeploymentVerifier).not.toContain("/withdraw");
+    expect(censusDeploymentVerifier).not.toContain("--request POST");
+    expect(censusFunctionalVerifier).toContain(
+      'base_url="https://ha-nova-census-test.markusleben.workers.dev"',
+    );
+    // The functional proof is bound to the reviewed deployment: a stale but
+    // healthy test worker must never green-light broken mutation routes.
+    expect(censusFunctionalVerifier).toContain(
+      '"$deployment_sha" == "$expected_sha"',
+    );
+    expect(censusFunctionalVerifier).toContain(
+      '"$version_id" == "$expected_version_id"',
+    );
+    expect(censusFunctionalVerifier).not.toContain(
+      "https://ha-nova-census.markusleben.workers.dev",
+    );
+    expect(censusFunctionalVerifier).toContain("${base_url}/ping");
+    expect(censusFunctionalVerifier).toContain("${base_url}/withdraw");
+    expect(censusFunctionalVerifier).toContain("baseline_smoke_count + 1");
   });
 
   it("deploys the census only through one exact-target fail-closed wrapper", () => {
@@ -493,7 +513,11 @@ describe("release contract", () => {
     expect(censusDeploymentScripts).not.toContain(".[0].versions");
     expect(
       censusDeployer.trimEnd().split("\n").length,
-    ).toBeLessThanOrEqual(400);
+      // 440: the mandatory isolated test-worker gate folded into the wrapper
+      // (Codex P1 on #497) — production promotion without the functional
+      // proof must be impossible, and the gate lives in the same file so it
+      // cannot be skipped.
+    ).toBeLessThanOrEqual(440);
     expect(
       censusDeploymentState.trimEnd().split("\n").length,
     ).toBeLessThanOrEqual(400);

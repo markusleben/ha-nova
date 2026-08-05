@@ -771,16 +771,30 @@ release changes the census Worker.
    the hard-pinned `markusleben/ha-nova` main history, exercises real
    Worker/SQLite deduplication and withdrawal locally, pins Wrangler 4.113.0
    plus the production account/config/name, and attests the deployed
-   Cloudflare version before repeating the same proof with one ephemeral
-   production ID. A post-deploy verification failure automatically restores
-   the previously active 100-percent Worker version:
+   Cloudflare version READ-ONLY. A post-deploy verification failure
+   automatically restores the previously active 100-percent Worker version:
    ```bash
    bash scripts/release/deploy-census-worker.sh <reviewed-merge-sha>
    ```
    The production verifier reads private `/stats/api` through Cloudflare
-   Access, checks the required SHA/version headers, sends the same schema-2 ID
-   twice and requires exactly one active installation, then withdraws it and
-   requires the pre-smoke version count to be restored.
+   Access and checks the required SHA/version headers and the schema-2 stats
+   contract. Production isolation (#446): it never sends a production ping or
+   withdrawal — production statistics represent voluntary real participants
+   only, enforced statically by
+   `scripts/test/check-census-production-isolation.mjs`. The functional
+   ping/deduplication/withdrawal proof runs against the ISOLATED test Worker
+   and runs BEFORE production promotion — if a mutation route broke, the
+   test Worker must catch it while production still has its previous version
+   and armed rollback: first
+   `(cd census-worker && npx wrangler@4.113.0 deploy --env test --tag <reviewed-sha>)`, then
+   `bash scripts/release/verify-census-functional.sh <reviewed-sha> <test-version-id>`
+   (it attests the test deployment's SHA/version headers, so a stale test
+   Worker can never green-light broken mutation routes), and only after both
+   succeed run `deploy-census-worker.sh`. One-time prerequisite:
+   a Cloudflare Access application for the test hostname with the same
+   service-token policy, plus `ACCESS_TEAM_DOMAIN`/`ACCESS_AUD` secrets set
+   via `wrangler secret put … --env test` (secrets are per-worker; without
+   them the fail-closed Worker answers 403).
 6. Only after the rehearsal and every applicable external gate are clean — or
    the RC was skipped per the conditional gate above (skills/docs-only delta) —
    cut the final tag (see "Final Publish"). A skipped RC never skips the

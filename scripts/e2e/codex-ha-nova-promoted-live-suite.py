@@ -13,6 +13,10 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+# #446: live E2E sessions must never mutate production census statistics or
+# accrue passive relay-version stamps on an opted-in machine; child processes
+# inherit this.
+os.environ["HA_NOVA_NO_CENSUS"] = "1"
 
 ROOT = Path(__file__).resolve().parents[2]
 SCENARIO_SCRIPT = ROOT / "scripts" / "e2e" / "codex-ha-nova-promoted-live-e2e.py"

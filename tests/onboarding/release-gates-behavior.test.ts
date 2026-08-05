@@ -72,6 +72,15 @@ function releaseFixture(): {
     "scripts/release/verify-census-deployment.sh",
     join(releaseDir, "verify-census-deployment.sh"),
   );
+  writeExecutable(
+    join(releaseDir, "verify-census-functional.sh"),
+    `#!/usr/bin/env bash
+set -euo pipefail
+printf 'functional %s\n' "$*" >> "$FAKE_CALL_LOG"
+[[ "\${FAKE_MODE:-valid}" != "functional_gate_failure" ]] || exit 42
+exit 0
+`,
+  );
   chmodSync(script, 0o755);
   writeFileSync(
     join(workerDir, "wrangler.toml"),
@@ -168,6 +177,10 @@ case " $* " in
     fi
     printf 'rollback ok\n'
     ;;
+  *" wrangler@4.113.0 deploy "*"--env test"*)
+    [[ "\${FAKE_MODE:-valid}" != "test_worker_deploy_fail" ]] || exit 42
+    printf '{"type":"deploy","version":1,"worker_name":"ha-nova-census-test","version_id":"test-env-version","targets":["https://ha-nova-census-test.markusleben.workers.dev"]}\n' > "$WRANGLER_OUTPUT_FILE_PATH"
+    ;;
   *" wrangler@4.113.0 deploy "*)
     [[ "\${FAKE_MODE:-valid}" != "deploy_fail" ]] || exit 42
     if [[ "\${FAKE_MODE:-valid}" == "delayed_deploy_failure" ]]; then
@@ -243,8 +256,6 @@ fi
 if [[ "$args" == *" --request POST "* ]]; then
   if [[ "\${FAKE_MODE:-valid}" == "local_post_fail" ]]; then
     printf '500'
-  elif [[ "\${FAKE_MODE:-valid}" == "cleanup_withdraw_fail" && "$args" == *"ha-nova-census.markusleben.workers.dev/withdraw"* ]]; then
-    printf '500'
   else
     printf '204'
   fi
@@ -278,13 +289,7 @@ done
 public_sha="$TEST_SHA"
 public_version="$TEST_VERSION_ID"
 smoke_count=0
-[[ "$args" != *"dedup-"* ]] || smoke_count=1
-[[ "\${FAKE_MODE:-valid}" != "dedup_failed" ]] || smoke_count=0
 active_count=$smoke_count
-if [[ "\${FAKE_MODE:-valid}" == "unrelated_linux_install" ]]; then
-  [[ "$args" != *"dedup-"* ]] || active_count=2
-  [[ "$args" != *"withdraw-"* ]] || active_count=1
-fi
 relay_analytics='{"status":"available","source":"https://analytics.home-assistant.io/addons.json","slug":"2368fcfa_ha_nova_relay","total":9,"by_version":{"0.7.0":7,"0.6.0":1,"0.2.0":1}}'
 [[ "\${FAKE_MODE:-valid}" != "analytics_unavailable" ]] || relay_analytics='{"status":"unavailable","source":"https://analytics.home-assistant.io/addons.json","slug":"2368fcfa_ha_nova_relay","error":"upstream timeout"}'
 [[ "\${FAKE_MODE:-valid}" != "malformed_relay_analytics" ]] || relay_analytics='{"status":"unavailable","source":"https://analytics.home-assistant.io/addons.json","slug":"2368fcfa_ha_nova_relay"}'
@@ -404,7 +409,6 @@ describe("release gate behavior", () => {
     "malformed_public_stats",
     "malformed_relay_analytics",
     "stale_relay_analytics",
-    "cleanup_withdraw_fail",
   ])("fails closed for %s", (mode) => {
     const fixture = releaseFixture();
     const result = runGate(fixture, mode);
@@ -422,11 +426,13 @@ describe("release gate behavior", () => {
     expect(result.status, `${result.stdout}\n${result.stderr}`).not.toBe(0);
     const calls = readFileSync(fixture.callLog, "utf8");
     expect(calls).toContain("wrangler@4.113.0 deployments status");
-    expect(calls).not.toContain("wrangler@4.113.0 deploy --cwd");
+    // The isolated test-worker gate MAY have run (it precedes every guard on
+    // the production path) — only the PRODUCTION deploy must be absent.
+    expect(calls).not.toContain("HA NOVA reviewed merge");
     expect(calls).not.toContain("wrangler@4.113.0 rollback");
   });
 
-  it.each(["valid", "analytics_unavailable", "unrelated_linux_install"])(
+  it.each(["valid", "analytics_unavailable"])(
     "accepts the exact deployment chain in %s mode",
     (mode) => {
       const fixture = releaseFixture();
@@ -439,12 +445,24 @@ describe("release gate behavior", () => {
     },
   );
 
-  it("withdraws the ephemeral production ID when verification fails after ping", () => {
+  it("never mutates the production census during a full release run (#446)", () => {
+    // Regression for the production-isolation invariant: a complete
+    // deploy+verify chain must not send a single mutation to the production
+    // Worker — no /ping, no /withdraw, no POST to the production host. The
+    // only POSTs allowed are the local wrangler-dev smoke (127.0.0.1).
     const fixture = releaseFixture();
-    const result = runGate(fixture, "dedup_failed");
-    expect(result.status).not.toBe(0);
+    const result = runGate(fixture, "valid");
+    expect(result.status, `${result.stdout}\n${result.stderr}`).toBe(0);
     const calls = readFileSync(fixture.callLog, "utf8");
-    expect(calls).toContain("/withdraw");
+    const productionCalls = calls
+      .split("\n")
+      .filter((line) => line.includes("ha-nova-census.markusleben.workers.dev"));
+    expect(productionCalls.length).toBeGreaterThan(0); // read-only checks did run
+    for (const line of productionCalls) {
+      expect(line).not.toContain("--request POST");
+      expect(line).not.toContain("/ping");
+      expect(line).not.toContain("/withdraw");
+    }
   });
 
   it("rolls back to the newest deployment when Wrangler lists oldest first", () => {
@@ -553,14 +571,6 @@ describe("release gate behavior", () => {
     );
   });
 
-  it("blocks with the exact manual cleanup action when withdrawal stays non-204", () => {
-    const fixture = releaseFixture();
-    const result = runGate(fixture, "cleanup_withdraw_fail");
-    expect(result.status).not.toBe(0);
-    expect(result.stderr).toContain("automatic cleanup failed");
-    expect(result.stderr).toContain('"installation_id":"cns-');
-    expect(result.stderr).toContain("/withdraw");
-  });
 });
 
 registerCloudReleaseGateBehaviorTests();

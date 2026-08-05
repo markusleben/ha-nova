@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"regexp"
 	"strings"
 	"time"
@@ -25,6 +26,11 @@ import (
 // The endpoint URL is live; the release-bound Worker deployment is a separate
 // pre-final gate documented in census-worker/README.md and docs/releasing.md.
 var censusEndpointURL = "https://ha-nova-census.markusleben.workers.dev"
+
+// censusBuiltinEndpointURL captures the deploy-time endpoint before any test
+// override, so the CI guard below can tell "real production target" apart
+// from a stubbed test server.
+var censusBuiltinEndpointURL = censusEndpointURL
 
 // censusEndpointConfigured reports whether this build carries a real census
 // endpoint. A build still on the PLACEHOLDER is inert by construction: every
@@ -172,6 +178,7 @@ const (
 	censusPingSkipDev      = "dev"
 	censusPingSkipOS       = "os"
 	censusPingSkipCadence  = "cadence"
+	censusPingSkipCI       = "ci"
 )
 
 type censusPingResult struct {
@@ -198,6 +205,13 @@ func sendCensusPingOnceWithClock(paths runtimePaths, now func() time.Time) censu
 	}
 	if censusOptedOutByEnv() {
 		return censusPingResult{Skipped: censusPingSkipEnv}
+	}
+	// CI runs (GitHub Actions sets CI) never touch the PRODUCTION census —
+	// installer smokes and E2E jobs are not real installs (#446). The guard
+	// lives in the product because workflow files are frozen to uses:-only
+	// deltas while Cloud remote is enabled. Stubbed endpoints (tests) pass.
+	if os.Getenv("CI") != "" && censusEndpointURL == censusBuiltinEndpointURL {
+		return censusPingResult{Skipped: censusPingSkipCI}
 	}
 	if BuildChannel == "dev" || localVersion(paths) == "dev" {
 		return censusPingResult{Skipped: censusPingSkipDev}
@@ -270,6 +284,12 @@ func postCensusWithdraw(installationID string) error {
 }
 
 func postCensusJSON(path string, payload []byte) error {
+	// Defense-in-depth for BOTH /ping and /withdraw: never reach the real
+	// production worker from CI (see the skip in the ping path; a withdraw
+	// that bypassed it fails loud here instead of mutating production).
+	if os.Getenv("CI") != "" && censusEndpointURL == censusBuiltinEndpointURL {
+		return fmt.Errorf("refusing census %s against the production endpoint in CI", path)
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), censusRequestTimeout)
 	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, censusEndpointURL+path, bytes.NewReader(payload))

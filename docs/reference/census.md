@@ -179,3 +179,28 @@ expires after 60 days. Running `off` again retries a pending deletion.
 Uninstall performs the same best-effort withdrawal before removing local Census
 state. It then removes the Census ID. Existing lifecycle safety markers remain
 local, contain no Census ID or consent, and are never sent.
+
+## Production isolation for tests and releases
+
+Production census statistics represent voluntary real participants only
+(#446). Tests, smokes, release runs, and deployment verification never call
+the production Worker's `/ping` or `/withdraw`:
+
+- `scripts/release/verify-census-deployment.sh` is read-only by contract — it
+  verifies deployment identity, authentication, headers, and the schema-2
+  stats contract, nothing else.
+- Functional ping/deduplication/withdrawal checks run exclusively against the
+  isolated test Worker (`census-worker/wrangler.toml` → `[env.test]`, its own
+  Durable Object storage), and BEFORE production promotion:
+  `(cd census-worker && npx wrangler@4.113.0 deploy --env test --tag <reviewed-sha>)`, then
+  `bash scripts/release/verify-census-functional.sh <reviewed-sha>
+  <test-version-id>` (attests the test deployment's identity headers).
+  One-time setup: an
+  Access application for the test hostname plus `ACCESS_TEAM_DOMAIN` /
+  `ACCESS_AUD` secrets per `wrangler secret put … --env test`.
+- The invariant is enforced statically by
+  `scripts/test/check-census-production-isolation.mjs`
+  (tests/onboarding/census-production-isolation.test.ts).
+- Test and E2E helpers that invoke the built binary export
+  `HA_NOVA_NO_CENSUS=1`, which suppresses asks, reports, withdrawals, and
+  passive relay-version stamps.
