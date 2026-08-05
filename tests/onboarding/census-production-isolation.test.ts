@@ -49,6 +49,26 @@ describe("census production isolation (#446)", () => {
     }
   });
 
+  it("gates production promotion on the isolated test-worker proof", () => {
+    // The deploy wrapper must ENFORCE the functional test-worker gate —
+    // deploy env "test" for the exact SHA and pass verify-census-functional —
+    // before any production wrangler deploy (Codex P1 on #497).
+    const wrapper = readFileSync(
+      "scripts/release/deploy-census-worker.sh",
+      "utf8",
+    );
+    const gateAt = wrapper.indexOf("verify-census-functional.sh\" \"$reviewed_sha\" \"$test_version_id\"");
+    const productionDeployAt = wrapper.indexOf(
+      '--message "HA NOVA reviewed merge',
+    );
+    expect(gateAt).toBeGreaterThan(0);
+    expect(productionDeployAt).toBeGreaterThan(gateAt);
+    expect(wrapper).toContain("--env test");
+    expect(wrapper).toContain(
+      "refusing the production deploy",
+    );
+  });
+
   it("provides an isolated test worker environment with its own storage", () => {
     const wrangler = readFileSync("census-worker/wrangler.toml", "utf8");
     expect(wrangler).toContain("[env.test]");

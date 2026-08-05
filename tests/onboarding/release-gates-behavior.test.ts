@@ -72,6 +72,15 @@ function releaseFixture(): {
     "scripts/release/verify-census-deployment.sh",
     join(releaseDir, "verify-census-deployment.sh"),
   );
+  writeExecutable(
+    join(releaseDir, "verify-census-functional.sh"),
+    `#!/usr/bin/env bash
+set -euo pipefail
+printf 'functional %s\n' "$*" >> "$FAKE_CALL_LOG"
+[[ "\${FAKE_MODE:-valid}" != "functional_gate_failure" ]] || exit 42
+exit 0
+`,
+  );
   chmodSync(script, 0o755);
   writeFileSync(
     join(workerDir, "wrangler.toml"),
@@ -167,6 +176,10 @@ case " $* " in
       printf '%s\n' "$rollback_target" > "$FAKE_DEPLOYMENT_STATE"
     fi
     printf 'rollback ok\n'
+    ;;
+  *" wrangler@4.113.0 deploy "*"--env test"*)
+    [[ "\${FAKE_MODE:-valid}" != "test_worker_deploy_fail" ]] || exit 42
+    printf '{"type":"deploy","version":1,"worker_name":"ha-nova-census-test","version_id":"test-env-version","targets":["https://ha-nova-census-test.markusleben.workers.dev"]}\n' > "$WRANGLER_OUTPUT_FILE_PATH"
     ;;
   *" wrangler@4.113.0 deploy "*)
     [[ "\${FAKE_MODE:-valid}" != "deploy_fail" ]] || exit 42
@@ -413,7 +426,9 @@ describe("release gate behavior", () => {
     expect(result.status, `${result.stdout}\n${result.stderr}`).not.toBe(0);
     const calls = readFileSync(fixture.callLog, "utf8");
     expect(calls).toContain("wrangler@4.113.0 deployments status");
-    expect(calls).not.toContain("wrangler@4.113.0 deploy --cwd");
+    // The isolated test-worker gate MAY have run (it precedes every guard on
+    // the production path) — only the PRODUCTION deploy must be absent.
+    expect(calls).not.toContain("HA NOVA reviewed merge");
     expect(calls).not.toContain("wrangler@4.113.0 rollback");
   });
 

@@ -6,12 +6,12 @@ usage() {
 Usage: bash scripts/release/deploy-census-worker.sh <reviewed-merge-sha>
 
 From a clean checkout of the exact reviewed merge, exercises the Worker and
-SQLite Durable Object locally, deploys the pinned production Worker, attests
-Wrangler's exact worker/target/version output, then verifies that same
-Cloudflare version and private dashboard contract READ-ONLY (#446); the
-ping/deduplication/withdrawal proof runs locally pre-deploy and against the
-isolated test Worker via scripts/release/verify-census-functional.sh.
-Cloudflare Access must already protect /stats*.
+SQLite Durable Object locally, then ENFORCES the isolated test-worker gate —
+deploys wrangler env "test" for this exact SHA and requires
+scripts/release/verify-census-functional.sh to pass — before the pinned
+production Worker is deployed, attested, and verified READ-ONLY (#446).
+Production promotion is impossible through this wrapper without the
+test-worker proof. Cloudflare Access must already protect /stats*.
 EOF
 }
 
@@ -344,6 +344,32 @@ echo "[deploy-census-worker] local Worker + Durable Object write/read smoke OK"
 actual_sha="$(git -C "$root_dir" rev-parse HEAD)"
 [[ "$actual_sha" == "$reviewed_sha" ]] \
   || fail "HEAD changed during local proof (${actual_sha}); refusing to deploy"
+
+# ── Isolated test-worker gate (mandatory before ANY production promotion) ──
+# The functional ping/deduplication/withdrawal proof must pass against the
+# isolated env "test" Worker for THIS exact SHA. A missing test-worker setup
+# (worker or its Access secrets) fails closed here — see the one-time
+# prerequisites in verify-census-functional.sh.
+test_wrangler_output="${temp_dir}/wrangler-test-output.ndjson"
+CLOUDFLARE_ACCOUNT_ID="$expected_account" \
+WRANGLER_OUTPUT_FILE_PATH="$test_wrangler_output" \
+  npx --yes wrangler@4.113.0 deploy \
+    --cwd "$worker_dir" \
+    --config "$config_file" \
+    --env test \
+    --tag "$reviewed_sha" \
+    --message "HA NOVA census test-worker gate ${reviewed_sha}" \
+    --strict \
+    --no-autoconfig \
+  || fail "isolated test-worker deploy failed — production promotion requires the test-worker gate"
+[[ -s "$test_wrangler_output" ]] || fail "test-worker deploy wrote no structured output"
+test_version_id="$(census_deployment_output_version_id "$test_wrangler_output")" \
+  || fail "test-worker output did not identify exactly one deployed version"
+HA_NOVA_CENSUS_ACCESS_CLIENT_ID="$access_id" \
+HA_NOVA_CENSUS_ACCESS_CLIENT_SECRET="$access_secret" \
+  bash "${script_dir}/verify-census-functional.sh" "$reviewed_sha" "$test_version_id" \
+  || fail "functional test-worker verification failed; refusing the production deploy"
+echo "[deploy-census-worker] isolated test-worker functional gate OK (${test_version_id})"
 
 previous_deployment="$(
   census_read_current_deployment \

@@ -513,7 +513,11 @@ describe("release contract", () => {
     expect(censusDeploymentScripts).not.toContain(".[0].versions");
     expect(
       censusDeployer.trimEnd().split("\n").length,
-    ).toBeLessThanOrEqual(400);
+      // 440: the mandatory isolated test-worker gate folded into the wrapper
+      // (Codex P1 on #497) — production promotion without the functional
+      // proof must be impossible, and the gate lives in the same file so it
+      // cannot be skipped.
+    ).toBeLessThanOrEqual(440);
     expect(
       censusDeploymentState.trimEnd().split("\n").length,
     ).toBeLessThanOrEqual(400);
