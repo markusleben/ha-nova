@@ -39,6 +39,10 @@ type setupDiscoveryCandidate struct {
 type setupDiscoveryProbe struct {
 	Host   string
 	Source string
+	// Via carries the advertised .local hostname when the discovery path
+	// rewrote it to an IPv4 URL — the add-server filter matches it against
+	// profiles configured with the .local spelling.
+	Via string
 }
 
 func detectDefaultHAHost(cfg runtimeConfig) string {
@@ -110,6 +114,7 @@ func discoverReachableHAHosts(cfg runtimeConfig) ([]setupDiscoveryCandidate, str
 			Host:   normalizeHostInput(resolved),
 			HAURL:  strings.TrimRight(resolved, "/"),
 			Source: probe.Source,
+			Via:    probe.Via,
 		}
 		if probeDeadline.After(deadline) {
 			probeDeadline = deadline
@@ -117,7 +122,9 @@ func discoverReachableHAHosts(cfg runtimeConfig) ([]setupDiscoveryCandidate, str
 		if host, haURL := confirmedDiscoveryIPv4(candidate.HAURL, probeDeadline); host != "" {
 			candidate.Host = host
 			candidate.HAURL = haURL
-			candidate.Via = normalizeHostInput(probe.Host)
+			if candidate.Via == "" {
+				candidate.Via = normalizeHostInput(probe.Host)
+			}
 		}
 		key := setupDiscoveryEndpointKey(candidate.HAURL)
 		if key == "" {
@@ -186,9 +193,9 @@ func resolveHostToIPv4(host string, timeout time.Duration) string {
 
 func collectDiscoveryProbes(cfg runtimeConfig) []setupDiscoveryProbe {
 	candidates := []setupDiscoveryProbe{}
-	appendUnique := func(value, source string) {
-		value = strings.TrimSpace(value)
-		key := setupDiscoveryEndpointKey(value)
+	appendUnique := func(probe setupDiscoveryProbe) {
+		probe.Host = strings.TrimSpace(probe.Host)
+		key := setupDiscoveryEndpointKey(probe.Host)
 		if key == "" || len(candidates) >= setupDiscoveryMaxCandidateCount {
 			return
 		}
@@ -197,14 +204,16 @@ func collectDiscoveryProbes(cfg runtimeConfig) []setupDiscoveryProbe {
 				return
 			}
 		}
-		candidates = append(candidates, setupDiscoveryProbe{Host: value, Source: source})
+		candidates = append(candidates, probe)
 	}
 
-	appendUnique(cfg.HAHost, "saved Home Assistant address")
-	appendUnique(cfg.HAURL, "saved Home Assistant address")
-	appendUnique(normalizeHostInput(cfg.RelayBaseURL), "saved Relay address")
+	appendUnique(setupDiscoveryProbe{Host: cfg.HAHost, Source: "saved Home Assistant address"})
+	appendUnique(setupDiscoveryProbe{Host: cfg.HAURL, Source: "saved Home Assistant address"})
+	appendUnique(setupDiscoveryProbe{Host: normalizeHostInput(cfg.RelayBaseURL), Source: "saved Relay address"})
 	for _, discovered := range discoverHAViaMDNSForDiscovery() {
-		appendUnique(discovered.Host, discovered.Source)
+		// Pass the whole probe through — flattening to (Host, Source) would
+		// drop the advertised-.local Via the add-server filter relies on.
+		appendUnique(discovered)
 	}
 
 	return candidates
@@ -250,7 +259,7 @@ func discoverHAViaMDNS() []setupDiscoveryProbe {
 	)
 	defer cancel()
 	discovered := []setupDiscoveryProbe{}
-	seen := map[string]struct{}{}
+	seen := map[string]int{}
 	err := lookupDNSSDForDiscovery(
 		ctx,
 		"_home-assistant._tcp.local.",
@@ -260,10 +269,16 @@ func discoverHAViaMDNS() []setupDiscoveryProbe {
 				return
 			}
 			key := setupDiscoveryEndpointKey(endpoint)
-			if _, exists := seen[key]; exists {
+			if idx, exists := seen[key]; exists {
+				// A duplicate announcement may be the one carrying the
+				// .local alias — losing it would let the add-server filter
+				// miss a profile configured with that spelling.
+				if discovered[idx].Via == "" {
+					discovered[idx].Via = dnssdAdvertisedLocalHost(entry)
+				}
 				return
 			}
-			seen[key] = struct{}{}
+			seen[key] = len(discovered)
 			source := "mDNS"
 			if name := safeDNSSDName(entry.Text["location_name"]); name != "" {
 				source += ": " + name
@@ -273,6 +288,7 @@ func discoverHAViaMDNS() []setupDiscoveryProbe {
 			discovered = append(discovered, setupDiscoveryProbe{
 				Host:   endpoint,
 				Source: source,
+				Via:    dnssdAdvertisedLocalHost(entry),
 			})
 		},
 		func(dnssd.BrowseEntry) {},
@@ -291,6 +307,30 @@ func discoverHAViaMDNS() []setupDiscoveryProbe {
 		return left < right
 	})
 	return discovered
+}
+
+// The advertised .local hostname survives the IPv4 rewrite in
+// homeAssistantDNSSDURL only through this side channel. Without an
+// internal_url the record's own .local entry.Host is the advertised name
+// that got rewritten.
+func dnssdAdvertisedLocalHost(entry dnssd.BrowseEntry) string {
+	internalURL := strings.TrimSpace(entry.Text["internal_url"])
+	if internalURL == "" {
+		host := strings.TrimSuffix(strings.TrimSpace(entry.Host), ".")
+		if strings.HasSuffix(strings.ToLower(host), ".local") {
+			return normalizeHostInput(host)
+		}
+		return ""
+	}
+	parsed, err := url.Parse(internalURL)
+	if err != nil || parsed.Hostname() == "" {
+		return ""
+	}
+	host := strings.TrimSuffix(strings.ToLower(parsed.Hostname()), ".")
+	if !strings.HasSuffix(host, ".local") {
+		return ""
+	}
+	return normalizeHostInput(host)
 }
 
 func safeDNSSDName(value string) string {

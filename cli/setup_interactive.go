@@ -68,16 +68,30 @@ func maybeHandleInteractiveSetupCurrentState(reader *bufio.Reader, out io.Writer
 		if cloudAttempted && cfg.Cloud != nil && !cfg.Cloud.ready() {
 			return true, cloudCode
 		}
+		// Offered before completeSetupLifecycle so the add flow's config
+		// saves run under the same lifecycle marker as this setup pass.
+		addAttempted, addCode := maybeOfferAddServerForCompletedSetup(reader, out, paths, serviceMode, lifecycleMarker...)
+		if addAttempted && addCode != 0 {
+			return true, addCode
+		}
 		if err := completeSetupLifecycle(paths, lifecycleMarker...); err != nil {
 			printHumanErr("cannot finalize setup lifecycle: %s", err)
 			return true, 1
 		}
-		if cloudAttempted && cfg.Cloud.ready() &&
+		// Same suppression as the done banner below: after a ran add flow
+		// its own closing lines are the message — never bury a cancelled or
+		// partial add under a success banner.
+		if !addAttempted && cloudAttempted && cfg.Cloud.ready() &&
 			cfg.RoutePolicy == routePolicyAutomatic {
 			renderSetupCloudFallbackReadyBanner(out)
 			return true, 0
 		}
-		renderSetupAlreadyDoneBanner(out, cfg.RelaySecureBaseURL == "" && cfg.RelayBaseURL != "")
+		// After a ran add flow (success or cancel) its own closing lines are
+		// the message — the already-done banner would bury a cancelled or
+		// partial add under "Everything is already set up!".
+		if !addAttempted {
+			renderSetupAlreadyDoneBanner(out, cfg.RelaySecureBaseURL == "" && cfg.RelayBaseURL != "")
+		}
 		return true, 0
 	}
 	if summary := current.SkipSummary(); summary != "" {

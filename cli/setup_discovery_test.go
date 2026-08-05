@@ -338,3 +338,40 @@ func TestDiscoverReachableHAHostsReservesTimeAfterStaleSavedAddress(t *testing.T
 type assertDiscoveryFailure struct{}
 
 func (assertDiscoveryFailure) Error() string { return "unreachable" }
+
+func TestDiscoverHAViaMDNSDuplicateUpgradesLocalAlias(t *testing.T) {
+	originalLookup := lookupDNSSDForDiscovery
+	t.Cleanup(func() { lookupDNSSDForDiscovery = originalLookup })
+	lookupDNSSDForDiscovery = func(
+		_ context.Context,
+		_ string,
+		add dnssd.AddFunc,
+		_ dnssd.RmvFunc,
+	) error {
+		// First announcement: plain IP internal_url, no alias.
+		add(dnssd.BrowseEntry{Text: map[string]string{
+			"uuid":          "556851affd194582ad3f150856f13a05",
+			"location_name": "Home",
+			"internal_url":  "http://192.168.1.5:8123",
+		}})
+		// Duplicate announcement of the SAME endpoint carrying the .local
+		// alias — the dedupe must preserve the alias, not discard it.
+		add(dnssd.BrowseEntry{
+			IPs: []net.IP{net.ParseIP("192.168.1.5")},
+			Text: map[string]string{
+				"uuid":          "556851affd194582ad3f150856f13a05",
+				"location_name": "Home",
+				"internal_url":  "http://homeassistant.local:8123",
+			},
+		})
+		return nil
+	}
+
+	got := discoverHAViaMDNS()
+	if len(got) != 1 || got[0].Host != "http://192.168.1.5:8123" {
+		t.Fatalf("discoverHAViaMDNS() = %+v", got)
+	}
+	if got[0].Via != "homeassistant.local" {
+		t.Fatalf("duplicate with .local alias must upgrade Via, got %+v", got[0])
+	}
+}
