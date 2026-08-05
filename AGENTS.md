@@ -75,6 +75,7 @@ Work style: Be radically precise. No fluff. Pure information only (drop grammar;
 - **Review clearance is commit-specific:** any new relevant delta after the last bot-reviewed commit invalidates prior review clearance.
 - **Relevant delta means:** any code, tests, docs-that-change-behavior, scripts, workflow files, release metadata, installer/update flow, or release notes change that alters the commit to merge or tag.
 - **Push is not review:** a new push never inherits the previous clean review state.
+- **Push fast-path (decision 2026-08-05):** targeted tests for the touched areas + explicit `npm run typecheck` green right before → `git push --no-verify` is ok (skips the 3-5 min pre-push hook). Without BOTH conditions: never `--no-verify` — vitest does not typecheck and a skipped hook once broke `main` (#297/#300); on a push timeout retry the same push.
 - **A clean bot result is SHA-specific:** it applies only to the exact commit SHA it reviewed; any later SHA is unreviewed until the full cycle completes again.
 - **Codex advisory rule:** `codex-review-gate` is advisory on `main`; do not treat it as a required branch-protection gate for routine PRs.
 - **No local-only release shortcuts:** if a follow-up fix matters enough to keep, it must go through GitHub review before merge/tag/release.
