@@ -125,8 +125,9 @@ const WORD_BUDGETS: Record<string, number> = {
   // clarification (#489).
   // Self-describing update-revert checkpoint receipts (#483).
   // Threshold-calibration preflight step (#484), extended to
-  // compared-signal swaps (Codex round 5).
-  write: 2075,
+  // compared-signal swaps (Codex round 5). Merge-train combination with the
+  // #483 receipt lines and the #452 draft rule (measured 2128).
+  write: 2150,
   // Cards adoption pointer (#389).
   diagnose: 1500,
   // Report-shape declaration line (shared output shapes); repair dedup,
@@ -138,7 +139,8 @@ const WORD_BUDGETS: Record<string, number> = {
   // pre-delete snapshot capture (Wave 2); apply-test offer with the
   // high-consequence carve-out (Wave 3).
   // Fail-closed consumer check with canonical-filter recreate pointer (#489).
-  scene: 1650,
+  // #452 draft rule pushed the measured count to exactly 1650.
+  scene: 1675,
   // buffering settle-window on verify (2026-h2 Wave 1a).
   // Cards adoption pointer (#389).
   media: 1250,
@@ -151,7 +153,8 @@ const WORD_BUDGETS: Record<string, number> = {
   // User-assisted proof bullet (#394).
   // Grouped-change-set opt-in + grouped-menu exception (#391).
   // Threshold-calibration hook incl. scene.apply coverage (#484 R10).
-  "service-call": 2775,
+  // #452 draft rule on top of the branch ratchet (measured 2780).
+  "service-call": 2800,
   // Carries the canonical File-Change Preview example — the only layout
   // source for file edits; concrete examples are what make a card renderable.
   // Sibling-survival verification (Wave 1b) + yaml snapshot capture with
@@ -183,8 +186,9 @@ const WORD_BUDGETS: Record<string, number> = {
   // capture (Wave 2).
   // Grouped-change-set opt-in + final-block clarifier (#391).
   // Smallest-complete-solution routing for feature offers (#452).
-  // Threshold-family calibration preflight wiring (#484).
-  helper: 3950,
+  // Threshold-family calibration preflight wiring (#484); merge-train
+  // combination measured 3970.
+  helper: 3990,
   // Suggestion Block item-shape pointer (shared output shapes); scene/
   // dashboard first-class targets with flow adaptation (2026-h2 Wave 3).
   // Quick-fix Preview Card reference (#389).
