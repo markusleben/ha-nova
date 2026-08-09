@@ -223,7 +223,10 @@ const WORD_BUDGETS: Record<string, number> = {
   // Ceiling covers the COMBINED merge: three PRs add to fallback (#525 stale
   // refs, #518 routing, #516 reference truth) and each measured itself in
   // isolation. Trial-merging the train lands at 3646.
-  fallback: 3700,
+  // Ceiling covers the COMBINED merge of the three fallback-touching PRs
+  // (#525, #518, this one), each measured in isolation. The train lands at
+  // 3710 after #518's config-entry schema clause.
+  fallback: 3820,
   // semantic-slot note on the read templates (Wave 0); pre-write cross-field
   // constraint checks + drift-check step (Wave 1); pre-delete snapshot
   // capture (Wave 2).
