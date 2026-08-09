@@ -237,7 +237,11 @@ creating a short-lived automation rather than just switching something on.
 CURRENT value of every attribute the first half changes, and make the expiry
 automation restore that captured value. Only a request whose natural
 counter-action is off (a valve, a light, a switch) gets a plain turn-off.
-Read the value at write time and embed it, exactly like the deadline.
+Read the value at write time and embed it, exactly like the deadline — and
+re-read it at apply time for the same reason the deadline is re-checked: if
+another client moved the thermostat from 21 to 23 during the confirmation
+pause, restoring the previewed 21 would overwrite a change the user never saw.
+A moved value re-previews rather than being embedded.
 
 Both halves means both, and the ORDER is the safety property: create the
 expiry automation FIRST, verify it exists, and only then run the immediate

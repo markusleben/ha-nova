@@ -212,6 +212,8 @@ describe("flows that cost the user extra turns (#527)", () => {
     // "18 °C for an hour" must go back to the previous setpoint.
     expect(patterns).toContain('"For a duration" does not always mean "then turn it off"');
     expect(patterns).toContain("capture the CURRENT value of every attribute the first half changes");
+    expect(patterns).toContain("re-read it at apply time for the same reason the deadline is re-checked");
+    expect(patterns).toContain("A moved value re-previews rather than being embedded");
   });
 
   it("counts every kind of running, and every unsecured lock", () => {
@@ -220,6 +222,8 @@ describe("flows that cost the user extra turns (#527)", () => {
     expect(disco).toContain("the domains whose \"running\" is not `on`");
     expect(disco).toContain("`hvac_action` is `heating`/`cooling`");
     expect(disco).toContain("`lock.*` NOT in state `locked`");
+    // The generic opening class is what many contact sensors report.
+    expect(disco).toContain("`opening` (the generic contact class many integrations use)");
     expect(disco).toContain("rather than flattening them all to \"unlocked\"");
   });
 

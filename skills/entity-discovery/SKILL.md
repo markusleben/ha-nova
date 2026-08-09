@@ -145,7 +145,7 @@ then filter by domain plus `device_class` and state:
  | {e: .entity_id, n: .attributes.friendly_name}]
 ```
 
-- open windows/doors: `binary_sensor` with `device_class` `window`/`door`/`garage_door`, state `on` — AND `cover.*` with those device classes in state `open`/`opening`. A motorized window or garage door is a cover, not a binary_sensor, so checking one family answers "is anything open?" wrong
+- open windows/doors: `binary_sensor` with `device_class` `window`/`door`/`garage_door`/`opening` (the generic contact class many integrations use), state `on` — AND `cover.*` with those device classes in state `open`/`opening`. A motorized window or garage door is a cover, not a binary_sensor, so checking one family answers "is anything open?" wrong
 - who is home: `person.*` with state `home` (this skill owns person STATE reads;
   `ha-nova:admin` owns creating and editing them)
 - what is on: `light`/`switch`/`media_player`/`fan` with state `on`/`playing`,
