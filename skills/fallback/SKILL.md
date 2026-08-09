@@ -92,7 +92,8 @@ For every Relay-Ready call in this skill:
 | HACS (registration, download, version switching, uninstall, migration) | Covered | hacs |
 | Zigbee / Z-Wave Config | External | -- (MQTT-level inspection of a Zigbee2MQTT setup: `mqtt`) |
 | Alarm / lock code management (lock user codes, alarm PINs) | External | -- (Home Assistant UI; codes never enter chat) |
-| Integration entry lifecycle (reload, enable/disable, options, remove) | Relay-Ready | this skill |
+| Integration entry lifecycle (reload, remove) | Relay-Ready | this skill |
+| Integration entry enable/disable, options, reconfigure | External | -- (Settings > Devices & services; the flows are UI-driven and this skill documents no mechanics for them) |
 | Matter / Thread status (border router, datasets, node diagnostics) | Relay-Ready | this skill |
 | Matter / Thread commissioning | External | -- (companion app; BLE pairing is not an API surface) |
 | Assist custom sentences / intent scripts | Relay-Ready | this skill (file mechanics below); `assist` tests the result |

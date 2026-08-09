@@ -223,4 +223,18 @@ describe("ha-api-matrix lists the surfaces skills actually pin (#517)", () => {
     expect(row).not.toContain("health");
     expect(read("skills/diagnose/SKILL.md")).toContain("system_log/list");
   });
+
+  it("advertises only the lifecycle operations it documents mechanics for", () => {
+    const fallbackAll = flat(read("skills/fallback/SKILL.md") + read("skills/fallback/relay-ready.md"));
+    // A Relay-Ready row is a promise that this skill can perform it. Enable,
+    // options and reconfigure have no documented mechanics, so they are
+    // External rather than a row that routes into a section that cannot serve.
+    expect(fallbackAll).toContain("Integration entry lifecycle (reload, remove)");
+    expect(fallbackAll).toContain("Integration entry enable/disable, options, reconfigure | External");
+    // get_states is not how any listed owner reads the compact registry.
+    const row = read("docs/reference/ha-api-matrix.md")
+      .split("\n")
+      .find((l) => l.startsWith("| Compact registry"));
+    expect(row).not.toContain("get_states");
+  });
 });
