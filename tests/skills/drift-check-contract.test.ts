@@ -34,12 +34,26 @@ describe("pre-write drift check covers every full-document write (#514)", () => 
     expect(flat(energy)).toContain("on any foreign change STOP");
   });
 
-  it("wires the yaml whole-file write to the clause", () => {
-    expect(flat(yamlConfig)).toContain(
-      "run the drift check before applying (`skills/ha-nova/write-safety.md` → Drift check before apply)",
+  it("wires the yaml whole-file write to the clause, last before the write", () => {
+    const y = flat(yamlConfig);
+    expect(y).toContain(
+      "run the drift check IMMEDIATELY before the write (`skills/ha-nova/write-safety.md` → Drift check before apply)",
     );
-    expect(flat(yamlConfig)).toContain("compare it against the content step 1 read");
-    expect(flat(yamlConfig)).toContain("`write_file` would revert them");
+    // Ordering matters: a snapshot round trip after the re-read reopens the
+    // very window the re-read exists to close.
+    expect(y).toContain("so the snapshot round trip cannot open a new window behind it");
+    expect(y).toContain("compare against the content step 1 read");
+    expect(y).toContain("`write_file` would revert them");
+  });
+
+  it("handles the brand-new file, whose basis is absence rather than content", () => {
+    // read_file on a missing path fails by design, so an unconditional
+    // re-read would block legitimate file creation or demand that an error
+    // be read as success.
+    const y = flat(yamlConfig);
+    expect(y).toContain("brand-new file: absence IS the basis");
+    expect(y).toContain("re-check with `list_dir` on its directory instead");
+    expect(y).toContain("writing would overwrite it unread");
   });
 
   it("keeps the two families that already had the STOP", () => {
