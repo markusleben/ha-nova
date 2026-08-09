@@ -165,6 +165,9 @@ describe("flows that cost the user extra turns (#527)", () => {
     // Order is the safety property: a failed automation write must leave
     // nothing running, and the deadline must survive HA being down.
     expect(patterns).toContain("create the expiry automation FIRST");
+    // A confirmation that arrives after the deadline would strand the device.
+    expect(patterns).toContain("Check the deadline again at that moment");
+    expect(patterns).toContain("Re-preview with a fresh deadline instead of actuating");
     expect(patterns).toContain("nothing has been turned on yet and there is nothing to undo");
     expect(patterns).toContain("A bare `time` trigger is MISSED, not replayed");
     expect(patterns).toContain("trigger: homeassistant");

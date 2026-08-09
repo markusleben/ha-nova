@@ -234,7 +234,10 @@ creating a short-lived automation rather than just switching something on.
 
 Both halves means both, and the ORDER is the safety property: create the
 expiry automation FIRST, verify it exists, and only then run the immediate
-action.
+action. Check the deadline again at that moment: a confirmation that arrives
+after it has already passed would leave a device running against a `time`
+trigger that will not fire again until a restart. Re-preview with a fresh
+deadline instead of actuating.
 
 If the immediate action grants physical access ("unlock the front door for
 five minutes", "open the garage for ten"), the one preview still takes the
