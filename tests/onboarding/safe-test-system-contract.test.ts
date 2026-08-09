@@ -132,6 +132,25 @@ describe("safe test system contract", () => {
     for (const entry of vitestModules.filter(isEntrypoint)) {
       if (manifest.has(entry) || scripts.includes(entry)) walk(entry);
     }
+    // Reaching a module is not running it: these export a register*Tests()
+    // function the wrapper must CALL. An import whose call was deleted leaves
+    // the file imported and its describe blocks unregistered.
+    const registrarsOf = (file: string): string[] =>
+      [...readFileSync(file, "utf8").matchAll(/export\s+(?:async\s+)?function\s+(register\w+)/g)]
+        .map((m) => m[1] as string);
+    const allSources = vitestModules.map((f) => readFileSync(f, "utf8")).join("\n");
+    const uncalled = behaviorModules.filter((file) =>
+      registrarsOf(file).some(
+        (name) => !new RegExp(`\\b${name}\\s*\\(`).test(
+          allSources.replace(new RegExp(`export\\s+(?:async\\s+)?function\\s+${name}`, "g"), ""),
+        ),
+      ),
+    );
+    expect(
+      uncalled,
+      `these behavior modules export a registrar that nothing calls, so their suites never register:\n  ${uncalled.join("\n  ")}`
+    ).toEqual([]);
+
     const unreachable = behaviorModules.filter((file) => !reachableModules.has(file));
     expect(
       unreachable,
