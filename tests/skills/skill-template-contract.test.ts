@@ -139,7 +139,9 @@ const WORD_BUDGETS: Record<string, number> = {
   // Charset restriction on the value interpolated into the log-filter regex,
   // plus the escaping rule Codex round 1 added: an entity_id is not literal
   // either, since its domain separator is a regex wildcard (#518, 1536).
-  diagnose: 1560,
+  // Codex round 7: the log filter OR-ed a severity into the identifier, so
+  // every unrelated error line read as evidence (measured 1611).
+  diagnose: 1660,
   // Report-shape declaration line (shared output shapes); repair dedup,
   // attention-threshold definition, cause↔symptom linking (2026-h2 Wave 1c).
   // Table-first redesign: report modes, block shape, ten-block order,

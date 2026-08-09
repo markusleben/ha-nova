@@ -236,4 +236,16 @@ describe("load-bearing rules referenced from where they apply (#518)", () => {
     expect(maintenance).toContain("how long an entity has been unavailable");
     expect(maintenance).toContain("use ha-nova:health");
   });
+
+  it("keeps the log filter bound to the identifier, never OR-ed with a severity", () => {
+    const diagnose = flat(read("skills/diagnose/SKILL.md"));
+    // `id|ERROR` matches every error line in the log; each one then reads as
+    // evidence for an incident it has nothing to do with.
+    expect(diagnose).toContain("The identifier is the ONLY selector");
+    expect(diagnose).toContain("never OR a severity into it");
+    expect(diagnose).toContain("To narrow by severity, AND it");
+    expect(diagnose).not.toContain('test("<entity_or_integration>|ERROR"');
+    // Finding nothing is an answer, not a reason to loosen the filter.
+    expect(diagnose).toContain("rather than widening the filter until something appears");
+  });
 });
