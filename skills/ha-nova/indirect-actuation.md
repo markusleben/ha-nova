@@ -51,7 +51,7 @@ ha-nova relay core --method GET --path /api/config/{scene|script|automation}/con
 
 - automations and storage scenes: `config_id` is `attributes.id` from the
   state read the flow already performs
-- scripts: `config_id` is the object part of the entity_id
+- scripts: resolve `config_id` from the entity registry (`config/entity_registry/get` → `unique_id`). It usually equals the object part of the entity_id, but the registry is the authoritative source — the same rule `ha-nova:scene` already enforces
 - `scene.apply`: no stored config exists — classify the entities map in the
   payload you are about to send
 
