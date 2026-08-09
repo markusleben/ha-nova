@@ -127,10 +127,11 @@ ha-nova relay core --method POST --path /api/config/config_entries/entry/<entry_
 entity that entry owns and is not undoable — preview the counts before asking,
 and take the typed confirmation code. `search/related` needs a concrete item
 type and id, so the config entry id alone does not query it: read the entry's
-own devices and entities first with WS
-`{"type":"config/entity_registry/list_for_display"}` and
-`{"type":"config/device_registry/list"}`, filter on `config_entry_id`, and
-report those counts. Only then run `search/related` per device if the user
+own devices and entities first with WS `{"type":"config/entity_registry/list"}`
+and `{"type":"config/device_registry/list"}`, filter on `config_entry_id`, and
+report those counts. The compact `list_for_display` cannot answer this — its
+rows carry `ei`/`en`/`ai` only and no `config_entry_id`, so it is the wrong
+read for an ownership question however much cheaper it is. Only then run `search/related` per device if the user
 asks what depends on them — an entry id is not a related-item type.
 
 ### Assist Custom Sentences -- RELAY-READY

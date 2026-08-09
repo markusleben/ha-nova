@@ -244,6 +244,10 @@ describe("ha-api-matrix lists the surfaces skills actually pin (#517)", () => {
     // the registries, filtered on config_entry_id.
     expect(fallbackAll).toContain("an entry id is not a related-item type");
     expect(fallbackAll).toContain("filter on `config_entry_id`");
+    // Verified on the live instance: list_for_display rows are
+    // ei/pl/lb/di/tk/ec/hn/en — no config_entry_id.
+    expect(fallbackAll).toContain('`{"type":"config/entity_registry/list"}`');
+    expect(fallbackAll).toContain("The compact `list_for_display` cannot answer this");
     expect(fallbackAll).toContain("it is not evidence that events were missed");
     expect(fallbackAll).toContain("point at Settings > Devices & services instead of improvising a payload");
     // get_states is not how any listed owner reads the compact registry.
