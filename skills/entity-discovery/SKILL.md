@@ -71,7 +71,7 @@ Write `<filter-file>` with:
 This generic `test("KEYWORD";"i")` example is for free-text search, not explicit `prefix` matching.
 For an explicit prefix selector, match the suffix and display name with `startswith(...)`, not loose substring search.
 
-**If 0 results:** try synonyms, alternative terms, or shorter keyword stems. Use OR for multiple variants: `test("kw1|kw2|kw3";"i")`.
+**If 0 results:** escalate ONCE to the full registry (`config/entity_registry/list`) and match against `aliases[]` too — `list_for_display` does not carry them, and an alias is exactly where a household keeps the name it actually says ("Stehlampe" for `light.floor_lamp_living`). Only then try synonyms, alternative terms, or shorter keyword stems. Use OR for multiple variants: `test("kw1|kw2|kw3";"i")`. When a resolved entity had no matching alias and the user's word was clearly their habitual name, offer once to store it as an alias via `ha-nova:organize`.
 **Diacritics:** `test(...;"i")` folds case, not accents — a name with `é`/`ü`/`ö` does not match its plain-ASCII spelling. Whenever the keyword or likely entity names carry accents or umlauts (common in non-English homes), put the transliterated variants into the OR-pattern: `test("café|cafe";"i")`, and for umlauts include both the `ue`/`oe`/`ae` and bare-vowel forms.
 **If too many:** narrow with AND: `test("kw1";"i") and test("kw2";"i")`.
 **Cap honesty:** the `.[0:20]` cap can drop the target — when exactly 20 results return, say the list is capped and narrow further instead of treating it as complete.
@@ -129,6 +129,32 @@ This is more reliable than keyword search or assuming `.ai` is populated for roo
 - do not fetch full YAML for every matched item in one response
 
 **IMPORTANT:** Never dump raw `get_states` — it returns thousands of entities with full attributes.
+
+## State Snapshot Queries
+
+"Sind alle Fenster zu?", "wer ist zuhause?", "was läuft gerade?" — these ask
+about STATE across many entities, not about finding one. They are reads and
+belong here; `ha-nova:health` answers what is broken, not what is on.
+
+One call answers them: `ha-nova relay core --method GET --path /api/states --out <result-file>`,
+then filter by domain plus `device_class` and state:
+
+```jq
+[.data.body[]
+ | select(.attributes.device_class == "window" and .state == "on")
+ | {e: .entity_id, n: .attributes.friendly_name}]
+```
+
+- open windows/doors: `binary_sensor` with `device_class` `window`/`door`/`garage_door`, state `on`
+- who is home: `person.*` with state `home` (this skill owns person STATE reads;
+  `ha-nova:admin` owns creating and editing them)
+- what is on: `light`/`switch`/`media_player`/`fan` with state `on`/`playing`
+- unlocked doors: `lock.*` with state `unlocked`
+
+Answer count-first ("2 Fenster offen: Küche, Bad"), then the names, in the List
+Frame. This is a summary, not the banned domain dump: `output-rules.md` asks
+for counts, groups and a few examples exactly here. A follow-up "and which are
+closed?" is a fresh read, not a cached list.
 
 ## Matching Rules
 

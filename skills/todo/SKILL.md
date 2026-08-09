@@ -131,4 +131,4 @@ Use stable localized slot labels in this order; omit empty slots. Item lists ren
 - Declared exception to the core delete rule above: item removes (`todo.remove_item`, `todo.remove_completed_items`) are re-addable data edits, deliberately below the destructive confirmation-code tier — they use natural confirmation bound to the compact preview. List deletion stays at the typed confirmation code.
 - Item operations have no `revert`; removed items are gone — bulk removals list what will be removed in the preview.
 - Never guess uids or entry_ids; resolve via Read items / registry first.
-- One list per mutation; verify by reading back, not by service success alone.
+- Item operations on ONE list — adds, completes, renames, updates, up to 10 — may confirm as a single grouped change set (`skills/ha-nova/grouped-change-set.md`): one manifest listing every item with its duplicate check, one natural confirmation, one read-back. Four items should not cost four rounds. List deletes keep `batch-safety.md` unchanged. One list per mutation; verify by reading back, not by service success alone.

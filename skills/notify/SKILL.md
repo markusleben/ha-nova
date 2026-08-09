@@ -71,6 +71,19 @@ These live only in the HA UI; they never reach a phone.
 
 When composing a COMPLEX mobile-app payload (actionable buttons, images, critical alerts), offer a single test send to the chosen target first — the preview is the plan, the test proves rendering; acceptance-honesty applies (accepted, not delivered), and the real send follows only after the user judges the test.
 
+### Household routing ("tell whoever is home")
+
+Presence-conditional sends resolve recipients before the preview: read
+`person.*` states, keep the ones with state `home`, and map each to their
+mobile-app target (the person's `device_trackers` name the device; ask once
+when a person has several and reuse that answer for the session). Preview the
+resolved recipient list, not the rule — "Anna and Ben are home" is what the
+user confirms. Nobody home is a real answer: say so and offer the persistent
+notification instead of silently sending to everyone.
+
+Inside an automation this is a `choose` per person (`ha-nova:write`), not this
+flow.
+
 ## Error Handling
 
 Full relay/upstream error taxonomy: `skills/ha-nova/relay-api.md` -> Error Handling. Notify specifics:

@@ -182,6 +182,57 @@ actions:
       message: "High: {{ forecast['weather.home'].forecast[0].temperature }}°C"
 ```
 
+## One-Shot And Temporary Automations
+
+"Only today", "just once", "remind me when the laundry finishes" — the most
+common everyday automation request is one that should not outlive its purpose.
+A permanent automation the user has to remember to delete is the wrong answer.
+
+Self-disabling is the Home Assistant-native one-shot: the automation turns
+itself off as its last action, which survives a restart (a long `delay` or
+`wait_for_trigger` does not) and re-arms with a single toggle.
+
+```yaml
+alias: One-shot — tell me when the washing machine finishes
+mode: single
+triggers:
+  - trigger: state
+    entity_id: sensor.washing_machine_state
+    to: "finished"
+actions:
+  - action: notify.mobile_app_phone
+    data:
+      message: "Laundry is done."
+  - action: automation.turn_off
+    target:
+      entity_id: "{{ this.entity_id }}"
+```
+
+`{{ this.entity_id }}` avoids naming the automation inside itself, so a rename
+cannot break the disable step.
+
+For a timed action ("sprinkler for 30 minutes"), act now and schedule the
+counter-action the same way rather than sleeping inside a run:
+
+```yaml
+actions:
+  - action: valve.open_valve
+    target: {entity_id: valve.irrigation_lawn}
+  - action: valve.close_valve
+    target: {entity_id: valve.irrigation_lawn}
+    # inside a `delay` only for short waits; for 30 minutes prefer a second
+    # self-disabling automation on a `time` trigger so a restart cannot strand
+    # the valve open.
+```
+
+Rules for this family:
+- Label these `nova-oneshot` so the user can find and clear them later.
+- Say in the preview that it disables itself after running once, and that it
+  stays in the automation list until deleted.
+- After it has fired, offer to delete it — do not delete anything unprompted.
+- A recurring request ("every Monday") is NOT this pattern: that is an ordinary
+  automation with a time trigger.
+
 ## Save / Restore Patterns
 
 - Save → modify → restore designs that must survive a restart: check `skills/ha-nova/best-practices.md` → Persistence Model before choosing the storage construct. `scene.create` snapshots and `variables:` do not survive restarts.

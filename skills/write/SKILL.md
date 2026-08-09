@@ -35,6 +35,12 @@ Multi-target logical changes: present the plan first per `skills/ha-nova/write-s
 
 Input-device remaps (buttons, remotes, switches): run the capability preflight per `skills/ha-nova/input-capability-preflight.md` before drafting; the write stays blocked while the chosen gesture is only assumed or its evidence conflicts. Repurposing or cleaning up an input additionally runs `skills/ha-nova/consumer-discovery-preflight.md`; incomplete coverage is disclosed, never claimed as "unused".
 
+A one-shot intent ("nur heute", "einmalig", "tell me when the laundry
+finishes") takes the self-disabling pattern in
+`skills/ha-nova/automation-patterns.md` → One-Shot And Temporary Automations,
+and skips unsolicited improvement offers — the user asked for something
+temporary, not something to grow.
+
 Every draft follows `skills/ha-nova/smallest-solution.md`: the complete
 explicit outcome in the simplest safe design, nothing for hypothetical
 future needs, native primitives when equally safe and clearer.

@@ -104,6 +104,12 @@ These slots render the Report shape (output-rules.md). Keep default output compa
 - If more than one entity could match, ask one blocking question.
 - If the data is incomplete for the requested conclusion, say so explicitly.
 
+Whole-home and multi-entity windows: omitting `entity` from the logbook path
+returns everything that happened ("was ist heute Nacht passiert?") — allowed for
+windows up to 24 hours, summary-first, never a raw dump. `filter_entity_id`
+takes a comma-separated list for a small explicit set, which is how you compare
+two people's arrival times in one call.
+
 ## Guardrails
 
 - Never run an unbounded history/logbook/statistics query.

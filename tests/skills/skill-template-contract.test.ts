@@ -111,6 +111,11 @@ const SAFETY_CORE_BLOCKS = ((): { mutation: string; readOnly: string } => {
 // TRANSITIVE load (lazy references), not these file sizes — write carries the
 // on-demand trigger list itself.
 const WORD_BUDGETS: Record<string, number> = {
+  // State-snapshot queries ("sind alle Fenster zu?") and the alias fallback
+  // that finally reaches the names a household actually says (#527, 1318).
+  "entity-discovery": 1350,
+  // Presence-conditional recipient resolution (#527, measured 1226).
+  notify: 1260,
   // pre-save snapshot capture + snapshot recovery guidance (Wave 2).
   energy: 1250,
   // consumer checks before area delete/rename/disable (Wave 1b) + metadata
@@ -129,7 +134,8 @@ const WORD_BUDGETS: Record<string, number> = {
   // compared-signal swaps (Codex round 5) and create-time stored threshold
   // setters (Codex round 6). Merge-train combination with the #483 receipt
   // lines and the #452 draft rule (measured 2182).
-  write: 2200,
+  // One-shot intent routing to the self-disabling pattern (#527, 2221).
+  write: 2250,
   // HACS lifecycle: schema guard, reconcile loops, consumer discovery,
   // migration backup gate, category-appropriate verification (#478);
   // review rounds added pin-durability branches, the uninstall apply
@@ -164,7 +170,9 @@ const WORD_BUDGETS: Record<string, number> = {
   // Grouped-change-set opt-in + grouped-menu exception (#391).
   // Threshold-calibration hook incl. scene.apply coverage (#484 R10).
   // #452 draft rule on top of the branch ratchet (measured 2780).
-  "service-call": 2800,
+  // Relative-step parameters and the post-batch keep-it-as-a-scene offer
+  // (#527, measured 2888). #513/#518/#530 raise this further in the same train.
+  "service-call": 2920,
   // Carries the canonical File-Change Preview example — the only layout
   // source for file edits; concrete examples are what make a card renderable.
   // Sibling-survival verification (Wave 1b) + yaml snapshot capture with
@@ -172,7 +180,9 @@ const WORD_BUDGETS: Record<string, number> = {
   "yaml-config": 1450,
   // Confirmation-code terminology replacing "token" wording (#392).
   // #452 canonical smallest-solution draft rule (17 words).
-  todo: 1275,
+  // Grouped item operations: four shopping-list adds should not cost four
+  // confirmation rounds (#527, measured 1315).
+  todo: 1340,
   // batch-safety opt-in with the merged-save card rule (#327);
   // safety-backup offer (Wave 0) + drift check before the full-document
   // save (Wave 1a) + pre-delete/pre-save snapshot capture (Wave 2).

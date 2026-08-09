@@ -83,6 +83,7 @@ Some services return data (`weather.get_forecasts`, `calendar.get_events`, `todo
      - **Brightness**: HA uses 0-255 internally; ALWAYS show delta in % (never raw). Light off (brightness null/absent) counts as 0%: `brightness: 0% → 40%`.
      - **Temperature**: Show with unit: `22.5°C → 19°C`; `temperature` = setpoint (what we change), `current_temperature` = sensor reading (NOT for delta).
      - **Cover position**: `position: 100% (open) → 30%`.
+     - **Relative asks** ("etwas heller", "einen Grad wärmer"): prefer the service's own step parameter where one exists — `light.turn_on` takes `brightness_step_pct` (-100..100), covers step through `open_cover`/`close_cover`, media through `volume_up`/`volume_down`. Where none exists, read the current value and apply the delta. A follow-up nudge ("noch heller") keeps the last confirmed target unless the user names a new one.
      - **State / mode**: parameterless state-changing services (toggle, turn_on, turn_off, press, lock, unlock): `on → off`; mode changes: `hvac_mode: heat → cool`.
    - Entity `unavailable` → delta `unavailable → {target}` + warning: "Device is offline or unreachable."
    - Entity `unknown` → delta `unknown → {target}` + info: "State not yet known; the call may still work."
@@ -101,6 +102,7 @@ Some services return data (`weather.get_forecasts`, `calendar.get_events`, `todo
    - Stateless targets: `scene.apply` and direct `script.*` runs do not reflect the call in the target's own state. Verify the promise instead — a script via `last_triggered` or acted-on member entities, `scene.apply` via the applied member states — and say what was (not) verifiable rather than reporting a false discrepancy.
    - Area/device targets: verify the member list expanded and previewed in step 3, not a single entity.
    - Report: service called, verified state (or the honest verification limit), any errors.
+   - After a VERIFIED grouped batch that set several entities at once, offer once to keep it: as a scene (`ha-nova:scene`, create-from-current-state) or a script (`ha-nova:write`). A movie-night set of five calls the user repeats weekly should become one activation. After a single decline, stay silent about it for the session.
 
 ## Service Data Fields
 
