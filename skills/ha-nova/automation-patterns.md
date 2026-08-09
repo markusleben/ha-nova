@@ -227,8 +227,15 @@ cannot break the disable step.
 A duration-bound request ("run the sprinkler for 30 minutes") is a WRITE, not
 a service call, even though it starts with one. `ha-nova:service-call` runs
 the turn-on and stops there; nothing schedules the turn-off. Route the whole
-request to `ha-nova:write`, which builds both halves — say plainly that you
-are creating a short-lived automation rather than just switching something on.
+request to `ha-nova:write`, which owns both halves — say plainly that you are
+creating a short-lived automation rather than just switching something on.
+
+Both halves means both: write performs the immediate action itself
+(`POST /api/services/<domain>/<service>` on the named target) and creates the
+expiry automation, in one preview covering the two. Creating only the
+automation leaves the sprinkler off until a turn-off fires that has nothing to
+turn off, and running only the action leaves the valve open — so if the write
+fails after the action, say the action already ran and offer to undo it.
 
 Act now and schedule the counter-action the same way rather than sleeping
 inside a run:

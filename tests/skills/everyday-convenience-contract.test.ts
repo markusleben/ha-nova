@@ -159,9 +159,11 @@ describe("flows that cost the user extra turns (#527)", () => {
     expect(flat(read("skills/ha-nova/SKILL.md"))).toContain(
       "do something FOR a duration",
     );
-    expect(flat(read("skills/ha-nova/automation-patterns.md"))).toContain(
-      "is a WRITE, not a service call",
-    );
+    const patterns = flat(read("skills/ha-nova/automation-patterns.md"));
+    expect(patterns).toContain("is a WRITE, not a service call");
+    // Routing it to write is only correct if write also does the NOW half.
+    expect(patterns).toContain("write performs the immediate action itself");
+    expect(patterns).toContain("say the action already ran and offer to undo it");
   });
 
   it("stops a relative move that has no value to be relative to", () => {
