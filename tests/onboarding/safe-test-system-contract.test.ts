@@ -25,18 +25,27 @@ function collectTestFiles(dir: string): string[] {
 
 // Files that import vitest but do not carry a test suffix: this repo's
 // `*-behavior.ts` convention. They only run when a wrapper imports them.
-function collectVitestModules(dir: string): string[] {
+function collectModules(dir: string): string[] {
   const found: string[] = [];
   for (const entry of readdirSync(dir)) {
     const path = join(dir, entry);
     if (statSync(path).isDirectory()) {
-      found.push(...collectVitestModules(path));
+      found.push(...collectModules(path));
     } else if (/\.[cm]?[jt]sx?$/.test(entry)) {
-      const body = readFileSync(path, "utf8");
-      if (/from ["']vitest["']/.test(body)) found.push(path.split("\\").join("/"));
+      found.push(path.split("\\").join("/"));
     }
   }
   return found;
+}
+
+const importsVitest = (file: string): boolean =>
+  /from ["']vitest["']/.test(readFileSync(file, "utf8"));
+
+// Traversal must pass THROUGH plain helpers: an aggregator that imports no
+// vitest itself still carries the edge from a running entrypoint to a
+// behavior module, and stopping there reports live suites as unreachable.
+function collectVitestModules(dir: string): string[] {
+  return collectModules(dir).filter(importsVitest);
 }
 
 function stripComments(source: string): string {
@@ -124,6 +133,7 @@ describe("safe test system contract", () => {
     // They carry real assertions, so an unimported one is silently dead — the
     // same failure the suffix check exists to prevent, one indirection over.
     const vitestModules = collectVitestModules("tests");
+    const allModules = collectModules("tests");
     const isEntrypoint = (file: string) => /\.(test|spec)\.[cm]?[jt]sx?$/.test(file);
     const behaviorModules = vitestModules.filter((file) => !isEntrypoint(file));
 
@@ -142,7 +152,7 @@ describe("safe test system contract", () => {
           const base = spec.startsWith("./") || spec.startsWith("../")
             ? join(dir, spec).split("\\").join("/")
             : spec;
-          return vitestModules.find(
+          return allModules.find(
             (candidate) => candidate.replace(/\.[cm]?[jt]sx?$/, "") === base,
           );
         })
