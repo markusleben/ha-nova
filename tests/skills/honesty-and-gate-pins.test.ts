@@ -179,10 +179,15 @@ describe("every dispatch target exists as a skill (#515)", () => {
     const owners: string[] = [];
     for (const row of rows) {
       const cell = (row.split("|")[3] ?? "").trim();
-      const resolved = cell
-        .split(/[/,;]| or | and /)
-        .map((token) => token.trim().replace(/^`|`$/g, ""))
-        .filter((token) => token === "this skill" || skillNames.has(token));
+      // Match skill names as WORDS anywhere in the cell: a legitimate owner
+      // often arrives inside prose ("write (an automation on `x`); ...").
+      // Only a cell naming no skill at all — blank, "--", pure prose — fails.
+      const resolved = [
+        ...(cell.includes("this skill") ? ["this skill"] : []),
+        ...[...skillNames].filter((name) =>
+          new RegExp(`(^|[^a-z-])${name}([^a-z-]|$)`).test(cell),
+        ),
+      ];
       expect(
         resolved.length,
         `fallback capability map row names no reachable owner: "${cell || "(empty)"}"`,
