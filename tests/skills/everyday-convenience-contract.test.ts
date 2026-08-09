@@ -201,6 +201,6 @@ describe("flows that cost the user extra turns (#527)", () => {
     expect(todo).toContain("Re-read the list before EACH operation, not once before the batch");
     expect(todo).toContain("doubles as the read-back for operation N-1");
     expect(todo).toContain("only confirms what this batch wrote, never what someone else did");
-    expect(todo).toContain("Any drift stops the batch and re-previews");
+    expect(todo).toContain("Any drift stops the batch there and re-previews the rest");
   });
 });
