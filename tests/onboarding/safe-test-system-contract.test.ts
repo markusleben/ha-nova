@@ -96,16 +96,43 @@ describe("safe test system contract", () => {
     // `*-behavior.ts` files that import vitest and are pulled in by a wrapper.
     // They carry real assertions, so an unimported one is silently dead — the
     // same failure the suffix check exists to prevent, one indirection over.
-    const behaviorModules = collectVitestModules("tests").filter(
-      (file) => !/\.(test|spec)\.[cm]?[jt]sx?$/.test(file),
-    );
-    const importedSomewhere = collectVitestModules("tests")
-      .map((file) => readFileSync(file, "utf8"))
-      .join("\n");
-    const unreachable = behaviorModules.filter((file) => {
-      const base = file.split("/").pop()?.replace(/\.[cm]?[jt]sx?$/, "") ?? "";
-      return base.length > 0 && !importedSomewhere.includes(base);
-    });
+    const vitestModules = collectVitestModules("tests");
+    const isEntrypoint = (file: string) => /\.(test|spec)\.[cm]?[jt]sx?$/.test(file);
+    const behaviorModules = vitestModules.filter((file) => !isEntrypoint(file));
+
+    // Resolve real module specifiers, not basename occurrences: a name left
+    // in a comment must not count as an import, and a cycle of behavior
+    // modules importing each other must not count as reachable.
+    const importsOf = (file: string): string[] => {
+      const dir = file.split("/").slice(0, -1).join("/");
+      const body = readFileSync(file, "utf8");
+      return [...body.matchAll(/(?:from|import)\s+["'](\.[^"']+)["']/g)]
+        .map((m) => (m[1] as string).replace(/\.js$/, ""))
+        .map((spec) => {
+          const base = spec.startsWith("./") || spec.startsWith("../")
+            ? join(dir, spec).split("\\").join("/")
+            : spec;
+          return vitestModules.find(
+            (candidate) => candidate.replace(/\.[cm]?[jt]sx?$/, "") === base,
+          );
+        })
+        .filter((hit): hit is string => Boolean(hit));
+    };
+
+    const reachableModules = new Set<string>();
+    const walk = (file: string): void => {
+      for (const dep of importsOf(file)) {
+        if (reachableModules.has(dep)) continue;
+        reachableModules.add(dep);
+        walk(dep);
+      }
+    };
+    // Only entrypoints that actually run seed the traversal, so a cycle among
+    // behavior modules cannot make itself reachable.
+    for (const entry of vitestModules.filter(isEntrypoint)) {
+      if (manifest.has(entry) || scripts.includes(entry)) walk(entry);
+    }
+    const unreachable = behaviorModules.filter((file) => !reachableModules.has(file));
     expect(
       unreachable,
       `these vitest modules are imported by nothing and therefore never run:\n  ${unreachable.join("\n  ")}`
