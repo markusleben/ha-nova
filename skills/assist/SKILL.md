@@ -1,6 +1,6 @@
 ---
 name: assist
-description: Use when working with Home Assistant's own built-in voice assistant (Assist) — testing what it understands, inspecting or editing Assist pipelines, managing which entities are exposed to voice, and listing TTS/STT/wake-word engines — through HA NOVA Relay. Not for Alexa or Google Assistant, which are configured outside Home Assistant.
+description: Use when working with Home Assistant's own built-in voice assistant (Assist) — testing what it understands, inspecting or editing Assist pipelines, managing which entities are exposed to voice, and listing TTS/STT/wake-word engines — through HA NOVA Relay. Not for Alexa or Google Assistant — those have their own Home Assistant setup paths (`ha-nova:integration-setup`, or `ha-nova:yaml-config` for a manual cloud config), not this skill.
 license: MIT
 compatibility: Requires the ha-nova CLI (run 'ha-nova setup' first) and the HA NOVA Relay in Home Assistant (App, or standalone container on Container/Core).
 ---
@@ -15,7 +15,7 @@ Home Assistant's built-in voice assistant (Assist):
 - manage which entities are exposed to voice, and their aliases
 - list available TTS, STT, conversation, and wake-word engines
 
-Not in scope: speaking through a speaker (`ha-nova:media` for TTS announcements), microphone/satellite hardware setup, or the third-party assistants (Alexa/Google) — those are configured outside Home Assistant.
+Not in scope: speaking through a speaker (`ha-nova:media` for TTS announcements), microphone/satellite hardware setup, or the third-party assistants (Alexa/Google) — those have their own Home Assistant setup paths; route them to `ha-nova:integration-setup` (or `ha-nova:yaml-config` for a manual cloud config).
 
 ## Bootstrap (once per session)
 

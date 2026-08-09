@@ -87,8 +87,14 @@ describe("dispatch examples for the rows that had none (#518)", () => {
 
   it("gives onboarding an example and hedges the sensor question by transport", () => {
     expect(context).toContain("`ha-nova:onboarding` (diagnostics only, never a config write)");
-    // "Is my sensor sending?" → mqtt is right only for MQTT transports.
-    expect(flat(context)).toContain("transport decides: an MQTT/Zigbee2MQTT device goes to `ha-nova:mqtt`");
+    // "Is my sensor sending?" → mqtt is right only for MQTT transports, and
+    // the example must still resolve to exactly ONE skill per transport.
+    expect(flat(context)).toContain(
+      "`ha-nova:mqtt` for an MQTT/Zigbee2MQTT device",
+    );
+    expect(flat(context)).toContain(
+      "for any other transport `ha-nova:diagnose` — a sensor that stopped updating is a concrete incident",
+    );
   });
 });
 
@@ -105,7 +111,18 @@ describe("load-bearing rules referenced from where they apply (#518)", () => {
     const checks = flat(read("skills/review/checks.md"));
     expect(checks).toContain("## Verify Before Flagging (Critical)");
     expect(checks).toContain("costs the user more trust than a missed one");
-    expect(checks).toContain("the standalone review flow and the post-write phases alike");
+    expect(checks).toContain(
+      "the standalone review flow and the post-write phases in write, helper, and yaml-config alike",
+    );
+    // A standalone loader cannot follow "check the local reference doc" unless
+    // the doc is named, and the sequence must not demand two confirmations
+    // for something the first source already settled.
+    expect(checks).toContain("skills/ha-nova/template-guidelines.md");
+    expect(checks).toContain("home-assistant.io/docs/automation/trigger/");
+    expect(checks).toContain(
+      "Flag it only when whichever source settled it says the config is invalid",
+    );
+    expect(checks).toContain("Unresolved means unresolved");
   });
 
   it("names the payload shapes that were documented nowhere", () => {

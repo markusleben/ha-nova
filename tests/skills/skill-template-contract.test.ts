@@ -183,7 +183,9 @@ const WORD_BUDGETS: Record<string, number> = {
   // Cards adoption pointer (#389).
   // lovelace/config/save payload shape — the `config` key that carries the
   // whole document was named nowhere (#518, measured 1454).
-  dashboard: 1470,
+  // Codex round 1: the default dashboard is selected by OMITTING url_path;
+  // an explicit null is rejected (measured 1471).
+  dashboard: 1490,
   // Cards adoption pointer (#389); pre-write update-state drift gate.
   // #452 canonical smallest-solution draft rule (17 words).
   // HA 2026.7 "Update all" semantics: guardrails mirrored, call shape

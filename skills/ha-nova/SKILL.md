@@ -285,7 +285,7 @@ Match user intent to exactly one skill:
 **"Add a zone for work"** → `ha-nova:admin`
 **"Create a template sensor that averages my three thermometers"** → `ha-nova:helper` first (a template helper can do it); only `ha-nova:yaml-config` when the helper cannot express it
 **"What was the average temperature last summer?"** → `ha-nova:history` if the recorder still has it; `ha-nova:external-sources` when it was purged and InfluxDB has it
-**"Is my sensor even sending anything?"** → transport decides: an MQTT/Zigbee2MQTT device goes to `ha-nova:mqtt` (listen to its topic); anything else starts at `ha-nova:health` (is it unavailable?) or `ha-nova:diagnose`. "Why did my automation not run" always stays `ha-nova:diagnose`
+**"Is my sensor even sending anything?"** → `ha-nova:mqtt` for an MQTT/Zigbee2MQTT device (listen to its topic); for any other transport `ha-nova:diagnose` — a sensor that stopped updating is a concrete incident. Only a general "is anything wrong in my home" goes to `ha-nova:health`. "Why did my automation not run" always stays `ha-nova:diagnose`
 **"Install browser_mod from HACS"** → `ha-nova:hacs` (add, pin, or remove a HACS package)
 **"Update my HACS integration to the latest"** → `ha-nova:updates` (an update entity, like any other update); an explicit version or a downgrade goes to `ha-nova:hacs`
 **"HA NOVA is not connecting"** / **"relay auth error"** → `ha-nova:onboarding` (diagnostics only, never a config write)
