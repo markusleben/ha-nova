@@ -207,9 +207,10 @@ const WORD_BUDGETS: Record<string, number> = {
   // asymmetry guardrails (#493), incl. the parameterless-WS-write
   // restriction (Codex P1).
   // Flow step 3c now names the endpoint-type table it depends on instead of
-  // leaving the file's load-bearing content unreferenced (#518, measured
-  // 2763).
-  fallback: 2790,
+  // leaving the file's load-bearing content unreferenced; Codex round 1
+  // scoped that requirement to endpoints the table actually covers and named
+  // the researched-schema path for the rest (#518, measured 2799).
+  fallback: 2830,
   // semantic-slot note on the read templates (Wave 0); pre-write cross-field
   // constraint checks + drift-check step (Wave 1); pre-delete snapshot
   // capture (Wave 2).
