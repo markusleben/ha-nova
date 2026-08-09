@@ -244,4 +244,15 @@ describe("per-domain service depth (#530)", () => {
     }
     expect(scene).toContain("each through its own service");
   });
+
+  it("does not claim a read-back that the media call cannot produce", () => {
+    const media = flat(mediaSkill);
+    // Queueing deliberately changes nothing observable, and HA exposes no
+    // queue attribute — the generic verify step has no signal to read.
+    expect(media).toContain("`add` and `next` have no success signal");
+    expect(media).toContain("do not present unchanged state as a discrepancy");
+    // Mode changes DO have a signal, just not the one step 7 names.
+    expect(media).toContain("Verify these from their OWN attributes");
+    expect(media).toContain("`shuffle` and `repeat` in the state");
+  });
 });

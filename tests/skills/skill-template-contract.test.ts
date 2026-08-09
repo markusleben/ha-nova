@@ -167,7 +167,10 @@ const WORD_BUDGETS: Record<string, number> = {
   // flow step used (#530, measured 1399).
   // Codex round 4: search_media takes a required entity_id, so the pinned
   // call shape had to become a full payload (measured 1410).
-  media: 1440,
+  // Codex round 6: queueing and mode changes have no signal in the fields the
+  // generic verify step names — one has none at all, the other has its own
+  // (measured 1544).
+  media: 1600,
   // test-offer single-confirmation + reference bullets (test-run.md);
   // ratcheted for the owning-skill deferral table + high-consequence
   // confirmation rule (Wave 0), and again for the differentiated verify
