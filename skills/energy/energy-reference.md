@@ -46,7 +46,7 @@ Detection: `flow_from`/`flow_to` present = legacy; flat keys = new. Emit the gen
 {"type":"gas","stat_energy_from":"sensor.gas","stat_cost":null,"entity_energy_price":null,"number_energy_price":null}
 ```
 
-`water` mirrors `gas`. Optional newer fields — preserve verbatim, add only on explicit request: `stat_rate`/`power_config` (live power, 2025.12–2026.2+), `stat_soc` (battery %, 2026.6+), `name` (2026.6+).
+`water` mirrors `gas`. Optional newer fields — preserve verbatim, add only on explicit request: `stat_rate`/`power_config` (live power, 2025.12–2026.2+), `stat_soc` (battery %, 2026.6+), `name` (2026.6+), `capacity` (battery usable kWh, weights the combined charge display, 2026.8+).
 
 ### Device consumption
 

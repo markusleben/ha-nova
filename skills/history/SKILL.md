@@ -107,6 +107,6 @@ These slots render the Report shape (output-rules.md). Keep default output compa
 ## Guardrails
 
 - Never run an unbounded history/logbook/statistics query.
-- Cap default investigative windows at 24 hours unless the user asked for more.
+- Cap default history/logbook windows at 24 hours unless the user asked for more; statistics/trend questions keep the Flow's 30-day default.
 - If the user asks for a very large export, narrow the request first.
 - Prefer a short summary over dumping a long raw timeline.

@@ -55,7 +55,7 @@ If this fails: `ha-nova setup`
 ## Error Handling
 
 Full relay/upstream error taxonomy: `skills/ha-nova/relay-api.md` -> Error Handling. Admin specifics:
-- `config/auth/*` requires an owner-level token: a permission error here means the LLAT belongs to a non-admin account, not that the command is wrong.
+- `config/auth/*` requires owner/admin rights upstream: a permission error here means the Relay's upstream credential lacks HA admin (App: Supervisor credential; container: the host-side `HA_LLAT`), not that the command is wrong.
 - Deleting a zone that automations reference succeeds — Home Assistant does not stop you. The damage shows up later, which is exactly why the impact advisory runs before the write.
 
 ## Output Format

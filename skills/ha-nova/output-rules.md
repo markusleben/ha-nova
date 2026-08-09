@@ -198,7 +198,7 @@ Accept numbers (e.g. "1 and 2"), or "skip".
 ## Findings
 
 - Use only three visible severity markers: 🔴 high/critical, 🟠 medium, 🟡 low/info.
-- Do not add text severity labels when the emoji is enough.
+- Do not add redundant text severity labels; pairing the emoji with one short status word for accessibility (as the health report mandates) is fine.
 - Give each finding one short descriptive title that explains the issue in plain language.
 - Never show internal check codes such as `R-01`, `S-01`, `H-01`, `M-01`, `P-01`, or `F-01` in user-facing messages.
 - Keep check codes internal in all modes: findings, summaries, clean states, pre-write verdicts, debugging help, brainstorming, and casual Q&A.

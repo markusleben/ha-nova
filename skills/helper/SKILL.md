@@ -154,7 +154,8 @@ If 0 results: try synonyms or shorter stems. Never dump entire domains.
    ```text
    ha-nova relay ws --data-file <payload-file>
    ```
-5. Verify absence from `{type}/list`.
+6. Verify absence from `{type}/list`.
+7. Run storage-family post-write review (see below).
 
 ### Family 2: Config-entry helpers
 
