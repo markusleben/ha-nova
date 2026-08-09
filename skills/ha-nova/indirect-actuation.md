@@ -25,9 +25,9 @@ at the ordinary tier, because demanding a typed code to stop or configure
 something contradicts the performed-action rule:
 
 - stopping: `homeassistant.turn_off`, `script.turn_off`, `automation.turn_off`
-- enabling or disabling an AUTOMATION: `homeassistant.turn_on|toggle` on an
-  `automation.*` target only flips whether it may fire later; `automation.trigger`
-  is the one that runs it
+- enabling or disabling an AUTOMATION: `automation.turn_on|turn_off|toggle`
+  and their `homeassistant.*` aliases only flip whether it may fire later;
+  `automation.trigger` is the one that runs it
 - `script.toggle` or `homeassistant.toggle` on a script that is currently
   running (state `on`): that stops it. Read the state first — the same call on
   an idle script starts it and does expand members.
@@ -105,8 +105,12 @@ Then:
   still does not apply here: for a trigger source the unread thing IS the
   consumer, so an installed-but-unreadable Node-RED escalates rather than
   being noted as a gap.
-- A `button` is the exception among trigger sources, because it can carry the
-  action itself instead of handing it to an automation. The registry field
+- A `button` or `switch` is the exception among trigger sources, because it
+  can carry the action itself instead of handing it to an automation. A
+  Template switch defines its own `turn_on`/`turn_off` sequences exactly as a
+  Template button defines its press, so everything below applies to both — a
+  zero-hit `search/related` on a `pl: "template"` switch proves nothing about
+  what `switch.turn_on` will run. The registry field
   `pl` (platform) decides which kind you have: `pl: "template"` is a
   user-authored button whose press action lives in the button, so
   `search/related` returning nothing proves nothing. Read the action — the
@@ -166,8 +170,12 @@ would restore the exact bypass this gate exists to close, by rewarding anyone
 who buries `lock.unlock` one level deeper. Escalate to the typed tier and name
 the unresolved branch when:
 
-- you stopped following a chain before it resolved, for any reason (length,
-  cost, a cycle you cut)
+- you stopped following a chain before it resolved, for any reason of length
+  or cost. A cycle is different: revisiting a node you have ALREADY read and
+  classified adds no action the traversal has not already seen, so a cycle
+  between fully-read members is resolved, not cut — two scripts calling each
+  other in a retry loop do not become access-capable by looping. A cycle
+  through a member you could NOT read is still unresolved
 - a `search/related` scan FAILED (as opposed to returning nothing) — that is
   inconclusive, never a clean result
 - an utterance whose words, or whose exposed entity set, plausibly reach a

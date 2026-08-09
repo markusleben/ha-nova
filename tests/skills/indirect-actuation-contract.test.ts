@@ -373,4 +373,29 @@ describe("indirect actuation and owning-skill deferrals (#513)", () => {
     expect(gate).toContain("a blind and a garage door take the same call");
     expect(gate).toContain("an unresolved cover target fails CLOSED");
   });
+
+  it("keeps native automation lifecycle services out of the run class", () => {
+    const gate = flat(indirectActuation);
+    // automation.turn_on enables; only automation.trigger executes.
+    expect(gate).toContain("`automation.turn_on|turn_off|toggle`");
+    expect(gate).toContain("only flip whether it may fire later");
+  });
+
+  it("treats a cycle between fully-read members as resolved", () => {
+    const gate = flat(indirectActuation);
+    // Escalating every cut cycle puts harmless retry loops on the typed tier.
+    expect(gate).toContain("a cycle between fully-read members is resolved, not cut");
+    expect(gate).toContain("do not become access-capable by looping");
+    expect(gate).toContain("A cycle through a member you could NOT read is still unresolved");
+  });
+
+  it("applies the Template-carrier rule to switches as well as buttons", () => {
+    const gate = flat(indirectActuation);
+    expect(gate).toContain("A `button` or `switch` is the exception");
+    expect(gate).toContain("A Template switch defines its own");
+  });
+
+  it("defers clearing completed to-do items to the owning skill", () => {
+    expect(flat(skillDoc)).toContain("`todo.remove_completed_items`");
+  });
 });

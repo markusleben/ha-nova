@@ -50,7 +50,7 @@ Use file-based payloads for service writes:
 | `logger.set_level` | `ha-nova:diagnose` |
 | `recorder.purge` / `recorder.purge_entities` | `ha-nova:maintenance` |
 | `calendar.create_event` and other calendar mutations | `ha-nova:calendar` |
-| `todo.add_item` / `todo.update_item` / `todo.remove_item` | `ha-nova:todo` |
+| `todo.add_item` / `todo.update_item` / `todo.remove_item` / `todo.remove_completed_items` | `ha-nova:todo` |
 | `backup.create` | `ha-nova:backup` |
 | `conversation.process` (executes what it understands) | `ha-nova:assist` |
 | `hassio.addon_start\|stop\|restart`, `hassio.host_reboot\|shutdown` | stays here, disruptive tier — refuse the App hosting this Relay |
