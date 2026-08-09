@@ -153,7 +153,10 @@ const WORD_BUDGETS: Record<string, number> = {
   scene: 1675,
   // buffering settle-window on verify (2026-h2 Wave 1a).
   // Cards adoption pointer (#389).
-  media: 1250,
+  // Search-before-browse (player and media_source), queue placement, and the
+  // shuffle/repeat services whose bits the gate table already carried but no
+  // flow step used (#530, measured 1399).
+  media: 1410,
   // test-offer single-confirmation + reference bullets (test-run.md);
   // ratcheted for the owning-skill deferral table + high-consequence
   // confirmation rule (Wave 0), and again for the differentiated verify
@@ -164,7 +167,12 @@ const WORD_BUDGETS: Record<string, number> = {
   // Grouped-change-set opt-in + grouped-menu exception (#391).
   // Threshold-calibration hook incl. scene.apply coverage (#484 R10).
   // #452 draft rule on top of the branch ratchet (measured 2780).
-  "service-call": 2800,
+  // Domain-depth pointer + the two cross-domain value/feature-bit rules
+  // (#530, measured 2849). The headroom above that anticipates the #513
+  // indirect-actuation lines landing in the same train (measured 3089
+  // there); whichever merges second must stay under this ceiling or bump it
+  // again with its own measurement.
+  "service-call": 3170,
   // Carries the canonical File-Change Preview example — the only layout
   // source for file edits; concrete examples are what make a card renderable.
   // Sibling-survival verification (Wave 1b) + yaml snapshot capture with

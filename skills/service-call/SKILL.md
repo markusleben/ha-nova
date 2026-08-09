@@ -104,13 +104,17 @@ Some services return data (`weather.get_forecasts`, `calendar.get_events`, `todo
 
 ## Service Data Fields
 
-Common patterns:
-- `light.turn_on`: `brightness` (0-255), `color_temp` (mireds), `rgb_color` ([r,g,b])
-- `climate.set_temperature`: `temperature`, `hvac_mode`
-- `switch.toggle`: no extra fields needed
-- `cover.set_cover_position`: `position` (0-100)
+Per-domain field names, feature bits, and verification quirks live in
+`skills/service-call/domain-fields.md` — read the section for the domain you
+are calling. It covers light, climate, cover (including tilt), fan, vacuum
+(including area cleaning), humidifier, water heater, and siren.
 
-If unsure about required fields, check `/api/services` response for the service schema.
+Two rules apply to every domain:
+- `/api/services` gives field NAMES; the valid VALUES for effects, modes,
+  tones, and fan speeds come from the target's own attribute list in the
+  pre-preview state read. Never carry a value over from another device.
+- A parameter the device does not support is usually dropped silently rather
+  than rejected, so check the feature bit before promising the user the effect.
 
 ## Helper Service Patterns
 

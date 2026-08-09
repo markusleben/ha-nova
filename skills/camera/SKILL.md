@@ -14,7 +14,9 @@ Camera access:
 - get a stream URL for live viewing in a browser
 - trigger Home Assistant's own snapshot/record services (files land on the HA host)
 
-Not in scope: creating automations around cameras (`ha-nova:write`), person/motion detection setup, or any image analysis claim beyond what the agent can see in the fetched frame.
+Also here: switching a camera on or off, toggling its motion detection, and casting its stream to a media player.
+
+Not in scope: creating automations around cameras (`ha-nova:write`), configuring the detection pipeline itself (zones, sensitivity, person models — that lives in the camera integration), or any image analysis claim beyond what the agent can see in the fetched frame.
 
 ## Bootstrap (once per session)
 
@@ -38,6 +40,8 @@ Binary responses are guaranteed by the skills' enforced relay floor (`skills/ha-
 4. **Stream URL** (needs STREAM, bit 2): WS `{"type":"camera/stream","entity_id":"camera.<id>"}` returns an HLS URL under `.data.url`. It is relative to the Home Assistant base URL and short-lived — give it to the user, do not try to consume it here.
 5. **Snapshot/record to the HA host** (mutating): services `camera.snapshot` (`filename`) and `camera.record` (`filename`, `duration`, `lookback`). The path must be inside HA's `allowlist_external_dirs`, or the call fails — say this before the call rather than after. Preview the exact filename and confirm. These write files on the Home Assistant server, not on this machine.
 6. `camera.turn_on` / `camera.turn_off` need ON_OFF (bit 1); verify by re-reading the state.
+7. **Cast to a screen**: `camera.play_stream` with the camera as target and `media_player_entity_id` of the receiver (needs STREAM, bit 2) puts the live view on a TV or display. Verify on the RECEIVER's state, not the camera's. This is the only camera action whose result shows up on another entity.
+8. `camera.enable_motion_detection` / `camera.disable_motion_detection` toggle detection where the integration implements it. Verify via the `motion_detection` attribute when the camera exposes it; when it does not, say the toggle was accepted but could not be verified rather than claiming success.
 
 ## Error Handling
 
