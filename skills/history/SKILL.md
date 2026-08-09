@@ -105,9 +105,11 @@ These slots render the Report shape (output-rules.md). Keep default output compa
 - If the data is incomplete for the requested conclusion, say so explicitly.
 
 Whole-home and multi-entity windows: omitting `entity` from the logbook path
-returns everything that happened ("was ist heute Nacht passiert?") — allowed for
+returns everything that happened ("what happened overnight?") — allowed for
 windows up to 24 hours, summary-first, never a raw dump. For a small explicit
 set, pass the ids as a comma-separated `entity` value on that LOGBOOK path —
+verified against 2026.8.0: the endpoint splits on commas, and an unknown id in
+the list is ignored rather than failing the query.
 `filter_entity_id` belongs to the history endpoint, and using it here silently
 returns the whole home instead. That is how you compare two people's arrival
 times in one call.

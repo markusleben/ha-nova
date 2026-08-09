@@ -232,4 +232,13 @@ describe("flows that cost the user extra turns (#527)", () => {
     expect(notify).toContain("AND again immediately before sending");
     expect(notify).toContain("presence is the one input that changes on its own");
   });
+
+  it("records that the logbook entity parameter accepts a list", () => {
+    const hist = flat(read("skills/history/SKILL.md"));
+    // Probed on 2026.8.0: entity=zzz.nonexistent,person.markus returns
+    // person.markus's 18 entries, while zzz.nonexistent alone returns 0 —
+    // so the endpoint splits on commas and ignores unknown ids.
+    expect(hist).toContain("the endpoint splits on commas");
+    expect(hist).toContain("an unknown id in the list is ignored");
+  });
 });
