@@ -177,7 +177,10 @@ const WORD_BUDGETS: Record<string, number> = {
   // Codex round 7: the DIRECT fire-an-event path needed the same
   // unenumerable-listener escalation as the stored event: action path
   // (measured 3204).
-  "service-call": 3240,
+  // Codex round 9: the Flow pointer listed fewer trigger-source domains than
+  // the gate it points at, so a counter or timer write never entered it
+  // (measured 3252).
+  "service-call": 3290,
   // Carries the canonical File-Change Preview example — the only layout
   // source for file edits; concrete examples are what make a card renderable.
   // Sibling-survival verification (Wave 1b) + yaml snapshot capture with
