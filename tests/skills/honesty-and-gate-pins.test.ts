@@ -8,7 +8,7 @@
 //   2. Gates whose deletion would silently downgrade a tier or lose data,
 //      ranked by what regressing them costs the user.
 import { describe, it, expect } from "vitest";
-import { readdirSync, readFileSync, statSync } from "fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "fs";
 import { resolve } from "path";
 
 const read = (p: string): string =>
@@ -25,14 +25,26 @@ describe("honesty guarantees safety.md names but nothing asserted (#515)", () =>
   });
 
   it("never reports an accepted notification as delivered", () => {
+    // The descriptive sentence alone is not the guarantee: pin the
+    // prohibition, so rewording the report side cannot keep this green.
     const notify = flat(read("skills/notify/SKILL.md"));
     expect(notify).toContain("There is no delivery receipt");
+    // The prohibition, not just the observation: a successful call is
+    // acceptance, and the report must not upgrade it to delivery.
+    expect(notify).toContain(
+      "a successful service call means Home Assistant accepted it, not that the phone displayed it",
+    );
   });
 
   it("distinguishes an empty MQTT window from a retained replay", () => {
     const mqtt = flat(read("skills/mqtt/SKILL.md"));
     expect(mqtt).toContain("Say explicitly when nothing arrived");
-    expect(mqtt).toContain("retained replay");
+    // The guarantee is the SEPARATION, not the phrase: a contract that
+    // counted replays as live traffic could still contain the words.
+    expect(mqtt).toContain(
+      "how many were live (`retain: false`) versus retained replays",
+    );
+    expect(mqtt).toContain("never call the device silent on one missed window");
   });
 
   it("binds conclusions to evidence with named confidence tiers", () => {
@@ -107,11 +119,17 @@ describe("every dispatch target exists as a skill (#515)", () => {
   // wholesale, so tree completeness IS bundle completeness — this belongs in
   // the PR suite, not a release script.
   const skillsRoot = resolve(__dirname, "../../skills");
+  // A directory without SKILL.md is not installable: install-local-skills.sh
+  // enumerates skills/*/SKILL.md, so the entrypoint file is what makes a
+  // dispatch target real.
   const skillNames = new Set(
-    readdirSync(skillsRoot).filter((d) =>
-      statSync(resolve(skillsRoot, d)).isDirectory(),
-    ),
+    readdirSync(skillsRoot).filter((d) => {
+      const dir = resolve(skillsRoot, d);
+      if (!statSync(dir).isDirectory()) return false;
+      return existsSync(resolve(dir, "SKILL.md"));
+    }),
   );
+  expect(skillNames.size).toBeGreaterThan(25);
 
   const referenced = (doc: string): string[] => [
     ...new Set(

@@ -23,6 +23,22 @@ function collectTestFiles(dir: string): string[] {
   return found;
 }
 
+// Files that import vitest but do not carry a test suffix: this repo's
+// `*-behavior.ts` convention. They only run when a wrapper imports them.
+function collectVitestModules(dir: string): string[] {
+  const found: string[] = [];
+  for (const entry of readdirSync(dir)) {
+    const path = join(dir, entry);
+    if (statSync(path).isDirectory()) {
+      found.push(...collectVitestModules(path));
+    } else if (/\.[cm]?[jt]sx?$/.test(entry)) {
+      const body = readFileSync(path, "utf8");
+      if (/from ["']vitest["']/.test(body)) found.push(path.split("\\").join("/"));
+    }
+  }
+  return found;
+}
+
 function expectFragmentsInOrder(haystack: string, fragments: string[]) {
   let cursor = 0;
   for (const fragment of fragments) {
@@ -75,6 +91,25 @@ describe("safe test system contract", () => {
     const orphans = testFiles.filter(
       (file) => !manifest.has(file) && !scripts.includes(file)
     );
+
+    // Unsuffixed behavior modules: this repo splits some suites into
+    // `*-behavior.ts` files that import vitest and are pulled in by a wrapper.
+    // They carry real assertions, so an unimported one is silently dead — the
+    // same failure the suffix check exists to prevent, one indirection over.
+    const behaviorModules = collectVitestModules("tests").filter(
+      (file) => !/\.(test|spec)\.[cm]?[jt]sx?$/.test(file),
+    );
+    const importedSomewhere = collectVitestModules("tests")
+      .map((file) => readFileSync(file, "utf8"))
+      .join("\n");
+    const unreachable = behaviorModules.filter((file) => {
+      const base = file.split("/").pop()?.replace(/\.[cm]?[jt]sx?$/, "") ?? "";
+      return base.length > 0 && !importedSomewhere.includes(base);
+    });
+    expect(
+      unreachable,
+      `these vitest modules are imported by nothing and therefore never run:\n  ${unreachable.join("\n  ")}`
+    ).toEqual([]);
     expect(
       orphans,
       `these test files are never executed by npm run verify — add them to scripts/test/safe-core-files.json or to an explicit verify step:\n  ${orphans.join("\n  ")}`
