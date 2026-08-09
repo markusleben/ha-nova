@@ -220,7 +220,10 @@ const WORD_BUDGETS: Record<string, number> = {
   // Codex round 3: configuration.yaml validate-first plus the honest
   // intent_script restart note — an invalid file blocks the next boot
   // (measured 3584).
-  fallback: 3620,
+  // Ceiling covers the COMBINED merge: three PRs add to fallback (#525 stale
+  // refs, #518 routing, #516 reference truth) and each measured itself in
+  // isolation. Trial-merging the train lands at 3646.
+  fallback: 3700,
   // semantic-slot note on the read templates (Wave 0); pre-write cross-field
   // constraint checks + drift-check step (Wave 1); pre-delete snapshot
   // capture (Wave 2).
