@@ -167,17 +167,40 @@ describe("every dispatch target exists as a skill (#515)", () => {
     // ha-nova: prefix — so this parses that column rather than the prefix,
     // which is where a dead hand-off would actually appear.
     const fallback = read("skills/fallback/SKILL.md");
-    const owners = fallback
+    // Match a status cell that BEGINS with the status — "Covered for the
+    // durable path" is still a covered row and must be checked.
+    const rows = fallback
       .split("\n")
-      .filter((line) => line.startsWith("|") && /\|\s*(Covered|Relay-Ready)\s*\|/.test(line))
-      .flatMap((line) => (line.split("|")[3] ?? "").split(/[/,]/))
-      .map((token) => token.trim().replace(/^`|`$/g, ""))
-      .filter((token) => /^[a-z][a-z-]*$/.test(token));
+      .filter((line) => line.startsWith("|") && /\|\s*(Covered|Relay-Ready)\b/.test(line));
+    expect(rows.length).toBeGreaterThan(15);
 
-    expect(owners.length).toBeGreaterThan(15);
+    // Validate the row, not the tokens that survive a filter: discarding
+    // unparseable cells lets "--", blank, or pure prose pass as an owner.
+    const owners: string[] = [];
+    for (const row of rows) {
+      const cell = (row.split("|")[3] ?? "").trim();
+      const resolved = cell
+        .split(/[/,;]| or | and /)
+        .map((token) => token.trim().replace(/^`|`$/g, ""))
+        .filter((token) => token === "this skill" || skillNames.has(token));
+      expect(
+        resolved.length,
+        `fallback capability map row names no reachable owner: "${cell || "(empty)"}"`,
+      ).toBeGreaterThan(0);
+      owners.push(...resolved.filter((token) => token !== "this skill"));
+
+      // An explicit ha-nova:<name> reference must resolve — a typo there is a
+      // dead hand-off that the row's other owners would otherwise mask.
+      for (const [, named] of cell.matchAll(/ha-nova:([a-z][a-z-]*)/g)) {
+        expect(
+          skillNames.has(named as string),
+          `fallback capability map references ha-nova:${named}, which has no skills/${named}/`,
+        ).toBe(true);
+      }
+    }
+
     for (const owner of owners) {
-      // "this" = the fallback skill itself; multi-word prose is not an owner.
-      if (owner === "this" || skillNames.has(owner)) continue;
+      if (skillNames.has(owner)) continue;
       expect.fail(
         `fallback capability map assigns "${owner}", which has no skills/${owner}/`,
       );
