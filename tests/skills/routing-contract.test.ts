@@ -1,6 +1,7 @@
 // tests/skills/routing-contract.test.ts
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "fs";
+import { parse as parseYaml } from "yaml";
+import { readFileSync, readdirSync } from "fs";
 import { resolve } from "path";
 
 const read = (p: string): string =>
@@ -189,5 +190,41 @@ describe("load-bearing rules referenced from where they apply (#518)", () => {
     expect(flat(read("skills/diagnose/SKILL.md"))).toContain(
       "the `.` in `sensor.kitchen` is a regex wildcard",
     );
+  });
+
+  // The suite's own frontmatter helper is a regex, which is more permissive
+  // than the YAML parser a client actually uses to discover skills. An
+  // unquoted "Assistant: setting" made assist unloadable while every
+  // description test still passed.
+  it("parses every skill frontmatter with a real YAML parser", () => {
+    const broken: string[] = [];
+    for (const file of readdirSync("skills")) {
+      const path = `skills/${file}/SKILL.md`;
+      let raw: string;
+      try {
+        raw = read(path);
+      } catch {
+        continue;
+      }
+      if (!raw.startsWith("---")) continue;
+      const frontmatter = raw.split("---")[1] ?? "";
+      try {
+        const parsed = parseYaml(frontmatter) as unknown;
+        if (typeof parsed !== "object" || parsed === null) {
+          broken.push(`${path}: frontmatter is not a mapping`);
+          continue;
+        }
+        const { name, description } = parsed as Record<string, unknown>;
+        if (typeof name !== "string" || typeof description !== "string") {
+          broken.push(`${path}: name/description missing or not a string`);
+        }
+      } catch (error) {
+        broken.push(`${path}: ${(error as Error).message.split("\n")[0]}`);
+      }
+    }
+    expect(
+      broken,
+      `these skills cannot be loaded by a YAML-parsing client:\n  ${broken.join("\n  ")}`,
+    ).toEqual([]);
   });
 });
