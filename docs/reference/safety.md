@@ -13,8 +13,8 @@ real-device qualifications in
 
 | Guarantee | Enforced by | Verified by |
 |---|---|---|
-| Nothing is written before you see a preview of exactly what will change | Safety Core, first bullet in every mutation skill (`docs/reference/skill-architecture.md` → Safety Core) | `tests/skills/skill-template-contract.test.ts` asserts the byte-identical block in all 13 mutation skills; `tests/skills/ha-safety-contract.test.ts` |
-| Your confirmation binds to the shown preview and expires if the target, payload, endpoint, or scope changes | Safety Core bullet 2; context skill → Active Preview Confirmation | `tests/skills/ha-safety-contract.test.ts` (13 mutation skills pinned) |
+| Nothing is written before you see a preview of exactly what will change | Safety Core, first bullet in every mutation skill (`docs/reference/skill-architecture.md` → Safety Core) | `tests/skills/skill-template-contract.test.ts` asserts the byte-identical block in every mutation skill (dynamic set); `tests/skills/ha-safety-contract.test.ts` |
+| Your confirmation binds to the shown preview and expires if the target, payload, endpoint, or scope changes | Safety Core bullet 2; context skill → Active Preview Confirmation | `tests/skills/ha-safety-contract.test.ts` (every mutation skill pinned) |
 | "Go ahead" said *before* a preview authorizes drafting only — never the write | Safety Core bullet 3 | `tests/skills/ha-safety-contract.test.ts` (all five pre-preview phrases pinned) |
 | Deletes require a typed `confirm:<token>`; "yes" is not accepted, and a menu is never offered instead | Safety Core bullet 4; context skill → Confirmation Tiers | `tests/skills/write-delete-safety-contract.test.ts` ("keeps delete a typed confirmation code even under menu pressure") |
 | Every write is verified by reading the config back, not by trusting the response | `skills/write/SKILL.md` Phase 3; `skills/ha-nova/write-safety.md` → Verification Honesty | `tests/skills/ha-cross-skill-integration.test.ts`; `tests/skills/write-delete-safety-contract.test.ts` |

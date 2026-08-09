@@ -19,7 +19,7 @@ Active doc ownership lives in `docs/reference/documentation-governance.md`.
 **Post-masterplan-2026 program** — the active roadmap is `docs/work/2026-08-03-backlog-sequencing.md` (masterplan-2026-h2 completed in full, archived).
 
 Shipped and current:
-1. Relay: `GET /health`, `POST /ws`, `POST /core`, `POST /files` (opt-in, default off); App + standalone container from one codebase
+1. Relay: `GET /health`, `POST /ws`, `POST /core`, `POST /files` (opt-in, default off), `POST /backups` (config-snapshot store), plus the human/machine surfaces `GET /home` and the pairing/device-auth endpoints; App + standalone container from one codebase
 2. Go CLI: install, setup wizard, doctor, update (incl. guided relay update), uninstall (incl. guided server-side teardown), relay proxy
 3. Context skill `ha-nova` plus 30 task skills, flat under `skills/` — the dispatch table in `skills/ha-nova/SKILL.md` is the authoritative inventory
 4. Shared references under `skills/ha-nova/` (relay API contract, output rules, write safety, batch safety, schemas, agent templates)
