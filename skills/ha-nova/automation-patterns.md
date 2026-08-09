@@ -253,7 +253,11 @@ The disable runs on both paths, so the automation is gone either way. Say in
 the preview when it expires.
 
 Rules for this family:
-- Label these `nova-oneshot` so the user can find and clear them later.
+- Name it so it is findable later: start the `alias` with `One-shot:`. A label
+  would be tidier, but labels are entity-registry metadata that
+  `ha-nova:organize` owns and the write flow does not touch — promising one
+  here would leave every one-shot unlabelled. The alias is written with the
+  automation itself, so it is always there.
 - Say in the preview that it disables itself after running once, and that it
   stays in the automation list until deleted.
 - After it has fired, offer to delete it — do not delete anything unprompted.

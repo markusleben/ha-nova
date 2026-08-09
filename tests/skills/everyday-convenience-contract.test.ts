@@ -26,7 +26,10 @@ describe("one-shot and temporary automations (#527)", () => {
 
   it("keeps the user in control of the leftover", () => {
     const p = flat(patterns);
-    expect(p).toContain("Label these `nova-oneshot`");
+    // Not a label: labels live in the entity registry that organize owns, and
+    // the write flow never touches it, so a promised label is never applied.
+    expect(p).toContain("start the `alias` with `One-shot:`");
+    expect(p).toContain("the write flow does not touch");
     expect(p).toContain("it stays in the automation list until deleted");
     expect(p).toContain("offer to delete it — do not delete anything unprompted");
     // "every Monday" is an ordinary automation, not this pattern.
