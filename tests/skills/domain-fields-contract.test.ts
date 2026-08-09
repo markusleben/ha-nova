@@ -108,6 +108,25 @@ describe("per-domain service depth (#530)", () => {
     expect(mediaSkill).toContain("`media_player.shuffle_set`");
   });
 
+  it("routes the new camera actions to the camera skill", () => {
+    // Adding actions to camera's scope without a deferral row would let the
+    // generic flow answer them without camera's capability gates.
+    const row = serviceCall
+      .split("\n")
+      .find((l) => l.startsWith("|") && l.includes("camera"));
+    expect(row).toBeTruthy();
+    expect(row).toContain("play_stream");
+    expect(row).toContain("motion detection");
+    expect(row).toContain("ha-nova:camera");
+  });
+
+  it("captures both setpoints of a range thermostat in a scene", () => {
+    expect(flat(sceneSkill)).toContain(
+      "the pair `target_temp_high`/`target_temp_low` on a range thermostat",
+    );
+    expect(flat(sceneSkill)).toContain("a single value would drop half the setpoint");
+  });
+
   it("covers camera casting and the motion-detection toggle it used to disclaim", () => {
     expect(cameraSkill).toContain("`camera.play_stream`");
     // The schema field is `media_player`; `media_player_entity_id` belongs to

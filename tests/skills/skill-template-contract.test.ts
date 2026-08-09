@@ -153,7 +153,9 @@ const WORD_BUDGETS: Record<string, number> = {
   // Capture attributes named per domain, with the state-attribute vs
   // service-parameter split that decides whether a partial cover survives
   // (#530 Codex round 1, measured 1703).
-  scene: 1720,
+  // Codex round 3: a range thermostat needs both setpoints captured, or the
+  // scene restores half of one (measured 1725).
+  scene: 1740,
   // buffering settle-window on verify (2026-h2 Wave 1a).
   // Cards adoption pointer (#389).
   // Search-before-browse (player and media_source), queue placement, and the
