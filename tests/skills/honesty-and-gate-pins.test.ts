@@ -146,9 +146,12 @@ describe("every dispatch target exists as a skill (#515)", () => {
 
   const referenced = (doc: string): string[] => [
     ...new Set(
-      // Capture the WHOLE target token: `ha-nova:energy_v2` must surface as
-      // "energy_v2" and fail, not as a valid "energy" prefix.
-      [...doc.matchAll(/ha-nova:([a-z][\w-]*)(?![\w./-])/g)].map((m) => m[1] as string),
+      // Capture whatever follows `ha-nova:` up to real punctuation, then let
+      // the caller judge it. A lookahead that simply refuses to match turns a
+      // malformed reference into no reference at all — invisible, not caught.
+      [...doc.matchAll(/ha-nova:([^\s`|)\],;]+)/g)].map((m) =>
+        (m[1] as string).replace(/[.]+$/, ""),
+      ),
     ),
   ];
 
@@ -208,7 +211,9 @@ describe("every dispatch target exists as a skill (#515)", () => {
       // Otherwise `read / writte` passes on the strength of `read` while the
       // typo is silently dropped.
       for (const token of prose.split(/[/,;]| or | and /)) {
-        const bare = token.trim().replace(/^`|`$/g, "");
+        // "writte (legacy)" must still be judged as `writte`: an annotation
+        // is not a reason to skip the name it annotates.
+        const bare = token.replace(/\([^)]*\)/g, "").trim().replace(/^`|`$/g, "");
         if (!/^[a-z][a-z-]{2,}$/.test(bare)) continue;
         if (bare === "this" || bare === "the" || bare === "owning" || bare === "family") continue;
         if (skillNames.has(bare)) continue;
