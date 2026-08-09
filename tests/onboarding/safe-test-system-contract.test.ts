@@ -39,6 +39,28 @@ function collectVitestModules(dir: string): string[] {
   return found;
 }
 
+function stripComments(source: string): string {
+  return source
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .split("\n")
+    .map((line) => {
+      let quote: string | null = null;
+      for (let i = 0; i < line.length; i += 1) {
+        const ch = line[i];
+        if (quote) {
+          if (ch === "\\") i += 1;
+          else if (ch === quote) quote = null;
+        } else if (ch === '"' || ch === "'" || ch === "`") {
+          quote = ch;
+        } else if (ch === "/" && line[i + 1] === "/") {
+          return line.slice(0, i);
+        }
+      }
+      return line;
+    })
+    .join("\n");
+}
+
 function expectFragmentsInOrder(haystack: string, fragments: string[]) {
   let cursor = 0;
   for (const fragment of fragments) {
@@ -136,13 +158,19 @@ describe("safe test system contract", () => {
     // function the wrapper must CALL. An import whose call was deleted leaves
     // the file imported and its describe blocks unregistered.
     const registrarsOf = (file: string): string[] =>
-      [...readFileSync(file, "utf8").matchAll(/export\s+(?:async\s+)?function\s+(register\w+)/g)]
+      [...stripComments(readFileSync(file, "utf8")).matchAll(/export\s+(?:async\s+)?function\s+(register\w+)/g)]
         .map((m) => m[1] as string);
-    const allSources = vitestModules.map((f) => readFileSync(f, "utf8")).join("\n");
+    // Search only the code that RUNS, with comments removed. A commented-out
+    // `// registerFooTests()` is exactly the deletion this guard exists to
+    // catch, and a call sitting in a module nothing reaches never executes.
+    const runningSources = vitestModules
+      .filter((file) => reachableModules.has(file) || manifest.has(file) || scripts.includes(file))
+      .map((file) => stripComments(readFileSync(file, "utf8")))
+      .join("\n");
     const uncalled = behaviorModules.filter((file) =>
       registrarsOf(file).some(
         (name) => !new RegExp(`\\b${name}\\s*\\(`).test(
-          allSources.replace(new RegExp(`export\\s+(?:async\\s+)?function\\s+${name}`, "g"), ""),
+          runningSources.replace(new RegExp(`export\\s+(?:async\\s+)?function\\s+${name}`, "g"), ""),
         ),
       ),
     );
