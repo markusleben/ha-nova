@@ -189,8 +189,10 @@ common everyday automation request is one that should not outlive its purpose.
 A permanent automation the user has to remember to delete is the wrong answer.
 
 Self-disabling is the Home Assistant-native one-shot: the automation turns
-itself off as its last action, which survives a restart (a long `delay` or
-`wait_for_trigger` does not) and re-arms with a single toggle.
+itself off with `automation.turn_off` on `{{ this.entity_id }}`, which
+survives a restart (a long `delay` or `wait_for_trigger` does not) and re-arms
+with a single toggle. WHERE that step sits in the sequence is decided per
+pattern below, not fixed — it goes where a failure leaves the safer state.
 
 ```yaml
 alias: One-shot — tell me when the washing machine finishes
@@ -254,14 +256,26 @@ conditions:
   # on the time path this is already true; on the startup path it catches a
   # deadline that passed while Home Assistant was off
   - condition: template
-    value_template: "{{ now() >= today_at('19:30') }}"
+    # the ABSOLUTE deadline, substituted at write time. `today_at('19:30')`
+    # would mean today's 19:30 on every later day: a restart the next morning
+    # reads it as not-yet-due and leaves the valve open, and a cross-midnight
+    # duration closes it hours early.
+    value_template: "{{ now() >= as_datetime('2026-08-09T19:30:00+02:00') }}"
 actions:
+  - action: valve.close_valve
+    target: {entity_id: valve.irrigation_lawn}
   - action: automation.turn_off
     target: {entity_id: "{{ this.entity_id }}"}
     data: {stop_actions: false}
-  - action: valve.close_valve
-    target: {entity_id: valve.irrigation_lawn}
 ```
+
+Note the order is the OPPOSITE of the notification one-shot above, and for the
+same reason: put the disable where a failure leaves the safer state. A
+notification that fails is spent, so disable first or it fires again
+tomorrow. A close that fails must be retried, so disable LAST — Home Assistant
+aborts the sequence on the error, the automation stays armed, and the startup
+trigger closes the valve on the next restart. Never disable a safety
+counter-action before it has succeeded.
 
 A `delay` inside the run is for short waits only — it does not survive a
 restart at all.

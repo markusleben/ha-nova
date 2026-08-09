@@ -168,6 +168,13 @@ describe("flows that cost the user extra turns (#527)", () => {
     expect(patterns).toContain("nothing has been turned on yet and there is nothing to undo");
     expect(patterns).toContain("A bare `time` trigger is MISSED, not replayed");
     expect(patterns).toContain("trigger: homeassistant");
+    // today_at() re-reads as the CURRENT day on every later restart.
+    expect(patterns).toContain("the ABSOLUTE deadline, substituted at write time");
+    expect(patterns).not.toContain("now() >= today_at(");
+    // A failed close must stay armed; a spent notification must not.
+    expect(patterns).toContain("put the disable where a failure leaves the safer state");
+    expect(patterns).toContain("Never disable a safety counter-action before it has succeeded");
+    expect(patterns).toContain("it goes where a failure leaves the safer state");
   });
 
   it("stops a relative move that has no value to be relative to", () => {
