@@ -247,6 +247,13 @@ const WORD_BUDGETS: Record<string, number> = {
 };
 const DEFAULT_WORD_BUDGET = 1150;
 
+// Sections carved out of a SKILL.md keep counting against that skill's word
+// budget. Add a file here whenever a split moves prose out of a budgeted file
+// — otherwise the ratchet resets itself every time a file gets long.
+const FOLDED_INTO_BUDGET: Record<string, string[]> = {
+  fallback: ["relay-ready.md"],
+};
+
 // Internal review-check codes (S-01, R-18, H-09, ...) may flow only between
 // the reviewer/mutation files that implement the dedup logic; user-flow
 // skills must never carry them (output-rules.md forbids surfacing them).
@@ -546,12 +553,18 @@ describe("skill template v2 contract", () => {
 
   it("keeps every sub-skill within its word budget", () => {
     for (const name of SUBSKILLS) {
-      const content = readFileSync(subskillPath(name), "utf8");
-      const wordCount = content.trim().split(/\s+/).length;
+      // Files split OUT of a budgeted SKILL.md count against the same budget.
+      // Splitting for the ~400-line guardrail is fine; using it to escape the
+      // word ratchet is not, and the split is invisible here otherwise.
+      const dir = resolve(subskillPath(name), "..");
+      const counted = [subskillPath(name), ...(FOLDED_INTO_BUDGET[name] ?? []).map((f) => join(dir, f))];
+      const wordCount = counted
+        .map((file) => readFileSync(file, "utf8").trim().split(/\s+/).length)
+        .reduce((total, count) => total + count, 0);
       const limit = WORD_BUDGETS[name] ?? DEFAULT_WORD_BUDGET;
       expect(
         wordCount,
-        `skills/${name}/SKILL.md has ${wordCount} words (limit ${limit})`,
+        `skills/${name}/ has ${wordCount} words including its split-out files (limit ${limit})`,
       ).toBeLessThan(limit);
     }
   });
