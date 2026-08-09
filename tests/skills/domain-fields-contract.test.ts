@@ -95,6 +95,9 @@ describe("per-domain service depth (#530)", () => {
     // Setpoint/sensor twins are the classic wrong-attribute bug.
     expect(gate).toContain("`humidity` is the setpoint, `current_humidity` the sensor reading");
     expect(gate).toContain("The entity STATE is the operation mode");
+    // Naming a service without its required field invites a schema error.
+    expect(gate).toContain("`set_away_mode` (`away_mode`, boolean)");
+    expect(gate).toContain("an entity-only payload is a schema error");
     expect(gate).toContain("`tone` (bit 4");
     expect(gate).toContain("`volume_level` (bit 8), and `duration` (bit 16)");
   });
@@ -122,9 +125,11 @@ describe("per-domain service depth (#530)", () => {
 
   it("captures both setpoints of a range thermostat in a scene", () => {
     expect(flat(sceneSkill)).toContain(
-      "the pair `target_temp_high`/`target_temp_low` on a range thermostat",
+      "`target_temp_low` AND `target_temp_high` on one in a range mode",
     );
-    expect(flat(sceneSkill)).toContain("a single value would drop half the setpoint");
+    expect(flat(sceneSkill)).toContain("capture both when both are present");
+    // A fan restores oscillation and direction too.
+    expect(flat(sceneSkill)).toContain("plus `oscillating` and `direction` when present");
   });
 
   it("covers camera casting and the motion-detection toggle it used to disclaim", () => {
