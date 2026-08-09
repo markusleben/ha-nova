@@ -40,11 +40,17 @@ against a source rather than memory, in this order:
      in `lovelace/resources`, this scene captures two colour attributes, this
      entity_id appears in three automations — come from the live data the run
      already read. Nothing else can prove them.
-   - The BEHAVIOURAL claim attached to them — that mixed colour attributes
-     reproduce wrong, that a domain is not reproducible, that a field is
-     required — comes from `skills/scene/SKILL.md` → Capture attributes
-     deliberately, `skills/dashboard/SKILL.md` → Critical behavior, and the
-     Lovelace and scene pages on home-assistant.io.
+   - The BEHAVIOURAL claim attached to them comes from a named source, and
+     each claim has exactly one: that mixed colour attributes reproduce wrong
+     or a domain is not reproducible — `skills/scene/SKILL.md` → Capture
+     attributes deliberately; that a built-in card field is required — the
+     D-07 allowlist above, which is the only schema pin in this repo and is
+     deliberately closed (a type not on it has no known required field, so it
+     produces no finding); that a save loses omitted content or a custom-card
+     schema cannot be invented — `skills/dashboard/SKILL.md` → Critical
+     behavior. Beyond those, the Lovelace and scene pages on
+     home-assistant.io. Citing a section that does not carry the claim is the
+     same error as citing nothing.
    State the observation from the data and the consequence from the source.
    If only the observation holds, report the observation.
 5. Unresolved means unresolved: report it as a question, never as an error.

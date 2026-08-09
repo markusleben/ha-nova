@@ -154,6 +154,15 @@ describe("load-bearing rules referenced from where they apply (#518)", () => {
     // Live data proves the observation; only a source proves the consequence.
     expect(checks).toContain("EXISTENCE and JOIN facts");
     expect(checks).toContain("The BEHAVIOURAL claim attached to them");
+    // Each claim class cites the section that actually carries it: the
+    // required-field pin lives in D-07, not in the dashboard skill's
+    // save-overwrite notes.
+    expect(flat(checks)).toContain(
+      "that a built-in card field is required — the D-07 allowlist above",
+    );
+    expect(flat(checks)).toContain(
+      "Citing a section that does not carry the claim is the same error as citing nothing",
+    );
     expect(checks).toContain(
       "State the observation from the data and the consequence from the source",
     );
