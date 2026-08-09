@@ -19,6 +19,22 @@ const fallbackSkill = readFileSync(
   resolve(__dirname, "../../skills/fallback/SKILL.md"),
   "utf-8",
 );
+const reviewSkill = readFileSync(
+  resolve(__dirname, "../../skills/review/SKILL.md"),
+  "utf-8",
+);
+const mqttSkill = readFileSync(
+  resolve(__dirname, "../../skills/mqtt/SKILL.md"),
+  "utf-8",
+);
+const adminSkill = readFileSync(
+  resolve(__dirname, "../../skills/admin/SKILL.md"),
+  "utf-8",
+);
+const testRunDoc = readFileSync(
+  resolve(__dirname, "../../skills/ha-nova/test-run.md"),
+  "utf-8",
+);
 const architecture = readFileSync(
   resolve(__dirname, "../../docs/reference/skill-architecture.md"),
   "utf-8",
@@ -217,6 +233,110 @@ describe("service call contract", () => {
       expect(fallbackSkill).toContain("| Alarm / lock runtime control | Covered | service-call |");
       expect(fallbackSkill).toContain("Home Assistant UI; codes never enter chat");
       expect(architecture).toContain("feature bits 1/2/4/8/16/32");
+    });
+  });
+
+  describe("owning-skill deferrals cover every gated service family (#513)", () => {
+    // A generic service call must never reach a family whose owning skill
+    // carries stricter gates. Each row below exists because the owning skill
+    // enforces something this flow does not: a feature bitmask, a backup
+    // offer, an impact quantification, or a typed confirmation code.
+    it("defers every gated family to its owning skill", () => {
+      for (const [service, owner] of [
+        ["mqtt.publish", "ha-nova:mqtt"],
+        ["update.install", "ha-nova:updates"],
+        ["camera.snapshot", "ha-nova:camera"],
+        ["camera.turn_on", "ha-nova:camera"],
+        ["media_player.*", "ha-nova:media"],
+        ["notify.*", "ha-nova:notify"],
+        ["logger.set_level", "ha-nova:diagnose"],
+        ["recorder.purge", "ha-nova:maintenance"],
+        ["recorder.purge_entities", "ha-nova:maintenance"],
+        ["calendar.create_event", "ha-nova:calendar"],
+        ["todo.add_item", "ha-nova:todo"],
+        ["backup.create", "ha-nova:backup"],
+        ["conversation.process", "ha-nova:assist"],
+      ]) {
+        const row = skillDoc
+          .split("\n")
+          .find((line) => line.startsWith("|") && line.includes(`\`${service}\``));
+        expect(row, `no deferral row for ${service}`).toBeTruthy();
+        expect(row, `${service} must defer to ${owner}`).toContain(owner);
+      }
+    });
+
+    it("keeps read-only response services and scene activation in this flow", () => {
+      expect(skillDoc).toContain("Read-only response services stay here");
+      expect(skillDoc).toContain("`calendar.get_events`");
+      expect(skillDoc).toContain("`todo.get_items`");
+      expect(skillDoc).toContain(
+        "`ha-nova:scene` owns scene CRUD, not activation",
+      );
+    });
+
+    it("routes Supervisor services through fallback and blocks self-amputation", () => {
+      const row = skillDoc
+        .split("\n")
+        .find((line) => line.startsWith("|") && line.includes("`hassio.*`"));
+      expect(row).toBeTruthy();
+      expect(row).toContain("ha-nova:fallback");
+      expect(row).toContain("never stop or restart the App hosting this Relay");
+    });
+  });
+
+  describe("indirect actuation cannot bypass the high-consequence tier (#513)", () => {
+    it("expands scene, automation, and script members before the preview", () => {
+      expect(skillDoc).toContain("Indirect actuation gate");
+      expect(skillDoc).toContain("actuate entities the request never names");
+      expect(skillDoc).toContain("scene `entities` map");
+      expect(skillDoc).toContain("a scene that unlocks a door is a door unlock");
+      // Non-enumerable targets must fail closed, not silently downgrade.
+      expect(skillDoc).toContain("Templated or fully dynamic targets are not enumerable");
+    });
+
+    it("binds the tier to the actuated entity in skill and context contract", () => {
+      expect(skillDoc).toContain(
+        "The tier follows the actuated entity, not the called service",
+      );
+      expect(skillDoc).toContain("the whole run takes the typed `confirm:<token>`");
+      expect(contextSkill).toContain(
+        "The tier follows the entity that ends up actuated",
+      );
+    });
+
+    it("keeps disruptive services distinct from the access-granting tier", () => {
+      expect(skillDoc).toContain(
+        "Disruptive is not the high-consequence tier: it interrupts, it does not grant physical access",
+      );
+      expect(testRunDoc).toContain(
+        "a deliberate superset of the\ncontext skill's high-consequence confirmation tier",
+      );
+    });
+  });
+
+  describe("sibling flows restate the access gate (#513 class sweep)", () => {
+    it("excludes access-granting corrections from review Quick-Fix", () => {
+      expect(reviewSkill).toContain("The corrective call would grant physical access");
+      expect(reviewSkill).toContain("Never Quick-Fix these");
+      expect(reviewSkill).toContain("hand off to `ha-nova:service-call`");
+    });
+
+    it("gives command/set-topic publishes the typed tier where the flow reads it", () => {
+      expect(mqttSkill).toContain(
+        "it takes the same typed `confirm:<token>`",
+      );
+      expect(mqttSkill).toContain(
+        "Retained publishes and command/`set` topics take the typed",
+      );
+      expect(contextSkill).toContain("retained and command/`set` MQTT publishes");
+    });
+
+    it("elevates user-account creation above the ordinary create tier", () => {
+      expect(adminSkill).toContain(
+        "Creating a user account grants durable system access",
+      );
+      expect(adminSkill).toContain("not the ordinary create tier");
+      expect(contextSkill).toContain("user-account creation");
     });
   });
 });

@@ -145,7 +145,9 @@ const WORD_BUDGETS: Record<string, number> = {
   health: 2100,
   // post-publish device verification step (2026-h2 Wave 1a).
   // User-assisted capture readiness sequence (#394).
-  mqtt: 1500,
+  // Command/`set`-topic publishes state their typed tier where the publish
+  // flow reads it, not only in Safety (#513, measured 1507).
+  mqtt: 1520,
   // pre-delete snapshot capture (Wave 2); apply-test offer with the
   // high-consequence carve-out (Wave 3).
   // Fail-closed consumer check with canonical-filter recreate pointer (#489).
@@ -164,7 +166,12 @@ const WORD_BUDGETS: Record<string, number> = {
   // Grouped-change-set opt-in + grouped-menu exception (#391).
   // Threshold-calibration hook incl. scene.apply coverage (#484 R10).
   // #452 draft rule on top of the branch ratchet (measured 2780).
-  "service-call": 2800,
+  // Tier hardening (#513): owning-skill deferral rows for recorder/calendar/
+  // todo/backup/camera-power/conversation/hassio with the read-only-response
+  // carve-out, the indirect-actuation gate that expands scene/automation/
+  // script members before the preview, and the tier-follows-the-actuated-
+  // entity rule with the disruptive-vs-high-consequence split (measured 3009).
+  "service-call": 3020,
   // Carries the canonical File-Change Preview example — the only layout
   // source for file edits; concrete examples are what make a card renderable.
   // Sibling-survival verification (Wave 1b) + yaml snapshot capture with
@@ -207,7 +214,10 @@ const WORD_BUDGETS: Record<string, number> = {
   // Suggestion Block item-shape pointer (shared output shapes); scene/
   // dashboard first-class targets with flow adaptation (2026-h2 Wave 3).
   // Quick-fix Preview Card reference (#389).
-  review: 4575,
+  // Quick-Fix physical-access exclusion (#513): access-granting corrections
+  // hand off to service-call instead of running at the natural tier
+  // (measured 4607).
+  review: 4620,
   // #452 wires the canonical 17-word smallest-solution draft rule into every
   // write-flow skill; calendar and integration-setup sat within 17 words of
   // the default cap (review/todo/updates ratchets applied on their entries).

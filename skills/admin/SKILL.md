@@ -79,6 +79,7 @@ Render the Report shape (output-rules.md); person/zone/user inventories render t
 
 - Zone and person deletes take the typed confirmation code, and the preview must first name the automations that depend on them (`search/related`).
 - User deletion is the strictest operation in HA NOVA: owner, system-generated, and the relay's own account are refused outright, and everything else needs the typed confirmation code plus a plain statement of what is lost.
+- Creating a user account grants durable system access, so it takes the typed confirmation code too — not the ordinary create tier. The preview names the login name, whether the account is an administrator (`group_ids`), and that the password is set in the Home Assistant UI, never here.
 - No delete here has a `revert`. Zones, persons, and tags are recreatable from their previewed fields — a tag keeps its physical `tag_id`, but other recreates mint new internal ids, so inbound references stay broken. A deleted user's password, tokens, and history are unrecoverable; the delete preview must say so.
 - Offer a safety backup via `ha-nova:backup` before zone, person, and user deletes (not for tag deletes or routine updates).
 - Never surface credentials, tokens, or password state in output.

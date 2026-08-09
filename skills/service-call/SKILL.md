@@ -44,12 +44,20 @@ Use file-based payloads for service writes:
 |---|---|
 | `mqtt.publish` | `ha-nova:mqtt` |
 | `update.install` / `update.skip` / `update.clear_skipped` | `ha-nova:updates` |
-| `camera.snapshot` / `camera.record` | `ha-nova:camera` |
+| `camera.snapshot` / `camera.record` / `camera.turn_on` / `camera.turn_off` | `ha-nova:camera` |
 | `media_player.*` / `tts.*` | `ha-nova:media` |
 | `notify.*` / `persistent_notification.*` | `ha-nova:notify` |
 | `logger.set_level` | `ha-nova:diagnose` |
+| `recorder.purge` / `recorder.purge_entities` | `ha-nova:maintenance` |
+| `calendar.create_event` and other calendar mutations | `ha-nova:calendar` |
+| `todo.add_item` / `todo.update_item` / `todo.remove_item` | `ha-nova:todo` |
+| `backup.create` | `ha-nova:backup` |
+| `conversation.process` (executes what it understands) | `ha-nova:assist` |
+| `hassio.*` (Apps/Supervisor) | not covered — `ha-nova:fallback` first; never stop or restart the App hosting this Relay |
 
-Runtime calls that stay here: `scene.turn_on`, `automation.trigger`, direct `script.*` (see Automation And Script Runtime Calls), custom events, known JSON webhooks, and `lock`/`alarm_control_panel`/`cover` control under the gates below.
+Read-only response services stay here (`calendar.get_events`, `todo.get_items`, `weather.get_forecasts`) — only the mutating siblings defer.
+
+Runtime calls that stay here: `scene.turn_on` / `scene.apply` (`ha-nova:scene` owns scene CRUD, not activation), `automation.trigger`, direct `script.*` (see Automation And Script Runtime Calls), custom events, known JSON webhooks, and `lock`/`alarm_control_panel`/`cover` control under the gates below.
 
 ## Response services
 
@@ -73,6 +81,7 @@ Some services return data (`weather.get_forecasts`, `calendar.get_events`, `todo
 4. Preview the service call with stable localized slots:
    - Before preview: read current state via `ha-nova relay core --method GET --path /api/states/{entity_id}`.
    - Capability gate: if the call depends on a device capability (position, color_temp, hvac modes, sound mode, ...), check the target's attributes/`supported_features` in that state read first; if the device cannot do it, say so instead of calling (pattern: `ha-nova:media`).
+   - Indirect actuation gate: `scene.turn_on`/`scene.apply`, `automation.trigger`, and direct `script.*` runs actuate entities the request never names. Read the stored config first (scene `entities` map; automation/script action targets, including `area_id`/`device_id` targets expanded as in step 3), list those members in the preview, and let them decide the tier per Safety — a scene that unlocks a door is a door unlock. Templated or fully dynamic targets are not enumerable: say so and treat the run as high-consequence when the reachable set plausibly contains one.
    - If service changes an attribute present in the service call parameters (brightness, temperature, position, hvac_mode, etc.) OR inherently changes entity state (toggle, turn_on, turn_off, press, lock, unlock, open, close), show state delta before the call details:
      ```
      **State delta:**
@@ -220,7 +229,8 @@ Previews are the runtime-action Preview Card (`apply · cancel`); results are th
 
 - No typed confirmation code needed for ordinary service calls; confirmation is still bound to the active preview.
 - **High-consequence runtime actions take the typed `confirm:<token>`** like a destructive write: unlocking or opening a lock, disarming an alarm panel, opening a garage door, gate, or entry-door cover. Check `device_class` and what the entity controls — a garage door exposed as `cover.*` belongs here, a living-room blind does not. These actions grant physical access; calling the opposite service afterwards does not undo the exposure window.
-- For potentially disruptive services (`homeassistant.restart`, `homeassistant.stop`), warn and ask for explicit post-preview confirmation.
+- The tier follows the actuated entity, not the called service: when the indirect actuation gate expanded a scene, automation, or script and any member grants physical access, the whole run takes the typed `confirm:<token>` — the same rule `ha-nova:scene` applies to its apply-test.
+- For potentially disruptive services (`homeassistant.restart`, `homeassistant.stop`, `siren.turn_on` at full volume), warn and ask for explicit post-preview confirmation. Disruptive is not the high-consequence tier: it interrupts, it does not grant physical access.
 
 ## Guardrails
 

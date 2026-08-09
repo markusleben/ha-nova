@@ -51,6 +51,12 @@ what the entity controls before using the ordinary row — a garage door,
 gate, or entry door exposed as `cover.*` and any heating/cooling setpoint
 change belong in the high-consequence row.
 
+This row is the test-planning risk class, a deliberate superset of the
+context skill's high-consequence confirmation tier. Members that grant
+physical access still take the typed confirmation code; merely disruptive
+members such as `homeassistant.restart` take a warned bound confirmation.
+Plan them alike, confirm them by their own tier.
+
 Co-listeners escalate: the risk class covers everything the run can set in
 motion, not just the tested automation's own actions. Before recommending
 any run option, check `search/related` on every entity the test will change
