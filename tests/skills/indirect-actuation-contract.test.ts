@@ -403,8 +403,12 @@ describe("indirect actuation and owning-skill deferrals (#513)", () => {
     const gate = flat(indirectActuation);
     // The automation editor emits domain/type/device_id for a device-picked
     // step; a door unlock built in the UI must not walk past the gate.
-    expect(gate).toContain("the DEVICE form (`domain: lock`, `type: unlock`");
+    expect(gate).toContain("The DEVICE form (`domain: lock`, `type: unlock`");
     expect(gate).toContain("Classify a device action by its `domain` + `type`");
+    // Legacy YAML still runs, and a blueprint hides its actions entirely.
+    expect(gate).toContain("the legacy `service: lock.unlock` and `service_template:`");
+    expect(gate).toContain("reads back as `use_blueprint` with inputs, not");
+    expect(gate).toContain("It is an unresolved branch, not an empty one");
   });
 
   it("fails closed for every cover action that can open", () => {

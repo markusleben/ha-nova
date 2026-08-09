@@ -67,12 +67,21 @@ Then:
   of every `choose`, `if`, `repeat`, and `parallel` branch: preview time
   cannot know which branch runs. Follow each branch until it ends in a
   concrete action or a node you cannot read — and Home Assistant writes an
-  action two ways. The service form (`action: lock.unlock`) is the obvious
-  one; the DEVICE form (`domain: lock`, `type: unlock`, plus a `device_id`)
-  says the same thing in different keys and is what the automation editor
-  produces for a device-picked step. Classify a device action by its
-  `domain` + `type` exactly as you would the equivalent service, or a
-  door-unlock built in the UI walks past this whole gate. Do not stop early at a
+  action two ways. The service form is the obvious one, and it
+  has THREE spellings: `action: lock.unlock` (current), plus the legacy
+  `service: lock.unlock` and `service_template:` that older YAML still
+  carries and Home Assistant still executes. The DEVICE form (`domain: lock`,
+  `type: unlock`, plus a `device_id`) says the same thing in different keys
+  and is what the automation editor produces for a device-picked step.
+  Classify a device action by its `domain` + `type` exactly as you would the
+  equivalent service, or a door-unlock built in the UI walks past this whole
+  gate; treat a `service_template` like any templated action name — you
+  cannot read what it resolves to, so escalate.
+- A blueprint-backed automation reads back as `use_blueprint` with inputs, not
+  as actions: the traversal reaches no member and would otherwise conclude the
+  run is harmless. It is an unresolved branch, not an empty one — escalate and
+  name the blueprint, unless its inputs themselves name an access-capable
+  entity, which settles it the other way. Do not stop early at a
   self-imposed depth: an unresolved chain is not a clean result (see below).
   A node already visited on this path is a cycle — stop that branch there.
 - Resolve `area_id`, `device_id`, `floor_id`, and `label_id` targets to
