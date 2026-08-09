@@ -114,8 +114,10 @@ const WORD_BUDGETS: Record<string, number> = {
   // State-snapshot queries ("sind alle Fenster zu?") and the alias fallback
   // that finally reaches the names a household actually says (#527, 1318).
   "entity-discovery": 1350,
-  // Presence-conditional recipient resolution (#527, measured 1226).
-  notify: 1260,
+  // Presence-conditional recipient resolution; Codex round 1 required real
+  // /api/services discovery instead of deriving a notify service name from
+  // tracker ids, which prove no association (#527, measured 1264).
+  notify: 1300,
   // pre-save snapshot capture + snapshot recovery guidance (Wave 2).
   energy: 1250,
   // consumer checks before area delete/rename/disable (Wave 1b) + metadata

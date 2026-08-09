@@ -123,6 +123,7 @@ the stop reason; the card closes with the exact safe next step.
 | `scene` | yes | storage scene creates/updates (Editability Guard per target) |
 | `organize` | yes | registry metadata updates (areas, labels, categories, entity/device metadata) |
 | `service-call` | yes | batch service calls per its Guardrails grouped manifest; high-consequence calls (confirmation-code tier) excluded |
+| `todo` | yes | item operations on ONE list (add, complete, rename, update); list creates/deletes stay single-operation |
 | all others | no | single-operation flows or the destructive batch contract |
 
 ## Exclusions

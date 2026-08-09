@@ -75,8 +75,12 @@ When composing a COMPLEX mobile-app payload (actionable buttons, images, critica
 
 Presence-conditional sends resolve recipients before the preview: read
 `person.*` states, keep the ones with state `home`, and map each to their
-mobile-app target (the person's `device_trackers` name the device; ask once
-when a person has several and reuse that answer for the session). Preview the
+REAL notify target from the `/api/services` discovery this skill
+already requires. Never derive a service name from `person.device_trackers`:
+those are tracker entity ids (router, GPS, a Companion App entity named
+differently) and prove no association to a `notify.mobile_app_*` service. When
+the mapping is not provable, ask once which target belongs to that person and
+reuse the answer for the session. Preview the
 resolved recipient list, not the rule — "Anna and Ben are home" is what the
 user confirms. Nobody home is a real answer: say so and offer the persistent
 notification instead of silently sending to everyone.

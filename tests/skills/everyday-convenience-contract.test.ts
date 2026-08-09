@@ -78,12 +78,20 @@ describe("flows that cost the user extra turns (#527)", () => {
     expect(todo).toContain("Four items should not cost four rounds");
     // Destructive list deletes keep their own contract.
     expect(todo).toContain("List deletes keep `batch-safety.md` unchanged");
+    // The canonical matrix has to agree, or the contract the skill points at
+    // classifies it as unsupported.
+    const matrix = read("skills/ha-nova/grouped-change-set.md");
+    const row = matrix.split("\n").find((l) => l.startsWith("| `todo`"));
+    expect(row, "grouped-change-set matrix has no todo row").toBeTruthy();
+    expect(row).toContain("item operations on ONE list");
   });
 
   it("resolves who is home before previewing a presence-conditional send", () => {
     const notify = flat(read("skills/notify/SKILL.md"));
     expect(notify).toContain('### Household routing ("tell whoever is home")');
     expect(notify).toContain("read `person.*` states");
+    // Tracker ids are not notify service names.
+    expect(notify).toContain("Never derive a service name from `person.device_trackers`");
     // The user confirms recipients, not a rule.
     expect(notify).toContain("Preview the resolved recipient list, not the rule");
     expect(notify).toContain("Nobody home is a real answer");
@@ -92,6 +100,9 @@ describe("flows that cost the user extra turns (#527)", () => {
   it("prefers step parameters for relative asks and keeps the last target", () => {
     const sc = flat(read("skills/service-call/SKILL.md"));
     expect(sc).toContain("`brightness_step_pct`");
+    // Covers have no step service: open/close drive to the endpoint.
+    expect(sc).toContain("covers have NO step service");
+    expect(sc).toContain("`set_cover_position` with the bounded delta");
     expect(sc).toContain(
       'A follow-up nudge ("noch heller") keeps the last confirmed target',
     );
