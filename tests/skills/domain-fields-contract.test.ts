@@ -185,7 +185,7 @@ describe("per-domain service depth (#530)", () => {
 
   it("names the writable capture attributes for the setpoint-twin domains", () => {
     expect(sceneSkill).toContain("fan `percentage`/`preset_mode`");
-    expect(sceneSkill).toContain("humidifier `humidity`/`mode`");
+    expect(sceneSkill).toContain("Humidifier `humidity`/`mode`");
     expect(sceneSkill).toContain("never its `current_*` sensor twin");
   });
 
@@ -228,5 +228,20 @@ describe("per-domain service depth (#530)", () => {
     expect(media).not.toContain('media_source/search_media","query"');
     // And the root is not searchable, so the scope id is not really optional.
     expect(media).toContain("the media-source ROOT cannot search");
+  });
+
+  it("captures every climate attribute scene reproduction restores", () => {
+    // Source: homeassistant/components/climate/reproduce_state.py — each of
+    // these goes to its own service, so a missing one is silently not restored.
+    const scene = flat(sceneSkill);
+    for (const attribute of [
+      "`preset_mode`",
+      "`fan_mode`",
+      "`swing_mode`",
+      "`swing_horizontal_mode`",
+    ]) {
+      expect(scene, `climate capture list omits ${attribute}`).toContain(attribute);
+    }
+    expect(scene).toContain("each through its own service");
   });
 });

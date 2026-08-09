@@ -156,7 +156,10 @@ const WORD_BUDGETS: Record<string, number> = {
   // Codex rounds 3-4: a range thermostat needs both setpoints captured or the
   // scene restores the mode without either boundary, and a fan restores
   // oscillation and direction too (measured 1748).
-  scene: 1770,
+  // Codex round 5: climate reproduction restores preset/fan/swing/humidity
+  // through separate services; each omission is a silent non-restore
+  // (measured 1787).
+  scene: 1840,
   // buffering settle-window on verify (2026-h2 Wave 1a).
   // Cards adoption pointer (#389).
   // Search-before-browse (player and media_source), queue placement, and the
