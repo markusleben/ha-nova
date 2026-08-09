@@ -184,4 +184,28 @@ describe("ha-api-matrix lists the surfaces skills actually pin (#517)", () => {
       expect(flat(read(file)), `${file} writes configuration.yaml`).toContain("check_config");
     }
   });
+
+  it("gives every capability status a Flow branch", () => {
+    const fallbackDoc = read("skills/fallback/SKILL.md");
+    const flow = flat(fallbackDoc);
+    // Statuses used in the map must be reachable in the Flow, or a row selects
+    // a branch that does not exist.
+    expect(flow).toContain('If "Not a Home Assistant surface"');
+    expect(flow).toContain("branch on the canonical word");
+    expect(flow).toContain("no endpoint to find");
+
+    // Scope to the Capability Map: other tables in this file have their own
+    // second column and are not statuses.
+    const mapSection = (fallbackDoc.split("## Capability Map")[1] ?? "").split(/\n## /)[0] ?? "";
+    expect(mapSection.length).toBeGreaterThan(500);
+    const CANONICAL = ["Covered", "Relay-Ready", "Roadmap", "External", "Not a Home Assistant surface"];
+    for (const row of mapSection.split("\n").filter((l) => l.startsWith("|"))) {
+      const status = (row.split("|")[2] ?? "").trim();
+      if (!status || status === "Status" || /^-+$/.test(status)) continue;
+      expect(
+        CANONICAL.some((c) => status.startsWith(c)),
+        `capability status "${status}" has no Flow branch`,
+      ).toBe(true);
+    }
+  });
 });

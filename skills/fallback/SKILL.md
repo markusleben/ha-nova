@@ -102,8 +102,15 @@ For every Relay-Ready call in this skill:
 ## Flow
 
 ```
-1. Check Capability Map for user's request
+1. Check Capability Map for user's request. A status may carry a qualifier
+   after the canonical word ("Covered for the durable path") — branch on the
+   canonical word and read the qualifier as scope, not as a new status.
 2. If "Covered" -> STOP, use the listed skill instead
+2a. If "Not a Home Assistant surface" -> the request rests on a wrong premise.
+   Say what does not exist, name what the user probably meant, and hand off
+   to the skill in the owner cell. Never research a payload for it: there is
+   no endpoint to find, and searching produces a plausible-looking API that
+   is not real.
 3. If "Relay-Ready":
    a. FIRST: Search web using the provided Search query — understand current payload schema before any call
    b. Show experimental relay call examples informed by search results
