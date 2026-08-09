@@ -195,6 +195,11 @@ describe("service call contract", () => {
       expect(flat(skillDoc)).toContain(
         "an unenumerable listener cannot be shown to be harmless",
       );
+      // The confirmation step must not downgrade what step 2 escalated.
+      expect(flat(skillDoc)).toContain(
+        "only when EVERY listener was enumerable",
+      );
+      expect(flat(skillDoc)).toContain("unknown impact is not low impact");
       expect(skillDoc).toContain("up to three reads over ten seconds");
       expect(skillDoc).toContain("never repeat an event automatically");
       expect(relayApi).toContain('"path":"/api/events/example_event"');
