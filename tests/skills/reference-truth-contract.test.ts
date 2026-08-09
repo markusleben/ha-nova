@@ -47,7 +47,7 @@ describe("fallback capability map is complete and truthful (#516)", () => {
     // conversation.reload does not load a new intent_script; testing before
     // that lands makes a valid sentence file look broken and rolls it back.
     expect(flat(fallback)).toContain("reloads the SENTENCE matcher");
-    expect(flat(fallback)).toContain("do not let that failure trigger the rollback");
+    expect(flat(fallback)).toContain("do not run the phrase test before the restart");
     expect(flat(fallback)).toContain("restore immediately");
     expect(flat(fallback)).toContain("re-test one known-good phrase before reporting");
   });
@@ -162,6 +162,26 @@ describe("ha-api-matrix lists the surfaces skills actually pin (#517)", () => {
       // prose words in the owner cell ("every write-capable skill", "flows")
       if (["every", "write-capable", "skill", "flows", "and", "bulk"].includes(owner)) continue;
       expect.fail(`matrix assigns "${owner}", which has no skills/${owner}/`);
+    }
+  });
+
+  it("validates configuration.yaml before reloading, and tells the truth about intent_script", () => {
+    const fallback = flat(read("skills/fallback/SKILL.md"));
+    // An invalid configuration.yaml survives the failed reload and blocks the
+    // NEXT boot — unrecoverable from inside this tool.
+    expect(fallback).toContain("POST /api/config/core/check_config` FIRST");
+    expect(fallback).toContain("stops Home Assistant from starting on the next boot");
+    expect(fallback).toContain("restore that file's `.bak` immediately");
+    // Verified against a live 2026.8.0 instance: /api/services exposes no
+    // intent_script domain at all, so nothing reloads those handlers.
+    expect(fallback).toContain("Home Assistant registers no");
+    expect(fallback).toContain("`intent_script.reload`");
+    expect(fallback).toContain("It takes a restart");
+  });
+
+  it("keeps every skill that writes configuration.yaml on the validate-first path", () => {
+    for (const file of ["skills/fallback/SKILL.md", "skills/yaml-config/SKILL.md"]) {
+      expect(flat(read(file)), `${file} writes configuration.yaml`).toContain("check_config");
     }
   });
 });

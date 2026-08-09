@@ -217,7 +217,10 @@ const WORD_BUDGETS: Record<string, number> = {
   // Codex round 3: conversation.reload does not load a new intent_script, so
   // testing before that lands makes a valid sentence file look broken and
   // triggers the rollback (measured 3490).
-  fallback: 3520,
+  // Codex round 3: configuration.yaml validate-first plus the honest
+  // intent_script restart note — an invalid file blocks the next boot
+  // (measured 3584).
+  fallback: 3620,
   // semantic-slot note on the read templates (Wave 0); pre-write cross-field
   // constraint checks + drift-check step (Wave 1); pre-delete snapshot
   // capture (Wave 2).

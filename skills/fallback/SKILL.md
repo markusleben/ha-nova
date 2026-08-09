@@ -230,13 +230,23 @@ Write `/config/custom_sentences/<lang>/<name>.yaml` — NOT `/config/ha_nova/`;
 Home Assistant only reads sentences from that fixed path. An `intent_script:`
 block in `configuration.yaml` supplies the action when the intent is new.
 
+**Validate before you reload, always** — when the change touches
+`configuration.yaml`, `POST /api/config/core/check_config` FIRST. An invalid
+`configuration.yaml` does not just fail the reload: it stays on disk and stops
+Home Assistant from starting on the next boot, which is unrecoverable from
+here. On `{"result":"invalid"}` restore that file's `.bak` immediately, before
+reporting, and do not reload. The sentence file and `configuration.yaml` are
+two independent restores — roll back the one that is broken.
+
 **Verify, and be ready to undo:** `write_file` with `backup: true` (the
 default) so a `.bak` exists — a brand-new file has none, so remember that you
-created it. Reload the right thing: `conversation.reload` reloads the SENTENCE matcher,
-not a new `intent_script:` block — that is core YAML and needs
-`homeassistant.reload_core_config` (or a restart for keys that only apply at
-boot). Reloading only sentences and then testing makes a valid sentence file
-look broken, so do not let that failure trigger the rollback. Then run the
+created it. Reload the right thing: `conversation.reload` reloads the SENTENCE
+matcher and is enough when only the sentence file changed. A new
+`intent_script:` block is NOT reloadable — Home Assistant registers no
+`intent_script.reload`, and neither `homeassistant.reload_core_config` nor
+`reload_all` loads those handlers. It takes a restart. So when the change adds
+an intent handler, say that plainly, and do not run the phrase test before the
+restart: it would fail for a valid file and trigger a pointless rollback. Then run the
 exact phrase
 through `ha-nova:assist` (`POST /api/conversation/process`): a sentence file
 that parses is not a sentence Assist matched. If the phrase does not match, or
