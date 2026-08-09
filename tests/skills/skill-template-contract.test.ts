@@ -113,7 +113,10 @@ const SAFETY_CORE_BLOCKS = ((): { mutation: string; readOnly: string } => {
 const WORD_BUDGETS: Record<string, number> = {
   // State-snapshot queries ("sind alle Fenster zu?") and the alias fallback
   // that finally reaches the names a household actually says (#527, 1318).
-  "entity-discovery": 1350,
+  // Codex round 3: a motorized window or garage door is a cover, so an
+  // open-state snapshot that reads only binary_sensor answers wrong
+  // (measured 1374).
+  "entity-discovery": 1400,
   // Presence-conditional recipient resolution; Codex round 1 required real
   // /api/services discovery instead of deriving a notify service name from
   // tracker ids, which prove no association (#527, measured 1264).

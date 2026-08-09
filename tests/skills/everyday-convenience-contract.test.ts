@@ -57,6 +57,9 @@ describe("state-snapshot questions have an owner (#527)", () => {
     );
     expect(discovery).toContain("/api/states");
     expect(discovery).toContain('`device_class` `window`/`door`/`garage_door`');
+    // A motorized window or garage door is a cover; checking only
+    // binary_sensor answers "is anything open?" wrong.
+    expect(flat(discovery)).toContain('AND `cover.*` with those device classes in state `open`/`opening`');
     // person STATE reads land here; person CRUD stays with admin.
     expect(flat(discovery)).toContain("this skill owns person STATE reads");
   });
