@@ -174,7 +174,10 @@ const WORD_BUDGETS: Record<string, number> = {
   // disruption note; round 4 narrowed the hassio row from a wildcard to the
   // named lifecycle services, because restores and App updates have owning
   // skills that refuse or gate them (measured 3170).
-  "service-call": 3200,
+  // Codex round 7: the DIRECT fire-an-event path needed the same
+  // unenumerable-listener escalation as the stored event: action path
+  // (measured 3204).
+  "service-call": 3240,
   // Carries the canonical File-Change Preview example — the only layout
   // source for file edits; concrete examples are what make a card renderable.
   // Sibling-survival verification (Wave 1b) + yaml snapshot capture with
@@ -220,7 +223,10 @@ const WORD_BUDGETS: Record<string, number> = {
   // Quick-Fix physical-access exclusion (#513): access-granting corrections
   // hand off to service-call instead of running at the natural tier
   // (measured 4607).
-  review: 4620,
+  // Codex round 7 (#513): the Quick-Fix exclusion caught direct access calls
+  // but not trigger-source corrections — resetting a helper is exactly what
+  // another automation answers by unlocking a door (measured 4654).
+  review: 4690,
   // #452 wires the canonical 17-word smallest-solution draft rule into every
   // write-flow skill; calendar and integration-setup sat within 17 words of
   // the default cap (review/todo/updates ratchets applied on their entries).

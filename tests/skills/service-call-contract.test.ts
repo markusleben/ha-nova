@@ -190,6 +190,11 @@ describe("service call contract", () => {
       expect(skillDoc).toContain("`platform: event`");
       expect(skillDoc).toContain("literal `event_data` filters");
       expect(skillDoc).toContain("unclassified-listener warning");
+      // The direct fire path needs the same escalation as the stored event:
+      // action path — an opaque listener is opaque either way.
+      expect(flat(skillDoc)).toContain(
+        "an unenumerable listener cannot be shown to be harmless",
+      );
       expect(skillDoc).toContain("up to three reads over ten seconds");
       expect(skillDoc).toContain("never repeat an event automatically");
       expect(relayApi).toContain('"path":"/api/events/example_event"');
@@ -467,6 +472,11 @@ describe("service call contract", () => {
       );
       expect(reviewSkill).toContain("Never Quick-Fix these");
       expect(reviewSkill).toContain("offer to run it as a separate service call");
+      // A helper reset is the classic innocent-looking trigger source.
+      expect(flat(reviewSkill)).toContain(
+        "any correction that enters the indirect-actuation gate at all",
+      );
+      expect(flat(reviewSkill)).toContain("resetting a desynchronized `input_select`");
       // Running an automation reaches the same outcome as calling the service.
       expect(reviewSkill).toContain(
         "running a scene, script, or automation that reaches one",
