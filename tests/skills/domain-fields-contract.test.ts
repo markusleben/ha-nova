@@ -92,6 +92,9 @@ describe("per-domain service depth (#530)", () => {
     const gate = flat(domainFields);
     expect(gate).toContain("`percentage_step`");
     expect(gate).toContain("3 x 25 = 75");
+    // Domain services are listed regardless of per-entity support.
+    expect(gate).toContain("all three need SET_SPEED (bit 1)");
+    expect(gate).toContain("the bit is the only per-entity gate");
     // Setpoint/sensor twins are the classic wrong-attribute bug.
     expect(gate).toContain("`humidity` is the setpoint, `current_humidity` the sensor reading");
     expect(gate).toContain("The entity STATE is the operation mode");
@@ -103,7 +106,12 @@ describe("per-domain service depth (#530)", () => {
   });
 
   it("wires media search, queue placement, and playback modes into the flow", () => {
-    expect(mediaSkill).toContain("`media_player/search_media` with `search_query` (bit 4194304)");
+    // entity_id is vol.Required on this command — omitting it makes the
+    // documented call invalid rather than merely unscoped.
+    expect(mediaSkill).toContain(
+      '{"type":"media_player/search_media","entity_id":"media_player.<id>","search_query":"<text>"}',
+    );
+    expect(flat(mediaSkill)).toContain("`entity_id` is required");
     expect(mediaSkill).toContain("`media_source/search_media`");
     expect(mediaSkill).toContain("`can_search` is true");
     expect(mediaSkill).toContain("`enqueue: add | next | play | replace` (bit 2097152)");

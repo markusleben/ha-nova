@@ -162,7 +162,9 @@ const WORD_BUDGETS: Record<string, number> = {
   // Search-before-browse (player and media_source), queue placement, and the
   // shuffle/repeat services whose bits the gate table already carried but no
   // flow step used (#530, measured 1399).
-  media: 1410,
+  // Codex round 4: search_media takes a required entity_id, so the pinned
+  // call shape had to become a full payload (measured 1410).
+  media: 1440,
   // test-offer single-confirmation + reference bullets (test-run.md);
   // ratcheted for the owning-skill deferral table + high-consequence
   // confirmation rule (Wave 0), and again for the differentiated verify

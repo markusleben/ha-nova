@@ -52,9 +52,12 @@ device.
 ## Fan
 
 - `fan.set_percentage` (`percentage` 0-100; some devices treat 0 as off),
-  `increase_speed`, `decrease_speed`, `set_preset_mode` (from `preset_modes`),
-  `oscillate` (`oscillating` boolean), `set_direction`
-  (`forward` / `reverse`).
+  `increase_speed`, `decrease_speed` — all three need SET_SPEED (bit 1);
+  `set_preset_mode` (from `preset_modes`, bit 8); `oscillate`
+  (`oscillating` boolean, bit 2); `set_direction` (`forward` / `reverse`,
+  bit 4). `/api/services` lists the domain's services regardless of what a
+  given fan supports, so the bit is the only per-entity gate: without it the
+  call can return success while the fan ignores it.
 - Discrete-speed fans expose `percentage_step`: "level 3" on a four-speed fan
   is 3 x 25 = 75. When the requested level is a word rather than a number,
   check `preset_modes` first — it is a preset, not a percentage.
