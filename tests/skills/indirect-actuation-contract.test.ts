@@ -325,4 +325,11 @@ describe("indirect actuation and owning-skill deferrals (#513)", () => {
     expect(doc).toContain("Never report success: you will not be there to see it");
     expect(doc).toContain("needs physical access to come back");
   });
+
+  it("does not let a targetless reload skip the scan for lack of a target", () => {
+    const gate = flat(indirectActuation);
+    expect(gate).toContain("A targetless reload of a trigger-source domain");
+    expect(gate).toContain("Its effect set is every entity of that domain");
+    expect(gate).toContain('"No target" is not evidence of no impact');
+  });
 });

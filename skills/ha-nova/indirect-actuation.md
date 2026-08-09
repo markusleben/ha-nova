@@ -79,6 +79,14 @@ Then:
   that are not enumerable (templated event types, non-automation consumers
   such as Node-RED or AppDaemon) cannot be judged access-capable or not, so
   their presence escalates the run on its own — see the exceptions below.
+- A targetless reload of a trigger-source domain (`schedule.reload`,
+  `input_*.reload`, `counter.reload`, `timer.reload`) has NO target, so there
+  is nothing for `search/related` to take — and that must not resolve to
+  "nothing happens". Its effect set is every entity of that domain: a reload
+  that moves a helper's state fires whatever listens to it. Enumerate the
+  domain and scan those entities when the count allows; when it does not, say
+  so and treat the run as unenumerable, exactly like an unreadable listener.
+  "No target" is not evidence of no impact.
 - Trigger sources expand the other way: `search/related` on the target, then
   read the actions of every automation it triggers. The classic pattern is a
   helper toggle that another automation answers by unlocking a door.
