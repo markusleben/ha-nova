@@ -91,7 +91,7 @@ describe("flows that cost the user extra turns (#527)", () => {
     // One confirmation, but still one read-back per operation: the grouped
     // contract's ledger is fail-fast and a trailing read would record a
     // silently ignored write as applied.
-    expect(todo).toContain("read back after EACH applied operation");
+    expect(todo).toContain("Re-read the list before EACH operation");
     expect(todo).toContain("must stop the batch there");
     // Destructive list deletes keep their own contract.
     expect(todo).toContain("List deletes keep `batch-safety.md` unchanged");
@@ -198,8 +198,9 @@ describe("flows that cost the user extra turns (#527)", () => {
     const todo = flat(read("skills/todo/SKILL.md"));
     // Post-write read-backs only confirm what this batch wrote; they cannot
     // see another client's change between preview and apply.
-    expect(todo).toContain("Re-read the list ONCE immediately before applying");
-    expect(todo).toContain("a post-write read-back cannot see that");
+    expect(todo).toContain("Re-read the list before EACH operation, not once before the batch");
+    expect(todo).toContain("doubles as the read-back for operation N-1");
+    expect(todo).toContain("only confirms what this batch wrote, never what someone else did");
     expect(todo).toContain("Any drift stops the batch and re-previews");
   });
 });
