@@ -189,7 +189,7 @@ guardrails.
 |---|---|---|
 | Relations | `search/related` — the pre-delete and consumer-scan workhorse | every write-capable skill |
 | Compact registry | `config/entity_registry/list_for_display` (abbreviated keys), `get_states` | entity-discovery, review, bulk flows |
-| System log | `system_log/list` (the working log source on HA OS) | diagnose, health |
+| System log | `system_log/list` (the working log source on HA OS) | diagnose |
 | Backups | `backup/info`, `backup/generate`, `backup/generate_with_automatic_settings`, `backup/delete`, `backup/agents/info`, `backup/details` | backup |
 | People & access | `person/*`, `zone/*`, `tag/*`, `config/auth/list`, `config/auth/create`, `config/auth/delete`, `auth/current_user` | admin |
 | Voice | `assist_pipeline/pipeline/list`, `.../update`, `.../delete`, `.../set_preferred`, `homeassistant/expose_entity` and `.../list`, plus the `tts`, `stt`, `conversation` and `wake_word` engine lists | assist |

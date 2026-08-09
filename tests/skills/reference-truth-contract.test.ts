@@ -208,4 +208,14 @@ describe("ha-api-matrix lists the surfaces skills actually pin (#517)", () => {
       ).toBe(true);
     }
   });
+
+  it("routes each matrix surface only to a skill that pins it", () => {
+    const matrix = read("docs/reference/ha-api-matrix.md");
+    const row = matrix.split("\n").find((l) => l.includes("`system_log/list`") && l.startsWith("| System log"));
+    expect(row, "System log row missing").toBeTruthy();
+    // health neither pins the command nor lists logs in its Relay contract;
+    // skill-architecture.md assigns system logs to diagnose alone.
+    expect(row).not.toContain("health");
+    expect(read("skills/diagnose/SKILL.md")).toContain("system_log/list");
+  });
 });
