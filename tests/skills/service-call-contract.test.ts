@@ -282,9 +282,17 @@ describe("service call contract", () => {
         ["backup.create", "ha-nova:backup"],
         ["conversation.process", "ha-nova:assist"],
       ]) {
+        // A row may name the service outright or cover its whole domain
+        // (`camera.*`), so accept either spelling — otherwise a later PR that
+        // consolidates a family silently loses its deferral.
+        const domainWildcard = `\`${service.split(".")[0]}.*\``;
         const row = skillDoc
           .split("\n")
-          .find((line) => line.startsWith("|") && line.includes(`\`${service}\``));
+          .find(
+            (line) =>
+              line.startsWith("|") &&
+              (line.includes(`\`${service}\``) || line.includes(domainWildcard)),
+          );
         expect(row, `no deferral row for ${service}`).toBeTruthy();
         expect(row, `${service} must defer to ${owner}`).toContain(owner);
       }
