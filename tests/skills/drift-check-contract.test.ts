@@ -52,8 +52,13 @@ describe("pre-write drift check covers every full-document write (#514)", () => 
     // be read as success.
     const y = flat(yamlConfig);
     expect(y).toContain("brand-new file: absence IS the basis");
-    expect(y).toContain("re-check with `list_dir` on its directory instead");
-    expect(y).toContain("writing would overwrite it unread");
+    expect(y).toContain("`FILE_NOT_FOUND` is the expected answer");
+    expect(y).toContain("treat it as success here, not as an error");
+    expect(y).toContain("writing would overwrite a file nobody read");
+    // list_dir caps at 500 entries and flags truncation, so it can report an
+    // existing file as absent — an exact-path probe cannot.
+    expect(y).toContain("Do not use `list_dir` for this");
+    expect(y).toContain("at most 500 entries");
   });
 
   it("keeps the two families that already had the STOP", () => {

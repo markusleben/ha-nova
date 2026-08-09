@@ -175,8 +175,10 @@ const WORD_BUDGETS: Record<string, number> = {
   // Pre-write drift check before the whole-file write (#514): the single-step
   // .bak reported success while reverting a concurrent edit. Codex round 1
   // moved the check behind the snapshot capture and split the brand-new-file
-  // case, whose basis is absence rather than content (measured 1541).
-  "yaml-config": 1560,
+  // case, whose basis is absence rather than content. Round 2 replaced the
+  // list_dir absence probe with an exact-path one: list_dir caps at 500
+  // entries and can report an existing file as absent (measured 1588).
+  "yaml-config": 1610,
   // Confirmation-code terminology replacing "token" wording (#392).
   // #452 canonical smallest-solution draft rule (17 words).
   todo: 1275,
