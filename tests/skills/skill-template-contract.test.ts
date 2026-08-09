@@ -111,6 +111,9 @@ const SAFETY_CORE_BLOCKS = ((): { mutation: string; readOnly: string } => {
 // TRANSITIVE load (lazy references), not these file sizes — write carries the
 // on-demand trigger list itself.
 const WORD_BUDGETS: Record<string, number> = {
+  // The bounded actionable-callback path the capability map advertises must
+  // exist in the skill that owns the user flow (#516, measured 1194).
+  notify: 1220,
   // pre-save snapshot capture + snapshot recovery guidance (Wave 2).
   energy: 1250,
   // consumer checks before area delete/rename/disable (Wave 1b) + metadata
@@ -201,7 +204,11 @@ const WORD_BUDGETS: Record<string, number> = {
   // remove deletes every device the entry owns), Matter/Thread, custom
   // sentences, local-calendar creation, and device categories; corrected the
   // Supervisor premise and the bounded-event roadmap (measured 3083).
-  fallback: 3120,
+  // Codex round 1 (#516): the Flow branches on the map's STATUS column, so
+  // "Relay-Ready" claims in prose were unreachable — bounded event capture,
+  // Thread status reads and custom sentences now carry their own rows AND
+  // their own mechanics sections (measured 3361).
+  fallback: 3400,
   // semantic-slot note on the read templates (Wave 0); pre-write cross-field
   // constraint checks + drift-check step (Wave 1); pre-delete snapshot
   // capture (Wave 2).

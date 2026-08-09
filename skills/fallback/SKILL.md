@@ -83,7 +83,8 @@ For every Relay-Ready call in this skill:
 | Integration onboarding (add / re-auth an integration via config flow) | Covered | integration-setup |
 | Firing custom events / triggering webhooks | Relay-Ready | this skill |
 | Custom-integration configuration APIs (Alarmo, Scheduler, Adaptive Lighting, Frigate, ...) | Relay-Ready | this skill |
-| Event Subscriptions | Roadmap Phase 1c | -- |
+| Event capture — bounded window (a button's event, a short watch after an action) | Relay-Ready | this skill; `mqtt` for MQTT topics |
+| Event streaming — continuous | Roadmap Phase 1c | -- |
 | Backups (status, create, inspect, delete) | Covered | backup |
 | Config snapshots (targeted capture/restore of automations, scripts, scenes, dashboards, helpers, energy prefs, metadata, YAML files) | Covered | the owning family skill (see `skills/ha-nova/config-snapshots.md`) |
 | Updates (pending, release notes, install, skip) | Covered | updates |
@@ -92,8 +93,9 @@ For every Relay-Ready call in this skill:
 | Zigbee / Z-Wave Config | External | -- (MQTT-level inspection of a Zigbee2MQTT setup: `mqtt`) |
 | Alarm / lock code management (lock user codes, alarm PINs) | External | -- (Home Assistant UI; codes never enter chat) |
 | Integration entry lifecycle (reload, enable/disable, options, remove) | Relay-Ready | this skill |
-| Matter / Thread | External for commissioning (companion app, BLE) | -- (status reads are Relay-Ready here) |
-| Assist custom sentences / intent scripts | Relay-Ready | yaml-config writes them, `assist` tests them |
+| Matter / Thread status (border router, datasets, node diagnostics) | Relay-Ready | this skill |
+| Matter / Thread commissioning | External | -- (companion app; BLE pairing is not an API surface) |
+| Assist custom sentences / intent scripts | Relay-Ready | this skill (file mechanics below); `assist` tests the result |
 | Creating a calendar (the `local_calendar` integration) | Covered | integration-setup |
 | Device category assignment | Not a Home Assistant surface | -- (devices carry no category; entity categories are `organize`) |
 
@@ -210,6 +212,47 @@ ha-nova relay core --method POST --path /api/config/config_entries/entry/<entry_
 entity that entry owns and is not undoable — preview the counts from
 `search/related` and take the typed confirmation code. Options flows are
 response-driven: submit exactly the fields the live step schema returned.
+
+### Assist Custom Sentences -- RELAY-READY
+
+Teach Assist a phrase Home Assistant does not understand out of the box. This
+needs the opt-in file access (`ha-nova:yaml-config` → Bootstrap explains how to
+turn it on); its own scope covers sensors, packages and themes, so the file
+mechanics live here.
+
+**Search:** `home assistant custom_sentences intent_script yaml 2026`
+
+**Experimental relay calls (no skill guardrails):**
+```text
+ha-nova relay files --data-file <payload-file>
+```
+Write `/config/custom_sentences/<lang>/<name>.yaml` — NOT `/config/ha_nova/`;
+Home Assistant only reads sentences from that fixed path. An `intent_script:`
+block in `configuration.yaml` supplies the action when the intent is new.
+
+**Verify:** reload with `conversation.reload`, then run the exact phrase
+through `ha-nova:assist` (`POST /api/conversation/process`) — a sentence file
+that parses is not a sentence Assist matched.
+
+**Risks:** `write_file` replaces the whole file, so read it first. A malformed
+sentence file makes the conversation agent drop ALL custom sentences, not just
+the new one — the assist test is what catches that.
+
+### Matter And Thread Status -- RELAY-READY
+
+Read-only network state for Matter/Thread setups: `otbr/info`,
+`thread/list_datasets`, `matter/node_diagnostics`. Commissioning stays
+external — it needs BLE from the companion app and is not an API surface.
+
+**Search:** `home assistant thread otbr websocket api matter diagnostics 2026`
+
+**Experimental relay calls (no skill guardrails):**
+```text
+ha-nova relay ws --data-file <payload-file>
+```
+
+**Risks:** none for the reads themselves; do not surface dataset credentials
+(a Thread operational dataset is a network key) in output.
 
 ### Device Config-Entry Detach -- RELAY-READY
 

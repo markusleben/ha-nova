@@ -30,6 +30,30 @@ describe("fallback capability map is complete and truthful (#516)", () => {
     }
   });
 
+  it("splits every status the Flow branches on, so no claim is unreachable", () => {
+    // Flow step 1 reads the STATUS column. A Relay-Ready claim in prose under
+    // a Roadmap/External row is never reached.
+    const rows = fallback.split("\n").filter((l) => l.startsWith("|"));
+    const find = (needle: string) => rows.find((r) => r.includes(needle));
+    expect(find("Event capture — bounded window")).toContain("Relay-Ready");
+    expect(find("Event streaming — continuous")).toContain("Roadmap");
+    expect(find("Matter / Thread status")).toContain("Relay-Ready");
+    expect(find("Matter / Thread commissioning")).toContain("External");
+    // A Relay-Ready row needs mechanics the Flow can execute.
+    expect(fallback).toContain("### Assist Custom Sentences -- RELAY-READY");
+    expect(fallback).toContain("### Matter And Thread Status -- RELAY-READY");
+    expect(flat(fallback)).toContain("`/config/custom_sentences/<lang>/<name>.yaml` — NOT `/config/ha_nova/`");
+  });
+
+  it("teaches the owning skill the bounded callback path it advertises", () => {
+    // Advertising a capability in fallback while the skill that owns the user
+    // flow still says it is impossible leaves it unreachable.
+    const notify = flat(read("skills/notify/SKILL.md"));
+    expect(notify).toContain("A bounded in-chat window is possible for an immediate tap");
+    expect(notify).toContain("say how long you will wait");
+    expect(notify).toContain("fall back to the automation when nothing arrives");
+  });
+
   it("stops claiming bounded event capture is unavailable", () => {
     // The envelope ships and ha-nova:mqtt uses it; only continuous streams
     // are still blocked.

@@ -59,7 +59,7 @@ Discovery:
    - A `message: "clear_notification"` with a matching `tag` removes a previously sent notification instead of sending a new one.
 3. Preview the exact payload (target + title + message + any `data`) and get confirmation — a notification is an irreversible, user-visible side effect.
 4. Send, then report what was sent where. There is no delivery receipt: a successful service call means Home Assistant accepted it, not that the phone displayed it — say so honestly.
-5. Actionable buttons: the button press arrives as a `mobile_app_notification_action` EVENT in Home Assistant. This skill cannot wait for it (the relay does not hold long subscriptions). To react to a press, the user needs an automation that listens for that event — hand off to `ha-nova:write` and explain the pattern instead of pretending to wait.
+5. Actionable buttons: the button press arrives as a `mobile_app_notification_action` EVENT in Home Assistant. This skill does not hold a long subscription for it, so the durable answer is an automation on `mobile_app_notification_action` (`ha-nova:write`). A bounded in-chat window is possible for an immediate tap — the `collect_events` envelope caps at ~10 s (`skills/ha-nova/relay-api.md`) — so offer it only when the user is standing at their phone, say how long you will wait, and fall back to the automation when nothing arrives. This skill cannot wait longer than that window (the relay does not hold long subscriptions). To react to a press, the user needs an automation that listens for that event — hand off to `ha-nova:write` and explain the pattern instead of pretending to wait.
 
 ## Persistent Notifications (Home Assistant UI)
 
