@@ -110,6 +110,15 @@ describe("per-domain service depth (#530)", () => {
 
   it("covers camera casting and the motion-detection toggle it used to disclaim", () => {
     expect(cameraSkill).toContain("`camera.play_stream`");
+    // The schema field is `media_player`; `media_player_entity_id` belongs to
+    // tts.speak, so the wrong name makes the call fail outright.
+    expect(cameraSkill).toContain('{"entity_id":"camera.<id>","media_player":"media_player.<id>"}');
+    expect(cameraSkill).toContain("NOT `media_player_entity_id`");
+    // Two entities, two capability gates.
+    expect(flat(cameraSkill)).toContain(
+      "the camera needs STREAM (bit 2) and the receiver needs PLAY_MEDIA (bit 512)",
+    );
+    expect(flat(cameraSkill)).toContain("never guess a player id");
     expect(cameraSkill).toContain("Verify on the RECEIVER's state");
     expect(cameraSkill).toContain("`camera.enable_motion_detection`");
     // The scope line must no longer read as excluding the toggle itself.
