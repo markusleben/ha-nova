@@ -99,14 +99,14 @@ The skill layer is in strong shape: the confirmation-tier model is structurally 
 
 - **C1:** 20 candidate areas verdicted (13 findings; groups, backup-restore posture, blueprints tiering, energy tariff/forecast audited clean). Dashboard screenshots vs ha-mcp: recommend explicit non-goal (needs a relay delta of size L).
 - **C2:** 10 dev-blog posts + 2026.8 BI list + feature flags screened — 4 hits, rest clean passes; 11 live read-only probes logged; time-bound claims verified; drift-log entry appended in this PR (clears the carried 2026.7 dev-blog backlog and screens 2026.8).
-- **C3:** line-level compare of relay ground truth vs relay-api/bridge-architecture/ha-api-matrix/PROJECT.md; all 51 capability-map rows checked (43 clean); intent matrix over domains × 9 verbs (non-trivial cells listed in #516/#518); terminology/link sweeps clean.
+- **C3:** line-level compare of relay ground truth vs relay-api/bridge-architecture/ha-api-matrix/PROJECT.md; all 50 capability-map rows checked (44 clean, 6 flagged); intent matrix over domains × 9 verbs (non-trivial cells listed in #516/#518); terminology/link sweeps clean.
 - **C4:** every destructive/high-consequence op tier-verified (op→tier table: 2 P1-adjacent defects, 45+ verified ok; declared exceptions judged sound); recovery-layer map complete and honest; 3 injection attack traces run — gates hold structurally; shell/jq interpolation clean except one diagnose regex.
 - **C5:** 41/41 safety.md rows triaged (14 valid at read-the-test depth, 4 broken citations, 23 relay-internal rows existence-checked as declared non-goal); 18 write-capable skills × top-3 rules matrixed; release timeline reconstructed end-to-end; allowlist diffed both directions (zero orphans today).
 - **C6:** 30 routing utterances (14 German) simulated — 19 clean, 9 degraded, 2 gaps; 7 files depth-audited; 10 skills output-rules-checked (9 compliant); 4 clients parity-compared (progressive enhancement uniformly implemented); example-vs-prose sweep over all 31 SKILL.md (23 explicitly clean).
 
 ## Cross-checks
 
-- Every fallback capability-map row: accounted (43 clean, 8 in findings #516/PR B).
+- Every fallback capability-map row: accounted — 50 rows at the audited commit (`fallback:44-93`): 44 clean, 6 flagged in findings (`:60`, `:76`, `:82`, `:84`, `:86`, `:90` → #516/PR B). Missing-row gaps (integration lifecycle, Matter/Thread, custom sentences, local calendar, device category) are #516 findings, not row counts.
 - Drift-log open item ("2026.7 dev-blog NOT SCREENED"): cleared by the entry landing with this PR; next watch items recorded (registry shims harden 2027.8, device-tracker deprecations 2027.7, `unit_class` breaks 2026.11).
 - Every pre-pass seed finding: mapped (seeds 1/4 → PR A + #517; 2/3 → PR B; 5 → PR A; 6 → #515; 7 → corrected above; 8 → drift-log entry; 9 → falsified; 10 → #521; 11 → #518; 12 → #513; 13 → #521; 14 → #522; 15 → this report's issue set).
 - Every `docs/reference/` file appears in at least one charter's coverage (matrix/bridge/safety/skill-architecture/comparison/relay-container/update-guide/testing/ha-doc-gate/freshness-patterns/census/client-integration/demo-recording/documentation-governance/ha-template-reference/hermes-platform-validation — the last four only via scope screens: no findings, low exposure).
