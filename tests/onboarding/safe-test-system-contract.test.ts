@@ -110,8 +110,13 @@ describe("safe test system contract", () => {
     expect(testFiles.length).toBeGreaterThan(50);
     expect(reachable.size).toBeGreaterThan(5);
 
+    // Tokenize the scripts: a substring test makes `foo.test.ts` look
+    // executed because it is a prefix of `foo.test.tsx` in some other script.
+    const scriptedPaths = new Set(
+      scripts.split(/[\s'"]+/).filter((token) => token.startsWith("tests/")),
+    );
     const orphans = testFiles.filter(
-      (file) => !manifest.has(file) && !scripts.includes(file)
+      (file) => !manifest.has(file) && !scriptedPaths.has(file)
     );
 
     // Unsuffixed behavior modules: this repo splits some suites into
@@ -152,7 +157,7 @@ describe("safe test system contract", () => {
     // Only entrypoints that actually run seed the traversal, so a cycle among
     // behavior modules cannot make itself reachable.
     for (const entry of vitestModules.filter(isEntrypoint)) {
-      if (manifest.has(entry) || scripts.includes(entry)) walk(entry);
+      if (manifest.has(entry) || scriptedPaths.has(entry)) walk(entry);
     }
     // Reaching a module is not running it: these export a register*Tests()
     // function the wrapper must CALL. An import whose call was deleted leaves
@@ -164,7 +169,7 @@ describe("safe test system contract", () => {
     // `// registerFooTests()` is exactly the deletion this guard exists to
     // catch, and a call sitting in a module nothing reaches never executes.
     const runningSources = vitestModules
-      .filter((file) => reachableModules.has(file) || manifest.has(file) || scripts.includes(file))
+      .filter((file) => reachableModules.has(file) || manifest.has(file) || scriptedPaths.has(file))
       .map((file) => stripComments(readFileSync(file, "utf8")))
       .join("\n");
     const uncalled = behaviorModules.filter((file) =>

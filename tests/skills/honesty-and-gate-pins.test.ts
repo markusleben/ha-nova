@@ -38,6 +38,12 @@ describe("honesty guarantees safety.md names but nothing asserted (#515)", () =>
 
   it("distinguishes an empty MQTT window from a retained replay", () => {
     const mqtt = flat(read("skills/mqtt/SKILL.md"));
+    // Pin the INTERPRETATION, not a phrase the output-format section also
+    // happens to carry: safety.md advertises that an empty window means
+    // nothing was published, which a timeout would not.
+    expect(mqtt).toContain("An EMPTY result is a real answer");
+    expect(mqtt).toContain("nothing published on that topic");
+    expect(mqtt).toContain("not a failure");
     expect(mqtt).toContain("Say explicitly when nothing arrived");
     // The guarantee is the SEPARATION, not the phrase: a contract that
     // counted replays as live traffic could still contain the words.
