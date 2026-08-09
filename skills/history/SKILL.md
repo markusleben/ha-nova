@@ -106,9 +106,11 @@ These slots render the Report shape (output-rules.md). Keep default output compa
 
 Whole-home and multi-entity windows: omitting `entity` from the logbook path
 returns everything that happened ("was ist heute Nacht passiert?") — allowed for
-windows up to 24 hours, summary-first, never a raw dump. `filter_entity_id`
-takes a comma-separated list for a small explicit set, which is how you compare
-two people's arrival times in one call.
+windows up to 24 hours, summary-first, never a raw dump. For a small explicit
+set, pass the ids as a comma-separated `entity` value on that LOGBOOK path —
+`filter_entity_id` belongs to the history endpoint, and using it here silently
+returns the whole home instead. That is how you compare two people's arrival
+times in one call.
 
 ## Guardrails
 

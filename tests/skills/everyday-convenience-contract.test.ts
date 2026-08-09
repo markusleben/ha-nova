@@ -31,6 +31,10 @@ describe("one-shot and temporary automations (#527)", () => {
     expect(p).toContain("offer to delete it — do not delete anything unprompted");
     // "every Monday" is an ordinary automation, not this pattern.
     expect(p).toContain("A recurring request (\"every Monday\") is NOT this pattern");
+    // A one-shot whose trigger never fires must still expire, or it goes off
+    // tomorrow — the exact surprise the pattern exists to prevent.
+    expect(p).toContain("A deadline-bound one-shot needs a second way out");
+    expect(p).toContain("The disable runs on both paths");
   });
 
   it("routes the intent from the write flow", () => {
@@ -66,6 +70,8 @@ describe("state-snapshot questions have an owner (#527)", () => {
   it("reaches the aliases a household actually curated", () => {
     const d = flat(discovery);
     expect(d).toContain("escalate ONCE to the full registry");
+    // A wrong-but-nonempty match must not skip the alias lookup.
+    expect(d).toContain("no results, or only matches the user rejects");
     expect(d).toContain("`list_for_display` does not carry them");
     expect(d).toContain("offer once to store it as an alias via `ha-nova:organize`");
   });
@@ -112,7 +118,10 @@ describe("flows that cost the user extra turns (#527)", () => {
     const history = flat(read("skills/history/SKILL.md"));
     expect(history).toContain("omitting `entity` from the logbook path");
     expect(history).toContain("windows up to 24 hours, summary-first");
-    expect(history).toContain("`filter_entity_id` takes a comma-separated list");
+    // The logbook path takes `entity`; filter_entity_id is the history
+    // endpoint's parameter and silently widens the query to the whole home.
+    expect(history).toContain("pass the ids as a comma-separated `entity` value");
+    expect(history).toContain("`filter_entity_id` belongs to the history endpoint");
   });
 
   it("offers to keep a repeated batch as a scene", () => {

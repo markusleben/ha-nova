@@ -225,6 +225,33 @@ actions:
     # the valve open.
 ```
 
+A deadline-bound one-shot needs a second way out. "Only today at 19:00" that
+never fires — Home Assistant was down, the trigger entity never reached its
+state — stays armed and goes off tomorrow, which is precisely the surprise the
+pattern exists to prevent. Give it an expiry the main trigger cannot skip:
+
+```yaml
+triggers:
+  - trigger: state
+    entity_id: sensor.washing_machine_state
+    to: "finished"
+    id: fired
+  - trigger: time
+    at: "23:59:00"
+    id: expired
+actions:
+  - choose:
+      - conditions: [{condition: trigger, id: fired}]
+        sequence:
+          - action: notify.mobile_app_phone
+            data: {message: "Laundry is done."}
+  - action: automation.turn_off
+    target: {entity_id: "{{ this.entity_id }}"}
+```
+
+The disable runs on both paths, so the automation is gone either way. Say in
+the preview when it expires.
+
 Rules for this family:
 - Label these `nova-oneshot` so the user can find and clear them later.
 - Say in the preview that it disables itself after running once, and that it
