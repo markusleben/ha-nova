@@ -112,7 +112,10 @@ const SAFETY_CORE_BLOCKS = ((): { mutation: string; readOnly: string } => {
 // on-demand trigger list itself.
 const WORD_BUDGETS: Record<string, number> = {
   // pre-save snapshot capture + snapshot recovery guidance (Wave 2).
-  energy: 1250,
+  // Pre-write drift check before save_prefs (#514, measured 1257): the
+  // post-save deep-equal check reported a lost foreign edit instead of
+  // preventing it.
+  energy: 1270,
   // consumer checks before area delete/rename/disable (Wave 1b) + metadata
   // snapshot capture (Wave 2).
   // Grouped-change-set opt-in + flow wiring (#391).
