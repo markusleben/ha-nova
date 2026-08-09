@@ -177,7 +177,11 @@ describe("safe test system contract", () => {
       .join("\n");
     const uncalled = behaviorModules.filter((file) =>
       registrarsOf(file).some(
-        (name) => !new RegExp(`\\b${name}\\s*\\(`).test(
+        // A registrar invocation is a STATEMENT, so it begins its line. The
+        // same name inside an assertion message or diagnostic string never
+        // does — and blanking string literals instead would need a JS parser,
+        // since one stray backtick in a fixture swallows the rest of a file.
+        (name) => !new RegExp(`^\\s*(await\\s+)?${name}\\s*\\(`, "m").test(
           runningSources.replace(new RegExp(`export\\s+(?:async\\s+)?function\\s+${name}`, "g"), ""),
         ),
       ),
