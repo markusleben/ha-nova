@@ -12,7 +12,8 @@ device.
 
 - `light.turn_on`: `brightness_pct` (0-100 — the skill displays brightness in
   percent), `color_temp_kelvin` (Kelvin), `rgb_color` (`[r,g,b]`),
-  `transition` (seconds), `effect` (from `effect_list`).
+  `transition` (seconds, bit 32), `effect` (from `effect_list`, bit 4). Colour
+  and brightness are gated by `supported_color_modes`, not by a feature bit.
 - Use `color_temp_kelvin`, not the older mireds field: Home Assistant's action
   schema documents Kelvin, and higher Kelvin means cooler light — the mireds
   scale ran the other way, so a converted number is not interchangeable.
@@ -20,6 +21,9 @@ device.
 
 ## Climate
 
+- Feature bits: TARGET_TEMPERATURE 1, TARGET_TEMPERATURE_RANGE 2,
+  TARGET_HUMIDITY 4, FAN_MODE 8, PRESET_MODE 16, SWING_MODE 32, TURN_OFF 128,
+  TURN_ON 256, SWING_HORIZONTAL_MODE 512.
 - `climate.set_temperature` takes EITHER a single `temperature` OR the pair
   `target_temp_high` + `target_temp_low`, which are required together when the
   entity targets a range (typically `hvac_mode: heat_cool`). Read the current
@@ -64,14 +68,16 @@ device.
 
 ## Vacuum
 
-- `vacuum.start` — the modern vacuum entity has no on/off, so `turn_on` is not
-  the way to start a clean. Also `pause`, `stop`, `return_to_base`, `locate`.
+- `vacuum.start` (bit 8192) — the modern vacuum entity has no on/off, so
+  `turn_on` is not the way to start a clean. Also `pause` (4), `stop` (8),
+  `return_to_base` (16), `locate` (512), `clean_spot` (1024),
+  `send_command` (256).
 - `vacuum.clean_area` (Home Assistant 2026.3+, feature bit 16384) takes
   `cleaning_area_id`, a list of Home Assistant AREA ids — this is the "clean
   the kitchen" request. It also requires the vacuum's own segments to be
   mapped to those areas once in the entity settings; when the bit is absent or
   the call reports unknown areas, name that prerequisite instead of retrying.
-- `set_fan_speed` values come from `fan_speed_list`. `send_command` is the
+- `set_fan_speed` (bit 32) values come from `fan_speed_list`. `send_command` is the
   integration-specific escape hatch — treat an unfamiliar command as an
   unfamiliar write and route through `ha-nova:fallback`.
 - States: `cleaning`, `docked`, `idle`, `paused`, `returning`, `error`.
@@ -79,8 +85,8 @@ device.
 
 ## Humidifier
 
-- `set_humidity` (`humidity` = target), `set_mode` (from `available_modes`),
-  `turn_on` / `turn_off`.
+- `set_humidity` (`humidity` = target), `set_mode` (from `available_modes` —
+  MODES is the domain's only feature bit, value 1), `turn_on` / `turn_off`.
 - `humidity` is the setpoint, `current_humidity` the sensor reading — the same
   split as climate. Dehumidifiers live in this domain too, told apart by
   `device_class`.

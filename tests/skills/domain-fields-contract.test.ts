@@ -88,6 +88,24 @@ describe("per-domain service depth (#530)", () => {
     }
   });
 
+  it("pins a feature bit for every gated action across the domains it lists", () => {
+    // /api/services exposes services at domain level, so the bit is the only
+    // per-entity gate. A row that names an action without its bit cannot be
+    // gated at all.
+    const gate = flat(domainFields);
+    for (const bit of [
+      "`transition` (seconds, bit 32)",
+      "`effect` (from `effect_list`, bit 4)",
+      "TARGET_TEMPERATURE_RANGE 2",
+      "SWING_HORIZONTAL_MODE 512",
+      "`vacuum.start` (bit 8192)",
+      "`set_fan_speed` (bit 32)",
+      "MODES is the domain's only feature bit, value 1",
+    ]) {
+      expect(gate, `missing capability bit: ${bit}`).toContain(bit);
+    }
+  });
+
   it("gives fan levels, humidifier and water-heater verification quirks, and siren bits", () => {
     const gate = flat(domainFields);
     expect(gate).toContain("`percentage_step`");
