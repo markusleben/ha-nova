@@ -9,7 +9,7 @@ import { resolve } from "path";
 
 const read = (p: string): string =>
   readFileSync(resolve(__dirname, "../../", p), "utf-8");
-const fallback = read("skills/fallback/SKILL.md");
+const fallback = read("skills/fallback/SKILL.md") + "\n" + read("skills/fallback/relay-ready.md");
 const matrix = read("docs/reference/ha-api-matrix.md");
 const flat = (text: string): string => text.replace(/\s+/g, " ");
 
@@ -166,7 +166,7 @@ describe("ha-api-matrix lists the surfaces skills actually pin (#517)", () => {
   });
 
   it("validates configuration.yaml before reloading, and tells the truth about intent_script", () => {
-    const fallback = flat(read("skills/fallback/SKILL.md"));
+    const fallback = flat(read("skills/fallback/SKILL.md") + "\n" + read("skills/fallback/relay-ready.md"));
     // An invalid configuration.yaml survives the failed reload and blocks the
     // NEXT boot — unrecoverable from inside this tool.
     expect(fallback).toContain("POST /api/config/core/check_config` FIRST");
@@ -180,8 +180,13 @@ describe("ha-api-matrix lists the surfaces skills actually pin (#517)", () => {
   });
 
   it("keeps every skill that writes configuration.yaml on the validate-first path", () => {
-    for (const file of ["skills/fallback/SKILL.md", "skills/yaml-config/SKILL.md"]) {
-      expect(flat(read(file)), `${file} writes configuration.yaml`).toContain("check_config");
+    // fallback's file mechanics live in its relay-ready split.
+    const writers: Array<[string, string]> = [
+      ["skills/fallback", read("skills/fallback/SKILL.md") + read("skills/fallback/relay-ready.md")],
+      ["skills/yaml-config/SKILL.md", read("skills/yaml-config/SKILL.md")],
+    ];
+    for (const [name, text] of writers) {
+      expect(flat(text), `${name} writes configuration.yaml`).toContain("check_config");
     }
   });
 

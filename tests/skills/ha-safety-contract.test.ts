@@ -128,7 +128,7 @@ describe("ha safety contract", () => {
 
   it("enforces fallback skill as mandatory for raw relay writes", () => {
     const context = readFileSync("skills/ha-nova/SKILL.md", "utf8");
-    const fallback = readFileSync("skills/fallback/SKILL.md", "utf8");
+    const fallback = readFileSync("skills/fallback/SKILL.md", "utf8") + "\n" + readFileSync("skills/fallback/relay-ready.md", "utf8");
 
     // Context skill: dispatch table marks fallback as mandatory
     expect(context).toContain("mandatory fallback");
@@ -160,7 +160,7 @@ describe("ha safety contract", () => {
 
   it("pins the write-probing asymmetry between WS and /core POST (#493)", () => {
     const relayApi = readFileSync("skills/ha-nova/relay-api.md", "utf8");
-    const fallback = readFileSync("skills/fallback/SKILL.md", "utf8");
+    const fallback = readFileSync("skills/fallback/SKILL.md", "utf8") + "\n" + readFileSync("skills/fallback/relay-ready.md", "utf8");
 
     // relay-api.md is the SSOT for the transport asymmetry; probing is
     // limited to documented read-only WS commands — the WS transport itself
@@ -204,7 +204,7 @@ describe("ha safety contract", () => {
   it("requires concise correction of invalid Home Assistant premises", () => {
     const router = readFileSync("skills/ha-nova/SKILL.md", "utf8");
     const writeSkill = readFileSync("skills/write/SKILL.md", "utf8");
-    const fallbackSkill = readFileSync("skills/fallback/SKILL.md", "utf8");
+    const fallbackSkill = readFileSync("skills/fallback/SKILL.md", "utf8") + "\n" + readFileSync("skills/fallback/relay-ready.md", "utf8");
 
     expect(router).toContain("invalid Home Assistant premises");
     expect(router).toContain("briefly and technically");

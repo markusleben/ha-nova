@@ -255,7 +255,7 @@ describe("helper contract", () => {
       const fallbackDoc = readFileSync(
         resolve(__dirname, "../../skills/fallback/SKILL.md"),
         "utf-8",
-      );
+      ) + "\n" + readFileSync(resolve(__dirname, "../../skills/fallback/relay-ready.md"), "utf-8");
       const supportedTypesLine = fallbackDoc
         .split("\n")
         .find((line) => line.includes("Supported types in this fallback section:"));
