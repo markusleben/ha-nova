@@ -200,19 +200,38 @@ triggers:
     entity_id: sensor.washing_machine_state
     to: "finished"
 actions:
-  - action: notify.mobile_app_phone
-    data:
-      message: "Laundry is done."
   - action: automation.turn_off
     target:
       entity_id: "{{ this.entity_id }}"
+    data:
+      stop_actions: false
+  - action: notify.mobile_app_phone
+    data:
+      message: "Laundry is done."
 ```
+
+Two details carry this pattern, and both are easy to get backwards:
+
+- **Disable FIRST, act second.** Home Assistant aborts an action sequence when
+  a step errors, so a disable placed last never runs if the notification
+  service is down or rejects its payload — and the one-shot stays armed for
+  the next matching transition, firing days later with nobody expecting it.
+  Disabling first makes "at most once" hold even when the action fails.
+- **`stop_actions: false` is not optional.** That field defaults to `true`, so
+  an automation turning ITSELF off cancels its own remaining steps — the
+  notification would never be sent.
 
 `{{ this.entity_id }}` avoids naming the automation inside itself, so a rename
 cannot break the disable step.
 
-For a timed action ("sprinkler for 30 minutes"), act now and schedule the
-counter-action the same way rather than sleeping inside a run:
+A duration-bound request ("run the sprinkler for 30 minutes") is a WRITE, not
+a service call, even though it starts with one. `ha-nova:service-call` runs
+the turn-on and stops there; nothing schedules the turn-off. Route the whole
+request to `ha-nova:write`, which builds both halves — say plainly that you
+are creating a short-lived automation rather than just switching something on.
+
+Act now and schedule the counter-action the same way rather than sleeping
+inside a run:
 
 ```yaml
 actions:

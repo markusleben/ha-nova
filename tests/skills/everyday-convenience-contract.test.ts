@@ -142,4 +142,31 @@ describe("flows that cost the user extra turns (#527)", () => {
     // One offer, then silence — this is a suggestion, not a nag.
     expect(sc).toContain("After a single decline, stay silent about it for the session");
   });
+
+  it("makes the one-shot disable survive a failing action", () => {
+    const p = flat(read("skills/ha-nova/automation-patterns.md"));
+    // HA aborts the sequence on an error, so a trailing disable never runs and
+    // the one-shot stays armed for the next matching transition.
+    expect(p).toContain("Disable FIRST, act second");
+    expect(p).toContain("a disable placed last never runs if the notification");
+    // Verified against the live instance: automation.turn_off defaults
+    // stop_actions to true, so self-disabling cancels its own remaining steps.
+    expect(p).toContain("`stop_actions: false` is not optional");
+    expect(p).toContain("cancels its own remaining steps");
+  });
+
+  it("routes duration-bound requests to write, not service-call", () => {
+    expect(flat(read("skills/ha-nova/SKILL.md"))).toContain(
+      "do something FOR a duration",
+    );
+    expect(flat(read("skills/ha-nova/automation-patterns.md"))).toContain(
+      "is a WRITE, not a service call",
+    );
+  });
+
+  it("stops a relative move that has no value to be relative to", () => {
+    const sc = flat(read("skills/service-call/SKILL.md"));
+    expect(sc).toContain("STOP the relative operation and say so");
+    expect(sc).toContain("would have to invent the number it is relative to");
+  });
 });
