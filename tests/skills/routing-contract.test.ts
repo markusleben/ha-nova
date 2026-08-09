@@ -100,9 +100,14 @@ describe("dispatch examples for the rows that had none (#518)", () => {
 
 describe("load-bearing rules referenced from where they apply (#518)", () => {
   it("points the fallback execute step at its own endpoint-type table", () => {
-    expect(flat(read("skills/fallback/SKILL.md"))).toContain(
-      "Classify the endpoint per Write Safety by Endpoint Type (below) BEFORE drafting",
+    const fb = flat(read("skills/fallback/SKILL.md"));
+    expect(fb).toContain(
+      "If the endpoint matches a row in Write Safety by Endpoint Type (below), classify it BEFORE drafting",
     );
+    // The table has no row for response-driven flows or blueprint/save, so a
+    // blanket classification requirement would stall documented operations.
+    expect(fb).toContain("Endpoints the table does not cover");
+    expect(fb).toContain("follow the schema the research step returned");
   });
 
   it("echoes verify-before-flag where findings are generated", () => {
@@ -119,9 +124,13 @@ describe("load-bearing rules referenced from where they apply (#518)", () => {
     // for something the first source already settled.
     expect(checks).toContain("skills/ha-nova/template-guidelines.md");
     expect(checks).toContain("home-assistant.io/docs/automation/trigger/");
+    // Most of the catalog flags valid-but-risky config, so demanding schema
+    // invalidity would suppress even HIGH runtime hazards.
+    expect(checks).toContain("Flag it when the settling source confirms the CLAIM you are making");
     expect(checks).toContain(
-      "Flag it only when whichever source settled it says the config is invalid",
+      "configurations Home Assistant accepts happily and that still misbehave",
     );
+    expect(checks).toContain('"valid YAML" never clears them');
     expect(checks).toContain("Unresolved means unresolved");
   });
 
@@ -140,6 +149,10 @@ describe("load-bearing rules referenced from where they apply (#518)", () => {
     expect(flat(read("skills/diagnose/SKILL.md"))).toContain(
       "Substitute only an `entity_id`, domain, or integration slug",
     );
-    expect(flat(read("skills/diagnose/SKILL.md"))).toContain("A friendly name can contain");
+    expect(flat(read("skills/diagnose/SKILL.md"))).toContain("never a friendly name");
+    // entity_id is not literal either: the domain separator is a wildcard.
+    expect(flat(read("skills/diagnose/SKILL.md"))).toContain(
+      "the `.` in `sensor.kitchen` is a regex wildcard",
+    );
   });
 });

@@ -57,7 +57,7 @@ Only where the log file exists (Container/Core installs; on HA OS/Supervised the
    ```jq
    .data.body | split("\n")[] | select(test("<entity_or_integration>|ERROR"; "i"))
    ```
-   `-r` is required for raw text output — `relay core --jq` does not support it, so the filtering happens in this second step. Substitute only an `entity_id`, domain, or integration slug into that pattern: those charsets are regex-safe. A friendly name can contain `(`, `)`, `.` or `|` and would break the filter or silently widen it.
+   `-r` is required for raw text output — `relay core --jq` does not support it, so the filtering happens in this second step. Substitute only an `entity_id`, domain, or integration slug — never a friendly name, which can contain `(`, `)` or `|` and would break the filter. Even a slug is not literal: the `.` in `sensor.kitchen` is a regex wildcard, so escape it (`sensor\\.kitchen`) or the filter also matches `sensor_kitchen` and reports unrelated lines as evidence.
 
 ## Flow
 

@@ -27,8 +27,13 @@ against a source rather than memory, in this order:
    <https://www.home-assistant.io/docs/scripts/>, templating
    <https://www.home-assistant.io/docs/configuration/templating/>, YAML schema
    <https://www.home-assistant.io/docs/automation/yaml/>.
-3. Flag it only when whichever source settled it says the config is invalid.
-   Unresolved means unresolved: report it as a question, never as an error.
+3. Flag it when the settling source confirms the CLAIM you are making. Most
+   of this catalog is not about schema validity: R-02, R-06, P-04 and M-05
+   describe configurations Home Assistant accepts happily and that still
+   misbehave, deprecate, or fire at the wrong moment. For those the source
+   must confirm the semantics or the risk — "valid YAML" never clears them.
+   Only schema-shaped checks need the source to call the config invalid.
+4. Unresolved means unresolved: report it as a question, never as an error.
 
 This applies wherever findings are generated — the standalone review flow and
 the post-write phases in write, helper, and yaml-config alike, which load this

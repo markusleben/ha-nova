@@ -136,9 +136,10 @@ const WORD_BUDGETS: Record<string, number> = {
   // step, and the prerelease-toggle rule (measured 2217).
   hacs: 2250,
   // Cards adoption pointer (#389).
-  // Charset restriction on the value interpolated into the log-filter regex
-  // — a friendly name can break or widen it (#518, measured 1515).
-  diagnose: 1530,
+  // Charset restriction on the value interpolated into the log-filter regex,
+  // plus the escaping rule Codex round 1 added: an entity_id is not literal
+  // either, since its domain separator is a regex wildcard (#518, 1536).
+  diagnose: 1560,
   // Report-shape declaration line (shared output shapes); repair dedup,
   // attention-threshold definition, cause↔symptom linking (2026-h2 Wave 1c).
   // Table-first redesign: report modes, block shape, ten-block order,
