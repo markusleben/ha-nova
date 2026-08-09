@@ -175,7 +175,8 @@ File access defaults to off. When enabled, the Relay enforces a deny-list (`.sto
 | REST sensor YAML | `/config/ha_nova/sensors/rest/*.yaml` | No config flow available |
 | Command line sensor YAML | `/config/ha_nova/sensors/command_line/*.yaml` | No config flow available |
 | Patch configuration.yaml | `/config/configuration.yaml` | For `!include_dir_merge_list` entries |
-| Backups (raw file download/upload) | `/data/backups/` | Planned; lifecycle (status/create/inspect/delete) is covered via `/ws` `backup/*` (`ha-nova:backup`) |
+
+Raw backup file transfer (`/data/backups/`) is planned host-filesystem tooling — NOT reachable via `/files`, whose paths must stay inside `/config`. Backup lifecycle (status/create/inspect/delete) stays on WS `backup/*` (`ha-nova:backup`).
 
 **Sensor types with config flow (no YAML needed):** SQL, Scrape, Template (limited)
 **YAML-only sensor types:** REST, Command Line
