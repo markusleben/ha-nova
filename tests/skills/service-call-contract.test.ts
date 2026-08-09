@@ -332,10 +332,13 @@ describe("service call contract", () => {
       expect(skillDoc).toContain("skills/ha-nova/indirect-actuation.md");
       // Every spelling of a script run is covered: main previously gated
       // only "direct script.*", while test-run steers toward script.turn_on.
+      // The Flow entry keys on the target domain — a service-name list can
+      // always be walked around by an alias. The exhaustive spellings live in
+      // the shared gate document, checked below.
       for (const trigger of [
-        "`scene.turn_on`/`scene.apply`",
-        "`automation.trigger`",
-        "`script.<script_id>`, `script.turn_on`, `script.toggle`",
+        "decided by the TARGET, not the service name",
+        "any call whose target is in `scene`, `script`, or `automation`",
+        "`homeassistant.turn_on`/`turn_off`/`toggle` on `script.open_door` is a script run",
         "`input_button.press` and `button.press`",
       ]) {
         expect(skillDoc).toContain(trigger);
@@ -507,5 +510,23 @@ describe("service call contract", () => {
       expect(adminSkill).toContain("not the ordinary create tier");
       expect(contextSkill).toContain("user-account creation");
     });
+  });
+
+  it("reads a Template button's own action instead of trusting search/related", () => {
+    const gate = flat(indirectActuation);
+    // Every spelling of a script run still has to be enumerated somewhere.
+    for (const spelling of [
+      "`scene.turn_on`, `scene.apply`",
+      "`automation.trigger`",
+      "`script.<script_id>`, `script.turn_on`, `script.toggle`",
+    ]) {
+      expect(gate).toContain(spelling);
+    }
+    // Live registry sample: 131 buttons across 16 integrations, none of them
+    // template — blanket escalation would gate every restart/identify button.
+    expect(gate).toContain('`pl: "template"` is a');
+    expect(gate).toContain("`search/related` returning nothing proves nothing");
+    expect(gate).toContain("if you cannot read it, escalate");
+    expect(gate).toContain("is an integration button whose behaviour");
   });
 });

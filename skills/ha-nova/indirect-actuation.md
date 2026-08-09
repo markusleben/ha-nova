@@ -82,6 +82,19 @@ Then:
 - Trigger sources expand the other way: `search/related` on the target, then
   read the actions of every automation it triggers. The classic pattern is a
   helper toggle that another automation answers by unlocking a door.
+- A `button` is the exception among trigger sources, because it can carry the
+  action itself instead of handing it to an automation. The registry field
+  `pl` (platform) decides which kind you have: `pl: "template"` is a
+  user-authored button whose press action lives in the button, so
+  `search/related` returning nothing proves nothing. Read the action — the
+  helper-created ones through their config entry, YAML-defined ones only from
+  the file if `ha-nova:yaml-config` has read access — and if you cannot read
+  it, escalate: an arbitrary user-written action is exactly the unenumerable
+  case below, and a person who wrote `lock.unlock` into a button did not make
+  it safer by writing it in YAML. Every other platform (`unifi`, `esphome`,
+  `mqtt`, `shelly`, `reolink`, ...) is an integration button whose behaviour
+  is fixed by that integration — restart, identify, update — and stays
+  ordinary.
 
 ## Classifying what you found
 
