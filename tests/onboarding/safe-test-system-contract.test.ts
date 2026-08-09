@@ -168,8 +168,10 @@ describe("safe test system contract", () => {
       }
     };
     // Only entrypoints that actually run seed the traversal, so a cycle among
-    // behavior modules cannot make itself reachable.
-    for (const entry of vitestModules.filter(isEntrypoint)) {
+    // behavior modules cannot make itself reachable. Seed from ALL modules: a
+    // wrapper whose body is nothing but side-effect imports of self-
+    // registering suites never imports vitest itself, and Vitest still runs it.
+    for (const entry of allModules.filter(isEntrypoint)) {
       if (manifest.has(entry) || scriptedPaths.has(entry)) walk(entry);
     }
     // Reaching a module is not running it: these export a register*Tests()
@@ -181,7 +183,9 @@ describe("safe test system contract", () => {
     // Search only the code that RUNS, with comments removed. A commented-out
     // `// registerFooTests()` is exactly the deletion this guard exists to
     // catch, and a call sitting in a module nothing reaches never executes.
-    const runningSources = vitestModules
+    // Search every RUNNING module, vitest-importing or not: a reachable
+    // aggregator is where the register*Tests() call often lives.
+    const runningSources = allModules
       .filter((file) => reachableModules.has(file) || manifest.has(file) || scriptedPaths.has(file))
       .map((file) => stripComments(readFileSync(file, "utf8")))
       .join("\n");
