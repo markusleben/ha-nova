@@ -76,8 +76,9 @@ Then:
   its listeners run too. Apply the same consumer scan the direct path uses
   (`skills/ha-nova/consumer-discovery-preflight.md` — scan readable automation
   configs for that exact `event_type`) and classify what they do. Listeners
-  that are not enumerable (templated event types, non-automation consumers)
-  are unresolved, so an access-capable listener among them escalates.
+  that are not enumerable (templated event types, non-automation consumers
+  such as Node-RED or AppDaemon) cannot be judged access-capable or not, so
+  their presence escalates the run on its own — see the exceptions below.
 - Trigger sources expand the other way: `search/related` on the target, then
   read the actions of every automation it triggers. The classic pattern is a
   helper toggle that another automation answers by unlocking a door.
@@ -100,12 +101,17 @@ Integration-owned scenes (Hue and similar) have no Home Assistant config and
 return 404. Templated targets resolve only at runtime. An utterance is never
 enumerable at all.
 
-One exception comes first, because it is not really an unknown: when the stored
-ACTION is access-capable (`lock.unlock`, `lock.open`, `alarm_control_panel.
-alarm_disarm`, an access cover opening) and only its TARGET is templated, the
-service already proves what the run grants. Hiding the entity id behind a
-template does not make it unknown — escalate to the typed tier and say which
-entity could not be resolved.
+Two exceptions come first, because they are not really unknowns.
+
+When the stored ACTION is access-capable (`lock.unlock`, `lock.open`,
+`alarm_control_panel.alarm_disarm`, an access cover opening) and only its
+TARGET is templated, the service already proves what the run grants. Hiding
+the entity id behind a template does not make it unknown — escalate to the
+typed tier and say which entity could not be resolved.
+
+When the ACTION NAME itself is templated, or an event listener cannot be
+enumerated, you know nothing about what it does — and "I could not read it"
+is not evidence that it is harmless. Escalate.
 
 Otherwise these are limits Home Assistant imposes: stay at the ordinary tier
 and name in the preview which members you could not classify. Do not escalate everything

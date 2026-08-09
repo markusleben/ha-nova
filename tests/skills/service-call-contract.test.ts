@@ -397,7 +397,12 @@ describe("service call contract", () => {
       // A stored event: action reaches its listeners, which the config being
       // read does not name.
       expect(gate).toContain("A stored `event:` action reaches further");
-      expect(gate).toContain("an access-capable listener among them escalates");
+      expect(gate).toContain("their presence escalates the run on its own");
+      // "I could not read it" is not evidence of harmlessness.
+      expect(gate).toContain("When the ACTION NAME itself is templated");
+      expect(gate).toContain(
+        'is not evidence that it is harmless',
+      );
     });
 
     it("states the config-read path the gate depends on", () => {
@@ -418,7 +423,7 @@ describe("service call contract", () => {
       expect(gate).toContain("return 404");
       // A templated target hides the entity, not the action: an access-capable
       // service still proves what the run grants.
-      expect(gate).toContain("when the stored ACTION is access-capable");
+      expect(gate).toContain("When the stored ACTION is access-capable");
       expect(gate).toContain("Hiding the entity id behind a template does not make it unknown");
       expect(gate).toContain("stay at the ordinary tier and name in the preview");
       expect(gate).toContain(
