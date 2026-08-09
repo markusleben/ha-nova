@@ -44,7 +44,7 @@ Use file-based payloads for service writes:
 |---|---|
 | `mqtt.publish` | `ha-nova:mqtt` |
 | `update.install` / `update.skip` / `update.clear_skipped` | `ha-nova:updates` |
-| `camera.snapshot` / `camera.record` / `camera.turn_on` / `camera.turn_off` | `ha-nova:camera` |
+| `camera.*` (snapshot, record, power, `play_stream`, motion detection) | `ha-nova:camera` |
 | `media_player.*` / `tts.*` | `ha-nova:media` |
 | `notify.*` / `persistent_notification.*` | `ha-nova:notify` |
 | `logger.set_level` | `ha-nova:diagnose` |
