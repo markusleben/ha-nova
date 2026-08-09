@@ -314,8 +314,13 @@ describe("indirect actuation and owning-skill deferrals (#513)", () => {
     const doc = flat(skillDoc);
     // An App is addressed by slug; there is no entity to read before or after.
     expect(doc).toContain("The target is an App SLUG, not an entity");
-    expect(doc).toContain("an App's display name is not its slug");
-    expect(doc).toContain("re-reading `/addons/<slug>/info`");
+    // Probed live: the relay passes only /api/..., and HA answers its
+    // /api/hassio/... proxy with 403 — so the slug comes from the update
+    // entity's entity_picture, and App state is simply not readable here.
+    expect(doc).toContain("The Supervisor API is NOT reachable from here");
+    expect(doc).toContain("`entity_picture` is `/api/hassio/addons/<slug>/icon`");
+    expect(doc).toContain("App state cannot be verified from here");
+    expect(doc).toContain("Never infer success from the service call returning");
     // A host reboot takes the transport with it, so success is unobservable.
     expect(doc).toContain("Never report success: you will not be there to see it");
     expect(doc).toContain("needs physical access to come back");
