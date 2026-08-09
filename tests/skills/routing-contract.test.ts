@@ -151,8 +151,13 @@ describe("load-bearing rules referenced from where they apply (#518)", () => {
     expect(checks).toContain("Unresolved means unresolved");
     // Scene/dashboard/cross-item families have no doc page; their evidence is
     // the live data, or the gate silences them by construction.
-    expect(checks).toContain("the authoritative source is the live");
-    expect(checks).toContain("proven by that data, not by a doc page");
+    // Live data proves the observation; only a source proves the consequence.
+    expect(checks).toContain("EXISTENCE and JOIN facts");
+    expect(checks).toContain("The BEHAVIOURAL claim attached to them");
+    expect(checks).toContain(
+      "State the observation from the data and the consequence from the source",
+    );
+    expect(checks).toContain("If only the observation holds, report the observation");
   });
 
   it("names the payload shapes that were documented nowhere", () => {

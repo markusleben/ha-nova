@@ -34,11 +34,19 @@ against a source rather than memory, in this order:
    misbehave, deprecate, or fire at the wrong moment. For those the source
    must confirm the semantics or the risk — "valid YAML" never clears them.
    Only schema-shaped checks need the source to call the config invalid.
-4. For families the reference docs do not cover — SC (scenes), D
-   (dashboards), HX (cross-item) — the authoritative source is the live
-   evidence this run already read: the stored config, the registry, the
-   entity state. A scene capturing two mixed colour attributes or a card
-   pointing at a missing resource is proven by that data, not by a doc page.
+4. Scene, dashboard and cross-item families split their evidence in two, and
+   conflating the halves is how an unsupported finding gets shipped:
+   - EXISTENCE and JOIN facts — this card references a resource that is not
+     in `lovelace/resources`, this scene captures two colour attributes, this
+     entity_id appears in three automations — come from the live data the run
+     already read. Nothing else can prove them.
+   - The BEHAVIOURAL claim attached to them — that mixed colour attributes
+     reproduce wrong, that a domain is not reproducible, that a field is
+     required — comes from `skills/scene/SKILL.md` → Capture attributes
+     deliberately, `skills/dashboard/SKILL.md` → Critical behavior, and the
+     Lovelace and scene pages on home-assistant.io.
+   State the observation from the data and the consequence from the source.
+   If only the observation holds, report the observation.
 5. Unresolved means unresolved: report it as a question, never as an error.
 
 This applies wherever findings are generated — the standalone review flow and
