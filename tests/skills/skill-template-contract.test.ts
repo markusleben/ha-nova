@@ -200,7 +200,9 @@ const WORD_BUDGETS: Record<string, number> = {
   // (2026-h2 Wave 1b).
   // Reverse boundary against health, so the long-unavailable report reads as
   // a cleanup qualifier rather than a status answer (#518, measured 1408).
-  maintenance: 1420,
+  // Codex round 6: the long-unavailable boundary has to be advertised on the
+  // receiving side too, or routing never reaches it (measured 1427).
+  maintenance: 1470,
   // blueprint payload examples; integration onboarding and runtime
   // events/webhooks moved to owning skills in Wave 4.
   // Custom-integration configuration APIs section + write-probing

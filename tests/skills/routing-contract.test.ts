@@ -227,4 +227,13 @@ describe("load-bearing rules referenced from where they apply (#518)", () => {
       `these skills cannot be loaded by a YAML-parsing client:\n  ${broken.join("\n  ")}`,
     ).toEqual([]);
   });
+
+  it("advertises the long-unavailable boundary on both sides", () => {
+    // Subskills are selected from their own frontmatter, so moving a boundary
+    // in one skill's prose does nothing until the OTHER skill's description
+    // says it owns the request.
+    const maintenance = read("skills/maintenance/SKILL.md").split("---")[1] ?? "";
+    expect(maintenance).toContain("how long an entity has been unavailable");
+    expect(maintenance).toContain("use ha-nova:health");
+  });
 });
