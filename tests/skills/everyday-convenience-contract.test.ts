@@ -162,8 +162,12 @@ describe("flows that cost the user extra turns (#527)", () => {
     const patterns = flat(read("skills/ha-nova/automation-patterns.md"));
     expect(patterns).toContain("is a WRITE, not a service call");
     // Routing it to write is only correct if write also does the NOW half.
-    expect(patterns).toContain("write performs the immediate action itself");
-    expect(patterns).toContain("say the action already ran and offer to undo it");
+    // Order is the safety property: a failed automation write must leave
+    // nothing running, and the deadline must survive HA being down.
+    expect(patterns).toContain("create the expiry automation FIRST");
+    expect(patterns).toContain("nothing has been turned on yet and there is nothing to undo");
+    expect(patterns).toContain("A bare `time` trigger is MISSED, not replayed");
+    expect(patterns).toContain("trigger: homeassistant");
   });
 
   it("stops a relative move that has no value to be relative to", () => {

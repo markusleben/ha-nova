@@ -230,26 +230,41 @@ the turn-on and stops there; nothing schedules the turn-off. Route the whole
 request to `ha-nova:write`, which owns both halves — say plainly that you are
 creating a short-lived automation rather than just switching something on.
 
-Both halves means both: write performs the immediate action itself
-(`POST /api/services/<domain>/<service>` on the named target) and creates the
-expiry automation, in one preview covering the two. Creating only the
-automation leaves the sprinkler off until a turn-off fires that has nothing to
-turn off, and running only the action leaves the valve open — so if the write
-fails after the action, say the action already ran and offer to undo it.
+Both halves means both, and the ORDER is the safety property: create the
+expiry automation FIRST, verify it exists, and only then run the immediate
+action. Reverse that and a failed automation write leaves the valve open with
+nothing scheduled to close it — reporting the partial result does not help a
+user who has already walked away. Both go under one preview; if the automation
+write fails, nothing has been turned on yet and there is nothing to undo.
 
-Act now and schedule the counter-action the same way rather than sleeping
-inside a run:
+The counter-action must also survive Home Assistant being down at the
+deadline. A bare `time` trigger is MISSED, not replayed, so the valve stays
+open until someone notices. Give the expiry automation a second trigger on
+startup and let a condition decide:
 
 ```yaml
+alias: "One-shot: close irrigation valve at 19:30"
+mode: single
+triggers:
+  - trigger: time
+    at: "19:30:00"
+  - trigger: homeassistant
+    event: start
+conditions:
+  # on the time path this is already true; on the startup path it catches a
+  # deadline that passed while Home Assistant was off
+  - condition: template
+    value_template: "{{ now() >= today_at('19:30') }}"
 actions:
-  - action: valve.open_valve
-    target: {entity_id: valve.irrigation_lawn}
+  - action: automation.turn_off
+    target: {entity_id: "{{ this.entity_id }}"}
+    data: {stop_actions: false}
   - action: valve.close_valve
     target: {entity_id: valve.irrigation_lawn}
-    # inside a `delay` only for short waits; for 30 minutes prefer a second
-    # self-disabling automation on a `time` trigger so a restart cannot strand
-    # the valve open.
 ```
+
+A `delay` inside the run is for short waits only — it does not survive a
+restart at all.
 
 A deadline-bound one-shot needs a second way out. "Only today at 19:00" that
 never fires — Home Assistant was down, the trigger entity never reached its
