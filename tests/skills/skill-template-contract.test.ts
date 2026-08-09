@@ -183,7 +183,12 @@ const WORD_BUDGETS: Record<string, number> = {
   // Ceiling covers the COMBINED merge: #513, #530, #518 and #527 all add to
   // service-call and each measured itself in isolation. A prefix scan of the
   // train shows only the LAST merge overflowing; at 3606 after round 6.
-  "service-call": 3900,
+  // Combined-merge ceiling with headroom, deliberately. Four PRs edit
+  // service-call and each measured itself alone; chasing the exact merged
+  // total each round just reopens this file. The per-PR ceilings still hold
+  // the ratchet — this one only has to keep main from breaking on the last
+  // merge. Measured 3963 at the time of writing.
+  "service-call": 4200,
   // Carries the canonical File-Change Preview example — the only layout
   // source for file edits; concrete examples are what make a card renderable.
   // Sibling-survival verification (Wave 1b) + yaml snapshot capture with
