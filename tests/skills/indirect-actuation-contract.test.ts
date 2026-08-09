@@ -111,7 +111,7 @@ describe("indirect actuation and owning-skill deferrals (#513)", () => {
       for (const trigger of [
         "decided by the TARGET, not the service name",
         "any call whose target is in `scene`, `script`, or `automation`",
-        "`homeassistant.turn_on`/`turn_off`/`toggle` on `script.open_door` is a script run",
+        "`homeassistant.turn_on`/`turn_off`/`toggle` on `script.open_door` reaches it too",
         "`input_button.press` and `button.press`",
       ]) {
         expect(skillDoc).toContain(trigger);
@@ -342,5 +342,21 @@ describe("indirect actuation and owning-skill deferrals (#513)", () => {
     // there, the thing that could not be read is the consumer itself.
     expect(gate).toContain("does not apply to trigger sources");
     expect(gate).toContain("the unread thing IS the consumer");
+  });
+
+  it("does not render the ordinary confirmation menu on the typed tier", () => {
+    const doc = flat(skillDoc);
+    // A gate that assigns a tier and then offers "apply" has assigned nothing.
+    expect(doc).toContain("Unless Safety put this call on the typed tier");
+    expect(doc).toContain("the only accepted answer is the exact `confirm:<token>`");
+    expect(doc).toContain("including when the tier came from an EXPANDED member");
+  });
+
+  it("lets the read state, not the alias, decide whether a call is a run", () => {
+    const doc = flat(skillDoc);
+    expect(doc).toContain("Entering the gate is not the same as being a run");
+    expect(doc).toContain("on a RUNNING script stops it and expands nothing");
+    // The Flow entry must not pre-classify the alias as a run.
+    expect(doc).not.toContain("on `script.open_door` is a script run");
   });
 });

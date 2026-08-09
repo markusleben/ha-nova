@@ -182,7 +182,7 @@ const WORD_BUDGETS: Record<string, number> = {
   // (measured 3252).
   // Codex round 10: a Template button runs a stored action, so `button.press`
   // is an indirect run rather than a toggle (measured ~3270).
-  "service-call": 3620,
+  "service-call": 3720,
   // Carries the canonical File-Change Preview example — the only layout
   // source for file edits; concrete examples are what make a card renderable.
   // Sibling-survival verification (Wave 1b) + yaml snapshot capture with
