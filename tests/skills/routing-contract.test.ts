@@ -40,9 +40,11 @@ describe("description-level routing (#518)", () => {
   });
 
   it("excludes Alexa and Google from the assist description", () => {
-    expect(description("assist")).toContain(
-      "Not for Alexa or Google Assistant",
-    );
+    const d = description("assist");
+    expect(d).toContain("Not for Alexa or Google Assistant");
+    // Setup and failure are different intents with different owners; a
+    // blanket handoff would route an incident away from root-cause analysis.
+    expect(d).toContain("one that STOPPED working is a concrete failure for `ha-nova:diagnose`");
   });
 });
 
@@ -147,6 +149,10 @@ describe("load-bearing rules referenced from where they apply (#518)", () => {
     );
     expect(checks).toContain('"valid YAML" never clears them');
     expect(checks).toContain("Unresolved means unresolved");
+    // Scene/dashboard/cross-item families have no doc page; their evidence is
+    // the live data, or the gate silences them by construction.
+    expect(checks).toContain("the authoritative source is the live");
+    expect(checks).toContain("proven by that data, not by a doc page");
   });
 
   it("names the payload shapes that were documented nowhere", () => {

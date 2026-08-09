@@ -34,7 +34,12 @@ against a source rather than memory, in this order:
    misbehave, deprecate, or fire at the wrong moment. For those the source
    must confirm the semantics or the risk — "valid YAML" never clears them.
    Only schema-shaped checks need the source to call the config invalid.
-4. Unresolved means unresolved: report it as a question, never as an error.
+4. For families the reference docs do not cover — SC (scenes), D
+   (dashboards), HX (cross-item) — the authoritative source is the live
+   evidence this run already read: the stored config, the registry, the
+   entity state. A scene capturing two mixed colour attributes or a card
+   pointing at a missing resource is proven by that data, not by a doc page.
+5. Unresolved means unresolved: report it as a question, never as an error.
 
 This applies wherever findings are generated — the standalone review flow and
 the post-write phases in write, helper, and yaml-config alike, which load this
