@@ -113,7 +113,10 @@ const SAFETY_CORE_BLOCKS = ((): { mutation: string; readOnly: string } => {
 const WORD_BUDGETS: Record<string, number> = {
   // The bounded actionable-callback path the capability map advertises must
   // exist in the skill that owns the user flow (#516, measured 1194).
-  notify: 1220,
+  // Codex round 2: the bounded tap window opens after the send and HA does
+  // not replay the event, so the text has to say what it cannot prove
+  // (measured 1227).
+  notify: 1250,
   // pre-save snapshot capture + snapshot recovery guidance (Wave 2).
   energy: 1250,
   // consumer checks before area delete/rename/disable (Wave 1b) + metadata
@@ -208,7 +211,10 @@ const WORD_BUDGETS: Record<string, number> = {
   // "Relay-Ready" claims in prose were unreachable — bounded event capture,
   // Thread status reads and custom sentences now carry their own rows AND
   // their own mechanics sections (measured 3361).
-  fallback: 3400,
+  // Codex round 2: a malformed sentence file takes every custom sentence
+  // with it, so detecting that in the assist test is not enough — the flow
+  // needs the restore-and-retest path (measured 3439).
+  fallback: 3480,
   // semantic-slot note on the read templates (Wave 0); pre-write cross-field
   // constraint checks + drift-check step (Wave 1); pre-delete snapshot
   // capture (Wave 2).

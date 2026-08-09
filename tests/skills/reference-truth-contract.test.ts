@@ -43,15 +43,22 @@ describe("fallback capability map is complete and truthful (#516)", () => {
     expect(fallback).toContain("### Assist Custom Sentences -- RELAY-READY");
     expect(fallback).toContain("### Matter And Thread Status -- RELAY-READY");
     expect(flat(fallback)).toContain("`/config/custom_sentences/<lang>/<name>.yaml` — NOT `/config/ha_nova/`");
+    // Detecting the outage is not handling it: a failed test must restore.
+    expect(flat(fallback)).toContain("restore immediately");
+    expect(flat(fallback)).toContain("re-test one known-good phrase before reporting");
   });
 
   it("teaches the owning skill the bounded callback path it advertises", () => {
     // Advertising a capability in fallback while the skill that owns the user
     // flow still says it is impossible leaves it unreachable.
     const notify = flat(read("skills/notify/SKILL.md"));
-    expect(notify).toContain("A bounded in-chat window is possible for an immediate tap");
+    expect(notify).toContain("A bounded in-chat window can CATCH a tap");
     expect(notify).toContain("say how long you will wait");
-    expect(notify).toContain("fall back to the automation when nothing arrives");
+    // The relay is request/response: the window opens AFTER the send and HA
+    // does not replay the event, so an empty window is not proof.
+    expect(notify).toContain("cannot guarantee one");
+    expect(notify).toContain("a press in that gap is simply gone");
+    expect(notify).toContain("never report an empty window as proof that nobody tapped");
   });
 
   it("stops claiming bounded event capture is unavailable", () => {

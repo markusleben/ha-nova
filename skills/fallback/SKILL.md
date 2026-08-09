@@ -230,9 +230,15 @@ Write `/config/custom_sentences/<lang>/<name>.yaml` — NOT `/config/ha_nova/`;
 Home Assistant only reads sentences from that fixed path. An `intent_script:`
 block in `configuration.yaml` supplies the action when the intent is new.
 
-**Verify:** reload with `conversation.reload`, then run the exact phrase
-through `ha-nova:assist` (`POST /api/conversation/process`) — a sentence file
-that parses is not a sentence Assist matched.
+**Verify, and be ready to undo:** `write_file` with `backup: true` (the
+default) so a `.bak` exists — a brand-new file has none, so remember that you
+created it. Reload with `conversation.reload`, then run the exact phrase
+through `ha-nova:assist` (`POST /api/conversation/process`): a sentence file
+that parses is not a sentence Assist matched. If the phrase does not match, or
+a previously working phrase stops matching, restore immediately — write the
+`.bak` back (or `delete_file` the new file), reload again, and re-test one
+known-good phrase before reporting. Leaving the reload in place is what turns
+one bad file into an outage of every custom sentence.
 
 **Risks:** `write_file` replaces the whole file, so read it first. A malformed
 sentence file makes the conversation agent drop ALL custom sentences, not just

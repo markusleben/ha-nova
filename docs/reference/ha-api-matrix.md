@@ -181,6 +181,9 @@ inventory — `skills/ha-nova/relay-api.md` holds the calling contract and each
 skill holds its own payloads. The families below are pinned somewhere in
 `skills/**` and all travel over `/ws` unless noted; they are listed so a reader
 can tell "exists and is used" from "not available".
+A command Home Assistant offers but no skill pins yet does NOT belong here —
+listing it would route a request to an owner with no payload and no
+guardrails.
 
 | Family | Commands | Owning skill |
 |---|---|---|
@@ -189,11 +192,11 @@ can tell "exists and is used" from "not available".
 | System log | `system_log/list` (the working log source on HA OS) | diagnose, health |
 | Backups | `backup/info`, `backup/generate`, `backup/generate_with_automatic_settings`, `backup/delete`, `backup/agents/info`, `backup/details` | backup |
 | People & access | `person/*`, `zone/*`, `tag/*`, `config/auth/list`, `config/auth/create`, `config/auth/delete`, `auth/current_user` | admin |
-| Voice | `assist_pipeline/pipeline/list`, `.../create`, `.../update`, `.../delete`, `.../set_preferred`, `homeassistant/expose_entity` and `.../list`, plus the `tts`, `stt`, `conversation` and `wake_word` engine lists | assist |
+| Voice | `assist_pipeline/pipeline/list`, `.../update`, `.../delete`, `.../set_preferred`, `homeassistant/expose_entity` and `.../list`, plus the `tts`, `stt`, `conversation` and `wake_word` engine lists | assist |
 | Recorder repair | `recorder/info`, `recorder/list_statistic_ids`, `recorder/get_statistics_metadata`, `recorder/validate_statistics`, `recorder/clear_statistics`, `recorder/update_statistics_metadata`, `recorder/change_statistics_unit`, `recorder/adjust_sum_statistics` | maintenance |
 | Device automation | `device_automation/trigger/list`, `device_automation/trigger/capabilities` | write |
 | MQTT | `mqtt/subscribe` (envelope only), `mqtt/device/debug_info` | mqtt |
-| Media | `media_player/browse_media`, `media_player/search_media`, `media_source/browse_media`, `media_source/resolve_media`, `media_source/search_media` | media |
+| Media | `media_player/browse_media`, `media_player/search_media`, `media_source/browse_media`, `media_source/resolve_media` | media |
 | Camera | `camera/stream`; REST `/api/camera_proxy/<entity_id>` (binary) | camera |
 | Notifications | `persistent_notification/get` | notify |
 | Updates | `update/release_notes` | updates |
