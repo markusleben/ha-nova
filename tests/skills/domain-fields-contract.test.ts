@@ -174,6 +174,12 @@ describe("per-domain service depth (#530)", () => {
     expect(cameraSkill).toContain("`camera.enable_motion_detection`");
     // The scope line must no longer read as excluding the toggle itself.
     expect(cameraSkill).toContain("toggling its motion detection");
+    // Scope and deferral are not enough: the dispatcher decides which skill
+    // the request reaches in the first place.
+    const context = readFileSync(resolve(__dirname, "../../skills/ha-nova/SKILL.md"), "utf-8");
+    const row = context.split("\n").find((l) => l.startsWith("|") && l.includes("ha-nova:camera"));
+    expect(row).toContain("motion detection");
+    expect(row).toContain("cast its stream to a TV");
     expect(cameraSkill).toContain("configuring the detection pipeline itself");
   });
 
