@@ -232,7 +232,12 @@ block in `configuration.yaml` supplies the action when the intent is new.
 
 **Verify, and be ready to undo:** `write_file` with `backup: true` (the
 default) so a `.bak` exists — a brand-new file has none, so remember that you
-created it. Reload with `conversation.reload`, then run the exact phrase
+created it. Reload the right thing: `conversation.reload` reloads the SENTENCE matcher,
+not a new `intent_script:` block — that is core YAML and needs
+`homeassistant.reload_core_config` (or a restart for keys that only apply at
+boot). Reloading only sentences and then testing makes a valid sentence file
+look broken, so do not let that failure trigger the rollback. Then run the
+exact phrase
 through `ha-nova:assist` (`POST /api/conversation/process`): a sentence file
 that parses is not a sentence Assist matched. If the phrase does not match, or
 a previously working phrase stops matching, restore immediately — write the

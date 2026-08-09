@@ -214,7 +214,10 @@ const WORD_BUDGETS: Record<string, number> = {
   // Codex round 2: a malformed sentence file takes every custom sentence
   // with it, so detecting that in the assist test is not enough — the flow
   // needs the restore-and-retest path (measured 3439).
-  fallback: 3480,
+  // Codex round 3: conversation.reload does not load a new intent_script, so
+  // testing before that lands makes a valid sentence file look broken and
+  // triggers the rollback (measured 3490).
+  fallback: 3520,
   // semantic-slot note on the read templates (Wave 0); pre-write cross-field
   // constraint checks + drift-check step (Wave 1); pre-delete snapshot
   // capture (Wave 2).

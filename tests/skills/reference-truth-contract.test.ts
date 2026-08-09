@@ -44,6 +44,10 @@ describe("fallback capability map is complete and truthful (#516)", () => {
     expect(fallback).toContain("### Matter And Thread Status -- RELAY-READY");
     expect(flat(fallback)).toContain("`/config/custom_sentences/<lang>/<name>.yaml` — NOT `/config/ha_nova/`");
     // Detecting the outage is not handling it: a failed test must restore.
+    // conversation.reload does not load a new intent_script; testing before
+    // that lands makes a valid sentence file look broken and rolls it back.
+    expect(flat(fallback)).toContain("reloads the SENTENCE matcher");
+    expect(flat(fallback)).toContain("do not let that failure trigger the rollback");
     expect(flat(fallback)).toContain("restore immediately");
     expect(flat(fallback)).toContain("re-test one known-good phrase before reporting");
   });
