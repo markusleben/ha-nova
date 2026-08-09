@@ -145,7 +145,9 @@ describe("every dispatch target exists as a skill (#515)", () => {
 
   const referenced = (doc: string): string[] => [
     ...new Set(
-      [...doc.matchAll(/ha-nova:([a-z][a-z-]*)/g)].map((m) => m[1] as string),
+      // Capture the WHOLE target token: `ha-nova:energy_v2` must surface as
+      // "energy_v2" and fail, not as a valid "energy" prefix.
+      [...doc.matchAll(/ha-nova:([a-z][\w-]*)/g)].map((m) => m[1] as string),
     ),
   ];
 
@@ -221,7 +223,7 @@ describe("every dispatch target exists as a skill (#515)", () => {
 
       // An explicit ha-nova:<name> reference must resolve — a typo there is a
       // dead hand-off that the row's other owners would otherwise mask.
-      for (const [, named] of cell.matchAll(/ha-nova:([a-z][a-z-]*)/g)) {
+      for (const [, named] of cell.matchAll(/ha-nova:([a-z][\w-]*)/g)) {
         expect(
           skillNames.has(named as string),
           `fallback capability map references ha-nova:${named}, which has no skills/${named}/`,
