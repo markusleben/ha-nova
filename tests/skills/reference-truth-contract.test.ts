@@ -231,6 +231,9 @@ describe("ha-api-matrix lists the surfaces skills actually pin (#517)", () => {
     // External rather than a row that routes into a section that cannot serve.
     expect(fallbackAll).toContain("Integration entry lifecycle (reload, remove)");
     expect(fallbackAll).toContain("Integration entry enable/disable, options, reconfigure | External");
+    // The section behind the row must claim the same scope as the row.
+    expect(fallbackAll).toContain("Reload and remove for an existing config entry — those two only");
+    expect(fallbackAll).toContain("point at Settings > Devices & services instead of improvising a payload");
     // get_states is not how any listed owner reads the compact registry.
     const row = read("docs/reference/ha-api-matrix.md")
       .split("\n")

@@ -76,11 +76,14 @@ ha-nova relay core --method DELETE --path /api/config/config_entries/entry/{entr
 
 ### Integration Entry Lifecycle -- RELAY-READY
 
-Reload, enable/disable, options/reconfigure, and remove for an existing config
-entry. `ha-nova:integration-setup` owns ADDING an integration and continuing a
-pending `reauth`; everything after that lands here until it gets a skill.
+Reload and remove for an existing config entry — those two only.
+`ha-nova:integration-setup` owns ADDING an integration and continuing a
+pending `reauth`. Enable/disable, options and reconfigure are `External` in
+the Capability Map: their flows are UI-driven and no mechanics for them are
+documented here, so point at Settings > Devices & services instead of
+improvising a payload.
 
-**Search:** `home assistant config entry reload disable options flow api 2026`
+**Search:** `home assistant config entry reload delete api 2026`
 
 **Experimental relay calls (no skill guardrails):**
 ```text
@@ -90,8 +93,7 @@ ha-nova relay core --method POST --path /api/config/config_entries/entry/<entry_
 **Risks:** Reload re-runs setup and briefly drops the entry's entities. Remove
 (`DELETE /api/config/config_entries/entry/<entry_id>`) deletes every device and
 entity that entry owns and is not undoable — preview the counts from
-`search/related` and take the typed confirmation code. Options flows are
-response-driven: submit exactly the fields the live step schema returned.
+`search/related` and take the typed confirmation code.
 
 ### Assist Custom Sentences -- RELAY-READY
 
