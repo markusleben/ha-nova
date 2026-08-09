@@ -136,7 +136,9 @@ const WORD_BUDGETS: Record<string, number> = {
   // step, and the prerelease-toggle rule (measured 2217).
   hacs: 2250,
   // Cards adoption pointer (#389).
-  diagnose: 1500,
+  // Charset restriction on the value interpolated into the log-filter regex
+  // — a friendly name can break or widen it (#518, measured 1515).
+  diagnose: 1530,
   // Report-shape declaration line (shared output shapes); repair dedup,
   // attention-threshold definition, cause↔symptom linking (2026-h2 Wave 1c).
   // Table-first redesign: report modes, block shape, ten-block order,
@@ -164,7 +166,9 @@ const WORD_BUDGETS: Record<string, number> = {
   // Grouped-change-set opt-in + grouped-menu exception (#391).
   // Threshold-calibration hook incl. scene.apply coverage (#484 R10).
   // #452 draft rule on top of the branch ratchet (measured 2780).
-  "service-call": 2800,
+  // Description rewritten in the user's own control vocabulary (#518,
+  // measured 2811). #513 and #530 raise this further in the same train.
+  "service-call": 2830,
   // Carries the canonical File-Change Preview example — the only layout
   // source for file edits; concrete examples are what make a card renderable.
   // Sibling-survival verification (Wave 1b) + yaml snapshot capture with
@@ -177,7 +181,9 @@ const WORD_BUDGETS: Record<string, number> = {
   // safety-backup offer (Wave 0) + drift check before the full-document
   // save (Wave 1a) + pre-delete/pre-save snapshot capture (Wave 2).
   // Cards adoption pointer (#389).
-  dashboard: 1450,
+  // lovelace/config/save payload shape — the `config` key that carries the
+  // whole document was named nowhere (#518, measured 1454).
+  dashboard: 1470,
   // Cards adoption pointer (#389); pre-write update-state drift gate.
   // #452 canonical smallest-solution draft rule (17 words).
   // HA 2026.7 "Update all" semantics: guardrails mirrored, call shape
@@ -189,13 +195,18 @@ const WORD_BUDGETS: Record<string, number> = {
   // batch-safety alignment: batch code format + cap-split rule (#327);
   // purge quantification, glob expansion, apply_filter semantics
   // (2026-h2 Wave 1b).
-  maintenance: 1400,
+  // Reverse boundary against health, so the long-unavailable report reads as
+  // a cleanup qualifier rather than a status answer (#518, measured 1408).
+  maintenance: 1420,
   // blueprint payload examples; integration onboarding and runtime
   // events/webhooks moved to owning skills in Wave 4.
   // Custom-integration configuration APIs section + write-probing
   // asymmetry guardrails (#493), incl. the parameterless-WS-write
   // restriction (Codex P1).
-  fallback: 2750,
+  // Flow step 3c now names the endpoint-type table it depends on instead of
+  // leaving the file's load-bearing content unreferenced (#518, measured
+  // 2763).
+  fallback: 2790,
   // semantic-slot note on the read templates (Wave 0); pre-write cross-field
   // constraint checks + drift-check step (Wave 1); pre-delete snapshot
   // capture (Wave 2).

@@ -22,7 +22,7 @@ Gated writes:
 
 Not in scope:
 - energy source/device config (`ha-nova:energy`)
-- repairs/status overview (`ha-nova:health`)
+- repairs/status overview and current unavailability summaries (`ha-nova:health`); the long-unavailable report here exists to qualify cleanup candidates, not to answer "is everything OK"
 - backups (`ha-nova:backup`), updates (`ha-nova:updates`)
 - device deletion — no generic API; report and route to the owning integration/UI
 

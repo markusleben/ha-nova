@@ -1,6 +1,6 @@
 ---
 name: assist
-description: Use when working with Home Assistant's voice assistant — testing what Assist understands, inspecting or editing Assist pipelines, managing which entities are exposed to voice, and listing TTS/STT/wake-word engines — through HA NOVA Relay.
+description: Use when working with Home Assistant's own built-in voice assistant (Assist) — testing what it understands, inspecting or editing Assist pipelines, managing which entities are exposed to voice, and listing TTS/STT/wake-word engines — through HA NOVA Relay. Not for Alexa or Google Assistant, which are configured outside Home Assistant.
 license: MIT
 compatibility: Requires the ha-nova CLI (run 'ha-nova setup' first) and the HA NOVA Relay in Home Assistant (App, or standalone container on Container/Core).
 ---

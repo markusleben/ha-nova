@@ -1,6 +1,6 @@
 ---
 name: notify
-description: Use when sending Home Assistant notifications — discovering notify targets, sending messages to phones or speakers, building mobile-app notifications, and managing persistent notifications — through HA NOVA Relay.
+description: Use when sending a Home Assistant notification NOW — discovering notify targets, sending a message to a phone or speaker, building mobile-app notifications, and managing persistent notifications — through HA NOVA Relay. For "notify me WHEN something happens" use ha-nova:write, which builds the automation.
 license: MIT
 compatibility: Requires the ha-nova CLI (run 'ha-nova setup' first) and the HA NOVA Relay in Home Assistant (App, or standalone container on Container/Core).
 ---

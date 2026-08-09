@@ -172,6 +172,8 @@ Never show raw JSON to the user.
 
 ## Trace Debugging
 
+Trace ANALYSIS belongs to `ha-nova:diagnose` — hand off whenever the question is why something failed or misbehaved. Stay here only when the user explicitly asks to see raw trace data with no failure question attached.
+
 For trace queries:
 
 Prefer CLI helpers: `ha-nova trace latest <entity> --json`, `ha-nova trace list <entity> --json`, `ha-nova trace get <entity> <run_id> --json`. They resolve `unique_id` and normalize trace shapes. If none exist, explain that Home Assistant keeps only recent traces and YAML automations/scripts need an `id`.

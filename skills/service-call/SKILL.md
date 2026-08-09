@@ -1,6 +1,6 @@
 ---
 name: service-call
-description: Use when the user wants to call Home Assistant services, fire custom events, trigger known webhooks, or control alarm panels and locks through HA NOVA Relay.
+description: Use when the user wants to control something in Home Assistant right now — turn lights, switches, covers, climate, vacuums, or any device on, off, up, down, open, or closed; run a scene, script, or automation; call any service by name; fire custom events or known webhooks; operate alarm panels and locks — through HA NOVA Relay.
 license: MIT
 compatibility: Requires the ha-nova CLI (run 'ha-nova setup' first) and the HA NOVA Relay in Home Assistant (App, or standalone container on Container/Core).
 ---

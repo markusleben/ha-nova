@@ -11,6 +11,14 @@ Self-contained catalog: load this file before evaluating findings — from `skil
 - Instead, describe each finding in plain language: a short descriptive title plus why it matters and how to fix it.
 - This guardrail applies whenever check knowledge is used, not only during formal review runs.
 
+## Verify Before Flagging (Critical)
+
+A finding that turns out to be valid Home Assistant costs the user more trust
+than a missed one costs them behavior. Before reporting ANY issue: check the
+local reference doc, then the official HA docs if it is not there, and flag it
+only when both confirm it is genuinely invalid. This applies wherever findings
+are generated — the standalone review flow and the post-write phases alike.
+
 ## Check Taxonomy (internal only)
 
 - Format: `{CATEGORY}-{NN}` (example: `H-09`)

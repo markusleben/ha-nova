@@ -64,7 +64,7 @@ Relevant WS types:
 - `lovelace/resources/delete`
 
 Critical behavior:
-- `lovelace/config/save` is a full-document overwrite
+- `lovelace/config/save` is a full-document overwrite. Payload shape: `{"type":"lovelace/config/save","url_path":"<url_path or null for the default dashboard>","config":{"views":[...]}}` — the whole document goes under `config`, and whatever is missing from it is gone
 - there is no partial update endpoint
 - omitted views/cards are lost
 - `lovelace/dashboards/list` is the source of truth for `dashboard_id`, `url_path`, and `mode`

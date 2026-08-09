@@ -100,7 +100,7 @@ For every Relay-Ready call in this skill:
 3. If "Relay-Ready":
    a. FIRST: Search web using the provided Search query — understand current payload schema before any call
    b. Show experimental relay call examples informed by search results
-   c. Preview full payload before any write — never guess fields
+   c. Classify the endpoint per Write Safety by Endpoint Type (below) BEFORE drafting — a full-document endpoint needs a read-merge-verify payload, not a partial one — then preview the full payload; never guess fields
    d. Execute only after user confirms that exact preview (see context skill → Active Preview Confirmation)
 4. If "Roadmap":
    a. Explain which phase and what blocks it

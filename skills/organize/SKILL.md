@@ -23,7 +23,7 @@ Not in scope:
 - entity removal (`ha-nova:maintenance` — dead registry entries only)
 - removing config entries from devices
 - device category assignment
-- zones, persons, tags
+- zones, persons, tags (`ha-nova:admin`)
 - energy management (`ha-nova:energy`) or calendar management (`ha-nova:calendar`)
 
 Hand off to the skill named per line; surfaces without one go to `ha-nova:fallback`.
