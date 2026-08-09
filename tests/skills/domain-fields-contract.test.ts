@@ -120,8 +120,29 @@ describe("per-domain service depth (#530)", () => {
   it("names the writable capture attributes for the setpoint-twin domains", () => {
     expect(sceneSkill).toContain("fan `percentage`/`preset_mode`");
     expect(sceneSkill).toContain("humidifier `humidity`/`mode`");
+    expect(sceneSkill).toContain("never its `current_*` sensor twin");
+  });
+
+  it("stores a partial cover as current_position, not the service parameter", () => {
+    // HA's cover reproduce_state reads CURRENT_POSITION from the stored
+    // attributes and passes it as the POSITION service parameter. Storing
+    // `position` in the scene loses the partial target and the cover just
+    // opens fully on activation.
     expect(sceneSkill).toContain(
-      "never the `current_*` twin of a setpoint",
+      "a cover stores `current_position` / `current_tilt_position`",
     );
+    expect(sceneSkill).toContain("the cover then just opens fully");
+    expect(sceneSkill).toContain(
+      "A scene stores STATE attributes, not service parameters",
+    );
+  });
+
+  it("does not invent a toggle-tilt feature bit", () => {
+    // toggle_cover_tilt is registered against OPEN_TILT|CLOSE_TILT; there is
+    // no TOGGLE_TILT member in CoverEntityFeature.
+    expect(domainFields).toContain(
+      "gates on OPEN_TILT or\n  CLOSE_TILT rather than a bit of its own",
+    );
+    expect(domainFields).not.toMatch(/toggle[^.]*\b512\b/i);
   });
 });

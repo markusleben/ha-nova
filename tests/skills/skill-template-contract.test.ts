@@ -150,7 +150,10 @@ const WORD_BUDGETS: Record<string, number> = {
   // high-consequence carve-out (Wave 3).
   // Fail-closed consumer check with canonical-filter recreate pointer (#489).
   // #452 draft rule pushed the measured count to exactly 1650.
-  scene: 1675,
+  // Capture attributes named per domain, with the state-attribute vs
+  // service-parameter split that decides whether a partial cover survives
+  // (#530 Codex round 1, measured 1703).
+  scene: 1720,
   // buffering settle-window on verify (2026-h2 Wave 1a).
   // Cards adoption pointer (#389).
   // Search-before-browse (player and media_source), queue placement, and the

@@ -41,7 +41,8 @@ device.
 - Tilt is a second, independent axis with its own feature bits and its own
   attribute: `open_cover_tilt` (bit 16), `close_cover_tilt` (32),
   `stop_cover_tilt` (64), `set_cover_tilt_position` (128, `tilt_position`
-  0-100), plus `toggle_cover_tilt`. A tilt request on a shutter that only
+  0-100), plus `toggle_cover_tilt`, which Home Assistant gates on OPEN_TILT or
+  CLOSE_TILT rather than a bit of its own. A tilt request on a shutter that only
   travels, or a travel call for a tilt request, is a wrong action — read the
   tilt bits before choosing. Travel bits for comparison: `OPEN` 1, `CLOSE` 2,
   `SET_POSITION` 4, `STOP` 8.
