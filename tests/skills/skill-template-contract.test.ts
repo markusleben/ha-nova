@@ -231,7 +231,9 @@ const WORD_BUDGETS: Record<string, number> = {
   // Codex round 7 (#513): the Quick-Fix exclusion caught direct access calls
   // but not trigger-source corrections — resetting a helper is exactly what
   // another automation answers by unlocking a door (measured 4654).
-  review: 4690,
+  // Codex round 12: the Quick-Fix exclusion keyed on entering the gate rather
+  // than on its verdict, so a clean scan still blocked the fix (measured 4698).
+  review: 4760,
   // #452 wires the canonical 17-word smallest-solution draft rule into every
   // write-flow skill; calendar and integration-setup sat within 17 words of
   // the default cap (review/todo/updates ratchets applied on their entries).

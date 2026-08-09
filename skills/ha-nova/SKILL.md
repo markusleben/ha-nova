@@ -218,7 +218,7 @@ Match user intent to exactly one skill:
 | add an integration or continue a pending integration reauthentication flow | `ha-nova:integration-setup` |
 | play, pause, skip, set volume, change source, group speakers, browse media, or announce over a speaker | `ha-nova:media` |
 | send a notification to a phone or another notify target, or manage Home Assistant's persistent notifications | `ha-nova:notify` |
-| look at a camera (snapshot), get a stream URL, record, switch a camera on/off, toggle its motion detection, or cast its stream to a TV | `ha-nova:camera` |
+| look at a camera (snapshot), get a stream URL, record, or switch a camera on/off | `ha-nova:camera` |
 | listen to MQTT topics to see what a device actually publishes, inspect MQTT discovery, or publish a message | `ha-nova:mqtt` |
 | test what the voice assistant understands, manage Assist pipelines, or control which entities voice can see | `ha-nova:assist` |
 | manage persons, zones, tags, or user accounts | `ha-nova:admin` |

@@ -486,13 +486,20 @@ describe("service call contract", () => {
       expect(reviewSkill).toContain(
         "The corrective call would grant physical access or is physically irreversible",
       );
-      expect(reviewSkill).toContain("Never Quick-Fix these");
+      // The gate's VERDICT disqualifies a Quick-Fix, not the act of running
+      // it — a clean consumer scan leaves the correction ordinary.
+      expect(flat(reviewSkill)).toContain("must RUN the indirect-actuation gate first");
+      expect(flat(reviewSkill)).toContain("What disqualifies it is the gate's VERDICT");
+      expect(flat(reviewSkill)).toContain("a clean consumer scan leaves the correction ordinary");
+      expect(reviewSkill).toContain("Never Quick-Fix those");
       expect(reviewSkill).toContain("offer to run it as a separate service call");
-      // A helper reset is the classic innocent-looking trigger source.
-      expect(flat(reviewSkill)).toContain(
-        "any correction that enters the indirect-actuation gate at all",
-      );
+      // A helper reset is the classic innocent-looking trigger source, so the
+      // gate must run — but an unenumerable scan is what blocks the Quick-Fix,
+      // never the mere fact of having consulted the gate.
       expect(flat(reviewSkill)).toContain("resetting a desynchronized `input_select`");
+      expect(flat(reviewSkill)).toContain(
+        "a scan that could not enumerate the consumers — sends it out of Quick-Fix",
+      );
       // Running an automation reaches the same outcome as calling the service.
       expect(reviewSkill).toContain(
         "running a scene, script, or automation that reaches one",
