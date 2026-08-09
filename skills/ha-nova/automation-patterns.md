@@ -232,6 +232,13 @@ the turn-on and stops there; nothing schedules the turn-off. Route the whole
 request to `ha-nova:write`, which owns both halves — say plainly that you are
 creating a short-lived automation rather than just switching something on.
 
+"For a duration" does not always mean "then turn it off". A thermostat set to
+18 °C for an hour has to go back to what it was, not to off — so capture the
+CURRENT value of every attribute the first half changes, and make the expiry
+automation restore that captured value. Only a request whose natural
+counter-action is off (a valve, a light, a switch) gets a plain turn-off.
+Read the value at write time and embed it, exactly like the deadline.
+
 Both halves means both, and the ORDER is the safety property: create the
 expiry automation FIRST, verify it exists, and only then run the immediate
 action. Check the deadline again at that moment: a confirmation that arrives

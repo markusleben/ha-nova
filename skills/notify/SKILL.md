@@ -73,8 +73,11 @@ When composing a COMPLEX mobile-app payload (actionable buttons, images, critica
 
 ### Household routing ("tell whoever is home")
 
-Presence-conditional sends resolve recipients before the preview: read
-`person.*` states, keep the ones with state `home`, and map each to their
+Presence-conditional sends resolve recipients before the preview AND again
+immediately before sending: presence is the one input that changes on its own
+while a confirmation waits, so the previewed list can be wrong by the time it
+is approved. A changed list means a changed scope — re-preview rather than
+send to the stale one. Read `person.*` states, keep the ones with state `home`, and map each to their
 REAL notify target from the `/api/services` discovery this skill
 already requires. Never derive a service name from `person.device_trackers`:
 those are tracker entity ids (router, GPS, a Companion App entity named

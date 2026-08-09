@@ -106,7 +106,7 @@ describe("flows that cost the user extra turns (#527)", () => {
   it("resolves who is home before previewing a presence-conditional send", () => {
     const notify = flat(read("skills/notify/SKILL.md"));
     expect(notify).toContain('### Household routing ("tell whoever is home")');
-    expect(notify).toContain("read `person.*` states");
+    expect(notify).toContain("Read `person.*` states");
     // Tracker ids are not notify service names.
     expect(notify).toContain("Never derive a service name from `person.device_trackers`");
     // The user confirms recipients, not a rule.
@@ -205,5 +205,27 @@ describe("flows that cost the user extra turns (#527)", () => {
     expect(todo).toContain("while the ledger reports the whole batch applied");
     expect(todo).toContain("only confirms what this batch wrote, never what someone else did");
     expect(todo).toContain("Any drift stops the batch there and re-previews the rest");
+  });
+
+  it("restores the prior value, not off, for a duration that has one", () => {
+    const patterns = flat(read("skills/ha-nova/automation-patterns.md"));
+    // "18 °C for an hour" must go back to the previous setpoint.
+    expect(patterns).toContain('"For a duration" does not always mean "then turn it off"');
+    expect(patterns).toContain("capture the CURRENT value of every attribute the first half changes");
+  });
+
+  it("counts every kind of running, and every unsecured lock", () => {
+    const disco = flat(read("skills/entity-discovery/SKILL.md"));
+    // A heat pump running is "running"; a jammed lock is not "locked".
+    expect(disco).toContain("the domains whose \"running\" is not `on`");
+    expect(disco).toContain("`hvac_action` is `heating`/`cooling`");
+    expect(disco).toContain("`lock.*` NOT in state `locked`");
+    expect(disco).toContain("rather than flattening them all to \"unlocked\"");
+  });
+
+  it("re-reads presence immediately before a household send", () => {
+    const notify = flat(read("skills/notify/SKILL.md"));
+    expect(notify).toContain("AND again immediately before sending");
+    expect(notify).toContain("presence is the one input that changes on its own");
   });
 });

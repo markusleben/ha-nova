@@ -148,8 +148,15 @@ then filter by domain plus `device_class` and state:
 - open windows/doors: `binary_sensor` with `device_class` `window`/`door`/`garage_door`, state `on` — AND `cover.*` with those device classes in state `open`/`opening`. A motorized window or garage door is a cover, not a binary_sensor, so checking one family answers "is anything open?" wrong
 - who is home: `person.*` with state `home` (this skill owns person STATE reads;
   `ha-nova:admin` owns creating and editing them)
-- what is on: `light`/`switch`/`media_player`/`fan` with state `on`/`playing`
-- unlocked doors: `lock.*` with state `unlocked`
+- what is on: `light`/`switch`/`media_player`/`fan` with state `on`/`playing`,
+  AND the domains whose "running" is not `on`: `vacuum` in `cleaning`/
+  `returning`, `climate` whose `hvac_action` is `heating`/`cooling`, `valve`
+  and `water_heater` in an active state. Reporting "nothing is running" while
+  the heat pump runs is the same wrong answer as missing an open window
+- unlocked doors: `lock.*` NOT in state `locked` — `unlocked` obviously, but
+  also `unlocking`, `opening` and `jammed`. The question is whether the door
+  is secured, and a lock that is jammed or mid-travel is not; say which state
+  each one is in rather than flattening them all to "unlocked"
 
 Answer count-first ("2 windows open: kitchen, bathroom"), then the names, in the List
 Frame. This is a summary, not the banned domain dump: `output-rules.md` asks
