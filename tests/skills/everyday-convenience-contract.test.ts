@@ -200,6 +200,9 @@ describe("flows that cost the user extra turns (#527)", () => {
     // see another client's change between preview and apply.
     expect(todo).toContain("Re-read the list before EACH operation, not once before the batch");
     expect(todo).toContain("doubles as the read-back for operation N-1");
+    // The last operation has no successor, so it needs its own read.
+    expect(todo).toContain("plus one final read after the LAST operation");
+    expect(todo).toContain("while the ledger reports the whole batch applied");
     expect(todo).toContain("only confirms what this batch wrote, never what someone else did");
     expect(todo).toContain("Any drift stops the batch there and re-previews the rest");
   });

@@ -204,7 +204,7 @@ const WORD_BUDGETS: Record<string, number> = {
   // Codex round 11: the grouped batch needed the contract's pre-apply
   // revalidation; post-write read-backs cannot see a concurrent edit
   // (measured 1420).
-  todo: 1470,
+  todo: 1560,
   // batch-safety opt-in with the merged-save card rule (#327);
   // safety-backup offer (Wave 0) + drift check before the full-document
   // save (Wave 1a) + pre-delete/pre-save snapshot capture (Wave 2).
