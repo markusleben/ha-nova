@@ -12,7 +12,9 @@ function collectTestFiles(dir: string): string[] {
     const path = join(dir, entry);
     if (statSync(path).isDirectory()) {
       found.push(...collectTestFiles(path));
-    } else if (entry.endsWith(".test.ts")) {
+    } else if (/\.(test|spec)\.(ts|mts|mjs|js)$/.test(entry)) {
+      // vitest's default include picks up spec/mjs variants too — walking only
+      // *.test.ts would let those evade the orphan check entirely (#515).
       found.push(path.split("\\").join("/"));
     }
   }
@@ -42,12 +44,31 @@ describe("safe test system contract", () => {
     const manifest = new Set(
       JSON.parse(readFileSync("scripts/test/safe-core-files.json", "utf8")) as string[]
     );
-    const scripts = Object.values(
-      (JSON.parse(readFileSync("package.json", "utf8")) as { scripts: Record<string, string> }).scripts
-    ).join(" ");
+    // Only scripts REACHABLE FROM `verify` count. Matching against every
+    // script would let a file referenced solely by, say, `test:bulk:fast`
+    // satisfy a check whose stated invariant is "runs in npm run verify"
+    // (#515).
+    const allScripts = (
+      JSON.parse(readFileSync("package.json", "utf8")) as {
+        scripts: Record<string, string>;
+      }
+    ).scripts;
+    const reachable = new Set<string>();
+    const visit = (name: string): void => {
+      if (reachable.has(name) || !allScripts[name]) return;
+      reachable.add(name);
+      for (const ref of allScripts[name].matchAll(/npm run ([\w:-]+)/g)) {
+        visit(ref[1] as string);
+      }
+      // npm runs pre<script>/post<script> hooks implicitly.
+      for (const hook of [`pre${name}`, `post${name}`]) visit(hook);
+    };
+    visit("verify");
+    const scripts = [...reachable].map((n) => allScripts[n]).join(" ");
 
     const testFiles = collectTestFiles("tests");
     expect(testFiles.length).toBeGreaterThan(50);
+    expect(reachable.size).toBeGreaterThan(5);
 
     const orphans = testFiles.filter(
       (file) => !manifest.has(file) && !scripts.includes(file)
