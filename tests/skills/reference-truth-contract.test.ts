@@ -240,6 +240,10 @@ describe("ha-api-matrix lists the surfaces skills actually pin (#517)", () => {
     // sets truncated on ANY limit close — including a normal window timeout.
     expect(fallbackAll).not.toContain('"timeout_ms": 15000');
     expect(fallbackAll).toContain("capped at **10000**");
+    // An entry id is not a search/related item type — the counts come from
+    // the registries, filtered on config_entry_id.
+    expect(fallbackAll).toContain("an entry id is not a related-item type");
+    expect(fallbackAll).toContain("filter on `config_entry_id`");
     expect(fallbackAll).toContain("it is not evidence that events were missed");
     expect(fallbackAll).toContain("point at Settings > Devices & services instead of improvising a payload");
     // get_states is not how any listed owner reads the compact registry.

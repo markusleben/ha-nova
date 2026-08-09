@@ -124,8 +124,14 @@ ha-nova relay core --method POST --path /api/config/config_entries/entry/<entry_
 
 **Risks:** Reload re-runs setup and briefly drops the entry's entities. Remove
 (`DELETE /api/config/config_entries/entry/<entry_id>`) deletes every device and
-entity that entry owns and is not undoable — preview the counts from
-`search/related` and take the typed confirmation code.
+entity that entry owns and is not undoable — preview the counts before asking,
+and take the typed confirmation code. `search/related` needs a concrete item
+type and id, so the config entry id alone does not query it: read the entry's
+own devices and entities first with WS
+`{"type":"config/entity_registry/list_for_display"}` and
+`{"type":"config/device_registry/list"}`, filter on `config_entry_id`, and
+report those counts. Only then run `search/related` per device if the user
+asks what depends on them — an entry id is not a related-item type.
 
 ### Assist Custom Sentences -- RELAY-READY
 
