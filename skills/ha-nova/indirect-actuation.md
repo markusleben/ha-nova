@@ -95,10 +95,16 @@ Then:
   or dashboard references — `skills/ha-nova/consumer-discovery-preflight.md`
   lists them as **not checkable**, and its Coverage Report is what a
   trigger-source expansion produces here too. The strongest claim an empty
-  scan supports is "no consumers in the checked families". While any family is
-  not checkable, coverage is incomplete, so the run is unenumerable and
-  escalates — the general unreadable-member fallback to ordinary tier does not
-  apply to trigger sources, because there the unread thing IS the consumer.
+  scan supports is "no consumers in the checked families". A not-checkable
+  family only breaks coverage when it is actually PRESENT: no Node-RED, no
+  AppDaemon, no HACS consumer manager on this instance means there is nothing
+  unread and the scan really is complete — that is the ordinary-tier path, and
+  it is the common case. Check presence once per session (their own App or
+  integration entries), name what you checked, and escalate only when a
+  present family could not be read. The general unreadable-member fallback
+  still does not apply here: for a trigger source the unread thing IS the
+  consumer, so an installed-but-unreadable Node-RED escalates rather than
+  being noted as a gap.
 - A `button` is the exception among trigger sources, because it can carry the
   action itself instead of handing it to an automation. The registry field
   `pl` (platform) decides which kind you have: `pl: "template"` is a
@@ -134,10 +140,16 @@ enumerable at all.
 Two exceptions come first, because they are not really unknowns.
 
 When the stored ACTION is access-capable (`lock.unlock`, `lock.open`,
-`alarm_control_panel.alarm_disarm`, an access cover opening) and only its
-TARGET is templated, the service already proves what the run grants. Hiding
-the entity id behind a template does not make it unknown — escalate to the
-typed tier and say which entity could not be resolved.
+`alarm_control_panel.alarm_disarm`) and only its TARGET is templated, the
+service already proves what the run grants. Hiding the entity id behind a
+template does not make it unknown — escalate to the typed tier and say which
+entity could not be resolved.
+
+`cover.open_cover` is the one where the service alone does not settle it: a
+blind and a garage door take the same call, and only the resolved entity's
+`device_class` separates them. So an unresolved cover target fails CLOSED —
+escalate — because the question "is this a garage door?" cannot be answered
+and the wrong answer opens one.
 
 When the ACTION NAME itself is templated, or an event listener cannot be
 enumerated, you know nothing about what it does — and "I could not read it"

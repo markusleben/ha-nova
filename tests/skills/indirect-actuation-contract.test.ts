@@ -340,8 +340,13 @@ describe("indirect actuation and owning-skill deferrals (#513)", () => {
     expect(gate).toContain('"no consumers in the checked families"');
     // The generic unreadable-member fallback must not reach trigger sources:
     // there, the thing that could not be read is the consumer itself.
-    expect(gate).toContain("does not apply to trigger sources");
+    // A clean outcome must be reachable: not-checkable only breaks coverage
+    // when the family is actually installed, which is the common case being
+    // absent — otherwise every helper write lands on the typed tier.
+    expect(gate).toContain("only breaks coverage when it is actually PRESENT");
+    expect(gate).toContain("that is the ordinary-tier path, and it is the common case");
     expect(gate).toContain("the unread thing IS the consumer");
+    expect(gate).toContain("an installed-but-unreadable Node-RED escalates");
   });
 
   it("does not render the ordinary confirmation menu on the typed tier", () => {
@@ -355,8 +360,17 @@ describe("indirect actuation and owning-skill deferrals (#513)", () => {
   it("lets the read state, not the alias, decide whether a call is a run", () => {
     const doc = flat(skillDoc);
     expect(doc).toContain("Entering the gate is not the same as being a run");
-    expect(doc).toContain("on a RUNNING script stops it and expands nothing");
+    expect(doc).toContain("`homeassistant.turn_off` always stops");
+    expect(doc).toContain("`toggle` is the one the state decides");
     // The Flow entry must not pre-classify the alias as a run.
     expect(doc).not.toContain("on `script.open_door` is a script run");
+  });
+
+  it("fails closed on an unresolved cover target", () => {
+    const gate = flat(indirectActuation);
+    // A blind and a garage door take the same call; only device_class
+    // separates them, and it cannot be read before the template resolves.
+    expect(gate).toContain("a blind and a garage door take the same call");
+    expect(gate).toContain("an unresolved cover target fails CLOSED");
   });
 });
