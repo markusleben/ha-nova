@@ -132,7 +132,7 @@ This is more reliable than keyword search or assuming `.ai` is populated for roo
 
 ## State Snapshot Queries
 
-"Sind alle Fenster zu?", "wer ist zuhause?", "was läuft gerade?" — these ask
+"is everything closed?", "who is home?", "what is running right now?" — these ask
 about STATE across many entities, not about finding one. They are reads and
 belong here; `ha-nova:health` answers what is broken, not what is on.
 
@@ -151,7 +151,7 @@ then filter by domain plus `device_class` and state:
 - what is on: `light`/`switch`/`media_player`/`fan` with state `on`/`playing`
 - unlocked doors: `lock.*` with state `unlocked`
 
-Answer count-first ("2 Fenster offen: Küche, Bad"), then the names, in the List
+Answer count-first ("2 windows open: kitchen, bathroom"), then the names, in the List
 Frame. This is a summary, not the banned domain dump: `output-rules.md` asks
 for counts, groups and a few examples exactly here. A follow-up "and which are
 closed?" is a fresh read, not a cached list.

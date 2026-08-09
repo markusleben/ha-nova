@@ -121,7 +121,7 @@ describe("flows that cost the user extra turns (#527)", () => {
     expect(sc).toContain("covers have NO step service");
     expect(sc).toContain("`set_cover_position` with the bounded delta");
     expect(sc).toContain(
-      'A follow-up nudge ("noch heller") keeps the last confirmed target',
+      'A follow-up nudge ("brighter still") keeps the last confirmed target',
     );
   });
 
