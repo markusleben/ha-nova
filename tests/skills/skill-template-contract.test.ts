@@ -227,7 +227,10 @@ const WORD_BUDGETS: Record<string, number> = {
   // checks.md and could suppress accepted-but-dangerous findings; trace
   // ANALYSIS moved to diagnose, leaving review with trace evidence only
   // (measured 4650).
-  review: 4680,
+  // Ceiling covers the COMBINED merge: #525, #513 and #518 all add to review
+  // and each measured itself in isolation. Trial-merging the train lands at
+  // 4758.
+  review: 4820,
   // #452 wires the canonical 17-word smallest-solution draft rule into every
   // write-flow skill; calendar and integration-setup sat within 17 words of
   // the default cap (review/todo/updates ratchets applied on their entries).
