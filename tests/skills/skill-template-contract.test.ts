@@ -184,7 +184,10 @@ const WORD_BUDGETS: Record<string, number> = {
   // #452 canonical smallest-solution draft rule (17 words).
   // Grouped item operations: four shopping-list adds should not cost four
   // confirmation rounds (#527, measured 1315).
-  todo: 1340,
+  // Codex round 2: one confirmation, but still one read-back per operation —
+  // the grouped ledger is fail-fast and a trailing read would record a
+  // silently ignored write as applied (measured 1357).
+  todo: 1380,
   // batch-safety opt-in with the merged-save card rule (#327);
   // safety-backup offer (Wave 0) + drift check before the full-document
   // save (Wave 1a) + pre-delete/pre-save snapshot capture (Wave 2).

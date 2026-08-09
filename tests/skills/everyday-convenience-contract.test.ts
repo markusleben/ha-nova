@@ -82,6 +82,11 @@ describe("flows that cost the user extra turns (#527)", () => {
     const todo = flat(read("skills/todo/SKILL.md"));
     expect(todo).toContain("may confirm as a single grouped change set");
     expect(todo).toContain("Four items should not cost four rounds");
+    // One confirmation, but still one read-back per operation: the grouped
+    // contract's ledger is fail-fast and a trailing read would record a
+    // silently ignored write as applied.
+    expect(todo).toContain("read back after EACH applied operation");
+    expect(todo).toContain("must stop the batch there");
     // Destructive list deletes keep their own contract.
     expect(todo).toContain("List deletes keep `batch-safety.md` unchanged");
     // The canonical matrix has to agree, or the contract the skill points at
