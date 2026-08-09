@@ -85,15 +85,22 @@ envelope with `UNSUPPORTED_WS_TYPE`.
 ```json
 {
   "message": { "type": "subscribe_events", "event_type": "zha_event" },
-  "collect_events": { "until_type": "finish", "max_events": 20, "timeout_ms": 15000, "on_limit": "return" }
+  "collect_events": { "until_type": "finish", "max_events": 20, "timeout_ms": 10000, "on_limit": "return" }
 }
 ```
 
 `on_limit: "return"` is the mode for this: a button stream never finishes, so
-the window has to close on the limit rather than error. Read the result from
-`.data.events`, and say when `.data.truncated` is true — the user pressed
-more than the window caught, or nothing arrived at all. An empty window is a
-real answer, not a failure.
+the window has to close on the limit rather than error. `timeout_ms` is capped
+at **10000** — the relay rejects anything larger with `VALIDATION_ERROR`
+before it subscribes.
+
+Read the result from `.data.events`. In window mode `.data.truncated` is true
+whenever the window closed on a limit instead of a finish event, which is the
+NORMAL ending here — it is not evidence that events were missed. Report what
+arrived and the window length, and let the count speak: `max_events` reached
+means there may well be more, a timeout with few or no events means that is
+what happened in those seconds. An empty window is a real answer, not a
+failure.
 
 **Risks:** The window blocks for its full `timeout_ms` when nothing arrives —
 say the duration before starting it. `ha-nova:mqtt` owns MQTT topics; this is

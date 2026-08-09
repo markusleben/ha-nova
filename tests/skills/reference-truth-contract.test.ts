@@ -236,6 +236,11 @@ describe("ha-api-matrix lists the surfaces skills actually pin (#517)", () => {
     // Every Relay-Ready row needs a section behind it, event capture included.
     expect(fallbackAll).toContain("Bounded Event Capture -- RELAY-READY");
     expect(fallbackAll).toContain("do not invent a bare subscription");
+    // ws-proxy.ts caps collect_events.timeout_ms at 10_000, and ws-client.ts
+    // sets truncated on ANY limit close — including a normal window timeout.
+    expect(fallbackAll).not.toContain('"timeout_ms": 15000');
+    expect(fallbackAll).toContain("capped at **10000**");
+    expect(fallbackAll).toContain("it is not evidence that events were missed");
     expect(fallbackAll).toContain("point at Settings > Devices & services instead of improvising a payload");
     // get_states is not how any listed owner reads the compact registry.
     const row = read("docs/reference/ha-api-matrix.md")
