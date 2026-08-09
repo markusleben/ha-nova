@@ -72,6 +72,12 @@ Then:
 - Resolve `area_id`, `device_id`, `floor_id`, and `label_id` targets to
   entities for classification only. This never rewrites a payload — the
   stored config is not yours to change here.
+- A stored `event:` action reaches further than the config you are reading:
+  its listeners run too. Apply the same consumer scan the direct path uses
+  (`skills/ha-nova/consumer-discovery-preflight.md` — scan readable automation
+  configs for that exact `event_type`) and classify what they do. Listeners
+  that are not enumerable (templated event types, non-automation consumers)
+  are unresolved, so an access-capable listener among them escalates.
 - Trigger sources expand the other way: `search/related` on the target, then
   read the actions of every automation it triggers. The classic pattern is a
   helper toggle that another automation answers by unlocking a door.

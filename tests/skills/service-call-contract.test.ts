@@ -308,6 +308,7 @@ describe("service call contract", () => {
       );
       // An App restart takes every device that App serves offline.
       expect(skillDoc).toContain("`hassio.addon_restart`");
+      expect(skillDoc).toContain("`hassio.addon_start`");
       expect(flat(skillDoc)).toContain(
         "an MQTT or Z-Wave App takes every device it serves offline while it comes back",
       );
@@ -393,6 +394,10 @@ describe("service call contract", () => {
       expect(gate).toContain("no stored config exists");
       expect(gate).toContain("`search/related` on the target");
       expect(gate).toContain("helper toggle that another automation answers by unlocking a door");
+      // A stored event: action reaches its listeners, which the config being
+      // read does not name.
+      expect(gate).toContain("A stored `event:` action reaches further");
+      expect(gate).toContain("an access-capable listener among them escalates");
     });
 
     it("states the config-read path the gate depends on", () => {
