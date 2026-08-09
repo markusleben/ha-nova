@@ -300,6 +300,8 @@ describe("indirect actuation and tier classification (#513)", () => {
     // step; a door unlock built in the UI must not walk past the gate.
     expect(gate).toContain("The DEVICE form (`domain: lock`, `type: unlock`");
     expect(gate).toContain("Classify a device action by its `domain` + `type`");
+    expect(gate).toContain("`scene: scene.open_house` is a scene activation written");
+    expect(gate).toContain("a shorthand by the domain it names");
     // Legacy YAML still runs, and a blueprint hides its actions entirely.
     expect(gate).toContain("the legacy `service: lock.unlock` and `service_template:`");
     expect(gate).toContain("reads back as `use_blueprint` with inputs, not");
