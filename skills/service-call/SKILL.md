@@ -60,6 +60,12 @@ Read-only response services stay here (`calendar.get_events`, `todo.get_items`, 
 
 `hassio.addon_start|stop|restart` and `hassio.host_reboot|shutdown` are ordinary Home Assistant services on this transport, so they run from here under the disruptive tier; `ha-nova:fallback` covers App *management* (install, configure, store), not these. The `hassio` domain is NOT a wildcard: `restore_full`/`restore_partial` reboot Home Assistant and belong to `ha-nova:backup`, which refuses restores outright; `addon_update` belongs to `ha-nova:updates`. Never widen this row to a service it does not name. Refuse outright any call targeting the App that runs this Relay — stopping it kills the connection mid-call, so nothing can be verified or undone.
 
+These five do not fit the entity Flow below, so do not force them through it:
+
+- The target is an App SLUG, not an entity: `{"addon": "core_mosquitto"}`. Resolve it from `ha-nova relay core --method GET --path /addons` (an App's display name is not its slug) and name both in the preview. There is no `/api/states` read before or after, so steps 4's state delta and step 7's read-back do not apply.
+- Verify an App call by re-reading `/addons/<slug>/info` and reporting `state` (`started`/`stopped`), not by reading an entity.
+- `host_reboot` and `host_shutdown` have no target at all and take the whole transport down with them. Nothing can be verified afterwards from here — say that BEFORE asking, get the disruptive-tier confirmation, then report the call as issued and the connection as expected to drop. Never report success: you will not be there to see it. `host_shutdown` additionally needs physical access to come back, so say so.
+
 Runtime calls that stay here: `scene.turn_on` / `scene.apply` (`ha-nova:scene` owns scene CRUD, not activation), `automation.trigger`, direct `script.*` (see Automation And Script Runtime Calls), custom events, known JSON webhooks, and `lock`/`alarm_control_panel`/`cover` control under the gates below.
 
 ## Response services
