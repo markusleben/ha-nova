@@ -234,7 +234,14 @@ creating a short-lived automation rather than just switching something on.
 
 Both halves means both, and the ORDER is the safety property: create the
 expiry automation FIRST, verify it exists, and only then run the immediate
-action. Reverse that and a failed automation write leaves the valve open with
+action.
+
+If the immediate action grants physical access ("unlock the front door for
+five minutes", "open the garage for ten"), the one preview still takes the
+typed `confirm:<token>` — a duration does not soften what the first half
+does, and the automatic re-lock is not a mitigation because the door is open
+for the whole window. Same tier as calling the service directly
+(`skills/ha-nova/SKILL.md` → confirmation tiers). Reverse that and a failed automation write leaves the valve open with
 nothing scheduled to close it — reporting the partial result does not help a
 user who has already walked away. Both go under one preview; if the automation
 write fails, nothing has been turned on yet and there is nothing to undo.

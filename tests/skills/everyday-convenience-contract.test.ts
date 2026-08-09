@@ -182,4 +182,21 @@ describe("flows that cost the user extra turns (#527)", () => {
     expect(sc).toContain("STOP the relative operation and say so");
     expect(sc).toContain("would have to invent the number it is relative to");
   });
+
+  it("keeps the typed tier on a timed action that grants access", () => {
+    const patterns = flat(read("skills/ha-nova/automation-patterns.md"));
+    // A duration does not soften the first half: the door is open the whole
+    // window, so the auto re-lock is not a mitigation.
+    expect(patterns).toContain("the one preview still takes the typed `confirm:<token>`");
+    expect(patterns).toContain("a duration does not soften what the first half");
+  });
+
+  it("revalidates a grouped to-do batch before applying it", () => {
+    const todo = flat(read("skills/todo/SKILL.md"));
+    // Post-write read-backs only confirm what this batch wrote; they cannot
+    // see another client's change between preview and apply.
+    expect(todo).toContain("Re-read the list ONCE immediately before applying");
+    expect(todo).toContain("a post-write read-back cannot see that");
+    expect(todo).toContain("Any drift stops the batch and re-previews");
+  });
 });

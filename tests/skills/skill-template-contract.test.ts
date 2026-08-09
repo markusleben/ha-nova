@@ -201,7 +201,10 @@ const WORD_BUDGETS: Record<string, number> = {
   // Codex round 2: one confirmation, but still one read-back per operation —
   // the grouped ledger is fail-fast and a trailing read would record a
   // silently ignored write as applied (measured 1357).
-  todo: 1380,
+  // Codex round 11: the grouped batch needed the contract's pre-apply
+  // revalidation; post-write read-backs cannot see a concurrent edit
+  // (measured 1420).
+  todo: 1470,
   // batch-safety opt-in with the merged-save card rule (#327);
   // safety-backup offer (Wave 0) + drift check before the full-document
   // save (Wave 1a) + pre-delete/pre-save snapshot capture (Wave 2).
