@@ -1,6 +1,6 @@
 # Backlog Sequencing 2026-08
 
-Status: active
+Status: merged (all three phases shipped and tagged as v0.23.0 via #495–#507; archived 2026-08-09)
 Scope: successor to [masterplan-2026-h2.md](../archive/work/masterplan-2026-h2.md) as the SSOT for sequencing and decisions. Orders the open issues (13 as of 2026-08-03) into three phases following the proven "harden what exists before widening surface" logic.
 
 ## Maintainer decisions (2026-08-03)
