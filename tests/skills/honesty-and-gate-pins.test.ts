@@ -158,13 +158,23 @@ describe("every dispatch target exists as a skill (#515)", () => {
 
   it("gives every skill in the tree a dispatch entry", () => {
     // The reverse direction: a shipped skill nothing routes to is dead weight
-    // that no user can reach.
+    // no user can reach. Scope this to the dispatch section — searching the
+    // whole context skill would let a later example or hand-off stand in for
+    // a missing dispatch row.
     const context = read("skills/ha-nova/SKILL.md");
+    const dispatch = context.split("## Skill Dispatch (Critical)")[1] ?? "";
+    // TABLE ROWS only. The section also holds example lines, and those are
+    // not routing: deleting a row while an example still names the skill must
+    // fail this test, not satisfy it.
+    const rows = dispatch.split("\n").filter((line) => line.trim().startsWith("|"));
+    expect(rows.length).toBeGreaterThan(20);
+    const routed = new Set(referenced(rows.join("\n")));
     for (const name of skillNames) {
       if (name === "ha-nova") continue;
-      expect(context, `skills/${name}/ is never named in the context skill`).toContain(
-        `ha-nova:${name}`,
-      );
+      expect(
+        routed.has(name),
+        `skills/${name}/ has no dispatch entry — an example or hand-off elsewhere does not make it routable`,
+      ).toBe(true);
     }
   });
 });

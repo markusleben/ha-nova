@@ -12,9 +12,11 @@ function collectTestFiles(dir: string): string[] {
     const path = join(dir, entry);
     if (statSync(path).isDirectory()) {
       found.push(...collectTestFiles(path));
-    } else if (/\.(test|spec)\.(ts|mts|mjs|js)$/.test(entry)) {
-      // vitest's default include picks up spec/mjs variants too — walking only
-      // *.test.ts would let those evade the orphan check entirely (#515).
+    } else if (/\.(test|spec)\.[cm]?[jt]sx?$/.test(entry)) {
+      // vitest's default include covers every js/ts extension family, so the
+      // walk must too: .test.tsx, .spec.jsx, .test.cts and .spec.cjs would
+      // otherwise slip past the orphan check and preserve the silent-coverage
+      // gap this guard exists to close (#515).
       found.push(path.split("\\").join("/"));
     }
   }
