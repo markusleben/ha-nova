@@ -172,7 +172,9 @@ const WORD_BUDGETS: Record<string, number> = {
   // source for file edits; concrete examples are what make a card renderable.
   // Sibling-survival verification (Wave 1b) + yaml snapshot capture with
   // stored path (Wave 2) + TS-check application at write time (Wave 3).
-  "yaml-config": 1450,
+  // Pre-write drift check before the whole-file write (#514, measured 1484):
+  // the single-step .bak reported success while reverting a concurrent edit.
+  "yaml-config": 1500,
   // Confirmation-code terminology replacing "token" wording (#392).
   // #452 canonical smallest-solution draft rule (17 words).
   todo: 1275,
