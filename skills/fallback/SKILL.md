@@ -57,7 +57,7 @@ For every Relay-Ready call in this skill:
 | Logs / diagnostics (why a specific automation/script/device/integration failed: traces, error/system logs, root cause) | Covered | diagnose |
 | Media players (transport, volume, source, grouping, browsing, TTS announce) | Covered | media |
 | Notifications (targets, mobile-app sends, persistent notifications) | Covered | notify |
-| Actionable-notification callbacks (waiting for a button press) | Roadmap (needs event subscriptions) | -- |
+| Actionable-notification callbacks (waiting for a button press) | Covered for the durable path | write (an automation on `mobile_app_notification_action`); a bounded in-chat window is possible via the `collect_events` envelope |
 | Cameras (snapshot, stream URL, record) | Covered | camera |
 | MQTT (bounded topic listening, discovery/debug info, publish) | Covered | mqtt |
 | Voice / Assist (utterance testing, pipelines, entity exposure, engine inventory) | Covered | assist |
@@ -87,10 +87,15 @@ For every Relay-Ready call in this skill:
 | Backups (status, create, inspect, delete) | Covered | backup |
 | Config snapshots (targeted capture/restore of automations, scripts, scenes, dashboards, helpers, energy prefs, metadata, YAML files) | Covered | the owning family skill (see `skills/ha-nova/config-snapshots.md`) |
 | Updates (pending, release notes, install, skip) | Covered | updates |
-| Apps / Supervisor | External | -- |
+| Apps / Supervisor: install, uninstall, configure, store | External | -- (updates: `updates`; start/stop/restart and host reboot: `service-call`) |
 | HACS (registration, download, version switching, uninstall, migration) | Covered | hacs |
 | Zigbee / Z-Wave Config | External | -- (MQTT-level inspection of a Zigbee2MQTT setup: `mqtt`) |
 | Alarm / lock code management (lock user codes, alarm PINs) | External | -- (Home Assistant UI; codes never enter chat) |
+| Integration entry lifecycle (reload, enable/disable, options, remove) | Relay-Ready | this skill |
+| Matter / Thread | External for commissioning (companion app, BLE) | -- (status reads are Relay-Ready here) |
+| Assist custom sentences / intent scripts | Relay-Ready | yaml-config writes them, `assist` tests them |
+| Creating a calendar (the `local_calendar` integration) | Covered | integration-setup |
+| Device category assignment | Not a Home Assistant surface | -- (devices carry no category; entity categories are `organize`) |
 
 ## Flow
 
@@ -187,6 +192,25 @@ ha-nova relay core --method DELETE --path /api/config/config_entries/entry/{entr
 
 **Risks:** Multi-step flows are complex. Each step returns the next step's schema. Update support can be domain- and version-specific. Delete requires correct `entry_id` resolution first. Prefer HA UI for these.
 
+### Integration Entry Lifecycle -- RELAY-READY
+
+Reload, enable/disable, options/reconfigure, and remove for an existing config
+entry. `ha-nova:integration-setup` owns ADDING an integration and continuing a
+pending `reauth`; everything after that lands here until it gets a skill.
+
+**Search:** `home assistant config entry reload disable options flow api 2026`
+
+**Experimental relay calls (no skill guardrails):**
+```text
+ha-nova relay core --method POST --path /api/config/config_entries/entry/<entry_id>/reload
+```
+
+**Risks:** Reload re-runs setup and briefly drops the entry's entities. Remove
+(`DELETE /api/config/config_entries/entry/<entry_id>`) deletes every device and
+entity that entry owns and is not undoable — preview the counts from
+`search/related` and take the typed confirmation code. Options flows are
+response-driven: submit exactly the fields the live step schema returned.
+
 ### Device Config-Entry Detach -- RELAY-READY
 
 Remove a config entry from a device (entity-registry removal is owned by `ha-nova:maintenance`).
@@ -227,18 +251,30 @@ Real-time event streams for state changes, automation triggers, and custom event
 
 **Search:** `home assistant event subscription state_changed real time api 2026`
 
-**Status:** Coming in Phase 1c. Blocked by: No SSE streaming endpoint in Relay.
-**Workaround:** Poll entity state periodically via `GET /api/states/{entity_id}`.
+**Status:** CONTINUOUS streams are Phase 1c, blocked by the absence of an SSE
+endpoint. BOUNDED capture already works: wrap the subscription in a
+`collect_events` envelope (max 100 events, max 10 s — `skills/ha-nova/relay-api.md`
+→ Bounded Event Collection) and the relay unsubscribes for you. That is enough
+to answer "what event does this button fire" or to watch a short window after
+an action; `ha-nova:mqtt` uses exactly this pattern.
+**Workaround for anything longer:** an automation that reacts and notifies
+(`ha-nova:write`), or polling `GET /api/states/{entity_id}`.
 
 ## External Features
 
 ### Apps / Supervisor Management -- EXTERNAL
 
-Supervisor API is separate from HA Core API. Requires different auth and endpoints.
+App *management* (install, uninstall, configure, store browsing) is Supervisor
+territory and stays external. The common premise that "the Supervisor API needs
+different auth and endpoints" is only half true: on HA OS/Supervised the
+`hassio` integration proxies it under `/api/hassio/*`, and start/stop/restart
+plus host reboot/shutdown are ordinary Home Assistant services — those live in
+`ha-nova:service-call` under its disruptive tier, with a refusal for the App
+running this Relay. App UPDATES are `ha-nova:updates`.
 
 **Search:** `home assistant supervisor app add-on install manage api 2026`
 
-**Alternative:** HA UI: Settings > Apps. Or `ha` CLI on HA OS.
+**Alternative for management:** HA UI: Settings > Apps. Or `ha` CLI on HA OS.
 
 ### HACS (Home Assistant Community Store) -- COVERED
 

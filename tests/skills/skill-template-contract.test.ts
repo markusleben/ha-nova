@@ -195,7 +195,13 @@ const WORD_BUDGETS: Record<string, number> = {
   // Custom-integration configuration APIs section + write-probing
   // asymmetry guardrails (#493), incl. the parameterless-WS-write
   // restriction (Codex P1).
-  fallback: 2750,
+  // Capability-map completion (#516): the map is fallback's routing index, so
+  // a missing row means Flow step 1 finds nothing and the agent improvises.
+  // Added integration entry lifecycle (with its own Relay-Ready mechanics —
+  // remove deletes every device the entry owns), Matter/Thread, custom
+  // sentences, local-calendar creation, and device categories; corrected the
+  // Supervisor premise and the bounded-event roadmap (measured 3083).
+  fallback: 3120,
   // semantic-slot note on the read templates (Wave 0); pre-write cross-field
   // constraint checks + drift-check step (Wave 1); pre-delete snapshot
   // capture (Wave 2).

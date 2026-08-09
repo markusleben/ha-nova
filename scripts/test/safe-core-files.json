@@ -94,6 +94,7 @@
   "tests/skills/integration-setup-contract.test.ts",
   "tests/skills/maintenance-contract.test.ts",
   "tests/skills/output-design-contract.test.ts",
+  "tests/skills/reference-truth-contract.test.ts",
   "tests/skills/relay-unicode-contract.test.ts",
   "tests/skills/review-contract.test.ts",
   "tests/skills/scene-contract.test.ts",
