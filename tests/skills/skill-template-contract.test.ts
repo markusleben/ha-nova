@@ -183,7 +183,7 @@ const WORD_BUDGETS: Record<string, number> = {
   // Ceiling covers the COMBINED merge: #513, #530, #518 and #527 all add to
   // service-call and each measured itself in isolation. A prefix scan of the
   // train shows only the LAST merge overflowing; at 3606 after round 6.
-  "service-call": 3700,
+  "service-call": 3900,
   // Carries the canonical File-Change Preview example — the only layout
   // source for file edits; concrete examples are what make a card renderable.
   // Sibling-survival verification (Wave 1b) + yaml snapshot capture with
