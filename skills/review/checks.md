@@ -18,9 +18,10 @@ than a missed one costs them behavior. Before reporting ANY issue, resolve it
 against a source rather than memory, in this order:
 
 1. `skills/ha-nova/template-guidelines.md` for template and Jinja questions,
-   `skills/ha-nova/best-practices.md` and `automation-patterns.md` for
-   trigger/action/mode shapes, `skills/ha-nova/helper-schemas.md` and
-   `helper-flow-schemas.md` for helper fields.
+   `skills/ha-nova/best-practices.md` and
+   `skills/ha-nova/automation-patterns.md` for trigger/action/mode shapes,
+   `skills/ha-nova/helper-schemas.md` and
+   `skills/ha-nova/helper-flow-schemas.md` for helper fields.
 2. If the local reference does not settle it, the official documentation page
    for that surface: triggers <https://www.home-assistant.io/docs/automation/trigger/>,
    modes <https://www.home-assistant.io/docs/automation/modes/>, scripts

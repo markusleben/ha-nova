@@ -47,6 +47,17 @@ describe("description-level routing (#518)", () => {
 });
 
 describe("boundary statements between neighbouring skills (#518)", () => {
+  it("does not leave a second executable trace-analysis owner", () => {
+    // review is independently discoverable, so narrowing read/history alone
+    // would leave the same failure question with two owners.
+    const review = flat(read("skills/review/SKILL.md"));
+    expect(review).toContain("Trace ANALYSIS belongs to `ha-nova:diagnose`");
+    expect(review).toContain("never as the answer to a failure question");
+    // And the entrypoint must not keep its own contradicting verify gate.
+    expect(review).toContain("the canonical sequence lives in");
+    expect(review).not.toContain("Only flag as error if confirmed invalid after both checks");
+  });
+
   it("gives trace analysis exactly one owner", () => {
     // history pointed at read, dispatch pointed at diagnose, and read never
     // claimed traces — three pointers, no owner.
@@ -123,6 +134,10 @@ describe("load-bearing rules referenced from where they apply (#518)", () => {
     // the doc is named, and the sequence must not demand two confirmations
     // for something the first source already settled.
     expect(checks).toContain("skills/ha-nova/template-guidelines.md");
+    // Every local reference needs its full path: a direct loader cannot open
+    // "automation-patterns.md" relative to nothing.
+    expect(checks).toContain("skills/ha-nova/automation-patterns.md");
+    expect(checks).toContain("skills/ha-nova/helper-flow-schemas.md");
     expect(checks).toContain("home-assistant.io/docs/automation/trigger/");
     // Most of the catalog flags valid-but-risky config, so demanding schema
     // invalidity would suppress even HIGH runtime hazards.

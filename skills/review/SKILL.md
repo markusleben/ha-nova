@@ -207,12 +207,16 @@ Before analyzing, consult these sources:
 
 Only fetch pages relevant to the triggers, actions, and templates found in the config. Cross-check against documented gotchas and constraints — this catches issues beyond the hardcoded checks below.
 
-**Verify-before-flag rule:** Before reporting ANY issue:
-1. Check local reference doc
-2. If not found, check the official HA docs above
-3. Only flag as error if confirmed invalid after both checks
+**Verify-before-flag rule:** the canonical sequence lives in
+`skills/review/checks.md` → Verify Before Flagging, because the post-write
+phases load that file without this one. Resolve every finding against a source
+before reporting it, and flag it when the source confirms the CLAIM you are
+making — semantics or risk for behavioral checks, schema invalidity only for
+schema-shaped ones.
 
-Do NOT flag valid HA builtins or documented behavior as errors.
+Do NOT flag valid HA builtins or documented behavior as errors — but "valid"
+alone never clears a behavioral finding: much of the catalog describes config
+Home Assistant accepts and that still misbehaves.
 
 ### Step 1: Config Quality Review
 
@@ -257,9 +261,15 @@ Branch by target family:
    ```
 5. If no related items found, report "no conflicts" in the Conflicts section and skip Step 3. On a filter error, report the collision scan as inconclusive — never as "no conflicts".
 
-### Trace Analysis (on request)
+### Trace Evidence (only when the user asked for a review)
 
-When the user reports runtime issues ("automation didn't fire", "wrong behavior last night"):
+Trace ANALYSIS belongs to `ha-nova:diagnose`: a runtime complaint ("didn't
+fire", "wrong behavior last night") is a concrete incident and routes there,
+not here. Stay in this skill only when the user asked for a review and traces
+are supporting evidence for a config finding — never as the answer to a
+failure question.
+
+In that case:
 1. Follow the trace procedure in `skills/read/SKILL.md` → Trace Debugging
 2. Prefer the normalized CLI helper fields from `ha-nova trace latest/list/get --json`; they are enough for run selection, result status, timestamp, item binding, and most review findings.
 3. Inspect raw trace internals only when step-level evidence is required. Raw trace nodes can be arrays of event records; type-check before reading `path`, `result`, `changed_variables`, or `error`, and avoid large jq projections as the standard path.

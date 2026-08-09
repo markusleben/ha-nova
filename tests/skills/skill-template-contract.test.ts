@@ -222,7 +222,12 @@ const WORD_BUDGETS: Record<string, number> = {
   // Suggestion Block item-shape pointer (shared output shapes); scene/
   // dashboard first-class targets with flow adaptation (2026-h2 Wave 3).
   // Quick-fix Preview Card reference (#389).
-  review: 4575,
+  // Codex round 2 (#518): the entrypoint carried its own copy of the
+  // verify-before-flag gate, which contradicted the corrected one in
+  // checks.md and could suppress accepted-but-dangerous findings; trace
+  // ANALYSIS moved to diagnose, leaving review with trace evidence only
+  // (measured 4650).
+  review: 4680,
   // #452 wires the canonical 17-word smallest-solution draft rule into every
   // write-flow skill; calendar and integration-setup sat within 17 words of
   // the default cap (review/todo/updates ratchets applied on their entries).
