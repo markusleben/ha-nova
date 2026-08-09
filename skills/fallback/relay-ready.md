@@ -134,8 +134,12 @@ singular `config_entry_id`, a DEVICE row carries a `config_entries` ARRAY
 because one device can be provided by several integrations — match on
 membership in that array, not on equality. Report those counts. The compact `list_for_display` cannot answer this — its
 rows carry `ei`/`en`/`ai` only and no `config_entry_id`, so it is the wrong
-read for an ownership question however much cheaper it is. Only then run `search/related` per device if the user
-asks what depends on them — an entry id is not a related-item type.
+read for an ownership question however much cheaper it is. Then scan what depends on them BEFORE asking, not on request: run
+`search/related` per ENTITY, because a device-level scan does not reach its
+child entities' consumers (`skills/organize/SKILL.md`) — an automation
+referencing `sensor.x` is invisible from the device that provides it. An entry
+id is not a related-item type at all, so there is no shortcut here: the
+automations, scripts and scenes that break are the point of the preview.
 
 ### Assist Custom Sentences -- RELAY-READY
 

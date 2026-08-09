@@ -242,11 +242,14 @@ describe("ha-api-matrix lists the surfaces skills actually pin (#517)", () => {
     expect(fallbackAll).toContain("capped at **10000**");
     // An entry id is not a search/related item type — the counts come from
     // the registries, filtered on config_entry_id.
-    expect(fallbackAll).toContain("an entry id is not a related-item type");
+    expect(fallbackAll).toContain("An entry id is not a related-item type at all");
     // Live device rows carry a config_entries ARRAY; entity rows carry the
     // singular config_entry_id. Matching a device by equality undercounts.
     expect(fallbackAll).toContain("a DEVICE row carries a `config_entries` ARRAY");
     expect(fallbackAll).toContain("match on membership in that array, not on equality");
+    // A device-level search/related misses its child entities' consumers.
+    expect(fallbackAll).toContain("run `search/related` per ENTITY");
+    expect(fallbackAll).toContain("is invisible from the device that provides it");
     // Verified on the live instance: list_for_display rows are
     // ei/pl/lb/di/tk/ec/hn/en — no config_entry_id.
     expect(fallbackAll).toContain('`{"type":"config/entity_registry/list"}`');
