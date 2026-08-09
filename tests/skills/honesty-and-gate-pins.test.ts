@@ -145,7 +145,11 @@ describe("every dispatch target exists as a skill (#515)", () => {
 
   it("resolves every ha-nova:<skill> named in the dispatch table", () => {
     const context = read("skills/ha-nova/SKILL.md");
-    const dispatch = context.split("## Skill Dispatch (Critical)")[1] ?? "";
+    // Stop at the next heading: without that bound, "the dispatch section" is
+    // the whole rest of the document, and a table row in any later section
+    // stands in for a deleted dispatch row.
+    const afterHeading = context.split("## Skill Dispatch (Critical)")[1] ?? "";
+    const dispatch = afterHeading.split(/\n## /)[0] ?? "";
     const names = referenced(dispatch);
     // Guard against a vacuous pass: if the heading or the reference syntax
     // ever changes, an empty extraction would satisfy the loop below without
@@ -186,7 +190,11 @@ describe("every dispatch target exists as a skill (#515)", () => {
     // whole context skill would let a later example or hand-off stand in for
     // a missing dispatch row.
     const context = read("skills/ha-nova/SKILL.md");
-    const dispatch = context.split("## Skill Dispatch (Critical)")[1] ?? "";
+    // Stop at the next heading: without that bound, "the dispatch section" is
+    // the whole rest of the document, and a table row in any later section
+    // stands in for a deleted dispatch row.
+    const afterHeading = context.split("## Skill Dispatch (Critical)")[1] ?? "";
+    const dispatch = afterHeading.split(/\n## /)[0] ?? "";
     // TABLE ROWS only. The section also holds example lines, and those are
     // not routing: deleting a row while an example still names the skill must
     // fail this test, not satisfy it.
