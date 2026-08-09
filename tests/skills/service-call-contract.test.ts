@@ -336,7 +336,7 @@ describe("service call contract", () => {
         "`scene.turn_on`/`scene.apply`",
         "`automation.trigger`",
         "`script.<script_id>`, `script.turn_on`, `script.toggle`",
-        "`input_button.press` plus writes to any storage helper",
+        "`input_button.press` and `button.press`",
       ]) {
         expect(skillDoc).toContain(trigger);
       }

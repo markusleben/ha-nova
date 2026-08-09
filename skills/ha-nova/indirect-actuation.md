@@ -37,7 +37,7 @@ By service name, the gate also covers:
 - `scene.turn_on`, `scene.apply`
 - `automation.trigger`
 - any script run: `script.<script_id>`, `script.turn_on`, `script.toggle`
-- writes to a trigger source — the helper domains exist to drive automations:
+- writes to a trigger source — `button.press` runs a Template button's stored action, and the helper domains exist to drive automations:
   `input_boolean`, `input_number`, `input_select`, `input_text`,
   `input_datetime`, `input_button`, `counter`, `timer`, `schedule`, and
   `switch`. A counter crossing a threshold or a timer finishing is a trigger
