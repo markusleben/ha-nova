@@ -179,20 +179,39 @@ describe("every dispatch target exists as a skill (#515)", () => {
     const owners: string[] = [];
     for (const row of rows) {
       const cell = (row.split("|")[3] ?? "").trim();
-      // Match skill names as WORDS anywhere in the cell: a legitimate owner
-      // often arrives inside prose ("write (an automation on `x`); ...").
-      // Only a cell naming no skill at all — blank, "--", pure prose — fails.
+      // Two separate questions. First: does the row name a reachable owner at
+      // all? Match skill names as WORDS, since a legitimate owner often
+      // arrives inside prose ("write (an automation on `x`); ..."). A path
+      // like skills/ha-nova/... is documentation, not an owner, so strip
+      // those before matching or every such row resolves as `ha-nova`.
+      const prose = cell.replace(/`?skills\/[a-z-]+\/[^\s`]*`?/g, " ");
+      // Two owner forms name a rule instead of a directory, and both are
+      // legitimate: the fallback skill itself, and "the owning family skill"
+      // for families whose owner depends on the item being restored.
+      const SPECIAL_OWNERS = ["this skill", "the owning family skill"];
       const resolved = [
-        ...(cell.includes("this skill") ? ["this skill"] : []),
+        ...SPECIAL_OWNERS.filter((form) => prose.includes(form)),
         ...[...skillNames].filter((name) =>
-          new RegExp(`(^|[^a-z-])${name}([^a-z-]|$)`).test(cell),
+          new RegExp(`(^|[^a-z-])${name}([^a-z-]|$)`).test(prose),
         ),
       ];
+      // Second: every token that is SHAPED like a bare owner must resolve.
+      // Otherwise `read / writte` passes on the strength of `read` while the
+      // typo is silently dropped.
+      for (const token of prose.split(/[/,;]| or | and /)) {
+        const bare = token.trim().replace(/^`|`$/g, "");
+        if (!/^[a-z][a-z-]{2,}$/.test(bare)) continue;
+        if (bare === "this" || bare === "the" || bare === "owning" || bare === "family") continue;
+        if (skillNames.has(bare)) continue;
+        expect.fail(
+          `fallback capability map names "${bare}", which has no skills/${bare}/ (row: "${cell}")`,
+        );
+      }
       expect(
         resolved.length,
         `fallback capability map row names no reachable owner: "${cell || "(empty)"}"`,
       ).toBeGreaterThan(0);
-      owners.push(...resolved.filter((token) => token !== "this skill"));
+      owners.push(...resolved.filter((token) => !SPECIAL_OWNERS.includes(token)));
 
       // An explicit ha-nova:<name> reference must resolve — a typo there is a
       // dead hand-off that the row's other owners would otherwise mask.
