@@ -281,7 +281,7 @@ describe("service call contract", () => {
         ["todo.add_item", "ha-nova:todo"],
         ["backup.create", "ha-nova:backup"],
         ["conversation.process", "ha-nova:assist"],
-      ]) {
+      ] as Array<[string, string]>) {
         // A row may name the service outright or cover its whole domain
         // (`camera.*`), so accept either spelling — otherwise a later PR that
         // consolidates a family silently loses its deferral.
