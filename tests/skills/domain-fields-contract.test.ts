@@ -211,4 +211,22 @@ describe("per-domain service depth (#530)", () => {
     );
     expect(domainFields).not.toMatch(/toggle[^.]*\b512\b/i);
   });
+
+  it("advertises every camera verb on the routing surface, not only inside Scope", () => {
+    // The frontmatter description is what the client routes on; a verb that
+    // only appears in Scope is read after the routing decision is made.
+    const description = cameraSkill.split("---")[1];
+    expect(description).toContain("casting a camera stream");
+    expect(description).toContain("motion detection");
+  });
+
+  it("keeps the media-source search payload on the field HA actually validates", () => {
+    const media = flat(mediaSkill);
+    // Live 2026.8.0 rejects `query`: "extra keys not allowed @ data['query'] /
+    // required key not provided @ data['search_query']".
+    expect(media).toContain("WS `media_source/search_media` with `search_query`");
+    expect(media).not.toContain('media_source/search_media","query"');
+    // And the root is not searchable, so the scope id is not really optional.
+    expect(media).toContain("the media-source ROOT cannot search");
+  });
 });

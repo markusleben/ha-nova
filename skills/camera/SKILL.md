@@ -1,6 +1,6 @@
 ---
 name: camera
-description: Use when working with Home Assistant cameras — taking a snapshot for the agent to look at, getting a stream URL, or recording — through HA NOVA Relay.
+description: Use when working with Home Assistant cameras — taking a snapshot for the agent to look at, getting a stream URL, recording, casting a camera stream to a TV or speaker display, or turning a camera or its motion detection on and off — through HA NOVA Relay.
 license: MIT
 compatibility: Requires the ha-nova CLI (run 'ha-nova setup' first) and the HA NOVA Relay in Home Assistant (App, or standalone container on Container/Core).
 ---
