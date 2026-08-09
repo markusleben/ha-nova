@@ -66,7 +66,13 @@ Then:
 - Descend into nested scene, script, and automation calls, and take the union
   of every `choose`, `if`, `repeat`, and `parallel` branch: preview time
   cannot know which branch runs. Follow each branch until it ends in a
-  concrete service action or a node you cannot read. Do not stop early at a
+  concrete action or a node you cannot read — and Home Assistant writes an
+  action two ways. The service form (`action: lock.unlock`) is the obvious
+  one; the DEVICE form (`domain: lock`, `type: unlock`, plus a `device_id`)
+  says the same thing in different keys and is what the automation editor
+  produces for a device-picked step. Classify a device action by its
+  `domain` + `type` exactly as you would the equivalent service, or a
+  door-unlock built in the UI walks past this whole gate. Do not stop early at a
   self-imposed depth: an unresolved chain is not a clean result (see below).
   A node already visited on this path is a cycle — stop that branch there.
 - Resolve `area_id`, `device_id`, `floor_id`, and `label_id` targets to
@@ -101,7 +107,13 @@ Then:
   unread and the scan really is complete — that is the ordinary-tier path, and
   it is the common case. Check presence once per session (their own App or
   integration entries), name what you checked, and escalate only when a
-  present family could not be read. The general unreadable-member fallback
+  present family could not be read. Presence detection sees LOCAL installs
+  only: a Node-RED or AppDaemon running on another machine talks to Home
+  Assistant over the API and leaves no App or integration entry. So report
+  the finding as "no locally installed consumer manager" rather than "no
+  consumer manager", and never call the coverage complete on that basis — the
+  run stays ordinary, but the user is the one who knows whether something
+  external is listening. The general unreadable-member fallback
   still does not apply here: for a trigger source the unread thing IS the
   consumer, so an installed-but-unreadable Node-RED escalates rather than
   being noted as a gap.
@@ -129,6 +141,11 @@ Then:
   garage/gate/entry-door cover by `device_class`, or is physically
   irreversible puts the WHOLE run on the typed `confirm:<token>` tier.
 - Locking, closing, and arming grant nothing and stay ordinary.
+- A member whose OWNING skill already requires the typed tier carries that
+  tier into the run — `mqtt.publish` to a command or `set` topic, or any
+  retained publish, is the standing case (`skills/mqtt/SKILL.md`). Physical
+  access is not the only reason a member is gated, and expanding a run must
+  not downgrade what calling the member directly would have required.
 - For a scene the target STATE decides, not the entity's presence:
   `unlocked`, `open`, and `disarmed` grant access; `locked`, `closed`, and
   `armed` do not.
@@ -149,11 +166,14 @@ service already proves what the run grants. Hiding the entity id behind a
 template does not make it unknown — escalate to the typed tier and say which
 entity could not be resolved.
 
-`cover.open_cover` is the one where the service alone does not settle it: a
-blind and a garage door take the same call, and only the resolved entity's
+Cover actions are the ones where the service alone does not settle it: a blind
+and a garage door take the same call, and only the resolved entity's
 `device_class` separates them. So an unresolved cover target fails CLOSED —
 escalate — because the question "is this a garage door?" cannot be answered
-and the wrong answer opens one.
+and the wrong answer opens one. That covers every cover action that CAN open:
+`open_cover`, `toggle` (a closed garage opens), and `set_cover_position` with
+any position above the current one. Only `close_cover` is safe on an unknown
+target, because closing grants nothing.
 
 When the ACTION NAME itself is templated, or an event listener cannot be
 enumerated, you know nothing about what it does — and "I could not read it"

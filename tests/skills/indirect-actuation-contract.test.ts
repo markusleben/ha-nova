@@ -398,4 +398,31 @@ describe("indirect actuation and owning-skill deferrals (#513)", () => {
   it("defers clearing completed to-do items to the owning skill", () => {
     expect(flat(skillDoc)).toContain("`todo.remove_completed_items`");
   });
+
+  it("classifies the device-action form, not only the service form", () => {
+    const gate = flat(indirectActuation);
+    // The automation editor emits domain/type/device_id for a device-picked
+    // step; a door unlock built in the UI must not walk past the gate.
+    expect(gate).toContain("the DEVICE form (`domain: lock`, `type: unlock`");
+    expect(gate).toContain("Classify a device action by its `domain` + `type`");
+  });
+
+  it("fails closed for every cover action that can open", () => {
+    const gate = flat(indirectActuation);
+    expect(gate).toContain("`open_cover`, `toggle` (a closed garage opens), and `set_cover_position`");
+    expect(gate).toContain("Only `close_cover` is safe on an unknown target");
+  });
+
+  it("carries an owning skill's typed tier through an expansion", () => {
+    const gate = flat(indirectActuation);
+    expect(gate).toContain("carries that tier into the run");
+    expect(gate).toContain("Physical access is not the only reason a member is gated");
+  });
+
+  it("does not read a local-presence check as proof of no consumer", () => {
+    const gate = flat(indirectActuation);
+    expect(gate).toContain("Presence detection sees LOCAL installs only");
+    expect(gate).toContain('"no locally installed consumer manager"');
+    expect(gate).toContain("never call the coverage complete on that basis");
+  });
 });
