@@ -332,4 +332,15 @@ describe("indirect actuation and owning-skill deferrals (#513)", () => {
     expect(gate).toContain("Its effect set is every entity of that domain");
     expect(gate).toContain('"No target" is not evidence of no impact');
   });
+
+  it("does not read an empty consumer scan as an absence of consumers", () => {
+    const gate = flat(indirectActuation);
+    expect(gate).toContain('A zero-hit scan is NOT "no consumers"');
+    expect(gate).toContain("consumer-discovery-preflight.md");
+    expect(gate).toContain('"no consumers in the checked families"');
+    // The generic unreadable-member fallback must not reach trigger sources:
+    // there, the thing that could not be read is the consumer itself.
+    expect(gate).toContain("does not apply to trigger sources");
+    expect(gate).toContain("the unread thing IS the consumer");
+  });
 });

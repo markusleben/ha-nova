@@ -90,6 +90,15 @@ Then:
 - Trigger sources expand the other way: `search/related` on the target, then
   read the actions of every automation it triggers. The classic pattern is a
   helper toggle that another automation answers by unlocking a door.
+- A zero-hit scan is NOT "no consumers". `search/related` does not index
+  Node-RED flows, AppDaemon apps, HACS consumer managers, templated listeners,
+  or dashboard references — `skills/ha-nova/consumer-discovery-preflight.md`
+  lists them as **not checkable**, and its Coverage Report is what a
+  trigger-source expansion produces here too. The strongest claim an empty
+  scan supports is "no consumers in the checked families". While any family is
+  not checkable, coverage is incomplete, so the run is unenumerable and
+  escalates — the general unreadable-member fallback to ordinary tier does not
+  apply to trigger sources, because there the unread thing IS the consumer.
 - A `button` is the exception among trigger sources, because it can carry the
   action itself instead of handing it to an automation. The registry field
   `pl` (platform) decides which kind you have: `pl: "template"` is a
