@@ -134,7 +134,10 @@ describe("safe test system contract", () => {
       const dir = file.split("/").slice(0, -1).join("/");
       const body = readFileSync(file, "utf8");
       return [...body.matchAll(/(?:from|import)\s+["'](\.[^"']+)["']/g)]
-        .map((m) => (m[1] as string).replace(/\.js$/, ""))
+        // Normalize the SAME suffix set on both sides: an import written as
+        // "./suite.mjs" must match a candidate stripped of .mjs, or a
+        // perfectly reachable module reports as orphaned.
+        .map((m) => (m[1] as string).replace(/\.[cm]?[jt]sx?$/, ""))
         .map((spec) => {
           const base = spec.startsWith("./") || spec.startsWith("../")
             ? join(dir, spec).split("\\").join("/")
