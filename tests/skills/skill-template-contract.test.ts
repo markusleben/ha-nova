@@ -170,8 +170,9 @@ const WORD_BUDGETS: Record<string, number> = {
   // refusal, the indirect-actuation gate pointer, and the
   // tier-follows-the-performed-action rule with the disruptive split. The
   // gate mechanics themselves live in skills/ha-nova/indirect-actuation.md
-  // so every caller shares one contract (measured 3089).
-  "service-call": 3100,
+  // so every caller shares one contract. Codex round 2 added the App-restart
+  // disruption note (measured 3111).
+  "service-call": 3130,
   // Carries the canonical File-Change Preview example — the only layout
   // source for file edits; concrete examples are what make a card renderable.
   // Sibling-survival verification (Wave 1b) + yaml snapshot capture with

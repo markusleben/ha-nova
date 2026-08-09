@@ -15,18 +15,27 @@ Read this before previewing any call in the trigger list below.
 **Classify by the TARGET's domain first, then by the service name.** Home
 Assistant's generic services accept any entity, so `homeassistant.turn_on`
 with `entity_id: script.open_door` is a script run wearing another name — and
-a service-name list alone would wave it through. Any call whose resolved
-target is in the `scene`, `script`, or `automation` domain enters this gate,
-whatever service was used to get there (`homeassistant.turn_on|turn_off|
-toggle` included).
+a service-name list alone would wave it through. Any call that STARTS a
+`scene`, `script`, or `automation` enters this gate, whatever service was
+used to get there (`homeassistant.turn_on` and `homeassistant.toggle`
+included; a toggle can start a stopped script).
+
+Stopping is not starting. `homeassistant.turn_off`, `script.turn_off`, and
+`automation.turn_off` halt or disable — they perform none of the member
+actions, so they stay at the ordinary tier. Demanding a typed code to STOP
+something contradicts the performed-action rule and adds friction exactly
+when a user is trying to make behavior end.
 
 By service name, the gate also covers:
 
 - `scene.turn_on`, `scene.apply`
 - `automation.trigger`
 - any script run: `script.<script_id>`, `script.turn_on`, `script.toggle`
-- writes to a trigger source: `input_button.press` and writes to an
-  `input_*` or `switch` helper
+- writes to a trigger source — the helper domains exist to drive automations:
+  `input_boolean`, `input_number`, `input_select`, `input_text`,
+  `input_datetime`, `input_button`, `counter`, `timer`, `schedule`, and
+  `switch`. A counter crossing a threshold or a timer finishing is a trigger
+  like any other.
 - a test utterance through `conversation/process` (`ha-nova:assist`)
 
 Ordinary device control — lights, media, comfort climate, non-access covers —

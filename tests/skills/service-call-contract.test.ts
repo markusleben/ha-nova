@@ -301,6 +301,11 @@ describe("service call contract", () => {
       expect(flat(skillDoc)).toContain(
         "Refuse outright any call targeting the App that runs this Relay",
       );
+      // An App restart takes every device that App serves offline.
+      expect(skillDoc).toContain("`hassio.addon_restart`");
+      expect(flat(skillDoc)).toContain(
+        "an MQTT or Z-Wave App takes every device it serves offline while it comes back",
+      );
     });
   });
 
@@ -326,6 +331,15 @@ describe("service call contract", () => {
       expect(gate).toContain("Classify by the TARGET's domain first");
       expect(gate).toContain("`entity_id: script.open_door` is a script run wearing another name");
       expect(gate).toContain("whatever service was used to get there");
+      // Stopping performs none of the member actions — gating it would
+      // demand a typed code to make behavior END.
+      expect(gate).toContain("Stopping is not starting");
+      expect(gate).toContain("they stay at the ordinary tier");
+      // Helper domains exist to drive automations; a counter crossing a
+      // threshold is a trigger like any other.
+      for (const helper of ["`counter`", "`timer`", "`schedule`", "`input_number`"]) {
+        expect(gate, `trigger-source list missing ${helper}`).toContain(helper);
+      }
     });
 
     it("binds the tier to the performed action, not the entity or the service", () => {
