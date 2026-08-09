@@ -20,11 +20,17 @@ a service-name list alone would wave it through. Any call that STARTS a
 used to get there (`homeassistant.turn_on` and `homeassistant.toggle`
 included; a toggle can start a stopped script).
 
-Stopping is not starting. `homeassistant.turn_off`, `script.turn_off`, and
-`automation.turn_off` halt or disable — they perform none of the member
-actions, so they stay at the ordinary tier. Demanding a typed code to STOP
-something contradicts the performed-action rule and adds friction exactly
-when a user is trying to make behavior end.
+Only an actual run expands members. Three cases do NOT run anything and stay
+at the ordinary tier, because demanding a typed code to stop or configure
+something contradicts the performed-action rule:
+
+- stopping: `homeassistant.turn_off`, `script.turn_off`, `automation.turn_off`
+- enabling or disabling an AUTOMATION: `homeassistant.turn_on|toggle` on an
+  `automation.*` target only flips whether it may fire later; `automation.trigger`
+  is the one that runs it
+- `script.toggle` or `homeassistant.toggle` on a script that is currently
+  running (state `on`): that stops it. Read the state first — the same call on
+  an idle script starts it and does expand members.
 
 By service name, the gate also covers:
 
@@ -88,8 +94,15 @@ Integration-owned scenes (Hue and similar) have no Home Assistant config and
 return 404. Templated targets resolve only at runtime. An utterance is never
 enumerable at all.
 
-Those are limits Home Assistant imposes: stay at the ordinary tier and name in
-the preview which members you could not classify. Do not escalate everything
+One exception comes first, because it is not really an unknown: when the stored
+ACTION is access-capable (`lock.unlock`, `lock.open`, `alarm_control_panel.
+alarm_disarm`, an access cover opening) and only its TARGET is templated, the
+service already proves what the run grants. Hiding the entity id behind a
+template does not make it unknown — escalate to the typed tier and say which
+entity could not be resolved.
+
+Otherwise these are limits Home Assistant imposes: stay at the ordinary tier
+and name in the preview which members you could not classify. Do not escalate everything
 you cannot read — blanket escalation trains users to type confirmation codes
 without reading them, which costs more safety than it buys, and on an instance
 whose scenes all belong to an integration it would fire on every single scene.

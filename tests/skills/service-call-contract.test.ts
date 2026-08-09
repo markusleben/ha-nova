@@ -293,11 +293,16 @@ describe("service call contract", () => {
       // fallback tiers Apps as External, so deferring hassio.* would send the
       // agent to a page that denies the transport works — and fallback has no
       // disruptive tier and no self-amputation rule.
-      const row = skillDoc
+      const rows = skillDoc
         .split("\n")
-        .find((line) => line.startsWith("|") && line.includes("`hassio.*`"));
-      expect(row).toBeTruthy();
-      expect(row).toContain("disruptive tier");
+        .filter((line) => line.startsWith("|") && line.includes("hassio"));
+      expect(rows.length).toBeGreaterThanOrEqual(2);
+      expect(rows.join(" ")).toContain("disruptive tier");
+      // The domain is not a wildcard: restores reboot HA and updates have an
+      // owning skill, so both must route away from the generic flow.
+      expect(flat(skillDoc)).toContain("The `hassio` domain is NOT a wildcard");
+      expect(flat(skillDoc)).toContain("belong to `ha-nova:backup`, which refuses restores outright");
+      expect(flat(skillDoc)).toContain("`addon_update` belongs to `ha-nova:updates`");
       expect(flat(skillDoc)).toContain(
         "Refuse outright any call targeting the App that runs this Relay",
       );
@@ -333,8 +338,11 @@ describe("service call contract", () => {
       expect(gate).toContain("whatever service was used to get there");
       // Stopping performs none of the member actions — gating it would
       // demand a typed code to make behavior END.
-      expect(gate).toContain("Stopping is not starting");
-      expect(gate).toContain("they stay at the ordinary tier");
+      expect(gate).toContain("Only an actual run expands members");
+      expect(gate).toContain("enabling or disabling an AUTOMATION");
+      expect(gate).toContain("`automation.trigger` is the one that runs it");
+      // A toggle on a RUNNING script stops it; on an idle one it starts it.
+      expect(gate).toContain("on a script that is currently running (state `on`): that stops it");
       // Helper domains exist to drive automations; a counter crossing a
       // threshold is a trigger like any other.
       for (const helper of ["`counter`", "`timer`", "`schedule`", "`input_number`"]) {
@@ -403,6 +411,10 @@ describe("service call contract", () => {
       // Integration-owned scenes are the common case; blanket escalation
       // would demand a typed code for every Hue scene activation.
       expect(gate).toContain("return 404");
+      // A templated target hides the entity, not the action: an access-capable
+      // service still proves what the run grants.
+      expect(gate).toContain("when the stored ACTION is access-capable");
+      expect(gate).toContain("Hiding the entity id behind a template does not make it unknown");
       expect(gate).toContain("stay at the ordinary tier and name in the preview");
       expect(gate).toContain(
         "Do not escalate everything you cannot read",

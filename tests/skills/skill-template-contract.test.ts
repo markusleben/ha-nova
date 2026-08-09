@@ -171,8 +171,10 @@ const WORD_BUDGETS: Record<string, number> = {
   // tier-follows-the-performed-action rule with the disruptive split. The
   // gate mechanics themselves live in skills/ha-nova/indirect-actuation.md
   // so every caller shares one contract. Codex round 2 added the App-restart
-  // disruption note (measured 3111).
-  "service-call": 3130,
+  // disruption note; round 4 narrowed the hassio row from a wildcard to the
+  // named lifecycle services, because restores and App updates have owning
+  // skills that refuse or gate them (measured 3170).
+  "service-call": 3200,
   // Carries the canonical File-Change Preview example — the only layout
   // source for file edits; concrete examples are what make a card renderable.
   // Sibling-survival verification (Wave 1b) + yaml snapshot capture with

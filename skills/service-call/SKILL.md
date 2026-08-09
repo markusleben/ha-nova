@@ -53,11 +53,12 @@ Use file-based payloads for service writes:
 | `todo.add_item` / `todo.update_item` / `todo.remove_item` | `ha-nova:todo` |
 | `backup.create` | `ha-nova:backup` |
 | `conversation.process` (executes what it understands) | `ha-nova:assist` |
-| `hassio.*` (App/host lifecycle) | stays here, disruptive tier — refuse the App hosting this Relay |
+| `hassio.addon_start\|stop\|restart`, `hassio.host_reboot\|shutdown` | stays here, disruptive tier — refuse the App hosting this Relay |
+| any other `hassio.*` (`restore_full`, `restore_partial`, `addon_update`, ...) | not covered here — `ha-nova:backup` owns restores, `ha-nova:updates` owns App updates; anything else STOPS at `ha-nova:fallback` |
 
 Read-only response services stay here (`calendar.get_events`, `todo.get_items`, `weather.get_forecasts`) — only the mutating siblings defer.
 
-`hassio.addon_start|stop|restart` and `hassio.host_reboot|shutdown` are ordinary Home Assistant services on this transport, so they run from here under the disruptive tier; `ha-nova:fallback` covers App *management* (install, configure, store), not these. Refuse outright any call targeting the App that runs this Relay — stopping it kills the connection mid-call, so nothing can be verified or undone.
+`hassio.addon_start|stop|restart` and `hassio.host_reboot|shutdown` are ordinary Home Assistant services on this transport, so they run from here under the disruptive tier; `ha-nova:fallback` covers App *management* (install, configure, store), not these. The `hassio` domain is NOT a wildcard: `restore_full`/`restore_partial` reboot Home Assistant and belong to `ha-nova:backup`, which refuses restores outright; `addon_update` belongs to `ha-nova:updates`. Never widen this row to a service it does not name. Refuse outright any call targeting the App that runs this Relay — stopping it kills the connection mid-call, so nothing can be verified or undone.
 
 Runtime calls that stay here: `scene.turn_on` / `scene.apply` (`ha-nova:scene` owns scene CRUD, not activation), `automation.trigger`, direct `script.*` (see Automation And Script Runtime Calls), custom events, known JSON webhooks, and `lock`/`alarm_control_panel`/`cover` control under the gates below.
 
