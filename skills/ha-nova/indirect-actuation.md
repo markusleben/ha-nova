@@ -72,7 +72,10 @@ Then:
   `service: lock.unlock` and `service_template:` that older YAML still
   carries and Home Assistant still executes. The DEVICE form (`domain: lock`,
   `type: unlock`, plus a `device_id`) says the same thing in different keys
-  and is what the automation editor produces for a device-picked step.
+  and is what the automation editor produces for a device-picked step. There
+  is also a SHORTHAND form for a few domains — `scene: scene.open_house` is a
+  scene activation written without a service, and it expands exactly like
+  `scene.turn_on` on that target; classify a shorthand by the domain it names.
   Classify a device action by its `domain` + `type` exactly as you would the
   equivalent service, or a door-unlock built in the UI walks past this whole
   gate; treat a `service_template` like any templated action name — you
