@@ -12,6 +12,16 @@ Read this before previewing any call in the trigger list below.
 
 ## What triggers the gate
 
+**Classify by the TARGET's domain first, then by the service name.** Home
+Assistant's generic services accept any entity, so `homeassistant.turn_on`
+with `entity_id: script.open_door` is a script run wearing another name — and
+a service-name list alone would wave it through. Any call whose resolved
+target is in the `scene`, `script`, or `automation` domain enters this gate,
+whatever service was used to get there (`homeassistant.turn_on|turn_off|
+toggle` included).
+
+By service name, the gate also covers:
+
 - `scene.turn_on`, `scene.apply`
 - `automation.trigger`
 - any script run: `script.<script_id>`, `script.turn_on`, `script.toggle`
@@ -40,7 +50,10 @@ Then:
 
 - Descend into nested scene, script, and automation calls, and take the union
   of every `choose`, `if`, `repeat`, and `parallel` branch: preview time
-  cannot know which branch runs. Stop at depth 3 or a repeat visit.
+  cannot know which branch runs. Follow each branch until it ends in a
+  concrete service action or a node you cannot read. Do not stop early at a
+  self-imposed depth: an unresolved chain is not a clean result (see below).
+  A node already visited on this path is a cycle — stop that branch there.
 - Resolve `area_id`, `device_id`, `floor_id`, and `label_id` targets to
   entities for classification only. This never rewrites a payload — the
   stored config is not yours to change here.
@@ -63,16 +76,23 @@ Then:
 ## When you cannot see the members
 
 Integration-owned scenes (Hue and similar) have no Home Assistant config and
-return 404. Templated targets resolve only at runtime. A depth or cycle cutoff
-leaves the rest unseen. An utterance is never enumerable at all.
+return 404. Templated targets resolve only at runtime. An utterance is never
+enumerable at all.
 
-In those cases: stay at the ordinary tier and name in the preview which
-members you could not classify. Do not escalate everything you cannot read —
-blanket escalation trains users to type confirmation codes without reading
-them, which costs more safety than it buys. The two exceptions, where
-plausibility alone is enough to escalate:
+Those are limits Home Assistant imposes: stay at the ordinary tier and name in
+the preview which members you could not classify. Do not escalate everything
+you cannot read — blanket escalation trains users to type confirmation codes
+without reading them, which costs more safety than it buys, and on an instance
+whose scenes all belong to an integration it would fire on every single scene.
 
-- a `search/related` scan that FAILED (as opposed to returning nothing) is
+A limit YOU imposed is the opposite case and fails closed — stopping early
+would restore the exact bypass this gate exists to close, by rewarding anyone
+who buries `lock.unlock` one level deeper. Escalate to the typed tier and name
+the unresolved branch when:
+
+- you stopped following a chain before it resolved, for any reason (length,
+  cost, a cycle you cut)
+- a `search/related` scan FAILED (as opposed to returning nothing) — that is
   inconclusive, never a clean result
 - an utterance whose words, or whose exposed entity set, plausibly reach a
   lock, alarm panel, or access cover

@@ -320,6 +320,12 @@ describe("service call contract", () => {
         expect(skillDoc).toContain(trigger);
       }
       expect(skillDoc).toContain("Ordinary device control does not carry this gate");
+      // homeassistant.turn_on with a script target is a script run under
+      // another name — a service-name list alone would wave it through.
+      const gate = flat(indirectActuation);
+      expect(gate).toContain("Classify by the TARGET's domain first");
+      expect(gate).toContain("`entity_id: script.open_door` is a script run wearing another name");
+      expect(gate).toContain("whatever service was used to get there");
     });
 
     it("binds the tier to the performed action, not the entity or the service", () => {
@@ -353,7 +359,13 @@ describe("service call contract", () => {
       const gate = flat(indirectActuation);
       expect(gate).toContain("Descend into nested scene, script, and automation calls");
       expect(gate).toContain("union of every `choose`, `if`, `repeat`, and `parallel` branch");
-      expect(gate).toContain("Stop at depth 3 or a repeat visit");
+      // A self-imposed depth cap that fails OPEN just moves the bypass one
+      // level deeper, so the cap is gone and an unresolved chain escalates.
+      expect(gate).toContain("Do not stop early at a self-imposed depth");
+      expect(gate).not.toContain("Stop at depth 3");
+      expect(gate).toContain(
+        "you stopped following a chain before it resolved, for any reason",
+      );
       expect(gate).toContain("`area_id`, `device_id`, `floor_id`, and `label_id`");
       expect(gate).toContain("This never rewrites a payload");
       expect(gate).toContain("no stored config exists");
@@ -381,7 +393,7 @@ describe("service call contract", () => {
       expect(gate).toContain(
         "Do not escalate everything you cannot read",
       );
-      expect(gate).toContain("a `search/related` scan that FAILED");
+      expect(gate).toContain("a `search/related` scan FAILED");
       expect(gate).toContain("inconclusive, never a clean result");
       expect(gate).toContain(
         "`unlocked`, `open`, and `disarmed` grant access; `locked`, `closed`, and `armed` do not",
