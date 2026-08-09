@@ -135,11 +135,18 @@ because one device can be provided by several integrations — match on
 membership in that array, not on equality. Report those counts. The compact `list_for_display` cannot answer this — its
 rows carry `ei`/`en`/`ai` only and no `config_entry_id`, so it is the wrong
 read for an ownership question however much cheaper it is. Then scan what depends on them BEFORE asking, not on request: run
-`search/related` per ENTITY, because a device-level scan does not reach its
-child entities' consumers (`skills/organize/SKILL.md`) — an automation
-referencing `sensor.x` is invisible from the device that provides it. An entry
-id is not a related-item type at all, so there is no shortcut here: the
-automations, scripts and scenes that break are the point of the preview.
+`search/related` per DEVICE **and** per ENTITY. Neither covers the other — a
+device-level scan does not reach its child entities' consumers, and an
+automation can reference a `device_id` directly, which no entity scan sees
+(`skills/organize/SKILL.md`). An entry id is not a related-item type at all,
+so there is no shortcut: the automations, scripts and scenes that break are
+the point of the preview.
+
+And say what the scan cannot see. `search/related` does not index dashboards
+(storage or YAML) or template references, so a removed entity can still be
+named on a card or inside a template with nothing reporting it. Report the
+found consumers AND that unindexed list before the typed confirmation — the
+user is deciding with what you found, and needs to know its edges.
 
 ### Assist Custom Sentences -- RELAY-READY
 
