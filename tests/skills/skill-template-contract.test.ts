@@ -214,7 +214,9 @@ const WORD_BUDGETS: Record<string, number> = {
   // leaving the file's load-bearing content unreferenced; Codex round 1
   // scoped that requirement to endpoints the table actually covers and named
   // the researched-schema path for the rest (#518, measured 2799).
-  fallback: 2830,
+  // Codex round 8: a config-entry flow answers from its own live response,
+  // never from the research schema (measured 2863).
+  fallback: 2920,
   // semantic-slot note on the read templates (Wave 0); pre-write cross-field
   // constraint checks + drift-check step (Wave 1); pre-delete snapshot
   // capture (Wave 2).

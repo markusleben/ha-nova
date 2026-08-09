@@ -121,7 +121,7 @@ describe("load-bearing rules referenced from where they apply (#518)", () => {
     // The table has no row for response-driven flows or blueprint/save, so a
     // blanket classification requirement would stall documented operations.
     expect(fb).toContain("Endpoints the table does not cover");
-    expect(fb).toContain("follow the schema the research step returned");
+    expect(fb).toContain("split by where their schema comes from");
   });
 
   it("echoes verify-before-flag where findings are generated", () => {
@@ -247,5 +247,16 @@ describe("load-bearing rules referenced from where they apply (#518)", () => {
     expect(diagnose).not.toContain('test("<entity_or_integration>|ERROR"');
     // Finding nothing is an answer, not a reason to loosen the filter.
     expect(diagnose).toContain("rather than widening the filter until something appears");
+  });
+
+  it("answers a config-entry flow from the live response, not from research", () => {
+    const fallback = flat(read("skills/fallback/SKILL.md"));
+    // Fields vary by domain and HA version; the flow response is the only
+    // authority for the step being answered.
+    expect(fallback).toContain("submit exactly the fields the LIVE response named");
+    expect(fallback).toContain("never the fields the research step suggested");
+    expect(fallback).toContain(
+      "research is how you understand the flow, the response is what you answer",
+    );
   });
 });
