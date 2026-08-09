@@ -31,7 +31,13 @@ describe("pre-write drift check covers every full-document write (#514)", () => 
       "run the drift check before applying (`skills/ha-nova/write-safety.md` → Drift check before apply)",
     );
     expect(flat(energy)).toContain("re-read `get_prefs` immediately before the save");
-    expect(flat(energy)).toContain("on any foreign change STOP");
+    expect(flat(energy)).toContain("On any other foreign change STOP");
+    // First-time setup legitimately has no prefs document: a second
+    // ERR_NOT_FOUND is the unchanged answer, not a failure to compare.
+    expect(flat(energy)).toContain("On first-time setup the basis is absence");
+    expect(flat(energy)).toContain(
+      "a second `ERR_NOT_FOUND` means nothing changed and the save proceeds",
+    );
   });
 
   it("wires the yaml whole-file write to the clause, last before the write", () => {

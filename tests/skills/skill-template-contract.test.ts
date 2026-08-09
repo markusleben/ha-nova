@@ -115,7 +115,9 @@ const WORD_BUDGETS: Record<string, number> = {
   // Pre-write drift check before save_prefs (#514, measured 1257): the
   // post-save deep-equal check reported a lost foreign edit instead of
   // preventing it.
-  energy: 1270,
+  // Codex round 2: first-time setup has no prefs document, so the drift
+  // reread needs absence as an explicit basis (measured 1283).
+  energy: 1300,
   // consumer checks before area delete/rename/disable (Wave 1b) + metadata
   // snapshot capture (Wave 2).
   // Grouped-change-set opt-in + flow wiring (#391).
