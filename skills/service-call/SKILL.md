@@ -53,9 +53,11 @@ Use file-based payloads for service writes:
 | `todo.add_item` / `todo.update_item` / `todo.remove_item` | `ha-nova:todo` |
 | `backup.create` | `ha-nova:backup` |
 | `conversation.process` (executes what it understands) | `ha-nova:assist` |
-| `hassio.*` (Apps/Supervisor) | not covered — `ha-nova:fallback` first; never stop or restart the App hosting this Relay |
+| `hassio.*` (App/host lifecycle) | stays here, disruptive tier — refuse the App hosting this Relay |
 
 Read-only response services stay here (`calendar.get_events`, `todo.get_items`, `weather.get_forecasts`) — only the mutating siblings defer.
+
+`hassio.addon_start|stop|restart` and `hassio.host_reboot|shutdown` are ordinary Home Assistant services on this transport, so they run from here under the disruptive tier; `ha-nova:fallback` covers App *management* (install, configure, store), not these. Refuse outright any call targeting the App that runs this Relay — stopping it kills the connection mid-call, so nothing can be verified or undone.
 
 Runtime calls that stay here: `scene.turn_on` / `scene.apply` (`ha-nova:scene` owns scene CRUD, not activation), `automation.trigger`, direct `script.*` (see Automation And Script Runtime Calls), custom events, known JSON webhooks, and `lock`/`alarm_control_panel`/`cover` control under the gates below.
 
@@ -81,7 +83,7 @@ Some services return data (`weather.get_forecasts`, `calendar.get_events`, `todo
 4. Preview the service call with stable localized slots:
    - Before preview: read current state via `ha-nova relay core --method GET --path /api/states/{entity_id}`.
    - Capability gate: if the call depends on a device capability (position, color_temp, hvac modes, sound mode, ...), check the target's attributes/`supported_features` in that state read first; if the device cannot do it, say so instead of calling (pattern: `ha-nova:media`).
-   - Indirect actuation gate: `scene.turn_on`/`scene.apply`, `automation.trigger`, and direct `script.*` runs actuate entities the request never names. Read the stored config first (scene `entities` map; automation/script action targets, including `area_id`/`device_id` targets expanded as in step 3), list those members in the preview, and let them decide the tier per Safety — a scene that unlocks a door is a door unlock. Templated or fully dynamic targets are not enumerable: say so and treat the run as high-consequence when the reachable set plausibly contains one.
+   - Indirect actuation gate: `scene.turn_on`/`scene.apply`, `automation.trigger`, any script run (`script.<script_id>`, `script.turn_on`, `script.toggle`), and writes to a trigger source (`input_button.press`, `input_*`/`switch` helpers) actuate entities the request never names. Expand and classify the members per `skills/ha-nova/indirect-actuation.md` BEFORE previewing, list them in the preview, and let them set the tier per Safety. Ordinary device control does not carry this gate.
    - If service changes an attribute present in the service call parameters (brightness, temperature, position, hvac_mode, etc.) OR inherently changes entity state (toggle, turn_on, turn_off, press, lock, unlock, open, close), show state delta before the call details:
      ```
      **State delta:**
@@ -150,12 +152,12 @@ For helper CRUD (create/update/delete helpers themselves), use `ha-nova:helper` 
 
 Rules:
 - Never call them automatically from read, review, write, or post-write verification.
-- Use this service-call flow only after a concrete preview shows the exact service, target, payload, and whether `skip_condition` is set.
+- Use this service-call flow only after a concrete preview shows the exact service, target, payload, whether `skip_condition` is set, and the members the run actuates (Flow step 4 → indirect actuation gate).
 - Treat `skip_condition: true` as higher risk because it bypasses automation conditions.
 - Ask for confirmation bound to that exact runtime-call preview before execution.
 - After execution, verify only the target automation/script state and any user-approved helper/state assertions; do not infer device safety from a successful service response alone.
 - Post-write test runs: plan structure, real-path recipes, and the post-run follow-up live in `skills/ha-nova/test-run.md`.
-- When a Test Plan Card already showed the concrete preview (service, target, payload, `skip_condition`), the user's option choice on that card IS the bound confirmation — do not ask again.
+- When a Test Plan Card already showed the concrete preview (service, target, payload, `skip_condition`), the user's option choice on that card IS the bound confirmation — do not ask again. The one exception: if the indirect actuation gate put the run on the typed tier, the card choice never replaces `confirm:<token>`.
 
 ## Custom Events And Webhooks
 
@@ -229,8 +231,8 @@ Previews are the runtime-action Preview Card (`apply · cancel`); results are th
 
 - No typed confirmation code needed for ordinary service calls; confirmation is still bound to the active preview.
 - **High-consequence runtime actions take the typed `confirm:<token>`** like a destructive write: unlocking or opening a lock, disarming an alarm panel, opening a garage door, gate, or entry-door cover. Check `device_class` and what the entity controls — a garage door exposed as `cover.*` belongs here, a living-room blind does not. These actions grant physical access; calling the opposite service afterwards does not undo the exposure window.
-- The tier follows the actuated entity, not the called service: when the indirect actuation gate expanded a scene, automation, or script and any member grants physical access, the whole run takes the typed `confirm:<token>` — the same rule `ha-nova:scene` applies to its apply-test.
-- For potentially disruptive services (`homeassistant.restart`, `homeassistant.stop`, `siren.turn_on` at full volume), warn and ask for explicit post-preview confirmation. Disruptive is not the high-consequence tier: it interrupts, it does not grant physical access.
+- The tier follows the performed action, not the called service: when the indirect actuation gate expanded a scene, automation, or script and any member grants physical access or is physically irreversible, the whole run takes the typed `confirm:<token>` — the same rule `ha-nova:scene` applies to its apply-test. A member that only locks, closes, or arms grants nothing and stays ordinary.
+- For potentially disruptive services (`homeassistant.restart`, `homeassistant.stop`, `hassio.host_reboot`, `hassio.host_shutdown`, `hassio.addon_stop`, `siren.turn_on`), warn and ask for explicit post-preview confirmation. Disruptive is not the high-consequence tier: it interrupts, it neither grants physical access nor makes anything physically irreversible.
 
 ## Guardrails
 

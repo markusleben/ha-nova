@@ -123,7 +123,7 @@ Do NOT invoke `ha-nova:review` separately.
 
 ### Phase 5: Test Offer (create/update only)
 
-After the Post-Write Review output, build a Test Plan Card per `skills/ha-nova/test-run.md`: classify trigger type and action risk, pick ONE recommended option (real run included where acceptable — with the devices it will switch named), show at most 3 options plus `skip`. Never execute anything unconsented; the user's option choice is the confirmation bound to that exact card (single confirmation — no second prompt). Runs follow the service-call runtime rules (`mqtt` triggers via `ha-nova:mqtt`; logic check via `POST /api/template`), then the automatic post-run follow-up in test-run.md (trace, state verify, restore). After one skip, de-escalate to a single line for later writes. Skip this phase for deletes.
+After the Post-Write Review output, build a Test Plan Card per `skills/ha-nova/test-run.md`: classify trigger type and action risk, pick ONE recommended option (real run included where acceptable — with the devices it will switch named), show at most 3 options plus `skip`. Never execute anything unconsented; the user's option choice is the confirmation bound to that exact card (single confirmation — no second prompt), except for high-consequence members, where the card confirmation never replaces the typed confirmation code. Runs follow the service-call runtime rules (`mqtt` triggers via `ha-nova:mqtt`; logic check via `POST /api/template`), then the automatic post-run follow-up in test-run.md (trace, state verify, restore). After one skip, de-escalate to a single line for later writes. Skip this phase for deletes.
 
 ## Output Format
 

@@ -96,7 +96,7 @@ Skills reference this section as "context skill → Active Preview Confirmation"
 
 - `create`/`update`: natural confirmation bound to active preview.
 - non-destructive grouped change set (one logical task, max 10 operations): one natural confirmation bound to the fully previewed set per `skills/ha-nova/grouped-change-set.md` — only where the owning skill declares grouped support, never inferred; operations requiring a confirmation code are rejected from the group.
-- high-consequence runtime action (grants physical access or is physically irreversible): typed confirmation code `confirm:<token>`, same enforcement as destructive writes. Canonical set: unlocking or opening locks, disarming alarm panels, opening garage/gate/entry-door covers — `device_class` and what the entity controls decide, never the domain alone. The tier follows the entity that ends up actuated, so a scene, script, or automation run reaching one of those members sits here too; the owning skill expands the members before previewing. Owning-skill escalations (retained and command/`set` MQTT publishes, user-account creation) sit on this same rung.
+- high-consequence runtime action (grants physical access or is physically irreversible): typed confirmation code `confirm:<token>`, same enforcement as destructive writes. Canonical set: unlocking or opening locks, disarming alarm panels, opening garage/gate/entry-door covers — `device_class` and what the entity controls decide, never the domain alone. The tier follows the action that ends up performed, so a scene, script, or automation run performing one of those actions sits here too; the owning skill expands the members before previewing. Locking, closing, and arming stay ordinary. Owning-skill escalations (retained and command/`set` MQTT publishes, user-account creation) sit on this same rung.
 - `delete`/destructive: typed confirmation code `confirm:<token>`.
   **Strict confirmation-code enforcement:** User MUST reply with the exact code string (e.g., `confirm:del-main-lights`). Any other response — including "yes", "sure, delete it", "do it", or any natural-language confirmation — is NOT valid. Reject and re-prompt with the exact code required. In user-facing output call it the "confirmation code" (localized), never a "token" (see `skills/ha-nova/output-rules.md` → Localization).
   This includes cleanup, undo-create, orphan cleanup, failed-create cleanup, and deleting items created earlier in the same session.
@@ -218,7 +218,7 @@ Match user intent to exactly one skill:
 | add an integration or continue a pending integration reauthentication flow | `ha-nova:integration-setup` |
 | play, pause, skip, set volume, change source, group speakers, browse media, or announce over a speaker | `ha-nova:media` |
 | send a notification to a phone or another notify target, or manage Home Assistant's persistent notifications | `ha-nova:notify` |
-| look at a camera (snapshot), get a stream URL, or record | `ha-nova:camera` |
+| look at a camera (snapshot), get a stream URL, record, or switch a camera on/off | `ha-nova:camera` |
 | listen to MQTT topics to see what a device actually publishes, inspect MQTT discovery, or publish a message | `ha-nova:mqtt` |
 | test what the voice assistant understands, manage Assist pipelines, or control which entities voice can see | `ha-nova:assist` |
 | manage persons, zones, tags, or user accounts | `ha-nova:admin` |

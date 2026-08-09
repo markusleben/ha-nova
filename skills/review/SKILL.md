@@ -302,7 +302,7 @@ After completing Steps 1-3, check if the current entity state (from the earlier 
 - Fix requires config change (that's a Suggestions item)
 - Multiple equally valid corrections exist (ambiguous — note in Questions to consider instead)
 - State read failed or entity unavailable — skip, note in Instant Help section: localized equivalent of "Skipped: current state unavailable."
-- The corrective call would grant physical access — unlocking or opening a lock, disarming an alarm panel, opening a garage/gate/entry-door cover by `device_class`, or activating a scene/script that actuates one. Never Quick-Fix these: name the fix and hand off to `ha-nova:service-call`, which carries the typed high-consequence gate this step does not.
+- The corrective call would grant physical access or is physically irreversible — unlocking or opening a lock, disarming an alarm panel, opening a garage/gate/entry-door cover by `device_class`, or running a scene, script, or automation that reaches one. Never Quick-Fix these: name the fix and offer to run it as a separate service call, which carries the typed high-consequence gate this step does not.
 
 **If qualified:**
 1. Show current state vs expected state

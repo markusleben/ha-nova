@@ -35,6 +35,21 @@ const testRunDoc = readFileSync(
   resolve(__dirname, "../../skills/ha-nova/test-run.md"),
   "utf-8",
 );
+const assistSkill = readFileSync(
+  resolve(__dirname, "../../skills/assist/SKILL.md"),
+  "utf-8",
+);
+const indirectActuation = readFileSync(
+  resolve(__dirname, "../../skills/ha-nova/indirect-actuation.md"),
+  "utf-8",
+);
+const writeSkill = readFileSync(
+  resolve(__dirname, "../../skills/write/SKILL.md"),
+  "utf-8",
+);
+// Contract docs hard-wrap at ~72 columns, so a pinned sentence must not also
+// pin the column it happens to break at.
+const flat = (text: string): string => text.replace(/\s+/g, " ");
 const architecture = readFileSync(
   resolve(__dirname, "../../docs/reference/skill-architecture.md"),
   "utf-8",
@@ -274,56 +289,147 @@ describe("service call contract", () => {
       );
     });
 
-    it("routes Supervisor services through fallback and blocks self-amputation", () => {
+    it("keeps Supervisor lifecycle here rather than routing it somewhere weaker", () => {
+      // fallback tiers Apps as External, so deferring hassio.* would send the
+      // agent to a page that denies the transport works — and fallback has no
+      // disruptive tier and no self-amputation rule.
       const row = skillDoc
         .split("\n")
         .find((line) => line.startsWith("|") && line.includes("`hassio.*`"));
       expect(row).toBeTruthy();
-      expect(row).toContain("ha-nova:fallback");
-      expect(row).toContain("never stop or restart the App hosting this Relay");
+      expect(row).toContain("disruptive tier");
+      expect(flat(skillDoc)).toContain(
+        "Refuse outright any call targeting the App that runs this Relay",
+      );
     });
   });
 
   describe("indirect actuation cannot bypass the high-consequence tier (#513)", () => {
-    it("expands scene, automation, and script members before the preview", () => {
+    it("routes every indirect-run service through the shared gate", () => {
       expect(skillDoc).toContain("Indirect actuation gate");
       expect(skillDoc).toContain("actuate entities the request never names");
-      expect(skillDoc).toContain("scene `entities` map");
-      expect(skillDoc).toContain("a scene that unlocks a door is a door unlock");
-      // Non-enumerable targets must fail closed, not silently downgrade.
-      expect(skillDoc).toContain("Templated or fully dynamic targets are not enumerable");
+      expect(skillDoc).toContain("skills/ha-nova/indirect-actuation.md");
+      // Every spelling of a script run is covered: main previously gated
+      // only "direct script.*", while test-run steers toward script.turn_on.
+      for (const trigger of [
+        "`scene.turn_on`/`scene.apply`",
+        "`automation.trigger`",
+        "`script.<script_id>`, `script.turn_on`, `script.toggle`",
+        "`input_button.press`",
+      ]) {
+        expect(skillDoc).toContain(trigger);
+      }
+      expect(skillDoc).toContain("Ordinary device control does not carry this gate");
     });
 
-    it("binds the tier to the actuated entity in skill and context contract", () => {
+    it("binds the tier to the performed action, not the entity or the service", () => {
+      // Entity-scoped wording would make LOCKING a door high-consequence.
       expect(skillDoc).toContain(
-        "The tier follows the actuated entity, not the called service",
+        "The tier follows the performed action, not the called service",
       );
-      expect(skillDoc).toContain("the whole run takes the typed `confirm:<token>`");
-      expect(contextSkill).toContain(
-        "The tier follows the entity that ends up actuated",
+      expect(skillDoc).toContain("grants physical access or is physically irreversible");
+      expect(skillDoc).toContain(
+        "A member that only locks, closes, or arms grants nothing and stays ordinary",
       );
+      expect(contextSkill).toContain("The tier follows the action that ends up performed");
+      expect(contextSkill).toContain("Locking, closing, and arming stay ordinary");
     });
 
     it("keeps disruptive services distinct from the access-granting tier", () => {
+      expect(skillDoc).toContain("Disruptive is not the high-consequence tier");
+      // Both limbs of the tier definition survive the split.
       expect(skillDoc).toContain(
-        "Disruptive is not the high-consequence tier: it interrupts, it does not grant physical access",
+        "neither grants physical access nor makes anything physically irreversible",
       );
-      expect(testRunDoc).toContain(
-        "a deliberate superset of the\ncontext skill's high-consequence confirmation tier",
+      expect(flat(testRunDoc)).toContain(
+        "a deliberate superset of the context skill's high-consequence confirmation tier",
       );
+      expect(flat(testRunDoc)).toContain(
+        "Members that grant physical access still take the typed confirmation code",
+      );
+    });
+
+    it("expands nested runs, every target kind, and the trigger-source direction", () => {
+      const gate = flat(indirectActuation);
+      expect(gate).toContain("Descend into nested scene, script, and automation calls");
+      expect(gate).toContain("union of every `choose`, `if`, `repeat`, and `parallel` branch");
+      expect(gate).toContain("Stop at depth 3 or a repeat visit");
+      expect(gate).toContain("`area_id`, `device_id`, `floor_id`, and `label_id`");
+      expect(gate).toContain("This never rewrites a payload");
+      expect(gate).toContain("no stored config exists");
+      expect(gate).toContain("`search/related` on the target");
+      expect(gate).toContain("helper toggle that another automation answers by unlocking a door");
+    });
+
+    it("states the config-read path the gate depends on", () => {
+      // Without an authorized endpoint the gate is unactionable: the skill
+      // forbids guessing config IDs and probing unfamiliar endpoints.
+      const gate = flat(indirectActuation);
+      expect(gate).toContain(
+        "/api/config/{scene|script|automation}/config/<config_id>",
+      );
+      expect(gate).toContain("`config_id` is `attributes.id`");
+      expect(gate).toContain("object part of the entity_id");
+    });
+
+    it("fails open on unreadable members but never on a failed scan", () => {
+      const gate = flat(indirectActuation);
+      // Integration-owned scenes are the common case; blanket escalation
+      // would demand a typed code for every Hue scene activation.
+      expect(gate).toContain("return 404");
+      expect(gate).toContain("stay at the ordinary tier and name in the preview");
+      expect(gate).toContain(
+        "Do not escalate everything you cannot read",
+      );
+      expect(gate).toContain("a `search/related` scan that FAILED");
+      expect(gate).toContain("inconclusive, never a clean result");
+      expect(gate).toContain(
+        "`unlocked`, `open`, and `disarmed` grant access; `locked`, `closed`, and `armed` do not",
+      );
+    });
+
+    it("keeps the single-confirmation card from becoming the bypass", () => {
+      expect(flat(indirectActuation)).toContain(
+        "That shortcut never applies to a run this gate placed on the typed tier",
+      );
+      expect(flat(testRunDoc)).toContain(
+        "the single card confirmation never replaces it",
+      );
+      expect(flat(writeSkill)).toContain(
+        "the card confirmation never replaces the typed confirmation code",
+      );
+      expect(flat(skillDoc)).toContain(
+        "if the indirect actuation gate put the run on the typed tier, the card choice never replaces `confirm:<token>`",
+      );
+    });
+
+    it("gates utterance execution in the skill it defers to", () => {
+      expect(flat(assistSkill)).toContain(
+        "An utterance is the least enumerable indirect actuation there is",
+      );
+      expect(assistSkill).toContain("it takes the typed `confirm:<token>`");
+      expect(assistSkill).toContain("including the re-run proof after an exposure fix");
     });
   });
 
   describe("sibling flows restate the access gate (#513 class sweep)", () => {
     it("excludes access-granting corrections from review Quick-Fix", () => {
-      expect(reviewSkill).toContain("The corrective call would grant physical access");
+      expect(reviewSkill).toContain(
+        "The corrective call would grant physical access or is physically irreversible",
+      );
       expect(reviewSkill).toContain("Never Quick-Fix these");
-      expect(reviewSkill).toContain("hand off to `ha-nova:service-call`");
+      expect(reviewSkill).toContain("offer to run it as a separate service call");
+      // Running an automation reaches the same outcome as calling the service.
+      expect(reviewSkill).toContain(
+        "running a scene, script, or automation that reaches one",
+      );
     });
 
     it("gives command/set-topic publishes the typed tier where the flow reads it", () => {
+      // The rule already lived in Safety; the publish bullet is where an
+      // agent about to publish actually is, so it has to say it too.
       expect(mqttSkill).toContain(
-        "it takes the same typed `confirm:<token>`",
+        "Preview it as an action, not as a message — typed `confirm:<token>`, see Safety",
       );
       expect(mqttSkill).toContain(
         "Retained publishes and command/`set` topics take the typed",

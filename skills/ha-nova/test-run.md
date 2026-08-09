@@ -32,7 +32,11 @@ This file defines only how the test plan is chosen, presented, and verified.
   preview (exact service, target, payload, `skip_condition` value, device
   delta). The user's option choice is the natural confirmation bound to that
   exact preview — do not ask a second time. Any change to the plan expires
-  the choice and requires a fresh card.
+  the choice and requires a fresh card. High-consequence members (locks,
+  alarm panels, garage/gate/entry-door covers by `device_class`, and
+  physically irreversible actions) keep the typed confirmation code from the
+  context skill's high-consequence tier — the single card confirmation never
+  replaces it.
 
 ## Feasibility & Recommendation
 
