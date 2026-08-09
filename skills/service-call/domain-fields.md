@@ -87,10 +87,12 @@ device.
 
 ## Water heater
 
-- `set_operation_mode` (`operation_mode`, a value from `operation_list`),
-  `set_away_mode` (`away_mode`, boolean), `set_temperature` (`temperature`,
-  degrees in the system unit). Each field is required — an entity-only
-  payload is a schema error.
+- `set_temperature` (`temperature`, degrees in the system unit — bit 1),
+  `set_operation_mode` (`operation_mode`, a value from `operation_list` —
+  bit 2), `set_away_mode` (`away_mode`, boolean — bit 4). `turn_on`/`turn_off`
+  need bit 8. Each field is required: an entity-only payload is a schema
+  error, and as with fans the bit is the only per-entity gate — `/api/services`
+  lists these regardless of what this heater supports.
 - The entity STATE is the operation mode, so verify a mode change by reading
   the state back, not an attribute.
 

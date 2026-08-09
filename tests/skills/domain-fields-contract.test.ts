@@ -99,7 +99,8 @@ describe("per-domain service depth (#530)", () => {
     expect(gate).toContain("`humidity` is the setpoint, `current_humidity` the sensor reading");
     expect(gate).toContain("The entity STATE is the operation mode");
     // Naming a service without its required field invites a schema error.
-    expect(gate).toContain("`set_away_mode` (`away_mode`, boolean)");
+    expect(gate).toContain("`set_away_mode` (`away_mode`, boolean — bit 4)");
+    expect(gate).toContain("`set_temperature` (`temperature`, degrees in the system unit — bit 1)");
     expect(gate).toContain("an entity-only payload is a schema error");
     expect(gate).toContain("`tone` (bit 4");
     expect(gate).toContain("`volume_level` (bit 8), and `duration` (bit 16)");
