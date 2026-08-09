@@ -233,6 +233,9 @@ describe("ha-api-matrix lists the surfaces skills actually pin (#517)", () => {
     expect(fallbackAll).toContain("Integration entry enable/disable, options, reconfigure | External");
     // The section behind the row must claim the same scope as the row.
     expect(fallbackAll).toContain("Reload and remove for an existing config entry — those two only");
+    // Every Relay-Ready row needs a section behind it, event capture included.
+    expect(fallbackAll).toContain("Bounded Event Capture -- RELAY-READY");
+    expect(fallbackAll).toContain("do not invent a bare subscription");
     expect(fallbackAll).toContain("point at Settings > Devices & services instead of improvising a payload");
     // get_states is not how any listed owner reads the compact registry.
     const row = read("docs/reference/ha-api-matrix.md")

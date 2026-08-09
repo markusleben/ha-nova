@@ -74,6 +74,31 @@ ha-nova relay core --method DELETE --path /api/config/config_entries/entry/{entr
 
 **Risks:** Multi-step flows are complex. Each step returns the next step's schema. Update support can be domain- and version-specific. Delete requires correct `entry_id` resolution first. Prefer HA UI for these.
 
+### Bounded Event Capture -- RELAY-READY
+
+Watching what a physical button fires, or what happens in the seconds after an
+action. The mechanics are already contracted in
+`skills/ha-nova/relay-api.md` → Bounded Event Collection — do not restate them
+here, and do not invent a bare subscription: the relay rejects one outside the
+envelope with `UNSUPPORTED_WS_TYPE`.
+
+```json
+{
+  "message": { "type": "subscribe_events", "event_type": "zha_event" },
+  "collect_events": { "until_type": "finish", "max_events": 20, "timeout_ms": 15000, "on_limit": "return" }
+}
+```
+
+`on_limit: "return"` is the mode for this: a button stream never finishes, so
+the window has to close on the limit rather than error. Read the result from
+`.data.events`, and say when `.data.truncated` is true — the user pressed
+more than the window caught, or nothing arrived at all. An empty window is a
+real answer, not a failure.
+
+**Risks:** The window blocks for its full `timeout_ms` when nothing arrives —
+say the duration before starting it. `ha-nova:mqtt` owns MQTT topics; this is
+for Home Assistant's own event bus.
+
 ### Integration Entry Lifecycle -- RELAY-READY
 
 Reload and remove for an existing config entry — those two only.
