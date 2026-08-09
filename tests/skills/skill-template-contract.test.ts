@@ -120,7 +120,10 @@ const WORD_BUDGETS: Record<string, number> = {
   // Presence-conditional recipient resolution; Codex round 1 required real
   // /api/services discovery instead of deriving a notify service name from
   // tracker ids, which prove no association (#527, measured 1264).
-  notify: 1300,
+  // Ceiling covers the COMBINED merge: #516 adds the honest bounded window
+  // and #527 the household routing, each measured alone. Trial-merging the
+  // train lands at 1382.
+  notify: 1430,
   // pre-save snapshot capture + snapshot recovery guidance (Wave 2).
   energy: 1250,
   // consumer checks before area delete/rename/disable (Wave 1b) + metadata
