@@ -315,6 +315,7 @@ describe("indirect actuation and tier classification (#513)", () => {
   it("carries an owning skill's typed tier through an expansion", () => {
     const gate = flat(indirectActuation);
     expect(gate).toContain("carries that tier into the run");
+    expect(gate).toContain("a member whose tier cannot be DETERMINED escalates");
     expect(gate).toContain("Physical access is not the only reason a member is gated");
   });
   it("does not read a local-presence check as proof of no consumer", () => {

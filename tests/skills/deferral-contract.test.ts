@@ -101,7 +101,9 @@ describe("owning-skill deferrals and lifecycle paths (#513)", () => {
     // /api/hassio/... proxy with 403 — so the slug comes from the update
     // entity's entity_picture, and App state is simply not readable here.
     expect(doc).toContain("The Supervisor API is NOT reachable from here");
-    expect(doc).toContain("`entity_picture` is `/api/hassio/addons/<slug>/icon`");
+    // unique_id is a registry field; entity_picture is mutable state.
+    expect(doc).toContain("returns `unique_id` `<slug>_version_latest`");
+    expect(doc).toContain("must NOT be used");
     expect(doc).toContain("App state cannot be verified from here");
     expect(doc).toContain("Never infer success from the service call returning");
     // A host reboot takes the transport with it, so success is unobservable.

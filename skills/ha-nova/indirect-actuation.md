@@ -154,7 +154,10 @@ Then:
   irreversible puts the WHOLE run on the typed `confirm:<token>` tier.
 - Locking, closing, and arming grant nothing and stay ordinary.
 - A member whose OWNING skill already requires the typed tier carries that
-  tier into the run — `mqtt.publish` to a command or `set` topic, or any
+  tier into the run, and a member whose tier cannot be DETERMINED escalates
+  rather than defaulting down: an `mqtt.publish` with a templated `topic` or
+  `retain` is exactly that case — you cannot tell whether it hits a command
+  topic, so the unreadable-member fallback does not apply — `mqtt.publish` to a command or `set` topic, or any
   retained publish, is the standing case (`skills/mqtt/SKILL.md`). Physical
   access is not the only reason a member is gated, and expanding a run must
   not downgrade what calling the member directly would have required.
