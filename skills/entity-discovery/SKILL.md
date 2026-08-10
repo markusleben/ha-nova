@@ -162,7 +162,7 @@ then filter by domain plus `device_class` and state:
   lights, switches and fans, but `media_player` only in `playing`/`buffering`,
   AND the domains whose "running" is not `on`: `vacuum` in `cleaning`/
   `returning`, `climate` whose `hvac_action` is PRESENT and is anything but `off`/`idle` (heating, cooling, drying, fan, preheating, defrosting — listing only the first two misses a dehumidifier mid-cycle; an absent `hvac_action` means the device does not report one, which is not the same as running), `valve`
-  in `open`/`opening`, `water_heater` in any state other than `off` with
+  in `open`/`opening`, `humidifier` in `on`, `water_heater` in any state other than `off` with
   `hvac_action` absent — never count `unknown` or `unavailable` as running. Reporting "nothing is running" while
   the heat pump runs is the same wrong answer as missing an open window
 - unlocked doors: `lock.*` NOT in state `locked` — `unlocked` obviously, but

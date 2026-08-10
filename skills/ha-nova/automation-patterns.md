@@ -300,6 +300,10 @@ conditions:
     # duration closes it hours early.
     value_template: "{{ now() >= as_datetime('2026-08-09T19:30:00+02:00') }}"
 actions:
+  # on the startup path the integration may not have the entity yet, and a
+  # call against an unavailable target fails silently
+  - wait_template: "{{ not is_state('valve.irrigation_lawn', 'unavailable') }}"
+    timeout: "00:02:00"
   - action: valve.close_valve
     target: {entity_id: valve.irrigation_lawn}
   # HA accepting the call is not the device having closed, so confirm the

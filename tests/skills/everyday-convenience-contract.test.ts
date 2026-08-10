@@ -235,6 +235,7 @@ describe("flows that cost the user extra turns (#527)", () => {
     expect(disco).toContain("the comfort domains that have their own off state");
     // Off and running are different questions with different answers.
     expect(disco).toContain("what is RUNNING — a different question, and a narrower answer");
+    expect(disco).toContain("`humidifier` in `on`");
     expect(disco).toContain("`media_player` only in `playing`/`buffering`");
     expect(disco).toContain("`lock.*` NOT in state `locked`");
     // The generic opening class is what many contact sensors report.
@@ -260,6 +261,7 @@ describe("flows that cost the user extra turns (#527)", () => {
   it("waits for the safe state before disabling the retry", () => {
     const patterns = flat(read("skills/ha-nova/automation-patterns.md"));
     expect(patterns).toContain("HA accepting the call is not the device having closed, so confirm the");
+    expect(patterns).toContain("the integration may not have the entity yet");
     expect(patterns).toContain("wait_template");
   });
 
