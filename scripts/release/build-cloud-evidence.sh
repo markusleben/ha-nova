@@ -105,7 +105,12 @@ target_tree="$(git -C "$ROOT_DIR" rev-parse "refs/cloud-evidence/$PR^{tree}")"
 # after all three platforms have run.
 relay_version="$(git -C "$ROOT_DIR" show "$target_commit:nova/config.yaml" \
   | sed -n 's/^version:[[:space:]]*"\([^"]*\)"[[:space:]]*$/\1/p')"
-[ "$(wc -l <<<"$relay_version")" = 1 ]
+# Exactly one line, and say so if not: a bare test under `set -e` exits with
+# no message at all, which is how this check silently killed a dry run.
+case "$relay_version" in
+  "" ) die "nova/config.yaml has no quoted \`version:\` line at the target — the gate's verifier requires exactly one" ;;
+  *[$'\n']* ) die "nova/config.yaml has more than one quoted \`version:\` line at the target" ;;
+esac
 [ -n "$relay_version" ] || die "cannot read nova/config.yaml version at the target"
 echo "  commit $target_commit"
 echo "  tree   $target_tree"
@@ -116,9 +121,36 @@ platforms="$(git -C "$ROOT_DIR" show "$target_commit:version.json" | jq -r '.clo
   || die "version.json lists no enabled cloud_remote_platforms — there is nothing to verify, and an envelope built here would attest checks that never ran"
 echo "  enabled platforms: $(tr '\n' ' ' <<<"$platforms")"
 
+# Reachability BEFORE the dispatch, not between the download and the runs:
+# a preflight that reports "reachable" without asking is the failure it exists
+# to prevent, and discovering an unreachable host after building and
+# downloading a candidate wastes the expensive half of the job.
+step "platform reachability"
+for platform in $platforms; do
+  case "$platform" in
+    darwin)
+      [ "$(uname -s)" = "Darwin" ] \
+        || die "darwin provenance must run on macOS; this host is $(uname -s)"
+      echo "  darwin: this host" ;;
+    linux)
+      ssh -o BatchMode=yes -o ConnectTimeout=8 "$LINUX_SSH" true 2>/dev/null \
+        || die "linux: '$LINUX_SSH' unreachable — set HA_NOVA_LINUX_SSH or bring it up"
+      echo "  linux: $LINUX_SSH" ;;
+    windows)
+      # No emptiness guard: `${HA_NOVA_WINDOWS_SSH:-ha-nova-win}` already
+      # substitutes the default for an empty value, so it was unreachable. The
+      # probe below is what actually protects the attestation — windows cannot
+      # be skipped, and must never be marked true from a host that did not run it.
+      ssh -o BatchMode=yes -o ConnectTimeout=8 "$WINDOWS_SSH" 'cmd /c "echo ok"' >/dev/null 2>&1 \
+        || die "windows: '$WINDOWS_SSH' unreachable. Do not guess an address — ask the hypervisor for the guest's CURRENT one and fix the ssh alias."
+      echo "  windows: $WINDOWS_SSH" ;;
+    *) die "unknown platform '$platform' in cloud_remote_platforms" ;;
+  esac
+done
+
 if [ "$MODE" = "--dry-run" ]; then
   echo ""
-  echo "[cloud-evidence] dry run: target resolved, platforms reachable."
+  echo "[cloud-evidence] dry run: target resolved and every platform answered."
   echo "                 Re-run without --dry-run to dispatch."
   exit 0
 fi
@@ -136,19 +168,21 @@ fi
 # this exact commit is reused instead of burning the second attempt.
 version_tag="${HA_NOVA_VERSION_TAG:-v$(git -C "$ROOT_DIR" show "$target_commit:version.json" | jq -r .skill_version)-rc1}"
 step "candidate bundle ($version_tag)"
-# Match on the run's headSha, not on a substring of its title: the title
-# carries the request_id, whose short SHA is 7 chars while this compared 8, so
-# it never matched and every invocation re-dispatched — and the workflow's
-# cancel-in-progress then killed the run still in flight.
+# A workflow_dispatch run's headSha is the SHA of the ref it ran FROM — main —
+# never the synthetic merge commit, so keying reuse on it can never match. The
+# only thing tying a run to this target is the request_id in its run-name, so
+# that id is DERIVED from the target commit rather than from $$: the same
+# invocation twice produces the same id and finds its own earlier run instead
+# of dispatching again into cancel-in-progress.
+request_id="pr${PR}-${target_commit:0:12}"
 run_id="$(gh run list --repo "$REPO" --workflow cloud-candidate-bundle.yml \
-  --json databaseId,headSha,conclusion --limit 20 \
-  | jq -r --arg c "$target_commit" \
-      'map(select(.conclusion=="success" and .headSha==$c)) | first | .databaseId // empty')"
+  --json databaseId,conclusion,displayTitle --limit 30 \
+  | jq -r --arg r "$request_id" \
+      'map(select(.conclusion=="success" and (.displayTitle|contains($r)))) | first | .databaseId // empty')"
 
 if [ -n "$run_id" ]; then
   echo "  reusing successful run $run_id"
 else
-  request_id="pr${PR}-$(git -C "$ROOT_DIR" rev-parse --short "$target_commit")-$$"
   echo "  dispatching (request_id=$request_id)"
   gh workflow run cloud-candidate-bundle.yml --repo "$REPO" \
     -f "pull_request=$PR" -f "version_tag=$version_tag" -f "request_id=$request_id" \
@@ -280,7 +314,6 @@ for platform in $platforms; do
       arch="$(uname -m | sed 's/x86_64/amd64/')"
       archive="$work/bundles/ha-nova-installer-bundle-macos-${arch}.tar.gz"
       [ -f "$archive" ] || die "darwin: $archive missing from the artifact"
-      [ "$(uname -s)" = "Darwin" ] || die "darwin provenance must run on macOS; this is $(uname -s)"
       step "provenance: darwin ($arch, local)"
       provenance_unix darwin "$archive" "" || die "darwin: provenance failed — see $work/darwin.out"
       ;;
@@ -288,18 +321,12 @@ for platform in $platforms; do
       archive="$work/bundles/ha-nova-installer-bundle-linux-amd64.tar.gz"
       [ -f "$archive" ] || die "linux: $archive missing from the artifact"
       step "provenance: linux (ssh $LINUX_SSH)"
-      ssh -o BatchMode=yes -o ConnectTimeout=8 "$LINUX_SSH" true 2>/dev/null \
-        || die "linux: '$LINUX_SSH' unreachable — set HA_NOVA_LINUX_SSH or bring it up"
       provenance_unix linux "$archive" "$LINUX_SSH" || die "linux: provenance failed — see $work/linux.out"
       ;;
     windows)
       archive="$work/bundles/ha-nova-installer-bundle-windows-amd64.zip"
       [ -f "$archive" ] || die "windows: $archive missing from the artifact"
       step "provenance: windows (ssh $WINDOWS_SSH)"
-      [ -n "$WINDOWS_SSH" ] \
-        || die "windows: set HA_NOVA_WINDOWS_SSH. It is an ATTESTED platform — it cannot be skipped, and it must not be marked true from a machine that did not run it."
-      ssh -o BatchMode=yes -o ConnectTimeout=8 "$WINDOWS_SSH" 'cmd /c "echo ok"' >/dev/null 2>&1 \
-        || die "windows: '$WINDOWS_SSH' unreachable. Do not guess an address — ask the hypervisor for the guest's CURRENT one and fix the ssh alias."
       provenance_windows "$archive" || die "windows: provenance failed — see $work/windows.out"
       ;;
     *) die "unknown platform '$platform' in cloud_remote_platforms" ;;
