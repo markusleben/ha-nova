@@ -16,7 +16,7 @@ Active doc ownership lives in `docs/reference/documentation-governance.md`.
 
 ## Current Phase
 
-**Post-masterplan-2026 program** — the active roadmap is `docs/work/2026-08-03-backlog-sequencing.md` (masterplan-2026-h2 completed in full, archived).
+**Post-masterplan-2026 program** — backlog sequencing 2026-08 shipped in full as v0.23.0 (archived); the active roadmap is the 2026-08 skill-audit issue set #513–#522, sequenced in `docs/work/2026-08-09-skill-audit.md` (landing via PR #523 — merge that report PR before this pointer goes live).
 
 Shipped and current:
 1. Relay: `GET /health`, `POST /ws`, `POST /core`, `POST /files` (opt-in, default off), `POST /backups` (config-snapshot store), plus the human/machine surfaces `GET /home` and the pairing/device-auth endpoints; App + standalone container from one codebase

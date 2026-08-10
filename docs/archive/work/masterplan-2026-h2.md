@@ -1,6 +1,6 @@
 # HA NOVA Masterplan 2026-H2
 
-Status: superseded — completed in full; successor: [2026-08-03-backlog-sequencing.md](../../work/2026-08-03-backlog-sequencing.md)
+Status: superseded — completed in full; successor: [2026-08-03-backlog-sequencing.md](2026-08-03-backlog-sequencing.md)
 Progress: committed Waves 0–7 shipped (v0.18.0 through v0.22.0); the ranked backlog remains uncommitted and carries over to the successor
 Scope: program-level plan following the completed [masterplan-2026.md](../archive/work/masterplan-2026.md) (shipped as v0.14.0, since grown to v0.18.0). Each wave breaks down into its own short spec + PRs before implementation; this doc is the SSOT for sequencing and decisions until superseded.
 
@@ -169,7 +169,7 @@ From the ideation pass; each needs its own decision before entering a wave:
 
 ## Release sequencing
 
-All committed waves landed on `main` before release, following the release-worthiness rule. Relay 0.5.0 published the `/backups` foundation; Relay 0.6.0 then shipped Wave 5 diagnosability with Pairing Code + Home Base in v0.18.0. The committed waves are complete; sequencing and decision SSOT moved to [2026-08-03-backlog-sequencing.md](../../work/2026-08-03-backlog-sequencing.md), which also carries the ranked backlog forward.
+All committed waves landed on `main` before release, following the release-worthiness rule. Relay 0.5.0 published the `/backups` foundation; Relay 0.6.0 then shipped Wave 5 diagnosability with Pairing Code + Home Base in v0.18.0. The committed waves are complete; sequencing and decision SSOT moved to [2026-08-03-backlog-sequencing.md](2026-08-03-backlog-sequencing.md), which also carries the ranked backlog forward.
 
 | Wave | Theme | Relay release | Status |
 |------|-------|---------------|--------|
