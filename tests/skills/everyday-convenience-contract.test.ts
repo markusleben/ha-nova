@@ -148,6 +148,9 @@ describe("flows that cost the user extra turns (#527)", () => {
     // HA aborts the sequence on an error, so a trailing disable never runs and
     // the one-shot stays armed for the next matching transition.
     expect(p).toContain("Disable FIRST, act second");
+    // The expiry variant must follow the same rule and recover at startup.
+    expect(p).toContain("a missed 23:59 leaves this armed for tomorrow");
+    expect(p).toContain("instead of leaving it to fire on tomorrow's laundry");
     expect(p).toContain("a disable placed last never runs if the notification");
     // Verified against the live instance: automation.turn_off defaults
     // stop_actions to true, so self-disabling cancels its own remaining steps.

@@ -324,17 +324,26 @@ triggers:
   - trigger: time
     at: "23:59:00"
     id: expired
+  # a missed 23:59 leaves this armed for tomorrow, so recover at startup
+  - trigger: homeassistant
+    event: start
+    id: expired
 actions:
+  # disable first on both paths — a notification is spent whether or not it
+  # was delivered, and a failed send must not leave this armed for tomorrow
+  - action: automation.turn_off
+    target: {entity_id: "{{ this.entity_id }}"}
+    data: {stop_actions: false}
   - choose:
       - conditions: [{condition: trigger, id: fired}]
         sequence:
           - action: notify.mobile_app_phone
             data: {message: "Laundry is done."}
-  - action: automation.turn_off
-    target: {entity_id: "{{ this.entity_id }}"}
 ```
 
-The disable runs on both paths, so the automation is gone either way. Say in
+The disable runs on both paths, so the automation is gone either way — and the
+startup trigger means a deadline missed while Home Assistant was down still
+clears it, instead of leaving it to fire on tomorrow's laundry. Say in
 the preview when it expires.
 
 Rules for this family:
