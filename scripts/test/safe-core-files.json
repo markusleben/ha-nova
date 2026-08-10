@@ -75,6 +75,7 @@
   "tests/skills/config-snapshots-contract.test.ts",
   "tests/skills/confirmation-code-terminology.test.ts",
   "tests/skills/deferral-contract.test.ts",
+  "tests/skills/domain-fields-contract.test.ts",
   "tests/skills/energy-contract.test.ts",
   "tests/skills/grouped-change-set-contract.test.ts",
   "tests/skills/ha-cross-skill-integration.test.ts",

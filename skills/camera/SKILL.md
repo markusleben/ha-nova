@@ -1,6 +1,6 @@
 ---
 name: camera
-description: Use when working with Home Assistant cameras — taking a snapshot for the agent to look at, getting a stream URL, or recording — through HA NOVA Relay.
+description: Use when working with Home Assistant cameras — taking a snapshot for the agent to look at, getting a stream URL, recording, casting a camera stream to a TV or speaker display, or turning a camera or its motion detection on and off — through HA NOVA Relay.
 license: MIT
 compatibility: Requires the ha-nova CLI (run 'ha-nova setup' first) and the HA NOVA Relay in Home Assistant (App, or standalone container on Container/Core).
 ---
@@ -15,7 +15,9 @@ Camera access:
 - trigger Home Assistant's own snapshot/record services (files land on the HA host)
 - switch a camera on or off where the entity supports it
 
-Not in scope: creating automations around cameras (`ha-nova:write`), person/motion detection setup, or any image analysis claim beyond what the agent can see in the fetched frame.
+Also here: switching a camera on or off, toggling its motion detection, and casting its stream to a media player.
+
+Not in scope: creating automations around cameras (`ha-nova:write`), configuring the detection pipeline itself (zones, sensitivity, person models — that lives in the camera integration), or any image analysis claim beyond what the agent can see in the fetched frame.
 
 ## Bootstrap (once per session)
 
@@ -39,6 +41,8 @@ Binary responses are guaranteed by the skills' enforced relay floor (`skills/ha-
 4. **Stream URL** (needs STREAM, bit 2): WS `{"type":"camera/stream","entity_id":"camera.<id>"}` returns an HLS URL under `.data.url`. It is relative to the Home Assistant base URL and short-lived — give it to the user, do not try to consume it here.
 5. **Snapshot/record to the HA host** (mutating): services `camera.snapshot` (`filename`) and `camera.record` (`filename`, `duration`, `lookback`). The path must be inside HA's `allowlist_external_dirs`, or the call fails — say this before the call rather than after. Preview the exact filename and confirm. These write files on the Home Assistant server, not on this machine.
 6. `camera.turn_on` / `camera.turn_off` need ON_OFF (bit 1); verify by re-reading the state.
+7. **Cast to a screen**: `camera.play_stream` puts the live view on a TV or display. Payload: `{"entity_id":"camera.<id>","media_player":"media_player.<id>"}` — the receiver field is `media_player` (required), NOT `media_player_entity_id`, which belongs to `tts.speak`; `format` is optional and defaults to `hls`. Two entities, two gates: the camera needs STREAM (bit 2) and the receiver needs PLAY_MEDIA (bit 512), because HA forwards the stream URL to `media_player.play_media` internally. Resolve the receiver like any other target (registry lookup, ask once on ambiguity — never guess a player id) and read its state for that bit before previewing. Verify on the RECEIVER's state, not the camera's: this is the only camera action whose result shows up on another entity.
+8. `camera.enable_motion_detection` / `camera.disable_motion_detection` toggle detection where the integration implements it. Verify via the `motion_detection` attribute when the camera exposes it; when it does not, say the toggle was accepted but could not be verified rather than claiming success.
 
 ## Error Handling
 

@@ -150,10 +150,27 @@ const WORD_BUDGETS: Record<string, number> = {
   // high-consequence carve-out (Wave 3).
   // Fail-closed consumer check with canonical-filter recreate pointer (#489).
   // #452 draft rule pushed the measured count to exactly 1650.
-  scene: 1675,
+  // Capture attributes named per domain, with the state-attribute vs
+  // service-parameter split that decides whether a partial cover survives
+  // (#530 Codex round 1, measured 1703).
+  // Codex rounds 3-4: a range thermostat needs both setpoints captured or the
+  // scene restores the mode without either boundary, and a fan restores
+  // oscillation and direction too (measured 1748).
+  // Codex round 5: climate reproduction restores preset/fan/swing/humidity
+  // through separate services; each omission is a silent non-restore
+  // (measured 1787).
+  scene: 1840,
   // buffering settle-window on verify (2026-h2 Wave 1a).
   // Cards adoption pointer (#389).
-  media: 1250,
+  // Search-before-browse (player and media_source), queue placement, and the
+  // shuffle/repeat services whose bits the gate table already carried but no
+  // flow step used (#530, measured 1399).
+  // Codex round 4: search_media takes a required entity_id, so the pinned
+  // call shape had to become a full payload (measured 1410).
+  // Codex round 6: queueing and mode changes have no signal in the fields the
+  // generic verify step names — one has none at all, the other has its own
+  // (measured 1544).
+  media: 1600,
   // test-offer single-confirmation + reference bullets (test-run.md);
   // ratcheted for the owning-skill deferral table + high-consequence
   // confirmation rule (Wave 0), and again for the differentiated verify
@@ -182,6 +199,13 @@ const WORD_BUDGETS: Record<string, number> = {
   // (measured 3252).
   // Codex round 10: a Template button runs a stored action, so `button.press`
   // is an indirect run rather than a toggle (measured ~3270).
+  // Domain-depth pointer + the two cross-domain value/feature-bit rules
+  // (#530, measured 2849). The headroom above that anticipates the #513
+  // indirect-actuation lines landing in the same train (measured 3089
+  // there); whichever merges second must stay under this ceiling or bump it
+  // again with its own measurement.
+  // Merged in the audit train: the ceiling is the MAX of both
+  // branches, not either one — each measured only its own tree.
   "service-call": 3900,
   // Carries the canonical File-Change Preview example — the only layout
   // source for file edits; concrete examples are what make a card renderable.
