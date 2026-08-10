@@ -127,34 +127,90 @@ gh run download "$run_id" --repo "$REPO" --name cloud-candidate-install-bundles 
 # only proves the negative (raw binaries reject it), so this cannot be skipped.
 expected_version="${version_tag#v}"
 
-check_identity() {
+# Both remotes print the bundle manifest between markers. Without them the
+# extraction is guesswork: PowerShell wraps its progress stream in CLIXML and
+# interleaves it with stdout, so "the first line that ends in }" is not the
+# manifest.
+BEGIN_MARK="<<<HA-NOVA-BUNDLE"
+END_MARK="HA-NOVA-BUNDLE>>>"
+
+extract_manifest() {  # <raw-output-file>
+  # Strip CR first: Windows sends CRLF, so an exact match against the marker
+  # compares "<<<HA-NOVA-BUNDLE\r" and never fires. The raw stream also carries
+  # ssh's own warnings, which is precisely why the markers exist.
+  tr -d '\r' <"$1" \
+    | awk -v b="$BEGIN_MARK" -v e="$END_MARK" '$0==b{f=1;next} $0==e{f=0} f'
+}
+
+check_identity() {  # <manifest-file>
   node -e '
     const fs = require("node:fs");
     const [path, version, tree] = process.argv.slice(1);
-    const bundle = JSON.parse(fs.readFileSync(path, "utf8"));
+    const raw = fs.readFileSync(path, "utf8").trim();
+    if (!raw) throw new Error("no bundle manifest in the remote output");
+    const bundle = JSON.parse(raw);
     if (bundle.version !== version || bundle.cloud_release?.source_tree_sha !== tree) {
-      throw new Error(`bundle identity mismatch: ${bundle.version} / ${bundle.cloud_release?.source_tree_sha}`);
+      throw new Error(
+        `bundle identity mismatch: ${bundle.version} / ${bundle.cloud_release?.source_tree_sha}`,
+      );
     }
   ' "$1" "$expected_version" "$target_tree"
 }
 
 provenance_unix() {  # <label> <archive> <ssh-host|"">
   local label="$1" archive="$2" host="$3"
-  local script='
+  local script="
     set -euo pipefail
-    d="$(mktemp -d)"; mkdir -p "$d/home/.local/share"
-    tar -xzf "$1" -C "$d/home/.local/share"
-    cat "$d/home/.local/share/ha-nova/bundle.json"
-    HOME="$d/home" HA_NOVA_NO_CENSUS=1 "$d/home/.local/share/ha-nova/ha-nova" internal-cloud-release-check
-    rm -rf "$d"
-  '
+    d=\"\$(mktemp -d)\"; mkdir -p \"\$d/home/.local/share\"
+    tar -xzf \"\$1\" -C \"\$d/home/.local/share\"
+    echo '$BEGIN_MARK'
+    cat \"\$d/home/.local/share/ha-nova/bundle.json\"
+    echo
+    echo '$END_MARK'
+    # Unix builds resolve their install root from HOME, so the check passes
+    # only from an installed layout — calling the extracted binary in place
+    # fails with 'official Cloud release provenance is not enabled'.
+    HOME=\"\$d/home\" HA_NOVA_NO_CENSUS=1 \"\$d/home/.local/share/ha-nova/ha-nova\" internal-cloud-release-check
+    rm -rf \"\$d\"
+  "
   if [ -z "$host" ]; then
     bash -c "$script" _ "$archive" >"$work/$label.out" 2>&1
   else
-    ssh -o BatchMode=yes -o ConnectTimeout=8 "$host" 'cat > /tmp/ha-nova-cand.tar.gz' <"$archive" \
+    scp -q -o BatchMode=yes "$archive" "$host:ha-nova-candidate.tar.gz" \
       || die "$label: cannot copy the bundle to $host"
-    ssh -o BatchMode=yes "$host" "bash -s _ /tmp/ha-nova-cand.tar.gz" <<<"$script" >"$work/$label.out" 2>&1
+    # `bash -s` has no $0 slot: arguments land on $1 directly, unlike the
+    # `bash -c "$script" _ "$archive"` form used for the local run.
+    ssh -o BatchMode=yes "$host" "bash -s ha-nova-candidate.tar.gz" <<<"$script" >"$work/$label.out" 2>&1
+    ssh -o BatchMode=yes "$host" "rm -f ha-nova-candidate.tar.gz" >/dev/null 2>&1 || true
   fi
+}
+
+provenance_windows() {  # <archive>
+  local archive="$1"
+  scp -q -o BatchMode=yes "$archive" "$WINDOWS_SSH:ha-nova-candidate.zip" \
+    || die "windows: cannot copy the bundle to $WINDOWS_SSH"
+  # -EncodedCommand, not -Command: a multi-line script does not survive the
+  # ssh argument boundary and PowerShell answers with its usage text.
+  local ps encoded
+  ps="\$ErrorActionPreference='Stop'
+\$ProgressPreference='SilentlyContinue'
+\$d = Join-Path \$env:TEMP ('ha-nova-' + [guid]::NewGuid())
+Expand-Archive -LiteralPath ha-nova-candidate.zip -DestinationPath \$d
+\$root = Join-Path \$d 'ha-nova'
+Write-Output '$BEGIN_MARK'
+Get-Content (Join-Path \$root 'bundle.json') -Raw
+Write-Output '$END_MARK'
+\$env:HA_NOVA_NO_CENSUS = '1'
+& (Join-Path \$root 'ha-nova.exe') internal-cloud-release-check
+if (\$LASTEXITCODE -ne 0) { throw 'provenance check failed' }
+Remove-Item -Recurse -Force \$d"
+  encoded="$(printf '%s' "$ps" | iconv -f UTF-8 -t UTF-16LE | base64 | tr -d '\n')"
+  local shell="${HA_NOVA_WINDOWS_PWSH:-powershell}"
+  ssh -o BatchMode=yes "$WINDOWS_SSH" "$shell -NoProfile -EncodedCommand $encoded" \
+    >"$work/windows.out" 2>&1
+  local status=$?
+  ssh -o BatchMode=yes "$WINDOWS_SSH" 'cmd /c "del ha-nova-candidate.zip"' >/dev/null 2>&1 || true
+  return $status
 }
 
 declare -A RESULT
@@ -164,17 +220,17 @@ for platform in $platforms; do
       arch="$(uname -m | sed 's/x86_64/amd64/')"
       archive="$work/bundles/ha-nova-installer-bundle-macos-${arch}.tar.gz"
       [ -f "$archive" ] || die "darwin: $archive missing from the artifact"
-      step "provenance: darwin ($arch, local)"
       [ "$(uname -s)" = "Darwin" ] || die "darwin provenance must run on macOS; this is $(uname -s)"
-      provenance_unix darwin "$archive" "" || die "darwin: provenance check failed — see $work/darwin.out"
+      step "provenance: darwin ($arch, local)"
+      provenance_unix darwin "$archive" "" || die "darwin: provenance failed — see $work/darwin.out"
       ;;
     linux)
       archive="$work/bundles/ha-nova-installer-bundle-linux-amd64.tar.gz"
       [ -f "$archive" ] || die "linux: $archive missing from the artifact"
       step "provenance: linux (ssh $LINUX_SSH)"
       ssh -o BatchMode=yes -o ConnectTimeout=8 "$LINUX_SSH" true 2>/dev/null \
-        || die "linux: $LINUX_SSH unreachable — set HA_NOVA_LINUX_SSH or bring it up"
-      provenance_unix linux "$archive" "$LINUX_SSH" || die "linux: provenance check failed — see $work/linux.out"
+        || die "linux: '$LINUX_SSH' unreachable — set HA_NOVA_LINUX_SSH or bring it up"
+      provenance_unix linux "$archive" "$LINUX_SSH" || die "linux: provenance failed — see $work/linux.out"
       ;;
     windows)
       archive="$work/bundles/ha-nova-installer-bundle-windows-amd64.zip"
@@ -182,27 +238,15 @@ for platform in $platforms; do
       step "provenance: windows (ssh $WINDOWS_SSH)"
       [ -n "$WINDOWS_SSH" ] \
         || die "windows: set HA_NOVA_WINDOWS_SSH. It is an ATTESTED platform — it cannot be skipped, and it must not be marked true from a machine that did not run it."
-      ssh -o BatchMode=yes -o ConnectTimeout=8 "$WINDOWS_SSH" "cmd /c echo ok" >/dev/null 2>&1 \
+      ssh -o BatchMode=yes -o ConnectTimeout=8 "$WINDOWS_SSH" 'cmd /c "echo ok"' >/dev/null 2>&1 \
         || die "windows: '$WINDOWS_SSH' unreachable. Do not guess an address — ask the hypervisor for the guest's CURRENT one and fix the ssh alias."
-      ssh -o BatchMode=yes "$WINDOWS_SSH" 'powershell -Command "$i=[Console]::In.ReadToEnd()"' </dev/null >/dev/null 2>&1 || true
-      scp -q -o BatchMode=yes "$archive" "$WINDOWS_SSH:candidate.zip" || die "windows: cannot copy the bundle"
-      ssh -o BatchMode=yes "$WINDOWS_SSH" powershell -NoProfile -Command "
-        \$ErrorActionPreference='Stop'
-        \$d = Join-Path \$env:TEMP ('ha-nova-' + [guid]::NewGuid())
-        Expand-Archive -LiteralPath candidate.zip -DestinationPath \$d
-        \$root = Join-Path \$d 'ha-nova'
-        Get-Content (Join-Path \$root 'bundle.json') -Raw
-        \$env:HA_NOVA_NO_CENSUS = '1'
-        & (Join-Path \$root 'ha-nova.exe') internal-cloud-release-check
-        if (\$LASTEXITCODE -ne 0) { throw 'provenance check failed' }
-        Remove-Item -Recurse -Force \$d
-      " >"$work/windows.out" 2>&1 || die "windows: provenance check failed — see $work/windows.out"
+      provenance_windows "$archive" || die "windows: provenance failed — see $work/windows.out"
       ;;
     *) die "unknown platform '$platform' in cloud_remote_platforms" ;;
   esac
-  # every platform prints its bundle.json first; the identity must match the run
-  sed -n '1,/^}/p' "$work/$platform.out" >"$work/$platform.bundle.json"
-  check_identity "$work/$platform.bundle.json" || die "$platform: bundle identity does not match the target tree"
+  extract_manifest "$work/$platform.out" >"$work/$platform.bundle.json"
+  check_identity "$work/$platform.bundle.json" \
+    || die "$platform: bundle identity does not match the target tree"
   RESULT[$platform]=true
   echo "  ✓ $platform"
 done
