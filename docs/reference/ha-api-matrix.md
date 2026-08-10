@@ -151,7 +151,6 @@ Recurring instances add `recurrence_id`; `recurrence_range` is `""` for only tha
 ### Misc
 | WS Type | Purpose |
 |---------|-----|
-| `config/automation/list` | Automations with metadata |
 | `webhook/list` | Registered webhook IDs plus domain/name, locality, and allowed methods (secret-bearing; private `--out` file only, never stdout) |
 | `repairs/list_issues` | Repairs/Deprecation Issues |
 | `config_entries/get` | Config-entry metadata; health uses not-loaded entries as integration status |
@@ -180,6 +179,38 @@ Raw backup file transfer (`/data/backups/`) is planned host-filesystem tooling �
 
 **Sensor types with config flow (no YAML needed):** SQL, Scrape, Template (limited)
 **YAML-only sensor types:** REST, Command Line
+
+## Surfaces the skills pin (grouped)
+
+This document routes an operation to its transport. It is not a command
+inventory — `skills/ha-nova/relay-api.md` holds the calling contract and each
+skill holds its own payloads. The families below are pinned somewhere in
+`skills/**` and all travel over `/ws` unless noted; they are listed so a reader
+can tell "exists and is used" from "not available".
+A command Home Assistant offers but no skill pins yet does NOT belong here —
+listing it would route a request to an owner with no payload and no
+guardrails.
+
+| Family | Commands | Owning skill |
+|---|---|---|
+| Relations | `search/related` — the pre-delete and consumer-scan workhorse | the skills that pin it: `write`, `helper`, `scene`, `organize`, `read`, `review`, `service-call`, `entity-discovery`, `maintenance`, `admin`, `media`, `camera`, `todo`, `hacs`, `fallback` |
+| Compact registry | `config/entity_registry/list_for_display` (abbreviated keys) | entity-discovery, review, bulk flows |
+| System log | `system_log/list` (the working log source on HA OS) | diagnose |
+| Backups | `backup/info`, `backup/generate`, `backup/generate_with_automatic_settings`, `backup/delete`, `backup/agents/info`, `backup/details` | backup |
+| People & access | `person/*`, `zone/*`, `tag/*`, `config/auth/list`, `config/auth/create`, `config/auth/delete`, `auth/current_user` | admin |
+| Voice | `assist_pipeline/pipeline/list`, `.../update`, `.../delete`, `.../set_preferred`, `homeassistant/expose_entity` and `.../list`, plus the `tts`, `stt`, `conversation` and `wake_word` engine lists | assist |
+| Recorder repair | `recorder/info`, `recorder/list_statistic_ids`, `recorder/get_statistics_metadata`, `recorder/validate_statistics`, `recorder/clear_statistics`, `recorder/update_statistics_metadata`, `recorder/change_statistics_unit`, `recorder/adjust_sum_statistics` | maintenance |
+| Device automation | `device_automation/trigger/list`, `device_automation/trigger/capabilities` | write |
+| MQTT | `mqtt/subscribe` (envelope only), `mqtt/device/debug_info` | mqtt |
+| Media | `media_player/browse_media`, `media_player/search_media`, `media_source/browse_media`, `media_source/resolve_media` | media |
+| Camera | `camera/stream`; REST `/api/camera_proxy/<entity_id>` (binary) | camera |
+| Notifications | `persistent_notification/get` | notify |
+| Updates | `update/release_notes` | updates |
+| Logger | `logger/log_info` (numeric levels; `logger.set_level` takes names) | diagnose |
+| Diagnostics | `diagnostics/list`; REST `/api/diagnostics/config_entry/<entry_id>[/device/<device_id>]` | diagnose |
+| To-do | `todo/item/move`; REST `/api/services/todo/*?return_response` | todo |
+| Conversation | REST `/api/conversation/process` (executes what it understands) | assist |
+| HACS | `hacs/*` (17 commands) — not a Home Assistant API; the pinned map lives in `skills/hacs/hacs-commands.md` | hacs |
 
 ## Important Notes
 
