@@ -232,7 +232,8 @@ describe("indirect actuation and tier classification (#513)", () => {
     expect(gate).toContain('`pl: "template"` is a');
     expect(gate).toContain("`search/related` returning nothing proves nothing");
     expect(gate).toContain("if you cannot read it, escalate");
-    expect(gate).toContain("is an integration button whose behaviour");
+    expect(gate).toContain("Integration buttons split in two");
+    expect(gate).toContain("Where the USER defines it in the device's own configuration");
   });
   it("does not let a targetless reload skip the scan for lack of a target", () => {
     const gate = flat(indirectActuation);

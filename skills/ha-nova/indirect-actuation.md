@@ -209,10 +209,13 @@ Then:
   the file if `ha-nova:yaml-config` has read access — and if you cannot read
   it, escalate: an arbitrary user-written action is exactly the unenumerable
   case below, and a person who wrote `lock.unlock` into a button did not make
-  it safer by writing it in YAML. Every other platform (`unifi`, `esphome`,
-  `mqtt`, `shelly`, `reolink`, ...) is an integration button whose behaviour
-  is fixed by that integration — restart, identify, update — and stays
-  ordinary.
+  it safer by writing it in YAML. Integration buttons split in two. Where the integration
+  defines the behaviour — `unifi`, `shelly`, `reolink`, an `update` entity:
+  restart, identify, update — the press is fixed and stays ordinary. Where the
+  USER defines it in the device's own configuration — `esphome` (an `on_press`
+  block in device YAML), `mqtt` (a command topic the user chose) — the action
+  is authored, unreadable from here, and escalates. Rules 2 and 3 again; the
+  registry platform tells you which kind you have.
 
 ## Classifying what you found
 

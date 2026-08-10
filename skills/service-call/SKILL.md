@@ -51,7 +51,7 @@ Use file-based payloads for service writes:
 | `recorder.purge` / `recorder.purge_entities` | `ha-nova:maintenance` |
 | `calendar.create_event` and other calendar mutations | `ha-nova:calendar` |
 | `todo.add_item` / `todo.update_item` / `todo.remove_item` / `todo.remove_completed_items` | `ha-nova:todo` |
-| `backup.create` | `ha-nova:backup` |
+| `backup.create` / `backup.create_automatic` | `ha-nova:backup` |
 | `conversation.process` (executes what it understands) | `ha-nova:assist` |
 | `hassio.addon_start\|stop\|restart`, `hassio.host_reboot\|shutdown` | stays here, disruptive tier — refuse the App hosting this Relay |
 | any other `hassio.*` (`restore_full`, `restore_partial`, `addon_update`, ...) | not covered here — `ha-nova:backup` owns restores, `ha-nova:updates` owns App updates; anything else STOPS at `ha-nova:fallback` |
