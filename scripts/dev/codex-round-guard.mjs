@@ -152,20 +152,21 @@ const main = async () => {
   }
 
   // A clean verdict ends a review cycle: rounds counted before it belong to
-  // that cycle, not to the next delta. Ask GitHub whether the newest thumbs-up
-  // is younger than the last commit — if so, this trigger starts a fresh
-  // streak.
+  // that cycle, not to the next delta. A verdict we have not accounted for yet
+  // means a cycle closed since we last looked, so this trigger starts fresh.
   const clean = newestCleanVerdict(pr);
   const seen = state[`${pr}:clean`] ?? null;
   const resetStreak = Boolean(clean) && clean !== seen;
   let rounds = (state[pr] ?? 0) + 1;
+  // Two sessions in two worktrees share one state file. An atomic rename stops
+  // torn JSON but not a LOST UPDATE: both read 4, both write 5, one increment
+  // vanishes and the reminder arrives a round late. Take an exclusive lock,
+  // then re-read inside it so the increment is applied to whatever the other
+  // session just wrote.
+  let counted = false;
+  let writeFailure = null;
   try {
-    // Two sessions in two worktrees share one state file. An atomic rename
-    // stops torn JSON but not a LOST UPDATE: both read 4, both write 5, one
-    // increment vanishes and the reminder arrives a round late. Take an
-    // exclusive lock, then re-read inside it so the increment is applied to
-    // whatever the other session just wrote.
-    const counted = withLock(() => {
+    counted = withLock(() => {
       let fresh = {};
       try {
         fresh = JSON.parse(readFileSync(STATE, "utf8"));
@@ -180,18 +181,23 @@ const main = async () => {
       writeFileSync(tmp, JSON.stringify(fresh, null, 2) + "\n");
       renameSync(tmp, STATE);
     });
-    if (!counted) {
-      // Loud, not silent: an uncounted round is how the reminder goes missing.
-      emit(
-        `codex-round-guard: the round counter for PR #${pr} stayed locked for ` +
-          `2.5s, so THIS ROUND WAS NOT COUNTED and the batch reminder may fire ` +
-          `late. Another session is writing, or a stale lock survived — check ` +
-          `${STATE}.lock.`,
-      );
-      return;
-    }
-  } catch {
-    // a read-only git dir is not a reason to fail the hook
+  } catch (error) {
+    // A read-only git dir or a full disk must not break the tool call — but it
+    // must not pass unnoticed either. Silence is the failure mode this hook
+    // exists to prevent.
+    writeFailure = error instanceof Error ? error.message : String(error);
+  }
+  if (!counted) {
+    emit(
+      `codex-round-guard: round ${rounds} on PR #${pr} WAS NOT COUNTED — ` +
+        (writeFailure
+          ? `writing the counter failed (${writeFailure})`
+          : "the counter stayed locked for 2.5s") +
+        `. The batch reminder may fire late or not at all; the count in ` +
+        `${STATE} is now unreliable. Treat the AGENTS.md "Post-PR batch ` +
+        `trigger" rule as due if this is round five or later.`,
+    );
+    return;
   }
 
   if (rounds < THRESHOLD) return;
