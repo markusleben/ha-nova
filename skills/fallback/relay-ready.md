@@ -82,9 +82,16 @@ action. The mechanics are already contracted in
 here, and do not invent a bare subscription: the relay rejects one outside the
 envelope with `UNSUPPORTED_WS_TYPE`.
 
+Resolve the event type from the button's own integration first — it is not one
+value. ZHA fires `zha_event`, Z-Wave JS `zwave_js_value_notification`, deCONZ
+`deconz_event`, and a modern `event.*` entity fires no bus event at all: watch
+its state instead. Read the entity's `platform` from the registry and pick
+accordingly; listening for the wrong type produces an empty window that looks
+like "nothing was pressed".
+
 ```json
 {
-  "message": { "type": "subscribe_events", "event_type": "zha_event" },
+  "message": { "type": "subscribe_events", "event_type": "<the integration's event type>" },
   "collect_events": { "until_type": "finish", "max_events": 20, "timeout_ms": 10000, "on_limit": "return" }
 }
 ```
@@ -132,7 +139,10 @@ and `{"type":"config/device_registry/list"}`. The two registries express
 ownership differently and mixing them up undercounts: an ENTITY row carries a
 singular `config_entry_id`, a DEVICE row carries a `config_entries` ARRAY
 because one device can be provided by several integrations — match on
-membership in that array, not on equality. Report those counts. The compact `list_for_display` cannot answer this — its
+membership in that array, not on equality. A device whose `config_entries`
+holds this entry AND another is SHARED: removing this one detaches it, the
+device stays with its other provider, and counting it as deleted overstates
+the damage. Split the count — deleted versus detached. Report those counts. The compact `list_for_display` cannot answer this — its
 rows carry `ei`/`en`/`ai` only and no `config_entry_id`, so it is the wrong
 read for an ownership question however much cheaper it is. Then scan what depends on them BEFORE asking, not on request: run
 `search/related` per DEVICE **and** per ENTITY. Neither covers the other — a

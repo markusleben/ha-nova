@@ -251,6 +251,11 @@ describe("ha-api-matrix lists the surfaces skills actually pin (#517)", () => {
     expect(fallbackAll).toContain("per DEVICE **and** per ENTITY");
     expect(fallbackAll).toContain("Neither covers the other");
     expect(fallbackAll).toContain("does not index dashboards");
+    // A button's event type is per-integration; a shared device is detached,
+    // not deleted.
+    expect(fallbackAll).toContain("Resolve the event type from the button's own integration first");
+    expect(fallbackAll).toContain("a modern `event.*` entity fires no bus event at all");
+    expect(fallbackAll).toContain("Split the count — deleted versus detached");
     expect(fallbackAll).toContain("which no entity scan sees");
     // Verified on the live instance: list_for_display rows are
     // ei/pl/lb/di/tk/ec/hn/en — no config_entry_id.
