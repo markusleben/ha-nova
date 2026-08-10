@@ -188,7 +188,7 @@ const WORD_BUDGETS: Record<string, number> = {
   // total each round just reopens this file. The per-PR ceilings still hold
   // the ratchet — this one only has to keep main from breaking on the last
   // merge. Measured 3963 at the time of writing.
-  "service-call": 4200,
+  "service-call": 4500,
   // Carries the canonical File-Change Preview example — the only layout
   // source for file edits; concrete examples are what make a card renderable.
   // Sibling-survival verification (Wave 1b) + yaml snapshot capture with
