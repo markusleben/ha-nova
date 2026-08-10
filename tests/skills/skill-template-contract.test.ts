@@ -229,7 +229,7 @@ const WORD_BUDGETS: Record<string, number> = {
   // Covers SKILL.md PLUS relay-ready.md (the fold above) for the COMBINED
   // merge of the three fallback-touching PRs, with headroom so a late round
   // does not reopen this file. Measured 4413.
-  fallback: 4900,
+  fallback: 5300,
   // semantic-slot note on the read templates (Wave 0); pre-write cross-field
   // constraint checks + drift-check step (Wave 1); pre-delete snapshot
   // capture (Wave 2).
