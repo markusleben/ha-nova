@@ -29,7 +29,11 @@ something contradicts the performed-action rule:
   and their `homeassistant.*` aliases only flip whether it may fire later;
   `automation.trigger` is the one that runs it
 - `script.toggle` or `homeassistant.toggle` on a script that is currently
-  running (state `on`): that stops it. Read the state first — the same call on
+  running (state `on`): that stops it. And EVERY spelling of a start —
+  `script.<script_id>`, `script.turn_on`, `homeassistant.turn_on` — runs
+  nothing when the script is already running in `mode: single`, because Home
+  Assistant rejects the overlapping call: no run, no members, ordinary tier.
+  Read `state` and `mode` together; the direct service is not exempt. Read the state first — the same call on
   an idle script starts it and does expand members.
 
 By service name, the gate also covers:
