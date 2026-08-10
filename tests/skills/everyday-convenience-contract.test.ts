@@ -43,8 +43,21 @@ const GERMAN_WORDS = new RegExp(
 const GERMAN_ORTHOGRAPHY = new RegExp(
   `(?<!${L})(?:[a-zäöüß]*[ßäöü][a-zäöüß]{2,}|[a-zäöüß]{2,}[ßäöü][a-zäöüß]*)(?!${L})`,
 );
-const detectGerman = (text: string): string | null =>
-  GERMAN_WORDS.exec(text)?.[0] ?? GERMAN_ORTHOGRAPHY.exec(text)?.[0] ?? null;
+// Normalisation belongs HERE, not at the call site: a scanner that strips
+// differently from what the fixtures below exercise is untested by them.
+const detectGerman = (text: string): string | null => {
+  const prose = text
+    // Entity ids may be German — a real household names things in its own
+    // language. Only DOTTED identifiers are exempt: `light.wohnzimmer` is an
+    // id, `` `bitte` `` is German wearing backticks.
+    .replace(/`[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z0-9_]+)+`/g, " ")
+    // An ALL-CAPS token is an acronym, never a German function word — German
+    // capitalises the first letter, not the whole word. Dropping them kills
+    // the homograph class outright ("ES modules", "over IM", "DES", "IST")
+    // instead of deleting one colliding entry per review round.
+    .replace(/\b[A-Z]{2,}\b/g, " ");
+  return GERMAN_WORDS.exec(prose)?.[0] ?? GERMAN_ORTHOGRAPHY.exec(prose)?.[0] ?? null;
+};
 
 // Every row is a defect this detector was widened or narrowed to handle, so a
 // future edit that reintroduces one fails here instead of in a skill file.
@@ -70,6 +83,9 @@ const germanFixtures: Array<[boolean, string]> = [
   [false, "The device is unavailable, so the call may still fail."],
   [false, "Every tag in the tags list keeps its own identifier."],
   [false, "A device that wears two hats needs two entries."],
+  // All-caps acronyms collide with short function words; the scanner
+  // strips them before matching, so these must stay silent.
+  [false, "ES modules load lazily; send over IM if DES is required."],
 ];
 
 
@@ -380,18 +396,8 @@ describe("flows that cost the user extra turns (#527)", () => {
           readFileSync(path, "utf-8")
             .split("\n")
             .forEach((line, i) => {
-              // entity ids and code identifiers are allowed to be German
-              // Entity ids and code identifiers may be German (a real HA
-              // instance names things in the household's language). Prose in
-              // backticks may not — strip only identifier-shaped spans.
-              // Only DOTTED identifiers are exempt — `light.wohnzimmer` is a
-              // real entity id, `` `bitte` `` is German wearing backticks.
-              const prose = line.replace(
-                /`[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z0-9_]+)+`/g,
-                " ",
-              );
-              const hit = detectGerman(prose);
-              if (hit) offenders.push(`${path}:${i + 1} "${hit}" in ${prose.trim().slice(0, 80)}`);
+              const hit = detectGerman(line);
+              if (hit) offenders.push(`${path}:${i + 1} "${hit}" in ${line.trim().slice(0, 80)}`);
             });
         }
       }

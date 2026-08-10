@@ -78,7 +78,13 @@ Presence-conditional sends resolve recipients before the preview AND again
 immediately before sending: presence is the one input that changes on its own
 while a confirmation waits, so the previewed list can be wrong by the time it
 is approved. A changed list means a changed scope — re-preview rather than
-send to the stale one. Read `person.*` states, keep the ones with state `home`, and map each to their
+send to the stale one. Read `person.*` states and sort them into three buckets, not two: `home`,
+away (anything else, including a named zone like `work`), and UNREADABLE
+(`unknown`/`unavailable` — no tracker had usable data). Never fold the third
+into away: that turns a dropped phone into a silent omission from the send.
+Name unreadable people in the preview and ask whether to include them; with
+nobody readable, say so instead of reporting an empty household. Map each
+recipient to their
 REAL notify target from the `/api/services` discovery this skill
 already requires. Never derive a service name from `person.device_trackers`:
 those are tracker entity ids (router, GPS, a Companion App entity named
