@@ -265,6 +265,7 @@ describe("flows that cost the user extra turns (#527)", () => {
     expect(patterns).toContain("HA accepting the call is not the device having closed, so confirm the");
     expect(patterns).toContain("the integration may not have the entity yet");
     expect(patterns).toContain("wait for a KNOWN state");
+    expect(patterns).toContain("continue_on_timeout: false");
     expect(patterns).toContain("wait_template");
   });
 

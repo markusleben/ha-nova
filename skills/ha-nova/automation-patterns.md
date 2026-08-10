@@ -308,6 +308,10 @@ actions:
       {{ states('valve.irrigation_lawn') not in
          ['unavailable', 'unknown', 'None'] }}
     timeout: "00:02:00"
+    # a wait_template CONTINUES after its timeout by default, which would call
+    # against the unusable entity and then disable this automation on a
+    # failure it caused itself
+    continue_on_timeout: false
   - action: valve.close_valve
     target: {entity_id: valve.irrigation_lawn}
   # HA accepting the call is not the device having closed, so confirm the
