@@ -151,9 +151,11 @@ then filter by domain plus `device_class` and state:
   `gate`. A motorized window or garage door is a cover, not a binary_sensor, so checking one family answers "is anything open?" wrong
 - who is home: `person.*` with state `home` (this skill owns person STATE reads;
   `ha-nova:admin` owns creating and editing them)
-- what is on: `light`/`switch`/`fan` with state `on`, `media_player` in any
-  state other than `off`/`unavailable`/`unknown` (a paused or idle player is
-  not off, and "is everything off?" is asked about exactly that),
+- what is ON — the question "is everything off?" asks: `light`/`switch`/`fan`
+  with state `on`, and `media_player` in any state other than
+  `off`/`unavailable`/`unknown`, because a paused or idle player is not off
+- what is RUNNING — a different question, and a narrower answer: the same
+  lights, switches and fans, but `media_player` only in `playing`/`buffering`,
   AND the domains whose "running" is not `on`: `vacuum` in `cleaning`/
   `returning`, `climate` whose `hvac_action` is PRESENT and is anything but `off`/`idle` (heating, cooling, drying, fan, preheating, defrosting — listing only the first two misses a dehumidifier mid-cycle; an absent `hvac_action` means the device does not report one, which is not the same as running), `valve`
   in `open`/`opening`, `water_heater` in any state other than `off` with

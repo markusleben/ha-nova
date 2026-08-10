@@ -236,7 +236,10 @@ creating a short-lived automation rather than just switching something on.
 18 °C for an hour has to go back to what it was, not to off — so capture the
 CURRENT value of every attribute the first half changes, and make the expiry
 automation restore that captured value. Only a request whose natural
-counter-action is off (a valve, a light, a switch) gets a plain turn-off.
+counter-action is off gets a plain turn-off — and "natural" means the
+direction the request goes: "sprinkler for 30 minutes" turns off afterwards,
+"light off for an hour" turns back ON. Capture the prior state either way; the
+counter-action is whatever restores it, not a fixed service.
 Read the value at write time and embed it, exactly like the deadline — and
 re-read it at apply time for the same reason the deadline is re-checked: if
 another client moved the thermostat from 21 to 23 during the confirmation
@@ -342,11 +345,18 @@ conditions:
             id: fired
           - condition: template
             value_template: "{{ now() < as_datetime('2026-08-10T23:59:00+02:00') }}"
-      - condition: template
-        # the ABSOLUTE deadline, substituted at write time — `today_at`
-        # re-reads as the CURRENT day, so a restart the next morning would
-        # see 23:59 as still ahead and leave this armed for tomorrow
-        value_template: "{{ now() >= as_datetime('2026-08-10T23:59:00+02:00') }}"
+      # the expiry arm must ALSO be scoped to its own triggers, or a
+      # post-deadline `fired` satisfies this one and still reaches the
+      # notification branch
+      - condition: and
+        conditions:
+          - condition: trigger
+            id: expired
+          - condition: template
+            # the ABSOLUTE deadline, substituted at write time — `today_at`
+            # re-reads as the CURRENT day, so a restart the next morning
+            # would see 23:59 as still ahead and leave this armed
+            value_template: "{{ now() >= as_datetime('2026-08-10T23:59:00+02:00') }}"
 actions:
   # disable first on both paths — a notification is spent whether or not it
   # was delivered, and a failed send must not leave this armed for tomorrow

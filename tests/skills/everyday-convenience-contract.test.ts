@@ -226,6 +226,9 @@ describe("flows that cost the user extra turns (#527)", () => {
     expect(disco).toContain("the domains whose \"running\" is not `on`");
     expect(disco).toContain("`hvac_action` is PRESENT and is anything but `off`/`idle`");
     expect(disco).toContain("a paused or idle player is not off");
+    // Off and running are different questions with different answers.
+    expect(disco).toContain("what is RUNNING — a different question, and a narrower answer");
+    expect(disco).toContain("`media_player` only in `playing`/`buffering`");
     expect(disco).toContain("`lock.*` NOT in state `locked`");
     // The generic opening class is what many contact sensors report.
     expect(disco).toContain("`opening` (the generic contact class many integrations use)");
@@ -272,5 +275,7 @@ describe("flows that cost the user extra turns (#527)", () => {
     const p = flat(read("skills/ha-nova/automation-patterns.md"));
     expect(p).toContain("would disable a one-shot that still has the evening to fire");
     expect(p).toContain("after the deadline and must not count");
+    expect(p).toContain("the expiry arm must ALSO be scoped to its own triggers");
+    expect(p).toContain('"light off for an hour" turns back ON');
   });
 });
