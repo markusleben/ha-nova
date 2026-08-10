@@ -145,12 +145,15 @@ Then:
   still does not apply here: for a trigger source the unread thing IS the
   consumer, so an installed-but-unreadable Node-RED escalates rather than
   being noted as a gap.
-- A `button` or `switch` is the exception among trigger sources, because it
-  can carry the action itself instead of handing it to an automation. A
-  Template switch defines its own `turn_on`/`turn_off` sequences exactly as a
-  Template button defines its press, so everything below applies to both — a
-  zero-hit `search/related` on a `pl: "template"` switch proves nothing about
-  what `switch.turn_on` will run. The registry field
+- Any entity on the `template` platform can carry the action itself instead of
+  handing it to an automation, and that is what makes it an exception here.
+  A Template button defines its press, a Template switch its
+  `turn_on`/`turn_off`, a Template cover its `open_cover`/`close_cover`, a
+  Template lock its `lock`/`unlock` — the carrier is the platform, not the
+  domain, so do not read the domain as safe. A non-access Template cover can
+  run any sequence its author wrote, so a zero-hit `search/related` on a
+  `pl: "template"` entity proves nothing about what actuating it will run.
+  Read the stored action; if you cannot, escalate. The registry field
   `pl` (platform) decides which kind you have: `pl: "template"` is a
   user-authored button whose press action lives in the button, so
   `search/related` returning nothing proves nothing. Read the action — the

@@ -302,8 +302,9 @@ describe("indirect actuation and tier classification (#513)", () => {
   });
   it("applies the Template-carrier rule to switches as well as buttons", () => {
     const gate = flat(indirectActuation);
-    expect(gate).toContain("A `button` or `switch` is the exception");
-    expect(gate).toContain("A Template switch defines its own");
+    expect(gate).toContain("Any entity on the `template` platform can carry the action itself");
+    expect(gate).toContain("the carrier is the platform, not the domain");
+    expect(gate).toContain("a Template cover its `open_cover`/`close_cover`");
   });
   it("classifies the device-action form, not only the service form", () => {
     const gate = flat(indirectActuation);
