@@ -288,6 +288,8 @@ describe("ha-api-matrix lists the surfaces skills actually pin (#517)", () => {
     expect(notify).toContain("Bounded Event Collection");
     expect(notify).toContain("this skill does not restate it");
     expect(notify).toContain("notification delivery eats part of it");
+    expect(notify).toContain("The subscription is unfiltered");
+    expect(notify).toContain("A tap that matches neither is somebody else's");
     expect(notify).toContain("only when the user says they are holding the phone");
   });
 
@@ -303,6 +305,8 @@ describe("ha-api-matrix lists the surfaces skills actually pin (#517)", () => {
     expect(rr).toContain("takes the device, not the entity");
     // Honest about what is not pinned rather than inventing a schema.
     expect(rr).toContain("this section pins no schema");
+    expect(rr).toContain("which IS the network credential");
+    expect(rr).toContain("needs a RESTART, not a reload");
   });
 
   it("names the skills that pin search/related instead of a category", () => {

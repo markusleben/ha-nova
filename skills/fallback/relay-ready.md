@@ -207,6 +207,11 @@ here. On `{"result":"invalid"}` restore that file's `.bak` immediately, before
 reporting, and do not reload. The sentence file and `configuration.yaml` are
 two independent restores — roll back the one that is broken.
 
+Rolling back an `intent_script` needs a RESTART, not a reload: the handler is
+already loaded and restoring `configuration.yaml` does not unload it. Say so
+plainly — the file is correct again, the handler stays live until Home
+Assistant restarts.
+
 **Verify, and be ready to undo:** `write_file` with `backup: true` (the
 default) so a `.bak` exists — a brand-new file has none, so remember that you
 created it. Reload the right thing: `conversation.reload` reloads the SENTENCE
@@ -242,7 +247,10 @@ ha-nova relay ws --data-file <payload-file>
 ```
 
 All three are bare WS messages with no target: `{"type":"otbr/info"}`,
-`{"type":"thread/list_datasets"}`. `matter/node_diagnostics` is the exception
+`{"type":"thread/list_datasets"}`. Send `thread/list_datasets` with `--out
+<file>` and never without: its response carries the operational dataset, which
+IS the network credential, and an unredirected call prints it to stdout and
+into the transcript. Read the file, report dataset names and channel only. `matter/node_diagnostics` is the exception
 and takes the device, not the entity: `{"type":"matter/node_diagnostics",
 "device_id":"<device_id>"}` — resolve it from
 `{"type":"config/device_registry/list"}`. Confirm the current argument names
