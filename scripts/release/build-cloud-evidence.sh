@@ -48,8 +48,8 @@ MODE=""; CARRY=""; RELAY_APP=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --dry-run|--set) MODE="$1"; shift ;;
-    --carry) CARRY="${2:-}"; shift 2 ;;
-    --relay-app) RELAY_APP="${2:-}"; shift 2 ;;
+    --carry) [ $# -ge 2 ] || { echo "--carry needs a reason" >&2; exit 1; }; CARRY="$2"; shift 2 ;;
+    --relay-app) [ $# -ge 2 ] || { echo "--relay-app needs a reference" >&2; exit 1; }; RELAY_APP="$2"; shift 2 ;;
     *) echo "unknown option: $1" >&2; exit 1 ;;
   esac
 done
@@ -58,12 +58,17 @@ LINUX_SSH="${HA_NOVA_LINUX_SSH:-ai-machine}"
 WINDOWS_SSH="${HA_NOVA_WINDOWS_SSH:-ha-nova-win}"
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
-die() { echo "[cloud-evidence] ERROR: $*" >&2; exit 1; }
+die() { KEEP_WORK=1; echo "[cloud-evidence] ERROR: $*" >&2; exit 1; }
 step() { echo ""; echo "[cloud-evidence] $*"; }
 
 [ -n "$PR" ] || die "usage: build-cloud-evidence.sh <pr-number> [--dry-run|--set]"
+[[ "$PR" =~ ^[0-9]+$ ]] || die "PR must be a number, got '$PR' — it becomes an API path and a git ref"
 command -v gh >/dev/null || die "gh is required"
 command -v jq >/dev/null || die "jq is required"
+# check_identity runs node AFTER all provenance — a missing node there reads as
+# an identity mismatch, which is an attestation-critical message for a check
+# that never happened.
+command -v node >/dev/null || die "node is required"
 
 active="$(gh api user --jq .login 2>/dev/null || true)"
 [ "$active" = "${REPO%%/*}" ] || die "gh is authenticated as '${active:-none}', expected '${REPO%%/*}'"
@@ -72,10 +77,21 @@ active="$(gh api user --jq .login 2>/dev/null || true)"
 step "resolving PR #$PR"
 pr_json="$(gh api "repos/$REPO/pulls/$PR")"
 state="$(jq -r .state <<<"$pr_json")"
-mergeable="$(jq -r '.mergeable // "unknown"' <<<"$pr_json")"
+mergeable="$(jq -r '.mergeable_state // "unknown"' <<<"$pr_json")"
 merge_commit="$(jq -r '.merge_commit_sha // ""' <<<"$pr_json")"
 [ "$state" = "open" ] || die "PR #$PR is $state"
-[ "$mergeable" = "true" ] || die "PR #$PR is not mergeable ($mergeable) — rebase first"
+case "$mergeable" in
+  # `blocked` is the EXPECTED state here: cloud-source-gate is a required check
+  # and it is red precisely because the envelope this script builds does not
+  # exist yet. Refusing it would make the script unusable for its only job.
+  # What must not pass is a tree that is not the tree to attest.
+  clean|has_hooks|blocked|unstable) : ;;
+  dirty) die "PR #$PR has merge conflicts — the merge tree is not buildable" ;;
+  draft) die "PR #$PR is a draft" ;;
+  unknown) die "GitHub has not computed #$PR's merge state yet — retry in a moment, do not rebase" ;;
+  behind) die "PR #$PR is behind main — update the branch, then re-run" ;;
+  *) die "PR #$PR is '$mergeable', not clean — the tree that would merge is not the tree to attest" ;;
+esac
 [ -n "$merge_commit" ] || die "GitHub has not computed a merge commit for #$PR yet"
 
 # Forced: this is our own scratch ref, and it must follow the PR as it moves.
@@ -84,43 +100,50 @@ git -C "$ROOT_DIR" fetch --quiet --force origin "+refs/pull/$PR/merge:refs/cloud
   || die "cannot fetch the synthetic merge ref for #$PR"
 target_commit="$(git -C "$ROOT_DIR" rev-parse "refs/cloud-evidence/$PR")"
 target_tree="$(git -C "$ROOT_DIR" rev-parse "refs/cloud-evidence/$PR^{tree}")"
-relay_version="$(git -C "$ROOT_DIR" show "$target_commit:nova/config.yaml" | sed -n 's/^version: *"\{0,1\}\([^"]*\)"\{0,1\}/\1/p' | head -1)"
+# Exactly the verifier's shape (verify-cloud-release-gate.sh): one quoted
+# `version:` line. Accepting more here only defers the rejection to the gate,
+# after all three platforms have run.
+relay_version="$(git -C "$ROOT_DIR" show "$target_commit:nova/config.yaml" \
+  | sed -n 's/^version:[[:space:]]*"\([^"]*\)"[[:space:]]*$/\1/p')"
+[ "$(wc -l <<<"$relay_version")" = 1 ]
 [ -n "$relay_version" ] || die "cannot read nova/config.yaml version at the target"
 echo "  commit $target_commit"
 echo "  tree   $target_tree"
 echo "  relay  $relay_version"
 
 platforms="$(git -C "$ROOT_DIR" show "$target_commit:version.json" | jq -r '.cloud_remote_platforms[]')"
+[ -n "$platforms" ] \
+  || die "version.json lists no enabled cloud_remote_platforms — there is nothing to verify, and an envelope built here would attest checks that never ran"
 echo "  enabled platforms: $(tr '\n' ' ' <<<"$platforms")"
-
-step "Codex clearance"
-# The workflow refuses a candidate whose head lacks a real clean bot verdict
-# ("current pull request head lacks a real clean Codex bot result"). Checking
-# it here fails in seconds instead of two minutes into a dispatch.
-head_date="$(gh api "repos/$REPO/pulls/$PR/commits?per_page=100" --jq '.[-1].commit.committer.date')"
-clean_at="$(gh api "repos/$REPO/issues/$PR/reactions" \
-  --jq '[.[] | select(.content=="+1" and (.user.login|test("codex";"i")) and (.user.login|test("\\[bot\\]$"))) | .created_at] | max // ""')"
-if [ -z "$clean_at" ] || [[ ! "$clean_at" > "$head_date" ]]; then
-  die "PR #$PR head has no clean Codex verdict (head $head_date, newest bot 👍 ${clean_at:-none}). Get it clean first — the candidate workflow refuses otherwise."
-fi
-echo "  clean verdict at $clean_at, after head $head_date"
 
 if [ "$MODE" = "--dry-run" ]; then
   echo ""
-  echo "[cloud-evidence] dry run: the target is ready and the platforms would be"
-  echo "                 $(tr '\n' ' ' <<<"$platforms"). Re-run without --dry-run to dispatch."
+  echo "[cloud-evidence] dry run: target resolved, platforms reachable."
+  echo "                 Re-run without --dry-run to dispatch."
   exit 0
 fi
+
+# NOTE there is deliberately no local "is it Codex-clean" pre-check. The
+# candidate workflow owns that question (resolve-cloud-candidate-source.sh:
+# a commit-bound `Codex Review: Didn't find any major issues` comment naming
+# this exact head), and a second copy here drifted immediately — it read
+# REACTIONS, which are a different channel, from an unpaginated list whose
+# last entry was commit #100 rather than the head. A dispatch that fails this
+# way costs two minutes and is not scarce: only RERUNS are blocked.
 
 # ── 2. the candidate bundle ──────────────────────────────────────────────────
 # One dispatch per PR; reruns are rejected, so an existing successful run for
 # this exact commit is reused instead of burning the second attempt.
 version_tag="${HA_NOVA_VERSION_TAG:-v$(git -C "$ROOT_DIR" show "$target_commit:version.json" | jq -r .skill_version)-rc1}"
 step "candidate bundle ($version_tag)"
+# Match on the run's headSha, not on a substring of its title: the title
+# carries the request_id, whose short SHA is 7 chars while this compared 8, so
+# it never matched and every invocation re-dispatched — and the workflow's
+# cancel-in-progress then killed the run still in flight.
 run_id="$(gh run list --repo "$REPO" --workflow cloud-candidate-bundle.yml \
-  --json databaseId,headSha,conclusion,displayTitle --limit 20 \
+  --json databaseId,headSha,conclusion --limit 20 \
   | jq -r --arg c "$target_commit" \
-      'map(select(.conclusion=="success" and (.displayTitle|contains($c[0:8])))) | first | .databaseId // empty')"
+      'map(select(.conclusion=="success" and .headSha==$c)) | first | .databaseId // empty')"
 
 if [ -n "$run_id" ]; then
   echo "  reusing successful run $run_id"
@@ -129,7 +152,7 @@ else
   echo "  dispatching (request_id=$request_id)"
   gh workflow run cloud-candidate-bundle.yml --repo "$REPO" \
     -f "pull_request=$PR" -f "version_tag=$version_tag" -f "request_id=$request_id" \
-    || die "dispatch rejected — inspect the workflow, do NOT retry blindly (one dispatch per PR)"
+    || die "dispatch rejected — inspect the workflow before dispatching again"
   echo "  waiting for the run to appear"
   for _ in $(seq 1 30); do
     sleep 10
@@ -138,14 +161,18 @@ else
       | jq -r --arg r "$request_id" 'map(select(.displayTitle|contains($r))) | first | .databaseId // empty')"
     [ -n "$run_id" ] && break
   done
-  [ -n "$run_id" ] || die "the dispatched run never appeared"
+  [ -n "$run_id" ] \
+    || die "the dispatched run never appeared within 300s. It may still be queued — find it with: gh run list --workflow cloud-candidate-bundle.yml --repo $REPO | grep $request_id"
   echo "  run $run_id — waiting for completion"
   gh run watch "$run_id" --repo "$REPO" --exit-status >/dev/null \
     || die "run $run_id failed — fix the cause in a reviewed PR, then dispatch once more"
 fi
 
 work="$(mktemp -d)"
-trap 'rm -rf "$work"' EXIT
+# Keep the work dir on failure: every provenance `die` names a log inside it,
+# and deleting it on the way out destroyed the diagnostics for the most
+# expensive stage of the run.
+trap '[ "${KEEP_WORK:-0}" = 1 ] && echo "[cloud-evidence] logs kept in $work" || rm -rf "$work"' EXIT
 step "downloading install bundles"
 gh run download "$run_id" --repo "$REPO" --name cloud-candidate-install-bundles --dir "$work/bundles" \
   || die "cannot download the install bundles from run $run_id (artifacts expire after 7 days)"
