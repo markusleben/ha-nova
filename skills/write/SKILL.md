@@ -32,6 +32,7 @@ If this fails, run onboarding: `ha-nova setup`.
 ## Relay Contract
 
 File-based relay requests only: `ha-nova relay core --method <METHOD> --path <PATH> --body-file <payload-file>` for config writes, `ha-nova relay ws --data-file <payload-file>` for reads/reloads, `--jq-file` / `--out` for filters and large reads.
+- `ha-nova relay core --method GET --path /api/states/<entity_id> --out <result-file>` — the duration read-backs: the captured restore value before applying, and the target after the immediate action.
 - `ha-nova relay core --method POST --path /api/services/<domain>/<service> --body-file <payload-file>` — ONLY for the two runtime calls named in Scope: a duration request's immediate action, and `automation.turn_off` on an expiry automation this flow created.
 
 ## Flow

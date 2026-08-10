@@ -189,7 +189,9 @@ the count looks high.)
   actually executing, and the RUNNING list counts them, so leaving them out
   here would let "is everything off?" say yes to something "what is running?"
   names in the same breath;
-  `climate`/`water_heater`/`humidifier` in any state but `off`;
+  `climate`/`water_heater`/`humidifier` in any state but
+  `off`/`unavailable`/`unknown` — an unreachable one is not off, it goes in
+  the third bucket;
   `vacuum` and `lawn_mower` in `cleaning`/`mowing`/`returning`/`paused`/`error`
   — `error` means stranded mid-floor, not put away, and it is readable so the
   unavailable rule never catches it; `valve` in `open`/`opening`/`closing`;
