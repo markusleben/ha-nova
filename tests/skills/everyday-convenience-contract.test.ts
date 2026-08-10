@@ -221,7 +221,7 @@ describe("flows that cost the user extra turns (#527)", () => {
     const disco = flat(read("skills/entity-discovery/SKILL.md"));
     // A heat pump running is "running"; a jammed lock is not "locked".
     expect(disco).toContain("the domains whose \"running\" is not `on`");
-    expect(disco).toContain("`hvac_action` is `heating`/`cooling`");
+    expect(disco).toContain("`hvac_action` is anything but `off`/`idle`");
     expect(disco).toContain("`lock.*` NOT in state `locked`");
     // The generic opening class is what many contact sensors report.
     expect(disco).toContain("`opening` (the generic contact class many integrations use)");

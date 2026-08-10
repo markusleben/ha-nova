@@ -150,7 +150,7 @@ then filter by domain plus `device_class` and state:
   `ha-nova:admin` owns creating and editing them)
 - what is on: `light`/`switch`/`media_player`/`fan` with state `on`/`playing`,
   AND the domains whose "running" is not `on`: `vacuum` in `cleaning`/
-  `returning`, `climate` whose `hvac_action` is `heating`/`cooling`, `valve`
+  `returning`, `climate` whose `hvac_action` is anything but `off`/`idle` (heating, cooling, drying, fan, preheating, defrosting — listing only the first two misses a dehumidifier mid-cycle), `valve`
   in `open`/`opening`, `water_heater` in any state other than `off` with
   `hvac_action` absent — never count `unknown` or `unavailable` as running. Reporting "nothing is running" while
   the heat pump runs is the same wrong answer as missing an open window
