@@ -339,7 +339,8 @@ describe("indirect actuation and tier classification (#513)", () => {
   });
   it("does not read a local-presence check as proof of no consumer", () => {
     const gate = flat(indirectActuation);
-    expect(gate).toContain("Presence detection sees LOCAL installs only");
+    expect(gate).toContain("Templates are their own not-checkable family");
+    expect(gate).toContain("Presence detection also sees LOCAL installs only");
     expect(gate).toContain('"no locally installed consumer manager"');
     expect(gate).toContain("never call the coverage complete on that basis");
   });

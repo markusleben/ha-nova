@@ -184,7 +184,13 @@ Then:
   unread and the scan really is complete — that is the ordinary-tier path, and
   it is the common case. Check presence once per session (their own App or
   integration entries), name what you checked, and escalate only when a
-  present family could not be read. Presence detection sees LOCAL installs
+  present family could not be read. Presence detection is also not the whole
+  question: a native template trigger or template entity whose dependency is
+  computed at runtime consumes a helper without producing any relation, and no
+  App or integration entry marks that. Templates are their own not-checkable
+  family — if the instance has any template entities or template-triggered
+  automations at all, say so in the coverage report rather than reporting a
+  clean scan. Presence detection also sees LOCAL installs
   only: a Node-RED or AppDaemon running on another machine talks to Home
   Assistant over the API and leaves no App or integration entry. So report
   the finding as "no locally installed consumer manager" rather than "no
