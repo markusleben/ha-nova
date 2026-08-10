@@ -190,6 +190,11 @@ actions:
     then:
       - action: valve.close_valve
         target: {entity_id: valve.irrigation_lawn}
+        # a raising call — the entity goes unavailable between the check and
+        # the call, or the integration rejects it — aborts the whole sequence,
+        # which past the cutoff would skip the terminal disarm and leave the
+        # five-minute retry unbounded. Let it fail and decide below.
+        continue_on_error: true
       # HA accepting the call is not the device having closed, so confirm the
       # safe state before removing the only retry
       - wait_template: "{{ is_state('valve.irrigation_lawn', 'closed') }}"
