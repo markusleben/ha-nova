@@ -2,7 +2,7 @@
 
 Which HA operations require REST, WS, or filesystem?
 
-## REST API (directly with Long-Lived Access Token)
+## REST API (via the Relay `/core` proxy)
 
 | Endpoint | Method | Purpose |
 |----------|---------|-----|
@@ -34,7 +34,7 @@ Which HA operations require REST, WS, or filesystem?
 | `/api/config/config_entries/flow` | POST | Start an integration/helper config flow |
 | `/api/config/config_entries/flow/{flow_id}` | GET / POST / DELETE | Read, submit, or cancel one config flow |
 
-**Auth header:** `Authorization: Bearer {LONG_LIVED_TOKEN}`. The webhook endpoint itself is unauthenticated and treats its ID as the bearer secret; calls through HA NOVA still require Relay authentication.
+**Auth:** callers go through the Relay (`ha-nova relay core`), which authenticates inbound with the Relay/device credential and injects the upstream HA credential server-side (`SUPERVISOR_TOKEN` on the App, `HA_LLAT` on the standalone container) — never send an HA token yourself. A raw `Authorization: Bearer {LONG_LIVED_TOKEN}` applies only to direct server-side use outside HA NOVA. The webhook endpoint itself is unauthenticated and treats its ID as the bearer secret; calls through HA NOVA still require Relay authentication.
 
 ### Runtime event and security notes
 
@@ -157,20 +157,26 @@ Recurring instances add `recurrence_id`; `recurrence_range` is `""` for only tha
 | `config_entries/get` | Config-entry metadata; health uses not-loaded entries as integration status |
 | `system_health/info` | System health finite event response (Skill opts into Relay `collect_events` until `finish`) |
 | `homeassistant/expose_entity/list` | Voice-Assistant Exposure |
-| `subscribe_events` | Event subscription (real time) |
-| `subscribe_trigger` | Trigger subscription |
+| `subscribe_events` | Event subscription — bare calls are rejected by the Relay (`UNSUPPORTED_WS_TYPE`); permitted only inside the bounded `collect_events` envelope |
+| `subscribe_trigger` | Trigger subscription — same envelope-only rule |
+| `render_template` | Streaming render — rejected bare by the Relay; use `POST /api/template` instead |
 | `blueprint/list` | List blueprints |
 | `blueprint/import` | Import blueprint |
+| `blueprint/save` | Save a blueprint (used by `ha-nova:fallback`) |
+| `blueprint/substitute` | Expand a blueprint config (used by `ha-nova:fallback`) |
 
-## Filesystem (only from the HA host)
+## Filesystem (via the Relay's opt-in `/files` endpoint)
+
+File access defaults to off. When enabled, the Relay enforces a deny-list (`.storage`, `.cloud`, `.ssh`, `.git`, `deps`, `ssl`, `tts`, `backups`, `custom_components`, `python_scripts`, `www`, plus secret/db/env/log patterns) and a writable-extension gate (`.yaml` / `.yml` / `.conf` / `.json` / `.txt` / `.md`) — there is no directory whitelist. Keeping HA NOVA's own additions under `/config/ha_nova/` is a convention (`skills/yaml-config/SKILL.md`), not relay enforcement.
 
 | Operation | Path | When needed |
 |-----------|------|-----------|
-| Template sensor YAML | `/config/ha_mcp/templates/*.yaml` | For triggers, icon templates, multi-entity |
-| REST sensor YAML | `/config/ha_mcp/sensors/rest/*.yaml` | No config flow available |
-| Command line sensor YAML | `/config/ha_mcp/sensors/command_line/*.yaml` | No config flow available |
+| Template sensor YAML | `/config/ha_nova/templates/*.yaml` | For triggers, icon templates, multi-entity |
+| REST sensor YAML | `/config/ha_nova/sensors/rest/*.yaml` | No config flow available |
+| Command line sensor YAML | `/config/ha_nova/sensors/command_line/*.yaml` | No config flow available |
 | Patch configuration.yaml | `/config/configuration.yaml` | For `!include_dir_merge_list` entries |
-| Backups (raw file download/upload) | `/data/backups/` | Planned; lifecycle (status/create/inspect/delete) is covered via `/ws` `backup/*` (`ha-nova:backup`) |
+
+Raw backup file transfer (`/data/backups/`) is planned host-filesystem tooling — NOT reachable via `/files`, whose paths must stay inside `/config`. Backup lifecycle (status/create/inspect/delete) stays on WS `backup/*` (`ha-nova:backup`).
 
 **Sensor types with config flow (no YAML needed):** SQL, Scrape, Template (limited)
 **YAML-only sensor types:** REST, Command Line
@@ -178,7 +184,7 @@ Recurring instances add `recurrence_id`; `recurrence_range` is `""` for only tha
 ## Important Notes
 
 - **Automation/Script REST API** is undocumented but stable (used by the HA frontend)
-- **Legacy template sensors** (`sensor:` + `platform: template`) are deprecated since 2025.12, end in 2026.6
+- **Legacy template sensors** (`sensor:` + `platform: template`) were deprecated in 2025.12 and removed in HA 2026.6
 - **Helper delete** requires `unique_id`, not `entity_id`
 - **Dashboard write/delete eligibility** comes from `lovelace/dashboards/list` (`mode=storage`), not from `lovelace/info`
 - **Dashboard content writes are full-document saves** and must preserve unrelated views/cards

@@ -151,23 +151,10 @@ A *bare* subscription (no envelope) is still rejected with
 `400 UNSUPPORTED_WS_TYPE`, because the relay could neither deliver its events
 nor bound its lifetime.
 
-Optional: Batch mode
-```json
-Request (Array):
-[
-  { "type": "config/area_registry/list" },
-  { "type": "config/floor_registry/list" }
-]
-
-Response 200:
-{
-  "ok": true,
-  "data": [
-    { "ok": true, "data": [...] },
-    { "ok": true, "data": [...] }
-  ]
-}
-```
+Batch mode (array request bodies) is NOT supported: the WS proxy validates a
+single object with a string `type` and rejects arrays with
+`400 VALIDATION_ERROR` (`nova/src/http/handlers/ws-proxy.ts`). Callers loop
+client-side, one command per request.
 
 ### `POST /core` — REST Core Proxy
 
@@ -240,23 +227,23 @@ Limits: max 300s duration, max 5 concurrent subscriptions.
 ### `POST /files` — Filesystem Operations (implemented)
 ```json
 // list_dir
-{ "action": "list_dir", "path": "/config/ha_mcp", "limit": 200 }
+{ "action": "list_dir", "path": "/config/ha_nova", "limit": 200 }
 
 // read_file
-{ "action": "read_file", "path": "/config/ha_mcp/templates/my_sensor.yaml", "max_bytes": 200000 }
+{ "action": "read_file", "path": "/config/ha_nova/templates/my_sensor.yaml", "max_bytes": 200000 }
 
 // write_file
-{ "action": "write_file", "path": "/config/ha_mcp/templates/my_sensor.yaml", "content": "..." }
+{ "action": "write_file", "path": "/config/ha_nova/templates/my_sensor.yaml", "content": "..." }
 
 // delete_file
-{ "action": "delete_file", "path": "/config/ha_mcp/sensors/rest/old.yaml" }
+{ "action": "delete_file", "path": "/config/ha_nova/sensors/rest/old.yaml" }
 ```
 
 Security:
 - Paths must be within `/config` (HA config root)
-- Blocked: `.storage`, `.cloud`, `.ssh`, `.git`, `deps`, `ssl`, `secrets.yaml`
+- Deny-list segments: `.storage`, `.cloud`, `.ssh`, `.git`, `deps`, `ssl`, `tts`, `backups`, `custom_components`, `python_scripts`, `www` — plus secret/db/env/log filename patterns
 - Symlink traversal check
-- Writes only in whitelisted directories (`/config/ha_mcp/`)
+- Writes gated by extension (`.yaml`, `.yml`, `.conf`, `.json`, `.txt`, `.md`); there is no directory whitelist — keeping HA NOVA files under `/config/ha_nova/` is skill convention, not relay enforcement
 
 ### `POST /backups` — Config-snapshot store (implemented)
 

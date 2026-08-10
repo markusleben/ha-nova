@@ -28,7 +28,9 @@ The events come back as `.data.events`.
 - omit it (or `"error"`): the call fails — use this when a finish event is expected.
 - `"on_limit": "return"`: window mode — the relay returns what it saw and sets `.data.truncated: true`. Use this to sniff a stream that never finishes (for example `mqtt/subscribe`).
 
-Subscription commands are permitted **only inside this envelope** (the relay unsubscribes and bounds the window). A bare subscription without the envelope is rejected with `UNSUPPORTED_WS_TYPE`.
+`max_events` and `timeout_ms` are hard caps, not tuning suggestions: valid ranges are 1–100 events and 1–10000 ms; anything above is rejected with `VALIDATION_ERROR`.
+
+Subscription commands are permitted **only inside this envelope** (the relay unsubscribes and bounds the window). A bare subscription without the envelope is rejected with `UNSUPPORTED_WS_TYPE`. The same bare-call ban and envelope exemption apply to `render_template` — skills keep using `POST /api/template` for rendering.
 
 ## Binary Responses
 
@@ -45,6 +47,10 @@ Write the raw bytes with `ha-nova relay core --method GET --path <path> --out-bi
 - `GET /health`
 - `POST /ws`
 - `POST /core`
+- `POST /files` — opt-in filesystem ops (`list_dir` / `read_file` / `write_file` / `delete_file`), default off; CLI: `ha-nova relay files` (flows owned by `skills/yaml-config/SKILL.md`)
+- `POST /backups` — config-snapshot blob store (`save` / `load` / `list` / `delete` / `prune`); CLI: `ha-nova relay backups` (flows owned by `skills/ha-nova/config-snapshots.md`)
+
+Relay-enforced limits: request bodies up to 1 MiB (413 above); text/JSON `/core` responses and individual upstream WS frames up to 256 MiB — a `collect_events` response aggregates up to 100 events with no additional aggregate cap; binary responses up to 8 MiB; `/files` reads up to 1 MiB and writes up to 768 KiB.
 
 ## Relay CLI Wrapper
 
