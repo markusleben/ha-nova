@@ -301,7 +301,10 @@ conditions:
     value_template: "{{ now() >= as_datetime('2026-08-09T19:30:00+02:00') }}"
 actions:
   # on the startup path the integration may not have the entity yet, and a
-  # call against an unavailable target fails silently
+  # call against an unavailable target fails silently. Give the automation a
+  # second trigger on the entity LEAVING `unavailable` as well, so an
+  # integration that takes longer than the wait still gets the valve closed
+  # instead of stranding it until the next restart
   # wait for a KNOWN state: an entity that does not exist yet is neither
   # `unavailable` nor usable, so negating `unavailable` alone passes instantly
   - wait_template: >-
