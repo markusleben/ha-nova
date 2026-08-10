@@ -10,6 +10,26 @@ Confirmation Tiers).
 
 Read this before previewing any call in the trigger list below.
 
+## Three rules, and then the cases
+
+Everything below is one of these. When a case is not listed, decide it from
+the rule, not from the absence of an entry — the enumeration is illustration,
+the rules are the contract.
+
+1. **The target you see is not always the target that acts.** A service alias,
+   a device action, a shorthand key, a legacy group, an area or label — each
+   names one thing and actuates another. Resolve to the entities that will
+   actually be acted on, then classify those.
+2. **A stored action belongs to whoever authored it.** Anything on the
+   `template` platform, and anything whose behaviour lives in a config rather
+   than in the integration, can run whatever its author wrote — regardless of
+   how harmless its domain looks. Read the stored action; ordinary-device
+   reasoning does not apply to it.
+3. **Unread is not empty.** A blueprint body, a YAML item without an `id`, a
+   zero-hit relation scan, a targetless reload, a templated target — each
+   returns nothing and means "not known", never "nothing there". Escalate, and
+   name what could not be read.
+
 ## What triggers the gate
 
 **Classify by the TARGET's domain first, then by the service name.** Home

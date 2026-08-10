@@ -365,4 +365,14 @@ describe("indirect actuation and tier classification (#513)", () => {
     expect(gate).toContain("A legacy `group.*` target forwards the call to its members");
     expect(gate).toContain("recursively: a group can contain a group");
   });
+
+  it("states the rules the enumerated cases are instances of", () => {
+    const gate = flat(indirectActuation);
+    // Each round added another special case; the rules are what decide an
+    // unlisted one.
+    expect(gate).toContain("the enumeration is illustration, the rules are the contract");
+    expect(gate).toContain("The target you see is not always the target that acts");
+    expect(gate).toContain("A stored action belongs to whoever authored it");
+    expect(gate).toContain("Unread is not empty");
+  });
 });
