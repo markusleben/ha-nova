@@ -321,15 +321,24 @@ describe("flows that cost the user extra turns (#527)", () => {
     // Every entry is checked to be a non-word in English — an ambiguity tier
     // ("die", "an", "in", "so", "was") was tried and dropped: ordinary English
     // prose carries three of those per sentence, so it only produced noise.
-    const GERMAN =
-      /\b(der|das|den|dem|des|ein|eine|einen|einem|einer|eines|ist|sind|wird|werden|nicht|kein\w*|und|oder|aber|für|von|zum|zur|vom|beim|ins|im|aus|nach|über|unter|ich|du|wir|sich|mich|dich|euch|dass|weil|wenn|wie|wer|warum|hier|dort|jetzt|dann|noch|schon|auch|nur|sehr|mehr|alle|etwas|nichts|immer|bitte|heute|gestern|mach|zeig|schalte|dimme|soll|kann|muss|hat|haben|gibt|Lampe|Licht|Fenster|Tür|Küche|Wohnzimmer|Schlafzimmer|Stehlampe|Heizung|Rollladen|Steckdose)\b/i;
-    // ß or an umlaut inside a WORD is German orthography outright. A lone
-    // character in backticks is documentation ABOUT umlauts — the diacritics
-    // guidance in entity-discovery legitimately shows `ü` and `ö`.
-    const ORTHOGRAPHY =
-      /[A-Za-zÄÖÜäöüß]*[ßäöüÄÖÜ][A-Za-zÄÖÜäöüß]{2,}|[A-Za-zÄÖÜäöüß]{2,}[ßäöüÄÖÜ][A-Za-zÄÖÜäöüß]*/;
+    // No lexical detector is exhaustive; the bar is realistic German prose in
+    // a skill file, not every possible German sentence.
+    const L = "[A-Za-zÄÖÜäöüß]";
+    const GERMAN = new RegExp(
+      `(?<!${L})(der|das|den|dem|des|ein|eine|einen|einem|einer|eines|ist|sind|wird|werden|nicht|kein\w*|und|oder|aber|für|von|zum|zur|vom|beim|ins|im|aus|nach|über|unter|seit|bis|ohne|gegen|durch|wieder|ich|du|wir|es|sich|mich|dich|euch|sein|ihre|unser|dieser|diese|dieses|diesem|diesen|jede\w*|welche\w*|dass|weil|wenn|wie|wer|warum|hier|dort|jetzt|dann|noch|schon|auch|nur|sehr|mehr|viel|wenig|alle|etwas|nichts|immer|bitte|heute|gestern|zwei|drei|vier|mach|zeig|schalte|dimme|soll|kann|muss|hat|haben|gibt|Lampe|Licht|Fenster|Tür|Küche|Wohnzimmer|Schlafzimmer|Stehlampe|Heizung|Rollladen|Steckdose)(?!${L})`,
+      "i",
+    );
+    // A LOWERCASE word carrying ß or an umlaut is German orthography: English
+    // has no such word. The lookarounds spell out "letter" because JS \b is
+    // ASCII-defined and would see a boundary inside `München`, matching
+    // `ünchen`. Capitalized ones are nouns or proper nouns — `München`
+    // and attribution names are explicitly allowed (AGENTS.md), so those are
+    // left to the word list above, which already carries `Küche` and `Tür`.
+    const ORTHOGRAPHY = new RegExp(
+      `(?<!${L})(?:[a-zäöüß]*[ßäöü][a-zäöüß]{2,}|[a-zäöüß]{2,}[ßäöü][a-zäöüß]*)(?!${L})`,
+    );
     const isGerman = (text: string): string | null =>
-      ORTHOGRAPHY.exec(text)?.[0] ?? GERMAN.exec(text)?.[0] ?? null;
+      GERMAN.exec(text)?.[0] ?? ORTHOGRAPHY.exec(text)?.[0] ?? null;
     const offenders: string[] = [];
     const walk = (dir: string): void => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
