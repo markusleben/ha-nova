@@ -280,6 +280,8 @@ describe("indirect actuation and tier classification (#513)", () => {
     // A tier that depends on a live state has to be re-checked at apply time.
     expect(flat(indirectActuation)).toContain("the gate's whole conclusion is re-checked at apply time");
     expect(flat(indirectActuation)).toContain("a script edited during the pause has different members");
+    expect(flat(indirectActuation)).toContain("AND the consumer scan itself");
+    expect(flat(indirectActuation)).toContain("cannot discover one that did not exist yet");
     expect(flat(indirectActuation)).toContain("the gate's verdict is part of what was shown");
     expect(flat(indirectActuation)).toContain("EVERY spelling of a start");
     // The Flow entry must not pre-classify the alias as a run.
