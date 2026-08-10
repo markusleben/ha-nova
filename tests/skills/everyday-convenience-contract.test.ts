@@ -266,7 +266,7 @@ describe("flows that cost the user extra turns (#527)", () => {
     expect(patterns).toContain("the integration may not have the entity yet");
     expect(patterns).toContain("wait for a KNOWN state");
     expect(patterns).toContain("continue_on_timeout: false");
-    expect(patterns).toContain("second trigger on the entity LEAVING");
+    expect(patterns).toContain("bind the trigger to the usable state");
     expect(patterns).toContain("wait_template");
   });
 
@@ -314,8 +314,10 @@ describe("flows that cost the user extra turns (#527)", () => {
               // Entity ids and code identifiers may be German (a real HA
               // instance names things in the household's language). Prose in
               // backticks may not — strip only identifier-shaped spans.
+              // Only DOTTED identifiers are exempt — `light.wohnzimmer` is a
+              // real entity id, `` `bitte` `` is German wearing backticks.
               const prose = line.replace(
-                /`[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z0-9_]+)+`|`[a-z_]+`/g,
+                /`[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z0-9_]+)+`/g,
                 " ",
               );
               const hit = GERMAN.exec(prose);

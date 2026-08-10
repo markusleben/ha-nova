@@ -292,9 +292,12 @@ triggers:
     event: start
   # and when the device finally shows up: an integration slower than the
   # startup wait would otherwise strand the valve until the next restart
+  # NOT `from: "unavailable"` — an entity that did not exist yet first
+  # appears from `None`/`unknown`, so bind the trigger to the usable state
+  # instead of to a particular unusable one
   - trigger: state
     entity_id: valve.irrigation_lawn
-    from: "unavailable"
+    to: ["open", "closed", "opening", "closing"]
 conditions:
   # on the time path this is already true; on the startup path it catches a
   # deadline that passed while Home Assistant was off
