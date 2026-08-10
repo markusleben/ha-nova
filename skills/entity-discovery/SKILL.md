@@ -185,6 +185,10 @@ the count looks high.)
   (paused and idle are not off; `standby` IS — Home Assistant core deprecates
   it as meaning off-or-idle, and users call that TV off);
   `binary_sensor` with `device_class` `running` or `moving` in `on`;
+  `script` in `on` and `automation` with `attributes.current > 0` — both are
+  actually executing, and the RUNNING list counts them, so leaving them out
+  here would let "is everything off?" say yes to something "what is running?"
+  names in the same breath;
   `climate`/`water_heater`/`humidifier` in any state but `off`;
   `vacuum` and `lawn_mower` in `cleaning`/`mowing`/`returning`/`paused`/`error`
   — `error` means stranded mid-floor, not put away, and it is readable so the
