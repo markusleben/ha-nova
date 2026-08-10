@@ -99,11 +99,16 @@ device then starts with nothing left to stop it. Under about a minute of
 remaining time, re-preview with a fresh deadline instead of actuating. A
 confirmation that arrives after the deadline re-previews for the same reason.
 
-If the immediate action grants physical access ("unlock the front door for
-five minutes", "open the garage for ten"), the one preview still takes the
-typed `confirm:<token>` — a duration does not soften what the first half
-does, and the automatic re-lock is not a mitigation because the door is open
-for the whole window. Same tier as calling the service directly
+The tier is the HIGHER of the two halves, never the first one. If the
+immediate action grants physical access ("unlock the front door for five
+minutes", "open the garage for ten"), the one preview takes the typed
+`confirm:<token>` — a duration does not soften what the first half does, and
+the automatic re-lock is not a mitigation because the door is open for the
+whole window. But the counter-action is the restore, and restoring can be the
+grant: "lock the door for an hour" is an ordinary `lock.lock` now and a
+SCHEDULED, UNATTENDED `lock.unlock` later, and the same holds for "close the
+garage until 7" and "arm the alarm until 6". Classify both halves and take the
+maximum. Same tier as calling the service directly
 (`skills/ha-nova/SKILL.md` → confirmation tiers) — and `ha-nova:write` applies
 that tier here even though its own create flow is otherwise natural
 confirmation: the duration request is the exception, because its first half is

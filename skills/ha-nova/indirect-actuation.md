@@ -56,8 +56,11 @@ something contradicts the performed-action rule:
   while the confirmation waits, and then the call that "runs nothing" runs
   everything, including a `lock.unlock` nobody listed. Only a pure stop
   (`turn_off`) expands nothing, because no timing turns a stop into a start.
-- the gate's conclusion is still re-checked at apply time — member configs, AND
-  the consumer scan itself, since a helper can gain a listener during the pause
+- the gate's conclusion is still re-checked at apply time — member configs, the
+  broad targets inside them (a stored `area_id`/`label_id` keeps its selector,
+  so its membership is never frozen the way a direct call's expansion is, and a
+  garage door added to that label between preview and apply arrives silently),
+  AND the consumer scan itself, since a helper can gain a listener during the pause
   and re-reading only what you already found cannot discover one that did not
   exist yet. Any change re-previews at the tier the new facts deserve. A
   confirmation binds to what was shown, and the gate's verdict is part of what
@@ -76,7 +79,12 @@ By service name, the gate also covers:
 - a test utterance through `conversation/process` (`ha-nova:assist`)
 
 Ordinary device control — lights, media, comfort climate, non-access covers —
-does not carry this gate.
+does not carry this gate, with ONE exception that is an entry condition and not
+a later refinement: any target on the `template` platform (`pl: "template"` in
+the registry) enters the gate whatever its domain, because a Template light,
+cover, fan, lock or valve carries its author's own action sequence rather than
+a device command. Check `pl` before concluding "ordinary control" — a
+`light.turn_on` on a Template light can be `lock.unlock` wearing a lamp.
 
 ## Expanding the members
 
@@ -180,7 +188,7 @@ Then:
   family only breaks coverage when it is actually PRESENT: no Node-RED, no
   AppDaemon, no HACS consumer manager on this instance means there is nothing
   unread and the scan really is complete — that is the ordinary-tier path, and
-  it is the common case. Check presence once per session (their own App or
+  it is the common case. Check presence per RUN, not once per session: an install that appears mid-session makes the earlier answer wrong, and this is the one cached fact that decides a tier (their own App or
   integration entries), name what you checked, and escalate only when a
   present family could not be read. Presence detection is also not the whole
   question: a native template trigger or template entity whose dependency is
@@ -287,16 +295,22 @@ and a garage door take the same call, and only the resolved entity's
 `device_class` separates them. So an unresolved cover target fails CLOSED —
 escalate — because the question "is this a garage door?" cannot be answered
 and the wrong answer opens one. That covers every cover action that CAN open:
-`open_cover`, `toggle` (a closed garage opens), and `set_cover_position` with
-any position above the current one. Only `close_cover` is safe on an unknown
+`open_cover`, `toggle` (a closed garage opens), and `set_cover_position` at
+ANY position above 0 — not "above the current one". A door moves: it can
+finish closing while the confirmation waits, and then a position the preview
+read as a partial close opens it. Comparing against a live reading is the same
+expiring-observation mistake as keying a tier on a running script. Only `close_cover` is safe on an unknown
 target, because closing grants nothing.
 
 When the ACTION NAME itself is templated, or an event listener cannot be
 enumerated, you know nothing about what it does — and "I could not read it"
 is not evidence that it is harmless. Escalate.
 
-Otherwise these are limits Home Assistant imposes: stay at the ordinary tier
-and name in the preview which members you could not classify. Do not escalate everything
+Otherwise — meaning an unreadable INTEGRATION-owned member, whose platform
+bounds what it can reach — these are limits Home Assistant imposes: stay at the
+ordinary tier and name in the preview which members you could not classify.
+That is the only class this paragraph covers; a USER-AUTHORED member you could
+not read is rule 3 and escalates, which is what the escalation list above says. Do not escalate everything
 you cannot read — blanket escalation trains users to type confirmation codes
 without reading them, which costs more safety than it buys, and on an instance
 whose scenes all belong to an integration it would fire on every single scene.

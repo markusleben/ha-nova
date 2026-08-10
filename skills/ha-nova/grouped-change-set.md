@@ -69,8 +69,14 @@ ledger.
     apply) — re-read the target and compare against the previewed base;
   - create: verify the previewed ID/slug is still absent (no collision
     appeared since the preview);
-  - service call / runtime action: re-check that the target entity still
-    exists; a target gone from the registry stops the group, while
+  - service call / runtime action: re-run the indirect-actuation gate from
+    scratch when ANY earlier operation in this group wrote to a config this
+    run reaches — the group is the one actor whose changes its own previews
+    cannot have seen. "Add the unlock to my arrival script, then run it" is
+    two ordinary-looking operations that together perform a gated action, and
+    re-reading only the target's existence does not notice. A tier that rises
+    stops the group; it is not a confirmation the user gave. Also re-check
+    that the target entity still exists; a target gone from the registry stops the group, while
     `unavailable`/`unknown` follows the owning skill's preview rules
     (warning/info, not a block — the call may still work). Broad targets
     (`area_id`/`device_id`) re-expand to their member list before applying;
@@ -134,7 +140,9 @@ Never grouped, regardless of task shape:
   batches, high-consequence runtime actions). ONE named exception: a duration
   request's immediate action and its expiry automation are two halves of a
   single write, not a group of two operations — they preview and confirm
-  together at whichever tier the immediate half demands
+  together at the HIGHER tier of the two halves — the counter-action is the
+  restore, and a restore can be the grant (`lock.lock` for an hour schedules an
+  unattended `lock.unlock`)
   (`skills/ha-nova/one-shot-automations.md`). Separating them would leave a
   scheduled turn-off for something that was never turned on.
 - experimental/fallback writes and YAML file edits
