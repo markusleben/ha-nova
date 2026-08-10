@@ -241,6 +241,14 @@ external — it needs BLE from the companion app and is not an API surface.
 ha-nova relay ws --data-file <payload-file>
 ```
 
+All three are bare WS messages with no target: `{"type":"otbr/info"}`,
+`{"type":"thread/list_datasets"}`. `matter/node_diagnostics` is the exception
+and takes the device, not the entity: `{"type":"matter/node_diagnostics",
+"device_id":"<device_id>"}` — resolve it from
+`{"type":"config/device_registry/list"}`. Confirm the current argument names
+in the research step before sending: these commands are young and this section
+pins no schema.
+
 **Risks:** none for the reads themselves; do not surface dataset credentials
 (a Thread operational dataset is a network key) in output.
 

@@ -187,7 +187,7 @@ guardrails.
 
 | Family | Commands | Owning skill |
 |---|---|---|
-| Relations | `search/related` — the pre-delete and consumer-scan workhorse | every write-capable skill |
+| Relations | `search/related` — the pre-delete and consumer-scan workhorse | the skills that pin it: `write`, `helper`, `scene`, `organize`, `read`, `review`, `service-call`, `entity-discovery`, `maintenance`, `admin`, `media`, `camera`, `todo`, `hacs`, `fallback` |
 | Compact registry | `config/entity_registry/list_for_display` (abbreviated keys) | entity-discovery, review, bulk flows |
 | System log | `system_log/list` (the working log source on HA OS) | diagnose |
 | Backups | `backup/info`, `backup/generate`, `backup/generate_with_automatic_settings`, `backup/delete`, `backup/agents/info`, `backup/details` | backup |

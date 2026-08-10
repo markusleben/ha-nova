@@ -63,8 +63,12 @@ Discovery:
 `skills/ha-nova/relay-api.md` → Bounded Event Collection, wrapping
 `{"type":"subscribe_events","event_type":"mobile_app_notification_action"}`
 with `on_limit: "return"` — the same shape `ha-nova:fallback` documents for a
-button press, and this skill does not restate it. Offer it only when the user
-is standing at their phone, say how long you will wait, and never report an empty window as proof that nobody tapped; say the window may have missed it and fall back to the automation. This skill cannot wait longer than that window (the relay does not hold long subscriptions). To react to a press, the user needs an automation that listens for that event — hand off to `ha-nova:write` and explain the pattern instead of pretending to wait.
+button press, and this skill does not restate it. The window is at most ten seconds and it starts AFTER the
+send, so notification delivery eats part of it: offer this only when the user
+says they are holding the phone, and tell them to tap the moment it arrives.
+If they are not poised, or the first window comes back empty, the durable
+automation is the answer — do not spend a second window on it. Say how long
+you will wait, and never report an empty window as proof that nobody tapped; say the window may have missed it and fall back to the automation. This skill cannot wait longer than that window (the relay does not hold long subscriptions). To react to a press, the user needs an automation that listens for that event — hand off to `ha-nova:write` and explain the pattern instead of pretending to wait.
 
 ## Persistent Notifications (Home Assistant UI)
 

@@ -57,7 +57,7 @@ describe("fallback capability map is complete and truthful (#516)", () => {
     // flow still says it is impossible leaves it unreachable.
     const notify = flat(read("skills/notify/SKILL.md"));
     expect(notify).toContain("A bounded in-chat window can CATCH a tap");
-    expect(notify).toContain("say how long you will wait");
+    expect(notify).toContain("Say how long you will wait");
     // The relay is request/response: the window opens AFTER the send and HA
     // does not replay the event, so an empty window is not proof.
     expect(notify).toContain("cannot guarantee one");
@@ -287,11 +287,28 @@ describe("ha-api-matrix lists the surfaces skills actually pin (#517)", () => {
     expect(notify).toContain('"event_type":"mobile_app_notification_action"');
     expect(notify).toContain("Bounded Event Collection");
     expect(notify).toContain("this skill does not restate it");
+    expect(notify).toContain("notification delivery eats part of it");
+    expect(notify).toContain("only when the user says they are holding the phone");
   });
 
   it("routes a bounded callback wait to notify, not to write", () => {
     const fb = flat(read("skills/fallback/SKILL.md"));
     // write owns the durable automation; the in-chat window is notify's.
     expect(fb).toContain("for a bounded in-chat wait instead, `notify` owns it");
+  });
+
+  it("names the Matter/Thread message shapes it can name", () => {
+    const rr = flat(read("skills/fallback/relay-ready.md"));
+    expect(rr).toContain('`{"type":"otbr/info"}`');
+    expect(rr).toContain("takes the device, not the entity");
+    // Honest about what is not pinned rather than inventing a schema.
+    expect(rr).toContain("this section pins no schema");
+  });
+
+  it("names the skills that pin search/related instead of a category", () => {
+    const row = read("docs/reference/ha-api-matrix.md")
+      .split("\n").find((l) => l.startsWith("| Relations"));
+    expect(row).not.toContain("every write-capable skill");
+    expect(row).toContain("`entity-discovery`");
   });
 });
