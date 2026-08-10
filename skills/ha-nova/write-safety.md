@@ -63,16 +63,25 @@ summary of what the new item does.
 
 **delete**: no `## Changes` (the consumer-check result already covers it).
 
-### Drift check before apply (update)
+### Drift check before apply
 
-Confirmation binds to the previewed diff BASIS, not only the payload. If the
+Applies to every write that replaces a whole document or whole list: an
+automation or script update, a scene, a dashboard config, energy preferences,
+and a YAML file. Home Assistant has no optimistic locking anywhere — the last
+writer wins, silently.
+
+Confirmation binds to the previewed BASIS, not only the payload. If the
 conversation paused between preview and confirmation, or the target may have
 been edited outside this session (HA UI open, another client), re-read the
 target immediately before the write and structurally compare it against the
-`CURRENT_CONFIG` the diff was computed from. On any foreign change: STOP —
-the confirmation has expired; recompute the diff against the live config and
-show the updated preview. Never silently overwrite an external edit — a
-full-document write would revert it without a trace.
+basis the preview was computed from. On any foreign change: STOP — the
+confirmation has expired; recompute against the live state and show the
+updated preview. Never silently overwrite an external edit — a full-document
+write would revert it without a trace.
+
+Verifying afterwards is not a substitute. A post-write deep-equal check tells
+the user their colleague's edit is already gone; the re-read before the write
+is what keeps it.
 
 ### Behavior narrative (required with every update preview)
 

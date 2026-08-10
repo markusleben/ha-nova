@@ -112,7 +112,12 @@ const SAFETY_CORE_BLOCKS = ((): { mutation: string; readOnly: string } => {
 // on-demand trigger list itself.
 const WORD_BUDGETS: Record<string, number> = {
   // pre-save snapshot capture + snapshot recovery guidance (Wave 2).
-  energy: 1250,
+  // Pre-write drift check before save_prefs (#514, measured 1257): the
+  // post-save deep-equal check reported a lost foreign edit instead of
+  // preventing it.
+  // Codex round 2: first-time setup has no prefs document, so the drift
+  // reread needs absence as an explicit basis (measured 1283).
+  energy: 1300,
   // consumer checks before area delete/rename/disable (Wave 1b) + metadata
   // snapshot capture (Wave 2).
   // Grouped-change-set opt-in + flow wiring (#391).
@@ -211,7 +216,13 @@ const WORD_BUDGETS: Record<string, number> = {
   // source for file edits; concrete examples are what make a card renderable.
   // Sibling-survival verification (Wave 1b) + yaml snapshot capture with
   // stored path (Wave 2) + TS-check application at write time (Wave 3).
-  "yaml-config": 1450,
+  // Pre-write drift check before the whole-file write (#514): the single-step
+  // .bak reported success while reverting a concurrent edit. Codex round 1
+  // moved the check behind the snapshot capture and split the brand-new-file
+  // case, whose basis is absence rather than content. Round 2 replaced the
+  // list_dir absence probe with an exact-path one: list_dir caps at 500
+  // entries and can report an existing file as absent (measured 1588).
+  "yaml-config": 1610,
   // Confirmation-code terminology replacing "token" wording (#392).
   // #452 canonical smallest-solution draft rule (17 words).
   todo: 1275,
