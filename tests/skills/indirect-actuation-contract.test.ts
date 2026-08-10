@@ -126,7 +126,7 @@ describe("indirect actuation and tier classification (#513)", () => {
         "/api/config/{scene|script|automation}/config/<config_id>",
       );
       expect(gate).toContain("`config_id` is `attributes.id`");
-      expect(gate).toContain("object part of the entity_id");
+      expect(gate).toContain("never from a state attribute");
     });
 
     it("fails open on unreadable members but never on a failed scan", () => {
