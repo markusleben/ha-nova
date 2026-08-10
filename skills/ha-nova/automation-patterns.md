@@ -245,10 +245,12 @@ A moved value re-previews rather than being embedded.
 
 Both halves means both, and the ORDER is the safety property: create the
 expiry automation FIRST, verify it exists, and only then run the immediate
-action. Check the deadline again at that moment: a confirmation that arrives
-after it has already passed would leave a device running against a `time`
-trigger that will not fire again until a restart. Re-preview with a fresh
-deadline instead of actuating.
+action. Check the deadline again at that moment, and require MARGIN, not just a future
+deadline: the expiry automation is already armed, so a deadline a few seconds
+out can fire and disable itself before the immediate action even runs — the
+device then starts with nothing left to stop it. Under about a minute of
+remaining time, re-preview with a fresh deadline instead of actuating. A
+confirmation that arrives after the deadline re-previews for the same reason.
 
 If the immediate action grants physical access ("unlock the front door for
 five minutes", "open the garage for ten"), the one preview still takes the
@@ -285,6 +287,13 @@ conditions:
 actions:
   - action: valve.close_valve
     target: {entity_id: valve.irrigation_lawn}
+  # HA accepting the call is not the device having closed, so confirm the
+  # safe state before removing the only retry
+  - wait_template: "{{ is_state('valve.irrigation_lawn', 'closed') }}"
+    timeout: "00:01:00"
+  - condition: state
+    entity_id: valve.irrigation_lawn
+    state: "closed"
   - action: automation.turn_off
     target: {entity_id: "{{ this.entity_id }}"}
     data: {stop_actions: false}

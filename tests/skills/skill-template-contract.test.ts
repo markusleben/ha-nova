@@ -116,7 +116,7 @@ const WORD_BUDGETS: Record<string, number> = {
   // Codex round 3: a motorized window or garage door is a cover, so an
   // open-state snapshot that reads only binary_sensor answers wrong
   // (measured 1374).
-  "entity-discovery": 1520,
+  "entity-discovery": 1620,
   // Presence-conditional recipient resolution; Codex round 1 required real
   // /api/services discovery instead of deriving a notify service name from
   // tracker ids, which prove no association (#527, measured 1264).

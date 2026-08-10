@@ -167,7 +167,8 @@ describe("flows that cost the user extra turns (#527)", () => {
     expect(patterns).toContain("create the expiry automation FIRST");
     // A confirmation that arrives after the deadline would strand the device.
     expect(patterns).toContain("Check the deadline again at that moment");
-    expect(patterns).toContain("Re-preview with a fresh deadline instead of actuating");
+    expect(patterns).toContain("the device then starts with nothing left to stop it");
+    expect(patterns).toContain("require MARGIN, not just a future deadline");
     expect(patterns).toContain("nothing has been turned on yet and there is nothing to undo");
     expect(patterns).toContain("A bare `time` trigger is MISSED, not replayed");
     expect(patterns).toContain("trigger: homeassistant");
@@ -240,5 +241,18 @@ describe("flows that cost the user extra turns (#527)", () => {
     // so the endpoint splits on commas and ignores unknown ids.
     expect(hist).toContain("the endpoint splits on commas");
     expect(hist).toContain("an unknown id in the list is ignored");
+  });
+
+  it("waits for the safe state before disabling the retry", () => {
+    const patterns = flat(read("skills/ha-nova/automation-patterns.md"));
+    expect(patterns).toContain("HA accepting the call is not the device having closed, so confirm the");
+    expect(patterns).toContain("wait_template");
+  });
+
+  it("reports unreadable openings instead of counting them as closed", () => {
+    const disco = flat(read("skills/entity-discovery/SKILL.md"));
+    expect(disco).toContain("is neither open nor closed");
+    expect(disco).toContain("none open, 3 could not be read");
+    expect(disco).toContain("never count `unknown` or `unavailable` as running");
   });
 });

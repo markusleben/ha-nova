@@ -151,12 +151,18 @@ then filter by domain plus `device_class` and state:
 - what is on: `light`/`switch`/`media_player`/`fan` with state `on`/`playing`,
   AND the domains whose "running" is not `on`: `vacuum` in `cleaning`/
   `returning`, `climate` whose `hvac_action` is `heating`/`cooling`, `valve`
-  and `water_heater` in an active state. Reporting "nothing is running" while
+  in `open`/`opening`, `water_heater` in any state other than `off` with
+  `hvac_action` absent — never count `unknown` or `unavailable` as running. Reporting "nothing is running" while
   the heat pump runs is the same wrong answer as missing an open window
 - unlocked doors: `lock.*` NOT in state `locked` — `unlocked` obviously, but
   also `unlocking`, `opening` and `jammed`. The question is whether the door
   is secured, and a lock that is jammed or mid-travel is not; say which state
   each one is in rather than flattening them all to "unlocked"
+
+An entity that is `unknown` or `unavailable` is neither open nor closed:
+count it separately and say so. "Everything is closed" with three sensors
+offline is the reassurance a user should not get — report "none open, 3
+could not be read" instead.
 
 Answer count-first ("2 windows open: kitchen, bathroom"), then the names, in the List
 Frame. This is a summary, not the banned domain dump: `output-rules.md` asks
