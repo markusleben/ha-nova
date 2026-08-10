@@ -40,23 +40,18 @@ const gitDir = () => {
 };
 const STATE = join(gitDir(), "codex-rounds.json");
 
-// A cycle is clean when the newest 👍 is younger than the newest commit.
-// Best-effort: if gh is unavailable or slow, keep counting rather than reset.
-const cycleIsClean = (pr) => {
+// The newest clean verdict, as a timestamp, or null.
+//
+// Do NOT compare it against the newest commit: by the time the next @codex
+// fires there is already a newer commit, so "thumbs-up younger than commit"
+// is false exactly when the reset is due — a clean verdict followed by a
+// fresh delta. Instead the state remembers WHICH clean verdict was last
+// accounted for; a different one means a cycle closed since we last looked.
+//
+// Only the REVIEW BOT counts. A collaborator's 👍 is encouragement, and
+// treating it as a verdict would suppress the reminder when it is due.
+const newestCleanVerdict = (pr) => {
   try {
-    const out = execFileSync(
-      "gh",
-      ["pr", "view", pr, "--json", "reactionGroups,commits"],
-      { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], timeout: 5000 },
-    );
-    const data = JSON.parse(out);
-    const commits = data.commits ?? [];
-    const lastCommit = commits[commits.length - 1]?.committedDate;
-    const thumbs = (data.reactionGroups ?? []).find(
-      (g) => g.content === "THUMBS_UP",
-    );
-    if (!lastCommit || !thumbs?.users?.totalCount) return false;
-    // reactionGroups carries no timestamp, so fall back to the issue API
     const reactions = JSON.parse(
       execFileSync(
         "gh",
@@ -64,22 +59,23 @@ const cycleIsClean = (pr) => {
         { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], timeout: 5000 },
       ),
     );
-    // Only the REVIEW BOT's thumbs-up ends a cycle. A collaborator's 👍 on the
-    // PR is encouragement, and treating it as a clean verdict would reset the
-    // streak and suppress the batch reminder exactly when it is due.
-    const newest = reactions
-      .filter(
-        (r) =>
-          r.content === "+1" &&
-          /codex/i.test(r.user?.login ?? "") &&
-          r.user?.type === "Bot",
-      )
-      .map((r) => r.created_at)
-      .sort()
-      .pop();
-    return Boolean(newest && newest > lastCommit);
+    return (
+      reactions
+        // GitHub reports an App installation's reaction with type "User" and
+        // a "[bot]" login suffix — checking type === "Bot" matches nothing.
+        // The real login is `chatgpt-codex-connector[bot]`.
+        .filter(
+          (r) =>
+            r.content === "+1" &&
+            /codex/i.test(r.user?.login ?? "") &&
+            /\[bot\]$/.test(r.user?.login ?? ""),
+        )
+        .map((r) => r.created_at)
+        .sort()
+        .pop() ?? null
+    );
   } catch {
-    return false;
+    return null; // gh unavailable: keep counting rather than reset
   }
 };
 
@@ -124,7 +120,9 @@ const main = async () => {
   // that cycle, not to the next delta. Ask GitHub whether the newest thumbs-up
   // is younger than the last commit — if so, this trigger starts a fresh
   // streak.
-  const resetStreak = Boolean(state[pr]) && cycleIsClean(pr);
+  const clean = newestCleanVerdict(pr);
+  const seen = state[`${pr}:clean`] ?? null;
+  const resetStreak = Boolean(clean) && clean !== seen;
   let rounds = (state[pr] ?? 0) + 1;
   try {
     // Two sessions in two worktrees share one state file. An atomic rename
@@ -157,6 +155,7 @@ const main = async () => {
         /* first write */
       }
       if (resetStreak) fresh[pr] = 0;
+      if (clean) fresh[`${pr}:clean`] = clean;
       rounds = (fresh[pr] ?? 0) + 1;
       fresh[pr] = rounds;
       const tmp = `${STATE}.${process.pid}.tmp`;
@@ -190,16 +189,49 @@ const main = async () => {
 
 const [, , flag, arg] = process.argv;
 if (flag === "--reset") {
-  let state = {};
-  try {
-    state = JSON.parse(readFileSync(STATE, "utf8"));
-  } catch {
-    /* nothing to reset */
-  }
-  if (arg) delete state[arg];
-  else state = {};
+  // Same lock as the hook path: a reset racing a concurrent increment would
+  // otherwise restore a stale snapshot over it.
   mkdirSync(dirname(STATE), { recursive: true });
-  writeFileSync(STATE, JSON.stringify(state, null, 2) + "\n");
+  const lock = `${STATE}.lock`;
+  let held = false;
+  for (let attempt = 0; attempt < 50 && !held; attempt += 1) {
+    try {
+      writeFileSync(lock, String(process.pid), { flag: "wx" });
+      held = true;
+    } catch {
+      try {
+        if (Date.now() - statSync(lock).mtimeMs > 10_000) unlinkSync(lock);
+      } catch {
+        /* someone else cleaned it up */
+      }
+      execFileSync("sleep", ["0.05"], { stdio: "ignore" });
+    }
+  }
+  try {
+    let state = {};
+    try {
+      state = JSON.parse(readFileSync(STATE, "utf8"));
+    } catch {
+      /* nothing to reset */
+    }
+    if (arg) {
+      delete state[arg];
+      delete state[`${arg}:clean`];
+    } else {
+      state = {};
+    }
+    const tmp = `${STATE}.${process.pid}.tmp`;
+    writeFileSync(tmp, JSON.stringify(state, null, 2) + "\n");
+    renameSync(tmp, STATE);
+  } finally {
+    if (held) {
+      try {
+        unlinkSync(lock);
+      } catch {
+        /* already gone */
+      }
+    }
+  }
   process.stdout.write(arg ? `reset PR #${arg}\n` : "reset all\n");
 } else {
   await main();
