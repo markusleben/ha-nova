@@ -377,4 +377,12 @@ describe("indirect actuation and tier classification (#513)", () => {
     expect(gate).toContain("`python_script.*`, `shell_command.*` and `rest_command.*` are terminals only");
     expect(gate).toContain("Treat them as unread, not as concrete");
   });
+
+  it("does not count a disabled action as a member", () => {
+    const gate = flat(indirectActuation);
+    // Over-escalation is a real cost: a disabled lock.unlock must not gate
+    // the whole run.
+    expect(gate).toContain("Skip actions carrying `enabled: false`");
+    expect(gate).toContain("a disabled node is known not to run at all");
+  });
 });

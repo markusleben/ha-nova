@@ -96,6 +96,11 @@ ha-nova relay core --method GET --path /api/config/{scene|script|automation}/con
 
 Then:
 
+- Skip actions carrying `enabled: false`: Home Assistant does not run them, so
+  a disabled `lock.unlock` step is not a member and must not put the run on
+  the typed tier. This is the one place the union does NOT apply — everything
+  else is unioned because preview time cannot know which branch runs, while a
+  disabled node is known not to run at all.
 - Descend into nested scene, script, and automation calls, and take the union
   of every `choose`, `if`, `repeat`, and `parallel` branch: preview time
   cannot know which branch runs. Follow each branch until it ends in a
