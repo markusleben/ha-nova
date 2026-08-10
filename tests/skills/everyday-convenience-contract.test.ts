@@ -31,7 +31,7 @@ const flat = (text: string): string => text.replace(/\s+/g, " ");
 // the executable statement of that bar.
 const L = "[A-Za-zÄÖÜäöüß]";
 const GERMAN_WORDS = new RegExp(
-  `(?<!${L})(der|das|den|dem|des|eine|einen|einem|einer|eines|ein|ist|sind|wird|werden|nicht|keine|keinen|keinem|keiner|keines|kein|und|oder|aber|für|von|zum|zur|vom|beim|ins|im|aus|nach|über|unter|seit|bis|ohne|gegen|durch|wieder|ich|du|wir|es|sich|mich|dich|euch|sein|ihre|unser|dieser|diese|dieses|diesem|diesen|jeder|jedes|jedem|jeden|jede|welcher|welches|welchem|welchen|welche|dass|weil|wenn|wie|wer|warum|hier|dort|jetzt|dann|noch|schon|auch|nur|sehr|mehr|viel|wenig|alle|etwas|nichts|immer|bitte|heute|gestern|zwei|drei|vier|mach|zeig|schalte|dimme|soll|kann|muss|hat|haben|gibt|Lampe|Licht|Fenster|Tür|Küche|Wohnzimmer|Schlafzimmer|Stehlampe|Heizung|Rollladen|Steckdose)(?!${L})`,
+  `(?<!${L})(der|das|den|dem|des|eine|einen|einem|einer|eines|ein|ist|sind|wird|werden|nicht|keine|keinen|keinem|keiner|keines|kein|und|oder|aber|für|von|zum|zur|vom|beim|ins|im|aus|nach|über|unter|seit|bis|ohne|gegen|durch|wieder|ich|du|wir|es|sich|mich|dich|euch|sein|ihre|unser|dieser|diese|dieses|diesem|diesen|jeder|jedes|jedem|jeden|jede|welcher|welches|welchem|welchen|welche|dass|weil|wenn|wie|wer|warum|hier|dort|jetzt|dann|noch|schon|auch|nur|sehr|mehr|viel|wenig|alle|etwas|nichts|immer|bitte|heute|gestern|zwei|drei|vier|mach|zeig|schalte|dimme|soll|kann|muss|haben|gibt|Lampe|Licht|Fenster|Tür|Küche|Wohnzimmer|Schlafzimmer|Stehlampe|Heizung|Rollladen|Steckdose)(?!${L})`,
   "i",
 );
 // A LOWERCASE word carrying ß or an umlaut is German orthography: English has
@@ -69,6 +69,7 @@ const germanFixtures: Array<[boolean, string]> = [
   [false, "Diesel generators and war rooms are out of scope."],
   [false, "The device is unavailable, so the call may still fail."],
   [false, "Every tag in the tags list keeps its own identifier."],
+  [false, "A device that wears two hats needs two entries."],
 ];
 
 
