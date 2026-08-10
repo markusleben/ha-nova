@@ -324,4 +324,13 @@ describe("indirect actuation and tier classification (#513)", () => {
     expect(gate).toContain('"no locally installed consumer manager"');
     expect(gate).toContain("never call the coverage complete on that basis");
   });
+
+  it("separates an integration scene from an unreadable user-authored one", () => {
+    const gate = flat(indirectActuation);
+    // Live registry: 42 scenes, all hue/smartthings — blanket escalation here
+    // would gate every scene activation on this instance.
+    expect(gate).toContain("A scene on an INTEGRATION platform");
+    expect(gate).toContain("a YAML scene declared without an `id:`");
+    expect(gate).toContain("its members are arbitrary and unknown, and it escalates");
+  });
 });

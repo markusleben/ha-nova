@@ -173,6 +173,15 @@ Integration-owned scenes (Hue and similar) have no Home Assistant config and
 return 404. Templated targets resolve only at runtime. An utterance is never
 enumerable at all.
 
+Not every unreadable scene is the same, and the registry `pl` field separates
+them exactly as it does for buttons. A scene on an INTEGRATION platform
+(`hue`, `smartthings`, ...) is device state that integration already owns —
+bounded, no lock hiding in it — so it stays ordinary with the gap named. A
+scene on the `homeassistant` platform is user-authored; if it also has no
+readable config (a YAML scene declared without an `id:`), then its members are
+arbitrary and unknown, and it escalates. This instance has 42 scenes, all
+integration-owned, which is why the ordinary path has to stay reachable.
+
 Two exceptions come first, because they are not really unknowns.
 
 When the stored ACTION is access-capable (`lock.unlock`, `lock.open`,
