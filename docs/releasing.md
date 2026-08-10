@@ -31,7 +31,8 @@ changes in the same PR (this release-prep PR) or a maintainer applies the
 stable release. Concretely:
 
 - unreleased feature/version claims collect in the active
-  `docs/work/<version>-release-body.md` draft, never in `README.md`
+  `docs/work/next-release-body.md` draft, never in `README.md` (version-free
+  by design; the release-prep PR renames it once it picks the number)
 - the release-prep PR carries ALL release-bound `README.md` edits plus the
   version bump and the `.goreleaser.yml` release-notes update, then moves the
   consumed release-body draft to `docs/archive/work/`
@@ -68,14 +69,12 @@ Before every RC or final tag:
 - for the release PR itself, wait for the actual Codex bot result on the final SHA
 - review clearance is tied to the exact commit state that will be tagged
 
-Fast-path rule during iteration:
-- for the initial PR SHA and after each relevant fix, run only targeted local verification, push immediately if needed, and immediately trigger `@codex`
-- after the PR exists, do not add extra local review gates in between; Codex bot + CI are the review path
-
-Manifest-label rule:
-- if the PR changes `package.json`, `package-lock.json`, `nova/package.json`, or `nova/package-lock.json`, add `manifest-review:approved` immediately after `gh pr create`
-- do that before `@codex` and before `gh pr checks --watch`
-- otherwise `manifest-review-gate` will fail even when the manifest delta is intentional and already maintainer-reviewed
+The review fast path, the round-five batch, and the manifest/README label
+ordering are NOT restated here. They live in AGENTS.md -> "PR Merge / Release
+Commit Gate" and apply to release PRs unchanged. Two copies of an ordering rule
+drift, and this one already did: the copy here kept telling agents to push and
+retrigger at the round where the batch is now due, and to label a manifest
+before anything had inspected it.
 
 ## Release Worthiness
 

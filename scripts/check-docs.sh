@@ -301,7 +301,7 @@ while IFS= read -r release_body_path; do
   fi
 done < <(
   find "$REPO_ROOT/docs/work" -maxdepth 1 -type f \
-    -name '*-release-body.md' -print | sort
+    -name '*-release-body.md' ! -name 'next-release-body.md' -print | sort
 )
 
 # ── Results ──
