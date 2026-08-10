@@ -117,6 +117,21 @@ const WORD_BUDGETS: Record<string, number> = {
   // not replay the event, so the text has to say what it cannot prove
   // (measured 1227).
   notify: 1560,
+  // State-snapshot queries ("is everything closed?") and the alias fallback
+  // that finally reaches the names a household actually says (#527, 1318).
+  // Codex round 3: a motorized window or garage door is a cover, so an
+  // open-state snapshot that reads only binary_sensor answers wrong
+  // (measured 1374).
+  // Presence-conditional recipient resolution; Codex round 1 required real
+  // /api/services discovery instead of deriving a notify service name from
+  // tracker ids, which prove no association (#527, measured 1264).
+  // Ceiling covers the COMBINED merge: #516 adds the honest bounded window
+  // and #527 the household routing, each measured alone. Trial-merging the
+  // train lands at 1382.
+  notify: 1800,
+  // Audit train: the ceiling is the MAX of both branches — each
+  // measured only its own tree.
+  "entity-discovery": 2100,
   // pre-save snapshot capture + snapshot recovery guidance (Wave 2).
   // Pre-write drift check before save_prefs (#514, measured 1257): the
   // post-save deep-equal check reported a lost foreign edit instead of
@@ -140,7 +155,8 @@ const WORD_BUDGETS: Record<string, number> = {
   // compared-signal swaps (Codex round 5) and create-time stored threshold
   // setters (Codex round 6). Merge-train combination with the #483 receipt
   // lines and the #452 draft rule (measured 2182).
-  write: 2200,
+  // One-shot intent routing to the self-disabling pattern (#527, 2221).
+  write: 2600,
   // HACS lifecycle: schema guard, reconcile loops, consumer discovery,
   // migration backup gate, category-appropriate verification (#478);
   // review rounds added pin-durability branches, the uninstall apply
@@ -226,7 +242,19 @@ const WORD_BUDGETS: Record<string, number> = {
   // measured 2811). #513 and #530 raise this further in the same train.
   // Audit train: the ceiling is the MAX of both branches — each
   // measured only its own tree.
-  "service-call": 3900,
+  // Relative-step parameters and the post-batch keep-it-as-a-scene offer
+  // (#527, measured 2888). #513/#518/#530 raise this further in the same train.
+  // Ceiling covers the COMBINED merge: #513, #530, #518 and #527 all add to
+  // service-call and each measured itself in isolation. A prefix scan of the
+  // train shows only the LAST merge overflowing; at 3606 after round 6.
+  // Combined-merge ceiling with headroom, deliberately. Four PRs edit
+  // service-call and each measured itself alone; chasing the exact merged
+  // total each round just reopens this file. The per-PR ceilings still hold
+  // the ratchet — this one only has to keep main from breaking on the last
+  // merge. Measured 3963 at the time of writing.
+  // Audit train: the ceiling is the MAX of both branches — each
+  // measured only its own tree.
+  "service-call": 4500,
   // Carries the canonical File-Change Preview example — the only layout
   // source for file edits; concrete examples are what make a card renderable.
   // Sibling-survival verification (Wave 1b) + yaml snapshot capture with
@@ -240,7 +268,15 @@ const WORD_BUDGETS: Record<string, number> = {
   "yaml-config": 1610,
   // Confirmation-code terminology replacing "token" wording (#392).
   // #452 canonical smallest-solution draft rule (17 words).
-  todo: 1275,
+  // Grouped item operations: four shopping-list adds should not cost four
+  // confirmation rounds (#527, measured 1315).
+  // Codex round 2: one confirmation, but still one read-back per operation —
+  // the grouped ledger is fail-fast and a trailing read would record a
+  // silently ignored write as applied (measured 1357).
+  // Codex round 11: the grouped batch needed the contract's pre-apply
+  // revalidation; post-write read-backs cannot see a concurrent edit
+  // (measured 1420).
+  todo: 1560,
   // batch-safety opt-in with the merged-save card rule (#327);
   // safety-backup offer (Wave 0) + drift check before the full-document
   // save (Wave 1a) + pre-delete/pre-save snapshot capture (Wave 2).

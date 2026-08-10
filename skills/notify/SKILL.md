@@ -27,6 +27,7 @@ If this fails: `ha-nova setup`
 
 - `ha-nova relay core --method GET --path /api/services --out <result-file>` to discover notify services
 - `ha-nova relay ws --data-file <payload-file>` for WS commands (entity registry, persistent notifications)
+- `ha-nova relay core --method GET --path /api/states --out <result-file>` — the household-routing read: `person.*` states before the preview and again before sending
 - `ha-nova relay core --method POST --path /api/services/<domain>/<service> --body-file <payload-file>` to send
 - `--jq-file <filter-file>` for non-trivial filters
 
@@ -85,6 +86,32 @@ These live only in the HA UI; they never reach a phone.
 
 When composing a COMPLEX mobile-app payload (actionable buttons, images, critical alerts), offer a single test send to the chosen target first — the preview is the plan, the test proves rendering; acceptance-honesty applies (accepted, not delivered), and the real send follows only after the user judges the test.
 
+### Household routing ("tell whoever is home")
+
+Presence-conditional sends resolve recipients before the preview AND again
+immediately before sending: presence is the one input that changes on its own
+while a confirmation waits, so the previewed list can be wrong by the time it
+is approved. A changed list means a changed scope — re-preview rather than
+send to the stale one. Read `person.*` states and sort them into three buckets, not two: `home`,
+away (anything else, including a named zone like `work`), and UNREADABLE
+(`unknown`/`unavailable` — no tracker had usable data). Never fold the third
+into away: that turns a dropped phone into a silent omission from the send.
+Name unreadable people in the preview and ask whether to include them; with
+nobody readable, say so instead of reporting an empty household. Map each
+recipient to their
+REAL notify target from the `/api/services` discovery this skill
+already requires. Never derive a service name from `person.device_trackers`:
+those are tracker entity ids (router, GPS, a Companion App entity named
+differently) and prove no association to a `notify.mobile_app_*` service. When
+the mapping is not provable, ask once which target belongs to that person and
+reuse the answer for the session. Preview the
+resolved recipient list, not the rule — "Anna and Ben are home" is what the
+user confirms. Nobody home is a real answer: say so and offer the persistent
+notification instead of silently sending to everyone.
+
+Inside an automation this is a `choose` per person (`ha-nova:write`), not this
+flow.
+
 ## Error Handling
 
 Full relay/upstream error taxonomy: `skills/ha-nova/relay-api.md` -> Error Handling. Notify specifics:
@@ -117,6 +144,6 @@ Render the Report shape (output-rules.md): the resolved target, the sent title/m
 
 ## Guardrails
 
-- One target per send unless the user explicitly asks for a group; then show the full member list in the preview.
+- One target per send unless the user explicitly asks for a group, or the recipients come from presence routing ("tell whoever is home") — in both cases show the full resolved member list in the preview.
 - Never invent device names, `tag` values, or action ids.
 - Do not claim delivery — only acceptance.

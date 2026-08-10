@@ -182,6 +182,14 @@ actions:
       message: "High: {{ forecast['weather.home'].forecast[0].temperature }}°C"
 ```
 
+## One-Shot And Temporary Automations
+
+A request that should not outlive its purpose — "tell me when the laundry
+finishes", "run the sprinkler for 30 minutes" — follows
+`skills/ha-nova/one-shot-automations.md`: self-disabling patterns, deadline
+expiry with startup recovery, and duration requests where write owns both
+halves.
+
 ## Save / Restore Patterns
 
 - Save → modify → restore designs that must survive a restart: check `skills/ha-nova/best-practices.md` → Persistence Model before choosing the storage construct. `scene.create` snapshots and `variables:` do not survive restarts.

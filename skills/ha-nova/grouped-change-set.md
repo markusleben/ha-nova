@@ -123,6 +123,7 @@ the stop reason; the card closes with the exact safe next step.
 | `scene` | yes | storage scene creates/updates (Editability Guard per target) |
 | `organize` | yes | registry metadata updates (areas, labels, categories, entity/device metadata) |
 | `service-call` | yes | batch service calls per its Guardrails grouped manifest; high-consequence calls (confirmation-code tier) excluded |
+| `todo` | yes | item operations on ONE list (add, complete, rename, update); list creates/deletes stay single-operation |
 | all others | no | single-operation flows or the destructive batch contract |
 
 ## Exclusions
@@ -130,7 +131,12 @@ the stop reason; the card closes with the exact safe next step.
 Never grouped, regardless of task shape:
 
 - any operation requiring a typed confirmation code (deletes, destructive
-  batches, high-consequence runtime actions)
+  batches, high-consequence runtime actions). ONE named exception: a duration
+  request's immediate action and its expiry automation are two halves of a
+  single write, not a group of two operations — they preview and confirm
+  together at whichever tier the immediate half demands
+  (`skills/ha-nova/one-shot-automations.md`). Separating them would leave a
+  scheduled turn-off for something that was never turned on.
 - experimental/fallback writes and YAML file edits
 - operations whose preview cannot be rendered canonically
 - selectors or worksets expanded after confirmation — the group is literal

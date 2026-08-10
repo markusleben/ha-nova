@@ -63,7 +63,7 @@ describe("ha-nova contract", () => {
       "| show history, logbook timelines, or long-term statistics | `ha-nova:history` |",
     );
     expect(context).toContain(
-      "| check home status, repairs, system health, integration issues, unavailable entities, or low batteries | `ha-nova:health` |",
+      "| check home status, repairs, system health, integration issues, unavailable entities, or low batteries | `ha-nova:health`",
     );
     expect(context).toContain(
       "| list calendars; read, create, update, or delete calendar events | `ha-nova:calendar` |",

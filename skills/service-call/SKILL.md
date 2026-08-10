@@ -42,6 +42,7 @@ Use file-based payloads for service writes:
 
 | Service(s) | Owning skill |
 |---|---|
+| ANY call bounded by a duration ("for 30 minutes", "for an hour", "until 18:00") | `ha-nova:write` — the turn-on is a service call, the turn-off needs an automation, and splitting them loses the pairing |
 | `mqtt.publish` | `ha-nova:mqtt` |
 | `update.install` / `update.skip` / `update.clear_skipped` | `ha-nova:updates` |
 | `camera.*` (snapshot, record, power, `play_stream`, motion detection) | `ha-nova:camera` |
@@ -105,6 +106,10 @@ Some services return data (`weather.get_forecasts`, `calendar.get_events`, `todo
      - **Brightness**: HA uses 0-255 internally; ALWAYS show delta in % (never raw). Light off (brightness null/absent) counts as 0%: `brightness: 0% → 40%`.
      - **Temperature**: Show with unit: `22.5°C → 19°C`; `temperature` = setpoint (what we change), `current_temperature` = sensor reading (NOT for delta).
      - **Cover position**: `position: 100% (open) → 30%`.
+     - **Relative asks** ("a bit brighter", "one degree warmer"): prefer the service's own step parameter where one exists — `light.turn_on` takes `brightness_step_pct` (-100..100), covers have NO step service — `open_cover`/`close_cover` drive to the endpoint, so a relative cover ask reads `current_position` and calls `set_cover_position` with the bounded delta, media through `volume_up`/`volume_down`. Where none exists, read the current value and apply the delta — and re-read it
+at apply time, because a delta computed from a stale base moves the device to
+the wrong absolute value if someone else touched it during the confirmation.
+A changed base re-previews — and if that read failed or the attribute is absent (a cover without `current_position`, a device that reports no level), STOP the relative operation and say so. This is the one place the "a failed state read does not block the call" rule does not apply: an absolute call still has a complete payload without the read, a relative one would have to invent the number it is relative to. Offer the absolute action instead (`open_cover`/`close_cover`, a named level). A follow-up nudge ("brighter still") keeps the last confirmed target unless the user names a new one.
      - **State / mode**: parameterless state-changing services (toggle, turn_on, turn_off, press, lock, unlock): `on → off`; mode changes: `hvac_mode: heat → cool`.
    - Entity `unavailable` → delta `unavailable → {target}` + warning: "Device is offline or unreachable."
    - Entity `unknown` → delta `unknown → {target}` + info: "State not yet known; the call may still work."
@@ -124,6 +129,7 @@ Some services return data (`weather.get_forecasts`, `calendar.get_events`, `todo
    - Stateless targets: `scene.apply` and direct `script.*` runs do not reflect the call in the target's own state. Verify the promise instead — a script via `last_triggered` or acted-on member entities, `scene.apply` via the applied member states — and say what was (not) verifiable rather than reporting a false discrepancy.
    - Area/device targets: verify the member list expanded and previewed in step 3, not a single entity.
    - Report: service called, verified state (or the honest verification limit), any errors.
+   - After a VERIFIED grouped batch that set several entities at once, offer once to keep it: as a scene (`ha-nova:scene`, create-from-current-state) or a script (`ha-nova:write`). A movie-night set of five calls the user repeats weekly should become one activation. After a single decline, stay silent about it for the session.
 
 ## Service Data Fields
 

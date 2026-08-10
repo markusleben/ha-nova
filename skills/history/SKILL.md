@@ -43,7 +43,11 @@ For `ha-nova relay jq`, the filter is positional unless `--jq-file` is used. Do 
 
 Canonical paths:
 - `/api/history/period/<start>?filter_entity_id=<entity_id>&end_time=<end>`
-- `/api/logbook/<start>?entity=<entity_id>&end_time=<end>`
+- `/api/logbook/<start>?entity=<entity_id>&end_time=<end>` — `entity` takes a
+  comma-separated LIST for several entities (verified on 2026.8.0: the endpoint
+  splits on commas and ignores unknown ids), and omitting it entirely returns
+  the whole home for that window. `filter_entity_id` belongs to the HISTORY
+  endpoint; using it here silently returns everything.
 - `recorder/statistics_during_period`
 
 Prefer `minimal_response` and `no_attributes` on large history queries when the task only needs state transitions.
@@ -103,6 +107,16 @@ These slots render the Report shape (output-rules.md). Keep default output compa
 - No guessed entity ids.
 - If more than one entity could match, ask one blocking question.
 - If the data is incomplete for the requested conclusion, say so explicitly.
+
+Whole-home and multi-entity windows: omitting `entity` from the logbook path
+returns everything that happened ("what happened overnight?") — allowed for
+windows up to 24 hours, summary-first, never a raw dump. For a small explicit
+set, pass the ids as a comma-separated `entity` value on that LOGBOOK path —
+verified against 2026.8.0: the endpoint splits on commas, and an unknown id in
+the list is ignored rather than failing the query.
+`filter_entity_id` belongs to the history endpoint, and using it here silently
+returns the whole home instead. That is how you compare two people's arrival
+times in one call.
 
 ## Guardrails
 
