@@ -254,7 +254,10 @@ describe("ha-api-matrix lists the surfaces skills actually pin (#517)", () => {
     // A button's event type is per-integration; a shared device is detached,
     // not deleted.
     expect(fallbackAll).toContain("Resolve the event type from the button's own integration first");
-    expect(fallbackAll).toContain("a modern `event.*` entity fires no bus event at all");
+    expect(fallbackAll).toContain("a modern `event.*` entity fires no bus event at");
+    // Naming the exception is not enough without the payload for it.
+    expect(fallbackAll).toContain('"type": "subscribe_trigger"');
+    expect(fallbackAll).toContain("puts the button in `attributes.event_type`");
     expect(fallbackAll).toContain("Split the count — deleted versus detached");
     expect(fallbackAll).toContain("which no entity scan sees");
     // Verified on the live instance: list_for_display rows are

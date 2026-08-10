@@ -84,10 +84,23 @@ envelope with `UNSUPPORTED_WS_TYPE`.
 
 Resolve the event type from the button's own integration first — it is not one
 value. ZHA fires `zha_event`, Z-Wave JS `zwave_js_value_notification`, deCONZ
-`deconz_event`, and a modern `event.*` entity fires no bus event at all: watch
-its state instead. Read the entity's `platform` from the registry and pick
-accordingly; listening for the wrong type produces an empty window that looks
+`deconz_event`, and a modern `event.*` entity fires no bus event at
+all. Read the entity's `platform` from the registry and pick accordingly; listening for the wrong type produces an empty window that looks
 like "nothing was pressed".
+
+For an `event.*` entity there is no bus event to subscribe to, so watch the
+entity instead — same envelope, different message:
+
+```json
+{
+  "message": { "type": "subscribe_trigger",
+               "trigger": { "platform": "state", "entity_id": "event.<id>" } },
+  "collect_events": { "max_events": 20, "timeout_ms": 10000, "on_limit": "return" }
+}
+```
+
+Each press bumps the entity's `state` to a new timestamp and puts the button
+in `attributes.event_type`; read that, not the state value.
 
 ```json
 {
