@@ -71,9 +71,10 @@ Before every RC or final tag:
 Fast-path rule during iteration:
 - for the initial PR SHA and after each relevant fix, run only targeted local verification, push immediately if needed, and immediately trigger `@codex`
 - after the PR exists, do not add extra local review gates in between; Codex bot + CI are the review path
+- one exception, from the FIFTH Codex round on: run the parallel adversarial batch first and push its fixes as one commit (AGENTS.md -> Post-PR batch trigger)
 
 Manifest-label rule:
-- if the PR changes `package.json`, `package-lock.json`, `nova/package.json`, or `nova/package-lock.json`, add `manifest-review:approved` immediately after `gh pr create`
+- if the PR changes `package.json`, `package-lock.json`, `nova/package.json`, or `nova/package-lock.json`, add `manifest-review:approved` only after the PR body states which manifest lines changed and why, then `gh pr create`
 - do that before `@codex` and before `gh pr checks --watch`
 - otherwise `manifest-review-gate` will fail even when the manifest delta is intentional and already maintainer-reviewed
 
