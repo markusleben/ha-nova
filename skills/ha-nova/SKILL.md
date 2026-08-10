@@ -213,7 +213,8 @@ Match user intent to exactly one skill:
 | organize areas, floors, labels, categories, devices, entities | `ha-nova:organize` |
 | assign or remove entity categories | `ha-nova:organize` |
 | show history, logbook timelines, or long-term statistics | `ha-nova:history` |
-| check home status, repairs, system health, integration issues, unavailable entities, or low batteries | `ha-nova:health` |
+| "is everything closed / locked / off?", "who is home?", "what is running right now?" — a live state snapshot across a domain | `ha-nova:entity-discovery` |
+| check home status, repairs, system health, integration issues, unavailable entities, or low batteries | `ha-nova:health` (the SYSTEM's condition; a snapshot of what things are DOING is entity-discovery, above) |
 | find out WHY a specific automation, script, device, or integration failed or misbehaved (traces, error/system logs, root cause) | `ha-nova:diagnose` |
 | add an integration or continue a pending integration reauthentication flow | `ha-nova:integration-setup` |
 | play, pause, skip, set volume, change source, group speakers, browse media, or announce over a speaker | `ha-nova:media` |

@@ -62,7 +62,7 @@ describe("state-snapshot questions have an owner (#527)", () => {
     expect(discovery).toContain('`device_class` `window`/`door`/`garage_door`');
     // A motorized window or garage door is a cover; checking only
     // binary_sensor answers "is anything open?" wrong.
-    expect(flat(discovery)).toContain('AND `cover.*` with those device classes in state `open`/`opening`');
+    expect(flat(discovery)).toContain('AND `cover.*` in state `open`/`opening`/`closing`');
     // person STATE reads land here; person CRUD stays with admin.
     expect(flat(discovery)).toContain("this skill owns person STATE reads");
   });
@@ -255,7 +255,20 @@ describe("flows that cost the user extra turns (#527)", () => {
   it("reports unreadable openings instead of counting them as closed", () => {
     const disco = flat(read("skills/entity-discovery/SKILL.md"));
     expect(disco).toContain("is neither open nor closed");
+    expect(disco).toContain("a cover mid-close is still open");
+    expect(disco).toContain("`garage` (not the binary-sensor's `garage_door`)");
     expect(disco).toContain("none open, 3 could not be read");
     expect(disco).toContain("never count `unknown` or `unavailable` as running");
+  });
+
+  it("routes a state snapshot to entity-discovery, not health", () => {
+    const ctx = flat(read("skills/ha-nova/SKILL.md"));
+    expect(ctx).toContain('"is everything closed / locked / off?"');
+    expect(ctx).toContain("the SYSTEM's condition; a snapshot of what things are DOING");
+  });
+
+  it("only clears the one-shot at startup once the deadline has passed", () => {
+    const p = flat(read("skills/ha-nova/automation-patterns.md"));
+    expect(p).toContain("would disable a one-shot that still has the evening to fire");
   });
 });

@@ -324,10 +324,22 @@ triggers:
   - trigger: time
     at: "23:59:00"
     id: expired
-  # a missed 23:59 leaves this armed for tomorrow, so recover at startup
+  # a missed 23:59 leaves this armed for tomorrow, so recover at startup —
+  # but only when the deadline really has passed, or an ordinary restart at
+  # 18:00 would disable a one-shot that still has the evening to fire
   - trigger: homeassistant
     event: start
     id: expired
+conditions:
+  - condition: or
+    conditions:
+      - condition: trigger
+        id: fired
+      - condition: template
+        # the ABSOLUTE deadline, substituted at write time — `today_at`
+        # re-reads as the CURRENT day, so a restart the next morning would
+        # see 23:59 as still ahead and leave this armed for tomorrow
+        value_template: "{{ now() >= as_datetime('2026-08-10T23:59:00+02:00') }}"
 actions:
   # disable first on both paths — a notification is spent whether or not it
   # was delivered, and a failed send must not leave this armed for tomorrow
