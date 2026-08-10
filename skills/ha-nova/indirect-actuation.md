@@ -97,8 +97,11 @@ Then:
   that are not enumerable (templated event types, non-automation consumers
   such as Node-RED or AppDaemon) cannot be judged access-capable or not, so
   their presence escalates the run on its own — see the exceptions below.
-- A targetless reload of a trigger-source domain (`schedule.reload`,
-  `input_*.reload`, `counter.reload`, `timer.reload`) has NO target, so there
+- A targetless reload has NO target, and two families qualify: the
+  trigger-source helpers (`schedule.reload`, `input_*.reload`,
+  `counter.reload`, `timer.reload`) and the STATE sources whose reload can
+  move a sensor value an automation watches (`template.reload`, `rest.reload`,
+  `command_line.reload`). Both mean the same thing here — so there
   is nothing for `search/related` to take — and that must not resolve to
   "nothing happens". Its effect set is every entity of that domain: a reload
   that moves a helper's state fires whatever listens to it. Enumerate the
@@ -174,9 +177,13 @@ return 404. Templated targets resolve only at runtime. An utterance is never
 enumerable at all.
 
 Not every unreadable scene is the same, and the registry `pl` field separates
-them exactly as it does for buttons. A scene on an INTEGRATION platform
-(`hue`, `smartthings`, ...) is device state that integration already owns —
-bounded, no lock hiding in it — so it stays ordinary with the gap named. A
+them exactly as it does for buttons. A scene on an INTEGRATION platform is
+bounded by what that integration controls — but "bounded" only helps if the
+bound excludes access. Check it instead of assuming: if that platform provides
+any `lock`, `alarm_control_panel`, or access-class `cover` entity in the
+registry, its scenes can reach one and the run escalates. A lighting hub
+provides none, so its scenes stay ordinary with the gap named; a
+general-purpose platform like SmartThings usually does. A
 scene on the `homeassistant` platform is user-authored; if it also has no
 readable config (a YAML scene declared without an `id:`), then its members are
 arbitrary and unknown, and it escalates. This instance has 42 scenes, all

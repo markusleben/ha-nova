@@ -235,7 +235,8 @@ describe("indirect actuation and tier classification (#513)", () => {
   });
   it("does not let a targetless reload skip the scan for lack of a target", () => {
     const gate = flat(indirectActuation);
-    expect(gate).toContain("A targetless reload of a trigger-source domain");
+    expect(gate).toContain("A targetless reload has NO target, and two families qualify");
+    expect(gate).toContain("`template.reload`, `rest.reload`");
     expect(gate).toContain("Its effect set is every entity of that domain");
     expect(gate).toContain('"No target" is not evidence of no impact');
   });
@@ -330,6 +331,7 @@ describe("indirect actuation and tier classification (#513)", () => {
     // Live registry: 42 scenes, all hue/smartthings — blanket escalation here
     // would gate every scene activation on this instance.
     expect(gate).toContain("A scene on an INTEGRATION platform");
+    expect(gate).toContain('"bounded" only helps if the bound excludes access');
     expect(gate).toContain("a YAML scene declared without an `id:`");
     expect(gate).toContain("its members are arbitrary and unknown, and it escalates");
   });
