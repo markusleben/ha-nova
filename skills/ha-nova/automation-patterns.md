@@ -298,6 +298,12 @@ triggers:
   - trigger: state
     entity_id: valve.irrigation_lawn
     to: ["open", "closed", "opening", "closing"]
+  # and a slow retry while it is still open past the deadline: a transient
+  # close failure otherwise waits for a restart or the next day
+  - trigger: state
+    entity_id: valve.irrigation_lawn
+    to: "open"
+    for: "00:05:00"
 conditions:
   # on the time path this is already true; on the startup path it catches a
   # deadline that passed while Home Assistant was off
@@ -329,6 +335,8 @@ actions:
   # safe state before removing the only retry
   - wait_template: "{{ is_state('valve.irrigation_lawn', 'closed') }}"
     timeout: "00:01:00"
+  # if it did not close, do NOT disable: leave the automation armed so the
+  # daily and availability triggers get another attempt at it
   - condition: state
     entity_id: valve.irrigation_lawn
     state: "closed"

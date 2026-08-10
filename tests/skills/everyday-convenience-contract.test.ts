@@ -107,6 +107,7 @@ describe("flows that cost the user extra turns (#527)", () => {
     const notify = flat(read("skills/notify/SKILL.md"));
     expect(notify).toContain('### Household routing ("tell whoever is home")');
     expect(notify).toContain("Read `person.*` states");
+    expect(notify).toContain("the household-routing read");
     // Tracker ids are not notify service names.
     expect(notify).toContain("Never derive a service name from `person.device_trackers`");
     // The user confirms recipients, not a rule.
@@ -267,6 +268,8 @@ describe("flows that cost the user extra turns (#527)", () => {
     expect(patterns).toContain("wait for a KNOWN state");
     expect(patterns).toContain("continue_on_timeout: false");
     expect(patterns).toContain("bind the trigger to the usable state");
+    expect(patterns).toContain("slow retry while it is still open past the deadline");
+    expect(patterns).toContain("leave the automation armed so the");
     expect(patterns).toContain("wait_template");
   });
 

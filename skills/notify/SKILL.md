@@ -27,6 +27,7 @@ If this fails: `ha-nova setup`
 
 - `ha-nova relay core --method GET --path /api/services --out <result-file>` to discover notify services
 - `ha-nova relay ws --data-file <payload-file>` for WS commands (entity registry, persistent notifications)
+- `ha-nova relay core --method GET --path /api/states --out <result-file>` — the household-routing read: `person.*` states before the preview and again before sending
 - `ha-nova relay core --method POST --path /api/services/<domain>/<service> --body-file <payload-file>` to send
 - `--jq-file <filter-file>` for non-trivial filters
 
