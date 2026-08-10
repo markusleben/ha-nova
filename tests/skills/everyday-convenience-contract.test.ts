@@ -358,12 +358,23 @@ describe("flows that cost the user extra turns (#527)", () => {
     const patterns = flat((read("skills/ha-nova/automation-patterns.md") + "\n" + read("skills/ha-nova/one-shot-automations.md")));
     expect(patterns).toContain("HA accepting the call is not the device having closed, so confirm the");
     expect(patterns).toContain("the integration may not have the entity yet");
-    expect(patterns).toContain("wait for a KNOWN state");
-    expect(patterns).toContain("continue_on_timeout: false");
+    expect(patterns).toContain("Wait for a KNOWN state");
     expect(patterns).toContain("bind the trigger to the usable state");
     expect(patterns).toContain("repeating, not once: a single five-minute trigger fires before the");
-    expect(patterns).toContain("leave the automation armed so the");
+    expect(patterns).toContain("stay armed and TELL someone");
     expect(patterns).toContain("wait_template");
+    // Three orderings a review found the example promising but not doing, so
+    // they are pinned rather than left to prose.
+    // 1. give up only AFTER trying — a restart hours late is exactly when the
+    //    valve is still open, and disabling first strands it open forever
+    expect(patterns).toContain("ALWAYS attempt the safe state first");
+    // 2. disarm BEFORE notifying — a notification service that is down aborts
+    //    the sequence, and a turn_off behind it never runs
+    expect(patterns).toContain("DISARM FIRST");
+    // 3. the upper bound never belongs in `conditions:`, where it fails the
+    //    very trigger that would disarm
+    expect(patterns).toContain("NO upper bound here");
+    expect(patterns).toContain("continue, then BRANCH");
   });
 
   it("reports unreadable openings instead of counting them as closed", () => {

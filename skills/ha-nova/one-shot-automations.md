@@ -163,66 +163,74 @@ conditions:
     # duration closes it hours early.
     value_template: "{{ now() >= as_datetime('2026-08-09T19:30:00+02:00') }}"
 actions:
-  # FIRST arm: past the retry window, give up loudly and disable. It has to run
-  # before the retry chain and it must NOT sit in `conditions:` — a global
-  # `now() < deadline + 2h` would fail every trigger past the window, including
-  # the one that would have disabled the automation, and the one-shot would
-  # live forever. Expiring is a state to reach, not one to fall out of.
-  - if:
-      - condition: template
-        value_template: >-
-          {{ now() >= as_datetime('2026-08-09T19:30:00+02:00')
-             + timedelta(hours=2) }}
-    then:
-      # the CURRENT state, not "failed": a human has to go look, and "still
-      # open" and "still opening" send them to different places
-      - action: notify.mobile_app_phone
-        data:
-          message: >-
-            Irrigation valve is {{ states('valve.irrigation_lawn') }} two hours
-            after its deadline. Giving up — it needs a look.
-      - action: automation.turn_off
-        target: {entity_id: "{{ this.entity_id }}"}
-        data: {stop_actions: false}
-      - stop: "gave up past the retry window"
-  # on the startup path the integration may not have the entity yet, and a
-  # call against an unavailable target fails silently. Give the automation a
-  # second trigger on the entity LEAVING `unavailable` as well, so an
-  # integration that takes longer than the wait still gets the valve closed
-  # instead of stranding it until the next restart
-  # wait for a KNOWN state: an entity that does not exist yet is neither
-  # `unavailable` nor usable, so negating `unavailable` alone passes instantly
+  # ALWAYS attempt the safe state first, even long past the window: a restart
+  # three hours late is precisely when the valve is still open. Giving up
+  # before trying would strand it open forever — the opposite of recovery.
+  #
+  # On the startup path the integration may not have the entity yet, and a
+  # call against an unavailable target fails silently. Wait for a KNOWN state:
+  # an entity that does not exist yet is neither `unavailable` nor usable, so
+  # negating `unavailable` alone passes instantly.
   - wait_template: >-
       {{ states('valve.irrigation_lawn') not in
          ['unavailable', 'unknown'] }}
     timeout: "00:02:00"
-    # a wait_template CONTINUES after its timeout by default, which would call
-    # against the unusable entity and then disable this automation on a
-    # failure it caused itself
-    continue_on_timeout: false
-  - action: valve.close_valve
-    target: {entity_id: valve.irrigation_lawn}
-  # HA accepting the call is not the device having closed, so confirm the
-  # safe state before removing the only retry
-  - wait_template: "{{ is_state('valve.irrigation_lawn', 'closed') }}"
-    timeout: "00:01:00"
-  # if it did not close, do NOT disable: leave the automation armed so the
-  # daily and availability triggers get another attempt at it — but TELL
-  # someone. A condition that stops the run is silent: the lawn floods and
-  # the only artifact is a trace nobody opens
+    # continue, then BRANCH. `continue_on_timeout: false` would stop the run
+    # here, which also skips the give-up path below — an entity that never
+    # comes back would retry every five minutes forever. Continuing and
+    # checking explicitly avoids both that and the blind call against an
+    # unusable target.
+    continue_on_timeout: true
   - if:
       - condition: not
         conditions:
           - condition: state
             entity_id: valve.irrigation_lawn
-            state: "closed"
+            state: ["unavailable", "unknown"]
+    then:
+      - action: valve.close_valve
+        target: {entity_id: valve.irrigation_lawn}
+      # HA accepting the call is not the device having closed, so confirm the
+      # safe state before removing the only retry
+      - wait_template: "{{ is_state('valve.irrigation_lawn', 'closed') }}"
+        timeout: "00:01:00"
+  - if:
+      - condition: state
+        entity_id: valve.irrigation_lawn
+        state: "closed"
+    then:
+      - action: automation.turn_off
+        target: {entity_id: "{{ this.entity_id }}"}
+        data: {stop_actions: false}
+      - stop: "closed"
+  # not closed. Inside the window, stay armed and TELL someone — a condition
+  # that silently stops the run means the lawn floods and the only artifact is
+  # a trace nobody opens.
+  - if:
+      - condition: template
+        value_template: >-
+          {{ now() < as_datetime('2026-08-09T19:30:00+02:00')
+             + timedelta(hours=2) }}
     then:
       - action: notify.mobile_app_phone
         data: {message: "Irrigation valve did not close — retrying."}
       - stop: "not closed yet"
+  # past the window: DISARM FIRST. A notification service that is down or
+  # rejects the payload aborts the sequence, so a turn_off placed after it
+  # never runs and the five-minute retry resurrects itself forever. The
+  # upper bound also must NOT sit in `conditions:` — there it would fail the
+  # very trigger that disables this. Expiring is a state to reach, not one to
+  # fall out of.
   - action: automation.turn_off
     target: {entity_id: "{{ this.entity_id }}"}
     data: {stop_actions: false}
+  # the CURRENT state, not "failed": "still open" and "still opening" send a
+  # person to different places
+  - action: notify.mobile_app_phone
+    data:
+      message: >-
+        Irrigation valve is {{ states('valve.irrigation_lawn') }} two hours
+        after its deadline. Giving up — it needs a look.
 ```
 
 Note the order is the OPPOSITE of the notification one-shot above, and for the
@@ -288,10 +296,12 @@ conditions:
     # naive datetime makes the comparison raise and the expiry never fires — `today_at`
             # re-reads as the CURRENT day, so a restart the next morning
             # would see 23:59 as still ahead and leave this armed
+            # NO upper bound here. A first restart three hours late would
+            # fail it, and then this automation never reaches its own
+            # `turn_off` and stays armed forever. The staleness bound belongs
+            # to the MESSAGE, below, not to the disarm.
             value_template: >-
-              {{ now() >= as_datetime('2026-08-10T23:59:00+02:00')
-                 and now() < as_datetime('2026-08-10T23:59:00+02:00')
-                             + timedelta(hours=2) }}
+              {{ now() >= as_datetime('2026-08-10T23:59:00+02:00') }}
 actions:
   # disable first on both paths — a notification is spent whether or not it
   # was delivered, and a failed send must not leave this armed for tomorrow
@@ -305,7 +315,16 @@ actions:
             data: {message: "Laundry is done."}
       # an expiry that says nothing leaves the user waiting for a message
       # that will never come
-      - conditions: [{condition: trigger, id: expired}]
+      - conditions:
+          - condition: trigger
+            id: expired
+          # only say it while it is still worth saying: a restart hours later
+          # must still DISARM (it already did, above), but "your timer
+          # expired" about last night is noise
+          - condition: template
+            value_template: >-
+              {{ now() < as_datetime('2026-08-10T23:59:00+02:00')
+                 + timedelta(hours=2) }}
         sequence:
           - action: notify.mobile_app_phone
             data: {message: "Laundry watch expired — it did not finish today."}
