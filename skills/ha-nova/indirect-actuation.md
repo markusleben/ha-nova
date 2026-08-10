@@ -35,10 +35,14 @@ something contradicts the performed-action rule:
   Assistant rejects the overlapping call: no run, no members, ordinary tier.
   Read `state` and `mode` together; the direct service is not exempt. But that
   tier rests on a state that can change while the confirmation waits: if the
-  script finishes during the pause, the same call becomes a real run. So a
-  tier granted BECAUSE something is currently running is re-checked at apply
-  time, and a script that has since stopped re-previews at the tier its
-  members deserve. Read the state first — the same call on
+  script finishes during the pause, the same call becomes a real run. So the gate's whole
+  conclusion is re-checked at apply time, not just this one state: re-read the
+  member configs you expanded and the state you keyed on, because a script
+  edited during the pause has different members and a script that has since
+  stopped is now a real run. Any change re-previews at the tier the new facts
+  deserve. This is the same rule the write flow applies to payloads — a
+  confirmation binds to what was shown, and the gate's verdict is part of
+  what was shown. Read the state first — the same call on
   an idle script starts it and does expand members.
 
 By service name, the gate also covers:
