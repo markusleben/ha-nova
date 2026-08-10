@@ -257,6 +257,11 @@ describe("ha-api-matrix lists the surfaces skills actually pin (#517)", () => {
     // An entity-less remote has no platform to read.
     expect(fallbackAll).toContain("has no `platform` to read");
     expect(fallbackAll).toContain("ASK which integration the remote belongs to");
+    expect(fallbackAll).toContain("which hold opaque entry ids");
+    expect(fallbackAll).toContain("take the entry's `domain`");
+    // A user-reported press that produced nothing is a mistimed window, not
+    // proof of silence.
+    expect(fallbackAll).toContain("offer one retry with the press timed after you confirm");
     expect(fallbackAll).toContain("a modern `event.*` entity fires no bus event at");
     // Naming the exception is not enough without the payload for it.
     expect(fallbackAll).toContain('"type": "subscribe_trigger"');

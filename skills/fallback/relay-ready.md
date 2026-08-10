@@ -87,9 +87,11 @@ value. ZHA fires `zha_event`, Z-Wave JS `zwave_js_value_notification`, deCONZ
 `deconz_event`, and a modern `event.*` entity fires no bus event at
 all. Read the entity's `platform` from the registry and pick accordingly. A remote
 with no entity at all — only a device-registry row — has no `platform` to
-read: take it from that device's `identifiers`/`config_entries` instead, and
-if that still does not settle it, ASK which integration the remote belongs to
-rather than guessing an event type. A guess produces an empty window that
+read: resolve it through the device's `config_entries`, which hold opaque entry ids
+rather than domains: read `{"type":"config_entries/get"}` (or the REST
+`/api/config/config_entries/entry`) and take the entry's `domain`. Where that
+is still ambiguous — several entries, or none — ASK which integration the
+remote belongs to rather than guessing an event type. A guess produces an empty window that
 reads as "nothing was pressed"; listening for the wrong type produces the same
 false negative.
 
@@ -124,8 +126,12 @@ whenever the window closed on a limit instead of a finish event, which is the
 NORMAL ending here — it is not evidence that events were missed. Report what
 arrived and the window length, and let the count speak: `max_events` reached
 means there may well be more, a timeout with few or no events means that is
-what happened in those seconds. An empty window is a real answer, not a
-failure.
+what happened in those seconds. An empty window is a real answer, not a failure — with ONE exception:
+when the user says they pressed the button and nothing arrived, do not report
+that as "nothing was published". They may have pressed before the subscription
+was live, or just outside a ten-second window. Say the window caught nothing,
+offer one retry with the press timed after you confirm the window is open, and
+only then treat the silence as evidence.
 
 **Risks:** The window blocks for its full `timeout_ms` when nothing arrives —
 say the duration before starting it. `ha-nova:mqtt` owns MQTT topics; this is
