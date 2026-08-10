@@ -276,6 +276,8 @@ describe("indirect actuation and tier classification (#513)", () => {
     expect(doc).toContain("`toggle` is the one the state decides");
     expect(doc).toContain("UNLESS the script is already running in `mode: single`");
     expect(flat(indirectActuation)).toContain("the direct service is not exempt");
+    // A tier that depends on a live state has to be re-checked at apply time.
+    expect(flat(indirectActuation)).toContain("a tier granted BECAUSE something is currently running is re-checked");
     expect(flat(indirectActuation)).toContain("EVERY spelling of a start");
     // The Flow entry must not pre-classify the alias as a run.
     expect(doc).not.toContain("on `script.open_door` is a script run");

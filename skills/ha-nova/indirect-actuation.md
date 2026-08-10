@@ -33,7 +33,12 @@ something contradicts the performed-action rule:
   `script.<script_id>`, `script.turn_on`, `homeassistant.turn_on` — runs
   nothing when the script is already running in `mode: single`, because Home
   Assistant rejects the overlapping call: no run, no members, ordinary tier.
-  Read `state` and `mode` together; the direct service is not exempt. Read the state first — the same call on
+  Read `state` and `mode` together; the direct service is not exempt. But that
+  tier rests on a state that can change while the confirmation waits: if the
+  script finishes during the pause, the same call becomes a real run. So a
+  tier granted BECAUSE something is currently running is re-checked at apply
+  time, and a script that has since stopped re-previews at the tier its
+  members deserve. Read the state first — the same call on
   an idle script starts it and does expand members.
 
 By service name, the gate also covers:
