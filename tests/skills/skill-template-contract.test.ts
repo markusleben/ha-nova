@@ -116,7 +116,7 @@ const WORD_BUDGETS: Record<string, number> = {
   // Codex round 2: the bounded tap window opens after the send and HA does
   // not replay the event, so the text has to say what it cannot prove
   // (measured 1227).
-  notify: 1560,
+  notify: 1800,
   // State-snapshot queries ("is everything closed?") and the alias fallback
   // that finally reaches the names a household actually says (#527, 1318).
   // Codex round 3: a motorized window or garage door is a cover, so an
@@ -128,7 +128,6 @@ const WORD_BUDGETS: Record<string, number> = {
   // Ceiling covers the COMBINED merge: #516 adds the honest bounded window
   // and #527 the household routing, each measured alone. Trial-merging the
   // train lands at 1382.
-  notify: 1800,
   // Audit train: the ceiling is the MAX of both branches — each
   // measured only its own tree.
   "entity-discovery": 2100,
@@ -313,7 +312,7 @@ const WORD_BUDGETS: Record<string, number> = {
   // the researched-schema path for the rest (#518, measured 2799).
   // Codex round 8: a config-entry flow answers from its own live response,
   // never from the research schema (measured 2863).
-  fallback: 2920,
+  fallback: 6000,
   // Capability-map completion (#516): the map is fallback's routing index, so
   // a missing row means Flow step 1 finds nothing and the agent improvises.
   // Added integration entry lifecycle (with its own Relay-Ready mechanics —
@@ -342,7 +341,6 @@ const WORD_BUDGETS: Record<string, number> = {
   // Covers SKILL.md PLUS relay-ready.md (the fold above) for the COMBINED
   // merge of the three fallback-touching PRs, with headroom so a late round
   // does not reopen this file. Measured 4413.
-  fallback: 6000,
   // Audit train: the ceiling is the MAX of both branches — each
   // measured only its own tree.
   // semantic-slot note on the read templates (Wave 0); pre-write cross-field
@@ -364,7 +362,7 @@ const WORD_BUDGETS: Record<string, number> = {
   // another automation answers by unlocking a door (measured 4654).
   // Codex round 12: the Quick-Fix exclusion keyed on entering the gate rather
   // than on its verdict, so a clean scan still blocked the fix (measured 4698).
-  review: 4760,
+  review: 4820,
   // Codex round 2 (#518): the entrypoint carried its own copy of the
   // verify-before-flag gate, which contradicted the corrected one in
   // checks.md and could suppress accepted-but-dangerous findings; trace
@@ -373,7 +371,6 @@ const WORD_BUDGETS: Record<string, number> = {
   // Ceiling covers the COMBINED merge: #525, #513 and #518 all add to review
   // and each measured itself in isolation. Trial-merging the train lands at
   // 4758.
-  review: 4820,
   // Audit train: the ceiling is the MAX of both branches — each
   // measured only its own tree.
   // #452 wires the canonical 17-word smallest-solution draft rule into every
