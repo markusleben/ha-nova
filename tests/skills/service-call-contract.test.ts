@@ -3,6 +3,11 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "fs";
 import { resolve } from "path";
 
+
+// The -- RELAY-READY sections live in fallback's split file, which fallback
+// loads. A negative assertion must cover both, or it cannot fail.
+const relayReadySplit = readFileSync("skills/fallback/relay-ready.md", "utf-8");
+
 const relayApi = readFileSync(
   resolve(__dirname, "../../skills/ha-nova/relay-api.md"),
   "utf-8",
@@ -197,7 +202,7 @@ describe("service call contract", () => {
       expect(contextSkill).toContain("fire a custom event or trigger a known JSON webhook");
       expect(contextSkill).toContain('**"Fire the movie_night event"** → `ha-nova:service-call`');
       expect(fallbackSkill).toContain("| Custom events / known JSON webhooks | Covered | service-call |");
-      expect(fallbackSkill).not.toContain("### Events / Webhooks -- RELAY-READY");
+      expect(fallbackSkill + relayReadySplit).not.toContain("### Events / Webhooks -- RELAY-READY");
       expect(architecture).toContain("## Service Call Architecture");
       expect(architecture).toContain("webhook HTTP 200 is deliberately opaque");
     });

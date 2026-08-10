@@ -2,6 +2,11 @@ import { readFileSync } from "node:fs";
 
 import { describe, expect, it } from "vitest";
 
+
+// The -- RELAY-READY sections live in fallback's split file, which fallback
+// loads. A negative assertion must cover both, or it cannot fail.
+const relayReadySplit = readFileSync("skills/fallback/relay-ready.md", "utf-8");
+
 describe("health and calendar skill contracts", () => {
   it("defines a read-only home status skill with repairs and finite-event system health", () => {
     const health = readFileSync("skills/health/SKILL.md", "utf8");
@@ -284,10 +289,10 @@ describe("health and calendar skill contracts", () => {
     expect(fallback).toContain(
       "| Calendar Events (read / create / update / delete) | Covered | calendar |",
     );
-    expect(fallback).not.toContain(
+    expect(fallback + relayReadySplit).not.toContain(
       "### System Health / Repairs -- RELAY-READY",
     );
-    expect(fallback).not.toContain("### Calendar Queries -- RELAY-READY");
+    expect(fallback + relayReadySplit).not.toContain("### Calendar Queries -- RELAY-READY");
 
     expect(history).toContain("calendar queries (use `ha-nova:calendar`)");
     expect(history).not.toContain("fallback` for calendars");
