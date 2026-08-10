@@ -251,6 +251,8 @@ describe("ha-api-matrix lists the surfaces skills actually pin (#517)", () => {
     expect(fallbackAll).toContain("per DEVICE **and** per ENTITY");
     expect(fallbackAll).toContain("Neither covers the other");
     expect(fallbackAll).toContain("does not index dashboards");
+    expect(fallbackAll).toContain("an unfiltered window turns the neighbour's motion sensor into");
+    expect(fallbackAll).toContain("Event-trigger consumers are part of this too");
     // A button's event type is per-integration; a shared device is detached,
     // not deleted.
     expect(fallbackAll).toContain("Resolve the event type from the button's own integration first");
