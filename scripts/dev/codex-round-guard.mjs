@@ -11,7 +11,7 @@
 // Wired from .claude/settings.json as a PostToolUse hook on Bash.
 
 import { execFileSync } from "node:child_process";
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 
 const THRESHOLD = 5;
@@ -32,6 +32,41 @@ const gitDir = () => {
   }
 };
 const STATE = join(gitDir(), "codex-rounds.json");
+
+// A cycle is clean when the newest 👍 is younger than the newest commit.
+// Best-effort: if gh is unavailable or slow, keep counting rather than reset.
+const cycleIsClean = (pr) => {
+  try {
+    const out = execFileSync(
+      "gh",
+      ["pr", "view", pr, "--json", "reactionGroups,commits"],
+      { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], timeout: 5000 },
+    );
+    const data = JSON.parse(out);
+    const commits = data.commits ?? [];
+    const lastCommit = commits[commits.length - 1]?.committedDate;
+    const thumbs = (data.reactionGroups ?? []).find(
+      (g) => g.content === "THUMBS_UP",
+    );
+    if (!lastCommit || !thumbs?.users?.totalCount) return false;
+    // reactionGroups carries no timestamp, so fall back to the issue API
+    const reactions = JSON.parse(
+      execFileSync(
+        "gh",
+        ["api", `repos/{owner}/{repo}/issues/${pr}/reactions`],
+        { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], timeout: 5000 },
+      ),
+    );
+    const newest = reactions
+      .filter((r) => r.content === "+1")
+      .map((r) => r.created_at)
+      .sort()
+      .pop();
+    return Boolean(newest && newest > lastCommit);
+  } catch {
+    return false;
+  }
+};
 
 const read = (stream) =>
   new Promise((resolve) => {
@@ -70,13 +105,24 @@ const main = async () => {
     // first round in this clone
   }
 
+  // A clean verdict ends a review cycle: rounds counted before it belong to
+  // that cycle, not to the next delta. Ask GitHub whether the newest thumbs-up
+  // is younger than the last commit — if so, this trigger starts a fresh
+  // streak.
+  if (state[pr] && cycleIsClean(pr)) state[pr] = 0;
+
   const rounds = (state[pr] ?? 0) + 1;
   state[pr] = rounds;
   try {
+    // Two sessions in two worktrees share one state file. Write to a unique
+    // temp path and rename: on POSIX that is atomic, so a concurrent writer
+    // loses its own increment rather than the whole file.
     mkdirSync(dirname(STATE), { recursive: true });
-    writeFileSync(STATE, JSON.stringify(state, null, 2) + "\n");
+    const tmp = `${STATE}.${process.pid}.tmp`;
+    writeFileSync(tmp, JSON.stringify(state, null, 2) + "\n");
+    renameSync(tmp, STATE);
   } catch {
-    // a read-only .git is not a reason to fail the hook
+    // a read-only git dir is not a reason to fail the hook
   }
 
   if (rounds < THRESHOLD) return;

@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node scripts/dev/codex-round-guard.mjs"
+            "command": "node \"$CLAUDE_PROJECT_DIR/scripts/dev/codex-round-guard.mjs\""
           }
         ]
       }
