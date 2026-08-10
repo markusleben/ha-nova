@@ -352,4 +352,10 @@ describe("indirect actuation and tier classification (#513)", () => {
     expect(gate).toContain("A nested RUN whose own target is templated");
     expect(gate).toContain("Only a run whose target resolves statically can be expanded");
   });
+
+  it("expands a legacy group before classifying it", () => {
+    const gate = flat(indirectActuation);
+    expect(gate).toContain("A legacy `group.*` target forwards the call to its members");
+    expect(gate).toContain("recursively: a group can contain a group");
+  });
 });
