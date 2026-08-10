@@ -202,6 +202,8 @@ describe("flows that cost the user extra turns (#527)", () => {
     // A duration does not soften the first half: the door is open the whole
     // window, so the auto re-lock is not a mitigation.
     expect(patterns).toContain("the one preview still takes the typed `confirm:<token>`");
+    expect(patterns).toContain("applies that tier here even though its own create flow");
+    expect(patterns).toContain("Preview all three parts, not two");
     expect(patterns).toContain("a duration does not soften what the first half");
   });
 
@@ -234,7 +236,7 @@ describe("flows that cost the user extra turns (#527)", () => {
     expect(disco).toContain("`hvac_action` is PRESENT and is anything but `off`/`idle`");
     expect(disco).toContain("a paused or idle player is not off");
     expect(disco).toContain("the comfort domains that have their own off state");
-    expect(disco).toContain("a robot mid-clean, is");
+    expect(disco).toContain("an open valve, or a robot");
     expect(disco).toContain("an unreadable lock is not an unlocked one");
     // Off and running are different questions with different answers.
     expect(disco).toContain("what is RUNNING — a different question, and a narrower answer");

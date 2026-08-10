@@ -155,8 +155,10 @@ then filter by domain plus `device_class` and state:
   with state `on`, `media_player` in any state other than
   `off`/`unavailable`/`unknown` (a paused or idle player is not off), and the
   comfort domains that have their own off state: `climate`, `water_heater` and
-  `humidifier` in any state but `off`/`unavailable`/`unknown`, and `vacuum` in
-  `cleaning`/`returning` — a thermostat still heating, or a robot mid-clean, is
+  `humidifier` in any state but `off`/`unavailable`/`unknown`, `vacuum` in
+  `cleaning`/`returning`, `valve` not in `closed`, and `cover` in
+  `opening`/`closing` — a thermostat still heating, an open valve, or a robot
+  mid-clean is
   the clearest possible no to "is everything off?", while an unreachable one is
   not a yes either: it joins the could-not-read count
 - what is RUNNING — a different question, and a narrower answer: the same
@@ -165,8 +167,9 @@ then filter by domain plus `device_class` and state:
   `returning`, `climate` whose `hvac_action` is PRESENT and is anything but `off`/`idle` (heating, cooling, drying, fan, preheating, defrosting — listing only the first two misses a dehumidifier mid-cycle; an absent `hvac_action` means the device does not report one, which is not the same as running), `valve`
   in `open`/`opening`/`closing` (the actuator is running and flow may continue
   until it seats), `cover` in `opening`/`closing` (a motor is turning; a
-  cover simply left open is not running), `humidifier` in `on`, `water_heater` in any state other than `off` with
-  `hvac_action` absent — never count `unknown` or `unavailable` as running. Reporting "nothing is running" while
+  cover simply left open is not running), `humidifier` in `on`, `water_heater` whose `hvac_action` is PRESENT and not `off`/`idle` — an
+  absent one means the device does not report activity, which is not the same
+  as running, exactly as for `climate` — never count `unknown` or `unavailable` as running. Reporting "nothing is running" while
   the heat pump runs is the same wrong answer as missing an open window
 - unlocked doors: `lock.*` in a state that is neither `locked` NOR
   `unavailable`/`unknown` — an unreadable lock is not an unlocked one, it

@@ -272,7 +272,15 @@ five minutes", "open the garage for ten"), the one preview still takes the
 typed `confirm:<token>` — a duration does not soften what the first half
 does, and the automatic re-lock is not a mitigation because the door is open
 for the whole window. Same tier as calling the service directly
-(`skills/ha-nova/SKILL.md` → confirmation tiers). Reverse that and a failed automation write leaves the valve open with
+(`skills/ha-nova/SKILL.md` → confirmation tiers) — and `ha-nova:write` applies
+that tier here even though its own create flow is otherwise natural
+confirmation: the duration request is the exception, because its first half is
+a runtime access grant rather than a config change.
+
+Preview all three parts, not two: the immediate action, the expiry automation,
+and what happens if the action fails — that the automation is disabled and
+cleaned up. A cleanup the user never saw previewed is a change they did not
+confirm. Reverse that and a failed automation write leaves the valve open with
 nothing scheduled to close it — reporting the partial result does not help a
 user who has already walked away. Both go under one preview; if the automation
 write fails, nothing has been turned on yet and there is nothing to undo.
