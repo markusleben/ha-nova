@@ -294,8 +294,11 @@ describe("flows that cost the user extra turns (#527)", () => {
   it("keeps every skill source free of German", () => {
     // AGENTS.md: skill files are 100% English. Localisation happens at
     // runtime, never in the source an agent pattern-matches against.
+    // Scan the WHOLE text, not just quoted fragments — German arrives in
+    // prose and in code comments too. Entity ids are the documented
+    // exception, so strip code spans that look like one before matching.
     const GERMAN =
-      /\b(Stehlampe|Lampe|Licht|Fenster|K(ü|ue)che|Wohnzimmer|Schlafzimmer|T(ü|ue)r|einmalig|nur heute|mach|zeig|schalte|dimme|heller|dunkler|w(ä|ae)rmer|k(ä|ae)lter|bitte|etwas|noch|schon|heute|Nacht|passiert|sind|warum)\b/;
+      /\b(stehlampe|lampe|fenster|k(ü|ue)che|wohnzimmer|schlafzimmer|t(ü|ue)r|einmalig|heller|dunkler|w(ä|ae)rmer|k(ä|ae)lter|bitte|etwas|schon|heute|gestern|nacht|passiert|warum|wieviel|nichts|immer|mach|zeig|schalte|dimme|sind|wird|werden|kein|nur heute|und|oder|nicht|auch|aber|sehr|mehr)\b/i;
     const offenders: string[] = [];
     const walk = (dir: string): void => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -305,10 +308,10 @@ describe("flows that cost the user extra turns (#527)", () => {
           readFileSync(path, "utf-8")
             .split("\n")
             .forEach((line, i) => {
-              for (const quoted of line.match(/"[^"]{3,90}"/g) ?? []) {
-                const hit = GERMAN.exec(quoted);
-                if (hit) offenders.push(`${path}:${i + 1} ${hit[0]} in ${quoted}`);
-              }
+              // entity ids and code identifiers are allowed to be German
+              const prose = line.replace(/`[^`]*`/g, " ");
+              const hit = GERMAN.exec(prose);
+              if (hit) offenders.push(`${path}:${i + 1} "${hit[0]}" in ${prose.trim().slice(0, 80)}`);
             });
         }
       }
