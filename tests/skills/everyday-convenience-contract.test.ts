@@ -325,7 +325,7 @@ describe("flows that cost the user extra turns (#527)", () => {
     // a skill file, not every possible German sentence.
     const L = "[A-Za-zÄÖÜäöüß]";
     const GERMAN = new RegExp(
-      `(?<!${L})(der|das|den|dem|des|ein|eine|einen|einem|einer|eines|ist|sind|wird|werden|nicht|kein\w*|und|oder|aber|für|von|zum|zur|vom|beim|ins|im|aus|nach|über|unter|seit|bis|ohne|gegen|durch|wieder|ich|du|wir|es|sich|mich|dich|euch|sein|ihre|unser|dieser|diese|dieses|diesem|diesen|jede\w*|welche\w*|dass|weil|wenn|wie|wer|warum|hier|dort|jetzt|dann|noch|schon|auch|nur|sehr|mehr|viel|wenig|alle|etwas|nichts|immer|bitte|heute|gestern|zwei|drei|vier|mach|zeig|schalte|dimme|soll|kann|muss|hat|haben|gibt|Lampe|Licht|Fenster|Tür|Küche|Wohnzimmer|Schlafzimmer|Stehlampe|Heizung|Rollladen|Steckdose)(?!${L})`,
+      `(?<!${L})(der|das|den|dem|des|ein|eine|einen|einem|einer|eines|ist|sind|wird|werden|nicht|keine|keinen|keinem|keiner|keines|und|oder|aber|für|von|zum|zur|vom|beim|ins|im|aus|nach|über|unter|seit|bis|ohne|gegen|durch|wieder|ich|du|wir|es|sich|mich|dich|euch|sein|ihre|unser|dieser|diese|dieses|diesem|diesen|jede|jeder|jedes|jedem|jeden|welche|welcher|welches|welchem|welchen|dass|weil|wenn|wie|wer|warum|hier|dort|jetzt|dann|noch|schon|auch|nur|sehr|mehr|viel|wenig|alle|etwas|nichts|immer|bitte|heute|gestern|zwei|drei|vier|mach|zeig|schalte|dimme|soll|kann|muss|hat|haben|gibt|Lampe|Licht|Fenster|Tür|Küche|Wohnzimmer|Schlafzimmer|Stehlampe|Heizung|Rollladen|Steckdose)(?!${L})`,
       "i",
     );
     // A LOWERCASE word carrying ß or an umlaut is German orthography: English
