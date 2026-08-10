@@ -71,7 +71,7 @@ Write `<filter-file>` with:
 This generic `test("KEYWORD";"i")` example is for free-text search, not explicit `prefix` matching.
 For an explicit prefix selector, match the suffix and display name with `startswith(...)`, not loose substring search.
 
-**If the compact search does not resolve a suitable target** — no results, or only matches the user rejects or that plainly are not what they meant — escalate ONCE to the full registry (`config/entity_registry/list`) and match against `aliases[]` too — `list_for_display` does not carry them, and an alias is exactly where a household keeps the name it actually says ("Stehlampe" for `light.floor_lamp_living`). Only then try synonyms, alternative terms, or shorter keyword stems. Use OR for multiple variants: `test("kw1|kw2|kw3";"i")`. When a resolved entity had no matching alias and the user's word was clearly their habitual name, offer once to store it as an alias via `ha-nova:organize`.
+**If the compact search does not resolve a suitable target** — no results, or only matches the user rejects or that plainly are not what they meant — escalate ONCE to the full registry (`config/entity_registry/list`) and match against `aliases[]` too — `list_for_display` does not carry them, and an alias is exactly where a household keeps the name it actually says (a household's own word for `light.floor_lamp_living`). Only then try synonyms, alternative terms, or shorter keyword stems. Use OR for multiple variants: `test("kw1|kw2|kw3";"i")`. When a resolved entity had no matching alias and the user's word was clearly their habitual name, offer once to store it as an alias via `ha-nova:organize`.
 **Diacritics:** `test(...;"i")` folds case, not accents — a name with `é`/`ü`/`ö` does not match its plain-ASCII spelling. Whenever the keyword or likely entity names carry accents or umlauts (common in non-English homes), put the transliterated variants into the OR-pattern: `test("café|cafe";"i")`, and for umlauts include both the `ue`/`oe`/`ae` and bare-vowel forms.
 **If too many:** narrow with AND: `test("kw1";"i") and test("kw2";"i")`.
 **Cap honesty:** the `.[0:20]` cap can drop the target — when exactly 20 results return, say the list is capped and narrow further instead of treating it as complete.
@@ -162,10 +162,13 @@ then filter by domain plus `device_class` and state:
   lights, switches and fans, but `media_player` only in `playing`/`buffering`,
   AND the domains whose "running" is not `on`: `vacuum` in `cleaning`/
   `returning`, `climate` whose `hvac_action` is PRESENT and is anything but `off`/`idle` (heating, cooling, drying, fan, preheating, defrosting — listing only the first two misses a dehumidifier mid-cycle; an absent `hvac_action` means the device does not report one, which is not the same as running), `valve`
-  in `open`/`opening`, `humidifier` in `on`, `water_heater` in any state other than `off` with
+  in `open`/`opening`/`closing` (the actuator is running and flow may continue
+  until it seats), `humidifier` in `on`, `water_heater` in any state other than `off` with
   `hvac_action` absent — never count `unknown` or `unavailable` as running. Reporting "nothing is running" while
   the heat pump runs is the same wrong answer as missing an open window
-- unlocked doors: `lock.*` NOT in state `locked` — `unlocked` obviously, but
+- unlocked doors: `lock.*` NOT in state `locked`, AND `binary_sensor` with
+  `device_class: lock` in state `on` — that class reports `on` for UNLOCKED,
+  which is the reverse of every other binary sensor here — `unlocked` obviously, but
   also `unlocking`, `opening` and `jammed`. The question is whether the door
   is secured, and a lock that is jammed or mid-travel is not; say which state
   each one is in rather than flattening them all to "unlocked"

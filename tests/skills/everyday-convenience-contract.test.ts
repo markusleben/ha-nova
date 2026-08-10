@@ -4,7 +4,7 @@
 // capabilities — Home Assistant could do all of them — they were missing
 // flows, so the agent either improvised or spent turns the user did not owe.
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "fs";
+import { readFileSync, readdirSync } from "fs";
 import { resolve } from "path";
 
 const read = (p: string): string =>
@@ -238,6 +238,8 @@ describe("flows that cost the user extra turns (#527)", () => {
     expect(disco).toContain("`humidifier` in `on`");
     expect(disco).toContain("`media_player` only in `playing`/`buffering`");
     expect(disco).toContain("`lock.*` NOT in state `locked`");
+    expect(disco).toContain("that class reports `on` for UNLOCKED");
+    expect(disco).toContain("the actuator is running and flow may continue");
     // The generic opening class is what many contact sensors report.
     expect(disco).toContain("`opening` (the generic contact class many integrations use)");
     expect(disco).toContain("rather than flattening them all to \"unlocked\"");
@@ -262,6 +264,7 @@ describe("flows that cost the user extra turns (#527)", () => {
     const patterns = flat(read("skills/ha-nova/automation-patterns.md"));
     expect(patterns).toContain("HA accepting the call is not the device having closed, so confirm the");
     expect(patterns).toContain("the integration may not have the entity yet");
+    expect(patterns).toContain("wait for a KNOWN state");
     expect(patterns).toContain("wait_template");
   });
 
@@ -286,5 +289,31 @@ describe("flows that cost the user extra turns (#527)", () => {
     expect(p).toContain("after the deadline and must not count");
     expect(p).toContain("the expiry arm must ALSO be scoped to its own triggers");
     expect(p).toContain('"light off for an hour" turns back ON');
+  });
+
+  it("keeps every skill source free of German", () => {
+    // AGENTS.md: skill files are 100% English. Localisation happens at
+    // runtime, never in the source an agent pattern-matches against.
+    const GERMAN =
+      /\b(Stehlampe|Lampe|Licht|Fenster|K(ü|ue)che|Wohnzimmer|Schlafzimmer|T(ü|ue)r|einmalig|nur heute|mach|zeig|schalte|dimme|heller|dunkler|w(ä|ae)rmer|k(ä|ae)lter|bitte|etwas|noch|schon|heute|Nacht|passiert|sind|warum)\b/;
+    const offenders: string[] = [];
+    const walk = (dir: string): void => {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const path = `${dir}/${entry.name}`;
+        if (entry.isDirectory()) walk(path);
+        else if (entry.name.endsWith(".md")) {
+          readFileSync(path, "utf-8")
+            .split("\n")
+            .forEach((line, i) => {
+              for (const quoted of line.match(/"[^"]{3,90}"/g) ?? []) {
+                const hit = GERMAN.exec(quoted);
+                if (hit) offenders.push(`${path}:${i + 1} ${hit[0]} in ${quoted}`);
+              }
+            });
+        }
+      }
+    };
+    walk("skills");
+    expect(offenders, `German in skill sources:\n  ${offenders.join("\n  ")}`).toEqual([]);
   });
 });

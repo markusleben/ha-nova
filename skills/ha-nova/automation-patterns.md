@@ -302,7 +302,11 @@ conditions:
 actions:
   # on the startup path the integration may not have the entity yet, and a
   # call against an unavailable target fails silently
-  - wait_template: "{{ not is_state('valve.irrigation_lawn', 'unavailable') }}"
+  # wait for a KNOWN state: an entity that does not exist yet is neither
+  # `unavailable` nor usable, so negating `unavailable` alone passes instantly
+  - wait_template: >-
+      {{ states('valve.irrigation_lawn') not in
+         ['unavailable', 'unknown', 'None'] }}
     timeout: "00:02:00"
   - action: valve.close_valve
     target: {entity_id: valve.irrigation_lawn}
