@@ -246,6 +246,16 @@ another client moved the thermostat from 21 to 23 during the confirmation
 pause, restoring the previewed 21 would overwrite a change the user never saw.
 A moved value re-previews rather than being embedded.
 
+Two failure paths need naming because they leave the automation armed with
+nothing to undo. If the immediate action definitively FAILS, delete the expiry
+automation you just created — the temporary state never began, and leaving it
+armed means a later unrelated change gets reverted at the deadline. And if
+someone changes the target DURING the window (thermostat moved from your
+temporary 18 to 23), the captured value is no longer what they want restored:
+say so and offer to cancel the expiry rather than reverting a deliberate
+change. The expiry automation should read the current value at fire time and
+skip the restore when it no longer matches the temporary one it set.
+
 Both halves means both, and the ORDER is the safety property: create the
 expiry automation FIRST, verify it exists, and only then run the immediate
 action. Check the deadline again at that moment, and require MARGIN, not just a future

@@ -152,8 +152,11 @@ then filter by domain plus `device_class` and state:
 - who is home: `person.*` with state `home` (this skill owns person STATE reads;
   `ha-nova:admin` owns creating and editing them)
 - what is ON — the question "is everything off?" asks: `light`/`switch`/`fan`
-  with state `on`, and `media_player` in any state other than
-  `off`/`unavailable`/`unknown`, because a paused or idle player is not off
+  with state `on`, `media_player` in any state other than
+  `off`/`unavailable`/`unknown` (a paused or idle player is not off), and the
+  comfort domains that have their own off state: `climate`, `water_heater` and
+  `humidifier` in any state but `off` — a thermostat still heating is the
+  clearest possible no to "is everything off?"
 - what is RUNNING — a different question, and a narrower answer: the same
   lights, switches and fans, but `media_player` only in `playing`/`buffering`,
   AND the domains whose "running" is not `on`: `vacuum` in `cleaning`/

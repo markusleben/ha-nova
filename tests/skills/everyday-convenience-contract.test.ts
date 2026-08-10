@@ -168,6 +168,8 @@ describe("flows that cost the user extra turns (#527)", () => {
     // Order is the safety property: a failed automation write must leave
     // nothing running, and the deadline must survive HA being down.
     expect(patterns).toContain("create the expiry automation FIRST");
+    expect(patterns).toContain("delete the expiry automation you just created");
+    expect(patterns).toContain("skip the restore when it no longer matches");
     // A confirmation that arrives after the deadline would strand the device.
     expect(patterns).toContain("Check the deadline again at that moment");
     expect(patterns).toContain("the device then starts with nothing left to stop it");
@@ -226,6 +228,7 @@ describe("flows that cost the user extra turns (#527)", () => {
     expect(disco).toContain("the domains whose \"running\" is not `on`");
     expect(disco).toContain("`hvac_action` is PRESENT and is anything but `off`/`idle`");
     expect(disco).toContain("a paused or idle player is not off");
+    expect(disco).toContain("the comfort domains that have their own off state");
     // Off and running are different questions with different answers.
     expect(disco).toContain("what is RUNNING — a different question, and a narrower answer");
     expect(disco).toContain("`media_player` only in `playing`/`buffering`");
