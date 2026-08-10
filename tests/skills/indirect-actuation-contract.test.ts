@@ -37,6 +37,7 @@ describe("indirect actuation and tier classification (#513)", () => {
       for (const trigger of [
         "decided by the TARGET, not the service name",
         "any call whose target is in `scene`, `script`, or `automation`",
+        "including `scene.apply`, which names its entities in an `entities` map",
         "`homeassistant.turn_on`/`turn_off`/`toggle` on `script.open_door` reaches it too",
         "`input_button.press` and `button.press`",
       ]) {
@@ -240,7 +241,8 @@ describe("indirect actuation and tier classification (#513)", () => {
     // No instance-specific inventory in executable guidance.
     expect(gate).not.toContain("This instance has 42 scenes");
     expect(gate).toContain("`template.reload`, `rest.reload`");
-    expect(gate).toContain("Its effect set is every entity of that domain");
+    expect(gate).toContain("are PLATFORMS whose entities live in `sensor` and");
+    expect(gate).toContain("enumerate by `pl` in the entity registry, not by domain");
     expect(gate).toContain('"No target" is not evidence of no impact');
   });
   it("does not read an empty consumer scan as an absence of consumers", () => {

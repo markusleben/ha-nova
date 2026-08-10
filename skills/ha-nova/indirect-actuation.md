@@ -104,7 +104,11 @@ Then:
   move a sensor value an automation watches (`template.reload`, `rest.reload`,
   `command_line.reload`). Both mean the same thing here — so there
   is nothing for `search/related` to take — and that must not resolve to
-  "nothing happens". Its effect set is every entity of that domain: a reload
+  "nothing happens". Its effect set is every entity that reload touches — for the helper reloads
+  that is the domain (`schedule.*`, `input_boolean.*`, ...), but `template`,
+  `rest` and `command_line` are PLATFORMS whose entities live in `sensor` and
+  `binary_sensor`, so enumerate by `pl` in the entity registry, not by domain.
+  Either way: a reload
   that moves a helper's state fires whatever listens to it. Enumerate the
   domain and scan those entities when the count allows; when it does not, say
   so and treat the run as unenumerable, exactly like an unreadable listener.
