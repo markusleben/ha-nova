@@ -174,8 +174,10 @@ membership in that array, not on equality. A device whose `config_entries`
 holds this entry AND another is SHARED: removing this one detaches it, the
 device stays with its other provider, and counting it as deleted overstates
 the damage. Split the count — deleted versus detached. Report those counts. The compact `list_for_display` cannot answer this — its
-rows carry `ei`/`en`/`ai` only and no `config_entry_id`, so it is the wrong
-read for an ownership question however much cheaper it is. Then scan what depends on them BEFORE asking, not on request: run
+rows carry no `config_entry_id`, so it is the wrong read for an ownership
+question however much cheaper it is. It does carry more than the three keys
+this once claimed (`pl` among them), which is why the actuation gate can read
+a platform from it — do not use this sentence as an argument that it cannot. Then scan what depends on them BEFORE asking, not on request: run
 `search/related` per DEVICE **and** per ENTITY. Neither covers the other — a
 device-level scan does not reach its child entities' consumers, and an
 automation can reference a `device_id` directly, which no entity scan sees

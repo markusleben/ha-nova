@@ -176,7 +176,7 @@ Request examples:
 
 Expected success body:
 - `ok=true`
-- Compact entity registry (`config/entity_registry/list_for_display`): `data.entities[]` with abbreviated keys (`ei`=entity_id, `en`=name, `ai`=area_id)
+- Compact entity registry (`config/entity_registry/list_for_display`): `data.entities[]` with abbreviated keys — measured against a 4209-entity instance: `ei`=entity_id, `en`=name, `ai`=area_id, `di`=device_id, `pl`=platform, `ec`=entity_category, `lb`=labels, `ic`=icon, `hb`=hidden_by, `hn`=has_entity_name, `dp`=display_precision, `tk`=translation_key. No `config_entry_id` — ownership questions need the full registry list
 - Full entity registry (`config/entity_registry/list`): `data[]`
 - Area registry (`config/area_registry/list`): `data[]` with canonical `area_id`; do not expect a generic `id`
 - Recorder statistics (`recorder/statistics_during_period`): `data.<statistic_id>[]`

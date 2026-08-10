@@ -141,6 +141,9 @@ const WORD_BUDGETS: Record<string, number> = {
   // consumer checks before area delete/rename/disable (Wave 1b) + metadata
   // snapshot capture (Wave 2).
   // Grouped-change-set opt-in + flow wiring (#391).
+  // #513/#530 added routing rows and the tag/person lifecycle notes: the
+  // default 1150 left TWO words of headroom, which the next sentence breaks.
+  admin: 1300,
   organize: 1300,
   // write/mqtt ratcheted for the batch-safety opt-in lines (#327);
   // write again for the Phase 5 test offer (test-run.md).
@@ -253,7 +256,7 @@ const WORD_BUDGETS: Record<string, number> = {
   // merge. Measured 3963 at the time of writing.
   // Audit train: the ceiling is the MAX of both branches — each
   // measured only its own tree.
-  "service-call": 4500,
+  "service-call": 5200,  // folded with domain-fields.md: measured 5109
   // Carries the canonical File-Change Preview example — the only layout
   // source for file edits; concrete examples are what make a card renderable.
   // Sibling-survival verification (Wave 1b) + yaml snapshot capture with
@@ -386,6 +389,11 @@ const DEFAULT_WORD_BUDGET = 1150;
 // — otherwise the ratchet resets itself every time a file gets long.
 const FOLDED_INTO_BUDGET: Record<string, string[]> = {
   fallback: ["relay-ready.md"],
+  // #530 split the domain field tables out of service-call/SKILL.md. Leaving
+  // it unfolded did exactly what the comment above warns about: the ceiling
+  // measured 4252 while the skill really costs 5109, and the next split would
+  // have reset it again.
+  "service-call": ["domain-fields.md"],
 };
 
 // Internal review-check codes (S-01, R-18, H-09, ...) may flow only between
