@@ -162,8 +162,11 @@ Then:
   handing it to an automation, and that is what makes it an exception here.
   A Template button defines its press, a Template switch its
   `turn_on`/`turn_off`, a Template cover its `open_cover`/`close_cover`, a
-  Template lock its `lock`/`unlock` — the carrier is the platform, not the
-  domain, so do not read the domain as safe. A non-access Template cover can
+  Template lock its `lock`/`unlock`, a Template light or fan its own
+  control sequence — the carrier is the platform, not the domain, and the
+  ordinary-device-control exemption does NOT apply to it. A `light.turn_on`
+  is ordinary control on a real bulb and an arbitrary stored sequence on a
+  `pl: "template"` light. A non-access Template cover can
   run any sequence its author wrote, so a zero-hit `search/related` on a
   `pl: "template"` entity proves nothing about what actuating it will run.
   Read the stored action; if you cannot, escalate. The registry field
@@ -215,7 +218,9 @@ provides none, so its scenes stay ordinary with the gap named; a
 general-purpose platform like SmartThings usually does. A
 scene on the `homeassistant` platform is user-authored; if it also has no
 readable config (a YAML scene declared without an `id:`), then its members are
-arbitrary and unknown, and it escalates. Most homes have far more
+arbitrary and unknown, and it escalates. The same holds for a YAML AUTOMATION
+without an `id`: there is no config id to read its actions with, so
+`automation.trigger` on it is an unresolved run, not an empty one. Most homes have far more
 integration-owned scenes than hand-written ones, which is why the ordinary
 path has to stay reachable rather than escalating every unreadable scene.
 

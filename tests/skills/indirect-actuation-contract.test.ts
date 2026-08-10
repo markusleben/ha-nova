@@ -308,6 +308,8 @@ describe("indirect actuation and tier classification (#513)", () => {
     const gate = flat(indirectActuation);
     expect(gate).toContain("Any entity on the `template` platform can carry the action itself");
     expect(gate).toContain("the carrier is the platform, not the domain");
+    expect(gate).toContain("the ordinary-device-control exemption does NOT apply to it");
+    expect(gate).toContain('an arbitrary stored sequence on a `pl: "template"` light');
     expect(gate).toContain("a Template cover its `open_cover`/`close_cover`");
   });
   it("classifies the device-action form, not only the service form", () => {
@@ -349,6 +351,7 @@ describe("indirect actuation and tier classification (#513)", () => {
     expect(gate).toContain('"bounded" only helps if the bound excludes access');
     expect(gate).toContain("a YAML scene declared without an `id:`");
     expect(gate).toContain("its members are arbitrary and unknown, and it escalates");
+    expect(gate).toContain("The same holds for a YAML AUTOMATION without an `id`");
   });
 
   it("escalates a nested run whose own target is templated", () => {
