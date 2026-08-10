@@ -333,8 +333,15 @@ triggers:
 conditions:
   - condition: or
     conditions:
-      - condition: trigger
-        id: fired
+      # the primary path still has to be inside the window: if HA was down at
+      # 23:59 and the sensor reaches its target during startup, this fires
+      # after the deadline and must not count
+      - condition: and
+        conditions:
+          - condition: trigger
+            id: fired
+          - condition: template
+            value_template: "{{ now() < as_datetime('2026-08-10T23:59:00+02:00') }}"
       - condition: template
         # the ABSOLUTE deadline, substituted at write time — `today_at`
         # re-reads as the CURRENT day, so a restart the next morning would
