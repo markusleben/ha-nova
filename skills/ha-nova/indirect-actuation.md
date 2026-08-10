@@ -113,6 +113,13 @@ Then:
   equivalent service, or a door-unlock built in the UI walks past this whole
   gate; treat a `service_template` like any templated action name — you
   cannot read what it resolves to, so escalate.
+- `python_script.*`, `shell_command.*` and `rest_command.*` are terminals only
+  in the sense that the traversal stops there — their implementations live in
+  files or in `configuration.yaml`, not in anything you read, and a user-
+  authored one can call `lock.unlock` as easily as it can log a line. Treat
+  them as unread, not as concrete: escalate and name the script or command.
+  This is rule 2 and rule 3 at once — the action belongs to its author and
+  you cannot see it.
 - A blueprint-backed automation reads back as `use_blueprint` with inputs, not
   as actions: the traversal reaches no member and would otherwise conclude the
   run is harmless. It is an unresolved branch, not an empty one — escalate and
