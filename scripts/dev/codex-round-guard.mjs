@@ -40,6 +40,41 @@ const gitDir = () => {
 };
 const STATE = join(gitDir(), "codex-rounds.json");
 
+// Take an exclusive lock, run fn, release. Returns false when the lock stayed
+// busy — callers must NOT fall through to the mutation: two unsynchronized
+// read-modify-writes lose an increment, which silently under-counts the very
+// rounds this guard exists to enforce.
+const withLock = (fn) => {
+  mkdirSync(dirname(STATE), { recursive: true });
+  const lock = `${STATE}.lock`;
+  let held = false;
+  for (let attempt = 0; attempt < 50 && !held; attempt += 1) {
+    try {
+      writeFileSync(lock, String(process.pid), { flag: "wx" });
+      held = true;
+    } catch {
+      // a lock older than 10s belonged to a crashed run
+      try {
+        if (Date.now() - statSync(lock).mtimeMs > 10_000) unlinkSync(lock);
+      } catch {
+        /* someone else cleaned it up */
+      }
+      execFileSync("sleep", ["0.05"], { stdio: "ignore" });
+    }
+  }
+  if (!held) return false;
+  try {
+    fn();
+  } finally {
+    try {
+      unlinkSync(lock);
+    } catch {
+      /* already gone */
+    }
+  }
+  return true;
+};
+
 // The newest clean verdict, as a timestamp, or null.
 //
 // Do NOT compare it against the newest commit: by the time the next @codex
@@ -130,24 +165,7 @@ const main = async () => {
     // increment vanishes and the reminder arrives a round late. Take an
     // exclusive lock, then re-read inside it so the increment is applied to
     // whatever the other session just wrote.
-    mkdirSync(dirname(STATE), { recursive: true });
-    const lock = `${STATE}.lock`;
-    let held = false;
-    for (let attempt = 0; attempt < 50 && !held; attempt += 1) {
-      try {
-        writeFileSync(lock, String(process.pid), { flag: "wx" });
-        held = true;
-      } catch {
-        // a lock older than 10s belonged to a crashed run
-        try {
-          if (Date.now() - statSync(lock).mtimeMs > 10_000) unlinkSync(lock);
-        } catch {
-          /* someone else cleaned it up */
-        }
-        execFileSync("sleep", ["0.05"], { stdio: "ignore" });
-      }
-    }
-    try {
+    const counted = withLock(() => {
       let fresh = {};
       try {
         fresh = JSON.parse(readFileSync(STATE, "utf8"));
@@ -161,14 +179,16 @@ const main = async () => {
       const tmp = `${STATE}.${process.pid}.tmp`;
       writeFileSync(tmp, JSON.stringify(fresh, null, 2) + "\n");
       renameSync(tmp, STATE);
-    } finally {
-      if (held) {
-        try {
-          unlinkSync(lock);
-        } catch {
-          /* already gone */
-        }
-      }
+    });
+    if (!counted) {
+      // Loud, not silent: an uncounted round is how the reminder goes missing.
+      emit(
+        `codex-round-guard: the round counter for PR #${pr} stayed locked for ` +
+          `2.5s, so THIS ROUND WAS NOT COUNTED and the batch reminder may fire ` +
+          `late. Another session is writing, or a stale lock survived — check ` +
+          `${STATE}.lock.`,
+      );
+      return;
     }
   } catch {
     // a read-only git dir is not a reason to fail the hook
@@ -191,23 +211,7 @@ const [, , flag, arg] = process.argv;
 if (flag === "--reset") {
   // Same lock as the hook path: a reset racing a concurrent increment would
   // otherwise restore a stale snapshot over it.
-  mkdirSync(dirname(STATE), { recursive: true });
-  const lock = `${STATE}.lock`;
-  let held = false;
-  for (let attempt = 0; attempt < 50 && !held; attempt += 1) {
-    try {
-      writeFileSync(lock, String(process.pid), { flag: "wx" });
-      held = true;
-    } catch {
-      try {
-        if (Date.now() - statSync(lock).mtimeMs > 10_000) unlinkSync(lock);
-      } catch {
-        /* someone else cleaned it up */
-      }
-      execFileSync("sleep", ["0.05"], { stdio: "ignore" });
-    }
-  }
-  try {
+  const done = withLock(() => {
     let state = {};
     try {
       state = JSON.parse(readFileSync(STATE, "utf8"));
@@ -223,14 +227,13 @@ if (flag === "--reset") {
     const tmp = `${STATE}.${process.pid}.tmp`;
     writeFileSync(tmp, JSON.stringify(state, null, 2) + "\n");
     renameSync(tmp, STATE);
-  } finally {
-    if (held) {
-      try {
-        unlinkSync(lock);
-      } catch {
-        /* already gone */
-      }
-    }
+  });
+  if (!done) {
+    process.stderr.write(
+      "codex-round-guard: the round counter stayed locked for 2.5s; nothing " +
+        "was reset.\n",
+    );
+    process.exit(1);
   }
   process.stdout.write(arg ? `reset PR #${arg}\n` : "reset all\n");
 } else {
