@@ -280,4 +280,12 @@ describe("ha-api-matrix lists the surfaces skills actually pin (#517)", () => {
       .find((l) => l.startsWith("| Compact registry"));
     expect(row).not.toContain("get_states");
   });
+
+  it("gives the bounded notification wait an executable path", () => {
+    const notify = flat(read("skills/notify/SKILL.md"));
+    // The capability map offers this window; the skill has to say how.
+    expect(notify).toContain('"event_type":"mobile_app_notification_action"');
+    expect(notify).toContain("Bounded Event Collection");
+    expect(notify).toContain("this skill does not restate it");
+  });
 });

@@ -116,7 +116,7 @@ const WORD_BUDGETS: Record<string, number> = {
   // Codex round 2: the bounded tap window opens after the send and HA does
   // not replay the event, so the text has to say what it cannot prove
   // (measured 1227).
-  notify: 1250,
+  notify: 1560,
   // pre-save snapshot capture + snapshot recovery guidance (Wave 2).
   energy: 1250,
   // consumer checks before area delete/rename/disable (Wave 1b) + metadata
