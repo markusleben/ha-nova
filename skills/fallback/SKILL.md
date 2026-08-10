@@ -57,7 +57,7 @@ For every Relay-Ready call in this skill:
 | Logs / diagnostics (why a specific automation/script/device/integration failed: traces, error/system logs, root cause) | Covered | diagnose |
 | Media players (transport, volume, source, grouping, browsing, TTS announce) | Covered | media |
 | Notifications (targets, mobile-app sends, persistent notifications) | Covered | notify |
-| Actionable-notification callbacks (waiting for a button press) | Covered for the durable path | write (an automation on `mobile_app_notification_action`); a bounded in-chat window is possible via the `collect_events` envelope |
+| Actionable-notification callbacks (waiting for a button press) | Covered for the durable path | write (an automation on `mobile_app_notification_action`); for a bounded in-chat wait instead, `notify` owns it |
 | Cameras (snapshot, stream URL, record) | Covered | camera |
 | MQTT (bounded topic listening, discovery/debug info, publish) | Covered | mqtt |
 | Voice / Assist (utterance testing, pipelines, entity exposure, engine inventory) | Covered | assist |

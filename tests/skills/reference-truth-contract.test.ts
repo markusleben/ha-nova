@@ -288,4 +288,10 @@ describe("ha-api-matrix lists the surfaces skills actually pin (#517)", () => {
     expect(notify).toContain("Bounded Event Collection");
     expect(notify).toContain("this skill does not restate it");
   });
+
+  it("routes a bounded callback wait to notify, not to write", () => {
+    const fb = flat(read("skills/fallback/SKILL.md"));
+    // write owns the durable automation; the in-chat window is notify's.
+    expect(fb).toContain("for a bounded in-chat wait instead, `notify` owns it");
+  });
 });
