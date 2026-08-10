@@ -243,6 +243,7 @@ describe("flows that cost the user extra turns (#527)", () => {
     expect(disco).toContain("in a state that is neither `locked` NOR");
     expect(disco).toContain("that class reports `on` for UNLOCKED");
     expect(disco).toContain("the actuator is running and flow may continue");
+    expect(disco).toContain("a cover simply left open is not running");
     // The generic opening class is what many contact sensors report.
     expect(disco).toContain("`opening` (the generic contact class many integrations use)");
     expect(disco).toContain("rather than flattening them all to \"unlocked\"");
