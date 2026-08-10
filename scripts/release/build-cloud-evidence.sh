@@ -1,0 +1,241 @@
+#!/usr/bin/env bash
+# Build the exact-target Home Assistant Cloud evidence envelope for one PR.
+#
+# The envelope binds to a PR's synthetic merge tree, so every merge into main
+# needs a fresh one (docs/releasing.md -> "Home Assistant Cloud publication
+# gate"). Doing that by hand is ~20 steps across three machines, which is why
+# it kept being the thing that blocked a ready PR for days.
+#
+#   bash scripts/release/build-cloud-evidence.sh 541 --dry-run  # check readiness only
+#   bash scripts/release/build-cloud-evidence.sh 541            # build, print the envelope
+#   bash scripts/release/build-cloud-evidence.sh 541 --set      # ...and write the secret
+#
+# It refuses rather than guesses: a platform it cannot reach, a bundle whose
+# identity does not match the run, or a provenance check that does not pass is
+# a hard stop. The envelope ATTESTS those runs, so an unreachable platform must
+# never become a `true`.
+#
+# Hosts for the non-local platforms come from the environment, defaulting to
+# this repo's lab:
+#   HA_NOVA_LINUX_SSH   (default: ai-machine)
+#   HA_NOVA_WINDOWS_SSH (default: unset — Windows is skipped and the run fails)
+set -euo pipefail
+
+PR="${1:-}"
+MODE="${2:-}"
+REPO="${HA_NOVA_REPO:-markusleben/ha-nova}"
+LINUX_SSH="${HA_NOVA_LINUX_SSH:-ai-machine}"
+WINDOWS_SSH="${HA_NOVA_WINDOWS_SSH:-}"
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+
+die() { echo "[cloud-evidence] ERROR: $*" >&2; exit 1; }
+step() { echo ""; echo "[cloud-evidence] $*"; }
+
+[ -n "$PR" ] || die "usage: build-cloud-evidence.sh <pr-number> [--dry-run|--set]"
+command -v gh >/dev/null || die "gh is required"
+command -v jq >/dev/null || die "jq is required"
+
+active="$(gh api user --jq .login 2>/dev/null || true)"
+[ "$active" = "${REPO%%/*}" ] || die "gh is authenticated as '${active:-none}', expected '${REPO%%/*}'"
+
+# ── 1. the exact target ──────────────────────────────────────────────────────
+step "resolving PR #$PR"
+pr_json="$(gh api "repos/$REPO/pulls/$PR")"
+state="$(jq -r .state <<<"$pr_json")"
+mergeable="$(jq -r '.mergeable // "unknown"' <<<"$pr_json")"
+merge_commit="$(jq -r '.merge_commit_sha // ""' <<<"$pr_json")"
+[ "$state" = "open" ] || die "PR #$PR is $state"
+[ "$mergeable" = "true" ] || die "PR #$PR is not mergeable ($mergeable) — rebase first"
+[ -n "$merge_commit" ] || die "GitHub has not computed a merge commit for #$PR yet"
+
+git -C "$ROOT_DIR" fetch --quiet origin "refs/pull/$PR/merge:refs/cloud-evidence/$PR" 2>/dev/null \
+  || die "cannot fetch the synthetic merge ref for #$PR"
+target_commit="$(git -C "$ROOT_DIR" rev-parse "refs/cloud-evidence/$PR")"
+target_tree="$(git -C "$ROOT_DIR" rev-parse "refs/cloud-evidence/$PR^{tree}")"
+relay_version="$(git -C "$ROOT_DIR" show "$target_commit:nova/config.yaml" | sed -n 's/^version: *"\{0,1\}\([^"]*\)"\{0,1\}/\1/p' | head -1)"
+[ -n "$relay_version" ] || die "cannot read nova/config.yaml version at the target"
+echo "  commit $target_commit"
+echo "  tree   $target_tree"
+echo "  relay  $relay_version"
+
+platforms="$(git -C "$ROOT_DIR" show "$target_commit:version.json" | jq -r '.cloud_remote_platforms[]')"
+echo "  enabled platforms: $(tr '\n' ' ' <<<"$platforms")"
+
+step "Codex clearance"
+# The workflow refuses a candidate whose head lacks a real clean bot verdict
+# ("current pull request head lacks a real clean Codex bot result"). Checking
+# it here fails in seconds instead of two minutes into a dispatch.
+head_date="$(gh api "repos/$REPO/pulls/$PR/commits?per_page=100" --jq '.[-1].commit.committer.date')"
+clean_at="$(gh api "repos/$REPO/issues/$PR/reactions" \
+  --jq '[.[] | select(.content=="+1" and (.user.login|test("codex";"i")) and (.user.login|test("\\[bot\\]$"))) | .created_at] | max // ""')"
+if [ -z "$clean_at" ] || [[ ! "$clean_at" > "$head_date" ]]; then
+  die "PR #$PR head has no clean Codex verdict (head $head_date, newest bot 👍 ${clean_at:-none}). Get it clean first — the candidate workflow refuses otherwise."
+fi
+echo "  clean verdict at $clean_at, after head $head_date"
+
+if [ "$MODE" = "--dry-run" ]; then
+  echo ""
+  echo "[cloud-evidence] dry run: the target is ready and the platforms would be"
+  echo "                 $(tr '\n' ' ' <<<"$platforms"). Re-run without --dry-run to dispatch."
+  exit 0
+fi
+
+# ── 2. the candidate bundle ──────────────────────────────────────────────────
+# One dispatch per PR; reruns are rejected, so an existing successful run for
+# this exact commit is reused instead of burning the second attempt.
+version_tag="${HA_NOVA_VERSION_TAG:-v$(git -C "$ROOT_DIR" show "$target_commit:version.json" | jq -r .skill_version)-rc1}"
+step "candidate bundle ($version_tag)"
+run_id="$(gh run list --repo "$REPO" --workflow cloud-candidate-bundle.yml \
+  --json databaseId,headSha,conclusion,displayTitle --limit 20 \
+  | jq -r --arg c "$target_commit" \
+      'map(select(.conclusion=="success" and (.displayTitle|contains($c[0:8])))) | first | .databaseId // empty')"
+
+if [ -n "$run_id" ]; then
+  echo "  reusing successful run $run_id"
+else
+  request_id="pr${PR}-$(git -C "$ROOT_DIR" rev-parse --short "$target_commit")-$$"
+  echo "  dispatching (request_id=$request_id)"
+  gh workflow run cloud-candidate-bundle.yml --repo "$REPO" \
+    -f "pull_request=$PR" -f "version_tag=$version_tag" -f "request_id=$request_id" \
+    || die "dispatch rejected — inspect the workflow, do NOT retry blindly (one dispatch per PR)"
+  echo "  waiting for the run to appear"
+  for _ in $(seq 1 30); do
+    sleep 10
+    run_id="$(gh run list --repo "$REPO" --workflow cloud-candidate-bundle.yml \
+      --json databaseId,displayTitle --limit 5 \
+      | jq -r --arg r "$request_id" 'map(select(.displayTitle|contains($r))) | first | .databaseId // empty')"
+    [ -n "$run_id" ] && break
+  done
+  [ -n "$run_id" ] || die "the dispatched run never appeared"
+  echo "  run $run_id — waiting for completion"
+  gh run watch "$run_id" --repo "$REPO" --exit-status >/dev/null \
+    || die "run $run_id failed — fix the cause in a reviewed PR, then dispatch once more"
+fi
+
+work="$(mktemp -d)"
+trap 'rm -rf "$work"' EXIT
+step "downloading install bundles"
+gh run download "$run_id" --repo "$REPO" --name cloud-candidate-install-bundles --dir "$work/bundles" \
+  || die "cannot download the install bundles from run $run_id (artifacts expire after 7 days)"
+
+# ── 3. provenance, per platform ──────────────────────────────────────────────
+# The positive path: the INSTALLED bundle must accept its own provenance. CI
+# only proves the negative (raw binaries reject it), so this cannot be skipped.
+expected_version="${version_tag#v}"
+
+check_identity() {
+  node -e '
+    const fs = require("node:fs");
+    const [path, version, tree] = process.argv.slice(1);
+    const bundle = JSON.parse(fs.readFileSync(path, "utf8"));
+    if (bundle.version !== version || bundle.cloud_release?.source_tree_sha !== tree) {
+      throw new Error(`bundle identity mismatch: ${bundle.version} / ${bundle.cloud_release?.source_tree_sha}`);
+    }
+  ' "$1" "$expected_version" "$target_tree"
+}
+
+provenance_unix() {  # <label> <archive> <ssh-host|"">
+  local label="$1" archive="$2" host="$3"
+  local script='
+    set -euo pipefail
+    d="$(mktemp -d)"; mkdir -p "$d/home/.local/share"
+    tar -xzf "$1" -C "$d/home/.local/share"
+    cat "$d/home/.local/share/ha-nova/bundle.json"
+    HOME="$d/home" HA_NOVA_NO_CENSUS=1 "$d/home/.local/share/ha-nova/ha-nova" internal-cloud-release-check
+    rm -rf "$d"
+  '
+  if [ -z "$host" ]; then
+    bash -c "$script" _ "$archive" >"$work/$label.out" 2>&1
+  else
+    ssh -o BatchMode=yes -o ConnectTimeout=8 "$host" 'cat > /tmp/ha-nova-cand.tar.gz' <"$archive" \
+      || die "$label: cannot copy the bundle to $host"
+    ssh -o BatchMode=yes "$host" "bash -s _ /tmp/ha-nova-cand.tar.gz" <<<"$script" >"$work/$label.out" 2>&1
+  fi
+}
+
+declare -A RESULT
+for platform in $platforms; do
+  case "$platform" in
+    darwin)
+      arch="$(uname -m | sed 's/x86_64/amd64/')"
+      archive="$work/bundles/ha-nova-installer-bundle-macos-${arch}.tar.gz"
+      [ -f "$archive" ] || die "darwin: $archive missing from the artifact"
+      step "provenance: darwin ($arch, local)"
+      [ "$(uname -s)" = "Darwin" ] || die "darwin provenance must run on macOS; this is $(uname -s)"
+      provenance_unix darwin "$archive" "" || die "darwin: provenance check failed — see $work/darwin.out"
+      ;;
+    linux)
+      archive="$work/bundles/ha-nova-installer-bundle-linux-amd64.tar.gz"
+      [ -f "$archive" ] || die "linux: $archive missing from the artifact"
+      step "provenance: linux (ssh $LINUX_SSH)"
+      ssh -o BatchMode=yes -o ConnectTimeout=8 "$LINUX_SSH" true 2>/dev/null \
+        || die "linux: $LINUX_SSH unreachable — set HA_NOVA_LINUX_SSH or bring it up"
+      provenance_unix linux "$archive" "$LINUX_SSH" || die "linux: provenance check failed — see $work/linux.out"
+      ;;
+    windows)
+      archive="$work/bundles/ha-nova-installer-bundle-windows-amd64.zip"
+      [ -f "$archive" ] || die "windows: $archive missing from the artifact"
+      step "provenance: windows (ssh $WINDOWS_SSH)"
+      [ -n "$WINDOWS_SSH" ] \
+        || die "windows: set HA_NOVA_WINDOWS_SSH to the test machine. It is an ATTESTED platform — it cannot be skipped, and it must not be marked true from here."
+      ssh -o BatchMode=yes -o ConnectTimeout=8 "$WINDOWS_SSH" "echo ok" >/dev/null 2>&1 \
+        || die "windows: $WINDOWS_SSH unreachable — start the VM first"
+      ssh -o BatchMode=yes "$WINDOWS_SSH" 'powershell -Command "$i=[Console]::In.ReadToEnd()"' </dev/null >/dev/null 2>&1 || true
+      scp -q -o BatchMode=yes "$archive" "$WINDOWS_SSH:candidate.zip" || die "windows: cannot copy the bundle"
+      ssh -o BatchMode=yes "$WINDOWS_SSH" powershell -NoProfile -Command "
+        \$ErrorActionPreference='Stop'
+        \$d = Join-Path \$env:TEMP ('ha-nova-' + [guid]::NewGuid())
+        Expand-Archive -LiteralPath candidate.zip -DestinationPath \$d
+        \$root = Join-Path \$d 'ha-nova'
+        Get-Content (Join-Path \$root 'bundle.json') -Raw
+        \$env:HA_NOVA_NO_CENSUS = '1'
+        & (Join-Path \$root 'ha-nova.exe') internal-cloud-release-check
+        if (\$LASTEXITCODE -ne 0) { throw 'provenance check failed' }
+        Remove-Item -Recurse -Force \$d
+      " >"$work/windows.out" 2>&1 || die "windows: provenance check failed — see $work/windows.out"
+      ;;
+    *) die "unknown platform '$platform' in cloud_remote_platforms" ;;
+  esac
+  # every platform prints its bundle.json first; the identity must match the run
+  sed -n '1,/^}/p' "$work/$platform.out" >"$work/$platform.bundle.json"
+  check_identity "$work/$platform.bundle.json" || die "$platform: bundle identity does not match the target tree"
+  RESULT[$platform]=true
+  echo "  ✓ $platform"
+done
+
+# ── 4. the envelope ──────────────────────────────────────────────────────────
+step "envelope"
+keyrings="$(for p in $platforms; do printf '{"%s":%s}' "$p" "${RESULT[$p]}"; done | jq -s 'add')"
+envelope="$(jq -n \
+  --arg commit "$target_commit" --arg tree "$target_tree" \
+  --arg relay "$relay_version" --argjson keyrings "$keyrings" '
+  {
+    schema: 2,
+    commit_sha: $commit,
+    tree_sha: $tree,
+    relay_app: { version: $relay, source_commit: $commit, source_tree_sha: $tree },
+    checks: {
+      parity: true, stress_10000: true, keyrings: $keyrings,
+      roles: true, domains_mfa: true, lifecycle: true,
+      redirects_non_disclosure: true, installed_relay_app: true,
+      routing: true, signing_and_update_matrix: true
+    }
+  }')"
+echo "$envelope" | jq .
+
+if [ "$MODE" = "--set" ]; then
+  step "writing HA_NOVA_CLOUD_GATE_EVIDENCE_JSON to the production environment"
+  gh secret set HA_NOVA_CLOUD_GATE_EVIDENCE_JSON --repo "$REPO" --env production --body "$envelope" \
+    || die "cannot write the secret — admin auth required"
+  echo "  written. Rerun CI on #$PR, then cloud-source-gate should pass."
+else
+  echo ""
+  echo "[cloud-evidence] not written. Re-run with --set, or paste the JSON above into"
+  echo "                 the production environment secret HA_NOVA_CLOUD_GATE_EVIDENCE_JSON."
+fi
+
+echo ""
+echo "[cloud-evidence] The check booleans above carry the risk-scoped qualifications"
+echo "                 from docs/work/2026-07-30-cloud-release-evidence-risk-scope-spec.md."
+echo "                 Inspect the qualification-to-target diff before merging, and record"
+echo "                 the ledger in the PR — the verifier does not make that decision."
