@@ -164,7 +164,25 @@ const WORD_BUDGETS: Record<string, number> = {
   // Grouped-change-set opt-in + grouped-menu exception (#391).
   // Threshold-calibration hook incl. scene.apply coverage (#484 R10).
   // #452 draft rule on top of the branch ratchet (measured 2780).
-  "service-call": 2800,
+  // Tier hardening (#513): owning-skill deferral rows for recorder/calendar/
+  // todo/backup/camera-power/conversation with the read-only-response
+  // carve-out, the Supervisor-lifecycle block with its self-amputation
+  // refusal, the indirect-actuation gate pointer, and the
+  // tier-follows-the-performed-action rule with the disruptive split. The
+  // gate mechanics themselves live in skills/ha-nova/indirect-actuation.md
+  // so every caller shares one contract. Codex round 2 added the App-restart
+  // disruption note; round 4 narrowed the hassio row from a wildcard to the
+  // named lifecycle services, because restores and App updates have owning
+  // skills that refuse or gate them (measured 3170).
+  // Codex round 7: the DIRECT fire-an-event path needed the same
+  // unenumerable-listener escalation as the stored event: action path
+  // (measured 3204).
+  // Codex round 9: the Flow pointer listed fewer trigger-source domains than
+  // the gate it points at, so a counter or timer write never entered it
+  // (measured 3252).
+  // Codex round 10: a Template button runs a stored action, so `button.press`
+  // is an indirect run rather than a toggle (measured ~3270).
+  "service-call": 3900,
   // Carries the canonical File-Change Preview example — the only layout
   // source for file edits; concrete examples are what make a card renderable.
   // Sibling-survival verification (Wave 1b) + yaml snapshot capture with
@@ -207,7 +225,15 @@ const WORD_BUDGETS: Record<string, number> = {
   // Suggestion Block item-shape pointer (shared output shapes); scene/
   // dashboard first-class targets with flow adaptation (2026-h2 Wave 3).
   // Quick-fix Preview Card reference (#389).
-  review: 4575,
+  // Quick-Fix physical-access exclusion (#513): access-granting corrections
+  // hand off to service-call instead of running at the natural tier
+  // (measured 4607).
+  // Codex round 7 (#513): the Quick-Fix exclusion caught direct access calls
+  // but not trigger-source corrections — resetting a helper is exactly what
+  // another automation answers by unlocking a door (measured 4654).
+  // Codex round 12: the Quick-Fix exclusion keyed on entering the gate rather
+  // than on its verdict, so a clean scan still blocked the fix (measured 4698).
+  review: 4760,
   // #452 wires the canonical 17-word smallest-solution draft rule into every
   // write-flow skill; calendar and integration-setup sat within 17 words of
   // the default cap (review/todo/updates ratchets applied on their entries).

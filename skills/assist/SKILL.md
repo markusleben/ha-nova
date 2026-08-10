@@ -71,6 +71,7 @@ Render the Report shape (output-rules.md). For an utterance test: the exact resp
 - Drafts follow `skills/ha-nova/smallest-solution.md`: the complete requested outcome in the simplest safe design, nothing for hypothetical future needs.
 
 - **A test utterance is a live command.** `conversation/process` executes what it understands. Anything that could change state gets a preview and confirmation, exactly like a service call.
+- An utterance is the least enumerable indirect actuation there is: what it reaches is decided by the conversation agent at runtime. When the utterance plausibly reaches a lock, alarm panel, or access cover — the words themselves, or the exposed entity set makes it reachable — it takes the typed `confirm:<token>` (context skill → Confirmation Tiers), including the re-run proof after an exposure fix.
 - Exposing entities to voice grants voice control over them — show the full list before changing exposure.
 - Pipeline updates resend every settings field: read first, or you silently drop settings.
 - No change here has a `revert`: restore exposure by re-toggling, restore a pipeline by resending its prior fields. A deleted pipeline recreates with a new `pipeline_id` — satellites pointing at the old one must be re-pointed.

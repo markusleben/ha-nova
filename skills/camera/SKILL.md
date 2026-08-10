@@ -13,6 +13,7 @@ Camera access:
 - fetch a still image so the agent (or the user) can actually look at it
 - get a stream URL for live viewing in a browser
 - trigger Home Assistant's own snapshot/record services (files land on the HA host)
+- switch a camera on or off where the entity supports it
 
 Not in scope: creating automations around cameras (`ha-nova:write`), person/motion detection setup, or any image analysis claim beyond what the agent can see in the fetched frame.
 

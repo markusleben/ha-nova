@@ -44,12 +44,33 @@ Use file-based payloads for service writes:
 |---|---|
 | `mqtt.publish` | `ha-nova:mqtt` |
 | `update.install` / `update.skip` / `update.clear_skipped` | `ha-nova:updates` |
-| `camera.snapshot` / `camera.record` | `ha-nova:camera` |
+| `camera.snapshot` / `camera.record` / `camera.turn_on` / `camera.turn_off` | `ha-nova:camera` |
 | `media_player.*` / `tts.*` | `ha-nova:media` |
 | `notify.*` / `persistent_notification.*` | `ha-nova:notify` |
 | `logger.set_level` | `ha-nova:diagnose` |
+| `recorder.purge` / `recorder.purge_entities` | `ha-nova:maintenance` |
+| `calendar.create_event` and other calendar mutations | `ha-nova:calendar` |
+| `todo.add_item` / `todo.update_item` / `todo.remove_item` / `todo.remove_completed_items` | `ha-nova:todo` |
+| `backup.create` / `backup.create_automatic` | `ha-nova:backup` |
+| `conversation.process` (executes what it understands) | `ha-nova:assist` |
+| `hassio.addon_start\|stop\|restart`, `hassio.host_reboot\|shutdown` | stays here, disruptive tier — refuse the App hosting this Relay |
+| any other `hassio.*` (`restore_full`, `restore_partial`, `addon_update`, ...) | not covered here — `ha-nova:backup` owns restores, `ha-nova:updates` owns App updates; anything else STOPS at `ha-nova:fallback` |
 
-Runtime calls that stay here: `scene.turn_on`, `automation.trigger`, direct `script.*` (see Automation And Script Runtime Calls), custom events, known JSON webhooks, and `lock`/`alarm_control_panel`/`cover` control under the gates below.
+Read-only response services stay here (`calendar.get_events`, `todo.get_items`, `weather.get_forecasts`) — only the mutating siblings defer.
+
+`hassio.addon_start|stop|restart` and `hassio.host_reboot|shutdown` are ordinary Home Assistant services on this transport, so they run from here under the disruptive tier; `ha-nova:fallback` covers App *management* (install, configure, store), not these. The `hassio` domain is NOT a wildcard: `restore_full`/`restore_partial` reboot Home Assistant and belong to `ha-nova:backup`, which refuses restores outright; `addon_update` belongs to `ha-nova:updates`. Never widen this row to a service it does not name. Refuse outright any call targeting the App that runs this Relay — stopping it kills the connection mid-call, so nothing can be verified or undone.
+
+These five do not fit the entity Flow below, so do not force them through it:
+
+- The target is an App SLUG, not an entity: `{"addon": "core_mosquitto"}`, and a display name is not a slug. The Supervisor API is NOT reachable from here — the relay passes only `/api/...` and Home Assistant answers its `/api/hassio/...` proxy with `403` — so resolve the slug from what IS readable: every installed App has an `update.*` entity on the `hassio` platform whose `title` is the display name. Take the slug from that entity's REGISTRY record, not from its state: WS `{"type":"config/entity_registry/get","entity_id":"update.<app>_update"}` returns `unique_id` `<slug>_version_latest` — strip the suffix. The `entity_picture` attribute contains the slug too and must NOT be used: it is a mutable state attribute a user can customize, and a stale one would send `addon_stop` to a different App. If the title matches more
+than one `update.*` entity — an official App and a fork can share a display
+name — do not pick one: list the candidates with their slugs and ask. Starting
+or stopping the wrong App is not recoverable by trying again. Show both name
+and slug in the preview. If no matching `update` entity exists, stop and ask for the slug rather than guessing it.
+- **App state cannot be verified from here.** There is no readable `started`/`stopped` for an App on this transport, so steps 4 and 7 have nothing to read: report the call as issued, say plainly that the result is not observable through the Relay, and point at the Apps page. Never infer success from the service call returning.
+- `host_reboot` and `host_shutdown` have no target at all and take the whole transport down with them. Nothing can be verified afterwards from here — say that BEFORE asking, get the disruptive-tier confirmation, then report the call as issued and the connection as expected to drop. Never report success: you will not be there to see it. `host_shutdown` additionally needs physical access to come back, so say so.
+
+Runtime calls that stay here: `scene.turn_on` / `scene.apply` (`ha-nova:scene` owns scene CRUD, not activation), `automation.trigger`, direct `script.*` (see Automation And Script Runtime Calls), custom events, known JSON webhooks, and `lock`/`alarm_control_panel`/`cover` control under the gates below.
 
 ## Response services
 
@@ -69,10 +90,11 @@ Some services return data (`weather.get_forecasts`, `calendar.get_events`, `todo
 3. If the user names a room/area but the intended scope could be narrower, ask one clarifying question before using `area_id`.
    - Do not ask a second blocking ambiguity question in the same turn.
    - If entity resolution already consumed the one blocking question, default to the narrower confirmed target or stop and explain the ambiguity.
-   - When the call proceeds with an `area_id`/`device_id` target, expand it to the concrete member entities the service's domain applies to BEFORE the preview, and list them there. Areas expand via WS `search/related` on the resolved area (the canonical relation source, `skills/ha-nova/bulk-patterns.md`) — registry `area_id` alone misses entities that inherit the area from their device. Execute with that expanded `entity_id` list instead of the broad target — it freezes the previewed membership into the payload, so a member added or removed after the preview is neither silently actuated nor silently skipped; the preview and verification bind to exactly that list.
+   - When the call proceeds with an `area_id`, `device_id`, `floor_id` or `label_id` target — every selector the shared contract supports — expand it to the concrete member entities the service's domain applies to BEFORE the preview, and list them there. Areas expand via WS `search/related` on the resolved area (the canonical relation source, `skills/ha-nova/bulk-patterns.md`) — registry `area_id` alone misses entities that inherit the area from their device. Execute with that expanded `entity_id` list instead of the broad target — it freezes the previewed membership into the payload, so a member added or removed after the preview is neither silently actuated nor silently skipped; the preview and verification bind to exactly that list.
 4. Preview the service call with stable localized slots:
    - Before preview: read current state via `ha-nova relay core --method GET --path /api/states/{entity_id}`.
    - Capability gate: if the call depends on a device capability (position, color_temp, hvac modes, sound mode, ...), check the target's attributes/`supported_features` in that state read first; if the device cannot do it, say so instead of calling (pattern: `ha-nova:media`).
+   - Indirect actuation gate — decided by the TARGET, not the service name: any call whose target is in `scene`, `script`, `automation`, or a legacy `group` (which forwards to its members) enters the gate — including `scene.apply`, which names its entities in an `entities` map instead of a target and would otherwise match no condition at all, including the generic aliases (`homeassistant.turn_on`/`turn_off`/`toggle` on `script.open_door` reaches it too), and so do the targetless reloads of trigger and state sources (`schedule`, `input_*`, `counter`, `timer`, `template`, `rest`, `command_line`), and writes to a trigger source (`input_button.press` and `button.press` — a Template button runs a stored action, so it is an indirect run, not a toggle — plus writes to any storage helper: `input_*`, `counter`, `timer`, `schedule`, or a `switch`) actuate entities the request never names. Entering the gate is not the same as being a run: the gate decides that, and the read state settles the aliases — `homeassistant.turn_off` always stops (a no-op on an idle script) and expands nothing, `toggle` is the one the state decides, and `turn_on` starts UNLESS the script is already running in `mode: single`, where Home Assistant rejects the overlapping call: that runs nothing, so it expands nothing. Read `mode` from the config you already fetched. Expand and classify the members per `skills/ha-nova/indirect-actuation.md` BEFORE previewing, list them in the preview, and let them set the tier per Safety. Ordinary device control does not carry this gate.
    - If service changes an attribute present in the service call parameters (brightness, temperature, position, hvac_mode, etc.) OR inherently changes entity state (toggle, turn_on, turn_off, press, lock, unlock, open, close), show state delta before the call details:
      ```
      **State delta:**
@@ -91,6 +113,7 @@ Some services return data (`weather.get_forecasts`, `calendar.get_events`, `todo
    - Include an explicit not-executed-yet line before confirmation.
    - Show an Options block with the execute/apply choice and `cancel`. Do not offer `show yaml` unless the user asks for raw payload details. Exception: in a grouped change set the single final action block uses the grouped keywords `apply · show yaml · cancel` (`skills/ha-nova/grouped-change-set.md`), replacing this per-call menu.
    - Ask for natural confirmation bound to this exact preview (see context skill → Active Preview Confirmation). Earlier planning consent is draft-only.
+   - **Unless Safety put this call on the typed tier.** Then the menu offers no `apply`/`execute` word at all and the only accepted answer is the exact `confirm:<token>` — `yes`, `apply`, and the grouped keywords are invalid, including when the tier came from an EXPANDED member rather than the named service. A gate that assigns a tier and then renders the ordinary menu has assigned nothing.
 5. Execute:
    - `ha-nova relay core --method POST --path /api/services/{domain}/{service} --body-file <payload-file>`
 6. Verify result — match the check to what the call promises:
@@ -141,12 +164,12 @@ For helper CRUD (create/update/delete helpers themselves), use `ha-nova:helper` 
 
 Rules:
 - Never call them automatically from read, review, write, or post-write verification.
-- Use this service-call flow only after a concrete preview shows the exact service, target, payload, and whether `skip_condition` is set.
+- Use this service-call flow only after a concrete preview shows the exact service, target, payload, whether `skip_condition` is set, and the members the run actuates (Flow step 4 → indirect actuation gate).
 - Treat `skip_condition: true` as higher risk because it bypasses automation conditions.
 - Ask for confirmation bound to that exact runtime-call preview before execution.
 - After execution, verify only the target automation/script state and any user-approved helper/state assertions; do not infer device safety from a successful service response alone.
 - Post-write test runs: plan structure, real-path recipes, and the post-run follow-up live in `skills/ha-nova/test-run.md`.
-- When a Test Plan Card already showed the concrete preview (service, target, payload, `skip_condition`), the user's option choice on that card IS the bound confirmation — do not ask again.
+- When a Test Plan Card already showed the concrete preview (service, target, payload, `skip_condition`), the user's option choice on that card IS the bound confirmation — do not ask again. The one exception: if the indirect actuation gate put the run on the typed tier, the card choice never replaces `confirm:<token>`.
 
 ## Custom Events And Webhooks
 
@@ -155,8 +178,8 @@ Both paths are runtime actions that can start every matching automation. Never u
 ### Custom events
 
 1. Require the exact user-defined `event_type` and a JSON-object payload. Never normalize or invent the name, and never fire core lifecycle/state events through this flow.
-2. Read `GET /api/events` for the total listener count. Scan readable automation configs for current event triggers (`trigger: event`) and legacy triggers (`platform: event`) with the same static `event_type`; apply any literal `event_data` filters to classify known matches. Templated event types and non-automation listeners are not safely enumerable — disclose that limit. This scan is the shared event-consumer pattern of `skills/ha-nova/consumer-discovery-preflight.md`.
-3. Inspect known matching automations for high-consequence actions. Preview the exact event type, payload fields, known matching automations, total listener count, unclassified-listener warning, and risk tier. Use natural bound confirmation unless the known impact reaches the high-consequence tier; then require `confirm:<token>`.
+2. Read `GET /api/events` for the total listener count. Scan readable automation configs for current event triggers (`trigger: event`) and legacy triggers (`platform: event`) with the same static `event_type`; apply any literal `event_data` filters to classify known matches. Templated event types and non-automation listeners (Node-RED, AppDaemon) are not safely enumerable — disclose that limit, and treat their presence the way the shared gate does: an unenumerable listener cannot be shown to be harmless, so the fire takes the typed `confirm:<token>` rather than natural confirmation (`skills/ha-nova/indirect-actuation.md`). This scan is the shared event-consumer pattern of `skills/ha-nova/consumer-discovery-preflight.md`.
+3. Inspect known matching automations for high-consequence actions. Preview the exact event type, payload fields, known matching automations, total listener count, unclassified-listener warning, and risk tier. Use natural bound confirmation only when EVERY listener was enumerable and none of them reaches the high-consequence tier. Any unenumerable listener, or a known high-consequence match, requires `confirm:<token>` — unknown impact is not low impact, and step 2 already established that an opaque listener cannot be shown to be harmless.
 4. Execute `POST /api/events/<event_type>` with the JSON object. A success response proves only that Home Assistant accepted the bus fire.
 5. For known matching automations, compare `last_triggered` or a new trace with the pre-call baseline using up to three reads over ten seconds. Never claim that every listener completed, and never repeat an event automatically after any timeout or transport error.
 
@@ -220,7 +243,8 @@ Previews are the runtime-action Preview Card (`apply · cancel`); results are th
 
 - No typed confirmation code needed for ordinary service calls; confirmation is still bound to the active preview.
 - **High-consequence runtime actions take the typed `confirm:<token>`** like a destructive write: unlocking or opening a lock, disarming an alarm panel, opening a garage door, gate, or entry-door cover. Check `device_class` and what the entity controls — a garage door exposed as `cover.*` belongs here, a living-room blind does not. These actions grant physical access; calling the opposite service afterwards does not undo the exposure window.
-- For potentially disruptive services (`homeassistant.restart`, `homeassistant.stop`), warn and ask for explicit post-preview confirmation.
+- The tier follows the performed action, not the called service: when the indirect actuation gate expanded a scene, automation, or script and any member grants physical access or is physically irreversible, the whole run takes the typed `confirm:<token>` — the same rule `ha-nova:scene` applies to its apply-test. A member that only locks, closes, or arms grants nothing and stays ordinary.
+- For potentially disruptive services (`homeassistant.restart`, `homeassistant.stop`, `hassio.host_reboot`, `hassio.host_shutdown`, `hassio.addon_start`, `hassio.addon_stop`, `hassio.addon_restart`, `siren.turn_on`), warn and ask for explicit post-preview confirmation. Restarting an App is not harmless: an MQTT or Z-Wave App takes every device it serves offline while it comes back. Disruptive is not the high-consequence tier: it interrupts, it neither grants physical access nor makes anything physically irreversible.
 
 ## Guardrails
 

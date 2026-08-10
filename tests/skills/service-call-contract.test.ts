@@ -19,6 +19,9 @@ const fallbackSkill = readFileSync(
   resolve(__dirname, "../../skills/fallback/SKILL.md"),
   "utf-8",
 );
+// Contract docs hard-wrap at ~72 columns, so a pinned sentence must not also
+// pin the column it happens to break at.
+const flat = (text: string): string => text.replace(/\s+/g, " ");
 const architecture = readFileSync(
   resolve(__dirname, "../../docs/reference/skill-architecture.md"),
   "utf-8",
@@ -159,6 +162,16 @@ describe("service call contract", () => {
       expect(skillDoc).toContain("`platform: event`");
       expect(skillDoc).toContain("literal `event_data` filters");
       expect(skillDoc).toContain("unclassified-listener warning");
+      // The direct fire path needs the same escalation as the stored event:
+      // action path — an opaque listener is opaque either way.
+      expect(flat(skillDoc)).toContain(
+        "an unenumerable listener cannot be shown to be harmless",
+      );
+      // The confirmation step must not downgrade what step 2 escalated.
+      expect(flat(skillDoc)).toContain(
+        "only when EVERY listener was enumerable",
+      );
+      expect(flat(skillDoc)).toContain("unknown impact is not low impact");
       expect(skillDoc).toContain("up to three reads over ten seconds");
       expect(skillDoc).toContain("never repeat an event automatically");
       expect(relayApi).toContain('"path":"/api/events/example_event"');

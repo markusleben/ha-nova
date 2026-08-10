@@ -70,7 +70,7 @@ Never instruct the physical action before the ready-check, and never claim monit
 ## Publishing Safety (read before any publish)
 
 - A **retained** message (`retain: true`) persists on the broker and is re-delivered to every future subscriber — including Home Assistant's discovery layer. A wrong retained payload on a `homeassistant/...` discovery topic can create or destroy entities and keeps doing so after a restart. Retained publishes therefore require the typed `confirm:<token>`, not natural confirmation.
-- Publishing to a device's `set`/command topic actuates real hardware. Preview it as an action, not as a message.
+- Publishing to a device's `set`/command topic actuates real hardware. Preview it as an action, not as a message — typed `confirm:<token>`, see Safety.
 - Clearing a retained message means publishing an EMPTY payload to the same topic with `retain: true` — say this explicitly when a retained message is the problem.
 
 ## Error Handling
