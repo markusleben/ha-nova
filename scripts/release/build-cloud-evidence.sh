@@ -6,9 +6,24 @@
 # gate"). Doing that by hand is ~20 steps across three machines, which is why
 # it kept being the thing that blocked a ready PR for days.
 #
-#   bash scripts/release/build-cloud-evidence.sh 541 --dry-run  # check readiness only
-#   bash scripts/release/build-cloud-evidence.sh 541            # build, print the envelope
-#   bash scripts/release/build-cloud-evidence.sh 541 --set      # ...and write the secret
+#   bash scripts/release/build-cloud-evidence.sh 541 --dry-run
+#   bash scripts/release/build-cloud-evidence.sh 541
+#   bash scripts/release/build-cloud-evidence.sh 541 --set \
+#     --carry "docs/tests-only delta, invalidation-map None row" \
+#     --relay-app "run 12345678 on 0.9.0"
+#
+# It fills in ONLY what it actually ran: `keyrings` (one real provenance check
+# per enabled platform) and `signing_and_update_matrix`. Every other boolean is
+# a MAINTAINER decision:
+#   --carry <reason>    the risk-scoped qualifications behind parity,
+#                       stress_10000, roles, domains_mfa, lifecycle,
+#                       redirects_non_disclosure and routing still apply to
+#                       this delta. Paste <reason> into the PR ledger.
+#   --relay-app <ref>   `installed_relay_app` is exact-target and is NEVER
+#                       carried forward (docs/releasing.md:345), so it needs a
+#                       reference to the verification that was actually done.
+# Without both, --set refuses. An envelope is an attestation, and this script
+# must not sign one for work nobody performed.
 #
 # It refuses rather than guesses: a platform it cannot reach, a bundle whose
 # identity does not match the run, or a provenance check that does not pass is
@@ -25,8 +40,16 @@
 # not, and this repo must not carry one maintainer's IP addresses.
 set -euo pipefail
 
-PR="${1:-}"
-MODE="${2:-}"
+PR="${1:-}"; shift || true
+MODE=""; CARRY=""; RELAY_APP=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --dry-run|--set) MODE="$1"; shift ;;
+    --carry) CARRY="${2:-}"; shift 2 ;;
+    --relay-app) RELAY_APP="${2:-}"; shift 2 ;;
+    *) echo "unknown option: $1" >&2; exit 1 ;;
+  esac
+done
 REPO="${HA_NOVA_REPO:-markusleben/ha-nova}"
 LINUX_SSH="${HA_NOVA_LINUX_SSH:-ai-machine}"
 WINDOWS_SSH="${HA_NOVA_WINDOWS_SSH:-ha-nova-win}"
@@ -52,7 +75,9 @@ merge_commit="$(jq -r '.merge_commit_sha // ""' <<<"$pr_json")"
 [ "$mergeable" = "true" ] || die "PR #$PR is not mergeable ($mergeable) — rebase first"
 [ -n "$merge_commit" ] || die "GitHub has not computed a merge commit for #$PR yet"
 
-git -C "$ROOT_DIR" fetch --quiet origin "refs/pull/$PR/merge:refs/cloud-evidence/$PR" 2>/dev/null \
+# Forced: this is our own scratch ref, and it must follow the PR as it moves.
+# Without the +, a second run on a changed PR fails instead of updating.
+git -C "$ROOT_DIR" fetch --quiet --force origin "+refs/pull/$PR/merge:refs/cloud-evidence/$PR" 2>/dev/null \
   || die "cannot fetch the synthetic merge ref for #$PR"
 target_commit="$(git -C "$ROOT_DIR" rev-parse "refs/cloud-evidence/$PR")"
 target_tree="$(git -C "$ROOT_DIR" rev-parse "refs/cloud-evidence/$PR^{tree}")"
@@ -254,23 +279,49 @@ done
 # ── 4. the envelope ──────────────────────────────────────────────────────────
 step "envelope"
 keyrings="$(for p in $platforms; do printf '{"%s":%s}' "$p" "${RESULT[$p]}"; done | jq -s 'add')"
+
+# Only two booleans below come from this run. The rest are the maintainer's
+# call, and the script refuses to invent them.
+if [ -n "$CARRY" ] && [ -n "$RELAY_APP" ]; then
+  carried=true
+else
+  carried=false
+fi
 envelope="$(jq -n \
   --arg commit "$target_commit" --arg tree "$target_tree" \
-  --arg relay "$relay_version" --argjson keyrings "$keyrings" '
+  --arg relay "$relay_version" --argjson keyrings "$keyrings" \
+  --argjson carried "$carried" '
   {
     schema: 2,
     commit_sha: $commit,
     tree_sha: $tree,
     relay_app: { version: $relay, source_commit: $commit, source_tree_sha: $tree },
     checks: {
-      parity: true, stress_10000: true, keyrings: $keyrings,
-      roles: true, domains_mfa: true, lifecycle: true,
-      redirects_non_disclosure: true, installed_relay_app: true,
-      routing: true, signing_and_update_matrix: true
+      parity: $carried, stress_10000: $carried, keyrings: $keyrings,
+      roles: $carried, domains_mfa: $carried, lifecycle: $carried,
+      redirects_non_disclosure: $carried, installed_relay_app: $carried,
+      routing: $carried, signing_and_update_matrix: true
     }
   }')"
 echo "$envelope" | jq .
+echo ""
+echo "  VERIFIED HERE: keyrings (one real provenance run per platform),"
+echo "                 signing_and_update_matrix (exact candidate signatures)."
+if [ "$carried" = true ]; then
+  echo "  CARRIED:       parity, stress_10000, roles, domains_mfa, lifecycle,"
+  echo "                 redirects_non_disclosure, routing"
+  echo "                 reason: $CARRY"
+  echo "  RELAY APP:     $RELAY_APP"
+  echo "                 (installed_relay_app is exact-target and never carried;"
+  echo "                  this reference must name a real verification)"
+else
+  echo "  NOT ATTESTED:  everything else is false. Pass --carry <reason> and"
+  echo "                 --relay-app <ref> once you have made those decisions."
+fi
 
+if [ "$MODE" = "--set" ] && [ "$carried" != true ]; then
+  die "refusing --set: the envelope would attest checks nobody verified. Supply --carry <reason> and --relay-app <ref>, or set the secret by hand."
+fi
 if [ "$MODE" = "--set" ]; then
   step "writing HA_NOVA_CLOUD_GATE_EVIDENCE_JSON to the production environment"
   gh secret set HA_NOVA_CLOUD_GATE_EVIDENCE_JSON --repo "$REPO" --env production --body "$envelope" \
