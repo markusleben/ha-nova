@@ -300,10 +300,10 @@ triggers:
     to: ["open", "closed", "opening", "closing"]
   # and a slow retry while it is still open past the deadline: a transient
   # close failure otherwise waits for a restart or the next day
-  - trigger: state
-    entity_id: valve.irrigation_lawn
-    to: "open"
-    for: "00:05:00"
+  # repeating, not once: a single five-minute trigger fires before the
+  # deadline, gets rejected by the condition, and never comes back
+  - trigger: time_pattern
+    minutes: "/5"
 conditions:
   # on the time path this is already true; on the startup path it catches a
   # deadline that passed while Home Assistant was off

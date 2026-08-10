@@ -234,11 +234,13 @@ describe("flows that cost the user extra turns (#527)", () => {
     expect(disco).toContain("`hvac_action` is PRESENT and is anything but `off`/`idle`");
     expect(disco).toContain("a paused or idle player is not off");
     expect(disco).toContain("the comfort domains that have their own off state");
+    expect(disco).toContain("a robot mid-clean, is");
+    expect(disco).toContain("an unreadable lock is not an unlocked one");
     // Off and running are different questions with different answers.
     expect(disco).toContain("what is RUNNING — a different question, and a narrower answer");
     expect(disco).toContain("`humidifier` in `on`");
     expect(disco).toContain("`media_player` only in `playing`/`buffering`");
-    expect(disco).toContain("`lock.*` NOT in state `locked`");
+    expect(disco).toContain("in a state that is neither `locked` NOR");
     expect(disco).toContain("that class reports `on` for UNLOCKED");
     expect(disco).toContain("the actuator is running and flow may continue");
     // The generic opening class is what many contact sensors report.
@@ -268,7 +270,7 @@ describe("flows that cost the user extra turns (#527)", () => {
     expect(patterns).toContain("wait for a KNOWN state");
     expect(patterns).toContain("continue_on_timeout: false");
     expect(patterns).toContain("bind the trigger to the usable state");
-    expect(patterns).toContain("slow retry while it is still open past the deadline");
+    expect(patterns).toContain("repeating, not once: a single five-minute trigger fires before the");
     expect(patterns).toContain("leave the automation armed so the");
     expect(patterns).toContain("wait_template");
   });
