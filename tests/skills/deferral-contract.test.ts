@@ -103,6 +103,7 @@ describe("owning-skill deferrals and lifecycle paths (#513)", () => {
     expect(doc).toContain("The Supervisor API is NOT reachable from here");
     // unique_id is a registry field; entity_picture is mutable state.
     expect(doc).toContain("returns `unique_id` `<slug>_version_latest`");
+    expect(doc).toContain("do not pick one: list the candidates with their slugs and ask");
     expect(doc).toContain("must NOT be used");
     expect(doc).toContain("App state cannot be verified from here");
     expect(doc).toContain("Never infer success from the service call returning");
