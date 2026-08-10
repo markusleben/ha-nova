@@ -285,19 +285,19 @@ done
 
 # ── 4. the envelope ──────────────────────────────────────────────────────────
 step "envelope"
-# Every platform above passed, which is what backs `signing_and_update_matrix`.
-# `keyrings` is a DIFFERENT contract — native secret storage — so it is carried
-# like the others, never derived from a provenance run.
-keyrings="$(for p in $platforms; do printf '{"%s":%s}' "$p" "$carried_early"; done | jq -s 'add')"
-
-# Only two booleans below come from this run. The rest are the maintainer's
-# call, and the script refuses to invent them.
+# Decide `carried` FIRST: the keyrings object below expands it, and under
+# `set -u` an unset variable aborts here — after every provenance run has
+# already been paid for.
 if [ -n "$CARRY" ] && [ -n "$RELAY_APP" ]; then
   carried=true
 else
   carried=false
 fi
-carried_early="$carried"
+# Every platform above passed, which is what backs `signing_and_update_matrix`.
+# `keyrings` is a DIFFERENT contract — native secret storage — so it is carried
+# like the others, never derived from a provenance run.
+keyrings="$(for p in $platforms; do printf '{"%s":%s}' "$p" "$carried"; done | jq -s 'add')"
+
 envelope="$(jq -n \
   --arg commit "$target_commit" --arg tree "$target_tree" \
   --arg relay "$relay_version" --argjson keyrings "$keyrings" \
