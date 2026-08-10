@@ -97,7 +97,8 @@ Then:
   that are not enumerable (templated event types, non-automation consumers
   such as Node-RED or AppDaemon) cannot be judged access-capable or not, so
   their presence escalates the run on its own — see the exceptions below.
-- A targetless reload has NO target, and two families qualify: the
+- A targetless reload has NO target, and two families qualify — both enter the
+  gate, exactly like a write to a single trigger source: the
   trigger-source helpers (`schedule.reload`, `input_*.reload`,
   `counter.reload`, `timer.reload`) and the STATE sources whose reload can
   move a sensor value an automation watches (`template.reload`, `rest.reload`,
@@ -186,8 +187,9 @@ provides none, so its scenes stay ordinary with the gap named; a
 general-purpose platform like SmartThings usually does. A
 scene on the `homeassistant` platform is user-authored; if it also has no
 readable config (a YAML scene declared without an `id:`), then its members are
-arbitrary and unknown, and it escalates. This instance has 42 scenes, all
-integration-owned, which is why the ordinary path has to stay reachable.
+arbitrary and unknown, and it escalates. Most homes have far more
+integration-owned scenes than hand-written ones, which is why the ordinary
+path has to stay reachable rather than escalating every unreadable scene.
 
 Two exceptions come first, because they are not really unknowns.
 

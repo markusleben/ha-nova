@@ -236,6 +236,9 @@ describe("indirect actuation and tier classification (#513)", () => {
   it("does not let a targetless reload skip the scan for lack of a target", () => {
     const gate = flat(indirectActuation);
     expect(gate).toContain("A targetless reload has NO target, and two families qualify");
+    expect(gate).toContain("both enter the gate, exactly like a write to a single trigger source");
+    // No instance-specific inventory in executable guidance.
+    expect(gate).not.toContain("This instance has 42 scenes");
     expect(gate).toContain("`template.reload`, `rest.reload`");
     expect(gate).toContain("Its effect set is every entity of that domain");
     expect(gate).toContain('"No target" is not evidence of no impact');
@@ -267,6 +270,7 @@ describe("indirect actuation and tier classification (#513)", () => {
     expect(doc).toContain("Entering the gate is not the same as being a run");
     expect(doc).toContain("`homeassistant.turn_off` always stops");
     expect(doc).toContain("`toggle` is the one the state decides");
+    expect(doc).toContain("UNLESS the script is already running in `mode: single`");
     // The Flow entry must not pre-classify the alias as a run.
     expect(doc).not.toContain("on `script.open_door` is a script run");
   });
