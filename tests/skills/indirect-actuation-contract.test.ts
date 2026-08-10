@@ -55,8 +55,11 @@ describe("indirect actuation and tier classification (#513)", () => {
       expect(gate).toContain("Only an actual run expands members");
       expect(gate).toContain("enabling or disabling an AUTOMATION");
       expect(gate).toContain("`automation.trigger` is the one that runs it");
-      // A toggle on a RUNNING script stops it; on an idle one it starts it.
-      expect(gate).toContain("on a script that is currently running (state `on`): that stops it");
+      // The observed running state must NOT lower the tier: a mode: single
+      // script that is busy at preview time can finish while the confirmation
+      // waits, and then the call that "runs nothing" runs everything.
+      expect(gate).toContain("a script's RUNNING state never lowers the tier");
+      expect(gate).toContain("that observation expires");
       // Helper domains exist to drive automations; a counter crossing a
       // threshold is a trigger like any other.
       for (const helper of ["`counter`", "`timer`", "`schedule`", "`input_number`"]) {
@@ -270,20 +273,22 @@ describe("indirect actuation and tier classification (#513)", () => {
     expect(doc).toContain("the only accepted answer is the exact `confirm:<token>`");
     expect(doc).toContain("including when the tier came from an EXPANDED member");
   });
-  it("lets the read state, not the alias, decide whether a call is a run", () => {
+  it("never lets a preview-time state lower the tier", () => {
     const doc = flat(skillDoc);
     expect(doc).toContain("Entering the gate is not the same as being a run");
-    expect(doc).toContain("`homeassistant.turn_off` always stops");
-    expect(doc).toContain("`toggle` is the one the state decides");
-    expect(doc).toContain("UNLESS the script is already running in `mode: single`");
-    expect(flat(indirectActuation)).toContain("the direct service is not exempt");
-    // A tier that depends on a live state has to be re-checked at apply time.
-    expect(flat(indirectActuation)).toContain("the gate's whole conclusion is re-checked at apply time");
-    expect(flat(indirectActuation)).toContain("a script edited during the pause has different members");
+    // A stop is the ONE alias no timing can turn into a start, so it is the
+    // one that may skip expansion.
+    expect(doc).toContain("`homeassistant.turn_off` always stops and expands nothing");
+    expect(doc).toContain("Everything that MAY start a script");
+    expect(doc).toContain("expands and classifies regardless of the observed state");
+    expect(flat(indirectActuation)).toContain("Only a pure stop (`turn_off`) expands nothing");
+    // The apply-time re-check stays, but it is no longer what keeps the tier
+    // honest — it cannot be, because it lands after the confirmation.
+    expect(flat(indirectActuation)).toContain("re-checked at apply time");
     expect(flat(indirectActuation)).toContain("AND the consumer scan itself");
     expect(flat(indirectActuation)).toContain("cannot discover one that did not exist yet");
     expect(flat(indirectActuation)).toContain("the gate's verdict is part of what was shown");
-    expect(flat(indirectActuation)).toContain("EVERY spelling of a start");
+    expect(flat(indirectActuation)).toContain("Every spelling that may start one");
     // The Flow entry must not pre-classify the alias as a run.
     expect(doc).not.toContain("on `script.open_door` is a script run");
   });

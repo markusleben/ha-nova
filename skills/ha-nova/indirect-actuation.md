@@ -48,24 +48,20 @@ something contradicts the performed-action rule:
 - enabling or disabling an AUTOMATION: `automation.turn_on|turn_off|toggle`
   and their `homeassistant.*` aliases only flip whether it may fire later;
   `automation.trigger` is the one that runs it
-- `script.toggle` or `homeassistant.toggle` on a script that is currently
-  running (state `on`): that stops it. And EVERY spelling of a start —
-  `script.<script_id>`, `script.turn_on`, `homeassistant.turn_on` — runs
-  nothing when the script is already running in `mode: single`, because Home
-  Assistant rejects the overlapping call: no run, no members, ordinary tier.
-  Read `state` and `mode` together; the direct service is not exempt. But that
-  tier rests on a state that can change while the confirmation waits: if the
-  script finishes during the pause, the same call becomes a real run. So the gate's whole
-  conclusion is re-checked at apply time, not just this one state: re-read the
-  member configs you expanded, the state you keyed on, AND the consumer scan
-  itself — a helper can gain a new listener during the pause, and re-reading
-  only what you already found cannot discover one that did not exist yet. because a script
-  edited during the pause has different members and a script that has since
-  stopped is now a real run. Any change re-previews at the tier the new facts
-  deserve. This is the same rule the write flow applies to payloads — a
-  confirmation binds to what was shown, and the gate's verdict is part of
-  what was shown. Read the state first — the same call on
-  an idle script starts it and does expand members.
+- a script's RUNNING state never lowers the tier. Every spelling that may
+  start one — `script.<script_id>`, `script.turn_on`, `homeassistant.turn_on`,
+  and either `toggle` — expands and classifies its members, whatever the state
+  read showed. Home Assistant does reject an overlapping call on `mode: single`,
+  but that observation expires: a script running at preview time can finish
+  while the confirmation waits, and then the call that "runs nothing" runs
+  everything, including a `lock.unlock` nobody listed. Only a pure stop
+  (`turn_off`) expands nothing, because no timing turns a stop into a start.
+- the gate's conclusion is still re-checked at apply time — member configs, AND
+  the consumer scan itself, since a helper can gain a listener during the pause
+  and re-reading only what you already found cannot discover one that did not
+  exist yet. Any change re-previews at the tier the new facts deserve. A
+  confirmation binds to what was shown, and the gate's verdict is part of what
+  was shown.
 
 By service name, the gate also covers:
 
