@@ -36,7 +36,7 @@ describe("indirect actuation and tier classification (#513)", () => {
       // the shared gate document, checked below.
       for (const trigger of [
         "decided by the TARGET, not the service name",
-        "any call whose target is in `scene`, `script`, or `automation`",
+        "any call whose target is in `scene`, `script`, `automation`, or a legacy `group`",
         "including `scene.apply`, which names its entities in an `entities` map",
         "`homeassistant.turn_on`/`turn_off`/`toggle` on `script.open_door` reaches it too",
         "`input_button.press` and `button.press`",
