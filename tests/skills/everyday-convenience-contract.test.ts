@@ -308,8 +308,28 @@ describe("flows that cost the user extra turns (#527)", () => {
     // Scan the WHOLE text, not just quoted fragments — German arrives in
     // prose and in code comments too. Entity ids are the documented
     // exception, so strip code spans that look like one before matching.
+    // A finite keyword list fails on the first word nobody thought of.
+    // German FUNCTION words are a closed class and are what actually makes a
+    // sentence German — content words alone ("Stehlampe" as an entity name)
+    // are fine and are covered by the entity-id exemption. Two distinct
+    // unambiguous markers on one line, or German-specific orthography, is
+    // German; one marker is not, because several of these are also English
+    // words ("die", "an", "in", "war", "so", "man").
+    // A finite "bad word" list fails on the first word nobody thought of, so
+    // this keys on the closed class that actually makes a sentence German:
+    // function words plus the household nouns these skills use as examples.
+    // Every entry is checked to be a non-word in English — an ambiguity tier
+    // ("die", "an", "in", "so", "was") was tried and dropped: ordinary English
+    // prose carries three of those per sentence, so it only produced noise.
     const GERMAN =
-      /\b(stehlampe|lampe|fenster|k(ü|ue)che|wohnzimmer|schlafzimmer|t(ü|ue)r|einmalig|heller|dunkler|w(ä|ae)rmer|k(ä|ae)lter|bitte|etwas|schon|heute|gestern|nacht|passiert|warum|wieviel|nichts|immer|mach|zeig|schalte|dimme|sind|wird|werden|kein|nur heute|und|oder|nicht|auch|aber|sehr|mehr)\b/i;
+      /\b(der|das|den|dem|des|ein|eine|einen|einem|einer|eines|ist|sind|wird|werden|nicht|kein\w*|und|oder|aber|für|von|zum|zur|vom|beim|ins|im|aus|nach|über|unter|ich|du|wir|sich|mich|dich|euch|dass|weil|wenn|wie|wer|warum|hier|dort|jetzt|dann|noch|schon|auch|nur|sehr|mehr|alle|etwas|nichts|immer|bitte|heute|gestern|mach|zeig|schalte|dimme|soll|kann|muss|hat|haben|gibt|Lampe|Licht|Fenster|Tür|Küche|Wohnzimmer|Schlafzimmer|Stehlampe|Heizung|Rollladen|Steckdose)\b/i;
+    // ß or an umlaut inside a WORD is German orthography outright. A lone
+    // character in backticks is documentation ABOUT umlauts — the diacritics
+    // guidance in entity-discovery legitimately shows `ü` and `ö`.
+    const ORTHOGRAPHY =
+      /[A-Za-zÄÖÜäöüß]*[ßäöüÄÖÜ][A-Za-zÄÖÜäöüß]{2,}|[A-Za-zÄÖÜäöüß]{2,}[ßäöüÄÖÜ][A-Za-zÄÖÜäöüß]*/;
+    const isGerman = (text: string): string | null =>
+      ORTHOGRAPHY.exec(text)?.[0] ?? GERMAN.exec(text)?.[0] ?? null;
     const offenders: string[] = [];
     const walk = (dir: string): void => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -329,8 +349,8 @@ describe("flows that cost the user extra turns (#527)", () => {
                 /`[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z0-9_]+)+`/g,
                 " ",
               );
-              const hit = GERMAN.exec(prose);
-              if (hit) offenders.push(`${path}:${i + 1} "${hit[0]}" in ${prose.trim().slice(0, 80)}`);
+              const hit = isGerman(prose);
+              if (hit) offenders.push(`${path}:${i + 1} "${hit}" in ${prose.trim().slice(0, 80)}`);
             });
         }
       }
