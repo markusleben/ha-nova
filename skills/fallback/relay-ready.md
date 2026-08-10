@@ -85,8 +85,13 @@ envelope with `UNSUPPORTED_WS_TYPE`.
 Resolve the event type from the button's own integration first — it is not one
 value. ZHA fires `zha_event`, Z-Wave JS `zwave_js_value_notification`, deCONZ
 `deconz_event`, and a modern `event.*` entity fires no bus event at
-all. Read the entity's `platform` from the registry and pick accordingly; listening for the wrong type produces an empty window that looks
-like "nothing was pressed".
+all. Read the entity's `platform` from the registry and pick accordingly. A remote
+with no entity at all — only a device-registry row — has no `platform` to
+read: take it from that device's `identifiers`/`config_entries` instead, and
+if that still does not settle it, ASK which integration the remote belongs to
+rather than guessing an event type. A guess produces an empty window that
+reads as "nothing was pressed"; listening for the wrong type produces the same
+false negative.
 
 For an `event.*` entity there is no bus event to subscribe to, so watch the
 entity instead — same envelope, different message:

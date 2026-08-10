@@ -254,6 +254,9 @@ describe("ha-api-matrix lists the surfaces skills actually pin (#517)", () => {
     // A button's event type is per-integration; a shared device is detached,
     // not deleted.
     expect(fallbackAll).toContain("Resolve the event type from the button's own integration first");
+    // An entity-less remote has no platform to read.
+    expect(fallbackAll).toContain("has no `platform` to read");
+    expect(fallbackAll).toContain("ASK which integration the remote belongs to");
     expect(fallbackAll).toContain("a modern `event.*` entity fires no bus event at");
     // Naming the exception is not enough without the payload for it.
     expect(fallbackAll).toContain('"type": "subscribe_trigger"');
