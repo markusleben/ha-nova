@@ -12,11 +12,14 @@
 #     --carry "docs/tests-only delta, invalidation-map None row" \
 #     --relay-app "run 12345678 on 0.9.0"
 #
-# It fills in ONLY what it actually ran: `keyrings` (one real provenance check
-# per enabled platform) and `signing_and_update_matrix`. Every other boolean is
-# a MAINTAINER decision:
+# It fills in ONLY what it actually ran: `signing_and_update_matrix`, backed by
+# one real `internal-cloud-release-check` per enabled platform. That command
+# proves the signed bundle and binary provenance; it does NOT exercise native
+# secret storage, so it is no evidence for `keyrings`, which needs real
+# happy-path and fail-closed behaviour per OS (docs/releasing.md:313-316).
+# Every other boolean is a MAINTAINER decision:
 #   --carry <reason>    the risk-scoped qualifications behind parity,
-#                       stress_10000, roles, domains_mfa, lifecycle,
+#                       stress_10000, keyrings, roles, domains_mfa, lifecycle,
 #                       redirects_non_disclosure and routing still apply to
 #                       this delta. Paste <reason> into the PR ledger.
 #   --relay-app <ref>   `installed_relay_app` is exact-target and is NEVER
@@ -205,8 +208,14 @@ provenance_unix() {  # <label> <archive> <ssh-host|"">
       || die "$label: cannot copy the bundle to $host"
     # `bash -s` has no $0 slot: arguments land on $1 directly, unlike the
     # `bash -c "$script" _ "$archive"` form used for the local run.
-    ssh -o BatchMode=yes "$host" "bash -s ha-nova-candidate.tar.gz" <<<"$script" >"$work/$label.out" 2>&1
+    local status=0
+    ssh -o BatchMode=yes "$host" "bash -s ha-nova-candidate.tar.gz" <<<"$script" \
+      >"$work/$label.out" 2>&1 || status=$?
+    # Capture BEFORE cleaning up. Called in an `|| die` list, errexit is off in
+    # here, so a cleanup that succeeds would otherwise become the function's
+    # status and a failed provenance run would read as a pass.
     ssh -o BatchMode=yes "$host" "rm -f ha-nova-candidate.tar.gz" >/dev/null 2>&1 || true
+    return $status
   fi
 }
 
@@ -231,14 +240,13 @@ if (\$LASTEXITCODE -ne 0) { throw 'provenance check failed' }
 Remove-Item -Recurse -Force \$d"
   encoded="$(printf '%s' "$ps" | iconv -f UTF-8 -t UTF-16LE | base64 | tr -d '\n')"
   local shell="${HA_NOVA_WINDOWS_PWSH:-powershell}"
+  local status=0
   ssh -o BatchMode=yes "$WINDOWS_SSH" "$shell -NoProfile -EncodedCommand $encoded" \
-    >"$work/windows.out" 2>&1
-  local status=$?
+    >"$work/windows.out" 2>&1 || status=$?
   ssh -o BatchMode=yes "$WINDOWS_SSH" 'cmd /c "del ha-nova-candidate.zip"' >/dev/null 2>&1 || true
   return $status
 }
 
-declare -A RESULT
 for platform in $platforms; do
   case "$platform" in
     darwin)
@@ -272,13 +280,15 @@ for platform in $platforms; do
   extract_manifest "$work/$platform.out" >"$work/$platform.bundle.json"
   check_identity "$work/$platform.bundle.json" \
     || die "$platform: bundle identity does not match the target tree"
-  RESULT[$platform]=true
   echo "  ✓ $platform"
 done
 
 # ── 4. the envelope ──────────────────────────────────────────────────────────
 step "envelope"
-keyrings="$(for p in $platforms; do printf '{"%s":%s}' "$p" "${RESULT[$p]}"; done | jq -s 'add')"
+# Every platform above passed, which is what backs `signing_and_update_matrix`.
+# `keyrings` is a DIFFERENT contract — native secret storage — so it is carried
+# like the others, never derived from a provenance run.
+keyrings="$(for p in $platforms; do printf '{"%s":%s}' "$p" "$carried_early"; done | jq -s 'add')"
 
 # Only two booleans below come from this run. The rest are the maintainer's
 # call, and the script refuses to invent them.
@@ -287,6 +297,7 @@ if [ -n "$CARRY" ] && [ -n "$RELAY_APP" ]; then
 else
   carried=false
 fi
+carried_early="$carried"
 envelope="$(jq -n \
   --arg commit "$target_commit" --arg tree "$target_tree" \
   --arg relay "$relay_version" --argjson keyrings "$keyrings" \
@@ -305,11 +316,14 @@ envelope="$(jq -n \
   }')"
 echo "$envelope" | jq .
 echo ""
-echo "  VERIFIED HERE: keyrings (one real provenance run per platform),"
-echo "                 signing_and_update_matrix (exact candidate signatures)."
+echo "  VERIFIED HERE: signing_and_update_matrix — one real"
+echo "                 internal-cloud-release-check per enabled platform"
+echo "                 ($(tr '\n' ' ' <<<"$platforms")), each from an installed layout."
 if [ "$carried" = true ]; then
-  echo "  CARRIED:       parity, stress_10000, roles, domains_mfa, lifecycle,"
-  echo "                 redirects_non_disclosure, routing"
+  echo "  CARRIED:       parity, stress_10000, keyrings, roles, domains_mfa,"
+  echo "                 lifecycle, redirects_non_disclosure, routing"
+  echo "                 (keyrings is native-secret behaviour per OS — the"
+  echo "                  provenance runs above are NOT evidence for it)"
   echo "                 reason: $CARRY"
   echo "  RELAY APP:     $RELAY_APP"
   echo "                 (installed_relay_app is exact-target and never carried;"
