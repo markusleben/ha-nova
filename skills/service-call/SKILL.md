@@ -42,6 +42,7 @@ Use file-based payloads for service writes:
 
 | Service(s) | Owning skill |
 |---|---|
+| ANY call bounded by a duration ("for 30 minutes", "for an hour", "until 18:00") | `ha-nova:write` — the turn-on is a service call, the turn-off needs an automation, and splitting them loses the pairing |
 | `mqtt.publish` | `ha-nova:mqtt` |
 | `update.install` / `update.skip` / `update.clear_skipped` | `ha-nova:updates` |
 | `camera.snapshot` / `camera.record` | `ha-nova:camera` |

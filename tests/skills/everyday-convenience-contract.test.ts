@@ -12,10 +12,10 @@ const read = (p: string): string =>
 const flat = (text: string): string => text.replace(/\s+/g, " ");
 
 describe("one-shot and temporary automations (#527)", () => {
-  const patterns = read("skills/ha-nova/automation-patterns.md");
+  const patterns = (read("skills/ha-nova/automation-patterns.md") + "\n" + read("skills/ha-nova/one-shot-automations.md"));
 
   it("gives the self-disabling pattern a home and says why it beats a delay", () => {
-    expect(patterns).toContain("## One-Shot And Temporary Automations");
+    expect(patterns).toContain("one-shot-automations.md");
     expect(patterns).toContain("action: automation.turn_off");
     expect(patterns).toContain("{{ this.entity_id }}");
     // A long delay does not survive a restart; disabling does.
@@ -42,7 +42,7 @@ describe("one-shot and temporary automations (#527)", () => {
 
   it("routes the intent from the write flow", () => {
     expect(flat(read("skills/write/SKILL.md"))).toContain(
-      "One-Shot And Temporary Automations",
+      "one-shot-automations.md",
     );
     expect(flat(read("skills/write/SKILL.md"))).toContain(
       "skips unsolicited improvement offers",
@@ -59,12 +59,12 @@ describe("state-snapshot questions have an owner (#527)", () => {
       "`ha-nova:health` answers what is broken, not what is on",
     );
     expect(discovery).toContain("/api/states");
-    expect(discovery).toContain('`device_class` `window`/`door`/`garage_door`');
+    expect(discovery).toContain('`window`/`door`/`garage_door`/`opening`');
     // A motorized window or garage door is a cover; checking only
     // binary_sensor answers "is anything open?" wrong.
-    expect(flat(discovery)).toContain('AND `cover.*` in state `open`/`opening`/`closing`');
+    expect(flat(discovery)).toContain('AND `cover.*` in `open`/`opening`/`closing`');
     // person STATE reads land here; person CRUD stays with admin.
-    expect(flat(discovery)).toContain("this skill owns person STATE reads");
+    expect(flat(discovery)).toContain("This skill owns person STATE reads");
   });
 
   it("distinguishes a summary from the domain dump it still bans", () => {
@@ -145,7 +145,7 @@ describe("flows that cost the user extra turns (#527)", () => {
   });
 
   it("makes the one-shot disable survive a failing action", () => {
-    const p = flat(read("skills/ha-nova/automation-patterns.md"));
+    const p = flat((read("skills/ha-nova/automation-patterns.md") + "\n" + read("skills/ha-nova/one-shot-automations.md")));
     // HA aborts the sequence on an error, so a trailing disable never runs and
     // the one-shot stays armed for the next matching transition.
     expect(p).toContain("Disable FIRST, act second");
@@ -163,7 +163,7 @@ describe("flows that cost the user extra turns (#527)", () => {
     expect(flat(read("skills/ha-nova/SKILL.md"))).toContain(
       "do something FOR a duration",
     );
-    const patterns = flat(read("skills/ha-nova/automation-patterns.md"));
+    const patterns = flat((read("skills/ha-nova/automation-patterns.md") + "\n" + read("skills/ha-nova/one-shot-automations.md")));
     expect(patterns).toContain("is a WRITE, not a service call");
     // Routing it to write is only correct if write also does the NOW half.
     // Order is the safety property: a failed automation write must leave
@@ -174,7 +174,7 @@ describe("flows that cost the user extra turns (#527)", () => {
     // write has to perform the immediate half, not describe it.
     expect(flat(read("skills/write/SKILL.md"))).toContain("Duration requests carry an immediate action too");
     expect(flat(read("skills/write/SKILL.md"))).toContain("Never hand the immediate half back to the user as a separate step");
-    expect(patterns).toContain("skip the restore when it no longer matches");
+    expect(patterns).toContain("A SAFETY-direction counter-action (close, turn off) never skips");
     // A confirmation that arrives after the deadline would strand the device.
     expect(patterns).toContain("Check the deadline again at that moment");
     expect(patterns).toContain("the device then starts with nothing left to stop it");
@@ -198,7 +198,7 @@ describe("flows that cost the user extra turns (#527)", () => {
   });
 
   it("keeps the typed tier on a timed action that grants access", () => {
-    const patterns = flat(read("skills/ha-nova/automation-patterns.md"));
+    const patterns = flat((read("skills/ha-nova/automation-patterns.md") + "\n" + read("skills/ha-nova/one-shot-automations.md")));
     // A duration does not soften the first half: the door is open the whole
     // window, so the auto re-lock is not a mitigation.
     expect(patterns).toContain("the one preview still takes the typed `confirm:<token>`");
@@ -221,7 +221,7 @@ describe("flows that cost the user extra turns (#527)", () => {
   });
 
   it("restores the prior value, not off, for a duration that has one", () => {
-    const patterns = flat(read("skills/ha-nova/automation-patterns.md"));
+    const patterns = flat((read("skills/ha-nova/automation-patterns.md") + "\n" + read("skills/ha-nova/one-shot-automations.md")));
     // "18 °C for an hour" must go back to the previous setpoint.
     expect(patterns).toContain('"For a duration" does not always mean "then turn it off"');
     expect(patterns).toContain("capture the CURRENT value of every attribute the first half changes");
@@ -232,24 +232,24 @@ describe("flows that cost the user extra turns (#527)", () => {
   it("counts every kind of running, and every unsecured lock", () => {
     const disco = flat(read("skills/entity-discovery/SKILL.md"));
     // A heat pump running is "running"; a jammed lock is not "locked".
-    expect(disco).toContain("the domains whose \"running\" is not `on`");
-    expect(disco).toContain("`hvac_action` is PRESENT and is anything but `off`/`idle`");
-    expect(disco).toContain("a paused or idle player is not off");
-    expect(disco).toContain("the comfort domains that have their own off state");
-    expect(disco).toContain("a paused job is not a finished one");
-    expect(disco).toContain("never `unknown`/`unavailable`, which");
-    expect(disco).toContain("an unreadable lock is not an unlocked one");
+    expect(disco).toContain("everything in it is also in OFF above");
+    expect(disco).toContain("`hvac_action` is PRESENT and not `off`/`idle`");
+    expect(disco).toContain("paused and idle are not off");
+    expect(disco).toContain("`climate`/`water_heater`/`humidifier` in any state but `off`");
+    expect(disco).toContain("`cleaning`/`mowing`/`returning`/`paused`/`error`");
+    expect(disco).toContain("Three answers, not two");
+    expect(disco).toContain("not `unavailable`/`unknown`");
     // Off and running are different questions with different answers.
-    expect(disco).toContain("what is RUNNING — a different question, and a narrower answer");
-    expect(disco).toContain("`humidifier` in `on`");
+    expect(disco).toContain("what is RUNNING");
+    expect(disco).toContain("`attributes.action`");
     expect(disco).toContain("`media_player` only in `playing`/`buffering`");
-    expect(disco).toContain("in a state that is neither `locked` NOR");
-    expect(disco).toContain("that class reports `on` for UNLOCKED");
-    expect(disco).toContain("the actuator is running and flow may continue");
-    expect(disco).toContain("a cover simply left open is not running");
+    expect(disco).toContain("any state that is not `locked` and not");
+    expect(disco).toContain("reports `on` for UNLOCKED");
+    expect(disco).toContain("a motor turning is running, a cover left open is not");
+    expect(disco).toContain("a motor turning is running, a cover left open is not");
     // The generic opening class is what many contact sensors report.
-    expect(disco).toContain("`opening` (the generic contact class many integrations use)");
-    expect(disco).toContain("rather than flattening them all to \"unlocked\"");
+    expect(disco).toContain("`opening` (the generic contact class)");
+    expect(disco).toContain("Name the state each one is in");
   });
 
   it("re-reads presence immediately before a household send", () => {
@@ -268,7 +268,7 @@ describe("flows that cost the user extra turns (#527)", () => {
   });
 
   it("waits for the safe state before disabling the retry", () => {
-    const patterns = flat(read("skills/ha-nova/automation-patterns.md"));
+    const patterns = flat((read("skills/ha-nova/automation-patterns.md") + "\n" + read("skills/ha-nova/one-shot-automations.md")));
     expect(patterns).toContain("HA accepting the call is not the device having closed, so confirm the");
     expect(patterns).toContain("the integration may not have the entity yet");
     expect(patterns).toContain("wait for a KNOWN state");
@@ -281,11 +281,11 @@ describe("flows that cost the user extra turns (#527)", () => {
 
   it("reports unreadable openings instead of counting them as closed", () => {
     const disco = flat(read("skills/entity-discovery/SKILL.md"));
-    expect(disco).toContain("is neither open nor closed");
-    expect(disco).toContain("a cover mid-close is still open");
-    expect(disco).toContain("`garage` (not the binary-sensor's `garage_door`)");
+    expect(disco).toContain("Three answers, not two");
+    expect(disco).toContain("mid-close is still open");
+    expect(disco).toContain("`garage` — not the binary sensor's `garage_door`");
     expect(disco).toContain("none open, 3 could not be read");
-    expect(disco).toContain("never count `unknown` or `unavailable` as running");
+    expect(disco).toContain("An ABSENT action attribute is the third bucket too");
   });
 
   it("routes a state snapshot to entity-discovery, not health", () => {
@@ -295,7 +295,7 @@ describe("flows that cost the user extra turns (#527)", () => {
   });
 
   it("only clears the one-shot at startup once the deadline has passed", () => {
-    const p = flat(read("skills/ha-nova/automation-patterns.md"));
+    const p = flat((read("skills/ha-nova/automation-patterns.md") + "\n" + read("skills/ha-nova/one-shot-automations.md")));
     expect(p).toContain("would disable a one-shot that still has the evening to fire");
     expect(p).toContain("after the deadline and must not count");
     expect(p).toContain("the expiry arm must ALSO be scoped to its own triggers");

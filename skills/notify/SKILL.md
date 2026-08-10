@@ -124,6 +124,6 @@ Render the Report shape (output-rules.md): the resolved target, the sent title/m
 
 ## Guardrails
 
-- One target per send unless the user explicitly asks for a group; then show the full member list in the preview.
+- One target per send unless the user explicitly asks for a group, or the recipients come from presence routing ("tell whoever is home") — in both cases show the full resolved member list in the preview.
 - Never invent device names, `tag` values, or action ids.
 - Do not claim delivery — only acceptance.

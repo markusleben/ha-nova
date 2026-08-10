@@ -116,7 +116,7 @@ const WORD_BUDGETS: Record<string, number> = {
   // Codex round 3: a motorized window or garage door is a cover, so an
   // open-state snapshot that reads only binary_sensor answers wrong
   // (measured 1374).
-  "entity-discovery": 1900,
+  "entity-discovery": 2100,
   // Presence-conditional recipient resolution; Codex round 1 required real
   // /api/services discovery instead of deriving a notify service name from
   // tracker ids, which prove no association (#527, measured 1264).
@@ -143,7 +143,7 @@ const WORD_BUDGETS: Record<string, number> = {
   // setters (Codex round 6). Merge-train combination with the #483 receipt
   // lines and the #452 draft rule (measured 2182).
   // One-shot intent routing to the self-disabling pattern (#527, 2221).
-  write: 2400,
+  write: 2600,
   // HACS lifecycle: schema guard, reconcile loops, consumer discovery,
   // migration backup gate, category-appropriate verification (#478);
   // review rounds added pin-durability branches, the uninstall apply

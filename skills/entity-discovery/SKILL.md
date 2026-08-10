@@ -1,6 +1,6 @@
 ---
 name: entity-discovery
-description: Use when searching or resolving Home Assistant entities by name, room, or domain through HA NOVA Relay.
+description: Use when searching or resolving Home Assistant entities by name, room, or domain through HA NOVA Relay, and live state snapshots across a domain — what is open, on, running, locked, who is home.
 license: MIT
 compatibility: Requires the ha-nova CLI (run 'ha-nova setup' first) and the HA NOVA Relay in Home Assistant (App, or standalone container on Container/Core).
 ---
@@ -145,47 +145,73 @@ then filter by domain plus `device_class` and state:
  | {e: .entity_id, n: .attributes.friendly_name}]
 ```
 
-- open windows/doors: `binary_sensor` with `device_class` `window`/`door`/`garage_door`/`opening` (the generic contact class many integrations use), state `on` — AND `cover.*` in state `open`/`opening`/`closing` — a cover mid-close is still
-  open — with the COVER device classes, which are named differently:
-  `garage` (not the binary-sensor's `garage_door`), plus `door`, `window`,
-  `gate`. A motorized window or garage door is a cover, not a binary_sensor, so checking one family answers "is anything open?" wrong
-- who is home: `person.*` with state `home` (this skill owns person STATE reads;
-  `ha-nova:admin` owns creating and editing them)
-- what is ON — the question "is everything off?" asks: `light`/`switch`/`fan`
-  with state `on`, `media_player` in any state other than
-  `off`/`unavailable`/`unknown` (a paused or idle player is not off), and the
-  comfort domains that have their own off state: `climate`, `water_heater` and
-  `humidifier` in any state but `off`/`unavailable`/`unknown`, `vacuum` in
-  `cleaning`/`returning`/`paused` (a paused job is not a finished one),
-  `valve` in `open`/`opening`/`closing` — never `unknown`/`unavailable`, which
-  join the could-not-read count — and `cover` in `opening`/`closing` — a thermostat still heating, an open valve, or a robot
-  mid-clean is
-  the clearest possible no to "is everything off?", while an unreachable one is
-  not a yes either: it joins the could-not-read count
-- what is RUNNING — a different question, and a narrower answer: the same
-  lights, switches and fans, but `media_player` only in `playing`/`buffering`,
-  AND the domains whose "running" is not `on`: `vacuum` in `cleaning`/
-  `returning`, `climate` whose `hvac_action` is PRESENT and is anything but `off`/`idle` (heating, cooling, drying, fan, preheating, defrosting — listing only the first two misses a dehumidifier mid-cycle; an absent `hvac_action` means the device does not report one, which is not the same as running), `valve`
-  in `open`/`opening`/`closing` (the actuator is running and flow may continue
-  until it seats), `cover` in `opening`/`closing` (a motor is turning; a
-  cover simply left open is not running), `humidifier` in `on`, `water_heater` whose `hvac_action` is PRESENT and not `off`/`idle` — an
-  absent one means the device does not report activity, which is not the same
-  as running, exactly as for `climate` — never count `unknown` or `unavailable` as running. Reporting "nothing is running" while
-  the heat pump runs is the same wrong answer as missing an open window
-- unlocked doors: `lock.*` in a state that is neither `locked` NOR
-  `unavailable`/`unknown` — an unreadable lock is not an unlocked one, it
-  joins the could-not-read count like every other unreadable entity here —
-  AND `binary_sensor` with
-  `device_class: lock` in state `on` — that class reports `on` for UNLOCKED,
-  which is the reverse of every other binary sensor here — `unlocked` obviously, but
-  also `unlocking`, `opening` and `jammed`. The question is whether the door
-  is secured, and a lock that is jammed or mid-travel is not; say which state
-  each one is in rather than flattening them all to "unlocked"
+Three answers, not two: **yes / no / could not tell**. An entity that is
+`unknown` or `unavailable`, and one that is readable but does not report the
+thing being asked, both go in the third bucket and get named. "Everything is
+closed" with three sensors offline is the reassurance nobody should get —
+"none open, 3 could not be read" is the honest form.
 
-An entity that is `unknown` or `unavailable` is neither open nor closed:
-count it separately and say so. "Everything is closed" with three sensors
-offline is the reassurance a user should not get — report "none open, 3
-could not be read" instead.
+Skip group helpers when counting: a Light Group is a real `light.*` entity
+beside its members, so it double-counts. They carry an `entity_id` LIST in
+their attributes — skip any entity whose `attributes.entity_id` is an array.
+(`switch_as_x` mirrors double-count too and carry no such marker; say so if
+the count looks high.)
+
+- **open windows/doors** — `binary_sensor` with `device_class`
+  `window`/`door`/`garage_door`/`opening` (the generic contact class) in state
+  `on`, AND `cover.*` in `open`/`opening`/`closing` (mid-close is still open)
+  with the COVER classes, which are named differently: `garage` — not the
+  binary sensor's `garage_door` — plus `door`, `window`, `gate`. A motorized
+  window is a cover, not a binary_sensor, so checking one family answers the
+  question wrong. A cover in those states whose `device_class` is absent or
+  outside that list is not evidence of closed: report it as "N open, class
+  unknown". Do NOT do the same for unclassed binary sensors — one is
+  indistinguishable from a motion sensor and would manufacture false alarms.
+- **who is home** — `person.*` in state `home`. Anything else that is not
+  `unknown`/`unavailable` is away, including a named zone like `work`: those
+  are zone names, not errors. `unknown` means no tracker had usable data —
+  third bucket, because "nobody is home" from a dropped phone is how an alarm
+  gets armed on someone. (This skill owns person STATE reads; `ha-nova:admin`
+  owns creating and editing them.)
+- **unlocked doors** — `lock.*` in any state that is not `locked` and not
+  `unavailable`/`unknown`, AND `binary_sensor` with `device_class: lock` in
+  state `on`, which reports `on` for UNLOCKED — the reverse of every other
+  class here. Name the state each one is in rather than flattening them to
+  "unlocked": jammed and mid-travel are not secured, and they are what a user
+  needs to hear.
+- **is everything OFF** — `light`/`switch`/`fan`/`siren`/`remote` in `on`
+  (a Harmony-style `remote` in `on` means an AV activity is live);
+  `media_player` in anything but `off`/`standby`/`unavailable`/`unknown`
+  (paused and idle are not off; `standby` IS — Home Assistant core deprecates
+  it as meaning off-or-idle, and users call that TV off);
+  `binary_sensor` with `device_class: running` in `on`;
+  `climate`/`water_heater`/`humidifier` in any state but `off`;
+  `vacuum` and `lawn_mower` in `cleaning`/`mowing`/`returning`/`paused`/`error`
+  — `error` means stranded mid-floor, not put away, and it is readable so the
+  unavailable rule never catches it; `valve` in `open`/`opening`/`closing`;
+  `cover` only in `opening`/`closing` — a cover left open is answered by the
+  open-windows question above, not by this one, because it consumes nothing.
+- **what is RUNNING** — narrower, and everything in it is also in OFF above;
+  keep that invariant when either list changes. Same lights, switches, fans,
+  sirens and `binary_sensor` `running`, plus `device_class: moving`; but
+  `media_player` only in `playing`/`buffering`; `vacuum`/`lawn_mower` only in
+  `cleaning`/`mowing`/`returning` (report `error` as stuck, not as running);
+  `valve` in `open`/`opening`/`closing`; `cover` in `opening`/`closing` only —
+  a motor turning is running, a cover left open is not.
+  - `climate` runs when `hvac_action` is PRESENT and not `off`/`idle`
+    (heating, cooling, drying, fan, preheating, defrosting).
+  - `humidifier` has the same shape under a different key: `attributes.action`
+    PRESENT and not `off`/`idle`.
+  - `water_heater` has NO action attribute at all — its state is an operation
+    mode (`eco`, `performance`, `heat_pump`, ...), which reports enablement and
+    never activity. It can never be proven running: enabled goes in the third
+    bucket, never in "nothing is running".
+  - An ABSENT action attribute is the third bucket too, not a no. Most simple
+    thermostats never publish one, and "nothing is running" while the heat pump
+    runs is the failure this whole section exists to prevent.
+  - `automation` in `on` means ENABLED, not running — exclude it, or the answer
+    is "47 things are running". Its real running signal is
+    `attributes.current > 0`. `script` in `on` does mean running.
 
 Answer count-first ("2 windows open: kitchen, bathroom"), then the names, in the List
 Frame. This is a summary, not the banned domain dump: `output-rules.md` asks

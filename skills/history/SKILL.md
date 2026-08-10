@@ -43,7 +43,11 @@ For `ha-nova relay jq`, the filter is positional unless `--jq-file` is used. Do 
 
 Canonical paths:
 - `/api/history/period/<start>?filter_entity_id=<entity_id>&end_time=<end>`
-- `/api/logbook/<start>?entity=<entity_id>&end_time=<end>`
+- `/api/logbook/<start>?entity=<entity_id>&end_time=<end>` — `entity` takes a
+  comma-separated LIST for several entities (verified on 2026.8.0: the endpoint
+  splits on commas and ignores unknown ids), and omitting it entirely returns
+  the whole home for that window. `filter_entity_id` belongs to the HISTORY
+  endpoint; using it here silently returns everything.
 - `recorder/statistics_during_period`
 
 Prefer `minimal_response` and `no_attributes` on large history queries when the task only needs state transitions.

@@ -203,7 +203,7 @@ Match user intent to exactly one skill:
 | list, show, read automations/scripts | `ha-nova:read` |
 | analyze, review, audit, check, find problems | `ha-nova:review` (reads config internally) |
 | create, update, delete automations/scripts | `ha-nova:write` (resolves + reviews internally) |
-| do something FOR a duration ("sprinkler for 30 minutes", "lights on for an hour") | `ha-nova:write` — one preview covering the immediate service call AND the expiry automation, per `skills/ha-nova/automation-patterns.md`; routing the halves to two skills loses the pairing |
+| do something FOR a duration ("sprinkler for 30 minutes", "lights on for an hour") | `ha-nova:write` — one preview covering the immediate service call AND the expiry automation, per `skills/ha-nova/one-shot-automations.md`; routing the halves to two skills loses the pairing |
 | list, show, read helpers | `ha-nova:helper` |
 | create, update, delete helpers | `ha-nova:helper` |
 | list, show, read dashboards, Lovelace resources, or dashboard structure | `ha-nova:dashboard` |
@@ -232,7 +232,7 @@ Match user intent to exactly one skill:
 | check pending updates, read release notes, install updates, skip/unskip versions | `ha-nova:updates` |
 | analyze energy usage, solar/battery/grid KPIs, per-device consumption or costs; edit energy dashboard sources/devices | `ha-nova:energy` |
 | repair statistics (orphans, unit mismatches, sum spikes), purge recorder history, clean up dead registry entries | `ha-nova:maintenance` |
-| turn on/off, toggle, set, call a service | `ha-nova:service-call` |
+| turn on/off, toggle, set, call a service — unless bounded by a duration, see the duration row above | `ha-nova:service-call` |
 | enable/disable/trigger an automation | `ha-nova:service-call` |
 | fire a custom event or trigger a known JSON webhook | `ha-nova:service-call` |
 | arm/disarm/trigger an alarm panel; lock/unlock/open a lock | `ha-nova:service-call` |
@@ -255,6 +255,7 @@ Match user intent to exactly one skill:
 **"Create a scene called Movie Night"** → `ha-nova:scene`
 **"Activate the scene Movie Night"** → `ha-nova:service-call` (runtime action, not a config change)
 **"Unlock the front door"** → `ha-nova:service-call` (high-consequence: typed confirmation code)
+**"Unlock the front door for five minutes"** → `ha-nova:write` (a duration is the expiry automation plus the unlock, one preview, typed code)
 **"Arm the alarm in night mode"** → `ha-nova:service-call` (feature/code gate before preview)
 **"Fire the movie_night event"** → `ha-nova:service-call` (listener-impact scan before preview)
 **"Trigger the delivery webhook"** → `ha-nova:service-call` (webhook ID stays secret)

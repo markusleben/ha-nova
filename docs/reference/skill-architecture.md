@@ -25,6 +25,7 @@ skills/
   ha-nova/template-guidelines.md (reference doc — when to use templates vs native primitives)
   ha-nova/safe-refactoring.md   (reference doc — rename, delete, orphan cleanup workflows)
   ha-nova/automation-patterns.md (reference doc — native HA constructs vs templates)
+  ha-nova/one-shot-automations.md (reference doc — self-disabling one-shots, deadline expiry, duration requests)
   ha-nova/write-safety.md       (reference doc — pre-write diff + durable update-revert; SSOT for write/ + helper/)
   ha-nova/batch-safety.md       (reference doc — scoped batch manifest for destructive multi-target operations)
   ha-nova/grouped-change-set.md (reference doc — one confirmation for a fully previewed non-destructive change set)
