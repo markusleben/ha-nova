@@ -12,11 +12,62 @@ function collectTestFiles(dir: string): string[] {
     const path = join(dir, entry);
     if (statSync(path).isDirectory()) {
       found.push(...collectTestFiles(path));
-    } else if (entry.endsWith(".test.ts")) {
+    } else if (/\.(test|spec)\.[cm]?[jt]sx?$/.test(entry)) {
+      // vitest's default include covers every js/ts extension family, so the
+      // walk must too: .test.tsx, .spec.jsx, .test.cts and .spec.cjs would
+      // otherwise slip past the orphan check and preserve the silent-coverage
+      // gap this guard exists to close (#515).
       found.push(path.split("\\").join("/"));
     }
   }
   return found;
+}
+
+// Files that import vitest but do not carry a test suffix: this repo's
+// `*-behavior.ts` convention. They only run when a wrapper imports them.
+function collectModules(dir: string): string[] {
+  const found: string[] = [];
+  for (const entry of readdirSync(dir)) {
+    const path = join(dir, entry);
+    if (statSync(path).isDirectory()) {
+      found.push(...collectModules(path));
+    } else if (/\.[cm]?[jt]sx?$/.test(entry)) {
+      found.push(path.split("\\").join("/"));
+    }
+  }
+  return found;
+}
+
+const importsVitest = (file: string): boolean =>
+  /from ["']vitest["']/.test(readFileSync(file, "utf8"));
+
+// Traversal must pass THROUGH plain helpers: an aggregator that imports no
+// vitest itself still carries the edge from a running entrypoint to a
+// behavior module, and stopping there reports live suites as unreachable.
+function collectVitestModules(dir: string): string[] {
+  return collectModules(dir).filter(importsVitest);
+}
+
+function stripComments(source: string): string {
+  return source
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .split("\n")
+    .map((line) => {
+      let quote: string | null = null;
+      for (let i = 0; i < line.length; i += 1) {
+        const ch = line[i];
+        if (quote) {
+          if (ch === "\\") i += 1;
+          else if (ch === quote) quote = null;
+        } else if (ch === '"' || ch === "'" || ch === "`") {
+          quote = ch;
+        } else if (ch === "/" && line[i + 1] === "/") {
+          return line.slice(0, i);
+        }
+      }
+      return line;
+    })
+    .join("\n");
 }
 
 function expectFragmentsInOrder(haystack: string, fragments: string[]) {
@@ -42,16 +93,123 @@ describe("safe test system contract", () => {
     const manifest = new Set(
       JSON.parse(readFileSync("scripts/test/safe-core-files.json", "utf8")) as string[]
     );
-    const scripts = Object.values(
-      (JSON.parse(readFileSync("package.json", "utf8")) as { scripts: Record<string, string> }).scripts
-    ).join(" ");
+    // Only scripts REACHABLE FROM `verify` count. Matching against every
+    // script would let a file referenced solely by, say, `test:bulk:fast`
+    // satisfy a check whose stated invariant is "runs in npm run verify"
+    // (#515).
+    const allScripts = (
+      JSON.parse(readFileSync("package.json", "utf8")) as {
+        scripts: Record<string, string>;
+      }
+    ).scripts;
+    const reachable = new Set<string>();
+    const visit = (name: string): void => {
+      if (reachable.has(name) || !allScripts[name]) return;
+      reachable.add(name);
+      for (const ref of allScripts[name].matchAll(/npm run ([\w:-]+)/g)) {
+        visit(ref[1] as string);
+      }
+      // npm runs pre<script>/post<script> hooks implicitly.
+      for (const hook of [`pre${name}`, `post${name}`]) visit(hook);
+    };
+    visit("verify");
+    const scripts = [...reachable].map((n) => allScripts[n]).join(" ");
 
     const testFiles = collectTestFiles("tests");
     expect(testFiles.length).toBeGreaterThan(50);
+    expect(reachable.size).toBeGreaterThan(5);
 
-    const orphans = testFiles.filter(
-      (file) => !manifest.has(file) && !scripts.includes(file)
+    // Tokenize the scripts: a substring test makes `foo.test.ts` look
+    // executed because it is a prefix of `foo.test.tsx` in some other script.
+    const scriptedPaths = new Set(
+      scripts.split(/[\s'"]+/).filter((token) => token.startsWith("tests/")),
     );
+    const orphans = testFiles.filter(
+      (file) => !manifest.has(file) && !scriptedPaths.has(file)
+    );
+
+    // Unsuffixed behavior modules: this repo splits some suites into
+    // `*-behavior.ts` files that import vitest and are pulled in by a wrapper.
+    // They carry real assertions, so an unimported one is silently dead — the
+    // same failure the suffix check exists to prevent, one indirection over.
+    const vitestModules = collectVitestModules("tests");
+    const allModules = collectModules("tests");
+    const isEntrypoint = (file: string) => /\.(test|spec)\.[cm]?[jt]sx?$/.test(file);
+    const behaviorModules = vitestModules.filter((file) => !isEntrypoint(file));
+
+    // Resolve real module specifiers, not basename occurrences: a name left
+    // in a comment must not count as an import, and a cycle of behavior
+    // modules importing each other must not count as reachable.
+    const importsOf = (file: string): string[] => {
+      const dir = file.split("/").slice(0, -1).join("/");
+      const body = readFileSync(file, "utf8");
+      return [...body.matchAll(/(?:from|import)\s+["'](\.[^"']+)["']/g)]
+        // Normalize the SAME suffix set on both sides: an import written as
+        // "./suite.mjs" must match a candidate stripped of .mjs, or a
+        // perfectly reachable module reports as orphaned.
+        .map((m) => (m[1] as string).replace(/\.[cm]?[jt]sx?$/, ""))
+        .map((spec) => {
+          const base = spec.startsWith("./") || spec.startsWith("../")
+            ? join(dir, spec).split("\\").join("/")
+            : spec;
+          return allModules.find(
+            (candidate) => candidate.replace(/\.[cm]?[jt]sx?$/, "") === base,
+          );
+        })
+        .filter((hit): hit is string => Boolean(hit));
+    };
+
+    const reachableModules = new Set<string>();
+    const walk = (file: string): void => {
+      for (const dep of importsOf(file)) {
+        if (reachableModules.has(dep)) continue;
+        reachableModules.add(dep);
+        walk(dep);
+      }
+    };
+    // Only entrypoints that actually run seed the traversal, so a cycle among
+    // behavior modules cannot make itself reachable. Seed from ALL modules: a
+    // wrapper whose body is nothing but side-effect imports of self-
+    // registering suites never imports vitest itself, and Vitest still runs it.
+    for (const entry of allModules.filter(isEntrypoint)) {
+      if (manifest.has(entry) || scriptedPaths.has(entry)) walk(entry);
+    }
+    // Reaching a module is not running it: these export a register*Tests()
+    // function the wrapper must CALL. An import whose call was deleted leaves
+    // the file imported and its describe blocks unregistered.
+    const registrarsOf = (file: string): string[] =>
+      [...stripComments(readFileSync(file, "utf8")).matchAll(/export\s+(?:async\s+)?function\s+(register\w+)/g)]
+        .map((m) => m[1] as string);
+    // Search only the code that RUNS, with comments removed. A commented-out
+    // `// registerFooTests()` is exactly the deletion this guard exists to
+    // catch, and a call sitting in a module nothing reaches never executes.
+    // Search every RUNNING module, vitest-importing or not: a reachable
+    // aggregator is where the register*Tests() call often lives.
+    const runningSources = allModules
+      .filter((file) => reachableModules.has(file) || manifest.has(file) || scriptedPaths.has(file))
+      .map((file) => stripComments(readFileSync(file, "utf8")))
+      .join("\n");
+    const uncalled = behaviorModules.filter((file) =>
+      registrarsOf(file).some(
+        // A registrar invocation is a STATEMENT, so it begins its line. The
+        // same name inside an assertion message or diagnostic string never
+        // does — and blanking string literals instead would need a JS parser,
+        // since one stray backtick in a fixture swallows the rest of a file.
+        (name) => !new RegExp(`^\\s*(await\\s+)?${name}\\s*\\(`, "m").test(
+          runningSources.replace(new RegExp(`export\\s+(?:async\\s+)?function\\s+${name}`, "g"), ""),
+        ),
+      ),
+    );
+    expect(
+      uncalled,
+      `these behavior modules export a registrar that nothing calls, so their suites never register:\n  ${uncalled.join("\n  ")}`
+    ).toEqual([]);
+
+    const unreachable = behaviorModules.filter((file) => !reachableModules.has(file));
+    expect(
+      unreachable,
+      `these vitest modules are imported by nothing and therefore never run:\n  ${unreachable.join("\n  ")}`
+    ).toEqual([]);
     expect(
       orphans,
       `these test files are never executed by npm run verify — add them to scripts/test/safe-core-files.json or to an explicit verify step:\n  ${orphans.join("\n  ")}`
