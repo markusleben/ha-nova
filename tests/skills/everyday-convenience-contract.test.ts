@@ -11,6 +11,67 @@ const read = (p: string): string =>
   readFileSync(resolve(__dirname, "../../", p), "utf-8");
 const flat = (text: string): string => text.replace(/\s+/g, " ");
 
+// AGENTS.md: skill files are 100% English. Localisation happens at runtime,
+// never in the source an agent pattern-matches against.
+//
+// A "bad word" list fails on the first word nobody thought of, so this keys on
+// the closed class that actually makes a sentence German — function words —
+// plus the household nouns these skills use as examples. Every entry was
+// checked to be a non-word in English; an ambiguity tier ("die", "an", "in",
+// "so", "was") was tried and dropped, because ordinary English prose carries
+// three of those per sentence and it only produced noise. Longer inflections
+// come first so the reported token is the whole word.
+//
+// The alternation is spelled out rather than using `\w*`: inside a template
+// literal `\w` is not a recognised escape and collapses to a bare "w", which
+// silently narrowed `kein\w*` to `keinw*`.
+//
+// No lexical detector is exhaustive. The bar is realistic German prose in a
+// skill file, not every possible German sentence — `germanFixtures` below is
+// the executable statement of that bar.
+const L = "[A-Za-zÄÖÜäöüß]";
+const GERMAN_WORDS = new RegExp(
+  `(?<!${L})(der|das|den|dem|des|eine|einen|einem|einer|eines|ein|ist|sind|wird|werden|nicht|keine|keinen|keinem|keiner|keines|kein|und|oder|aber|für|von|zum|zur|vom|beim|ins|im|aus|nach|über|unter|seit|bis|ohne|gegen|durch|wieder|ich|du|wir|es|sich|mich|dich|euch|sein|ihre|unser|dieser|diese|dieses|diesem|diesen|jeder|jedes|jedem|jeden|jede|welcher|welches|welchem|welchen|welche|dass|weil|wenn|wie|wer|warum|hier|dort|jetzt|dann|noch|schon|auch|nur|sehr|mehr|viel|wenig|alle|etwas|nichts|immer|bitte|heute|gestern|zwei|drei|vier|mach|zeig|schalte|dimme|soll|kann|muss|hat|haben|gibt|Lampe|Licht|Fenster|Tür|Küche|Wohnzimmer|Schlafzimmer|Stehlampe|Heizung|Rollladen|Steckdose)(?!${L})`,
+  "i",
+);
+// A LOWERCASE word carrying ß or an umlaut is German orthography: English has
+// no such word. Capitalized ones are nouns or PROPER nouns, which AGENTS.md
+// explicitly permits — `München` and attribution names must pass, so they are
+// left to the word list, which already carries `Küche` and `Tür`. The
+// lookarounds spell out "letter" because JS \b is ASCII-defined and would see
+// a boundary inside `München`, matching `ünchen`.
+const GERMAN_ORTHOGRAPHY = new RegExp(
+  `(?<!${L})(?:[a-zäöüß]*[ßäöü][a-zäöüß]{2,}|[a-zäöüß]{2,}[ßäöü][a-zäöüß]*)(?!${L})`,
+);
+const detectGerman = (text: string): string | null =>
+  GERMAN_WORDS.exec(text)?.[0] ?? GERMAN_ORTHOGRAPHY.exec(text)?.[0] ?? null;
+
+// Every row is a defect this detector was widened or narrowed to handle, so a
+// future edit that reintroduces one fails here instead of in a skill file.
+const germanFixtures: Array<[boolean, string]> = [
+  [true, "kein Geraet gefunden"],
+  [true, "keine Aenderung noetig"],
+  [true, "Es regnet seit drei Tagen."],
+  [true, "Guten Morgen, das Licht ist an."],
+  [true, "Die Lampe im Wohnzimmer"],
+  [true, "Der Schalter ist über der Tür."],
+  [true, "Rollladen wieder oeffnen ohne Verzoegerung"],
+  [true, "Sind alle Fenster zu?"],
+  // No word-list marker in these three, so they exercise the orthography path
+  // alone. One per alternation: a leading umlaut (nothing before it) reaches
+  // only the first, a trailing one only the second.
+  [true, "Fensterkontakt öffnen"],
+  [true, "Zeitplan wurde geändert"],
+  [true, "Heizungsventil schließt zu frueh"],
+  [false, "Verified on an instance in München by Jürgen Müller."],
+  [false, "Attribution: Lämmle, Grüßner, Öztürk."],
+  [false, "Turn on the kitchen light"],
+  [false, "Diesel generators and war rooms are out of scope."],
+  [false, "The device is unavailable, so the call may still fail."],
+  [false, "Every tag in the tags list keeps its own identifier."],
+];
+
+
 describe("one-shot and temporary automations (#527)", () => {
   const patterns = (read("skills/ha-nova/automation-patterns.md") + "\n" + read("skills/ha-nova/one-shot-automations.md"));
 
@@ -302,43 +363,13 @@ describe("flows that cost the user extra turns (#527)", () => {
     expect(p).toContain('"light off for an hour" turns back ON');
   });
 
+  it("flags realistic German prose without rejecting proper nouns", () => {
+    for (const [isGerman, sample] of germanFixtures) {
+      expect(Boolean(detectGerman(sample)), sample).toBe(isGerman);
+    }
+  });
+
   it("keeps every skill source free of German", () => {
-    // AGENTS.md: skill files are 100% English. Localisation happens at
-    // runtime, never in the source an agent pattern-matches against.
-    // Scan the WHOLE text, not just quoted fragments — German arrives in
-    // prose and in code comments too. Entity ids are the documented
-    // exception, so strip code spans that look like one before matching.
-    // A finite keyword list fails on the first word nobody thought of.
-    // German FUNCTION words are a closed class and are what actually makes a
-    // sentence German — content words alone ("Stehlampe" as an entity name)
-    // are fine and are covered by the entity-id exemption. Two distinct
-    // unambiguous markers on one line, or German-specific orthography, is
-    // German; one marker is not, because several of these are also English
-    // words ("die", "an", "in", "war", "so", "man").
-    // A finite "bad word" list fails on the first word nobody thought of, so
-    // this keys on the closed class that actually makes a sentence German:
-    // function words plus the household nouns these skills use as examples.
-    // Every entry is checked to be a non-word in English — an ambiguity tier
-    // ("die", "an", "in", "so", "was") was tried and dropped: ordinary English
-    // prose carries three of those per sentence, so it only produced noise.
-    // No lexical detector is exhaustive; the bar is realistic German prose in
-    // a skill file, not every possible German sentence.
-    const L = "[A-Za-zÄÖÜäöüß]";
-    const GERMAN = new RegExp(
-      `(?<!${L})(der|das|den|dem|des|ein|eine|einen|einem|einer|eines|ist|sind|wird|werden|nicht|keine|keinen|keinem|keiner|keines|und|oder|aber|für|von|zum|zur|vom|beim|ins|im|aus|nach|über|unter|seit|bis|ohne|gegen|durch|wieder|ich|du|wir|es|sich|mich|dich|euch|sein|ihre|unser|dieser|diese|dieses|diesem|diesen|jede|jeder|jedes|jedem|jeden|welche|welcher|welches|welchem|welchen|dass|weil|wenn|wie|wer|warum|hier|dort|jetzt|dann|noch|schon|auch|nur|sehr|mehr|viel|wenig|alle|etwas|nichts|immer|bitte|heute|gestern|zwei|drei|vier|mach|zeig|schalte|dimme|soll|kann|muss|hat|haben|gibt|Lampe|Licht|Fenster|Tür|Küche|Wohnzimmer|Schlafzimmer|Stehlampe|Heizung|Rollladen|Steckdose)(?!${L})`,
-      "i",
-    );
-    // A LOWERCASE word carrying ß or an umlaut is German orthography: English
-    // has no such word. The lookarounds spell out "letter" because JS \b is
-    // ASCII-defined and would see a boundary inside `München`, matching
-    // `ünchen`. Capitalized ones are nouns or proper nouns — `München`
-    // and attribution names are explicitly allowed (AGENTS.md), so those are
-    // left to the word list above, which already carries `Küche` and `Tür`.
-    const ORTHOGRAPHY = new RegExp(
-      `(?<!${L})(?:[a-zäöüß]*[ßäöü][a-zäöüß]{2,}|[a-zäöüß]{2,}[ßäöü][a-zäöüß]*)(?!${L})`,
-    );
-    const isGerman = (text: string): string | null =>
-      GERMAN.exec(text)?.[0] ?? ORTHOGRAPHY.exec(text)?.[0] ?? null;
     const offenders: string[] = [];
     const walk = (dir: string): void => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -358,7 +389,7 @@ describe("flows that cost the user extra turns (#527)", () => {
                 /`[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z0-9_]+)+`/g,
                 " ",
               );
-              const hit = isGerman(prose);
+              const hit = detectGerman(prose);
               if (hit) offenders.push(`${path}:${i + 1} "${hit}" in ${prose.trim().slice(0, 80)}`);
             });
         }
