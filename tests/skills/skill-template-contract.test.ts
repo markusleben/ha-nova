@@ -143,7 +143,7 @@ const WORD_BUDGETS: Record<string, number> = {
   // setters (Codex round 6). Merge-train combination with the #483 receipt
   // lines and the #452 draft rule (measured 2182).
   // One-shot intent routing to the self-disabling pattern (#527, 2221).
-  write: 2250,
+  write: 2400,
   // HACS lifecycle: schema guard, reconcile loops, consumer discovery,
   // migration backup gate, category-appropriate verification (#478);
   // review rounds added pin-durability branches, the uninstall apply

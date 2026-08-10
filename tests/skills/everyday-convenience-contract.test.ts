@@ -168,7 +168,11 @@ describe("flows that cost the user extra turns (#527)", () => {
     // Order is the safety property: a failed automation write must leave
     // nothing running, and the deadline must survive HA being down.
     expect(patterns).toContain("create the expiry automation FIRST");
-    expect(patterns).toContain("delete the expiry automation you just created");
+    expect(patterns).toContain("clean up the expiry automation you just created");
+    expect(patterns).toContain("disable it immediately so it cannot fire while that confirmation is pending");
+    // write has to perform the immediate half, not describe it.
+    expect(flat(read("skills/write/SKILL.md"))).toContain("Duration requests carry an immediate action too");
+    expect(flat(read("skills/write/SKILL.md"))).toContain("Never hand the immediate half back to the user as a separate step");
     expect(patterns).toContain("skip the restore when it no longer matches");
     // A confirmation that arrives after the deadline would strand the device.
     expect(patterns).toContain("Check the deadline again at that moment");

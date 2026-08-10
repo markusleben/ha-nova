@@ -93,7 +93,13 @@ future needs, native primitives when equally safe and clearer.
 3. Read `skills/ha-nova/agents/apply-agent.md`.
 4. Fill with confirmed payload.
 5. Dispatch. Expect: success, write_status, verification.
-6. Report result. No raw curl/JSON in output.
+6. **Duration requests carry an immediate action too** — "sprinkler for 30
+   minutes" is the expiry automation PLUS the turn-on, both under the one
+   preview (`skills/ha-nova/automation-patterns.md`). Apply the automation
+   first, verify it, then issue the immediate service call; on a failed
+   action, disable the automation at once and clean it up through the delete
+   flow. Never hand the immediate half back to the user as a separate step.
+7. Report result. No raw curl/JSON in output.
    - Do not report destructive success until verification proves the target is gone.
 
 Fallback: If agent dispatch unavailable, execute inline.

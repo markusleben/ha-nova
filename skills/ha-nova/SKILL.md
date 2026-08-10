@@ -203,7 +203,7 @@ Match user intent to exactly one skill:
 | list, show, read automations/scripts | `ha-nova:read` |
 | analyze, review, audit, check, find problems | `ha-nova:review` (reads config internally) |
 | create, update, delete automations/scripts | `ha-nova:write` (resolves + reviews internally) |
-| do something FOR a duration ("sprinkler for 30 minutes", "lights on for an hour") | `ha-nova:write` — the turn-on is a service call but nothing schedules the turn-off; write builds both halves |
+| do something FOR a duration ("sprinkler for 30 minutes", "lights on for an hour") | `ha-nova:write` — one preview covering the immediate service call AND the expiry automation, per `skills/ha-nova/automation-patterns.md`; routing the halves to two skills loses the pairing |
 | list, show, read helpers | `ha-nova:helper` |
 | create, update, delete helpers | `ha-nova:helper` |
 | list, show, read dashboards, Lovelace resources, or dashboard structure | `ha-nova:dashboard` |

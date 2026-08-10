@@ -247,8 +247,10 @@ pause, restoring the previewed 21 would overwrite a change the user never saw.
 A moved value re-previews rather than being embedded.
 
 Two failure paths need naming because they leave the automation armed with
-nothing to undo. If the immediate action definitively FAILS, delete the expiry
-automation you just created — the temporary state never began, and leaving it
+nothing to undo. If the immediate action definitively FAILS, clean up the expiry
+automation you just created — through `ha-nova:write`'s delete flow, which
+takes its own typed confirmation even for something created seconds ago;
+disable it immediately so it cannot fire while that confirmation is pending — the temporary state never began, and leaving it
 armed means a later unrelated change gets reverted at the deadline. And if
 someone changes the target DURING the window (thermostat moved from your
 temporary 18 to 23), the captured value is no longer what they want restored:

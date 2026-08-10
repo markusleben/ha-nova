@@ -155,8 +155,9 @@ then filter by domain plus `device_class` and state:
   with state `on`, `media_player` in any state other than
   `off`/`unavailable`/`unknown` (a paused or idle player is not off), and the
   comfort domains that have their own off state: `climate`, `water_heater` and
-  `humidifier` in any state but `off` — a thermostat still heating is the
-  clearest possible no to "is everything off?"
+  `humidifier` in any state but `off`/`unavailable`/`unknown` — a thermostat
+  still heating is the clearest possible no to "is everything off?", but an
+  unreachable one is not a yes either: it joins the could-not-read count
 - what is RUNNING — a different question, and a narrower answer: the same
   lights, switches and fans, but `media_player` only in `playing`/`buffering`,
   AND the domains whose "running" is not `on`: `vacuum` in `cleaning`/
