@@ -198,6 +198,10 @@ actions:
       - action: notify.mobile_app_phone
         data: {message: "Irrigation valve did not close — retrying."}
       - stop: "not closed yet"
+  # NOTE the retry window in the condition block: `now() < deadline + 2h`.
+  # Without an upper bound a jammed actuator retries forever and notifies
+  # every five minutes. When the window closes, notify ONCE that it gave up
+  # and leave the valve state in the message — a human has to go look.
   - action: automation.turn_off
     target: {entity_id: "{{ this.entity_id }}"}
     data: {stop_actions: false}
@@ -266,7 +270,9 @@ conditions:
     # naive datetime makes the comparison raise and the expiry never fires — `today_at`
             # re-reads as the CURRENT day, so a restart the next morning
             # would see 23:59 as still ahead and leave this armed
-            value_template: "{{ now() >= as_datetime('2026-08-10T23:59:00+02:00') }}"
+            value_template: >-
+      {{ now() >= as_datetime('2026-08-10T23:59:00+02:00')
+         and now() < as_datetime('2026-08-10T23:59:00+02:00') + timedelta(hours=2) }}
 actions:
   # disable first on both paths — a notification is spent whether or not it
   # was delivered, and a failed send must not leave this armed for tomorrow

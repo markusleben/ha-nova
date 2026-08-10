@@ -106,7 +106,10 @@ future needs, native primitives when equally safe and clearer.
    first, verify it, then re-check both things the confirmation pause can
    invalidate — the deadline still has margin, and the captured restore value
    has not moved (`skills/ha-nova/one-shot-automations.md`) — and only then
-   issue the immediate service call; on a failed
+   issue the immediate service call and VERIFY it took effect by reading the
+   target back — Home Assistant accepting the call is not the device having
+   changed, and reporting "running for 30 minutes" over a valve that never
+   opened leaves an expiry armed against nothing; on a failed
    action, disable the automation at once and clean it up through the delete
    flow. Never hand the immediate half back to the user as a separate step.
 7. Report result. No raw curl/JSON in output.

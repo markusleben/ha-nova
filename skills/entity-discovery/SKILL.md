@@ -184,7 +184,7 @@ the count looks high.)
   `media_player` in anything but `off`/`standby`/`unavailable`/`unknown`
   (paused and idle are not off; `standby` IS — Home Assistant core deprecates
   it as meaning off-or-idle, and users call that TV off);
-  `binary_sensor` with `device_class: running` in `on`;
+  `binary_sensor` with `device_class` `running` or `moving` in `on`;
   `climate`/`water_heater`/`humidifier` in any state but `off`;
   `vacuum` and `lawn_mower` in `cleaning`/`mowing`/`returning`/`paused`/`error`
   — `error` means stranded mid-floor, not put away, and it is readable so the
