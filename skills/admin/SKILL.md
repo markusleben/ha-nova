@@ -41,6 +41,7 @@ If this fails: `ha-nova setup`
 4. **Users**: WS `config/auth/list` shows accounts (`id`, `name`, `username`, `is_owner`, `is_active`, `system_generated`, `group_ids`).
    - listing and reviewing access is the safe, common case
    - `config/auth/create` / `config/auth/delete` exist, and are the most dangerous writes in HA NOVA
+   - create payload: `{"type":"config/auth/create","name":"<display name>","group_ids":["system-users"],"local_only":false}` — `system-admin` in `group_ids` makes the account an administrator, so name that in the preview. The password is NOT set here: Home Assistant issues the credential separately, so tell the user to finish in Settings → People rather than offering to set one
    - before any delete: WS `auth/current_user` returns the account this relay's token belongs to — that account is never deletable
 5. Verify every write by re-reading the list — never from the command response alone.
 

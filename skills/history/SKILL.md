@@ -23,7 +23,7 @@ Not in scope:
 - calendar queries (use `ha-nova:calendar`)
 - giant raw exports
 
-Use `ha-nova:read` for traces, `ha-nova:calendar` for calendars, and `ha-nova:fallback` for subscriptions.
+Use `ha-nova:diagnose` for traces (it owns trace analysis; `ha-nova:read` only surfaces raw trace data when the user explicitly asks for it with no failure question attached), `ha-nova:calendar` for calendars, and `ha-nova:fallback` for subscriptions.
 
 ## Bootstrap (once per session)
 

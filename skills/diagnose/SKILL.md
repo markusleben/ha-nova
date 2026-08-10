@@ -55,9 +55,11 @@ Only where the log file exists (Container/Core installs; on HA OS/Supervised the
    ```
    with `<filter-file>`:
    ```jq
-   .data.body | split("\n")[] | select(test("<entity_or_integration>|ERROR"; "i"))
+   .data.body | split("\n")[] | select(test("<entity_or_integration>"; "i"))
    ```
-   `-r` is required for raw text output — `relay core --jq` does not support it, so the filtering happens in this second step.
+   `-r` is required for raw text output — `relay core --jq` does not support it, so the filtering happens in this second step. Substitute only an `entity_id`, domain, or integration slug — never a friendly name, which can contain `(`, `)` or `|` and would break the filter. Even a slug is not literal: the `.` in `sensor.kitchen` is a regex wildcard, so escape it (`sensor\\.kitchen`) or the filter also matches `sensor_kitchen` and reports unrelated lines as evidence.
+
+   The identifier is the ONLY selector — never OR a severity into it. `test("sensor\\.kitchen|ERROR")` matches every error line in the log, from every unrelated integration, and each one then looks like evidence for this incident. To narrow by severity, AND it: `select(test("sensor\\.kitchen"; "i") and test("ERROR|WARNING"; "i"))`. And a log with no matching line is a finding in itself — say the log holds nothing about this entity, rather than widening the filter until something appears.
 
 ## Flow
 

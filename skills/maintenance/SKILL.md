@@ -1,6 +1,6 @@
 ---
 name: maintenance
-description: Use when repairing Home Assistant recorder statistics (orphaned statistics, unit mismatches, sum spikes), purging recorder history, or cleaning up dead entity-registry entries through HA NOVA Relay.
+description: Use when repairing Home Assistant recorder statistics (orphaned statistics, unit mismatches, sum spikes), purging recorder history, cleaning up dead entity-registry entries, or answering how long an entity has been unavailable or dead — through HA NOVA Relay. For what is unavailable right now, use ha-nova:health.
 license: MIT
 compatibility: Requires the ha-nova CLI (run 'ha-nova setup' first) and the HA NOVA Relay in Home Assistant (App, or standalone container on Container/Core).
 ---
@@ -22,7 +22,7 @@ Gated writes:
 
 Not in scope:
 - energy source/device config (`ha-nova:energy`)
-- repairs/status overview (`ha-nova:health`)
+- repairs/status overview and current unavailability summaries (`ha-nova:health`); the long-unavailable report here exists to qualify cleanup candidates, not to answer "is everything OK"
 - backups (`ha-nova:backup`), updates (`ha-nova:updates`)
 - device deletion — no generic API; report and route to the owning integration/UI
 

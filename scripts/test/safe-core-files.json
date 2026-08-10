@@ -100,6 +100,7 @@
   "tests/skills/output-design-contract.test.ts",
   "tests/skills/relay-unicode-contract.test.ts",
   "tests/skills/review-contract.test.ts",
+  "tests/skills/routing-contract.test.ts",
   "tests/skills/scene-contract.test.ts",
   "tests/skills/service-call-contract.test.ts",
   "tests/skills/skill-template-contract.test.ts",

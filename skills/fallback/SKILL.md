@@ -99,7 +99,7 @@ For every Relay-Ready call in this skill:
 3. If "Relay-Ready":
    a. FIRST: Search web using the provided Search query — understand current payload schema before any call
    b. Show experimental relay call examples informed by search results
-   c. Preview full payload before any write — never guess fields
+   c. If the endpoint matches a row in Write Safety by Endpoint Type (below), classify it BEFORE drafting — a full-document endpoint needs a read-merge-verify payload, not a partial one. Endpoints the table does not cover split by where their schema comes from. A response-driven config-entry flow carries its own: submit exactly the fields the LIVE response named for that step, one step at a time, and never the fields the research step suggested — research is how you understand the flow, the response is what you answer. They diverge by domain and by Home Assistant version, and a stale field set fails the step or writes the wrong config. For the rest (`blueprint/save`, resource replacement) the research schema is the only one available; say so. Then preview the full payload; never guess fields
    d. Execute only after user confirms that exact preview (see context skill → Active Preview Confirmation)
 4. If "Roadmap":
    a. Explain which phase and what blocks it

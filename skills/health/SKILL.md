@@ -23,6 +23,8 @@ Not in scope:
 - restart, reload, update, backup, or service calls
 - YAML/filesystem diagnostics
 - historical timelines (use `ha-nova:history`)
+- root-causing one named item's concrete incident (`ha-nova:diagnose`) — this skill reports what is wrong across the home right now, not why one thing failed
+- how long an entity has been unavailable, and whether it is a cleanup candidate (`ha-nova:maintenance` long-unavailable report)
 
 ## Bootstrap (once per session)
 
