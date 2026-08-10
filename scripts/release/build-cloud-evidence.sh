@@ -18,14 +18,18 @@
 # Hosts for the non-local platforms come from the environment, defaulting to
 # this repo's lab:
 #   HA_NOVA_LINUX_SSH   (default: ai-machine)
-#   HA_NOVA_WINDOWS_SSH (default: unset — Windows is skipped and the run fails)
+#   HA_NOVA_WINDOWS_SSH (default: ha-nova-win)
+#
+# Both are ssh DESTINATIONS, so put the address, user and any HostKeyAlias in
+# ~/.ssh/config rather than here. A lab guest's address changes; an alias does
+# not, and this repo must not carry one maintainer's IP addresses.
 set -euo pipefail
 
 PR="${1:-}"
 MODE="${2:-}"
 REPO="${HA_NOVA_REPO:-markusleben/ha-nova}"
 LINUX_SSH="${HA_NOVA_LINUX_SSH:-ai-machine}"
-WINDOWS_SSH="${HA_NOVA_WINDOWS_SSH:-}"
+WINDOWS_SSH="${HA_NOVA_WINDOWS_SSH:-ha-nova-win}"
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
 die() { echo "[cloud-evidence] ERROR: $*" >&2; exit 1; }
@@ -177,9 +181,9 @@ for platform in $platforms; do
       [ -f "$archive" ] || die "windows: $archive missing from the artifact"
       step "provenance: windows (ssh $WINDOWS_SSH)"
       [ -n "$WINDOWS_SSH" ] \
-        || die "windows: set HA_NOVA_WINDOWS_SSH to the test machine. It is an ATTESTED platform — it cannot be skipped, and it must not be marked true from here."
-      ssh -o BatchMode=yes -o ConnectTimeout=8 "$WINDOWS_SSH" "echo ok" >/dev/null 2>&1 \
-        || die "windows: $WINDOWS_SSH unreachable — start the VM first"
+        || die "windows: set HA_NOVA_WINDOWS_SSH. It is an ATTESTED platform — it cannot be skipped, and it must not be marked true from a machine that did not run it."
+      ssh -o BatchMode=yes -o ConnectTimeout=8 "$WINDOWS_SSH" "cmd /c echo ok" >/dev/null 2>&1 \
+        || die "windows: '$WINDOWS_SSH' unreachable. Do not guess an address — ask the hypervisor for the guest's CURRENT one and fix the ssh alias."
       ssh -o BatchMode=yes "$WINDOWS_SSH" 'powershell -Command "$i=[Console]::In.ReadToEnd()"' </dev/null >/dev/null 2>&1 || true
       scp -q -o BatchMode=yes "$archive" "$WINDOWS_SSH:candidate.zip" || die "windows: cannot copy the bundle"
       ssh -o BatchMode=yes "$WINDOWS_SSH" powershell -NoProfile -Command "
