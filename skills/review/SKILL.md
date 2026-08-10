@@ -386,7 +386,7 @@ Exception: if a maintainer-provided release-validation or machine-check prompt e
 
 ### Standard mode
 
-For resolved targets `== 1`, keep this 8-section output in the same order every time:
+For resolved automation/script/helper targets `== 1`, keep this 8-section output in the same order every time (scene/dashboard targets omit skipped sections per Target Resolution):
 
 **Section 1 — Review target:**
 - domain (automation / script / helper) and target entity_id

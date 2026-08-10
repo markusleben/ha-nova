@@ -81,13 +81,12 @@ For every Relay-Ready call in this skill:
 | Statistics repair / Purge / Entity registry remove | Covered | maintenance |
 | Device config-entry detach | Relay-Ready | this skill |
 | Integration onboarding (add / re-auth an integration via config flow) | Covered | integration-setup |
-| Firing custom events / triggering webhooks | Relay-Ready | this skill |
 | Custom-integration configuration APIs (Alarmo, Scheduler, Adaptive Lighting, Frigate, ...) | Relay-Ready | this skill |
 | Event Subscriptions | Roadmap Phase 1c | -- |
 | Backups (status, create, inspect, delete) | Covered | backup |
 | Config snapshots (targeted capture/restore of automations, scripts, scenes, dashboards, helpers, energy prefs, metadata, YAML files) | Covered | the owning family skill (see `skills/ha-nova/config-snapshots.md`) |
 | Updates (pending, release notes, install, skip) | Covered | updates |
-| Apps / Supervisor | External | -- |
+| Apps / Supervisor | External | -- (App updates: `updates`) |
 | HACS (registration, download, version switching, uninstall, migration) | Covered | hacs |
 | Zigbee / Z-Wave Config | External | -- (MQTT-level inspection of a Zigbee2MQTT setup: `mqtt`) |
 | Alarm / lock code management (lock user codes, alarm PINs) | External | -- (Home Assistant UI; codes never enter chat) |
@@ -198,7 +197,7 @@ Remove a config entry from a device (entity-registry removal is owned by `ha-nov
 ha-nova relay ws --data-file <payload-file>
 ```
 
-**Risks:** Device detach depends on integration support (`supports_remove_device`) and can sever the current device/config-entry relationship. Preview impact first.
+**Risks:** Device detach depends on integration support (`supports_remove_device`). HA 2026.8+ (single-config-entry model): detaching the owning entry REMOVES the device; older instances sever one of several relationships. Preview impact first and name which behavior applies.
 
 ### Custom-Integration Configuration APIs -- RELAY-READY
 

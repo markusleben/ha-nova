@@ -15,7 +15,7 @@ Media player control and discovery:
 - speaker grouping (join / unjoin)
 - TTS announcements to a player
 
-Not in scope: creating automations that use media players (`ha-nova:write`), camera streams (`ha-nova:camera` once shipped), generic service calls to other domains (`ha-nova:service-call`).
+Not in scope: creating automations that use media players (`ha-nova:write`), camera streams (`ha-nova:camera`), generic service calls to other domains (`ha-nova:service-call`).
 
 ## Bootstrap (once per session)
 
