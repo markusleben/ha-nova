@@ -311,7 +311,13 @@ describe("flows that cost the user extra turns (#527)", () => {
             .split("\n")
             .forEach((line, i) => {
               // entity ids and code identifiers are allowed to be German
-              const prose = line.replace(/`[^`]*`/g, " ");
+              // Entity ids and code identifiers may be German (a real HA
+              // instance names things in the household's language). Prose in
+              // backticks may not — strip only identifier-shaped spans.
+              const prose = line.replace(
+                /`[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z0-9_]+)+`|`[a-z_]+`/g,
+                " ",
+              );
               const hit = GERMAN.exec(prose);
               if (hit) offenders.push(`${path}:${i + 1} "${hit[0]}" in ${prose.trim().slice(0, 80)}`);
             });

@@ -290,6 +290,11 @@ triggers:
     at: "19:30:00"
   - trigger: homeassistant
     event: start
+  # and when the device finally shows up: an integration slower than the
+  # startup wait would otherwise strand the valve until the next restart
+  - trigger: state
+    entity_id: valve.irrigation_lawn
+    from: "unavailable"
 conditions:
   # on the time path this is already true; on the startup path it catches a
   # deadline that passed while Home Assistant was off
