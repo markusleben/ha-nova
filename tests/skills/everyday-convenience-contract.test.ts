@@ -51,11 +51,18 @@ const detectGerman = (text: string): string | null => {
     // language. Only DOTTED identifiers are exempt: `light.wohnzimmer` is an
     // id, `` `bitte` `` is German wearing backticks.
     .replace(/`[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z0-9_]+)+`/g, " ")
-    // An ALL-CAPS token is an acronym, never a German function word — German
-    // capitalises the first letter, not the whole word. Dropping them kills
-    // the homograph class outright ("ES modules", "over IM", "DES", "IST")
-    // instead of deleting one colliding entry per review round.
-    .replace(/\b[A-Z]{2,}\b/g, " ");
+    // A LONE all-caps token amid normal prose is an acronym ("ES modules",
+    // "over IM", "DES"); a RUN of them is shouted German ("DAS LICHT IST AN").
+    // Dropping the lone ones kills the homograph class outright instead of
+    // deleting one colliding entry per review round, while keeping runs means
+    // a German heading is still caught.
+    .replace(/\b[A-Z]{2,}\b/g, (match, offset: number, full: string) => {
+      const runsInto = /^[^A-Za-z]*\b[A-Z]{2,}\b/.test(
+        full.slice(offset + match.length),
+      );
+      const runsFrom = /\b[A-Z]{2,}\b[^A-Za-z]*$/.test(full.slice(0, offset));
+      return runsInto || runsFrom ? match : " ";
+    });
   return GERMAN_WORDS.exec(prose)?.[0] ?? GERMAN_ORTHOGRAPHY.exec(prose)?.[0] ?? null;
 };
 
@@ -86,6 +93,8 @@ const germanFixtures: Array<[boolean, string]> = [
   // All-caps acronyms collide with short function words; the scanner
   // strips them before matching, so these must stay silent.
   [false, "ES modules load lazily; send over IM if DES is required."],
+  // …but a RUN of all-caps words is shouted German, not acronyms.
+  [true, "DAS LICHT IST AN"],
 ];
 
 

@@ -145,8 +145,8 @@ triggers:
   # repeating, not once: a single five-minute trigger fires before the
   # deadline, gets rejected by the condition, and never comes back
   - trigger: time_pattern
-    minutes: "/5"     # bounded in the condition below — an unbounded retry on
-                      # a jammed actuator runs forever and its no-op traces
+    minutes: "/5"     # bounded by the give-up arm below — an unbounded retry
+                      # on a jammed actuator runs forever and its no-op traces
                       # evict the real one (HA keeps 5 by default)
 conditions:
   # on the time path this is already true; on the startup path it catches a
@@ -163,6 +163,28 @@ conditions:
     # duration closes it hours early.
     value_template: "{{ now() >= as_datetime('2026-08-09T19:30:00+02:00') }}"
 actions:
+  # FIRST arm: past the retry window, give up loudly and disable. It has to run
+  # before the retry chain and it must NOT sit in `conditions:` — a global
+  # `now() < deadline + 2h` would fail every trigger past the window, including
+  # the one that would have disabled the automation, and the one-shot would
+  # live forever. Expiring is a state to reach, not one to fall out of.
+  - if:
+      - condition: template
+        value_template: >-
+          {{ now() >= as_datetime('2026-08-09T19:30:00+02:00')
+             + timedelta(hours=2) }}
+    then:
+      # the CURRENT state, not "failed": a human has to go look, and "still
+      # open" and "still opening" send them to different places
+      - action: notify.mobile_app_phone
+        data:
+          message: >-
+            Irrigation valve is {{ states('valve.irrigation_lawn') }} two hours
+            after its deadline. Giving up — it needs a look.
+      - action: automation.turn_off
+        target: {entity_id: "{{ this.entity_id }}"}
+        data: {stop_actions: false}
+      - stop: "gave up past the retry window"
   # on the startup path the integration may not have the entity yet, and a
   # call against an unavailable target fails silently. Give the automation a
   # second trigger on the entity LEAVING `unavailable` as well, so an
@@ -198,17 +220,6 @@ actions:
       - action: notify.mobile_app_phone
         data: {message: "Irrigation valve did not close — retrying."}
       - stop: "not closed yet"
-  # NOTE the retry window in the condition block: `now() < deadline + 2h`.
-  # Without an upper bound a jammed actuator retries forever and notifies
-  # every five minutes.
-  #
-  # The window must NOT swallow the disable, though: a first restart after the
-  # window closes fails the condition before `automation.turn_off` is reached,
-  # and every later trigger fails it identically — the one-shot then lives
-  # forever. Give the automation a THIRD arm: past the window, notify once
-  # that it gave up (with the valve's current state, because a human has to go
-  # look) and disable. Expiring is a state to reach, not a state to fall out
-  # of.
   - action: automation.turn_off
     target: {entity_id: "{{ this.entity_id }}"}
     data: {stop_actions: false}
