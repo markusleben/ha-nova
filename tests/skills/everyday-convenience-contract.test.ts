@@ -236,7 +236,8 @@ describe("flows that cost the user extra turns (#527)", () => {
     expect(disco).toContain("`hvac_action` is PRESENT and is anything but `off`/`idle`");
     expect(disco).toContain("a paused or idle player is not off");
     expect(disco).toContain("the comfort domains that have their own off state");
-    expect(disco).toContain("an open valve, or a robot");
+    expect(disco).toContain("a paused job is not a finished one");
+    expect(disco).toContain("never `unknown`/`unavailable`, which");
     expect(disco).toContain("an unreadable lock is not an unlocked one");
     // Off and running are different questions with different answers.
     expect(disco).toContain("what is RUNNING — a different question, and a narrower answer");
@@ -336,5 +337,11 @@ describe("flows that cost the user extra turns (#527)", () => {
     };
     walk("skills");
     expect(offenders, `German in skill sources:\n  ${offenders.join("\n  ")}`).toEqual([]);
+  });
+
+  it("re-reads the base of a relative move at apply time", () => {
+    const sc = flat(read("skills/service-call/SKILL.md"));
+    expect(sc).toContain("a delta computed from a stale base moves the device to");
+    expect(sc).toContain("A changed base re-previews");
   });
 });

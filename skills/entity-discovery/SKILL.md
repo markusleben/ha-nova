@@ -156,8 +156,9 @@ then filter by domain plus `device_class` and state:
   `off`/`unavailable`/`unknown` (a paused or idle player is not off), and the
   comfort domains that have their own off state: `climate`, `water_heater` and
   `humidifier` in any state but `off`/`unavailable`/`unknown`, `vacuum` in
-  `cleaning`/`returning`, `valve` not in `closed`, and `cover` in
-  `opening`/`closing` — a thermostat still heating, an open valve, or a robot
+  `cleaning`/`returning`/`paused` (a paused job is not a finished one),
+  `valve` in `open`/`opening`/`closing` — never `unknown`/`unavailable`, which
+  join the could-not-read count — and `cover` in `opening`/`closing` — a thermostat still heating, an open valve, or a robot
   mid-clean is
   the clearest possible no to "is everything off?", while an unreachable one is
   not a yes either: it joins the could-not-read count
