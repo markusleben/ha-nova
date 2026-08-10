@@ -11,7 +11,14 @@
 // Wired from .claude/settings.json as a PostToolUse hook on Bash.
 
 import { execFileSync } from "node:child_process";
-import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import {
+  mkdirSync,
+  readFileSync,
+  renameSync,
+  statSync,
+  unlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { dirname, join } from "node:path";
 
 const THRESHOLD = 5;
@@ -57,8 +64,16 @@ const cycleIsClean = (pr) => {
         { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], timeout: 5000 },
       ),
     );
+    // Only the REVIEW BOT's thumbs-up ends a cycle. A collaborator's 👍 on the
+    // PR is encouragement, and treating it as a clean verdict would reset the
+    // streak and suppress the batch reminder exactly when it is due.
     const newest = reactions
-      .filter((r) => r.content === "+1")
+      .filter(
+        (r) =>
+          r.content === "+1" &&
+          /codex/i.test(r.user?.login ?? "") &&
+          r.user?.type === "Bot",
+      )
       .map((r) => r.created_at)
       .sort()
       .pop();
@@ -109,18 +124,53 @@ const main = async () => {
   // that cycle, not to the next delta. Ask GitHub whether the newest thumbs-up
   // is younger than the last commit — if so, this trigger starts a fresh
   // streak.
-  if (state[pr] && cycleIsClean(pr)) state[pr] = 0;
-
-  const rounds = (state[pr] ?? 0) + 1;
-  state[pr] = rounds;
+  const resetStreak = Boolean(state[pr]) && cycleIsClean(pr);
+  let rounds = (state[pr] ?? 0) + 1;
   try {
-    // Two sessions in two worktrees share one state file. Write to a unique
-    // temp path and rename: on POSIX that is atomic, so a concurrent writer
-    // loses its own increment rather than the whole file.
+    // Two sessions in two worktrees share one state file. An atomic rename
+    // stops torn JSON but not a LOST UPDATE: both read 4, both write 5, one
+    // increment vanishes and the reminder arrives a round late. Take an
+    // exclusive lock, then re-read inside it so the increment is applied to
+    // whatever the other session just wrote.
     mkdirSync(dirname(STATE), { recursive: true });
-    const tmp = `${STATE}.${process.pid}.tmp`;
-    writeFileSync(tmp, JSON.stringify(state, null, 2) + "\n");
-    renameSync(tmp, STATE);
+    const lock = `${STATE}.lock`;
+    let held = false;
+    for (let attempt = 0; attempt < 50 && !held; attempt += 1) {
+      try {
+        writeFileSync(lock, String(process.pid), { flag: "wx" });
+        held = true;
+      } catch {
+        // a lock older than 10s belonged to a crashed run
+        try {
+          if (Date.now() - statSync(lock).mtimeMs > 10_000) unlinkSync(lock);
+        } catch {
+          /* someone else cleaned it up */
+        }
+        execFileSync("sleep", ["0.05"], { stdio: "ignore" });
+      }
+    }
+    try {
+      let fresh = {};
+      try {
+        fresh = JSON.parse(readFileSync(STATE, "utf8"));
+      } catch {
+        /* first write */
+      }
+      if (resetStreak) fresh[pr] = 0;
+      rounds = (fresh[pr] ?? 0) + 1;
+      fresh[pr] = rounds;
+      const tmp = `${STATE}.${process.pid}.tmp`;
+      writeFileSync(tmp, JSON.stringify(fresh, null, 2) + "\n");
+      renameSync(tmp, STATE);
+    } finally {
+      if (held) {
+        try {
+          unlinkSync(lock);
+        } catch {
+          /* already gone */
+        }
+      }
+    }
   } catch {
     // a read-only git dir is not a reason to fail the hook
   }
