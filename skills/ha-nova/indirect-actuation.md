@@ -108,7 +108,11 @@ Then:
   that is the domain (`schedule.*`, `input_boolean.*`, ...), but `template`,
   `rest` and `command_line` are PLATFORMS whose entities live in `sensor` and
   `binary_sensor`, so enumerate by `pl` in the entity registry, not by domain.
-  Either way: a reload
+  That enumeration is incomplete by construction: a YAML-declared sensor
+  without a `unique_id` has no registry row at all. Detect them — entity ids
+  present in `/api/states` and absent from the registry cannot be attributed
+  to a platform — and when any exist, the effect set is not fully known, so
+  the reload escalates instead of reporting a clean scan. Either way: a reload
   that moves a helper's state fires whatever listens to it. Enumerate the
   domain and scan those entities when the count allows; when it does not, say
   so and treat the run as unenumerable, exactly like an unreadable listener.
@@ -196,6 +200,13 @@ integration-owned scenes than hand-written ones, which is why the ordinary
 path has to stay reachable rather than escalating every unreadable scene.
 
 Two exceptions come first, because they are not really unknowns.
+
+A nested RUN whose own target is templated — `script.turn_on`,
+`scene.turn_on`, `homeassistant.turn_on|toggle` with a `{{ ... }}` entity_id —
+is unresolved for the same reason a templated action name is: you cannot read
+what it runs, so you know nothing about its members. Escalate and name the
+unresolved target. Only a run whose target resolves statically can be expanded
+and then judged.
 
 When the stored ACTION is access-capable (`lock.unlock`, `lock.open`,
 `alarm_control_panel.alarm_disarm`) and only its TARGET is templated, the

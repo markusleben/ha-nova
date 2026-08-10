@@ -243,6 +243,8 @@ describe("indirect actuation and tier classification (#513)", () => {
     expect(gate).toContain("`template.reload`, `rest.reload`");
     expect(gate).toContain("are PLATFORMS whose entities live in `sensor` and");
     expect(gate).toContain("enumerate by `pl` in the entity registry, not by domain");
+    expect(gate).toContain("has no registry row at all");
+    expect(gate).toContain("the reload escalates instead of reporting a clean scan");
     expect(gate).toContain('"No target" is not evidence of no impact');
   });
   it("does not read an empty consumer scan as an absence of consumers", () => {
@@ -340,5 +342,11 @@ describe("indirect actuation and tier classification (#513)", () => {
     expect(gate).toContain('"bounded" only helps if the bound excludes access');
     expect(gate).toContain("a YAML scene declared without an `id:`");
     expect(gate).toContain("its members are arbitrary and unknown, and it escalates");
+  });
+
+  it("escalates a nested run whose own target is templated", () => {
+    const gate = flat(indirectActuation);
+    expect(gate).toContain("A nested RUN whose own target is templated");
+    expect(gate).toContain("Only a run whose target resolves statically can be expanded");
   });
 });
