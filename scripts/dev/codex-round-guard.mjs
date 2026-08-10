@@ -10,11 +10,28 @@
 //
 // Wired from .claude/settings.json as a PostToolUse hook on Bash.
 
+import { execFileSync } from "node:child_process";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 
 const THRESHOLD = 5;
-const STATE = join(process.cwd(), ".git", "codex-rounds.json");
+
+// In a linked worktree `.git` is a FILE, so joining it as a directory fails
+// with ENOTDIR and the counter silently restarts at 1 on every call — dead
+// exactly where this repo does its parallel work. Ask git for the shared dir,
+// which also makes the count span all worktrees of one clone, as it should:
+// the rounds belong to the PR, not to the checkout.
+const gitDir = () => {
+  try {
+    return execFileSync("git", ["rev-parse", "--git-common-dir"], {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    }).trim();
+  } catch {
+    return ".git";
+  }
+};
+const STATE = join(gitDir(), "codex-rounds.json");
 
 const read = (stream) =>
   new Promise((resolve) => {
