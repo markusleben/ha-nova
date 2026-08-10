@@ -99,6 +99,7 @@
   "tests/skills/review-contract.test.ts",
   "tests/skills/scene-contract.test.ts",
   "tests/skills/service-call-contract.test.ts",
+  "tests/skills/skill-source-language-contract.test.ts",
   "tests/skills/skill-template-contract.test.ts",
   "tests/skills/smallest-solution-contract.test.ts",
   "tests/skills/test-run-contract.test.ts",
