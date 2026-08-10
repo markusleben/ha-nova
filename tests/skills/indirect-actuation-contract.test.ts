@@ -386,4 +386,12 @@ describe("indirect actuation and tier classification (#513)", () => {
     expect(gate).toContain("Skip actions carrying `enabled: false`");
     expect(gate).toContain("a disabled node is known not to run at all");
   });
+
+  it("takes a storage scene's config id from the registry", () => {
+    const gate = flat(indirectActuation);
+    // ha-nova:scene makes unique_id authoritative; a state attribute can name
+    // a different config and the gate would classify the wrong scene.
+    expect(gate).toContain("storage scenes and scripts: resolve `config_id` from the entity registry");
+    expect(gate).toContain("never from a state attribute");
+  });
 });
