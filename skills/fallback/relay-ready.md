@@ -121,6 +121,13 @@ the window has to close on the limit rather than error. `timeout_ms` is capped
 at **10000** — the relay rejects anything larger with `VALIDATION_ERROR`
 before it subscribes.
 
+Filter the result to the button you resolved: the subscription takes an event
+TYPE, so every other ZHA or Z-Wave device on the same integration lands in the
+same window. Match the event's own device field (`device_id`, or the
+integration's `device_ieee`/`node_id`) before reporting anything — an
+unfiltered window turns the neighbour's motion sensor into "your button fires
+this".
+
 Read the result from `.data.events`. In window mode `.data.truncated` is true
 whenever the window closed on a limit instead of a finish event, which is the
 NORMAL ending here — it is not evidence that events were missed. Report what
@@ -175,6 +182,12 @@ automation can reference a `device_id` directly, which no entity scan sees
 (`skills/organize/SKILL.md`). An entry id is not a related-item type at all,
 so there is no shortcut: the automations, scripts and scenes that break are
 the point of the preview.
+
+Event-trigger consumers are part of this too: an automation listening for
+`zha_event` from a device this entry owns is not reachable through
+`search/related` on that device. When the entry provides input devices, scan
+the stored automations for their identifiers as well — the preflight treats
+event listeners as their own family for exactly this reason.
 
 And say what the scan cannot see. `search/related` does not index dashboards
 (storage or YAML) or template references, so a removed entity can still be
