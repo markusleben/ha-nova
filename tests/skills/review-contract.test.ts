@@ -264,9 +264,11 @@ describe("review contract", () => {
   });
 
   it("keeps raw trace internals optional and defensive during review", () => {
-    expect(reviewSkill).toContain("ha-nova trace latest <entity_id> --json");
-    expect(reviewSkill).toContain("ha-nova trace list <entity_id> --json");
-    expect(reviewSkill).toContain("ha-nova trace get <entity_id> <run_id> --json");
+    expect(reviewSkill).toContain("Trace Evidence (automation/script reviews only)");
+    expect(reviewSkill).toMatch(/only when the user asked for an automation or\s+script review/);
+    expect(reviewSkill).toContain("ha-nova trace latest <automation_or_script_entity_id> --json");
+    expect(reviewSkill).toContain("ha-nova trace list <automation_or_script_entity_id> --json");
+    expect(reviewSkill).toContain("ha-nova trace get <automation_or_script_entity_id> <run_id> --json");
     expect(reviewSkill).toContain("they are enough for run selection, result status, timestamp, item binding, and most review findings");
     expect(reviewSkill).toContain("Inspect raw trace internals only when step-level evidence is required");
     expect(reviewSkill).toContain("Raw trace nodes can be arrays of event records");
