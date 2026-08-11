@@ -103,6 +103,9 @@ describe("boundary statements between neighbouring skills (#518)", () => {
     expect(organize).toContain(
       "Device categories do not exist; offer entity categories instead.",
     );
+    expect(read("docs/reference/skill-architecture.md")).toContain(
+      "device categories do not exist; offer entity categories instead",
+    );
     expect(organize).toContain(
       "Config-entry detachment goes to `ha-nova:fallback`",
     );
