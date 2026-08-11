@@ -160,9 +160,11 @@ describe("flows that cost the user extra turns (#527)", () => {
   });
 
   it("routes duration-bound requests to write, not service-call", () => {
-    expect(flat(read("skills/ha-nova/SKILL.md"))).toContain(
-      "do something FOR a duration",
+    const dispatcher = flat(read("skills/ha-nova/SKILL.md"));
+    expect(dispatcher).toContain(
+      "do something FOR a duration when the service has NO native duration field",
     );
+    expect(dispatcher).toContain("including native duration fields such as `timer.start` or `siren.turn_on`");
     const patterns = flat((read("skills/ha-nova/automation-patterns.md") + "\n" + read("skills/ha-nova/one-shot-automations.md")));
     expect(patterns).toContain("is a WRITE, not a service call");
     // Routing it to write is only correct if write also does the NOW half.
