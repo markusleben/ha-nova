@@ -157,8 +157,8 @@ an action; `ha-nova:mqtt` uses exactly this pattern.
 
 ### Device Config-Entry Detach -- EXTERNAL
 
-Home Assistant 2026.8 replaced shared devices with one device per config
-entry. `config/device_registry/remove_config_entry` now removes that device;
+Home Assistant 2026.8 replaced shared devices with one owning config entry per
+device. `config/device_registry/remove_config_entry` now removes that device;
 it is not a harmless relationship edit. HA NOVA does not expose generic device
 deletion. Use Settings > Devices & services and treat the operation as an
 irreversible device deletion, including Home Assistant's own confirmation.

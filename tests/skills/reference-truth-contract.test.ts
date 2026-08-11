@@ -256,6 +256,7 @@ describe("ha-api-matrix lists the surfaces skills actually pin (#517)", () => {
     expect(fallbackAll).toContain('"type": "subscribe_trigger"');
     expect(fallbackAll).toContain("puts the button in `attributes.event_type`");
     expect(fallbackAll).toContain("Count every matched device as deleted");
+    expect(fallbackAll).toContain("one owning config entry per device");
     expect(fallbackAll).toContain("not a harmless relationship edit");
     expect(fallbackAll).toContain("which no entity scan sees");
     // Verified on the live instance: list_for_display rows are
