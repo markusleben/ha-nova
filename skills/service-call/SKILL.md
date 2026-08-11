@@ -42,7 +42,8 @@ Use file-based payloads for service writes:
 
 | Service(s) | Owning skill |
 |---|---|
-| ANY call bounded by a duration ("for 30 minutes", "for an hour", "until 18:00") | `ha-nova:write` — the turn-on is a service call, the turn-off needs an automation, and splitting them loses the pairing |
+| A call bounded by a duration ("for 30 minutes", "for an hour", "until 18:00") whose service has NO duration field | `ha-nova:write` — the turn-on is a service call, the turn-off needs an automation, and splitting them loses the pairing |
+| The same request where the SERVICE already takes the duration — `timer.start`/`timer.change` (`duration`), `siren.turn_on` (`duration`), `camera.record` (`duration`) | stays here: Home Assistant bounds it itself, so there is no counter-action to schedule. An automation for these leaves persistent config behind for something the payload already expresses, and some have no meaningful restore at all |
 | `mqtt.publish` | `ha-nova:mqtt` |
 | `update.install` / `update.skip` / `update.clear_skipped` | `ha-nova:updates` |
 | `camera.*` (snapshot, record, power, `play_stream`, motion detection) | `ha-nova:camera` |

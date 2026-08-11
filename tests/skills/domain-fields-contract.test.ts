@@ -141,9 +141,12 @@ describe("per-domain service depth (#530)", () => {
   it("routes the new camera actions to the camera skill", () => {
     // Adding actions to camera's scope without a deferral row would let the
     // generic flow answer them without camera's capability gates.
+    // Select the row that ROUTES to the camera skill, not the first row that
+    // happens to mention a camera service — the duration-routing row names
+    // `camera.record` and was silently winning this `find`.
     const row = serviceCall
       .split("\n")
-      .find((l) => l.startsWith("|") && l.includes("camera"));
+      .find((l) => l.startsWith("|") && l.includes("`ha-nova:camera`"));
     expect(row).toBeTruthy();
     expect(row).toContain("play_stream");
     expect(row).toContain("motion detection");

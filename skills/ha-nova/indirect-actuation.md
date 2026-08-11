@@ -179,6 +179,14 @@ Then:
 - Trigger sources expand the other way: `search/related` on the target, then
   read the actions of every automation it triggers. The classic pattern is a
   helper toggle that another automation answers by unlocking a door.
+- A `timer` target needs the EVENT scan on top of that relation scan, because
+  its consumers need not reference the entity at all: `timer.finish` fires
+  `timer.finished` immediately and `timer.start` fires it at expiry, and an
+  automation triggered on that event with a literal `event_data.entity_id`
+  produces no relation for `search/related` to find — the preflight says
+  outright that it does not index event listeners. Scan readable automation
+  configs for a `timer.finished` trigger naming this entity, exactly as the
+  stored-`event:` path does, and treat unenumerable listeners the same way.
 - A zero-hit scan is NOT "no consumers". `search/related` does not index
   Node-RED flows, AppDaemon apps, HACS consumer managers, templated listeners,
   or dashboard references — `skills/ha-nova/consumer-discovery-preflight.md`
