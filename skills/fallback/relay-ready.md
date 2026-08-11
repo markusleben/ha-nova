@@ -168,12 +168,13 @@ type and id, so the config entry id alone does not query it: read the entry's
 own devices and entities first with WS `{"type":"config/entity_registry/list"}`
 and `{"type":"config/device_registry/list"}`. The two registries express
 ownership differently and mixing them up undercounts: an ENTITY row carries a
-singular `config_entry_id`, a DEVICE row carries a `config_entries` ARRAY
-because one device can be provided by several integrations — match on
-membership in that array, not on equality. A device whose `config_entries`
-holds this entry AND another is SHARED: removing this one detaches it, the
-device stays with its other provider, and counting it as deleted overstates
-the damage. Split the count — deleted versus detached. Report those counts. The compact `list_for_display` cannot answer this — its
+singular `config_entry_id`; on Home Assistant 2026.8+ a DEVICE row does too.
+Older rows and compatibility responses may expose a `config_entries` array —
+match on membership there when the singular field is absent. Count every
+matched device as deleted in the safety preview: removing its owning entry
+removes the device on 2026.8+, and an older shared device that survives is an
+outcome to report after verification, not a reason to understate the preview.
+The compact `list_for_display` cannot answer this — its
 rows carry no `config_entry_id`, so it is the wrong read for an ownership
 question however much cheaper it is. It does carry more than the three keys
 this once claimed (`pl` among them), which is why the actuation gate can read
@@ -274,19 +275,6 @@ pins no schema.
 
 **Risks:** none for the reads themselves; do not surface dataset credentials
 (a Thread operational dataset is a network key) in output.
-
-### Device Config-Entry Detach -- RELAY-READY
-
-Remove a config entry from a device (entity-registry removal is owned by `ha-nova:maintenance`).
-
-**Search:** `home assistant device registry remove config entry websocket api 2026`
-
-**Experimental relay calls (no skill guardrails):**
-```text
-ha-nova relay ws --data-file <payload-file>
-```
-
-**Risks:** Device detach depends on integration support (`supports_remove_device`) and can sever the current device/config-entry relationship. Preview impact first.
 
 ### Custom-Integration Configuration APIs -- RELAY-READY
 

@@ -230,18 +230,17 @@ describe("ha-api-matrix lists the surfaces skills actually pin (#517)", () => {
     // An entry id is not a search/related item type — the counts come from
     // the registries, filtered on config_entry_id.
     expect(fallbackAll).toContain("An entry id is not a related-item type at all");
-    // Live device rows carry a config_entries ARRAY; entity rows carry the
-    // singular config_entry_id. Matching a device by equality undercounts.
-    expect(fallbackAll).toContain("a DEVICE row carries a `config_entries` ARRAY");
-    expect(fallbackAll).toContain("match on membership in that array, not on equality");
+    // Current rows carry singular config_entry_id; compatibility responses
+    // may retain the old array, which still needs membership matching.
+    expect(fallbackAll).toContain("a DEVICE row does too");
+    expect(fallbackAll).toContain("match on membership there when the singular field is absent");
     // A device-level search/related misses its child entities' consumers.
     expect(fallbackAll).toContain("per DEVICE **and** per ENTITY");
     expect(fallbackAll).toContain("Neither covers the other");
     expect(fallbackAll).toContain("does not index dashboards");
     expect(fallbackAll).toContain("an unfiltered window turns the neighbour's motion sensor into");
     expect(fallbackAll).toContain("Event-trigger consumers are part of this too");
-    // A button's event type is per-integration; a shared device is detached,
-    // not deleted.
+    // A button's event type is per-integration.
     expect(fallbackAll).toContain("Resolve the event type from the button's own integration first");
     // An entity-less remote has no platform to read.
     expect(fallbackAll).toContain("has no `platform` to read");
@@ -256,7 +255,8 @@ describe("ha-api-matrix lists the surfaces skills actually pin (#517)", () => {
     // Naming the exception is not enough without the payload for it.
     expect(fallbackAll).toContain('"type": "subscribe_trigger"');
     expect(fallbackAll).toContain("puts the button in `attributes.event_type`");
-    expect(fallbackAll).toContain("Split the count — deleted versus detached");
+    expect(fallbackAll).toContain("Count every matched device as deleted");
+    expect(fallbackAll).toContain("not a harmless relationship edit");
     expect(fallbackAll).toContain("which no entity scan sees");
     // Verified on the live instance: list_for_display rows are
     // ei/pl/lb/di/tk/ec/hn/en — no config_entry_id.

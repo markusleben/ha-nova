@@ -1080,7 +1080,7 @@ describe("ha-nova contract", () => {
       "| Statistics repair / Purge / Entity registry remove | Covered | maintenance |",
     );
     expect(fallback).toContain(
-      "| Device config-entry detach | Relay-Ready | this skill |",
+      "| Device config-entry detach | External | -- (Home Assistant UI; HA 2026.8+ removes the device) |",
     );
   });
 

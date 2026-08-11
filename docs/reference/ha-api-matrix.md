@@ -70,7 +70,7 @@ Which HA operations require REST, WS, or filesystem?
 | `config/entity_registry/remove` | Remove entity from registry |
 | `config/device_registry/list` | All devices |
 | `config/device_registry/update` | Assign device area, labels, name, disable |
-| `config/device_registry/remove_config_entry` | Detach config entry from device |
+| `config/device_registry/remove_config_entry` | Remove the owning device (HA 2026.8+; legacy command name) |
 
 ### Helper CRUD (storage-based, direct WS commands)
 | WS Type Pattern | Supported types |

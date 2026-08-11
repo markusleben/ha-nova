@@ -79,7 +79,7 @@ For every Relay-Ready call in this skill:
 | Energy (analysis + source/device config) | Covered | energy |
 | Other Config-Entry Helpers | Relay-Ready | this skill |
 | Statistics repair / Purge / Entity registry remove | Covered | maintenance |
-| Device config-entry detach | Relay-Ready | this skill |
+| Device config-entry detach | External | -- (Home Assistant UI; HA 2026.8+ removes the device) |
 | Integration onboarding (add / re-auth an integration via config flow) | Covered | integration-setup |
 | Custom-integration configuration APIs (Alarmo, Scheduler, Adaptive Lighting, Frigate, ...) | Relay-Ready | this skill |
 | Event capture — bounded window (a button's event, a short watch after an action) | Relay-Ready | this skill; `mqtt` for MQTT topics |
@@ -154,6 +154,14 @@ an action; `ha-nova:mqtt` uses exactly this pattern.
 (`ha-nova:write`), or polling `GET /api/states/{entity_id}`.
 
 ## External Features
+
+### Device Config-Entry Detach -- EXTERNAL
+
+Home Assistant 2026.8 replaced shared devices with one device per config
+entry. `config/device_registry/remove_config_entry` now removes that device;
+it is not a harmless relationship edit. HA NOVA does not expose generic device
+deletion. Use Settings > Devices & services and treat the operation as an
+irreversible device deletion, including Home Assistant's own confirmation.
 
 ### Apps / Supervisor Management -- EXTERNAL
 
