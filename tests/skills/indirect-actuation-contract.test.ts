@@ -386,10 +386,11 @@ describe("indirect actuation and tier classification (#513)", () => {
     expect(gate).toContain("Only a run whose target resolves statically can be expanded");
   });
 
-  it("expands a legacy group before classifying it", () => {
+  it("expands legacy and modern domain groups before classifying them", () => {
     const gate = flat(indirectActuation);
-    expect(gate).toContain("A legacy `group.*` target forwards the call to its members");
-    expect(gate).toContain("recursively: a group can contain a group");
+    expect(gate).toContain("A legacy `group.*` target or a modern domain group");
+    expect(gate).toContain("`attributes.entity_id` member array");
+    expect(gate).toContain("classify the members recursively");
   });
 
   it("states the rules the enumerated cases are instances of", () => {

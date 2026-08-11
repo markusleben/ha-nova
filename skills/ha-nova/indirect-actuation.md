@@ -151,10 +151,10 @@ Then:
   entity, which settles it the other way. Do not stop early at a
   self-imposed depth: an unresolved chain is not a clean result (see below).
   A node already visited on this path is a cycle — stop that branch there.
-- A legacy `group.*` target forwards the call to its members, so the gate sees
-  `group` and the run reaches whatever is inside — including a script or an
-  access-granting scene. Read `attributes.entity_id` on the group and classify
-  the members, recursively: a group can contain a group.
+- A legacy `group.*` target or a modern domain group with an
+  `attributes.entity_id` member array forwards the call to its members. Read
+  that array and classify the members recursively: a group can contain a
+  group, script, or access-granting scene.
 - Resolve `area_id`, `device_id`, `floor_id`, and `label_id` targets to
   entities for classification only. This never rewrites a payload — the
   stored config is not yours to change here.
