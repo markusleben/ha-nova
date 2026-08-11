@@ -261,16 +261,16 @@ Branch by target family:
    ```
 5. If no related items found, report "no conflicts" in the Conflicts section and skip Step 3. On a filter error, report the collision scan as inconclusive — never as "no conflicts".
 
-### Trace Evidence (only when the user asked for a review)
+### Trace Evidence (automation/script reviews only)
 
 Trace ANALYSIS belongs to `ha-nova:diagnose`: a runtime complaint ("didn't
 fire", "wrong behavior last night") is a concrete incident and routes there,
-not here. Stay in this skill only when the user asked for a review and traces
-are supporting evidence for a config finding — never as the answer to a
-failure question.
+not here. Stay in this skill only when the user asked for an automation or
+script review and traces are supporting evidence for a config finding — never
+as the answer to a failure question.
 
 In that case:
-1. Prefer the normalized CLI helper fields from `ha-nova trace latest <entity_id> --json`, `ha-nova trace list <entity_id> --json`, and `ha-nova trace get <entity_id> <run_id> --json`; they are enough for run selection, result status, timestamp, item binding, and most review findings.
+1. Prefer the normalized CLI helper fields from `ha-nova trace latest <automation_or_script_entity_id> --json`, `ha-nova trace list <automation_or_script_entity_id> --json`, and `ha-nova trace get <automation_or_script_entity_id> <run_id> --json`; they are enough for run selection, result status, timestamp, item binding, and most review findings.
 2. Inspect raw trace internals only when step-level evidence is required. Raw trace nodes can be arrays of event records; type-check before reading `path`, `result`, `changed_variables`, or `error`, and avoid large jq projections as the standard path.
 3. Cross-reference trace findings with config quality findings from Step 1
 4. Verify `item_id` in every trace matches the target's `unique_id` before attributing results. see `skills/ha-nova/SKILL.md` → Claim-Evidence Binding.
