@@ -12,6 +12,9 @@ const policy = JSON.parse(
 );
 const sensitive = new Set(policy.cloud_source_gate?.sensitive_workflows ?? []);
 const resolvedTags = new Map();
+const readmeReleaseGatePath = ".github/workflows/readme-release-gate.yml";
+const versionedReleaseBodyPath = "docs/work/<version>-release-body.md";
+const activeReleaseBodyPath = "docs/work/next-release-body.md";
 
 function fail(message) {
   console.error(`[verify-cloud-workflow-uses-only] ERROR: ${message}`);
@@ -86,6 +89,21 @@ function compareVersions(left, right) {
     }
   }
   return 0;
+}
+
+function isOneTimeReadmeReleaseHintRewrite(path, baseRef, targetRef) {
+  if (path !== readmeReleaseGatePath) {
+    return false;
+  }
+  const before = git(["show", `${baseRef}:${path}`]);
+  const after = git(["show", `${targetRef}:${path}`]);
+  if (before.split(versionedReleaseBodyPath).length - 1 !== 2) {
+    return false;
+  }
+  return (
+    after ===
+    before.split(versionedReleaseBodyPath).join(activeReleaseBodyPath)
+  );
 }
 
 function ghJSON(endpoint) {
@@ -222,6 +240,9 @@ if (
 ) {
   fail("enabled Cloud source may not add, delete, or rename workflows");
 }
+const changedWorkflowCount = [...base].filter(
+  ([path, entry]) => target.get(path).blob !== entry.blob,
+).length;
 
 let changed = 0;
 for (const [path, baseEntry] of base) {
@@ -235,6 +256,12 @@ for (const [path, baseEntry] of base) {
   changed += 1;
   if (sensitive.has(path)) {
     fail(`${path} is Cloud-release-sensitive`);
+  }
+  if (isOneTimeReadmeReleaseHintRewrite(path, baseCommit, targetCommit)) {
+    if (changedWorkflowCount !== 1) {
+      fail(`${path} one-time hint rewrite must be the sole workflow delta`);
+    }
+    continue;
   }
   verifyUsesOnly(path, baseCommit, targetCommit);
 }
