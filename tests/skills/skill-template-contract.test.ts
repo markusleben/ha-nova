@@ -113,7 +113,7 @@ const SAFETY_CORE_BLOCKS = ((): { mutation: string; readOnly: string } => {
 const WORD_BUDGETS: Record<string, number> = {
   // Platform-specific payloads plus presence-based household routing in the
   // combined audit train (measured 1382 before the bounded-wait removal).
-  notify: 1800,
+  notify: 1430,
   // State-snapshot queries ("is everything closed?") and the alias fallback
   // that finally reaches the names a household actually says (#527, 1318).
   // Codex round 3: a motorized window or garage door is a cover, so an
@@ -155,7 +155,9 @@ const WORD_BUDGETS: Record<string, number> = {
   // setters (Codex round 6). Merge-train combination with the #483 receipt
   // lines and the #452 draft rule (measured 2182).
   // One-shot intent routing to the self-disabling pattern (#527, 2221).
-  write: 2600,
+  // Includes one-shot-automations.md after the audit exposed that the split
+  // had reset this ratchet (measured 5356 on #543).
+  write: 5380,
   // HACS lifecycle: schema guard, reconcile loops, consumer discovery,
   // migration backup gate, category-appropriate verification (#478);
   // review rounds added pin-durability branches, the uninstall apply
@@ -253,7 +255,9 @@ const WORD_BUDGETS: Record<string, number> = {
   // merge. Measured 3963 at the time of writing.
   // Audit train: the ceiling is the MAX of both branches — each
   // measured only its own tree.
-  "service-call": 5200,  // folded with domain-fields.md: measured 5109
+  // Includes domain-fields.md and indirect-actuation.md; both are contracts
+  // split out of this skill (measured 8777 on #543).
+  "service-call": 8800,
   // Carries the canonical File-Change Preview example — the only layout
   // source for file edits; concrete examples are what make a card renderable.
   // Sibling-survival verification (Wave 1b) + yaml snapshot capture with
@@ -312,7 +316,6 @@ const WORD_BUDGETS: Record<string, number> = {
   // the researched-schema path for the rest (#518, measured 2799).
   // Codex round 8: a config-entry flow answers from its own live response,
   // never from the research schema (measured 2863).
-  fallback: 6000,
   // Capability-map completion (#516): the map is fallback's routing index, so
   // a missing row means Flow step 1 finds nothing and the agent improvises.
   // Added integration entry lifecycle (with its own Relay-Ready mechanics —
@@ -343,6 +346,8 @@ const WORD_BUDGETS: Record<string, number> = {
   // does not reopen this file. Measured 4413.
   // Audit train: the ceiling is the MAX of both branches — each
   // measured only its own tree.
+  // Includes relay-ready.md; measured 4938 on #543.
+  fallback: 5000,
   // semantic-slot note on the read templates (Wave 0); pre-write cross-field
   // constraint checks + drift-check step (Wave 1); pre-delete snapshot
   // capture (Wave 2).
@@ -390,7 +395,8 @@ const FOLDED_INTO_BUDGET: Record<string, string[]> = {
   // it unfolded did exactly what the comment above warns about: the ceiling
   // measured 4252 while the skill really costs 5109, and the next split would
   // have reset it again.
-  "service-call": ["domain-fields.md"],
+  "service-call": ["domain-fields.md", "../ha-nova/indirect-actuation.md"],
+  write: ["../ha-nova/one-shot-automations.md"],
 };
 
 // Internal review-check codes (S-01, R-18, H-09, ...) may flow only between
@@ -688,6 +694,14 @@ describe("skill template v2 contract", () => {
         ).toBe(false);
       }
     }
+  });
+
+  it("keeps split contracts folded into their owning skill budgets", () => {
+    expect(FOLDED_INTO_BUDGET).toEqual({
+      fallback: ["relay-ready.md"],
+      "service-call": ["domain-fields.md", "../ha-nova/indirect-actuation.md"],
+      write: ["../ha-nova/one-shot-automations.md"],
+    });
   });
 
   it("keeps every sub-skill within its word budget", () => {
