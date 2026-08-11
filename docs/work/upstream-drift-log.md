@@ -107,3 +107,18 @@ stopped.
 - Next window starts AFTER HA 2026.8 + HACS 2.0.5; watch items: device
   registry compat shims harden 2027.8; device-tracker deprecations land
   2027.7; `unit_class` omission breaks 2026.11.
+
+## 2026-08-12 — HA 2026.8.1 patch + developer blog + HACS
+
+- Window screened: Home Assistant Core 2026.8.1, developer-blog posts after
+  the 2026-08-09 screening, and HACS releases after 2.0.5.
+- CLEAN — Core 2026.8.1 changes no pinned WS response or request shape. The
+  REST service-call fix in core PR #178377 retains the shielded task to prevent
+  mid-run garbage collection; it does not change the `/api/services/*` contract.
+- CLEAN — no new developer-blog post after the July 22 entry and no HACS
+  release after 2.0.5.
+- Existing HIT remains tracked: `media_source/search_media` is issue #519.
+- Sources: github.com/home-assistant/core/releases/tag/2026.8.1;
+  github.com/home-assistant/core/pull/178377;
+  developers.home-assistant.io/blog/; github.com/hacs/integration/releases.
+- Next window starts AFTER HA 2026.8.1 + HACS 2.0.5.
