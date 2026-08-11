@@ -58,25 +58,11 @@ Discovery:
      - **iOS — under `data.push`**: `interruption-level`, `sound`, `badge`. `push` is the iOS-only container; do not put Android channel/importance there.
      Read the target's platform from the device name or ask, and place the keys accordingly.
    - A `message: "clear_notification"` with a matching `tag` removes a previously sent notification instead of sending a new one.
-3. Preview the exact payload (target + title + message + any `data`) and get confirmation — a notification is an irreversible, user-visible side effect.
-4. Send, then report what was sent where. There is no delivery receipt: a successful service call means Home Assistant accepted it, not that the phone displayed it — say so honestly.
-5. Actionable buttons: the button press arrives as a `mobile_app_notification_action` EVENT in Home Assistant. This skill does not hold a long subscription for it, so the durable answer is an automation on `mobile_app_notification_action` (`ha-nova:write`). A bounded in-chat window can CATCH a tap, but cannot guarantee one: the relay is request/response, so the window opens after the send and Home Assistant does not replay `mobile_app_notification_action` — a press in that gap is simply gone. When you do offer it, the mechanics are the bounded envelope in
-`skills/ha-nova/relay-api.md` → Bounded Event Collection, wrapping
-`{"type":"subscribe_events","event_type":"mobile_app_notification_action"}`
-with `on_limit: "return"` — the same shape `ha-nova:fallback` documents for a
-button press, and this skill does not restate it. The window is at most ten seconds and it starts AFTER the
-send, so notification delivery eats part of it: offer this only when the user
-says they are holding the phone, and tell them to tap the moment it arrives.
-The subscription is unfiltered, so it also catches taps on older notifications
-or somebody else's phone. Offer this bounded path only for one resolved
-mobile-app device; group and household sends use a durable automation. Make every
-`action` value unique to this send with a per-send nonce, then require both that
-exact value and the target `device_id`. Never accept a stable or reused action
-value: an older notification can emit it. If action values must stay stable,
-use the durable automation instead.
-If they are not poised, or the first window comes back empty, the durable
-automation is the answer — do not spend a second window on it. Say how long
-you will wait, and never report an empty window as proof that nobody tapped; say the window may have missed it and fall back to the automation. This skill cannot wait longer than that window (the relay does not hold long subscriptions). To react to a press, the user needs an automation that listens for that event — hand off to `ha-nova:write` and explain the pattern instead of pretending to wait.
+3. If an actionable button needs a reaction, invoke `ha-nova:write` to create
+   and verify its `mobile_app_notification_action` automation first. This
+   skill does not own a durable listener; continue only after it exists.
+4. Preview the exact payload (target + title + message + any `data`) and get confirmation — a notification is an irreversible, user-visible side effect.
+5. Send, then report what was sent where. There is no delivery receipt: a successful service call means Home Assistant accepted it, not that the phone displayed it — say so honestly.
 
 ## Persistent Notifications (Home Assistant UI)
 
@@ -147,5 +133,5 @@ Render the Report shape (output-rules.md): the resolved target, the sent title/m
 ## Guardrails
 
 - One target per send unless the user explicitly asks for a group, or the recipients come from presence routing ("tell whoever is home") — in both cases show the full resolved member list in the preview.
-- Never invent device names or `tag` values.
+- Never invent device names, `tag` values, or action IDs.
 - Do not claim delivery — only acceptance.

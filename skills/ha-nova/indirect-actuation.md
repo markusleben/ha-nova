@@ -26,9 +26,9 @@ the rules are the contract.
    how harmless its domain looks. Read the stored action; ordinary-device
    reasoning does not apply to it.
 3. **Unread is not empty.** A blueprint body, a YAML item without an `id`, a
-   failed relation scan, a targetless reload, a templated target — each
-   produces no usable result and means "not known", never "nothing there".
-   Escalate, and name what could not be read.
+   failed relation scan, an unresolved targetless reload, a templated target —
+   each produces no usable result and means "not known", never "nothing
+   there". Escalate, and name what could not be read.
 
 ## What triggers the gate
 

@@ -402,6 +402,7 @@ describe("indirect actuation and tier classification (#513)", () => {
     expect(gate).toContain("A stored action belongs to whoever authored it");
     expect(gate).toContain("Unread is not empty");
     expect(gate).toContain("failed relation scan");
+    expect(gate).toContain("an unresolved targetless reload");
     expect(gate).not.toContain("coverage-incomplete relation scan");
     expect(gate).toContain("`python_script.*`, `shell_command.*` and `rest_command.*` are terminals only");
     expect(gate).toContain("Treat them as unread, not as concrete");

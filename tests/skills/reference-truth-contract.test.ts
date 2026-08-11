@@ -52,19 +52,6 @@ describe("fallback capability map is complete and truthful (#516)", () => {
     expect(flat(fallback)).toContain("re-test one known-good phrase before reporting");
   });
 
-  it("teaches the owning skill the bounded callback path it advertises", () => {
-    // Advertising a capability in fallback while the skill that owns the user
-    // flow still says it is impossible leaves it unreachable.
-    const notify = flat(read("skills/notify/SKILL.md"));
-    expect(notify).toContain("A bounded in-chat window can CATCH a tap");
-    expect(notify).toContain("Say how long you will wait");
-    // The relay is request/response: the window opens AFTER the send and HA
-    // does not replay the event, so an empty window is not proof.
-    expect(notify).toContain("cannot guarantee one");
-    expect(notify).toContain("a press in that gap is simply gone");
-    expect(notify).toContain("never report an empty window as proof that nobody tapped");
-  });
-
   it("stops claiming bounded event capture is unavailable", () => {
     // The envelope ships and ha-nova:mqtt uses it; only continuous streams
     // are still blocked.
@@ -283,26 +270,14 @@ describe("ha-api-matrix lists the surfaces skills actually pin (#517)", () => {
     expect(row).not.toContain("get_states");
   });
 
-  it("gives the bounded notification wait an executable path", () => {
+  it("installs the durable notification callback before sending", () => {
     const notify = flat(read("skills/notify/SKILL.md"));
-    // The capability map offers this window; the skill has to say how.
-    expect(notify).toContain('"event_type":"mobile_app_notification_action"');
-    expect(notify).toContain("Bounded Event Collection");
-    expect(notify).toContain("this skill does not restate it");
-    expect(notify).toContain("notification delivery eats part of it");
-    expect(notify).toContain("The subscription is unfiltered");
-    expect(notify).toContain("only for one resolved mobile-app device");
-    expect(notify).toContain("group and household sends use a durable automation");
-    expect(notify).toContain("unique to this send with a per-send nonce");
-    expect(notify).toContain("Never accept a stable or reused action value");
-    expect(notify).toContain("use the durable automation instead");
-    expect(notify).toContain("only when the user says they are holding the phone");
-  });
-
-  it("routes a bounded callback wait to notify, not to write", () => {
-    const fb = flat(read("skills/fallback/SKILL.md"));
-    // write owns the durable automation; the in-chat window is notify's.
-    expect(fb).toContain("for a bounded in-chat wait instead, `notify` owns it");
+    expect(notify).toContain("invoke `ha-nova:write` to create and verify");
+    expect(notify).toContain("continue only after it exists");
+    expect(notify.indexOf("invoke `ha-nova:write`")).toBeLessThan(
+      notify.indexOf("Send, then report"),
+    );
+    expect(notify).not.toContain("A bounded in-chat window can CATCH a tap");
   });
 
   it("names the Matter/Thread message shapes it can name", () => {
