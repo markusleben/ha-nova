@@ -291,7 +291,9 @@ describe("ha-api-matrix lists the surfaces skills actually pin (#517)", () => {
     expect(notify).toContain("this skill does not restate it");
     expect(notify).toContain("notification delivery eats part of it");
     expect(notify).toContain("The subscription is unfiltered");
-    expect(notify).toContain("A tap that matches neither is somebody else's");
+    expect(notify).toContain("unique to this send with a per-send nonce");
+    expect(notify).toContain("Never accept a stable or reused action value");
+    expect(notify).toContain("skip bounded attribution and use that automation instead");
     expect(notify).toContain("only when the user says they are holding the phone");
   });
 
