@@ -48,6 +48,8 @@ describe("indirect actuation and tier classification (#513)", () => {
       // accepts any entity, so a light can drive an automation that unlocks.
       expect(skillDoc).toContain("Ordinary device control expands no stored members");
       expect(skillDoc).toContain("still runs the gate's CONSUMER scan");
+      expect(skillDoc).toContain("matching `call_service` event consumers");
+      expect(skillDoc).toContain("only zero hits across both stays ordinary");
       // The gate itself has to say it too — pinning only service-call left the
       // shared contract free to drop the rule, which a mutation proved.
       expect(flat(indirectActuation)).toContain(

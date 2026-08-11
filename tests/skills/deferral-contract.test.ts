@@ -32,6 +32,7 @@ describe("owning-skill deferrals and lifecycle paths (#513)", () => {
         ["mqtt.publish", "ha-nova:mqtt"],
         ["update.install", "ha-nova:updates"],
         ["camera.snapshot", "ha-nova:camera"],
+        ["camera.record", "ha-nova:camera"],
         ["camera.turn_on", "ha-nova:camera"],
         ["media_player.*", "ha-nova:media"],
         ["notify.*", "ha-nova:notify"],
@@ -57,6 +58,13 @@ describe("owning-skill deferrals and lifecycle paths (#513)", () => {
         expect(row, `no deferral row for ${service}`).toBeTruthy();
         expect(row, `${service} must defer to ${owner}`).toContain(owner);
       }
+    });
+
+    it("does not keep camera recording in the generic duration flow", () => {
+      const durationRow = skillDoc
+        .split("\n")
+        .find((line) => line.includes("SERVICE already takes the duration"));
+      expect(durationRow).not.toContain("camera.record");
     });
 
     it("keeps read-only response services and scene activation in this flow", () => {

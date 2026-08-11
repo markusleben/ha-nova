@@ -141,10 +141,12 @@ describe("service call contract", () => {
     it("teaches the mandatory return_response query parameter", () => {
       // Live-verified: weather.get_forecasts returns 400 without it.
       expect(skillDoc).toContain("## Response services");
-      expect(skillDoc).toContain("REQUIRE the `?return_response` query parameter");
+      expect(skillDoc).toContain("REQUIRE `?return_response`");
       expect(skillDoc).toContain("`.data.body.service_response`");
-      expect(skillDoc).toContain("Pure data services (the examples above) are reads — no write confirmation");
-      expect(skillDoc).toContain("it never downgrades an action to a read");
+      expect(skillDoc).toContain("These reads need no write confirmation only when the shared gate's consumer scan stays ordinary");
+      expect(skillDoc).toContain("a matching `call_service` event listener can make the nominal read indirect actuation");
+      expect(skillDoc).toContain("never downgrades the action");
+      expect(skillDoc).not.toContain("Read-only: no confirmation needed");
     });
   });
 

@@ -59,8 +59,10 @@ Discovery:
      Read the target's platform from the device name or ask, and place the keys accordingly.
    - A `message: "clear_notification"` with a matching `tag` removes a previously sent notification instead of sending a new one.
 3. If an actionable button needs a reaction, invoke `ha-nova:write` to create
-   and verify its `mobile_app_notification_action` automation first. This
-   skill does not own a durable listener; continue only after it exists.
+   and verify its `mobile_app_notification_action` automation first, filtered
+   to the exact `event_data.action` ID and resolved target `device_id` value(s). Never
+   reuse that action ID for different callback behavior. This skill does not
+   own a durable listener; continue only after it exists.
 4. Preview the exact payload (target + title + message + any `data`) and get confirmation — a notification is an irreversible, user-visible side effect.
 5. Send, then report what was sent where. There is no delivery receipt: a successful service call means Home Assistant accepted it, not that the phone displayed it — say so honestly.
 

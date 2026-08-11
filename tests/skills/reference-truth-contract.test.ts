@@ -273,6 +273,9 @@ describe("ha-api-matrix lists the surfaces skills actually pin (#517)", () => {
   it("installs the durable notification callback before sending", () => {
     const notify = flat(read("skills/notify/SKILL.md"));
     expect(notify).toContain("invoke `ha-nova:write` to create and verify");
+    expect(notify).toContain("exact `event_data.action` ID");
+    expect(notify).toContain("resolved target `device_id`");
+    expect(notify).toContain("Never reuse that action ID");
     expect(notify).toContain("continue only after it exists");
     expect(notify.indexOf("invoke `ha-nova:write`")).toBeLessThan(
       notify.indexOf("Send, then report"),
