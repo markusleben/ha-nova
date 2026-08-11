@@ -68,11 +68,12 @@ button press, and this skill does not restate it. The window is at most ten seco
 send, so notification delivery eats part of it: offer this only when the user
 says they are holding the phone, and tell them to tap the moment it arrives.
 The subscription is unfiltered, so it also catches taps on older notifications
-or somebody else's phone. For this bounded path, make every `action` value
-unique to this send with a per-send nonce, then require both that exact value
-and the target `device_id`. Never accept a stable or reused action value: an
-older notification can emit it. If action values must stay stable for a durable
-automation, skip bounded attribution and use that automation instead.
+or somebody else's phone. Offer this bounded path only for one resolved
+mobile-app device; group and household sends use a durable automation. Make every
+`action` value unique to this send with a per-send nonce, then require both that
+exact value and the target `device_id`. Never accept a stable or reused action
+value: an older notification can emit it. If action values must stay stable,
+use the durable automation instead.
 If they are not poised, or the first window comes back empty, the durable
 automation is the answer — do not spend a second window on it. Say how long
 you will wait, and never report an empty window as proof that nobody tapped; say the window may have missed it and fall back to the automation. This skill cannot wait longer than that window (the relay does not hold long subscriptions). To react to a press, the user needs an automation that listens for that event — hand off to `ha-nova:write` and explain the pattern instead of pretending to wait.
