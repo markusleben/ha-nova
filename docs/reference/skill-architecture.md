@@ -250,7 +250,7 @@ Mutation rules:
 Still excluded:
 - entity removal
 - device config-entry detachment
-- device category assignment
+- device categories do not exist; offer entity categories instead
 - zones / persons / tags
 
 ## History Architecture

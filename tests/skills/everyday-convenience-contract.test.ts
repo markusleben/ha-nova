@@ -12,10 +12,12 @@ const read = (p: string): string =>
 const flat = (text: string): string => text.replace(/\s+/g, " ");
 
 describe("one-shot and temporary automations (#527)", () => {
-  const patterns = (read("skills/ha-nova/automation-patterns.md") + "\n" + read("skills/ha-nova/one-shot-automations.md"));
+  const automationPatterns = read("skills/ha-nova/automation-patterns.md");
+  const oneShotPatterns = read("skills/ha-nova/one-shot-automations.md");
+  const patterns = automationPatterns + "\n" + oneShotPatterns;
 
   it("gives the self-disabling pattern a home and says why it beats a delay", () => {
-    expect(patterns).toContain("one-shot-automations.md");
+    expect(automationPatterns).toContain("skills/ha-nova/one-shot-automations.md");
     expect(patterns).toContain("action: automation.turn_off");
     expect(patterns).toContain("{{ this.entity_id }}");
     // A long delay does not survive a restart; disabling does.
@@ -150,7 +152,6 @@ describe("flows that cost the user extra turns (#527)", () => {
     // the one-shot stays armed for the next matching transition.
     expect(p).toContain("Disable FIRST, act second");
     // The expiry variant must follow the same rule and recover at startup.
-    expect(p).toContain("a missed 23:59 leaves this armed for tomorrow");
     expect(p).toContain("instead of leaving it to fire on tomorrow's laundry");
     expect(p).toContain("a disable placed last never runs if the notification");
     // Verified against the live instance: automation.turn_off defaults
@@ -190,7 +191,6 @@ describe("flows that cost the user extra turns (#527)", () => {
     expect(patterns).toContain("A bare `time` trigger is MISSED, not replayed");
     expect(patterns).toContain("trigger: homeassistant");
     // today_at() re-reads as the CURRENT day on every later restart.
-    expect(patterns).toContain("the ABSOLUTE deadline, substituted at write time");
     expect(patterns).not.toContain("now() >= today_at(");
     // A failed close must stay armed; a spent notification must not.
     expect(patterns).toContain("put the disable where a failure leaves the safer state");
@@ -258,7 +258,6 @@ describe("flows that cost the user extra turns (#527)", () => {
     expect(disco).toContain("any state that is not `locked` and not");
     expect(disco).toContain("reports `on` for UNLOCKED");
     expect(disco).toContain("a motor turning is running, a cover left open is not");
-    expect(disco).toContain("a motor turning is running, a cover left open is not");
     // The generic opening class is what many contact sensors report.
     expect(disco).toContain("`opening` (the generic contact class)");
     expect(disco).toContain("Name the state each one is in");
@@ -277,17 +276,6 @@ describe("flows that cost the user extra turns (#527)", () => {
     // so the endpoint splits on commas and ignores unknown ids.
     expect(hist).toContain("the endpoint splits on commas");
     expect(hist).toContain("an unknown id in the list is ignored");
-  });
-
-  it("waits for the safe state before disabling the retry", () => {
-    const patterns = flat((read("skills/ha-nova/automation-patterns.md") + "\n" + read("skills/ha-nova/one-shot-automations.md")));
-    expect(patterns).toContain("HA accepting the call is not the device having closed, so confirm the");
-    expect(patterns).toContain("the integration may not have the entity yet");
-    expect(patterns).toContain("Wait for a KNOWN state");
-    expect(patterns).toContain("bind the trigger to the usable state");
-    expect(patterns).toContain("repeating, not once: a single five-minute trigger fires before the");
-    expect(patterns).toContain("stay armed and TELL someone");
-    expect(patterns).toContain("wait_template");
   });
 
   // Ordering, read out of the YAML itself. Asserting the COMMENTS that explain
@@ -313,6 +301,15 @@ describe("flows that cost the user extra turns (#527)", () => {
       ).toBe(-1);
       return index;
     };
+    expect(retry).toMatch(/- trigger: homeassistant\n\s+event: start/);
+    expect(retry).toMatch(
+      /- trigger: state\n\s+entity_id: valve\.irrigation_lawn\n\s+to: \["open", "closed", "opening", "closing"\]/,
+    );
+    expect(retry).toMatch(/- trigger: time_pattern\n\s+minutes: "\/5"/);
+    expect(retry).toContain(
+      "value_template: \"{{ now() >= as_datetime('2026-08-09T19:30:00+02:00') }}\"",
+    );
+    expect(retry).toContain("states('valve.irrigation_lawn') not in");
     // 1. try the close BEFORE giving up — a restart hours late is exactly when
     //    the valve is still open, and disarming first strands it open forever
     // 2. disarm BEFORE the give-up notification — a notify service that is
@@ -320,6 +317,15 @@ describe("flows that cost the user extra turns (#527)", () => {
     expect(at("- action: valve.close_valve")).toBeLessThan(
       at('- stop: "closed"'),
     );
+    expect(at("- action: valve.close_valve")).toBeLessThan(
+      at("- wait_template: \"{{ is_state('valve.irrigation_lawn', 'closed') }}\""),
+    );
+    expect(at("Irrigation valve did not close — retrying.")).toBeLessThan(
+      at('- stop: "not closed yet"'),
+    );
+    expect(
+      (retry as string).indexOf("- action: automation.turn_off"),
+    ).toBeGreaterThan(at('state: "closed"'));
     expect(
       (retry as string).lastIndexOf("- action: automation.turn_off"),
     ).toBeLessThan(at("Giving up — it needs a look."));
@@ -330,9 +336,23 @@ describe("flows that cost the user extra turns (#527)", () => {
     //    fails the very trigger that would disarm
     const oneShot = blocks.find((b) => b.includes("id: expired"));
     expect(oneShot, "the notify one-shot").toBeDefined();
-    const conditions = (oneShot as string).slice(
-      (oneShot as string).indexOf("conditions:"),
-      (oneShot as string).indexOf("actions:"),
+    expect(oneShot).toMatch(
+      /- trigger: homeassistant\n\s+event: start\n\s+id: expired/,
+    );
+    const conditionsStart = (oneShot as string).indexOf("conditions:");
+    const actionsStart = (oneShot as string).indexOf("actions:");
+    expect(conditionsStart).toBeGreaterThan(-1);
+    expect(actionsStart).toBeGreaterThan(conditionsStart);
+    const conditions = (oneShot as string).slice(conditionsStart, actionsStart);
+    const conditionArms = conditions.split(/^      - condition: and$/m).slice(1);
+    expect(conditionArms).toHaveLength(2);
+    expect(conditionArms[0]).toContain("id: fired");
+    expect(conditionArms[0]).toContain(
+      "now() < as_datetime('2026-08-10T23:59:00+02:00')",
+    );
+    expect(conditionArms[1]).toContain("id: expired");
+    expect(conditionArms[1]).toContain(
+      "now() >= as_datetime('2026-08-10T23:59:00+02:00')",
     );
     expect(conditions).not.toContain("timedelta");
     expect(oneShot).toContain("timedelta(hours=2)");
@@ -353,11 +373,8 @@ describe("flows that cost the user extra turns (#527)", () => {
     expect(ctx).toContain("the SYSTEM's condition; a snapshot of what things are DOING");
   });
 
-  it("only clears the one-shot at startup once the deadline has passed", () => {
+  it("restores a temporary off by turning it back on", () => {
     const p = flat((read("skills/ha-nova/automation-patterns.md") + "\n" + read("skills/ha-nova/one-shot-automations.md")));
-    expect(p).toContain("would disable a one-shot that still has the evening to fire");
-    expect(p).toContain("after the deadline and must not count");
-    expect(p).toContain("the expiry arm must ALSO be scoped to its own triggers");
     expect(p).toContain('"light off for an hour" turns back ON');
   });
 

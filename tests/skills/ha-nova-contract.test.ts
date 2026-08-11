@@ -226,7 +226,7 @@ describe("ha-nova contract", () => {
     expect(organize).toContain(
       "category assignment/removal is entity-only in this skill",
     );
-    expect(organize).toContain("device category assignment");
+    expect(organize).toContain("Device categories do not exist");
     expect(organize).toContain(
       "Delete uses the typed confirmation code only, even for cleanup of items created earlier in the same session.",
     );
@@ -1160,9 +1160,10 @@ describe("ha-nova contract", () => {
     const context = readFileSync("skills/ha-nova/SKILL.md", "utf8");
     const content = readFileSync("skills/ha-nova/session-bootstrap.md", "utf8");
     expect(context).toContain("../ha-nova/session-bootstrap.md");
-    expect(context.indexOf("## Session Bootstrap")).toBeLessThan(
-      context.indexOf("## Runtime Prerequisite"),
-    );
+    const bootstrapHeading = context.indexOf("## Session Bootstrap");
+    const prerequisiteHeading = context.indexOf("## Runtime Prerequisite");
+    expect(bootstrapHeading).toBeGreaterThan(-1);
+    expect(prerequisiteHeading).toBeGreaterThan(bootstrapHeading);
     expect(content).toContain("ha-nova check-update --quiet");
     expect(content).toContain(
       "before the first Home Assistant task in a session",

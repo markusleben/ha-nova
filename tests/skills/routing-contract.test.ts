@@ -22,14 +22,15 @@ describe("description-level routing (#518)", () => {
   // speak.
   it("gives service-call the words users say for device control", () => {
     const d = description("service-call");
-    for (const word of ["turn", "lights", "covers", "climate", "on, off"]) {
+    expect(d).toMatch(/\bturn lights\b/);
+    for (const word of ["covers", "climate", "on, off"]) {
       expect(d, `service-call description missing "${word}"`).toContain(word);
     }
   });
 
   it("puts the one-off vs automation split into the notify description", () => {
     const d = description("notify");
-    expect(d).toContain("NOW");
+    expect(d).toContain("notification NOW —");
     expect(d).toContain('For "notify me WHEN something happens" use ha-nova:write');
   });
 
@@ -56,6 +57,11 @@ describe("boundary statements between neighbouring skills (#518)", () => {
     const review = flat(read("skills/review/SKILL.md"));
     expect(review).toContain("Trace ANALYSIS belongs to `ha-nova:diagnose`");
     expect(review).toContain("never as the answer to a failure question");
+    const traceEvidence = review.match(
+      /### Trace Evidence[\s\S]*?### Step 3: Conflict Analysis/,
+    )?.[0];
+    expect(traceEvidence).toBeDefined();
+    expect(traceEvidence ?? "").not.toContain("skills/read/SKILL.md");
     // And the entrypoint must not keep its own contradicting verify gate.
     expect(review).toContain("the canonical sequence lives in");
     expect(review).not.toContain("Only flag as error if confirmed invalid after both checks");
@@ -89,6 +95,25 @@ describe("boundary statements between neighbouring skills (#518)", () => {
     expect(read("skills/organize/SKILL.md")).toContain(
       "- zones, persons, tags (`ha-nova:admin`)",
     );
+  });
+
+  it("corrects the nonexistent device-category premise without a fallback loop", () => {
+    const organizeRaw = read("skills/organize/SKILL.md");
+    const organize = flat(organizeRaw);
+    expect(organize).toContain(
+      "Device categories do not exist; offer entity categories instead.",
+    );
+    expect(read("docs/reference/skill-architecture.md")).toContain(
+      "device categories do not exist; offer entity categories instead",
+    );
+    expect(organize).toContain(
+      "Config-entry detachment goes to `ha-nova:fallback`",
+    );
+    const handoffList = organizeRaw.match(
+      /Not in scope:[\s\S]*?## Bootstrap/,
+    )?.[0];
+    expect(handoffList).toBeDefined();
+    expect(handoffList ?? "").not.toMatch(/device categor/i);
   });
 });
 

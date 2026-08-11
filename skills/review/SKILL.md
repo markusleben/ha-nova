@@ -261,21 +261,20 @@ Branch by target family:
    ```
 5. If no related items found, report "no conflicts" in the Conflicts section and skip Step 3. On a filter error, report the collision scan as inconclusive — never as "no conflicts".
 
-### Trace Evidence (only when the user asked for a review)
+### Trace Evidence (automation/script reviews only)
 
 Trace ANALYSIS belongs to `ha-nova:diagnose`: a runtime complaint ("didn't
 fire", "wrong behavior last night") is a concrete incident and routes there,
-not here. Stay in this skill only when the user asked for a review and traces
-are supporting evidence for a config finding — never as the answer to a
-failure question.
+not here. Stay in this skill only when the user asked for an automation or
+script review and traces are supporting evidence for a config finding — never
+as the answer to a failure question.
 
 In that case:
-1. Follow the trace procedure in `skills/read/SKILL.md` → Trace Debugging
-2. Prefer the normalized CLI helper fields from `ha-nova trace latest/list/get --json`; they are enough for run selection, result status, timestamp, item binding, and most review findings.
-3. Inspect raw trace internals only when step-level evidence is required. Raw trace nodes can be arrays of event records; type-check before reading `path`, `result`, `changed_variables`, or `error`, and avoid large jq projections as the standard path.
-4. Cross-reference trace findings with config quality findings from Step 1
-5. Verify `item_id` in every trace matches the target's `unique_id` before attributing results. see `skills/ha-nova/SKILL.md` → Claim-Evidence Binding.
-6. Include trace-based findings in the Findings section with a descriptive title (e.g., `🔴 Condition blocked — condition was never met in last 3 runs`). Localize at runtime per `skills/ha-nova/output-rules.md`.
+1. Prefer the normalized CLI helper fields from `ha-nova trace latest <automation_or_script_entity_id> --json`, `ha-nova trace list <automation_or_script_entity_id> --json`, and `ha-nova trace get <automation_or_script_entity_id> <run_id> --json`; they are enough for run selection, result status, timestamp, item binding, and most review findings.
+2. Inspect raw trace internals only when step-level evidence is required. Raw trace nodes can be arrays of event records; type-check before reading `path`, `result`, `changed_variables`, or `error`, and avoid large jq projections as the standard path.
+3. Cross-reference trace findings with config quality findings from Step 1
+4. Verify `item_id` in every trace matches the target's `unique_id` before attributing results. see `skills/ha-nova/SKILL.md` → Claim-Evidence Binding.
+5. Include trace-based findings in the Findings section with a descriptive title (e.g., `🔴 Condition blocked — condition was never met in last 3 runs`). Localize at runtime per `skills/ha-nova/output-rules.md`.
 
 ### Step 3: Conflict Analysis
 
@@ -312,7 +311,7 @@ After completing Steps 1-3, check if the current entity state (from the earlier 
 - Fix requires config change (that's a Suggestions item)
 - Multiple equally valid corrections exist (ambiguous — note in Questions to consider instead)
 - State read failed or entity unavailable — skip, note in Instant Help section: localized equivalent of "Skipped: current state unavailable."
-- The corrective call would grant physical access or is physically irreversible — unlocking or opening a lock, disarming an alarm panel, opening a garage/gate/entry-door cover by `device_class`, or running a scene, script, or automation that reaches one. A correction that writes a trigger source — resetting a desynchronized `input_select`, toggling a helper — must RUN the indirect-actuation gate first (`skills/ha-nova/indirect-actuation.md`), because that harmless-looking write is exactly what another automation answers by unlocking a door. What disqualifies it is the gate's VERDICT, not having consulted the gate: a clean consumer scan leaves the correction ordinary and Quick-Fixable, while a typed-tier verdict — or a scan that could not enumerate the consumers — sends it out of Quick-Fix. Never Quick-Fix those: name the fix and offer to run it as a separate service call, which carries the typed high-consequence gate this step does not.
+- The corrective call would grant physical access or is physically irreversible — unlocking or opening a lock, disarming an alarm panel, opening a garage/gate/entry-door cover by `device_class`, or running a scene, script, or automation that reaches one. Every corrective call — ordinary device control or a trigger-source write such as resetting a desynchronized `input_select` — must RUN the indirect-actuation gate first (`skills/ha-nova/indirect-actuation.md`); ordinary device control still carries its CONSUMER scan. What disqualifies it is the gate's VERDICT, not having consulted the gate: a clean consumer scan leaves the correction ordinary and Quick-Fixable, while a typed-tier verdict — or a scan that could not enumerate the consumers — sends it out of Quick-Fix. Never Quick-Fix those: name the fix and offer to run it as a separate service call, which carries the typed high-consequence gate this step does not.
 
 **If qualified:**
 1. Show current state vs expected state
