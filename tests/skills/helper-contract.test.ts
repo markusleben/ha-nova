@@ -112,7 +112,7 @@ describe("helper contract", () => {
     });
 
     it("documents full config-entry helper ownership for the 10 supported domains", () => {
-      for (const domain of [
+      const expectedDomains = [
         "utility_meter",
         "derivative",
         "integration",
@@ -123,10 +123,19 @@ describe("helper contract", () => {
         "group",
         "history_stats",
         "template",
-      ]) {
-        expect(skillDoc).toContain(domain);
-        expect(flowSchemasDoc).toContain(domain);
-      }
+      ];
+      expect(skillDoc).toContain(
+        `- \`${expectedDomains.join("\`, \`")}\``,
+      );
+      const domainListStart = flowSchemasDoc.indexOf("(10 domains):");
+      const domainListEnd = flowSchemasDoc.indexOf("This file is an observed");
+      expect(domainListStart).toBeGreaterThan(-1);
+      expect(domainListEnd).toBeGreaterThan(domainListStart);
+      expect(
+        [...flowSchemasDoc.slice(domainListStart, domainListEnd).matchAll(/^- `([^`]+)`$/gm)].map(
+          (match) => match[1],
+        ),
+      ).toEqual(expectedDomains);
 
       expect(skillDoc).toContain("CRUD support for 10 domains:");
       expect(skillDoc).toContain("verified for the `sensor` subtype");
