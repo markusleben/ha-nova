@@ -206,7 +206,10 @@ describe("indirect actuation and tier classification (#513)", () => {
       );
       // The gate's VERDICT disqualifies a Quick-Fix, not the act of running
       // it — a clean consumer scan leaves the correction ordinary.
+      expect(flat(reviewSkill)).toContain("Every corrective call");
+      expect(flat(reviewSkill)).toContain("ordinary device control");
       expect(flat(reviewSkill)).toContain("must RUN the indirect-actuation gate first");
+      expect(flat(reviewSkill)).toContain("still carries its CONSUMER scan");
       expect(flat(reviewSkill)).toContain("What disqualifies it is the gate's VERDICT");
       expect(flat(reviewSkill)).toContain("a clean consumer scan leaves the correction ordinary");
       expect(reviewSkill).toContain("Never Quick-Fix those");
