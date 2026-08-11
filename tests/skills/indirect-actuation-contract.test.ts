@@ -48,6 +48,12 @@ describe("indirect actuation and tier classification (#513)", () => {
       // accepts any entity, so a light can drive an automation that unlocks.
       expect(skillDoc).toContain("Ordinary device control expands no stored members");
       expect(skillDoc).toContain("still runs the gate's CONSUMER scan");
+      // The gate itself has to say it too — pinning only service-call left the
+      // shared contract free to drop the rule, which a mutation proved.
+      expect(flat(indirectActuation)).toContain(
+        "does not expand STORED MEMBERS",
+      );
+      expect(flat(indirectActuation)).toContain("It still carries the CONSUMER scan");
       // homeassistant.turn_on with a script target is a script run under
       // another name — a service-name list alone would wave it through.
       const gate = flat(indirectActuation);
