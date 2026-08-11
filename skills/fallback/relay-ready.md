@@ -136,9 +136,9 @@ means there may well be more, a timeout with few or no events means that is
 what happened in those seconds. An empty window is a real answer, not a failure — with ONE exception:
 when the user says they pressed the button and nothing arrived, do not report
 that as "nothing was published". They may have pressed before the subscription
-was live, or just outside a ten-second window. Say the window caught nothing,
-offer one retry with the press timed after you confirm the window is open, and
-only then treat the silence as evidence.
+was live, and the blocking command exposes no readiness signal. Report the
+empty window as timing-inconclusive, never as proof of device silence, even
+after a retry.
 
 **Risks:** The window blocks for its full `timeout_ms` when nothing arrives —
 say the duration before starting it. `ha-nova:mqtt` owns MQTT topics; this is

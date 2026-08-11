@@ -50,7 +50,11 @@ Discovery:
 ## Flow
 
 1. Resolve the target with Target Discovery. If several devices match, present the candidates and ask once.
-2. Build the payload:
+2. Before building an actionable payload, require an existing, verified
+   `mobile_app_notification_action` automation filtered to the exact
+   `event_data.action` ID. If absent, stop and hand off to `ha-nova:write`;
+   this skill does not create a send-specific listener.
+3. Build the payload:
    - entity: `{"entity_id":"notify.<target>","message":"...","title":"..."}` for `notify.send_message`
    - mobile app: `{"message":"...","title":"...","data":{...}}` for `notify.mobile_app_<device>`. Common `data` keys, and the platform split that silently drops fields when confused:
      - both platforms: `tag` (replace/clear an earlier notification), `actions` (actionable buttons), `image`/`video`/`audio`, `url` (iOS) / `clickAction` (Android).
@@ -58,11 +62,6 @@ Discovery:
      - **iOS — under `data.push`**: `interruption-level`, `sound`, `badge`. `push` is the iOS-only container; do not put Android channel/importance there.
      Read the target's platform from the device name or ask, and place the keys accordingly.
    - A `message: "clear_notification"` with a matching `tag` removes a previously sent notification instead of sending a new one.
-3. If an actionable button needs a reaction, assign it a fresh, send-specific
-   action ID, then invoke `ha-nova:write` to create and verify its
-   `mobile_app_notification_action` automation, filtered to that exact
-   `event_data.action` ID. Never reuse the ID. This skill does not own a
-   durable listener; continue only after it exists.
 4. Preview the exact payload (target + title + message + any `data`) and get confirmation — a notification is an irreversible, user-visible side effect.
 5. Send, then report what was sent where. There is no delivery receipt: a successful service call means Home Assistant accepted it, not that the phone displayed it — say so honestly.
 
@@ -135,6 +134,5 @@ Render the Report shape (output-rules.md): the resolved target, the sent title/m
 ## Guardrails
 
 - One target per send unless the user explicitly asks for a group, or the recipients come from presence routing ("tell whoever is home") — in both cases show the full resolved member list in the preview.
-- Never guess device names or `tag` values. New callbacks get fresh,
-  send-specific action IDs; never reuse one.
+- Never invent device names, `tag` values, or action IDs.
 - Do not claim delivery — only acceptance.

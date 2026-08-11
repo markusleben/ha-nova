@@ -250,7 +250,8 @@ describe("ha-api-matrix lists the surfaces skills actually pin (#517)", () => {
     expect(fallbackAll).toContain("take the entry's `domain`");
     // A user-reported press that produced nothing is a mistimed window, not
     // proof of silence.
-    expect(fallbackAll).toContain("offer one retry with the press timed after you confirm");
+    expect(fallbackAll).toContain("the blocking command exposes no readiness signal");
+    expect(fallbackAll).toContain("never as proof of device silence");
     expect(fallbackAll).toContain("a modern `event.*` entity fires no bus event at");
     // Naming the exception is not enough without the payload for it.
     expect(fallbackAll).toContain('"type": "subscribe_trigger"');
@@ -270,16 +271,15 @@ describe("ha-api-matrix lists the surfaces skills actually pin (#517)", () => {
     expect(row).not.toContain("get_states");
   });
 
-  it("installs the durable notification callback before sending", () => {
+  it("requires a verified durable notification callback before sending", () => {
     const notify = flat(read("skills/notify/SKILL.md"));
-    expect(notify).toContain("invoke `ha-nova:write` to create and verify");
-    expect(notify).toContain("fresh, send-specific action ID");
-    expect(notify).toContain("filtered to that exact `event_data.action` ID");
-    expect(notify).toContain("Never reuse the ID");
-    expect(notify).not.toContain("resolved target `device_id`");
-    expect(notify).toContain("continue only after it exists");
-    expect(notify.indexOf("invoke `ha-nova:write`")).toBeLessThan(
-      notify.indexOf("Send, then report"),
+    expect(notify).toContain("require an existing, verified");
+    expect(notify).toContain("filtered to the exact `event_data.action` ID");
+    expect(notify).toContain("If absent, stop and hand off to `ha-nova:write`");
+    expect(notify).toContain("does not create a send-specific listener");
+    expect(notify).not.toContain("fresh, send-specific action ID");
+    expect(notify.indexOf("require an existing, verified")).toBeLessThan(
+      notify.indexOf("Build the payload"),
     );
     expect(notify).not.toContain("A bounded in-chat window can CATCH a tap");
   });
