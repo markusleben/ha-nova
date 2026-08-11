@@ -19,10 +19,11 @@ Organization and registry metadata only:
 - entity category assignment/removal per scope
 - device metadata updates: rename, move to area, assign/clear/add/remove labels, disable
 
+Device categories do not exist; offer entity categories instead.
+
 Not in scope:
 - entity removal (`ha-nova:maintenance` — dead registry entries only)
 - removing config entries from devices (`ha-nova:fallback`)
-- device category assignment
 - zones, persons, tags (`ha-nova:admin`)
 - energy management (`ha-nova:energy`) or calendar management (`ha-nova:calendar`)
 
@@ -133,7 +134,7 @@ Metadata reads render the Report shape; registry inventories render the List Fra
 
 - Delete uses the typed confirmation code only, even for cleanup of items created earlier in the same session.
 - Registry deletes (areas, floors, labels, categories) are irreversible and a recreate mints a new id — inbound references stay broken. Offer a safety backup via `ha-nova:backup` before them (never for metadata edits).
-- If the user asks for entity removal, stop and hand off to `ha-nova:maintenance` (dead registry entries only — for live entities offer disable here instead). For device category assignment or config-entry detachment, hand off to `ha-nova:fallback`.
+- Entity removal goes to `ha-nova:maintenance` (dead registry entries only; offer disable for live entities). Config-entry detachment goes to `ha-nova:fallback`.
 
 ## Guardrails
 

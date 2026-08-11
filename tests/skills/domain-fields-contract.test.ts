@@ -63,6 +63,8 @@ describe("per-domain service depth (#530)", () => {
     expect(gate).toContain("mapped to those areas once in the entity settings");
     expect(gate).toContain("the modern vacuum entity has no on/off");
     expect(gate).toContain("`returning` is transitional on the way to `docked`");
+    expect(gate).toContain("require the exact command and data");
+    expect(gate).not.toContain("route through `ha-nova:fallback`");
   });
 
   it("treats cover tilt as its own axis with its own bits and attribute", () => {

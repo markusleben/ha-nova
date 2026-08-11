@@ -78,8 +78,9 @@ device.
   mapped to those areas once in the entity settings; when the bit is absent or
   the call reports unknown areas, name that prerequisite instead of retrying.
 - `set_fan_speed` (bit 32) values come from `fan_speed_list`. `send_command` is the
-  integration-specific escape hatch — treat an unfamiliar command as an
-  unfamiliar write and route through `ha-nova:fallback`.
+  integration-specific escape hatch: require the exact command and data from
+  that vacuum's current integration documentation; otherwise refuse instead of
+  guessing.
 - States: `cleaning`, `docked`, `idle`, `paused`, `returning`, `error`.
   `returning` is transitional on the way to `docked`.
 

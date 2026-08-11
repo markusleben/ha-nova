@@ -66,7 +66,7 @@ describe("grouped change set contract (issue #391)", () => {
     );
     expect(grouped).toContain("keeps its own flow");
     expect(contextSkill).toContain(
-      "operations requiring a confirmation code are rejected from the group",
+      "confirmation-code operations follow that contract's exclusions and duration-pair exception",
     );
   });
 

@@ -270,12 +270,11 @@ are supporting evidence for a config finding — never as the answer to a
 failure question.
 
 In that case:
-1. Follow the trace procedure in `skills/read/SKILL.md` → Trace Debugging
-2. Prefer the normalized CLI helper fields from `ha-nova trace latest/list/get --json`; they are enough for run selection, result status, timestamp, item binding, and most review findings.
-3. Inspect raw trace internals only when step-level evidence is required. Raw trace nodes can be arrays of event records; type-check before reading `path`, `result`, `changed_variables`, or `error`, and avoid large jq projections as the standard path.
-4. Cross-reference trace findings with config quality findings from Step 1
-5. Verify `item_id` in every trace matches the target's `unique_id` before attributing results. see `skills/ha-nova/SKILL.md` → Claim-Evidence Binding.
-6. Include trace-based findings in the Findings section with a descriptive title (e.g., `🔴 Condition blocked — condition was never met in last 3 runs`). Localize at runtime per `skills/ha-nova/output-rules.md`.
+1. Prefer the normalized CLI helper fields from `ha-nova trace latest/list/get --json`; they are enough for run selection, result status, timestamp, item binding, and most review findings.
+2. Inspect raw trace internals only when step-level evidence is required. Raw trace nodes can be arrays of event records; type-check before reading `path`, `result`, `changed_variables`, or `error`, and avoid large jq projections as the standard path.
+3. Cross-reference trace findings with config quality findings from Step 1
+4. Verify `item_id` in every trace matches the target's `unique_id` before attributing results. see `skills/ha-nova/SKILL.md` → Claim-Evidence Binding.
+5. Include trace-based findings in the Findings section with a descriptive title (e.g., `🔴 Condition blocked — condition was never met in last 3 runs`). Localize at runtime per `skills/ha-nova/output-rules.md`.
 
 ### Step 3: Conflict Analysis
 
