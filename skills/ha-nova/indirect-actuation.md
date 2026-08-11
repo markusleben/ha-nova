@@ -79,8 +79,17 @@ By service name, the gate also covers:
 - a test utterance through `conversation/process` (`ha-nova:assist`)
 
 Ordinary device control — lights, media, comfort climate, non-access covers —
-does not carry this gate, with ONE exception that is an entry condition and not
-a later refinement: any target on the `template` platform (`pl: "template"` in
+does not expand STORED MEMBERS, because there are none: the call actuates
+exactly what it names. It still carries the CONSUMER scan, because a Home
+Assistant state trigger accepts any entity: a light that another automation
+answers with `lock.unlock` grants access just as a helper toggle does, and the
+helper domains are only where that is most likely, never where it is possible.
+One `search/related` on the target settles it, and a zero-hit scan stays
+ordinary under the coverage rules below — so this costs one relation read on
+the common path and escalates nothing by itself.
+
+There is also ONE exception that is an entry condition and not a later
+refinement: any target on the `template` platform (`pl: "template"` in
 the registry) enters the gate whatever its domain, because a Template light,
 cover, fan, lock or valve carries its author's own action sequence rather than
 a device command. Check `pl` before concluding "ordinary control" — a
