@@ -2,7 +2,7 @@
 
 Status: superseded — completed in full; successor: [2026-08-03-backlog-sequencing.md](2026-08-03-backlog-sequencing.md)
 Progress: committed Waves 0–7 shipped (v0.18.0 through v0.22.0); the ranked backlog remains uncommitted and carries over to the successor
-Scope: program-level plan following the completed [masterplan-2026.md](../archive/work/masterplan-2026.md) (shipped as v0.14.0, since grown to v0.18.0). Each wave breaks down into its own short spec + PRs before implementation; this doc is the SSOT for sequencing and decisions until superseded.
+Scope: program-level plan following the completed [masterplan-2026.md](masterplan-2026.md) (shipped as v0.14.0, since grown to v0.18.0). Each wave breaks down into its own short spec + PRs before implementation; this doc is the SSOT for sequencing and decisions until superseded.
 
 ## Context
 
