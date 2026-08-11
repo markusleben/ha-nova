@@ -93,14 +93,15 @@ describe("post-write test-offer contract", () => {
     expect(testRun).toContain("POST /api/events/<event_type>");
     expect(testRun).toContain("`ha-nova:mqtt`");
     // Time-based triggers cannot be faked; never bend the clock or the config.
-    expect(testRun).toContain("cannot be");
+    expect(testRun).toContain("the real path cannot be\n  faked honestly");
     expect(testRun).toContain("Never change the system");
     expect(testRun).toContain("clock or temporarily edit the trigger");
     // Blast radius: fired states/events reach every listener. Live-verified:
     // search/related does NOT index event listeners — events need a config scan.
     expect(testRun).toContain("reaches every listener");
-    expect(testRun).toContain("search/related");
-    expect(testRun).toContain("does not index\nlisteners");
+    expect(testRun).toContain(
+      "for fired events `search/related` does not index\nlisteners",
+    );
   });
 
   it("runs the consented post-run follow-up: trace, state verify, restore", () => {
