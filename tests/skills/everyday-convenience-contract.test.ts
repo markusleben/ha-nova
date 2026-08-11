@@ -324,6 +324,9 @@ describe("flows that cost the user extra turns (#527)", () => {
       at('- stop: "not closed yet"'),
     );
     expect(
+      (retry as string).indexOf("- action: automation.turn_off"),
+    ).toBeGreaterThan(at('state: "closed"'));
+    expect(
       (retry as string).lastIndexOf("- action: automation.turn_off"),
     ).toBeLessThan(at("Giving up — it needs a look."));
     // a raising close call must not skip that disarm either
@@ -341,12 +344,14 @@ describe("flows that cost the user extra turns (#527)", () => {
     expect(conditionsStart).toBeGreaterThan(-1);
     expect(actionsStart).toBeGreaterThan(conditionsStart);
     const conditions = (oneShot as string).slice(conditionsStart, actionsStart);
-    expect(conditions).toContain("id: fired");
-    expect(conditions).toContain("id: expired");
-    expect(conditions).toContain(
+    const conditionArms = conditions.split(/^      - condition: and$/m).slice(1);
+    expect(conditionArms).toHaveLength(2);
+    expect(conditionArms[0]).toContain("id: fired");
+    expect(conditionArms[0]).toContain(
       "now() < as_datetime('2026-08-10T23:59:00+02:00')",
     );
-    expect(conditions).toContain(
+    expect(conditionArms[1]).toContain("id: expired");
+    expect(conditionArms[1]).toContain(
       "now() >= as_datetime('2026-08-10T23:59:00+02:00')",
     );
     expect(conditions).not.toContain("timedelta");
