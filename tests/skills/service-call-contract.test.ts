@@ -157,6 +157,8 @@ describe("service call contract", () => {
       expect(skillDoc).toContain("before using `area_id`");
       expect(skillDoc).toContain("second blocking ambiguity question");
       expect(skillDoc).toContain("narrower confirmed target");
+      expect(skillDoc).toContain("Direct `floor_id` and `label_id` selectors are unsupported");
+      expect(skillDoc).toContain("ask for an entity, area, or device instead");
     });
   });
 

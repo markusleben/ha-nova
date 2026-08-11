@@ -149,18 +149,19 @@ Then:
   you cannot see it.
 - A blueprint-backed automation reads back as `use_blueprint` with inputs, not
   as actions: the traversal reaches no member and would otherwise conclude the
-  run is harmless. It is an unresolved branch, not an empty one — escalate and
-  name the blueprint, unless its inputs themselves name an access-capable
-  entity, which settles it the other way. Do not stop early at a
-  self-imposed depth: an unresolved chain is not a clean result (see below).
-  A node already visited on this path is a cycle — stop that branch there.
+  run is harmless. Read its `path` and `input`, call the read-only
+  `blueprint/substitute` shape in `consumer-discovery-preflight.md`, then
+  traverse the expanded actions. A failed substitution is unresolved and
+  escalates. Do not stop early at a self-imposed depth: an unresolved chain is
+  not a clean result (see below). A node already visited on this path is a
+  cycle — stop that branch there.
 - A legacy `group.*` target or a modern domain group with an
   `attributes.entity_id` member array forwards the call to its members. Read
   that array and classify the members recursively: a group can contain a
   group, script, or access-granting scene.
-- Resolve `area_id`, `device_id`, `floor_id`, and `label_id` targets to
-  entities for classification only. This never rewrites a payload — the
-  stored config is not yours to change here.
+- Resolve `area_id` and `device_id` targets to entities for classification
+  only. Treat stored `floor_id` and `label_id` selectors as unresolved and
+  escalate; never invent partial membership. This never rewrites a payload.
 - A stored `event:` action reaches further than the config you are reading:
   its listeners run too. Apply the same consumer scan the direct path uses
   (`skills/ha-nova/consumer-discovery-preflight.md` — scan readable automation

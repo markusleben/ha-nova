@@ -120,7 +120,9 @@ describe("indirect actuation and tier classification (#513)", () => {
       expect(gate).toContain(
         "you stopped following a chain before it resolved, for any reason",
       );
-      expect(gate).toContain("`area_id`, `device_id`, `floor_id`, and `label_id`");
+      expect(gate).toContain("Resolve `area_id` and `device_id` targets");
+      expect(gate).toContain("stored `floor_id` and `label_id` selectors as unresolved");
+      expect(gate).toContain("never invent partial membership");
       expect(gate).toContain("This never rewrites a payload");
       expect(gate).toContain("no stored config exists");
       expect(gate).toContain("`search/related` on the target");
@@ -353,7 +355,9 @@ describe("indirect actuation and tier classification (#513)", () => {
     // Legacy YAML still runs, and a blueprint hides its actions entirely.
     expect(gate).toContain("the legacy `service: lock.unlock` and `service_template:`");
     expect(gate).toContain("reads back as `use_blueprint` with inputs, not");
-    expect(gate).toContain("It is an unresolved branch, not an empty one");
+    expect(gate).toContain("call the read-only `blueprint/substitute` shape");
+    expect(gate).toContain("traverse the expanded actions");
+    expect(gate).toContain("A failed substitution is unresolved and escalates");
   });
   it("fails closed for every cover action that can open", () => {
     const gate = flat(indirectActuation);
