@@ -8,7 +8,6 @@ import {
   validCloudEvidence,
 } from "./cloud-release-gate-fixture.js";
 import { registerCloudReleaseCommitGateBehaviorTests } from "./cloud-release-commit-gate-behavior.js";
-import "./cloud-workflow-maintenance-handoff-behavior.js";
 export function registerCloudReleaseGateBehaviorTests(): void {
   describe("Home Assistant Cloud release gate behavior", () => {
     it("allows a disabled release without external evidence", () => {

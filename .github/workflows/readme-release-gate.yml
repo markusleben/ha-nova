@@ -10,7 +10,7 @@ name: README Release Gate
 # clarifications about the CURRENT stable release). Label approval is
 # commit-specific: it must be (re-)applied by an approved maintainer AFTER the
 # latest commit/force-push, mirroring the manifest-review-gate rules. Feature
-# claims collect in the active docs/work/<version>-release-body.md draft
+# claims collect in the active docs/work/next-release-body.md draft
 # until the release-prep PR.
 
 on:
@@ -124,5 +124,5 @@ jobs:
             exit 0
           fi
 
-          echo "::error::README.md is stable release truth. Either make this a release-prep PR (change a release-prep file such as version.json in the same PR and tag immediately after merge), move the claim into the active docs/work/<version>-release-body.md draft, or have a maintainer (re-)apply the '${readme_label}' label on the CURRENT commit for corrections that describe the current stable release."
+          echo "::error::README.md is stable release truth. Either make this a release-prep PR (change a release-prep file such as version.json in the same PR and tag immediately after merge), move the claim into the active docs/work/next-release-body.md draft, or have a maintainer (re-)apply the '${readme_label}' label on the CURRENT commit for corrections that describe the current stable release."
           exit 1
