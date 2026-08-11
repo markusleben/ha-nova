@@ -84,9 +84,9 @@ exactly what it names. It still carries the CONSUMER scan, because a Home
 Assistant state trigger accepts any entity: a light that another automation
 answers with `lock.unlock` grants access just as a helper toggle does, and the
 helper domains are only where that is most likely, never where it is possible.
-One `search/related` on the target settles it, and a zero-hit scan stays
-ordinary under the coverage rules below — so this costs one relation read on
-the common path and escalates nothing by itself.
+The scan is the target's `search/related` result plus the matching
+`call_service` event consumers below. A zero-hit scan stays ordinary under the
+coverage rules below and escalates nothing by itself.
 
 There is also ONE exception that is an entry condition and not a later
 refinement: any target on the `template` platform (`pl: "template"` in
@@ -188,6 +188,14 @@ Then:
 - Trigger sources expand the other way: `search/related` on the target, then
   read the actions of every automation it triggers. The classic pattern is a
   helper toggle that another automation answers by unlocking a door.
+- Every requested or expanded service call also emits a `call_service` event
+  before its handler runs. `search/related` does not index those listeners.
+  For the pending event's literal `domain`, `service`, and `service_data`
+  (which contains the target), scan readable automation configs for current
+  or legacy event triggers on that exact event type, apply their literal
+  `event_data` filters, and classify every match. Apply the stored-`event:`
+  rules to blueprint-backed, templated, and user-authored non-automation
+  listeners: an unenumerable listener escalates. Repeat for nested calls.
 - A `timer` target needs the EVENT scan on top of that relation scan, because
   its consumers need not reference the entity at all. An automation triggered
   on a timer event with a literal `event_data.entity_id` produces no relation

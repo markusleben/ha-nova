@@ -120,6 +120,13 @@ describe("indirect actuation and tier classification (#513)", () => {
       expect(gate).toContain("no stored config exists");
       expect(gate).toContain("`search/related` on the target");
       expect(gate).toContain("helper toggle that another automation answers by unlocking a door");
+      // Every service call emits an event before its handler; relation scans
+      // cannot see an automation that listens to that event.
+      expect(gate).toContain("Every requested or expanded service call also emits a `call_service` event");
+      expect(gate).toContain("`search/related` does not index those listeners");
+      expect(gate).toContain("apply their literal `event_data` filters");
+      expect(gate).toContain("an unenumerable listener escalates");
+      expect(gate).toContain("Repeat for nested calls");
       // A stored event: action reaches its listeners, which the config being
       // read does not name.
       expect(gate).toContain("A stored `event:` action reaches further");
