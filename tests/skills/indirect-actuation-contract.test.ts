@@ -342,7 +342,19 @@ describe("indirect actuation and tier classification (#513)", () => {
     expect(gate).toContain("the carrier is the platform, not the domain");
     expect(gate).toContain("the ordinary-device-control exemption does NOT apply to it");
     expect(gate).toContain('an arbitrary stored sequence on a `pl: "template"` light');
+    expect(gate).toContain("a Template switch its `turn_on`/`turn_off`");
     expect(gate).toContain("a Template cover its `open_cover`/`close_cover`");
+  });
+  it("keeps ordinary switches out of the stored trigger-source family", () => {
+    const triggerSources = indirectActuation.match(
+      /- writes to a trigger source[\s\S]*?- a test utterance/,
+    )?.[0];
+    expect(triggerSources).toBeDefined();
+    expect(triggerSources ?? "").not.toContain("`switch`");
+    expect(flat(indirectActuation)).toContain(
+      "Ordinary device control — lights, switches, media, comfort climate, non-access covers",
+    );
+    expect(flat(indirectActuation)).toContain("a Home Assistant state trigger accepts any entity");
   });
   it("classifies the device-action form, not only the service form", () => {
     const gate = flat(indirectActuation);

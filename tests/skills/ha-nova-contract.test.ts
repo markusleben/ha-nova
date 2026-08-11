@@ -226,7 +226,7 @@ describe("ha-nova contract", () => {
     expect(organize).toContain(
       "category assignment/removal is entity-only in this skill",
     );
-    expect(organize).toContain("device category assignment");
+    expect(organize).toContain("Device categories do not exist");
     expect(organize).toContain(
       "Delete uses the typed confirmation code only, even for cleanup of items created earlier in the same session.",
     );
