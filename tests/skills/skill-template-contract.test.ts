@@ -1,5 +1,5 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
@@ -399,6 +399,40 @@ const FOLDED_INTO_BUDGET: Record<string, string[]> = {
   write: ["../ha-nova/one-shot-automations.md"],
 };
 
+// Secondary Markdown that is a standalone reference, not prose split out of
+// one owning SKILL.md. The classification is exhaustive so a new unregistered
+// file cannot silently reset a word budget.
+const STANDALONE_MARKDOWN = new Set([
+  "skills/energy/energy-reference.md",
+  "skills/ha-nova/agents/apply-agent.md",
+  "skills/ha-nova/agents/resolve-agent.md",
+  "skills/ha-nova/automation-patterns.md",
+  "skills/ha-nova/batch-safety.md",
+  "skills/ha-nova/best-practices.md",
+  "skills/ha-nova/bulk-patterns.md",
+  "skills/ha-nova/config-snapshots.md",
+  "skills/ha-nova/consumer-discovery-preflight.md",
+  "skills/ha-nova/grouped-change-set.md",
+  "skills/ha-nova/helper-flow-schemas.md",
+  "skills/ha-nova/helper-schemas.md",
+  "skills/ha-nova/input-capability-preflight.md",
+  "skills/ha-nova/output-rules.md",
+  "skills/ha-nova/payload-schemas.md",
+  "skills/ha-nova/relay-api.md",
+  "skills/ha-nova/safe-refactoring.md",
+  "skills/ha-nova/session-bootstrap.md",
+  "skills/ha-nova/smallest-solution.md",
+  "skills/ha-nova/template-guidelines.md",
+  "skills/ha-nova/test-run.md",
+  "skills/ha-nova/threshold-calibration.md",
+  "skills/ha-nova/update-revert.md",
+  "skills/ha-nova/write-safety.md",
+  "skills/hacs/hacs-commands.md",
+  "skills/health/availability-analysis.md",
+  "skills/maintenance/maintenance-reference.md",
+  "skills/review/checks.md",
+].map((file) => resolve(file)));
+
 // Internal review-check codes (S-01, R-18, H-09, ...) may flow only between
 // the reviewer/mutation files that implement the dedup logic; user-flow
 // skills must never carry them (output-rules.md forbids surfacing them).
@@ -702,6 +736,15 @@ describe("skill template v2 contract", () => {
       "service-call": ["domain-fields.md", "../ha-nova/indirect-actuation.md"],
       write: ["../ha-nova/one-shot-automations.md"],
     });
+    const folded = Object.entries(FOLDED_INTO_BUDGET).flatMap(([name, files]) => {
+      const dir = dirname(subskillPath(name));
+      return files.map((file) => resolve(dir, file));
+    });
+    const secondaryMarkdown = ALL_SKILL_MD_FILES
+      .filter((file) => basename(file) !== "SKILL.md")
+      .map((file) => resolve(file))
+      .sort();
+    expect([...folded, ...STANDALONE_MARKDOWN].sort()).toEqual(secondaryMarkdown);
   });
 
   it("keeps every sub-skill within its word budget", () => {
