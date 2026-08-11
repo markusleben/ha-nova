@@ -270,7 +270,7 @@ are supporting evidence for a config finding — never as the answer to a
 failure question.
 
 In that case:
-1. Prefer the normalized CLI helper fields from `ha-nova trace latest/list/get --json`; they are enough for run selection, result status, timestamp, item binding, and most review findings.
+1. Prefer the normalized CLI helper fields from `ha-nova trace latest <entity_id> --json`, `ha-nova trace list <entity_id> --json`, and `ha-nova trace get <entity_id> <run_id> --json`; they are enough for run selection, result status, timestamp, item binding, and most review findings.
 2. Inspect raw trace internals only when step-level evidence is required. Raw trace nodes can be arrays of event records; type-check before reading `path`, `result`, `changed_variables`, or `error`, and avoid large jq projections as the standard path.
 3. Cross-reference trace findings with config quality findings from Step 1
 4. Verify `item_id` in every trace matches the target's `unique_id` before attributing results. see `skills/ha-nova/SKILL.md` → Claim-Evidence Binding.
