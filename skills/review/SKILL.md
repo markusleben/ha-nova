@@ -207,12 +207,16 @@ Before analyzing, consult these sources:
 
 Only fetch pages relevant to the triggers, actions, and templates found in the config. Cross-check against documented gotchas and constraints — this catches issues beyond the hardcoded checks below.
 
-**Verify-before-flag rule:** Before reporting ANY issue:
-1. Check local reference doc
-2. If not found, check the official HA docs above
-3. Only flag as error if confirmed invalid after both checks
+**Verify-before-flag rule:** the canonical sequence lives in
+`skills/review/checks.md` → Verify Before Flagging, because the post-write
+phases load that file without this one. Resolve every finding against a source
+before reporting it, and flag it when the source confirms the CLAIM you are
+making — semantics or risk for behavioral checks, schema invalidity only for
+schema-shaped ones.
 
-Do NOT flag valid HA builtins or documented behavior as errors.
+Do NOT flag valid HA builtins or documented behavior as errors — but "valid"
+alone never clears a behavioral finding: much of the catalog describes config
+Home Assistant accepts and that still misbehaves.
 
 ### Step 1: Config Quality Review
 
@@ -257,9 +261,15 @@ Branch by target family:
    ```
 5. If no related items found, report "no conflicts" in the Conflicts section and skip Step 3. On a filter error, report the collision scan as inconclusive — never as "no conflicts".
 
-### Trace Analysis (on request)
+### Trace Evidence (only when the user asked for a review)
 
-When the user reports runtime issues ("automation didn't fire", "wrong behavior last night"):
+Trace ANALYSIS belongs to `ha-nova:diagnose`: a runtime complaint ("didn't
+fire", "wrong behavior last night") is a concrete incident and routes there,
+not here. Stay in this skill only when the user asked for a review and traces
+are supporting evidence for a config finding — never as the answer to a
+failure question.
+
+In that case:
 1. Follow the trace procedure in `skills/read/SKILL.md` → Trace Debugging
 2. Prefer the normalized CLI helper fields from `ha-nova trace latest/list/get --json`; they are enough for run selection, result status, timestamp, item binding, and most review findings.
 3. Inspect raw trace internals only when step-level evidence is required. Raw trace nodes can be arrays of event records; type-check before reading `path`, `result`, `changed_variables`, or `error`, and avoid large jq projections as the standard path.
@@ -302,6 +312,7 @@ After completing Steps 1-3, check if the current entity state (from the earlier 
 - Fix requires config change (that's a Suggestions item)
 - Multiple equally valid corrections exist (ambiguous — note in Questions to consider instead)
 - State read failed or entity unavailable — skip, note in Instant Help section: localized equivalent of "Skipped: current state unavailable."
+- The corrective call would grant physical access or is physically irreversible — unlocking or opening a lock, disarming an alarm panel, opening a garage/gate/entry-door cover by `device_class`, or running a scene, script, or automation that reaches one. A correction that writes a trigger source — resetting a desynchronized `input_select`, toggling a helper — must RUN the indirect-actuation gate first (`skills/ha-nova/indirect-actuation.md`), because that harmless-looking write is exactly what another automation answers by unlocking a door. What disqualifies it is the gate's VERDICT, not having consulted the gate: a clean consumer scan leaves the correction ordinary and Quick-Fixable, while a typed-tier verdict — or a scan that could not enumerate the consumers — sends it out of Quick-Fix. Never Quick-Fix those: name the fix and offer to run it as a separate service call, which carries the typed high-consequence gate this step does not.
 
 **If qualified:**
 1. Show current state vs expected state
@@ -386,7 +397,7 @@ Exception: if a maintainer-provided release-validation or machine-check prompt e
 
 ### Standard mode
 
-For resolved targets `== 1`, keep this 8-section output in the same order every time:
+For resolved automation/script/helper targets `== 1`, keep this 8-section output in the same order every time (scene/dashboard targets omit skipped sections per Target Resolution):
 
 **Section 1 — Review target:**
 - domain (automation / script / helper) and target entity_id

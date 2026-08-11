@@ -14,6 +14,7 @@ const OPTED_IN_SKILLS = [
   "scene",
   "organize",
   "service-call",
+  "todo",
 ];
 
 describe("grouped change set contract (issue #391)", () => {

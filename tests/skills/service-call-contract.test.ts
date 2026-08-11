@@ -3,6 +3,11 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "fs";
 import { resolve } from "path";
 
+
+// The -- RELAY-READY sections live in fallback's split file, which fallback
+// loads. A negative assertion must cover both, or it cannot fail.
+const relayReadySplit = readFileSync("skills/fallback/relay-ready.md", "utf-8");
+
 const relayApi = readFileSync(
   resolve(__dirname, "../../skills/ha-nova/relay-api.md"),
   "utf-8",
@@ -19,6 +24,9 @@ const fallbackSkill = readFileSync(
   resolve(__dirname, "../../skills/fallback/SKILL.md"),
   "utf-8",
 );
+// Contract docs hard-wrap at ~72 columns, so a pinned sentence must not also
+// pin the column it happens to break at.
+const flat = (text: string): string => text.replace(/\s+/g, " ");
 const architecture = readFileSync(
   resolve(__dirname, "../../docs/reference/skill-architecture.md"),
   "utf-8",
@@ -133,10 +141,12 @@ describe("service call contract", () => {
     it("teaches the mandatory return_response query parameter", () => {
       // Live-verified: weather.get_forecasts returns 400 without it.
       expect(skillDoc).toContain("## Response services");
-      expect(skillDoc).toContain("REQUIRE the `?return_response` query parameter");
+      expect(skillDoc).toContain("REQUIRE `?return_response`");
       expect(skillDoc).toContain("`.data.body.service_response`");
-      expect(skillDoc).toContain("Pure data services (the examples above) are reads — no write confirmation");
-      expect(skillDoc).toContain("it never downgrades an action to a read");
+      expect(skillDoc).toContain("These reads need no write confirmation only when the shared gate's consumer scan stays ordinary");
+      expect(skillDoc).toContain("a matching `call_service` event listener can make the nominal read indirect actuation");
+      expect(skillDoc).toContain("never downgrades the action");
+      expect(skillDoc).not.toContain("Read-only: no confirmation needed");
     });
   });
 
@@ -147,6 +157,8 @@ describe("service call contract", () => {
       expect(skillDoc).toContain("before using `area_id`");
       expect(skillDoc).toContain("second blocking ambiguity question");
       expect(skillDoc).toContain("narrower confirmed target");
+      expect(skillDoc).toContain("Direct `floor_id` and `label_id` selectors are unsupported");
+      expect(skillDoc).toContain("ask for an entity, area, or device instead");
     });
   });
 
@@ -159,6 +171,16 @@ describe("service call contract", () => {
       expect(skillDoc).toContain("`platform: event`");
       expect(skillDoc).toContain("literal `event_data` filters");
       expect(skillDoc).toContain("unclassified-listener warning");
+      // The direct fire path needs the same escalation as the stored event:
+      // action path — an opaque listener is opaque either way.
+      expect(flat(skillDoc)).toContain(
+        "an unenumerable listener cannot be shown to be harmless",
+      );
+      // The confirmation step must not downgrade what step 2 escalated.
+      expect(flat(skillDoc)).toContain(
+        "only when EVERY listener was enumerable",
+      );
+      expect(flat(skillDoc)).toContain("unknown impact is not low impact");
       expect(skillDoc).toContain("up to three reads over ten seconds");
       expect(skillDoc).toContain("never repeat an event automatically");
       expect(relayApi).toContain('"path":"/api/events/example_event"');
@@ -184,7 +206,7 @@ describe("service call contract", () => {
       expect(contextSkill).toContain("fire a custom event or trigger a known JSON webhook");
       expect(contextSkill).toContain('**"Fire the movie_night event"** → `ha-nova:service-call`');
       expect(fallbackSkill).toContain("| Custom events / known JSON webhooks | Covered | service-call |");
-      expect(fallbackSkill).not.toContain("### Events / Webhooks -- RELAY-READY");
+      expect(fallbackSkill + relayReadySplit).not.toContain("### Events / Webhooks -- RELAY-READY");
       expect(architecture).toContain("## Service Call Architecture");
       expect(architecture).toContain("webhook HTTP 200 is deliberately opaque");
     });

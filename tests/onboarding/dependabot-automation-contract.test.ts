@@ -306,9 +306,13 @@ describe("dependabot automation contract", () => {
     expect(releasing).toContain("## Release Worthiness");
     expect(releasing).toContain("Do not cut a new version just because `main` moved.");
     expect(releasing).toContain("## Dependabot Fast Lane");
-    expect(releasing).toContain("Manifest-label rule:");
-    expect(releasing).toContain("manifest-review:approved");
-    expect(releasing).toContain("before `@codex`");
+    // The manifest-label ordering lives in AGENTS.md and the runbook points at
+    // it. Keeping a second copy is what drifted: the copy here still ordered
+    // the label before anything had inspected the manifest (#539). Assert the
+    // pointer AND the policy, so deleting either still fails.
+    expect(releasing).toContain('They live in AGENTS.md -> "PR Merge / Release');
+    expect(agents).toContain("manifest-review:approved");
+    expect(agents).toContain("before `@codex`");
     expect(releasing).toContain("dev-only npm minor/patch updates that touch only `package.json` / `package-lock.json` (root or `nova/`)");
     expect(releasing).toContain("github-actions minor/patch bumps that change only `uses:` lines under `.github/workflows/`");
     expect(releasing).toContain("action majors and any workflow change beyond `uses:` version bumps stay manual");

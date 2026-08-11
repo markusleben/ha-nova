@@ -46,11 +46,21 @@ describe("post-write test-offer contract", () => {
     expect(testRun).toContain("`skip_condition: true` as higher risk");
   });
 
-  it("binds a single confirmation to the Test Plan Card — no double gate", () => {
+  it("binds a single confirmation to the Test Plan Card — no double gate except access-granting members", () => {
     expect(testRun).toContain("Single confirmation: the Test Plan Card doubles as the runtime-call");
     expect(testRun).toContain("do not ask a second time");
     expect(testRun).toContain("Any change to the plan expires");
     expect(serviceCall).toContain("the user's option choice on that card IS the bound confirmation");
+
+    // #513: all three grant points carry the carve-out, or the card becomes a
+    // natural-confirmation bypass of the high-consequence tier.
+    expect(testRun).toContain("the single card confirmation never\n  replaces it");
+    expect(writeSkill).toContain(
+      "the card confirmation never replaces the typed confirmation code",
+    );
+    expect(serviceCall).toContain(
+      "if the indirect actuation gate put the run on the typed tier, the card choice never replaces `confirm:<token>`",
+    );
   });
 
   it("recommends by action risk and never sells high-consequence runs as safe", () => {

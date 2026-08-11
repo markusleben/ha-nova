@@ -41,6 +41,7 @@ If this fails: `ha-nova setup`
 4. **Users**: WS `config/auth/list` shows accounts (`id`, `name`, `username`, `is_owner`, `is_active`, `system_generated`, `group_ids`).
    - listing and reviewing access is the safe, common case
    - `config/auth/create` / `config/auth/delete` exist, and are the most dangerous writes in HA NOVA
+   - create payload: `{"type":"config/auth/create","name":"<display name>","group_ids":["system-users"],"local_only":false}` — `system-admin` in `group_ids` makes the account an administrator, so name that in the preview. The password is NOT set here: Home Assistant issues the credential separately, so tell the user to finish in Settings → People rather than offering to set one
    - before any delete: WS `auth/current_user` returns the account this relay's token belongs to — that account is never deletable
 5. Verify every write by re-reading the list — never from the command response alone.
 
@@ -55,7 +56,7 @@ If this fails: `ha-nova setup`
 ## Error Handling
 
 Full relay/upstream error taxonomy: `skills/ha-nova/relay-api.md` -> Error Handling. Admin specifics:
-- `config/auth/*` requires an owner-level token: a permission error here means the LLAT belongs to a non-admin account, not that the command is wrong.
+- `config/auth/*` requires owner/admin rights upstream: a permission error here means the Relay's upstream credential lacks HA admin (App: Supervisor credential; container: the host-side `HA_LLAT`), not that the command is wrong.
 - Deleting a zone that automations reference succeeds — Home Assistant does not stop you. The damage shows up later, which is exactly why the impact advisory runs before the write.
 
 ## Output Format
@@ -79,6 +80,7 @@ Render the Report shape (output-rules.md); person/zone/user inventories render t
 
 - Zone and person deletes take the typed confirmation code, and the preview must first name the automations that depend on them (`search/related`).
 - User deletion is the strictest operation in HA NOVA: owner, system-generated, and the relay's own account are refused outright, and everything else needs the typed confirmation code plus a plain statement of what is lost.
+- Creating a user account grants durable system access, so it takes the typed confirmation code too — not the ordinary create tier. The preview names the login name, whether the account is an administrator (`group_ids`), and that the password is set in the Home Assistant UI, never here.
 - No delete here has a `revert`. Zones, persons, and tags are recreatable from their previewed fields — a tag keeps its physical `tag_id`, but other recreates mint new internal ids, so inbound references stay broken. A deleted user's password, tokens, and history are unrecoverable; the delete preview must say so.
 - Offer a safety backup via `ha-nova:backup` before zone, person, and user deletes (not for tag deletes or routine updates).
 - Never surface credentials, tokens, or password state in output.

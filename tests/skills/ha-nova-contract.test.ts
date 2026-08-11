@@ -8,6 +8,11 @@ import {
 
 import { describe, expect, it } from "vitest";
 
+
+// The -- RELAY-READY sections live in fallback's split file, which fallback
+// loads. A negative assertion must cover both, or it cannot fail.
+const relayReadySplit = readFileSync("skills/fallback/relay-ready.md", "utf-8");
+
 describe("ha-nova contract", () => {
   it("provides context skill with skill discovery table", () => {
     const context = readFileSync("skills/ha-nova/SKILL.md", "utf8");
@@ -63,7 +68,7 @@ describe("ha-nova contract", () => {
       "| show history, logbook timelines, or long-term statistics | `ha-nova:history` |",
     );
     expect(context).toContain(
-      "| check home status, repairs, system health, integration issues, unavailable entities, or low batteries | `ha-nova:health` |",
+      "| check home status, repairs, system health, integration issues, unavailable entities, or low batteries | `ha-nova:health`",
     );
     expect(context).toContain(
       "| list calendars; read, create, update, or delete calendar events | `ha-nova:calendar` |",
@@ -1050,11 +1055,11 @@ describe("ha-nova contract", () => {
     expect(fallback).toContain(
       "| Alarm / lock runtime control | Covered | service-call |",
     );
-    expect(fallback).not.toContain(
+    expect(fallback + relayReadySplit).not.toContain(
       "### System Health / Repairs -- RELAY-READY",
     );
-    expect(fallback).not.toContain("### Calendar Queries -- RELAY-READY");
-    expect(fallback).not.toContain("### Events / Webhooks -- RELAY-READY");
+    expect(fallback + relayReadySplit).not.toContain("### Calendar Queries -- RELAY-READY");
+    expect(fallback + relayReadySplit).not.toContain("### Events / Webhooks -- RELAY-READY");
     expect(fallback).not.toContain("<calendar-events-path>");
     expect(fallback).not.toContain("--path '/api/calendars/");
     expect(fallback).toContain(
@@ -1075,7 +1080,7 @@ describe("ha-nova contract", () => {
       "| Statistics repair / Purge / Entity registry remove | Covered | maintenance |",
     );
     expect(fallback).toContain(
-      "| Device config-entry detach | Relay-Ready | this skill |",
+      "| Device config-entry detach | External | -- (Home Assistant UI; HA 2026.8+ removes the device) |",
     );
   });
 

@@ -1,6 +1,6 @@
 ---
 name: assist
-description: Use when working with Home Assistant's voice assistant — testing what Assist understands, inspecting or editing Assist pipelines, managing which entities are exposed to voice, and listing TTS/STT/wake-word engines — through HA NOVA Relay.
+description: Use when working with Home Assistant's own built-in voice assistant (Assist) — testing what it understands, inspecting or editing Assist pipelines, managing which entities are exposed to voice, and listing TTS/STT/wake-word engines — through HA NOVA Relay. Not for Alexa or Google Assistant — setting those up is `ha-nova:integration-setup` (or `ha-nova:yaml-config` for a manual cloud config), and one that STOPPED working is a concrete failure for `ha-nova:diagnose`.
 license: MIT
 compatibility: Requires the ha-nova CLI (run 'ha-nova setup' first) and the HA NOVA Relay in Home Assistant (App, or standalone container on Container/Core).
 ---
@@ -15,7 +15,7 @@ Home Assistant's built-in voice assistant (Assist):
 - manage which entities are exposed to voice, and their aliases
 - list available TTS, STT, conversation, and wake-word engines
 
-Not in scope: speaking through a speaker (`ha-nova:media` for TTS announcements), microphone/satellite hardware setup, or the third-party assistants (Alexa/Google) — those are configured outside Home Assistant.
+Not in scope: speaking through a speaker (`ha-nova:media` for TTS announcements), microphone/satellite hardware setup, or the third-party assistants (Alexa/Google) — setup goes to `ha-nova:integration-setup` (or `ha-nova:yaml-config` for a manual cloud config), and a failure ("Alexa stopped working") to `ha-nova:diagnose` like any other integration incident.
 
 ## Bootstrap (once per session)
 
@@ -71,6 +71,7 @@ Render the Report shape (output-rules.md). For an utterance test: the exact resp
 - Drafts follow `skills/ha-nova/smallest-solution.md`: the complete requested outcome in the simplest safe design, nothing for hypothetical future needs.
 
 - **A test utterance is a live command.** `conversation/process` executes what it understands. Anything that could change state gets a preview and confirmation, exactly like a service call.
+- An utterance is the least enumerable indirect actuation there is: what it reaches is decided by the conversation agent at runtime. When the utterance plausibly reaches a lock, alarm panel, or access cover — the words themselves, or the exposed entity set makes it reachable — it takes the typed `confirm:<token>` (context skill → Confirmation Tiers), including the re-run proof after an exposure fix.
 - Exposing entities to voice grants voice control over them — show the full list before changing exposure.
 - Pipeline updates resend every settings field: read first, or you silently drop settings.
 - No change here has a `revert`: restore exposure by re-toggling, restore a pipeline by resending its prior fields. A deleted pipeline recreates with a new `pipeline_id` — satellites pointing at the old one must be re-pointed.

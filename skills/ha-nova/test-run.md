@@ -32,7 +32,11 @@ This file defines only how the test plan is chosen, presented, and verified.
   preview (exact service, target, payload, `skip_condition` value, device
   delta). The user's option choice is the natural confirmation bound to that
   exact preview — do not ask a second time. Any change to the plan expires
-  the choice and requires a fresh card.
+  the choice and requires a fresh card. High-consequence members (locks,
+  alarm panels, garage/gate/entry-door covers by `device_class`, and
+  physically irreversible actions) keep the typed confirmation code from the
+  context skill's high-consequence tier — the single card confirmation never
+  replaces it.
 
 ## Feasibility & Recommendation
 
@@ -50,6 +54,12 @@ Domain alone is not enough for covers and climate: check `device_class` and
 what the entity controls before using the ordinary row — a garage door,
 gate, or entry door exposed as `cover.*` and any heating/cooling setpoint
 change belong in the high-consequence row.
+
+This row is the test-planning risk class, a deliberate superset of the
+context skill's high-consequence confirmation tier. Members that grant
+physical access still take the typed confirmation code; merely disruptive
+members such as `homeassistant.restart` take a warned bound confirmation.
+Plan them alike, confirm them by their own tier.
 
 Co-listeners escalate: the risk class covers everything the run can set in
 motion, not just the tested automation's own actions. Before recommending

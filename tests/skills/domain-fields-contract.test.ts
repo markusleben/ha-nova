@@ -1,0 +1,261 @@
+// tests/skills/domain-fields-contract.test.ts
+import { describe, it, expect } from "vitest";
+import { readFileSync } from "fs";
+import { resolve } from "path";
+
+const domainFields = readFileSync(
+  resolve(__dirname, "../../skills/service-call/domain-fields.md"),
+  "utf-8",
+);
+const serviceCall = readFileSync(
+  resolve(__dirname, "../../skills/service-call/SKILL.md"),
+  "utf-8",
+);
+const mediaSkill = readFileSync(
+  resolve(__dirname, "../../skills/media/SKILL.md"),
+  "utf-8",
+);
+const cameraSkill = readFileSync(
+  resolve(__dirname, "../../skills/camera/SKILL.md"),
+  "utf-8",
+);
+const sceneSkill = readFileSync(
+  resolve(__dirname, "../../skills/scene/SKILL.md"),
+  "utf-8",
+);
+// Reference docs hard-wrap, so a pinned sentence must not pin its wrap column.
+const flat = (text: string): string => text.replace(/\s+/g, " ");
+
+describe("per-domain service depth (#530)", () => {
+  it("is reachable from the skill without loading it for every call", () => {
+    expect(serviceCall).toContain("skills/service-call/domain-fields.md");
+    expect(flat(serviceCall)).toContain(
+      "read the section for the domain you are calling",
+    );
+    expect(flat(domainFields)).toContain(
+      "do not load this file for a domain it does not list",
+    );
+  });
+
+  it("states the values-come-from-attributes rule the service schema cannot give", () => {
+    expect(flat(serviceCall)).toContain("`/api/services` gives field NAMES");
+    expect(flat(serviceCall)).toContain(
+      "Never carry a value over from another device",
+    );
+    // Silent-drop is the failure mode that makes feature bits load-bearing.
+    expect(flat(serviceCall)).toContain("dropped silently rather than rejected");
+  });
+
+  it("teaches color_temp_kelvin instead of the removed mireds field", () => {
+    const gate = flat(domainFields);
+    expect(gate).toContain("`color_temp_kelvin` (Kelvin)");
+    expect(gate).toContain("higher Kelvin means cooler light");
+    expect(gate).toContain("a converted number is not interchangeable");
+    expect(domainFields).not.toContain("(mireds)");
+    // The scene skill already used Kelvin; the two must not diverge again.
+    expect(sceneSkill).toContain("color_temp_kelvin");
+  });
+
+  it("covers vacuum area cleaning with its bit, prerequisite, and start trap", () => {
+    const gate = flat(domainFields);
+    expect(gate).toContain("`vacuum.clean_area` (Home Assistant 2026.3+, feature bit 16384)");
+    expect(gate).toContain("`cleaning_area_id`, a list of Home Assistant AREA ids");
+    expect(gate).toContain("mapped to those areas once in the entity settings");
+    expect(gate).toContain("the modern vacuum entity has no on/off");
+    expect(gate).toContain("`returning` is transitional on the way to `docked`");
+  });
+
+  it("treats cover tilt as its own axis with its own bits and attribute", () => {
+    const gate = flat(domainFields);
+    for (const bit of [
+      "`open_cover_tilt` (bit 16)",
+      "`close_cover_tilt` (32)",
+      "`stop_cover_tilt` (64)",
+      "`set_cover_tilt_position` (128",
+    ]) {
+      expect(gate).toContain(bit);
+    }
+    expect(gate).toContain("verify `current_position`/ `current_tilt_position`");
+  });
+
+  it("splits climate setpoints and mode families", () => {
+    const gate = flat(domainFields);
+    expect(gate).toContain("`target_temp_high` + `target_temp_low`");
+    expect(gate).toContain("required together when the entity targets a range");
+    expect(gate).toContain("There is no `aux_heat` any more");
+    for (const list of ["`hvac_modes`", "`preset_modes`", "`fan_modes`", "`swing_modes`"]) {
+      expect(gate).toContain(list);
+    }
+  });
+
+  it("pins a feature bit for every gated action across the domains it lists", () => {
+    // /api/services exposes services at domain level, so the bit is the only
+    // per-entity gate. A row that names an action without its bit cannot be
+    // gated at all.
+    const gate = flat(domainFields);
+    for (const bit of [
+      "`transition` (seconds, bit 32)",
+      "`effect` (from `effect_list`, bit 4)",
+      "TARGET_TEMPERATURE_RANGE 2",
+      "SWING_HORIZONTAL_MODE 512",
+      "`vacuum.start` (bit 8192)",
+      "`set_fan_speed` (bit 32)",
+      "MODES is the domain's only feature bit, value 1",
+    ]) {
+      expect(gate, `missing capability bit: ${bit}`).toContain(bit);
+    }
+  });
+
+  it("gives fan levels, humidifier and water-heater verification quirks, and siren bits", () => {
+    const gate = flat(domainFields);
+    expect(gate).toContain("`percentage_step`");
+    expect(gate).toContain("3 x 25 = 75");
+    // Domain services are listed regardless of per-entity support.
+    expect(gate).toContain("all three need SET_SPEED (bit 1)");
+    expect(gate).toContain("the bit is the only per-entity gate");
+    // Setpoint/sensor twins are the classic wrong-attribute bug.
+    expect(gate).toContain("`humidity` is the setpoint, `current_humidity` the sensor reading");
+    expect(gate).toContain("The entity STATE is the operation mode");
+    // Naming a service without its required field invites a schema error.
+    expect(gate).toContain("`set_away_mode` (`away_mode`, boolean — bit 4)");
+    expect(gate).toContain("`set_temperature` (`temperature`, degrees in the system unit — bit 1)");
+    expect(gate).toContain("an entity-only payload is a schema error");
+    expect(gate).toContain("`tone` (bit 4");
+    expect(gate).toContain("`volume_level` (bit 8), and `duration` (bit 16)");
+  });
+
+  it("wires media search, queue placement, and playback modes into the flow", () => {
+    // entity_id is vol.Required on this command — omitting it makes the
+    // documented call invalid rather than merely unscoped.
+    expect(mediaSkill).toContain(
+      '{"type":"media_player/search_media","entity_id":"media_player.<id>","search_query":"<text>"}',
+    );
+    expect(flat(mediaSkill)).toContain("`entity_id` is required");
+    expect(mediaSkill).toContain("`media_source/search_media`");
+    expect(mediaSkill).toContain("`can_search` is true");
+    expect(mediaSkill).toContain("`enqueue: add | next | play | replace` (bit 2097152)");
+    expect(mediaSkill).toContain("`repeat: off | all | one`, bit 262144 — not the grouping bit");
+    expect(mediaSkill).toContain("`media_player.shuffle_set`");
+  });
+
+  it("routes the new camera actions to the camera skill", () => {
+    // Adding actions to camera's scope without a deferral row would let the
+    // generic flow answer them without camera's capability gates.
+    // Select the row that ROUTES to the camera skill, not the first row that
+    // happens to mention a camera service — the duration-routing row names
+    // `camera.record` and was silently winning this `find`.
+    const row = serviceCall
+      .split("\n")
+      .find((l) => l.startsWith("|") && l.includes("`ha-nova:camera`"));
+    expect(row).toBeTruthy();
+    expect(row).toContain("play_stream");
+    expect(row).toContain("motion detection");
+    expect(row).toContain("ha-nova:camera");
+  });
+
+  it("captures both setpoints of a range thermostat in a scene", () => {
+    expect(flat(sceneSkill)).toContain(
+      "`target_temp_low` AND `target_temp_high` on one in a range mode",
+    );
+    expect(flat(sceneSkill)).toContain("capture both when both are present");
+    // A fan restores oscillation and direction too.
+    expect(flat(sceneSkill)).toContain("plus `oscillating` and `direction` when present");
+  });
+
+  it("covers camera casting and the motion-detection toggle it used to disclaim", () => {
+    expect(cameraSkill).toContain("`camera.play_stream`");
+    // The schema field is `media_player`; `media_player_entity_id` belongs to
+    // tts.speak, so the wrong name makes the call fail outright.
+    expect(cameraSkill).toContain('{"entity_id":"camera.<id>","media_player":"media_player.<id>"}');
+    expect(cameraSkill).toContain("NOT `media_player_entity_id`");
+    // Two entities, two capability gates.
+    expect(flat(cameraSkill)).toContain(
+      "the camera needs STREAM (bit 2) and the receiver needs PLAY_MEDIA (bit 512)",
+    );
+    expect(flat(cameraSkill)).toContain("never guess a player id");
+    expect(cameraSkill).toContain("Verify on the RECEIVER's state");
+    expect(cameraSkill).toContain("`camera.enable_motion_detection`");
+    // The scope line must no longer read as excluding the toggle itself.
+    expect(cameraSkill).toContain("toggling its motion detection");
+    // Scope and deferral are not enough: the dispatcher decides which skill
+    // the request reaches in the first place.
+    const context = readFileSync(resolve(__dirname, "../../skills/ha-nova/SKILL.md"), "utf-8");
+    const row = context.split("\n").find((l) => l.startsWith("|") && l.includes("ha-nova:camera"));
+    expect(row).toContain("motion detection");
+    expect(row).toContain("cast its stream to a TV");
+    expect(cameraSkill).toContain("configuring the detection pipeline itself");
+  });
+
+  it("names the writable capture attributes for the setpoint-twin domains", () => {
+    expect(sceneSkill).toContain("fan `percentage`/`preset_mode`");
+    expect(sceneSkill).toContain("Humidifier `humidity`/`mode`");
+    expect(sceneSkill).toContain("never its `current_*` sensor twin");
+  });
+
+  it("stores a partial cover as current_position, not the service parameter", () => {
+    // HA's cover reproduce_state reads CURRENT_POSITION from the stored
+    // attributes and passes it as the POSITION service parameter. Storing
+    // `position` in the scene loses the partial target and the cover just
+    // opens fully on activation.
+    expect(sceneSkill).toContain(
+      "a cover stores `current_position` / `current_tilt_position`",
+    );
+    expect(sceneSkill).toContain("the cover then just opens fully");
+    expect(sceneSkill).toContain(
+      "A scene stores STATE attributes, not service parameters",
+    );
+  });
+
+  it("does not invent a toggle-tilt feature bit", () => {
+    // toggle_cover_tilt is registered against OPEN_TILT|CLOSE_TILT; there is
+    // no TOGGLE_TILT member in CoverEntityFeature.
+    expect(domainFields).toContain(
+      "gates on OPEN_TILT or\n  CLOSE_TILT rather than a bit of its own",
+    );
+    expect(domainFields).not.toMatch(/toggle[^.]*\b512\b/i);
+  });
+
+  it("advertises every camera verb on the routing surface, not only inside Scope", () => {
+    // The frontmatter description is what the client routes on; a verb that
+    // only appears in Scope is read after the routing decision is made.
+    const description = cameraSkill.split("---")[1];
+    expect(description).toContain("casting a camera stream");
+    expect(description).toContain("motion detection");
+  });
+
+  it("keeps the media-source search payload on the field HA actually validates", () => {
+    const media = flat(mediaSkill);
+    // Live 2026.8.0 rejects `query`: "extra keys not allowed @ data['query'] /
+    // required key not provided @ data['search_query']".
+    expect(media).toContain("WS `media_source/search_media` with `search_query`");
+    expect(media).not.toContain('media_source/search_media","query"');
+    // And the root is not searchable, so the scope id is not really optional.
+    expect(media).toContain("the media-source ROOT cannot search");
+  });
+
+  it("captures every climate attribute scene reproduction restores", () => {
+    // Source: homeassistant/components/climate/reproduce_state.py — each of
+    // these goes to its own service, so a missing one is silently not restored.
+    const scene = flat(sceneSkill);
+    for (const attribute of [
+      "`preset_mode`",
+      "`fan_mode`",
+      "`swing_mode`",
+      "`swing_horizontal_mode`",
+    ]) {
+      expect(scene, `climate capture list omits ${attribute}`).toContain(attribute);
+    }
+    expect(scene).toContain("each through its own service");
+  });
+
+  it("does not claim a read-back that the media call cannot produce", () => {
+    const media = flat(mediaSkill);
+    // Queueing deliberately changes nothing observable, and HA exposes no
+    // queue attribute — the generic verify step has no signal to read.
+    expect(media).toContain("`add` and `next` have no success signal");
+    expect(media).toContain("do not present unchanged state as a discrepancy");
+    // Mode changes DO have a signal, just not the one step 7 names.
+    expect(media).toContain("Verify these from their OWN attributes");
+    expect(media).toContain("`shuffle` and `repeat` in the state");
+  });
+});

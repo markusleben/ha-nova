@@ -1,6 +1,6 @@
 ---
 name: entity-discovery
-description: Use when searching or resolving Home Assistant entities by name, room, or domain through HA NOVA Relay.
+description: Use when searching or resolving Home Assistant entities by name, room, or domain through HA NOVA Relay, and live state snapshots across a domain — what is open, on, running, locked, who is home.
 license: MIT
 compatibility: Requires the ha-nova CLI (run 'ha-nova setup' first) and the HA NOVA Relay in Home Assistant (App, or standalone container on Container/Core).
 ---
@@ -71,7 +71,7 @@ Write `<filter-file>` with:
 This generic `test("KEYWORD";"i")` example is for free-text search, not explicit `prefix` matching.
 For an explicit prefix selector, match the suffix and display name with `startswith(...)`, not loose substring search.
 
-**If 0 results:** try synonyms, alternative terms, or shorter keyword stems. Use OR for multiple variants: `test("kw1|kw2|kw3";"i")`.
+**If the compact search does not resolve a suitable target** — no results, or only matches the user rejects or that plainly are not what they meant — escalate ONCE to the full registry (`config/entity_registry/list`) and match against `aliases[]` too — `list_for_display` does not carry them, and an alias is exactly where a household keeps the name it actually says (a household's own word for `light.floor_lamp_living`). Only then try synonyms, alternative terms, or shorter keyword stems. Use OR for multiple variants: `test("kw1|kw2|kw3";"i")`. When a resolved entity had no matching alias and the user's word was clearly their habitual name, offer once to store it as an alias via `ha-nova:organize`.
 **Diacritics:** `test(...;"i")` folds case, not accents — a name with `é`/`ü`/`ö` does not match its plain-ASCII spelling. Whenever the keyword or likely entity names carry accents or umlauts (common in non-English homes), put the transliterated variants into the OR-pattern: `test("café|cafe";"i")`, and for umlauts include both the `ue`/`oe`/`ae` and bare-vowel forms.
 **If too many:** narrow with AND: `test("kw1";"i") and test("kw2";"i")`.
 **Cap honesty:** the `.[0:20]` cap can drop the target — when exactly 20 results return, say the list is capped and narrow further instead of treating it as complete.
@@ -129,6 +129,100 @@ This is more reliable than keyword search or assuming `.ai` is populated for roo
 - do not fetch full YAML for every matched item in one response
 
 **IMPORTANT:** Never dump raw `get_states` — it returns thousands of entities with full attributes.
+
+## State Snapshot Queries
+
+"is everything closed?", "who is home?", "what is running right now?" — these ask
+about STATE across many entities, not about finding one. They are reads and
+belong here; `ha-nova:health` answers what is broken, not what is on.
+
+One call answers them: `ha-nova relay core --method GET --path /api/states --out <result-file>`,
+then filter by domain plus `device_class` and state:
+
+```jq
+[.data.body[]
+ | select(.attributes.device_class == "window" and .state == "on")
+ | {e: .entity_id, n: .attributes.friendly_name}]
+```
+
+Three answers, not two: **yes / no / could not tell**. An entity that is
+`unknown` or `unavailable`, and one that is readable but does not report the
+thing being asked, both go in the third bucket and get named. "Everything is
+closed" with three sensors offline is the reassurance nobody should get —
+"none open, 3 could not be read" is the honest form.
+
+Skip group helpers when counting: a Light Group is a real `light.*` entity
+beside its members, so it double-counts. They carry an `entity_id` LIST in
+their attributes — skip any entity whose `attributes.entity_id` is an array.
+(`switch_as_x` mirrors double-count too and carry no such marker; say so if
+the count looks high.)
+
+- **open windows/doors** — `binary_sensor` with `device_class`
+  `window`/`door`/`garage_door`/`opening` (the generic contact class) in state
+  `on`, AND `cover.*` in `open`/`opening`/`closing` (mid-close is still open)
+  with the COVER classes, which are named differently: `garage` — not the
+  binary sensor's `garage_door` — plus `door`, `window`, `gate`. A motorized
+  window is a cover, not a binary_sensor, so checking one family answers the
+  question wrong. A cover in those states whose `device_class` is absent or
+  outside that list is not evidence of closed: report it as "N open, class
+  unknown". Do NOT do the same for unclassed binary sensors — one is
+  indistinguishable from a motion sensor and would manufacture false alarms.
+- **who is home** — `person.*` in state `home`. Anything else that is not
+  `unknown`/`unavailable` is away, including a named zone like `work`: those
+  are zone names, not errors. `unknown` means no tracker had usable data —
+  third bucket, because "nobody is home" from a dropped phone is how an alarm
+  gets armed on someone. (This skill owns person STATE reads; `ha-nova:admin`
+  owns creating and editing them.)
+- **unlocked doors** — `lock.*` in any state that is not `locked` and not
+  `unavailable`/`unknown`, AND `binary_sensor` with `device_class: lock` in
+  state `on`, which reports `on` for UNLOCKED — the reverse of every other
+  class here. Name the state each one is in rather than flattening them to
+  "unlocked": jammed and mid-travel are not secured, and they are what a user
+  needs to hear.
+- **is everything OFF** — `light`/`switch`/`fan`/`siren`/`remote` in `on`
+  (a Harmony-style `remote` in `on` means an AV activity is live);
+  `media_player` in anything but `off`/`standby`/`unavailable`/`unknown`
+  (paused and idle are not off; `standby` IS — Home Assistant core deprecates
+  it as meaning off-or-idle, and users call that TV off);
+  `binary_sensor` with `device_class` `running` or `moving` in `on`;
+  `script` in `on` and `automation` with `attributes.current > 0` — both are
+  actually executing, and the RUNNING list counts them, so leaving them out
+  here would let "is everything off?" say yes to something "what is running?"
+  names in the same breath;
+  `climate`/`water_heater`/`humidifier` in any state but
+  `off`/`unavailable`/`unknown` — an unreachable one is not off, it goes in
+  the third bucket;
+  `vacuum` and `lawn_mower` in `cleaning`/`mowing`/`returning`/`paused`/`error`
+  — `error` means stranded mid-floor, not put away, and it is readable so the
+  unavailable rule never catches it; `valve` in `open`/`opening`/`closing`;
+  `cover` only in `opening`/`closing` — a cover left open is answered by the
+  open-windows question above, not by this one, because it consumes nothing.
+- **what is RUNNING** — narrower, and everything in it is also in OFF above;
+  keep that invariant when either list changes. Same lights, switches, fans,
+  sirens and `binary_sensor` `running`, plus `device_class: moving`; but
+  `media_player` only in `playing`/`buffering`; `vacuum`/`lawn_mower` only in
+  `cleaning`/`mowing`/`returning` (report `error` as stuck, not as running);
+  `valve` in `open`/`opening`/`closing`; `cover` in `opening`/`closing` only —
+  a motor turning is running, a cover left open is not.
+  - `climate` runs when `hvac_action` is PRESENT and not `off`/`idle`
+    (heating, cooling, drying, fan, preheating, defrosting).
+  - `humidifier` has the same shape under a different key: `attributes.action`
+    PRESENT and not `off`/`idle`.
+  - `water_heater` has NO action attribute at all — its state is an operation
+    mode (`eco`, `performance`, `heat_pump`, ...), which reports enablement and
+    never activity. It can never be proven running: enabled goes in the third
+    bucket, never in "nothing is running".
+  - An ABSENT action attribute is the third bucket too, not a no. Most simple
+    thermostats never publish one, and "nothing is running" while the heat pump
+    runs is the failure this whole section exists to prevent.
+  - `automation` in `on` means ENABLED, not running — exclude it, or the answer
+    is "47 things are running". Its real running signal is
+    `attributes.current > 0`. `script` in `on` does mean running.
+
+Answer count-first ("2 windows open: kitchen, bathroom"), then the names, in the List
+Frame. This is a summary, not the banned domain dump: `output-rules.md` asks
+for counts, groups and a few examples exactly here. A follow-up "and which are
+closed?" is a fresh read, not a cached list.
 
 ## Matching Rules
 

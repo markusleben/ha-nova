@@ -2,7 +2,7 @@
 
 Which HA operations require REST, WS, or filesystem?
 
-## REST API (directly with Long-Lived Access Token)
+## REST API (via the Relay `/core` proxy)
 
 | Endpoint | Method | Purpose |
 |----------|---------|-----|
@@ -34,7 +34,7 @@ Which HA operations require REST, WS, or filesystem?
 | `/api/config/config_entries/flow` | POST | Start an integration/helper config flow |
 | `/api/config/config_entries/flow/{flow_id}` | GET / POST / DELETE | Read, submit, or cancel one config flow |
 
-**Auth header:** `Authorization: Bearer {LONG_LIVED_TOKEN}`. The webhook endpoint itself is unauthenticated and treats its ID as the bearer secret; calls through HA NOVA still require Relay authentication.
+**Auth:** callers go through the Relay (`ha-nova relay core`), which authenticates inbound with the Relay/device credential and injects the upstream HA credential server-side (`SUPERVISOR_TOKEN` on the App, `HA_LLAT` on the standalone container) — never send an HA token yourself. A raw `Authorization: Bearer {LONG_LIVED_TOKEN}` applies only to direct server-side use outside HA NOVA. The webhook endpoint itself is unauthenticated and treats its ID as the bearer secret; calls through HA NOVA still require Relay authentication.
 
 ### Runtime event and security notes
 
@@ -70,7 +70,7 @@ Which HA operations require REST, WS, or filesystem?
 | `config/entity_registry/remove` | Remove entity from registry |
 | `config/device_registry/list` | All devices |
 | `config/device_registry/update` | Assign device area, labels, name, disable |
-| `config/device_registry/remove_config_entry` | Detach config entry from device |
+| `config/device_registry/remove_config_entry` | Remove the owning device (HA 2026.8+; legacy command name) |
 
 ### Helper CRUD (storage-based, direct WS commands)
 | WS Type Pattern | Supported types |
@@ -151,34 +151,71 @@ Recurring instances add `recurrence_id`; `recurrence_range` is `""` for only tha
 ### Misc
 | WS Type | Purpose |
 |---------|-----|
-| `config/automation/list` | Automations with metadata |
 | `webhook/list` | Registered webhook IDs plus domain/name, locality, and allowed methods (secret-bearing; private `--out` file only, never stdout) |
 | `repairs/list_issues` | Repairs/Deprecation Issues |
 | `config_entries/get` | Config-entry metadata; health uses not-loaded entries as integration status |
 | `system_health/info` | System health finite event response (Skill opts into Relay `collect_events` until `finish`) |
 | `homeassistant/expose_entity/list` | Voice-Assistant Exposure |
-| `subscribe_events` | Event subscription (real time) |
-| `subscribe_trigger` | Trigger subscription |
+| `subscribe_events` | Event subscription — bare calls are rejected by the Relay (`UNSUPPORTED_WS_TYPE`); permitted only inside the bounded `collect_events` envelope |
+| `subscribe_trigger` | Trigger subscription — same envelope-only rule |
+| `render_template` | Streaming render — rejected bare by the Relay; use `POST /api/template` instead |
 | `blueprint/list` | List blueprints |
 | `blueprint/import` | Import blueprint |
+| `blueprint/save` | Save a blueprint (used by `ha-nova:fallback`) |
+| `blueprint/substitute` | Expand a blueprint config (used by `ha-nova:fallback`) |
 
-## Filesystem (only from the HA host)
+## Filesystem (via the Relay's opt-in `/files` endpoint)
+
+File access defaults to off. When enabled, the Relay enforces a deny-list (`.storage`, `.cloud`, `.ssh`, `.git`, `deps`, `ssl`, `tts`, `backups`, `custom_components`, `python_scripts`, `www`, plus secret/db/env/log patterns) and a writable-extension gate (`.yaml` / `.yml` / `.conf` / `.json` / `.txt` / `.md`) — there is no directory whitelist. Keeping HA NOVA's own additions under `/config/ha_nova/` is a convention (`skills/yaml-config/SKILL.md`), not relay enforcement.
 
 | Operation | Path | When needed |
 |-----------|------|-----------|
-| Template sensor YAML | `/config/ha_mcp/templates/*.yaml` | For triggers, icon templates, multi-entity |
-| REST sensor YAML | `/config/ha_mcp/sensors/rest/*.yaml` | No config flow available |
-| Command line sensor YAML | `/config/ha_mcp/sensors/command_line/*.yaml` | No config flow available |
+| Template sensor YAML | `/config/ha_nova/templates/*.yaml` | For triggers, icon templates, multi-entity |
+| REST sensor YAML | `/config/ha_nova/sensors/rest/*.yaml` | No config flow available |
+| Command line sensor YAML | `/config/ha_nova/sensors/command_line/*.yaml` | No config flow available |
 | Patch configuration.yaml | `/config/configuration.yaml` | For `!include_dir_merge_list` entries |
-| Backups (raw file download/upload) | `/data/backups/` | Planned; lifecycle (status/create/inspect/delete) is covered via `/ws` `backup/*` (`ha-nova:backup`) |
+
+Raw backup file transfer (`/data/backups/`) is planned host-filesystem tooling — NOT reachable via `/files`, whose paths must stay inside `/config`. Backup lifecycle (status/create/inspect/delete) stays on WS `backup/*` (`ha-nova:backup`).
 
 **Sensor types with config flow (no YAML needed):** SQL, Scrape, Template (limited)
 **YAML-only sensor types:** REST, Command Line
 
+## Surfaces the skills pin (grouped)
+
+This document routes an operation to its transport. It is not a command
+inventory — `skills/ha-nova/relay-api.md` holds the calling contract and each
+skill holds its own payloads. The families below are pinned somewhere in
+`skills/**` and all travel over `/ws` unless noted; they are listed so a reader
+can tell "exists and is used" from "not available".
+A command Home Assistant offers but no skill pins yet does NOT belong here —
+listing it would route a request to an owner with no payload and no
+guardrails.
+
+| Family | Commands | Owning skill |
+|---|---|---|
+| Relations | `search/related` — the pre-delete and consumer-scan workhorse | the skills that pin it: `write`, `helper`, `scene`, `organize`, `read`, `review`, `service-call`, `entity-discovery`, `maintenance`, `admin`, `media`, `camera`, `todo`, `hacs`, `fallback` |
+| Compact registry | `config/entity_registry/list_for_display` (abbreviated keys) | entity-discovery, review, bulk flows |
+| System log | `system_log/list` (the working log source on HA OS) | diagnose |
+| Backups | `backup/info`, `backup/generate`, `backup/generate_with_automatic_settings`, `backup/delete`, `backup/agents/info`, `backup/details` | backup |
+| People & access | `person/*`, `zone/*`, `tag/*`, `config/auth/list`, `config/auth/create`, `config/auth/delete`, `auth/current_user` | admin |
+| Voice | `assist_pipeline/pipeline/list`, `.../update`, `.../delete`, `.../set_preferred`, `homeassistant/expose_entity` and `.../list`, plus the `tts`, `stt`, `conversation` and `wake_word` engine lists | assist |
+| Recorder repair | `recorder/info`, `recorder/list_statistic_ids`, `recorder/get_statistics_metadata`, `recorder/validate_statistics`, `recorder/clear_statistics`, `recorder/update_statistics_metadata`, `recorder/change_statistics_unit`, `recorder/adjust_sum_statistics` | maintenance |
+| Device automation | `device_automation/trigger/list`, `device_automation/trigger/capabilities` | write |
+| MQTT | `mqtt/subscribe` (envelope only), `mqtt/device/debug_info` | mqtt |
+| Media | `media_player/browse_media`, `media_player/search_media`, `media_source/browse_media`, `media_source/resolve_media` | media |
+| Camera | `camera/stream`; REST `/api/camera_proxy/<entity_id>` (binary) | camera |
+| Notifications | `persistent_notification/get` | notify |
+| Updates | `update/release_notes` | updates |
+| Logger | `logger/log_info` (numeric levels; `logger.set_level` takes names) | diagnose |
+| Diagnostics | `diagnostics/list`; REST `/api/diagnostics/config_entry/<entry_id>[/device/<device_id>]` | diagnose |
+| To-do | `todo/item/move`; REST `/api/services/todo/*?return_response` | todo |
+| Conversation | REST `/api/conversation/process` (executes what it understands) | assist |
+| HACS | `hacs/*` (17 commands) — not a Home Assistant API; the pinned map lives in `skills/hacs/hacs-commands.md` | hacs |
+
 ## Important Notes
 
 - **Automation/Script REST API** is undocumented but stable (used by the HA frontend)
-- **Legacy template sensors** (`sensor:` + `platform: template`) are deprecated since 2025.12, end in 2026.6
+- **Legacy template sensors** (`sensor:` + `platform: template`) were deprecated in 2025.12 and removed in HA 2026.6
 - **Helper delete** requires `unique_id`, not `entity_id`
 - **Dashboard write/delete eligibility** comes from `lovelace/dashboards/list` (`mode=storage`), not from `lovelace/info`
 - **Dashboard content writes are full-document saves** and must preserve unrelated views/cards

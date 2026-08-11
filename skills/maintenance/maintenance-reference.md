@@ -111,7 +111,7 @@ Removal:
 
 There is no backend aliveness check — a live integration simply re-registers the entity. Deleted entries stay restorable ~30 days (entity_id and customizations return if the integration comes back), then purge permanently. Recorder data is NOT removed: states age out via purge; statistics remain and surface as `no_state` — name this chain in the preview so a statistics cleanup is a conscious follow-up.
 
-Devices: there is no generic device-delete command; `config/device_registry/remove_config_entry` works only when the integration supports it. Report device orphans and route to the owning integration or the HA UI.
+Devices: there is no generic device-delete command; on Home Assistant 2026.8+ the legacy-named `config/device_registry/remove_config_entry` removes the owning device and works only when the integration supports it. Report device orphans and route to the owning integration or the HA UI.
 
 ## Long-Unavailable Timestamp Confidence
 

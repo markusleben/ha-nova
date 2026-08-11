@@ -11,6 +11,54 @@ Self-contained catalog: load this file before evaluating findings — from `skil
 - Instead, describe each finding in plain language: a short descriptive title plus why it matters and how to fix it.
 - This guardrail applies whenever check knowledge is used, not only during formal review runs.
 
+## Verify Before Flagging (Critical)
+
+A finding that turns out to be valid Home Assistant costs the user more trust
+than a missed one costs them behavior. Before reporting ANY issue, resolve it
+against a source rather than memory, in this order:
+
+1. `skills/ha-nova/template-guidelines.md` for template and Jinja questions,
+   `skills/ha-nova/best-practices.md` and
+   `skills/ha-nova/automation-patterns.md` for trigger/action/mode shapes,
+   `skills/ha-nova/helper-schemas.md` and
+   `skills/ha-nova/helper-flow-schemas.md` for helper fields.
+2. If the local reference does not settle it, the official documentation page
+   for that surface: triggers <https://www.home-assistant.io/docs/automation/trigger/>,
+   modes <https://www.home-assistant.io/docs/automation/modes/>, scripts
+   <https://www.home-assistant.io/docs/scripts/>, templating
+   <https://www.home-assistant.io/docs/configuration/templating/>, YAML schema
+   <https://www.home-assistant.io/docs/automation/yaml/>.
+3. Flag it when the settling source confirms the CLAIM you are making. Most
+   of this catalog is not about schema validity: R-02, R-06, P-04 and M-05
+   describe configurations Home Assistant accepts happily and that still
+   misbehave, deprecate, or fire at the wrong moment. For those the source
+   must confirm the semantics or the risk — "valid YAML" never clears them.
+   Only schema-shaped checks need the source to call the config invalid.
+4. Scene, dashboard and cross-item families split their evidence in two, and
+   conflating the halves is how an unsupported finding gets shipped:
+   - EXISTENCE and JOIN facts — this card references a resource that is not
+     in `lovelace/resources`, this scene captures two colour attributes, this
+     entity_id appears in three automations — come from the live data the run
+     already read. Nothing else can prove them.
+   - The BEHAVIOURAL claim attached to them comes from a named source, and
+     each claim has exactly one: that mixed colour attributes reproduce wrong
+     or a domain is not reproducible — `skills/scene/SKILL.md` → Capture
+     attributes deliberately; that a built-in card field is required — the
+     D-07 allowlist above, which is the only schema pin in this repo and is
+     deliberately closed (a type not on it has no known required field, so it
+     produces no finding); that a save loses omitted content or a custom-card
+     schema cannot be invented — `skills/dashboard/SKILL.md` → Critical
+     behavior. Beyond those, the Lovelace and scene pages on
+     home-assistant.io. Citing a section that does not carry the claim is the
+     same error as citing nothing.
+   State the observation from the data and the consequence from the source.
+   If only the observation holds, report the observation.
+5. Unresolved means unresolved: report it as a question, never as an error.
+
+This applies wherever findings are generated — the standalone review flow and
+the post-write phases in write, helper, and yaml-config alike, which load this
+file directly and never see the review skill's copy of the rule.
+
 ## Check Taxonomy (internal only)
 
 - Format: `{CATEGORY}-{NN}` (example: `H-09`)

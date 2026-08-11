@@ -2,6 +2,11 @@ import { readFileSync } from "node:fs";
 
 import { describe, expect, it } from "vitest";
 
+
+// The -- RELAY-READY sections live in fallback's split file, which fallback
+// loads. A negative assertion must cover both, or it cannot fail.
+const relayReadySplit = readFileSync("skills/fallback/relay-ready.md", "utf-8");
+
 const skill = readFileSync("skills/integration-setup/SKILL.md", "utf8");
 const context = readFileSync("skills/ha-nova/SKILL.md", "utf8");
 const fallback = readFileSync("skills/fallback/SKILL.md", "utf8");
@@ -64,7 +69,7 @@ describe("integration setup skill contract", () => {
     expect(fallback).toContain(
       "| Integration onboarding (add / re-auth an integration via config flow) | Covered | integration-setup |",
     );
-    expect(fallback).not.toContain("### Integration Onboarding -- RELAY-READY");
+    expect(fallback + relayReadySplit).not.toContain("### Integration Onboarding -- RELAY-READY");
     expect(architecture).toContain("integration-setup/SKILL.md");
     expect(architecture).toContain("## Integration Setup Architecture");
   });

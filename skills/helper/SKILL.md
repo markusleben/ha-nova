@@ -1,6 +1,6 @@
 ---
 name: helper
-description: Use when creating, updating, deleting, or listing Home Assistant helpers (storage-based helpers plus the supported config-entry helper family) through HA NOVA Relay.
+description: Use when creating, updating, deleting, or listing Home Assistant helpers — timers, counters, toggles, dropdowns, text and number inputs, schedules, plus template, threshold, utility-meter and other config-entry helpers — through HA NOVA Relay.
 license: MIT
 compatibility: Requires the ha-nova CLI (run 'ha-nova setup' first) and the HA NOVA Relay in Home Assistant (App, or standalone container on Container/Core).
 ---
@@ -154,7 +154,8 @@ If 0 results: try synonyms or shorter stems. Never dump entire domains.
    ```text
    ha-nova relay ws --data-file <payload-file>
    ```
-5. Verify absence from `{type}/list`.
+6. Verify absence from `{type}/list`.
+7. Run storage-family post-write review (see below).
 
 ### Family 2: Config-entry helpers
 

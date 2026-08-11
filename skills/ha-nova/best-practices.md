@@ -125,7 +125,7 @@ triggers:
     id: button_toggle
 ```
 
-Find `device_ieee` and `command` values: Developer Tools → Events → subscribe to `zha_event` → press button.
+Find `device_ieee` and `command` values: Tools → Events (named Developer Tools before HA 2026.8) → subscribe to `zha_event` → press button.
 
 ### Zigbee2MQTT (Z2M)
 

@@ -13,6 +13,10 @@ compatibility: Requires the ha-nova CLI (run 'ha-nova setup' first) and the HA N
 Mutations only:
 - domains: `automation`, `script`
 - operations: `create`, `update`, `delete`
+- and one runtime exception: the paired immediate service call of a DURATION
+  request, plus `automation.turn_off` on an expiry automation this flow just
+  created. Both belong to the write because splitting them loses the pairing
+  (`skills/ha-nova/one-shot-automations.md`); nothing else runtime is in scope.
 
 ## Bootstrap (once per session)
 
@@ -28,12 +32,22 @@ If this fails, run onboarding: `ha-nova setup`.
 ## Relay Contract
 
 File-based relay requests only: `ha-nova relay core --method <METHOD> --path <PATH> --body-file <payload-file>` for config writes, `ha-nova relay ws --data-file <payload-file>` for reads/reloads, `--jq-file` / `--out` for filters and large reads.
+- `ha-nova relay core --method GET --path /api/states/<entity_id> --out <result-file>` — the duration read-backs: the captured restore value before applying, and the target after the immediate action.
+- `ha-nova relay core --method POST --path /api/services/<domain>/<service> --body-file <payload-file>` — ONLY for the two runtime calls named in Scope: a duration request's immediate action, and `automation.turn_off` on an expiry automation this flow created.
 
 ## Flow
 
 Multi-target logical changes: present the plan first per `skills/ha-nova/write-safety.md` → Multi-Target Changes. Non-destructive worksets (max 10 operations) may confirm as one grouped change set per `skills/ha-nova/grouped-change-set.md` — Phase 2 previews stay, their per-preview options and confirmation collapse into the group's single final action block.
 
 Input-device remaps (buttons, remotes, switches): run the capability preflight per `skills/ha-nova/input-capability-preflight.md` before drafting; the write stays blocked while the chosen gesture is only assumed or its evidence conflicts. Repurposing or cleaning up an input additionally runs `skills/ha-nova/consumer-discovery-preflight.md`; incomplete coverage is disclosed, never claimed as "unused".
+
+A one-shot intent ("just today", "one time only", "tell me when the laundry
+finishes") takes the self-disabling pattern in
+`skills/ha-nova/one-shot-automations.md`,
+and skips unsolicited improvement offers — the Phase 2 Suggestion Block AND
+the Phase 5 test offer, because a real-run test of an expiry automation would
+undo the duration the user just asked for. The user asked for something
+temporary, not something to grow.
 
 Every draft follows `skills/ha-nova/smallest-solution.md`: the complete
 explicit outcome in the simplest safe design, nothing for hypothetical
@@ -78,7 +92,7 @@ future needs, native primitives when equally safe and clearer.
    - Delete preview MUST include the consumer-check result before confirmation: the affected consumers, an explicit no-consumer result (empty result through the canonical filter), or an explicit "consumer check inconclusive" line when the scan failed or did not run. Never present a failed or skipped scan as a no-consumer result. The delete consumer check scans the deleted item's OWN `entity_id` — who references it; the 3c NEVER-own-id rule applies only to the update-impact direction.
    - Delete previews do not show `apply`, `show yaml`, `cancel`, or any menu; ask only for the exact `confirm:<token>` or cancellation.
    - Batch delete of a reviewed same-family workset (automations OR scripts, never mixed) follows `skills/ha-nova/batch-safety.md`; per-item consumer checks and absence verification stay.
-5. Confirmation: create/update=natural, delete=typed confirmation code `confirm:<token>`. Active Preview Confirmation is required; delete is the typed confirmation code, never a menu. Pre-preview consent is draft-only; payload/diff changes need preview.
+5. Confirmation: create/update=natural, delete=typed confirmation code `confirm:<token>`. A duration request takes the typed code when EITHER half grants physical access or is physically irreversible — the tier follows the runtime action, not the config write, and the counter-action is a runtime action too: `lock.lock` for an hour schedules an unattended `lock.unlock`. Active Preview Confirmation is required; delete is the typed confirmation code, never a menu. Pre-preview consent is draft-only; payload/diff changes need preview.
 
 ### Phase 3: Apply + Verify (Agent)
 
@@ -87,7 +101,19 @@ future needs, native primitives when equally safe and clearer.
 3. Read `skills/ha-nova/agents/apply-agent.md`.
 4. Fill with confirmed payload.
 5. Dispatch. Expect: success, write_status, verification.
-6. Report result. No raw curl/JSON in output.
+6. **Duration requests carry an immediate action too** — "sprinkler for 30
+   minutes" is the expiry automation PLUS the turn-on under one preview
+   (`skills/ha-nova/automation-patterns.md`). Apply and verify the automation,
+   then re-check deadline margin and the captured restore value. If either is
+   stale, disable the armed expiry immediately and remove it through the delete
+   flow before re-previewing. Only then issue the immediate service call and
+   VERIFY it took effect by reading the
+   target back — Home Assistant accepting the call is not the device having
+   changed, and reporting "running for 30 minutes" over a valve that never
+   opened leaves an expiry armed against nothing; on a failed
+   action, disable the automation at once and clean it up through the delete
+   flow. Never hand the immediate half back to the user as a separate step.
+7. Report result. No raw curl/JSON in output.
    - Do not report destructive success until verification proves the target is gone.
 
 Fallback: If agent dispatch unavailable, execute inline.
@@ -123,7 +149,7 @@ Do NOT invoke `ha-nova:review` separately.
 
 ### Phase 5: Test Offer (create/update only)
 
-After the Post-Write Review output, build a Test Plan Card per `skills/ha-nova/test-run.md`: classify trigger type and action risk, pick ONE recommended option (real run included where acceptable — with the devices it will switch named), show at most 3 options plus `skip`. Never execute anything unconsented; the user's option choice is the confirmation bound to that exact card (single confirmation — no second prompt). Runs follow the service-call runtime rules (`mqtt` triggers via `ha-nova:mqtt`; logic check via `POST /api/template`), then the automatic post-run follow-up in test-run.md (trace, state verify, restore). After one skip, de-escalate to a single line for later writes. Skip this phase for deletes.
+After the Post-Write Review output, build a Test Plan Card per `skills/ha-nova/test-run.md`: classify trigger type and action risk, pick ONE recommended option (real run included where acceptable — with the devices it will switch named), show at most 3 options plus `skip`. Never execute anything unconsented; the user's option choice is the confirmation bound to that exact card (single confirmation — no second prompt), except for high-consequence members, where the card confirmation never replaces the typed confirmation code. Runs follow the service-call runtime rules (`mqtt` triggers via `ha-nova:mqtt`; logic check via `POST /api/template`), then the automatic post-run follow-up in test-run.md (trace, state verify, restore). After one skip, de-escalate to a single line for later writes. Skip this phase for deletes.
 
 ## Output Format
 
@@ -161,6 +187,7 @@ Always load:
 
 On demand — read only when the trigger applies:
 - `skills/ha-nova/automation-patterns.md` — drafting new branching, timing, or flow-control logic
+- `skills/ha-nova/one-shot-automations.md` — a one-shot, "only today", or duration-bound request (this skill owns both halves of a duration)
 - `skills/ha-nova/template-guidelines.md` — the draft contains Jinja templates
 - `skills/ha-nova/safe-refactoring.md` — rename, migrate, or orphan-cleanup tasks
 - `skills/ha-nova/update-revert.md` — the user asks to revert, undo, or restore a verified update (create cleanup stays out — see write-safety)

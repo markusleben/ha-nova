@@ -2,6 +2,11 @@ import { readFileSync } from "node:fs";
 
 import { describe, expect, it } from "vitest";
 
+
+// The -- RELAY-READY sections live in fallback's split file, which fallback
+// loads. A negative assertion must cover both, or it cannot fail.
+const relayReadySplit = readFileSync("skills/fallback/relay-ready.md", "utf-8");
+
 const energySkill = readFileSync("skills/energy/SKILL.md", "utf8");
 const energyReference = readFileSync("skills/energy/energy-reference.md", "utf8");
 const contextSkill = readFileSync("skills/ha-nova/SKILL.md", "utf8");
@@ -122,7 +127,7 @@ describe("energy contract", () => {
     );
     expect(contextSkill).toContain('"Add this plug to the energy dashboard"** → `ha-nova:energy`');
     expect(fallbackSkill).toContain("| Energy (analysis + source/device config) | Covered | energy |");
-    expect(fallbackSkill).not.toContain("Energy Configuration -- RELAY-READY");
+    expect(fallbackSkill + relayReadySplit).not.toContain("Energy Configuration -- RELAY-READY");
     expect(writeSafety).toContain(
       "| `energy` | change preview + read-back & validate verify | no (corrective save) | config snapshot (auto before entry-removing saves, whole-doc restore); HA Backups |",
     );
