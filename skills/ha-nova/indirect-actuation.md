@@ -40,31 +40,34 @@ a service-name list alone would wave it through. Any call that STARTS a
 used to get there (`homeassistant.turn_on` and `homeassistant.toggle`
 included; a toggle can start a stopped script).
 
-Only an actual run expands members. Three cases do NOT run anything and stay
-at the ordinary tier, because demanding a typed code to stop or configure
-something contradicts the performed-action rule:
+Only an actual run expands stored members. Stops and automation enable-state
+changes do not run stored members, but still take the CONSUMER scan below; its
+findings set the tier:
 
-- stopping: `homeassistant.turn_off`, `script.turn_off`, `automation.turn_off`
+- stopping a script or automation: `homeassistant.turn_off`,
+  `script.turn_off`, `automation.turn_off`
 - enabling or disabling an AUTOMATION: `automation.turn_on|turn_off|toggle`
   and their `homeassistant.*` aliases only flip whether it may fire later;
   `automation.trigger` is the one that runs it
-- a script's RUNNING state never lowers the tier. Every spelling that may
-  start one — `script.<script_id>`, `script.turn_on`, `homeassistant.turn_on`,
-  and either `toggle` — expands and classifies its members, whatever the state
-  read showed. Home Assistant does reject an overlapping call on `mode: single`,
-  but that observation expires: a script running at preview time can finish
-  while the confirmation waits, and then the call that "runs nothing" runs
-  everything, including a `lock.unlock` nobody listed. Only a pure stop
-  (`turn_off`) expands nothing, because no timing turns a stop into a start.
-- the gate's conclusion is still re-checked at apply time — member configs, the
-  broad targets inside them (a stored `area_id`/`label_id` keeps its selector,
-  so its membership is never frozen the way a direct call's expansion is, and a
-  garage door added to that label between preview and apply arrives silently),
-  AND the consumer scan itself, since a helper can gain a listener during the pause
-  and re-reading only what you already found cannot discover one that did not
-  exist yet. Any change re-previews at the tier the new facts deserve. A
-  confirmation binds to what was shown, and the gate's verdict is part of what
-  was shown.
+
+A script's RUNNING state never lowers the tier. Every spelling that may
+start one — `script.<script_id>`, `script.turn_on`, `homeassistant.turn_on`,
+and either `toggle` — expands and classifies its members, whatever the state
+read showed. Home Assistant does reject an overlapping call on `mode: single`,
+but that observation expires: a script running at preview time can finish
+while the confirmation waits, and then the call that "runs nothing" runs
+everything, including a `lock.unlock` nobody listed. Only a pure stop
+(`turn_off`) expands nothing, because no timing turns a stop into a start.
+
+The gate's conclusion is still re-checked at apply time — member configs, the
+broad targets inside them (a stored `area_id`/`label_id` keeps its selector,
+so its membership is never frozen the way a direct call's expansion is, and a
+garage door added to that label between preview and apply arrives silently),
+AND the consumer scan itself, since a helper can gain a listener during the pause
+and re-reading only what you already found cannot discover one that did not
+exist yet. Any change re-previews at the tier the new facts deserve. A
+confirmation binds to what was shown, and the gate's verdict is part of what
+was shown.
 
 By service name, the gate also covers:
 

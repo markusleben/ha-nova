@@ -171,9 +171,14 @@ describe("flows that cost the user extra turns (#527)", () => {
     expect(patterns).toContain("create the expiry automation FIRST");
     expect(patterns).toContain("clean up the expiry automation you just created");
     expect(patterns).toContain("disable it immediately so it cannot fire while that confirmation is pending");
+    expect(patterns).toContain("disable the armed expiry and remove it through");
+    expect(patterns).toContain("before re-previewing; do not actuate");
     // write has to perform the immediate half, not describe it.
-    expect(flat(read("skills/write/SKILL.md"))).toContain("Duration requests carry an immediate action too");
-    expect(flat(read("skills/write/SKILL.md"))).toContain("Never hand the immediate half back to the user as a separate step");
+    const write = flat(read("skills/write/SKILL.md"));
+    expect(write).toContain("Duration requests carry an immediate action too");
+    expect(write).toContain("disable the armed expiry immediately");
+    expect(write).toContain("remove it through the delete flow before re-previewing");
+    expect(write).toContain("Never hand the immediate half back to the user as a separate step");
     expect(patterns).toContain("A SAFETY-direction counter-action (close, turn off) never skips");
     // A confirmation that arrives after the deadline would strand the device.
     expect(patterns).toContain("Check the deadline again at that moment");

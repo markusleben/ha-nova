@@ -102,12 +102,12 @@ future needs, native primitives when equally safe and clearer.
 4. Fill with confirmed payload.
 5. Dispatch. Expect: success, write_status, verification.
 6. **Duration requests carry an immediate action too** — "sprinkler for 30
-   minutes" is the expiry automation PLUS the turn-on, both under the one
-   preview (`skills/ha-nova/automation-patterns.md`). Apply the automation
-   first, verify it, then re-check both things the confirmation pause can
-   invalidate — the deadline still has margin, and the captured restore value
-   has not moved (`skills/ha-nova/one-shot-automations.md`) — and only then
-   issue the immediate service call and VERIFY it took effect by reading the
+   minutes" is the expiry automation PLUS the turn-on under one preview
+   (`skills/ha-nova/automation-patterns.md`). Apply and verify the automation,
+   then re-check deadline margin and the captured restore value. If either is
+   stale, disable the armed expiry immediately and remove it through the delete
+   flow before re-previewing. Only then issue the immediate service call and
+   VERIFY it took effect by reading the
    target back — Home Assistant accepting the call is not the device having
    changed, and reporting "running for 30 minutes" over a valve that never
    opened leaves an expiry armed against nothing; on a failed

@@ -64,13 +64,16 @@ describe("indirect actuation and tier classification (#513)", () => {
       expect(gate).toContain("whatever service was used to get there");
       // Stopping performs none of the member actions — gating it would
       // demand a typed code to make behavior END.
-      expect(gate).toContain("Only an actual run expands members");
+      expect(gate).toContain("Only an actual run expands stored members");
       expect(gate).toContain("enabling or disabling an AUTOMATION");
       expect(gate).toContain("`automation.trigger` is the one that runs it");
+      expect(gate).toContain("still take the CONSUMER scan below");
+      expect(gate).toContain("findings set the tier");
+      expect(skillDoc).toContain("`homeassistant.turn_off` on a script or automation never starts its stored members, but still scans consumers");
       // The observed running state must NOT lower the tier: a mode: single
       // script that is busy at preview time can finish while the confirmation
       // waits, and then the call that "runs nothing" runs everything.
-      expect(gate).toContain("a script's RUNNING state never lowers the tier");
+      expect(gate).toContain("A script's RUNNING state never lowers the tier");
       expect(gate).toContain("that observation expires");
       // Helper domains exist to drive automations; a counter crossing a
       // threshold is a trigger like any other.
@@ -295,9 +298,9 @@ describe("indirect actuation and tier classification (#513)", () => {
   it("never lets a preview-time state lower the tier", () => {
     const doc = flat(skillDoc);
     expect(doc).toContain("Entering the gate is not the same as being a run");
-    // A stop is the ONE alias no timing can turn into a start, so it is the
-    // one that may skip expansion.
-    expect(doc).toContain("`homeassistant.turn_off` always stops and expands nothing");
+    // A stop is the ONE alias no timing can turn into a start, so it skips
+    // member expansion without skipping consumer classification.
+    expect(doc).toContain("`homeassistant.turn_off` on a script or automation never starts its stored members, but still scans consumers");
     expect(doc).toContain("Everything that MAY start a script");
     expect(doc).toContain("expands and classifies regardless of the observed state");
     expect(flat(indirectActuation)).toContain("Only a pure stop (`turn_off`) expands nothing");

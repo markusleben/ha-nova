@@ -96,8 +96,9 @@ action. Check the deadline again at that moment, and require MARGIN, not just a 
 deadline: the expiry automation is already armed, so a deadline a few seconds
 out can fire and disable itself before the immediate action even runs — the
 device then starts with nothing left to stop it. Under about a minute of
-remaining time, re-preview with a fresh deadline instead of actuating. A
-confirmation that arrives after the deadline re-previews for the same reason.
+remaining time, immediately disable the armed expiry and remove it through
+`ha-nova:write`'s delete flow before re-previewing; do not actuate. Do the same
+when the captured value moved or confirmation arrived after the deadline.
 
 The tier is the HIGHER of the two halves, never the first one. If the
 immediate action grants physical access ("unlock the front door for five
