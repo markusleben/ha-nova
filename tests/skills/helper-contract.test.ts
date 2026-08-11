@@ -124,9 +124,13 @@ describe("helper contract", () => {
         "history_stats",
         "template",
       ];
-      expect(skillDoc).toContain(
-        `- \`${expectedDomains.join("\`, \`")}\``,
-      );
+      const skillDomainLine = skillDoc
+        .split("\n")
+        .find((line) => line.startsWith("  - `utility_meter`"));
+      expect(skillDomainLine).toBeDefined();
+      expect(
+        [...(skillDomainLine ?? "").matchAll(/`([^`]+)`/g)].map((match) => match[1]),
+      ).toEqual(expectedDomains);
       const domainListStart = flowSchemasDoc.indexOf("(10 domains):");
       const domainListEnd = flowSchemasDoc.indexOf("This file is an observed");
       expect(domainListStart).toBeGreaterThan(-1);
