@@ -37,15 +37,21 @@ describe("release notes contract", () => {
     expect(goreleaser).not.toContain("winget");
   });
 
-  it("keeps v0.23.0 release-facing wording aligned to the shipped stack", () => {
-    expect(goreleaser).toContain("Home Status output changed deliberately");
-    expect(goreleaser).toContain("Update NOVA Relay first");
-    expect(goreleaser).toContain("Revoking a device now asks first");
-    expect(goreleaser).toContain("typing RESET");
-    expect(goreleaser).toContain("Thresholds calibrated against your real history");
-    expect(goreleaser).toContain("Checkpoints tell you what they did");
-    expect(goreleaser).toContain("smallest solution that completely works");
-    expect(goreleaser).toContain("consumer check inconclusive");
+  it("keeps v0.24.0 release-facing wording aligned to the shipped stack", () => {
+    expect(goreleaser).toContain(
+      "Indirect access changes now use the strict gate",
+    );
+    expect(goreleaser).toContain("require typed confirmation");
+    expect(goreleaser).toContain("Temporary automations now clean up");
+    expect(goreleaser).toContain(
+      "recover safely across Home Assistant restarts",
+    );
+    expect(goreleaser).toContain("Entity discovery understands");
+    expect(goreleaser).toContain("unavailable sensors");
+    expect(goreleaser).toContain(
+      "Service calls respect the target's real capabilities",
+    );
+    expect(goreleaser).toContain("Routing and previews fail closed");
     expect(readme).toContain(
       "Optional remote access with Home Assistant Cloud (Beta)",
     );
