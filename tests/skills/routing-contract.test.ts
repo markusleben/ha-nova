@@ -22,14 +22,15 @@ describe("description-level routing (#518)", () => {
   // speak.
   it("gives service-call the words users say for device control", () => {
     const d = description("service-call");
-    for (const word of ["turn", "lights", "covers", "climate", "on, off"]) {
+    expect(d).toMatch(/\bturn lights\b/);
+    for (const word of ["covers", "climate", "on, off"]) {
       expect(d, `service-call description missing "${word}"`).toContain(word);
     }
   });
 
   it("puts the one-off vs automation split into the notify description", () => {
     const d = description("notify");
-    expect(d).toContain("NOW");
+    expect(d).toContain("notification NOW —");
     expect(d).toContain('For "notify me WHEN something happens" use ha-nova:write');
   });
 
