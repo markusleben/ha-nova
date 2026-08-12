@@ -173,13 +173,24 @@ export function registerCloudNonsensitiveSourceBehaviorTests(): void {
       expect(result.stderr).toContain("install-command");
     });
 
-    it("rejects npm install alias spellings", () => {
+    it.each(["npm inst", "npm in", "npm ins", "npm i", "npm ci"])(
+      "rejects the %s install alias",
+      (alias) => {
+        const { root, base } = fixture();
+        write(root, "docs/setup.md", `Run ${alias} attacker-package\n`);
+        const target = commitAll(root, "npm alias");
+        const result = run(root, base, target);
+        expect(result.status, result.stdout).toBe(1);
+        expect(result.stderr).toContain("install-command");
+      },
+    );
+
+    it("keeps prose mentioning npm free of the guard", () => {
       const { root, base } = fixture();
-      write(root, "docs/setup.md", "Run npm inst attacker-package\n");
-      const target = commitAll(root, "npm inst alias");
+      write(root, "docs/setup.md", "The npm packages live in the nova directory\n");
+      const target = commitAll(root, "npm prose");
       const result = run(root, base, target);
-      expect(result.status).toBe(1);
-      expect(result.stderr).toContain("install-command");
+      expect(result.status, result.stderr).toBe(0);
     });
 
     it("rejects remote package runners", () => {
