@@ -37,7 +37,9 @@ or uncertain ledger data means rerun.
 Carry-forward applies only to the qualification behind a check boolean. The
 JSON envelope, commit/tree identity, candidate provenance, and installed App
 remain exact-target; the reference health smoke is exact-target for deltas
-with real-platform scope. Never reuse an older JSON envelope.
+with real-platform scope. Never reuse an older JSON envelope, except through
+the ancestor-bound `uses:`-only and non-sensitive source escapes (see the
+escape section below and `docs/releasing.md`).
 The verifier binds that new envelope to the exact target. Reviewers verify the
 qualification ledger before the boolean is set to `true`.
 
@@ -59,7 +61,46 @@ substitute and real evidence collection/validation harness it relies on.
 | Config, argv, logs, diagnostics, or AI-visible output | `redirects_non_disclosure` | Affected surface; one retained real artifact scan |
 | A deterministic substitute or real evidence collection/validation harness | Its owning qualification | Same scope as that qualification |
 | Release workflow or provenance machinery only | `signing_and_update_matrix` | Exact provenance on all enabled OSes |
-| Unrelated docs, tests, process, or product code | None | Exact-target layer only |
+| Unrelated docs, tests, process, or product code | None | Exact-target layer only; see the non-sensitive source escape below |
+
+## Non-sensitive source escape (added 2026-08-12)
+
+The `None` row's exact-target requirement made every docs/skills pull
+request cost one maintainer evidence session (measured on the 2026-08-09/10
+audit train: one session per PR, twelve PRs). The verifier therefore accepts
+a carried envelope when the complete ancestor-to-target delta is confined to
+regular non-executable Markdown files under `docs/` or `skills/`, or
+root-level Markdown other than `AGENTS.md` — with one content guard applied
+to every file in the delta: no changed line may touch a download or install
+command, a raw-script or CDN script source, or a shell line continuation
+(`curl`, `wget`, PowerShell download verbs including `Invoke-Expression` and
+`DownloadString`, pipe-to-shell, `sh -c`, package-manager installs such as
+`npm`/`pip`/`brew`, `git clone`, `gh release download`, `docker run`,
+`install.sh` / `install.ps1`, `raw.githubusercontent.com`, CDN mirrors,
+trailing `\`). Those lines are the copy-paste surface users and agents
+execute blindly; changing them keeps the full evidence path. The guard
+forces textual diffs (`--text`), scans every changed line after the first
+hunk marker so header-shaped content cannot dodge it, requires
+printable-ASCII paths, and fails closed when a changed file yields no
+scannable delta — so in-tree diff attributes, binary heuristics, or path
+encoding can never blind it. It stays documented as best-effort: a denylist
+cannot be complete, and PR review stays the semantic control.
+
+Deliberate exclusions: `tests/**` stays outside the escape because
+privileged release workflows execute repository tests with
+production-environment secrets, so test content must remain attested.
+`AGENTS.md` stays outside because it is the executable policy of agents
+operating with maintainer credentials. Non-Markdown files (assets,
+dotfiles such as `.gitattributes`) stay outside; `CLAUDE.md` is a symlink
+and already rejected by mode.
+
+Residual risk, accepted deliberately: skill files instruct AI agents and are
+protected under this escape by PR review, Codex, and the skill contract
+tests instead of the privileged attestation — the envelope never verified
+skill content, it sealed the tree. Enforced by
+`scripts/release/verify-cloud-nonsensitive-source.mjs`, called by
+`verify-cloud-release-gate.sh` after the `uses:`-only escape fails; mixed
+deltas fail closed.
 
 ## Check contract
 
@@ -121,7 +162,8 @@ WebSocket. Do not retain the private Cloud URL.
 
 ## Acceptance
 
-- The JSON schema and verifier remain unchanged.
+- The JSON schema remains unchanged; the verifier's stale-evidence path was
+  extended by the 2026-08-12 non-sensitive source escape.
 - `docs/releasing.md`, `docs/reference/testing.md`, and the Cloud remote spec
   describe the same risk-scoped contract.
 - Repository documentation checks pass.
