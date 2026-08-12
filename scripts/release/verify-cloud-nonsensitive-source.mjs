@@ -27,6 +27,10 @@ const deniedBasename = /^(agents?|claude|gemini)([._-][^/]*)?\.md$/i;
 // after its command on the same line counts. Coarser than parsing options,
 // strictly stronger, and it only ever fails closed.
 const AFTER = String.raw`\b[^\n]*`;
+// Option tokens plus an optional value each. Used where a bare AFTER would
+// swallow prose: the group can only ever start at a leading dash, so
+// "uv --quiet tool run" matches while "uv is a fast installer" does not.
+const OPTS = String.raw`(-\S+(\s+[^-\s]\S*)?\s+)*`;
 const installCommand = new RegExp(
   [
     String.raw`curl`,
@@ -53,7 +57,7 @@ const installCommand = new RegExp(
     // the alias and fails closed. Zero occurrences in the active guarded
     // docs when measured; the cost is one envelope, the alternative is an
     // open install path.
-    String.raw`\b(npm|pnpm|yarn|bun)\s+(-\S+(\s+[^-\s]\S*)?\s+)*(i|in|ins|ci|x)\b`,
+    String.raw`\b(npm|pnpm|yarn|bun)\s+${OPTS}(i|in|ins|ci|x)\b`,
     String.raw`\b(npx|pnpx|bunx|uvx)\b`,
     String.raw`\bpipx?3?${AFTER}\b(install|run)\b`,
     String.raw`\bdeno${AFTER}\b(run|install)\b`,
@@ -63,11 +67,11 @@ const installCommand = new RegExp(
     // says "installer bundle" in prose, so it would fire on our own docs.
     String.raw`\bcomposer${AFTER}\b(require|install|create-project)\b`,
     String.raw`\b(poetry|pdm)${AFTER}\b(add|install)\b`,
-    String.raw`\buv\s+(pip|add|tool|run)\b`,
-    String.raw`\bdotnet\s+(add|tool|restore)\b`,
+    String.raw`\buv\s+${OPTS}(pip|add|tool|run)\b`,
+    String.raw`\bdotnet\s+${OPTS}(add|tool|restore)\b`,
     String.raw`\bnuget${AFTER}\binstall\b`,
     String.raw`\b(cpanm?|luarocks|cabal|stack|opam)${AFTER}\binstall\b`,
-    String.raw`\bmix\s+(deps\.get|archive\.install|local\.)`,
+    String.raw`\bmix\s+${OPTS}(deps\.get|archive\.install|local\.)`,
     String.raw`\bhelm${AFTER}\b(install|upgrade)\b`,
     String.raw`\bterraform${AFTER}\binit\b`,
     String.raw`\bansible-galaxy${AFTER}\binstall\b`,
