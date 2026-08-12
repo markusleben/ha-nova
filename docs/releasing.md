@@ -259,7 +259,23 @@ The broker and both release workflows require
 normal CI job reads the repository secret only for direct `main` pushes; pull
 requests and merge groups are covered by the trusted broker, so Dependabot
 never needs a repository secret. Disabled metadata exits before reading the
-value. All paths run:
+value.
+
+Because the value lives in those two places, set BOTH — otherwise the pull
+request goes green and `main` fails `ci-gate` seconds after the squash merge,
+with the stale-evidence message, which reads like a tree mismatch and sends
+you looking in the wrong place (observed on #559):
+
+```bash
+gh secret set HA_NOVA_CLOUD_GATE_EVIDENCE_JSON -R markusleben/ha-nova --body "$(cat envelope.json)"
+gh secret set HA_NOVA_CLOUD_GATE_EVIDENCE_JSON --env production -R markusleben/ha-nova --body "$(cat envelope.json)"
+gh secret list -R markusleben/ha-nova | grep EVIDENCE
+gh api repos/markusleben/ha-nova/environments/production/secrets --jq '.secrets[] | select(.name|startswith("HA_NOVA_CLOUD_GATE")) | .updated_at'
+```
+
+Both timestamps must be from the current session.
+
+All paths run:
 
 ```bash
 bash scripts/release/verify-cloud-release-gate.sh
