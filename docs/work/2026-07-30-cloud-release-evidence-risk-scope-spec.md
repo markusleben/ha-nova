@@ -83,9 +83,10 @@ trailing `\`). Those lines are the copy-paste surface users and agents
 execute blindly; changing them keeps the full evidence path. The guard
 forces textual diffs (`--text`), scans every changed line after the first
 hunk marker so header-shaped content cannot dodge it, requires
-printable-ASCII paths, and fails closed when a changed file yields no
-scannable delta — so in-tree diff attributes, binary heuristics, or path
-encoding can never blind it. It stays documented as best-effort: a denylist
+printable-ASCII paths, rejects control characters in changed lines (UTF-16
+or NUL padding cannot split command words), and fails closed when a changed
+file yields no scannable delta — so in-tree diff attributes, binary
+heuristics, or text/path encoding can never blind it. It stays documented as best-effort: a denylist
 cannot be complete, and PR review stays the semantic control.
 
 Deliberate exclusions: `tests/**` stays outside the escape because

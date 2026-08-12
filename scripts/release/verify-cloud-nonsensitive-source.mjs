@@ -131,6 +131,11 @@ for (const filePath of changedPaths) {
     if (!sawHunk || !/^[+-]/.test(line)) {
       continue;
     }
+    // Control characters (UTF-16 NUL padding, separators) would split
+    // command words and blind the denylist below — fail closed instead.
+    if (/[\0-\b\v-\x1f\x7f]/.test(line)) {
+      fail(`${filePath} changes non-text content; full evidence required`);
+    }
     if (installCommand.test(line) || /\\$/.test(line)) {
       fail(
         `${filePath} changes an install-command or continuation line; full evidence required`,
