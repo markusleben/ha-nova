@@ -164,6 +164,15 @@ export function registerCloudNonsensitiveSourceBehaviorTests(): void {
       expect(result.stderr).toContain("install-command");
     });
 
+    it("rejects npm install alias spellings", () => {
+      const { root, base } = fixture();
+      write(root, "docs/setup.md", "Run npm inst attacker-package\n");
+      const target = commitAll(root, "npm inst alias");
+      const result = run(root, base, target);
+      expect(result.status).toBe(1);
+      expect(result.stderr).toContain("install-command");
+    });
+
     it("rejects remote package runners", () => {
       const { root, base } = fixture();
       write(root, "docs/setup.md", "Run npx attacker-package to finish setup\n");

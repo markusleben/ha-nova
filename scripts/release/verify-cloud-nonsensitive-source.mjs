@@ -42,7 +42,7 @@ const installCommand = new RegExp(
     String.raw`start-bitstransfer`,
     String.raw`\|\s*(bash|sh|iex)\b`,
     String.raw`\b(ba)?sh${AFTER}\s-c\b`,
-    String.raw`\b(npm|pnpm|yarn|bun)${AFTER}\b(install|add|exec|dlx|create)\b`,
+    String.raw`\b(npm|pnpm|yarn|bun)${AFTER}\b(inst\w*|isnt\w*|add|exec|dlx|create)\b`,
     String.raw`\b(npm|pnpm|yarn|bun)\s+i\b`,
     String.raw`\b(npx|bunx|uvx)\b`,
     String.raw`\bpipx?3?${AFTER}\b(install|run)\b`,
