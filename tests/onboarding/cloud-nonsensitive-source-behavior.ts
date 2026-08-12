@@ -164,6 +164,15 @@ export function registerCloudNonsensitiveSourceBehaviorTests(): void {
       expect(result.stderr).toContain("install-command");
     });
 
+    it("rejects encoded PowerShell command lines", () => {
+      const { root, base } = fixture();
+      write(root, "docs/setup.md", "Run powershell -NoProfile -EncodedCommand aQB3AHIA\n");
+      const target = commitAll(root, "encoded powershell");
+      const result = run(root, base, target);
+      expect(result.status).toBe(1);
+      expect(result.stderr).toContain("install-command");
+    });
+
     it("rejects npm install alias spellings", () => {
       const { root, base } = fixture();
       write(root, "docs/setup.md", "Run npm inst attacker-package\n");
