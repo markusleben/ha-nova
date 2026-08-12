@@ -60,7 +60,7 @@ const installCommand = new RegExp(
     // Update verbs stay ADJACENT (via OPTS) on this family: "update" is
     // everyday vocabulary in these docs, and the loose form matched a
     // prose line, while the adjacent form matched none.
-    String.raw`\b(npm|pnpm|yarn|bun)\s+${OPTS}(i|in|ins|ci|x|up|update|upgrade|udpate|init|innit)\b`,
+    String.raw`\b(npm|pnpm|yarn|bun)\s+${OPTS}(i|in|ins|ci|x|it|ic|cit|sit|up|update|upgrade|udpate|init|innit)\b`,
     String.raw`\b(npx|pnpx|bunx|uvx)\b`,
     // Single-purpose fetch tools are guarded by NAME, not by subcommand:
     // every invocation downloads, so enumerating their verbs only invites

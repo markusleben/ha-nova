@@ -122,6 +122,10 @@ export function registerCloudNonsensitiveSourceBehaviorTests(): void {
       "npm ci",
       "npm --silent i",
       "npm --prefix /tmp in",
+      "npm it",
+      "npm ic",
+      "npm cit",
+      "npm sit",
     ])(
       "rejects the %s install alias",
       (alias) => {
