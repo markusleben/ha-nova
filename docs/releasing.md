@@ -259,7 +259,34 @@ The broker and both release workflows require
 normal CI job reads the repository secret only for direct `main` pushes; pull
 requests and merge groups are covered by the trusted broker, so Dependabot
 never needs a repository secret. Disabled metadata exits before reading the
-value. All paths run:
+value.
+
+Because the value lives in those two places, set BOTH — otherwise the pull
+request goes green and `main` fails `ci-gate` seconds after the squash merge,
+with the stale-evidence message, which reads like a tree mismatch and sends
+you looking in the wrong place (observed on #559):
+
+```bash
+gh secret set HA_NOVA_CLOUD_GATE_EVIDENCE_JSON -R markusleben/ha-nova --body "$(cat envelope.json)"
+gh secret set HA_NOVA_CLOUD_GATE_EVIDENCE_JSON --env production -R markusleben/ha-nova --body "$(cat envelope.json)"
+gh secret list -R markusleben/ha-nova | grep EVIDENCE
+gh api repos/markusleben/ha-nova/environments/production/secrets --jq '.secrets[] | select(.name|startswith("HA_NOVA_CLOUD_GATE")) | .updated_at'
+```
+
+Both timestamps must be from the current session.
+
+Then, right after the squash merge, rewrite `commit_sha` and
+`relay_app.source_commit` to the resulting `main` commit and store the
+envelope again in both places. The tree is unchanged, so this attests
+exactly the same content — but the name has to survive. A pull request's
+synthetic merge commit is thrown away at merge time and is an ancestor of
+nothing afterwards, and BOTH stale-evidence escapes require the evidence
+commit to be an ancestor of their target. Leave the envelope pointing at
+the merge commit and every later pull request fails the gate with the
+stale-evidence message, even a docs-only one that the escape should carry
+(observed on #560, the first pull request after the escape landed).
+
+All paths run:
 
 ```bash
 bash scripts/release/verify-cloud-release-gate.sh
