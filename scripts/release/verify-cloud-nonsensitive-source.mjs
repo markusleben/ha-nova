@@ -57,7 +57,7 @@ const installCommand = new RegExp(
     String.raw`\bnix${AFTER}\brun\b`,
     String.raw`\b(python3?|node|ruby|perl|php)${AFTER}\s-[cer]\b`,
     String.raw`\bdocker${AFTER}\b(run|pull|create)\b`,
-    String.raw`\bgo\s+(install|run)\b[^\n]*@`,
+    String.raw`\bgo\b[^\n]*\b(install|run)\b[^\n]*@`,
     String.raw`install\.(sh|ps1)\b`,
     String.raw`raw\.githubusercontent\.com`,
     String.raw`cdn\.jsdelivr\.net`,

