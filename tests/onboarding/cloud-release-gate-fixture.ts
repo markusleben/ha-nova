@@ -43,6 +43,14 @@ export function cloudGateFixture(
   const script = join(releaseDir, "verify-cloud-release-gate.sh");
   copyFileSync("scripts/release/verify-cloud-release-gate.sh", script);
   chmodSync(script, 0o755);
+  copyFileSync(
+    "scripts/release/verify-cloud-workflow-uses-only.mjs",
+    join(releaseDir, "verify-cloud-workflow-uses-only.mjs"),
+  );
+  copyFileSync(
+    "scripts/release/verify-cloud-nonsensitive-source.mjs",
+    join(releaseDir, "verify-cloud-nonsensitive-source.mjs"),
+  );
   const normalizeVersion = (value: unknown): unknown => {
     if (
       typeof value === "object" &&

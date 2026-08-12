@@ -258,9 +258,25 @@ function validateEvidenceIdentity(evidence, target) {
       { stdio: ["ignore", "ignore", "pipe"] },
     );
   } catch {
-    fail(
-      "stale Home Assistant Cloud evidence may cover only ancestor-to-target existing non-sensitive uses: version bumps",
-    );
+    try {
+      execFileSync(
+        "node",
+        [
+          path.join(
+            trustedRepoRoot,
+            "scripts/release/verify-cloud-nonsensitive-source.mjs",
+          ),
+          trustedRepoRoot,
+          evidence.commit_sha,
+          target.commit,
+        ],
+        { stdio: ["ignore", "ignore", "pipe"] },
+      );
+    } catch {
+      fail(
+        "stale Home Assistant Cloud evidence may cover only ancestor-to-target existing non-sensitive uses: version bumps or a delta confined to docs/, skills/, and root Markdown without install-command changes",
+      );
+    }
   }
 }
 

@@ -106,6 +106,7 @@ export function registerCloudReleaseGateContractTests(): void {
     expect(cloudReleaseGateVerifier).toContain("evidence.schema !== 2");
     expect(cloudReleaseGateVerifier).toContain("evidenceCommitTree !== evidence.tree_sha");
     expect(cloudReleaseGateVerifier).toContain("verify-cloud-workflow-uses-only.mjs");
+    expect(cloudReleaseGateVerifier).toContain("verify-cloud-nonsensitive-source.mjs");
     expect(cloudReleaseGateVerifier).toContain("workflowCommit !== commit");
     for (const check of [
       "parity",

@@ -174,8 +174,10 @@ remote-first case:
 "${cloud_test_binary}" cloud remove --server <test-profile>
 ```
 
-Required evidence is exact-target plus risk-scoped qualification. Repeat a
-real-device row only for first support or after a relevant implementation
+Required evidence is exact-target plus risk-scoped qualification, except the
+ancestor-bound `uses:`-only and guarded non-sensitive source escapes
+(`docs/releasing.md`). Repeat a real-device row only for first support or
+after a relevant implementation
 or evidence-harness change; exact-target CI, signed provenance on all enabled
 OSes, and the installed Relay App always run, and the reference Cloud health
 smoke runs for deltas with real-platform scope:

@@ -37,7 +37,9 @@ or uncertain ledger data means rerun.
 Carry-forward applies only to the qualification behind a check boolean. The
 JSON envelope, commit/tree identity, candidate provenance, and installed App
 remain exact-target; the reference health smoke is exact-target for deltas
-with real-platform scope. Never reuse an older JSON envelope.
+with real-platform scope. Never reuse an older JSON envelope, except through
+the ancestor-bound `uses:`-only and non-sensitive source escapes (see the
+escape section below and `docs/releasing.md`).
 The verifier binds that new envelope to the exact target. Reviewers verify the
 qualification ledger before the boolean is set to `true`.
 
@@ -59,7 +61,67 @@ substitute and real evidence collection/validation harness it relies on.
 | Config, argv, logs, diagnostics, or AI-visible output | `redirects_non_disclosure` | Affected surface; one retained real artifact scan |
 | A deterministic substitute or real evidence collection/validation harness | Its owning qualification | Same scope as that qualification |
 | Release workflow or provenance machinery only | `signing_and_update_matrix` | Exact provenance on all enabled OSes |
-| Unrelated docs, tests, process, or product code | None | Exact-target layer only |
+| Unrelated docs, tests, process, or product code | None | Exact-target layer only; see the non-sensitive source escape below |
+
+## Non-sensitive source escape (added 2026-08-12)
+
+The `None` row's exact-target requirement made every docs/skills pull
+request cost one maintainer evidence session (measured on the 2026-08-09/10
+audit train: one session per PR, twelve PRs). The verifier therefore accepts
+a carried envelope when the complete ancestor-to-target delta is confined to
+regular non-executable Markdown files under `docs/` or `skills/` or at the
+repository root, none carrying an agent-policy basename (any basename whose
+stem starts with `agent(s)`, `claude`, or `gemini` — suffix variants like
+`AGENTS.override.md` included — at any depth, case-folded) — with one content
+guard applied to every file in the delta (a guarded subcommand anywhere
+after its command on the same line counts; no option grammar): no changed
+line, nor a context line adjacent to a change, may touch these families —
+
+- downloaders and pipe-to-shell invocations, including the PowerShell
+  download and expression verbs;
+- package-manager installs across language and OS ecosystems, and remote
+  package runners that fetch before executing;
+- inline interpreter execution, wrapped or encoded shell invocations, and
+  version-pinned remote source builds;
+- raw-script and CDN script sources;
+- shell line continuations, where a trailing backtick counts only when
+  unpaired, so balanced Markdown code spans and fences do not.
+
+The families are named here on purpose and the concrete tokens live only in
+`scripts/release/verify-cloud-nonsensitive-source.mjs`, which is the
+authority: a spec that enumerated every verb would drift from the code, and
+would trigger its own guard on every edit. Those lines are the copy-paste
+surface users and agents
+execute blindly; changing them keeps the full evidence path. The guard
+forces textual diffs (`--text`, `--no-ext-diff`), scans every line after the first
+hunk marker so header-shaped content cannot dodge it, requires
+printable-ASCII paths, rejects control characters other than tab in changed
+lines (UTF-16 or NUL padding cannot split command words), and fails closed
+when a changed file yields no scannable delta — so in-tree diff attributes,
+binary heuristics, or text/path encoding can never blind it. It stays
+documented as best-effort: a denylist cannot be complete, and PR review
+stays the semantic control.
+
+Deliberate exclusions: `tests/**` stays outside the escape because
+privileged release workflows execute repository tests with
+production-environment secrets, so test content must remain attested.
+Agent-policy basenames (stems `agent(s)`, `claude`, `gemini`, with any
+suffix — `AGENTS.md`, `AGENTS.override.md`, `CLAUDE.md`, `GEMINI.md`)
+stay outside at every depth and in any case spelling — agents load them per
+subtree, Codex prefers override variants, and
+on a case-insensitive checkout an added `agents.md`/`claude.md` would
+materialize as the executable policy of agents operating with maintainer
+credentials (`CLAUDE.md` is additionally a symlink, rejected by mode).
+Non-Markdown files (assets, dotfiles such as `.gitattributes`) stay
+outside.
+
+Residual risk, accepted deliberately: skill files instruct AI agents and are
+protected under this escape by PR review, Codex, and the skill contract
+tests instead of the privileged attestation — the envelope never verified
+skill content, it sealed the tree. Enforced by
+`scripts/release/verify-cloud-nonsensitive-source.mjs`, called by
+`verify-cloud-release-gate.sh` after the `uses:`-only escape fails; mixed
+deltas fail closed.
 
 ## Check contract
 
@@ -121,8 +183,10 @@ WebSocket. Do not retain the private Cloud URL.
 
 ## Acceptance
 
-- The JSON schema and verifier remain unchanged.
+- The JSON schema remains unchanged; the verifier's stale-evidence path was
+  extended by the 2026-08-12 non-sensitive source escape.
 - `docs/releasing.md`, `docs/reference/testing.md`, and the Cloud remote spec
   describe the same risk-scoped contract.
 - Repository documentation checks pass.
-- No product, workflow, version metadata, README, tag, or release changes.
+- No product, workflow, version metadata, README, or tag changes; the
+  release-gate verifier extension is the 2026-08-12 escape itself.

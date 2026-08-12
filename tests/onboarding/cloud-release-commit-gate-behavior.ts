@@ -469,8 +469,8 @@ export function registerCloudReleaseCommitGateBehaviorTests(): void {
       "scripts/release/cloud-bypass.sh",
       "package.json",
       "clients/cloud-bypass.json",
-      "skills/cloud-bypass/SKILL.md",
-      "docs/activation-review.md",
+      "tests/cloud-bypass.test.ts",
+      "AGENTS.md",
       "unknown-root-file",
     ])("rejects earlier evidence after path %s changes", (path) => {
       const enabled = {
