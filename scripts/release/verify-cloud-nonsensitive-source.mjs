@@ -13,9 +13,10 @@ const [rootDir, baseCommit, targetCommit] = process.argv.slice(2);
 // content must stay attested. AGENTS.md is deliberately excluded: it is the
 // executable policy of agents operating with maintainer credentials.
 const allowedPath = /^(docs|skills)\/.+\.md$|^[^/]+\.md$/;
-// Case-folded: on case-insensitive checkouts a new "agents.md" or
-// "claude.md" materializes as the executable agent policy files.
-const deniedFiles = new Set(["agents.md", "claude.md"]);
+// Agent-policy basenames are denied at every depth and case-folded: agents
+// load AGENTS.md/CLAUDE.md/GEMINI.md per subtree, and on case-insensitive
+// checkouts an added lowercase alias materializes as the policy file.
+const deniedBasenames = new Set(["agents.md", "claude.md", "gemini.md"]);
 
 // Best-effort guard for the copy-paste surface users and agents execute
 // blindly: any changed line that touches a download/install command or a
@@ -94,7 +95,8 @@ for (let index = 0; index < records.length; index += 2) {
   if (!allowedModes.has(oldMode) || !allowedModes.has(newMode)) {
     fail(`${filePath} must stay a regular non-executable file`);
   }
-  if (!allowedPath.test(filePath) || deniedFiles.has(filePath.toLowerCase())) {
+  const baseName = filePath.split("/").pop().toLowerCase();
+  if (!allowedPath.test(filePath) || deniedBasenames.has(baseName)) {
     fail(`${filePath} is outside the non-sensitive source scope`);
   }
   changedPaths.push(filePath);
