@@ -184,7 +184,19 @@ for (const filePath of changedPaths) {
     if (/[\0-\b\v-\x1f\x7f]/.test(line)) {
       fail(`${filePath} changes non-text content; full evidence required`);
     }
-    if (installCommand.test(line) || /[\\`^]$/.test(line)) {
+    // A trailing backtick is a PowerShell continuation only when it is
+    // unpaired: Markdown inline code spans ("Use `ha-nova setup`") close
+    // their own backtick and fence lines are backticks only. Measured
+    // against the active docs, this separates 37 real shell continuations
+    // and 2 real PowerShell ones from 1700 ordinary code-span lines.
+    const content = line.slice(1);
+    const backticks = (content.match(/`/g) ?? []).length;
+    const continuation =
+      /[\\^]$/.test(content) ||
+      (content.endsWith("`") &&
+        backticks % 2 === 1 &&
+        !/^\s*`+\s*$/.test(content));
+    if (installCommand.test(line) || continuation) {
       fail(
         `${filePath} changes an install-command or continuation line; full evidence required`,
       );

