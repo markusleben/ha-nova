@@ -27,8 +27,46 @@ const deniedBasenames = new Set([
 // blindly: any changed line that touches a download/install command or a
 // raw-script source falls back to the full evidence path. This is a denylist
 // and documented as best-effort; PR review remains the semantic control.
-const installCommand =
-  /(curl|wget|\biwr\b|\birm\b|invoke-webrequest|invoke-restmethod|invoke-expression|downloadstring|downloadfile|webclient|start-bitstransfer|\|\s*(bash|sh|iex)\b|\b(ba)?sh\s+-c\b|\b(npm|pnpm|yarn|bun)\s+(install|i|add|exec|dlx|create)\b|\b(npx|bunx|uvx)\b|\bpipx?3?\s+(install|run)\b|\bdeno\s+(run|install)\b|\b(cargo|gem)\s+install\b|\bgit\s+clone\b|\bgh\s+release\s+download\b|\bbrew\s+install\b|\b(apt|apt-get|dnf|yum|zypper|snap|flatpak|choco|scoop|winget)\s+install\b|\bpacman\s+-S\b|\bnix-shell\b|\bnix\s+run\b|\b(python3?|node|ruby|perl|php)\s+-[cer]\b|\bdocker\s+(run|pull|create)\b|install\.(sh|ps1)\b|raw\.githubusercontent\.com|cdn\.jsdelivr\.net|statically\.io|githack)/i;
+// OPT tolerates CLI options between a command and its guarded subcommand
+// ("apt-get -y install", "pip --isolated install").
+const OPT = String.raw`(?:-\S+\s+)*`;
+const installCommand = new RegExp(
+  [
+    String.raw`curl`,
+    String.raw`wget`,
+    String.raw`\biwr\b`,
+    String.raw`\birm\b`,
+    String.raw`invoke-webrequest`,
+    String.raw`invoke-restmethod`,
+    String.raw`invoke-expression`,
+    String.raw`downloadstring`,
+    String.raw`downloadfile`,
+    String.raw`webclient`,
+    String.raw`start-bitstransfer`,
+    String.raw`\|\s*(bash|sh|iex)\b`,
+    String.raw`\b(ba)?sh\s+${OPT}-c\b`,
+    String.raw`\b(npm|pnpm|yarn|bun)\s+${OPT}(install|i|add|exec|dlx|create)\b`,
+    String.raw`\b(npx|bunx|uvx)\b`,
+    String.raw`\bpipx?3?\s+${OPT}(install|run)\b`,
+    String.raw`\bdeno\s+${OPT}(run|install)\b`,
+    String.raw`\b(cargo|gem)\s+${OPT}install\b`,
+    String.raw`\bgit\s+${OPT}clone\b`,
+    String.raw`\bgh\s+${OPT}release\s+${OPT}download\b`,
+    String.raw`\bbrew\s+${OPT}install\b`,
+    String.raw`\b(apt|apt-get|dnf|yum|zypper|snap|flatpak|choco|scoop|winget)\s+${OPT}install\b`,
+    String.raw`\bpacman\s+${OPT}-S\b`,
+    String.raw`\bnix-shell\b`,
+    String.raw`\bnix\s+${OPT}run\b`,
+    String.raw`\b(python3?|node|ruby|perl|php)\s+${OPT}-[cer]\b`,
+    String.raw`\bdocker\s+${OPT}(run|pull|create)\b`,
+    String.raw`install\.(sh|ps1)\b`,
+    String.raw`raw\.githubusercontent\.com`,
+    String.raw`cdn\.jsdelivr\.net`,
+    String.raw`statically\.io`,
+    String.raw`githack`,
+  ].join("|"),
+  "i",
+);
 
 const allowedModes = new Set(["000000", "100644"]);
 

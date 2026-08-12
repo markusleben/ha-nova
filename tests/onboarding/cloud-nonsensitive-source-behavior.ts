@@ -180,6 +180,22 @@ export function registerCloudNonsensitiveSourceBehaviorTests(): void {
       expect(secondResult.stderr).toContain("install-command");
     });
 
+    it("rejects install subcommands behind intervening options", () => {
+      const { root, base } = fixture();
+      write(root, "docs/setup.md", "Then apt-get -y install attacker-package\n");
+      const target = commitAll(root, "options before install");
+      const result = run(root, base, target);
+      expect(result.status).toBe(1);
+      expect(result.stderr).toContain("install-command");
+
+      const second = fixture();
+      write(second.root, "docs/setup.md", "Then pip --isolated install attacker-package\n");
+      const secondTarget = commitAll(second.root, "pip isolated install");
+      const secondResult = run(second.root, second.base, secondTarget);
+      expect(secondResult.status).toBe(1);
+      expect(secondResult.stderr).toContain("install-command");
+    });
+
     it("rejects added raw-script and CDN sources in docs", () => {
       const { root, base } = fixture();
       write(root, "docs/setup.md", "Get it from cdn.jsdelivr.net/gh/x/y\n");
