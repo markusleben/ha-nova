@@ -59,7 +59,7 @@ const installCommand = new RegExp(
     // open install path.
     String.raw`\b(npm|pnpm|yarn|bun)\s+${OPTS}(i|in|ins|ci|x)\b`,
     String.raw`\b(npx|pnpx|bunx|uvx)\b`,
-    String.raw`\bpipx?3?${AFTER}\b(install|run)\b`,
+    String.raw`\bpipx?3?${AFTER}\b(install|run|wheel|download)\b`,
     String.raw`\bdeno${AFTER}\b(run|install)\b`,
     String.raw`\b(cargo|gem)${AFTER}\binstall\b`,
     // Language-ecosystem managers that fetch and may execute install
