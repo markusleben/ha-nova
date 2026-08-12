@@ -70,8 +70,9 @@ request cost one maintainer evidence session (measured on the 2026-08-09/10
 audit train: one session per PR, twelve PRs). The verifier therefore accepts
 a carried envelope when the complete ancestor-to-target delta is confined to
 regular non-executable Markdown files under `docs/` or `skills/` or at the
-repository root, none carrying an agent-policy basename (`AGENTS.md`, `AGENT.md`,
-`CLAUDE.md`, `GEMINI.md`, at any depth, case-folded) — with one content
+repository root, none carrying an agent-policy basename (any basename whose
+stem starts with `agent(s)`, `claude`, or `gemini` — suffix variants like
+`AGENTS.override.md` included — at any depth, case-folded) — with one content
 guard applied to every file in the delta (a guarded subcommand anywhere
 after its command on the same line counts; no option grammar): no changed
 line, nor a context line adjacent to a change, may touch a download or
@@ -99,8 +100,10 @@ stays the semantic control.
 Deliberate exclusions: `tests/**` stays outside the escape because
 privileged release workflows execute repository tests with
 production-environment secrets, so test content must remain attested.
-Agent-policy basenames (`AGENTS.md`, `AGENT.md`, `CLAUDE.md`, `GEMINI.md`)
-stay outside at every depth and in any case spelling — agents load them per subtree, and
+Agent-policy basenames (stems `agent(s)`, `claude`, `gemini`, with any
+suffix — `AGENTS.md`, `AGENTS.override.md`, `CLAUDE.md`, `GEMINI.md`)
+stay outside at every depth and in any case spelling — agents load them per
+subtree, Codex prefers override variants, and
 on a case-insensitive checkout an added `agents.md`/`claude.md` would
 materialize as the executable policy of agents operating with maintainer
 credentials (`CLAUDE.md` is additionally a symlink, rejected by mode).

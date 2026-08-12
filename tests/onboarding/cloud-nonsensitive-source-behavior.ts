@@ -118,6 +118,15 @@ export function registerCloudNonsensitiveSourceBehaviorTests(): void {
       expect(result.stderr).toContain("outside the non-sensitive source scope");
     });
 
+    it("rejects agent policy variants with suffixes", () => {
+      const { root, base } = fixture();
+      write(root, "AGENTS.override.md", "# Override policy\n");
+      const target = commitAll(root, "override policy");
+      const result = run(root, base, target);
+      expect(result.status).toBe(1);
+      expect(result.stderr).toContain("outside the non-sensitive source scope");
+    });
+
     it("rejects any path outside the non-sensitive scope", () => {
       const { root, base } = fixture();
       write(root, "docs/reference/a.md", "reference updated\n");

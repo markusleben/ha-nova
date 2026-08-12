@@ -229,7 +229,7 @@ release, use full commit SHAs, and have both SHAs resolve to their stated
 canonical `vX.Y.Z` release tags through the GitHub API. The second class is
 a non-sensitive source delta: regular non-executable Markdown files under
 `docs/` or `skills/`, or root-level Markdown, none with an agent-policy
-basename (`AGENTS.md`/`AGENT.md`, `CLAUDE.md`, `GEMINI.md`, any depth,
+basename (stems `agent(s)`/`claude`/`gemini` with any suffix, any depth,
 case-folded),
 where no changed line touches a download or install command, a raw-script
 or CDN script source, or a shell line

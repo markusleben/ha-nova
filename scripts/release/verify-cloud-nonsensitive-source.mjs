@@ -13,15 +13,11 @@ const [rootDir, baseCommit, targetCommit] = process.argv.slice(2);
 // content must stay attested. AGENTS.md is deliberately excluded: it is the
 // executable policy of agents operating with maintainer credentials.
 const allowedPath = /^(docs|skills)\/.+\.md$|^[^/]+\.md$/;
-// Agent-policy basenames are denied at every depth and case-folded: agents
-// load AGENTS.md/CLAUDE.md/GEMINI.md per subtree, and on case-insensitive
+// Agent-policy basenames are denied at every depth, case-folded, and with
+// any suffix after the stem: agents load AGENTS.md/CLAUDE.md/GEMINI.md per
+// subtree, Codex prefers AGENTS.override.md, and on case-insensitive
 // checkouts an added lowercase alias materializes as the policy file.
-const deniedBasenames = new Set([
-  "agents.md",
-  "agent.md",
-  "claude.md",
-  "gemini.md",
-]);
+const deniedBasename = /^(agents?|claude|gemini)([._-][^/]*)?\.md$/i;
 
 // Best-effort guard for the copy-paste surface users and agents execute
 // blindly: any changed line that touches a download/install command or a
@@ -140,8 +136,8 @@ for (let index = 0; index < records.length; index += 2) {
   if (!allowedModes.has(oldMode) || !allowedModes.has(newMode)) {
     fail(`${filePath} must stay a regular non-executable file`);
   }
-  const baseName = filePath.split("/").pop().toLowerCase();
-  if (!allowedPath.test(filePath) || deniedBasenames.has(baseName)) {
+  const baseName = filePath.split("/").pop();
+  if (!allowedPath.test(filePath) || deniedBasename.test(baseName)) {
     fail(`${filePath} is outside the non-sensitive source scope`);
   }
   changedPaths.push(filePath);
