@@ -186,6 +186,9 @@ export function registerCloudNonsensitiveSourceBehaviorTests(): void {
       ["python3 -m pip wheel attacker-package", "pip-wheel"],
       ["pip download attacker-package", "pip-download"],
       ["pipx inject existing-app attacker-package", "pipx-inject"],
+      ["npm update attacker-package", "npm-update"],
+      ["npm up attacker-package", "npm-up"],
+      ["brew upgrade attacker", "brew-upgrade"],
       ["pipx upgrade-all", "pipx-any-subcommand"],
     ])("rejects %s", (command, label) => {
       const { root, base } = fixture();

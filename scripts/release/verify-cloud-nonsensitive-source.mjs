@@ -57,7 +57,10 @@ const installCommand = new RegExp(
     // the alias and fails closed. Zero occurrences in the active guarded
     // docs when measured; the cost is one envelope, the alternative is an
     // open install path.
-    String.raw`\b(npm|pnpm|yarn|bun)\s+${OPTS}(i|in|ins|ci|x)\b`,
+    // Update verbs stay ADJACENT (via OPTS) on this family: "update" is
+    // everyday vocabulary in these docs, and the loose form matched a
+    // prose line, while the adjacent form matched none.
+    String.raw`\b(npm|pnpm|yarn|bun)\s+${OPTS}(i|in|ins|ci|x|up|update|upgrade|udpate)\b`,
     String.raw`\b(npx|pnpx|bunx|uvx)\b`,
     // Single-purpose fetch tools are guarded by NAME, not by subcommand:
     // every invocation downloads, so enumerating their verbs only invites
@@ -78,8 +81,8 @@ const installCommand = new RegExp(
     String.raw`\bmix\s+${OPTS}(deps\.get|archive\.install|local\.)`,
     String.raw`\bgit${AFTER}\bclone\b`,
     String.raw`\bgh${AFTER}\brelease${AFTER}\bdownload\b`,
-    String.raw`\bbrew${AFTER}\binstall\b`,
-    String.raw`\b(apt|apt-get|aptitude|dnf|yum|zypper|snap|flatpak|choco|scoop|winget|apk|pkg|opkg|port|emerge|eopkg|guix|conda|mamba|xbps-install)${AFTER}\b(install|add)\b`,
+    String.raw`\bbrew${AFTER}\b(install|upgrade)\b`,
+    String.raw`\b(apt|apt-get|aptitude|dnf|yum|zypper|snap|flatpak|choco|scoop|winget|apk|pkg|opkg|port|emerge|eopkg|guix|conda|mamba|xbps-install)${AFTER}\b(install|add|upgrade|update)\b`,
     String.raw`\b(pacman|yay|paru)${AFTER}\s-S\b`,
     String.raw`\bpodman${AFTER}\b(run|pull|create)\b`,
     String.raw`\bnix-shell\b`,
