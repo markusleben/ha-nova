@@ -2,13 +2,13 @@
 
 HA NOVA is deliberately **not** an MCP server. This page explains that choice honestly, including where the alternatives are ahead.
 
-Everything below reflects the state on **2026-07-20**. The main alternative — [ha-mcp](https://github.com/homeassistant-ai/ha-mcp), "The Unofficial and Awesome Home Assistant MCP Server" (MIT, 87 tools) — is a good, actively maintained project, and HA NOVA is not trying to pretend otherwise. Their approach is different, and the differences are real in both directions.
+Everything below reflects the state on **2026-07-20**, with HA NOVA's skill count and HACS coverage refreshed on **2026-08-12**. The main alternative — [ha-mcp](https://github.com/homeassistant-ai/ha-mcp), "The Unofficial and Awesome Home Assistant MCP Server" (MIT, 87 tools) — is a good, actively maintained project, and HA NOVA is not trying to pretend otherwise. Their approach is different, and the differences are real in both directions.
 
 ## The three approaches
 
 | | **Home Assistant's official MCP server** | **ha-mcp** (community MCP server) | **HA NOVA** |
 |---|---|---|---|
-| What the AI gets | The Assist API (exposed entities) | 87 MCP tools | 29 task skills (+ 1 context skill) + 4 generic relay endpoints |
+| What the AI gets | The Assist API (exposed entities) | 87 MCP tools | 30 task skills (+ 1 context skill) + 4 generic relay endpoints |
 | Can it edit automations, dashboards, the registry? | No | Yes | Yes |
 | Where the domain knowledge lives | In Home Assistant | In the server's Python code | In markdown you can read and edit |
 | Protocol dependency | MCP | MCP | none — skills are plain text |
@@ -47,7 +47,7 @@ Every HA NOVA row is backed by a file and a test — see **[safety.md](safety.md
 
 Being honest about this is the point of the page:
 
-- **Breadth of tools.** Add-on and HACS management, dashboard screenshots (beta), ZHA device inspection, broad file editing with automatic backups. HA NOVA's file access is deliberately narrower: opt-in and off by default, configuration formats only, executable paths refused outright.
+- **Breadth of tools.** Add-on management, dashboard screenshots (beta), ZHA device inspection, broad file editing with automatic backups. HA NOVA's file access is deliberately narrower: opt-in and off by default, configuration formats only, executable paths refused outright.
 - **Zero-setup auth in its recommended mode.** The in-process component needs no token management at all, and OAuth/OIDC options exist for remote access.
 - **Maturity of reach.** More stars, far more contributors, more integrations wired up, and an older public history. HA NOVA is younger.
 

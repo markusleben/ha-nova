@@ -36,6 +36,14 @@ stable release. Concretely:
 - the release-prep PR carries ALL release-bound `README.md` edits plus the
   version bump and the `.goreleaser.yml` release-notes update, then moves the
   consumed release-body draft to `docs/archive/work/`
+- before opening the release-prep PR, run a docs parity sweep: the skill
+  count and full skill list in `README.md` match `skills/` (the dispatch
+  table in `skills/ha-nova/SKILL.md` is authoritative), the release's
+  user-facing features are reflected in `README.md` where sensible, and no
+  shipped HA NOVA capability is still described as missing or
+  competitor-only anywhere in `README.md` or the dated comparison page
+  (v0.23.0 shipped the `hacs` skill; `README.md` kept saying "29 skills"
+  and crediting HACS management to the competitor until after v0.24.0)
 - merging the release-prep PR starts the RC/final tag sequence immediately
   (AGENTS.md: the main-ahead-of-stable window stays minutes, not days)
 

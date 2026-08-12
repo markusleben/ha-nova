@@ -58,6 +58,7 @@ Say what you want. HA NOVA figures out the rest.
 | *"Add a weather card to my main dashboard"* | Reads the dashboard, shows the change, writes only after you confirm |
 | *"Move all kitchen devices to the Kitchen area"* | Reassigns entities and devices — shows what will change first |
 | *"Turn off the upstairs lights"* | Turns them off, confirms the new state |
+| *"Remind me in 20 minutes to check the oven"* | Creates a one-time reminder that disables itself after it fires |
 | *"Show me all temperature sensors"* | Finds entities by name, room, area, or label |
 
 > Automations and scripts get the full workflow today: preview, review, and a 40+ rule audit. Helpers, dashboards, and device control get preview-and-verify — deeper audits are rolling out with every release.
@@ -208,7 +209,7 @@ Fair question — we built one first. 88,000 lines of it, never shipped. What it
 | 🏠 **Where it runs** | The leading project's recommended setup runs inside Home Assistant's own process | A deliberately dumb relay in its own process — a crash can't touch Home Assistant, and it holds no HA business logic |
 | 🔑 **Connecting a device** | A shared secret (URL or token) — or OAuth where configured | A one-time six-digit code per device, each individually revocable from the NOVA page *(App installs; the standalone container keeps a server-side token)* |
 
-> **The honest bit:** the MCP side is ahead on breadth today — more tools (App and HACS management, dashboard screenshots, ZHA inspection), more contributors, more stars. It's the older project. But the asymmetry matters: **our gaps close one markdown file at a time — turning a tool server's Python into plain text you can read would be a rewrite.**
+> **The honest bit:** the MCP side is ahead on breadth today — more tools (App management, dashboard screenshots, ZHA inspection), more contributors, more stars. It's the older project. But the asymmetry matters: **our gaps close one markdown file at a time — turning a tool server's Python into plain text you can read would be a rewrite.**
 
 Full detail, named, dated, honest in both directions: **[comparison page](docs/reference/comparison.md)**.
 
@@ -216,16 +217,16 @@ Full detail, named, dated, honest in both directions: **[comparison page](docs/r
 
 ## 🧩 Skills
 
-29 task skills plus the HA NOVA context skill — each one a markdown file you can read and edit.
+30 task skills plus the HA NOVA context skill — each one a markdown file you can read and edit.
 
 - ✏️ **Build & change** — automations & scripts, helpers, scenes, dashboards, areas & labels, device control, YAML-only config
 - 🔍 **Understand & debug** — config reading, 40+ rule audits, root-cause tracing, history & stats, entity discovery, system health
-- 🧰 **Run & maintain** — backups, updates, recorder & statistics repair, energy, MQTT, InfluxDB history, integration setup
+- 🧰 **Run & maintain** — backups, updates, HACS packages, recorder & statistics repair, energy, MQTT, InfluxDB history, integration setup
 - 🏠 **Everyday** — media & speakers, notifications, cameras, voice assistants, to-dos, calendars
 - 🛟 **Admin & safety net** — persons, zones & users (owner-guarded), blueprint fallback, onboarding & troubleshooting
 
 <details>
-<summary><strong>The full list — all 29 skills</strong></summary>
+<summary><strong>The full list — all 30 skills</strong></summary>
 
 <br>
 
@@ -243,6 +244,7 @@ Full detail, named, dated, honest in both directions: **[comparison page](docs/r
 | ✅ **todo** | Manage to-do and shopping-list items, create Local To-do lists |
 | 💾 **backup** | Check backup status, create backups — also as a safety net before risky changes |
 | ⬆️ **updates** | See pending updates, read release notes, and install them with safety gates |
+| 📦 **hacs** | Browse, install, pin, update, and remove HACS packages — with previews and a mandatory backup before destructive migrations |
 | ⚡ **energy** | Analyze consumption, solar, battery, and per-device costs; manage Energy dashboard sources |
 | 🧹 **maintenance** | Repair statistics, purge recorder history, and clean up dead entities — with strict safety gates |
 | 🎛️ **service-call** | Control lights, climate, covers, switches, and media players |
