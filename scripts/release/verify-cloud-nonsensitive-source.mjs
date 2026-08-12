@@ -27,9 +27,10 @@ const deniedBasenames = new Set([
 // blindly: any changed line that touches a download/install command or a
 // raw-script source falls back to the full evidence path. This is a denylist
 // and documented as best-effort; PR review remains the semantic control.
-// OPT tolerates CLI options between a command and its guarded subcommand
-// ("apt-get -y install", "pip --isolated install").
-const OPT = String.raw`(?:-\S+\s+)*`;
+// Deliberately NO option grammar: a guarded subcommand appearing anywhere
+// after its command on the same line counts. Coarser than parsing options,
+// strictly stronger, and it only ever fails closed.
+const AFTER = String.raw`\b[^\n]*\b`;
 const installCommand = new RegExp(
   [
     String.raw`curl`,
@@ -44,21 +45,22 @@ const installCommand = new RegExp(
     String.raw`webclient`,
     String.raw`start-bitstransfer`,
     String.raw`\|\s*(bash|sh|iex)\b`,
-    String.raw`\b(ba)?sh\s+${OPT}-c\b`,
-    String.raw`\b(npm|pnpm|yarn|bun)\s+${OPT}(install|i|add|exec|dlx|create)\b`,
+    String.raw`\b(ba)?sh${AFTER}-c\b`,
+    String.raw`\b(npm|pnpm|yarn|bun)${AFTER}(install|add|exec|dlx|create)\b`,
+    String.raw`\b(npm|pnpm|yarn|bun)\s+i\b`,
     String.raw`\b(npx|bunx|uvx)\b`,
-    String.raw`\bpipx?3?\s+${OPT}(install|run)\b`,
-    String.raw`\bdeno\s+${OPT}(run|install)\b`,
-    String.raw`\b(cargo|gem)\s+${OPT}install\b`,
-    String.raw`\bgit\s+${OPT}clone\b`,
-    String.raw`\bgh\s+${OPT}release\s+${OPT}download\b`,
-    String.raw`\bbrew\s+${OPT}install\b`,
-    String.raw`\b(apt|apt-get|dnf|yum|zypper|snap|flatpak|choco|scoop|winget)\s+${OPT}install\b`,
-    String.raw`\bpacman\s+${OPT}-S\b`,
+    String.raw`\bpipx?3?${AFTER}(install|run)\b`,
+    String.raw`\bdeno${AFTER}(run|install)\b`,
+    String.raw`\b(cargo|gem)${AFTER}install\b`,
+    String.raw`\bgit${AFTER}clone\b`,
+    String.raw`\bgh${AFTER}release${AFTER}download\b`,
+    String.raw`\bbrew${AFTER}install\b`,
+    String.raw`\b(apt|apt-get|dnf|yum|zypper|snap|flatpak|choco|scoop|winget)${AFTER}install\b`,
+    String.raw`\bpacman${AFTER}-S\b`,
     String.raw`\bnix-shell\b`,
-    String.raw`\bnix\s+${OPT}run\b`,
-    String.raw`\b(python3?|node|ruby|perl|php)\s+${OPT}-[cer]\b`,
-    String.raw`\bdocker\s+${OPT}(run|pull|create)\b`,
+    String.raw`\bnix${AFTER}run\b`,
+    String.raw`\b(python3?|node|ruby|perl|php)${AFTER}-[cer]\b`,
+    String.raw`\bdocker${AFTER}(run|pull|create)\b`,
     String.raw`install\.(sh|ps1)\b`,
     String.raw`raw\.githubusercontent\.com`,
     String.raw`cdn\.jsdelivr\.net`,

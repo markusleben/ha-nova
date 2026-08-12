@@ -72,10 +72,11 @@ a carried envelope when the complete ancestor-to-target delta is confined to
 regular non-executable Markdown files under `docs/` or `skills/` or at the
 repository root, none carrying an agent-policy basename (`AGENTS.md`, `AGENT.md`,
 `CLAUDE.md`, `GEMINI.md`, at any depth, case-folded) — with one content
-guard applied to every file in the delta (options between a command and its
-subcommand included): no changed line, nor a context
-line adjacent to a change, may touch a download or install command, a raw-script or CDN script source, or a shell
-line continuation
+guard applied to every file in the delta (a guarded subcommand anywhere
+after its command on the same line counts; no option grammar): no changed
+line, nor a context line adjacent to a change, may touch a download or
+install command, a raw-script or CDN script source, or a shell line
+continuation
 (`curl`, `wget`, PowerShell download verbs including `Invoke-Expression` and
 `DownloadString`, pipe-to-shell, `sh -c`, package-manager installs such as
 `npm`/`pip`/`brew` and OS package managers, remote package runners (`npx`,
