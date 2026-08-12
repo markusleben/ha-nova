@@ -207,6 +207,21 @@ export function registerCloudNonsensitiveSourceBehaviorTests(): void {
       expect(secondResult.stderr).toContain("install-command");
     });
 
+    it.each([
+      ["apk add attacker-package", "alpine"],
+      ["pkg install attacker-package", "freebsd"],
+      ["yay -S attacker-package", "aur"],
+      ["conda install attacker-package", "conda"],
+      ["podman run attacker/image", "podman"],
+    ])("rejects %s", (command, label) => {
+      const { root, base } = fixture();
+      write(root, "docs/setup.md", `Then ${command}\n`);
+      const target = commitAll(root, label);
+      const result = run(root, base, target);
+      expect(result.status, result.stdout).toBe(1);
+      expect(result.stderr).toContain("install-command");
+    });
+
     it("rejects version-suffixed remote go install/run", () => {
       const { root, base } = fixture();
       write(root, "docs/setup.md", "Then go install example.com/attacker/cmd@latest\n");

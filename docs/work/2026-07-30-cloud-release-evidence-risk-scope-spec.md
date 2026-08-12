@@ -80,7 +80,8 @@ install command, a raw-script or CDN script source, or a shell line
 continuation
 (`curl`, `wget`, PowerShell download verbs including `Invoke-Expression` and
 `DownloadString`, pipe-to-shell, `sh -c`, package-manager installs such as
-`npm`/`pip`/`brew` and OS package managers, remote package runners (`npx`,
+`npm`/`pip`/`brew` and OS package managers across ecosystems (apt, dnf,
+pacman/yay, apk, pkg, choco/scoop/winget, conda, …), remote package runners (`npx`,
 `bunx`, `uvx`, `pipx run`,
 `deno run`), inline interpreters (`python -c`, `node -e`), `git clone`,
 `gh release download`, `docker run`, version-suffixed `go install`/`go run`,
