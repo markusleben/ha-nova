@@ -100,6 +100,15 @@ export function registerCloudNonsensitiveSourceBehaviorTests(): void {
       expect(result.stderr).toContain("outside the non-sensitive source scope");
     });
 
+    it("rejects case-folded agent policy aliases", () => {
+      const { root, base } = fixture();
+      write(root, "Claude.md", "# Shadow policy\n");
+      const target = commitAll(root, "case alias");
+      const result = run(root, base, target);
+      expect(result.status).toBe(1);
+      expect(result.stderr).toContain("outside the non-sensitive source scope");
+    });
+
     it("rejects any path outside the non-sensitive scope", () => {
       const { root, base } = fixture();
       write(root, "docs/reference/a.md", "reference updated\n");

@@ -70,7 +70,7 @@ request cost one maintainer evidence session (measured on the 2026-08-09/10
 audit train: one session per PR, twelve PRs). The verifier therefore accepts
 a carried envelope when the complete ancestor-to-target delta is confined to
 regular non-executable Markdown files under `docs/` or `skills/`, or
-root-level Markdown other than `AGENTS.md` — with one content guard applied
+root-level Markdown other than the case-folded agent policy files (`AGENTS.md`, `CLAUDE.md`) — with one content guard applied
 to every file in the delta: no changed line may touch a download or install
 command, a raw-script or CDN script source, or a shell line continuation
 (`curl`, `wget`, PowerShell download verbs including `Invoke-Expression` and
@@ -89,10 +89,12 @@ cannot be complete, and PR review stays the semantic control.
 Deliberate exclusions: `tests/**` stays outside the escape because
 privileged release workflows execute repository tests with
 production-environment secrets, so test content must remain attested.
-`AGENTS.md` stays outside because it is the executable policy of agents
-operating with maintainer credentials. Non-Markdown files (assets,
-dotfiles such as `.gitattributes`) stay outside; `CLAUDE.md` is a symlink
-and already rejected by mode.
+`AGENTS.md` and `CLAUDE.md` stay outside in any case spelling — on a
+case-insensitive checkout an added `agents.md`/`claude.md` would
+materialize as the executable policy of agents operating with maintainer
+credentials (`CLAUDE.md` is additionally a symlink, rejected by mode).
+Non-Markdown files (assets, dotfiles such as `.gitattributes`) stay
+outside.
 
 Residual risk, accepted deliberately: skill files instruct AI agents and are
 protected under this escape by PR review, Codex, and the skill contract

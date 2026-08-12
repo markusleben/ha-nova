@@ -862,7 +862,7 @@ that exactly identifies its own commit and full Git tree. Evidence may cover a
 newer target only when its commit is an ancestor and the complete tree delta
 contains exclusively those permitted existing non-sensitive `uses:` version
 changes, or exclusively the guarded non-sensitive source delta (Markdown
-under `docs/` or `skills/`, root Markdown other than `AGENTS.md`; see
+under `docs/` or `skills/`, root Markdown other than the case-folded agent policy files; see
 `docs/releasing.md`). Every product, metadata, script, test, or
 sensitive-workflow delta requires fresh evidence for the exact target. Signed install-bundle provenance always
 binds the current release tree, and exact uploaded bundles are smoke-tested on
