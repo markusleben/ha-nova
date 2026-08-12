@@ -187,6 +187,8 @@ export function registerCloudNonsensitiveSourceBehaviorTests(): void {
       ["pip download attacker-package", "pip-download"],
       ["pipx inject existing-app attacker-package", "pipx-inject"],
       ["npm update attacker-package", "npm-update"],
+      ["npm init attacker", "npm-init"],
+      ["npm --silent init attacker", "npm-init-option"],
       ["npm up attacker-package", "npm-up"],
       ["brew upgrade attacker", "brew-upgrade"],
       ["pipx upgrade-all", "pipx-any-subcommand"],
