@@ -70,30 +70,35 @@ request cost one maintainer evidence session (measured on the 2026-08-09/10
 audit train: one session per PR, twelve PRs). The verifier therefore accepts
 a carried envelope when the complete ancestor-to-target delta is confined to
 regular non-executable Markdown files under `docs/` or `skills/` or at the
-repository root, none carrying an agent-policy basename (`AGENTS.md`,
+repository root, none carrying an agent-policy basename (`AGENTS.md`, `AGENT.md`,
 `CLAUDE.md`, `GEMINI.md`, at any depth, case-folded) — with one content
-guard applied
-to every file in the delta: no changed line may touch a download or install
-command, a raw-script or CDN script source, or a shell line continuation
+guard applied to every file in the delta: no changed line, nor a context
+line adjacent to a change, may touch a download or install command, a raw-script or CDN script source, or a shell
+line continuation
 (`curl`, `wget`, PowerShell download verbs including `Invoke-Expression` and
 `DownloadString`, pipe-to-shell, `sh -c`, package-manager installs such as
-`npm`/`pip`/`brew`, `git clone`, `gh release download`, `docker run`,
+`npm`/`pip`/`brew` and OS package managers, remote package runners (`npx`,
+`bunx`, `uvx`, `pipx run`,
+`deno run`), inline interpreters (`python -c`, `node -e`), `git clone`,
+`gh release download`, `docker run`,
 `install.sh` / `install.ps1`, `raw.githubusercontent.com`, CDN mirrors,
 trailing `\`). Those lines are the copy-paste surface users and agents
 execute blindly; changing them keeps the full evidence path. The guard
-forces textual diffs (`--text`), scans every changed line after the first
+forces textual diffs (`--text`, `--no-ext-diff`), scans every line after the first
 hunk marker so header-shaped content cannot dodge it, requires
-printable-ASCII paths, rejects control characters in changed lines (UTF-16
-or NUL padding cannot split command words), and fails closed when a changed
-file yields no scannable delta — so in-tree diff attributes, binary
-heuristics, or text/path encoding can never blind it. It stays documented as best-effort: a denylist
-cannot be complete, and PR review stays the semantic control.
+printable-ASCII paths, rejects control characters other than tab in changed
+lines (UTF-16 or NUL padding cannot split command words), and fails closed
+when a changed file yields no scannable delta — so in-tree diff attributes,
+binary heuristics, or text/path encoding can never blind it. It stays
+documented as best-effort: a denylist cannot be complete, and PR review
+stays the semantic control.
 
 Deliberate exclusions: `tests/**` stays outside the escape because
 privileged release workflows execute repository tests with
 production-environment secrets, so test content must remain attested.
-Agent-policy basenames (`AGENTS.md`, `CLAUDE.md`, `GEMINI.md`) stay outside at every depth and in any case spelling — agents load them per subtree, and on a
-case-insensitive checkout an added `agents.md`/`claude.md` would
+Agent-policy basenames (`AGENTS.md`, `AGENT.md`, `CLAUDE.md`, `GEMINI.md`)
+stay outside at every depth and in any case spelling — agents load them per subtree, and
+on a case-insensitive checkout an added `agents.md`/`claude.md` would
 materialize as the executable policy of agents operating with maintainer
 credentials (`CLAUDE.md` is additionally a symlink, rejected by mode).
 Non-Markdown files (assets, dotfiles such as `.gitattributes`) stay
@@ -172,4 +177,5 @@ WebSocket. Do not retain the private Cloud URL.
 - `docs/releasing.md`, `docs/reference/testing.md`, and the Cloud remote spec
   describe the same risk-scoped contract.
 - Repository documentation checks pass.
-- No product, workflow, version metadata, README, tag, or release changes.
+- No product, workflow, version metadata, README, or tag changes; the
+  release-gate verifier extension is the 2026-08-12 escape itself.

@@ -224,13 +224,15 @@ reviewed activation PR's squash commit. Otherwise, it may cover a newer target
 only when that evidence commit is an ancestor and the complete evidence-to-target
 tree delta consists exclusively of one permitted class. The first class is
 the permitted existing non-sensitive `uses:` version changes: such a `uses:`
-change must retain the action
-identity, move forward within the same major release, use full commit SHAs, and
-have both SHAs resolve to their stated canonical `vX.Y.Z` release tags through
-the GitHub API. The second class is a non-sensitive source delta: regular
-non-executable Markdown files under `docs/` or `skills/`, or root-level
-Markdown without an agent-policy basename (`AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, any depth, case-folded), where no changed line touches a download or
-install command, a raw-script or CDN script source, or a shell line
+change must retain the action identity, move forward within the same major
+release, use full commit SHAs, and have both SHAs resolve to their stated
+canonical `vX.Y.Z` release tags through the GitHub API. The second class is
+a non-sensitive source delta: regular non-executable Markdown files under
+`docs/` or `skills/`, or root-level Markdown, none with an agent-policy
+basename (`AGENTS.md`/`AGENT.md`, `CLAUDE.md`, `GEMINI.md`, any depth,
+case-folded),
+where no changed line touches a download or install command, a raw-script
+or CDN script source, or a shell line
 continuation — a best-effort guard over a forced textual diff
 (`scripts/release/verify-cloud-nonsensitive-source.mjs`; the spec's `None`
 invalidation row and its escape section). `tests/**` is deliberately not in
@@ -616,8 +618,8 @@ exactly identify the evidence commit and its full Git tree. The evidence commit
 is fetched by exact SHA when it is no longer in the local clone. Evidence may
 differ from the target commit only when the full target tree is identical or
 through the ancestor-bound safe `uses:` normalization or the ancestor-bound
-non-sensitive source delta described above. Every
-other earlier evidence is rejected, including for an
+non-sensitive source delta described above. Every other earlier evidence is
+rejected, including for an
 apparently metadata-only activation: `nova/version.json` is copied into the App
 and directly controls its Cloud runtime, so evidence from the disabled source
 cannot attest the enabled runtime. The activation PR must reach a stable head,
@@ -628,9 +630,9 @@ envelope and every qualification row invalidated by that delta, followed by a
 repository-secret update and a CI rerun without changing the PR or its base.
 If the merge commit changes, rebuild the exact-target envelope; repeat only
 the qualification rows invalidated by the new delta. A target containing only
-the narrowly verified existing non-sensitive `uses:` version changes, or only
-the non-sensitive source delta defined above, may
-reuse evidence from its exact ancestor instead. If a merge queue is used,
+the narrowly verified existing non-sensitive `uses:` version changes, or
+only the non-sensitive source delta defined above, may reuse evidence from
+its exact ancestor instead. If a merge queue is used,
 `merge_group` creates another synthetic checkout commit and follows the same
 rule.
 

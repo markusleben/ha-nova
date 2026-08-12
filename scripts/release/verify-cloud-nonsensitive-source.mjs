@@ -16,14 +16,19 @@ const allowedPath = /^(docs|skills)\/.+\.md$|^[^/]+\.md$/;
 // Agent-policy basenames are denied at every depth and case-folded: agents
 // load AGENTS.md/CLAUDE.md/GEMINI.md per subtree, and on case-insensitive
 // checkouts an added lowercase alias materializes as the policy file.
-const deniedBasenames = new Set(["agents.md", "claude.md", "gemini.md"]);
+const deniedBasenames = new Set([
+  "agents.md",
+  "agent.md",
+  "claude.md",
+  "gemini.md",
+]);
 
 // Best-effort guard for the copy-paste surface users and agents execute
 // blindly: any changed line that touches a download/install command or a
 // raw-script source falls back to the full evidence path. This is a denylist
 // and documented as best-effort; PR review remains the semantic control.
 const installCommand =
-  /(curl|wget|\biwr\b|\birm\b|invoke-webrequest|invoke-restmethod|invoke-expression|downloadstring|downloadfile|webclient|start-bitstransfer|\|\s*(bash|sh|iex)\b|\b(ba)?sh\s+-c\b|\b(npm|pnpm|yarn|bun)\s+(install|i|add|exec|dlx|create)\b|\bpipx?3?\s+install\b|\bgit\s+clone\b|\bgh\s+release\s+download\b|\bbrew\s+install\b|\bdocker\s+(run|pull|create)\b|install\.(sh|ps1)\b|raw\.githubusercontent\.com|cdn\.jsdelivr\.net|statically\.io|githack)/i;
+  /(curl|wget|\biwr\b|\birm\b|invoke-webrequest|invoke-restmethod|invoke-expression|downloadstring|downloadfile|webclient|start-bitstransfer|\|\s*(bash|sh|iex)\b|\b(ba)?sh\s+-c\b|\b(npm|pnpm|yarn|bun)\s+(install|i|add|exec|dlx|create)\b|\b(npx|bunx|uvx)\b|\bpipx?3?\s+(install|run)\b|\bdeno\s+(run|install)\b|\b(cargo|gem)\s+install\b|\bgit\s+clone\b|\bgh\s+release\s+download\b|\bbrew\s+install\b|\b(apt|apt-get|dnf|yum|zypper|snap|flatpak|choco|scoop|winget)\s+install\b|\bpacman\s+-S\b|\bnix-shell\b|\bnix\s+run\b|\b(python3?|node|ruby|perl|php)\s+-[cer]\b|\bdocker\s+(run|pull|create)\b|install\.(sh|ps1)\b|raw\.githubusercontent\.com|cdn\.jsdelivr\.net|statically\.io|githack)/i;
 
 const allowedModes = new Set(["000000", "100644"]);
 
@@ -107,28 +112,32 @@ if (changedPaths.length === 0) {
 }
 
 for (const filePath of changedPaths) {
-  // --text overrides in-tree diff attributes and binary heuristics so the
-  // guard can never be blinded; :(literal) disables pathspec magic.
+  // --text and --no-ext-diff override in-tree diff attributes, binary
+  // heuristics, and external diff drivers so the guard can never be
+  // blinded; :(literal) disables pathspec magic. -U1 keeps one context
+  // line per change: editing only the continuation body of a multi-line
+  // install command still surfaces the unchanged lead line to the scan.
   const diffLines = git([
     "diff",
     "--no-renames",
+    "--no-ext-diff",
     "--text",
-    "-U0",
+    "-U1",
     baseCommit,
     targetCommit,
     "--",
     `:(literal)${filePath}`,
   ]).split(/\r?\n/);
   // Skip only the structural header block before the first hunk; after a
-  // "@@" marker every +/- line is content, so header-shaped content lines
-  // ("+++ b/...") can never dodge the scan.
+  // "@@" marker every line — changed or context — is scanned, so
+  // header-shaped content lines ("+++ b/...") can never dodge the scan.
   let sawHunk = false;
   for (const line of diffLines) {
     if (line.startsWith("@@")) {
       sawHunk = true;
       continue;
     }
-    if (!sawHunk || !/^[+-]/.test(line)) {
+    if (!sawHunk) {
       continue;
     }
     // Control characters (UTF-16 NUL padding, separators) would split

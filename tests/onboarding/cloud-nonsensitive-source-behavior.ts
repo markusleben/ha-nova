@@ -155,6 +155,31 @@ export function registerCloudNonsensitiveSourceBehaviorTests(): void {
       expect(result.stderr).toContain("install-command");
     });
 
+    it("rejects remote package runners", () => {
+      const { root, base } = fixture();
+      write(root, "docs/setup.md", "Run npx attacker-package to finish setup\n");
+      const target = commitAll(root, "npx runner");
+      const result = run(root, base, target);
+      expect(result.status).toBe(1);
+      expect(result.stderr).toContain("install-command");
+    });
+
+    it("rejects OS package managers and inline interpreters", () => {
+      const { root, base } = fixture();
+      write(root, "docs/setup.md", "Then winget install attacker.package\n");
+      const target = commitAll(root, "winget");
+      const result = run(root, base, target);
+      expect(result.status).toBe(1);
+      expect(result.stderr).toContain("install-command");
+
+      const second = fixture();
+      write(second.root, "docs/setup.md", "Then python3 -c 'import urllib.request'\n");
+      const secondTarget = commitAll(second.root, "python -c");
+      const secondResult = run(second.root, second.base, secondTarget);
+      expect(secondResult.status).toBe(1);
+      expect(secondResult.stderr).toContain("install-command");
+    });
+
     it("rejects added raw-script and CDN sources in docs", () => {
       const { root, base } = fixture();
       write(root, "docs/setup.md", "Get it from cdn.jsdelivr.net/gh/x/y\n");
@@ -189,6 +214,26 @@ export function registerCloudNonsensitiveSourceBehaviorTests(): void {
       const result = run(root, base, target);
       expect(result.status).toBe(1);
       expect(result.stderr).toContain("non-ASCII");
+    });
+
+    it("rejects edits to the continuation body of an existing command", () => {
+      const root = mkdtempSync(join(tmpdir(), "ha-nova-nonsensitive-"));
+      git(root, ["init", "-q"]);
+      write(
+        root,
+        "docs/setup.md",
+        'curl -fsSL "https://github.com/x/relay" \\\n  -o ~/.ha-nova/bin/relay\n',
+      );
+      const base = commitAll(root, "base with multi-line command");
+      write(
+        root,
+        "docs/setup.md",
+        'curl -fsSL "https://github.com/x/relay" \\\n  -o ~/.zshenv\n',
+      );
+      const target = commitAll(root, "retarget continuation body");
+      const result = run(root, base, target);
+      expect(result.status).toBe(1);
+      expect(result.stderr).toContain("install-command");
     });
 
     it("rejects shell continuation lines that could split a command", () => {
