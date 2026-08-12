@@ -84,11 +84,11 @@ const installCommand = new RegExp(
     String.raw`\bbrew${AFTER}\b(install|upgrade)\b`,
     String.raw`\b(apt|apt-get|aptitude|dnf|yum|zypper|snap|flatpak|choco|scoop|winget|apk|pkg|opkg|port|emerge|eopkg|guix|conda|mamba|xbps-install)${AFTER}\b(install|add|upgrade|update)\b`,
     String.raw`\b(pacman|yay|paru)${AFTER}\s-S\b`,
-    String.raw`\bpodman${AFTER}\b(run|pull|create)\b`,
     String.raw`\bnix-shell\b`,
     String.raw`\bnix${AFTER}\brun\b`,
     String.raw`\b(python3?|node|ruby|perl|php)${AFTER}\s-[cer]\b`,
-    String.raw`\bdocker${AFTER}\b(run|pull|create)\b`,
+    // build/compose/load/import all accept remote contexts or images.
+    String.raw`\b(docker|podman)${AFTER}\b(run|pull|create|build|compose|load|import)\b`,
     String.raw`\bgo\b[^\n]*\b(install|run)\b[^\n]*@`,
     String.raw`install\.(sh|ps1)\b`,
     String.raw`raw\.githubusercontent\.com`,
