@@ -173,7 +173,15 @@ export function registerCloudNonsensitiveSourceBehaviorTests(): void {
       expect(result.stderr).toContain("install-command");
     });
 
-    it.each(["npm inst", "npm in", "npm ins", "npm i", "npm ci"])(
+    it.each([
+      "npm inst",
+      "npm in",
+      "npm ins",
+      "npm i",
+      "npm ci",
+      "npm --silent i",
+      "npm --prefix /tmp in",
+    ])(
       "rejects the %s install alias",
       (alias) => {
         const { root, base } = fixture();

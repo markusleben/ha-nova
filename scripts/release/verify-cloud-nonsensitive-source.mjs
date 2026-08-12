@@ -45,7 +45,15 @@ const installCommand = new RegExp(
     String.raw`\b(powershell|pwsh)(\.exe)?\b[^\n]*\s-e`,
     String.raw`\bcmd(\.exe)?\s+\/[ck]\b`,
     String.raw`\b(npm|pnpm|yarn|bun)${AFTER}\b(inst\w*|isnt\w*|add|exec|dlx|create)\b`,
-    String.raw`\b(npm|pnpm|yarn|bun)\s+(i|in|ins|ci)\b`,
+    // Short aliases tolerate option tokens and their values but never a
+    // prose word: "npm i", "npm --silent i", "npm --prefix /tmp in" are
+    // commands; "npm packages live in …" is not, because the group only
+    // ever starts at a leading dash. Accepted false positive: the English
+    // sentence "use npm in the nova directory" is indistinguishable from
+    // the alias and fails closed. Zero occurrences in the active guarded
+    // docs when measured; the cost is one envelope, the alternative is an
+    // open install path.
+    String.raw`\b(npm|pnpm|yarn|bun)\s+(-\S+(\s+[^-\s]\S*)?\s+)*(i|in|ins|ci)\b`,
     String.raw`\b(npx|bunx|uvx)\b`,
     String.raw`\bpipx?3?${AFTER}\b(install|run)\b`,
     String.raw`\bdeno${AFTER}\b(run|install)\b`,
