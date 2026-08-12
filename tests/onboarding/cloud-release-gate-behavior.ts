@@ -9,6 +9,7 @@ import {
 } from "./cloud-release-gate-fixture.js";
 import { registerCloudReleaseCommitGateBehaviorTests } from "./cloud-release-commit-gate-behavior.js";
 import { registerCloudNonsensitiveSourceBehaviorTests } from "./cloud-nonsensitive-source-behavior.js";
+import { registerCloudNonsensitiveGateIntegrationTests } from "./cloud-nonsensitive-gate-integration.js";
 export function registerCloudReleaseGateBehaviorTests(): void {
   describe("Home Assistant Cloud release gate behavior", () => {
     it("allows a disabled release without external evidence", () => {
@@ -278,4 +279,5 @@ export function registerCloudReleaseGateBehaviorTests(): void {
   });
   registerCloudReleaseCommitGateBehaviorTests();
   registerCloudNonsensitiveSourceBehaviorTests();
+  registerCloudNonsensitiveGateIntegrationTests();
 }

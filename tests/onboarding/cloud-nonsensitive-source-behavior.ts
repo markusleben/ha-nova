@@ -1,73 +1,14 @@
-import { execFileSync, spawnSync } from "node:child_process";
-import {
-  mkdirSync,
-  mkdtempSync,
-  symlinkSync,
-  writeFileSync,
-} from "node:fs";
+import { mkdtempSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
-  type CloudPlatform,
-  cloudGateFixture,
-  runCloudGate,
-  validCloudEvidence,
-} from "./cloud-release-gate-fixture.js";
-
-const SCRIPT = resolve("scripts/release/verify-cloud-nonsensitive-source.mjs");
-
-type Fixture = {
-  root: string;
-  base: string;
-};
-
-function git(root: string, args: string[]): string {
-  return execFileSync(
-    "git",
-    [
-      "-C",
-      root,
-      "-c",
-      "user.email=test@example.com",
-      "-c",
-      "user.name=test",
-      ...args,
-    ],
-    { encoding: "utf8" },
-  ).trim();
-}
-
-function write(root: string, relative: string, content: string | Buffer): void {
-  const target = join(root, relative);
-  mkdirSync(dirname(target), { recursive: true });
-  writeFileSync(target, content);
-}
-
-function commitAll(root: string, message: string): string {
-  git(root, ["add", "-A"]);
-  git(root, ["commit", "-qm", message]);
-  return git(root, ["rev-parse", "HEAD"]);
-}
-
-function fixture(): Fixture {
-  const root = mkdtempSync(join(tmpdir(), "ha-nova-nonsensitive-"));
-  git(root, ["init", "-q"]);
-  write(root, "README.md", "# HA NOVA\n\ncurl -fsSL https://example/install.sh | bash\n");
-  write(root, "AGENTS.md", "# Agent policy\n");
-  write(root, "docs/reference/a.md", "reference\n");
-  write(root, "skills/write/SKILL.md", "skill\n");
-  write(root, "tests/sample.test.ts", "export {};\n");
-  write(root, "scripts/release/tool.sh", "#!/usr/bin/env bash\n");
-  const base = commitAll(root, "base");
-  return { root, base };
-}
-
-function run(root: string, base: string, target: string) {
-  return spawnSync("node", [SCRIPT, root, base, target], {
-    encoding: "utf8",
-  });
-}
+  commitAll,
+  fixture,
+  git,
+  run,
+  write,
+} from "./cloud-nonsensitive-source-helpers.js";
 
 export function registerCloudNonsensitiveSourceBehaviorTests(): void {
   describe("Cloud non-sensitive source escape", () => {
@@ -456,34 +397,4 @@ export function registerCloudNonsensitiveSourceBehaviorTests(): void {
     });
   });
 
-  describe("Cloud release gate wired non-sensitive escape", () => {
-    function wiredFixture() {
-      const platforms: CloudPlatform[] = ["linux"];
-      const gateFixture = cloudGateFixture({
-        cloud_remote_enabled: true,
-        cloud_remote_platforms: platforms,
-      });
-      const evidence = validCloudEvidence(gateFixture, platforms);
-      return { gateFixture, evidence };
-    }
-
-    it("carries stale evidence across a docs-only delta through the gate", () => {
-      const { gateFixture, evidence } = wiredFixture();
-      write(gateFixture.root, "docs/note.md", "carried docs delta\n");
-      commitAll(gateFixture.root, "docs only");
-      const result = runCloudGate(gateFixture, evidence);
-      expect(result.status, `${result.stdout}\n${result.stderr}`).toBe(0);
-    });
-
-    it("still rejects stale evidence across a script delta through the gate", () => {
-      const { gateFixture, evidence } = wiredFixture();
-      write(gateFixture.root, "scripts/release/new-tool.sh", "#!/usr/bin/env bash\n");
-      commitAll(gateFixture.root, "script delta");
-      const result = runCloudGate(gateFixture, evidence);
-      expect(result.status).not.toBe(0);
-      expect(`${result.stdout}\n${result.stderr}`).toContain(
-        "stale Home Assistant Cloud evidence",
-      );
-    });
-  });
 }
