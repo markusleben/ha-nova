@@ -83,7 +83,7 @@ continuation
 `npm`/`pip`/`brew` and OS package managers, remote package runners (`npx`,
 `bunx`, `uvx`, `pipx run`,
 `deno run`), inline interpreters (`python -c`, `node -e`), `git clone`,
-`gh release download`, `docker run`,
+`gh release download`, `docker run`, version-suffixed `go install`/`go run`,
 `install.sh` / `install.ps1`, `raw.githubusercontent.com`, CDN mirrors,
 trailing `\`, PowerShell backtick, or cmd `^` continuations). Those lines
 are the copy-paste surface users and agents
