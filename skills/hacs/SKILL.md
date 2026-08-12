@@ -1,6 +1,6 @@
 ---
 name: hacs
-description: Use when installing, version-pinning or downgrading, redownloading, or removing HACS packages, adding custom HACS repositories, or migrating to a custom integration through HA NOVA Relay.
+description: Use when browsing, installing, version-pinning or downgrading, redownloading, or removing HACS packages, adding custom HACS repositories, or migrating to a custom integration through HA NOVA Relay.
 license: MIT
 compatibility: Requires the ha-nova CLI (run 'ha-nova setup' first) and the HA NOVA Relay in Home Assistant (App, or standalone container on Container/Core). HACS 2.x must already be installed in Home Assistant.
 ---
