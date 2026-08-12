@@ -81,6 +81,8 @@ const installCommand = new RegExp(
     String.raw`\bmix\s+${OPTS}(deps\.get|archive\.install|local\.)`,
     String.raw`\bgit${AFTER}\bclone\b`,
     String.raw`\bgh${AFTER}\brelease${AFTER}\bdownload\b`,
+    String.raw`\bgh${AFTER}\b(extension|ext)\b`,
+    String.raw`\bgh${AFTER}\brepo${AFTER}\bclone\b`,
     String.raw`\bbrew${AFTER}\b(install|upgrade)\b`,
     String.raw`\b(apt|apt-get|aptitude|dnf|yum|zypper|snap|flatpak|choco|scoop|winget|apk|pkg|opkg|port|emerge|eopkg|guix|conda|mamba|xbps-install)${AFTER}\b(install|add|upgrade|update)\b`,
     String.raw`\b(pacman|yay|paru)${AFTER}\s-S\b`,
