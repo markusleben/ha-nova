@@ -201,14 +201,17 @@ export function registerCloudNonsensitiveSourceBehaviorTests(): void {
       expect(result.status, result.stderr).toBe(0);
     });
 
-    it("rejects remote package runners", () => {
-      const { root, base } = fixture();
-      write(root, "docs/setup.md", "Run npx attacker-package to finish setup\n");
-      const target = commitAll(root, "npx runner");
-      const result = run(root, base, target);
-      expect(result.status).toBe(1);
-      expect(result.stderr).toContain("install-command");
-    });
+    it.each(["npx", "pnpx", "bunx", "uvx", "npm x", "pnpm dlx"])(
+      "rejects the %s remote runner",
+      (runner) => {
+        const { root, base } = fixture();
+        write(root, "docs/setup.md", `Run ${runner} attacker-package\n`);
+        const target = commitAll(root, "remote runner");
+        const result = run(root, base, target);
+        expect(result.status, result.stdout).toBe(1);
+        expect(result.stderr).toContain("install-command");
+      },
+    );
 
     it("rejects OS package managers and inline interpreters", () => {
       const { root, base } = fixture();

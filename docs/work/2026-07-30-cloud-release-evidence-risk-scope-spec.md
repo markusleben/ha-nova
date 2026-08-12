@@ -75,20 +75,23 @@ stem starts with `agent(s)`, `claude`, or `gemini` — suffix variants like
 `AGENTS.override.md` included — at any depth, case-folded) — with one content
 guard applied to every file in the delta (a guarded subcommand anywhere
 after its command on the same line counts; no option grammar): no changed
-line, nor a context line adjacent to a change, may touch a download or
-install command, a raw-script or CDN script source, or a shell line
-continuation
-(`curl`, `wget`, PowerShell download verbs including `Invoke-Expression` and
-`DownloadString`, pipe-to-shell, `sh -c`, package-manager installs such as
-`npm`/`pip`/`brew` and OS package managers across ecosystems (apt, dnf,
-pacman/yay, apk, pkg, choco/scoop/winget, conda, …), remote package runners (`npx`,
-`bunx`, `uvx`, `pipx run`,
-`deno run`), inline interpreters (`python -c`, `node -e`), `git clone`,
-`gh release download`, `docker run`, version-suffixed `go install`/`go run`,
-`install.sh` / `install.ps1`, `raw.githubusercontent.com`, CDN mirrors,
-trailing `\`, unpaired PowerShell backtick, or cmd `^` continuations —
-balanced Markdown code spans and fences are not continuations). Those lines
-are the copy-paste surface users and agents
+line, nor a context line adjacent to a change, may touch these families —
+
+- downloaders and pipe-to-shell invocations, including the PowerShell
+  download and expression verbs;
+- package-manager installs across language and OS ecosystems, and remote
+  package runners that fetch before executing;
+- inline interpreter execution, wrapped or encoded shell invocations, and
+  version-pinned remote source builds;
+- raw-script and CDN script sources;
+- shell line continuations, where a trailing backtick counts only when
+  unpaired, so balanced Markdown code spans and fences do not.
+
+The families are named here on purpose and the concrete tokens live only in
+`scripts/release/verify-cloud-nonsensitive-source.mjs`, which is the
+authority: a spec that enumerated every verb would drift from the code, and
+would trigger its own guard on every edit. Those lines are the copy-paste
+surface users and agents
 execute blindly; changing them keeps the full evidence path. The guard
 forces textual diffs (`--text`, `--no-ext-diff`), scans every line after the first
 hunk marker so header-shaped content cannot dodge it, requires

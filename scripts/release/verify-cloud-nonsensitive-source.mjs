@@ -53,8 +53,8 @@ const installCommand = new RegExp(
     // the alias and fails closed. Zero occurrences in the active guarded
     // docs when measured; the cost is one envelope, the alternative is an
     // open install path.
-    String.raw`\b(npm|pnpm|yarn|bun)\s+(-\S+(\s+[^-\s]\S*)?\s+)*(i|in|ins|ci)\b`,
-    String.raw`\b(npx|bunx|uvx)\b`,
+    String.raw`\b(npm|pnpm|yarn|bun)\s+(-\S+(\s+[^-\s]\S*)?\s+)*(i|in|ins|ci|x)\b`,
+    String.raw`\b(npx|pnpx|bunx|uvx)\b`,
     String.raw`\bpipx?3?${AFTER}\b(install|run)\b`,
     String.raw`\bdeno${AFTER}\b(run|install)\b`,
     String.raw`\b(cargo|gem)${AFTER}\binstall\b`,
