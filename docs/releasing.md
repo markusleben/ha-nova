@@ -275,6 +275,17 @@ gh api repos/markusleben/ha-nova/environments/production/secrets --jq '.secrets[
 
 Both timestamps must be from the current session.
 
+Then, right after the squash merge, rewrite `commit_sha` and
+`relay_app.source_commit` to the resulting `main` commit and store the
+envelope again in both places. The tree is unchanged, so this attests
+exactly the same content — but the name has to survive. A pull request's
+synthetic merge commit is thrown away at merge time and is an ancestor of
+nothing afterwards, and BOTH stale-evidence escapes require the evidence
+commit to be an ancestor of their target. Leave the envelope pointing at
+the merge commit and every later pull request fails the gate with the
+stale-evidence message, even a docs-only one that the escape should carry
+(observed on #560, the first pull request after the escape landed).
+
 All paths run:
 
 ```bash
