@@ -59,23 +59,23 @@ const installCommand = new RegExp(
     // open install path.
     String.raw`\b(npm|pnpm|yarn|bun)\s+${OPTS}(i|in|ins|ci|x)\b`,
     String.raw`\b(npx|pnpx|bunx|uvx)\b`,
-    String.raw`\bpipx?3?${AFTER}\b(install|run|wheel|download)\b`,
+    // Single-purpose fetch tools are guarded by NAME, not by subcommand:
+    // every invocation downloads, so enumerating their verbs only invites
+    // the next gap. Each measured at 0 occurrences in the active guarded
+    // docs. `pip` is NOT in this group — it appears as the `--pip-image`
+    // flag in the demo-recording doc — so it keeps its subcommand list.
+    String.raw`\b(pipx|composer|poetry|pdm|helm|terraform|ansible-galaxy|rustup|luarocks|opam|cpanm?)\b`,
+    String.raw`\bpip3?${AFTER}\b(install|wheel|download)\b`,
     String.raw`\bdeno${AFTER}\b(run|install)\b`,
     String.raw`\b(cargo|gem)${AFTER}\binstall\b`,
     // Language-ecosystem managers that fetch and may execute install
     // hooks. Ruby's `bundle install` is deliberately absent: this repo
     // says "installer bundle" in prose, so it would fire on our own docs.
-    String.raw`\bcomposer${AFTER}\b(require|install|create-project)\b`,
-    String.raw`\b(poetry|pdm)${AFTER}\b(add|install)\b`,
     String.raw`\buv\s+${OPTS}(pip|add|tool|run)\b`,
     String.raw`\bdotnet\s+${OPTS}(add|tool|restore)\b`,
     String.raw`\bnuget${AFTER}\binstall\b`,
-    String.raw`\b(cpanm?|luarocks|cabal|stack|opam)${AFTER}\binstall\b`,
+    String.raw`\b(cabal|stack)${AFTER}\binstall\b`,
     String.raw`\bmix\s+${OPTS}(deps\.get|archive\.install|local\.)`,
-    String.raw`\bhelm${AFTER}\b(install|upgrade)\b`,
-    String.raw`\bterraform${AFTER}\binit\b`,
-    String.raw`\bansible-galaxy${AFTER}\binstall\b`,
-    String.raw`\brustup\b`,
     String.raw`\bgit${AFTER}\bclone\b`,
     String.raw`\bgh${AFTER}\brelease${AFTER}\bdownload\b`,
     String.raw`\bbrew${AFTER}\binstall\b`,
