@@ -58,6 +58,20 @@ const installCommand = new RegExp(
     String.raw`\bpipx?3?${AFTER}\b(install|run)\b`,
     String.raw`\bdeno${AFTER}\b(run|install)\b`,
     String.raw`\b(cargo|gem)${AFTER}\binstall\b`,
+    // Language-ecosystem managers that fetch and may execute install
+    // hooks. Ruby's `bundle install` is deliberately absent: this repo
+    // says "installer bundle" in prose, so it would fire on our own docs.
+    String.raw`\bcomposer${AFTER}\b(require|install|create-project)\b`,
+    String.raw`\b(poetry|pdm)${AFTER}\b(add|install)\b`,
+    String.raw`\buv\s+(pip|add|tool|run)\b`,
+    String.raw`\bdotnet\s+(add|tool|restore)\b`,
+    String.raw`\bnuget${AFTER}\binstall\b`,
+    String.raw`\b(cpanm?|luarocks|cabal|stack|opam)${AFTER}\binstall\b`,
+    String.raw`\bmix\s+(deps\.get|archive\.install|local\.)`,
+    String.raw`\bhelm${AFTER}\b(install|upgrade)\b`,
+    String.raw`\bterraform${AFTER}\binit\b`,
+    String.raw`\bansible-galaxy${AFTER}\binstall\b`,
+    String.raw`\brustup\b`,
     String.raw`\bgit${AFTER}\bclone\b`,
     String.raw`\bgh${AFTER}\brelease${AFTER}\bdownload\b`,
     String.raw`\bbrew${AFTER}\binstall\b`,
