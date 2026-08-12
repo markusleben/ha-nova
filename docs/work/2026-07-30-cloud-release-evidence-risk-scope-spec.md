@@ -84,7 +84,8 @@ continuation
 `deno run`), inline interpreters (`python -c`, `node -e`), `git clone`,
 `gh release download`, `docker run`,
 `install.sh` / `install.ps1`, `raw.githubusercontent.com`, CDN mirrors,
-trailing `\`). Those lines are the copy-paste surface users and agents
+trailing `\`, PowerShell backtick, or cmd `^` continuations). Those lines
+are the copy-paste surface users and agents
 execute blindly; changing them keeps the full evidence path. The guard
 forces textual diffs (`--text`, `--no-ext-diff`), scans every line after the first
 hunk marker so header-shaped content cannot dodge it, requires

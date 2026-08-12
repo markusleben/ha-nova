@@ -185,7 +185,7 @@ for (const filePath of changedPaths) {
     if (/[\0-\b\v-\x1f\x7f]/.test(line)) {
       fail(`${filePath} changes non-text content; full evidence required`);
     }
-    if (installCommand.test(line) || /\\$/.test(line)) {
+    if (installCommand.test(line) || /[\\`^]$/.test(line)) {
       fail(
         `${filePath} changes an install-command or continuation line; full evidence required`,
       );
