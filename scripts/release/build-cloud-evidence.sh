@@ -157,6 +157,11 @@ set_both_secrets() {  # <envelope-json>
   # Verify with GitHub's own clocks only: read updated_at before and after and
   # require movement in both places. A local-time comparison would inherit
   # clock skew; an unreadable stamp after a write is a failure, not a pass.
+  # Equality with the before-stamp also fails, deliberately: the before value
+  # predates this invocation (one run writes each location once and takes
+  # seconds), so an unchanged stamp means the write did not land — a
+  # same-second false positive would need two full invocations inside one
+  # GitHub clock second, which is not an operational pattern for this tool.
   after_repo="$(repo_stamp)"; after_env="$(env_stamp)"
   { [ -n "$after_repo" ] && [ "$after_repo" != "$before_repo" ]; } \
     || die "repository secret updated_at did not advance (before: '${before_repo:-absent}', after: '${after_repo:-absent}') — verify by hand before relying on the gate"
@@ -219,6 +224,7 @@ fi
 # that never happened. shasum guards the artifact before anything executes it.
 command -v node >/dev/null || die "node is required"
 command -v shasum >/dev/null || die "shasum is required"
+command -v unzip >/dev/null || die "unzip is required"
 
 # ── 1. the exact target ──────────────────────────────────────────────────────
 step "resolving PR #$PR"
@@ -505,6 +511,29 @@ Remove-Item -Recurse -Force \$d"
   return $status
 }
 
+# The provenance runs below EXECUTE the candidate binary. Prove from the
+# local bytes that every bundle is the resolved target first — a manual
+# recovery dispatch for the wrong PR, or a PR that moved between the local
+# resolution and the workflow's own, must die here, not after running a
+# foreign build on three machines.
+step "verifying bundle identity (before anything executes)"
+for bundle in "$work"/bundles/*; do
+  case "$bundle" in *.sha256) continue ;; esac
+  manifest="$work/pre-identity.$(basename "$bundle").json"
+  case "$bundle" in
+    *.tar.gz)
+      tar -xzOf "$bundle" ha-nova/bundle.json >"$manifest" 2>/dev/null \
+        || die "$(basename "$bundle"): cannot read ha-nova/bundle.json from the archive" ;;
+    *.zip)
+      unzip -p "$bundle" ha-nova/bundle.json >"$manifest" 2>/dev/null \
+        || die "$(basename "$bundle"): cannot read ha-nova/bundle.json from the archive" ;;
+    *) die "unexpected file in the artifact: $(basename "$bundle")" ;;
+  esac
+  check_identity "$manifest" \
+    || die "$(basename "$bundle"): bundle identity does not match the resolved target — refusing to execute it"
+done
+echo "  every bundle matches tree ${target_tree}"
+
 for platform in $platforms; do
   case "$platform" in
     darwin)
@@ -585,6 +614,16 @@ else
 fi
 
 if [ "$MODE" = "--set" ]; then
+  # The pipeline above takes minutes. Before touching the global secrets,
+  # require the PR's merge target to still be the exact commit this envelope
+  # attests — evidence is written only for the state it names.
+  step "re-resolving #$PR before the write"
+  git -C "$ROOT_DIR" fetch --quiet --force origin "+refs/pull/$PR/merge:refs/cloud-evidence/$PR" 2>/dev/null \
+    || die "cannot re-fetch the synthetic merge ref for #$PR"
+  now_commit="$(git -C "$ROOT_DIR" rev-parse "refs/cloud-evidence/$PR")"
+  [ "$now_commit" = "$target_commit" ] \
+    || die "PR #$PR moved during the pipeline (merge commit is now $now_commit, attested $target_commit) — re-run against the new state"
+  echo "  unchanged: $now_commit"
   set_both_secrets "$envelope"
   echo ""
   echo "  written. Rerun CI on #$PR (no new commit), then cloud-source-gate should pass."

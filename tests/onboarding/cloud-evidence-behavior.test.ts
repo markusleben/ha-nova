@@ -146,12 +146,30 @@ esac
   return { dir, trace, state };
 }
 
-function seedBundle(fake: FakeBin, name: string, withChecksum: boolean): void {
+// A real tar.gz with the real layout (ha-nova/bundle.json), so the script's
+// pre-execution identity extraction works against honest bytes.
+function seedBundle(
+  fake: FakeBin,
+  name: string,
+  opts: { tree: string; version?: string; checksum?: boolean },
+): void {
   const dir = join(fake.state, "bundles");
   mkdirSync(dir, { recursive: true });
-  const content = Buffer.from(`fake bundle ${name}`);
-  writeFileSync(join(dir, name), content);
-  if (withChecksum) {
+  const buildRoot = mkdtempSync(join(tmpdir(), "ha-nova-bundle-build-"));
+  mkdirSync(join(buildRoot, "ha-nova"), { recursive: true });
+  writeFileSync(
+    join(buildRoot, "ha-nova", "bundle.json"),
+    JSON.stringify({
+      version: opts.version ?? "0.24.0-rc1",
+      cloud_release: { source_tree_sha: opts.tree },
+    }),
+  );
+  const tarResult = spawnSync("tar", ["-czf", join(dir, name), "-C", buildRoot, "ha-nova"], {
+    encoding: "utf8",
+  });
+  expect(tarResult.status, tarResult.stderr).toBe(0);
+  if (opts.checksum !== false) {
+    const content = readFileSync(join(dir, name));
     const hash = createHash("sha256").update(content).digest("hex");
     writeFileSync(join(dir, `${name}.sha256`), `${hash}  ${name}\n`);
   }
@@ -378,9 +396,9 @@ describe("cloud evidence --repoint", () => {
 
 describe("cloud evidence PR target binding", () => {
   // linux-only platforms keep this deterministic on any test host: the darwin
-  // branch would depend on the host OS, and the fake ssh (exit 97) guarantees
-  // nothing past reachability ever runs.
-  const platforms = ["linux", "windows"];
+  // branch would depend on the host OS, the windows branch would need a zip
+  // toolchain, and the fake ssh guarantees nothing real is ever reached.
+  const platforms = ["linux"];
 
   function prFixture() {
     const fixture = initFixture(platforms);
@@ -458,8 +476,7 @@ describe("cloud evidence PR target binding", () => {
         },
       ]),
     );
-    seedBundle(fake, "ha-nova-installer-bundle-linux-amd64.tar.gz", true);
-    seedBundle(fake, "ha-nova-installer-bundle-windows-amd64.zip", true);
+    seedBundle(fake, "ha-nova-installer-bundle-linux-amd64.tar.gz", { tree: fixture.mainTree });
 
     const result = runScript(fixture, fake, ["7"], { FAKE_SSH_OK: "1" });
     expect(result.stdout).toContain("found in-flight run 42");
@@ -467,10 +484,35 @@ describe("cloud evidence PR target binding", () => {
     expect(trace).toContain("run-watch");
     expect(trace).toContain("run-download");
     expect(result.stderr).not.toContain("unexpected gh call");
-    // The run then stops deterministically at the linux architecture probe
-    // (the FAKE_SSH_OK ssh answers with empty output).
+    // Checksums and the pre-execution identity check pass; the run then stops
+    // deterministically at the linux architecture probe (the FAKE_SSH_OK ssh
+    // answers with empty output).
+    expect(result.stdout).toContain("every bundle matches tree");
     expect(result.status).not.toBe(0);
     expect(result.stderr).toContain("unsupported architecture");
+  });
+
+  it("proves bundle identity BEFORE executing anything", () => {
+    const { fixture, fake } = prFixture();
+    writeFileSync(
+      join(fake.state, "runs.json"),
+      JSON.stringify([
+        {
+          databaseId: 45,
+          conclusion: "success",
+          status: "completed",
+          displayTitle: runTitle(fixture, "v0.24.0-rc1"),
+        },
+      ]),
+    );
+    // Valid checksum, wrong tree: must die at the identity step, not at the
+    // copy/execute step (which would surface as the blocked fake scp).
+    seedBundle(fake, "ha-nova-installer-bundle-linux-amd64.tar.gz", { tree: "d".repeat(40) });
+
+    const result = runScript(fixture, fake, ["7"], { FAKE_SSH_OK: "1" });
+    expect(result.status, result.stdout).not.toBe(0);
+    expect(result.stderr).toContain("refusing to execute it");
+    expect(result.stderr).not.toContain("cannot copy");
   });
 
   it("refuses to reuse a success built under a different version_tag", () => {
@@ -504,8 +546,10 @@ describe("cloud evidence PR target binding", () => {
         },
       ]),
     );
-    seedBundle(fake, "ha-nova-installer-bundle-linux-amd64.tar.gz", true);
-    seedBundle(fake, "ha-nova-installer-bundle-windows-amd64.zip", false);
+    seedBundle(fake, "ha-nova-installer-bundle-linux-amd64.tar.gz", {
+      tree: fixture.mainTree,
+      checksum: false,
+    });
 
     const result = runScript(fixture, fake, ["7"], { FAKE_SSH_OK: "1" });
     expect(result.status, result.stdout).not.toBe(0);
