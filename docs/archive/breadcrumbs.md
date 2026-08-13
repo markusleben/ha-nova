@@ -1835,3 +1835,420 @@
 - The final polish fixes all three: RC -> stable now says `Return to stable`, Windows prerelease notes/docs explicitly say RC testing uses the installer path, and invalid relay version formats now surface as a warning instead of disappearing into a zero comparison.
 - A later doc-taxonomy audit showed the real drift source is not the active skill docs but the huge active-looking historical surface under the old superpowers tree, plus oversized `choices`/`breadcrumbs` ledgers and overlapping root/nova docs.
 - The first controlled cleanup step therefore avoids a giant archive sweep for now: it freezes new active docs out of the legacy superpowers path, adds a canonical governance map under `docs/reference/documentation-governance.md`, and moves the clearly dead former root plan files into `docs/archive/plans/`.
+## 2026-07-23 — v0.21.1 live; workspace clean
+
+- Stable release: `v0.21.1` from reviewed merge `d69166d`; final workflow, platform smokes, public macOS install/update/purge, RC, strict audit, disposable HA, and Windows matrix passed.
+- Worktree bootstrap fix merged as #429 (`771c3d0`): managed Codex worktrees install root/NOVA dependencies automatically; ignored local env overlays copy through `.worktreeinclude`.
+- Pre-push now removes repository-local `GIT_*` variables before nested temporary-repository tests, preventing test Git config from mutating the real repository.
+- Old merged worktrees and their local/remote topic branches removed. Only clean local `main` remains.
+- No follow-up release for #429: process/test bootstrap only; no shipped user behavior changed.
+
+## 2026-07-23 — Relay update readiness false positive fixed
+
+- Merged PR #430 as `4f3ef37` after green CI and a clean Codex review on source SHA `681ed48`.
+- Root cause: health and REST polling never opens the Relay's lazy upstream WebSocket, so `never_connected` was misreported as post-update degradation.
+- Fix: after target-version and update-entity verification, the skill and guided CLI send a WS ping and require the following health read to report connected.
+- Shared setup/doctor readiness now validates the ping envelope and post-ping health; onboarding and reference docs carry the same invariant.
+- Full `npm run verify` passed. No release/tag/publish; batch this into a later user-facing release.
+
+## 2026-07-23 — Census consent UX implemented
+
+- Branch `fix/census-consent-ux`.
+- Replaced the misleading anonymous/no-IP claim with the exact application-body versus Cloudflare transport distinction.
+- Added a standalone explicit Yes / No / Show exact data consent action contract; No is the safe default and census consent never competes with another action block.
+- Worker Request access now passes through one isolated adapter and is positively limited to method, URL, body, `content-type`, and `content-length`.
+- Regression checks cover user copy, choice semantics, read-only details, failed final-notice consent, public stats wording, and the Worker request-access allowlist.
+- Three adversarial reviews completed; all findings closed. Final `npm run verify` passed.
+- Release-like local CLI preview completed in an isolated temporary home. The first prompt was shortened after visual inspection; the second TTY preview and `census status` output were accepted for the implementation state. The post-copy full `npm run verify` passed.
+- Follow-up UX review removed visible attempt/ISO-week/application-body jargon. Consent now says "now and then at most once per week", describes the "message content (JSON)", and introduces Cloudflare as the census endpoint's hosting provider before explaining source-IP processing. A third isolated TTY preview and final full `npm run verify` passed.
+- Final adversarial pass found and fixed four classes: strict three-action TTY parity, deferred notices consuming unseen presentations, bypassable text-only Worker checks, and missing first-ping result feedback. Privacy docs now also disclose both retained uninstall safety markers; Worker logging flags and broad no-IP wording have regression gates.
+- Targeted checks and the final `npm run verify` pass after those fixes: 846
+  safe-core tests, 115 onboarding tests, 45 installer tests, the full Go suite,
+  68 release-contract tests, typechecks, documentation gates, and security
+  audits. The final isolated TTY preview confirmed option 3 shows the literal
+  JSON and rerenders the menu, then option 2 saves No. Temporary files were
+  moved to Trash.
+
+## 2026-07-24 — Census consent PR review
+
+- Draft PR #431 opened from `fix/census-consent-ux`; README stable-truth exception approved.
+- Codex reviewed source SHA `7ee74c2`; its already-satisfied README-label reminder was answered and resolved.
+- Initial Linux CI exposed a test-helper pipe deadlock hidden by macOS's larger pipe buffer. `captureStdout` now drains concurrently; the reproducer passed 20 times, the race-enabled reproducer passed three times, and the full CLI package passed.
+- Codex's second pass found a stale prompt assertion; the losing concurrency path now requires completely empty output.
+- Codex's third pass found legacy `skill_notices` could consume new visible-presentation slots. Census state schema 2 separates `skill_presentations`, reopens only the recognizable schema-1 unanswered auto-close, preserves explicit answers, and migrates on the first confirmed presentation.
+- Final PR SHA `7cd5e3e` received a clean Codex 👍 after all CI checks passed; all three review threads were resolved. PR #431 merged to `main` as `e2f0c835`.
+
+## 2026-07-24 — v0.21.2 hotfix live
+
+- Release scope: explicit census Yes/No/data-preview action, corrected legacy
+  presentation state, honest Cloudflare transport disclosure, and the reviewed
+  census Worker boundary from #431.
+- PR #432 merged after green CI and exact-SHA Codex review. Immutable release
+  merge: `8cadf9d6bc098ae90a38798c4c931559259d3663`; Relay remains 0.7.1.
+- RC `v0.21.2-rc1` passed release workflow `30073281100`, public Windows 11
+  standard-user onboarding through Proxmox VM 902, and public macOS install.
+- The released RC visibly passed census Details → No and a separate Yes flow.
+  The live Yes sent exactly one schema-valid payload; the next update did not
+  duplicate it. Public stats still show exactly that one intentional RC smoke.
+- Census Worker deployment
+  `839d40a8-9f45-4e06-b6a0-2ec17cff2149` is bound to the exact reviewed SHA
+  and passed local Durable Object plus public deployment verification.
+- Final strict release audit and disposable HA run `30074725603` passed on the
+  exact release SHA. Stable workflow `30075020166` passed all platform smokes.
+- `v0.21.2` is the latest public stable release with 16 complete SHA-256
+  attested assets; a clean public macOS install reported `0.21.2`.
+- The machine-specific Proxmox/Windows and census validation procedure is kept
+  outside Git at
+  `~/.codex/local-runbooks/ha-nova-proxmox-windows-release.md`.
+
+## 2026-07-24 — Census schema-2 implementation in progress
+
+- Branch `chore/remove-download-estimator`; the obsolete download estimator is
+  already removed in commit `3a6a355`.
+- Implemented new consent, dedicated random ID, rolling seven-day cadence,
+  14-day Relay freshness, withdrawal, and uninstall withdrawal in the Go CLI.
+- Implemented SHA-256 deduplicated Durable Object records, 21/60-day
+  aggregation and retention, private Access-protected dashboard/API, separate
+  legacy activity, and official Relay App Analytics.
+- Local Workerd + SQLite proof passed: two reports from one ID counted once,
+  unauthenticated stats returned 403, and withdrawal restored zero.
+- No merge, tag, Worker deployment, or release yet. User has one additional
+  fix to provide after this Census change is fully tested; release must wait.
+
+## 2026-07-24 — Census hardening checkpoint
+
+- Three adversarial reviews completed; consent-token, privacy, rate-limit,
+  storage-cardinality, Access JWT, release rollback, and cleanup findings
+  fixed in one pre-PR batch.
+- Targeted TypeScript, AST request-boundary, Worker/privacy/skill, Go Census,
+  and release fail-closed/rollback tests pass.
+- Fresh real local Wrangler 4.113.0 Workerd + SQLite proof passes:
+  unauthorized stats 403, invalid schema 400, schema-1 separation, same-ID
+  deduplication, aggregate privacy shape, and withdrawal.
+- Canonical `npm run verify` passes after one transient npm-registry 503 retry:
+  both production audits, 846 safe-core tests, 45 installer tests, 115
+  onboarding tests, full Go CLI, build/docs/typechecks, and 78 release tests.
+- No production mutation. Release remains blocked on the user's additional
+  fix, then a new full verification and normal PR/review/RC sequence.
+
+## 2026-07-24 — Issues #433 and #434 local implementation
+
+- #434: strict UTF-16/32 detection, response UTF-8 validation, deterministic
+  BOM-less `--out`, PowerShell 5.1 safe read/write guidance, and multi-category
+  Unicode byte-roundtrip regressions implemented.
+- #433: Health Skill now joins states, config entries, entity registry, and
+  device registry into capped aggregate availability context with restored,
+  current, concentration, source-coverage, and privacy rules.
+- Targeted Go, Vitest, documentation, PowerShell syntax, and German agent
+  output checks pass. The hostile-key/identifier fixture emits no secret,
+  hostname, raw state, ID, or title.
+- Three adversarial reviewers are CLEAN on the exact final local delta.
+- Final canonical `npm run verify` passes: both production audits, 870
+  safe-core tests, 45 installer tests, 115 onboarding tests, full Go CLI,
+  build/docs/typechecks, and 78 release-contract tests.
+- Next: port Census, #433, and #434 into independent clean worktrees before
+  any commit, PR, merge, Worker deployment, tag, or release.
+
+## 2026-07-24 — 0.21.3 release checkpoint
+
+- #436 merged as `d7630ac`; issue #433 is closed.
+- #435 merged as `3bcda0a`; issue #434 is closed.
+- #437 merged as `29b0421` after four Codex finding-class fixes and an exact
+  clean result on `c43960c`.
+- Release-prep PR #438 is open on `71fecc7`. Local full verification and the
+  1,122-test pre-push gate pass.
+- Remaining sequence: exact-SHA PR clearance, strict audit, disposable HA E2E,
+  RC publish/public installer tests, Cloudflare Access-protected Census Worker
+  deployment, final tag, and stable public-install verification.
+
+## 2026-07-24 — 0.21.3 released
+
+- PRs #435, #436, #437, and release-prep #438 merged; issues #433 and #434
+  closed.
+- Exact reviewed merge commit `ac9b4d0` passed strict release audit,
+  disposable Home Assistant E2E, RC publication, real Windows 11/PowerShell 7
+  Proxmox install, real Census Yes/deduplication/withdrawal, and final
+  three-runner installer smoke.
+- Stable `v0.21.3` published with 16 SHA-256-attested assets. Public macOS
+  install, version, check-update, and same-version update passed.
+- Production Census Worker version
+  `9604263a-9942-4087-9e55-dfc5034b9334` serves public `/ping` and
+  `/withdraw`; Cloudflare Access protects `/stats*`.
+- Human statistics access is restricted to
+  `markus.czerwonka@gmail.com`. The release verifier service token is stored
+  only in the local macOS Keychain. The accidentally exposed, never-bound
+  predecessor token was deleted.
+- The old download-estimation script is removed. Census client installations
+  and official Relay App installations remain distinct metrics and are never
+  added.
+
+## 2026-07-24 — Local runbook cleanup
+
+- `~/.codex/local-runbooks/ha-nova-census-operator.md` is the sole local
+  source for Census/Cloudflare operation, Keychain access, reviewed Worker
+  deploy, macOS/Linux Census E2E, and private-statistics interpretation.
+- `~/.codex/local-runbooks/ha-nova-proxmox-windows-release.md` now contains
+  only the real Windows 11/PowerShell 7 Proxmox lane and links to the Census
+  runbook.
+- Removed duplicated Census instructions and the stale `v0.21.2-rc1`
+  validation claim. Retained the intentional Wrangler `4.113.0` pin because
+  it matches the reproducible release/deploy contract.
+- Repository follow-up completed locally on branch
+  `docs/archive-completed-work-docs`: completed specs, release drafts, and
+  source assets moved to `docs/archive/work/`; only three genuinely active
+  work docs remain. CI now enforces active statuses and future release-draft
+  versions. Full verification passed. Branch is not pushed.
+
+## 2026-07-24 — Census purpose copy
+
+- PR #439 merged to `main` as `e304aec` and explains before consent how
+  voluntary installation/version/OS statistics guide compatibility, tests,
+  fixes, and new-feature priorities.
+- Direct CLI, skill-mediated localized choice, status/help, Census reference,
+  privacy notice, tests, and the 0.21.4 release-body draft are aligned.
+- Visible skill output is capped at five ordered information lines; the
+  Cloudflare line explicitly preserves HA NOVA's source-IP non-reading and
+  non-storage guarantee.
+- No payload, consent schema, cadence, or existing Yes/No decision changes.
+- Full `npm run verify`, CI, and exact-SHA Codex review pass. No release or
+  tag was created.
+
+## 2026-07-25 — Census source labels and clean baseline
+
+- PR #441 merged as `56f1679`; reviewed Worker deploy completed as Cloudflare
+  version `09c0fbef-c6d6-4ae8-b374-7f7cc783fd89`.
+- `/stats` now labels HA NOVA Census and external Home Assistant Analytics as
+  independent sources, warns against adding them, and links the raw Analytics
+  dataset plus Relay App slug.
+- Production `installations`, `counters`, and `admission_days` were cleared
+  after deploy verification; direct SQL counts are all zero. New public pings
+  remain enabled and will repopulate Census data normally.
+- A temporary release token was added for the deploy, removed from the policy,
+  and deleted afterward. The existing `ha-nova-census-release-verifier-v2`
+  policy/token and its macOS Keychain credentials remain intact.
+- PR #442 fixed the rollback bug as merge commit `b93da45`: the wrapper now
+  reads the active deployment through `deployments status`, validates exact
+  version state, waits for delayed deployment settlement, and refuses unsafe
+  concurrent rollback. Stateful regressions, full CI, and exact-SHA Codex
+  review passed. No Worker deploy or Census data change was needed.
+
+## 2026-07-28 — Cloud Source Gate controlled canary
+
+- Remote baseline remains `origin/main`
+  `1c40a6c5fff4235b4bb571b824841e8d68a312ec`; main CI and CodeQL are green.
+- Exactly one controlled canary used PR #457. Its completed delivery confirmed
+  PR #456 cleanup and terminal-reporting behavior, but the merge source
+  materialized immediately after the former 60-second window. PR #457 was
+  closed unmerged; its remote branch was deleted.
+- The Cloud Source Gate and Dependabot safe auto-merge are again manually
+  disabled. No release, RC, tag, Cloud activation, or second canary occurred.
+- Docs-only PR #458 corrects the stale four-minute claim to the workflow's
+  actual ten-minute timeout. Head `a67cd1d`; CI, CodeQL, and Codex are clean.
+- Fix PR #459 hardens the 90-second boundary, stale-attempt terminal guards,
+  and ambiguous GitHub check reconciliation. Head `c524adc`; all checks,
+  CodeQL, exact-SHA Codex review, and review-thread resolution are clean.
+- Known merged/closed Cloud worktrees are clean obsolete candidates. None were
+  removed; the dirty root worktree and all unrelated Census, Health, and
+  Unicode work remain untouched.
+
+## 2026-07-28 — Final Cloud Source Gate canary and follow-up
+
+- PR #459 merged as `c378d97`; PR #458 merged as `79e32ee`. Post-merge CI and
+  CodeQL were green on `origin/main` `79e32ee93f4c6bd72c1af78d54f6ac8bdbf96f4b`.
+- Exactly one new controlled canary used PR #460 and CI run `30344333192`.
+  CI passed. The initial Cloud Source Gate delivery created one provisional
+  App check; the completed delivery rejected it after the full PR API kept
+  `merge_commit_sha` null for the entire 90-second window even though
+  `refs/pull/460/merge` and its exact commit already existed.
+- The Cloud Source Gate was disabled immediately after the terminal failure.
+  No retry or second canary was started. PR #460 was closed unmerged and its
+  remote branch was deleted.
+- Fix PR #461 was reviewed at exact head
+  `b30ad1f39d2bf1d31d7ef281c3a9c965e72c5567` and merged as
+  `d5c4e0730fbe8dbd3c1cdfaffc284c98882ae889`. All PR checks, the real
+  exact-SHA Codex review, and post-merge CI/CodeQL are green.
+- Cloud Source Gate and Dependabot Safe Auto-Merge remain manually disabled.
+  Cloud remains `false` / `[]`; public version remains `v0.21.3`. No release,
+  RC, tag, Cloud activation, or README release claim occurred.
+- All inventoried Cloud/Nabu worktrees are clean. Eleven historical worktrees
+  are safe obsolete candidates; none were removed. Only the merged remote
+  branches left behind for PRs #458 and #459 were deleted; their local
+  worktrees remain recoverable.
+
+## 2026-07-28 — Post-fix Cloud Source Gate canary
+
+- A separately approved, single-shot post-fix canary used PR #462 at empty
+  head `29040cb2a307abcd1640eb0363c17f3eef19ed42`, based on current `main`
+  `d5c4e0730fbe8dbd3c1cdfaffc284c98882ae889`.
+- CI run `30350929658` passed. The expected in-progress and completed
+  Cloud Source Gate deliveries, runs `30350941030` and `30351202739`, both
+  passed and updated one dedicated `ha-nova-cloud-source-gate` App check from
+  provisional to terminal success.
+- The merge ref `c7b1273ec820ff53322344a6dcd94c007496063a`
+  had the exact ordered parents `main`, then canary head. This confirms the
+  final terminal lifecycle and strict merge-source proof on merged PR #461
+  code. The live logs do not expose whether GitHub's full PR API was null at
+  the proof instant, so they do not independently prove that the null-API
+  fallback branch executed.
+- Cloud Source Gate was disabled immediately after the terminal result.
+  PR #462 was closed unmerged and its exact remote branch was deleted. No
+  rerun, release, RC, tag, Cloud activation, README claim, secret change, or
+  GitHub App removal occurred.
+- All 13 inventoried Cloud/Nabu worktrees are clean and have merged or closed
+  PRs, so they are safe obsolete candidates. None were removed. The dirty root
+  worktree and unrelated Census, Health, and Unicode work remain untouched.
+
+## 2026-07-28 — Markus Cloud wizard smoke prepared
+
+- Clean local worktree `cloud-wizard-manual-20260728` is based on current
+  `main`; only its two version metadata files enable Cloud for `darwin`. It is
+  local-only and has no push, PR, tag, or release.
+- Reused the already running isolated `local_ha_nova_relay_test` App
+  (`NOVA Relay CLOUD E2E`, host ports `18791`/`18792`), whose metadata already
+  enables Cloud only for `darwin`. The production App was not modified.
+- A redundant test App created during preparation could not start because
+  those ports belong to the existing E2E App. It was uninstalled, and its
+  source directory was moved recoverably below `/addons/local/.trash/`.
+- Built one stable ad-hoc hardened-runtime macOS candidate for the existing
+  test App. The isolated launchers live below
+  `~/Library/Caches/ha-nova-cloud-wizard-test-20260728/`, preserve the desktop
+  login `HOME`, use dedicated config/keyring namespaces, and force
+  `HA_NOVA_NO_CENSUS=1`.
+- Controlled launcher smoke reached the real Wizard client prompt and exited
+  cleanly. No config, Census state, or Keychain entry was created.
+- Full tagged Go tests had one environment-only failure because the global
+  Homebrew Node binary cannot load its `simdjson` dylib. Cloud/Wizard tests ran;
+  the candidate build and hardened signature verified successfully. Global
+  Node/Homebrew was not changed.
+- User action remains: run `run-wizard.sh`, complete local device pairing
+  against `NOVA TEST`, accept the in-Wizard Cloud step, then exercise local and
+  Cloud health with `ha-nova-test.sh`.
+
+## 2026-08-03 — Phase 1 start: write-path fail-closed hardening
+
+- Branch `fix/write-path-fail-closed-hardening` carries #493 + #489 + roadmap
+  housekeeping. Verified: `tests/skills/` (374), `verify:docs`, typecheck, and
+  `project-docs-contract` after the PROJECT.md roadmap pointer change.
+- Contract pins adjusted in the same change: scene delete consumer wording,
+  write delete-preview wording, new pins for the write-probing asymmetry and
+  the canonical consumer filter (`ha-safety-contract.test.ts`).
+- Open next per `docs/work/2026-08-03-backlog-sequencing.md`: #482 (NOVA page
+  device list, expect a reference-platform Cloud smoke) and #446 (Census test
+  isolation; static gate must be script-based — workflow files are frozen to
+  uses:-only deltas).
+
+## 2026-08-04 — Overnight run: stacked review train through phases 2-3
+
+- Stacked-open-PR strategy active (maintainer decision): every PR completes
+  its Codex cycle and STAYS OPEN with `cloud-source-gate` red; merges happen
+  only in the final pre-release merge train (rebase → fresh SHA-specific
+  @codex clearance → fresh evidence envelope per merge). No gate bypassed.
+- Stack: #495 merged evidence-cycled earlier; #496-#499 review-clean;
+  #500/#501 in late Codex rounds (calibration + home-status oracle);
+  #502 release-prep (two P1s are the by-design stacking observation,
+  answered in-thread; final clearance comes from the merge-train rebase
+  SHA); #503 HACS spec (file-read reconcile evidence removed after R1);
+  #504 add-server wizard (#411) with a 2-agent adversarial pre-PR pass
+  (install-wide client_install_id seeding was the HIGH).
+- Oracle refactor: `_health-availability-oracle.ts` split into
+  `_health-availability-detail.ts` (selection pools, budget, privacy
+  rendering) under the ~400-line guideline; suite at 395 tests.
+- User rules recorded in memory: delete obsolete/overlapping tests instead
+  of stacking new ones; never switch branches while subagents review the
+  working tree (contaminates `git diff --cached`).
+
+## 2026-08-04 (Nachmittag) — Stack review-clean; Konvergenz-Regeln
+
+- Alle Stack-PRs review-clean mit 0 offenen Threads: #500 (14 Runden),
+  #501 (10), #503 (7), #504 (7); #495-#499 waren es bereits. #502 wartet
+  by-design (Stacking-P1s beantwortet, Threads offen als Merge-Train-Marker).
+- Maintainer-Entscheidung "Triage-Cut" nach Runde ~5 auf Contract-PRs; als
+  Regeln in AGENTS.md via PR #505 (convergence cap + contract-PR split;
+  R1-P1 präzisierte: Triage nach Echtheit/Schwere, nie Reparaturgröße).
+- Verbleibende Maintainer-Schritte: Merge-Train (#496→…→#501→#504→#505→#502;
+  je Rebase → frisches @codex-Clean auf dem Rebase-SHA → Evidence-Envelope →
+  Squash-Merge; #482-Delta ⇒ Cloud-Smoke mit frischem isoliertem Profil),
+  danach v0.23.0 mit RC-Rehearsal (Go-Deltas im Stack), Test-Worker-Deploy
+  + Access-Secrets (#446), HACS-Implementierung als Phase-3-Paket danach.
+
+## 2026-08-04 (Abend) — HACS-Implementierung clean; Stack komplett
+
+- PR #506 (skills/hacs/ + Wiring + Contract-Tests) clean nach 4 Codex-Runden;
+  Pre-PR-Pass mit 2 worktree-isolierten Refutern fing 22 Findings, darunter
+  das invertierte Pin-Rezept (download cleart selected_tag im finally —
+  version gehört IN den download, Pin danach) und zwei nicht ausführbare
+  Pfade (WS-only Lovelace-Reads, fehlender config-entry-DELETE-Weg).
+- Stack final für den Merge-Train (Reihenfolge): #496 #497 #498 #499 #500
+  #501 #504 #505 #506 → #502 zuletzt. Alle clean, alle Threads resolved
+  (außer #502s zwei bewussten Merge-Train-Markern).
+- Delivery-PR 2 (Migrations-Referenz + E2E + comparison.md-Sweep) nach dem
+  v0.23.0-Release als eigenes HACS-Release.
+
+## 2026-08-05 — Update-all modelliert, Drift-Check verankert, Stack final
+
+- HA 2026.7 "Update all" source-recherchiert (frontend-only, EIN Multi-Target
+  update.install, kein Backup-Flag, first-failure-only, System-Stack nie im
+  Batch) und in skills/updates modelliert: Guardrails gespiegelt, Call-Shape
+  bewusst nicht; HACS-Pin-Guard gilt für Einzel- UND Batch-Installs.
+- HACS-Skill live read-only verifiziert (hacs/info 2.0.5, 3940/70 Repos,
+  Feld-Asymmetrie, prerelease-Flags) gegen die Referenz-Instanz.
+- Upstream-Drift-Check als Prozessregel (PR #507) + append-only Log mit
+  ehrlicher NOT-SCREENED-Semantik; nächstes Fenster: MIT HA 2026.8 inkl.
+  2026.7-Dev-Blog-Backlog.
+- Finaler Stack (13 PRs, alle clean, alle Threads resolved): #495 gemerged;
+  #496-#501, #503, #504, #505, #506, #507 offen-clean; #502 by-design
+  wartend. Merge-Train: #496…#501, #504, #505, #506, #507, #502 zuletzt.
+- Lehre im Memory: Clean-Kriterium ist die unresolved-Threads-API, nie
+  Zeitfenster (Bot liefert Findings bis Stunden nach dem Verdikt nach).
+
+## 2026-08-09
+
+- v0.23.0-Zyklus bestätigt abgeschlossen: Merge-Train #495–#507 durch, Tag auf
+  `3d26b72`, Arbeitsbaum clean (schließt die Lücke seit dem 2026-08-05-Eintrag).
+- Sechs-Charter-Skill-Audit über alle 31 Skills @ 3d26b72 gefahren (Coverage,
+  externe Drift, interne Konsistenz, adversariale Sicherheit + Untrusted Data,
+  Verifikation/Release-Integrität, Agent-Wirksamkeit). Ergebnis: 0×P0, 2×P1
+  (beide service-call: Szenen-/Automation-Aktuation umgeht das High-Consequence-
+  Gate; recorder.purge ohne Deferral-Zeile), ~75 Findings gesamt.
+- Verifikationspass widerlegte Seed 9: Released 0.23.0 SHIPPT skills/hacs
+  (Tag 4 Commits nach dem hacs-Merge; Bundle + Plugin-Cache verifiziert);
+  beobachteter Roster-Quirk = Session-Start-Snapshot älter als Cache-Update.
+- Drift-Fenster geschlossen: 2026.7-Dev-Blog-Backlog abgearbeitet + 2026.8
+  gescreent (4 Hits, alle P2/P3; 11 read-only Live-Probes @ HA 2026.8.0);
+  append-only Eintrag im Drift-Log.
+- Deliverables: Report-PR #523 (Audit + Drift-Log), Quick-Win-PRs #524
+  (Referenz-Doku-Truth-Sweep) + #525 (Skill-Korrekturen, 11 Dateien),
+  Issues #513–#522 (P1-Cluster einzeln, Chancen thematisch), dieses
+  Housekeeping als PR C.
+- Review-Endstand Audit-Train: #523/#524/#525/#526 alle Codex-clean (👍 +
+  codex-review-gate SUCCESS auf finalem SHA, 0 unresolved Threads; 10 Findings
+  über 3 Runden gefixt). Einziger Blocker: cloud-source-gate (required, strict)
+  lehnt alle 4 mit "Trusted source verification failed" ab — Evidence-Regime
+  bei cloud_remote_enabled; CI-Rerun ändert NICHTS (auf #525 verifiziert).
+  Merge wartet auf Maintainer-Entscheid (Envelope-Dispatch/Train/Gate-Prüfung).
+  Merge-Reihenfolge wenn frei: #523 vor #526 (Roadmap-Pointer-Abhängigkeit).
+- Nachbohr-Welle auf User-Wunsch ("es muss noch Lücken geben"): 5 parallele
+  Agents (Alltags-Persona 50 Utterances, Power-User 7 Sessions, Neuling/Delight,
+  frischer ha-mcp-v8.1.1-Diff 88/88 Tools, Domain-Tiefe 17 Domains) → 48 neue
+  Findings → Issues #527 (Alltags-Convenience), #528 (Erste Stunde/Delight),
+  #529 (Power-Workflows), #530 (Domain-Tiefe inkl. Drift-Fund color_temp-mireds
+  + vacuum.clean_area; Drift-Log-Backfill 2026.1-2026.6 fällig), #531
+  (Wettbewerbs-Entscheide: Radio-Writes, Backup-Restore-Haltung, Supervisor-
+  Logs-Relay-Delta) + Kommentare auf #519/#520/#522.
+- Umsetzungswelle nach dem Audit (User: "alles angehen"): PRs #532 (#513 P1-
+  Sicherheit, geteilte indirect-actuation.md), #533 (#530 Domain-Tiefe,
+  Feature-Bits quellenverifiziert), #534 (#514 Drift-STOP), #535 (#518 Routing/
+  Descriptions), #536 (#515 Test-Pins + Dead-Hand-off-Detektor, mutations-
+  getestet). Zusammen mit #523-#526 stehen 9 PRs im Train.
+- Live-Fund, der den P1 belegt: script.turschloss_haustur_aufdrucken ruft
+  lock.open auf lock.haustur_offner — auf main öffnet "führ das Skript aus"
+  die Haustür auf ein natürliches "ja".
+- Codex-Bilanz 3 Runden: ~22 Findings, alle real außer einem (behauptetes
+  TOGGLE_TILT-Bit 512 existiert nicht — mit Quelle abgelehnt, Negativ-Pin).
+  Zwei eigene Regressionen gefangen: current_position in Szenen und
+  media_player-Feldname bei play_stream.
+- Muster fürs nächste Mal: "absence IS the basis" musste dreimal separat
+  nachgezogen werden (yaml neue Datei, list_dir-500-Deckel, energy
+  first-time-setup) — bei Drift-Checks von Anfang an den Nicht-Existenz-Fall
+  mitdenken.
+
