@@ -126,6 +126,7 @@ verify_checks() {
     case "${check_name}" in
       analyze) expected_workflow=".github/workflows/codeql.yml"; expected_event="pull_request" ;;
       ci-gate) expected_workflow=".github/workflows/ci.yml"; expected_event="pull_request" ;;
+      go-test) expected_workflow=".github/workflows/ci.yml"; expected_event="pull_request" ;;
       dependency-review) expected_workflow=".github/workflows/dependency-review.yml"; expected_event="pull_request" ;;
       manifest-review-gate) expected_workflow=".github/workflows/manifest-review-gate.yml"; expected_event="pull_request_target" ;;
       readme-release-gate) expected_workflow=".github/workflows/readme-release-gate.yml"; expected_event="pull_request_target" ;;
