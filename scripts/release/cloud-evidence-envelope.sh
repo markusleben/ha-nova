@@ -91,8 +91,19 @@ build_template_envelope() {  # <commit> <tree> <relay-version> <platforms-newlin
 repo_stamp() { gh api "repos/$REPO/actions/secrets/$SECRET_NAME" --jq .updated_at 2>/dev/null || true; }
 env_stamp() { gh api "repos/$REPO/environments/production/secrets/$SECRET_NAME" --jq .updated_at 2>/dev/null || true; }
 
+# Serialize the two-write pair against concurrent invocations on this machine
+# (parallel agent sessions are normal on this workstation). Two interleaved
+# pairs could leave the two locations holding DIFFERENT envelopes while both
+# invocations see advancing stamps. Cross-machine racing is not this repo's
+# operating shape and is deliberately not attempted. The lock is NOT removed
+# when a write fails mid-pair: the secret state is uncertain then, and the
+# next invocation must be a deliberate one.
+CLOUD_EVIDENCE_WRITE_LOCK="${TMPDIR:-/tmp}/ha-nova-cloud-evidence-write.lock"
+
 set_both_secrets() {  # <envelope-json>
   local body="$1" before_repo before_env after_repo after_env
+  mkdir "$CLOUD_EVIDENCE_WRITE_LOCK" 2>/dev/null \
+    || die "another invocation appears to be writing the evidence secrets (lock: $CLOUD_EVIDENCE_WRITE_LOCK) — if none is running, remove that directory and re-run"
   before_repo="$(repo_stamp)"; before_env="$(env_stamp)"
   step "writing $SECRET_NAME (repository secret)"
   gh secret set "$SECRET_NAME" --repo "$REPO" --body "$body" \
@@ -115,4 +126,5 @@ set_both_secrets() {  # <envelope-json>
     || die "production environment secret updated_at did not advance (before: '${before_env:-absent}', after: '${after_env:-absent}') — verify by hand before relying on the gate"
   echo "  repository secret:             updated_at $after_repo"
   echo "  production environment secret: updated_at $after_env"
+  rmdir "$CLOUD_EVIDENCE_WRITE_LOCK" 2>/dev/null || true
 }

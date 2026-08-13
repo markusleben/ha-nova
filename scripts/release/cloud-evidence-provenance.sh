@@ -104,24 +104,29 @@ provenance_unix() {  # <label> <archive> <ssh-host|"">
   if [ -z "$host" ]; then
     bash -c "$script" _ "$archive" >"$work/$label.out" 2>&1
   else
-    scp -q -o BatchMode=yes "$archive" "$host:ha-nova-candidate.tar.gz" \
+    # Invocation-unique remote name: two concurrent runs against the same lab
+    # host must not swap each other's archive between the scp and the ssh.
+    local remote_archive="ha-nova-candidate-$$.tar.gz"
+    scp -q -o BatchMode=yes "$archive" "$host:$remote_archive" \
       || die "$label: cannot copy the bundle to $host"
     # `bash -s` has no $0 slot: arguments land on $1 directly, unlike the
     # `bash -c "$script" _ "$archive"` form used for the local run.
     local status=0
-    ssh -o BatchMode=yes "$host" "bash -s ha-nova-candidate.tar.gz" <<<"$script" \
+    ssh -o BatchMode=yes "$host" "bash -s $remote_archive" <<<"$script" \
       >"$work/$label.out" 2>&1 || status=$?
     # Capture BEFORE cleaning up. Called in an `|| die` list, errexit is off in
     # here, so a cleanup that succeeds would otherwise become the function's
     # status and a failed provenance run would read as a pass.
-    ssh -o BatchMode=yes "$host" "rm -f ha-nova-candidate.tar.gz" >/dev/null 2>&1 || true
+    ssh -o BatchMode=yes "$host" "rm -f $remote_archive" >/dev/null 2>&1 || true
     return $status
   fi
 }
 
 provenance_windows() {  # <archive>
   local archive="$1"
-  scp -q -o BatchMode=yes "$archive" "$WINDOWS_SSH:ha-nova-candidate.zip" \
+  # Invocation-unique remote name, same reason as the unix path.
+  local remote_zip="ha-nova-candidate-$$.zip"
+  scp -q -o BatchMode=yes "$archive" "$WINDOWS_SSH:$remote_zip" \
     || die "windows: cannot copy the bundle to $WINDOWS_SSH"
   # -EncodedCommand, not -Command: a multi-line script does not survive the
   # ssh argument boundary and PowerShell answers with its usage text.
@@ -129,7 +134,7 @@ provenance_windows() {  # <archive>
   ps="\$ErrorActionPreference='Stop'
 \$ProgressPreference='SilentlyContinue'
 \$d = Join-Path \$env:TEMP ('ha-nova-' + [guid]::NewGuid())
-Expand-Archive -LiteralPath ha-nova-candidate.zip -DestinationPath \$d
+Expand-Archive -LiteralPath $remote_zip -DestinationPath \$d
 \$root = Join-Path \$d 'ha-nova'
 Write-Output '$BEGIN_MARK'
 Get-Content (Join-Path \$root 'bundle.json') -Raw
@@ -144,6 +149,6 @@ Remove-Item -Recurse -Force \$d"
   local status=0
   ssh -o BatchMode=yes "$WINDOWS_SSH" "$shell -NoProfile -EncodedCommand $encoded" \
     >"$work/windows.out" 2>&1 || status=$?
-  ssh -o BatchMode=yes "$WINDOWS_SSH" 'cmd /c "del ha-nova-candidate.zip"' >/dev/null 2>&1 || true
+  ssh -o BatchMode=yes "$WINDOWS_SSH" "cmd /c \"del $remote_zip\"" >/dev/null 2>&1 || true
   return $status
 }

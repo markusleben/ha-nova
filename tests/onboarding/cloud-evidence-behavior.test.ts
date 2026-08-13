@@ -198,6 +198,10 @@ function runScript(
       FAKE_GH_STATE: fake.state,
       FAKE_GH_LOGIN: "testowner",
       HA_NOVA_REPO: REPO_SLUG,
+      // Per-test TMPDIR: the secret-write lock lives under TMPDIR, and a
+      // deliberately-failing write keeps it — a shared /tmp would leak that
+      // stale lock into the next suite run.
+      TMPDIR: fake.state,
       ...extraEnv,
     },
   });
