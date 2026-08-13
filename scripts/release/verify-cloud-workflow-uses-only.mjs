@@ -12,6 +12,11 @@ const policy = JSON.parse(
 );
 const sensitive = new Set(policy.cloud_source_gate?.sensitive_workflows ?? []);
 const resolvedTags = new Map();
+const candidateBundlePath = ".github/workflows/cloud-candidate-bundle.yml";
+const inertRunName =
+  "run-name: Cloud candidate PR #${{ inputs.pull_request }} ${{ inputs.version_tag }} (${{ inputs.request_id }})";
+const quotedRunName =
+  'run-name: "Cloud candidate PR #${{ inputs.pull_request }} ${{ inputs.version_tag }} (${{ inputs.request_id }})"';
 
 function fail(message) {
   console.error(`[verify-cloud-workflow-uses-only] ERROR: ${message}`);
@@ -27,6 +32,33 @@ function git(args, encoding = "utf8") {
   } catch {
     fail(`git ${args[0]} failed`);
   }
+}
+
+// One-time exception (#574): the candidate-bundle workflow may change EXACTLY
+// its run-name line from the inert unquoted form (the unquoted `#` starts a
+// YAML comment, so the interpolations never reach any run) to the quoted
+// form. The path is Cloud-release-sensitive, so unlike the #552 precedent
+// this predicate is consulted BEFORE the sensitive denylist — which is why it
+// pins the ENTIRE file transformation: the inert line must occur exactly
+// once, the after-image must equal the before-image with only that line
+// replaced, and the caller additionally requires it to be the sole workflow
+// delta. The follow-up PR that applies the fix must make THREE coordinated
+// edits: (1) quote the run-name line in the workflow, (2) update the
+// inert-line pin in scripts/release/verify-cloud-candidate-workflow.mjs to
+// the quoted form (it runs in the weekly audit and the release rehearsal),
+// and (3) remove this block plus
+// tests/onboarding/cloud-candidate-runname-handoff-behavior.ts and its
+// side-effect import in cloud-release-gate-behavior.ts.
+function isOneTimeRunNameQuoteFix(path, baseRef, targetRef) {
+  if (path !== candidateBundlePath) {
+    return false;
+  }
+  const before = git(["show", `${baseRef}:${path}`]);
+  const after = git(["show", `${targetRef}:${path}`]);
+  if (before.split(inertRunName).length - 1 !== 1) {
+    return false;
+  }
+  return after === before.split(inertRunName).join(quotedRunName);
 }
 
 function workflowEntries(ref) {
@@ -222,6 +254,10 @@ if (
 ) {
   fail("enabled Cloud source may not add, delete, or rename workflows");
 }
+const changedWorkflowCount = [...base].filter(
+  ([path, entry]) => target.get(path).blob !== entry.blob,
+).length;
+
 let changed = 0;
 for (const [path, baseEntry] of base) {
   const targetEntry = target.get(path);
@@ -232,6 +268,12 @@ for (const [path, baseEntry] of base) {
     continue;
   }
   changed += 1;
+  if (isOneTimeRunNameQuoteFix(path, baseCommit, targetCommit)) {
+    if (changedWorkflowCount !== 1) {
+      fail(`${path} one-time run-name quote fix must be the sole workflow delta`);
+    }
+    continue;
+  }
   if (sensitive.has(path)) {
     fail(`${path} is Cloud-release-sensitive`);
   }
