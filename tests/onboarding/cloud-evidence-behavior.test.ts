@@ -421,17 +421,41 @@ describe("cloud evidence PR target binding", () => {
   // toolchain, and the fake ssh guarantees nothing real is ever reached.
   const platforms = ["linux"];
 
-  function prFixture() {
-    const fixture = initFixture(platforms);
-    const fake = makeFakeBin({
+  function prJson(fixture: Fixture, overrides: Record<string, unknown> = {}) {
+    return {
       state: "open",
+      draft: false,
       mergeable_state: "clean",
       merge_commit_sha: fixture.mainCommit,
-    });
+      base: { ref: "main" },
+      head: { repo: { full_name: REPO_SLUG } },
+      ...overrides,
+    };
+  }
+
+  function prFixture() {
+    const fixture = initFixture(platforms);
+    const fake = makeFakeBin(prJson(fixture));
     // GitHub's synthetic merge ref, served by the local bare origin.
     git(fixture.originGit, "update-ref", "refs/pull/7/merge", fixture.mainCommit);
     return { fixture, fake };
   }
+
+  it("refuses a PR that does not target main", () => {
+    const fixture = initFixture(platforms);
+    const fake = makeFakeBin(prJson(fixture, { base: { ref: "release-train" } }));
+    const result = runScript(fixture, fake, ["7"]);
+    expect(result.status, result.stdout).not.toBe(0);
+    expect(result.stderr).toContain("not main");
+  });
+
+  it("refuses a fork-headed PR", () => {
+    const fixture = initFixture(platforms);
+    const fake = makeFakeBin(prJson(fixture, { head: { repo: { full_name: "someone/fork" } } }));
+    const result = runScript(fixture, fake, ["7"]);
+    expect(result.status, result.stdout).not.toBe(0);
+    expect(result.stderr).toContain("same-repo branches");
+  });
 
   it("refuses an envelope whose commit_sha is not the resolved target commit", () => {
     const { fixture, fake } = prFixture();
@@ -541,12 +565,7 @@ describe("cloud evidence PR target binding", () => {
 
   it("refuses a draft PR before any dispatch", () => {
     const fixture = initFixture(platforms);
-    const fake = makeFakeBin({
-      state: "open",
-      draft: true,
-      mergeable_state: "blocked",
-      merge_commit_sha: fixture.mainCommit,
-    });
+    const fake = makeFakeBin(prJson(fixture, { draft: true, mergeable_state: "blocked" }));
     const result = runScript(fixture, fake, ["7"]);
     expect(result.status, result.stdout).not.toBe(0);
     expect(result.stderr).toContain("is a draft");
@@ -554,11 +573,7 @@ describe("cloud evidence PR target binding", () => {
 
   it("refuses a closed PR and points at --repoint", () => {
     const fixture = initFixture(platforms);
-    const fake = makeFakeBin({
-      state: "closed",
-      mergeable_state: "unknown",
-      merge_commit_sha: fixture.mainCommit,
-    });
+    const fake = makeFakeBin(prJson(fixture, { state: "closed", mergeable_state: "unknown" }));
     const result = runScript(fixture, fake, ["7"]);
     expect(result.status, result.stdout).not.toBe(0);
     expect(result.stderr).toContain("use --repoint instead");

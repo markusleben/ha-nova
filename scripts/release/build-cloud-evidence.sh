@@ -169,11 +169,17 @@ state="$(jq -r .state <<<"$pr_json")"
 mergeable="$(jq -r '.mergeable_state // "unknown"' <<<"$pr_json")"
 merge_commit="$(jq -r '.merge_commit_sha // ""' <<<"$pr_json")"
 [ "$state" = "open" ] || die "PR #$PR is $state — after a merge, use --repoint instead"
-# Explicit .draft check: a draft can surface as mergeable_state "blocked",
-# which is accepted below, and the candidate workflow rejects drafts anyway —
-# refuse here instead of burning the dispatch.
+# Mirror the candidate resolver's PR eligibility predicate locally (draft,
+# base branch, same-repo head — resolve-cloud-candidate-source.sh): every one
+# of these would only be rejected AFTER the dispatch and burn the run.
 [ "$(jq -r '.draft // false' <<<"$pr_json")" != "true" ] \
   || die "PR #$PR is a draft — mark it ready for review first; the candidate workflow rejects drafts"
+base_ref="$(jq -r '.base.ref // ""' <<<"$pr_json")"
+[ "$base_ref" = "main" ] \
+  || die "PR #$PR targets '${base_ref:-unknown}', not main — the candidate workflow only builds PRs into main"
+head_repo="$(jq -r '.head.repo.full_name // ""' <<<"$pr_json")"
+[ "$head_repo" = "$REPO" ] \
+  || die "PR #$PR's head lives in '${head_repo:-unknown}', not $REPO — the candidate workflow only builds same-repo branches"
 case "$mergeable" in
   # `blocked` is the EXPECTED state here: cloud-source-gate is a required check
   # and it is red precisely because the envelope this script prepares does not
@@ -288,12 +294,16 @@ work="$(mktemp -d)"
 # released by the EXIT trap on every outcome; cross-machine or manual-UI
 # overlap stays possible and lands in the same identity refusal, fail-closed.
 MINT_LOCK="${TMPDIR:-/tmp}/ha-nova-cloud-evidence-mint.lock"
+# Release only a lock THIS process acquired: a contender that dies on the
+# failed mkdir must not rmdir the owner's live lock on its way out.
+MINT_LOCK_ACQUIRED=0
 # Keep the work dir on failure: every provenance `die` names a log inside it,
 # and deleting it on the way out destroyed the diagnostics for the most
 # expensive stage of the run.
-trap '{ [ "${KEEP_WORK:-0}" = 1 ] && echo "[cloud-evidence] logs kept in $work" || rm -rf "$work"; }; rmdir "$MINT_LOCK" 2>/dev/null || true' EXIT
+trap '{ [ "${KEEP_WORK:-0}" = 1 ] && echo "[cloud-evidence] logs kept in $work" || rm -rf "$work"; }; { [ "$MINT_LOCK_ACQUIRED" = 1 ] && rmdir "$MINT_LOCK" 2>/dev/null; } || true' EXIT
 mkdir "$MINT_LOCK" 2>/dev/null \
   || die "another mint session appears to be running (lock: $MINT_LOCK) — if none is, remove that directory and re-run"
+MINT_LOCK_ACQUIRED=1
 
 # request_id is a REQUIRED dispatch input, derived deterministically for the
 # audit trail — but it cannot bind runs: the workflow's `run-name:` loses its
