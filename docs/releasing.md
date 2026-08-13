@@ -286,6 +286,15 @@ the merge commit and every later pull request fails the gate with the
 stale-evidence message, even a docs-only one that the escape should carry
 (observed on #560, the first pull request after the escape landed).
 
+The mechanical steps of this flow — resolving the exact merge target, binding
+and reusing the one candidate dispatch, verifying the artifact checksums,
+running the per-platform provenance checks, writing the secret to BOTH
+locations with verified timestamps, and the post-merge repoint — are
+automated by `scripts/release/build-cloud-evidence.sh` (usage in its header).
+The attestation never is: the script refuses to set any check boolean and
+takes the maintainer's envelope file as input. The commands above stay the
+canonical reference.
+
 All paths run:
 
 ```bash
@@ -427,30 +436,25 @@ Dispatch, capture, and monitor that single run:
 PR_NUMBER=469 # replace
 VERSION_TAG=v0.22.0-rc1 # replace
 REQUEST_ID="$(date -u +%Y%m%dT%H%M%SZ)-$$"
-RUN_NAME="Cloud candidate PR #${PR_NUMBER} ${VERSION_TAG} (${REQUEST_ID})"
-RUN_URL="$(
-  gh workflow run cloud-candidate-bundle.yml --ref main \
-    -f pull_request="${PR_NUMBER}" -f version_tag="${VERSION_TAG}" \
-    -f request_id="${REQUEST_ID}" | tail -n 1
-)"
-RUN_ID="${RUN_URL##*/}"
-if [[ ! "${RUN_ID}" =~ ^[0-9]+$ ]]; then
-  for _ in 1 2 3 4 5 6; do
-    RUN_IDS="$(
-      gh run list --workflow cloud-candidate-bundle.yml --event workflow_dispatch \
-        --branch main --limit 20 --json databaseId,displayTitle \
-        --jq '.[] | [.databaseId, .displayTitle] | @tsv' \
-        | awk -F '\t' -v name="${RUN_NAME}" '$2 == name { print $1 }'
-    )
-    RUN_COUNT="$(awk 'NF { count += 1 } END { print count + 0 }' <<<"${RUN_IDS}")"
-    [[ "${RUN_COUNT}" -gt 1 ]] && {
-      echo "More than one matching run exists; stop." >&2
-      exit 1
-    }
-    [[ "${RUN_COUNT}" -eq 1 ]] && RUN_ID="${RUN_IDS}" && break
-    sleep 5
-  done
-fi
+# Runs cannot be found by name or request id: the workflow's `run-name:`
+# loses its interpolations to YAML (the unquoted `#` starts a comment), so
+# every run is titled just "Cloud candidate PR" — and `gh workflow run`
+# prints no run id either. Fence on the highest run id seen BEFORE the
+# dispatch; the id fence plus the bundle-identity checks below are the real
+# binding.
+MAX_BEFORE="$(gh run list --workflow cloud-candidate-bundle.yml --limit 30 \
+  --json databaseId --jq '[.[].databaseId] | max // 0')"
+gh workflow run cloud-candidate-bundle.yml --ref main \
+  -f pull_request="${PR_NUMBER}" -f version_tag="${VERSION_TAG}" \
+  -f request_id="${REQUEST_ID}"
+RUN_ID=""
+for _ in 1 2 3 4 5 6 7 8 9 10 11 12; do
+  sleep 5
+  RUN_ID="$(gh run list --workflow cloud-candidate-bundle.yml \
+    --event workflow_dispatch --limit 30 --json databaseId \
+    --jq "map(.databaseId | select(. > ${MAX_BEFORE})) | min // empty")"
+  [[ -n "${RUN_ID}" ]] && break
+done
 [[ "${RUN_ID}" =~ ^[0-9]+$ ]] || {
   echo "Dispatched run not found; do not dispatch again." >&2
   exit 1
