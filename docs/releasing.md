@@ -286,6 +286,15 @@ the merge commit and every later pull request fails the gate with the
 stale-evidence message, even a docs-only one that the escape should carry
 (observed on #560, the first pull request after the escape landed).
 
+The mechanical steps of this flow — resolving the exact merge target, binding
+and reusing the one candidate dispatch, verifying the artifact checksums,
+running the per-platform provenance checks, writing the secret to BOTH
+locations with verified timestamps, and the post-merge repoint — are
+automated by `scripts/release/build-cloud-evidence.sh` (usage in its header).
+The attestation never is: the script refuses to set any check boolean and
+takes the maintainer's envelope file as input. The commands above stay the
+canonical reference; the script must reproduce them exactly.
+
 All paths run:
 
 ```bash
