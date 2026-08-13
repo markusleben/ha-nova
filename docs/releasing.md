@@ -293,7 +293,7 @@ locations with verified timestamps, and the post-merge repoint — are
 automated by `scripts/release/build-cloud-evidence.sh` (usage in its header).
 The attestation never is: the script refuses to set any check boolean and
 takes the maintainer's envelope file as input. The commands above stay the
-canonical reference; the script must reproduce them exactly.
+canonical reference.
 
 All paths run:
 

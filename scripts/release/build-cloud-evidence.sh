@@ -20,10 +20,10 @@
 #                              environment), both updated_at verified after
 #   repoint after the merge    --repoint: same tree, renamed to the main commit
 #
-# It never writes a check boolean. checks/keyrings values come exclusively from
-# the maintainer's envelope file (--envelope), validated mechanically against
-# the gate contract and this exact target. The qualification decision and the
-# PR ledger stay with the maintainer
+# It never writes a check boolean into the secret. checks/keyrings values come
+# exclusively from the maintainer's envelope file (--envelope), validated
+# mechanically against the gate contract and this exact target. The
+# qualification decision and the PR ledger stay with the maintainer
 # (docs/work/2026-07-30-cloud-release-evidence-risk-scope-spec.md).
 #
 #   bash scripts/release/build-cloud-evidence.sh 541 --dry-run
@@ -31,13 +31,16 @@
 #   bash scripts/release/build-cloud-evidence.sh 541 --set --envelope envelope.json
 #   bash scripts/release/build-cloud-evidence.sh --repoint envelope.json
 #
-# Hosts for the non-local platforms come from the environment, defaulting to
-# this repo's lab:
-#   HA_NOVA_LINUX_SSH   (default: ai-machine)
-#   HA_NOVA_WINDOWS_SSH (default: ha-nova-win)
-# Both are ssh DESTINATIONS, so put the address, user and any HostKeyAlias in
-# ~/.ssh/config rather than here. A lab guest's address changes; an alias does
-# not, and this repo must not carry one maintainer's IP addresses.
+# Environment knobs:
+#   HA_NOVA_LINUX_SSH    (default: ai-machine)    ssh destination, Linux lab host
+#   HA_NOVA_WINDOWS_SSH  (default: ha-nova-win)   ssh destination, Windows lab host
+#   HA_NOVA_REPO         (default: markusleben/ha-nova)
+#   HA_NOVA_VERSION_TAG  (default: v<skill_version>-rc1 at the target)
+#   HA_NOVA_WINDOWS_PWSH (default: powershell)
+# The ssh values are DESTINATIONS, so put the address, user and any
+# HostKeyAlias in ~/.ssh/config rather than here. A lab guest's address
+# changes; an alias does not, and this repo must not carry one maintainer's
+# IP addresses.
 set -euo pipefail
 
 SECRET_NAME="HA_NOVA_CLOUD_GATE_EVIDENCE_JSON"
@@ -128,6 +131,9 @@ validate_envelope() {  # <file> <want-tree> <want-commit|""> <want-relay-version
     || die "envelope keyrings keys must exactly match cloud_remote_platforms"
   jq -e '[.checks.keyrings[]] | all(. == true)' >/dev/null <<<"$doc" \
     || die "every envelope keyrings value must be literally true"
+  # The bytes that passed, for the caller to write. Re-reading the file after
+  # validation would let an edit in between write content that never passed.
+  VALIDATED_DOC="$doc"
 }
 
 # ── the secret, in BOTH places ───────────────────────────────────────────────
@@ -169,9 +175,15 @@ set_both_secrets() {  # <envelope-json>
 # (docs/releasing.md, observed on #560).
 if [ "$MODE" = "--repoint" ]; then
   step "repoint: resolving origin/main"
-  git -C "$ROOT_DIR" fetch --quiet origin main 2>/dev/null || die "cannot fetch origin/main"
-  main_commit="$(git -C "$ROOT_DIR" rev-parse FETCH_HEAD)"
-  main_tree="$(git -C "$ROOT_DIR" rev-parse "FETCH_HEAD^{tree}")"
+  # A private ref, not FETCH_HEAD: FETCH_HEAD is per-worktree shared state
+  # that any concurrent `git fetch` (editor autofetch, a parallel agent)
+  # rewrites between the reads below — and a foreign head whose tree happens
+  # to equal the envelope tree would be written into both secrets as a
+  # non-main commit_sha, recreating exactly the #560 failure.
+  git -C "$ROOT_DIR" fetch --quiet --force origin "+refs/heads/main:refs/cloud-evidence/main" 2>/dev/null \
+    || die "cannot fetch origin/main"
+  main_commit="$(git -C "$ROOT_DIR" rev-parse refs/cloud-evidence/main)"
+  main_tree="$(git -C "$ROOT_DIR" rev-parse "refs/cloud-evidence/main^{tree}")"
   echo "  main commit $main_commit"
   echo "  main tree   $main_tree"
 
@@ -180,18 +192,18 @@ if [ "$MODE" = "--repoint" ]; then
   [ "$envelope_tree" = "$main_tree" ] \
     || die "origin/main tree ($main_tree) does not match the envelope tree (${envelope_tree:-unreadable}) — something else landed after the merge, so this envelope attests different content. Mint fresh evidence instead of repointing."
 
-  relay_version="$(git -C "$ROOT_DIR" show "FETCH_HEAD:nova/config.yaml" \
+  relay_version="$(git -C "$ROOT_DIR" show "refs/cloud-evidence/main:nova/config.yaml" \
     | sed -n 's/^version:[[:space:]]*"\([^"]*\)"[[:space:]]*$/\1/p')"
   case "$relay_version" in
     "" ) die "nova/config.yaml has no quoted \`version:\` line on origin/main" ;;
     *[$'\n']* ) die "nova/config.yaml has more than one quoted \`version:\` line on origin/main" ;;
   esac
-  platforms="$(git -C "$ROOT_DIR" show "FETCH_HEAD:version.json" | jq -r '.cloud_remote_platforms[]?')"
+  platforms="$(git -C "$ROOT_DIR" show "refs/cloud-evidence/main:version.json" | jq -r '.cloud_remote_platforms[]?')"
   [ -n "$platforms" ] || die "version.json on origin/main lists no enabled cloud_remote_platforms"
 
   validate_envelope "$REPOINT_FILE" "$main_tree" "" "$relay_version" "$platforms"
 
-  repointed="$(jq --arg c "$main_commit" '.commit_sha = $c | .relay_app.source_commit = $c' "$REPOINT_FILE")" \
+  repointed="$(jq --arg c "$main_commit" '.commit_sha = $c | .relay_app.source_commit = $c' <<<"$VALIDATED_DOC")" \
     || die "cannot rewrite the envelope"
   step "repointed envelope (the input file is left untouched)"
   echo "$repointed" | jq .
@@ -210,7 +222,7 @@ command -v shasum >/dev/null || die "shasum is required"
 
 # ── 1. the exact target ──────────────────────────────────────────────────────
 step "resolving PR #$PR"
-pr_json="$(gh api "repos/$REPO/pulls/$PR")"
+pr_json="$(gh api "repos/$REPO/pulls/$PR")" || die "cannot read PR #$PR from GitHub"
 state="$(jq -r .state <<<"$pr_json")"
 mergeable="$(jq -r '.mergeable_state // "unknown"' <<<"$pr_json")"
 merge_commit="$(jq -r '.merge_commit_sha // ""' <<<"$pr_json")"
@@ -318,16 +330,36 @@ step "candidate bundle ($version_tag)"
 # never the synthetic merge commit, so keying reuse on it can never match. The
 # only thing tying a run to this target is the request_id in its run-name, so
 # that id is DERIVED from the target commit rather than from $$: the same
-# invocation twice produces the same id and finds its own earlier run instead
-# of dispatching again into cancel-in-progress.
+# invocation twice finds its own earlier run — live, succeeded, or failed —
+# instead of dispatching a duplicate.
 request_id="pr${PR}-${target_commit:0:12}"
-run_id="$(gh run list --repo "$REPO" --workflow cloud-candidate-bundle.yml \
-  --json databaseId,conclusion,displayTitle --limit 30 \
-  | jq -r --arg r "$request_id" \
-      'map(select(.conclusion=="success" and (.displayTitle|contains($r)))) | first | .databaseId // empty')"
+run_match="$(gh run list --repo "$REPO" --workflow cloud-candidate-bundle.yml \
+  --json databaseId,conclusion,status,displayTitle --limit 30 \
+  | jq -c --arg r "$request_id" 'map(select(.displayTitle|contains($r))) | first // empty')" \
+  || die "cannot list candidate runs"
 
-if [ -n "$run_id" ]; then
-  echo "  reusing successful run $run_id"
+run_id=""
+if [ -n "$run_match" ]; then
+  run_id="$(jq -r '.databaseId' <<<"$run_match")"
+  run_status="$(jq -r '.status' <<<"$run_match")"
+  run_conclusion="$(jq -r '.conclusion // ""' <<<"$run_match")"
+  if [ "$run_status" != "completed" ]; then
+    # ADOPT a live run instead of dispatching a duplicate: the workflow's
+    # cancel-in-progress concurrency group would cancel the original
+    # mid-build — exactly what a restart after ctrl-C must not do.
+    echo "  found in-flight run $run_id ($run_status) — watching it"
+    gh run watch "$run_id" --repo "$REPO" --exit-status >/dev/null \
+      || die "run $run_id failed — fix the cause in a reviewed PR, then dispatch once more"
+  elif [ "$run_conclusion" = "success" ]; then
+    # The run-name embeds the version_tag; a success built under a DIFFERENT
+    # tag would only die minutes later at the bundle identity check, so name
+    # the actual cause here.
+    jq -e --arg t " ${version_tag} (" '.displayTitle | contains($t)' >/dev/null <<<"$run_match" \
+      || die "run $run_id built this commit under a different version_tag ($(jq -r '.displayTitle' <<<"$run_match")) — set HA_NOVA_VERSION_TAG to that tag to reuse it"
+    echo "  reusing successful run $run_id"
+  else
+    die "run $run_id for this exact target finished '$run_conclusion' — a code fix lands through a reviewed PR (which moves the merge commit and the request_id); for a pure infrastructure failure, dispatch once by hand with a request_id containing $request_id"
+  fi
 else
   echo "  dispatching (request_id=$request_id)"
   gh workflow run cloud-candidate-bundle.yml --repo "$REPO" \
@@ -355,19 +387,25 @@ work="$(mktemp -d)"
 trap '[ "${KEEP_WORK:-0}" = 1 ] && echo "[cloud-evidence] logs kept in $work" || rm -rf "$work"' EXIT
 step "downloading install bundles"
 gh run download "$run_id" --repo "$REPO" --name cloud-candidate-install-bundles --dir "$work/bundles" \
-  || die "cannot download the install bundles from run $run_id (artifacts expire after 7 days)"
+  || die "cannot download the install bundles from run $run_id. Artifacts expire after 7 days — if that happened, dispatch a fresh run by hand with a request_id CONTAINING $request_id (e.g. $request_id-2); this script will pick it up"
 
 # CI verified these checksums before upload; recomputing them after the
 # download binds the exact local bytes the provenance runs below will execute.
+# Iterate the BUNDLES and demand a checksum for each — iterating the .sha256
+# files instead would silently leave an uncovered archive unverified.
 step "verifying the artifact's checksums"
 checksum_count=0
-for checksum in "$work"/bundles/*.sha256; do
-  [ -f "$checksum" ] || die "no .sha256 files in the artifact — refusing unverifiable bundles"
-  (cd "$work/bundles" && shasum -a 256 --check "$(basename "$checksum")" >/dev/null) \
-    || die "checksum mismatch in $(basename "$checksum") — the download does not match what CI built"
+for bundle in "$work"/bundles/*; do
+  case "$bundle" in *.sha256) continue ;; esac
+  [ -f "$bundle" ] || die "the artifact contains no files"
+  [ -f "$bundle.sha256" ] \
+    || die "$(basename "$bundle") has no .sha256 in the artifact — refusing an unverifiable bundle"
+  (cd "$work/bundles" && shasum -a 256 --check "$(basename "$bundle").sha256" >/dev/null) \
+    || die "checksum mismatch for $(basename "$bundle") — the download does not match what CI built"
   checksum_count=$((checksum_count + 1))
 done
-echo "  $checksum_count checksum file(s) verified"
+[ "$checksum_count" -gt 0 ] || die "the artifact contains no bundles"
+echo "  $checksum_count bundle checksum(s) verified"
 
 # ── 3. provenance, per platform ──────────────────────────────────────────────
 # The positive path: the INSTALLED bundle must accept its own provenance. CI
@@ -457,7 +495,8 @@ Write-Output '$END_MARK'
 & (Join-Path \$root 'ha-nova.exe') internal-cloud-release-check
 if (\$LASTEXITCODE -ne 0) { throw 'provenance check failed' }
 Remove-Item -Recurse -Force \$d"
-  encoded="$(printf '%s' "$ps" | iconv -f UTF-8 -t UTF-16LE | base64 | tr -d '\n')"
+  encoded="$(printf '%s' "$ps" | iconv -f UTF-8 -t UTF-16LE | base64 | tr -d '\n')" \
+    || die "windows: cannot encode the provenance script"
   local shell="${HA_NOVA_WINDOWS_PWSH:-powershell}"
   local status=0
   ssh -o BatchMode=yes "$WINDOWS_SSH" "$shell -NoProfile -EncodedCommand $encoded" \
@@ -511,10 +550,10 @@ done
 # every attestation left false.
 if [ -n "$ENVELOPE_FILE" ]; then
   # Validate AGAIN right before use: the pipeline above takes minutes, and the
-  # file may have been edited in between. The envelope that gets written must
-  # be the one that passed.
+  # file may have been edited in between. The bytes written are exactly the
+  # bytes this validation passed — never a later re-read of the file.
   validate_envelope "$ENVELOPE_FILE" "$target_tree" "$target_commit" "$relay_version" "$platforms"
-  envelope="$(jq -c . "$ENVELOPE_FILE")" || die "cannot re-read $ENVELOPE_FILE"
+  envelope="$VALIDATED_DOC"
   step "envelope (validated against this target)"
   echo "$envelope" | jq .
 else

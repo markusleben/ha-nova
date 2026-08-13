@@ -1,4 +1,5 @@
 import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import {
   chmodSync,
   copyFileSync,
@@ -89,17 +90,31 @@ bump() {
   printf '%s\\n' "\$n" >"\${FAKE_GH_STATE}/\$f.count"
   printf 'stamp-%s\\n' "\$n" >"\${FAKE_GH_STATE}/\$f.stamp"
 }
+last_arg() { local a v=""; for a in "$@"; do v="$a"; done; printf '%s' "$v"; }
 case "$args" in
   "api user --jq .login")
     printf '%s\\n' "\${FAKE_GH_LOGIN}" ;;
   "api repos/${REPO_SLUG}/pulls/"*)
     trace "read:pr"
     cat "\${FAKE_GH_STATE}/pr.json" ;;
+  "run list --repo ${REPO_SLUG} --workflow cloud-candidate-bundle.yml --json databaseId,conclusion,status,displayTitle --limit 30")
+    trace "run-list"
+    cat "\${FAKE_GH_STATE}/runs.json" 2>/dev/null || printf '[]\\n' ;;
+  "run watch "*" --repo ${REPO_SLUG} --exit-status")
+    trace "run-watch"
+    exit 0 ;;
+  "run download "*" --repo ${REPO_SLUG} --name cloud-candidate-install-bundles --dir "*)
+    trace "run-download"
+    dest="$(last_arg "$@")"
+    mkdir -p "$dest"
+    cp "\${FAKE_GH_STATE}/bundles/"* "$dest"/ ;;
   "secret set HA_NOVA_CLOUD_GATE_EVIDENCE_JSON --repo ${REPO_SLUG} --env production --body "*)
     trace "set:env"
+    last_arg "$@" >"\${FAKE_GH_STATE}/env.body"
     [ "\${FAKE_GH_FROZEN:-0}" = 1 ] || bump env ;;
   "secret set HA_NOVA_CLOUD_GATE_EVIDENCE_JSON --repo ${REPO_SLUG} --body "*)
     trace "set:repo"
+    last_arg "$@" >"\${FAKE_GH_STATE}/repo.body"
     [ "\${FAKE_GH_FROZEN:-0}" = 1 ] || bump repo ;;
   "api repos/${REPO_SLUG}/actions/secrets/HA_NOVA_CLOUD_GATE_EVIDENCE_JSON --jq .updated_at")
     trace "read:repo-stamp"
@@ -117,12 +132,29 @@ esac
   chmodSync(join(dir, "gh"), 0o755);
   // ssh/scp must never reach a real host from this suite. Exit 97 marks the
   // spot: a test that legitimately ends at reachability asserts the script's
-  // own "unreachable" message, everything else must die earlier.
-  for (const tool of ["ssh", "scp"]) {
-    writeFileSync(join(dir, tool), `#!/usr/bin/env bash\necho "fake-${tool}: blocked" >&2\nexit 97\n`, "utf8");
-    chmodSync(join(dir, tool), 0o755);
-  }
+  // own "unreachable" message, everything else must die earlier. FAKE_SSH_OK
+  // lets reachability pass (exit 0, no output) so later stages are testable;
+  // the empty output then stops the run at the linux architecture probe.
+  writeFileSync(
+    join(dir, "ssh"),
+    `#!/usr/bin/env bash\nif [ "\${FAKE_SSH_OK:-0}" = 1 ]; then exit 0; fi\necho "fake-ssh: blocked" >&2\nexit 97\n`,
+    "utf8",
+  );
+  chmodSync(join(dir, "ssh"), 0o755);
+  writeFileSync(join(dir, "scp"), `#!/usr/bin/env bash\necho "fake-scp: blocked" >&2\nexit 97\n`, "utf8");
+  chmodSync(join(dir, "scp"), 0o755);
   return { dir, trace, state };
+}
+
+function seedBundle(fake: FakeBin, name: string, withChecksum: boolean): void {
+  const dir = join(fake.state, "bundles");
+  mkdirSync(dir, { recursive: true });
+  const content = Buffer.from(`fake bundle ${name}`);
+  writeFileSync(join(dir, name), content);
+  if (withChecksum) {
+    const hash = createHash("sha256").update(content).digest("hex");
+    writeFileSync(join(dir, `${name}.sha256`), `${hash}  ${name}\n`);
+  }
 }
 
 function runScript(
@@ -240,6 +272,19 @@ describe("cloud evidence --repoint", () => {
 
     expect(result.stdout).toContain(`"commit_sha": "${fixture.mainCommit}"`);
     expect(result.stdout).not.toContain(`"commit_sha": "${SYNTHETIC_COMMIT}"`);
+
+    // What was WRITTEN, not just that something was written: both locations
+    // get the identical, repointed, all-true envelope.
+    const writtenRepo = readFileSync(join(fake.state, "repo.body"), "utf8");
+    const writtenEnv = readFileSync(join(fake.state, "env.body"), "utf8");
+    expect(writtenEnv).toBe(writtenRepo);
+    const written = JSON.parse(writtenEnv);
+    expect(written.commit_sha).toBe(fixture.mainCommit);
+    expect(written.relay_app.source_commit).toBe(fixture.mainCommit);
+    expect(written.tree_sha).toBe(fixture.mainTree);
+    expect(written.schema).toBe(2);
+    expect(written.checks.installed_relay_app).toBe(true);
+
     // The input file is source material, not state — it must survive untouched.
     expect(readFileSync(envelopeFile, "utf8")).toBe(before);
   });
@@ -376,6 +421,97 @@ describe("cloud evidence PR target binding", () => {
     expect(trace).not.toContain("set:");
   });
 
+  function runTitle(fixture: Fixture, tag: string): string {
+    return `Cloud candidate PR #7 ${tag} (pr7-${fixture.mainCommit.slice(0, 12)})`;
+  }
+
+  it("refuses to dispatch a duplicate when a run for this target already failed", () => {
+    const { fixture, fake } = prFixture();
+    writeFileSync(
+      join(fake.state, "runs.json"),
+      JSON.stringify([
+        {
+          databaseId: 41,
+          conclusion: "failure",
+          status: "completed",
+          displayTitle: runTitle(fixture, "v0.24.0-rc1"),
+        },
+      ]),
+    );
+    const result = runScript(fixture, fake, ["7"], { FAKE_SSH_OK: "1" });
+    expect(result.status, result.stdout).not.toBe(0);
+    expect(result.stderr).toContain("finished 'failure'");
+    // A dispatch attempt would hit the un-modelled `gh workflow run` (exit 91).
+    expect(result.stderr).not.toContain("unexpected gh call");
+  });
+
+  it("adopts an in-flight run instead of dispatching a cancel-in-progress duplicate", () => {
+    const { fixture, fake } = prFixture();
+    writeFileSync(
+      join(fake.state, "runs.json"),
+      JSON.stringify([
+        {
+          databaseId: 42,
+          conclusion: null,
+          status: "in_progress",
+          displayTitle: runTitle(fixture, "v0.24.0-rc1"),
+        },
+      ]),
+    );
+    seedBundle(fake, "ha-nova-installer-bundle-linux-amd64.tar.gz", true);
+    seedBundle(fake, "ha-nova-installer-bundle-windows-amd64.zip", true);
+
+    const result = runScript(fixture, fake, ["7"], { FAKE_SSH_OK: "1" });
+    expect(result.stdout).toContain("found in-flight run 42");
+    const trace = readFileSync(fake.trace, "utf8");
+    expect(trace).toContain("run-watch");
+    expect(trace).toContain("run-download");
+    expect(result.stderr).not.toContain("unexpected gh call");
+    // The run then stops deterministically at the linux architecture probe
+    // (the FAKE_SSH_OK ssh answers with empty output).
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toContain("unsupported architecture");
+  });
+
+  it("refuses to reuse a success built under a different version_tag", () => {
+    const { fixture, fake } = prFixture();
+    writeFileSync(
+      join(fake.state, "runs.json"),
+      JSON.stringify([
+        {
+          databaseId: 43,
+          conclusion: "success",
+          status: "completed",
+          displayTitle: runTitle(fixture, "v0.24.0-rc9"),
+        },
+      ]),
+    );
+    const result = runScript(fixture, fake, ["7"], { FAKE_SSH_OK: "1" });
+    expect(result.status, result.stdout).not.toBe(0);
+    expect(result.stderr).toContain("different version_tag");
+  });
+
+  it("refuses a bundle without its .sha256 instead of running it unverified", () => {
+    const { fixture, fake } = prFixture();
+    writeFileSync(
+      join(fake.state, "runs.json"),
+      JSON.stringify([
+        {
+          databaseId: 44,
+          conclusion: "success",
+          status: "completed",
+          displayTitle: runTitle(fixture, "v0.24.0-rc1"),
+        },
+      ]),
+    );
+    seedBundle(fake, "ha-nova-installer-bundle-linux-amd64.tar.gz", true);
+    seedBundle(fake, "ha-nova-installer-bundle-windows-amd64.zip", false);
+
+    const result = runScript(fixture, fake, ["7"], { FAKE_SSH_OK: "1" });
+    expect(result.status, result.stdout).not.toBe(0);
+    expect(result.stderr).toContain("has no .sha256");
+  });
+
   it("refuses a closed PR and points at --repoint", () => {
     const fixture = initFixture(platforms);
     const fake = makeFakeBin({
@@ -394,7 +530,7 @@ describe("cloud evidence contract parity with the gate", () => {
     const gate = readFileSync(GATE_REL, "utf8");
     const gateBody = gate.match(/const requiredChecks = \[([\s\S]*?)\];/)?.[1] ?? "";
     expect(gateBody, "requiredChecks array not found in the gate").not.toBe("");
-    const gateChecks = [...gateBody.matchAll(/"([a-z0-9_]+)"/g)].map((m) => m[1] ?? "");
+    const gateChecks = [...gateBody.matchAll(/"([^"]+)"/g)].map((m) => m[1] ?? "");
     expect(gateChecks.length).toBeGreaterThan(0);
 
     const script = readFileSync(SCRIPT_REL, "utf8");
