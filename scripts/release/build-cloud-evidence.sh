@@ -13,6 +13,8 @@
 #   resolve the exact target   refs/pull/<pr>/merge -> commit, tree, relay version
 #   bind the candidate run     request_id derived from the target commit
 #   verify the download        sha256 over the artifact's own checksum files
+#   prove identity FIRST       every bundle's embedded manifest must match the
+#                              target before any candidate binary executes
 #   run provenance             one internal-cloud-release-check per enabled
 #                              platform, fail-closed: an unreachable host or a
 #                              failed run is a hard stop, never a skip
@@ -25,6 +27,10 @@
 # mechanically against the gate contract and this exact target. The
 # qualification decision and the PR ledger stay with the maintainer
 # (docs/work/2026-07-30-cloud-release-evidence-risk-scope-spec.md).
+#
+# The contract and execution halves live next to this file and are sourced:
+#   cloud-evidence-envelope.sh    validate/template/secret-write
+#   cloud-evidence-provenance.sh  checksums/identity/provenance runs
 #
 #   bash scripts/release/build-cloud-evidence.sh 541 --dry-run
 #   bash scripts/release/build-cloud-evidence.sh 541
@@ -43,6 +49,7 @@
 # IP addresses.
 set -euo pipefail
 
+# shellcheck disable=SC2034  # used by the sourced cloud-evidence-envelope.sh
 SECRET_NAME="HA_NOVA_CLOUD_GATE_EVIDENCE_JSON"
 USAGE="usage: build-cloud-evidence.sh <pr-number> [--dry-run | --set --envelope <file>] [--envelope <file>]
        build-cloud-evidence.sh --repoint <envelope.json>"
@@ -76,7 +83,8 @@ fi
 REPO="${HA_NOVA_REPO:-markusleben/ha-nova}"
 LINUX_SSH="${HA_NOVA_LINUX_SSH:-ai-machine}"
 WINDOWS_SSH="${HA_NOVA_WINDOWS_SSH:-ha-nova-win}"
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 command -v gh >/dev/null || die "gh is required"
 command -v jq >/dev/null || die "jq is required"
@@ -84,92 +92,10 @@ command -v jq >/dev/null || die "jq is required"
 active="$(gh api user --jq .login 2>/dev/null || true)"
 [ "$active" = "${REPO%%/*}" ] || die "gh is authenticated as '${active:-none}', expected '${REPO%%/*}'"
 
-# ── envelope contract ────────────────────────────────────────────────────────
-# Mirror of scripts/release/verify-cloud-release-gate.sh (requiredChecks plus
-# the exact-key rules). The gate stays authoritative: drift here only moves
-# WHERE a bad envelope is refused (locally instead of in CI) — it can never
-# let one pass. tests/onboarding/cloud-evidence-behavior.test.ts pins the two
-# check lists equal.
-REQUIRED_CHECKS_SORTED="domains_mfa,installed_relay_app,keyrings,lifecycle,parity,redirects_non_disclosure,roles,routing,signing_and_update_matrix,stress_10000"
-
-validate_envelope() {  # <file> <want-tree> <want-commit|""> <want-relay-version> <platforms-newline-list>
-  local file="$1" want_tree="$2" want_commit="$3" want_relay="$4" want_platforms="$5"
-  local doc got_tree
-  [ -f "$file" ] || die "envelope file not found: $file"
-  [ "$(wc -c <"$file" | tr -d '[:space:]')" -le 32768 ] || die "envelope exceeds the gate's 32 KiB limit"
-  doc="$(jq -c . "$file" 2>/dev/null)" || die "envelope is not valid JSON: $file"
-  jq -e 'type == "object"' >/dev/null <<<"$doc" || die "envelope must be a JSON object"
-  [ "$(jq -r 'keys_unsorted | sort | join(",")' <<<"$doc")" = "checks,commit_sha,relay_app,schema,tree_sha" ] \
-    || die "envelope must contain exactly schema, commit_sha, tree_sha, checks, relay_app"
-  # Strict number, like the gate: a JSON string "2" would pass a text compare
-  # here and still die in CI.
-  jq -e '.schema == 2' >/dev/null <<<"$doc" || die "envelope schema must equal 2 (the number, not a string)"
-  jq -e '.commit_sha | type == "string" and test("^[0-9a-f]{40}$")' >/dev/null <<<"$doc" \
-    || die "envelope commit_sha must be a 40-character lowercase sha"
-  jq -e '.tree_sha | type == "string" and test("^[0-9a-f]{40}$")' >/dev/null <<<"$doc" \
-    || die "envelope tree_sha must be a 40-character lowercase sha"
-  got_tree="$(jq -r '.tree_sha' <<<"$doc")"
-  [ "$got_tree" = "$want_tree" ] \
-    || die "envelope tree_sha ($got_tree) does not match the resolved tree ($want_tree)"
-  if [ -n "$want_commit" ]; then
-    [ "$(jq -r '.commit_sha' <<<"$doc")" = "$want_commit" ] \
-      || die "envelope commit_sha ($(jq -r '.commit_sha' <<<"$doc")) does not match the resolved target commit ($want_commit)"
-  fi
-  [ "$(jq -r '.relay_app | keys_unsorted | sort | join(",")' <<<"$doc")" = "source_commit,source_tree_sha,version" ] \
-    || die "envelope relay_app must contain exactly version, source_commit, source_tree_sha"
-  [ "$(jq -r '.relay_app.version' <<<"$doc")" = "$want_relay" ] \
-    || die "envelope relay_app.version ($(jq -r '.relay_app.version' <<<"$doc")) does not match nova/config.yaml ($want_relay)"
-  [ "$(jq -r '.relay_app.source_commit' <<<"$doc")" = "$(jq -r '.commit_sha' <<<"$doc")" ] \
-    || die "envelope relay_app.source_commit must equal commit_sha"
-  [ "$(jq -r '.relay_app.source_tree_sha' <<<"$doc")" = "$got_tree" ] \
-    || die "envelope relay_app.source_tree_sha must equal tree_sha"
-  [ "$(jq -r '.checks | keys_unsorted | sort | join(",")' <<<"$doc")" = "$REQUIRED_CHECKS_SORTED" ] \
-    || die "envelope checks must contain exactly the gate's required checks plus keyrings"
-  jq -e '[.checks | to_entries[] | select(.key != "keyrings") | .value] | all(. == true)' >/dev/null <<<"$doc" \
-    || die "every envelope check must be literally true — this script sets no boolean, and the gate rejects anything else"
-  [ "$(jq -r '.checks.keyrings | keys_unsorted | sort | join(",")' <<<"$doc")" = "$(sort <<<"$want_platforms" | paste -s -d, -)" ] \
-    || die "envelope keyrings keys must exactly match cloud_remote_platforms"
-  jq -e '[.checks.keyrings[]] | all(. == true)' >/dev/null <<<"$doc" \
-    || die "every envelope keyrings value must be literally true"
-  # The bytes that passed, for the caller to write. Re-reading the file after
-  # validation would let an edit in between write content that never passed.
-  VALIDATED_DOC="$doc"
-}
-
-# ── the secret, in BOTH places ───────────────────────────────────────────────
-# PR runs and merge groups read the `production` environment through the
-# trusted broker; the ci-gate job on direct main pushes reads the REPOSITORY
-# secret. Setting only one lets the PR go green and turns main red seconds
-# after the squash merge, with the stale-evidence message that reads like a
-# tree mismatch (docs/releasing.md, observed on #559).
-repo_stamp() { gh api "repos/$REPO/actions/secrets/$SECRET_NAME" --jq .updated_at 2>/dev/null || true; }
-env_stamp() { gh api "repos/$REPO/environments/production/secrets/$SECRET_NAME" --jq .updated_at 2>/dev/null || true; }
-
-set_both_secrets() {  # <envelope-json>
-  local body="$1" before_repo before_env after_repo after_env
-  before_repo="$(repo_stamp)"; before_env="$(env_stamp)"
-  step "writing $SECRET_NAME (repository secret)"
-  gh secret set "$SECRET_NAME" --repo "$REPO" --body "$body" \
-    || die "cannot write the repository secret — admin auth required"
-  step "writing $SECRET_NAME (production environment secret)"
-  gh secret set "$SECRET_NAME" --repo "$REPO" --env production --body "$body" \
-    || die "cannot write the production environment secret — admin auth required"
-  # Verify with GitHub's own clocks only: read updated_at before and after and
-  # require movement in both places. A local-time comparison would inherit
-  # clock skew; an unreadable stamp after a write is a failure, not a pass.
-  # Equality with the before-stamp also fails, deliberately: the before value
-  # predates this invocation (one run writes each location once and takes
-  # seconds), so an unchanged stamp means the write did not land — a
-  # same-second false positive would need two full invocations inside one
-  # GitHub clock second, which is not an operational pattern for this tool.
-  after_repo="$(repo_stamp)"; after_env="$(env_stamp)"
-  { [ -n "$after_repo" ] && [ "$after_repo" != "$before_repo" ]; } \
-    || die "repository secret updated_at did not advance (before: '${before_repo:-absent}', after: '${after_repo:-absent}') — verify by hand before relying on the gate"
-  { [ -n "$after_env" ] && [ "$after_env" != "$before_env" ]; } \
-    || die "production environment secret updated_at did not advance (before: '${before_env:-absent}', after: '${after_env:-absent}') — verify by hand before relying on the gate"
-  echo "  repository secret:             updated_at $after_repo"
-  echo "  production environment secret: updated_at $after_env"
-}
+# shellcheck source=scripts/release/cloud-evidence-envelope.sh
+. "$SCRIPT_DIR/cloud-evidence-envelope.sh"
+# shellcheck source=scripts/release/cloud-evidence-provenance.sh
+. "$SCRIPT_DIR/cloud-evidence-provenance.sh"
 
 # ── --repoint: after the squash merge ────────────────────────────────────────
 # The PR's synthetic merge commit is thrown away at merge time and is an
@@ -219,9 +145,9 @@ if [ "$MODE" = "--repoint" ]; then
   exit 0
 fi
 
-# check_identity runs node AFTER all provenance — a missing node there reads as
-# an identity mismatch, which is an attestation-critical message for a check
-# that never happened. shasum guards the artifact before anything executes it.
+# check_identity runs node — a missing node there reads as an identity
+# mismatch, which is an attestation-critical message for a check that never
+# happened. shasum/unzip guard the artifact before anything executes it.
 command -v node >/dev/null || die "node is required"
 command -v shasum >/dev/null || die "shasum is required"
 command -v unzip >/dev/null || die "unzip is required"
@@ -253,6 +179,10 @@ git -C "$ROOT_DIR" fetch --quiet --force origin "+refs/pull/$PR/merge:refs/cloud
   || die "cannot fetch the synthetic merge ref for #$PR"
 target_commit="$(git -C "$ROOT_DIR" rev-parse "refs/cloud-evidence/$PR")"
 target_tree="$(git -C "$ROOT_DIR" rev-parse "refs/cloud-evidence/$PR^{tree}")"
+# Bind the API's merge identity to the fetched ref: two views of the same
+# synthetic merge commit that must agree, or GitHub is mid-recompute.
+[ "$merge_commit" = "$target_commit" ] \
+  || die "GitHub's merge identity ($merge_commit) does not match the fetched merge ref ($target_commit) — retry in a moment, do not rebase"
 # Exactly the verifier's shape (verify-cloud-release-gate.sh): one quoted
 # `version:` line. Accepting more here only defers the rejection to the gate,
 # after all three platforms have run.
@@ -325,8 +255,8 @@ fi
 # way costs two minutes and is not scarce: only RERUNS are blocked.
 
 # ── 2. the candidate bundle ──────────────────────────────────────────────────
-# One dispatch per PR; reruns are rejected, so an existing successful run for
-# this exact commit is reused instead of burning the second attempt.
+# One dispatch per PR; reruns are rejected, so an existing run for this exact
+# commit is adopted or reused instead of burning the second attempt.
 skill_version="$(git -C "$ROOT_DIR" show "$target_commit:version.json" | jq -r '.skill_version // empty')"
 [ -n "$skill_version" ] \
   || die "version.json at the target has no skill_version — refusing to dispatch a nonsense version_tag"
@@ -395,144 +325,17 @@ step "downloading install bundles"
 gh run download "$run_id" --repo "$REPO" --name cloud-candidate-install-bundles --dir "$work/bundles" \
   || die "cannot download the install bundles from run $run_id. Artifacts expire after 7 days — if that happened, dispatch a fresh run by hand with a request_id CONTAINING $request_id (e.g. $request_id-2); this script will pick it up"
 
-# CI verified these checksums before upload; recomputing them after the
-# download binds the exact local bytes the provenance runs below will execute.
-# Iterate the BUNDLES and demand a checksum for each — iterating the .sha256
-# files instead would silently leave an uncovered archive unverified.
 step "verifying the artifact's checksums"
-checksum_count=0
-for bundle in "$work"/bundles/*; do
-  case "$bundle" in *.sha256) continue ;; esac
-  [ -f "$bundle" ] || die "the artifact contains no files"
-  [ -f "$bundle.sha256" ] \
-    || die "$(basename "$bundle") has no .sha256 in the artifact — refusing an unverifiable bundle"
-  (cd "$work/bundles" && shasum -a 256 --check "$(basename "$bundle").sha256" >/dev/null) \
-    || die "checksum mismatch for $(basename "$bundle") — the download does not match what CI built"
-  checksum_count=$((checksum_count + 1))
-done
-[ "$checksum_count" -gt 0 ] || die "the artifact contains no bundles"
-echo "  $checksum_count bundle checksum(s) verified"
+verify_bundle_checksums
 
 # ── 3. provenance, per platform ──────────────────────────────────────────────
 # The positive path: the INSTALLED bundle must accept its own provenance. CI
 # only proves the negative (raw binaries reject it), so this cannot be skipped.
+# shellcheck disable=SC2034  # used by check_identity in the sourced provenance lib
 expected_version="${version_tag#v}"
 
-# Both remotes print the bundle manifest between markers. Without them the
-# extraction is guesswork: PowerShell wraps its progress stream in CLIXML and
-# interleaves it with stdout, so "the first line that ends in }" is not the
-# manifest.
-BEGIN_MARK="<<<HA-NOVA-BUNDLE"
-END_MARK="HA-NOVA-BUNDLE>>>"
-
-extract_manifest() {  # <raw-output-file>
-  # Strip CR first: Windows sends CRLF, so an exact match against the marker
-  # compares "<<<HA-NOVA-BUNDLE\r" and never fires. The raw stream also carries
-  # ssh's own warnings, which is precisely why the markers exist.
-  tr -d '\r' <"$1" \
-    | awk -v b="$BEGIN_MARK" -v e="$END_MARK" '$0==b{f=1;next} $0==e{f=0} f'
-}
-
-check_identity() {  # <manifest-file>
-  node -e '
-    const fs = require("node:fs");
-    const [path, version, tree] = process.argv.slice(1);
-    const raw = fs.readFileSync(path, "utf8").trim();
-    if (!raw) throw new Error("no bundle manifest in the remote output");
-    const bundle = JSON.parse(raw);
-    if (bundle.version !== version || bundle.cloud_release?.source_tree_sha !== tree) {
-      throw new Error(
-        `bundle identity mismatch: ${bundle.version} / ${bundle.cloud_release?.source_tree_sha}`,
-      );
-    }
-  ' "$1" "$expected_version" "$target_tree"
-}
-
-provenance_unix() {  # <label> <archive> <ssh-host|"">
-  local label="$1" archive="$2" host="$3"
-  local script="
-    set -euo pipefail
-    d=\"\$(mktemp -d)\"; mkdir -p \"\$d/home/.local/share\"
-    tar -xzf \"\$1\" -C \"\$d/home/.local/share\"
-    echo '$BEGIN_MARK'
-    cat \"\$d/home/.local/share/ha-nova/bundle.json\"
-    echo
-    echo '$END_MARK'
-    # Unix builds resolve their install root from HOME, so the check passes
-    # only from an installed layout — calling the extracted binary in place
-    # fails with 'official Cloud release provenance is not enabled'.
-    HOME=\"\$d/home\" HA_NOVA_NO_CENSUS=1 \"\$d/home/.local/share/ha-nova/ha-nova\" internal-cloud-release-check
-    rm -rf \"\$d\"
-  "
-  if [ -z "$host" ]; then
-    bash -c "$script" _ "$archive" >"$work/$label.out" 2>&1
-  else
-    scp -q -o BatchMode=yes "$archive" "$host:ha-nova-candidate.tar.gz" \
-      || die "$label: cannot copy the bundle to $host"
-    # `bash -s` has no $0 slot: arguments land on $1 directly, unlike the
-    # `bash -c "$script" _ "$archive"` form used for the local run.
-    local status=0
-    ssh -o BatchMode=yes "$host" "bash -s ha-nova-candidate.tar.gz" <<<"$script" \
-      >"$work/$label.out" 2>&1 || status=$?
-    # Capture BEFORE cleaning up. Called in an `|| die` list, errexit is off in
-    # here, so a cleanup that succeeds would otherwise become the function's
-    # status and a failed provenance run would read as a pass.
-    ssh -o BatchMode=yes "$host" "rm -f ha-nova-candidate.tar.gz" >/dev/null 2>&1 || true
-    return $status
-  fi
-}
-
-provenance_windows() {  # <archive>
-  local archive="$1"
-  scp -q -o BatchMode=yes "$archive" "$WINDOWS_SSH:ha-nova-candidate.zip" \
-    || die "windows: cannot copy the bundle to $WINDOWS_SSH"
-  # -EncodedCommand, not -Command: a multi-line script does not survive the
-  # ssh argument boundary and PowerShell answers with its usage text.
-  local ps encoded
-  ps="\$ErrorActionPreference='Stop'
-\$ProgressPreference='SilentlyContinue'
-\$d = Join-Path \$env:TEMP ('ha-nova-' + [guid]::NewGuid())
-Expand-Archive -LiteralPath ha-nova-candidate.zip -DestinationPath \$d
-\$root = Join-Path \$d 'ha-nova'
-Write-Output '$BEGIN_MARK'
-Get-Content (Join-Path \$root 'bundle.json') -Raw
-Write-Output '$END_MARK'
-\$env:HA_NOVA_NO_CENSUS = '1'
-& (Join-Path \$root 'ha-nova.exe') internal-cloud-release-check
-if (\$LASTEXITCODE -ne 0) { throw 'provenance check failed' }
-Remove-Item -Recurse -Force \$d"
-  encoded="$(printf '%s' "$ps" | iconv -f UTF-8 -t UTF-16LE | base64 | tr -d '\n')" \
-    || die "windows: cannot encode the provenance script"
-  local shell="${HA_NOVA_WINDOWS_PWSH:-powershell}"
-  local status=0
-  ssh -o BatchMode=yes "$WINDOWS_SSH" "$shell -NoProfile -EncodedCommand $encoded" \
-    >"$work/windows.out" 2>&1 || status=$?
-  ssh -o BatchMode=yes "$WINDOWS_SSH" 'cmd /c "del ha-nova-candidate.zip"' >/dev/null 2>&1 || true
-  return $status
-}
-
-# The provenance runs below EXECUTE the candidate binary. Prove from the
-# local bytes that every bundle is the resolved target first — a manual
-# recovery dispatch for the wrong PR, or a PR that moved between the local
-# resolution and the workflow's own, must die here, not after running a
-# foreign build on three machines.
 step "verifying bundle identity (before anything executes)"
-for bundle in "$work"/bundles/*; do
-  case "$bundle" in *.sha256) continue ;; esac
-  manifest="$work/pre-identity.$(basename "$bundle").json"
-  case "$bundle" in
-    *.tar.gz)
-      tar -xzOf "$bundle" ha-nova/bundle.json >"$manifest" 2>/dev/null \
-        || die "$(basename "$bundle"): cannot read ha-nova/bundle.json from the archive" ;;
-    *.zip)
-      unzip -p "$bundle" ha-nova/bundle.json >"$manifest" 2>/dev/null \
-        || die "$(basename "$bundle"): cannot read ha-nova/bundle.json from the archive" ;;
-    *) die "unexpected file in the artifact: $(basename "$bundle")" ;;
-  esac
-  check_identity "$manifest" \
-    || die "$(basename "$bundle"): bundle identity does not match the resolved target — refusing to execute it"
-done
-echo "  every bundle matches tree ${target_tree}"
+verify_bundles_identity
 
 for platform in $platforms; do
   case "$platform" in
@@ -586,22 +389,7 @@ if [ -n "$ENVELOPE_FILE" ]; then
   step "envelope (validated against this target)"
   echo "$envelope" | jq .
 else
-  keyrings_false="$(for p in $platforms; do printf '{"%s":false}' "$p"; done | jq -s 'add')"
-  envelope="$(jq -n \
-    --arg commit "$target_commit" --arg tree "$target_tree" \
-    --arg relay "$relay_version" --argjson keyrings "$keyrings_false" '
-    {
-      schema: 2,
-      commit_sha: $commit,
-      tree_sha: $tree,
-      relay_app: { version: $relay, source_commit: $commit, source_tree_sha: $tree },
-      checks: {
-        parity: false, stress_10000: false, keyrings: $keyrings,
-        roles: false, domains_mfa: false, lifecycle: false,
-        redirects_non_disclosure: false, installed_relay_app: false,
-        routing: false, signing_and_update_matrix: false
-      }
-    }')"
+  envelope="$(build_template_envelope "$target_commit" "$target_tree" "$relay_version" "$platforms")"
   step "envelope TEMPLATE — every attestation is false on purpose"
   echo "$envelope" | jq .
   echo ""
@@ -615,15 +403,24 @@ fi
 
 if [ "$MODE" = "--set" ]; then
   # The pipeline above takes minutes. Before touching the global secrets,
-  # require the PR's merge target to still be the exact commit this envelope
-  # attests — evidence is written only for the state it names.
+  # require the PR to still be OPEN and its merge identity to still be the
+  # exact commit this envelope attests — GitHub retains the synthetic merge
+  # ref after a close or merge, so the ref alone proves nothing about the
+  # PR's liveness. Evidence is written only for the state it names.
   step "re-resolving #$PR before the write"
+  pr_json_now="$(gh api "repos/$REPO/pulls/$PR")" || die "cannot re-read PR #$PR from GitHub"
+  state_now="$(jq -r .state <<<"$pr_json_now")"
+  [ "$state_now" = "open" ] \
+    || die "PR #$PR is $state_now now — refusing to write evidence for a PR that is no longer open; after a merge use --repoint"
+  api_merge_now="$(jq -r '.merge_commit_sha // ""' <<<"$pr_json_now")"
+  [ "$api_merge_now" = "$target_commit" ] \
+    || die "PR #$PR's merge identity moved during the pipeline (API: ${api_merge_now:-none}, attested: $target_commit) — re-run against the new state"
   git -C "$ROOT_DIR" fetch --quiet --force origin "+refs/pull/$PR/merge:refs/cloud-evidence/$PR" 2>/dev/null \
     || die "cannot re-fetch the synthetic merge ref for #$PR"
   now_commit="$(git -C "$ROOT_DIR" rev-parse "refs/cloud-evidence/$PR")"
   [ "$now_commit" = "$target_commit" ] \
     || die "PR #$PR moved during the pipeline (merge commit is now $now_commit, attested $target_commit) — re-run against the new state"
-  echo "  unchanged: $now_commit"
+  echo "  open, unchanged: $now_commit"
   set_both_secrets "$envelope"
   echo ""
   echo "  written. Rerun CI on #$PR (no new commit), then cloud-source-gate should pass."

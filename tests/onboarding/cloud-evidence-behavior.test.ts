@@ -14,6 +14,11 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const SCRIPT_REL = "scripts/release/build-cloud-evidence.sh";
+const SOURCED_LIBS_REL = [
+  "scripts/release/cloud-evidence-envelope.sh",
+  "scripts/release/cloud-evidence-provenance.sh",
+];
+const ENVELOPE_LIB_REL = SOURCED_LIBS_REL[0] ?? "";
 const GATE_REL = "scripts/release/verify-cloud-release-gate.sh";
 const REPO_SLUG = "testowner/testrepo";
 
@@ -41,6 +46,9 @@ function initFixture(platforms: string[]): Fixture {
   mkdirSync(join(repo, "nova"), { recursive: true });
   copyFileSync(SCRIPT_REL, join(repo, SCRIPT_REL));
   chmodSync(join(repo, SCRIPT_REL), 0o755);
+  for (const lib of SOURCED_LIBS_REL) {
+    copyFileSync(lib, join(repo, lib));
+  }
   writeFileSync(join(repo, "nova", "config.yaml"), 'name: HA NOVA\nversion: "0.9.0"\n');
   writeFileSync(
     join(repo, "version.json"),
@@ -577,9 +585,9 @@ describe("cloud evidence contract parity with the gate", () => {
     const gateChecks = [...gateBody.matchAll(/"([^"]+)"/g)].map((m) => m[1] ?? "");
     expect(gateChecks.length).toBeGreaterThan(0);
 
-    const script = readFileSync(SCRIPT_REL, "utf8");
+    const script = readFileSync(ENVELOPE_LIB_REL, "utf8");
     const scriptList = script.match(/^REQUIRED_CHECKS_SORTED="([a-z0-9_,]+)"$/m)?.[1] ?? "";
-    expect(scriptList, "REQUIRED_CHECKS_SORTED not found in the script").not.toBe("");
+    expect(scriptList, "REQUIRED_CHECKS_SORTED not found in the envelope lib").not.toBe("");
     const scriptChecks = scriptList.split(",");
 
     expect(scriptChecks).toEqual([...gateChecks, "keyrings"].sort());
