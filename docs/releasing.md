@@ -254,41 +254,27 @@ Actions minor/patch lane without allowing mutable action refs or arbitrary
 commits under stale evidence. Disabled targets remain compatible with normal
 reviewed workflow maintenance.
 
-### What the workflow freeze costs, in practice
-
-While Cloud remote is enabled, that last sentence is the expensive one: **every
-workflow change that is not a forward `uses:` bump is blocked**, no matter how
-harmless. Adding a trigger, renaming a step, splitting a job — all of it fails
-the gate, because the target's `.github/workflows` tree must either match
-trusted `main` byte for byte or contain nothing but `uses:` version bumps.
-
-The only such change on `main` since Cloud was enabled is `32b4ffa`, and it
-landed only because a bespoke one-time allowlist was added to the trusted
-verifier — which the same commit then removed again. There is no general
-escape hatch, and the non-sensitive source escape does not help: it covers
-Markdown, not workflow YAML.
-
-So a CI or workflow improvement is never a one-PR change. It costs, in order:
-a first pull request that widens the trusted verifier for that exact shape,
-merged to `main` first (the gate compares against `main`, so the exemption has
-to be there before the change arrives), then a second pull request carrying
-the workflow edit — and a fresh evidence envelope for each. Budget for that
-before starting, or the required check reads as an unexplained failure.
-
-This is a deliberate trade: the freeze is what stops a pull request from
-rewriting the machinery that judges it. It is written down here because the
-price was previously invisible, and discovering it costs hours.
+Read that scope correctly: it constrains **carried** evidence only. A workflow
+change is not blocked — it simply cannot ride an envelope minted for an older
+tree, so it needs a fresh exact-target one like any other non-Markdown change
+(`034d60c` and `be0c5e2` both rewrote release workflows this way after Cloud
+was enabled). Only `32b4ffa` needed more, because it deliberately reused stale
+evidence via a one-time allowlist that the same commit then removed.
 
 ### Merge queue: investigated, not viable while Cloud is enabled
 
-Do not re-investigate without solving these first (audited 2026-08-13):
+The rule above already says a `merge_group` synthetic commit follows the normal
+evidence rules. What makes that impractical rather than merely strict, audited
+2026-08-13 — do not re-investigate without solving these first:
 
-- **No mint path for a queue commit.** The envelope binds a tree; a merge
-  group's target is the `gh-readonly-queue` commit, and `refs/pull/N/merge` is
-  never its ancestor, so both stale-evidence escapes fail their ancestor check.
-  `cloud-candidate-bundle.yml` accepts only a pull request number, so no
-  envelope can be produced for a queue commit at all. The queue could therefore
-  never batch — and batching is its only purpose.
+- **No operational way to mint the envelope a queue commit would need.**
+  `cloud-candidate-bundle.yml` accepts a pull request number and resolves
+  `refs/pull/N/merge`; a queue commit is neither, and it exists only for the
+  minutes the merge group runs. Carrying evidence forward does not help either:
+  `refs/pull/N/merge` is never an ancestor of the queue commit, so both
+  stale-evidence escapes fail their ancestor check. In practice the queue could
+  only ever pass with one pull request per group and an unchanged base — and
+  batching is its only purpose.
 - **`strict` is mandatory here.** `verify-cloud-target-source-gate.sh` requires
   strict up-to-date protection while Cloud is enabled; a merge queue does not
   coexist with it.
