@@ -105,9 +105,17 @@ case "$args" in
   "api repos/${REPO_SLUG}/pulls/"*)
     trace "read:pr"
     cat "\${FAKE_GH_STATE}/pr.json" ;;
-  "run list --repo ${REPO_SLUG} --workflow cloud-candidate-bundle.yml --json databaseId,conclusion,status,displayTitle --limit 30")
+  "run list --repo ${REPO_SLUG} --workflow cloud-candidate-bundle.yml --json databaseId,status,conclusion,event --limit 30")
     trace "run-list"
-    cat "\${FAKE_GH_STATE}/runs.json" 2>/dev/null || printf '[]\\n' ;;
+    n="$(cat "\${FAKE_GH_STATE}/list.count" 2>/dev/null || echo 0)"
+    n=$((n + 1))
+    printf '%s\\n' "\$n" >"\${FAKE_GH_STATE}/list.count"
+    f="\${FAKE_GH_STATE}/runs-\$n.json"
+    while [ ! -f "\$f" ] && [ "\$n" -gt 1 ]; do n=$((n - 1)); f="\${FAKE_GH_STATE}/runs-\$n.json"; done
+    cat "\$f" 2>/dev/null || printf '[]\\n' ;;
+  "workflow run cloud-candidate-bundle.yml --repo ${REPO_SLUG} -f pull_request=7 -f version_tag="*" -f request_id="*)
+    trace "dispatch"
+    exit 0 ;;
   "run watch "*" --repo ${REPO_SLUG} --exit-status")
     trace "run-watch"
     exit 0 ;;
@@ -202,6 +210,7 @@ function runScript(
       // deliberately-failing write keeps it — a shared /tmp would leak that
       // stale lock into the next suite run.
       TMPDIR: fake.state,
+      HA_NOVA_POLL_SECONDS: "0",
       ...extraEnv,
     },
   });
@@ -451,113 +460,75 @@ describe("cloud evidence PR target binding", () => {
     expect(trace).not.toContain("set:");
   });
 
-  function runTitle(fixture: Fixture, tag: string): string {
-    return `Cloud candidate PR #7 ${tag} (pr7-${fixture.mainCommit.slice(0, 12)})`;
-  }
-
-  it("refuses to dispatch a duplicate when a run for this target already failed", () => {
-    const { fixture, fake } = prFixture();
-    writeFileSync(
-      join(fake.state, "runs.json"),
-      JSON.stringify([
-        {
-          databaseId: 41,
-          conclusion: "failure",
-          status: "completed",
-          displayTitle: runTitle(fixture, "v0.24.0-rc1"),
-        },
-      ]),
-    );
-    const result = runScript(fixture, fake, ["7"], { FAKE_SSH_OK: "1" });
-    expect(result.status, result.stdout).not.toBe(0);
-    expect(result.stderr).toContain("finished 'failure'");
-    // A dispatch attempt would hit the un-modelled `gh workflow run` (exit 91).
-    expect(result.stderr).not.toContain("unexpected gh call");
+  const RUN = (databaseId: number, status: string, conclusion: string | null) => ({
+    databaseId,
+    status,
+    conclusion,
+    event: "workflow_dispatch",
   });
 
-  it("adopts an in-flight run instead of dispatching a cancel-in-progress duplicate", () => {
+  it("watches an in-flight run first, then reuses it once its artifact proves the target", () => {
     const { fixture, fake } = prFixture();
-    writeFileSync(
-      join(fake.state, "runs.json"),
-      JSON.stringify([
-        {
-          databaseId: 42,
-          conclusion: null,
-          status: "in_progress",
-          displayTitle: runTitle(fixture, "v0.24.0-rc1"),
-        },
-      ]),
-    );
+    writeFileSync(join(fake.state, "runs-1.json"), JSON.stringify([RUN(42, "in_progress", null)]));
+    writeFileSync(join(fake.state, "runs-2.json"), JSON.stringify([RUN(42, "completed", "success")]));
     seedBundle(fake, "ha-nova-installer-bundle-linux-amd64.tar.gz", { tree: fixture.mainTree });
 
     const result = runScript(fixture, fake, ["7"], { FAKE_SSH_OK: "1" });
-    expect(result.stdout).toContain("found in-flight run 42");
+    expect(result.stdout).toContain("run 42 is in flight — watching it first");
     const trace = readFileSync(fake.trace, "utf8");
     expect(trace).toContain("run-watch");
     expect(trace).toContain("run-download");
+    expect(trace).not.toContain("dispatch");
     expect(result.stderr).not.toContain("unexpected gh call");
     // Checksums and the pre-execution identity check pass; the run then stops
     // deterministically at the linux architecture probe (the FAKE_SSH_OK ssh
     // answers with empty output).
+    expect(result.stdout).toContain("reusing run 42");
     expect(result.stdout).toContain("every bundle matches tree");
     expect(result.status).not.toBe(0);
     expect(result.stderr).toContain("unsupported architecture");
   });
 
-  it("proves bundle identity BEFORE executing anything", () => {
+  it("treats an identity mismatch as 'not ours', dispatches fresh, and hard-stops on a persistent mismatch", () => {
     const { fixture, fake } = prFixture();
+    writeFileSync(join(fake.state, "runs-1.json"), JSON.stringify([RUN(44, "completed", "success")]));
+    // After the dispatch, a new run appears above the previous max id.
     writeFileSync(
-      join(fake.state, "runs.json"),
-      JSON.stringify([
-        {
-          databaseId: 45,
-          conclusion: "success",
-          status: "completed",
-          displayTitle: runTitle(fixture, "v0.24.0-rc1"),
-        },
-      ]),
+      join(fake.state, "runs-2.json"),
+      JSON.stringify([RUN(99, "completed", "success"), RUN(44, "completed", "success")]),
     );
-    // Valid checksum, wrong tree: must die at the identity step, not at the
+    // Valid checksums, wrong tree — the fake serves the same wrong artifact
+    // for the dispatched run too, so the hard stop must fire before any
     // copy/execute step (which would surface as the blocked fake scp).
     seedBundle(fake, "ha-nova-installer-bundle-linux-amd64.tar.gz", { tree: "d".repeat(40) });
 
     const result = runScript(fixture, fake, ["7"], { FAKE_SSH_OK: "1" });
     expect(result.status, result.stdout).not.toBe(0);
+    expect(result.stdout).toContain("identity does not match this target");
+    expect(result.stdout).toContain("dispatching fresh");
+    const trace = readFileSync(fake.trace, "utf8");
+    expect(trace).toContain("dispatch");
     expect(result.stderr).toContain("refusing to execute it");
     expect(result.stderr).not.toContain("cannot copy");
   });
 
-  it("refuses to reuse a success built under a different version_tag", () => {
+  it("falls back to a fresh dispatch when the reuse artifact is gone, and fails loudly if that one is gone too", () => {
     const { fixture, fake } = prFixture();
+    writeFileSync(join(fake.state, "runs-1.json"), JSON.stringify([RUN(44, "completed", "success")]));
     writeFileSync(
-      join(fake.state, "runs.json"),
-      JSON.stringify([
-        {
-          databaseId: 43,
-          conclusion: "success",
-          status: "completed",
-          displayTitle: runTitle(fixture, "v0.24.0-rc9"),
-        },
-      ]),
+      join(fake.state, "runs-2.json"),
+      JSON.stringify([RUN(99, "completed", "success"), RUN(44, "completed", "success")]),
     );
+    // No bundles seeded at all: every download fails like an expired artifact.
     const result = runScript(fixture, fake, ["7"], { FAKE_SSH_OK: "1" });
     expect(result.status, result.stdout).not.toBe(0);
-    expect(result.stderr).toContain("different version_tag");
+    expect(result.stdout).toContain("dispatching fresh");
+    expect(result.stderr).toContain("cannot download the install bundles from run 99");
   });
 
   it("refuses a bundle without its .sha256 instead of running it unverified", () => {
     const { fixture, fake } = prFixture();
-    writeFileSync(
-      join(fake.state, "runs.json"),
-      JSON.stringify([
-        {
-          databaseId: 44,
-          conclusion: "success",
-          status: "completed",
-          displayTitle: runTitle(fixture, "v0.24.0-rc1"),
-        },
-      ]),
-    );
+    writeFileSync(join(fake.state, "runs-1.json"), JSON.stringify([RUN(44, "completed", "success")]));
     seedBundle(fake, "ha-nova-installer-bundle-linux-amd64.tar.gz", {
       tree: fixture.mainTree,
       checksum: false,

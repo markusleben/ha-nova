@@ -61,11 +61,14 @@ verify_bundle_checksums() {  # (reads $work/bundles)
 }
 
 # The provenance runs EXECUTE the candidate binary. Prove from the local bytes
-# that every bundle is the resolved target first — a manual recovery dispatch
-# for the wrong PR, or a PR that moved between the local resolution and the
-# workflow's own, must die here, not after running a foreign build on three
-# machines.
-verify_bundles_identity() {  # (reads $work/bundles)
+# that every bundle is the resolved target first — a stale reuse candidate, a
+# manual recovery dispatch for the wrong PR, or a PR that moved between the
+# local resolution and the workflow's own must be caught here, never after
+# running a foreign build on three machines. Returns nonzero (with the reason
+# on stdout) instead of dying: for a REUSE candidate a mismatch just means
+# "not ours, dispatch fresh"; the orchestrator turns it into a hard stop for
+# a run it dispatched itself.
+check_bundles_against_target() {  # (reads $work/bundles)
   local bundle manifest
   for bundle in "$work"/bundles/*; do
     case "$bundle" in *.sha256) continue ;; esac
@@ -73,14 +76,14 @@ verify_bundles_identity() {  # (reads $work/bundles)
     case "$bundle" in
       *.tar.gz)
         tar -xzOf "$bundle" ha-nova/bundle.json >"$manifest" 2>/dev/null \
-          || die "$(basename "$bundle"): cannot read ha-nova/bundle.json from the archive" ;;
+          || { echo "  $(basename "$bundle"): no readable ha-nova/bundle.json in the archive"; return 1; } ;;
       *.zip)
         unzip -p "$bundle" ha-nova/bundle.json >"$manifest" 2>/dev/null \
-          || die "$(basename "$bundle"): cannot read ha-nova/bundle.json from the archive" ;;
-      *) die "unexpected file in the artifact: $(basename "$bundle")" ;;
+          || { echo "  $(basename "$bundle"): no readable ha-nova/bundle.json in the archive"; return 1; } ;;
+      *) echo "  unexpected file in the artifact: $(basename "$bundle")"; return 1 ;;
     esac
-    check_identity "$manifest" \
-      || die "$(basename "$bundle"): bundle identity does not match the resolved target — refusing to execute it"
+    check_identity "$manifest" 2>/dev/null \
+      || { echo "  $(basename "$bundle"): identity does not match this target"; return 1; }
   done
   echo "  every bundle matches tree ${target_tree}"
 }

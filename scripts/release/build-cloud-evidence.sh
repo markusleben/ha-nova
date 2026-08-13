@@ -43,6 +43,7 @@
 #   HA_NOVA_REPO         (default: markusleben/ha-nova)
 #   HA_NOVA_VERSION_TAG  (default: v<skill_version>-rc1 at the target)
 #   HA_NOVA_WINDOWS_PWSH (default: powershell)
+#   HA_NOVA_POLL_SECONDS (default: 10) run-appearance poll cadence
 # The ssh values are DESTINATIONS, so put the address, user and any
 # HostKeyAlias in ~/.ssh/config rather than here. A lab guest's address
 # changes; an alias does not, and this repo must not carry one maintainer's
@@ -271,81 +272,110 @@ skill_version="$(git -C "$ROOT_DIR" show "$target_commit:version.json" | jq -r '
   || die "version.json at the target has no skill_version — refusing to dispatch a nonsense version_tag"
 version_tag="${HA_NOVA_VERSION_TAG:-v${skill_version}-rc1}"
 step "candidate bundle ($version_tag)"
-# A workflow_dispatch run's headSha is the SHA of the ref it ran FROM — main —
-# never the synthetic merge commit, so keying reuse on it can never match. The
-# only thing tying a run to this target is the request_id in its run-name, so
-# that id is DERIVED from the target commit rather than from $$: the same
-# invocation twice finds its own earlier run — live, succeeded, or failed —
-# instead of dispatching a duplicate.
-request_id="pr${PR}-${target_commit:0:12}"
-run_match="$(gh run list --repo "$REPO" --workflow cloud-candidate-bundle.yml \
-  --json databaseId,conclusion,status,displayTitle --limit 30 \
-  | jq -c --arg r "$request_id" 'map(select(.displayTitle|contains($r))) | first // empty')" \
-  || die "cannot list candidate runs"
-
-run_id=""
-if [ -n "$run_match" ]; then
-  run_id="$(jq -r '.databaseId' <<<"$run_match")"
-  run_status="$(jq -r '.status' <<<"$run_match")"
-  run_conclusion="$(jq -r '.conclusion // ""' <<<"$run_match")"
-  if [ "$run_status" != "completed" ]; then
-    # ADOPT a live run instead of dispatching a duplicate: the workflow's
-    # cancel-in-progress concurrency group would cancel the original
-    # mid-build — exactly what a restart after ctrl-C must not do.
-    echo "  found in-flight run $run_id ($run_status) — watching it"
-    gh run watch "$run_id" --repo "$REPO" --exit-status >/dev/null \
-      || die "run $run_id failed — fix the cause in a reviewed PR, then dispatch once more"
-  elif [ "$run_conclusion" = "success" ]; then
-    # The run-name embeds the version_tag; a success built under a DIFFERENT
-    # tag would only die minutes later at the bundle identity check, so name
-    # the actual cause here.
-    jq -e --arg t " ${version_tag} (" '.displayTitle | contains($t)' >/dev/null <<<"$run_match" \
-      || die "run $run_id built this commit under a different version_tag ($(jq -r '.displayTitle' <<<"$run_match")) — set HA_NOVA_VERSION_TAG to that tag to reuse it"
-    echo "  reusing successful run $run_id"
-  else
-    die "run $run_id for this exact target finished '$run_conclusion' — a code fix lands through a reviewed PR (which moves the merge commit and the request_id); for a pure infrastructure failure, dispatch once by hand with a request_id containing $request_id"
-  fi
-else
-  echo "  dispatching (request_id=$request_id)"
-  gh workflow run cloud-candidate-bundle.yml --repo "$REPO" \
-    -f "pull_request=$PR" -f "version_tag=$version_tag" -f "request_id=$request_id" \
-    || die "dispatch rejected — inspect the workflow before dispatching again"
-  echo "  waiting for the run to appear"
-  for _ in $(seq 1 30); do
-    sleep 10
-    run_id="$(gh run list --repo "$REPO" --workflow cloud-candidate-bundle.yml \
-      --json databaseId,displayTitle --limit 5 \
-      | jq -r --arg r "$request_id" 'map(select(.displayTitle|contains($r))) | first | .databaseId // empty')"
-    [ -n "$run_id" ] && break
-  done
-  [ -n "$run_id" ] \
-    || die "the dispatched run never appeared within 300s. It may still be queued — find it with: gh run list --workflow cloud-candidate-bundle.yml --repo $REPO | grep $request_id"
-  echo "  run $run_id — waiting for completion"
-  gh run watch "$run_id" --repo "$REPO" --exit-status >/dev/null \
-    || die "run $run_id failed — fix the cause in a reviewed PR, then dispatch once more"
-fi
+# shellcheck disable=SC2034  # used by check_identity in the sourced provenance lib
+expected_version="${version_tag#v}"
 
 work="$(mktemp -d)"
 # Keep the work dir on failure: every provenance `die` names a log inside it,
 # and deleting it on the way out destroyed the diagnostics for the most
 # expensive stage of the run.
 trap '[ "${KEEP_WORK:-0}" = 1 ] && echo "[cloud-evidence] logs kept in $work" || rm -rf "$work"' EXIT
-step "downloading install bundles"
-gh run download "$run_id" --repo "$REPO" --name cloud-candidate-install-bundles --dir "$work/bundles" \
-  || die "cannot download the install bundles from run $run_id. Artifacts expire after 7 days — if that happened, dispatch a fresh run by hand with a request_id CONTAINING $request_id (e.g. $request_id-2); this script will pick it up"
 
-step "verifying the artifact's checksums"
-verify_bundle_checksums
+# request_id is a REQUIRED dispatch input, derived deterministically for the
+# audit trail — but it cannot bind runs: the workflow's `run-name:` loses its
+# interpolations to YAML (the unquoted `#` starts a comment), so every run of
+# this workflow is titled just "Cloud candidate PR" and no run is findable by
+# request_id (verified against the live API on 2026-08-13; the workflow file
+# is a frozen surface, tracked separately). Binding works with what the API
+# actually has:
+#   - an in-flight run is watched to completion FIRST — dispatching would
+#     cancel it via the per-PR concurrency group, and in this
+#     single-maintainer repo it is almost certainly ours;
+#   - the newest completed success is only a REUSE CANDIDATE: its artifact
+#     must prove this exact target (embedded bundle version + tree) before
+#     anything trusts it, else we dispatch;
+#   - a dispatched run is bound as "the workflow_dispatch run that appeared
+#     above the highest run id seen before the dispatch".
+# A wrong pick can never attest anything: identity is proven from local bytes
+# before any binary executes, and check_identity guards every provenance run.
+request_id="pr${PR}-${target_commit:0:12}"
+list_candidate_runs() {
+  gh run list --repo "$REPO" --workflow cloud-candidate-bundle.yml \
+    --json databaseId,status,conclusion,event --limit 30
+}
+
+runs_json="$(list_candidate_runs)" || die "cannot list candidate runs"
+inflight_id="$(jq -r 'map(select(.status != "completed")) | first | .databaseId // empty' <<<"$runs_json")"
+if [ -n "$inflight_id" ]; then
+  echo "  run $inflight_id is in flight — watching it first (a dispatch would cancel it via the concurrency group)"
+  gh run watch "$inflight_id" --repo "$REPO" --exit-status >/dev/null \
+    || echo "  in-flight run $inflight_id did not succeed — continuing"
+  runs_json="$(list_candidate_runs)" || die "cannot list candidate runs"
+fi
+
+download_run() {  # <run-id> ; hard-fails
+  rm -rf "$work/bundles"
+  gh run download "$1" --repo "$REPO" --name cloud-candidate-install-bundles --dir "$work/bundles" \
+    || die "cannot download the install bundles from run $1 (artifacts expire after 7 days)"
+  step "verifying the artifact's checksums"
+  verify_bundle_checksums
+}
+
+dispatch_and_bind() {  # sets run_id
+  local max_before
+  max_before="$(jq -r '[.[].databaseId] | max // 0' <<<"$runs_json")"
+  echo "  dispatching (request_id=$request_id)"
+  gh workflow run cloud-candidate-bundle.yml --repo "$REPO" \
+    -f "pull_request=$PR" -f "version_tag=$version_tag" -f "request_id=$request_id" \
+    || die "dispatch rejected — inspect the workflow before dispatching again"
+  echo "  waiting for the run to appear"
+  run_id=""
+  for _ in $(seq 1 30); do
+    sleep "${HA_NOVA_POLL_SECONDS:-10}"
+    run_id="$(list_candidate_runs \
+      | jq -r --argjson m "$max_before" \
+          'map(select(.databaseId > $m and .event == "workflow_dispatch")) | last | .databaseId // empty')" \
+      || die "cannot list candidate runs"
+    [ -n "$run_id" ] && break
+  done
+  [ -n "$run_id" ] \
+    || die "the dispatched run never appeared within 300s. It may still be queued — check: gh run list --workflow cloud-candidate-bundle.yml --repo $REPO"
+  echo "  run $run_id — waiting for completion"
+  gh run watch "$run_id" --repo "$REPO" --exit-status >/dev/null \
+    || die "run $run_id failed — fix the cause in a reviewed PR, then dispatch once more"
+}
+
+run_id="$(jq -r 'map(select(.status == "completed" and .conclusion == "success" and .event == "workflow_dispatch")) | first | .databaseId // empty' <<<"$runs_json")"
+bundles_ok=false
+if [ -n "$run_id" ]; then
+  step "reuse candidate: newest successful run $run_id — its artifact must prove this exact target"
+  if gh run download "$run_id" --repo "$REPO" --name cloud-candidate-install-bundles --dir "$work/bundles" 2>/dev/null; then
+    step "verifying the artifact's checksums"
+    verify_bundle_checksums
+    step "verifying bundle identity (before anything executes)"
+    if check_bundles_against_target; then
+      bundles_ok=true
+      echo "  reusing run $run_id"
+    else
+      echo "  not this target's candidate — dispatching fresh"
+    fi
+  else
+    echo "  cannot download run $run_id's artifact (likely expired after 7 days) — dispatching fresh"
+  fi
+fi
+
+if [ "$bundles_ok" != true ]; then
+  rm -rf "$work/bundles"
+  dispatch_and_bind
+  download_run "$run_id"
+  step "verifying bundle identity (before anything executes)"
+  check_bundles_against_target \
+    || die "the dispatched run's artifact does not match this target — refusing to execute it (see above)"
+fi
 
 # ── 3. provenance, per platform ──────────────────────────────────────────────
 # The positive path: the INSTALLED bundle must accept its own provenance. CI
 # only proves the negative (raw binaries reject it), so this cannot be skipped.
-# shellcheck disable=SC2034  # used by check_identity in the sourced provenance lib
-expected_version="${version_tag#v}"
-
-step "verifying bundle identity (before anything executes)"
-verify_bundles_identity
-
 for platform in $platforms; do
   case "$platform" in
     darwin)
