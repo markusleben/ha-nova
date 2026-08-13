@@ -169,6 +169,11 @@ state="$(jq -r .state <<<"$pr_json")"
 mergeable="$(jq -r '.mergeable_state // "unknown"' <<<"$pr_json")"
 merge_commit="$(jq -r '.merge_commit_sha // ""' <<<"$pr_json")"
 [ "$state" = "open" ] || die "PR #$PR is $state — after a merge, use --repoint instead"
+# Explicit .draft check: a draft can surface as mergeable_state "blocked",
+# which is accepted below, and the candidate workflow rejects drafts anyway —
+# refuse here instead of burning the dispatch.
+[ "$(jq -r '.draft // false' <<<"$pr_json")" != "true" ] \
+  || die "PR #$PR is a draft — mark it ready for review first; the candidate workflow rejects drafts"
 case "$mergeable" in
   # `blocked` is the EXPECTED state here: cloud-source-gate is a required check
   # and it is red precisely because the envelope this script prepares does not
@@ -276,10 +281,19 @@ step "candidate bundle ($version_tag)"
 expected_version="${version_tag#v}"
 
 work="$(mktemp -d)"
+# Serialize whole mint sessions on this machine: two overlapping sessions
+# (parallel agent sessions are normal here) would adopt each other's runs in
+# the selectors below. The artifact identity check would still refuse a wrong
+# attestation, but only after wasting the one explicit dispatch. The lock is
+# released by the EXIT trap on every outcome; cross-machine or manual-UI
+# overlap stays possible and lands in the same identity refusal, fail-closed.
+MINT_LOCK="${TMPDIR:-/tmp}/ha-nova-cloud-evidence-mint.lock"
 # Keep the work dir on failure: every provenance `die` names a log inside it,
 # and deleting it on the way out destroyed the diagnostics for the most
 # expensive stage of the run.
-trap '[ "${KEEP_WORK:-0}" = 1 ] && echo "[cloud-evidence] logs kept in $work" || rm -rf "$work"' EXIT
+trap '{ [ "${KEEP_WORK:-0}" = 1 ] && echo "[cloud-evidence] logs kept in $work" || rm -rf "$work"; }; rmdir "$MINT_LOCK" 2>/dev/null || true' EXIT
+mkdir "$MINT_LOCK" 2>/dev/null \
+  || die "another mint session appears to be running (lock: $MINT_LOCK) — if none is, remove that directory and re-run"
 
 # request_id is a REQUIRED dispatch input, derived deterministically for the
 # audit trail — but it cannot bind runs: the workflow's `run-name:` loses its

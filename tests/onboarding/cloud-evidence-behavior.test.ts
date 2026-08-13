@@ -539,6 +539,19 @@ describe("cloud evidence PR target binding", () => {
     expect(result.stderr).toContain("has no .sha256");
   });
 
+  it("refuses a draft PR before any dispatch", () => {
+    const fixture = initFixture(platforms);
+    const fake = makeFakeBin({
+      state: "open",
+      draft: true,
+      mergeable_state: "blocked",
+      merge_commit_sha: fixture.mainCommit,
+    });
+    const result = runScript(fixture, fake, ["7"]);
+    expect(result.status, result.stdout).not.toBe(0);
+    expect(result.stderr).toContain("is a draft");
+  });
+
   it("refuses a closed PR and points at --repoint", () => {
     const fixture = initFixture(platforms);
     const fake = makeFakeBin({
