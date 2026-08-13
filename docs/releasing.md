@@ -267,14 +267,16 @@ The rule above already says a `merge_group` synthetic commit follows the normal
 evidence rules. What makes that impractical rather than merely strict, audited
 2026-08-13 — do not re-investigate without solving these first:
 
-- **No operational way to mint the envelope a queue commit would need.**
-  `cloud-candidate-bundle.yml` accepts a pull request number and resolves
-  `refs/pull/N/merge`; a queue commit is neither, and it exists only for the
-  minutes the merge group runs. Carrying evidence forward does not help either:
-  `refs/pull/N/merge` is never an ancestor of the queue commit, so both
-  stale-evidence escapes fail their ancestor check. In practice the queue could
-  only ever pass with one pull request per group and an unchanged base — and
-  batching is its only purpose.
+- **No operational way to mint the envelope a queue commit would need.** The
+  envelope stored for the current `main` after a merge *is* an ancestor of a
+  queue commit, so a merge group whose aggregate base-to-target delta stays
+  inside the permitted classes — Markdown under the non-sensitive escape, or
+  safe `uses:` bumps — passes on carried evidence, batched or not. Any group
+  containing anything else needs its own exact-target envelope, and there is no
+  way to produce one: `cloud-candidate-bundle.yml` mints from a pull request
+  number and `refs/pull/N/merge`, while a queue commit is neither and exists
+  only for the minutes the group runs. So the queue would serve documentation
+  trains and nothing else.
 - **`strict` is mandatory here.** `verify-cloud-target-source-gate.sh` requires
   strict up-to-date protection while Cloud is enabled; a merge queue does not
   coexist with it.
