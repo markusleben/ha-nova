@@ -306,12 +306,10 @@ mkdir "$MINT_LOCK" 2>/dev/null \
 MINT_LOCK_ACQUIRED=1
 
 # request_id is a REQUIRED dispatch input, derived deterministically for the
-# audit trail — but it cannot bind runs: the workflow's `run-name:` loses its
-# interpolations to YAML (the unquoted `#` starts a comment), so every run of
-# this workflow is titled just "Cloud candidate PR" and no run is findable by
-# request_id (verified against the live API on 2026-08-13; the workflow file
-# is a frozen surface, tracked separately). Binding works with what the API
-# actually has:
+# audit trail — but binding never relies on it: every run before the #574
+# fix is titled just "Cloud candidate PR" (the unquoted `#` in run-name
+# started a YAML comment), and `gh run list` cannot filter by dispatch
+# inputs either way. Binding works with what the API reliably has:
 #   - an in-flight run is watched to completion FIRST — dispatching would
 #     cancel it via the per-PR concurrency group, and in this
 #     single-maintainer repo it is almost certainly ours;
