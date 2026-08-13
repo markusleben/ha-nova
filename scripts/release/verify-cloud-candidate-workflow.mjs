@@ -85,7 +85,7 @@ requireText(workflow, "version_tag:", "version input");
 requireText(workflow, "request_id:", "dispatch recovery input");
 requireText(
   workflow,
-  "run-name: Cloud candidate PR #${{ inputs.pull_request }} ${{ inputs.version_tag }} (${{ inputs.request_id }})",
+  'run-name: "Cloud candidate PR #${{ inputs.pull_request }} ${{ inputs.version_tag }} (${{ inputs.request_id }})"',
   "unique recoverable run name",
 );
 requireText(

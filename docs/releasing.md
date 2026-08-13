@@ -436,12 +436,10 @@ Dispatch, capture, and monitor that single run:
 PR_NUMBER=469 # replace
 VERSION_TAG=v0.22.0-rc1 # replace
 REQUEST_ID="$(date -u +%Y%m%dT%H%M%SZ)-$$"
-# Runs cannot be found by name or request id: the workflow's `run-name:`
-# loses its interpolations to YAML (the unquoted `#` starts a comment), so
-# every run is titled just "Cloud candidate PR" — and `gh workflow run`
-# prints no run id either. Fence on the highest run id seen BEFORE the
-# dispatch; the id fence plus the bundle-identity checks below are the real
-# binding.
+# `gh workflow run` prints no run id, and every run before the #574 fix is
+# titled just "Cloud candidate PR", so recovery by name is unreliable. Fence
+# on the highest run id seen BEFORE the dispatch; the id fence plus the
+# bundle-identity checks below are the real binding.
 MAX_BEFORE="$(gh run list --workflow cloud-candidate-bundle.yml --limit 30 \
   --json databaseId --jq '[.[].databaseId] | max // 0')"
 gh workflow run cloud-candidate-bundle.yml --ref main \

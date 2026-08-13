@@ -1,5 +1,5 @@
 name: Cloud Candidate Bundle
-run-name: Cloud candidate PR #${{ inputs.pull_request }} ${{ inputs.version_tag }} (${{ inputs.request_id }})
+run-name: "Cloud candidate PR #${{ inputs.pull_request }} ${{ inputs.version_tag }} (${{ inputs.request_id }})"
 
 on:
   workflow_dispatch:

@@ -10,6 +10,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
+import { parse } from "yaml";
 
 type FixtureChange =
   | "draft"
@@ -642,6 +643,17 @@ describe("Cloud candidate workflow contract", () => {
       { encoding: "utf8" },
     );
     expect(result.status, `${result.stdout}\n${result.stderr}`).toBe(0);
+  });
+
+  it("keeps the run-name interpolation alive after YAML parsing", () => {
+    // Regression pin for #574: an unquoted `#` in run-name starts a YAML
+    // comment, every run is then titled just "Cloud candidate PR", and no
+    // run can be recovered by its request id. The parsed value — what
+    // GitHub actually evaluates — must retain the input interpolations.
+    const runName = parse(workflow)["run-name"];
+    expect(runName).toContain("${{ inputs.pull_request }}");
+    expect(runName).toContain("${{ inputs.version_tag }}");
+    expect(runName).toContain("${{ inputs.request_id }}");
   });
 
   it("rejects publication commands", () => {
