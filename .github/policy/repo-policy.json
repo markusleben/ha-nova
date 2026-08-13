@@ -59,6 +59,7 @@
       "ci-gate",
       "cloud-source-gate",
       "dependency-review",
+      "go-test",
       "manifest-review-gate",
       "readme-release-gate"
     ],

@@ -260,6 +260,15 @@ describe("safe test system contract", () => {
     ]);
     expectNoFullVitestSweep(verify);
     expect(verify).not.toContain("test:desktop");
+
+    // CI runs verify:ci, but the coverage checks above derive from verify.
+    // Pin the relationship so the two cannot drift: verify:ci must be verify
+    // with exactly the Go suite removed (it runs in the parallel go-test job,
+    // which is a required check). Any other omission would silently leave CI
+    // covering less than this contract believes.
+    const verifyCi = pkg.scripts?.["verify:ci"] ?? "";
+    expect(verifyCi).toBe(verify.replace(" && npm run test:cli", ""));
+    expect(verifyCi).not.toContain("test:cli");
   });
 
   it("fails scripted Vitest runs before missing files can be skipped", () => {

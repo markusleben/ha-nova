@@ -111,7 +111,10 @@ jobs:
         run: npm ci
 
       - name: Verify repository
-        run: npm run verify
+        # verify:ci is `verify` without `test:cli`; the Go suite runs in the
+        # parallel go-test job below. `npm run verify` stays whole for the
+        # pre-tag checklist and the release workflows.
+        run: npm run verify:ci
 
   go-build:
     name: go-build
@@ -134,6 +137,25 @@ jobs:
           GOOS=windows GOARCH=amd64 go build -o /dev/null .
           GOOS=linux GOARCH=amd64 go build -o /dev/null .
           GOOS=linux GOARCH=arm64 go build -o /dev/null .
+
+  # Split out of ci-gate: `go test ./...` was 142 s of that job's ~4.5 min
+  # serial verify chain and needs nothing the chain produces. Actions are
+  # SHA-pinned here to match ci-gate rather than the looser tags below.
+  go-test:
+    name: go-test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: "1.26.5"
+          cache-dependency-path: cli/go.sum
+
+      - name: Run the Go test suite
+        run: npm run test:cli
 
   macos-native-secret-boundary:
     name: macos-native-secret-boundary

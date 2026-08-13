@@ -329,7 +329,7 @@ describe("dependabot automation contract", () => {
   });
 
   it("pins the expected main branch protection policy for maintainer verification", () => {
-    expect(policy.main_branch_protection.required_status_checks).toEqual(["analyze", "ci-gate", "cloud-source-gate", "dependency-review", "manifest-review-gate", "readme-release-gate"]);
+    expect(policy.main_branch_protection.required_status_checks).toEqual(["analyze", "ci-gate", "cloud-source-gate", "dependency-review", "go-test", "manifest-review-gate", "readme-release-gate"]);
     expect(policy.main_branch_protection.required_status_check_apps).toEqual({
       "cloud-source-gate": 4400145,
     });

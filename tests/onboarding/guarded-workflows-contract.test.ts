@@ -16,6 +16,7 @@ const policy = JSON.parse(
 // check whose workflow is disabled never appears, so PRs hang BLOCKED forever.
 const requiredCheckWorkflows: Record<string, string> = {
   "ci-gate": ".github/workflows/ci.yml",
+  "go-test": ".github/workflows/ci.yml",
   analyze: ".github/workflows/codeql.yml",
   "dependency-review": ".github/workflows/dependency-review.yml",
   "manifest-review-gate": ".github/workflows/manifest-review-gate.yml",
