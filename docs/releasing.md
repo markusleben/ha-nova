@@ -844,6 +844,14 @@ release changes the census Worker.
    service-token policy, plus `ACCESS_TEAM_DOMAIN`/`ACCESS_AUD` secrets set
    via `wrangler secret put … --env test` (secrets are per-worker; without
    them the fail-closed Worker answers 403).
+
+   Machine prerequisite, easy to miss on a fresh setup: the deploy scripts set
+   `CLOUDFLARE_ACCOUNT_ID` but never `CLOUDFLARE_API_TOKEN`. Unless the shell
+   already exports that token (it takes precedence), Wrangler falls back to its
+   own stored OAuth session — so on a machine that has never run it, do
+   `npx wrangler@4.113.0 login` first. Without either, the run fails early at
+   the `secret list` step rather than at the deploy, which makes the cause look
+   unrelated. Confirm with `npx wrangler@4.113.0 whoami` before starting.
 6. Only after the rehearsal and every applicable external gate are clean — or
    the RC was skipped per the conditional gate above (skills/docs-only delta) —
    cut the final tag (see "Final Publish"). A skipped RC never skips the

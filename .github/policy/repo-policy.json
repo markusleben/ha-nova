@@ -9,7 +9,8 @@
     ".github/workflows/dependabot-safe-lane-prepare.yml",
     ".github/workflows/dependabot-safe-auto-merge.yml",
     ".github/workflows/release.yml",
-    ".github/workflows/release-candidate.yml"
+    ".github/workflows/release-candidate.yml",
+    ".github/workflows/relay-image.yml"
   ],
   "manifest_review": {
     "label": "manifest-review:approved",
