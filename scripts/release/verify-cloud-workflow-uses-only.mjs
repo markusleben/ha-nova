@@ -42,7 +42,13 @@ function git(args, encoding = "utf8") {
 // pins the ENTIRE file transformation: the inert line must occur exactly
 // once, the after-image must equal the before-image with only that line
 // replaced, and the caller additionally requires it to be the sole workflow
-// delta. Remove this block in the follow-up PR that applies the fix.
+// delta. The follow-up PR that applies the fix must make THREE coordinated
+// edits: (1) quote the run-name line in the workflow, (2) update the
+// inert-line pin in scripts/release/verify-cloud-candidate-workflow.mjs to
+// the quoted form (it runs in the weekly audit and the release rehearsal),
+// and (3) remove this block plus
+// tests/onboarding/cloud-candidate-runname-handoff-behavior.ts and its
+// side-effect import in cloud-release-gate-behavior.ts.
 function isOneTimeRunNameQuoteFix(path, baseRef, targetRef) {
   if (path !== candidateBundlePath) {
     return false;

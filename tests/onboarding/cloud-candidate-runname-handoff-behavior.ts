@@ -154,6 +154,56 @@ describe("one-time candidate run-name quote fix handoff", () => {
     expect(result.stderr).toContain("must be the sole workflow delta");
   });
 
+  it("rejects the fix when the inert line occurs twice in the base", () => {
+    const doubled = `${workflow}${inertRunName}\n`;
+    const result = verify((root) => {
+      rewrite(root, workflowPath, doubled);
+    });
+    // Baseline sanity: committing the doubled base itself must fail…
+    expect(result.status).not.toBe(0);
+    const { root, script, base } = (() => {
+      const f = fixture();
+      rewrite(f.root, workflowPath, doubled);
+      execFileSync("git", ["add", "."], { cwd: f.root });
+      execFileSync("git", ["commit", "-qm", "doubled base"], { cwd: f.root });
+      return { ...f, base: execFileSync("git", ["rev-parse", "HEAD"], { cwd: f.root, encoding: "utf8" }).trim() };
+    })();
+    // …and from a doubled base, replacing BOTH occurrences must stay denied:
+    // the occurs-exactly-once guard is what makes the transformation unique.
+    rewrite(root, workflowPath, doubled.split(inertRunName).join(quotedRunName));
+    execFileSync("git", ["add", "."], { cwd: root });
+    execFileSync("git", ["commit", "-qm", "target"], { cwd: root });
+    const target = execFileSync("git", ["rev-parse", "HEAD"], { cwd: root, encoding: "utf8" }).trim();
+    const doubledResult = spawnSync(
+      process.execPath,
+      [script, root, base, target, "workflow-tree-only"],
+      { cwd: root, encoding: "utf8" },
+    );
+    expect(doubledResult.status, `${doubledResult.stdout}\n${doubledResult.stderr}`).not.toBe(0);
+    expect(doubledResult.stderr).toContain("is Cloud-release-sensitive");
+  });
+
+  it("stays inert after the fix: the reverse direction is denied", () => {
+    const { root, script, base } = (() => {
+      const f = fixture();
+      rewrite(f.root, workflowPath, workflow.replace(inertRunName, quotedRunName));
+      execFileSync("git", ["add", "."], { cwd: f.root });
+      execFileSync("git", ["commit", "-qm", "quoted base"], { cwd: f.root });
+      return { ...f, base: execFileSync("git", ["rev-parse", "HEAD"], { cwd: f.root, encoding: "utf8" }).trim() };
+    })();
+    rewrite(root, workflowPath, workflow);
+    execFileSync("git", ["add", "."], { cwd: root });
+    execFileSync("git", ["commit", "-qm", "target"], { cwd: root });
+    const target = execFileSync("git", ["rev-parse", "HEAD"], { cwd: root, encoding: "utf8" }).trim();
+    const result = spawnSync(
+      process.execPath,
+      [script, root, base, target, "workflow-tree-only"],
+      { cwd: root, encoding: "utf8" },
+    );
+    expect(result.status, `${result.stdout}\n${result.stderr}`).not.toBe(0);
+    expect(result.stderr).toContain("is Cloud-release-sensitive");
+  });
+
   it("rejects the same rewrite smuggled into another workflow", () => {
     const result = verify((root) => {
       rewrite(root, otherSensitivePath, `${otherWorkflow}${quotedRunName}\n`);
