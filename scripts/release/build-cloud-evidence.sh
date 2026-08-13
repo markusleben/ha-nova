@@ -138,6 +138,15 @@ if [ "$MODE" = "--repoint" ]; then
     || die "cannot rewrite the envelope"
   step "repointed envelope (the input file is left untouched)"
   echo "$repointed" | jq .
+  # Same exact-state rule as the PR path: re-fetch immediately before the
+  # write and require main to still be the commit this repoint names — a
+  # merge that lands during validation must not be papered over with a
+  # stale envelope that reports success.
+  git -C "$ROOT_DIR" fetch --quiet --force origin "+refs/heads/main:refs/cloud-evidence/main" 2>/dev/null \
+    || die "cannot re-fetch origin/main"
+  main_now="$(git -C "$ROOT_DIR" rev-parse refs/cloud-evidence/main)"
+  [ "$main_now" = "$main_commit" ] \
+    || die "origin/main moved during validation (now $main_now, repointing to $main_commit) — re-run"
   set_both_secrets "$repointed"
   echo ""
   echo "[cloud-evidence] done. main's ci-gate reads the repository secret on the next"
