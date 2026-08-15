@@ -98,7 +98,7 @@
     "home-assistant-js-websocket": "^9.6.0",
     "jose": "^6.2.4",
     "reflect-metadata": "^0.2.2",
-    "ws": "^8.21.1",
+    "ws": "^8.21.3",
     "yaml": "^2.9.0"
   },
   "devDependencies": {
