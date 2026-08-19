@@ -92,19 +92,21 @@ For every Relay-Ready call in this skill:
 | Zigbee / Z-Wave Config | External | -- (MQTT-level inspection of a Zigbee2MQTT setup: `mqtt`) |
 | Alarm / lock code management (lock user codes, alarm PINs) | External | -- (Home Assistant UI; codes never enter chat) |
 | Integration entry lifecycle (reload, remove) | Relay-Ready | this skill |
-| Integration entry enable/disable, options, reconfigure | External | -- (Settings > Devices & services; the flows are UI-driven and this skill documents no mechanics for them) |
+| Integration entry enable/disable, options, reconfigure | External | -- (Settings > Devices & services) |
 | Matter / Thread status (border router, datasets, node diagnostics) | Relay-Ready | this skill |
 | Matter / Thread commissioning | External | -- (companion app; BLE pairing is not an API surface) |
 | Assist custom sentences / intent scripts | Relay-Ready | this skill (file mechanics below); `assist` tests the result |
 | Creating a calendar (the `local_calendar` integration) | Covered | integration-setup |
 | Device category assignment | Not a Home Assistant surface | -- (devices carry no category; entity categories are `organize`) |
 
-Rows classify the operation SURFACE, never the integration's name. Overlapping
-rows: route by the surface the change would actually call — the integration's
-own endpoints → custom-integration row; a standard config-entry surface
-(options, reconfigure, enable/disable) → its config-entry row even on a custom
-integration, not the custom-API row; neither → External. Unclear surface?
-Resolve it first in research; never pick the more permissive row.
+Rows classify the operation, not the integration's brand. Precedence: first a
+row naming the operation itself (code management, helper families,
+onboarding); then the surface the change would actually call — the
+integration's own endpoints → custom-integration row; a standard config-entry
+options/reconfigure flow → the integration-entry row even on a custom
+integration, never the custom-API row; neither surface → External. Still
+overlapping or unclear? Research the surface first, then take the least
+permissive matching row (External over Relay-Ready).
 
 ## Flow
 
