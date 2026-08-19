@@ -182,7 +182,9 @@ ancestor-bound `uses:`-only and guarded non-sensitive source escapes
 after a relevant implementation
 or evidence-harness change; exact-target CI, signed provenance on all enabled
 OSes, and the installed Relay App always run, and the reference Cloud health
-smoke runs for deltas with real-platform scope:
+smoke runs for deltas with real-platform scope — or is replaced by the
+risk-scope spec's ledger-recorded reference-smoke waiver when no validation
+infrastructure is available:
 
 - `/health`, `/ws`, `/core`, `/files`, and `/backups` parity through a real
   Home Assistant Cloud route on one reference platform after a transport

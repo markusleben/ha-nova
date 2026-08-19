@@ -66,8 +66,12 @@ checks, the last real qualification they carry from, the exact crossing
 delta, and state that the maintainer accepts the residual risk. Four things
 are never waivable: the JSON envelope, the commit/tree identity, candidate
 provenance on every enabled platform, and the live `installed_relay_app`
-check. Waived checks remain first in line for a real rerun once
-infrastructure is available again.
+check. None of the four requires the reference platform: provenance runs
+locally or over any remote shell per enabled OS, and `installed_relay_app`
+is a live relay health read that may run from any host that reaches the
+installed Relay App. If even one of the four cannot be completed, there is
+no waiver and the delta stays unmergeable. Waived checks remain first in
+line for a real rerun once infrastructure is available again.
 
 | Changed surface | Qualification to repeat | Real platform scope |
 |---|---|---|
