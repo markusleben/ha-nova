@@ -13,7 +13,7 @@ Root-cause a concrete failure: "why did X not run", "why did X misbehave", "what
 
 - Evidence sources: automation/script traces, HA error log, system log, bounded logbook/history windows, template probes, integration diagnostics.
 - Boundary: `ha-nova:health` reports CURRENT home status (repairs, unavailable entities); `ha-nova:history` answers plain timeline questions; `ha-nova:review` audits config quality without a concrete incident. This skill starts from a concrete symptom.
-- The ONLY mutation in this skill is a temporary `logger.set_level` debug escalation (see Flow step 5) — every other fix hands off to the owning skill (`ha-nova:write`, `ha-nova:helper`, `ha-nova:service-call`).
+- The ONLY mutation in this skill is a temporary `logger.set_level` debug escalation (see Flow step 5) — every other fix hands off to the owning skill (`ha-nova:write`, `ha-nova:helper`, `ha-nova:service-call`, `ha-nova:integration-setup` for credential recovery).
 
 ## Bootstrap (once per session)
 
@@ -72,7 +72,7 @@ Only where the log file exists (Container/Core installs; on HA OS/Supervised the
    - Escalate: service `logger.set_level` with `{"homeassistant.components.<domain>":"debug"}`. Preview the exact payload and get confirmation.
    - ALWAYS pair it with the reset: after reproducing, restore the recorded level as its NAME (mapped above) — never the raw number, and never a hard-coded `warning`, which would silently overwrite a level the user set on purpose. Home Assistant has no "remove override" service: an override persists until the next restart, so restoring means setting the recorded level back explicitly (or restarting HA for a truly clean state). Say this plainly before escalating.
 6. Conclude with Claim-Evidence Binding: name the root cause only when the evidence shows it (trace step, log line, state sequence). Otherwise present the ranked hypotheses, each with its evidence and the one probe that would decide it.
-7. Hand off the fix: config changes -> `ha-nova:write` / `ha-nova:helper`; a one-off corrective action -> `ha-nova:service-call`; systemic issues (repairs, unavailable entities) -> `ha-nova:health`.
+7. Hand off the fix: config changes -> `ha-nova:write` / `ha-nova:helper`; a one-off corrective action -> `ha-nova:service-call`; invalid credentials or a pending reauthentication -> `ha-nova:integration-setup`; systemic issues (repairs, unavailable entities) -> `ha-nova:health`.
 
 ## Error Handling
 
