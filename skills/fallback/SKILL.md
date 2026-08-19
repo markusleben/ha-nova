@@ -81,7 +81,7 @@ For every Relay-Ready call in this skill:
 | Statistics repair / Purge / Entity registry remove | Covered | maintenance |
 | Device config-entry detach | External | -- (Home Assistant UI; HA 2026.8+ removes the device) |
 | Integration onboarding (add / re-auth an integration via config flow) | Covered | integration-setup |
-| Custom-integration configuration APIs (Alarmo, Scheduler, Adaptive Lighting, Frigate, ...) | Relay-Ready | this skill |
+| Custom-integration configuration APIs — the integration's OWN endpoints (Alarmo, Scheduler, Frigate, ...) | Relay-Ready | this skill |
 | Event capture — bounded window (a button's event, a short watch after an action) | Relay-Ready | this skill; `mqtt` for MQTT topics |
 | Event streaming — continuous | Roadmap Phase 1c | -- |
 | Backups (status, create, inspect, delete) | Covered | backup |
@@ -92,12 +92,21 @@ For every Relay-Ready call in this skill:
 | Zigbee / Z-Wave Config | External | -- (MQTT-level inspection of a Zigbee2MQTT setup: `mqtt`) |
 | Alarm / lock code management (lock user codes, alarm PINs) | External | -- (Home Assistant UI; codes never enter chat) |
 | Integration entry lifecycle (reload, remove) | Relay-Ready | this skill |
-| Integration entry enable/disable, options, reconfigure | External | -- (Settings > Devices & services; the flows are UI-driven and this skill documents no mechanics for them) |
+| Integration entry enable/disable, options, reconfigure | External | -- (Settings > Devices & services) |
 | Matter / Thread status (border router, datasets, node diagnostics) | Relay-Ready | this skill |
 | Matter / Thread commissioning | External | -- (companion app; BLE pairing is not an API surface) |
 | Assist custom sentences / intent scripts | Relay-Ready | this skill (file mechanics below); `assist` tests the result |
 | Creating a calendar (the `local_calendar` integration) | Covered | integration-setup |
 | Device category assignment | Not a Home Assistant surface | -- (devices carry no category; entity categories are `organize`) |
+
+Rows classify the operation, not the integration's brand. Precedence: first a
+row naming the operation itself (code management, helper families,
+onboarding); then the surface the change would actually call — the
+integration's own endpoints → custom-integration row; a standard config-entry
+options/reconfigure flow → the integration-entry row even on a custom
+integration, never the custom-API row; neither surface → External. Still
+overlapping or unclear? Research the surface first, then take the least
+permissive matching row (External over Relay-Ready).
 
 ## Flow
 

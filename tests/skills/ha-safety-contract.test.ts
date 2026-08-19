@@ -174,7 +174,7 @@ describe("ha safety contract", () => {
     // custom-integration configuration APIs is mapped explicitly
     expect(fallback).toContain("Write-Probing Asymmetry");
     expect(fallback).toContain("Custom-Integration Configuration APIs");
-    expect(fallback).toContain("Custom-integration configuration APIs (Alarmo, Scheduler, Adaptive Lighting, Frigate, ...)");
+    expect(fallback).toContain("Custom-integration configuration APIs — the integration's OWN endpoints (Alarmo, Scheduler, Frigate, ...)");
   });
 
   it("pins the fail-closed consumer-scan read path (#489)", () => {

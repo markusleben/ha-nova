@@ -28,27 +28,9 @@ ha-nova relay ws --data-file <payload-file>
 
 Handle unsupported config-entry helper types that are not yet owned by `ha-nova:helper`.
 
-Owned by `ha-nova:helper` now:
-
-- `utility_meter`
-- `derivative`
-- `integration`
-- `min_max`
-- `threshold`
-- `tod`
-- `statistics`
-- `group`
-- `history_stats`
-- `template`
-
-Still handled here:
-
-- `trend`
-- `random`
-- `filter`
-- `generic_thermostat`
-- `switch_as_x`
-- `generic_hygrostat`
+Owned by `ha-nova:helper` now: `utility_meter`, `derivative`, `integration`,
+`min_max`, `threshold`, `tod`, `statistics`, `group`, `history_stats`,
+`template`.
 
 **Search:** `home assistant config entry flow helper trend random filter generic_thermostat api 2026`
 
@@ -149,8 +131,7 @@ for Home Assistant's own event bus.
 Reload and remove for an existing config entry — those two only.
 `ha-nova:integration-setup` owns ADDING an integration and continuing a
 pending `reauth`. Enable/disable, options and reconfigure are `External` in
-the Capability Map: their flows are UI-driven and no mechanics for them are
-documented here, so point at Settings > Devices & services instead of
+the Capability Map: point at Settings > Devices & services instead of
 improvising a payload.
 
 **Search:** `home assistant config entry reload delete api 2026`
@@ -278,7 +259,7 @@ pins no schema.
 
 ### Custom-Integration Configuration APIs -- RELAY-READY
 
-Integrations that ship their OWN configuration API outside the config-entry flow (Alarmo, Scheduler, Adaptive Lighting, Frigate, ...). Runtime control of their entities stays with the owning skills (for example alarm arm/disarm via `service-call`); this section covers the configuration layer only.
+Integrations that ship their OWN configuration API outside the config-entry flow (Alarmo, Scheduler, Frigate, ...). Runtime control of their entities stays with the owning skills (for example alarm arm/disarm via `service-call`); this section covers the configuration layer only. An integration configured through a standard config-entry OptionsFlow (for example Adaptive Lighting) does not belong here — its changes follow the config-entry rows of the Capability Map (precedence rule).
 
 **Search:** `<integration name> home assistant configuration api endpoints 2026` — prefer the integration's own repository docs for payload schemas.
 

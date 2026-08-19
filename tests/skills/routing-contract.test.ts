@@ -285,3 +285,38 @@ describe("load-bearing rules referenced from where they apply (#518)", () => {
     );
   });
 });
+
+describe("fallback capability-map precedence (#581)", () => {
+  it("routes by the operation surface, never the integration's name", () => {
+    const raw = read("skills/fallback/SKILL.md");
+    const fb = flat(raw);
+    expect(fb).toContain("the surface the change would actually call");
+    // A row naming the operation itself (Alarmo code management stays External)
+    // beats the surface arms, and any residual overlap fails closed.
+    expect(fb).toContain("first a row naming the operation itself");
+    expect(fb).toContain(
+      "take the least permissive matching row (External over Relay-Ready)",
+    );
+    // A custom integration with a standard OptionsFlow takes the config-entry
+    // row; the custom-API row must not name it as an example anymore.
+    expect(fb).toContain(
+      "even on a custom integration, never the custom-API row",
+    );
+    const customApiRow = raw
+      .split("\n")
+      .find((l) => l.includes("Custom-integration configuration APIs"));
+    expect(customApiRow).toBeDefined();
+    expect(customApiRow ?? "").toContain("OWN endpoints");
+    expect(customApiRow ?? "").not.toContain("Adaptive Lighting");
+  });
+
+  it("draws the same boundary where the custom-API mechanics live", () => {
+    const rr = flat(read("skills/fallback/relay-ready.md"));
+    expect(rr).toContain(
+      "configured through a standard config-entry OptionsFlow (for example Adaptive Lighting) does not belong here",
+    );
+    expect(rr).toContain(
+      "follow the config-entry rows of the Capability Map (precedence rule)",
+    );
+  });
+});
