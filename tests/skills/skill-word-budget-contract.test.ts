@@ -49,7 +49,10 @@ const WORD_BUDGETS: Record<string, number> = {
   // Canonical truncation filter moved to skills/ha-nova/ with the inline
   // recreate-exactly fallback for flat installs (#582 Codex round 1,
   // measured 2145).
-  "entity-discovery": 2170,
+  // Device-sibling capability discovery: full-registry sibling listing incl.
+  // disabled entities, same-device selection, organize enable handoff
+  // (#564, 2026-08-19, measured 2351).
+  "entity-discovery": 2380,
   // pre-save snapshot capture + snapshot recovery guidance (Wave 2).
   // Pre-write drift check before save_prefs (#514, measured 1257): the
   // post-save deep-equal check reported a lost foreign edit instead of
@@ -187,7 +190,9 @@ const WORD_BUDGETS: Record<string, number> = {
   // Codex round 3: match candidates come from every expanded target;
   // round 4 restored the GLOBAL single-entry guard on the handler fallback
   // (measured 9135 with the post-500 best-effort symmetry).
-  "service-call": 9160,
+  // Flow step 1 pointer to entity-discovery's device-sibling capability
+  // discovery (#564, 2026-08-19, measured 9163).
+  "service-call": 9190,
   // Carries the canonical File-Change Preview example — the only layout
   // source for file edits; concrete examples are what make a card renderable.
   // Sibling-survival verification (Wave 1b) + yaml snapshot capture with
@@ -334,6 +339,10 @@ const WORD_BUDGETS: Record<string, number> = {
   // round 7 keeps the failed-reload result when flow polling fails too
   // (measured 1568).
   "integration-setup": 1570,
+  // Restart/reboot pointer to entity-discovery's device-sibling capability
+  // discovery left the default cap 4 words of headroom
+  // (#564, 2026-08-19, measured 1146).
+  camera: 1170,
 };
 const DEFAULT_WORD_BUDGET = 1150;
 
