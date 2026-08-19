@@ -243,7 +243,10 @@ config entry. Reconcile the two instead of reporting the bare failure:
 
 1. Right before executing a confirmed call, snapshot pending reauth flows: WS
    `{"type":"config_entries/flow/progress"}`, keep only entries with
-   `context.source == "reauth"` (client-private scratch storage).
+   `context.source == "reauth"` (client-private scratch storage). The snapshot
+   is best-effort: if this read fails, proceed with the confirmed call and
+   report a later 500 without reauth correlation — optional evidence never
+   blocks an approved action.
 2. On a generic upstream 500 (`.data.status` 500), re-read the same list —
    reauth flows open asynchronously, so wait a few seconds and re-read once
    more before concluding none appeared. A flow counts as NEW only
@@ -251,8 +254,10 @@ config entry. Reconcile the two instead of reporting the bare failure:
    as this call's side effect.
 3. Match the new flow to the failed call: a match on `context.entry_id` —
    the target entity's registry `config_entry_id` — is decisive alone;
-   otherwise its `handler` must equal the target's integration domain, which
-   is the registry row's `platform`, never the service or entity_id prefix. A same-domain
+   otherwise its `handler` must equal the target's integration domain — the
+   registry row's `platform`, never the service or entity_id prefix — AND the
+   target must be that domain's only config entry; several entries sharing
+   the domain leave the flow unattributable (step 4's no-match branch). A same-domain
    system-log entry inside the call window is corroboration, never a match by
    itself. A flow for another domain or entry does not match.
 4. On a match, report both facts — the call failed AND Home Assistant started
