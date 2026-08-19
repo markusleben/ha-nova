@@ -42,7 +42,7 @@ Use file-based relay requests by default:
 
 Entity registry uses compact abbreviated keys: `ei`=entity_id, `en`=name, `ai`=area_id.
 
-Search both entity_id and name. Use short keyword stems to handle spelling variants. Always limit to 20 results.
+Search both entity_id and name. Use short keyword stems to handle spelling variants. Cap display at 20 rows through the canonical envelope below — never a bare slice.
 
 For bulk selectors, follow `skills/ha-nova/bulk-patterns.md`.
 - `prefix`: case-insensitive prefix match on the entity_id suffix and display name
@@ -62,20 +62,26 @@ Create `<payload-file>` with `{"type":"config/entity_registry/list_for_display"}
 ha-nova relay ws --data-file <payload-file> --jq-file <filter-file>
 ```
 
-Write `<filter-file>` with:
+Write `<filter-file>` by copying the canonical `skills/ha-nova/discovery-filter.jq`
+and replacing `KEYWORD` with the pattern; if the canonical file is unavailable
+(flat-copy installs), recreate it with exactly:
 
 ```jq
-[.data.entities[] | select((.ei + " " + (.en // "")) | test("KEYWORD";"i")) | {entity_id: .ei, name: .en, area_id: .ai}] | .[0:20]
+[.data.entities[] | select((.ei + " " + (.en // "")) | test("KEYWORD";"i")) | {entity_id: .ei, name: .en, area_id: .ai}]
+| {total: length, shown: (.[0:20] | length), omitted: ([length - 20, 0] | max), truncated: (length > 20), matches: .[0:20]}
 ```
 
-This generic `test("KEYWORD";"i")` example is for free-text search, not explicit `prefix` matching.
+It returns `{total, shown, omitted, truncated, matches}` — the 20-row cap
+applies to `matches` only; the counts are exact.
+
+This generic `test("KEYWORD";"i")` filter is for free-text search, not explicit `prefix` matching.
 For an explicit prefix selector, match the suffix and display name with `startswith(...)`, not loose substring search.
 
 **If the compact search does not resolve a suitable target** — no results, or only matches the user rejects or that plainly are not what they meant — escalate ONCE to the full registry (`config/entity_registry/list`) and match against `aliases[]` too — `list_for_display` does not carry them, and an alias is exactly where a household keeps the name it actually says (a household's own word for `light.floor_lamp_living`). Only then try synonyms, alternative terms, or shorter keyword stems. Use OR for multiple variants: `test("kw1|kw2|kw3";"i")`. When a resolved entity had no matching alias and the user's word was clearly their habitual name, offer once to store it as an alias via `ha-nova:organize`.
 **Diacritics:** `test(...;"i")` folds case, not accents — a name with `é`/`ü`/`ö` does not match its plain-ASCII spelling. Whenever the keyword or likely entity names carry accents or umlauts (common in non-English homes), put the transliterated variants into the OR-pattern: `test("café|cafe";"i")`, and for umlauts include both the `ue`/`oe`/`ae` and bare-vowel forms.
 **If too many:** narrow with AND: `test("kw1";"i") and test("kw2";"i")`.
-**Cap honesty:** the `.[0:20]` cap can drop the target — when exactly 20 results return, say the list is capped and narrow further instead of treating it as complete.
-**Never** dump entire domains without a user-intent keyword.
+**Fail closed on truncation:** while `truncated` is true the result proves neither absence nor uniqueness — the target may sit past the cap. Narrow automatically (area, domain, exact identifier, aliases, extra AND terms) until `truncated` is false before concluding either; report `total`/`shown`/`omitted` with the rows.
+**Never** dump entire domains without a user-intent keyword, and never show an unfiltered full-registry dump.
 
 When the task is multi-target inventory:
 - save the shortlist with `--out <result-file>`

@@ -65,7 +65,8 @@ ha-nova relay ws --data-file <payload-file> --jq-file <filter-file>
 Write `<filter-file>` with:
 
 ```jq
-[.data.entities[] | (.ei | split(".")[0]) as $domain | select(["input_boolean","input_number","input_text","input_select","input_datetime","input_button","counter","timer","schedule"] | index($domain)) | {entity_id: .ei, name: .en, area_id: .ai}] | .[0:30]
+[.data.entities[] | (.ei | split(".")[0]) as $domain | select(["input_boolean","input_number","input_text","input_select","input_datetime","input_button","counter","timer","schedule"] | index($domain)) | {entity_id: .ei, name: .en, area_id: .ai}]
+| {total: length, shown: (.[0:30] | length), omitted: ([length - 30, 0] | max), truncated: (length > 30), matches: .[0:30]}
 ```
 
 If user filters by type, narrow the domain filter to that single storage-based domain.
@@ -79,10 +80,12 @@ ha-nova relay ws --data-file <payload-file> --jq-file <filter-file>
 Write `<filter-file>` with:
 
 ```jq
-[.data.entities[] | (.ei | split(".")[0]) as $domain | select(["input_boolean","input_number","input_text","input_select","input_datetime","input_button","counter","timer","schedule"] | index($domain)) | select((.ei + " " + (.en // "")) | test("KEYWORD";"i")) | {entity_id: .ei, name: .en, area_id: .ai}] | .[0:20]
+[.data.entities[] | (.ei | split(".")[0]) as $domain | select(["input_boolean","input_number","input_text","input_select","input_datetime","input_button","counter","timer","schedule"] | index($domain)) | select((.ei + " " + (.en // "")) | test("KEYWORD";"i")) | {entity_id: .ei, name: .en, area_id: .ai}]
+| {total: length, shown: (.[0:20] | length), omitted: ([length - 20, 0] | max), truncated: (length > 20), matches: .[0:20]}
 ```
 
 If 0 results: try synonyms or shorter stems. Never dump entire domains.
+While `truncated` is true the list proves neither absence nor uniqueness — narrow further until it is false; the counts are exact, the cap trims display only.
 
 #### Reading a single helper
 

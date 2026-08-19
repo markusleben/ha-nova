@@ -46,7 +46,10 @@ const WORD_BUDGETS: Record<string, number> = {
   // train lands at 1382.
   // Audit train: the ceiling is the MAX of both branches — each
   // measured only its own tree.
-  "entity-discovery": 2100,
+  // Canonical truncation filter moved to skills/ha-nova/ with the inline
+  // recreate-exactly fallback for flat installs (#582 Codex round 1,
+  // measured 2145).
+  "entity-discovery": 2170,
   // pre-save snapshot capture + snapshot recovery guidance (Wave 2).
   // Pre-write drift check before save_prefs (#514, measured 1257): the
   // post-save deep-equal check reported a lost foreign edit instead of
@@ -274,7 +277,12 @@ const WORD_BUDGETS: Record<string, number> = {
   // Smallest-complete-solution routing for feature offers (#452).
   // Threshold-family calibration preflight wiring (#484); merge-train
   // combination measured 3970.
-  helper: 3990,
+  // Fail-closed truncation envelopes on both discovery filters plus the
+  // narrow-until-untruncated rule (#582, measured 4051).
+  helper: 4070,
+  // Fail-closed truncation envelopes on the list and keyword filters
+  // (#582, measured 1188).
+  read: 1210,
   // Suggestion Block item-shape pointer (shared output shapes); scene/
   // dashboard first-class targets with flow adaptation (2026-h2 Wave 3).
   // Quick-fix Preview Card reference (#389).
