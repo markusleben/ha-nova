@@ -18,7 +18,7 @@ read, the membership is unknown — never substituted with a guess:
 |---|---|
 | Modern group helpers (light, switch, cover, fan, binary_sensor, ...) | config-entry options, or the `entity_id` state attribute where exposed |
 | Legacy `group.*` | `attributes.entity_id` where exposed; otherwise uninspectable |
-| Notify groups | the notify service's own configuration (the `/api/services` discovery); membership is not a state attribute |
+| Notify groups | UI-built notify group entities resolve like modern group helpers (row 1); a legacy notify group SERVICE exposes no readable membership — `/api/services` proves it exists, never who it reaches: treat it as uninspectable |
 | Media player groups | the `group_members` state attribute |
 | Areas and devices | entity/device registry plus `search/related` on the resolved area (`skills/ha-nova/bulk-patterns.md`) |
 | Presence-routed household | `person.*` states mapped to real notify targets (`skills/notify/SKILL.md` → Household routing) |

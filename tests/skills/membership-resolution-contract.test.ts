@@ -22,7 +22,10 @@ describe("shared membership-resolution contract (#571)", () => {
       "`attributes.entity_id` where exposed; otherwise uninspectable",
     );
     expect(contract).toContain(
-      "the notify service's own configuration (the `/api/services` discovery)",
+      "a legacy notify group SERVICE exposes no readable membership",
+    );
+    expect(contract).toContain(
+      "`/api/services` proves it exists, never who it reaches: treat it as uninspectable",
     );
     expect(contract).toContain("the `group_members` state attribute");
     expect(contract).toContain(

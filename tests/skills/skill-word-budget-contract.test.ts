@@ -32,7 +32,10 @@ const ALL_SKILL_MD_FILES = ((): string[] => {
 const WORD_BUDGETS: Record<string, number> = {
   // Platform-specific payloads plus presence-based household routing in the
   // combined audit train (measured 1382 before the bounded-wait removal).
-  notify: 1470,
+  // Delivery-honesty reconciliation with the canonical composition contract
+  // plus the surface-selection instantiation note (train review P2-1/P2-3,
+  // 2026-08-20, measured 1500).
+  notify: 1520,
   // State-snapshot queries ("is everything closed?") and the alias fallback
   // that finally reaches the names a household actually says (#527, 1318).
   // Codex round 3: a motorized window or garage door is a cover, so an
@@ -68,6 +71,9 @@ const WORD_BUDGETS: Record<string, number> = {
   // default 1150 left TWO words of headroom, which the next sentence breaks.
   admin: 1300,
   organize: 1300,
+  // #597's verification-planning pointer left the default cap 5 words of
+  // headroom (measured 1145).
+  camera: 1180,
   // write/mqtt ratcheted for the batch-safety opt-in lines (#327);
   // write again for the Phase 5 test offer (test-run.md).
   // pre-delete snapshot capture + config-snapshots reference (Wave 2).
