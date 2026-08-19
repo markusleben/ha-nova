@@ -55,6 +55,7 @@ describe("integration-setup credential recovery (#585)", () => {
     // A transient read error after the reload must never be reported as an
     // upstream limitation.
     expect(s).toContain("A FAILED re-read is not that evidence");
+    expect(s).toContain("report step 3's actual reload result (done only if its check passed)");
     expect(s).toContain(
       "Never synthesize a config flow, edit `.storage`, create a replacement entry, or reach for deprecated integration services",
     );
