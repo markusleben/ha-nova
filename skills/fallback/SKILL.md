@@ -81,7 +81,7 @@ For every Relay-Ready call in this skill:
 | Statistics repair / Purge / Entity registry remove | Covered | maintenance |
 | Device config-entry detach | External | -- (Home Assistant UI; HA 2026.8+ removes the device) |
 | Integration onboarding (add / re-auth an integration via config flow) | Covered | integration-setup |
-| Custom-integration configuration APIs (Alarmo, Scheduler, Adaptive Lighting, Frigate, ...) | Relay-Ready | this skill |
+| Custom-integration configuration APIs — the integration's OWN endpoints (Alarmo, Scheduler, Frigate, ...) | Relay-Ready | this skill |
 | Event capture — bounded window (a button's event, a short watch after an action) | Relay-Ready | this skill; `mqtt` for MQTT topics |
 | Event streaming — continuous | Roadmap Phase 1c | -- |
 | Backups (status, create, inspect, delete) | Covered | backup |
@@ -98,6 +98,13 @@ For every Relay-Ready call in this skill:
 | Assist custom sentences / intent scripts | Relay-Ready | this skill (file mechanics below); `assist` tests the result |
 | Creating a calendar (the `local_calendar` integration) | Covered | integration-setup |
 | Device category assignment | Not a Home Assistant surface | -- (devices carry no category; entity categories are `organize`) |
+
+Rows classify the operation SURFACE, never the integration's name. Overlapping
+rows: route by the surface the change would actually call — the integration's
+own endpoints → custom-integration row; a standard config-entry surface
+(options, reconfigure, enable/disable) → its config-entry row even on a custom
+integration, not the custom-API row; neither → External. Unclear surface?
+Resolve it first in research; never pick the more permissive row.
 
 ## Flow
 

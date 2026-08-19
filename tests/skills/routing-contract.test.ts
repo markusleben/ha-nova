@@ -285,3 +285,33 @@ describe("load-bearing rules referenced from where they apply (#518)", () => {
     );
   });
 });
+
+describe("fallback capability-map precedence (#581)", () => {
+  it("routes by the operation surface, never the integration's name", () => {
+    const raw = read("skills/fallback/SKILL.md");
+    const fb = flat(raw);
+    expect(fb).toContain("route by the surface the change would actually call");
+    expect(fb).toContain("never pick the more permissive row");
+    // A custom integration with a standard OptionsFlow takes the config-entry
+    // row; the custom-API row must not name it as an example anymore.
+    expect(fb).toContain(
+      "even on a custom integration, not the custom-API row",
+    );
+    const customApiRow = raw
+      .split("\n")
+      .find((l) => l.includes("Custom-integration configuration APIs"));
+    expect(customApiRow).toBeDefined();
+    expect(customApiRow ?? "").toContain("OWN endpoints");
+    expect(customApiRow ?? "").not.toContain("Adaptive Lighting");
+  });
+
+  it("draws the same boundary where the custom-API mechanics live", () => {
+    const rr = flat(read("skills/fallback/relay-ready.md"));
+    expect(rr).toContain(
+      "configured through a standard config-entry OptionsFlow (for example Adaptive Lighting) does not belong here",
+    );
+    expect(rr).toContain(
+      "follow the config-entry rows of the Capability Map (precedence rule)",
+    );
+  });
+});
