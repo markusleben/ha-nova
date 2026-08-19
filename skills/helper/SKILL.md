@@ -382,7 +382,7 @@ If multiple matches remain, present max 5 candidates and ask one blocking questi
    - if linked entities are known, run `search/related` against up to 3 linked entities before confirmation
    - summarize any related automations/scripts in the preview
    - if linked entities are unknown, say that dependency check coverage is limited
-5. Confirmation code: `confirm:<token>` (strict exact-code rule). This still applies to cleanup and helpers created earlier in the same session. Multi-helper deletes within ONE family follow `skills/ha-nova/batch-safety.md`; storage and config-entry families never mix.
+5. Confirmation code: `confirm:<token>` (strict exact-code rule). This still applies to cleanup and helpers created earlier in the same session. Multi-helper deletes within ONE family follow `skills/ha-nova/batch-safety.md`; storage and config-entry families never mix. Deleting a helper together with its consumers (cross-family) follows `skills/ha-nova/grouped-change-set.md` → Cross-Family Destructive Cleanup: one manifest, one code.
 6. Execute:
    ```text
    ha-nova relay core --method DELETE --path /api/config/config_entries/entry/{entry_id}

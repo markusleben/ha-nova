@@ -5,7 +5,9 @@ Canonical path: `skills/ha-nova/grouped-change-set.md`
 The only supported route for confirming several NON-destructive mutations of one
 logical task with a single natural confirmation. The destructive sibling is
 `skills/ha-nova/batch-safety.md` (typed confirmation code, immutable manifest);
-this contract never carries a destructive operation.
+a grouped set never carries a destructive operation. The one destructive
+workflow defined in this file is Cross-Family Destructive Cleanup below — a
+separate typed-confirmation tier, never part of a grouped set.
 
 Confirmation validity stays owned by `skills/ha-nova/SKILL.md` → Safety Baseline
 → Active Preview Confirmation. This file defines only the grouping mechanics:
@@ -120,6 +122,39 @@ Ran one by one — not atomic; revert stays per operation (`revert`, snapshots).
 On partial completion the ✅ line names the applied subset and the ledger shows
 the stop reason; the card closes with the exact safe next step.
 
+## Dependency-Bound Outputs (#595)
+
+A non-destructive group may carry a downstream operation whose payload needs an
+identity a predecessor creates — the config entry of a new helper, or the
+entity ID uniquely linked to it. Guessing the future slug stays forbidden; the
+group declares the dependency explicitly instead:
+
+- The predecessor exposes exactly ONE narrowly defined verified output: the
+  config entry it creates, or its uniquely linked entity ID. Nothing else.
+- The downstream operation references it through a typed manifest slot in its
+  payload template — a named placeholder with a declared result shape (type,
+  domain), never a guessed literal.
+- The preview shows the resolver (how the output will be read back after the
+  create), the allowed result shape, the downstream payload template with the
+  slot marked, the semantic effect, and the deterministic order.
+- Confirmation binds to the operations, the resolver, the constraints, the
+  payload template, and the order; a change to any of them expires it.
+- Execution: verify the predecessor per its owning skill, resolve exactly one
+  matching identity, instantiate ONLY the approved slot, then run the
+  downstream owning skill's normal pre-apply drift and impact checks unchanged.
+- STOP the group and require a fresh preview on: ambiguous or missing
+  resolution, an unexpected type or domain, a collision, any payload change
+  beyond the approved slot, or foreign drift. The stop happens BEFORE the
+  downstream write; the ledger reports it per Ledger & Partial Completion —
+  applied, failed, not attempted, never atomic.
+
+MVP scope: at most 10 non-destructive operations; supported owning skills only
+— no fallback or experimental writes; a derived value fills only the
+explicitly previewed typed slot. Reference cases: config-entry helper create →
+dashboard entity reference (see the matrix's `dashboard` row), helper create →
+automation/script reference. Destructive or high-consequence operations never
+join a dependency-bound set.
+
 ## Capability Matrix (v1)
 
 | Skill | Grouped support | Non-destructive scope |
@@ -130,7 +165,45 @@ the stop reason; the card closes with the exact safe next step.
 | `organize` | yes | registry metadata updates (areas, labels, categories, entity/device metadata) |
 | `service-call` | yes | batch service calls per its Guardrails grouped manifest; high-consequence calls (confirmation-code tier) excluded |
 | `todo` | yes | item operations on ONE list (add, complete, rename, update); list creates/deletes stay single-operation |
+| `dashboard` | downstream only | an entity reference on an existing dashboard as the DOWNSTREAM operation of a dependency-bound set (see Dependency-Bound Outputs); never a standalone grouped family |
 | all others | no | single-operation flows or the destructive batch contract |
+
+## Cross-Family Destructive Cleanup (#583)
+
+A separate typed-confirmation workflow, never part of a non-destructive grouped
+set: when ONE fully resolved logical cleanup target spans several supported
+families (delete a helper plus the automations referencing it; remove a retired
+device's group memberships, dashboard cards, and statistics), the whole cleanup
+may be confirmed with ONE manifest-bound confirmation code instead of one code
+per family.
+
+- Build one immutable manifest per `skills/ha-nova/batch-safety.md` mechanics,
+  extended across families: every operation with its stable target identifier,
+  owning skill, exact endpoint/payload semantics, per-item dependency/consumer
+  impact result, per-family recovery path (snapshots, YAML exports, backup
+  gate), and deterministic execution order.
+- ONE typed code binds to that exact manifest:
+  `confirm:cleanup-<target>-<count>-<digest>` (digest per batch-safety's rule,
+  computed over this manifest). Any change to any operation, target, payload,
+  impact result, or order — or an expired confirmation — invalidates it; show
+  a new preview with a new manifest and a new code.
+- Execute sequentially through the owning skills; every operation keeps its
+  current pre-apply check, snapshot/backup gate, drift check, verification,
+  timeout handling, and recovery rules. Fail fast; one ledger of succeeded,
+  failed, and not attempted. This is not an atomic transaction and must never
+  be presented as one.
+- Scope: exactly ONE logical cleanup target; at most 10 fully enumerated
+  operations; no selectors expanded after confirmation; supported operations
+  only, each with a canonical preview and verification path.
+- Excluded regardless of manifest quality: multiple independent cleanup
+  targets; user/account and owner/relay-account operations; backup deletion;
+  Home Assistant Core/OS/App updates; high-consequence or physically
+  irreversible actions; MQTT command/`set` topics; experimental writes without
+  a guarded schema and verification path; whole integration removal until its
+  guarded lifecycle path exists (#520).
+
+Same-family destructive batches stay in `batch-safety.md` unchanged — this
+workflow exists only when the one logical target genuinely spans families.
 
 ## Exclusions
 

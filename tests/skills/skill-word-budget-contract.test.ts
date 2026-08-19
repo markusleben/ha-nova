@@ -218,7 +218,9 @@ const WORD_BUDGETS: Record<string, number> = {
   // whole document was named nowhere (#518, measured 1454).
   // Codex round 1: the default dashboard is selected by OMITTING url_path;
   // an explicit null is rejected (measured 1471).
-  dashboard: 1490,
+  // Downstream dependency-bound grouped reference pointer (#595, 2026-08-19,
+  // measured 1505).
+  dashboard: 1525,
   // Cards adoption pointer (#389); pre-write update-state drift gate.
   // #452 canonical smallest-solution draft rule (17 words).
   // HA 2026.7 "Update all" semantics: guardrails mirrored, call shape
@@ -290,7 +292,9 @@ const WORD_BUDGETS: Record<string, number> = {
   // combination measured 3970.
   // Fail-closed truncation envelopes on both discovery filters plus the
   // narrow-until-untruncated rule (#582, measured 4051).
-  helper: 4070,
+  // Cross-family cleanup pointer on the delete flow (#583, 2026-08-19,
+  // measured 4069).
+  helper: 4090,
   // Fail-closed truncation envelopes on the list and keyword filters
   // (#582, measured 1188).
   read: 1210,
