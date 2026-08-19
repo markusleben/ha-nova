@@ -59,7 +59,9 @@ qualification reruns that the delta's matched invalidation-map rows require.
 Eligible infrastructure gaps are exactly these three: no reachable reference
 platform; no completable human-gated Cloud authorization (no interactive
 desktop session exists); or — for rows scoped "Affected OS only" — no
-reachable machine of the affected OS.
+interactive desktop session on the affected OS, whose machine must still be
+provenance-reachable, because a fully unreachable enabled platform already
+fails the non-waivable provenance requirement.
 Nothing outside those rows is waivable, and every deterministic exact-target
 test still runs. Each waived check must itself be blocked by the named
 unavailable infrastructure; a check that can still run, runs. A waiver is never implicit: the PR ledger must name the

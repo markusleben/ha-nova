@@ -565,7 +565,9 @@ commit/tree identity, candidate provenance on every enabled platform, and
 the exact installed Relay App check stay mandatory. Under the waiver,
 satisfy the live installed-App read with `relay health` over a non-Cloud
 route from any host that reaches the installed App, asserting the same
-version and `ha_ws_connected` fields as the smoke below — then skip
+version and `ha_ws_connected` fields as the smoke below; the Cloud-route
+reachability half of that check cannot be proven without a Cloud call and
+travels with the waiver's ledger-recorded residual risk — then skip
 everything from the smoke-authorization setup through the cleanup step and
 continue at the evidence-binding rules; the `internal-cloud-stress` proof is
 waived together with the smoke, in the same ledger entry.
