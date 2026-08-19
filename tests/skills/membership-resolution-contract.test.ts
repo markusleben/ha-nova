@@ -154,4 +154,14 @@ describe("consumer wiring (#571)", () => {
       "`group_members` is authoritative, re-read immediately before execution",
     );
   });
+  it("keeps the safety traversal and execution on the authoritative members", () => {
+    const ia = flat(read("skills/ha-nova/indirect-actuation.md"));
+    // A stale attribute array must never hide a high-consequence member from
+    // the safety gate.
+    expect(ia).toContain("the authoritative member source is its config-entry options");
+    expect(ia).toContain("never classify from the stale side");
+    const sc = flat(read("skills/service-call/SKILL.md"));
+    // A group name left in the payload is re-expanded by HA at execution time.
+    expect(sc).toContain("execute with the previewed concrete leaf list, never the group name");
+  });
 });
