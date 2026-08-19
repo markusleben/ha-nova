@@ -29,6 +29,11 @@ Which HA operations require REST, WS, or filesystem?
 | `/api/config/script/config/{id}` | GET | Read script config |
 | `/api/config/script/config/{id}` | POST | Create/update script |
 | `/api/config/script/config/{id}` | DELETE | Delete script |
+| `/api/config/scene/config/{id}` | GET | Read storage-scene config (`{id}` is the registry `unique_id`, not the entity slug) |
+| `/api/config/scene/config/{id}` | POST | Create/update storage scene |
+| `/api/config/scene/config/{id}` | DELETE | Delete storage scene |
+| `/api/events` | GET | List event types with total listener counts |
+| `/api/config/config_entries/entry` | GET | List config entries (REST alternative to WS `config_entries/get`) |
 | `/api/config/config_entries/entry/{id}/reload` | POST | Reload config entry |
 | `/api/config/config_entries/flow_handlers` | GET | List config-flow handler domains |
 | `/api/config/config_entries/flow` | POST | Start an integration/helper config flow |
@@ -196,13 +201,14 @@ guardrails.
 | Relations | `search/related` — the pre-delete and consumer-scan workhorse | the skills that pin it: `write`, `helper`, `scene`, `organize`, `read`, `review`, `service-call`, `entity-discovery`, `maintenance`, `admin`, `media`, `camera`, `todo`, `hacs`, `fallback` |
 | Compact registry | `config/entity_registry/list_for_display` (abbreviated keys) | entity-discovery, review, bulk flows |
 | System log | `system_log/list` (the working log source on HA OS) | diagnose |
-| Backups | `backup/info`, `backup/generate`, `backup/generate_with_automatic_settings`, `backup/delete`, `backup/agents/info`, `backup/details` | backup |
+| Core state | `get_states` (full state dump; prefer `config/entity_registry/list_for_display` for listings) | ha-nova (`relay-api.md`), used across read paths |
+| Backups | `backup/info`, `backup/generate`, `backup/generate_with_automatic_settings`, `backup/delete`, `backup/agents/info`, `backup/details`, `backup/config/info` | backup |
 | People & access | `person/*`, `zone/*`, `tag/*`, `config/auth/list`, `config/auth/create`, `config/auth/delete`, `auth/current_user` | admin |
-| Voice | `assist_pipeline/pipeline/list`, `.../update`, `.../delete`, `.../set_preferred`, `homeassistant/expose_entity` and `.../list`, plus the `tts`, `stt`, `conversation` and `wake_word` engine lists | assist |
+| Voice | `assist_pipeline/pipeline/list`, `assist_pipeline/pipeline/update`, `assist_pipeline/pipeline/delete`, `assist_pipeline/pipeline/set_preferred`, `homeassistant/expose_entity` and `homeassistant/expose_entity/list`, engine inventories `tts/engine/list`, `stt/engine/list`, `conversation/agent/list`, `wake_word/info`. `assist_pipeline/run` is pinned as NOT usable via the Relay (streaming audio subscription); utterance tests go through REST `/api/conversation/process` | assist |
 | Recorder repair | `recorder/info`, `recorder/list_statistic_ids`, `recorder/get_statistics_metadata`, `recorder/validate_statistics`, `recorder/clear_statistics`, `recorder/update_statistics_metadata`, `recorder/change_statistics_unit`, `recorder/adjust_sum_statistics` | maintenance |
 | Device automation | `device_automation/trigger/list`, `device_automation/trigger/capabilities` | write |
 | MQTT | `mqtt/subscribe` (envelope only), `mqtt/device/debug_info` | mqtt |
-| Media | `media_player/browse_media`, `media_player/search_media`, `media_source/browse_media`, `media_source/resolve_media` | media |
+| Media | `media_player/browse_media`, `media_player/search_media`, `media_source/browse_media`, `media_source/search_media`, `media_source/resolve_media` | media |
 | Camera | `camera/stream`; REST `/api/camera_proxy/<entity_id>` (binary) | camera |
 | Notifications | `persistent_notification/get` | notify |
 | Updates | `update/release_notes` | updates |
@@ -210,7 +216,16 @@ guardrails.
 | Diagnostics | `diagnostics/list`; REST `/api/diagnostics/config_entry/<entry_id>[/device/<device_id>]` | diagnose |
 | To-do | `todo/item/move`; REST `/api/services/todo/*?return_response` | todo |
 | Conversation | REST `/api/conversation/process` (executes what it understands) | assist |
+| Thread / Matter | `otbr/info`, `thread/list_datasets` (dataset is a network credential — `--out` file only), `matter/node_diagnostics` (takes `device_id`) | fallback |
+| Custom-integration config APIs | REST `/api/<integration>/<resource>` (GET/POST; private, version-dependent — Alarmo, Scheduler, Frigate, ...) | fallback |
 | HACS | `hacs/*` (17 commands) — not a Home Assistant API; the pinned map lives in `skills/hacs/hacs-commands.md` | hacs |
+
+Out of scope: InfluxDB paths (`/api/v2/query`, `/api/v3/query_sql`) pinned in
+`skills/external-sources` are not Home Assistant APIs. Supervisor paths
+(`/api/hassio/*`) are pinned only as unreachable through the Relay (HTTP 403);
+App control goes through ordinary services (`ha-nova:service-call`).
+
+Completeness: rebuilt 2026-08-19 against `skills/**/*.md` (issue #517).
 
 ## Important Notes
 
