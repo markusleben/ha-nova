@@ -79,7 +79,10 @@ const WORD_BUDGETS: Record<string, number> = {
   // One-shot intent routing to the self-disabling pattern (#527, 2221).
   // Includes one-shot-automations.md after the audit exposed that the split
   // had reset this ratchet (measured 5356 on #543).
-  write: 5380,
+  // Recovery/watchdog/retry routing pointer + on-demand row for
+  // skills/ha-nova/recovery-workflows.md (#568/#569, measured 5387 on
+  // 2026-08-19).
+  write: 5400,
   // HACS lifecycle: schema guard, reconcile loops, consumer discovery,
   // migration backup gate, category-appropriate verification (#478);
   // review rounds added pin-durability branches, the uninstall apply
@@ -348,6 +351,7 @@ const STANDALONE_MARKDOWN = new Set([
   "skills/ha-nova/outcome-verification.md",
   "skills/ha-nova/output-rules.md",
   "skills/ha-nova/payload-schemas.md",
+  "skills/ha-nova/recovery-workflows.md",
   "skills/ha-nova/relay-api.md",
   "skills/ha-nova/safe-refactoring.md",
   "skills/ha-nova/session-bootstrap.md",
