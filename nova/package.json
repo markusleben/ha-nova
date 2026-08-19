@@ -10,7 +10,7 @@
     "@serenity-kit/opaque": "^1.1.0",
     "home-assistant-js-websocket": "^9.6.0",
     "reflect-metadata": "^0.2.2",
-    "ws": "^8.21.1"
+    "ws": "^8.21.3"
   },
   "devDependencies": {
     "@types/node": "^25.9.5",
