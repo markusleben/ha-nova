@@ -704,8 +704,11 @@ Prompt (via `codex exec`, edit-referenced with
 ## Supported beta contexts
 
 - macOS desktop terminal
-- Windows console and RDP after real-device validation
-- validated Linux desktop Secret Service providers
+
+Windows (console and RDP) and validated Linux desktop Secret Service
+providers were supported contexts while their validation machines were
+available; since 2026-08-19 they are out of publication scope with the
+platform list below and return with it.
 
 WSL, SSH, services, gateways, and containers remain local-only until a separate
 credential-broker design is reviewed and validated.
