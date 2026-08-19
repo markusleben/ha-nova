@@ -73,7 +73,8 @@ installed Relay App. The map rows' "one reference platform" scope governs
 only the waivable qualification repeats — including the Relay-App row's —
 never this live read, which is a separate, platform-independent, mandatory
 proof. If even one of the four cannot be completed, there is
-no waiver and the delta stays unmergeable. Waived checks remain first in
+no waiver and the delta stays unmergeable — the one remaining lever is then
+shrinking `cloud_remote_platforms` through a reviewed pull request. Waived checks remain first in
 line for a real rerun once infrastructure is available again.
 
 | Changed surface | Qualification to repeat | Real platform scope |

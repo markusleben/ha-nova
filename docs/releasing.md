@@ -354,7 +354,8 @@ non-secret evidence reference, inspected target, and change-class decision.
 Missing or uncertain ledger data means rerun. A reference-smoke waiver
 (risk-scope spec) replaces only the rerun itself, never the ledger: it is
 valid only with a complete entry naming the unavailable infrastructure, the
-waived checks, and the crossing delta.
+waived checks, the last real qualification they carry from, the exact
+crossing delta, and the maintainer's acceptance of the residual risk.
 
 Every target still runs CI, candidate signature/provenance checks on all
 enabled platforms, and the exact installed Relay App. A target whose delta
