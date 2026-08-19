@@ -188,6 +188,20 @@ Rules:
 - Before declaring the workflow complete, check for explicitly requested open work; summarize remaining work briefly instead of hiding it.
 - Storing an item authorizes nothing: deferred work is never executed merely because it is stored, and every later mutation follows its owning skill's normal preview, confirmation, and verification flow.
 
+## Proactive Assistance Offers
+
+At any blocker, missing prerequisite, finding, or actionable next step: before recommending a manual step, check whether an available HA NOVA skill can perform it — if so, say concretely what HA NOVA can do next instead of sending the user off to do it by hand.
+
+Rules:
+- Offers stay relevant to the active primary objective (Work Ledger) — never a capability dump. When several actions apply, rank them by how directly each one unblocks the objective and show at most three.
+- An accepted offer hands off to the owning skill with exact resolved targets (entity/device/entry IDs); the primary objective and pending follow-ups travel along (Work Ledger).
+- Offering authorizes nothing: nothing executes merely because it was offered, and every preview, confirmation, and safety rule of the owning skill stays intact.
+- Never imply or invent actions no current skill supports; credential- or UI-only steps stay manual — say so and name the reason.
+- A declined offer is not re-presented in the same workflow.
+- Relationship to the Suggestion Block (output-rules.md): a blocker-resolving offer unblocks the active objective and is NOT an unsolicited improvement suggestion — it does not consume the max-2 suggestion budget. Genuine optional improvements keep riding the Suggestion Block.
+
+Worked example: discovery finds the needed control exists as a disabled sibling entity — offer it: "The restart control exists but is disabled. I can enable it (`ha-nova:organize`) and continue the restart workflow."
+
 ## Response Format
 
 Render domain-specific summaries:
