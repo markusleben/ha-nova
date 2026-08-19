@@ -271,7 +271,10 @@ const WORD_BUDGETS: Record<string, number> = {
   // Audit train: the ceiling is the MAX of both branches — each
   // measured only its own tree.
   // Includes relay-ready.md; measured 4938 on #543.
-  fallback: 5000,
+  // Combined merge of the #581 precedence rework (trimmed) with the #585
+  // credential-recovery reload carve-out; trial-merging the train lands
+  // at 5004.
+  fallback: 5030,
   // semantic-slot note on the read templates (Wave 0); pre-write cross-field
   // constraint checks + drift-check step (Wave 1); pre-delete snapshot
   // capture (Wave 2).

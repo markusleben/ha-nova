@@ -130,8 +130,8 @@ for Home Assistant's own event bus.
 
 Reload and remove for an existing config entry — those two only.
 `ha-nova:integration-setup` owns ADDING an integration, continuing a
-pending `reauth`, and the credential-recovery reload of an entry whose
-credentials are reported invalid. Enable/disable, options and reconfigure
+pending `reauth`, and the credential-recovery reload
+for invalid credentials. Enable/disable, options and reconfigure
 are `External` in the Capability Map: point at Settings > Devices & services instead of
 improvising a payload.
 
