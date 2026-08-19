@@ -162,4 +162,8 @@ describe("cross-family destructive cleanup (issue #583)", () => {
     );
     expect(helper).toContain("Cross-Family Destructive Cleanup: one manifest, one code");
   });
+  it("admits supported operations only, each with a canonical path (#583)", () => {
+    const doc = flat(read("skills/ha-nova/grouped-change-set.md"));
+    expect(doc).toContain("only, each with a canonical preview and verification path");
+  });
 });

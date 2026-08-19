@@ -87,6 +87,7 @@ describe("live-schema preflight contract (#594)", () => {
       "Validation errors: show the returned field errors and stop.",
     );
     expect(preflight).toContain("Schema drift between preview and submit");
+    expect(preflight).toContain("enum options");
     expect(preflight).toContain("the old confirmation is void");
   });
 

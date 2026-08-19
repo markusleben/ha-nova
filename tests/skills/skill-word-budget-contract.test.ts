@@ -52,7 +52,9 @@ const WORD_BUDGETS: Record<string, number> = {
   // Device-sibling capability discovery: full-registry sibling listing incl.
   // disabled entities, same-device selection, organize enable handoff
   // (#564, 2026-08-19, measured 2351).
-  "entity-discovery": 2380,
+  // Train review P3-4: the sibling list never takes the display envelope
+  // (measured 2381).
+  "entity-discovery": 2400,
   // pre-save snapshot capture + snapshot recovery guidance (Wave 2).
   // Pre-write drift check before save_prefs (#514, measured 1257): the
   // post-save deep-equal check reported a lost foreign edit instead of
@@ -304,7 +306,9 @@ const WORD_BUDGETS: Record<string, number> = {
   // (#594, 2026-08-20, measured 4129).
   // Cross-family cleanup pointer on the delete flow (#583, 2026-08-19);
   // combined trial-merge measured 4147.
-  helper: 4172,
+  // Train review: helper's create steps now bind to the live schema via the
+  // step-8 drift check (P2-1, measured 4212).
+  helper: 4240,
   // Fail-closed truncation envelopes on the list and keyword filters
   // (#582, measured 1188).
   read: 1210,

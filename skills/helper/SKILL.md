@@ -258,7 +258,7 @@ If multiple matches remain, present max 5 candidates and ask one blocking questi
 #### Creating a helper
 
 1. Confirm the requested domain is supported in `skills/ha-nova/helper-flow-schemas.md`.
-   - treat that file as observed field inventory, not a full validation schema
+   - treat that file as observed field inventory for the DRAFT, not a full validation schema — the live form is the authority, enforced by the drift check in step 8
    - if required field semantics remain uncertain, fail loud and ask one blocking question
 2. Prepare the full create plan using `skills/ha-nova/helper-flow-schemas.md`:
    - for one-step domains, the plan is one submit body
@@ -291,7 +291,7 @@ If multiple matches remain, present max 5 candidates and ask one blocking questi
    - if the current response is a menu step, submit only the selected `next_step_id`
    - if that menu step leads to an unobserved `group` or `template` subtype form, stop and preview the live subtype fields before the terminal submit
    - after that live subtype preview, ask for a second natural confirmation before sending the terminal subtype-specific payload
-   - if the current response is a form step, submit only the fields exposed for that step
+   - if the current response is a form step, compare its live `data_schema` against the confirmed draft BEFORE submitting: identical fields → the confirmation carries and the submit contains those fields only; ANY divergence (fields, defaults, enum options, extra or reordered steps) → stop, re-preview from the live form, and re-confirm — a live form never silently narrows or widens the confirmed payload (`skills/ha-nova/live-schema-preflight.md`)
    - the submit body for a form step must contain form fields only
    - if a required field is still unresolved and there is no safe value, stop and ask one blocking question
    - if HA returns a form with validation errors, fail loud instead of guessing
