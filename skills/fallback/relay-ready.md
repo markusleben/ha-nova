@@ -56,6 +56,8 @@ ha-nova relay core --method DELETE --path /api/config/config_entries/entry/{entr
 
 **Risks:** Multi-step flows are complex. Each step returns the next step's schema. Update support can be domain- and version-specific. Delete requires correct `entry_id` resolution first. Prefer HA UI for these.
 
+The supported families' orchestration contract is `skills/ha-nova/live-schema-preflight.md`; this experimental lane stays outside it and remains fail-closed per #493 (Write-Probing Asymmetry).
+
 ### Bounded Event Capture -- RELAY-READY
 
 Watching what a physical button fires, or what happens in the seconds after an

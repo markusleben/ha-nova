@@ -174,6 +174,8 @@ Canonical config-entry helper item:
 `entry_id` is the canonical identity for config-entry helper writes.
 If the user gives only a linked `entity_id`, resolve it back to `config_entry_id` through the full entity registry before continuing.
 
+Config-entry flow orchestration follows the shared contract in `skills/ha-nova/live-schema-preflight.md`: live-form previews, non-persisting pre-confirmation navigation only, stop before the terminal submit, and nested `result.entry_id` extraction.
+
 #### Supported domains
 
 - `utility_meter`
