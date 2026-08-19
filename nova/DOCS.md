@@ -275,9 +275,10 @@ before destructive local cleanup.
 
 ## Cloud Beta Availability
 
-Enabled release builds support Cloud Remote only on macOS desktop terminals,
-Windows console/RDP sessions, and validated Linux desktop Secret Service
-providers. SSH, WSL, containers, services, gateways, and other headless
+Enabled release builds support Cloud Remote only on macOS desktop terminals.
+Windows and Linux are outside the validated platform list since 2026-08-19
+and return once their validation infrastructure is available again. SSH,
+WSL, containers, services, gateways, and other headless
 contexts stay local-only. Every publication remains gated on exact-source Home
 Assistant Cloud parity, native-keyring, user-role, redirect, lifecycle, App
 restart/update/reinstall, and 10,000-command Ingress-session stress evidence.
