@@ -13,6 +13,18 @@ describe("integration-setup credential recovery (#585)", () => {
     /### Credential Recovery \(no reauth pending\)[\s\S]*?(?=\n## )/,
   )?.[0];
 
+  it("advertises recovery in every routing surface", () => {
+    // Discovery selects skills by description and dispatch row; a lane only
+    // reachable after selection is a lane discovery never routes to.
+    expect(read("skills/integration-setup/SKILL.md")).toContain(
+      "or recovering invalid integration credentials when no reauth flow is pending",
+    );
+    const dispatch = read("skills/ha-nova/SKILL.md");
+    expect(dispatch).toContain(
+      "or recover invalid integration credentials when no reauth flow is pending",
+    );
+  });
+
   it("routes the no-pending-flow case into the recovery lane", () => {
     expect(section).toBeDefined();
     expect(flat(skill)).toContain(

@@ -217,7 +217,7 @@ Match user intent to exactly one skill:
 | "is everything closed / locked / off?", "who is home?", "what is running right now?" — a live state snapshot across a domain | `ha-nova:entity-discovery` |
 | check home status, repairs, system health, integration issues, unavailable entities, or low batteries | `ha-nova:health` (the SYSTEM's condition; a snapshot of what things are DOING is entity-discovery, above) |
 | find out WHY a specific automation, script, device, or integration failed or misbehaved (traces, error/system logs, root cause) | `ha-nova:diagnose` |
-| add an integration or continue a pending integration reauthentication flow | `ha-nova:integration-setup` |
+| add an integration, continue a pending integration reauthentication flow, or recover invalid integration credentials when no reauth flow is pending | `ha-nova:integration-setup` |
 | play, pause, skip, set volume, change source, group speakers, browse media, or announce over a speaker | `ha-nova:media` |
 | send a notification to a phone or another notify target, or manage Home Assistant's persistent notifications | `ha-nova:notify` |
 | look at a camera (snapshot), get a stream URL, record, switch a camera on/off, toggle its motion detection, or cast its stream to a TV | `ha-nova:camera` |
@@ -278,7 +278,7 @@ Match user intent to exactly one skill:
 **"Why is the light turning on at random times?"** → `ha-nova:diagnose`
 **"Show me the error log"** → `ha-nova:diagnose`
 **"Add the Hue integration"** → `ha-nova:integration-setup`
-**"Reconnect my expired integration login"** → `ha-nova:integration-setup` (continues an existing Home Assistant `reauth` flow; credentials stay in the HA UI)
+**"Reconnect my expired integration login"** → `ha-nova:integration-setup` (continues an existing Home Assistant `reauth` flow — or, when none is pending, runs its credential recovery; credentials stay in the HA UI)
 **"Turn up the volume in the kitchen"** → `ha-nova:media`
 **"What's playing in the living room?"** → `ha-nova:media`
 **"Announce that dinner is ready"** → `ha-nova:media` (TTS to a speaker)
