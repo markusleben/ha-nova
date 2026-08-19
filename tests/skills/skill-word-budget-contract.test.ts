@@ -301,7 +301,10 @@ const WORD_BUDGETS: Record<string, number> = {
   // write-flow skill; calendar and integration-setup sat within 17 words of
   // the default cap (review/todo/updates ratchets applied on their entries).
   calendar: 1175,
-  "integration-setup": 1175,
+  // Credential-recovery lane when no reauth flow is pending: reload as the
+  // only supported trigger, fail-closed handoff, no replacement entries
+  // (#585, measured 1350).
+  "integration-setup": 1380,
 };
 const DEFAULT_WORD_BUDGET = 1150;
 

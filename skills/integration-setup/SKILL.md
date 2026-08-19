@@ -47,7 +47,7 @@ Omit `--body-file` on GET and DELETE. Relay-core response data is under `.data.b
    - read `config_entries/get` and resolve the exact existing `entry_id`
    - read `config_entries/flow/progress`
    - select an existing flow only when `context.source == "reauth"` and its `handler` plus `context.entry_id` match the resolved entry
-   - if no matching pending flow exists, report that Home Assistant is not currently requesting reauthentication; never synthesize a reauth flow
+   - if no matching pending flow exists, continue with Credential Recovery below; never synthesize a reauth flow
 3. Limit one integration flow per operation.
 
 ### Start or continue
@@ -81,6 +81,31 @@ If the user cancels an add flow created by this skill, DELETE that unfinished `f
 2. Add passes when the terminal response's `result.entry_id` exists. If the result omits it, diff the baseline by `entry_id`; exactly one new entry with the requested domain must exist or verification is ambiguous.
 3. Reauth passes only when the same `entry_id` still exists, the matching reauth flow is gone, and the terminal result reports success. Report the current config-entry state exactly; do not call a non-`loaded` entry healthy.
 4. Linked devices/entities are secondary evidence only.
+
+### Credential Recovery (no reauth pending)
+
+Credentials reported invalid, but `config_entries/flow/progress` shows no
+matching reauth flow:
+
+1. `loaded` is lifecycle state, never proof the stored credential works — do
+   not call an entry healthy because it is `loaded`.
+2. Preview, confirm, then reload the entry —
+   `POST /api/config/config_entries/entry/<entry_id>/reload` — the documented
+   surface that makes the integration re-validate its stored credential.
+   Preserve the entry and every subentry; never delete or recreate anything.
+3. Re-read `config_entries/flow/progress`. A new flow with
+   `context.source == "reauth"` and the same `entry_id` → continue with the
+   normal reauthentication handoff above.
+4. Still no flow: Home Assistant exposes no supported trigger for this
+   integration — say so plainly and hand off to **Settings > Devices &
+   services**. Never synthesize a config flow, edit `.storage`, create a
+   replacement entry, or reach for deprecated integration services as a
+   workaround.
+5. Success is only the reauth Verify rule above (terminal `reauth_successful`
+   for the same `entry_id`, or the matching flow gone after UI submission,
+   plus config-entry verification). Do not spend a paid API request to "test"
+   the credential unless the user asks.
+6. Secrets and key fragments never appear in previews, output, or logs.
 
 ## Error Handling
 

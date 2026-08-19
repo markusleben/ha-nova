@@ -98,6 +98,7 @@
   "tests/skills/honesty-and-gate-pins.test.ts",
   "tests/skills/indirect-actuation-contract.test.ts",
   "tests/skills/indirect-actuation-expansion-contract.test.ts",
+  "tests/skills/integration-credential-recovery-contract.test.ts",
   "tests/skills/integration-setup-contract.test.ts",
   "tests/skills/maintenance-contract.test.ts",
   "tests/skills/output-design-contract.test.ts",
