@@ -30,8 +30,8 @@ describe("service-call reauth reconciliation (#586)", () => {
 
   it("matches by domain and entry, treats logs as corroboration only", () => {
     const s = flat(section ?? "");
-    expect(s).toContain("its `handler` equals the target's integration domain");
-    expect(s).toContain("the flow's `context.entry_id` equals it");
+    expect(s).toContain("a match on `context.entry_id` — the target entity's registry `config_entry_id` — is decisive alone");
+    expect(s).toContain("the registry row's `platform`, never the service or entity_id prefix");
     expect(s).toContain("corroboration, never a match by itself");
     expect(s).toContain("A flow for another domain or entry does not match");
   });
