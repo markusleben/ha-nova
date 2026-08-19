@@ -274,7 +274,9 @@ const WORD_BUDGETS: Record<string, number> = {
   // Smallest-complete-solution routing for feature offers (#452).
   // Threshold-family calibration preflight wiring (#484); merge-train
   // combination measured 3970.
-  helper: 3990,
+  // Fail-closed truncation envelopes on both discovery filters plus the
+  // narrow-until-untruncated rule (#582, measured 4051).
+  helper: 4070,
   // Suggestion Block item-shape pointer (shared output shapes); scene/
   // dashboard first-class targets with flow adaptation (2026-h2 Wave 3).
   // Quick-fix Preview Card reference (#389).

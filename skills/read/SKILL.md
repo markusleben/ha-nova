@@ -85,10 +85,12 @@ ha-nova relay ws --data-file <payload-file> --jq-file <filter-file>
 Write `<filter-file>` with:
 
 ```jq
-[.data.entities[] | select(.ei | startswith("automation.")) | select((.ei + " " + (.en // "")) | test("KEYWORD";"i")) | {entity_id: .ei, name: .en, area_id: .ai}] | .[0:20]
+[.data.entities[] | select(.ei | startswith("automation.")) | select((.ei + " " + (.en // "")) | test("KEYWORD";"i")) | {entity_id: .ei, name: .en, area_id: .ai}]
+| {total: length, shown: (.[0:20] | length), omitted: ([length - 20, 0] | max), truncated: (length > 20), matches: .[0:20]}
 ```
 
 If 0 results: try synonyms/shorter stems: `test("kw1|kw2";"i")`.
+While `truncated` is true, narrow further — the capped list proves neither absence nor uniqueness.
 
 For "automations in room X": stay inside `read` and follow the area-first `search/related` flow from `skills/ha-nova/bulk-patterns.md`.
 
