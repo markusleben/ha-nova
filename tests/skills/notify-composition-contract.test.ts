@@ -71,7 +71,7 @@ describe("canonical mobile-notification composition (#575)", () => {
 
   it("treats actionable notifications as a high-risk family", () => {
     expect(contract).toContain(
-      "invocation-unique action identifiers, a verified listener filtered to the exact action, bounded waits, and authentication or unlocking",
+      "an existing, verified automation filtered to the exact `event_data.action` ID",
     );
     expect(contract).toContain(
       "Never replace inline actions with deprecated category assumptions",

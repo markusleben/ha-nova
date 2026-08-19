@@ -16,7 +16,12 @@ describe("shared membership-resolution contract (#571)", () => {
     );
     // One pin per composite family from the issue.
     expect(contract).toContain(
-      "config-entry options, or the `entity_id` state attribute where exposed",
+      "the `entity_id` state attribute is the fallback read only when the options are unreadable",
+    );
+    expect(contract).toContain("when both are readable and disagree, membership is UNRESOLVED");
+    // Freeze mode never ships a parent beside its own expanded children.
+    expect(contract).toContain(
+      "A frozen executable payload contains only the deduplicated concrete leaf entities",
     );
     expect(contract).toContain(
       "`attributes.entity_id` where exposed; otherwise uninspectable",

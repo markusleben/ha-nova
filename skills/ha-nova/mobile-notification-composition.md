@@ -38,10 +38,13 @@ group, channel, clearing, priority, attachment, or action metadata:
 - Reuse purpose-appropriate Android channels instead of proliferating them; existing user-controlled channel properties are not programmatically overwritable — never report them as changed.
 - Critical or high-priority delivery only for genuinely urgent events.
 
-**Actionable notifications are a separate high-risk payload family.** Per-run
-responses need invocation-unique action identifiers, a verified listener
-filtered to the exact action, bounded waits, and authentication or unlocking
-(where supported) for consequential actions. Never replace inline actions with
+**Actionable notifications are a separate high-risk payload family.** The
+supported flow is the durable listener contract (`skills/notify/SKILL.md`): an
+existing, verified automation filtered to the exact `event_data.action` ID —
+never a send-specific listener invented for one run. Invocation-unique action
+identifiers and bounded waits apply only where a genuinely supported
+transient-callback surface exists. Consequential actions require
+authentication or unlocking where supported. Never replace inline actions with
 deprecated category assumptions.
 
 **Notification commands.** `message: command_*` payloads are phone-control
