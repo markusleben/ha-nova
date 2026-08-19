@@ -104,6 +104,7 @@
   "tests/skills/maintenance-contract.test.ts",
   "tests/skills/outcome-verification-contract.test.ts",
   "tests/skills/output-design-contract.test.ts",
+  "tests/skills/recovery-workflows-contract.test.ts",
   "tests/skills/reference-truth-contract.test.ts",
   "tests/skills/relay-unicode-contract.test.ts",
   "tests/skills/review-contract.test.ts",
