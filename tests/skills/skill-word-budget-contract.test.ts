@@ -179,7 +179,9 @@ const WORD_BUDGETS: Record<string, number> = {
   // measured only its own tree.
   // Includes domain-fields.md and indirect-actuation.md; both are contracts
   // split out of this skill (measured 8777 on #543).
-  "service-call": 8800,
+  // Semantic-outcome wiring: restart-class presses, verify-step pointer,
+  // and the disruptive no-retry carve-out (#566/#567, measured 8826).
+  "service-call": 8880,
   // Carries the canonical File-Change Preview example — the only layout
   // source for file edits; concrete examples are what make a card renderable.
   // Sibling-survival verification (Wave 1b) + yaml snapshot capture with
@@ -343,6 +345,7 @@ const STANDALONE_MARKDOWN = new Set([
   "skills/ha-nova/helper-flow-schemas.md",
   "skills/ha-nova/helper-schemas.md",
   "skills/ha-nova/input-capability-preflight.md",
+  "skills/ha-nova/outcome-verification.md",
   "skills/ha-nova/output-rules.md",
   "skills/ha-nova/payload-schemas.md",
   "skills/ha-nova/relay-api.md",
