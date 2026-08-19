@@ -122,6 +122,7 @@ Drafts follow `skills/ha-nova/smallest-solution.md`: the complete requested outc
      - capture the auto config snapshot first — data = `{shell: <the dashboard's lovelace/dashboards/list entry>, config: <the full lovelace/config>}`, so a later-session restore can recreate the shell (url_path, title, icon, sidebar, admin flag) before saving the content (`skills/ha-nova/config-snapshots.md`; on capture failure follow its capture-failure stop)
      - call `lovelace/dashboards/delete` with `dashboard_id`
      - multi-item deletes follow `skills/ha-nova/batch-safety.md`; dashboards, resources, and cards are separate families — one family per manifest; a card batch within one dashboard executes as ONE merged `lovelace/config/save` (single-call path — sequential per-card saves would overwrite each other), verified by one read-back
+   - an entity reference on an existing dashboard may join a non-destructive grouped change set ONLY as the downstream operation of a dependency-bound set (`skills/ha-nova/grouped-change-set.md` → Dependency-Bound Outputs); every other dashboard write stays single-operation
 4. Read the current dashboard when content changes are involved.
    - use `lovelace/config` with the chosen `url_path`
 5. Read back and verify:

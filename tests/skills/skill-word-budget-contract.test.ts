@@ -223,7 +223,9 @@ const WORD_BUDGETS: Record<string, number> = {
   // whole document was named nowhere (#518, measured 1454).
   // Codex round 1: the default dashboard is selected by OMITTING url_path;
   // an explicit null is rejected (measured 1471).
-  dashboard: 1490,
+  // Downstream dependency-bound grouped reference pointer (#595, 2026-08-19,
+  // measured 1505).
+  dashboard: 1525,
   // Cards adoption pointer (#389); pre-write update-state drift gate.
   // #452 canonical smallest-solution draft rule (17 words).
   // HA 2026.7 "Update all" semantics: guardrails mirrored, call shape
@@ -300,7 +302,9 @@ const WORD_BUDGETS: Record<string, number> = {
   // measured 4105).
   // Live-schema preflight pointer in the config-entry family intro
   // (#594, 2026-08-20, measured 4129).
-  helper: 4150,
+  // Cross-family cleanup pointer on the delete flow (#583, 2026-08-19);
+  // combined trial-merge measured 4147.
+  helper: 4172,
   // Fail-closed truncation envelopes on the list and keyword filters
   // (#582, measured 1188).
   read: 1210,
