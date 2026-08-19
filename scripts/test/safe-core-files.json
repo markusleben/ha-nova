@@ -107,6 +107,7 @@
   "tests/skills/routing-contract.test.ts",
   "tests/skills/scene-contract.test.ts",
   "tests/skills/service-call-contract.test.ts",
+  "tests/skills/service-call-reauth-reconciliation-contract.test.ts",
   "tests/skills/skill-source-language-contract.test.ts",
   "tests/skills/skill-template-contract.test.ts",
   "tests/skills/skill-word-budget-contract.test.ts",
