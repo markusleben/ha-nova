@@ -333,7 +333,7 @@ operations and for relays whose `/backups` answers 404.
 | `write` (automation/script) | yes (`ha-nova diff`) | yes (verified updates, last 5 targets) | config snapshot (auto before delete, identity-preserving restore); HA Backups |
 | `helper` storage family | yes | yes (verified updates, last 5 targets) | config snapshot (auto before delete; recreate mints a new id); HA Backups |
 | `helper` config-entry family | diff only | no (multi-step options flow) | HA Backups |
-| `integration-setup` | flow-step preview + config-entry read-back | no (multi-step add/reauth flow) | cancel only an unfinished add flow started in this session; after entry creation, manage or remove it in Home Assistant UI |
+| `integration-setup` | flow-step preview + config-entry read-back; credential-recovery reload previews the entry reload (non-destructive, entities briefly drop) | no (multi-step add/reauth flow) | cancel only an unfinished add flow started in this session; after entry creation, manage or remove it in Home Assistant UI |
 | `calendar` | event-field preview + bounded event read-back | no (provider event mutation) | provider recycle bin when available; otherwise recreate from the approved preview |
 | `hacs` | repository/category/version preview + category-appropriate read-back | no (package lifecycle) | reinstall the previous pinned version from recorded pre-change state; HA Backup for migrations (config entries sit outside config snapshots) |
 | `dashboard` | preview + read-back verify | no | config snapshot (auto before delete / content-dropping save); HA Backups |

@@ -97,7 +97,7 @@ Which HA operations require REST, WS, or filesystem?
 
 Observed locally on a real HA instance on 2026-03-19: raw WS `config_entries/flow` did not succeed in this session; relay `/core` returned the expected config-flow responses.
 
-**Integration flow ownership:** `ha-nova:integration-setup` owns integration add and pending `reauth` continuation; it uses the live response schema and hands secrets/external steps to the HA UI.
+**Integration flow ownership:** `ha-nova:integration-setup` owns integration add, pending `reauth` continuation, and invalid-credential recovery when no reauth flow is pending (including that lane's entry reload); it uses the live response schema and hands secrets/external steps to the HA UI.
 
 **Helper-owned config-entry domains:** utility_meter, derivative, integration, min_max, threshold, tod, statistics, group, history_stats, template
 `group` is menu-driven; the live-proven end-to-end subtype is `sensor`, and other subtypes must stay anchored to the live step schema instead of guessed fields.

@@ -307,8 +307,10 @@ const WORD_BUDGETS: Record<string, number> = {
   // disruption disclosure, the async settle re-read, and the conditional
   // routing bullet (measured 1432). Codex round 1: flow disappearance is
   // not positive evidence — UI-finished flows report completed-but-unverified
-  // (measured 1458).
-  "integration-setup": 1490,
+  // (measured 1458). Codex round 3 advertised the lane on every routing
+  // surface; the convergence pass split failed re-reads from settled empty
+  // ones (measured 1507).
+  "integration-setup": 1530,
 };
 const DEFAULT_WORD_BUDGET = 1150;
 

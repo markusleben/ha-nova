@@ -36,7 +36,7 @@ skills/
   read/SKILL.md                         (ha-nova:read — automation/script list/get/trace)
   write/SKILL.md                        (ha-nova:write — automation/script create/update/delete)
   helper/SKILL.md                       (ha-nova:helper — helper CRUD: list/read/create/update/delete)
-  integration-setup/SKILL.md            (ha-nova:integration-setup — add integrations and continue pending reauth flows)
+  integration-setup/SKILL.md            (ha-nova:integration-setup — add integrations, continue pending reauth flows, recover invalid credentials when none is pending)
   dashboard/SKILL.md                    (ha-nova:dashboard — storage dashboards, Lovelace resources, card operations)
   scene/SKILL.md                        (ha-nova:scene — storage-scene list/read/create/update/delete)
   organize/SKILL.md                     (ha-nova:organize — areas/floors/labels/categories/entity+device metadata)
@@ -338,9 +338,10 @@ Rules:
 
 ## Integration Setup Architecture
 
-`ha-nova:integration-setup` owns UI-configurable integration add and pending reauthentication flows:
+`ha-nova:integration-setup` owns UI-configurable integration add, pending reauthentication flows, and invalid-credential recovery when no reauth flow is pending:
 - add starts through REST `POST /api/config/config_entries/flow` after resolving an exact handler from `/api/config/config_entries/flow_handlers`
 - reauthentication continues an existing `context.source == "reauth"` flow discovered through WS `config_entries/flow/progress`; it never synthesizes a reauth flow
+- credential recovery (no reauth pending) previews and reloads the exact config entry — the only reload this skill owns; every other reload stays with `ha-nova:fallback` — then re-reads flow progress and continues the reauth handoff, or fails closed to the HA UI
 - menu/form steps use only the live response schema and require a preview-bound confirmation before each submit
 - credential-bearing, external/OAuth, or progress add steps started through the Relay are canceled and restarted in the Home Assistant UI; user-started flows are omitted from `config_entries/flow/progress`, and the Relay cannot supply the frontend-origin header
 - credential-bearing, external/OAuth, or progress steps on pre-existing reauth flows hand off to the matching Home Assistant UI card; secrets never enter chat and the reauth flow stays preserved

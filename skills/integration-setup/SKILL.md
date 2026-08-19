@@ -101,9 +101,11 @@ matching reauth flow:
    once more before concluding nothing appeared. A new flow with
    `context.source == "reauth"` and the same `entry_id` → continue with the
    normal reauthentication handoff above.
-4. Still no flow: Home Assistant exposes no supported trigger for this
-   integration — say so plainly and hand off to **Settings > Devices &
-   services**. Never synthesize a config flow, edit `.storage`, create a
+4. Still no flow on a settled, SUCCESSFUL re-read: Home Assistant exposes no
+   supported trigger for this integration — say so plainly and hand off to
+   **Settings > Devices & services**. A FAILED re-read is not that evidence:
+   report the reload as done and the flow state as unknown, never as
+   unsupported. Never synthesize a config flow, edit `.storage`, create a
    replacement entry, or reach for deprecated integration services as a
    workaround.
 5. Verified success is only a terminal `reauth_successful` for the same
