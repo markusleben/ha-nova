@@ -68,7 +68,8 @@ describe("semantic outcome verification (#567/#566)", () => {
     expect(sc).toContain(
       "Stateless targets: `scene.apply` and direct `script.*` runs do not reflect the call in the target's own state",
     );
-    expect(sc).toContain("a script via `last_triggered` or acted-on member entities");
+    expect(sc).toContain("a script's `last_triggered` is acceptance evidence only");
+    expect(sc).toContain("`verified` requires the previewed effect probes on the acted-on entities");
     // Async refresh/synchronize semantics.
     expect(doc).toContain("a refresh updating a sensor's `last_updated`");
     expect(doc).toContain("an update entity leaving `in_progress`");
