@@ -77,9 +77,10 @@ Before every RC or final tag:
 - for the release PR itself, wait for the actual Codex bot result on the final SHA
 - review clearance is tied to the exact commit state that will be tagged
 
-The review fast path, the round-five batch, and the manifest/README label
-ordering are NOT restated here. They live in AGENTS.md -> "PR Merge / Release
-Commit Gate" and apply to release PRs unchanged. Two copies of an ordering rule
+The review fast path, the review triage and round cap, and the
+manifest/README label
+ordering are NOT restated here. They live in AGENTS.md -> "Review triage and
+round cap" and "PR Merge Checklist" and apply to release PRs unchanged. Two copies of an ordering rule
 drift, and this one already did: the copy here kept telling agents to push and
 retrigger at the round where the batch is now due, and to label a manifest
 before anything had inspected it.
