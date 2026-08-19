@@ -305,8 +305,10 @@ const WORD_BUDGETS: Record<string, number> = {
   // only supported trigger, fail-closed handoff, no replacement entries
   // (#585, measured 1350); review batch added the Scope carve-out, the
   // disruption disclosure, the async settle re-read, and the conditional
-  // routing bullet (measured 1432).
-  "integration-setup": 1460,
+  // routing bullet (measured 1432). Codex round 1: flow disappearance is
+  // not positive evidence — UI-finished flows report completed-but-unverified
+  // (measured 1458).
+  "integration-setup": 1490,
 };
 const DEFAULT_WORD_BUDGET = 1150;
 
