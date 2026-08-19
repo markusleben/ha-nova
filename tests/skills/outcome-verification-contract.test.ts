@@ -21,6 +21,13 @@ describe("semantic outcome verification (#567/#566)", () => {
       expect(doc).toContain(cls);
     }
     expect(doc).toContain("Report one of exactly four outcomes, never a blend");
+    // A multi-probe promise verifies only when every previewed probe holds.
+    expect(doc).toContain("EVERY probe the previewed promise names showed its effect");
+    expect(doc).toContain("One good probe never verifies a multi-probe promise");
+    // Bounded recovery retries are governed by their own contract, not the
+    // verification no-repeat rule.
+    expect(doc).toContain("This binds the VERIFICATION step only");
+    expect(doc).toContain("repeats by its own rules, never by this step");
     for (const r of ["`accepted`", "`verified`", "`unverified`", "`failed`"]) {
       expect(doc).toContain(r);
     }

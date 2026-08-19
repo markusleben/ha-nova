@@ -39,7 +39,11 @@ Classify BEFORE execution what the action's success can actually be proven by:
 Report one of exactly four outcomes, never a blend:
 
 - `accepted` — command registered, promised effect not independently proven.
-- `verified` — a selected probe showed the promised effect.
+- `verified` — EVERY probe the previewed promise names showed its effect.
+  One good probe never verifies a multi-probe promise (a scene, `scene.apply`,
+  or a script acting on several entities): a partial result reports the
+  per-probe split and the overall outcome stays `unverified` — or `failed`
+  when any probe proved the opposite.
 - `unverified` — evidence was expected but missing or unreadable at window
   end. Missing evidence is never inferred success.
 - `failed` — a probe showed the effect did NOT occur (a recovery target's
@@ -47,7 +51,10 @@ Report one of exactly four outcomes, never a blend:
 
 Verification NEVER repeats the original action automatically — not after
 `unverified`, not after `failed`, and not after a transport error on a
-disruptive or restart-class action.
+disruptive or restart-class action. This binds the VERIFICATION step only: an
+explicitly requested recovery workflow with a bounded, pre-approved retry
+policy (`skills/ha-nova/recovery-workflows.md`) repeats by its own rules,
+never by this step.
 
 ## Restart and reboot actions (#566)
 
