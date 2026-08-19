@@ -1,6 +1,6 @@
 ---
 name: integration-setup
-description: Use when adding a Home Assistant integration or continuing an integration reauthentication flow through HA NOVA Relay.
+description: Use when adding a Home Assistant integration, continuing an integration reauthentication flow, or recovering invalid integration credentials when no reauth flow is pending — through HA NOVA Relay.
 license: MIT
 compatibility: Requires the ha-nova CLI (run 'ha-nova setup' first) and the HA NOVA Relay in Home Assistant (App, or standalone container on Container/Core).
 ---
@@ -9,7 +9,7 @@ compatibility: Requires the ha-nova CLI (run 'ha-nova setup' first) and the HA N
 
 ## Scope
 
-Add integrations that expose a Home Assistant config flow and continue pending integration reauthentication (`reauth`) flows.
+Add integrations that expose a Home Assistant config flow, continue pending integration reauthentication (`reauth`) flows, and recover invalid credentials when no reauth flow is pending (Credential Recovery below).
 
 Not handled here:
 
