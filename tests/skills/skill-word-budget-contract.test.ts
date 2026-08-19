@@ -34,7 +34,7 @@ const WORD_BUDGETS: Record<string, number> = {
   // combined audit train (measured 1382 before the bounded-wait removal).
   // Delivery-honesty reconciliation with the canonical composition contract
   // plus the surface-selection instantiation note (train review P2-1/P2-3,
-  // 2026-08-20, measured 1500).
+  // 2026-08-20, measured 1506).
   notify: 1520,
   // State-snapshot queries ("is everything closed?") and the alias fallback
   // that finally reaches the names a household actually says (#527, 1318).

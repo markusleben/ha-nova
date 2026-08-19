@@ -65,7 +65,7 @@ Canonical contract: `../ha-nova/mobile-notification-composition.md` — read it 
      Read the target's platform from the device name or ask, and place the keys accordingly.
    - A `message: "clear_notification"` with a matching `tag` removes a previously sent notification instead of sending a new one.
 4. Preview the exact payload (target + title + message + any `data`) and get confirmation — a notification is an irreversible, user-visible side effect.
-5. Send, then report what was sent where: a successful service call means Home Assistant accepted it, not that the phone displayed it — say so honestly. A delivery receipt exists only when a supported receipt confirmation was explicitly requested (canonical contract → Delivery honesty); receipt never proves reading.
+5. Send, then report what was sent where: a successful service call means Home Assistant accepted it, not that the phone displayed it — say so honestly. There is no delivery receipt by default — one exists only when a supported receipt confirmation was explicitly requested (canonical contract → Delivery honesty); receipt never proves reading.
 
 ## Persistent Notifications (Home Assistant UI)
 
