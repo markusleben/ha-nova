@@ -83,6 +83,9 @@ describe("semantic outcome verification (#567/#566)", () => {
       "A press with restart/reboot/reset semantics is acknowledgement only",
     );
     expect(sc).toContain("never infer a completed restart from the timestamp");
+    // A scene's advanced timestamp can coexist with failed member changes.
+    expect(sc).toContain("an advanced timestamp alone is `accepted`, never `verified`");
+    expect(sc).toContain("`verified` requires the previewed member probes to show the promised states");
     expect(sc).toContain(
       "evidence classes and result vocabulary: `skills/ha-nova/outcome-verification.md`",
     );
