@@ -100,7 +100,9 @@ reference-platform `relay health --via cloud` against the exact installed
 Relay App. The proof parses the JSON and requires the expected App version
 plus `ha_ws_connected: true`; command success alone is insufficient. This
 smoke is separate from full route parity; maintenance deltas refresh the
-envelope and provenance without it.
+envelope and provenance without it. When no validation infrastructure is
+available, the risk-scope spec's reference-smoke waiver may replace the
+smoke with a ledger-recorded maintainer decision.
 
 This isolation procedure serves the real-device qualification runs below. The
 exact-candidate provenance check and health smoke follow a different layout:

@@ -790,7 +790,9 @@ Exact-target CI, candidate provenance on all enabled OSes, and the installed
 Relay App never carry forward. One downloaded-candidate
 `relay health --via cloud` smoke with Census suppressed repeats for deltas
 that match an invalidation-map row with real-platform scope; maintenance
-deltas refresh the envelope and provenance without it. The smoke must parse
+deltas refresh the envelope and provenance without it, and the risk-scope
+spec's reference-smoke waiver is the one ledger-recorded exception. The
+smoke must parse
 the JSON and require the expected App version and `ha_ws_connected: true`; a
 zero exit code alone is not evidence. See
 `2026-07-30-cloud-release-evidence-risk-scope-spec.md`.

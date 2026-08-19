@@ -351,12 +351,17 @@ qualification. Before carrying a qualification forward, inspect the complete
 qualification-to-target diff. In the activation or release pull request,
 record each carried check and keyring OS with its qualified commit/tree,
 non-secret evidence reference, inspected target, and change-class decision.
-Missing or uncertain ledger data means rerun.
+Missing or uncertain ledger data means rerun. A reference-smoke waiver
+(risk-scope spec) replaces only the rerun itself, never the ledger: it is
+valid only with a complete entry naming the unavailable infrastructure, the
+waived checks, and the crossing delta.
 
 Every target still runs CI, candidate signature/provenance checks on all
 enabled platforms, and the exact installed Relay App. A target whose delta
 matches an invalidation-map row with real-platform scope also runs one real
-Cloud health smoke on a reference platform; maintenance deltas skip it. The
+Cloud health smoke on a reference platform — or records the spec's
+reference-smoke waiver when no validation infrastructure is available;
+maintenance deltas skip it. The
 smoke uses the downloaded candidate binary, `--via cloud`, the exact installed
 App, and `HA_NOVA_NO_CENSUS=1`; its JSON must report the expected App version
 and `ha_ws_connected: true`.
@@ -402,7 +407,9 @@ provenance, and `installed_relay_app` are never carried forward. The Cloud
 health smoke repeats only when the delta matches an invalidation-map row with
 real-platform scope; deltas matching only the map's `None` and
 release-machinery rows refresh the envelope and provenance without it. The
-map, not any summary, decides. See
+map, not any summary, decides. The spec's reference-smoke waiver is the one
+exception, and it never covers CI, candidate provenance, or
+`installed_relay_app`. See
 `docs/work/2026-07-30-cloud-release-evidence-risk-scope-spec.md`.
 Carry-forward applies only to the qualification behind a check boolean: create
 a new exact-target JSON envelope and never copy an older commit/tree identity.
@@ -545,7 +552,13 @@ Choose exactly one reference platform for the exact-target Cloud health smoke.
 The smoke is required only when the delta matches an invalidation-map row with
 real-platform scope; deltas matching only the map's `None` and
 release-machinery rows refresh the envelope and provenance without it. Consult
-the map in the evidence risk-scope spec rather than any shorthand.
+the map in the evidence risk-scope spec rather than any shorthand. When no
+validation infrastructure is available, the maintainer may waive the smoke
+and the real-platform qualification reruns required by the delta's matched
+map rows, under the spec's reference-smoke waiver — the waiver lives in the
+PR ledger and must name the unavailable infrastructure; the envelope, the
+commit/tree identity, candidate provenance on every enabled platform, and
+the exact installed Relay App check stay mandatory.
 
 The smoke needs its own Cloud authorization inside the smoke HOME. NEVER copy
 the production `~/.config/ha-nova` there: the copied profile keeps the
