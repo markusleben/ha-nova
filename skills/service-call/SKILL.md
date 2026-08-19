@@ -116,6 +116,7 @@ A changed base re-previews — and if that read failed or the attribute is absen
    - Entity `unknown` → delta `unknown → {target}` + info: "State not yet known; the call may still work."
    - State read failed → preview without delta, do not block.
    - Show: service (`domain.service`), target (`entity_id`), data fields.
+   - Semantic-outcome classification: when the call's promise is not the target's own state, classify the evidence class per `skills/ha-nova/outcome-verification.md`, name the probes, expected outcome, and observation window in this preview, and capture the probe baselines before executing.
    - Include an explicit not-executed-yet line before confirmation.
    - Show an Options block with the execute/apply choice and `cancel`. Do not offer `show yaml` unless the user asks for raw payload details. Exception: in a grouped change set the single final action block uses the grouped keywords `apply · show yaml · cancel` (`skills/ha-nova/grouped-change-set.md`), replacing this per-call menu.
    - Ask for natural confirmation bound to this exact preview (see context skill → Active Preview Confirmation). Earlier planning consent is draft-only.

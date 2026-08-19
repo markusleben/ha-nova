@@ -180,7 +180,7 @@ const WORD_BUDGETS: Record<string, number> = {
   // Includes domain-fields.md and indirect-actuation.md; both are contracts
   // split out of this skill (measured 8777 on #543).
   // Semantic-outcome wiring: restart-class presses, verify-step pointer,
-  // and the disruptive no-retry carve-out (#566/#567, measured 8826).
+  // and the disruptive no-retry carve-out (#566/#567, measured 8863 after the review batch).
   "service-call": 8880,
   // Carries the canonical File-Change Preview example — the only layout
   // source for file edits; concrete examples are what make a card renderable.

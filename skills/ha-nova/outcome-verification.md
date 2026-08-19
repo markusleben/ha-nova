@@ -53,12 +53,16 @@ disruptive or restart-class action.
 
 A `button.press` / `input_button.press` whose semantics are restart, reboot,
 or reset (entity naming plus device context plus the user's stated intent —
-never friendly-name matching alone) is class 1: the advanced timestamp is
-`accepted`, never restart proof.
+never friendly-name matching alone) is class 1 on its own timestamp: the
+advanced timestamp is `accepted`, never restart proof. A recovery intent adds
+a class-3/4 health probe on top:
 
 - Initiated to recover a named unhealthy signal → re-check that signal
-  inside the bounded window: recovered → `verified`; still unhealthy →
-  `failed`.
+  inside a RESTART-LENGTH window (device-appropriate, stated in the preview —
+  a rebooting device is unhealthy by design for a while, so the ten-second
+  default is too short here): recovered → `verified`; still unhealthy after a
+  window that covered the expected restart duration → `failed`; window too
+  short or cut off → `unverified`, never `failed`.
 - No independent effect signal → `accepted` plus the explicit sentence that
   the restart itself could not be independently verified.
 - Ordinary buttons (no restart semantics) keep the timestamp as verification
