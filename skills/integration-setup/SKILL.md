@@ -96,9 +96,13 @@ matching reauth flow:
    preview states that reload re-runs setup and briefly drops the entry's
    entities. Preserve the entry and every subentry; never delete or recreate
    anything.
-3. Re-read `config_entries/flow/progress`. Reauth flows open asynchronously
-   (often only after the first refresh), so wait a few seconds and re-read
-   once more before concluding nothing appeared. A new flow with
+3. Inspect the reload response and re-read `config_entries/get` first: a
+   `false` result or a non-`loaded` entry means the reload itself did not
+   complete — report that actual entry state, never a missing upstream
+   trigger. Then re-read `config_entries/flow/progress` either way (an auth
+   failure can still open reauth). Reauth flows open asynchronously (often
+   only after the first refresh), so wait a few seconds and re-read once
+   more before concluding nothing appeared. A new flow with
    `context.source == "reauth"` and the same `entry_id` → continue with the
    normal reauthentication handoff above.
 4. Still no flow on a settled, SUCCESSFUL re-read: Home Assistant exposes no

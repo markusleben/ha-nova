@@ -309,8 +309,9 @@ const WORD_BUDGETS: Record<string, number> = {
   // not positive evidence — UI-finished flows report completed-but-unverified
   // (measured 1458). Codex round 3 advertised the lane on every routing
   // surface; the convergence pass split failed re-reads from settled empty
-  // ones (measured 1507).
-  "integration-setup": 1530,
+  // ones (measured 1507); Codex round 5 checks the reload result and entry
+  // state before classifying (measured 1550).
+  "integration-setup": 1570,
 };
 const DEFAULT_WORD_BUDGET = 1150;
 
