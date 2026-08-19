@@ -252,12 +252,13 @@ config entry. Reconcile the two instead of reporting the bare failure:
    more before concluding none appeared. A flow counts as NEW only
    when it is absent from the snapshot — a pre-existing flow is never reported
    as this call's side effect.
-3. Match the new flow to the failed call: a match on `context.entry_id` —
-   the target entity's registry `config_entry_id` — is decisive alone;
-   otherwise its `handler` must equal the target's integration domain — the
-   registry row's `platform`, never the service or entity_id prefix — AND the
-   target must be that domain's only config entry; several entries sharing
-   the domain leave the flow unattributable (step 4's no-match branch). A same-domain
+3. Match the new flow to the failed call. Candidates are ALL expanded
+   targets' registry rows — an area, device, or batch call has several: a
+   match on `context.entry_id` against any candidate's `config_entry_id` is
+   decisive alone; otherwise its `handler` must equal a candidate's
+   `platform` — never the service or entity_id prefix — AND resolve to
+   exactly one config entry across the candidates; anything ambiguous is
+   unattributable (step 4's no-match branch). A same-domain
    system-log entry inside the call window is corroboration, never a match by
    itself. A flow for another domain or entry does not match.
 4. On a match, report both facts — the call failed AND Home Assistant started
