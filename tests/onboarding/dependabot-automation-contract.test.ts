@@ -310,9 +310,12 @@ describe("dependabot automation contract", () => {
     // it. Keeping a second copy is what drifted: the copy here still ordered
     // the label before anything had inspected the manifest (#539). Assert the
     // pointer AND the policy, so deleting either still fails.
-    expect(releasing).toContain('They live in AGENTS.md -> "PR Merge / Release');
+    expect(releasing).toContain('They live in AGENTS.md -> "Review triage and');
     expect(agents).toContain("manifest-review:approved");
-    expect(agents).toContain("before `@codex`");
+    // Label ordering: the manifest gate is checklist step 2, the trigger is
+    // step 3 — inspection and label precede the review trigger by numbering.
+    expect(agents).toContain("2. Manifest gate:");
+    expect(agents).toContain("3. Trigger review:");
     expect(releasing).toContain("dev-only npm minor/patch updates that touch only `package.json` / `package-lock.json` (root or `nova/`)");
     expect(releasing).toContain("github-actions minor/patch bumps that change only `uses:` lines under `.github/workflows/`");
     expect(releasing).toContain("action majors and any workflow change beyond `uses:` version bumps stay manual");
@@ -320,11 +323,11 @@ describe("dependabot automation contract", () => {
     expect(releasing).toContain("require `dependency-review` on `main`");
     expect(releasing).toContain("require `manifest-review-gate` on `main`");
     expect(releasing).toContain("`codex-review-gate` is advisory on `main`");
-    expect(agents).toContain("Release-worthiness rule");
-    expect(agents).toContain("Dependabot fast-lane rule");
-    expect(agents).toContain("Toolchain-risk dev dependency rule");
-    expect(agents).toContain("Codex advisory rule");
-    expect(agents).toContain("Manifest-label rule");
+    expect(agents).toContain("Release-worthiness:");
+    expect(agents).toContain("Fast lane (auto-approve/auto-merge after required checks)");
+    expect(agents).toContain("Toolchain risk stays manual");
+    expect(agents).toContain("advisory on `main`");
+    expect(agents).toContain("Manifest gate:");
     expect(agents).toContain("gh pr edit <nr> --add-label manifest-review:approved");
   });
 
