@@ -303,8 +303,10 @@ const WORD_BUDGETS: Record<string, number> = {
   calendar: 1175,
   // Credential-recovery lane when no reauth flow is pending: reload as the
   // only supported trigger, fail-closed handoff, no replacement entries
-  // (#585, measured 1350).
-  "integration-setup": 1380,
+  // (#585, measured 1350); review batch added the Scope carve-out, the
+  // disruption disclosure, the async settle re-read, and the conditional
+  // routing bullet (measured 1432).
+  "integration-setup": 1460,
 };
 const DEFAULT_WORD_BUDGET = 1150;
 

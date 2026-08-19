@@ -16,7 +16,7 @@ describe("integration-setup credential recovery (#585)", () => {
   it("routes the no-pending-flow case into the recovery lane", () => {
     expect(section).toBeDefined();
     expect(flat(skill)).toContain(
-      "if no matching pending flow exists, continue with Credential Recovery below; never synthesize a reauth flow",
+      "if no matching pending flow exists: with credentials reported invalid, continue with Credential Recovery below; otherwise report that Home Assistant is not currently requesting reauthentication; never synthesize a reauth flow",
     );
   });
 
