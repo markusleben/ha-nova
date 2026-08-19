@@ -704,8 +704,11 @@ Prompt (via `codex exec`, edit-referenced with
 ## Supported beta contexts
 
 - macOS desktop terminal
-- Windows console and RDP after real-device validation
-- validated Linux desktop Secret Service providers
+
+Windows (console and RDP) and validated Linux desktop Secret Service
+providers were supported contexts while their validation machines were
+available; since 2026-08-19 they are out of publication scope with the
+platform list below and return with it.
 
 WSL, SSH, services, gateways, and containers remain local-only until a separate
 credential-broker design is reviewed and validated.
@@ -717,9 +720,16 @@ credential-broker design is reviewed and validated.
 ```json
 {
   "cloud_remote_enabled": true,
-  "cloud_remote_platforms": ["darwin", "linux", "windows"]
+  "cloud_remote_platforms": ["darwin"]
 }
 ```
+
+Since 2026-08-19 the validated platform list is `["darwin"]`: the Windows and
+Linux validation machines left the maintainer's reach, and per-platform
+candidate provenance is non-waivable, so publication is scoped to the
+platform that can still prove it. Windows and Linux return to the list
+through a reviewed pull request once their infrastructure is available
+again.
 
 The root and App copies must match. Ordinary `go build` output is compile-time
 disabled. Public builds fail closed unless they use the

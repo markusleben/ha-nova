@@ -3,8 +3,6 @@
   "min_relay_version": "0.9.0",
   "cloud_remote_enabled": true,
   "cloud_remote_platforms": [
-    "darwin",
-    "linux",
-    "windows"
+    "darwin"
   ]
 }
