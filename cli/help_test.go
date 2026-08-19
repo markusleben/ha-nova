@@ -145,7 +145,7 @@ func TestRelayHelpContractMatchesSkillDoc(t *testing.T) {
 		{"acceptable only for tiny, unambiguously read-only diagnostics", wsOut, "ws"},
 		{"acceptable only for tiny, unambiguously read-only diagnostics", coreOut, "core"},
 		{"mutations, complex bodies, reusable payloads, and cross-platform examples use --data-file", wsOut, "ws"},
-		{"--body-file", coreOut, "core"},
+		{"mutations, complex bodies, reusable payloads, and cross-platform examples use --body-file", coreOut, "core"},
 		{"upstream payload is in .data directly", wsOut, "ws"},
 		{"--jq '.data.version' on a ws get_config result", wsOut, "ws"},
 		{"upstream payload is in .data.body", coreOut, "core"},
@@ -156,8 +156,10 @@ func TestRelayHelpContractMatchesSkillDoc(t *testing.T) {
 		{"never call external jq", wsOut, "ws"},
 		{"never call external jq", coreOut, "core"},
 	}
+	docWS := strings.ReplaceAll(doc, " (ws) / --body-file (core)", "")
+	docCore := strings.ReplaceAll(strings.ReplaceAll(doc, "--data-file (ws) / ", ""), "--body-file (core)", "--body-file")
 	for _, tc := range shared {
-		if !strings.Contains(doc, tc.span) {
+		if !strings.Contains(doc, tc.span) && !strings.Contains(docWS, tc.span) && !strings.Contains(docCore, tc.span) {
 			t.Fatalf("relay-api.md missing contract span %q", tc.span)
 		}
 		if !strings.Contains(tc.help, tc.span) {
