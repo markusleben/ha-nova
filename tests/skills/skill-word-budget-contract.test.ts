@@ -180,8 +180,9 @@ const WORD_BUDGETS: Record<string, number> = {
   // Includes domain-fields.md and indirect-actuation.md; both are contracts
   // split out of this skill (measured 8777 on #543).
   // Reauth-side-effect reconciliation after a generic upstream 500
-  // (#586, measured 9027 after the review batch).
-  "service-call": 9040,
+  // (#586, measured 9027 after the review batch); Codex round 1 added the
+  // settle re-read before ruling a delayed reauth flow out (measured 9045).
+  "service-call": 9070,
   // Carries the canonical File-Change Preview example — the only layout
   // source for file edits; concrete examples are what make a card renderable.
   // Sibling-survival verification (Wave 1b) + yaml snapshot capture with
