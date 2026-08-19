@@ -16,7 +16,7 @@ read, the membership is unknown — never substituted with a guess:
 
 | Composite type | Authoritative source |
 |---|---|
-| Modern group helpers (light, switch, cover, fan, binary_sensor, ...) | config-entry options; the `entity_id` state attribute is the fallback read only when the options are unreadable — when both are readable and disagree, membership is UNRESOLVED: re-resolve, never pick one silently |
+| Modern group helpers (light, switch, cover, fan, binary_sensor, ...) | config-entry options; the `entity_id` state attribute is the fallback read only when the options are unreadable — when both are readable and disagree, that is source disagreement (below): re-resolve, never pick one silently |
 | Legacy `group.*` | `attributes.entity_id` where exposed; otherwise uninspectable |
 | Notify groups | UI-built notify group entities resolve like modern group helpers (row 1); a legacy notify group SERVICE exposes no readable membership — `/api/services` proves it exists, never who it reaches: treat it as uninspectable |
 | Media player groups | the `group_members` state attribute |
@@ -45,6 +45,10 @@ Every resolution ends in exactly one of:
 - **partially resolved** — some members enumerated, some branches unreadable
 - **uninspectable** — the source exposes no membership at all
 - **changed after preview** — the pre-execution re-read differs from the previewed list
+
+Source disagreement — two readable sources with different member sets — is
+PARTIALLY RESOLVED at best: show both readings, act on neither, and re-resolve
+before any preview binds.
 
 The preview shows every resolved member the action affects. Partially
 resolved and unresolvable members are shown explicitly, named as unread.
