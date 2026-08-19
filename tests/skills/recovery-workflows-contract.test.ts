@@ -176,7 +176,7 @@ describe("recovery workflows (#568/#569)", () => {
       "R-30 [MEDIUM → HIGH]: Retry-policy violation in a recovery workflow",
     );
     expect(checks).toContain(
-      "Ordinary one-shot threshold automations are never flagged when no such intent exists",
+      "Ordinary one-shot threshold automations are never flagged when no continuity promise exists",
     );
     expect(checks).toContain(
       "never rewrite the automation and never execute its recovery actions",
