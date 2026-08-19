@@ -106,10 +106,13 @@ matching reauth flow:
    services**. Never synthesize a config flow, edit `.storage`, create a
    replacement entry, or reach for deprecated integration services as a
    workaround.
-5. Success is a terminal `reauth_successful` for the same `entry_id` — or,
-   for a flow finished in the UI, the matching flow gone — in both cases plus
-   the config-entry verification above. Do not spend a paid API request to
-   "test" the credential unless the user asks.
+5. Verified success is only a terminal `reauth_successful` for the same
+   `entry_id` plus the config-entry verification above. A flow finished in
+   the UI leaves no terminal result here: the matching flow gone — and none
+   re-appearing on a settled re-read — is reported as completed but
+   unverified, never as proven recovery (a canceled flow disappears the same
+   way). Do not spend a paid API request to "test" the credential unless the
+   user asks.
 6. Secrets and key fragments never appear in previews, output, or logs.
 
 ## Error Handling

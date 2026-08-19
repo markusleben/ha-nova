@@ -40,9 +40,14 @@ describe("integration-setup credential recovery (#585)", () => {
     );
   });
 
-  it("binds success to the reauth verify rule and avoids paid probes", () => {
+  it("requires positive evidence for success and avoids paid probes", () => {
     const s = flat(section ?? "");
-    expect(s).toContain("terminal `reauth_successful` for the same `entry_id`");
+    expect(s).toContain(
+      "Verified success is only a terminal `reauth_successful` for the same `entry_id`",
+    );
+    // A canceled UI flow disappears exactly like a successful one — flow
+    // disappearance alone must never be reported as proven recovery.
+    expect(s).toContain("reported as completed but unverified, never as proven recovery");
     expect(s).toContain('Do not spend a paid API request to "test" the credential unless the user asks');
     expect(s).toContain("Secrets and key fragments never appear in previews, output, or logs");
   });
