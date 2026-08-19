@@ -112,7 +112,10 @@ When creating or reviewing recurring automations and scripts, classify each
 user-visible notification path (mobile, persistent, or other) as routine
 success, warning, failure, recovery, reminder, or explicit confirmation,
 using triggers, branches, callers, and expected execution frequency. Scripts
-called by recurring automations count as recurring workflows. Ambiguous
+called by recurring automations count as recurring workflows — for a script,
+resolve its callers first (one bounded `search/related` on the script entity,
+the single lookup this classification adds); recurrence established only by
+callers is recurrence, never ambiguity. Ambiguous
 intent or branch classification means no suggestion.
 
 Where separate normal and exceptional outcomes exist, MAY offer an

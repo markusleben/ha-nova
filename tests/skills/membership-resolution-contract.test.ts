@@ -18,7 +18,10 @@ describe("shared membership-resolution contract (#571)", () => {
     expect(contract).toContain(
       "the `entity_id` state attribute is the fallback read only when the options are unreadable",
     );
-    expect(contract).toContain("when both are readable and disagree, membership is UNRESOLVED");
+    expect(contract).toContain("that is source disagreement (below)");
+    expect(contract).toContain(
+      "PARTIALLY RESOLVED at best: show both readings, act on neither, and re-resolve",
+    );
     // Freeze mode never ships a parent beside its own expanded children.
     expect(contract).toContain(
       "A frozen executable payload contains only the deduplicated concrete leaf entities",
