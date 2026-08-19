@@ -583,7 +583,7 @@ The relay server has its own internal upstream timeout of 10 seconds per WS/HTTP
 
 On `502 / UPSTREAM_*_TIMEOUT` or CLI-level timeout:
 - verify state/config first before retrying
-- retry exactly once only when verification shows no state change
+- retry exactly once only when verification shows no state change — never for disruptive or restart-class actions (`skills/ha-nova/outcome-verification.md`)
 - if config read-back succeeded but reload timed out, treat it as partial verification and confirm registry/state before retrying
 
 ## Safe Bulk Patterns

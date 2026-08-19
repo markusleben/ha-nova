@@ -116,6 +116,7 @@ A changed base re-previews — and if that read failed or the attribute is absen
    - Entity `unknown` → delta `unknown → {target}` + info: "State not yet known; the call may still work."
    - State read failed → preview without delta, do not block.
    - Show: service (`domain.service`), target (`entity_id`), data fields.
+   - Semantic-outcome classification: when the call's promise is not the target's own state, classify the evidence class per `skills/ha-nova/outcome-verification.md`, name the probes, expected outcome, and observation window in this preview, and capture the probe baselines before executing.
    - Include an explicit not-executed-yet line before confirmation.
    - Show an Options block with the execute/apply choice and `cancel`. Do not offer `show yaml` unless the user asks for raw payload details. Exception: in a grouped change set the single final action block uses the grouped keywords `apply · show yaml · cancel` (`skills/ha-nova/grouped-change-set.md`), replacing this per-call menu.
    - Ask for natural confirmation bound to this exact preview (see context skill → Active Preview Confirmation). Earlier planning consent is draft-only.
@@ -123,11 +124,11 @@ A changed base re-previews — and if that read failed or the attribute is absen
 5. Execute:
    - snapshot pending reauth flows first (Error Handling → Generic 500 with a reauth side effect)
    - `ha-nova relay core --method POST --path /api/services/{domain}/{service} --body-file <payload-file>`
-6. Verify result — match the check to what the call promises:
+6. Verify result — match the check to what the call promises (evidence classes and result vocabulary: `skills/ha-nova/outcome-verification.md`):
    - Default: read the entity state back (`ha-nova relay core --method GET --path /api/states/{entity_id}`) and confirm the expected change.
    - User-assisted observation: a physical action by the user (pressing the device's own button, operating it by hand) never verifies a service call this skill sent — it is separate evidence about the device or input. When such an observation is needed, follow context skill → User-Assisted Readiness: read the baseline state and timestamp BEFORE the instruction, confirm ready, give one exact "act now" instruction, then re-read, compare, and attribute the result to the user's action, not to the call.
    - Transitions: covers report `opening`/`closing`, lights fade over `transition`, climate ramps — when the read-back shows a transitional or unchanged value on such a device, wait a few seconds (up to the transition length) and re-read once before calling it a discrepancy.
-   - Timestamp targets: `scene.turn_on`, `button.press`, and `input_button.press` record the action as the target's state timestamp — verify that it advanced; scene member entities only as secondary evidence.
+   - Timestamp targets: `scene.turn_on`, `button.press`, and `input_button.press` record the action as the target's state timestamp — verify that it advanced; scene member entities only as secondary evidence. A press with restart/reboot/reset semantics is acknowledgement only: classify and report it per `skills/ha-nova/outcome-verification.md` (accepted/verified/unverified/failed; recovery intent re-checks the unhealthy signal; never infer a completed restart from the timestamp).
    - Stateless targets: `scene.apply` and direct `script.*` runs do not reflect the call in the target's own state. Verify the promise instead — a script via `last_triggered` or acted-on member entities, `scene.apply` via the applied member states — and say what was (not) verifiable rather than reporting a false discrepancy.
    - Area/device targets: verify the member list expanded and previewed in step 3, not a single entity.
    - Report: service called, verified state (or the honest verification limit), any errors.
@@ -232,7 +233,7 @@ Full relay/upstream error taxonomy (codes, HTTP-status split, retry rules): `ski
 
 Service-call specifics:
 - `404/NOT_FOUND` or upstream `.data.status` 404: entity or service does not exist — re-resolve before retrying
-- `502/UPSTREAM_*` transport errors: HA may already have accepted the action — verify entity state first (see `relay-api.md` → Timeout and Retry Guidance); retry once only when verification shows no state change, otherwise report the result
+- `502/UPSTREAM_*` transport errors: HA may already have accepted the action — verify entity state first (see `relay-api.md` → Timeout and Retry Guidance); retry once only when verification shows no state change, otherwise report the result. Disruptive and restart-class actions are excluded: never auto-retry them after any transport error (`skills/ha-nova/outcome-verification.md`)
 - State verification failure (state didn't change): report discrepancy, do not retry automatically
 
 ### Generic 500 with a reauth side effect

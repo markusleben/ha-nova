@@ -187,7 +187,11 @@ const WORD_BUDGETS: Record<string, number> = {
   // Codex round 3: match candidates come from every expanded target;
   // round 4 restored the GLOBAL single-entry guard on the handler fallback
   // (measured 9135 with the post-500 best-effort symmetry).
-  "service-call": 9160,
+  // Semantic-outcome wiring: restart-class presses, verify-step pointer,
+  // preview-step classification, and the disruptive no-retry carve-out
+  // (#566/#567); combined trial-merge with the #600 reauth train measured
+  // 9221.
+  "service-call": 9260,
   // Carries the canonical File-Change Preview example — the only layout
   // source for file edits; concrete examples are what make a card renderable.
   // Sibling-survival verification (Wave 1b) + yaml snapshot capture with
@@ -367,6 +371,7 @@ const STANDALONE_MARKDOWN = new Set([
   "skills/ha-nova/helper-flow-schemas.md",
   "skills/ha-nova/helper-schemas.md",
   "skills/ha-nova/input-capability-preflight.md",
+  "skills/ha-nova/outcome-verification.md",
   "skills/ha-nova/output-rules.md",
   "skills/ha-nova/payload-schemas.md",
   "skills/ha-nova/relay-api.md",
