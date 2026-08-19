@@ -32,7 +32,7 @@ const ALL_SKILL_MD_FILES = ((): string[] => {
 const WORD_BUDGETS: Record<string, number> = {
   // Platform-specific payloads plus presence-based household routing in the
   // combined audit train (measured 1382 before the bounded-wait removal).
-  notify: 1430,
+  notify: 1450,
   // State-snapshot queries ("is everything closed?") and the alias fallback
   // that finally reaches the names a household actually says (#527, 1318).
   // Codex round 3: a motorized window or garage door is a cover, so an
@@ -46,6 +46,8 @@ const WORD_BUDGETS: Record<string, number> = {
   // train lands at 1382.
   // Audit train: the ceiling is the MAX of both branches — each
   // measured only its own tree.
+  // Pointer to the canonical mobile-notification composition contract
+  // (#575/#576/#573, 2026-08-19, measured 1433).
   // Canonical truncation filter moved to skills/ha-nova/ with the inline
   // recreate-exactly fallback for flat installs (#582 Codex round 1,
   // measured 2145).
@@ -79,7 +81,10 @@ const WORD_BUDGETS: Record<string, number> = {
   // One-shot intent routing to the self-disabling pattern (#527, 2221).
   // Includes one-shot-automations.md after the audit exposed that the split
   // had reset this ratchet (measured 5356 on #543).
-  write: 5380,
+  // Pointer to the canonical mobile-notification composition contract and its
+  // pre-preview intent classification (#575/#576/#573, 2026-08-19,
+  // measured 5389).
+  write: 5410,
   // HACS lifecycle: schema guard, reconcile loops, consumer discovery,
   // migration backup gate, category-appropriate verification (#478);
   // review rounds added pin-durability branches, the uninstall apply
@@ -294,7 +299,10 @@ const WORD_BUDGETS: Record<string, number> = {
   // another automation answers by unlocking a door (measured 4654).
   // Codex round 12: the Quick-Fix exclusion keyed on entering the gate rather
   // than on its verdict, so a clean scan still blocked the fix (measured 4698).
-  review: 4820,
+  // Notification findings-vs-suggestions pointer to the canonical
+  // mobile-notification composition contract (#575/#576/#573, 2026-08-19,
+  // measured 4829).
+  review: 4850,
   // Codex round 2 (#518): the entrypoint carried its own copy of the
   // verify-before-flag gate, which contradicted the corrected one in
   // checks.md and could suppress accepted-but-dangerous findings; trace
@@ -343,6 +351,7 @@ const STANDALONE_MARKDOWN = new Set([
   "skills/ha-nova/helper-flow-schemas.md",
   "skills/ha-nova/helper-schemas.md",
   "skills/ha-nova/input-capability-preflight.md",
+  "skills/ha-nova/mobile-notification-composition.md",
   "skills/ha-nova/output-rules.md",
   "skills/ha-nova/payload-schemas.md",
   "skills/ha-nova/relay-api.md",
