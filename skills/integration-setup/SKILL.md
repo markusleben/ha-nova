@@ -1,6 +1,6 @@
 ---
 name: integration-setup
-description: Use when adding a Home Assistant integration or continuing an integration reauthentication flow through HA NOVA Relay.
+description: Use when adding a Home Assistant integration, continuing an integration reauthentication flow, or recovering invalid integration credentials when no reauth flow is pending — through HA NOVA Relay.
 license: MIT
 compatibility: Requires the ha-nova CLI (run 'ha-nova setup' first) and the HA NOVA Relay in Home Assistant (App, or standalone container on Container/Core).
 ---
@@ -9,11 +9,11 @@ compatibility: Requires the ha-nova CLI (run 'ha-nova setup' first) and the HA N
 
 ## Scope
 
-Add integrations that expose a Home Assistant config flow and continue pending integration reauthentication (`reauth`) flows.
+Add integrations that expose a Home Assistant config flow, continue pending integration reauthentication (`reauth`) flows, and recover invalid credentials when no reauth flow is pending (Credential Recovery below).
 
 Not handled here:
 
-- integration options, reconfigure, subentry, enable/disable, reload, or delete operations
+- integration options, reconfigure, subentry, enable/disable, or delete operations; reload only inside Credential Recovery below — every other reload stays with `ha-nova:fallback`
 - helper config-entry flows (use `ha-nova:helper`)
 - YAML-only integrations (use `ha-nova:yaml-config`)
 - diagnosing setup failures after a flow finishes (use `ha-nova:diagnose`)
@@ -35,6 +35,7 @@ Use response-driven config flows through the relay:
 - `ha-nova relay ws --data-file <payload-file> --out <flows-file>` with `{"type":"config_entries/flow/progress"}`
 - `ha-nova relay ws --data-file <payload-file> --out <entries-file>` with `{"type":"config_entries/get"}`
 - `ha-nova relay core --method GET|POST|DELETE --path /api/config/config_entries/flow[/<flow_id>] --body-file <payload-file> --out <flow-file>`
+- `ha-nova relay core --method POST --path /api/config/config_entries/entry/<entry_id>/reload` (Credential Recovery only)
 
 Omit `--body-file` on GET and DELETE. Relay-core response data is under `.data.body`.
 
@@ -47,7 +48,7 @@ Omit `--body-file` on GET and DELETE. Relay-core response data is under `.data.b
    - read `config_entries/get` and resolve the exact existing `entry_id`
    - read `config_entries/flow/progress`
    - select an existing flow only when `context.source == "reauth"` and its `handler` plus `context.entry_id` match the resolved entry
-   - if no matching pending flow exists, report that Home Assistant is not currently requesting reauthentication; never synthesize a reauth flow
+   - if no matching pending flow exists: with credentials reported invalid, continue with Credential Recovery below; otherwise report that Home Assistant is not currently requesting reauthentication; never synthesize a reauth flow
 3. Limit one integration flow per operation.
 
 ### Start or continue
@@ -82,6 +83,45 @@ If the user cancels an add flow created by this skill, DELETE that unfinished `f
 3. Reauth passes only when the same `entry_id` still exists, the matching reauth flow is gone, and the terminal result reports success. Report the current config-entry state exactly; do not call a non-`loaded` entry healthy.
 4. Linked devices/entities are secondary evidence only.
 
+### Credential Recovery (no reauth pending)
+
+Credentials reported invalid, but `config_entries/flow/progress` shows no
+matching reauth flow:
+
+1. `loaded` is lifecycle state, never proof the stored credential works — do
+   not call an entry healthy because it is `loaded`.
+2. Preview, confirm, then reload the entry —
+   `POST /api/config/config_entries/entry/<entry_id>/reload` — the documented
+   surface that makes the integration re-validate its stored credential. The
+   preview states that reload re-runs setup and briefly drops the entry's
+   entities. Preserve the entry and every subentry; never delete or recreate
+   anything.
+3. Inspect the reload response and re-read `config_entries/get` first: a
+   `false` result or a non-`loaded` entry means the reload itself did not
+   complete — report that actual entry state, never a missing upstream
+   trigger. Then re-read `config_entries/flow/progress` either way (an auth
+   failure can still open reauth). Reauth flows open asynchronously (often
+   only after the first refresh), so wait a few seconds and re-read once
+   more before concluding nothing appeared. A new flow with
+   `context.source == "reauth"` and the same `entry_id` → continue with the
+   normal reauthentication handoff above.
+4. Still no flow on a settled, SUCCESSFUL re-read — AND step 3's reload
+   check passed (result true, entry `loaded`): Home Assistant exposes no
+   supported trigger for this integration — say so plainly and hand off to
+   **Settings > Devices & services**. A FAILED re-read is not that evidence:
+   report step 3's actual reload result (done only if its check passed) and
+   the flow state as unknown, never as unsupported. Never synthesize a config flow, edit `.storage`, create a
+   replacement entry, or reach for deprecated integration services as a
+   workaround.
+5. Verified success is only a terminal `reauth_successful` for the same
+   `entry_id` plus the config-entry verification above. A flow finished in
+   the UI leaves no terminal result here: the matching flow gone — and none
+   re-appearing on a settled re-read — is reported as completed but
+   unverified, never as proven recovery (a canceled flow disappears the same
+   way). Do not spend a paid API request to "test" the credential unless the
+   user asks.
+6. Secrets and key fragments never appear in previews, output, or logs.
+
 ## Error Handling
 
 - Relay/upstream failures follow `skills/ha-nova/relay-api.md` → Error Handling.
@@ -93,7 +133,7 @@ If the user cancels an add flow created by this skill, DELETE that unfinished `f
 
 Apply `skills/ha-nova/output-rules.md` to all user-facing output.
 
-Use the Preview Card for flow start, menu selection, and each non-secret form submit. The menu choice block is its bound confirmation. Results name the integration, operation, config-entry state, and the exact verification scope. UI handoffs state what remains and never display secret fields or values.
+Use the Preview Card for flow start, menu selection, each non-secret form submit, and the credential-recovery reload. The menu choice block is its bound confirmation. Results name the integration, operation, config-entry state, and the exact verification scope. UI handoffs state what remains and never display secret fields or values.
 
 ## Safety
 

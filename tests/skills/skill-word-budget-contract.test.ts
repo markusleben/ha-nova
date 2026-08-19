@@ -179,7 +179,15 @@ const WORD_BUDGETS: Record<string, number> = {
   // measured only its own tree.
   // Includes domain-fields.md and indirect-actuation.md; both are contracts
   // split out of this skill (measured 8777 on #543).
-  "service-call": 8800,
+  // Reauth-side-effect reconciliation after a generic upstream 500
+  // (#586, measured 9027 after the review batch); Codex round 1 added the
+  // settle re-read before ruling a delayed reauth flow out (measured 9045).
+  // Codex round 2: best-effort snapshot never blocks an approved call, and
+  // a handler-only match requires a single-entry domain (measured 9097).
+  // Codex round 3: match candidates come from every expanded target;
+  // round 4 restored the GLOBAL single-entry guard on the handler fallback
+  // (measured 9135 with the post-500 best-effort symmetry).
+  "service-call": 9160,
   // Carries the canonical File-Change Preview example — the only layout
   // source for file edits; concrete examples are what make a card renderable.
   // Sibling-survival verification (Wave 1b) + yaml snapshot capture with
@@ -269,7 +277,10 @@ const WORD_BUDGETS: Record<string, number> = {
   // Audit train: the ceiling is the MAX of both branches — each
   // measured only its own tree.
   // Includes relay-ready.md; measured 4938 on #543.
-  fallback: 5000,
+  // Combined merge of the #581 precedence rework (trimmed) with the #585
+  // credential-recovery reload carve-out; trial-merging the train lands
+  // at 5004.
+  fallback: 5030,
   // semantic-slot note on the read templates (Wave 0); pre-write cross-field
   // constraint checks + drift-check step (Wave 1); pre-delete snapshot
   // capture (Wave 2).
@@ -309,7 +320,20 @@ const WORD_BUDGETS: Record<string, number> = {
   // write-flow skill; calendar and integration-setup sat within 17 words of
   // the default cap (review/todo/updates ratchets applied on their entries).
   calendar: 1175,
-  "integration-setup": 1175,
+  // Credential-recovery lane when no reauth flow is pending: reload as the
+  // only supported trigger, fail-closed handoff, no replacement entries
+  // (#585, measured 1350); review batch added the Scope carve-out, the
+  // disruption disclosure, the async settle re-read, and the conditional
+  // routing bullet (measured 1432). Codex round 1: flow disappearance is
+  // not positive evidence — UI-finished flows report completed-but-unverified
+  // (measured 1458). Codex round 3 advertised the lane on every routing
+  // surface; the convergence pass split failed re-reads from settled empty
+  // ones (measured 1507); Codex round 5 checks the reload result and entry
+  // state before classifying (measured 1550); round 6 gates the
+  // unsupported-trigger conclusion on that check too (measured 1561);
+  // round 7 keeps the failed-reload result when flow polling fails too
+  // (measured 1568).
+  "integration-setup": 1570,
 };
 const DEFAULT_WORD_BUDGET = 1150;
 

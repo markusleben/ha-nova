@@ -408,6 +408,7 @@ Rules:
 - pre-existing reauth flows are preserved and continue through their matching Home Assistant UI card when one of those UI-only steps is reached
 - add verification uses terminal `result.entry_id`, or a constrained before/after `config_entries/get` diff when it is absent
 - successful reauth uses terminal abort reason `reauth_successful`, the same surviving `entry_id`, and absence of the completed pending flow
+- credential recovery with no pending reauth flow (`ha-nova:integration-setup` → Credential Recovery) uses `POST /api/config/config_entries/entry/<entry_id>/reload` as its only trigger, then re-reads `config_entries/flow/progress` with a settle re-read
 
 ## Domain Payload Rules
 
@@ -568,6 +569,7 @@ When the relay successfully proxies to HA but HA itself returns an error, the re
 - `422`: HA rejected payload semantics (unprocessable entity)
 - `404`: HA resource not found at the requested API path
 - `405`: HA does not support the HTTP method for that path
+- `500`: generic upstream failure; a service call backed by invalid credentials can answer this while HA opens a reauth flow — `ha-nova:service-call` → Generic 500 with a reauth side effect reconciles the two
 
 Check: envelope `.ok == true`, then inspect `.data.status` for non-2xx values.
 
