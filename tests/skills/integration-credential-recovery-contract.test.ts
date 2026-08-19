@@ -46,7 +46,10 @@ describe("integration-setup credential recovery (#585)", () => {
 
   it("fails closed on unsupported upstream triggers", () => {
     const s = flat(section ?? "");
-    expect(s).toContain("Home Assistant exposes no supported trigger");
+    expect(s).toContain("Still no flow on a settled, SUCCESSFUL re-read");
+    // A transient read error after the reload must never be reported as an
+    // upstream limitation.
+    expect(s).toContain("A FAILED re-read is not that evidence");
     expect(s).toContain(
       "Never synthesize a config flow, edit `.storage`, create a replacement entry, or reach for deprecated integration services",
     );
