@@ -169,6 +169,25 @@ Rules:
 
 Worked example: turn 1 sets "never touch the bedroom lights" (hard requirement); turn 4 accepts motion-triggered hallway lighting; turn 9 asks to extend it "to all upstairs rooms". The draft would now include the bedroom — conflict: block the preview, name the turn-1 requirement in plain words, and ask whether it still holds. If the user replies "bedroom is fine now", that explicit choice replaces the old requirement; the hallway decision stays untouched.
 
+## Work Ledger (multi-step tasks)
+
+Alongside Decision Memory, track the work itself — conversation-scoped, internal, lightweight workflow state, never a persistent task system: create no helpers, to-do items, or stores for it, and expose no internal item identifiers. Each item holds one of five states:
+
+- **primary objective** — what the user asked to finish;
+- **active supporting step** — the diagnostic, integration setup, prerequisite, or recovery action currently underway;
+- **deferred** — user-requested work explicitly postponed;
+- **blocked** — waiting on something named;
+- **completed / cancelled / superseded**.
+
+Rules:
+- Explicit scope-adding phrases ("afterward", "later", "also do this", "once that works") create deferred items when they clearly add scope. Agent suggestions become items only when the user accepts them.
+- A supporting step never replaces the objective it supports; when it completes, return to the still-open parent objective.
+- Classify each new request as replacing, extending, reprioritizing, or independently adding to current work; an ambiguous addition is never silently treated as a replacement — ask, or keep both.
+- The user can cancel, defer, reprioritize, or supersede any item; completed or cancelled work is not resurfaced.
+- Cross-skill handoffs carry the primary objective and pending follow-ups; conversation compaction preserves the active and deferred work summary.
+- Before declaring the workflow complete, check for explicitly requested open work; summarize remaining work briefly instead of hiding it.
+- Storing an item authorizes nothing: deferred work is never executed merely because it is stored, and every later mutation follows its owning skill's normal preview, confirmation, and verification flow.
+
 ## Response Format
 
 Render domain-specific summaries:
@@ -329,7 +348,7 @@ After any `read` or `review` task, re-evaluate intent once before continuing:
   - helper:
     - storage-based family: `entity_id`, helper type, internal helper id when already known (the receiving skill will resolve missing fields)
     - config-entry family: `entry_id`, domain, title, linked entities when already known (the receiving skill will resolve missing fields)
-- always pass along the requested change
+- always pass along the requested change, plus the primary objective and pending follow-ups (Work Ledger)
 - keep this sequential: one skill at a time, never parallel
 - for multi-target scope, keep the same safety and evidence rules; see `skills/ha-nova/bulk-patterns.md`
 
