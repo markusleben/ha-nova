@@ -244,7 +244,9 @@ config entry. Reconcile the two instead of reporting the bare failure:
 1. Right before executing a confirmed call, snapshot pending reauth flows: WS
    `{"type":"config_entries/flow/progress"}`, keep only entries with
    `context.source == "reauth"` (client-private scratch storage).
-2. On a generic upstream 500 (`.data.status` 500), re-read the same list. A flow counts as NEW only
+2. On a generic upstream 500 (`.data.status` 500), re-read the same list —
+   reauth flows open asynchronously, so wait a few seconds and re-read once
+   more before concluding none appeared. A flow counts as NEW only
    when it is absent from the snapshot — a pre-existing flow is never reported
    as this call's side effect.
 3. Match the new flow to the failed call: a match on `context.entry_id` —
