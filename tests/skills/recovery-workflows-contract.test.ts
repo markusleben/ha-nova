@@ -182,4 +182,10 @@ describe("recovery workflows (#568/#569)", () => {
       "never rewrite the automation and never execute its recovery actions",
     );
   });
+  it("keeps the R-29 boundary on declared continuity, not action shape", () => {
+    const checks = flat(read("skills/review/checks.md"));
+    expect(checks).toContain(
+      "A recovery-shaped action alone (restart, reload, reconnect) is never that evidence",
+    );
+  });
 });

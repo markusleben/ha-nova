@@ -313,11 +313,12 @@ Self-trigger / feedback loop = the automation triggers on an entity that it also
 
 ## R-29 Evidence Boundary
 
-- Apply only when watchdog, self-healing, continuous-monitoring, or
-  automatic-recovery intent is declared by the user or evident from the
-  config's own name, description, or recovery-shaped actions (restart,
-  reload, reconnect). Ordinary one-shot threshold automations are never
-  flagged when no such intent exists.
+- Apply only when watchdog, self-healing, or continuous-monitoring
+  CONTINUITY is declared by the user or promised by the config's own name or
+  description. A recovery-shaped action alone (restart, reload, reconnect) is
+  never that evidence — an intentionally one-shot recovery is its own valid
+  class. Ordinary one-shot threshold automations are never flagged when no
+  continuity promise exists.
 - Name the incomplete design honestly a "one-shot recovery attempt", never a
   "watchdog"; report the gap and the persistent-fault options (bounded retry,
   periodic re-evaluation, failure escalation).
