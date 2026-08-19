@@ -181,7 +181,9 @@ const WORD_BUDGETS: Record<string, number> = {
   // settle re-read before ruling a delayed reauth flow out (measured 9045).
   // Codex round 2: best-effort snapshot never blocks an approved call, and
   // a handler-only match requires a single-entry domain (measured 9097).
-  "service-call": 9120,
+  // Codex round 3: match candidates come from every expanded target
+  // (measured 9100).
+  "service-call": 9140,
   // Carries the canonical File-Change Preview example — the only layout
   // source for file edits; concrete examples are what make a card renderable.
   // Sibling-survival verification (Wave 1b) + yaml snapshot capture with

@@ -30,12 +30,13 @@ describe("service-call reauth reconciliation (#586)", () => {
 
   it("matches by domain and entry, treats logs as corroboration only", () => {
     const s = flat(section ?? "");
-    expect(s).toContain("a match on `context.entry_id` — the target entity's registry `config_entry_id` — is decisive alone");
-    expect(s).toContain("the registry row's `platform`, never the service or entity_id prefix");
-    // Handler-only evidence attributes a flow to the wrong entry when several
-    // entries share the domain, and a failed optional read must not block an
-    // approved call.
-    expect(s).toContain("the target must be that domain's only config entry");
+    // A batch/area/device call has several owning entries — candidates come
+    // from EVERY expanded target, and only an unambiguous match attributes.
+    expect(s).toContain("Candidates are ALL expanded targets' registry rows");
+    expect(s).toContain("against any candidate's `config_entry_id` is decisive alone");
+    expect(s).toContain("never the service or entity_id prefix");
+    expect(s).toContain("resolve to exactly one config entry across the candidates");
+    // A failed optional read must not block an approved call.
     expect(s).toContain("optional evidence never blocks an approved action");
     expect(s).toContain("corroboration, never a match by itself");
     expect(s).toContain("A flow for another domain or entry does not match");
