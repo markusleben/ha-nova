@@ -355,7 +355,9 @@ Missing or uncertain ledger data means rerun. A reference-smoke waiver
 (risk-scope spec) replaces only the rerun itself, never the ledger: it is
 valid only with a complete entry naming the unavailable infrastructure, the
 waived checks, the last real qualification they carry from, the exact
-crossing delta, and the maintainer's acceptance of the residual risk.
+crossing delta, and the maintainer's acceptance of the residual risk. Under
+the waiver, the affected boolean stays `true` and attests the carried
+qualification plus the ledger-recorded waiver.
 
 Every target still runs CI, candidate signature/provenance checks on all
 enabled platforms, and the exact installed Relay App. A target whose delta
@@ -409,7 +411,8 @@ health smoke repeats only when the delta matches an invalidation-map row with
 real-platform scope; deltas matching only the map's `None` and
 release-machinery rows refresh the envelope and provenance without it. The
 map, not any summary, decides. The spec's reference-smoke waiver is the one
-exception, and it never covers CI, candidate provenance, or
+exception, and it never covers CI, the JSON envelope, the commit/tree
+identity, candidate provenance, or
 `installed_relay_app`. See
 `docs/work/2026-07-30-cloud-release-evidence-risk-scope-spec.md`.
 Carry-forward applies only to the qualification behind a check boolean: create
@@ -559,7 +562,13 @@ and the real-platform qualification reruns required by the delta's matched
 map rows, under the spec's reference-smoke waiver — the waiver lives in the
 PR ledger and must name the unavailable infrastructure; the envelope, the
 commit/tree identity, candidate provenance on every enabled platform, and
-the exact installed Relay App check stay mandatory.
+the exact installed Relay App check stay mandatory. Under the waiver,
+satisfy the live installed-App read with `relay health` over a non-Cloud
+route from any host that reaches the installed App, asserting the same
+version and `ha_ws_connected` fields as the smoke below — then skip
+everything from the smoke-authorization setup through the cleanup step and
+continue at the evidence-binding rules; the `internal-cloud-stress` proof is
+waived together with the smoke, in the same ledger entry.
 
 The smoke needs its own Cloud authorization inside the smoke HOME. NEVER copy
 the production `~/.config/ha-nova` there: the copied profile keeps the
@@ -677,9 +686,12 @@ cannot attest the enabled runtime. The activation PR must reach a stable head,
 but in `pull_request` CI that checked-out head is GitHub's synthetic
 `refs/pull/<number>/merge` commit, not the PR branch head. Product, release
 metadata, or sensitive workflow changes require a new exact-target evidence
-envelope and every qualification row invalidated by that delta, followed by a
+envelope and every qualification row invalidated by that delta — each row
+satisfied by a real rerun or by the spec's ledger-recorded reference-smoke
+waiver — followed by a
 repository-secret update and a CI rerun without changing the PR or its base.
-If the merge commit changes, rebuild the exact-target envelope; repeat only
+If the merge commit changes, rebuild the exact-target envelope; repeat — or
+carry under the reference-smoke waiver — only
 the qualification rows invalidated by the new delta. A target containing only
 the narrowly verified existing non-sensitive `uses:` version changes, or
 only the non-sensitive source delta defined above, may reuse evidence from

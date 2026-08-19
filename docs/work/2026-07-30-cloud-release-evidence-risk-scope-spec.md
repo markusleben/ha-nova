@@ -53,11 +53,13 @@ substitute and real evidence collection/validation harness it relies on.
 
 ### Reference-smoke waiver (2026-08-19)
 
-When no validation infrastructure is available — no reachable reference
-platform, or the human-gated Cloud authorization cannot be completed because
-no interactive desktop session exists — the maintainer may waive the real
-reference-platform Cloud health smoke and exactly those real-platform
+When no validation infrastructure is available, the maintainer may waive the
+real reference-platform Cloud health smoke and exactly those real-platform
 qualification reruns that the delta's matched invalidation-map rows require.
+Eligible infrastructure gaps are exactly these three: no reachable reference
+platform; no completable human-gated Cloud authorization (no interactive
+desktop session exists); or — for rows scoped "Affected OS only" — no
+reachable machine of the affected OS.
 Nothing outside those rows is waivable, and every deterministic exact-target
 test still runs. Each waived check must itself be blocked by the named
 unavailable infrastructure; a check that can still run, runs. A waiver is never implicit: the PR ledger must name the
@@ -73,9 +75,16 @@ installed Relay App. The map rows' "one reference platform" scope governs
 only the waivable qualification repeats — including the Relay-App row's —
 never this live read, which is a separate, platform-independent, mandatory
 proof. If even one of the four cannot be completed, there is
-no waiver and the delta stays unmergeable — the one remaining lever is then
-shrinking `cloud_remote_platforms` through a reviewed pull request. Waived checks remain first in
-line for a real rerun once infrastructure is available again.
+no waiver and the delta stays unmergeable. The remaining levers are then a
+reviewed pull request that removes the unavailable platform from
+`cloud_remote_platforms` — which relieves only that platform's candidate
+provenance — or one that disables Cloud remote entirely; full disable is the
+only lever when the envelope, the commit/tree identity, or the live
+`installed_relay_app` read cannot be completed. Waived checks remain first in
+line for a real rerun once infrastructure is available again: the backlog
+rerun is then due before the next release tag, and while it is pending no
+evidence session may set the affected check booleans without either running
+it or recording in the ledger why it is still blocked.
 
 | Changed surface | Qualification to repeat | Real platform scope |
 |---|---|---|
@@ -191,8 +200,8 @@ deltas fail closed.
   mandatory.
 
 No mock may replace the required real positive path. No carried
-qualification may cross a relevant implementation change, except under the
-reference-smoke waiver, which records that crossing explicitly in the
+qualification may cross a relevant implementation change, except those the
+reference-smoke waiver covers, which records that crossing explicitly in the
 ledger.
 
 The exact-target Cloud health smoke is not `parity`. It repeats only for a
