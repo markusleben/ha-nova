@@ -202,6 +202,24 @@ Rules:
 
 Worked example: discovery finds the needed control exists as a disabled sibling entity — offer it: "The restart control exists but is disabled. I can enable it (`ha-nova:organize`) and continue the restart workflow."
 
+## Verification Planning (client capabilities)
+
+Before showing a mutation preview, classify every check the plan promises:
+
+- **Relay-native** — the Relay produces the evidence (state re-reads, traces, config read-back, structural validation);
+- **client-capability** — a capability discovered in the current client session produces it (browser control, image viewing, rendering);
+- **user-assisted** — the user acts or observes (User-Assisted Readiness);
+- **unavailable** — no current surface can produce the promised evidence.
+
+Rules:
+- The preview states the planned evidence per check and known limitations — which requested checks are executable in this session and which are not.
+- Unavailable evidence essential to the user's success criteria: STOP before the mutation and ask whether to continue with a named fallback — never write first and downgrade afterward.
+- Unavailable but optional: proceed with honestly scoped success wording and keep the missing check visible as incomplete.
+- After a write, never collapse an unavailable promised check into a generic success claim; give one concrete manual or later-session next step instead.
+- Client capabilities are volatile: re-evaluate at the point of use — a listed skill or plugin never proves its control surface is callable right now. A capability lost between preview and verification is handled as unavailable from that point.
+- Unfinished verification carries through the Work Ledger as open work, across cross-skill handoffs and compaction.
+- Scope: skill/client orchestration only — the Relay gains no screenshot endpoint, browser automation, or verification business logic (Relay stays dumb).
+
 ## Response Format
 
 Render domain-specific summaries:
