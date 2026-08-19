@@ -36,7 +36,9 @@ describe("semantic outcome verification (#567/#566)", () => {
 
   it("selects probes from real relationships with bounded observation", () => {
     expect(doc).toContain("Friendly-name similarity alone NEVER selects a probe");
-    expect(doc).toContain("Capture every probe's baseline BEFORE executing the action");
+    expect(doc).toContain(
+      "Capture every probe's baseline immediately before executing the action — after the confirmation, not at preview time",
+    );
     expect(doc).toContain("never an indefinite wait");
     expect(doc).toContain(
       "the observation timeout, and any stability requirement",
@@ -76,7 +78,7 @@ describe("semantic outcome verification (#567/#566)", () => {
     expect(doc).toContain("window too short or cut off → `unverified`, never `failed`");
     // Classification/probes/baselines belong to the PREVIEW step.
     expect(sc).toContain(
-      "name the probes, expected outcome, and observation window in this preview, and capture the probe baselines before executing",
+      "re-read every probe AFTER confirmation and immediately before the POST",
     );
     // The canonical retry rule carries the exclusion at its source.
     expect(flat(read("skills/ha-nova/relay-api.md"))).toContain(
