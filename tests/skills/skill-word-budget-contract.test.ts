@@ -82,7 +82,9 @@ const WORD_BUDGETS: Record<string, number> = {
   // Recovery/watchdog/retry routing pointer + on-demand row for
   // skills/ha-nova/recovery-workflows.md (#568/#569, measured 5387 on
   // 2026-08-19).
-  write: 5400,
+  // Codex round 5 on #601: one-shot recovery keeps an attempt bound of one
+  // (measured 5409).
+  write: 5430,
   // HACS lifecycle: schema guard, reconcile loops, consumer discovery,
   // migration backup gate, category-appropriate verification (#478);
   // review rounds added pin-durability branches, the uninstall apply

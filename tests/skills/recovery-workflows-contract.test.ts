@@ -159,7 +159,7 @@ describe("recovery workflows (#568/#569)", () => {
       "A recovery, watchdog, self-healing, or retry intent reads `skills/ha-nova/recovery-workflows.md` before drafting",
     );
     expect(write).toContain(
-      "the preview names the attempt bound and the persistent-fault path",
+      "the persistent-fault path only where the intent promises",
     );
   });
 

@@ -51,7 +51,9 @@ temporary, not something to grow.
 
 A recovery, watchdog, self-healing, or retry intent reads
 `skills/ha-nova/recovery-workflows.md` before drafting; the preview names the
-attempt bound and the persistent-fault path.
+attempt bound — and the persistent-fault path only where the intent promises
+watchdog/self-healing continuity: an explicitly one-shot recovery keeps an
+attempt bound of one and is named as such.
 
 Every draft follows `skills/ha-nova/smallest-solution.md`: the complete
 explicit outcome in the simplest safe design, nothing for hypothetical
