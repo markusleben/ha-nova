@@ -121,6 +121,7 @@ A changed base re-previews — and if that read failed or the attribute is absen
    - Ask for natural confirmation bound to this exact preview (see context skill → Active Preview Confirmation). Earlier planning consent is draft-only.
    - **Unless Safety put this call on the typed tier.** Then the menu offers no `apply`/`execute` word at all and the only accepted answer is the exact `confirm:<token>` — `yes`, `apply`, and the grouped keywords are invalid, including when the tier came from an EXPANDED member rather than the named service. A gate that assigns a tier and then renders the ordinary menu has assigned nothing.
 5. Execute:
+   - snapshot pending reauth flows first (Error Handling → Generic 500 with a reauth side effect)
    - `ha-nova relay core --method POST --path /api/services/{domain}/{service} --body-file <payload-file>`
 6. Verify result — match the check to what the call promises:
    - Default: read the entity state back (`ha-nova relay core --method GET --path /api/states/{entity_id}`) and confirm the expected change.
@@ -233,6 +234,31 @@ Service-call specifics:
 - `404/NOT_FOUND` or upstream `.data.status` 404: entity or service does not exist — re-resolve before retrying
 - `502/UPSTREAM_*` transport errors: HA may already have accepted the action — verify entity state first (see `relay-api.md` → Timeout and Retry Guidance); retry once only when verification shows no state change, otherwise report the result
 - State verification failure (state didn't change): report discrepancy, do not retry automatically
+
+### Generic 500 with a reauth side effect
+
+A service backed by invalid credentials can answer only a generic upstream 500
+while Home Assistant simultaneously opens a reauthentication flow for the
+config entry. Reconcile the two instead of reporting the bare failure:
+
+1. Right before executing a confirmed call, snapshot pending reauth flows: WS
+   `{"type":"config_entries/flow/progress"}`, keep only entries with
+   `context.source == "reauth"` (client-private scratch storage).
+2. On a generic upstream 500 (`.data.status` 500), re-read the same list. A flow counts as NEW only
+   when it is absent from the snapshot — a pre-existing flow is never reported
+   as this call's side effect.
+3. Match the new flow to the failed call: a match on `context.entry_id` —
+   the target entity's registry `config_entry_id` — is decisive alone;
+   otherwise its `handler` must equal the target's integration domain, which
+   is the registry row's `platform`, never the service or entity_id prefix. A same-domain
+   system-log entry inside the call window is corroboration, never a match by
+   itself. A flow for another domain or entry does not match.
+4. On a match, report both facts — the call failed AND Home Assistant started
+   reauthentication for that integration — and hand the reauth to
+   `ha-nova:integration-setup`. No match, or ambiguous evidence: report the
+   failure and hand off to `ha-nova:diagnose` instead of guessing.
+5. Never retry the service call automatically after a 500, and never surface
+   credentials or key fragments from flows or logs.
 
 ## Output Format
 
