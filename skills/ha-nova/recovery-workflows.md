@@ -70,7 +70,12 @@ Rules:
 - Every retry keys on semantic failure evidence per
   `skills/ha-nova/outcome-verification.md` — a bare service-call error is
   never retry evidence. Each attempt gets its own bounded
-  outcome-verification window.
+  outcome-verification window. The probe must stay REACHABLE when the
+  recovery action itself errors: Home Assistant aborts an action sequence on
+  a raised error by default, so the recovery action carries
+  `continue_on_error: true` (or an equivalent structure) so the semantic
+  probe still runs; the raised error stays ineligible as retry evidence, and
+  missing semantic evidence routes to the explicit non-retry failure path.
 - The attempt count is finite and explicit; delay or backoff is explicit and
   chosen per case — no universal hard-coded values exist.
 - Recovery exits immediately on verified success.

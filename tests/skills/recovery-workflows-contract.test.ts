@@ -111,6 +111,10 @@ describe("recovery workflows (#568/#569)", () => {
       "Every retry keys on semantic failure evidence per `skills/ha-nova/outcome-verification.md`",
     );
     expect(doc).toContain("a bare service-call error is never retry evidence");
+    // The probe must survive a raised action error, or the retry and
+    // exhaustion paths silently skip in exactly the covered failure case.
+    expect(doc).toContain("`continue_on_error: true` (or an equivalent structure)");
+    expect(doc).toContain("missing semantic evidence routes to the explicit non-retry failure path");
     expect(doc).toContain(
       "Each attempt gets its own bounded outcome-verification window",
     );
