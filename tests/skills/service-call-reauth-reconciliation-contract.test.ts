@@ -35,7 +35,7 @@ describe("service-call reauth reconciliation (#586)", () => {
     expect(s).toContain("Candidates are ALL expanded targets' registry rows");
     expect(s).toContain("against any candidate's `config_entry_id` is decisive alone");
     expect(s).toContain("never the service or entity_id prefix");
-    expect(s).toContain("resolve to exactly one config entry across the candidates");
+    expect(s).toContain("exactly one config entry in the WHOLE registry");
     // A failed optional read must not block an approved call.
     expect(s).toContain("optional evidence never blocks an approved action");
     expect(s).toContain("corroboration, never a match by itself");
