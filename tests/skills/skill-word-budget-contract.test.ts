@@ -290,7 +290,12 @@ const WORD_BUDGETS: Record<string, number> = {
   // combination measured 3970.
   // Fail-closed truncation envelopes on both discovery filters plus the
   // narrow-until-untruncated rule (#582, measured 4051).
-  helper: 4070,
+  // Time-window evidence pointer in the config-entry post-write verification:
+  // coverage attributes read, partial coverage advisory (#596, 2026-08-19,
+  // measured 4105).
+  // Live-schema preflight pointer in the config-entry family intro
+  // (#594, 2026-08-20, measured 4129).
+  helper: 4150,
   // Fail-closed truncation envelopes on the list and keyword filters
   // (#582, measured 1188).
   read: 1210,
@@ -333,7 +338,9 @@ const WORD_BUDGETS: Record<string, number> = {
   // unsupported-trigger conclusion on that check too (measured 1561);
   // round 7 keeps the failed-reload result when flow polling fails too
   // (measured 1568).
-  "integration-setup": 1570,
+  // Live-schema preflight pointer on the live-step iteration
+  // (#594, 2026-08-20, measured 1593).
+  "integration-setup": 1610,
 };
 const DEFAULT_WORD_BUDGET = 1150;
 
@@ -367,6 +374,7 @@ const STANDALONE_MARKDOWN = new Set([
   "skills/ha-nova/helper-flow-schemas.md",
   "skills/ha-nova/helper-schemas.md",
   "skills/ha-nova/input-capability-preflight.md",
+  "skills/ha-nova/live-schema-preflight.md",
   "skills/ha-nova/output-rules.md",
   "skills/ha-nova/payload-schemas.md",
   "skills/ha-nova/relay-api.md",

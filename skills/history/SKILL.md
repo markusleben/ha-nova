@@ -62,6 +62,7 @@ Statistics semantics (`recorder/statistics_during_period`) — check which keys 
 - Long-term statistics carry their own unit, which can differ from the entity's current unit after a unit change (the exact trap `ha-nova:maintenance` repairs) — report the unit from the statistics metadata, and flag a mismatch instead of mixing units.
 - `statistic_id` is not always an `entity_id`: external statistics use `domain:object_id` (colon) and have no entity — resolve via `recorder/list_statistic_ids` when unsure.
 - Daily/monthly buckets follow the HA server's local timezone including DST shifts — a "day" is not a fixed 24 h; name the bucket timezone when precision matters.
+- The queried window is what was REQUESTED, not what was observed: report the actual first-to-last sample span and material gaps alongside the requested window, and never phrase a result as covering "the last N days" when the evidence spans less (`skills/ha-nova/write-safety.md` → Time-Window Evidence — applies to raw history summaries too).
 
 ## Flow
 

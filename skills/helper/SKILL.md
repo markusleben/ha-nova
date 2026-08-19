@@ -174,6 +174,8 @@ Canonical config-entry helper item:
 `entry_id` is the canonical identity for config-entry helper writes.
 If the user gives only a linked `entity_id`, resolve it back to `config_entry_id` through the full entity registry before continuing.
 
+Config-entry flow orchestration follows the shared contract in `skills/ha-nova/live-schema-preflight.md`: live-form previews, non-persisting pre-confirmation navigation only, stop before the terminal submit, and nested `result.entry_id` extraction.
+
 #### Supported domains
 
 - `utility_meter`
@@ -413,6 +415,7 @@ Instead, run the minimal config-entry post-write contract:
    - create: config entry now exists and the requested `entry_id`/diff verification passed
    - update: the same `entry_id` still exists and the reopened options-flow snapshot reflects the requested field changes
    - for `template` creates and `state`-changing updates, additionally read the linked entity via `GET /api/states/<entity_id>`. A clean numeric/string render confirms the template works. Treat `unavailable`/`unknown` as INCONCLUSIVE, not proof of breakage — a source entity can be legitimately `unknown`, or the template may intentionally return a sentinel; only call it a template defect when the options-flow template or an HA error proves a failure. Either way the config-entry write itself still counts as passed
+   - for `statistics` and `history_stats` writes, also read the linked entity's state attributes and apply `skills/ha-nova/write-safety.md` → Time-Window Evidence: partial window coverage (`age_coverage_ratio` below 1) or an invalid source is an advisory in the result, never a failed create — and never describe the value as covering the configured window without that coverage evidence
    - delete: config entry is absent
 2. **Current editable snapshot**
    - if an options flow is available, summarize only the editable fields exposed by the final current step readback
