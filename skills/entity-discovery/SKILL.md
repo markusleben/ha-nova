@@ -62,10 +62,17 @@ Create `<payload-file>` with `{"type":"config/entity_registry/list_for_display"}
 ha-nova relay ws --data-file <payload-file> --jq-file <filter-file>
 ```
 
-Write `<filter-file>` by copying `skills/entity-discovery/discovery-filter.jq`
-(this skill's directory) and replacing `KEYWORD` with the pattern. It returns
-`{total, shown, omitted, truncated, matches}` — the 20-row cap applies to
-`matches` only; the counts are exact.
+Write `<filter-file>` by copying the canonical `skills/ha-nova/discovery-filter.jq`
+and replacing `KEYWORD` with the pattern; if the canonical file is unavailable
+(flat-copy installs), recreate it with exactly:
+
+```jq
+[.data.entities[] | select((.ei + " " + (.en // "")) | test("KEYWORD";"i")) | {entity_id: .ei, name: .en, area_id: .ai}]
+| {total: length, shown: (.[0:20] | length), omitted: ([length - 20, 0] | max), truncated: (length > 20), matches: .[0:20]}
+```
+
+It returns `{total, shown, omitted, truncated, matches}` — the 20-row cap
+applies to `matches` only; the counts are exact.
 
 This generic `test("KEYWORD";"i")` filter is for free-text search, not explicit `prefix` matching.
 For an explicit prefix selector, match the suffix and display name with `startswith(...)`, not loose substring search.

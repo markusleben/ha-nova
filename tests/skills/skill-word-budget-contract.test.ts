@@ -46,7 +46,10 @@ const WORD_BUDGETS: Record<string, number> = {
   // train lands at 1382.
   // Audit train: the ceiling is the MAX of both branches — each
   // measured only its own tree.
-  "entity-discovery": 2100,
+  // Canonical truncation filter moved to skills/ha-nova/ with the inline
+  // recreate-exactly fallback for flat installs (#582 Codex round 1,
+  // measured 2145).
+  "entity-discovery": 2170,
   // pre-save snapshot capture + snapshot recovery guidance (Wave 2).
   // Pre-write drift check before save_prefs (#514, measured 1257): the
   // post-save deep-equal check reported a lost foreign edit instead of

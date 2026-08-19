@@ -8,7 +8,7 @@ const read = (p: string): string =>
   readFileSync(resolve(__dirname, "../../", p), "utf-8");
 const flat = (text: string): string => text.replace(/\s+/g, " ");
 
-const FILTER = read("skills/entity-discovery/discovery-filter.jq");
+const FILTER = read("skills/ha-nova/discovery-filter.jq");
 
 describe("entity-discovery truncation contract (#582)", () => {
   it("pins the canonical discovery filter byte-exact", () => {
@@ -39,7 +39,7 @@ describe("entity-discovery truncation contract (#582)", () => {
 
   it("makes the skill fail closed while truncated is true", () => {
     const skill = flat(read("skills/entity-discovery/SKILL.md"));
-    expect(skill).toContain("skills/entity-discovery/discovery-filter.jq");
+    expect(skill).toContain("skills/ha-nova/discovery-filter.jq");
     expect(skill).toContain("{total, shown, omitted, truncated, matches}");
     expect(skill).toContain(
       "the 20-row cap applies to `matches` only; the counts are exact",
