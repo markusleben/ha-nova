@@ -42,7 +42,7 @@ Use file-based relay requests by default:
 
 Entity registry uses compact abbreviated keys: `ei`=entity_id, `en`=name, `ai`=area_id.
 
-Search both entity_id and name. Use short keyword stems to handle spelling variants. Always limit to 20 results.
+Search both entity_id and name. Use short keyword stems to handle spelling variants. Cap display at 20 rows through the canonical envelope below — never a bare slice.
 
 For bulk selectors, follow `skills/ha-nova/bulk-patterns.md`.
 - `prefix`: case-insensitive prefix match on the entity_id suffix and display name

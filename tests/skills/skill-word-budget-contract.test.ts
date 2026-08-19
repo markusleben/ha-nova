@@ -277,6 +277,9 @@ const WORD_BUDGETS: Record<string, number> = {
   // Fail-closed truncation envelopes on both discovery filters plus the
   // narrow-until-untruncated rule (#582, measured 4051).
   helper: 4070,
+  // Fail-closed truncation envelopes on the list and keyword filters
+  // (#582, measured 1188).
+  read: 1210,
   // Suggestion Block item-shape pointer (shared output shapes); scene/
   // dashboard first-class targets with flow adaptation (2026-h2 Wave 3).
   // Quick-fix Preview Card reference (#389).

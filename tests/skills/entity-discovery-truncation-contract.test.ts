@@ -20,6 +20,23 @@ describe("entity-discovery truncation contract (#582)", () => {
     );
   });
 
+  it("pins the swept sibling envelopes in read and helper", () => {
+    const tail20 =
+      "| {total: length, shown: (.[0:20] | length), omitted: ([length - 20, 0] | max), truncated: (length > 20), matches: .[0:20]}";
+    const tail30 =
+      "| {total: length, shown: (.[0:30] | length), omitted: ([length - 30, 0] | max), truncated: (length > 30), matches: .[0:30]}";
+    const readSkill = read("skills/read/SKILL.md");
+    const helper = read("skills/helper/SKILL.md");
+    expect(readSkill.split(tail30)).toHaveLength(3); // automation + script list
+    expect(readSkill).toContain(tail20); // keyword search
+    expect(helper).toContain(tail20); // keyword search
+    expect(helper).toContain(tail30); // inventory list
+    // No bare display slice may survive in any swept file.
+    for (const doc of [readSkill, helper, read("skills/entity-discovery/SKILL.md")]) {
+      expect(doc).not.toMatch(/\| \.\[0:\d+\]\s*$/m);
+    }
+  });
+
   it("makes the skill fail closed while truncated is true", () => {
     const skill = flat(read("skills/entity-discovery/SKILL.md"));
     expect(skill).toContain("skills/entity-discovery/discovery-filter.jq");
