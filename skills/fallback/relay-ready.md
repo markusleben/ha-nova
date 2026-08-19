@@ -129,9 +129,10 @@ for Home Assistant's own event bus.
 ### Integration Entry Lifecycle -- RELAY-READY
 
 Reload and remove for an existing config entry — those two only.
-`ha-nova:integration-setup` owns ADDING an integration and continuing a
-pending `reauth`. Enable/disable, options and reconfigure are `External` in
-the Capability Map: point at Settings > Devices & services instead of
+`ha-nova:integration-setup` owns ADDING an integration, continuing a
+pending `reauth`, and the credential-recovery reload of an entry whose
+credentials are reported invalid. Enable/disable, options and reconfigure
+are `External` in the Capability Map: point at Settings > Devices & services instead of
 improvising a payload.
 
 **Search:** `home assistant config entry reload delete api 2026`
