@@ -102,6 +102,8 @@
   "tests/skills/integration-credential-recovery-contract.test.ts",
   "tests/skills/integration-setup-contract.test.ts",
   "tests/skills/maintenance-contract.test.ts",
+  "tests/skills/membership-resolution-contract.test.ts",
+  "tests/skills/notify-composition-contract.test.ts",
   "tests/skills/output-design-contract.test.ts",
   "tests/skills/proactive-offers-contract.test.ts",
   "tests/skills/reference-truth-contract.test.ts",

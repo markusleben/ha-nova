@@ -67,6 +67,7 @@ future needs, native primitives when equally safe and clearer.
 1. Build config. For update: full-replacement merge (base=current, overlay=user changes).
    - Do not rewrite unrelated structure, aliases, or formatting for a narrow change.
    - Treat notification copy as user-authored content: preserve notification titles, messages, templates, metadata. Rename/timing changes must not restyle, relocalize, or restructure existing text; requested wording changes change only the requested copy.
+   - New or explicitly edited notification actions follow the canonical contract `skills/ha-nova/mobile-notification-composition.md` (composition and observed conventions); its recurring-workflow intent classification runs before the write preview and may add an exception-only Suggestion Block item.
 2. BP gate (`skills/ha-nova/write-safety.md`): fresh/stale+simple->continue, stale+complex->block.
 3. Suggestions + Pre-Write Checks (skip for `delete`):
    - **3a) Suggestions**: Render `suggested_enhancements` as the Suggestion Block (output-rules.md; max 2, smallest intervention first, numbered/menu — `skills/ha-nova/smallest-solution.md`). User accepts numbers or "skip" → merge accepted into config BEFORE preview. Skip when `SUGGESTED_ENHANCEMENTS: none`.

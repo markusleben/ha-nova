@@ -47,6 +47,8 @@ Discovery:
 
 **Decision rule:** plain message to a known target → notify entity (`notify.send_message`). Any mobile-app extra (buttons, tag, sticky, channel, url, image) → the legacy `notify.mobile_app_<device>` service, because the entity platform does not carry the `data` payload for those.
 
+Canonical contract: `../ha-nova/mobile-notification-composition.md` — read it before building any mobile-app payload; it owns composition precedence, optional-field intent rules, actionable safeguards, notification commands, privacy, and observed local conventions.
+
 ## Flow
 
 1. Resolve the target with Target Discovery. If several devices match, present the candidates and ask once.
@@ -76,6 +78,8 @@ These live only in the HA UI; they never reach a phone.
 When composing a COMPLEX mobile-app payload (actionable buttons, images, critical alerts), offer a single test send to the chosen target first — the preview is the plan, the test proves rendering; acceptance-honesty applies (accepted, not delivered), and the real send follows only after the user judges the test.
 
 ### Household routing ("tell whoever is home")
+
+Recipient-group and household resolution follow the shared contract `skills/ha-nova/membership-resolution.md`; the unreadable-presence handling below stays authoritative.
 
 Presence-conditional sends resolve recipients before the preview AND again
 immediately before sending: presence is the one input that changes on its own
