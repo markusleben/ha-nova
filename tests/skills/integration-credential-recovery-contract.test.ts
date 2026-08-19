@@ -46,7 +46,9 @@ describe("integration-setup credential recovery (#585)", () => {
 
   it("fails closed on unsupported upstream triggers", () => {
     const s = flat(section ?? "");
-    expect(s).toContain("Still no flow on a settled, SUCCESSFUL re-read");
+    expect(s).toContain(
+      "Still no flow on a settled, SUCCESSFUL re-read — AND step 3's reload check passed (result true, entry `loaded`)",
+    );
     // A 200-with-false reload or a non-loaded entry is its own outcome, not
     // evidence that no upstream trigger exists.
     expect(s).toContain("a `false` result or a non-`loaded` entry means the reload itself did not complete");

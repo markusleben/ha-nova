@@ -105,7 +105,8 @@ matching reauth flow:
    more before concluding nothing appeared. A new flow with
    `context.source == "reauth"` and the same `entry_id` → continue with the
    normal reauthentication handoff above.
-4. Still no flow on a settled, SUCCESSFUL re-read: Home Assistant exposes no
+4. Still no flow on a settled, SUCCESSFUL re-read — AND step 3's reload
+   check passed (result true, entry `loaded`): Home Assistant exposes no
    supported trigger for this integration — say so plainly and hand off to
    **Settings > Devices & services**. A FAILED re-read is not that evidence:
    report the reload as done and the flow state as unknown, never as
