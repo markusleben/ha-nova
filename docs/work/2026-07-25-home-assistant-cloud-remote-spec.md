@@ -785,12 +785,17 @@ Real-device qualifications remain applicable across unrelated changes only
 after reviewing the complete qualification-to-target diff and recording the
 non-secret qualification ledger in the activation or release pull request.
 Changes to a deterministic substitute or real evidence harness invalidate its
-qualification.
+qualification. When validation infrastructure is unavailable, the risk-scope
+spec's reference-smoke waiver may carry an invalidated qualification across
+the recorded delta instead of a real rerun — ledger-recorded, per that spec's
+conditions.
 Exact-target CI, candidate provenance on all enabled OSes, and the installed
 Relay App never carry forward. One downloaded-candidate
 `relay health --via cloud` smoke with Census suppressed repeats for deltas
 that match an invalidation-map row with real-platform scope; maintenance
-deltas refresh the envelope and provenance without it. The smoke must parse
+deltas refresh the envelope and provenance without it, and the risk-scope
+spec's reference-smoke waiver is the one ledger-recorded exception. The
+smoke must parse
 the JSON and require the expected App version and `ha_ws_connected: true`; a
 zero exit code alone is not evidence. See
 `2026-07-30-cloud-release-evidence-risk-scope-spec.md`.

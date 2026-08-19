@@ -19,7 +19,8 @@ into two layers:
    candidate provenance on every enabled platform, and the exact installed
    Relay App. For deltas that match an invalidation-map row with
    real-platform scope, one real reference-platform Cloud health smoke also
-   runs, using the downloaded candidate binary with Census suppressed.
+   runs, using the downloaded candidate binary with Census suppressed —
+   unless the reference-smoke waiver below applies.
 2. Risk-scoped qualification runs on first support and after a relevant
    implementation or evidence-harness change. A passing qualification remains
    applicable across unrelated changes.
@@ -37,7 +38,8 @@ or uncertain ledger data means rerun.
 Carry-forward applies only to the qualification behind a check boolean. The
 JSON envelope, commit/tree identity, candidate provenance, and installed App
 remain exact-target; the reference health smoke is exact-target for deltas
-with real-platform scope. Never reuse an older JSON envelope, except through
+with real-platform scope, waivable only under the reference-smoke waiver
+below. Never reuse an older JSON envelope, except through
 the ancestor-bound `uses:`-only and non-sensitive source escapes (see the
 escape section below and `docs/releasing.md`).
 The verifier binds that new envelope to the exact target. Reviewers verify the
@@ -48,6 +50,43 @@ qualification ledger before the boolean is set to `true`.
 Use the narrowest matching row. A change that matches multiple rows invalidates
 their union. A qualification trigger includes changes to every deterministic
 substitute and real evidence collection/validation harness it relies on.
+
+### Reference-smoke waiver (2026-08-19)
+
+When no validation infrastructure is available, the maintainer may waive the
+real reference-platform Cloud health smoke and exactly those real-platform
+qualification reruns that the delta's matched invalidation-map rows require.
+Eligible infrastructure gaps are exactly these three: no reachable reference
+platform; no completable human-gated Cloud authorization (no interactive
+desktop session exists); or — for rows scoped "Affected OS only" — no
+interactive desktop session on the affected OS, whose machine must still be
+provenance-reachable, because a fully unreachable enabled platform already
+fails the non-waivable provenance requirement.
+Nothing outside those rows is waivable, and every deterministic exact-target
+test still runs. Each waived check must itself be blocked by the named
+unavailable infrastructure; a check that can still run, runs. A waiver is never implicit: the PR ledger must name the
+unavailable infrastructure that makes the waiver eligible, the waived
+checks, the last real qualification they carry from, the exact crossing
+delta, and state that the maintainer accepts the residual risk. Four things
+are never waivable: the JSON envelope, the commit/tree identity, candidate
+provenance on every enabled platform, and the live `installed_relay_app`
+check. None of the four requires the reference platform: provenance runs
+locally or over any remote shell per enabled OS, and `installed_relay_app`
+is a live relay health read that may run from any host that reaches the
+installed Relay App. The map rows' "one reference platform" scope governs
+only the waivable qualification repeats — including the Relay-App row's —
+never this live read, which is a separate, platform-independent, mandatory
+proof. If even one of the four cannot be completed, there is
+no waiver and the delta stays unmergeable. The remaining levers are then a
+reviewed pull request that removes the unavailable platform from
+`cloud_remote_platforms` — which relieves only that platform's candidate
+provenance — or one that disables Cloud remote entirely; full disable is the
+only lever when the envelope, the commit/tree identity, or the live
+`installed_relay_app` read cannot be completed. Waived checks remain first in
+line for a real rerun once infrastructure is available again: the backlog
+rerun is then due before the next release tag, and while it is pending no
+evidence session may set the affected check booleans without either running
+it or recording in the ledger why it is still blocked.
 
 | Changed surface | Qualification to repeat | Real platform scope |
 |---|---|---|
@@ -163,7 +202,9 @@ deltas fail closed.
   mandatory.
 
 No mock may replace the required real positive path. No carried
-qualification may cross a relevant implementation change.
+qualification may cross a relevant implementation change, except those the
+reference-smoke waiver covers, which records that crossing explicitly in the
+ledger.
 
 The exact-target Cloud health smoke is not `parity`. It repeats only for a
 target whose delta matches an invalidation-map row with real-platform scope;
@@ -190,3 +231,5 @@ WebSocket. Do not retain the private Cloud URL.
 - Repository documentation checks pass.
 - No product, workflow, version metadata, README, or tag changes; the
   release-gate verifier extension is the 2026-08-12 escape itself.
+- The 2026-08-19 reference-smoke waiver changes only the maintainer
+  contract; the verifier and gate code are untouched.

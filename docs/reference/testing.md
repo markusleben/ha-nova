@@ -100,7 +100,9 @@ reference-platform `relay health --via cloud` against the exact installed
 Relay App. The proof parses the JSON and requires the expected App version
 plus `ha_ws_connected: true`; command success alone is insufficient. This
 smoke is separate from full route parity; maintenance deltas refresh the
-envelope and provenance without it.
+envelope and provenance without it. When no validation infrastructure is
+available, the risk-scope spec's reference-smoke waiver may replace the
+smoke with a ledger-recorded maintainer decision.
 
 This isolation procedure serves the real-device qualification runs below. The
 exact-candidate provenance check and health smoke follow a different layout:
@@ -178,9 +180,14 @@ Required evidence is exact-target plus risk-scoped qualification, except the
 ancestor-bound `uses:`-only and guarded non-sensitive source escapes
 (`docs/releasing.md`). Repeat a real-device row only for first support or
 after a relevant implementation
-or evidence-harness change; exact-target CI, signed provenance on all enabled
+or evidence-harness change — or, for reruns only and never first support,
+carry it under the risk-scope spec's
+ledger-recorded reference-smoke waiver when no validation infrastructure is
+available; exact-target CI, signed provenance on all enabled
 OSes, and the installed Relay App always run, and the reference Cloud health
-smoke runs for deltas with real-platform scope:
+smoke runs for deltas with real-platform scope — or is replaced by the
+risk-scope spec's ledger-recorded reference-smoke waiver when no validation
+infrastructure is available:
 
 - `/health`, `/ws`, `/core`, `/files`, and `/backups` parity through a real
   Home Assistant Cloud route on one reference platform after a transport
