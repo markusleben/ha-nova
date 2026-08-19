@@ -32,7 +32,7 @@ const ALL_SKILL_MD_FILES = ((): string[] => {
 const WORD_BUDGETS: Record<string, number> = {
   // Platform-specific payloads plus presence-based household routing in the
   // combined audit train (measured 1382 before the bounded-wait removal).
-  notify: 1450,
+  notify: 1470,
   // State-snapshot queries ("is everything closed?") and the alias fallback
   // that finally reaches the names a household actually says (#527, 1318).
   // Codex round 3: a motorized window or garage door is a cover, so an
@@ -48,6 +48,8 @@ const WORD_BUDGETS: Record<string, number> = {
   // measured only its own tree.
   // Pointer to the canonical mobile-notification composition contract
   // (#575/#576/#573, 2026-08-19, measured 1433).
+  // Pointer to the shared membership-resolution contract (#571, 2026-08-19,
+  // measured 1448).
   // Canonical truncation filter moved to skills/ha-nova/ with the inline
   // recreate-exactly fallback for flat installs (#582 Codex round 1,
   // measured 2145).
@@ -184,7 +186,9 @@ const WORD_BUDGETS: Record<string, number> = {
   // measured only its own tree.
   // Includes domain-fields.md and indirect-actuation.md; both are contracts
   // split out of this skill (measured 8777 on #543).
-  "service-call": 8800,
+  // Membership-resolution contract pointer in Flow step 3 (#571, 2026-08-19,
+  // measured 8791).
+  "service-call": 8810,
   // Carries the canonical File-Change Preview example — the only layout
   // source for file edits; concrete examples are what make a card renderable.
   // Sibling-survival verification (Wave 1b) + yaml snapshot capture with
@@ -351,6 +355,7 @@ const STANDALONE_MARKDOWN = new Set([
   "skills/ha-nova/helper-flow-schemas.md",
   "skills/ha-nova/helper-schemas.md",
   "skills/ha-nova/input-capability-preflight.md",
+  "skills/ha-nova/membership-resolution.md",
   "skills/ha-nova/mobile-notification-composition.md",
   "skills/ha-nova/output-rules.md",
   "skills/ha-nova/payload-schemas.md",

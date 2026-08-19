@@ -79,6 +79,8 @@ When composing a COMPLEX mobile-app payload (actionable buttons, images, critica
 
 ### Household routing ("tell whoever is home")
 
+Recipient-group and household resolution follow the shared contract `skills/ha-nova/membership-resolution.md`; the unreadable-presence handling below stays authoritative.
+
 Presence-conditional sends resolve recipients before the preview AND again
 immediately before sending: presence is the one input that changes on its own
 while a confirmation waits, so the previewed list can be wrong by the time it
