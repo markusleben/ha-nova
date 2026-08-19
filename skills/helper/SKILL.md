@@ -273,7 +273,13 @@ If multiple matches remain, present max 5 candidates and ask one blocking questi
    - all fields already known at this point
    - for unobserved `group` or `template` subtypes, say that the final subtype form will be previewed after the menu step returns live fields
    - include an explicit not-saved-yet line and Options block (`apply`, `show yaml`, `cancel`)
-4. Ask for natural confirmation bound to this exact preview (see context skill → Active Preview Confirmation).
+4. Start the flow BEFORE confirming (steps 5-7 below run first; reading a
+   form step persists nothing — only the terminal submit does), then re-render
+   the preview from the LIVE form: label every field live-confirmed or
+   draft-only, and ask for natural confirmation bound to that live preview
+   (context skill → Active Preview Confirmation;
+   `skills/ha-nova/live-schema-preflight.md`). On cancel or expiry, abandon
+   the transient flow without submitting (DELETE the `flow_id`).
 5. Capture a pre-create baseline:
    ```text
    ha-nova relay ws --data-file <entries-request-file> --out <entries-before-file>

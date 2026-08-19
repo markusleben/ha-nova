@@ -142,4 +142,10 @@ describe("live-schema preflight contract (#594)", () => {
       "this experimental lane stays outside it and remains fail-closed per #493",
     );
   });
+  it("confirms helper creates against the live form, not the draft alone", () => {
+    const helper = flat("skills/helper/SKILL.md");
+    expect(helper).toContain("Start the flow BEFORE confirming");
+    expect(helper).toContain("re-render the preview from the LIVE form");
+    expect(helper).toContain("abandon the transient flow without submitting (DELETE the `flow_id`)");
+  });
 });

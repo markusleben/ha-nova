@@ -90,7 +90,7 @@ Skills reference this section as "context skill → Active Preview Confirmation"
 - A live HA write requires confirmation after the concrete preview is shown: diff for updates, payload summary for creates/service calls/experimental writes, delete impact plus confirmation code, or grouped manifest for allowed multi-target writes.
 - A preview is a valid confirmation basis only if it explains the behavioral effect of every collection it touches. A touched collection explained only as a count change (`5 items → 3 items`, `… and N more`) or by low-level type names cannot proceed to confirmation — complete the behavior narrative (`skills/ha-nova/write-safety.md` → Behavior narrative) first, then ask.
 - Confirmation is bound to the displayed operation, target set, endpoint/service, and exact payload/diff/manifest. If target, scope, endpoint, payload, draft, or manifest changes, confirmation expires; show the updated preview and ask again.
-- Multi-target confirmation is valid only where the owning skill supports multi-target writes (destructive batches: `skills/ha-nova/batch-safety.md`; non-destructive grouped change sets: `skills/ha-nova/grouped-change-set.md`). Otherwise process targets sequentially with separate preview and confirmation.
+- Multi-target confirmation is valid only where the owning skill supports multi-target writes (destructive batches: `skills/ha-nova/batch-safety.md`; non-destructive grouped change sets and the cross-family destructive cleanup manifest: `skills/ha-nova/grouped-change-set.md`). Otherwise process targets sequentially with separate preview and confirmation.
 
 ### Confirmation Tiers
 

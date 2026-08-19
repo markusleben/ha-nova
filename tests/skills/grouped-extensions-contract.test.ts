@@ -166,4 +166,15 @@ describe("cross-family destructive cleanup (issue #583)", () => {
     const doc = flat(read("skills/ha-nova/grouped-change-set.md"));
     expect(doc).toContain("only, each with a canonical preview and verification path");
   });
+  it("opts the owning contracts into the cross-family tier", () => {
+    expect(flat(read("skills/ha-nova/SKILL.md"))).toContain(
+      "and the cross-family destructive cleanup manifest: `skills/ha-nova/grouped-change-set.md`",
+    );
+    expect(flat(read("skills/organize/SKILL.md"))).toContain(
+      "inside a cross-family destructive cleanup manifest",
+    );
+    expect(flat(read("skills/maintenance/SKILL.md"))).toContain(
+      "may instead ride a cross-family destructive cleanup manifest",
+    );
+  });
 });
