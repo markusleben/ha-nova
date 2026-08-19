@@ -332,7 +332,7 @@ The JSON is commit-specific and has this exact schema:
     "parity": true,
     "stress_10000": true,
     "keyrings": {
-      "linux": true
+      "darwin": true
     },
     "roles": true,
     "domains_mfa": true,

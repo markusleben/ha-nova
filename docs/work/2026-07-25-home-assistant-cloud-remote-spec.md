@@ -717,9 +717,16 @@ credential-broker design is reviewed and validated.
 ```json
 {
   "cloud_remote_enabled": true,
-  "cloud_remote_platforms": ["darwin", "linux", "windows"]
+  "cloud_remote_platforms": ["darwin"]
 }
 ```
+
+Since 2026-08-19 the validated platform list is `["darwin"]`: the Windows and
+Linux validation machines left the maintainer's reach, and per-platform
+candidate provenance is non-waivable, so publication is scoped to the
+platform that can still prove it. Windows and Linux return to the list
+through a reviewed pull request once their infrastructure is available
+again.
 
 The root and App copies must match. Ordinary `go build` output is compile-time
 disabled. Public builds fail closed unless they use the
