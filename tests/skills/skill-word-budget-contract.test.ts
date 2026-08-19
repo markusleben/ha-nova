@@ -290,7 +290,10 @@ const WORD_BUDGETS: Record<string, number> = {
   // combination measured 3970.
   // Fail-closed truncation envelopes on both discovery filters plus the
   // narrow-until-untruncated rule (#582, measured 4051).
-  helper: 4070,
+  // Time-window evidence pointer in the config-entry post-write verification:
+  // coverage attributes read, partial coverage advisory (#596, 2026-08-19,
+  // measured 4105).
+  helper: 4120,
   // Fail-closed truncation envelopes on the list and keyword filters
   // (#582, measured 1188).
   read: 1210,

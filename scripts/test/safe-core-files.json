@@ -116,6 +116,7 @@
   "tests/skills/smallest-solution-contract.test.ts",
   "tests/skills/test-run-contract.test.ts",
   "tests/skills/threshold-calibration-contract.test.ts",
+  "tests/skills/time-window-honesty-contract.test.ts",
   "tests/skills/todo-contract.test.ts",
   "tests/skills/trace-contract.test.ts",
   "tests/skills/updates-contract.test.ts",

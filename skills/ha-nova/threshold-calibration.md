@@ -123,7 +123,9 @@ clamps are named as the only remaining guard.
 ## Preview duties
 
 - Report the observed ranges and missing-data limitations — numbers, not
-  adjectives. Compare the RIGHT duration to the right evidence: a debounce
+  adjectives. Windowed evidence follows `write-safety.md` → Time-Window
+  Evidence: name the requested window AND the observed sample span; never
+  present the configured window as observed coverage. Compare the RIGHT duration to the right evidence: a debounce
   `for:` duration compares against the longest ambiguous phase; a
   `wait_for_trigger`/`wait_template` TIMEOUT runs from wait start until the
   trigger/template succeeds, so it compares against the observed
