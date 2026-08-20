@@ -204,4 +204,9 @@ describe("recovery workflows (#568/#569)", () => {
       "no explicit delay or backoff between attempts",
     );
   });
+  it("exempts one-shot recoveries from exhaustion-path findings", () => {
+    expect(flat(read("skills/review/checks.md"))).toContain(
+      "an explicitly ONE-SHOT recovery with its single action and post-action probe is exempt",
+    );
+  });
 });
