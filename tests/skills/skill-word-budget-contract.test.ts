@@ -92,7 +92,9 @@ const WORD_BUDGETS: Record<string, number> = {
   // Pointer to the canonical mobile-notification composition contract and its
   // pre-preview intent classification (#575/#576/#573, 2026-08-19,
   // measured 5389).
-  write: 5410,
+  // Intent classification decoupled from edited payloads (#573 Codex
+  // round 9, measured 5426).
+  write: 5450,
   // HACS lifecycle: schema guard, reconcile loops, consumer discovery,
   // migration backup gate, category-appropriate verification (#478);
   // review rounds added pin-durability branches, the uninstall apply

@@ -236,7 +236,7 @@ describe("consumer wiring", () => {
       "follow the canonical contract `skills/ha-nova/mobile-notification-composition.md`",
     );
     expect(write).toContain(
-      "recurring-workflow intent classification runs before the write preview",
+      "INTENT classification is not so limited: it runs before the write preview on EVERY recurring-workflow write",
     );
   });
 
