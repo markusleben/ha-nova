@@ -157,4 +157,9 @@ describe("live-schema preflight contract (#594)", () => {
       "the owning skill's declaration is the allowlist, never this file",
     );
   });
+  it("declares the ephemeral-flow delete exception in helper", () => {
+    expect(flat("skills/helper/SKILL.md")).toContain(
+      "DELETEs only that ephemeral `flow_id` — transient flow state, never a config entry",
+    );
+  });
 });

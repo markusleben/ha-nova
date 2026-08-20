@@ -54,7 +54,7 @@ const WORD_BUDGETS: Record<string, number> = {
   // (#564, 2026-08-19, measured 2351).
   // Train review P3-4: the sibling list never takes the display envelope
   // (measured 2381).
-  "entity-discovery": 2400,
+  "entity-discovery": 2430, // device-direct targets branch (round 5, measured 2408)
   // pre-save snapshot capture + snapshot recovery guidance (Wave 2).
   // Pre-write drift check before save_prefs (#514, measured 1257): the
   // post-save deep-equal check reported a lost foreign edit instead of
@@ -310,7 +310,7 @@ const WORD_BUDGETS: Record<string, number> = {
   // combined trial-merge measured 4147.
   // Train review: helper's create steps now bind to the live schema via the
   // step-8 drift check (P2-1, measured 4212).
-  helper: 4320,
+  helper: 4370, // ephemeral-flow delete exception (round 5, measured 4341)
   // Fail-closed truncation envelopes on the list and keyword filters
   // (#582, measured 1188).
   read: 1210,

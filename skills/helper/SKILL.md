@@ -496,6 +496,7 @@ Never show raw JSON to the user.
 - No guessing entity IDs, linked entities, or config entry IDs; resolve or ask
 - `entry_id` is the canonical write identity for the config-entry family
 - Destructive cleanup still requires `confirm:<token>`, even for helpers created earlier in the same session.
+- Declared exception to the core delete rule above: abandoning an unfinished create flow this skill started (cancel or expired confirmation) DELETEs only that ephemeral `flow_id` — transient flow state, never a config entry; the user's cancel is sufficient, and this exception never applies to anything already created.
 - Every write MUST end with the Post-Write Review slot; use terminal-friendly labels where Markdown headings add noise.
 
 ## Guardrails

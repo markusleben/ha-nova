@@ -86,4 +86,9 @@ describe("device-sibling capability discovery contract (#564)", () => {
     expect(org).toContain('the write `{"disabled_by": null}` on the entity record');
     expect(org).toContain("never press or actuate the freshly enabled entity from this skill");
   });
+  it("proceeds from a device-resolved target without an entity row", () => {
+    expect(flat(read("skills/entity-discovery/SKILL.md"))).toContain(
+      "supplies its `device_id` directly — no entity row is required to proceed",
+    );
+  });
 });

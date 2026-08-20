@@ -140,7 +140,7 @@ This is more reliable than keyword search or assuming `.ai` is populated for roo
 
 A capability-oriented request (restart, identify, calibrate, reset, siren, ...) on a resolved entity or device, where the capability is not on the resolved entity itself, is answered by the device's OTHER entities — not by "the entity cannot do that":
 
-1. Resolve the physical device: read the resolved entity's registry row (WS `config/entity_registry/get`) and take its `device_id`.
+1. Resolve the physical device: for an entity target, read its registry row (WS `config/entity_registry/get`) and take its `device_id`; a target already resolved AS a device (a device-registry row or config-entry device) supplies its `device_id` directly — no entity row is required to proceed.
 2. List ALL registry entities of that device from the FULL registry (`config/entity_registry/list`, filter by `device_id`) — `list_for_display` omits disabled entities, and the registry row's `disabled_by` decides enabled/disabled status. NEVER validate a disabled candidate through `/api/states`: it has no state there, and its absence proves nothing about the capability. The 20-row display envelope does NOT apply here — a device's own entity list is complete and bounded by nature; capping it could hide the one capability past the cap.
 3. Select by domain, `device_class`, `translation_key`, and entity_id semantics on the SAME device. An entity on another device never qualifies merely because its name matches.
 4. Prefer an enabled exact match. Multiple plausible candidates → ONE bounded clarification listing each candidate's entity ID, domain, device, and enabled/disabled status.
