@@ -395,13 +395,17 @@ describe("ha-nova contract", () => {
     expect(relayApi).toContain("POST /core");
     expect(relayApi).toContain("--data-file");
     expect(relayApi).toContain("--body-file");
+    // One inline-vs-file contract (issue #587): the wording is shared verbatim
+    // with the ws/core --help notes (cli/relay.go relayProxyHelpNotes, pinned
+    // by TestRelayHelpContractMatchesSkillDoc on the Go side).
     expect(relayApi).toContain(
-      "Inline `--body` is not supported for WebSocket relay calls",
+      "acceptable only for tiny, unambiguously read-only diagnostics",
     );
-    expect(relayApi).toContain("WS request bodies MUST use `--data-file`");
     expect(relayApi).toContain(
-      "Inline `--body` may be used only for tiny `ha-nova relay core` diagnostics",
+      "Mutations, complex bodies, reusable payloads, and cross-platform examples use `--data-file` (ws) / `--body-file` (core)",
     );
+    // The former false absolutism must not come back: relay ws supports -d/--data.
+    expect(relayApi).not.toContain("MUST use `--data-file`");
     expect(relayApi).toContain("--out");
     expect(relayApi).toContain("--jq-file <filter-file>");
     expect(relayApi).toContain("Supported flags are `-r`, `-e`, `-c`");
