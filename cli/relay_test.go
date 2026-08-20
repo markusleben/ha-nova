@@ -36,6 +36,20 @@ func TestApplyHealthTimeoutsRewritesPinnedClient(t *testing.T) {
 	}
 }
 
+// relay ws accepts inline JSON via -d and --data (issue #587): the contract
+// allows inline bodies for tiny read-only diagnostics, so the flags must parse.
+func TestParseRelayFlagsWSSupportsInlineData(t *testing.T) {
+	for _, flagName := range []string{"-d", "--data"} {
+		opts, err := parseRelayFlags("ws", []string{flagName, `{"type":"ping"}`})
+		if err != nil {
+			t.Fatalf("parseRelayFlags(ws %s) error: %v", flagName, err)
+		}
+		if !opts.InlineJSONSet || opts.InlineJSON != `{"type":"ping"}` {
+			t.Fatalf("ws %s: InlineJSONSet = %v, InlineJSON = %q", flagName, opts.InlineJSONSet, opts.InlineJSON)
+		}
+	}
+}
+
 func TestLoadRelayPayloadAcceptsSingleQuotedInlineJSON(t *testing.T) {
 	payload, err := loadRelayPayload(relayRequestOptions{
 		InlineJSON: `'{"type":"ping"}'`,

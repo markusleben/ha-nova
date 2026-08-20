@@ -104,8 +104,7 @@ ha-nova relay core --method POST --path /api/services/light/turn_on --body-file 
 ```
 
 The wrapper handles auth (OS credential store), headers, timeouts, and base URL internally.
-Inline `--body` is not supported for WebSocket relay calls; WS request bodies MUST use `--data-file`.
-Inline `--body` may be used only for tiny `ha-nova relay core` diagnostics when quoting is already known-good; it is not the canonical cross-platform path.
+Inline JSON (`-d`/`--data` for ws, `-d`/`--body` for core; ws has no `--body` flag) is acceptable only for tiny, unambiguously read-only diagnostics when quoting is already known-good; it is never the canonical cross-platform path. Mutations, complex bodies, reusable payloads, and cross-platform examples use `--data-file` (ws) / `--body-file` (core).
 Relay API examples are not write authorization. Any live write still needs the owning skill's active-preview confirmation flow before execution.
 
 ## Standard Envelope
@@ -116,6 +115,7 @@ Relay API examples are not write authorization. Any live write still needs the o
 Parsing varies by endpoint:
 - `/ws` responses: upstream payload is in `.data` directly; the exact shape depends on the WS message type
 - `/core` responses: upstream payload is in `.data.body` (with `.data.status` for HTTP status)
+- Example: `--jq '.data.version'` on a ws `get_config` result; `--jq '.data.body.state'` on a core `GET /api/states/<entity_id>` result
 
 ## ID Types & Resolution
 
@@ -573,6 +573,8 @@ When the relay successfully proxies to HA but HA itself returns an error, the re
 
 Check: envelope `.ok == true`, then inspect `.data.status` for non-2xx values.
 
+Exit codes: upstream 5xx always exits nonzero; `ha-nova relay core --strict-status` exits nonzero for any upstream error status (`.data.status` >= 400). The response envelope is still printed either way.
+
 ## Timeout and Retry Guidance
 
 The CLI has hardcoded timeouts (not user-configurable):
@@ -594,7 +596,7 @@ For bulk inspection or review preparation:
 3. iterate over the saved shortlist with native file/loop tools
 4. follow selector semantics, stable ordering, and workset limits from `skills/ha-nova/bulk-patterns.md`
 
-Do not rely on external `jq` pipes as the canonical path.
+Do not rely on external `jq` pipes as the canonical path. Never call external `jq`; use `--jq`, `--jq-file`, or `ha-nova relay jq`.
 
 ## `relay jq` Usage
 
