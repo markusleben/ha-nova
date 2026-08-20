@@ -194,7 +194,7 @@ Both paths are runtime actions that can start every matching automation. Never u
 2. Read `GET /api/events` for the total listener count. Scan readable automation configs for current event triggers (`trigger: event`) and legacy triggers (`platform: event`) with the same static `event_type`; apply any literal `event_data` filters to classify known matches. Templated event types and non-automation listeners (Node-RED, AppDaemon) are not safely enumerable — disclose that limit, and treat their presence the way the shared gate does: an unenumerable listener cannot be shown to be harmless, so the fire takes the typed `confirm:<token>` rather than natural confirmation (`skills/ha-nova/indirect-actuation.md`). This scan is the shared event-consumer pattern of `skills/ha-nova/consumer-discovery-preflight.md`.
 3. Inspect known matching automations for high-consequence actions. Preview the exact event type, payload fields, known matching automations, total listener count, unclassified-listener warning, and risk tier. Use natural bound confirmation only when EVERY listener was enumerable and none of them reaches the high-consequence tier. Any unenumerable listener, or a known high-consequence match, requires `confirm:<token>` — unknown impact is not low impact, and step 2 already established that an opaque listener cannot be shown to be harmless.
 4. Execute `POST /api/events/<event_type>` with the JSON object. A success response proves only that Home Assistant accepted the bus fire.
-5. For known matching automations, compare `last_triggered` or a new trace with the pre-call baseline using up to three reads over ten seconds. Never claim that every listener completed, and never repeat an event automatically after any timeout or transport error.
+5. For known matching automations, compare `last_triggered` or a new trace with the pre-call baseline using up to three reads over ten seconds — that proves the listener STARTED (`accepted`), never that its actions succeeded: `verified` requires the previewed effect probes per `skills/ha-nova/outcome-verification.md`. Never claim that every listener completed, and never repeat an event automatically after any timeout or transport error.
 
 ### Webhooks
 
@@ -203,7 +203,7 @@ Both paths are runtime actions that can start every matching automation. Never u
 3. Treat the webhook ID as an authentication secret: never ask the user to paste it, echo it, put it in a preview/result, or persist it outside client-private scratch storage. Only the internal request path may contain it.
 4. Preview the JSON payload fields, every known matching automation, local-only status, and risk tier — never the ID. Shared IDs mean every match runs. Use the same bound/high-consequence confirmation rule as custom events.
 5. Execute one `POST /api/webhook/<webhook_id>`. Home Assistant intentionally returns HTTP 200 for unknown IDs, blocked remote calls, and handler errors, so status alone is not verification.
-6. Compare every known match's `last_triggered` or trace baseline with up to three reads over ten seconds. If no fresh run appears, report the outcome as unverified; never retry automatically and never weaken `local_only` to make the call work.
+6. Compare every known match's `last_triggered` or trace baseline with up to three reads over ten seconds — start evidence only (`accepted`); `verified` requires the previewed effect probes. If no fresh run appears, report the outcome as unverified; never retry automatically and never weaken `local_only` to make the call work.
 
 ## Alarm Panels And Locks
 

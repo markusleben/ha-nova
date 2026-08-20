@@ -34,6 +34,12 @@ describe("semantic outcome verification (#567/#566)", () => {
     expect(doc).toContain("Missing evidence is never inferred success");
     // A proven upstream rejection is a real outcome, not a taxonomy hole.
     expect(doc).toContain("the command itself was DEFINITIVELY rejected");
+    // Early opposite readings are in-progress, never failure.
+    expect(doc).toContain("an opposite reading early in the window is in-progress, not failure");
+    // Event/webhook listener starts are acceptance, not effect proof.
+    expect(flat(read("skills/service-call/SKILL.md"))).toContain(
+      "that proves the listener STARTED (`accepted`), never that its actions succeeded",
+    );
     expect(doc).toContain("never proves rejection and never permits a retry");
   });
 
