@@ -72,7 +72,7 @@ Render the Report shape (output-rules.md). For a snapshot, describe what is visi
 
 - A camera frame is private data: keep it in client-private scratch storage, never write it into the project workspace, and never send it anywhere outside this conversation.
 - `camera.snapshot` / `camera.record` write files on the Home Assistant server — preview the exact path and confirm; they can overwrite an existing file.
-- Do not fetch frames repeatedly to simulate a live view.
+- Do not fetch frames repeatedly to simulate a live view. ONE named exception: a before/after comparison bound to ONE named actuation ("did the garage door actually close?") may fetch 2-3 frames — each timestamped and attributed to its phase (before / after / settled) in the report. It ends with that actuation's verification and is still never a live view.
 
 ## Guardrails
 

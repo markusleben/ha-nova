@@ -96,7 +96,9 @@ const WORD_BUDGETS: Record<string, number> = {
   // either, since its domain separator is a regex wildcard (#518, 1536).
   // Codex round 7: the log filter OR-ed a severity into the identifier, so
   // every unrelated error line read as evidence (measured 1611).
-  diagnose: 1660,
+  // Device-level diagnostics row + integration-controlled redaction sentence
+  // (#519 C1-13, 2026-08-20, measured 1675).
+  diagnose: 1695,
   // Report-shape declaration line (shared output shapes); repair dedup,
   // attention-threshold definition, cause↔symptom linking (2026-h2 Wave 1c).
   // Table-first redesign: report modes, block shape, ten-block order,
@@ -227,7 +229,10 @@ const WORD_BUDGETS: Record<string, number> = {
   // an explicit null is rejected (measured 1471).
   // Downstream dependency-bound grouped reference pointer (#595, 2026-08-19,
   // measured 1505).
-  dashboard: 1525,
+  // Strategy-config save on a created shell, incl. the destructive
+  // populated-to-strategy branch (#519 C1-03 increment 1, 2026-08-20,
+  // measured 1610).
+  dashboard: 1630,
   // Cards adoption pointer (#389); pre-write update-state drift gate.
   // #452 canonical smallest-solution draft rule (17 words).
   // HA 2026.7 "Update all" semantics: guardrails mirrored, call shape
@@ -289,7 +294,10 @@ const WORD_BUDGETS: Record<string, number> = {
   // Combined merge of the #581 precedence rework (trimmed) with the #585
   // credential-recovery reload carve-out; trial-merging the train lands
   // at 5004.
-  fallback: 5030,
+  // Pack unlocks (#519/#520/#531, 2026-08-20): helper-family promotion,
+  // custom-sentences ownership handoff, lifecycle rows split for
+  // options/reconfigure/reload moving to integration-setup (measured 5032).
+  fallback: 5050,
   // semantic-slot note on the read templates (Wave 0); pre-write cross-field
   // constraint checks + drift-check step (Wave 1); pre-delete snapshot
   // capture (Wave 2).
@@ -308,7 +316,9 @@ const WORD_BUDGETS: Record<string, number> = {
   // combined trial-merge measured 4147.
   // Train review: helper's create steps now bind to the live schema via the
   // step-8 drift check (P2-1, measured 4212).
-  helper: 4290,
+  // generic_thermostat + switch_as_x promoted from fallback with the
+  // live-form-only note (#531 P4-05, 2026-08-20, measured 4319).
+  helper: 4340,
   // Fail-closed truncation envelopes on the list and keyword filters
   // (#582, measured 1188).
   read: 1210,
@@ -337,7 +347,9 @@ const WORD_BUDGETS: Record<string, number> = {
   // #452 wires the canonical 17-word smallest-solution draft rule into every
   // write-flow skill; calendar and integration-setup sat within 17 words of
   // the default cap (review/todo/updates ratchets applied on their entries).
-  calendar: 1175,
+  // Recurring creates through WS calendar/event/create with rrule plus the
+  // series-shaped verification (#519 C1-05, 2026-08-20, measured 1237).
+  calendar: 1260,
   // Credential-recovery lane when no reauth flow is pending: reload as the
   // only supported trigger, fail-closed handoff, no replacement entries
   // (#585, measured 1350); review batch added the Scope carve-out, the
@@ -353,11 +365,18 @@ const WORD_BUDGETS: Record<string, number> = {
   // (measured 1568).
   // Live-schema preflight pointer on the live-step iteration
   // (#594, 2026-08-20, measured 1593).
-  "integration-setup": 1610,
+  // Options/reconfigure/reload scope extension under the live-schema
+  // preflight contract (#520 C1-04, 2026-08-20, measured 1842).
+  "integration-setup": 1865,
   // Restart/reboot pointer to entity-discovery's device-sibling capability
   // discovery left the default cap 4 words of headroom
   // (#564, 2026-08-19, measured 1146).
-  camera: 1170,
+  // Before/after actuation frames exception to the repeated-frames ban
+  // (#519 C1-12, 2026-08-20, measured 1196).
+  camera: 1215,
+  // Pipeline create with the clone-preferred default (#531 P4-06) and the
+  // custom-sentences owning workflow (#519 C1-08), 2026-08-20, measured 1451.
+  assist: 1470,
 };
 const DEFAULT_WORD_BUDGET = 1150;
 

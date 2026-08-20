@@ -213,13 +213,15 @@ describe("ha-api-matrix lists the surfaces skills actually pin (#517)", () => {
 
   it("advertises only the lifecycle operations it documents mechanics for", () => {
     const fallbackAll = flat(read("skills/fallback/SKILL.md") + read("skills/fallback/relay-ready.md"));
-    // A Relay-Ready row is a promise that this skill can perform it. Enable,
-    // options and reconfigure have no documented mechanics, so they are
-    // External rather than a row that routes into a section that cannot serve.
-    expect(fallbackAll).toContain("Integration entry lifecycle (reload, remove)");
-    expect(fallbackAll).toContain("Integration entry enable/disable, options, reconfigure | External");
+    // A Relay-Ready row is a promise that this skill can perform it. Enable/
+    // disable has no documented mechanics, so it stays External. Options,
+    // reconfigure, and reload moved to integration-setup (#520 C1-04,
+    // 2026-08-20); remove is the one lifecycle operation left here.
+    expect(fallbackAll).toContain("Integration entry lifecycle (remove)");
+    expect(fallbackAll).toContain("Integration entry options / reconfigure (standard config-entry flows) | Covered | integration-setup");
+    expect(fallbackAll).toContain("Integration entry enable/disable | External");
     // The section behind the row must claim the same scope as the row.
-    expect(fallbackAll).toContain("Reload and remove for an existing config entry — those two only");
+    expect(fallbackAll).toContain("Remove for an existing config entry — that one only");
     // Every Relay-Ready row needs a section behind it, event capture included.
     expect(fallbackAll).toContain("Bounded Event Capture -- RELAY-READY");
     expect(fallbackAll).toContain("do not invent a bare subscription");

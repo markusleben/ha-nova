@@ -11,7 +11,8 @@ compatibility: Requires the ha-nova CLI (run 'ha-nova setup' first) and the HA N
 
 Home Assistant's built-in voice assistant (Assist):
 - **test what Assist understands** — send an utterance and see the real answer, without speaking
-- inspect Assist pipelines (which STT, conversation agent, TTS a pipeline uses) and change the preferred one
+- inspect, create, and edit Assist pipelines (which STT, conversation agent, TTS a pipeline uses) and change the preferred one
+- teach Assist custom sentences (see Custom Sentences below)
 - manage which entities are exposed to voice, and their aliases
 - list available TTS, STT, conversation, and wake-word engines
 
@@ -37,6 +38,7 @@ If this fails: `ha-nova setup`
    - `"conversation_id"` continues a previous exchange; omit it for a fresh one.
 2. **Pipelines**: WS `assist_pipeline/pipeline/list` shows every pipeline plus `preferred_pipeline`. Each carries `stt_engine`, `conversation_engine`, `tts_engine`, and language settings.
    - change the preferred one: WS `assist_pipeline/pipeline/set_preferred` with `pipeline_id`
+   - create: WS `assist_pipeline/pipeline/create`. The named default is **clone-preferred-with-a-different-engine**: read the preferred pipeline from the list, carry its settings fields over, and swap only the engine(s) the user asked for (the local-LLM move: same STT/TTS, different `conversation_engine`). Resolve the new engine id from the engine inventories in step 4 — never invent one. Preview every field, labeling cloned vs changed, confirm, then create; verify by re-reading the pipeline list and finding the new pipeline with the requested settings. Creating never changes the preferred pipeline — offer `set_preferred` as a separate follow-up
    - update: WS `assist_pipeline/pipeline/update` — read the pipeline first, then send ALL its settings fields with your change, addressed by `pipeline_id` (the list's `id` value). Never send it as `id` — that slot is the WS request id. A partial payload drops settings.
    - delete: WS `assist_pipeline/pipeline/delete` — typed confirmation code; a pipeline in use by a satellite breaks it
 3. **Exposed entities** (what voice can even see): WS `homeassistant/expose_entity/list`; expose or hide with WS `homeassistant/expose_entity` (`assistants: ["conversation"]`, `entity_ids`, `should_expose`). Aliases live in the entity registry (`ha-nova:organize` owns those).
@@ -44,6 +46,17 @@ If this fails: `ha-nova setup`
    - Risk-weight the preview: exposing a `lock`, `alarm_control_panel`, or a cover with a garage/gate/door `device_class` means anyone within earshot can actuate physical access by voice — flag these entities explicitly as high-consequence before confirming.
 4. **Engines**: WS `tts/engine/list`, `stt/engine/list`, `conversation/agent/list`, `wake_word/info`. Read-only inventories; use them to explain what a pipeline can be built from.
 5. Verify pipeline changes by re-reading the pipeline list, and exposure changes by re-reading `expose_entity/list` — never report success from the command response alone. After a pipeline or exposure change made to FIX an utterance, offer to re-run that exact utterance as the proof (with the standing warning that a test utterance executes what it understands).
+
+## Custom Sentences
+
+Teach Assist a phrase it does not understand out of the box. This skill owns the workflow; the file paths, payload mechanics, and search query live in `skills/fallback/relay-ready.md` → Assist Custom Sentences — read that section first, do not duplicate it here.
+
+1. **Opt-in gate**: sentence files need the relay's opt-in file access (`ha-nova:yaml-config` → Bootstrap explains enabling it). Without it, stop and say so.
+2. **Write** the sentence file (and, only when the intent is new, the `intent_script:` block in `configuration.yaml`) per the fallback section's mechanics — `backup: true`, read the whole file before replacing it.
+3. **Validate BEFORE any reload**: when `configuration.yaml` changed, `POST /api/config/core/check_config` FIRST. On `invalid`, restore that file's `.bak` immediately and do not reload.
+4. **Reload the right thing**: `conversation.reload` reloads the sentence matcher — enough when only sentence files changed. A new `intent_script:` handler is NOT reloadable: it takes a Home Assistant restart. Say that plainly, and do not run the phrase test before the restart happens.
+5. **Live test is mandatory**: run the exact phrase through `POST /api/conversation/process` (Flow step 1 rules — a test utterance executes what it matches). A sentence file that parses is not a sentence Assist matched; never claim success without this test.
+6. **Rollback distinguishes reload from restart**: a failed phrase test after a sentence-file change → restore the `.bak` (or delete the new file), `conversation.reload` again, re-test one known-good phrase. A rolled-back `intent_script` keeps its handler live until the next restart — the file is correct again, the behavior is not; say both.
 
 ## Error Handling
 
