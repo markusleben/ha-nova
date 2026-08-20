@@ -50,7 +50,11 @@ Report one of exactly four outcomes, never a blend:
   One good probe never verifies a multi-probe promise (a scene, `scene.apply`,
   or a script acting on several entities): a partial result reports the
   per-probe split and the overall outcome stays `unverified` — or `failed`
-  when any probe proved the opposite.
+  when any probe proved the opposite. Mutually exclusive `choose`/`if`
+  branches are unioned for SAFETY classification only: verification binds to
+  the branch that actually ran (trace or executed actions decide) — probes of
+  untaken branches report "not applicable (branch not taken)", never
+  `failed`.
 - `unverified` — evidence was expected but missing or unreadable at window
   end, or the transport outcome itself is ambiguous (a timeout before any
   acknowledgement: even registration is unknown — say that plainly, never

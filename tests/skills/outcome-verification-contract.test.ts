@@ -24,6 +24,9 @@ describe("semantic outcome verification (#567/#566)", () => {
     // A multi-probe promise verifies only when every previewed probe holds.
     expect(doc).toContain("EVERY probe the previewed promise names showed its effect");
     expect(doc).toContain("One good probe never verifies a multi-probe promise");
+    // The safety union never turns an untaken branch into a failed probe.
+    expect(doc).toContain("verification binds to the branch that actually ran");
+    expect(doc).toContain('"not applicable (branch not taken)", never `failed`');
     // Bounded recovery retries are governed by their own contract, not the
     // verification no-repeat rule.
     expect(doc).toContain("This binds the VERIFICATION step only");
