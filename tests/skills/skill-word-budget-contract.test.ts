@@ -80,12 +80,16 @@ const WORD_BUDGETS: Record<string, number> = {
   // disabled_by-source routing (round 8, measured 1422).
   // Bulk Target Resolution seam to bulk-patterns selector semantics
   // (#529 P2-09, measured 1354 pre-train).
-  organize: 1450,
+  // Pack-train union (2026-08-20): #529 seam on top of main's #564/#583
+  // sibling rounds, measured 1491 combined.
+  organize: 1510,
   // #597's verification-planning pointer and #564's restart/reboot pointer
   // both eat the default cap's headroom (measured 1145/1146 alone).
   // Before/after actuation frames exception to the repeated-frames ban
   // (#519 C1-12, 2026-08-20, measured 1196).
-  camera: 1215,
+  // Pack-train union (2026-08-20): #519 frames exception on top of main's
+  // #597/#564 pointers, measured 1218 combined.
+  camera: 1240,
   // write/mqtt ratcheted for the batch-safety opt-in lines (#327);
   // write again for the Phase 5 test offer (test-run.md).
   // pre-delete snapshot capture + config-snapshots reference (Wave 2).
@@ -350,7 +354,9 @@ const WORD_BUDGETS: Record<string, number> = {
   // step-8 drift check (P2-1, measured 4212).
   // generic_thermostat + switch_as_x promoted from fallback with the
   // live-form-only note (#531 P4-05, 2026-08-20, measured 4319 pre-train).
-  helper: 4440, // update flow re-confirm rule (round 7, measured 4407) // group-member removal opt-in (round 6, measured 4379) // ephemeral-flow delete exception (round 5, measured 4341)
+  // Pack-train union (2026-08-20): #531 promotion on top of main's train
+  // review rounds, measured 4464 combined.
+  helper: 4485, // update flow re-confirm rule (round 7, measured 4407) // group-member removal opt-in (round 6, measured 4379) // ephemeral-flow delete exception (round 5, measured 4341)
   // Fail-closed truncation envelopes on the list and keyword filters
   // (#582, measured 1188).
   read: 1210,
