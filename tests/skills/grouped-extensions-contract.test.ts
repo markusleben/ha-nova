@@ -177,4 +177,9 @@ describe("cross-family destructive cleanup (issue #583)", () => {
       "may instead ride a cross-family destructive cleanup manifest",
     );
   });
+  it("names the cleanup code in the canonical confirmation tiers", () => {
+    expect(flat(read("skills/ha-nova/SKILL.md"))).toContain(
+      "Cross-family destructive cleanup takes its own manifest-bound code `confirm:cleanup-<target>-<count>-<digest>`",
+    );
+  });
 });

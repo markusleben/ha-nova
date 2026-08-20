@@ -15,7 +15,7 @@ Organization and registry metadata only:
 - floors: list/create/update/delete
 - labels: list/create/update/delete
 - categories: list/create/update/delete
-- entity metadata updates: rename, move to area, assign/clear/add/remove labels, assign/remove categories, disable, hide, aliases
+- entity metadata updates: rename, move to area, assign/clear/add/remove labels, assign/remove categories, disable AND re-enable, hide, aliases
 - entity category assignment/removal per scope
 - device metadata updates: rename, move to area, assign/clear/add/remove labels, disable
 
@@ -99,6 +99,8 @@ Use only exposed metadata fields:
 - device: `name_by_user`, `area_id`, `labels`, `disabled_by`
 
 Do not guess unsupported fields.
+
+Re-ENABLING a registry-disabled entity is the write `{"disabled_by": null}` on the entity record — the operation `ha-nova:entity-discovery`'s sibling-capability handoff arrives with. It is lower-risk than disabling (nothing loses state), still previewed and confirmed; after the write say plainly that the entity appears after an integration reload or restart when Home Assistant reports `reload_required`, and never press or actuate the freshly enabled entity from this skill.
 
 `new_entity_id` and `disabled_by` are NOT low-risk metadata: a rename breaks every automation, scene, script, dashboard, and template that references the old id, and disabling removes the entity from the state machine with the same effect on consumers. Before either, run WS `search/related` on the entity — for a DEVICE-level `disabled_by`, expand the device to its entities first (entity registry by `device_id`) and run `search/related` per entity, because the device relation itself does not collect the child entities' consumers — and name the union of consumers in the preview — and say plainly that it covers automations, scripts, groups, persons, and scenes only: template references and dashboards (storage AND YAML mode) are NOT indexed and cannot be ruled out this way (a storage-dashboard scan via `ha-nova:dashboard` is the thorough follow-up). After a rename, offer to update the found consumers through their owning skills. Before either write, capture the auto config snapshot of the record actually being mutated — the entity's registry fields for a rename/entity disable, the DEVICE registry record for a device-level `disabled_by` (category `metadata`, `skills/ha-nova/config-snapshots.md`; on capture failure follow its capture-failure stop). For a RENAME, store the target `new_entity_id` alongside the old record — after the write the live record sits under the new id, so restore addresses it there and renames it back; restore is otherwise an in-place field write-back on the same record.
 

@@ -68,7 +68,9 @@ const WORD_BUDGETS: Record<string, number> = {
   // #513/#530 added routing rows and the tag/person lifecycle notes: the
   // default 1150 left TWO words of headroom, which the next sentence breaks.
   admin: 1300,
-  organize: 1300,
+  // Re-enable operation for the sibling-capability handoff plus the
+  // cross-family opt-in (#564/#583 Codex round 2, measured 1365).
+  organize: 1390,
   // write/mqtt ratcheted for the batch-safety opt-in lines (#327);
   // write again for the Phase 5 test offer (test-run.md).
   // pre-delete snapshot capture + config-snapshots reference (Wave 2).

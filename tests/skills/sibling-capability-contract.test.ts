@@ -81,4 +81,9 @@ describe("device-sibling capability discovery contract (#564)", () => {
       "A restart/reboot ask is neither of these: find the device's own capability entity (often a disabled sibling) via `ha-nova:entity-discovery` → Device-sibling capability discovery",
     );
   });
+  it("gives organize a real enable operation for the handoff", () => {
+    const org = flat(read("skills/organize/SKILL.md"));
+    expect(org).toContain('the write `{"disabled_by": null}` on the entity record');
+    expect(org).toContain("never press or actuate the freshly enabled entity from this skill");
+  });
 });
