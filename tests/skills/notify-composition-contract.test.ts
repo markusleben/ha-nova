@@ -254,6 +254,8 @@ describe("consumer wiring", () => {
     expect(doc).toContain(
       "A device-receipt claim requires a PRE-EXISTING, verified received-event automation",
     );
-    expect(doc).toContain("this flow never builds a receipt channel for one send");
+    expect(doc).toContain("This flow never builds a receipt channel for one send");
+    expect(doc).toContain("send-correlated, readable evidence");
+    expect(doc).toContain("an uncorrelated or unreadable listener proves nothing about this send");
   });
 });

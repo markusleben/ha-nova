@@ -61,8 +61,12 @@ publicly exposed attachments where supported.
 three distinct claims: a successful service call or notify-entity timestamp
 proves acceptance by Home Assistant. A device-receipt claim requires a
 PRE-EXISTING, verified received-event automation (the same durable listener
-contract as actionable sends) — this flow never builds a receipt channel for
-one send, and without that automation acceptance is the strongest claim.
+contract as actionable sends) AND send-correlated, readable evidence from it —
+the listener filters on THIS send's correlation identifier (its `tag`) and
+records a state the agent can read back; an uncorrelated or unreadable
+listener proves nothing about this send. This flow never builds a receipt
+channel for one send; without both conditions acceptance is the strongest
+claim.
 Nothing ever proves the user read it. Never upgrade one
 claim into the next.
 
