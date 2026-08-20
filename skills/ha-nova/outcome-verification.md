@@ -19,9 +19,12 @@ Classify BEFORE execution what the action's success can actually be proven by:
    defined signal (a refresh updating a sensor's `last_updated`, an update
    entity leaving `in_progress`). The signal must be attributable to THIS
    request: a `last_updated` that also advances on the integration's own
-   polling cadence is ambiguous — compare against the known cadence or a
-   value change, and report `unverified` when the advance is
-   indistinguishable from routine polling.
+   polling cadence is ambiguous, and a value change alone attributes nothing
+   either — routine polling changes values too. Attribution requires the
+   advance to fall OUTSIDE the integration's known polling cadence (arriving
+   within the observation window while the next scheduled poll is not yet
+   due); with an unknown cadence, or an advance indistinguishable from
+   routine polling, report `unverified`.
 5. **No independently observable outcome** — nothing readable proves the
    effect (mobile notification delivery). Say so; never infer success.
 

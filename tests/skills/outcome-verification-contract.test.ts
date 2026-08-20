@@ -90,7 +90,8 @@ describe("semantic outcome verification (#567/#566)", () => {
     expect(doc).toContain("an update entity leaving `in_progress`");
     // Routine polling can advance last_updated without the requested refresh.
     expect(doc).toContain("The signal must be attributable to THIS request");
-    expect(doc).toContain("indistinguishable from routine polling");
+    expect(doc).toContain("Attribution requires the advance to fall OUTSIDE the integration's known polling cadence");
+    expect(doc).toContain("a value change alone attributes nothing either");
     // Restart probes get their own horizon; a too-short window can only be
     // unverified, never failed.
     expect(doc).toContain("inside a RESTART-LENGTH window");
