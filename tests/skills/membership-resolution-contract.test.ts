@@ -110,7 +110,7 @@ describe("shared membership-resolution contract (#571)", () => {
       "Safety classification uses the highest-risk resolved member",
     );
     expect(contract).toContain(
-      "an unreadable member escalates rather than defaulting down",
+      "An unreadable USER-AUTHORED member escalates rather than defaulting down",
     );
     expect(contract).toContain(
       "verification covers the expanded members, not the collection entity",
@@ -174,6 +174,14 @@ describe("consumer wiring (#571)", () => {
     );
     expect(flat(read("skills/service-call/SKILL.md"))).toContain(
       "never a license to actuate a list known to be stale",
+    );
+  });
+  it("keeps the gate's bounded integration-member exception", () => {
+    expect(flat(read("skills/ha-nova/membership-resolution.md"))).toContain(
+      "an integration-owned member keeps the gate's bounded exception",
+    );
+    expect(flat(read("skills/ha-nova/membership-resolution.md"))).toContain(
+      "whose classification rules this contract never overrides",
     );
   });
 });

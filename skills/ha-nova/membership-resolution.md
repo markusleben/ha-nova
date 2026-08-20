@@ -78,9 +78,12 @@ Two execution modes, decided by semantics:
 ## Safety and verification
 
 Safety classification uses the highest-risk resolved member: a group is as
-dangerous as the most dangerous thing in it, and an unreadable member
-escalates rather than defaulting down (`skills/ha-nova/indirect-actuation.md`
-→ rule 3). When the action promises member-state changes, verification
+dangerous as the most dangerous thing in it. An unreadable USER-AUTHORED
+member escalates rather than defaulting down, while an integration-owned
+member keeps the gate's bounded exception (ordinary with the gap named when
+its platform provides no access-class entity) — both exactly per
+`skills/ha-nova/indirect-actuation.md`, whose classification rules this
+contract never overrides. When the action promises member-state changes, verification
 covers the expanded members, not the collection entity.
 
 ## Existing instances
