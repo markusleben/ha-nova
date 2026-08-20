@@ -235,7 +235,7 @@ describe("indirect actuation and tier classification (#513)", () => {
   it("expands legacy and modern domain groups before classifying them", () => {
     const gate = flat(indirectActuation);
     expect(gate).toContain("A legacy `group.*` target or a modern domain group");
-    expect(gate).toContain("`attributes.entity_id` member array");
+    expect(gate).toContain("the authoritative member source is its config-entry options");
     expect(gate).toContain("classify the members recursively");
   });
 

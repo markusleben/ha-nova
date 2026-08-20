@@ -32,7 +32,10 @@ const ALL_SKILL_MD_FILES = ((): string[] => {
 const WORD_BUDGETS: Record<string, number> = {
   // Platform-specific payloads plus presence-based household routing in the
   // combined audit train (measured 1382 before the bounded-wait removal).
-  notify: 1430,
+  // Delivery-honesty reconciliation with the canonical composition contract
+  // plus the surface-selection instantiation note (train review P2-1/P2-3,
+  // 2026-08-20, measured 1506).
+  notify: 1520,
   // State-snapshot queries ("is everything closed?") and the alias fallback
   // that finally reaches the names a household actually says (#527, 1318).
   // Codex round 3: a motorized window or garage door is a cover, so an
@@ -46,6 +49,10 @@ const WORD_BUDGETS: Record<string, number> = {
   // train lands at 1382.
   // Audit train: the ceiling is the MAX of both branches — each
   // measured only its own tree.
+  // Pointer to the canonical mobile-notification composition contract
+  // (#575/#576/#573, 2026-08-19, measured 1433).
+  // Pointer to the shared membership-resolution contract (#571, 2026-08-19,
+  // measured 1448).
   // Canonical truncation filter moved to skills/ha-nova/ with the inline
   // recreate-exactly fallback for flat installs (#582 Codex round 1,
   // measured 2145).
@@ -69,8 +76,12 @@ const WORD_BUDGETS: Record<string, number> = {
   // default 1150 left TWO words of headroom, which the next sentence breaks.
   admin: 1300,
   // Re-enable operation for the sibling-capability handoff plus the
-  // cross-family opt-in (#564/#583 Codex round 2, measured 1365).
-  organize: 1450, // disabled_by-source routing (round 8, measured 1422)
+  // cross-family opt-in (#564/#583 Codex round 2, measured 1365);
+  // disabled_by-source routing (round 8, measured 1422).
+  organize: 1450,
+  // #597's verification-planning pointer and #564's restart/reboot pointer
+  // both eat the default cap's headroom (measured 1145/1146 alone).
+  camera: 1190,
   // write/mqtt ratcheted for the batch-safety opt-in lines (#327);
   // write again for the Phase 5 test offer (test-run.md).
   // pre-delete snapshot capture + config-snapshots reference (Wave 2).
@@ -86,7 +97,12 @@ const WORD_BUDGETS: Record<string, number> = {
   // One-shot intent routing to the self-disabling pattern (#527, 2221).
   // Includes one-shot-automations.md after the audit exposed that the split
   // had reset this ratchet (measured 5356 on #543).
-  write: 5380,
+  // Pointer to the canonical mobile-notification composition contract and its
+  // pre-preview intent classification (#575/#576/#573, 2026-08-19,
+  // measured 5389).
+  // Intent classification decoupled from edited payloads (#573 Codex
+  // round 9, measured 5426).
+  write: 5450,
   // HACS lifecycle: schema guard, reconcile loops, consumer discovery,
   // migration backup gate, category-appropriate verification (#478);
   // review rounds added pin-durability branches, the uninstall apply
@@ -194,9 +210,10 @@ const WORD_BUDGETS: Record<string, number> = {
   // Codex round 3: match candidates come from every expanded target;
   // round 4 restored the GLOBAL single-entry guard on the handler fallback
   // (measured 9135 with the post-500 best-effort symmetry).
-  // Flow step 1 pointer to entity-discovery's device-sibling capability
-  // discovery (#564, 2026-08-19, measured 9163).
-  "service-call": 9190,
+  // Membership-resolution contract pointer in Flow step 3 (#571, 2026-08-19);
+  // grouped-set drift precedence (#571 Codex round 7); plus main's #564
+  // sibling-discovery pointer — combined trial-merge measured 9325.
+  "service-call": 9355,
   // Carries the canonical File-Change Preview example — the only layout
   // source for file edits; concrete examples are what make a card renderable.
   // Sibling-survival verification (Wave 1b) + yaml snapshot capture with
@@ -325,7 +342,10 @@ const WORD_BUDGETS: Record<string, number> = {
   // another automation answers by unlocking a door (measured 4654).
   // Codex round 12: the Quick-Fix exclusion keyed on entering the gate rather
   // than on its verdict, so a clean scan still blocked the fix (measured 4698).
-  review: 4820,
+  // Notification findings-vs-suggestions pointer to the canonical
+  // mobile-notification composition contract (#575/#576/#573, 2026-08-19,
+  // measured 4829).
+  review: 4850,
   // Codex round 2 (#518): the entrypoint carried its own copy of the
   // verify-before-flag gate, which contradicted the corrected one in
   // checks.md and could suppress accepted-but-dangerous findings; trace
@@ -356,10 +376,6 @@ const WORD_BUDGETS: Record<string, number> = {
   // Live-schema preflight pointer on the live-step iteration
   // (#594, 2026-08-20, measured 1593).
   "integration-setup": 1610,
-  // Restart/reboot pointer to entity-discovery's device-sibling capability
-  // discovery left the default cap 4 words of headroom
-  // (#564, 2026-08-19, measured 1146).
-  camera: 1170,
 };
 const DEFAULT_WORD_BUDGET = 1150;
 
@@ -394,6 +410,8 @@ const STANDALONE_MARKDOWN = new Set([
   "skills/ha-nova/helper-schemas.md",
   "skills/ha-nova/input-capability-preflight.md",
   "skills/ha-nova/live-schema-preflight.md",
+  "skills/ha-nova/membership-resolution.md",
+  "skills/ha-nova/mobile-notification-composition.md",
   "skills/ha-nova/output-rules.md",
   "skills/ha-nova/payload-schemas.md",
   "skills/ha-nova/relay-api.md",

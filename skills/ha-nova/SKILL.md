@@ -169,6 +169,55 @@ Rules:
 
 Worked example: turn 1 sets "never touch the bedroom lights" (hard requirement); turn 4 accepts motion-triggered hallway lighting; turn 9 asks to extend it "to all upstairs rooms". The draft would now include the bedroom — conflict: block the preview, name the turn-1 requirement in plain words, and ask whether it still holds. If the user replies "bedroom is fine now", that explicit choice replaces the old requirement; the hallway decision stays untouched.
 
+## Work Ledger (multi-step tasks)
+
+Alongside Decision Memory, track the work itself — conversation-scoped, internal, lightweight workflow state, never a persistent task system: create no helpers, to-do items, or stores for it, and expose no internal item identifiers. Each item carries a ROLE and, separately, a lifecycle STATE — a blocked primary objective stays the primary objective:
+
+- Roles: **primary objective** (what the user asked to finish); **supporting step** (the diagnostic, integration setup, prerequisite, or recovery action serving it); **user-added work** (explicitly requested additions).
+- States: **active**, **deferred** (explicitly postponed), **blocked** (waiting on something named), **completed / cancelled / superseded**.
+
+Rules:
+- Explicit scope-adding phrases ("afterward", "later", "also do this", "once that works") create deferred items when they clearly add scope. Agent suggestions become items only when the user accepts them.
+- A supporting step never replaces the objective it supports; when it completes, return to the still-open parent objective.
+- An explicitly ORDERED follow-up ("fix this, then also do that") sits deferred while its predecessor runs and becomes the active item the moment the predecessor completes; an UNORDERED user-added request ("also check the garage") queues the same way and activates after the current item finishes. Activation means starting its normal workflow, previews and confirmations included; storage still authorizes nothing.
+- Classify each new request as replacing, extending, reprioritizing, or independently adding to current work; an ambiguous addition is never silently treated as a replacement — ask, or keep both.
+- The user can cancel, defer, reprioritize, or supersede any item; completed, cancelled, or superseded work is not resurfaced and drops out of the open-work summary — compaction keeps only ACTIVE, DEFERRED, and BLOCKED items.
+- Cross-skill handoffs carry the primary objective and pending follow-ups; conversation compaction preserves every OPEN item — active, deferred, AND blocked, each with its role (completed/cancelled/superseded stay out), so a blocked primary objective survives the supporting step that outlives it.
+- Before declaring the workflow complete, check for explicitly requested open work; summarize remaining work briefly instead of hiding it.
+- Storing an item authorizes nothing: deferred work is never executed merely because it is stored, and every later mutation follows its owning skill's normal preview, confirmation, and verification flow.
+
+## Proactive Assistance Offers
+
+At any blocker, missing prerequisite, finding, or actionable next step: before recommending a manual step, check whether an available HA NOVA skill can perform it — if so, say concretely what HA NOVA can do next instead of sending the user off to do it by hand.
+
+Rules:
+- Offers stay relevant to the active primary objective (Work Ledger) — never a capability dump. When several actions apply, rank them by how directly each one unblocks the objective and show at most three.
+- An accepted offer hands off to the owning skill with exact resolved targets (entity/device/entry IDs); the primary objective and pending follow-ups travel along (Work Ledger).
+- Offering authorizes nothing: nothing executes merely because it was offered, and every preview, confirmation, and safety rule of the owning skill stays intact.
+- Never imply or invent actions no current skill supports; credential- or UI-only steps stay manual — say so and name the reason.
+- A declined offer is not re-presented in the same workflow.
+- Relationship to the Suggestion Block (output-rules.md): a blocker-resolving offer unblocks the active objective and is NOT an unsolicited improvement suggestion — it does not consume the max-2 suggestion budget. Genuine optional improvements keep riding the Suggestion Block.
+
+Worked example: discovery finds the needed control exists as a disabled sibling entity — offer it: "The restart control exists but is disabled. I can enable it (`ha-nova:organize`) and continue the restart workflow."
+
+## Verification Planning (client capabilities)
+
+Before showing a mutation preview, classify every check the plan promises:
+
+- **Relay-native** — the Relay produces the evidence (state re-reads, traces, config read-back, structural validation);
+- **client-capability** — a capability discovered in the current client session produces it (browser control, image viewing, rendering);
+- **user-assisted** — the user acts or observes (User-Assisted Readiness);
+- **unavailable** — no current surface can produce the promised evidence.
+
+Rules:
+- The preview states the planned evidence per check and known limitations — which requested checks are executable in this session and which are not.
+- Unavailable evidence essential to the user's success criteria: STOP before the mutation and ask whether to continue with a named fallback — never write first and downgrade afterward.
+- Unavailable but optional: proceed with honestly scoped success wording and keep the missing check visible as incomplete.
+- After a write, never collapse an unavailable promised check into a generic success claim; give one concrete manual or later-session next step instead.
+- Client capabilities are volatile: re-evaluate at the point of use — a listed skill or plugin never proves its control surface is callable right now. A capability lost between preview and verification is handled as unavailable from that point.
+- Unfinished verification carries through the Work Ledger as open work, across cross-skill handoffs and compaction.
+- Scope: skill/client orchestration only — the Relay gains no screenshot endpoint, browser automation, or verification business logic (Relay stays dumb).
+
 ## Response Format
 
 Render domain-specific summaries:
@@ -329,7 +378,7 @@ After any `read` or `review` task, re-evaluate intent once before continuing:
   - helper:
     - storage-based family: `entity_id`, helper type, internal helper id when already known (the receiving skill will resolve missing fields)
     - config-entry family: `entry_id`, domain, title, linked entities when already known (the receiving skill will resolve missing fields)
-- always pass along the requested change
+- always pass along the requested change, plus the primary objective and pending follow-ups (Work Ledger)
 - keep this sequential: one skill at a time, never parallel
 - for multi-target scope, keep the same safety and evidence rules; see `skills/ha-nova/bulk-patterns.md`
 

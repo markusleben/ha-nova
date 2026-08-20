@@ -45,7 +45,9 @@ Discovery:
 2. Entities: WS `{"type":"config/entity_registry/list_for_display"}`, filter `ei` starting with `notify.`.
 3. Report the real, resolved targets — never guess a device name.
 
-**Decision rule:** plain message to a known target → notify entity (`notify.send_message`). Any mobile-app extra (buttons, tag, sticky, channel, url, image) → the legacy `notify.mobile_app_<device>` service, because the entity platform does not carry the `data` payload for those.
+**Decision rule:** plain message to a known target → notify entity (`notify.send_message`). Any mobile-app extra (buttons, tag, sticky, channel, url, image) → the legacy `notify.mobile_app_<device>` service, because the entity platform does not carry the `data` payload for those. This rule instantiates the canonical contract's capability discovery for today's platform reality — the discovery rule wins if the platforms diverge.
+
+Canonical contract: `../ha-nova/mobile-notification-composition.md` — read it before building any mobile-app payload; it owns composition precedence, surface selection, optional-field intent rules, actionable safeguards, notification commands, privacy, delivery honesty, and observed local conventions.
 
 ## Flow
 
@@ -63,7 +65,7 @@ Discovery:
      Read the target's platform from the device name or ask, and place the keys accordingly.
    - A `message: "clear_notification"` with a matching `tag` removes a previously sent notification instead of sending a new one.
 4. Preview the exact payload (target + title + message + any `data`) and get confirmation — a notification is an irreversible, user-visible side effect.
-5. Send, then report what was sent where. There is no delivery receipt: a successful service call means Home Assistant accepted it, not that the phone displayed it — say so honestly.
+5. Send, then report what was sent where: a successful service call means Home Assistant accepted it, not that the phone displayed it — say so honestly. There is no delivery receipt by default — one exists only through a pre-existing, verified received-event automation (canonical contract → Delivery honesty; never built ad hoc for a send); receipt never proves reading.
 
 ## Persistent Notifications (Home Assistant UI)
 
@@ -76,6 +78,8 @@ These live only in the HA UI; they never reach a phone.
 When composing a COMPLEX mobile-app payload (actionable buttons, images, critical alerts), offer a single test send to the chosen target first — the preview is the plan, the test proves rendering; acceptance-honesty applies (accepted, not delivered), and the real send follows only after the user judges the test.
 
 ### Household routing ("tell whoever is home")
+
+Recipient-group and household resolution follow the shared contract `skills/ha-nova/membership-resolution.md`; the unreadable-presence handling below stays authoritative.
 
 Presence-conditional sends resolve recipients before the preview AND again
 immediately before sending: presence is the one input that changes on its own
@@ -135,4 +139,4 @@ Render the Report shape (output-rules.md): the resolved target, the sent title/m
 
 - One target per send unless the user explicitly asks for a group, or the recipients come from presence routing ("tell whoever is home") — in both cases show the full resolved member list in the preview.
 - Never invent device names, `tag` values, or action IDs.
-- Do not claim delivery — only acceptance.
+- Do not claim delivery — only acceptance (a supported receipt confirmation may prove device receipt, never reading).

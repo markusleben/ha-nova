@@ -154,10 +154,13 @@ Then:
   escalates. Do not stop early at a self-imposed depth: an unresolved chain is
   not a clean result (see below). A node already visited on this path is a
   cycle — stop that branch there.
-- A legacy `group.*` target or a modern domain group with an
-  `attributes.entity_id` member array forwards the call to its members. Read
-  that array and classify the members recursively: a group can contain a
-  group, script, or access-granting scene.
+- A legacy `group.*` target or a modern domain group forwards the call to
+  its members. For a MODERN group helper the authoritative member source is
+  its config-entry options; the `attributes.entity_id` array is the fallback
+  read only when the options are unreadable, and readable-but-disagreeing
+  sources are unresolved — never classify from the stale side
+  (`skills/ha-nova/membership-resolution.md`). Read the membership and classify the members recursively: a group can contain a group, script, or access-granting
+  scene.
 - Resolve `area_id` and `device_id` targets to entities for classification
   only. Treat stored `floor_id` and `label_id` selectors as unresolved and
   escalate; never invent partial membership. This never rewrites a payload.
