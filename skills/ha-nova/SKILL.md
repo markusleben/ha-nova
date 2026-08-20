@@ -181,7 +181,7 @@ Rules:
 - A supporting step never replaces the objective it supports; when it completes, return to the still-open parent objective.
 - Classify each new request as replacing, extending, reprioritizing, or independently adding to current work; an ambiguous addition is never silently treated as a replacement — ask, or keep both.
 - The user can cancel, defer, reprioritize, or supersede any item; completed or cancelled work is not resurfaced.
-- Cross-skill handoffs carry the primary objective and pending follow-ups; conversation compaction preserves the active and deferred work summary.
+- Cross-skill handoffs carry the primary objective and pending follow-ups; conversation compaction preserves every non-completed item — active, deferred, AND blocked, each with its role, so a blocked primary objective survives the supporting step that outlives it.
 - Before declaring the workflow complete, check for explicitly requested open work; summarize remaining work briefly instead of hiding it.
 - Storing an item authorizes nothing: deferred work is never executed merely because it is stored, and every later mutation follows its owning skill's normal preview, confirmation, and verification flow.
 

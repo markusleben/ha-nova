@@ -59,8 +59,11 @@ publicly exposed attachments where supported.
 
 **Delivery honesty.** Send acceptance, device receipt, and user reading are
 three distinct claims: a successful service call or notify-entity timestamp
-proves acceptance by Home Assistant; a supported receipt confirmation may
-prove device receipt; nothing proves the user read it. Never upgrade one
+proves acceptance by Home Assistant. A device-receipt claim requires a
+PRE-EXISTING, verified received-event automation (the same durable listener
+contract as actionable sends) — this flow never builds a receipt channel for
+one send, and without that automation acceptance is the strongest claim.
+Nothing ever proves the user read it. Never upgrade one
 claim into the next.
 
 ## Observed local conventions (#576)

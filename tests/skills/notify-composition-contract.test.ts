@@ -103,7 +103,7 @@ describe("canonical mobile-notification composition (#575)", () => {
     expect(contract).toContain(
       "Send acceptance, device receipt, and user reading are three distinct claims",
     );
-    expect(contract).toContain("nothing proves the user read it");
+    expect(contract).toContain("Nothing ever proves the user read it");
     expect(contract).toContain("Never upgrade one claim into the next");
   });
 });
@@ -248,5 +248,12 @@ describe("consumer wiring", () => {
     expect(review).toContain(
       "objective schema, capability, safety, or privacy violations are findings; optional style differences are suggestions",
     );
+  });
+  it("binds device-receipt claims to the durable listener contract", () => {
+    const doc = flat(read("skills/ha-nova/mobile-notification-composition.md"));
+    expect(doc).toContain(
+      "A device-receipt claim requires a PRE-EXISTING, verified received-event automation",
+    );
+    expect(doc).toContain("this flow never builds a receipt channel for one send");
   });
 });

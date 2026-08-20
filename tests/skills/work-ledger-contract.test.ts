@@ -67,7 +67,7 @@ describe("work ledger contract (#572)", () => {
       "Cross-skill handoffs carry the primary objective and pending follow-ups",
     );
     expect(flat).toContain(
-      "conversation compaction preserves the active and deferred work summary",
+      "conversation compaction preserves every non-completed item — active, deferred, AND blocked",
     );
     // The existing read/review handoff prose must reference the ledger.
     expect(flat).toContain(
