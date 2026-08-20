@@ -79,9 +79,9 @@ const WORD_BUDGETS: Record<string, number> = {
   // cross-family opt-in (#564/#583 Codex round 2, measured 1365);
   // disabled_by-source routing (round 8, measured 1422).
   organize: 1450,
-  // #597's verification-planning pointer left the default cap 5 words of
-  // headroom (measured 1145).
-  camera: 1180,
+  // #597's verification-planning pointer and #564's restart/reboot pointer
+  // both eat the default cap's headroom (measured 1145/1146 alone).
+  camera: 1190,
   // write/mqtt ratcheted for the batch-safety opt-in lines (#327);
   // write again for the Phase 5 test offer (test-run.md).
   // pre-delete snapshot capture + config-snapshots reference (Wave 2).
@@ -376,10 +376,6 @@ const WORD_BUDGETS: Record<string, number> = {
   // Live-schema preflight pointer on the live-step iteration
   // (#594, 2026-08-20, measured 1593).
   "integration-setup": 1610,
-  // Restart/reboot pointer to entity-discovery's device-sibling capability
-  // discovery left the default cap 4 words of headroom
-  // (#564, 2026-08-19, measured 1146).
-  camera: 1170,
 };
 const DEFAULT_WORD_BUDGET = 1150;
 
