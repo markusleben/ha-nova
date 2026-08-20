@@ -137,7 +137,7 @@ func parseRelayFlags(command string, args []string) (relayRequestOptions, error)
 	fs.StringVar(&opts.Via, "via", "", "relay transport override: local or cloud")
 
 	if err := fs.Parse(args); err != nil {
-		if helpRequested(err, fs, "ha-nova relay "+command+" [flags]") {
+		if helpRequested(err, fs, "ha-nova relay "+command+" [flags]"+relayProxyHelpNotes(command)) {
 			return opts, errHelpShown
 		}
 		return opts, err
@@ -193,6 +193,35 @@ func parseRelayFlags(command string, args []string) (relayRequestOptions, error)
 		}
 	}
 	return opts, nil
+}
+
+// relayProxyHelpNotes appends the shared body/extraction contract to ws/core
+// --help. The wording mirrors skills/ha-nova/relay-api.md verbatim; the
+// agreement is pinned by TestRelayHelpContractMatchesSkillDoc so the CLI help
+// and the skill doc cannot drift apart.
+func relayProxyHelpNotes(command string) string {
+	const extraction = "Extraction: use --jq, --jq-file, or 'ha-nova relay jq'; never call external jq."
+	switch command {
+	case "ws":
+		return "\n\n" +
+			"Body: inline -d/--data JSON is acceptable only for tiny, unambiguously read-only diagnostics.\n" +
+			"Mutations, complex bodies, reusable payloads, and cross-platform examples use --data-file.\n" +
+			"Envelope: {\"ok\":true,\"data\":...} - the upstream payload is in .data directly\n" +
+			"(example: --jq '.data.version' on a ws get_config result).\n" +
+			extraction
+	case "core":
+		return "\n\n" +
+			"Body: inline -d/--body JSON is acceptable only for tiny, unambiguously read-only diagnostics.\n" +
+			"Mutations, complex bodies, reusable payloads, and cross-platform examples use --body-file.\n" +
+			"Envelope: {\"ok\":true,\"data\":{\"status\":200,\"body\":...}} - the upstream payload is in .data.body,\n" +
+			"the upstream HTTP status in .data.status\n" +
+			"(example: --jq '.data.body.state' on a core GET /api/states/<entity_id> result).\n" +
+			"Exit codes: upstream 5xx always exits nonzero; --strict-status exits nonzero for any upstream error status\n" +
+			"(.data.status >= 400). The response envelope is still printed either way.\n" +
+			extraction
+	default:
+		return ""
+	}
 }
 
 func loadRelayPayload(opts relayRequestOptions) ([]byte, error) {
