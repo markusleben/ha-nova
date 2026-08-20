@@ -130,4 +130,4 @@ stopped.
   with `can_search` gating since the #541 audit train; the "#519 tracks it"
   note above is closed by verification, no skill delta was needed.
 - Scope note: this was a targeted verification of one stale entry, not a full
-  upstream screen; the last full screen remains the 2026-08-13 entry above.
+  upstream screen; the last full screen remains the 2026-08-12 entry above.
