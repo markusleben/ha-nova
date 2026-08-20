@@ -233,7 +233,7 @@ Full relay/upstream error taxonomy (codes, HTTP-status split, retry rules): `ski
 
 Service-call specifics:
 - `404/NOT_FOUND` or upstream `.data.status` 404: entity or service does not exist — re-resolve before retrying
-- `502/UPSTREAM_*` transport errors: HA may already have accepted the action — verify entity state first (see `relay-api.md` → Timeout and Retry Guidance); retry once only when verification shows no state change, otherwise report the result. Disruptive and restart-class actions are excluded: never auto-retry them after any transport error (`skills/ha-nova/outcome-verification.md`)
+- `502/UPSTREAM_*` transport errors: HA may already have accepted the action — verify entity state first (see `relay-api.md` → Timeout and Retry Guidance); retry once ONLY for a direct state-changing call (class 2) whose target read-back proves non-application. Indirect and asynchronous actions (scene/script/automation runs, Template or consumer-bearing button presses, class 3/4) are never auto-retried — their delayed effects make an unchanged read no proof of non-application — and disruptive/restart-class actions never retry after any transport error (`skills/ha-nova/outcome-verification.md`)
 - State verification failure (state didn't change): report discrepancy, do not retry automatically
 
 ### Generic 500 with a reauth side effect

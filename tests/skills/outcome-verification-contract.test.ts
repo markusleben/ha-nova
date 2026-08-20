@@ -101,7 +101,10 @@ describe("semantic outcome verification (#567/#566)", () => {
     );
     // The canonical retry rule carries the exclusion at its source.
     expect(flat(read("skills/ha-nova/relay-api.md"))).toContain(
-      "never for disruptive or restart-class actions",
+      "never for indirect or asynchronous runs",
+    );
+    expect(flat(read("skills/service-call/SKILL.md"))).toContain(
+      "retry once ONLY for a direct state-changing call (class 2) whose target read-back proves non-application",
     );
   });
 
@@ -125,7 +128,7 @@ describe("semantic outcome verification (#567/#566)", () => {
     // A transport error on a restart-class action must not re-fire it via the
     // generic 502 retry-once rule.
     expect(sc).toContain(
-      "Disruptive and restart-class actions are excluded: never auto-retry them after any transport error",
+      "disruptive/restart-class actions never retry after any transport error",
     );
   });
 });

@@ -196,7 +196,7 @@ const WORD_BUDGETS: Record<string, number> = {
   // preview-step classification, and the disruptive no-retry carve-out
   // (#566/#567); combined trial-merge with the #600 reauth train measured
   // 9221.
-  "service-call": 9450,
+  "service-call": 9480,
   // Carries the canonical File-Change Preview example — the only layout
   // source for file edits; concrete examples are what make a card renderable.
   // Sibling-survival verification (Wave 1b) + yaml snapshot capture with
