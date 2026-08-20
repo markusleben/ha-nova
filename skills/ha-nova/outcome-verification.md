@@ -17,7 +17,11 @@ Classify BEFORE execution what the action's success can actually be proven by:
    entities (a script's acted-on members, a scene's member states).
 4. **Asynchronous completion signal** — the effect appears later on a
    defined signal (a refresh updating a sensor's `last_updated`, an update
-   entity leaving `in_progress`).
+   entity leaving `in_progress`). The signal must be attributable to THIS
+   request: a `last_updated` that also advances on the integration's own
+   polling cadence is ambiguous — compare against the known cadence or a
+   value change, and report `unverified` when the advance is
+   indistinguishable from routine polling.
 5. **No independently observable outcome** — nothing readable proves the
    effect (mobile notification delivery). Say so; never infer success.
 

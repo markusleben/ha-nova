@@ -86,6 +86,9 @@ describe("semantic outcome verification (#567/#566)", () => {
     // Async refresh/synchronize semantics.
     expect(doc).toContain("a refresh updating a sensor's `last_updated`");
     expect(doc).toContain("an update entity leaving `in_progress`");
+    // Routine polling can advance last_updated without the requested refresh.
+    expect(doc).toContain("The signal must be attributable to THIS request");
+    expect(doc).toContain("indistinguishable from routine polling");
     // Restart probes get their own horizon; a too-short window can only be
     // unverified, never failed.
     expect(doc).toContain("inside a RESTART-LENGTH window");
