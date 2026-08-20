@@ -263,4 +263,12 @@ describe("consumer wiring", () => {
       "on EVERY recurring-workflow write — existing notification actions and trigger-only edits included",
     );
   });
+  it("follows recurring callers across script hops", () => {
+    expect(flat(read("skills/ha-nova/mobile-notification-composition.md"))).toContain(
+      "a bounded `search/related` per caller hop, depth capped at 3",
+    );
+    expect(flat(read("skills/ha-nova/mobile-notification-composition.md"))).toContain(
+      "an over-depth caller chain reports the coverage limit",
+    );
+  });
 });
