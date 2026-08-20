@@ -68,8 +68,12 @@ describe("semantic outcome verification (#567/#566)", () => {
     expect(sc).toContain(
       "Stateless targets: `scene.apply` and direct `script.*` runs do not reflect the call in the target's own state",
     );
-    expect(sc).toContain("a script's `last_triggered` is acceptance evidence only");
+    expect(sc).toContain("a script's or automation's `last_triggered` is acceptance evidence only");
     expect(sc).toContain("`verified` requires the previewed effect probes on the acted-on entities");
+    // automation.trigger's runtime rule carries the same downgrade.
+    expect(sc).toContain(
+      "an advanced `last_triggered` on the automation or script is acceptance evidence only",
+    );
     // Async refresh/synchronize semantics.
     expect(doc).toContain("a refresh updating a sensor's `last_updated`");
     expect(doc).toContain("an update entity leaving `in_progress`");
