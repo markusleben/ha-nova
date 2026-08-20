@@ -64,7 +64,7 @@ Rules:
 - Use client-private scratch storage outside the project workspace for relay payload/result files; never allocate scratch directories or files from visible shell commands.
 - Scratch files are internal. Do not create them under the repo working tree, and do not mention scratch paths, payload files, filter files, or "edited files" in user-facing output unless the user asks for debugging details.
 - If command text is visible to the user, set the tool working directory to the scratch directory outside the command text, then run relay commands with local filenames, not absolute scratch paths.
-- Use inline `-d` / `--body` only for tiny diagnostics when shell quoting is already known-good.
+- Use inline JSON (`-d`/`--data` for ws, `-d`/`--body` for core) only for tiny, unambiguously read-only diagnostics when shell quoting is already known-good.
 
 ## Safety Baseline
 
