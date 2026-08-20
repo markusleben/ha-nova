@@ -198,4 +198,9 @@ describe("C1-02 bounded-capture generalization (#520)", () => {
       "the `tag/list` registry record (`tag_id`, `ha-nova:admin`) for NFC/QR tags",
     );
   });
+  it("counts registry-disabled automations in the stale audit", () => {
+    expect(flat(read("skills/ha-nova/bulk-patterns.md"))).toContain(
+      "an exact total is states rows plus disabled rows, never the states count alone",
+    );
+  });
 });
