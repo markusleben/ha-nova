@@ -96,7 +96,7 @@ describe("live-schema preflight contract (#594)", () => {
       "Unknown outcomes (timeout, transport error, ambiguous terminal response)",
     );
     expect(preflight).toContain(
-      "an options/update/reauth flow creates NO entry, so compare the ENTRY itself",
+      "for REAUTH, flow-gone with the same `entry_id` alive proves nothing after an uncertain submit",
     );
     expect(preflight).toContain("a blind retry can double-create");
   });
@@ -180,6 +180,11 @@ describe("live-schema preflight contract (#594)", () => {
   it("re-confirms later live forms during helper updates too", () => {
     expect(flat("skills/helper/SKILL.md")).toContain(
       "a later form re-previews from its live `data_schema` and re-confirms before its submit (same rule as creates",
+    );
+  });
+  it("reports uncertain reauth submits as completed-but-unverified", () => {
+    expect(flat("skills/ha-nova/live-schema-preflight.md")).toContain(
+      "completed-but-UNVERIFIED, exactly like the owning skill's UI-finish rule",
     );
   });
 });
