@@ -199,4 +199,9 @@ describe("recovery workflows (#568/#569)", () => {
       "one-shot never exempts the probe",
     );
   });
+  it("flags retries lacking an inter-attempt delay", () => {
+    expect(flat(read("skills/review/checks.md"))).toContain(
+      "no explicit delay or backoff between attempts",
+    );
+  });
 });
