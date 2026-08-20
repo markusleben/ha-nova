@@ -12,6 +12,7 @@ compatibility: Requires the ha-nova CLI (run 'ha-nova setup' first) and the HA N
 
 Read-only quality review for automations, scripts, helpers, storage scenes, and storage dashboards:
 - Config quality checks (safety, reliability, performance, style)
+- Notification checks follow `skills/ha-nova/mobile-notification-composition.md`: objective schema, capability, safety, or privacy violations are findings; optional style differences are suggestions; recurring-workflow intent advice is low-severity usability advice, never a correctness finding
 - Collision scan (other automations targeting same entities)
 - Conflict analysis (real conflicts vs safe patterns)
 - Explorative questions for complex automation/script behavior

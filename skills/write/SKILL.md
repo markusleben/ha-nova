@@ -73,9 +73,10 @@ future needs, native primitives when equally safe and clearer.
 1. Build config. For update: full-replacement merge (base=current, overlay=user changes).
    - Do not rewrite unrelated structure, aliases, or formatting for a narrow change.
    - Treat notification copy as user-authored content: preserve notification titles, messages, templates, metadata. Rename/timing changes must not restyle, relocalize, or restructure existing text; requested wording changes change only the requested copy.
+   - New or explicitly edited notification actions follow the canonical contract `skills/ha-nova/mobile-notification-composition.md` (composition and observed conventions). Its recurring-workflow INTENT classification is not so limited: it runs before the write preview on EVERY recurring-workflow write — existing notification actions and trigger-only edits included, their payloads staying byte-for-byte untouched — and may add an exception-only Suggestion Block item.
 2. BP gate (`skills/ha-nova/write-safety.md`): fresh/stale+simple->continue, stale+complex->block.
 3. Suggestions + Pre-Write Checks (skip for `delete`):
-   - **3a) Suggestions**: Render `suggested_enhancements` as the Suggestion Block (output-rules.md; max 2, smallest intervention first, numbered/menu — `skills/ha-nova/smallest-solution.md`). User accepts numbers or "skip" → merge accepted into config BEFORE preview. Skip when `SUGGESTED_ENHANCEMENTS: none`.
+   - **3a) Suggestions**: Render `suggested_enhancements` as the Suggestion Block (output-rules.md; max 2, smallest intervention first, numbered/menu — `skills/ha-nova/smallest-solution.md`). User accepts numbers or "skip" → merge accepted into config BEFORE preview. Skip when `SUGGESTED_ENHANCEMENTS: none` AND step 1 produced no intent-classification item — either source alone renders the block.
    - **3b) Static Checks**: Use `skills/review/checks.md` → Application (family matrix + evidence boundaries). Run S/R/P/M checks analytically on the draft YAML — no relay calls (scripts: F-01..F-08; helper refs: H-01..H-08. Defer H-09/H-10 to Phase 4).
      One pre-write verdict line before apply:
      - clean draft → localized equivalent of "Pre-write check: no issues worth flagging before save."
