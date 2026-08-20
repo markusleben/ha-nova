@@ -99,6 +99,10 @@ describe("semantic outcome verification (#567/#566)", () => {
     expect(sc).toContain(
       "re-read every probe AFTER confirmation and immediately before the POST",
     );
+    // update_entity's completion signal lives on the target itself — still class 4.
+    expect(sc).toContain(
+      "OR is asynchronous on the target itself (a refresh via `homeassistant.update_entity`",
+    );
     // The canonical retry rule carries the exclusion at its source.
     expect(flat(read("skills/ha-nova/relay-api.md"))).toContain(
       "never for indirect or asynchronous runs",
