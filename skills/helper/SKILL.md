@@ -356,7 +356,7 @@ If multiple matches remain, present max 5 candidates and ask one blocking questi
    ```text
    ha-nova relay core --method POST --path /api/config/config_entries/options/flow/{flow_id} --body-file <submit-payload-file>
    ```
-10. If HA returns another form step, repeat the same merge-and-submit rule until terminal `create_entry` or explicit failure.
+10. If HA returns another form step, the confirmed preview covered only the forms it displayed live: a later form re-previews from its live `data_schema` and re-confirms before its submit (same rule as creates, `skills/ha-nova/live-schema-preflight.md`); then repeat the merge-and-submit rule until terminal `create_entry` or explicit failure.
 11. Verify success:
    - re-read `config_entries/get`
    - `passed=true` only when the same `entry_id` still exists

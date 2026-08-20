@@ -96,7 +96,7 @@ describe("live-schema preflight contract (#594)", () => {
       "Unknown outcomes (timeout, transport error, ambiguous terminal response)",
     );
     expect(preflight).toContain(
-      "Then reconcile entries via `config_entries/get` BEFORE any retry",
+      "only when no new entry appeared treat the 404 as expiry",
     );
     expect(preflight).toContain("a blind retry can double-create");
   });
@@ -166,7 +166,7 @@ describe("live-schema preflight contract (#594)", () => {
     const doc = flat("skills/ha-nova/live-schema-preflight.md");
     expect(doc).toContain("`GET .../flow/<flow_id>` shows the current `step_id`");
     expect(doc).toContain("the progress LIST omits agent-started flows; the by-id GET does not");
-    expect(doc).toContain("A 404 there means the flow expired: abandon it and restart with a fresh preview");
+    expect(doc).toContain("a completed flow disappears exactly like an expired one — reconcile entries via `config_entries/get` FIRST");
   });
 
   it("keeps bucketed statistics out of sample-coverage claims", () => {
@@ -175,6 +175,11 @@ describe("live-schema preflight contract (#594)", () => {
     );
     expect(flat("skills/history/SKILL.md")).toContain(
       "sample density claims come only from raw state history, never from LTS buckets",
+    );
+  });
+  it("re-confirms later live forms during helper updates too", () => {
+    expect(flat("skills/helper/SKILL.md")).toContain(
+      "a later form re-previews from its live `data_schema` and re-confirms before its submit (same rule as creates",
     );
   });
 });

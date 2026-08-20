@@ -51,10 +51,11 @@ orchestration below is skill-side behavior over the existing
 - Unknown outcomes (timeout, transport error, ambiguous terminal response):
   reconcile the FLOW first — `GET .../flow/<flow_id>` shows the current
   `step_id`, so it proves whether the uncertain submit landed (the progress
-  LIST omits agent-started flows; the by-id GET does not). A 404 there means
-  the flow expired: abandon it and restart with a fresh preview. Then
-  reconcile entries via `config_entries/get` BEFORE any retry — a blind retry
-  can double-create.
+  LIST omits agent-started flows; the by-id GET does not). A 404 there is
+  ambiguous after a TERMINAL submit: a completed flow disappears exactly like
+  an expired one — reconcile entries via `config_entries/get` FIRST, and only
+  when no new entry appeared treat the 404 as expiry and restart with a fresh
+  preview. Never retry blind — a blind retry can double-create.
 
 ## Response envelope and terminal-result normalization
 
