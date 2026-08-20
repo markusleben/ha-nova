@@ -188,4 +188,9 @@ describe("C1-02 bounded-capture generalization (#520)", () => {
       '| "what event does my button/remote/tag fire?" — capture it in a bounded window | `ha-nova:fallback` (Bounded Event Capture); MQTT devices: `ha-nova:mqtt` |',
     );
   });
+  it("keeps the stale flag across unavailable transitions", () => {
+    expect(flat(read("skills/ha-nova/automation-patterns.md"))).toContain(
+      'not_to: ["unavailable", "unknown"]',
+    );
+  });
 });

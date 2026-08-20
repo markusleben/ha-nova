@@ -423,7 +423,7 @@ const WORD_BUDGETS: Record<string, number> = {
   // preflight contract (#520 C1-04, 2026-08-20, measured 1842).
   // Review batch: options verification-flow cleanup + hedged reconfigure
   // guard (2026-08-20, measured 1875).
-  "integration-setup": 1885,
+  "integration-setup": 1910, // reconfigure source field (Codex round 1, measured 1892)
   // Pipeline create with the clone-preferred default (#531 P4-06) and the
   // custom-sentences owning workflow (#519 C1-08), 2026-08-20, measured 1451.
   assist: 1470,

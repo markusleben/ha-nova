@@ -198,7 +198,7 @@ describe("integration options/reconfigure/reload scope (#520 C1-04)", () => {
   });
 
   it("guards reconfigure against silently starting an add flow", () => {
-    expect(setup).toContain('POST `{"handler":"<domain>","entry_id":"<entry_id>"}`');
+    expect(setup).toContain('POST `{"handler":"<domain>","entry_id":"<entry_id>","source":"reconfigure"}`');
     // Hedged wording: unsupported reconfigure is detected live, not asserted.
     expect(setup).toContain("treat any non-reconfigure form (a plain add form included) as unsupported: DELETE the flow and stop");
     expect(setup).toContain("the same `entry_id` persists and the before/after `config_entries/get` diff shows NO new entry");
@@ -221,5 +221,10 @@ describe("integration options/reconfigure/reload scope (#520 C1-04)", () => {
     expect(flat(read("skills/ha-nova/SKILL.md"))).toContain(
       "or change an integration's options, reconfigure it, or reload its entry | `ha-nova:integration-setup` |",
     );
+  });
+  it("passes the reconfigure source at flow start", () => {
+    const isk = flat(read("skills/integration-setup/SKILL.md"));
+    expect(isk).toContain('"source":"reconfigure"');
+    expect(isk).toContain("without it Home Assistant starts a normal ADD flow");
   });
 });

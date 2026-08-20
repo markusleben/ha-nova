@@ -272,10 +272,12 @@ actions:
   - action: notify.mobile_app
     data: { message: "Greenhouse sensor silent for over an hour" }
 
-# Recovery — a fresh reading clears the flag, re-arming the watchdog
+# Recovery — only a VALID fresh reading clears the flag, re-arming the
+# watchdog; unavailable/unknown transitions are not readings
 triggers:
   - trigger: state
     entity_id: sensor.greenhouse_temp
+    not_to: ["unavailable", "unknown"]
 actions:
   - action: input_boolean.turn_off
     target: { entity_id: input_boolean.greenhouse_temp_stale }
