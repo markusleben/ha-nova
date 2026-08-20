@@ -78,6 +78,8 @@ const WORD_BUDGETS: Record<string, number> = {
   // Re-enable operation for the sibling-capability handoff plus the
   // cross-family opt-in (#564/#583 Codex round 2, measured 1365);
   // disabled_by-source routing (round 8, measured 1422).
+  // Bulk Target Resolution seam to bulk-patterns selector semantics
+  // (#529 P2-09, measured 1354 pre-train).
   organize: 1450,
   // #597's verification-planning pointer and #564's restart/reboot pointer
   // both eat the default cap's headroom (measured 1145/1146 alone).
@@ -127,7 +129,9 @@ const WORD_BUDGETS: Record<string, number> = {
   health: 2100,
   // post-publish device verification step (2026-h2 Wave 1a).
   // User-assisted capture readiness sequence (#394).
-  mqtt: 1500,
+  // Z2M bridge-topic observability section + maintenance registry-side
+  // sibling pointer (#529/#520 power lanes, measured 1596).
+  mqtt: 1620,
   // pre-delete snapshot capture (Wave 2); apply-test offer with the
   // high-consequence carve-out (Wave 3).
   // Fail-closed consumer check with canonical-filter recreate pointer (#489).
@@ -228,7 +232,9 @@ const WORD_BUDGETS: Record<string, number> = {
   // case, whose basis is absence rather than content. Round 2 replaced the
   // list_dir absence probe with an exact-path one: list_dir caps at 500
   // entries and can report an existing file as absent (measured 1588).
-  "yaml-config": 1610,
+  // recorder: scope line (include/exclude, purge_keep_days, restart-applied)
+  // (#529 P2-06, measured 1614).
+  "yaml-config": 1650,
   // Confirmation-code terminology replacing "token" wording (#392).
   // #452 canonical smallest-solution draft rule (17 words).
   // Grouped item operations: four shopping-list adds should not cost four
@@ -269,7 +275,9 @@ const WORD_BUDGETS: Record<string, number> = {
   // a cleanup qualifier rather than a status answer (#518, measured 1408).
   // Codex round 6: the long-unavailable boundary has to be advertised on the
   // receiving side too, or routing never reaches it (measured 1427).
-  maintenance: 1470,
+  // MQTT ghost routing to mqtt's retained-discovery cleanup + recorder
+  // growth-triage scope line (#529 P2-08/P2-06, measured 1489).
+  maintenance: 1520,
   // blueprint payload examples; integration onboarding and runtime
   // events/webhooks moved to owning skills in Wave 4.
   // Custom-integration configuration APIs section + write-probing
@@ -318,7 +326,10 @@ const WORD_BUDGETS: Record<string, number> = {
   // Pack unlocks (#519/#520/#531, 2026-08-20): helper-family promotion,
   // custom-sentences ownership handoff, lifecycle rows split for
   // options/reconfigure/reload moving to integration-setup (measured 5032).
-  fallback: 5050,
+  // Zigbee/Z-Wave read-only network-status section (verify-live, no pinned
+  // schema) + bounded-capture button/remote/tag generalization + capability
+  // map row (#520 C1-06/C1-02, measured 5271).
+  fallback: 5310,
   // semantic-slot note on the read templates (Wave 0); pre-write cross-field
   // constraint checks + drift-check step (Wave 1); pre-delete snapshot
   // capture (Wave 2).
