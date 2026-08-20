@@ -204,6 +204,31 @@ Wording rules for the result and the collapsed no-findings line:
   declines, the uncertainty stays in the final wording — do not let the
   closing sentence sound more conclusive than the checks were.
 
+## Time-Window Evidence (window-derived claims)
+
+A configured window is a MAXIMUM, not proof of coverage (#596). Any claim
+derived from a bounded time window — statistics helpers (`max_age`),
+`history_stats`, history/statistics queries, calibration evidence —
+distinguishes:
+
+- the configured maximum window vs the actual oldest-to-newest sample span,
+- sample count and density when available,
+- source validity and `unknown`/`unavailable` states in the source series,
+- explicit coverage attributes when the platform exposes them (the statistics
+  platform exposes `age_coverage_ratio` and `source_value_valid`),
+- a retained last sample (`keep_last_sample`) vs evidence spanning the window
+  — one persisted value proves persistence of that value, never stability
+  across the full window.
+
+Read coverage and source-validity attributes when present BEFORE describing a
+result as covering "the last N hours"; when coverage is partial, qualify the
+claim — "based on samples covering X% of the window" (semantic slot, localized
+at runtime per output-rules.md). When the source history is sparse,
+discontinuous, or Recorder data is unavailable, the observed evidence span —
+not the configured window — bounds the claim. After a helper write, partial
+coverage is an advisory in the result, never a verification failure: the
+helper is created and valid.
+
 ## Multi-Target Changes (one logical change, several items)
 
 When one logical change spans multiple automations/scripts/helpers, per-target
