@@ -258,4 +258,9 @@ describe("consumer wiring", () => {
     expect(doc).toContain("send-correlated, readable evidence");
     expect(doc).toContain("an uncorrelated or unreadable listener proves nothing about this send");
   });
+  it("classifies intent on every recurring write, not only edited payloads", () => {
+    expect(flat(read("skills/write/SKILL.md"))).toContain(
+      "on EVERY recurring-workflow write — existing notification actions and trigger-only edits included",
+    );
+  });
 });
