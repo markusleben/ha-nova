@@ -129,7 +129,7 @@ A changed base re-previews — and if that read failed or the attribute is absen
    - Transitions: covers report `opening`/`closing`, lights fade over `transition`, climate ramps — when the read-back shows a transitional or unchanged value on such a device, wait a few seconds (up to the transition length) and re-read once before calling it a discrepancy.
    - Timestamp targets: `scene.turn_on`, `button.press`, and `input_button.press` record the action as the target's state timestamp — verify that it advanced; scene member entities only as secondary evidence.
    - Stateless targets: `scene.apply` and direct `script.*` runs do not reflect the call in the target's own state. Verify the promise instead — a script via `last_triggered` or acted-on member entities, `scene.apply` via the applied member states — and say what was (not) verifiable rather than reporting a false discrepancy.
-   - Area/device targets: verify the member list expanded and previewed in step 3, not a single entity.
+   - Area/device and frozen entity-group targets: verify EVERY member of the expanded, previewed leaf list, not a single entity — one leaf failing or ignoring the service makes the run `unverified`/`failed` per member, honestly split.
    - Report: service called, verified state (or the honest verification limit), any errors.
    - After a VERIFIED grouped batch that set several entities at once, offer once to keep it: as a scene (`ha-nova:scene`, create-from-current-state) or a script (`ha-nova:write`). A movie-night set of five calls the user repeats weekly should become one activation. After a single decline, stay silent about it for the session.
 

@@ -171,13 +171,10 @@ Worked example: turn 1 sets "never touch the bedroom lights" (hard requirement);
 
 ## Work Ledger (multi-step tasks)
 
-Alongside Decision Memory, track the work itself — conversation-scoped, internal, lightweight workflow state, never a persistent task system: create no helpers, to-do items, or stores for it, and expose no internal item identifiers. Each item holds one of five states:
+Alongside Decision Memory, track the work itself — conversation-scoped, internal, lightweight workflow state, never a persistent task system: create no helpers, to-do items, or stores for it, and expose no internal item identifiers. Each item carries a ROLE and, separately, a lifecycle STATE — a blocked primary objective stays the primary objective:
 
-- **primary objective** — what the user asked to finish;
-- **active supporting step** — the diagnostic, integration setup, prerequisite, or recovery action currently underway;
-- **deferred** — user-requested work explicitly postponed;
-- **blocked** — waiting on something named;
-- **completed / cancelled / superseded**.
+- Roles: **primary objective** (what the user asked to finish); **supporting step** (the diagnostic, integration setup, prerequisite, or recovery action serving it); **user-added work** (explicitly requested additions).
+- States: **active**, **deferred** (explicitly postponed), **blocked** (waiting on something named), **completed / cancelled / superseded**.
 
 Rules:
 - Explicit scope-adding phrases ("afterward", "later", "also do this", "once that works") create deferred items when they clearly add scope. Agent suggestions become items only when the user accepts them.

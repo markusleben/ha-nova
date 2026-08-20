@@ -20,9 +20,12 @@ describe("work ledger contract (#572)", () => {
   });
 
   it("tracks the primary objective separately from supporting steps", () => {
-    expect(flat).toContain("**primary objective** — what the user asked to finish");
-    expect(flat).toContain("**active supporting step**");
-    expect(flat).toContain("**deferred** — user-requested work explicitly postponed");
+    expect(flat).toContain("**primary objective** (what the user asked to finish)");
+    // Roles and lifecycle states are separate axes — a blocked primary
+    // objective stays the primary objective.
+    expect(flat).toContain("a blocked primary objective stays the primary objective");
+    expect(flat).toContain("**supporting step**");
+    expect(flat).toContain("**deferred** (explicitly postponed)");
     expect(flat).toContain("**blocked**");
     expect(flat).toContain("**completed / cancelled / superseded**");
   });
