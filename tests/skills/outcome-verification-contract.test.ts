@@ -27,6 +27,8 @@ describe("semantic outcome verification (#567/#566)", () => {
     // The safety union never turns an untaken branch into a failed probe.
     expect(doc).toContain("verification binds to the branch that actually ran");
     expect(doc).toContain('"not applicable (branch not taken)", never `failed`');
+    // Without trace or branch-unique effects, the branch is unknowable.
+    expect(doc).toContain("the branch is unknowable: report the per-branch readings honestly with overall `unverified`");
     // Bounded recovery retries are governed by their own contract, not the
     // verification no-repeat rule.
     expect(doc).toContain("This binds the VERIFICATION step only");

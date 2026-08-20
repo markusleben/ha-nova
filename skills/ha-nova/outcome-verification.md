@@ -54,7 +54,10 @@ Report one of exactly four outcomes, never a blend:
   branches are unioned for SAFETY classification only: verification binds to
   the branch that actually ran (trace or executed actions decide) — probes of
   untaken branches report "not applicable (branch not taken)", never
-  `failed`.
+  `failed`. When NO source can identify the executed branch (no trace — a
+  YAML item without an `id` — and effects that fit several branches), the
+  branch is unknowable: report the per-branch readings honestly with overall
+  `unverified`, never guess a branch and never mark any branch `failed`.
 - `unverified` — evidence was expected but missing or unreadable at window
   end, or the transport outcome itself is ambiguous (a timeout before any
   acknowledgement: even registration is unknown — say that plainly, never
