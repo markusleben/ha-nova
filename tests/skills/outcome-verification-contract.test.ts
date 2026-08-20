@@ -107,6 +107,9 @@ describe("semantic outcome verification (#567/#566)", () => {
     expect(flat(read("skills/ha-nova/relay-api.md"))).toContain(
       "never for indirect or asynchronous runs",
     );
+    expect(flat(read("skills/ha-nova/relay-api.md"))).toContain(
+      "this clause narrows service-call retries only",
+    );
     expect(flat(read("skills/service-call/SKILL.md"))).toContain(
       "AND whose consumer scan found nothing — a discovered consumer can already have fired on the first accepted call",
     );

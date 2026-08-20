@@ -585,7 +585,7 @@ The relay server has its own internal upstream timeout of 10 seconds per WS/HTTP
 
 On `502 / UPSTREAM_*_TIMEOUT` or CLI-level timeout:
 - verify state/config first before retrying
-- retry exactly once only when verification shows no state change AND the call is a direct, consumer-free state-changing action whose read-back proves non-application — never for indirect or asynchronous runs (their effects are delayed), never for consumer-bearing calls (a listener can have fired on the first accepted call), and never for disruptive or restart-class actions (`skills/ha-nova/outcome-verification.md`)
+- for a SERVICE call: retry exactly once only when verification shows no state change AND the call is a direct, consumer-free state-changing action whose read-back proves non-application — never for indirect or asynchronous runs (their effects are delayed), never for consumer-bearing calls (a listener can have fired on the first accepted call), and never for disruptive or restart-class actions (`skills/ha-nova/outcome-verification.md`). Config writes verified by read-back and reload retries keep their own adjacent rules — this clause narrows service-call retries only
 - if config read-back succeeded but reload timed out, treat it as partial verification and confirm registry/state before retrying
 
 ## Safe Bulk Patterns
