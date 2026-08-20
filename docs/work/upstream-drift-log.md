@@ -122,3 +122,12 @@ stopped.
   github.com/home-assistant/core/pull/178377;
   developers.home-assistant.io/blog/; github.com/hacs/integration/releases.
 - Next window starts AFTER HA 2026.8.1 + HACS 2.0.5.
+
+## 2026-08-20 — verification pass (issue triage session)
+
+- RESOLVED — the 2026-07-03 `media_source/search_media` HIT: `skills/media/SKILL.md`
+  has carried both `media_player/search_media` and `media_source/search_media`
+  with `can_search` gating since the #541 audit train; the "#519 tracks it"
+  note above is closed by verification, no skill delta was needed.
+- Scope note: this was a targeted verification of one stale entry, not a full
+  upstream screen; the last full screen remains the 2026-08-13 entry above.
