@@ -14,7 +14,6 @@ Read (always allowed):
 - recorder health (`recorder/info`: `backlog`, `recording`, `migration_in_progress`)
 - long-unavailable entity report with confidence-labeled timestamps
 - orphaned registry-entry candidates (report first, remove only via the gated flow)
-- recorder growth triage: which domains/entities dominate recorder growth (report only; the `recorder:` filter fix is `ha-nova:yaml-config`)
 
 Gated writes:
 - clear orphaned statistics, relabel statistic units, repair sum spikes

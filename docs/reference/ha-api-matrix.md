@@ -97,16 +97,18 @@ Which HA operations require REST, WS, or filesystem?
 | `/core` | `POST /api/config/config_entries/flow/{flow_id}` | Submit flow step |
 | `/core` | `DELETE /api/config/config_entries/flow/{flow_id}` | Cancel an unfinished flow |
 | `/core` | `POST /api/config/config_entries/options/flow` | Start options flow for an existing entry |
+| `/core` | `GET /api/config/config_entries/options/flow/{flow_id}` | Read current options-flow step |
 | `/core` | `POST /api/config/config_entries/options/flow/{flow_id}` | Submit options-flow step |
+| `/core` | `DELETE /api/config/config_entries/options/flow/{flow_id}` | Cancel an unfinished options flow |
 | `/core` | `DELETE /api/config/config_entries/entry/{entry_id}` | Delete config entry |
 
 Observed locally on a real HA instance on 2026-03-19: raw WS `config_entries/flow` did not succeed in this session; relay `/core` returned the expected config-flow responses.
 
-**Integration flow ownership:** `ha-nova:integration-setup` owns integration add, pending `reauth` continuation, and invalid-credential recovery when no reauth flow is pending (including that lane's entry reload); it uses the live response schema and hands secrets/external steps to the HA UI.
+**Integration flow ownership:** `ha-nova:integration-setup` owns integration add, pending `reauth` continuation, invalid-credential recovery when no reauth flow is pending, options and reconfigure flows for existing entries, and config-entry reload; it uses the live response schema and hands secrets/external steps to the HA UI.
 
-**Helper-owned config-entry domains:** utility_meter, derivative, integration, min_max, threshold, tod, statistics, group, history_stats, template
+**Helper-owned config-entry domains:** utility_meter, derivative, integration, min_max, threshold, tod, statistics, group, history_stats, template, generic_thermostat, switch_as_x
 `group` is menu-driven; the live-proven end-to-end subtype is `sensor`, and other subtypes must stay anchored to the live step schema instead of guessed fields.
-**Fallback-owned flow helpers:** trend, random, filter, generic_thermostat, switch_as_x, generic_hygrostat
+**Fallback-owned flow helpers:** trend, random, filter, generic_hygrostat
 
 ### Dashboard / Lovelace
 | WS Type | Purpose |

@@ -101,15 +101,15 @@ describe("P2-06 recorder routing (#529)", () => {
     expect(yaml).toContain("recorder is not reloadable, a restart applies it");
   });
 
-  it("routes the edit and the growth triage in the dispatch table", () => {
+  it("routes the recorder edit in the dispatch table", () => {
     expect(context).toContain(
       "| edit `recorder:` include/exclude filters or `purge_keep_days` (YAML) | `ha-nova:yaml-config` |",
     );
-    expect(context).toContain(
-      "| which domains or entities dominate recorder growth (read-only triage; startup-time tuning is deferred — no owner yet) | `ha-nova:maintenance` |",
-    );
-    expect(flat(read("skills/maintenance/SKILL.md"))).toContain(
-      "recorder growth triage: which domains/entities dominate recorder growth (report only; the `recorder:` filter fix is `ha-nova:yaml-config`)",
+    // Growth triage was removed on purpose (review batch): HA exposes no
+    // per-entity DB-size API, so the advertised capability could not be served.
+    expect(context).not.toContain("dominate recorder growth");
+    expect(flat(read("skills/maintenance/SKILL.md"))).not.toContain(
+      "recorder growth triage",
     );
   });
 });
@@ -137,6 +137,15 @@ describe("P2-10 advanced-pattern trio (#529)", () => {
     expect(patterns).toContain("evaluated by Home Assistant at each run");
     expect(patterns).toContain("never pre-render a random value into the stored config");
     expect(patterns).toContain("{{ range(0, 25) | random }}");
+    // Review batch: after: sunset alone is false from midnight to sunrise.
+    expect(patterns).toContain("pair it with `before: sunrise`");
+  });
+
+  it("ships the two issue-named patterns in the correct shape", () => {
+    expect(patterns).toContain("### Stale-Sensor Watchdog");
+    expect(patterns).toContain("NOT via a `now()` template trigger");
+    expect(patterns).toContain("### Native Adaptive Lighting");
+    expect(patterns).toContain("ONLY while no manual override window is active");
   });
 });
 

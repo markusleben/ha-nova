@@ -172,6 +172,15 @@ describe("assist custom sentences ownership (#519 C1-08)", () => {
       "| Assist custom sentences / intent scripts | Covered | assist",
     );
   });
+
+  it("advertises custom sentences on the discovery surfaces", () => {
+    // Review batch: description and dispatch table are the routing surfaces —
+    // a lane only reachable after selection is a lane discovery never routes to.
+    expect(assist).toContain("and teaching Assist custom sentences");
+    expect(flat(read("skills/ha-nova/SKILL.md"))).toContain(
+      "| teach Assist a new phrase / custom sentence | `ha-nova:assist` |",
+    );
+  });
 });
 
 describe("integration options/reconfigure/reload scope (#520 C1-04)", () => {
@@ -184,11 +193,14 @@ describe("integration options/reconfigure/reload scope (#520 C1-04)", () => {
     expect(setup).toContain("preserve unrelated existing options");
     expect(setup).toContain("never submit a field the live step does not expose");
     expect(setup).toContain("Verify by reopening the options flow and reading the changed fields back");
+    // Review batch: the verification flow is agent-started and transient.
+    expect(setup).toContain("Then DELETE the reopened verification flow");
   });
 
   it("guards reconfigure against silently starting an add flow", () => {
     expect(setup).toContain('POST `{"handler":"<domain>","entry_id":"<entry_id>"}`');
-    expect(setup).toContain("a plain add form means the integration exposes no reconfigure flow — DELETE the flow and stop");
+    // Hedged wording: unsupported reconfigure is detected live, not asserted.
+    expect(setup).toContain("treat any non-reconfigure form (a plain add form included) as unsupported: DELETE the flow and stop");
     expect(setup).toContain("the same `entry_id` persists and the before/after `config_entries/get` diff shows NO new entry");
   });
 
@@ -203,5 +215,11 @@ describe("integration options/reconfigure/reload scope (#520 C1-04)", () => {
     expect(fallback).toContain("Integration entry options / reconfigure (standard config-entry flows) | Covered | integration-setup");
     expect(fallback).toContain("Integration entry enable/disable | External");
     expect(fallback).not.toContain("enable/disable, options, reconfigure");
+  });
+
+  it("routes the new lanes from the dispatch table", () => {
+    expect(flat(read("skills/ha-nova/SKILL.md"))).toContain(
+      "or change an integration's options, reconfigure it, or reload its entry | `ha-nova:integration-setup` |",
+    );
   });
 });

@@ -263,7 +263,9 @@ const WORD_BUDGETS: Record<string, number> = {
   // Strategy-config save on a created shell, incl. the destructive
   // populated-to-strategy branch (#519 C1-03 increment 1, 2026-08-20,
   // measured 1610).
-  dashboard: 1630,
+  // Live Render Loop pointer for templated card fields (review batch,
+  // 2026-08-20, measured 1630).
+  dashboard: 1640,
   // Cards adoption pointer (#389); pre-write update-state drift gate.
   // #452 canonical smallest-solution draft rule (17 words).
   // HA 2026.7 "Update all" semantics: guardrails mirrored, call shape
@@ -408,7 +410,9 @@ const WORD_BUDGETS: Record<string, number> = {
   // (#594, 2026-08-20, measured 1593).
   // Options/reconfigure/reload scope extension under the live-schema
   // preflight contract (#520 C1-04, 2026-08-20, measured 1842).
-  "integration-setup": 1865,
+  // Review batch: options verification-flow cleanup + hedged reconfigure
+  // guard (2026-08-20, measured 1875).
+  "integration-setup": 1885,
   // Pipeline create with the clone-preferred default (#531 P4-06) and the
   // custom-sentences owning workflow (#519 C1-08), 2026-08-20, measured 1451.
   assist: 1470,

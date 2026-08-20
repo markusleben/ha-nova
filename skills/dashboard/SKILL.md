@@ -109,6 +109,7 @@ Drafts follow `skills/ha-nova/smallest-solution.md`: the complete requested outc
      - jq filters must null-guard absent structure keys: empty dashboards have no `views` — iterate `(.views // [])[]`, never bare `.views[]`; same for `.cards` and `.badges`
      - resolve the exact target by view, title/heading text, entity reference, card type, or explicit position
      - merge the requested change in memory
+     - templated card fields (titles, segment or visibility expressions) iterate through the Live Render Loop in `skills/ha-nova/template-guidelines.md` before the preview
      - preview a concise diff/excerpt plus a plain-language behavior line (write-safety → Behavior narrative)
      - confirm this exact preview
      - drift check between confirmation and save: if the conversation paused since the preview, re-read the live config and compare the FULL document against the merge basis — including the very view/card being edited; on any foreign change, STOP — confirmation expired; re-merge onto the fresh read and re-preview (the full-document save would silently revert the external edit)

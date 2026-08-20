@@ -228,7 +228,7 @@ actions:
 
 ### Presence-Simulation Loop
 
-Randomized-within-bounds schedule while away. `random` and `now()` are evaluated by Home Assistant at each run — never pre-render a random value into the stored config, that freezes one sample forever.
+Randomized-within-bounds schedule while away. `random` and `now()` are evaluated by Home Assistant at each run — never pre-render a random value into the stored config, that freezes one sample forever. `condition: sun` with `after: sunset` alone is false between midnight and sunrise (that day's sunset is still in the future) — pair it with `before: sunrise` or use a time window so the loop survives midnight.
 
 ```yaml
 mode: single
@@ -241,11 +241,70 @@ conditions:
     state: "on"
   - condition: sun
     after: sunset
+    before: sunrise    # true across midnight; after: sunset alone dies at 00:00
 actions:
   - delay:
       minutes: "{{ range(0, 25) | random }}"
   - action: light.toggle
     target: { entity_id: light.living_room }
+```
+
+### Stale-Sensor Watchdog
+
+Alert when a sensor stops updating. Trigger on a `time_pattern` cadence and check the `last_updated` age in a condition — NOT via a `now()` template trigger, whose once-per-minute re-evaluation can mask the very stall it watches for (P-04). A flag helper makes it one alert per incident, not a storm; clear the flag when the sensor reports again.
+
+```yaml
+# Watchdog — alert once when readings stop
+mode: single
+triggers:
+  - trigger: time_pattern
+    minutes: "/15"
+conditions:
+  - condition: template
+    value_template: >
+      {{ (now() - states.sensor.greenhouse_temp.last_updated).total_seconds() > 3600 }}
+  - condition: state
+    entity_id: input_boolean.greenhouse_temp_stale
+    state: "off"
+actions:
+  - action: input_boolean.turn_on
+    target: { entity_id: input_boolean.greenhouse_temp_stale }
+  - action: notify.mobile_app
+    data: { message: "Greenhouse sensor silent for over an hour" }
+
+# Recovery — a fresh reading clears the flag, re-arming the watchdog
+triggers:
+  - trigger: state
+    entity_id: sensor.greenhouse_temp
+actions:
+  - action: input_boolean.turn_off
+    target: { entity_id: input_boolean.greenhouse_temp_stale }
+```
+
+### Native Adaptive Lighting
+
+Re-apply computed brightness/color on a cadence — ONLY while no manual override window is active (pair with Manual-Override Window above) and only on lights already on. The automation never turns lights on and never fights a manual change.
+
+```yaml
+mode: single
+triggers:
+  - trigger: time_pattern
+    minutes: "/10"
+conditions:
+  - condition: state
+    entity_id: light.living_room
+    state: "on"
+  - condition: state
+    entity_id: timer.living_room_override
+    state: idle
+actions:
+  - action: light.turn_on
+    target: { entity_id: light.living_room }
+    data:
+      # example curve: warm at the horizon, cooler as the sun climbs
+      color_temp_kelvin: >
+        {{ (2500 + 40 * [state_attr('sun.sun', 'elevation') | float(0), 0] | max) | round(0) }}
+      transition: 5
 ```
 
 ## One-Shot And Temporary Automations
