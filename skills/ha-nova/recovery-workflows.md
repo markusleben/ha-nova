@@ -38,10 +38,12 @@ Any watchdog-intent design requires ALL of:
 - Startup coverage is REQUIRED for watchdog continuity: Home Assistant can
   boot into the fault, so the design carries a `homeassistant` start trigger
   or periodic re-evaluation that picks an already-unhealthy source up after
-  restart. The startup path GATES on evidence: wait until the monitored
-  signal is available (not `unknown`/`unavailable` from a still-loading
-  integration) and CONFIRM the fault before acting — a bare start trigger
-  that fires the recovery on every boot restarts healthy devices. Naming the
+  restart. The startup path GATES on evidence: wait for a FRESH post-boot
+  reading from the monitored signal — its `last_updated` newer than the boot,
+  not a restored old value that is merely neither `unknown` nor
+  `unavailable` — and CONFIRM the fault on that fresh reading before acting;
+  a bare start trigger that fires the recovery on every boot restarts
+  healthy devices, and restored stale state proves nothing either way. Naming the
   gap is honest for a one-shot recovery, never a substitute for promised
   continuity.
 - Multi-target recovery evaluates liveness independently per target — one
