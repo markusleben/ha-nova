@@ -147,5 +147,9 @@ describe("live-schema preflight contract (#594)", () => {
     expect(helper).toContain("Start the flow BEFORE confirming");
     expect(helper).toContain("re-render the preview from the LIVE form");
     expect(helper).toContain("abandon the transient flow without submitting (DELETE the `flow_id`)");
+    // Later multi-step forms the preview never displayed re-confirm live.
+    expect(helper).toContain(
+      "a LATER form the preview never showed (multi-step `statistics`/`history_stats`) re-previews from its live schema and re-confirms",
+    );
   });
 });
