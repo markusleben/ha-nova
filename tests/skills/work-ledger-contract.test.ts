@@ -27,6 +27,7 @@ describe("work ledger contract (#572)", () => {
     // An explicitly ordered follow-up activates when its predecessor completes.
     expect(flat).toContain("becomes the active item the moment the predecessor completes");
     expect(flat).toContain("previews and confirmations included; storage still authorizes nothing");
+    expect(flat).toContain("activates after the current item finishes");
     expect(flat).toContain("**supporting step**");
     expect(flat).toContain("**deferred** (explicitly postponed)");
     expect(flat).toContain("**blocked**");

@@ -39,6 +39,10 @@ describe("shared membership-resolution contract (#571)", () => {
     expect(contract).toContain(
       "entity/device registry plus `search/related` on the resolved area",
     );
+    // A device target never inherits its room's members.
+    expect(contract).toContain(
+      "the entity registry filtered by `device_id` ONLY — never combined with the device's area expansion",
+    );
     expect(contract).toContain(
       "`person.*` states mapped to real notify targets",
     );
