@@ -59,7 +59,7 @@ describe("device-sibling capability discovery contract (#564)", () => {
 
   it("reports disabled candidates and hands the enable flow to organize, never auto-enabling", () => {
     expect(DISCOVERY).toContain(
-      "Report a disabled candidate as available-but-disabled and offer the enable flow via `ha-nova:organize`",
+      "Report a disabled candidate as available-but-disabled WITH its `disabled_by` source",
     );
     expect(DISCOVERY).toContain(
       "Never enable anything automatically, and never press or execute from discovery",
@@ -89,6 +89,14 @@ describe("device-sibling capability discovery contract (#564)", () => {
   it("proceeds from a device-resolved target without an entity row", () => {
     expect(flat(read("skills/entity-discovery/SKILL.md"))).toContain(
       "supplies its `device_id` directly — no entity row is required to proceed",
+    );
+  });
+  it("routes device-disabled siblings through device enablement", () => {
+    expect(flat(read("skills/entity-discovery/SKILL.md"))).toContain(
+      "needs its parent DEVICE re-enabled, not the entity alone",
+    );
+    expect(flat(read("skills/organize/SKILL.md"))).toContain(
+      're-enable the DEVICE record (`{"disabled_by": null}` on the device registry entry',
     );
   });
 });

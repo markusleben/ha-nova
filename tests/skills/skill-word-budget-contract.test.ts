@@ -54,7 +54,7 @@ const WORD_BUDGETS: Record<string, number> = {
   // (#564, 2026-08-19, measured 2351).
   // Train review P3-4: the sibling list never takes the display envelope
   // (measured 2381).
-  "entity-discovery": 2430, // device-direct targets branch (round 5, measured 2408)
+  "entity-discovery": 2460, // disabled_by-source in the handoff (round 8, measured 2432) // device-direct targets branch (round 5, measured 2408)
   // pre-save snapshot capture + snapshot recovery guidance (Wave 2).
   // Pre-write drift check before save_prefs (#514, measured 1257): the
   // post-save deep-equal check reported a lost foreign edit instead of
@@ -70,7 +70,7 @@ const WORD_BUDGETS: Record<string, number> = {
   admin: 1300,
   // Re-enable operation for the sibling-capability handoff plus the
   // cross-family opt-in (#564/#583 Codex round 2, measured 1365).
-  organize: 1390,
+  organize: 1450, // disabled_by-source routing (round 8, measured 1422)
   // write/mqtt ratcheted for the batch-safety opt-in lines (#327);
   // write again for the Phase 5 test offer (test-run.md).
   // pre-delete snapshot capture + config-snapshots reference (Wave 2).

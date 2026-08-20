@@ -144,7 +144,7 @@ A capability-oriented request (restart, identify, calibrate, reset, siren, ...) 
 2. List ALL registry entities of that device from the FULL registry (`config/entity_registry/list`, filter by `device_id`) — `list_for_display` omits disabled entities, and the registry row's `disabled_by` decides enabled/disabled status. NEVER validate a disabled candidate through `/api/states`: it has no state there, and its absence proves nothing about the capability. The 20-row display envelope does NOT apply here — a device's own entity list is complete and bounded by nature; capping it could hide the one capability past the cap.
 3. Select by domain, `device_class`, `translation_key`, and entity_id semantics on the SAME device. An entity on another device never qualifies merely because its name matches.
 4. Prefer an enabled exact match. Multiple plausible candidates → ONE bounded clarification listing each candidate's entity ID, domain, device, and enabled/disabled status.
-5. Report a disabled candidate as available-but-disabled and offer the enable flow via `ha-nova:organize`. Never enable anything automatically, and never press or execute from discovery — hand off to the owning skill.
+5. Report a disabled candidate as available-but-disabled WITH its `disabled_by` source and offer the matching enable flow via `ha-nova:organize` (a `"device"`-disabled sibling needs its parent DEVICE re-enabled, not the entity alone; integration/config_entry-disabled items are not enableable from there). Never enable anything automatically, and never press or execute from discovery — hand off to the owning skill.
 
 This contract is generic — never hard-coded to a brand, to cameras, or to restart buttons.
 
