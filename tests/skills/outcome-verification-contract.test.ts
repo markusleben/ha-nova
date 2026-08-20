@@ -53,6 +53,10 @@ describe("semantic outcome verification (#567/#566)", () => {
     expect(doc).toContain(
       "Capture every probe's baseline immediately before executing the action — after the confirmation, not at preview time",
     );
+    // Already-true probes cannot distinguish a skipped run from a success.
+    expect(doc).toContain("A probe whose expected value was ALREADY TRUE at that baseline proves nothing");
+    expect(doc).toContain("`verified` cannot rest on already-satisfied probes alone"
+    );
     expect(doc).toContain("never an indefinite wait");
     expect(doc).toContain(
       "the observation timeout, and any stability requirement",

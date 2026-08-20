@@ -36,7 +36,7 @@ Classify BEFORE execution what the action's success can actually be proven by:
   a probe.
 - The preview names the selected probes, the expected outcome per probe, the
   observation timeout, and any stability requirement.
-- Capture every probe's baseline immediately before executing the action — after the confirmation, not at preview time: a baseline read while the confirmation waits goes stale, and an intervening actor's change would be attributed to this action.
+- Capture every probe's baseline immediately before executing the action — after the confirmation, not at preview time: a baseline read while the confirmation waits goes stale, and an intervening actor's change would be attributed to this action. A probe whose expected value was ALREADY TRUE at that baseline proves nothing about this action (a skipped run leaves it unchanged too): report it as already-satisfied, and `verified` cannot rest on already-satisfied probes alone — with no probe left that could change, the honest overall outcome is `unverified`.
 - Observation is bounded: a defined window (default: up to three reads over
   ten seconds; a probe with a known longer horizon states its own), never an
   indefinite wait.
