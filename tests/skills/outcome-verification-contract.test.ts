@@ -104,7 +104,7 @@ describe("semantic outcome verification (#567/#566)", () => {
       "never for indirect or asynchronous runs",
     );
     expect(flat(read("skills/service-call/SKILL.md"))).toContain(
-      "retry once ONLY for a direct state-changing call (class 2) whose target read-back proves non-application",
+      "AND whose consumer scan found nothing — a discovered consumer can already have fired on the first accepted call",
     );
   });
 
