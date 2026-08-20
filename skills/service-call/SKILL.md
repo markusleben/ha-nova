@@ -85,7 +85,7 @@ Some services return data (`weather.get_forecasts`, `calendar.get_events`, `todo
 
 ## Flow
 
-1. Resolve target entity (use entity discovery if name is ambiguous).
+1. Resolve target entity (use entity discovery if name is ambiguous). When the request names a device capability the resolved entity lacks (restart, identify, calibrate, ...), run `ha-nova:entity-discovery` → Device-sibling capability discovery before concluding the capability does not exist.
 2. If service is unclear, list available services for the domain:
    - `ha-nova relay core --method GET --path /api/services`
    - Filter by relevant domain.

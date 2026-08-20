@@ -187,7 +187,7 @@ describe("ha-nova contract", () => {
 
     expect(organize).toContain("- categories: list/create/update/delete");
     expect(organize).toContain(
-      "- entity metadata updates: rename, move to area, assign/clear/add/remove labels, assign/remove categories, disable, hide, aliases",
+      "- entity metadata updates: rename, move to area, assign/clear/add/remove labels, assign/remove categories, disable AND re-enable, hide, aliases",
     );
     expect(organize).toContain(
       "- device metadata updates: rename, move to area, assign/clear/add/remove labels, disable",

@@ -20,6 +20,9 @@ mechanics: manifest, code format, caps, execution, and recovery.
 - One resource family per manifest. Never mix families (e.g. automations and
   scripts, storage helpers and config-entry helpers, dashboards and resources)
   — split into separate manifests, each with its own preview and confirmation.
+  The sole cross-family route is `skills/ha-nova/grouped-change-set.md` →
+  Cross-Family Destructive Cleanup (one logical target, one manifest-bound
+  code).
 
 ## Preconditions (all six required)
 
@@ -186,5 +189,6 @@ Keep these single-target regardless of manifest quality:
   its grouped manifest is non-destructive and separate from this contract:
   `skills/ha-nova/grouped-change-set.md`)
 - MQTT command/`set` topics
-- mixed resource families
+- mixed resource families (sole route: the cross-family cleanup workflow, see
+  Purpose & Opt-In)
 - selectors evaluated only at execution time
