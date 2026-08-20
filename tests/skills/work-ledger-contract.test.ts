@@ -63,7 +63,7 @@ describe("work ledger contract (#572)", () => {
     expect(flat).toContain(
       "The user can cancel, defer, reprioritize, or supersede any item",
     );
-    expect(flat).toContain("completed or cancelled work is not resurfaced");
+    expect(flat).toContain("completed, cancelled, or superseded work is not resurfaced");
   });
 
   it("survives cross-skill handoffs and conversation compaction", () => {
@@ -71,7 +71,7 @@ describe("work ledger contract (#572)", () => {
       "Cross-skill handoffs carry the primary objective and pending follow-ups",
     );
     expect(flat).toContain(
-      "conversation compaction preserves every non-completed item — active, deferred, AND blocked",
+      "conversation compaction preserves every OPEN item — active, deferred, AND blocked",
     );
     // The existing read/review handoff prose must reference the ledger.
     expect(flat).toContain(
