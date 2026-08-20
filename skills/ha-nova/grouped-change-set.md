@@ -173,7 +173,9 @@ join a dependency-bound set.
 A separate typed-confirmation workflow, never part of a non-destructive grouped
 set: when ONE fully resolved logical cleanup target spans several supported
 families (delete a helper plus the automations referencing it; remove a retired
-device's group memberships, dashboard cards, and statistics), the whole cleanup
+device's group memberships and dashboard cards — statistics clears stay in
+maintenance's own same-family `confirm:batch-...` manifest and never join
+this code), the whole cleanup
 may be confirmed with ONE manifest-bound confirmation code instead of one code
 per family.
 

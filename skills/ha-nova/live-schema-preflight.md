@@ -3,9 +3,11 @@
 Shared orchestration contract for Home Assistant config-entry and options
 flows. It applies ONLY to explicitly supported flow families: the flow-backed
 helper domains owned by `ha-nova:helper` (see
-`skills/ha-nova/helper-flow-schemas.md`) and the integration setup/options
-paths of `ha-nova:integration-setup` whose non-persisting navigation behavior
-is documented. This contract never authorizes probing unfamiliar endpoints or
+`skills/ha-nova/helper-flow-schemas.md`) and exactly those
+`ha-nova:integration-setup` paths that skill DECLARES supported with
+documented non-persisting navigation — the owning skill's declaration is the
+allowlist, never this file; a flow family the owning skill excludes (an
+options `next_flow`, for example) stays out of scope here too. This contract never authorizes probing unfamiliar endpoints or
 arbitrary config flows — the fail-closed rule from #493
 (`skills/ha-nova/relay-api.md` → Write-Probing Asymmetry) remains the
 boundary, and everything outside the supported families stays with

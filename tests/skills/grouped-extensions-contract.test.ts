@@ -182,4 +182,9 @@ describe("cross-family destructive cleanup (issue #583)", () => {
       "Cross-family destructive cleanup takes its own manifest-bound code `confirm:cleanup-<target>-<count>-<digest>`",
     );
   });
+  it("keeps statistics clears in maintenance's own manifest", () => {
+    expect(flat(read("skills/ha-nova/grouped-change-set.md"))).toContain(
+      "statistics clears stay in maintenance's own same-family `confirm:batch-...` manifest and never join this code",
+    );
+  });
 });

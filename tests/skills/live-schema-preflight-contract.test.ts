@@ -152,4 +152,9 @@ describe("live-schema preflight contract (#594)", () => {
       "a LATER form the preview never showed (multi-step `statistics`/`history_stats`) re-previews from its live schema and re-confirms",
     );
   });
+  it("defers the flow allowlist to the owning skill's declaration", () => {
+    expect(flat("skills/ha-nova/live-schema-preflight.md")).toContain(
+      "the owning skill's declaration is the allowlist, never this file",
+    );
+  });
 });
