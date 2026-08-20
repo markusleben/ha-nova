@@ -49,7 +49,12 @@ const WORD_BUDGETS: Record<string, number> = {
   // Canonical truncation filter moved to skills/ha-nova/ with the inline
   // recreate-exactly fallback for flat installs (#582 Codex round 1,
   // measured 2145).
-  "entity-discovery": 2170,
+  // Device-sibling capability discovery: full-registry sibling listing incl.
+  // disabled entities, same-device selection, organize enable handoff
+  // (#564, 2026-08-19, measured 2351).
+  // Train review P3-4: the sibling list never takes the display envelope
+  // (measured 2381).
+  "entity-discovery": 2460, // disabled_by-source in the handoff (round 8, measured 2432) // device-direct targets branch (round 5, measured 2408)
   // pre-save snapshot capture + snapshot recovery guidance (Wave 2).
   // Pre-write drift check before save_prefs (#514, measured 1257): the
   // post-save deep-equal check reported a lost foreign edit instead of
@@ -63,7 +68,9 @@ const WORD_BUDGETS: Record<string, number> = {
   // #513/#530 added routing rows and the tag/person lifecycle notes: the
   // default 1150 left TWO words of headroom, which the next sentence breaks.
   admin: 1300,
-  organize: 1300,
+  // Re-enable operation for the sibling-capability handoff plus the
+  // cross-family opt-in (#564/#583 Codex round 2, measured 1365).
+  organize: 1450, // disabled_by-source routing (round 8, measured 1422)
   // write/mqtt ratcheted for the batch-safety opt-in lines (#327);
   // write again for the Phase 5 test offer (test-run.md).
   // pre-delete snapshot capture + config-snapshots reference (Wave 2).
@@ -187,7 +194,9 @@ const WORD_BUDGETS: Record<string, number> = {
   // Codex round 3: match candidates come from every expanded target;
   // round 4 restored the GLOBAL single-entry guard on the handler fallback
   // (measured 9135 with the post-500 best-effort symmetry).
-  "service-call": 9160,
+  // Flow step 1 pointer to entity-discovery's device-sibling capability
+  // discovery (#564, 2026-08-19, measured 9163).
+  "service-call": 9190,
   // Carries the canonical File-Change Preview example — the only layout
   // source for file edits; concrete examples are what make a card renderable.
   // Sibling-survival verification (Wave 1b) + yaml snapshot capture with
@@ -218,7 +227,9 @@ const WORD_BUDGETS: Record<string, number> = {
   // whole document was named nowhere (#518, measured 1454).
   // Codex round 1: the default dashboard is selected by OMITTING url_path;
   // an explicit null is rejected (measured 1471).
-  dashboard: 1490,
+  // Downstream dependency-bound grouped reference pointer (#595, 2026-08-19,
+  // measured 1505).
+  dashboard: 1525,
   // Cards adoption pointer (#389); pre-write update-state drift gate.
   // #452 canonical smallest-solution draft rule (17 words).
   // HA 2026.7 "Update all" semantics: guardrails mirrored, call shape
@@ -290,7 +301,16 @@ const WORD_BUDGETS: Record<string, number> = {
   // combination measured 3970.
   // Fail-closed truncation envelopes on both discovery filters plus the
   // narrow-until-untruncated rule (#582, measured 4051).
-  helper: 4070,
+  // Time-window evidence pointer in the config-entry post-write verification:
+  // coverage attributes read, partial coverage advisory (#596, 2026-08-19,
+  // measured 4105).
+  // Live-schema preflight pointer in the config-entry family intro
+  // (#594, 2026-08-20, measured 4129).
+  // Cross-family cleanup pointer on the delete flow (#583, 2026-08-19);
+  // combined trial-merge measured 4147.
+  // Train review: helper's create steps now bind to the live schema via the
+  // step-8 drift check (P2-1, measured 4212).
+  helper: 4440, // update flow re-confirm rule (round 7, measured 4407) // group-member removal opt-in (round 6, measured 4379) // ephemeral-flow delete exception (round 5, measured 4341)
   // Fail-closed truncation envelopes on the list and keyword filters
   // (#582, measured 1188).
   read: 1210,
@@ -333,7 +353,13 @@ const WORD_BUDGETS: Record<string, number> = {
   // unsupported-trigger conclusion on that check too (measured 1561);
   // round 7 keeps the failed-reload result when flow polling fails too
   // (measured 1568).
-  "integration-setup": 1570,
+  // Live-schema preflight pointer on the live-step iteration
+  // (#594, 2026-08-20, measured 1593).
+  "integration-setup": 1610,
+  // Restart/reboot pointer to entity-discovery's device-sibling capability
+  // discovery left the default cap 4 words of headroom
+  // (#564, 2026-08-19, measured 1146).
+  camera: 1170,
 };
 const DEFAULT_WORD_BUDGET = 1150;
 
@@ -367,6 +393,7 @@ const STANDALONE_MARKDOWN = new Set([
   "skills/ha-nova/helper-flow-schemas.md",
   "skills/ha-nova/helper-schemas.md",
   "skills/ha-nova/input-capability-preflight.md",
+  "skills/ha-nova/live-schema-preflight.md",
   "skills/ha-nova/output-rules.md",
   "skills/ha-nova/payload-schemas.md",
   "skills/ha-nova/relay-api.md",

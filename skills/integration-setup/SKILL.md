@@ -64,6 +64,8 @@ For reauthentication, GET the matched `/api/config/config_entries/flow/<flow_id>
 
 ### Iterate live steps
 
+This iteration follows the shared `skills/ha-nova/live-schema-preflight.md` contract, which additionally binds pre-confirmation navigation to steps proven non-persisting for the family and stops before every terminal submit.
+
 Treat every response as authoritative:
 
 - `menu`: show only returned options and state that choosing one submits that exact menu step. The user's selection is the bound confirmation for `{"next_step_id":"<choice>"}`. A bare-number reply is resolved first: name the selected option before submitting it (context skill → Interactive Choices).

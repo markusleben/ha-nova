@@ -174,6 +174,8 @@ Canonical config-entry helper item:
 `entry_id` is the canonical identity for config-entry helper writes.
 If the user gives only a linked `entity_id`, resolve it back to `config_entry_id` through the full entity registry before continuing.
 
+Config-entry flow orchestration follows the shared contract in `skills/ha-nova/live-schema-preflight.md`: live-form previews, non-persisting pre-confirmation navigation only, stop before the terminal submit, and nested `result.entry_id` extraction.
+
 #### Supported domains
 
 - `utility_meter`
@@ -256,7 +258,7 @@ If multiple matches remain, present max 5 candidates and ask one blocking questi
 #### Creating a helper
 
 1. Confirm the requested domain is supported in `skills/ha-nova/helper-flow-schemas.md`.
-   - treat that file as observed field inventory, not a full validation schema
+   - treat that file as observed field inventory for the DRAFT, not a full validation schema — the live form is the authority, enforced by the drift check in step 8
    - if required field semantics remain uncertain, fail loud and ask one blocking question
 2. Prepare the full create plan using `skills/ha-nova/helper-flow-schemas.md`:
    - for one-step domains, the plan is one submit body
@@ -271,7 +273,13 @@ If multiple matches remain, present max 5 candidates and ask one blocking questi
    - all fields already known at this point
    - for unobserved `group` or `template` subtypes, say that the final subtype form will be previewed after the menu step returns live fields
    - include an explicit not-saved-yet line and Options block (`apply`, `show yaml`, `cancel`)
-4. Ask for natural confirmation bound to this exact preview (see context skill → Active Preview Confirmation).
+4. Start the flow BEFORE confirming (steps 5-7 below run first; reading a
+   form step persists nothing — only the terminal submit does), then re-render
+   the preview from the LIVE form: label every field live-confirmed or
+   draft-only, and ask for natural confirmation bound to that live preview
+   (context skill → Active Preview Confirmation;
+   `skills/ha-nova/live-schema-preflight.md`). On cancel or expiry, abandon
+   the transient flow without submitting (DELETE the `flow_id`).
 5. Capture a pre-create baseline:
    ```text
    ha-nova relay ws --data-file <entries-request-file> --out <entries-before-file>
@@ -289,7 +297,7 @@ If multiple matches remain, present max 5 candidates and ask one blocking questi
    - if the current response is a menu step, submit only the selected `next_step_id`
    - if that menu step leads to an unobserved `group` or `template` subtype form, stop and preview the live subtype fields before the terminal submit
    - after that live subtype preview, ask for a second natural confirmation before sending the terminal subtype-specific payload
-   - if the current response is a form step, submit only the fields exposed for that step
+   - if the current response is a form step, compare its live `data_schema` against the confirmed draft BEFORE submitting: identical fields → the confirmation carries and the submit contains those fields only — but ONLY for steps the confirmed preview actually displayed live; a LATER form the preview never showed (multi-step `statistics`/`history_stats`) re-previews from its live schema and re-confirms even when it matches the observed draft. ANY divergence (fields, defaults, enum options, extra or reordered steps) → stop, re-preview from the live form, and re-confirm — a live form never silently narrows or widens the confirmed payload (`skills/ha-nova/live-schema-preflight.md`)
    - the submit body for a form step must contain form fields only
    - if a required field is still unresolved and there is no safe value, stop and ask one blocking question
    - if HA returns a form with validation errors, fail loud instead of guessing
@@ -348,7 +356,7 @@ If multiple matches remain, present max 5 candidates and ask one blocking questi
    ```text
    ha-nova relay core --method POST --path /api/config/config_entries/options/flow/{flow_id} --body-file <submit-payload-file>
    ```
-10. If HA returns another form step, repeat the same merge-and-submit rule until terminal `create_entry` or explicit failure.
+10. If HA returns another form step, the confirmed preview covered only the forms it displayed live: a later form re-previews from its live `data_schema` and re-confirms before its submit (same rule as creates, `skills/ha-nova/live-schema-preflight.md`); then repeat the merge-and-submit rule until terminal `create_entry` or explicit failure.
 11. Verify success:
    - re-read `config_entries/get`
    - `passed=true` only when the same `entry_id` still exists
@@ -382,7 +390,7 @@ If multiple matches remain, present max 5 candidates and ask one blocking questi
    - if linked entities are known, run `search/related` against up to 3 linked entities before confirmation
    - summarize any related automations/scripts in the preview
    - if linked entities are unknown, say that dependency check coverage is limited
-5. Confirmation code: `confirm:<token>` (strict exact-code rule). This still applies to cleanup and helpers created earlier in the same session. Multi-helper deletes within ONE family follow `skills/ha-nova/batch-safety.md`; storage and config-entry families never mix.
+5. Confirmation code: `confirm:<token>` (strict exact-code rule). This still applies to cleanup and helpers created earlier in the same session. Multi-helper deletes within ONE family follow `skills/ha-nova/batch-safety.md`; storage and config-entry families never mix. Deleting a helper together with its consumers (cross-family) — and removing a retired device's entities FROM a config-entry group helper as one item of such a cleanup — follows `skills/ha-nova/grouped-change-set.md` → Cross-Family Destructive Cleanup: one manifest, one code; the group-member removal keeps this skill's normal update preview and drift check inside the manifest.
 6. Execute:
    ```text
    ha-nova relay core --method DELETE --path /api/config/config_entries/entry/{entry_id}
@@ -413,6 +421,7 @@ Instead, run the minimal config-entry post-write contract:
    - create: config entry now exists and the requested `entry_id`/diff verification passed
    - update: the same `entry_id` still exists and the reopened options-flow snapshot reflects the requested field changes
    - for `template` creates and `state`-changing updates, additionally read the linked entity via `GET /api/states/<entity_id>`. A clean numeric/string render confirms the template works. Treat `unavailable`/`unknown` as INCONCLUSIVE, not proof of breakage — a source entity can be legitimately `unknown`, or the template may intentionally return a sentinel; only call it a template defect when the options-flow template or an HA error proves a failure. Either way the config-entry write itself still counts as passed
+   - for `statistics` and `history_stats` writes, also read the linked entity's state attributes and apply `skills/ha-nova/write-safety.md` → Time-Window Evidence: partial window coverage (`age_coverage_ratio` below 1) or an invalid source is an advisory in the result, never a failed create — and never describe the value as covering the configured window without that coverage evidence
    - delete: config entry is absent
 2. **Current editable snapshot**
    - if an options flow is available, summarize only the editable fields exposed by the final current step readback
@@ -487,6 +496,7 @@ Never show raw JSON to the user.
 - No guessing entity IDs, linked entities, or config entry IDs; resolve or ask
 - `entry_id` is the canonical write identity for the config-entry family
 - Destructive cleanup still requires `confirm:<token>`, even for helpers created earlier in the same session.
+- Declared exception to the core delete rule above: abandoning an unfinished create flow this skill started (cancel or expired confirmation) DELETEs only that ephemeral `flow_id` — transient flow state, never a config entry; the user's cancel is sufficient, and this exception never applies to anything already created.
 - Every write MUST end with the Post-Write Review slot; use terminal-friendly labels where Markdown headings add noise.
 
 ## Guardrails
