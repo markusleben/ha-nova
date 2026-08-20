@@ -192,4 +192,9 @@ describe("recovery workflows (#568/#569)", () => {
       "A recovery-shaped action alone (restart, reload, reconnect) is never that evidence",
     );
   });
+  it("keeps the probe mandatory for one-shot recoveries", () => {
+    expect(flat(read("skills/review/checks.md"))).toContain(
+      "one-shot never exempts the probe",
+    );
+  });
 });
