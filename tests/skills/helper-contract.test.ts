@@ -107,11 +107,13 @@ describe("helper contract", () => {
 
     it("references the dedicated config-entry flow schema doc", () => {
       expect(skillDoc).toContain("helper-flow-schemas.md");
-      expect(flowSchemasDoc).toContain("full supported config-entry family (10 domains)");
+      expect(flowSchemasDoc).toContain("full supported config-entry family (12 domains)");
       expect(flowSchemasDoc).toContain("Canonical write identity: `entry_id`");
     });
 
-    it("documents full config-entry helper ownership for the 10 supported domains", () => {
+    it("documents full config-entry helper ownership for the 12 supported domains", () => {
+      // generic_thermostat + switch_as_x promoted from fallback (#531 P4-05,
+      // 2026-08-20).
       const expectedDomains = [
         "utility_meter",
         "derivative",
@@ -123,6 +125,8 @@ describe("helper contract", () => {
         "group",
         "history_stats",
         "template",
+        "generic_thermostat",
+        "switch_as_x",
       ];
       const skillDomainLine = skillDoc
         .split("\n")
@@ -131,7 +135,7 @@ describe("helper contract", () => {
       expect(
         [...(skillDomainLine ?? "").matchAll(/`([^`]+)`/g)].map((match) => match[1]),
       ).toEqual(expectedDomains);
-      const domainListStart = flowSchemasDoc.indexOf("(10 domains):");
+      const domainListStart = flowSchemasDoc.indexOf("(12 domains):");
       const domainListEnd = flowSchemasDoc.indexOf("This file is an observed");
       expect(domainListStart).toBeGreaterThan(-1);
       expect(domainListEnd).toBeGreaterThan(domainListStart);
@@ -141,7 +145,7 @@ describe("helper contract", () => {
         ),
       ).toEqual(expectedDomains);
 
-      expect(skillDoc).toContain("CRUD support for 10 domains:");
+      expect(skillDoc).toContain("CRUD support for 12 domains:");
       expect(skillDoc).toContain("verified for the `sensor` subtype");
       expect(skillDoc).not.toContain("does **not** support update yet");
       // Template authoring safety: broken templates render entities unavailable.
@@ -277,9 +281,10 @@ describe("helper contract", () => {
       expect(supportedTypesLine).toContain("`trend`");
       expect(supportedTypesLine).toContain("`random`");
       expect(supportedTypesLine).toContain("`filter`");
-      expect(supportedTypesLine).toContain("`generic_thermostat`");
-      expect(supportedTypesLine).toContain("`switch_as_x`");
       expect(supportedTypesLine).toContain("`generic_hygrostat`");
+      // Promoted to ha-nova:helper (#531 P4-05, 2026-08-20).
+      expect(supportedTypesLine).not.toContain("`generic_thermostat`");
+      expect(supportedTypesLine).not.toContain("`switch_as_x`");
       expect(supportedTypesLine).not.toContain("`utility_meter`");
       expect(supportedTypesLine).not.toContain("`derivative`");
       expect(supportedTypesLine).not.toContain("`integration`");

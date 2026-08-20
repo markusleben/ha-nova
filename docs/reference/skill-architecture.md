@@ -334,14 +334,16 @@ Rules:
 - resolve ambiguous calendar names before querying events
 - create/update use natural bound confirmation; delete uses the typed confirmation code
 - drift-check immediately before the write; verify through bounded REST read-back and never auto-retry a write
-- recurring creation stays in the Home Assistant UI because `calendar.create_event` has no recurrence field
+- recurring creation goes through WS `calendar/event/create` with an `rrule` (`calendar.create_event` has no recurrence field); verification re-reads the window and reports the pre-expanded instances as one series
 
 ## Integration Setup Architecture
 
-`ha-nova:integration-setup` owns UI-configurable integration add, pending reauthentication flows, and invalid-credential recovery when no reauth flow is pending:
+`ha-nova:integration-setup` owns UI-configurable integration add, entry options/reconfigure through the standard config-entry flows, entry reload, pending reauthentication flows, and invalid-credential recovery when no reauth flow is pending:
 - add starts through REST `POST /api/config/config_entries/flow` after resolving an exact handler from `/api/config/config_entries/flow_handlers`
+- options/reconfigure follow the live-schema preflight contract: options via `POST /api/config/config_entries/options/flow` with the entry as handler, reconfigure via a config-flow start carrying `entry_id`; reconfigure verification requires the same `entry_id` to persist with no new entry created
+- entry reload previews the disruption (setup re-runs, entities drop briefly) and reports the entry's actual post-reload state; entry remove stays with `ha-nova:fallback`, enable/disable stays External
 - reauthentication continues an existing `context.source == "reauth"` flow discovered through WS `config_entries/flow/progress`; it never synthesizes a reauth flow
-- credential recovery (no reauth pending) previews and reloads the exact config entry — the only reload this skill owns; every other reload stays with `ha-nova:fallback` — then re-reads flow progress and continues the reauth handoff, or fails closed to the HA UI
+- credential recovery (no reauth pending) previews and reloads the exact config entry, then re-reads flow progress and continues the reauth handoff, or fails closed to the HA UI
 - menu/form steps use only the live response schema and require a preview-bound confirmation before each submit
 - credential-bearing, external/OAuth, or progress add steps started through the Relay are canceled and restarted in the Home Assistant UI; user-started flows are omitted from `config_entries/flow/progress`, and the Relay cannot supply the frontend-origin header
 - credential-bearing, external/OAuth, or progress steps on pre-existing reauth flows hand off to the matching Home Assistant UI card; secrets never enter chat and the reauth flow stays preserved
@@ -406,7 +408,7 @@ Alarm/lock rules:
   - No domain reload needed
 
 - **Config-entry family**
-  - Types: `utility_meter`, `derivative`, `integration`, `min_max`, `threshold`, `tod`, `statistics`, `group`, `history_stats`, `template`
+  - Types: `utility_meter`, `derivative`, `integration`, `min_max`, `threshold`, `tod`, `statistics`, `group`, `history_stats`, `template`, `generic_thermostat`, `switch_as_x`
   - Read/list: WS `config_entries/get` + WS `config/entity_registry/list`
   - Readback: current editable options snapshot when `supports_options: true`; metadata-only fallback otherwise
   - Mutation transport: relay `/core`
@@ -421,8 +423,6 @@ Still excluded from `ha-nova:helper`:
 - `trend`
 - `random`
 - `filter`
-- `generic_thermostat`
-- `switch_as_x`
 - `generic_hygrostat`
 
 ## Diagnose Architecture

@@ -107,6 +107,7 @@
   "tests/skills/membership-resolution-contract.test.ts",
   "tests/skills/notify-composition-contract.test.ts",
   "tests/skills/output-design-contract.test.ts",
+  "tests/skills/pack-capability-contract.test.ts",
   "tests/skills/proactive-offers-contract.test.ts",
   "tests/skills/reference-truth-contract.test.ts",
   "tests/skills/relay-unicode-contract.test.ts",

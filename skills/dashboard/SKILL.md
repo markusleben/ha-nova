@@ -16,6 +16,7 @@ Storage dashboard work only:
 - list Lovelace resources
 - inspect the current dashboard structure: views, cards, badges, header cards
 - create a new storage dashboard shell
+- save a strategy config on a created shell (HA generates the content)
 - update dashboard metadata
 - create, update, and delete Lovelace resources
 - find a specific dashboard element before changing it
@@ -89,6 +90,7 @@ Drafts follow `skills/ha-nova/smallest-solution.md`: the complete requested outc
    - if `mode` is not `storage`, stop and explain that this skill will not write or delete it
 3. Choose the mutation path.
    - create shell: preview `title`, `url_path`, `icon`, `require_admin`, `show_in_sidebar`, confirm this exact preview, then call `lovelace/dashboards/create`
+   - strategy config: a created shell may be saved with `{"strategy":{"type":"areas"}}` or `{"strategy":{"type":"original-states"}}` as the ENTIRE config — Home Assistant generates all views and cards at render time. Normal preview/confirm/drift rules apply; the card allowlist is not consulted because no cards are authored here. Freeform card authoring beyond the allowlist stays refused, and switching a populated dashboard TO a strategy discards its stored views — that save is destructive (`confirm:<token>` + auto config snapshot)
    - metadata update: preview the exact metadata fields, confirm this exact preview, then call `lovelace/dashboards/update` with `dashboard_id`
      - only send changed metadata fields supported there: `title`, `icon`, `show_in_sidebar`, `require_admin`
      - do not resend `url_path`, `mode`, or unrelated config fields in the update payload

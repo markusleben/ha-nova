@@ -483,7 +483,7 @@ Rules:
 - REST event reads return `uid` and optional `recurrence_id`; update/delete require exact identity
 - update's `event` is a full replacement object with `summary`, `dtstart`, `dtend`, and any retained optional `description`, `location`, or `rrule`
 - recurring instances add `recurrence_id` and `recurrence_range`: `""` for one occurrence, `THISANDFUTURE` for that occurrence and later ones
-- the create service has no recurrence field; use the Home Assistant UI for recurring creation
+- the create service has no recurrence field; recurring creates go through WS `calendar/event/create` with an RFC 5545 `rrule` in the `event` object
 
 ## Registry Queries (via /ws)
 

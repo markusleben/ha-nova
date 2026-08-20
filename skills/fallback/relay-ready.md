@@ -30,11 +30,11 @@ Handle unsupported config-entry helper types that are not yet owned by `ha-nova:
 
 Owned by `ha-nova:helper` now: `utility_meter`, `derivative`, `integration`,
 `min_max`, `threshold`, `tod`, `statistics`, `group`, `history_stats`,
-`template`.
+`template`, `generic_thermostat`, `switch_as_x`.
 
-**Search:** `home assistant config entry flow helper trend random filter generic_thermostat api 2026`
+**Search:** `home assistant config entry flow helper trend random filter api 2026`
 
-**Supported types in this fallback section:** `trend`, `random`, `filter`, `generic_thermostat`, `switch_as_x`, `generic_hygrostat`
+**Supported types in this fallback section:** `trend`, `random`, `filter`, `generic_hygrostat`
 
 **Experimental relay calls (no skill guardrails):**
 ```text
@@ -130,22 +130,22 @@ for Home Assistant's own event bus.
 
 ### Integration Entry Lifecycle -- RELAY-READY
 
-Reload and remove for an existing config entry — those two only.
+Remove for an existing config entry — that one only.
 `ha-nova:integration-setup` owns ADDING an integration, continuing a
-pending `reauth`, and the credential-recovery reload
-for invalid credentials. Enable/disable, options and reconfigure
-are `External` in the Capability Map: point at Settings > Devices & services instead of
+pending `reauth`, options and reconfigure flows, and every entry reload
+(credential recovery included). Enable/disable
+is `External` in the Capability Map: point at Settings > Devices & services instead of
 improvising a payload.
 
-**Search:** `home assistant config entry reload delete api 2026`
+**Search:** `home assistant config entry delete api 2026`
 
 **Experimental relay calls (no skill guardrails):**
 ```text
-ha-nova relay core --method POST --path /api/config/config_entries/entry/<entry_id>/reload
+ha-nova relay core --method DELETE --path /api/config/config_entries/entry/<entry_id>
 ```
 
-**Risks:** Reload re-runs setup and briefly drops the entry's entities. Remove
-(`DELETE /api/config/config_entries/entry/<entry_id>`) deletes every device and
+**Risks:** Remove
+deletes every device and
 entity that entry owns and is not undoable — preview the counts before asking,
 and take the typed confirmation code. `search/related` needs a concrete item
 type and id, so the config entry id alone does not query it: read the entry's
@@ -184,7 +184,8 @@ user is deciding with what you found, and needs to know its edges.
 
 ### Assist Custom Sentences -- RELAY-READY
 
-Teach Assist a phrase Home Assistant does not understand out of the box. This
+Owned by `ha-nova:assist` → Custom Sentences — hand the workflow off there.
+This section keeps only the file mechanics that workflow references. The write
 needs the opt-in file access (`ha-nova:yaml-config` → Bootstrap explains how to
 turn it on); its own scope covers sensors, packages and themes, so the file
 mechanics live here.
