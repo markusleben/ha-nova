@@ -97,12 +97,18 @@ const WORD_BUDGETS: Record<string, number> = {
   // One-shot intent routing to the self-disabling pattern (#527, 2221).
   // Includes one-shot-automations.md after the audit exposed that the split
   // had reset this ratchet (measured 5356 on #543).
+  // Recovery/watchdog/retry routing pointer + on-demand row for
+  // skills/ha-nova/recovery-workflows.md (#568/#569, measured 5387 on
+  // 2026-08-19).
+  // Codex round 5 on #601: one-shot recovery keeps an attempt bound of one
+  // (measured 5409).
   // Pointer to the canonical mobile-notification composition contract and its
   // pre-preview intent classification (#575/#576/#573, 2026-08-19,
   // measured 5389).
   // Intent classification decoupled from edited payloads (#573 Codex
   // round 9, measured 5426).
-  write: 5450,
+  // Union with #603's notification wiring (trial-merge measured 5499).
+  write: 5530,
   // HACS lifecycle: schema guard, reconcile loops, consumer discovery,
   // migration backup gate, category-appropriate verification (#478);
   // review rounds added pin-durability branches, the uninstall apply
@@ -210,10 +216,15 @@ const WORD_BUDGETS: Record<string, number> = {
   // Codex round 3: match candidates come from every expanded target;
   // round 4 restored the GLOBAL single-entry guard on the handler fallback
   // (measured 9135 with the post-500 best-effort symmetry).
+  // Semantic-outcome wiring: restart-class presses, verify-step pointer,
+  // preview-step classification, and the disruptive no-retry carve-out
+  // (#566/#567); plus main's #564 sibling-discovery pointer — combined
+  // trial-merge measured 9529.
   // Membership-resolution contract pointer in Flow step 3 (#571, 2026-08-19);
   // grouped-set drift precedence (#571 Codex round 7); plus main's #564
   // sibling-discovery pointer — combined trial-merge measured 9325.
-  "service-call": 9355,
+  // Full-train union with #603/#604 (trial-merge measured 9691).
+  "service-call": 9720,
   // Carries the canonical File-Change Preview example — the only layout
   // source for file edits; concrete examples are what make a card renderable.
   // Sibling-survival verification (Wave 1b) + yaml snapshot capture with
@@ -412,8 +423,10 @@ const STANDALONE_MARKDOWN = new Set([
   "skills/ha-nova/live-schema-preflight.md",
   "skills/ha-nova/membership-resolution.md",
   "skills/ha-nova/mobile-notification-composition.md",
+  "skills/ha-nova/outcome-verification.md",
   "skills/ha-nova/output-rules.md",
   "skills/ha-nova/payload-schemas.md",
+  "skills/ha-nova/recovery-workflows.md",
   "skills/ha-nova/relay-api.md",
   "skills/ha-nova/safe-refactoring.md",
   "skills/ha-nova/session-bootstrap.md",

@@ -49,6 +49,12 @@ the Phase 5 test offer, because a real-run test of an expiry automation would
 undo the duration the user just asked for. The user asked for something
 temporary, not something to grow.
 
+A recovery, watchdog, self-healing, or retry intent reads
+`skills/ha-nova/recovery-workflows.md` before drafting; the preview names the
+attempt bound — and the persistent-fault path only where the intent promises
+watchdog/self-healing continuity: an explicitly one-shot recovery keeps an
+attempt bound of one and is named as such.
+
 Every draft follows `skills/ha-nova/smallest-solution.md`: the complete
 explicit outcome in the simplest safe design, nothing for hypothetical
 future needs, native primitives when equally safe and clearer.
@@ -189,6 +195,7 @@ Always load:
 On demand — read only when the trigger applies:
 - `skills/ha-nova/automation-patterns.md` — drafting new branching, timing, or flow-control logic
 - `skills/ha-nova/one-shot-automations.md` — a one-shot, "only today", or duration-bound request (this skill owns both halves of a duration)
+- `skills/ha-nova/recovery-workflows.md` — recovery, watchdog, self-healing, or retry intent
 - `skills/ha-nova/template-guidelines.md` — the draft contains Jinja templates
 - `skills/ha-nova/safe-refactoring.md` — rename, migrate, or orphan-cleanup tasks
 - `skills/ha-nova/update-revert.md` — the user asks to revert, undo, or restore a verified update (create cleanup stays out — see write-safety)

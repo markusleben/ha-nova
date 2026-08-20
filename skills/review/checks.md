@@ -72,7 +72,7 @@ file directly and never see the review skill's copy of the rule.
 Orphan/no-consumer verdicts (F-09, H-07, SC-07, collision scans) fail closed: read `search/related` through `skills/ha-nova/search-related-consumers.jq` (recreate per `skills/ha-nova/relay-api.md` → Parsing rule on flat-copy installs; its automation/script/scene projection covers F-09's scene requirement); a failed or unexecuted scan is inconclusive — never evidence of an orphan.
 
 **Apply these families by domain:**
-- Automation: S-01..S-03, R-01..R-28, P-01..P-05, M-01..M-05
+- Automation: S-01..S-03, R-01..R-30, P-01..P-05, M-01..M-05
 - Script: automation families plus F-01..F-09
 - Storage scene: SC-01..SC-07
 - Storage dashboard: D-01..D-07
@@ -141,6 +141,8 @@ Orphan/no-consumer verdicts (F-09, H-07, SC-07, collision scans) fail closed: re
 - R-26 [MEDIUM → HIGH]: Exact-state equality narrower than the stated intent — a condition/trigger pins one literal state (classic: `== 'not_home'`) on a domain whose runtime states exceed a simple pair (person/device_tracker report named zones as states; media_player, vacuum, climate carry multi-state enums), while the user's stated intent is the broader category ("nobody home", "the TV is off" — which `standby`/`idle` also satisfy). The config is valid, saves, reloads, and read-back matches — it just never matches legitimate runtime states (a person at zone `work` has state `work`, not `not_home`). Fix: express the category (`!= 'home'` for away-semantics, `zone.home` person count for nobody-home, negations over enumerations). Default MEDIUM; escalate to HIGH when the narrow comparison gates the automation's core purpose. See R-26 Evidence Boundary.
 - R-27 [MEDIUM]: Fixed `delay:` standing in for asynchronous completion — an action starts an asynchronous operation (non-blocking `script.turn_on`, a device command that takes variable time) and a following fixed `delay:` is the only thing "guaranteeing" completion before dependent actions run. The delay documents a hope, not a fact. Fix: `wait_template`/`wait_for_trigger` on the actual completion signal, with `timeout:` (R-04) and a defined timeout path. Do not flag delays that are themselves the intent (light on for 5 minutes).
 - R-28 [MEDIUM]: Startup race — a `trigger: homeassistant` / `event: start` path immediately reads integration-backed entity states in conditions or actions. Right after startup those states can be `unknown`, `unavailable`, or stale-restored before their integration first updates. Fix: guard with an availability wait (`wait_template` on `has_value(...)` with timeout) or accept-and-document the race. Helpers restore their own state and rarely need the guard; template sensors inherit the race from their integration-backed dependencies.
+- R-29 [HIGH]: Edge-triggered "watchdog" without a persistent-fault path — the name, description, or user request promises watchdog/self-healing/continuous-monitoring continuity (a recovery-shaped action alone is never that evidence — an intentionally one-shot recovery is its own class), but every entry is a one-time firing — an unhealthy-state edge trigger (`numeric_state`, `state` to an unhealthy value, binary health sensor, template false→true), with or without a `homeassistant` startup trigger beside it (startup fires once per boot and keeps nothing live) — and no bounded retry, periodic re-evaluation, or failure escalation exists. A failed recovery with a continuously unhealthy signal never re-fires, and an HA restart into an existing fault sees no transition. Also flag a missing post-action health re-check (`skills/ha-nova/outcome-verification.md`), and evaluate multi-target recovery liveness per target. Contract: `skills/ha-nova/recovery-workflows.md`. See R-29 Evidence Boundary.
+- R-30 [MEDIUM → HIGH]: Retry-policy violation in a recovery workflow — an unbounded or implicit attempt count (`repeat`/`until` without a finite bound, self-re-triggering loop), a retry keyed on a bare service-call error or an ambiguous transport failure instead of semantic failure evidence, a retried physical-access/irreversible/non-idempotent action, missing outcome verification between attempts (a SINGLE-attempt recovery without its post-action health probe is the same defect — one-shot never exempts the probe), no `mode`/guard against overlapping recovery runs, periodic re-entry without a cooldown where one is necessary (an interval that already exceeds the bounded execution time with a non-overlapping `mode` needs none), no explicit delay or backoff between attempts (an immediate re-attempt hammers the failing device — the owning policy requires a per-case choice), retry state shared across targets, exhaustion emitting more than one notification per incident (notification storm), or NO explicit exhaustion path at all — a finite loop that simply ends after the last failed probe silently abandons the unhealthy target (an explicitly ONE-SHOT recovery with its single action and post-action probe is exempt: reporting the probe's honest outcome IS its end state, no retry or escalation was requested). Policy: `skills/ha-nova/recovery-workflows.md`. Default MEDIUM; escalate to HIGH for unbounded loops, unsafe repeat actions, or ambiguous-failure retries. See R-30 Evidence Boundary.
 
 ## R-02 Evidence Boundary
 
@@ -308,6 +310,31 @@ Self-trigger / feedback loop = the automation triggers on an entity that it also
 - This is a static check: it cannot prove which zones exist. Phrase it as "this
   comparison misses valid states like named zones" and show the category-safe
   form; never claim the automation is currently broken.
+
+## R-29 Evidence Boundary
+
+- Apply only when watchdog, self-healing, or continuous-monitoring
+  CONTINUITY is declared by the user or promised by the config's own name or
+  description. A recovery-shaped action alone (restart, reload, reconnect) is
+  never that evidence — an intentionally one-shot recovery is its own valid
+  class. Ordinary one-shot threshold automations are never flagged when no
+  continuity promise exists.
+- Name the incomplete design honestly a "one-shot recovery attempt", never a
+  "watchdog"; report the gap and the persistent-fault options (bounded retry,
+  periodic re-evaluation, failure escalation).
+- Report only: never rewrite the automation and never execute its recovery
+  actions to test liveness.
+
+## R-30 Evidence Boundary
+
+- Apply only to configs that already contain retry/recovery machinery; never
+  suggest adding retries to ordinary service calls.
+- An ambiguous transport failure never justifies another attempt — the first
+  action may already have been applied. Flag retries keyed on it; do not flag
+  their absence.
+- No universal retry count, delay, or backoff exists: flag missing or
+  unbounded values, never impose specific ones.
+- Report only: never rewrite the workflow and never execute recovery actions.
 
 ## Performance (Medium)
 
