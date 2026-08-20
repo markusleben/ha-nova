@@ -32,6 +32,9 @@ describe("semantic outcome verification (#567/#566)", () => {
       expect(doc).toContain(r);
     }
     expect(doc).toContain("Missing evidence is never inferred success");
+    // A proven upstream rejection is a real outcome, not a taxonomy hole.
+    expect(doc).toContain("the command itself was DEFINITIVELY rejected");
+    expect(doc).toContain("never proves rejection and never permits a retry");
   });
 
   it("selects probes from real relationships with bounded observation", () => {

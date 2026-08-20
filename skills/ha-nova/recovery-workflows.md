@@ -32,9 +32,11 @@ Any watchdog-intent design requires ALL of:
   never inferred success.
 - An explicit persistent-fault path: bounded retry, periodic re-evaluation,
   or failure escalation.
-- Startup behavior considered: Home Assistant can boot into the fault, so
-  the design states how an already-unhealthy source is picked up after
-  restart (startup trigger, periodic re-evaluation) or names the gap.
+- Startup coverage is REQUIRED for watchdog continuity: Home Assistant can
+  boot into the fault, so the design carries a `homeassistant` start trigger
+  or periodic re-evaluation that picks an already-unhealthy source up after
+  restart — naming the gap is honest for a one-shot recovery, never a
+  substitute for promised continuity.
 - Multi-target recovery evaluates liveness independently per target — one
   recovered target never masks another's persistent fault.
 

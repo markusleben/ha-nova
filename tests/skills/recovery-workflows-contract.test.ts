@@ -31,6 +31,8 @@ describe("recovery workflows (#568/#569)", () => {
       "A Home Assistant restart while the source is already unhealthy sees no transition either",
     );
     expect(doc).toContain("Home Assistant can boot into the fault");
+    expect(doc).toContain("Startup coverage is REQUIRED for watchdog continuity");
+    expect(doc).toContain("never a substitute for promised continuity");
   });
 
   it("distinguishes the four design classes", () => {

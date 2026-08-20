@@ -47,7 +47,10 @@ Report one of exactly four outcomes, never a blend:
 - `unverified` — evidence was expected but missing or unreadable at window
   end. Missing evidence is never inferred success.
 - `failed` — a probe showed the effect did NOT occur (a recovery target's
-  health signal still unhealthy).
+  health signal still unhealthy), or the command itself was DEFINITIVELY
+  rejected (an upstream 404/422 or an equivalent proven rejection — distinct
+  from an ambiguous transport outcome, which never proves rejection and never
+  permits a retry).
 
 Verification NEVER repeats the original action automatically — not after
 `unverified`, not after `failed`, and not after a transport error on a
