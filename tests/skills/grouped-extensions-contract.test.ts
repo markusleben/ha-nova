@@ -158,7 +158,7 @@ describe("cross-family destructive cleanup (issue #583)", () => {
   it("wires the helper delete flow to the cleanup route", () => {
     const helper = flat(read("skills/helper/SKILL.md"));
     expect(helper).toContain(
-      "Deleting a helper together with its consumers (cross-family) follows",
+      "Deleting a helper together with its consumers (cross-family)",
     );
     expect(helper).toContain("Cross-Family Destructive Cleanup: one manifest, one code");
   });

@@ -96,7 +96,7 @@ describe("live-schema preflight contract (#594)", () => {
       "Unknown outcomes (timeout, transport error, ambiguous terminal response)",
     );
     expect(preflight).toContain(
-      "reconcile actual state via `config_entries/get` and flow progress BEFORE any retry",
+      "Then reconcile entries via `config_entries/get` BEFORE any retry",
     );
     expect(preflight).toContain("a blind retry can double-create");
   });
