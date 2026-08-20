@@ -133,7 +133,7 @@ describe("recovery workflows (#568/#569)", () => {
 
   it("exits on verified success and takes one exhaustion path", () => {
     // Regression families: verified success and exhausted failure.
-    expect(doc).toContain("Recovery exits immediately on verified success");
+    expect(doc).toContain("every retry attempt RE-CHECKS the health signal immediately before acting");
     expect(doc).toContain(
       "Exhaustion takes one explicit failure path and emits at most one notification per incident",
     );

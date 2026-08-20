@@ -87,7 +87,7 @@ Rules:
   missing semantic evidence routes to the explicit non-retry failure path.
 - The attempt count is finite and explicit; delay or backoff is explicit and
   chosen per case — no universal hard-coded values exist.
-- Recovery exits immediately on verified success.
+- Recovery exits immediately on verified success — and every retry attempt RE-CHECKS the health signal immediately before acting: a device that recovered during the delay/backoff makes the pending attempt moot, and acting on the stale failure would restart a healthy device.
 - Exhaustion takes one explicit failure path and emits at most one
   notification per incident — never one per attempt.
 - The automation `mode` and condition guards prevent overlapping recovery
