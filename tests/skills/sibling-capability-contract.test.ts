@@ -99,4 +99,9 @@ describe("device-sibling capability discovery contract (#564)", () => {
       're-enable the DEVICE record (`{"disabled_by": null}` on the device registry entry',
     );
   });
+  it("sends integration-disabled items to the HA UI, never a false handoff", () => {
+    expect(flat(read("skills/organize/SKILL.md"))).toContain(
+      "not writable from any HA NOVA skill (entry enable/disable is External in the capability map)",
+    );
+  });
 });
