@@ -251,7 +251,7 @@ actions:
 
 ### Stale-Sensor Watchdog
 
-Alert when a sensor stops updating. Trigger on a `time_pattern` cadence and check the `last_updated` age in a condition — NOT via a `now()` template trigger, whose once-per-minute re-evaluation can mask the very stall it watches for (P-04). A flag helper makes it one alert per incident, not a storm; clear the flag when the sensor reports again.
+Alert when a sensor stops updating. Trigger on a `time_pattern` cadence and check the `last_reported` age in a condition (identical re-reports advance `last_reported` while `last_updated` stays — value-change age would false-alarm on steady sensors) — NOT via a `now()` template trigger, whose once-per-minute re-evaluation can mask the very stall it watches for (P-04). A flag helper makes it one alert per incident, not a storm; clear the flag when the sensor reports again.
 
 ```yaml
 # Watchdog — alert once when readings stop
@@ -262,7 +262,7 @@ triggers:
 conditions:
   - condition: template
     value_template: >
-      {{ (now() - states.sensor.greenhouse_temp.last_updated).total_seconds() > 3600 }}
+      {{ (now() - (states.sensor.greenhouse_temp.last_reported or states.sensor.greenhouse_temp.last_updated)).total_seconds() > 3600 }}
   - condition: state
     entity_id: input_boolean.greenhouse_temp_stale
     state: "off"
@@ -272,12 +272,20 @@ actions:
   - action: notify.mobile_app
     data: { message: "Greenhouse sensor silent for over an hour" }
 
-# Recovery — only a VALID fresh reading clears the flag, re-arming the
-# watchdog; unavailable/unknown transitions are not readings
+# Recovery — only a VALID fresh REPORT clears the flag. Freshness keys on
+# last_reported (identical re-reports advance it while last_updated stays);
+# a state trigger would miss identical reports, so recovery polls too.
 triggers:
-  - trigger: state
-    entity_id: sensor.greenhouse_temp
-    not_to: ["unavailable", "unknown"]
+  - trigger: time_pattern
+    minutes: "/15"
+conditions:
+  - condition: template
+    value_template: >
+      {{ (now() - (states.sensor.greenhouse_temp.last_reported or states.sensor.greenhouse_temp.last_updated)).total_seconds() < 3600
+         and states('sensor.greenhouse_temp') not in ['unavailable', 'unknown'] }}
+  - condition: state
+    entity_id: input_boolean.greenhouse_temp_stale
+    state: "on"
 actions:
   - action: input_boolean.turn_off
     target: { entity_id: input_boolean.greenhouse_temp_stale }

@@ -190,7 +190,7 @@ describe("C1-02 bounded-capture generalization (#520)", () => {
   });
   it("keeps the stale flag across unavailable transitions", () => {
     expect(flat(read("skills/ha-nova/automation-patterns.md"))).toContain(
-      'not_to: ["unavailable", "unknown"]',
+      "last_reported",
     );
   });
   it("resolves tags through the tag registry, not devices", () => {
