@@ -202,7 +202,9 @@ const WORD_BUDGETS: Record<string, number> = {
   // (measured 9135 with the post-500 best-effort symmetry).
   // Membership-resolution contract pointer in Flow step 3 (#571, 2026-08-19);
   // combined trial-merge with the #600 reauth train measured 9149.
-  "service-call": 9260,
+  // Grouped-set drift precedence over the frozen list (#571 Codex round 7,
+  // measured 9297).
+  "service-call": 9320,
   // Carries the canonical File-Change Preview example — the only layout
   // source for file edits; concrete examples are what make a card renderable.
   // Sibling-survival verification (Wave 1b) + yaml snapshot capture with

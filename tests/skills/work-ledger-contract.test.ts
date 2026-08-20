@@ -24,6 +24,9 @@ describe("work ledger contract (#572)", () => {
     // Roles and lifecycle states are separate axes — a blocked primary
     // objective stays the primary objective.
     expect(flat).toContain("a blocked primary objective stays the primary objective");
+    // An explicitly ordered follow-up activates when its predecessor completes.
+    expect(flat).toContain("becomes the active item the moment the predecessor completes");
+    expect(flat).toContain("previews and confirmations included; storage still authorizes nothing");
     expect(flat).toContain("**supporting step**");
     expect(flat).toContain("**deferred** (explicitly postponed)");
     expect(flat).toContain("**blocked**");

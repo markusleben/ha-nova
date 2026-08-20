@@ -179,6 +179,7 @@ Alongside Decision Memory, track the work itself — conversation-scoped, intern
 Rules:
 - Explicit scope-adding phrases ("afterward", "later", "also do this", "once that works") create deferred items when they clearly add scope. Agent suggestions become items only when the user accepts them.
 - A supporting step never replaces the objective it supports; when it completes, return to the still-open parent objective.
+- An explicitly ORDERED follow-up ("fix this, then also do that") sits deferred while its predecessor runs and becomes the active item the moment the predecessor completes — activation means starting its normal workflow, previews and confirmations included; storage still authorizes nothing.
 - Classify each new request as replacing, extending, reprioritizing, or independently adding to current work; an ambiguous addition is never silently treated as a replacement — ask, or keep both.
 - The user can cancel, defer, reprioritize, or supersede any item; completed or cancelled work is not resurfaced.
 - Cross-skill handoffs carry the primary objective and pending follow-ups; conversation compaction preserves every non-completed item — active, deferred, AND blocked, each with its role, so a blocked primary objective survives the supporting step that outlives it.

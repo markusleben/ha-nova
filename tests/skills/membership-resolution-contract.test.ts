@@ -164,4 +164,12 @@ describe("consumer wiring (#571)", () => {
     // A group name left in the payload is re-expanded by HA at execution time.
     expect(sc).toContain("execute with the previewed concrete leaf list, never the group name");
   });
+  it("lets the grouped drift rule win over the frozen list", () => {
+    expect(flat(read("skills/service-call/SKILL.md"))).toContain(
+      "Inside a grouped change set the set's own drift rule wins",
+    );
+    expect(flat(read("skills/service-call/SKILL.md"))).toContain(
+      "never a license to actuate a list known to be stale",
+    );
+  });
 });
