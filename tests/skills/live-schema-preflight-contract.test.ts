@@ -96,7 +96,7 @@ describe("live-schema preflight contract (#594)", () => {
       "Unknown outcomes (timeout, transport error, ambiguous terminal response)",
     );
     expect(preflight).toContain(
-      "only when no new entry appeared treat the 404 as expiry",
+      "an options/update/reauth flow creates NO entry, so compare the ENTRY itself",
     );
     expect(preflight).toContain("a blind retry can double-create");
   });
@@ -166,7 +166,7 @@ describe("live-schema preflight contract (#594)", () => {
     const doc = flat("skills/ha-nova/live-schema-preflight.md");
     expect(doc).toContain("`GET .../flow/<flow_id>` shows the current `step_id`");
     expect(doc).toContain("the progress LIST omits agent-started flows; the by-id GET does not");
-    expect(doc).toContain("a completed flow disappears exactly like an expired one — reconcile entries via `config_entries/get` FIRST");
+    expect(doc).toContain("a completed flow disappears exactly like an expired one — reconcile by FLOW TYPE first");
   });
 
   it("keeps bucketed statistics out of sample-coverage claims", () => {

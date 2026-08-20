@@ -53,9 +53,13 @@ orchestration below is skill-side behavior over the existing
   `step_id`, so it proves whether the uncertain submit landed (the progress
   LIST omits agent-started flows; the by-id GET does not). A 404 there is
   ambiguous after a TERMINAL submit: a completed flow disappears exactly like
-  an expired one — reconcile entries via `config_entries/get` FIRST, and only
-  when no new entry appeared treat the 404 as expiry and restart with a fresh
-  preview. Never retry blind — a blind retry can double-create.
+  an expired one — reconcile by FLOW TYPE first. A create flow checks
+  `config_entries/get` for the new entry; an options/update/reauth flow
+  creates NO entry, so compare the ENTRY itself (options/config changed, or
+  the reauth success shape: flow gone with the same `entry_id` alive). Only
+  when that evidence shows nothing landed treat the 404 as expiry and restart
+  with a fresh preview; anything ambiguous stops and reports the state.
+  Never retry blind — a blind retry can double-create or double-apply.
 
 ## Response envelope and terminal-result normalization
 
