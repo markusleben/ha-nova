@@ -32,6 +32,8 @@ describe("semantic outcome verification (#567/#566)", () => {
       expect(doc).toContain(r);
     }
     expect(doc).toContain("Missing evidence is never inferred success");
+    // A transport timeout before any acknowledgement lands in unverified.
+    expect(doc).toContain("even registration is unknown — say that plainly, never retry");
     // A proven upstream rejection is a real outcome, not a taxonomy hole.
     expect(doc).toContain("the command itself was DEFINITIVELY rejected");
     // Early opposite readings are in-progress, never failure.

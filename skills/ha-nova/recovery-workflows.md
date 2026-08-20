@@ -9,7 +9,10 @@ failed attempt (#569). Outcome evidence vocabulary and result classes:
 
 Recognize watchdog intent: the user asks for a watchdog, self-healing,
 continuous monitoring, or automatic recovery — behavior that must stay live
-while the fault persists.
+while the fault persists. An explicitly ONE-SHOT request ("restart it once
+when it goes offline") is the one-shot class even when it uses recovery
+vocabulary: continuity needs words that promise it ("keep it running",
+"whenever it drops", "monitor it"), never the word "automatic" alone.
 
 The defect: an edge trigger fires once per transition — a `numeric_state`
 crossing, a `state` change to an unhealthy value, a binary health sensor

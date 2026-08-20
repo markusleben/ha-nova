@@ -49,7 +49,9 @@ Report one of exactly four outcomes, never a blend:
   per-probe split and the overall outcome stays `unverified` — or `failed`
   when any probe proved the opposite.
 - `unverified` — evidence was expected but missing or unreadable at window
-  end. Missing evidence is never inferred success.
+  end, or the transport outcome itself is ambiguous (a timeout before any
+  acknowledgement: even registration is unknown — say that plainly, never
+  retry). Missing evidence is never inferred success.
 - `failed` — a probe showed the effect did NOT occur AFTER the observation
   window (including any stated transition time) elapsed — an opposite reading
   early in the window is in-progress, not failure — or the command itself was

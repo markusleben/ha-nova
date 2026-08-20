@@ -32,6 +32,8 @@ describe("recovery workflows (#568/#569)", () => {
     );
     expect(doc).toContain("Home Assistant can boot into the fault");
     expect(doc).toContain("Startup coverage is REQUIRED for watchdog continuity");
+    // "Automatic recovery" once is a one-shot request, not continuity.
+    expect(doc).toContain("is the one-shot class even when it uses recovery vocabulary");
     expect(doc).toContain("never a substitute for promised continuity");
   });
 
