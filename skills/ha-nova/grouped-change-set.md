@@ -183,7 +183,7 @@ per family.
   extended across families: every operation with its stable target identifier,
   owning skill, exact endpoint/payload semantics, per-item dependency/consumer
   impact result, per-family recovery path (snapshots, YAML exports, backup
-  gate), and deterministic execution order.
+  gate), and a deterministic execution order that deletes DEPENDENTS before their anchor (the consumers of a helper before the helper itself): fail-fast then never leaves a surviving consumer referencing an already-deleted target.
 - ONE typed code binds to that exact manifest:
   `confirm:cleanup-<target>-<count>-<digest>` (digest per batch-safety's rule,
   computed over this manifest). Any change to any operation, target, payload,

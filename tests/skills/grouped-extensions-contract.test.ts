@@ -192,4 +192,12 @@ describe("cross-family destructive cleanup (issue #583)", () => {
       "removing a retired device's entities FROM a config-entry group helper as one item of such a cleanup",
     );
   });
+  it("orders dependents before the anchor in cleanup manifests", () => {
+    expect(flat(read("skills/ha-nova/grouped-change-set.md"))).toContain(
+      "deletes DEPENDENTS before their anchor",
+    );
+    expect(flat(read("skills/ha-nova/grouped-change-set.md"))).toContain(
+      "never leaves a surviving consumer referencing an already-deleted target",
+    );
+  });
 });
