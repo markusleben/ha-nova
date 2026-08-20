@@ -310,7 +310,7 @@ const WORD_BUDGETS: Record<string, number> = {
   // combined trial-merge measured 4147.
   // Train review: helper's create steps now bind to the live schema via the
   // step-8 drift check (P2-1, measured 4212).
-  helper: 4370, // ephemeral-flow delete exception (round 5, measured 4341)
+  helper: 4410, // group-member removal opt-in (round 6, measured 4379) // ephemeral-flow delete exception (round 5, measured 4341)
   // Fail-closed truncation envelopes on the list and keyword filters
   // (#582, measured 1188).
   read: 1210,

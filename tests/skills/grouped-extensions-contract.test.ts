@@ -187,4 +187,9 @@ describe("cross-family destructive cleanup (issue #583)", () => {
       "statistics clears stay in maintenance's own same-family `confirm:batch-...` manifest and never join this code",
     );
   });
+  it("opts group-member removal into the cleanup manifest", () => {
+    expect(flat(read("skills/helper/SKILL.md"))).toContain(
+      "removing a retired device's entities FROM a config-entry group helper as one item of such a cleanup",
+    );
+  });
 });

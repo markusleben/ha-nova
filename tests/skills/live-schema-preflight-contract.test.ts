@@ -162,4 +162,19 @@ describe("live-schema preflight contract (#594)", () => {
       "DELETEs only that ephemeral `flow_id` — transient flow state, never a config entry",
     );
   });
+  it("reconciles uncertain submits by flow id, then entries", () => {
+    const doc = flat("skills/ha-nova/live-schema-preflight.md");
+    expect(doc).toContain("`GET .../flow/<flow_id>` shows the current `step_id`");
+    expect(doc).toContain("the progress LIST omits agent-started flows; the by-id GET does not");
+    expect(doc).toContain("A 404 there means the flow expired: abandon it and restart with a fresh preview");
+  });
+
+  it("keeps bucketed statistics out of sample-coverage claims", () => {
+    expect(flat("skills/history/SKILL.md")).toContain(
+      "aggregated period BUCKETS, not sample timestamps",
+    );
+    expect(flat("skills/history/SKILL.md")).toContain(
+      "sample density claims come only from raw state history, never from LTS buckets",
+    );
+  });
 });
