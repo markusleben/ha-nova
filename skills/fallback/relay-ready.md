@@ -93,7 +93,7 @@ here, and do not invent a bare subscription: the relay rejects one outside the
 envelope with `UNSUPPORTED_WS_TYPE`.
 
 This is the generic answer to "what does my button / remote / tag fire?":
-resolve the DEVICE first, arm the envelope with a named `until_type` or
+resolve the SOURCE first — the device for buttons/remotes, the `tag/list` registry record (`tag_id`, `ha-nova:admin`) for NFC/QR tags, which are not device-registry devices — then arm the envelope with a named `until_type` or
 explicit limits, then report the captured event TYPES together with their data
 keys — the payload fields a trigger would match on (`zha_event`,
 `deconz_event`, and `tag_scanned` are typical). Never infer an event you did

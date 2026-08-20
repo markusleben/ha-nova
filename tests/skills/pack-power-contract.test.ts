@@ -193,4 +193,9 @@ describe("C1-02 bounded-capture generalization (#520)", () => {
       'not_to: ["unavailable", "unknown"]',
     );
   });
+  it("resolves tags through the tag registry, not devices", () => {
+    expect(flat(read("skills/fallback/relay-ready.md"))).toContain(
+      "the `tag/list` registry record (`tag_id`, `ha-nova:admin`) for NFC/QR tags",
+    );
+  });
 });
