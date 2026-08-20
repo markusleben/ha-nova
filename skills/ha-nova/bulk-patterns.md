@@ -193,6 +193,22 @@ When the shortlist is still a plain JSON array of `entity_id` strings, use this 
   - do not prefetch configs, states, or related-item evidence for the remainder
   - make continuation explicit; do not silently continue in the background
 
+### Continuation Rounds
+
+- A continuation round re-runs the SAME frozen selector from round 1 — never a reworded or re-resolved variant.
+- Exclude already-completed items by exact `entity_id`: the completion ledger from earlier rounds is the cursor.
+- Audit the next workset from the remaining IDs in the same deterministic order.
+- Any selector change (different prefix, domain, area, label, or scope) is a NEW task with a fresh shortlist — not a continuation.
+
+## Stale Automation Audit (explicit request only)
+
+For "which of my automations never ran / are stale": one `GET /api/states` pull filtered to `automation.*` — no per-item config reads.
+
+- Sort by `attributes.last_triggered` ascending; `null` means never triggered — report it as "never", not as an error.
+- Report as a List Frame with exact counts: total automations, never-triggered count, disabled (`state: off`) count, and the oldest entries by last trigger.
+- This is read-only inventory, not review: no per-item review runs, so the 5-target audit cap does NOT apply — the whole domain is one pull.
+- `last_triggered` says nothing about WHY an automation is stale; offer single-target review or `ha-nova:diagnose` as the follow-up.
+
 ## Evidence and Output Rules
 
 - Run the same review checks per item as in single-target review.

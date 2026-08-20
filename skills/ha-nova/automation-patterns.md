@@ -182,6 +182,72 @@ actions:
       message: "High: {{ forecast['weather.home'].forecast[0].temperature }}°C"
 ```
 
+## Advanced Patterns
+
+### Manual-Override Window
+
+Suppress an automation for N minutes after manual control. A timer helper is the flag: it auto-expires and (with `restore: true`) survives restarts. A state change caused by another automation carries a parent context; a manual change (physical or UI) does not.
+
+```yaml
+# Automation 1 — start the override window on manual control
+triggers:
+  - trigger: state
+    entity_id: light.hallway
+actions:
+  - if:
+      - condition: template
+        value_template: "{{ trigger.to_state.context.parent_id is none }}"
+    then:
+      - action: timer.start
+        target: { entity_id: timer.hallway_override }
+        data: { duration: "00:30:00" }
+
+# Automation 2 — the motion automation gates on the window
+conditions:
+  - condition: state
+    entity_id: timer.hallway_override
+    state: idle
+```
+
+### Rate-Limited Notification
+
+Cooldown via a last-notified timestamp helper (`input_datetime` with date and time). Compare as timestamps to avoid naive/aware datetime subtraction errors; the `0` default makes a never-set helper pass the gate.
+
+```yaml
+conditions:
+  - condition: template
+    value_template: >
+      {{ as_timestamp(now()) - as_timestamp(states('input_datetime.last_leak_alert'), 0) > 3600 }}
+actions:
+  - action: notify.mobile_app
+    data: { message: "Leak detected!" }
+  - action: input_datetime.set_datetime
+    target: { entity_id: input_datetime.last_leak_alert }
+    data: { timestamp: "{{ now().timestamp() }}" }
+```
+
+### Presence-Simulation Loop
+
+Randomized-within-bounds schedule while away. `random` and `now()` are evaluated by Home Assistant at each run — never pre-render a random value into the stored config, that freezes one sample forever.
+
+```yaml
+mode: single
+triggers:
+  - trigger: time_pattern
+    minutes: "/30"
+conditions:
+  - condition: state
+    entity_id: input_boolean.vacation_mode
+    state: "on"
+  - condition: sun
+    after: sunset
+actions:
+  - delay:
+      minutes: "{{ range(0, 25) | random }}"
+  - action: light.toggle
+    target: { entity_id: light.living_room }
+```
+
 ## One-Shot And Temporary Automations
 
 A request that should not outlive its purpose — "tell me when the laundry

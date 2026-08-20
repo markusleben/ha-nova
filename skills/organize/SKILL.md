@@ -92,6 +92,10 @@ Use `search/related` when a delete needs a quick impact preview on linked items.
    - category delete: also verify affected entity categories are cleared for that scope
 7. Report the final state in plain language.
 
+## Bulk Target Resolution
+
+When a metadata update targets a SET selected by prefix, domain, area, or label rather than named items, resolve the shortlist per `skills/ha-nova/bulk-patterns.md` (Selector Semantics + Discovery Pipeline) and save it before previewing. The batch or grouped manifest then binds to that exact saved id list — never to the raw selector.
+
 ## Entity / Device Update Fields
 
 Use only exposed metadata fields:

@@ -59,6 +59,10 @@ When the traffic needs the user to act (press the remote, trip the sensor), the 
 
 Never instruct the physical action before the ready-check, and never claim monitoring is active without an open window.
 
+## Zigbee2MQTT Bridge Observability (read-only)
+
+Zigbee2MQTT publishes its network state on retained `zigbee2mqtt/bridge/...` topics (`bridge/devices`, `bridge/info`, `bridge/state`). A bounded listen on one of them returns the retained replay immediately — here `retain: true` IS the answer (broker-held state), not a liveness signal. Use it for "which devices does my Zigbee network have / is the bridge online" questions. Bridge WRITES (rename, permit_join) are not covered here. ZHA and Z-Wave setups have no MQTT surface — route them to `ha-nova:fallback` (Zigbee / Z-Wave network status).
+
 ## Flow
 
 1. Clarify the topic. Prefer the narrowest one that answers the question (`zigbee2mqtt/<device>` beats `zigbee2mqtt/#`).
@@ -72,6 +76,7 @@ Never instruct the physical action before the ready-check, and never claim monit
 - A **retained** message (`retain: true`) persists on the broker and is re-delivered to every future subscriber — including Home Assistant's discovery layer. A wrong retained payload on a `homeassistant/...` discovery topic can create or destroy entities and keeps doing so after a restart. Retained publishes therefore require the typed `confirm:<token>`, not natural confirmation.
 - Publishing to a device's `set`/command topic actuates real hardware. Preview it as an action, not as a message — typed `confirm:<token>`, see Safety.
 - Clearing a retained message means publishing an EMPTY payload to the same topic with `retain: true` — say this explicitly when a retained message is the problem.
+- Retained-discovery cleanup clears only the broker side; the dead entity-registry entries it leaves behind are the registry-side sibling cleanup in `ha-nova:maintenance`.
 
 ## Error Handling
 

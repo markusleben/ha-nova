@@ -139,6 +139,17 @@ sequence:
       message: "{{ flow_status }}"
 ```
 
+## Live Render Loop (pre-save iteration)
+
+Before saving ANY persisted Jinja field — automation templates, template sensor states, and dashboard templated fields (card titles, segment and visibility expressions) alike — render the draft against live state:
+
+`ha-nova relay core --method POST --path /api/template --body-file <payload-file>` with `{"template":"{{ ... }}"}`; the rendered value comes back in `.data.body`.
+
+- Rendering is read-only: it evaluates against live state and changes nothing.
+- Iterate here: render, adjust, render again until the output is right. Surface render errors verbatim — the error text names the failing expression.
+- Exercise edge branches synthetically with `{% set %}` overrides inside the draft (a threshold boundary, a missing value via `none`) instead of changing any real sensor state.
+- The loop ends BEFORE the write preview: a template that never rendered correctly does not reach a save preview.
+
 ## Anti-Patterns
 
 These are caught by review checks — listed here for reference:

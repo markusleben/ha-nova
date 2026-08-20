@@ -58,6 +58,32 @@ ha-nova relay core --method DELETE --path /api/config/config_entries/entry/{entr
 
 The supported families' orchestration contract is `skills/ha-nova/live-schema-preflight.md`; this experimental lane stays outside it and remains fail-closed per #493 (Write-Probing Asymmetry).
 
+### Zigbee / Z-Wave Network Status -- RELAY-READY
+
+Read-only network observability for ZHA and Z-Wave JS setups: which devices
+the radio integration knows, and whether the Z-Wave network is up. Pairing and
+every other radio WRITE stay External per the Capability Map. A Zigbee2MQTT
+setup answers this over MQTT instead: `ha-nova:mqtt` reads the retained
+`zigbee2mqtt/bridge/...` topics in a bounded window.
+
+**Search:** `home assistant zha zwave_js websocket api network status 2026`
+
+**Experimental relay calls (no skill guardrails):**
+```text
+ha-nova relay ws --data-file <payload-file>
+
+# {"type":"zha/devices"}                                        (ZHA device list)
+# {"type":"zwave_js/network_status","entry_id":"<entry_id>"}    (Z-Wave JS network state)
+```
+
+These command names are pinned by no repo reference — verify them live before
+first use in the research step (confirm the current name and required
+arguments before sending anything; `zwave_js/*` commands typically take the
+config `entry_id`).
+
+**Risks:** none for the reads themselves; a wrong or renamed command fails
+with `unknown_command` — never guess a write variant from it.
+
 ### Bounded Event Capture -- RELAY-READY
 
 Watching what a physical button fires, or what happens in the seconds after an
@@ -65,6 +91,13 @@ action. The mechanics are already contracted in
 `skills/ha-nova/relay-api.md` → Bounded Event Collection — do not restate them
 here, and do not invent a bare subscription: the relay rejects one outside the
 envelope with `UNSUPPORTED_WS_TYPE`.
+
+This is the generic answer to "what does my button / remote / tag fire?":
+resolve the DEVICE first, arm the envelope with a named `until_type` or
+explicit limits, then report the captured event TYPES together with their data
+keys — the payload fields a trigger would match on (`zha_event`,
+`deconz_event`, and `tag_scanned` are typical). Never infer an event you did
+not capture: an automation built on a guessed payload matches nothing.
 
 Resolve the event type from the button's own integration first — it is not one
 value. ZHA fires `zha_event`, Z-Wave JS `zwave_js_value_notification`, deCONZ

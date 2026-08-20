@@ -233,6 +233,9 @@ Match user intent to exactly one skill:
 | check pending updates, read release notes, install updates, skip/unskip versions | `ha-nova:updates` |
 | analyze energy usage, solar/battery/grid KPIs, per-device consumption or costs; edit energy dashboard sources/devices | `ha-nova:energy` |
 | repair statistics (orphans, unit mismatches, sum spikes), purge recorder history, clean up dead registry entries | `ha-nova:maintenance` |
+| edit `recorder:` include/exclude filters or `purge_keep_days` (YAML) | `ha-nova:yaml-config` |
+| which domains or entities dominate recorder growth (read-only triage; startup-time tuning is deferred — no owner yet) | `ha-nova:maintenance` |
+| "what event does my button/remote/tag fire?" — capture it in a bounded window | `ha-nova:fallback` (Bounded Event Capture); MQTT devices: `ha-nova:mqtt` |
 | turn on/off, toggle, set, call a service — including native duration fields such as `timer.start` or `siren.turn_on` | `ha-nova:service-call` |
 | enable/disable/trigger an automation | `ha-nova:service-call` |
 | fire a custom event or trigger a known JSON webhook | `ha-nova:service-call` |
