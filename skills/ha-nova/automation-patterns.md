@@ -186,7 +186,7 @@ actions:
 
 ### Manual-Override Window
 
-Suppress an automation for N minutes after manual control. A timer helper is the flag: it auto-expires and (with `restore: true`) survives restarts. A state change caused by another automation carries a parent context; a manual change (physical or UI) does not.
+Suppress an automation for N minutes after manual control. A timer helper is the flag: it auto-expires and (with `restore: true`) survives restarts. An event-triggered automation's change carries a parent context, but a time-triggered automation runs with NONE — exclude the paired automation's own run by context id, since a manual change (physical or UI) also has no parent.
 
 ```yaml
 # Automation 1 — start the override window on manual control
@@ -196,7 +196,9 @@ triggers:
 actions:
   - if:
       - condition: template
-        value_template: "{{ trigger.to_state.context.parent_id is none }}"
+        value_template: >
+          {{ trigger.to_state.context.parent_id is none
+             and trigger.to_state.context.id != states.automation.hallway_motion.context.id }}
     then:
       - action: timer.start
         target: { entity_id: timer.hallway_override }
