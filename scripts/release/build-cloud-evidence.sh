@@ -183,20 +183,30 @@ head_repo="$(jq -r '.head.repo.full_name // ""' <<<"$pr_json")"
 # The resolver also refuses requested-changes reviews and unresolved review
 # threads; server-side that verdict lands only AFTER the dispatch and burns
 # the run (#609/rc22: a stale bot thread from a pre-session review). GraphQL
-# because REST cannot see thread resolution; first:100 is capacity, not a
-# filter — an over-100 tail still fails server-side. Called here at resolve
-# time and again at the moment of spending (dispatch_and_bind): review state
-# arriving during envelope/reachability work would still burn the dispatch.
+# because REST cannot see thread resolution. Called here at resolve time and
+# again at the moment of spending (dispatch_and_bind): review state arriving
+# during envelope/reachability work would still burn the dispatch.
 require_reviewable_pr() {
-  local review_json unresolved review_decision
-  review_json="$(gh api graphql -f query='query($owner:String!,$name:String!,$number:Int!){repository(owner:$owner,name:$name){pullRequest(number:$number){reviewDecision reviewThreads(first:100){nodes{isResolved}}}}}' -F owner="${REPO%%/*}" -F name="${REPO##*/}" -F number="$PR")" \
+  local thread_pages
+  # Same --paginate --slurp + $endCursor shape as the server resolver
+  # (resolve-cloud-candidate-source.sh), so the preflight sees EVERY thread
+  # page, and the same reviewDecision allowlist.
+  thread_pages="$(gh api graphql --paginate --slurp \
+    -f owner="${REPO%%/*}" -f name="${REPO##*/}" -F number="$PR" \
+    -f query='query($owner:String!,$name:String!,$number:Int!,$endCursor:String){repository(owner:$owner,name:$name){pullRequest(number:$number){reviewDecision reviewThreads(first:100,after:$endCursor){nodes{isResolved} pageInfo{hasNextPage endCursor}}}}}')" \
     || die "cannot read #$PR's review threads"
-  unresolved="$(jq '[.data.repository.pullRequest.reviewThreads.nodes[] | select(.isResolved | not)] | length' <<<"$review_json")"
-  [ "$unresolved" = 0 ] \
-    || die "PR #$PR carries $unresolved unresolved review thread(s) — the candidate workflow refuses the dispatch; resolve them first (stale bot threads from earlier reviews count)"
-  review_decision="$(jq -r '.data.repository.pullRequest.reviewDecision // ""' <<<"$review_json")"
-  [ "$review_decision" != "CHANGES_REQUESTED" ] \
-    || die "PR #$PR has a requested-changes review — the candidate workflow refuses the dispatch"
+  jq -e '
+    length > 0
+    and all(.[];
+      .data.repository.pullRequest != null
+      and (
+        .data.repository.pullRequest.reviewDecision == "APPROVED"
+        or .data.repository.pullRequest.reviewDecision == "REVIEW_REQUIRED"
+        or .data.repository.pullRequest.reviewDecision == null
+      )
+      and all(.data.repository.pullRequest.reviewThreads.nodes[]; .isResolved == true)
+    )' >/dev/null <<<"$thread_pages" \
+    || die "PR #$PR has requested changes or unresolved review threads — the candidate workflow refuses the dispatch; resolve them first (stale bot threads from earlier reviews count)"
 }
 require_reviewable_pr
 case "$mergeable" in

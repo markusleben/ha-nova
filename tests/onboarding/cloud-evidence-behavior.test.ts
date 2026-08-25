@@ -105,10 +105,10 @@ case "$args" in
   "api repos/${REPO_SLUG}/pulls/"*)
     trace "read:pr"
     cat "\${FAKE_GH_STATE}/pr.json" ;;
-  "api graphql -f query="*" -F owner="*" -F name="*" -F number="*)
+  "api graphql --paginate --slurp -f owner="*" -f name="*" -F number="*" -f query="*)
     trace "read:review-threads"
     cat "\${FAKE_GH_STATE}/review.json" 2>/dev/null \\
-      || printf '{"data":{"repository":{"pullRequest":{"reviewDecision":null,"reviewThreads":{"nodes":[]}}}}}\\n' ;;
+      || printf '[{"data":{"repository":{"pullRequest":{"reviewDecision":null,"reviewThreads":{"nodes":[],"pageInfo":{"hasNextPage":false,"endCursor":null}}}}}}]\\n' ;;
   "run list --repo ${REPO_SLUG} --workflow cloud-candidate-bundle.yml --json databaseId,status,conclusion,event --limit 30")
     trace "run-list"
     n="$(cat "\${FAKE_GH_STATE}/list.count" 2>/dev/null || echo 0)"
@@ -465,22 +465,42 @@ describe("cloud evidence PR target binding", () => {
     // #609/rc22: a stale bot thread from a pre-session review burned the
     // dispatch — server-side the resolver rejects only AFTER the run started.
     const { fixture, fake } = prFixture();
+    // Slurp shape: the unresolved thread sits on the SECOND page, so a
+    // first-page-only preflight would pass and burn the dispatch.
     writeFileSync(
       join(fake.state, "review.json"),
-      JSON.stringify({
-        data: {
-          repository: {
-            pullRequest: {
-              reviewDecision: null,
-              reviewThreads: { nodes: [{ isResolved: true }, { isResolved: false }] },
+      JSON.stringify([
+        {
+          data: {
+            repository: {
+              pullRequest: {
+                reviewDecision: null,
+                reviewThreads: {
+                  nodes: [{ isResolved: true }],
+                  pageInfo: { hasNextPage: true, endCursor: "c1" },
+                },
+              },
             },
           },
         },
-      }),
+        {
+          data: {
+            repository: {
+              pullRequest: {
+                reviewDecision: null,
+                reviewThreads: {
+                  nodes: [{ isResolved: false }],
+                  pageInfo: { hasNextPage: false, endCursor: null },
+                },
+              },
+            },
+          },
+        },
+      ]),
     );
     const result = runScript(fixture, fake, ["7"]);
     expect(result.status, result.stdout).not.toBe(0);
-    expect(result.stderr).toContain("unresolved review thread");
+    expect(result.stderr).toContain("unresolved review threads");
     expect(readFileSync(fake.trace, "utf8")).not.toContain("dispatch");
   });
 
@@ -488,20 +508,25 @@ describe("cloud evidence PR target binding", () => {
     const { fixture, fake } = prFixture();
     writeFileSync(
       join(fake.state, "review.json"),
-      JSON.stringify({
-        data: {
-          repository: {
-            pullRequest: {
-              reviewDecision: "CHANGES_REQUESTED",
-              reviewThreads: { nodes: [] },
+      JSON.stringify([
+        {
+          data: {
+            repository: {
+              pullRequest: {
+                reviewDecision: "CHANGES_REQUESTED",
+                reviewThreads: {
+                  nodes: [],
+                  pageInfo: { hasNextPage: false, endCursor: null },
+                },
+              },
             },
           },
         },
-      }),
+      ]),
     );
     const result = runScript(fixture, fake, ["7"]);
     expect(result.status, result.stdout).not.toBe(0);
-    expect(result.stderr).toContain("requested-changes review");
+    expect(result.stderr).toContain("requested changes");
     expect(readFileSync(fake.trace, "utf8")).not.toContain("dispatch");
   });
 
