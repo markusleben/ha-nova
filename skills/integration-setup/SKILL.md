@@ -158,7 +158,7 @@ Use the Preview Card for flow start, menu selection, each non-secret form submit
 
 - Drafts follow `skills/ha-nova/smallest-solution.md`: the complete requested outcome in the simplest safe design, nothing for hypothetical future needs.
 
-- Declared exception to the core delete rule above: canceling an unfinished add flow created by this skill, including cleanup before a required credential, external/OAuth, or progress UI restart, deletes only ephemeral flow state; an explicit `cancel` or the UI-restart branch is sufficient, and this exception never applies to a config entry.
+- Declared exception to the core delete rule above: canceling an unfinished flow created by this skill — add, options, or reconfigure — including cleanup before a required credential, external/OAuth, or progress UI restart, deletes only ephemeral flow state; an explicit `cancel` or the UI-restart branch is sufficient, and this exception never applies to a config entry.
 - Never request, echo, persist, or submit credentials from chat; finish credential-bearing steps in the Home Assistant UI.
 - Starting or submitting a flow may contact an external service; always use the bound preview.
 - Never leave an agent-created canceled add flow dangling; never delete a Home Assistant-created reauth flow.

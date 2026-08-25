@@ -264,8 +264,9 @@ triggers:
 conditions:
   - condition: template
     value_template: >
-      {{ states.sensor.greenhouse_temp is none
-         or (now() - (states.sensor.greenhouse_temp.last_reported or states.sensor.greenhouse_temp.last_updated)).total_seconds() > 3600 }}
+      {% set s = states.sensor.greenhouse_temp | default(none) %}
+      {{ s is none
+         or (now() - (s.last_reported or s.last_updated)).total_seconds() > 3600 }}
   - condition: state
     entity_id: input_boolean.greenhouse_temp_stale
     state: "off"
@@ -286,9 +287,10 @@ triggers:
 conditions:
   - condition: template
     value_template: >
-      {{ states.sensor.greenhouse_temp is not none
-         and (now() - (states.sensor.greenhouse_temp.last_reported or states.sensor.greenhouse_temp.last_updated)).total_seconds() < 3600
-         and states('sensor.greenhouse_temp') not in ['unavailable', 'unknown'] }}
+      {% set s = states.sensor.greenhouse_temp | default(none) %}
+      {{ s is not none
+         and (now() - (s.last_reported or s.last_updated)).total_seconds() < 3600
+         and s.state not in ['unavailable', 'unknown'] }}
   - condition: state
     entity_id: input_boolean.greenhouse_temp_stale
     state: "on"
