@@ -108,6 +108,10 @@ describe("helper families generic_thermostat + switch_as_x (#531 P4-05)", () => 
     expect(helper).toContain(
       "allowed here: `utility_meter`, `derivative`, `integration`, `min_max`, `threshold`, `tod`, `statistics`, `group`, `history_stats`, `template`, `generic_thermostat`, `switch_as_x`",
     );
+    // The shared relay contract's allowlist must agree with the promotion.
+    const relayApi = flat(read("skills/ha-nova/relay-api.md"));
+    expect(relayApi).toContain("- `generic_thermostat`");
+    expect(relayApi).toContain("- `switch_as_x`");
   });
 
   it("anchors the promoted domains to the live form, honestly uninventoried", () => {

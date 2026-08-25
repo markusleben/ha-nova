@@ -309,6 +309,8 @@ Supported helper domains:
 - `group`
 - `history_stats`
 - `template`
+- `generic_thermostat`
+- `switch_as_x`
 
 `group` is menu-driven; the live-proven end-to-end subtype is `sensor`, and other subtypes must stay anchored to the live step schema instead of guessed fields.
 
