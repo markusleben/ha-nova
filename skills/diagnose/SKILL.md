@@ -41,9 +41,9 @@ File-based relay requests only:
 | State history | `GET /api/history/period/<ISO-start>?end_time=<ISO-end>&filter_entity_id=<ids>` | What states the involved entities actually had |
 | Template probe | `ha-nova relay core --method POST --path /api/template --body-file <payload-file>` with `{"template":"{{ ... }}"}` | Evaluate the exact condition/template against live state; the rendered result is the string in `.data.body` |
 | Integration diagnostics | WS `{"type":"diagnostics/list"}`, then `GET /api/diagnostics/config_entry/<entry_id>` with `--out <result-file>` | Deep integration state when an integration itself is the suspect |
-| Device diagnostics | `GET /api/diagnostics/config_entry/<entry_id>/device/<device_id>` with `--out <result-file>` | One device's slice when a single device misbehaves; resolve `device_id` from the device registry, `entry_id` from the device's owning config entry |
+| Device diagnostics | `GET /api/diagnostics/config_entry/<entry_id>/device/<device_id>` with `--out <result-file>` | One device's slice when a single device misbehaves; resolve the `(entry_id, device_id)` pair via WS `diagnostics/list` (only entries with a device-diagnostics handler) — a device can carry several entry ids |
 
-Diagnostics redaction is integration-controlled: each integration decides what it masks, so downloads are potentially sensitive and NEVER hit bare stdout — save with `--out`, extract only relevant fields via `relay jq` before quoting.
+Diagnostics redaction is integration-controlled, so downloads are potentially sensitive and NEVER hit bare stdout — save with `--out`, extract only relevant fields via `relay jq` before quoting.
 
 Recency honesty: `error_log` and `system_log/list` only cover the time since the last Core restart. For older incidents use logbook/history windows, and say explicitly that live logs no longer reach back that far.
 

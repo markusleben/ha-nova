@@ -50,7 +50,9 @@ describe("P2-09 organize bulk seam (#529)", () => {
 describe("P2-04 stale automation audit (#529)", () => {
   it("defines the one-pull inventory outside the 5-cap", () => {
     expect(bulk).toContain("## Stale Automation Audit (explicit request only)");
-    expect(bulk).toContain("one `GET /api/states` pull filtered to `automation.*`");
+    expect(bulk).toContain(
+      "one `GET /api/states` pull saved with `--out <result-file>` and filtered to `automation.*` via `relay jq`",
+    );
     expect(bulk).toContain("Sort by `attributes.last_triggered` ascending");
     expect(bulk).toContain('`null` means never triggered — report it as "never"');
     expect(bulk).toContain("Report as a List Frame with exact counts");

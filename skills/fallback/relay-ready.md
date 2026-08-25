@@ -241,20 +241,21 @@ here. On `{"result":"invalid"}` restore that file's `.bak` immediately, before
 reporting, and do not reload. The sentence file and `configuration.yaml` are
 two independent restores — roll back the one that is broken.
 
-Rolling back an `intent_script` needs a RESTART, not a reload: the handler is
-already loaded and restoring `configuration.yaml` does not unload it. Say so
-plainly — the file is correct again, the handler stays live until Home
-Assistant restarts.
+Rolling back an `intent_script` is restore + `intent_script.reload`: the
+reload removes the stale handler along with re-reading the file. Only when the
+block never loaded (first block, restart still pending) is the restore alone
+complete.
 
 **Verify, and be ready to undo:** `write_file` with `backup: true` (the
 default) so a `.bak` exists — a brand-new file has none, so remember that you
 created it. Reload the right thing: `conversation.reload` reloads the SENTENCE
-matcher and is enough when only the sentence file changed. A new
-`intent_script:` block is NOT reloadable — Home Assistant registers no
-`intent_script.reload`, and neither `homeassistant.reload_core_config` nor
-`reload_all` loads those handlers. It takes a restart. So when the change adds
-an intent handler, say that plainly, and do not run the phrase test before the
-restart: it would fail for a valid file and trigger a pointless rollback. Then run the
+matcher and is enough when only the sentence file changed. A handler added to
+an existing `intent_script:` block loads via `intent_script.reload`. Only the
+FIRST-ever top-level `intent_script:` block takes a restart: the integration
+is not set up yet, so its reload service does not exist, and neither
+`homeassistant.reload_core_config` nor `reload_all` sets it up. Say which
+applies, and do not run the phrase test before that reload or restart: it
+would fail for a valid file and trigger a pointless rollback. Then run the
 exact phrase
 through `ha-nova:assist` (`POST /api/conversation/process`): a sentence file
 that parses is not a sentence Assist matched. If the phrase does not match, or

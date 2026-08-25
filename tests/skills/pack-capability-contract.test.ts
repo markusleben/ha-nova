@@ -162,9 +162,9 @@ describe("assist custom sentences ownership (#519 C1-08)", () => {
   it("keeps the ordered safety chain: check_config, right reload, live test, split rollback", () => {
     expect(assist).toContain("`POST /api/config/core/check_config` FIRST");
     expect(assist).toContain("`conversation.reload` reloads the sentence matcher");
-    expect(assist).toContain("`intent_script:` handler is NOT reloadable");
+    expect(assist).toContain("only the FIRST-ever top-level `intent_script:` block takes a Home Assistant restart");
     expect(assist).toContain("never claim success without this test");
-    expect(assist).toContain("keeps its handler live until the next restart");
+    expect(assist).toContain("drops its stale handler with `intent_script.reload`");
   });
 
   it("routes the capability-map row to assist as owner", () => {
@@ -198,7 +198,7 @@ describe("integration options/reconfigure/reload scope (#520 C1-04)", () => {
   });
 
   it("guards reconfigure against silently starting an add flow", () => {
-    expect(setup).toContain('POST `{"handler":"<domain>","entry_id":"<entry_id>","source":"reconfigure"}`');
+    expect(setup).toContain('POST `{"handler":"<domain>","entry_id":"<entry_id>"}`');
     // Hedged wording: unsupported reconfigure is detected live, not asserted.
     expect(setup).toContain("treat any non-reconfigure form (a plain add form included) as unsupported: DELETE the flow and stop");
     expect(setup).toContain("the same `entry_id` persists and the before/after `config_entries/get` diff shows NO new entry");
@@ -222,10 +222,10 @@ describe("integration options/reconfigure/reload scope (#520 C1-04)", () => {
       "or change an integration's options, reconfigure it, or reload its entry | `ha-nova:integration-setup` |",
     );
   });
-  it("passes the reconfigure source at flow start", () => {
+  it("selects reconfigure mode via entry_id at flow start", () => {
     const isk = flat(read("skills/integration-setup/SKILL.md"));
-    expect(isk).toContain('"source":"reconfigure"');
-    expect(isk).toContain("without it Home Assistant starts a normal ADD flow");
+    expect(isk).toContain("`entry_id` selects reconfigure mode (a body `source` key is ignored by the API)");
+    expect(isk).toContain("without `entry_id` Home Assistant starts a normal ADD flow");
   });
   it("hands secret steps of options/reconfigure flows to the entry's own UI", () => {
     expect(flat(read("skills/integration-setup/SKILL.md"))).toContain(

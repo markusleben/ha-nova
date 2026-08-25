@@ -269,10 +269,12 @@ conditions:
     entity_id: input_boolean.greenhouse_temp_stale
     state: "off"
 actions:
-  - action: input_boolean.turn_on
-    target: { entity_id: input_boolean.greenhouse_temp_stale }
+  # notify FIRST: a failed notify with the flag already set would silence the
+  # whole incident; the inverse failure only repeats an alert (visible, not silent)
   - action: notify.mobile_app_<device>   # resolve the real service (skills/notify) before saving
     data: { message: "Greenhouse sensor silent for over an hour" }
+  - action: input_boolean.turn_on
+    target: { entity_id: input_boolean.greenhouse_temp_stale }
 
 # Recovery — only a VALID fresh REPORT clears the flag. Freshness keys on
 # last_reported (identical re-reports advance it while last_updated stays);

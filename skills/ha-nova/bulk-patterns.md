@@ -202,7 +202,7 @@ When the shortlist is still a plain JSON array of `entity_id` strings, use this 
 
 ## Stale Automation Audit (explicit request only)
 
-For "which of my automations never ran / are stale": one `GET /api/states` pull filtered to `automation.*` — no per-item config reads. Registry-DISABLED automations have no states row at all: add one compact registry read (`config/entity_registry/list_for_display`, filter `automation.`) and report rows missing from states as "disabled" — an exact total is states rows plus disabled rows, never the states count alone.
+For "which of my automations never ran / are stale": one `GET /api/states` pull saved with `--out <result-file>` and filtered to `automation.*` via `relay jq` — never printed unfiltered, no per-item config reads. Registry-DISABLED automations have no states row at all: add one compact registry read (`config/entity_registry/list_for_display`, filter `automation.`) and report rows missing from states as "disabled" — an exact total is states rows plus disabled rows, never the states count alone.
 
 - Sort by `attributes.last_triggered` ascending; `null` means never triggered — report it as "never", not as an error.
 - Report as a List Frame with exact counts: total automations, never-triggered count, disabled (`state: off`) count, and the oldest entries by last trigger.
