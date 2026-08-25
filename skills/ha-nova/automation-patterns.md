@@ -177,7 +177,7 @@ actions:
     target: { entity_id: weather.home }
     data: { type: hourly }
     response_variable: forecast
-  - action: notify.mobile_app
+  - action: notify.mobile_app_<device>   # resolve the real service (skills/notify) before saving
     data:
       message: "High: {{ forecast['weather.home'].forecast[0].temperature }}°C"
 ```
@@ -219,7 +219,7 @@ conditions:
     value_template: >
       {{ as_timestamp(now()) - as_timestamp(states('input_datetime.last_leak_alert'), 0) > 3600 }}
 actions:
-  - action: notify.mobile_app
+  - action: notify.mobile_app_<device>   # resolve the real service (skills/notify) before saving
     data: { message: "Leak detected!" }
   - action: input_datetime.set_datetime
     target: { entity_id: input_datetime.last_leak_alert }
@@ -269,7 +269,7 @@ conditions:
 actions:
   - action: input_boolean.turn_on
     target: { entity_id: input_boolean.greenhouse_temp_stale }
-  - action: notify.mobile_app
+  - action: notify.mobile_app_<device>   # resolve the real service (skills/notify) before saving
     data: { message: "Greenhouse sensor silent for over an hour" }
 
 # Recovery — only a VALID fresh REPORT clears the flag. Freshness keys on
