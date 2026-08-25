@@ -180,6 +180,35 @@ base_ref="$(jq -r '.base.ref // ""' <<<"$pr_json")"
 head_repo="$(jq -r '.head.repo.full_name // ""' <<<"$pr_json")"
 [ "$head_repo" = "$REPO" ] \
   || die "PR #$PR's head lives in '${head_repo:-unknown}', not $REPO — the candidate workflow only builds same-repo branches"
+# The resolver also refuses requested-changes reviews and unresolved review
+# threads; server-side that verdict lands only AFTER the dispatch and burns
+# the run (#609/rc22: a stale bot thread from a pre-session review). GraphQL
+# because REST cannot see thread resolution. Called here at resolve time and
+# again at the moment of spending (dispatch_and_bind): review state arriving
+# during envelope/reachability work would still burn the dispatch.
+require_reviewable_pr() {
+  local thread_pages
+  # Same --paginate --slurp + $endCursor shape as the server resolver
+  # (resolve-cloud-candidate-source.sh), so the preflight sees EVERY thread
+  # page, and the same reviewDecision allowlist.
+  thread_pages="$(gh api graphql --paginate --slurp \
+    -f owner="${REPO%%/*}" -f name="${REPO##*/}" -F number="$PR" \
+    -f query='query($owner:String!,$name:String!,$number:Int!,$endCursor:String){repository(owner:$owner,name:$name){pullRequest(number:$number){reviewDecision reviewThreads(first:100,after:$endCursor){nodes{isResolved} pageInfo{hasNextPage endCursor}}}}}')" \
+    || die "cannot read #$PR's review threads"
+  jq -e '
+    length > 0
+    and all(.[];
+      .data.repository.pullRequest != null
+      and (
+        .data.repository.pullRequest.reviewDecision == "APPROVED"
+        or .data.repository.pullRequest.reviewDecision == "REVIEW_REQUIRED"
+        or .data.repository.pullRequest.reviewDecision == null
+      )
+      and all(.data.repository.pullRequest.reviewThreads.nodes[]; .isResolved == true)
+    )' >/dev/null <<<"$thread_pages" \
+    || die "PR #$PR has requested changes or unresolved review threads — the candidate workflow refuses the dispatch; resolve them first (stale bot threads from earlier reviews count)"
+}
+require_reviewable_pr
 case "$mergeable" in
   # `blocked` is the EXPECTED state here: cloud-source-gate is a required check
   # and it is red precisely because the envelope this script prepares does not
@@ -346,6 +375,9 @@ download_run() {  # <run-id> ; hard-fails
 dispatch_and_bind() {  # sets run_id
   local max_before
   max_before="$(jq -r '[.[].databaseId] | max // 0' <<<"$runs_json")"
+  # Recheck at the moment of spending: the resolve-time snapshot can go stale
+  # while the envelope, reachability, and reuse probes run.
+  require_reviewable_pr
   echo "  dispatching (request_id=$request_id)"
   gh workflow run cloud-candidate-bundle.yml --repo "$REPO" \
     -f "pull_request=$PR" -f "version_tag=$version_tag" -f "request_id=$request_id" \
