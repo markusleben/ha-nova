@@ -44,7 +44,7 @@ For every Relay-Ready call in this skill:
 | Automations CRUD | Covered | read / write |
 | Scripts CRUD | Covered | read / write |
 | Config Review | Covered | review |
-| Helpers (9 storage + 10 config-entry) | Covered | helper |
+| Helpers (9 storage + 12 config-entry) | Covered | helper |
 | Entity Search | Covered | entity-discovery |
 | Service Calls | Covered | service-call |
 | Relay Setup | Covered | onboarding |
@@ -90,12 +90,14 @@ For every Relay-Ready call in this skill:
 | Apps / Supervisor: install, uninstall, configure, store | External | -- (updates: `updates`; start/stop/restart and host reboot: `service-call`) |
 | HACS (registration, download, version switching, uninstall, migration) | Covered | hacs |
 | Zigbee / Z-Wave Config | External | -- (MQTT-level inspection of a Zigbee2MQTT setup: `mqtt`) |
+| Zigbee / Z-Wave network status (read-only device list / network reads) | Relay-Ready | this skill; Z2M bridge topics: `mqtt` |
 | Alarm / lock code management (lock user codes, alarm PINs) | External | -- (Home Assistant UI; codes never enter chat) |
-| Integration entry lifecycle (reload, remove) | Relay-Ready | this skill; credential-recovery reload: `integration-setup` |
-| Integration entry enable/disable, options, reconfigure | External | -- (Settings > Devices & services) |
+| Integration entry lifecycle (remove) | Relay-Ready | this skill; reload (credential recovery included): `integration-setup` |
+| Integration entry options / reconfigure (standard config-entry flows) | Covered | integration-setup |
+| Integration entry enable/disable | External | -- (Settings > Devices & services) |
 | Matter / Thread status (border router, datasets, node diagnostics) | Relay-Ready | this skill |
 | Matter / Thread commissioning | External | -- (companion app; BLE pairing is not an API surface) |
-| Assist custom sentences / intent scripts | Relay-Ready | this skill (file mechanics below); `assist` tests the result |
+| Assist custom sentences / intent scripts | Covered | assist (owning workflow; file mechanics stay in `skills/fallback/relay-ready.md`) |
 | Creating a calendar (the `local_calendar` integration) | Covered | integration-setup |
 | Device category assignment | Not a Home Assistant surface | -- (devices carry no category; entity categories are `organize`) |
 

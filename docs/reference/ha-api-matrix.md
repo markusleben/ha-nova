@@ -97,16 +97,18 @@ Which HA operations require REST, WS, or filesystem?
 | `/core` | `POST /api/config/config_entries/flow/{flow_id}` | Submit flow step |
 | `/core` | `DELETE /api/config/config_entries/flow/{flow_id}` | Cancel an unfinished flow |
 | `/core` | `POST /api/config/config_entries/options/flow` | Start options flow for an existing entry |
+| `/core` | `GET /api/config/config_entries/options/flow/{flow_id}` | Read current options-flow step |
 | `/core` | `POST /api/config/config_entries/options/flow/{flow_id}` | Submit options-flow step |
+| `/core` | `DELETE /api/config/config_entries/options/flow/{flow_id}` | Cancel an unfinished options flow |
 | `/core` | `DELETE /api/config/config_entries/entry/{entry_id}` | Delete config entry |
 
 Observed locally on a real HA instance on 2026-03-19: raw WS `config_entries/flow` did not succeed in this session; relay `/core` returned the expected config-flow responses.
 
-**Integration flow ownership:** `ha-nova:integration-setup` owns integration add, pending `reauth` continuation, and invalid-credential recovery when no reauth flow is pending (including that lane's entry reload); it uses the live response schema and hands secrets/external steps to the HA UI.
+**Integration flow ownership:** `ha-nova:integration-setup` owns integration add, pending `reauth` continuation, invalid-credential recovery when no reauth flow is pending, options and reconfigure flows for existing entries, and config-entry reload; it uses the live response schema and hands secrets/external steps to the HA UI.
 
-**Helper-owned config-entry domains:** utility_meter, derivative, integration, min_max, threshold, tod, statistics, group, history_stats, template
+**Helper-owned config-entry domains:** utility_meter, derivative, integration, min_max, threshold, tod, statistics, group, history_stats, template, generic_thermostat, switch_as_x
 `group` is menu-driven; the live-proven end-to-end subtype is `sensor`, and other subtypes must stay anchored to the live step schema instead of guessed fields.
-**Fallback-owned flow helpers:** trend, random, filter, generic_thermostat, switch_as_x, generic_hygrostat
+**Fallback-owned flow helpers:** trend, random, filter, generic_hygrostat
 
 ### Dashboard / Lovelace
 | WS Type | Purpose |
@@ -142,6 +144,7 @@ Observed locally on a real HA instance on 2026-03-19: raw WS `config_entries/flo
 ### Calendar event writes
 | WS Type | Purpose |
 |---------|---------|
+| `calendar/event/create` | Recurring event create with RFC 5545 `rrule` (feature bit 1); non-recurring creates use the REST service |
 | `calendar/event/update` | Full-object event update by `entity_id` + `uid` (feature bit 4) |
 | `calendar/event/delete` | Event delete by `entity_id` + `uid` (feature bit 2) |
 
@@ -204,7 +207,7 @@ guardrails.
 | Core state | `get_states` (full state dump; prefer `config/entity_registry/list_for_display` for listings) | ha-nova (`relay-api.md`), used across read paths |
 | Backups | `backup/info`, `backup/generate`, `backup/generate_with_automatic_settings`, `backup/delete`, `backup/agents/info`, `backup/details`, `backup/config/info` | backup |
 | People & access | `person/*`, `zone/*`, `tag/*`, `config/auth/list`, `config/auth/create`, `config/auth/delete`, `auth/current_user` | admin |
-| Voice | `assist_pipeline/pipeline/list`, `assist_pipeline/pipeline/update`, `assist_pipeline/pipeline/delete`, `assist_pipeline/pipeline/set_preferred`, `homeassistant/expose_entity` and `homeassistant/expose_entity/list`, engine inventories `tts/engine/list`, `stt/engine/list`, `conversation/agent/list`, `wake_word/info`. `assist_pipeline/run` is pinned as NOT usable via the Relay (streaming audio subscription); utterance tests go through REST `/api/conversation/process` | assist |
+| Voice | `assist_pipeline/pipeline/list`, `assist_pipeline/pipeline/create`, `assist_pipeline/pipeline/update`, `assist_pipeline/pipeline/delete`, `assist_pipeline/pipeline/set_preferred`, `homeassistant/expose_entity` and `homeassistant/expose_entity/list`, engine inventories `tts/engine/list`, `stt/engine/list`, `conversation/agent/list`, `wake_word/info`. `assist_pipeline/run` is pinned as NOT usable via the Relay (streaming audio subscription); utterance tests go through REST `/api/conversation/process` | assist |
 | Recorder repair | `recorder/info`, `recorder/list_statistic_ids`, `recorder/get_statistics_metadata`, `recorder/validate_statistics`, `recorder/clear_statistics`, `recorder/update_statistics_metadata`, `recorder/change_statistics_unit`, `recorder/adjust_sum_statistics` | maintenance |
 | Device automation | `device_automation/trigger/list`, `device_automation/trigger/capabilities` | write |
 | MQTT | `mqtt/subscribe` (envelope only), `mqtt/device/debug_info` | mqtt |

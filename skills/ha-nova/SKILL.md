@@ -266,12 +266,13 @@ Match user intent to exactly one skill:
 | "is everything closed / locked / off?", "who is home?", "what is running right now?" — a live state snapshot across a domain | `ha-nova:entity-discovery` |
 | check home status, repairs, system health, integration issues, unavailable entities, or low batteries | `ha-nova:health` (the SYSTEM's condition; a snapshot of what things are DOING is entity-discovery, above) |
 | find out WHY a specific automation, script, device, or integration failed or misbehaved (traces, error/system logs, root cause) | `ha-nova:diagnose` |
-| add an integration, continue a pending integration reauthentication flow, or recover invalid integration credentials when no reauth flow is pending | `ha-nova:integration-setup` |
+| add an integration, continue a pending integration reauthentication flow, or recover invalid integration credentials when no reauth flow is pending, or change an integration's options, reconfigure it, or reload its entry | `ha-nova:integration-setup` |
 | play, pause, skip, set volume, change source, group speakers, browse media, or announce over a speaker | `ha-nova:media` |
 | send a notification to a phone or another notify target, or manage Home Assistant's persistent notifications | `ha-nova:notify` |
 | look at a camera (snapshot), get a stream URL, record, switch a camera on/off, toggle its motion detection, or cast its stream to a TV | `ha-nova:camera` |
 | listen to MQTT topics to see what a device actually publishes, inspect MQTT discovery, or publish a message | `ha-nova:mqtt` |
 | test what the voice assistant understands, manage Assist pipelines, or control which entities voice can see | `ha-nova:assist` |
+| teach Assist a new phrase / custom sentence | `ha-nova:assist` |
 | manage persons, zones, tags, or user accounts | `ha-nova:admin` |
 | create or edit configuration that only exists as YAML (template/REST/command-line sensors, packages, themes) | `ha-nova:yaml-config` |
 | browse or list installed HACS packages, install, pin or downgrade to a specific version, redownload, or remove HACS packages, add custom HACS repositories, or migrate to a custom integration | `ha-nova:hacs` |
@@ -282,6 +283,8 @@ Match user intent to exactly one skill:
 | check pending updates, read release notes, install updates, skip/unskip versions | `ha-nova:updates` |
 | analyze energy usage, solar/battery/grid KPIs, per-device consumption or costs; edit energy dashboard sources/devices | `ha-nova:energy` |
 | repair statistics (orphans, unit mismatches, sum spikes), purge recorder history, clean up dead registry entries | `ha-nova:maintenance` |
+| edit `recorder:` include/exclude filters or `purge_keep_days` (YAML) | `ha-nova:yaml-config` |
+| "what event does my button/remote/tag fire?" — capture it in a bounded window | `ha-nova:fallback` (Bounded Event Capture); MQTT devices: `ha-nova:mqtt` |
 | turn on/off, toggle, set, call a service — including native duration fields such as `timer.start` or `siren.turn_on` | `ha-nova:service-call` |
 | enable/disable/trigger an automation | `ha-nova:service-call` |
 | fire a custom event or trigger a known JSON webhook | `ha-nova:service-call` |

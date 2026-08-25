@@ -47,7 +47,7 @@ describe("fallback capability map is complete and truthful (#516)", () => {
     // conversation.reload does not load a new intent_script; testing before
     // that lands makes a valid sentence file look broken and rolls it back.
     expect(flat(fallback)).toContain("reloads the SENTENCE matcher");
-    expect(flat(fallback)).toContain("do not run the phrase test before the restart");
+    expect(flat(fallback)).toContain("do not run the phrase test before that reload or restart");
     expect(flat(fallback)).toContain("restore immediately");
     expect(flat(fallback)).toContain("re-test one known-good phrase before reporting");
   });
@@ -159,11 +159,12 @@ describe("ha-api-matrix lists the surfaces skills actually pin (#517)", () => {
     expect(fallback).toContain("POST /api/config/core/check_config` FIRST");
     expect(fallback).toContain("stops Home Assistant from starting on the next boot");
     expect(fallback).toContain("restore that file's `.bak` immediately");
-    // Verified against a live 2026.8.0 instance: /api/services exposes no
-    // intent_script domain at all, so nothing reloads those handlers.
-    expect(fallback).toContain("Home Assistant registers no");
-    expect(fallback).toContain("`intent_script.reload`");
-    expect(fallback).toContain("It takes a restart");
+    // intent_script.reload exists once the integration is set up (core
+    // intent_script/__init__.py registers SERVICE_RELOAD); a live instance
+    // without a top-level intent_script: block exposes no such domain — that
+    // first-block case is the only one needing a restart.
+    expect(fallback).toContain("loads via `intent_script.reload`");
+    expect(fallback).toContain("FIRST-ever top-level `intent_script:` block takes a restart");
   });
 
   it("keeps every skill that writes configuration.yaml on the validate-first path", () => {
@@ -213,13 +214,15 @@ describe("ha-api-matrix lists the surfaces skills actually pin (#517)", () => {
 
   it("advertises only the lifecycle operations it documents mechanics for", () => {
     const fallbackAll = flat(read("skills/fallback/SKILL.md") + read("skills/fallback/relay-ready.md"));
-    // A Relay-Ready row is a promise that this skill can perform it. Enable,
-    // options and reconfigure have no documented mechanics, so they are
-    // External rather than a row that routes into a section that cannot serve.
-    expect(fallbackAll).toContain("Integration entry lifecycle (reload, remove)");
-    expect(fallbackAll).toContain("Integration entry enable/disable, options, reconfigure | External");
+    // A Relay-Ready row is a promise that this skill can perform it. Enable/
+    // disable has no documented mechanics, so it stays External. Options,
+    // reconfigure, and reload moved to integration-setup (#520 C1-04,
+    // 2026-08-20); remove is the one lifecycle operation left here.
+    expect(fallbackAll).toContain("Integration entry lifecycle (remove)");
+    expect(fallbackAll).toContain("Integration entry options / reconfigure (standard config-entry flows) | Covered | integration-setup");
+    expect(fallbackAll).toContain("Integration entry enable/disable | External");
     // The section behind the row must claim the same scope as the row.
-    expect(fallbackAll).toContain("Reload and remove for an existing config entry — those two only");
+    expect(fallbackAll).toContain("Remove for an existing config entry — that one only");
     // Every Relay-Ready row needs a section behind it, event capture included.
     expect(fallbackAll).toContain("Bounded Event Capture -- RELAY-READY");
     expect(fallbackAll).toContain("do not invent a bare subscription");
@@ -292,7 +295,7 @@ describe("ha-api-matrix lists the surfaces skills actually pin (#517)", () => {
     // Honest about what is not pinned rather than inventing a schema.
     expect(rr).toContain("this section pins no schema");
     expect(rr).toContain("which IS the network credential");
-    expect(rr).toContain("needs a RESTART, not a reload");
+    expect(rr).toContain("is restore + `intent_script.reload`");
   });
 
   it("names the skills that pin search/related instead of a category", () => {

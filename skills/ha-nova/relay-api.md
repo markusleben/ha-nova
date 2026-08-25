@@ -309,6 +309,8 @@ Supported helper domains:
 - `group`
 - `history_stats`
 - `template`
+- `generic_thermostat`
+- `switch_as_x`
 
 `group` is menu-driven; the live-proven end-to-end subtype is `sensor`, and other subtypes must stay anchored to the live step schema instead of guessed fields.
 
@@ -483,7 +485,7 @@ Rules:
 - REST event reads return `uid` and optional `recurrence_id`; update/delete require exact identity
 - update's `event` is a full replacement object with `summary`, `dtstart`, `dtend`, and any retained optional `description`, `location`, or `rrule`
 - recurring instances add `recurrence_id` and `recurrence_range`: `""` for one occurrence, `THISANDFUTURE` for that occurrence and later ones
-- the create service has no recurrence field; use the Home Assistant UI for recurring creation
+- the create service has no recurrence field; recurring creates go through WS `calendar/event/create` with an RFC 5545 `rrule` in the `event` object
 
 ## Registry Queries (via /ws)
 

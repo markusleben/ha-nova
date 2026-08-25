@@ -582,9 +582,11 @@ describe("ha-nova contract", () => {
     expect(architecture).toContain("- `trend`");
     expect(architecture).toContain("- `random`");
     expect(architecture).toContain("- `filter`");
-    expect(architecture).toContain("- `generic_thermostat`");
-    expect(architecture).toContain("- `switch_as_x`");
     expect(architecture).toContain("- `generic_hygrostat`");
+    // Promoted to ha-nova:helper (#531 P4-05, 2026-08-20): list form must be
+    // gone from the exclusion block (they stay inline in the Types line).
+    expect(architecture).not.toContain("- `generic_thermostat`");
+    expect(architecture).not.toContain("- `switch_as_x`");
     expect(architecture).not.toContain(
       "Still excluded from `ha-nova:helper`:\n- `template`",
     );

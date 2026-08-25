@@ -1,6 +1,6 @@
 ---
 name: integration-setup
-description: Use when adding a Home Assistant integration, continuing an integration reauthentication flow, or recovering invalid integration credentials when no reauth flow is pending — through HA NOVA Relay.
+description: Use when adding a Home Assistant integration, changing an existing integration entry's options, reconfiguring or reloading it, continuing an integration reauthentication flow, or recovering invalid integration credentials when no reauth flow is pending — through HA NOVA Relay.
 license: MIT
 compatibility: Requires the ha-nova CLI (run 'ha-nova setup' first) and the HA NOVA Relay in Home Assistant (App, or standalone container on Container/Core).
 ---
@@ -9,11 +9,11 @@ compatibility: Requires the ha-nova CLI (run 'ha-nova setup' first) and the HA N
 
 ## Scope
 
-Add integrations that expose a Home Assistant config flow, continue pending integration reauthentication (`reauth`) flows, and recover invalid credentials when no reauth flow is pending (Credential Recovery below).
+Add integrations that expose a Home Assistant config flow, change an existing entry's options or reconfigure it through its standard flow (Options, Reconfigure, and Reload below), reload a named entry, continue pending integration reauthentication (`reauth`) flows, and recover invalid credentials when no reauth flow is pending (Credential Recovery below).
 
 Not handled here:
 
-- integration options, reconfigure, subentry, enable/disable, or delete operations; reload only inside Credential Recovery below — every other reload stays with `ha-nova:fallback`
+- integration subentry, enable/disable, or delete operations (entry removal stays with `ha-nova:fallback`)
 - helper config-entry flows (use `ha-nova:helper`)
 - YAML-only integrations (use `ha-nova:yaml-config`)
 - diagnosing setup failures after a flow finishes (use `ha-nova:diagnose`)
@@ -35,7 +35,8 @@ Use response-driven config flows through the relay:
 - `ha-nova relay ws --data-file <payload-file> --out <flows-file>` with `{"type":"config_entries/flow/progress"}`
 - `ha-nova relay ws --data-file <payload-file> --out <entries-file>` with `{"type":"config_entries/get"}`
 - `ha-nova relay core --method GET|POST|DELETE --path /api/config/config_entries/flow[/<flow_id>] --body-file <payload-file> --out <flow-file>`
-- `ha-nova relay core --method POST --path /api/config/config_entries/entry/<entry_id>/reload` (Credential Recovery only)
+- `ha-nova relay core --method GET|POST|DELETE --path /api/config/config_entries/options/flow[/<flow_id>] --body-file <payload-file> --out <flow-file>`
+- `ha-nova relay core --method POST --path /api/config/config_entries/entry/<entry_id>/reload`
 
 Omit `--body-file` on GET and DELETE. Relay-core response data is under `.data.body`.
 
@@ -72,7 +73,7 @@ Treat every response as authoritative:
 - `form`: first inspect the returned `data_schema`. If it requests a secret, use the UI-only rule below without building or previewing a body. Otherwise, use only fields returned by the live `data_schema`, build the full step body, preview it, then ask for confirmation bound to that body before POSTing it.
 - validation errors: show the returned field errors and stop; never guess a replacement.
 - `external` or `progress`: for an add flow started here, DELETE the unfinished flow and ask the user to restart the integration at **Settings > Devices & services**. User-started flows are omitted from `config_entries/flow/progress`, and the Relay cannot supply the frontend-origin header OAuth redirects depend on. For a pre-existing reauth flow, preserve it and direct the user to its matching in-progress card. Never claim completion.
-- any form requesting a password, PIN/code, OAuth grant, access/API key, token, certificate, or private key material: never build or submit its body. For an add flow started here, DELETE the unfinished flow and ask the user to restart the integration at **Settings > Devices & services**. For a pre-existing reauth flow, preserve it and direct the user to its matching in-progress card. Never ask for or echo the secret.
+- any form requesting a password, PIN/code, OAuth grant, access/API key, token, certificate, or private key material: never build or submit its body. For an add flow started here, DELETE the unfinished flow and ask the user to restart the integration at **Settings > Devices & services**. For a pre-existing reauth flow, preserve it and direct the user to its matching in-progress card. For an agent-started OPTIONS or RECONFIGURE flow, DELETE the transient flow and point at the entry's own Configure control under **Settings > Devices & services**. Never ask for or echo the secret.
 - `create_entry`: proceed to verification. Follow `next_flow` only when it is another config flow; options/subentry flows stay out of scope.
 - `abort`: report the returned reason. For reauth, only `reason == "reauth_successful"` is a success result, and only after config-entry verification.
 
@@ -84,6 +85,14 @@ If the user cancels an add flow created by this skill, DELETE that unfinished `f
 2. Add passes when the terminal response's `result.entry_id` exists. If the result omits it, diff the baseline by `entry_id`; exactly one new entry with the requested domain must exist or verification is ambiguous.
 3. Reauth passes only when the same `entry_id` still exists, the matching reauth flow is gone, and the terminal result reports success. Report the current config-entry state exactly; do not call a non-`loaded` entry healthy.
 4. Linked devices/entities are secondary evidence only.
+
+### Options, Reconfigure, and Reload
+
+Standard config-entry flows for an EXISTING entry, under the same `skills/ha-nova/live-schema-preflight.md` contract and step rules above. Resolve the exact `entry_id` from `config_entries/get` first; classify by the operation surface, not the integration's brand — an integration's OWN configuration API stays with `ha-nova:fallback`.
+
+- **Options** (requires `supports_options: true` on the entry): start with POST `{"handler":"<entry_id>"}` to `/api/config/config_entries/options/flow`, iterate `.../options/flow/<flow_id>`. Read `description.suggested_value` as the current values, merge only the requested changes over them, preserve unrelated existing options, and never submit a field the live step does not expose. Verify by reopening the options flow and reading the changed fields back — the terminal response alone is not evidence, and neither is unrelated entity state. Then DELETE the reopened verification flow — it is an agent-started transient flow under the same ephemeral-flow cleanup rule as an unfinished add flow.
+- **Reconfigure**: start POST `{"handler":"<domain>","entry_id":"<entry_id>"}` to `/api/config/config_entries/flow` — `entry_id` selects reconfigure mode (a body `source` key is ignored by the API); without `entry_id` Home Assistant starts a normal ADD flow. The first response must be this entry's reconfigure step; integrations without reconfigure support typically fail the flow start — treat any non-reconfigure form (a plain add form included) as unsupported: DELETE the flow and stop. A secret, OAuth `external`, or `progress` step in an agent-started options/reconfigure flow gets its own handoff: DELETE the transient flow and point at the entry's own Configure/Reconfigure control under **Settings > Devices & services** — these are neither add flows nor pre-existing reauth flows, and no secret is ever collected in chat. Verify: the same `entry_id` persists and the before/after `config_entries/get` diff shows NO new entry.
+- **Reload**: preview with the disruption disclosure — reload re-runs setup and briefly drops the entry's entities — confirm, POST the reload path, then re-read `config_entries/get` and report the entry's ACTUAL state; a `false` result or non-`loaded` entry is the outcome to report, never a success.
 
 ### Credential Recovery (no reauth pending)
 
@@ -135,7 +144,7 @@ matching reauth flow:
 
 Apply `skills/ha-nova/output-rules.md` to all user-facing output.
 
-Use the Preview Card for flow start, menu selection, each non-secret form submit, and the credential-recovery reload. The menu choice block is its bound confirmation. Results name the integration, operation, config-entry state, and the exact verification scope. UI handoffs state what remains and never display secret fields or values.
+Use the Preview Card for flow start, menu selection, each non-secret form submit, and every entry reload (credential-recovery reload included). The menu choice block is its bound confirmation. Results name the integration, operation, config-entry state, and the exact verification scope. UI handoffs state what remains and never display secret fields or values.
 
 ## Safety
 
@@ -149,7 +158,7 @@ Use the Preview Card for flow start, menu selection, each non-secret form submit
 
 - Drafts follow `skills/ha-nova/smallest-solution.md`: the complete requested outcome in the simplest safe design, nothing for hypothetical future needs.
 
-- Declared exception to the core delete rule above: canceling an unfinished add flow created by this skill, including cleanup before a required credential, external/OAuth, or progress UI restart, deletes only ephemeral flow state; an explicit `cancel` or the UI-restart branch is sufficient, and this exception never applies to a config entry.
+- Declared exception to the core delete rule above: canceling an unfinished flow created by this skill — add, options, or reconfigure — including cleanup before a required credential, external/OAuth, or progress UI restart, deletes only ephemeral flow state; an explicit `cancel` or the UI-restart branch is sufficient, and this exception never applies to a config entry.
 - Never request, echo, persist, or submit credentials from chat; finish credential-bearing steps in the Home Assistant UI.
 - Starting or submitting a flow may contact an external service; always use the bound preview.
 - Never leave an agent-created canceled add flow dangling; never delete a Home Assistant-created reauth flow.

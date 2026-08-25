@@ -16,7 +16,6 @@ Calendar event work:
 - create, update, or delete one event
 
 Not in scope:
-- recurring-event creation (finish in the Home Assistant UI; `calendar.create_event` has no recurrence field)
 - calendar dashboard edits
 - automation writes that use calendar triggers
 - calendar sharing, permissions, or provider-account settings
@@ -34,7 +33,7 @@ Use REST reads, one create service, and feature-gated WebSocket writes:
 - `ha-nova relay core --method GET --path /api/states/<calendar_entity_id> --out <result-file>`
 - `ha-nova relay core --method GET --path <calendar-events-path> --out <result-file>`
 - `ha-nova relay core --method POST --path /api/services/calendar/create_event --body-file <payload-file> --out <result-file>`
-- `ha-nova relay ws --data-file <payload-file> --out <result-file>` for `calendar/event/update` and `calendar/event/delete`
+- `ha-nova relay ws --data-file <payload-file> --out <result-file>` for `calendar/event/create` (recurring creates), `calendar/event/update`, and `calendar/event/delete`
 - `ha-nova relay jq --file <result-file> --jq-file <filter-file>`
 
 `<calendar-events-path>` is:
@@ -67,18 +66,21 @@ Relay-core response body is under `.data.body` (envelope contract: `skills/ha-no
 2. Read a bounded event window covering the target. Update/delete require an exact event with `uid`; use `(uid, recurrence_id)` as the instance identity. If several events match the user's description, ask one blocking question. Never guess.
 3. Normalize event fields:
    - timed events use `start_date_time`/`end_date_time` for create and `dtstart`/`dtend` inside the WS `event` object; both values use the Home Assistant timezone and end must be after start
-   - all-day events use `start_date`/`end_date` for create and date-only `dtstart`/`dtend` for update; end is exclusive
+   - all-day events use `start_date`/`end_date` for REST create and date-only `dtstart`/`dtend` in the WS `event` (recurring create, update); end is exclusive
    - create requires `summary`; optional `description` and `location` are included only when set
+   - a recurring create takes an RFC 5545 `rrule` string and goes through WS `calendar/event/create` (the REST service has no recurrence field); non-recurring creates keep the REST service
    - update is a full event replacement: merge requested changes into the current summary/start/end/description/location/rrule instead of sending a patch; omit absent optional fields, use an empty string only to clear description/location, and omit `rrule` to clear recurrence
 4. For an occurrence with `recurrence_id`, ask whether the scope is **this occurrence** (`recurrence_range:""`) or **this and future occurrences** (`"THISANDFUTURE"`). Bind that scope to the preview. For a single-occurrence update, omit `rrule` from the replacement event. Do not invent an entire-series mode.
 5. Show the Preview Card with operation, calendar, exact event identity, summary, start/end, timezone or all-day range, changed fields, and recurrence scope. Create/update use natural bound confirmation; delete uses the typed `confirm:<token>` from the core rule.
 6. Immediately before execution, re-read the target window and calendar state; this event set is the create baseline. Abort and rebuild the preview if capability, identity, current fields, or recurrence scope drifted.
 7. Execute exactly one write:
    - create: POST `{"entity_id":"calendar.example","summary":"Event","start_date_time":"<start>","end_date_time":"<end>"}` to `/api/services/calendar/create_event`
+   - recurring create: WS `{"type":"calendar/event/create","entity_id":"calendar.example","event":{"summary":"Event","dtstart":"<start>","dtend":"<end>","rrule":"FREQ=WEEKLY;BYDAY=MO"}}` — `dtstart`/`dtend` describe the FIRST instance
    - update: WS `{"type":"calendar/event/update","entity_id":"calendar.example","uid":"<uid>","recurrence_id":"<instance>","recurrence_range":"<range>","event":{"summary":"Event","dtstart":"<start>","dtend":"<end>"}}`; omit recurrence keys for a non-recurring event
    - delete: WS `{"type":"calendar/event/delete","entity_id":"calendar.example","uid":"<uid>","recurrence_id":"<instance>","recurrence_range":"<range>"}`; omit recurrence keys for a non-recurring event
 8. Verify through bounded REST read-back, up to three reads over ten seconds:
    - create: compared with the baseline, exactly one new event must match the requested normalized fields; the service response alone is not identity evidence
+   - recurring create: the read-back window returns the series pre-expanded — new instances sharing one `uid` and matching the `rrule` pattern; report them as ONE series (rule, first occurrence, count inside the window), never as separate events, and say instances beyond the window were not verified; a window that cannot hold the next expected occurrence proves no recurrence — report it unverified
    - update: the same `(uid, recurrence_id)` must contain the full requested fields; for `THISANDFUTURE`, also check the first later occurrence when one exists in the window and state that later events outside the window were not verified
    - delete: the target identity must be absent; for `THISANDFUTURE`, all occurrences with that `uid` from the selected instance onward must be absent within the window
    - ambiguous, stale, or delayed results are reported as not verified; never repeat a write automatically

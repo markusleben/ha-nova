@@ -25,6 +25,7 @@ Not in scope:
 - repairs/status overview and current unavailability summaries (`ha-nova:health`); the long-unavailable report here exists to qualify cleanup candidates, not to answer "is everything OK"
 - backups (`ha-nova:backup`), updates (`ha-nova:updates`)
 - device deletion — no generic API; report and route to the owning integration/UI
+- MQTT ghost entities recreated by a retained discovery message — the broker-side cleanup is `ha-nova:mqtt` (retained-discovery cleanup); registry removal here only sticks after that topic is cleared
 
 ## Bootstrap (once per session)
 

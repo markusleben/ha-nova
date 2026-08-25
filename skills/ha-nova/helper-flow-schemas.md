@@ -1,7 +1,7 @@
 # HA NOVA Config-Entry Helper Flow Schemas
 
 Reference for the config-entry helper family handled by `ha-nova:helper`.
-This file covers the full supported config-entry family (10 domains):
+This file covers the full supported config-entry family (12 domains):
 
 - `utility_meter`
 - `derivative`
@@ -13,6 +13,8 @@ This file covers the full supported config-entry family (10 domains):
 - `group`
 - `history_stats`
 - `template`
+- `generic_thermostat`
+- `switch_as_x`
 
 This file is an observed field inventory, not a complete validation schema.
 Use it to confirm supported domains, flow shape, update expectations, and verification notes.
@@ -336,5 +338,31 @@ Observed locally on a real HA instance on 2026-03-19:
 - Subtype notes:
   - end-to-end support verified for `sensor`; other subtypes must anchor to the live step schema instead of guessed fields
   - the `state` value is a Jinja template string; a broken template creates the entry but the entity renders `unavailable` — post-write verification must read the rendered state
+- Linked entity resolution:
+  - resolve by matching `config_entry_id` in entity registry
+
+## generic_thermostat
+
+- Handler: `generic_thermostat`
+- No observed field inventory yet (promoted 2026-08-20, pack item P4-05): the
+  live `data_schema` is the ONLY field source — preview and submit exactly what
+  the live form exposes, per `skills/ha-nova/live-schema-preflight.md`
+- Expect at minimum a heater switch and a target temperature sensor among the
+  live fields; both are entity references — resolve them, never guess
+- Update: options flow when `supports_options: true`; same live-form rules
+- Linked entity resolution:
+  - resolve by matching `config_entry_id` in entity registry
+
+## switch_as_x
+
+- Handler: `switch_as_x`
+- No observed field inventory yet (promoted 2026-08-20, pack item P4-05): the
+  live `data_schema` is the ONLY field source — preview and submit exactly what
+  the live form exposes, per `skills/ha-nova/live-schema-preflight.md`
+- Create wraps one `switch.*` entity as a different domain (light, cover, fan,
+  lock, siren, valve); Home Assistant hides the original switch entity behind
+  the new one — say so in the preview
+- The target domain is create-only: changing it is delete + recreate, never an
+  options-flow edit
 - Linked entity resolution:
   - resolve by matching `config_entry_id` in entity registry

@@ -30,11 +30,11 @@ Handle unsupported config-entry helper types that are not yet owned by `ha-nova:
 
 Owned by `ha-nova:helper` now: `utility_meter`, `derivative`, `integration`,
 `min_max`, `threshold`, `tod`, `statistics`, `group`, `history_stats`,
-`template`.
+`template`, `generic_thermostat`, `switch_as_x`.
 
-**Search:** `home assistant config entry flow helper trend random filter generic_thermostat api 2026`
+**Search:** `home assistant config entry flow helper trend random filter api 2026`
 
-**Supported types in this fallback section:** `trend`, `random`, `filter`, `generic_thermostat`, `switch_as_x`, `generic_hygrostat`
+**Supported types in this fallback section:** `trend`, `random`, `filter`, `generic_hygrostat`
 
 **Experimental relay calls (no skill guardrails):**
 ```text
@@ -58,6 +58,32 @@ ha-nova relay core --method DELETE --path /api/config/config_entries/entry/{entr
 
 The supported families' orchestration contract is `skills/ha-nova/live-schema-preflight.md`; this experimental lane stays outside it and remains fail-closed per #493 (Write-Probing Asymmetry).
 
+### Zigbee / Z-Wave Network Status -- RELAY-READY
+
+Read-only network observability for ZHA and Z-Wave JS setups: which devices
+the radio integration knows, and whether the Z-Wave network is up. Pairing and
+every other radio WRITE stay External per the Capability Map. A Zigbee2MQTT
+setup answers this over MQTT instead: `ha-nova:mqtt` reads the retained
+`zigbee2mqtt/bridge/...` topics in a bounded window.
+
+**Search:** `home assistant zha zwave_js websocket api network status 2026`
+
+**Experimental relay calls (no skill guardrails):**
+```text
+ha-nova relay ws --data-file <payload-file>
+
+# {"type":"zha/devices"}                                        (ZHA device list)
+# {"type":"zwave_js/network_status","entry_id":"<entry_id>"}    (Z-Wave JS network state)
+```
+
+These command names are pinned by no repo reference — verify them live before
+first use in the research step (confirm the current name and required
+arguments before sending anything; `zwave_js/*` commands typically take the
+config `entry_id`).
+
+**Risks:** none for the reads themselves; a wrong or renamed command fails
+with `unknown_command` — never guess a write variant from it.
+
 ### Bounded Event Capture -- RELAY-READY
 
 Watching what a physical button fires, or what happens in the seconds after an
@@ -65,6 +91,13 @@ action. The mechanics are already contracted in
 `skills/ha-nova/relay-api.md` → Bounded Event Collection — do not restate them
 here, and do not invent a bare subscription: the relay rejects one outside the
 envelope with `UNSUPPORTED_WS_TYPE`.
+
+This is the generic answer to "what does my button / remote / tag fire?":
+resolve the SOURCE first — the device for buttons/remotes, the `tag/list` registry record (`tag_id`, `ha-nova:admin`) for NFC/QR tags, which are not device-registry devices — then arm the envelope with a named `until_type` or
+explicit limits, then report the captured event TYPES together with their data
+keys — the payload fields a trigger would match on (`zha_event`,
+`deconz_event`, and `tag_scanned` are typical). Never infer an event you did
+not capture: an automation built on a guessed payload matches nothing.
 
 Resolve the event type from the button's own integration first — it is not one
 value. ZHA fires `zha_event`, Z-Wave JS `zwave_js_value_notification`, deCONZ
@@ -130,22 +163,22 @@ for Home Assistant's own event bus.
 
 ### Integration Entry Lifecycle -- RELAY-READY
 
-Reload and remove for an existing config entry — those two only.
+Remove for an existing config entry — that one only.
 `ha-nova:integration-setup` owns ADDING an integration, continuing a
-pending `reauth`, and the credential-recovery reload
-for invalid credentials. Enable/disable, options and reconfigure
-are `External` in the Capability Map: point at Settings > Devices & services instead of
+pending `reauth`, options and reconfigure flows, and every entry reload
+(credential recovery included). Enable/disable
+is `External` in the Capability Map: point at Settings > Devices & services instead of
 improvising a payload.
 
-**Search:** `home assistant config entry reload delete api 2026`
+**Search:** `home assistant config entry delete api 2026`
 
 **Experimental relay calls (no skill guardrails):**
 ```text
-ha-nova relay core --method POST --path /api/config/config_entries/entry/<entry_id>/reload
+ha-nova relay core --method DELETE --path /api/config/config_entries/entry/<entry_id>
 ```
 
-**Risks:** Reload re-runs setup and briefly drops the entry's entities. Remove
-(`DELETE /api/config/config_entries/entry/<entry_id>`) deletes every device and
+**Risks:** Remove
+deletes every device and
 entity that entry owns and is not undoable — preview the counts before asking,
 and take the typed confirmation code. `search/related` needs a concrete item
 type and id, so the config entry id alone does not query it: read the entry's
@@ -184,7 +217,8 @@ user is deciding with what you found, and needs to know its edges.
 
 ### Assist Custom Sentences -- RELAY-READY
 
-Teach Assist a phrase Home Assistant does not understand out of the box. This
+Owned by `ha-nova:assist` → Custom Sentences — hand the workflow off there.
+This section keeps only the file mechanics that workflow references. The write
 needs the opt-in file access (`ha-nova:yaml-config` → Bootstrap explains how to
 turn it on); its own scope covers sensors, packages and themes, so the file
 mechanics live here.
@@ -207,20 +241,21 @@ here. On `{"result":"invalid"}` restore that file's `.bak` immediately, before
 reporting, and do not reload. The sentence file and `configuration.yaml` are
 two independent restores — roll back the one that is broken.
 
-Rolling back an `intent_script` needs a RESTART, not a reload: the handler is
-already loaded and restoring `configuration.yaml` does not unload it. Say so
-plainly — the file is correct again, the handler stays live until Home
-Assistant restarts.
+Rolling back an `intent_script` is restore + `intent_script.reload`: the
+reload removes the stale handler along with re-reading the file. Only when the
+block never loaded (first block, restart still pending) is the restore alone
+complete.
 
 **Verify, and be ready to undo:** `write_file` with `backup: true` (the
 default) so a `.bak` exists — a brand-new file has none, so remember that you
 created it. Reload the right thing: `conversation.reload` reloads the SENTENCE
-matcher and is enough when only the sentence file changed. A new
-`intent_script:` block is NOT reloadable — Home Assistant registers no
-`intent_script.reload`, and neither `homeassistant.reload_core_config` nor
-`reload_all` loads those handlers. It takes a restart. So when the change adds
-an intent handler, say that plainly, and do not run the phrase test before the
-restart: it would fail for a valid file and trigger a pointless rollback. Then run the
+matcher and is enough when only the sentence file changed. A handler added to
+an existing `intent_script:` block loads via `intent_script.reload`. Only the
+FIRST-ever top-level `intent_script:` block takes a restart: the integration
+is not set up yet, so its reload service does not exist, and neither
+`homeassistant.reload_core_config` nor `reload_all` sets it up. Say which
+applies, and do not run the phrase test before that reload or restart: it
+would fail for a valid file and trigger a pointless rollback. Then run the
 exact phrase
 through `ha-nova:assist` (`POST /api/conversation/process`): a sentence file
 that parses is not a sentence Assist matched. If the phrase does not match, or

@@ -78,10 +78,18 @@ const WORD_BUDGETS: Record<string, number> = {
   // Re-enable operation for the sibling-capability handoff plus the
   // cross-family opt-in (#564/#583 Codex round 2, measured 1365);
   // disabled_by-source routing (round 8, measured 1422).
-  organize: 1450,
+  // Bulk Target Resolution seam to bulk-patterns selector semantics
+  // (#529 P2-09, measured 1354 pre-train).
+  // Pack-train union (2026-08-20): #529 seam on top of main's #564/#583
+  // sibling rounds, measured 1491 combined.
+  organize: 1510,
   // #597's verification-planning pointer and #564's restart/reboot pointer
   // both eat the default cap's headroom (measured 1145/1146 alone).
-  camera: 1190,
+  // Before/after actuation frames exception to the repeated-frames ban
+  // (#519 C1-12, 2026-08-20, measured 1196).
+  // Pack-train union (2026-08-20): #519 frames exception on top of main's
+  // #597/#564 pointers, measured 1218 combined.
+  camera: 1240,
   // write/mqtt ratcheted for the batch-safety opt-in lines (#327);
   // write again for the Phase 5 test offer (test-run.md).
   // pre-delete snapshot capture + config-snapshots reference (Wave 2).
@@ -120,7 +128,9 @@ const WORD_BUDGETS: Record<string, number> = {
   // either, since its domain separator is a regex wildcard (#518, 1536).
   // Codex round 7: the log filter OR-ed a severity into the identifier, so
   // every unrelated error line read as evidence (measured 1611).
-  diagnose: 1660,
+  // Device-level diagnostics row + integration-controlled redaction sentence
+  // (#519 C1-13, 2026-08-20, measured 1675).
+  diagnose: 1695,
   // Report-shape declaration line (shared output shapes); repair dedup,
   // attention-threshold definition, cause↔symptom linking (2026-h2 Wave 1c).
   // Table-first redesign: report modes, block shape, ten-block order,
@@ -129,7 +139,9 @@ const WORD_BUDGETS: Record<string, number> = {
   health: 2100,
   // post-publish device verification step (2026-h2 Wave 1a).
   // User-assisted capture readiness sequence (#394).
-  mqtt: 1500,
+  // Z2M bridge-topic observability section + maintenance registry-side
+  // sibling pointer (#529/#520 power lanes, measured 1596).
+  mqtt: 1620,
   // pre-delete snapshot capture (Wave 2); apply-test offer with the
   // high-consequence carve-out (Wave 3).
   // Fail-closed consumer check with canonical-filter recreate pointer (#489).
@@ -235,7 +247,9 @@ const WORD_BUDGETS: Record<string, number> = {
   // case, whose basis is absence rather than content. Round 2 replaced the
   // list_dir absence probe with an exact-path one: list_dir caps at 500
   // entries and can report an existing file as absent (measured 1588).
-  "yaml-config": 1610,
+  // recorder: scope line (include/exclude, purge_keep_days, restart-applied)
+  // (#529 P2-06, measured 1614).
+  "yaml-config": 1650,
   // Confirmation-code terminology replacing "token" wording (#392).
   // #452 canonical smallest-solution draft rule (17 words).
   // Grouped item operations: four shopping-list adds should not cost four
@@ -257,7 +271,12 @@ const WORD_BUDGETS: Record<string, number> = {
   // an explicit null is rejected (measured 1471).
   // Downstream dependency-bound grouped reference pointer (#595, 2026-08-19,
   // measured 1505).
-  dashboard: 1525,
+  // Strategy-config save on a created shell, incl. the destructive
+  // populated-to-strategy branch (#519 C1-03 increment 1, 2026-08-20,
+  // measured 1610).
+  // Live Render Loop pointer for templated card fields (review batch,
+  // 2026-08-20, measured 1630).
+  dashboard: 1640,
   // Cards adoption pointer (#389); pre-write update-state drift gate.
   // #452 canonical smallest-solution draft rule (17 words).
   // HA 2026.7 "Update all" semantics: guardrails mirrored, call shape
@@ -273,7 +292,9 @@ const WORD_BUDGETS: Record<string, number> = {
   // a cleanup qualifier rather than a status answer (#518, measured 1408).
   // Codex round 6: the long-unavailable boundary has to be advertised on the
   // receiving side too, or routing never reaches it (measured 1427).
-  maintenance: 1470,
+  // MQTT ghost routing to mqtt's retained-discovery cleanup + recorder
+  // growth-triage scope line (#529 P2-08/P2-06, measured 1489).
+  maintenance: 1520,
   // blueprint payload examples; integration onboarding and runtime
   // events/webhooks moved to owning skills in Wave 4.
   // Custom-integration configuration APIs section + write-probing
@@ -319,7 +340,13 @@ const WORD_BUDGETS: Record<string, number> = {
   // Combined merge of the #581 precedence rework (trimmed) with the #585
   // credential-recovery reload carve-out; trial-merging the train lands
   // at 5004.
-  fallback: 5030,
+  // Pack unlocks (#519/#520/#531, 2026-08-20): helper-family promotion,
+  // custom-sentences ownership handoff, lifecycle rows split for
+  // options/reconfigure/reload moving to integration-setup (measured 5032).
+  // Zigbee/Z-Wave read-only network-status section (verify-live, no pinned
+  // schema) + bounded-capture button/remote/tag generalization + capability
+  // map row (#520 C1-06/C1-02, measured 5271).
+  fallback: 5310,
   // semantic-slot note on the read templates (Wave 0); pre-write cross-field
   // constraint checks + drift-check step (Wave 1); pre-delete snapshot
   // capture (Wave 2).
@@ -338,7 +365,11 @@ const WORD_BUDGETS: Record<string, number> = {
   // combined trial-merge measured 4147.
   // Train review: helper's create steps now bind to the live schema via the
   // step-8 drift check (P2-1, measured 4212).
-  helper: 4440, // update flow re-confirm rule (round 7, measured 4407) // group-member removal opt-in (round 6, measured 4379) // ephemeral-flow delete exception (round 5, measured 4341)
+  // generic_thermostat + switch_as_x promoted from fallback with the
+  // live-form-only note (#531 P4-05, 2026-08-20, measured 4319 pre-train).
+  // Pack-train union (2026-08-20): #531 promotion on top of main's train
+  // review rounds, measured 4464 combined.
+  helper: 4485, // update flow re-confirm rule (round 7, measured 4407) // group-member removal opt-in (round 6, measured 4379) // ephemeral-flow delete exception (round 5, measured 4341)
   // Fail-closed truncation envelopes on the list and keyword filters
   // (#582, measured 1188).
   read: 1210,
@@ -370,7 +401,9 @@ const WORD_BUDGETS: Record<string, number> = {
   // #452 wires the canonical 17-word smallest-solution draft rule into every
   // write-flow skill; calendar and integration-setup sat within 17 words of
   // the default cap (review/todo/updates ratchets applied on their entries).
-  calendar: 1175,
+  // Recurring creates through WS calendar/event/create with rrule plus the
+  // series-shaped verification (#519 C1-05, 2026-08-20, measured 1237).
+  calendar: 1260,
   // Credential-recovery lane when no reauth flow is pending: reload as the
   // only supported trigger, fail-closed handoff, no replacement entries
   // (#585, measured 1350); review batch added the Scope carve-out, the
@@ -386,7 +419,14 @@ const WORD_BUDGETS: Record<string, number> = {
   // (measured 1568).
   // Live-schema preflight pointer on the live-step iteration
   // (#594, 2026-08-20, measured 1593).
-  "integration-setup": 1610,
+  // Options/reconfigure/reload scope extension under the live-schema
+  // preflight contract (#520 C1-04, 2026-08-20, measured 1842).
+  // Review batch: options verification-flow cleanup + hedged reconfigure
+  // guard (2026-08-20, measured 1875).
+  "integration-setup": 1990, // options/reconfigure secret handoff (round 4, measured 1962) // reconfigure source field (Codex round 1, measured 1892)
+  // Pipeline create with the clone-preferred default (#531 P4-06) and the
+  // custom-sentences owning workflow (#519 C1-08), 2026-08-20, measured 1451.
+  assist: 1470,
 };
 const DEFAULT_WORD_BUDGET = 1150;
 

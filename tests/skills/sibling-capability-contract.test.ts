@@ -84,7 +84,7 @@ describe("device-sibling capability discovery contract (#564)", () => {
   it("gives organize a real enable operation for the handoff", () => {
     const org = flat(read("skills/organize/SKILL.md"));
     expect(org).toContain('the write `{"disabled_by": null}` on the entity record');
-    expect(org).toContain("never press or actuate the freshly enabled entity from this skill");
+    expect(org).toContain("never actuate the freshly enabled entity from this skill");
   });
   it("proceeds from a device-resolved target without an entity row", () => {
     expect(flat(read("skills/entity-discovery/SKILL.md"))).toContain(

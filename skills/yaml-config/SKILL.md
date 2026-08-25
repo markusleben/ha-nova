@@ -14,6 +14,7 @@ Configuration that has NO Home Assistant API and only exists as a YAML file:
 - `rest` and `command_line` sensors
 - packages
 - frontend themes
+- `recorder:` configuration blocks (include/exclude filters, `purge_keep_days`) — recorder is not reloadable, a restart applies it
 
 Not in scope: anything with an API — config-entry template helpers (`ha-nova:helper`), automations and scripts (`ha-nova:write`), dashboards (`ha-nova:dashboard`), scenes (`ha-nova:scene`). If a helper can express it, use the helper: it is safer, reloadable, and editable in the UI.
 
@@ -57,7 +58,8 @@ Never skip a step.
    - command-line sensors -> `command_line.reload`
    - themes -> `frontend.reload_themes`
    - packages / anything under `homeassistant:` -> `homeassistant.reload_core_config` (say when a real restart IS required — some keys only apply at boot).
-6. **Verify by read-back**: the new entity must appear in `/api/states/<entity_id>` with a real state. A successful reload is not proof: an entity that never appears means the config was accepted but the platform rejected it. Report that honestly and offer the `.bak` restore. For a multi-entity file, also confirm the file's OTHER entities still appear in `/api/states` — a silently dropped sibling passes `check_config` (still-valid config, fewer entities).
+   - `recorder:` -> no reload service: after green `check_config`, offer a user-consented `homeassistant.restart` or report the change as applying at the next restart.
+6. **Verify by read-back**: the new entity must appear in `/api/states/<entity_id>` with a real state. A `recorder:` edit creates no entity — verify by re-reading the file (and `check_config` after a restart). A successful reload is not proof: an entity that never appears means the config was accepted but the platform rejected it. Report that honestly and offer the `.bak` restore. For a multi-entity file, also confirm the file's OTHER entities still appear in `/api/states` — a silently dropped sibling passes `check_config` (still-valid config, fewer entities).
 
 ## Conventions
 
