@@ -105,6 +105,10 @@ case "$args" in
   "api repos/${REPO_SLUG}/pulls/"*)
     trace "read:pr"
     cat "\${FAKE_GH_STATE}/pr.json" ;;
+  "api graphql -f query="*" -F owner="*" -F name="*" -F number="*)
+    trace "read:review-threads"
+    cat "\${FAKE_GH_STATE}/review.json" 2>/dev/null \\
+      || printf '{"data":{"repository":{"pullRequest":{"reviewDecision":null,"reviewThreads":{"nodes":[]}}}}}\\n' ;;
   "run list --repo ${REPO_SLUG} --workflow cloud-candidate-bundle.yml --json databaseId,status,conclusion,event --limit 30")
     trace "run-list"
     n="$(cat "\${FAKE_GH_STATE}/list.count" 2>/dev/null || echo 0)"
@@ -455,6 +459,50 @@ describe("cloud evidence PR target binding", () => {
     const result = runScript(fixture, fake, ["7"]);
     expect(result.status, result.stdout).not.toBe(0);
     expect(result.stderr).toContain("same-repo branches");
+  });
+
+  it("refuses unresolved review threads before spending a dispatch", () => {
+    // #609/rc22: a stale bot thread from a pre-session review burned the
+    // dispatch — server-side the resolver rejects only AFTER the run started.
+    const { fixture, fake } = prFixture();
+    writeFileSync(
+      join(fake.state, "review.json"),
+      JSON.stringify({
+        data: {
+          repository: {
+            pullRequest: {
+              reviewDecision: null,
+              reviewThreads: { nodes: [{ isResolved: true }, { isResolved: false }] },
+            },
+          },
+        },
+      }),
+    );
+    const result = runScript(fixture, fake, ["7"]);
+    expect(result.status, result.stdout).not.toBe(0);
+    expect(result.stderr).toContain("unresolved review thread");
+    expect(readFileSync(fake.trace, "utf8")).not.toContain("dispatch");
+  });
+
+  it("refuses a requested-changes review before spending a dispatch", () => {
+    const { fixture, fake } = prFixture();
+    writeFileSync(
+      join(fake.state, "review.json"),
+      JSON.stringify({
+        data: {
+          repository: {
+            pullRequest: {
+              reviewDecision: "CHANGES_REQUESTED",
+              reviewThreads: { nodes: [] },
+            },
+          },
+        },
+      }),
+    );
+    const result = runScript(fixture, fake, ["7"]);
+    expect(result.status, result.stdout).not.toBe(0);
+    expect(result.stderr).toContain("requested-changes review");
+    expect(readFileSync(fake.trace, "utf8")).not.toContain("dispatch");
   });
 
   it("refuses an envelope whose commit_sha is not the resolved target commit", () => {

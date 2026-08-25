@@ -180,6 +180,19 @@ base_ref="$(jq -r '.base.ref // ""' <<<"$pr_json")"
 head_repo="$(jq -r '.head.repo.full_name // ""' <<<"$pr_json")"
 [ "$head_repo" = "$REPO" ] \
   || die "PR #$PR's head lives in '${head_repo:-unknown}', not $REPO — the candidate workflow only builds same-repo branches"
+# The resolver also refuses requested-changes reviews and unresolved review
+# threads; server-side that verdict lands only AFTER the dispatch and burns
+# the run (#609/rc22: a stale bot thread from a pre-session review). GraphQL
+# because REST cannot see thread resolution; first:100 is capacity, not a
+# filter — an over-100 tail still fails server-side.
+review_json="$(gh api graphql -f query='query($owner:String!,$name:String!,$number:Int!){repository(owner:$owner,name:$name){pullRequest(number:$number){reviewDecision reviewThreads(first:100){nodes{isResolved}}}}}' -F owner="${REPO%%/*}" -F name="${REPO##*/}" -F number="$PR")" \
+  || die "cannot read #$PR's review threads"
+unresolved="$(jq '[.data.repository.pullRequest.reviewThreads.nodes[] | select(.isResolved | not)] | length' <<<"$review_json")"
+[ "$unresolved" = 0 ] \
+  || die "PR #$PR carries $unresolved unresolved review thread(s) — the candidate workflow refuses the dispatch; resolve them first (stale bot threads from earlier reviews count)"
+review_decision="$(jq -r '.data.repository.pullRequest.reviewDecision // ""' <<<"$review_json")"
+[ "$review_decision" != "CHANGES_REQUESTED" ] \
+  || die "PR #$PR has a requested-changes review — the candidate workflow refuses the dispatch"
 case "$mergeable" in
   # `blocked` is the EXPECTED state here: cloud-source-gate is a required check
   # and it is red precisely because the envelope this script prepares does not
