@@ -96,13 +96,13 @@
     "@peculiar/x509": "^2.0.0",
     "@serenity-kit/opaque": "^1.1.0",
     "home-assistant-js-websocket": "^9.6.0",
-    "jose": "^6.2.8",
+    "jose": "^6.2.10",
     "reflect-metadata": "^0.2.2",
     "ws": "^8.21.3",
     "yaml": "^2.9.0"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^5.20260810.1",
+    "@cloudflare/workers-types": "^5.20260825.1",
     "@types/node": "^25.9.5",
     "@types/ws": "^8.18.1",
     "husky": "^9.1.7",
