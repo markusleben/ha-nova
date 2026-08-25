@@ -86,7 +86,7 @@ describe("P2-05 template live render loop (#529)", () => {
     expect(tg).toContain("the rendered value comes back in `.data.body`");
     // 2026-08-19 issue comment: persisted Jinja outside Template helpers too.
     expect(tg).toContain(
-      "dashboard templated fields (card titles, segment and visibility expressions)",
+      "dashboard template-capable fields (only where the card type documents Jinja",
     );
     expect(tg).toContain("Surface render errors verbatim");
     expect(tg).toContain("instead of changing any real sensor state");

@@ -141,7 +141,7 @@ sequence:
 
 ## Live Render Loop (pre-save iteration)
 
-Before saving ANY persisted Jinja field — automation templates, template sensor states, and dashboard templated fields (card titles, segment and visibility expressions) alike — render the draft against live state:
+Before saving ANY persisted Jinja field — automation templates, template sensor states, and dashboard template-capable fields (only where the card type documents Jinja, e.g. Markdown card `content`) alike — render the draft against live state:
 
 `ha-nova relay core --method POST --path /api/template --body-file <payload-file>` with `{"template":"{{ ... }}"}`; the rendered value comes back in `.data.body`.
 
