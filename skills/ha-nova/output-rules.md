@@ -193,7 +193,9 @@ Pre-preview candidates where the owning skill names none of its own — same
 caps, same evidence bar (registry/capability reads from this session):
 scene create — a same-area entity the scene plausibly misses (storage scenes
 persist entity STATES, so never suggest service parameters like `transition`);
-dashboard shell create — a strategy config for the empty shell.
+dashboard shell create — a strategy config for the empty shell (accepting
+queues it as its OWN follow-up preview after the shell create — a separate
+mutation, never merged into the shell draft).
 
 ```
 💡 Suggestions for "Morning routine":

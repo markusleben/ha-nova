@@ -80,8 +80,8 @@ describe("first-hour pack (#528)", () => {
 
   it("explain mode leads with the behavior narrative (P3-04)", () => {
     const readSkill = flat(read("skills/read/SKILL.md"));
-    expect(readSkill).toContain("Explain mode (");
-    expect(readSkill).toContain("offer the YAML instead of dumping it");
+    expect(readSkill).toContain("Explain mode:");
+    expect(readSkill).toContain("offer the YAML instead of dumping it unless the user also asked for it");
     expect(context).toContain("behavior narrative first, YAML only on request");
   });
 

@@ -157,7 +157,7 @@ After reading a config, present (the bold labels below are semantic slots — lo
 - **Mode:** {single|restart|queued|parallel}
 ```
 
-Explain mode ("explain…", "what does this do?"): lead with the behavior narrative (write-safety) and offer the YAML instead of dumping it.
+Explain mode: lead with the behavior narrative; offer the YAML instead of dumping it unless the user also asked for it.
 
 Otherwise show the full YAML config:
 

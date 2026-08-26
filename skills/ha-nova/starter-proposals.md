@@ -24,9 +24,11 @@ proposed. Read-only until the user accepts an item.
    beyond the cap as PARTIAL — the cap line names how many configs went
    unread. Scan each read WHOLE config document: triggers, conditions,
    actions, selector targets, and `use_blueprint.input` all carry entity ids
-   literally; a blueprint config has no expanded sections — BOTH roles
-   appearing among its inputs count as the pairing, and inputs the pass
-   cannot interpret fall into the closed PARTIAL rule; match the
+   literally; a blueprint config has no expanded sections — it drops
+   the candidate only when its input NAMES identify the roles (e.g. a
+   motion-entity input holding the sensor and a light-target input holding
+   the lamp); bare co-occurrence in uninterpretable inputs falls into the
+   closed PARTIAL rule, never a drop; match the
    candidate's role entities AND every selector value that resolves to them
    — `device_id`, `area_id`, `label_id`, `floor_id`, from the candidates'
    own registry memberships (a selector-targeted automation never names the
