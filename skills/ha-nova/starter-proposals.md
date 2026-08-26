@@ -32,11 +32,17 @@ proposed. Read-only until the user accepts an item.
    is no duplicate. Service-shaped roles (a `notify.*` target) match by
    SERVICE NAME in the config's actions, not by entity id — and a modern
    notify ENTITY also matches as the `target`/`entity_id` of a
-   `notify.send_message` call. An action delegated through `script.*` or
-   `scene.turn_on` hides the pairing: when a config pairs the source role
-   with a script/scene call, resolve that item's members or sequence before
-   clearing the candidate; delegation the pass cannot resolve makes the
-   duplicate scan PARTIAL, reported as such. When the pass is capped, say the
+   `notify.send_message` call. Two more equivalence expansions from reads
+   already in hand: a group target (`group.*`, or a light/media group whose
+   `entity_id` member attribute sits in the states pull) matches when it
+   CONTAINS the candidate; a presence source role also matches zone-count
+   guards (`zone.home` state) — both count as the source role. CLOSED RULE
+   for everything else: any config whose references the pass cannot FULLY
+   resolve — dynamic Jinja-computed targets, unexpanded groups, delegation
+   through items it could not read — makes the duplicate scan PARTIAL, and a
+   PARTIAL scan downgrades every affected evidence line from "not automated
+   yet" to "no duplicate found (scan partial)". Never enumerate past this
+   rule: unresolvable evidence fails closed into honesty, not into a claim. When the pass is capped, say the
    duplicate gate was partial — never claim "not automated yet" from states
    rows or aliases. Disabled storage scenes join the scene inventory via the
    same registry-disabled read as automations — and their MEMBERS come from
