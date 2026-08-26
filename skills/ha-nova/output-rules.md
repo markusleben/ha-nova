@@ -220,9 +220,10 @@ from name patterns. Accepting hands to `ha-nova:write`'s replicate pattern
 Answer ONLY from this conversation's writes: item, operation, and
 verification state as reported at the time. No memory of other sessions, no
 inference from current HA state, no filling gaps — when the conversation
-window no longer covers everything, say exactly that ("earlier changes may
-exist beyond this conversation; the logbook has the full trail") and offer
-`ha-nova:history` for the authoritative timeline. Unverified or failed writes
+window no longer covers everything, say exactly that — earlier changes may
+exist beyond this conversation, the logbook/history timeline covers STATE
+changes but no complete config-change trail exists — and offer
+`ha-nova:history` for what it can show. Unverified or failed writes
 are named as such, never upgraded to successes in recap.
 
 ## Findings

@@ -8,13 +8,18 @@ proposed. Read-only until the user accepts an item.
 
 1. One `/api/states` pull with `--out <result-file>`; extract per-domain
    entity lists via `relay jq` (never print the dump).
-2. One automation inventory from the same pull (`automation.*` rows) for the
-   id list — a states row proves nothing about WHAT an automation does.
+2. One automation inventory: the `automation.*` rows from the same pull PLUS
+   registry-disabled automations via the compact registry read
+   (`skills/ha-nova/bulk-patterns.md` → Stale Automation Audit mechanics) —
+   disabled automations have no states row, and a states row proves nothing
+   about WHAT an automation does. Scene candidates use the `scene.*` rows
+   and their `entity_id` member attribute from the same pull.
 2b. Duplicate gate, config-evidence only: before a candidate enters the
    Suggestion Block, read the existing automations' configs (one bounded
    pass over the step-2 ids) and drop any candidate whose role entities
-   already appear paired in a trigger/action; when the pass is capped, say
-   the duplicate gate was partial — never claim "not automated yet" from
+   already appear in a trigger, CONDITION, or action pairing (an away guard
+   normally lives in `conditions`); when the pass is capped, say the
+   duplicate gate was partial — never claim "not automated yet" from
    states rows or aliases.
 2c. Area pairing resolves area-first per the architecture reference:
    `search/related` on the area — this covers entities that inherit their
@@ -32,7 +37,7 @@ proposed. Read-only until the user accepts an item.
 | Motion-activated light | motion/occupancy sensor AND light in the same area, no automation pairing them | `ha-nova:write` |
 | Door-open-while-away alert | door/window sensor AND a person/device_tracker, no such alert yet | `ha-nova:write` |
 | Low-battery notification | battery-level entities AND a notify target — notify ENTITIES or the notify domain's services from `/api/services` (mobile-app targets live only there) | `ha-nova:write` |
-| Movie scene | media_player AND lights in the same area, no such scene | `ha-nova:scene` |
+| Movie scene | media_player AND lights in the same area, and no existing `scene.*` already grouping them (member check via the scene rows' `entity_id` attribute) | `ha-nova:scene` |
 | Presence-simulation while away | lights AND a person/device_tracker (pattern per `automation-patterns.md`) | `ha-nova:write` |
 | Stale-sensor watchdog | a sensor whose updates matter (per the user's stated interest) | `ha-nova:write` |
 

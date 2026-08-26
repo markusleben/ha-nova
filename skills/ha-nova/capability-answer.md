@@ -48,7 +48,9 @@ Read-only audit from bounded registry reads (entity registry + area
 registry), owned here; every FIX hands to `ha-nova:organize`'s normal
 preview/confirm flow:
 
-- count entities without an area; flag as "integration default" only names
+- count entities without an EFFECTIVE area — an entity with an empty
+  `area_id` inherits its device's area, so join the device registry before
+  calling anything unassigned; flag as "integration default" only names
   the registries PROVE default (equal to the device registry's model/name for
   that device). A bare `_2` suffix is a hint — report it as "possibly
   default", never as a rename offer. Counts plus a short sample, never the
