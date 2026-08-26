@@ -216,7 +216,7 @@ require_reviewable_pr() {
 # actually burned a dispatch, and the slowest of the set; the resolver stays
 # the authority for the full policy list and its workflow bindings.
 require_ci_workflow_green() {
-  local gate_state fresh_merge main_now check_state run_info suite_id check_info check_suite status_shadow policy_file required_names head_checks required_check shadow_count
+  local gate_state fresh_merge main_now check_state run_info suite_id check_info check_suite policy_file required_names head_checks required_check shadow_count run_pages check_pages status_pages
   # The resolver requires the OWNING CI workflow run successful — the whole
   # run, not just the ci-gate job (a green ci-gate next to a red sibling job
   # still fails server-side; ci-gate has no needs: on its siblings). Bind to
@@ -227,9 +227,11 @@ require_ci_workflow_green() {
   # unchanged, so mirror the base predicate too.
   main_now="$(git -C "$ROOT_DIR" ls-remote origin refs/heads/main 2>/dev/null | awk 'NR==1{print $1}')"
   [ -n "$main_now" ] || die "cannot resolve origin/main for the CI-run base binding"
-  run_info="$(gh api --paginate --slurp "repos/$REPO/actions/runs?head_sha=$resolved_head_sha&event=pull_request&per_page=100" \
-      --jq '[.[] | .workflow_runs[] | select(.path == ".github/workflows/ci.yml" and ([.pull_requests[]? | select(.number == '"$PR"' and (.base.sha // "") == "'"$main_now"'")] | length) > 0)] | max_by(.id) | if . == null then "absent" else "\(.check_suite_id // 0) \(.status):\(.conclusion // "-")" end' 2>/dev/null)" \
-    || die "cannot read the CI workflow run for #$PR's head"
+  # NOTE: gh refuses --slurp together with --jq — fetch raw pages, jq locally.
+  run_pages="$(gh api --paginate --slurp "repos/$REPO/actions/runs?head_sha=$resolved_head_sha&event=pull_request&per_page=100" 2>/dev/null)" \
+    || die "cannot read the CI workflow runs for #$PR's head"
+  run_info="$(jq -r --arg base "$main_now" --argjson pr "$PR" \
+      '[.[] | .workflow_runs[] | select(.path == ".github/workflows/ci.yml" and ([.pull_requests[]? | select(.number == $pr and (.base.sha // "") == $base)] | length) > 0)] | max_by(.id) | if . == null then "absent" else "\(.check_suite_id // 0) \(.status):\(.conclusion // "-")" end' <<<"$run_pages")"
   suite_id="${run_info%% *}"; gate_state="${run_info#* }"
   [ "$gate_state" = "completed:success" ] \
     || die "the CI workflow run is '${run_info}' for #$PR's head against the current base — rerun CI (or wait for it) before dispatching; the resolver refuses anything else"
@@ -245,9 +247,10 @@ require_ci_workflow_green() {
   [ -f "$policy_file" ] || die "repository policy is missing ($policy_file)"
   required_names="$(jq -c '.main_branch_protection | ((.required_status_checks - ["cloud-source-gate"]) + .advisory_checks) | unique' "$policy_file")" \
     || die "cannot read the required-check list from $policy_file"
-  head_checks="$(gh api --paginate --slurp "repos/$REPO/commits/$resolved_head_sha/check-runs?per_page=100" \
-      --jq '[.[] | .check_runs[] | select((.app.slug // "") == "github-actions" and ([.pull_requests[]? | select(.number == '"$PR"')] | length) > 0)]' 2>/dev/null)" \
+  check_pages="$(gh api --paginate --slurp "repos/$REPO/commits/$resolved_head_sha/check-runs?per_page=100" 2>/dev/null)" \
     || die "cannot read the check runs for #$PR's head"
+  head_checks="$(jq --argjson pr "$PR" \
+      '[.[] | .check_runs[] | select((.app.slug // "") == "github-actions" and ([.pull_requests[]? | select(.number == $pr)] | length) > 0)]' <<<"$check_pages")"
   while IFS= read -r required_check; do
     check_info="$(jq -r --arg n "$required_check" '[.[] | select(.name == $n)] | max_by(.id) | if . == null then "absent" else "\(.check_suite.id // 0) \(.status):\(.conclusion // "-")" end' <<<"$head_checks")"
     check_suite="${check_info%% *}"; check_state="${check_info#* }"
@@ -263,10 +266,9 @@ require_ci_workflow_green() {
   done < <(jq -r '.[]' <<<"$required_names")
   # The resolver also refuses any required check shadowed by a legacy commit
   # STATUS of the same name.
-  status_shadow="$(gh api --paginate --slurp "repos/$REPO/commits/$resolved_head_sha/status?per_page=100" \
-      --jq '[.[] | .statuses[]?.context]' 2>/dev/null)" \
+  status_pages="$(gh api --paginate --slurp "repos/$REPO/commits/$resolved_head_sha/status?per_page=100" 2>/dev/null)" \
     || die "cannot read commit statuses for #$PR's head"
-  shadow_count="$(jq --argjson names "$required_names" '[.[] | select(. as $c | $names | index($c))] | length' <<<"$status_shadow")"
+  shadow_count="$(jq --argjson names "$required_names" '[.[] | .statuses[]?.context | select(. as $c | $names | index($c))] | length' <<<"$status_pages")"
   [ "${shadow_count:-0}" = "0" ] \
     || die "a legacy commit status shadows a required check on #$PR's head — the resolver refuses; remove the status source first"
   # Staleness stop LAST — after every API read above: the synthetic merge

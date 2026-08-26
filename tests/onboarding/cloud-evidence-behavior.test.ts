@@ -116,14 +116,17 @@ case "$args" in
   "api repos/${REPO_SLUG}/pulls/"*)
     trace "read:pr"
     cat "\${FAKE_GH_STATE}/pr.json" ;;
-  "api --paginate --slurp repos/${REPO_SLUG}/actions/runs?head_sha="*"&event=pull_request&per_page=100 --jq "*)
+  "api --paginate --slurp repos/${REPO_SLUG}/actions/runs?head_sha="*"&event=pull_request&per_page=100")
     trace "read:ci-workflow"
-    cat "\${FAKE_GH_STATE}/cigate.state" 2>/dev/null || printf '777 completed:success\\n' ;;
-  "api --paginate --slurp repos/${REPO_SLUG}/commits/"*"/check-runs?per_page=100 --jq "*)
+    if [ -f "\${FAKE_GH_STATE}/ci-run-pages.json" ]; then cat "\${FAKE_GH_STATE}/ci-run-pages.json"; else
+      msha="$(cat "\${FAKE_GH_STATE}/main.sha" 2>/dev/null || echo unknown)"
+      printf '[{"workflow_runs":[{"id":9,"path":".github/workflows/ci.yml","check_suite_id":777,"status":"completed","conclusion":"success","pull_requests":[{"number":7,"base":{"sha":"%s"}}]}]}]\\n' "\$msha"
+    fi ;;
+  "api --paginate --slurp repos/${REPO_SLUG}/commits/"*"/check-runs?per_page=100")
     trace "read:head-checks"
     cat "\${FAKE_GH_STATE}/head-checks.json" 2>/dev/null \\
-      || printf '[{"name":"ci-gate","id":1,"check_suite":{"id":777},"app":{"slug":"github-actions"},"pull_requests":[{"number":7}],"status":"completed","conclusion":"success"}]\\n' ;;
-  "api --paginate --slurp repos/${REPO_SLUG}/commits/"*"/status?per_page=100 --jq "*)
+      || printf '[{"check_runs":[{"name":"ci-gate","id":1,"check_suite":{"id":777},"app":{"slug":"github-actions"},"pull_requests":[{"number":7}],"status":"completed","conclusion":"success"}]}]\\n' ;;
+  "api --paginate --slurp repos/${REPO_SLUG}/commits/"*"/status?per_page=100")
     trace "read:commit-status"
     cat "\${FAKE_GH_STATE}/status-shadow.state" 2>/dev/null || printf '[]\\n' ;;
   "api graphql --paginate --slurp -f owner="*" -f name="*" -F number="*" -f query="*)
@@ -461,6 +464,7 @@ describe("cloud evidence PR target binding", () => {
   function prFixture() {
     const fixture = initFixture(platforms);
     const fake = makeFakeBin(prJson(fixture));
+    writeFileSync(join(fake.state, "main.sha"), `${fixture.mainCommit}\n`);
     // GitHub's synthetic merge ref, served by the local bare origin.
     git(fixture.originGit, "update-ref", "refs/pull/7/merge", fixture.mainCommit);
     return { fixture, fake };
@@ -555,7 +559,23 @@ describe("cloud evidence PR target binding", () => {
     // #611/rc23: dispatched seconds after a push, CI unfinished — the server
     // resolver rejected AFTER the run started.
     const { fixture, fake } = prFixture();
-    writeFileSync(join(fake.state, "cigate.state"), "777 in_progress:-\n");
+    writeFileSync(
+      join(fake.state, "ci-run-pages.json"),
+      JSON.stringify([
+        {
+          workflow_runs: [
+            {
+              id: 9,
+              path: ".github/workflows/ci.yml",
+              check_suite_id: 777,
+              status: "in_progress",
+              conclusion: null,
+              pull_requests: [{ number: 7, base: { sha: fixture.mainCommit } }],
+            },
+          ],
+        },
+      ]),
+    );
     const result = runScript(fixture, fake, ["7"]);
     expect(result.status, result.stdout).not.toBe(0);
     expect(result.stderr).toContain("CI workflow run");
