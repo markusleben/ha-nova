@@ -177,6 +177,7 @@ merge_commit="$(jq -r '.merge_commit_sha // ""' <<<"$pr_json")"
 base_ref="$(jq -r '.base.ref // ""' <<<"$pr_json")"
 [ "$base_ref" = "main" ] \
   || die "PR #$PR targets '${base_ref:-unknown}', not main — the candidate workflow only builds PRs into main"
+resolved_head_sha="$(jq -r '.head.sha // ""' <<<"$pr_json")"
 head_repo="$(jq -r '.head.repo.full_name // ""' <<<"$pr_json")"
 [ "$head_repo" = "$REPO" ] \
   || die "PR #$PR's head lives in '${head_repo:-unknown}', not $REPO — the candidate workflow only builds same-repo branches"
@@ -216,10 +217,14 @@ require_reviewable_pr() {
 require_ci_gate_green() {
   local head_sha_pr gate_state
   # Fresh head read, not $pr_json: the spend-time recheck exists precisely
-  # because the resolve-time snapshot goes stale during the pipeline.
+  # because the resolve-time snapshot goes stale during the pipeline. A moved
+  # head is a hard stop, not something to accept — request_id, target_commit,
+  # and the artifact identity are all bound to the RESOLVED head's merge.
   head_sha_pr="$(gh api "repos/$REPO/pulls/$PR" --jq '.head.sha // ""' 2>/dev/null)" \
     || die "cannot re-read PR #$PR's head"
   [ -n "$head_sha_pr" ] || die "PR #$PR has no head sha in the API response"
+  [ "$head_sha_pr" = "$resolved_head_sha" ] \
+    || die "PR #$PR's head moved since resolve ($resolved_head_sha -> $head_sha_pr) — the bound target is stale; re-run the pipeline"
   # filter defaults to latest: re-run attempts are collapsed server-side, so
   # this returns at most the newest ci-gate run for the head.
   gate_state="$(gh api "repos/$REPO/commits/$head_sha_pr/check-runs?check_name=ci-gate&per_page=10" \
