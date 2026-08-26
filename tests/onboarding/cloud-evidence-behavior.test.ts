@@ -102,9 +102,15 @@ last_arg() { local a v=""; for a in "$@"; do v="$a"; done; printf '%s' "$v"; }
 case "$args" in
   "api user --jq .login")
     printf '%s\\n' "\${FAKE_GH_LOGIN}" ;;
+  "api repos/${REPO_SLUG}/pulls/"*" --jq .head.sha"*)
+    trace "read:pr-head"
+    jq -r '.head.sha // ""' "\${FAKE_GH_STATE}/pr.json" ;;
   "api repos/${REPO_SLUG}/pulls/"*)
     trace "read:pr"
     cat "\${FAKE_GH_STATE}/pr.json" ;;
+  "api repos/${REPO_SLUG}/commits/"*"/check-runs?check_name=ci-gate&per_page=10 --jq "*)
+    trace "read:ci-gate"
+    cat "\${FAKE_GH_STATE}/cigate.state" 2>/dev/null || printf 'completed:success\\n' ;;
   "api graphql --paginate --slurp -f owner="*" -f name="*" -F number="*" -f query="*)
     trace "read:review-threads"
     cat "\${FAKE_GH_STATE}/review.json" 2>/dev/null \\
@@ -432,7 +438,7 @@ describe("cloud evidence PR target binding", () => {
       mergeable_state: "clean",
       merge_commit_sha: fixture.mainCommit,
       base: { ref: "main" },
-      head: { repo: { full_name: REPO_SLUG } },
+      head: { sha: fixture.mainCommit, repo: { full_name: REPO_SLUG } },
       ...overrides,
     };
   }
@@ -527,6 +533,17 @@ describe("cloud evidence PR target binding", () => {
     const result = runScript(fixture, fake, ["7"]);
     expect(result.status, result.stdout).not.toBe(0);
     expect(result.stderr).toContain("requested changes");
+    expect(readFileSync(fake.trace, "utf8")).not.toContain("dispatch");
+  });
+
+  it("refuses to dispatch while ci-gate has not succeeded on the head", () => {
+    // #611/rc23: dispatched seconds after a push, CI unfinished — the server
+    // resolver rejected AFTER the run started.
+    const { fixture, fake } = prFixture();
+    writeFileSync(join(fake.state, "cigate.state"), "in_progress:-\n");
+    const result = runScript(fixture, fake, ["7"]);
+    expect(result.status, result.stdout).not.toBe(0);
+    expect(result.stderr).toContain("ci-gate");
     expect(readFileSync(fake.trace, "utf8")).not.toContain("dispatch");
   });
 

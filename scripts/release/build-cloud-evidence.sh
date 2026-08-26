@@ -208,7 +208,31 @@ require_reviewable_pr() {
     )' >/dev/null <<<"$thread_pages" \
     || die "PR #$PR has requested changes or unresolved review threads — the candidate workflow refuses the dispatch; resolve them first (stale bot threads from earlier reviews count)"
 }
+# The resolver requires every pre-evidence check green before it builds;
+# dispatching while ci-gate still runs burns the run (#611/rc23: dispatched
+# seconds after a push, CI unfinished). Mirror only ci-gate — the one that
+# actually burned a dispatch, and the slowest of the set; the resolver stays
+# the authority for the full policy list and its workflow bindings.
+require_ci_gate_green() {
+  local head_sha_pr gate_state
+  # Fresh head read, not $pr_json: the spend-time recheck exists precisely
+  # because the resolve-time snapshot goes stale during the pipeline.
+  head_sha_pr="$(gh api "repos/$REPO/pulls/$PR" --jq '.head.sha // ""' 2>/dev/null)" \
+    || die "cannot re-read PR #$PR's head"
+  [ -n "$head_sha_pr" ] || die "PR #$PR has no head sha in the API response"
+  # filter defaults to latest: re-run attempts are collapsed server-side, so
+  # this returns at most the newest ci-gate run for the head.
+  gate_state="$(gh api "repos/$REPO/commits/$head_sha_pr/check-runs?check_name=ci-gate&per_page=10" \
+      --jq '[.check_runs[]] | max_by(.started_at) | if . == null then "absent" else "\(.status):\(.conclusion // "-")" end' 2>/dev/null)" \
+    || die "cannot read ci-gate's check run for #$PR's head"
+  [ "$gate_state" = "completed:success" ] \
+    || die "required pre-evidence check ci-gate is '$gate_state' on the head — the resolver refuses the dispatch until it is completed:success"
+}
 require_reviewable_pr
+# --set with a reusable candidate dispatches nothing, and checklist step 8
+# reruns CI AFTER --set (ci-gate goes pending) — a repeat --set in that window
+# must not be refused. The dispatch itself stays guarded in dispatch_and_bind.
+[ "$MODE" = "--set" ] || require_ci_gate_green
 case "$mergeable" in
   # `blocked` is the EXPECTED state here: cloud-source-gate is a required check
   # and it is red precisely because the envelope this script prepares does not
@@ -378,6 +402,7 @@ dispatch_and_bind() {  # sets run_id
   # Recheck at the moment of spending: the resolve-time snapshot can go stale
   # while the envelope, reachability, and reuse probes run.
   require_reviewable_pr
+  require_ci_gate_green
   echo "  dispatching (request_id=$request_id)"
   gh workflow run cloud-candidate-bundle.yml --repo "$REPO" \
     -f "pull_request=$PR" -f "version_tag=$version_tag" -f "request_id=$request_id" \
