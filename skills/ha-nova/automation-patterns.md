@@ -340,8 +340,10 @@ re-resolution, never copy-paste:
    conditions, and mode; rename by room ("Motion light — kitchen").
    Capability-specific actions (color temperature, cover position, climate
    mode) require the target entity to actually support the attribute —
-   verify via its state attributes, and drop or simplify the action (saying
-   so in the preview) when it does not.
+   verify via its state attributes. A missing BEHAVIOR-CARRYING capability
+   stops that room with a plain sentence (a silently simplified replica is
+   not "the same"); only cosmetic attributes may be dropped, named in the
+   preview.
 3. Before each room's preview, run the duplicate check for THAT room
    (config evidence per `starter-proposals.md`'s gate — the offer may be
    stale, or the user may have asked directly without an offer); an already
