@@ -204,7 +204,8 @@ Accept numbers (e.g. "1 and 2"), or "skip".
 
 ## Replication Line (the one post-write exception)
 
-Applies to `ha-nova:write` automation/script creates ONLY. After a VERIFIED
+Applies to `ha-nova:write` AUTOMATION creates ONLY — the replicate pattern
+resolves automation roles, so script creates make no offer. After a VERIFIED
 create (never after an update, delete, or a failed verification), exactly ONE
 closing line may point out replication potential —
 and only when the registries actually prove it: other areas holding the same

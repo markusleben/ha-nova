@@ -30,7 +30,13 @@ proposed. Read-only until the user accepts an item.
    time-pattern watchdog keeps its sensor in `conditions`) plus the ACTION
    role in its actions — a single shared entity in an unrelated automation
    is no duplicate. Service-shaped roles (a `notify.*` target) match by
-   SERVICE NAME in the config's actions, not by entity id. When the pass is capped, say the
+   SERVICE NAME in the config's actions, not by entity id — and a modern
+   notify ENTITY also matches as the `target`/`entity_id` of a
+   `notify.send_message` call. An action delegated through `script.*` or
+   `scene.turn_on` hides the pairing: when a config pairs the source role
+   with a script/scene call, resolve that item's members or sequence before
+   clearing the candidate; delegation the pass cannot resolve makes the
+   duplicate scan PARTIAL, reported as such. When the pass is capped, say the
    duplicate gate was partial — never claim "not automated yet" from states
    rows or aliases. Disabled storage scenes join the scene inventory via the
    same registry-disabled read as automations — and their MEMBERS come from

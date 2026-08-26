@@ -61,7 +61,7 @@ describe("first-hour pack (#528)", () => {
   it("keeps the post-write ban with exactly one named exception (P3-06)", () => {
     expect(outputRules).toContain("never post-write — with ONE named exception, the Replication Line below");
     expect(outputRules).toContain("## Replication Line (the one post-write exception)");
-    expect(outputRules).toContain("Applies to `ha-nova:write` automation/script creates ONLY.");
+    expect(outputRules).toContain("Applies to `ha-nova:write` AUTOMATION creates ONLY");
     expect(outputRules).toContain("After a VERIFIED create (never after an update, delete, or a failed verification)");
     expect(outputRules).toContain("only when the registries actually prove it");
     expect(flat(read("skills/write/SKILL.md"))).toContain(
