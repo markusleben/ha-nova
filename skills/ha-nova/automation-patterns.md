@@ -342,9 +342,13 @@ re-resolution, never copy-paste:
    mode) require the target entity to actually support the attribute —
    verify via its state attributes, and drop or simplify the action (saying
    so in the preview) when it does not.
-3. One normal preview/confirm per room. Multiple rooms are sequential
+3. Before each room's preview, run the duplicate check for THAT room
+   (config evidence per `starter-proposals.md`'s gate — the offer may be
+   stale, or the user may have asked directly without an offer); an already
+   automated pairing stops that room with a plain sentence.
+4. One normal preview/confirm per room. Multiple rooms are sequential
    single writes, each individually verified — never one batch.
-4. The offer side of this pattern is the Replication Line
+5. The offer side of this pattern is the Replication Line
    (`output-rules.md`): one evidence-gated closing sentence, only after a
    verified create, only when the registries prove the same pairing exists.
 

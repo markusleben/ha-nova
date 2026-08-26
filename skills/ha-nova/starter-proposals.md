@@ -72,7 +72,9 @@ name-string guessing.
   short title + the evidence line ("motion sensor + lamp in the living room,
   not paired yet") + what it would do.
 - Fewer real candidates than 5 → show fewer; zero → say so honestly and name
-  what hardware would unlock which pattern.
+  what hardware would unlock which pattern. MORE than 5 → apply Progressive
+  Detail (output-rules.md): name how many were omitted and the exact
+  follow-up that shows the rest.
 - Each accepted number hands to the owning skill INDIVIDUALLY — one normal
   preview/confirm flow per item, never a batch write. Skip/decline is always
   valid; nothing runs from the menu itself.
