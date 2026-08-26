@@ -8,7 +8,7 @@ files per item; contract pins land in `tests/skills/first-hour-contract.test.ts`
 | Item | What | Files |
 |---|---|---|
 | P3-01 Capability answer | Dispatch row + "Capability Answer" section grouped by everyday jobs, grounded via one registry aggregate | `skills/ha-nova/SKILL.md` (dispatch), `skills/ha-nova/capability-answer.md` (new, shared — no word budget) |
-| P3-02 Starter proposals | Bounded inventory → evidence-gated pattern table → max 5 Suggestion-Block items → each accepted hands to write individually | `skills/ha-nova/starter-proposals.md` (new), dispatch row |
+| P3-02 Starter proposals | Bounded inventory → evidence-gated pattern table → max 4 Suggestion-Block items (Interactive Choices cap) → each accepted hands to write individually | `skills/ha-nova/starter-proposals.md` (new), dispatch row |
 | P3-03 Safety story | 5-line on-request block rendering the enforced guarantees user-facing | `skills/ha-nova/capability-answer.md` (same surface), dispatch example |
 | P3-04 Explain mode | "explain this automation" route: read renders the behavior narrative instead of force-dumping YAML | `skills/read/SKILL.md` Output Format (budgeted — compact), dispatch example |
 | P3-05 Home overview | Aggregate-counts recipe (List-Frame-legal), feeds P3-01 | `skills/ha-nova/capability-answer.md` |

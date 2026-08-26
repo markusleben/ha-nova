@@ -46,7 +46,8 @@ describe("first-hour pack (#528)", () => {
     expect(proposals).toContain("Read-only until the user accepts an item.");
     expect(proposals).toContain("The table is the catalog ceiling");
     expect(proposals).toContain("hands to the owning skill INDIVIDUALLY");
-    expect(proposals).toContain("At most 5 items");
+    expect(proposals).toContain("At most 4 items (the Interactive Choices menu cap)");
+    expect(proposals).toContain("Each accepted number REVALIDATES its evidence first");
     expect(proposals).toContain("not from name-string guessing");
     expect(proposals).toContain("Duplicate gate, config-evidence only");
     expect(proposals).toContain("Scan each read WHOLE config document");

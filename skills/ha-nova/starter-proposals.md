@@ -92,13 +92,17 @@ name-string guessing.
 
 ## Output
 
-- At most 5 items, rendered as ONE Suggestion Block (💡, numbered); each item:
-  short title + the evidence line ("motion sensor + lamp in the living room,
-  not paired yet") + what it would do.
-- Fewer real candidates than 5 → show fewer; zero → say so honestly and name
-  what hardware would unlock which pattern. MORE than 5 → apply Progressive
+- At most 4 items (the Interactive Choices menu cap), rendered as ONE
+  Suggestion Block (💡, numbered); each item: short title + the evidence
+  line ("motion sensor + lamp in the living room, not paired yet") + what
+  it would do.
+- Fewer real candidates than 4 → show fewer; zero → say so honestly and name
+  what hardware would unlock which pattern. MORE than 4 → apply Progressive
   Detail (output-rules.md): name how many were omitted and the exact
   follow-up that shows the rest.
-- Each accepted number hands to the owning skill INDIVIDUALLY — one normal
+- Each accepted number REVALIDATES its evidence first — a fresh duplicate
+  check for that candidate (the menu may be stale; an earlier accepted item
+  may have created exactly this pairing); gone-stale offers say so instead
+  of previewing. Then it hands to the owning skill INDIVIDUALLY — one normal
   preview/confirm flow per item, never a batch write. Skip/decline is always
   valid; nothing runs from the menu itself.
