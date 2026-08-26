@@ -229,10 +229,12 @@ require_ci_gate_green() {
     [ "$fresh_merge" = "$target_commit" ] \
       || die "the synthetic merge moved since resolve ($target_commit -> $fresh_merge) — head or base advanced; re-run the pipeline"
   fi
-  # filter defaults to latest: re-run attempts are collapsed server-side, so
-  # this returns at most the newest ci-gate run for the head.
+  # filter defaults to latest: re-run attempts are collapsed server-side.
+  # Bind to THIS PR's own GitHub-Actions run — the same head sha can carry a
+  # ci-gate result from another PR (stacked branch) or another app; the
+  # resolver verifies that binding and would reject after the spend.
   gate_state="$(gh api "repos/$REPO/commits/$resolved_head_sha/check-runs?check_name=ci-gate&per_page=10" \
-      --jq '[.check_runs[]] | max_by(.started_at) | if . == null then "absent" else "\(.status):\(.conclusion // "-")" end' 2>/dev/null)" \
+      --jq '[.check_runs[] | select((.app.slug // "") == "github-actions" and ([.pull_requests[]? | select(.number == '"$PR"')] | length) > 0)] | max_by(.started_at) | if . == null then "absent" else "\(.status):\(.conclusion // "-")" end' 2>/dev/null)" \
     || die "cannot read ci-gate's check run for #$PR's head"
   [ "$gate_state" = "completed:success" ] \
     || die "required pre-evidence check ci-gate is '$gate_state' on the head — the resolver refuses the dispatch until it is completed:success"
