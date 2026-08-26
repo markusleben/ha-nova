@@ -458,9 +458,12 @@ dispatch_and_bind() {  # sets run_id
   local max_before
   max_before="$(jq -r '[.[].databaseId] | max // 0' <<<"$runs_json")"
   # Recheck at the moment of spending: the resolve-time snapshot can go stale
-  # while the envelope, reachability, and reuse probes run.
-  require_reviewable_pr
+  # while the envelope, reachability, and reuse probes run. CI reads first,
+  # the cheap reviewability read LAST — its window to the dispatch is the
+  # smallest, so review state arriving during the slower CI reads still
+  # refuses.
   require_ci_workflow_green
+  require_reviewable_pr
   echo "  dispatching (request_id=$request_id)"
   gh workflow run cloud-candidate-bundle.yml --repo "$REPO" \
     -f "pull_request=$PR" -f "version_tag=$version_tag" -f "request_id=$request_id" \
