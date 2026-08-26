@@ -111,7 +111,7 @@ case "$args" in
   "api --paginate --slurp repos/${REPO_SLUG}/commits/"*"/check-runs?check_name=ci-gate&per_page=100 --jq "*)
     trace "read:ci-gate-check"
     cat "\${FAKE_GH_STATE}/cigate-check.state" 2>/dev/null || printf '777 completed:success\\n' ;;
-  "api repos/${REPO_SLUG}/commits/"*"/status --jq "*)
+  "api --paginate --slurp repos/${REPO_SLUG}/commits/"*"/status?per_page=100 --jq "*)
     trace "read:commit-status"
     cat "\${FAKE_GH_STATE}/status-shadow.state" 2>/dev/null || printf '0\\n' ;;
   "api graphql --paginate --slurp -f owner="*" -f name="*" -F number="*" -f query="*)

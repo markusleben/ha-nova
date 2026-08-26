@@ -242,7 +242,7 @@ require_ci_workflow_green() {
   # it belongs to the chosen CI run's suite (a newer check from any other
   # suite would shadow it server-side).
   check_info="$(gh api --paginate --slurp "repos/$REPO/commits/$resolved_head_sha/check-runs?check_name=ci-gate&per_page=100" \
-      --jq '[.[] | .check_runs[] | select((.app.slug // "") == "github-actions")] | max_by(.id) | if . == null then "absent" else "\(.check_suite.id // 0) \(.status):\(.conclusion // "-")" end' 2>/dev/null)" \
+      --jq '[.[] | .check_runs[] | select((.app.slug // "") == "github-actions" and ([.pull_requests[]? | select(.number == '"$PR"')] | length) > 0)] | max_by(.id) | if . == null then "absent" else "\(.check_suite.id // 0) \(.status):\(.conclusion // "-")" end' 2>/dev/null)" \
     || die "cannot read the ci-gate check run for #$PR's head"
   check_suite="${check_info%% *}"; check_state="${check_info#* }"
   [ "$check_suite" = "$suite_id" ] \
@@ -253,8 +253,8 @@ require_ci_workflow_green() {
     *) die "the named ci-gate check is '$check_state' — the resolver requires it from this run" ;;
   esac
   # The resolver also refuses a ci-gate shadowed by a legacy commit STATUS.
-  status_shadow="$(gh api "repos/$REPO/commits/$resolved_head_sha/status" \
-      --jq '[.statuses[]? | select(.context == "ci-gate")] | length' 2>/dev/null)" \
+  status_shadow="$(gh api --paginate --slurp "repos/$REPO/commits/$resolved_head_sha/status?per_page=100" \
+      --jq '[.[] | .statuses[]? | select(.context == "ci-gate")] | length' 2>/dev/null)" \
     || die "cannot read commit statuses for #$PR's head"
   [ "${status_shadow:-0}" = "0" ] \
     || die "a legacy commit status named ci-gate shadows the check on #$PR's head — the resolver refuses; remove the status source first"
