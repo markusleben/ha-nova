@@ -23,7 +23,9 @@ proposed. Read-only until the user accepts an item.
    entity). Any hit drops the candidate. When the pass is capped, say the
    duplicate gate was partial — never claim "not automated yet" from states
    rows or aliases. Disabled storage scenes join the scene inventory via the
-   same registry-disabled read as automations.
+   same registry-disabled read as automations — and their MEMBERS come from
+   reading each disabled scene's config by id (the registry row carries no
+   members; only enabled scenes expose them in the states pull).
 2c. Area pairing resolves area-first per the architecture reference:
    `search/related` on the area — this covers entities that inherit their
    area from their device; the compact registry's `ai` field alone misses
