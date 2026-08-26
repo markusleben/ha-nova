@@ -234,11 +234,16 @@ require_ci_workflow_green() {
   # still fails server-side; ci-gate has no needs: on its siblings). Bind to
   # THIS PR's own run: the same head sha can carry a run from a stacked
   # branch, and an unattributed run fails closed.
+  # The resolver also binds the run to the CURRENT base: a run recorded
+  # against an older main is rejected server-side even when the merge is
+  # unchanged, so mirror the base predicate too.
+  main_now="$(git -C "$ROOT_DIR" ls-remote origin refs/heads/main 2>/dev/null | awk 'NR==1{print $1}')"
+  [ -n "$main_now" ] || die "cannot resolve origin/main for the CI-run base binding"
   gate_state="$(gh api "repos/$REPO/actions/runs?head_sha=$resolved_head_sha&event=pull_request&per_page=30" \
-      --jq '[.workflow_runs[] | select(.path == ".github/workflows/ci.yml" and ([.pull_requests[]? | select(.number == '"$PR"')] | length) > 0)] | max_by(.id) | if . == null then "absent" else "\(.status):\(.conclusion // "-")" end' 2>/dev/null)" \
+      --jq '[.workflow_runs[] | select(.path == ".github/workflows/ci.yml" and ([.pull_requests[]? | select(.number == '"$PR"' and (.base.sha // "") == "'"$main_now"'")] | length) > 0)] | max_by(.id) | if . == null then "absent" else "\(.status):\(.conclusion // "-")" end' 2>/dev/null)" \
     || die "cannot read the CI workflow run for #$PR's head"
   [ "$gate_state" = "completed:success" ] \
-    || die "the CI workflow run is '$gate_state' on #$PR's head — the resolver refuses the dispatch until the whole run is completed:success"
+    || die "the CI workflow run is '$gate_state' for #$PR's head against the current base — rerun CI (or wait for it) before dispatching; the resolver refuses anything else"
 }
 require_reviewable_pr
 # Only the plain pipeline mode gates here: --set with a reusable candidate
