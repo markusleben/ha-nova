@@ -216,19 +216,7 @@ require_reviewable_pr() {
 # actually burned a dispatch, and the slowest of the set; the resolver stays
 # the authority for the full policy list and its workflow bindings.
 require_ci_workflow_green() {
-  local gate_state fresh_merge main_now check_state run_info suite_id check_info check_suite
-  # Staleness stop at the moment of spending: the synthetic merge moves when
-  # the PR head OR main advances, and request_id/target identity are bound to
-  # the RESOLVED merge. Once the fresh merge matches, the resolved head sha is
-  # proven current — no separate head re-read needed. At resolve time
-  # target_commit is not set yet; the freshly resolved state needs no check.
-  if [ -n "${target_commit:-}" ]; then
-    git -C "$ROOT_DIR" fetch --quiet --force origin "+refs/pull/$PR/merge:refs/cloud-evidence/$PR" 2>/dev/null \
-      || die "cannot re-fetch the synthetic merge ref for #$PR"
-    fresh_merge="$(git -C "$ROOT_DIR" rev-parse "refs/cloud-evidence/$PR")"
-    [ "$fresh_merge" = "$target_commit" ] \
-      || die "the synthetic merge moved since resolve ($target_commit -> $fresh_merge) — head or base advanced; re-run the pipeline"
-  fi
+  local gate_state fresh_merge main_now check_state run_info suite_id check_info check_suite status_shadow
   # The resolver requires the OWNING CI workflow run successful — the whole
   # run, not just the ci-gate job (a green ci-gate next to a red sibling job
   # still fails server-side; ci-gate has no needs: on its siblings). Bind to
@@ -254,7 +242,7 @@ require_ci_workflow_green() {
   # it belongs to the chosen CI run's suite (a newer check from any other
   # suite would shadow it server-side).
   check_info="$(gh api --paginate --slurp "repos/$REPO/commits/$resolved_head_sha/check-runs?check_name=ci-gate&per_page=100" \
-      --jq '[.[] | .check_runs[]] | max_by(.id) | if . == null then "absent" else "\(.check_suite.id // 0) \(.status):\(.conclusion // "-")" end' 2>/dev/null)" \
+      --jq '[.[] | .check_runs[] | select((.app.slug // "") == "github-actions")] | max_by(.id) | if . == null then "absent" else "\(.check_suite.id // 0) \(.status):\(.conclusion // "-")" end' 2>/dev/null)" \
     || die "cannot read the ci-gate check run for #$PR's head"
   check_suite="${check_info%% *}"; check_state="${check_info#* }"
   [ "$check_suite" = "$suite_id" ] \
@@ -264,6 +252,24 @@ require_ci_workflow_green() {
     completed:success|completed:skipped|completed:neutral) : ;;
     *) die "the named ci-gate check is '$check_state' — the resolver requires it from this run" ;;
   esac
+  # The resolver also refuses a ci-gate shadowed by a legacy commit STATUS.
+  status_shadow="$(gh api "repos/$REPO/commits/$resolved_head_sha/status" \
+      --jq '[.statuses[]? | select(.context == "ci-gate")] | length' 2>/dev/null)" \
+    || die "cannot read commit statuses for #$PR's head"
+  [ "${status_shadow:-0}" = "0" ] \
+    || die "a legacy commit status named ci-gate shadows the check on #$PR's head — the resolver refuses; remove the status source first"
+  # Staleness stop LAST — after every API read above: the synthetic merge
+  # moves when the PR head OR main advances, and request_id/target identity
+  # are bound to the RESOLVED merge; a match here proves the reads above ran
+  # against the still-current state. At resolve time target_commit is not set
+  # yet; the freshly resolved state needs no check.
+  if [ -n "${target_commit:-}" ]; then
+    git -C "$ROOT_DIR" fetch --quiet --force origin "+refs/pull/$PR/merge:refs/cloud-evidence/$PR" 2>/dev/null \
+      || die "cannot re-fetch the synthetic merge ref for #$PR"
+    fresh_merge="$(git -C "$ROOT_DIR" rev-parse "refs/cloud-evidence/$PR")"
+    [ "$fresh_merge" = "$target_commit" ] \
+      || die "the synthetic merge moved since resolve ($target_commit -> $fresh_merge) — head or base advanced; re-run the pipeline"
+  fi
 }
 require_reviewable_pr
 # Only the plain pipeline mode gates here: --set with a reusable candidate
