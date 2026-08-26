@@ -177,6 +177,8 @@ merge_commit="$(jq -r '.merge_commit_sha // ""' <<<"$pr_json")"
 base_ref="$(jq -r '.base.ref // ""' <<<"$pr_json")"
 [ "$base_ref" = "main" ] \
   || die "PR #$PR targets '${base_ref:-unknown}', not main — the candidate workflow only builds PRs into main"
+resolved_head_sha="$(jq -r '.head.sha // ""' <<<"$pr_json")"
+[ -n "$resolved_head_sha" ] || die "PR #$PR has no head sha in the API response"
 head_repo="$(jq -r '.head.repo.full_name // ""' <<<"$pr_json")"
 [ "$head_repo" = "$REPO" ] \
   || die "PR #$PR's head lives in '${head_repo:-unknown}', not $REPO — the candidate workflow only builds same-repo branches"
@@ -193,12 +195,14 @@ require_reviewable_pr() {
   # page, and the same reviewDecision allowlist.
   thread_pages="$(gh api graphql --paginate --slurp \
     -f owner="${REPO%%/*}" -f name="${REPO##*/}" -F number="$PR" \
-    -f query='query($owner:String!,$name:String!,$number:Int!,$endCursor:String){repository(owner:$owner,name:$name){pullRequest(number:$number){reviewDecision reviewThreads(first:100,after:$endCursor){nodes{isResolved} pageInfo{hasNextPage endCursor}}}}}')" \
+    -f query='query($owner:String!,$name:String!,$number:Int!,$endCursor:String){repository(owner:$owner,name:$name){pullRequest(number:$number){state isDraft reviewDecision reviewThreads(first:100,after:$endCursor){nodes{isResolved} pageInfo{hasNextPage endCursor}}}}}')" \
     || die "cannot read #$PR's review threads"
   jq -e '
     length > 0
     and all(.[];
       .data.repository.pullRequest != null
+      and .data.repository.pullRequest.state == "OPEN"
+      and .data.repository.pullRequest.isDraft == false
       and (
         .data.repository.pullRequest.reviewDecision == "APPROVED"
         or .data.repository.pullRequest.reviewDecision == "REVIEW_REQUIRED"
@@ -206,9 +210,94 @@ require_reviewable_pr() {
       )
       and all(.data.repository.pullRequest.reviewThreads.nodes[]; .isResolved == true)
     )' >/dev/null <<<"$thread_pages" \
-    || die "PR #$PR has requested changes or unresolved review threads — the candidate workflow refuses the dispatch; resolve them first (stale bot threads from earlier reviews count)"
+    || die "PR #$PR is not an open non-draft PR with clean review state (closed/draft/requested-changes/unresolved threads) — the candidate workflow refuses the dispatch; resolve that first (stale bot threads from earlier reviews count)"
+}
+# The resolver requires every pre-evidence check green before it builds;
+# dispatching while ci-gate still runs burns the run (#611/rc23: dispatched
+# seconds after a push, CI unfinished). Mirror only ci-gate — the one that
+# actually burned a dispatch, and the slowest of the set; the resolver stays
+# the authority for the full policy list and its workflow bindings.
+require_ci_workflow_green() {
+  local gate_state fresh_merge main_now check_state run_info suite_id check_info check_suite policy_file required_names head_checks required_check shadow_count run_pages check_pages status_pages
+  # The resolver requires the OWNING CI workflow run successful — the whole
+  # run, not just the ci-gate job (a green ci-gate next to a red sibling job
+  # still fails server-side; ci-gate has no needs: on its siblings). Bind to
+  # THIS PR's own run: the same head sha can carry a run from a stacked
+  # branch, and an unattributed run fails closed.
+  # The resolver also binds the run to the CURRENT base: a run recorded
+  # against an older main is rejected server-side even when the merge is
+  # unchanged, so mirror the base predicate too.
+  main_now="$(git -C "$ROOT_DIR" ls-remote origin refs/heads/main 2>/dev/null | awk 'NR==1{print $1}')"
+  [ -n "$main_now" ] || die "cannot resolve origin/main for the CI-run base binding"
+  # NOTE: gh refuses --slurp together with --jq — fetch raw pages, jq locally.
+  run_pages="$(gh api --paginate --slurp "repos/$REPO/actions/runs?head_sha=$resolved_head_sha&event=pull_request&per_page=100" 2>/dev/null)" \
+    || die "cannot read the CI workflow runs for #$PR's head"
+  run_info="$(jq -r --arg base "$main_now" --argjson pr "$PR" \
+      '[.[] | .workflow_runs[] | select(.path == ".github/workflows/ci.yml" and ([.pull_requests[]? | select(.number == $pr and (.base.sha // "") == $base)] | length) > 0)] | max_by(.id) | if . == null then "absent" else "\(.check_suite_id // 0) \(.status):\(.conclusion // "-")" end' <<<"$run_pages")"
+  suite_id="${run_info%% *}"; gate_state="${run_info#* }"
+  [ "$gate_state" = "completed:success" ] \
+    || die "the CI workflow run is '${run_info}' for #$PR's head against the current base — rerun CI (or wait for it) before dispatching; the resolver refuses anything else"
+  # AND every resolver-required pre-evidence check from the repo policy —
+  # not just ci-gate: any pending or failed sibling check (analyze,
+  # dependency-review, the gates) rejects the dispatch server-side. The
+  # resolver binds the GLOBALLY latest check per name and verifies its
+  # workflow binding; locally, the newest github-actions check of THIS PR
+  # must sit in the allowlist, and ci-gate's must come from the selected CI
+  # run's suite (a workflow edit that drops the job, or a check emitted by
+  # another workflow, fails closed).
+  # Policy from TRUSTED origin/main, never the working tree: a PR that edits
+  # the policy file must not feed the preflight its own check list (the
+  # server-side resolver reads main's policy the same way).
+  git -C "$ROOT_DIR" fetch --quiet --force origin "+refs/heads/main:refs/cloud-evidence/policy-main" 2>/dev/null \
+    || die "cannot fetch origin/main for the check policy"
+  required_names="$(git -C "$ROOT_DIR" show "refs/cloud-evidence/policy-main:.github/policy/repo-policy.json" 2>/dev/null \
+      | jq -c '.main_branch_protection | ((.required_status_checks - ["cloud-source-gate"]) + .advisory_checks) | unique')" \
+    || die "cannot read the required-check list from origin/main's repo policy"
+  [ -n "$required_names" ] || die "origin/main's repo policy yields no required-check list"
+  check_pages="$(gh api --paginate --slurp "repos/$REPO/commits/$resolved_head_sha/check-runs?per_page=100" 2>/dev/null)" \
+    || die "cannot read the check runs for #$PR's head"
+  head_checks="$(jq --argjson pr "$PR" \
+      '[.[] | .check_runs[] | select((.app.slug // "") == "github-actions" and ([.pull_requests[]? | select(.number == $pr)] | length) > 0)]' <<<"$check_pages")"
+  while IFS= read -r required_check; do
+    check_info="$(jq -r --arg n "$required_check" '[.[] | select(.name == $n)] | max_by(.id) | if . == null then "absent" else "\(.check_suite.id // 0) \(.status):\(.conclusion // "-")" end' <<<"$head_checks")"
+    check_suite="${check_info%% *}"; check_state="${check_info#* }"
+    case "$check_state" in
+      # The resolver's conclusion allowlist.
+      completed:success|completed:skipped|completed:neutral) : ;;
+      *) die "required pre-evidence check '$required_check' is '$check_state' on #$PR's head — the resolver refuses the dispatch" ;;
+    esac
+    if [ "$required_check" = "ci-gate" ]; then
+      [ "$check_suite" = "$suite_id" ] \
+        || die "the newest ci-gate check (suite ${check_suite}) does not come from the selected CI run's suite ($suite_id) — the resolver binds the newest check and would reject"
+    fi
+  done < <(jq -r '.[]' <<<"$required_names")
+  # The resolver also refuses any required check shadowed by a legacy commit
+  # STATUS of the same name.
+  status_pages="$(gh api --paginate --slurp "repos/$REPO/commits/$resolved_head_sha/status?per_page=100" 2>/dev/null)" \
+    || die "cannot read commit statuses for #$PR's head"
+  shadow_count="$(jq --argjson names "$required_names" '[.[] | .statuses[]?.context | select(. as $c | $names | index($c))] | length' <<<"$status_pages")"
+  [ "${shadow_count:-0}" = "0" ] \
+    || die "a legacy commit status shadows a required check on #$PR's head — the resolver refuses; remove the status source first"
+  # Staleness stop LAST — after every API read above: the synthetic merge
+  # moves when the PR head OR main advances, and request_id/target identity
+  # are bound to the RESOLVED merge; a match here proves the reads above ran
+  # against the still-current state. At resolve time target_commit is not set
+  # yet; the freshly resolved state needs no check.
+  if [ -n "${target_commit:-}" ]; then
+    git -C "$ROOT_DIR" fetch --quiet --force origin "+refs/pull/$PR/merge:refs/cloud-evidence/$PR" 2>/dev/null \
+      || die "cannot re-fetch the synthetic merge ref for #$PR"
+    fresh_merge="$(git -C "$ROOT_DIR" rev-parse "refs/cloud-evidence/$PR")"
+    [ "$fresh_merge" = "$target_commit" ] \
+      || die "the synthetic merge moved since resolve ($target_commit -> $fresh_merge) — head or base advanced; re-run the pipeline"
+  fi
 }
 require_reviewable_pr
+# Only the plain pipeline mode gates here: --set with a reusable candidate
+# dispatches nothing (and checklist step 8 reruns CI AFTER --set — a repeat
+# --set in that window must not be refused), and --dry-run exits before any
+# spend. The dispatch itself stays guarded in dispatch_and_bind, which also
+# covers --set's expired-artifact fresh-dispatch fallback.
+if [ -z "$MODE" ]; then require_ci_workflow_green; fi
 case "$mergeable" in
   # `blocked` is the EXPECTED state here: cloud-source-gate is a required check
   # and it is red precisely because the envelope this script prepares does not
@@ -376,7 +465,11 @@ dispatch_and_bind() {  # sets run_id
   local max_before
   max_before="$(jq -r '[.[].databaseId] | max // 0' <<<"$runs_json")"
   # Recheck at the moment of spending: the resolve-time snapshot can go stale
-  # while the envelope, reachability, and reuse probes run.
+  # while the envelope, reachability, and reuse probes run. CI reads first,
+  # the cheap reviewability read LAST — its window to the dispatch is the
+  # smallest, so review state arriving during the slower CI reads still
+  # refuses.
+  require_ci_workflow_green
   require_reviewable_pr
   echo "  dispatching (request_id=$request_id)"
   gh workflow run cloud-candidate-bundle.yml --repo "$REPO" \
