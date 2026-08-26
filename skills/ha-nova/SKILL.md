@@ -312,7 +312,7 @@ Match user intent to exactly one skill:
 **"Show my helpers"** → `ha-nova:helper` (NOT read)
 **"Revert that"** / **"Undo the last change"** → re-invoke the skill that made it: `ha-nova:write` (automation/script) or `ha-nova:helper` (helper). `revert` is update-only and lives there (see `write-safety.md` → Update-Revert), never `ha-nova:fallback`; create cleanup uses delete flow, and a deleted item in a snapshot-covered family restores from its auto config snapshot in the owning skill (`config-snapshots.md`); config-entry helpers stay Backup/recreate.
 **"Delete these obsolete config snapshots"** → `ha-nova` context skill using `config-snapshots.md`; exact multi-file cleanup may use its declared `config-snapshots` batch family.
-**"Do the same for the kitchen"** (right after a verified create) → `ha-nova:write`, replicate-across-rooms pattern (`skills/ha-nova/automation-patterns.md`) — resolve the kitchen's OWN entities, never copy entity ids
+**"Do the same for the kitchen"** (right after a verified AUTOMATION create) → `ha-nova:write`, replicate-across-rooms pattern (`skills/ha-nova/automation-patterns.md`) — resolve the kitchen's OWN entities, never copy entity ids; after any other create, treat it as a fresh request to the owning skill
 **"Create a scene called Movie Night"** → `ha-nova:scene`
 **"Activate the scene Movie Night"** → `ha-nova:service-call` (runtime action, not a config change)
 **"Unlock the front door"** → `ha-nova:service-call` (high-consequence: typed confirmation code)

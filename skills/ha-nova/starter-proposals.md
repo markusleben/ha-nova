@@ -41,10 +41,11 @@ proposed. Read-only until the user accepts an item.
    shared entity in an unrelated automation is no duplicate. Service-shaped roles (a `notify.*` target) match by
    SERVICE NAME in the config's actions, not by entity id — and a modern
    notify ENTITY also matches as the `target`/`entity_id` of a
-   `notify.send_message` call. Two more equivalence expansions from reads
-   already in hand: a group target (`group.*`, or a light/media group whose
-   `entity_id` member attribute sits in the states pull) matches when it
-   CONTAINS the candidate; a presence source role also matches zone-count
+   `notify.send_message` call. Two more equivalence expansions: a group target
+   matches when its membership PROVABLY contains the candidate — the
+   `entity_id` states attribute where present, else the group helper's
+   config read; membership the pass cannot prove falls into the closed
+   PARTIAL rule; a presence source role also matches zone-count
    guards (`zone.home` state) — but only with the POLARITY the candidate
    needs: an at-home guard (`zone.home > 0`) never evidences an away alert. CLOSED RULE
    for everything else: any config whose references the pass cannot FULLY
