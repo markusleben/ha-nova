@@ -195,12 +195,13 @@ require_reviewable_pr() {
   # page, and the same reviewDecision allowlist.
   thread_pages="$(gh api graphql --paginate --slurp \
     -f owner="${REPO%%/*}" -f name="${REPO##*/}" -F number="$PR" \
-    -f query='query($owner:String!,$name:String!,$number:Int!,$endCursor:String){repository(owner:$owner,name:$name){pullRequest(number:$number){reviewDecision reviewThreads(first:100,after:$endCursor){nodes{isResolved} pageInfo{hasNextPage endCursor}}}}}')" \
+    -f query='query($owner:String!,$name:String!,$number:Int!,$endCursor:String){repository(owner:$owner,name:$name){pullRequest(number:$number){isDraft reviewDecision reviewThreads(first:100,after:$endCursor){nodes{isResolved} pageInfo{hasNextPage endCursor}}}}}')" \
     || die "cannot read #$PR's review threads"
   jq -e '
     length > 0
     and all(.[];
       .data.repository.pullRequest != null
+      and .data.repository.pullRequest.isDraft == false
       and (
         .data.repository.pullRequest.reviewDecision == "APPROVED"
         or .data.repository.pullRequest.reviewDecision == "REVIEW_REQUIRED"
@@ -208,7 +209,7 @@ require_reviewable_pr() {
       )
       and all(.data.repository.pullRequest.reviewThreads.nodes[]; .isResolved == true)
     )' >/dev/null <<<"$thread_pages" \
-    || die "PR #$PR has requested changes or unresolved review threads — the candidate workflow refuses the dispatch; resolve them first (stale bot threads from earlier reviews count)"
+    || die "PR #$PR is a draft, has requested changes, or carries unresolved review threads — the candidate workflow refuses the dispatch; resolve that first (stale bot threads from earlier reviews count)"
 }
 # The resolver requires every pre-evidence check green before it builds;
 # dispatching while ci-gate still runs burns the run (#611/rc23: dispatched
