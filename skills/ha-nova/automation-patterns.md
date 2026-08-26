@@ -347,8 +347,9 @@ re-resolution, never copy-paste:
    Capability-specific actions (color temperature, cover position, climate
    mode) AND capability-specific triggers (a device trigger's subtype such
    as a double-press) require the target to actually support them — verify
-   actions via state attributes and device-trigger subtypes via the target
-   device's trigger list (`device_automation/trigger/list`). A missing BEHAVIOR-CARRYING capability
+   actions via state attributes, device-trigger subtypes via the target
+   device's trigger list (`device_automation/trigger/list`), and `event.*`
+   entity triggers via the target entity's `event_types` attribute. A missing BEHAVIOR-CARRYING capability
    stops that room with a plain sentence (a silently simplified replica is
    not "the same"); only cosmetic attributes may be dropped, named in the
    preview.
