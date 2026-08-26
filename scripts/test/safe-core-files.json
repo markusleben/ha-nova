@@ -78,6 +78,7 @@
   "tests/skills/domain-fields-contract.test.ts",
   "tests/skills/drift-check-contract.test.ts",
   "tests/skills/energy-contract.test.ts",
+  "tests/skills/first-hour-contract.test.ts",
   "tests/skills/entity-discovery-truncation-contract.test.ts",
   "tests/skills/everyday-convenience-contract.test.ts",
   "tests/skills/grouped-change-set-contract.test.ts",
