@@ -192,8 +192,10 @@ keeps its plain sectioned header — review output is sectioned, not card-framed
 
 Pre-preview candidates where the owning skill names none of its own — same
 caps, same evidence bar (registry/capability reads from this session):
-scene create — a same-area entity the scene plausibly misses (storage scenes
-persist entity STATES, so never suggest service parameters like `transition`);
+scene create — a same-area ACTIONABLE entity the scene plausibly misses (a
+scene members only controllable domains, never a read-only sensor; storage
+scenes persist entity STATES, so never suggest service parameters like
+`transition`);
 dashboard shell create — a strategy config for the empty shell (accepting
 queues it as its OWN follow-up preview after the shell create — a separate
 mutation, never merged into the shell draft).

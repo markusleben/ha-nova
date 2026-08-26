@@ -19,7 +19,8 @@ with ONE bounded aggregate read:
    - Automate: create/change automations, scenes, schedules, helpers
    - Watch: history, energy, cameras, who is home, what is open or running
    - Organize & maintain: rooms/areas, names, updates, backups, cleanups
-   - Voice: what Assist understands, teach it new phrases
+   - Voice: what Assist understands, teach it new phrases (first use may
+     need Relay file access enabled — the owning skill guides that)
 3. Skip groups whose ENABLING hardware is absent — Automate stays visible
    whenever controllable devices exist (zero existing automations is an
    invitation, not absence); name up to two things the home does NOT have

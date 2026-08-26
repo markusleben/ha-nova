@@ -102,7 +102,8 @@ describe("first-hour pack (#528)", () => {
   });
 
   it("fuels the suggestion budget for scene, dashboard, and failure alerts (P3-09)", () => {
-    expect(outputRules).toContain("a same-area entity the scene plausibly misses");
+    expect(outputRules).toContain("a same-area ACTIONABLE entity the scene plausibly misses");
+    expect(outputRules).toContain("never a read-only sensor");
     expect(outputRules).toContain("a strategy config for the empty shell");
     expect(flat(read("skills/ha-nova/agents/resolve-agent.md"))).toContain("outcome alert");
   });
