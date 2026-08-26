@@ -50,6 +50,17 @@ function initFixture(platforms: string[]): Fixture {
     copyFileSync(lib, join(repo, lib));
   }
   writeFileSync(join(repo, "nova", "config.yaml"), 'name: HA NOVA\nversion: "0.9.0"\n');
+  // The dispatch preflight reads the same policy file as the server resolver.
+  mkdirSync(join(repo, ".github", "policy"), { recursive: true });
+  writeFileSync(
+    join(repo, ".github", "policy", "repo-policy.json"),
+    `${JSON.stringify({
+      main_branch_protection: {
+        required_status_checks: ["ci-gate", "cloud-source-gate"],
+        advisory_checks: [],
+      },
+    })}\n`,
+  );
   writeFileSync(
     join(repo, "version.json"),
     `${JSON.stringify({ skill_version: "0.24.0", cloud_remote_platforms: platforms }, null, 2)}\n`,
@@ -105,10 +116,23 @@ case "$args" in
   "api repos/${REPO_SLUG}/pulls/"*)
     trace "read:pr"
     cat "\${FAKE_GH_STATE}/pr.json" ;;
+  "api --paginate --slurp repos/${REPO_SLUG}/actions/runs?head_sha="*"&event=pull_request&per_page=100")
+    trace "read:ci-workflow"
+    if [ -f "\${FAKE_GH_STATE}/ci-run-pages.json" ]; then cat "\${FAKE_GH_STATE}/ci-run-pages.json"; else
+      msha="$(cat "\${FAKE_GH_STATE}/main.sha" 2>/dev/null || echo unknown)"
+      printf '[{"workflow_runs":[{"id":9,"path":".github/workflows/ci.yml","check_suite_id":777,"status":"completed","conclusion":"success","pull_requests":[{"number":7,"base":{"sha":"%s"}}]}]}]\\n' "\$msha"
+    fi ;;
+  "api --paginate --slurp repos/${REPO_SLUG}/commits/"*"/check-runs?per_page=100")
+    trace "read:head-checks"
+    cat "\${FAKE_GH_STATE}/head-checks.json" 2>/dev/null \\
+      || printf '[{"check_runs":[{"name":"ci-gate","id":1,"check_suite":{"id":777},"app":{"slug":"github-actions"},"pull_requests":[{"number":7}],"status":"completed","conclusion":"success"}]}]\\n' ;;
+  "api --paginate --slurp repos/${REPO_SLUG}/commits/"*"/status?per_page=100")
+    trace "read:commit-status"
+    cat "\${FAKE_GH_STATE}/status-shadow.state" 2>/dev/null || printf '[]\\n' ;;
   "api graphql --paginate --slurp -f owner="*" -f name="*" -F number="*" -f query="*)
     trace "read:review-threads"
     cat "\${FAKE_GH_STATE}/review.json" 2>/dev/null \\
-      || printf '[{"data":{"repository":{"pullRequest":{"reviewDecision":null,"reviewThreads":{"nodes":[],"pageInfo":{"hasNextPage":false,"endCursor":null}}}}}}]\\n' ;;
+      || printf '[{"data":{"repository":{"pullRequest":{"state":"OPEN","isDraft":false,"reviewDecision":null,"reviewThreads":{"nodes":[],"pageInfo":{"hasNextPage":false,"endCursor":null}}}}}}]\\n' ;;
   "run list --repo ${REPO_SLUG} --workflow cloud-candidate-bundle.yml --json databaseId,status,conclusion,event --limit 30")
     trace "run-list"
     n="$(cat "\${FAKE_GH_STATE}/list.count" 2>/dev/null || echo 0)"
@@ -432,7 +456,7 @@ describe("cloud evidence PR target binding", () => {
       mergeable_state: "clean",
       merge_commit_sha: fixture.mainCommit,
       base: { ref: "main" },
-      head: { repo: { full_name: REPO_SLUG } },
+      head: { sha: fixture.mainCommit, repo: { full_name: REPO_SLUG } },
       ...overrides,
     };
   }
@@ -440,6 +464,7 @@ describe("cloud evidence PR target binding", () => {
   function prFixture() {
     const fixture = initFixture(platforms);
     const fake = makeFakeBin(prJson(fixture));
+    writeFileSync(join(fake.state, "main.sha"), `${fixture.mainCommit}\n`);
     // GitHub's synthetic merge ref, served by the local bare origin.
     git(fixture.originGit, "update-ref", "refs/pull/7/merge", fixture.mainCommit);
     return { fixture, fake };
@@ -455,7 +480,7 @@ describe("cloud evidence PR target binding", () => {
 
   it("refuses a fork-headed PR", () => {
     const fixture = initFixture(platforms);
-    const fake = makeFakeBin(prJson(fixture, { head: { repo: { full_name: "someone/fork" } } }));
+    const fake = makeFakeBin(prJson(fixture, { head: { sha: fixture.mainCommit, repo: { full_name: "someone/fork" } } }));
     const result = runScript(fixture, fake, ["7"]);
     expect(result.status, result.stdout).not.toBe(0);
     expect(result.stderr).toContain("same-repo branches");
@@ -474,6 +499,8 @@ describe("cloud evidence PR target binding", () => {
           data: {
             repository: {
               pullRequest: {
+                state: "OPEN",
+                isDraft: false,
                 reviewDecision: null,
                 reviewThreads: {
                   nodes: [{ isResolved: true }],
@@ -487,6 +514,8 @@ describe("cloud evidence PR target binding", () => {
           data: {
             repository: {
               pullRequest: {
+                state: "OPEN",
+                isDraft: false,
                 reviewDecision: null,
                 reviewThreads: {
                   nodes: [{ isResolved: false }],
@@ -500,7 +529,7 @@ describe("cloud evidence PR target binding", () => {
     );
     const result = runScript(fixture, fake, ["7"]);
     expect(result.status, result.stdout).not.toBe(0);
-    expect(result.stderr).toContain("unresolved review threads");
+    expect(result.stderr).toContain("unresolved threads");
     expect(readFileSync(fake.trace, "utf8")).not.toContain("dispatch");
   });
 
@@ -513,6 +542,8 @@ describe("cloud evidence PR target binding", () => {
           data: {
             repository: {
               pullRequest: {
+                state: "OPEN",
+                isDraft: false,
                 reviewDecision: "CHANGES_REQUESTED",
                 reviewThreads: {
                   nodes: [],
@@ -526,7 +557,43 @@ describe("cloud evidence PR target binding", () => {
     );
     const result = runScript(fixture, fake, ["7"]);
     expect(result.status, result.stdout).not.toBe(0);
-    expect(result.stderr).toContain("requested changes");
+    expect(result.stderr).toContain("requested-changes");
+    expect(readFileSync(fake.trace, "utf8")).not.toContain("dispatch");
+  });
+
+  it("refuses to dispatch while ci-gate has not succeeded on the head", () => {
+    // #611/rc23: dispatched seconds after a push, CI unfinished — the server
+    // resolver rejected AFTER the run started.
+    const { fixture, fake } = prFixture();
+    writeFileSync(
+      join(fake.state, "ci-run-pages.json"),
+      JSON.stringify([
+        {
+          workflow_runs: [
+            {
+              id: 9,
+              path: ".github/workflows/ci.yml",
+              check_suite_id: 777,
+              status: "in_progress",
+              conclusion: null,
+              pull_requests: [{ number: 7, base: { sha: fixture.mainCommit } }],
+            },
+          ],
+        },
+      ]),
+    );
+    const result = runScript(fixture, fake, ["7"]);
+    expect(result.status, result.stdout).not.toBe(0);
+    expect(result.stderr).toContain("CI workflow run");
+    expect(readFileSync(fake.trace, "utf8")).not.toContain("dispatch");
+  });
+
+  it("refuses when a policy-required check is missing from the head's suite", () => {
+    const { fixture, fake } = prFixture();
+    writeFileSync(join(fake.state, "head-checks.json"), "[]\n");
+    const result = runScript(fixture, fake, ["7"]);
+    expect(result.status, result.stdout).not.toBe(0);
+    expect(result.stderr).toContain("required pre-evidence check 'ci-gate' is 'absent'");
     expect(readFileSync(fake.trace, "utf8")).not.toContain("dispatch");
   });
 
