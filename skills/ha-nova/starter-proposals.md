@@ -32,7 +32,10 @@ proposed. Read-only until the user accepts an item.
    candidate's role entities AND every selector value that resolves to them
    — `device_id`, `area_id`, `label_id`, `floor_id`, from the candidates'
    own registry memberships (a selector-targeted automation never names the
-   entity). A candidate drops only when ONE config references its COMPLETE
+   entity). A selector hit counts only in the role's FUNCTION: a device_id
+   match on the source side needs that sensor's own trigger type, and an
+   area/label-targeted action needs the action role's domain service —
+   otherwise it is no pairing evidence. A candidate drops only when ONE config references its COMPLETE
    role pairing ON ONE EXECUTABLE PATH: the SOURCE role in triggers — or in
    conditions ONLY when that branch's trigger is time-driven
    (time/time_pattern/sun, the watchdog shape); a sensor merely gating an

@@ -16,6 +16,7 @@ Apply these rules to every user-facing HA NOVA response, including direct sub-sk
 ## Technical Noise
 
 - Do not dump raw JSON, full logs, full entity lists, full component lists, or full registry/config-entry lists unless the user explicitly asks.
+- Webhook ids are secret-bearing (an unauthenticated trigger URL): redact them in ANY shown YAML or config excerpt — explicitly requested YAML included — replacing the value with a masked placeholder and saying one was masked; webhook mechanics stay in `ha-nova:service-call`'s client-private flow.
 - Summarize long inventories by counts, groups, and a few relevant examples.
 - If raw automation IDs, helper IDs, config IDs, or entity IDs make the response more technical than helpful, summarize them in natural language or by count instead of echoing every raw identifier.
 - Show precise identifiers only when they are needed for safety, disambiguation, or evidence.

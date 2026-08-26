@@ -81,8 +81,8 @@ lines:
 - Automation, script, and storage-helper updates keep a revert path; deleted
   items in snapshot-covered families restore from automatic config snapshots.
 - Reads are bounded; pairing and authentication secrets never appear in
-  chat (raw YAML you explicitly ask for can contain config internals such
-  as webhook ids).
+  chat, and secret-bearing config values (webhook ids) are masked even in
+  raw YAML you explicitly ask for.
 - When something is outside these guarantees (scene, dashboard, energy, and
   calendar writes have no revert; config-entry helpers have no snapshot), the
   owning skill names the limit — the honest limit is part of the story.
