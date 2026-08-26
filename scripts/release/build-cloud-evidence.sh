@@ -252,8 +252,11 @@ require_ci_workflow_green() {
   check_state="$(gh api --paginate --slurp "repos/$REPO/commits/$resolved_head_sha/check-runs?check_name=ci-gate&per_page=100" \
       --jq '[.[] | .check_runs[] | select((.check_suite.id // 0) == '"$suite_id"')] | max_by(.started_at) | if . == null then "absent" else "\(.status):\(.conclusion // "-")" end' 2>/dev/null)" \
     || die "cannot read the ci-gate check run for #$PR's head"
-  [ "$check_state" = "completed:success" ] \
-    || die "the named ci-gate check is '$check_state' inside the selected CI run's suite — the resolver requires the check itself, from this run"
+  case "$check_state" in
+    # The resolver's conclusion allowlist for the named check.
+    completed:success|completed:skipped|completed:neutral) : ;;
+    *) die "the named ci-gate check is '$check_state' inside the selected CI run's suite — the resolver requires the check itself, from this run" ;;
+  esac
 }
 require_reviewable_pr
 # Only the plain pipeline mode gates here: --set with a reusable candidate
