@@ -20,8 +20,10 @@ with ONE bounded aggregate read:
    - Watch: history, energy, cameras, who is home, what is open or running
    - Organize & maintain: rooms/areas, names, updates, backups, cleanups
    - Voice: what Assist understands, teach it new phrases
-3. Skip groups with zero matching entities; name up to two things the home
-   does NOT have wired yet as honest scope, not as failure — and only claims
+3. Skip groups whose ENABLING hardware is absent — Automate stays visible
+   whenever controllable devices exist (zero existing automations is an
+   invitation, not absence); name up to two things the home does NOT have
+   wired yet as honest scope, not as failure — and only claims
    the session's reads actually prove ("no energy dashboard configured" needs
    the energy prefs read, never a guess from entity absence).
 4. Close with a Next step inviting ONE concrete job ("Want a tour? Ask:
@@ -53,10 +55,12 @@ Read-only audit from bounded registry reads (entity registry + area
 registry), owned here; every FIX hands to `ha-nova:organize`'s normal
 preview/confirm flow:
 
-- count DEVICE-BOUND entities without an EFFECTIVE area — an empty entity
-  `area_id` inherits the device's area, so join the device registry first;
-  persons, automations, scripts, scenes, and integration-level diagnostics
-  legitimately have no area and are never counted as untidy.
+- count AREA-ASSIGNABLE entities without an EFFECTIVE area: device-bound
+  ones (an empty entity `area_id` inherits the device's area — join the
+  device registry first) AND device-less entities that accept an
+  entity-level `area_id` (template sensors and the like); persons,
+  automations, scripts, and scenes legitimately have no area and are never
+  counted as untidy.
 - name provenance: an entity whose registry `name` is null runs on its
   integration default (`original_name`) — that IS the provenance signal.
   Mere equality with a device model, or a bare `_2` suffix, reports as

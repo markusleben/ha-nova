@@ -90,7 +90,7 @@ describe("first-hour pack (#528)", () => {
     expect(capability).toContain("every FIX hands to `ha-nova:organize`'s normal preview/confirm flow");
     expect(capability).toContain("never the full listing");
     expect(capability).toContain('reports as "possibly default", never as a rename offer');
-    expect(capability).toContain("count DEVICE-BOUND entities without an EFFECTIVE area");
+    expect(capability).toContain("count AREA-ASSIGNABLE entities without an EFFECTIVE area");
     expect(capability).toContain("that IS the provenance signal");
     expect(context).toContain("fixes hand to `ha-nova:organize`");
   });
