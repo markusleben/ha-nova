@@ -105,8 +105,8 @@ case "$args" in
   "api repos/${REPO_SLUG}/pulls/"*)
     trace "read:pr"
     cat "\${FAKE_GH_STATE}/pr.json" ;;
-  "api repos/${REPO_SLUG}/commits/"*"/check-runs?check_name=ci-gate&per_page=10 --jq "*)
-    trace "read:ci-gate"
+  "api repos/${REPO_SLUG}/actions/runs?head_sha="*"&event=pull_request&per_page=30 --jq "*)
+    trace "read:ci-workflow"
     cat "\${FAKE_GH_STATE}/cigate.state" 2>/dev/null || printf 'completed:success\\n' ;;
   "api graphql --paginate --slurp -f owner="*" -f name="*" -F number="*" -f query="*)
     trace "read:review-threads"
@@ -540,7 +540,7 @@ describe("cloud evidence PR target binding", () => {
     writeFileSync(join(fake.state, "cigate.state"), "in_progress:-\n");
     const result = runScript(fixture, fake, ["7"]);
     expect(result.status, result.stdout).not.toBe(0);
-    expect(result.stderr).toContain("ci-gate");
+    expect(result.stderr).toContain("CI workflow run");
     expect(readFileSync(fake.trace, "utf8")).not.toContain("dispatch");
   });
 

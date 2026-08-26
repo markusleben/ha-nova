@@ -215,7 +215,7 @@ require_reviewable_pr() {
 # seconds after a push, CI unfinished). Mirror only ci-gate — the one that
 # actually burned a dispatch, and the slowest of the set; the resolver stays
 # the authority for the full policy list and its workflow bindings.
-require_ci_gate_green() {
+require_ci_workflow_green() {
   local gate_state fresh_merge
   # Staleness stop at the moment of spending: the synthetic merge moves when
   # the PR head OR main advances, and request_id/target identity are bound to
@@ -229,21 +229,22 @@ require_ci_gate_green() {
     [ "$fresh_merge" = "$target_commit" ] \
       || die "the synthetic merge moved since resolve ($target_commit -> $fresh_merge) — head or base advanced; re-run the pipeline"
   fi
-  # filter defaults to latest: re-run attempts are collapsed server-side.
-  # Bind to THIS PR's own GitHub-Actions run — the same head sha can carry a
-  # ci-gate result from another PR (stacked branch) or another app; the
-  # resolver verifies that binding and would reject after the spend.
-  gate_state="$(gh api "repos/$REPO/commits/$resolved_head_sha/check-runs?check_name=ci-gate&per_page=10" \
-      --jq '[.check_runs[] | select((.app.slug // "") == "github-actions" and ([.pull_requests[]? | select(.number == '"$PR"')] | length) > 0)] | max_by(.started_at) | if . == null then "absent" else "\(.status):\(.conclusion // "-")" end' 2>/dev/null)" \
-    || die "cannot read ci-gate's check run for #$PR's head"
+  # The resolver requires the OWNING CI workflow run successful — the whole
+  # run, not just the ci-gate job (a green ci-gate next to a red sibling job
+  # still fails server-side; ci-gate has no needs: on its siblings). Bind to
+  # THIS PR's own run: the same head sha can carry a run from a stacked
+  # branch, and an unattributed run fails closed.
+  gate_state="$(gh api "repos/$REPO/actions/runs?head_sha=$resolved_head_sha&event=pull_request&per_page=30" \
+      --jq '[.workflow_runs[] | select(.path == ".github/workflows/ci.yml" and ([.pull_requests[]? | select(.number == '"$PR"')] | length) > 0)] | max_by(.id) | if . == null then "absent" else "\(.status):\(.conclusion // "-")" end' 2>/dev/null)" \
+    || die "cannot read the CI workflow run for #$PR's head"
   [ "$gate_state" = "completed:success" ] \
-    || die "required pre-evidence check ci-gate is '$gate_state' on the head — the resolver refuses the dispatch until it is completed:success"
+    || die "the CI workflow run is '$gate_state' on #$PR's head — the resolver refuses the dispatch until the whole run is completed:success"
 }
 require_reviewable_pr
 # --set with a reusable candidate dispatches nothing, and checklist step 8
 # reruns CI AFTER --set (ci-gate goes pending) — a repeat --set in that window
 # must not be refused. The dispatch itself stays guarded in dispatch_and_bind.
-[ "$MODE" = "--set" ] || require_ci_gate_green
+[ "$MODE" = "--set" ] || require_ci_workflow_green
 case "$mergeable" in
   # `blocked` is the EXPECTED state here: cloud-source-gate is a required check
   # and it is red precisely because the envelope this script prepares does not
@@ -413,7 +414,7 @@ dispatch_and_bind() {  # sets run_id
   # Recheck at the moment of spending: the resolve-time snapshot can go stale
   # while the envelope, reachability, and reuse probes run.
   require_reviewable_pr
-  require_ci_gate_green
+  require_ci_workflow_green
   echo "  dispatching (request_id=$request_id)"
   gh workflow run cloud-candidate-bundle.yml --repo "$REPO" \
     -f "pull_request=$PR" -f "version_tag=$version_tag" -f "request_id=$request_id" \
