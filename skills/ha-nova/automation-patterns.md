@@ -342,8 +342,10 @@ re-resolution, never copy-paste:
 2. Rebuild the config with the resolved entities; carry over timings,
    conditions, and mode; rename by room ("Motion light — kitchen").
    Capability-specific actions (color temperature, cover position, climate
-   mode) require the target entity to actually support the attribute —
-   verify via its state attributes. A missing BEHAVIOR-CARRYING capability
+   mode) AND capability-specific triggers (a device trigger's subtype such
+   as a double-press) require the target to actually support them — verify
+   actions via state attributes and device-trigger subtypes via the target
+   device's trigger list (`device_automation/trigger/list`). A missing BEHAVIOR-CARRYING capability
    stops that room with a plain sentence (a silently simplified replica is
    not "the same"); only cosmetic attributes may be dropped, named in the
    preview.
