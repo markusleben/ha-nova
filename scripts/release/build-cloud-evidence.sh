@@ -241,10 +241,12 @@ require_ci_workflow_green() {
     || die "the CI workflow run is '$gate_state' on #$PR's head — the resolver refuses the dispatch until the whole run is completed:success"
 }
 require_reviewable_pr
-# --set with a reusable candidate dispatches nothing, and checklist step 8
-# reruns CI AFTER --set (ci-gate goes pending) — a repeat --set in that window
-# must not be refused. The dispatch itself stays guarded in dispatch_and_bind.
-[ "$MODE" = "--set" ] || require_ci_workflow_green
+# Only the plain pipeline mode gates here: --set with a reusable candidate
+# dispatches nothing (and checklist step 8 reruns CI AFTER --set — a repeat
+# --set in that window must not be refused), and --dry-run exits before any
+# spend. The dispatch itself stays guarded in dispatch_and_bind, which also
+# covers --set's expired-artifact fresh-dispatch fallback.
+if [ -z "$MODE" ]; then require_ci_workflow_green; fi
 case "$mergeable" in
   # `blocked` is the EXPECTED state here: cloud-source-gate is a required check
   # and it is red precisely because the envelope this script prepares does not
