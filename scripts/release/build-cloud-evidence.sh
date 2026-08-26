@@ -254,7 +254,7 @@ require_ci_workflow_green() {
   # it belongs to the chosen CI run's suite (a newer check from any other
   # suite would shadow it server-side).
   check_info="$(gh api --paginate --slurp "repos/$REPO/commits/$resolved_head_sha/check-runs?check_name=ci-gate&per_page=100" \
-      --jq '[.[] | .check_runs[]] | max_by(.started_at) | if . == null then "absent" else "\(.check_suite.id // 0) \(.status):\(.conclusion // "-")" end' 2>/dev/null)" \
+      --jq '[.[] | .check_runs[]] | max_by(.id) | if . == null then "absent" else "\(.check_suite.id // 0) \(.status):\(.conclusion // "-")" end' 2>/dev/null)" \
     || die "cannot read the ci-gate check run for #$PR's head"
   check_suite="${check_info%% *}"; check_state="${check_info#* }"
   [ "$check_suite" = "$suite_id" ] \
