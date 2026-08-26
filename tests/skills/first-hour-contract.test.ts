@@ -50,7 +50,8 @@ describe("first-hour pack (#528)", () => {
     expect(proposals).toContain("not from name-string guessing");
     expect(proposals).toContain("Duplicate gate, config-evidence only");
     expect(proposals).toContain("scan each WHOLE config document");
-    expect(proposals).toContain("AND their `device_id`/`area_id`");
+    expect(proposals).toContain("AND every selector value that resolves to them");
+    expect(proposals).toContain("anywhere in triggers OR conditions");
     expect(proposals).toContain('never claim "not automated yet" from states rows or aliases');
     expect(proposals).toContain("Area pairing resolves area-first per the architecture reference");
     expect(proposals).toContain("the notify domain's services from `/api/services`");
