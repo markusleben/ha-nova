@@ -16,11 +16,14 @@ proposed. Read-only until the user accepts an item.
    and their `entity_id` member attribute from the same pull.
 2b. Duplicate gate, config-evidence only: before a candidate enters the
    Suggestion Block, read the existing automations' configs (one bounded
-   pass over the step-2 ids) and drop any candidate whose role entities
-   already appear in a trigger, CONDITION, or action pairing (an away guard
-   normally lives in `conditions`); when the pass is capped, say the
-   duplicate gate was partial — never claim "not automated yet" from
-   states rows or aliases.
+   pass over the step-2 ids) and scan each WHOLE config document — triggers,
+   conditions, actions, selector targets, and `use_blueprint.input` all carry
+   entity ids literally — for the candidate's role entities AND their
+   `device_id`/`area_id` (an area/device-targeted automation never names the
+   entity). Any hit drops the candidate. When the pass is capped, say the
+   duplicate gate was partial — never claim "not automated yet" from states
+   rows or aliases. Disabled storage scenes join the scene inventory via the
+   same registry-disabled read as automations.
 2c. Area pairing resolves area-first per the architecture reference:
    `search/related` on the area — this covers entities that inherit their
    area from their device; the compact registry's `ai` field alone misses

@@ -48,13 +48,15 @@ Read-only audit from bounded registry reads (entity registry + area
 registry), owned here; every FIX hands to `ha-nova:organize`'s normal
 preview/confirm flow:
 
-- count entities without an EFFECTIVE area — an entity with an empty
-  `area_id` inherits its device's area, so join the device registry before
-  calling anything unassigned; flag as "integration default" only names
-  the registries PROVE default (equal to the device registry's model/name for
-  that device). A bare `_2` suffix is a hint — report it as "possibly
-  default", never as a rename offer. Counts plus a short sample, never the
-  full listing.
+- count DEVICE-BOUND entities without an EFFECTIVE area — an empty entity
+  `area_id` inherits the device's area, so join the device registry first;
+  persons, automations, scripts, scenes, and integration-level diagnostics
+  legitimately have no area and are never counted as untidy.
+- name provenance: an entity whose registry `name` is null runs on its
+  integration default (`original_name`) — that IS the provenance signal.
+  Mere equality with a device model, or a bare `_2` suffix, reports as
+  "possibly default", never as a rename offer. Counts plus a short sample,
+  never the full listing.
 - close with the fixes as a legal Next step ("say 'move them to rooms' and
   I'll take them through ha-nova:organize, one preview each").
 

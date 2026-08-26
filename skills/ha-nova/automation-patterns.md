@@ -331,7 +331,9 @@ actions:
 re-resolution, never copy-paste:
 
 1. Resolve the TARGET room's own entities for every role the source
-   automation uses (motion sensor, light, …) via the entity/area registries;
+   automation uses (motion sensor, light, …) by EFFECTIVE area membership —
+   an entity with an empty `area_id` inherits its device's area, so join the
+   device registry (or use `search/related` on the area);
    a role with no counterpart in that room stops the replication for that
    room with a plain sentence — never substitute a neighboring room's entity.
 2. Rebuild the config with the resolved entities; carry over timings,
