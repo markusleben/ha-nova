@@ -41,8 +41,9 @@ Aggregate counts are List-Frame-legal; entity dumps are not.
   full entity-registry read (the AREA registry holds rooms, not entities), a
   states pull alone undercounts — and current activity
   (lights on, media playing, anyone home) as counts, not an entity listing —
-  activity comes from a FRESH states read; only the structural totals may
-  reuse an earlier read from this session.
+  activity comes from a FRESH states read; structural totals may reuse an
+  earlier read from this session ONLY while no write in this conversation
+  touched the counted families — after one, re-read.
 - Never include coordinates, tracker positions, or per-person locations
   unless the user asked for exactly that.
 - Close with one Next step (e.g. the Structure Check below — owned here,
