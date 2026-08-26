@@ -249,8 +249,8 @@ require_ci_workflow_green() {
   # that renames or drops the job could leave the run green without the
   # required check, and a check emitted by a different workflow on the same
   # head must not satisfy it — suite binding covers both.
-  check_state="$(gh api "repos/$REPO/commits/$resolved_head_sha/check-runs?check_name=ci-gate&per_page=10" \
-      --jq '[.check_runs[] | select((.check_suite.id // 0) == '"$suite_id"')] | max_by(.started_at) | if . == null then "absent" else "\(.status):\(.conclusion // "-")" end' 2>/dev/null)" \
+  check_state="$(gh api --paginate --slurp "repos/$REPO/commits/$resolved_head_sha/check-runs?check_name=ci-gate&per_page=100" \
+      --jq '[.[] | .check_runs[] | select((.check_suite.id // 0) == '"$suite_id"')] | max_by(.started_at) | if . == null then "absent" else "\(.status):\(.conclusion // "-")" end' 2>/dev/null)" \
     || die "cannot read the ci-gate check run for #$PR's head"
   [ "$check_state" = "completed:success" ] \
     || die "the named ci-gate check is '$check_state' inside the selected CI run's suite — the resolver requires the check itself, from this run"
