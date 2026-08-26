@@ -48,7 +48,10 @@ describe("first-hour pack (#528)", () => {
     expect(proposals).toContain("hands to the owning skill INDIVIDUALLY");
     expect(proposals).toContain("At most 5 items");
     expect(proposals).toContain("not from name-string guessing");
-    expect(proposals).toContain("the SOLE area-pairing source");
+    expect(proposals).toContain("Duplicate gate, config-evidence only");
+    expect(proposals).toContain('never claim "not automated yet" from states rows or aliases');
+    expect(proposals).toContain("Area pairing resolves area-first per the architecture reference");
+    expect(proposals).toContain("the notify domain's services from `/api/services`");
     expect(proposals).toContain("`ha-nova:history`'s bounded read");
   });
 
@@ -82,6 +85,7 @@ describe("first-hour pack (#528)", () => {
     expect(capability).toContain('## Structure Check — "Is my setup tidy?"');
     expect(capability).toContain("every FIX hands to `ha-nova:organize`'s normal preview/confirm flow");
     expect(capability).toContain("never the full listing");
+    expect(capability).toContain('report it as "possibly default", never as a rename offer');
     expect(context).toContain("fixes hand to `ha-nova:organize`");
   });
 
