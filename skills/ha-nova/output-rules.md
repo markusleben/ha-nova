@@ -208,7 +208,9 @@ Applies to `ha-nova:write` automation/script creates ONLY. After a VERIFIED
 create (never after an update, delete, or a failed verification), exactly ONE
 closing line may point out replication potential —
 and only when the registries actually prove it: other areas holding the same
-device pairing the new item uses, checked in the same session's reads. Shape:
+device pairing the new item uses, checked in the same session's reads — AND
+the target room's pairing is not already automated per the config-level
+duplicate evidence (hardware existence alone never makes the offer). Shape:
 one sentence, evidence named, ending in an offer ("The kitchen and bedroom
 have the same motion+light pairing — say 'do the same for the kitchen' to
 replicate."). No Suggestion Block, no list, no second line, nothing invented

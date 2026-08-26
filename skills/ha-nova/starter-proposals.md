@@ -24,7 +24,8 @@ proposed. Read-only until the user accepts an item.
    device-targeted automation never names the entity). A candidate drops
    only when ONE config references its COMPLETE role pairing (trigger-side
    and action-side role together) — a single shared entity in an unrelated
-   automation is no duplicate. When the pass is capped, say the
+   automation is no duplicate. Service-shaped roles (a `notify.*` target)
+   match by SERVICE NAME in the config's actions, not by entity id. When the pass is capped, say the
    duplicate gate was partial — never claim "not automated yet" from states
    rows or aliases. Disabled storage scenes join the scene inventory via the
    same registry-disabled read as automations — and their MEMBERS come from

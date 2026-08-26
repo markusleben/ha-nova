@@ -34,8 +34,9 @@ Aggregate counts are List-Frame-legal; entity dumps are not.
   read the raw dump (reuse the Capability Answer read when it happened this
   session); plus the area registry for room counts.
 - Report: rooms/areas, entities per domain (top groups only), how many
-  automations/scenes/scripts exist, and current activity (lights on, media
-  playing, anyone home) as counts — not as an entity listing.
+  automations/scenes/scripts exist — registry-disabled rows included via the
+  registry read, a states pull alone undercounts — and current activity
+  (lights on, media playing, anyone home) as counts, not an entity listing.
 - Never include coordinates, tracker positions, or per-person locations
   unless the user asked for exactly that.
 - Close with one Next step (e.g. the Structure Check below — owned here,
