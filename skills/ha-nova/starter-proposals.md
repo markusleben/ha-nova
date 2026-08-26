@@ -22,12 +22,15 @@ proposed. Read-only until the user accepts an item.
    `unique_id` for disabled rows), never the entity id — and scan each WHOLE
    config document: triggers, conditions, actions, selector targets, and
    `use_blueprint.input` all carry entity ids literally; match the
-   candidate's role entities AND their `device_id`/`area_id` (an area/
-   device-targeted automation never names the entity). A candidate drops
-   only when ONE config references its COMPLETE role pairing (trigger-side
-   and action-side role together) — a single shared entity in an unrelated
-   automation is no duplicate. Service-shaped roles (a `notify.*` target)
-   match by SERVICE NAME in the config's actions, not by entity id. When the pass is capped, say the
+   candidate's role entities AND every selector value that resolves to them
+   — `device_id`, `area_id`, `label_id`, `floor_id`, from the candidates'
+   own registry memberships (a selector-targeted automation never names the
+   entity). A candidate drops only when ONE config references its COMPLETE
+   role pairing: the SOURCE role anywhere in triggers OR conditions (a
+   time-pattern watchdog keeps its sensor in `conditions`) plus the ACTION
+   role in its actions — a single shared entity in an unrelated automation
+   is no duplicate. Service-shaped roles (a `notify.*` target) match by
+   SERVICE NAME in the config's actions, not by entity id. When the pass is capped, say the
    duplicate gate was partial — never claim "not automated yet" from states
    rows or aliases. Disabled storage scenes join the scene inventory via the
    same registry-disabled read as automations — and their MEMBERS come from
