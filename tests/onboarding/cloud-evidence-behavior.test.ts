@@ -50,6 +50,17 @@ function initFixture(platforms: string[]): Fixture {
     copyFileSync(lib, join(repo, lib));
   }
   writeFileSync(join(repo, "nova", "config.yaml"), 'name: HA NOVA\nversion: "0.9.0"\n');
+  // The dispatch preflight reads the same policy file as the server resolver.
+  mkdirSync(join(repo, ".github", "policy"), { recursive: true });
+  writeFileSync(
+    join(repo, ".github", "policy", "repo-policy.json"),
+    `${JSON.stringify({
+      main_branch_protection: {
+        required_status_checks: ["ci-gate", "cloud-source-gate"],
+        advisory_checks: [],
+      },
+    })}\n`,
+  );
   writeFileSync(
     join(repo, "version.json"),
     `${JSON.stringify({ skill_version: "0.24.0", cloud_remote_platforms: platforms }, null, 2)}\n`,
@@ -108,12 +119,13 @@ case "$args" in
   "api --paginate --slurp repos/${REPO_SLUG}/actions/runs?head_sha="*"&event=pull_request&per_page=100 --jq "*)
     trace "read:ci-workflow"
     cat "\${FAKE_GH_STATE}/cigate.state" 2>/dev/null || printf '777 completed:success\\n' ;;
-  "api --paginate --slurp repos/${REPO_SLUG}/commits/"*"/check-runs?check_name=ci-gate&per_page=100 --jq "*)
-    trace "read:ci-gate-check"
-    cat "\${FAKE_GH_STATE}/cigate-check.state" 2>/dev/null || printf '777 completed:success\\n' ;;
+  "api --paginate --slurp repos/${REPO_SLUG}/commits/"*"/check-runs?per_page=100 --jq "*)
+    trace "read:head-checks"
+    cat "\${FAKE_GH_STATE}/head-checks.json" 2>/dev/null \\
+      || printf '[{"name":"ci-gate","id":1,"check_suite":{"id":777},"app":{"slug":"github-actions"},"pull_requests":[{"number":7}],"status":"completed","conclusion":"success"}]\\n' ;;
   "api --paginate --slurp repos/${REPO_SLUG}/commits/"*"/status?per_page=100 --jq "*)
     trace "read:commit-status"
-    cat "\${FAKE_GH_STATE}/status-shadow.state" 2>/dev/null || printf '0\\n' ;;
+    cat "\${FAKE_GH_STATE}/status-shadow.state" 2>/dev/null || printf '[]\\n' ;;
   "api graphql --paginate --slurp -f owner="*" -f name="*" -F number="*" -f query="*)
     trace "read:review-threads"
     cat "\${FAKE_GH_STATE}/review.json" 2>/dev/null \\
@@ -547,6 +559,15 @@ describe("cloud evidence PR target binding", () => {
     const result = runScript(fixture, fake, ["7"]);
     expect(result.status, result.stdout).not.toBe(0);
     expect(result.stderr).toContain("CI workflow run");
+    expect(readFileSync(fake.trace, "utf8")).not.toContain("dispatch");
+  });
+
+  it("refuses when a policy-required check is missing from the head's suite", () => {
+    const { fixture, fake } = prFixture();
+    writeFileSync(join(fake.state, "head-checks.json"), "[]\n");
+    const result = runScript(fixture, fake, ["7"]);
+    expect(result.status, result.stdout).not.toBe(0);
+    expect(result.stderr).toContain("required pre-evidence check 'ci-gate' is 'absent'");
     expect(readFileSync(fake.trace, "utf8")).not.toContain("dispatch");
   });
 

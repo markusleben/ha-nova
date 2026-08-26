@@ -216,7 +216,7 @@ require_reviewable_pr() {
 # actually burned a dispatch, and the slowest of the set; the resolver stays
 # the authority for the full policy list and its workflow bindings.
 require_ci_workflow_green() {
-  local gate_state fresh_merge main_now check_state run_info suite_id check_info check_suite status_shadow
+  local gate_state fresh_merge main_now check_state run_info suite_id check_info check_suite status_shadow policy_file required_names head_checks required_check shadow_count
   # The resolver requires the OWNING CI workflow run successful — the whole
   # run, not just the ci-gate job (a green ci-gate next to a red sibling job
   # still fails server-side; ci-gate has no needs: on its siblings). Bind to
@@ -233,31 +233,42 @@ require_ci_workflow_green() {
   suite_id="${run_info%% *}"; gate_state="${run_info#* }"
   [ "$gate_state" = "completed:success" ] \
     || die "the CI workflow run is '${run_info}' for #$PR's head against the current base — rerun CI (or wait for it) before dispatching; the resolver refuses anything else"
-  # AND the named ci-gate check FROM THAT RUN's check suite: a workflow edit
-  # that renames or drops the job could leave the run green without the
-  # required check, and a check emitted by a different workflow on the same
-  # head must not satisfy it — suite binding covers both.
-  # The resolver binds the GLOBALLY latest ci-gate check and then verifies
-  # its workflow binding — so select the newest check first, and require that
-  # it belongs to the chosen CI run's suite (a newer check from any other
-  # suite would shadow it server-side).
-  check_info="$(gh api --paginate --slurp "repos/$REPO/commits/$resolved_head_sha/check-runs?check_name=ci-gate&per_page=100" \
-      --jq '[.[] | .check_runs[] | select((.app.slug // "") == "github-actions" and ([.pull_requests[]? | select(.number == '"$PR"')] | length) > 0)] | max_by(.id) | if . == null then "absent" else "\(.check_suite.id // 0) \(.status):\(.conclusion // "-")" end' 2>/dev/null)" \
-    || die "cannot read the ci-gate check run for #$PR's head"
-  check_suite="${check_info%% *}"; check_state="${check_info#* }"
-  [ "$check_suite" = "$suite_id" ] \
-    || die "the newest ci-gate check on the head (suite ${check_suite}) does not come from the selected CI run's suite ($suite_id) — the resolver binds the newest check and would reject; investigate before dispatching"
-  case "$check_state" in
-    # The resolver's conclusion allowlist for the named check.
-    completed:success|completed:skipped|completed:neutral) : ;;
-    *) die "the named ci-gate check is '$check_state' — the resolver requires it from this run" ;;
-  esac
-  # The resolver also refuses a ci-gate shadowed by a legacy commit STATUS.
+  # AND every resolver-required pre-evidence check from the repo policy —
+  # not just ci-gate: any pending or failed sibling check (analyze,
+  # dependency-review, the gates) rejects the dispatch server-side. The
+  # resolver binds the GLOBALLY latest check per name and verifies its
+  # workflow binding; locally, the newest github-actions check of THIS PR
+  # must sit in the allowlist, and ci-gate's must come from the selected CI
+  # run's suite (a workflow edit that drops the job, or a check emitted by
+  # another workflow, fails closed).
+  policy_file="$ROOT_DIR/.github/policy/repo-policy.json"
+  [ -f "$policy_file" ] || die "repository policy is missing ($policy_file)"
+  required_names="$(jq -c '.main_branch_protection | ((.required_status_checks - ["cloud-source-gate"]) + .advisory_checks) | unique' "$policy_file")" \
+    || die "cannot read the required-check list from $policy_file"
+  head_checks="$(gh api --paginate --slurp "repos/$REPO/commits/$resolved_head_sha/check-runs?per_page=100" \
+      --jq '[.[] | .check_runs[] | select((.app.slug // "") == "github-actions" and ([.pull_requests[]? | select(.number == '"$PR"')] | length) > 0)]' 2>/dev/null)" \
+    || die "cannot read the check runs for #$PR's head"
+  while IFS= read -r required_check; do
+    check_info="$(jq -r --arg n "$required_check" '[.[] | select(.name == $n)] | max_by(.id) | if . == null then "absent" else "\(.check_suite.id // 0) \(.status):\(.conclusion // "-")" end' <<<"$head_checks")"
+    check_suite="${check_info%% *}"; check_state="${check_info#* }"
+    case "$check_state" in
+      # The resolver's conclusion allowlist.
+      completed:success|completed:skipped|completed:neutral) : ;;
+      *) die "required pre-evidence check '$required_check' is '$check_state' on #$PR's head — the resolver refuses the dispatch" ;;
+    esac
+    if [ "$required_check" = "ci-gate" ]; then
+      [ "$check_suite" = "$suite_id" ] \
+        || die "the newest ci-gate check (suite ${check_suite}) does not come from the selected CI run's suite ($suite_id) — the resolver binds the newest check and would reject"
+    fi
+  done < <(jq -r '.[]' <<<"$required_names")
+  # The resolver also refuses any required check shadowed by a legacy commit
+  # STATUS of the same name.
   status_shadow="$(gh api --paginate --slurp "repos/$REPO/commits/$resolved_head_sha/status?per_page=100" \
-      --jq '[.[] | .statuses[]? | select(.context == "ci-gate")] | length' 2>/dev/null)" \
+      --jq '[.[] | .statuses[]?.context]' 2>/dev/null)" \
     || die "cannot read commit statuses for #$PR's head"
-  [ "${status_shadow:-0}" = "0" ] \
-    || die "a legacy commit status named ci-gate shadows the check on #$PR's head — the resolver refuses; remove the status source first"
+  shadow_count="$(jq --argjson names "$required_names" '[.[] | select(. as $c | $names | index($c))] | length' <<<"$status_shadow")"
+  [ "${shadow_count:-0}" = "0" ] \
+    || die "a legacy commit status shadows a required check on #$PR's head — the resolver refuses; remove the status source first"
   # Staleness stop LAST — after every API read above: the synthetic merge
   # moves when the PR head OR main advances, and request_id/target identity
   # are bound to the RESOLVED merge; a match here proves the reads above ran
