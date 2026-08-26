@@ -139,6 +139,7 @@ Common patterns to check (non-exhaustive):
 - time-based: add condition to skip weekends/holidays
 - climate: add hysteresis/deadband to avoid rapid cycling
 - notification: add cooldown to prevent spam
+- high-consequence action (lock, valve, heating): outcome alert — a follow-up state check (wait/condition on the target) that notifies when the intended state is NOT observed; service errors are not observable from inside the sequence
 - any automation: consider appropriate `mode` (single, restart, queued, parallel)
 
 `NEXT_STEP:`

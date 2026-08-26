@@ -16,6 +16,7 @@ Apply these rules to every user-facing HA NOVA response, including direct sub-sk
 ## Technical Noise
 
 - Do not dump raw JSON, full logs, full entity lists, full component lists, or full registry/config-entry lists unless the user explicitly asks.
+- Webhook ids are secret-bearing (an unauthenticated trigger URL): redact them in ANY shown YAML or config excerpt — explicitly requested YAML included — replacing the value with a masked placeholder and saying one was masked; webhook mechanics stay in `ha-nova:service-call`'s client-private flow.
 - Summarize long inventories by counts, groups, and a few relevant examples.
 - If raw automation IDs, helper IDs, config IDs, or entity IDs make the response more technical than helpful, summarize them in natural language or by count instead of echoing every raw identifier.
 - Show precise identifiers only when they are needed for safety, disambiguation, or evidence.
@@ -180,7 +181,8 @@ Item shape: short title + what it does + why it helps; value
 suggestions (helper defaults) may use the value assignment as the title and
 drop the benefit when it is obvious. Menu mechanics follow context skill →
 Interactive Choices; skip/decline is always valid; omit the block entirely
-when there is nothing to offer; never post-write. Numeric acceptance resolves
+when there is nothing to offer; never post-write — with ONE named exception,
+the Replication Line below. Numeric acceptance resolves
 per context skill → Interactive Choices: name the accepted items before
 applying — a suggestion choice edits the pending draft where one exists, and
 in a standalone review it only hands the item to the owning write skill's
@@ -188,12 +190,51 @@ normal preview flow; it never runs anything. Review's Suggestions section
 keeps its plain sectioned header — review output is sectioned, not card-framed
 — but its items follow this item shape.
 
+Pre-preview candidates where the owning skill names none of its own — same
+caps, same evidence bar (registry/capability reads from this session):
+scene create — a same-area ACTIONABLE entity the scene plausibly misses (a
+scene members only controllable domains, never a read-only sensor; storage
+scenes persist entity STATES, so never suggest service parameters like
+`transition`);
+dashboard shell create — a strategy config for the empty shell (accepting
+queues it as its OWN follow-up preview after the shell create — a separate
+mutation, never merged into the shell draft).
+
 ```
 💡 Suggestions for "Morning routine":
 1. Presence condition — runs only when someone is home · avoids empty-house runs
 2. Restart mode — re-trigger restarts the timer · prevents overlapping runs
 Accept numbers (e.g. "1 and 2"), or "skip".
 ```
+
+## Replication Line (the one post-write exception)
+
+Applies to `ha-nova:write` AUTOMATION creates ONLY — the replicate pattern
+resolves automation roles, so script creates make no offer. After a VERIFIED
+create (never after an update, delete, or a failed verification), exactly ONE
+closing line may point out replication potential —
+and only when the registries actually prove it: other areas holding the same
+device pairing the new item uses, checked in the same session's reads — AND
+the target room's pairing is not already automated per the config-level
+duplicate evidence, AND the target devices pass the replicate pattern's
+capability check for the source's capability-specific triggers/actions
+(hardware existence alone never makes the offer). Shape:
+one sentence, evidence named, ending in an offer ("The kitchen and bedroom
+have the same motion+light pairing — say 'do the same for the kitchen' to
+replicate."). No Suggestion Block, no list, no second line, nothing invented
+from name patterns. Accepting hands to `ha-nova:write`'s replicate pattern
+(`skills/ha-nova/automation-patterns.md`), one preview per room.
+
+## Session Recap ("what did you do today?")
+
+Answer ONLY from this conversation's writes: item, operation, and
+verification state as reported at the time. No memory of other sessions, no
+inference from current HA state, no filling gaps — when the conversation
+window no longer covers everything, say exactly that — earlier changes may
+exist beyond this conversation, the logbook/history timeline covers STATE
+changes but no complete config-change trail exists — and offer
+`ha-nova:history` for what it can show. Unverified or failed writes
+are named as such, never upgraded to successes in recap.
 
 ## Findings
 

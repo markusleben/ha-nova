@@ -325,6 +325,44 @@ actions:
       transition: 5
 ```
 
+### Replicate Across Rooms
+
+"Do the same for the kitchen" after a verified create. Replication is
+re-resolution, never copy-paste:
+
+1. Resolve the TARGET room's own entities for every role the source
+   automation uses (motion sensor, light, …) by EFFECTIVE area membership —
+   an entity with an empty `area_id` inherits its device's area, so join the
+   device registry (or use `search/related` on the area);
+   a ROOM-BOUND role with no counterpart in that room stops the replication
+   for that room with a plain sentence — never substitute a neighboring
+   room's entity. Home-wide roles (`sun.sun`, zones, household presence,
+   global mode helpers) have no per-room counterpart by design: carry them
+   over unchanged. A source that embeds its room in a template or non-entity
+   literal (`area_entities('living_room')`, area names inside Jinja) stops
+   the replication unless that reference re-resolves to the target room —
+   never string-replace room names.
+2. Rebuild the config with the resolved entities; carry over timings,
+   conditions, and mode; rename by room ("Motion light — kitchen").
+   Capability-specific actions (color temperature, cover position, climate
+   mode) AND capability-specific triggers (a device trigger's subtype such
+   as a double-press) require the target to actually support them — verify
+   actions via state attributes, device-trigger subtypes via the target
+   device's trigger list (`device_automation/trigger/list`), and `event.*`
+   entity triggers via the target entity's `event_types` attribute. A missing BEHAVIOR-CARRYING capability
+   stops that room with a plain sentence (a silently simplified replica is
+   not "the same"); only cosmetic attributes may be dropped, named in the
+   preview.
+3. Before each room's preview, run the duplicate check for THAT room
+   (config evidence per `starter-proposals.md`'s gate — the offer may be
+   stale, or the user may have asked directly without an offer); an already
+   automated pairing stops that room with a plain sentence.
+4. One normal preview/confirm per room. Multiple rooms are sequential
+   single writes, each individually verified — never one batch.
+5. The offer side of this pattern is the Replication Line
+   (`output-rules.md`): one evidence-gated closing sentence, only after a
+   verified create, only when the registries prove the same pairing exists.
+
 ## One-Shot And Temporary Automations
 
 A request that should not outlive its purpose — "tell me when the laundry
