@@ -107,7 +107,7 @@ case "$args" in
     cat "\${FAKE_GH_STATE}/pr.json" ;;
   "api repos/${REPO_SLUG}/actions/runs?head_sha="*"&event=pull_request&per_page=30 --jq "*)
     trace "read:ci-workflow"
-    cat "\${FAKE_GH_STATE}/cigate.state" 2>/dev/null || printf 'completed:success\\n' ;;
+    cat "\${FAKE_GH_STATE}/cigate.state" 2>/dev/null || printf '777 completed:success\\n' ;;
   "api repos/${REPO_SLUG}/commits/"*"/check-runs?check_name=ci-gate&per_page=10 --jq "*)
     trace "read:ci-gate-check"
     cat "\${FAKE_GH_STATE}/cigate-check.state" 2>/dev/null || printf 'completed:success\\n' ;;
@@ -540,7 +540,7 @@ describe("cloud evidence PR target binding", () => {
     // #611/rc23: dispatched seconds after a push, CI unfinished — the server
     // resolver rejected AFTER the run started.
     const { fixture, fake } = prFixture();
-    writeFileSync(join(fake.state, "cigate.state"), "in_progress:-\n");
+    writeFileSync(join(fake.state, "cigate.state"), "777 in_progress:-\n");
     const result = runScript(fixture, fake, ["7"]);
     expect(result.status, result.stdout).not.toBe(0);
     expect(result.stderr).toContain("CI workflow run");

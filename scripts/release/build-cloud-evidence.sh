@@ -216,7 +216,7 @@ require_reviewable_pr() {
 # actually burned a dispatch, and the slowest of the set; the resolver stays
 # the authority for the full policy list and its workflow bindings.
 require_ci_workflow_green() {
-  local gate_state fresh_merge main_now check_state
+  local gate_state fresh_merge main_now check_state run_info suite_id
   # Staleness stop at the moment of spending: the synthetic merge moves when
   # the PR head OR main advances, and request_id/target identity are bound to
   # the RESOLVED merge. Once the fresh merge matches, the resolved head sha is
@@ -239,19 +239,21 @@ require_ci_workflow_green() {
   # unchanged, so mirror the base predicate too.
   main_now="$(git -C "$ROOT_DIR" ls-remote origin refs/heads/main 2>/dev/null | awk 'NR==1{print $1}')"
   [ -n "$main_now" ] || die "cannot resolve origin/main for the CI-run base binding"
-  gate_state="$(gh api "repos/$REPO/actions/runs?head_sha=$resolved_head_sha&event=pull_request&per_page=30" \
-      --jq '[.workflow_runs[] | select(.path == ".github/workflows/ci.yml" and ([.pull_requests[]? | select(.number == '"$PR"' and (.base.sha // "") == "'"$main_now"'")] | length) > 0)] | max_by(.id) | if . == null then "absent" else "\(.status):\(.conclusion // "-")" end' 2>/dev/null)" \
+  run_info="$(gh api "repos/$REPO/actions/runs?head_sha=$resolved_head_sha&event=pull_request&per_page=30" \
+      --jq '[.workflow_runs[] | select(.path == ".github/workflows/ci.yml" and ([.pull_requests[]? | select(.number == '"$PR"' and (.base.sha // "") == "'"$main_now"'")] | length) > 0)] | max_by(.id) | if . == null then "absent" else "\(.check_suite_id // 0) \(.status):\(.conclusion // "-")" end' 2>/dev/null)" \
     || die "cannot read the CI workflow run for #$PR's head"
+  suite_id="${run_info%% *}"; gate_state="${run_info#* }"
   [ "$gate_state" = "completed:success" ] \
-    || die "the CI workflow run is '$gate_state' for #$PR's head against the current base — rerun CI (or wait for it) before dispatching; the resolver refuses anything else"
-  # AND the ci-gate check run itself: a workflow edit that renames or drops
-  # the ci-gate job could leave the run green without the required check —
-  # the resolver demands the named check, so mirror both predicates.
+    || die "the CI workflow run is '${run_info}' for #$PR's head against the current base — rerun CI (or wait for it) before dispatching; the resolver refuses anything else"
+  # AND the named ci-gate check FROM THAT RUN's check suite: a workflow edit
+  # that renames or drops the job could leave the run green without the
+  # required check, and a check emitted by a different workflow on the same
+  # head must not satisfy it — suite binding covers both.
   check_state="$(gh api "repos/$REPO/commits/$resolved_head_sha/check-runs?check_name=ci-gate&per_page=10" \
-      --jq '[.check_runs[] | select((.app.slug // "") == "github-actions" and ([.pull_requests[]? | select(.number == '"$PR"')] | length) > 0)] | max_by(.started_at) | if . == null then "absent" else "\(.status):\(.conclusion // "-")" end' 2>/dev/null)" \
+      --jq '[.check_runs[] | select((.check_suite.id // 0) == '"$suite_id"')] | max_by(.started_at) | if . == null then "absent" else "\(.status):\(.conclusion // "-")" end' 2>/dev/null)" \
     || die "cannot read the ci-gate check run for #$PR's head"
   [ "$check_state" = "completed:success" ] \
-    || die "the named ci-gate check is '$check_state' on #$PR's head — the resolver requires the check itself, not just a green workflow run"
+    || die "the named ci-gate check is '$check_state' inside the selected CI run's suite — the resolver requires the check itself, from this run"
 }
 require_reviewable_pr
 # Only the plain pipeline mode gates here: --set with a reusable candidate
