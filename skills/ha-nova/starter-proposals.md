@@ -14,8 +14,8 @@ proposed. Read-only until the user accepts an item.
    which IS the disabled rows' config key) — disabled automations have no
    states row, and a states row proves nothing about WHAT an automation
    does. A YAML automation without an explicit `id` has no readable config:
-   count it and report the duplicate scan as PARTIAL, never as complete. Scene candidates use the `scene.*` rows
-   and their `entity_id` member attribute from the same pull.
+   count it and report the duplicate scan as PARTIAL, never as complete. Scene candidates use the `scene.*` rows from the same pull for the id
+   list only — members come from config reads (rule 2b).
 2b. Duplicate gate, config-evidence only: before a candidate enters the
    Suggestion Block, read the existing automations' configs — the config key
    is each automation's `id` ATTRIBUTE from its states row (registry
@@ -46,9 +46,9 @@ proposed. Read-only until the user accepts an item.
    rule: unresolvable evidence fails closed into honesty, not into a claim. When the pass is capped, say the
    duplicate gate was partial — never claim "not automated yet" from states
    rows or aliases. Disabled storage scenes join the scene inventory via the
-   same registry-disabled read as automations — and their MEMBERS come from
-   reading each disabled scene's config by id (the registry row carries no
-   members; only enabled scenes expose them in the states pull).
+   same registry-disabled read as automations. Scene MEMBER checks — enabled
+   and disabled alike — read the scene's CONFIG by id; neither the registry
+   row nor a states attribute is member evidence.
 2c. Area pairing resolves area-first per the architecture reference:
    `search/related` on the area — this covers entities that inherit their
    area from their device; the compact registry's `ai` field alone misses
@@ -65,7 +65,7 @@ proposed. Read-only until the user accepts an item.
 | Motion-activated light | motion/occupancy sensor AND light in the same area, no automation pairing them | `ha-nova:write` |
 | Door-open-while-away alert | door/window sensor AND a person/device_tracker, no such alert yet | `ha-nova:write` |
 | Low-battery notification | battery-level entities AND a notify target — notify ENTITIES or the notify domain's services from `/api/services` (mobile-app targets live only there) | `ha-nova:write` |
-| Movie scene | media_player AND lights in the same area, and no existing `scene.*` already grouping them (member check via the scene rows' `entity_id` attribute) | `ha-nova:scene` |
+| Movie scene | media_player AND lights in the same area, and no existing `scene.*` already grouping them (member check via scene CONFIG reads, rule 2b) | `ha-nova:scene` |
 | Presence-simulation while away | lights AND a person/device_tracker (pattern per `automation-patterns.md`) | `ha-nova:write` |
 | Stale-sensor watchdog | a sensor whose updates matter (per the user's stated interest) | `ha-nova:write` |
 
