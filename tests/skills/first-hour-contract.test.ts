@@ -52,7 +52,7 @@ describe("first-hour pack (#528)", () => {
     expect(proposals).toContain("Scan each read WHOLE config document");
     expect(proposals).toContain("cap the config reads (default 50, newest-updated first)");
     expect(proposals).toContain("AND every selector value that resolves to them");
-    expect(proposals).toContain("anywhere in triggers OR conditions");
+    expect(proposals).toContain("ON ONE EXECUTABLE PATH");
     expect(proposals).toContain('never claim "not automated yet" from states rows or aliases');
     expect(proposals).toContain("Area pairing resolves area-first per the architecture reference");
     expect(proposals).toContain("the notify domain's services from `/api/services`");
@@ -103,6 +103,6 @@ describe("first-hour pack (#528)", () => {
   it("fuels the suggestion budget for scene, dashboard, and failure alerts (P3-09)", () => {
     expect(outputRules).toContain("a same-area entity the scene plausibly misses");
     expect(outputRules).toContain("a strategy config for the empty shell");
-    expect(flat(read("skills/ha-nova/agents/resolve-agent.md"))).toContain("notify on failure");
+    expect(flat(read("skills/ha-nova/agents/resolve-agent.md"))).toContain("outcome alert");
   });
 });

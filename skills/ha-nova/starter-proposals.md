@@ -31,10 +31,12 @@ proposed. Read-only until the user accepts an item.
    — `device_id`, `area_id`, `label_id`, `floor_id`, from the candidates'
    own registry memberships (a selector-targeted automation never names the
    entity). A candidate drops only when ONE config references its COMPLETE
-   role pairing: the SOURCE role anywhere in triggers OR conditions (a
-   time-pattern watchdog keeps its sensor in `conditions`) plus the ACTION
-   role in its actions — a single shared entity in an unrelated automation
-   is no duplicate. Service-shaped roles (a `notify.*` target) match by
+   role pairing ON ONE EXECUTABLE PATH: the SOURCE role in triggers OR
+   conditions (a time-pattern watchdog keeps its sensor in `conditions`)
+   plus the ACTION role in the actions that branch actually runs — in
+   configs with trigger-id/choose branches, cross-branch co-occurrence does
+   not drop the candidate (name it in the evidence line instead). A single
+   shared entity in an unrelated automation is no duplicate. Service-shaped roles (a `notify.*` target) match by
    SERVICE NAME in the config's actions, not by entity id — and a modern
    notify ENTITY also matches as the `target`/`entity_id` of a
    `notify.send_message` call. Two more equivalence expansions from reads
