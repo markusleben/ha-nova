@@ -105,7 +105,7 @@ case "$args" in
   "api repos/${REPO_SLUG}/pulls/"*)
     trace "read:pr"
     cat "\${FAKE_GH_STATE}/pr.json" ;;
-  "api repos/${REPO_SLUG}/actions/runs?head_sha="*"&event=pull_request&per_page=30 --jq "*)
+  "api --paginate --slurp repos/${REPO_SLUG}/actions/runs?head_sha="*"&event=pull_request&per_page=100 --jq "*)
     trace "read:ci-workflow"
     cat "\${FAKE_GH_STATE}/cigate.state" 2>/dev/null || printf '777 completed:success\\n' ;;
   "api repos/${REPO_SLUG}/commits/"*"/check-runs?check_name=ci-gate&per_page=10 --jq "*)

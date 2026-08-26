@@ -239,8 +239,8 @@ require_ci_workflow_green() {
   # unchanged, so mirror the base predicate too.
   main_now="$(git -C "$ROOT_DIR" ls-remote origin refs/heads/main 2>/dev/null | awk 'NR==1{print $1}')"
   [ -n "$main_now" ] || die "cannot resolve origin/main for the CI-run base binding"
-  run_info="$(gh api "repos/$REPO/actions/runs?head_sha=$resolved_head_sha&event=pull_request&per_page=30" \
-      --jq '[.workflow_runs[] | select(.path == ".github/workflows/ci.yml" and ([.pull_requests[]? | select(.number == '"$PR"' and (.base.sha // "") == "'"$main_now"'")] | length) > 0)] | max_by(.id) | if . == null then "absent" else "\(.check_suite_id // 0) \(.status):\(.conclusion // "-")" end' 2>/dev/null)" \
+  run_info="$(gh api --paginate --slurp "repos/$REPO/actions/runs?head_sha=$resolved_head_sha&event=pull_request&per_page=100" \
+      --jq '[.[] | .workflow_runs[] | select(.path == ".github/workflows/ci.yml" and ([.pull_requests[]? | select(.number == '"$PR"' and (.base.sha // "") == "'"$main_now"'")] | length) > 0)] | max_by(.id) | if . == null then "absent" else "\(.check_suite_id // 0) \(.status):\(.conclusion // "-")" end' 2>/dev/null)" \
     || die "cannot read the CI workflow run for #$PR's head"
   suite_id="${run_info%% *}"; gate_state="${run_info#* }"
   [ "$gate_state" = "completed:success" ] \
