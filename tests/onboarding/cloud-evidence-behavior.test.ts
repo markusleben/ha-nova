@@ -108,6 +108,9 @@ case "$args" in
   "api repos/${REPO_SLUG}/actions/runs?head_sha="*"&event=pull_request&per_page=30 --jq "*)
     trace "read:ci-workflow"
     cat "\${FAKE_GH_STATE}/cigate.state" 2>/dev/null || printf 'completed:success\\n' ;;
+  "api repos/${REPO_SLUG}/commits/"*"/check-runs?check_name=ci-gate&per_page=10 --jq "*)
+    trace "read:ci-gate-check"
+    cat "\${FAKE_GH_STATE}/cigate-check.state" 2>/dev/null || printf 'completed:success\\n' ;;
   "api graphql --paginate --slurp -f owner="*" -f name="*" -F number="*" -f query="*)
     trace "read:review-threads"
     cat "\${FAKE_GH_STATE}/review.json" 2>/dev/null \\
