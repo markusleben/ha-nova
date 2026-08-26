@@ -102,9 +102,6 @@ last_arg() { local a v=""; for a in "$@"; do v="$a"; done; printf '%s' "$v"; }
 case "$args" in
   "api user --jq .login")
     printf '%s\\n' "\${FAKE_GH_LOGIN}" ;;
-  "api repos/${REPO_SLUG}/pulls/"*" --jq .head.sha"*)
-    trace "read:pr-head"
-    jq -r '.head.sha // ""' "\${FAKE_GH_STATE}/pr.json" ;;
   "api repos/${REPO_SLUG}/pulls/"*)
     trace "read:pr"
     cat "\${FAKE_GH_STATE}/pr.json" ;;
@@ -461,7 +458,7 @@ describe("cloud evidence PR target binding", () => {
 
   it("refuses a fork-headed PR", () => {
     const fixture = initFixture(platforms);
-    const fake = makeFakeBin(prJson(fixture, { head: { repo: { full_name: "someone/fork" } } }));
+    const fake = makeFakeBin(prJson(fixture, { head: { sha: fixture.mainCommit, repo: { full_name: "someone/fork" } } }));
     const result = runScript(fixture, fake, ["7"]);
     expect(result.status, result.stdout).not.toBe(0);
     expect(result.stderr).toContain("same-repo branches");

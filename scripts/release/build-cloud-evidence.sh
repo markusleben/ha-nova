@@ -178,6 +178,7 @@ base_ref="$(jq -r '.base.ref // ""' <<<"$pr_json")"
 [ "$base_ref" = "main" ] \
   || die "PR #$PR targets '${base_ref:-unknown}', not main — the candidate workflow only builds PRs into main"
 resolved_head_sha="$(jq -r '.head.sha // ""' <<<"$pr_json")"
+[ -n "$resolved_head_sha" ] || die "PR #$PR has no head sha in the API response"
 head_repo="$(jq -r '.head.repo.full_name // ""' <<<"$pr_json")"
 [ "$head_repo" = "$REPO" ] \
   || die "PR #$PR's head lives in '${head_repo:-unknown}', not $REPO — the candidate workflow only builds same-repo branches"
@@ -215,19 +216,22 @@ require_reviewable_pr() {
 # actually burned a dispatch, and the slowest of the set; the resolver stays
 # the authority for the full policy list and its workflow bindings.
 require_ci_gate_green() {
-  local head_sha_pr gate_state
-  # Fresh head read, not $pr_json: the spend-time recheck exists precisely
-  # because the resolve-time snapshot goes stale during the pipeline. A moved
-  # head is a hard stop, not something to accept — request_id, target_commit,
-  # and the artifact identity are all bound to the RESOLVED head's merge.
-  head_sha_pr="$(gh api "repos/$REPO/pulls/$PR" --jq '.head.sha // ""' 2>/dev/null)" \
-    || die "cannot re-read PR #$PR's head"
-  [ -n "$head_sha_pr" ] || die "PR #$PR has no head sha in the API response"
-  [ "$head_sha_pr" = "$resolved_head_sha" ] \
-    || die "PR #$PR's head moved since resolve ($resolved_head_sha -> $head_sha_pr) — the bound target is stale; re-run the pipeline"
+  local gate_state fresh_merge
+  # Staleness stop at the moment of spending: the synthetic merge moves when
+  # the PR head OR main advances, and request_id/target identity are bound to
+  # the RESOLVED merge. Once the fresh merge matches, the resolved head sha is
+  # proven current — no separate head re-read needed. At resolve time
+  # target_commit is not set yet; the freshly resolved state needs no check.
+  if [ -n "${target_commit:-}" ]; then
+    git -C "$ROOT_DIR" fetch --quiet --force origin "+refs/pull/$PR/merge:refs/cloud-evidence/$PR" 2>/dev/null \
+      || die "cannot re-fetch the synthetic merge ref for #$PR"
+    fresh_merge="$(git -C "$ROOT_DIR" rev-parse "refs/cloud-evidence/$PR")"
+    [ "$fresh_merge" = "$target_commit" ] \
+      || die "the synthetic merge moved since resolve ($target_commit -> $fresh_merge) — head or base advanced; re-run the pipeline"
+  fi
   # filter defaults to latest: re-run attempts are collapsed server-side, so
   # this returns at most the newest ci-gate run for the head.
-  gate_state="$(gh api "repos/$REPO/commits/$head_sha_pr/check-runs?check_name=ci-gate&per_page=10" \
+  gate_state="$(gh api "repos/$REPO/commits/$resolved_head_sha/check-runs?check_name=ci-gate&per_page=10" \
       --jq '[.check_runs[]] | max_by(.started_at) | if . == null then "absent" else "\(.status):\(.conclusion // "-")" end' 2>/dev/null)" \
     || die "cannot read ci-gate's check run for #$PR's head"
   [ "$gate_state" = "completed:success" ] \
