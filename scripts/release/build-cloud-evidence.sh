@@ -195,12 +195,13 @@ require_reviewable_pr() {
   # page, and the same reviewDecision allowlist.
   thread_pages="$(gh api graphql --paginate --slurp \
     -f owner="${REPO%%/*}" -f name="${REPO##*/}" -F number="$PR" \
-    -f query='query($owner:String!,$name:String!,$number:Int!,$endCursor:String){repository(owner:$owner,name:$name){pullRequest(number:$number){isDraft reviewDecision reviewThreads(first:100,after:$endCursor){nodes{isResolved} pageInfo{hasNextPage endCursor}}}}}')" \
+    -f query='query($owner:String!,$name:String!,$number:Int!,$endCursor:String){repository(owner:$owner,name:$name){pullRequest(number:$number){state isDraft reviewDecision reviewThreads(first:100,after:$endCursor){nodes{isResolved} pageInfo{hasNextPage endCursor}}}}}')" \
     || die "cannot read #$PR's review threads"
   jq -e '
     length > 0
     and all(.[];
       .data.repository.pullRequest != null
+      and .data.repository.pullRequest.state == "OPEN"
       and .data.repository.pullRequest.isDraft == false
       and (
         .data.repository.pullRequest.reviewDecision == "APPROVED"
@@ -209,7 +210,7 @@ require_reviewable_pr() {
       )
       and all(.data.repository.pullRequest.reviewThreads.nodes[]; .isResolved == true)
     )' >/dev/null <<<"$thread_pages" \
-    || die "PR #$PR is a draft, has requested changes, or carries unresolved review threads — the candidate workflow refuses the dispatch; resolve that first (stale bot threads from earlier reviews count)"
+    || die "PR #$PR is not an open non-draft PR with clean review state (closed/draft/requested-changes/unresolved threads) — the candidate workflow refuses the dispatch; resolve that first (stale bot threads from earlier reviews count)"
 }
 # The resolver requires every pre-evidence check green before it builds;
 # dispatching while ci-gate still runs burns the run (#611/rc23: dispatched
@@ -244,10 +245,15 @@ require_ci_workflow_green() {
   # must sit in the allowlist, and ci-gate's must come from the selected CI
   # run's suite (a workflow edit that drops the job, or a check emitted by
   # another workflow, fails closed).
-  policy_file="$ROOT_DIR/.github/policy/repo-policy.json"
-  [ -f "$policy_file" ] || die "repository policy is missing ($policy_file)"
-  required_names="$(jq -c '.main_branch_protection | ((.required_status_checks - ["cloud-source-gate"]) + .advisory_checks) | unique' "$policy_file")" \
-    || die "cannot read the required-check list from $policy_file"
+  # Policy from TRUSTED origin/main, never the working tree: a PR that edits
+  # the policy file must not feed the preflight its own check list (the
+  # server-side resolver reads main's policy the same way).
+  git -C "$ROOT_DIR" fetch --quiet --force origin "+refs/heads/main:refs/cloud-evidence/policy-main" 2>/dev/null \
+    || die "cannot fetch origin/main for the check policy"
+  required_names="$(git -C "$ROOT_DIR" show "refs/cloud-evidence/policy-main:.github/policy/repo-policy.json" 2>/dev/null \
+      | jq -c '.main_branch_protection | ((.required_status_checks - ["cloud-source-gate"]) + .advisory_checks) | unique')" \
+    || die "cannot read the required-check list from origin/main's repo policy"
+  [ -n "$required_names" ] || die "origin/main's repo policy yields no required-check list"
   check_pages="$(gh api --paginate --slurp "repos/$REPO/commits/$resolved_head_sha/check-runs?per_page=100" 2>/dev/null)" \
     || die "cannot read the check runs for #$PR's head"
   head_checks="$(jq --argjson pr "$PR" \

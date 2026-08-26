@@ -132,7 +132,7 @@ case "$args" in
   "api graphql --paginate --slurp -f owner="*" -f name="*" -F number="*" -f query="*)
     trace "read:review-threads"
     cat "\${FAKE_GH_STATE}/review.json" 2>/dev/null \\
-      || printf '[{"data":{"repository":{"pullRequest":{"isDraft":false,"reviewDecision":null,"reviewThreads":{"nodes":[],"pageInfo":{"hasNextPage":false,"endCursor":null}}}}}}]\\n' ;;
+      || printf '[{"data":{"repository":{"pullRequest":{"state":"OPEN","isDraft":false,"reviewDecision":null,"reviewThreads":{"nodes":[],"pageInfo":{"hasNextPage":false,"endCursor":null}}}}}}]\\n' ;;
   "run list --repo ${REPO_SLUG} --workflow cloud-candidate-bundle.yml --json databaseId,status,conclusion,event --limit 30")
     trace "run-list"
     n="$(cat "\${FAKE_GH_STATE}/list.count" 2>/dev/null || echo 0)"
@@ -499,6 +499,7 @@ describe("cloud evidence PR target binding", () => {
           data: {
             repository: {
               pullRequest: {
+                state: "OPEN",
                 isDraft: false,
                 reviewDecision: null,
                 reviewThreads: {
@@ -513,6 +514,7 @@ describe("cloud evidence PR target binding", () => {
           data: {
             repository: {
               pullRequest: {
+                state: "OPEN",
                 isDraft: false,
                 reviewDecision: null,
                 reviewThreads: {
@@ -527,7 +529,7 @@ describe("cloud evidence PR target binding", () => {
     );
     const result = runScript(fixture, fake, ["7"]);
     expect(result.status, result.stdout).not.toBe(0);
-    expect(result.stderr).toContain("unresolved review threads");
+    expect(result.stderr).toContain("unresolved threads");
     expect(readFileSync(fake.trace, "utf8")).not.toContain("dispatch");
   });
 
@@ -540,6 +542,7 @@ describe("cloud evidence PR target binding", () => {
           data: {
             repository: {
               pullRequest: {
+                state: "OPEN",
                 isDraft: false,
                 reviewDecision: "CHANGES_REQUESTED",
                 reviewThreads: {
@@ -554,7 +557,7 @@ describe("cloud evidence PR target binding", () => {
     );
     const result = runScript(fixture, fake, ["7"]);
     expect(result.status, result.stdout).not.toBe(0);
-    expect(result.stderr).toContain("requested changes");
+    expect(result.stderr).toContain("requested-changes");
     expect(readFileSync(fake.trace, "utf8")).not.toContain("dispatch");
   });
 
