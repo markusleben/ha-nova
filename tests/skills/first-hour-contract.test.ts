@@ -49,7 +49,8 @@ describe("first-hour pack (#528)", () => {
     expect(proposals).toContain("At most 5 items");
     expect(proposals).toContain("not from name-string guessing");
     expect(proposals).toContain("Duplicate gate, config-evidence only");
-    expect(proposals).toContain("scan each WHOLE config document");
+    expect(proposals).toContain("Scan each read WHOLE config document");
+    expect(proposals).toContain("cap the config reads (default 50, newest-updated first)");
     expect(proposals).toContain("AND every selector value that resolves to them");
     expect(proposals).toContain("anywhere in triggers OR conditions");
     expect(proposals).toContain('never claim "not automated yet" from states rows or aliases');

@@ -19,9 +19,14 @@ proposed. Read-only until the user accepts an item.
 2b. Duplicate gate, config-evidence only: before a candidate enters the
    Suggestion Block, read the existing automations' configs — the config key
    is each automation's `id` ATTRIBUTE from its states row (registry
-   `unique_id` for disabled rows), never the entity id — and scan each WHOLE
-   config document: triggers, conditions, actions, selector targets, and
-   `use_blueprint.input` all carry entity ids literally; match the
+   `unique_id` for disabled rows), never the entity id. Bound the pass: cap
+   the config reads (default 50, newest-updated first) and report anything
+   beyond the cap as PARTIAL — the cap line names how many configs went
+   unread. Scan each read WHOLE config document: triggers, conditions,
+   actions, selector targets, and `use_blueprint.input` all carry entity ids
+   literally; a blueprint config has no expanded sections — BOTH roles
+   appearing among its inputs count as the pairing, and inputs the pass
+   cannot interpret fall into the closed PARTIAL rule; match the
    candidate's role entities AND every selector value that resolves to them
    — `device_id`, `area_id`, `label_id`, `floor_id`, from the candidates'
    own registry memberships (a selector-targeted automation never names the
