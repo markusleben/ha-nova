@@ -110,7 +110,7 @@ case "$args" in
     cat "\${FAKE_GH_STATE}/cigate.state" 2>/dev/null || printf '777 completed:success\\n' ;;
   "api --paginate --slurp repos/${REPO_SLUG}/commits/"*"/check-runs?check_name=ci-gate&per_page=100 --jq "*)
     trace "read:ci-gate-check"
-    cat "\${FAKE_GH_STATE}/cigate-check.state" 2>/dev/null || printf 'completed:success\\n' ;;
+    cat "\${FAKE_GH_STATE}/cigate-check.state" 2>/dev/null || printf '777 completed:success\\n' ;;
   "api graphql --paginate --slurp -f owner="*" -f name="*" -F number="*" -f query="*)
     trace "read:review-threads"
     cat "\${FAKE_GH_STATE}/review.json" 2>/dev/null \\

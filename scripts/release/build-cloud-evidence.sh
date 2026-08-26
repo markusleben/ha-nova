@@ -216,7 +216,7 @@ require_reviewable_pr() {
 # actually burned a dispatch, and the slowest of the set; the resolver stays
 # the authority for the full policy list and its workflow bindings.
 require_ci_workflow_green() {
-  local gate_state fresh_merge main_now check_state run_info suite_id
+  local gate_state fresh_merge main_now check_state run_info suite_id check_info check_suite
   # Staleness stop at the moment of spending: the synthetic merge moves when
   # the PR head OR main advances, and request_id/target identity are bound to
   # the RESOLVED merge. Once the fresh merge matches, the resolved head sha is
@@ -249,13 +249,20 @@ require_ci_workflow_green() {
   # that renames or drops the job could leave the run green without the
   # required check, and a check emitted by a different workflow on the same
   # head must not satisfy it — suite binding covers both.
-  check_state="$(gh api --paginate --slurp "repos/$REPO/commits/$resolved_head_sha/check-runs?check_name=ci-gate&per_page=100" \
-      --jq '[.[] | .check_runs[] | select((.check_suite.id // 0) == '"$suite_id"')] | max_by(.started_at) | if . == null then "absent" else "\(.status):\(.conclusion // "-")" end' 2>/dev/null)" \
+  # The resolver binds the GLOBALLY latest ci-gate check and then verifies
+  # its workflow binding — so select the newest check first, and require that
+  # it belongs to the chosen CI run's suite (a newer check from any other
+  # suite would shadow it server-side).
+  check_info="$(gh api --paginate --slurp "repos/$REPO/commits/$resolved_head_sha/check-runs?check_name=ci-gate&per_page=100" \
+      --jq '[.[] | .check_runs[]] | max_by(.started_at) | if . == null then "absent" else "\(.check_suite.id // 0) \(.status):\(.conclusion // "-")" end' 2>/dev/null)" \
     || die "cannot read the ci-gate check run for #$PR's head"
+  check_suite="${check_info%% *}"; check_state="${check_info#* }"
+  [ "$check_suite" = "$suite_id" ] \
+    || die "the newest ci-gate check on the head (suite ${check_suite}) does not come from the selected CI run's suite ($suite_id) — the resolver binds the newest check and would reject; investigate before dispatching"
   case "$check_state" in
     # The resolver's conclusion allowlist for the named check.
     completed:success|completed:skipped|completed:neutral) : ;;
-    *) die "the named ci-gate check is '$check_state' inside the selected CI run's suite — the resolver requires the check itself, from this run" ;;
+    *) die "the named ci-gate check is '$check_state' — the resolver requires it from this run" ;;
   esac
 }
 require_reviewable_pr
