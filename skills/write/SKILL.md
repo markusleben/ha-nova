@@ -151,7 +151,7 @@ Do NOT invoke `ha-nova:review` separately.
 4. Post-Write Review output (localized; see `skills/ha-nova/output-rules.md`) — report only what has substance; scans still run, only empty output is suppressed:
    - **Findings**: real issues only. **Collision check**: only when related items exist (list them + the verdict); a failed scan is NOT empty output — report it as "consumer check inconclusive". **Advisory**: only when non-empty. Omit any section with nothing to report — never print an empty "none" bucket.
    - If nothing is worth reporting, collapse to one scope-honest confirmation line (write-safety → Verification Honesty).
-   - Never emit `Questions to consider`, `Suggestions`, or `Instant help` post-write; never repeat an item across **Findings** and **Advisory**.
+   - Never emit `Questions to consider`, `Suggestions`, or `Instant help` post-write; never repeat an item across **Findings** and **Advisory**. Sole exception: the one-line Replication Line after a verified create (`output-rules.md`).
 5. Update-Revert: updates only → **run `ha-nova snapshot save`** and offer `revert` (see `skills/ha-nova/write-safety.md`); reflect the save receipt in the result — a `replaced` receipt means only this newest update stays revertible, and evicted targets are no longer revertible. Creates → cleanup via normal HA NOVA delete flow with preview, `confirm:<token>`, and absence verification. Deletes → name the captured config snapshot as the restore path (`skills/ha-nova/config-snapshots.md`); when no snapshot was captured (store missing/full), Home Assistant Backups.
 
 ### Phase 5: Test Offer (create/update only)

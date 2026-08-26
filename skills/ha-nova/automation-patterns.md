@@ -325,6 +325,23 @@ actions:
       transition: 5
 ```
 
+### Replicate Across Rooms
+
+"Do the same for the kitchen" after a verified create. Replication is
+re-resolution, never copy-paste:
+
+1. Resolve the TARGET room's own entities for every role the source
+   automation uses (motion sensor, light, …) via the entity/area registries;
+   a role with no counterpart in that room stops the replication for that
+   room with a plain sentence — never substitute a neighboring room's entity.
+2. Rebuild the config with the resolved entities; carry over timings,
+   conditions, and mode; rename by room ("Motion light — kitchen").
+3. One normal preview/confirm per room. Multiple rooms are sequential
+   single writes, each individually verified — never one batch.
+4. The offer side of this pattern is the Replication Line
+   (`output-rules.md`): one evidence-gated closing sentence, only after a
+   verified create, only when the registries prove the same pairing exists.
+
 ## One-Shot And Temporary Automations
 
 A request that should not outlive its purpose — "tell me when the laundry

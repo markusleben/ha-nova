@@ -139,6 +139,7 @@ Common patterns to check (non-exhaustive):
 - time-based: add condition to skip weekends/holidays
 - climate: add hysteresis/deadband to avoid rapid cycling
 - notification: add cooldown to prevent spam
+- high-consequence action (lock, valve, heating): notify on failure — alert when the action errors or the read-back does not confirm the change
 - any automation: consider appropriate `mode` (single, restart, queued, parallel)
 
 `NEXT_STEP:`
