@@ -36,10 +36,12 @@ proposed. Read-only until the user accepts an item.
    match on the source side needs that sensor's own trigger type, and an
    area/label-targeted action needs the action role's domain service —
    otherwise it is no pairing evidence. A candidate drops only when ONE config references its COMPLETE
-   role pairing ON ONE EXECUTABLE PATH: the SOURCE role in triggers — or in
-   conditions ONLY when that branch's trigger is time-driven
-   (time/time_pattern/sun, the watchdog shape); a sensor merely gating an
-   unrelated trigger is no source role
+   role pairing ON ONE EXECUTABLE PATH: each SOURCE role in triggers — or in
+   conditions when EITHER that branch's trigger is time-driven
+   (time/time_pattern/sun, the watchdog shape) OR another role of the SAME
+   candidate supplies that branch's trigger (the away-alert shape: door
+   trigger + presence condition); a sensor merely gating an unrelated
+   trigger is no source role
    plus the ACTION role in the actions that branch actually runs — in
    configs with trigger-id/choose branches, cross-branch co-occurrence does
    not drop the candidate (name it in the evidence line instead). A single
