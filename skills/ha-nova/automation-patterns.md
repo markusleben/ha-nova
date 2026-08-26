@@ -338,6 +338,10 @@ re-resolution, never copy-paste:
    room with a plain sentence — never substitute a neighboring room's entity.
 2. Rebuild the config with the resolved entities; carry over timings,
    conditions, and mode; rename by room ("Motion light — kitchen").
+   Capability-specific actions (color temperature, cover position, climate
+   mode) require the target entity to actually support the attribute —
+   verify via its state attributes, and drop or simplify the action (saying
+   so in the preview) when it does not.
 3. One normal preview/confirm per room. Multiple rooms are sequential
    single writes, each individually verified — never one batch.
 4. The offer side of this pattern is the Replication Line

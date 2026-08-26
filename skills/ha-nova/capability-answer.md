@@ -21,8 +21,9 @@ with ONE bounded aggregate read:
    - Organize & maintain: rooms/areas, names, updates, backups, cleanups
    - Voice: what Assist understands, teach it new phrases
 3. Skip groups with zero matching entities; name up to two things the home
-   does NOT have wired yet (e.g. no energy sources configured) as honest
-   scope, not as failure.
+   does NOT have wired yet as honest scope, not as failure — and only claims
+   the session's reads actually prove ("no energy dashboard configured" needs
+   the energy prefs read, never a guess from entity absence).
 4. Close with a Next step inviting ONE concrete job ("Want a tour? Ask:
    show me my home"). The Suggestion Block caps apply.
 
@@ -35,7 +36,8 @@ Aggregate counts are List-Frame-legal; entity dumps are not.
   session); plus the area registry for room counts.
 - Report: rooms/areas, entities per domain (top groups only), how many
   automations/scenes/scripts exist — registry-disabled rows included via the
-  registry read, a states pull alone undercounts — and current activity
+  full entity-registry read (the AREA registry holds rooms, not entities), a
+  states pull alone undercounts — and current activity
   (lights on, media playing, anyone home) as counts, not an entity listing.
 - Never include coordinates, tracker positions, or per-person locations
   unless the user asked for exactly that.

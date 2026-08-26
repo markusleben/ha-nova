@@ -9,10 +9,12 @@ proposed. Read-only until the user accepts an item.
 1. One `/api/states` pull with `--out <result-file>`; extract per-domain
    entity lists via `relay jq` (never print the dump).
 2. One automation inventory: the `automation.*` rows from the same pull PLUS
-   registry-disabled automations via the compact registry read
-   (`skills/ha-nova/bulk-patterns.md` → Stale Automation Audit mechanics) —
-   disabled automations have no states row, and a states row proves nothing
-   about WHAT an automation does. Scene candidates use the `scene.*` rows
+   registry-disabled automations via a FULL entity-registry read
+   (`config/entity_registry/list` — the compact list carries no `unique_id`,
+   which IS the disabled rows' config key) — disabled automations have no
+   states row, and a states row proves nothing about WHAT an automation
+   does. A YAML automation without an explicit `id` has no readable config:
+   count it and report the duplicate scan as PARTIAL, never as complete. Scene candidates use the `scene.*` rows
    and their `entity_id` member attribute from the same pull.
 2b. Duplicate gate, config-evidence only: before a candidate enters the
    Suggestion Block, read the existing automations' configs — the config key
