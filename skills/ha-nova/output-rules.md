@@ -216,7 +216,9 @@ closing line may point out replication potential —
 and only when the registries actually prove it: other areas holding the same
 device pairing the new item uses, checked in the same session's reads — AND
 the target room's pairing is not already automated per the config-level
-duplicate evidence (hardware existence alone never makes the offer). Shape:
+duplicate evidence, AND the target devices pass the replicate pattern's
+capability check for the source's capability-specific triggers/actions
+(hardware existence alone never makes the offer). Shape:
 one sentence, evidence named, ending in an offer ("The kitchen and bedroom
 have the same motion+light pairing — say 'do the same for the kitchen' to
 replicate."). No Suggestion Block, no list, no second line, nothing invented

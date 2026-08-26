@@ -22,8 +22,9 @@ with ONE bounded aggregate read:
    - Voice: what Assist understands, teach it new phrases (first use may
      need Relay file access enabled — the owning skill guides that)
 3. Skip groups whose ENABLING hardware is absent — Automate stays visible
-   whenever controllable devices exist (zero existing automations is an
-   invitation, not absence); name up to two things the home does NOT have
+   whenever ANY automatable signal exists: controllable devices, or sensors/
+   calendars/presence that can drive notifications, helpers, and schedules
+   (zero existing automations is an invitation, not absence); name up to two things the home does NOT have
    wired yet as honest scope, not as failure — and only claims
    the session's reads actually prove ("no energy dashboard configured" needs
    the energy prefs read, never a guess from entity absence).
