@@ -44,8 +44,10 @@ proposed. Read-only until the user accepts an item.
    trigger is no source role
    plus the ACTION role in the actions that branch actually runs — in
    configs with trigger-id/choose branches, cross-branch co-occurrence does
-   not drop the candidate (name it in the evidence line instead). A single
-   shared entity in an unrelated automation is no duplicate. Service-shaped roles (a `notify.*` target) match by
+   not drop the candidate (name it in the evidence line instead). The pairing must also match the candidate's behavior
+   DIRECTION: a no-motion→off automation is the complement of motion→on,
+   not its duplicate — complements are named in the evidence line, never a
+   drop. A single shared entity in an unrelated automation is no duplicate. Service-shaped roles (a `notify.*` target) match by
    SERVICE NAME in the config's actions, not by entity id — and a modern
    notify ENTITY also matches as the `target`/`entity_id` of a
    `notify.send_message` call. Two more equivalence expansions: a group target
