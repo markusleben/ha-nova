@@ -15,12 +15,16 @@ proposed. Read-only until the user accepts an item.
    about WHAT an automation does. Scene candidates use the `scene.*` rows
    and their `entity_id` member attribute from the same pull.
 2b. Duplicate gate, config-evidence only: before a candidate enters the
-   Suggestion Block, read the existing automations' configs (one bounded
-   pass over the step-2 ids) and scan each WHOLE config document — triggers,
-   conditions, actions, selector targets, and `use_blueprint.input` all carry
-   entity ids literally — for the candidate's role entities AND their
-   `device_id`/`area_id` (an area/device-targeted automation never names the
-   entity). Any hit drops the candidate. When the pass is capped, say the
+   Suggestion Block, read the existing automations' configs — the config key
+   is each automation's `id` ATTRIBUTE from its states row (registry
+   `unique_id` for disabled rows), never the entity id — and scan each WHOLE
+   config document: triggers, conditions, actions, selector targets, and
+   `use_blueprint.input` all carry entity ids literally; match the
+   candidate's role entities AND their `device_id`/`area_id` (an area/
+   device-targeted automation never names the entity). A candidate drops
+   only when ONE config references its COMPLETE role pairing (trigger-side
+   and action-side role together) — a single shared entity in an unrelated
+   automation is no duplicate. When the pass is capped, say the
    duplicate gate was partial — never claim "not automated yet" from states
    rows or aliases. Disabled storage scenes join the scene inventory via the
    same registry-disabled read as automations — and their MEMBERS come from
