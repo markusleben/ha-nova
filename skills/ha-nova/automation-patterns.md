@@ -334,8 +334,11 @@ re-resolution, never copy-paste:
    automation uses (motion sensor, light, …) by EFFECTIVE area membership —
    an entity with an empty `area_id` inherits its device's area, so join the
    device registry (or use `search/related` on the area);
-   a role with no counterpart in that room stops the replication for that
-   room with a plain sentence — never substitute a neighboring room's entity.
+   a ROOM-BOUND role with no counterpart in that room stops the replication
+   for that room with a plain sentence — never substitute a neighboring
+   room's entity. Home-wide roles (`sun.sun`, zones, household presence,
+   global mode helpers) have no per-room counterpart by design: carry them
+   over unchanged.
 2. Rebuild the config with the resolved entities; carry over timings,
    conditions, and mode; rename by room ("Motion light — kitchen").
    Capability-specific actions (color temperature, cover position, climate
