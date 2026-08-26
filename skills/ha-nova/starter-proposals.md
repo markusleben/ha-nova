@@ -36,7 +36,8 @@ proposed. Read-only until the user accepts an item.
    already in hand: a group target (`group.*`, or a light/media group whose
    `entity_id` member attribute sits in the states pull) matches when it
    CONTAINS the candidate; a presence source role also matches zone-count
-   guards (`zone.home` state) — both count as the source role. CLOSED RULE
+   guards (`zone.home` state) — but only with the POLARITY the candidate
+   needs: an at-home guard (`zone.home > 0`) never evidences an away alert. CLOSED RULE
    for everything else: any config whose references the pass cannot FULLY
    resolve — dynamic Jinja-computed targets, unexpanded groups, delegation
    through items it could not read — makes the duplicate scan PARTIAL, and a
