@@ -45,9 +45,11 @@ proposed. Read-only until the user accepts an item.
    matches when its membership PROVABLY contains the candidate — the
    `entity_id` states attribute where present, else the group helper's
    config read; membership the pass cannot prove falls into the closed
-   PARTIAL rule; a presence source role also matches zone-count
-   guards (`zone.home` state) — but only with the POLARITY the candidate
-   needs: an at-home guard (`zone.home > 0`) never evidences an away alert. CLOSED RULE
+   PARTIAL rule; a presence source role matches zone-count
+   guards (`zone.home` state) and direct `person.*`/`device_tracker.*`
+   conditions alike — but only with the POLARITY the candidate needs: an
+   at-home guard (zone count > 0, or state `home`) never evidences an away
+   alert. CLOSED RULE
    for everything else: any config whose references the pass cannot FULLY
    resolve — dynamic Jinja-computed targets, unexpanded groups, delegation
    through items it could not read — makes the duplicate scan PARTIAL, and a

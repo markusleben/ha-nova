@@ -338,7 +338,10 @@ re-resolution, never copy-paste:
    for that room with a plain sentence — never substitute a neighboring
    room's entity. Home-wide roles (`sun.sun`, zones, household presence,
    global mode helpers) have no per-room counterpart by design: carry them
-   over unchanged.
+   over unchanged. A source that embeds its room in a template or non-entity
+   literal (`area_entities('living_room')`, area names inside Jinja) stops
+   the replication unless that reference re-resolves to the target room —
+   never string-replace room names.
 2. Rebuild the config with the resolved entities; carry over timings,
    conditions, and mode; rename by room ("Motion light — kitchen").
    Capability-specific actions (color temperature, cover position, climate
