@@ -79,7 +79,7 @@ func preflightSelectedCloudSecret(
 	case OAuthSecretRetiring:
 		return preflightRetiringOrCurrentCloudSecret(ctx, store, cfg)
 	default:
-		return PreflightOAuthSecretStore(ctx, store, SecretStoreAllowUI)
+		return PreflightOAuthSecretStore(ctx, store, secretStoreUIPolicyForSetup(SecretStoreAllowUI))
 	}
 }
 
@@ -153,7 +153,7 @@ func preflightPendingCloudSecret(
 		)
 	case IsCloudErrorCode(err, CloudErrSecretUIForbidden),
 		IsCloudErrorCode(err, CloudErrSecretStoreLocked):
-		pending, exists, err = store.LoadPending(ctx, SecretStoreAllowUI)
+		pending, exists, err = store.LoadPending(ctx, secretStoreUIPolicyForSetup(SecretStoreAllowUI))
 		if err != nil {
 			return err
 		}
@@ -245,7 +245,7 @@ func preflightCloudSecretStep(
 			!IsCloudErrorCode(err, CloudErrSecretStoreLocked)) {
 		return err
 	}
-	return step(SecretStoreAllowUI)
+	return step(secretStoreUIPolicyForSetup(SecretStoreAllowUI))
 }
 
 func preflightCloudSecretAfterMissingPending(
@@ -268,7 +268,7 @@ func preflightCloudSecretAfterMissingPending(
 			},
 		)
 	}
-	return PreflightOAuthSecretStore(ctx, store, SecretStoreAllowUI)
+	return PreflightOAuthSecretStore(ctx, store, secretStoreUIPolicyForSetup(SecretStoreAllowUI))
 }
 
 func validatePendingCloudPreflight(

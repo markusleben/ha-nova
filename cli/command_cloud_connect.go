@@ -55,6 +55,15 @@ func runCloudConnectCommand(
 		printHumanErr("%s", err)
 		return 1
 	}
+	if options.remoteResume {
+		if loadedCfgErr != nil || !cloudRemoteResumeCheckpointReady(loadedCfg) {
+			printHumanErr(
+				"--remote-resume only resumes an existing checkpoint at \"cloud_verified\" or later: run the authorization once from an interactive desktop session first; no authorization was changed.",
+			)
+			return 1
+		}
+		enableCloudRemoteResumeSession()
+	}
 	if !cloudInteractivePromptSessionForSetup() {
 		printHumanErr(
 			"Home Assistant Cloud setup requires an interactive desktop session: use a local, non-elevated graphical desktop terminal (not SSH, sudo/root, or WSL); no authorization was changed.",

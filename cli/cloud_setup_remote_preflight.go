@@ -72,7 +72,7 @@ func reopenRemoteCloudDeviceAccess(
 		ctx,
 		relayInstanceID,
 		true,
-		SecretStoreAllowUI,
+		secretStoreUIPolicyForSetup(SecretStoreAllowUI),
 	); err != nil {
 		return fmt.Errorf(
 			"re-open device secure storage after %s: %w",
