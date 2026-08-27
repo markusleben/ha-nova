@@ -532,9 +532,13 @@ executable explicitly:
 ```powershell
 $ExpectedTree = "0123456789abcdef0123456789abcdef01234567" # replace
 $Version = "0.22.0-rc1" # replace
-# Unique name: the device-credential slot is keyed by server name; "default"
-# would reuse or revoke the production device credential.
-$ServerName = "smoke-" + [guid]::NewGuid().ToString("N").Substring(0, 8)
+# On the dedicated Windows test machine, use the standing profile (#584);
+# it is pre-authorized, so the desktop-gated cloud add step is skipped.
+# Elsewhere keep a unique throwaway name — the device-credential slot is
+# keyed by server name, and "default" would reuse or revoke the production
+# device credential:
+#   $ServerName = "smoke-" + [guid]::NewGuid().ToString("N").Substring(0, 8)
+$ServerName = "smoke"
 $ExpectedRelayAppVersion = "0.7.1" # replace from exact-target nova/config.yaml
 $CandidateDir = Join-Path $env:TEMP ("ha-nova-cloud-candidate-" + [guid]::NewGuid())
 Expand-Archive `
