@@ -264,6 +264,7 @@ for (const marker of [
   '.user.type == "Bot"',
   '(.user.type == "User" or .user.type == "Bot")',
   "pull request has requested changes or unresolved review threads",
+  "findings verdict is younger than the settling window",
   "findings verdict has no matching Codex review round on the head",
   "findings verdict carries no triageable finding from its own review round",
   "a later Codex inline finding supersedes the verdict",

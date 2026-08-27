@@ -327,6 +327,15 @@ jq -e '
 ' >/dev/null <<<"${thread_pages}" \
   || fail "pull request has requested changes or unresolved review threads"
 if [[ "${verdict_clean}" != "true" ]]; then
+  # Findings records (review, inline comments, threads) can lag the summary
+  # comment by seconds in GitHub's eventually-consistent reads. A five-minute
+  # settling window makes the round binding below deterministic: by then the
+  # verdict's own review and inline records are visible, so a stale earlier
+  # round can no longer stand in for them.
+  verdict_epoch="$(date -u -d "${verdict_at}" +%s 2>/dev/null || date -u -j -f "%Y-%m-%dT%H:%M:%SZ" "${verdict_at}" +%s)"
+  now_epoch="$(date -u +%s)"
+  [[ $(( now_epoch - verdict_epoch )) -ge 300 ]] \
+    || fail "findings verdict is younger than the settling window — retry after five minutes"
   latest_review_id="$(
     jq -r --arg head "${head_sha}" '
       [ .[][]
