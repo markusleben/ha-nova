@@ -427,8 +427,10 @@ non-publishing candidate builder exactly once from current `main`.
 
 The pull request must be ready, same-repository, current with `main`, and green
 on every protected/advisory check except the expected failing
-`cloud-source-gate`. It must also have a real clean Codex bot result for the
-current head; an advisory gate timeout does not qualify. The workflow resolves
+`cloud-source-gate`. It must also have a real Codex bot verdict for the current
+head with every review thread resolved and no later Codex signal — a clean
+result or a triaged findings result both qualify; an advisory gate timeout
+does not. The workflow resolves
 GitHub's exact synthetic merge commit, uses only trusted build/signing scripts
 from `main`, smokes the exact raw binaries natively on all three platforms,
 then revalidates and creates the hash-bound signed bundles. It verifies the

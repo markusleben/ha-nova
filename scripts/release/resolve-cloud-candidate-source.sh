@@ -275,15 +275,18 @@ thread_pages="$(
     '
 )"
 head_prefix="${head_sha:0:10}"
-clean_at="$(
+verdict_at="$(
   jq -r --arg prefix "${head_prefix}" '
     [ .[][]
       | select(
           .user.login == "chatgpt-codex-connector[bot]"
           and .user.id == 199175422
           and .user.type == "Bot"
-          and (.body | contains("Codex Review: Didn\u0027t find any major issues"))
           and (.body | contains("**Reviewed commit:** `" + $prefix + "`"))
+          and (
+            (.body | contains("Codex Review: Didn\u0027t find any major issues"))
+            or (.body | contains("Here are some automated review suggestions"))
+          )
         )
       | .created_at
     ]
@@ -291,9 +294,23 @@ clean_at="$(
     | last // empty
   ' <<<"${issue_comment_pages}"
 )"
-[[ "${clean_at}" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T ]] \
-  || fail "current pull request head lacks a real clean Codex bot result"
-jq -e '
+[[ "${verdict_at}" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T ]] \
+  || fail "current pull request head lacks a real Codex bot verdict"
+verdict_clean="$(
+  jq -r --arg prefix "${head_prefix}" --arg at "${verdict_at}" '
+    [ .[][]
+      | select(
+          .user.login == "chatgpt-codex-connector[bot]"
+          and .user.id == 199175422
+          and .user.type == "Bot"
+          and .created_at == $at
+          and (.body | contains("**Reviewed commit:** `" + $prefix + "`"))
+        )
+    ]
+    | any(.[]; .body | contains("Codex Review: Didn\u0027t find any major issues"))
+  ' <<<"${issue_comment_pages}"
+)"
+jq -e --arg clean "${verdict_clean}" '
   length > 0
   and all(.[];
     .data.repository.pullRequest != null
@@ -307,9 +324,13 @@ jq -e '
       .isResolved == true
     )
   )
+  and (
+    $clean == "true"
+    or ([ .[].data.repository.pullRequest.reviewThreads.nodes[] ] | length) > 0
+  )
 ' >/dev/null <<<"${thread_pages}" \
-  || fail "pull request has requested changes or unresolved review threads"
-jq -e --arg clean_at "${clean_at}" --arg head "${head_sha}" '
+  || fail "pull request has requested changes, unresolved review threads, or a findings verdict without any triageable thread"
+jq -e --arg verdict_at "${verdict_at}" --arg head "${head_sha}" '
   all(
     [ .[][]
       | select(
@@ -318,11 +339,11 @@ jq -e --arg clean_at "${clean_at}" --arg head "${head_sha}" '
           and .user.type == "Bot"
         )
     ][];
-    (.commit_id != $head) or (.submitted_at <= $clean_at)
+    (.commit_id != $head) or (.submitted_at <= $verdict_at)
   )
 ' >/dev/null <<<"${review_pages}" \
-  || fail "a later Codex review supersedes the clean result"
-jq -e --arg clean_at "${clean_at}" --arg head "${head_sha}" '
+  || fail "a later Codex review supersedes the verdict"
+jq -e --arg verdict_at "${verdict_at}" --arg head "${head_sha}" '
   all(
     [ .[][]
       | select(
@@ -331,11 +352,11 @@ jq -e --arg clean_at "${clean_at}" --arg head "${head_sha}" '
           and .user.type == "Bot"
         )
     ][];
-    (.commit_id != $head) or (.created_at <= $clean_at)
+    (.commit_id != $head) or (.created_at <= $verdict_at)
   )
 ' >/dev/null <<<"${inline_comment_pages}" \
-  || fail "a later Codex inline finding supersedes the clean result"
-jq -e --arg clean_at "${clean_at}" --arg prefix "${head_prefix}" '
+  || fail "a later Codex inline finding supersedes the verdict"
+jq -e --arg verdict_at "${verdict_at}" --arg prefix "${head_prefix}" '
   all(
     [ .[][]
       | select(
@@ -344,15 +365,18 @@ jq -e --arg clean_at "${clean_at}" --arg prefix "${head_prefix}" '
           and .user.type == "Bot"
         )
     ][];
-    (.created_at <= $clean_at)
+    (.created_at <= $verdict_at)
     or (
-      (.body | contains("Codex Review: Didn\u0027t find any major issues"))
-      and (.body | contains("**Reviewed commit:** `" + $prefix + "`"))
+      (.body | contains("**Reviewed commit:** `" + $prefix + "`"))
+      and (
+        (.body | contains("Codex Review: Didn\u0027t find any major issues"))
+        or (.body | contains("Here are some automated review suggestions"))
+      )
     )
   )
 ' >/dev/null <<<"${issue_comment_pages}" \
-  || fail "a later Codex issue result supersedes the clean result"
-jq -e --arg clean_at "${clean_at}" '
+  || fail "a later Codex issue result supersedes the verdict"
+jq -e --arg verdict_at "${verdict_at}" '
   all(
     [ .[][]
       | select(
@@ -361,10 +385,10 @@ jq -e --arg clean_at "${clean_at}" '
           and (.user.type == "User" or .user.type == "Bot")
         )
     ][];
-    (.created_at <= $clean_at) or .content == "+1"
+    (.created_at <= $verdict_at) or .content == "+1"
   )
 ' >/dev/null <<<"${reaction_pages}" \
-  || fail "a later Codex reaction supersedes the clean result"
+  || fail "a later Codex reaction supersedes the verdict"
 
 HA_NOVA_CLOUD_GATE_SOURCE_REF="${source_ref}" \
 HA_NOVA_CLOUD_GATE_EXPECTED_TARGET_COMMIT="${merge_sha}" \
