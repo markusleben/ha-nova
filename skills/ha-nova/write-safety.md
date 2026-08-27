@@ -40,7 +40,8 @@ Best-practice freshness (`bp_status`) is an **internal gate input only**:
 The diff is rendered by the CLI, not by you — so it is byte-identical on every
 run, every model, every client. It emits GFM table data rows
 (`| Field | before | after |`; an empty side shows `—`). Treat the `ha-nova diff`
-output like `git diff`: a stable artifact you print **verbatim**. Do not
+output like `git diff`: a stable artifact you print **verbatim** (sole exception: webhook-id
+masking, output-rules.md → Technical Noise). Do not
 hand-format, reorder, relabel, translate, merge, or summarize the rows —
 do not re-align pipes or pad cells. The table rows come ONLY from the command's
 output this turn — if you did not just run `ha-nova diff`, do not print a

@@ -89,7 +89,7 @@ Skills reference this section as "context skill → Active Preview Confirmation"
 - Treat those phrases only as permission to prepare the draft, run checks, and show the preview.
 - A live HA write requires confirmation after the concrete preview is shown: diff for updates, payload summary for creates/service calls/experimental writes, delete impact plus confirmation code, or grouped manifest for allowed multi-target writes.
 - A preview is a valid confirmation basis only if it explains the behavioral effect of every collection it touches. A touched collection explained only as a count change (`5 items → 3 items`, `… and N more`) or by low-level type names cannot proceed to confirmation — complete the behavior narrative (`skills/ha-nova/write-safety.md` → Behavior narrative) first, then ask.
-- Confirmation is bound to the displayed operation, target set, endpoint/service, and exact payload/diff/manifest. If target, scope, endpoint, payload, draft, or manifest changes, confirmation expires; show the updated preview and ask again.
+- Confirmation is bound to the displayed operation, target set, endpoint/service, and exact payload/diff/manifest (a masked secret value — output-rules.md webhook masking — binds to the stored real value behind the mask). If target, scope, endpoint, payload, draft, or manifest changes, confirmation expires; show the updated preview and ask again.
 - Multi-target confirmation is valid only where the owning skill supports multi-target writes (destructive batches: `skills/ha-nova/batch-safety.md`; non-destructive grouped change sets and the cross-family destructive cleanup manifest: `skills/ha-nova/grouped-change-set.md`). Otherwise process targets sequentially with separate preview and confirmation.
 
 ### Confirmation Tiers
@@ -312,7 +312,7 @@ Match user intent to exactly one skill:
 **"Show my helpers"** → `ha-nova:helper` (NOT read)
 **"Revert that"** / **"Undo the last change"** → re-invoke the skill that made it: `ha-nova:write` (automation/script) or `ha-nova:helper` (helper). `revert` is update-only and lives there (see `write-safety.md` → Update-Revert), never `ha-nova:fallback`; create cleanup uses delete flow, and a deleted item in a snapshot-covered family restores from its auto config snapshot in the owning skill (`config-snapshots.md`); config-entry helpers stay Backup/recreate.
 **"Delete these obsolete config snapshots"** → `ha-nova` context skill using `config-snapshots.md`; exact multi-file cleanup may use its declared `config-snapshots` batch family.
-**"Do the same for the kitchen"** (right after a verified AUTOMATION create) → `ha-nova:write`, replicate-across-rooms pattern (`skills/ha-nova/automation-patterns.md`) — resolve the kitchen's OWN entities, never copy entity ids; after any other create, treat it as a fresh request to the owning skill
+**"Do the same for the kitchen"** (right after a verified AUTOMATION create) → `ha-nova:write`, replicate-across-rooms pattern (`skills/ha-nova/automation-patterns.md`) — resolve the kitchen's OWN entities, never copy entity ids; after any other operation (updates, deletes, failed verifications included), treat it as a fresh request to the owning skill
 **"Create a scene called Movie Night"** → `ha-nova:scene`
 **"Activate the scene Movie Night"** → `ha-nova:service-call` (runtime action, not a config change)
 **"Unlock the front door"** → `ha-nova:service-call` (high-consequence: typed confirmation code)

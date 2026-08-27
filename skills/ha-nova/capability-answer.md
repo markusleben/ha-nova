@@ -54,15 +54,17 @@ Aggregate counts are List-Frame-legal; entity dumps are not.
 
 ## Structure Check — "Is my setup tidy?"
 
-Read-only audit from bounded registry reads (entity registry + area
-registry), owned here; every FIX hands to `ha-nova:organize`'s normal
+Read-only audit from bounded registry reads (FULL entity registry — the
+compact list lacks `original_name` — plus the device and area registries),
+owned here; every FIX hands to `ha-nova:organize`'s normal
 preview/confirm flow:
 
 - count AREA-ASSIGNABLE entities without an EFFECTIVE area: device-bound
   ones (an empty entity `area_id` inherits the device's area — join the
   device registry first) AND device-less entities that accept an
   entity-level `area_id` (template sensors and the like); persons,
-  automations, scripts, and scenes legitimately have no area and are never
+  automations, scripts, scenes, and other non-room service entities (sun,
+  zones, update/assist engines) legitimately have no area and are never
   counted as untidy.
 - name provenance: an entity whose registry `name` is null runs on its
   integration default (`original_name`) — that IS the provenance signal.
@@ -78,14 +80,17 @@ Render the ENFORCED guarantees user-facing, on request only, in about five
 lines:
 
 - Nothing is written without a preview you confirm first; confirmations bind
-  to exactly what was shown.
+  to exactly what was shown (secret values stay masked and bind to the
+  stored value behind the mask).
 - Deleting an automation, scene, helper, dashboard, or similar config needs
-  a typed confirmation code — a plain "yes" is never enough there.
+  a typed confirmation code — a plain "yes" is never enough there; the same
+  code gates high-consequence actions like unlocking doors or opening the
+  garage.
 - Automation, script, and storage-helper updates keep a revert path; deleted
   items in snapshot-covered families restore from automatic config snapshots.
 - Reads are bounded; pairing and authentication secrets never appear in
-  chat, and secret-bearing config values (webhook ids) are masked even in
-  raw YAML you explicitly ask for.
+  chat, and webhook trigger ids are masked even in raw YAML you explicitly
+  ask for.
 - When something is outside these guarantees (scene, dashboard, energy, and
   calendar writes have no revert; config-entry helpers have no snapshot), the
   owning skill names the limit — the honest limit is part of the story.
