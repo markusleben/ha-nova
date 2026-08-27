@@ -115,7 +115,7 @@ The installer selects the latest stable release. Run the command for your OS; th
 
 The wizard keeps **Local only** as the recommended default. If you have a paid Home Assistant Cloud subscription from Nabu Casa with Remote UI enabled, choose **Local + Home Assistant Cloud** for automatic remote fallback or **Home Assistant Cloud only** for remote-first setup. The wizard validates your Cloud URL, opens Home Assistant OAuth, and stores the authorization in the native macOS, Windows, or Linux desktop credential store. HA NOVA runs no additional public tunnel or hosted broker.
 
-Cloud Remote requires Home Assistant OS/Supervised and a supported desktop session for authorization; an interrupted, already-verified setup can finish over SSH with `ha-nova cloud add --remote-resume`. Headless, WSL, service, gateway, Container, and Core setups stay local-only. Remote-first pairing uses a separate private Owner session to create the one-time NOVA device code; the OAuth user can remain a standard Home Assistant user.
+Cloud Remote requires Home Assistant OS/Supervised and a supported desktop session for authorization; on a Cloud-enabled platform (macOS in this release), an interrupted, already-verified setup can finish over SSH with `ha-nova cloud add --remote-resume`. Headless, WSL, service, gateway, Container, and Core setups stay local-only. Remote-first pairing uses a separate private Owner session to create the one-time NOVA device code; the OAuth user can remain a standard Home Assistant user.
 
 Already installed locally? Run `ha-nova cloud add`, or rerun `ha-nova setup` for the same guided choice.
 
