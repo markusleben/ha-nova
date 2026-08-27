@@ -275,15 +275,18 @@ thread_pages="$(
     '
 )"
 head_prefix="${head_sha:0:10}"
-clean_at="$(
+verdict_at="$(
   jq -r --arg prefix "${head_prefix}" '
     [ .[][]
       | select(
           .user.login == "chatgpt-codex-connector[bot]"
           and .user.id == 199175422
           and .user.type == "Bot"
-          and (.body | contains("Codex Review: Didn\u0027t find any major issues"))
           and (.body | contains("**Reviewed commit:** `" + $prefix + "`"))
+          and (
+            (.body | contains("Codex Review: Didn\u0027t find any major issues"))
+            or (.body | contains("Here are some automated review suggestions"))
+          )
         )
       | .created_at
     ]
@@ -291,8 +294,22 @@ clean_at="$(
     | last // empty
   ' <<<"${issue_comment_pages}"
 )"
-[[ "${clean_at}" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T ]] \
-  || fail "current pull request head lacks a real clean Codex bot result"
+[[ "${verdict_at}" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T ]] \
+  || fail "current pull request head lacks a real Codex bot verdict"
+verdict_clean="$(
+  jq -r --arg prefix "${head_prefix}" --arg at "${verdict_at}" '
+    [ .[][]
+      | select(
+          .user.login == "chatgpt-codex-connector[bot]"
+          and .user.id == 199175422
+          and .user.type == "Bot"
+          and .created_at == $at
+          and (.body | contains("**Reviewed commit:** `" + $prefix + "`"))
+        )
+    ]
+    | any(.[]; .body | contains("Codex Review: Didn\u0027t find any major issues"))
+  ' <<<"${issue_comment_pages}"
+)"
 jq -e '
   length > 0
   and all(.[];
@@ -309,7 +326,46 @@ jq -e '
   )
 ' >/dev/null <<<"${thread_pages}" \
   || fail "pull request has requested changes or unresolved review threads"
-jq -e --arg clean_at "${clean_at}" --arg head "${head_sha}" '
+if [[ "${verdict_clean}" != "true" ]]; then
+  # Findings records (review, inline comments, threads) can lag the summary
+  # comment by seconds in GitHub's eventually-consistent reads. A five-minute
+  # settling window makes the round binding below deterministic: by then the
+  # verdict's own review and inline records are visible, so a stale earlier
+  # round can no longer stand in for them.
+  verdict_epoch="$(date -u -d "${verdict_at}" +%s 2>/dev/null || date -u -j -f "%Y-%m-%dT%H:%M:%SZ" "${verdict_at}" +%s)"
+  now_epoch="$(date -u +%s)"
+  [[ $(( now_epoch - verdict_epoch )) -ge 300 ]] \
+    || fail "findings verdict is younger than the settling window — retry after five minutes"
+  latest_review_id="$(
+    jq -r --arg head "${head_sha}" '
+      [ .[][]
+        | select(
+            .user.login == "chatgpt-codex-connector[bot]"
+            and .user.id == 199175422
+            and .user.type == "Bot"
+            and .commit_id == $head
+          )
+      ]
+      | sort_by(.submitted_at)
+      | last
+      | .id // empty
+    ' <<<"${review_pages}"
+  )"
+  [[ "${latest_review_id}" =~ ^[0-9]+$ ]] \
+    || fail "findings verdict has no matching Codex review round on the head"
+  jq -e --argjson rid "${latest_review_id}" '
+    ([ .[][]
+      | select(
+          .user.login == "chatgpt-codex-connector[bot]"
+          and .user.id == 199175422
+          and .user.type == "Bot"
+          and .pull_request_review_id == $rid
+        )
+    ] | length) > 0
+  ' >/dev/null <<<"${inline_comment_pages}" \
+    || fail "findings verdict carries no triageable finding from its own review round"
+fi
+jq -e --arg verdict_at "${verdict_at}" --arg head "${head_sha}" '
   all(
     [ .[][]
       | select(
@@ -318,11 +374,11 @@ jq -e --arg clean_at "${clean_at}" --arg head "${head_sha}" '
           and .user.type == "Bot"
         )
     ][];
-    (.commit_id != $head) or (.submitted_at <= $clean_at)
+    (.commit_id != $head) or (.submitted_at <= $verdict_at)
   )
 ' >/dev/null <<<"${review_pages}" \
-  || fail "a later Codex review supersedes the clean result"
-jq -e --arg clean_at "${clean_at}" --arg head "${head_sha}" '
+  || fail "a later Codex review supersedes the verdict"
+jq -e --arg verdict_at "${verdict_at}" --arg head "${head_sha}" '
   all(
     [ .[][]
       | select(
@@ -331,11 +387,11 @@ jq -e --arg clean_at "${clean_at}" --arg head "${head_sha}" '
           and .user.type == "Bot"
         )
     ][];
-    (.commit_id != $head) or (.created_at <= $clean_at)
+    (.commit_id != $head) or (.created_at <= $verdict_at)
   )
 ' >/dev/null <<<"${inline_comment_pages}" \
-  || fail "a later Codex inline finding supersedes the clean result"
-jq -e --arg clean_at "${clean_at}" --arg prefix "${head_prefix}" '
+  || fail "a later Codex inline finding supersedes the verdict"
+jq -e --arg verdict_at "${verdict_at}" --arg prefix "${head_prefix}" '
   all(
     [ .[][]
       | select(
@@ -344,15 +400,18 @@ jq -e --arg clean_at "${clean_at}" --arg prefix "${head_prefix}" '
           and .user.type == "Bot"
         )
     ][];
-    (.created_at <= $clean_at)
+    (.created_at <= $verdict_at)
     or (
-      (.body | contains("Codex Review: Didn\u0027t find any major issues"))
-      and (.body | contains("**Reviewed commit:** `" + $prefix + "`"))
+      (.body | contains("**Reviewed commit:** `" + $prefix + "`"))
+      and (
+        (.body | contains("Codex Review: Didn\u0027t find any major issues"))
+        or (.body | contains("Here are some automated review suggestions"))
+      )
     )
   )
 ' >/dev/null <<<"${issue_comment_pages}" \
-  || fail "a later Codex issue result supersedes the clean result"
-jq -e --arg clean_at "${clean_at}" '
+  || fail "a later Codex issue result supersedes the verdict"
+jq -e --arg verdict_at "${verdict_at}" '
   all(
     [ .[][]
       | select(
@@ -361,10 +420,10 @@ jq -e --arg clean_at "${clean_at}" '
           and (.user.type == "User" or .user.type == "Bot")
         )
     ][];
-    (.created_at <= $clean_at) or .content == "+1"
+    (.created_at <= $verdict_at) or .content == "+1"
   )
 ' >/dev/null <<<"${reaction_pages}" \
-  || fail "a later Codex reaction supersedes the clean result"
+  || fail "a later Codex reaction supersedes the verdict"
 
 HA_NOVA_CLOUD_GATE_SOURCE_REF="${source_ref}" \
 HA_NOVA_CLOUD_GATE_EXPECTED_TARGET_COMMIT="${merge_sha}" \

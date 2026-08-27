@@ -36,6 +36,8 @@ type FixtureChange =
   | "passing-conclusions"
   | "stale-codex"
   | "spoofed-codex"
+  | "findings-verdict"
+  | "threadless-findings-verdict"
   | "later-codex-finding"
   | "later-codex-reaction"
   | "later-codex-bot-reaction"
@@ -387,13 +389,33 @@ function runResolver(
           },
           created_at: "2026-07-29T10:00:00Z",
           body:
-            "Codex Review: Didn't find any major issues. Keep it up!\n\n" +
+            (change === "findings-verdict" || change === "unresolved-thread" || change === "threadless-findings-verdict"
+              ? "### \u{1F4A1} Codex Review\n\nHere are some automated review suggestions for this pull request.\n\n"
+              : "Codex Review: Didn't find any major issues. Keep it up!\n\n") +
             `**Reviewed commit:** \`${change === "stale-codex" ? "0000000000" : head.slice(0, 10)}\``,
         },
       ],
     ]),
   );
-  writeFileSync(reviewsPath, JSON.stringify([[]]));
+  writeFileSync(
+    reviewsPath,
+    JSON.stringify([
+      change === "findings-verdict" || change === "unresolved-thread" || change === "threadless-findings-verdict"
+        ? [
+            {
+              id: 555001,
+              user: {
+                login: "chatgpt-codex-connector[bot]",
+                id: 199175422,
+                type: "Bot",
+              },
+              commit_id: head,
+              submitted_at: "2026-07-29T09:59:00Z",
+            },
+          ]
+        : [],
+    ]),
+  );
   writeFileSync(
     inlineCommentsPath,
     JSON.stringify([
@@ -410,7 +432,21 @@ function runResolver(
               body: "A later finding",
             },
           ]
-        : [],
+        : change === "findings-verdict" || change === "unresolved-thread"
+          ? [
+              {
+                user: {
+                  login: "chatgpt-codex-connector[bot]",
+                  id: 199175422,
+                  type: "Bot",
+                },
+                commit_id: head,
+                pull_request_review_id: 555001,
+                created_at: "2026-07-29T09:59:00Z",
+                body: "An inline finding for this head",
+              },
+            ]
+          : [],
     ]),
   );
   writeFileSync(
@@ -445,9 +481,10 @@ function runResolver(
                   ? "CHANGES_REQUESTED"
                   : "REVIEW_REQUIRED",
               reviewThreads: {
-                nodes: [
-                  { isResolved: change !== "unresolved-thread" },
-                ],
+                nodes:
+                  change === "threadless-findings-verdict"
+                    ? []
+                    : [{ isResolved: change !== "unresolved-thread" }],
                 pageInfo: { hasNextPage: false, endCursor: null },
               },
             },
@@ -569,6 +606,11 @@ describe("Cloud candidate source resolver", () => {
     expect(result.stdout).toContain("OK: PR #42");
   });
 
+  it("accepts a findings verdict on the head once every thread is resolved", () => {
+    const result = runResolver("findings-verdict");
+    expect(result.status, `${result.stdout}\n${result.stderr}`).toBe(0);
+  });
+
   it("uses the latest protected and evidence check runs", () => {
     const result = runResolver("older-failed-check");
     expect(result.status, `${result.stdout}\n${result.stderr}`).toBe(0);
@@ -609,6 +651,7 @@ describe("Cloud candidate source resolver", () => {
     ["a later Codex reaction", "later-codex-reaction"],
     ["a later Codex bot reaction", "later-codex-bot-reaction"],
     ["an unresolved review thread", "unresolved-thread"],
+    ["a findings verdict without any thread", "threadless-findings-verdict"],
     ["requested changes", "changes-requested"],
     ["a pull request that moves during resolution", "moved-late"],
     ["a pull request that moves during final check validation", "moved-during-final-checks"],
