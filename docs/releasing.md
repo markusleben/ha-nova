@@ -532,9 +532,13 @@ executable explicitly:
 ```powershell
 $ExpectedTree = "0123456789abcdef0123456789abcdef01234567" # replace
 $Version = "0.22.0-rc1" # replace
-# Unique name: the device-credential slot is keyed by server name; "default"
-# would reuse or revoke the production device credential.
-$ServerName = "smoke-" + [guid]::NewGuid().ToString("N").Substring(0, 8)
+# On the dedicated Windows test machine, use the standing profile (#584);
+# it is pre-authorized, so the desktop-gated cloud add step is skipped.
+# Elsewhere keep a unique throwaway name — the device-credential slot is
+# keyed by server name, and "default" would reuse or revoke the production
+# device credential:
+#   $ServerName = "smoke-" + [guid]::NewGuid().ToString("N").Substring(0, 8)
+$ServerName = "smoke"
 $ExpectedRelayAppVersion = "0.7.1" # replace from exact-target nova/config.yaml
 $CandidateDir = Join-Path $env:TEMP ("ha-nova-cloud-candidate-" + [guid]::NewGuid())
 Expand-Archive `
@@ -595,9 +599,19 @@ transport or stress-harness delta requires it. The profile removal command is
 in the cleanup step at the end of this section, after the last Cloud command.
 
 On Windows the install root resolves from the executable directory
-(be0c5e2), so no HOME override exists or is needed; create the same isolated
-authorization with the extracted binary on the dedicated test machine (which
-carries no production profile) and remove it after the last Cloud command:
+(be0c5e2), so no HOME override exists or is needed. Persistent-profile
+exception (#584, maintainer trade-off accepted 2026-08-27): the dedicated
+Windows test machine (`ha-nova-win`, no production profile) keeps ONE
+standing smoke profile named `smoke`, authorized a single time in an
+interactive desktop session and EXEMPT from the cleanup step below — with
+the authorization standing, every reference smoke (`relay health --via
+cloud`, `internal-cloud-stress`) runs fully over SSH and is agent-drivable;
+only `cloud add` itself stays desktop-gated. The standing device is
+revocable at any time from the Home Assistant Cloud account page, or on the
+machine via `ha-nova cloud remove --server smoke --yes`. Any OTHER profile
+on any machine still follows the throwaway rule: create the isolated
+authorization with the extracted binary and remove it after the last Cloud
+command:
 
 ```powershell
 $env:HA_NOVA_NO_CENSUS = "1"
@@ -656,7 +670,8 @@ if ($LASTEXITCODE -ne 0) { throw "candidate Cloud stress proof failed" }
 ```
 
 Cleanup: after the last Cloud command — including after a failed smoke —
-remove the smoke profile with `--yes` (without it the command asks for
+remove the smoke profile with `--yes` (exception: the persistent `smoke`
+profile on the Windows test machine stays — see above) (without it the command asks for
 confirmation, defaults to No, and exits before revoking anything when no TTY
 is attached). This revokes the device authorization and deletes the keyring
 entries:
@@ -667,8 +682,12 @@ HOME="${SMOKE_HOME}" HA_NOVA_NO_CENSUS=1 "${CANDIDATE_BIN}" cloud remove \
 ```
 
 ```powershell
-& $CandidateBin cloud remove --server $ServerName --yes
-if ($LASTEXITCODE -ne 0) { throw "smoke profile cleanup failed" }
+# Skip on the dedicated Windows test machine: $ServerName is the standing
+# "smoke" profile there (#584) and must survive the smoke.
+if ($ServerName -ne "smoke") {
+  & $CandidateBin cloud remove --server $ServerName --yes
+  if ($LASTEXITCODE -ne 0) { throw "smoke profile cleanup failed" }
+}
 ```
 
 `internal-cloud-stress` resolves Cloud once and sends exactly 10,000 read-only
