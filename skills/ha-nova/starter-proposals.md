@@ -33,8 +33,8 @@ proposed. Read-only until the user accepts an item.
    candidate's role entities AND every selector value that resolves to them
    — `device_id`, `area_id`, `label_id`, `floor_id`, from the candidates'
    own EFFECTIVE registry memberships: a device-inherited area — plus that
-   area's floor — and device-level labels count (a selector-targeted
-   automation never names the entity). A selector hit counts only in the role's FUNCTION: a device_id
+   area's floor — and device- or area-level labels count (a
+   selector-targeted automation never names the entity). A selector hit counts only in the role's FUNCTION: a device_id
    match on the source side needs that sensor's own trigger type, and an
    area/label-targeted action needs the action role's domain service —
    otherwise it is no pairing evidence. A candidate drops only when ONE config references its COMPLETE
