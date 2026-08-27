@@ -310,7 +310,7 @@ verdict_clean="$(
     | any(.[]; .body | contains("Codex Review: Didn\u0027t find any major issues"))
   ' <<<"${issue_comment_pages}"
 )"
-jq -e --arg clean "${verdict_clean}" '
+jq -e '
   length > 0
   and all(.[];
     .data.repository.pullRequest != null
@@ -324,12 +324,21 @@ jq -e --arg clean "${verdict_clean}" '
       .isResolved == true
     )
   )
-  and (
-    $clean == "true"
-    or ([ .[].data.repository.pullRequest.reviewThreads.nodes[] ] | length) > 0
-  )
 ' >/dev/null <<<"${thread_pages}" \
-  || fail "pull request has requested changes, unresolved review threads, or a findings verdict without any triageable thread"
+  || fail "pull request has requested changes or unresolved review threads"
+if [[ "${verdict_clean}" != "true" ]]; then
+  jq -e --arg head "${head_sha}" '
+    ([ .[][]
+      | select(
+          .user.login == "chatgpt-codex-connector[bot]"
+          and .user.id == 199175422
+          and .user.type == "Bot"
+          and .commit_id == $head
+        )
+    ] | length) > 0
+  ' >/dev/null <<<"${inline_comment_pages}" \
+    || fail "findings verdict carries no head-bound triageable finding"
+fi
 jq -e --arg verdict_at "${verdict_at}" --arg head "${head_sha}" '
   all(
     [ .[][]

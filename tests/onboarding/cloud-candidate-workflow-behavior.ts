@@ -414,7 +414,20 @@ function runResolver(
               body: "A later finding",
             },
           ]
-        : [],
+        : change === "findings-verdict" || change === "unresolved-thread"
+          ? [
+              {
+                user: {
+                  login: "chatgpt-codex-connector[bot]",
+                  id: 199175422,
+                  type: "Bot",
+                },
+                commit_id: head,
+                created_at: "2026-07-29T09:59:00Z",
+                body: "An inline finding for this head",
+              },
+            ]
+          : [],
     ]),
   );
   writeFileSync(
