@@ -53,10 +53,12 @@ proposed. Read-only until the user accepts an item.
    evidence line the same way. The pairing must also match the candidate's behavior
    DIRECTION: a no-motion→off automation is the complement of motion→on,
    not its duplicate — complements are named in the evidence line, never a
-   drop. A pairing found only in a DISABLED automation is never a silent
-   drop and never a duplicate drop: the candidate keeps its menu slot
-   reframed as the enable offer ("already built but disabled — enable it
-   instead?"); accepting hands to `ha-nova:organize`'s enable flow.
+   drop. A pairing found only in an automation that cannot fire is never a
+   silent drop and never a duplicate drop: the candidate keeps its menu
+   slot reframed as the enable offer ("already built but disabled — enable
+   it instead?"); accepting hands a registry-disabled row to
+   `ha-nova:organize`'s enable flow and a state-off row to the
+   service-call path (`automation.turn_on`).
    A single shared entity in an unrelated automation is no duplicate. An
    aggregate role (battery levels, the room's lights) drops the candidate
    only when the config covers the role's FUNCTION aggregate-wide (a

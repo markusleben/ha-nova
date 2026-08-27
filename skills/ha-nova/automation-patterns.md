@@ -361,8 +361,9 @@ re-resolution, never copy-paste:
    (config evidence per `starter-proposals.md`'s gate — the offer may be
    stale, or the user may have asked directly without an offer); an already
    automated pairing stops that room with a plain sentence — a pairing
-   found only in a DISABLED automation stops that room's write with the
-   enable offer instead of a duplicate stop. A PARTIAL scan
+   found only in an automation that cannot fire (registry-disabled or
+   state off) stops that room's write with the enable offer instead of a
+   duplicate stop. A PARTIAL scan
    does not stop the room — name it in that room's preview.
 4. One normal preview/confirm per room. Multiple rooms are sequential
    single writes, each individually verified — never one batch.
