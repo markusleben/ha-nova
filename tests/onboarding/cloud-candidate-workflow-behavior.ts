@@ -397,7 +397,25 @@ function runResolver(
       ],
     ]),
   );
-  writeFileSync(reviewsPath, JSON.stringify([[]]));
+  writeFileSync(
+    reviewsPath,
+    JSON.stringify([
+      change === "findings-verdict" || change === "unresolved-thread" || change === "threadless-findings-verdict"
+        ? [
+            {
+              id: 555001,
+              user: {
+                login: "chatgpt-codex-connector[bot]",
+                id: 199175422,
+                type: "Bot",
+              },
+              commit_id: head,
+              submitted_at: "2026-07-29T09:59:00Z",
+            },
+          ]
+        : [],
+    ]),
+  );
   writeFileSync(
     inlineCommentsPath,
     JSON.stringify([
@@ -423,6 +441,7 @@ function runResolver(
                   type: "Bot",
                 },
                 commit_id: head,
+                pull_request_review_id: 555001,
                 created_at: "2026-07-29T09:59:00Z",
                 body: "An inline finding for this head",
               },

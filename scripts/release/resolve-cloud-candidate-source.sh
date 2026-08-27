@@ -327,17 +327,34 @@ jq -e '
 ' >/dev/null <<<"${thread_pages}" \
   || fail "pull request has requested changes or unresolved review threads"
 if [[ "${verdict_clean}" != "true" ]]; then
-  jq -e --arg head "${head_sha}" '
+  latest_review_id="$(
+    jq -r --arg head "${head_sha}" '
+      [ .[][]
+        | select(
+            .user.login == "chatgpt-codex-connector[bot]"
+            and .user.id == 199175422
+            and .user.type == "Bot"
+            and .commit_id == $head
+          )
+      ]
+      | sort_by(.submitted_at)
+      | last
+      | .id // empty
+    ' <<<"${review_pages}"
+  )"
+  [[ "${latest_review_id}" =~ ^[0-9]+$ ]] \
+    || fail "findings verdict has no matching Codex review round on the head"
+  jq -e --argjson rid "${latest_review_id}" '
     ([ .[][]
       | select(
           .user.login == "chatgpt-codex-connector[bot]"
           and .user.id == 199175422
           and .user.type == "Bot"
-          and .commit_id == $head
+          and .pull_request_review_id == $rid
         )
     ] | length) > 0
   ' >/dev/null <<<"${inline_comment_pages}" \
-    || fail "findings verdict carries no head-bound triageable finding"
+    || fail "findings verdict carries no triageable finding from its own review round"
 fi
 jq -e --arg verdict_at "${verdict_at}" --arg head "${head_sha}" '
   all(
