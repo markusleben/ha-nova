@@ -57,7 +57,7 @@ func printCloudUsage() {
 	)
 	fmt.Fprintln(
 		os.Stdout,
-		"  reconnect [--server <name>] [--url https://…]  Rotate the Home Assistant authorization",
+		"  reconnect [--server <name>] [--url https://…] [--remote-resume]  Rotate the Home Assistant authorization",
 	)
 	fmt.Fprintln(
 		os.Stdout,
@@ -81,7 +81,7 @@ func parseCloudCommandFlags(
 			"Home Assistant Cloud URL for remote-first setup",
 		)
 	}
-	if command == "add" {
+	if command == "add" || command == "reconnect" {
 		fs.BoolVar(
 			&result.remoteResume,
 			"remote-resume",
