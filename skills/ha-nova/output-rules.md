@@ -16,7 +16,7 @@ Apply these rules to every user-facing HA NOVA response, including direct sub-sk
 ## Technical Noise
 
 - Do not dump raw JSON, full logs, full entity lists, full component lists, or full registry/config-entry lists unless the user explicitly asks.
-- Webhook ids are secret-bearing (an unauthenticated trigger URL): redact them in ANY shown YAML or config excerpt — explicitly requested YAML included — replacing the value with a masked placeholder and saying one was masked; webhook mechanics stay in `ha-nova:service-call`'s client-private flow.
+- Webhook ids are secret-bearing (an unauthenticated trigger URL): redact them in ANY shown YAML or config excerpt — explicitly requested YAML included — replacing the value with a masked placeholder and saying one was masked; masking the webhook value is the ONE legal edit to otherwise-verbatim diff rows and previews — confirmation still binds to the stored real value; webhook mechanics stay in `ha-nova:service-call`'s client-private flow.
 - Summarize long inventories by counts, groups, and a few relevant examples.
 - If raw automation IDs, helper IDs, config IDs, or entity IDs make the response more technical than helpful, summarize them in natural language or by count instead of echoing every raw identifier.
 - Show precise identifiers only when they are needed for safety, disambiguation, or evidence.
@@ -192,8 +192,9 @@ keeps its plain sectioned header — review output is sectioned, not card-framed
 
 Pre-preview candidates where the owning skill names none of its own — same
 caps, same evidence bar (registry/capability reads from this session):
-scene create — a same-area ACTIONABLE entity the scene plausibly misses (a
-scene members only controllable domains, never a read-only sensor; storage
+scene create — a same-area (EFFECTIVE membership — starter-proposals rule
+2c) ACTIONABLE entity the scene plausibly misses (a scene admits only
+controllable domains, never a read-only sensor; storage
 scenes persist entity STATES, so never suggest service parameters like
 `transition`);
 dashboard shell create — a strategy config for the empty shell (accepting
@@ -214,7 +215,9 @@ resolves automation roles, so script creates make no offer. After a VERIFIED
 create (never after an update, delete, or a failed verification), exactly ONE
 closing line may point out replication potential —
 and only when the registries actually prove it: other areas holding the same
-device pairing the new item uses, checked in the same session's reads — AND
+device pairing the new item uses, checked in the same session's reads and
+still current (a later write touching those registries invalidates them —
+re-read or make no offer) — AND
 the target room's pairing is not already automated per the config-level
 duplicate evidence, AND the target devices pass the replicate pattern's
 capability check for the source's capability-specific triggers/actions
@@ -227,7 +230,8 @@ from name patterns. Accepting hands to `ha-nova:write`'s replicate pattern
 
 ## Session Recap ("what did you do today?")
 
-Answer ONLY from this conversation's writes: item, operation, and
+Answer ONLY from this conversation's writes AND runtime actions (service
+calls, update installs, notifications sent): item, operation, and
 verification state as reported at the time. No memory of other sessions, no
 inference from current HA state, no filling gaps — when the conversation
 window no longer covers everything, say exactly that — earlier changes may

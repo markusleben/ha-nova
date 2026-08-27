@@ -330,15 +330,19 @@ actions:
 "Do the same for the kitchen" after a verified create. Replication is
 re-resolution, never copy-paste:
 
-1. Resolve the TARGET room's own entities for every role the source
+1. Resolve the TARGET room's own entities (and devices, for device-trigger
+   roles) for every role the source
    automation uses (motion sensor, light, …) by EFFECTIVE area membership —
    an entity with an empty `area_id` inherits its device's area, so join the
-   device registry (or use `search/related` on the area);
+   device registry (or use `search/related` on the area). Skip
+   registry-disabled entities when resolving — a disabled counterpart counts
+   as "no counterpart" (say so);
    a ROOM-BOUND role with no counterpart in that room stops the replication
    for that room with a plain sentence — never substitute a neighboring
    room's entity. Home-wide roles (`sun.sun`, zones, household presence,
    global mode helpers) have no per-room counterpart by design: carry them
-   over unchanged. A source that embeds its room in a template or non-entity
+   over unchanged. A source that embeds its room in a template, a group/label
+   target (`light.living_room_group`, `label_id: ambient`), or a non-entity
    literal (`area_entities('living_room')`, area names inside Jinja) stops
    the replication unless that reference re-resolves to the target room —
    never string-replace room names.
@@ -356,7 +360,11 @@ re-resolution, never copy-paste:
 3. Before each room's preview, run the duplicate check for THAT room
    (config evidence per `starter-proposals.md`'s gate — the offer may be
    stale, or the user may have asked directly without an offer); an already
-   automated pairing stops that room with a plain sentence.
+   automated pairing stops that room with a plain sentence — a pairing
+   found only in an automation that cannot fire (registry-disabled or
+   state off) stops that room's write with the enable offer instead of a
+   duplicate stop. A PARTIAL scan
+   does not stop the room — name it in that room's preview.
 4. One normal preview/confirm per room. Multiple rooms are sequential
    single writes, each individually verified — never one batch.
 5. The offer side of this pattern is the Replication Line

@@ -13,14 +13,15 @@ proposed. Read-only until the user accepts an item.
    (`config/entity_registry/list` — the compact list carries no `unique_id`,
    which IS the disabled rows' config key) — disabled automations have no
    states row, and a states row proves nothing about WHAT an automation
-   does. A YAML automation without an explicit `id` has no readable config:
-   count it and report the duplicate scan as PARTIAL, never as complete. Scene candidates use the `scene.*` rows from the same pull for the id
+   does. A YAML automation or scene without an explicit `id` has no readable
+   config: count it and report the duplicate scan as PARTIAL, never as
+   complete. Scene candidates use the `scene.*` rows from the same pull for the id
    list only — members come from config reads (rule 2b).
 2b. Duplicate gate, config-evidence only: before a candidate enters the
    Suggestion Block, read the existing automations' configs — the config key
    is each automation's `id` ATTRIBUTE from its states row (registry
    `unique_id` for disabled rows), never the entity id. Bound the pass: cap
-   the config reads (default 50, newest-updated first) and report anything
+   the config reads (default 50) and report anything
    beyond the cap as PARTIAL — the cap line names how many configs went
    unread. Scan each read WHOLE config document: triggers, conditions,
    actions, selector targets, and `use_blueprint.input` all carry entity ids
@@ -31,8 +32,9 @@ proposed. Read-only until the user accepts an item.
    closed PARTIAL rule, never a drop; match the
    candidate's role entities AND every selector value that resolves to them
    — `device_id`, `area_id`, `label_id`, `floor_id`, from the candidates'
-   own registry memberships (a selector-targeted automation never names the
-   entity). A selector hit counts only in the role's FUNCTION: a device_id
+   own EFFECTIVE registry memberships: a device-inherited area — plus that
+   area's floor — and device- or area-level labels count (a
+   selector-targeted automation never names the entity). A selector hit counts only in the role's FUNCTION: a device_id
    match on the source side needs that sensor's own trigger type, and an
    area/label-targeted action needs the action role's domain service —
    otherwise it is no pairing evidence. A candidate drops only when ONE config references its COMPLETE
@@ -44,24 +46,40 @@ proposed. Read-only until the user accepts an item.
    trigger is no source role
    plus the ACTION role in the actions that branch actually runs — in
    configs with trigger-id/choose branches, cross-branch co-occurrence does
-   not drop the candidate (name it in the evidence line instead). The pairing must also match the candidate's behavior
+   not drop the candidate (name it in the evidence line instead) — and role
+   co-occurrence in any executable shape this rule does not recognize
+   (`wait_for_trigger`, wait templates, nested branches) never lets the
+   pass claim "not automated yet" silently: name the co-occurrence in the
+   evidence line the same way. The pairing must also match the candidate's behavior
    DIRECTION: a no-motion→off automation is the complement of motion→on,
    not its duplicate — complements are named in the evidence line, never a
-   drop. A single shared entity in an unrelated automation is no duplicate. Service-shaped roles (a `notify.*` target) match by
+   drop. A pairing found only in an automation that cannot fire is never a
+   silent drop and never a duplicate drop: the candidate keeps its menu
+   slot reframed as the enable offer ("already built but disabled — enable
+   it instead?"); accepting hands a registry-disabled row to
+   `ha-nova:organize`'s enable flow and a state-off row to the
+   service-call path (`automation.turn_on`).
+   A single shared entity in an unrelated automation is no duplicate. An
+   aggregate role (battery levels, the room's lights) drops the candidate
+   only when the config covers the role's FUNCTION aggregate-wide (a
+   template, group, or label over the whole role); coverage of single
+   entities is named in the evidence line ('2 of 12 batteries already
+   alerted') and those covered members are excluded from the accepted
+   item's target set, never a drop. Service-shaped roles (a `notify.*` target) match by
    SERVICE NAME in the config's actions, not by entity id — and a modern
    notify ENTITY also matches as the `target`/`entity_id` of a
    `notify.send_message` call. Two more equivalence expansions: a group target
    matches when its membership PROVABLY contains the candidate — the
-   `entity_id` states attribute where present, else the group helper's
-   config read; membership the pass cannot prove falls into the closed
-   PARTIAL rule; a presence source role matches zone-count
+   `entity_id` states attribute where present; membership the pass cannot
+   prove falls into the closed PARTIAL rule; a presence source role matches zone-count
    guards (`zone.home` state) and direct `person.*`/`device_tracker.*`
    conditions alike — but only with the POLARITY the candidate needs: an
    at-home guard (zone count > 0, or state `home`) never evidences an away
    alert. CLOSED RULE
    for everything else: any config whose references the pass cannot FULLY
    resolve — dynamic Jinja-computed targets, unexpanded groups, delegation
-   through items it could not read — makes the duplicate scan PARTIAL, and a
+   through items whose configs this pass did not read and resolve — makes
+   the duplicate scan PARTIAL, and a
    PARTIAL scan downgrades every affected evidence line from "not automated
    yet" to "no duplicate found (scan partial)". Never enumerate past this
    rule: unresolvable evidence fails closed into honesty, not into a claim. When the pass is capped, say the
