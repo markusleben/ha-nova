@@ -682,8 +682,12 @@ HOME="${SMOKE_HOME}" HA_NOVA_NO_CENSUS=1 "${CANDIDATE_BIN}" cloud remove \
 ```
 
 ```powershell
-& $CandidateBin cloud remove --server $ServerName --yes
-if ($LASTEXITCODE -ne 0) { throw "smoke profile cleanup failed" }
+# Skip on the dedicated Windows test machine: $ServerName is the standing
+# "smoke" profile there (#584) and must survive the smoke.
+if ($ServerName -ne "smoke") {
+  & $CandidateBin cloud remove --server $ServerName --yes
+  if ($LASTEXITCODE -ne 0) { throw "smoke profile cleanup failed" }
+}
 ```
 
 `internal-cloud-stress` resolves Cloud once and sends exactly 10,000 read-only
