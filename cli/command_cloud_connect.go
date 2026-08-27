@@ -75,6 +75,12 @@ func runCloudConnectCommand(
 				loadedCfg,
 				true,
 			)
+			if cloudRemoteResumeCheckpointReady(loadedCfg) {
+				fmt.Fprintln(
+					os.Stdout,
+					"  This checkpoint can also finish over SSH: add --remote-resume to the resume command above.",
+				)
+			}
 		}
 		return 1
 	}
