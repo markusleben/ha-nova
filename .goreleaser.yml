@@ -71,17 +71,18 @@ release:
     Windows uses a single supported install path: `install.ps1`. Return an RC install to stable later with `ha-nova update`.
     {{ else }}## What To Watch
 
-    - **Indirect access changes now use the strict gate.** Scenes, scripts, automations, groups, and timer-driven flows that can ultimately unlock, open, or disarm list the affected member and require typed confirmation.
+    - **Cloud Remote is macOS-only in this release.** Windows and Linux clients keep full local functionality; Cloud Remote there stays disabled while per-platform validation infrastructure is unavailable.
 
     ## New Features
 
-    - **Temporary automations now clean up after themselves.** One-shot reminders disable themselves, while duration-bound actions restore the previous state and recover safely across Home Assistant restarts.
-    - **Entity discovery understands the way a household talks.** Searches now use aliases, rooms, labels, spelling variants, and honest state snapshots without treating unavailable sensors as proof that everything is fine.
+    - **Finish Cloud setup over SSH.** `ha-nova cloud add --remote-resume` resumes an existing verified authorization checkpoint from an SSH session. Starting a new authorization still needs a desktop session.
+    - **Invalid integration credentials get a guided recovery.** HA NOVA previews and runs the entry reload that makes Home Assistant re-validate a failing credential, then continues the normal reauthentication handoff.
+    - **Failed service calls now name the real cause.** An error that coincides with Home Assistant starting reauthentication for that integration is reported as exactly that, with a direct path into the recovery flow.
 
     ## Bug Fixes
 
-    - **Service calls respect the target's real capabilities.** Lights, climate devices, covers, fans, vacuums, and sirens use fields and values reported by Home Assistant instead of guessed payloads.
-    - **Routing and previews fail closed more consistently.** Downstream consumers, template entities, timer event families, group changes, and concurrent state changes can no longer silently lower the required confirmation.
+    - **Automation suggestions are honest about what already exists.** Duplicate detection covers labels, groups, and blueprint inputs; a disabled automation is offered for enabling instead of being silently skipped.
+    - **Replicating an automation to another room got stricter.** Disabled counterparts, room-bound group or label targets, and unsupported device triggers stop the copy instead of leaving a replica that never runs.
 
     Stable install commands are release-pinned for this tag.
 

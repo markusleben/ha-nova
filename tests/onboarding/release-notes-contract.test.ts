@@ -37,21 +37,25 @@ describe("release notes contract", () => {
     expect(goreleaser).not.toContain("winget");
   });
 
-  it("keeps v0.24.0 release-facing wording aligned to the shipped stack", () => {
+  it("keeps v0.25.0 release-facing wording aligned to the shipped stack", () => {
+    expect(goreleaser).toContain("Cloud Remote is macOS-only in this release");
+    expect(goreleaser).toContain("Finish Cloud setup over SSH");
+    expect(goreleaser).toContain("--remote-resume");
     expect(goreleaser).toContain(
-      "Indirect access changes now use the strict gate",
+      "Starting a new authorization still needs a desktop session",
     );
-    expect(goreleaser).toContain("require typed confirmation");
-    expect(goreleaser).toContain("Temporary automations now clean up");
     expect(goreleaser).toContain(
-      "recover safely across Home Assistant restarts",
+      "Invalid integration credentials get a guided recovery",
     );
-    expect(goreleaser).toContain("Entity discovery understands");
-    expect(goreleaser).toContain("unavailable sensors");
     expect(goreleaser).toContain(
-      "Service calls respect the target's real capabilities",
+      "Failed service calls now name the real cause",
     );
-    expect(goreleaser).toContain("Routing and previews fail closed");
+    expect(goreleaser).toContain(
+      "Automation suggestions are honest about what already exists",
+    );
+    expect(goreleaser).toContain(
+      "offered for enabling instead of being silently skipped",
+    );
     expect(readme).toContain(
       "Optional remote access with Home Assistant Cloud (Beta)",
     );
@@ -60,7 +64,8 @@ describe("release notes contract", () => {
     expect(readme).toContain("HA NOVA runs no additional public tunnel");
     expect(readme).toContain("ha-nova cloud add");
     expect(readme).not.toContain("ha-nova cloud add --server default");
-    expect(readme).toContain("Headless, SSH, WSL");
+    expect(readme).toContain("finish over SSH with `ha-nova cloud add --remote-resume`");
+    expect(readme).toContain("Headless, WSL");
     expect(readme).toContain(
       "OAuth authorization in this computer's native credential store",
     );
