@@ -131,3 +131,29 @@ stopped.
   note above is closed by verification, no skill delta was needed.
 - Scope note: this was a targeted verification of one stale entry, not a full
   upstream screen; the last full screen remains the 2026-08-12 entry above.
+
+## 2026-08-27 — pre-release screen (v0.25.0 cycle): HA 2026.8.2/2026.8.3 + developer blog + HACS
+
+- Window screened: Core 2026.8.2 (2026-08-14) and 2026.8.3 (2026-08-21),
+  developer-blog posts after 2026-07-22, HACS releases after 2.0.5.
+- CLEAN — 2026.8.2 and 2026.8.3 are integration fixes and dependency bumps
+  only; no pinned WS/REST contract change.
+- HIT (minor, doc accuracy) — dev-blog 2026-08-19 "Device Registry WebSocket
+  API Changes": `config/device_registry/remove_config_entry` is DEPRECATED
+  (successor `config/device_registry/remove`; old command supported until
+  ~2027.8). We pin it only as EXTERNAL documentation in
+  `skills/fallback/SKILL.md` (HA NOVA never calls it). The additive device
+  fields (`config_entry_id`/`config_subentry_id`) are already the preferred
+  read in `skills/fallback/relay-ready.md` with the `config_entries`
+  fallback — no delta needed there. Fix: one-sentence deprecation note in
+  fallback SKILL.md, folded into the v0.25.0 release-prep PR.
+- CLEAN — dev-blog 2026-08-24 "More Device Registry Deprecations" targets
+  custom-integration Python internals (`via_device`, direct registry
+  access), not the WS client contract.
+- CLEAN — no HACS release after 2.0.5.
+- Note: 2026.9.0b0 (2026-08-26) exists; the stable 2026.9 screen is the next
+  window.
+- Sources: github.com/home-assistant/core/releases (2026.8.2, 2026.8.3);
+  developers.home-assistant.io/blog/ (2026-08-19, 2026-08-24);
+  github.com/hacs/integration/releases.
+- Next window starts AFTER HA 2026.8.3 + dev-blog 2026-08-24 + HACS 2.0.5.
