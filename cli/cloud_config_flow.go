@@ -49,7 +49,7 @@ func connectExistingDeviceToCloud(
 		ctx,
 		cfg.RelayInstanceID,
 		false,
-		SecretStoreAllowUI,
+		secretStoreUIPolicyForSetup(SecretStoreAllowUI),
 	); err != nil {
 		return cfg, err
 	}
@@ -190,13 +190,13 @@ func connectRemoteToCloud(
 		expectedRelayInstanceID,
 		true,
 		true,
-		SecretStoreAllowUI,
+		secretStoreUIPolicyForSetup(SecretStoreAllowUI),
 	); err != nil {
 		return cfg, err
 	}
 	if _, err := probeCloudDeviceStorageForSetup(
 		ctx,
-		SecretStoreAllowUI,
+		secretStoreUIPolicyForSetup(SecretStoreAllowUI),
 	); err != nil {
 		return cfg, err
 	}

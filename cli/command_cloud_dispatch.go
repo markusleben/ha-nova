@@ -14,6 +14,7 @@ type cloudCommandFlags struct {
 	url                        string
 	json                       bool
 	yes                        bool
+	remoteResume               bool
 	confirmRemoteAccessRevoked string
 }
 
@@ -48,7 +49,7 @@ func printCloudUsage() {
 		os.Stdout,
 		"Usage: ha-nova cloud <add|status|unlock|reconnect|remove>",
 	)
-	fmt.Fprintln(os.Stdout, "  add [--server <name>] [--url https://…]")
+	fmt.Fprintln(os.Stdout, "  add [--server <name>] [--url https://…] [--remote-resume]")
 	fmt.Fprintln(os.Stdout, "  status [--server <name>] [--json]")
 	fmt.Fprintln(
 		os.Stdout,
@@ -56,7 +57,7 @@ func printCloudUsage() {
 	)
 	fmt.Fprintln(
 		os.Stdout,
-		"  reconnect [--server <name>] [--url https://…]  Rotate the Home Assistant authorization",
+		"  reconnect [--server <name>] [--url https://…] [--remote-resume]  Rotate the Home Assistant authorization",
 	)
 	fmt.Fprintln(
 		os.Stdout,
@@ -78,6 +79,14 @@ func parseCloudCommandFlags(
 			"url",
 			"",
 			"Home Assistant Cloud URL for remote-first setup",
+		)
+	}
+	if command == "add" || command == "reconnect" {
+		fs.BoolVar(
+			&result.remoteResume,
+			"remote-resume",
+			false,
+			"resume a checkpoint at cloud_verified or later from a remote (SSH) session",
 		)
 	}
 	if command == "status" {

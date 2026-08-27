@@ -81,7 +81,7 @@ func (productionCloudSetupCoordinator) Preflight(
 			return err
 		}
 	}
-	return PreflightOAuthSecretStore(ctx, store, SecretStoreAllowUI)
+	return PreflightOAuthSecretStore(ctx, store, secretStoreUIPolicyForSetup(SecretStoreAllowUI))
 }
 
 func (coordinator productionCloudSetupCoordinator) AddAwayWithExistingDevice(
