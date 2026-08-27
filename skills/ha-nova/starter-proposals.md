@@ -64,7 +64,8 @@ proposed. Read-only until the user accepts an item.
    only when the config covers the role's FUNCTION aggregate-wide (a
    template, group, or label over the whole role); coverage of single
    entities is named in the evidence line ('2 of 12 batteries already
-   alerted'), never a drop. Service-shaped roles (a `notify.*` target) match by
+   alerted') and those covered members are excluded from the accepted
+   item's target set, never a drop. Service-shaped roles (a `notify.*` target) match by
    SERVICE NAME in the config's actions, not by entity id — and a modern
    notify ENTITY also matches as the `target`/`entity_id` of a
    `notify.send_message` call. Two more equivalence expansions: a group target
