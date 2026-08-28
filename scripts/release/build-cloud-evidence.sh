@@ -356,14 +356,23 @@ fi
 # a preflight that reports "reachable" without asking is the failure it exists
 # to prevent, and discovering an unreachable host after building and
 # downloading a candidate wastes the expensive half of the job.
-# Non-darwin lab hosts are best-effort (maintainer decision 2026-08-28): the
-# candidate workflow already smokes the exact raw binaries natively on every
-# enabled platform's own runner, and that hash-bound run is the per-platform
-# execution evidence. A REACHABLE lab host is never skipped — the installed-
-# layout provenance then runs on it as before; an unreachable one falls back
-# to the workflow's native smoke and the fallback is named in the output (put
-# it in the ledger). darwin stays hard: it is the maintainer host.
+# Non-darwin lab hosts are best-effort (maintainer decision 2026-08-28), but
+# the fallback is neither silent nor free: it requires the explicit per-run
+# opt-in HA_NOVA_EVIDENCE_RUNNER_FALLBACK=1, and each fallback platform's
+# final bundle still gets a POSITIVE local verification of its signed Cloud
+# release evidence (Ed25519 signature, binary sha256, tree binding) via
+# verify-cloud-release-evidence.mjs — only the installed-layout RUNTIME
+# execution is skipped, and that residual gap goes in the ledger. A REACHABLE
+# lab host is never skipped. darwin stays hard: it is the maintainer host.
 RUNNER_FALLBACK=""
+fallback_or_die() {  # <platform> <detail>
+  if [ "${HA_NOVA_EVIDENCE_RUNNER_FALLBACK:-}" = "1" ]; then
+    RUNNER_FALLBACK="$RUNNER_FALLBACK $1"
+    echo "  $1: $2 unreachable — static signed-evidence verification + the workflow's native runner smoke stand in (record in the ledger)"
+  else
+    die "$1: $2 unreachable — bring it up, or set HA_NOVA_EVIDENCE_RUNNER_FALLBACK=1 to accept the static-verification fallback (recorded in the ledger)"
+  fi
+}
 step "platform reachability"
 for platform in $platforms; do
   case "$platform" in
@@ -375,15 +384,13 @@ for platform in $platforms; do
       if ssh -o BatchMode=yes -o ConnectTimeout=8 "$LINUX_SSH" true 2>/dev/null; then
         echo "  linux: $LINUX_SSH"
       else
-        RUNNER_FALLBACK="$RUNNER_FALLBACK linux"
-        echo "  linux: '$LINUX_SSH' unreachable — falling back to the workflow's native linux runner smoke (record in the ledger)"
+        fallback_or_die linux "'$LINUX_SSH'"
       fi ;;
     windows)
       if ssh -o BatchMode=yes -o ConnectTimeout=8 "$WINDOWS_SSH" 'cmd /c "echo ok"' >/dev/null 2>&1; then
         echo "  windows: $WINDOWS_SSH"
       else
-        RUNNER_FALLBACK="$RUNNER_FALLBACK windows"
-        echo "  windows: '$WINDOWS_SSH' unreachable — falling back to the workflow's native windows runner smoke (record in the ledger)"
+        fallback_or_die windows "'$WINDOWS_SSH'"
       fi ;;
     *) die "unknown platform '$platform' in cloud_remote_platforms" ;;
   esac
@@ -534,12 +541,41 @@ fi
 # ── 3. provenance, per platform ──────────────────────────────────────────────
 # The positive path: the INSTALLED bundle must accept its own provenance on
 # the maintainer host (darwin) and on every reachable lab host. Platforms in
-# RUNNER_FALLBACK carry the workflow's native runner smoke as their
-# execution evidence instead (see the reachability step above).
+# RUNNER_FALLBACK instead get a POSITIVE local verification of the exact
+# bundle's signed Cloud release evidence; the installed-layout runtime
+# execution is the one thing skipped (opt-in, ledger-recorded).
+platforms_csv="$(git -C "$ROOT_DIR" show "$target_commit:version.json" | jq -r '.cloud_remote_platforms | join(",")')"
+fallback_static_verify() {  # <platform>
+  local fb_platform="$1" fb_arch archive x
+  case "$fb_platform" in
+    linux)
+      for fb_arch in amd64 arm64; do
+        archive="$work/bundles/ha-nova-installer-bundle-linux-${fb_arch}.tar.gz"
+        [ -f "$archive" ] || die "linux: $archive missing from the artifact"
+        x="$work/fallback-linux-$fb_arch"; mkdir -p "$x"
+        tar -xzf "$archive" -C "$x" || die "linux/$fb_arch: cannot extract $archive"
+        node "$SCRIPT_DIR/verify-cloud-release-evidence.mjs" \
+          "$x/ha-nova/bundle.json" "$x/ha-nova/ha-nova" "${version_tag#v}" \
+          linux "$fb_arch" ha-nova "$target_tree" "$platforms_csv" \
+          || die "linux/$fb_arch: static signed-evidence verification failed — the fallback never accepts a broken bundle"
+      done ;;
+    windows)
+      archive="$work/bundles/ha-nova-installer-bundle-windows-amd64.zip"
+      [ -f "$archive" ] || die "windows: $archive missing from the artifact"
+      x="$work/fallback-windows"; mkdir -p "$x"
+      unzip -q "$archive" -d "$x" || die "windows: cannot extract $archive"
+      node "$SCRIPT_DIR/verify-cloud-release-evidence.mjs" \
+        "$x/ha-nova/bundle.json" "$x/ha-nova/ha-nova.exe" "${version_tag#v}" \
+        windows amd64 ha-nova.exe "$target_tree" "$platforms_csv" \
+        || die "windows: static signed-evidence verification failed — the fallback never accepts a broken bundle" ;;
+  esac
+}
 for platform in $platforms; do
   case " $RUNNER_FALLBACK " in
     *" $platform "*)
-      echo "  $platform: installed-layout provenance skipped — workflow native runner smoke is the execution evidence"
+      step "provenance fallback: $platform (static signed-evidence verification, local)"
+      fallback_static_verify "$platform"
+      echo "  $platform: signed evidence verified locally; installed-layout runtime execution skipped (ledger)"
       continue ;;
   esac
   case "$platform" in

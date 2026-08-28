@@ -19,8 +19,11 @@ into two layers:
    per-platform execution evidence — the candidate workflow's hash-bound
    native runner smoke on every enabled platform, plus the installed-layout
    provenance on the maintainer host and on every reachable lab host
-   (maintainer decision 2026-08-28: an unreachable lab host falls back to
-   the runner smoke, named in the ledger; a reachable one is never
+   (maintainer decision 2026-08-28: an unreachable lab host may fall back —
+   explicit per-run opt-in `HA_NOVA_EVIDENCE_RUNNER_FALLBACK=1` — to a
+   positive local verification of the bundle's signed Cloud release
+   evidence plus the runner smoke; only the installed-layout runtime
+   execution is skipped, named in the ledger; a reachable host is never
    skipped) — and the exact installed Relay App. For deltas that match an invalidation-map row with
    real-platform scope, one real reference-platform Cloud health smoke also
    runs, using the downloaded candidate binary with Census suppressed —
@@ -74,8 +77,9 @@ checks, the last real qualification they carry from, the exact crossing
 delta, and state that the maintainer accepts the residual risk. Four things
 are never waivable: the JSON envelope, the commit/tree identity, the
 per-platform execution evidence (the candidate workflow's native runner
-smoke; installed-layout provenance on the maintainer host, plus reachable
-lab hosts), and the live `installed_relay_app`
+smoke; installed-layout provenance on the maintainer host and reachable
+lab hosts; opted-in fallback platforms get a positive local verification
+of their signed bundle evidence), and the live `installed_relay_app`
 check. None of the four requires the reference platform: the runner smokes
 run in the candidate workflow itself, and `installed_relay_app`
 is a live relay health read that may run from any host that reaches the

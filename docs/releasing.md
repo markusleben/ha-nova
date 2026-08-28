@@ -572,7 +572,9 @@ map rows, under the spec's reference-smoke waiver — the waiver lives in the
 PR ledger and must name the unavailable infrastructure; the envelope, the
 commit/tree identity, the per-platform execution evidence (the candidate
 workflow's native runner smokes; installed-layout provenance on the
-maintainer host and every reachable lab host), and
+maintainer host and every reachable lab host — the opt-in fallback,
+`HA_NOVA_EVIDENCE_RUNNER_FALLBACK=1`, still verifies each fallback
+bundle's signed evidence locally), and
 the exact installed Relay App check stay mandatory. Under the waiver,
 satisfy the live installed-App read with `relay health` over a non-Cloud
 route from any host that reaches the installed App, asserting the same

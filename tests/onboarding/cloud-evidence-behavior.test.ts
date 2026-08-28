@@ -608,7 +608,21 @@ describe("cloud evidence PR target binding", () => {
     expect(readFileSync(fake.trace, "utf8")).not.toContain("set:");
   });
 
-  it("an unreachable lab host falls back to the runner smoke instead of dying (2026-08-28)", () => {
+  it("an unreachable lab host stays fail-closed without the explicit fallback opt-in", () => {
+    const { fixture, fake } = prFixture();
+    const envelope = validEnvelope(fixture.mainCommit, fixture.mainTree, platforms);
+    const envelopeFile = writeEnvelope(fixture, envelope);
+
+    const result = runScript(fixture, fake, ["7", "--set", "--envelope", envelopeFile]);
+    expect(result.status).not.toBe(0);
+    expect(result.stdout).toContain("envelope matches the target and the gate contract");
+    expect(result.stderr).toContain("HA_NOVA_EVIDENCE_RUNNER_FALLBACK=1");
+    const trace = readFileSync(fake.trace, "utf8");
+    expect(trace).not.toContain("dispatch");
+    expect(trace).not.toContain("set:");
+  });
+
+  it("the opted-in fallback still refuses a bundle without valid signed evidence (2026-08-28)", () => {
     const { fixture, fake } = prFixture();
     const envelope = validEnvelope(fixture.mainCommit, fixture.mainTree, platforms);
     const envelopeFile = writeEnvelope(fixture, envelope);
@@ -618,16 +632,19 @@ describe("cloud evidence PR target binding", () => {
     );
     seedBundle(fake, "ha-nova-installer-bundle-linux-amd64.tar.gz", { tree: fixture.mainTree });
 
-    const result = runScript(fixture, fake, ["7", "--set", "--envelope", envelopeFile]);
-    // Validation passed, the fake ssh is unreachable — the run names the
-    // runner-smoke fallback and still completes the set.
-    expect(result.status, `${result.stdout}\n${result.stderr}`).toBe(0);
-    expect(result.stdout).toContain("envelope matches the target and the gate contract");
-    expect(result.stdout).toContain("falling back to the workflow's native linux runner smoke");
+    const result = runScript(fixture, fake, ["7", "--set", "--envelope", envelopeFile], {
+      HA_NOVA_EVIDENCE_RUNNER_FALLBACK: "1",
+    });
+    // Reachability records the fallback, the bundle reuses the seeded run,
+    // and the POSITIVE static verification then rejects the unsigned bundle
+    // before any secret is written.
+    expect(result.status).not.toBe(0);
+    expect(result.stdout).toContain(
+      "static signed-evidence verification + the workflow's native runner smoke stand in",
+    );
+    expect(result.stderr).toContain("static signed-evidence verification failed");
     const trace = readFileSync(fake.trace, "utf8");
-    expect(trace).toContain("read:pr");
-    expect(trace).toContain("set:repo");
-    expect(trace).toContain("set:env");
+    expect(trace).not.toContain("set:");
   });
 
   const RUN = (databaseId: number, status: string, conclusion: string | null) => ({
