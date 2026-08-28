@@ -37,25 +37,10 @@ describe("release notes contract", () => {
     expect(goreleaser).not.toContain("winget");
   });
 
-  it("keeps v0.25.0 release-facing wording aligned to the shipped stack", () => {
-    expect(goreleaser).toContain("Cloud Remote is macOS-only in this release");
-    expect(goreleaser).toContain("Finish Cloud setup over SSH");
-    expect(goreleaser).toContain("--remote-resume");
-    expect(goreleaser).toContain(
-      "Starting a new authorization still needs a desktop session",
-    );
-    expect(goreleaser).toContain(
-      "Invalid integration credentials get a guided recovery",
-    );
-    expect(goreleaser).toContain(
-      "Failed service calls now name the real cause",
-    );
-    expect(goreleaser).toContain(
-      "Automation suggestions are honest about what already exists",
-    );
-    expect(goreleaser).toContain(
-      "offered for enabling instead of being silently skipped",
-    );
+  it("keeps v0.25.1 release-facing wording aligned to the shipped stack", () => {
+    expect(goreleaser).toContain("Cloud Remote is back on Windows and Linux");
+    expect(goreleaser).toContain("per-platform release provenance");
+    expect(goreleaser).not.toContain("macOS-only in this release");
     expect(readme).toContain(
       "Optional remote access with Home Assistant Cloud (Beta)",
     );

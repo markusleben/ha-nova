@@ -608,19 +608,42 @@ describe("cloud evidence PR target binding", () => {
     expect(readFileSync(fake.trace, "utf8")).not.toContain("set:");
   });
 
-  it("validates the envelope before spending anything on reachability or dispatch", () => {
+  it("an unreachable lab host stays fail-closed without the explicit fallback opt-in", () => {
     const { fixture, fake } = prFixture();
     const envelope = validEnvelope(fixture.mainCommit, fixture.mainTree, platforms);
     const envelopeFile = writeEnvelope(fixture, envelope);
 
     const result = runScript(fixture, fake, ["7", "--set", "--envelope", envelopeFile]);
-    // Validation passed (the message printed), then the fake ssh stopped the
-    // run at reachability — no dispatch, no secret writes.
     expect(result.status).not.toBe(0);
     expect(result.stdout).toContain("envelope matches the target and the gate contract");
-    expect(result.stderr).toContain("unreachable");
+    expect(result.stderr).toContain("HA_NOVA_EVIDENCE_RUNNER_FALLBACK=1");
     const trace = readFileSync(fake.trace, "utf8");
-    expect(trace).toContain("read:pr");
+    expect(trace).not.toContain("dispatch");
+    expect(trace).not.toContain("set:");
+  });
+
+  it("the opted-in fallback still refuses a bundle without valid signed evidence (2026-08-28)", () => {
+    const { fixture, fake } = prFixture();
+    const envelope = validEnvelope(fixture.mainCommit, fixture.mainTree, platforms);
+    const envelopeFile = writeEnvelope(fixture, envelope);
+    writeFileSync(
+      join(fake.state, "runs-1.json"),
+      JSON.stringify([{ databaseId: 42, status: "completed", conclusion: "success", event: "workflow_dispatch" }]),
+    );
+    seedBundle(fake, "ha-nova-installer-bundle-linux-amd64.tar.gz", { tree: fixture.mainTree });
+
+    const result = runScript(fixture, fake, ["7", "--set", "--envelope", envelopeFile], {
+      HA_NOVA_EVIDENCE_RUNNER_FALLBACK: "1",
+    });
+    // Reachability records the fallback, the bundle reuses the seeded run,
+    // and the POSITIVE static verification then rejects the unsigned bundle
+    // before any secret is written.
+    expect(result.status).not.toBe(0);
+    expect(result.stdout).toContain(
+      "static signed-evidence verification + the workflow's native runner smoke stand in",
+    );
+    expect(result.stderr).toContain("static signed-evidence verification failed");
+    const trace = readFileSync(fake.trace, "utf8");
     expect(trace).not.toContain("set:");
   });
 

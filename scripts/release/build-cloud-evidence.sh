@@ -356,6 +356,23 @@ fi
 # a preflight that reports "reachable" without asking is the failure it exists
 # to prevent, and discovering an unreachable host after building and
 # downloading a candidate wastes the expensive half of the job.
+# Non-darwin lab hosts are best-effort (maintainer decision 2026-08-28), but
+# the fallback is neither silent nor free: it requires the explicit per-run
+# opt-in HA_NOVA_EVIDENCE_RUNNER_FALLBACK=1, and each fallback platform's
+# final bundle still gets a POSITIVE local verification of its signed Cloud
+# release evidence (Ed25519 signature, binary sha256, tree binding) via
+# verify-cloud-release-evidence.mjs — only the installed-layout RUNTIME
+# execution is skipped, and that residual gap goes in the ledger. A REACHABLE
+# lab host is never skipped. darwin stays hard: it is the maintainer host.
+RUNNER_FALLBACK=""
+fallback_or_die() {  # <platform> <detail>
+  if [ "${HA_NOVA_EVIDENCE_RUNNER_FALLBACK:-}" = "1" ]; then
+    RUNNER_FALLBACK="$RUNNER_FALLBACK $1"
+    echo "  $1: $2 unreachable — static signed-evidence verification + the workflow's native runner smoke stand in (record in the ledger)"
+  else
+    die "$1: $2 unreachable — bring it up, or set HA_NOVA_EVIDENCE_RUNNER_FALLBACK=1 to accept the static-verification fallback (recorded in the ledger)"
+  fi
+}
 step "platform reachability"
 for platform in $platforms; do
   case "$platform" in
@@ -364,23 +381,24 @@ for platform in $platforms; do
         || die "darwin provenance must run on macOS; this host is $(uname -s)"
       echo "  darwin: this host" ;;
     linux)
-      ssh -o BatchMode=yes -o ConnectTimeout=8 "$LINUX_SSH" true 2>/dev/null \
-        || die "linux: '$LINUX_SSH' unreachable — set HA_NOVA_LINUX_SSH or bring it up"
-      echo "  linux: $LINUX_SSH" ;;
+      if ssh -o BatchMode=yes -o ConnectTimeout=8 "$LINUX_SSH" true 2>/dev/null; then
+        echo "  linux: $LINUX_SSH"
+      else
+        fallback_or_die linux "'$LINUX_SSH'"
+      fi ;;
     windows)
-      # No emptiness guard: `${HA_NOVA_WINDOWS_SSH:-ha-nova-win}` already
-      # substitutes the default for an empty value, so it was unreachable. The
-      # probe below is what actually protects the attestation — windows cannot
-      # be skipped, and must never be marked true from a host that did not run it.
-      ssh -o BatchMode=yes -o ConnectTimeout=8 "$WINDOWS_SSH" 'cmd /c "echo ok"' >/dev/null 2>&1 \
-        || die "windows: '$WINDOWS_SSH' unreachable. Do not guess an address — ask the hypervisor for the guest's CURRENT one and fix the ssh alias." ;;
+      if ssh -o BatchMode=yes -o ConnectTimeout=8 "$WINDOWS_SSH" 'cmd /c "echo ok"' >/dev/null 2>&1; then
+        echo "  windows: $WINDOWS_SSH"
+      else
+        fallback_or_die windows "'$WINDOWS_SSH'"
+      fi ;;
     *) die "unknown platform '$platform' in cloud_remote_platforms" ;;
   esac
 done
 
 if [ "$MODE" = "--dry-run" ]; then
   echo ""
-  echo "[cloud-evidence] dry run: target resolved and every platform answered."
+  echo "[cloud-evidence] dry run: target resolved; the platform evidence plan is printed above."
   echo "                 Re-run without --dry-run to dispatch."
   exit 0
 fi
@@ -521,9 +539,45 @@ if [ "$bundles_ok" != true ]; then
 fi
 
 # ── 3. provenance, per platform ──────────────────────────────────────────────
-# The positive path: the INSTALLED bundle must accept its own provenance. CI
-# only proves the negative (raw binaries reject it), so this cannot be skipped.
+# The positive path: the INSTALLED bundle must accept its own provenance on
+# the maintainer host (darwin) and on every reachable lab host. Platforms in
+# RUNNER_FALLBACK instead get a POSITIVE local verification of the exact
+# bundle's signed Cloud release evidence; the installed-layout runtime
+# execution is the one thing skipped (opt-in, ledger-recorded).
+platforms_csv="$(git -C "$ROOT_DIR" show "$target_commit:version.json" | jq -r '.cloud_remote_platforms | join(",")')"
+fallback_static_verify() {  # <platform>
+  local fb_platform="$1" fb_arch archive x
+  case "$fb_platform" in
+    linux)
+      for fb_arch in amd64 arm64; do
+        archive="$work/bundles/ha-nova-installer-bundle-linux-${fb_arch}.tar.gz"
+        [ -f "$archive" ] || die "linux: $archive missing from the artifact"
+        x="$work/fallback-linux-$fb_arch"; mkdir -p "$x"
+        tar -xzf "$archive" -C "$x" || die "linux/$fb_arch: cannot extract $archive"
+        node "$SCRIPT_DIR/verify-cloud-release-evidence.mjs" \
+          "$x/ha-nova/bundle.json" "$x/ha-nova/ha-nova" "${version_tag#v}" \
+          linux "$fb_arch" ha-nova "$target_tree" "$platforms_csv" \
+          || die "linux/$fb_arch: static signed-evidence verification failed — the fallback never accepts a broken bundle"
+      done ;;
+    windows)
+      archive="$work/bundles/ha-nova-installer-bundle-windows-amd64.zip"
+      [ -f "$archive" ] || die "windows: $archive missing from the artifact"
+      x="$work/fallback-windows"; mkdir -p "$x"
+      unzip -q "$archive" -d "$x" || die "windows: cannot extract $archive"
+      node "$SCRIPT_DIR/verify-cloud-release-evidence.mjs" \
+        "$x/ha-nova/bundle.json" "$x/ha-nova/ha-nova.exe" "${version_tag#v}" \
+        windows amd64 ha-nova.exe "$target_tree" "$platforms_csv" \
+        || die "windows: static signed-evidence verification failed — the fallback never accepts a broken bundle" ;;
+  esac
+}
 for platform in $platforms; do
+  case " $RUNNER_FALLBACK " in
+    *" $platform "*)
+      step "provenance fallback: $platform (static signed-evidence verification, local)"
+      fallback_static_verify "$platform"
+      echo "  $platform: signed evidence verified locally; installed-layout runtime execution skipped (ledger)"
+      continue ;;
+  esac
   case "$platform" in
     darwin)
       arch="$(uname -m | sed 's/x86_64/amd64/')"
@@ -580,8 +634,16 @@ else
   echo "$envelope" | jq .
   echo ""
   echo "  This run proved: artifact checksums, plus one internal-cloud-release-check"
-  echo "  per enabled platform ($(tr '\n' ' ' <<<"$platforms")), each from an installed"
-  echo "  layout. That is the execution backing for signing_and_update_matrix; every"
+  echo "  from an installed layout on each platform that ran it."
+  for platform in $platforms; do
+    case " $RUNNER_FALLBACK " in
+      *" $platform "*)
+        echo "    $platform: FALLBACK — static signed-evidence verification only; NO installed-layout run (ledger)" ;;
+      *)
+        echo "    $platform: installed-layout internal-cloud-release-check ran" ;;
+    esac
+  done
+  echo "  That is the execution backing for signing_and_update_matrix; every"
   echo "  other boolean (and keyrings per OS) is a qualification decision this script"
   echo "  will not make. Edit each value you can attest to true, save the file,"
   echo "  record the ledger in the PR, then re-run with: --set --envelope <file>"

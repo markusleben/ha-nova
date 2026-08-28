@@ -67,11 +67,17 @@ export function registerCloudReleaseGateContractTests(): void {
       cloud_remote_platforms?: unknown;
     };
     expect(version.cloud_remote_enabled).toBe(true);
-    expect(version.cloud_remote_platforms).toEqual(["darwin"]);
+    expect(version.cloud_remote_platforms).toEqual([
+      "darwin",
+      "linux",
+      "windows",
+    ]);
     expect(appVersion.cloud_remote_enabled).toBe(version.cloud_remote_enabled);
     expect(appVersion.cloud_remote_platforms).toEqual(version.cloud_remote_platforms);
     expect(cloudSpec).toContain('"cloud_remote_enabled": true');
-    expect(cloudSpec).toContain('"cloud_remote_platforms": ["darwin"]');
+    expect(cloudSpec).toContain(
+      '"cloud_remote_platforms": ["darwin", "linux", "windows"]',
+    );
 
     for (const workflow of [releaseWorkflow, rcWorkflow]) {
       const protectionIndex = workflow.indexOf(

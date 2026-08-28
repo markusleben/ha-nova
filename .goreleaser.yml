@@ -71,18 +71,7 @@ release:
     Windows uses a single supported install path: `install.ps1`. Return an RC install to stable later with `ha-nova update`.
     {{ else }}## What To Watch
 
-    - **Cloud Remote is macOS-only in this release.** Windows and Linux clients keep full local functionality; Cloud Remote there stays disabled while per-platform validation infrastructure is unavailable.
-
-    ## New Features
-
-    - **Finish Cloud setup over SSH.** `ha-nova cloud add --remote-resume` resumes an existing verified authorization checkpoint from an SSH session. Starting a new authorization still needs a desktop session.
-    - **Invalid integration credentials get a guided recovery.** HA NOVA previews and runs the entry reload that makes Home Assistant re-validate a failing credential, then continues the normal reauthentication handoff.
-    - **Failed service calls now name the real cause.** An error that coincides with Home Assistant starting reauthentication for that integration is reported as exactly that, with a direct path into the recovery flow.
-
-    ## Bug Fixes
-
-    - **Automation suggestions are honest about what already exists.** Duplicate detection covers labels, groups, and blueprint inputs; a disabled automation is offered for enabling instead of being silently skipped.
-    - **Replicating an automation to another room got stricter.** Disabled counterparts, room-bound group or label targets, and unsupported device triggers stop the copy instead of leaving a replica that never runs.
+    - **Cloud Remote is back on Windows and Linux.** v0.25.0 briefly shipped it macOS-only; this release restores the full platform list with fresh per-platform release provenance. Updating restores lost Cloud routing.
 
     Stable install commands are release-pinned for this tag.
 
