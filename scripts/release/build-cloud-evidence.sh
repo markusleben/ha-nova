@@ -634,8 +634,16 @@ else
   echo "$envelope" | jq .
   echo ""
   echo "  This run proved: artifact checksums, plus one internal-cloud-release-check"
-  echo "  per enabled platform ($(tr '\n' ' ' <<<"$platforms")), each from an installed"
-  echo "  layout. That is the execution backing for signing_and_update_matrix; every"
+  echo "  from an installed layout on each platform that ran it."
+  for platform in $platforms; do
+    case " $RUNNER_FALLBACK " in
+      *" $platform "*)
+        echo "    $platform: FALLBACK — static signed-evidence verification only; NO installed-layout run (ledger)" ;;
+      *)
+        echo "    $platform: installed-layout internal-cloud-release-check ran" ;;
+    esac
+  done
+  echo "  That is the execution backing for signing_and_update_matrix; every"
   echo "  other boolean (and keyrings per OS) is a qualification decision this script"
   echo "  will not make. Edit each value you can attest to true, save the file,"
   echo "  record the ledger in the PR, then re-run with: --set --envelope <file>"
