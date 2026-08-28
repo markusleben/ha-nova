@@ -356,6 +356,14 @@ fi
 # a preflight that reports "reachable" without asking is the failure it exists
 # to prevent, and discovering an unreachable host after building and
 # downloading a candidate wastes the expensive half of the job.
+# Non-darwin lab hosts are best-effort (maintainer decision 2026-08-28): the
+# candidate workflow already smokes the exact raw binaries natively on every
+# enabled platform's own runner, and that hash-bound run is the per-platform
+# execution evidence. A REACHABLE lab host is never skipped — the installed-
+# layout provenance then runs on it as before; an unreachable one falls back
+# to the workflow's native smoke and the fallback is named in the output (put
+# it in the ledger). darwin stays hard: it is the maintainer host.
+RUNNER_FALLBACK=""
 step "platform reachability"
 for platform in $platforms; do
   case "$platform" in
@@ -364,23 +372,26 @@ for platform in $platforms; do
         || die "darwin provenance must run on macOS; this host is $(uname -s)"
       echo "  darwin: this host" ;;
     linux)
-      ssh -o BatchMode=yes -o ConnectTimeout=8 "$LINUX_SSH" true 2>/dev/null \
-        || die "linux: '$LINUX_SSH' unreachable — set HA_NOVA_LINUX_SSH or bring it up"
-      echo "  linux: $LINUX_SSH" ;;
+      if ssh -o BatchMode=yes -o ConnectTimeout=8 "$LINUX_SSH" true 2>/dev/null; then
+        echo "  linux: $LINUX_SSH"
+      else
+        RUNNER_FALLBACK="$RUNNER_FALLBACK linux"
+        echo "  linux: '$LINUX_SSH' unreachable — falling back to the workflow's native linux runner smoke (record in the ledger)"
+      fi ;;
     windows)
-      # No emptiness guard: `${HA_NOVA_WINDOWS_SSH:-ha-nova-win}` already
-      # substitutes the default for an empty value, so it was unreachable. The
-      # probe below is what actually protects the attestation — windows cannot
-      # be skipped, and must never be marked true from a host that did not run it.
-      ssh -o BatchMode=yes -o ConnectTimeout=8 "$WINDOWS_SSH" 'cmd /c "echo ok"' >/dev/null 2>&1 \
-        || die "windows: '$WINDOWS_SSH' unreachable. Do not guess an address — ask the hypervisor for the guest's CURRENT one and fix the ssh alias." ;;
+      if ssh -o BatchMode=yes -o ConnectTimeout=8 "$WINDOWS_SSH" 'cmd /c "echo ok"' >/dev/null 2>&1; then
+        echo "  windows: $WINDOWS_SSH"
+      else
+        RUNNER_FALLBACK="$RUNNER_FALLBACK windows"
+        echo "  windows: '$WINDOWS_SSH' unreachable — falling back to the workflow's native windows runner smoke (record in the ledger)"
+      fi ;;
     *) die "unknown platform '$platform' in cloud_remote_platforms" ;;
   esac
 done
 
 if [ "$MODE" = "--dry-run" ]; then
   echo ""
-  echo "[cloud-evidence] dry run: target resolved and every platform answered."
+  echo "[cloud-evidence] dry run: target resolved; the platform evidence plan is printed above."
   echo "                 Re-run without --dry-run to dispatch."
   exit 0
 fi
@@ -521,9 +532,16 @@ if [ "$bundles_ok" != true ]; then
 fi
 
 # ── 3. provenance, per platform ──────────────────────────────────────────────
-# The positive path: the INSTALLED bundle must accept its own provenance. CI
-# only proves the negative (raw binaries reject it), so this cannot be skipped.
+# The positive path: the INSTALLED bundle must accept its own provenance on
+# the maintainer host (darwin) and on every reachable lab host. Platforms in
+# RUNNER_FALLBACK carry the workflow's native runner smoke as their
+# execution evidence instead (see the reachability step above).
 for platform in $platforms; do
+  case " $RUNNER_FALLBACK " in
+    *" $platform "*)
+      echo "  $platform: installed-layout provenance skipped — workflow native runner smoke is the execution evidence"
+      continue ;;
+  esac
   case "$platform" in
     darwin)
       arch="$(uname -m | sed 's/x86_64/amd64/')"

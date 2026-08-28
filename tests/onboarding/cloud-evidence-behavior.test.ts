@@ -608,20 +608,26 @@ describe("cloud evidence PR target binding", () => {
     expect(readFileSync(fake.trace, "utf8")).not.toContain("set:");
   });
 
-  it("validates the envelope before spending anything on reachability or dispatch", () => {
+  it("an unreachable lab host falls back to the runner smoke instead of dying (2026-08-28)", () => {
     const { fixture, fake } = prFixture();
     const envelope = validEnvelope(fixture.mainCommit, fixture.mainTree, platforms);
     const envelopeFile = writeEnvelope(fixture, envelope);
+    writeFileSync(
+      join(fake.state, "runs-1.json"),
+      JSON.stringify([{ databaseId: 42, status: "completed", conclusion: "success", event: "workflow_dispatch" }]),
+    );
+    seedBundle(fake, "ha-nova-installer-bundle-linux-amd64.tar.gz", { tree: fixture.mainTree });
 
     const result = runScript(fixture, fake, ["7", "--set", "--envelope", envelopeFile]);
-    // Validation passed (the message printed), then the fake ssh stopped the
-    // run at reachability — no dispatch, no secret writes.
-    expect(result.status).not.toBe(0);
+    // Validation passed, the fake ssh is unreachable — the run names the
+    // runner-smoke fallback and still completes the set.
+    expect(result.status, `${result.stdout}\n${result.stderr}`).toBe(0);
     expect(result.stdout).toContain("envelope matches the target and the gate contract");
-    expect(result.stderr).toContain("unreachable");
+    expect(result.stdout).toContain("falling back to the workflow's native linux runner smoke");
     const trace = readFileSync(fake.trace, "utf8");
     expect(trace).toContain("read:pr");
-    expect(trace).not.toContain("set:");
+    expect(trace).toContain("set:repo");
+    expect(trace).toContain("set:env");
   });
 
   const RUN = (databaseId: number, status: string, conclusion: string | null) => ({

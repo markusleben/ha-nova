@@ -16,8 +16,12 @@ Keep the existing evidence schema and fail-closed verifier. Split evidence
 into two layers:
 
 1. Exact-target checks always run: CI, security and recovery contracts,
-   candidate provenance on every enabled platform, and the exact installed
-   Relay App. For deltas that match an invalidation-map row with
+   per-platform execution evidence — the candidate workflow's hash-bound
+   native runner smoke on every enabled platform, plus the installed-layout
+   provenance on the maintainer host and on every reachable lab host
+   (maintainer decision 2026-08-28: an unreachable lab host falls back to
+   the runner smoke, named in the ledger; a reachable one is never
+   skipped) — and the exact installed Relay App. For deltas that match an invalidation-map row with
    real-platform scope, one real reference-platform Cloud health smoke also
    runs, using the downloaded candidate binary with Census suppressed —
    unless the reference-smoke waiver below applies.
@@ -68,10 +72,12 @@ unavailable infrastructure; a check that can still run, runs. A waiver is never 
 unavailable infrastructure that makes the waiver eligible, the waived
 checks, the last real qualification they carry from, the exact crossing
 delta, and state that the maintainer accepts the residual risk. Four things
-are never waivable: the JSON envelope, the commit/tree identity, candidate
-provenance on every enabled platform, and the live `installed_relay_app`
-check. None of the four requires the reference platform: provenance runs
-locally or over any remote shell per enabled OS, and `installed_relay_app`
+are never waivable: the JSON envelope, the commit/tree identity, the
+per-platform execution evidence (the candidate workflow's native runner
+smoke; installed-layout provenance on the maintainer host, plus reachable
+lab hosts), and the live `installed_relay_app`
+check. None of the four requires the reference platform: the runner smokes
+run in the candidate workflow itself, and `installed_relay_app`
 is a live relay health read that may run from any host that reaches the
 installed Relay App. The map rows' "one reference platform" scope governs
 only the waivable qualification repeats — including the Relay-App row's —

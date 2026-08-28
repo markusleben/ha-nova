@@ -289,7 +289,7 @@ stale-evidence message, even a docs-only one that the escape should carry
 
 The mechanical steps of this flow — resolving the exact merge target, binding
 and reusing the one candidate dispatch, verifying the artifact checksums,
-running the per-platform provenance checks, writing the secret to BOTH
+running the provenance checks (maintainer host; lab hosts when reachable, runner-smoke fallback otherwise), writing the secret to BOTH
 locations with verified timestamps, and the post-merge repoint — are
 automated by `scripts/release/build-cloud-evidence.sh` (usage in its header).
 The attestation never is: the script refuses to set any check boolean and
@@ -570,7 +570,9 @@ validation infrastructure is available, the maintainer may waive the smoke
 and the real-platform qualification reruns required by the delta's matched
 map rows, under the spec's reference-smoke waiver — the waiver lives in the
 PR ledger and must name the unavailable infrastructure; the envelope, the
-commit/tree identity, candidate provenance on every enabled platform, and
+commit/tree identity, the per-platform execution evidence (the candidate
+workflow's native runner smokes; installed-layout provenance on the
+maintainer host and every reachable lab host), and
 the exact installed Relay App check stay mandatory. Under the waiver,
 satisfy the live installed-App read with `relay health` over a non-Cloud
 route from any host that reaches the installed App, asserting the same
