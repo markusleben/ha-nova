@@ -482,24 +482,66 @@ matching_candidate_runs() {
     ))
   '
 }
+matching_run_now() {  # <run-id>
+  local selected_id="$1" run matched
+  run="$(gh api "repos/$REPO/actions/runs/$selected_id")" \
+    || die "cannot revalidate candidate run $selected_id"
+  matched="$(matching_candidate_runs <<<"[$run]")" \
+    || die "cannot filter candidate run $selected_id"
+  jq -e --argjson id "$selected_id" \
+    'length == 1 and .[0].id == $id' >/dev/null <<<"$matched"
+}
+require_matching_run() {  # <run-id> <phase>
+  local selected_id="$1" phase="$2"
+  matching_run_now "$selected_id" \
+    || die "candidate run $selected_id no longer has the exact request identity and attempt 1 $phase"
+}
 
 runs_json="$(list_candidate_runs)" || die "cannot list candidate runs"
 matching_runs_json="$(matching_candidate_runs <<<"$runs_json")" \
   || die "cannot filter candidate runs"
-inflight_id="$(jq -r 'map(select(.status != "completed")) | first | .id // empty' <<<"$matching_runs_json")"
+inflight_id="$(jq -r 'map(select(.status != "completed")) | max_by(.id) | .id // empty' <<<"$matching_runs_json")"
 if [ -n "$inflight_id" ]; then
   echo "  matching run $inflight_id is in flight — watching it first"
-  gh run watch "$inflight_id" --repo "$REPO" --exit-status >/dev/null \
-    || echo "  in-flight run $inflight_id did not succeed — continuing"
+  if matching_run_now "$inflight_id"; then
+    watch_succeeded=true
+    gh run watch "$inflight_id" --repo "$REPO" --exit-status >/dev/null \
+      || watch_succeeded=false
+    if ! matching_run_now "$inflight_id"; then
+      echo "  in-flight run $inflight_id changed identity or attempt — discarding it"
+    elif [ "$watch_succeeded" != true ]; then
+      echo "  in-flight run $inflight_id did not succeed — continuing"
+    fi
+  else
+    echo "  in-flight run $inflight_id changed identity or attempt before watch — discarding it"
+  fi
   runs_json="$(list_candidate_runs)" || die "cannot list candidate runs"
   matching_runs_json="$(matching_candidate_runs <<<"$runs_json")" \
     || die "cannot filter candidate runs"
 fi
 
-download_run() {  # <run-id> ; hard-fails
+fetch_run_bundles() {  # <run-id> [quiet] ; missing artifact returns nonzero
+  matching_run_now "$1" || return 2
   rm -rf "$work/bundles"
-  gh run download "$1" --repo "$REPO" --name cloud-candidate-install-bundles --dir "$work/bundles" \
-    || die "cannot download the install bundles from run $1 (artifacts expire after 7 days)"
+  if [ "${2:-}" = quiet ]; then
+    gh run download "$1" --repo "$REPO" --name cloud-candidate-install-bundles --dir "$work/bundles" 2>/dev/null \
+      || return
+  else
+    gh run download "$1" --repo "$REPO" --name cloud-candidate-install-bundles --dir "$work/bundles" \
+      || return
+  fi
+  matching_run_now "$1" || return 2
+}
+download_run() {  # <run-id> ; hard-fails
+  local result
+  if fetch_run_bundles "$1"; then
+    :
+  else
+    result="$?"
+    [ "$result" != 2 ] \
+      || die "candidate run $1 changed identity or attempt before its artifact could be trusted"
+    die "cannot download the install bundles from run $1 (artifacts expire after 7 days)"
+  fi
   step "verifying the artifact's checksums"
   verify_bundle_checksums
 }
@@ -524,7 +566,7 @@ dispatch_and_bind() {  # sets run_id
     sleep "${HA_NOVA_POLL_SECONDS:-10}"
     run_id="$(list_candidate_runs | matching_candidate_runs \
       | jq -r --argjson m "$max_before" '
-          map(select(.id > $m)) | min_by(.id) | .id // empty
+          map(select(.id > $m)) | max_by(.id) | .id // empty
         ')" \
       || die "cannot list candidate runs"
     [ -n "$run_id" ] && break
@@ -532,18 +574,23 @@ dispatch_and_bind() {  # sets run_id
   [ -n "$run_id" ] \
     || die "the dispatched run never appeared within 300s. It may still be queued — check: gh run list --workflow cloud-candidate-bundle.yml --repo $REPO"
   echo "  run $run_id — waiting for completion"
+  require_matching_run "$run_id" "before watch"
+  watch_succeeded=true
   gh run watch "$run_id" --repo "$REPO" --exit-status >/dev/null \
+    || watch_succeeded=false
+  require_matching_run "$run_id" "after watch"
+  [ "$watch_succeeded" = true ] \
     || die "run $run_id failed — fix the cause in a reviewed PR, then dispatch once more"
 }
 
 run_id="$(jq -r '
   map(select(.status == "completed" and .conclusion == "success"))
-  | first | .id // empty
+  | max_by(.id) | .id // empty
 ' <<<"$matching_runs_json")"
 bundles_ok=false
 if [ -n "$run_id" ]; then
   step "reuse candidate: exact successful run $run_id — its artifact must also prove this target"
-  if gh run download "$run_id" --repo "$REPO" --name cloud-candidate-install-bundles --dir "$work/bundles" 2>/dev/null; then
+  if fetch_run_bundles "$run_id" quiet; then
     step "verifying the artifact's checksums"
     verify_bundle_checksums
     step "verifying bundle identity (before anything executes)"
@@ -554,7 +601,12 @@ if [ -n "$run_id" ]; then
       echo "  not this target's candidate — dispatching fresh"
     fi
   else
-    echo "  cannot download run $run_id's artifact (likely expired after 7 days) — dispatching fresh"
+    download_result="$?"
+    if [ "$download_result" = 2 ]; then
+      echo "  run $run_id changed identity or attempt — dispatching fresh"
+    else
+      echo "  cannot download run $run_id's artifact (likely expired after 7 days) — dispatching fresh"
+    fi
   fi
 fi
 

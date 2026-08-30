@@ -152,6 +152,13 @@ bump() {
   printf 'stamp-%s\\n' "\$n" >"\${FAKE_GH_STATE}/\$f.stamp"
 }
 last_arg() { local a v=""; for a in "$@"; do v="$a"; done; printf '%s' "$v"; }
+current_run() {
+  local id="\$1" n f
+  n="$(cat "\${FAKE_GH_STATE}/list.count" 2>/dev/null || echo 1)"
+  f="\${FAKE_GH_STATE}/runs-\$n.json"
+  while [ ! -f "\$f" ] && [ "\$n" -gt 1 ]; do n=$((n - 1)); f="\${FAKE_GH_STATE}/runs-\$n.json"; done
+  jq -c --argjson id "\$id" '[.[] | .workflow_runs[] | select(.id == \$id)] | first // empty' "\$f"
+}
 case "$args" in
   "api user --jq .login")
     printf '%s\\n' "\${FAKE_GH_LOGIN}" ;;
@@ -183,14 +190,34 @@ case "$args" in
     f="\${FAKE_GH_STATE}/runs-\$n.json"
     while [ ! -f "\$f" ] && [ "\$n" -gt 1 ]; do n=$((n - 1)); f="\${FAKE_GH_STATE}/runs-\$n.json"; done
     cat "\$f" 2>/dev/null || printf '[{"total_count":0,"workflow_runs":[]}]\\n' ;;
+  "api repos/${REPO_SLUG}/actions/runs/"*)
+    id="\${args##*/}"
+    trace "run-view:\$id"
+    n="$(cat "\${FAKE_GH_STATE}/run-\$id.count" 2>/dev/null || echo 0)"
+    n=$((n + 1))
+    printf '%s\\n' "\$n" >"\${FAKE_GH_STATE}/run-\$id.count"
+    f="\${FAKE_GH_STATE}/run-\$id-\$n.json"
+    while [ ! -f "\$f" ] && [ "\$n" -gt 1 ]; do n=$((n - 1)); f="\${FAKE_GH_STATE}/run-\$id-\$n.json"; done
+    if [ -f "\$f" ]; then cat "\$f"; else current_run "\$id"; fi ;;
   "workflow run cloud-candidate-bundle.yml --repo ${REPO_SLUG} -f pull_request=7 -f version_tag="*" -f request_id="*)
     trace "dispatch"
     exit 0 ;;
   "run watch "*" --repo ${REPO_SLUG} --exit-status")
-    trace "run-watch:$3"
+    id="$3"
+    trace "run-watch:\$id"
+    if [ -f "\${FAKE_GH_STATE}/watch-\$id.exit" ]; then
+      exit "$(cat "\${FAKE_GH_STATE}/watch-\$id.exit")"
+    fi
+    if current_run "\$id" | jq -e '.status == "completed" and .conclusion != "success"' >/dev/null; then
+      exit 1
+    fi
     exit 0 ;;
   "run download "*" --repo ${REPO_SLUG} --name cloud-candidate-install-bundles --dir "*)
     trace "run-download:$3"
+    if ! compgen -G "\${FAKE_GH_STATE}/bundles/*" >/dev/null; then
+      echo "fake-gh: candidate artifact unavailable" >&2
+      exit 1
+    fi
     dest="$(last_arg "$@")"
     mkdir -p "$dest"
     cp "\${FAKE_GH_STATE}/bundles/"* "$dest"/ ;;
@@ -824,6 +851,124 @@ describe("cloud evidence PR target binding", () => {
     expect(result.stdout).toContain("reusing run 42");
   });
 
+  it("binds a dispatch to the newest exact post-fence run", () => {
+    const { fixture, fake } = prFixture();
+    const older = RUN(fixture, 99, "completed", "cancelled");
+    const newer = RUN(fixture, 100, "queued", null);
+    writeFileSync(
+      join(fake.state, "runs-1.json"),
+      JSON.stringify(RUN_PAGES([])),
+    );
+    writeFileSync(
+      join(fake.state, "runs-2.json"),
+      JSON.stringify(RUN_PAGES([older, newer])),
+    );
+    writeFileSync(join(fake.state, "run-100-1.json"), JSON.stringify(newer));
+    writeFileSync(
+      join(fake.state, "run-100-2.json"),
+      JSON.stringify(RUN(fixture, 100, "completed", "success")),
+    );
+    writeFileSync(
+      join(fake.state, "run-100-3.json"),
+      JSON.stringify(RUN(fixture, 100, "completed", "success")),
+    );
+    seedBundle(fake, "ha-nova-installer-bundle-linux-amd64.tar.gz", {
+      tree: fixture.mainTree,
+    });
+
+    const result = runScript(fixture, fake, ["7"], { FAKE_SSH_OK: "1" });
+    const trace = readFileSync(fake.trace, "utf8");
+    expect(trace).toContain("dispatch");
+    expect(trace).toContain("run-watch:100");
+    expect(trace).toContain("run-download:100");
+    expect(trace).not.toContain("run-watch:99");
+    expect(trace).not.toContain("run-download:99");
+    expect(result.stdout).toContain("run 100 — waiting for completion");
+  });
+
+  it("discards a reusable run whose attempt changes before download", () => {
+    const { fixture, fake } = prFixture();
+    writeFileSync(
+      join(fake.state, "runs-1.json"),
+      JSON.stringify(
+        RUN_PAGES([RUN(fixture, 42, "completed", "success")]),
+      ),
+    );
+    writeFileSync(
+      join(fake.state, "run-42-1.json"),
+      JSON.stringify(
+        RUN(fixture, 42, "completed", "success", { attempt: 2 }),
+      ),
+    );
+    writeFileSync(
+      join(fake.state, "runs-2.json"),
+      JSON.stringify(
+        RUN_PAGES([
+          RUN(fixture, 99, "completed", "success"),
+          RUN(fixture, 42, "completed", "success", { attempt: 2 }),
+        ]),
+      ),
+    );
+    seedBundle(fake, "ha-nova-installer-bundle-linux-amd64.tar.gz", {
+      tree: fixture.mainTree,
+    });
+
+    runScript(fixture, fake, ["7"], { FAKE_SSH_OK: "1" });
+    const trace = readFileSync(fake.trace, "utf8");
+    expect(trace).toContain("run-view:42");
+    expect(trace).toContain("dispatch");
+    expect(trace).toContain("run-download:99");
+    expect(trace).not.toContain("run-download:42");
+  });
+
+  it("discards an in-flight run whose attempt changes during watch", () => {
+    const { fixture, fake } = prFixture();
+    writeFileSync(
+      join(fake.state, "runs-1.json"),
+      JSON.stringify(RUN_PAGES([RUN(fixture, 42, "in_progress", null)])),
+    );
+    writeFileSync(
+      join(fake.state, "run-42-1.json"),
+      JSON.stringify(RUN(fixture, 42, "in_progress", null)),
+    );
+    writeFileSync(
+      join(fake.state, "run-42-2.json"),
+      JSON.stringify(
+        RUN(fixture, 42, "completed", "success", { attempt: 2 }),
+      ),
+    );
+    writeFileSync(
+      join(fake.state, "runs-2.json"),
+      JSON.stringify(
+        RUN_PAGES([
+          RUN(fixture, 42, "completed", "success", { attempt: 2 }),
+        ]),
+      ),
+    );
+    writeFileSync(
+      join(fake.state, "runs-3.json"),
+      JSON.stringify(
+        RUN_PAGES([
+          RUN(fixture, 99, "completed", "success"),
+          RUN(fixture, 42, "completed", "success", { attempt: 2 }),
+        ]),
+      ),
+    );
+    seedBundle(fake, "ha-nova-installer-bundle-linux-amd64.tar.gz", {
+      tree: fixture.mainTree,
+    });
+
+    runScript(fixture, fake, ["7"], { FAKE_SSH_OK: "1" });
+    const trace = readFileSync(fake.trace, "utf8");
+    const views = [...trace.matchAll(/run-view:42/g)];
+    expect(views).toHaveLength(2);
+    const secondList = trace.indexOf("run-list", trace.indexOf("run-list") + 1);
+    expect(views[1]?.index).toBeLessThan(secondList);
+    expect(trace).toContain("dispatch");
+    expect(trace).toContain("run-download:99");
+    expect(trace).not.toContain("run-download:42");
+  });
+
   it("fails closed when GitHub reports more runs than its filtered-search cap", () => {
     const { fixture, fake } = prFixture();
     writeFileSync(
@@ -945,6 +1090,7 @@ describe("cloud evidence PR target binding", () => {
     const result = runScript(fixture, fake, ["7"], { FAKE_SSH_OK: "1" });
     expect(result.status, result.stdout).not.toBe(0);
     expect(result.stdout).toContain("dispatching fresh");
+    expect(result.stderr).toContain("fake-gh: candidate artifact unavailable");
     expect(result.stderr).toContain("cannot download the install bundles from run 99");
   });
 

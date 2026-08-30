@@ -22,6 +22,9 @@ the same Git tree.
 - Candidate discovery must paginate the complete final-artifact retention
   window and fail closed if GitHub reports more filtered results than it can
   return.
+- When several exact runs exist, selection uses the highest run ID. Individual
+  run metadata must still match the complete selector and attempt 1 before and
+  after watch, and before and after artifact download.
 - Bundle version, signature, checksum, tree, and provenance checks remain
   mandatory after run selection.
 - A foreign run never delays or replaces a fresh exact-identity dispatch.
@@ -31,4 +34,5 @@ the same Git tree.
 Behavior tests use raw paginated GitHub workflow-run responses, distinct real
 base, head, and synthetic merge commits sharing one tree, and real bundle
 archives. They cover shifted identity fields, foreign successful and in-flight
-runs, an exact run behind more than 30 foreign runs, exact reuse, and `--set`.
+runs, an exact run behind more than 30 foreign runs, competing exact runs,
+attempt changes, exact reuse, and `--set`.

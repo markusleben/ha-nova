@@ -477,6 +477,17 @@ list_candidate_runs() {
   }
   jq '[.[] | .workflow_runs[]]' <<<"${pages}"
 }
+require_exact_run() {
+  gh api "repos/markusleben/ha-nova/actions/runs/$1" \
+    | jq -e --argjson id "$1" --arg title "${RUN_TITLE}" \
+        --arg trusted "${BASE_SHA}" '
+          .id == $id
+          and .event == "workflow_dispatch"
+          and .display_title == $title
+          and .head_sha == $trusted
+          and .run_attempt == 1
+        ' >/dev/null
+}
 RUNS_JSON="$(list_candidate_runs)" || exit 1
 MAX_BEFORE="$(jq '[.[].id] | max // 0' <<<"${RUNS_JSON}")"
 gh workflow run cloud-candidate-bundle.yml --ref main \
@@ -488,20 +499,26 @@ for _ in 1 2 3 4 5 6 7 8 9 10 11 12; do
   RUN_ID="$(list_candidate_runs \
     | jq -r --arg title "${RUN_TITLE}" --arg trusted "${BASE_SHA}" \
         --argjson floor "${MAX_BEFORE}" \
-        'map(select(.id > $floor and .display_title == $title and .head_sha == $trusted and .run_attempt == 1) | .id) | min // empty')"
+        'map(select(.id > $floor and .display_title == $title and .head_sha == $trusted and .run_attempt == 1) | .id) | max // empty')"
   [[ -n "${RUN_ID}" ]] && break
 done
 [[ "${RUN_ID}" =~ ^[0-9]+$ ]] || {
   echo "Dispatched run not found; do not dispatch again." >&2
   exit 1
 }
-if ! gh run watch "${RUN_ID}" --exit-status; then
+require_exact_run "${RUN_ID}" || exit 1
+WATCH_OK=true
+gh run watch "${RUN_ID}" --exit-status || WATCH_OK=false
+require_exact_run "${RUN_ID}" || exit 1
+if [[ "${WATCH_OK}" != true ]]; then
   gh run view "${RUN_ID}" --log
   exit 1
 fi
 gh run view "${RUN_ID}" --json url,headSha,status,conclusion
+require_exact_run "${RUN_ID}" || exit 1
 gh run download "${RUN_ID}" -n cloud-candidate-install-bundles \
   -D cloud-candidate-install-bundles
+require_exact_run "${RUN_ID}" || exit 1
 (
   cd cloud-candidate-install-bundles
   for checksum in *.sha256; do shasum -a 256 -c "${checksum}"; done
