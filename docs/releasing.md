@@ -451,11 +451,18 @@ Dispatch, capture, and monitor that single run:
 ```bash
 PR_NUMBER=469 # replace
 VERSION_TAG=v0.22.0-rc1 # replace
-REQUEST_ID="$(date -u +%Y%m%dT%H%M%SZ)-$$"
-# `gh workflow run` prints no run id, and every run before the #574 fix is
-# titled just "Cloud candidate PR", so recovery by name is unreliable. Fence
-# on the highest run id seen BEFORE the dispatch; the id fence plus the
-# bundle-identity checks below are the real binding.
+PR_JSON="$(gh api "repos/markusleben/ha-nova/pulls/${PR_NUMBER}")"
+BASE_SHA="$(jq -r .base.sha <<<"${PR_JSON}")"
+HEAD_SHA="$(jq -r .head.sha <<<"${PR_JSON}")"
+MERGE_SHA="$(jq -r .merge_commit_sha <<<"${PR_JSON}")"
+REQUEST_ID="pr${PR_NUMBER}-${BASE_SHA}-${HEAD_SHA}-${MERGE_SHA}"
+RUN_TITLE="Cloud candidate PR #${PR_NUMBER} ${VERSION_TAG} (${REQUEST_ID})"
+# `gh workflow run` prints no run id. The request ID must contain the PR plus
+# the complete base, head, and synthetic merge SHAs; the workflow resolver
+# validates that identity from one authoritative PR resolution. Select only a
+# run whose evaluated title has that exact request ID, whose head is the same
+# trusted main/base SHA, and whose attempt is 1. The id fence then distinguishes
+# the new dispatch; bundle identity remains an additional check.
 MAX_BEFORE="$(gh run list --workflow cloud-candidate-bundle.yml --limit 30 \
   --json databaseId --jq '[.[].databaseId] | max // 0')"
 gh workflow run cloud-candidate-bundle.yml --ref main \
@@ -465,8 +472,9 @@ RUN_ID=""
 for _ in 1 2 3 4 5 6 7 8 9 10 11 12; do
   sleep 5
   RUN_ID="$(gh run list --workflow cloud-candidate-bundle.yml \
-    --event workflow_dispatch --limit 30 --json databaseId \
-    --jq "map(.databaseId | select(. > ${MAX_BEFORE})) | min // empty")"
+    --event workflow_dispatch --limit 30 \
+    --json databaseId,displayTitle,headSha,attempt \
+    --jq "map(select(.databaseId > ${MAX_BEFORE} and .displayTitle == \"${RUN_TITLE}\" and .headSha == \"${BASE_SHA}\" and .attempt == 1) | .databaseId) | min // empty")"
   [[ -n "${RUN_ID}" ]] && break
 done
 [[ "${RUN_ID}" =~ ^[0-9]+$ ]] || {

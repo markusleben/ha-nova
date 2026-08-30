@@ -13,7 +13,7 @@ on:
         required: true
         type: string
       request_id:
-        description: "Unique operator request ID used to recover this one dispatch"
+        description: "Exact PR/base/head/merge identity used to select this dispatch"
         required: true
         type: string
 
@@ -51,6 +51,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ inputs.pull_request }}
+          REQUEST_ID: ${{ inputs.request_id }}
         run: |
           scripts/release/resolve-cloud-candidate-source.sh \
             "${PR_NUMBER}"
@@ -150,6 +151,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ inputs.pull_request }}
+          REQUEST_ID: ${{ inputs.request_id }}
           HA_NOVA_CLOUD_CANDIDATE_EXPECTED_COMMIT: ${{ needs.resolve-source.outputs.commit_sha }}
           HA_NOVA_CLOUD_CANDIDATE_EXPECTED_TREE: ${{ needs.resolve-source.outputs.tree_sha }}
           HA_NOVA_CLOUD_CANDIDATE_EXPECTED_BASE: ${{ needs.resolve-source.outputs.base_sha }}
@@ -365,6 +367,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ inputs.pull_request }}
+          REQUEST_ID: ${{ inputs.request_id }}
           HA_NOVA_CLOUD_CANDIDATE_EXPECTED_COMMIT: ${{ needs.resolve-source.outputs.commit_sha }}
           HA_NOVA_CLOUD_CANDIDATE_EXPECTED_TREE: ${{ needs.resolve-source.outputs.tree_sha }}
           HA_NOVA_CLOUD_CANDIDATE_EXPECTED_BASE: ${{ needs.resolve-source.outputs.base_sha }}
@@ -431,6 +434,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ inputs.pull_request }}
+          REQUEST_ID: ${{ inputs.request_id }}
           HA_NOVA_CLOUD_CANDIDATE_EXPECTED_COMMIT: ${{ needs.resolve-source.outputs.commit_sha }}
           HA_NOVA_CLOUD_CANDIDATE_EXPECTED_TREE: ${{ needs.resolve-source.outputs.tree_sha }}
           HA_NOVA_CLOUD_CANDIDATE_EXPECTED_BASE: ${{ needs.resolve-source.outputs.base_sha }}

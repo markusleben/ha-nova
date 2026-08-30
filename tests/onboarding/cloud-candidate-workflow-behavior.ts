@@ -46,6 +46,7 @@ type FixtureChange =
   | "moved-late"
   | "moved-during-final-checks"
   | "source-rejected"
+  | "wrong-request-id"
   | "identity-mismatch"
   | "cloud-success";
 
@@ -585,6 +586,10 @@ esac
         GITHUB_RUN_ATTEMPT: change === "rerun" ? "2" : "1",
         GITHUB_SHA: change === "stale-base" ? head : base,
         GITHUB_OUTPUT: output,
+        REQUEST_ID:
+          change === "wrong-request-id"
+            ? `pr42-${base}-${head}-${"0".repeat(40)}`
+            : `pr42-${base}-${head}-${merge}`,
         ...(change === "identity-mismatch"
           ? {
               HA_NOVA_CLOUD_CANDIDATE_EXPECTED_COMMIT:
@@ -656,6 +661,7 @@ describe("Cloud candidate source resolver", () => {
     ["a pull request that moves during resolution", "moved-late"],
     ["a pull request that moves during final check validation", "moved-during-final-checks"],
     ["a source rejected by the trusted bootstrap verifier", "source-rejected"],
+    ["a request ID for another merge identity", "wrong-request-id"],
     ["a changed expected identity", "identity-mismatch"],
     ["an already-successful evidence gate", "cloud-success"],
   ] as const)("rejects %s", (_label, change) => {

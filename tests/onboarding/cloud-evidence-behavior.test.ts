@@ -133,7 +133,7 @@ case "$args" in
     trace "read:review-threads"
     cat "\${FAKE_GH_STATE}/review.json" 2>/dev/null \\
       || printf '[{"data":{"repository":{"pullRequest":{"state":"OPEN","isDraft":false,"reviewDecision":null,"reviewThreads":{"nodes":[],"pageInfo":{"hasNextPage":false,"endCursor":null}}}}}}]\\n' ;;
-  "run list --repo ${REPO_SLUG} --workflow cloud-candidate-bundle.yml --json databaseId,status,conclusion,event --limit 30")
+  "run list --repo ${REPO_SLUG} --workflow cloud-candidate-bundle.yml --json databaseId,displayTitle,headSha,status,conclusion,event,attempt --limit 30")
     trace "run-list"
     n="$(cat "\${FAKE_GH_STATE}/list.count" 2>/dev/null || echo 0)"
     n=$((n + 1))
@@ -145,10 +145,10 @@ case "$args" in
     trace "dispatch"
     exit 0 ;;
   "run watch "*" --repo ${REPO_SLUG} --exit-status")
-    trace "run-watch"
+    trace "run-watch:$3"
     exit 0 ;;
   "run download "*" --repo ${REPO_SLUG} --name cloud-candidate-install-bundles --dir "*)
-    trace "run-download"
+    trace "run-download:$3"
     dest="$(last_arg "$@")"
     mkdir -p "$dest"
     cp "\${FAKE_GH_STATE}/bundles/"* "$dest"/ ;;
@@ -455,7 +455,7 @@ describe("cloud evidence PR target binding", () => {
       draft: false,
       mergeable_state: "clean",
       merge_commit_sha: fixture.mainCommit,
-      base: { ref: "main" },
+      base: { ref: "main", sha: fixture.mainCommit },
       head: { sha: fixture.mainCommit, repo: { full_name: REPO_SLUG } },
       ...overrides,
     };
@@ -469,6 +469,35 @@ describe("cloud evidence PR target binding", () => {
     git(fixture.originGit, "update-ref", "refs/pull/7/merge", fixture.mainCommit);
     return { fixture, fake };
   }
+
+  const RUN = (
+    fixture: Fixture,
+    databaseId: number,
+    status: string,
+    conclusion: string | null,
+    identity: {
+      pr?: number;
+      base?: string;
+      head?: string;
+      merge?: string;
+      attempt?: number;
+    } = {},
+  ) => {
+    const pr = identity.pr ?? 7;
+    const base = identity.base ?? fixture.mainCommit;
+    const head = identity.head ?? fixture.mainCommit;
+    const merge = identity.merge ?? fixture.mainCommit;
+    const requestId = `pr${pr}-${base}-${head}-${merge}`;
+    return {
+      databaseId,
+      displayTitle: `Cloud candidate PR #${pr} v0.24.0-rc1 (${requestId})`,
+      headSha: base,
+      status,
+      conclusion,
+      event: "workflow_dispatch",
+      attempt: identity.attempt ?? 1,
+    };
+  };
 
   it("refuses a PR that does not target main", () => {
     const fixture = initFixture(platforms);
@@ -622,13 +651,13 @@ describe("cloud evidence PR target binding", () => {
     expect(trace).not.toContain("set:");
   });
 
-  it("the opted-in fallback still refuses a bundle without valid signed evidence (2026-08-28)", () => {
+  it("--set reuses only an exact request and still requires valid signed evidence", () => {
     const { fixture, fake } = prFixture();
     const envelope = validEnvelope(fixture.mainCommit, fixture.mainTree, platforms);
     const envelopeFile = writeEnvelope(fixture, envelope);
     writeFileSync(
       join(fake.state, "runs-1.json"),
-      JSON.stringify([{ databaseId: 42, status: "completed", conclusion: "success", event: "workflow_dispatch" }]),
+      JSON.stringify([RUN(fixture, 42, "completed", "success")]),
     );
     seedBundle(fake, "ha-nova-installer-bundle-linux-amd64.tar.gz", { tree: fixture.mainTree });
 
@@ -644,24 +673,96 @@ describe("cloud evidence PR target binding", () => {
     );
     expect(result.stderr).toContain("static signed-evidence verification failed");
     const trace = readFileSync(fake.trace, "utf8");
+    expect(trace).toContain("run-download:42");
+    expect(trace).not.toContain("dispatch");
     expect(trace).not.toContain("set:");
   });
 
-  const RUN = (databaseId: number, status: string, conclusion: string | null) => ({
-    databaseId,
-    status,
-    conclusion,
-    event: "workflow_dispatch",
+  it("ignores a successful foreign PR with the same tree and dispatches the exact request", () => {
+    const { fixture, fake } = prFixture();
+    const foreign = RUN(fixture, 41, "completed", "success", {
+      pr: 8,
+      merge: "b".repeat(40),
+    });
+    writeFileSync(join(fake.state, "runs-1.json"), JSON.stringify([foreign]));
+    writeFileSync(
+      join(fake.state, "runs-2.json"),
+      JSON.stringify([RUN(fixture, 99, "completed", "success"), foreign]),
+    );
+    // The foreign artifact has the exact same tree. Tree-only selection would
+    // reuse it even though its PR and merge identity are different.
+    seedBundle(fake, "ha-nova-installer-bundle-linux-amd64.tar.gz", {
+      tree: fixture.mainTree,
+    });
+
+    const result = runScript(fixture, fake, ["7"], { FAKE_SSH_OK: "1" });
+    const trace = readFileSync(fake.trace, "utf8");
+    expect(trace).toContain("dispatch");
+    expect(trace).toContain("run-download:99");
+    expect(trace).not.toContain("run-download:41");
+    expect(result.stdout).toContain("every bundle matches tree");
+  });
+
+  it("does not watch a foreign in-flight run", () => {
+    const { fixture, fake } = prFixture();
+    const foreign = RUN(fixture, 43, "in_progress", null, {
+      pr: 8,
+      merge: "c".repeat(40),
+    });
+    writeFileSync(join(fake.state, "runs-1.json"), JSON.stringify([foreign]));
+    writeFileSync(
+      join(fake.state, "runs-2.json"),
+      JSON.stringify([RUN(fixture, 99, "completed", "success"), foreign]),
+    );
+    seedBundle(fake, "ha-nova-installer-bundle-linux-amd64.tar.gz", {
+      tree: fixture.mainTree,
+    });
+
+    runScript(fixture, fake, ["7"], { FAKE_SSH_OK: "1" });
+    const trace = readFileSync(fake.trace, "utf8");
+    expect(trace).toContain("dispatch");
+    expect(trace).not.toContain("run-watch:43");
+    expect(trace).not.toContain("run-download:43");
+  });
+
+  it("does not reuse an exact title from a rerun or foreign workflow head", () => {
+    const { fixture, fake } = prFixture();
+    const rerun = RUN(fixture, 44, "completed", "success", { attempt: 2 });
+    const foreignHead = {
+      ...RUN(fixture, 45, "completed", "success"),
+      headSha: "d".repeat(40),
+    };
+    writeFileSync(
+      join(fake.state, "runs-1.json"),
+      JSON.stringify([foreignHead, rerun]),
+    );
+    writeFileSync(
+      join(fake.state, "runs-2.json"),
+      JSON.stringify([
+        RUN(fixture, 99, "completed", "success"),
+        foreignHead,
+        rerun,
+      ]),
+    );
+    seedBundle(fake, "ha-nova-installer-bundle-linux-amd64.tar.gz", {
+      tree: fixture.mainTree,
+    });
+
+    runScript(fixture, fake, ["7"], { FAKE_SSH_OK: "1" });
+    const trace = readFileSync(fake.trace, "utf8");
+    expect(trace).toContain("dispatch");
+    expect(trace).not.toContain("run-download:44");
+    expect(trace).not.toContain("run-download:45");
   });
 
   it("watches an in-flight run first, then reuses it once its artifact proves the target", () => {
     const { fixture, fake } = prFixture();
-    writeFileSync(join(fake.state, "runs-1.json"), JSON.stringify([RUN(42, "in_progress", null)]));
-    writeFileSync(join(fake.state, "runs-2.json"), JSON.stringify([RUN(42, "completed", "success")]));
+    writeFileSync(join(fake.state, "runs-1.json"), JSON.stringify([RUN(fixture, 42, "in_progress", null)]));
+    writeFileSync(join(fake.state, "runs-2.json"), JSON.stringify([RUN(fixture, 42, "completed", "success")]));
     seedBundle(fake, "ha-nova-installer-bundle-linux-amd64.tar.gz", { tree: fixture.mainTree });
 
     const result = runScript(fixture, fake, ["7"], { FAKE_SSH_OK: "1" });
-    expect(result.stdout).toContain("run 42 is in flight — watching it first");
+    expect(result.stdout).toContain("matching run 42 is in flight — watching it first");
     const trace = readFileSync(fake.trace, "utf8");
     expect(trace).toContain("run-watch");
     expect(trace).toContain("run-download");
@@ -678,11 +779,11 @@ describe("cloud evidence PR target binding", () => {
 
   it("treats an identity mismatch as 'not ours', dispatches fresh, and hard-stops on a persistent mismatch", () => {
     const { fixture, fake } = prFixture();
-    writeFileSync(join(fake.state, "runs-1.json"), JSON.stringify([RUN(44, "completed", "success")]));
+    writeFileSync(join(fake.state, "runs-1.json"), JSON.stringify([RUN(fixture, 44, "completed", "success")]));
     // After the dispatch, a new run appears above the previous max id.
     writeFileSync(
       join(fake.state, "runs-2.json"),
-      JSON.stringify([RUN(99, "completed", "success"), RUN(44, "completed", "success")]),
+      JSON.stringify([RUN(fixture, 99, "completed", "success"), RUN(fixture, 44, "completed", "success")]),
     );
     // Valid checksums, wrong tree — the fake serves the same wrong artifact
     // for the dispatched run too, so the hard stop must fire before any
@@ -701,10 +802,10 @@ describe("cloud evidence PR target binding", () => {
 
   it("falls back to a fresh dispatch when the reuse artifact is gone, and fails loudly if that one is gone too", () => {
     const { fixture, fake } = prFixture();
-    writeFileSync(join(fake.state, "runs-1.json"), JSON.stringify([RUN(44, "completed", "success")]));
+    writeFileSync(join(fake.state, "runs-1.json"), JSON.stringify([RUN(fixture, 44, "completed", "success")]));
     writeFileSync(
       join(fake.state, "runs-2.json"),
-      JSON.stringify([RUN(99, "completed", "success"), RUN(44, "completed", "success")]),
+      JSON.stringify([RUN(fixture, 99, "completed", "success"), RUN(fixture, 44, "completed", "success")]),
     );
     // No bundles seeded at all: every download fails like an expired artifact.
     const result = runScript(fixture, fake, ["7"], { FAKE_SSH_OK: "1" });
@@ -715,7 +816,7 @@ describe("cloud evidence PR target binding", () => {
 
   it("refuses a bundle without its .sha256 instead of running it unverified", () => {
     const { fixture, fake } = prFixture();
-    writeFileSync(join(fake.state, "runs-1.json"), JSON.stringify([RUN(44, "completed", "success")]));
+    writeFileSync(join(fake.state, "runs-1.json"), JSON.stringify([RUN(fixture, 44, "completed", "success")]));
     seedBundle(fake, "ha-nova-installer-bundle-linux-amd64.tar.gz", {
       tree: fixture.mainTree,
       checksum: false,

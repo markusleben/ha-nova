@@ -11,7 +11,7 @@
 # judgement:
 #
 #   resolve the exact target   refs/pull/<pr>/merge -> commit, tree, relay version
-#   bind the candidate run     request_id derived from the target commit
+#   bind the candidate run     exact PR/base/head/merge request identity
 #   verify the download        sha256 over the artifact's own checksum files
 #   prove identity FIRST       every bundle's embedded manifest must match the
 #                              target before any candidate binary executes
@@ -177,8 +177,12 @@ merge_commit="$(jq -r '.merge_commit_sha // ""' <<<"$pr_json")"
 base_ref="$(jq -r '.base.ref // ""' <<<"$pr_json")"
 [ "$base_ref" = "main" ] \
   || die "PR #$PR targets '${base_ref:-unknown}', not main — the candidate workflow only builds PRs into main"
+resolved_base_sha="$(jq -r '.base.sha // ""' <<<"$pr_json")"
+[[ "$resolved_base_sha" =~ ^[0-9a-f]{40}$ ]] \
+  || die "PR #$PR has no full lowercase base sha in the API response"
 resolved_head_sha="$(jq -r '.head.sha // ""' <<<"$pr_json")"
-[ -n "$resolved_head_sha" ] || die "PR #$PR has no head sha in the API response"
+[[ "$resolved_head_sha" =~ ^[0-9a-f]{40}$ ]] \
+  || die "PR #$PR has no full lowercase head sha in the API response"
 head_repo="$(jq -r '.head.repo.full_name // ""' <<<"$pr_json")"
 [ "$head_repo" = "$REPO" ] \
   || die "PR #$PR's head lives in '${head_repo:-unknown}', not $REPO — the candidate workflow only builds same-repo branches"
@@ -441,34 +445,40 @@ mkdir "$MINT_LOCK" 2>/dev/null \
   || die "another mint session appears to be running (lock: $MINT_LOCK) — if none is, remove that directory and re-run"
 MINT_LOCK_ACQUIRED=1
 
-# request_id is a REQUIRED dispatch input, derived deterministically for the
-# audit trail — but binding never relies on it: every run before the #574
-# fix is titled just "Cloud candidate PR" (the unquoted `#` in run-name
-# started a YAML comment), and `gh run list` cannot filter by dispatch
-# inputs either way. Binding works with what the API reliably has:
-#   - an in-flight run is watched to completion FIRST — dispatching would
-#     cancel it via the per-PR concurrency group, and in this
-#     single-maintainer repo it is almost certainly ours;
-#   - the newest completed success is only a REUSE CANDIDATE: its artifact
-#     must prove this exact target (embedded bundle version + tree) before
-#     anything trusts it, else we dispatch;
-#   - a dispatched run is bound as "the workflow_dispatch run that appeared
-#     above the highest run id seen before the dispatch".
-# A wrong pick can never attest anything: identity is proven from local bytes
-# before any binary executes, and check_identity guards every provenance run.
-request_id="pr${PR}-${target_commit:0:12}"
+# The workflow resolver validates this complete request_id against its own
+# authoritative PR resolution. GitHub exposes the evaluated run-name, trusted
+# workflow head, and attempt in run-list output, so selection can reject a run
+# before watching or downloading it. Tree identity remains an additional
+# artifact check; it is not a substitute because different commits can share
+# one tree.
+request_id="pr${PR}-${resolved_base_sha}-${resolved_head_sha}-${target_commit}"
+expected_run_title="Cloud candidate PR #${PR} ${version_tag} (${request_id})"
 list_candidate_runs() {
   gh run list --repo "$REPO" --workflow cloud-candidate-bundle.yml \
-    --json databaseId,status,conclusion,event --limit 30
+    --json databaseId,displayTitle,headSha,status,conclusion,event,attempt --limit 30
+}
+matching_candidate_runs() {
+  jq -c --arg title "$expected_run_title" --arg trusted "$resolved_base_sha" '
+    map(select(
+      .event == "workflow_dispatch"
+      and .displayTitle == $title
+      and .headSha == $trusted
+      and .attempt == 1
+    ))
+  '
 }
 
 runs_json="$(list_candidate_runs)" || die "cannot list candidate runs"
-inflight_id="$(jq -r 'map(select(.status != "completed")) | first | .databaseId // empty' <<<"$runs_json")"
+matching_runs_json="$(matching_candidate_runs <<<"$runs_json")" \
+  || die "cannot filter candidate runs"
+inflight_id="$(jq -r 'map(select(.status != "completed")) | first | .databaseId // empty' <<<"$matching_runs_json")"
 if [ -n "$inflight_id" ]; then
-  echo "  run $inflight_id is in flight — watching it first (a dispatch would cancel it via the concurrency group)"
+  echo "  matching run $inflight_id is in flight — watching it first"
   gh run watch "$inflight_id" --repo "$REPO" --exit-status >/dev/null \
     || echo "  in-flight run $inflight_id did not succeed — continuing"
   runs_json="$(list_candidate_runs)" || die "cannot list candidate runs"
+  matching_runs_json="$(matching_candidate_runs <<<"$runs_json")" \
+    || die "cannot filter candidate runs"
 fi
 
 download_run() {  # <run-id> ; hard-fails
@@ -497,9 +507,10 @@ dispatch_and_bind() {  # sets run_id
   run_id=""
   for _ in $(seq 1 30); do
     sleep "${HA_NOVA_POLL_SECONDS:-10}"
-    run_id="$(list_candidate_runs \
-      | jq -r --argjson m "$max_before" \
-          'map(select(.databaseId > $m and .event == "workflow_dispatch")) | last | .databaseId // empty')" \
+    run_id="$(list_candidate_runs | matching_candidate_runs \
+      | jq -r --argjson m "$max_before" '
+          map(select(.databaseId > $m)) | min_by(.databaseId) | .databaseId // empty
+        ')" \
       || die "cannot list candidate runs"
     [ -n "$run_id" ] && break
   done
@@ -510,10 +521,13 @@ dispatch_and_bind() {  # sets run_id
     || die "run $run_id failed — fix the cause in a reviewed PR, then dispatch once more"
 }
 
-run_id="$(jq -r 'map(select(.status == "completed" and .conclusion == "success" and .event == "workflow_dispatch")) | first | .databaseId // empty' <<<"$runs_json")"
+run_id="$(jq -r '
+  map(select(.status == "completed" and .conclusion == "success"))
+  | first | .databaseId // empty
+' <<<"$matching_runs_json")"
 bundles_ok=false
 if [ -n "$run_id" ]; then
-  step "reuse candidate: newest successful run $run_id — its artifact must prove this exact target"
+  step "reuse candidate: exact successful run $run_id — its artifact must also prove this target"
   if gh run download "$run_id" --repo "$REPO" --name cloud-candidate-install-bundles --dir "$work/bundles" 2>/dev/null; then
     step "verifying the artifact's checksums"
     verify_bundle_checksums

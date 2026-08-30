@@ -4,6 +4,7 @@ set -euo pipefail
 REPO="${GITHUB_REPOSITORY:-}"
 PR_NUMBER="${1:-}"
 POLICY_FILE="${2:-.github/policy/repo-policy.json}"
+REQUEST_ID="${REQUEST_ID:-}"
 
 fail() {
   echo "[resolve-cloud-candidate-source] ERROR: $*" >&2
@@ -67,6 +68,9 @@ merge_sha="$(jq -r '.merge_commit_sha // empty' <<<"${pr}")"
 require_sha "${base_sha}" "pull request base SHA"
 require_sha "${head_sha}" "pull request head SHA"
 require_sha "${merge_sha}" "pull request merge commit SHA"
+expected_request_id="pr${PR_NUMBER}-${base_sha}-${head_sha}-${merge_sha}"
+[[ "${REQUEST_ID}" == "${expected_request_id}" ]] \
+  || fail "request_id must bind the exact pull request base, head, and merge identity"
 [[ "${base_sha}" == "${GITHUB_SHA}" ]] \
   || fail "pull request base must equal the current main workflow SHA"
 
