@@ -26,7 +26,7 @@ permissions:
   pull-requests: read
 
 concurrency:
-  group: cloud-candidate-bundle-${{ inputs.pull_request }}
+  group: "cloud-candidate-bundle-${{ inputs.pull_request }}-${{ inputs.version_tag }}-${{ inputs.request_id }}"
   cancel-in-progress: true
 
 jobs:

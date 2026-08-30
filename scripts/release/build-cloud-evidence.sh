@@ -453,17 +453,32 @@ MINT_LOCK_ACQUIRED=1
 # one tree.
 request_id="pr${PR}-${resolved_base_sha}-${resolved_head_sha}-${target_commit}"
 expected_run_title="Cloud candidate PR #${PR} ${version_tag} (${request_id})"
+# Final artifacts expire after seven days. Include one upload/runtime margin
+# day, then paginate every workflow-dispatch run on the trusted workflow head
+# so a burst of unrelated runs cannot hide an exact reusable candidate.
+candidate_since="$(node -e 'const d = new Date(Date.now() - 8 * 86400000); process.stdout.write(d.toISOString().slice(0, 10))')"
 list_candidate_runs() {
-  gh run list --repo "$REPO" --workflow cloud-candidate-bundle.yml \
-    --json databaseId,displayTitle,headSha,status,conclusion,event,attempt --limit 30
+  local pages total
+  pages="$(gh api --paginate --slurp --method GET \
+    "repos/$REPO/actions/workflows/cloud-candidate-bundle.yml/runs" \
+    -f event=workflow_dispatch \
+    -f "head_sha=$resolved_base_sha" \
+    -f "created=>=$candidate_since" \
+    -F per_page=100)" \
+    || return
+  total="$(jq -r '[.[].total_count] | max // 0' <<<"$pages")" \
+    || die "cannot count candidate runs"
+  [ "$total" -le 1000 ] \
+    || die "candidate run search returned $total results in the artifact window; GitHub caps filtered workflow searches at 1000 — narrow the retained run set before dispatching"
+  jq -c '[.[] | .workflow_runs[]]' <<<"$pages"
 }
 matching_candidate_runs() {
   jq -c --arg title "$expected_run_title" --arg trusted "$resolved_base_sha" '
     map(select(
       .event == "workflow_dispatch"
-      and .displayTitle == $title
-      and .headSha == $trusted
-      and .attempt == 1
+      and .display_title == $title
+      and .head_sha == $trusted
+      and .run_attempt == 1
     ))
   '
 }
@@ -471,7 +486,7 @@ matching_candidate_runs() {
 runs_json="$(list_candidate_runs)" || die "cannot list candidate runs"
 matching_runs_json="$(matching_candidate_runs <<<"$runs_json")" \
   || die "cannot filter candidate runs"
-inflight_id="$(jq -r 'map(select(.status != "completed")) | first | .databaseId // empty' <<<"$matching_runs_json")"
+inflight_id="$(jq -r 'map(select(.status != "completed")) | first | .id // empty' <<<"$matching_runs_json")"
 if [ -n "$inflight_id" ]; then
   echo "  matching run $inflight_id is in flight — watching it first"
   gh run watch "$inflight_id" --repo "$REPO" --exit-status >/dev/null \
@@ -491,7 +506,7 @@ download_run() {  # <run-id> ; hard-fails
 
 dispatch_and_bind() {  # sets run_id
   local max_before
-  max_before="$(jq -r '[.[].databaseId] | max // 0' <<<"$runs_json")"
+  max_before="$(jq -r '[.[].id] | max // 0' <<<"$runs_json")"
   # Recheck at the moment of spending: the resolve-time snapshot can go stale
   # while the envelope, reachability, and reuse probes run. CI reads first,
   # the cheap reviewability read LAST — its window to the dispatch is the
@@ -509,7 +524,7 @@ dispatch_and_bind() {  # sets run_id
     sleep "${HA_NOVA_POLL_SECONDS:-10}"
     run_id="$(list_candidate_runs | matching_candidate_runs \
       | jq -r --argjson m "$max_before" '
-          map(select(.databaseId > $m)) | min_by(.databaseId) | .databaseId // empty
+          map(select(.id > $m)) | min_by(.id) | .id // empty
         ')" \
       || die "cannot list candidate runs"
     [ -n "$run_id" ] && break
@@ -523,7 +538,7 @@ dispatch_and_bind() {  # sets run_id
 
 run_id="$(jq -r '
   map(select(.status == "completed" and .conclusion == "success"))
-  | first | .databaseId // empty
+  | first | .id // empty
 ' <<<"$matching_runs_json")"
 bundles_ok=false
 if [ -n "$run_id" ]; then

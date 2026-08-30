@@ -14,15 +14,21 @@ the same Git tree.
   and synthetic merge SHAs.
 - The trusted-main workflow resolver must derive those SHAs from one pull
   request resolution and reject any different request identity.
+- Concurrency cancellation must match the pull request, version, and complete
+  request identity, so a stale request cannot cancel the exact run.
 - Local run selection must match the evaluated run name, the trusted-main
   workflow head, `workflow_dispatch`, and attempt 1 before watch, download, or
   reuse.
+- Candidate discovery must paginate the complete final-artifact retention
+  window and fail closed if GitHub reports more filtered results than it can
+  return.
 - Bundle version, signature, checksum, tree, and provenance checks remain
   mandatory after run selection.
 - A foreign run never delays or replaces a fresh exact-identity dispatch.
 
 ## Verification
 
-Behavior tests use parsed GitHub run-list records and real bundle archives to
-cover foreign successful and in-flight runs, two merge identities sharing one
-tree, an exact successful run, and the `--set` reuse path.
+Behavior tests use raw paginated GitHub workflow-run responses, distinct real
+base, head, and synthetic merge commits sharing one tree, and real bundle
+archives. They cover shifted identity fields, foreign successful and in-flight
+runs, an exact run behind more than 30 foreign runs, exact reuse, and `--set`.

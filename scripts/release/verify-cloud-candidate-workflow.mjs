@@ -96,8 +96,8 @@ requireText(
 );
 requireText(
   workflow,
-  "group: cloud-candidate-bundle-${{ inputs.pull_request }}",
-  "per-pull-request concurrency",
+  'group: "cloud-candidate-bundle-${{ inputs.pull_request }}-${{ inputs.version_tag }}-${{ inputs.request_id }}"',
+  "exact-request concurrency",
 );
 requireText(workflow, "cancel-in-progress: true", "duplicate-run cancellation");
 requireText(

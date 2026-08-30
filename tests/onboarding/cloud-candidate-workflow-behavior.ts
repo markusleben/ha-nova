@@ -705,6 +705,33 @@ describe("Cloud candidate workflow contract", () => {
     expect(runName).toContain("${{ inputs.request_id }}");
   });
 
+  it("cancels only the same PR, version, and exact request", () => {
+    expect(parse(workflow).concurrency).toEqual({
+      group:
+        "cloud-candidate-bundle-${{ inputs.pull_request }}-${{ inputs.version_tag }}-${{ inputs.request_id }}",
+      "cancel-in-progress": true,
+    });
+
+    const root = mkdtempSync(
+      join(tmpdir(), "ha-nova-cloud-candidate-contract-"),
+    );
+    const weakWorkflow = join(root, "cloud-candidate-bundle.yml");
+    writeFileSync(
+      weakWorkflow,
+      workflow.replace(
+        'group: "cloud-candidate-bundle-${{ inputs.pull_request }}-${{ inputs.version_tag }}-${{ inputs.request_id }}"',
+        "group: cloud-candidate-bundle-${{ inputs.pull_request }}",
+      ),
+    );
+    const result = spawnSync(
+      "node",
+      [verifierPath, weakWorkflow, resolverPath],
+      { encoding: "utf8" },
+    );
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toContain("exact-request concurrency is missing");
+  });
+
   it("rejects publication commands", () => {
     const root = mkdtempSync(
       join(tmpdir(), "ha-nova-cloud-candidate-contract-"),
