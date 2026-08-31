@@ -44,12 +44,14 @@ function initFixture(platforms: string[]): Fixture {
   const originGit = join(root, "origin.git");
   mkdirSync(join(repo, "scripts", "release"), { recursive: true });
   mkdirSync(join(repo, "nova"), { recursive: true });
+  mkdirSync(join(repo, ".github", "workflows"), { recursive: true });
   copyFileSync(SCRIPT_REL, join(repo, SCRIPT_REL));
   chmodSync(join(repo, SCRIPT_REL), 0o755);
   for (const lib of SOURCED_LIBS_REL) {
     copyFileSync(lib, join(repo, lib));
   }
   writeFileSync(join(repo, "nova", "config.yaml"), 'name: HA NOVA\nversion: "0.9.0"\n');
+  writeFileSync(join(repo, ".github", "workflows", "ci.yml"), "jobs: {}\n");
   // The dispatch preflight reads the same policy file as the server resolver.
   mkdirSync(join(repo, ".github", "policy"), { recursive: true });
   writeFileSync(
@@ -143,6 +145,7 @@ case "$args" in
     cat "\$f" 2>/dev/null || printf '[]\\n' ;;
   "workflow run cloud-candidate-bundle.yml --repo ${REPO_SLUG} -f pull_request=7 -f version_tag="*" -f request_id="*)
     trace "dispatch"
+    printf '%s\n' "$args" >"\${FAKE_GH_STATE}/dispatch.args"
     exit 0 ;;
   "run watch "*" --repo ${REPO_SLUG} --exit-status")
     trace "run-watch"
@@ -455,7 +458,7 @@ describe("cloud evidence PR target binding", () => {
       draft: false,
       mergeable_state: "clean",
       merge_commit_sha: fixture.mainCommit,
-      base: { ref: "main" },
+      base: { ref: "main", sha: fixture.mainCommit },
       head: { sha: fixture.mainCommit, repo: { full_name: REPO_SLUG } },
       ...overrides,
     };
@@ -695,6 +698,14 @@ describe("cloud evidence PR target binding", () => {
     expect(result.stdout).toContain("dispatching fresh");
     const trace = readFileSync(fake.trace, "utf8");
     expect(trace).toContain("dispatch");
+    const workflowsTree = git(
+      fixture.repo,
+      "rev-parse",
+      `${fixture.mainCommit}:.github/workflows`,
+    ).trim();
+    expect(readFileSync(join(fake.state, "dispatch.args"), "utf8")).toContain(
+      `request_id=pr7-${fixture.mainCommit}-${fixture.mainCommit}-${fixture.mainCommit}-${workflowsTree}`,
+    );
     expect(result.stderr).toContain("refusing to execute it");
     expect(result.stderr).not.toContain("cannot copy");
   });

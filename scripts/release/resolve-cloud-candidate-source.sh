@@ -47,8 +47,13 @@ require_sha "${trusted_head}" "trusted checkout HEAD"
   || fail "pull request number must be a positive integer"
 [[ -f "${POLICY_FILE}" ]] || fail "repository policy is missing"
 [[ -n "${GITHUB_OUTPUT:-}" ]] || fail "GITHUB_OUTPUT is required"
+[[ -f "${GITHUB_EVENT_PATH:-}" ]] || fail "GITHUB_EVENT_PATH is required"
 command -v gh >/dev/null 2>&1 || fail "gh is required"
 command -v jq >/dev/null 2>&1 || fail "jq is required"
+request_id="$(
+  jq -er '.inputs.request_id | select(type == "string" and length > 0)' \
+    "${GITHUB_EVENT_PATH}"
+)" || fail "workflow dispatch request_id is missing or malformed"
 
 pr="$(gh api "repos/${REPO}/pulls/${PR_NUMBER}")"
 jq -e '
@@ -429,6 +434,7 @@ HA_NOVA_CLOUD_GATE_SOURCE_REF="${source_ref}" \
 HA_NOVA_CLOUD_GATE_EXPECTED_TARGET_COMMIT="${merge_sha}" \
 HA_NOVA_CLOUD_GATE_EXPECTED_HEAD_COMMIT="${head_sha}" \
 HA_NOVA_CLOUD_GATE_EXPECTED_BASE_COMMIT="${base_sha}" \
+HA_NOVA_CLOUD_GATE_APPROVAL_ID="${request_id}" \
   bash scripts/release/verify-cloud-target-source-gate.sh candidate
 
 expected_commit="${HA_NOVA_CLOUD_CANDIDATE_EXPECTED_COMMIT:-}"

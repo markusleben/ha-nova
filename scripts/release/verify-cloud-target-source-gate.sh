@@ -6,6 +6,7 @@ SOURCE_REF="${HA_NOVA_CLOUD_GATE_SOURCE_REF:-}"
 EXPECTED_TARGET="${HA_NOVA_CLOUD_GATE_EXPECTED_TARGET_COMMIT:-}"
 EXPECTED_HEAD="${HA_NOVA_CLOUD_GATE_EXPECTED_HEAD_COMMIT:-}"
 EXPECTED_BASE="${HA_NOVA_CLOUD_GATE_EXPECTED_BASE_COMMIT:-}"
+APPROVAL_ID="${HA_NOVA_CLOUD_GATE_APPROVAL_ID:-}"
 MODE="${1:-release}"
 
 fail() {
@@ -63,9 +64,27 @@ cloud_enabled="$(
     'process.stdout.write(String(JSON.parse(require("node:fs").readFileSync(process.argv[1], "utf8")).cloud_remote_enabled))' \
     "${target_root}/version.json"
 )"
+trusted_workflows_tree="$(
+  git -C "${ROOT_DIR}" rev-parse --verify "HEAD:.github/workflows"
+)"
+target_workflows_tree="$(
+  git -C "${ROOT_DIR}" rev-parse --verify \
+    "${target_commit}:.github/workflows"
+)" || fail "target commit must retain the trusted workflow tree"
+trusted_commit="$(git -C "${ROOT_DIR}" rev-parse HEAD)"
+workflow_uses_only=0
+if [[ "${target_workflows_tree}" != "${trusted_workflows_tree}" ]] \
+  && node "${ROOT_DIR}/scripts/release/verify-cloud-workflow-uses-only.mjs" \
+    "${ROOT_DIR}" "${trusted_commit}" "${target_commit}" \
+    workflow-tree-only >/dev/null 2>&1; then
+  workflow_uses_only=1
+fi
 if [[ "${cloud_enabled}" == "false" ]]; then
   [[ "${MODE}" == "release" ]] \
     || fail "candidate source must enable Home Assistant Cloud"
+  [[ "${target_workflows_tree}" == "${trusted_workflows_tree}" \
+    || "${workflow_uses_only}" == "1" ]] \
+    || fail "disabled Cloud targets may change workflows only through non-sensitive uses-only maintenance"
   HA_NOVA_CLOUD_GATE_TARGET_COMMIT="${target_commit}" \
   HA_NOVA_CLOUD_GATE_TARGET_TREE="${target_tree}" \
   HA_NOVA_CLOUD_GATE_TRUSTED_PR_MODE=1 \
@@ -115,17 +134,28 @@ if (
 }
 NODE
 
-trusted_workflows_tree="$(
-  git -C "${ROOT_DIR}" rev-parse --verify "HEAD:.github/workflows"
-)"
-target_workflows_tree="$(
-  git -C "${ROOT_DIR}" rev-parse --verify \
-    "${target_commit}:.github/workflows"
-)" || fail "target commit must retain the trusted workflow tree"
-[[ "${target_workflows_tree}" == "${trusted_workflows_tree}" ]] \
-  || node "${ROOT_DIR}/scripts/release/verify-cloud-workflow-uses-only.mjs" \
-    "${ROOT_DIR}" "$(git -C "${ROOT_DIR}" rev-parse HEAD)" "${target_commit}" \
-    workflow-tree-only
+exact_evidence=0
+if [[ "${MODE}" == "candidate" ]]; then
+  [[ "${SOURCE_REF}" =~ ^refs/pull/([1-9][0-9]*)/merge$ ]] \
+    || fail "candidate approval requires one exact pull request base, head, and merge"
+  approval_pr="${BASH_REMATCH[1]}"
+  [[ -n "${EXPECTED_TARGET}" && -n "${EXPECTED_HEAD}" \
+    && -n "${EXPECTED_BASE}" ]] \
+    || fail "candidate approval requires one exact pull request base, head, and merge"
+  expected_approval="pr${approval_pr}-${EXPECTED_BASE}-${EXPECTED_HEAD}-${EXPECTED_TARGET}-${target_workflows_tree}"
+  [[ "${APPROVAL_ID}" == "${expected_approval}" ]] \
+    || fail "candidate request_id does not match the exact pull request approval"
+fi
+
+if [[ "${target_workflows_tree}" != "${trusted_workflows_tree}" \
+  && "${workflow_uses_only}" != "1" ]]; then
+  [[ "${SOURCE_REF}" =~ ^refs/pull/[1-9][0-9]*/merge$ ]] \
+    || fail "merge queue cannot approve sensitive workflow changes"
+  node "${ROOT_DIR}/scripts/release/verify-cloud-workflow-uses-only.mjs" \
+    "${ROOT_DIR}" "${trusted_commit}" "${target_commit}" \
+    single-sensitive-workflow
+  [[ "${MODE}" == "candidate" ]] || exact_evidence=1
+fi
 
 if [[ "${MODE}" == "candidate" ]]; then
   HA_NOVA_CLOUD_GATE_TARGET_COMMIT="${target_commit}" \
@@ -139,5 +169,6 @@ fi
 HA_NOVA_CLOUD_GATE_TARGET_COMMIT="${target_commit}" \
 HA_NOVA_CLOUD_GATE_TARGET_TREE="${target_tree}" \
 HA_NOVA_CLOUD_GATE_TRUSTED_PR_MODE=1 \
+HA_NOVA_CLOUD_GATE_REQUIRE_EXACT_EVIDENCE="${exact_evidence}" \
   bash "${ROOT_DIR}/scripts/release/verify-cloud-release-gate.sh" \
     "${target_root}"
