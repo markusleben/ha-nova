@@ -11,9 +11,9 @@ the same Git tree.
 ## Contract
 
 - The request identity is the pull request number plus the complete base, head,
-  and synthetic merge SHAs.
-- The trusted-main workflow resolver must derive those SHAs from one pull
-  request resolution and reject any different request identity.
+  synthetic merge, and workflow-tree SHAs.
+- The trusted-main resolver path must validate those SHAs against one pull
+  request resolution and its fetched synthetic-merge workflow tree.
 - Concurrency cancellation must match the pull request, version, and complete
   request identity, so a stale request cannot cancel the exact run.
 - Local run selection must match the evaluated run name, the trusted-main

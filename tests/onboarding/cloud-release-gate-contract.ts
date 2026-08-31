@@ -108,6 +108,13 @@ export function registerCloudReleaseGateContractTests(): void {
     expect(cloudReleaseGateVerifier).toContain("verify-cloud-workflow-uses-only.mjs");
     expect(cloudReleaseGateVerifier).toContain("verify-cloud-nonsensitive-source.mjs");
     expect(cloudReleaseGateVerifier).toContain("workflowCommit !== commit");
+    expect(cloudReleaseGateVerifier).toContain("GITHUB_WORKFLOW_REF");
+    expect(cloudReleaseGateVerifier).toContain(
+      "markusleben/ha-nova/.github/workflows/release.yml@",
+    );
+    expect(cloudReleaseGateVerifier).toContain(
+      "markusleben/ha-nova/.github/workflows/release-candidate.yml@",
+    );
     for (const check of [
       "parity",
       "stress_10000",
@@ -249,9 +256,19 @@ export function registerCloudReleaseGateContractTests(): void {
     expect(sourceGateScript).toContain("HEAD:.github/workflows");
     expect(sourceGateScript).toContain("${target_commit}:.github/workflows");
     expect(sourceGateScript).toContain(
-      '[[ "${target_workflows_tree}" == "${trusted_workflows_tree}" ]]',
+      '[[ "${target_workflows_tree}" != "${trusted_workflows_tree}" ]]',
     );
     expect(sourceGateScript).toContain("verify-cloud-workflow-uses-only.mjs");
+    expect(sourceGateScript).toContain("single-sensitive-workflow");
+    expect(sourceGateScript).toContain(
+      "disabled Cloud targets may change workflows only through non-sensitive uses-only maintenance",
+    );
+    expect(sourceGateScript.indexOf('target_workflows_tree="$(')).toBeLessThan(
+      sourceGateScript.indexOf('if [[ "${cloud_enabled}" == "false" ]]'),
+    );
+    expect(sourceGateScript).toContain(
+      'HA_NOVA_CLOUD_GATE_REQUIRE_EXACT_EVIDENCE="${exact_evidence}"',
+    );
     expect(sourceGateScript).toContain(
       "pull request merge commit does not bind the expected base and head",
     );

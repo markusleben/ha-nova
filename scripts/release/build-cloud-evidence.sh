@@ -11,7 +11,7 @@
 # judgement:
 #
 #   resolve the exact target   refs/pull/<pr>/merge -> commit, tree, relay version
-#   bind the candidate run     exact PR/base/head/merge request identity
+#   bind the candidate run     exact PR/base/head/merge/workflow-tree identity
 #   verify the download        sha256 over the artifact's own checksum files
 #   prove identity FIRST       every bundle's embedded manifest must match the
 #                              target before any candidate binary executes
@@ -322,6 +322,8 @@ git -C "$ROOT_DIR" fetch --quiet --force origin "+refs/pull/$PR/merge:refs/cloud
   || die "cannot fetch the synthetic merge ref for #$PR"
 target_commit="$(git -C "$ROOT_DIR" rev-parse "refs/cloud-evidence/$PR")"
 target_tree="$(git -C "$ROOT_DIR" rev-parse "refs/cloud-evidence/$PR^{tree}")"
+target_workflows_tree="$(git -C "$ROOT_DIR" rev-parse "refs/cloud-evidence/$PR:.github/workflows")" \
+  || die "the target has no workflow tree"
 # Bind the API's merge identity to the fetched ref: two views of the same
 # synthetic merge commit that must agree, or GitHub is mid-recompute.
 [ "$merge_commit" = "$target_commit" ] \
@@ -445,13 +447,12 @@ mkdir "$MINT_LOCK" 2>/dev/null \
   || die "another mint session appears to be running (lock: $MINT_LOCK) — if none is, remove that directory and re-run"
 MINT_LOCK_ACQUIRED=1
 
-# The workflow resolver validates this complete request_id against its own
-# authoritative PR resolution. GitHub exposes the evaluated run-name, trusted
-# workflow head, and attempt in run-list output, so selection can reject a run
-# before watching or downloading it. Tree identity remains an additional
-# artifact check; it is not a substitute because different commits can share
-# one tree.
-request_id="pr${PR}-${resolved_base_sha}-${resolved_head_sha}-${target_commit}"
+# request_id is the canonical approval for this exact PR state. The candidate
+# resolver reads it only from GITHUB_EVENT_PATH; the exact evaluated run title,
+# trusted workflow head, event, and attempt separately bind local run recovery
+# before watch or download. Bundle identity remains an additional check because
+# different commits can share one tree.
+request_id="pr${PR}-${resolved_base_sha}-${resolved_head_sha}-${target_commit}-${target_workflows_tree}"
 expected_run_title="Cloud candidate PR #${PR} ${version_tag} (${request_id})"
 # Final artifacts expire after seven days. Include one upload/runtime margin
 # day, then paginate every workflow-dispatch run on the trusted workflow head

@@ -83,12 +83,6 @@ requireText(
 requireText(workflow, "pull_request:", "pull request input");
 requireText(workflow, "version_tag:", "version input");
 requireText(workflow, "request_id:", "exact dispatch request identity");
-requireCount(
-  workflow,
-  "REQUEST_ID: ${{ inputs.request_id }}",
-  4,
-  "request identity validation on every resolver pass",
-);
 requireText(
   workflow,
   'run-name: "Cloud candidate PR #${{ inputs.pull_request }} ${{ inputs.version_tag }} (${{ inputs.request_id }})"',

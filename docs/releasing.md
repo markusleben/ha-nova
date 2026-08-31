@@ -446,6 +446,22 @@ dispatch by the exact maintainer account is the candidate approval when GitHub
 reports `REVIEW_REQUIRED`; requested changes and unresolved threads still
 block the run.
 
+Sensitive workflows remain denied by default. One candidate dispatch may
+approve a content-only change to exactly one existing path listed in
+`cloud_source_gate.sensitive_workflows`; adding, deleting, renaming, changing
+the mode of, or changing a second workflow remains denied. Its canonical
+approval ID is
+`pr<PR>-<BASE_SHA>-<HEAD_SHA>-<MERGE_SHA>-<WORKFLOWS_TREE_SHA>`. The resolver
+reads that authority only from `GITHUB_EVENT_PATH.inputs.request_id`, requires
+the exact maintainer actor and numeric user ID, triggering actor,
+`workflow_dispatch`, `refs/heads/main`, and attempt 1, and rechecks the API and
+refs before completion. The broker accepts this sensitive-workflow exception
+only after the existing evidence names both the exact synthetic merge commit
+and its complete source tree. Stale evidence and an identical tree under a
+different commit do not qualify. Sensitive merge-queue targets remain denied.
+Disabling Cloud does not bypass workflow validation: the target workflow tree
+must remain unchanged or pass the existing non-sensitive `uses:`-only rule.
+
 Dispatch, capture, and monitor that single run:
 
 ```bash
@@ -454,15 +470,16 @@ VERSION_TAG=v0.22.0-rc1 # replace
 PR_JSON="$(gh api "repos/markusleben/ha-nova/pulls/${PR_NUMBER}")"
 BASE_SHA="$(jq -r .base.sha <<<"${PR_JSON}")"
 HEAD_SHA="$(jq -r .head.sha <<<"${PR_JSON}")"
-MERGE_SHA="$(jq -r .merge_commit_sha <<<"${PR_JSON}")"
-REQUEST_ID="pr${PR_NUMBER}-${BASE_SHA}-${HEAD_SHA}-${MERGE_SHA}"
+git fetch --force origin \
+  "+refs/pull/${PR_NUMBER}/merge:refs/cloud-evidence/${PR_NUMBER}"
+MERGE_SHA="$(git rev-parse "refs/cloud-evidence/${PR_NUMBER}")"
+WORKFLOWS_TREE_SHA="$(git rev-parse "${MERGE_SHA}:.github/workflows")"
+REQUEST_ID="pr${PR_NUMBER}-${BASE_SHA}-${HEAD_SHA}-${MERGE_SHA}-${WORKFLOWS_TREE_SHA}"
 RUN_TITLE="Cloud candidate PR #${PR_NUMBER} ${VERSION_TAG} (${REQUEST_ID})"
-# `gh workflow run` prints no run id. The request ID must contain the PR plus
-# the complete base, head, and synthetic merge SHAs; the workflow resolver
-# validates that identity from one authoritative PR resolution. Select only a
-# run whose evaluated title has that exact request ID, whose head is the same
-# trusted main/base SHA, and whose attempt is 1. The id fence then distinguishes
-# the new dispatch; bundle identity remains an additional check.
+# `gh workflow run` prints no run id. Select only a run whose evaluated title
+# carries the exact approval ID, whose head is the same trusted main/base SHA,
+# and whose attempt is 1. The id fence then distinguishes the new dispatch;
+# bundle identity remains an additional check.
 RUNS_SINCE="$(node -e 'const d = new Date(Date.now() - 8 * 86400000); process.stdout.write(d.toISOString().slice(0, 10))')"
 list_candidate_runs() {
   local pages total
@@ -767,6 +784,15 @@ only the non-sensitive source delta defined above, may reuse evidence from
 its exact ancestor instead. If a merge queue is used,
 `merge_group` creates another synthetic checkout commit and follows the same
 rule.
+
+The identical-tree bridge does not apply to the one-sensitive-workflow
+bootstrap exception: its broker evidence must name the exact synthetic merge
+commit and the exact complete target tree.
+
+It also does not apply inside `release.yml` or `release-candidate.yml`. Those
+publication paths require the evidence commit itself to equal the checked-out
+release or RC commit, so a squash-merged tree must be repointed before either
+workflow may proceed.
 
 After squash merge, the resulting `main` commit has a different SHA but may
 reuse the reviewed PR evidence only while its complete Git tree is identical

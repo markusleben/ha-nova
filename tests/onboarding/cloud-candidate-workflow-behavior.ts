@@ -15,9 +15,16 @@ import { parse } from "yaml";
 type FixtureChange =
   | "draft"
   | "wrong-actor"
+  | "wrong-user-id"
   | "wrong-trigger"
+  | "wrong-event"
+  | "wrong-ref"
+  | "missing-event-file"
+  | "malformed-request-id"
   | "rerun"
   | "stale-base"
+  | "remote-main-moved"
+  | "merge-ref-moved"
   | "wrong-head-repo"
   | "wrong-parent"
   | "failed-check"
@@ -90,6 +97,12 @@ function runResolver(
   git(root, ["remote", "add", "origin", remote]);
   git(root, ["push", "-q", "origin", `${base}:refs/heads/main`]);
   git(root, ["push", "-q", "origin", `${merge}:refs/pull/42/merge`]);
+  if (change === "remote-main-moved") {
+    git(root, ["push", "-q", "--force", "origin", `${head}:refs/heads/main`]);
+  }
+  if (change === "merge-ref-moved") {
+    git(root, ["push", "-q", "--force", "origin", `${head}:refs/pull/42/merge`]);
+  }
 
   const policy = {
     main_branch_protection: {
@@ -326,6 +339,7 @@ function runResolver(
   const threadsPath = join(root, "threads.json");
   const prCallsPath = join(root, "pr-calls");
   const checkCallsPath = join(root, "check-calls");
+  const eventPath = join(root, "event.json");
   writeFileSync(prPath, JSON.stringify(pr));
   writeFileSync(commitPath, JSON.stringify(commit));
   writeFileSync(checksPath, JSON.stringify([{ check_runs: checks }]));
@@ -496,6 +510,19 @@ function runResolver(
   );
   writeFileSync(prCallsPath, "0\n");
   writeFileSync(checkCallsPath, "0\n");
+  writeFileSync(
+    eventPath,
+    JSON.stringify({
+      inputs: {
+        request_id:
+          change === "malformed-request-id"
+            ? { value: "invalid" }
+            : change === "wrong-request-id"
+              ? "wrong-approval-id"
+              : "approval-id",
+      },
+    }),
+  );
   writeExecutable(
     join(root, "scripts", "release", "verify-cloud-target-source-gate.sh"),
     `#!/usr/bin/env bash
@@ -505,6 +532,7 @@ set -euo pipefail
 [[ "$HA_NOVA_CLOUD_GATE_EXPECTED_TARGET_COMMIT" == "$FAKE_MERGE" ]]
 [[ "$HA_NOVA_CLOUD_GATE_EXPECTED_HEAD_COMMIT" == "$FAKE_HEAD" ]]
 [[ "$HA_NOVA_CLOUD_GATE_EXPECTED_BASE_COMMIT" == "$FAKE_BASE" ]]
+[[ "$HA_NOVA_CLOUD_GATE_APPROVAL_ID" == "approval-id" ]]
 [[ "$FAKE_CHANGE" != "source-rejected" ]]
 `,
   );
@@ -576,20 +604,19 @@ esac
         FAKE_BASE: base,
         FAKE_HEAD: head,
         FAKE_MERGE: merge,
-        GITHUB_EVENT_NAME: "workflow_dispatch",
-        GITHUB_REF: "refs/heads/main",
+        GITHUB_EVENT_NAME:
+          change === "wrong-event" ? "pull_request" : "workflow_dispatch",
+        GITHUB_EVENT_PATH:
+          change === "missing-event-file" ? join(root, "missing-event.json") : eventPath,
+        GITHUB_REF: change === "wrong-ref" ? "refs/heads/feature" : "refs/heads/main",
         GITHUB_REPOSITORY: "markusleben/ha-nova",
         GITHUB_ACTOR: change === "wrong-actor" ? "other-user" : "markusleben",
-        GITHUB_ACTOR_ID: change === "wrong-actor" ? "999" : "6522814",
+        GITHUB_ACTOR_ID: change === "wrong-user-id" ? "999" : "6522814",
         GITHUB_TRIGGERING_ACTOR:
           change === "wrong-trigger" ? "other-user" : "markusleben",
         GITHUB_RUN_ATTEMPT: change === "rerun" ? "2" : "1",
         GITHUB_SHA: change === "stale-base" ? head : base,
         GITHUB_OUTPUT: output,
-        REQUEST_ID:
-          change === "wrong-request-id"
-            ? `pr42-${base}-${head}-${"0".repeat(40)}`
-            : `pr42-${base}-${head}-${merge}`,
         ...(change === "identity-mismatch"
           ? {
               HA_NOVA_CLOUD_CANDIDATE_EXPECTED_COMMIT:
@@ -634,9 +661,16 @@ describe("Cloud candidate source resolver", () => {
   it.each([
     ["a draft", "draft"],
     ["a non-maintainer dispatcher", "wrong-actor"],
+    ["a dispatcher with the wrong numeric user ID", "wrong-user-id"],
     ["a non-maintainer rerun trigger", "wrong-trigger"],
+    ["a non-dispatch event", "wrong-event"],
+    ["a dispatch outside main", "wrong-ref"],
+    ["a missing dispatch event payload", "missing-event-file"],
+    ["a malformed request ID", "malformed-request-id"],
     ["a rerun attempt", "rerun"],
     ["a stale base", "stale-base"],
+    ["main moving after the workflow starts", "remote-main-moved"],
+    ["a moved pull-request merge ref", "merge-ref-moved"],
     ["a fork", "wrong-head-repo"],
     ["wrong merge parents", "wrong-parent"],
     ["another failed check", "failed-check"],

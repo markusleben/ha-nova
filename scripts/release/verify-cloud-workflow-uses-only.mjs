@@ -175,8 +175,14 @@ function verifyUsesOnly(path, baseRef, targetRef) {
 
 requireCommit(baseCommit, "base commit");
 requireCommit(targetCommit, "target commit");
-if (mode !== "full-tree" && mode !== "workflow-tree-only") {
-  fail("mode must be full-tree or workflow-tree-only");
+if (
+  mode !== "full-tree" &&
+  mode !== "workflow-tree-only" &&
+  mode !== "single-sensitive-workflow"
+) {
+  fail(
+    "mode must be full-tree, workflow-tree-only, or single-sensitive-workflow",
+  );
 }
 if (
   !Array.isArray(policy.cloud_source_gate?.sensitive_workflows) ||
@@ -232,6 +238,12 @@ for (const [path, baseEntry] of base) {
     continue;
   }
   changed += 1;
+  if (mode === "single-sensitive-workflow") {
+    if (!sensitive.has(path) || changed > 1) {
+      fail("approval may change exactly one existing sensitive workflow");
+    }
+    continue;
+  }
   if (sensitive.has(path)) {
     fail(`${path} is Cloud-release-sensitive`);
   }
@@ -242,5 +254,7 @@ if (changed === 0) {
 }
 
 console.log(
-  `[verify-cloud-workflow-uses-only] OK: ${changed} non-sensitive workflow file(s)`,
+  mode === "single-sensitive-workflow"
+    ? "[verify-cloud-workflow-uses-only] OK: one approved sensitive workflow content change"
+    : `[verify-cloud-workflow-uses-only] OK: ${changed} non-sensitive workflow file(s)`,
 );

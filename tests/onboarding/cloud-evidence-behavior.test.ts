@@ -36,6 +36,7 @@ interface Fixture {
   mergeCommit: string;
   alternateCommit: string;
   mainTree: string;
+  workflowsTree: string;
 }
 
 // The script derives ROOT_DIR from its own location, so a copy inside a temp
@@ -47,12 +48,14 @@ function initFixture(platforms: string[]): Fixture {
   const originGit = join(root, "origin.git");
   mkdirSync(join(repo, "scripts", "release"), { recursive: true });
   mkdirSync(join(repo, "nova"), { recursive: true });
+  mkdirSync(join(repo, ".github", "workflows"), { recursive: true });
   copyFileSync(SCRIPT_REL, join(repo, SCRIPT_REL));
   chmodSync(join(repo, SCRIPT_REL), 0o755);
   for (const lib of SOURCED_LIBS_REL) {
     copyFileSync(lib, join(repo, lib));
   }
   writeFileSync(join(repo, "nova", "config.yaml"), 'name: HA NOVA\nversion: "0.9.0"\n');
+  writeFileSync(join(repo, ".github", "workflows", "ci.yml"), "jobs: {}\n");
   // The dispatch preflight reads the same policy file as the server resolver.
   mkdirSync(join(repo, ".github", "policy"), { recursive: true });
   writeFileSync(
@@ -77,6 +80,7 @@ function initFixture(platforms: string[]): Fixture {
   git(repo, "remote", "add", "origin", originGit);
   const mainCommit = git(repo, "rev-parse", "HEAD").trim();
   const mainTree = git(repo, "rev-parse", "HEAD^{tree}").trim();
+  const workflowsTree = git(repo, "rev-parse", "HEAD:.github/workflows").trim();
   git(originGit, "config", "user.email", "test@example.invalid");
   git(originGit, "config", "user.name", "test");
   const headCommit = git(
@@ -116,6 +120,7 @@ function initFixture(platforms: string[]): Fixture {
     mergeCommit,
     alternateCommit,
     mainTree,
+    workflowsTree,
   };
 }
 
@@ -201,6 +206,7 @@ case "$args" in
     if [ -f "\$f" ]; then cat "\$f"; else current_run "\$id"; fi ;;
   "workflow run cloud-candidate-bundle.yml --repo ${REPO_SLUG} -f pull_request=7 -f version_tag="*" -f request_id="*)
     trace "dispatch"
+    printf '%s\n' "$args" >"\${FAKE_GH_STATE}/dispatch.args"
     exit 0 ;;
   "run watch "*" --repo ${REPO_SLUG} --exit-status")
     id="$3"
@@ -556,7 +562,7 @@ describe("cloud evidence PR target binding", () => {
     const base = identity.base ?? fixture.mainCommit;
     const head = identity.head ?? fixture.headCommit;
     const merge = identity.merge ?? fixture.mergeCommit;
-    const requestId = `pr${pr}-${base}-${head}-${merge}`;
+    const requestId = `pr${pr}-${base}-${head}-${merge}-${fixture.workflowsTree}`;
     return {
       id: databaseId,
       display_title: `Cloud candidate PR #${pr} v0.24.0-rc1 (${requestId})`,
@@ -1075,6 +1081,9 @@ describe("cloud evidence PR target binding", () => {
     expect(result.stdout).toContain("dispatching fresh");
     const trace = readFileSync(fake.trace, "utf8");
     expect(trace).toContain("dispatch");
+    expect(readFileSync(join(fake.state, "dispatch.args"), "utf8")).toContain(
+      `request_id=pr7-${fixture.mainCommit}-${fixture.headCommit}-${fixture.mergeCommit}-${fixture.workflowsTree}`,
+    );
     expect(result.stderr).toContain("refusing to execute it");
     expect(result.stderr).not.toContain("cannot copy");
   });
