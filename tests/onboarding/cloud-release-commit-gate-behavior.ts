@@ -163,15 +163,40 @@ export function registerCloudReleaseCommitGateBehaviorTests(): void {
     it("permits only trusted candidate metadata to remain evidence-pending", () => {
       const { fixture, targetGate, trustedHead } =
         preparePRGateFixture(true);
+      execFileSync("git", ["checkout", "-qb", "candidate-head"], {
+        cwd: fixture.root,
+      });
+      writeFileSync(join(fixture.root, "candidate.txt"), "candidate\n");
+      const head = commitFixtureChanges(fixture, {});
+      execFileSync("git", ["checkout", "-qb", "candidate-merge", trustedHead], {
+        cwd: fixture.root,
+      });
       execFileSync(
         "git",
-        ["update-ref", "refs/pull/1/merge", trustedHead],
-        { cwd: fixture.root },
+        ["merge", "--no-ff", "-qm", "candidate merge", head],
+        {
+          cwd: fixture.root,
+        },
       );
+      const merge = currentFixtureHead(fixture);
+      const workflowsTree = execFileSync(
+        "git",
+        ["rev-parse", `${merge}:.github/workflows`],
+        { cwd: fixture.root, encoding: "utf8" },
+      ).trim();
+      execFileSync("git", ["checkout", "-q", trustedHead], {
+        cwd: fixture.root,
+      });
+      execFileSync("git", ["update-ref", "refs/pull/1/merge", merge], {
+        cwd: fixture.root,
+      });
       const env = {
         ...process.env,
         HA_NOVA_CLOUD_GATE_SOURCE_REF: "refs/pull/1/merge",
-        HA_NOVA_CLOUD_GATE_EXPECTED_TARGET_COMMIT: trustedHead,
+        HA_NOVA_CLOUD_GATE_EXPECTED_TARGET_COMMIT: merge,
+        HA_NOVA_CLOUD_GATE_EXPECTED_BASE_COMMIT: trustedHead,
+        HA_NOVA_CLOUD_GATE_EXPECTED_HEAD_COMMIT: head,
+        HA_NOVA_CLOUD_GATE_APPROVAL_ID: `pr1-${trustedHead}-${head}-${merge}-${workflowsTree}`,
       };
       const candidate = spawnSync("bash", [targetGate, "candidate"], {
         cwd: fixture.root,
@@ -323,7 +348,7 @@ export function registerCloudReleaseCommitGateBehaviorTests(): void {
       expect(result.status, `${result.stdout}\n${result.stderr}`).toBe(0);
     });
 
-    it.each(["add", "delete", "rename", "mode", "sensitive", "run", "identity", "comment"])(
+    it.each(["add", "delete", "rename", "mode", "run", "identity", "comment"])(
       "rejects enabled workflow %s deltas outside existing non-sensitive uses versions",
       (mutation) => {
         const { fixture, prGate, trustedHead, workflowDir } = preparePRGateFixture();
@@ -389,6 +414,275 @@ export function registerCloudReleaseCommitGateBehaviorTests(): void {
         expect(result.status, `${result.stdout}\n${result.stderr}`).not.toBe(0);
       },
     );
+
+    it(
+      "binds one sensitive workflow approval and broker evidence to the exact PR tuple",
+      { timeout: 120000 },
+      () => {
+        const { fixture, prGate, targetGate, trustedHead, workflowDir, env } =
+          preparePRGateFixture(true);
+        execFileSync("git", ["checkout", "-qb", "sensitive-head"], {
+          cwd: fixture.root,
+        });
+        writeFileSync(
+          join(workflowDir, "cloud-source-gate.yml"),
+          "name: approved sensitive change\njobs: {}\n",
+        );
+        const head = commitFixtureChanges(fixture, {});
+        execFileSync(
+          "git",
+          ["checkout", "-qb", "sensitive-merge", trustedHead],
+          {
+            cwd: fixture.root,
+          },
+        );
+        execFileSync(
+          "git",
+          ["merge", "--no-ff", "-qm", "sensitive merge", head],
+          {
+            cwd: fixture.root,
+          },
+        );
+        const merge = currentFixtureHead(fixture);
+        const tree = execFileSync("git", ["rev-parse", `${merge}^{tree}`], {
+          cwd: fixture.root,
+          encoding: "utf8",
+        }).trim();
+        const workflowsTree = execFileSync(
+          "git",
+          ["rev-parse", `${merge}:.github/workflows`],
+          { cwd: fixture.root, encoding: "utf8" },
+        ).trim();
+        const approval = `pr1-${trustedHead}-${head}-${merge}-${workflowsTree}`;
+        execFileSync("git", ["checkout", "-q", trustedHead], {
+          cwd: fixture.root,
+        });
+        execFileSync("git", ["update-ref", "refs/pull/1/merge", merge], {
+          cwd: fixture.root,
+        });
+        const candidateEnv = {
+          ...env,
+          HA_NOVA_CLOUD_GATE_SOURCE_REF: "refs/pull/1/merge",
+          HA_NOVA_CLOUD_GATE_EXPECTED_TARGET_COMMIT: merge,
+          HA_NOVA_CLOUD_GATE_EXPECTED_BASE_COMMIT: trustedHead,
+          HA_NOVA_CLOUD_GATE_EXPECTED_HEAD_COMMIT: head,
+          HA_NOVA_CLOUD_GATE_APPROVAL_ID: approval,
+        };
+        const candidate = spawnSync("bash", [targetGate, "candidate"], {
+          cwd: fixture.root,
+          encoding: "utf8",
+          env: { ...process.env, ...candidateEnv },
+        });
+        expect(
+          candidate.status,
+          `${candidate.stdout}\n${candidate.stderr}`,
+        ).toBe(0);
+        const retry = spawnSync("bash", [targetGate, "candidate"], {
+          cwd: fixture.root,
+          encoding: "utf8",
+          env: { ...process.env, ...candidateEnv },
+        });
+        expect(retry.status, `${retry.stdout}\n${retry.stderr}`).toBe(0);
+
+        for (const invalid of [
+          "",
+          approval.replace(/^pr1-/, "pr2-"),
+          approval.replace(/^pr1-/, ""),
+          approval.replace(trustedHead, "0".repeat(40)),
+          approval.replace(head, "1".repeat(40)),
+          approval.replace(merge, "2".repeat(40)),
+          approval.replace(workflowsTree, "3".repeat(40)),
+          approval.replace(trustedHead, ""),
+          approval.replace(head, ""),
+          approval.replace(merge, ""),
+          approval.replace(workflowsTree, ""),
+        ]) {
+          const result = spawnSync("bash", [targetGate, "candidate"], {
+            cwd: fixture.root,
+            encoding: "utf8",
+            env: {
+              ...process.env,
+              ...candidateEnv,
+              HA_NOVA_CLOUD_GATE_APPROVAL_ID: invalid,
+            },
+          });
+          expect(result.status, invalid).not.toBe(0);
+        }
+
+        const sameTreeHead = execFileSync(
+          "git",
+          [
+            "commit-tree",
+            `${head}^{tree}`,
+            "-p",
+            head,
+            "-m",
+            "new head identity",
+          ],
+          { cwd: fixture.root, encoding: "utf8" },
+        ).trim();
+        const sameTreeMerge = execFileSync(
+          "git",
+          [
+            "commit-tree",
+            `${merge}^{tree}`,
+            "-p",
+            trustedHead,
+            "-p",
+            sameTreeHead,
+            "-m",
+            "new merge identity",
+          ],
+          { cwd: fixture.root, encoding: "utf8" },
+        ).trim();
+        execFileSync(
+          "git",
+          ["update-ref", "refs/pull/1/merge", sameTreeMerge],
+          {
+            cwd: fixture.root,
+          },
+        );
+        const changedIdentity = spawnSync("bash", [targetGate, "candidate"], {
+          cwd: fixture.root,
+          encoding: "utf8",
+          env: {
+            ...process.env,
+            ...candidateEnv,
+            HA_NOVA_CLOUD_GATE_EXPECTED_TARGET_COMMIT: sameTreeMerge,
+            HA_NOVA_CLOUD_GATE_EXPECTED_HEAD_COMMIT: sameTreeHead,
+          },
+        });
+        expect(changedIdentity.status).not.toBe(0);
+        execFileSync("git", ["update-ref", "refs/pull/1/merge", merge], {
+          cwd: fixture.root,
+        });
+
+        const exact = runPRGate(
+          fixture.root,
+          prGate,
+          merge,
+          validCloudEvidence({ sha: merge, tree }, ["linux"]),
+          {
+            ...env,
+            HA_NOVA_CLOUD_GATE_EXPECTED_BASE_COMMIT: trustedHead,
+            HA_NOVA_CLOUD_GATE_EXPECTED_HEAD_COMMIT: head,
+          },
+        );
+        expect(exact.status, `${exact.stdout}\n${exact.stderr}`).toBe(0);
+
+        execFileSync(
+          "git",
+          ["update-ref", "refs/heads/gh-readonly-queue/main/test", merge],
+          { cwd: fixture.root },
+        );
+        const queue = spawnSync("bash", [targetGate], {
+          cwd: fixture.root,
+          encoding: "utf8",
+          env: {
+            ...process.env,
+            ...env,
+            HA_NOVA_CLOUD_GATE_SOURCE_REF:
+              "refs/heads/gh-readonly-queue/main/test",
+            HA_NOVA_CLOUD_GATE_EXPECTED_TARGET_COMMIT: merge,
+            HA_NOVA_CLOUD_GATE_EVIDENCE_JSON: JSON.stringify(
+              validCloudEvidence({ sha: merge, tree }, ["linux"]),
+            ),
+          },
+        });
+        expect(queue.status).not.toBe(0);
+        expect(`${queue.stdout}\n${queue.stderr}`).toContain(
+          "merge queue cannot approve sensitive workflow changes",
+        );
+
+        const twin = execFileSync(
+          "git",
+          [
+            "commit-tree",
+            `${merge}^{tree}`,
+            "-p",
+            trustedHead,
+            "-p",
+            head,
+            "-m",
+            "same tree",
+          ],
+          { cwd: fixture.root, encoding: "utf8" },
+        ).trim();
+        const identicalTree = runPRGate(
+          fixture.root,
+          prGate,
+          merge,
+          validCloudEvidence({ sha: twin, tree }, ["linux"]),
+          env,
+        );
+        expect(identicalTree.status).not.toBe(0);
+        expect(`${identicalTree.stdout}\n${identicalTree.stderr}`).toContain(
+          "require evidence for the exact target commit and tree",
+        );
+
+        const stale = runPRGate(
+          fixture.root,
+          prGate,
+          merge,
+          validCloudEvidence(
+            {
+              sha: trustedHead,
+              tree: execFileSync(
+                "git",
+                ["rev-parse", `${trustedHead}^{tree}`],
+                {
+                  cwd: fixture.root,
+                  encoding: "utf8",
+                },
+              ).trim(),
+            },
+            ["linux"],
+          ),
+          env,
+        );
+        expect(stale.status).not.toBe(0);
+        const malformed = runPRGate(
+          fixture.root,
+          prGate,
+          merge,
+          { schema: 2 },
+          env,
+        );
+        expect(malformed.status).not.toBe(0);
+      },
+    );
+
+    it("rejects an approved sensitive workflow combined with a second workflow change", () => {
+      const { fixture, prGate, trustedHead, workflowDir, env } =
+        preparePRGateFixture(true);
+      writeFileSync(
+        join(workflowDir, "cloud-source-gate.yml"),
+        "name: sensitive change\njobs: {}\n",
+      );
+      writeFileSync(
+        join(workflowDir, "maintenance.yml"),
+        `steps:\n  - uses: example/action@${ACTION_SHA_124} # v1.2.4\n`,
+      );
+      const target = commitFixtureChanges(fixture, {});
+      const tree = execFileSync("git", ["rev-parse", "HEAD^{tree}"], {
+        cwd: fixture.root,
+        encoding: "utf8",
+      }).trim();
+      execFileSync("git", ["checkout", "-q", trustedHead], {
+        cwd: fixture.root,
+      });
+      const result = runPRGate(
+        fixture.root,
+        prGate,
+        target,
+        validCloudEvidence({ sha: target, tree }, ["linux"]),
+        env,
+      );
+      expect(result.status).not.toBe(0);
+      expect(`${result.stdout}\n${result.stderr}`).toContain(
+        "approval may change exactly one existing sensitive workflow",
+      );
+    });
 
     it("accepts an identical tree after a squash-style commit rewrite", () => {
       const enabled = {

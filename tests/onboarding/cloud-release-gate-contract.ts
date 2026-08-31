@@ -249,9 +249,13 @@ export function registerCloudReleaseGateContractTests(): void {
     expect(sourceGateScript).toContain("HEAD:.github/workflows");
     expect(sourceGateScript).toContain("${target_commit}:.github/workflows");
     expect(sourceGateScript).toContain(
-      '[[ "${target_workflows_tree}" == "${trusted_workflows_tree}" ]]',
+      '[[ "${target_workflows_tree}" != "${trusted_workflows_tree}" ]]',
     );
     expect(sourceGateScript).toContain("verify-cloud-workflow-uses-only.mjs");
+    expect(sourceGateScript).toContain("single-sensitive-workflow");
+    expect(sourceGateScript).toContain(
+      'HA_NOVA_CLOUD_GATE_REQUIRE_EXACT_EVIDENCE="${exact_evidence}"',
+    );
     expect(sourceGateScript).toContain(
       "pull request merge commit does not bind the expected base and head",
     );

@@ -240,6 +240,14 @@ function validateEvidenceIdentity(evidence, target) {
   if (targetCommitTree !== target.tree) {
     fail("Home Assistant Cloud gate target tree must match its target commit");
   }
+  if (
+    process.env.HA_NOVA_CLOUD_GATE_REQUIRE_EXACT_EVIDENCE === "1" &&
+    (evidence.commit_sha !== target.commit || evidence.tree_sha !== target.tree)
+  ) {
+    fail(
+      "approved sensitive workflow changes require evidence for the exact target commit and tree",
+    );
+  }
   if (evidence.tree_sha === target.tree) {
     return;
   }

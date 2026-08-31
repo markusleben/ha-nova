@@ -177,8 +177,12 @@ merge_commit="$(jq -r '.merge_commit_sha // ""' <<<"$pr_json")"
 base_ref="$(jq -r '.base.ref // ""' <<<"$pr_json")"
 [ "$base_ref" = "main" ] \
   || die "PR #$PR targets '${base_ref:-unknown}', not main — the candidate workflow only builds PRs into main"
+base_sha="$(jq -r '.base.sha // ""' <<<"$pr_json")"
+[[ "$base_sha" =~ ^[0-9a-f]{40}$ ]] \
+  || die "PR #$PR has no valid base sha in the API response"
 resolved_head_sha="$(jq -r '.head.sha // ""' <<<"$pr_json")"
-[ -n "$resolved_head_sha" ] || die "PR #$PR has no head sha in the API response"
+[[ "$resolved_head_sha" =~ ^[0-9a-f]{40}$ ]] \
+  || die "PR #$PR has no valid head sha in the API response"
 head_repo="$(jq -r '.head.repo.full_name // ""' <<<"$pr_json")"
 [ "$head_repo" = "$REPO" ] \
   || die "PR #$PR's head lives in '${head_repo:-unknown}', not $REPO — the candidate workflow only builds same-repo branches"
@@ -318,6 +322,8 @@ git -C "$ROOT_DIR" fetch --quiet --force origin "+refs/pull/$PR/merge:refs/cloud
   || die "cannot fetch the synthetic merge ref for #$PR"
 target_commit="$(git -C "$ROOT_DIR" rev-parse "refs/cloud-evidence/$PR")"
 target_tree="$(git -C "$ROOT_DIR" rev-parse "refs/cloud-evidence/$PR^{tree}")"
+target_workflows_tree="$(git -C "$ROOT_DIR" rev-parse "refs/cloud-evidence/$PR:.github/workflows")" \
+  || die "the target has no workflow tree"
 # Bind the API's merge identity to the fetched ref: two views of the same
 # synthetic merge commit that must agree, or GitHub is mid-recompute.
 [ "$merge_commit" = "$target_commit" ] \
@@ -441,11 +447,9 @@ mkdir "$MINT_LOCK" 2>/dev/null \
   || die "another mint session appears to be running (lock: $MINT_LOCK) — if none is, remove that directory and re-run"
 MINT_LOCK_ACQUIRED=1
 
-# request_id is a REQUIRED dispatch input, derived deterministically for the
-# audit trail — but binding never relies on it: every run before the #574
-# fix is titled just "Cloud candidate PR" (the unquoted `#` in run-name
-# started a YAML comment), and `gh run list` cannot filter by dispatch
-# inputs either way. Binding works with what the API reliably has:
+# request_id is the canonical approval for this exact PR state. The candidate
+# resolver reads it only from GITHUB_EVENT_PATH; run titles never grant
+# authority. Run recovery still uses what the list API reliably exposes:
 #   - an in-flight run is watched to completion FIRST — dispatching would
 #     cancel it via the per-PR concurrency group, and in this
 #     single-maintainer repo it is almost certainly ours;
@@ -456,7 +460,7 @@ MINT_LOCK_ACQUIRED=1
 #     above the highest run id seen before the dispatch".
 # A wrong pick can never attest anything: identity is proven from local bytes
 # before any binary executes, and check_identity guards every provenance run.
-request_id="pr${PR}-${target_commit:0:12}"
+request_id="pr${PR}-${base_sha}-${resolved_head_sha}-${target_commit}-${target_workflows_tree}"
 list_candidate_runs() {
   gh run list --repo "$REPO" --workflow cloud-candidate-bundle.yml \
     --json databaseId,status,conclusion,event --limit 30

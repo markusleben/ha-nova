@@ -446,12 +446,33 @@ dispatch by the exact maintainer account is the candidate approval when GitHub
 reports `REVIEW_REQUIRED`; requested changes and unresolved threads still
 block the run.
 
+Sensitive workflows remain denied by default. One candidate dispatch may
+approve a content-only change to exactly one existing path listed in
+`cloud_source_gate.sensitive_workflows`; adding, deleting, renaming, changing
+the mode of, or changing a second workflow remains denied. Its canonical
+approval ID is
+`pr<PR>-<BASE_SHA>-<HEAD_SHA>-<MERGE_SHA>-<WORKFLOWS_TREE_SHA>`. The resolver
+reads that authority only from `GITHUB_EVENT_PATH.inputs.request_id`, requires
+the exact maintainer actor and numeric user ID, triggering actor,
+`workflow_dispatch`, `refs/heads/main`, and attempt 1, and rechecks the API and
+refs before completion. The broker accepts this sensitive-workflow exception
+only after the existing evidence names both the exact synthetic merge commit
+and its complete source tree. Stale evidence and an identical tree under a
+different commit do not qualify. Sensitive merge-queue targets remain denied.
+
 Dispatch, capture, and monitor that single run:
 
 ```bash
 PR_NUMBER=469 # replace
 VERSION_TAG=v0.22.0-rc1 # replace
-REQUEST_ID="$(date -u +%Y%m%dT%H%M%SZ)-$$"
+PR_JSON="$(gh api "repos/markusleben/ha-nova/pulls/${PR_NUMBER}")"
+BASE_SHA="$(jq -r .base.sha <<<"${PR_JSON}")"
+HEAD_SHA="$(jq -r .head.sha <<<"${PR_JSON}")"
+git fetch --force origin \
+  "+refs/pull/${PR_NUMBER}/merge:refs/cloud-evidence/${PR_NUMBER}"
+MERGE_SHA="$(git rev-parse "refs/cloud-evidence/${PR_NUMBER}")"
+WORKFLOWS_TREE_SHA="$(git rev-parse "${MERGE_SHA}:.github/workflows")"
+REQUEST_ID="pr${PR_NUMBER}-${BASE_SHA}-${HEAD_SHA}-${MERGE_SHA}-${WORKFLOWS_TREE_SHA}"
 # `gh workflow run` prints no run id, and every run before the #574 fix is
 # titled just "Cloud candidate PR", so recovery by name is unreliable. Fence
 # on the highest run id seen BEFORE the dispatch; the id fence plus the
@@ -728,6 +749,10 @@ only the non-sensitive source delta defined above, may reuse evidence from
 its exact ancestor instead. If a merge queue is used,
 `merge_group` creates another synthetic checkout commit and follows the same
 rule.
+
+The identical-tree bridge does not apply to the one-sensitive-workflow
+bootstrap exception: its broker evidence must name the exact synthetic merge
+commit and the exact complete target tree.
 
 After squash merge, the resulting `main` commit has a different SHA but may
 reuse the reviewed PR evidence only while its complete Git tree is identical
