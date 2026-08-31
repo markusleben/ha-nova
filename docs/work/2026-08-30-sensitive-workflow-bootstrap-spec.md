@@ -67,3 +67,25 @@ the approval and evidence to the exact pull-request state.
 - **One-way doors:** None in this local change. No remote state is mutated.
 - **Recommended order:** Validate tuple and workflow shape first; validate exact
   evidence second; revalidate API and refs immediately before completion.
+
+## 2026-08-31 P1 remediation checklist
+
+- [x] **KISS — pass:** Move the existing workflow-delta gate before the
+  disabled-Cloud exit and derive publication exactness inside the existing
+  evidence verifier.
+- [x] **YAGNI — pass:** Add no workflow, release, label, secret, service,
+  configuration, or compatibility mechanism.
+- [x] **DRY — pass:** Keep all source shapes in
+  `verify-cloud-workflow-uses-only.mjs` and all evidence identities in
+  `verify-cloud-release-gate.sh`.
+- [x] **Fail-fast — pass:** Disabled targets reject every workflow delta except
+  the existing non-sensitive `uses:`-only escape; release and RC workflows
+  reject evidence from any other commit even when its tree is identical.
+- [x] **Retry-safe — pass:** Exact commit and tree comparisons are pure and
+  deterministic; retrying the same state has the same result.
+
+Root causes: the target gate returned before checking workflow changes when
+Cloud was disabled, and publication exactness depended only on a caller-set
+marker that the release workflows do not set. The remediation changes the
+ordering at the shared target gate and recognizes the two immutable GitHub
+workflow identities inside the shared evidence verifier.

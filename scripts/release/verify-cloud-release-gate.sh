@@ -116,6 +116,19 @@ function requireSHA(value, label) {
   }
 }
 
+function requiresExactEvidence() {
+  const workflowRef = process.env.GITHUB_WORKFLOW_REF ?? "";
+  return (
+    process.env.HA_NOVA_CLOUD_GATE_REQUIRE_EXACT_EVIDENCE === "1" ||
+    workflowRef.startsWith(
+      "markusleben/ha-nova/.github/workflows/release.yml@",
+    ) ||
+    workflowRef.startsWith(
+      "markusleben/ha-nova/.github/workflows/release-candidate.yml@",
+    )
+  );
+}
+
 function readTargetIdentity() {
   const targetCommit = process.env.HA_NOVA_CLOUD_GATE_TARGET_COMMIT ?? "";
   const targetTree = process.env.HA_NOVA_CLOUD_GATE_TARGET_TREE ?? "";
@@ -241,11 +254,11 @@ function validateEvidenceIdentity(evidence, target) {
     fail("Home Assistant Cloud gate target tree must match its target commit");
   }
   if (
-    process.env.HA_NOVA_CLOUD_GATE_REQUIRE_EXACT_EVIDENCE === "1" &&
+    requiresExactEvidence() &&
     (evidence.commit_sha !== target.commit || evidence.tree_sha !== target.tree)
   ) {
     fail(
-      "approved sensitive workflow changes require evidence for the exact target commit and tree",
+      "publication and approved sensitive workflow paths require evidence for the exact target commit and tree",
     );
   }
   if (evidence.tree_sha === target.tree) {

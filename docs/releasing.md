@@ -459,6 +459,8 @@ refs before completion. The broker accepts this sensitive-workflow exception
 only after the existing evidence names both the exact synthetic merge commit
 and its complete source tree. Stale evidence and an identical tree under a
 different commit do not qualify. Sensitive merge-queue targets remain denied.
+Disabling Cloud does not bypass workflow validation: the target workflow tree
+must remain unchanged or pass the existing non-sensitive `uses:`-only rule.
 
 Dispatch, capture, and monitor that single run:
 
@@ -753,6 +755,11 @@ rule.
 The identical-tree bridge does not apply to the one-sensitive-workflow
 bootstrap exception: its broker evidence must name the exact synthetic merge
 commit and the exact complete target tree.
+
+It also does not apply inside `release.yml` or `release-candidate.yml`. Those
+publication paths require the evidence commit itself to equal the checked-out
+release or RC commit, so a squash-merged tree must be repointed before either
+workflow may proceed.
 
 After squash merge, the resulting `main` commit has a different SHA but may
 reuse the reviewed PR evidence only while its complete Git tree is identical

@@ -257,12 +257,12 @@ export function registerCloudReleaseCommitGateBehaviorTests(): void {
       expect(clean.status, `${clean.stdout}\n${clean.stderr}`).toBe(0);
 
       writeFileSync(
-        join(workflowDir, "spoof.yml"),
-        "jobs:\n  spoof:\n    name: cloud-source-gate\n",
+        join(workflowDir, "maintenance.yml"),
+        `steps:\n  - uses: example/action@${ACTION_SHA_124} # v1.2.4\n`,
         "utf8",
       );
       execFileSync("git", ["add", "."], { cwd: fixture.root });
-      execFileSync("git", ["commit", "-qm", "duplicate context"], {
+      execFileSync("git", ["commit", "-qm", "disabled uses-only maintenance"], {
         cwd: fixture.root,
       });
       const target = execFileSync("git", ["rev-parse", "HEAD"], {
@@ -272,8 +272,14 @@ export function registerCloudReleaseCommitGateBehaviorTests(): void {
       execFileSync("git", ["checkout", "-q", trustedHead], {
         cwd: fixture.root,
       });
-      const duplicate = runPRGate(fixture.root, prGate, target);
-      expect(duplicate.status, `${duplicate.stdout}\n${duplicate.stderr}`).toBe(0);
+      const usesOnly = runPRGate(
+        fixture.root,
+        prGate,
+        target,
+        undefined,
+        env,
+      );
+      expect(usesOnly.status, `${usesOnly.stdout}\n${usesOnly.stderr}`).toBe(0);
 
       const enabled = {
         min_relay_version: "0.8.0",
@@ -320,6 +326,68 @@ export function registerCloudReleaseCommitGateBehaviorTests(): void {
       expect(enabledChange.status, `${enabledChange.stdout}\n${enabledChange.stderr}`).not.toBe(0);
       expect(`${enabledChange.stdout}\n${enabledChange.stderr}`).toContain(
         "enabled Cloud source requires the provisioned, exact App-bound source reporter check",
+      );
+    });
+
+    it("rejects sensitive workflow changes hidden behind disabled Cloud on PR and queue paths", () => {
+      const { fixture, prGate, targetGate, trustedHead, workflowDir, env } =
+        preparePRGateFixture(true);
+      const disabled = {
+        min_relay_version: "0.8.0",
+        cloud_remote_enabled: false,
+        cloud_remote_platforms: [],
+      };
+      writeFileSync(
+        join(fixture.root, "version.json"),
+        `${JSON.stringify(disabled, null, 2)}\n`,
+        "utf8",
+      );
+      writeFileSync(
+        join(fixture.root, "nova", "version.json"),
+        `${JSON.stringify(disabled, null, 2)}\n`,
+        "utf8",
+      );
+      writeFileSync(
+        join(workflowDir, "cloud-source-gate.yml"),
+        "name: hidden sensitive change\njobs: {}\n",
+        "utf8",
+      );
+      const target = commitFixtureChanges(fixture, {});
+      execFileSync("git", ["checkout", "-q", trustedHead], {
+        cwd: fixture.root,
+      });
+
+      const pullRequest = runPRGate(
+        fixture.root,
+        prGate,
+        target,
+        undefined,
+        env,
+      );
+      expect(pullRequest.status).not.toBe(0);
+      expect(`${pullRequest.stdout}\n${pullRequest.stderr}`).toContain(
+        "disabled Cloud targets may change workflows only through non-sensitive uses-only maintenance",
+      );
+
+      execFileSync(
+        "git",
+        ["update-ref", "refs/heads/gh-readonly-queue/main/disabled", target],
+        { cwd: fixture.root },
+      );
+      const queue = spawnSync("bash", [targetGate], {
+        cwd: fixture.root,
+        encoding: "utf8",
+        env: {
+          ...process.env,
+          ...env,
+          HA_NOVA_CLOUD_GATE_SOURCE_REF:
+            "refs/heads/gh-readonly-queue/main/disabled",
+          HA_NOVA_CLOUD_GATE_EXPECTED_TARGET_COMMIT: target,
+        },
+      });
+      expect(queue.status).not.toBe(0);
+      expect(`${queue.stdout}\n${queue.stderr}`).toContain(
+        "disabled Cloud targets may change workflows only through non-sensitive uses-only maintenance",
       );
     });
 
@@ -702,6 +770,42 @@ export function registerCloudReleaseCommitGateBehaviorTests(): void {
 
       const result = runCloudGate(fixture, validCloudEvidence(fixture, ["linux"]), head);
       expect(result.status, `${result.stdout}\n${result.stderr}`).toBe(0);
+    });
+
+    it.each([
+      "markusleben/ha-nova/.github/workflows/release.yml@refs/tags/v0.25.1",
+      "markusleben/ha-nova/.github/workflows/release-candidate.yml@refs/heads/main",
+    ])("requires a repointed evidence commit in publication path %s", (workflowRef) => {
+      const enabled = {
+        min_relay_version: "0.8.0",
+        cloud_remote_enabled: true,
+        cloud_remote_platforms: ["linux"],
+      };
+      const fixture = cloudGateFixture(enabled);
+      execFileSync("git", ["commit", "--amend", "-qm", "publication rewrite"], {
+        cwd: fixture.root,
+      });
+      const head = currentFixtureHead(fixture);
+      expect(head).not.toBe(fixture.sha);
+
+      const exact = runCloudGate(
+        fixture,
+        validCloudEvidence({ sha: head, tree: fixture.tree }, ["linux"]),
+        head,
+        { GITHUB_WORKFLOW_REF: workflowRef },
+      );
+      expect(exact.status, `${exact.stdout}\n${exact.stderr}`).toBe(0);
+
+      const staleCommit = runCloudGate(
+        fixture,
+        validCloudEvidence(fixture, ["linux"]),
+        head,
+        { GITHUB_WORKFLOW_REF: workflowRef },
+      );
+      expect(staleCommit.status).not.toBe(0);
+      expect(`${staleCommit.stdout}\n${staleCommit.stderr}`).toContain(
+        "require evidence for the exact target commit and tree",
+      );
     });
 
     it("rejects disabled-source evidence for a later enabled runtime", () => {
