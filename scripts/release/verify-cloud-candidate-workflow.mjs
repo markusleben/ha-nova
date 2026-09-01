@@ -82,7 +82,7 @@ requireText(
 );
 requireText(workflow, "pull_request:", "pull request input");
 requireText(workflow, "version_tag:", "version input");
-requireText(workflow, "request_id:", "dispatch recovery input");
+requireText(workflow, "request_id:", "exact dispatch request identity");
 requireText(
   workflow,
   'run-name: "Cloud candidate PR #${{ inputs.pull_request }} ${{ inputs.version_tag }} (${{ inputs.request_id }})"',
@@ -90,8 +90,8 @@ requireText(
 );
 requireText(
   workflow,
-  "group: cloud-candidate-bundle-${{ inputs.pull_request }}",
-  "per-pull-request concurrency",
+  'group: "cloud-candidate-bundle-${{ inputs.pull_request }}-${{ inputs.version_tag }}-${{ inputs.request_id }}"',
+  "exact-request concurrency",
 );
 requireText(workflow, "cancel-in-progress: true", "duplicate-run cancellation");
 requireText(

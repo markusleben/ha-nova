@@ -475,34 +475,67 @@ git fetch --force origin \
 MERGE_SHA="$(git rev-parse "refs/cloud-evidence/${PR_NUMBER}")"
 WORKFLOWS_TREE_SHA="$(git rev-parse "${MERGE_SHA}:.github/workflows")"
 REQUEST_ID="pr${PR_NUMBER}-${BASE_SHA}-${HEAD_SHA}-${MERGE_SHA}-${WORKFLOWS_TREE_SHA}"
-# `gh workflow run` prints no run id, and every run before the #574 fix is
-# titled just "Cloud candidate PR", so recovery by name is unreliable. Fence
-# on the highest run id seen BEFORE the dispatch; the id fence plus the
-# bundle-identity checks below are the real binding.
-MAX_BEFORE="$(gh run list --workflow cloud-candidate-bundle.yml --limit 30 \
-  --json databaseId --jq '[.[].databaseId] | max // 0')"
+RUN_TITLE="Cloud candidate PR #${PR_NUMBER} ${VERSION_TAG} (${REQUEST_ID})"
+# `gh workflow run` prints no run id. Select only a run whose evaluated title
+# carries the exact approval ID, whose head is the same trusted main/base SHA,
+# and whose attempt is 1. The id fence then distinguishes the new dispatch;
+# bundle identity remains an additional check.
+RUNS_SINCE="$(node -e 'const d = new Date(Date.now() - 8 * 86400000); process.stdout.write(d.toISOString().slice(0, 10))')"
+list_candidate_runs() {
+  local pages total
+  pages="$(gh api --paginate --slurp --method GET \
+    "repos/markusleben/ha-nova/actions/workflows/cloud-candidate-bundle.yml/runs" \
+    -f event=workflow_dispatch -f "head_sha=${BASE_SHA}" \
+    -f "created=>=${RUNS_SINCE}" -F per_page=100)" || return
+  total="$(jq -r '[.[].total_count] | max // 0' <<<"${pages}")" || return
+  [[ "${total}" -le 1000 ]] || {
+    echo "Candidate-run search exceeds GitHub's 1,000-result cap." >&2
+    return 1
+  }
+  jq '[.[] | .workflow_runs[]]' <<<"${pages}"
+}
+require_exact_run() {
+  gh api "repos/markusleben/ha-nova/actions/runs/$1" \
+    | jq -e --argjson id "$1" --arg title "${RUN_TITLE}" \
+        --arg trusted "${BASE_SHA}" '
+          .id == $id
+          and .event == "workflow_dispatch"
+          and .display_title == $title
+          and .head_sha == $trusted
+          and .run_attempt == 1
+        ' >/dev/null
+}
+RUNS_JSON="$(list_candidate_runs)" || exit 1
+MAX_BEFORE="$(jq '[.[].id] | max // 0' <<<"${RUNS_JSON}")"
 gh workflow run cloud-candidate-bundle.yml --ref main \
   -f pull_request="${PR_NUMBER}" -f version_tag="${VERSION_TAG}" \
   -f request_id="${REQUEST_ID}"
 RUN_ID=""
 for _ in 1 2 3 4 5 6 7 8 9 10 11 12; do
   sleep 5
-  RUN_ID="$(gh run list --workflow cloud-candidate-bundle.yml \
-    --event workflow_dispatch --limit 30 --json databaseId \
-    --jq "map(.databaseId | select(. > ${MAX_BEFORE})) | min // empty")"
+  RUN_ID="$(list_candidate_runs \
+    | jq -r --arg title "${RUN_TITLE}" --arg trusted "${BASE_SHA}" \
+        --argjson floor "${MAX_BEFORE}" \
+        'map(select(.id > $floor and .display_title == $title and .head_sha == $trusted and .run_attempt == 1) | .id) | max // empty')"
   [[ -n "${RUN_ID}" ]] && break
 done
 [[ "${RUN_ID}" =~ ^[0-9]+$ ]] || {
   echo "Dispatched run not found; do not dispatch again." >&2
   exit 1
 }
-if ! gh run watch "${RUN_ID}" --exit-status; then
+require_exact_run "${RUN_ID}" || exit 1
+WATCH_OK=true
+gh run watch "${RUN_ID}" --exit-status || WATCH_OK=false
+require_exact_run "${RUN_ID}" || exit 1
+if [[ "${WATCH_OK}" != true ]]; then
   gh run view "${RUN_ID}" --log
   exit 1
 fi
 gh run view "${RUN_ID}" --json url,headSha,status,conclusion
+require_exact_run "${RUN_ID}" || exit 1
 gh run download "${RUN_ID}" -n cloud-candidate-install-bundles \
   -D cloud-candidate-install-bundles
+require_exact_run "${RUN_ID}" || exit 1
 (
   cd cloud-candidate-install-bundles
   for checksum in *.sha256; do shasum -a 256 -c "${checksum}"; done

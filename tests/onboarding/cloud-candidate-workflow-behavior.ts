@@ -53,6 +53,7 @@ type FixtureChange =
   | "moved-late"
   | "moved-during-final-checks"
   | "source-rejected"
+  | "wrong-request-id"
   | "identity-mismatch"
   | "cloud-success";
 
@@ -514,7 +515,11 @@ function runResolver(
     JSON.stringify({
       inputs: {
         request_id:
-          change === "malformed-request-id" ? { value: "invalid" } : "approval-id",
+          change === "malformed-request-id"
+            ? { value: "invalid" }
+            : change === "wrong-request-id"
+              ? "wrong-approval-id"
+              : "approval-id",
       },
     }),
   );
@@ -690,6 +695,7 @@ describe("Cloud candidate source resolver", () => {
     ["a pull request that moves during resolution", "moved-late"],
     ["a pull request that moves during final check validation", "moved-during-final-checks"],
     ["a source rejected by the trusted bootstrap verifier", "source-rejected"],
+    ["a request ID for another merge identity", "wrong-request-id"],
     ["a changed expected identity", "identity-mismatch"],
     ["an already-successful evidence gate", "cloud-success"],
   ] as const)("rejects %s", (_label, change) => {
@@ -731,6 +737,33 @@ describe("Cloud candidate workflow contract", () => {
     expect(runName).toContain("${{ inputs.pull_request }}");
     expect(runName).toContain("${{ inputs.version_tag }}");
     expect(runName).toContain("${{ inputs.request_id }}");
+  });
+
+  it("cancels only the same PR, version, and exact request", () => {
+    expect(parse(workflow).concurrency).toEqual({
+      group:
+        "cloud-candidate-bundle-${{ inputs.pull_request }}-${{ inputs.version_tag }}-${{ inputs.request_id }}",
+      "cancel-in-progress": true,
+    });
+
+    const root = mkdtempSync(
+      join(tmpdir(), "ha-nova-cloud-candidate-contract-"),
+    );
+    const weakWorkflow = join(root, "cloud-candidate-bundle.yml");
+    writeFileSync(
+      weakWorkflow,
+      workflow.replace(
+        'group: "cloud-candidate-bundle-${{ inputs.pull_request }}-${{ inputs.version_tag }}-${{ inputs.request_id }}"',
+        "group: cloud-candidate-bundle-${{ inputs.pull_request }}",
+      ),
+    );
+    const result = spawnSync(
+      "node",
+      [verifierPath, weakWorkflow, resolverPath],
+      { encoding: "utf8" },
+    );
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toContain("exact-request concurrency is missing");
   });
 
   it("rejects publication commands", () => {
