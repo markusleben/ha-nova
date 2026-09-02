@@ -38,7 +38,7 @@ function parseJobs(workflowPath, lines) {
 function sensitiveJobIDs(workflowPath, jobs) {
   switch (basename(workflowPath)) {
     case "ci.yml":
-      return new Set(["ci-gate"]);
+      return new Set(["test-inventory", "ci-gate"]);
     case "cloud-source-gate.yml":
       return new Set(["cloud-source-mode", "cloud-source-gate"]);
     case "e2e-disposable-ha.yml":
