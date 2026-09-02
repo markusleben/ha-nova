@@ -79,6 +79,12 @@ jobs:
           HA_NOVA_CLOUD_GATE_EVIDENCE_JSON: ${{ secrets.HA_NOVA_CLOUD_GATE_EVIDENCE_JSON }}
         run: bash scripts/release/verify-cloud-release-gate.sh
 
+      - name: Install
+        run: npm ci
+
+      - name: Verify test inventory registration
+        run: npx vitest run tests/onboarding/safe-test-system-contract.test.ts -t "runs every test file through verify"
+
       - name: Setup Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
@@ -107,14 +113,12 @@ jobs:
       - name: Warm the Go cache
         run: cd cli && go build ./...
 
-      - name: Install
-        run: npm ci
-
       - name: Verify repository
         run: npm run verify
 
   go-build:
     name: go-build
+    needs: ci-gate
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -137,6 +141,7 @@ jobs:
 
   macos-native-secret-boundary:
     name: macos-native-secret-boundary
+    needs: ci-gate
     runs-on: macos-latest
     steps:
       - name: Checkout
@@ -182,6 +187,7 @@ jobs:
 
   windows-native-secret-boundary:
     name: windows-native-secret-boundary
+    needs: ci-gate
     runs-on: windows-latest
     steps:
       - name: Checkout
@@ -201,6 +207,7 @@ jobs:
 
   windows-powershell-unicode:
     name: windows-powershell-unicode
+    needs: ci-gate
     runs-on: windows-latest
     steps:
       - name: Checkout

@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 
 import { describe, expect, it } from "vitest";
+import { parse } from "yaml";
 
 // CI runs Node 20, where fs.globSync does not exist yet — walk the tree instead.
 function collectTestFiles(dir: string): string[] {
@@ -225,6 +226,37 @@ describe("safe test system contract", () => {
   const helpers = readFileSync("tests/onboarding/_helpers.ts", "utf8");
   const contributing = readFileSync("CONTRIBUTING.md", "utf8");
   const releasing = readFileSync("docs/releasing.md", "utf8");
+  const ci = parse(readFileSync(".github/workflows/ci.yml", "utf8")) as {
+    jobs: Record<string, {
+      needs?: string;
+      steps?: Array<{ name?: string; run?: string; "continue-on-error"?: boolean }>;
+    }>;
+  };
+
+  it("runs the test inventory guard before expensive CI work", () => {
+    const guardCommand =
+      'npx vitest run tests/onboarding/safe-test-system-contract.test.ts -t "runs every test file through verify"';
+    const ciGateSteps = ci.jobs["ci-gate"]?.steps ?? [];
+    expectFragmentsInOrder(
+      ciGateSteps.map((step) => step.name ?? "").join("\n"),
+      ["Install", "Verify test inventory registration", "Setup Go", "Warm the Go cache", "Verify repository"],
+    );
+    expect(ciGateSteps.find((step) => step.name === "Install")?.run).toBe("npm ci");
+
+    const guardSteps = Object.values(ci.jobs)
+      .flatMap((job) => job.steps ?? [])
+      .filter((step) => step.run?.includes("runs every test file through verify"));
+    expect(guardSteps).toEqual([{ name: "Verify test inventory registration", run: guardCommand }]);
+
+    for (const job of [
+      "go-build",
+      "macos-native-secret-boundary",
+      "windows-native-secret-boundary",
+      "windows-powershell-unicode",
+    ]) {
+      expect(ci.jobs[job]?.needs).toBe("ci-gate");
+    }
+  });
 
   it("keeps npm test and verify host-safe", () => {
     expect(pkg.scripts?.["test:safe"]).toBe("vitest run");
