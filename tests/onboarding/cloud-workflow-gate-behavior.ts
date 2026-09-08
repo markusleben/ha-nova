@@ -261,20 +261,23 @@ export function registerCloudWorkflowGateBehaviorTests(): void {
     });
 
     it.each([
-      ["release", "releaseWorkflow"],
-      ["release candidate", "rcWorkflow"],
-      ["Cloud candidate", "candidateWorkflow"],
-      ["source gate", "sourceWorkflow"],
-      ["direct-main CI gate", "ciWorkflow"],
+      ["release", "releaseWorkflow", null],
+      ["release candidate", "rcWorkflow", null],
+      ["Cloud candidate", "candidateWorkflow", null],
+      ["source gate", "sourceWorkflow", null],
+      ["direct-main CI inventory", "ciWorkflow", "  test-inventory:"],
+      ["direct-main CI gate", "ciWorkflow", "  ci-gate:"],
     ] as const)(
       "rejects a mutable action in the %s workflow",
-      (_name, fixtureKey) => {
+      (_name, fixtureKey, jobMarker) => {
         const fixture = workflowGateFixture();
         const workflowPath = fixture[fixtureKey];
         const workflow = readFileSync(workflowPath, "utf8");
+        const jobStart = jobMarker === null ? 0 : workflow.indexOf(jobMarker);
+        expect(jobStart).toBeGreaterThanOrEqual(0);
         writeFileSync(
           workflowPath,
-          workflow.replace(
+          workflow.slice(0, jobStart) + workflow.slice(jobStart).replace(
             /uses: actions\/checkout@[0-9a-f]{40} # v[0-9]+\.[0-9]+\.[0-9]+/,
             "uses: actions/checkout@v7",
           ),
