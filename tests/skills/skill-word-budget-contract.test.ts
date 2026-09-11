@@ -287,8 +287,9 @@ const WORD_BUDGETS: Record<string, number> = {
   // #452 canonical draft rule on top of the update-all semantics, plus the
   // explicit-version handoff to ha-nova:hacs (measured 1569).
   // HA 2026.9 admin-only install/skip/clear_skipped precondition + 401/
-  // unauthorized classification (deep audit 2026-09-10, measured 1631).
-  updates: 1650,
+  // unauthorized classification, Relay-auth vs upstream-denial split
+  // (deep audit 2026-09-10, measured 1677).
+  updates: 1700,
   // batch-safety alignment: batch code format + cap-split rule (#327);
   // purge quantification, glob expansion, apply_filter semantics
   // (2026-h2 Wave 1b).

@@ -83,7 +83,7 @@ Bit 16 set: WS `{"type":"update/release_notes","entity_id":"update.<id>"}` → m
 
 - `not_supported` on release notes: expected without bit 16 — use `release_url`.
 - Install rejected: report HA's error, no blind retry — a running update (`in_progress`) blocks a second install.
-- HTTP 401 or WS `unauthorized` on install/skip/clear_skipped: the upstream user is not an administrator (HA 2026.9 admin-only actions) — fix the `HA_LLAT` on the standalone container, never retry; the App's Supervisor context is unaffected.
+- Upstream permission denial on install/skip/clear_skipped — REST envelope `.ok == true` with `.data.status` 401, or `502 / UPSTREAM_WS_COMMAND_ERROR` carrying HA's `unauthorized`: the upstream user is not an administrator (HA 2026.9 admin-only actions). The App runs as the Supervisor system user and is not affected; on a standalone container the `HA_LLAT` must belong to an administrator — fix it, never retry. A top-level `401 / UNAUTHORIZED` (`.ok == false`) is the Relay's own client authentication, not this case (`skills/ha-nova/relay-api.md` → Error Handling).
 - Entity vanished mid-poll: re-read once; NOVA Relay uses the health-poll window above.
 - Full relay error taxonomy: `skills/ha-nova/relay-api.md` → Error Handling.
 

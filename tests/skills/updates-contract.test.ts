@@ -23,8 +23,10 @@ describe("updates contract", () => {
   it("names the HA 2026.9 admin requirement and classifies a non-admin token (#520 drift)", () => {
     expect(updatesSkill).toContain("Since HA 2026.9, install, skip, and clear_skipped are admin-only");
     expect(updatesSkill).toContain("standalone container: the `HA_LLAT` owner");
-    expect(updatesSkill).toContain("- HTTP 401 or WS `unauthorized` on install/skip/clear_skipped:");
-    expect(updatesSkill).toContain("fix the `HA_LLAT` on the standalone container, never retry");
+    expect(updatesSkill).toContain("REST envelope `.ok == true` with `.data.status` 401, or `502 / UPSTREAM_WS_COMMAND_ERROR` carrying HA's `unauthorized`");
+    expect(updatesSkill).toContain("the `HA_LLAT` must belong to an administrator — fix it, never retry");
+    // A Relay-level 401 is client auth, never an admin diagnosis (Codex P2).
+    expect(updatesSkill).toContain("A top-level `401 / UNAUTHORIZED` (`.ok == false`) is the Relay's own client authentication, not this case");
   });
 
   it("treats installs as far-reaching with kind-specific safety gates", () => {
