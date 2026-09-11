@@ -36,7 +36,7 @@ const oneTimeTrustBoundaryRewrite = new Map([
   [".github/workflows/codeql.yml", { before: "66135722a4ccd1f044b75a1ee9573e84f8824020", after: "96845f88a35a1350e94375a318990f23b56d2e87" }],
   [".github/workflows/dependency-review.yml", { before: "896a0e56118f53f9c070e5c5070bdffcf05a96dc", after: "6467043e5ab1d440ec62b3521aa8b368d73f48ff" }],
   [".github/workflows/pairing-e2e.yml", { before: "90960cfde9f4d6d351bb63d89072b932b0752d3d", after: "f5b921225bb31a128924ecbd0191acbd651436b7" }],
-  [".github/workflows/pr-review-watchdog.yml", { before: "25f04bc82263e640dd56b32d29db1dd07659dd1a", after: "3111634fca5365cfdb0579eea429503b2e886314" }],
+  [".github/workflows/pr-review-watchdog.yml", { before: "25f04bc82263e640dd56b32d29db1dd07659dd1a", after: "7e38897643ab3c0c4698f5cf0a46f7b97abbb4fb" }],
   [".github/workflows/relay-image.yml", { before: "c9796922081f20da986db990b2278f8fc86767d5", after: "3e492bd838175d4e51023cbb56c2e0d2f235f249" }],
   [".github/workflows/release-pipeline-audit.yml", { before: "526553bb1208bbe3147bac5a3a1addf2bb755ad2", after: "586072ee241d4dda84e04a4cef707440881d22a0" }],
 ]);
