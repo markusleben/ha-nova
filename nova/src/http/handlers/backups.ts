@@ -259,9 +259,12 @@ async function collectEntries(root: string, category?: string): Promise<Snapshot
         continue;
       }
       // lstat, not stat: a leaf symlink must neither leak outside metadata
-      // into list results nor count its target's size toward the caps.
-      const info = await lstat(join(root, cat, fname));
-      if (!info.isFile()) {
+      // into list results nor count its target's size toward the caps. A
+      // file deleted or pruned between readdir and lstat is simply gone.
+      const info = await lstat(join(root, cat, fname)).catch((error: unknown) =>
+        isEnoent(error) ? null : Promise.reject(error),
+      );
+      if (!info?.isFile()) {
         continue;
       }
       entries.push({

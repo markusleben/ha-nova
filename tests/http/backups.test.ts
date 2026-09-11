@@ -3,7 +3,24 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { gzipSync } from "node:zlib";
 
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+// Module namespaces are not spyable in ESM: route lstat through a hook so one
+// test can delete a file between readdir and lstat, exactly as a concurrent
+// prune would.
+const lstatHook = vi.hoisted(() => ({
+  beforeLstat: undefined as ((path: string) => void) | undefined,
+}));
+vi.mock("node:fs/promises", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("node:fs/promises")>();
+  return {
+    ...actual,
+    lstat: async (path: Parameters<typeof actual.lstat>[0], options?: Parameters<typeof actual.lstat>[1]) => {
+      lstatHook.beforeLstat?.(String(path));
+      return await actual.lstat(path, options as never);
+    },
+  };
+});
 
 import {
   createBackupsHandler,
@@ -166,6 +183,23 @@ describe("backups handler", () => {
     expect(
       readdirSync(join(root, "bulk")).length + readdirSync(join(root, "scenes")).length,
     ).toBe(MAX_SNAPSHOT_FILES);
+  });
+
+  it("tolerates a snapshot deleted between readdir and lstat", async () => {
+    // A concurrent delete/prune during the scan must not fail the scan.
+    mkdirSync(join(root, "scenes"), { recursive: true });
+    const ghost = join(root, "scenes", "ghost-20260101T000000000Z.json.gz");
+    writeFileSync(ghost, gzipSync("{}"));
+    lstatHook.beforeLstat = (path) => {
+      if (path === ghost) {
+        rmSync(ghost, { force: true });
+      }
+    };
+    try {
+      await expect(call({ action: "list" })).resolves.toEqual([]);
+    } finally {
+      lstatHook.beforeLstat = undefined;
+    }
   });
 
   it("prunes auto snapshots by age and count while named ones survive", async () => {
