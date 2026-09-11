@@ -3,6 +3,8 @@ package main
 import (
 	"errors"
 	"os"
+	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -77,6 +79,98 @@ func TestBuildWindowsCleanupCommandStaysDetached(t *testing.T) {
 	}
 	if got, want := strings.Join(cmd.Args, " "), `powershell.exe -NoProfile -WindowStyle Hidden -Command Start-Sleep -Seconds 2; Remove-Item -LiteralPath 'C:\Temp\ha-nova-uninstall.exe' -Force -ErrorAction SilentlyContinue`; got != want {
 		t.Fatalf("cleanup args = %q, want %q", got, want)
+	}
+}
+
+func TestBuildWindowsReplaceCommandPassesSelfPathForCleanup(t *testing.T) {
+	paths := runtimePaths{InstallRoot: t.TempDir()}
+	cmd := buildWindowsReplaceCommand(paths, `C:\Temp\ha-nova-updater-42.exe`, `C:\Temp\stage`, []byte("marker"))
+	args := strings.Join(cmd.Args, " ")
+	if !strings.Contains(args, `--self-path C:\Temp\ha-nova-updater-42.exe`) {
+		t.Fatalf("expected --self-path with the helper path, got %q", args)
+	}
+	if !strings.HasPrefix(args, `C:\Temp\ha-nova-updater-42.exe internal-replace --parent-pid `) {
+		t.Fatalf("unexpected helper argv %q", args)
+	}
+}
+
+func TestRunInternalReplaceSchedulesHelperSelfDeleteOnEveryExit(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	paths, err := detectPaths()
+	if err != nil {
+		t.Fatalf("detectPaths() error: %v", err)
+	}
+
+	originalCleanup := scheduleWindowsSelfDeleteForUpdate
+	originalWait := waitForParentReleaseForReplace
+	originalApply := applyStagedBundleWithRollbackForReplace
+	originalSync := postUpdateSyncForReplace
+	defer func() {
+		scheduleWindowsSelfDeleteForUpdate = originalCleanup
+		waitForParentReleaseForReplace = originalWait
+		applyStagedBundleWithRollbackForReplace = originalApply
+		postUpdateSyncForReplace = originalSync
+	}()
+	var cleanupPaths []string
+	scheduleWindowsSelfDeleteForUpdate = func(path string) error {
+		cleanupPaths = append(cleanupPaths, path)
+		return nil
+	}
+	waitForParentReleaseForReplace = func(parentPID int) {}
+	applyStagedBundleWithRollbackForReplace = func(paths runtimePaths, stageRoot string) (func() error, func() error, error) {
+		return func() error { return nil }, func() error { return nil }, nil
+	}
+	postUpdateSyncForReplace = func(paths runtimePaths) postUpdateSyncResult {
+		return postUpdateSyncResult{FullySynced: true}
+	}
+
+	// Success path.
+	exitCode, output := captureCommandOutput(t, func() int {
+		return runInternalReplace(paths, []string{"--parent-pid", "0", "--stage-root", t.TempDir(), "--lifecycle-marker", "none", "--self-path", `C:\Temp\ha-nova-updater-1.exe`})
+	})
+	if exitCode != 0 {
+		t.Fatalf("runInternalReplace() exit = %d\n%s", exitCode, output)
+	}
+	// Early-failure path: a missing stage root exits before any work.
+	exitCode, _ = captureCommandOutput(t, func() int {
+		return runInternalReplace(paths, []string{"--parent-pid", "0", "--self-path", `C:\Temp\ha-nova-updater-2.exe`})
+	})
+	if exitCode == 0 {
+		t.Fatalf("expected the missing --stage-root run to fail")
+	}
+	if got, want := strings.Join(cleanupPaths, ","), `C:\Temp\ha-nova-updater-1.exe,C:\Temp\ha-nova-updater-2.exe`; got != want {
+		t.Fatalf("self-delete scheduled for %q, want %q", got, want)
+	}
+}
+
+func TestLaunchWindowsReplaceCleansHelperAndStageWhenLaunchFails(t *testing.T) {
+	// The install root holds a text file named like the CLI: copyFile succeeds,
+	// but starting it fails (not an executable image on any platform).
+	installRoot := t.TempDir()
+	if err := os.WriteFile(filepath.Join(installRoot, publicBinaryName()), []byte("not an executable\n"), 0o644); err != nil {
+		t.Fatalf("write fake binary: %v", err)
+	}
+	stageDir, err := os.MkdirTemp("", "ha-nova-stage-*")
+	if err != nil {
+		t.Fatalf("stage dir: %v", err)
+	}
+	stageRoot := filepath.Join(stageDir, "bundle")
+	if err := os.MkdirAll(stageRoot, 0o755); err != nil {
+		t.Fatalf("stage root: %v", err)
+	}
+	tempHelper := filepath.Join(os.TempDir(), "ha-nova-updater-"+strconv.Itoa(os.Getpid())+".exe")
+	t.Cleanup(func() { _ = os.Remove(tempHelper); _ = os.RemoveAll(stageDir) })
+
+	err = launchWindowsReplace(runtimePaths{InstallRoot: installRoot}, stageRoot, []byte("marker"))
+	if err == nil {
+		t.Fatalf("expected the launch of a non-executable helper to fail")
+	}
+	if _, statErr := os.Stat(tempHelper); !os.IsNotExist(statErr) {
+		t.Fatalf("temp helper %s must be removed after a failed launch (stat err: %v)", tempHelper, statErr)
+	}
+	if _, statErr := os.Stat(stageDir); !os.IsNotExist(statErr) {
+		t.Fatalf("staged bundle %s must be removed after a failed launch (stat err: %v)", stageDir, statErr)
 	}
 }
 
