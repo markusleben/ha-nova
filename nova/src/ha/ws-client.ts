@@ -113,7 +113,7 @@ export function createHaWsClient(options: HaWsClientOptions): HaWsClient {
           );
         }
 
-        resetConnection();
+        resetConnection(upstream);
         if (error instanceof TimeoutError) {
           throw new HaWsClientError(
             "UPSTREAM_WS_TIMEOUT",
@@ -232,7 +232,7 @@ export function createHaWsClient(options: HaWsClientOptions): HaWsClient {
           );
         }
 
-        resetConnection();
+        resetConnection(upstream);
         if (error instanceof TimeoutError) {
           throw new HaWsClientError(
             "UPSTREAM_WS_TIMEOUT",
@@ -327,14 +327,19 @@ export function createHaWsClient(options: HaWsClientOptions): HaWsClient {
     }
   }
 
-  function resetConnection(): void {
-    const stale = connection;
+  // Drops and closes the connection a failed operation was using. A late
+  // failure from an already-replaced connection must not touch its healthy
+  // replacement, so the reset is a no-op unless `failed` is still current.
+  function resetConnection(failed: HaWsConnection): void {
+    if (connection !== failed) {
+      return;
+    }
     connection = undefined;
     connected = false;
     // Close the abandoned connection, or it keeps auto-reconnecting next to
     // the replacement the next request creates.
     try {
-      stale?.close?.();
+      failed.close?.();
     } catch {
       // Already closed.
     }

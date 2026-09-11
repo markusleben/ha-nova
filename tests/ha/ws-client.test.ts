@@ -194,6 +194,46 @@ describe("ha ws client", () => {
     expect(firstCloseCalls).toBe(1);
   });
 
+  it("does not close a healthy replacement when an older operation fails late", async () => {
+    // Two operations share connection A; A fails, B replaces it, then the
+    // second operation on A fails late — B must stay open and current.
+    const closes: string[] = [];
+    let connectCalls = 0;
+    let releaseSecond: (() => void) | undefined;
+    const client = createHaWsClient({
+      createConnection: async () => {
+        connectCalls += 1;
+        const name = connectCalls === 1 ? "A" : "B";
+        return {
+          sendMessagePromise: async (message: { type: string }) => {
+            if (name === "A" && message.type === "late") {
+              await new Promise<void>((resolve) => {
+                releaseSecond = resolve;
+              });
+              throw new Error("socket closed");
+            }
+            if (name === "A" && message.type === "broken") {
+              throw new Error("socket closed");
+            }
+            return { via: name, echoed: message.type };
+          },
+          close: () => {
+            closes.push(name);
+          }
+        };
+      }
+    });
+
+    const late = client.sendMessage({ type: "late" });
+    await expect(client.sendMessage({ type: "broken" })).rejects.toMatchObject({ code: "UPSTREAM_WS_ERROR" });
+    await expect(client.sendMessage({ type: "next" })).resolves.toEqual({ via: "B", echoed: "next" });
+    releaseSecond?.();
+    await expect(late).rejects.toMatchObject({ code: "UPSTREAM_WS_ERROR" });
+    await expect(client.sendMessage({ type: "after" })).resolves.toEqual({ via: "B", echoed: "after" });
+    expect(closes).toEqual(["A"]);
+    expect(connectCalls).toBe(2);
+  });
+
   it("still drops and reconnects when close() throws", async () => {
     let connectCalls = 0;
     const client = createHaWsClient({
