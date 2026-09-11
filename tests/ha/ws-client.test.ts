@@ -88,8 +88,8 @@ describe("ha ws client", () => {
     await client.sendMessage({ type: "ping" });
     expect(client.isConnected()).toBe(true);
 
-    // The abandoned first connection auto-reconnects in the background and
-    // keeps firing events — those must not flip the active signal.
+    // close() on the abandoned first connection is best-effort (this fake has
+    // none); late events from it must still not flip the active signal.
     listenersByConnection[0]?.["disconnected"]?.();
     expect(client.isConnected()).toBe(true);
     listenersByConnection[0]?.["ready"]?.();
