@@ -211,7 +211,15 @@ export function registerCloudReleaseGateContractTests(): void {
     for (const name of workflows) {
       const lines = readFileSync(join(workflowDir, name), "utf8").split(/\r?\n/);
       lines.forEach((line, index) => {
-        if (line.trimStart().startsWith("#") || !/^\s*(?:-\s+)?uses:\s/.test(line)) {
+        if (line.trimStart().startsWith("#")) {
+          return;
+        }
+        // Flow/anchor/merge-key step syntax could hide a `uses:` from a
+        // line matcher — reject it outright, like the release verifier.
+        expect(line, `${name}:${index + 1} must use canonical block step syntax`).not.toMatch(
+          /^\s+(?:-\s*(?:[&*{]|\?)|<<\s*:)/,
+        );
+        if (!/^\s*(?:-\s+)?["']?uses["']?\s*:/.test(line)) {
           return;
         }
         expect(line, `${name}:${index + 1} must pin its action to a full commit SHA with an exact vX.Y.Z comment`).toMatch(exactAction);
@@ -219,6 +227,7 @@ export function registerCloudReleaseGateContractTests(): void {
     }
     for (const covered of [
       "codeql.yml",
+      "dependabot-safe-lane-prepare.yml",
       "dependency-review.yml",
       "manifest-review-gate.yml",
       "pairing-e2e.yml",
@@ -257,6 +266,9 @@ export function registerCloudReleaseGateContractTests(): void {
     expect(watchdog).not.toContain('"@codex fix');
     expect(watchdog.indexOf("const marker = ")).toBeLessThan(watchdog.indexOf('body: "@codex"'));
     expect(watchdog.lastIndexOf("createComment(")).toBeLessThan(watchdog.indexOf('body: "@codex"'));
+    // A rerun after a failed trigger call posts the trigger, never a second context.
+    expect(watchdog).toContain('.trim() === "@codex"');
+    expect(watchdog).toContain("if (contextIndex < 0) {");
   });
 
   it("runs the source gate in CI and blocks direct main App-source bypasses", () => {

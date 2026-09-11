@@ -46,7 +46,8 @@ function hasUsesMapping(line) {
   if (line.trimStart().startsWith("#")) {
     return false;
   }
-  return /(?:^|[{,\s])["']?uses["']?\s*:/.test(line);
+  // Anchored to a step key: a `uses:` inside a run: string is not an action.
+  return /^\s*(?:-\s+)?["']?uses["']?\s*:/.test(line);
 }
 
 function verifyWorkflow(workflowPath) {

@@ -12,6 +12,7 @@ if [[ "$#" -eq 0 ]]; then
     "${ROOT_DIR}/.github/workflows/ci.yml" \
     "${ROOT_DIR}/.github/workflows/e2e-disposable-ha.yml" \
     "${ROOT_DIR}/.github/workflows/codeql.yml" \
+    "${ROOT_DIR}/.github/workflows/dependabot-safe-lane-prepare.yml" \
     "${ROOT_DIR}/.github/workflows/dependency-review.yml" \
     "${ROOT_DIR}/.github/workflows/manifest-review-gate.yml" \
     "${ROOT_DIR}/.github/workflows/pairing-e2e.yml" \
@@ -20,9 +21,8 @@ if [[ "$#" -eq 0 ]]; then
     "${ROOT_DIR}/.github/workflows/release-pipeline-audit.yml"
 fi
 # Not listed on purpose: codex-review-gate.yml, dependabot-safe-auto-merge.yml,
-# readme-release-gate.yml (no actions), dependabot-safe-lane-prepare.yml (a
-# `uses:` string inside a run: block trips the line matcher) — every action-
-# bearing workflow is covered.
+# readme-release-gate.yml carry no actions — every action-bearing workflow is
+# covered.
 
 node "${ROOT_DIR}/scripts/release/verify-cloud-action-pins.mjs" "$@"
 
