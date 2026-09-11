@@ -157,3 +157,52 @@ stopped.
   developers.home-assistant.io/blog/ (2026-08-19, 2026-08-24);
   github.com/hacs/integration/releases.
 - Next window starts AFTER HA 2026.8.3 + dev-blog 2026-08-24 + HACS 2.0.5.
+
+## 2026-09-10 — deep-audit screen: HA 2026.9.0/2026.9.1 + developer blog + HACS
+
+- Window screened: Home Assistant Core 2026.9.0 and 2026.9.1, developer-blog
+  posts after 2026-08-24 through 2026-09-07, and HACS releases after 2.0.5.
+- HIT — Core 2026.9 child devices are returned by
+  `config/device_registry/list` with a reduced shape and `parent_device_id`;
+  their null `area_id` inherits the parent area. Current health/capability
+  normalization drops `parent_device_id`, and fallback's device-only event
+  resolution still reads the omitted legacy `config_entries` array. Join the
+  existing device-registry capability issue #520; add parent/child fixtures.
+- HIT — the new admin-only requirement for `update.install`, `update.skip`, and
+  `update.clear_skipped` needs permission-specific guidance for standalone
+  relays using a non-admin LLAT. App/Supervisor system context is unaffected.
+- HIT — the current device-registry matrix and maintenance reference omit the
+  new admin-only `config/device_registry/remove` command; the legacy
+  `remove_config_entry` command remains deprecated until 2027.9. Keep direct
+  removal external unless product scope changes; correct the factual reference.
+- HIT — Home Assistant's templating documentation was split into
+  `source/_docs/templating*`; the repository's pinned raw source now returns
+  HTTP 404. Resolution: the vendored snapshot and its generator are retired
+  (branch `perf/context-reduction`); reviews fetch the official templating
+  page only when the reviewed config contains Jinja.
+- CORRECTION of the 2026-08-27 entry: the legacy
+  `config/device_registry/remove_config_entry` command is removed in 2027.9
+  (not ~2027.8); 2027.8 is the removal date of the legacy device fields
+  `config_entries`/`config_entries_subentries`/`primary_config_entry`.
+- Landed: the 2026.9 child-device shape (`parent_device_id`, reduced row,
+  singular `config_entry_id`, inherited area) is modeled once in
+  `skills/ha-nova/membership-resolution.md` → Device rows and pointed at from
+  health, capability-answer, availability-analysis, and fallback; the
+  admin-only update actions are in `skills/updates/SKILL.md`; the matrix and
+  maintenance reference carry `remove`, `list_linked_devices`, and
+  `list_composite_splits` (branch `fix/ha-2026-9-skill-drift`, #520).
+- CLEAN — persistent-notification event semantics, LLM tool-name prefixes,
+  Configurator deprecation, Modbus Python helper changes, OAuth2 helper
+  exceptions, and additive selector types do not alter a pinned Relay/skill
+  contract.
+- CLEAN — Core 2026.9.1 fixes no additional pinned request/response surface.
+- CLEAN — no HACS release after 2.0.5.
+- Sources: home-assistant.io/blog/2026/09/02/release-20269/;
+  developers.home-assistant.io/blog/2026/08/19/device-registry-websocket-api-changes/;
+  developers.home-assistant.io/blog/2026/08/31/deprecate-configurator/;
+  developers.home-assistant.io/blog/2026/09/02/modbus-get-hub-deprecation/;
+  developers.home-assistant.io/blog/2026/09/04/device-and-state-class-selectors/;
+  developers.home-assistant.io/blog/2026/09/07/oauth2-central-error-handling/;
+  github.com/hacs/integration/releases.
+- Next window starts AFTER HA 2026.9.1 + dev-blog 2026-09-07 + HACS 2.0.5;
+  watch the legacy device-registry removal command for 2027.9.

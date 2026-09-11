@@ -104,8 +104,9 @@ value. ZHA fires `zha_event`, Z-Wave JS `zwave_js_value_notification`, deCONZ
 `deconz_event`, and a modern `event.*` entity fires no bus event at
 all. Read the entity's `platform` from the registry and pick accordingly. A remote
 with no entity at all — only a device-registry row — has no `platform` to
-read: resolve it through the device's `config_entries`, which hold opaque entry ids
-rather than domains: read `{"type":"config_entries/get"}` (or the REST
+read: resolve it through the device's singular `config_entry_id` (older rows:
+`config_entries`, which hold opaque entry ids rather than domains — see
+`skills/ha-nova/membership-resolution.md` → Device rows): read `{"type":"config_entries/get"}` (or the REST
 `/api/config/config_entries/entry`) and take the entry's `domain`. Where that
 is still ambiguous — several entries, or none — ASK which integration the
 remote belongs to rather than guessing an event type. A guess produces an empty window that
@@ -185,8 +186,9 @@ type and id, so the config entry id alone does not query it: read the entry's
 own devices and entities first with WS `{"type":"config/entity_registry/list"}`
 and `{"type":"config/device_registry/list"}`. The two registries express
 ownership differently and mixing them up undercounts: an ENTITY row carries a
-singular `config_entry_id`; on Home Assistant 2026.8+ a DEVICE row does too.
-Older rows and compatibility responses may expose a `config_entries` array —
+singular `config_entry_id`; on Home Assistant 2026.8+ a DEVICE row does too
+(2026.9 child rows carry only the singular field — `skills/ha-nova/membership-resolution.md`
+→ Device rows). Older rows and compatibility responses may expose a `config_entries` array —
 match on membership there when the singular field is absent. Count every
 matched device as deleted in the safety preview: removing its owning entry
 removes the device on 2026.8+, and an older shared device that survives is an

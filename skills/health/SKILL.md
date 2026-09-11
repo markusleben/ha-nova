@@ -85,7 +85,7 @@ Envelope parsing follows `skills/ha-nova/relay-api.md` → Standard Envelope. No
 Private detail uses explicit, minimal source fields — never more:
 - state rows: `entity_id`, `state`, `last_changed`, `attributes.restored`, `attributes.friendly_name`, structured battery/SOC metadata
 - entity registry: `entity_id`, `config_entry_id`, `device_id`, `platform`, `name`, `original_name`, `area_id`
-- device registry: `id`, `name_by_user`, `name`, `area_id`
+- device registry: `id`, `name_by_user`, `name`, `area_id`, `parent_device_id`, `config_entry_id` — effective area is the row's own `area_id`, else the parent's (`skills/ha-nova/membership-resolution.md` → Device rows)
 - config entries: existing state/domain fields plus `title`, sanitized before display
 
 Optional display metadata that is unavailable is marked unavailable; it never

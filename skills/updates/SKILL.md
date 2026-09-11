@@ -59,7 +59,7 @@ Per pending item: name, `installed_version` → `latest_version`, `auto_update`,
 Bit 16 set: WS `{"type":"update/release_notes","entity_id":"update.<id>"}` → markdown in `.data`; summarize, never dump. Without bit 16, do not call it (it fails with `not_supported`) — use the entity's `release_summary`/`release_url` instead; when both are empty, say no notes are available.
 
 ### Install
-1. Feature Gate: bit 1 required. Preview one update: name, versions, release-notes summary or link.
+1. Feature Gate: bit 1 required. Since HA 2026.9, install, skip, and clear_skipped are admin-only: the Relay's upstream user must be an administrator (App/Supervisor system context: always; standalone container: the `HA_LLAT` owner). Preview one update: name, versions, release-notes summary or link.
 2. Safety gates by kind:
    - **core / operating system**: far-reaching — offer a full safety backup first via `ha-nova:backup` and say that HA restarts during the update. Surface breaking-changes sections first; for skipped-version jumps link intermediate releases via `release_url`. Honor named OS/Supervisor prerequisites first.
    - **Apps**: with bit 8, include `"backup": true`. NOVA Relay restarts mid-call; use step 6's target/entity/ping/post-health verification. Its entity lacks bit 2: preview latest and omit `version`.
@@ -83,6 +83,7 @@ Bit 16 set: WS `{"type":"update/release_notes","entity_id":"update.<id>"}` → m
 
 - `not_supported` on release notes: expected without bit 16 — use `release_url`.
 - Install rejected: report HA's error, no blind retry — a running update (`in_progress`) blocks a second install.
+- Upstream permission denial on install/skip/clear_skipped — REST envelope `.ok == true` with `.data.status` 401, or `502 / UPSTREAM_WS_COMMAND_ERROR` carrying HA's `unauthorized`: the upstream user is not an administrator (HA 2026.9 admin-only actions). The App runs as the Supervisor system user and is not affected; on a standalone container the `HA_LLAT` must belong to an administrator — fix it, never retry. A top-level `401 / UNAUTHORIZED` (`.ok == false`) is the Relay's own client authentication, not this case (`skills/ha-nova/relay-api.md` → Error Handling).
 - Entity vanished mid-poll: re-read once; NOVA Relay uses the health-poll window above.
 - Full relay error taxonomy: `skills/ha-nova/relay-api.md` → Error Handling.
 

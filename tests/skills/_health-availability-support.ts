@@ -25,8 +25,13 @@ export type ConfigEntry = {
 
 export type DeviceRow = {
   id: string;
-  name: string;
+  // 2026.9 child rows carry a reduced shape: name may be null, area_id null
+  // inherits the parent's area, and only the singular config_entry_id exists.
+  name?: string | null;
   configuration_url?: string;
+  parent_device_id?: string | null;
+  area_id?: string | null;
+  config_entry_id?: string | null;
 };
 
 export type AvailabilityFixture = {
