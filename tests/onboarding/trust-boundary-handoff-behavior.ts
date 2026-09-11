@@ -106,9 +106,11 @@ function commit(root: string, message: string): string {
   return execFileSync("git", ["rev-parse", "HEAD"], { cwd: root, encoding: "utf8" }).trim();
 }
 
+type Mode = "workflow-tree-only" | "full-tree" | "single-sensitive-workflow";
+
 function verify(
   mutation: (root: string) => void,
-  mode: "workflow-tree-only" | "full-tree" = "workflow-tree-only",
+  mode: Mode = "single-sensitive-workflow",
   prepareBase?: (root: string) => void,
 ): ReturnType<typeof spawnSync> {
   const f = fixture();
@@ -136,18 +138,34 @@ function applyRewrite(root: string): void {
 }
 
 describe("one-time trust-boundary rewrite handoff", () => {
+  it("accepts exactly the pinned rewrite on the single-sensitive-workflow lane", () => {
+    const result = verify(applyRewrite);
+    expect(result.status, `${result.stdout}\n${result.stderr}`).toBe(0);
+    expect(result.stdout).toContain("one-time approved trust-boundary rewrite");
+  });
+
   it.each(["workflow-tree-only", "full-tree"] as const)(
-    "accepts exactly the pinned rewrite in %s mode",
+    "keeps the %s lane closed to the rewrite (uses-only carry and stale evidence)",
     (mode) => {
       const result = verify(applyRewrite, mode);
-      expect(result.status, `${result.stdout}\n${result.stderr}`).toBe(0);
+      expect(result.status, `${result.stdout}\n${result.stderr}`).not.toBe(0);
+      expect(result.stderr).toContain("is Cloud-release-sensitive");
     },
   );
+
+  it("rejects a substituted path even when the change count matches", () => {
+    const result = verify((root) => {
+      rewrite(root, sensitivePath, sensitiveAfter);
+      rewrite(root, maintenancePath, maintenanceAfter);
+    });
+    expect(result.status, `${result.stdout}\n${result.stderr}`).not.toBe(0);
+    expect(result.stderr).toContain("exactly one existing sensitive workflow");
+  });
 
   it("rejects a partial rewrite that leaves a pinned path unchanged", () => {
     const result = verify((root) => rewrite(root, plainPath, plainAfter));
     expect(result.status, `${result.stdout}\n${result.stderr}`).not.toBe(0);
-    expect(result.stderr).toContain("must be a forward minor/patch release update");
+    expect(result.stderr).toContain("exactly one existing sensitive workflow");
   });
 
   it("rejects a pinned path whose after-image differs by one byte", () => {
@@ -156,7 +174,7 @@ describe("one-time trust-boundary rewrite handoff", () => {
       rewrite(root, plainPath, plainAfter);
     });
     expect(result.status, `${result.stdout}\n${result.stderr}`).not.toBe(0);
-    expect(result.stderr).toContain("is Cloud-release-sensitive");
+    expect(result.stderr).toContain("exactly one existing sensitive workflow");
   });
 
   it("rejects the pinned set plus a valid uses bump in a third workflow", () => {
@@ -167,7 +185,7 @@ describe("one-time trust-boundary rewrite handoff", () => {
       rewrite(root, maintenancePath, maintenanceAfter);
     });
     expect(result.status, `${result.stdout}\n${result.stderr}`).not.toBe(0);
-    expect(result.stderr).toContain("is Cloud-release-sensitive");
+    expect(result.stderr).toContain("exactly one existing sensitive workflow");
   });
 
   it("stays inert after the rewrite: the reverse direction is denied", () => {
@@ -176,11 +194,11 @@ describe("one-time trust-boundary rewrite handoff", () => {
         rewrite(root, sensitivePath, sensitiveBefore);
         rewrite(root, plainPath, plainBefore);
       },
-      "workflow-tree-only",
+      "single-sensitive-workflow",
       applyRewrite,
     );
     expect(result.status, `${result.stdout}\n${result.stderr}`).not.toBe(0);
-    expect(result.stderr).toContain("is Cloud-release-sensitive");
+    expect(result.stderr).toContain("exactly one existing sensitive workflow");
   });
 
   it("pins the production before-blobs to the current workflow tree", () => {

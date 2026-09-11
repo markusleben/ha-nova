@@ -16,12 +16,17 @@ const resolvedTags = new Map();
 // #578/#579 two-round path): the trust-boundary rewrite pins every mutable
 // action tag across seven workflows, adds Go to a fail-closed CodeQL job, and
 // fixes the watchdog trigger. ci.yml is Cloud-release-sensitive and the
-// rewrite is not a uses:-only delta, so this predicate is consulted BEFORE the
-// single-sensitive-workflow guard and the denylist. It pins the ENTIRE
-// transformation: the set of changed workflow paths must EQUAL this key set
-// and every path's base and target blob must match the pinned pair. Round 2
-// must make FOUR coordinated edits: (1) apply the seven workflow files
-// byte-exact to the `after` blobs, (2) extend verify-cloud-action-pins.mjs and
+// rewrite is not a uses:-only delta, so this predicate widens ONLY the
+// single-sensitive-workflow lane (#622: refs/pull merge target, canonical
+// candidate approval id, exact-target evidence) from one path to exactly this
+// set; the Dependabot uses:-only lane and the stale-evidence full-tree carry
+// stay closed to it. It pins the ENTIRE transformation: the set of changed
+// workflow paths must EQUAL this key set and every path's base and target
+// blob must match the pinned pair (after-blobs = the seven files as reviewed
+// on the draft pull request of branch ci/trust-boundary; reproduce with
+// `git show <commit>:<path> | git hash-object --stdin`). Round 2 must make
+// FOUR coordinated edits: (1) apply the seven workflow files byte-exact to
+// the `after` blobs, (2) extend verify-cloud-action-pins.mjs and
 // verify-cloud-workflow-gate.sh to cover them, (3) remove this block and the
 // isOneTimeTrustBoundaryRewrite check below (byte-exact restore of this file),
 // and (4) delete tests/onboarding/trust-boundary-handoff-behavior.ts plus its
@@ -255,6 +260,7 @@ const changedWorkflowPaths = [...base]
   .filter(([path, entry]) => target.get(path).blob !== entry.blob)
   .map(([path]) => path);
 const isOneTimeTrustBoundaryRewrite =
+  mode === "single-sensitive-workflow" &&
   changedWorkflowPaths.length === oneTimeTrustBoundaryRewrite.size &&
   changedWorkflowPaths.every((path) => {
     const pin = oneTimeTrustBoundaryRewrite.get(path);
@@ -293,7 +299,9 @@ if (changed === 0) {
 }
 
 console.log(
-  mode === "single-sensitive-workflow"
+  isOneTimeTrustBoundaryRewrite
+    ? "[verify-cloud-workflow-uses-only] OK: the one-time approved trust-boundary rewrite"
+    : mode === "single-sensitive-workflow"
     ? "[verify-cloud-workflow-uses-only] OK: one approved sensitive workflow content change"
     : `[verify-cloud-workflow-uses-only] OK: ${changed} non-sensitive workflow file(s)`,
 );
