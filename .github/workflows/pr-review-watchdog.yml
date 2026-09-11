@@ -51,7 +51,7 @@ jobs:
               });
 
               if (pr.draft) {
-                core.info(`PR #${prNumber} is draft; skipping auto-fix request.`);
+                core.info(`PR #${prNumber} is draft; skipping review request.`);
                 continue;
               }
 
