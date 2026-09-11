@@ -193,7 +193,7 @@ Always load:
 - Review checks: `skills/review/checks.md` (self-contained catalog + Application)
 
 On demand — read only when the trigger applies:
-- `skills/ha-nova/best-practices.md` — when resolve returns `bp_status` `stale`, `missing`, or `invalid` (any complexity): run its Refresh procedure in the main thread before the Phase 3 BP gate; a complex change stays blocked until the refresh succeeds
+- `skills/ha-nova/best-practices.md` — when resolve returns `bp_status` `stale`, `missing`, or `invalid` (it defines simple vs complex): complex → run its Refresh procedure in the main thread before the Phase 2 BP gate and stay blocked until it succeeds; simple → continue per `write-safety.md`
 - `skills/ha-nova/automation-patterns.md` — drafting new branching, timing, or flow-control logic
 - `skills/ha-nova/one-shot-automations.md` — a one-shot, "only today", or duration-bound request (this skill owns both halves of a duration)
 - `skills/ha-nova/recovery-workflows.md` — recovery, watchdog, self-healing, or retry intent

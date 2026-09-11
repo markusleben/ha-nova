@@ -389,7 +389,9 @@ const WORD_BUDGETS: Record<string, number> = {
   // Notification findings-vs-suggestions pointer to the canonical
   // mobile-notification composition contract (#575/#576/#573, 2026-08-19,
   // measured 4829).
-  review: 4850,
+  // Template-reference fetch narrowed to signature gaps in checks.md (deep
+  // audit 2026-09-10, measured 4846).
+  review: 4880,
   // Codex round 2 (#518): the entrypoint carried its own copy of the
   // verify-before-flag gate, which contradicted the corrected one in
   // checks.md and could suppress accepted-but-dangerous findings; trace
