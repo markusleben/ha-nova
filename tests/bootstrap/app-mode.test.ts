@@ -227,6 +227,46 @@ describe("app mode assembly", () => {
     expect(runtime.servers.ingress).toBeDefined();
   });
 
+  it("logs owner-verification failures from the ingress page through the runtime logger", async () => {
+    // The page answer stays generic (503); the operator gets the cause.
+    const dir = mkdtempSync(join(tmpdir(), "ha-nova-appmode-owner-log-"));
+    cleanup.push(() => rmSync(dir, { recursive: true, force: true }));
+    writeFileSync(join(dir, "options.json"), JSON.stringify({ file_access: "off" }));
+    const mock = await startMockSupervisor(null);
+    cleanup.push(
+      () => new Promise<void>((resolve) => mock.server.close(() => resolve())),
+    );
+    const warnings: Array<[string, Record<string, unknown> | undefined]> = [];
+    process.env.HA_NOVA_SUPERVISOR_BASE = mock.base;
+    const runtime = await buildAppMode({
+      ...baseInput(dir),
+      wsClient: {
+        ...stubWsClient(),
+        sendMessage: async () => {
+          throw new Error("supervisor websocket unavailable");
+        },
+      } as unknown as AppModeInput["wsClient"],
+      logger: {
+        info: () => {},
+        warn: (message, context) => {
+          warnings.push([message, context]);
+        },
+        error: () => {},
+      },
+    });
+    cleanup.push(() => closeServers(runtime));
+    const base = await startIngress(runtime.servers.ingress);
+
+    const page = await ingressRequest(base, "GET", "/");
+    expect(page.status).toBe(503);
+    expect(warnings).toEqual([
+      [
+        "owner verification unavailable",
+        { error: "supervisor websocket unavailable" },
+      ],
+    ]);
+  });
+
   it("wires the Cloud gate into ingress routes and pairing behavior", async () => {
     const disabledDir = mkdtempSync(
       join(tmpdir(), "ha-nova-appmode-cloud-off-"),

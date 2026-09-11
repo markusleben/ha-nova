@@ -1,5 +1,6 @@
 import type { IncomingMessage } from "node:http";
 
+import type { RelayLogger } from "../http/server.js";
 import { resolveIngressIdentity } from "./ingress-identity.js";
 
 // Server-side owner authorization for the NOVA management page. panel_admin is
@@ -27,6 +28,7 @@ export type OwnerCheckResult =
 export interface OwnerCheckDeps {
   // Fetches config/auth/list via the Supervisor-proxied WS. Throws on failure.
   fetchAuthUsers: () => Promise<HaAuthUser[]>;
+  logger?: RelayLogger | undefined;
 }
 
 export async function checkOwner(
@@ -44,8 +46,11 @@ export async function checkOwner(
   let users: HaAuthUser[];
   try {
     users = await deps.fetchAuthUsers();
-  } catch {
-    // Owner status could not be checked: fail closed.
+  } catch (error) {
+    // Owner status could not be checked: fail closed, but say why in the log.
+    deps.logger?.warn("owner verification unavailable", {
+      error: error instanceof Error ? error.message : String(error),
+    });
     return {
       ok: false,
       status: 503,

@@ -5,6 +5,7 @@ import type { CsrfStore } from "../../security/csrf.js";
 import type { DeviceRegistry } from "../../security/device-registry.js";
 import type { PairingV1Manager } from "../../security/pairing-v1.js";
 import type { RouteHandler } from "../router.js";
+import type { RelayLogger } from "../server.js";
 import {
   escapeHtml,
   parseConfirm,
@@ -48,6 +49,7 @@ export interface NovaPageDeps {
   update: () => Promise<UpdateStatus>;
   relayVersion: string;
   now: () => number;
+  logger?: RelayLogger;
 }
 
 function setHeaders(response: ServerResponse): void {
@@ -67,7 +69,7 @@ function fail(response: ServerResponse, status: number, message: string): void {
 
 export function createNovaPageHandler(deps: NovaPageDeps): RouteHandler {
   return async ({ request, response }) => {
-    const owner = await checkOwner(request, { fetchAuthUsers: deps.fetchAuthUsers });
+    const owner = await checkOwner(request, { fetchAuthUsers: deps.fetchAuthUsers, logger: deps.logger });
     if (!owner.ok) {
       fail(response, owner.status, owner.status === 503 ? "Could not verify owner access. Try again shortly." : "Owner access required.");
       return;
@@ -101,7 +103,7 @@ export function createNovaPageHandler(deps: NovaPageDeps): RouteHandler {
 
 export function createNovaActionHandler(deps: NovaPageDeps): RouteHandler {
   return async ({ request, response, body }) => {
-    const owner = await checkOwner(request, { fetchAuthUsers: deps.fetchAuthUsers });
+    const owner = await checkOwner(request, { fetchAuthUsers: deps.fetchAuthUsers, logger: deps.logger });
     if (!owner.ok) {
       fail(response, owner.status, "Owner access required.");
       return;
@@ -141,9 +143,14 @@ export function createNovaActionHandler(deps: NovaPageDeps): RouteHandler {
     } else {
       try {
         applyAction(deps, action as NovaAction, form);
-      } catch {
+      } catch (error) {
         // Do not leak internals, but tell the owner it failed via ?err=1 below
-        // so a failed "Connect a device" is not a silent reload with no code.
+        // so a failed "Connect a device" is not a silent reload with no code —
+        // and log the cause, which the page deliberately hides.
+        deps.logger?.error("NOVA action failed", {
+          action,
+          error: error instanceof Error ? error.message : String(error),
+        });
         errCode = "1";
       }
     }
@@ -199,7 +206,10 @@ function applyAction(deps: NovaPageDeps, action: NovaAction, form: Record<string
 async function safeUpdate(deps: NovaPageDeps): Promise<UpdateStatus> {
   try {
     return await deps.update();
-  } catch {
+  } catch (error) {
+    deps.logger?.warn("update status unavailable", {
+      error: error instanceof Error ? error.message : String(error),
+    });
     return { version: deps.relayVersion, versionLatest: null, updateAvailable: false, error: true };
   }
 }
