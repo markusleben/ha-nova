@@ -192,6 +192,7 @@ export async function buildAppMode(
       input.logger,
     ),
     cloudPairing: input.cloudRemoteEnabled,
+    logger: input.logger,
   });
 
   // Prime the port at startup; a failure here recovers via the lazy retry above.

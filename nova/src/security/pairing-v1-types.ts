@@ -1,3 +1,4 @@
+import type { RelayLogger } from "../http/server.js";
 import type { DeviceRegistry } from "./device-registry-types.js";
 import type { OpaqueRegistration } from "./opaque-server.js";
 import type { PairingRateLimiter } from "./pairing-rate-limit.js";
@@ -36,6 +37,8 @@ export interface PairingV1Deps {
   rateLimiter?: PairingRateLimiter;
   legacyResponseStore?: ConsumedResponseStore;
   cloudPairing?: boolean;
+  // Operator signal for persistence failures; the pairing reply stays generic.
+  logger?: RelayLogger;
 }
 
 export interface PairingV1Status {

@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import {
   InsecureFileError,
+  InsecureFileOwnerError,
   ensurePrivateDir,
   readPrivateFileSync,
   writeFileAtomicSync,
@@ -76,6 +77,29 @@ describe("atomic-file", () => {
     writeFileAtomicSync(path, Buffer.alloc(2048, 7));
     expect(() => readPrivateFileSync(path, 1024)).toThrow(InsecureFileError);
   });
+
+  it.skipIf(process.platform === "win32")(
+    "repairs a group/world-readable private file to 0600 before reading",
+    () => {
+      // A manual /data restore commonly lands 0644: same owner, wrong bits.
+      const path = join(dir, "restored.json");
+      writeFileSync(path, "restored", { mode: 0o644 });
+      expect(statSync(path).mode & 0o777).toBe(0o644);
+      expect(readPrivateFileSync(path, 1 << 20)?.toString()).toBe("restored");
+      expect(statSync(path).mode & 0o777).toBe(0o600);
+    },
+  );
+
+  it.skipIf(process.platform === "win32")(
+    "refuses a private file owned by another user",
+    () => {
+      const path = join(dir, "foreign.json");
+      writeFileAtomicSync(path, "secret");
+      const otherUid = (process.getuid?.() ?? 0) + 1;
+      expect(() => readPrivateFileSync(path, 1 << 20, otherUid)).toThrow(InsecureFileOwnerError);
+      expect(() => readPrivateFileSync(path, 1 << 20, otherUid)).toThrow(/owned by uid/);
+    },
+  );
 
   it("ensurePrivateDir is idempotent and enforces 0700", () => {
     const d = join(dir, "x", "y");

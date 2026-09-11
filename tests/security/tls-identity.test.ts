@@ -85,6 +85,11 @@ describe("tls-identity", () => {
     expect(readFileSync(certPath)).toEqual(certBefore);
     expect(statSync(keyPath).ino).toBe(keyInodeBefore);
     expect(statSync(certPath).ino).toBe(certInodeBefore);
+    if (process.platform !== "win32") {
+      // The plain writeFileSync above landed 0644 (a restore's shape); the
+      // private read repairs the bits in place without rewriting the file.
+      expect(statSync(keyPath).mode & 0o777).toBe(0o600);
+    }
     expect(await spkiPinSeenOverTls(loaded)).toBe(V1_SPKI_PIN);
   });
 

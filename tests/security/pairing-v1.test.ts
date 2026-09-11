@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import * as opaque from "@serenity-kit/opaque";
-import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   parseCredential,
@@ -192,6 +192,28 @@ describe("pairing-v1 state machine", () => {
     const r = pairAsClient(mgr, "000000", "peer-1");
     // Wrong code: either the client cannot finish or the server rejects.
     expect(r.finished === undefined || r.finished.ok === false).toBe(true);
+    expect(mgr.getStatus().phase).toBe("active");
+    expect(registry.list()).toHaveLength(0);
+  });
+
+  it("logs once and still answers a generic invalid when the registry write fails", () => {
+    // Disk full / read-only /data: the client reply must stay indistinguishable
+    // from a wrong code, but the operator gets one log line naming the cause.
+    const logger = { warn: vi.fn(), error: vi.fn() };
+    const failing: DeviceRegistry = {
+      ...registry,
+      createPendingWithResponse: () => {
+        throw new Error("ENOSPC: no space left on device");
+      },
+    };
+    const mgr = makeManager({ registry: failing, logger });
+    const { code } = mgr.generateCode();
+    const r = pairAsClient(mgr, code, "peer-1");
+    expect(r.finished).toEqual({ ok: false, reason: "invalid" });
+    expect(logger.error).toHaveBeenCalledTimes(1);
+    expect(logger.error.mock.calls[0]?.[0]).toBe("pairing finish could not persist the device credential");
+    expect(logger.error.mock.calls[0]?.[1]).toMatchObject({ error: expect.stringContaining("ENOSPC") });
+    expect(logger.warn).not.toHaveBeenCalled();
     expect(mgr.getStatus().phase).toBe("active");
     expect(registry.list()).toHaveLength(0);
   });

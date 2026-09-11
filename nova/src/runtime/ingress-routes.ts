@@ -56,6 +56,7 @@ function registerCloudCleanupRoutes(
   const cloudInfo = {
     relayInstanceId: deps.relayInstanceId,
     relayVersion: deps.relayVersion,
+    logger: deps.logger,
     cloudRemoteEnabled: deps.cloudRemoteEnabled,
   };
   const cloudDevice = {

@@ -2,6 +2,7 @@ import { randomBytes } from "node:crypto";
 import {
   closeSync,
   constants,
+  fchmodSync,
   fstatSync,
   fsyncSync,
   lstatSync,
@@ -24,6 +25,8 @@ import { dirname } from "node:path";
 // real regular file (symlink swaps and fifos are rejected via lstat + fstat).
 
 export class InsecureFileError extends Error {}
+// Ownership mismatch is not corruption: the fix is chown, never a reset.
+export class InsecureFileOwnerError extends InsecureFileError {}
 
 const FILE_MODE = 0o600;
 const DIR_MODE = 0o700;
@@ -79,9 +82,16 @@ export function writeFileAtomicSync(path: string, data: Buffer | string): void {
   fsyncDir(dir);
 }
 
-// Reads a private file, refusing symlinks and non-regular files. Returns null
-// when the file does not exist.
-export function readPrivateFileSync(path: string, maxBytes: number): Buffer | null {
+// Reads a private file, refusing symlinks, non-regular files, and files owned
+// by another user; group/other permission bits (a manual /data restore commonly
+// lands 0644) are repaired to 0600 through the open descriptor before the read.
+// Returns null when the file does not exist. Windows has neither uid nor POSIX
+// mode bits (process.getuid is undefined), so both checks are skipped there.
+export function readPrivateFileSync(
+  path: string,
+  maxBytes: number,
+  expectedUid: number | undefined = process.getuid?.(),
+): Buffer | null {
   const lst = lstatOrNull(path);
   if (lst === null) {
     return null;
@@ -100,6 +110,26 @@ export function readPrivateFileSync(path: string, maxBytes: number): Buffer | nu
     }
     if (st.size > maxBytes) {
       throw new InsecureFileError(`${path} exceeds ${maxBytes} bytes`);
+    }
+    if (expectedUid !== undefined) {
+      if (st.uid !== expectedUid) {
+        throw new InsecureFileOwnerError(
+          `${path} is owned by uid ${st.uid}, expected uid ${expectedUid}; refusing to read`,
+        );
+      }
+      if ((st.mode & 0o077) !== 0) {
+        try {
+          fchmodSync(fd, FILE_MODE);
+        } catch (error) {
+          throw new InsecureFileError(
+            `${path} is group/world accessible and could not be repaired`,
+            { cause: error },
+          );
+        }
+        if ((fstatSync(fd).mode & 0o077) !== 0) {
+          throw new InsecureFileError(`${path} stays group/world accessible after repair`);
+        }
+      }
     }
     const buffer = Buffer.allocUnsafe(st.size);
     let offset = 0;
