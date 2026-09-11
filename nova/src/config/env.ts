@@ -61,7 +61,9 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): EnvConfig {
   );
 
   const portRaw = source.RELAY_PORT?.trim();
-  const relayPort = portRaw ? Number.parseInt(portRaw, 10) : DEFAULT_RELAY_PORT;
+  // Number() (not the prefix-lenient parseInt): "8791oops" and "1.5" must
+  // fail the integer guard below instead of starting on a different port.
+  const relayPort = portRaw ? Number(portRaw) : DEFAULT_RELAY_PORT;
   if (!Number.isInteger(relayPort) || relayPort <= 0 || relayPort > 65535) {
     throw new Error("RELAY_PORT must be an integer between 1 and 65535");
   }

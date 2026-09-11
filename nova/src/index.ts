@@ -73,7 +73,8 @@ export function createApp(options: AppOptions): App {
     wsClient: options.wsClient,
     startedAtMs,
     fileAccessMode: options.fileAccess.mode,
-    snapshotRoot: options.snapshotRoot
+    snapshotRoot: options.snapshotRoot,
+    ...(options.logger ? { logger: options.logger } : {})
   } as const;
 
   router.register(

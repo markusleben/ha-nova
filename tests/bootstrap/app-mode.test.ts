@@ -227,6 +227,30 @@ describe("app mode assembly", () => {
     expect(runtime.servers.ingress).toBeDefined();
   });
 
+  it("answers 503, not 403, when config/auth/list is not a list", async () => {
+    // A malformed owner lookup is an upstream fault: retryable, never a
+    // false "you are not the owner".
+    const dir = mkdtempSync(join(tmpdir(), "ha-nova-appmode-owner-shape-"));
+    cleanup.push(() => rmSync(dir, { recursive: true, force: true }));
+    writeFileSync(join(dir, "options.json"), JSON.stringify({ file_access: "off" }));
+    const mock = await startMockSupervisor(null);
+    cleanup.push(
+      () => new Promise<void>((resolve) => mock.server.close(() => resolve())),
+    );
+    process.env.HA_NOVA_SUPERVISOR_BASE = mock.base;
+    const runtime = await buildAppMode({
+      ...baseInput(dir),
+      wsClient: {
+        ...stubWsClient(),
+        sendMessage: async () => ({ users: [] }),
+      } as unknown as AppModeInput["wsClient"],
+    });
+    cleanup.push(() => closeServers(runtime));
+    const base = await startIngress(runtime.servers.ingress);
+
+    expect((await ingressRequest(base, "GET", "/")).status).toBe(503);
+  });
+
   it("wires the Cloud gate into ingress routes and pairing behavior", async () => {
     const disabledDir = mkdtempSync(
       join(tmpdir(), "ha-nova-appmode-cloud-off-"),

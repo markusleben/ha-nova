@@ -110,14 +110,28 @@ function dataOf(body: unknown): Record<string, unknown> {
   throw new Error("unexpected supervisor response shape");
 }
 
+// Strict on shape: an explicitly unmapped port is `null`, a real port is an
+// integer in 1..65535, anything else is a malformed Supervisor reply and
+// throws — a silently nulled entry would otherwise disable the TLS listener.
 function parseNetwork(value: unknown): Record<string, number | null> {
   const out: Record<string, number | null> = {};
-  if (typeof value === "object" && value !== null) {
-    for (const [key, mapped] of Object.entries(
-      value as Record<string, unknown>,
-    )) {
-      out[key] = typeof mapped === "number" ? mapped : null;
+  if (value === null || value === undefined) {
+    return out; // host-network add-ons report no port map
+  }
+  if (typeof value !== "object" || Array.isArray(value)) {
+    throw new Error("unexpected supervisor response shape");
+  }
+  for (const [key, mapped] of Object.entries(
+    value as Record<string, unknown>,
+  )) {
+    if (mapped === null) {
+      out[key] = null;
+      continue;
     }
+    if (!Number.isInteger(mapped) || (mapped as number) < 1 || (mapped as number) > 65535) {
+      throw new Error("unexpected supervisor response shape");
+    }
+    out[key] = mapped as number;
   }
   return out;
 }

@@ -1,5 +1,6 @@
 import type { HaWsConnectionStatus } from "../../ha/ws-client.js";
 import type { RouteHandler } from "../router.js";
+import type { RelayLogger } from "../server.js";
 import { summarizeSnapshotStore } from "./backups.js";
 
 export interface HealthHandlerOptions {
@@ -13,6 +14,7 @@ export interface HealthHandlerOptions {
   snapshotRoot: string;
   relayInstanceId?: string;
   now?: () => number;
+  logger?: RelayLogger;
 }
 
 export interface HealthPayload {
@@ -48,12 +50,15 @@ export async function readHealthPayload(
     : { connected: options.wsClient.isConnected(), disconnect_reason: null };
 
   // Counting a ≤500-file store is cheap; a broken store must not take either
-  // /health or Home Base down with it — report zeros instead.
+  // /health or Home Base down with it — report zeros, but never silently: an
+  // unreadable store is an I/O fault, not an empty store.
   let snapshots = { files: 0, bytes: 0 };
   try {
     snapshots = await summarizeSnapshotStore(options.snapshotRoot);
-  } catch {
-    // deliberately swallowed: both status surfaces stay available
+  } catch (error) {
+    options.logger?.warn("snapshot store unreadable; health reports zero snapshots", {
+      error: error instanceof Error ? error.message : String(error),
+    });
   }
 
   return {
