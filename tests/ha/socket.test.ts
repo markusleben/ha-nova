@@ -99,6 +99,75 @@ describe("ha authenticated socket", { retry: 2 }, () => {
     }
   });
 
+  it("rejects with a connect error when HA never answers the auth (handshake deadline)", async () => {
+    let serverSideClosed = false;
+    const server = await startServer((socket) => {
+      socket.send(JSON.stringify({ type: "auth_required" }));
+      // Accept the token and say nothing: without a deadline this pends forever.
+      socket.on("close", () => {
+        serverSideClosed = true;
+      });
+    });
+
+    try {
+      await expect(
+        createAuthenticatedHaSocket({ haUrl: server.url, token: "t", handshakeTimeoutMs: 50 })
+      ).rejects.toThrow(/handshake timed out/);
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      expect(serverSideClosed).toBe(true);
+    } finally {
+      server.close();
+    }
+  });
+
+  it("rejects without an uncaught error when the upgrade never completes", async () => {
+    // A peer that accepts TCP but never finishes the WebSocket upgrade leaves
+    // the ws socket CONNECTING; close() then aborts the handshake and emits
+    // 'error' on the next tick, which must not become an uncaught exception.
+    const http = await import("node:http");
+    const httpServer = http.createServer();
+    httpServer.on("upgrade", () => {
+      // swallow the upgrade
+    });
+    await new Promise<void>((resolve) => httpServer.listen(0, "127.0.0.1", resolve));
+    const { port } = httpServer.address() as AddressInfo;
+    const uncaught: Error[] = [];
+    const guard = (error: Error) => {
+      uncaught.push(error);
+    };
+    process.on("uncaughtException", guard);
+
+    try {
+      await expect(
+        createAuthenticatedHaSocket({ haUrl: `http://127.0.0.1:${port}`, token: "t", handshakeTimeoutMs: 50 })
+      ).rejects.toBeInstanceOf(HaSocketConnectError);
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      expect(uncaught).toEqual([]);
+    } finally {
+      process.off("uncaughtException", guard);
+      httpServer.closeAllConnections();
+      httpServer.close();
+    }
+  });
+
+  it("clears the handshake deadline after auth_ok", async () => {
+    const server = await startServer((socket) => {
+      socket.send(JSON.stringify({ type: "auth_required" }));
+      socket.on("message", () => {
+        socket.send(JSON.stringify({ type: "auth_ok", ha_version: "2026.9.1" }));
+      });
+    });
+
+    try {
+      const socket = await createAuthenticatedHaSocket({ haUrl: server.url, token: "t", handshakeTimeoutMs: 20 });
+      await new Promise((resolve) => setTimeout(resolve, 60));
+      expect(socket.readyState).toBe(socket.OPEN);
+      socket.close();
+    } finally {
+      server.close();
+    }
+  });
+
   it("rejects with a connect error when the socket closes mid-handshake", async () => {
     const server = await startServer((socket) => {
       socket.close();

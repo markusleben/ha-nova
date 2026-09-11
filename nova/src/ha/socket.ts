@@ -15,11 +15,16 @@ const MAX_PAYLOAD_BYTES = 256 * 1024 * 1024;
 const MSG_TYPE_AUTH_REQUIRED = "auth_required";
 const MSG_TYPE_AUTH_INVALID = "auth_invalid";
 const MSG_TYPE_AUTH_OK = "auth_ok";
+// Same house number as the WS request timeout: a peer that accepts the TCP
+// connection and then says nothing must not wedge every later Relay call
+// behind the shared connect promise.
+const DEFAULT_HANDSHAKE_TIMEOUT_MS = 10_000;
 
 export interface AuthenticatedHaSocketOptions {
   haUrl: string;
   token: string;
   webSocketImpl?: typeof WebSocket;
+  handshakeTimeoutMs?: number;
 }
 
 export class HaSocketAuthError extends Error {}
@@ -49,6 +54,10 @@ export function createAuthenticatedHaSocket(
     }) as WebSocket & { haVersion: string };
 
     let settled = false;
+    const deadline = setTimeout(
+      () => settleReject(new HaSocketConnectError("HA auth handshake timed out")),
+      options.handshakeTimeoutMs ?? DEFAULT_HANDSHAKE_TIMEOUT_MS
+    );
 
     const settleReject = (error: Error) => {
       if (settled) {
@@ -56,6 +65,10 @@ export function createAuthenticatedHaSocket(
       }
       settled = true;
       removeHandshakeListeners();
+      // close() on a still-CONNECTING ws socket aborts the upgrade and emits
+      // 'error' on the next tick; with the handshake listener gone that would
+      // be an unhandled EventEmitter error and crash the process.
+      socket.addEventListener("error", () => {});
       try {
         socket.close();
       } catch {
@@ -113,6 +126,7 @@ export function createAuthenticatedHaSocket(
     };
 
     const removeHandshakeListeners = () => {
+      clearTimeout(deadline);
       socket.removeEventListener("message", onMessage);
       socket.removeEventListener("close", onClose);
       socket.removeEventListener("error", onError);

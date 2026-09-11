@@ -151,6 +151,7 @@ describe("ha ws client", () => {
 
   it("drops a stale connection after request failure and reconnects on the next request", async () => {
     let connectCalls = 0;
+    let firstCloseCalls = 0;
 
     const client = createHaWsClient({
       createConnection: async () => {
@@ -162,12 +163,18 @@ describe("ha ws client", () => {
                 throw new Error("socket closed");
               }
               return { echoed: message.type };
+            },
+            close: () => {
+              firstCloseCalls += 1;
             }
           };
         }
 
         return {
-          sendMessagePromise: async (message: { type: string }) => ({ echoed: `retry:${message.type}` })
+          sendMessagePromise: async (message: { type: string }) => ({ echoed: `retry:${message.type}` }),
+          close: () => {
+            throw new Error("the replacement connection must never be closed");
+          }
         };
       }
     });
@@ -178,7 +185,36 @@ describe("ha ws client", () => {
       message: "socket closed"
     } satisfies Partial<HaWsClientError>);
     expect(client.isConnected()).toBe(false);
+    // The abandoned connection is closed exactly once, so it cannot keep
+    // auto-reconnecting next to its replacement.
+    expect(firstCloseCalls).toBe(1);
     await expect(client.sendMessage({ type: "recover" })).resolves.toEqual({ echoed: "retry:recover" });
+    await expect(client.sendMessage({ type: "again" })).resolves.toEqual({ echoed: "retry:again" });
+    expect(connectCalls).toBe(2);
+    expect(firstCloseCalls).toBe(1);
+  });
+
+  it("still drops and reconnects when close() throws", async () => {
+    let connectCalls = 0;
+    const client = createHaWsClient({
+      createConnection: async () => {
+        connectCalls += 1;
+        return {
+          sendMessagePromise: async (message: { type: string }) => {
+            if (connectCalls === 1) {
+              throw new Error("socket closed");
+            }
+            return { echoed: message.type };
+          },
+          close: () => {
+            throw new Error("already closed");
+          }
+        };
+      }
+    });
+
+    await expect(client.sendMessage({ type: "first" })).rejects.toMatchObject({ code: "UPSTREAM_WS_ERROR" });
+    await expect(client.sendMessage({ type: "second" })).resolves.toEqual({ echoed: "second" });
     expect(connectCalls).toBe(2);
   });
 

@@ -21,6 +21,7 @@ export interface HaWsConnection {
     options?: { resubscribe?: boolean }
   ): Promise<() => void | Promise<void>>;
   addEventListener?(event: "ready" | "disconnected", callback: () => void): void;
+  close?(): void;
 }
 
 export interface HaWsClient {
@@ -289,8 +290,8 @@ export function createHaWsClient(options: HaWsClientOptions): HaWsClient {
       lastConnectFailure = null;
       // The connection reconnects on its own; only the tracked flag flips so
       // /health stays truthful between requests without extra probes.
-      // resetConnection() abandons rather than closes the old connection, so
-      // a stale one can keep firing events — guard on still being current.
+      // resetConnection() closes the old connection, but its final events can
+      // still arrive afterwards — guard on still being current.
       const current = connection;
       current.addEventListener?.("disconnected", () => {
         if (connection === current) {
@@ -327,8 +328,16 @@ export function createHaWsClient(options: HaWsClientOptions): HaWsClient {
   }
 
   function resetConnection(): void {
+    const stale = connection;
     connection = undefined;
     connected = false;
+    // Close the abandoned connection, or it keeps auto-reconnecting next to
+    // the replacement the next request creates.
+    try {
+      stale?.close?.();
+    } catch {
+      // Already closed.
+    }
   }
 }
 
