@@ -46,11 +46,20 @@ interface SnapshotEntry {
  */
 export function createBackupsHandler(options: BackupsHandlerOptions): RouteHandler {
   const now = options.now ?? Date.now;
+  // ponytail: one save at a time per handler (one handler per store per
+  // process). The quota check and the file creation must be one step, or
+  // two concurrent saves both read the same pre-write total and both pass.
+  let saveChain: Promise<unknown> = Promise.resolve();
   return async ({ body }: RouteContext) => {
     const request = parseBackupsRequest(body);
     switch (request.action) {
-      case "save":
-        return await saveSnapshot(options.snapshotRoot, request.category, request.name, request.data, now);
+      case "save": {
+        const run = saveChain.then(() =>
+          saveSnapshot(options.snapshotRoot, request.category, request.name, request.data, now),
+        );
+        saveChain = run.catch(() => undefined);
+        return await run;
+      }
       case "load":
         return await loadSnapshot(options.snapshotRoot, request.file);
       case "list":

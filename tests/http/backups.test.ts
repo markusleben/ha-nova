@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { gzipSync } from "node:zlib";
@@ -140,6 +140,32 @@ describe("backups handler", () => {
       400,
       "SNAPSHOT_STORE_FULL"
     );
+  });
+
+  it("admits exactly one of two concurrent saves into the last free slot", async () => {
+    mkdirSync(join(root, "bulk"), { recursive: true });
+    for (let i = 0; i < MAX_SNAPSHOT_FILES - 1; i += 1) {
+      writeFileSync(
+        join(root, "bulk", `auto-item${i}-20260101T${String(i).padStart(9, "0")}Z.json.gz`),
+        gzipSync("{}")
+      );
+    }
+    // One handler: the serialization lives in its closure. Distinct names so
+    // the same-millisecond SNAPSHOT_EXISTS path cannot mask the quota race.
+    const handler = createBackupsHandler({ snapshotRoot: root, now: () => clockMs });
+    const results = await Promise.allSettled([
+      handler({ body: { action: "save", category: "scenes", name: "first", data: 1 } } as never),
+      handler({ body: { action: "save", category: "scenes", name: "second", data: 2 } } as never),
+    ]);
+    const fulfilled = results.filter((r) => r.status === "fulfilled");
+    const rejected = results.filter((r): r is PromiseRejectedResult => r.status === "rejected");
+    expect(fulfilled).toHaveLength(1);
+    expect(rejected).toHaveLength(1);
+    expect(rejected[0]?.reason).toBeInstanceOf(HttpError);
+    expect((rejected[0]?.reason as HttpError).code).toBe("SNAPSHOT_STORE_FULL");
+    expect(
+      readdirSync(join(root, "bulk")).length + readdirSync(join(root, "scenes")).length,
+    ).toBe(MAX_SNAPSHOT_FILES);
   });
 
   it("prunes auto snapshots by age and count while named ones survive", async () => {
