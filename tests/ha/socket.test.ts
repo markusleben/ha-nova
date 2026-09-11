@@ -126,7 +126,7 @@ describe("ha authenticated socket", { retry: 2 }, () => {
     // 'error' on the next tick, which must not become an uncaught exception.
     const http = await import("node:http");
     const httpServer = http.createServer();
-    const upgradeSockets: import("node:net").Socket[] = [];
+    const upgradeSockets: import("node:stream").Duplex[] = [];
     httpServer.on("upgrade", (_request, socket) => {
       upgradeSockets.push(socket); // swallow the upgrade, destroy at teardown
     });
