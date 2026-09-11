@@ -158,6 +158,8 @@ describe("health endpoint", () => {
       expect(response.status).toBe(200);
       const payload = (await response.json()) as { data: { snapshots: { files: number; bytes: number } } };
       expect(payload.data.snapshots).toEqual({ files: 0, bytes: 0 });
+      // Polled every few seconds: the warning is latched to once per process.
+      await fetch(`${baseUrl}/health`, { headers: { authorization: `Bearer ${TEST_AUTH_TOKEN}` } });
       expect(warnings).toEqual(["snapshot store unreadable; health reports zero snapshots"]);
     } finally {
       rmSync(dir, { recursive: true, force: true });

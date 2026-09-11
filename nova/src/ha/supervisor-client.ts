@@ -57,7 +57,11 @@ export function createSupervisorClient(
           `supervisor ${path} returned ${response.status}: ${text.slice(0, 120)}`,
         );
       }
-      return text ? JSON.parse(text) : null;
+      try {
+        return text ? JSON.parse(text) : null;
+      } catch {
+        throw new Error("unexpected supervisor response shape");
+      }
     } finally {
       clearTimeout(timer);
     }
@@ -72,16 +76,19 @@ export function createSupervisorClient(
         typeof data.version_latest === "string" ? data.version_latest : null,
       updateAvailable: data.update_available === true,
       ingressPanel: data.ingress_panel === true,
-      network: parseNetwork(data.network),
+      // Lenient here: the sidebar and update card never read the port map
+      // and must not break on a malformed entry; the strict parse lives at
+      // the one consumer that does (getMappedHostPort).
+      network: parseNetwork(data.network, "lenient"),
     };
   }
 
   return {
     getSelfInfo,
     async getMappedHostPort(containerPort) {
-      const info = await getSelfInfo();
-      const mapped = info.network[containerPort];
-      return typeof mapped === "number" ? mapped : null;
+      const data = dataOf(await request("/addons/self/info"));
+      const mapped = parseNetwork(data.network, "strict")[containerPort];
+      return mapped ?? null;
     },
     async setOptions(options) {
       await request("/addons/self/options", {
@@ -110,16 +117,24 @@ function dataOf(body: unknown): Record<string, unknown> {
   throw new Error("unexpected supervisor response shape");
 }
 
-// Strict on shape: an explicitly unmapped port is `null`, a real port is an
+// Strict mode: an explicitly unmapped port is `null`, a real port is an
 // integer in 1..65535, anything else is a malformed Supervisor reply and
 // throws — a silently nulled entry would otherwise disable the TLS listener.
-function parseNetwork(value: unknown): Record<string, number | null> {
+// Lenient mode keeps the historical best-effort shape for readers that never
+// consume a port.
+function parseNetwork(
+  value: unknown,
+  mode: "strict" | "lenient",
+): Record<string, number | null> {
   const out: Record<string, number | null> = {};
   if (value === null || value === undefined) {
     return out; // host-network add-ons report no port map
   }
   if (typeof value !== "object" || Array.isArray(value)) {
-    throw new Error("unexpected supervisor response shape");
+    if (mode === "strict") {
+      throw new Error("unexpected supervisor response shape");
+    }
+    return out;
   }
   for (const [key, mapped] of Object.entries(
     value as Record<string, unknown>,
@@ -129,7 +144,11 @@ function parseNetwork(value: unknown): Record<string, number | null> {
       continue;
     }
     if (!Number.isInteger(mapped) || (mapped as number) < 1 || (mapped as number) > 65535) {
-      throw new Error("unexpected supervisor response shape");
+      if (mode === "strict") {
+        throw new Error("unexpected supervisor response shape");
+      }
+      out[key] = null;
+      continue;
     }
     out[key] = mapped as number;
   }

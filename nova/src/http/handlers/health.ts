@@ -3,6 +3,10 @@ import type { RouteHandler } from "../router.js";
 import type { RelayLogger } from "../server.js";
 import { summarizeSnapshotStore } from "./backups.js";
 
+// /health is polled every few seconds and a broken store does not heal on
+// its own: warn once per process, not once per poll.
+let snapshotStoreWarned = false;
+
 export interface HealthHandlerOptions {
   version: string;
   wsClient: {
@@ -56,9 +60,12 @@ export async function readHealthPayload(
   try {
     snapshots = await summarizeSnapshotStore(options.snapshotRoot);
   } catch (error) {
-    options.logger?.warn("snapshot store unreadable; health reports zero snapshots", {
-      error: error instanceof Error ? error.message : String(error),
-    });
+    if (!snapshotStoreWarned) {
+      snapshotStoreWarned = true;
+      options.logger?.warn("snapshot store unreadable; health reports zero snapshots", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
   }
 
   return {
