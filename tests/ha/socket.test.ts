@@ -1,6 +1,6 @@
 import { AddressInfo } from "node:net";
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { WebSocketServer } from "ws";
 
 import {
@@ -100,21 +100,21 @@ describe("ha authenticated socket", { retry: 2 }, () => {
   });
 
   it("rejects with a connect error when HA never answers the auth (handshake deadline)", async () => {
-    let serverSideClosed = false;
+    let resolveServerSideClosed: (() => void) | undefined;
+    const serverSideClosed = new Promise<void>((resolve) => {
+      resolveServerSideClosed = resolve;
+    });
     const server = await startServer((socket) => {
       socket.send(JSON.stringify({ type: "auth_required" }));
       // Accept the token and say nothing: without a deadline this pends forever.
-      socket.on("close", () => {
-        serverSideClosed = true;
-      });
+      socket.on("close", () => resolveServerSideClosed?.());
     });
 
     try {
       await expect(
-        createAuthenticatedHaSocket({ haUrl: server.url, token: "t", handshakeTimeoutMs: 50 })
+        createAuthenticatedHaSocket({ haUrl: server.url, token: "t", handshakeTimeoutMs: 200 })
       ).rejects.toThrow(/handshake timed out/);
-      await new Promise((resolve) => setTimeout(resolve, 100));
-      expect(serverSideClosed).toBe(true);
+      await serverSideClosed;
     } finally {
       server.close();
     }
@@ -126,8 +126,9 @@ describe("ha authenticated socket", { retry: 2 }, () => {
     // 'error' on the next tick, which must not become an uncaught exception.
     const http = await import("node:http");
     const httpServer = http.createServer();
-    httpServer.on("upgrade", () => {
-      // swallow the upgrade
+    const upgradeSockets: import("node:net").Socket[] = [];
+    httpServer.on("upgrade", (_request, socket) => {
+      upgradeSockets.push(socket); // swallow the upgrade, destroy at teardown
     });
     await new Promise<void>((resolve) => httpServer.listen(0, "127.0.0.1", resolve));
     const { port } = httpServer.address() as AddressInfo;
@@ -145,7 +146,9 @@ describe("ha authenticated socket", { retry: 2 }, () => {
       expect(uncaught).toEqual([]);
     } finally {
       process.off("uncaughtException", guard);
-      httpServer.closeAllConnections();
+      for (const socket of upgradeSockets) {
+        socket.destroy();
+      }
       httpServer.close();
     }
   });
@@ -158,12 +161,16 @@ describe("ha authenticated socket", { retry: 2 }, () => {
       });
     });
 
+    // After auth_ok the settled guard would swallow a stray timer anyway, so
+    // assert the timer is actually cleared rather than merely inert.
+    const cleared = vi.spyOn(globalThis, "clearTimeout");
     try {
-      const socket = await createAuthenticatedHaSocket({ haUrl: server.url, token: "t", handshakeTimeoutMs: 20 });
-      await new Promise((resolve) => setTimeout(resolve, 60));
+      const socket = await createAuthenticatedHaSocket({ haUrl: server.url, token: "t", handshakeTimeoutMs: 5_000 });
+      expect(cleared).toHaveBeenCalled();
       expect(socket.readyState).toBe(socket.OPEN);
       socket.close();
     } finally {
+      cleared.mockRestore();
       server.close();
     }
   });
