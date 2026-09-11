@@ -56,7 +56,6 @@ function registerCloudCleanupRoutes(
   const cloudInfo = {
     relayInstanceId: deps.relayInstanceId,
     relayVersion: deps.relayVersion,
-    logger: deps.logger,
     cloudRemoteEnabled: deps.cloudRemoteEnabled,
   };
   const cloudDevice = {
@@ -216,6 +215,7 @@ function registerOwnerRoutes(
     },
     relayVersion: deps.relayVersion,
     now: deps.now,
+    logger: deps.logger,
   };
   const page = createNovaPageHandler(novaDeps);
   const action = createNovaActionHandler(novaDeps);
