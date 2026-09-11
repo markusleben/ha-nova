@@ -77,7 +77,7 @@ func TestBuildWindowsCleanupCommandStaysDetached(t *testing.T) {
 	if cmd.Stdout != nil || cmd.Stderr != nil {
 		t.Fatalf("expected cleanup command to avoid parent output streams")
 	}
-	if got, want := strings.Join(cmd.Args, " "), `powershell.exe -NoProfile -WindowStyle Hidden -Command Start-Sleep -Seconds 2; Remove-Item -LiteralPath 'C:\Temp\ha-nova-uninstall.exe' -Force -ErrorAction SilentlyContinue`; got != want {
+	if got, want := strings.Join(cmd.Args, " "), `powershell.exe -NoProfile -WindowStyle Hidden -Command for ($i = 0; $i -lt 30; $i++) { Start-Sleep -Seconds 1; Remove-Item -LiteralPath 'C:\Temp\ha-nova-uninstall.exe' -Force -ErrorAction SilentlyContinue; if (-not (Test-Path -LiteralPath 'C:\Temp\ha-nova-uninstall.exe')) { exit 0 } }`; got != want {
 		t.Fatalf("cleanup args = %q, want %q", got, want)
 	}
 }

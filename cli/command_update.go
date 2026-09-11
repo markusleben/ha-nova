@@ -197,6 +197,9 @@ func runInternalReplace(paths runtimePaths, args []string) int {
 			printHumanWarn("could not schedule update helper cleanup: %s", err)
 		}
 	}()
+	// Registered before the argument checks so a rejected marker or stage
+	// root does not strand the staged bundle (no-op on an empty path).
+	defer cleanupStagedBundle(*stageRoot)
 	if *stageRoot == "" {
 		printHumanErr("missing --stage-root")
 		return 1
@@ -206,7 +209,6 @@ func runInternalReplace(paths runtimePaths, args []string) int {
 		printHumanErr("%s", err)
 		return 1
 	}
-	defer cleanupStagedBundle(*stageRoot)
 	waitForParentReleaseForReplace(*parentPID)
 	releaseMutation, acquired := acquireAutoRepairLock(paths)
 	if !acquired {
