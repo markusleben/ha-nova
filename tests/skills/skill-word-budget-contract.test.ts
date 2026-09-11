@@ -136,7 +136,9 @@ const WORD_BUDGETS: Record<string, number> = {
   // Table-first redesign: report modes, block shape, ten-block order,
   // behavior rules, private source fields, canonical detector/system
   // blocks retained (#440).
-  health: 2100,
+  // HA 2026.9 child-device fields + effective-area pointer (#520, deep
+  // audit 2026-09-10, measured 2114).
+  health: 2130,
   // post-publish device verification step (2026-h2 Wave 1a).
   // User-assisted capture readiness sequence (#394).
   // Z2M bridge-topic observability section + maintenance registry-side
@@ -284,7 +286,9 @@ const WORD_BUDGETS: Record<string, number> = {
   // follow-up, Codex P1).
   // #452 canonical draft rule on top of the update-all semantics, plus the
   // explicit-version handoff to ha-nova:hacs (measured 1569).
-  updates: 1590,
+  // HA 2026.9 admin-only install/skip/clear_skipped precondition + 401/
+  // unauthorized classification (deep audit 2026-09-10, measured 1631).
+  updates: 1650,
   // batch-safety alignment: batch code format + cap-split rule (#327);
   // purge quantification, glob expansion, apply_filter semantics
   // (2026-h2 Wave 1b).
@@ -346,7 +350,10 @@ const WORD_BUDGETS: Record<string, number> = {
   // Zigbee/Z-Wave read-only network-status section (verify-live, no pinned
   // schema) + bounded-capture button/remote/tag generalization + capability
   // map row (#520 C1-06/C1-02, measured 5271).
-  fallback: 5310,
+  // 2026.9 child rows: singular config_entry_id first, pointers to the
+  // shared device-row contract, remove/remove_config_entry deprecation
+  // dates (#520, deep audit 2026-09-10, measured 5345).
+  fallback: 5360,
   // semantic-slot note on the read templates (Wave 0); pre-write cross-field
   // constraint checks + drift-check step (Wave 1); pre-delete snapshot
   // capture (Wave 2).

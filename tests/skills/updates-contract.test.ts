@@ -20,6 +20,13 @@ describe("updates contract", () => {
     expect(updatesSkill).toContain("`release_summary`/`release_url`");
   });
 
+  it("names the HA 2026.9 admin requirement and classifies a non-admin token (#520 drift)", () => {
+    expect(updatesSkill).toContain("Since HA 2026.9, install, skip, and clear_skipped are admin-only");
+    expect(updatesSkill).toContain("standalone container: the `HA_LLAT` owner");
+    expect(updatesSkill).toContain("- HTTP 401 or WS `unauthorized` on install/skip/clear_skipped:");
+    expect(updatesSkill).toContain("fix the `HA_LLAT` on the standalone container, never retry");
+  });
+
   it("treats installs as far-reaching with kind-specific safety gates", () => {
     // Core/OS updates restart HA and are not downgradable — safety backup first.
     expect(updatesSkill).toContain("offer a full safety backup first via `ha-nova:backup`");
