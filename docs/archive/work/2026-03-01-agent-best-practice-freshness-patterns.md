@@ -1,5 +1,10 @@
 # Agent Best-Practice Freshness Patterns (2026-03-01)
 
+Status: superseded — historical research note. The shipped rule is the tiered
+gate in `skills/ha-nova/write-safety.md` (simple stale refresh: continue
+silently; complex stale/missing/invalid: block); the "block all failed
+refreshes" decision below was never the runtime contract.
+
 ## Scope
 
 Compare how established agent ecosystems keep behavior aligned with changing guidance, then derive a pattern for HA NOVA automation writes.

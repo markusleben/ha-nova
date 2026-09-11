@@ -1,6 +1,6 @@
 # HACS Lifecycle Spec (#478)
 
-Status: active
+Status: merged — archived 2026-09-11 (#478 closed).
 Scope: first-class, safe HACS lifecycle management. Supersedes the archived
 masterplan's "Deliberately NOT: HACS management parity" entry — revised by the
 maintainer in #478 with the solaredgeoptimizers migration as the reference

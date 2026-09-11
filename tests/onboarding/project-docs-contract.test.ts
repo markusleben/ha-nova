@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 
 import { describe, expect, it } from "vitest";
 
@@ -89,6 +89,26 @@ describe("project docs contract", () => {
     expect(novaDocs).not.toContain(
       "Release metadata currently keeps Cloud Remote disabled",
     );
+  });
+
+  it("keeps Markdown bullets out of shell fences in docs/reference", () => {
+    // A bullet swallowed into a bash fence (testing.md once carried the
+    // census-isolation rule inside the isolated-CLI snippet) aborts a paste
+    // on the leading `-`; fences are balanced, so only fence state catches it.
+    for (const file of readdirSync("docs/reference").filter((name) => name.endsWith(".md"))) {
+      let inFence = false;
+      let inShell = false;
+      readFileSync(`docs/reference/${file}`, "utf8").split("\n").forEach((line, index) => {
+        if (line.startsWith("```")) {
+          inShell = !inFence && /^```(?:bash|sh|zsh)\b/.test(line);
+          inFence = !inFence;
+          return;
+        }
+        if (inShell) {
+          expect(/^\s*- /.test(line), `${file}:${index + 1} is a Markdown bullet inside a shell fence`).toBe(false);
+        }
+      });
+    }
   });
 
   it("treats superpowers docs as archive-only history", () => {
