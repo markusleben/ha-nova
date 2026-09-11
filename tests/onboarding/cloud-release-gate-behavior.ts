@@ -8,6 +8,7 @@ import {
   validCloudEvidence,
 } from "./cloud-release-gate-fixture.js";
 import { registerCloudReleaseCommitGateBehaviorTests } from "./cloud-release-commit-gate-behavior.js";
+import "./trust-boundary-handoff-behavior.js";
 import { registerCloudNonsensitiveSourceBehaviorTests } from "./cloud-nonsensitive-source-behavior.js";
 import { registerCloudNonsensitiveGateIntegrationTests } from "./cloud-nonsensitive-gate-integration.js";
 export function registerCloudReleaseGateBehaviorTests(): void {

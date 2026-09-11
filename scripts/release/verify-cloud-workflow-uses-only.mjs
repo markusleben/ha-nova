@@ -12,6 +12,29 @@ const policy = JSON.parse(
 );
 const sensitive = new Set(policy.cloud_source_gate?.sensitive_workflows ?? []);
 const resolvedTags = new Map();
+// One-time exception (deep audit 2026-09-10, findings 1/2/11 — round 1 of the
+// #578/#579 two-round path): the trust-boundary rewrite pins every mutable
+// action tag across seven workflows, adds Go to a fail-closed CodeQL job, and
+// fixes the watchdog trigger. ci.yml is Cloud-release-sensitive and the
+// rewrite is not a uses:-only delta, so this predicate is consulted BEFORE the
+// single-sensitive-workflow guard and the denylist. It pins the ENTIRE
+// transformation: the set of changed workflow paths must EQUAL this key set
+// and every path's base and target blob must match the pinned pair. Round 2
+// must make FOUR coordinated edits: (1) apply the seven workflow files
+// byte-exact to the `after` blobs, (2) extend verify-cloud-action-pins.mjs and
+// verify-cloud-workflow-gate.sh to cover them, (3) remove this block and the
+// isOneTimeTrustBoundaryRewrite check below (byte-exact restore of this file),
+// and (4) delete tests/onboarding/trust-boundary-handoff-behavior.ts plus its
+// side-effect import in cloud-release-gate-behavior.ts.
+const oneTimeTrustBoundaryRewrite = new Map([
+  [".github/workflows/ci.yml", { before: "28f901994ed08c1c769fe68f64b31d8c9df5e598", after: "dc4f21a91eee6e868fc73f1700f087b50af091bb" }],
+  [".github/workflows/codeql.yml", { before: "66135722a4ccd1f044b75a1ee9573e84f8824020", after: "96845f88a35a1350e94375a318990f23b56d2e87" }],
+  [".github/workflows/dependency-review.yml", { before: "896a0e56118f53f9c070e5c5070bdffcf05a96dc", after: "6467043e5ab1d440ec62b3521aa8b368d73f48ff" }],
+  [".github/workflows/pairing-e2e.yml", { before: "90960cfde9f4d6d351bb63d89072b932b0752d3d", after: "f5b921225bb31a128924ecbd0191acbd651436b7" }],
+  [".github/workflows/pr-review-watchdog.yml", { before: "25f04bc82263e640dd56b32d29db1dd07659dd1a", after: "3111634fca5365cfdb0579eea429503b2e886314" }],
+  [".github/workflows/relay-image.yml", { before: "c9796922081f20da986db990b2278f8fc86767d5", after: "3e492bd838175d4e51023cbb56c2e0d2f235f249" }],
+  [".github/workflows/release-pipeline-audit.yml", { before: "526553bb1208bbe3147bac5a3a1addf2bb755ad2", after: "586072ee241d4dda84e04a4cef707440881d22a0" }],
+]);
 
 function fail(message) {
   console.error(`[verify-cloud-workflow-uses-only] ERROR: ${message}`);
@@ -228,6 +251,19 @@ if (
 ) {
   fail("enabled Cloud source may not add, delete, or rename workflows");
 }
+const changedWorkflowPaths = [...base]
+  .filter(([path, entry]) => target.get(path).blob !== entry.blob)
+  .map(([path]) => path);
+const isOneTimeTrustBoundaryRewrite =
+  changedWorkflowPaths.length === oneTimeTrustBoundaryRewrite.size &&
+  changedWorkflowPaths.every((path) => {
+    const pin = oneTimeTrustBoundaryRewrite.get(path);
+    return (
+      pin !== undefined &&
+      base.get(path).blob === pin.before &&
+      target.get(path).blob === pin.after
+    );
+  });
 let changed = 0;
 for (const [path, baseEntry] of base) {
   const targetEntry = target.get(path);
@@ -238,6 +274,9 @@ for (const [path, baseEntry] of base) {
     continue;
   }
   changed += 1;
+  if (isOneTimeTrustBoundaryRewrite) {
+    continue; // exact reviewed blobs; set equality is enforced above
+  }
   if (mode === "single-sensitive-workflow") {
     if (!sensitive.has(path) || changed > 1) {
       fail("approval may change exactly one existing sensitive workflow");
