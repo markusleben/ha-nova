@@ -1,4 +1,5 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 
 import { expect, it } from "vitest";
 
@@ -191,6 +192,83 @@ export function registerCloudReleaseGateContractTests(): void {
     expect(releasing).toContain(
       "After squash merge, the resulting `main` commit has a different SHA",
     );
+  });
+
+  it("pins every action in every workflow and scans the Go CLI fail-closed (audit 2026-09-10)", () => {
+    // A moved upstream tag would run under the job's token (packages: write
+    // in relay-image.yml, pull-requests: write in the watchdog), so every
+    // `uses:` line in every workflow must be an immutable SHA with its exact
+    // release tag — the release-preflight verifier now covers all jobs of
+    // every action-bearing workflow, and this test covers the workflow tree
+    // itself on every pull request.
+    const exactAction =
+      /^\s+(?:-\s+)?uses:\s+[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+(?:\/[A-Za-z0-9_.-]+)*@[0-9a-f]{40}\s+#\s+v(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\s*$/;
+    const workflowDir = ".github/workflows";
+    const workflows = readdirSync(workflowDir).filter((name) =>
+      /\.ya?ml$/.test(name),
+    );
+    expect(workflows.length).toBeGreaterThan(10);
+    for (const name of workflows) {
+      const lines = readFileSync(join(workflowDir, name), "utf8").split(/\r?\n/);
+      lines.forEach((line, index) => {
+        if (line.trimStart().startsWith("#")) {
+          return;
+        }
+        // Flow/anchor/merge-key step syntax could hide a `uses:` from a
+        // line matcher — reject it outright, like the release verifier.
+        expect(line, `${name}:${index + 1} must use canonical block step syntax`).not.toMatch(
+          /^\s+(?:-\s*(?:[&*{]|\?)|<<\s*:)/,
+        );
+        if (!/^\s*(?:-\s+)?["']?uses["']?\s*:/.test(line)) {
+          return;
+        }
+        expect(line, `${name}:${index + 1} must pin its action to a full commit SHA with an exact vX.Y.Z comment`).toMatch(exactAction);
+      });
+    }
+    for (const covered of [
+      "codeql.yml",
+      "dependabot-safe-lane-prepare.yml",
+      "dependency-review.yml",
+      "manifest-review-gate.yml",
+      "pairing-e2e.yml",
+      "pr-review-watchdog.yml",
+      "relay-image.yml",
+      "release-pipeline-audit.yml",
+    ]) {
+      expect(cloudWorkflowGateVerifier).toContain(`/.github/workflows/${covered}`);
+    }
+    expect(cloudWorkflowGateVerifier).toContain(
+      "return new Set(jobs.map((job) => job.id));",
+    );
+    expect(cloudWorkflowGateVerifier).not.toContain(
+      "is not a recognized Cloud-sensitive workflow",
+    );
+
+    // CodeQL: the Go CLI owns pairing, secrets, update, and uninstall — it is
+    // scanned in the same `analyze` job (a matrix would rename the required
+    // check), and analyzer failure is no longer swallowed.
+    const codeql = readFileSync(join(workflowDir, "codeql.yml"), "utf8");
+    expect(codeql).toContain("\n  analyze:\n");
+    expect(codeql).toContain("languages: go, javascript-typescript");
+    expect(codeql).not.toContain("strategy:");
+    expect(codeql).not.toContain("continue-on-error");
+    expect(codeql).not.toContain("non-blocking");
+    expect(codeql.indexOf("go-version-file: cli/go.mod")).toBeGreaterThan(0);
+    expect(codeql.indexOf("go-version-file: cli/go.mod")).toBeLessThan(
+      codeql.indexOf("github/codeql-action/init@"),
+    );
+
+    // Watchdog: the bot accepts only a bare single-line `@codex`; the context
+    // comment carries the marker and is posted first.
+    const watchdog = readFileSync(join(workflowDir, "pr-review-watchdog.yml"), "utf8");
+    expect(watchdog.match(/createComment\(/g)?.length).toBe(2);
+    expect(watchdog).toMatch(/body: "@codex"\n/);
+    expect(watchdog).not.toContain('"@codex fix');
+    expect(watchdog.indexOf("const marker = ")).toBeLessThan(watchdog.indexOf('body: "@codex"'));
+    expect(watchdog.lastIndexOf("createComment(")).toBeLessThan(watchdog.indexOf('body: "@codex"'));
+    // A rerun after a failed trigger call posts the trigger, never a second context.
+    expect(watchdog).toContain('.trim() === "@codex"');
+    expect(watchdog).toContain("if (contextIndex < 0) {");
   });
 
   it("runs the source gate in CI and blocks direct main App-source bypasses", () => {

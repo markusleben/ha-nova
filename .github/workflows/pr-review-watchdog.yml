@@ -19,12 +19,12 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  request-codex-fix:
+  request-codex-review:
     if: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'failure' }}
     runs-on: ubuntu-latest
     steps:
-      - name: Request Codex fix for failed CI (label-gated)
-        uses: actions/github-script@v9
+      - name: Request Codex review for failed CI (label-gated)
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
           script: |
             const run = context.payload.workflow_run;
@@ -51,13 +51,13 @@ jobs:
               });
 
               if (pr.draft) {
-                core.info(`PR #${prNumber} is draft; skipping auto-fix request.`);
+                core.info(`PR #${prNumber} is draft; skipping review request.`);
                 continue;
               }
 
               const labels = (pr.labels || []).map((label) => label.name);
               if (!labels.includes("autofix:enabled")) {
-                core.info(`PR #${prNumber} missing label autofix:enabled; skipping auto-fix request.`);
+                core.info(`PR #${prNumber} missing label autofix:enabled; skipping review request.`);
                 continue;
               }
 
@@ -66,38 +66,49 @@ jobs:
                 continue;
               }
 
-              const marker = `<!-- codex-watchdog:auto-fix run:${run.id} -->`;
+              const marker = `<!-- codex-watchdog:review-request run:${run.id} -->`;
               const comments = await github.paginate(github.rest.issues.listComments, {
                 owner,
                 repo,
                 issue_number: prNumber,
                 per_page: 100
               });
-              const alreadyRequested = comments.some((comment) => String(comment.body || "").includes(marker));
-              if (alreadyRequested) {
-                core.info(`Auto-fix request already posted for run ${run.id}; skipping.`);
+              // The bot accepts only a bare, single-line `@codex` trigger (AGENTS.md
+              // Guardrails); a multi-line body is silently rejected. Post the context
+              // first, then the trigger as its own comment. Dedupe on the trigger,
+              // not the marker alone: if the trigger call failed last time, a rerun
+              // must still post it without repeating the context.
+              const contextIndex = comments.findIndex((comment) => String(comment.body || "").includes(marker));
+              const triggerPosted =
+                contextIndex >= 0 &&
+                comments.slice(contextIndex + 1).some((comment) => String(comment.body || "").trim() === "@codex");
+              if (triggerPosted) {
+                core.info(`Review already requested for run ${run.id}; skipping.`);
                 continue;
               }
 
               const body = [
                 marker,
-                "@codex fix the CI failures on this PR.",
+                `CI failed on this PR — Codex review requested below.`,
                 "",
                 `Failed workflow: ${run.name}`,
                 `Run URL: ${run.html_url}`,
                 "",
-                "Constraints:",
-                "- minimal diff",
-                "- keep MVP/KISS",
-                "- push fix and re-run checks",
-                "",
-                "_Auto-requested by PR Review Watchdog (label-gated: autofix:enabled)._"
+                "_Review requested by PR Review Watchdog (label-gated: autofix:enabled)._"
               ].join("\n");
 
+              if (contextIndex < 0) {
+                await github.rest.issues.createComment({
+                  owner,
+                  repo,
+                  issue_number: prNumber,
+                  body
+                });
+              }
               await github.rest.issues.createComment({
                 owner,
                 repo,
                 issue_number: prNumber,
-                body
+                body: "@codex"
               });
             }

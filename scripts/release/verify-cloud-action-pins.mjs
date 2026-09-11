@@ -35,28 +35,19 @@ function parseJobs(workflowPath, lines) {
   }));
 }
 
-function sensitiveJobIDs(workflowPath, jobs) {
-  switch (basename(workflowPath)) {
-    case "ci.yml":
-      return new Set(["test-inventory", "ci-gate"]);
-    case "cloud-source-gate.yml":
-      return new Set(["cloud-source-mode", "cloud-source-gate"]);
-    case "e2e-disposable-ha.yml":
-      return new Set(["disposable-ha"]);
-    case "release.yml":
-    case "release-candidate.yml":
-    case "cloud-candidate-bundle.yml":
-      return new Set(jobs.map((job) => job.id));
-    default:
-      fail(workflowPath, "is not a recognized Cloud-sensitive workflow");
-  }
+// Every job of every covered workflow must pin its actions: a moved upstream
+// tag reaches the job's token whatever the job is called, so no job list is
+// "non-sensitive" (audit 2026-09-10, finding 1).
+function sensitiveJobIDs(jobs) {
+  return new Set(jobs.map((job) => job.id));
 }
 
 function hasUsesMapping(line) {
   if (line.trimStart().startsWith("#")) {
     return false;
   }
-  return /(?:^|[{,\s])["']?uses["']?\s*:/.test(line);
+  // Anchored to a step key: a `uses:` inside a run: string is not an action.
+  return /^\s*(?:-\s+)?["']?uses["']?\s*:/.test(line);
 }
 
 function verifyWorkflow(workflowPath) {
@@ -67,12 +58,7 @@ function verifyWorkflow(workflowPath) {
     fail(workflowPath, "must exist and be readable");
   }
   const jobs = parseJobs(workflowPath, lines);
-  const sensitive = sensitiveJobIDs(workflowPath, jobs);
-  for (const jobID of sensitive) {
-    if (!jobs.some((job) => job.id === jobID)) {
-      fail(workflowPath, `must define Cloud-sensitive job '${jobID}'`);
-    }
-  }
+  const sensitive = sensitiveJobIDs(jobs);
 
   let actionCount = 0;
   for (const job of jobs.filter((candidate) => sensitive.has(candidate.id))) {
