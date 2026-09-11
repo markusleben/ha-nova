@@ -122,6 +122,50 @@ describe("health endpoint", () => {
     }
   });
 
+  it("logs once when the snapshot store is unreadable and still answers", async () => {
+    // A regular file where the store directory should be: readdir fails
+    // with ENOTDIR (not ENOENT), which is an I/O fault, not an empty store.
+    const dir = mkdtempSync(join(tmpdir(), "nova-health-broken-store-"));
+    const snapshotRoot = join(dir, "not-a-directory");
+    writeFileSync(snapshotRoot, "x");
+    const warnings: string[] = [];
+
+    const router = createRouter();
+    router.register(
+      "GET",
+      "/health",
+      createHealthHandler({
+        version: "1.0.0",
+        wsClient: { isConnected: () => true },
+        startedAtMs: 1_000,
+        fileAccessMode: "off",
+        snapshotRoot,
+        now: () => 4_500,
+        logger: {
+          warn: (message) => {
+            warnings.push(message);
+          },
+          error: () => {},
+        },
+      }),
+    );
+
+    try {
+      const { baseUrl } = await startServer(servers, router);
+      const response = await fetch(`${baseUrl}/health`, {
+        headers: { authorization: `Bearer ${TEST_AUTH_TOKEN}` },
+      });
+      expect(response.status).toBe(200);
+      const payload = (await response.json()) as { data: { snapshots: { files: number; bytes: number } } };
+      expect(payload.data.snapshots).toEqual({ files: 0, bytes: 0 });
+      // Polled every few seconds: the warning is latched to once per process.
+      await fetch(`${baseUrl}/health`, { headers: { authorization: `Bearer ${TEST_AUTH_TOKEN}` } });
+      expect(warnings).toEqual(["snapshot store unreadable; health reports zero snapshots"]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it("returns 401 without token", async () => {
     const router = createRouter();
     router.register(

@@ -103,7 +103,7 @@ export function createNovaActionHandler(deps: NovaPageDeps): RouteHandler {
   return async ({ request, response, body }) => {
     const owner = await checkOwner(request, { fetchAuthUsers: deps.fetchAuthUsers });
     if (!owner.ok) {
-      fail(response, owner.status, "Owner access required.");
+      fail(response, owner.status, owner.status === 503 ? "Could not verify owner access. Try again shortly." : "Owner access required.");
       return;
     }
     // Reject cross-site form submissions. Sec-Fetch-Site, when the browser sends
