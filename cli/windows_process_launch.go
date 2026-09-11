@@ -99,7 +99,9 @@ func buildWindowsCleanupCommand(path string) *exec.Cmd {
 			"-WindowStyle",
 			"Hidden",
 			"-Command",
-			fmt.Sprintf(`Start-Sleep -Seconds 2; Remove-Item -LiteralPath '%s' -Force -ErrorAction SilentlyContinue`, quotedPath),
+			// Retry for up to 30 s: a freshly written .exe under %TEMP% is exactly
+			// what an antivirus scanner holds open right after the process exits.
+			fmt.Sprintf(`for ($i = 0; $i -lt 30; $i++) { Start-Sleep -Seconds 1; Remove-Item -LiteralPath '%s' -Force -ErrorAction SilentlyContinue; if (-not (Test-Path -LiteralPath '%s')) { exit 0 } }`, quotedPath, quotedPath),
 		},
 		windowsBackgroundCleanupLaunchProfile(),
 	)
