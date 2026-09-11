@@ -74,7 +74,7 @@ future needs, native primitives when equally safe and clearer.
    - Do not rewrite unrelated structure, aliases, or formatting for a narrow change.
    - Treat notification copy as user-authored content: preserve notification titles, messages, templates, metadata. Rename/timing changes must not restyle, relocalize, or restructure existing text; requested wording changes change only the requested copy.
    - New or explicitly edited notification actions follow the canonical contract `skills/ha-nova/mobile-notification-composition.md` (composition and observed conventions). Its recurring-workflow INTENT classification is not so limited: it runs before the write preview on EVERY recurring-workflow write — existing notification actions and trigger-only edits included, their payloads staying byte-for-byte untouched — and may add an exception-only Suggestion Block item.
-2. BP gate (`skills/ha-nova/write-safety.md`): fresh/stale+simple->continue, stale+complex->block.
+2. BP gate (`skills/ha-nova/write-safety.md`; refresh: `skills/ha-nova/best-practices.md`): fresh/stale+simple->continue, stale+complex->block.
 3. Suggestions + Pre-Write Checks (skip for `delete`):
    - **3a) Suggestions**: Render `suggested_enhancements` as the Suggestion Block (output-rules.md; max 2, smallest intervention first, numbered/menu — `skills/ha-nova/smallest-solution.md`). User accepts numbers or "skip" → merge accepted into config BEFORE preview. Skip when `SUGGESTED_ENHANCEMENTS: none` AND step 1 produced no intent-classification item — either source alone renders the block.
    - **3b) Static Checks**: Use `skills/review/checks.md` → Application (family matrix + evidence boundaries). Run S/R/P/M checks analytically on the draft YAML — no relay calls (scripts: F-01..F-08; helper refs: H-01..H-08. Defer H-09/H-10 to Phase 4).
@@ -188,11 +188,12 @@ See `skills/ha-nova/SKILL.md` → Response Format.
 ## References
 
 Always load:
-- `skills/ha-nova/relay-api.md`, `skills/ha-nova/payload-schemas.md`, `skills/ha-nova/best-practices.md`, `skills/ha-nova/write-safety.md`, `skills/ha-nova/smallest-solution.md`
+- `skills/ha-nova/relay-api.md`, `skills/ha-nova/payload-schemas.md`, `skills/ha-nova/write-safety.md`, `skills/ha-nova/smallest-solution.md`
 - Agent templates: `skills/ha-nova/agents/resolve-agent.md`, `skills/ha-nova/agents/apply-agent.md`
 - Review checks: `skills/review/checks.md` (self-contained catalog + Application)
 
 On demand — read only when the trigger applies:
+- `skills/ha-nova/best-practices.md` — when resolve returns `bp_status` `stale`, `missing`, or `invalid` (any complexity): run its Refresh procedure in the main thread before the Phase 3 BP gate; a complex change stays blocked until the refresh succeeds
 - `skills/ha-nova/automation-patterns.md` — drafting new branching, timing, or flow-control logic
 - `skills/ha-nova/one-shot-automations.md` — a one-shot, "only today", or duration-bound request (this skill owns both halves of a duration)
 - `skills/ha-nova/recovery-workflows.md` — recovery, watchdog, self-healing, or retry intent

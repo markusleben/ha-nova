@@ -1,7 +1,7 @@
 # HA NOVA Template Guidelines
 
 Prescriptive guidance for when and how to use Jinja2 templates in automations and scripts.
-For syntax reference and available functions, see `docs/reference/ha-template-reference.md`.
+For syntax and available functions, fetch https://www.home-assistant.io/docs/configuration/templating/ once when the draft contains Jinja.
 
 ## When to Use Templates
 

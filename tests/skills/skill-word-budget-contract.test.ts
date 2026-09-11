@@ -116,7 +116,9 @@ const WORD_BUDGETS: Record<string, number> = {
   // Intent classification decoupled from edited payloads (#573 Codex
   // round 9, measured 5426).
   // Union with #603's notification wiring (trial-merge measured 5499).
-  write: 5530,
+  // best-practices.md moved to on demand with an explicit bp_status trigger
+  // and the BP-gate refresh pointer (deep audit 2026-09-10, measured 5547).
+  write: 5580,
   // HACS lifecycle: schema guard, reconcile loops, consumer discovery,
   // migration backup gate, category-appropriate verification (#478);
   // review rounds added pin-durability branches, the uninstall apply
