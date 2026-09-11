@@ -19,12 +19,12 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  request-codex-fix:
+  request-codex-review:
     if: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'failure' }}
     runs-on: ubuntu-latest
     steps:
-      - name: Request Codex fix for failed CI (label-gated)
-        uses: actions/github-script@v9
+      - name: Request Codex review for failed CI (label-gated)
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
           script: |
             const run = context.payload.workflow_run;
@@ -79,14 +79,17 @@ jobs:
                 continue;
               }
 
+              // The bot accepts only a bare, single-line `@codex` trigger (AGENTS.md
+              // Guardrails); a multi-line body is silently rejected. Post the context
+              // first, then the trigger as its own comment.
               const body = [
                 marker,
-                "@codex fix the CI failures on this PR.",
+                `CI failed on this PR — Codex review requested below.`,
                 "",
                 `Failed workflow: ${run.name}`,
                 `Run URL: ${run.html_url}`,
                 "",
-                "Constraints:",
+                "Constraints for any fix:",
                 "- minimal diff",
                 "- keep MVP/KISS",
                 "- push fix and re-run checks",
@@ -99,5 +102,11 @@ jobs:
                 repo,
                 issue_number: prNumber,
                 body
+              });
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number: prNumber,
+                body: "@codex"
               });
             }
