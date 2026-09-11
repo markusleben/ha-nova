@@ -206,7 +206,10 @@ function applyAction(deps: NovaPageDeps, action: NovaAction, form: Record<string
 async function safeUpdate(deps: NovaPageDeps): Promise<UpdateStatus> {
   try {
     return await deps.update();
-  } catch {
+  } catch (error) {
+    deps.logger?.warn("update status unavailable", {
+      error: error instanceof Error ? error.message : String(error),
+    });
     return { version: deps.relayVersion, versionLatest: null, updateAvailable: false, error: true };
   }
 }

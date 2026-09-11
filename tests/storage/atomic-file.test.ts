@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import {
   InsecureFileError,
-  InsecureFileOwnerError,
+  InsecureFileDeploymentError,
   ensurePrivateDir,
   readPrivateFileSync,
   writeFileAtomicSync,
@@ -95,9 +95,9 @@ describe("atomic-file", () => {
     () => {
       const path = join(dir, "foreign.json");
       writeFileAtomicSync(path, "secret");
-      const otherUid = (process.getuid?.() ?? 0) + 1;
-      expect(() => readPrivateFileSync(path, 1 << 20, otherUid)).toThrow(InsecureFileOwnerError);
-      expect(() => readPrivateFileSync(path, 1 << 20, otherUid)).toThrow(/owned by uid/);
+      const otherUid = (process.geteuid?.() ?? 0) + 1;
+      expect(() => readPrivateFileSync(path, 1 << 20, otherUid)).toThrow(InsecureFileDeploymentError);
+      expect(() => readPrivateFileSync(path, 1 << 20, otherUid)).toThrow(/fix: chown/);
     },
   );
 

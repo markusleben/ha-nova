@@ -87,7 +87,7 @@ export async function buildAppMode(
   let active: DeviceRegistry;
   let registryCorrupt = false;
   try {
-    active = openDeviceRegistry(dataDir);
+    active = openDeviceRegistry(dataDir, input.logger);
   } catch (error) {
     if (error instanceof RegistryCorruptError) {
       registryCorrupt = true;
@@ -106,7 +106,7 @@ export async function buildAppMode(
       return;
     }
     archiveCorruptRegistry(dataDir, input.now());
-    active = openDeviceRegistry(dataDir); // a fresh, empty registry
+    active = openDeviceRegistry(dataDir, input.logger); // a fresh, empty registry
     // A reset is a full fresh start ("every computer will need to pair again"),
     // so cut pre-pairing legacy access too: tombstone the migration so a lingering
     // plaintext relay_auth_token is NOT re-imported into the fresh registry on the

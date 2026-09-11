@@ -6,7 +6,7 @@ import type {
 } from "./device-registry-types.js";
 import {
   InsecureFileError,
-  InsecureFileOwnerError,
+  InsecureFileDeploymentError,
   readPrivateFileSync,
 } from "../storage/atomic-file.js";
 import { isRelayInstanceId } from "../storage/relay-instance.js";
@@ -31,9 +31,9 @@ export function loadRegistryData(path: string): RegistryData {
   try {
     raw = readPrivateFileSync(path, MAX_REGISTRY_BYTES);
   } catch (error) {
-    if (error instanceof InsecureFileOwnerError) {
-      // Wrong owner is a deployment fault (chown), not corruption: never steer
-      // the owner into a registry reset for it.
+    if (error instanceof InsecureFileDeploymentError) {
+      // Wrong owner or unrepairable bits is a deployment fault (chown/chmod),
+      // not corruption: never steer the owner into a registry reset for it.
       throw error;
     }
     if (error instanceof InsecureFileError) {

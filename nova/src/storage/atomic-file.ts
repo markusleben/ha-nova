@@ -25,8 +25,9 @@ import { dirname } from "node:path";
 // real regular file (symlink swaps and fifos are rejected via lstat + fstat).
 
 export class InsecureFileError extends Error {}
-// Ownership mismatch is not corruption: the fix is chown, never a reset.
-export class InsecureFileOwnerError extends InsecureFileError {}
+// A deployment fault (wrong owner, unrepairable permission bits) is not
+// corruption: the fix is chown/chmod on the host, never a registry reset.
+export class InsecureFileDeploymentError extends InsecureFileError {}
 
 const FILE_MODE = 0o600;
 const DIR_MODE = 0o700;
@@ -90,7 +91,7 @@ export function writeFileAtomicSync(path: string, data: Buffer | string): void {
 export function readPrivateFileSync(
   path: string,
   maxBytes: number,
-  expectedUid: number | undefined = process.getuid?.(),
+  expectedUid: number | undefined = process.geteuid?.(),
 ): Buffer | null {
   const lst = lstatOrNull(path);
   if (lst === null) {
@@ -113,21 +114,23 @@ export function readPrivateFileSync(
     }
     if (expectedUid !== undefined) {
       if (st.uid !== expectedUid) {
-        throw new InsecureFileOwnerError(
-          `${path} is owned by uid ${st.uid}, expected uid ${expectedUid}; refusing to read`,
+        throw new InsecureFileDeploymentError(
+          `${path} is owned by uid ${st.uid}, expected uid ${expectedUid}; refusing to read — fix: chown ${expectedUid} ${path}`,
         );
       }
       if ((st.mode & 0o077) !== 0) {
         try {
           fchmodSync(fd, FILE_MODE);
         } catch (error) {
-          throw new InsecureFileError(
-            `${path} is group/world accessible and could not be repaired`,
+          throw new InsecureFileDeploymentError(
+            `${path} is group/world accessible and could not be repaired — fix: chmod 600 ${path}`,
             { cause: error },
           );
         }
         if ((fstatSync(fd).mode & 0o077) !== 0) {
-          throw new InsecureFileError(`${path} stays group/world accessible after repair`);
+          throw new InsecureFileDeploymentError(
+            `${path} stays group/world accessible after repair — fix: chmod 600 ${path}`,
+          );
         }
       }
     }
