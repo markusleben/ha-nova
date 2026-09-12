@@ -102,8 +102,8 @@
     "yaml": "^2.9.0"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^5.20260825.1",
-    "@types/node": "^25.9.5",
+    "@cloudflare/workers-types": "^5.20260908.1",
+    "@types/node": "^25.9.6",
     "@types/ws": "^8.18.1",
     "husky": "^9.1.7",
     "tsx": "^4.23.12",
