@@ -77,7 +77,7 @@ Use `ha-nova relay` for all HA communication. It handles auth, headers, and time
 4. If target exists, capture `current_config` from read-back.
 5. Best-practice cache (automation domain only; skip for scripts):
    - Read from `${HOME}/.cache/ha-nova/automation-bp-snapshot.json`
-   - Possible states: `fresh`, `stale`, `missing`, or `invalid` — `fresh` = `automation_bp_refreshed: true`, `automation_bp_refreshed_at` at most 30 days old, `automation_bp_sources` a non-empty list, and `automation_bp_ha_version` a non-empty version string; older → `stale`; file absent → `missing`; unparsable, or any field absent, empty, or null → `invalid`
+   - Possible states: `fresh`, `stale`, `missing`, or `invalid` — `fresh` = `automation_bp_refreshed: true`, `automation_bp_refreshed_at` at most 30 days old, `automation_bp_sources` a non-empty list, and `automation_bp_ha_version` a non-empty version string; older → `stale`; file absent → `missing`; everything else — unparsable, `automation_bp_refreshed` anything but boolean `true`, or any field absent, empty, or null → `invalid`
    - For scripts: set `bp_status` to `n/a`
 6. Evaluate ambiguity:
    - exact single candidate => resolve directly
