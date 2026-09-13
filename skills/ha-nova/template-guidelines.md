@@ -1,7 +1,7 @@
 # HA NOVA Template Guidelines
 
 Prescriptive guidance for when and how to use Jinja2 templates in automations and scripts.
-For syntax and available functions the Live Render Loop below is the authority (Home Assistant rejects unknown filters and functions verbatim) — except for limited-template fields (`trigger_variables`, trigger-level templates): the render endpoint uses the full environment and accepts helpers such as `states()`, `expand()`, or `now()` that those fields reject, so validate them against the official page's limited-templates section instead. Otherwise fetch https://www.home-assistant.io/docs/configuration/templating/ only when a render error needs a documented signature and web access is available.
+For syntax and available functions the Live Render Loop below is the authority (Home Assistant rejects unknown filters and functions verbatim) — except for Home Assistant's limited-template fields (`trigger_variables`, and the trigger fields the official page lists as limited, such as the `event` trigger's `event_type`/`event_data`/`context` and the `mqtt` trigger's `topic`/`payload`; an ordinary `trigger: template` `value_template` is NOT limited): the render endpoint uses the full environment and accepts helpers such as `states()`, `expand()`, or `now()` that those fields reject, so validate them against the official page's limited-templates section instead. Otherwise fetch https://www.home-assistant.io/docs/configuration/templating/ only when a render error needs a documented signature and web access is available.
 
 ## When to Use Templates
 
