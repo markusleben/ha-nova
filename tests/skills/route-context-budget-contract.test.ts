@@ -12,25 +12,28 @@ import { describe, expect, it } from "vitest";
 // syntax. Ratchet values are the measured totals rounded up; lowering them
 // is the point of any context-reduction change.
 const ROUTE_BUDGETS: Record<string, { files: string[]; limit: number }> = {
-  // measured 32941 (router 5619 + bootstrap 1176 + output rules 2636 +
-  // review 4829 + checks 7901 + template reference 10780)
+  // measured 32941 with the retired 10780-word template snapshot (router
+  // 5619 + bootstrap 1176 + output rules 2636 + review 4829 + checks 7901);
+  // the official templating page is fetched only when a template check
+  // needs a signature checks.md lacks. Measured after the cut: 22211.
   review: {
-    limit: 33000,
+    limit: 22250,
     files: [
       "skills/ha-nova/SKILL.md",
       "skills/ha-nova/session-bootstrap.md",
       "skills/ha-nova/output-rules.md",
       "skills/review/SKILL.md",
       "skills/review/checks.md",
-      "docs/reference/ha-template-reference.md",
     ],
   },
-  // measured 31945 (router trio 9431 + write 2712 + relay-api 4217 +
-  // payload-schemas 1002 + best-practices 1212 + write-safety 3330 +
-  // smallest-solution 327 + resolve-agent 924 + apply-agent 889 +
-  // checks 7901). one-shot-automations.md is on demand and not counted.
+  // measured 31945 with best-practices.md always loaded (router trio 9431
+  // + write 2712 + relay-api 4217 + payload-schemas 1002 + best-practices
+  // 1212 + write-safety 3330 + smallest-solution 327 + resolve-agent 924 +
+  // apply-agent 889 + checks 7901); best-practices.md is now on demand
+  // (bp_status stale/missing/invalid or a check that defers to it) and
+  // one-shot-automations.md was always on demand — neither is counted.
   write: {
-    limit: 32000,
+    limit: 30950,
     files: [
       "skills/ha-nova/SKILL.md",
       "skills/ha-nova/session-bootstrap.md",
@@ -38,7 +41,6 @@ const ROUTE_BUDGETS: Record<string, { files: string[]; limit: number }> = {
       "skills/write/SKILL.md",
       "skills/ha-nova/relay-api.md",
       "skills/ha-nova/payload-schemas.md",
-      "skills/ha-nova/best-practices.md",
       "skills/ha-nova/write-safety.md",
       "skills/ha-nova/smallest-solution.md",
       "skills/ha-nova/agents/resolve-agent.md",
