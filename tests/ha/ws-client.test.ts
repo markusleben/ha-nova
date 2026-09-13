@@ -88,8 +88,8 @@ describe("ha ws client", () => {
     await client.sendMessage({ type: "ping" });
     expect(client.isConnected()).toBe(true);
 
-    // The abandoned first connection auto-reconnects in the background and
-    // keeps firing events — those must not flip the active signal.
+    // close() on the abandoned first connection is best-effort (this fake has
+    // none); late events from it must still not flip the active signal.
     listenersByConnection[0]?.["disconnected"]?.();
     expect(client.isConnected()).toBe(true);
     listenersByConnection[0]?.["ready"]?.();
@@ -151,6 +151,7 @@ describe("ha ws client", () => {
 
   it("drops a stale connection after request failure and reconnects on the next request", async () => {
     let connectCalls = 0;
+    let firstCloseCalls = 0;
 
     const client = createHaWsClient({
       createConnection: async () => {
@@ -162,12 +163,18 @@ describe("ha ws client", () => {
                 throw new Error("socket closed");
               }
               return { echoed: message.type };
+            },
+            close: () => {
+              firstCloseCalls += 1;
             }
           };
         }
 
         return {
-          sendMessagePromise: async (message: { type: string }) => ({ echoed: `retry:${message.type}` })
+          sendMessagePromise: async (message: { type: string }) => ({ echoed: `retry:${message.type}` }),
+          close: () => {
+            throw new Error("the replacement connection must never be closed");
+          }
         };
       }
     });
@@ -178,7 +185,76 @@ describe("ha ws client", () => {
       message: "socket closed"
     } satisfies Partial<HaWsClientError>);
     expect(client.isConnected()).toBe(false);
+    // The abandoned connection is closed exactly once, so it cannot keep
+    // auto-reconnecting next to its replacement.
+    expect(firstCloseCalls).toBe(1);
     await expect(client.sendMessage({ type: "recover" })).resolves.toEqual({ echoed: "retry:recover" });
+    await expect(client.sendMessage({ type: "again" })).resolves.toEqual({ echoed: "retry:again" });
+    expect(connectCalls).toBe(2);
+    expect(firstCloseCalls).toBe(1);
+  });
+
+  it("does not close a healthy replacement when an older operation fails late", async () => {
+    // Two operations share connection A; A fails, B replaces it, then the
+    // second operation on A fails late — B must stay open and current.
+    const closes: string[] = [];
+    let connectCalls = 0;
+    let releaseSecond: (() => void) | undefined;
+    const client = createHaWsClient({
+      createConnection: async () => {
+        connectCalls += 1;
+        const name = connectCalls === 1 ? "A" : "B";
+        return {
+          sendMessagePromise: async (message: { type: string }) => {
+            if (name === "A" && message.type === "late") {
+              await new Promise<void>((resolve) => {
+                releaseSecond = resolve;
+              });
+              throw new Error("socket closed");
+            }
+            if (name === "A" && message.type === "broken") {
+              throw new Error("socket closed");
+            }
+            return { via: name, echoed: message.type };
+          },
+          close: () => {
+            closes.push(name);
+          }
+        };
+      }
+    });
+
+    const late = client.sendMessage({ type: "late" });
+    await expect(client.sendMessage({ type: "broken" })).rejects.toMatchObject({ code: "UPSTREAM_WS_ERROR" });
+    await expect(client.sendMessage({ type: "next" })).resolves.toEqual({ via: "B", echoed: "next" });
+    releaseSecond?.();
+    await expect(late).rejects.toMatchObject({ code: "UPSTREAM_WS_ERROR" });
+    await expect(client.sendMessage({ type: "after" })).resolves.toEqual({ via: "B", echoed: "after" });
+    expect(closes).toEqual(["A"]);
+    expect(connectCalls).toBe(2);
+  });
+
+  it("still drops and reconnects when close() throws", async () => {
+    let connectCalls = 0;
+    const client = createHaWsClient({
+      createConnection: async () => {
+        connectCalls += 1;
+        return {
+          sendMessagePromise: async (message: { type: string }) => {
+            if (connectCalls === 1) {
+              throw new Error("socket closed");
+            }
+            return { echoed: message.type };
+          },
+          close: () => {
+            throw new Error("already closed");
+          }
+        };
+      }
+    });
+
+    await expect(client.sendMessage({ type: "first" })).rejects.toMatchObject({ code: "UPSTREAM_WS_ERROR" });
+    await expect(client.sendMessage({ type: "second" })).resolves.toEqual({ echoed: "second" });
     expect(connectCalls).toBe(2);
   });
 
@@ -283,6 +359,36 @@ describe("ha ws client", () => {
     ).rejects.toThrow(/timed out/i);
   });
 
+  it("keeps the healthy connection open when a strict collection hits max_events", async () => {
+    // The overflow is a local decision, not a transport fault: no close, and
+    // the next request reuses the same connection.
+    let connectCalls = 0;
+    let closed = 0;
+    const client = createHaWsClient({
+      createConnection: async () => {
+        connectCalls += 1;
+        return {
+          sendMessagePromise: async (message: { type: string }) => ({ echoed: message.type }),
+          subscribeMessage: async (callback) => {
+            callback({ type: "one" });
+            callback({ type: "two" });
+            return () => {};
+          },
+          close: () => {
+            closed += 1;
+          }
+        };
+      }
+    });
+
+    await expect(
+      client.collectMessageEvents({ type: "subscribe_events" }, { maxEvents: 1 })
+    ).rejects.toMatchObject({ code: "UPSTREAM_WS_ERROR" });
+    expect(closed).toBe(0);
+    await expect(client.sendMessage({ type: "after" })).resolves.toEqual({ echoed: "after" });
+    expect(connectCalls).toBe(1);
+  });
+
   it("still errors at max_events in the default strict mode", async () => {
     const client = createHaWsClient({
       createConnection: async () => ({
@@ -298,6 +404,26 @@ describe("ha ws client", () => {
     await expect(
       client.collectMessageEvents({ type: "system_health/info" }, { maxEvents: 1 })
     ).rejects.toThrow(/exceeded 1 events/);
+  });
+
+  it("keeps the timeout error and returns promptly when the unsubscribe hangs on the closed connection", async () => {
+    // After the failed connection is closed, its unsubscribe command can never
+    // be answered; the cleanup must not hang the request or mask the error.
+    let closed = 0;
+    const client = createHaWsClient({
+      createConnection: async () => ({
+        sendMessagePromise: async () => ({ ok: true }),
+        subscribeMessage: async () => () => new Promise<void>(() => {}),
+        close: () => {
+          closed += 1;
+        }
+      })
+    });
+
+    await expect(
+      client.collectMessageEvents({ type: "subscribe_events" }, { timeoutMs: 30 })
+    ).rejects.toMatchObject({ code: "UPSTREAM_WS_TIMEOUT" });
+    expect(closed).toBe(1);
   });
 
   it("unsubscribes when event collection times out before subscription ack", async () => {
