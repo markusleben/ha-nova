@@ -123,6 +123,7 @@
   "tests/skills/sibling-capability-contract.test.ts",
   "tests/skills/skill-source-language-contract.test.ts",
   "tests/skills/skill-template-contract.test.ts",
+  "tests/skills/route-context-budget-contract.test.ts",
   "tests/skills/skill-word-budget-contract.test.ts",
   "tests/skills/smallest-solution-contract.test.ts",
   "tests/skills/test-run-contract.test.ts",
