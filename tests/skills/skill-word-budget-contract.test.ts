@@ -116,7 +116,10 @@ const WORD_BUDGETS: Record<string, number> = {
   // Intent classification decoupled from edited payloads (#573 Codex
   // round 9, measured 5426).
   // Union with #603's notification wiring (trial-merge measured 5499).
-  write: 5530,
+  // best-practices.md moved to on demand with an explicit bp_status trigger
+  // and the BP-gate refresh pointer, plus the check-deferral triggers (deep
+  // audit 2026-09-10 + Codex round 1, measured 5602).
+  write: 5620,
   // HACS lifecycle: schema guard, reconcile loops, consumer discovery,
   // migration backup gate, category-appropriate verification (#478);
   // review rounds added pin-durability branches, the uninstall apply
@@ -387,7 +390,9 @@ const WORD_BUDGETS: Record<string, number> = {
   // Notification findings-vs-suggestions pointer to the canonical
   // mobile-notification composition contract (#575/#576/#573, 2026-08-19,
   // measured 4829).
-  review: 4850,
+  // Template-reference fetch narrowed to signature gaps in checks.md (deep
+  // audit 2026-09-10, measured 4846).
+  review: 4880,
   // Codex round 2 (#518): the entrypoint carried its own copy of the
   // verify-before-flag gate, which contradicted the corrected one in
   // checks.md and could suppress accepted-but-dangerous findings; trace

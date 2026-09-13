@@ -1,7 +1,7 @@
 # HA NOVA Template Guidelines
 
 Prescriptive guidance for when and how to use Jinja2 templates in automations and scripts.
-For syntax reference and available functions, see `docs/reference/ha-template-reference.md`.
+When the draft contains Jinja (`{{` / `{%`), fetch https://www.home-assistant.io/docs/configuration/templating/ once per session (functions, filters, constants, and documented semantic hazards such as `iif` evaluating every branch) — the same rule the review route applies. No web access or a failed fetch: continue with the local checks and the Live Render Loop and say in the preview that template function validity was not verified against the official reference — except for limited-template fields that call any function or filter: the render loop cannot verify those offline, so the write is blocked until web access is available or the field is rewritten without the call (say the field cannot be verified offline). The Live Render Loop below then validates the draft against live state before saving; it renders with the full environment, so for Home Assistant's limited-template fields (`trigger_variables`, and the trigger fields the official page lists as limited, such as the `mqtt` trigger's `topic`/`payload`; a templated `event_type` stays an R-16 defect, and an ordinary `trigger: template` `value_template` is NOT limited) it over-accepts helpers such as `states()`, `expand()`, or `now()` — check those against the page's limited-templates section instead.
 
 ## When to Use Templates
 
@@ -16,6 +16,7 @@ For syntax reference and available functions, see `docs/reference/ha-template-re
 | Calculate a value from multiple sensors | `trigger: template` (trigger) or `value_template` (condition) | Hardcoded thresholds |
 | Store a user-adjustable value | Helper (`input_number`, `input_select`, etc.) | Template sensor |
 | Derived read-only value reused across automations | Template sensor (via HA UI) | Inline template repeated in each automation |
+| Derived numeric value (average, sum, threshold, rate, energy) | Built-in helper first (`skills/ha-nova/best-practices.md` → Platform Helpers vs Template Sensors) | Template sensor |
 | One-off inline calculation | Template in automation | Dedicated template sensor |
 | Format a notification message | Template in `message:` field | Hardcoded string |
 

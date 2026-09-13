@@ -84,7 +84,6 @@
     "preverify:release-contracts": "node scripts/test/assert-vitest-files-exist.mjs verify:release-contracts",
     "verify:release-contracts": "npm run verify:release-metadata && npx vitest run tests/onboarding/release-contract.test.ts tests/onboarding/release-notes-contract.test.ts tests/onboarding/release-gates-behavior.test.ts tests/onboarding/desktop-validation-contract.test.ts tests/onboarding/desktop-validation-windows-contract.test.ts tests/onboarding/desktop-validation-behavior.test.ts tests/onboarding/cloud-source-check-lifecycle.test.ts tests/onboarding/macos-signing-provision-behavior.test.ts tests/onboarding/dependabot-automation-contract.test.ts tests/onboarding/dependabot-auto-merge-trigger.test.ts tests/onboarding/main-protection-gate.test.ts tests/onboarding/production-environment-gate.test.ts tests/onboarding/guarded-workflows-contract.test.ts tests/onboarding/census-production-isolation.test.ts tests/onboarding/cloud-evidence-behavior.test.ts",
     "typecheck": "tsc --noEmit && tsc -p census-worker/tsconfig.json --noEmit",
-    "update:ha-reference": "node scripts/update-ha-template-reference.mjs",
     "verify:release-metadata": "bash scripts/release/verify-release-metadata.sh",
     "verify:security": "bash scripts/release/verify-npm-audit.sh",
     "verify:next-release-version": "bash scripts/release/verify-next-release-version.sh",

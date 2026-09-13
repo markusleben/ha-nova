@@ -198,7 +198,7 @@ func TestRewriteFlatMarkdownAbsolutizesCrossSkillRefs(t *testing.T) {
 	content := "Same-skill: `skills/write/patterns.md`. Cross-skill: `skills/review/SKILL.md`.\n" +
 		"Agent template: `skills/ha-nova/agents/apply-agent.md`. Filter: `skills/ha-nova/config-body-filter.jq`.\n" +
 		"Session: `../ha-nova/session-bootstrap.md`.\n" +
-		"Docs: `docs/reference/ha-template-reference.md`.\n"
+		"Docs: `docs/reference/ha-api-matrix.md`.\n"
 
 	got := rewriteFlatMarkdown("write", content, sourceDir, sourceRoot, []string{"write", "review"})
 
@@ -208,7 +208,7 @@ func TestRewriteFlatMarkdownAbsolutizesCrossSkillRefs(t *testing.T) {
 		"`" + filepath.Join(sourceRoot, "skills", "ha-nova", "agents", "apply-agent.md") + "`",
 		"`" + filepath.Join(sourceRoot, "skills", "ha-nova", "config-body-filter.jq") + "`",
 		"`../ha-nova/session-bootstrap.md`",
-		"`" + filepath.Join(sourceRoot, "docs", "reference", "ha-template-reference.md") + "`",
+		"`" + filepath.Join(sourceRoot, "docs", "reference", "ha-api-matrix.md") + "`",
 	} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("expected rewritten content to contain %q, got:\n%s", want, got)

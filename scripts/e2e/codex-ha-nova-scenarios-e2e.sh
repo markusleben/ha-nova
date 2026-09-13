@@ -220,7 +220,7 @@ Hard requirements:
 3. Treat pasted-YAML prompts as local review tasks unless the prompt explicitly requires Home Assistant reads.
 4. Use only repo-local files from this checkout plus the pasted YAML in the prompt.
 5. Never read installed skill copies from ~/.local/share/ha-nova/skills or any other home-directory skill mirror.
-6. If you need skill guidance, default allowed repo-local files are: skills/ha-nova/SKILL.md, directly referenced skills/ha-nova/*.md reference files, skills/review/SKILL.md, skills/review/checks.md, docs/reference/ha-template-reference.md.
+6. If you need skill guidance, default allowed repo-local files are: skills/ha-nova/SKILL.md, directly referenced skills/ha-nova/*.md reference files, skills/review/SKILL.md, skills/review/checks.md, docs/archive/reference/ha-template-reference.md (the offline stand-in for the official templating page this harness forbids fetching).
 7. Do not browse the web and do not use Exa, Ref, web search, or official-doc lookup tools.
 8. Treat the local repo skill guidance as authoritative for this harness even if you feel uncertain.
 9. If a conclusion would require external docs, state the uncertainty from local context instead of researching.
@@ -248,7 +248,7 @@ EOF_FASTPATH
 
 Minimal local-review path for this scenario:
 - This is a pasted-YAML review case. Base the answer on the pasted YAML plus the allowed local references only.
-- If you need local references, read each of these at most once: skills/ha-nova/SKILL.md, directly referenced skills/ha-nova/*.md reference files, skills/review/SKILL.md, skills/review/checks.md, docs/reference/ha-template-reference.md.
+- If you need local references, read each of these at most once: skills/ha-nova/SKILL.md, directly referenced skills/ha-nova/*.md reference files, skills/review/SKILL.md, skills/review/checks.md, docs/archive/reference/ha-template-reference.md (the offline stand-in for the official templating page this harness forbids fetching).
 - Do not run repo-wide follow-up searches, excerpt hunts, package inspection, or additional discovery commands after reading those references.
 - After those direct reads, analyze the YAML and finish immediately.
 EOF_REVIEWPATH
