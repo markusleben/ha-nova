@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 
 import { describe, expect, it } from "vitest";
 
-// #478: first-class HACS lifecycle per docs/work/2026-08-04-hacs-lifecycle-spec.md —
+// #478: first-class HACS lifecycle per docs/archive/work/2026-08-04-hacs-lifecycle-spec.md —
 // schema-guarded command map, UNKNOWN-outcome reconcile loops, consumer
 // discovery before every uninstall, migration backup gate, category-appropriate
 // verification, explicit update ownership.
