@@ -99,8 +99,9 @@ describe("project docs contract", () => {
       let inFence = false;
       let inShell = false;
       readFileSync(`docs/reference/${file}`, "utf8").split("\n").forEach((line, index) => {
-        if (line.startsWith("```")) {
-          inShell = !inFence && /^```(?:bash|sh|zsh)\b/.test(line);
+        // A fence may be indented by up to three spaces (CommonMark).
+        if (/^ {0,3}```/.test(line)) {
+          inShell = !inFence && /^ {0,3}```(?:bash|sh|zsh)\b/.test(line);
           inFence = !inFence;
           return;
         }
