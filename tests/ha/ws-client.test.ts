@@ -376,6 +376,26 @@ describe("ha ws client", () => {
     ).rejects.toThrow(/exceeded 1 events/);
   });
 
+  it("keeps the timeout error and returns promptly when the unsubscribe hangs on the closed connection", async () => {
+    // After the failed connection is closed, its unsubscribe command can never
+    // be answered; the cleanup must not hang the request or mask the error.
+    let closed = 0;
+    const client = createHaWsClient({
+      createConnection: async () => ({
+        sendMessagePromise: async () => ({ ok: true }),
+        subscribeMessage: async () => () => new Promise<void>(() => {}),
+        close: () => {
+          closed += 1;
+        }
+      })
+    });
+
+    await expect(
+      client.collectMessageEvents({ type: "subscribe_events" }, { timeoutMs: 30 })
+    ).rejects.toMatchObject({ code: "UPSTREAM_WS_TIMEOUT" });
+    expect(closed).toBe(1);
+  });
+
   it("unsubscribes when event collection times out before subscription ack", async () => {
     let unsubscribed = false;
     const client = createHaWsClient({

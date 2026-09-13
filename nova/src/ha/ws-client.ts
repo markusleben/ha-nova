@@ -148,6 +148,7 @@ export function createHaWsClient(options: HaWsClientOptions): HaWsClient {
       const returnOnLimit = collectionOptions.onLimit === "return";
       const events: T[] = [];
       let unsubscribe: (() => void | Promise<void>) | undefined;
+      let upstreamClosed = false;
       let unsubscribeOnAck = false;
       let windowTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -232,6 +233,7 @@ export function createHaWsClient(options: HaWsClientOptions): HaWsClient {
           );
         }
 
+        upstreamClosed = true;
         resetConnection(upstream);
         if (error instanceof TimeoutError) {
           throw new HaWsClientError(
@@ -251,7 +253,14 @@ export function createHaWsClient(options: HaWsClientOptions): HaWsClient {
           clearTimeout(windowTimer);
         }
         if (unsubscribe) {
-          await unsubscribe();
+          if (upstreamClosed) {
+            // The connection is closed: its unsubscribe command can only
+            // reject or never answer, and must neither mask the original
+            // error nor keep the request hanging.
+            void Promise.resolve(unsubscribe()).catch(() => undefined);
+          } else {
+            await unsubscribe();
+          }
         } else {
           unsubscribeOnAck = true;
         }
