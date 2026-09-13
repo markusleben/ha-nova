@@ -48,7 +48,53 @@ const ROUTE_BUDGETS: Record<string, { files: string[]; limit: number }> = {
   },
 };
 
+// The three files every route reads before its own SKILL.md: the router
+// itself, the session bootstrap it mandates, and the output rules.
+const ROUTER_MANDATORY = [
+  "skills/ha-nova/SKILL.md",
+  "skills/ha-nova/session-bootstrap.md",
+  "skills/ha-nova/output-rules.md",
+];
+
+// Paths a route declares as unconditional reads: the `Always load:` block
+// (write) and the `**Local reference (always):**` block (review), each
+// ending at the next blank line. Any other reference is on demand.
+function declaredAlwaysLoads(route: string): string[] {
+  const text = readFileSync(`skills/${route}/SKILL.md`, "utf8");
+  const blocks = [
+    ...text.matchAll(/^(?:Always load:|\*\*Local reference \(always\):\*\*)\n([\s\S]*?)\n\n/gm),
+  ].map((match) => match[1] ?? "");
+  return [
+    ...new Set(
+      blocks.flatMap((block) =>
+        [...block.matchAll(/`((?:skills|docs)\/[^`]+\.md)`/g)].map((match) => match[1] ?? ""),
+      ),
+    ),
+  ];
+}
+
 describe("route context ratchet (#521)", () => {
+  it("binds each route's file list to the route's own always-load declarations", () => {
+    // A new "always load" line must change this table, or the ratchet keeps
+    // counting the old context and stays green through the growth it exists
+    // to catch.
+    const router = readFileSync("skills/ha-nova/SKILL.md", "utf8");
+    expect(router).toContain("`skills/ha-nova/output-rules.md`");
+    for (const [route, { files }] of Object.entries(ROUTE_BUDGETS)) {
+      const text = readFileSync(`skills/${route}/SKILL.md`, "utf8");
+      expect(text).toContain("Read and follow `../ha-nova/session-bootstrap.md`.");
+      const expected = new Set([...ROUTER_MANDATORY, `skills/${route}/SKILL.md`, ...declaredAlwaysLoads(route)]);
+      if (route === "review") {
+        // The checks catalog is read on every review (Verify-before-flag rule).
+        expect(text).toContain("`skills/review/checks.md`");
+        expected.add("skills/review/checks.md");
+      }
+      expect([...files].sort(), `${route} route file list must mirror its declarations`).toEqual(
+        [...expected].sort(),
+      );
+    }
+  });
+
   it("keeps each route's mandatory context under its ratchet (#521)", () => {
     for (const [route, { files, limit }] of Object.entries(ROUTE_BUDGETS)) {
       const total = files
