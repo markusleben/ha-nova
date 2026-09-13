@@ -149,6 +149,9 @@ export function createHaWsClient(options: HaWsClientOptions): HaWsClient {
       const events: T[] = [];
       let unsubscribe: (() => void | Promise<void>) | undefined;
       let upstreamClosed = false;
+      // A strict-mode maxEvents overflow is a local decision, not a transport
+      // fault: the connection stays healthy and must not be closed for it.
+      let localLimitReached = false;
       let unsubscribeOnAck = false;
       let windowTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -186,6 +189,7 @@ export function createHaWsClient(options: HaWsClientOptions): HaWsClient {
                     settleResolve({ events: [...events], truncated: true });
                     return;
                   }
+                  localLimitReached = true;
                   settleReject(
                     new HaWsClientError(
                       "UPSTREAM_WS_ERROR",
@@ -233,8 +237,10 @@ export function createHaWsClient(options: HaWsClientOptions): HaWsClient {
           );
         }
 
-        upstreamClosed = true;
-        resetConnection(upstream);
+        if (!localLimitReached) {
+          upstreamClosed = true;
+          resetConnection(upstream);
+        }
         if (error instanceof TimeoutError) {
           throw new HaWsClientError(
             "UPSTREAM_WS_TIMEOUT",

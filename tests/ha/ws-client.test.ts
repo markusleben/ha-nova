@@ -359,6 +359,36 @@ describe("ha ws client", () => {
     ).rejects.toThrow(/timed out/i);
   });
 
+  it("keeps the healthy connection open when a strict collection hits max_events", async () => {
+    // The overflow is a local decision, not a transport fault: no close, and
+    // the next request reuses the same connection.
+    let connectCalls = 0;
+    let closed = 0;
+    const client = createHaWsClient({
+      createConnection: async () => {
+        connectCalls += 1;
+        return {
+          sendMessagePromise: async (message: { type: string }) => ({ echoed: message.type }),
+          subscribeMessage: async (callback) => {
+            callback({ type: "one" });
+            callback({ type: "two" });
+            return () => {};
+          },
+          close: () => {
+            closed += 1;
+          }
+        };
+      }
+    });
+
+    await expect(
+      client.collectMessageEvents({ type: "subscribe_events" }, { maxEvents: 1 })
+    ).rejects.toMatchObject({ code: "UPSTREAM_WS_ERROR" });
+    expect(closed).toBe(0);
+    await expect(client.sendMessage({ type: "after" })).resolves.toEqual({ echoed: "after" });
+    expect(connectCalls).toBe(1);
+  });
+
   it("still errors at max_events in the default strict mode", async () => {
     const client = createHaWsClient({
       createConnection: async () => ({
