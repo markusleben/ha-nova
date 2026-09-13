@@ -188,12 +188,11 @@ See `skills/ha-nova/SKILL.md` → Response Format.
 ## References
 
 Always load:
-- `skills/ha-nova/relay-api.md`, `skills/ha-nova/payload-schemas.md`, `skills/ha-nova/write-safety.md`, `skills/ha-nova/smallest-solution.md`
+- `skills/ha-nova/relay-api.md`, `skills/ha-nova/payload-schemas.md`, `skills/ha-nova/best-practices.md`, `skills/ha-nova/write-safety.md`, `skills/ha-nova/smallest-solution.md`
 - Agent templates: `skills/ha-nova/agents/resolve-agent.md`, `skills/ha-nova/agents/apply-agent.md`
 - Review checks: `skills/review/checks.md` (self-contained catalog + Application)
 
 On demand — read only when the trigger applies:
-- `skills/ha-nova/best-practices.md` — when resolve returns `bp_status` `stale`, `missing`, or `invalid` (it defines simple vs complex): complex → run its Refresh procedure in the main thread before the Phase 2 BP gate and stay blocked until it succeeds; simple → continue per `write-safety.md`. Also when a static check defers to it: the draft uses `trigger: device` for a Zigbee2MQTT or ZHA button/remote (P-05 → Zigbee Button Patterns) or restores state on a startup trigger (R-22 → Persistence Model)
 - `skills/ha-nova/automation-patterns.md` — drafting new branching, timing, or flow-control logic
 - `skills/ha-nova/one-shot-automations.md` — a one-shot, "only today", or duration-bound request (this skill owns both halves of a duration)
 - `skills/ha-nova/recovery-workflows.md` — recovery, watchdog, self-healing, or retry intent
