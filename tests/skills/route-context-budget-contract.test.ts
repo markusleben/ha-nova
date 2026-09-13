@@ -78,8 +78,15 @@ describe("route context ratchet (#521)", () => {
     // A new "always load" line must change this table, or the ratchet keeps
     // counting the old context and stays green through the growth it exists
     // to catch.
+    // The router-wide mandatory reads are the explicit third leg of this
+    // table: the router's own output-rules sentence is pinned here (it is
+    // the only router-level unconditional read; session-bootstrap is
+    // mandated by each route), so changing either declaration lands here.
     const router = readFileSync("skills/ha-nova/SKILL.md", "utf8");
-    expect(router).toContain("`skills/ha-nova/output-rules.md`");
+    expect(
+      router.match(/(?:read and apply|Read) `skills\/ha-nova\/output-rules\.md`/g)?.length,
+      "the router must declare exactly one unconditional read (output rules)",
+    ).toBe(1);
     for (const [route, { files }] of Object.entries(ROUTE_BUDGETS)) {
       const text = readFileSync(`skills/${route}/SKILL.md`, "utf8");
       expect(text).toContain("Read and follow `../ha-nova/session-bootstrap.md`.");
