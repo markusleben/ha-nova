@@ -5,6 +5,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"net/http"
 	"os"
 	"slices"
 	"strings"
@@ -118,6 +119,23 @@ func (req *planCallRequest) parse(positional, sets []string, dataFile string) er
 		}
 		req.Data[key] = typed
 	}
+	return req.validate()
+}
+
+// validate holds for every request a plan may carry: parse checks fresh
+// input with it, apply re-checks the stored request with it.
+func (req planCallRequest) validate() error {
+	if !entityIDPattern.MatchString(req.Service) {
+		return fmt.Errorf("%q is not a domain.service", req.Service)
+	}
+	for _, id := range req.EntityIDs {
+		if !entityIDPattern.MatchString(id) {
+			return fmt.Errorf("%q is not an entity_id (domain.object_id)", id)
+		}
+	}
+	if req.Data == nil {
+		return errors.New("service data must be a JSON object")
+	}
 	for _, key := range []string{"entity_id", "area_id", "device_id", "target"} {
 		if _, present := req.Data[key]; present {
 			return fmt.Errorf("service data may not carry %q: pass targets as arguments, --area, or --device so the plan freezes them", key)
@@ -144,11 +162,40 @@ func computeCallPlan(s *relaySession, env *verbEnvelope, req planCallRequest) (*
 		return nil, storedPlan{}, err
 	}
 	env.Resolved = targets
+	if e.responseOnly(req.Service) {
+		return nil, storedPlan{}, refuse(env, tierReason{Code: reasonResponseOnly, Skill: "ha-nova:service-call", Detail: "Home Assistant runs this service only with return_response"})
+	}
 	if refusal := e.evaluate(req, targets); refusal != nil {
 		return nil, storedPlan{}, refuse(env, *refusal)
 	}
 	plan, err := buildCallPlan(e, env, req, targets)
 	return e, plan, err
+}
+
+// responseOnly reports a service Home Assistant runs only with
+// return_response (its /api/services entry says response.optional=false).
+// A failed read is no refusal: Home Assistant then rejects the call itself
+// (HTTP 400, "failed") before running anything.
+func (e *tierEngine) responseOnly(service string) bool {
+	status, body, err := e.s.coreGET("/api/services")
+	var domains []struct {
+		Domain   string `json:"domain"`
+		Services map[string]struct {
+			Response *struct {
+				Optional bool `json:"optional"`
+			} `json:"response"`
+		} `json:"services"`
+	}
+	if err != nil || status != http.StatusOK || json.Unmarshal(body, &domains) != nil {
+		return false
+	}
+	domain, name := splitID(service)
+	for _, d := range domains {
+		if response := d.Services[name].Response; d.Domain == domain && response != nil && !response.Optional {
+			return true
+		}
+	}
+	return false
 }
 
 // staticRefusal: owned services, hassio.*, floor/label selectors, and codes
@@ -159,6 +206,8 @@ func staticRefusal(req planCallRequest) *tierReason {
 	_, label := req.Data["label_id"]
 	_, code := req.Data["code"]
 	switch {
+	case readOnlyResponseServices[req.Service]:
+		return &tierReason{Code: reasonResponseOnly, Skill: "ha-nova:service-call", Detail: "a response service changes nothing; read it through the service-call read path"}
 	case ownerSkill(req.Service) != "":
 		return &tierReason{Code: reasonOwnedService, Skill: ownerSkill(req.Service)}
 	case domain == "hassio":

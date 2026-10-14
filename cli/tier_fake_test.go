@@ -25,6 +25,7 @@ type fakeHA struct {
 	relatedGroups map[string][]string // entity → groups search/related reports
 	aliases       map[string][]string // entity → aliases (get_entries only, as in HA)
 	flows         []map[string]any    // config_entries/flow/progress
+	services      []map[string]any    // GET /api/services (nil: 404)
 	// service answers POST /api/services/<d>/<s> (nil: 200 and no effect);
 	// it runs under mu and may change states.
 	service func(f *fakeHA, path string, body map[string]any) any
@@ -131,6 +132,8 @@ func (f *fakeHA) reply(r *http.Request, endpoint string, p map[string]any) any {
 		return fakeRelayFailure{"UPSTREAM_ERROR", "boom"}
 	}
 	switch {
+	case path == "/api/services" && f.services != nil:
+		return coreReply(200, f.services)
 	case path == "/api/events":
 		return coreReply(200, append([]map[string]any{}, f.events...))
 	case path == "/api/states":

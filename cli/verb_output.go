@@ -39,10 +39,13 @@ type verbEnvelope struct {
 	Coverage      *tierCoverage  `json:"coverage,omitempty"`
 	Verification  []verifyRow    `json:"verification,omitempty"`
 	ReauthOpened  []string       `json:"reauth_flows_opened,omitempty"`
-	Result        any            `json:"result,omitempty"`
-	Error         *verbError     `json:"error,omitempty"`
-	Notices       []verbNotice   `json:"notices,omitempty"`
-	exit          int            // success exit code; 0 unless a verb sets it (plan: 3)
+	// OutcomeUnknown: the request may have reached Home Assistant (exit 7);
+	// status stays in the outcome vocabulary as "unverified".
+	OutcomeUnknown bool         `json:"outcome_unknown,omitempty"`
+	Result         any          `json:"result,omitempty"`
+	Error          *verbError   `json:"error,omitempty"`
+	Notices        []verbNotice `json:"notices,omitempty"`
+	exit           int          // success exit code; 0 unless a verb sets it (plan: 3)
 }
 
 type verbTarget struct {

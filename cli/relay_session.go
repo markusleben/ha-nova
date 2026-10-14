@@ -172,13 +172,19 @@ func checkReadOnlyRequest(endpoint string, payload map[string]any) error {
 }
 
 func (s *relaySession) send(endpoint string, body []byte) (json.RawMessage, error) {
+	return s.sendWithin(endpoint, body, relaySessionRequestTimeout)
+}
+
+// sendWithin is send with a caller-chosen per-request bound (verification
+// reads must not outlast their window).
+func (s *relaySession) sendWithin(endpoint string, body []byte, timeout time.Duration) (json.RawMessage, error) {
 	select {
 	case s.slots <- struct{}{}:
 	case <-s.ctx.Done():
 		return nil, fmt.Errorf("HA NOVA read budget of %s exceeded", relaySessionOverallTimeout)
 	}
 	defer func() { <-s.slots }()
-	ctx, cancel := context.WithTimeout(s.ctx, relaySessionRequestTimeout)
+	ctx, cancel := context.WithTimeout(s.ctx, timeout)
 	defer cancel()
 	req, err := newRelayRequest(ctx, s.transport, endpoint, body)
 	if err != nil {

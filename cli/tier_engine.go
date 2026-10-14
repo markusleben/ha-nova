@@ -24,10 +24,11 @@ type tierReason struct {
 }
 
 type tierMember struct {
-	EntityID string `json:"entity_id,omitempty"`
-	Action   string `json:"action"`
-	Via      string `json:"via"`
-	Class    string `json:"class"`
+	EntityID string         `json:"entity_id,omitempty"`
+	Action   string         `json:"action"`
+	Via      string         `json:"via"`
+	Class    string         `json:"class"`
+	data     map[string]any // what the member sets (verification probes)
 }
 
 type tierConsumer struct {
@@ -276,7 +277,7 @@ func (e *tierEngine) classify(id, service string, data map[string]any, depth int
 		level = max(level, e.switchAsX(id, via))
 	}
 	if depth > 0 {
-		e.members = append(e.members, tierMember{EntityID: id, Action: eff, Via: via, Class: level.String()})
+		e.members = append(e.members, tierMember{EntityID: id, Action: eff, Via: via, Class: level.String(), data: data})
 	}
 	switch leaves := groupMembers(domain, st); {
 	case isRun(domain, service):

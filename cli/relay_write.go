@@ -84,8 +84,9 @@ func (s *relaySession) postService(service string, body map[string]any) (service
 }
 
 // readFresh bypasses the memo — verification polls and the reauth re-read
-// must observe the state after the write — under the same allowlist (I1).
-func (s *relaySession) readFresh(endpoint string, payload map[string]any) (json.RawMessage, error) {
+// must observe the state after the write — under the same allowlist (I1),
+// bounded by timeout.
+func (s *relaySession) readFresh(endpoint string, payload map[string]any, timeout time.Duration) (json.RawMessage, error) {
 	if err := checkReadOnlyRequest(endpoint, payload); err != nil {
 		return nil, err
 	}
@@ -93,11 +94,11 @@ func (s *relaySession) readFresh(endpoint string, payload map[string]any) (json.
 	if err != nil {
 		return nil, err
 	}
-	return s.send(endpoint, body)
+	return s.sendWithin(endpoint, body, timeout)
 }
 
-func (s *relaySession) stateFresh(entityID string) (*entityState, error) {
-	data, err := s.readFresh("core", map[string]any{"method": http.MethodGet, "path": "/api/states/" + entityID})
+func (s *relaySession) stateFresh(entityID string, timeout time.Duration) (*entityState, error) {
+	data, err := s.readFresh("core", map[string]any{"method": http.MethodGet, "path": "/api/states/" + entityID}, timeout)
 	if err != nil {
 		return nil, err
 	}
@@ -128,23 +129,30 @@ func (s *relaySession) renewBudget() {
 	s.ctx, s.cancel = ctx, func() { cancel(); previous() }
 }
 
-// reauthFlows lists pending reauth flow ids (best effort: nil on failure).
-func (s *relaySession) reauthFlows() map[string]string {
-	data, err := s.readFresh("ws", map[string]any{"type": "config_entries/flow/progress"})
+// reauthSnapshotTimeout bounds the best-effort snapshot so it never delays
+// the confirmed call by more than a few seconds.
+var reauthSnapshotTimeout = 5 * time.Second
+
+type reauthFlow struct{ handler, entryID string }
+
+// reauthFlows lists pending reauth flows by id (best effort: nil on failure).
+func (s *relaySession) reauthFlows() map[string]reauthFlow {
+	data, err := s.readFresh("ws", map[string]any{"type": "config_entries/flow/progress"}, reauthSnapshotTimeout)
 	var flows []struct {
 		FlowID  string `json:"flow_id"`
 		Handler string `json:"handler"`
 		Context struct {
-			Source string `json:"source"`
+			Source  string `json:"source"`
+			EntryID string `json:"entry_id"`
 		} `json:"context"`
 	}
 	if err != nil || json.Unmarshal(data, &flows) != nil {
 		return nil
 	}
-	out := map[string]string{}
+	out := map[string]reauthFlow{}
 	for _, flow := range flows {
 		if flow.Context.Source == "reauth" {
-			out[flow.FlowID] = flow.Handler
+			out[flow.FlowID] = reauthFlow{handler: flow.Handler, entryID: flow.Context.EntryID}
 		}
 	}
 	return out

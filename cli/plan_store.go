@@ -9,6 +9,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -66,15 +67,24 @@ type storedPlan struct {
 // planHash is the nonce-free drift hash over the full operation identity:
 // two plans for different targets, services, or data never share it, and
 // apply recomputes it to detect drift (spec §2.1).
+// Reasons enter it as code+entity+via only: free-text details (counts,
+// names) would turn every harmless fluctuation into drift.
 func planHash(kind, server string, action planAction, tier string, reasons []tierReason, basis map[string]any) string {
+	type reasonKey struct{ Code, EntityID, Via string }
+	keys := []reasonKey{}
+	for _, r := range reasons {
+		if key := (reasonKey{r.Code, r.EntityID, r.Via}); !slices.Contains(keys, key) {
+			keys = append(keys, key)
+		}
+	}
 	canonical, _ := json.Marshal(struct {
 		Kind    string         `json:"kind"`
 		Server  string         `json:"server"`
 		Action  planAction     `json:"action"`
 		Tier    string         `json:"tier"`
-		Reasons []tierReason   `json:"reasons"`
+		Reasons []reasonKey    `json:"reasons"`
 		Basis   map[string]any `json:"basis"`
-	}{kind, server, action, tier, reasons, basis})
+	}{kind, server, action, tier, keys, basis})
 	sum := sha256.Sum256(canonical)
 	return hex.EncodeToString(sum[:])
 }
@@ -92,7 +102,7 @@ func buildCallPlan(e *tierEngine, env *verbEnvelope, req planCallRequest, target
 	sort.SliceStable(e.reasons, func(i, j int) bool { return key(e.reasons[i]) < key(e.reasons[j]) })
 	action := planAction{Service: req.Service, EntityIDs: frozen, Data: req.Data}
 	tier := e.level.String()
-	basis := callPlanBasis(e, frozen, req.Data)
+	basis := callPlanBasis(e, req.Service, frozen, req.Data)
 	sum := planHash("call", env.Server, action, tier, e.reasons, basis)
 	// The per-plan nonce makes every id and code unique, so a re-plan never
 	// overwrites a plan or replays an earlier code; the drift hash stays
@@ -101,8 +111,7 @@ func buildCallPlan(e *tierEngine, env *verbEnvelope, req planCallRequest, target
 	if _, err := rand.Read(nonce); err != nil {
 		return storedPlan{}, fmt.Errorf("cannot draw a plan nonce: %w", err)
 	}
-	idSum := sha256.Sum256([]byte(sum + hex.EncodeToString(nonce)))
-	idHex := hex.EncodeToString(idSum[:])
+	idHex := planIdentity(sum, hex.EncodeToString(nonce))
 	now := verbNow().UTC()
 	plan := storedPlan{
 		SchemaVersion: 1, ID: "p_" + idHex[:12], Hash: "sha256:" + sum, Kind: "call", Server: env.Server, Nonce: hex.EncodeToString(nonce),
@@ -126,9 +135,12 @@ func buildCallPlan(e *tierEngine, env *verbEnvelope, req planCallRequest, target
 }
 
 // callPlanBasis: per acted entity pl/device_class/supported_features, the
-// before value of every changed field on the frozen targets, the normalized
-// config digests, and the call_service listener count (spec §2.1).
-func callPlanBasis(e *tierEngine, frozen []string, data map[string]any) map[string]any {
+// before value of every field the call changes on the frozen targets (the
+// state only when the service changes it), and the normalized config
+// digests (spec §2.1). Listener surpluses already show in tier and reasons.
+func callPlanBasis(e *tierEngine, service string, frozen []string, data map[string]any) map[string]any {
+	_, name := splitID(service)
+	changesState := serviceAfterState[name] != "" || name == "toggle" || strings.HasPrefix(name, "alarm_arm_")
 	entities := map[string]any{}
 	for _, id := range e.acted {
 		st := e.states[id]
@@ -137,16 +149,23 @@ func callPlanBasis(e *tierEngine, frozen []string, data map[string]any) map[stri
 	before := map[string]any{}
 	for _, id := range frozen {
 		st := e.states[id]
-		fields := map[string]any{"state": nil}
-		if st != nil {
-			fields["state"] = st.State
+		fields := map[string]any{}
+		if changesState {
+			fields["state"] = st.state()
 		}
 		for key := range data {
 			fields[key] = st.attr(deltaAttribute(key))
 		}
 		before[id] = fields
 	}
-	return map[string]any{"entities": entities, "before": before, "configs": e.basis, "call_service_listeners": e.events["call_service"]}
+	return map[string]any{"entities": entities, "before": before, "configs": e.basis}
+}
+
+// planIdentity is hex(sha256(hash ‖ nonce)): the plan id and the code
+// suffix, recomputable at apply from the recomputed hash and stored nonce.
+func planIdentity(sum, nonceHex string) string {
+	idSum := sha256.Sum256([]byte(sum + nonceHex))
+	return hex.EncodeToString(idSum[:])
 }
 
 func confirmCode(service string, frozen []string, sum string) string {

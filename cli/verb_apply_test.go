@@ -210,7 +210,7 @@ func TestCallOutcomeUnknownNeverRetries(t *testing.T) {
 			setup(f)
 			h := newWriteHarness(t, f)
 			exit, env := h.run(runCallCommand, "light.turn_off", "light.kitchen")
-			if exit != 7 || env.Status != "unknown" || env.Error.Code != "OUTCOME_UNKNOWN" || len(h.posts()) != 1 {
+			if exit != 7 || env.Status != "unverified" || !env.OutcomeUnknown || env.Error.Code != "OUTCOME_UNKNOWN" || len(h.posts()) != 1 {
 				t.Fatalf("exit %d env %+v posts %d", exit, env, len(h.posts()))
 			}
 		})
@@ -293,12 +293,16 @@ func TestApplyServerMismatchSendsNothing(t *testing.T) {
 func TestCallOutcomesUnverifiedFailedAndAccepted(t *testing.T) {
 	f := newFakeHA()
 	f.flows = []map[string]any{{"flow_id": "old", "handler": "hue", "context": map[string]any{"source": "reauth"}}}
+	f.full = []map[string]any{{"entity_id": "switch.plug", "platform": "tplink", "config_entry_id": "e1"}}
+	f.entries = []map[string]any{{"domain": "tplink", "entry_id": "e1"}, {"domain": "hue", "entry_id": "e2"}}
 	f.service = func(f *fakeHA, path string, body map[string]any) any {
 		switch path {
 		case "/api/services/light/turn_off":
 			return coreReply(200, []any{}) // accepted but nothing changes
 		case "/api/services/switch/turn_on":
-			f.flows = append(f.flows, map[string]any{"flow_id": "new", "handler": "tplink", "context": map[string]any{"source": "reauth"}})
+			f.flows = append(f.flows,
+				map[string]any{"flow_id": "new", "handler": "tplink", "context": map[string]any{"source": "reauth", "entry_id": "e1"}},
+				map[string]any{"flow_id": "other", "handler": "hue", "context": map[string]any{"source": "reauth", "entry_id": "e2"}}) // not a target's
 			return coreReply(500, map[string]any{"message": "auth failed"})
 		}
 		return coreReply(200, []any{})
@@ -310,8 +314,8 @@ func TestCallOutcomesUnverifiedFailedAndAccepted(t *testing.T) {
 		t.Fatalf("unverified: exit %d env %+v", exit, env)
 	}
 	exit, env := h.run(runCallCommand, "switch.turn_on", "switch.plug")
-	if exit != 6 || env.Status != "failed" || strings.Join(env.ReauthOpened, ",") != "tplink" {
-		t.Fatalf("failed: exit %d env %+v", exit, env)
+	if exit != 6 || env.Status != "unverified" || env.Error.Code != "SERVICE_ERROR" || len(env.Verification) != 1 || strings.Join(env.ReauthOpened, ",") != "tplink" {
+		t.Fatalf("upstream 500: exit %d env %+v", exit, env)
 	}
 	plan := h.plan("script.turn_on", "script.leave").Plan
 	if exit, env := h.run(runApplyCommand, "--plan", plan.ID); exit != 0 || env.Status != "accepted" {
