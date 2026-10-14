@@ -22,9 +22,14 @@ func TestRenderSetupIntroExplainsProjectAndBrowserBehavior(t *testing.T) {
 		"You'll need:",
 		"NOVA App already installed",
 		"Home Assistant Owner",
+		"one-time six-digit code",
 	} {
 		if !strings.Contains(rendered, want) {
 			t.Fatalf("intro missing %q:\n%s", want, rendered)
 		}
+	}
+	// Pairing is one code per device; the default path creates no token.
+	if strings.Contains(rendered, "access token") {
+		t.Fatalf("intro still promises access tokens:\n%s", rendered)
 	}
 }

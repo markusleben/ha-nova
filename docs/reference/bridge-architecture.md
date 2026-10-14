@@ -353,7 +353,7 @@ in sync; Relay and product versions must not be substituted for each other.
 
 ## Tech Stack
 
-- TypeScript / Node.js >=20
+- TypeScript / Node.js >=22
 - No HTTP framework (Node.js `http.createServer`)
 - REST client uses native `fetch()` (no axios at runtime)
 - WS orchestration uses `home-assistant-js-websocket`
