@@ -40,6 +40,7 @@ func TestSubcommandHelpFlagPrintsUsageAndFlags(t *testing.T) {
 		{"find", func() int { return runFindCommand(paths, []string{"--help"}) }, "Usage: ha-nova find", "-include-disabled"},
 		{"get", func() int { return runGetCommand(paths, []string{"--help"}) }, "Usage: ha-nova get", "-related"},
 		{"history", func() int { return runHistoryCommand(paths, []string{"--help"}) }, "Usage: ha-nova history", "-logbook"},
+		{"plan call", func() int { return runPlanCommand(paths, []string{"call", "--help"}) }, "never executes a plan", "-data-file"},
 		{"relay health", func() int { return runRelayCommand(paths, []string{"health", "--help"}) }, "Usage: ha-nova relay health", "-connect-timeout"},
 		{"relay (parent)", func() int { return runRelayCommand(paths, []string{"--help"}) }, "Usage: ha-nova relay <health|ws|core|files|backups|jq|version>", "relay <subcommand> --help"},
 		{"relay jq", func() int { return runRelayCommand(paths, []string{"jq", "--help"}) }, "Usage: ha-nova relay jq", "--jq-file"},
