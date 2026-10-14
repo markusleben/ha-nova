@@ -53,7 +53,9 @@ the number.
 
 ## Internal
 
-- Every GitHub Actions step is pinned to an immutable commit SHA, CodeQL
-  scans the Go CLI fail-closed, and the label-gated review watchdog posts
-  the trigger the review bot accepts.
+- Every GitHub Actions step is pinned to an immutable commit SHA, and CodeQL
+  scans the Go CLI fail-closed.
+- The per-pull-request release gating is replaced by release-time checks:
+  signed Cloud bundle provenance, three-OS install smokes, and a per-release
+  Cloud checklist.
 - Route-level context ratchets for the review and write skills (#521).

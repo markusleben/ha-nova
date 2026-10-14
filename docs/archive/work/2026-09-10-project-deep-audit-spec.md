@@ -275,16 +275,16 @@ new architecture layer.
 
 | Finding | Pull request | Merge commit |
 |---|---|---|
-| 1, 2, 11 | #626 (round 1: one-time gate exception) → #625 (round 2: pins, CodeQL Go, watchdog) | pending |
-| 3, 4 | #627 | pending |
-| 5, 8 | #628 | pending |
-| 6, 13 (+ API matrix, drift log) | #629 | pending |
-| 9, 10, 16, 19, 21 | #630 | pending |
-| 14 | #631 (route ratchets) → #635 (context reduction, also finding 7) | pending |
-| 17 | #632 | pending |
-| 18 | #633 | pending |
-| 12, 20, 22 | #634 | pending |
-| 15 | deferred: schema 2 ships since client v0.21.3 (#437), but `version.json` declares no client floor, so schema 1 stays accepted and counted; removal waits for an explicit backwards-compatibility decision that pins a client floor of at least 0.21.3. No IP capture and no global attacker-blockable limiter were added. | — |
+| 1, 2, 11 | #625 (pins, CodeQL Go); #626 closed and the watchdog removed with the gates in #646 | 9b48e68f |
+| 3, 4 | #627 | 7dc43d29 |
+| 5, 8 | #628 | 4a4afd0e |
+| 6, 13 (+ API matrix, drift log) | #629 | be7ef216 |
+| 9, 10, 16, 19, 21 | #630 | cdfaac36 |
+| 14 | #631 (route ratchets) → #635 (context reduction, also finding 7) | cf89fd06, a9b0ebaa |
+| 17 | #632 | 751fc822 |
+| 18 | #633 | 9e290001 |
+| 12, 20, 22 | #634 | 20a2a7f7 |
+| 15 | superseded: the Census feature is scheduled for removal (maintainer decision 2026-10-14). Original deferral:  schema 2 ships since client v0.21.3 (#437), but `version.json` declares no client floor, so schema 1 stays accepted and counted; removal waits for an explicit backwards-compatibility decision that pins a client floor of at least 0.21.3. No IP capture and no global attacker-blockable limiter were added. | — |
 
 Review depth per AGENTS.md: 2–3 adversarial subagents on the high-risk PRs
 (#625, #626, #627, #628, #632, #633), one on #630 and #635, none on the
