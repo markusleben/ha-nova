@@ -176,7 +176,17 @@ func (s *relaySession) send(endpoint string, body []byte) (json.RawMessage, erro
 	}
 	resp, err := s.transport.Client.Do(req)
 	if err != nil {
-		return nil, errors.New(relayConnectErrorMessage(s.transport.BaseURL, err))
+		switch {
+		case errors.Is(err, context.DeadlineExceeded):
+			return nil, fmt.Errorf("Relay %s read timed out (%s per request, %s overall); nothing was changed", endpoint, relaySessionRequestTimeout, relaySessionOverallTimeout)
+		case s.transport.Via == relayViaCloud:
+			// Cloud round-tripper failures (device rejected, session expired)
+			// carry their own sanitized wording; the local "is the App
+			// running" hint would point at a fake host.
+			return nil, cloudProblemForError(err)
+		default:
+			return nil, errors.New(relayConnectErrorMessage(s.transport.BaseURL, err))
+		}
 	}
 	defer resp.Body.Close()
 	if version := resp.Header.Get(relayVersionHeader); version != "" {
@@ -210,7 +220,7 @@ func (s *relaySession) send(endpoint string, body []byte) (json.RawMessage, erro
 		return nil, fmt.Errorf("Relay %s response (HTTP %d) is not a valid result envelope", endpoint, resp.StatusCode)
 	}
 	if !*envelope.OK {
-		return nil, fmt.Errorf("relay %s failed (HTTP %d, %s): %s", endpoint, resp.StatusCode, envelope.Error.Code, envelope.Error.Message)
+		return nil, &relayCallError{endpoint: endpoint, status: resp.StatusCode, code: envelope.Error.Code, message: envelope.Error.Message}
 	}
 	return envelope.Data, nil
 }
@@ -220,4 +230,22 @@ func (s *relaySession) version() string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.relayVersion
+}
+
+// relayCallError is a Relay result envelope with ok:false. The message keeps
+// Home Assistant's own error code (e.g. "not_found") for callers to inspect.
+type relayCallError struct {
+	endpoint string
+	status   int
+	code     string
+	message  string
+}
+
+func (e *relayCallError) Error() string {
+	return fmt.Sprintf("relay %s failed (HTTP %d, %s): %s", e.endpoint, e.status, e.code, e.message)
+}
+
+func isUpstreamNotFound(err error) bool {
+	var call *relayCallError
+	return errors.As(err, &call) && strings.Contains(call.message, "not_found")
 }

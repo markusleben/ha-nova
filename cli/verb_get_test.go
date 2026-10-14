@@ -160,3 +160,25 @@ func TestUsageListsReadVerbs(t *testing.T) {
 		}
 	}
 }
+
+func TestGetConfigOnYAMLSceneWithoutIDExitsFive(t *testing.T) {
+	// A YAML scene without id has no registry row; HA answers not_found and the
+	// verb must report CONFIG_NOT_FOUND (exit 5), not a generic relay error.
+	states := map[string]any{"scene.movie": map[string]any{"state": "scening", "attributes": map[string]any{}}}
+	base := haReply(states, nil, nil)
+	paths, log := setupVerbRelayTest(t, func(r *http.Request, endpoint string, payload map[string]any) any {
+		if endpoint == "ws" && payload["type"] == "config/entity_registry/get" {
+			return fakeRelayFailure{code: "UPSTREAM_WS_COMMAND_ERROR", message: "HA rejected 'config/entity_registry/get': not_found: Entity not found"}
+		}
+		return base(r, endpoint, payload)
+	})
+	exit, env := runVerbForTest(t, func() int { return runGetCommand(paths, []string{"scene.movie", "--config"}) })
+	if exit != verbExitNotFound || env.Error == nil || env.Error.Code != "CONFIG_NOT_FOUND" {
+		t.Fatalf("exit %d, env %+v", exit, env)
+	}
+	for _, path := range log.corePaths() {
+		if strings.HasPrefix(path, "/api/config/") {
+			t.Fatalf("read a config without an id: %s", path)
+		}
+	}
+}

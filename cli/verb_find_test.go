@@ -72,11 +72,21 @@ func setupVerbRelayTest(t *testing.T, reply func(r *http.Request, endpoint strin
 		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
 			t.Errorf("decode payload: %v", err)
 		}
+		// Invariant I1 oracle: every verb test fails on a non-read request.
+		if err := checkReadOnlyRequest(endpoint, payload); err != nil {
+			t.Errorf("read verb sent a non-read request: %v", err)
+		}
 		log.mu.Lock()
 		log.calls = append(log.calls, fakeRelayCall{endpoint: endpoint, payload: payload})
 		log.mu.Unlock()
 		w.Header().Set("content-type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "data": reply(r, endpoint, payload)})
+		data := reply(r, endpoint, payload)
+		if failure, isFailure := data.(fakeRelayFailure); isFailure {
+			w.WriteHeader(http.StatusBadGateway)
+			_ = json.NewEncoder(w).Encode(map[string]any{"ok": false, "error": map[string]any{"code": failure.code, "message": failure.message}})
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "data": data})
 	}))
 	t.Cleanup(relayServer.Close)
 
@@ -288,7 +298,10 @@ func TestRelaySessionBoundsEachRequest(t *testing.T) {
 		t.Fatalf("newRelaySession: %v", err)
 	}
 	defer s.close()
-	if _, err := s.ws(map[string]any{"type": "config/area_registry/list"}); err == nil || !strings.Contains(err.Error(), "deadline exceeded") {
+	if _, err := s.ws(map[string]any{"type": "config/area_registry/list"}); err == nil || !strings.Contains(err.Error(), "read timed out") {
 		t.Fatalf("hung read did not time out: %v", err)
 	}
 }
+
+// fakeRelayFailure makes the fake relay answer a Relay error envelope.
+type fakeRelayFailure struct{ code, message string }

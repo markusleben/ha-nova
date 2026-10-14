@@ -107,8 +107,9 @@ func parseVerbArgs(fs *flag.FlagSet, opts *verbOptions, args []string, usage str
 }
 
 // runReadVerb owns the envelope: one session, one JSON document on stdout,
-// one exit code. Notices come from the cache-only update nudge and the Relay
-// version header; they never cause a network call of their own.
+// one exit code. Notices come from the update nudge cache and the Relay
+// version header; a stale cache may start the existing background refresh,
+// as `relay` already does, but the verb itself waits for no network call.
 func runReadVerb(paths runtimePaths, verb string, opts verbOptions, body func(*relaySession, *verbEnvelope) error) int {
 	env := verbEnvelope{SchemaVersion: 1, Verb: verb, Status: "ok"}
 	relayVersion := ""
@@ -124,7 +125,9 @@ func runReadVerb(paths runtimePaths, verb string, opts verbOptions, body func(*r
 	if err != nil {
 		exit = setVerbError(&env, err)
 	}
-	printVerbEnvelope(env)
+	if !printVerbEnvelope(env) {
+		return verbExitError
+	}
 	return exit
 }
 
@@ -160,12 +163,14 @@ func verbNotices(paths runtimePaths, relayVersion string) []verbNotice {
 	return notices
 }
 
-func printVerbEnvelope(env verbEnvelope) {
+func printVerbEnvelope(env verbEnvelope) bool {
 	out, err := json.Marshal(env)
 	if err == nil {
 		_, err = os.Stdout.Write(append(out, '\n'))
 	}
 	if err != nil {
 		printErr("cannot write %s output: %s", env.Verb, err)
+		return false
 	}
+	return true
 }
