@@ -36,6 +36,13 @@ func runInternalUninstall(_ runtimePaths, args []string) int {
 		printHumanErr("%s", err)
 		return 1
 	}
+	// Every exit path, not only success: a failed uninstall must not leave
+	// the helper copy behind either.
+	defer func() {
+		if err := scheduleWindowsSelfDeleteForUninstall(*selfPath); err != nil {
+			printHumanWarn("could not schedule uninstall helper cleanup: %s", err)
+		}
+	}()
 	paths, err := detectPaths()
 	if err != nil {
 		printHumanErr("%s", err)
@@ -88,9 +95,6 @@ func runInternalUninstall(_ runtimePaths, args []string) int {
 	}
 	if err := finishWindowsUninstallStatus(paths, status); err != nil {
 		printHumanWarn("could not clear Windows uninstall recovery state: %s", err)
-	}
-	if err := scheduleWindowsSelfDeleteForUninstall(*selfPath); err != nil {
-		printHumanWarn("could not schedule uninstall helper cleanup: %s", err)
 	}
 	return 0
 }

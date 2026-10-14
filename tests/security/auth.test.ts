@@ -36,6 +36,12 @@ describe("auth", () => {
 });
 
 describe("loadEnv", () => {
+  it.each(["8791oops", "1.5", "80 90"])("rejects RELAY_PORT %j instead of parsing a prefix", (port) => {
+    expect(() =>
+      loadEnv({ RELAY_AUTH_TOKEN: "t", HA_LLAT: "h", RELAY_PORT: port }),
+    ).toThrow("RELAY_PORT must be an integer between 1 and 65535");
+  });
+
   it("parses required values", () => {
     const env = loadEnv({
       RELAY_AUTH_TOKEN: "llt-token",

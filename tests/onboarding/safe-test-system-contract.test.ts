@@ -225,7 +225,7 @@ describe("safe test system contract", () => {
   const safeCoreFiles = JSON.parse(readFileSync("scripts/test/safe-core-files.json", "utf8")) as string[];
   const helpers = readFileSync("tests/onboarding/_helpers.ts", "utf8");
   const contributing = readFileSync("CONTRIBUTING.md", "utf8");
-  const releasing = readFileSync("docs/releasing.md", "utf8");
+  const releasing = `${readFileSync("docs/releasing.md", "utf8")}\n${readFileSync("docs/release-validation.md", "utf8")}`;
   const ci = parse(readFileSync(".github/workflows/ci.yml", "utf8")) as {
     jobs: Record<string, {
       if?: string;

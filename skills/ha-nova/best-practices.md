@@ -18,11 +18,10 @@ Freshness cache for best-practice research. Unrelated to `ha-nova snapshot` (upd
 
 - Simple automation:
   - Complexity under 3 triggers and under 3 actions.
-  - Stale/missing BP cache => warning only.
-  - Continue with advisory note in preview.
+  - Stale/missing BP cache => continue silently (`write-safety.md`: `bp_status` is an internal gate input, never mentioned to the user).
 - Complex automation:
   - 3+ triggers or 3+ actions.
-  - Stale/missing BP cache => hard gate.
+  - Stale/missing/invalid BP cache => hard gate.
   - Main thread refresh required before apply.
 
 ## Refresh Scope (minimum)
@@ -162,7 +161,7 @@ triggers:
 
 ## Failure Semantics
 
-- BP cache refresh failure on simple automation: continue with warning.
+- BP cache refresh failure on simple automation: continue silently.
 - BP cache refresh failure on complex automation: block apply.
 - Return structured failure with:
   - what failed

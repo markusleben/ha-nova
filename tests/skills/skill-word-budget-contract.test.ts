@@ -116,7 +116,10 @@ const WORD_BUDGETS: Record<string, number> = {
   // Intent classification decoupled from edited payloads (#573 Codex
   // round 9, measured 5426).
   // Union with #603's notification wiring (trial-merge measured 5499).
-  write: 5530,
+  // best-practices.md moved to on demand with an explicit bp_status trigger
+  // and the BP-gate refresh pointer, plus the check-deferral triggers (deep
+  // audit 2026-09-10 + Codex round 1, measured 5602).
+  write: 5620,
   // HACS lifecycle: schema guard, reconcile loops, consumer discovery,
   // migration backup gate, category-appropriate verification (#478);
   // review rounds added pin-durability branches, the uninstall apply
@@ -136,7 +139,9 @@ const WORD_BUDGETS: Record<string, number> = {
   // Table-first redesign: report modes, block shape, ten-block order,
   // behavior rules, private source fields, canonical detector/system
   // blocks retained (#440).
-  health: 2100,
+  // HA 2026.9 child-device fields + effective-area pointer (#520, deep
+  // audit 2026-09-10, measured 2114).
+  health: 2130,
   // post-publish device verification step (2026-h2 Wave 1a).
   // User-assisted capture readiness sequence (#394).
   // Z2M bridge-topic observability section + maintenance registry-side
@@ -284,7 +289,10 @@ const WORD_BUDGETS: Record<string, number> = {
   // follow-up, Codex P1).
   // #452 canonical draft rule on top of the update-all semantics, plus the
   // explicit-version handoff to ha-nova:hacs (measured 1569).
-  updates: 1590,
+  // HA 2026.9 admin-only install/skip/clear_skipped precondition + 401/
+  // unauthorized classification, Relay-auth vs upstream-denial split
+  // (deep audit 2026-09-10, measured 1677).
+  updates: 1700,
   // batch-safety alignment: batch code format + cap-split rule (#327);
   // purge quantification, glob expansion, apply_filter semantics
   // (2026-h2 Wave 1b).
@@ -346,7 +354,10 @@ const WORD_BUDGETS: Record<string, number> = {
   // Zigbee/Z-Wave read-only network-status section (verify-live, no pinned
   // schema) + bounded-capture button/remote/tag generalization + capability
   // map row (#520 C1-06/C1-02, measured 5271).
-  fallback: 5310,
+  // 2026.9 child rows: singular config_entry_id first, pointers to the
+  // shared device-row contract, remove/remove_config_entry deprecation
+  // dates (#520, deep audit 2026-09-10, measured 5345).
+  fallback: 5360,
   // semantic-slot note on the read templates (Wave 0); pre-write cross-field
   // constraint checks + drift-check step (Wave 1); pre-delete snapshot
   // capture (Wave 2).
@@ -387,7 +398,9 @@ const WORD_BUDGETS: Record<string, number> = {
   // Notification findings-vs-suggestions pointer to the canonical
   // mobile-notification composition contract (#575/#576/#573, 2026-08-19,
   // measured 4829).
-  review: 4850,
+  // Template-reference fetch narrowed to signature gaps in checks.md (deep
+  // audit 2026-09-10, measured 4846).
+  review: 4880,
   // Codex round 2 (#518): the entrypoint carried its own copy of the
   // verify-before-flag gate, which contradicted the corrected one in
   // checks.md and could suppress accepted-but-dangerous findings; trace

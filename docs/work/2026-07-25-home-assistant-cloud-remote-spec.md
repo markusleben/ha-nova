@@ -788,98 +788,15 @@ Cloud setup/resume remain blocked.
 - Crash-point tests for every durable-state transition and credential rotation.
 - Proof that local automatic fallback occurs only before functional dispatch.
 
-Real-device qualifications remain applicable across unrelated changes only
-after reviewing the complete qualification-to-target diff and recording the
-non-secret qualification ledger in the activation or release pull request.
-Changes to a deterministic substitute or real evidence harness invalidate its
-qualification. When validation infrastructure is unavailable, the risk-scope
-spec's reference-smoke waiver may carry an invalidated qualification across
-the recorded delta instead of a real rerun — ledger-recorded, per that spec's
-conditions.
-Exact-target CI, candidate provenance on all enabled OSes, and the installed
-Relay App never carry forward. One downloaded-candidate
-`relay health --via cloud` smoke with Census suppressed repeats for deltas
-that match an invalidation-map row with real-platform scope; maintenance
-deltas refresh the envelope and provenance without it, and the risk-scope
-spec's reference-smoke waiver is the one ledger-recorded exception. The
-smoke must parse
-the JSON and require the expected App version and `ha_ws_connected: true`; a
-zero exit code alone is not evidence. See
-`2026-07-30-cloud-release-evidence-risk-scope-spec.md`.
+Before every release that keeps Cloud enabled, the maintainer works through
+the per-release Cloud checklist in `docs/releasing.md`; a real-device row
+repeats for first support or after a change that touches its path. One
+downloaded-release `relay health --via cloud` smoke with Census suppressed
+must parse the JSON and require the expected App version and
+`ha_ws_connected: true`; a zero exit code alone is not evidence.
 
-The feature stays unavailable if any security or full-parity gate fails. The
-GitHub `production` environment accepts only branch `main` and tags matching
-`v*`; a read-only verifier blocks source, RC, and release gates on policy
-drift. A trusted default-branch `workflow_run` broker inspects the pull request
-merge source only as data and emits the required check through a dedicated,
-repository-scoped GitHub App with Administration read and Checks write, bound
-as the expected status source. Every success requires strict up-to-date branch
-protection and the exact App binding. The broker binds the first fetched PR or
-merge-queue ref to the verifier, re-fetches that ref immediately before
-success, and then resolves the current PR identity and merge commit once more.
-Each in-progress CI lifecycle event idempotently creates an attempt-bound
-provisional pending App check without resolving or executing the target. A
-successful completed event creates the exact synthetic-target check before
-retiring that provisional check, closing the old-success rerun window. Failed
-or cancelled CI retires its provisional check because CI remains failed.
-Stale pull requests and temporarily absent merge refs emit no exact check and
-remain fail-closed. Terminal success is idempotent, terminal failure is
-retryable, and conflicting duplicate conclusions fail closed. A
-read-only trigger job authenticates the exact check name, App ID, and slug
-before its completion may re-evaluate Dependabot.
-
-Dependabot never leaves native queued auto-merge enabled. A trusted direct
-squash merger twice revalidates the current open Dependabot PR, exact head and
-up-to-date base, current merge ref and `merge_commit_sha`, automation-owned
-policy marker and label, exact live branch protection, every required check,
-the latest dedicated-App source check's exact merge target, and absence of a
-queued or running CI workflow. The final GitHub merge request supplies the
-expected head SHA. Policy drift and explicit removal of the automation-owned
-safe label disable any previously queued native auto-merge and remove only
-automation-owned state; human or unauthenticated state stays untouched.
-Safe-lane preparation dispatches one trusted current-default-branch
-re-evaluation after writing the exact policy marker, covering checks that
-finished before `ready_for_review`; incomplete checks remain a non-error no-op.
-Bot-owned legacy native auto-merge is disabled before pagination-dependent
-marker recovery, while human-owned native auto-merge is never changed.
-
-The single dedicated source App is the complete MVP trust boundary. GitHub
-requires a successful check on the latest candidate SHA, and strict branch
-protection requires the branch to be current with its base. The trusted
-default-branch broker first creates a provisional pending check for each active
-CI attempt, then replaces it with the exact synthetic-target check before
-reporting success. The
-direct merger additionally rejects a source success whose external ID names
-another merge target, any active current-head CI run, or any changed PR,
-head, base, or merge ref. A second external invalidator service would duplicate
-GitHub's latest-SHA and strict-update guarantees without adding a
-repository-verifiable security boundary, so the MVP deliberately does not
-require one.
-Before activation, a reviewed provisioning rollout must place the positive
-source App ID in policy, require its check, bind that exact App in live strict
-protection, and pass the live verifier. Disabled production keeps the
-unprovisioned check outside the routine required list, but direct Dependabot
-merging remains intentionally paused until live main protection is separately
-changed from `strict=false` to the reviewed policy's `strict=true`. The merger
-never uses native queued auto-merge and never performs a direct REST merge
-while live protection is non-strict. Actions-only evidence is insufficient. An
-enabled target may change an existing non-sensitive workflow only by advancing
-a full action commit SHA within the same canonical minor/patch release line on
-an unchanged `uses:` identity;
-workflow additions, deletions, renames, mode changes, action-identity changes,
-other YAML changes, and every sensitive-workflow change fail closed.
-
-CI and release workflows reject enabled metadata without structured evidence
-that exactly identifies its own commit and full Git tree. Evidence may cover a
-newer target only when its commit is an ancestor and the complete tree delta
-contains exclusively those permitted existing non-sensitive `uses:` version
-changes, or exclusively the guarded non-sensitive source delta (Markdown
-under `docs/` or `skills/`, or root Markdown, none with an agent-policy
-basename at any depth; see `docs/releasing.md`). Every product, metadata, script, test, or
-sensitive-workflow delta requires fresh evidence for the exact target. Signed install-bundle provenance always
-binds the current release tree, and exact uploaded bundles are smoke-tested on
-every supported runner before a draft can be published. Disabled metadata
-needs an empty platform list and no Cloud evidence. Enabled RC and final
-publication additionally mint a short-lived token scoped only to
-`Administration: read` from the exact policy-bound source App and revalidate
-live strict, exact-App main protection before reading evidence.
+The feature stays unavailable if any security or full-parity gate fails.
+Signed install-bundle provenance always binds the current release tree, and
+the exact uploaded bundles are smoke-tested with `internal-cloud-release-check`
+on every supported runner before a draft can be published. Disabled metadata
+needs an empty platform list.

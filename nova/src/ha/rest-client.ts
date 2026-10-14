@@ -1,5 +1,6 @@
 import type { CoreProxyRequest, CoreProxyResponse } from "../types/api.js";
 import { TimeoutError, withTimeout } from "../shared/timeout.js";
+import { decodeUtf8Strict } from "../shared/utf8.js";
 
 export type HaRestClientErrorCode =
   "UPSTREAM_HTTP_ERROR" | "UPSTREAM_HTTP_TIMEOUT";
@@ -141,19 +142,36 @@ async function parseResponseBody(
     };
   }
 
-  const text = (await readBodyBytesWithLimit(response, maxBytes)).toString(
-    "utf8",
-  );
+  const bytes = await readBodyBytesWithLimit(response, maxBytes);
+  if (bytes.byteLength === 0) {
+    return { body: null };
+  }
+
+  // A malformed body is an upstream/proxy fault and fails at its source: a
+  // silently replaced byte or a successful `null` would move the failure to
+  // whoever consumes the result later.
+  let text: string;
+  try {
+    text = decodeUtf8Strict(bytes);
+  } catch {
+    throw new HaRestClientError(
+      "UPSTREAM_HTTP_ERROR",
+      "Home Assistant returned a malformed UTF-8 body",
+    );
+  }
 
   if (normalizedType.includes("application/json")) {
     try {
       return { body: JSON.parse(text) as unknown };
     } catch {
-      return { body: null };
+      throw new HaRestClientError(
+        "UPSTREAM_HTTP_ERROR",
+        "Home Assistant returned malformed JSON",
+      );
     }
   }
 
-  return { body: text.length > 0 ? text : null };
+  return { body: text };
 }
 
 // JSON and text stay on the text path (that includes HA's plain-text

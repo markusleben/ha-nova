@@ -75,7 +75,10 @@ Which HA operations require REST, WS, or filesystem?
 | `config/entity_registry/remove` | Remove entity from registry |
 | `config/device_registry/list` | All devices |
 | `config/device_registry/update` | Assign device area, labels, name, disable |
-| `config/device_registry/remove_config_entry` | Remove the owning device (HA 2026.8+; legacy command name) |
+| `config/device_registry/remove_config_entry` | Remove the owning device (HA 2026.8+; deprecated, removed in HA 2027.9) |
+| `config/device_registry/remove` | Delete a device (HA 2026.9+, admin-only; external — HA NOVA never calls it) |
+| `config/device_registry/list_linked_devices` | Devices sharing connections or identifiers with one `device_id` (HA 2026.9+) |
+| `config/device_registry/list_composite_splits` | Pre-2026.9 composite device ids mapped to their split replacements |
 
 ### Helper CRUD (storage-based, direct WS commands)
 | WS Type Pattern | Supported types |

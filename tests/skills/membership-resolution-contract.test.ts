@@ -48,6 +48,14 @@ describe("shared membership-resolution contract (#571)", () => {
     );
   });
 
+  it("normalizes 2026.9 child-device rows: inherited area, singular config entry (#520)", () => {
+    expect(contract).toContain("## Device rows (Home Assistant 2026.9+ child devices)");
+    expect(contract).toContain("a child whose `area_id` is null inherits its parent's effective area");
+    expect(contract).toContain("A parent absent from the same read leaves the area unknown — never guessed");
+    expect(contract).toContain("Read the legacy `config_entries` array only when the singular field is absent");
+    expect(contract).toContain("it never expands to its parent's or siblings' entities");
+  });
+
   it("bounds nested expansion with cycle detection, dedupe, and ordering", () => {
     expect(contract).toContain("Expand recursively, depth-bounded at 5");
     expect(contract).toContain(
