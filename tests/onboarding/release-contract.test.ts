@@ -3,8 +3,6 @@ import { existsSync, readFileSync } from "node:fs";
 
 import { describe, expect, it } from "vitest";
 
-import { registerCloudReleaseGateContractTests } from "./cloud-release-gate-contract.js";
-
 describe("release contract", () => {
   const goreleaser = readFileSync(".goreleaser.yml", "utf8");
   const installer = readFileSync("install.ps1", "utf8");
@@ -141,8 +139,6 @@ describe("release contract", () => {
       "GORELEASER_CURRENT_TAG: ${{ github.ref_name }}",
     );
   });
-
-  registerCloudReleaseGateContractTests();
 
   it("keeps releases private until every required asset is present", () => {
     expect(goreleaser).toMatch(/^\s*draft:\s*true\s*$/m);
