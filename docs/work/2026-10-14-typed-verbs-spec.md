@@ -105,11 +105,11 @@ Exit codes. 2 is reused from `snapshotExitDrift` (`cli/snapshot_store.go:81`).
 ### 2.1 Plans, hashes, confirmation codes
 
 - **Store.** `paths.CacheDir/plans/<id>.json`, mode 0600, written through `writeFileAtomic`. TTL 15 min, at most 20 files (pruned on write). Each plan records its server profile.
-- **Hash.** `sha256(canonical JSON{kind, server, action(service, frozen entity_ids, data), tier, reasons, basis})`. `id = "p_" + hex[0:12]`.
+- **Hash.** `sha256(canonical JSON{kind, server, action, tier, reasons, basis})`, where `action` always carries the full operation identity: for `call` the service, frozen `entity_ids` and data; for `write`/`delete`/`revert` the operation, config domain, target config id, and endpoint path. Two plans for different targets can never share an id. `id = "p_" + hex[0:12]`.
 - **Basis for `call`.** Per acted entity: `pl`, `device_class`, `supported_features`, and the `before` value of every field the call changes. Plus the sha256 of every member and consumer config, normalized with `normalizeConfig` (`cli/diff.go:139`). Plus the `call_service` listener count.
 - **Basis for `write`/`delete`/`revert`.** The digest of the normalized current config (`"absent"` on create, which also asserts the id is unused) plus the draft digest. Revert reuses `selectUndoSnapshot` and `snapshotMatchesLive` (`cli/snapshot_store.go:197,286`).
 - **Code.** `confirm:<verb>-<object_id≤24>-<hash[0:6]>`. Only typed-tier plans carry one. `apply` compares the string exactly after a whitespace trim. After 3 mismatches the plan is invalidated.
-- **`apply` order.** Load the plan, then check expiry and server, then the code, then **recompute the full plan from the stored request**. If the hash changed: exit 2 with the new plan and code, and invalidate the old one. If equal: execute once, verify, delete the plan file.
+- **`apply` order.** First **claim the plan atomically** (`os.Rename` of `<id>.json` to `<id>.claimed-<pid>`; a failed rename means another applicant holds it → exit 4, nothing sent). Then check expiry and server, then the code, then **recompute the full plan from the stored request**. If the hash changed: exit 2 with the new plan and code, and invalidate the old one. If equal: execute once, verify, delete the claimed file. A claim left by a crashed process is never reused (single-use, I8).
 - **Honesty, stated in `docs/reference/safety.md`.** The CLI cannot tell whether a human typed the code. The code binds a confirmation to one exact plan, adds expiry and drift refusal, and moves the choice of tier out of prose. The human gates are (a) the skill rule that the code must come verbatim from a user message, and (b) client permission rules on `ha-nova apply`, which become possible now that argv separates reads from writes.
 
 ### 2.2 Deterministic tiering and consumer scan (`cli/tier*.go`)
@@ -118,6 +118,7 @@ Each step is the code form of an existing prose rule, cited per step.
 
 1. **Resolve and expand targets.**
    - Explicit ids and `--match` use `config/entity_registry/list_for_display` once (`ei, en, pl, di, ai`; `relay-api.md:179`). Aliases come from the full `config/entity_registry/list` only when the compact match finds nothing.
+   - An explicit id with no registry row (YAML entity without `unique_id`) resolves through an exact `GET /api/states/<entity_id>`. Its platform is unknown, so classification fails closed: typed when the domain or `device_class` is access-capable, preview otherwise — never the fast path.
    - `--area` uses `search/related` on `item_type:"area"` and takes `.data.entity`, filtered by the service domain (`service-call/SKILL.md:95`).
    - `--device` filters the compact registry by `di`.
    - Groups (`attributes.entity_id` is an array) expand to their leaves with `membership_source: attributes`.
@@ -159,7 +160,7 @@ Caching and limits. All reads go through one `relaySession` per invocation: tran
 - An unknown service reports `accepted`, never `verified`.
 
 **Config writes.**
-- `POST` the config, reload the domain, read it back, and compare `renderConfigChanges(draft, readback)`; empty means `verified`.
+- `POST` the config, reload the domain, read it back, and compare `renderConfigChanges(draft, readback)`. `verified` requires both an empty diff **and** a successful reload; a failed or falsy reload reports `unverified` (persisted, not yet running) even when the read-back matches.
 - Match the registry `unique_id` to find the real `entity_id`, then confirm the state is present (`relay-api.md:160-168`).
 - Updates save to the undo stack automatically (`saveUndoSnapshotBytes`, `cli/snapshot_store.go:92`; the receipt goes into the output).
 - Deletes capture the pre-delete config snapshot through Relay `/backups` (`config-snapshots.md`), then run the consumer check on their own `entity_id` (`write/SKILL.md:99`), and are typed.
@@ -259,7 +260,7 @@ Every PR is release-bound because it contains Go code. PR2, PR3 and PR5 are high
 - E2E: on the disposable HA, measure the baseline `call_service` listener count. This is the blocking verification for §2.2 step 5b.
 
 **PR3 (~600 LOC): `call` + `apply` for services (store, hash, code, expiry, drift, verify, reauth, exit codes).**
-- Oracle: Go tests for I2, I3, I6, I7 (one POST even on timeout) and I8.
+- Oracle: Go tests for I2, I3, I6, I7 (one POST even on timeout) and I8 (including two concurrent `apply` processes on one plan: exactly one sends).
 - E2E, demo platform:
   - `call light.turn_off light.bed_light` gives exit 0 `verified` in one invocation
   - `call lock.unlock lock.front_door` gives exit 3 typed
