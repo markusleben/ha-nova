@@ -54,16 +54,17 @@ export HA_NOVA_ALLOW_INSECURE_TEST_KEYRING=1                     # relay token �
 export HA_NOVA_TEST_KEYRING_FILE=/tmp/nova-test-token            #   real ha-nova.relay-auth-token slot
 export HA_NOVA_NO_BROWSER=1
 export HA_NOVA_NO_CENSUS=1
-- Production census isolation (#446): no test, smoke, release, or
-  deployment-verification path may call the production Worker's ping or
-  withdraw endpoints; functional census checks run only against the isolated
-  test Worker — see `docs/reference/census.md` → Production isolation.
 
 scripts/onboarding/bin/ha-nova pair --credential-store=file --relay-url http://<ip>:18791 --code NNNNNN
 scripts/onboarding/bin/ha-nova setup claude --relay-url http://<ip>:18791
 scripts/onboarding/bin/ha-nova relay health          # exercise skills over the device transport (also core|ws|trace)
 scripts/onboarding/bin/ha-nova uninstall --purge --yes   # verifies the server-side revoke + local cleanup
 ```
+
+Production census isolation (#446): no test, smoke, release, or
+deployment-verification path may call the production Worker's ping or
+withdraw endpoints; functional census checks run only against the isolated
+test Worker — see `docs/reference/census.md` → Production isolation.
 
 `--credential-store=file` stores device credentials below the isolated `HOME`.
 The relay-token vars are **mandatory even for pure device pairing**: `HOME`
