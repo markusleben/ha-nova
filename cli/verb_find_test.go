@@ -305,3 +305,15 @@ func TestRelaySessionBoundsEachRequest(t *testing.T) {
 
 // fakeRelayFailure makes the fake relay answer a Relay error envelope.
 type fakeRelayFailure struct{ code, message string }
+
+func TestTokensMatchDecomposedAccents(t *testing.T) {
+	decomposed := "Éclair Küche"
+	for _, phrase := range []string{"eclair", "éclair", "küche", "éclair"} {
+		if !tokensMatch(foldTokens(phrase), decomposed) {
+			t.Fatalf("%q did not match decomposed %q", phrase, decomposed)
+		}
+	}
+	if got := foldTokens("éclair"); len(got) != 1 {
+		t.Fatalf("decomposed phrase split into %v", got)
+	}
+}

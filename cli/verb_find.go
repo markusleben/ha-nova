@@ -206,7 +206,7 @@ func joinArea(row registryRow, deviceID string, areas, deviceAreas map[string]st
 
 // foldTokens splits a phrase into lowercase letter/digit tokens.
 func foldTokens(phrase string) []string {
-	return strings.FieldsFunc(strings.ToLower(phrase), func(r rune) bool {
+	return strings.FieldsFunc(strings.ToLower(stripCombiningMarks(phrase)), func(r rune) bool {
 		return !unicode.IsLetter(r) && !unicode.IsDigit(r)
 	})
 }
@@ -214,7 +214,7 @@ func foldTokens(phrase string) []string {
 // tokensMatch reports whether every token occurs in the haystack, comparing
 // case- and diacritic-folded: "Küche" matches "kuche" and "kueche" and back.
 func tokensMatch(tokens []string, haystack string) bool {
-	lower := strings.ToLower(haystack)
+	lower := strings.ToLower(stripCombiningMarks(haystack))
 	hay := [2]string{diacriticStrip.Replace(lower), germanTransliterate.Replace(lower)}
 	for _, token := range tokens {
 		variants := [2]string{diacriticStrip.Replace(token), germanTransliterate.Replace(token)}
@@ -224,6 +224,17 @@ func tokensMatch(tokens []string, haystack string) bool {
 		}
 	}
 	return true
+}
+
+// stripCombiningMarks drops decomposed accents ("e\u0301" → "e") so that
+// canonically equivalent text folds like its precomposed form.
+func stripCombiningMarks(text string) string {
+	return strings.Map(func(r rune) rune {
+		if unicode.Is(unicode.Mn, r) {
+			return -1
+		}
+		return r
+	}, text)
 }
 
 // ponytail: fixed table of common Latin diacritics (NFD strip by hand, no
