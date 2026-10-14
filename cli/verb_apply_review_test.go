@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -195,5 +196,56 @@ func TestResponseOnlyServicesAreRefused(t *testing.T) {
 	}
 	if len(h.posts()) != 0 {
 		t.Fatalf("posts %+v", h.posts())
+	}
+}
+
+// pointRelayAt rewrites the saved Relay URL (a closed server = connection refused).
+func (h *writeHarness) pointRelayAt(url string) {
+	h.t.Helper()
+	cfg, err := loadConfig(h.paths)
+	if err != nil {
+		h.t.Fatal(err)
+	}
+	cfg.RelayBaseURL = url
+	if err := saveConfig(h.paths, cfg); err != nil {
+		h.t.Fatal(err)
+	}
+}
+
+// A Relay that never answers is an outage (exit 1, nothing planned or
+// stored), never a typed plan full of SCAN_FAILED gaps.
+func TestUnreachableRelayIsAnOperationalError(t *testing.T) {
+	h := newWriteHarness(t, newFakeHA())
+	cfg, err := loadConfig(h.paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	live := cfg.RelayBaseURL
+	id := h.plan("lock.unlock", "lock.front").Plan.ID
+	code := ""
+	if raw, err := os.ReadFile(filepath.Join(planDir(h.paths), id+".json")); err == nil {
+		var stored storedPlan
+		_ = json.Unmarshal(raw, &stored)
+		code = stored.Code
+	}
+	dead := httptest.NewServer(nil)
+	dead.Close()
+	h.pointRelayAt(dead.URL)
+	for _, args := range [][]string{{"call", "cover.open_cover", "cover.garage_door"}, {"plan", "call", "cover.open_cover", "cover.garage_door"}} {
+		command := map[string]func(runtimePaths, []string) int{"call": runCallCommand, "plan": runPlanCommand}[args[0]]
+		exit, env := h.run(command, args[1:]...)
+		if exit != 1 || env.Error == nil || env.Error.Code != "RELAY_ERROR" || env.Tier != "" || env.Plan != nil {
+			t.Fatalf("%v: exit %d env %+v", args, exit, env)
+		}
+	}
+	if exit, env := h.run(runApplyCommand, "--plan", id, "--confirm", code); exit != 1 || env.Error.Code != "RELAY_ERROR" {
+		t.Fatalf("apply: exit %d env %+v", exit, env)
+	}
+	if files := h.planFiles(); len(files) != 1 || !strings.HasSuffix(files[0], id+".json") {
+		t.Fatalf("plan files %v: want only the original plan, released", files)
+	}
+	h.pointRelayAt(live)
+	if exit, env := h.run(runApplyCommand, "--plan", id, "--confirm", code); exit != 0 || len(h.posts()) != 1 {
+		t.Fatalf("apply after the outage: exit %d env %+v", exit, env)
 	}
 }

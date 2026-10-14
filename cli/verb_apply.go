@@ -137,6 +137,10 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string) (env verbE
 
 	// Recompute the whole plan from the stored request (I3).
 	e, fresh, err := computeCallPlan(s, &env, request)
+	var expected *verbFailure
+	if err != nil && !errors.As(err, &expected) && os.Rename(claimed, open) == nil {
+		consumed = false // the Relay is unreachable: nothing was sent, the plan stays usable
+	}
 	if err != nil {
 		return fail(err)
 	}

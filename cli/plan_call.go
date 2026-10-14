@@ -157,6 +157,11 @@ func planCall(paths runtimePaths, s *relaySession, env *verbEnvelope, req planCa
 func computeCallPlan(s *relaySession, env *verbEnvelope, req planCallRequest) (*tierEngine, storedPlan, error) {
 	e := newTierEngine(s)
 	e.loadRegistry()
+	// A Relay that never answered is an outage, not a scan gap: nothing is
+	// planned or stored (exit 1). Failures after a first answer stay typed.
+	if err := s.unreachableError(); err != nil {
+		return nil, storedPlan{}, err
+	}
 	targets, err := e.resolveTargets(req)
 	if err != nil {
 		return nil, storedPlan{}, err
