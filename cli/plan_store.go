@@ -46,24 +46,27 @@ type planDelta struct {
 }
 
 type storedPlan struct {
-	SchemaVersion int             `json:"schema_version"`
-	ID            string          `json:"id"`
-	Hash          string          `json:"hash"`
-	Kind          string          `json:"kind"`
-	Server        string          `json:"server"`
-	CreatedAt     string          `json:"created_at"`
-	ExpiresAt     string          `json:"expires_at"`
-	Tier          string          `json:"tier"`
-	Confirm       string          `json:"confirm"`
-	Code          string          `json:"code,omitempty"`
-	Nonce         string          `json:"nonce"`
-	Mismatches    int             `json:"code_mismatches,omitempty"` // apply attempts with a wrong code (3 invalidate)
-	Request       planCallRequest `json:"request"`
-	Action        planAction      `json:"action"`
-	ConfigRequest *configRequest  `json:"config_request,omitempty"` // kinds write/delete/revert
-	ConfigAction  *configAction   `json:"config_action,omitempty"`
-	Reasons       []tierReason    `json:"reasons"`
-	Basis         map[string]any  `json:"basis"`
+	SchemaVersion int    `json:"schema_version"`
+	ID            string `json:"id"`
+	Hash          string `json:"hash"`
+	Kind          string `json:"kind"`
+	Server        string `json:"server"`
+	CreatedAt     string `json:"created_at"`
+	ExpiresAt     string `json:"expires_at"`
+	Tier          string `json:"tier"`
+	Confirm       string `json:"confirm"`
+	Code          string `json:"code,omitempty"`
+	Nonce         string `json:"nonce"`
+	Mismatches    int    `json:"code_mismatches,omitempty"` // apply attempts with a wrong code (3 invalidate)
+	// SnapshotFailed: a delete whose pre-delete snapshot failed was handed
+	// back; only then may the user choose --no-snapshot. Not in the hash.
+	SnapshotFailed bool            `json:"snapshot_failed,omitempty"`
+	Request        planCallRequest `json:"request"`
+	Action         planAction      `json:"action"`
+	ConfigRequest  *configRequest  `json:"config_request,omitempty"` // kinds write/delete/revert
+	ConfigAction   *configAction   `json:"config_action,omitempty"`
+	Reasons        []tierReason    `json:"reasons"`
+	Basis          map[string]any  `json:"basis"`
 }
 
 // planHash is the nonce-free drift hash over the full operation identity:

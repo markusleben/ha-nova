@@ -1,12 +1,14 @@
 package main
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
+	"net/url"
 	"os"
 	"regexp"
 	"strconv"
@@ -23,7 +25,17 @@ const (
 	planRevertUsage = "ha-nova plan revert [--target <config_id>] [--domain automation|script]"
 )
 
-var configIDPattern = regexp.MustCompile(`^[A-Za-z0-9_-]{1,64}$`)
+// Config ids per domain: automation ids as the UI and YAML use them; script
+// ids are the script's own key (its object id).
+var configIDPatterns = map[string]*regexp.Regexp{
+	"automation": regexp.MustCompile(`^[A-Za-z0-9_-]{1,64}$`),
+	"script":     regexp.MustCompile(`^[a-z0-9_]{1,64}$`),
+}
+
+func validConfigID(domain, id string) bool {
+	pattern := configIDPatterns[domain]
+	return pattern != nil && pattern.MatchString(id)
+}
 
 // configRequest is what apply recomputes a config plan from.
 type configRequest struct {
@@ -60,24 +72,37 @@ func (req configRequest) validate() error {
 		return errors.New("config plans cover automation and script only")
 	case req.Op == "delete" && (!entityIDPattern.MatchString(req.EntityID) || !strings.HasPrefix(req.EntityID, req.Domain+".")):
 		return fmt.Errorf("%q is not an %s entity_id", req.EntityID, req.Domain)
-	case req.Op == "write" && !configIDPattern.MatchString(req.ConfigID):
-		return fmt.Errorf("%q is not a config id ([A-Za-z0-9_-], max 64)", req.ConfigID)
+	case (req.Op == "write" || req.ConfigID != "") && !validConfigID(req.Domain, req.ConfigID):
+		return fmt.Errorf("%q is not a %s config id", req.ConfigID, req.Domain)
 	case req.Op == "write":
-		_, err := configObjectFromBytes(req.Draft)
+		draft, err := configObjectFromBytes(req.Draft)
+		if _, carriesID := draft["id"]; err == nil && req.Domain == "script" && carriesID {
+			return errors.New("a script config carries no id; its key is --id (or derived from the alias)")
+		}
 		return err
 	}
 	return nil
 }
 
-// canonicalConfig re-encodes a config object with sorted keys and exact
-// numbers, so the stored draft (and its hash) never depends on file layout.
-func canonicalConfig(raw []byte) (json.RawMessage, map[string]any, error) {
+// exactConfig validates a config object and returns its bytes with
+// whitespace removed but key order untouched: Home Assistant evaluates
+// variables and fields top-down, so the bytes POSTed are the bytes given.
+func exactConfig(raw []byte) (json.RawMessage, map[string]any, error) {
 	obj, err := configObjectFromBytes(raw)
 	if err != nil {
 		return nil, nil, err
 	}
-	canonical, err := json.Marshal(obj)
-	return canonical, obj, err
+	var compact bytes.Buffer
+	err = json.Compact(&compact, raw)
+	return compact.Bytes(), obj, err
+}
+
+var nonScriptKey = regexp.MustCompile(`[^a-z0-9]+`)
+
+// scriptKey derives a script's key from its alias as the HA editor does.
+func scriptKey(alias string) string {
+	folded := diacriticStrip.Replace(strings.ToLower(stripCombiningMarks(alias)))
+	return strings.Trim(nonScriptKey.ReplaceAllString(folded, "_"), "_")
 }
 
 func runPlanConfig(paths runtimePaths, op string, args []string) int {
@@ -134,18 +159,25 @@ func (req *configRequest) parseInput(positional []string, draftFile string) erro
 		if err != nil {
 			return err
 		}
-		canonical, draft, err := canonicalConfig(raw)
+		exact, draft, err := exactConfig(raw)
 		if err != nil {
 			return fmt.Errorf("--file must hold one JSON object: %w", err)
 		}
-		req.Draft = canonical
-		if id, _ := draft["id"].(string); id != "" {
+		req.Draft = exact
+		if id, _ := draft["id"].(string); id != "" && req.Domain == "automation" {
 			if req.ConfigID != "" && req.ConfigID != id {
 				return fmt.Errorf("the draft's id %q differs from --id %q", id, req.ConfigID)
 			}
 			req.ConfigID = id
 		}
-		if req.ConfigID == "" { // a create: the Home Assistant UI mints a millisecond id the same way
+		switch {
+		case req.ConfigID != "":
+		case req.Domain == "script": // a create: the key comes from the alias, like the script editor
+			alias, _ := draft["alias"].(string)
+			if req.ConfigID, req.Create = scriptKey(alias), true; req.ConfigID == "" {
+				return errors.New("a new script needs --id or an alias to derive its key from")
+			}
+		default: // an automation create: the Home Assistant UI mints a millisecond id the same way
 			req.ConfigID, req.Create = strconv.FormatInt(verbNow().UnixMilli(), 10), true
 		}
 	}
@@ -177,16 +209,19 @@ func computeConfigPlan(paths runtimePaths, s *relaySession, env *verbEnvelope, r
 		}
 	case "revert":
 		var err error
-		if snap, err = selectUndoSnapshot(paths, req.ConfigID, req.Domain); err != nil {
+		if snap, err = selectServerUndoSnapshot(paths, s.server, req.ConfigID, req.Domain); err != nil {
 			return fail(refused("NO_UNDO_SNAPSHOT", err.Error()))
 		}
 		if snap.Op != "update" || (snap.Domain != "automation" && snap.Domain != "script") {
 			return fail(refused("REVERT_UNSUPPORTED", fmt.Sprintf("the newest checkpoint is a %s %s; revert it through ha-nova:write", snap.Domain, snap.Op)))
 		}
 		req.ConfigID, req.Domain = snap.TargetID, snap.Domain
-		if req.Draft, _, err = canonicalConfig(snap.BeforeConfig); err != nil {
+		if req.Draft, _, err = exactConfig(snap.BeforeConfig); err != nil { // restored byte-for-byte, order intact
 			return fail(err)
 		}
+	}
+	if !validConfigID(req.Domain, req.ConfigID) {
+		return fail(refused("CONFIG_ID_UNSUPPORTED", fmt.Sprintf("%q is not a %s config id the typed verbs can address", req.ConfigID, req.Domain)))
 	}
 	current, err := readStoredConfig(s, req.Domain, req.ConfigID)
 	var notFound *verbFailure
@@ -197,6 +232,19 @@ func computeConfigPlan(paths runtimePaths, s *relaySession, env *verbEnvelope, r
 		return fail(err)
 	}
 	ctx.current = current
+	if current == nil && req.Op != "revert" {
+		// A 404 can hide a YAML or package item that owns this id: never
+		// create over it, never call it missing.
+		rows, err := e.fullRegistry()
+		if err != nil {
+			return fail(err)
+		}
+		for _, row := range rows {
+			if row.Platform == req.Domain && row.UniqueID == req.ConfigID {
+				return fail(refused("CONFIG_NOT_UI_MANAGED", row.EntityID+" is defined in YAML or a package, not in the UI config; edit it with ha-nova:yaml-config"))
+			}
+		}
+	}
 	switch {
 	case req.Op == "delete" && current == nil:
 		return fail(&verbFailure{exit: verbExitNotFound, code: "CONFIG_NOT_FOUND", message: req.EntityID + " has no stored config to delete"})
@@ -209,7 +257,7 @@ func computeConfigPlan(paths runtimePaths, s *relaySession, env *verbEnvelope, r
 			return fail(revertDrift(req.ConfigID + " changed since its last verified update"))
 		}
 	}
-	action := configAction{Op: req.Op, Domain: req.Domain, ConfigID: req.ConfigID, Path: "/api/config/" + req.Domain + "/config/" + req.ConfigID, EntityID: req.EntityID}
+	action := configAction{Op: req.Op, Domain: req.Domain, ConfigID: req.ConfigID, Path: "/api/config/" + req.Domain + "/config/" + url.PathEscape(req.ConfigID), EntityID: req.EntityID}
 	if req.Op == "delete" {
 		e.raise(tierTyped, tierReason{Code: reasonConfigDelete, EntityID: req.EntityID})
 		e.referencedBy(req.EntityID)
@@ -222,7 +270,7 @@ func computeConfigPlan(paths runtimePaths, s *relaySession, env *verbEnvelope, r
 			before, _ = configObjectFromBytes(current)
 		}
 		after, _ = configObjectFromBytes(req.Draft)
-		env.Diff = renderConfigChanges(before, after)
+		env.Diff = append(renderConfigChanges(before, after), orderChanges(current, req.Draft)...)
 		ctx.alias, _ = after["alias"].(string)
 	}
 	plan := storedPlan{Kind: req.Op, ConfigRequest: &req, ConfigAction: &action, Basis: configPlanBasis(e, current, req.Draft)}
@@ -281,7 +329,7 @@ func configPlanBasis(e *tierEngine, current, draft json.RawMessage) map[string]a
 		if err != nil {
 			return "unreadable"
 		}
-		normalized, _ := json.Marshal(normalizeConfig(obj))
+		normalized, _ := json.Marshal(map[string]any{"content": normalizeConfig(obj), "order": orderedKeyLists(raw)})
 		sum := sha256.Sum256(normalized)
 		return hex.EncodeToString(sum[:])
 	}

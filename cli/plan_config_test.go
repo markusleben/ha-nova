@@ -3,6 +3,8 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -13,7 +15,7 @@ import (
 
 // configReply makes the fake Home Assistant store config writes, delete
 // configs (with their entity), and record /backups snapshot saves.
-func (f *fakeHA) configReply(endpoint string, p map[string]any) (any, bool) {
+func (f *fakeHA) configReply(r *http.Request, endpoint string, p map[string]any) (any, bool) {
 	path := fmt.Sprint(p["path"])
 	switch {
 	case endpoint == "backups":
@@ -29,7 +31,13 @@ func (f *fakeHA) configReply(endpoint string, p map[string]any) (any, bool) {
 		if f.configWrite != nil {
 			return f.configWrite(f, path, body), true
 		}
+		var sent struct {
+			Body json.RawMessage `json:"body"`
+		}
+		raw, _ := io.ReadAll(r.Body)
+		_ = json.Unmarshal(raw, &sent)
 		f.storeConfig(path, body)
+		f.configs[path] = sent.Body // stored as sent, like automations.yaml
 		return coreReply(200, map[string]any{"result": "ok"}), true
 	case p["method"] == "DELETE":
 		delete(f.configs, path)
@@ -40,6 +48,9 @@ func (f *fakeHA) configReply(endpoint string, p map[string]any) (any, bool) {
 				f.full = append(f.full[:i], f.full[i+1:]...)
 				break
 			}
+		}
+		if f.deleteStatus != 0 {
+			return coreReply(f.deleteStatus, map[string]any{"message": "Resource not found"}), true
 		}
 		return coreReply(200, map[string]any{"result": "ok"}), true
 	}

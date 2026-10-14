@@ -48,10 +48,12 @@ type verbEnvelope struct {
 	Diff     []string             `json:"diff,omitempty"`
 	Undo     *snapshotSaveReceipt `json:"undo,omitempty"`
 	Snapshot string               `json:"snapshot,omitempty"`
-	Result   any                  `json:"result,omitempty"`
-	Error    *verbError           `json:"error,omitempty"`
-	Notices  []verbNotice         `json:"notices,omitempty"`
-	exit     int                  // success exit code; 0 unless a verb sets it (plan: 3)
+	// BeforeConfig: the config an update replaced, whenever it may have landed.
+	BeforeConfig json.RawMessage `json:"before_config,omitempty"`
+	Result       any             `json:"result,omitempty"`
+	Error        *verbError      `json:"error,omitempty"`
+	Notices      []verbNotice    `json:"notices,omitempty"`
+	exit         int             // success exit code; 0 unless a verb sets it (plan: 3)
 }
 
 type verbTarget struct {

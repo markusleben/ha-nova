@@ -22,6 +22,9 @@ type undoSnapshot struct {
 	Op            string `json:"op"`
 	Domain        string `json:"domain"`
 	TargetID      string `json:"target_id"`
+	// Server is the profile the update ran against (typed verbs); records
+	// from `snapshot save` and older CLIs carry none.
+	Server string `json:"server,omitempty"`
 	// Name is the human-readable alias supplied by the skill so the owner
 	// console and `snapshot show --list` stay recognizable (#483). Optional:
 	// records written by older CLIs simply have none.
@@ -109,7 +112,7 @@ func saveUndoSnapshotBytes(paths runtimePaths, data []byte) (snapshotSaveReceipt
 	kept := make([]undoSnapshot, 0, len(stack.Snapshots)+1)
 	kept = append(kept, snap)
 	for _, existing := range stack.Snapshots {
-		if existing.Domain == snap.Domain && existing.TargetID == snap.TargetID {
+		if existing.Domain == snap.Domain && existing.TargetID == snap.TargetID && existing.Server == snap.Server {
 			// Same-target update: the previous checkpoint is replaced — only
 			// the newest state stays revertible, and the receipt says so.
 			action = "replaced"
@@ -195,9 +198,26 @@ func loadUndoSnapshotStack(paths runtimePaths) (undoSnapshotStack, error) {
 // selectUndoSnapshot picks the newest snapshot, or the one for an explicit
 // target (optionally narrowed by domain).
 func selectUndoSnapshot(paths runtimePaths, target, domain string) (undoSnapshot, error) {
+	return selectServerUndoSnapshot(paths, "", target, domain)
+}
+
+// selectServerUndoSnapshot is selectUndoSnapshot restricted to one server
+// ("" = any): another server's checkpoint for the same id is never picked;
+// untagged records stay eligible (the revert drift check still compares them
+// with this server's live config).
+func selectServerUndoSnapshot(paths runtimePaths, server, target, domain string) (undoSnapshot, error) {
 	stack, err := loadUndoSnapshotStack(paths)
 	if err != nil {
 		return undoSnapshot{}, err
+	}
+	if server != "" {
+		var mine []undoSnapshot
+		for _, snap := range stack.Snapshots {
+			if snap.Server == "" || snap.Server == server {
+				mine = append(mine, snap)
+			}
+		}
+		stack.Snapshots = mine
 	}
 	if len(stack.Snapshots) == 0 {
 		return undoSnapshot{}, fmt.Errorf("no undo snapshot available")

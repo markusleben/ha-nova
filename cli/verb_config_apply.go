@@ -32,13 +32,12 @@ func snapshotName(id string) string {
 func executeConfig(paths runtimePaths, s *relaySession, env *verbEnvelope, action configAction, ctx configContext, noSnapshot bool) error {
 	s.renewBudget()
 	if action.Op == "delete" && !noSnapshot {
-		var data any
-		_ = json.Unmarshal(ctx.current, &data)
-		file, err := s.saveConfigSnapshot(map[string]string{"automation": "automations", "script": "scripts"}[action.Domain], snapshotName(action.EntityID), data)
+		// The live read-back goes in as raw JSON: no number or order round trip.
+		file, err := s.saveConfigSnapshot(map[string]string{"automation": "automations", "script": "scripts"}[action.Domain], snapshotName(action.EntityID), ctx.current)
 		if err != nil {
 			return &verbFailure{exit: verbExitError, code: "SNAPSHOT_FAILED",
 				message: fmt.Sprintf("no pre-delete config snapshot could be taken (%s); nothing was deleted and the plan stays valid", err),
-				next:    "Prune the snapshot store, take a full backup (ha-nova:backup), or apply again with --no-snapshot.",
+				next:    "Prune the snapshot store, take a full backup (ha-nova:backup), or — if the user chooses to — apply again with --no-snapshot.",
 				cause:   errSnapshotFailed}
 		}
 		env.Snapshot = file
@@ -50,28 +49,56 @@ func executeConfig(paths runtimePaths, s *relaySession, env *verbEnvelope, actio
 	} else {
 		result, err = s.writeCore(http.MethodPost, action.Path, action.Body)
 	}
-	if failure := writeFailure(env, result, err); failure != nil {
+	// An update or revert that may have landed keeps its way back: the
+	// checkpoint is saved for any 2xx and for an unknown outcome, and the
+	// before-config is in the output either way.
+	update := action.Op != "delete" && ctx.current != nil
+	var unknown *relayOutcomeUnknownError
+	if update && (errors.As(err, &unknown) || (err == nil && result.status < 300)) {
+		env.BeforeConfig = ctx.current
+	}
+	alreadyGone := action.Op == "delete" && err == nil && (result.status == http.StatusBadRequest || result.status == http.StatusNotFound)
+	if failure := writeFailure(env, result, err); failure != nil && !alreadyGone {
+		if errors.As(err, &unknown) && update {
+			saveCheckpoint(paths, s, env, action, ctx, action.Body)
+		}
 		return failure
 	}
-	reload, reloadErr := s.postService(action.Domain+".reload", map[string]any{})
+	reloadData := map[string]any{}
+	if action.Domain == "automation" { // the scope Home Assistant's own config hook reloads
+		reloadData["id"] = action.ConfigID
+	}
+	reload, reloadErr := s.postService(action.Domain+".reload", reloadData)
 	reloaded := reloadErr == nil && reload.status < 400
 	s.renewBudget()
 	row, readback := verifyConfig(s, action, reloaded)
+	if alreadyGone && row.Outcome == "verified" {
+		row.Note = "already gone when the delete arrived (removed concurrently)"
+	}
 	env.Verification, env.Status, env.exit = []verifyRow{row}, row.Outcome, verbExitOK
 	if row.Outcome != "verified" {
 		env.exit = verbExitUnverified
-		return nil
 	}
-	if action.Op == "write" && ctx.current != nil { // an update: one step back is revertible
-		record, _ := json.Marshal(map[string]any{"op": "update", "domain": action.Domain, "target_id": action.ConfigID,
-			"name": ctx.alias, "before_config": ctx.current, "expected_after": readback})
-		if receipt, err := saveUndoSnapshotBytes(paths, record); err == nil {
-			env.Undo = &receipt
-		} else {
-			env.Notices = append(env.Notices, verbNotice{Kind: "undo", Text: "the update is not revertible: " + err.Error()})
+	if update {
+		expected := readback
+		if expected == nil {
+			expected = action.Body
 		}
+		saveCheckpoint(paths, s, env, action, ctx, expected)
 	}
 	return nil
+}
+
+// saveCheckpoint puts an update (a revert is one too, as in update-revert.md)
+// on this server's undo stack: one step back to ctx.current.
+func saveCheckpoint(paths runtimePaths, s *relaySession, env *verbEnvelope, action configAction, ctx configContext, expectedAfter json.RawMessage) {
+	record, _ := json.Marshal(map[string]any{"op": "update", "domain": action.Domain, "target_id": action.ConfigID, "server": s.server,
+		"name": ctx.alias, "before_config": ctx.current, "expected_after": expectedAfter})
+	if receipt, err := saveUndoSnapshotBytes(paths, record); err == nil {
+		env.Undo = &receipt
+	} else {
+		env.Notices = append(env.Notices, verbNotice{Kind: "undo", Text: "the update is not revertible: " + err.Error()})
+	}
 }
 
 // writeFailure maps one config write's outcome like a service call's.
@@ -118,7 +145,7 @@ func verifyConfig(s *relaySession, action configAction, reloaded bool) (verifyRo
 		row.Observed = fmt.Sprintf("read-back failed (HTTP %d)", status)
 		return row, nil
 	}
-	differences := renderConfigChanges(planned, live)
+	differences := append(renderConfigChanges(planned, live), orderChanges(action.Body, readback)...)
 	entityID := registryEntityFor(s, action.Domain, action.ConfigID)
 	row.EntityID = entityID
 	var st *entityState
@@ -128,9 +155,11 @@ func verifyConfig(s *relaySession, action configAction, reloaded bool) (verifyRo
 	row.Observed = fmt.Sprintf("%d differences, reload ok: %v, entity: %q present: %v", len(differences), reloaded, entityID, st != nil)
 	switch {
 	case !reloaded:
-		row.Note = "saved but the reload failed: the change is not running yet"
+		row.Note = "saved, but the reload barrier failed: whether the change is running is unknown"
 	case len(differences) > 0:
 		row.Note = "the read-back differs: " + strings.Join(differences, " ")
+	case st != nil && st.State == "unavailable": // Home Assistant could not load the config
+		row.Note = "the entity is unavailable: Home Assistant rejected the config when loading it"
 	case st != nil:
 		row.Outcome = "verified"
 	}

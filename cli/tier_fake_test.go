@@ -35,6 +35,9 @@ type fakeHA struct {
 	configWrite func(f *fakeHA, path string, body map[string]any) any
 	snapshots   []map[string]any
 	snapshotErr bool
+	// deleteStatus: answer DELETE with this status after removing the item
+	// (a concurrent removal: Home Assistant says 400 "Resource not found").
+	deleteStatus int
 }
 
 func newFakeHA() *fakeHA {
@@ -85,7 +88,7 @@ func (f *fakeHA) reply(r *http.Request, endpoint string, p map[string]any) any {
 	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	if reply, handled := f.configReply(endpoint, p); handled {
+	if reply, handled := f.configReply(r, endpoint, p); handled {
 		return reply
 	}
 	if p["method"] == "POST" {

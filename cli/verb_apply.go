@@ -110,7 +110,7 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string, noSnapshot
 	}
 	defer s.close()
 	env.Server = s.server
-	defer func() { env.Notices = verbNotices(paths, s.version()) }()
+	defer func() { env.Notices = append(env.Notices, verbNotices(paths, s.version())...) }()
 
 	// Claim: one atomic rename; whoever loses sends nothing (I8).
 	claimed := filepath.Join(planDir(paths), fmt.Sprintf("%s.claimed-%d", id, os.Getpid()))
@@ -142,6 +142,11 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string, noSnapshot
 		return fail(refused("SERVER_MISMATCH", fmt.Sprintf("plan %s belongs to server %q", id, plan.Server)))
 	case isCall && frozeNothing(request, plan.Action):
 		return fail(refused("UNRESOLVED_TARGET", "the plan named targets but froze none"))
+	case noSnapshot && !(plan.Kind == "delete" && plan.SnapshotFailed):
+		if os.Rename(claimed, open) == nil {
+			consumed = false
+		}
+		return fail(refused("NO_SNAPSHOT_NOT_OFFERED", "--no-snapshot applies only after this delete's snapshot failed and the user chose to proceed without one"))
 	}
 
 	// Recompute the whole plan from the stored request (I3).
@@ -199,8 +204,11 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string, noSnapshot
 	env.Plan = &verbPlan{ID: plan.ID, Hash: fresh.Hash, ExpiresAt: plan.ExpiresAt, Confirm: fresh.Confirm, Code: wantCode}
 	if isConfig {
 		err := executeConfig(paths, s, &env, *fresh.ConfigAction, ctx, noSnapshot)
-		if errors.Is(err, errSnapshotFailed) && os.Rename(claimed, open) == nil {
-			consumed = false // nothing was deleted: the typed code stays valid for --no-snapshot
+		if errors.Is(err, errSnapshotFailed) {
+			plan.SnapshotFailed = true // nothing was deleted: the typed code stays valid for --no-snapshot
+			if writePlanFile(claimed, plan) == nil && os.Rename(claimed, open) == nil {
+				consumed = false
+			}
 		}
 		if err != nil {
 			return fail(err)
