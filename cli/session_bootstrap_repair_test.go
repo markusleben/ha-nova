@@ -106,7 +106,6 @@ func TestRelayCommandsRepairOldCopiedSkillsDespiteCurrentMarkerAndMissingRuntime
 			previousRuntimeProbe := clientRuntimeDetectedForStatus
 			clientRuntimeDetectedForStatus = func(string) bool { return false }
 			t.Cleanup(func() { clientRuntimeDetectedForStatus = previousRuntimeProbe })
-			t.Setenv("HA_NOVA_NO_CENSUS", "1")
 			if err := writeJSONFile(paths.UpdateCacheFile, releaseInfo{
 				Version: "0.6.1",
 				HTMLURL: "https://example.invalid/releases/v0.6.1",

@@ -34,7 +34,7 @@ func runUpdate(paths runtimePaths, args []string) int {
 		printHumanErr("cannot inspect install lifecycle: %s", err)
 		return 1
 	}
-	if censusLifecycleStopped(paths) {
+	if installLifecycleStopped(paths) {
 		printHumanErr("HA NOVA was uninstalled; run `ha-nova setup` before updating.")
 		return 1
 	}
@@ -172,10 +172,6 @@ func runUpdate(paths runtimePaths, args []string) int {
 		maybeOfferGuidedRelayUpdate(paths, notice)
 	}
 	printPostUpdateSessionInstruction(syncResult)
-	// One-time census ask on the interactive update tail (existing users meet
-	// the question here). Never on the Windows internal-replace path — that
-	// helper runs detached without stdin.
-	maybeAskCensus(paths, "update")
 	return 0
 }
 
@@ -297,9 +293,6 @@ func syncInstalledClientsForCurrentVersion(paths runtimePaths, currentVersion, t
 		maybeOfferGuidedRelayUpdate(paths, notice)
 	}
 	printPostUpdateSessionInstruction(syncResult)
-	// Same census-ask tail as a real update: "already up to date" is the far
-	// more common interactive `ha-nova update` outcome.
-	maybeAskCensus(paths, "update")
 	return 0
 }
 
@@ -345,7 +338,7 @@ func ensureUpdateLifecycleCurrent(paths runtimePaths, lifecycleMarker []byte) er
 	if err != nil {
 		return fmt.Errorf("cannot verify update lifecycle: %w", err)
 	}
-	if !bytes.Equal(current, lifecycleMarker) || censusLifecycleStopped(paths) {
+	if !bytes.Equal(current, lifecycleMarker) || installLifecycleStopped(paths) {
 		return fmt.Errorf("update was superseded by an uninstall; run `ha-nova setup` before updating")
 	}
 	return nil

@@ -24,7 +24,7 @@ func claimSessionBootstrapCarrierValueUntil(paths runtimePaths, deadline time.Ti
 		return "", nil, false
 	}
 	generation, err := readInstallLifecycleGeneration(paths)
-	if err != nil || censusLifecycleStopped(paths) {
+	if err != nil || installLifecycleStopped(paths) {
 		return "", nil, false
 	}
 	release, acquired := acquireAutoRepairLockUntil(paths, deadline)
@@ -83,7 +83,7 @@ func readSessionBootstrapMarker(path string) (string, bool) {
 // runMigratedFirstUseCheck closes the one-session rollout gap for skills copied
 // by an older updater. Their already-loaded prompt cannot observe the repaired
 // bootstrap until the next session, so the new binary carries the same
-// update/census check once. Notices use stderr to preserve Relay JSON stdout.
+// update check once. Notices use stderr to preserve Relay JSON stdout.
 func runMigratedFirstUseCheck(paths runtimePaths, budget time.Duration) {
 	if budget <= 0 {
 		budget = time.Duration(defaultRelayMaxTimeSeconds * float64(time.Second))
@@ -108,9 +108,6 @@ func runMigratedFirstUseCheck(paths runtimePaths, budget time.Duration) {
 	if relayNotice := <-relayResult; !relayNotice.empty() {
 		printHumanNotice(relayNotice)
 	}
-	// Do not add a census network wait beyond the caller's explicit Relay
-	// budget. Opted-in installs resume the weekly carrier in the repaired
-	// bootstrap's next check-update invocation.
 }
 
 var runMigratedFirstUseCheckForCarrier = runMigratedFirstUseCheck
@@ -119,7 +116,7 @@ func finishMigratedFirstUse(paths runtimePaths, candidate, contended bool, deadl
 	if !candidate && !contended {
 		return
 	}
-	requiredBudget := firstUseRelayNoticeTimeout + censusLockTimeout + sessionBootstrapCarrierMinBudget
+	requiredBudget := firstUseRelayNoticeTimeout + sessionBootstrapCarrierMinBudget
 	claimDeadline := deadline.Add(-requiredBudget)
 	if !candidate {
 		contentionDeadline := time.Now().Add(sessionBootstrapCarrierContentionWait)
@@ -134,11 +131,7 @@ func finishMigratedFirstUse(paths runtimePaths, candidate, contended bool, deadl
 	if !claimed {
 		return
 	}
-	remaining := time.Until(deadline)
-	carrierBudget := remaining
-	if remaining > censusLockTimeout {
-		carrierBudget = remaining - censusLockTimeout
-	}
+	carrierBudget := time.Until(deadline)
 	if carrierBudget > firstUseRelayNoticeTimeout {
 		carrierBudget = firstUseRelayNoticeTimeout
 	}
@@ -163,10 +156,6 @@ func completeMigratedFirstUseClaim(paths runtimePaths, claimValue string, genera
 	if raw, ok := readSessionBootstrapMarker(marker); !ok || raw != claimValue {
 		return
 	}
-	if time.Until(deadline) <= censusLockTimeout || !maybeEmitCensusSkillNoticeTo(paths, os.Stderr) {
-		_ = writeFileAtomic(marker, []byte(version+sessionBootstrapCarrierPendingSuffix+"\n"), 0o644)
-		return
-	}
 	_ = writeFileAtomic(marker, []byte(version+"\n"), 0o644)
 }
 
@@ -180,7 +169,7 @@ func resetSessionBootstrapCarrier(paths runtimePaths, claimValue string, deadlin
 		return
 	}
 	defer release()
-	if censusLifecycleStopped(paths) {
+	if installLifecycleStopped(paths) {
 		return
 	}
 	marker := filepath.Join(paths.CacheDir, sessionBootstrapVerifiedMarker)
@@ -199,7 +188,7 @@ func finalizeSessionBootstrapCarrier(paths runtimePaths, claimValue string, dead
 		return false
 	}
 	defer release()
-	if censusLifecycleStopped(paths) {
+	if installLifecycleStopped(paths) {
 		return false
 	}
 	marker := filepath.Join(paths.CacheDir, sessionBootstrapVerifiedMarker)
@@ -223,7 +212,7 @@ func finalizePendingSessionBootstrapCarrierUntil(paths runtimePaths, deadline ti
 		return false
 	}
 	defer release()
-	if censusLifecycleStopped(paths) {
+	if installLifecycleStopped(paths) {
 		return false
 	}
 	marker := filepath.Join(paths.CacheDir, sessionBootstrapVerifiedMarker)

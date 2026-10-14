@@ -485,7 +485,7 @@ func TestInteractiveSetupPairedDeviceReRunVerifiesWithoutNewCode(t *testing.T) {
 	}
 	lifecycleMarker := [][]byte{
 		captureInstallLifecycleGeneration(paths),
-		captureCensusLifecycleMarker(paths),
+		captureUninstallMarker(paths),
 		configSnapshot,
 	}
 	exitCode := 0

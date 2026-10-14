@@ -70,7 +70,7 @@ func maybeOfferAddServerForCompletedSetup(
 		}
 		lifecycleMarker = [][]byte{
 			captureInstallLifecycleGeneration(paths),
-			captureCensusLifecycleMarker(paths),
+			captureUninstallMarker(paths),
 			configSnapshot,
 		}
 	}
@@ -102,7 +102,7 @@ func runAddServerFlow(
 
 	// The seam redirects both config saves (saveTargetProfileName) and the
 	// device-credential slots to the new profile; restore it afterwards so
-	// anything after this flow (census ask, later commands in-process) works
+	// anything after this flow (later commands in-process) works
 	// on the default profile again.
 	previousProfile := activeServerProfile()
 	setServerSelectionOverride(name)

@@ -127,7 +127,7 @@ func runPairCommand(paths runtimePaths, args []string) int {
 		printErr("cannot inspect install lifecycle: %s", lifecycleErr)
 		return 1
 	}
-	if censusLifecycleStopped(paths) {
+	if installLifecycleStopped(paths) {
 		printErr("HA NOVA was uninstalled; run `ha-nova setup` before pairing.")
 		return 1
 	}

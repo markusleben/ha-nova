@@ -26,7 +26,7 @@ func ensureClientsVerifiedForCurrentVersion(paths runtimePaths) {
 	if generationErr != nil {
 		return
 	}
-	if censusLifecycleStopped(paths) {
+	if installLifecycleStopped(paths) {
 		return
 	}
 	version := localVersion(paths)
@@ -45,7 +45,7 @@ func ensureClientsVerifiedForCurrentVersion(paths runtimePaths) {
 		return
 	}
 	defer release()
-	if err := ensureUpdateLifecycleCurrent(paths, lifecycleGeneration); err != nil || censusLifecycleStopped(paths) {
+	if err := ensureUpdateLifecycleCurrent(paths, lifecycleGeneration); err != nil || installLifecycleStopped(paths) {
 		return
 	}
 	currentState := loadStateOrDefault(paths)

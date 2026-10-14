@@ -19,10 +19,6 @@ var (
 )
 
 func runDoctor(paths runtimePaths, args []string) int {
-	return runDoctorWithCensusAsk(paths, args, true)
-}
-
-func runDoctorWithCensusAsk(paths runtimePaths, args []string, allowCensusAsk bool) int {
 	fs := flag.NewFlagSet("doctor", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 	autoRepair := fs.Bool("auto-repair", false, "silently reattach drifted clients before reporting")
@@ -383,11 +379,6 @@ func runDoctorWithCensusAsk(paths runtimePaths, args []string, allowCensusAsk bo
 	}
 	if status == 0 {
 		doctorInfo("Doctor checks passed")
-		// One-time census ask on the healthy interactive tail only — never in
-		// --quiet's machine contract, never after a failed run.
-		if !*quiet && allowCensusAsk {
-			maybeAskCensus(paths, "doctor")
-		}
 	}
 	return status
 }
@@ -443,11 +434,6 @@ func runCheckUpdate(paths runtimePaths, args []string) int {
 			printHumanErr("%s", err)
 			return 1
 		}
-		// AFTER the machine output is complete: the opt-in census ping rides
-		// every check-update path — including --quiet --json and thus the
-		// detached refresh child — but a hanging endpoint may never delay or
-		// alter a byte of it (cli/census.go).
-		maybeCensusPing(paths)
 		return updateCheckExitCode(result)
 	}
 
@@ -482,25 +468,13 @@ func runCheckUpdate(paths runtimePaths, args []string) int {
 	if !relayNotice.empty() {
 		printHumanNotice(relayNotice)
 	}
-	// Census delivery is split by channel: --quiet is what skill sessions
-	// read, so the pending ask rides there as the capped machine-directed
-	// block; the plain human path is a person at a terminal, who gets the
-	// direct TTY question instead (no-op when stdin/stdout are not TTYs).
 	if *quiet {
-		censusHandled := maybeEmitCensusSkillNoticeTo(paths, os.Stdout)
-		if censusHandled {
-			deadline := time.Now()
-			if migrationContended {
-				deadline = deadline.Add(sessionBootstrapCarrierContentionWait)
-			}
-			finalizePendingSessionBootstrapCarrierUntil(paths, deadline)
+		deadline := time.Now()
+		if migrationContended {
+			deadline = deadline.Add(sessionBootstrapCarrierContentionWait)
 		}
-	} else {
-		maybeAskCensus(paths, "check-update")
+		finalizePendingSessionBootstrapCarrierUntil(paths, deadline)
 	}
-	// The weekly ping goes out last — all human output above is already
-	// printed, so a slow census endpoint never delays it.
-	maybeCensusPing(paths)
 	if notice.empty() {
 		return 0
 	}

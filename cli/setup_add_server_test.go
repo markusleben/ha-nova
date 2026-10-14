@@ -28,7 +28,6 @@ func setupCompletedInstallFixture(t *testing.T) (runtimePaths, runtimeConfig, in
 	t.Setenv("HA_NOVA_NO_BROWSER", "1")
 	t.Setenv("HA_NOVA_ALLOW_INSECURE_TEST_KEYRING", "1")
 	t.Setenv("HA_NOVA_TEST_KEYRING_FILE", filepath.Join(home, ".config", "ha-nova", ".test-relay-auth-token"))
-	stubCensusTTY(t, true, true)
 	resetServerProfileSelection(t)
 
 	relayServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -70,12 +69,12 @@ func setupCompletedInstallFixture(t *testing.T) (runtimePaths, runtimeConfig, in
 	}
 	writeInstalledClaudePluginFixture(t, home)
 	writeClaudeMarketplaceRegistrationFixture(t, home, filepath.Join(paths.ConfigDir, "claude-marketplace"))
-	if err := markCensusLifecycleStopped(paths); err != nil {
-		t.Fatalf("mark census lifecycle stopped: %v", err)
+	if err := markInstallLifecycleStopped(paths); err != nil {
+		t.Fatalf("mark install lifecycle stopped: %v", err)
 	}
 	marker := [][]byte{
 		captureInstallLifecycleGeneration(paths),
-		captureCensusLifecycleMarker(paths),
+		captureUninstallMarker(paths),
 	}
 	return paths, cfg, state, marker
 }
@@ -109,8 +108,8 @@ func TestAddServerOfferDeclineKeepsConfig(t *testing.T) {
 		t.Fatalf("read config before: %v", err)
 	}
 
-	// Enter declines the offer (default No); "2" answers the census ask.
-	stdout, stderr := captureInteractiveSetupIO(t, "\n2\n", func() int {
+	// Enter declines the offer (default No).
+	stdout, stderr := captureInteractiveSetupIO(t, "\n", func() int {
 		return interactiveSetup(paths, cfg, state, "claude", "", "", "", "", false, marker...)
 	})
 	output := stdout + stderr
@@ -171,8 +170,8 @@ func TestAddServerFlowCreatesNamedProfileAndKeepsDefaultIntact(t *testing.T) {
 	}
 
 	// y (offer) → cabin (name) → 1 (discovery pick) → Enter (app running)
-	// → Enter (open NOVA) → 123456 (code) → 2 (census).
-	input := joinSetupInputs([]string{"y", "cabin", "1", "", "", "123456", "2"})
+	// → Enter (open NOVA) → 123456 (code).
+	input := joinSetupInputs([]string{"y", "cabin", "1", "", "", "123456"})
 	stdout, stderr := captureInteractiveSetupIO(t, input, withAddServerDiscovery(
 		[]setupDiscoveryCandidate{
 			{Host: "192.168.1.7", HAURL: "http://192.168.1.7:8123", Via: "mDNS", Source: "mdns"},
@@ -227,8 +226,8 @@ func TestAddServerOfferSkippedWithoutInteractiveStdin(t *testing.T) {
 	stubAddServerTTY(t)
 	addServerOfferStdinIsTTY = func() bool { return false }
 
-	// Only the census answer is consumed — the offer must not read stdin.
-	stdout, stderr := captureInteractiveSetupIO(t, "2\n", func() int {
+	// The offer must not read stdin.
+	stdout, stderr := captureInteractiveSetupIO(t, "", func() int {
 		return interactiveSetup(paths, cfg, state, "claude", "", "", "", "", false, marker...)
 	})
 	output := stdout + stderr
@@ -462,9 +461,8 @@ func TestAddServerCancelSuppressesCloudFallbackReadyBanner(t *testing.T) {
 	installCloudSetupTestSeams(t, coordinator, true, true)
 
 	// "y" accepts the Cloud fallback offer; the next "y" accepts the add
-	// offer; "exit" cancels at the profile-name prompt; "2" answers the
-	// census ask.
-	stdout, stderr := captureInteractiveSetupIO(t, "y\ny\nexit\n2\n", func() int {
+	// offer; "exit" cancels at the profile-name prompt.
+	stdout, stderr := captureInteractiveSetupIO(t, "y\ny\nexit\n", func() int {
 		return interactiveSetup(paths, cfg, state, "claude", "", "", "", "", false, marker...)
 	})
 	output := stdout + stderr

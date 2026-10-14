@@ -25,7 +25,6 @@ func TestDetectPathsConfigDirOverrideKeepsLoginHome(t *testing.T) {
 	for name, got := range map[string]string{
 		"ConfigFile": paths.ConfigFile,
 		"StateFile":  paths.StateFile,
-		"CensusFile": paths.CensusFile,
 	} {
 		if filepath.Dir(got) != configDir {
 			t.Errorf("%s = %q, want parent %q", name, got, configDir)

@@ -128,7 +128,7 @@ func TestSetupPrerequisiteFailuresRenderCloudRecoveryFirst(
 			for _, source := range []string{
 				"state",
 				"install",
-				"census",
+				"uninstall",
 			} {
 				t.Run(profile+"/"+mode.name+"/"+source, func(t *testing.T) {
 					restoreFeature := setCloudFeatureTestBuild(
@@ -177,7 +177,7 @@ func TestSetupPrerequisiteFailuresRenderCloudRecoveryFirst(
 						wantFailure = "cannot inspect install lifecycle"
 					default:
 						corruptPath =
-							censusLifecycleMarkerPath(paths)
+							uninstallMarkerPath(paths)
 						wantFailure = "cannot inspect uninstall lifecycle"
 					}
 					if err := os.WriteFile(

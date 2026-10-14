@@ -95,7 +95,7 @@ func TestValidatedRelayCommandRepairsBeforeConfigOrAuth(t *testing.T) {
 	}
 }
 
-func TestMigratedFirstUseCarriesCensusAskOnCurrentTask(t *testing.T) {
+func TestMigratedFirstUseFinalizesOnCurrentTask(t *testing.T) {
 	paths := setupHealableInstall(t)
 	codexRoot := filepath.Join(paths.Home, ".agents", "skills", "ha-nova")
 	if _, err := installTreeClient(filepath.Dir(codexRoot), filepath.Join(paths.InstallRoot, "skills"), false); err != nil {
@@ -144,12 +144,6 @@ func TestMigratedFirstUseCarriesCensusAskOnCurrentTask(t *testing.T) {
 	if exit != 0 {
 		t.Fatalf("relay core failed:\n%s", output)
 	}
-	if !strings.Contains(output, censusSkillNoticeBlock) {
-		t.Fatalf("transition task missed first-use census carrier:\n%s", output)
-	}
-	if strings.Count(output, censusSkillNoticeBlock) != 1 {
-		t.Fatalf("transition task emitted census ask more than once:\n%s", output)
-	}
 	if !markerHasVersion(filepath.Join(paths.CacheDir, sessionBootstrapVerifiedMarker), "0.6.1") {
 		t.Fatal("successful current-task carrier did not finalize migration marker")
 	}
@@ -171,7 +165,6 @@ func TestCheckUpdateDoesNotVerifyStaleLayoutWhenRepairLockIsBusy(t *testing.T) {
 	}, 0o644); err != nil {
 		t.Fatalf("write current update cache: %v", err)
 	}
-	t.Setenv("HA_NOVA_NO_CENSUS", "1")
 	if err := os.MkdirAll(paths.ConfigDir, 0o755); err != nil {
 		t.Fatalf("mkdir config dir: %v", err)
 	}
@@ -273,7 +266,6 @@ func TestRelayCoreUpstreamErrorLeavesMigratedCarrierPending(t *testing.T) {
 
 func TestQuietCheckFinalizesCarrierProducedByContendingRepair(t *testing.T) {
 	paths := setupHealableInstall(t)
-	t.Setenv("HA_NOVA_NO_CENSUS", "1")
 	if err := os.MkdirAll(paths.CacheDir, 0o755); err != nil {
 		t.Fatalf("mkdir cache: %v", err)
 	}
@@ -327,7 +319,7 @@ func TestCarrierCompletionCannotOverwriteNewerOwner(t *testing.T) {
 	}
 }
 
-func TestMigratedCarrierCannotTouchReplacementInstallCensus(t *testing.T) {
+func TestMigratedCarrierCannotFinalizeReplacementInstall(t *testing.T) {
 	paths := setupHealableInstall(t)
 	if err := os.MkdirAll(paths.CacheDir, 0o755); err != nil {
 		t.Fatal(err)
@@ -339,33 +331,24 @@ func TestMigratedCarrierCannotTouchReplacementInstallCensus(t *testing.T) {
 	if err := saveState(paths, installState{SchemaVersion: stateSchemaVersion, Version: "0.6.1"}); err != nil {
 		t.Fatal(err)
 	}
-	if err := saveCensusState(paths, censusState{}); err != nil {
-		t.Fatal(err)
-	}
 
 	previousRun := runMigratedFirstUseCheckForCarrier
 	runMigratedFirstUseCheckForCarrier = func(paths runtimePaths, _ time.Duration) {
-		if err := markCensusLifecycleStopped(paths); err != nil {
-			t.Fatal(err)
-		}
-		if err := os.Remove(paths.CensusFile); err != nil && !os.IsNotExist(err) {
+		if err := markInstallLifecycleStopped(paths); err != nil {
 			t.Fatal(err)
 		}
 		replacementLifecycle := [][]byte{
 			captureInstallLifecycleGeneration(paths),
-			captureCensusLifecycleMarker(paths),
+			captureUninstallMarker(paths),
 		}
 		if err := completeSetupLifecycle(paths, replacementLifecycle...); err != nil {
-			t.Fatal(err)
-		}
-		if err := saveCensusState(paths, censusState{}); err != nil {
 			t.Fatal(err)
 		}
 	}
 	t.Cleanup(func() { runMigratedFirstUseCheckForCarrier = previousRun })
 
 	finishMigratedFirstUse(paths, true, false, time.Now().Add(10*time.Second))
-	if state := loadCensusState(paths); state.SkillPresentations != 0 || state.AskedAt != "" {
-		t.Fatalf("stale carrier changed replacement census state: %+v", state)
+	if markerHasVersion(marker, "0.6.1") {
+		t.Fatal("stale carrier finalized the replacement install's marker")
 	}
 }

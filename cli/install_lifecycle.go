@@ -10,12 +10,14 @@ import (
 	"runtime"
 )
 
+const uninstallMarkerName = ".ha-nova-uninstalled"
+
 // The uninstall marker lives beside (not inside) a persistent device/user-local
-// root, so managed-directory and cache cleanup cannot remove it. It contains only an opaque
-// random nonce: no user, consent, timestamp, process, or census data. A setup
-// that started after that exact marker was written may
-// remove it on successful completion; stale update/setup processes cannot.
-func censusLifecycleMarkerPath(paths runtimePaths) string {
+// root, so managed-directory and cache cleanup cannot remove it. It contains
+// only an opaque random nonce: no user, timestamp, or process data. A setup
+// that started after that exact marker was written may remove it on successful
+// completion; stale update/setup processes cannot.
+func uninstallMarkerPath(paths runtimePaths) string {
 	// Cache roots are disposable and cannot uphold an uninstall barrier. Keep
 	// the marker beside the managed config root on Unix, and beside the
 	// device-local data root on Windows (never roaming APPDATA).
@@ -33,11 +35,11 @@ func censusLifecycleMarkerPath(paths runtimePaths) string {
 			base = filepath.Join(paths.Home, ".config", "ha-nova")
 		}
 	}
-	return filepath.Join(filepath.Dir(base), ".ha-nova-census-uninstalled")
+	return filepath.Join(filepath.Dir(base), uninstallMarkerName)
 }
 
-func censusLifecycleStopped(paths runtimePaths) bool {
-	marker := censusLifecycleMarkerPath(paths)
+func installLifecycleStopped(paths runtimePaths) bool {
+	marker := uninstallMarkerPath(paths)
 	if marker == "" {
 		return true
 	}
@@ -45,15 +47,15 @@ func censusLifecycleStopped(paths runtimePaths) bool {
 	return err == nil || !errors.Is(err, os.ErrNotExist)
 }
 
-func captureCensusLifecycleMarker(paths runtimePaths) []byte {
-	data, _ := readCensusLifecycleMarker(paths)
+func captureUninstallMarker(paths runtimePaths) []byte {
+	data, _ := readUninstallMarker(paths)
 	return data
 }
 
-func readCensusLifecycleMarker(paths runtimePaths) ([]byte, error) {
-	marker := censusLifecycleMarkerPath(paths)
+func readUninstallMarker(paths runtimePaths) ([]byte, error) {
+	marker := uninstallMarkerPath(paths)
 	if marker == "" {
-		return nil, fmt.Errorf("census lifecycle marker path unknown")
+		return nil, fmt.Errorf("uninstall marker path unknown")
 	}
 	data, err := os.ReadFile(marker)
 	if errors.Is(err, os.ErrNotExist) {
@@ -63,13 +65,13 @@ func readCensusLifecycleMarker(paths runtimePaths) ([]byte, error) {
 		return nil, err
 	}
 	if len(data) == 0 {
-		return nil, fmt.Errorf("census lifecycle marker is empty")
+		return nil, fmt.Errorf("uninstall marker is empty")
 	}
 	return data, nil
 }
 
 func installLifecycleGenerationPath(paths runtimePaths) string {
-	marker := censusLifecycleMarkerPath(paths)
+	marker := uninstallMarkerPath(paths)
 	if marker == "" {
 		return ""
 	}
@@ -111,39 +113,27 @@ func rotateInstallLifecycleGeneration(paths runtimePaths) error {
 	return writeJSONFile(path, fmt.Sprintf("%x", nonce[:]), 0o600)
 }
 
-func markCensusLifecycleStopped(paths runtimePaths) error {
-	marker := censusLifecycleMarkerPath(paths)
+func markInstallLifecycleStopped(paths runtimePaths) error {
+	marker := uninstallMarkerPath(paths)
 	if marker == "" {
-		return fmt.Errorf("census lifecycle marker path unknown")
+		return fmt.Errorf("uninstall marker path unknown")
 	}
 	if err := rotateInstallLifecycleGeneration(paths); err != nil {
 		return err
 	}
 	var nonce [32]byte
 	if _, err := rand.Read(nonce[:]); err != nil {
-		return fmt.Errorf("generate census lifecycle nonce: %w", err)
+		return fmt.Errorf("generate uninstall marker nonce: %w", err)
 	}
 	value := fmt.Sprintf("%x", nonce[:])
 	return writeJSONFile(marker, value, 0o600)
 }
 
-func reactivateCensusAfterSetup(paths runtimePaths, captured []byte) (bool, error) {
+func clearUninstallMarkerAfterSetup(paths runtimePaths, captured []byte) (bool, error) {
 	if len(captured) == 0 {
 		return false, nil
 	}
-	release, ok := acquireCensusLock(paths)
-	if !ok {
-		return false, fmt.Errorf("cannot acquire census lifecycle lock")
-	}
-	defer release()
-	return reactivateCensusAfterSetupLocked(paths, captured)
-}
-
-func reactivateCensusAfterSetupLocked(paths runtimePaths, captured []byte) (bool, error) {
-	if len(captured) == 0 {
-		return false, nil
-	}
-	marker := censusLifecycleMarkerPath(paths)
+	marker := uninstallMarkerPath(paths)
 	current, err := os.ReadFile(marker)
 	if errors.Is(err, os.ErrNotExist) {
 		return true, nil
@@ -158,4 +148,33 @@ func reactivateCensusAfterSetupLocked(paths runtimePaths, captured []byte) (bool
 		return false, err
 	}
 	return true, nil
+}
+
+// removeLegacyCensusState deletes local state left by releases that shipped
+// the opt-in Census. Best effort and silent: nothing is sent anywhere. The old
+// uninstall marker carried the same opaque nonce semantics, so it is renamed
+// rather than dropped and keeps blocking stale processes after an uninstall.
+func removeLegacyCensusState(paths runtimePaths) {
+	for _, dir := range []string{paths.ConfigDir, paths.LocalDataDir} {
+		if dir != "" {
+			_ = os.Remove(filepath.Join(dir, "census.json"))
+			_ = os.Remove(filepath.Join(dir, "census.lock"))
+		}
+	}
+	if paths.CacheDir != "" {
+		markers, _ := filepath.Glob(filepath.Join(paths.CacheDir, "census-*"))
+		for _, marker := range markers {
+			_ = os.Remove(marker)
+		}
+	}
+	marker := uninstallMarkerPath(paths)
+	if marker == "" {
+		return
+	}
+	legacy := filepath.Join(filepath.Dir(marker), ".ha-nova-census-uninstalled")
+	if _, err := os.Stat(marker); err == nil {
+		_ = os.Remove(legacy)
+		return
+	}
+	_ = os.Rename(legacy, marker)
 }

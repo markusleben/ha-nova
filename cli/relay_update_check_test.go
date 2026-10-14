@@ -33,7 +33,6 @@ func TestRunCheckUpdateQuietBoundsRelayDiscoveryAsOneDeadline(t *testing.T) {
 	}, 0o644); err != nil {
 		t.Fatalf("write update cache: %v", err)
 	}
-	t.Setenv("HA_NOVA_NO_CENSUS", "1")
 	previousTimeout := firstUseRelayNoticeTimeout
 	firstUseRelayNoticeTimeout = 20 * time.Millisecond
 	t.Cleanup(func() { firstUseRelayNoticeTimeout = previousTimeout })

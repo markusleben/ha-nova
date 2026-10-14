@@ -39,7 +39,7 @@ func repairMissingSessionBootstrapWithContention(paths runtimePaths) (bool, bool
 		return false, false
 	}
 	lifecycleGeneration, generationErr := readInstallLifecycleGeneration(paths)
-	if generationErr != nil || censusLifecycleStopped(paths) {
+	if generationErr != nil || installLifecycleStopped(paths) {
 		return false, false
 	}
 	version := localVersion(paths)
@@ -249,7 +249,7 @@ func loadSessionBootstrapRepairPending(path, version string) ([]string, bool, er
 
 func markSessionBootstrapLayoutVerified(paths runtimePaths) {
 	lifecycleGeneration, generationErr := readInstallLifecycleGeneration(paths)
-	if generationErr != nil || censusLifecycleStopped(paths) {
+	if generationErr != nil || installLifecycleStopped(paths) {
 		return
 	}
 	version := localVersion(paths)

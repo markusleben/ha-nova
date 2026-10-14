@@ -80,7 +80,6 @@ func TestRunSetupNonInteractiveSkipsClipboardAndBrowserSideEffects(t *testing.T)
 	t.Setenv("HOME", home)
 	t.Setenv("HA_NOVA_ALLOW_INSECURE_TEST_KEYRING", "1")
 	t.Setenv("HA_NOVA_TEST_KEYRING_FILE", filepath.Join(home, ".config", "ha-nova", ".test-relay-auth-token"))
-	stubCensusTTY(t, true, true)
 	t.Setenv("HA_NOVA_DEV_ROOT", repoRootForSetupTest(t))
 
 	haServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -150,12 +149,6 @@ func TestRunSetupNonInteractiveSkipsClipboardAndBrowserSideEffects(t *testing.T)
 	}
 	if browserCalls != 0 {
 		t.Fatalf("expected non-interactive setup not to launch browser, got %d call(s)", browserCalls)
-	}
-	if strings.Contains(output, censusAskQuestionPrefix) {
-		t.Fatalf("non-interactive token setup prompted for census:\n%s", output)
-	}
-	if _, err := os.Stat(paths.CensusFile); !os.IsNotExist(err) {
-		t.Fatalf("non-interactive token setup stamped census ask state: %v", err)
 	}
 }
 
@@ -832,13 +825,12 @@ func TestRunSetupNonInteractivePairedInstallHonorsDeviceCredential(t *testing.T)
 	}
 }
 
-func TestCompleteNonInteractivePairedSetupNeverPromptsForCensus(t *testing.T) {
+func TestCompleteNonInteractivePairedSetupSucceeds(t *testing.T) {
 	withClientRuntimeAvailability(t, map[string]bool{"antigravity": true})
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	t.Setenv("HA_NOVA_DEV_ROOT", repoRootForSetupTest(t))
 	t.Setenv("HA_NOVA_TEST_SECRET_DIR", t.TempDir())
-	stubCensusTTY(t, true, true)
 
 	health := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/health" {
@@ -876,12 +868,6 @@ func TestCompleteNonInteractivePairedSetupNeverPromptsForCensus(t *testing.T) {
 	})
 	if exitCode != 0 {
 		t.Fatalf("paired non-interactive setup exit = %d:\n%s", exitCode, output)
-	}
-	if strings.Contains(output, censusAskQuestionPrefix) {
-		t.Fatalf("paired non-interactive setup prompted for census:\n%s", output)
-	}
-	if _, err := os.Stat(paths.CensusFile); !os.IsNotExist(err) {
-		t.Fatalf("paired non-interactive setup stamped census ask state: %v", err)
 	}
 }
 

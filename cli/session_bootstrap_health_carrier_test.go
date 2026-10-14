@@ -49,7 +49,6 @@ func healthCarrierFixture(t *testing.T) runtimePaths {
 	}
 	t.Setenv("HA_NOVA_ALLOW_INSECURE_TEST_KEYRING", "1")
 	t.Setenv("HA_NOVA_TEST_KEYRING_FILE", filepath.Join(paths.ConfigDir, ".test-relay-auth-token"))
-	t.Setenv("HA_NOVA_NO_CENSUS", "1")
 	if err := writeRelayAuthToken("test-relay-token"); err != nil {
 		t.Fatalf("write relay token: %v", err)
 	}

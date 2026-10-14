@@ -43,35 +43,13 @@ func removeManagedConfigArtifactsWithSnapshot(
 	configExists bool,
 	verifyConfigSnapshot bool,
 ) error {
-	// Serialize removal with census sends and opt-out. The coordinator lives
-	// outside ConfigDir (home-directory flock on Unix, named mutex on Windows),
-	// so removing census.json and then ConfigDir cannot unlink the active lock
-	// or let another process enter against a replacement inode.
-	release, ok := acquireCensusLock(paths)
-	if !ok {
-		return fmt.Errorf("cannot acquire census state lock for uninstall")
-	}
-	defer release()
-	if _, err := os.Stat(paths.CensusFile); err == nil {
-		if state, writable := readCensusState(paths); writable {
-			result, withdrawErr := disableAndWithdrawCensusLocked(paths, &state, false)
-			switch {
-			case withdrawErr != nil:
-				report.addNote("Census reporting is stopped by uninstall; the server-side withdrawal could not be prepared, so any existing record expires automatically.")
-			case result.Confirmed:
-				report.addNote("Deleted this installation's Census record.")
-			case result.Attempted && result.Err != nil:
-				report.addNote("Census reporting is stopped; server-side deletion was not confirmed, so the record expires automatically.")
-			}
-		}
-	}
-	// Persist an opaque stop marker before removing actual install/census state.
+	// Persist an opaque stop marker before removing actual install state.
 	// A true no-op uninstall must not create residue on a clean machine.
-	if censusLifecycleEvidence(paths) {
-		if err := markCensusLifecycleStopped(paths); err != nil {
-			return fmt.Errorf("cannot stop census lifecycle: %w", err)
+	if installLifecycleEvidence(paths) {
+		if err := markInstallLifecycleStopped(paths); err != nil {
+			return fmt.Errorf("cannot stop install lifecycle: %w", err)
 		}
-		report.addNote("Retained two opaque random local safety markers so stale processes cannot restore the install or restart the census; neither is sent, and successful setup removes the census stop marker while rotating the install generation.")
+		report.addNote("Retained two opaque random local safety markers so stale processes cannot restore the install; neither is sent, and successful setup removes the uninstall marker while rotating the install generation.")
 	}
 	for _, path := range managedConfigArtifactPaths(paths, purge) {
 		if purge && path == paths.ConfigFile && verifyConfigSnapshot {
@@ -126,11 +104,10 @@ func removeConfigAtSnapshot(
 	return nil
 }
 
-func censusLifecycleEvidence(paths runtimePaths) bool {
+func installLifecycleEvidence(paths runtimePaths) bool {
 	for _, path := range []string{
-		censusLifecycleMarkerPath(paths),
+		uninstallMarkerPath(paths),
 		paths.StateFile,
-		paths.CensusFile,
 		paths.ConfigFile,
 		paths.VersionFile,
 		paths.BundleFile,
@@ -158,17 +135,7 @@ func removeManagedCacheArtifacts(paths runtimePaths, report *uninstallReport) er
 
 func managedConfigArtifactPaths(paths runtimePaths, purge bool) []string {
 	pathsList := []string{
-		// Lifecycle sentinel first. Its removal happens while the census lock is
-		// held; every queued census writer then fails closed before it can
-		// recreate census.json or ConfigDir.
 		paths.StateFile,
-		paths.CensusFile,
-		// Pre-v0.21 Windows builds placed census state under roaming APPDATA.
-		// Delete it, never migrate its potentially cross-device consent.
-		filepath.Join(paths.ConfigDir, "census.json"),
-		// Remove the pre-v0.21 lock-file artifact. Current locking never uses a
-		// file inside ConfigDir.
-		filepath.Join(paths.ConfigDir, "census.lock"),
 		filepath.Join(paths.ConfigDir, "relay"),
 		filepath.Join(paths.ConfigDir, "relay.exe"),
 		filepath.Join(paths.ConfigDir, "update"),
@@ -189,7 +156,7 @@ func managedConfigArtifactPaths(paths runtimePaths, purge bool) []string {
 }
 
 func managedCacheArtifactPaths(paths runtimePaths) []string {
-	list := []string{
+	return []string{
 		paths.UpdateCacheFile,
 		filepath.Join(paths.CacheDir, updateNudgeMarkerName),
 		filepath.Join(paths.CacheDir, updateRefreshMarkerName),
@@ -198,14 +165,6 @@ func managedCacheArtifactPaths(paths runtimePaths) []string {
 		filepath.Join(paths.CacheDir, sessionBootstrapVerifiedMarker),
 		filepath.Join(paths.CacheDir, sessionBootstrapRepairPendingFile),
 	}
-	// Clean pre-v0.21 census action markers. Current census serialization does
-	// not create cache markers.
-	if paths.CacheDir != "" {
-		if markers, err := filepath.Glob(filepath.Join(paths.CacheDir, "census-*")); err == nil {
-			list = append(list, markers...)
-		}
-	}
-	return list
 }
 
 func removeDirIfEmptyWithReport(path string, report *uninstallReport) error {
