@@ -20,8 +20,7 @@ describe("census production isolation (#446)", () => {
   });
 
   it("guards the production endpoint against CI runs in the product itself", () => {
-    // Workflow files are frozen to uses:-only deltas while Cloud remote is
-    // enabled, so the smoke isolation lives in the census client: CI runs
+    // The smoke isolation lives in the census client: CI runs
     // skip the ping and the shared send layer refuses the BUILT-IN endpoint
     // (stubbed test endpoints stay unaffected).
     const census = readFileSync("cli/census.go", "utf8");

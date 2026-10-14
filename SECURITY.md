@@ -23,8 +23,8 @@ Current `main` branch is supported for security fixes.
 - Functional requests are never replayed across transports. Ambiguous
   completion is reported as unknown instead of retried.
 
-The Cloud remote transport is a Beta on `main` and remains gated on the
-real-device, role, lifecycle, redirect, parity, and stress matrix in
+The Cloud remote transport is a Beta. Release binaries enable it only with
+signed bundle provenance; its contracts live in
 `docs/work/2026-07-25-home-assistant-cloud-remote-spec.md`.
 
 ## Reporting a Vulnerability

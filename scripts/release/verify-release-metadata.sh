@@ -58,6 +58,34 @@ const pluginEntry = marketplaceJson.plugins[0];
 assertEqual(".claude-plugin/marketplace.json plugins[0].version", pluginEntry.version, expectedVersion);
 assertEqual(".claude-plugin/marketplace.json plugins[0].source", pluginEntry.source, "./");
 
+// Cloud Remote metadata: the CLI bundle (version.json) and the Relay App
+// (nova/version.json) must agree, or one side silently disables Cloud.
+const appVersionJson = readJSON("nova/version.json");
+for (const key of ["skill_version", "min_relay_version", "cloud_remote_enabled"]) {
+  assertEqual(`nova/version.json ${key}`, appVersionJson[key], versionJson[key]);
+}
+const platforms = versionJson.cloud_remote_platforms;
+if (!Array.isArray(platforms) || JSON.stringify(appVersionJson.cloud_remote_platforms) !== JSON.stringify(platforms)) {
+  fail("cloud_remote_platforms must be an array and identical in version.json and nova/version.json");
+}
+if (typeof versionJson.cloud_remote_enabled !== "boolean") {
+  fail("version.json cloud_remote_enabled must be a boolean");
+}
+if (new Set(platforms).size !== platforms.length || platforms.some((p) => !["darwin", "linux", "windows"].includes(p))) {
+  fail("cloud_remote_platforms may list only darwin, linux, windows, without duplicates");
+}
+if (versionJson.cloud_remote_enabled !== platforms.length > 0) {
+  fail("cloud_remote_platforms must be non-empty exactly when cloud_remote_enabled is true");
+}
+if (versionJson.cloud_remote_enabled) {
+  const appConfig = fs.readFileSync(path.join(rootDir, "nova/config.yaml"), "utf8");
+  const appVersions = [...appConfig.matchAll(/^version:\s*"([^"]+)"\s*$/gm)];
+  if (appVersions.length !== 1) {
+    fail("nova/config.yaml must contain exactly one quoted App version");
+  }
+  assertEqual("version.json min_relay_version (Cloud enabled) vs nova/config.yaml version", versionJson.min_relay_version, appVersions[0][1]);
+}
+
 if (rawTag) {
   if (!/^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-rc[1-9]\d*)?$/.test(rawTag)) {
     fail(`tag must match vX.Y.Z or vX.Y.Z-rcN, got ${rawTag}`);
