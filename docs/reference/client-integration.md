@@ -60,3 +60,22 @@ Use `per_os` when a setup capability differs by platform:
 ```
 
 Keep registry metadata declarative. Do not add cleanup globs, shell hooks, or dynamic scripts to client entries.
+
+## Use with any MCP client
+
+Clients without a shell (or without HA NOVA skill support) can use HA NOVA through MCP. `ha-nova mcp` is a local stdio server that reuses this computer's pairing — run `ha-nova setup` first; the server never asks for credentials and never opens a keyring prompt. Add it to the client's MCP configuration (Claude Desktop: `claude_desktop_config.json`; other clients use the same `command`/`args` shape):
+
+```json
+{
+  "mcpServers": {
+    "ha-nova": {
+      "command": "ha-nova",
+      "args": ["mcp"]
+    }
+  }
+}
+```
+
+With several servers, pin one: `"args": ["mcp", "--server", "<name>"]` (or set `HA_NOVA_SERVER` in the entry's `env`).
+
+The server offers eight tools that run the same checks as the CLI verbs: `ha_find`, `ha_get`, `ha_history`, `ha_trace`, and `ha_read` (raw reads only) are read-only; `ha_plan` previews changes; `ha_call` controls devices (ordinary calls run immediately and are verified); `ha_apply` executes a confirmed plan. A plan that needs a confirmation code (locks, gates, garage doors, alarm disarm, deletes) runs only with the exact code the user types. Each skill is available as a prompt (`ha-nova`, `ha-nova-<skill>`) and the shared references as `ha-nova://skills/…` resources. The server speaks MCP `2026-07-28` (per-request metadata, `server/discover`) and the `initialize`-based revisions `2025-11-25` back to `2024-11-05`.
