@@ -130,6 +130,9 @@ func markInstallLifecycleStopped(paths runtimePaths) error {
 }
 
 func clearUninstallMarkerAfterSetup(paths runtimePaths, captured []byte) (bool, error) {
+	// A completed setup supersedes any uninstall recorded by an older release;
+	// drop its legacy marker even if the startup rename did not happen.
+	_ = os.Remove(legacyUninstallMarkerPath(paths))
 	if len(captured) == 0 {
 		return false, nil
 	}
@@ -171,10 +174,16 @@ func removeLegacyCensusState(paths runtimePaths) {
 	if marker == "" {
 		return
 	}
-	legacy := filepath.Join(filepath.Dir(marker), ".ha-nova-census-uninstalled")
+	legacy := legacyUninstallMarkerPath(paths)
 	if _, err := os.Stat(marker); err == nil {
 		_ = os.Remove(legacy)
 		return
 	}
 	_ = os.Rename(legacy, marker)
+}
+
+// legacyUninstallMarkerPath is where releases with the opt-in Census kept the
+// uninstall barrier.
+func legacyUninstallMarkerPath(paths runtimePaths) string {
+	return filepath.Join(filepath.Dir(uninstallMarkerPath(paths)), ".ha-nova-census-uninstalled")
 }

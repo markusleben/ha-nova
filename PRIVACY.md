@@ -9,8 +9,11 @@ from GitHub.
 Earlier releases offered an opt-in Census that, only after an explicit yes,
 sent a small installation report. The Census has been removed. The current
 CLI never asks for it, never sends a Census report, and deletes its local
-Census state on its first run. Data previously received is deleted when the Census
-service is retired.
+Census state on its first run. Updating sends no deletion request: an
+installation that stops reporting has its record deleted automatically after
+60 days, and all Census data is deleted when the Census service is shut down.
+Older releases that were opted in keep reporting weekly until they are
+updated.
 
 ## Optional Home Assistant Cloud transport
 

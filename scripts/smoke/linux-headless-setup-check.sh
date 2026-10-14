@@ -49,12 +49,14 @@ require_env() {
 
 run_remote() {
   local command="$1"
-  ssh "${HA_NOVA_LIVE_SSH_HOST}" "bash -lc $(printf '%q' "$command")"
+  local isolated_command="export HA_NOVA_NO_CENSUS=1; ${command}"
+  ssh "${HA_NOVA_LIVE_SSH_HOST}" "bash -lc $(printf '%q' "$isolated_command")"
 }
 
 run_remote_tty() {
   local command="$1"
-  ssh -tt "${HA_NOVA_LIVE_SSH_HOST}" "bash -lc $(printf '%q' "$command")"
+  local isolated_command="export HA_NOVA_NO_CENSUS=1; ${command}"
+  ssh -tt "${HA_NOVA_LIVE_SSH_HOST}" "bash -lc $(printf '%q' "$isolated_command")"
 }
 
 if [[ "${1:-}" == "--help" ]]; then

@@ -80,3 +80,17 @@ func TestCensusCommandIsUnknown(t *testing.T) {
 		t.Fatalf("usage still advertises census:\n%s", output)
 	}
 }
+
+func TestSetupCompletionDropsLegacyUninstallMarker(t *testing.T) {
+	// The startup rename can fail transiently; a completed setup must still
+	// not leave the old-release barrier behind to re-block the fresh install.
+	paths := legacyCensusTestPaths(t)
+	legacy := legacyUninstallMarkerPath(paths)
+	writeTestFile(t, legacy, `"0123"`)
+	if _, err := clearUninstallMarkerAfterSetup(paths, nil); err != nil {
+		t.Fatalf("clearUninstallMarkerAfterSetup() error: %v", err)
+	}
+	if _, err := os.Stat(legacy); !os.IsNotExist(err) {
+		t.Fatalf("legacy marker still present after setup completion: %v", err)
+	}
+}
