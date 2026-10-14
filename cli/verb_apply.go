@@ -33,6 +33,9 @@ re-plans from the stored request, and sends nothing when anything changed
 confirmation step, so run it only after the user confirmed that preview. A
 typed plan needs --confirm with the exact code the user typed (three wrong
 codes discard the plan; that counter guards against slips, not tampering).
+Config plans (plan write/delete/revert) save the config once, reload, and
+verify the read-back; an update lands on the undo stack, and a delete takes
+a config snapshot first (--no-snapshot only after the user chose that).
 Exit: 0 verified/accepted, 2 drift, 4 refused/missing/expired/wrong code,
 5 target gone, 6 unverified/failed, 7 outcome unknown (verify; never retry).`
 
@@ -65,6 +68,7 @@ func runApplyCommand(paths runtimePaths, args []string) int {
 	addVerbFlags(fs, &opts)
 	id := fs.String("plan", "", "plan id from plan/call (p_ + 12 hex)")
 	code := fs.String("confirm", "", "the exact confirmation code the user typed (typed plans only)")
+	noSnapshot := fs.Bool("no-snapshot", false, "delete plans: proceed without the pre-delete config snapshot (only after the user chose that)")
 	positional, err := parseVerbArgs(fs, &opts, args, applyHelp)
 	if err == nil && (len(positional) != 0 || !planIDPattern.MatchString(*id)) {
 		err = errors.New("Usage: " + applyUsage)
@@ -72,7 +76,7 @@ func runApplyCommand(paths runtimePaths, args []string) int {
 	if err != nil {
 		return verbUsageError("apply", err)
 	}
-	env, exit := applyPlan(paths, opts, *id, *code)
+	env, exit := applyPlan(paths, opts, *id, *code, *noSnapshot)
 	if !printVerbEnvelope(env) {
 		return verbExitError
 	}
@@ -85,7 +89,7 @@ func refused(code, message string) *verbFailure {
 
 // applyPlan runs the spec §2.1 apply order: claim (I8), expiry, server,
 // empty-target guard, code (I2), recompute (I3), one execution (I6, I7).
-func applyPlan(paths runtimePaths, opts verbOptions, id, code string) (env verbEnvelope, exit int) {
+func applyPlan(paths runtimePaths, opts verbOptions, id, code string, noSnapshot bool) (env verbEnvelope, exit int) {
 	env = verbEnvelope{SchemaVersion: 1, Verb: "apply", Status: "ok"}
 	fail := func(err error) (verbEnvelope, int) {
 		exit := setVerbError(&env, err)
@@ -121,24 +125,34 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string) (env verbE
 	}()
 	plan, err := readPlanFile(claimed)
 	expires, timeErr := time.Parse(time.RFC3339, plan.ExpiresAt)
-	request := plan.Request
+	request, config := plan.Request, plan.ConfigRequest
 	// The file is untrusted beyond its hash: kind, version, and the stored
-	// request are re-validated exactly as a fresh plan call would.
+	// request are re-validated exactly as a fresh plan would be.
+	valid := err == nil && timeErr == nil && plan.ID == id && plan.SchemaVersion == 1
+	isCall := valid && plan.Kind == "call" && config == nil && request.validate() == nil
+	isConfig := valid && config != nil && config.Op == plan.Kind && config.ConfigID != "" && config.validate() == nil
 	switch {
-	case err != nil || timeErr != nil || plan.ID != id || plan.Kind != "call" || plan.SchemaVersion != 1 || request.validate() != nil:
-		return fail(refused("PLAN_INVALID", "plan "+id+" cannot be read or is not a valid call plan"))
-	case staticRefusal(request) != nil:
+	case !isCall && !isConfig:
+		return fail(refused("PLAN_INVALID", "plan "+id+" cannot be read or is not a valid plan"))
+	case isCall && staticRefusal(request) != nil:
 		return fail(refuse(&env, *staticRefusal(request)))
 	case !verbNow().Before(expires):
 		return fail(refused("PLAN_EXPIRED", "plan "+id+" expired at "+plan.ExpiresAt))
 	case plan.Server != s.server:
 		return fail(refused("SERVER_MISMATCH", fmt.Sprintf("plan %s belongs to server %q", id, plan.Server)))
-	case frozeNothing(request, plan.Action):
+	case isCall && frozeNothing(request, plan.Action):
 		return fail(refused("UNRESOLVED_TARGET", "the plan named targets but froze none"))
 	}
 
 	// Recompute the whole plan from the stored request (I3).
-	e, fresh, err := computeCallPlan(s, &env, request)
+	var e *tierEngine
+	var fresh storedPlan
+	var ctx configContext
+	if isCall {
+		e, fresh, err = computeCallPlan(s, &env, request)
+	} else {
+		e, fresh, ctx, err = computeConfigPlan(paths, s, &env, *config)
+	}
 	var expected *verbFailure
 	if err != nil && !errors.As(err, &expected) && os.Rename(claimed, open) == nil {
 		consumed = false // the Relay is unreachable: nothing was sent, the plan stays usable
@@ -162,7 +176,8 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string) (env verbE
 	}
 	wantCode := ""
 	if fresh.Tier == tierTyped.String() {
-		wantCode = confirmCode(fresh.Action.Service, fresh.Action.EntityIDs, idHex)
+		service, objects := codeParts(fresh)
+		wantCode = confirmCode(service, objects, idHex)
 		switch typed := strings.TrimSpace(code); {
 		case typed == "":
 			if os.Rename(claimed, open) == nil {
@@ -182,6 +197,16 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string) (env verbE
 		}
 	}
 	env.Plan = &verbPlan{ID: plan.ID, Hash: fresh.Hash, ExpiresAt: plan.ExpiresAt, Confirm: fresh.Confirm, Code: wantCode}
+	if isConfig {
+		err := executeConfig(paths, s, &env, *fresh.ConfigAction, ctx, noSnapshot)
+		if errors.Is(err, errSnapshotFailed) && os.Rename(claimed, open) == nil {
+			consumed = false // nothing was deleted: the typed code stays valid for --no-snapshot
+		}
+		if err != nil {
+			return fail(err)
+		}
+		return env, env.exit
+	}
 	if frozeNothing(request, fresh.Action) {
 		return fail(refused("UNRESOLVED_TARGET", "the plan named targets but froze none"))
 	}

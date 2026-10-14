@@ -196,6 +196,9 @@ Reason codes (`cli/tier_rules.go`; `TestTierReasonCodesAreDocumented` pins each 
 | `CALL_SERVICE_LISTENER_UNEXPLAINED` | preview | `call_service` listeners beyond the enumerated automations (frontend streams; step 5b) |
 | `RUN_EVENT_LISTENER_UNEXPLAINED` | preview | `script_started`/`automation_triggered` listeners beyond the enumerated automations (step 5b) |
 | `DEVICE_ACCESS` | typed | integration service on an entity whose device has a lock, alarm panel, or access cover (step 2) |
+| `CONFIG_WRITE` | preview | `plan write` (create or update); typed when the config's actions reach a typed action (PR5 notes) |
+| `CONFIG_REVERT` | preview | `plan revert` of the last verified update (PR5 notes) |
+| `CONFIG_DELETE` | typed | `plan delete`, always (PR5 notes) |
 | `TARGET_REQUIRED` | refused | a service whose `/api/services` entry takes a `target`, called without one, would act on every entity of its domain; unreadable list → refused for any entity domain (PR3 notes) |
 | `RESPONSE_ONLY_SERVICE` | refused | a service that only runs with `return_response` (PR3 notes) |
 | `SWITCH_AS_X_ACCESS` | typed | the switch behind an access-capable `switch_as_x` wrapper (step 2) |
@@ -369,6 +372,14 @@ Decisions (maintainer, 2026-10-14)
 - **Call-service surplus → preview** (maintainer default 2026-10-14, analogous to Q2). An unexplained `call_service` listener surplus is preview with `CALL_SERVICE_LISTENER_UNEXPLAINED`; a surplus listener the full scan attributes to an automation reaching a typed action stays typed.
 - **ESPHome/MQTT entities stay ordinary** (maintainer default 2026-10-14). Only their buttons are user-authored typed; switches, lights, and covers are real devices, and escalating them would put every zigbee2mqtt switch on typed.
 - **Q4 → change with an explicit exception.** Public wording: "Unambiguous everyday actions run immediately and are verified afterwards; everything else shows a preview first; locks, gates, alarm, and deletes need a code." `docs/reference/safety.md` and the Safety Core change with PR4; README only in the release-prep PR.
+
+PR5 implementation notes
+- `plan write --domain automation|script [--id] --file` canonicalizes the draft (sorted keys, exact numbers); without an id it mints a millisecond id like the HA UI and asserts it is unused (basis `absent`); with an id it creates or updates. The plan carries `diff` (`renderConfigChanges(current, draft)`) and walks the draft's actions with the tier engine, so a write that makes an automation unlock a door is typed.
+- `plan delete <automation.x|script.x>` resolves the config id from the entity (never the slug), is always typed, and lists what references the entity (`search/related` automation/script/scene) as consumers.
+- `plan revert [--target] [--domain]` uses `selectUndoSnapshot`; automation/script `update` checkpoints only. When the live config no longer matches the stored post-write read-back (`snapshotMatchesLive`), it plans nothing and exits 2 (`REVERT_DRIFT`).
+- The action hash covers op, domain, config id, endpoint path, and body; the basis holds the normalized live-config digest (`absent` on create), the draft digest, member config digests, and acted entities. Key order and HA bookkeeping keys (`normalizeConfig`) never drift.
+- `apply` keeps the call rules (claim, re-validation, recompute, code from the recomputed plan, single use). Execution: (delete only) a pre-delete snapshot through Relay `/backups` (`auto-<entity-slug>`); a failed snapshot deletes nothing and releases the plan, so the same code works with `--no-snapshot`. Then exactly one `POST`/`DELETE /api/config/<domain>/config/<id>`, one `<domain>.reload`, and the read-back. A write is `verified` only when the read-back equals the body, the reload succeeded, and the registry `unique_id` maps to an entity with a state; a delete when config and entity are gone. A verified update saves the undo checkpoint (`saveUndoSnapshotBytes`; receipt under `undo`).
+- The write allowlist (`checkWriteRequest`) grows to exactly these: config `POST`/`DELETE` for automation/script, service `POST` (reload included), and a `/backups` `save` in categories `automations`/`scripts` with an `auto-` name. Read verbs keep I1.
 
 PR3 implementation notes
 - `call` executes only ordinary plans and never stores them; every other tier is stored and exits 3. `apply` on a preview plan is the confirmation step itself (the skill obtains the natural confirmation first); typed plans need `--confirm`, a missing code is refused without counting as a mismatch.

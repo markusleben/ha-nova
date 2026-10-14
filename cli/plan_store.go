@@ -60,6 +60,8 @@ type storedPlan struct {
 	Mismatches    int             `json:"code_mismatches,omitempty"` // apply attempts with a wrong code (3 invalidate)
 	Request       planCallRequest `json:"request"`
 	Action        planAction      `json:"action"`
+	ConfigRequest *configRequest  `json:"config_request,omitempty"` // kinds write/delete/revert
+	ConfigAction  *configAction   `json:"config_action,omitempty"`
 	Reasons       []tierReason    `json:"reasons"`
 	Basis         map[string]any  `json:"basis"`
 }
@@ -69,7 +71,7 @@ type storedPlan struct {
 // apply recomputes it to detect drift (spec §2.1).
 // Reasons enter it as code+entity+via only: free-text details (counts,
 // names) would turn every harmless fluctuation into drift.
-func planHash(kind, server string, action planAction, tier string, reasons []tierReason, basis map[string]any) string {
+func planHash(kind, server string, action any, tier string, reasons []tierReason, basis map[string]any) string {
 	type reasonKey struct{ Code, EntityID, Via string }
 	keys := []reasonKey{}
 	for _, r := range reasons {
@@ -80,7 +82,7 @@ func planHash(kind, server string, action planAction, tier string, reasons []tie
 	canonical, _ := json.Marshal(struct {
 		Kind    string         `json:"kind"`
 		Server  string         `json:"server"`
-		Action  planAction     `json:"action"`
+		Action  any            `json:"action"`
 		Tier    string         `json:"tier"`
 		Reasons []reasonKey    `json:"reasons"`
 		Basis   map[string]any `json:"basis"`
@@ -96,14 +98,35 @@ func buildCallPlan(e *tierEngine, env *verbEnvelope, req planCallRequest, target
 	for _, t := range targets {
 		frozen = append(frozen, t.EntityID)
 	}
+	action := planAction{Service: req.Service, EntityIDs: frozen, Data: req.Data}
+	plan := storedPlan{Kind: "call", Request: req, Action: action, Basis: callPlanBasis(e, req.Service, frozen, req.Data)}
+	plan, err := sealPlan(e, env, plan, action)
+	env.Action = &action
+	env.Deltas = planDeltas(req.Service, frozen, req.Data, e.states)
+	return plan, err
+}
+
+// codeParts names a plan's operation and objects for its confirmation code.
+func codeParts(plan storedPlan) (string, []string) {
+	if action := plan.ConfigAction; action != nil {
+		object := action.EntityID
+		if object == "" {
+			object = action.Domain + "." + action.ConfigID
+		}
+		return "config." + action.Op, []string{object}
+	}
+	return plan.Action.Service, plan.Action.EntityIDs
+}
+
+// sealPlan hashes the action (nonce-free drift hash), draws the nonce, and
+// derives id and code; it fills the envelope fields every plan kind shares.
+func sealPlan(e *tierEngine, env *verbEnvelope, plan storedPlan, action any) (storedPlan, error) {
 	key := func(r tierReason) string {
 		return strings.Join([]string{r.Code, r.EntityID, r.Via, r.Detail, r.Skill}, "|")
 	}
 	sort.SliceStable(e.reasons, func(i, j int) bool { return key(e.reasons[i]) < key(e.reasons[j]) })
-	action := planAction{Service: req.Service, EntityIDs: frozen, Data: req.Data}
 	tier := e.level.String()
-	basis := callPlanBasis(e, req.Service, frozen, req.Data)
-	sum := planHash("call", env.Server, action, tier, e.reasons, basis)
+	sum := planHash(plan.Kind, env.Server, action, tier, e.reasons, plan.Basis)
 	// The per-plan nonce makes every id and code unique, so a re-plan never
 	// overwrites a plan or replays an earlier code; the drift hash stays
 	// nonce-free.
@@ -113,19 +136,17 @@ func buildCallPlan(e *tierEngine, env *verbEnvelope, req planCallRequest, target
 	}
 	idHex := planIdentity(sum, hex.EncodeToString(nonce))
 	now := verbNow().UTC()
-	plan := storedPlan{
-		SchemaVersion: 1, ID: "p_" + idHex[:12], Hash: "sha256:" + sum, Kind: "call", Server: env.Server, Nonce: hex.EncodeToString(nonce),
-		CreatedAt: now.Format(time.RFC3339), ExpiresAt: now.Add(planTTL).Format(time.RFC3339),
-		Tier: tier, Confirm: map[tierLevel]string{tierOrdinary: "none", tierPreview: "natural", tierTyped: "code"}[e.level],
-		Request: req, Action: action, Reasons: e.reasons, Basis: basis,
-	}
+	plan.SchemaVersion, plan.ID, plan.Hash, plan.Server, plan.Nonce = 1, "p_"+idHex[:12], "sha256:"+sum, env.Server, hex.EncodeToString(nonce)
+	plan.CreatedAt, plan.ExpiresAt = now.Format(time.RFC3339), now.Add(planTTL).Format(time.RFC3339)
+	plan.Tier, plan.Reasons = tier, e.reasons
+	plan.Confirm = map[tierLevel]string{tierOrdinary: "none", tierPreview: "natural", tierTyped: "code"}[e.level]
 	if e.level == tierTyped {
-		plan.Code = confirmCode(req.Service, frozen, idHex)
+		service, objects := codeParts(plan)
+		plan.Code = confirmCode(service, objects, idHex)
 	}
-	env.Tier, env.Action, env.Reasons = tier, &action, e.reasons
+	env.Tier, env.Reasons = tier, e.reasons
 	env.Members, env.Consumers = e.members, e.consumers
 	env.Coverage = &tierCoverage{Complete: e.complete, Notes: e.notes}
-	env.Deltas = planDeltas(req.Service, frozen, req.Data, e.states)
 	env.Plan = &verbPlan{ID: plan.ID, Hash: plan.Hash, ExpiresAt: plan.ExpiresAt, Confirm: plan.Confirm, Code: plan.Code}
 	env.Status = "ready"
 	if e.level != tierOrdinary {
