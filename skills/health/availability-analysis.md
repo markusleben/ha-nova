@@ -184,7 +184,9 @@ Availability classification alone never changes overall Home Status.
 
 Display-name precedence: state `attributes.friendly_name`, entity-registry
 `name`, entity-registry `original_name`, then exact `entity_id`. Entity
-`area_id` beats the owning device's `area_id`. When a config-entry title
+`area_id` beats the owning device's `area_id`; a child device's null
+`area_id` resolves to its parent's (`skills/ha-nova/membership-resolution.md`
+→ Device rows). When a config-entry title
 cannot be shown safely, use a deterministic localized ordinal and say the
 title was hidden.
 

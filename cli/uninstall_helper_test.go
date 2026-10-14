@@ -292,10 +292,12 @@ func TestRunInternalUninstallPrintsPartialRemovalDetailsWhenTokenDeleteFails(t *
 	originalRead := readRelayAuthTokenForUninstall
 	originalDelete := deleteRelayAuthTokenForUninstall
 	originalWait := waitForParentReleaseForUninstall
+	originalCleanup := scheduleWindowsSelfDeleteForUninstall
 	defer func() {
 		readRelayAuthTokenForUninstall = originalRead
 		deleteRelayAuthTokenForUninstall = originalDelete
 		waitForParentReleaseForUninstall = originalWait
+		scheduleWindowsSelfDeleteForUninstall = originalCleanup
 	}()
 	readRelayAuthTokenForUninstall = func() (string, error) {
 		return "test-relay-token", nil
@@ -304,6 +306,11 @@ func TestRunInternalUninstallPrintsPartialRemovalDetailsWhenTokenDeleteFails(t *
 		return errors.New("credential manager unavailable")
 	}
 	waitForParentReleaseForUninstall = func(parentPID int) {}
+	cleanupPath := ""
+	scheduleWindowsSelfDeleteForUninstall = func(path string) error {
+		cleanupPath = path
+		return nil
+	}
 
 	exitCode, output := captureCommandOutput(t, func() int {
 		return runInternalUninstall(paths, []string{
@@ -326,6 +333,10 @@ func TestRunInternalUninstallPrintsPartialRemovalDetailsWhenTokenDeleteFails(t *
 	}
 	if _, err := os.Stat(paths.InstallRoot); err != nil {
 		t.Fatalf("expected install root to remain after failed helper cleanup, got %v", err)
+	}
+	// The helper copy must not outlive a failed run either.
+	if cleanupPath != filepath.Join(home, "temp-helper.exe") {
+		t.Fatalf("expected helper self-delete to be scheduled on the failure path, got %q", cleanupPath)
 	}
 	marker, err := loadWindowsUninstallStatus(paths)
 	if err != nil {

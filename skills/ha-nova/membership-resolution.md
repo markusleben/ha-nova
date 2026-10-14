@@ -24,6 +24,23 @@ read, the membership is unknown — never substituted with a guess:
 | Devices | the entity registry filtered by `device_id` ONLY — never combined with the device's area expansion: a device-scoped action must not reach room neighbours |
 | Presence-routed household | `person.*` states mapped to real notify targets (`skills/notify/SKILL.md` → Household routing) |
 
+## Device rows (Home Assistant 2026.9+ child devices)
+
+`config/device_registry/list` returns child devices as rows carrying
+`parent_device_id` and a reduced shape (`id`, `parent_device_id`,
+`config_entry_id`, `config_subentry_id`, `area_id`, `name`, `name_by_user`,
+`labels`, `identifiers`, `disabled_by`, timestamps). Normalize every device
+row the same way:
+
+- effective area: the row's own `area_id`; a child whose `area_id` is null
+  inherits its parent's effective area. A parent absent from the same read
+  leaves the area unknown — never guessed.
+- owning integration: the singular `config_entry_id` → `config_entries/get`
+  → `domain`. Read the legacy `config_entries` array only when the singular
+  field is absent (pre-2026.8 rows; scheduled for removal in 2027.8).
+- a child is its own device for entity-registry `device_id` joins; it never
+  expands to its parent's or siblings' entities.
+
 ## Nested expansion
 
 A member can itself be a group. Expand recursively, depth-bounded at 5:

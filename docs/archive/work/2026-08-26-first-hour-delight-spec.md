@@ -1,6 +1,6 @@
 # First-Hour & Delight Pack — Spec (#528)
 
-Status: active
+Status: merged — archived 2026-09-11 (#528 closed).
 
 Minimal spec for the 9 P3 items. All skills-only; no relay change. Target
 files per item; contract pins land in `tests/skills/first-hour-contract.test.ts`.
