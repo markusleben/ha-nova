@@ -323,8 +323,13 @@ export function createPairingV1Manager(deps: PairingV1Deps): PairingV1Manager {
         },
         t,
       );
-    } catch {
-      // Capacity or durable-write failure: preserve the active owner code.
+    } catch (error) {
+      // Capacity or durable-write failure: preserve the active owner code and
+      // keep the client reply generic, but tell the operator — a full or
+      // read-only /data otherwise looks exactly like a mistyped code.
+      deps.logger?.error("pairing finish could not persist the device credential", {
+        error: error instanceof Error ? error.message : String(error),
+      });
       return { ok: false, reason: "invalid" };
     }
 
