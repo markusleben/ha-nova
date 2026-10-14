@@ -59,6 +59,7 @@ const (
 	reasonDeviceAccess      = "DEVICE_ACCESS"
 	reasonSwitchAsX         = "SWITCH_AS_X_ACCESS"
 	reasonResponseOnly      = "RESPONSE_ONLY_SERVICE"
+	reasonTargetRequired    = "TARGET_REQUIRED"
 	reasonManager           = "CONSUMER_MANAGER_PRESENT"
 	reasonScanFailed        = "SCAN_FAILED"
 	reasonLimitCut          = "LIMIT_CUT"
@@ -197,6 +198,20 @@ func accessReason(entityID, deviceClass string) string {
 // Consumer managers detected per run: config-entry domains and App slugs.
 var managerEntryDomains = map[string]bool{"nodered": true, "pyscript": true}
 var managerAppSlugs = []string{"nodered", "appdaemon"}
+
+// Domains that hold entities: a service there, called without a target and
+// without a readable service list, is assumed to act on all of them.
+var entityDomains = map[string]bool{}
+
+func init() {
+	for _, d := range strings.Fields(`alarm_control_panel automation binary_sensor button calendar camera climate
+		counter cover date datetime device_tracker event fan group humidifier image input_boolean input_button
+		input_datetime input_number input_select input_text lawn_mower light lock media_player notify number person
+		remote scene schedule script select sensor siren switch text time timer todo update vacuum valve
+		water_heater weather zone`) {
+		entityDomains[d] = true
+	}
+}
 
 // classifyAction is the direct-action table for one effective service on
 // one entity state (nil = unknown target, which fails closed for covers).

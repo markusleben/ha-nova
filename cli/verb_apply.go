@@ -51,6 +51,9 @@ func runCallCommand(paths runtimePaths, args []string) int {
 		if e.level != tierOrdinary {
 			return savePlan(paths, plan) // exit 3: confirmation through apply
 		}
+		if frozeNothing(req, plan.Action) { // defense in depth: such a plan is typed anyway
+			return refused("UNRESOLVED_TARGET", "the call named targets but froze none")
+		}
 		env.Plan = nil // fast path: the plan is never stored, so no id to apply
 		return executeAction(s, e, env, plan.Action)
 	})
@@ -119,7 +122,6 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string) (env verbE
 	plan, err := readPlanFile(claimed)
 	expires, timeErr := time.Parse(time.RFC3339, plan.ExpiresAt)
 	request := plan.Request
-	named := len(request.EntityIDs) > 0 || request.Match != "" || request.Area != "" || request.Device != ""
 	// The file is untrusted beyond its hash: kind, version, and the stored
 	// request are re-validated exactly as a fresh plan call would.
 	switch {
@@ -131,7 +133,7 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string) (env verbE
 		return fail(refused("PLAN_EXPIRED", "plan "+id+" expired at "+plan.ExpiresAt))
 	case plan.Server != s.server:
 		return fail(refused("SERVER_MISMATCH", fmt.Sprintf("plan %s belongs to server %q", id, plan.Server)))
-	case named && len(plan.Action.EntityIDs) == 0:
+	case frozeNothing(request, plan.Action):
 		return fail(refused("UNRESOLVED_TARGET", "the plan named targets but froze none"))
 	}
 
@@ -180,10 +182,21 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string) (env verbE
 		}
 	}
 	env.Plan = &verbPlan{ID: plan.ID, Hash: fresh.Hash, ExpiresAt: plan.ExpiresAt, Confirm: fresh.Confirm, Code: wantCode}
+	if frozeNothing(request, fresh.Action) {
+		return fail(refused("UNRESOLVED_TARGET", "the plan named targets but froze none"))
+	}
 	if err := executeAction(s, e, &env, fresh.Action); err != nil {
 		return fail(err)
 	}
 	return env, env.exit
+}
+
+// frozeNothing: a request that named targets (ids, --match, --area,
+// --device) but froze no entity must never become a targetless call, which
+// Home Assistant would apply to every entity of the domain.
+func frozeNothing(req planCallRequest, action planAction) bool {
+	named := len(req.EntityIDs) > 0 || req.Match != "" || req.Area != "" || req.Device != ""
+	return named && len(action.EntityIDs) == 0
 }
 
 // Home Assistant statuses that prove the call was rejected before running.

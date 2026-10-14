@@ -154,7 +154,7 @@ func callPlanBasis(e *tierEngine, service string, frozen []string, data map[stri
 			fields["state"] = st.state()
 		}
 		for key := range data {
-			fields[key] = st.attr(deltaAttribute(key))
+			fields[key] = beforeValue(id, key, st)
 		}
 		before[id] = fields
 	}
@@ -269,7 +269,7 @@ func planDeltas(service string, frozen []string, data map[string]any, states map
 			deltas = append(deltas, planDelta{EntityID: id, Field: "state", Before: st.State, After: after, Warning: warning})
 		}
 		for _, key := range sortedKeys(data) {
-			d := planDelta{EntityID: id, Field: key, Before: deltaValue(st.attr(deltaAttribute(key))), After: deltaValue(data[key])}
+			d := planDelta{EntityID: id, Field: key, Before: deltaValue(beforeValue(id, key, st)), After: deltaValue(data[key])}
 			switch key {
 			case "brightness_pct":
 				d.Field, d.Before, d.After = "brightness", brightnessPct(st), d.After+"%"
@@ -282,6 +282,32 @@ func planDeltas(service string, frozen []string, data map[string]any, states map
 		}
 	}
 	return deltas
+}
+
+// stateBackedField: a service field whose current value IS the entity state
+// (select option, number/text value, climate hvac_mode). Verification, the
+// drift basis, and deltas all read it from st.State.
+func stateBackedField(domain, key string) bool {
+	switch key {
+	case "option":
+		return domain == "select" || domain == "input_select"
+	case "value":
+		return domain == "number" || domain == "input_number" || domain == "text" || domain == "input_text"
+	case "hvac_mode":
+		return domain == "climate"
+	}
+	return false
+}
+
+// beforeValue is the current value of the field a call sets on entityID.
+func beforeValue(entityID, key string, st *entityState) any {
+	if domain, _ := splitID(entityID); stateBackedField(domain, key) {
+		if st == nil {
+			return nil
+		}
+		return st.State
+	}
+	return st.attr(deltaAttribute(key))
 }
 
 // deltaAttribute names the state attribute a service field changes.

@@ -130,17 +130,16 @@ func fieldCheck(domain, key string, v any, before *entityState) (check, bool) {
 		return numeric("current_tilt_position", num, 0)
 	case "temperature", "target_temp_high", "target_temp_low", "humidity":
 		return numeric(key, num, 0.05)
-	case "hvac_mode":
-		return check{kind: "literal", want: text}, isText
 	case "preset_mode", "fan_mode", "swing_mode", "effect":
 		return check{field: key, kind: "literal", want: text}, isText
-	case "option":
-		return check{kind: "literal", want: text}, isText && (domain == "select" || domain == "input_select")
-	case "value":
+	case "hvac_mode", "option", "value": // the entity state itself (stateBackedField)
+		if !stateBackedField(domain, key) {
+			return check{}, false
+		}
 		if domain == "input_number" || domain == "number" {
 			return numeric("", num, 1e-9)
 		}
-		return check{kind: "literal", want: text}, isText && (domain == "input_text" || domain == "text")
+		return check{kind: "literal", want: text}, isText
 	case "rgb_color":
 		_, isList := v.([]any)
 		return check{field: key, kind: "list", want: v}, isList
