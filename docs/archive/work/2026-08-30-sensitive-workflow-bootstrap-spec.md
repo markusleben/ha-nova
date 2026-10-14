@@ -1,6 +1,6 @@
 # Sensitive Workflow Bootstrap Spec
 
-Status: active
+Status: superseded — per-PR Cloud evidence gate removed 2026-10-14 (see docs/releasing.md)
 
 ## Goal
 
