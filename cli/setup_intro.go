@@ -16,7 +16,7 @@ func renderSetupIntro(out io.Writer) {
 		"- ask whether this computer should connect locally or through Home Assistant Cloud",
 		"- for local setup: find Home Assistant and install the NOVA App",
 		"- for Cloud-only setup: connect to an existing NOVA App through your Cloud Remote URL",
-		"- set up two access tokens (guided, step by step)",
+		"- pair this computer with a one-time six-digit code from the NOVA page (each device gets its own connection you can revoke anytime)",
 		`- verify the connection and teach your AI assistant the Home Assistant commands (the "skills")`,
 	)
 	renderSetupParagraph(out,
