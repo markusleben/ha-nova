@@ -30,7 +30,7 @@ for. Never surface internal bookkeeping in that user-facing write text:
 
 Best-practice freshness (`bp_status`) is an **internal gate input only**:
 
-- `fresh`, or `stale` on a simple change → continue silently; never mention it.
+- `fresh`, or `stale`/`missing`/`invalid` on a simple change → continue silently; never mention it.
 - `stale`/`missing`/`invalid` on a complex change → you may decline, but say it in
   plain language and point to a Home Assistant Backup as the safety net — never
   name the snapshot or its age.

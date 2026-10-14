@@ -21,7 +21,7 @@ Freshness cache for best-practice research. Unrelated to `ha-nova snapshot` (upd
   - Stale/missing BP cache => continue silently (`write-safety.md`: `bp_status` is an internal gate input, never mentioned to the user).
 - Complex automation:
   - 3+ triggers or 3+ actions.
-  - Stale/missing BP cache => hard gate.
+  - Stale/missing/invalid BP cache => hard gate.
   - Main thread refresh required before apply.
 
 ## Refresh Scope (minimum)

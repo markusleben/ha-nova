@@ -196,14 +196,11 @@ Bulk mode rules:
 
 Before analyzing, consult these sources:
 
-**Local reference (always):**
-- `docs/reference/ha-template-reference.md` — valid Jinja2 functions, constants, filters
-
 **Official HA docs (fetch selectively based on config content — do NOT fetch all for every review):**
 - Trigger issues → https://www.home-assistant.io/docs/automation/trigger/
 - Mode issues → https://www.home-assistant.io/docs/automation/modes/
 - Action/script issues → https://www.home-assistant.io/docs/scripts/
-- Template issues → https://www.home-assistant.io/docs/configuration/templating/
+- Templates present (`{{` / `{%`) → https://www.home-assistant.io/docs/configuration/templating/ (functions, filters, constants, and documented semantic hazards; fetch once per review — the checks in `skills/review/checks.md` stay local and offline). No web access or a failed fetch: continue with the local checks and say in the output that template function validity was not verified against the official reference.
 - Schema questions → https://www.home-assistant.io/docs/automation/yaml/
 
 Only fetch pages relevant to the triggers, actions, and templates found in the config. Cross-check against documented gotchas and constraints — this catches issues beyond the hardcoded checks below.
