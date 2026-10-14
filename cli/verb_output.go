@@ -13,9 +13,12 @@ import (
 const (
 	verbExitOK           = 0
 	verbExitError        = 1
+	verbExitDrift        = 2
 	verbExitConfirmation = 3
 	verbExitRefused      = 4
 	verbExitNotFound     = 5
+	verbExitUnverified   = 6
+	verbExitUnknown      = 7
 )
 
 // verbEnvelope is the schema_version 1 output of every typed verb; empty
@@ -34,10 +37,15 @@ type verbEnvelope struct {
 	Consumers     []tierConsumer `json:"consumers,omitempty"`
 	Reasons       []tierReason   `json:"reasons,omitempty"`
 	Coverage      *tierCoverage  `json:"coverage,omitempty"`
-	Result        any            `json:"result,omitempty"`
-	Error         *verbError     `json:"error,omitempty"`
-	Notices       []verbNotice   `json:"notices,omitempty"`
-	exit          int            // success exit code; 0 unless a verb sets it (plan: 3)
+	Verification  []verifyRow    `json:"verification,omitempty"`
+	ReauthOpened  []string       `json:"reauth_flows_opened,omitempty"`
+	// OutcomeUnknown: the request may have reached Home Assistant (exit 7);
+	// status stays in the outcome vocabulary as "unverified".
+	OutcomeUnknown bool         `json:"outcome_unknown,omitempty"`
+	Result         any          `json:"result,omitempty"`
+	Error          *verbError   `json:"error,omitempty"`
+	Notices        []verbNotice `json:"notices,omitempty"`
+	exit           int          // success exit code; 0 unless a verb sets it (plan: 3)
 }
 
 type verbTarget struct {
@@ -65,6 +73,7 @@ type verbNotice struct {
 // code; any other error is an operational failure (exit 1).
 type verbFailure struct {
 	exit       int
+	status     string // envelope status; "error" when empty
 	code       string
 	message    string
 	next       string
@@ -158,6 +167,9 @@ func setVerbError(env *verbEnvelope, err error) int {
 	var failure *verbFailure
 	if !errors.As(err, &failure) {
 		failure = &verbFailure{exit: verbExitError, code: "RELAY_ERROR", message: err.Error()}
+	}
+	if failure.status != "" {
+		env.Status = failure.status
 	}
 	env.Error = &verbError{Code: failure.code, Message: failure.message, Candidates: failure.candidates, Next: failure.next}
 	return failure.exit

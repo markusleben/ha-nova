@@ -92,6 +92,10 @@ func dispatch(paths runtimePaths, argv0 string, args []string) int {
 		return runHistoryCommand(paths, args[1:])
 	case "plan":
 		return runPlanCommand(paths, args[1:])
+	case "call":
+		return runCallCommand(paths, args[1:])
+	case "apply":
+		return runApplyCommand(paths, args[1:])
 	case "trace":
 		return runTraceCommand(paths, args[1:])
 	case "snapshot":
@@ -216,6 +220,8 @@ func printUsage() {
 	fmt.Fprintln(os.Stdout, "  "+getUsage)
 	fmt.Fprintln(os.Stdout, "  "+historyUsage)
 	fmt.Fprintln(os.Stdout, "  "+planCallUsage+"  (read-only; never executes)")
+	fmt.Fprintln(os.Stdout, "  "+callUsage)
+	fmt.Fprintln(os.Stdout, "  "+applyUsage)
 	fmt.Fprintln(os.Stdout, "  ha-nova trace <latest|list|get> <automation.entity_id|script.entity_id> [run_id] [--json]")
 	fmt.Fprintln(os.Stdout, "  ha-nova snapshot <save|show|verify>")
 	fmt.Fprintln(os.Stdout, "  ha-nova diff --before <file> --after <file> [--out <file>]")

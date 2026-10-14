@@ -15,9 +15,10 @@ import (
 // fullRegistryRow: config/entity_registry/list carries no device_class and
 // no aliases; device classes always come from state attributes.
 type fullRegistryRow struct {
-	EntityID string `json:"entity_id"`
-	Platform string `json:"platform"`
-	UniqueID string `json:"unique_id"`
+	EntityID      string `json:"entity_id"`
+	Platform      string `json:"platform"`
+	UniqueID      string `json:"unique_id"`
+	ConfigEntryID string `json:"config_entry_id"`
 }
 
 func (e *tierEngine) fullRegistry() ([]fullRegistryRow, error) {

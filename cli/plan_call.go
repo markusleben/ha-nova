@@ -5,6 +5,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"net/http"
 	"os"
 	"slices"
 	"strings"
@@ -15,7 +16,8 @@ const planCallUsage = `ha-nova plan call <domain.service> [<entity_id>…] [--ma
 const planCallHelp = planCallUsage + `
 
 Read-only: resolves the targets, computes the confirmation tier, and stores
-the plan for 15 minutes. This release never executes a plan.
+the plan for 15 minutes. plan call never executes a plan; "ha-nova apply"
+does, and "ha-nova call" plans and runs ordinary calls in one step.
 Service data may not carry entity_id, area_id, device_id, or target (pass
 targets as arguments); script fields named "target" are not supported in v1.
 Exit: 0 ordinary (plan stored), 3 needs confirmation, 4 refused, 5 ambiguous or not found.`
@@ -41,34 +43,42 @@ func runPlanCommand(paths runtimePaths, args []string) int {
 }
 
 func runPlanCall(paths runtimePaths, args []string) int {
+	return runCallVerb(paths, "plan", "plan call", planCallHelp, args, func(s *relaySession, env *verbEnvelope, req planCallRequest) error {
+		return planCall(paths, s, env, req)
+	})
+}
+
+// runCallVerb parses the shared plan/call flags, answers static refusals
+// without any Relay contact, and runs body on one session.
+func runCallVerb(paths runtimePaths, verb, flagSetName, help string, args []string, body func(*relaySession, *verbEnvelope, planCallRequest) error) int {
 	var opts verbOptions
 	req := planCallRequest{Data: map[string]any{}}
 	var sets []string
 	dataFile := ""
-	fs := flag.NewFlagSet("plan call", flag.ContinueOnError)
+	fs := flag.NewFlagSet(flagSetName, flag.ContinueOnError)
 	addVerbFlags(fs, &opts)
 	fs.StringVar(&req.Match, "match", "", "resolve exactly one non-disabled entity of the service's domain by phrase")
 	fs.StringVar(&req.Area, "area", "", "expand an area_id to the service domain's entities (always previewed)")
 	fs.StringVar(&req.Device, "device", "", "expand a device_id to the service domain's entities (always previewed)")
 	fs.Func("set", "service data field k=v, JSON-typed when it parses (repeatable)", func(v string) error { sets = append(sets, v); return nil })
 	fs.StringVar(&dataFile, "data-file", "", "JSON object of service data; --set overrides its keys")
-	positional, err := parseVerbArgs(fs, &opts, args, planCallHelp)
+	positional, err := parseVerbArgs(fs, &opts, args, help)
 	if err == nil {
 		err = req.parse(positional, sets, dataFile)
 	}
 	if err != nil {
-		return verbUsageError("plan", err)
+		return verbUsageError(verb, err)
 	}
 	if refusal := staticRefusal(req); refusal != nil { // needs no Relay at all
-		env := verbEnvelope{SchemaVersion: 1, Verb: "plan"}
+		env := verbEnvelope{SchemaVersion: 1, Verb: verb}
 		exit := setVerbError(&env, refuse(&env, *refusal))
 		if !printVerbEnvelope(env) {
 			return verbExitError
 		}
 		return exit
 	}
-	return runReadVerb(paths, "plan", opts, func(s *relaySession, env *verbEnvelope) error {
-		return planCall(paths, s, env, req)
+	return runReadVerb(paths, verb, opts, func(s *relaySession, env *verbEnvelope) error {
+		return body(s, env, req)
 	})
 }
 
@@ -109,6 +119,23 @@ func (req *planCallRequest) parse(positional, sets []string, dataFile string) er
 		}
 		req.Data[key] = typed
 	}
+	return req.validate()
+}
+
+// validate holds for every request a plan may carry: parse checks fresh
+// input with it, apply re-checks the stored request with it.
+func (req planCallRequest) validate() error {
+	if !entityIDPattern.MatchString(req.Service) {
+		return fmt.Errorf("%q is not a domain.service", req.Service)
+	}
+	for _, id := range req.EntityIDs {
+		if !entityIDPattern.MatchString(id) {
+			return fmt.Errorf("%q is not an entity_id (domain.object_id)", id)
+		}
+	}
+	if req.Data == nil {
+		return errors.New("service data must be a JSON object")
+	}
 	for _, key := range []string{"entity_id", "area_id", "device_id", "target"} {
 		if _, present := req.Data[key]; present {
 			return fmt.Errorf("service data may not carry %q: pass targets as arguments, --area, or --device so the plan freezes them", key)
@@ -118,17 +145,95 @@ func (req *planCallRequest) parse(positional, sets []string, dataFile string) er
 }
 
 func planCall(paths runtimePaths, s *relaySession, env *verbEnvelope, req planCallRequest) error {
-	e := newTierEngine(s)
-	e.loadRegistry()
-	targets, err := e.resolveTargets(req)
+	_, plan, err := computeCallPlan(s, env, req)
 	if err != nil {
 		return err
 	}
-	env.Resolved = targets
-	if refusal := e.evaluate(req, targets); refusal != nil {
-		return refuse(env, *refusal)
+	return savePlan(paths, plan)
+}
+
+// computeCallPlan resolves, tiers, and builds the plan (not stored). plan
+// call, call, and apply's recompute (I3) all run exactly this.
+func computeCallPlan(s *relaySession, env *verbEnvelope, req planCallRequest) (*tierEngine, storedPlan, error) {
+	e := newTierEngine(s)
+	e.loadRegistry()
+	// A Relay that never answered is an outage, not a scan gap: nothing is
+	// planned or stored (exit 1). Failures after a first answer stay typed.
+	if err := s.unreachableError(); err != nil {
+		return nil, storedPlan{}, err
 	}
-	return storeCallPlan(paths, e, env, req, targets)
+	targets, err := e.resolveTargets(req)
+	if err != nil {
+		return nil, storedPlan{}, err
+	}
+	env.Resolved = targets
+	spec := e.serviceSpec(req.Service)
+	if spec.responseOnly { // a failed list read refuses nothing: HA then rejects the call (400) before running it
+		return nil, storedPlan{}, refuse(env, tierReason{Code: reasonResponseOnly, Skill: "ha-nova:service-call", Detail: "Home Assistant runs this service only with return_response"})
+	}
+	if e.targetRequired(req, spec) {
+		return nil, storedPlan{}, refuse(env, tierReason{Code: reasonTargetRequired, Detail: "without a target this service acts on every entity of its domain; name the entities, or use --area/--device"})
+	}
+	if refusal := e.evaluate(req, targets); refusal != nil {
+		return nil, storedPlan{}, refuse(env, *refusal)
+	}
+	plan, err := buildCallPlan(e, env, req, targets)
+	return e, plan, err
+}
+
+// serviceSpec is what /api/services says about one service: listed,
+// takes a target, runs only with return_response. known is false when the
+// list cannot be read.
+type serviceSpec struct{ listed, target, responseOnly, known bool }
+
+func (e *tierEngine) serviceSpec(service string) serviceSpec {
+	status, body, err := e.s.coreGET("/api/services")
+	var domains []struct {
+		Domain   string `json:"domain"`
+		Services map[string]struct {
+			Target   json.RawMessage `json:"target"`
+			Response *struct {
+				Optional bool `json:"optional"`
+			} `json:"response"`
+		} `json:"services"`
+	}
+	if err != nil || status != http.StatusOK || json.Unmarshal(body, &domains) != nil {
+		return serviceSpec{}
+	}
+	domain, name := splitID(service)
+	for _, d := range domains {
+		if spec, listed := d.Services[name]; d.Domain == domain && listed {
+			return serviceSpec{listed: true, known: true, target: spec.Target != nil,
+				responseOnly: spec.Response != nil && !spec.Response.Optional}
+		}
+	}
+	return serviceSpec{known: true}
+}
+
+// targetRequired: a service that takes a target, called with none, acts on
+// EVERY entity of its domain in Home Assistant. Without a readable service
+// list it fails closed for any entity domain. A script run by its own name
+// and scene.apply (entities in its data) name their targets themselves.
+func (e *tierEngine) targetRequired(req planCallRequest, spec serviceSpec) bool {
+	domain, name := splitID(req.Service)
+	named := len(req.EntityIDs) > 0 || req.Match != "" || req.Area != "" || req.Device != ""
+	switch {
+	case named || req.Service == "scene.apply" || (domain == "script" && !scriptEntityServices[name]):
+		return false
+	case spec.listed:
+		return spec.target
+	case name == "reload":
+		return false
+	}
+	if entityDomains[domain] {
+		return true
+	}
+	for id := range e.reg {
+		if strings.HasPrefix(id, domain+".") {
+			return true
+		}
+	}
+	return false
 }
 
 // staticRefusal: owned services, hassio.*, floor/label selectors, and codes
@@ -139,6 +244,8 @@ func staticRefusal(req planCallRequest) *tierReason {
 	_, label := req.Data["label_id"]
 	_, code := req.Data["code"]
 	switch {
+	case readOnlyResponseServices[req.Service]:
+		return &tierReason{Code: reasonResponseOnly, Skill: "ha-nova:service-call", Detail: "a response service changes nothing; read it through the service-call read path"}
 	case ownerSkill(req.Service) != "":
 		return &tierReason{Code: reasonOwnedService, Skill: ownerSkill(req.Service)}
 	case domain == "hassio":

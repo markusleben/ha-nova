@@ -32,6 +32,8 @@ var readOnlyWSTypes = map[string]bool{
 	// presence); blueprint/substitute renders a blueprint with inputs and
 	// returns it without storing anything.
 	"config_entries/get": true,
+	// call/apply reauth correlation (spec §2.3): lists pending config flows.
+	"config_entries/flow/progress": true,
 	// find alias fallback: get_entries returns extended rows incl. aliases
 	// (the list endpoints carry none).
 	"config/entity_registry/get_entries": true,
@@ -52,6 +54,8 @@ type relaySession struct {
 	mu           sync.Mutex
 	memo         map[string]*relayMemo
 	relayVersion string
+	answered     bool  // the Relay has answered at least one request
+	unreachable  error // transport failure before the Relay ever answered
 }
 
 type relayMemo struct {
@@ -170,13 +174,19 @@ func checkReadOnlyRequest(endpoint string, payload map[string]any) error {
 }
 
 func (s *relaySession) send(endpoint string, body []byte) (json.RawMessage, error) {
+	return s.sendWithin(endpoint, body, relaySessionRequestTimeout)
+}
+
+// sendWithin is send with a caller-chosen per-request bound (verification
+// reads must not outlast their window).
+func (s *relaySession) sendWithin(endpoint string, body []byte, timeout time.Duration) (json.RawMessage, error) {
 	select {
 	case s.slots <- struct{}{}:
 	case <-s.ctx.Done():
 		return nil, fmt.Errorf("HA NOVA read budget of %s exceeded", relaySessionOverallTimeout)
 	}
 	defer func() { <-s.slots }()
-	ctx, cancel := context.WithTimeout(s.ctx, relaySessionRequestTimeout)
+	ctx, cancel := context.WithTimeout(s.ctx, timeout)
 	defer cancel()
 	req, err := newRelayRequest(ctx, s.transport, endpoint, body)
 	if err != nil {
@@ -184,18 +194,17 @@ func (s *relaySession) send(endpoint string, body []byte) (json.RawMessage, erro
 	}
 	resp, err := s.transport.Client.Do(req)
 	if err != nil {
-		switch {
-		case errors.Is(err, context.DeadlineExceeded):
-			return nil, fmt.Errorf("Relay %s read timed out (%s per request, %s overall); nothing was changed", endpoint, relaySessionRequestTimeout, relaySessionOverallTimeout)
-		case s.transport.Via == relayViaCloud:
-			// Cloud round-tripper failures (device rejected, session expired)
-			// carry their own sanitized wording; the local "is the App
-			// running" hint would point at a fake host.
-			return nil, cloudProblemForError(err)
-		default:
-			return nil, errors.New(relayConnectErrorMessage(s.transport.BaseURL, err))
+		err = sendTransportError(s, endpoint, err)
+		s.mu.Lock()
+		if !s.answered && s.unreachable == nil {
+			s.unreachable = err
 		}
+		s.mu.Unlock()
+		return nil, err
 	}
+	s.mu.Lock()
+	s.answered = true
+	s.mu.Unlock()
 	defer resp.Body.Close()
 	if version := resp.Header.Get(relayVersionHeader); version != "" {
 		s.mu.Lock()
@@ -231,6 +240,31 @@ func (s *relaySession) send(endpoint string, body []byte) (json.RawMessage, erro
 		return nil, &relayCallError{endpoint: endpoint, status: resp.StatusCode, code: envelope.Error.Code, message: envelope.Error.Message}
 	}
 	return envelope.Data, nil
+}
+
+// sendTransportError words a failure that got no HTTP response at all.
+func sendTransportError(s *relaySession, endpoint string, err error) error {
+	switch {
+	case errors.Is(err, context.DeadlineExceeded):
+		return fmt.Errorf("Relay %s read timed out (%s per request, %s overall); nothing was changed", endpoint, relaySessionRequestTimeout, relaySessionOverallTimeout)
+	case s.transport.Via == relayViaCloud:
+		// Cloud round-tripper failures (device rejected, session expired)
+		// carry their own sanitized wording; the local "is the App running"
+		// hint would point at a fake host.
+		return cloudProblemForError(err)
+	}
+	return errors.New(relayConnectErrorMessage(s.transport.BaseURL, err))
+}
+
+// unreachableError is the transport failure of an invocation in which the
+// Relay never answered: an operational error (exit 1), not partial data.
+func (s *relaySession) unreachableError() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.answered {
+		return nil
+	}
+	return s.unreachable
 }
 
 // version returns the Relay version seen in any response header, or "".

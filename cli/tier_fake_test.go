@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"sync"
 	"testing"
 )
 
@@ -23,6 +24,12 @@ type fakeHA struct {
 	hang          map[string]bool     // ws type or core path that never answers
 	relatedGroups map[string][]string // entity → groups search/related reports
 	aliases       map[string][]string // entity → aliases (get_entries only, as in HA)
+	flows         []map[string]any    // config_entries/flow/progress
+	services      []map[string]any    // GET /api/services (nil: 404)
+	// service answers POST /api/services/<d>/<s> (nil: 200 and no effect);
+	// it runs under mu and may change states.
+	service func(f *fakeHA, path string, body map[string]any) any
+	mu      sync.Mutex
 }
 
 func newFakeHA() *fakeHA {
@@ -71,6 +78,18 @@ func (f *fakeHA) reply(r *http.Request, endpoint string, p map[string]any) any {
 		<-r.Context().Done()
 		return nil
 	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if p["method"] == "POST" {
+		if f.fail[fmt.Sprint(p["path"])] {
+			return fakeRelayFailure{"UPSTREAM_HTTP_TIMEOUT", "timed out"}
+		}
+		if f.service == nil {
+			return coreReply(200, []any{})
+		}
+		body, _ := p["body"].(map[string]any)
+		return f.service(f, fmt.Sprint(p["path"]), body)
+	}
 	if endpoint == "ws" {
 		wsType := fmt.Sprint(p["type"])
 		if f.fail[wsType] {
@@ -99,6 +118,8 @@ func (f *fakeHA) reply(r *http.Request, endpoint string, p map[string]any) any {
 				entries[fmt.Sprint(id)] = map[string]any{"aliases": f.aliases[fmt.Sprint(id)]}
 			}
 			return entries
+		case "config_entries/flow/progress":
+			return append([]map[string]any{}, f.flows...)
 		case "config_entries/get":
 			return append([]map[string]any{}, f.entries...)
 		case "blueprint/substitute":
@@ -111,6 +132,8 @@ func (f *fakeHA) reply(r *http.Request, endpoint string, p map[string]any) any {
 		return fakeRelayFailure{"UPSTREAM_ERROR", "boom"}
 	}
 	switch {
+	case path == "/api/services" && f.services != nil:
+		return coreReply(200, f.services)
 	case path == "/api/events":
 		return coreReply(200, append([]map[string]any{}, f.events...))
 	case path == "/api/states":

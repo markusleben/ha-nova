@@ -254,6 +254,10 @@ func (e *tierEngine) sceneMember(id string, value any, via string, depth int) {
 			return
 		}
 		e.visited[key] = true
+		// The group is a member too (its own state is promised); its leaves
+		// carry the class.
+		groupService, groupData := sceneMemberService(id, value)
+		e.members = append(e.members, tierMember{EntityID: id, Action: groupService, Via: via, Class: tierOrdinary.String(), data: groupData})
 		e.prefetchStates(leaves)
 		for _, leaf := range leaves {
 			e.sceneMember(leaf, value, id, depth+1)

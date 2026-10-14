@@ -59,6 +59,21 @@ func coreReply(status int, body any) any {
 // returns the envelope `data`; every request is logged before replying.
 func setupVerbRelayTest(t *testing.T, reply func(r *http.Request, endpoint string, payload map[string]any) any) (runtimePaths, *fakeRelayLog) {
 	t.Helper()
+	return setupFakeRelay(t, reply, false)
+}
+
+// isServicePost is the one write call/apply may send: core POST
+// /api/services/<d>/<s> with a body and nothing else.
+func isServicePost(endpoint string, payload map[string]any) bool {
+	path, _ := payload["path"].(string)
+	_, hasBody := payload["body"]
+	return endpoint == "core" && payload["method"] == "POST" && strings.HasPrefix(path, "/api/services/") && hasBody && len(payload) == 3
+}
+
+// setupFakeRelay serves reply; with allowServiceWrites it also accepts
+// isServicePost (call/apply tests), every other request must be a read.
+func setupFakeRelay(t *testing.T, reply func(r *http.Request, endpoint string, payload map[string]any) any, allowServiceWrites bool) (runtimePaths, *fakeRelayLog) {
+	t.Helper()
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	t.Setenv("HA_NOVA_ALLOW_INSECURE_TEST_KEYRING", "1")
@@ -73,7 +88,7 @@ func setupVerbRelayTest(t *testing.T, reply func(r *http.Request, endpoint strin
 			t.Errorf("decode payload: %v", err)
 		}
 		// Invariant I1 oracle: every verb test fails on a non-read request.
-		if err := checkReadOnlyRequest(endpoint, payload); err != nil {
+		if err := checkReadOnlyRequest(endpoint, payload); err != nil && !(allowServiceWrites && isServicePost(endpoint, payload)) {
 			t.Errorf("read verb sent a non-read request: %v", err)
 		}
 		log.mu.Lock()

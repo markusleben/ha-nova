@@ -16,6 +16,13 @@ the number.
   state or stored automation/script/scene config, and summarize recent
   history in one call each. They can never change anything in Home
   Assistant, and they report available updates alongside the answer.
+- New commands `ha-nova call` and `ha-nova apply` control devices with the
+  safety checks built in: unambiguous everyday actions run immediately and
+  are verified afterwards; everything else shows a preview first; unlocking a
+  door, opening a gate or garage door, and disarming the alarm need a
+  confirmation code. A call is sent exactly once and never retried, and a
+  confirmed plan is re-checked first — if anything changed since the
+  preview, nothing is sent and a fresh preview comes back.
 
 ## What To Watch
 

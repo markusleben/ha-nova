@@ -58,6 +58,8 @@ const (
 	reasonRunListenerUnexpl = "RUN_EVENT_LISTENER_UNEXPLAINED"
 	reasonDeviceAccess      = "DEVICE_ACCESS"
 	reasonSwitchAsX         = "SWITCH_AS_X_ACCESS"
+	reasonResponseOnly      = "RESPONSE_ONLY_SERVICE"
+	reasonTargetRequired    = "TARGET_REQUIRED"
 	reasonManager           = "CONSUMER_MANAGER_PRESENT"
 	reasonScanFailed        = "SCAN_FAILED"
 	reasonLimitCut          = "LIMIT_CUT"
@@ -98,7 +100,8 @@ var ownedDomains = map[string]string{
 	"notify": "ha-nova:notify", "persistent_notification": "ha-nova:notify", "calendar": "ha-nova:calendar",
 }
 
-// Read-only response services stay with service-call.
+// Read-only response services stay with service-call's read path; call and
+// apply refuse them (they need return_response and change nothing).
 var readOnlyResponseServices = map[string]bool{"calendar.get_events": true, "todo.get_items": true, "weather.get_forecasts": true}
 
 func ownerSkill(service string) string {
@@ -195,6 +198,20 @@ func accessReason(entityID, deviceClass string) string {
 // Consumer managers detected per run: config-entry domains and App slugs.
 var managerEntryDomains = map[string]bool{"nodered": true, "pyscript": true}
 var managerAppSlugs = []string{"nodered", "appdaemon"}
+
+// Domains that hold entities: a service there, called without a target and
+// without a readable service list, is assumed to act on all of them.
+var entityDomains = map[string]bool{}
+
+func init() {
+	for _, d := range strings.Fields(`alarm_control_panel automation binary_sensor button calendar camera climate
+		counter cover date datetime device_tracker event fan group humidifier image input_boolean input_button
+		input_datetime input_number input_select input_text lawn_mower light lock media_player notify number person
+		remote scene schedule script select sensor siren switch text time timer todo update vacuum valve
+		water_heater weather zone`) {
+		entityDomains[d] = true
+	}
+}
 
 // classifyAction is the direct-action table for one effective service on
 // one entity state (nil = unknown target, which fails closed for covers).
@@ -325,40 +342,55 @@ var scriptEntityServices = map[string]bool{"turn_on": true, "turn_off": true, "t
 
 // sceneMemberService turns a stored scene state into the equivalent service,
 // so the target STATE decides (unlocked/open/disarmed grant access).
+//
+// The returned data carries the stored attributes (current_position as the
+// service field position) and the stored state under sceneStateKey, so
+// verification can probe exactly what the scene promised.
 func sceneMemberService(entityID string, value any) (string, map[string]any) {
 	domain, _ := splitID(entityID)
 	state, _ := value.(string)
 	data := map[string]any{}
 	if m, isMap := value.(map[string]any); isMap {
 		state, _ = m["state"].(string)
-		data["position"] = m["current_position"]
+		for key, v := range m {
+			switch key {
+			case "state":
+			case "current_position":
+				data["position"] = v
+			default:
+				data[key] = v
+			}
+		}
+	}
+	if state != "" {
+		data[sceneStateKey] = state
 	}
 	switch domain {
 	case "lock":
 		if state == "locked" || state == "locking" {
-			return "lock.lock", nil
+			return "lock.lock", data
 		}
-		return "lock.unlock", nil
+		return "lock.unlock", data
 	case "alarm_control_panel":
 		switch {
 		case state == "disarmed":
-			return "alarm_control_panel.alarm_disarm", nil
+			return "alarm_control_panel.alarm_disarm", data
 		case state == "triggered":
-			return "alarm_control_panel.alarm_trigger", nil
+			return "alarm_control_panel.alarm_trigger", data
 		case strings.HasPrefix(state, "armed_"):
-			return "alarm_control_panel.alarm_arm_" + strings.TrimPrefix(state, "armed_"), nil
+			return "alarm_control_panel.alarm_arm_" + strings.TrimPrefix(state, "armed_"), data
 		}
-		return "alarm_control_panel.alarm_disarm", nil // unknown target state fails closed
+		return "alarm_control_panel.alarm_disarm", data // unknown target state fails closed
 	case "cover":
 		if pos, isNumber := data["position"].(float64); state == "closed" && (!isNumber || pos == 0) {
-			return "cover.close_cover", nil
+			return "cover.close_cover", data
 		}
 		return "cover.set_cover_position", data
 	}
 	if state == "off" {
-		return domain + ".turn_off", nil
+		return domain + ".turn_off", data
 	}
-	return domain + ".turn_on", nil
+	return domain + ".turn_on", data
 }
 
 // deviceActionService maps a device-form step (domain + type) to its service.
@@ -375,6 +407,10 @@ func deviceActionService(domain, actionType string) string {
 	}
 	return domain + "." + actionType
 }
+
+// sceneStateKey carries a scene member's stored state through the member
+// data; it is never sent (scene members are never payloads).
+const sceneStateKey = "__scene_state"
 
 func splitID(id string) (string, string) {
 	domain, rest, _ := strings.Cut(id, ".")

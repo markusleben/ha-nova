@@ -9,6 +9,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -56,6 +57,7 @@ type storedPlan struct {
 	Confirm       string          `json:"confirm"`
 	Code          string          `json:"code,omitempty"`
 	Nonce         string          `json:"nonce"`
+	Mismatches    int             `json:"code_mismatches,omitempty"` // apply attempts with a wrong code (3 invalidate)
 	Request       planCallRequest `json:"request"`
 	Action        planAction      `json:"action"`
 	Reasons       []tierReason    `json:"reasons"`
@@ -65,20 +67,31 @@ type storedPlan struct {
 // planHash is the nonce-free drift hash over the full operation identity:
 // two plans for different targets, services, or data never share it, and
 // apply recomputes it to detect drift (spec §2.1).
+// Reasons enter it as code+entity+via only: free-text details (counts,
+// names) would turn every harmless fluctuation into drift.
 func planHash(kind, server string, action planAction, tier string, reasons []tierReason, basis map[string]any) string {
+	type reasonKey struct{ Code, EntityID, Via string }
+	keys := []reasonKey{}
+	for _, r := range reasons {
+		if key := (reasonKey{r.Code, r.EntityID, r.Via}); !slices.Contains(keys, key) {
+			keys = append(keys, key)
+		}
+	}
 	canonical, _ := json.Marshal(struct {
 		Kind    string         `json:"kind"`
 		Server  string         `json:"server"`
 		Action  planAction     `json:"action"`
 		Tier    string         `json:"tier"`
-		Reasons []tierReason   `json:"reasons"`
+		Reasons []reasonKey    `json:"reasons"`
 		Basis   map[string]any `json:"basis"`
-	}{kind, server, action, tier, reasons, basis})
+	}{kind, server, action, tier, keys, basis})
 	sum := sha256.Sum256(canonical)
 	return hex.EncodeToString(sum[:])
 }
 
-func storeCallPlan(paths runtimePaths, e *tierEngine, env *verbEnvelope, req planCallRequest, targets []verbTarget) error {
+// buildCallPlan freezes the action, hashes it, and fills the envelope; the
+// caller decides whether the plan is stored.
+func buildCallPlan(e *tierEngine, env *verbEnvelope, req planCallRequest, targets []verbTarget) (storedPlan, error) {
 	frozen := []string{}
 	for _, t := range targets {
 		frozen = append(frozen, t.EntityID)
@@ -89,17 +102,16 @@ func storeCallPlan(paths runtimePaths, e *tierEngine, env *verbEnvelope, req pla
 	sort.SliceStable(e.reasons, func(i, j int) bool { return key(e.reasons[i]) < key(e.reasons[j]) })
 	action := planAction{Service: req.Service, EntityIDs: frozen, Data: req.Data}
 	tier := e.level.String()
-	basis := callPlanBasis(e, frozen, req.Data)
+	basis := callPlanBasis(e, req.Service, frozen, req.Data)
 	sum := planHash("call", env.Server, action, tier, e.reasons, basis)
 	// The per-plan nonce makes every id and code unique, so a re-plan never
 	// overwrites a plan or replays an earlier code; the drift hash stays
 	// nonce-free.
 	nonce := make([]byte, 16)
 	if _, err := rand.Read(nonce); err != nil {
-		return fmt.Errorf("cannot draw a plan nonce: %w", err)
+		return storedPlan{}, fmt.Errorf("cannot draw a plan nonce: %w", err)
 	}
-	idSum := sha256.Sum256([]byte(sum + hex.EncodeToString(nonce)))
-	idHex := hex.EncodeToString(idSum[:])
+	idHex := planIdentity(sum, hex.EncodeToString(nonce))
 	now := verbNow().UTC()
 	plan := storedPlan{
 		SchemaVersion: 1, ID: "p_" + idHex[:12], Hash: "sha256:" + sum, Kind: "call", Server: env.Server, Nonce: hex.EncodeToString(nonce),
@@ -110,9 +122,6 @@ func storeCallPlan(paths runtimePaths, e *tierEngine, env *verbEnvelope, req pla
 	if e.level == tierTyped {
 		plan.Code = confirmCode(req.Service, frozen, idHex)
 	}
-	if err := savePlan(paths, plan); err != nil {
-		return fmt.Errorf("cannot store the plan: %w", err)
-	}
 	env.Tier, env.Action, env.Reasons = tier, &action, e.reasons
 	env.Members, env.Consumers = e.members, e.consumers
 	env.Coverage = &tierCoverage{Complete: e.complete, Notes: e.notes}
@@ -122,13 +131,16 @@ func storeCallPlan(paths runtimePaths, e *tierEngine, env *verbEnvelope, req pla
 	if e.level != tierOrdinary {
 		env.Status, env.exit = "needs_confirmation", verbExitConfirmation
 	}
-	return nil
+	return plan, nil
 }
 
 // callPlanBasis: per acted entity pl/device_class/supported_features, the
-// before value of every changed field on the frozen targets, the normalized
-// config digests, and the call_service listener count (spec §2.1).
-func callPlanBasis(e *tierEngine, frozen []string, data map[string]any) map[string]any {
+// before value of every field the call changes on the frozen targets (the
+// state only when the service changes it), and the normalized config
+// digests (spec §2.1). Listener surpluses already show in tier and reasons.
+func callPlanBasis(e *tierEngine, service string, frozen []string, data map[string]any) map[string]any {
+	_, name := splitID(service)
+	changesState := serviceAfterState[name] != "" || name == "toggle" || strings.HasPrefix(name, "alarm_arm_")
 	entities := map[string]any{}
 	for _, id := range e.acted {
 		st := e.states[id]
@@ -137,16 +149,23 @@ func callPlanBasis(e *tierEngine, frozen []string, data map[string]any) map[stri
 	before := map[string]any{}
 	for _, id := range frozen {
 		st := e.states[id]
-		fields := map[string]any{"state": nil}
-		if st != nil {
-			fields["state"] = st.State
+		fields := map[string]any{}
+		if changesState {
+			fields["state"] = st.state()
 		}
 		for key := range data {
-			fields[key] = st.attr(deltaAttribute(key))
+			fields[key] = beforeValue(id, key, st)
 		}
 		before[id] = fields
 	}
-	return map[string]any{"entities": entities, "before": before, "configs": e.basis, "call_service_listeners": e.events["call_service"]}
+	return map[string]any{"entities": entities, "before": before, "configs": e.basis}
+}
+
+// planIdentity is hex(sha256(hash ‖ nonce)): the plan id and the code
+// suffix, recomputable at apply from the recomputed hash and stored nonce.
+func planIdentity(sum, nonceHex string) string {
+	idSum := sha256.Sum256([]byte(sum + nonceHex))
+	return hex.EncodeToString(idSum[:])
 }
 
 func confirmCode(service string, frozen []string, sum string) string {
@@ -167,16 +186,34 @@ func confirmCode(service string, frozen []string, sum string) string {
 // savePlan writes CacheDir/plans/<id>.json (0600, atomic) after pruning
 // expired files and keeping at most planMaxFiles plans.
 func savePlan(paths runtimePaths, plan storedPlan) error {
-	dir := filepath.Join(paths.CacheDir, "plans")
+	dir := planDir(paths)
 	if err := os.MkdirAll(dir, 0o700); err != nil {
-		return err
+		return fmt.Errorf("cannot store the plan: %w", err)
 	}
 	prunePlans(dir)
+	return writePlanFile(filepath.Join(dir, plan.ID+".json"), plan)
+}
+
+func planDir(paths runtimePaths) string { return filepath.Join(paths.CacheDir, "plans") }
+
+func writePlanFile(path string, plan storedPlan) error {
 	data, err := json.MarshalIndent(plan, "", "  ")
-	if err != nil {
-		return err
+	if err == nil {
+		err = writeFileAtomic(path, append(data, '\n'), 0o600)
 	}
-	return writeFileAtomic(filepath.Join(dir, plan.ID+".json"), append(data, '\n'), 0o600)
+	if err != nil {
+		return fmt.Errorf("cannot store the plan: %w", err)
+	}
+	return nil
+}
+
+func readPlanFile(path string) (storedPlan, error) {
+	var plan storedPlan
+	raw, err := os.ReadFile(path)
+	if err == nil {
+		err = json.Unmarshal(raw, &plan)
+	}
+	return plan, err
 }
 
 func prunePlans(dir string) {
@@ -232,7 +269,7 @@ func planDeltas(service string, frozen []string, data map[string]any, states map
 			deltas = append(deltas, planDelta{EntityID: id, Field: "state", Before: st.State, After: after, Warning: warning})
 		}
 		for _, key := range sortedKeys(data) {
-			d := planDelta{EntityID: id, Field: key, Before: deltaValue(st.attr(deltaAttribute(key))), After: deltaValue(data[key])}
+			d := planDelta{EntityID: id, Field: key, Before: deltaValue(beforeValue(id, key, st)), After: deltaValue(data[key])}
 			switch key {
 			case "brightness_pct":
 				d.Field, d.Before, d.After = "brightness", brightnessPct(st), d.After+"%"
@@ -245,6 +282,32 @@ func planDeltas(service string, frozen []string, data map[string]any, states map
 		}
 	}
 	return deltas
+}
+
+// stateBackedField: a service field whose current value IS the entity state
+// (select option, number/text value, climate hvac_mode). Verification, the
+// drift basis, and deltas all read it from st.State.
+func stateBackedField(domain, key string) bool {
+	switch key {
+	case "option":
+		return domain == "select" || domain == "input_select"
+	case "value":
+		return domain == "number" || domain == "input_number" || domain == "text" || domain == "input_text"
+	case "hvac_mode":
+		return domain == "climate"
+	}
+	return false
+}
+
+// beforeValue is the current value of the field a call sets on entityID.
+func beforeValue(entityID, key string, st *entityState) any {
+	if domain, _ := splitID(entityID); stateBackedField(domain, key) {
+		if st == nil {
+			return nil
+		}
+		return st.State
+	}
+	return st.attr(deltaAttribute(key))
 }
 
 // deltaAttribute names the state attribute a service field changes.
