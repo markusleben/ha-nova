@@ -1,3 +1,4 @@
+import type { RelayLogger } from "../http/server.js";
 import { renameSync } from "node:fs";
 import { join } from "node:path";
 
@@ -62,7 +63,10 @@ export function archiveCorruptRegistry(dataDir: string, now: number): void {
 // Loads the registry (fail-closed on corruption) or starts an empty one when the
 // file is absent. An absent file is a fresh install; a present-but-unparseable
 // file is corruption and must not be masked.
-export function openDeviceRegistry(dataDir: string): DeviceRegistry {
+export function openDeviceRegistry(
+  dataDir: string,
+  logger?: RelayLogger,
+): DeviceRegistry {
   const path = join(dataDir, DEVICE_REGISTRY_FILE);
   let data = loadRegistryData(path);
   let mutating = false;
@@ -92,11 +96,15 @@ export function openDeviceRegistry(dataDir: string): DeviceRegistry {
     }
     try {
       persist(next);
-    } catch {
+    } catch (error) {
       // Auth must survive a broken disk (ENOSPC/EROFS): the stamp is
       // best-effort metadata, never worth failing authentication over. Keep
       // the fresh value in memory so retries stay throttled to once per
       // window; the durable write catches up once /data is writable again.
+      // The throttle also bounds this log line to once per window.
+      logger?.warn("device registry last-used stamp could not persist", {
+        error: error instanceof Error ? error.message : String(error),
+      });
       data = next;
     }
   }
