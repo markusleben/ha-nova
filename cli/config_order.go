@@ -74,3 +74,18 @@ func sameKeySet(a, b string) bool {
 	sort.Strings(y)
 	return strings.Join(x, ",") == strings.Join(y, ",")
 }
+
+// configChanges is THE comparison of two configs everywhere (plan diff,
+// read-back, revert guard, snapshot verify, ha-nova diff): content after
+// normalizeConfig plus the order of order-semantic maps.
+func configChanges(before, after []byte) ([]string, error) {
+	a, err := configObjectFromBytes(before)
+	if err != nil {
+		return nil, err
+	}
+	b, err := configObjectFromBytes(after)
+	if err != nil {
+		return nil, err
+	}
+	return append(renderConfigChanges(a, b), orderChanges(before, after)...), nil
+}

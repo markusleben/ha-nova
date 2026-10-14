@@ -56,6 +56,7 @@ type snapshotListingEntry struct {
 	Domain   string `json:"domain"`
 	TargetID string `json:"target_id"`
 	Name     string `json:"name,omitempty"`
+	Server   string `json:"server,omitempty"`
 	SavedAt  string `json:"saved_at,omitempty"`
 	Coverage string `json:"coverage"`
 }
@@ -155,6 +156,7 @@ func snapshotListing(snap undoSnapshot) snapshotListingEntry {
 		Domain:   snap.Domain,
 		TargetID: snap.TargetID,
 		Name:     snap.Name,
+		Server:   snap.Server,
 		SavedAt:  snap.SavedAt,
 		Coverage: snapshotCoverage,
 	}
@@ -211,9 +213,13 @@ func selectServerUndoSnapshot(paths runtimePaths, server, target, domain string)
 		return undoSnapshot{}, err
 	}
 	if server != "" {
+		// This server's records plus untagged legacy ones; newest first, so
+		// the first record per domain+target is the one a revert means.
 		var mine []undoSnapshot
+		seen := map[string]bool{}
 		for _, snap := range stack.Snapshots {
-			if snap.Server == "" || snap.Server == server {
+			if key := snap.Domain + "\x00" + snap.TargetID; (snap.Server == "" || snap.Server == server) && !seen[key] {
+				seen[key] = true
 				mine = append(mine, snap)
 			}
 		}
@@ -248,7 +254,7 @@ func selectServerUndoSnapshot(paths runtimePaths, server, target, domain string)
 	default:
 		// Same target_id in more than one domain (save keys on domain+target,
 		// so this is legal): never guess which config to restore.
-		return undoSnapshot{}, fmt.Errorf("target %s is ambiguous across domains; pass --domain", target)
+		return undoSnapshot{}, fmt.Errorf("target %s is ambiguous (several domains or servers); pass --domain or --server", target)
 	}
 }
 
@@ -312,8 +318,9 @@ func snapshotMatchesLive(snap undoSnapshot, liveRaw []byte) (bool, error) {
 	if err != nil {
 		return false, fmt.Errorf("live config is not valid JSON: %s", err)
 	}
-	if len(renderConfigChanges(expected, live)) != 0 {
-		return false, nil
+	// Order-aware: a reorder of variables/fields after the checkpoint is drift.
+	if changes, err := configChanges(snap.ExpectedAfter, liveRaw); err != nil || len(changes) != 0 {
+		return false, err
 	}
 	return identityKeysMatch(expected, live), nil
 }

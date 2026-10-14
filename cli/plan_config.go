@@ -198,13 +198,15 @@ func computeConfigPlan(paths runtimePaths, s *relaySession, env *verbEnvelope, r
 	switch req.Op {
 	case "delete":
 		st, err := e.state(req.EntityID)
-		if err == nil && st == nil {
-			_, _, err = readEntityState(s, req.EntityID) // NOT_FOUND with candidates
-		}
 		if err != nil {
 			return fail(err)
 		}
-		if req.ConfigID, err = resolveConfigID(s, req.EntityID, req.Domain, st.raw); err != nil {
+		if st != nil {
+			req.ConfigID, err = resolveConfigID(s, req.EntityID, req.Domain, st.raw)
+		} else { // a registry-disabled item has no state: its unique_id is the config id
+			req.ConfigID, err = e.registryConfigID(req.EntityID)
+		}
+		if err != nil {
 			return fail(err)
 		}
 	case "revert":
@@ -265,18 +267,34 @@ func computeConfigPlan(paths runtimePaths, s *relaySession, env *verbEnvelope, r
 		action.Body = req.Draft
 		e.raise(tierPreview, tierReason{Code: map[string]string{"write": reasonConfigWrite, "revert": reasonConfigRevert}[req.Op], Via: req.Domain + "." + req.ConfigID})
 		e.classifyDraft(req.Domain, req.ConfigID, req.Draft)
-		before, after := map[string]any{}, map[string]any{}
-		if current != nil {
-			before, _ = configObjectFromBytes(current)
+		before := current
+		if before == nil {
+			before = json.RawMessage(`{}`)
 		}
-		after, _ = configObjectFromBytes(req.Draft)
-		env.Diff = append(renderConfigChanges(before, after), orderChanges(current, req.Draft)...)
+		env.Diff, _ = configChanges(before, req.Draft)
+		after, _ := configObjectFromBytes(req.Draft)
 		ctx.alias, _ = after["alias"].(string)
 	}
 	plan := storedPlan{Kind: req.Op, ConfigRequest: &req, ConfigAction: &action, Basis: configPlanBasis(e, current, req.Draft)}
 	plan, err = sealPlan(e, env, plan, action)
 	env.Config = &action
 	return e, plan, ctx, err
+}
+
+// registryConfigID resolves an entity without a state (registry-disabled)
+// through its registry row; no row is NOT_FOUND with candidates.
+func (e *tierEngine) registryConfigID(entityID string) (string, error) {
+	rows, err := e.fullRegistry()
+	if err != nil {
+		return "", err
+	}
+	for _, row := range rows {
+		if row.EntityID == entityID && row.UniqueID != "" {
+			return row.UniqueID, nil
+		}
+	}
+	_, _, err = readEntityState(e.s, entityID)
+	return "", err
 }
 
 func revertDrift(message string) *verbFailure {

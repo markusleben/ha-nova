@@ -139,17 +139,15 @@ func verifyConfig(s *relaySession, action configAction, reloaded bool) (verifyRo
 		return row, nil
 	}
 	row.Expect = "read-back equals the plan, reload ok, entity present"
-	planned, _ := configObjectFromBytes(action.Body)
-	live, parseErr := configObjectFromBytes(readback)
+	differences, parseErr := configChanges(action.Body, readback)
 	if err != nil || status != http.StatusOK || parseErr != nil {
 		row.Observed = fmt.Sprintf("read-back failed (HTTP %d)", status)
 		return row, nil
 	}
-	differences := append(renderConfigChanges(planned, live), orderChanges(action.Body, readback)...)
-	entityID := registryEntityFor(s, action.Domain, action.ConfigID)
+	entityID, disabled := registryEntityFor(s, action.Domain, action.ConfigID)
 	row.EntityID = entityID
 	var st *entityState
-	if entityID != "" {
+	if entityID != "" && !disabled {
 		st, _ = s.stateFresh(entityID, relaySessionRequestTimeout)
 	}
 	row.Observed = fmt.Sprintf("%d differences, reload ok: %v, entity: %q present: %v", len(differences), reloaded, entityID, st != nil)
@@ -158,6 +156,8 @@ func verifyConfig(s *relaySession, action configAction, reloaded bool) (verifyRo
 		row.Note = "saved, but the reload barrier failed: whether the change is running is unknown"
 	case len(differences) > 0:
 		row.Note = "the read-back differs: " + strings.Join(differences, " ")
+	case disabled: // a registry-disabled item has no state to check
+		row.Outcome, row.Note = "verified", "disabled in the entity registry: saved, not running"
 	case st != nil && st.State == "unavailable": // Home Assistant could not load the config
 		row.Note = "the entity is unavailable: Home Assistant rejected the config when loading it"
 	case st != nil:
@@ -183,16 +183,16 @@ func coreGETFresh(s *relaySession, path string) (int, json.RawMessage, error) {
 
 // registryEntityFor matches the config id to the registry unique_id — the
 // real entity_id, never the slug (relay-api.md post-write verification).
-func registryEntityFor(s *relaySession, domain, configID string) string {
+func registryEntityFor(s *relaySession, domain, configID string) (string, bool) {
 	data, err := s.readFresh("ws", map[string]any{"type": "config/entity_registry/list"}, relaySessionRequestTimeout)
 	var rows []fullRegistryRow
 	if err != nil || json.Unmarshal(data, &rows) != nil {
-		return ""
+		return "", false
 	}
 	for _, row := range rows {
 		if row.Platform == domain && row.UniqueID == configID && strings.HasPrefix(row.EntityID, domain+".") {
-			return row.EntityID
+			return row.EntityID, row.DisabledBy != ""
 		}
 	}
-	return ""
+	return "", false
 }
