@@ -331,11 +331,14 @@
       ]
     },
     "require_patterns": [
-      "ha-nova[[:space:]]+call([[:space:]]|$)"
+      "ha-nova[[:space:]]+call[[:space:]]+light\\.turn_off[[:space:]].*light\\.bed_light"
     ],
     "forbid_patterns": [
       "relay[[:space:]]+core"
     ],
-    "max_duration_sec": 120
+    "max_duration_sec": 120,
+    "must_contain_text": [
+      "verified"
+    ]
   }
 ]

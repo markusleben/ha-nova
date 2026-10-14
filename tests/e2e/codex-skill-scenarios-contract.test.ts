@@ -354,7 +354,12 @@ describe("codex skill scenario e2e contract", () => {
     const bedLight = scenarios.find((scenario) => scenario.id === "turn-off-bed-light-via-call");
     expect(bedLight?.prompt).toContain("turn off the bed light");
     expect(bedLight?.expect).toEqual({ type: "service_call", values: ["light.bed_light"] });
-    expect(bedLight?.require_patterns).toEqual(["ha-nova[[:space:]]+call([[:space:]]|$)"]);
+    // The exact service on the exact target, and a verified outcome — not
+    // merely any `ha-nova call` (a turn_on or a stored preview must fail).
+    expect(bedLight?.require_patterns).toEqual([
+      "ha-nova[[:space:]]+call[[:space:]]+light\\.turn_off[[:space:]].*light\\.bed_light",
+    ]);
+    expect(bedLight?.must_contain_text).toEqual(["verified"]);
     expect(bedLight?.forbid_patterns).toEqual(["relay[[:space:]]+core"]);
     const runner = readFileSync("scripts/e2e/codex-ha-nova-scenarios-e2e.sh", "utf8");
     expect(runner).toContain('validation_error="required_pattern_missing"');
