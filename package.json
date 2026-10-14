@@ -92,20 +92,20 @@
     "prepare": "husky"
   },
   "dependencies": {
-    "@peculiar/x509": "^2.0.0",
+    "@peculiar/x509": "^2.1.0",
     "@serenity-kit/opaque": "^1.1.0",
-    "home-assistant-js-websocket": "^9.6.0",
-    "jose": "^6.2.10",
+    "home-assistant-js-websocket": "^9.7.1",
+    "jose": "^6.2.12",
     "reflect-metadata": "^0.2.2",
-    "ws": "^8.21.3",
+    "ws": "^8.22.0",
     "yaml": "^2.9.0"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^5.20260825.1",
-    "@types/node": "^25.9.5",
-    "@types/ws": "^8.18.1",
+    "@cloudflare/workers-types": "^5.20261014.1",
+    "@types/node": "^25.9.9",
+    "@types/ws": "^8.18.2",
     "husky": "^9.1.7",
-    "tsx": "^4.23.12",
+    "tsx": "^4.23.13",
     "typescript": "^7.0.2",
     "vitest": "^4.1.11"
   },
