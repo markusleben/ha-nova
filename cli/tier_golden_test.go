@@ -268,9 +268,17 @@ func TestDisruptiveButtonPressIsPreviewed(t *testing.T) {
 				f.ent("button.router_1", "fritz", "unknown", map[string]any{"friendly_name": "Router Shut Down"})
 			},
 			args: []string{"button.press", "button.router_1"}, exit: 3, tier: "preview", reasons: []string{reasonDisruptive}},
-		{name: "entity_id word",
+		{name: "factory reset is destructive: typed",
 			setup: func(f *fakeHA) { f.ent("button.plug_factory_reset", "tplink", "unknown", nil) },
-			args:  []string{"button.press", "button.plug_factory_reset"}, exit: 3, tier: "preview", reasons: []string{reasonDisruptive}},
+			args:  []string{"button.press", "button.plug_factory_reset"}, exit: 3, tier: "typed", reasons: []string{reasonDestructiveButton}},
+		{name: "plain reset stays preview",
+			setup: func(f *fakeHA) { f.ent("button.filter_reset", "philips", "unknown", nil) },
+			args:  []string{"button.press", "button.filter_reset"}, exit: 3, tier: "preview", reasons: []string{reasonDisruptive}},
+		{name: "preset is not reset",
+			setup: func(f *fakeHA) {
+				f.ent("button.fan_preset", "xiaomi", "unknown", map[string]any{"friendly_name": "Fan preset"})
+			},
+			args: []string{"button.press", "button.fan_preset"}, exit: 0, tier: "ordinary", absent: []string{reasonDisruptive}},
 		{name: "stored press inside a script keeps the reason",
 			setup: func(f *fakeHA) {
 				f.ent("button.cam_reboot", "reolink", "unknown", nil)
