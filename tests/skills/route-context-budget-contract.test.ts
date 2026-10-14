@@ -11,7 +11,7 @@ import { describe, expect, it } from "vitest";
 // Markdown link traversal because "always" vs "on demand" is prose, not
 // syntax. Ratchet values are the measured totals rounded up; lowering them
 // is the point of any context-reduction change.
-const ROUTE_BUDGETS: Record<string, { files: string[]; limit: number; verbRoute?: boolean }> = {
+const ROUTE_BUDGETS: Record<string, { files: string[]; limit: number; verbRoute?: boolean; skill?: string; extra?: string[] }> = {
   // measured 32941 with the retired 10780-word template snapshot (router
   // 5619 + bootstrap 1176 + output rules 2636 + review 4829 + checks 7901);
   // the official templating page is fetched only when a template check
@@ -68,6 +68,21 @@ const ROUTE_BUDGETS: Record<string, { files: string[]; limit: number; verbRoute?
       "skills/ha-nova/session-bootstrap.md",
       "skills/ha-nova/output-rules.md",
       "skills/service-call/SKILL.md",
+    ],
+  },
+  // The same route when the call carries data whose field, unit, or feature
+  // bit the agent is unsure of (common for brightness, temperature, modes):
+  // domain-fields.md joins. Kept as its own honest row.
+  "service-call-with-fields": {
+    limit: 3750,
+    verbRoute: true,
+    skill: "service-call",
+    extra: ["skills/service-call/domain-fields.md"],
+    files: [
+      "skills/ha-nova/session-bootstrap.md",
+      "skills/ha-nova/output-rules.md",
+      "skills/service-call/SKILL.md",
+      "skills/service-call/domain-fields.md",
     ],
   },
 };
@@ -127,17 +142,18 @@ describe("route context ratchet (#521)", () => {
       ).sort(),
     );
     expect(readFileSync("skills/ha-nova/output-rules.md", "utf8")).toContain(`read\n\`${CARDS}\``);
-    for (const [route, { files, verbRoute }] of Object.entries(ROUTE_BUDGETS)) {
+    for (const [name, { files, verbRoute, skill, extra = [] }] of Object.entries(ROUTE_BUDGETS)) {
+      const route = skill ?? name;
       const text = readFileSync(`skills/${route}/SKILL.md`, "utf8");
       expect(text).toContain("Read and follow `../ha-nova/session-bootstrap.md`");
       const mandatory = verbRoute ? VERB_ROUTE_MANDATORY : [...ROUTER_MANDATORY, CARDS];
-      const expected = new Set([...mandatory, `skills/${route}/SKILL.md`, ...declaredAlwaysLoads(route)]);
+      const expected = new Set([...mandatory, `skills/${route}/SKILL.md`, ...declaredAlwaysLoads(route), ...extra]);
       if (route === "review") {
         // The checks catalog is read on every review (Verify-before-flag rule).
         expect(text).toContain("`skills/review/checks.md`");
         expected.add("skills/review/checks.md");
       }
-      expect([...files].sort(), `${route} route file list must mirror its declarations`).toEqual(
+      expect([...files].sort(), `${name} route file list must mirror its declarations`).toEqual(
         [...expected].sort(),
       );
     }
