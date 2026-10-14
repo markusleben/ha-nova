@@ -17,10 +17,15 @@ type ScenarioDefinition = {
       }
     | {
         type: "json_array_values";
+      }
+    | {
+        type: "service_call";
+        values: string[];
       };
   expected_status?: "pass" | "fail";
   expected_error?: string;
   forbid_patterns?: string[];
+  require_patterns?: string[];
   must_contain_text?: string[];
   must_not_contain_text?: string[];
   max_duration_sec?: number;
@@ -154,7 +159,14 @@ describe("codex skill scenario e2e contract", () => {
       expect(typeof scenario.prompt).toBe("string");
       expect(scenario.prompt.length).toBeGreaterThan(0);
 
-      expect(["entity_id_prefix_count", "json_array_values"]).toContain(scenario.expect.type);
+      expect(["entity_id_prefix_count", "json_array_values", "service_call"]).toContain(scenario.expect.type);
+      if (scenario.expect.type === "service_call") {
+        expect(scenario.expect.values.length).toBeGreaterThan(0);
+      }
+      if (typeof scenario.require_patterns !== "undefined") {
+        expect(scenario.require_patterns.length).toBeGreaterThan(0);
+        expect(scenario.require_patterns.every((pattern) => typeof pattern === "string" && pattern.length > 0)).toBe(true);
+      }
       if (scenario.expect.type === "entity_id_prefix_count") {
         expect(typeof scenario.expect.prefix).toBe("string");
         expect(scenario.expect.prefix.endsWith(".")).toBe(true);
@@ -333,6 +345,20 @@ describe("codex skill scenario e2e contract", () => {
       "final else branch is only reached when the earlier entity-state branches are false"
     );
     expect(chooseTrigger?.must_not_contain_text).toEqual(expect.arrayContaining(["R-19", "R19"]));
+  });
+
+  it("drives a device action through the typed verb, never raw relay core (typed-verbs PR4)", () => {
+    const scenarios = JSON.parse(
+      readFileSync("scripts/e2e/codex-ha-nova-scenarios.json", "utf8"),
+    ) as ScenarioDefinition[];
+    const bedLight = scenarios.find((scenario) => scenario.id === "turn-off-bed-light-via-call");
+    expect(bedLight?.prompt).toContain("turn off the bed light");
+    expect(bedLight?.expect).toEqual({ type: "service_call", values: ["light.bed_light"] });
+    expect(bedLight?.require_patterns).toEqual(["ha-nova[[:space:]]+call([[:space:]]|$)"]);
+    expect(bedLight?.forbid_patterns).toEqual(["relay[[:space:]]+core"]);
+    const runner = readFileSync("scripts/e2e/codex-ha-nova-scenarios-e2e.sh", "utf8");
+    expect(runner).toContain('validation_error="required_pattern_missing"');
+    expect(runner).toContain('.expect.type == "service_call"');
   });
 
   it("keeps user-facing scenario expectations free of rule-code markers", () => {

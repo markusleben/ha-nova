@@ -177,9 +177,19 @@ validate_scenario_file() {
         )
         or
         (.expect.type == "json_array_values")
+        or
+        (
+          .expect.type == "service_call"
+          and (.expect.values | type == "array" and length > 0 and all(.[]; type == "string" and length > 0))
+        )
       )
       and (((.expected_status // "pass") | (. == "pass" or . == "fail")))
       and ((.expected_error // "") | type == "string")
+      and (
+        (has("require_patterns") | not)
+        or
+        (.require_patterns | type == "array" and length > 0 and all(.[]; type == "string" and length > 0))
+      )
       and (
         (has("forbid_patterns") | not)
         or
@@ -252,6 +262,15 @@ Minimal local-review path for this scenario:
 - Do not run repo-wide follow-up searches, excerpt hunts, package inspection, or additional discovery commands after reading those references.
 - After those direct reads, analyze the YAML and finish immediately.
 EOF_REVIEWPATH
+  elif [[ "$expect_type" == "service_call" ]]; then
+    cat >> "$prompt_file" <<EOF_SERVICEPATH
+
+Device-control path for this scenario:
+- This is a live device-control request against the configured Home Assistant.
+- Take skill guidance from skills/service-call/SKILL.md and the files it names; skills/ha-nova/index.md is the session index.
+- Do not inspect test harness files, package manifests, install scripts, or CLI source.
+- The status line values are the entity_ids the action targeted.
+EOF_SERVICEPATH
   fi
 
   if [[ "$expected_error" == "proactive_doctor_or_ready_detected" ]]; then
@@ -431,6 +450,8 @@ run_scenario() {
   local must_contain_text_json="${11}"
   local must_not_contain_text_json="${12}"
   local max_duration_sec="${13}"
+  local expect_values_json="${14:-[]}"
+  local require_patterns_json="${15:-[]}"
 
   local prompt_file="${LOG_DIR}/${index}-${scenario_id}.prompt.txt"
   local scenario_log="${LOG_DIR}/${index}-${scenario_id}.jsonl"
@@ -562,6 +583,11 @@ run_scenario() {
       validation_error="invalid_values_json"
     elif [[ "$expect_type" == "json_array_values" ]]; then
       :
+    elif [[ "$expect_type" == "service_call" ]]; then
+      if ! echo "$values_json" | jq -e --argjson expected "$expect_values_json" '(sort) == ($expected | sort)' >/dev/null; then
+        status="fail"
+        validation_error="values_mismatch"
+      fi
     elif [[ "$expect_type" == "entity_id_prefix_count" ]]; then
       if [[ "$expected_count_mode" == "up_to" ]] && ! echo "$values_json" | jq -e --arg prefix "$expected_prefix" --argjson expected_count "$expected_count" '
         (length > 0 and length <= $expected_count)
@@ -636,6 +662,19 @@ run_scenario() {
   if [[ "$status" == "pass" && "$duration_sec" -gt "$max_duration_sec" ]]; then
     status="fail"
     validation_error="duration_exceeded"
+  fi
+
+  if [[ "$status" == "pass" ]]; then
+    while IFS= read -r required_pattern; do
+      if [[ -z "$required_pattern" ]]; then
+        continue
+      fi
+      if [[ "$(count_command_hits "$parsed_log" "$required_pattern")" -eq 0 ]]; then
+        status="fail"
+        validation_error="required_pattern_missing"
+        break
+      fi
+    done < <(echo "$require_patterns_json" | jq -r '.[]')
   fi
 
   if [[ "$status" == "pass" ]]; then
@@ -782,7 +821,9 @@ main() {
       "$(jq -c ".[$idx].forbid_patterns // []" "$SCENARIO_FILE")" \
       "$(jq -c ".[$idx].must_contain_text // []" "$SCENARIO_FILE")" \
       "$(jq -c ".[$idx].must_not_contain_text // []" "$SCENARIO_FILE")" \
-      "$(jq -r ".[$idx].max_duration_sec // 60" "$SCENARIO_FILE")"
+      "$(jq -r ".[$idx].max_duration_sec // 60" "$SCENARIO_FILE")" \
+      "$(jq -c ".[$idx].expect.values // []" "$SCENARIO_FILE")" \
+      "$(jq -c ".[$idx].require_patterns // []" "$SCENARIO_FILE")"
   done
 
   jq -s --arg run_id "$RUN_ID" --arg scenario_file "$SCENARIO_FILE" '

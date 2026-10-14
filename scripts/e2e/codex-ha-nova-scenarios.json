@@ -320,5 +320,22 @@
       "R19"
     ],
     "max_duration_sec": 240
+  },
+  {
+    "id": "turn-off-bed-light-via-call",
+    "prompt": "Use ha nova skill and turn off the bed light.",
+    "expect": {
+      "type": "service_call",
+      "values": [
+        "light.bed_light"
+      ]
+    },
+    "require_patterns": [
+      "ha-nova[[:space:]]+call([[:space:]]|$)"
+    ],
+    "forbid_patterns": [
+      "relay[[:space:]]+core"
+    ],
+    "max_duration_sec": 120
   }
 ]
