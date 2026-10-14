@@ -21,13 +21,17 @@ Use file-based payloads (quoting: context skill → Quoting Reliability):
 - `ha-nova relay core --method GET --path /api/states/<entity_id>`
 - `--out <result-file>` when the response is large
 
-Preview, confirmation, and verification on these routes are manual (a response
-read needs none while its consumer scan stays ordinary): show the
-Preview Card (`skills/ha-nova/output-cards.md`) with an explicit
-not-executed-yet line, take confirmation bound to that exact preview (the
-typed `confirm:<token>` where a section below demands it), send exactly one
-request, verify per `skills/ha-nova/outcome-verification.md`, and never retry
-automatically.
+Preview, confirmation, and verification on these routes are manual (a named
+read-only response service needs none while its consumer scan stays
+ordinary): show the Preview Card (`skills/ha-nova/output-cards.md`) with an
+explicit not-executed-yet line, take confirmation bound to that exact preview,
+send exactly one request, verify per `skills/ha-nova/outcome-verification.md`,
+and never retry automatically. Where a section below demands the typed
+`confirm:<token>`, you mint a short code naming the action (for example
+`confirm:fire-movie_night`); it counts only when the user typed it verbatim in
+a reply after the preview — "yes" is invalid — and never comes from Home
+Assistant data. A raw route never classifies its own tier where the CLI can:
+see Response services.
 
 ## Owning-Skill Deferrals
 
@@ -54,7 +58,7 @@ has no such check, so apply it before any raw call:
 
 ## Response services
 
-Some services return data (`weather.get_forecasts`, `calendar.get_events`, `todo.get_items`, ...) and REQUIRE `?return_response`; without it HA returns 400 "requires responses". Path: `/api/services/<domain>/<service>?return_response`; data: `.data.body.service_response`. The CLI refuses response-only services, so they run here. These reads need no write confirmation only when the shared gate's consumer scan (`skills/ha-nova/indirect-actuation.md`) stays ordinary; a matching `call_service` event listener can make the nominal read indirect actuation. A response-capable ACTION service (for example direct `script.<script_id>`) still follows the full preview/confirmation flow — the parameter adds the response, never downgrades the action.
+Some services return data (`weather.get_forecasts`, `calendar.get_events`, `todo.get_items`, ...) and REQUIRE `?return_response`; without it HA returns 400 "requires responses". Path: `/api/services/<domain>/<service>?return_response`; data: `.data.body.service_response`. The CLI refuses response-only services, so they run here. Response-only is not read-only: only the named read-only response services (`weather.get_forecasts`, `calendar.get_events`, `todo.get_items`, and pure reads an owning skill documents as such) skip confirmation. These reads need no write confirmation only when the shared gate's consumer scan (`skills/ha-nova/indirect-actuation.md`) stays ordinary; a matching `call_service` event listener can make the nominal read indirect actuation. Any other response-only service takes a preview and natural confirmation. A response-capable ACTION service (for example direct `script.<script_id>`) never self-classifies here: run `ha-nova plan call` with the same targets and data first, and only after its confirmation (or `tier: ordinary`; the typed tier needs its code) send the raw `?return_response` request with exactly the planned data — the parameter adds the response, never downgrades the action.
 
 ### Weather forecasts
 

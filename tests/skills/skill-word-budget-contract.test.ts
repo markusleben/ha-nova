@@ -30,15 +30,15 @@ const ALL_SKILL_MD_FILES = ((): string[] => {
 // TRANSITIVE load (lazy references), not these file sizes — write carries the
 // on-demand trigger list itself.
 const WORD_BUDGETS: Record<string, number> = {
-  // Safety Core fast-path amendment (PR4 typed verbs, +28 words per mutation skill).
-  backup: 1190,
+  // Safety Core fast-path amendment (PR4 typed verbs, +45 words per mutation skill).
+  backup: 1210,
   // Platform-specific payloads plus presence-based household routing in the
   // combined audit train (measured 1382 before the bounded-wait removal).
   // Delivery-honesty reconciliation with the canonical composition contract
   // plus the surface-selection instantiation note (train review P2-1/P2-3,
   // 2026-08-20, measured 1506).
-  // Safety Core fast-path amendment (PR4 typed verbs, +28 words per mutation skill).
-  notify: 1560,
+  // Safety Core fast-path amendment (PR4 typed verbs, +45 words per mutation skill).
+  notify: 1590,
   // State-snapshot queries ("is everything closed?") and the alias fallback
   // that finally reaches the names a household actually says (#527, 1318).
   // Codex round 3: a motorized window or garage door is a cover, so an
@@ -71,8 +71,8 @@ const WORD_BUDGETS: Record<string, number> = {
   // preventing it.
   // Codex round 2: first-time setup has no prefs document, so the drift
   // reread needs absence as an explicit basis (measured 1283).
-  // Safety Core fast-path amendment (PR4 typed verbs, +28 words per mutation skill).
-  energy: 1330,
+  // Safety Core fast-path amendment (PR4 typed verbs, +45 words per mutation skill).
+  energy: 1360,
   // consumer checks before area delete/rename/disable (Wave 1b) + metadata
   // snapshot capture (Wave 2).
   // Grouped-change-set opt-in + flow wiring (#391).
@@ -86,16 +86,16 @@ const WORD_BUDGETS: Record<string, number> = {
   // (#529 P2-09, measured 1354 pre-train).
   // Pack-train union (2026-08-20): #529 seam on top of main's #564/#583
   // sibling rounds, measured 1491 combined.
-  // Safety Core fast-path amendment (PR4 typed verbs, +28 words per mutation skill).
-  organize: 1560,
+  // Safety Core fast-path amendment (PR4 typed verbs, +45 words per mutation skill).
+  organize: 1580,
   // #597's verification-planning pointer and #564's restart/reboot pointer
   // both eat the default cap's headroom (measured 1145/1146 alone).
   // Before/after actuation frames exception to the repeated-frames ban
   // (#519 C1-12, 2026-08-20, measured 1196).
   // Pack-train union (2026-08-20): #519 frames exception on top of main's
   // #597/#564 pointers, measured 1218 combined.
-  // Safety Core fast-path amendment (PR4 typed verbs, +28 words per mutation skill).
-  camera: 1270,
+  // Safety Core fast-path amendment (PR4 typed verbs, +45 words per mutation skill).
+  camera: 1290,
   // write/mqtt ratcheted for the batch-safety opt-in lines (#327);
   // write again for the Phase 5 test offer (test-run.md).
   // pre-delete snapshot capture + config-snapshots reference (Wave 2).
@@ -130,8 +130,8 @@ const WORD_BUDGETS: Record<string, number> = {
   // migration backup gate, category-appropriate verification (#478);
   // review rounds added pin-durability branches, the uninstall apply
   // step, and the prerelease-toggle rule (measured 2217).
-  // Safety Core fast-path amendment (PR4 typed verbs, +28 words per mutation skill).
-  hacs: 2300,
+  // Safety Core fast-path amendment (PR4 typed verbs, +45 words per mutation skill).
+  hacs: 2330,
   // Cards adoption pointer (#389).
   // Charset restriction on the value interpolated into the log-filter regex,
   // plus the escaping rule Codex round 1 added: an entity_id is not literal
@@ -140,8 +140,8 @@ const WORD_BUDGETS: Record<string, number> = {
   // every unrelated error line read as evidence (measured 1611).
   // Device-level diagnostics row + integration-controlled redaction sentence
   // (#519 C1-13, 2026-08-20, measured 1675).
-  // Safety Core fast-path amendment (PR4 typed verbs, +28 words per mutation skill).
-  diagnose: 1740,
+  // Safety Core fast-path amendment (PR4 typed verbs, +45 words per mutation skill).
+  diagnose: 1770,
   // Report-shape declaration line (shared output shapes); repair dedup,
   // attention-threshold definition, cause↔symptom linking (2026-h2 Wave 1c).
   // Table-first redesign: report modes, block shape, ten-block order,
@@ -154,8 +154,8 @@ const WORD_BUDGETS: Record<string, number> = {
   // User-assisted capture readiness sequence (#394).
   // Z2M bridge-topic observability section + maintenance registry-side
   // sibling pointer (#529/#520 power lanes, measured 1596).
-  // Safety Core fast-path amendment (PR4 typed verbs, +28 words per mutation skill).
-  mqtt: 1640,
+  // Safety Core fast-path amendment (PR4 typed verbs, +45 words per mutation skill).
+  mqtt: 1670,
   // pre-delete snapshot capture (Wave 2); apply-test offer with the
   // high-consequence carve-out (Wave 3).
   // Fail-closed consumer check with canonical-filter recreate pointer (#489).
@@ -169,8 +169,8 @@ const WORD_BUDGETS: Record<string, number> = {
   // Codex round 5: climate reproduction restores preset/fan/swing/humidity
   // through separate services; each omission is a silent non-restore
   // (measured 1787).
-  // Safety Core fast-path amendment (PR4 typed verbs, +28 words per mutation skill).
-  scene: 1870,
+  // Safety Core fast-path amendment (PR4 typed verbs, +45 words per mutation skill).
+  scene: 1900,
   // buffering settle-window on verify (2026-h2 Wave 1a).
   // Cards adoption pointer (#389).
   // Search-before-browse (player and media_source), queue placement, and the
@@ -181,7 +181,8 @@ const WORD_BUDGETS: Record<string, number> = {
   // Codex round 6: queueing and mode changes have no signal in the fields the
   // generic verify step names — one has none at all, the other has its own
   // (measured 1544).
-  media: 1600,
+  // Safety Core fast-path amendment and PR4 review fixes.
+  media: 1630,
   // test-offer single-confirmation + reference bullets (test-run.md);
   // ratcheted for the owning-skill deferral table + high-consequence
   // confirmation rule (Wave 0), and again for the differentiated verify
@@ -251,8 +252,8 @@ const WORD_BUDGETS: Record<string, number> = {
   // grouped-set drift precedence (#571 Codex round 7); plus main's #564
   // sibling-discovery pointer — combined trial-merge measured 9325.
   // Full-train union with #603/#604 (trial-merge measured 9691).
-  // PR4: entity calls moved to `ha-nova call`; raw routes split into raw-routes.md (folded), measured 7798.
-  "service-call": 7850,
+  // PR4: entity calls moved to `ha-nova call`; raw routes split into raw-routes.md (folded), measured 8085.
+  "service-call": 8130,
   // Carries the canonical File-Change Preview example — the only layout
   // source for file edits; concrete examples are what make a card renderable.
   // Sibling-survival verification (Wave 1b) + yaml snapshot capture with
@@ -265,8 +266,8 @@ const WORD_BUDGETS: Record<string, number> = {
   // entries and can report an existing file as absent (measured 1588).
   // recorder: scope line (include/exclude, purge_keep_days, restart-applied)
   // (#529 P2-06, measured 1614).
-  // Safety Core fast-path amendment (PR4 typed verbs, +28 words per mutation skill).
-  "yaml-config": 1690,
+  // Safety Core fast-path amendment (PR4 typed verbs, +45 words per mutation skill).
+  "yaml-config": 1720,
   // Confirmation-code terminology replacing "token" wording (#392).
   // #452 canonical smallest-solution draft rule (17 words).
   // Grouped item operations: four shopping-list adds should not cost four
@@ -293,8 +294,8 @@ const WORD_BUDGETS: Record<string, number> = {
   // measured 1610).
   // Live Render Loop pointer for templated card fields (review batch,
   // 2026-08-20, measured 1630).
-  // Safety Core fast-path amendment (PR4 typed verbs, +28 words per mutation skill).
-  dashboard: 1690,
+  // Safety Core fast-path amendment (PR4 typed verbs, +45 words per mutation skill).
+  dashboard: 1710,
   // Cards adoption pointer (#389); pre-write update-state drift gate.
   // #452 canonical smallest-solution draft rule (17 words).
   // HA 2026.7 "Update all" semantics: guardrails mirrored, call shape
@@ -305,8 +306,8 @@ const WORD_BUDGETS: Record<string, number> = {
   // HA 2026.9 admin-only install/skip/clear_skipped precondition + 401/
   // unauthorized classification, Relay-auth vs upstream-denial split
   // (deep audit 2026-09-10, measured 1677).
-  // Safety Core fast-path amendment (PR4 typed verbs, +28 words per mutation skill).
-  updates: 1730,
+  // Safety Core fast-path amendment (PR4 typed verbs, +45 words per mutation skill).
+  updates: 1750,
   // batch-safety alignment: batch code format + cap-split rule (#327);
   // purge quantification, glob expansion, apply_filter semantics
   // (2026-h2 Wave 1b).
@@ -316,7 +317,8 @@ const WORD_BUDGETS: Record<string, number> = {
   // receiving side too, or routing never reaches it (measured 1427).
   // MQTT ghost routing to mqtt's retained-discovery cleanup + recorder
   // growth-triage scope line (#529 P2-08/P2-06, measured 1489).
-  maintenance: 1520,
+  // Safety Core fast-path amendment and PR4 review fixes.
+  maintenance: 1550,
   // blueprint payload examples; integration onboarding and runtime
   // events/webhooks moved to owning skills in Wave 4.
   // Custom-integration configuration APIs section + write-probing
@@ -371,8 +373,8 @@ const WORD_BUDGETS: Record<string, number> = {
   // 2026.9 child rows: singular config_entry_id first, pointers to the
   // shared device-row contract, remove/remove_config_entry deprecation
   // dates (#520, deep audit 2026-09-10, measured 5345).
-  // Safety Core fast-path amendment (PR4 typed verbs, +28 words per mutation skill).
-  fallback: 5390,
+  // Safety Core fast-path amendment (PR4 typed verbs, +45 words per mutation skill).
+  fallback: 5420,
   // semantic-slot note on the read templates (Wave 0); pre-write cross-field
   // constraint checks + drift-check step (Wave 1); pre-delete snapshot
   // capture (Wave 2).
@@ -395,8 +397,8 @@ const WORD_BUDGETS: Record<string, number> = {
   // live-form-only note (#531 P4-05, 2026-08-20, measured 4319 pre-train).
   // Pack-train union (2026-08-20): #531 promotion on top of main's train
   // review rounds, measured 4464 combined.
-  // Safety Core fast-path amendment (PR4 typed verbs, +28 words per mutation skill).
-  helper: 4510, // update flow re-confirm rule (round 7, measured 4407) // group-member removal opt-in (round 6, measured 4379) // ephemeral-flow delete exception (round 5, measured 4341)
+  // Safety Core fast-path amendment (PR4 typed verbs, +45 words per mutation skill).
+  helper: 4540, // update flow re-confirm rule (round 7, measured 4407) // group-member removal opt-in (round 6, measured 4379) // ephemeral-flow delete exception (round 5, measured 4341)
   // Fail-closed truncation envelopes on the list and keyword filters
   // (#582, measured 1188).
   read: 1210,
@@ -416,8 +418,8 @@ const WORD_BUDGETS: Record<string, number> = {
   // measured 4829).
   // Template-reference fetch narrowed to signature gaps in checks.md (deep
   // audit 2026-09-10, measured 4846).
-  // Safety Core fast-path amendment (PR4 typed verbs, +28 words per mutation skill).
-  review: 4920,
+  // Safety Core fast-path amendment (PR4 typed verbs, +45 words per mutation skill).
+  review: 4970,
   // Codex round 2 (#518): the entrypoint carried its own copy of the
   // verify-before-flag gate, which contradicted the corrected one in
   // checks.md and could suppress accepted-but-dangerous findings; trace
@@ -433,8 +435,8 @@ const WORD_BUDGETS: Record<string, number> = {
   // the default cap (review/todo/updates ratchets applied on their entries).
   // Recurring creates through WS calendar/event/create with rrule plus the
   // series-shaped verification (#519 C1-05, 2026-08-20, measured 1237).
-  // Safety Core fast-path amendment (PR4 typed verbs, +28 words per mutation skill).
-  calendar: 1310,
+  // Safety Core fast-path amendment (PR4 typed verbs, +45 words per mutation skill).
+  calendar: 1330,
   // Credential-recovery lane when no reauth flow is pending: reload as the
   // only supported trigger, fail-closed handoff, no replacement entries
   // (#585, measured 1350); review batch added the Scope carve-out, the
@@ -454,12 +456,12 @@ const WORD_BUDGETS: Record<string, number> = {
   // preflight contract (#520 C1-04, 2026-08-20, measured 1842).
   // Review batch: options verification-flow cleanup + hedged reconfigure
   // guard (2026-08-20, measured 1875).
-  // Safety Core fast-path amendment (PR4 typed verbs, +28 words per mutation skill).
-  "integration-setup": 2020, // options/reconfigure secret handoff (round 4, measured 1962) // reconfigure source field (Codex round 1, measured 1892)
+  // Safety Core fast-path amendment (PR4 typed verbs, +45 words per mutation skill).
+  "integration-setup": 2050, // options/reconfigure secret handoff (round 4, measured 1962) // reconfigure source field (Codex round 1, measured 1892)
   // Pipeline create with the clone-preferred default (#531 P4-06) and the
   // custom-sentences owning workflow (#519 C1-08), 2026-08-20, measured 1451.
-  // Safety Core fast-path amendment (PR4 typed verbs, +28 words per mutation skill).
-  assist: 1520,
+  // Safety Core fast-path amendment (PR4 typed verbs, +45 words per mutation skill).
+  assist: 1540,
 };
 const DEFAULT_WORD_BUDGET = 1150;
 

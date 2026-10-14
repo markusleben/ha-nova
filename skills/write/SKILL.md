@@ -76,7 +76,7 @@ future needs, native primitives when equally safe and clearer.
    - New or explicitly edited notification actions follow the canonical contract `skills/ha-nova/mobile-notification-composition.md` (composition and observed conventions). Its recurring-workflow INTENT classification is not so limited: it runs before the write preview on EVERY recurring-workflow write — existing notification actions and trigger-only edits included, their payloads staying byte-for-byte untouched — and may add an exception-only Suggestion Block item.
 2. BP gate (`skills/ha-nova/write-safety.md`; refresh: `skills/ha-nova/best-practices.md`): fresh, or any status on a simple change -> continue; stale/missing/invalid + complex -> block.
 3. Suggestions + Pre-Write Checks (skip for `delete`):
-   - **3a) Suggestions**: Render `suggested_enhancements` as the Suggestion Block (output-rules.md; max 2, smallest intervention first, numbered/menu — `skills/ha-nova/smallest-solution.md`). User accepts numbers or "skip" → merge accepted into config BEFORE preview. Skip when `SUGGESTED_ENHANCEMENTS: none` AND step 1 produced no intent-classification item — either source alone renders the block.
+   - **3a) Suggestions**: Render `suggested_enhancements` as the Suggestion Block (output-cards.md; max 2, smallest intervention first, numbered/menu — `skills/ha-nova/smallest-solution.md`). User accepts numbers or "skip" → merge accepted into config BEFORE preview. Skip when `SUGGESTED_ENHANCEMENTS: none` AND step 1 produced no intent-classification item — either source alone renders the block.
    - **3b) Static Checks**: Use `skills/review/checks.md` → Application (family matrix + evidence boundaries). Run S/R/P/M checks analytically on the draft YAML — no relay calls (scripts: F-01..F-08; helper refs: H-01..H-08. Defer H-09/H-10 to Phase 4).
      One pre-write verdict line before apply:
      - clean draft → localized equivalent of "Pre-write check: no issues worth flagging before save."
@@ -148,7 +148,7 @@ Do NOT invoke `ha-nova:review` separately.
     - If persisted R-18 remains, inspect traces after the next real run. Do not auto-trigger or auto-read traces outside an accepted Phase 5 test plan.
     - If actions reference helpers: always run H-01..H-11.
 3. Collision scan: `{"type":"search/related","item_type":"entity","item_id":"<entity_id>"}` via `ha-nova relay ws --data-file <payload-file> --jq-file <filter-file>`, where `<filter-file>` is the same canonical `search-related-consumers.jq` (and the same fail-closed rule) as Phase 2 step 3c; read max 3 related configs.
-4. Post-Write Review output (localized; see `skills/ha-nova/output-rules.md`) — report only what has substance; scans still run, only empty output is suppressed:
+4. Post-Write Review output (localized; see `skills/ha-nova/output-cards.md` → Findings, Empty States) — report only what has substance; scans still run, only empty output is suppressed:
    - **Findings**: real issues only. **Collision check**: only when related items exist (list them + the verdict); a failed scan is NOT empty output — report it as "consumer check inconclusive". **Advisory**: only when non-empty. Omit any section with nothing to report — never print an empty "none" bucket.
    - If nothing is worth reporting, collapse to one scope-honest confirmation line (write-safety → Verification Honesty).
    - Never emit `Questions to consider`, `Suggestions`, or `Instant help` post-write; never repeat an item across **Findings** and **Advisory**. Sole exception: the one-line Replication Line after a verified create (`output-rules.md`).
@@ -168,7 +168,7 @@ See `skills/ha-nova/SKILL.md` → Response Format.
 
 ## Safety
 
-- Preview before write, except the `ha-nova call` fast path (`tier: ordinary`): unambiguous everyday actions run immediately and are verified afterwards; everything else runs or is saved only after the user confirms the shown preview; unlocking, opening gates or garage doors, disarming the alarm, and deletes need a code.
+- Preview before write. The only exception is a call that `ha-nova call` itself executed as `tier: ordinary` (an unambiguous everyday action, verified afterwards); everything else runs or is saved only after the user confirms the shown preview. High-consequence actions (e.g. unlocking or opening a lock, opening a gate, garage, or entry door, disarming the alarm — also through a scene or script) and deletes need a code.
 - Confirmation binds to the displayed preview and expires on any change to target, payload, endpoint, or scope (context skill → Active Preview Confirmation).
 - Pre-preview phrases ("do it", "go ahead", "implement the plan") authorize drafting and preview only — never the write itself.
 - Delete and destructive operations require the typed confirmation code `confirm:<token>` verbatim; "yes" or any natural-language reply is invalid.

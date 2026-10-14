@@ -127,7 +127,7 @@ user explicitly asks to change notification wording or notification behavior:
 Do not silently restyle, relocalize, shorten, expand, or restructure existing
 notification text during a rename, refactor, timing change, trigger/condition
 change, helper change, or service-call change. If the copy looks improvable,
-offer it as a separate Suggestion Block item (output-rules.md) before preview;
+offer it as a separate Suggestion Block item (output-cards.md) before preview;
 do not merge it into the draft unless the user accepts it.
 
 If notification copy does change, the Changes slot must show the old and new text or

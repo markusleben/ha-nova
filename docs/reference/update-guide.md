@@ -43,7 +43,7 @@ Retired pre-v0.20 Gemini/Antigravity paths require one `ha-nova setup` run.
 | **Skill** | `version.json:skill_version` | Skills, plugin, package | Skill logic changes |
 | **Relay** | `config.yaml:version` | HA App (Supervisor) | Relay runtime changes |
 
-`version.json:min_relay_version` bridges the two: skills declare the minimum Relay version they need. The SessionStart hook warns if the running Relay is too old.
+`version.json:min_relay_version` bridges the two: skills declare the minimum Relay version they need. The first-use `ha-nova check-update --quiet`, relay commands, and the typed verbs' `notices[]` warn if the running Relay is too old.
 
 **Why separate?** Skill-only improvements (new checks, better prompts) should not force a Relay reinstall/rebuild on the user's HA instance.
 
@@ -76,8 +76,8 @@ On native Windows, post-update client sync uses the installed HA NOVA runtime di
 
 Three checks run automatically:
 
-1. **Skill update check** — `ha-nova check-update` compares the installed version against the latest GitHub release. The result is cached briefly, then revalidated against GitHub with a conditional request, so a newly published release is detected promptly instead of being hidden until a long cache expires. Every independently loadable HA NOVA skill carries the contract, so the first skill used runs the quiet check once per selected server profile before that profile's first HA task in a session; SessionStart may warm the same cache but does not replace this human-output path. The quiet check also reports a registry-proven pending NOVA Relay App update, including compatible versions above the skills' minimum Relay floor.
-2. **Relay compat check** — `ha-nova relay health` compares Relay version against `min_relay_version`. Claude Code SessionStart context can surface the same warning independently.
+1. **Skill update check** — `ha-nova check-update` compares the installed version against the latest GitHub release. The result is cached briefly, then revalidated against GitHub with a conditional request, so a newly published release is detected promptly instead of being hidden until a long cache expires. Every independently loadable HA NOVA skill carries the contract, so the first skill used runs the quiet check once per selected server profile before that profile's first HA task in a session. The quiet check also reports a registry-proven pending NOVA Relay App update, including compatible versions above the skills' minimum Relay floor.
+2. **Relay compat check** — `ha-nova relay health` compares Relay version against `min_relay_version`.
 3. **Relay-traffic update nudge** — every `ha-nova relay ws|core` call surfaces a cached "update available" notice on stderr at most once per 24h; `ha-nova relay health` surfaces it unthrottled as the explicit diagnostic path. The compare is cache-only (never a network call in the hot path); a non-fresh cache is refreshed by a detached background `check-update --quiet --json`. Opt out with `HA_NOVA_NO_UPDATE_NUDGE=1`.
 
 The `doctor` command runs the first two checks synchronously and also refreshes the update cache.

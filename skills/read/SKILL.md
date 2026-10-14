@@ -167,7 +167,7 @@ triggers: ...
 actions: ...
 ```
 
-For list operations, render the List Frame (output-rules.md) with these columns:
+For list operations, render the List Frame (output-cards.md) with these columns:
 
 ```
 | Entity ID | Name | Area |

@@ -92,7 +92,7 @@ describe("service call contract", () => {
       expect(skillDoc).toContain("only after the user types that exact code");
       expect(skillDoc).toContain("drift since the preview, nothing sent");
       expect(skillDoc).toContain("never retry automatically");
-      expect(skillDoc).toContain("It may have run: read the state (`ha-nova get`) and report; never retry.");
+      expect(skillDoc).toContain("It may have run: read the state (`ha-nova get`) and report; the outcome stays unknown even if the state matches; never retry.");
     });
 
     it("binds confirmation to the shown preview and never lets the agent mint a code", () => {
@@ -122,7 +122,8 @@ describe("service call contract", () => {
 
     it("caps explicit batches and keeps broad targets previewed", () => {
       expect(skillDoc).toContain("up to 10 explicitly named entities in one call");
-      expect(skillDoc).toContain("`--area`/`--device` expand to concrete entities and always preview");
+      expect(skillDoc).toContain("never expand it into entity ids yourself; explicit ids (up to 10) are only for entities the USER named");
+      expect(skillDoc).toContain("`--area <area_id>`/`--device <device_id>` (they expand to concrete entities and always preview)");
     });
   });
 

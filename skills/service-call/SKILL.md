@@ -13,7 +13,7 @@ Run Home Assistant services now — devices, scenes, scripts, automations, locks
 
 ## Bootstrap (once per session)
 
-Read and follow `../ha-nova/session-bootstrap.md`; later verbs report the same status in `notices[]`. No health probe: an unreachable Relay answers exit 1 `RELAY_ERROR` (then `ha-nova setup` or `ha-nova:onboarding`).
+Read and follow `../ha-nova/session-bootstrap.md`; later verbs report the same status in `notices[]`. No health probe: an unreachable Relay answers exit 1 `RELAY_ERROR` (then `ha-nova setup` or `ha-nova:onboarding`). Multi-server: add `--server <name>` to every verb (or prefix `HA_NOVA_SERVER=<name>`) and name a non-default server once per response.
 
 ## Relay Contract
 
@@ -32,8 +32,8 @@ Read-only response services stay here (`raw-routes.md` → Response services), a
 
 ## Flow
 
-1. **Target.** Entity services always need a target — never call one targetless (exit 4 `TARGET_REQUIRED`); only genuinely targetless services run without one. An exact `entity_id` when known; otherwise `--match "<the entity phrase only>"` (every word must match). A room request whose intended scope could be narrower: ask one clarifying question before using `area_id` — no second blocking ambiguity question in the same turn; otherwise use the narrower confirmed target. `--area`/`--device` expand to concrete entities and always preview. Direct `floor_id` and `label_id` selectors are unsupported — ask for an entity, area, or device instead. A capability the entity lacks (restart, identify, …): run `ha-nova:entity-discovery` → Device-sibling capability discovery before concluding the capability does not exist.
-2. **Data.** Field names: read the section for the domain you are calling in `skills/service-call/domain-fields.md`. `/api/services` gives field NAMES (list them via `raw-routes.md`); valid effect, mode, and preset values come from the target's own attributes (`ha-nova get <entity_id>`). Never carry a value over from another device; unsupported parameters are often dropped silently rather than rejected. Relative asks ("a bit brighter") and `input_number` value changes: read `domain-fields.md` → Relative Asks And Helper Values first.
+1. **Target.** Entity services always need a target — never call one targetless (exit 4 `TARGET_REQUIRED`); only genuinely targetless services run without one. An exact `entity_id` when known; otherwise `--match "<the entity phrase only>"` (every word must match). A room, area, or device phrase always uses `--area <area_id>`/`--device <device_id>` (they expand to concrete entities and always preview) — never expand it into entity ids yourself; explicit ids (up to 10) are only for entities the USER named. A room request whose intended scope could be narrower: ask one clarifying question before using `area_id` — no second blocking ambiguity question in the same turn; otherwise use the narrower confirmed target. Direct `floor_id` and `label_id` selectors are unsupported — ask for an entity, area, or device instead. A capability the entity lacks (restart, identify, …): run `ha-nova:entity-discovery` → Device-sibling capability discovery before concluding the capability does not exist.
+2. **Data.** When unsure of a field, its unit, or a feature bit, read the section for the domain you are calling in `skills/service-call/domain-fields.md`. `/api/services` gives field NAMES (list them via `raw-routes.md`); valid effect, mode, and preset values come from the target's own attributes (`ha-nova get <entity_id>`). Never carry a value over from another device; unsupported parameters are often dropped silently rather than rejected. Relative asks ("a bit brighter") and any `input_number` value change: read `domain-fields.md` → Relative Asks And Helper Values first; a helper with threshold consumers goes through `ha-nova plan call`, never `call`.
 3. **Run** `ha-nova call …` once and act on its exit code:
 
 | Exit | Meaning | Do |
@@ -42,10 +42,10 @@ Read-only response services stay here (`raw-routes.md` → Response services), a
 | 3 | `plan.confirm: natural` | Show the preview; after the user confirms it, run `ha-nova apply --plan <id>` — apply IS the confirmation step. |
 | 3 | `plan.confirm: code` | Show the preview and `plan.code`; only after the user types that exact code, run `ha-nova apply --plan <id> --confirm <the user's text>`. |
 | 2 | drift since the preview, nothing sent (expected after a concurrent change of a state-valued field: select option, number value, `hvac_mode`) | Show the new preview (typed: its new code) and ask again; a relative ask re-derives its value and runs a fresh `call`. |
-| 4 | refused | `reasons[]`: owner skill; `TARGET_REQUIRED` → resolve targets first; `CODE_REQUIRED` → finish the action in the Home Assistant UI; missing feature → the device cannot do it; `hassio` or response-only → `raw-routes.md`. `error` from `apply`: `CODE_REQUIRED`/`CODE_MISMATCH` → ask for the shown code again; any other `PLAN_*` or `SERVER_MISMATCH` → a fresh `call`. |
+| 4 | refused | `reasons[]` (an owner skill wins over `hassio`): owner skill; `TARGET_REQUIRED` → resolve targets first; `CODE_REQUIRED` → finish the action in the Home Assistant UI; missing feature → the device cannot do it; `hassio` or response-only → `raw-routes.md`. `error` from `apply`: `CODE_REQUIRED`/`CODE_MISMATCH` → ask for the shown code again; `PLAN_NOT_FOUND`/`PLAN_CLAIMED` → never re-`call`: read the state and report (it may already have run); `PLAN_INVALIDATED` → stop and tell the user, a new attempt only on their explicit request; `PLAN_EXPIRED`/`PLAN_INVALID`/`SERVER_MISMATCH` → a fresh `call` and preview. |
 | 5 | ambiguous or not found | One question listing `error.candidates` (max 10 — narrow first when more exist) with each match basis; re-run with the chosen id. |
 | 6 | sent; `unverified` or `failed` | Report each entity's `verification` honestly; never retry automatically. |
-| 7 | outcome unknown | It may have run: read the state (`ha-nova get`) and report; never retry. |
+| 7 | outcome unknown | It may have run: read the state (`ha-nova get`) and report; the outcome stays unknown even if the state matches; never retry. |
 | 1 | operational error, nothing sent | What failed, why, next step. |
 
 4. **Confirm** (exit 3). The CLI decides the tier; never lower it, split a call to dodge it, or replay it through `ha-nova relay`.
@@ -54,7 +54,7 @@ Read-only response services stay here (`raw-routes.md` → Response services), a
    - The preview explains every `reasons[]` entry, the `members[]` a scene or script run actuates, the `consumers[]` that react, and `coverage.notes` as named limits.
    - Any change to target, value, or scope means a new `ha-nova call` and a new preview.
 5. A grouped change set (`skills/ha-nova/grouped-change-set.md`) plans each call with `ha-nova plan call` and, after the set's one confirmation, runs `ha-nova apply --plan <id>` per plan; a typed-tier plan leaves the set, and any exit 2 stops the set for a fresh preview.
-6. A user's physical action never verifies a service call this skill sent: read the baseline BEFORE the instruction (context skill → User-Assisted Readiness), then attribute the result to the user's action, not to the call.
+6. A user's physical action never verifies a service call this skill sent: read the baseline BEFORE the instruction, give one exact "act now" instruction, then attribute the result to the user's action, not to the call.
 7. After a VERIFIED multi-entity call likely to repeat, offer once to save it as a scene (`ha-nova:scene`, create-from-current-state) or script (`ha-nova:write`). After a single decline, stay silent about it for the session.
 
 ## Automation And Script Runtime Calls
@@ -77,7 +77,7 @@ Results (exit 0, 6, 7, and after `apply`) use its Verb Results rule. A preview (
 
 ## Safety
 
-- Preview before write, except the `ha-nova call` fast path (`tier: ordinary`): unambiguous everyday actions run immediately and are verified afterwards; everything else runs or is saved only after the user confirms the shown preview; unlocking, opening gates or garage doors, disarming the alarm, and deletes need a code.
+- Preview before write. The only exception is a call that `ha-nova call` itself executed as `tier: ordinary` (an unambiguous everyday action, verified afterwards); everything else runs or is saved only after the user confirms the shown preview. High-consequence actions (e.g. unlocking or opening a lock, opening a gate, garage, or entry door, disarming the alarm — also through a scene or script) and deletes need a code.
 - Confirmation binds to the displayed preview and expires on any change to target, payload, endpoint, or scope (context skill → Active Preview Confirmation).
 - Pre-preview phrases ("do it", "go ahead", "implement the plan") authorize drafting and preview only — never the write itself.
 - Delete and destructive operations require the typed confirmation code `confirm:<token>` verbatim; "yes" or any natural-language reply is invalid.

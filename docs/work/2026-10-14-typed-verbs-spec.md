@@ -167,6 +167,7 @@ Reason codes (`cli/tier_rules.go`; `TestTierReasonCodesAreDocumented` pins each 
 | `ACCESS_COVER` | typed | open-capable cover service on a garage/gate/door `device_class` (When you cannot see the members, cover paragraph) |
 | `COVER_CLASS_UNKNOWN` | typed | the same on a cover without `device_class` (Q3) |
 | `DISRUPTIVE` | preview | restart/stop, `siren.turn_on`/`toggle` (also through `homeassistant.*`), `alarm_trigger` (`service-call/SKILL.md` → Safety) |
+| `DISRUPTIVE` (button) | preview | `button.press`, direct or stored, on a button with `device_class` `restart`/`update`, or whose entity_id/name contains restart, reboot, shutdown, shut_down, power_off, poweroff, reset, or factory (PR4 review; `disruptiveButton`) |
 | `OWNED_SERVICE` | refused | the deferral table names another skill (`service-call/SKILL.md` → Owning-Skill Deferrals) |
 | `OWNED_MEMBER` | preview | a stored member is a deferred service (expanding must not downgrade the owner's gate) |
 | `OWNED_TYPED_MEMBER` | typed | a stored `mqtt.publish` or `hassio.*` member (owning-skill escalation) |

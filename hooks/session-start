@@ -30,6 +30,14 @@ escape_for_json() {
     s="${s//$'\t'/\\t}"
     s="${s//$'\b'/\\b}"
     s="${s//$'\f'/\\f}"
+    # Every remaining C0 control character (JSON forbids them unescaped).
+    local code hex char rep
+    for code in 1 2 3 4 5 6 7 11 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31; do
+      printf -v hex '%02x' "$code"
+      printf -v char "\\x${hex}"
+      rep="\\u00${hex}"
+      s="${s//$char/$rep}"
+    done
     printf '%s' "$s"
 }
 

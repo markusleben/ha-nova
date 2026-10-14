@@ -52,16 +52,19 @@ const ROUTE_BUDGETS: Record<string, { files: string[]; limit: number; verbRoute?
     ],
   },
   // Typed-verbs PR4: the service-call route runs entity calls through
-  // `ha-nova call`, so it needs neither the full router nor the card file.
-  // Claude Code injects the compact index (hooks/session-start); the route
-  // reads the bootstrap, the output-rules core, and the skill. Its raw-relay
-  // routes, domain fields, and the indirect-actuation spec are on demand.
-  // Measured 2944 (index 415 + bootstrap 315 + output-rules 652 + skill 1562).
+  // `ha-nova call`, so it needs neither the full router nor the card file
+  // (its Output Format renders previews inline; output-rules.md exempts verb
+  // routes from output-cards.md). Installed releases inject nothing, so the
+  // dev-only index (hooks/session-start) is not counted. Common paths read
+  // the bootstrap, the output-rules core, and the skill. On demand only:
+  // domain-fields.md (when a field, unit, or feature bit is uncertain, and
+  // for relative asks and input_number changes), raw-routes.md (response
+  // services, App/host control, events, webhooks), indirect-actuation.md.
+  // Measured 2672 (bootstrap 309 + output-rules 668 + skill 1695).
   "service-call": {
-    limit: 3000,
+    limit: 2750, // spec target <= 3000
     verbRoute: true,
     files: [
-      "skills/ha-nova/index.md",
       "skills/ha-nova/session-bootstrap.md",
       "skills/ha-nova/output-rules.md",
       "skills/service-call/SKILL.md",
@@ -69,9 +72,8 @@ const ROUTE_BUDGETS: Record<string, { files: string[]; limit: number; verbRoute?
   },
 };
 
-// Verb routes replace the router with the injected index and render no cards.
+// Verb routes skip the router and the card file.
 const VERB_ROUTE_MANDATORY = [
-  "skills/ha-nova/index.md",
   "skills/ha-nova/session-bootstrap.md",
   "skills/ha-nova/output-rules.md",
 ];

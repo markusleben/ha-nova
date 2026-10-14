@@ -264,13 +264,13 @@ the operation, the observed state, and the next safe step.
 
 Apply `skills/ha-nova/output-rules.md` to all user-facing output: List Frame
 for inventories (counts first, Progressive Detail follow-ups), Preview/Delete
-/Result Cards for mutations, no raw JSON. Keep repository `full_name`,
+/Result Cards for mutations (both in `skills/ha-nova/output-cards.md`), no raw JSON. Keep repository `full_name`,
 versions, categories, and HA state values literal; localize everything else
 at runtime.
 
 ## Safety
 
-- Preview before write, except the `ha-nova call` fast path (`tier: ordinary`): unambiguous everyday actions run immediately and are verified afterwards; everything else runs or is saved only after the user confirms the shown preview; unlocking, opening gates or garage doors, disarming the alarm, and deletes need a code.
+- Preview before write. The only exception is a call that `ha-nova call` itself executed as `tier: ordinary` (an unambiguous everyday action, verified afterwards); everything else runs or is saved only after the user confirms the shown preview. High-consequence actions (e.g. unlocking or opening a lock, opening a gate, garage, or entry door, disarming the alarm — also through a scene or script) and deletes need a code.
 - Confirmation binds to the displayed preview and expires on any change to target, payload, endpoint, or scope (context skill → Active Preview Confirmation).
 - Pre-preview phrases ("do it", "go ahead", "implement the plan") authorize drafting and preview only — never the write itself.
 - Delete and destructive operations require the typed confirmation code `confirm:<token>` verbatim; "yes" or any natural-language reply is invalid.

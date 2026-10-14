@@ -51,6 +51,8 @@ match basis (`by`: `name` or `alias`).
 
 - **If the match does not resolve a suitable target** — no results, or only matches the user rejects or that plainly are not what they meant — re-run ONCE with `--aliases` (aliases searched even when a name matched): an alias is exactly where a household keeps the name it actually says. Only then try synonyms, alternative terms, or shorter words, one `find` each. When a resolved entity had no matching alias and the user's word was clearly their habitual name, offer once to store it as an alias via `ha-nova:organize`.
 - `--include-disabled` when a disabled entity may be the target (it reads the full registry).
+- Multi-server: add `--server <name>` to every verb (or prefix `HA_NOVA_SERVER=<name>`) and name a non-default server once per response.
+- A room, area, or device request handed to `ha-nova:service-call` travels as its `area_id`/`device_id` (`--area`/`--device`), never as a list of entity ids you expanded.
 - **Fail closed on truncation:** while `returned` is below `total` the result proves neither absence nor uniqueness — narrow (`--domain`, `--area`, more words) until `total` fits before concluding either; report total/shown/omitted with the rows.
 
 ### Step 1b: Bulk inventory — raw relay
@@ -251,7 +253,7 @@ If ambiguity remains: present top candidates (max 10) and state the match basis 
 
 Apply `skills/ha-nova/output-rules.md` to all user-facing output.
 
-Render the Step 4 shortlist as the List Frame (output-rules.md); never dump raw `get_states` output.
+Render the Step 4 shortlist as the List Frame (output-cards.md); never dump raw `get_states` output.
 
 ## Safety
 

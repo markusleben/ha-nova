@@ -243,11 +243,35 @@ func classifyAction(service string, data map[string]any, st *entityState) (tierL
 	return tierOrdinary, ""
 }
 
+// disruptiveButtonWords mark a press that restarts, updates, shuts down, or
+// resets a device; it interrupts like homeassistant.restart (preview).
+// ponytail: name heuristic; an unnamed restart button with no device_class
+// stays ordinary — add integration-specific translation_keys if one surfaces.
+var disruptiveButtonWords = []string{"restart", "reboot", "shutdown", "shut_down", "power_off", "poweroff", "reset", "factory"}
+
+// disruptiveButton: device_class restart/update, or a disruptive word in the
+// entity_id or friendly name (spaces and hyphens fold to underscores).
+func disruptiveButton(entityID string, st *entityState) bool {
+	if dc := st.str("device_class"); dc == "restart" || dc == "update" {
+		return true
+	}
+	text := strings.NewReplacer(" ", "_", "-", "_").Replace(strings.ToLower(entityID + " " + st.str("friendly_name")))
+	for _, word := range disruptiveButtonWords {
+		if strings.Contains(text, word) {
+			return true
+		}
+	}
+	return false
+}
+
 // classifyOnEntity inverts the table for access-capable targets (classify
 // by target domain first): only calls that provably grant nothing stay
 // below typed — every other service, integration services included, is typed.
 func classifyOnEntity(entityID, service string, data map[string]any, st *entityState) (tierLevel, string) {
 	dc := st.str("device_class")
+	if service == "button.press" && disruptiveButton(entityID, st) {
+		return tierPreview, reasonDisruptive
+	}
 	if !accessCapable(entityID, dc) {
 		return classifyAction(service, data, st)
 	}

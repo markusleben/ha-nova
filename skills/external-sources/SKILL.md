@@ -64,7 +64,7 @@ If the user keeps asking for the same InfluxDB series, the better answer is a Ho
 
 Apply `skills/ha-nova/output-rules.md` to all user-facing output.
 
-Render the Report shape (output-rules.md). Name the source explicitly (InfluxDB, queried directly — not Home Assistant), the time range, and the query in short form; answer the question, do not paste raw rows.
+Render the Report shape (output-cards.md). Name the source explicitly (InfluxDB, queried directly — not Home Assistant), the time range, and the query in short form; answer the question, do not paste raw rows.
 
 ## Safety
 

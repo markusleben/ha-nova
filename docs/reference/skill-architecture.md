@@ -15,7 +15,7 @@ Installed skill tree:
 skills/
   ha-nova/SKILL.md              (context skill — stable top-level entrypoint)
   ha-nova/session-bootstrap.md  (shared first-use update contract)
-  ha-nova/index.md              (compact session index — the Claude Code SessionStart injection)
+  ha-nova/index.md              (compact dispatch index — read on demand; only the repo-dev hook injects it)
   ha-nova/relay-api.md          (reference doc)
   ha-nova/best-practices.md     (reference doc)
   ha-nova/payload-schemas.md    (reference doc)
@@ -578,10 +578,10 @@ Scope → Bootstrap (once per session) → Relay Contract → [domain] → Flow 
 - **Scope** — what this skill does + inverse scope (what it does NOT do, which skill to use instead)
 - **Bootstrap (once per session)** — exact heading; shared
   `../ha-nova/session-bootstrap.md` pointer, relay CLI verification, and
-  onboarding fallback. The shared contract checks HA NOVA and the selected
-  server's Relay update state before the first HA task (typed verbs carry it
-  as `notices[]`; raw relay routes run `ha-nova check-update --quiet`), then
-  keeps any callouts post-task and once-per-session.
+  onboarding fallback. The shared contract runs `ha-nova check-update --quiet`
+  for the selected server before the first HA task, on every route (typed
+  verbs' `notices[]` only report later status), then keeps any callouts
+  post-task and once-per-session.
 - **Relay Contract** — the file-based `ha-nova relay` command contract this skill uses
 - **Flow** — step-by-step operations with relay commands
 - **Output Format** — first line starts with ``Apply `skills/ha-nova/output-rules.md` `` ; then what the user receives
@@ -615,7 +615,7 @@ Scope → Bootstrap (once per session) → Relay Contract → [domain] → Flow 
 Every mutation-capable sub-skill opens its `## Safety` section with this block, byte-identical (linter-enforced; the linter extracts this fenced block as the SSOT). It carries the bootstrap-independent guarantees — preview binding, delete confirmation-code gating, and the fallback write gate — so a bare agent that never auto-loads the context skill still gets them:
 
 ```text
-- Preview before write, except the `ha-nova call` fast path (`tier: ordinary`): unambiguous everyday actions run immediately and are verified afterwards; everything else runs or is saved only after the user confirms the shown preview; unlocking, opening gates or garage doors, disarming the alarm, and deletes need a code.
+- Preview before write. The only exception is a call that `ha-nova call` itself executed as `tier: ordinary` (an unambiguous everyday action, verified afterwards); everything else runs or is saved only after the user confirms the shown preview. High-consequence actions (e.g. unlocking or opening a lock, opening a gate, garage, or entry door, disarming the alarm — also through a scene or script) and deletes need a code.
 - Confirmation binds to the displayed preview and expires on any change to target, payload, endpoint, or scope (context skill → Active Preview Confirmation).
 - Pre-preview phrases ("do it", "go ahead", "implement the plan") authorize drafting and preview only — never the write itself.
 - Delete and destructive operations require the typed confirmation code `confirm:<token>` verbatim; "yes" or any natural-language reply is invalid.

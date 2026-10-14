@@ -126,7 +126,7 @@ Return exactly these sections:
 
 `SUGGESTED_ENHANCEMENTS:`
 - at most 2 concrete optional improvements, each directly relevant to the stated goal and backed by observed evidence (entity capabilities, current config) — smallest intervention first (`skills/ha-nova/smallest-solution.md`)
-- each item: short title, what it does, why it helps (the main thread renders these as the Suggestion Block — output-rules.md)
+- each item: short title, what it does, why it helps (the main thread renders these as the Suggestion Block — output-cards.md)
 - or `none` if the requested intent is fully covered — never invent suggestions to fill the list
 - use both the examples below AND your general HA knowledge, but only where the evidence in THIS home supports the improvement
 

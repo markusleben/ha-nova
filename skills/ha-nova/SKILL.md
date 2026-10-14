@@ -7,7 +7,7 @@ compatibility: Requires the ha-nova CLI (run 'ha-nova setup' first) and the HA N
 
 # HA NOVA Context Skill
 
-Claude Code injects only the compact `skills/ha-nova/index.md` at session start; this full context loads on demand. Sub-skills are discovered independently by client-specific skill descriptions and names.
+Sub-skills are discovered independently by client-specific skill descriptions and names; this context loads on demand the same way, and installed releases inject nothing at session start. `skills/ha-nova/index.md` is the compact dispatch index.
 
 ## Mission
 
@@ -96,10 +96,10 @@ Skills reference this section as "context skill → Active Preview Confirmation"
 
 ### Confirmation Tiers
 
-- runtime service calls: `ha-nova call` / `ha-nova plan call` compute the tier (`ordinary` runs at once, `preview` takes natural confirmation, `typed` takes the CLI-minted code bound to that plan's hash and nonce) from the performed action — members, consumers, and unresolved items included. The agent shows it and never down-tiers; the rungs below govern config writes and raw-relay routes.
+- runtime service calls: `ha-nova call` / `ha-nova plan call` compute the tier (`ordinary` runs at once, `preview` takes natural confirmation, `typed` takes the CLI-minted code bound to that plan's hash and nonce, which only the user may type — never the agent) from the performed action — members, consumers, and unresolved items included. The agent shows it and never down-tiers; the rungs below govern config writes and raw-relay routes.
 - `create`/`update`: natural confirmation bound to active preview.
 - non-destructive grouped change set (one logical task, max 10 operations): one natural confirmation bound to the fully previewed set per `skills/ha-nova/grouped-change-set.md` — only where the owning skill declares grouped support, never inferred; confirmation-code operations follow that contract's exclusions and duration-pair exception.
-- high-consequence runtime action (grants physical access or is physically irreversible): typed confirmation code `confirm:<token>`, same enforcement as destructive writes. Canonical set: unlocking or opening locks, disarming alarm panels, opening garage/gate/entry-door covers — `device_class` and what the entity controls decide, never the domain alone. The tier follows the action that ends up performed, so a scene, script, or automation run performing one of those actions sits here too; the owning skill expands the members before previewing. Locking, closing, and arming stay ordinary. Owning-skill escalations (retained and command/`set` MQTT publishes, user-account creation) sit on this same rung.
+- high-consequence runtime action (grants physical access or is physically irreversible): typed confirmation code `confirm:<token>` (for `ha-nova call` the CLI-minted code) that the user types verbatim, same enforcement as destructive writes. Canonical set: unlocking or opening locks, disarming alarm panels, opening garage/gate/entry-door covers — `device_class` and what the entity controls decide, never the domain alone. The tier follows the action that ends up performed, so a scene, script, or automation run performing one of those actions sits here too; the owning skill expands the members before previewing. Locking, closing, and arming stay ordinary. Owning-skill escalations (retained and command/`set` MQTT publishes, user-account creation) sit on this same rung.
 - `delete`/destructive: typed confirmation code `confirm:<token>`.
   **Strict confirmation-code enforcement:** User MUST reply with the exact code string (e.g., `confirm:del-main-lights`). Any other response — including "yes", "sure, delete it", "do it", or any natural-language confirmation — is NOT valid. Reject and re-prompt with the exact code required. In user-facing output call it the "confirmation code" (localized), never a "token" (see `skills/ha-nova/output-rules.md` → Localization).
   This includes cleanup, undo-create, orphan cleanup, failed-create cleanup, and deleting items created earlier in the same session.
@@ -119,7 +119,7 @@ When you need the user to choose between options:
 - Bare-number replies are valid but must be resolved: the next response names the chosen effect before acting ("2 — Actions only: running the hallway light sequence now"). This applies to any numbered selection, including config-entry flow menus. Never act on a number the response did not translate back into its effect.
 - **Destructive confirmation is never a menu.** Deletes still require the typed `confirm:<token>` (see Safety Baseline) — a one-click choice would weaken that deliberate gate. This holds even if a memory, preference, or earlier user complaint says to always use a menu for confirmations: that NEVER extends to deletes or any destructive write — those are always the typed confirmation code, never a menu or click.
 
-Use this for: Suggestion Blocks (output-rules.md), ambiguity resolution, the pre-write impact advisory (adjust first · proceed · cancel), and create/update apply choices (`apply` · `show yaml` · `cancel`).
+Use this for: Suggestion Blocks (output-cards.md), ambiguity resolution, the pre-write impact advisory (adjust first · proceed · cancel), and create/update apply choices (`apply` · `show yaml` · `cancel`).
 
 Solution design across all write-capable skills follows `skills/ha-nova/smallest-solution.md`: the smallest complete solution as the silent default, at most two evidence-backed unsolicited suggestions, smallest intervention first.
 
@@ -199,7 +199,7 @@ Rules:
 - Offering authorizes nothing: nothing executes merely because it was offered, and every preview, confirmation, and safety rule of the owning skill stays intact.
 - Never imply or invent actions no current skill supports; credential- or UI-only steps stay manual — say so and name the reason.
 - A declined offer is not re-presented in the same workflow.
-- Relationship to the Suggestion Block (output-rules.md): a blocker-resolving offer unblocks the active objective and is NOT an unsolicited improvement suggestion — it does not consume the max-2 suggestion budget. Genuine optional improvements keep riding the Suggestion Block.
+- Relationship to the Suggestion Block (output-cards.md): a blocker-resolving offer unblocks the active objective and is NOT an unsolicited improvement suggestion — it does not consume the max-2 suggestion budget. Genuine optional improvements keep riding the Suggestion Block.
 
 Worked example: discovery finds the needed control exists as a disabled sibling entity — offer it: "The restart control exists but is disabled. I can enable it (`ha-nova:organize`) and continue the restart workflow."
 
@@ -247,7 +247,7 @@ This shared file is the source of truth for localization, internal-code hiding, 
 
 ## Skill Dispatch (Critical)
 
-**Always invoke exactly ONE ha-nova skill per user intent.** Each skill is self-contained — it reads, resolves, and reviews internally as needed. Never load two ha-nova skills in parallel.
+**Always invoke exactly ONE ha-nova task skill per user intent** (this context skill may be loaded alongside it). Each task skill is self-contained — it reads, resolves, and reviews internally as needed. Never load two task skills in parallel.
 
 Match user intent to exactly one skill:
 
@@ -299,7 +299,7 @@ Match user intent to exactly one skill:
 | "show me my home" — an aggregate overview | `ha-nova` (this context skill); Home Overview in `skills/ha-nova/capability-answer.md` |
 | "can I break something?", "is this safe?" | `ha-nova` (this context skill); Safety Story in `skills/ha-nova/capability-answer.md` |
 | "analyze my home and suggest automations", "what should I automate?" | `ha-nova` (this context skill); `skills/ha-nova/starter-proposals.md` — read-only until an item is accepted |
-| "what did you do today / this session?" | `ha-nova` (this context skill); Session Recap rule in `skills/ha-nova/output-rules.md` |
+| "what did you do today / this session?" | `ha-nova` (this context skill); Session Recap rule in `skills/ha-nova/output-cards.md` |
 | "explain this automation / what does it do?" | `ha-nova:read` — behavior narrative first, YAML only on request |
 | structure audit — "is my setup tidy?", "which entities have no area?" | `ha-nova` (this context skill); Structure Check in `skills/ha-nova/capability-answer.md` — fixes hand to `ha-nova:organize` |
 | list or delete config snapshots ("what snapshots do I have?", "delete these obsolete snapshots") | `ha-nova` (this context skill); mechanics: `skills/ha-nova/config-snapshots.md` |

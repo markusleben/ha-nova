@@ -8,8 +8,7 @@ regardless of which HA NOVA skill was loaded directly.
 1. Before the selected server profile's
    first Home Assistant or HA NOVA task, and before any relay command or typed
    verb, run `ha-nova check-update --quiet` (it also self-heals client
-   integrations and checks for a Relay App update). SessionStart context does
-   not replace it.
+   integrations and checks for a Relay App update).
 2. Typed verbs (`ha-nova find|get|history|plan|call|apply`) report later
    status in their JSON `notices[]` (`kind: update` or `relay_outdated`):
    the same status as step 1, never a substitute for it.
