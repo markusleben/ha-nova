@@ -5,6 +5,13 @@ Status: active
 Version-free by design; the release-prep PR renames this file once it picks
 the number.
 
+## New Features
+
+- Reviews and writes load less mandatory context: the stale vendored
+  templating snapshot is retired in favour of the live render loop and the
+  official templating page on demand; output rules are read once per
+  session.
+
 ## What To Watch
 
 - **Malformed Home Assistant replies now fail loud.** A core REST reply
@@ -19,6 +26,13 @@ the number.
   message naming the `chown` fix — never with a registry reset offer.
 
 ## Bug Fixes
+
+- Home Assistant 2026.9 child devices (`parent_device_id`, reduced rows,
+  inherited area) are modeled once in the shared membership-resolution
+  contract and used by health, capability answers, and fallback resolution.
+- Update install/skip/clear-skipped are administrator-only since HA 2026.9:
+  a standalone Relay with a non-administrator token gets a clear diagnosis
+  instead of an opaque failure.
 
 - A Home Assistant WebSocket peer that accepts the connection and never
   finishes authentication no longer wedges every later Relay call: the
@@ -37,19 +51,6 @@ the number.
   scanned no longer fails the scan.
 - The management page and health endpoint keep answering when the snapshot
   store is unreadable, and the operator log says why.
-
-## Skills
-
-- Home Assistant 2026.9 child devices (`parent_device_id`, reduced rows,
-  inherited area) are modeled once in the shared membership-resolution
-  contract and used by health, capability answers, and fallback resolution.
-- Update install/skip/clear-skipped are administrator-only since HA 2026.9:
-  a standalone Relay with a non-administrator token gets a clear diagnosis
-  instead of an opaque failure.
-- Reviews and writes load less mandatory context: the stale vendored
-  templating snapshot is retired in favour of the live render loop and the
-  official templating page on demand; output rules are read once per
-  session.
 
 ## Internal
 

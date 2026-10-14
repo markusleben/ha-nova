@@ -1,6 +1,6 @@
 # Project Deep Audit — 2026-09-10
 
-Status: merged — findings landed through the 2026-09-11 pull-request train below (archived with the closing docs PR).
+Status: merged — findings landed through the pull-request train below (merged 2026-10-14) (archived with the closing docs PR).
 
 ## Goal
 
@@ -271,7 +271,7 @@ new architecture layer.
   fixed. Composite-split handling and the review-check executable oracle remain
   correctly tracked by #520/#521 rather than duplicated here.
 
-## Resolution (2026-09-11 pull-request train)
+## Resolution (pull-request train, merged 2026-10-14)
 
 | Finding | Pull request | Merge commit |
 |---|---|---|
