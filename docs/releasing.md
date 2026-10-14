@@ -49,9 +49,9 @@ The **tag-first dress rehearsal** runs the exact stable pipeline against a
 **RC required** when the release changes delivery machinery since the last
 green `release.yml` run: `install.sh` / `install.ps1` / `scripts/release/`,
 `.goreleaser.yml` beyond notes text, release workflows or the
-`release-tags-protection` ruleset, `census-worker/` behavior, Go code, or the
-onboarding/update flow the installed artifacts execute. **RC skippable** for
-skills/docs-only releases. When in doubt, run the RC.
+`release-tags-protection` ruleset, Go code, or the onboarding/update flow the
+installed artifacts execute. **RC skippable** for skills/docs-only releases.
+When in doubt, run the RC.
 
 Workflows: `ci.yml` = PR/main gate; `release-candidate.yml` = manual
 build + 3-runner bundle smoke, never publishes; `release.yml` = tagged
@@ -78,27 +78,12 @@ deploy or tag.
    gh run watch <exact-e2e-run-id> --exit-status
    ```
    A local `bash scripts/e2e/disposable-ha/run.sh` pass is useful but does not replace the dispatched run.
-3. While the production census Worker is still the old reviewed deployment,
-   push the RC tag (`git tag vX.Y.Z-rcN <reviewed-merge-sha> && git push origin vX.Y.Z-rcN`).
+3. Push the RC tag
+   (`git tag vX.Y.Z-rcN <reviewed-merge-sha> && git push origin vX.Y.Z-rcN`).
 4. Wait for `release.yml` to finish green. Verify the published RC over the real
    public install path (section 7), including one real Windows 11 +
    PowerShell onboarding proof, and run the Cloud checklist (section 6).
-5. Only after a clean RC, if the release changes the census Worker: deploy the
-   isolated test Worker and prove it first
-   (`(cd census-worker && npx wrangler@4.113.0 deploy --env test --tag <reviewed-sha>)`,
-   then `bash scripts/release/verify-census-functional.sh <reviewed-sha> <test-version-id>`),
-   then deploy production from a clean exact-SHA checkout:
-   ```bash
-   bash scripts/release/deploy-census-worker.sh <reviewed-merge-sha>
-   ```
-   The wrapper requires Node.js 22 or newer, `gh` auth, Cloudflare Access
-   service-token credentials (`census-worker/README.md`), a fresh browser
-   login to `/stats` plus `HA_NOVA_CENSUS_BROWSER_ACCESS_VERIFIED=1`, and
-   either `CLOUDFLARE_API_TOKEN` or a prior `npx wrangler@4.113.0 login`. It
-   is a serialized single-writer operation, attests the deployment READ-ONLY,
-   and rolls back on verification failure. Production isolation (#446): no
-   production ping or withdrawal ever.
-6. Then cut the final tag on the same commit
+5. Then cut the final tag on the same commit
    (`git tag vX.Y.Z <reviewed-merge-sha> && git push origin vX.Y.Z`) and
    run the post-publish verification (section 7). A skipped RC still needs
    steps 1–2 of the rehearsal completed.
@@ -176,10 +161,10 @@ SMOKE_HOME="$(mktemp -d)/home"; mkdir -p "${SMOKE_HOME}/.local/share"
 tar -xzf ha-nova-installer-bundle-<os>-<arch>.tar.gz -C "${SMOKE_HOME}/.local/share"
 BIN="${SMOKE_HOME}/.local/share/ha-nova/ha-nova"
 SERVER_NAME="smoke-$(openssl rand -hex 4)"
-HOME="${SMOKE_HOME}" HA_NOVA_NO_CENSUS=1 "${BIN}" internal-cloud-release-check
-HOME="${SMOKE_HOME}" HA_NOVA_NO_CENSUS=1 "${BIN}" cloud add --server "${SERVER_NAME}" --url "https://<cloud-host>"
-HOME="${SMOKE_HOME}" HA_NOVA_NO_CENSUS=1 "${BIN}" relay health --server "${SERVER_NAME}" --via cloud
-HOME="${SMOKE_HOME}" HA_NOVA_NO_CENSUS=1 "${BIN}" cloud remove --server "${SERVER_NAME}" --yes
+HOME="${SMOKE_HOME}" "${BIN}" internal-cloud-release-check
+HOME="${SMOKE_HOME}" "${BIN}" cloud add --server "${SERVER_NAME}" --url "https://<cloud-host>"
+HOME="${SMOKE_HOME}" "${BIN}" relay health --server "${SERVER_NAME}" --via cloud
+HOME="${SMOKE_HOME}" "${BIN}" cloud remove --server "${SERVER_NAME}" --yes
 ```
 
 On Windows the install root resolves from the executable directory. The

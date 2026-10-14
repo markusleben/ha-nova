@@ -329,7 +329,7 @@ func TestRunUninstallNoopDoesNotClaimRemoval(t *testing.T) {
 	if strings.Contains(output, "HA NOVA removed") {
 		t.Fatalf("did not expect final removal claim for noop uninstall:\n%s", output)
 	}
-	if marker := censusLifecycleMarkerPath(paths); marker != "" {
+	if marker := uninstallMarkerPath(paths); marker != "" {
 		if _, err := os.Stat(marker); !os.IsNotExist(err) {
 			t.Fatalf("noop uninstall created lifecycle residue %s (err=%v)", marker, err)
 		}

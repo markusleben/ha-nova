@@ -27,7 +27,7 @@ func runServerRemove(paths runtimePaths, args []string) int {
 	}
 	name := args[0]
 	removeLifecycleGeneration, lifecycleErr := readInstallLifecycleGeneration(paths)
-	if lifecycleErr != nil || censusLifecycleStopped(paths) {
+	if lifecycleErr != nil || installLifecycleStopped(paths) {
 		printHumanErr("HA NOVA install lifecycle is unavailable; run `ha-nova setup` before removing server profiles")
 		return 1
 	}

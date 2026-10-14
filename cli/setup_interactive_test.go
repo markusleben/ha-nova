@@ -1190,7 +1190,6 @@ func TestInteractiveSetupAlreadyDoneUsesResumeBanner(t *testing.T) {
 	t.Setenv("HA_NOVA_NO_BROWSER", "1")
 	t.Setenv("HA_NOVA_ALLOW_INSECURE_TEST_KEYRING", "1")
 	t.Setenv("HA_NOVA_TEST_KEYRING_FILE", filepath.Join(home, ".config", "ha-nova", ".test-relay-auth-token"))
-	stubCensusTTY(t, true, true)
 
 	relayServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/health" {
@@ -1228,15 +1227,15 @@ func TestInteractiveSetupAlreadyDoneUsesResumeBanner(t *testing.T) {
 	}
 	writeInstalledClaudePluginFixture(t, home)
 	writeClaudeMarketplaceRegistrationFixture(t, home, filepath.Join(paths.ConfigDir, "claude-marketplace"))
-	if err := markCensusLifecycleStopped(paths); err != nil {
-		t.Fatalf("mark census lifecycle stopped: %v", err)
+	if err := markInstallLifecycleStopped(paths); err != nil {
+		t.Fatalf("mark install lifecycle stopped: %v", err)
 	}
 	lifecycleMarker := [][]byte{
 		captureInstallLifecycleGeneration(paths),
-		captureCensusLifecycleMarker(paths),
+		captureUninstallMarker(paths),
 	}
 
-	stdout, stderr := captureInteractiveSetupIO(t, "2\n", func() int {
+	stdout, stderr := captureInteractiveSetupIO(t, "\n", func() int {
 		return interactiveSetup(paths, cfg, state, "claude", "", "", "", "", false, lifecycleMarker...)
 	})
 
@@ -1247,21 +1246,14 @@ func TestInteractiveSetupAlreadyDoneUsesResumeBanner(t *testing.T) {
 	if strings.Contains(output, "Setup complete!") {
 		t.Fatalf("did not expect fresh-setup success banner in resume output:\n%s", output)
 	}
-	if censusLifecycleStopped(paths) {
+	if installLifecycleStopped(paths) {
 		t.Fatal("successful already-complete setup did not clear its matching lifecycle marker")
-	}
-	if !strings.Contains(output, censusAskQuestionPrefix) {
-		t.Fatalf("successful already-complete setup omitted the one-time census question:\n%s", output)
-	}
-	census := loadCensusState(paths)
-	if census.Answer != "no" || census.Enabled {
-		t.Fatalf("explicit No census answer was not applied exactly once: %+v", census)
 	}
 
 	generationAfterReactivation := captureInstallLifecycleGeneration(paths)
 	secondLifecycle := [][]byte{
 		generationAfterReactivation,
-		captureCensusLifecycleMarker(paths),
+		captureUninstallMarker(paths),
 	}
 	secondExitCode := 0
 	captureInteractiveSetupIO(t, "\n", func() int {
@@ -1280,11 +1272,11 @@ func TestCompleteSetupLifecycleFailurePreventsSuccessBanner(t *testing.T) {
 	paths := setupServerCommandTest(t, `{"schema_version":1}`)
 	lifecycleMarker := [][]byte{
 		captureInstallLifecycleGeneration(paths),
-		captureCensusLifecycleMarker(paths),
+		captureUninstallMarker(paths),
 	}
-	release, acquired := acquireCensusLock(paths)
+	release, acquired := acquireAutoRepairLock(paths)
 	if !acquired {
-		t.Fatal("acquireCensusLock() = false")
+		t.Fatal("acquireAutoRepairLock() = false")
 	}
 	defer release()
 

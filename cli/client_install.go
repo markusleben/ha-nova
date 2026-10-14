@@ -62,7 +62,7 @@ func ensureSetupLifecycleCurrent(paths runtimePaths, lifecycleMarker ...[]byte) 
 		}
 	}
 	if len(lifecycleMarker) > 1 {
-		current, err := readCensusLifecycleMarker(paths)
+		current, err := readUninstallMarker(paths)
 		if err != nil {
 			return fmt.Errorf("cannot verify setup lifecycle: %w", err)
 		}
@@ -170,29 +170,20 @@ func completeSetupLifecycle(paths runtimePaths, lifecycleMarker ...[]byte) error
 }
 
 func completeSetupLifecycleUnlocked(paths runtimePaths, lifecycleMarker ...[]byte) error {
+	// Callers hold the client-mutation lock, which uninstall also holds while
+	// rotating both lifecycle markers, so this check cannot go stale.
 	if err := ensureSetupLifecycleCurrent(paths, lifecycleMarker...); err != nil {
 		return err
 	}
-	release, acquired := acquireCensusLock(paths)
-	if !acquired {
-		return fmt.Errorf("cannot acquire census lifecycle lock")
-	}
-	defer release()
-	// Uninstall owns the same census lock while rotating both lifecycle
-	// markers. Recheck after acquiring it so setup cannot finalize across an
-	// uninstall that won the lock after the optimistic check above.
-	if err := ensureSetupLifecycleCurrent(paths, lifecycleMarker...); err != nil {
-		return err
-	}
-	var censusMarker []byte
+	var uninstallMarker []byte
 	if len(lifecycleMarker) > 1 {
-		censusMarker = lifecycleMarker[1]
+		uninstallMarker = lifecycleMarker[1]
 	}
-	reactivated, err := reactivateCensusAfterSetupLocked(paths, censusMarker)
+	cleared, err := clearUninstallMarkerAfterSetup(paths, uninstallMarker)
 	if err != nil {
 		return err
 	}
-	if len(censusMarker) > 0 && !reactivated {
+	if len(uninstallMarker) > 0 && !cleared {
 		return fmt.Errorf("setup was superseded by an uninstall; rerun setup")
 	}
 	// Rotate only after the stopped marker was cleared successfully. A lock or

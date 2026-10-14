@@ -225,45 +225,12 @@ fi
 echo "[11] No telemetry or analytics code"
 # "segment" alone is an English word (path segments!) — match the vendors, not
 # the vocabulary, or the check cries wolf and gets ignored.
-# Scope: relay and CLI. The ONLY sanctioned measurement is the opt-in Census:
-# its client is confined to cli/census*.go and its receiver is confined to
-# census-worker/, both policed by checks [12]/[12b] and contract tests. -I
-# skips locally built binaries.
-TELEMETRY_HITS=$(count_matches -I "telemetry\|analytics\|mixpanel\|segment\.io\|@segment/\|posthog\|sentry" --exclude='census*.go' "$REPO_ROOT/nova/src" "$REPO_ROOT/cli")
-WORKER_VENDOR_HITS=$(count_matches -I "telemetry\|mixpanel\|segment\.io\|@segment/\|posthog\|sentry" "$REPO_ROOT/census-worker/src")
-if (( TELEMETRY_HITS == 0 && WORKER_VENDOR_HITS == 0 )); then
-  pass "No telemetry/analytics patterns outside the Census; no behavioral analytics vendors in its Worker"
+# Scope: relay and CLI. -I skips locally built binaries.
+TELEMETRY_HITS=$(count_matches -I "telemetry\|analytics\|mixpanel\|segment\.io\|@segment/\|posthog\|sentry" "$REPO_ROOT/nova/src" "$REPO_ROOT/cli")
+if (( TELEMETRY_HITS == 0 )); then
+  pass "No telemetry/analytics patterns in relay or CLI"
 else
-  fail "Found $((TELEMETRY_HITS + WORKER_VENDOR_HITS)) telemetry-related patterns outside the allowed Census measurement — HA NOVA promises no behavioral or feature-use analytics."
-fi
-
-# ── 12. Census send path stays confined and opt-in gated ──
-# The opt-in census (docs/reference/census.md) may send exactly one thing from
-# exactly one place: cli/census*.go. If the endpoint constant or the send
-# function leaks into any other file, the documented census boundary is false.
-echo "[12] Census send path confined to cli/census*.go with the opt-in guard"
-CENSUS_SEND_LEAKS=$(count_matches -I "sendCensusPing\|censusEndpointURL\|censusPingURL\|censusStatsURL\|censusHTTPClient\|workers\.dev" --include='*.go' --exclude='census*.go' "$REPO_ROOT/cli")
-if (( CENSUS_SEND_LEAKS == 0 )); then
-  pass "census send surface (send func, endpoint constant/URLs, HTTP client) appears only in cli/census*.go"
-else
-  fail "Found ${CENSUS_SEND_LEAKS} census send-path references outside cli/census*.go — the ping must stay confined to the census module."
-fi
-if grep -q 'if !state.Enabled' "$REPO_ROOT/cli/census.go"; then
-  pass "Census carrier keeps the opt-in guard (if !state.Enabled)"
-else
-  fail "cli/census.go lost the opt-in guard 'if !state.Enabled' — nothing may ever send without an explicit yes."
-fi
-
-# ── 12b. Census Worker request reads stay positively allowlisted ──
-# Cloudflare necessarily processes transport metadata. HA NOVA's narrower
-# promise is enforced through AST inspection instead of a bypassable blacklist:
-# the Worker may read only method, URL, body, content headers, and the explicit
-# Cloudflare Access/local-test authentication headers from the incoming Request.
-echo "[12b] Census Worker request access stays positively allowlisted"
-if node "$REPO_ROOT/scripts/test/check-census-worker-request-access.mjs"; then
-  pass "Census Worker request access excludes source-IP metadata"
-else
-  fail "Census Worker request access escaped its allowlist — update the privacy contract before adding any new request metadata."
+  fail "Found ${TELEMETRY_HITS} telemetry-related patterns — HA NOVA promises no usage data collection."
 fi
 
 # ── 13. Work docs stay temporary and genuinely active ──

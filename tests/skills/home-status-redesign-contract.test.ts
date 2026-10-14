@@ -18,7 +18,6 @@ describe("home status table-first redesign (#440)", () => {
     expect(health).toContain("always visible");
     expect(health).toContain("`Compact`");
     expect(health).toContain("`Full`");
-    expect(health).toContain("Census participation never affects");
   });
 
   it("orders the report cause-before-symptom in ten blocks", () => {

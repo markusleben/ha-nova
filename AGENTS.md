@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Version: 0.29 (2026-10-14) — bump this header on every local amendment.
+Version: 0.30 (2026-10-14) — bump this header on every local amendment.
 
 Start: say hi + 1 motivating line.
 Work style: Be radically precise. No fluff. Pure information only (drop grammar; min tokens).
@@ -25,7 +25,6 @@ Work style: Be radically precise. No fluff. Pure information only (drop grammar;
 - Deletes: use `trash`; `mv`/`cp` for moves/copies; NEVER delete files, folders, branches, or remote state unless explicitly approved or part of an approved plan. Destructive git ops (`reset --hard`, `clean`, `restore`, `rm`, force-push to shared branches) require explicit user consent.
 - Bugs: fix the root cause; add a regression test when it fits. Keep files <~400 LOC. Simplicity first: no enterprise over-engineering; new functionality small OR absolutely necessary.
 - NEVER run `gh workflow disable`/`enable`, change branch protection/rulesets, or flip repository settings to get past a blocker unless the user ordered that exact change — report the blocker instead.
-- Census production isolation (#446): never call production census `/ping`/`/withdraw` from tests/smokes/releases; functional checks use the isolated test Worker (`wrangler@4.113.0 deploy --env test` + `verify-census-functional.sh`).
 - **Bare `@codex` only:** the trigger comment body must be exactly `@codex`, single line — the bot silently rejects multi-line bodies ("To use Codex here…") and the trigger never runs. Post context as a separate comment BEFORE the trigger.
 - **Stale re-posts are not findings:** the bot sometimes re-posts an earlier round's findings verbatim against a newer SHA. Verify each finding against the current diff; if every item is a verbatim repeat of an already-fixed finding, the round is clean — resolve the threads, do not refute, count nothing.
 
@@ -66,7 +65,7 @@ Work style: Be radically precise. No fluff. Pure information only (drop grammar;
 
 ## Release & Tagging
 - **Release/tag/publish gate:** never create/move a release tag or call a commit release-ready unless the exact remote commit is the merge commit of a PR that passed the PR Merge Checklist (self-review, green required checks, triaged Codex findings when a round ran) with no later deltas. No local-only release shortcuts.
-- **Rehearsal gate:** before any tag/publish, a dispatched green `e2e-disposable-ha.yml` on the commit; while Cloud is enabled, the per-release Cloud checklist in `docs/releasing.md`. `docs/releasing.md` -> "Release Candidate Gate" decides whether an `vX.Y.Z-rcN` tag-first rehearsal is required (canonical trigger list, incl. census-worker) AND carries the remaining mandatory-either-way gates (the final tag's `release.yml` smoke, post-publish public-install verification). Never reintroduce auto-publish in `release-candidate.yml`.
+- **Rehearsal gate:** before any tag/publish, a dispatched green `e2e-disposable-ha.yml` on the commit; while Cloud is enabled, the per-release Cloud checklist in `docs/releasing.md`. `docs/releasing.md` -> "Release Candidate Gate" decides whether an `vX.Y.Z-rcN` tag-first rehearsal is required (canonical trigger list) AND carries the remaining mandatory-either-way gates (the final tag's `release.yml` smoke, post-publish public-install verification). Never reintroduce auto-publish in `release-candidate.yml`.
 - **Cloud platforms:** `cloud_remote_platforms` is `["darwin","linux","windows"]` (v0.25.1). Shrinking the platform list is a user-facing feature removal and ALWAYS a blocking user decision (Backwards Compat rule) — never an autonomous default. Manual RC lanes for an OS are never skipped silently: state the no-delta case in the release PR.
 - **Release-prep merge starts the tag sequence** (bump + notes + release-bound README edits in one PR, tag immediately after). README is stable-release truth: no future claims, no concrete version numbers (`version.json` is SSOT). Unreleased claims collect in `docs/work/next-release-body.md` (version-free; release-prep PR renames it).
 - **Release-worthiness:** batch docs/tests/process/internal maintenance into the next real user-facing release unless the change fixes the live release path, published artifacts, installer/update flow, or a shipped-product issue.

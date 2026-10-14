@@ -252,6 +252,5 @@ func finishInteractiveCloudOnlySetup(
 		return 1
 	}
 	renderSetupCompleteBanner(out, selectedClients)
-	askCensusIfEligible(paths, "setup", reader, out)
 	return 0
 }

@@ -145,7 +145,7 @@ func TestSkillUpdateNudgeNoticeCacheMissSpawnsRefreshOnce(t *testing.T) {
 
 func TestSkillUpdateNudgeDoesNotSpawnAfterUninstallStop(t *testing.T) {
 	paths, spawnCount := nudgeTestEnv(t, "0.1.0")
-	if err := markCensusLifecycleStopped(paths); err != nil {
+	if err := markInstallLifecycleStopped(paths); err != nil {
 		t.Fatalf("mark lifecycle stopped: %v", err)
 	}
 

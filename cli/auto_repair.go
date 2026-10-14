@@ -120,7 +120,7 @@ func attemptClientAutoRepair(paths runtimePaths, client clientStatus) autoRepair
 // the outcomes. The function itself prints nothing.
 func runClientAutoRepair(paths runtimePaths, statuses []clientStatus) []autoRepairOutcome {
 	lifecycleGeneration, generationErr := readInstallLifecycleGeneration(paths)
-	if generationErr != nil || censusLifecycleStopped(paths) {
+	if generationErr != nil || installLifecycleStopped(paths) {
 		return skippedAutoRepairOutcomes(statuses, "HA NOVA install lifecycle changed; rerun doctor")
 	}
 	release, acquired := acquireAutoRepairLock(paths)

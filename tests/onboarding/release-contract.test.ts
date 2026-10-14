@@ -21,28 +21,11 @@ describe("release contract", () => {
     "scripts/release/verify-release-assets.sh",
     "utf8",
   );
-  const censusDeploymentVerifier = readFileSync(
-    "scripts/release/verify-census-deployment.sh",
-    "utf8",
-  );
-  const censusFunctionalVerifier = readFileSync(
-    "scripts/release/verify-census-functional.sh",
-    "utf8",
-  );
-  const censusDeployer = readFileSync(
-    "scripts/release/deploy-census-worker.sh",
-    "utf8",
-  );
-  const censusDeploymentState = readFileSync(
-    "scripts/release/census-deployment-state.sh",
-    "utf8",
-  );
   const releaseWorkflow = readFileSync(".github/workflows/release.yml", "utf8");
   const rcWorkflow = readFileSync(
     ".github/workflows/release-candidate.yml",
     "utf8",
   );
-  const censusWorkerReadme = readFileSync("census-worker/README.md", "utf8");
   const releasing = readFileSync("docs/releasing.md", "utf8");
   const releaseDocs = `${releasing}\n${readFileSync("docs/release-validation.md", "utf8")}`;
   const readme = readFileSync("README.md", "utf8");
@@ -387,146 +370,6 @@ describe("release contract", () => {
     );
   });
 
-  it("verifies private Census stats and exact deployment READ-ONLY (#446)", () => {
-    expect(censusDeploymentVerifier).toContain(
-      'base_url="https://ha-nova-census.markusleben.workers.dev"',
-    );
-    expect(censusDeploymentVerifier).toContain(
-      "/stats/api?ha_nova_release_gate=",
-    );
-    expect(censusDeploymentVerifier).toContain("CF-Access-Client-Id");
-    expect(censusDeploymentVerifier).toContain("CF-Access-Client-Secret");
-    expect(censusDeploymentVerifier).toContain("--proto '=https'");
-    expect(censusDeploymentVerifier).toContain(
-      '"$deployment_sha" == "$expected_sha"',
-    );
-    expect(censusDeploymentVerifier).toContain(
-      '"$version_id" == "$expected_version_id"',
-    );
-    expect(censusDeploymentVerifier).toContain("x-ha-nova-deployment-sha:");
-    expect(censusDeploymentVerifier).toContain("x-ha-nova-version-id:");
-    expect(censusDeploymentVerifier).toContain(".schema == 2");
-    expect(censusDeploymentVerifier).toContain(
-      ".client_installations.active_21_days",
-    );
-    expect(censusDeploymentVerifier).toContain(
-      ".client_installations.known_60_days",
-    );
-    expect(censusDeploymentVerifier).toContain(".relay_app_installations.slug");
-    expect(censusDeploymentVerifier).toContain(
-      '.relay_app_installations.status == "available"',
-    );
-    expect(censusDeploymentVerifier).toContain(
-      '.relay_app_installations.status == "unavailable"',
-    );
-    expect(censusDeploymentVerifier).toContain(
-      ".client_installations.release_smoke_installations",
-    );
-    expect(censusDeploymentVerifier).not.toContain(
-      ".client_installations.by_version[$version]",
-    );
-    // #446: production verification is read-only — it must never build a
-    // mutation URL or send a POST. Functional checks live in
-    // verify-census-functional.sh against the isolated test worker.
-    expect(censusDeploymentVerifier).toContain("READ-ONLY by contract");
-    expect(censusDeploymentVerifier).not.toContain("/ping");
-    expect(censusDeploymentVerifier).not.toContain("/withdraw");
-    expect(censusDeploymentVerifier).not.toContain("--request POST");
-    expect(censusFunctionalVerifier).toContain(
-      'base_url="https://ha-nova-census-test.markusleben.workers.dev"',
-    );
-    // The functional proof is bound to the reviewed deployment: a stale but
-    // healthy test worker must never green-light broken mutation routes.
-    expect(censusFunctionalVerifier).toContain(
-      '"$deployment_sha" == "$expected_sha"',
-    );
-    expect(censusFunctionalVerifier).toContain(
-      '"$version_id" == "$expected_version_id"',
-    );
-    expect(censusFunctionalVerifier).not.toContain(
-      "https://ha-nova-census.markusleben.workers.dev",
-    );
-    expect(censusFunctionalVerifier).toContain("${base_url}/ping");
-    expect(censusFunctionalVerifier).toContain("${base_url}/withdraw");
-    expect(censusFunctionalVerifier).toContain("baseline_smoke_count + 1");
-  });
-
-  it("deploys the census only through one exact-target fail-closed wrapper", () => {
-    expect(censusDeployer).toContain("set -euo pipefail");
-    expect(censusDeployer).toContain("status --porcelain");
-    expect(censusDeployer).toContain("rev-parse HEAD");
-    expect(censusDeployer).toContain(
-      "repos/markusleben/ha-nova/compare/${reviewed_sha}...main",
-    );
-    expect(censusDeployer).toContain("gh auth status --hostname github.com");
-    expect(censusDeployer).toContain("gh api --hostname github.com");
-    expect(censusDeployer).toContain(".merge_base_commit.sha == $sha");
-    expect(censusDeployer).toContain("Node.js 22 or newer");
-    expect(censusDeployer).toContain(
-      "require an Access challenge or denial before deployment",
-    );
-    expect(censusDeployer).toContain(
-      "Cloudflare Access service token did not reach",
-    );
-    expect(censusDeployer).toContain("HA_NOVA_CENSUS_BROWSER_ACCESS_VERIFIED");
-    expect(censusDeployer).toContain("wrangler@4.113.0 secret list");
-    expect(censusDeployer).toContain('"ACCESS_TEAM_DOMAIN"');
-    expect(censusDeployer).toContain('"ACCESS_AUD"');
-    expect(censusDeployer).toContain("npx --yes wrangler@4.113.0 dev");
-    expect(censusDeployer).toContain("--local");
-    expect(censusDeployer).toContain("--persist-to");
-    expect(censusDeployer).toContain("--request POST");
-    expect(censusDeployer).toContain('"0.0.0"');
-    expect(censusDeployer).toContain("CLOUDFLARE_ACCOUNT_ID");
-    expect(censusDeployer).toContain('expected_worker="ha-nova-census"');
-    expect(censusDeployer).toContain(
-      'expected_target="https://ha-nova-census.markusleben.workers.dev"',
-    );
-    expect(censusDeployer).toContain("WRANGLER_OUTPUT_FILE_PATH");
-    expect(censusDeployer).toContain("$deploys[0].targets == [$target]");
-    expect(censusDeployer).toContain("census_single_deployment_version_id");
-    expect(censusDeployer).toContain(
-      "census_deployment_output_version_id",
-    );
-    expect(censusDeployer).toContain("census-deployment-state.sh");
-    expect(censusDeployer).toContain(
-      "census_wait_for_settled_current_version",
-    );
-    expect(censusDeploymentState).toContain("select(length == 1)");
-    expect(censusDeploymentState).toContain("attempt <= 15");
-    expect(censusDeploymentState).toContain("sleep 2");
-    expect(censusDeploymentState).toContain(
-      'test("^[0-9A-Za-z][0-9A-Za-z._-]{0,127}$")',
-    );
-    expect(censusDeploymentState).toContain(
-      "wrangler@4.113.0 deployments status",
-    );
-    const censusDeploymentScripts = `${censusDeployer}\n${censusDeploymentState}`;
-    expect(censusDeploymentScripts).not.toContain(
-      "wrangler@4.113.0 deployments list",
-    );
-    expect(censusDeploymentScripts).not.toContain(".[0].versions");
-    expect(
-      censusDeployer.trimEnd().split("\n").length,
-      // 440: the mandatory isolated test-worker gate folded into the wrapper
-      // (Codex P1 on #497) — production promotion without the functional
-      // proof must be impossible, and the gate lives in the same file so it
-      // cannot be skipped.
-    ).toBeLessThanOrEqual(440);
-    expect(
-      censusDeploymentState.trimEnd().split("\n").length,
-    ).toBeLessThanOrEqual(400);
-    expect(censusDeployer).toContain("rollback not needed");
-    expect(censusDeployer).toContain(
-      "active Worker version changed outside this deploy",
-    );
-    expect(releasing).toContain("serialized single-writer operation");
-    expect(censusDeployer).toContain('--tag "$reviewed_sha"');
-    expect(censusDeployer).toContain("--strict");
-    expect(censusDeployer).toContain("--no-autoconfig");
-    expect(censusDeployer).toContain("verify-census-deployment.sh");
-  });
-
   it("orders external publication gates around the RC and final tag", () => {
     const rehearsal = releasing.slice(
       releasing.indexOf("## 4. Rehearsal and Tag Steps"),
@@ -535,9 +378,7 @@ describe("release contract", () => {
     const orderedMarkers = [
       "Merge the reviewed PR state",
       "verify-relay-image.sh <reviewed-merge-sha> <relay-version>",
-      "production census Worker is still the old reviewed deployment",
       "Verify the published RC over the real",
-      "deploy-census-worker.sh <reviewed-merge-sha>",
       "cut the final tag",
     ];
     let previousIndex = -1;
@@ -553,26 +394,6 @@ describe("release contract", () => {
       "whose `headSha` equals `<reviewed-merge-sha>`",
     );
     expect(rehearsal).toContain("does not replace the dispatched run");
-  });
-
-  it("pins reproducible census Worker deployments without adding an unlocked CLI dependency", () => {
-    const pinnedDeploy = "npx --yes wrangler@4.113.0 deploy";
-    expect(censusDeployer).toContain(pinnedDeploy);
-    expect(releasing).toContain(
-      "bash scripts/release/deploy-census-worker.sh <reviewed-merge-sha>",
-    );
-    expect(censusWorkerReadme).toContain(
-      "bash scripts/release/deploy-census-worker.sh <reviewed-merge-sha>",
-    );
-    expect(releasing).toContain("requires Node.js 22 or newer");
-    expect(censusWorkerReadme).toContain("fully reviewed merge");
-    expect(releasing).not.toMatch(/npx(?:\s+--yes)?\s+wrangler\s+deploy/);
-    expect(censusWorkerReadme).not.toMatch(
-      /npx(?:\s+--yes)?\s+wrangler\s+deploy/,
-    );
-    expect(releasing).toContain("steps 1–2 of the rehearsal completed");
-    expect(pkg.dependencies?.["wrangler"]).toBeUndefined();
-    expect(pkg.devDependencies?.["wrangler"]).toBeUndefined();
   });
 
   it("requires a dispatched live e2e run as release evidence", () => {

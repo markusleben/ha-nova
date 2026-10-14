@@ -127,7 +127,7 @@ func passesNudgeThrottle(paths runtimePaths, markerName string, interval time.Du
 
 func mutateActiveInstallCache(paths runtimePaths, mutate func()) bool {
 	lifecycleGeneration, err := readInstallLifecycleGeneration(paths)
-	if err != nil || censusLifecycleStopped(paths) {
+	if err != nil || installLifecycleStopped(paths) {
 		return false
 	}
 	release, acquired := acquireAutoRepairLock(paths)

@@ -8,7 +8,6 @@ import (
 	"runtime"
 	"strings"
 	"testing"
-	"time"
 )
 
 func TestInstallGenerationPreventsNilNonceNilABA(t *testing.T) {
@@ -18,18 +17,18 @@ func TestInstallGenerationPreventsNilNonceNilABA(t *testing.T) {
 		t.Fatalf("read initial generation: %v", err)
 	}
 
-	if err := markCensusLifecycleStopped(paths); err != nil {
+	if err := markInstallLifecycleStopped(paths); err != nil {
 		t.Fatalf("mark lifecycle stopped: %v", err)
 	}
 	newLifecycle := [][]byte{
 		captureInstallLifecycleGeneration(paths),
-		captureCensusLifecycleMarker(paths),
+		captureUninstallMarker(paths),
 	}
 	if err := completeSetupLifecycle(paths, newLifecycle...); err != nil {
 		t.Fatalf("complete replacement setup lifecycle: %v", err)
 	}
-	if censusLifecycleStopped(paths) {
-		t.Fatal("replacement setup did not reactivate census lifecycle")
+	if installLifecycleStopped(paths) {
+		t.Fatal("replacement setup did not clear the uninstall marker")
 	}
 	if err := ensureUpdateLifecycleCurrent(paths, oldGeneration); err == nil {
 		t.Fatal("pre-uninstall update became valid again after replacement setup")
@@ -41,34 +40,28 @@ func TestInstallGenerationPreventsNilNonceNilABA(t *testing.T) {
 
 func TestSetupLifecycleLockFailurePreservesUninstallGeneration(t *testing.T) {
 	paths := setupHealableInstall(t)
-	if err := markCensusLifecycleStopped(paths); err != nil {
+	if err := markInstallLifecycleStopped(paths); err != nil {
 		t.Fatalf("mark lifecycle stopped: %v", err)
 	}
 	generation := captureInstallLifecycleGeneration(paths)
-	censusMarker := captureCensusLifecycleMarker(paths)
+	uninstallMarker := captureUninstallMarker(paths)
 
-	originalRetry, originalTimeout := censusLockRetryInterval, censusLockTimeout
-	censusLockRetryInterval = time.Millisecond
-	censusLockTimeout = 30 * time.Millisecond
-	t.Cleanup(func() {
-		censusLockRetryInterval, censusLockTimeout = originalRetry, originalTimeout
-	})
-	release, acquired := acquireCensusLock(paths)
+	release, acquired := acquireAutoRepairLock(paths)
 	if !acquired {
-		t.Fatal("hold census lifecycle lock")
+		t.Fatal("hold client mutation lock")
 	}
 	defer release()
 
-	err := completeSetupLifecycle(paths, generation, censusMarker)
-	if err == nil || !strings.Contains(err.Error(), "cannot acquire census lifecycle lock") {
+	err := completeSetupLifecycle(paths, generation, uninstallMarker)
+	if err == nil || !strings.Contains(err.Error(), "already in progress") {
 		t.Fatalf("setup lifecycle lock failure = %v", err)
 	}
 	currentGeneration := captureInstallLifecycleGeneration(paths)
 	if !bytes.Equal(currentGeneration, generation) {
 		t.Fatal("failed setup finalization rotated the uninstall generation")
 	}
-	currentMarker := captureCensusLifecycleMarker(paths)
-	if !bytes.Equal(currentMarker, censusMarker) || !censusLifecycleStopped(paths) {
+	currentMarker := captureUninstallMarker(paths)
+	if !bytes.Equal(currentMarker, uninstallMarker) || !installLifecycleStopped(paths) {
 		t.Fatal("failed setup finalization cleared the uninstall marker")
 	}
 }
@@ -97,7 +90,7 @@ func TestInstallGenerationReadErrorsFailClosed(t *testing.T) {
 	}
 }
 
-func TestSetupRejectsCorruptCensusLifecycleMarker(t *testing.T) {
+func TestSetupRejectsCorruptUninstallMarker(t *testing.T) {
 	for _, tc := range []struct {
 		name  string
 		setup func(t *testing.T, marker string)
@@ -123,7 +116,7 @@ func TestSetupRejectsCorruptCensusLifecycleMarker(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			paths := setupHealableInstall(t)
-			marker := censusLifecycleMarkerPath(paths)
+			marker := uninstallMarkerPath(paths)
 			if err := os.MkdirAll(filepath.Dir(marker), 0o700); err != nil {
 				t.Fatalf("create marker parent: %v", err)
 			}
@@ -151,7 +144,7 @@ func TestSetupLifecycleRejectsConcurrentServerDefaultChange(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	censusMarker, err := readCensusLifecycleMarker(paths)
+	uninstallMarker, err := readUninstallMarker(paths)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -159,7 +152,7 @@ func TestSetupLifecycleRejectsConcurrentServerDefaultChange(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	setupLifecycle := [][]byte{generation, censusMarker, configSnapshot}
+	setupLifecycle := [][]byte{generation, uninstallMarker, configSnapshot}
 
 	if exit := runServerDefault(paths, []string{"cabin"}); exit != 0 {
 		t.Fatalf("concurrent server default exit = %d", exit)
@@ -201,7 +194,7 @@ func TestStaleMaintenancePathsCannotRestoreAfterUninstall(t *testing.T) {
 	if err := os.Remove(paths.StateFile); err != nil {
 		t.Fatalf("remove state: %v", err)
 	}
-	if err := markCensusLifecycleStopped(paths); err != nil {
+	if err := markInstallLifecycleStopped(paths); err != nil {
 		t.Fatalf("mark lifecycle stopped: %v", err)
 	}
 

@@ -66,7 +66,7 @@ func runSetup(paths runtimePaths, args []string) int {
 		printHumanErr("cannot inspect install lifecycle: %s", err)
 		return 1
 	}
-	setupCensusMarker, err := readCensusLifecycleMarker(paths)
+	setupUninstallMarker, err := readUninstallMarker(paths)
 	if err != nil {
 		renderSetupCloudRecoveryBeforePrerequisiteFailure(paths)
 		printHumanErr("cannot inspect uninstall lifecycle: %s", err)
@@ -78,7 +78,7 @@ func runSetup(paths runtimePaths, args []string) int {
 		printHumanErr("cannot inspect server configuration: %s", err)
 		return 1
 	}
-	setupLifecycle := [][]byte{setupGeneration, setupCensusMarker, setupConfigSnapshot}
+	setupLifecycle := [][]byte{setupGeneration, setupUninstallMarker, setupConfigSnapshot}
 
 	target := ""
 	if remaining := fs.Args(); len(remaining) > 0 {
@@ -636,7 +636,7 @@ func runSetup(paths runtimePaths, args []string) int {
 	}
 	releaseMutation()
 
-	return runDoctorWithCensusAsk(paths, nil, false)
+	return runDoctor(paths, nil)
 }
 
 // completeNonInteractivePairedSetup finishes setup for a passwordless-paired
@@ -662,7 +662,7 @@ func completeNonInteractivePairedSetup(paths runtimePaths, cfg runtimeConfig, st
 		printHumanErr("client installation or state save failed: %s", err)
 		return 1
 	}
-	return runDoctorWithCensusAsk(paths, nil, false)
+	return runDoctor(paths, nil)
 }
 
 func restoreRelayAuthToken(previousToken string, hadPreviousToken, tokenChanged bool) error {

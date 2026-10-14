@@ -121,7 +121,7 @@ func TestInvalidInstallIdentityRecoveryContinuesAfterCloudRemoval(
 	if err != nil {
 		t.Fatal(err)
 	}
-	census, err := readCensusLifecycleMarker(paths)
+	uninstallMarker, err := readUninstallMarker(paths)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -129,7 +129,7 @@ func TestInvalidInstallIdentityRecoveryContinuesAfterCloudRemoval(
 	if err != nil {
 		t.Fatal(err)
 	}
-	lifecycle := [][]byte{generation, census, configSnapshot}
+	lifecycle := [][]byte{generation, uninstallMarker, configSnapshot}
 	repaired, err := repairInvalidClientInstallIdentityForSetup(
 		paths,
 		errInvalidClientInstallID,

@@ -109,7 +109,7 @@ The skill layer is in strong shape: the confirmation-tier model is structurally 
 - Every fallback capability-map row: accounted — 50 rows at the audited commit (`fallback:44-93`): 44 clean, 6 flagged in findings (`:60`, `:76`, `:82`, `:84`, `:86`, `:90` → #516/PR B). Missing-row gaps (integration lifecycle, Matter/Thread, custom sentences, local calendar, device category) are #516 findings, not row counts.
 - Drift-log open item ("2026.7 dev-blog NOT SCREENED"): cleared by the entry landing with this PR; next watch items recorded (registry shims harden 2027.8, device-tracker deprecations 2027.7, `unit_class` breaks 2026.11).
 - Every pre-pass seed finding: mapped (seeds 1/4 → PR A + #517; 2/3 → PR B; 5 → PR A; 6 → #515; 7 → corrected above; 8 → drift-log entry; 9 → falsified; 10 → #521; 11 → #518; 12 → #513; 13 → #521; 14 → #522; 15 → this report's issue set).
-- Every `docs/reference/` file appears in at least one charter's coverage (matrix/bridge/safety/skill-architecture/comparison/relay-container/update-guide/testing/ha-doc-gate/freshness-patterns/census/client-integration/demo-recording/documentation-governance/ha-template-reference/hermes-platform-validation — the last four only via scope screens: no findings, low exposure).
+- Every `docs/reference/` file appears in at least one charter's coverage (matrix/bridge/safety/skill-architecture/comparison/relay-container/update-guide/testing/ha-doc-gate/freshness-patterns/client-integration/demo-recording/documentation-governance/ha-template-reference/hermes-platform-validation — the last four only via scope screens: no findings, low exposure).
 
 ## Sequencing (successor of the 2026-08-03 backlog-sequencing pattern)
 

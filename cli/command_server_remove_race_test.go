@@ -58,12 +58,12 @@ func TestServerRemoveRejectsUninstallSetupABADuringConfirmation(t *testing.T) {
 	}
 	previousConfirm := readServerRemoveConfirmationForCommand
 	readServerRemoveConfirmationForCommand = func(string) (string, error) {
-		if err := markCensusLifecycleStopped(paths); err != nil {
+		if err := markInstallLifecycleStopped(paths); err != nil {
 			t.Fatal(err)
 		}
 		replacementLifecycle := [][]byte{
 			captureInstallLifecycleGeneration(paths),
-			captureCensusLifecycleMarker(paths),
+			captureUninstallMarker(paths),
 		}
 		if err := completeSetupLifecycle(paths, replacementLifecycle...); err != nil {
 			t.Fatal(err)

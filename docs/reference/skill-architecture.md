@@ -14,7 +14,7 @@ Installed skill tree:
 ```
 skills/
   ha-nova/SKILL.md              (context skill — stable top-level entrypoint)
-  ha-nova/session-bootstrap.md  (shared first-use update/census contract)
+  ha-nova/session-bootstrap.md  (shared first-use update contract)
   ha-nova/relay-api.md          (reference doc)
   ha-nova/best-practices.md     (reference doc)
   ha-nova/payload-schemas.md    (reference doc)

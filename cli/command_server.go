@@ -306,7 +306,7 @@ func runServerRename(paths runtimePaths, args []string) int {
 
 func acquireServerMutation(paths runtimePaths) (func(), bool) {
 	lifecycleGeneration, err := readInstallLifecycleGeneration(paths)
-	if err != nil || censusLifecycleStopped(paths) {
+	if err != nil || installLifecycleStopped(paths) {
 		printHumanErr("HA NOVA install lifecycle is unavailable; run `ha-nova setup` before changing server profiles")
 		return func() {}, false
 	}
