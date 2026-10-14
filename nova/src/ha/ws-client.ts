@@ -21,6 +21,7 @@ export interface HaWsConnection {
     options?: { resubscribe?: boolean }
   ): Promise<() => void | Promise<void>>;
   addEventListener?(event: "ready" | "disconnected", callback: () => void): void;
+  close?(): void;
 }
 
 export interface HaWsClient {
@@ -112,7 +113,7 @@ export function createHaWsClient(options: HaWsClientOptions): HaWsClient {
           );
         }
 
-        resetConnection();
+        resetConnection(upstream);
         if (error instanceof TimeoutError) {
           throw new HaWsClientError(
             "UPSTREAM_WS_TIMEOUT",
@@ -147,6 +148,10 @@ export function createHaWsClient(options: HaWsClientOptions): HaWsClient {
       const returnOnLimit = collectionOptions.onLimit === "return";
       const events: T[] = [];
       let unsubscribe: (() => void | Promise<void>) | undefined;
+      let upstreamClosed = false;
+      // A strict-mode maxEvents overflow is a local decision, not a transport
+      // fault: the connection stays healthy and must not be closed for it.
+      let localLimitReached = false;
       let unsubscribeOnAck = false;
       let windowTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -184,6 +189,7 @@ export function createHaWsClient(options: HaWsClientOptions): HaWsClient {
                     settleResolve({ events: [...events], truncated: true });
                     return;
                   }
+                  localLimitReached = true;
                   settleReject(
                     new HaWsClientError(
                       "UPSTREAM_WS_ERROR",
@@ -231,7 +237,10 @@ export function createHaWsClient(options: HaWsClientOptions): HaWsClient {
           );
         }
 
-        resetConnection();
+        if (!localLimitReached) {
+          upstreamClosed = true;
+          resetConnection(upstream);
+        }
         if (error instanceof TimeoutError) {
           throw new HaWsClientError(
             "UPSTREAM_WS_TIMEOUT",
@@ -250,7 +259,14 @@ export function createHaWsClient(options: HaWsClientOptions): HaWsClient {
           clearTimeout(windowTimer);
         }
         if (unsubscribe) {
-          await unsubscribe();
+          if (upstreamClosed) {
+            // The connection is closed: its unsubscribe command can only
+            // reject or never answer, and must neither mask the original
+            // error nor keep the request hanging.
+            void Promise.resolve(unsubscribe()).catch(() => undefined);
+          } else {
+            await unsubscribe();
+          }
         } else {
           unsubscribeOnAck = true;
         }
@@ -289,8 +305,8 @@ export function createHaWsClient(options: HaWsClientOptions): HaWsClient {
       lastConnectFailure = null;
       // The connection reconnects on its own; only the tracked flag flips so
       // /health stays truthful between requests without extra probes.
-      // resetConnection() abandons rather than closes the old connection, so
-      // a stale one can keep firing events — guard on still being current.
+      // resetConnection() closes the old connection, but its final events can
+      // still arrive afterwards — guard on still being current.
       const current = connection;
       current.addEventListener?.("disconnected", () => {
         if (connection === current) {
@@ -326,9 +342,22 @@ export function createHaWsClient(options: HaWsClientOptions): HaWsClient {
     }
   }
 
-  function resetConnection(): void {
+  // Drops and closes the connection a failed operation was using. A late
+  // failure from an already-replaced connection must not touch its healthy
+  // replacement, so the reset is a no-op unless `failed` is still current.
+  function resetConnection(failed: HaWsConnection): void {
+    if (connection !== failed) {
+      return;
+    }
     connection = undefined;
     connected = false;
+    // Close the abandoned connection, or it keeps auto-reconnecting next to
+    // the replacement the next request creates.
+    try {
+      failed.close?.();
+    } catch {
+      // Already closed.
+    }
   }
 }
 

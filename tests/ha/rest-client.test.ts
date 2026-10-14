@@ -85,7 +85,7 @@ describe("ha rest client", () => {
     });
   });
 
-  it("returns null body on invalid upstream json payload", async () => {
+  it("fails at the source on an invalid upstream json payload", async () => {
     const fetchMock = vi.fn(async () => {
       return new Response("not-json", {
         status: 200,
@@ -101,14 +101,33 @@ describe("ha rest client", () => {
       token: "upstream-token",
     });
 
-    const response = await client.request({
-      method: "GET",
-      path: "/api/states",
+    await expect(
+      client.request({ method: "GET", path: "/api/states" }),
+    ).rejects.toMatchObject({
+      code: "UPSTREAM_HTTP_ERROR",
+      message: "Home Assistant returned malformed JSON",
+    });
+  });
+
+  it("rejects a malformed UTF-8 text body instead of replacing bytes", async () => {
+    const fetchMock = vi.fn(async () => {
+      return new Response(Buffer.from([0x6f, 0x6b, 0xff, 0xfe]), {
+        status: 200,
+        headers: { "content-type": "text/plain" },
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const client = createHaRestClient({
+      baseUrl: "http://ha.local",
+      token: "upstream-token",
     });
 
-    expect(response).toEqual({
-      status: 200,
-      body: null,
+    await expect(
+      client.request({ method: "GET", path: "/api/error_log" }),
+    ).rejects.toMatchObject({
+      code: "UPSTREAM_HTTP_ERROR",
+      message: "Home Assistant returned a malformed UTF-8 body",
     });
   });
 
