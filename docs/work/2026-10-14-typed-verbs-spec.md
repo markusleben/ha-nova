@@ -301,8 +301,8 @@ Risks
 - **v1 UX regressions.** `pl:template` targets go typed, and Hue-style scenes go preview.
 - **Public guarantees change.** `docs/reference/safety.md:16` ("Nothing is written before you see a preview"), README, and the conventions in `AGENTS.md:100` and `PROJECT.md:58-59`. The README change goes only into the release-prep PR (`AGENTS.md:96`); the "What To Watch" note goes into `docs/work/next-release-body.md`.
 
-Open questions (blocking)
-- **Q1.** Do consumer hits whose actions are fully read and ordinary keep the fast path? Today any hit escalates (`service-call/SKILL.md:99`). If they do not, the fast path almost never fires. Default: yes.
-- **Q2.** Should a present but unreadable consumer manager (Node-RED, AppDaemon) put ordinary device control at preview (default) or typed (current reading of `indirect-actuation.md:239-242`)?
-- **Q3.** Should an open-capable cover with no `device_class` be typed (default, fail closed) or preview?
-- **Q4.** What is the exact public wording for the fast-path exception in `safety.md`, the README and the Safety Core?
+Decisions (maintainer, 2026-10-14)
+- **Q1 → yes.** Consumer hits whose actions are fully read and ordinary keep the fast path; the result lists them.
+- **Q2 → preview.** A present but unreadable consumer manager (Node-RED, AppDaemon) puts ordinary device control at preview, with a coverage note.
+- **Q3 → typed.** An open-capable cover without `device_class` is typed (fail closed).
+- **Q4 → change with an explicit exception.** Public wording: "Unambiguous everyday actions run immediately and are verified afterwards; everything else shows a preview first; locks, gates, alarm, and deletes need a code." `docs/reference/safety.md` and the Safety Core change with PR4; README only in the release-prep PR.
