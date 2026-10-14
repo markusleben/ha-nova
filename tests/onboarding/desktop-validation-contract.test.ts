@@ -3,7 +3,7 @@ import { constants, readFileSync, statSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 describe("desktop validation helpers contract", () => {
-  const releasing = readFileSync("docs/releasing.md", "utf8");
+  const releasing = readFileSync("docs/reference/release-validation.md", "utf8");
   const packageJson = readFileSync("package.json", "utf8");
   const harness = readFileSync(
     "scripts/dev/start-local-validation-harness.sh",
