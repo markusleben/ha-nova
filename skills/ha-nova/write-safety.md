@@ -148,7 +148,7 @@ should learn one shape and always recognize it:
 4. Save-status slot: explicitly say that nothing has been saved yet (the ⚠️ line).
 5. Options slot: explicit choices with literal `apply`, `show yaml`, and `cancel`.
 
-This is the Preview Card of `skills/ha-nova/output-rules.md` → Cards; the
+This is the Preview Card of `skills/ha-nova/output-cards.md` → Cards; the
 Result Card and Delete Card there frame the post-write and delete sides.
 
 Do **not** re-describe the whole automation (entities, every trigger/action) —

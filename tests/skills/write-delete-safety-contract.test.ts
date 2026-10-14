@@ -133,13 +133,13 @@ describe("write delete safety contract", () => {
   });
 
   it("keeps scratch files out of user-facing output", () => {
-    const outputRules = readFileSync("skills/ha-nova/output-rules.md", "utf8");
+    const outputRules = readFileSync("skills/ha-nova/output-rules.md", "utf8") + readFileSync("skills/ha-nova/output-cards.md", "utf8");
     const context = readFileSync("skills/ha-nova/SKILL.md", "utf8");
 
     expect(outputRules).toContain("Scratch payload/filter/result files are internal execution artifacts");
-    expect(outputRules).toContain("Do not mention or echo scratch file paths");
-    expect(outputRules).toContain("Do not create them under the repo working tree");
-    expect(outputRules).toContain("visible command text contains absolute scratch paths");
+    expect(outputRules).toContain("never mentioned (paths, \"edited files\", payload or jq files)");
+    expect(outputRules).toContain("never under the repo working tree");
+    expect(outputRules).toContain("absolute scratch paths in visible command text");
     expect(outputRules).toContain("scratch location/tooling was wrong");
     expect(outputRules).toContain('"edited files"');
     expect(context).toContain("Scratch files are internal");

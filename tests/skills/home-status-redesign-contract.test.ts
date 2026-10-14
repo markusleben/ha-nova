@@ -10,7 +10,7 @@ const availability = readFileSync(
   "skills/health/availability-analysis.md",
   "utf8",
 );
-const outputRules = readFileSync("skills/ha-nova/output-rules.md", "utf8");
+const outputRules = readFileSync("skills/ha-nova/output-rules.md", "utf8") + readFileSync("skills/ha-nova/output-cards.md", "utf8");
 
 describe("home status table-first redesign (#440)", () => {
   it("declares both report modes with the Explained+Private default", () => {

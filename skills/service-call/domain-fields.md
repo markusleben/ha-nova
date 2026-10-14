@@ -1,12 +1,17 @@
 # Service Data Fields by Domain
 
 Reference for `ha-nova:service-call`. Read the row for the domain you are
-calling; do not load this file for a domain it does not list.
+calling; do not load this file for a domain it does not list. Relative
+asks and helper value changes read their own section below.
 
 `/api/services` gives field NAMES, not this device's valid VALUES. Every list
-below marked "from `<attribute>`" is read from the target's own attributes in
-the pre-preview state read — never guessed, never carried over from another
+below marked "from `<attribute>`" is read from the target's own attributes
+(`ha-nova get <entity_id>`) — never guessed, never carried over from another
 device.
+
+## Relative Asks And Helper Values
+
+Relative asks: prefer the service's step field (`brightness_step_pct`, `volume_up`); covers have NO step service, so read `current_position` with `ha-nova get` right before the call and send `set_cover_position` with the bounded delta. A previewed plan binds that before-value: a change before `apply` is drift — re-derive the target from the new value. No readable base value: STOP and offer an absolute action. A follow-up nudge ("brighter still") keeps the last confirmed target. Before `input_number.set_value`/`increment`/`decrement` (or before a `scene.apply` whose entities map assigns such a helper), check its consumers (`ha-nova get <id> --related`); if an automation compares a physical-process signal against it, run the calibration preflight per `skills/ha-nova/threshold-calibration.md` first and show its findings before calling.
 
 ## Light
 
@@ -112,7 +117,7 @@ device.
 
 ## Not listed here
 
-Helpers have their own section in the skill (Helper Service Patterns).
+Helper services take their documented fields (`value`, `option`, `duration`).
 `switch`, `input_boolean`, and `button` need no extra fields. For anything
 else: read the schema from `/api/services`, read the target's attributes for
 the valid values, and preview both.

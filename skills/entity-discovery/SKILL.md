@@ -38,13 +38,25 @@ Use file-based relay requests by default:
 
 ## Flow
 
-### Step 1: Search entity registry
+### Step 1: Resolve a name — `ha-nova find`
 
-Entity registry uses compact abbreviated keys: `ei`=entity_id, `en`=name, `ai`=area_id.
+```text
+ha-nova find "<the user's phrase>" [--domain <d>] [--area <area_id>] [--limit 20]
+```
 
-Search both entity_id and name. Use short keyword stems to handle spelling variants. Cap display at 20 rows through the canonical envelope below — never a bare slice.
+Every word of the phrase must match the entity_id, name, or area,
+case- and accent-insensitive; aliases are read automatically when names miss.
+The result carries `total` (exact), `returned`, and `matches[]` with each
+match basis (`by`: `name` or `alias`).
 
-For bulk selectors, follow `skills/ha-nova/bulk-patterns.md`.
+- **If the match does not resolve a suitable target** — no results, or only matches the user rejects or that plainly are not what they meant — re-run ONCE with `--aliases` (aliases searched even when a name matched): an alias is exactly where a household keeps the name it actually says. Only then try synonyms, alternative terms, or shorter words, one `find` each. When a resolved entity had no matching alias and the user's word was clearly their habitual name, offer once to store it as an alias via `ha-nova:organize`.
+- `--include-disabled` when a disabled entity may be the target (it reads the full registry).
+- **Fail closed on truncation:** while `returned` is below `total` the result proves neither absence nor uniqueness — narrow (`--domain`, `--area`, more words) until `total` fits before concluding either; report total/shown/omitted with the rows.
+
+### Step 1b: Bulk inventory — raw relay
+
+`find` matches phrases; `prefix`, `label`, and domain-count inventories use the
+relay. For bulk selectors, follow `skills/ha-nova/bulk-patterns.md`.
 - `prefix`: case-insensitive prefix match on the entity_id suffix and display name
 - `domain`: exact domain filter
 - `area`: resolve the area, then use `search/related` as the primary shortlist source; use `ai` only as optional extra evidence when present
@@ -56,6 +68,7 @@ For domain counts or domain shortlists:
 - use `--jq-file <filter-file>` for the count filter
 - if you need a follow-up count from a saved file, use `ha-nova relay jq --file <result-file> length`
 
+Entity registry uses compact abbreviated keys: `ei`=entity_id, `en`=name, `ai`=area_id.
 Create `<payload-file>` with `{"type":"config/entity_registry/list_for_display"}`, then run:
 
 ```text
@@ -72,15 +85,9 @@ and replacing `KEYWORD` with the pattern; if the canonical file is unavailable
 ```
 
 It returns `{total, shown, omitted, truncated, matches}` — the 20-row cap
-applies to `matches` only; the counts are exact.
-
-This generic `test("KEYWORD";"i")` filter is for free-text search, not explicit `prefix` matching.
-For an explicit prefix selector, match the suffix and display name with `startswith(...)`, not loose substring search.
-
-**If the compact search does not resolve a suitable target** — no results, or only matches the user rejects or that plainly are not what they meant — escalate ONCE to the full registry with aliases: run `ha-nova find "<phrase>" --aliases` (it searches names, areas, and every alias, accent-insensitive, even when a name already matched). Neither `list_for_display` nor `config/entity_registry/list` carries aliases — only `config/entity_registry/get_entries` does — and an alias is exactly where a household keeps the name it actually says (a household's own word for `light.floor_lamp_living`). Only then try synonyms, alternative terms, or shorter keyword stems. Use OR for multiple variants: `test("kw1|kw2|kw3";"i")`. When a resolved entity had no matching alias and the user's word was clearly their habitual name, offer once to store it as an alias via `ha-nova:organize`.
-**Diacritics:** `test(...;"i")` folds case, not accents — a name with `é`/`ü`/`ö` does not match its plain-ASCII spelling. Whenever the keyword or likely entity names carry accents or umlauts (common in non-English homes), put the transliterated variants into the OR-pattern: `test("café|cafe";"i")`, and for umlauts include both the `ue`/`oe`/`ae` and bare-vowel forms.
-**If too many:** narrow with AND: `test("kw1";"i") and test("kw2";"i")`.
-**Fail closed on truncation:** while `truncated` is true the result proves neither absence nor uniqueness — the target may sit past the cap. Narrow automatically (area, domain, exact identifier, aliases, extra AND terms) until `truncated` is false before concluding either; report `total`/`shown`/`omitted` with the rows.
+applies to `matches` only; the counts are exact. This generic filter is for free-text search, not explicit `prefix` matching;
+an explicit prefix selector matches the suffix and display name with `startswith(...)`.
+**Fail closed on truncation:** while `truncated` is true the result proves neither absence nor uniqueness — narrow until `truncated` is false before concluding either.
 **Never** dump entire domains without a user-intent keyword, and never show an unfiltered full-registry dump.
 
 When the task is multi-target inventory:
@@ -90,23 +97,13 @@ When the task is multi-target inventory:
 - keep ordering deterministic: domain, then entity_id
 - return the exact matched count separately from the displayed rows
 
-### Step 2: Get state or config
+### Step 2: Get state or config — `ha-nova get`
 
 ```text
-# State
-ha-nova relay core --method GET --path /api/states/{entity_id}
-
-# Automation/script config — always resolve unique_id first (see relay-api.md → ID Types)
-ha-nova relay ws --data-file <payload-file> --out <registry-file>
-ha-nova relay jq -r --file <registry-file> '.data.unique_id'
-ha-nova relay core --method GET --path /api/config/automation/config/{unique_id} --jq-file <filter-file> --out <result-file>
-# For scripts: use script.{slug} and /api/config/script/config/{unique_id}
-```
-
-For `<filter-file>`, prefer copying `skills/ha-nova/config-body-filter.jq`; if the canonical file is unavailable (flat-copy installs), recreate it with exactly:
-
-```jq
-if .ok then .data.body else error("relay error: \(.error.message // "unknown")") end
+ha-nova get <entity_id>              # state and attributes
+ha-nova get <entity_id> --config     # automation/script/scene config, resolved by unique_id, never the slug
+ha-nova get <entity_id> --related    # search/related for the entity
+ha-nova history <entity_id> [--since 24h] [--logbook]   # recent changes, summarized
 ```
 
 ### Step 3: Find automations related to a device or area

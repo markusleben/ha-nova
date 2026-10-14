@@ -388,7 +388,7 @@ Rules:
 
 Apply `skills/ha-nova/output-rules.md` to all user-facing output.
 
-Review output is sectioned, not card-framed; only a Section 8 quick-fix proposal renders as the service-call Preview Card (`apply · cancel`, output-rules.md → Cards) when it proposes a call.
+Review output is sectioned, not card-framed; only a Section 8 quick-fix proposal renders as the service-call Preview Card (`apply · cancel`, output-cards.md → Cards) when it proposes a call.
 
 Exception: if a maintainer-provided release-validation or machine-check prompt explicitly pins exact section titles or machine markers, follow that override exactly so automated validation can compare the fixed headings. This exception does not allow internal check codes in normal user-facing prose.
 
@@ -475,12 +475,12 @@ For resolved targets `> 1`, return exactly these 6 sections:
 
 ## Safety
 
-- Preview before write: nothing is saved until the user confirms the shown preview.
+- Preview before write, except the `ha-nova call` fast path (`tier: ordinary`): unambiguous everyday actions run immediately and are verified afterwards; everything else runs or is saved only after the user confirms the shown preview; unlocking, opening gates or garage doors, disarming the alarm, and deletes need a code.
 - Confirmation binds to the displayed preview and expires on any change to target, payload, endpoint, or scope (context skill → Active Preview Confirmation).
 - Pre-preview phrases ("do it", "go ahead", "implement the plan") authorize drafting and preview only — never the write itself.
 - Delete and destructive operations require the typed confirmation code `confirm:<token>` verbatim; "yes" or any natural-language reply is invalid.
 - Never guess entity, service, or config IDs — resolve them or ask.
-- Home Assistant is reached exclusively through `ha-nova relay`.
+- Home Assistant is reached exclusively through the `ha-nova` CLI.
 - For any HA write this skill does not cover, STOP and invoke `ha-nova:fallback` first — never probe unfamiliar write endpoints.
 
 - Drafts follow `skills/ha-nova/smallest-solution.md`: the complete requested outcome in the simplest safe design, nothing for hypothetical future needs.

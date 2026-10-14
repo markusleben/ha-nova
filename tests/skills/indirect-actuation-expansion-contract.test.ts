@@ -12,36 +12,23 @@ const testRunDoc = read("skills/ha-nova/test-run.md");
 const assistSkill = read("skills/assist/SKILL.md");
 const indirectActuation = read("skills/ha-nova/indirect-actuation.md");
 const writeSkill = read("skills/write/SKILL.md");
+const tierScan = read("cli/tier_scan.go");
+const tierWalk = read("cli/tier_walk.go");
+const tierListeners = read("cli/tier_listeners.go");
+const tierRules = read("cli/tier_rules.go");
 // Contract docs hard-wrap at ~72 columns, so a pinned sentence must not also
 // pin the column it happens to break at.
 const flat = (text: string): string => text.replace(/\s+/g, " ");
 describe("indirect actuation and tier classification (#513)", () => {
   describe("indirect actuation cannot bypass the high-consequence tier (#513)", () => {
     it("routes every indirect-run service through the shared gate", () => {
-      expect(skillDoc).toContain("Indirect actuation gate");
-      expect(skillDoc).toContain("actuate entities the request never names");
-      expect(skillDoc).toContain("skills/ha-nova/indirect-actuation.md");
-      // Every spelling of a script run is covered: main previously gated
-      // only "direct script.*", while test-run steers toward script.turn_on.
-      // The Flow entry keys on the target domain — a service-name list can
-      // always be walked around by an alias. The exhaustive spellings live in
-      // the shared gate document, checked below.
-      for (const trigger of [
-        "decided by the TARGET, not the service name",
-        "any call whose target is in `scene`, `script`, `automation`, or a legacy `group`",
-        "including `scene.apply`, which names its entities in an `entities` map",
-        "`homeassistant.turn_on`/`turn_off`/`toggle` on `script.open_door` reaches it too",
-        "`input_button.press` and `button.press`",
-      ]) {
-        expect(skillDoc).toContain(trigger);
-      }
-      // The exemption is narrower than it was: ordinary control expands no
-      // stored MEMBERS, but still runs the consumer scan — a state trigger
-      // accepts any entity, so a light can drive an automation that unlocks.
-      expect(skillDoc).toContain("Ordinary device control expands no stored members");
-      expect(skillDoc).toContain("still runs the gate's CONSUMER scan");
-      expect(skillDoc).toContain("matching `call_service` event consumers");
-      expect(skillDoc).toContain("only zero hits across both stays ordinary");
+      // Since PR4 the gate runs in the CLI tier engine for every entity call;
+      // the skill routes through it and the prose stays the engine's spec.
+      expect(skillDoc).toContain("Entity service calls run only through the typed verbs");
+      expect(skillDoc).toContain("the `members[]` a scene or script run actuates, the `consumers[]` that react");
+      expect(tierScan).toContain("// scanConsumers runs once per acted entity");
+      expect(tierWalk).toContain('if name == "scene.apply" {');
+      expect(tierListeners).toContain('if eventType == "call_service" {');
       // The gate itself has to say it too — pinning only service-call left the
       // shared contract free to drop the rule, which a mutation proved.
       expect(flat(indirectActuation)).toContain(
@@ -61,7 +48,7 @@ describe("indirect actuation and tier classification (#513)", () => {
       expect(gate).toContain("`automation.trigger` is the one that runs it");
       expect(gate).toContain("still take the CONSUMER scan below");
       expect(gate).toContain("findings set the tier");
-      expect(skillDoc).toContain("`homeassistant.turn_off` on a script or automation never starts its stored members, but still scans consumers");
+      expect(tierRules).toContain("// isRun reports whether the call STARTS stored members of the target.");
       // The observed running state must NOT lower the tier: a mode: single
       // script that is busy at preview time can finish while the confirmation
       // waits, and then the call that "runs nothing" runs everything.
@@ -77,22 +64,16 @@ describe("indirect actuation and tier classification (#513)", () => {
     it("binds the tier to the performed action, not the entity or the service", () => {
       // Entity-scoped wording would make LOCKING a door high-consequence.
       expect(skillDoc).toContain(
-        "The tier follows the performed action, not the called service",
-      );
-      expect(skillDoc).toContain("grants physical access or is physically irreversible");
-      expect(skillDoc).toContain(
-        "A member that only locks, closes, or arms grants nothing and stays ordinary",
+        "take the code — also when a scene, script, or automation run reaches one. Locking, closing, and arming stay ordinary.",
       );
       expect(contextSkill).toContain("The tier follows the action that ends up performed");
       expect(contextSkill).toContain("Locking, closing, and arming stay ordinary");
     });
 
     it("keeps disruptive services distinct from the access-granting tier", () => {
-      expect(skillDoc).toContain("Disruptive is not the high-consequence tier");
-      // Both limbs of the tier definition survive the split.
-      expect(skillDoc).toContain(
-        "neither grants physical access nor makes anything physically irreversible",
-      );
+      // Disruptive is preview in the engine, never the typed tier.
+      expect(tierRules).toContain('"homeassistant.restart": true, "homeassistant.stop": true, "siren.turn_on": true');
+      expect(skillDoc).toContain("Disruptive services (`homeassistant.restart`/`stop`, `siren.turn_on`, App and host control) always preview with an explicit warning.");
       expect(flat(testRunDoc)).toContain(
         "a deliberate superset of the context skill's high-consequence confirmation tier",
       );
@@ -179,7 +160,7 @@ describe("indirect actuation and tier classification (#513)", () => {
         "the card confirmation never replaces the typed confirmation code",
       );
       expect(flat(skillDoc)).toContain(
-        "if the indirect actuation gate put the run on the typed tier, the card choice never replaces `confirm:<token>`",
+        "if the CLI put the run on the typed tier, the card choice never replaces the code",
       );
     });
 

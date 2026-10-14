@@ -1,4 +1,8 @@
 // tests/skills/service-call-reauth-reconciliation-contract.test.ts
+//
+// Since PR4 (`ha-nova call`), the CLI owns the reconciliation: it snapshots
+// reauth flows before the one POST and re-reads them after an upstream 500.
+// The skill keeps the handoff; the Go code is pinned as the rule's source.
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "fs";
 import { resolve } from "path";
@@ -8,54 +12,30 @@ const read = (p: string): string =>
 const flat = (text: string): string => text.replace(/\s+/g, " ");
 
 describe("service-call reauth reconciliation (#586)", () => {
-  const skill = read("skills/service-call/SKILL.md");
-  const section = skill.match(
-    /### Generic 500 with a reauth side effect[\s\S]*?(?=\n## )/,
-  )?.[0];
-
-  it("carries the reconciliation section and wires it into execute", () => {
-    expect(section).toBeDefined();
-    expect(flat(skill)).toContain(
-      "snapshot pending reauth flows first (Error Handling → Generic 500 with a reauth side effect)",
-    );
-  });
+  const skill = flat(read("skills/service-call/SKILL.md"));
+  const apply = read("cli/verb_apply.go");
+  const relayWrite = read("cli/relay_write.go");
 
   it("detects NEW flows against a pre-call snapshot, never pre-existing ones", () => {
-    const s = flat(section ?? "");
-    expect(s).toContain('{"type":"config_entries/flow/progress"}');
-    expect(s).toContain('`context.source == "reauth"`');
-    expect(s).toContain("A flow counts as NEW only when it is absent from the snapshot");
-    expect(s).toContain("a pre-existing flow is never reported as this call's side effect");
+    expect(relayWrite).toContain('map[string]any{"type": "config_entries/flow/progress"}');
+    expect(relayWrite).toContain('if flow.Context.Source == "reauth" {');
+    expect(apply).toContain("_, existed := before[id]");
+    expect(apply).toContain("if !existed && matches {");
   });
 
-  it("matches by domain and entry, treats logs as corroboration only", () => {
-    const s = flat(section ?? "");
-    // A batch/area/device call has several owning entries — candidates come
-    // from EVERY expanded target, and only an unambiguous match attributes.
-    expect(s).toContain("Candidates are ALL expanded targets' registry rows");
-    expect(s).toContain("against any candidate's `config_entry_id` is decisive alone");
-    expect(s).toContain("never the service or entity_id prefix");
-    expect(s).toContain("exactly one config entry in the WHOLE registry");
-    // A failed optional read must not block an approved call.
-    expect(s).toContain("optional evidence never blocks an approved action");
-    expect(s).toContain("corroboration, never a match by itself");
-    expect(s).toContain("A flow for another domain or entry does not match");
+  it("matches by entry, or by integration only when it has exactly one entry", () => {
+    expect(apply).toContain(
+      "matches := (flow.entryID != \"\" && targetEntries[flow.entryID]) || (targetPlatforms[flow.handler] && perDomain[flow.handler] == 1)",
+    );
   });
 
   it("reports both facts on a match and stays uncertain without one", () => {
-    const s = flat(section ?? "");
-    expect(s).toContain(
-      "the call failed AND Home Assistant started reauthentication",
+    expect(skill).toContain(
+      "`reauth_flows_opened` in a 500 result: report the failure AND that Home Assistant started reauthentication; hand off to `ha-nova:integration-setup`. A 500 without it: `ha-nova:diagnose`.",
     );
-    expect(s).toContain("hand the reauth to `ha-nova:integration-setup`");
-    expect(s).toContain("hand off to `ha-nova:diagnose` instead of guessing");
   });
 
-  it("never retries automatically and never surfaces secrets", () => {
-    const s = flat(section ?? "");
-    expect(s).toContain("Never retry the service call automatically after a 500");
-    expect(s).toContain(
-      "never surface credentials or key fragments from flows or logs",
-    );
+  it("never retries automatically", () => {
+    expect(skill).toContain("Never retry after exit 6 or 7");
   });
 });

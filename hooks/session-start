@@ -1,26 +1,24 @@
 #!/usr/bin/env bash
 # SessionStart hook for ha-nova plugin
-# Auto-loads the ha-nova context skill into every Claude Code session.
+# Injects the compact HA NOVA index and session bootstrap into every Claude
+# Code session; the full context skill loads on demand.
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 PLUGIN_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
-# Read the context and its mandatory first-use contract. Claude receives this
-# text from arbitrary project directories, so a relative pointer alone is not
-# enough: inject the shared file while keeping it as the single source of truth.
-[[ -f "${PLUGIN_ROOT}/skills/ha-nova/SKILL.md" ]] || {
-  echo "Missing HA NOVA context skill" >&2
-  exit 1
-}
-[[ -f "${PLUGIN_ROOT}/skills/ha-nova/session-bootstrap.md" ]] || {
-  echo "Missing HA NOVA session bootstrap" >&2
-  exit 1
-}
-context_skill_content=$(cat "${PLUGIN_ROOT}/skills/ha-nova/SKILL.md")
-session_bootstrap_content=$(cat "${PLUGIN_ROOT}/skills/ha-nova/session-bootstrap.md")
-context_skill_content="${context_skill_content}"$'\n\n'"${session_bootstrap_content}"
+# Inject only the compact session index plus the first-use bootstrap; the full
+# context skill (skills/ha-nova/SKILL.md) stays the single source of truth and
+# loads on demand as `ha-nova:ha-nova`. Claude receives this text from
+# arbitrary project directories, so inject the shared files themselves.
+for required in skills/ha-nova/SKILL.md skills/ha-nova/index.md skills/ha-nova/session-bootstrap.md; do
+  [[ -f "${PLUGIN_ROOT}/${required}" ]] || {
+    echo "Missing HA NOVA file: ${required}" >&2
+    exit 1
+  }
+done
+context_skill_content="$(cat "${PLUGIN_ROOT}/skills/ha-nova/index.md")"$'\n\n'"$(cat "${PLUGIN_ROOT}/skills/ha-nova/session-bootstrap.md")"
 
 # Escape string for JSON embedding
 escape_for_json() {
@@ -35,18 +33,7 @@ escape_for_json() {
     printf '%s' "$s"
 }
 
-context_escaped=$(escape_for_json "$context_skill_content")
-
-# Build sub-skill list dynamically from skills/ directories (exclude ha-nova context skill itself)
-sub_skills=""
-for skill_dir in "${PLUGIN_ROOT}"/skills/*/SKILL.md; do
-  skill_name=$(basename "$(dirname "$skill_dir")")
-  [[ "$skill_name" == "ha-nova" ]] && continue
-  [[ -n "$sub_skills" ]] && sub_skills="${sub_skills}, "
-  sub_skills="${sub_skills}ha-nova:${skill_name}"
-done
-
-session_context="HA NOVA context skill auto-loaded. Sub-skills (${sub_skills}) are discovered independently by description.\\n\\n${context_escaped}"
+session_context=$(escape_for_json "$context_skill_content")
 
 # ---------------------------------------------------------------------------
 # Relay version check

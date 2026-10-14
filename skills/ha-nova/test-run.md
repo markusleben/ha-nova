@@ -223,7 +223,7 @@ it without asking again:
 
 ## Offer Format (Test Plan Card)
 
-This is the Test Plan Card of `skills/ha-nova/output-rules.md` → Cards; menu
+This is the Test Plan Card of `skills/ha-nova/output-cards.md` → Cards; menu
 mechanics follow `skills/ha-nova/SKILL.md` → Interactive Choices (labels
 localized at runtime):
 

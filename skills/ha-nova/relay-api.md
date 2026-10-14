@@ -571,7 +571,7 @@ When the relay successfully proxies to HA but HA itself returns an error, the re
 - `422`: HA rejected payload semantics (unprocessable entity)
 - `404`: HA resource not found at the requested API path
 - `405`: HA does not support the HTTP method for that path
-- `500`: generic upstream failure; a service call backed by invalid credentials can answer this while HA opens a reauth flow — `ha-nova:service-call` → Generic 500 with a reauth side effect reconciles the two
+- `500`: generic upstream failure; a service call backed by invalid credentials can answer this while HA opens a reauth flow — `ha-nova call` reconciles the two (`reauth_flows_opened`)
 
 Check: envelope `.ok == true`, then inspect `.data.status` for non-2xx values.
 

@@ -15,11 +15,13 @@ Installed skill tree:
 skills/
   ha-nova/SKILL.md              (context skill — stable top-level entrypoint)
   ha-nova/session-bootstrap.md  (shared first-use update contract)
+  ha-nova/index.md              (compact session index — the Claude Code SessionStart injection)
   ha-nova/relay-api.md          (reference doc)
   ha-nova/best-practices.md     (reference doc)
   ha-nova/payload-schemas.md    (reference doc)
   ha-nova/helper-schemas.md     (reference doc — helper type payloads)
-  ha-nova/output-rules.md       (reference doc — shared user-facing output rules)
+  ha-nova/output-rules.md       (reference doc — shared user-facing output rules, core)
+  ha-nova/output-cards.md       (reference doc — on-demand cards, report/list shapes, findings)
   ha-nova/config-body-filter.jq (shared jq asset — canonical REST config-body extractor)
   ha-nova/bulk-patterns.md      (reference doc — bulk selectors, workset, aggregate audit rules)
   ha-nova/template-guidelines.md (reference doc — when to use templates vs native primitives)
@@ -53,7 +55,8 @@ skills/
   maintenance/maintenance-reference.md  (reference doc — issue matrix, repair payloads, orphan gates)
   review/SKILL.md                       (ha-nova:review — config quality review + collision scan)
   entity-discovery/SKILL.md             (ha-nova:entity-discovery — entity lookup)
-  service-call/SKILL.md                 (ha-nova:service-call — services, events/webhooks, alarm/lock runtime control)
+  service-call/SKILL.md                 (ha-nova:service-call — services through `ha-nova call`/`apply`, alarm/lock runtime control)
+  service-call/raw-routes.md            (on-demand — response services, App/host control, events/webhooks, full deferral table)
   fallback/SKILL.md                     (ha-nova:fallback — mandatory fallback for relay-ready features)
   onboarding/SKILL.md                   (ha-nova:onboarding — onboarding + diagnostics)
   diagnose/SKILL.md                     (ha-nova:diagnose — failure root-cause: traces, logs, bounded windows)
@@ -352,7 +355,7 @@ Rules:
 
 ## Service Call Architecture
 
-`ha-nova:service-call` owns ordinary HA service calls plus four guarded runtime families:
+`ha-nova:service-call` runs entity service calls through the typed verbs `ha-nova call` / `ha-nova apply`: the CLI resolves and freezes targets, computes the tier (ordinary runs at once and is verified; preview needs natural confirmation; typed needs the CLI-minted code), refuses owned services, sends exactly one request, and verifies. The raw-relay routes (response services, App/host control, events, webhooks) live in the on-demand `skills/service-call/raw-routes.md`. It owns ordinary HA service calls plus four guarded runtime families:
 - custom event firing through `POST /api/events/{event_type}`
 - known JSON-webhook triggering through `POST /api/webhook/{webhook_id}`
 - alarm-panel runtime services with feature bits 1/2/4/8/16/32
@@ -575,8 +578,9 @@ Scope → Bootstrap (once per session) → Relay Contract → [domain] → Flow 
 - **Scope** — what this skill does + inverse scope (what it does NOT do, which skill to use instead)
 - **Bootstrap (once per session)** — exact heading; shared
   `../ha-nova/session-bootstrap.md` pointer, relay CLI verification, and
-  onboarding fallback. The shared contract synchronously checks HA NOVA and
-  the selected server's Relay update state before the first HA task, then
+  onboarding fallback. The shared contract checks HA NOVA and the selected
+  server's Relay update state before the first HA task (typed verbs carry it
+  as `notices[]`; raw relay routes run `ha-nova check-update --quiet`), then
   keeps any callouts post-task and once-per-session.
 - **Relay Contract** — the file-based `ha-nova relay` command contract this skill uses
 - **Flow** — step-by-step operations with relay commands
@@ -611,12 +615,12 @@ Scope → Bootstrap (once per session) → Relay Contract → [domain] → Flow 
 Every mutation-capable sub-skill opens its `## Safety` section with this block, byte-identical (linter-enforced; the linter extracts this fenced block as the SSOT). It carries the bootstrap-independent guarantees — preview binding, delete confirmation-code gating, and the fallback write gate — so a bare agent that never auto-loads the context skill still gets them:
 
 ```text
-- Preview before write: nothing is saved until the user confirms the shown preview.
+- Preview before write, except the `ha-nova call` fast path (`tier: ordinary`): unambiguous everyday actions run immediately and are verified afterwards; everything else runs or is saved only after the user confirms the shown preview; unlocking, opening gates or garage doors, disarming the alarm, and deletes need a code.
 - Confirmation binds to the displayed preview and expires on any change to target, payload, endpoint, or scope (context skill → Active Preview Confirmation).
 - Pre-preview phrases ("do it", "go ahead", "implement the plan") authorize drafting and preview only — never the write itself.
 - Delete and destructive operations require the typed confirmation code `confirm:<token>` verbatim; "yes" or any natural-language reply is invalid.
 - Never guess entity, service, or config IDs — resolve them or ask.
-- Home Assistant is reached exclusively through `ha-nova relay`.
+- Home Assistant is reached exclusively through the `ha-nova` CLI.
 - For any HA write this skill does not cover, STOP and invoke `ha-nova:fallback` first — never probe unfamiliar write endpoints.
 ```
 
@@ -707,7 +711,7 @@ These codes are contributor-facing/internal only. User-facing output must use lo
 
 Global safety expectations:
 - no guessed ids
-- preview before any write
+- preview before any write, except the CLI fast path (`tier: ordinary`)
 - delete requires typed confirmation code
 - pre-preview approval is never write confirmation; live writes require confirmation after the concrete preview/diff/payload/manifest is shown
 - multi-target writes require a grouped manifest only where the owning skill already supports multi-target writes; otherwise process targets sequentially

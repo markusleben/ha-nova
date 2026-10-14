@@ -44,7 +44,7 @@ describe("semantic outcome verification (#567/#566)", () => {
     // Early opposite readings are in-progress, never failure.
     expect(doc).toContain("an opposite reading early in the window is in-progress, not failure");
     // Event/webhook listener starts are acceptance, not effect proof.
-    expect(flat(read("skills/service-call/SKILL.md"))).toContain(
+    expect(flat(read("skills/service-call/raw-routes.md"))).toContain(
       "that proves the listener STARTED (`accepted`), never that its actions succeeded",
     );
     expect(doc).toContain("never proves rejection and never permits a retry");
@@ -83,17 +83,12 @@ describe("semantic outcome verification (#567/#566)", () => {
   });
 
   it("covers the scripts/scenes and async classes the issue names", () => {
-    const sc = flat(read("skills/service-call/SKILL.md"));
-    // Scripts and scenes: the promise lives on members, not the target.
-    expect(sc).toContain(
-      "Stateless targets: `scene.apply` and direct `script.*` runs do not reflect the call in the target's own state",
-    );
-    expect(sc).toContain("a script's or automation's `last_triggered` is acceptance evidence only");
-    expect(sc).toContain("`verified` requires the previewed effect probes on the acted-on entities");
-    // automation.trigger's runtime rule carries the same downgrade.
-    expect(sc).toContain(
-      "an advanced `last_triggered` on the automation or script is acceptance evidence only",
-    );
+    // Since PR4 `ha-nova call` verifies; scripts and scenes keep the promise
+    // on their members, never on the target's own state.
+    const verify = flat(read("cli/verb_verify.go"));
+    expect(verify).toContain("statelessRun: a scene, script, button, or automation run does not show");
+    expect(verify).toContain("too) has a probe and every probe matches; otherwise it is accepted.");
+    expect(verify).toContain("an unknown service is accepted, never verified");
     // Async refresh/synchronize semantics.
     expect(doc).toContain("a refresh updating a sensor's `last_updated`");
     expect(doc).toContain("an update entity leaving `in_progress`");
@@ -105,14 +100,6 @@ describe("semantic outcome verification (#567/#566)", () => {
     // unverified, never failed.
     expect(doc).toContain("inside a RESTART-LENGTH window");
     expect(doc).toContain("window too short or cut off → `unverified`, never `failed`");
-    // Classification/probes/baselines belong to the PREVIEW step.
-    expect(sc).toContain(
-      "re-read every probe AFTER confirmation and immediately before the POST",
-    );
-    // update_entity's completion signal lives on the target itself — still class 4.
-    expect(sc).toContain(
-      "OR is asynchronous on the target itself (a refresh via `homeassistant.update_entity`",
-    );
     // The canonical retry rule carries the exclusion at its source.
     expect(flat(read("skills/ha-nova/relay-api.md"))).toContain(
       "never for indirect or asynchronous runs",
@@ -120,32 +107,19 @@ describe("semantic outcome verification (#567/#566)", () => {
     expect(flat(read("skills/ha-nova/relay-api.md"))).toContain(
       "this clause narrows service-call retries only",
     );
-    expect(flat(read("skills/service-call/SKILL.md"))).toContain(
-      "AND whose consumer scan found nothing — a discovered consumer can already have fired on the first accepted call",
-    );
+    // The CLI sends exactly one request and never retries (I7).
+    expect(flat(read("skills/service-call/SKILL.md"))).toContain("Never retry after exit 6 or 7");
   });
 
   it("wires service-call into the contract", () => {
     const sc = flat(read("skills/service-call/SKILL.md"));
-    expect(sc).toContain(
-      "A press with restart/reboot/reset semantics is acknowledgement only",
-    );
-    expect(sc).toContain("never infer a completed restart from the timestamp");
-    // A scene's advanced timestamp can coexist with failed member changes.
-    expect(sc).toContain(
-      "keeps the advanced timestamp as verification of the press itself",
-    );
-    expect(sc).toContain(
-      "any press with an expanded stored action or promised consumer effects (a Template button, an `input_button` automations answer), an advanced timestamp alone is `accepted`, never `verified`",
-    );
-    expect(sc).toContain("a scene verifies only when the previewed member probes show the promised states");
-    expect(sc).toContain(
-      "evidence classes and result vocabulary: `skills/ha-nova/outcome-verification.md`",
-    );
-    // A transport error on a restart-class action must not re-fire it via the
-    // generic 502 retry-once rule.
-    expect(sc).toContain(
-      "disruptive/restart-class actions never retry after any transport error",
+    const verify = flat(read("cli/verb_verify.go"));
+    // Every press, restart buttons included, is acknowledgement only.
+    expect(verify).toContain('(domain == "button" || domain == "input_button") && name == "press"');
+    expect(sc).toContain("Report each entity's `verification` honestly; never retry automatically.");
+    expect(sc).toContain("Never retry after exit 6 or 7; a verified result names only the proven scope.");
+    expect(flat(read("skills/ha-nova/output-rules.md"))).toContain(
+      "verified, accepted (sent, effect not observable), unverified, failed",
     );
   });
 });

@@ -163,7 +163,8 @@ func init() {
 	}
 }
 
-// Alarm feature bits (service-call/SKILL.md → Alarm Panels And Locks).
+// Alarm feature bits. This is the rule's source since the service-call skill
+// moved to `ha-nova call` (formerly its Alarm Panels And Locks section).
 var alarmFeatureBits = map[string]int{
 	"alarm_arm_home": 1, "alarm_arm_away": 2, "alarm_arm_night": 4, "alarm_trigger": 8,
 	"alarm_arm_custom_bypass": 16, "alarm_arm_vacation": 32,

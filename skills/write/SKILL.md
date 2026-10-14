@@ -168,16 +168,16 @@ See `skills/ha-nova/SKILL.md` → Response Format.
 
 ## Safety
 
-- Preview before write: nothing is saved until the user confirms the shown preview.
+- Preview before write, except the `ha-nova call` fast path (`tier: ordinary`): unambiguous everyday actions run immediately and are verified afterwards; everything else runs or is saved only after the user confirms the shown preview; unlocking, opening gates or garage doors, disarming the alarm, and deletes need a code.
 - Confirmation binds to the displayed preview and expires on any change to target, payload, endpoint, or scope (context skill → Active Preview Confirmation).
 - Pre-preview phrases ("do it", "go ahead", "implement the plan") authorize drafting and preview only — never the write itself.
 - Delete and destructive operations require the typed confirmation code `confirm:<token>` verbatim; "yes" or any natural-language reply is invalid.
 - Never guess entity, service, or config IDs — resolve them or ask.
-- Home Assistant is reached exclusively through `ha-nova relay`.
+- Home Assistant is reached exclusively through the `ha-nova` CLI.
 - For any HA write this skill does not cover, STOP and invoke `ha-nova:fallback` first — never probe unfamiliar write endpoints.
 
 - Destructive cleanup still requires `confirm:<token>`, even for items created earlier in the same session.
-- Agents must use Relay only; no MCP, no direct HA API
+- Agents must use the `ha-nova` CLI only (Relay transport); no third-party MCP server, no direct HA API
 - Every write MUST end with the Post-Write Review slot; use terminal-friendly labels where Markdown headings add noise.
 
 ## Guardrails

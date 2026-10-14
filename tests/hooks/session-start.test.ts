@@ -2,7 +2,7 @@
  * S-6: SessionStart hook (4 variants)
  * Tests the hooks/session-start script output in various configurations.
  */
-import { readFileSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { readFileSync, readdirSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -27,9 +27,23 @@ describe("S-6: session-start hook", () => {
     expect(json).toHaveProperty("additional_context");
     expect(json).toHaveProperty("hookSpecificOutput");
     expect(json.additional_context).toContain("HA NOVA Skills");
-    expect(json.additional_context).toContain("name: ha-nova");
+    // Compact index + bootstrap only; the full router loads on demand.
+    expect(json.additional_context).toContain("# HA NOVA Index");
+    expect(json.additional_context).toContain("Load the full context skill `ha-nova:ha-nova` on");
+    expect(json.additional_context).not.toContain("name: ha-nova");
     expect(json.additional_context).toContain("# Session Bootstrap");
     expect(json.additional_context).toContain("ha-nova check-update --quiet");
+    expect(json.additional_context).toContain("`notices[]`");
+    // Typed-verbs PR4 budget: ~700 words (was ~6.1k with the full router).
+    expect(json.additional_context.split(/\s+/).length).toBeLessThan(760);
+  });
+
+  it("lists every skill in the injected index", () => {
+    const index = readFileSync("skills/ha-nova/index.md", "utf8");
+    for (const dir of readdirSync("skills", { withFileTypes: true })) {
+      if (!dir.isDirectory()) continue;
+      expect(index, `index must list ha-nova:${dir.name}`).toContain(`\`ha-nova:${dir.name}\``);
+    }
   });
 
   it("includes sub-skill discovery list", () => {

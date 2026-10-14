@@ -99,7 +99,7 @@ grouped set with fresh previews.
 
 ## Grouped Cards
 
-Same rules as `skills/ha-nova/output-rules.md` → Cards. Per-operation Preview
+Same rules as `skills/ha-nova/output-cards.md` → Cards. Per-operation Preview
 Cards render unchanged minus the options line; the group closes with:
 
 ```
@@ -163,7 +163,7 @@ join a dependency-bound set.
 | `helper` | yes | storage and supported config-entry helper creates/updates |
 | `scene` | yes | storage scene creates/updates (Editability Guard per target) |
 | `organize` | yes | registry metadata updates (areas, labels, categories, entity/device metadata) |
-| `service-call` | yes | batch service calls per its Guardrails grouped manifest; high-consequence calls (confirmation-code tier) excluded |
+| `service-call` | yes | service calls planned with `ha-nova plan call` and run with `ha-nova apply --plan <id>` per plan after the set's one confirmation; typed-tier plans (confirmation code) excluded |
 | `todo` | yes | item operations on ONE list (add, complete, rename, update); list creates/deletes stay single-operation |
 | `dashboard` | downstream only | an entity reference on an existing dashboard as the DOWNSTREAM operation of a dependency-bound set (see Dependency-Bound Outputs); never a standalone grouped family |
 | all others | no | single-operation flows or the destructive batch contract |

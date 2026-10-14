@@ -70,10 +70,10 @@ describe("hacs lifecycle skill (#478)", () => {
 
   it("carries the canonical mutation Safety Core and file-based relay usage", () => {
     expect(skill).toContain(
-      "- Preview before write: nothing is saved until the user confirms the shown preview.",
+      "- Preview before write, except the `ha-nova call` fast path (`tier: ordinary`): unambiguous everyday actions run immediately and are verified afterwards; everything else runs or is saved only after the user confirms the shown preview; unlocking, opening gates or garage doors, disarming the alarm, and deletes need a code.",
     );
     expect(skill).toContain(
-      "Home Assistant is reached exclusively through `ha-nova relay`.",
+      "Home Assistant is reached exclusively through the `ha-nova` CLI.",
     );
     expect(skill).toContain("--data-file");
     expect(skill).toContain("--out <result-file>");

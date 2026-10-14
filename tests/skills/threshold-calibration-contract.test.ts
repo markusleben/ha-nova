@@ -112,7 +112,7 @@ describe("threshold calibration preflight (#484)", () => {
     expect(calibration).toContain("direct template comparisons");
     // Wait-predicate edits reclassify without touching the timeout.
     expect(calibration).toContain("the numeric predicate\n  INSIDE the wait template itself");
-    expect(readFileSync("skills/service-call/SKILL.md", "utf8")).toContain(
+    expect(readFileSync("skills/service-call/domain-fields.md", "utf8")).toContain(
       "before a `scene.apply` whose entities map assigns such a helper",
     );
     expect(writeSkill).toContain(
@@ -123,7 +123,7 @@ describe("threshold calibration preflight (#484)", () => {
     );
     // Helper VALUE changes through service calls trigger the same preflight.
     expect(calibration).toContain("The same duty applies OUTSIDE config updates");
-    expect(readFileSync("skills/service-call/SKILL.md", "utf8")).toContain(
+    expect(readFileSync("skills/service-call/domain-fields.md", "utf8")).toContain(
       "run the calibration preflight per `skills/ha-nova/threshold-calibration.md`",
     );
     // Helper-backed boundaries move over the window; conditions evaluate at

@@ -7,10 +7,10 @@ const domainFields = readFileSync(
   resolve(__dirname, "../../skills/service-call/domain-fields.md"),
   "utf-8",
 );
-const serviceCall = readFileSync(
-  resolve(__dirname, "../../skills/service-call/SKILL.md"),
-  "utf-8",
-);
+// The skill plus its on-demand raw-relay routes (the full deferral table).
+const serviceCall =
+  readFileSync(resolve(__dirname, "../../skills/service-call/SKILL.md"), "utf-8") +
+  readFileSync(resolve(__dirname, "../../skills/service-call/raw-routes.md"), "utf-8");
 const mediaSkill = readFileSync(
   resolve(__dirname, "../../skills/media/SKILL.md"),
   "utf-8",
