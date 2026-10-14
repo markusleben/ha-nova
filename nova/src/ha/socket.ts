@@ -1,3 +1,4 @@
+import { ERR_INVALID_AUTH } from "home-assistant-js-websocket";
 import { WebSocket } from "ws";
 
 // Custom createSocket for home-assistant-js-websocket.
@@ -136,4 +137,21 @@ export function createAuthenticatedHaSocket(
     socket.addEventListener("close", onClose);
     socket.addEventListener("error", onError);
   });
+}
+
+// haws stops reconnecting only on its own ERR_INVALID_AUTH code; any other
+// rejection retries every 1-5 s forever. A revoked token must end the loop
+// (HA raises an auth notification per attempt and may IP-ban the Relay), so
+// the haws-facing factory translates the typed auth error into that code.
+export async function createHawsSocket(
+  options: AuthenticatedHaSocketOptions,
+): Promise<WebSocket & { haVersion: string }> {
+  try {
+    return await createAuthenticatedHaSocket(options);
+  } catch (error) {
+    if (error instanceof HaSocketAuthError) {
+      throw ERR_INVALID_AUTH;
+    }
+    throw error;
+  }
 }

@@ -54,6 +54,39 @@ describe("ha ws client", () => {
     expect(client.isConnected()).toBe(true);
   });
 
+  it("drops the connection after haws gives up on a revoked token and retries once per request", async () => {
+    const listenersByConnection: Array<Record<string, () => void>> = [];
+    let connects = 0;
+    let closes = 0;
+    const client = createHaWsClient({
+      createConnection: async () => {
+        connects += 1;
+        const listeners: Record<string, () => void> = {};
+        listenersByConnection.push(listeners);
+        return {
+          sendMessagePromise: async () => ({ ok: true }),
+          close: () => {
+            closes += 1;
+          },
+          addEventListener: (event: "ready" | "disconnected" | "reconnect-error", callback: () => void) => {
+            listeners[event] = callback;
+          }
+        };
+      }
+    });
+
+    await client.sendMessage({ type: "ping" });
+    listenersByConnection[0]?.["disconnected"]?.();
+    listenersByConnection[0]?.["reconnect-error"]?.();
+    expect(client.getConnectionStatus()).toEqual({ connected: false, disconnect_reason: "auth" });
+    expect(closes).toBe(1);
+
+    // The dead connection is gone: the next request makes a fresh attempt.
+    await client.sendMessage({ type: "ping" });
+    expect(connects).toBe(2);
+    expect(client.isConnected()).toBe(true);
+  });
+
   it("ignores events from a stale connection after reset", async () => {
     const listenersByConnection: Array<Record<string, () => void>> = [];
     let failNext = false;
@@ -627,13 +660,28 @@ describe("connection status classification", () => {
     });
   });
 
-  it("classifies HaSocketAuthError (the real socket path) as auth", async () => {
+  it("classifies a direct HaSocketAuthError as auth", async () => {
     const client = createHaWsClient({
       createConnection: async () => {
         throw new HaSocketAuthError("HA rejected the long-lived access token");
       }
     });
     await expect(client.sendMessage({ type: "ping" })).rejects.toBeInstanceOf(HaWsClientError);
+    expect(client.getConnectionStatus()).toEqual({ connected: false, disconnect_reason: "auth" });
+  });
+
+  it("reports the bare haws code 2 from the real socket factory as a rejected upstream token", async () => {
+    // createHawsSocket rejects with ERR_INVALID_AUTH (2); the CLI routes to
+    // upstream-auth recovery on this code and the "upstream access token" text.
+    const client = createHaWsClient({
+      createConnection: async () => {
+        throw 2;
+      }
+    });
+    await expect(client.sendMessage({ type: "ping" })).rejects.toMatchObject({
+      code: "UPSTREAM_WS_AUTH_REJECTED",
+      message: expect.stringContaining("upstream access token")
+    });
     expect(client.getConnectionStatus()).toEqual({ connected: false, disconnect_reason: "auth" });
   });
 
