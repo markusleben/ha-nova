@@ -1,7 +1,7 @@
 # Release Runbook
 
 Manual proofs (desktop lanes, Windows/Linux onboarding, private RC helpers)
-live in `docs/reference/release-validation.md`.
+live in `docs/release-validation.md`.
 
 ## 1. Bump and Release-Prep PR
 

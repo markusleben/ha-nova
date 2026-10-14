@@ -119,7 +119,7 @@ Use `npm run dev:install:*` when you need a fresh repo-local skill install for o
 
 `scripts/onboarding/install-local-skills.sh` and `scripts/onboarding/bin/ha-nova` are repo-dev helpers, not supported end-user product interfaces.
 
-Desktop validation and private RC flows stay in `docs/reference/release-validation.md`; the release runbook is `docs/releasing.md`. Keep maintainer runbook detail there instead of copying it here.
+Desktop validation and private RC flows stay in `docs/release-validation.md`; the release runbook is `docs/releasing.md`. Keep maintainer runbook detail there instead of copying it here.
 
 Emergency cleanup if a local desktop-validation helper was interrupted:
 

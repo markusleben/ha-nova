@@ -41,7 +41,7 @@ describe("release contract", () => {
   );
   const censusWorkerReadme = readFileSync("census-worker/README.md", "utf8");
   const releasing = readFileSync("docs/releasing.md", "utf8");
-  const releaseDocs = `${releasing}\n${readFileSync("docs/reference/release-validation.md", "utf8")}`;
+  const releaseDocs = `${releasing}\n${readFileSync("docs/release-validation.md", "utf8")}`;
   const readme = readFileSync("README.md", "utf8");
   const linuxHeadlessHelper = readFileSync(
     "scripts/smoke/linux-headless-setup-check.sh",

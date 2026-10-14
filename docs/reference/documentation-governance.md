@@ -18,7 +18,7 @@ Use these files as the current sources of truth:
   - active conduct policy and private reporting contract
 - `docs/releasing.md`
   - release runbook
-- `docs/reference/release-validation.md`
+- `docs/release-validation.md`
   - manual release validation matrix
 - `docs/reference/bridge-architecture.md`
   - relay surface truth
