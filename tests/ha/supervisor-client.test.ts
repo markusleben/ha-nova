@@ -93,6 +93,31 @@ describe("supervisor-client", () => {
     ).toBeNull();
   });
 
+  it.each([
+    ["a string port", { "8792/tcp": "18792" }],
+    ["a fractional port", { "8792/tcp": 18792.5 }],
+    ["an out-of-range port", { "8792/tcp": 70000 }],
+    ["a zero port", { "8792/tcp": 0 }],
+  ])("throws on %s instead of nulling the secure listener", async (_name, network) => {
+    mockFetch(() => ({ body: infoBody(network as unknown as Record<string, number | null>) }));
+    await expect(
+      createSupervisorClient("tok").getMappedHostPort("8792/tcp"),
+    ).rejects.toThrow("unexpected supervisor response shape");
+  });
+
+  it("keeps getSelfInfo lenient so the sidebar and update card survive a bad port entry", async () => {
+    mockFetch(() => ({ body: infoBody({ "8792/tcp": "18792" } as unknown as Record<string, number | null>) }));
+    const info = await createSupervisorClient("tok").getSelfInfo();
+    expect(info.network).toEqual({ "8792/tcp": null });
+  });
+
+  it("throws on a non-object network map", async () => {
+    mockFetch(() => ({ body: infoBody(["8792/tcp"] as unknown as Record<string, number | null>) }));
+    await expect(
+      createSupervisorClient("tok").getMappedHostPort("8792/tcp"),
+    ).rejects.toThrow("unexpected supervisor response shape");
+  });
+
   it("sends the bearer token and wraps options for setOptions", async () => {
     let seen: { url: string; init: RequestInit } | null = null;
     mockFetch((url, init) => {
