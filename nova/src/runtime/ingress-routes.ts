@@ -215,6 +215,7 @@ function registerOwnerRoutes(
     },
     relayVersion: deps.relayVersion,
     now: deps.now,
+    logger: deps.logger,
   };
   const page = createNovaPageHandler(novaDeps);
   const action = createNovaActionHandler(novaDeps);
