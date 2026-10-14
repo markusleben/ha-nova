@@ -365,6 +365,12 @@ Decisions (maintainer, 2026-10-14)
 - **ESPHome/MQTT entities stay ordinary** (maintainer default 2026-10-14). Only their buttons are user-authored typed; switches, lights, and covers are real devices, and escalating them would put every zigbee2mqtt switch on typed.
 - **Q4 → change with an explicit exception.** Public wording: "Unambiguous everyday actions run immediately and are verified afterwards; everything else shows a preview first; locks, gates, alarm, and deletes need a code." `docs/reference/safety.md` and the Safety Core change with PR4; README only in the release-prep PR.
 
+PR3 implementation notes
+- `call` executes only ordinary plans and never stores them; every other tier is stored and exits 3. `apply` on a preview plan is the confirmation step itself (the skill obtains the natural confirmation first); typed plans need `--confirm`, a missing code is refused without counting as a mismatch.
+- The only write is `relaySession.postService` (core `POST /api/services/<d>/<s>`, 30 s, no retry); `read()` keeps refusing it (I1). Relay 4xx before upstream → exit 1 (nothing sent); transport errors, redirects, Relay 5xx, unreadable replies → exit 7; upstream HA ≥ 400 → exit 6 `failed` (500 adds `reauth_flows_opened` from one re-read 2 s later).
+- Apply order: peek (server only) → session → atomic claim → expiry/server/empty-target guard → code → recompute (exit 2 stores the new plan, the claimed file is deleted) → one POST → verify → delete. A claimed plan is never reused; a wrong code below three attempts releases it with the counter stored in the plan (not in the hash).
+- Verification reads bypass the session memo and run on a renewed 30 s budget.
+
 PR2 implementation defaults (fail closed; open for maintainer review)
 - `call_service` baseline is the named constant `callServiceListenerBaseline` = 0 until the disposable-HA E2E measures it. A core listener that is never enumerated then reads as `UNENUMERABLE_LISTENER` (typed).
 - Any non-literal stored target (templated, `all`/`none`) is typed, not only on access-capable services (rule 3).

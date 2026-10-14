@@ -56,6 +56,7 @@ type storedPlan struct {
 	Confirm       string          `json:"confirm"`
 	Code          string          `json:"code,omitempty"`
 	Nonce         string          `json:"nonce"`
+	Mismatches    int             `json:"code_mismatches,omitempty"` // apply attempts with a wrong code (3 invalidate)
 	Request       planCallRequest `json:"request"`
 	Action        planAction      `json:"action"`
 	Reasons       []tierReason    `json:"reasons"`
@@ -78,7 +79,9 @@ func planHash(kind, server string, action planAction, tier string, reasons []tie
 	return hex.EncodeToString(sum[:])
 }
 
-func storeCallPlan(paths runtimePaths, e *tierEngine, env *verbEnvelope, req planCallRequest, targets []verbTarget) error {
+// buildCallPlan freezes the action, hashes it, and fills the envelope; the
+// caller decides whether the plan is stored.
+func buildCallPlan(e *tierEngine, env *verbEnvelope, req planCallRequest, targets []verbTarget) (storedPlan, error) {
 	frozen := []string{}
 	for _, t := range targets {
 		frozen = append(frozen, t.EntityID)
@@ -96,7 +99,7 @@ func storeCallPlan(paths runtimePaths, e *tierEngine, env *verbEnvelope, req pla
 	// nonce-free.
 	nonce := make([]byte, 16)
 	if _, err := rand.Read(nonce); err != nil {
-		return fmt.Errorf("cannot draw a plan nonce: %w", err)
+		return storedPlan{}, fmt.Errorf("cannot draw a plan nonce: %w", err)
 	}
 	idSum := sha256.Sum256([]byte(sum + hex.EncodeToString(nonce)))
 	idHex := hex.EncodeToString(idSum[:])
@@ -110,9 +113,6 @@ func storeCallPlan(paths runtimePaths, e *tierEngine, env *verbEnvelope, req pla
 	if e.level == tierTyped {
 		plan.Code = confirmCode(req.Service, frozen, idHex)
 	}
-	if err := savePlan(paths, plan); err != nil {
-		return fmt.Errorf("cannot store the plan: %w", err)
-	}
 	env.Tier, env.Action, env.Reasons = tier, &action, e.reasons
 	env.Members, env.Consumers = e.members, e.consumers
 	env.Coverage = &tierCoverage{Complete: e.complete, Notes: e.notes}
@@ -122,7 +122,7 @@ func storeCallPlan(paths runtimePaths, e *tierEngine, env *verbEnvelope, req pla
 	if e.level != tierOrdinary {
 		env.Status, env.exit = "needs_confirmation", verbExitConfirmation
 	}
-	return nil
+	return plan, nil
 }
 
 // callPlanBasis: per acted entity pl/device_class/supported_features, the
@@ -167,16 +167,34 @@ func confirmCode(service string, frozen []string, sum string) string {
 // savePlan writes CacheDir/plans/<id>.json (0600, atomic) after pruning
 // expired files and keeping at most planMaxFiles plans.
 func savePlan(paths runtimePaths, plan storedPlan) error {
-	dir := filepath.Join(paths.CacheDir, "plans")
+	dir := planDir(paths)
 	if err := os.MkdirAll(dir, 0o700); err != nil {
-		return err
+		return fmt.Errorf("cannot store the plan: %w", err)
 	}
 	prunePlans(dir)
+	return writePlanFile(filepath.Join(dir, plan.ID+".json"), plan)
+}
+
+func planDir(paths runtimePaths) string { return filepath.Join(paths.CacheDir, "plans") }
+
+func writePlanFile(path string, plan storedPlan) error {
 	data, err := json.MarshalIndent(plan, "", "  ")
-	if err != nil {
-		return err
+	if err == nil {
+		err = writeFileAtomic(path, append(data, '\n'), 0o600)
 	}
-	return writeFileAtomic(filepath.Join(dir, plan.ID+".json"), append(data, '\n'), 0o600)
+	if err != nil {
+		return fmt.Errorf("cannot store the plan: %w", err)
+	}
+	return nil
+}
+
+func readPlanFile(path string) (storedPlan, error) {
+	var plan storedPlan
+	raw, err := os.ReadFile(path)
+	if err == nil {
+		err = json.Unmarshal(raw, &plan)
+	}
+	return plan, err
 }
 
 func prunePlans(dir string) {

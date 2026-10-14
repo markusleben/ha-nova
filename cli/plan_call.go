@@ -15,7 +15,8 @@ const planCallUsage = `ha-nova plan call <domain.service> [<entity_id>…] [--ma
 const planCallHelp = planCallUsage + `
 
 Read-only: resolves the targets, computes the confirmation tier, and stores
-the plan for 15 minutes. This release never executes a plan.
+the plan for 15 minutes. plan call never executes a plan; "ha-nova apply"
+does, and "ha-nova call" plans and runs ordinary calls in one step.
 Service data may not carry entity_id, area_id, device_id, or target (pass
 targets as arguments); script fields named "target" are not supported in v1.
 Exit: 0 ordinary (plan stored), 3 needs confirmation, 4 refused, 5 ambiguous or not found.`
@@ -41,34 +42,42 @@ func runPlanCommand(paths runtimePaths, args []string) int {
 }
 
 func runPlanCall(paths runtimePaths, args []string) int {
+	return runCallVerb(paths, "plan", "plan call", planCallHelp, args, func(s *relaySession, env *verbEnvelope, req planCallRequest) error {
+		return planCall(paths, s, env, req)
+	})
+}
+
+// runCallVerb parses the shared plan/call flags, answers static refusals
+// without any Relay contact, and runs body on one session.
+func runCallVerb(paths runtimePaths, verb, flagSetName, help string, args []string, body func(*relaySession, *verbEnvelope, planCallRequest) error) int {
 	var opts verbOptions
 	req := planCallRequest{Data: map[string]any{}}
 	var sets []string
 	dataFile := ""
-	fs := flag.NewFlagSet("plan call", flag.ContinueOnError)
+	fs := flag.NewFlagSet(flagSetName, flag.ContinueOnError)
 	addVerbFlags(fs, &opts)
 	fs.StringVar(&req.Match, "match", "", "resolve exactly one non-disabled entity of the service's domain by phrase")
 	fs.StringVar(&req.Area, "area", "", "expand an area_id to the service domain's entities (always previewed)")
 	fs.StringVar(&req.Device, "device", "", "expand a device_id to the service domain's entities (always previewed)")
 	fs.Func("set", "service data field k=v, JSON-typed when it parses (repeatable)", func(v string) error { sets = append(sets, v); return nil })
 	fs.StringVar(&dataFile, "data-file", "", "JSON object of service data; --set overrides its keys")
-	positional, err := parseVerbArgs(fs, &opts, args, planCallHelp)
+	positional, err := parseVerbArgs(fs, &opts, args, help)
 	if err == nil {
 		err = req.parse(positional, sets, dataFile)
 	}
 	if err != nil {
-		return verbUsageError("plan", err)
+		return verbUsageError(verb, err)
 	}
 	if refusal := staticRefusal(req); refusal != nil { // needs no Relay at all
-		env := verbEnvelope{SchemaVersion: 1, Verb: "plan"}
+		env := verbEnvelope{SchemaVersion: 1, Verb: verb}
 		exit := setVerbError(&env, refuse(&env, *refusal))
 		if !printVerbEnvelope(env) {
 			return verbExitError
 		}
 		return exit
 	}
-	return runReadVerb(paths, "plan", opts, func(s *relaySession, env *verbEnvelope) error {
-		return planCall(paths, s, env, req)
+	return runReadVerb(paths, verb, opts, func(s *relaySession, env *verbEnvelope) error {
+		return body(s, env, req)
 	})
 }
 
@@ -118,17 +127,28 @@ func (req *planCallRequest) parse(positional, sets []string, dataFile string) er
 }
 
 func planCall(paths runtimePaths, s *relaySession, env *verbEnvelope, req planCallRequest) error {
+	_, plan, err := computeCallPlan(s, env, req)
+	if err != nil {
+		return err
+	}
+	return savePlan(paths, plan)
+}
+
+// computeCallPlan resolves, tiers, and builds the plan (not stored). plan
+// call, call, and apply's recompute (I3) all run exactly this.
+func computeCallPlan(s *relaySession, env *verbEnvelope, req planCallRequest) (*tierEngine, storedPlan, error) {
 	e := newTierEngine(s)
 	e.loadRegistry()
 	targets, err := e.resolveTargets(req)
 	if err != nil {
-		return err
+		return nil, storedPlan{}, err
 	}
 	env.Resolved = targets
 	if refusal := e.evaluate(req, targets); refusal != nil {
-		return refuse(env, *refusal)
+		return nil, storedPlan{}, refuse(env, *refusal)
 	}
-	return storeCallPlan(paths, e, env, req, targets)
+	plan, err := buildCallPlan(e, env, req, targets)
+	return e, plan, err
 }
 
 // staticRefusal: owned services, hassio.*, floor/label selectors, and codes
