@@ -422,9 +422,10 @@ function describeUpstreamCommandError(error: unknown): string | undefined {
 // numeric error payloads from home-assistant-js-websocket; map them to
 // readable transport messages.
 // haws transport codes 2 (invalid auth) and 6 (invalid auth callback) are the
-// token problems — and so is HaSocketAuthError, which the real socket path
-// (createAuthenticatedHaSocket) throws on an auth_invalid handshake instead
-// of a numeric code. Walk the cause chain: haws wraps rejections.
+// token problems; the runtime socket factory (createHawsSocket) rejects with
+// 2 so haws stops reconnecting. A direct HaSocketAuthError (from
+// createAuthenticatedHaSocket) is auth too. Walk the cause chain: haws wraps
+// rejections.
 function classifyConnectFailure(error: unknown): "auth" | "network" {
   let current: unknown = error;
   for (let depth = 0; depth < 5 && current !== undefined && current !== null; depth += 1) {

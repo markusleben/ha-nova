@@ -248,21 +248,23 @@ describe("haws-facing socket factory", { retry: 2 }, () => {
         }
       });
     });
+    let connection: import("home-assistant-js-websocket").Connection | undefined;
     try {
-      const connection = await createConnection({
+      connection = await createConnection({
         auth: createLongLivedTokenAuth(server.url, "revoked"),
         createSocket: async () =>
           (await createHawsSocket({ haUrl: server.url, token: "revoked" })) as unknown as import("home-assistant-js-websocket").HaWebSocket,
       });
+      const live = connection;
       const gaveUp = await Promise.race([
-        new Promise<boolean>((resolve) => connection.addEventListener("reconnect-error", () => resolve(true))),
+        new Promise<boolean>((resolve) => live.addEventListener("reconnect-error", () => resolve(true))),
         new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 4_000)),
       ]);
       expect(gaveUp).toBe(true);
       await new Promise((resolve) => setTimeout(resolve, 1_500));
       expect(attempts).toBe(2);
-      connection.close();
     } finally {
+      connection?.close();
       server.close();
     }
   });
