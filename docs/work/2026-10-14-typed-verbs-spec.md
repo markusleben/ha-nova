@@ -150,6 +150,45 @@ Each step is the code form of an existing prose rule, cited per step.
 
 Caching and limits. All reads go through one `relaySession` per invocation: transport resolved once, request results memoized in memory, 8 concurrent requests, 15 s per request, 30 s overall. There is no disk cache: presence must be checked per run (`indirect-actuation.md:225`). Limits: 64 acted entities, 200 visited nodes, depth 8, 100 consumer configs, 2,000 automations in the full scan. Any cut produces `LIMIT_CUT`, which is typed. This needs a new helper because `relayWSJSONContext` reloads config and reselects transport on every call (`cli/trace_loader.go:197-212`), and `runRelayProxy` is monolithic (`cli/relay.go:341-516`). `trace` then switches to the session helper.
 
+Reason codes (`cli/tier_rules.go`; `TestTierReasonCodesAreDocumented` pins each one here). Section names refer to `skills/ha-nova/indirect-actuation.md` unless another file is named.
+
+| Code | Tier | Rule |
+|---|---|---|
+| `ACCESS_LOCK` | typed | `lock.unlock`/`lock.open`, directly or as a member (Classifying what you found) |
+| `ACCESS_ALARM` | typed | `alarm_disarm` (Classifying what you found) |
+| `ACCESS_COVER` | typed | open-capable cover service on a garage/gate/door `device_class` (When you cannot see the members, cover paragraph) |
+| `COVER_CLASS_UNKNOWN` | typed | the same on a cover without `device_class` (Q3) |
+| `DISRUPTIVE` | preview | restart/stop, `siren.turn_on`, `alarm_trigger` (`service-call/SKILL.md` → Safety) |
+| `OWNED_SERVICE` | refused | the deferral table names another skill (`service-call/SKILL.md` → Owning-Skill Deferrals) |
+| `OWNED_MEMBER` | preview | a stored member is a deferred service (expanding must not downgrade the owner's gate) |
+| `OWNED_TYPED_MEMBER` | typed | a stored `mqtt.publish` or `hassio.*` member (owning-skill escalation) |
+| `HASSIO_NOT_SUPPORTED` | refused | any direct `hassio.*` (non-goal v1) |
+| `UNSUPPORTED_SELECTOR` | refused | direct `floor_id`/`label_id` |
+| `CODE_REQUIRED` | refused | code-bearing lock/alarm or a `code` in the payload (`service-call/SKILL.md` → Alarm Panels And Locks) |
+| `UNSUPPORTED_FEATURE` | refused | missing `supported_features` bit (same section) |
+| `EXPANDED_TARGET` | preview | area, device, or group expansion (I5) |
+| `EXPLICIT_BATCH` | preview | more than 10 explicit ids (§4) |
+| `STORED_MEMBERS` | preview | the direct target is a scene, script, or `automation.trigger` run (I5) |
+| `NO_REGISTRY_ROW` | preview or typed | explicit id without registry row (§2.2 step 1) |
+| `TEMPLATE_ACTION_UNREAD` | typed | `pl: template` target; its stored action is not read in v1 (What triggers the gate) |
+| `USER_AUTHORED_BUTTON` | typed | `esphome`/`mqtt` button press (Expanding the members, buttons) |
+| `UNREAD_COMMAND` | typed | `python_script`, `shell_command`, `rest_command` (Expanding the members) |
+| `TEMPLATED_ACTION` | typed | templated action name or `service_template` (When you cannot see the members) |
+| `UNRESOLVED_TARGET` | typed | templated, `all`/`none`, or non-literal stored target (rule 3) |
+| `STORED_SELECTOR` | typed | stored `floor_id`/`label_id` (Expanding the members) |
+| `BLUEPRINT_UNRESOLVED` | typed | failed `blueprint/substitute` (Expanding the members) |
+| `YAML_NO_ID` | typed | YAML item without an id (When you cannot see the members) |
+| `UNREAD_CONFIG` | typed | user-authored config not readable (rule 3; unread cycle members) |
+| `INTEGRATION_SCENE_ACCESS` | typed | unread integration scene whose platform owns a lock/alarm/access cover (When you cannot see the members) |
+| `INTEGRATION_SCENE_UNREAD` | preview | unread integration scene on a platform without access entities (same section) |
+| `RELOAD_UNENUMERATED` | typed | targetless trigger/state-source reload; v1 does not enumerate its effect set (Expanding the members, reloads) |
+| `UNENUMERABLE_LISTENER` | typed | live listener count ≠ enumerated automation listeners (step 5b) |
+| `CONSUMER_MANAGER_PRESENT` | preview | Node-RED/AppDaemon/pyscript present locally (step 5c, Q2) |
+| `SCAN_FAILED` | typed | any failed read inside the traversal (Limits you imposed) |
+| `LIMIT_CUT` | typed | any budget cut (Limits you imposed) |
+| `TEMPLATES_NOT_CHECKABLE` | note | the instance has template entities (step 5d) |
+| `NO_LOCAL_CONSUMER_MANAGER` | note | presence check found none locally (step 5c) |
+
 ### 2.3 Execute and verify
 
 **Service calls.**
@@ -307,3 +346,10 @@ Decisions (maintainer, 2026-10-14)
 - **Q2 → preview.** A present but unreadable consumer manager (Node-RED, AppDaemon) puts ordinary device control at preview, with a coverage note.
 - **Q3 → typed.** An open-capable cover without `device_class` is typed (fail closed).
 - **Q4 → change with an explicit exception.** Public wording: "Unambiguous everyday actions run immediately and are verified afterwards; everything else shows a preview first; locks, gates, alarm, and deletes need a code." `docs/reference/safety.md` and the Safety Core change with PR4; README only in the release-prep PR.
+
+PR2 implementation defaults (fail closed; open for maintainer review)
+- `call_service` baseline is 0 until the disposable-HA E2E measures it. A core listener that is never enumerated then reads as `UNENUMERABLE_LISTENER` (typed).
+- Any non-literal stored target (templated, `all`/`none`) is typed, not only on access-capable services (rule 3).
+- Targetless trigger/state-source reloads are typed (`RELOAD_UNENUMERATED`); v1 does not enumerate their effect set.
+- A present consumer manager is preview for every target, trigger sources included (Q2 wording), although the prose escalates trigger sources further.
+- `call_service` listeners ignore `event_data` filters: every enumerated listener counts as a consumer of the run (over-approximation).

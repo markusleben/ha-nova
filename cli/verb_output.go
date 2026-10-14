@@ -9,24 +9,35 @@ import (
 	"strings"
 )
 
-// Exit codes of the typed verbs (typed-verbs spec §2). PR1 uses 0, 1, 5.
+// Exit codes of the typed verbs (typed-verbs spec §2).
 const (
-	verbExitOK       = 0
-	verbExitError    = 1
-	verbExitNotFound = 5
+	verbExitOK           = 0
+	verbExitError        = 1
+	verbExitConfirmation = 3
+	verbExitRefused      = 4
+	verbExitNotFound     = 5
 )
 
 // verbEnvelope is the schema_version 1 output of every typed verb; empty
 // fields are omitted. Result carries the verb-specific read payload.
 type verbEnvelope struct {
-	SchemaVersion int          `json:"schema_version"`
-	Verb          string       `json:"verb"`
-	Server        string       `json:"server,omitempty"`
-	Status        string       `json:"status"`
-	Resolved      []verbTarget `json:"resolved,omitempty"`
-	Result        any          `json:"result,omitempty"`
-	Error         *verbError   `json:"error,omitempty"`
-	Notices       []verbNotice `json:"notices,omitempty"`
+	SchemaVersion int            `json:"schema_version"`
+	Verb          string         `json:"verb"`
+	Server        string         `json:"server,omitempty"`
+	Status        string         `json:"status"`
+	Tier          string         `json:"tier,omitempty"`
+	Plan          *verbPlan      `json:"plan,omitempty"`
+	Action        *planAction    `json:"action,omitempty"`
+	Resolved      []verbTarget   `json:"resolved,omitempty"`
+	Deltas        []planDelta    `json:"deltas,omitempty"`
+	Members       []tierMember   `json:"members,omitempty"`
+	Consumers     []tierConsumer `json:"consumers,omitempty"`
+	Reasons       []tierReason   `json:"reasons,omitempty"`
+	Coverage      *tierCoverage  `json:"coverage,omitempty"`
+	Result        any            `json:"result,omitempty"`
+	Error         *verbError     `json:"error,omitempty"`
+	Notices       []verbNotice   `json:"notices,omitempty"`
+	exit          int            // success exit code; 0 unless a verb sets it (plan: 3)
 }
 
 type verbTarget struct {
@@ -121,7 +132,7 @@ func runReadVerb(paths runtimePaths, verb string, opts verbOptions, body func(*r
 		session.close()
 	}
 	env.Notices = verbNotices(paths, relayVersion)
-	exit := verbExitOK
+	exit := env.exit
 	if err != nil {
 		exit = setVerbError(&env, err)
 	}

@@ -28,6 +28,11 @@ var readOnlyWSTypes = map[string]bool{
 	"config/area_registry/list":               true,
 	"config/device_registry/list":             true,
 	"search/related":                          true,
+	// Tier engine (PR2): config_entries/get lists entries (consumer-manager
+	// presence); blueprint/substitute renders a blueprint with inputs and
+	// returns it without storing anything.
+	"config_entries/get":   true,
+	"blueprint/substitute": true,
 }
 
 // relaySession resolves config and transport once per invocation and
