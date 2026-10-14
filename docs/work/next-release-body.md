@@ -29,6 +29,14 @@ the number.
   restored `/data` whose files are readable by other users is repaired to
   owner-only on first read; files owned by another user stop the App with a
   message naming the `chown` fix — never with a registry reset offer.
+- **Shared legacy access is being retired.** App installs that still use
+  the old shared access from before per-device pairing keep working in this
+  release and the next one; the release after that no longer accepts it.
+  Re-pair each computer
+  once with `ha-nova pair` (one six-digit code each), then revoke the old
+  shared access on the NOVA page. The standalone container's shared token
+  is retired on the same schedule and moves to the same one-time-code
+  pairing over a pinned connection.
 - **The Census is gone; HA NOVA collects nothing.** The opt-in Census was
   removed: the CLI never asks, never sends a report, and deletes its local
   Census state automatically on the first run. `ha-nova census …` no longer
