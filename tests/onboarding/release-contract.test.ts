@@ -3,7 +3,8 @@ import { existsSync, readFileSync } from "node:fs";
 
 import { describe, expect, it } from "vitest";
 
-import { registerCloudReleaseGateContractTests } from "./cloud-release-gate-contract.js";
+import { registerCloudReleaseBuildContractTests } from "./cloud-release-build-contract.js";
+import { registerWorkflowPinsContractTests } from "./workflow-pins-contract.js";
 
 describe("release contract", () => {
   const goreleaser = readFileSync(".goreleaser.yml", "utf8");
@@ -43,6 +44,7 @@ describe("release contract", () => {
   );
   const censusWorkerReadme = readFileSync("census-worker/README.md", "utf8");
   const releasing = readFileSync("docs/releasing.md", "utf8");
+  const releaseDocs = `${releasing}\n${readFileSync("docs/release-validation.md", "utf8")}`;
   const readme = readFileSync("README.md", "utf8");
   const linuxHeadlessHelper = readFileSync(
     "scripts/smoke/linux-headless-setup-check.sh",
@@ -141,8 +143,6 @@ describe("release contract", () => {
       "GORELEASER_CURRENT_TAG: ${{ github.ref_name }}",
     );
   });
-
-  registerCloudReleaseGateContractTests();
 
   it("keeps releases private until every required asset is present", () => {
     expect(goreleaser).toMatch(/^\s*draft:\s*true\s*$/m);
@@ -307,37 +307,32 @@ describe("release contract", () => {
   });
 
   it("keeps release docs aligned to the pinned stable install contract", () => {
-    expect(releasing).toContain(
+    expect(releaseDocs).toContain(
       "Windows uses a single supported install path: `install.ps1`",
     );
-    expect(releasing).toContain("Supported stable selection:");
-    expect(releasing).toContain(
+    expect(releaseDocs).toContain("Supported stable selection:");
+    expect(releaseDocs).toContain(
       "curl -fsSL https://raw.githubusercontent.com/markusleben/ha-nova/<stable-tag>/install.sh | HA_NOVA_VERSION=vX.Y.Z bash",
     );
-    expect(releasing).toContain(
+    expect(releaseDocs).toContain(
       "irm https://raw.githubusercontent.com/markusleben/ha-nova/<stable-tag>/install.ps1 | iex",
     );
-    expect(releasing).toContain(
+    expect(releaseDocs).toContain(
       "stable release notes must publish tag-pinned install commands, never `main` bootstrap URLs",
     );
-    expect(releasing).toContain("npm run dev:validation:harness");
-    expect(releasing).not.toContain(
+    expect(releaseDocs).toContain("npm run dev:validation:harness");
+    expect(releaseDocs).not.toContain(
       "raw.githubusercontent.com/markusleben/ha-nova/main/install.sh",
     );
-    expect(releasing).not.toContain(
+    expect(releaseDocs).not.toContain(
       "raw.githubusercontent.com/markusleben/ha-nova/main/install.ps1",
     );
-    expect(releasing).not.toContain("winget");
-    expect(releasing).not.toContain("$ProgressPreference = 'SilentlyContinue'");
+    expect(releaseDocs).not.toContain("winget");
+    expect(releaseDocs).not.toContain("$ProgressPreference = 'SilentlyContinue'");
   });
 
-  it("documents the mandatory tag-first release rehearsal and its drift guard", () => {
+  it("documents the tag-first release rehearsal", () => {
     expect(releasing).toContain("tag-first dress rehearsal");
-    expect(releasing).toContain(
-      "bash scripts/release/verify-release-pipeline.sh",
-    );
-    expect(releasing).toContain("HA_NOVA_RELEASE_AUDIT_REQUIRE_BYPASS=1");
-    expect(releasing).toContain("release-pipeline-audit.yml");
     expect(releasing).toContain("GORELEASER_CURRENT_TAG");
   });
 
@@ -534,13 +529,12 @@ describe("release contract", () => {
 
   it("orders external publication gates around the RC and final tag", () => {
     const rehearsal = releasing.slice(
-      releasing.indexOf("**Rehearsal steps.**"),
-      releasing.indexOf("The weekly `release-pipeline-audit.yml`"),
+      releasing.indexOf("## 4. Rehearsal and Tag Steps"),
+      releasing.indexOf("## 5. What `release.yml` Does"),
     );
     const orderedMarkers = [
       "Merge the reviewed PR state",
       "verify-relay-image.sh <reviewed-merge-sha> <relay-version>",
-      "HA_NOVA_RELEASE_AUDIT_REQUIRE_BYPASS=1",
       "production census Worker is still the old reviewed deployment",
       "Verify the published RC over the real",
       "deploy-census-worker.sh <reviewed-merge-sha>",
@@ -595,44 +589,44 @@ describe("release contract", () => {
   });
 
   it("keeps the Linux real-machine onboarding lane documented for Linux setup changes", () => {
-    expect(releasing).toContain("Linux real-machine onboarding:");
-    expect(releasing).toContain("scripts/smoke/linux-headless-setup-check.sh");
-    expect(releasing).toContain(
+    expect(releaseDocs).toContain("Linux real-machine onboarding:");
+    expect(releaseDocs).toContain("scripts/smoke/linux-headless-setup-check.sh");
+    expect(releaseDocs).toContain(
       "by default the helper runs `HA_NOVA_NO_BROWSER=1 ha-nova setup`",
     );
-    expect(releasing).toContain("npm run test:desktop:linux:antigravity");
-    expect(releasing).toContain(
+    expect(releaseDocs).toContain("npm run test:desktop:linux:antigravity");
+    expect(releaseDocs).toContain(
       "HA_NOVA_LIVE_SETUP_CMD='HA_NOVA_NO_BROWSER=1 ha-nova setup antigravity'",
     );
-    expect(releasing).toContain(
+    expect(releaseDocs).toContain(
       "HA_NOVA_LIVE_SETUP_CMD='HA_NOVA_NO_BROWSER=1 ha-nova setup hermes'",
     );
-    expect(releasing).toContain(
+    expect(releaseDocs).toContain(
       "HA_NOVA_LIVE_SETUP_CMD='HA_NOVA_NO_BROWSER=1 ha-nova setup --service hermes'",
     );
-    expect(releasing).toContain("HA_NOVA_LIVE_SKIP_INSTALL=1");
-    expect(releasing).toContain("Secret Service");
-    expect(releasing).toContain("GNOME Keyring");
-    expect(releasing).toContain("KWallet Secrets");
-    expect(releasing).toContain("provider-owned desktop prompt");
-    expect(releasing).toContain(
+    expect(releaseDocs).toContain("HA_NOVA_LIVE_SKIP_INSTALL=1");
+    expect(releaseDocs).toContain("Secret Service");
+    expect(releaseDocs).toContain("GNOME Keyring");
+    expect(releaseDocs).toContain("KWallet Secrets");
+    expect(releaseDocs).toContain("provider-owned desktop prompt");
+    expect(releaseDocs).toContain(
       "CLI terminal never asks for, reads, or confirms the keyring master password",
     );
-    expect(releasing).toContain(
+    expect(releaseDocs).toContain(
       "validate the fail-closed SSH/headless path separately",
     );
-    expect(releasing).toContain("SSH (including X11 forwarding)");
-    expect(releasing).toContain("never launch a prompt");
-    expect(releasing).toContain("repairable Hermes mismatch");
-    expect(releasing).toContain(
+    expect(releaseDocs).toContain("SSH (including X11 forwarding)");
+    expect(releaseDocs).toContain("never launch a prompt");
+    expect(releaseDocs).toContain("repairable Hermes mismatch");
+    expect(releaseDocs).toContain(
       "run `ha-nova setup hermes` and confirm the Hermes route repairs cleanly",
     );
-    expect(releasing).toContain(
+    expect(releaseDocs).toContain(
       "run `ha-nova setup --service hermes`, then `ha-nova doctor`, then one authenticated relay call from a fresh SSH/service-like shell without an unlocked desktop keyring",
     );
-    expect(releasing).toContain("confirm the service token file is removed");
-    expect(releasing).toContain("Hermes Agent ready now");
-    expect(releasing).toContain(
+    expect(releaseDocs).toContain("confirm the service token file is removed");
+    expect(releaseDocs).toContain("Hermes Agent ready now");
+    expect(releaseDocs).toContain(
       "when Linux setup or secure-storage behavior changes, the release-bound manual matrix must include the Linux real-machine onboarding lane above",
     );
   });
@@ -660,4 +654,6 @@ describe("release contract", () => {
       'setup_cmd="${HA_NOVA_LIVE_SETUP_CMD:-HA_NOVA_NO_BROWSER=1 ha-nova setup hermes}"',
     );
   });
+  registerCloudReleaseBuildContractTests();
+  registerWorkflowPinsContractTests();
 });

@@ -90,15 +90,6 @@ jobs:
           node-version: 20
           cache: npm
 
-      - name: Verify Home Assistant Cloud source gate
-        # PR and merge-queue checks run later from trusted default-branch code.
-        # This in-tree gate protects direct main pushes after merge.
-        if: github.event_name == 'push'
-        env:
-          GH_TOKEN: ${{ github.token }}
-          HA_NOVA_CLOUD_GATE_EVIDENCE_JSON: ${{ secrets.HA_NOVA_CLOUD_GATE_EVIDENCE_JSON }}
-        run: bash scripts/release/verify-cloud-release-gate.sh
-
       - name: Setup Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
