@@ -93,7 +93,7 @@ describe("project docs contract", () => {
 
   it("keeps Markdown bullets out of shell fences in docs/reference", () => {
     // A bullet swallowed into a bash fence (testing.md once carried the
-    // census-isolation rule inside the isolated-CLI snippet) aborts a paste
+    // an isolation rule inside the isolated-CLI snippet) aborts a paste
     // on the leading `-`; fences are balanced, so only fence state catches it.
     for (const file of readdirSync("docs/reference").filter((name) => name.endsWith(".md"))) {
       let inFence = false;

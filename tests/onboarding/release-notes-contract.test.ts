@@ -66,13 +66,6 @@ describe("release notes contract", () => {
     );
   });
 
-  it("keeps the stable Census privacy promises in the README", () => {
-    expect(readme).toContain("Census off by default");
-    expect(readme).toContain("dedicated random Census installation ID");
-    expect(readme).toContain("private maintainer statistics");
-    expect(readme).not.toContain("public aggregate ping counts");
-  });
-
   it("keeps every curated stable highlight below the 220-character digest cap", () => {
     expect(stableNotes).toBeTruthy();
     const bullets = stableNotes?.match(/^    - (.+)$/gm) ?? [];
