@@ -196,7 +196,12 @@ function registerOwnerRoutes(
       const result = await deps.wsClient.sendMessage({
         type: "config/auth/list",
       });
-      return Array.isArray(result) ? (result as HaAuthUser[]) : [];
+      if (!Array.isArray(result)) {
+        // A non-list reply is a Supervisor/HA fault, not "no owner": throw so
+        // the owner check answers 503 (retry) instead of a false 403.
+        throw new Error("config/auth/list returned a non-list result");
+      }
+      return result as HaAuthUser[];
     },
     csrf,
     pairing: deps.pairing,

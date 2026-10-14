@@ -269,6 +269,7 @@ function buildFunctionalHandlers(
       snapshotRoot: input.snapshotRoot,
       relayInstanceId,
       now: input.now,
+      logger: input.logger,
     }),
     ws: createWsProxyHandler({ wsClient: input.wsClient }),
     core: createCoreProxyHandler({ coreClient: input.coreClient }),
