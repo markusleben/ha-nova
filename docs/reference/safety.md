@@ -5,8 +5,9 @@ What HA NOVA promises, what enforces it, and what proves it. Every row names a f
 Last verified: 2026-07-11 — `npm run verify`, `go test ./...`, and the live end-to-end run against a real, disposable Home Assistant (`bash scripts/e2e/disposable-ha/run.sh`), all green. Re-verify this date on the exact release commit before publishing.
 
 The Home Assistant Cloud rows below document the Beta's enforced contracts.
-Every publication remains gated on signed bundle provenance, the three-OS
-release smokes, and the per-release Cloud checklist in `docs/releasing.md`.
+Every publication carries signed bundle provenance and passes the three-OS
+release smokes; the maintainer works through the per-release Cloud checklist in
+`docs/releasing.md`.
 
 ## Writes
 

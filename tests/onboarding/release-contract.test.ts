@@ -3,6 +3,8 @@ import { existsSync, readFileSync } from "node:fs";
 
 import { describe, expect, it } from "vitest";
 
+import { registerCloudReleaseBuildContractTests } from "./cloud-release-build-contract.js";
+
 describe("release contract", () => {
   const goreleaser = readFileSync(".goreleaser.yml", "utf8");
   const installer = readFileSync("install.ps1", "utf8");
@@ -651,4 +653,5 @@ describe("release contract", () => {
       'setup_cmd="${HA_NOVA_LIVE_SETUP_CMD:-HA_NOVA_NO_BROWSER=1 ha-nova setup hermes}"',
     );
   });
+  registerCloudReleaseBuildContractTests();
 });

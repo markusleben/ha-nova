@@ -65,7 +65,7 @@ Work style: Be radically precise. No fluff. Pure information only (drop grammar;
 - [ ] 4. Resolve ALL review threads (`gh api graphql` `reviewThreads` query, then `resolveReviewThread` per id), then `gh pr merge <nr> --squash --delete-branch`. `--admin` only when the sole blocker is the self-approval requirement of this solo-maintainer repo — never against a failing or absent check. Tag/release only the merge commit of the reviewed PR state.
 
 ## Release & Tagging
-- **Release/tag/publish gate:** never create/move a release tag or call a commit release-ready unless the exact remote commit is the latest fully reviewed PR state with no unreviewed deltas. No local-only release shortcuts.
+- **Release/tag/publish gate:** never create/move a release tag or call a commit release-ready unless the exact remote commit is the merge commit of a PR that passed the PR Merge Checklist (self-review, green required checks, triaged Codex findings when a round ran) with no later deltas. No local-only release shortcuts.
 - **Rehearsal gate:** before any tag/publish, a dispatched green `e2e-disposable-ha.yml` on the commit; while Cloud is enabled, the per-release Cloud checklist in `docs/releasing.md`. `docs/releasing.md` -> "Release Candidate Gate" decides whether an `vX.Y.Z-rcN` tag-first rehearsal is required (canonical trigger list, incl. census-worker) AND carries the remaining mandatory-either-way gates (the final tag's `release.yml` smoke, post-publish public-install verification). Never reintroduce auto-publish in `release-candidate.yml`.
 - **Cloud platforms:** `cloud_remote_platforms` is `["darwin","linux","windows"]` (v0.25.1). Shrinking the platform list is a user-facing feature removal and ALWAYS a blocking user decision (Backwards Compat rule) — never an autonomous default. Manual RC lanes for an OS are never skipped silently: state the no-delta case in the release PR.
 - **Release-prep merge starts the tag sequence** (bump + notes + release-bound README edits in one PR, tag immediately after). README is stable-release truth: no future claims, no concrete version numbers (`version.json` is SSOT). Unreleased claims collect in `docs/work/next-release-body.md` (version-free; release-prep PR renames it).
@@ -74,7 +74,7 @@ Work style: Be radically precise. No fluff. Pure information only (drop grammar;
 - **Preflight:** before every release/RC/tag flow audit open PRs (Dependabot + workflow/release PRs first): `blocker now` vs `separate later`; never pull in a red or unreviewed workflow/release PR right before publish.
 
 ## Dependabot
-- Dependabot PRs are reviewed and merged manually; toolchain majors (`vitest`, `vite`, `typescript`, `tsx`, `rollup`, `rolldown`, `esbuild`) stay manual.
+- Dependabot PRs are reviewed and merged manually like any routine PR; toolchain bumps (`vitest`, `vite`, `typescript`, `tsx`, `rollup`, `rolldown`, `esbuild`) get a full local `npm run verify` first.
 
 ## Error Handling
 - Expected issues: explicit result types (not throw/try/catch). Exceptions: external systems (git, gh) → try/catch ok; React Query mutations → throw ok.
@@ -100,7 +100,7 @@ Work style: Be radically precise. No fluff. Pure information only (drop grammar;
 - Relay stays dumb, Skills stay smart — no business logic in the server; Skills remain pure `*.md`; Relay stays lean (KISS + DRY). MVP first, modular from day one.
 - **UX is king:** fewer manual steps beats technical purity, from onboarding to uninstall; target audience is not terminal-savvy.
 - Terminology: "App", not "Add-on" (legacy API paths like `/addons/*` exempt). Pairing copy: describe what happens (one-time six-digit code, per-device, revocable) — never by absence of tokens/legacy flows; technical token docs exempt.
-- Documentation governance: active docs live in `README.md`, `PROJECT.md`, `SUPPORT.md`, `CODE_OF_CONDUCT.md`, `CONTRIBUTING.md`, `docs/reference/`, `docs/releasing.md`, `docs/work/`, per-client install overlays (`.claude/.codex/.antigravity/.opencode/.hermes/INSTALL.md`), `nova/DOCS.md`, `nova/README.md`, `skills/**/SKILL.md`; `docs/archive/superpowers/` receives no new active docs.
+- Documentation governance: active docs live in `README.md`, `PROJECT.md`, `SUPPORT.md`, `CODE_OF_CONDUCT.md`, `CONTRIBUTING.md`, `docs/reference/`, `docs/releasing.md`, `docs/release-validation.md`, `docs/work/`, per-client install overlays (`.claude/.codex/.antigravity/.opencode/.hermes/INSTALL.md`), `nova/DOCS.md`, `nova/README.md`, `skills/**/SKILL.md`; `docs/archive/superpowers/` receives no new active docs.
 - KISS process rule: prefer fewer rules and fewer files; add process docs/scripts only for recurring real problems.
 
 ## User Notes

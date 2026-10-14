@@ -62,7 +62,7 @@ describe("release notes contract", () => {
       "available\nonly in release-gated desktop Beta builds",
     );
     expect(safety).toContain(
-      "Every publication remains gated on signed bundle provenance, the three-OS",
+      "Every publication carries signed bundle provenance and passes the three-OS",
     );
   });
 
