@@ -69,5 +69,5 @@ the number.
 
 - Census removal: delete the README "Census off by default" Safe-by-Design
   bullet (it also links the removed `docs/reference/census.md`), and change
-  the `ha-nova uninstall --purge` row to say it retains two opaque local
+  the `ha-nova uninstall --purge` row to say it retains small opaque local
   markers that block stale processes from restoring the install.

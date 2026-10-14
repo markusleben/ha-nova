@@ -49,7 +49,7 @@ func removeManagedConfigArtifactsWithSnapshot(
 		if err := markInstallLifecycleStopped(paths); err != nil {
 			return fmt.Errorf("cannot stop install lifecycle: %w", err)
 		}
-		report.addNote("Retained two opaque random local safety markers so stale processes cannot restore the install; neither is sent, and successful setup removes the uninstall marker while rotating the install generation.")
+		report.addNote("Retained small opaque random local safety markers so stale processes cannot restore the install; none is sent, and successful setup removes the uninstall markers while rotating the install generation.")
 	}
 	for _, path := range managedConfigArtifactPaths(paths, purge) {
 		if purge && path == paths.ConfigFile && verifyConfigSnapshot {

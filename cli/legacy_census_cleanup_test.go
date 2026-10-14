@@ -36,7 +36,6 @@ func TestDispatchRemovesLegacyCensusState(t *testing.T) {
 	paths := legacyCensusTestPaths(t)
 	leftovers := []string{
 		filepath.Join(paths.ConfigDir, "census.json"),
-		filepath.Join(paths.ConfigDir, "census.lock"),
 		filepath.Join(paths.LocalDataDir, "census.json"),
 		filepath.Join(paths.CacheDir, "census-ask"),
 	}
@@ -53,10 +52,18 @@ func TestDispatchRemovesLegacyCensusState(t *testing.T) {
 		t.Fatalf("version exit = %d:\n%s", exit, output)
 	}
 
-	for _, path := range append(leftovers, legacyMarker) {
+	lock := filepath.Join(paths.ConfigDir, "census.lock")
+	writeTestFile(t, lock, "")
+
+	for _, path := range leftovers {
 		if _, err := os.Stat(path); !os.IsNotExist(err) {
 			t.Fatalf("legacy census file survived: %s (%v)", path, err)
 		}
+	}
+	// Census-era processes may still hold the lock and check only the legacy
+	// barrier: both stay until a setup completes.
+	if _, err := os.Stat(legacyMarker); err != nil {
+		t.Fatalf("legacy uninstall marker removed before setup: %v", err)
 	}
 	// The old uninstall barrier keeps its opaque nonce under the new name, so
 	// a setup that captured it before the upgrade still matches.
@@ -82,8 +89,8 @@ func TestCensusCommandIsUnknown(t *testing.T) {
 }
 
 func TestSetupCompletionDropsLegacyUninstallMarker(t *testing.T) {
-	// The startup rename can fail transiently; a completed setup must still
-	// not leave the old-release barrier behind to re-block the fresh install.
+	// The legacy barrier outlives the startup copy; a completed setup must
+	// drop it so it cannot re-block the fresh install.
 	paths := legacyCensusTestPaths(t)
 	legacy := legacyUninstallMarkerPath(paths)
 	writeTestFile(t, legacy, `"0123"`)
@@ -92,5 +99,20 @@ func TestSetupCompletionDropsLegacyUninstallMarker(t *testing.T) {
 	}
 	if _, err := os.Stat(legacy); !os.IsNotExist(err) {
 		t.Fatalf("legacy marker still present after setup completion: %v", err)
+	}
+}
+
+func TestUninstallMirrorsBarrierForCensusEraProcesses(t *testing.T) {
+	paths := legacyCensusTestPaths(t)
+	if err := markInstallLifecycleStopped(paths); err != nil {
+		t.Fatalf("markInstallLifecycleStopped() error: %v", err)
+	}
+	current, err := os.ReadFile(uninstallMarkerPath(paths))
+	if err != nil {
+		t.Fatal(err)
+	}
+	legacy, err := os.ReadFile(legacyUninstallMarkerPath(paths))
+	if err != nil || string(legacy) != string(current) {
+		t.Fatalf("legacy barrier = %q, %v; want %q", legacy, err, current)
 	}
 }

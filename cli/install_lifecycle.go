@@ -126,12 +126,18 @@ func markInstallLifecycleStopped(paths runtimePaths) error {
 		return fmt.Errorf("generate uninstall marker nonce: %w", err)
 	}
 	value := fmt.Sprintf("%x", nonce[:])
-	return writeJSONFile(marker, value, 0o600)
+	if err := writeJSONFile(marker, value, 0o600); err != nil {
+		return err
+	}
+	// Census-era binaries still running across the upgrade check only the
+	// legacy path; give them the same barrier. Best effort.
+	_ = writeJSONFile(legacyUninstallMarkerPath(paths), value, 0o600)
+	return nil
 }
 
 func clearUninstallMarkerAfterSetup(paths runtimePaths, captured []byte) (bool, error) {
 	// A completed setup supersedes any uninstall recorded by an older release;
-	// drop its legacy marker even if the startup rename did not happen.
+	// only now is the legacy marker dropped.
 	_ = os.Remove(legacyUninstallMarkerPath(paths))
 	if len(captured) == 0 {
 		return false, nil
@@ -155,13 +161,14 @@ func clearUninstallMarkerAfterSetup(paths runtimePaths, captured []byte) (bool, 
 
 // removeLegacyCensusState deletes local state left by releases that shipped
 // the opt-in Census. Best effort and silent: nothing is sent anywhere. The old
-// uninstall marker carried the same opaque nonce semantics, so it is renamed
-// rather than dropped and keeps blocking stale processes after an uninstall.
+// uninstall marker carries the same opaque nonce semantics: it is copied, not
+// moved, so Census-era processes still running keep seeing the barrier until
+// a setup completes. census.lock stays: deleting a lock file another process
+// may hold would break that process's locking.
 func removeLegacyCensusState(paths runtimePaths) {
 	for _, dir := range []string{paths.ConfigDir, paths.LocalDataDir} {
 		if dir != "" {
 			_ = os.Remove(filepath.Join(dir, "census.json"))
-			_ = os.Remove(filepath.Join(dir, "census.lock"))
 		}
 	}
 	if paths.CacheDir != "" {
@@ -174,12 +181,12 @@ func removeLegacyCensusState(paths runtimePaths) {
 	if marker == "" {
 		return
 	}
-	legacy := legacyUninstallMarkerPath(paths)
 	if _, err := os.Stat(marker); err == nil {
-		_ = os.Remove(legacy)
 		return
 	}
-	_ = os.Rename(legacy, marker)
+	if value, err := os.ReadFile(legacyUninstallMarkerPath(paths)); err == nil {
+		_ = writeFileAtomic(marker, value, 0o600)
+	}
 }
 
 // legacyUninstallMarkerPath is where releases with the opt-in Census kept the
