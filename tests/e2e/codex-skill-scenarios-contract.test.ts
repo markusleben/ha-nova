@@ -67,7 +67,7 @@ describe("codex skill scenario e2e contract", () => {
     expect(content).toContain("Use one relay ws call against config/entity_registry/list_for_display and filter the result directly.");
     expect(content).toContain('elif [[ "$expect_type" == "json_array_values" ]]; then');
     expect(content).toContain("Minimal local-review path for this scenario:");
-    expect(content).toContain("If you need local references, read each of these at most once: skills/ha-nova/SKILL.md, directly referenced skills/ha-nova/*.md reference files, skills/review/SKILL.md, skills/review/checks.md, docs/reference/ha-template-reference.md.");
+    expect(content).toContain("If you need local references, read each of these at most once: skills/ha-nova/SKILL.md, directly referenced skills/ha-nova/*.md reference files, skills/review/SKILL.md, skills/review/checks.md, docs/archive/reference/ha-template-reference.md (the offline stand-in for the official templating page this harness forbids fetching).");
     expect(content).toContain("Do not run repo-wide follow-up searches, excerpt hunts, package inspection, or additional discovery commands after reading those references.");
     expect(content).toContain('if [[ "$expected_error" == "proactive_doctor_or_ready_detected" ]]; then');
     expect(content).toContain("This scenario intentionally expects one prohibited proactive doctor/ready/quick check.");
