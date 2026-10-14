@@ -11,6 +11,11 @@ the number.
   templating snapshot is retired in favour of the live render loop and the
   official templating page on demand; output rules are read once per
   session.
+- New read-only commands `ha-nova find`, `ha-nova get`, and `ha-nova history`
+  look up entities (case- and accent-insensitive, aliases included), read a
+  state or stored automation/script/scene config, and summarize recent
+  history in one call each. They can never change anything in Home
+  Assistant, and they report available updates alongside the answer.
 
 ## What To Watch
 

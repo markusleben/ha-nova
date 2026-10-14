@@ -84,6 +84,12 @@ func dispatch(paths runtimePaths, argv0 string, args []string) int {
 		return runCloudCommand(paths, args[1:])
 	case "relay":
 		return runRelayCommand(paths, args[1:])
+	case "find":
+		return runFindCommand(paths, args[1:])
+	case "get":
+		return runGetCommand(paths, args[1:])
+	case "history":
+		return runHistoryCommand(paths, args[1:])
 	case "trace":
 		return runTraceCommand(paths, args[1:])
 	case "snapshot":
@@ -204,6 +210,9 @@ func printUsage() {
 	fmt.Fprintln(os.Stdout, "  ha-nova update [--version <tag>] [--force]")
 	fmt.Fprintln(os.Stdout, "  ha-nova uninstall [--yes] [--purge]")
 	fmt.Fprintln(os.Stdout, "  ha-nova relay <health|ws|core|files|backups|jq|version>")
+	fmt.Fprintln(os.Stdout, "  "+findUsage)
+	fmt.Fprintln(os.Stdout, "  "+getUsage)
+	fmt.Fprintln(os.Stdout, "  "+historyUsage)
 	fmt.Fprintln(os.Stdout, "  ha-nova trace <latest|list|get> <automation.entity_id|script.entity_id> [run_id] [--json]")
 	fmt.Fprintln(os.Stdout, "  ha-nova snapshot <save|show|verify>")
 	fmt.Fprintln(os.Stdout, "  ha-nova diff --before <file> --after <file> [--out <file>]")
