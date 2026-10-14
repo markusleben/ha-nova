@@ -105,8 +105,9 @@ covers the expanded members, not the collection entity.
 
 ## Existing instances
 
-- `skills/service-call/SKILL.md` Flow step 3: area/device expansion with the
-  frozen member list.
+- `ha-nova call` / `ha-nova plan call` (`cli/plan_call.go`,
+  `cli/tier_engine.go`), which `skills/service-call/SKILL.md` runs every entity
+  call through: area/device/group expansion with the frozen leaf member list.
 - `skills/ha-nova/indirect-actuation.md`: legacy `group.*` targets forward
   to their members and classify recursively.
 - `skills/notify/SKILL.md` → Household routing: presence re-read immediately

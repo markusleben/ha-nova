@@ -248,7 +248,8 @@ func executeAction(s *relaySession, e *tierEngine, env *verbEnvelope, action pla
 
 // newReauthFlows reports reauth flows that opened during the call and belong
 // to a target: same config entry, or same integration with exactly one
-// entry (service-call/SKILL.md → Generic 500 with a reauth side effect).
+// entry. This is the rule's source since the service-call skill moved to
+// `ha-nova call` (formerly its Generic 500 with a reauth side effect section).
 func newReauthFlows(s *relaySession, e *tierEngine, targets []string, before map[string]reauthFlow) []string {
 	time.Sleep(reauthSettle)
 	rows, _ := e.fullRegistry()

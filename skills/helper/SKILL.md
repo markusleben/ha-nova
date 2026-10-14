@@ -107,7 +107,7 @@ While `truncated` is true the list proves neither absence nor uniqueness — nar
 2. Use-case defaults (create only, skip on update/delete):
    - Infer use-case from helper name + type using general HA knowledge.
    - Consult `skills/ha-nova/helper-schemas.md` → Suggested Defaults for principles and field name reminders.
-   - If sensible defaults can be inferred: render them as the Suggestion Block (output-rules.md), max 4 as numbered list (value defaults fill the requested item; feature-style improvement offers follow `skills/ha-nova/smallest-solution.md` — max 2). Group related fields into one item.
+   - If sensible defaults can be inferred: render them as the Suggestion Block (output-cards.md), max 4 as numbered list (value defaults fill the requested item; feature-style improvement offers follow `skills/ha-nova/smallest-solution.md` — max 2). Group related fields into one item.
      ```
      💡 Suggested defaults for "{name}" ({type}):
      1. min: 16, max: 30, step: 0.5
@@ -206,7 +206,7 @@ Config-entry flow orchestration follows the shared contract in `skills/ha-nova/l
    with `{"type":"config/entity_registry/list"}`.
 3. Filter config entries to the twelve supported domains.
 4. Join linked entities by matching `config_entry_id`.
-5. Present the List Frame table (output-rules.md): title, domain, `entry_id`,
+5. Present the List Frame table (output-cards.md): title, domain, `entry_id`,
    state. Options-flow support and linked entities stay in the per-helper
    detail read; when several entries share a domain or similar titles, add a
    short disambiguation line under the table with each candidate's linked
@@ -441,7 +441,7 @@ Report only what has substance (same rule as the write flow — see `skills/writ
 
 ## Output Format
 
-Apply `skills/ha-nova/output-rules.md` to all user-facing output. Write previews, delete prompts, and results render as the Cards defined there. The bold labels in both read templates below are semantic slots — localize them at runtime, never print them as literal English headings.
+Apply `skills/ha-nova/output-rules.md` to all user-facing output. Write previews, delete prompts, and results render as the Cards defined there (`skills/ha-nova/output-cards.md`). The bold labels in both read templates below are semantic slots — localize them at runtime, never print them as literal English headings.
 
 ### Storage-based family
 
@@ -455,7 +455,7 @@ After reading a helper config, present:
 - {type-specific fields}
 ```
 
-For list operations, render the List Frame (output-rules.md):
+For list operations, render the List Frame (output-cards.md):
 
 ```text
 | Entity ID | Name | Type | Area |
@@ -476,7 +476,7 @@ After reading a helper config, present:
 - **Current editable fields:** {field summary from the current options step when available}
 ```
 
-For list operations, render the List Frame (output-rules.md; options-flow support and linked entities stay in the per-helper detail read above):
+For list operations, render the List Frame (output-cards.md; options-flow support and linked entities stay in the per-helper detail read above):
 
 ```text
 | Title | Domain | Entry ID | State |
@@ -487,12 +487,12 @@ Never show raw JSON to the user.
 
 ## Safety
 
-- Preview before write: nothing is saved until the user confirms the shown preview.
+- Preview before write. The only exception is a call that `ha-nova call` itself executed as `tier: ordinary` (an unambiguous everyday action, verified afterwards); everything else runs or is saved only after the user confirms the shown preview. High-consequence actions (e.g. unlocking or opening a lock, opening a gate, garage, or entry door, disarming the alarm — also through a scene or script) and deletes need a code.
 - Confirmation binds to the displayed preview and expires on any change to target, payload, endpoint, or scope (context skill → Active Preview Confirmation).
 - Pre-preview phrases ("do it", "go ahead", "implement the plan") authorize drafting and preview only — never the write itself.
 - Delete and destructive operations require the typed confirmation code `confirm:<token>` verbatim; "yes" or any natural-language reply is invalid.
 - Never guess entity, service, or config IDs — resolve them or ask.
-- Home Assistant is reached exclusively through `ha-nova relay`.
+- Home Assistant is reached exclusively through the `ha-nova` CLI.
 - For any HA write this skill does not cover, STOP and invoke `ha-nova:fallback` first — never probe unfamiliar write endpoints.
 - `search/related` verdicts fail closed: verify `ok=true` and `data` is an object before projecting family keys (`skills/ha-nova/relay-api.md` → Parsing rule); a failed or unexecuted scan is inconclusive — never a no-consumer result.
 

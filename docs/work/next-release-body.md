@@ -26,6 +26,11 @@ the number.
 
 ## What To Watch
 
+- **The safety promise has one explicit exception now.** Unambiguous
+  everyday actions run immediately and are verified afterwards; everything
+  else shows a preview first; locks, gates, alarm, and deletes need a code.
+  The HA NOVA command decides which is which, never the AI — and it sends
+  nothing when anything changed since a preview.
 - **Malformed Home Assistant replies now fail loud.** A core REST reply
   whose body is not valid JSON or not valid UTF-8 is reported as an upstream
   error (`502 / UPSTREAM_HTTP_ERROR`) instead of a successful empty result.
@@ -87,6 +92,11 @@ the number.
 
 ## Release-prep README edits
 
+- Typed verbs: the README promise "Every change is previewed and approved
+  first" (tagline) and "device control get preview-and-verify" (feature
+  note) change to the fast-path wording above — unambiguous everyday actions
+  run immediately and are verified afterwards; everything else shows a
+  preview first; locks, gates, alarm, and deletes need a code.
 - Census removal: delete the README "Census off by default" Safe-by-Design
   bullet (it also links the removed `docs/reference/census.md`), and change
   the `ha-nova uninstall --purge` row to say it retains small opaque local

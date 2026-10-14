@@ -125,7 +125,7 @@ separate manifests, each with its own preview and confirmation code:
 
 ## Batch Cards
 
-Same rules as `skills/ha-nova/output-rules.md` → Cards (fixed emoji
+Same rules as `skills/ha-nova/output-cards.md` → Cards (fixed emoji
 vocabulary, two spaces after 🗑️/⚠️, labels localized at runtime).
 
 **Batch Delete Card** (the code prompt is always the last line). The line

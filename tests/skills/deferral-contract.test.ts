@@ -16,7 +16,8 @@ import { resolve } from "path";
 const read = (relative: string): string =>
   readFileSync(resolve(__dirname, "../../", relative), "utf-8");
 
-const skillDoc = read("skills/service-call/SKILL.md");
+// The skill plus its on-demand raw-relay routes (App/host control lives there).
+const skillDoc = read("skills/service-call/SKILL.md") + read("skills/service-call/raw-routes.md");
 // Contract docs hard-wrap at ~72 columns, so a pinned sentence must not also
 // pin the column it happens to break at.
 const flat = (text: string): string => text.replace(/\s+/g, " ");
@@ -63,7 +64,7 @@ describe("owning-skill deferrals and lifecycle paths (#513)", () => {
     it("does not keep camera recording in the generic duration flow", () => {
       const durationRow = skillDoc
         .split("\n")
-        .find((line) => line.includes("SERVICE already takes the duration"));
+        .find((line) => line.includes("with their own `duration`"));
       expect(durationRow).not.toContain("camera.record");
     });
 

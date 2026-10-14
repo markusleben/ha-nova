@@ -107,6 +107,7 @@ const CHECK_CODE_ALLOWLIST = new Set([
   "skills/write/SKILL.md",
   "skills/helper/SKILL.md",
   "skills/ha-nova/output-rules.md",
+  "skills/ha-nova/output-cards.md",
   "skills/ha-nova/write-safety.md",
   "skills/ha-nova/automation-patterns.md",
   "skills/ha-nova/payload-schemas.md",

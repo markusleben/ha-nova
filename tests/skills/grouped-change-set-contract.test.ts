@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 
 const grouped = readFileSync("skills/ha-nova/grouped-change-set.md", "utf8");
 const contextSkill = readFileSync("skills/ha-nova/SKILL.md", "utf8");
-const outputRules = readFileSync("skills/ha-nova/output-rules.md", "utf8");
+const outputRules = readFileSync("skills/ha-nova/output-rules.md", "utf8") + readFileSync("skills/ha-nova/output-cards.md", "utf8");
 const writeSafety = readFileSync("skills/ha-nova/write-safety.md", "utf8");
 const batchSafety = readFileSync("skills/ha-nova/batch-safety.md", "utf8");
 
@@ -118,7 +118,7 @@ describe("grouped change set contract (issue #391)", () => {
   });
 
   it("keeps grouped cards inside the shared card system", () => {
-    expect(grouped).toContain("output-rules.md` → Cards");
+    expect(grouped).toContain("output-cards.md` → Cards");
     expect(grouped).toContain("⚠️  Nothing saved yet");
     expect(grouped).toContain("Options: apply · show yaml · cancel");
     expect(grouped).toContain("Ledger:");

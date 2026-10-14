@@ -126,7 +126,7 @@ describe("shared membership-resolution contract (#571)", () => {
   });
 
   it("names the existing implementations as instances, not re-specifications", () => {
-    expect(contract).toContain("`skills/service-call/SKILL.md` Flow step 3");
+    expect(contract).toContain("`ha-nova call` / `ha-nova plan call` (`cli/plan_call.go`");
     expect(contract).toContain(
       "legacy `group.*` targets forward to their members",
     );
@@ -142,9 +142,11 @@ describe("shared membership-resolution contract (#571)", () => {
 
 describe("consumer wiring (#571)", () => {
   it("service-call names the shared contract at its step-3 expansion", () => {
+    // Since PR4 the expansion runs in the CLI, which the skill routes through.
     expect(flat(read("skills/service-call/SKILL.md"))).toContain(
-      "instantiates the shared membership contract `skills/ha-nova/membership-resolution.md`",
+      "`--area <area_id>`/`--device <device_id>` (they expand to concrete entities and always preview)",
     );
+    expect(read("cli/plan_call.go")).toContain("// resolveTargets turns ids, --match, --area, and --device into the frozen");
   });
 
   it("notify routes recipient groups here and keeps presence handling", () => {
@@ -172,16 +174,13 @@ describe("consumer wiring (#571)", () => {
     // the safety gate.
     expect(ia).toContain("the authoritative member source is its config-entry options");
     expect(ia).toContain("never classify from the stale side");
-    const sc = flat(read("skills/service-call/SKILL.md"));
-    // A group name left in the payload is re-expanded by HA at execution time.
-    expect(sc).toContain("execute with the previewed concrete leaf list, never the group name");
+    // A group name left in the payload is re-expanded by HA at execution
+    // time; the engine freezes leaves only.
+    expect(read("cli/tier_engine.go")).toContain("expanded direct group targets: consumer-scanned, never frozen");
   });
   it("lets the grouped drift rule win over the frozen list", () => {
     expect(flat(read("skills/service-call/SKILL.md"))).toContain(
-      "Inside a grouped change set the set's own drift rule wins",
-    );
-    expect(flat(read("skills/service-call/SKILL.md"))).toContain(
-      "never a license to actuate a list known to be stale",
+      "any exit 2 stops the set for a fresh preview",
     );
   });
   it("keeps the gate's bounded integration-member exception", () => {

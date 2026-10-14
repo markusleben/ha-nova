@@ -59,7 +59,7 @@ describe("post-write test-offer contract", () => {
       "the card confirmation never replaces the typed confirmation code",
     );
     expect(serviceCall).toContain(
-      "if the indirect actuation gate put the run on the typed tier, the card choice never replaces `confirm:<token>`",
+      "if the CLI put the run on the typed tier, the card choice never replaces the code",
     );
   });
 

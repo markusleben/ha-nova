@@ -77,12 +77,12 @@ describe("state-snapshot questions have an owner (#527)", () => {
 
   it("reaches the aliases a household actually curated", () => {
     const d = flat(discovery);
-    expect(d).toContain("escalate ONCE to the full registry");
+    expect(d).toContain("re-run ONCE with `--aliases`");
     // A wrong-but-nonempty match must not skip the alias lookup.
     expect(d).toContain("no results, or only matches the user rejects");
     // Aliases live only in get_entries; `ha-nova find` reads them there.
-    expect(d).toContain("run `ha-nova find");
-    expect(d).toContain("only `config/entity_registry/get_entries` does");
+    expect(d).toContain("ha-nova find \"<the user's phrase>\"");
+    expect(read("cli/verb_find.go")).toContain('"type": "config/entity_registry/get_entries"');
     expect(d).toContain("offer once to store it as an alias via `ha-nova:organize`");
   });
 });
@@ -120,11 +120,13 @@ describe("flows that cost the user extra turns (#527)", () => {
   });
 
   it("prefers step parameters for relative asks and keeps the last target", () => {
-    const sc = flat(read("skills/service-call/SKILL.md"));
+    // Relative asks live in the on-demand domain-fields section the skill points to.
+    const sc = flat(read("skills/service-call/SKILL.md") + read("skills/service-call/domain-fields.md"));
     expect(sc).toContain("`brightness_step_pct`");
     // Covers have no step service: open/close drive to the endpoint.
     expect(sc).toContain("covers have NO step service");
     expect(sc).toContain("`set_cover_position` with the bounded delta");
+    expect(sc).toContain("read `current_position` with `ha-nova get` right before the call");
     expect(sc).toContain(
       'A follow-up nudge ("brighter still") keeps the last confirmed target',
     );
@@ -141,8 +143,9 @@ describe("flows that cost the user extra turns (#527)", () => {
   });
 
   it("offers to keep a repeated batch as a scene", () => {
-    const sc = flat(read("skills/service-call/SKILL.md"));
-    expect(sc).toContain("After a VERIFIED grouped batch");
+    // Relative asks live in the on-demand domain-fields section the skill points to.
+    const sc = flat(read("skills/service-call/SKILL.md") + read("skills/service-call/domain-fields.md"));
+    expect(sc).toContain("After a VERIFIED multi-entity call");
     expect(sc).toContain("create-from-current-state");
     // One offer, then silence — this is a suggestion, not a nag.
     expect(sc).toContain("After a single decline, stay silent about it for the session");
@@ -201,9 +204,11 @@ describe("flows that cost the user extra turns (#527)", () => {
   });
 
   it("stops a relative move that has no value to be relative to", () => {
-    const sc = flat(read("skills/service-call/SKILL.md"));
-    expect(sc).toContain("STOP the relative operation and say so");
-    expect(sc).toContain("would have to invent the number it is relative to");
+    // Relative asks live in the on-demand domain-fields section the skill points to.
+    const sc = flat(read("skills/service-call/SKILL.md") + read("skills/service-call/domain-fields.md"));
+    // An absolute call is complete without a read; a relative one would
+    // have to invent the number it is relative to.
+    expect(sc).toContain("No readable base value: STOP and offer an absolute action.");
   });
 
   it("keeps the typed tier on a timed action that grants access", () => {
@@ -383,8 +388,10 @@ describe("flows that cost the user extra turns (#527)", () => {
 
 
   it("re-reads the base of a relative move at apply time", () => {
-    const sc = flat(read("skills/service-call/SKILL.md"));
-    expect(sc).toContain("a delta computed from a stale base moves the device to");
-    expect(sc).toContain("A changed base re-previews");
+    // Relative asks live in the on-demand domain-fields section the skill points to.
+    const sc = flat(read("skills/service-call/SKILL.md") + read("skills/service-call/domain-fields.md"));
+    // Since the move to `ha-nova call`, the plan hashes the before-value of
+    // every field the call sets, so apply refuses a stale base (exit 2).
+    expect(sc).toContain("A previewed plan binds that before-value: a change before `apply` is drift — re-derive the target from the new value.");
   });
 });

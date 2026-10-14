@@ -17,6 +17,8 @@ const reviewSkill = read("skills/review/SKILL.md");
 const mqttSkill = read("skills/mqtt/SKILL.md");
 const adminSkill = read("skills/admin/SKILL.md");
 const indirectActuation = read("skills/ha-nova/indirect-actuation.md");
+// Since PR4 the gate runs in the CLI tier engine; the prose stays its spec.
+const tierRules = read("cli/tier_rules.go");
 // Contract docs hard-wrap at ~72 columns, so a pinned sentence must not also
 // pin the column it happens to break at.
 const flat = (text: string): string => text.replace(/\s+/g, " ");
@@ -33,7 +35,9 @@ describe("indirect actuation and tier classification (#513)", () => {
       expect(flat(reviewSkill)).toContain("must RUN the indirect-actuation gate first");
       expect(flat(reviewSkill)).toContain("still carries its CONSUMER scan");
       expect(flat(reviewSkill)).toContain("What disqualifies it is the gate's VERDICT");
-      expect(flat(reviewSkill)).toContain("a clean consumer scan leaves the correction ordinary");
+      // Since PR4 the verdict is the CLI plan's tier.
+      expect(flat(reviewSkill)).toContain("an `ordinary` or `preview` plan stays Quick-Fixable, while a `typed` plan");
+      expect(flat(reviewSkill)).toContain("ha-nova apply --plan <id>");
       expect(reviewSkill).toContain("Never Quick-Fix those");
       expect(reviewSkill).toContain("offer to run it as a separate service call");
       // A helper reset is the classic innocent-looking trigger source, so the
@@ -118,18 +122,17 @@ describe("indirect actuation and tier classification (#513)", () => {
   it("does not render the ordinary confirmation menu on the typed tier", () => {
     const doc = flat(skillDoc);
     // A gate that assigns a tier and then offers "apply" has assigned nothing.
-    expect(doc).toContain("Unless Safety put this call on the typed tier");
-    expect(doc).toContain("the only accepted answer is the exact `confirm:<token>`");
-    expect(doc).toContain("including when the tier came from an EXPANDED member");
+    expect(doc).toContain("on the typed tier only the exact code prompt — no menu");
+    expect(doc).toContain("A code counts only when the user typed it verbatim in a reply after the preview; \"yes\" is invalid.");
+    expect(doc).toContain("also when a scene, script, or automation run reaches one");
   });
   it("never lets a preview-time state lower the tier", () => {
     const doc = flat(skillDoc);
-    expect(doc).toContain("Entering the gate is not the same as being a run");
-    // A stop is the ONE alias no timing can turn into a start, so it skips
-    // member expansion without skipping consumer classification.
-    expect(doc).toContain("`homeassistant.turn_off` on a script or automation never starts its stored members, but still scans consumers");
-    expect(doc).toContain("Everything that MAY start a script");
-    expect(doc).toContain("expands and classifies regardless of the observed state");
+    // The run decision is state-independent in the engine: every spelling
+    // that may start a script (turn_on, either toggle) expands, a stop never.
+    expect(tierRules).toContain("// isRun reports whether the call STARTS stored members of the target.");
+    expect(tierRules).toContain('return (domain == "script" || domain == "homeassistant") && (name == "turn_on" || name == "toggle")');
+    expect(doc).toContain("The CLI decides the tier; never lower it");
     expect(flat(indirectActuation)).toContain("Only a pure stop (`turn_off`) expands nothing");
     // The apply-time re-check stays, but it is no longer what keeps the tier
     // honest — it cannot be, because it lands after the confirmation.

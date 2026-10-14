@@ -11,7 +11,7 @@ import { describe, expect, it } from "vitest";
 // Markdown link traversal because "always" vs "on demand" is prose, not
 // syntax. Ratchet values are the measured totals rounded up; lowering them
 // is the point of any context-reduction change.
-const ROUTE_BUDGETS: Record<string, { files: string[]; limit: number }> = {
+const ROUTE_BUDGETS: Record<string, { files: string[]; limit: number; verbRoute?: boolean; skill?: string; extra?: string[] }> = {
   // measured 32941 with the retired 10780-word template snapshot (router
   // 5619 + bootstrap 1176 + output rules 2636 + review 4829 + checks 7901);
   // the official templating page is fetched only when a template check
@@ -22,6 +22,7 @@ const ROUTE_BUDGETS: Record<string, { files: string[]; limit: number }> = {
       "skills/ha-nova/SKILL.md",
       "skills/ha-nova/session-bootstrap.md",
       "skills/ha-nova/output-rules.md",
+      "skills/ha-nova/output-cards.md",
       "skills/review/SKILL.md",
       "skills/review/checks.md",
     ],
@@ -38,6 +39,7 @@ const ROUTE_BUDGETS: Record<string, { files: string[]; limit: number }> = {
       "skills/ha-nova/SKILL.md",
       "skills/ha-nova/session-bootstrap.md",
       "skills/ha-nova/output-rules.md",
+      "skills/ha-nova/output-cards.md",
       "skills/write/SKILL.md",
       "skills/ha-nova/relay-api.md",
       "skills/ha-nova/payload-schemas.md",
@@ -49,7 +51,51 @@ const ROUTE_BUDGETS: Record<string, { files: string[]; limit: number }> = {
       "skills/review/checks.md",
     ],
   },
+  // Typed-verbs PR4: the service-call route runs entity calls through
+  // `ha-nova call`, so it needs neither the full router nor the card file
+  // (its Output Format renders previews inline; output-rules.md exempts verb
+  // routes from output-cards.md). Installed releases inject nothing, so the
+  // dev-only index (hooks/session-start) is not counted. Common paths read
+  // the bootstrap, the output-rules core, and the skill. On demand only:
+  // domain-fields.md (when a field, unit, or feature bit is uncertain, and
+  // for relative asks and input_number changes), raw-routes.md (response
+  // services, App/host control, events, webhooks), indirect-actuation.md.
+  // Measured 2672 (bootstrap 309 + output-rules 668 + skill 1695).
+  "service-call": {
+    limit: 2750, // spec target <= 3000
+    verbRoute: true,
+    files: [
+      "skills/ha-nova/session-bootstrap.md",
+      "skills/ha-nova/output-rules.md",
+      "skills/service-call/SKILL.md",
+    ],
+  },
+  // The same route when the call carries data whose field, unit, or feature
+  // bit the agent is unsure of (common for brightness, temperature, modes):
+  // domain-fields.md joins. Kept as its own honest row.
+  "service-call-with-fields": {
+    limit: 3750,
+    verbRoute: true,
+    skill: "service-call",
+    extra: ["skills/service-call/domain-fields.md"],
+    files: [
+      "skills/ha-nova/session-bootstrap.md",
+      "skills/ha-nova/output-rules.md",
+      "skills/service-call/SKILL.md",
+      "skills/service-call/domain-fields.md",
+    ],
+  },
 };
+
+// Verb routes skip the router and the card file.
+const VERB_ROUTE_MANDATORY = [
+  "skills/ha-nova/session-bootstrap.md",
+  "skills/ha-nova/output-rules.md",
+];
+
+// Write and review render Cards, which live in the on-demand part of the
+// output rules; output-rules.md tells every card-rendering route to read it.
+const CARDS = "skills/ha-nova/output-cards.md";
 
 // The three files every route reads before its own SKILL.md: the router
 // itself, the session bootstrap it mandates, and the output rules.
@@ -95,16 +141,19 @@ describe("route context ratchet (#521)", () => {
         (file) => file !== "skills/ha-nova/SKILL.md" && file !== "skills/ha-nova/session-bootstrap.md",
       ).sort(),
     );
-    for (const [route, { files }] of Object.entries(ROUTE_BUDGETS)) {
+    expect(readFileSync("skills/ha-nova/output-rules.md", "utf8")).toContain(`read\n\`${CARDS}\``);
+    for (const [name, { files, verbRoute, skill, extra = [] }] of Object.entries(ROUTE_BUDGETS)) {
+      const route = skill ?? name;
       const text = readFileSync(`skills/${route}/SKILL.md`, "utf8");
-      expect(text).toContain("Read and follow `../ha-nova/session-bootstrap.md`.");
-      const expected = new Set([...ROUTER_MANDATORY, `skills/${route}/SKILL.md`, ...declaredAlwaysLoads(route)]);
+      expect(text).toContain("Read and follow `../ha-nova/session-bootstrap.md`");
+      const mandatory = verbRoute ? VERB_ROUTE_MANDATORY : [...ROUTER_MANDATORY, CARDS];
+      const expected = new Set([...mandatory, `skills/${route}/SKILL.md`, ...declaredAlwaysLoads(route), ...extra]);
       if (route === "review") {
         // The checks catalog is read on every review (Verify-before-flag rule).
         expect(text).toContain("`skills/review/checks.md`");
         expected.add("skills/review/checks.md");
       }
-      expect([...files].sort(), `${route} route file list must mirror its declarations`).toEqual(
+      expect([...files].sort(), `${name} route file list must mirror its declarations`).toEqual(
         [...expected].sort(),
       );
     }

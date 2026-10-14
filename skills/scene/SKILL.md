@@ -111,7 +111,7 @@ Persistence routing per `skills/ha-nova/best-practices.md` → Persistence Model
 
 ## Output Format
 
-Apply `skills/ha-nova/output-rules.md` to all user-facing output. Write previews, delete confirmations, and results render as the Cards defined there.
+Apply `skills/ha-nova/output-rules.md` to all user-facing output. Write previews, delete confirmations, and results render as the Cards defined there (`skills/ha-nova/output-cards.md`).
 
 - `Scene`
 - `Mode`
@@ -121,16 +121,16 @@ Apply `skills/ha-nova/output-rules.md` to all user-facing output. Write previews
 - `Verification`
 - `Next step`
 
-Use stable localized slot labels in this order; omit empty slots. Reads render the Report shape; scene lists render the List Frame (output-rules.md).
+Use stable localized slot labels in this order; omit empty slots. Reads render the Report shape; scene lists render the List Frame (output-cards.md).
 
 ## Safety
 
-- Preview before write: nothing is saved until the user confirms the shown preview.
+- Preview before write. The only exception is a call that `ha-nova call` itself executed as `tier: ordinary` (an unambiguous everyday action, verified afterwards); everything else runs or is saved only after the user confirms the shown preview. High-consequence actions (e.g. unlocking or opening a lock, opening a gate, garage, or entry door, disarming the alarm — also through a scene or script) and deletes need a code.
 - Confirmation binds to the displayed preview and expires on any change to target, payload, endpoint, or scope (context skill → Active Preview Confirmation).
 - Pre-preview phrases ("do it", "go ahead", "implement the plan") authorize drafting and preview only — never the write itself.
 - Delete and destructive operations require the typed confirmation code `confirm:<token>` verbatim; "yes" or any natural-language reply is invalid.
 - Never guess entity, service, or config IDs — resolve them or ask.
-- Home Assistant is reached exclusively through `ha-nova relay`.
+- Home Assistant is reached exclusively through the `ha-nova` CLI.
 - For any HA write this skill does not cover, STOP and invoke `ha-nova:fallback` first — never probe unfamiliar write endpoints.
 
 - Create/update use natural confirmation after preview; delete uses exact confirmation code only, even for scenes created earlier in the same session.

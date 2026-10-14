@@ -9,7 +9,7 @@ const flat = (s: string) => s.replace(/\s+/g, " ");
 const context = flat(read("skills/ha-nova/SKILL.md"));
 const capability = flat(read("skills/ha-nova/capability-answer.md"));
 const proposals = flat(read("skills/ha-nova/starter-proposals.md"));
-const outputRules = flat(read("skills/ha-nova/output-rules.md"));
+const outputRules = flat(read("skills/ha-nova/output-rules.md") + read("skills/ha-nova/output-cards.md"));
 const patterns = flat(read("skills/ha-nova/automation-patterns.md"));
 
 describe("first-hour pack (#528)", () => {

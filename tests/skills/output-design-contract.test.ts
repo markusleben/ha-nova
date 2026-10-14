@@ -7,7 +7,7 @@ import { describe, expect, it } from "vitest";
 // skill's previews, delete prompts, and results render through. These pins lock
 // the card shapes and the boundary that keeps review/read output out of them.
 describe("output design system (Cards)", () => {
-  const outputRules = readFileSync("skills/ha-nova/output-rules.md", "utf8");
+  const outputRules = readFileSync("skills/ha-nova/output-rules.md", "utf8") + readFileSync("skills/ha-nova/output-cards.md", "utf8");
 
   it("defines the four cards with the fixed emoji vocabulary", () => {
     expect(outputRules).toContain("## Cards (Write-Flow Visual System)");
@@ -163,7 +163,7 @@ describe("output design system (Cards)", () => {
   it("folds the test plan card into the central card system", () => {
     const testRun = readFileSync("skills/ha-nova/test-run.md", "utf8");
     const write = readFileSync("skills/write/SKILL.md", "utf8");
-    expect(testRun).toContain("Test Plan Card of `skills/ha-nova/output-rules.md`");
+    expect(testRun).toContain("Test Plan Card of `skills/ha-nova/output-cards.md`");
     expect(write).toContain("Test Plan Card mechanics: `skills/ha-nova/test-run.md`");
     expect(outputRules).toContain("skills/ha-nova/test-run.md");
   });

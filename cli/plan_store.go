@@ -251,7 +251,8 @@ var serviceAfterState = map[string]string{
 }
 
 // planDeltas renders before → after per frozen target: brightness in %,
-// unavailable/unknown warnings (service-call/SKILL.md state-delta rules).
+// unavailable/unknown warnings. This is the rule's source since the
+// service-call skill moved to `ha-nova call` (formerly its state-delta rules).
 func planDeltas(service string, frozen []string, data map[string]any, states map[string]*entityState) []planDelta {
 	_, name := splitID(service)
 	after := serviceAfterState[name]
