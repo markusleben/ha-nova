@@ -35,7 +35,7 @@ export function createFileResponseStore(
   logger?: ResponseStoreLogger,
 ): ConsumedResponseStore {
   const path = join(dataDir, RESPONSE_STORE_FILE);
-  let entries = load(path);
+  let entries = load(path, logger);
 
   const persist = (): void => {
     // Best-effort durability: the entry is already held in memory for this
@@ -85,7 +85,7 @@ export function createFileResponseStore(
   };
 }
 
-function load(path: string): StoredEntry[] {
+function load(path: string, logger?: ResponseStoreLogger): StoredEntry[] {
   try {
     const buffer = readPrivateFileSync(path, MAX_FILE_BYTES);
     if (buffer === null) {
@@ -94,10 +94,13 @@ function load(path: string): StoredEntry[] {
     const parsed = JSON.parse(buffer.toString("utf8")) as unknown;
     const list = (parsed as { entries?: unknown })?.entries;
     return Array.isArray(list) ? list.filter(isValidEntry) : [];
-  } catch {
+  } catch (error) {
     // A corrupt or unreadable store is not fatal: idempotent finish-retry is a
     // best-effort convenience, so pairing starts from an empty store rather than
-    // crashing the relay.
+    // crashing the relay — but an operator must be able to see it happened.
+    logger?.warn("pairing response store unreadable; starting empty", {
+      error: error instanceof Error ? error.message : String(error),
+    });
     return [];
   }
 }
