@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -215,18 +214,10 @@ func relayWSJSONContext(
 	if err != nil {
 		return nil, err
 	}
-	url := strings.TrimRight(selected.BaseURL, "/") + "/ws"
-	req, err := http.NewRequestWithContext(
-		ctx,
-		http.MethodPost,
-		url,
-		bytes.NewReader(payloadBytes),
-	)
+	req, err := newRelayRequest(ctx, selected, "ws", payloadBytes)
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("Authorization", "Bearer "+selected.Credential)
-	req.Header.Set("Content-Type", "application/json")
 	resp, err := selected.Client.Do(req)
 	if err != nil {
 		return nil, relayRequestOutcomeUnknownError(selected.BaseURL, err)

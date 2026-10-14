@@ -399,20 +399,12 @@ func runRelayProxy(paths runtimePaths, endpoint string, args []string) int {
 		printErr("%s", relayTransportErrorMessage(err))
 		return 1
 	}
-	baseURL, client, token := transport.BaseURL, transport.Client, transport.Credential
-	url := strings.TrimRight(baseURL, "/") + "/" + endpoint
-	req, err := http.NewRequestWithContext(
-		relayCtx,
-		http.MethodPost,
-		url,
-		bytes.NewReader(requestBody),
-	)
+	baseURL, client := transport.BaseURL, transport.Client
+	req, err := newRelayRequest(relayCtx, transport, endpoint, requestBody)
 	if err != nil {
 		printErr("%s", err)
 		return 1
 	}
-	req.Header.Set("Authorization", "Bearer "+token)
-	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := client.Do(req)
 	if err != nil {
@@ -513,6 +505,29 @@ func runRelayProxy(paths runtimePaths, endpoint string, args []string) int {
 		finishMigratedFirstUse(paths, migratedFirstUse, migrationContended, relayDeadline)
 	}
 	return exitStatus
+}
+
+// newRelayRequest builds one authenticated functional Relay POST over an
+// already selected transport. Shared by `relay ws|core|files|backups`, trace,
+// and the read-verb session so the request shape exists exactly once.
+func newRelayRequest(
+	ctx context.Context,
+	transport relayTransportSelection,
+	endpoint string,
+	body []byte,
+) (*http.Request, error) {
+	req, err := http.NewRequestWithContext(
+		ctx,
+		http.MethodPost,
+		strings.TrimRight(transport.BaseURL, "/")+"/"+endpoint,
+		bytes.NewReader(body),
+	)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Authorization", "Bearer "+transport.Credential)
+	req.Header.Set("Content-Type", "application/json")
+	return req, nil
 }
 
 func relayEnvelopeOK(body []byte) bool {
