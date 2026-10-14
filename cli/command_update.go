@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strconv"
@@ -184,10 +185,21 @@ func runInternalReplace(paths runtimePaths, args []string) int {
 	stageRoot := fs.String("stage-root", "", "stage root")
 	parentPID := fs.Int("parent-pid", 0, "parent pid")
 	lifecycleMarkerFlag := fs.String("lifecycle-marker", "", "captured install lifecycle marker")
+	selfPath := fs.String("self-path", "", "temporary helper executable to delete after exit")
 	if err := fs.Parse(args); err != nil {
 		printHumanErr("%s", err)
 		return 1
 	}
+	// The helper is a copy of the CLI under %TEMP%; whatever happens below,
+	// it must not outlive this run (same detached sleeper as the uninstaller).
+	defer func() {
+		if err := scheduleWindowsSelfDeleteForUpdate(*selfPath); err != nil {
+			printHumanWarn("could not schedule update helper cleanup: %s", err)
+		}
+	}()
+	// Registered before the argument checks so a rejected marker or stage
+	// root does not strand the staged bundle (no-op on an empty path).
+	defer cleanupStagedBundle(*stageRoot)
 	if *stageRoot == "" {
 		printHumanErr("missing --stage-root")
 		return 1
@@ -197,7 +209,6 @@ func runInternalReplace(paths runtimePaths, args []string) int {
 		printHumanErr("%s", err)
 		return 1
 	}
-	defer cleanupStagedBundle(*stageRoot)
 	waitForParentReleaseForReplace(*parentPID)
 	releaseMutation, acquired := acquireAutoRepairLock(paths)
 	if !acquired {
@@ -300,20 +311,33 @@ func printPostUpdateSessionInstruction(result postUpdateSyncResult) {
 	}
 }
 
-func launchWindowsReplace(paths runtimePaths, stageRoot string, lifecycleMarker []byte) error {
-	tempHelper := filepath.Join(os.TempDir(), "ha-nova-updater-"+strconv.Itoa(os.Getpid())+".exe")
-	if err := copyFile(filepath.Join(paths.InstallRoot, publicBinaryName()), tempHelper); err != nil {
-		return err
-	}
+func buildWindowsReplaceCommand(paths runtimePaths, tempHelper, stageRoot string, lifecycleMarker []byte) *exec.Cmd {
 	cmd := buildWindowsHelperCommand(
 		tempHelper,
 		"internal-replace",
 		"--parent-pid", strconv.Itoa(os.Getpid()),
 		"--stage-root", stageRoot,
 		"--lifecycle-marker", encodeUpdateLifecycleMarker(lifecycleMarker),
+		"--self-path", tempHelper,
 	)
 	cmd.Env = append(os.Environ(), helperInstallRootEnv(paths.InstallRoot)...)
-	return cmd.Start()
+	return cmd
+}
+
+func launchWindowsReplace(paths runtimePaths, stageRoot string, lifecycleMarker []byte) error {
+	tempHelper := filepath.Join(os.TempDir(), "ha-nova-updater-"+strconv.Itoa(os.Getpid())+".exe")
+	if err := copyFile(filepath.Join(paths.InstallRoot, publicBinaryName()), tempHelper); err != nil {
+		cleanupStagedBundle(stageRoot)
+		return err
+	}
+	if err := buildWindowsReplaceCommand(paths, tempHelper, stageRoot, lifecycleMarker).Start(); err != nil {
+		// Nobody will run the helper: remove it and the staged bundle now,
+		// otherwise both leak under %TEMP% on every failed launch.
+		_ = os.Remove(tempHelper)
+		cleanupStagedBundle(stageRoot)
+		return err
+	}
+	return nil
 }
 
 func ensureUpdateLifecycleCurrent(paths runtimePaths, lifecycleMarker []byte) error {
