@@ -80,7 +80,9 @@ describe("state-snapshot questions have an owner (#527)", () => {
     expect(d).toContain("escalate ONCE to the full registry");
     // A wrong-but-nonempty match must not skip the alias lookup.
     expect(d).toContain("no results, or only matches the user rejects");
-    expect(d).toContain("`list_for_display` does not carry them");
+    // Aliases live only in get_entries; `ha-nova find` reads them there.
+    expect(d).toContain("run `ha-nova find");
+    expect(d).toContain("only `config/entity_registry/get_entries` does");
     expect(d).toContain("offer once to store it as an alias via `ha-nova:organize`");
   });
 });
