@@ -2,7 +2,7 @@
  * S-6: SessionStart hook (4 variants)
  * Tests the hooks/session-start script output in various configurations.
  */
-import { readFileSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { readFileSync, readdirSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -27,9 +27,52 @@ describe("S-6: session-start hook", () => {
     expect(json).toHaveProperty("additional_context");
     expect(json).toHaveProperty("hookSpecificOutput");
     expect(json.additional_context).toContain("HA NOVA Skills");
-    expect(json.additional_context).toContain("name: ha-nova");
+    // Compact index + bootstrap only; the full router loads on demand.
+    expect(json.additional_context).toContain("# HA NOVA Index");
+    expect(json.additional_context).toContain("load the full context skill `ha-nova:ha-nova`");
+    expect(json.additional_context).not.toContain("name: ha-nova");
     expect(json.additional_context).toContain("# Session Bootstrap");
     expect(json.additional_context).toContain("ha-nova check-update --quiet");
+    expect(json.additional_context).toContain("`notices[]`");
+    // Typed-verbs PR4 budget: ~700 words (was ~6.1k with the full router).
+    expect(json.additional_context.split(/\s+/).length).toBeLessThan(760);
+  });
+
+  // A copied plugin root, so the hook can run against a broken or hostile tree.
+  const pluginCopy = (index: string | null): string => {
+    const root = mkdtempSync(join(tmpdir(), "ha-nova-hook-root-"));
+    mkdirSync(join(root, "hooks"));
+    mkdirSync(join(root, "skills", "ha-nova"), { recursive: true });
+    writeFileSync(join(root, "hooks", "session-start"), readFileSync("hooks/session-start", "utf8"), { mode: 0o755 });
+    for (const file of ["SKILL.md", "session-bootstrap.md"]) {
+      writeFileSync(join(root, "skills", "ha-nova", file), readFileSync(`skills/ha-nova/${file}`, "utf8"));
+    }
+    if (index !== null) writeFileSync(join(root, "skills", "ha-nova", "index.md"), index);
+    return root;
+  };
+
+  it("fails loud when the index is missing", () => {
+    const root = pluginCopy(null);
+    const result = spawnSync("bash", [join(root, "hooks", "session-start")], { encoding: "utf8", timeout: 15000 });
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("Missing HA NOVA file: skills/ha-nova/index.md");
+    expect(result.stdout).toBe("");
+  });
+
+  it("escapes every control character into valid JSON", () => {
+    const root = pluginCopy("# Index\nbell\u0007 esc\u001b vt\u000b nul-adjacent\u0001 quote\" slash\\ tab\t");
+    const result = spawnSync("bash", [join(root, "hooks", "session-start")], { encoding: "utf8", timeout: 15000 });
+    expect(result.status).toBe(0);
+    const json = JSON.parse(result.stdout.trim());
+    expect(json.additional_context).toContain("bell\u0007 esc\u001b vt\u000b nul-adjacent\u0001 quote\" slash\\ tab\t");
+  });
+
+  it("lists every skill in the injected index", () => {
+    const index = readFileSync("skills/ha-nova/index.md", "utf8");
+    for (const dir of readdirSync("skills", { withFileTypes: true })) {
+      if (!dir.isDirectory()) continue;
+      expect(index, `index must list ha-nova:${dir.name}`).toContain(`\`ha-nova:${dir.name}\``);
+    }
   });
 
   it("includes sub-skill discovery list", () => {

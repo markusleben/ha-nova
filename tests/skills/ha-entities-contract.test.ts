@@ -31,8 +31,8 @@ describe("ha entity-discovery contract", () => {
     expect(content).toContain("startswith(...)");
     expect(content).toContain("do not trim to 20 inside the initial selector filter");
     expect(content).toContain("dedupe first, then sort deterministically, then compute the exact matched count, then apply the 20-row display cap");
-    expect(content).toContain("ha-nova relay ws --data-file <payload-file> --out <registry-file>");
-    expect(content).toContain("ha-nova relay jq -r --file <registry-file> '.data.unique_id'");
+    // Config reads resolve the unique_id inside `ha-nova get --config`.
+    expect(content).toContain("ha-nova get <entity_id> --config     # automation/script/scene config, resolved by unique_id, never the slug");
     expect(content).toContain("cap displayed shortlist rows at 20 only after exact matched-count computation for bulk inventory");
     expect(content).toContain("Treat the response as a keyed object, not an array");
     expect(content).toContain("automation discovery uses `.data.automation`");

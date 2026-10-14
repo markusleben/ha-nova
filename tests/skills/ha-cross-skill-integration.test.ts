@@ -43,7 +43,7 @@ describe("ha cross-skill integration", () => {
     expect(writeSkill).toContain("## Flow");
     expect(writeSkill).toContain("Fallback: If agent dispatch unavailable");
     expect(writeSkill).toContain("## Safety");
-    expect(writeSkill).toContain("Agents must use Relay only; no MCP, no direct HA API");
+    expect(writeSkill).toContain("Agents must use the `ha-nova` CLI only (Relay transport); no third-party MCP server, no direct HA API");
     expect(writeSkill).toContain('description: Use when creating, updating, or deleting');
     expect(writeSkill).not.toContain("RELAY_BASE_URL");
     expect(writeSkill).not.toContain("RELAY_AUTH_TOKEN");
@@ -132,12 +132,12 @@ describe("ha cross-skill integration", () => {
   });
 
   it("keeps write preview output terminal-friendly and action-oriented", () => {
-    const outputRules = readFileSync("skills/ha-nova/output-rules.md", "utf8");
+    const outputRules = readFileSync("skills/ha-nova/output-rules.md", "utf8") + readFileSync("skills/ha-nova/output-cards.md", "utf8");
     const writeSafety = readFileSync("skills/ha-nova/write-safety.md", "utf8");
 
     expect(outputRules).toContain("Terminal-Friendly Shape");
-    expect(outputRules).toContain("Localize section headings and labels to the user's language");
-    expect(outputRules).toContain("Do not mix English slot labels such as `Changes`, `Options`, or `Pre-write check` into a German response");
+    expect(outputRules).toContain("Localize section headings and labels idiomatically to the user's language");
+    expect(outputRules).toContain("never mix English slot labels (`Changes`, `Options`, `Pre-write check`) into another language unless the user used them first");
     expect(outputRules).toContain("Prefer plain short labels over decorative Markdown headings");
     expect(outputRules).toContain("preview summary, changes or summary, pre-write check/impact, save status, options");
     expect(outputRules).toContain("Use stable localized labels for those slots across a conversation");
@@ -148,7 +148,7 @@ describe("ha cross-skill integration", () => {
     expect(outputRules).toContain("Keep delete previews structured in this order");
     expect(outputRules).toContain("Delete previews must say nothing has been deleted yet");
     expect(outputRules).toContain("never render `apply`, `show yaml`, `cancel`, or a selectable menu");
-    expect(outputRules).toContain("Internal task, card, or payload labels are execution artifacts too.");
+    expect(outputRules).toContain("Internal task, card, or payload labels (`Automation Payload`");
     expect(outputRules).toContain("Automation Payload");
     expect(outputRules).toContain("Apply And Verify");
     expect(writeSafety).toContain("Save-status slot: explicitly say that nothing has been saved yet");

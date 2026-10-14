@@ -313,7 +313,7 @@ describe("ha-nova contract", () => {
   });
 
   it("documents the review confidence split in the shared output rules", () => {
-    const outputRules = readFileSync("skills/ha-nova/output-rules.md", "utf8");
+    const outputRules = readFileSync("skills/ha-nova/output-rules.md", "utf8") + readFileSync("skills/ha-nova/output-cards.md", "utf8");
 
     expect(outputRules).toContain("Questions to consider");
     expect(outputRules).toContain("Suggestions");
@@ -321,7 +321,7 @@ describe("ha-nova contract", () => {
 
   it("keeps output localization rules code-free and mode-scoped", () => {
     const context = readFileSync("skills/ha-nova/SKILL.md", "utf8");
-    const outputRules = readFileSync("skills/ha-nova/output-rules.md", "utf8");
+    const outputRules = readFileSync("skills/ha-nova/output-rules.md", "utf8") + readFileSync("skills/ha-nova/output-cards.md", "utf8");
 
     expect(context).toContain("skills/ha-nova/output-rules.md");
     expect(context).toContain("internal-code hiding");
@@ -696,7 +696,8 @@ describe("ha-nova contract", () => {
       "utf8",
     );
     const write = readFileSync("skills/write/SKILL.md", "utf8");
-    const serviceCall = readFileSync("skills/service-call/SKILL.md", "utf8");
+    // Custom events run on the skill's on-demand raw-relay route.
+    const serviceCall = readFileSync("skills/service-call/raw-routes.md", "utf8");
     const fallback = readFileSync("skills/fallback/SKILL.md", "utf8");
 
     // Write flow routes repurpose/cleanup through the discovery preflight.
@@ -989,9 +990,7 @@ describe("ha-nova contract", () => {
       "skills/entity-discovery/SKILL.md",
       "utf8",
     );
-    expect(entityDiscovery).toContain(
-      "/api/config/automation/config/{unique_id}",
-    );
+    expect(entityDiscovery).toContain("ha-nova get <entity_id> --config");
     expect(entityDiscovery).toContain("--out <result-file>");
     expect(entityDiscovery).toContain("never chain commands with `&&` or `||`");
     expect(entityDiscovery).toContain("Never call external `jq`");

@@ -2,6 +2,7 @@ package main
 
 import (
 	"strings"
+	"unicode"
 )
 
 // Static classification tables of the tier engine (typed-verbs spec §2.2
@@ -30,6 +31,7 @@ const (
 	reasonAccessCover       = "ACCESS_COVER"
 	reasonCoverClassUnknown = "COVER_CLASS_UNKNOWN"
 	reasonDisruptive        = "DISRUPTIVE"
+	reasonDestructiveButton = "DESTRUCTIVE_BUTTON"
 	reasonOwnedService      = "OWNED_SERVICE"
 	reasonOwnedMember       = "OWNED_MEMBER"
 	reasonOwnedTypedMember  = "OWNED_TYPED_MEMBER"
@@ -163,7 +165,8 @@ func init() {
 	}
 }
 
-// Alarm feature bits (service-call/SKILL.md → Alarm Panels And Locks).
+// Alarm feature bits. This is the rule's source since the service-call skill
+// moved to `ha-nova call` (formerly its Alarm Panels And Locks section).
 var alarmFeatureBits = map[string]int{
 	"alarm_arm_home": 1, "alarm_arm_away": 2, "alarm_arm_night": 4, "alarm_trigger": 8,
 	"alarm_arm_custom_bypass": 16, "alarm_arm_vacation": 32,
@@ -242,11 +245,64 @@ func classifyAction(service string, data map[string]any, st *entityState) (tierL
 	return tierOrdinary, ""
 }
 
+// Button presses by what they do. Destructive words (a factory reset wipes
+// the device's configuration) need a typed code; disruptive ones interrupt
+// like homeassistant.restart (preview). Words match whole tokens of the
+// entity_id and friendly name, so "preset" never reads as "reset".
+// ponytail: name heuristic; an unnamed restart button with no device_class
+// stays ordinary — add integration-specific translation_keys if one surfaces.
+var (
+	destructiveButtonWords = []string{"factory", "wipe", "erase"}
+	disruptiveButtonWords  = []string{"restart", "reboot", "shutdown", "poweroff", "reset"}
+	disruptiveButtonPairs  = [][2]string{{"shut", "down"}, {"power", "off"}}
+)
+
+// buttonPressTier returns the tier a press demands beyond ordinary, if any.
+func buttonPressTier(entityID string, st *entityState) (tierLevel, string, bool) {
+	tokens := strings.FieldsFunc(strings.ToLower(entityID+" "+st.str("friendly_name")), func(r rune) bool {
+		return !unicode.IsLetter(r) && !unicode.IsDigit(r)
+	})
+	has := func(word string) bool {
+		for _, token := range tokens {
+			if token == word {
+				return true
+			}
+		}
+		return false
+	}
+	for _, word := range destructiveButtonWords {
+		if has(word) {
+			return tierTyped, reasonDestructiveButton, true
+		}
+	}
+	if dc := st.str("device_class"); dc == "restart" || dc == "update" {
+		return tierPreview, reasonDisruptive, true
+	}
+	for _, word := range disruptiveButtonWords {
+		if has(word) {
+			return tierPreview, reasonDisruptive, true
+		}
+	}
+	for i := 0; i+1 < len(tokens); i++ {
+		for _, pair := range disruptiveButtonPairs {
+			if tokens[i] == pair[0] && tokens[i+1] == pair[1] {
+				return tierPreview, reasonDisruptive, true
+			}
+		}
+	}
+	return 0, "", false
+}
+
 // classifyOnEntity inverts the table for access-capable targets (classify
 // by target domain first): only calls that provably grant nothing stay
 // below typed — every other service, integration services included, is typed.
 func classifyOnEntity(entityID, service string, data map[string]any, st *entityState) (tierLevel, string) {
 	dc := st.str("device_class")
+	if service == "button.press" {
+		if level, reason, ok := buttonPressTier(entityID, st); ok {
+			return level, reason
+		}
+	}
 	if !accessCapable(entityID, dc) {
 		return classifyAction(service, data, st)
 	}

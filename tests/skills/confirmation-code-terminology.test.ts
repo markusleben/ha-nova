@@ -121,7 +121,7 @@ describe("confirmation-code terminology (issue #392)", () => {
   });
 
   it("pins the canonical localization rule the checker enforces", () => {
-    const outputRules = readFileSync("skills/ha-nova/output-rules.md", "utf8");
+    const outputRules = readFileSync("skills/ha-nova/output-rules.md", "utf8") + readFileSync("skills/ha-nova/output-cards.md", "utf8");
     expect(outputRules).toContain('the "confirmation code" (localized');
     expect(outputRules).toContain('Never call it a "token" in user-facing output');
   });

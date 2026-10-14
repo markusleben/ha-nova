@@ -127,7 +127,7 @@ user explicitly asks to change notification wording or notification behavior:
 Do not silently restyle, relocalize, shorten, expand, or restructure existing
 notification text during a rename, refactor, timing change, trigger/condition
 change, helper change, or service-call change. If the copy looks improvable,
-offer it as a separate Suggestion Block item (output-rules.md) before preview;
+offer it as a separate Suggestion Block item (output-cards.md) before preview;
 do not merge it into the draft unless the user accepts it.
 
 If notification copy does change, the Changes slot must show the old and new text or
@@ -148,7 +148,7 @@ should learn one shape and always recognize it:
 4. Save-status slot: explicitly say that nothing has been saved yet (the ⚠️ line).
 5. Options slot: explicit choices with literal `apply`, `show yaml`, and `cancel`.
 
-This is the Preview Card of `skills/ha-nova/output-rules.md` → Cards; the
+This is the Preview Card of `skills/ha-nova/output-cards.md` → Cards; the
 Result Card and Delete Card there frame the post-write and delete sides.
 
 Do **not** re-describe the whole automation (entities, every trigger/action) —

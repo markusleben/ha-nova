@@ -252,3 +252,44 @@ func TestPlanCallTierGoldenCases(t *testing.T) {
 	}
 	runTierCases(t, cases)
 }
+
+func TestDisruptiveButtonPressIsPreviewed(t *testing.T) {
+	cases := []tierCase{
+		{name: "restart device_class",
+			setup: func(f *fakeHA) {
+				f.ent("button.nas_btn", "synology_dsm", "unknown", map[string]any{"device_class": "restart"})
+			},
+			args: []string{"button.press", "button.nas_btn"}, exit: 3, tier: "preview", reasons: []string{reasonDisruptive}},
+		{name: "update device_class",
+			setup: func(f *fakeHA) { f.ent("button.fw", "shelly", "unknown", map[string]any{"device_class": "update"}) },
+			args:  []string{"button.press", "button.fw"}, exit: 3, tier: "preview", reasons: []string{reasonDisruptive}},
+		{name: "friendly name with a space",
+			setup: func(f *fakeHA) {
+				f.ent("button.router_1", "fritz", "unknown", map[string]any{"friendly_name": "Router Shut Down"})
+			},
+			args: []string{"button.press", "button.router_1"}, exit: 3, tier: "preview", reasons: []string{reasonDisruptive}},
+		{name: "factory reset is destructive: typed",
+			setup: func(f *fakeHA) { f.ent("button.plug_factory_reset", "tplink", "unknown", nil) },
+			args:  []string{"button.press", "button.plug_factory_reset"}, exit: 3, tier: "typed", reasons: []string{reasonDestructiveButton}},
+		{name: "plain reset stays preview",
+			setup: func(f *fakeHA) { f.ent("button.filter_reset", "philips", "unknown", nil) },
+			args:  []string{"button.press", "button.filter_reset"}, exit: 3, tier: "preview", reasons: []string{reasonDisruptive}},
+		{name: "preset is not reset",
+			setup: func(f *fakeHA) {
+				f.ent("button.fan_preset", "xiaomi", "unknown", map[string]any{"friendly_name": "Fan preset"})
+			},
+			args: []string{"button.press", "button.fan_preset"}, exit: 0, tier: "ordinary", absent: []string{reasonDisruptive}},
+		{name: "stored press inside a script keeps the reason",
+			setup: func(f *fakeHA) {
+				f.ent("button.cam_reboot", "reolink", "unknown", nil)
+				f.script("fix_cam", step("button.press", "button.cam_reboot"))
+			},
+			args: []string{"script.turn_on", "script.fix_cam"}, exit: 3, tier: "preview", reasons: []string{reasonStoredMembers, reasonDisruptive}},
+		{name: "an ordinary chime stays ordinary",
+			setup: func(f *fakeHA) {
+				f.ent("button.chime", "tplink", "unknown", map[string]any{"friendly_name": "Door chime"})
+			},
+			args: []string{"button.press", "button.chime"}, exit: 0, tier: "ordinary", absent: []string{reasonDisruptive}},
+	}
+	runTierCases(t, cases)
+}
