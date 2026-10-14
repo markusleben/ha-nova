@@ -94,8 +94,15 @@ describe("pairing response store (durable)", () => {
   it("starts empty when the persisted file is corrupt rather than crashing pairing", () => {
     writeFileSync(join(dir, STORE_FILE), "{ not json", { mode: 0o600 });
     const t = 1_000;
-    const store = createFileResponseStore(dir, () => t);
+    const warnings: string[] = [];
+    const store = createFileResponseStore(dir, () => t, {
+      warn: (message) => {
+        warnings.push(message);
+      },
+    });
     expect(store.get("hs1")).toBeNull();
+    // Not fatal, but never silent: the operator sees why retries start empty.
+    expect(warnings).toEqual(["pairing response store unreadable; starting empty"]);
     // And it can still persist new entries over the corrupt file.
     store.put("hs1", "digestA", "cipherA", t);
     expect(store.get("hs1")).toEqual({

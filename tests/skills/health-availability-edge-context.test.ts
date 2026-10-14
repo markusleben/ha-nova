@@ -143,6 +143,63 @@ describe("health availability adversarial edge fixtures", () => {
     expect(report).not.toContain("private-device");
   });
 
+  it("accepts reduced HA 2026.9 child-device rows as a valid device registry (#520)", () => {
+    // A child row carries parent_device_id, a null name, a null area_id
+    // (inherits the parent's), and only the singular config_entry_id.
+    const report = summarizeAvailability({
+      states: [{ entity_id: "sensor.child_probe", state: "unavailable" }],
+      registry: [{ entity_id: "sensor.child_probe", device_id: "child-device" }],
+      entries: [],
+      devices: [
+        { id: "parent-device", name: "Parent", area_id: "kitchen" },
+        {
+          id: "child-device",
+          name: null,
+          parent_device_id: "parent-device",
+          area_id: null,
+          config_entry_id: "entry-1",
+        },
+      ],
+    });
+    expect(report).toContain("Coverage unavailable: none.");
+    expect(report).toContain("device attribution 1/1 entity states.");
+    expect(report).not.toContain("Device registry unavailable");
+  });
+
+  it("clusters a child device separately from its parent (#520)", () => {
+    const report = summarizeAvailability({
+      states: [
+        { entity_id: "sensor.parent_a", state: "unavailable" },
+        { entity_id: "sensor.parent_b", state: "unavailable" },
+        { entity_id: "sensor.child_a", state: "unavailable" },
+      ],
+      registry: [
+        { entity_id: "sensor.parent_a", device_id: "parent-device" },
+        { entity_id: "sensor.parent_b", device_id: "parent-device" },
+        { entity_id: "sensor.child_a", device_id: "child-device" },
+      ],
+      entries: [],
+      devices: [
+        { id: "parent-device", name: "Parent" },
+        { id: "child-device", name: null, parent_device_id: "parent-device", area_id: null },
+      ],
+    });
+    expect(report).toContain("Largest device subclusters: 2, 1 entity states");
+  });
+
+  it("attributes a child's entities when its parent row is missing (#520)", () => {
+    const report = summarizeAvailability({
+      states: [{ entity_id: "sensor.orphan_child", state: "unavailable" }],
+      registry: [{ entity_id: "sensor.orphan_child", device_id: "child-device" }],
+      entries: [],
+      devices: [{ id: "child-device", name: null, parent_device_id: "gone-parent", area_id: null }],
+    });
+    expect(report).toContain(
+      "1 known device-registry records; device attribution 1/1 entity states.",
+    );
+    expect(report).not.toContain("Device registry unavailable");
+  });
+
   it("reports omitted device-cluster and entity-state counts", () => {
     const clusterSizes = [5, 4, 3, 2, 1];
     const states: StateRow[] = [];

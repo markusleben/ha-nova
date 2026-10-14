@@ -1,9 +1,26 @@
-import { existsSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { gzipSync } from "node:zlib";
 
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+// Module namespaces are not spyable in ESM: route lstat through a hook so one
+// test can delete a file between readdir and lstat, exactly as a concurrent
+// prune would.
+const lstatHook = vi.hoisted(() => ({
+  beforeLstat: undefined as ((path: string) => void) | undefined,
+}));
+vi.mock("node:fs/promises", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("node:fs/promises")>();
+  return {
+    ...actual,
+    lstat: async (path: Parameters<typeof actual.lstat>[0], options?: Parameters<typeof actual.lstat>[1]) => {
+      lstatHook.beforeLstat?.(String(path));
+      return await actual.lstat(path, options as never);
+    },
+  };
+});
 
 import {
   createBackupsHandler,
@@ -140,6 +157,49 @@ describe("backups handler", () => {
       400,
       "SNAPSHOT_STORE_FULL"
     );
+  });
+
+  it("admits exactly one of two concurrent saves into the last free slot", async () => {
+    mkdirSync(join(root, "bulk"), { recursive: true });
+    for (let i = 0; i < MAX_SNAPSHOT_FILES - 1; i += 1) {
+      writeFileSync(
+        join(root, "bulk", `auto-item${i}-20260101T${String(i).padStart(9, "0")}Z.json.gz`),
+        gzipSync("{}")
+      );
+    }
+    // One handler: the serialization lives in its closure. Distinct names so
+    // the same-millisecond SNAPSHOT_EXISTS path cannot mask the quota race.
+    const handler = createBackupsHandler({ snapshotRoot: root, now: () => clockMs });
+    const results = await Promise.allSettled([
+      handler({ body: { action: "save", category: "scenes", name: "first", data: 1 } } as never),
+      handler({ body: { action: "save", category: "scenes", name: "second", data: 2 } } as never),
+    ]);
+    const fulfilled = results.filter((r) => r.status === "fulfilled");
+    const rejected = results.filter((r): r is PromiseRejectedResult => r.status === "rejected");
+    expect(fulfilled).toHaveLength(1);
+    expect(rejected).toHaveLength(1);
+    expect(rejected[0]?.reason).toBeInstanceOf(HttpError);
+    expect((rejected[0]?.reason as HttpError).code).toBe("SNAPSHOT_STORE_FULL");
+    expect(
+      readdirSync(join(root, "bulk")).length + readdirSync(join(root, "scenes")).length,
+    ).toBe(MAX_SNAPSHOT_FILES);
+  });
+
+  it("tolerates a snapshot deleted between readdir and lstat", async () => {
+    // A concurrent delete/prune during the scan must not fail the scan.
+    mkdirSync(join(root, "scenes"), { recursive: true });
+    const ghost = join(root, "scenes", "ghost-20260101T000000000Z.json.gz");
+    writeFileSync(ghost, gzipSync("{}"));
+    lstatHook.beforeLstat = (path) => {
+      if (path === ghost) {
+        rmSync(ghost, { force: true });
+      }
+    };
+    try {
+      await expect(call({ action: "list" })).resolves.toEqual([]);
+    } finally {
+      lstatHook.beforeLstat = undefined;
+    }
   });
 
   it("prunes auto snapshots by age and count while named ones survive", async () => {

@@ -292,6 +292,13 @@ export function createDefaultWsClient(input: RuntimeWsClientInput): HaWsClient {
           connection.subscribeMessage(callback, message, options),
         addEventListener: (event, callback) =>
           connection.addEventListener(event, callback),
+        close: () => {
+          connection.close();
+          // haws checks closeRequested only BEFORE awaiting createSocket: a
+          // close that lands mid-reconnect still installs the new socket. A
+          // `ready` after close() can only be that leaked socket — close it.
+          connection.addEventListener("ready", () => connection.close());
+        },
       };
 
       return wrapped;

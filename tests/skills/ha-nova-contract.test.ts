@@ -474,6 +474,14 @@ describe("ha-nova contract", () => {
     expect(apiMatrix).toContain("Helper-owned config-entry domains");
     expect(apiMatrix).toContain("live-proven end-to-end subtype is `sensor`");
     expect(apiMatrix).toContain("`config/device_registry/remove_config_entry`");
+    expect(apiMatrix).toContain("deprecated, removed in HA 2027.9");
+    // HA 2026.9: admin-only successor stays external; the two read commands
+    // are listed so nobody re-audits them as gaps (#520).
+    expect(apiMatrix).toContain(
+      "`config/device_registry/remove` | Delete a device (HA 2026.9+, admin-only; external — HA NOVA never calls it)",
+    );
+    expect(apiMatrix).toContain("`config/device_registry/list_linked_devices`");
+    expect(apiMatrix).toContain("`config/device_registry/list_composite_splits`");
     expect(apiMatrix).toContain("`lovelace/dashboards/list`");
     expect(apiMatrix).toContain("`lovelace/dashboards/create`");
     expect(apiMatrix).toContain(
