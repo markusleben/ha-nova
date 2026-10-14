@@ -15,6 +15,10 @@ type findQuery struct {
 	phrase, domain, area string
 	limit                int
 	includeDisabled      bool
+	// completeAliases: uniqueness checks (plan/call --match) always run the
+	// alias pass, so a name match never hides an entity that carries the
+	// phrase as an alias. find itself only lists and keeps the cheap path.
+	completeAliases bool
 }
 
 type findResult struct {
@@ -90,17 +94,19 @@ func findEntities(s *relaySession, q findQuery) (findResult, error) {
 		}
 		matches = matchRegistryRows(rows, q)
 	}
-	if len(matches) == 0 {
+	if len(matches) == 0 || q.completeAliases {
 		rows, err := loadFullRegistry(s, areas, deviceAreas)
 		if err != nil {
 			return findResult{}, err
 		}
-		if matches = matchRegistryRows(rows, q); len(matches) == 0 {
+		full := matchRegistryRows(rows, q)
+		if len(full) == 0 || q.completeAliases {
 			if err := attachAliases(s, rows, q); err != nil {
 				return findResult{}, err
 			}
-			matches = matchRegistryRows(rows, q)
+			full = matchRegistryRows(rows, q)
 		}
+		matches = unionTargets(matches, full)
 	}
 	result := findResult{Total: len(matches), Matches: matches}
 	if len(matches) > q.limit {
@@ -108,6 +114,20 @@ func findEntities(s *relaySession, q findQuery) (findResult, error) {
 	}
 	result.Returned = len(result.Matches)
 	return result, nil
+}
+
+// unionTargets keeps every entity once (first basis wins), sorted by id.
+func unionTargets(a, b []verbTarget) []verbTarget {
+	seen := map[string]bool{}
+	out := []verbTarget{}
+	for _, t := range append(append([]verbTarget{}, a...), b...) {
+		if !seen[t.EntityID] {
+			seen[t.EntityID] = true
+			out = append(out, t)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].EntityID < out[j].EntityID })
+	return out
 }
 
 func rowInScope(row registryRow, q findQuery) bool {

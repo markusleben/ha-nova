@@ -176,7 +176,7 @@ func (e *tierEngine) resolveTargets(req planCallRequest) ([]verbTarget, error) {
 		if domain == "homeassistant" || !coreDomains[domain] {
 			filter = ""
 		}
-		found, err := findEntities(e.s, findQuery{phrase: req.Match, domain: filter, limit: 10})
+		found, err := findEntities(e.s, findQuery{phrase: req.Match, domain: filter, limit: 10, completeAliases: true})
 		switch {
 		case err != nil:
 			e.readFailed("", "", "match")

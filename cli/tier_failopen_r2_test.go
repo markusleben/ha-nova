@@ -128,3 +128,50 @@ func TestPlanCallRefusesTargetInServiceData(t *testing.T) {
 		t.Fatalf("exit %d env %+v", exit, env)
 	}
 }
+
+// Codex P1 on #659: --match uniqueness must see aliases, and an unread
+// enabled automation must never turn a listener surplus into "unexplained".
+func TestPlanCallCodexP1Regressions(t *testing.T) {
+	surplus := func(f *fakeHA) { f.events = []map[string]any{{"event": "call_service", "listener_count": 1}} }
+	cases := []tierCase{
+		{name: "--match is ambiguous when another entity carries the phrase as an alias", setup: func(f *fakeHA) {
+			f.ent("light.reading_lamp", "hue", "on", map[string]any{"friendly_name": "Reading lamp"})
+			f.ent("light.floor_lamp", "hue", "on", map[string]any{"friendly_name": "Floor lamp"})
+			f.full = []map[string]any{{"entity_id": "light.reading_lamp", "name": "Reading lamp"}, {"entity_id": "light.floor_lamp", "original_name": "Floor lamp"}}
+			f.aliases = map[string][]string{"light.floor_lamp": {"Reading lamp"}}
+		}, args: []string{"light.turn_off", "--match", "reading lamp"}, exit: 5, check: func(t *testing.T, env verbTestEnvelope) {
+			if env.Error == nil || env.Error.Code != "AMBIGUOUS_TARGET" || len(env.Error.Candidates) != 2 || env.Plan != nil {
+				t.Fatalf("env %+v", env)
+			}
+		}},
+		{name: "packages automation with an id but no stored config is typed, not unexplained", setup: func(f *fakeHA) {
+			surplus(f)
+			f.ent("automation.pkg", "automation", "on", map[string]any{"id": "pkg1"}) // config endpoint 404
+		}, args: []string{"light.turn_on", "light.kitchen"}, exit: 3, tier: "typed", reasons: []string{reasonUnreadConfig}},
+		{name: "enabled YAML automation without id is typed, not unexplained", setup: func(f *fakeHA) {
+			surplus(f)
+			f.automation("yaml_only", "", nil)
+		}, args: []string{"light.turn_on", "light.kitchen"}, exit: 3, tier: "typed", reasons: []string{reasonYAMLNoID}},
+		{name: "templated event_type is an unenumerable listener", setup: func(f *fakeHA) {
+			surplus(f)
+			f.automation("tpl", "t1", map[string]any{
+				"triggers": []any{map[string]any{"trigger": "event", "event_type": "{{ 'call_' ~ 'service' }}"}},
+				"actions":  []any{step("light.turn_on", "light.hall")},
+			})
+		}, args: []string{"light.turn_on", "light.kitchen"}, exit: 3, tier: "typed", reasons: []string{reasonListener}},
+		{name: "templated event_data filter counts as matching", setup: func(f *fakeHA) {
+			f.script("leave", step("light.turn_off", "light.hall"))
+			f.events = []map[string]any{{"event": "script_started", "listener_count": 1}}
+			f.automation("door", "d1", map[string]any{
+				"triggers": []any{map[string]any{"trigger": "event", "event_type": "script_started", "event_data": map[string]any{"entity_id": "{{ which }}"}}},
+				"actions":  []any{step("lock.unlock", "lock.front")},
+			})
+		}, args: []string{"script.turn_on", "script.leave"}, exit: 3, tier: "typed", reasons: []string{reasonAccessLock}},
+		{name: "a switched-off automation holds no listener and stays out of the count", setup: func(f *fakeHA) {
+			surplus(f)
+			f.automation("off_pkg", "op1", nil)
+			f.states["automation.off_pkg"]["state"] = "off"
+		}, args: []string{"light.turn_on", "light.kitchen"}, exit: 3, tier: "preview", reasons: []string{reasonListenerUnexpl}, absent: []string{reasonUnreadConfig}},
+	}
+	runTierCases(t, cases)
+}

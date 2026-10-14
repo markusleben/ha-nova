@@ -119,10 +119,21 @@ func (e *tierEngine) listenerTable() *listenerTable {
 		err                error
 	}
 	var rows []*autoRow
+	var yamlNoID []string
 	for _, st := range states {
-		if strings.HasPrefix(st.EntityID, "automation.") && st.State == "on" && st.Attributes.ID != "" {
+		switch {
+		case !strings.HasPrefix(st.EntityID, "automation.") || st.State != "on": // off automations hold no listeners
+		case st.Attributes.ID == "":
+			yamlNoID = append(yamlNoID, st.EntityID)
+		default:
 			rows = append(rows, &autoRow{entityID: st.EntityID, configID: st.Attributes.ID})
 		}
+	}
+	// An enabled automation this scan cannot read may hold exactly the
+	// listener the live count shows: unread is typed, never "unexplained".
+	sort.Strings(yamlNoID)
+	for _, id := range yamlNoID {
+		e.gap(reasonYAMLNoID, id, "listener scan", "")
 	}
 	sort.Slice(rows, func(i, j int) bool { return rows[i].entityID < rows[j].entityID })
 	if len(rows) > tierMaxAutomations {
@@ -141,8 +152,9 @@ func (e *tierEngine) listenerTable() *listenerTable {
 	table := &listenerTable{counts: map[string]int{}, hits: map[string][]listenerHit{}}
 	for _, row := range rows {
 		var notFound *verbFailure
-		if errors.As(row.err, &notFound) {
-			continue // id but no stored config (packages YAML): the count check covers it
+		if errors.As(row.err, &notFound) { // id but no stored config (packages YAML)
+			e.gap(reasonUnreadConfig, row.entityID, "listener scan", row.configID)
+			continue
 		}
 		if row.err != nil {
 			e.readFailed(row.entityID, "", "config")
@@ -163,15 +175,21 @@ func (e *tierEngine) listenerTable() *listenerTable {
 			}
 			filter, _ := trigger["event_data"].(map[string]any)
 			entityFilter, _ := filter["entity_id"].(string)
+			if isTemplated(entityFilter) {
+				entityFilter = "" // a runtime filter may match anything: count it as matching
+			}
 			types, isList := trigger["event_type"].([]any)
 			if !isList {
 				types = []any{trigger["event_type"]}
 			}
 			for _, t := range types {
-				if name, isString := t.(string); isString && !isTemplated(name) {
-					table.counts[name]++
-					table.hits[name] = append(table.hits[name], listenerHit{automation: row.entityID, entityFilter: entityFilter})
+				name, isString := t.(string)
+				if !isString || name == "" || isTemplated(name) {
+					e.gap(reasonListener, row.entityID, "listener scan", "templated event_type")
+					continue
 				}
+				table.counts[name]++
+				table.hits[name] = append(table.hits[name], listenerHit{automation: row.entityID, entityFilter: entityFilter})
 			}
 		}
 	}
