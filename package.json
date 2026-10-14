@@ -28,7 +28,7 @@
     "home-assistant-addon"
   ],
   "engines": {
-    "node": ">=20"
+    "node": ">=22.12"
   },
   "scripts": {
     "bump": "bash scripts/bump-version.sh",
@@ -107,7 +107,7 @@
     "husky": "^9.1.7",
     "tsx": "^4.23.13",
     "typescript": "^7.0.2",
-    "vitest": "^4.1.11"
+    "vitest": "^5.0.4"
   },
   "overrides": {
     "form-data": "^4.0.6"
