@@ -20,7 +20,10 @@ export interface HaWsConnection {
     message: HaWsRequest,
     options?: { resubscribe?: boolean }
   ): Promise<() => void | Promise<void>>;
-  addEventListener?(event: "ready" | "disconnected", callback: () => void): void;
+  addEventListener?(
+    event: "ready" | "disconnected" | "reconnect-error",
+    callback: () => void
+  ): void;
   close?(): void;
 }
 
@@ -316,6 +319,14 @@ export function createHaWsClient(options: HaWsClientOptions): HaWsClient {
       current.addEventListener?.("ready", () => {
         if (connection === current) {
           connected = true;
+        }
+      });
+      // haws gave up reconnecting because HA rejected the token: drop the dead
+      // connection so the next request makes one fresh, reportable attempt.
+      current.addEventListener?.("reconnect-error", () => {
+        if (connection === current) {
+          lastConnectFailure = "auth";
+          resetConnection(current);
         }
       });
       return current;

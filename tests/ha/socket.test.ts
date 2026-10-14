@@ -3,10 +3,13 @@ import { AddressInfo } from "node:net";
 import { describe, expect, it, vi } from "vitest";
 import { WebSocketServer } from "ws";
 
+import { ERR_INVALID_AUTH, createConnection, createLongLivedTokenAuth } from "home-assistant-js-websocket";
+
 import {
   HaSocketAuthError,
   HaSocketConnectError,
   createAuthenticatedHaSocket,
+  createHawsSocket,
   haWebSocketUrl
 } from "../../nova/src/ha/socket.js";
 
@@ -210,6 +213,55 @@ describe("ha authenticated socket post-auth error safety", { retry: 2 }, () => {
         );
       }).not.toThrow();
       await new Promise((resolve) => setTimeout(resolve, 20));
+    } finally {
+      server.close();
+    }
+  });
+});
+
+describe("haws-facing socket factory", { retry: 2 }, () => {
+  it("turns a declined token into haws ERR_INVALID_AUTH", async () => {
+    const server = await startServer((socket) => {
+      socket.send(JSON.stringify({ type: "auth_required" }));
+      socket.on("message", () => socket.send(JSON.stringify({ type: "auth_invalid" })));
+    });
+    try {
+      await expect(createHawsSocket({ haUrl: server.url, token: "bad" })).rejects.toBe(ERR_INVALID_AUTH);
+    } finally {
+      server.close();
+    }
+  });
+
+  it("stops haws reconnecting after HA revokes the token", async () => {
+    // First connection authenticates and then drops; every later attempt is
+    // declined. haws must give up after one declined reconnect instead of
+    // retrying every 1-5 s forever.
+    let attempts = 0;
+    const server = await startServer((socket) => {
+      attempts += 1;
+      const accept = attempts === 1;
+      socket.send(JSON.stringify({ type: "auth_required" }));
+      socket.on("message", () => {
+        socket.send(JSON.stringify(accept ? { type: "auth_ok", ha_version: "2026.10.0" } : { type: "auth_invalid" }));
+        if (accept) {
+          setTimeout(() => socket.close(), 20);
+        }
+      });
+    });
+    try {
+      const connection = await createConnection({
+        auth: createLongLivedTokenAuth(server.url, "revoked"),
+        createSocket: async () =>
+          (await createHawsSocket({ haUrl: server.url, token: "revoked" })) as unknown as import("home-assistant-js-websocket").HaWebSocket,
+      });
+      const gaveUp = await Promise.race([
+        new Promise<boolean>((resolve) => connection.addEventListener("reconnect-error", () => resolve(true))),
+        new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 4_000)),
+      ]);
+      expect(gaveUp).toBe(true);
+      await new Promise((resolve) => setTimeout(resolve, 1_500));
+      expect(attempts).toBe(2);
+      connection.close();
     } finally {
       server.close();
     }

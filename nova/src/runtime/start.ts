@@ -14,7 +14,7 @@ import {
   type FileAccessConfig,
 } from "../config/file-access.js";
 import { loadEnv, type EnvConfig } from "../config/env.js";
-import { createAuthenticatedHaSocket } from "../ha/socket.js";
+import { createHawsSocket } from "../ha/socket.js";
 import { createHaRestClient, type HaRestClient } from "../ha/rest-client.js";
 import {
   createHaWsClient,
@@ -279,7 +279,7 @@ export function createDefaultWsClient(input: RuntimeWsClientInput): HaWsClient {
         // home-assistant-js-websocket uses (addEventListener/send/close), but
         // the TS types differ structurally — hence the unknown-cast.
         createSocket: async () =>
-          (await createAuthenticatedHaSocket({
+          (await createHawsSocket({
             haUrl: input.env.haUrl,
             token,
           })) as unknown as HaWebSocket,

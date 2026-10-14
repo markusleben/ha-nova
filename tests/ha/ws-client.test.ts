@@ -54,6 +54,34 @@ describe("ha ws client", () => {
     expect(client.isConnected()).toBe(true);
   });
 
+  it("drops the connection after haws gives up on a revoked token and retries once per request", async () => {
+    const listenersByConnection: Array<Record<string, () => void>> = [];
+    let connects = 0;
+    const client = createHaWsClient({
+      createConnection: async () => {
+        connects += 1;
+        const listeners: Record<string, () => void> = {};
+        listenersByConnection.push(listeners);
+        return {
+          sendMessagePromise: async () => ({ ok: true }),
+          addEventListener: (event: "ready" | "disconnected" | "reconnect-error", callback: () => void) => {
+            listeners[event] = callback;
+          }
+        };
+      }
+    });
+
+    await client.sendMessage({ type: "ping" });
+    listenersByConnection[0]?.["disconnected"]?.();
+    listenersByConnection[0]?.["reconnect-error"]?.();
+    expect(client.getConnectionStatus()).toEqual({ connected: false, disconnect_reason: "auth" });
+
+    // The dead connection is gone: the next request makes a fresh attempt.
+    await client.sendMessage({ type: "ping" });
+    expect(connects).toBe(2);
+    expect(client.isConnected()).toBe(true);
+  });
+
   it("ignores events from a stale connection after reset", async () => {
     const listenersByConnection: Array<Record<string, () => void>> = [];
     let failNext = false;
