@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"sort"
 	"strconv"
 	"strings"
@@ -247,10 +248,12 @@ func (e *tierEngine) sceneMember(id string, value any, via string, depth int) {
 	}
 	domain, _ := splitID(id)
 	if leaves := groupMembers(domain, st); leaves != nil {
-		if e.visited["scene-group "+id] || e.cut(depth+1, id, via) {
+		state, _ := json.Marshal(value)
+		key := "scene-group " + id + " " + string(state) // per requested state
+		if e.visited[key] || e.cut(depth+1, id, via) {
 			return
 		}
-		e.visited["scene-group "+id] = true
+		e.visited[key] = true
 		e.prefetchStates(leaves)
 		for _, leaf := range leaves {
 			e.sceneMember(leaf, value, id, depth+1)

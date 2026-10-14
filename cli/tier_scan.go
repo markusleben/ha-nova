@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"slices"
 	"sort"
 	"strings"
 )
@@ -104,7 +105,7 @@ func (e *tierEngine) scanConsumers(id string, depth int) {
 	}
 	prefetch(reads)
 	seen := map[string]bool{}
-	var automations []string
+	var automations, containers []string
 	for _, item := range items {
 		related, err := e.related(item[0], item[1])
 		if err != nil {
@@ -117,7 +118,19 @@ func (e *tierEngine) scanConsumers(id string, depth int) {
 				automations = append(automations, automation)
 			}
 		}
+		if item[0] == "entity" {
+			containers = append(containers, related["group"]...)
+		}
 	}
+	// A group's state follows its members: its consumers react to this
+	// entity too. Containers come from search/related and from the group
+	// states this run already read (bounded by the acted-entity budget).
+	for group, st := range e.states {
+		if groupDomain, _ := splitID(group); slices.Contains(groupMembers(groupDomain, st), id) {
+			containers = append(containers, group)
+		}
+	}
+	sort.Strings(containers)
 	sort.Strings(automations)
 	e.prefetchStates(automations)
 	var configReads []func()
@@ -130,6 +143,9 @@ func (e *tierEngine) scanConsumers(id string, depth int) {
 	prefetch(configReads)
 	for _, automation := range automations {
 		e.consumer(automation, "trigger", depth, func(cfg map[string]any) bool { return triggersReference(cfg, needles) })
+	}
+	for _, group := range slices.Compact(containers) {
+		e.scanConsumers(group, depth)
 	}
 }
 
@@ -193,9 +209,15 @@ func (e *tierEngine) consumer(automation, match string, depth int, matches func(
 		return
 	}
 	e.visited[key] = true
+	for _, trigger := range flattenTriggers(firstPresent(cfg, "triggers", "trigger")) {
+		if firstPresent(trigger, "trigger", "platform") == "template" {
+			e.note(noteTemplates) // its dependencies are computed at runtime
+		}
+	}
 	class := tierOrdinary
 	e.scopes = append(e.scopes, &class)
 	e.walk(automationActions(cfg), automation+"/actions", depth+1)
+	e.checkEvents("automation_triggered", automation) // a consumer run fires one too
 	e.scopes = e.scopes[:len(e.scopes)-1]
 	e.done[key] = class
 	e.consumers = append(e.consumers, tierConsumer{Automation: automation, Match: match, Class: class.String()})
@@ -272,4 +294,54 @@ func (e *tierEngine) checkManagers() {
 	}
 	e.complete = false
 	e.raise(tierPreview, tierReason{Code: reasonManager, Detail: strings.Join(present, ", ")})
+}
+
+// deviceAccess: an integration service acts on the target's DEVICE (a Z-Wave
+// node, a Nuki bridge), so any access-capable entity on that device makes it
+// typed; otherwise it is at least preview, never below the targetless case.
+func (e *tierEngine) deviceAccess(id, via, service string) tierLevel {
+	var siblings []string
+	if device := e.reg[id].di; device != "" {
+		siblings = e.deviceEntities(device, "homeassistant")
+	}
+	e.prefetchStates(siblings)
+	for _, sibling := range siblings {
+		st, err := e.state(sibling)
+		if err != nil {
+			e.readFailed(sibling, via, "state")
+			return tierTyped
+		}
+		if dc := st.str("device_class"); accessCapable(sibling, dc) {
+			e.gap(reasonDeviceAccess, id, via, service+" on the device of "+sibling)
+			return tierTyped
+		}
+	}
+	e.raise(tierPreview, tierReason{Code: reasonIntegrationSvc, EntityID: id, Via: via, Detail: service})
+	return tierPreview
+}
+
+// switchAsX: a switch wrapped by an access-capable switch_as_x entity (same
+// device, or both device-less and so not attributable) actuates that lock or
+// cover; the switch inherits its class.
+func (e *tierEngine) switchAsX(id, via string) tierLevel {
+	var wrappers []string
+	for other, row := range e.reg {
+		if row.pl == "switch_as_x" && row.di == e.reg[id].di {
+			wrappers = append(wrappers, other)
+		}
+	}
+	sort.Strings(wrappers)
+	e.prefetchStates(wrappers)
+	for _, wrapper := range wrappers {
+		st, err := e.state(wrapper)
+		if err != nil {
+			e.readFailed(wrapper, via, "state")
+			return tierTyped
+		}
+		if dc := st.str("device_class"); accessCapable(wrapper, dc) {
+			e.gap(reasonSwitchAsX, id, via, wrapper)
+			return tierTyped
+		}
+	}
+	return tierOrdinary
 }

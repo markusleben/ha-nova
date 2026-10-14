@@ -55,6 +55,9 @@ const (
 	reasonReload            = "RELOAD_UNENUMERATED"
 	reasonListener          = "UNENUMERABLE_LISTENER"
 	reasonListenerUnexpl    = "CALL_SERVICE_LISTENER_UNEXPLAINED"
+	reasonRunListenerUnexpl = "RUN_EVENT_LISTENER_UNEXPLAINED"
+	reasonDeviceAccess      = "DEVICE_ACCESS"
+	reasonSwitchAsX         = "SWITCH_AS_X_ACCESS"
 	reasonManager           = "CONSUMER_MANAGER_PRESENT"
 	reasonScanFailed        = "SCAN_FAILED"
 	reasonLimitCut          = "LIMIT_CUT"
@@ -123,12 +126,23 @@ func hassioOwner(name string) string {
 }
 
 var disruptiveServices = map[string]bool{
-	"homeassistant.restart": true, "homeassistant.stop": true, "siren.turn_on": true,
+	"homeassistant.restart": true, "homeassistant.stop": true, "siren.turn_on": true, "siren.toggle": true,
 	"alarm_control_panel.alarm_trigger": true,
 }
 
 // Implementations live in files the engine cannot read (rules 2 and 3).
-var unreadCommandDomains = map[string]bool{"python_script": true, "shell_command": true, "rest_command": true}
+var unreadCommandDomains = map[string]bool{
+	"python_script": true, "shell_command": true, "rest_command": true, "pyscript": true, "netdaemon": true,
+}
+
+// Platforms whose entity behaviour is a user-written command or request.
+var userCommandPlatforms = map[string]bool{"command_line": true, "rest": true, "telnet": true, "tcp": true, "serial": true}
+
+// Event types a frontend logbook stream or raw subscription also listens to:
+// an unexplained surplus there is preview, not typed (maintainer default).
+var frontendListenedEvents = map[string]string{
+	"call_service": reasonListenerUnexpl, "automation_triggered": reasonRunListenerUnexpl, "script_started": reasonRunListenerUnexpl,
+}
 
 // Home Assistant's own entity and core service domains. A service of any
 // other domain belongs to an integration: on an access entity it is typed,
@@ -152,13 +166,30 @@ var alarmFeatureBits = map[string]int{
 	"alarm_arm_custom_bypass": 16, "alarm_arm_vacation": 32,
 }
 
-var accessCoverClasses = map[string]bool{"garage": true, "gate": true, "door": true}
+// Cover classes known NOT to grant access; every other class — garage,
+// gate, door, a custom one, or none — is access-capable (fail closed, Q3).
+var nonAccessCoverClasses = map[string]bool{
+	"awning": true, "blind": true, "curtain": true, "damper": true, "shade": true, "shutter": true, "window": true,
+}
 
 // accessCapable: a lock, an alarm panel, or a cover that is (or may be) an
-// access cover — an unknown device_class fails closed (Q3).
+// access cover.
 func accessCapable(entityID, deviceClass string) bool {
 	domain, _ := splitID(entityID)
-	return domain == "lock" || domain == "alarm_control_panel" || (domain == "cover" && (deviceClass == "" || accessCoverClasses[deviceClass]))
+	return domain == "lock" || domain == "alarm_control_panel" || (domain == "cover" && !nonAccessCoverClasses[deviceClass])
+}
+
+// accessReason names why an access-capable entity is typed.
+func accessReason(entityID, deviceClass string) string {
+	switch domain, _ := splitID(entityID); {
+	case domain == "lock":
+		return reasonAccessLock
+	case domain == "alarm_control_panel":
+		return reasonAccessAlarm
+	case deviceClass == "":
+		return reasonCoverClassUnknown
+	}
+	return reasonAccessCover
 }
 
 // Consumer managers detected per run: config-entry domains and App slugs.
@@ -175,12 +206,8 @@ func classifyAction(service string, data map[string]any, st *entityState) (tierL
 	case service == "alarm_control_panel.alarm_disarm":
 		return tierTyped, reasonAccessAlarm
 	case domain == "cover" && coverCanOpen(name, data):
-		dc := st.str("device_class")
-		if dc == "" {
-			return tierTyped, reasonCoverClassUnknown
-		}
-		if accessCoverClasses[dc] {
-			return tierTyped, reasonAccessCover
+		if dc := st.str("device_class"); !nonAccessCoverClasses[dc] {
+			return tierTyped, accessReason("cover.x", dc)
 		}
 	case disruptiveServices[service]:
 		return tierPreview, reasonDisruptive
@@ -211,15 +238,7 @@ func classifyOnEntity(entityID, service string, data map[string]any, st *entityS
 		service == "alarm_control_panel.alarm_trigger" || (domain == "alarm_control_panel" && strings.HasPrefix(name, "alarm_arm_")) {
 		return classifyAction(service, data, st)
 	}
-	switch entityDomain, _ := splitID(entityID); {
-	case entityDomain == "lock":
-		return tierTyped, reasonAccessLock
-	case entityDomain == "alarm_control_panel":
-		return tierTyped, reasonAccessAlarm
-	case dc == "":
-		return tierTyped, reasonCoverClassUnknown
-	}
-	return tierTyped, reasonAccessCover
+	return tierTyped, accessReason(entityID, dc)
 }
 
 // classifyTargetless: a call without entities; an integration's own service

@@ -126,8 +126,10 @@ Each step is the code form of an existing prose rule, cited per step.
    - Groups (`attributes.entity_id` is an array) expand to their leaves with `membership_source: attributes`.
    - Expansion always produces a frozen `entity_ids` list (I6).
 2. **Classify the direct action** with a static table that mirrors `SKILL.md:99` and `service-call/SKILL.md:293-295`.
-   - On an access-capable entity (lock, alarm panel, cover with `device_class` garage/gate/door or none) the table is an ALLOWLIST: only `lock.lock`, `cover.close_cover`, `alarm_arm_*`, `homeassistant.update_entity` (and `homeassistant.turn_off` where it maps to `close_cover`) stay below typed; `alarm_trigger` stays preview (disruptive). Every other service on such a target — `stop_cover`, tilt, integration services such as `zwave_js.set_value` — is typed.
-   - A targetless service of a non-core (integration) domain is at least preview; `esphome.*` is typed.
+   - Cover classes `awning`, `blind`, `curtain`, `damper`, `shade`, `shutter`, `window` are non-access; every other class (garage, gate, door, custom, none) is access-capable.
+   - On an access-capable entity (lock, alarm panel, access-capable cover) the table is an ALLOWLIST: only `lock.lock`, `cover.close_cover`, `alarm_arm_*`, `homeassistant.update_entity` (and `homeassistant.turn_off` where it maps to `close_cover`) stay below typed; `alarm_trigger` stays preview (disruptive). Every other service on such a target — `stop_cover`, tilt, integration services such as `zwave_js.set_value` — is typed.
+   - A service of a non-core (integration) domain acts on the target's DEVICE: typed when any entity on that device is access-capable (`DEVICE_ACCESS`), otherwise at least preview — targetless or not. `esphome.*`, `pyscript.*`, `netdaemon.*` are typed.
+   - A switch wrapped by an access-capable `switch_as_x` entity (same device, or both device-less) is typed (`SWITCH_AS_X_ACCESS`).
    - Typed: `lock.unlock|open`, `alarm_control_panel.alarm_disarm`.
    - Typed: open-capable cover services (`open_cover`, `toggle`, `set_cover_position` with position > 0, `indirect-actuation.md:327-337`) on `device_class` ∈ {garage, gate, door}. A cover with no `device_class` also goes typed (fail closed; see Q3).
    - Preview (disruptive): `homeassistant.restart|stop`, `siren.turn_on`, `alarm_trigger`.
@@ -146,8 +148,9 @@ Each step is the code form of an existing prose rule, cited per step.
    - **Unresolved means typed:** a `pl:template` stored action not read in v1, user-authored `esphome` or `mqtt` buttons, `python_script|shell_command|rest_command`, templated action names, templated targets on access-capable services, a failed substitution, stored `floor_id|label_id`, YAML items without an id, any failed scan, any limit cut.
    - An unread scene on an integration platform is preview with a coverage gap, unless that platform owns a lock, alarm or access-cover entity in the registry; then it is typed (`indirect-actuation.md:296-310`).
 5. **Consumer scan**, for every acted entity, including ordinary ones.
+   - The scan set is every acted entity plus every group containing one (from `search/related`'s `group` list and from group states already read) and every expanded direct group target; the frozen payload stays leaves-only.
    - (a) Run `search/related` on `item_type:"entity"`, keep automations whose `triggers` subtree contains the entity id (a string match, which also catches literal template and event-data references), read those configs, expand their actions as in step 4, and classify them.
-   - (b) Run `GET /api/events` once. If the `call_service` listener count is above the verified baseline, or the target is a `timer`, scan all automation configs (event triggers, `event_data` filters). If enumerated listeners ≠ the live count, the run is typed (`indirect-actuation.md:197-215`). Exception: a `call_service` surplus (live > enumerated automation listeners) is preview with `CALL_SERVICE_LISTENER_UNEXPLAINED`, because an open logbook stream or a raw event subscription adds such a listener (measured on HA 2026.10.1: a stock install has no `call_service` row, so the baseline is 0); listeners the scan attributes to automations keep their own class.
+   - (b) Run `GET /api/events` once. If the `call_service` listener count is above the verified baseline, or the target is a `timer`, scan all automation configs (event triggers, `event_data` filters). If enumerated listeners ≠ the live count, the run is typed (`indirect-actuation.md:197-215`). Exception: a `call_service` surplus (live > enumerated automation listeners) is preview with `CALL_SERVICE_LISTENER_UNEXPLAINED`, because an open logbook stream or a raw event subscription adds such a listener (measured on HA 2026.10.1: a stock install has no `call_service` row, so the baseline is 0); listeners the scan attributes to automations keep their own class. Every script run and automation run (direct, stored, or consumer) also fires `script_started`/`automation_triggered`; their listeners are checked the same way, an unexplained surplus being preview with `RUN_EVENT_LISTENER_UNEXPLAINED`.
    - (c) Check for consumer managers with `config_entries/get` once, plus `hassio` update entities by known slug. If one is present, the run is preview (see Q2).
    - (d) Any `pl:template` entity is a coverage note only (`indirect-actuation.md:228-233`).
 6. **Tier** = the maximum over the direct class, member classes, consumer classes, unresolved items (typed), expansion (preview) and gaps (preview).
@@ -162,7 +165,7 @@ Reason codes (`cli/tier_rules.go`; `TestTierReasonCodesAreDocumented` pins each 
 | `ACCESS_ALARM` | typed | `alarm_disarm` (Classifying what you found) |
 | `ACCESS_COVER` | typed | open-capable cover service on a garage/gate/door `device_class` (When you cannot see the members, cover paragraph) |
 | `COVER_CLASS_UNKNOWN` | typed | the same on a cover without `device_class` (Q3) |
-| `DISRUPTIVE` | preview | restart/stop, `siren.turn_on`, `alarm_trigger` (`service-call/SKILL.md` → Safety) |
+| `DISRUPTIVE` | preview | restart/stop, `siren.turn_on`/`toggle` (also through `homeassistant.*`), `alarm_trigger` (`service-call/SKILL.md` → Safety) |
 | `OWNED_SERVICE` | refused | the deferral table names another skill (`service-call/SKILL.md` → Owning-Skill Deferrals) |
 | `OWNED_MEMBER` | preview | a stored member is a deferred service (expanding must not downgrade the owner's gate) |
 | `OWNED_TYPED_MEMBER` | typed | a stored `mqtt.publish` or `hassio.*` member (owning-skill escalation) |
@@ -176,7 +179,7 @@ Reason codes (`cli/tier_rules.go`; `TestTierReasonCodesAreDocumented` pins each 
 | `NO_REGISTRY_ROW` | preview or typed | explicit id without registry row (§2.2 step 1) |
 | `TEMPLATE_ACTION_UNREAD` | typed | `pl: template` target; its stored action is not read in v1 (What triggers the gate) |
 | `USER_AUTHORED_BUTTON` | typed | `esphome`/`mqtt` button press (Expanding the members, buttons) |
-| `UNREAD_COMMAND` | typed | `python_script`, `shell_command`, `rest_command`, any `command_line` entity (Expanding the members) |
+| `UNREAD_COMMAND` | typed | `python_script`, `shell_command`, `rest_command`, `pyscript`, `netdaemon` services; any `command_line`, `rest`, `telnet`, `tcp`, `serial` entity (Expanding the members) |
 | `TEMPLATED_ACTION` | typed | templated action name or `service_template` (When you cannot see the members) |
 | `UNRESOLVED_TARGET` | typed | templated, `all`/`none`, or non-literal stored target (rule 3) |
 | `STORED_SELECTOR` | typed | stored `floor_id`/`label_id` (Expanding the members) |
@@ -188,12 +191,15 @@ Reason codes (`cli/tier_rules.go`; `TestTierReasonCodesAreDocumented` pins each 
 | `RELOAD_UNENUMERATED` | typed | any `<domain>.reload` or `homeassistant.reload_*`; v1 proves no reload side-effect-free (Expanding the members, reloads) |
 | `UNENUMERABLE_LISTENER` | typed | live listener count ≠ enumerated automation listeners (step 5b) |
 | `CALL_SERVICE_LISTENER_UNEXPLAINED` | preview | `call_service` listeners beyond the enumerated automations (frontend streams; step 5b) |
+| `RUN_EVENT_LISTENER_UNEXPLAINED` | preview | `script_started`/`automation_triggered` listeners beyond the enumerated automations (step 5b) |
+| `DEVICE_ACCESS` | typed | integration service on an entity whose device has a lock, alarm panel, or access cover (step 2) |
+| `SWITCH_AS_X_ACCESS` | typed | the switch behind an access-capable `switch_as_x` wrapper (step 2) |
 | `CONSUMER_MANAGER_PRESENT` | preview | Node-RED/AppDaemon/pyscript present locally (step 5c, Q2) |
 | `SCAN_FAILED` | typed | any failed read inside the traversal (Limits you imposed) |
 | `LIMIT_CUT` | typed | any budget cut (Limits you imposed) |
 | `TEMPLATES_NOT_CHECKABLE` | note | the instance has template entities (step 5d) |
 | `NO_LOCAL_CONSUMER_MANAGER` | note | presence check found none locally (step 5c) |
-| `INTEGRATION_SERVICE` | preview | targetless service of a non-core domain; its effect set is not enumerable (step 2) |
+| `INTEGRATION_SERVICE` | preview | service of a non-core domain, targetless or on a device without access entities (step 2) |
 | `USER_AUTHORED_SERVICE` | typed | `esphome.*` API service defined in device YAML (rules 2 and 3) |
 | `EXPANDED_TARGET_WITHOUT_STATE` | note | an area/device/group leaf has no state (disabled or not loaded) and is not frozen (step 1) |
 
@@ -348,6 +354,7 @@ Risks
 - **Latency over the Cloud transport** when the full automation scan triggers. Bounded at 30 s; a cut goes typed.
 - **v1 UX regressions.** `pl:template` targets go typed, and Hue-style scenes go preview.
 - **Known limit: unfiltered `state_changed` listeners.** An automation with an event trigger on `state_changed` (no entity filter) consumes every state change, but neither `search/related` nor the per-type listener check discovers it: core keeps its own `state_changed` listeners, so no baseline separates them. The prose has the same gap. A plan does not see such an automation.
+- **Known limit: physically wired openers.** A plain switch or relay wired to a door opener, with no `switch_as_x` wrapper or access `device_class`, is indistinguishable from a lamp switch and stays ordinary.
 - **Public guarantees change.** `docs/reference/safety.md:16` ("Nothing is written before you see a preview"), README, and the conventions in `AGENTS.md:100` and `PROJECT.md:58-59`. The README change goes only into the release-prep PR (`AGENTS.md:96`); the "What To Watch" note goes into `docs/work/next-release-body.md`.
 
 Decisions (maintainer, 2026-10-14)
@@ -355,6 +362,7 @@ Decisions (maintainer, 2026-10-14)
 - **Q2 → preview.** A present but unreadable consumer manager (Node-RED, AppDaemon) puts ordinary device control at preview, with a coverage note.
 - **Q3 → typed.** An open-capable cover without `device_class` is typed (fail closed).
 - **Call-service surplus → preview** (maintainer default 2026-10-14, analogous to Q2). An unexplained `call_service` listener surplus is preview with `CALL_SERVICE_LISTENER_UNEXPLAINED`; a surplus listener the full scan attributes to an automation reaching a typed action stays typed.
+- **ESPHome/MQTT entities stay ordinary** (maintainer default 2026-10-14). Only their buttons are user-authored typed; switches, lights, and covers are real devices, and escalating them would put every zigbee2mqtt switch on typed.
 - **Q4 → change with an explicit exception.** Public wording: "Unambiguous everyday actions run immediately and are verified afterwards; everything else shows a preview first; locks, gates, alarm, and deletes need a code." `docs/reference/safety.md` and the Safety Core change with PR4; README only in the release-prep PR.
 
 PR2 implementation defaults (fail closed; open for maintainer review)

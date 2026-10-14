@@ -10,17 +10,18 @@ import (
 // fakeHA is a small Home Assistant behind the fake Relay: states, both
 // registries, stored configs, relations, event listeners, config entries.
 type fakeHA struct {
-	states     map[string]map[string]any
-	compact    []map[string]any
-	full       []map[string]any
-	configs    map[string]any      // core path → stored config; absent → 404
-	unique     map[string]string   // entity_id → registry unique_id
-	related    map[string][]string // "entity:<id>" → automations, "area:<id>" → entities
-	events     []map[string]any
-	entries    []map[string]any
-	substitute any
-	fail       map[string]bool // ws type or core path answered with a Relay error
-	hang       map[string]bool // ws type or core path that never answers
+	states        map[string]map[string]any
+	compact       []map[string]any
+	full          []map[string]any
+	configs       map[string]any      // core path → stored config; absent → 404
+	unique        map[string]string   // entity_id → registry unique_id
+	related       map[string][]string // "entity:<id>" → automations, "area:<id>" → entities
+	events        []map[string]any
+	entries       []map[string]any
+	substitute    any
+	fail          map[string]bool     // ws type or core path answered with a Relay error
+	hang          map[string]bool     // ws type or core path that never answers
+	relatedGroups map[string][]string // entity → groups search/related reports
 }
 
 func newFakeHA() *fakeHA {
@@ -89,7 +90,7 @@ func (f *fakeHA) reply(r *http.Request, endpoint string, p map[string]any) any {
 			if p["item_type"] == "area" {
 				return map[string]any{"entity": items}
 			}
-			return map[string]any{"automation": items}
+			return map[string]any{"automation": items, "group": f.relatedGroups[fmt.Sprint(p["item_id"])]}
 		case "config_entries/get":
 			return append([]map[string]any{}, f.entries...)
 		case "blueprint/substitute":

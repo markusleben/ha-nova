@@ -52,13 +52,13 @@ func (e *tierEngine) checkEvents(eventType, entityID string) {
 	for _, t := range sortedBoolKeys(types) {
 		enumerated := table.counts[t] + baselineFor(t)
 		switch detail := fmt.Sprintf("%s: %d live, %d enumerated", t, live[t], table.counts[t]); {
-		case t == "call_service" && live[t] > enumerated:
+		case frontendListenedEvents[t] != "" && live[t] > enumerated:
 			// An open logbook stream or a raw event subscription listens here
 			// too: not an automation, not enumerable — preview, like Q2
 			// (maintainer default 2026-10-14). Attributed automations still
 			// classify below and keep their own (typed) class.
 			e.complete = false
-			e.raise(tierPreview, tierReason{Code: reasonListenerUnexpl, Detail: detail})
+			e.raise(tierPreview, tierReason{Code: frontendListenedEvents[t], Detail: detail})
 		case enumerated != live[t]:
 			e.gap(reasonListener, entityID, "", detail)
 		}

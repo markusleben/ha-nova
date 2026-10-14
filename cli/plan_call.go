@@ -16,6 +16,8 @@ const planCallHelp = planCallUsage + `
 
 Read-only: resolves the targets, computes the confirmation tier, and stores
 the plan for 15 minutes. This release never executes a plan.
+Service data may not carry entity_id, area_id, device_id, or target (pass
+targets as arguments); script fields named "target" are not supported in v1.
 Exit: 0 ordinary (plan stored), 3 needs confirmation, 4 refused, 5 ambiguous or not found.`
 
 type planCallRequest struct {
@@ -206,7 +208,7 @@ func (e *tierEngine) resolveTargets(req planCallRequest) ([]verbTarget, error) {
 			return nil, err
 		}
 	}
-	if req.Device != "" {
+	if req.Device != "" && !e.regFailed { // a failed registry read is already a typed gap
 		if err := expand("device", req.Device, e.deviceEntities(req.Device, domain)); err != nil {
 			return nil, err
 		}
@@ -250,6 +252,7 @@ func (e *tierEngine) flatten(t verbTarget, depth int, out *[]verbTarget, seen ma
 		if depth+1 > tierMaxDepth {
 			e.gap(reasonLimitCut, t.EntityID, "", fmt.Sprintf("deeper than %d", tierMaxDepth))
 		} else {
+			e.groups = append(e.groups, t.EntityID)
 			e.prefetchStates(members)
 			for _, member := range members {
 				if err := e.flatten(verbTarget{EntityID: member, By: "group"}, depth+1, out, seen); err != nil {
@@ -306,6 +309,9 @@ func (e *tierEngine) evaluate(req planCallRequest, targets []verbTarget) *tierRe
 	}
 	for _, t := range targets {
 		e.visit(t.EntityID, req.Service, req.Data, 0, "")
+	}
+	for _, group := range e.groups { // its consumers react to the leaves' change
+		e.scanConsumers(group, 0)
 	}
 	e.checkManagers()
 	return nil

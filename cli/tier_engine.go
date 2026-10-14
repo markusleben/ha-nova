@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"slices"
 	"sync"
 )
 
@@ -80,6 +81,8 @@ type tierEngine struct {
 	events    map[string]int
 	listeners *listenerTable
 	full      []fullRegistryRow
+	regFailed bool     // the compact registry could not be read
+	groups    []string // expanded direct group targets: consumer-scanned, never frozen
 	fullRead  bool
 }
 
@@ -142,6 +145,12 @@ func prefetch(reads []func()) {
 	wg.Wait()
 }
 
+func (e *tierEngine) note(code string) {
+	if !slices.Contains(e.notes, code) {
+		e.notes = append(e.notes, code)
+	}
+}
+
 // gap is an unresolved item: typed and coverage incomplete (I4).
 func (e *tierEngine) gap(code, entityID, via, detail string) {
 	e.complete = false
@@ -156,12 +165,13 @@ func (e *tierEngine) loadRegistry() {
 	}
 	if err := e.s.wsDecode(map[string]any{"type": "config/entity_registry/list_for_display"}, &compact, "the compact entity registry"); err != nil {
 		e.readFailed("", "", "registry")
+		e.regFailed = true
 		return
 	}
 	for _, row := range compact.Entities {
 		e.reg[row.EI] = registryEntry{pl: row.PL, di: row.DI}
-		if row.PL == "template" && len(e.notes) == 0 {
-			e.notes = append(e.notes, noteTemplates)
+		if row.PL == "template" {
+			e.note(noteTemplates)
 		}
 	}
 }
@@ -252,12 +262,18 @@ func (e *tierEngine) classify(id, service string, data map[string]any, depth int
 	case pl == "template":
 		level = tierTyped
 		e.gap(reasonTemplateAction, id, via, "")
-	case pl == "command_line": // its command lives in configuration.yaml
+	case userCommandPlatforms[pl]: // its command or request lives in configuration.yaml
 		level = tierTyped
 		e.gap(reasonUnreadCommand, id, via, pl)
 	case eff == "button.press" && (pl == "esphome" || pl == "mqtt"):
 		level = tierTyped
 		e.gap(reasonUserButton, id, via, pl)
+	}
+	if serviceDomain, _ := splitID(eff); !coreDomains[serviceDomain] {
+		level = max(level, e.deviceAccess(id, via, eff))
+	}
+	if domain == "switch" && entry.pl != "switch_as_x" {
+		level = max(level, e.switchAsX(id, via))
 	}
 	if depth > 0 {
 		e.members = append(e.members, tierMember{EntityID: id, Action: eff, Via: via, Class: level.String()})
@@ -298,6 +314,12 @@ func groupMembers(domain string, st *entityState) []string {
 func (e *tierEngine) expandRun(id, domain string, depth int) {
 	if depth == 0 {
 		e.raise(tierPreview, tierReason{Code: reasonStoredMembers, EntityID: id})
+	}
+	switch domain { // a run also fires its own event; its listeners run too
+	case "script":
+		e.checkEvents("script_started", id)
+	case "automation":
+		e.checkEvents("automation_triggered", id)
 	}
 	cfg, ok := e.runConfig(id, domain, "")
 	if !ok {
