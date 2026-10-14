@@ -3,11 +3,15 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"net"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/brutella/dnssd"
 	"github.com/zalando/go-keyring"
 )
 
@@ -69,6 +73,22 @@ func TestMain(m *testing.M) {
 	// relay command into a cache miss. Nudge tests that assert spawn behavior
 	// install their own recorder on top of this no-op.
 	spawnDetachedUpdateRefresh = func() {}
+	// Setup/doctor probes run through httpClient and derive the production
+	// default ports (HA :8123, Relay :8791) from httptest's 127.0.0.1 hosts.
+	// A developer's local HA/Relay on those ports would answer and reroute
+	// the wizard, so refuse them; tests only own random httptest ports. mDNS
+	// stays silent for the same reason — discovery tests stub their own.
+	httpTransport := httpClient.Transport.(*http.Transport)
+	dial := httpTransport.DialContext
+	httpTransport.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
+		if _, port, _ := net.SplitHostPort(addr); port == "8123" || port == "8791" {
+			return nil, fmt.Errorf("test guard: dial %s refused (production default port)", addr)
+		}
+		return dial(ctx, network, addr)
+	}
+	lookupDNSSDForDiscovery = func(context.Context, string, dnssd.AddFunc, dnssd.RmvFunc) error {
+		return nil
+	}
 	stubDir, err := os.MkdirTemp("", "claude-stub")
 	if err == nil {
 		script := "#!/usr/bin/env bash\necho \"Error: not found\" >&2\nexit 1\n"
