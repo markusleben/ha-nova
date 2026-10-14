@@ -4,6 +4,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 import { registerCloudReleaseBuildContractTests } from "./cloud-release-build-contract.js";
+import { registerWorkflowPinsContractTests } from "./workflow-pins-contract.js";
 
 describe("release contract", () => {
   const goreleaser = readFileSync(".goreleaser.yml", "utf8");
@@ -654,4 +655,5 @@ describe("release contract", () => {
     );
   });
   registerCloudReleaseBuildContractTests();
+  registerWorkflowPinsContractTests();
 });
