@@ -337,3 +337,32 @@ func TestTokensMatchDecomposedAccents(t *testing.T) {
 		t.Fatalf("decomposed phrase split into %v", got)
 	}
 }
+
+func TestFindAliasesFlagMatchesAliasDespiteNameHit(t *testing.T) {
+	// "reading lamp" names one entity and is another entity's alias: without
+	// --aliases find stops at the name hit; with it, both are listed.
+	compact := []map[string]any{
+		{"ei": "light.reading_lamp", "en": "Reading lamp"},
+		{"ei": "light.floor_lamp_living", "en": "Floor lamp"},
+	}
+	full := []map[string]any{
+		{"entity_id": "light.reading_lamp", "name": "Reading lamp", "platform": "hue", "id": "a1"},
+		{"entity_id": "light.floor_lamp_living", "original_name": "Floor lamp", "platform": "hue", "id": "a2"},
+	}
+	base := registryReply(compact, full)
+	paths, _ := setupVerbRelayTest(t, func(r *http.Request, endpoint string, payload map[string]any) any {
+		if payload["type"] == "config/entity_registry/get_entries" {
+			return map[string]any{"light.floor_lamp_living": map[string]any{"aliases": []any{"reading lamp"}}, "light.reading_lamp": map[string]any{"aliases": []any{}}}
+		}
+		return base(r, endpoint, payload)
+	})
+	var result findResult
+	_, env := runVerbForTest(t, func() int { return runFindCommand(paths, []string{"reading lamp"}) })
+	if _ = json.Unmarshal(env.Result, &result); result.Total != 1 {
+		t.Fatalf("without --aliases: %+v", result)
+	}
+	_, env = runVerbForTest(t, func() int { return runFindCommand(paths, []string{"reading lamp", "--aliases"}) })
+	if _ = json.Unmarshal(env.Result, &result); result.Total != 2 {
+		t.Fatalf("with --aliases want both entities: %+v", result)
+	}
+}

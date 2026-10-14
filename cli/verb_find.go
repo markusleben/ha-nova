@@ -9,7 +9,7 @@ import (
 	"unicode"
 )
 
-const findUsage = `ha-nova find "<phrase>" [--domain <d>] [--area <area_id>] [--limit 20] [--include-disabled]`
+const findUsage = `ha-nova find "<phrase>" [--domain <d>] [--area <area_id>] [--limit 20] [--include-disabled] [--aliases]`
 
 type findQuery struct {
 	phrase, domain, area string
@@ -44,6 +44,7 @@ func runFindCommand(paths runtimePaths, args []string) int {
 	fs.StringVar(&query.area, "area", "", "only entities in this area_id (entity or device area)")
 	fs.IntVar(&query.limit, "limit", 20, "maximum rows returned (1-200); total stays exact")
 	fs.BoolVar(&query.includeDisabled, "include-disabled", false, "include disabled entities (reads the full registry)")
+	fs.BoolVar(&query.completeAliases, "aliases", false, "also match aliases even when names already match (use after a rejected name match)")
 	positional, err := parseVerbArgs(fs, &opts, args, findUsage)
 	if err == nil && (len(positional) != 1 || len(foldTokens(positional[0])) == 0) {
 		err = errors.New("Usage: " + findUsage)
