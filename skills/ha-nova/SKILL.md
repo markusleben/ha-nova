@@ -22,8 +22,8 @@ Operate Home Assistant through HA NOVA with a minimal user-facing flow:
 
 Before the first HA task in a session, read and follow
 `../ha-nova/session-bootstrap.md`. This shared contract owns HA NOVA update
-checks, Relay update checks, and the consent-gated census callout for the
-context skill and every independently loaded subskill.
+checks and Relay update checks for the context skill and every independently
+loaded subskill.
 
 ## Runtime Prerequisite
 

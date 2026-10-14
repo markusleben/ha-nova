@@ -1185,10 +1185,7 @@ describe("ha-nova contract", () => {
     expect(content).toContain("first Home Assistant or HA NOVA task");
     expect(content).toContain("before any relay command");
     expect(content).toContain("one check for every server profile");
-    expect(content).toContain("HA_NOVA_NO_CENSUS=1");
-    expect(content).toMatch(
-      /switching\s+servers cannot duplicate the install-wide pending census notice/,
-    );
+    expect(content).not.toMatch(/census/i);
   });
 
   it("surfaces the update as a once-per-session callout after the requested result", () => {
@@ -1199,100 +1196,6 @@ describe("ha-nova contract", () => {
     expect(content).toContain("up to three supplied highlight lines");
     expect(content).toContain("supplied release URL");
     expect(content).toMatch(/Never update without\s+consent/);
-  });
-
-  it("surfaces census consent as one standalone explicit action choice", () => {
-    const content = readFileSync("skills/ha-nova/session-bootstrap.md", "utf8");
-    expect(content).toContain("## Census Consent Choice");
-    expect(content).toContain("CENSUS ASK PENDING");
-    expect(content).toContain("exactly once per");
-    expect(content).toContain("standalone");
-    expect(content).toContain("Interactive Choices");
-    expect(content).toContain("native selectable menu");
-    expect(content).toContain("numbered fallback");
-    expect(content).toContain("Never stack this choice");
-    expect(content).toContain("deferred machine notice does not count");
-    expect(content).toContain("ha-nova census notice-presented");
-    expect(content).toContain("CENSUS NOTICE PRESENT");
-    expect(content).toContain("CENSUS NOTICE SKIP");
-    expect(content).toContain("cns-choice-");
-    expect(content).toContain("the only active choice");
-    expect(content).toContain("must close it");
-    expect(content).toContain("Cloudflare is the hosting provider");
-    expect(content).toContain("no sooner than seven days later");
-    expect(content).not.toContain("one attempt per ISO week");
-    expect(content).toContain("message content (JSON)");
-    expect(content).toContain("private maintainer");
-    expect(content).toMatch(
-      /by\s+contributing, the user helps the maintainer get a rough picture/,
-    );
-    expect(content).toContain("how operating systems are distributed");
-    expect(content).toMatch(
-      /prioritize compatibility\s+work, tests, bug fixes, and new features/,
-    );
-    expect(content).toMatch(/not a roadmap\s+vote or feature\s+promise/);
-    expect(content).toContain("without guilt, pressure, or recommending opt-in");
-    expect(content).toContain(
-      "ingest code does not read or store the source IP",
-    );
-    expect(content).toContain("at most five short lines");
-    expect(content).toContain("Use those five lines for");
-    expect(content).toContain("purpose and planning value; cadence");
-    expect(content).toContain(
-      "Cloudflare processing, HA NOVA source-IP non-reading/non-storage",
-    );
-    expect(content).toContain("three actions immediately after");
-    expect(content).toContain("1. **Yes — contribute**");
-    expect(content).toContain("2. **No — do not contribute**");
-    expect(content).toContain("3. **Show exact data**");
-    expect(content).toContain("ha-nova census choose <choice-id> yes");
-    expect(content).toContain("ha-nova census choose <choice-id> no");
-    expect(content).toContain("same choice ID");
-    expect(content).toContain("old UI action");
-    expect(content).toContain("run `ha-nova census status`");
-    expect(content).toContain("literal JSON");
-    expect(content).toContain("verbatim without omitting or renaming fields");
-    expect(content).toContain("change no consent state");
-    expect(content).toMatch(/render the\s+same three choices again/);
-    expect(content).toContain("immediate re-render");
-    expect(content).toContain("part of the same");
-    expect(content).toContain(
-      "Otherwise, do not surface the prompt again unsolicited",
-    );
-    expect(content).toContain("use the privacy-safe No choice");
-    expect(content).toContain("choice is stale");
-    expect(content).toContain("never retry with");
-    expect(content).toContain("If `ha-nova census status` fails");
-    expect(content).toMatch(/consent\s+is unchanged/);
-    expect(content).toContain("ambiguous answer runs nothing");
-    expect(content).toContain("Never infer opt-in");
-  });
-
-  it("never describes the census HTTPS request as anonymous on active surfaces", () => {
-    const surfaces = [
-      "README.md",
-      "PRIVACY.md",
-      "census-worker/README.md",
-      "census-worker/src/census.ts",
-      "docs/reference/census.md",
-      "docs/reference/safety.md",
-      "docs/work/2026-07-31-launch-posts-v0.22.md",
-      "skills/ha-nova/session-bootstrap.md",
-      "cli/census.go",
-      "cli/census_ask.go",
-      "cli/census_command.go",
-    ];
-
-    for (const path of surfaces) {
-      const content = readFileSync(path, "utf8");
-      expect(content, path).not.toMatch(/\banonymous\b/i);
-      expect(content, path).not.toMatch(
-        /\b(?:no|without)\s+(?:source[- ]?)?ip(?:\s+address)?\s+(?:is\s+)?(?:sent|transmitted)\b/i,
-      );
-      expect(content, path).not.toMatch(
-        /\b(?:does not|doesn't|never)\s+(?:send|transmit)\s+(?:an?\s+|the\s+)?(?:source[- ]?)?ip\b/i,
-      );
-    }
   });
 
   it("routes Relay App updates through a previewed guided install", () => {

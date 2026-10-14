@@ -24,6 +24,10 @@ the number.
   restored `/data` whose files are readable by other users is repaired to
   owner-only on first read; files owned by another user stop the App with a
   message naming the `chown` fix — never with a registry reset offer.
+- **The Census is gone; HA NOVA collects nothing.** The opt-in Census was
+  removed: the CLI never asks, never sends a report, and deletes its local
+  Census state automatically on the first run. `ha-nova census …` no longer
+  exists.
 
 ## Bug Fixes
 
@@ -60,3 +64,10 @@ the number.
   signed Cloud bundle provenance, three-OS install smokes, and a per-release
   Cloud checklist.
 - Route-level context ratchets for the review and write skills (#521).
+
+## Release-prep README edits
+
+- Census removal: delete the README "Census off by default" Safe-by-Design
+  bullet (it also links the removed `docs/reference/census.md`), and change
+  the `ha-nova uninstall --purge` row to say it retains two opaque local
+  markers that block stale processes from restoring the install.

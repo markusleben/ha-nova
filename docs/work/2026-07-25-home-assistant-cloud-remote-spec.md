@@ -239,7 +239,7 @@ in tests and cannot be selected by production environment variables.
 Native-store E2E isolation must preserve the real desktop login `HOME`;
 otherwise the OS may resolve no default keychain or secret collection.
 `HA_NOVA_CONFIG_DIR` relocates only HA NOVA's non-secret config, checkpoints,
-state, and census files so a unique test profile can use the real native store
+and state files so a unique test profile can use the real native store
 without touching the production profile.
 
 Cloud Beta stays blocked until macOS artifacts have a stable signing identity
@@ -769,7 +769,7 @@ Cloud setup/resume remain blocked.
   authenticated `/health` requests through that one process-local Ingress
   session. It has fixed per-request and overall deadlines, stops on the first
   redirect, transport, status, size, encoding, or Relay-identity failure, and
-  never runs Census or update checks.
+  never runs update checks.
 - Real keyring happy-path and fail-closed no-UI behavior on every advertised
   OS for first support. Shared orchestration changes repeat one reference OS;
   adapter changes repeat only the affected OS. Deterministic platform tests
@@ -791,8 +791,7 @@ Cloud setup/resume remain blocked.
 Before every release that keeps Cloud enabled, the maintainer works through
 the per-release Cloud checklist in `docs/releasing.md`; a real-device row
 repeats for first support or after a change that touches its path. One
-downloaded-release `relay health --via cloud` smoke with Census suppressed
-must parse the JSON and require the expected App version and
+downloaded-release `relay health --via cloud` smoke must parse the JSON and require the expected App version and
 `ha_ws_connected: true`; a zero exit code alone is not evidence.
 
 The feature stays unavailable if any security or full-parity gate fails.
