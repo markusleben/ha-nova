@@ -28,7 +28,7 @@
     "home-assistant-addon"
   ],
   "engines": {
-    "node": ">=20"
+    "node": ">=22.12"
   },
   "scripts": {
     "bump": "bash scripts/bump-version.sh",

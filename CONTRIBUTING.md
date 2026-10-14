@@ -13,7 +13,7 @@ HA NOVA is still early. Small, focused improvements help most.
 ## Setup
 
 Prerequisites:
-- Node.js `>=20`
+- Node.js `>=22.12`
 - Go `>=1.24`
 
 ```bash

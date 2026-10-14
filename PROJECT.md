@@ -47,7 +47,7 @@ checklist in `docs/releasing.md`; the contracts live in
 
 ## Tech Stack
 
-- **App / Relay:** TypeScript, Node.js >= 20, no HTTP framework
+- **App / Relay:** TypeScript, Node.js >= 22, no HTTP framework
 - **Local runtime:** Go 1.24+ CLI for install, setup, doctor, update, uninstall, relay
 - **Dependencies:** home-assistant-js-websocket
 - **Skills:** Markdown files

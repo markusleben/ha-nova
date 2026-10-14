@@ -6,7 +6,7 @@ import { spawnSync } from "node:child_process";
 import { describe, expect, it } from "vitest";
 import { parse } from "yaml";
 
-// CI runs Node 20, where fs.globSync does not exist yet — walk the tree instead.
+// Walk the tree instead of fs.globSync to stay independent of the Node minor.
 function collectTestFiles(dir: string): string[] {
   const found: string[] = [];
   for (const entry of readdirSync(dir)) {
