@@ -170,8 +170,21 @@ func TestFindReportsExactTruncationCounts(t *testing.T) {
 
 func TestFindReadsAliasesOnlyAfterCompactMiss(t *testing.T) {
 	compact := []map[string]any{{"ei": "light.floor_lamp_living", "en": "Floor lamp"}}
-	full := []map[string]any{{"entity_id": "light.floor_lamp_living", "name": nil, "original_name": "Floor lamp", "aliases": []any{nil, "Leselampe"}}}
-	paths, log := setupVerbRelayTest(t, registryReply(compact, full))
+	// The real list shape (HA 2026.10): no aliases key; aliases come only
+	// from get_entries, and only for the in-scope candidates.
+	full := []map[string]any{
+		{"entity_id": "light.floor_lamp_living", "name": nil, "original_name": "Floor lamp", "platform": "hue", "id": "a1"},
+		{"entity_id": "switch.office_fan", "name": "Fan", "platform": "shelly", "id": "a2"},
+	}
+	base := registryReply(compact, full)
+	var requested any
+	paths, log := setupVerbRelayTest(t, func(r *http.Request, endpoint string, payload map[string]any) any {
+		if payload["type"] == "config/entity_registry/get_entries" {
+			requested = payload["entity_ids"]
+			return map[string]any{"light.floor_lamp_living": map[string]any{"aliases": []any{nil, "Leselampe"}}, "switch.office_fan": nil}
+		}
+		return base(r, endpoint, payload)
+	})
 
 	exit, env := runVerbForTest(t, func() int { return runFindCommand(paths, []string{"Leselampe"}) })
 	var result findResult
@@ -180,8 +193,15 @@ func TestFindReadsAliasesOnlyAfterCompactMiss(t *testing.T) {
 		t.Fatalf("exit %d, result %+v", exit, result)
 	}
 	got := strings.Join(log.wsTypes(), ",")
-	if !strings.HasSuffix(got, "config/entity_registry/list_for_display,config/entity_registry/list") {
-		t.Fatalf("ws order = %s, want compact before full", got)
+	if !strings.HasSuffix(got, "config/entity_registry/list_for_display,config/entity_registry/list,config/entity_registry/get_entries") {
+		t.Fatalf("ws order = %s, want compact, then full, then aliases", got)
+	}
+	if fmt.Sprint(requested) != "[light.floor_lamp_living switch.office_fan]" {
+		t.Fatalf("get_entries asked for %v", requested)
+	}
+	_, env = runVerbForTest(t, func() int { return runFindCommand(paths, []string{"Leselampe", "--domain", "light"}) })
+	if _ = json.Unmarshal(env.Result, &result); result.Total != 1 || fmt.Sprint(requested) != "[light.floor_lamp_living]" {
+		t.Fatalf("domain-scoped alias read: result %+v, asked for %v", result, requested)
 	}
 }
 

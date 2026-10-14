@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"sort"
 	"strconv"
 	"strings"
@@ -56,17 +55,27 @@ var walkSkipKeys = map[string]bool{
 	"conditions": true, "if": true, "while": true, "until": true, "triggers": true, "wait_for_trigger": true,
 	"variables": true, "data": true, "data_template": true, "target": true, "entity_id": true, "device_id": true,
 	"area_id": true, "event_data": true, "event_data_template": true, "response_variable": true, "metadata": true,
+	"for_each": true,
 }
 
-// storedCall classifies one stored service step against its literal targets.
+// storedCall classifies one stored service step against its literal
+// targets. A payload or target Home Assistant renders at runtime is unknown.
 func (e *tierEngine) storedCall(name string, step map[string]any, via string, depth int) {
 	if isTemplated(name) || !entityIDPattern.MatchString(name) {
 		e.gap(reasonTemplatedAction, "", via, name)
 		return
 	}
+	data, dataKnown := stepData(step)
+	targets, targetsKnown := collectTargets(step)
+	if !dataKnown || !targetsKnown {
+		e.gap(reasonUnresolvedTarget, "", via, name)
+		return
+	}
+	if name == "scene.apply" {
+		e.sceneMembers(data["entities"], via, depth)
+		return
+	}
 	domain, service := splitID(name)
-	data, _ := step["data"].(map[string]any)
-	targets := collectTargets(step)
 	if len(targets["floor_id"])+len(targets["label_id"]) > 0 {
 		e.gap(reasonStoredSelector, "", via, name)
 	}
@@ -81,48 +90,82 @@ func (e *tierEngine) storedCall(name string, step map[string]any, via string, de
 		ids, name = append(ids, name), "script.turn_on"
 	}
 	if len(ids) == 0 {
-		level, code := classifyAction(name, data, nil)
+		level, code := classifyTargetless(name, data)
 		e.raise(level, tierReason{Code: code, Via: via})
 		e.members = append(e.members, tierMember{Action: name, Via: via, Class: level.String()})
 		return
 	}
+	e.prefetchStates(ids)
 	for _, id := range ids {
-		if id == "all" || id == "none" || isTemplated(id) || !entityIDPattern.MatchString(id) {
-			e.gap(reasonUnresolvedTarget, "", via, name+" → "+id)
-			continue
-		}
 		e.visit(id, name, data, depth, via)
 	}
 }
 
-// collectTargets gathers target keys from target, data, and the step root;
-// a comma-separated string is a list, as Home Assistant reads it.
-func collectTargets(step map[string]any) map[string][]string {
+// stepData merges data_template over data, as Home Assistant does; a
+// payload that is itself a template string cannot be known.
+func stepData(step map[string]any) (map[string]any, bool) {
+	merged := map[string]any{}
+	for _, key := range []string{"data", "data_template"} {
+		switch v := step[key].(type) {
+		case nil:
+		case map[string]any:
+			for k, x := range v {
+				merged[k] = x
+			}
+		default:
+			return nil, false
+		}
+	}
+	return merged, true
+}
+
+// collectTargets gathers literal targets from target, data, and the step
+// root; a comma-separated string is a list, as Home Assistant reads it. Any
+// templated, non-literal, or "all"/"none" value makes the step unresolved.
+func collectTargets(step map[string]any) (map[string][]string, bool) {
 	out := map[string][]string{}
 	sources := []map[string]any{step}
-	for _, key := range []string{"target", "data", "data_template"} {
+	switch target := step["target"].(type) {
+	case nil:
+	case map[string]any:
+		sources = append(sources, target)
+	default:
+		return nil, false // a whole-target template
+	}
+	for _, key := range []string{"data", "data_template"} {
 		if m, isMap := step[key].(map[string]any); isMap {
 			sources = append(sources, m)
 		}
 	}
 	for _, source := range sources {
 		for _, key := range []string{"entity_id", "area_id", "device_id", "floor_id", "label_id"} {
+			var values []string
 			switch v := source[key].(type) {
+			case nil:
+				continue
 			case string:
-				for _, part := range strings.Split(v, ",") {
-					out[key] = append(out[key], strings.TrimSpace(part))
-				}
+				values = strings.Split(v, ",")
 			case []any:
 				for _, item := range v {
-					out[key] = append(out[key], fmt.Sprint(item))
+					text, isString := item.(string)
+					if !isString {
+						return nil, false
+					}
+					values = append(values, text)
 				}
-			case nil:
 			default:
-				out[key] = append(out[key], fmt.Sprint(v))
+				return nil, false
+			}
+			for _, value := range values {
+				value = strings.TrimSpace(value)
+				if value == "" || isTemplated(value) || (key == "entity_id" && !entityIDPattern.MatchString(value)) {
+					return nil, false // includes all/none: not a literal entity_id
+				}
+				out[key] = append(out[key], value)
 			}
 		}
 	}
-	return out
+	return out, true
 }
 
 func sortedKeys(m map[string]any) []string {
@@ -132,4 +175,88 @@ func sortedKeys(m map[string]any) []string {
 	}
 	sort.Strings(keys)
 	return keys
+}
+
+// integrationScene: an unread scene is bounded by its platform only if that
+// platform provides no lock, alarm panel, or access cover. Cover classes come
+// from the live state (the registry list has none).
+func (e *tierEngine) integrationScene(id, pl string) {
+	rows, err := e.fullRegistry()
+	if err != nil {
+		e.readFailed(id, "", "registry")
+		return
+	}
+	var owned []fullRegistryRow
+	var covers []string
+	for _, row := range rows {
+		if row.Platform == pl {
+			owned = append(owned, row)
+			if strings.HasPrefix(row.EntityID, "cover.") {
+				covers = append(covers, row.EntityID)
+			}
+		}
+	}
+	e.prefetchStates(covers)
+	for _, row := range owned {
+		dc := ""
+		if strings.HasPrefix(row.EntityID, "cover.") {
+			st, err := e.state(row.EntityID)
+			if err != nil {
+				e.readFailed(row.EntityID, id, "state")
+				return
+			}
+			dc = st.str("device_class") // absent state or class: fails closed
+		}
+		if accessCapable(row.EntityID, dc) {
+			e.gap(reasonSceneAccess, id, "", pl+" provides "+row.EntityID)
+			return
+		}
+	}
+	e.complete = false
+	e.raise(tierPreview, tierReason{Code: reasonSceneUnread, EntityID: id, Detail: pl})
+}
+
+// sceneMembers classifies a scene's target states (stored or scene.apply).
+func (e *tierEngine) sceneMembers(entities any, via string, depth int) {
+	if entities == nil {
+		return
+	}
+	members, isMap := entities.(map[string]any)
+	if !isMap {
+		e.gap(reasonUnresolvedTarget, "", via, "scene entities")
+		return
+	}
+	ids := sortedKeys(members)
+	e.prefetchStates(ids)
+	for _, id := range ids {
+		e.sceneMember(id, members[id], via, depth)
+	}
+}
+
+// sceneMember maps a stored target state to its service; a group member
+// reproduces that state on each leaf, mapped per leaf domain.
+func (e *tierEngine) sceneMember(id string, value any, via string, depth int) {
+	if !entityIDPattern.MatchString(id) {
+		e.gap(reasonUnresolvedTarget, "", via, id)
+		return
+	}
+	st, err := e.state(id)
+	if err != nil {
+		e.readFailed(id, via, "state")
+		return
+	}
+	domain, _ := splitID(id)
+	if leaves := groupMembers(domain, st); leaves != nil {
+		if e.visited["scene-group "+id] || e.cut(depth+1, id, via) {
+			return
+		}
+		e.visited["scene-group "+id] = true
+		e.prefetchStates(leaves)
+		for _, leaf := range leaves {
+			e.sceneMember(leaf, value, id, depth+1)
+		}
+		return
+	}
+	service, data := sceneMemberService(id, value)
+	e.visit(id, service, data, depth, via)
 }

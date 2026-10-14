@@ -31,8 +31,11 @@ var readOnlyWSTypes = map[string]bool{
 	// Tier engine (PR2): config_entries/get lists entries (consumer-manager
 	// presence); blueprint/substitute renders a blueprint with inputs and
 	// returns it without storing anything.
-	"config_entries/get":   true,
-	"blueprint/substitute": true,
+	"config_entries/get": true,
+	// find alias fallback: get_entries returns extended rows incl. aliases
+	// (the list endpoints carry none).
+	"config/entity_registry/get_entries": true,
+	"blueprint/substitute":               true,
 }
 
 // relaySession resolves config and transport once per invocation and

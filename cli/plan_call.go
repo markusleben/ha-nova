@@ -6,7 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"sort"
+	"slices"
 	"strings"
 )
 
@@ -57,6 +57,14 @@ func runPlanCall(paths runtimePaths, args []string) int {
 	if err != nil {
 		return verbUsageError("plan", err)
 	}
+	if refusal := staticRefusal(req); refusal != nil { // needs no Relay at all
+		env := verbEnvelope{SchemaVersion: 1, Verb: "plan"}
+		exit := setVerbError(&env, refuse(&env, *refusal))
+		if !printVerbEnvelope(env) {
+			return verbExitError
+		}
+		return exit
+	}
 	return runReadVerb(paths, "plan", opts, func(s *relaySession, env *verbEnvelope) error {
 		return planCall(paths, s, env, req)
 	})
@@ -81,8 +89,11 @@ func (req *planCallRequest) parse(positional, sets []string, dataFile string) er
 		if err == nil {
 			err = json.Unmarshal(raw, &req.Data)
 		}
-		if err != nil || req.Data == nil {
+		if err != nil {
 			return fmt.Errorf("--data-file must hold one JSON object: %v", err)
+		}
+		if req.Data == nil {
+			return errors.New("--data-file must hold one JSON object, not null")
 		}
 	}
 	for _, set := range sets {
@@ -105,13 +116,8 @@ func (req *planCallRequest) parse(positional, sets []string, dataFile string) er
 }
 
 func planCall(paths runtimePaths, s *relaySession, env *verbEnvelope, req planCallRequest) error {
-	if refusal := staticRefusal(req); refusal != nil {
-		return refuse(env, *refusal)
-	}
 	e := newTierEngine(s)
-	if err := e.loadRegistry(); err != nil {
-		return err
-	}
+	e.loadRegistry()
 	targets, err := e.resolveTargets(req)
 	if err != nil {
 		return err
@@ -127,14 +133,17 @@ func planCall(paths runtimePaths, s *relaySession, env *verbEnvelope, req planCa
 // in the payload never reach a plan (spec §4, refused row).
 func staticRefusal(req planCallRequest) *tierReason {
 	domain, name := splitID(req.Service)
+	_, floor := req.Data["floor_id"]
+	_, label := req.Data["label_id"]
+	_, code := req.Data["code"]
 	switch {
 	case ownerSkill(req.Service) != "":
 		return &tierReason{Code: reasonOwnedService, Skill: ownerSkill(req.Service)}
 	case domain == "hassio":
 		return &tierReason{Code: reasonHassio, Skill: hassioOwner(name)}
-	case req.Data["floor_id"] != nil || req.Data["label_id"] != nil:
+	case floor || label:
 		return &tierReason{Code: reasonSelector, Detail: "floor_id and label_id are unsupported; name entities, an area, or a device"}
-	case req.Data["code"] != nil:
+	case code:
 		return &tierReason{Code: reasonCodeRequired, Detail: "a code never goes into a payload; finish this in the Home Assistant UI"}
 	}
 	return nil
@@ -151,7 +160,9 @@ func refuse(env *verbEnvelope, r tierReason) error {
 }
 
 // resolveTargets turns ids, --match, --area, and --device into the frozen
-// leaf list (I6); groups expand to their leaves (membership_source: attributes).
+// leaf list (I6); groups expand to their leaves (membership_source:
+// attributes). Only an ambiguous or missing NAMED target exits 5; a failed
+// read is a typed gap, never an operational error.
 func (e *tierEngine) resolveTargets(req planCallRequest) ([]verbTarget, error) {
 	domain, _ := splitID(req.Service)
 	var targets []verbTarget
@@ -160,23 +171,24 @@ func (e *tierEngine) resolveTargets(req planCallRequest) ([]verbTarget, error) {
 	}
 	if req.Match != "" {
 		filter := domain
-		if domain == "homeassistant" {
+		if domain == "homeassistant" || !coreDomains[domain] {
 			filter = ""
 		}
 		found, err := findEntities(e.s, findQuery{phrase: req.Match, domain: filter, limit: 10})
-		if err != nil {
-			return nil, err
-		}
-		if found.Total != 1 {
+		switch {
+		case err != nil:
+			e.readFailed("", "", "match")
+		case found.Total == 1:
+			match := found.Matches[0]
+			match.By = "match"
+			targets = append(targets, match)
+		default:
 			code, message := "AMBIGUOUS_TARGET", fmt.Sprintf("%q matches %d entities", req.Match, found.Total)
 			if found.Total == 0 {
 				code, message = "NOT_FOUND", fmt.Sprintf("no %s entity matches %q", domain, req.Match)
 			}
 			return nil, &verbFailure{exit: verbExitNotFound, code: code, message: message, candidates: found.Matches, next: "Name one entity_id, or a more specific --match."}
 		}
-		match := found.Matches[0]
-		match.By = "match"
-		targets = append(targets, match)
 	}
 	expand := func(by, selector string, ids []string) error {
 		if len(ids) == 0 {
@@ -188,13 +200,9 @@ func (e *tierEngine) resolveTargets(req planCallRequest) ([]verbTarget, error) {
 		return nil
 	}
 	if req.Area != "" {
-		related, err := e.related("area", req.Area)
-		if err != nil {
-			return nil, err
-		}
-		ids := filterDomain(related["entity"], domain)
-		sort.Strings(ids)
-		if err := expand("area", req.Area, ids); err != nil {
+		if related, err := e.related("area", req.Area); err != nil {
+			e.readFailed("", "", "related area")
+		} else if err := expand("area", req.Area, filterDomain(related["entity"], domain)); err != nil {
 			return nil, err
 		}
 	}
@@ -203,6 +211,11 @@ func (e *tierEngine) resolveTargets(req planCallRequest) ([]verbTarget, error) {
 			return nil, err
 		}
 	}
+	ids := make([]string, len(targets))
+	for i, t := range targets {
+		ids[i] = t.EntityID
+	}
+	e.prefetchStates(ids)
 	out := []verbTarget{}
 	seen := map[string]bool{}
 	for _, t := range targets {
@@ -218,26 +231,36 @@ func (e *tierEngine) flatten(t verbTarget, depth int, out *[]verbTarget, seen ma
 		return nil
 	}
 	seen[t.EntityID] = true
+	named := t.By == "exact" || t.By == "match"
 	st, err := e.state(t.EntityID)
-	if err != nil {
-		return err
-	}
-	if st == nil && depth == 0 {
+	switch {
+	case err != nil:
+		e.readFailed(t.EntityID, "", "state") // kept: the user named or previewed it
+	case st == nil && named:
 		_, _, err := readEntityState(e.s, t.EntityID) // memoized 404 → NOT_FOUND with candidates
 		return err
+	case st == nil: // disabled or not loaded: nothing to act on, nothing to freeze
+		if !slices.Contains(e.notes, noteSkippedTargets) {
+			e.notes = append(e.notes, noteSkippedTargets)
+		}
+		return nil
 	}
 	domain, _ := splitID(t.EntityID)
 	if members := groupMembers(domain, st); members != nil {
-		if depth >= tierMaxDepth {
-			e.gap(reasonLimitCut, t.EntityID, "", "group nesting deeper than the depth budget")
-			*out = append(*out, t)
+		if depth+1 > tierMaxDepth {
+			e.gap(reasonLimitCut, t.EntityID, "", fmt.Sprintf("deeper than %d", tierMaxDepth))
+		} else {
+			e.prefetchStates(members)
+			for _, member := range members {
+				if err := e.flatten(verbTarget{EntityID: member, By: "group"}, depth+1, out, seen); err != nil {
+					return err
+				}
+			}
 			return nil
 		}
-		for _, member := range members {
-			if err := e.flatten(verbTarget{EntityID: member, By: "group"}, depth+1, out, seen); err != nil {
-				return err
-			}
-		}
+	}
+	if len(*out) >= tierMaxActed {
+		e.gap(reasonLimitCut, "", "", fmt.Sprintf("more than %d acted entities", tierMaxActed))
 		return nil
 	}
 	t.Name = st.str("friendly_name")
@@ -252,16 +275,22 @@ func (e *tierEngine) evaluate(req planCallRequest, targets []verbTarget) *tierRe
 	if len(req.EntityIDs) > tierMaxExplicit {
 		e.raise(tierPreview, tierReason{Code: reasonBatch, Detail: fmt.Sprintf("%d ids", len(req.EntityIDs))})
 	}
+	named := len(req.EntityIDs) > 0 || req.Match != "" || req.Area != "" || req.Device != ""
+	if named && len(targets) == 0 {
+		e.gap(reasonUnresolvedTarget, "", "", "no target resolved") // never a targetless call in disguise
+	}
+	var reads []func()
 	for _, t := range targets {
 		if t.By != "exact" && t.By != "match" {
 			e.raise(tierPreview, tierReason{Code: reasonExpanded, EntityID: t.EntityID, Via: t.By})
 		}
-		st := e.states[t.EntityID]
 		entityDomain, _ := splitID(t.EntityID)
-		if code := directRefusal(effectiveService(req.Service, entityDomain), st); code != "" {
+		if code := directRefusal(effectiveService(req.Service, entityDomain), e.states[t.EntityID]); code != "" {
 			return &tierReason{Code: code, EntityID: t.EntityID}
 		}
+		reads = append(reads, func() { _, _ = e.s.ws(e.relatedRequest("entity", t.EntityID)) })
 	}
+	prefetch(reads) // the consumer scan of every frozen target, warmed in parallel
 	if e.liveEvents()["call_service"] > callServiceListenerBaseline {
 		e.checkEvents("call_service", "")
 	}
@@ -272,7 +301,7 @@ func (e *tierEngine) evaluate(req planCallRequest, targets []verbTarget) *tierRe
 	case domain == "script" && !scriptEntityServices[name]:
 		e.visit(req.Service, "script.turn_on", req.Data, 0, "")
 	case len(targets) == 0:
-		level, code := classifyAction(req.Service, req.Data, nil)
+		level, code := classifyTargetless(req.Service, req.Data)
 		e.raise(level, tierReason{Code: code})
 	}
 	for _, t := range targets {

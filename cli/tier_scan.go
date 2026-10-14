@@ -2,23 +2,21 @@ package main
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"sort"
 	"strings"
-	"sync"
 )
 
 // Consumer scan (typed-verbs spec §2.2 step 5): relation consumers, event
 // listeners, consumer managers. A failed or cut scan is typed, never clean.
 
+// fullRegistryRow: config/entity_registry/list carries no device_class and
+// no aliases; device classes always come from state attributes.
 type fullRegistryRow struct {
-	EntityID            string `json:"entity_id"`
-	Platform            string `json:"platform"`
-	UniqueID            string `json:"unique_id"`
-	DeviceClass         string `json:"device_class"`
-	OriginalDeviceClass string `json:"original_device_class"`
+	EntityID string `json:"entity_id"`
+	Platform string `json:"platform"`
+	UniqueID string `json:"unique_id"`
 }
 
 func (e *tierEngine) fullRegistry() ([]fullRegistryRow, error) {
@@ -31,17 +29,26 @@ func (e *tierEngine) fullRegistry() ([]fullRegistryRow, error) {
 	return e.full, nil
 }
 
+// related reads search/related; every list comes back sorted (HA builds
+// them from sets).
 func (e *tierEngine) related(itemType, itemID string) (map[string][]string, error) {
 	var out map[string][]string
-	err := e.s.wsDecode(map[string]any{"type": "search/related", "item_type": itemType, "item_id": itemID}, &out, "search/related for "+itemID)
+	err := e.s.wsDecode(e.relatedRequest(itemType, itemID), &out, "search/related for "+itemID)
+	for _, list := range out {
+		sort.Strings(list)
+	}
 	return out, err
+}
+
+func (e *tierEngine) relatedRequest(itemType, itemID string) map[string]any {
+	return map[string]any{"type": "search/related", "item_type": itemType, "item_id": itemID}
 }
 
 // areaEntities expands a stored area_id for classification only.
 func (e *tierEngine) areaEntities(area, domain, via string) []string {
 	related, err := e.related("area", area)
 	if err != nil {
-		e.gap(reasonScanFailed, "", via, err.Error())
+		e.readFailed("", via, "related area")
 		return nil
 	}
 	return filterDomain(related["entity"], domain)
@@ -60,10 +67,12 @@ func (e *tierEngine) deviceEntities(device, domain string) []string {
 	return filterDomain(ids, domain)
 }
 
+// filterDomain keeps the service domain's entities; a generic or an
+// integration service may act on any of them, so it keeps all.
 func filterDomain(ids []string, domain string) []string {
 	out := []string{}
 	for _, id := range ids {
-		if domain == "homeassistant" || strings.HasPrefix(id, domain+".") {
+		if domain == "homeassistant" || !coreDomains[domain] || strings.HasPrefix(id, domain+".") {
 			out = append(out, id)
 		}
 	}
@@ -89,33 +98,88 @@ func (e *tierEngine) scanConsumers(id string, depth int) {
 		needles = append(needles, device)
 		items = append(items, [2]string{"device", device})
 	}
+	var reads []func()
+	for _, item := range items {
+		reads = append(reads, func() { _, _ = e.s.ws(e.relatedRequest(item[0], item[1])) })
+	}
+	prefetch(reads)
+	seen := map[string]bool{}
 	var automations []string
 	for _, item := range items {
 		related, err := e.related(item[0], item[1])
 		if err != nil {
-			e.gap(reasonScanFailed, id, "", err.Error())
+			e.readFailed(id, "", "related")
 			return
 		}
-		automations = append(automations, related["automation"]...)
+		for _, automation := range related["automation"] {
+			if !seen[automation] {
+				seen[automation] = true
+				automations = append(automations, automation)
+			}
+		}
 	}
 	sort.Strings(automations)
+	e.prefetchStates(automations)
+	var configReads []func()
 	for _, automation := range automations {
-		e.consumer(automation, "trigger", depth, func(cfg map[string]any) bool {
-			triggers, _ := json.Marshal(firstPresent(cfg, "triggers", "trigger"))
-			for _, needle := range needles {
-				if strings.Contains(string(triggers), needle) {
-					return true
-				}
-			}
-			return false
-		})
+		if st, err := e.state(automation); err == nil && st.str("id") != "" && len(configReads) < tierMaxConsumers-e.reads {
+			configID := st.str("id")
+			configReads = append(configReads, func() { _, _ = readStoredConfig(e.s, "automation", configID) })
+		}
 	}
+	prefetch(configReads)
+	for _, automation := range automations {
+		e.consumer(automation, "trigger", depth, func(cfg map[string]any) bool { return triggersReference(cfg, needles) })
+	}
+}
+
+// triggersReference: a trigger naming the entity or its device, or one
+// targeted by a selector this scan does not resolve (area, floor, label,
+// device, or a templated target) — counted as a match, never dropped.
+func triggersReference(cfg map[string]any, needles []string) bool {
+	for _, trigger := range flattenTriggers(firstPresent(cfg, "triggers", "trigger")) {
+		if target, present := trigger["target"]; present {
+			if m, isMap := target.(map[string]any); !isMap || m["area_id"] != nil || m["floor_id"] != nil || m["label_id"] != nil || m["device_id"] != nil {
+				return true
+			}
+		}
+		raw, _ := json.Marshal(trigger)
+		for _, needle := range needles {
+			if strings.Contains(string(raw), needle) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// flattenTriggers returns the enabled trigger maps, descending into nested
+// {triggers: [...]} lists.
+func flattenTriggers(node any) []map[string]any {
+	var out []map[string]any
+	switch n := node.(type) {
+	case []any:
+		for _, child := range n {
+			out = append(out, flattenTriggers(child)...)
+		}
+	case map[string]any:
+		if n["enabled"] == false {
+			return nil
+		}
+		if nested, present := n["triggers"]; present {
+			return flattenTriggers(nested)
+		}
+		out = append(out, n)
+	}
+	return out
 }
 
 // consumer classifies one automation's actions as a consumer of the run;
 // its class is the maximum it reaches (Q1: fully read + ordinary stays ordinary).
 func (e *tierEngine) consumer(automation, match string, depth int, matches func(map[string]any) bool) {
-	if e.visited["consumer "+automation] {
+	key := "consumer " + automation
+	if e.visited[key] {
+		e.lift(e.done[key])
 		return
 	}
 	if _, cached := e.configs[automation]; !cached {
@@ -128,11 +192,12 @@ func (e *tierEngine) consumer(automation, match string, depth int, matches func(
 	if !ok || (matches != nil && !matches(cfg)) {
 		return
 	}
-	e.visited["consumer "+automation] = true
+	e.visited[key] = true
 	class := tierOrdinary
 	e.scopes = append(e.scopes, &class)
 	e.walk(automationActions(cfg), automation+"/actions", depth+1)
 	e.scopes = e.scopes[:len(e.scopes)-1]
+	e.done[key] = class
 	e.consumers = append(e.consumers, tierConsumer{Automation: automation, Match: match, Class: class.String()})
 }
 
@@ -163,173 +228,13 @@ func (e *tierEngine) liveEvents() map[string]int {
 		err = json.Unmarshal(body, &rows)
 	}
 	if err != nil {
-		e.gap(reasonScanFailed, "", "", "event listeners: "+err.Error())
+		e.readFailed("", "", "event listeners")
 		return e.events
 	}
 	for _, row := range rows {
 		e.events[row.Event] = row.ListenerCount
 	}
 	return e.events
-}
-
-type listenerHit struct{ automation, entityFilter string }
-
-type listenerTable struct {
-	counts map[string]int
-	hits   map[string][]listenerHit
-}
-
-// checkEvents compares enumerated automation listeners with the live count
-// for one event type (or every type under a "timer." prefix). Listeners
-// that cannot be enumerated make the run typed (indirect-actuation.md).
-func (e *tierEngine) checkEvents(eventType, entityID string) {
-	live := e.liveEvents()
-	matchesType := func(t string) bool {
-		return t == eventType || (strings.HasSuffix(eventType, ".") && strings.HasPrefix(t, eventType))
-	}
-	surplus := false
-	for t, n := range live {
-		if matchesType(t) && n > baselineFor(t) {
-			surplus = true
-		}
-	}
-	if !surplus {
-		return
-	}
-	table := e.listenerTable()
-	if table == nil {
-		return
-	}
-	types := map[string]bool{}
-	for t := range live {
-		types[t] = matchesType(t)
-	}
-	for t := range table.counts {
-		types[t] = types[t] || matchesType(t)
-	}
-	for _, t := range sortedBoolKeys(types) {
-		if table.counts[t]+baselineFor(t) != live[t] {
-			e.gap(reasonListener, entityID, "", fmt.Sprintf("%s: %d live, %d enumerated", t, live[t], table.counts[t]))
-		}
-		for _, hit := range table.hits[t] {
-			if entityID == "" || hit.entityFilter == "" || hit.entityFilter == entityID {
-				e.consumer(hit.automation, "event:"+t, 1, nil)
-			}
-		}
-	}
-}
-
-func baselineFor(eventType string) int {
-	if eventType == "call_service" {
-		return callServiceListenerBaseline
-	}
-	return 0
-}
-
-func sortedBoolKeys(m map[string]bool) []string {
-	var keys []string
-	for k, v := range m {
-		if v {
-			keys = append(keys, k)
-		}
-	}
-	sort.Strings(keys)
-	return keys
-}
-
-// listenerTable reads every automation config once (≤ 2,000, concurrently
-// within the session's request slots) and counts the event-trigger
-// listeners of the automations that are on.
-func (e *tierEngine) listenerTable() *listenerTable {
-	if e.listeners != nil {
-		return e.listeners
-	}
-	status, body, err := e.s.coreGET("/api/states")
-	var states []struct {
-		EntityID   string `json:"entity_id"`
-		State      string `json:"state"`
-		Attributes struct {
-			ID string `json:"id"`
-		} `json:"attributes"`
-	}
-	if err == nil && status != http.StatusOK {
-		err = fmt.Errorf("Home Assistant answered HTTP %d for /api/states", status)
-	}
-	if err == nil {
-		err = json.Unmarshal(body, &states)
-	}
-	if err != nil {
-		e.gap(reasonScanFailed, "", "", "automation scan: "+err.Error())
-		return nil
-	}
-	type autoRow struct {
-		entityID, configID string
-		raw                json.RawMessage
-		err                error
-	}
-	var rows []*autoRow
-	for _, st := range states {
-		if strings.HasPrefix(st.EntityID, "automation.") && st.State == "on" && st.Attributes.ID != "" {
-			rows = append(rows, &autoRow{entityID: st.EntityID, configID: st.Attributes.ID})
-		}
-	}
-	if len(rows) > tierMaxAutomations {
-		e.gap(reasonLimitCut, "", "", fmt.Sprintf("more than %d automations", tierMaxAutomations))
-		return nil
-	}
-	var wg sync.WaitGroup
-	for _, row := range rows {
-		wg.Add(1)
-		go func(row *autoRow) {
-			defer wg.Done()
-			row.raw, row.err = readStoredConfig(e.s, "automation", row.configID)
-		}(row)
-	}
-	wg.Wait()
-	table := &listenerTable{counts: map[string]int{}, hits: map[string][]listenerHit{}}
-	for _, row := range rows {
-		var notFound *verbFailure
-		if errors.As(row.err, &notFound) {
-			continue // id but no stored config (packages YAML): the count check covers it
-		}
-		if row.err != nil {
-			e.gap(reasonScanFailed, row.entityID, "", row.err.Error())
-			return nil
-		}
-		cfg, cached := e.configs[row.entityID]
-		if !cached {
-			var ok bool
-			if cfg, ok = e.parseConfig(row.entityID, "automation", row.configID, row.raw, "listener scan"); !ok {
-				return nil
-			}
-		} else if cfg == nil {
-			return nil // already flagged by an earlier read of this automation
-		}
-		triggers, isList := firstPresent(cfg, "triggers", "trigger").([]any)
-		if !isList {
-			triggers = []any{firstPresent(cfg, "triggers", "trigger")}
-		}
-		for _, raw := range triggers {
-			trigger, _ := raw.(map[string]any)
-			if trigger == nil || trigger["enabled"] == false || firstPresent(trigger, "trigger", "platform") != "event" {
-				continue
-			}
-			filter, _ := trigger["event_data"].(map[string]any)
-			entityFilter, _ := filter["entity_id"].(string)
-			types, isList := trigger["event_type"].([]any)
-			if !isList {
-				types = []any{trigger["event_type"]}
-			}
-			for _, t := range types {
-				if name, isString := t.(string); isString && !isTemplated(name) {
-					table.counts[name]++
-					table.hits[name] = append(table.hits[name], listenerHit{automation: row.entityID, entityFilter: entityFilter})
-				}
-			}
-		}
-	}
-	e.listeners = table
-	return table
 }
 
 // checkManagers detects local consumer managers per run (Q2: present →
@@ -344,7 +249,7 @@ func (e *tierEngine) checkManagers() {
 		err = regErr
 	}
 	if err != nil {
-		e.gap(reasonScanFailed, "", "", "consumer managers: "+err.Error())
+		e.readFailed("", "", "consumer managers")
 		return
 	}
 	var present []string

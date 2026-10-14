@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -54,14 +55,16 @@ type storedPlan struct {
 	Tier          string          `json:"tier"`
 	Confirm       string          `json:"confirm"`
 	Code          string          `json:"code,omitempty"`
+	Nonce         string          `json:"nonce"`
 	Request       planCallRequest `json:"request"`
 	Action        planAction      `json:"action"`
 	Reasons       []tierReason    `json:"reasons"`
 	Basis         map[string]any  `json:"basis"`
 }
 
-// planHash covers the full operation identity: two plans for different
-// targets, services, or data never share a hash or an id.
+// planHash is the nonce-free drift hash over the full operation identity:
+// two plans for different targets, services, or data never share it, and
+// apply recomputes it to detect drift (spec §2.1).
 func planHash(kind, server string, action planAction, tier string, reasons []tierReason, basis map[string]any) string {
 	canonical, _ := json.Marshal(struct {
 		Kind    string         `json:"kind"`
@@ -80,23 +83,32 @@ func storeCallPlan(paths runtimePaths, e *tierEngine, env *verbEnvelope, req pla
 	for _, t := range targets {
 		frozen = append(frozen, t.EntityID)
 	}
-	sort.SliceStable(e.reasons, func(i, j int) bool {
-		a, b := e.reasons[i], e.reasons[j]
-		return a.Code+a.EntityID+a.Via+a.Detail < b.Code+b.EntityID+b.Via+b.Detail
-	})
+	key := func(r tierReason) string {
+		return strings.Join([]string{r.Code, r.EntityID, r.Via, r.Detail, r.Skill}, "|")
+	}
+	sort.SliceStable(e.reasons, func(i, j int) bool { return key(e.reasons[i]) < key(e.reasons[j]) })
 	action := planAction{Service: req.Service, EntityIDs: frozen, Data: req.Data}
 	tier := e.level.String()
 	basis := callPlanBasis(e, frozen, req.Data)
 	sum := planHash("call", env.Server, action, tier, e.reasons, basis)
+	// The per-plan nonce makes every id and code unique, so a re-plan never
+	// overwrites a plan or replays an earlier code; the drift hash stays
+	// nonce-free.
+	nonce := make([]byte, 16)
+	if _, err := rand.Read(nonce); err != nil {
+		return fmt.Errorf("cannot draw a plan nonce: %w", err)
+	}
+	idSum := sha256.Sum256([]byte(sum + hex.EncodeToString(nonce)))
+	idHex := hex.EncodeToString(idSum[:])
 	now := verbNow().UTC()
 	plan := storedPlan{
-		SchemaVersion: 1, ID: "p_" + sum[:12], Hash: "sha256:" + sum, Kind: "call", Server: env.Server,
+		SchemaVersion: 1, ID: "p_" + idHex[:12], Hash: "sha256:" + sum, Kind: "call", Server: env.Server, Nonce: hex.EncodeToString(nonce),
 		CreatedAt: now.Format(time.RFC3339), ExpiresAt: now.Add(planTTL).Format(time.RFC3339),
 		Tier: tier, Confirm: map[tierLevel]string{tierOrdinary: "none", tierPreview: "natural", tierTyped: "code"}[e.level],
 		Request: req, Action: action, Reasons: e.reasons, Basis: basis,
 	}
 	if e.level == tierTyped {
-		plan.Code = confirmCode(req.Service, frozen, sum)
+		plan.Code = confirmCode(req.Service, frozen, idHex)
 	}
 	if err := savePlan(paths, plan); err != nil {
 		return fmt.Errorf("cannot store the plan: %w", err)
@@ -130,7 +142,7 @@ func callPlanBasis(e *tierEngine, frozen []string, data map[string]any) map[stri
 			fields["state"] = st.State
 		}
 		for key := range data {
-			fields[key] = st.attr(strings.TrimSuffix(key, "_pct"))
+			fields[key] = st.attr(deltaAttribute(key))
 		}
 		before[id] = fields
 	}
@@ -146,11 +158,14 @@ func confirmCode(service string, frozen []string, sum string) string {
 	if len(object) > 24 {
 		object = object[:24]
 	}
+	if len(frozen) > 1 {
+		object += fmt.Sprintf("+%d", len(frozen)-1)
+	}
 	return "confirm:" + verb + "-" + object + "-" + sum[:6]
 }
 
 // savePlan writes CacheDir/plans/<id>.json (0600, atomic) after pruning
-// expired plans and keeping at most planMaxFiles.
+// expired files and keeping at most planMaxFiles plans.
 func savePlan(paths runtimePaths, plan storedPlan) error {
 	dir := filepath.Join(paths.CacheDir, "plans")
 	if err := os.MkdirAll(dir, 0o700); err != nil {
@@ -173,12 +188,15 @@ func prunePlans(dir string) {
 	var keep []planFile
 	for _, entry := range entries {
 		info, err := entry.Info()
-		if err != nil || !strings.HasSuffix(entry.Name(), ".json") || !info.Mode().IsRegular() {
+		if err != nil || !info.Mode().IsRegular() {
 			continue
 		}
 		path := filepath.Join(dir, entry.Name())
-		if verbNow().Sub(info.ModTime()) > planTTL {
+		if verbNow().Sub(info.ModTime()) > planTTL { // plans, stale temp files, abandoned claims
 			_ = os.Remove(path)
+			continue
+		}
+		if !strings.HasSuffix(entry.Name(), ".json") {
 			continue
 		}
 		keep = append(keep, planFile{path, info.ModTime()})
@@ -214,12 +232,14 @@ func planDeltas(service string, frozen []string, data map[string]any, states map
 			deltas = append(deltas, planDelta{EntityID: id, Field: "state", Before: st.State, After: after, Warning: warning})
 		}
 		for _, key := range sortedKeys(data) {
-			d := planDelta{EntityID: id, Field: key, Before: deltaValue(st.attr(key)), After: deltaValue(data[key])}
+			d := planDelta{EntityID: id, Field: key, Before: deltaValue(st.attr(deltaAttribute(key))), After: deltaValue(data[key])}
 			switch key {
 			case "brightness_pct":
-				d.Field, d.Before, d.After = "brightness", brightnessPct(st.attr("brightness")), d.After+"%"
+				d.Field, d.Before, d.After = "brightness", brightnessPct(st), d.After+"%"
 			case "brightness":
-				d.Before, d.After = brightnessPct(st.attr("brightness")), brightnessPct(data[key])
+				d.Before, d.After = brightnessPct(st), brightnessPct(&entityState{State: "on", Attributes: map[string]any{"brightness": data[key]}})
+			case "position", "tilt_position":
+				d.Before, d.After = withPercent(d.Before), withPercent(d.After)
 			}
 			deltas = append(deltas, d)
 		}
@@ -227,10 +247,37 @@ func planDeltas(service string, frozen []string, data map[string]any, states map
 	return deltas
 }
 
-// brightnessPct shows HA's 0–255 as %; a light that is off counts as 0%.
-func brightnessPct(v any) string {
-	n, _ := v.(float64)
-	return fmt.Sprintf("%d%%", int(math.Round(n/255*100)))
+// deltaAttribute names the state attribute a service field changes.
+func deltaAttribute(field string) string {
+	switch field {
+	case "brightness_pct":
+		return "brightness"
+	case "position":
+		return "current_position"
+	case "tilt_position":
+		return "current_tilt_position"
+	}
+	return field
+}
+
+// brightnessPct shows HA's 0–255 as %; a light that is off counts as 0%,
+// a missing value on a light that is on is "unknown".
+func brightnessPct(st *entityState) string {
+	n, isNumber := st.attr("brightness").(float64)
+	switch {
+	case isNumber:
+		return fmt.Sprintf("%d%%", int(math.Round(n/255*100)))
+	case st != nil && st.State == "off":
+		return "0%"
+	}
+	return "unknown"
+}
+
+func withPercent(v string) string {
+	if v == "" {
+		return "unknown"
+	}
+	return v + "%"
 }
 
 func deltaValue(v any) string {

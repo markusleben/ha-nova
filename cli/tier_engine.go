@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"sync"
 )
 
 // Deterministic tiering (typed-verbs spec §2.2, indirect-actuation.md).
@@ -72,6 +73,7 @@ type tierEngine struct {
 	notes     []string
 	complete  bool
 	visited   map[string]bool
+	done      map[string]tierLevel // finished visit/consumer → the class it reached
 	acted     []string
 	nodes     int
 	reads     int // consumer config reads
@@ -83,7 +85,7 @@ type tierEngine struct {
 
 func newTierEngine(s *relaySession) *tierEngine {
 	return &tierEngine{s: s, reg: map[string]registryEntry{}, states: map[string]*entityState{}, configs: map[string]map[string]any{},
-		basis: map[string]string{}, seen: map[string]bool{}, visited: map[string]bool{}, complete: true}
+		basis: map[string]string{}, seen: map[string]bool{}, visited: map[string]bool{}, done: map[string]tierLevel{}, complete: true}
 }
 
 // raise records a reason and lifts the run (and every open consumer scope).
@@ -103,18 +105,58 @@ func (e *tierEngine) raise(level tierLevel, r tierReason) {
 	}
 }
 
+// lift carries an already-classified subtree's class into the run and every
+// open scope, without repeating its reasons.
+func (e *tierEngine) lift(level tierLevel) { e.raise(level, tierReason{}) }
+
+// readFailed records a failed read as typed: LIMIT_CUT once the 30 s budget
+// is spent, SCAN_FAILED otherwise. Details are stable words, never error
+// text, so the plan hash stays deterministic.
+func (e *tierEngine) readFailed(entityID, via, what string) {
+	if e.s.ctx.Err() != nil {
+		e.gap(reasonLimitCut, "", "", "read budget")
+		return
+	}
+	e.gap(reasonScanFailed, entityID, via, what)
+}
+
+// prefetchStates warms the session memo with independent state reads; the
+// session caps them at 8 in flight, and the sequential pass then reads the
+// memo in a fixed order (results and errors alike), so output stays stable.
+func (e *tierEngine) prefetchStates(ids []string) {
+	var reads []func()
+	for _, id := range ids {
+		if _, known := e.states[id]; !known && entityIDPattern.MatchString(id) {
+			reads = append(reads, func() { _, _, _ = e.s.coreGET("/api/states/" + id) })
+		}
+	}
+	prefetch(reads)
+}
+
+func prefetch(reads []func()) {
+	var wg sync.WaitGroup
+	for _, read := range reads {
+		wg.Add(1)
+		go func() { defer wg.Done(); read() }()
+	}
+	wg.Wait()
+}
+
 // gap is an unresolved item: typed and coverage incomplete (I4).
 func (e *tierEngine) gap(code, entityID, via, detail string) {
 	e.complete = false
 	e.raise(tierTyped, tierReason{Code: code, EntityID: entityID, Via: via, Detail: detail})
 }
 
-func (e *tierEngine) loadRegistry() error {
+// loadRegistry reads the compact registry; on failure every entity reads
+// as unregistered (never ordinary) and the run is typed.
+func (e *tierEngine) loadRegistry() {
 	var compact struct {
 		Entities []struct{ EI, PL, DI string } `json:"entities"`
 	}
 	if err := e.s.wsDecode(map[string]any{"type": "config/entity_registry/list_for_display"}, &compact, "the compact entity registry"); err != nil {
-		return err
+		e.readFailed("", "", "registry")
+		return
 	}
 	for _, row := range compact.Entities {
 		e.reg[row.EI] = registryEntry{pl: row.PL, di: row.DI}
@@ -122,7 +164,6 @@ func (e *tierEngine) loadRegistry() error {
 			e.notes = append(e.notes, noteTemplates)
 		}
 	}
-	return nil
 }
 
 func (e *tierEngine) state(id string) (*entityState, error) {
@@ -164,25 +205,37 @@ func (e *tierEngine) cut(depth int, id, via string) bool {
 	return true
 }
 
-// visit classifies one acted entity under one service and follows whatever
-// that call forwards to. depth 0 is a direct (frozen) target.
+// visit classifies one acted entity under one service and data, then
+// follows whatever that call forwards to. depth 0 is a direct (frozen) target.
 func (e *tierEngine) visit(id, service string, data map[string]any, depth int, via string) {
-	key := id + " " + service
-	if e.visited[key] { // repeat or cycle: already classified or already flagged
+	payload, _ := json.Marshal(data)
+	key := id + " " + service + " " + string(payload)
+	if e.visited[key] { // repeat or cycle: classified (or flagged) already
+		if level, finished := e.done[key]; finished {
+			e.lift(level)
+		}
 		return
 	}
 	e.visited[key] = true
 	if e.cut(depth, id, via) {
 		return
 	}
+	class := tierOrdinary
+	e.scopes = append(e.scopes, &class)
+	e.classify(id, service, data, depth, via)
+	e.scopes = e.scopes[:len(e.scopes)-1]
+	e.done[key] = class
+}
+
+func (e *tierEngine) classify(id, service string, data map[string]any, depth int, via string) {
 	st, err := e.state(id)
 	if err != nil {
-		e.gap(reasonScanFailed, id, via, err.Error())
+		e.readFailed(id, via, "state")
 		return
 	}
 	domain, _ := splitID(id)
 	eff := effectiveService(service, domain)
-	level, code := classifyAction(eff, data, st)
+	level, code := classifyOnEntity(id, eff, data, st)
 	e.raise(level, tierReason{Code: code, EntityID: id, Via: via})
 	entry, registered := e.reg[id]
 	switch pl := entry.pl; {
@@ -199,6 +252,9 @@ func (e *tierEngine) visit(id, service string, data map[string]any, depth int, v
 	case pl == "template":
 		level = tierTyped
 		e.gap(reasonTemplateAction, id, via, "")
+	case pl == "command_line": // its command lives in configuration.yaml
+		level = tierTyped
+		e.gap(reasonUnreadCommand, id, via, pl)
 	case eff == "button.press" && (pl == "esphome" || pl == "mqtt"):
 		level = tierTyped
 		e.gap(reasonUserButton, id, via, pl)
@@ -206,11 +262,12 @@ func (e *tierEngine) visit(id, service string, data map[string]any, depth int, v
 	if depth > 0 {
 		e.members = append(e.members, tierMember{EntityID: id, Action: eff, Via: via, Class: level.String()})
 	}
-	switch {
+	switch leaves := groupMembers(domain, st); {
 	case isRun(domain, service):
 		e.expandRun(id, domain, depth)
-	case groupMembers(domain, st) != nil:
-		for _, leaf := range groupMembers(domain, st) {
+	case leaves != nil:
+		e.prefetchStates(leaves)
+		for _, leaf := range leaves {
 			e.visit(leaf, service, data, depth+1, id)
 		}
 	}
@@ -273,11 +330,8 @@ func (e *tierEngine) runConfig(id, domain, via string) (map[string]any, bool) {
 	}
 	e.configs[id] = nil
 	st, err := e.state(id)
-	if err == nil && st == nil {
-		err = errors.New("entity not found")
-	}
-	if err != nil {
-		e.gap(reasonScanFailed, id, via, err.Error())
+	if err != nil || st == nil {
+		e.readFailed(id, via, "state")
 		return nil, false
 	}
 	var notFound *verbFailure
@@ -298,7 +352,7 @@ func (e *tierEngine) runConfig(id, domain, via string) (map[string]any, bool) {
 		e.gap(reasonUnreadConfig, id, via, configID)
 		return nil, false
 	default:
-		e.gap(reasonScanFailed, id, via, err.Error())
+		e.readFailed(id, via, "config")
 		return nil, false
 	}
 	return e.parseConfig(id, domain, configID, raw, via)
@@ -313,10 +367,14 @@ func (e *tierEngine) parseConfig(id, domain, configID string, raw json.RawMessag
 		return nil, false
 	}
 	if bp, isBlueprint := cfg["use_blueprint"].(map[string]any); isBlueprint {
+		input := bp["input"]
+		if input == nil {
+			input = map[string]any{}
+		}
 		var sub struct {
 			Config map[string]any `json:"substituted_config"`
 		}
-		err := e.s.wsDecode(map[string]any{"type": "blueprint/substitute", "domain": domain, "path": bp["path"], "input": bp["input"]}, &sub, "the blueprint substitution")
+		err := e.s.wsDecode(map[string]any{"type": "blueprint/substitute", "domain": domain, "path": bp["path"], "input": input}, &sub, "the blueprint substitution")
 		if err != nil || sub.Config == nil {
 			e.gap(reasonBlueprint, id, via, fmt.Sprint(bp["path"]))
 			return nil, false
@@ -328,32 +386,4 @@ func (e *tierEngine) parseConfig(id, domain, configID string, raw json.RawMessag
 	e.basis[domain+":"+configID] = hex.EncodeToString(sum[:])
 	e.configs[id] = cfg
 	return cfg, true
-}
-
-func (e *tierEngine) integrationScene(id, pl string) {
-	rows, err := e.fullRegistry()
-	if err != nil {
-		e.gap(reasonScanFailed, id, "", err.Error())
-		return
-	}
-	for _, row := range rows {
-		dc := row.DeviceClass
-		if dc == "" {
-			dc = row.OriginalDeviceClass
-		}
-		if row.Platform == pl && accessCapable(row.EntityID, dc) {
-			e.gap(reasonSceneAccess, id, "", pl+" provides "+row.EntityID)
-			return
-		}
-	}
-	e.complete = false
-	e.raise(tierPreview, tierReason{Code: reasonSceneUnread, EntityID: id, Detail: pl})
-}
-
-func (e *tierEngine) sceneMembers(entities any, via string, depth int) {
-	members, _ := entities.(map[string]any)
-	for _, id := range sortedKeys(members) {
-		service, data := sceneMemberService(id, members[id])
-		e.visit(id, service, data, depth, via)
-	}
 }

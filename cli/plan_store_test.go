@@ -21,20 +21,28 @@ func TestPlanHashCoversOperationIdentity(t *testing.T) {
 		return *env.Plan
 	}
 	base := plan("light.turn_on", "light.kitchen")
-	if again := plan("light.turn_on", "light.kitchen"); again.ID != base.ID || again.Hash != base.Hash {
-		t.Fatalf("same request, different plan: %+v vs %+v", base, again)
+	// Same request: same nonce-free drift hash, but a fresh id (per-plan
+	// nonce), so a re-plan never overwrites a plan or replays its code.
+	again := plan("light.turn_on", "light.kitchen")
+	if again.Hash != base.Hash || again.ID == base.ID {
+		t.Fatalf("re-plan: %+v vs %+v", base, again)
 	}
-	seen := map[string]string{base.ID: "base"}
+	for _, id := range []string{base.ID, again.ID} {
+		if _, err := os.Stat(filepath.Join(paths.CacheDir, "plans", id+".json")); err != nil {
+			t.Fatalf("plan %s overwritten or missing: %v", id, err)
+		}
+	}
+	seen := map[string]string{base.Hash: "base"}
 	for name, args := range map[string][]string{
 		"service": {"light.turn_off", "light.kitchen"},
 		"target":  {"light.turn_on", "light.hall"},
 		"data":    {"light.turn_on", "light.kitchen", "--set", "brightness_pct=40"},
 	} {
 		p := plan(args...)
-		if other, clash := seen[p.ID]; clash {
-			t.Fatalf("%s change kept plan id %s (same as %s)", name, p.ID, other)
+		if other, clash := seen[p.Hash]; clash {
+			t.Fatalf("%s change kept hash %s (same as %s)", name, p.Hash, other)
 		}
-		seen[p.ID] = name
+		seen[p.Hash] = name
 	}
 }
 
@@ -78,17 +86,26 @@ func TestPlanStorePrunesExpiredAndBoundsCount(t *testing.T) {
 		_ = os.WriteFile(path, []byte("{}"), 0o600)
 		_ = os.Chtimes(path, now, now.Add(time.Duration(i-30)*time.Second))
 	}
-	expired := filepath.Join(dir, "p_expired.json")
-	_ = os.WriteFile(expired, []byte("{}"), 0o600)
-	_ = os.Chtimes(expired, now, now.Add(-planTTL-time.Minute))
+	var stale []string
+	for _, name := range []string{"p_expired.json", "p_x.json.tmp-123", "p_y.claimed-42"} {
+		path := filepath.Join(dir, name)
+		_ = os.WriteFile(path, []byte("{}"), 0o600)
+		_ = os.Chtimes(path, now, now.Add(-planTTL-time.Minute))
+		stale = append(stale, path)
+	}
+	freshClaim := filepath.Join(dir, "p_z.claimed-7")
+	_ = os.WriteFile(freshClaim, []byte("{}"), 0o600)
 	if err := savePlan(paths, storedPlan{ID: "p_new"}); err != nil {
 		t.Fatal(err)
 	}
-	entries, _ := os.ReadDir(dir)
-	if len(entries) != planMaxFiles {
-		t.Fatalf("%d plan files after prune, want %d", len(entries), planMaxFiles)
+	plans, _ := filepath.Glob(filepath.Join(dir, "*.json"))
+	if len(plans) != planMaxFiles {
+		t.Fatalf("%d plan files after prune, want %d", len(plans), planMaxFiles)
 	}
-	for _, gone := range []string{expired, filepath.Join(dir, "p_fresh00.json")} {
+	if _, err := os.Stat(freshClaim); err != nil {
+		t.Fatalf("a fresh claim was pruned: %v", err)
+	}
+	for _, gone := range append(stale, filepath.Join(dir, "p_fresh00.json")) {
 		if _, err := os.Stat(gone); !os.IsNotExist(err) {
 			t.Fatalf("%s survived the prune", gone)
 		}

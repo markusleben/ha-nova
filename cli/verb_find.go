@@ -68,8 +68,10 @@ func runFindCommand(paths runtimePaths, args []string) int {
 	})
 }
 
-// findEntities matches the compact registry first; the full registry (with
-// aliases) is read only when that finds nothing or disabled rows are wanted.
+// findEntities matches the compact registry first; the full registry is read
+// only when that finds nothing or disabled rows are wanted, and aliases
+// (config/entity_registry/get_entries, the lists carry none) only when names
+// miss there too.
 func findEntities(s *relaySession, q findQuery) (findResult, error) {
 	areas, deviceAreas, err := loadAreaContext(s)
 	if err != nil {
@@ -93,7 +95,12 @@ func findEntities(s *relaySession, q findQuery) (findResult, error) {
 		if err != nil {
 			return findResult{}, err
 		}
-		matches = matchRegistryRows(rows, q)
+		if matches = matchRegistryRows(rows, q); len(matches) == 0 {
+			if err := attachAliases(s, rows, q); err != nil {
+				return findResult{}, err
+			}
+			matches = matchRegistryRows(rows, q)
+		}
 	}
 	result := findResult{Total: len(matches), Matches: matches}
 	if len(matches) > q.limit {
@@ -103,13 +110,60 @@ func findEntities(s *relaySession, q findQuery) (findResult, error) {
 	return result, nil
 }
 
+func rowInScope(row registryRow, q findQuery) bool {
+	return (!row.disabled || q.includeDisabled) &&
+		(q.domain == "" || strings.HasPrefix(row.entityID, q.domain+".")) &&
+		(q.area == "" || row.areaID == q.area)
+}
+
+// aliasChunk bounds one get_entries request; chunks run in parallel within
+// the session's request slots.
+const aliasChunk = 500
+
+// attachAliases reads aliases for the in-scope rows only.
+func attachAliases(s *relaySession, rows []registryRow, q findQuery) error {
+	index := map[string]int{}
+	var ids []string
+	for i, row := range rows {
+		if rowInScope(row, q) {
+			index[row.entityID] = i
+			ids = append(ids, row.entityID)
+		}
+	}
+	var requests []map[string]any
+	for start := 0; start < len(ids); start += aliasChunk {
+		requests = append(requests, map[string]any{"type": "config/entity_registry/get_entries", "entity_ids": ids[start:min(start+aliasChunk, len(ids))]})
+	}
+	var reads []func()
+	for _, request := range requests {
+		reads = append(reads, func() { _, _ = s.ws(request) })
+	}
+	prefetch(reads)
+	for _, request := range requests {
+		var entries map[string]*struct {
+			Aliases []*string `json:"aliases"`
+		}
+		if err := s.wsDecode(request, &entries, "the entity aliases"); err != nil {
+			return err
+		}
+		for id, entry := range entries {
+			if i, ok := index[id]; ok && entry != nil {
+				for _, alias := range entry.Aliases {
+					if alias != nil {
+						rows[i].aliases = append(rows[i].aliases, *alias)
+					}
+				}
+			}
+		}
+	}
+	return nil
+}
+
 func matchRegistryRows(rows []registryRow, q findQuery) []verbTarget {
 	tokens := foldTokens(q.phrase)
 	matches := []verbTarget{}
 	for _, row := range rows {
-		if (row.disabled && !q.includeDisabled) ||
-			(q.domain != "" && !strings.HasPrefix(row.entityID, q.domain+".")) ||
-			(q.area != "" && row.areaID != q.area) {
+		if !rowInScope(row, q) {
 			continue
 		}
 		by := "name"
@@ -169,13 +223,12 @@ func loadCompactRegistry(s *relaySession, areas, deviceAreas map[string]string) 
 
 func loadFullRegistry(s *relaySession, areas, deviceAreas map[string]string) ([]registryRow, error) {
 	var full []struct {
-		EntityID     string    `json:"entity_id"`
-		Name         string    `json:"name"`
-		OriginalName string    `json:"original_name"`
-		AreaID       string    `json:"area_id"`
-		DeviceID     string    `json:"device_id"`
-		DisabledBy   string    `json:"disabled_by"`
-		Aliases      []*string `json:"aliases"`
+		EntityID     string `json:"entity_id"`
+		Name         string `json:"name"`
+		OriginalName string `json:"original_name"`
+		AreaID       string `json:"area_id"`
+		DeviceID     string `json:"device_id"`
+		DisabledBy   string `json:"disabled_by"`
 	}
 	if err := s.wsDecode(map[string]any{"type": "config/entity_registry/list"}, &full, "the entity registry"); err != nil {
 		return nil, err
@@ -185,11 +238,6 @@ func loadFullRegistry(s *relaySession, areas, deviceAreas map[string]string) ([]
 		row := registryRow{entityID: e.EntityID, name: e.Name, areaID: e.AreaID, disabled: e.DisabledBy != ""}
 		if row.name == "" {
 			row.name = e.OriginalName
-		}
-		for _, alias := range e.Aliases {
-			if alias != nil {
-				row.aliases = append(row.aliases, *alias)
-			}
 		}
 		rows = append(rows, joinArea(row, e.DeviceID, areas, deviceAreas))
 	}

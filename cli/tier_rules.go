@@ -54,11 +54,15 @@ const (
 	reasonSceneUnread       = "INTEGRATION_SCENE_UNREAD"
 	reasonReload            = "RELOAD_UNENUMERATED"
 	reasonListener          = "UNENUMERABLE_LISTENER"
+	reasonListenerUnexpl    = "CALL_SERVICE_LISTENER_UNEXPLAINED"
 	reasonManager           = "CONSUMER_MANAGER_PRESENT"
 	reasonScanFailed        = "SCAN_FAILED"
 	reasonLimitCut          = "LIMIT_CUT"
+	reasonIntegrationSvc    = "INTEGRATION_SERVICE"
+	reasonUserService       = "USER_AUTHORED_SERVICE"
 	noteTemplates           = "TEMPLATES_NOT_CHECKABLE"
 	noteNoManager           = "NO_LOCAL_CONSUMER_MANAGER"
+	noteSkippedTargets      = "EXPANDED_TARGET_WITHOUT_STATE"
 )
 
 // Engine limits (spec §2.2 "Caching and limits"); any cut is LIMIT_CUT.
@@ -74,7 +78,7 @@ const (
 // ponytail: baseline not yet measured on a live Home Assistant (spec PR2 E2E
 // is the blocking check). 0 fails closed: any call_service listener forces the
 // full scan, and a core listener nobody can enumerate reads as typed.
-var callServiceListenerBaseline = 0
+const callServiceListenerBaseline = 0
 
 // Owning-skill deferrals (service-call/SKILL.md → Owning-Skill Deferrals).
 var ownedServices = map[string]string{
@@ -126,10 +130,20 @@ var disruptiveServices = map[string]bool{
 // Implementations live in files the engine cannot read (rules 2 and 3).
 var unreadCommandDomains = map[string]bool{"python_script": true, "shell_command": true, "rest_command": true}
 
-// Targetless reloads whose effect set v1 does not enumerate.
-var reloadDomains = map[string]bool{
-	"schedule": true, "counter": true, "timer": true, "template": true, "rest": true, "command_line": true,
-	"input_boolean": true, "input_number": true, "input_select": true, "input_text": true, "input_datetime": true, "input_button": true,
+// Home Assistant's own entity and core service domains. A service of any
+// other domain belongs to an integration: on an access entity it is typed,
+// targetless it is at least preview (its effect set is not enumerable).
+var coreDomains = map[string]bool{}
+
+func init() {
+	for _, d := range strings.Fields(`alarm_control_panel automation backup binary_sensor button calendar camera
+		climate conversation counter cover date datetime device_tracker event fan group homeassistant humidifier
+		image input_boolean input_button input_datetime input_number input_select input_text lawn_mower light lock
+		logbook logger media_player notify number persistent_notification person recorder remote scene schedule
+		script select sensor siren switch system_log text time timer todo tts update vacuum valve water_heater
+		weather zone`) {
+		coreDomains[d] = true
+	}
 }
 
 // Alarm feature bits (service-call/SKILL.md → Alarm Panels And Locks).
@@ -172,14 +186,50 @@ func classifyAction(service string, data map[string]any, st *entityState) (tierL
 		return tierPreview, reasonDisruptive
 	case unreadCommandDomains[domain]:
 		return tierTyped, reasonUnreadCommand
-	case name == "reload" && reloadDomains[domain], service == "homeassistant.reload_all":
-		return tierTyped, reasonReload
+	case name == "reload" || (domain == "homeassistant" && strings.HasPrefix(name, "reload_")):
+		return tierTyped, reasonReload // no reload is provably side-effect-free in v1
+	case domain == "esphome":
+		return tierTyped, reasonUserService
 	case service == "mqtt.publish" || domain == "hassio":
 		return tierTyped, reasonOwnedTypedMember
 	case ownerSkill(service) != "":
 		return tierPreview, reasonOwnedMember
 	}
 	return tierOrdinary, ""
+}
+
+// classifyOnEntity inverts the table for access-capable targets (classify
+// by target domain first): only calls that provably grant nothing stay
+// below typed — every other service, integration services included, is typed.
+func classifyOnEntity(entityID, service string, data map[string]any, st *entityState) (tierLevel, string) {
+	dc := st.str("device_class")
+	if !accessCapable(entityID, dc) {
+		return classifyAction(service, data, st)
+	}
+	domain, name := splitID(service)
+	if service == "lock.lock" || service == "cover.close_cover" || service == "homeassistant.update_entity" ||
+		service == "alarm_control_panel.alarm_trigger" || (domain == "alarm_control_panel" && strings.HasPrefix(name, "alarm_arm_")) {
+		return classifyAction(service, data, st)
+	}
+	switch entityDomain, _ := splitID(entityID); {
+	case entityDomain == "lock":
+		return tierTyped, reasonAccessLock
+	case entityDomain == "alarm_control_panel":
+		return tierTyped, reasonAccessAlarm
+	case dc == "":
+		return tierTyped, reasonCoverClassUnknown
+	}
+	return tierTyped, reasonAccessCover
+}
+
+// classifyTargetless: a call without entities; an integration's own service
+// cannot be enumerated, so it never stays ordinary.
+func classifyTargetless(service string, data map[string]any) (tierLevel, string) {
+	level, code := classifyAction(service, data, nil)
+	if domain, _ := splitID(service); level == tierOrdinary && !coreDomains[domain] {
+		return tierPreview, reasonIntegrationSvc
+	}
+	return level, code
 }
 
 // coverCanOpen: open_cover, toggle, and set_cover_position above 0 — a
@@ -220,11 +270,11 @@ func directRefusal(service string, st *entityState) string {
 	return ""
 }
 
-// effectiveService maps a generic homeassistant.* call onto the entity's own
-// domain; covers take open_cover/close_cover for turn_on/turn_off.
+// effectiveService maps the generic homeassistant.turn_on|turn_off|toggle
+// onto the entity's own domain; covers take open_cover/close_cover.
 func effectiveService(service, entityDomain string) string {
 	domain, name := splitID(service)
-	if domain != "homeassistant" || entityDomain == "" {
+	if domain != "homeassistant" || entityDomain == "" || (name != "turn_on" && name != "turn_off" && name != "toggle") {
 		return service
 	}
 	if entityDomain == "cover" {
@@ -285,9 +335,6 @@ func sceneMemberService(entityID string, value any) (string, map[string]any) {
 			return "cover.close_cover", nil
 		}
 		return "cover.set_cover_position", data
-	}
-	if domain == "group" {
-		domain = "homeassistant" // a group reproduces the state on each leaf
 	}
 	if state == "off" {
 		return domain + ".turn_off", nil
