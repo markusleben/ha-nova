@@ -29,7 +29,7 @@ describe("project docs contract", () => {
     expect(project).toContain("`POST /files` (opt-in, default off)");
     expect(project).toContain("documentation-governance.md");
     expect(project).toContain(
-      "Release metadata enables it\nonly for exact candidates",
+      "Release metadata enables it per platform, and a\nrelease binary turns it on only with its signed bundle provenance",
     );
     expect(project).not.toContain("Release metadata keeps it disabled");
     expect(project).not.toContain("## Active Documentation");
