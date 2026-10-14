@@ -23,6 +23,11 @@ the number.
   confirmation code. A call is sent exactly once and never retried, and a
   confirmed plan is re-checked first — if anything changed since the
   preview, nothing is sent and a fresh preview comes back.
+- Automations and scripts can be created, updated, deleted, and reverted
+  through `ha-nova plan write|delete|revert` and `ha-nova apply`: every
+  change shows its diff first, is saved exactly once, reloaded, and read back
+  to verify it; deletes need a confirmation code and take a config snapshot
+  first, and the last update stays one step revertible.
 
 ## What To Watch
 

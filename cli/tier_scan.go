@@ -19,6 +19,7 @@ type fullRegistryRow struct {
 	Platform      string `json:"platform"`
 	UniqueID      string `json:"unique_id"`
 	ConfigEntryID string `json:"config_entry_id"`
+	DisabledBy    string `json:"disabled_by"`
 }
 
 func (e *tierEngine) fullRegistry() ([]fullRegistryRow, error) {

@@ -41,11 +41,19 @@ type verbEnvelope struct {
 	ReauthOpened  []string       `json:"reauth_flows_opened,omitempty"`
 	// OutcomeUnknown: the request may have reached Home Assistant (exit 7);
 	// status stays in the outcome vocabulary as "unverified".
-	OutcomeUnknown bool         `json:"outcome_unknown,omitempty"`
-	Result         any          `json:"result,omitempty"`
-	Error          *verbError   `json:"error,omitempty"`
-	Notices        []verbNotice `json:"notices,omitempty"`
-	exit           int          // success exit code; 0 unless a verb sets it (plan: 3)
+	OutcomeUnknown bool `json:"outcome_unknown,omitempty"`
+	// Config plans (PR5): the operation, the rendered diff, the undo-stack
+	// receipt of an update, and the pre-delete snapshot file.
+	Config   *configAction        `json:"config,omitempty"`
+	Diff     []string             `json:"diff,omitempty"`
+	Undo     *snapshotSaveReceipt `json:"undo,omitempty"`
+	Snapshot string               `json:"snapshot,omitempty"`
+	// BeforeConfig: the config an update replaced, whenever it may have landed.
+	BeforeConfig json.RawMessage `json:"before_config,omitempty"`
+	Result       any             `json:"result,omitempty"`
+	Error        *verbError      `json:"error,omitempty"`
+	Notices      []verbNotice    `json:"notices,omitempty"`
+	exit         int             // success exit code; 0 unless a verb sets it (plan: 3)
 }
 
 type verbTarget struct {
@@ -78,9 +86,11 @@ type verbFailure struct {
 	message    string
 	next       string
 	candidates []verbTarget
+	cause      error // optional sentinel for errors.Is
 }
 
 func (f *verbFailure) Error() string { return f.message }
+func (f *verbFailure) Unwrap() error { return f.cause }
 
 type verbOptions struct {
 	server, via       string

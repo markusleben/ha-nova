@@ -1,8 +1,10 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -16,6 +18,7 @@ import (
 type fakeRelayCall struct {
 	endpoint string
 	payload  map[string]any
+	raw      []byte // the request body as sent (key order intact)
 }
 
 // fakeRelayLog records every request the fake Relay received.
@@ -62,16 +65,9 @@ func setupVerbRelayTest(t *testing.T, reply func(r *http.Request, endpoint strin
 	return setupFakeRelay(t, reply, false)
 }
 
-// isServicePost is the one write call/apply may send: core POST
-// /api/services/<d>/<s> with a body and nothing else.
-func isServicePost(endpoint string, payload map[string]any) bool {
-	path, _ := payload["path"].(string)
-	_, hasBody := payload["body"]
-	return endpoint == "core" && payload["method"] == "POST" && strings.HasPrefix(path, "/api/services/") && hasBody && len(payload) == 3
-}
-
-// setupFakeRelay serves reply; with allowServiceWrites it also accepts
-// isServicePost (call/apply tests), every other request must be a read.
+// setupFakeRelay serves reply; with allowServiceWrites it also accepts the
+// production write allowlist (call/apply tests), every other request must be
+// a read.
 func setupFakeRelay(t *testing.T, reply func(r *http.Request, endpoint string, payload map[string]any) any, allowServiceWrites bool) (runtimePaths, *fakeRelayLog) {
 	t.Helper()
 	home := t.TempDir()
@@ -83,16 +79,18 @@ func setupFakeRelay(t *testing.T, reply func(r *http.Request, endpoint string, p
 	log := &fakeRelayLog{}
 	relayServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		endpoint := strings.TrimPrefix(r.URL.Path, "/")
+		raw, _ := io.ReadAll(r.Body)
+		r.Body = io.NopCloser(bytes.NewReader(raw)) // reply may read it again
 		var payload map[string]any
-		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		if err := json.Unmarshal(raw, &payload); err != nil {
 			t.Errorf("decode payload: %v", err)
 		}
 		// Invariant I1 oracle: every verb test fails on a non-read request.
-		if err := checkReadOnlyRequest(endpoint, payload); err != nil && !(allowServiceWrites && isServicePost(endpoint, payload)) {
+		if err := checkReadOnlyRequest(endpoint, payload); err != nil && !(allowServiceWrites && checkWriteRequest(endpoint, payload) == nil) {
 			t.Errorf("read verb sent a non-read request: %v", err)
 		}
 		log.mu.Lock()
-		log.calls = append(log.calls, fakeRelayCall{endpoint: endpoint, payload: payload})
+		log.calls = append(log.calls, fakeRelayCall{endpoint: endpoint, payload: payload, raw: raw})
 		log.mu.Unlock()
 		w.Header().Set("content-type", "application/json")
 		data := reply(r, endpoint, payload)

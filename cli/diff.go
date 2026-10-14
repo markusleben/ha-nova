@@ -61,7 +61,9 @@ func runDiffCommand(_ runtimePaths, args []string) int {
 		printErr("cannot read after config: %s", err)
 		return 1
 	}
-	lines := renderConfigChanges(before, after)
+	beforeRaw, _ := os.ReadFile(beforePath) // already read and validated above
+	afterRaw, _ := os.ReadFile(afterPath)
+	lines := append(renderConfigChanges(before, after), orderChanges(beforeRaw, afterRaw)...)
 	if outPathSet {
 		rendered := ""
 		if len(lines) > 0 {

@@ -35,11 +35,14 @@ func runPlanCommand(paths runtimePaths, args []string) int {
 	if len(args) > 0 && args[0] == "call" {
 		return runPlanCall(paths, args[1:])
 	}
+	if len(args) > 0 && (args[0] == "write" || args[0] == "delete" || args[0] == "revert") {
+		return runPlanConfig(paths, args[0], args[1:])
+	}
 	if len(args) > 0 && (args[0] == "--help" || args[0] == "-h") {
 		fmt.Println("Usage: " + planCallHelp)
 		return verbExitOK
 	}
-	return verbUsageError("plan", errors.New("Usage: "+planCallUsage+" (plan write, delete, and revert are not available yet)"))
+	return verbUsageError("plan", errors.New("Usage: "+planCallUsage+" | "+planWriteUsage+" | "+planDeleteUsage+" | "+planRevertUsage))
 }
 
 func runPlanCall(paths runtimePaths, args []string) int {

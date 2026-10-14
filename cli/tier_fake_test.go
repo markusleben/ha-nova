@@ -30,6 +30,14 @@ type fakeHA struct {
 	// it runs under mu and may change states.
 	service func(f *fakeHA, path string, body map[string]any) any
 	mu      sync.Mutex
+	// Config writes (PR5): configWrite overrides how a POSTed config is
+	// stored (nil: verbatim); snapshots records /backups saves.
+	configWrite func(f *fakeHA, path string, body map[string]any) any
+	snapshots   []map[string]any
+	snapshotErr bool
+	// deleteStatus: answer DELETE with this status after removing the item
+	// (a concurrent removal: Home Assistant says 400 "Resource not found").
+	deleteStatus int
 }
 
 func newFakeHA() *fakeHA {
@@ -80,6 +88,9 @@ func (f *fakeHA) reply(r *http.Request, endpoint string, p map[string]any) any {
 	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	if reply, handled := f.configReply(r, endpoint, p); handled {
+		return reply
+	}
 	if p["method"] == "POST" {
 		if f.fail[fmt.Sprint(p["path"])] {
 			return fakeRelayFailure{"UPSTREAM_HTTP_TIMEOUT", "timed out"}

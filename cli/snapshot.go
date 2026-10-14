@@ -104,9 +104,10 @@ func runSnapshotShow(paths runtimePaths, args []string) int {
 	var list bool
 	fs.StringVar(&target, "target", "", "select the snapshot for this target_id (default: newest)")
 	fs.StringVar(&domain, "domain", "", "optional domain filter when selecting by target")
-	fs.BoolVar(&list, "list", false, "list the stored snapshots (op/domain/target_id, newest first)")
+	fs.BoolVar(&list, "list", false, "list the stored snapshots (op/domain/target_id/server, newest first)")
+	server := fs.String("server", "", "server profile (default: the default profile); untagged records match every server")
 	if err := fs.Parse(args); err != nil {
-		if helpRequested(err, fs, "ha-nova snapshot show [--list] [--target <target_id>] [--domain <domain>]") {
+		if helpRequested(err, fs, "ha-nova snapshot show [--list] [--target <target_id>] [--domain <domain>] [--server <name>]") {
 			return 0
 		}
 		printErr("%s", err)
@@ -159,7 +160,12 @@ func runSnapshotShow(paths runtimePaths, args []string) int {
 		fmt.Fprintln(os.Stdout, string(out))
 		return 0
 	}
-	snap, err := selectUndoSnapshot(paths, target, domain)
+	selected, err := snapshotServer(paths, fs, *server)
+	if err != nil {
+		printErr("%s", err)
+		return 1
+	}
+	snap, err := selectServerUndoSnapshot(paths, selected, target, domain)
 	if err != nil {
 		printErr("%s", err)
 		return 1
@@ -180,8 +186,9 @@ func runSnapshotVerify(paths runtimePaths, args []string) int {
 	fs.StringVar(&against, "against", "", "path to the current live config JSON")
 	fs.StringVar(&target, "target", "", "select the snapshot for this target_id (default: newest)")
 	fs.StringVar(&domain, "domain", "", "optional domain filter when selecting by target")
+	server := fs.String("server", "", "server profile (default: the default profile); untagged records match every server")
 	if err := fs.Parse(args); err != nil {
-		if helpRequested(err, fs, "ha-nova snapshot verify --against <live.json> [--target <target_id>] [--domain <domain>]") {
+		if helpRequested(err, fs, "ha-nova snapshot verify --against <live.json> [--target <target_id>] [--domain <domain>] [--server <name>]") {
 			return 0
 		}
 		printErr("%s", err)
@@ -216,7 +223,12 @@ func runSnapshotVerify(paths runtimePaths, args []string) int {
 		printErr("--against <live.json> is required")
 		return 1
 	}
-	snap, err := selectUndoSnapshot(paths, target, domain)
+	selected, err := snapshotServer(paths, fs, *server)
+	if err != nil {
+		printErr("%s", err)
+		return 1
+	}
+	snap, err := selectServerUndoSnapshot(paths, selected, target, domain)
 	if err != nil {
 		printErr("%s", err)
 		return 1
@@ -245,3 +257,24 @@ func runSnapshotVerify(paths runtimePaths, args []string) int {
 // assumes single-flight writes: the skill's single write path (apply-agent)
 // serialises operations. The write itself is atomic (temp file + rename), so a
 // reader never sees a torn file even if that assumption is violated.
+
+// snapshotServer resolves the server whose checkpoints show/verify select:
+// --server, else the default profile like every other verb. Without any
+// configured server (nothing to filter by) every record stays eligible.
+func snapshotServer(paths runtimePaths, fs *flag.FlagSet, server string) (string, error) {
+	serverSet := false
+	fs.Visit(func(f *flag.Flag) { serverSet = serverSet || f.Name == "server" })
+	if serverSet {
+		if strings.TrimSpace(server) == "" {
+			return "", fmt.Errorf("--server requires a non-empty profile name")
+		}
+		setServerSelectionOverride(server)
+	}
+	if _, err := loadConfig(paths); err != nil {
+		if serverSet {
+			return "", err
+		}
+		return "", nil
+	}
+	return activeServerProfile(), nil
+}

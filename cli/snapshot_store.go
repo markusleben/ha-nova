@@ -22,6 +22,9 @@ type undoSnapshot struct {
 	Op            string `json:"op"`
 	Domain        string `json:"domain"`
 	TargetID      string `json:"target_id"`
+	// Server is the profile the update ran against (typed verbs); records
+	// from `snapshot save` and older CLIs carry none.
+	Server string `json:"server,omitempty"`
 	// Name is the human-readable alias supplied by the skill so the owner
 	// console and `snapshot show --list` stay recognizable (#483). Optional:
 	// records written by older CLIs simply have none.
@@ -53,6 +56,7 @@ type snapshotListingEntry struct {
 	Domain   string `json:"domain"`
 	TargetID string `json:"target_id"`
 	Name     string `json:"name,omitempty"`
+	Server   string `json:"server,omitempty"`
 	SavedAt  string `json:"saved_at,omitempty"`
 	Coverage string `json:"coverage"`
 }
@@ -109,7 +113,7 @@ func saveUndoSnapshotBytes(paths runtimePaths, data []byte) (snapshotSaveReceipt
 	kept := make([]undoSnapshot, 0, len(stack.Snapshots)+1)
 	kept = append(kept, snap)
 	for _, existing := range stack.Snapshots {
-		if existing.Domain == snap.Domain && existing.TargetID == snap.TargetID {
+		if existing.Domain == snap.Domain && existing.TargetID == snap.TargetID && existing.Server == snap.Server {
 			// Same-target update: the previous checkpoint is replaced — only
 			// the newest state stays revertible, and the receipt says so.
 			action = "replaced"
@@ -152,6 +156,7 @@ func snapshotListing(snap undoSnapshot) snapshotListingEntry {
 		Domain:   snap.Domain,
 		TargetID: snap.TargetID,
 		Name:     snap.Name,
+		Server:   snap.Server,
 		SavedAt:  snap.SavedAt,
 		Coverage: snapshotCoverage,
 	}
@@ -195,9 +200,30 @@ func loadUndoSnapshotStack(paths runtimePaths) (undoSnapshotStack, error) {
 // selectUndoSnapshot picks the newest snapshot, or the one for an explicit
 // target (optionally narrowed by domain).
 func selectUndoSnapshot(paths runtimePaths, target, domain string) (undoSnapshot, error) {
+	return selectServerUndoSnapshot(paths, "", target, domain)
+}
+
+// selectServerUndoSnapshot is selectUndoSnapshot restricted to one server
+// ("" = any): another server's checkpoint for the same id is never picked;
+// untagged records stay eligible (the revert drift check still compares them
+// with this server's live config).
+func selectServerUndoSnapshot(paths runtimePaths, server, target, domain string) (undoSnapshot, error) {
 	stack, err := loadUndoSnapshotStack(paths)
 	if err != nil {
 		return undoSnapshot{}, err
+	}
+	if server != "" {
+		// This server's records plus untagged legacy ones; newest first, so
+		// the first record per domain+target is the one a revert means.
+		var mine []undoSnapshot
+		seen := map[string]bool{}
+		for _, snap := range stack.Snapshots {
+			if key := snap.Domain + "\x00" + snap.TargetID; (snap.Server == "" || snap.Server == server) && !seen[key] {
+				seen[key] = true
+				mine = append(mine, snap)
+			}
+		}
+		stack.Snapshots = mine
 	}
 	if len(stack.Snapshots) == 0 {
 		return undoSnapshot{}, fmt.Errorf("no undo snapshot available")
@@ -228,7 +254,7 @@ func selectUndoSnapshot(paths runtimePaths, target, domain string) (undoSnapshot
 	default:
 		// Same target_id in more than one domain (save keys on domain+target,
 		// so this is legal): never guess which config to restore.
-		return undoSnapshot{}, fmt.Errorf("target %s is ambiguous across domains; pass --domain", target)
+		return undoSnapshot{}, fmt.Errorf("target %s is ambiguous (several domains or servers); pass --domain or --server", target)
 	}
 }
 
@@ -292,8 +318,9 @@ func snapshotMatchesLive(snap undoSnapshot, liveRaw []byte) (bool, error) {
 	if err != nil {
 		return false, fmt.Errorf("live config is not valid JSON: %s", err)
 	}
-	if len(renderConfigChanges(expected, live)) != 0 {
-		return false, nil
+	// Order-aware: a reorder of variables/fields after the checkpoint is drift.
+	if changes, err := configChanges(snap.ExpectedAfter, liveRaw); err != nil || len(changes) != 0 {
+		return false, err
 	}
 	return identityKeysMatch(expected, live), nil
 }
