@@ -16,15 +16,19 @@ any FAIL (or a lane without results). The work dir (logs per step) is kept on
 failure or with `--keep`. Runtime: ~2 min for a cold local build, then
 ~1 min per lane.
 
-Prerequisites: Docker, curl; for `--to local` also Go, Node, Python 3, git,
-jq, and bash >= 4 on `PATH` (the release bundle script uses `mapfile`).
+Prerequisites: Docker, curl, `column`; for `--to local` also Go, Node,
+Python 3, git, jq, zip, and bash >= 4 on `PATH` (the release bundle script uses
+`mapfile` and zips the Windows bundle). A published `--to` tag must be newer
+than `--from`, so the update really swaps the runtime. A crashed lane adds a
+FAIL row even when earlier rows passed.
 
 ## Safety
 
-- **Local test bed only.** A running `ha-nova-testbed` compose project is
-  reused as-is (its relay token is read from that worktree's `.state/`) and is
-  never torn down; otherwise `run.sh` starts one from this checkout and runs
-  `down.sh` at exit. The only other network peer is GitHub (installer, release
+- **Local test bed only.** An existing `ha-nova-testbed` compose project is
+  reused only when relay and HA are healthy (its relay token is read from that
+  worktree's `.state/`) and is never torn down; an unhealthy one stops the run.
+  With none present, `run.sh` starts one from this checkout and runs `down.sh`
+  at exit once its `up.sh` succeeded. The only other network peer is GitHub (installer, release
   bundles, release API).
 - **Throwaway HOME per scenario** with every `XDG_*` dir inside it,
   `env -i` (no inherited `CLAUDE_CONFIG_DIR`, tokens, or client config), and
@@ -51,6 +55,12 @@ setup only checks they exist, and the lanes assert the files HA NOVA wires.
 Claude Code runs for real when `claude` is installed on the macOS host, with
 `CLAUDE_CONFIG_DIR` inside the throwaway HOME; the Linux lane skips it.
 
+Each rc file is seeded with a sentinel line before install; after uninstall
+the file and the sentinel must remain and the managed PATH block must be gone.
+The Hermes check covers every namespaced skill dir (`ha-nova`,
+`ha-nova-<skill>`) against the installed bundle, and after the update that
+each file was rewritten.
+
 Leftover rule after uninstall: no file or link in HOME whose path or content
 names `ha-nova`, except the documented keep-list — `--yes` keeps
 `~/.config/ha-nova/{config.json,relay-token,secrets/.file-backend}` and both
@@ -72,8 +82,7 @@ served from `127.0.0.1` and installed the supported way:
 ## Shells
 
 - zsh → `~/.zshrc`; bash → `~/.bash_profile` if present, else `~/.profile`
-  (installer and `uninstall` agree). The installer-created rc file is left
-  behind with one blank line.
+  (installer and `uninstall` agree).
 - fish is not covered: the installer writes the PATH block to `~/.profile` if
   it exists, else `~/.zshrc` (fish reads neither), while `uninstall` only
   looks at `~/.profile` — with no `~/.profile` the block stays in `~/.zshrc`.

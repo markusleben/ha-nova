@@ -123,7 +123,7 @@ do_read() {
 }
 
 check_clients() { # skill trees exist, resolve into the installed bundle, match it
-  [[ "$MODE" == service ]] && { check_hermes; return; }
+  [[ "$MODE" == service ]] && { check_hermes "$@"; return; }
   local root="$H/.local/share/ha-nova" link real want
   want="$(cd -P "$root/skills" && pwd -P)" || return 1
   for link in "$H/.agents/skills/ha-nova" "$H/.config/opencode/skills/ha-nova"; do
@@ -138,9 +138,27 @@ check_clients() { # skill trees exist, resolve into the installed bundle, match 
     echo "note: codex + opencode skill trees -> installed bundle"
 }
 
+# check_hermes [stamp]: every bundle skill has its namespaced Hermes dir
+# (ha-nova, ha-nova-<skill>) with the same .md files and line counts (Hermes
+# rewrites refs in place, never adds lines), no stale extra dirs, and - with a
+# stamp - every file rewritten after it (the update really resynced).
 check_hermes() {
-  [[ -f "$H/.hermes/skills/ha-nova/ha-nova/SKILL.md" ]] && grep -q '"hermes"' "$H/.config/ha-nova/state.json" &&
-    echo "note: hermes skill tree installed"
+  local src="$H/.local/share/ha-nova/skills" dst="$H/.hermes/skills/ha-nova" dir name f want=0 got
+  for dir in "$src"/*/; do
+    [[ -f "$dir/SKILL.md" ]] || continue
+    name="${dir%/}"; name="${name##*/}"; [[ "$name" == ha-nova ]] || name="ha-nova-$name"
+    want=$((want + 1))
+    for f in "$dir"*.md; do
+      [[ -f "$dst/$name/${f##*/}" ]] || { echo "missing $dst/$name/${f##*/}"; return 1; }
+      [[ "$(wc -l <"$f")" == "$(wc -l <"$dst/$name/${f##*/}")" ]] || { echo "stale $dst/$name/${f##*/}"; return 1; }
+    done
+  done
+  got="$(find "$dst" -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' ')"
+  ((want > 1 && got == want)) || { echo "hermes dirs: $got, bundle skills: $want"; return 1; }
+  if [[ -n "${1:-}" && -n "$(find "$dst" -type f ! -newer "$1")" ]]; then
+    echo "not resynced:"; find "$dst" -type f ! -newer "$1"; return 1
+  fi
+  grep -q '"hermes"' "$H/.config/ha-nova/state.json" && echo "note: hermes: $got namespaced skills match the bundle${1:+, resynced}"
 }
 
 claude_plugins() { env -i "${ENV[@]}" claude plugin list </dev/null; }
@@ -234,9 +252,14 @@ check_leftovers() {
   echo "note: kept ${kept[*]:-nothing}"
 }
 
+# The rc file is seeded with a sentinel before install: uninstall must keep the
+# file and the user's own lines, and drop only the managed block.
+SENTINEL='# client-matrix sentinel: user content'
 check_rc_clean() {
+  [[ -f "$RC" ]] || { echo "$RC was deleted"; return 1; }
+  grep -qxF "$SENTINEL" "$RC" || { echo "user line lost from $RC"; cat "$RC"; return 1; }
   ! grep -q 'Added by HA NOVA' "$RC" && ! grep -q 'HOME/.local/bin' "$RC" || { cat "$RC"; return 1; }
-  echo "note: PATH block removed from ${RC##*/}"
+  echo "note: PATH block removed from ${RC##*/}, user line kept"
 }
 
 check_relay_alive() { shows '"ok":true' curl -fsS -H "Authorization: Bearer $RELAY_TOKEN" "$RELAY_URL/health" && echo "note: test bed relay still answers"; }
@@ -244,7 +267,7 @@ check_relay_alive() { shows '"ok":true' curl -fsS -H "Authorization: Bearer $REL
 # --- scenarios ----------------------------------------------------------------
 
 scenario_a() {
-  new_scenario A /bin/zsh keyring; RC="$(rc_file /bin/zsh)"
+  new_scenario A /bin/zsh keyring; RC="$(rc_file /bin/zsh)"; printf '%s\n' "$SENTINEL" >"$RC"
   run_step install do_install && run_step install-check check_install || return
   run_step setup do_setup || return
   run_step doctor hn doctor
@@ -274,14 +297,14 @@ scenario_a() {
 scenario_b() {
   # Linux B takes the real headless path (no secure storage in the container).
   local mode=keyring; [[ "$LANE" == linux ]] && mode=service
-  new_scenario B /bin/bash "$mode"; RC="$(rc_file /bin/bash)"
+  new_scenario B /bin/bash "$mode"; RC="$(rc_file /bin/bash)"; printf '%s\n' "$SENTINEL" >"$RC"
   run_step install do_install && run_step install-check check_install || return
   run_step setup do_setup || return
   run_step clients check_clients
   snapshot >"$S/before.txt"
   run_step update do_update || return
   run_step update-survived check_survived
-  run_step update-clients check_clients
+  run_step update-clients check_clients "$S/before.txt"
   run_step update-doctor hn doctor
   run_step purge do_uninstall --purge || return
   run_step purge-leftovers check_leftovers purge

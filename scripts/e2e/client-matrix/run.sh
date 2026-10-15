@@ -30,12 +30,25 @@ done
 TAG_RE='^v[0-9]+\.[0-9]+\.[0-9]+(-rc[0-9]+)?$'
 [[ "$FROM" =~ $TAG_RE ]] || usage
 [[ "$TO" == local || "$TO" =~ $TAG_RE ]] || usage
+
+tag_lt() { # tag_lt vA vB: A is older than B (vX.Y.Z-rcN sorts before vX.Y.Z)
+  local a="${1#v}" b="${2#v}" i x y
+  IFS=. read -r -a x <<<"${a%%-*}"; IFS=. read -r -a y <<<"${b%%-*}"
+  for i in 0 1 2; do
+    ((x[i] < y[i])) && return 0
+    ((x[i] > y[i])) && return 1
+  done
+  local ra="${a#"${a%%-*}"}" rb="${b#"${b%%-*}"}"
+  [[ -n "$ra" && -z "$rb" ]] && return 0
+  [[ -n "$ra" && -n "$rb" ]] && ((${ra#-rc} < ${rb#-rc}))
+}
+[[ "$TO" == local ]] || tag_lt "$FROM" "$TO" || die "--to $TO must be newer than --from $FROM (the update must swap the runtime)"
 if [[ -z "$LANES" ]]; then
   LANES=linux; [[ "$(uname -s)" == Darwin ]] && LANES=macos,linux
 fi
-for cmd in curl docker; do command -v "$cmd" >/dev/null || die "$cmd is required"; done
+for cmd in curl docker column; do command -v "$cmd" >/dev/null || die "$cmd is required"; done
 if [[ "$TO" == local ]]; then
-  for cmd in go node python3 git jq; do command -v "$cmd" >/dev/null || die "$cmd is required for --to local"; done
+  for cmd in go node python3 git jq zip; do command -v "$cmd" >/dev/null || die "$cmd is required for --to local"; done
   bash -c 'mapfile -t _ </dev/null' 2>/dev/null || die "bash >= 4 on PATH is required to build bundles (brew install bash)"
 fi
 
@@ -52,15 +65,23 @@ cleanup() {
 }
 trap cleanup EXIT
 
-# --- test bed: reuse a running one (never tear it down), else start our own --
-relay_wd="$(docker inspect ha-nova-testbed-relay --format '{{index .Config.Labels "com.docker.compose.project.working_dir"}}' 2>/dev/null || true)"
-if [[ -n "$relay_wd" && "$(docker inspect ha-nova-testbed-relay --format '{{.State.Running}}')" == true ]]; then
+# --- test bed: reuse a healthy one (never tear it down), else start our own --
+# Any existing ha-nova-testbed container belongs to someone else: reuse it only
+# when relay + HA are healthy, otherwise stop. Teardown is armed only after our
+# own up.sh succeeded.
+existing="$(docker ps -aq --filter label=com.docker.compose.project=ha-nova-testbed)"
+if [[ -n "$existing" ]]; then
+  health="$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{end}}' ha-nova-testbed-relay ha-nova-testbed-ha 2>/dev/null | tr '\n' ' ')"
+  relay_wd="$(docker inspect ha-nova-testbed-relay --format '{{index .Config.Labels "com.docker.compose.project.working_dir"}}' 2>/dev/null || true)"
+  [[ "$health" == "healthy healthy " && -n "$relay_wd" ]] ||
+    die "an existing ha-nova-testbed project is not healthy (relay/ha: ${health:-missing}); fix it or tear it down from its worktree first"
   STATE="$relay_wd/.state"
   echo "client-matrix: reusing running test bed ($relay_wd)"
 else
   echo "client-matrix: starting the test bed (torn down at exit)"
+  bash "$TESTBED/up.sh" >"$WORK/testbed-up.log" 2>&1 ||
+    die "testbed up failed: $WORK/testbed-up.log (clean up with: bash $TESTBED/down.sh)"
   STARTED_TESTBED=1
-  bash "$TESTBED/up.sh" >"$WORK/testbed-up.log" 2>&1 || die "testbed up failed: $WORK/testbed-up.log"
   STATE="$TESTBED/.state"
 fi
 RELAY_TOKEN="$(cat "$STATE/relay-token")" || die "no relay token in $STATE"
@@ -93,7 +114,8 @@ run_macos() {
   if command -v claude >/dev/null; then claude="$(cd -P "$(dirname "$(command -v claude)")" && pwd -P)/$(basename "$(command -v claude)")"; fi
   LANE=macos FROM="$FROM" TO="$TO" TO_VERSION="$TO_VERSION" RELAY_TOKEN="$RELAY_TOKEN" \
     BUNDLE_BASE="http://127.0.0.1:$PORT" RELAY_URL=http://127.0.0.1:18791 HA_URL=http://127.0.0.1:18123 \
-    WORK="$WORK" RESULTS="$RESULTS" CLAUDE_BIN="$claude" bash "$HERE/lane.sh"
+    WORK="$WORK" RESULTS="$RESULTS" CLAUDE_BIN="$claude" bash "$HERE/lane.sh" ||
+    echo "macos|-|lane|FAIL|lane.sh crashed (exit $?); rows above may be partial" >>"$RESULTS"
 }
 
 run_linux() {
@@ -109,11 +131,14 @@ run_linux() {
       useradd -m tester && mkdir -p /work && chown tester /work /out
       runuser -u tester -- env LANE=linux WORK=/work RESULTS=/out/results.txt \
         FROM="$FROM" TO="$TO" TO_VERSION="$TO_VERSION" RELAY_TOKEN="$RELAY_TOKEN" BUNDLE_BASE="$BUNDLE_BASE" \
-        RELAY_URL="$RELAY_URL" HA_URL="$HA_URL" bash /harness/lane.sh || true
+        RELAY_URL="$RELAY_URL" HA_URL="$HA_URL" bash /harness/lane.sh && rc=0 || rc=$?
+      echo "$rc" >/out/lane-exit
       for d in /work/*/logs; do mkdir -p "/out/${d#/work/}"; cp -R "$d/." "/out/${d#/work/}/"; done
       chown -R "$HOST_IDS" /out' >"$WORK/linux/container.log" 2>&1 ||
     echo "linux|-|container|FAIL|docker run failed: $WORK/linux/container.log" >>"$RESULTS"
   [[ -f "$WORK/linux/results.txt" ]] && sed "s#/work/#$WORK/linux/#g" "$WORK/linux/results.txt" >>"$RESULTS"
+  local rc; rc="$(cat "$WORK/linux/lane-exit" 2>/dev/null || echo missing)"
+  [[ "$rc" == 0 ]] || echo "linux|-|lane|FAIL|lane.sh crashed (exit $rc); rows above may be partial" >>"$RESULTS"
 }
 
 IFS=, read -r -a lanes <<<"$LANES"
