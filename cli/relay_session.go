@@ -40,6 +40,10 @@ var readOnlyWSTypes = map[string]bool{
 	// (the list endpoints carry none).
 	"config/entity_registry/get_entries": true,
 	"blueprint/substitute":               true,
+	// The config Home Assistant has LOADED for an automation/script, by
+	// entity_id: YAML and package items without a UI config too.
+	"automation/config": true,
+	"script/config":     true,
 }
 
 // relaySession resolves config and transport once per invocation and

@@ -54,8 +54,8 @@ The dispatch in `cli/main.go:65-133` gains `find get history plan call apply mcp
 
 | Class | Verb | Syntax |
 |---|---|---|
-| read | find | `ha-nova find "<phrase>" [--domain d] [--area <area_id>] [--limit 20]` |
-| read | get | `ha-nova get <entity_id> [--config] [--related]` (`--config` for automation/script/scene: resolves `unique_id` through the registry, never the slug, `relay-api.md:131-158`) |
+| read | find | `ha-nova find ["<phrase>"] [--domain d] [--area <area_id>] [--state <s>] [--limit 20]` (the phrase is optional when a filter narrows the list; `--state` filters by current state with one `GET /api/states` and includes entities that have a state but no registry row) |
+| read | get | `ha-nova get <entity_id> [--config] [--related]` (`--config` for automation/script/scene: resolves `unique_id` through the registry, never the slug, `relay-api.md:131-158`; a YAML or package automation/script without a UI config returns its loaded config (WS `automation/config`/`script/config` by entity_id) marked `managed: yaml` — readable, never editable through `plan write`) |
 | read | history | `ha-nova history <entity_id> [--since 24h] [--logbook]` (window ≤ 7d, ≤ 200 rows, summarized) |
 | read | trace | unchanged (`cli/trace.go`) |
 | read* | plan | `ha-nova plan call <domain.service> <targets>`, `plan write --domain automation\|script [--id <cfg_id>] --file <draft.json>`, `plan delete <automation.x\|script.x>`, `plan revert [--target <id>]`. Only writes a local plan file. |
@@ -77,7 +77,7 @@ Output envelope (`schema_version` 1; fields are omitted when empty):
  "members":[{"entity_id":"lock.front_door","action":"lock.unlock","via":"script.leave/sequence/2","class":"typed"}],
  "consumers":[{"automation":"automation.night","match":"trigger","class":"ordinary"}],
  "reasons":[{"code":"ACCESS_LOCK","entity_id":"lock.front_door"}],
- "coverage":{"complete":true,"notes":["TEMPLATES_NOT_CHECKABLE","NO_LOCAL_CONSUMER_MANAGER"]},
+ "coverage":{"complete":true,"notes":["TEMPLATES_NOT_CHECKABLE","NO_CONSUMER_MANAGER_INSTALLED"]},
  "diff":["| Trigger | 07:00 | 06:30 |"],
  "verification":[{"entity_id":"light.kitchen","expect":"off","observed":"off","outcome":"verified"}],
  "notices":[{"kind":"update|relay_outdated","text":"…"}],
@@ -110,7 +110,7 @@ Exit codes. 2 is reused from `snapshotExitDrift` (`cli/snapshot_store.go:81`).
 - **Basis for `call`.** Per acted entity: `pl`, `device_class`, `supported_features`. Per frozen target: the `before` value of every data field the call sets, and the `state` only when the service changes it. Plus the sha256 of every member and consumer config, normalized with `normalizeConfig` (`cli/diff.go:139`). Reasons enter the hash as code + entity + via only (no free-text detail); listener surpluses already show in tier and reasons, so raw listener counts are not hashed.
 - **Basis for `write`/`delete`/`revert`.** The digest of the normalized current config (`"absent"` on create, which also asserts the id is unused) plus the draft digest. Revert reuses `selectUndoSnapshot` and `snapshotMatchesLive` (`cli/snapshot_store.go:197,286`).
 - **Nonce.** Each plan draws a random 16-byte nonce. `id = "p_" + hex(sha256(hash ‖ nonce))[0:12]`, so a re-plan never overwrites a plan or replays its code; the hash itself stays nonce-free and is what `apply` recomputes.
-- **Code.** `confirm:<verb>-<object_id≤24>[+N]-<identity hex[12:18]>` (the six hex characters after the twelve the plan id shows, so the code cannot be derived from the id) (`+N` counts further frozen targets). Only typed-tier plans carry one. `apply` derives the expected code (and checks the plan id) from the RECOMPUTED plan and the stored nonce, never from file fields, and compares exactly after a whitespace trim. After 3 mismatches the plan is discarded; that counter lives in the local plan file and guards against slips, not against anyone who can edit the file.
+- **Code.** `confirm:<verb>-<object_id≤24>[+N]-<identity hex[12:18]>` (the six hex characters after the twelve the plan id shows, so the code cannot be derived from the id; a create names its object after the alias slug, since its minted id means nothing to the user) (`+N` counts further frozen targets). Only typed-tier plans carry one. `apply` derives the expected code (and checks the plan id) from the RECOMPUTED plan and the stored nonce, never from file fields, and compares exactly after a whitespace trim. After 3 mismatches the plan is discarded; that counter lives in the local plan file and guards against slips, not against anyone who can edit the file.
 - **`apply` order.** First **claim the plan atomically** (`os.Rename` of `<id>.json` to `<id>.claimed-<pid>`; a failed rename means another applicant holds it → exit 4, nothing sent). Then re-validate kind, schema version, and the stored request (static refusals, data keys), check expiry, server, and the frozen-target guard, then **recompute the full plan from the stored request**. If the hash changed: exit 2 with the new plan and code, and invalidate the old one. If equal: check id and tier against the recomputed plan, require the code iff the recomputed tier is typed, execute once, verify, delete the claimed file. A claim left by a crashed process is never reused (single-use, I8).
 - **Honesty, stated in `docs/reference/safety.md`.** The CLI cannot tell whether a human typed the code. The code binds a confirmation to one exact plan, adds expiry and drift refusal, and moves the choice of tier out of prose. The human gates are (a) the skill rule that the code must come verbatim from a user message, and (b) client permission rules on `ha-nova apply`, which become possible now that argv separates reads from writes.
 
@@ -188,8 +188,8 @@ Reason codes (`cli/tier_rules.go`; `TestTierReasonCodesAreDocumented` pins each 
 | `UNRESOLVED_TARGET` | typed | templated, `all`/`none`, or non-literal stored target (rule 3) |
 | `STORED_SELECTOR` | typed | stored `floor_id`/`label_id` (Expanding the members) |
 | `BLUEPRINT_UNRESOLVED` | typed | failed `blueprint/substitute` (Expanding the members) |
-| `YAML_NO_ID` | typed | YAML item without an id (When you cannot see the members) |
-| `UNREAD_CONFIG` | typed | user-authored config not readable (rule 3; unread cycle members) |
+| `YAML_NO_ID` | typed | YAML item without an id whose loaded config (WS `automation/config`, `script/config` by entity_id) cannot be read either (When you cannot see the members); a readable loaded config is classified like a stored one and its digest enters the basis |
+| `UNREAD_CONFIG` | typed | user-authored config readable neither through the config API nor as its loaded config (rule 3; unread cycle members) |
 | `INTEGRATION_SCENE_ACCESS` | typed | unread integration scene whose platform owns a lock/alarm/access cover (When you cannot see the members) |
 | `INTEGRATION_SCENE_UNREAD` | preview | unread integration scene on a platform without access entities (same section) |
 | `RELOAD_UNENUMERATED` | typed | any `<domain>.reload` or `homeassistant.reload_*`; v1 proves no reload side-effect-free (Expanding the members, reloads) |
@@ -207,7 +207,7 @@ Reason codes (`cli/tier_rules.go`; `TestTierReasonCodesAreDocumented` pins each 
 | `SCAN_FAILED` | typed | any failed read inside the traversal (Limits you imposed) |
 | `LIMIT_CUT` | typed | any budget cut (Limits you imposed) |
 | `TEMPLATES_NOT_CHECKABLE` | note | the instance has template entities (step 5d) |
-| `NO_LOCAL_CONSUMER_MANAGER` | note | presence check found none locally (step 5c) |
+| `NO_CONSUMER_MANAGER_INSTALLED` | note | informational, not a gap: the presence check found no Node-RED/AppDaemon/pyscript installed locally (step 5c) |
 | `INTEGRATION_SERVICE` | preview | service of a non-core domain, targetless or on a device without access entities (step 2) |
 | `USER_AUTHORED_SERVICE` | typed | `esphome.*` API service defined in device YAML (rules 2 and 3) |
 | `EXPANDED_TARGET_WITHOUT_STATE` | note | an area/device/group leaf has no state (disabled or not loaded) and is not frozen (step 1) |

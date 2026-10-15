@@ -62,6 +62,7 @@ type verbTarget struct {
 	AreaID   string `json:"area_id,omitempty"`
 	Area     string `json:"area,omitempty"`
 	Disabled bool   `json:"disabled,omitempty"`
+	State    string `json:"state,omitempty"` // find --state: the current state
 	By       string `json:"by"`
 }
 

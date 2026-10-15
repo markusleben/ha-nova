@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"math"
 	"slices"
 	"strconv"
@@ -281,6 +282,8 @@ func pollProbes(s *relaySession, probes []probe) []verifyRow {
 			}
 			st, err := s.stateFresh(p.entityID, max(remaining, 100*time.Millisecond))
 			switch {
+			case err != nil && last[i] != nil:
+				// keep the last good observation: one slow read is not a failed device
 			case err != nil:
 				rows[i].Observed = "read failed"
 			case st == nil:
@@ -305,8 +308,12 @@ func pollProbes(s *relaySession, probes []probe) []verifyRow {
 		time.Sleep(verifyInterval)
 	}
 	for i, p := range probes {
-		if rows[i].Outcome == "unverified" && p.slow && last[i] != nil && transitionalStates[last[i].State] {
+		switch {
+		case rows[i].Outcome != "unverified" || last[i] == nil:
+		case p.slow && transitionalStates[last[i].State]:
 			rows[i].Outcome, rows[i].Note = "accepted", "still "+last[i].State+" when the window closed"
+		default: // the device answered, it just did not change
+			rows[i].Note = fmt.Sprintf("still %s after %s", last[i].State, window(p))
 		}
 	}
 	return rows

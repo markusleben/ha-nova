@@ -1,18 +1,23 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
+	"net/http"
 	"sort"
+	"strconv"
 	"strings"
 	"unicode"
 )
 
-const findUsage = `ha-nova find "<phrase>" [--domain <d>] [--area <area_id>] [--limit 20] [--include-disabled] [--aliases]`
+const findUsage = `ha-nova find ["<phrase>"] [--domain <d>] [--area <area_id>] [--state <state>] [--limit 20] [--include-disabled] [--aliases]` +
+	"\n(the phrase may be left out when --domain, --area, or --state narrows the list)"
 
 type findQuery struct {
 	phrase, domain, area string
+	state                string // only entities currently in this state
 	limit                int
 	includeDisabled      bool
 	// completeAliases: uniqueness checks (plan/call --match) always run the
@@ -45,9 +50,15 @@ func runFindCommand(paths runtimePaths, args []string) int {
 	fs.IntVar(&query.limit, "limit", 20, "maximum rows returned (1-200); total stays exact")
 	fs.BoolVar(&query.includeDisabled, "include-disabled", false, "include disabled entities (reads the full registry)")
 	fs.BoolVar(&query.completeAliases, "aliases", false, "also match aliases even when names already match (use after a rejected name match)")
+	fs.StringVar(&query.state, "state", "", "only entities whose current state is exactly this (e.g. on, off, unavailable)")
 	positional, err := parseVerbArgs(fs, &opts, args, findUsage)
-	if err == nil && (len(positional) != 1 || len(foldTokens(positional[0])) == 0) {
+	filtered := query.domain != "" || query.area != "" || query.state != ""
+	switch {
+	case err != nil:
+	case len(positional) > 1, len(positional) == 1 && len(foldTokens(positional[0])) == 0, len(positional) == 0 && !filtered:
 		err = errors.New("Usage: " + findUsage)
+	case len(positional) == 1:
+		query.phrase = positional[0]
 	}
 	if err == nil && (query.limit < 1 || query.limit > 200) {
 		err = errors.New("--limit must be between 1 and 200")
@@ -55,7 +66,6 @@ func runFindCommand(paths runtimePaths, args []string) int {
 	if err != nil {
 		return verbUsageError("find", err)
 	}
-	query.phrase = positional[0]
 	return runReadVerb(paths, "find", opts, func(s *relaySession, env *verbEnvelope) error {
 		result, err := findEntities(s, query)
 		if err != nil {
@@ -64,7 +74,7 @@ func runFindCommand(paths runtimePaths, args []string) int {
 		if result.Total == 0 {
 			return &verbFailure{
 				exit: verbExitNotFound, code: "NOT_FOUND",
-				message: fmt.Sprintf("no entity matches %q", query.phrase),
+				message: fmt.Sprintf("no entity matches %q%s", query.phrase, stateSuffix(query.state)),
 				next:    "Try a shorter or different phrase, drop --domain/--area, or add --include-disabled.",
 			}
 		}
@@ -109,12 +119,81 @@ func findEntities(s *relaySession, q findQuery) (findResult, error) {
 		}
 		matches = unionTargets(matches, full)
 	}
+	if q.state != "" {
+		if matches, err = filterByState(s, matches, q); err != nil {
+			return findResult{}, err
+		}
+	}
 	result := findResult{Total: len(matches), Matches: matches}
 	if len(matches) > q.limit {
 		result.Matches = matches[:q.limit]
 	}
 	result.Returned = len(result.Matches)
 	return result, nil
+}
+
+func stateSuffix(state string) string {
+	if state == "" {
+		return ""
+	}
+	return " in state " + strconv.Quote(state)
+}
+
+// filterByState keeps the matches whose current state is q.state (one GET
+// /api/states). Entities with a state but no registry row (YAML without
+// unique_id) are added when no area filter applies — never dropped
+// silently; their area is unknown, so --area cannot include them.
+func filterByState(s *relaySession, matches []verbTarget, q findQuery) ([]verbTarget, error) {
+	status, body, err := s.coreGET("/api/states")
+	var states []struct {
+		EntityID   string `json:"entity_id"`
+		State      string `json:"state"`
+		Attributes struct {
+			FriendlyName string `json:"friendly_name"`
+		} `json:"attributes"`
+	}
+	if err == nil && status != http.StatusOK {
+		err = fmt.Errorf("Home Assistant answered HTTP %d for /api/states", status)
+	}
+	if err == nil {
+		err = json.Unmarshal(body, &states)
+	}
+	if err != nil {
+		return nil, err
+	}
+	current := map[string]string{}
+	for _, st := range states {
+		current[st.EntityID] = st.State
+	}
+	var compact struct {
+		Entities []struct{ EI string } `json:"entities"`
+	}
+	if err := s.wsDecode(map[string]any{"type": "config/entity_registry/list_for_display"}, &compact, "the compact entity registry"); err != nil {
+		return nil, err
+	}
+	known := map[string]bool{} // registered entities: matched (or not) through the registry above
+	for _, row := range compact.Entities {
+		known[row.EI] = true
+	}
+	kept := []verbTarget{}
+	for _, m := range matches {
+		known[m.EntityID] = true
+		if state, ok := current[m.EntityID]; ok && state == q.state {
+			m.State = state
+			kept = append(kept, m)
+		}
+	}
+	tokens := foldTokens(q.phrase)
+	for _, st := range states {
+		if known[st.EntityID] || st.State != q.state || q.area != "" ||
+			(q.domain != "" && !strings.HasPrefix(st.EntityID, q.domain+".")) ||
+			!tokensMatch(tokens, st.EntityID+" "+st.Attributes.FriendlyName) {
+			continue
+		}
+		kept = append(kept, verbTarget{EntityID: st.EntityID, Name: st.Attributes.FriendlyName, State: st.State, By: "state"})
+	}
+	sort.Slice(kept, func(i, j int) bool { return kept[i].EntityID < kept[j].EntityID })
+	return kept, nil
 }
 
 // unionTargets keeps every entity once (first basis wins), sorted by id.

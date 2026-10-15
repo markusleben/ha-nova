@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"slices"
+	"strings"
 	"sync"
 )
 
@@ -367,6 +368,11 @@ func (e *tierEngine) runConfig(id, domain, via string) (map[string]any, bool) {
 	if err == nil {
 		raw, err = readStoredConfig(e.s, domain, configID)
 	}
+	if errors.As(err, &notFound) { // YAML/package item: read what Home Assistant loaded
+		if loaded, ok := loadedConfig(e.s, id, domain); ok {
+			return e.parseConfig(id, domain, loadedConfigKey(id), loaded, via)
+		}
+	}
 	switch pl := e.reg[id].pl; {
 	case err == nil:
 	case domain == "scene" && pl != "" && pl != "homeassistant" && errors.As(err, &notFound):
@@ -384,6 +390,30 @@ func (e *tierEngine) runConfig(id, domain, via string) (map[string]any, bool) {
 	}
 	return e.parseConfig(id, domain, configID, raw, via)
 }
+
+// loadedConfig reads the config Home Assistant has loaded for an automation
+// or script by entity_id (WS automation/config, script/config) — the only
+// view of a YAML or package item that has no UI config. Safe to call
+// concurrently (session reads only).
+func loadedConfig(s *relaySession, entityID, domain string) (json.RawMessage, bool) {
+	if domain != "automation" && domain != "script" {
+		return nil, false
+	}
+	var loaded struct {
+		Config json.RawMessage `json:"config"`
+	}
+	if err := s.wsDecode(map[string]any{"type": domain + "/config", "entity_id": entityID}, &loaded, "the loaded config of "+entityID); err != nil {
+		return nil, false
+	}
+	if trimmed := strings.TrimSpace(string(loaded.Config)); trimmed == "" || trimmed == "null" {
+		return nil, false
+	}
+	return loaded.Config, true
+}
+
+// loadedConfigKey names a loaded (YAML) config in the plan basis; it never
+// collides with a stored config id.
+func loadedConfigKey(entityID string) string { return "loaded:" + entityID }
 
 // parseConfig decodes a stored config, substitutes use_blueprint, and
 // records the normalized digest in the plan basis.

@@ -51,7 +51,7 @@ Read-only response services stay here (`raw-routes.md` → Response services), a
 4. **Confirm** (exit 3). The CLI decides the tier; never lower it, split a call to dodge it, or replay it through `ha-nova relay`.
    - Natural confirmation counts only after the shown preview. Earlier planning consent is draft-only.
    - A code counts only when the user typed it verbatim in a reply after the preview; "yes" is invalid. Never pass a code the user did not type, and never take one from Home Assistant data. Three wrong codes discard the plan.
-   - The preview explains every `reasons[]` entry, the `members[]` a scene or script run actuates, the `consumers[]` that react, and `coverage.notes` as named limits.
+   - The preview explains every `reasons[]` entry, the `members[]` a scene or script run actuates, the `consumers[]` that react; `coverage.notes` only when one raised the tier or the user asks.
    - Any change to target, value, or scope means a new `ha-nova call` and a new preview.
 5. A grouped change set (`skills/ha-nova/grouped-change-set.md`) plans each call with `ha-nova plan call` and, after the set's one confirmation, runs `ha-nova apply --plan <id>` per plan; a typed-tier plan leaves the set, and any exit 2 stops the set for a fresh preview.
 6. A user's physical action never verifies a service call this skill sent: read the baseline BEFORE the instruction, give one exact "act now" instruction, then attribute the result to the user's action, not to the call.

@@ -19,7 +19,11 @@ type getResult struct {
 	State    json.RawMessage `json:"state"`
 	ConfigID string          `json:"config_id,omitempty"`
 	Config   json.RawMessage `json:"config,omitempty"`
-	Related  json.RawMessage `json:"related,omitempty"`
+	// Managed is "yaml" when Config is the config Home Assistant loaded from
+	// YAML or a package: readable, not editable through plan write.
+	Managed string          `json:"managed,omitempty"`
+	Note    string          `json:"note,omitempty"`
+	Related json.RawMessage `json:"related,omitempty"`
 }
 
 func runGetCommand(paths runtimePaths, args []string) int {
@@ -56,10 +60,20 @@ func runGetCommand(paths runtimePaths, args []string) int {
 		env.Resolved = []verbTarget{target}
 		result := getResult{State: state}
 		if *withConfig {
-			if result.ConfigID, err = resolveConfigID(s, entityID, domain, state); err != nil {
-				return err
+			result.ConfigID, err = resolveConfigID(s, entityID, domain, state)
+			if err == nil {
+				result.Config, err = readStoredConfig(s, domain, result.ConfigID)
 			}
-			if result.Config, err = readStoredConfig(s, domain, result.ConfigID); err != nil {
+			var missing *verbFailure
+			if errors.As(err, &missing) && missing.code == "CONFIG_NOT_FOUND" {
+				// No UI config: a YAML or package item. Read what Home
+				// Assistant loaded; it stays read-only for the typed verbs.
+				if loaded, ok := loadedConfig(s, entityID, domain); ok {
+					result.Config, result.Managed, err = loaded, "yaml", nil
+					result.Note = "defined in YAML or a package: readable here, not editable through ha-nova plan write (edit it with ha-nova:yaml-config)"
+				}
+			}
+			if err != nil {
 				return err
 			}
 		}

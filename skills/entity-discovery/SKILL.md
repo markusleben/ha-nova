@@ -41,7 +41,8 @@ Use file-based relay requests by default:
 ### Step 1: Resolve a name — `ha-nova find`
 
 ```text
-ha-nova find "<the user's phrase>" [--domain <d>] [--area <area_id>] [--limit 20]
+ha-nova find "<the user's phrase>" [--domain <d>] [--area <area_id>] [--state <s>] [--limit 20]
+ha-nova find --domain <d> [--area <area_id>] [--state <s>]
 ```
 
 Every word of the phrase must match the entity_id, name, or area,
@@ -153,8 +154,9 @@ This contract is generic — never hard-coded to a brand, to cameras, or to rest
 about STATE across many entities, not about finding one. They are reads and
 belong here; `ha-nova:health` answers what is broken, not what is on.
 
-One call answers them: `ha-nova relay core --method GET --path /api/states --out <result-file>`,
-then filter by domain plus `device_class` and state:
+By domain and state: `ha-nova find --domain light --state on`. A
+`device_class` filter needs one raw read, `ha-nova relay core --method GET --path /api/states --out <result-file>`,
+filtered by domain, `device_class`, and state:
 
 ```jq
 [.data.body[]

@@ -25,7 +25,7 @@ per their skill's Output Format and need no card file.
 - If raw automation IDs, helper IDs, config IDs, or entity IDs make the response more technical than helpful, summarize them in words or by count; show precise identifiers only for safety, disambiguation, or evidence.
 - Scratch payload/filter/result files are internal execution artifacts: never under the repo working tree, and never mentioned (paths, "edited files", payload or jq files) in progress updates, summaries, or final output unless the user asks for debugging details. Scratch files surfacing as workspace edits, or absolute scratch paths in visible command text, mean the scratch location/tooling was wrong.
 - Internal task, card, or payload labels (`Automation Payload`, `Apply And Verify`, `Run Post Write`, filter names, generated helper-step titles) are execution artifacts too — never in the user-facing answer.
-- Never show internal check codes such as `R-01` or `H-09`, plan ids, hashes, exit codes, or reason codes such as `ACCESS_LOCK`; describe them in plain language.
+- Never show internal check codes such as `R-01` or `H-09`, plan ids, hashes, exit codes, or reason codes such as `ACCESS_LOCK`; describe them in plain language. Never cite a skill, file, or path as the reason ("the service-call skill requires…"); give the plain reason ("it unlocks a door").
 
 ## Progressive Detail
 
@@ -44,7 +44,7 @@ say that results may have changed since the previous report.
 A result from `ha-nova call` or `ha-nova apply` is at most three lines:
 
 1. what ran — the service in plain words plus the resolved names (and the area when it disambiguates);
-2. the outcome in the result vocabulary — verified, accepted (sent, effect not observable), unverified, failed, or "may have run, unknown" — with any per-entity discrepancy;
+2. the outcome in the result vocabulary — verified, accepted (sent, effect not observable), unverified, failed, or "may have run, unknown" — with any per-entity discrepancy in plain words ("still locked after 10s");
 3. notices (`notices[]`), only when present and not yet surfaced this session (session bootstrap callouts).
 
 No card, no options block, no raw JSON.

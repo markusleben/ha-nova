@@ -24,6 +24,7 @@ type fakeHA struct {
 	hang          map[string]bool     // ws type or core path that never answers
 	relatedGroups map[string][]string // entity → groups search/related reports
 	aliases       map[string][]string // entity → aliases (get_entries only, as in HA)
+	loaded        map[string]any      // entity → loaded config (WS automation/config, script/config)
 	flows         []map[string]any    // config_entries/flow/progress
 	services      []map[string]any    // GET /api/services (nil: 404)
 	// service answers POST /api/services/<d>/<s> (nil: 200 and no effect);
@@ -134,6 +135,11 @@ func (f *fakeHA) reply(r *http.Request, endpoint string, p map[string]any) any {
 				entries[fmt.Sprint(id)] = map[string]any{"aliases": f.aliases[fmt.Sprint(id)]}
 			}
 			return entries
+		case "automation/config", "script/config":
+			if cfg, ok := f.loaded[fmt.Sprint(p["entity_id"])]; ok {
+				return map[string]any{"config": cfg}
+			}
+			return fakeRelayFailure{"UPSTREAM_WS_COMMAND_ERROR", "not_found: Entity not found"}
 		case "config_entries/flow/progress":
 			return append([]map[string]any{}, f.flows...)
 		case "config_entries/get":

@@ -45,9 +45,10 @@ var callProperties = map[string]any{
 }
 
 var mcpTools = []mcpTool{
-	{name: "ha_find", title: "Find entities", description: "Find entities by phrase (case-, accent-, alias-aware).", readOnly: true, idempotent: true,
-		schema: object([]string{"phrase"}, map[string]any{"phrase": prop("string", "words to match"), "domain": prop("string", "only this domain"),
-			"area": prop("string", "only this area_id"), "limit": prop("integer", "1-200 rows (default 20)"), "include_disabled": prop("boolean", "include disabled entities")}),
+	{name: "ha_find", title: "Find entities", description: "Find entities by phrase (case-, accent-, alias-aware) and/or by domain, area, or current state — e.g. which lights are on: domain light, state on.", readOnly: true, idempotent: true,
+		schema: object(nil, map[string]any{"phrase": prop("string", "words to match (optional with domain, area, or state)"), "domain": prop("string", "only this domain"),
+			"area": prop("string", "only this area_id"), "state": prop("string", "only entities currently in this state, e.g. on"),
+			"limit": prop("integer", "1-200 rows (default 20)"), "include_disabled": prop("boolean", "include disabled entities")}),
 		argv: findArgv, run: runFindCommand},
 	{name: "ha_get", title: "Read an entity", description: "Read one entity's state, optionally its stored config and relations.", readOnly: true, idempotent: true,
 		schema: object([]string{"entity_id"}, map[string]any{"entity_id": prop("string", "exact entity_id"),
@@ -363,13 +364,16 @@ func flagsThen(args map[string]json.RawMessage, bools, strs []string, positional
 }
 
 func findArgv(args map[string]json.RawMessage, _ *mcpTempFiles) ([]string, error) {
-	argv, _ := flagsThen(args, []string{"include_disabled"}, []string{"domain", "area"}, "")
+	argv, _ := flagsThen(args, []string{"include_disabled"}, []string{"domain", "area", "state"}, "")
 	if raw, present := args["limit"]; present {
 		var n int
 		_ = json.Unmarshal(raw, &n)
 		argv = append(argv, "--limit="+strconv.Itoa(n))
 	}
-	return append(argv, "--", text(args, "phrase")), nil
+	if phrase := text(args, "phrase"); phrase != "" {
+		argv = append(argv, "--", phrase)
+	}
+	return argv, nil
 }
 
 func readArgv(args map[string]json.RawMessage, _ *mcpTempFiles) ([]string, error) {

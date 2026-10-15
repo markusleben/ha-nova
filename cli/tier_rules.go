@@ -72,7 +72,7 @@ const (
 	reasonIntegrationSvc    = "INTEGRATION_SERVICE"
 	reasonUserService       = "USER_AUTHORED_SERVICE"
 	noteTemplates           = "TEMPLATES_NOT_CHECKABLE"
-	noteNoManager           = "NO_LOCAL_CONSUMER_MANAGER"
+	noteNoManager           = "NO_CONSUMER_MANAGER_INSTALLED" // good news, not a gap
 	noteSkippedTargets      = "EXPANDED_TARGET_WITHOUT_STATE"
 )
 
