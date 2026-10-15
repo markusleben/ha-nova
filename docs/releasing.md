@@ -25,7 +25,8 @@ npm run verify:next-release-version -- v<version>
 - site sync: https://hanova.app (`markusleben/ha-nova-site`) mirrors the
   README; every release-bound README claim gets its site copy in a prepared
   site PR (desktop + mobile screenshots, maintainer go), merged right after
-  the tag publishes — a release is not done until the site matches
+  the FINAL stable tag publishes (never for an RC) — a release is not done
+  until the site matches
 - merging the release-prep PR starts the tag sequence immediately
 - preflight: audit open PRs (Dependabot, workflows, installer/update,
   release metadata) as `blocker now` vs `separate later`; never pull a red or
@@ -200,8 +201,8 @@ $env:HA_NOVA_VERSION = 'vX.Y.Z'
 irm https://raw.githubusercontent.com/markusleben/ha-nova/<stable-tag>/install.ps1 | iex
 ```
 
-After publish, merge the prepared site PR (see section 1), then run the
-commands above for the new tag and smoke
+After a final stable publish, merge the prepared site PR (see section 1; RCs
+skip it), then run the commands above for the new tag and smoke
 `ha-nova version`, `ha-nova check-update`, same-version `ha-nova update`, and
 `ha-nova uninstall --yes`.
 

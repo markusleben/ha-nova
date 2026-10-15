@@ -112,8 +112,15 @@ the number.
 - MCP adapter: reframe "Why not an MCP server?" — HA NOVA stays skills-first
   (one readable skill on demand, no default tool catalog), and now also ships
   a small local MCP server (`ha-nova mcp`) for clients without a shell that
-  reuses this computer's pairing and runs the same checks; add "Any MCP
-  client" to Supported Clients.
+  reuses this computer's pairing and runs the same checks; add "local MCP
+  clients that launch a command (stdio)" to Supported Clients — no remote/HTTP
+  MCP endpoint.
+- Confirmation-code honesty: wherever the README promises codes ("You
+  approve it", typed codes for locks/gates/alarm/deletes), add that a code
+  only proves it was you when your client asks before the apply step runs —
+  the AI sees the code it relays; HA NOVA tells it never to use one you did
+  not type, and over MCP keep the client's approval prompt on for `ha_apply`
+  (never "always allow").
 - Batch deletes: README step 3 "A reviewed batch delete takes one code bound
   to the exact list of items" no longer holds for automations and scripts —
   each delete is its own plan with its own code.
