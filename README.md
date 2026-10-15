@@ -75,7 +75,7 @@ We built this because we didn't trust AI with our own config either.
 
 1. **Researches first.** Finds your devices, checks your setup, resolves entity names. No guessing.
 2. **Shows you the change.** A clear before/after table of exactly what will change, before anything is written. The one exception: unambiguous everyday actions — "turn off the kitchen light" — run right away and are verified afterwards. The HA NOVA command decides which actions qualify, never the AI, and it sends nothing if anything changed since a preview.
-3. **You approve it.** Unlocking a door, opening a gate or garage door, disarming the alarm, and deletes require a specific confirmation code — not just "yes." Each automation or script delete takes its own code; other reviewed batch deletes take one code bound to the exact list of items. A code only proves it was you when your client asks you before the apply step runs: the AI sees the code it relays, and HA NOVA tells it never to use one you did not type. Over MCP, keep your client's approval prompt on for `ha_apply` — never "always allow."
+3. **You approve it.** Unlocking a door, opening a gate or garage door, disarming the alarm, and deletes require a specific confirmation code — not just "yes." Each automation or script delete takes its own code; other reviewed batch deletes take one code bound to the exact list of items. A code only proves it was you when your client asks you before the apply step runs: the AI sees the code it relays, and HA NOVA tells it never to use one you did not type.
 4. **Captures a recovery point first.** Before a covered delete or full-configuration replacement, HA NOVA snapshots the item it is about to change — so "gone" has a way back.
 5. **Writes and verifies.** Reads the config back to confirm the change stuck.
 6. **Audits itself.** Checks for mistakes, conflicts, and reliability issues.
@@ -212,8 +212,6 @@ Fair question — we built a tool-based MCP server first. 88,000 lines of it, ne
 
 > **The honest bit:** the MCP side is ahead on breadth today — more tools (App management, dashboard screenshots, ZHA inspection), more contributors, more stars. It's the older project. But the asymmetry matters: **our gaps close one markdown file at a time — turning a tool server's Python into plain text you can read would be a rewrite.**
 
-> **Need MCP anyway?** For clients without a shell, `ha-nova mcp` is a small local MCP server that your client launches as a command (stdio). It reuses this computer's pairing and runs the same checks — find, read, history, traces, previews, device control, and automation/script changes — with the skills as prompts. There is no remote or HTTP MCP endpoint. Setup: **[client integration](docs/reference/client-integration.md#use-with-any-mcp-client)**.
-
 Full detail, named, dated, honest in both directions: **[comparison page](docs/reference/comparison.md)**.
 
 ---
@@ -284,7 +282,6 @@ The skills declare the NOVA Relay version they need (see `version.json`) and war
 | [OpenCode](https://github.com/opencode-ai/opencode) | Terminal |
 | [Google Antigravity](https://antigravity.google/) | Desktop app / Terminal |
 | Hermes Agent (preview) | Terminal |
-| Local MCP clients that launch a command (stdio), via `ha-nova mcp` | MCP adapter |
 
 > Google Antigravity is the current Google client path. `ha-nova setup gemini` remains a legacy alias for existing Gemini-era installs.
 

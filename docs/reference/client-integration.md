@@ -61,9 +61,11 @@ Use `per_os` when a setup capability differs by platform:
 
 Keep registry metadata declarative. Do not add cleanup globs, shell hooks, or dynamic scripts to client entries.
 
-## Use with any MCP client
+## Experimental: MCP adapter (`ha-nova mcp`)
 
-Clients without a shell (or without HA NOVA skill support) can use HA NOVA through MCP. `ha-nova mcp` is a local stdio server that reuses this computer's pairing — run `ha-nova setup` first; the server never asks for credentials and never opens a keyring prompt. Add it to the client's MCP configuration (Claude Desktop: `claude_desktop_config.json`; other clients use the same `command`/`args` shape):
+> **Experimental — not supported yet; the interface may change.** This section is for testers. It is not an advertised client path: the supported way to use HA NOVA is a client that loads the skills. The adapter is planned to carry the skills before it is announced.
+
+`ha-nova mcp` is a local stdio MCP server that reuses this computer's pairing — run `ha-nova setup` first; the server never asks for credentials and never opens a keyring prompt. Add it to the client's MCP configuration (Claude Desktop: `claude_desktop_config.json`; other clients use the same `command`/`args` shape):
 
 ```json
 {

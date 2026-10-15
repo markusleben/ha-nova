@@ -86,7 +86,7 @@ func runMCPCommand(paths runtimePaths, args []string) int {
 	var opts verbOptions
 	fs := flag.NewFlagSet("mcp", flag.ContinueOnError)
 	fs.StringVar(&opts.server, "server", "", "server profile name (or HA_NOVA_SERVER)")
-	positional, err := parseVerbArgs(fs, &opts, args, mcpUsage+"\n\nServes the HA NOVA tools over MCP (stdio). Configure your MCP client with command \"ha-nova\", args [\"mcp\"].")
+	positional, err := parseVerbArgs(fs, &opts, args, mcpUsage+"\n\nEXPERIMENTAL — not supported yet; the interface may change.\nServes the HA NOVA tools over MCP (stdio). Configure your MCP client with command \"ha-nova\", args [\"mcp\"].")
 	if errors.Is(err, errHelpShown) {
 		return 0
 	}

@@ -7,6 +7,8 @@ describe("release notes contract", () => {
   const readme = readFileSync("README.md", "utf8");
   const privacy = readFileSync("PRIVACY.md", "utf8");
   const safety = readFileSync("docs/reference/safety.md", "utf8");
+  const comparison = readFileSync("docs/reference/comparison.md", "utf8");
+  const clientIntegration = readFileSync("docs/reference/client-integration.md", "utf8");
   const stableNotes = goreleaser
     .split("{{ else }}", 2)[1]
     ?.split("Stable install commands are release-pinned", 1)[0];
@@ -43,13 +45,17 @@ describe("release notes contract", () => {
     expect(stableNotes).toMatch(/## What To Watch\s+- \*\*Update the NOVA Relay App too\.\*\*/);
     expect(stableNotes).toContain("Unambiguous everyday actions run right away");
     expect(stableNotes).toContain("one code per item");
-    expect(stableNotes).toContain("`ha-nova mcp`");
+    // The MCP adapter ships experimental and unadvertised until it carries the skills.
+    expect(stableNotes).not.toMatch(/mcp/i);
     expect(stableNotes).not.toContain("Cloud Remote is back on Windows and Linux");
     expect(readme).toContain("only unambiguous everyday actions run right away");
     expect(readme).toContain("Each automation or script delete takes its own code");
-    expect(readme).toContain("keep your client's approval prompt on for `ha_apply`");
-    expect(readme).toContain("Local MCP clients that launch a command (stdio)");
-    expect(readme).toContain("There is no remote or HTTP MCP endpoint");
+    expect(readme).toContain("A code only proves it was you when your client asks you before the apply step runs");
+    expect(readme).not.toContain("ha-nova mcp");
+    expect(readme).not.toContain("ha_apply");
+    expect(readme).not.toContain("Local MCP clients");
+    expect(comparison).not.toContain("ha-nova mcp");
+    expect(clientIntegration).toContain("Experimental — not supported yet; the interface may change.");
     expect(readme).not.toContain("Every change is previewed and approved first");
     expect(readme).not.toContain("A reviewed batch delete takes one code");
     expect(readme).not.toMatch(/census/i);

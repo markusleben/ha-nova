@@ -87,7 +87,7 @@ new_scenario() {
   fi
 }
 
-has_verb() { hn --help 2>&1 | grep -c "ha-nova $1" >/dev/null; } # grep -c drains: no SIGPIPE
+has_verb() { hn "$1" --help >/dev/null 2>&1; } # probes the verb itself: `mcp` is callable but not listed in --help
 
 rc_file() { case "$1" in */zsh) echo "$H/.zshrc" ;; *) [[ -f "$H/.bash_profile" ]] && echo "$H/.bash_profile" || echo "$H/.profile" ;; esac; }
 
