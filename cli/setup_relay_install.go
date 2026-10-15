@@ -2,101 +2,122 @@ package main
 
 import (
 	"bufio"
+	"context"
+	"encoding/json"
+	"fmt"
 	"io"
-	"strconv"
+	"net/http"
 	"strings"
+	"time"
 )
 
-// Test seam. The unauthenticated GET /pair/v1/info answers only from a running
-// NOVA Relay: probePairingV1 requires HTTP 200 plus the relay's own
-// {"ok":true,"data":{"protocol_version":"v1"}} envelope, so a closed port, an
-// HA or proxy page, a timeout, or an old relay all read as "not running".
-var probeInstalledRelayForSetup = probePairingV1
+// Bounds the "is the Relay already running?" probe so a silent firewall never
+// stalls the wizard longer than this.
+var installedRelayProbeTimeout = 5 * time.Second
 
-// relayAppAlreadyRunning reports whether the NOVA Relay already answers at the
-// configured relay address, so a second computer can skip the App install.
-// Any doubt returns false: the caller then shows the install steps as usual.
-func relayAppAlreadyRunning(out io.Writer, cfg runtimeConfig) bool {
-	relayURL := strings.TrimSpace(cfg.RelayBaseURL)
-	if relayURL == "" {
-		relayURL = deriveRelayURLFromHA(cfg.HAURL, cfg.HAHost)
+// Test seam.
+var probeInstalledRelayForSetup = probeInstalledRelay
+
+// probeInstalledRelay asks the unauthenticated GET /pair/v1/info. Only HTTP 200
+// with the relay's own {"ok":true,"data":{"protocol_version":"v1"}} envelope
+// counts as running; a closed port, timeout, HA or proxy page, other status,
+// or an old relay all read as "not running". It also returns relay_version.
+func probeInstalledRelay(relayURL string) (bool, string) {
+	ctx, cancel := context.WithTimeout(context.Background(), installedRelayProbeTimeout)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, strings.TrimRight(relayURL, "/")+"/pair/v1/info", nil)
+	if err != nil {
+		return false, ""
 	}
-	if relayURL == "" {
-		return false
+	req.URL.User = nil // never forward copied URL userinfo as Basic auth
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return false, ""
 	}
-	renderSetupParagraphTight(out, "Checking whether NOVA Relay is already running on this Home Assistant...")
-	if !probeInstalledRelayForSetup(relayURL) {
-		return false
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return false, ""
 	}
-	renderSetupSuccessLine(out, "NOVA Relay is already installed and running. Nothing to install on this computer.")
-	return true
+	body, err := readAllLimited(resp.Body, maxRelayPairingResponseBytes)
+	if err != nil || !decodePairInfo(body) {
+		return false, ""
+	}
+	var info struct {
+		Data struct {
+			RelayVersion string `json:"relay_version"`
+		} `json:"data"`
+	}
+	_ = json.Unmarshal(body, &info) // decodePairInfo already proved valid JSON
+	return true, strings.TrimSpace(info.Data.RelayVersion)
 }
 
-// haSupportsCombinedAppLink reports whether the Home Assistant version (from
-// its mDNS announcement) knows the supervisor_app My link with
-// repository_url. Home Assistant 2026.2 (frontend 20260128) added it; an
-// unknown or older version keeps the two-step repository + App Store flow.
-func haSupportsCombinedAppLink(version string) bool {
-	parts := strings.SplitN(strings.TrimSpace(version), ".", 3)
-	if len(parts) < 2 {
-		return false
-	}
-	year, yearErr := strconv.Atoi(parts[0])
-	month, monthErr := strconv.Atoi(parts[1])
-	if yearErr != nil || monthErr != nil {
-		return false
-	}
-	return year > 2026 || (year == 2026 && month >= 2)
+type installedRelayResult struct {
+	running bool
+	version string
 }
 
-// relayInstallGuide is the browser link plus the clicks that follow it.
-type relayInstallGuide struct {
-	Link     string
-	Browser  string
-	Steps    []string
-	Combined bool
-}
-
-func relayInstallGuideFor(haURL, haVersion string) relayInstallGuide {
-	if haSupportsCombinedAppLink(haVersion) {
-		return relayInstallGuide{
-			Link:     haInstallRelayAppURL(haURL),
-			Browser:  `In the browser: log in to Home Assistant if asked, then click "Add" when it asks to add the app repository.`,
-			Steps:    []string{"1. Click Install and wait for it to finish", "2. Click Start"},
-			Combined: true,
-		}
+// detectInstalledRelay reports whether the NOVA Relay already runs on the
+// chosen Home Assistant, so a second computer can skip the App install, and
+// returns the note to show under the pairing step. Only the relay address
+// derived from that Home Assistant proves it: a --relay-url or a kept custom
+// address may point at another machine, so those always show the steps.
+func detectInstalledRelay(out io.Writer, paths runtimePaths, cfg runtimeConfig, relayURLFlag string) (bool, string) {
+	derived := strings.TrimRight(deriveRelayURLFromHA(cfg.HAURL, cfg.HAHost), "/")
+	if strings.TrimSpace(relayURLFlag) != "" || derived == "" ||
+		strings.TrimRight(strings.TrimSpace(cfg.RelayBaseURL), "/") != derived {
+		return false, ""
 	}
-	return relayInstallGuide{
-		Link:    haAddRepositoryURL(haURL),
-		Browser: `In the browser: log in to Home Assistant if asked, then click "Add" to confirm the repository.`,
-		Steps: []string{
-			"1. Go to Settings > Apps > App Store (on older Home Assistant: Settings > Add-ons)",
-			`2. Search for "NOVA Relay"`,
-			"3. Click Install and wait for it to finish",
-			"4. Click Start",
+	result, _ := runSetupCountdownSpinnerWithResult(out,
+		"Checking whether NOVA Relay is already running...",
+		installedRelayProbeTimeout,
+		setupDiscoveryMinimumVisibleDuration,
+		func() (installedRelayResult, error) {
+			running, version := probeInstalledRelayForSetup(derived)
+			return installedRelayResult{running: running, version: version}, nil
 		},
+	)
+	if !result.running {
+		return false, ""
 	}
+	note := "NOVA Relay is already running in Home Assistant. Skipping the install step."
+	if minimum := relayVersionBelowMinimum(paths, result.version); minimum != "" {
+		note += fmt.Sprintf(" It runs v%s; this HA NOVA needs v%s or newer: update NOVA Relay in Home Assistant (Settings > Apps > NOVA Relay) after pairing.", result.version, minimum)
+	}
+	return true, note
 }
 
-func (guide relayInstallGuide) stepsTitle() string {
-	if guide.Combined {
-		return "On the NOVA Relay page:"
+// relayVersionBelowMinimum returns min_relay_version when the running relay is
+// older, else "". An unknown version is no evidence either way.
+func relayVersionBelowMinimum(paths runtimePaths, relayVersion string) string {
+	if relayVersion == "" {
+		return ""
 	}
-	return "Once the repository is added:"
+	v, err := readVersionJSON(paths.VersionFile)
+	if err != nil || v.MinRelayVersion == "" {
+		return ""
+	}
+	if cmp, err := compareReleaseVersions(relayVersion, v.MinRelayVersion); err != nil || cmp >= 0 {
+		return ""
+	}
+	return v.MinRelayVersion
 }
 
 // runRelayInstallSteps announces the install link, opens it on Enter, lists
 // the clicks, and waits until the user says the App runs. It returns the
 // prompt's errSetupBack/errSetupExit unchanged for the caller's navigation.
-func runRelayInstallSteps(reader *bufio.Reader, out io.Writer, guide relayInstallGuide) error {
+func runRelayInstallSteps(reader *bufio.Reader, out io.Writer, haURL string) error {
+	link := haInstallRelayAppURL(haURL)
 	renderSetupParagraph(out, "Next, install the NOVA Relay App in your Home Assistant.")
-	renderSetupLink(out, "This will open:", guide.Link)
+	renderSetupLink(out, "This will open:", link)
 	if _, err := promptWizardLineFromReader(reader, out, "Press Enter to open your browser", ""); err != nil {
 		return err
 	}
-	openAnnouncedBrowserURL(out, guide.Link)
-	renderSetupParagraphTight(out, guide.Browser)
-	renderSetupIndentedBlock(out, guide.stepsTitle(), "    ", guide.Steps...)
+	openAnnouncedBrowserURL(out, link)
+	renderSetupParagraphTight(out, `In the browser: log in to Home Assistant if asked. When it asks to add the app repository, click "Add".`)
+	renderSetupIndentedBlock(out, "On the NOVA Relay page:", "    ",
+		"1. Click Install and wait for it to finish",
+		"2. Click Start",
+	)
 	_, err := promptWizardLineFromReader(reader, out, "Press Enter when the app is running", "")
 	return err
 }

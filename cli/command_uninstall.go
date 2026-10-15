@@ -27,6 +27,7 @@ func runInternalUninstall(_ runtimePaths, args []string) int {
 	selfPath := fs.String("self-path", "", "temp helper path")
 	purge := fs.Bool("purge", false, "remove config and token")
 	teardownDone := fs.Bool("teardown-done", false, "server-side teardown already completed by the parent")
+	keptForOtherDevices := fs.Bool("kept-for-other-devices", false, "the parent kept the shared App for other computers")
 	teardownRelayInstanceID := fs.String(
 		"teardown-relay-instance-id",
 		"",
@@ -71,6 +72,7 @@ func runInternalUninstall(_ runtimePaths, args []string) int {
 	defer stopHeartbeat()
 	waitForParentReleaseForUninstall(*parentPID)
 	preflight := collectUninstallPreflight(paths)
+	preflight.keptForOtherDevices = *keptForOtherDevices
 	report := &uninstallReport{}
 	if err := finalizeWindowsUninstall(
 		paths,
@@ -203,6 +205,7 @@ func runUninstall(paths runtimePaths, args []string) int {
 			mode,
 			teardownDone,
 			removedRelays,
+			preflight.keptForOtherDevices,
 		); err != nil {
 			printHumanErr("cannot finish Windows uninstall: %s", err)
 			return 1
@@ -290,6 +293,7 @@ func launchWindowsUninstall(
 	mode uninstallMode,
 	teardownDone bool,
 	removedRelays uninstallRelayRemovalEvidence,
+	keptForOtherDevices bool,
 ) error {
 	if _, err := windowsUninstallRelayRemovalRefFromEvidence(
 		teardownDone,
@@ -320,20 +324,7 @@ func launchWindowsUninstall(
 		)
 	}
 	statusTicks := windowsUninstallStatusMarkerTicks(paths.UninstallStatusFile)
-	args := []string{"internal-uninstall", "--parent-pid", strconv.Itoa(os.Getpid()), "--self-path", tempHelper}
-	if mode == uninstallModePurge {
-		args = append(args, "--purge")
-	}
-	if teardownDone {
-		args = append(args, "--teardown-done")
-	}
-	if relayInstanceID, exists := removedRelays[defaultServerProfileName]; exists && strings.TrimSpace(relayInstanceID) != "" {
-		args = append(
-			args,
-			"--teardown-relay-instance-id",
-			strings.TrimSpace(relayInstanceID),
-		)
-	}
+	args := windowsUninstallHelperArgs(tempHelper, mode, teardownDone, removedRelays, keptForOtherDevices)
 	if err := launchWindowsDetachedHelperWithEnv(
 		tempHelper,
 		paths.UninstallStatusFile,
@@ -834,4 +825,33 @@ func removeBundleRuntime(paths runtimePaths, report *uninstallReport) error {
 func relayAuthTokenExistsForUninstall() bool {
 	token, err := readRelayAuthTokenForUninstall()
 	return err == nil && strings.TrimSpace(token) != ""
+}
+
+func windowsUninstallHelperArgs(
+	tempHelper string,
+	mode uninstallMode,
+	teardownDone bool,
+	removedRelays uninstallRelayRemovalEvidence,
+	keptForOtherDevices bool,
+) []string {
+	args := []string{"internal-uninstall", "--parent-pid", strconv.Itoa(os.Getpid()), "--self-path", tempHelper}
+	if mode == uninstallModePurge {
+		args = append(args, "--purge")
+	}
+	if teardownDone {
+		args = append(args, "--teardown-done")
+	}
+	if keptForOtherDevices {
+		// The helper prints its own final notes; they must not tell the user
+		// to remove the App they just kept for other computers.
+		args = append(args, "--kept-for-other-devices")
+	}
+	if relayInstanceID, exists := removedRelays[defaultServerProfileName]; exists && strings.TrimSpace(relayInstanceID) != "" {
+		args = append(
+			args,
+			"--teardown-relay-instance-id",
+			strings.TrimSpace(relayInstanceID),
+		)
+	}
+	return args
 }

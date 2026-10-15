@@ -45,7 +45,7 @@ func defaultTeardownDeps() teardownDeps {
 
 const (
 	teardownStageOffer = iota
-	teardownStageLastDevice
+	teardownStageWalkthrough
 	teardownStageApp
 	teardownStageRepo
 	teardownStageLLAT
@@ -77,30 +77,12 @@ func maybeOfferGuidedTeardown(reader *bufio.Reader, out io.Writer, preflight uni
 				"Home Assistant still hosts the server side: the NOVA Relay app, the HA NOVA repository, and the \"NOVA\" access token.",
 				teardownSharedAppWarning,
 			)
-			// Default No: removing the App is never the safe answer to an
-			// accidental Enter.
-			confirmed, err := promptWizardYesNoFromReader(reader, out, "Remove them now with a guided walkthrough?", false)
+			// Asked first, default No: the CLI cannot list the devices paired
+			// with the relay (that list is owner-only on the NOVA page), and an
+			// accidental Enter must never lead toward removing the shared App.
+			last, err := promptWizardYesNoFromReader(reader, out, "Is this the last computer using HA NOVA with this Home Assistant?", false)
 			if err == errSetupBack {
 				return teardownDeclined, nil
-			}
-			if err == errSetupExit {
-				return teardownCancelled, nil
-			}
-			if err != nil {
-				return teardownNotOffered, err
-			}
-			if !confirmed {
-				return teardownDeclined, nil
-			}
-			stage = teardownStageLastDevice
-
-		case teardownStageLastDevice:
-			// The CLI cannot list the devices paired with the relay (that list
-			// is owner-only on the NOVA page), so the user confirms it.
-			last, err := promptWizardYesNoFromReader(reader, out, "Is this the last computer that uses NOVA with this Home Assistant?", false)
-			if err == errSetupBack {
-				stage = teardownStageOffer
-				continue
 			}
 			if err == errSetupExit {
 				return teardownCancelled, nil
@@ -112,6 +94,23 @@ func maybeOfferGuidedTeardown(reader *bufio.Reader, out io.Writer, preflight uni
 				renderSetupParagraphTight(out, "Keeping the NOVA Relay app so your other computers keep working. Only this computer is removed.")
 				return teardownKeptForOtherDevices, nil
 			}
+			stage = teardownStageWalkthrough
+
+		case teardownStageWalkthrough:
+			confirmed, err := promptWizardYesNoFromReader(reader, out, "Remove them now with a guided walkthrough?", false)
+			if err == errSetupBack {
+				stage = teardownStageOffer
+				continue
+			}
+			if err == errSetupExit {
+				return teardownCancelled, nil
+			}
+			if err != nil {
+				return teardownNotOffered, err
+			}
+			if !confirmed {
+				return teardownDeclined, nil
+			}
 			stage = teardownStageApp
 
 		case teardownStageApp:
@@ -119,7 +118,7 @@ func maybeOfferGuidedTeardown(reader *bufio.Reader, out io.Writer, preflight uni
 			renderSetupLink(out, "This will open:", haRelayAppPageURL(preflight.haURL))
 			_, err := promptWizardLineFromReader(reader, out, "Press Enter to open your browser", "")
 			if err == errSetupBack {
-				stage = teardownStageLastDevice
+				stage = teardownStageWalkthrough
 				continue
 			}
 			if err == errSetupExit {
@@ -135,7 +134,7 @@ func maybeOfferGuidedTeardown(reader *bufio.Reader, out io.Writer, preflight uni
 			)
 			_, err = promptWizardLineFromReader(reader, out, "Press Enter when the app is removed", "")
 			if err == errSetupBack {
-				stage = teardownStageLastDevice
+				stage = teardownStageWalkthrough
 				continue
 			}
 			if err == errSetupExit {

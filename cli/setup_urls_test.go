@@ -13,9 +13,9 @@ func TestSetupDeeplinksUseInstanceLocalMyRedirect(t *testing.T) {
 		t.Fatalf("haRelayAppPageURL() = %q", appPage)
 	}
 
-	repo := haAddRepositoryURL(haURL)
-	if repo != "http://192.168.1.5:8123/_my_redirect/supervisor_add_addon_repository?repository_url=https%3A%2F%2Fgithub.com%2Fmarkusleben%2Fha-nova" {
-		t.Fatalf("haAddRepositoryURL() = %q", repo)
+	install := haInstallRelayAppURL(haURL)
+	if install != "http://192.168.1.5:8123/_my_redirect/supervisor_addon?addon=2368fcfa_ha_nova_relay&repository_url=https%3A%2F%2Fgithub.com%2Fmarkusleben%2Fha-nova" {
+		t.Fatalf("haInstallRelayAppURL() = %q", install)
 	}
 
 	if got := haProfileSecurityURL(haURL); got != "http://192.168.1.5:8123/profile/security" {

@@ -134,6 +134,7 @@ func TestLaunchWindowsUninstallPersistsEvidenceBeforeHelperStarts(
 		uninstallRelayRemovalEvidence{
 			defaultServerProfileName: "relay-guided",
 		},
+		false,
 	)
 	if err == nil {
 		t.Fatal("launch unexpectedly succeeded without a helper binary")
@@ -176,5 +177,22 @@ func TestWindowsUninstallHelperRejectsUnboundRelayEvidence(t *testing.T) {
 		" relay-guided ",
 	); err == nil {
 		t.Fatal("helper accepted malformed Relay evidence")
+	}
+}
+
+func TestWindowsUninstallHelperArgsCarryKeptForOtherDevices(t *testing.T) {
+	has := func(args []string) bool {
+		for _, arg := range args {
+			if arg == "--kept-for-other-devices" {
+				return true
+			}
+		}
+		return false
+	}
+	if !has(windowsUninstallHelperArgs("h.exe", uninstallModeStandard, false, nil, true)) {
+		t.Fatal("helper args lost the kept-for-other-devices choice")
+	}
+	if has(windowsUninstallHelperArgs("h.exe", uninstallModeStandard, false, nil, false)) {
+		t.Fatal("helper args claim a kept App the user never chose")
 	}
 }

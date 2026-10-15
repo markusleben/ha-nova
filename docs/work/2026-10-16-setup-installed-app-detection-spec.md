@@ -16,37 +16,45 @@ Status: active
 
 1. **Detection.** On the host -> install transition of the pairing flow (setup
    wizard and add-server flow), the CLI calls the unauthenticated
-   `GET <relay>/pair/v1/info`. Only HTTP 200 with the relay's
-   `{"ok":true,"data":{"protocol_version":"v1"}}` envelope counts; anything
-   else (closed port, timeout, HTML, other status, other protocol) shows the
-   install steps as before. Back-navigation from pairing and the repair menu's
-   full guidance always show the steps (no re-skip).
-2. **Combined link.** With a Home Assistant version >= 2026.2 known from the
-   mDNS TXT `version`, the wizard opens
-   `<ha>/_my_redirect/supervisor_app?app=<slug>&repository_url=<repo>`: the App
-   page asks once to add the missing repository, then Install + Start. Source:
-   home-assistant/frontend `src/panels/my/ha-panel-my.ts` (`supervisor_app`,
-   added in #29142, shipped in frontend 20260128 = HA 2026.2.0) and
-   `src/panels/config/apps/ha-config-app-dashboard.ts`
-   (`_handleMissingRepository`). Unknown or older version: the two-step
-   repository link + store search stays. The instance-local `_my_redirect`
-   is kept (no my.home-assistant.io instance-URL step).
-3. **Uninstall guard.** The guided teardown offer warns that the App is shared,
-   defaults to No, and then asks "Is this the last computer that uses NOVA
-   with this Home Assistant?" (default No). No keeps the App, skips the
-   removal steps, and the final notes say the App stays for the other
-   computers. The CLI cannot list paired devices (owner-only NOVA page), so
+   `GET <relay>/pair/v1/info` (bounded to 5 s, with progress). Only HTTP 200
+   with the relay's `{"ok":true,"data":{"protocol_version":"v1"}}` envelope
+   counts; anything else (closed port, timeout, HTML, other status, other
+   protocol) shows the install steps as before. Only the relay address derived
+   from the chosen Home Assistant is probed: `--relay-url` or a kept custom
+   relay address always shows the steps. On a skip, the pairing step shows
+   "NOVA Relay is already running in Home Assistant. Skipping the install
+   step." plus an update hint when `relay_version` is below
+   `min_relay_version`; back from pairing returns to the address step. The
+   repair menu's full guidance always shows the steps.
+2. **One install link.** The wizard opens
+   `<ha>/_my_redirect/supervisor_addon?addon=<slug>&repository_url=<repo>`:
+   the App page asks once to add the missing repository, then Install + Start.
+   The redirect has taken `repository_url` on every supported version
+   (home-assistant/frontend `hassio/src/hassio-my-redirect.ts` +
+   `hassio/src/addon-view/hassio-addon-dashboard.ts` before 2026.2;
+   `src/panels/my/ha-panel-my.ts` + `src/panels/config/apps/ha-config-app-dashboard.ts`
+   since), so no version gate. The instance-local `_my_redirect` is kept (no
+   my.home-assistant.io instance-URL step).
+3. **Uninstall guard.** The guided teardown warns that the App is shared and
+   first asks "Is this the last computer using HA NOVA with this Home
+   Assistant?" (default No). No keeps the App: no removal steps, and the final
+   notes (also from the Windows background helper) say the App stays for the
+   other computers. Yes then offers the walkthrough (default No; No prints the
+   checklist). The CLI cannot list paired devices (owner-only NOVA page), so
    the user confirms.
 
 ## Limits
 
-- The version is known only for mDNS-discovered instances; typed or saved
-  addresses use the two-step fallback.
 - Detection needs a relay that answers `/pair/v1/info` (secure pairing).
   Older relays show the install steps (safe default).
+- A standalone Container relay on the HA host also answers; the wizard then
+  goes to pairing, where 'manual' keeps the token path.
+- Windows uninstall recovery mode (resuming an interrupted background
+  uninstall) does not remember the "kept for other computers" answer and
+  prints the full checklist.
 
 ## Docs
 
 `nova/DOCS.md` is served to Home Assistant straight from `main`, so it gains
-the two user-facing sentences (detection skip; uninstall defaults to No and
-asks about other computers) in the release-prep PR, like README edits.
+the two user-facing sentences (detection skip; uninstall keeps the App unless
+this is the last computer) in the release-prep PR, like README edits.

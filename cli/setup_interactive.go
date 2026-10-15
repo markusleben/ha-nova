@@ -544,13 +544,13 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 	devicePaired := false
 	manualCredentialFlow := false
 	pairingBackStage := setupStageRelayInstall
-	// haVersion comes from the mDNS announcement of the chosen instance; empty
-	// means unknown and keeps the two-step install links.
-	haVersion := ""
 	// Set only on the host -> install transition: a second computer whose
-	// Relay already runs skips the install steps once. Back-navigation and the
-	// repair menu's "full guidance" always show the steps.
-	detectInstalledRelay := false
+	// Relay already runs skips the install steps. The repair menu's "full
+	// guidance" always shows them.
+	detectRelayOnInstall := false
+	// Shown under the pairing step header: renderSetupHeader clears the
+	// screen, so a note printed in the install stage would vanish.
+	relaySkipNote := ""
 	cloudSetupIncomplete := false
 	cloudSetupPaused := false
 	// Service installs pair by default too: secure pairing no longer depends on
@@ -728,7 +728,6 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 				// press-Enter default.
 				renderSetupParagraph(os.Stdout, fmt.Sprintf("The saved address %s could not be used. Enter a new one.", cfg.HAURL))
 				host, haURL, err = promptValidHAHostFromReader(reader, os.Stdout, "")
-				haVersion = ""
 			} else {
 				candidate, selected, discoveryErr := selectDefaultHAHostWithFeedback(reader, os.Stdout, cfg)
 				switch {
@@ -739,11 +738,6 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 					haURL = candidate.HAURL
 				default:
 					host, haURL, err = promptValidHAHostFromReader(reader, os.Stdout, candidate.Host)
-				}
-				haVersion = ""
-				if err == nil && candidate.HAURL != "" &&
-					setupDiscoveryEndpointKey(haURL) == setupDiscoveryEndpointKey(candidate.HAURL) {
-					haVersion = candidate.Version
 				}
 			}
 			if err == errSetupBack {
@@ -800,7 +794,7 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 					verifyFirstReuseFlow = false
 				}
 				hostChangeRetry = false
-				detectInstalledRelay = true
+				detectRelayOnInstall = true
 				stage = setupStageRelayInstall
 			}
 
@@ -810,11 +804,15 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 			if pairAfterInstall {
 				steps = buildSetupPairingWizardSteps()
 			}
-			renderSetupStep(os.Stdout, steps.RelayInstall, steps.Total, "Install NOVA Relay in Home Assistant")
-			skipInstall := detectInstalledRelay && pairAfterInstall && relayAppAlreadyRunning(os.Stdout, cfg)
-			detectInstalledRelay = false
+			skipInstall := false
+			if detectRelayOnInstall && pairAfterInstall {
+				skipInstall, relaySkipNote = detectInstalledRelay(os.Stdout, paths, cfg, relayURLFlag)
+			}
+			detectRelayOnInstall = false
 			if !skipInstall {
-				err := runRelayInstallSteps(reader, os.Stdout, relayInstallGuideFor(cfg.HAURL, haVersion))
+				relaySkipNote = ""
+				renderSetupStep(os.Stdout, steps.RelayInstall, steps.Total, "Install NOVA Relay in Home Assistant")
+				err := runRelayInstallSteps(reader, os.Stdout, cfg.HAURL)
 				if err == errSetupBack {
 					stage = setupStageHost
 					continue
@@ -833,12 +831,17 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 					// An earlier pairing already gave this device its own
 					// credential: verify it against the (re)installed relay
 					// first — a failed verify still routes back to pairing.
+					relaySkipNote = ""
 					devicePaired = true
 					stage = setupStageVerify
 					continue
 				}
 				pairingFlow = true
 				pairingBackStage = setupStageRelayInstall
+				if skipInstall {
+					// No install screen was shown; back returns to the address.
+					pairingBackStage = setupStageHost
+				}
 				stage = setupStagePairing
 			} else {
 				stage = setupStageToken
@@ -989,6 +992,10 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 		case setupStagePairing:
 			steps := buildSetupPairingWizardSteps()
 			renderSetupStep(os.Stdout, steps.Pairing, steps.Total, "Pair this device")
+			if relaySkipNote != "" {
+				renderSetupSuccessLine(os.Stdout, "%s", relaySkipNote)
+				relaySkipNote = ""
+			}
 			if serviceMode {
 				// `setup --service` documents that the device credential lands in a
 				// protected file — service installs must not depend on a desktop

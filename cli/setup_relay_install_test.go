@@ -1,64 +1,21 @@
 package main
 
 import (
-	"bytes"
-	"context"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
-
-	"github.com/brutella/dnssd"
+	"time"
 )
 
 const pairInfoV1Body = `{"ok":true,"data":{"relay_version":"0.26.0","protocol_version":"v1","available":true}}`
 
-func TestHASupportsCombinedAppLinkNeeds2026Point2(t *testing.T) {
-	for version, want := range map[string]bool{
-		"2026.2.0":      true,
-		"2026.10.1":     true,
-		"2026.11.0b2":   true,
-		"2027.1.0":      true,
-		" 2026.2.3 ":    true,
-		"2026.1.3":      false,
-		"2025.12.4":     false,
-		"":              false,
-		"2026":          false,
-		"dev":           false,
-		"2026.x.0":      false,
-		"version 2026.": false,
-	} {
-		if got := haSupportsCombinedAppLink(version); got != want {
-			t.Errorf("haSupportsCombinedAppLink(%q) = %v, want %v", version, got, want)
-		}
-	}
-}
-
-func TestRelayInstallGuideUsesCombinedLinkOnlyWhenSupported(t *testing.T) {
-	haURL := "http://192.168.1.5:8123"
-	want := "http://192.168.1.5:8123/_my_redirect/supervisor_app?app=2368fcfa_ha_nova_relay&repository_url=https%3A%2F%2Fgithub.com%2Fmarkusleben%2Fha-nova"
-	if got := haInstallRelayAppURL(haURL); got != want {
-		t.Fatalf("haInstallRelayAppURL() = %q", got)
-	}
-
-	combined := relayInstallGuideFor(haURL, "2026.10.0")
-	if combined.Link != want || len(combined.Steps) != 2 ||
-		strings.Contains(strings.Join(combined.Steps, "\n"), "Search") {
-		t.Fatalf("combined guide = %+v", combined)
-	}
-	for _, version := range []string{"", "2026.1.0"} {
-		fallback := relayInstallGuideFor(haURL, version)
-		if fallback.Link != haAddRepositoryURL(haURL) || fallback.Combined ||
-			!strings.Contains(strings.Join(fallback.Steps, "\n"), `Search for "NOVA Relay"`) {
-			t.Fatalf("version %q: fallback guide = %+v", version, fallback)
-		}
-	}
-}
-
-// The real probe (no stub): only the relay's own v1 envelope counts. Anything
-// else — another web server, an error page, a proxy, a closed port — must
+// The real probe: only the relay's own v1 envelope counts. Anything else —
+// another web server, an error page, a proxy, a closed port, a hang — must
 // show the install steps.
-func TestRelayAppAlreadyRunningIsNotFooledByOtherServers(t *testing.T) {
+func TestProbeInstalledRelayIsNotFooledByOtherServers(t *testing.T) {
 	for name, handler := range map[string]http.HandlerFunc{
 		"not found": http.NotFound,
 		"html page": func(w http.ResponseWriter, _ *http.Request) {
@@ -78,7 +35,7 @@ func TestRelayAppAlreadyRunningIsNotFooledByOtherServers(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			server := httptest.NewServer(handler)
 			defer server.Close()
-			if relayAppAlreadyRunning(&bytes.Buffer{}, runtimeConfig{RelayBaseURL: server.URL}) {
+			if running, _ := probeInstalledRelay(server.URL); running {
 				t.Fatal("detected a running relay where none is")
 			}
 		})
@@ -87,11 +44,8 @@ func TestRelayAppAlreadyRunningIsNotFooledByOtherServers(t *testing.T) {
 	closed := httptest.NewServer(http.NotFoundHandler())
 	closedURL := closed.URL
 	closed.Close()
-	if relayAppAlreadyRunning(&bytes.Buffer{}, runtimeConfig{RelayBaseURL: closedURL}) {
+	if running, _ := probeInstalledRelay(closedURL); running {
 		t.Fatal("detected a running relay on a closed port")
-	}
-	if relayAppAlreadyRunning(&bytes.Buffer{}, runtimeConfig{}) {
-		t.Fatal("detected a running relay without any address")
 	}
 
 	relay := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -102,16 +56,89 @@ func TestRelayAppAlreadyRunningIsNotFooledByOtherServers(t *testing.T) {
 		_, _ = w.Write([]byte(pairInfoV1Body))
 	}))
 	defer relay.Close()
-	out := &bytes.Buffer{}
-	if !relayAppAlreadyRunning(out, runtimeConfig{RelayBaseURL: relay.URL}) {
-		t.Fatalf("missed a running relay:\n%s", out)
-	}
-	if !strings.Contains(out.String(), "already installed and running") {
-		t.Fatalf("missing skip note:\n%s", out)
+	if running, version := probeInstalledRelay(relay.URL); !running || version != "0.26.0" {
+		t.Fatalf("probeInstalledRelay() = %v, %q", running, version)
 	}
 }
 
-func newSetupDetectionServers(t *testing.T, pairInfo http.HandlerFunc) (string, string) {
+func TestProbeInstalledRelayIsBounded(t *testing.T) {
+	original := installedRelayProbeTimeout
+	installedRelayProbeTimeout = 100 * time.Millisecond
+	t.Cleanup(func() { installedRelayProbeTimeout = original })
+	release := make(chan struct{})
+	hang := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		<-release
+		_, _ = w.Write([]byte(pairInfoV1Body))
+	}))
+	defer hang.Close()
+	defer close(release)
+	start := time.Now()
+	if running, _ := probeInstalledRelay(hang.URL); running {
+		t.Fatal("a hanging server counted as a running relay")
+	}
+	if elapsed := time.Since(start); elapsed > 2*time.Second {
+		t.Fatalf("probe took %s, want it bounded by the timeout", elapsed)
+	}
+}
+
+func stubInstalledRelayProbe(t *testing.T, running bool, version string) *[]string {
+	t.Helper()
+	probed := &[]string{}
+	original := probeInstalledRelayForSetup
+	probeInstalledRelayForSetup = func(relayURL string) (bool, string) {
+		*probed = append(*probed, relayURL)
+		return running, version
+	}
+	t.Cleanup(func() { probeInstalledRelayForSetup = original })
+	return probed
+}
+
+// A --relay-url or a kept custom relay address may be another machine: never
+// claim the App runs on the chosen Home Assistant from those.
+func TestDetectInstalledRelayOnlyTrustsTheDerivedAddress(t *testing.T) {
+	probed := stubInstalledRelayProbe(t, true, "")
+	derived := applySelectedSetupHost(runtimeConfig{}, "192.168.1.5", "http://192.168.1.5:8123", "")
+	if running, note := detectInstalledRelay(&strings.Builder{}, runtimePaths{}, derived, ""); !running ||
+		note != "NOVA Relay is already running in Home Assistant. Skipping the install step." {
+		t.Fatalf("derived address: running=%v note=%q", running, note)
+	}
+	if len(*probed) != 1 || (*probed)[0] != "http://192.168.1.5:8791" {
+		t.Fatalf("probed %v, want the derived relay", *probed)
+	}
+
+	custom := derived
+	custom.RelayBaseURL = "http://192.168.1.9:8791"
+	if running, _ := detectInstalledRelay(&strings.Builder{}, runtimePaths{}, custom, ""); running {
+		t.Fatal("a kept custom relay address skipped the install")
+	}
+	if running, _ := detectInstalledRelay(&strings.Builder{}, runtimePaths{}, derived, "http://192.168.1.5:8791"); running {
+		t.Fatal("an explicit --relay-url skipped the install")
+	}
+	if running, _ := detectInstalledRelay(&strings.Builder{}, runtimePaths{}, runtimeConfig{}, ""); running {
+		t.Fatal("no address skipped the install")
+	}
+	if len(*probed) != 1 {
+		t.Fatalf("non-derived addresses must not be probed: %v", *probed)
+	}
+}
+
+func TestDetectInstalledRelayHintsUpdateBelowMinimum(t *testing.T) {
+	versionFile := filepath.Join(t.TempDir(), "version.json")
+	if err := os.WriteFile(versionFile, []byte(`{"min_relay_version":"0.9.1"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	paths := runtimePaths{VersionFile: versionFile}
+	cfg := applySelectedSetupHost(runtimeConfig{}, "192.168.1.5", "http://192.168.1.5:8123", "")
+	for version, wantHint := range map[string]bool{"0.8.0": true, "0.9.1": false, "1.0.0": false, "": false} {
+		stubInstalledRelayProbe(t, true, version)
+		_, note := detectInstalledRelay(&strings.Builder{}, paths, cfg, "")
+		if got := strings.Contains(note, "needs v0.9.1 or newer: update NOVA Relay"); got != wantHint {
+			t.Fatalf("relay %q: update hint = %v, want %v (note %q)", version, got, wantHint, note)
+		}
+	}
+}
+
+func newSetupDetectionHA(t *testing.T) string {
 	t.Helper()
 	t.Setenv("HOME", t.TempDir())
 	t.Setenv("HA_NOVA_NO_BROWSER", "1")
@@ -123,138 +150,104 @@ func newSetupDetectionServers(t *testing.T, pairInfo http.HandlerFunc) (string, 
 	relayAuthTokenSetupPreflightForSetup = func() error {
 		return desktopKeyringSessionUnavailableError("no session bus in this shell")
 	}
+	// The derived relay (:8791) is refused by the test dial guard; pairing
+	// only needs to reach the code prompt.
+	originalPairing := probePairingV1ForSetup
+	probePairingV1ForSetup = func(string) bool { return true }
+	t.Cleanup(func() { probePairingV1ForSetup = originalPairing })
 	haServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte("ok"))
 	}))
 	t.Cleanup(haServer.Close)
-	relayServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/pair/v1/info" {
-			pairInfo(w, r)
-			return
-		}
-		http.NotFound(w, r)
-	}))
-	t.Cleanup(relayServer.Close)
-	return haServer.URL, relayServer.URL
+	return haServer.URL
 }
 
 // runSetupDetectionWizard drives a fresh computer: no saved address, the
-// instance comes from discovery (with the given mDNS version), so the wizard
-// walks host -> install -> pairing like every extra computer does.
-func runSetupDetectionWizard(t *testing.T, haURL, relayURL, haVersion, input string) (int, string) {
+// instance comes from discovery, so the wizard walks host -> install ->
+// pairing like every extra computer does. The first input answers the
+// headless service-mode question.
+func runSetupDetectionWizard(t *testing.T, haURL, relayURLFlag string, inputs ...string) (int, string) {
 	t.Helper()
 	paths, err := detectPaths()
 	if err != nil {
 		t.Fatalf("detectPaths() error: %v", err)
 	}
 	exitCode := 0
-	stdout, stderr := captureInteractiveSetupIO(t, input, func() int {
+	stdout, stderr := captureInteractiveSetupIO(t, joinSetupInputs(append([]string{"n"}, inputs...)), func() int {
 		discoverReachableHAHostsForSetup = func(runtimeConfig) ([]setupDiscoveryCandidate, string) {
-			return []setupDiscoveryCandidate{{
-				Host: normalizeHostInput(haURL), HAURL: haURL, Source: "mDNS: Home", Version: haVersion,
-			}}, ""
+			return []setupDiscoveryCandidate{{Host: normalizeHostInput(haURL), HAURL: haURL, Source: "mDNS: Home"}}, ""
 		}
-		exitCode = interactiveSetup(paths, runtimeConfig{}, loadStateOrDefault(paths), "codex", "", "", relayURL, "", false)
+		exitCode = interactiveSetup(paths, runtimeConfig{}, loadStateOrDefault(paths), "codex", "", "", relayURLFlag, "", false)
 		return exitCode
 	})
 	return exitCode, stdout + stderr
 }
 
-// The service-mode question comes first on this headless test box.
-var setupDetectionLeadInputs = []string{"n"}
-
 func TestInteractiveSetupSkipsInstallWhenRelayAlreadyRuns(t *testing.T) {
-	haURL, relayURL := newSetupDetectionServers(t, func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = w.Write([]byte(pairInfoV1Body))
-	})
+	haURL := newSetupDetectionHA(t)
+	probed := stubInstalledRelayProbe(t, true, "")
 	// Enter opens NOVA; exit at the six-digit code prompt.
-	exitCode, output := runSetupDetectionWizard(t, haURL, relayURL, "", joinSetupInputs(setupDetectionLeadInputs, []string{"", "exit"}))
+	exitCode, output := runSetupDetectionWizard(t, haURL, "", "", "exit")
 	if exitCode != 0 {
 		t.Fatalf("exit = %d\n%s", exitCode, output)
 	}
-	for _, want := range []string{"Checking whether NOVA Relay is already running", "already installed and running", "Pair this device", "Six-digit code"} {
-		if !strings.Contains(output, want) {
-			t.Fatalf("missing %q:\n%s", want, output)
-		}
+	if want := deriveRelayURLFromHA(haURL, normalizeHostInput(haURL)); len(*probed) != 1 || (*probed)[0] != want {
+		t.Fatalf("probed %v, want [%s]", *probed, want)
 	}
-	for _, unwanted := range []string{"Next, install the NOVA Relay App", "Press Enter when the app is running"} {
+	// The note must sit under the pairing step header: every stage starts
+	// with a screen clear, so anything printed before it is lost on a TTY.
+	header := strings.LastIndex(output, "Pair this device")
+	note := strings.Index(output, "NOVA Relay is already running in Home Assistant. Skipping the install step.")
+	if header < 0 || note < header || !strings.Contains(output, "Six-digit code") {
+		t.Fatalf("skip note must follow the pairing header (header=%d note=%d):\n%s", header, note, output)
+	}
+	for _, unwanted := range []string{"Install NOVA Relay in Home Assistant", "Next, install the NOVA Relay App", "Press Enter when the app is running"} {
 		if strings.Contains(output, unwanted) {
 			t.Fatalf("install steps shown although the relay runs (%q):\n%s", unwanted, output)
 		}
 	}
 }
 
-func TestInteractiveSetupShowsInstallWhenSomethingElseAnswers(t *testing.T) {
-	haURL, relayURL := newSetupDetectionServers(t, func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = w.Write([]byte("<html>not a relay</html>"))
-	})
-	exitCode, output := runSetupDetectionWizard(t, haURL, relayURL, "", joinSetupInputs(setupDetectionLeadInputs, []string{"exit"}))
+func TestInteractiveSetupShowsOneInstallLinkWhenRelayIsMissing(t *testing.T) {
+	haURL := newSetupDetectionHA(t)
+	probed := stubInstalledRelayProbe(t, false, "")
+	exitCode, output := runSetupDetectionWizard(t, haURL, "", "exit")
 	if exitCode != 0 {
 		t.Fatalf("exit = %d\n%s", exitCode, output)
 	}
-	if !strings.Contains(output, "Checking whether NOVA Relay is already running") ||
-		strings.Contains(output, "already installed and running") ||
+	if len(*probed) != 1 || strings.Contains(output, "already running in Home Assistant") ||
 		!strings.Contains(output, "Next, install the NOVA Relay App") ||
-		!strings.Contains(output, haAddRepositoryURL(haURL)) {
-		t.Fatalf("expected the (fallback) install steps:\n%s", output)
+		!strings.Contains(output, haInstallRelayAppURL(haURL)) ||
+		strings.Contains(output, "supervisor_add_addon_repository") {
+		t.Fatalf("expected the install steps with the one App link:\n%s", output)
 	}
 }
 
-func TestInteractiveSetupBackFromPairingAfterSkipShowsInstallSteps(t *testing.T) {
-	haURL, relayURL := newSetupDetectionServers(t, func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = w.Write([]byte(pairInfoV1Body))
-	})
-	// back at "Press Enter to open NOVA" -> install stage, which must show the
-	// steps instead of skipping forward again; exit there.
-	exitCode, output := runSetupDetectionWizard(t, haURL, relayURL, "", joinSetupInputs(setupDetectionLeadInputs, []string{"back", "exit"}))
+func TestInteractiveSetupNeverSkipsInstallForExplicitRelayURL(t *testing.T) {
+	haURL := newSetupDetectionHA(t)
+	probed := stubInstalledRelayProbe(t, true, "")
+	exitCode, output := runSetupDetectionWizard(t, haURL, "http://192.168.1.9:8791", "exit")
 	if exitCode != 0 {
 		t.Fatalf("exit = %d\n%s", exitCode, output)
 	}
-	if got := strings.Count(output, "Checking whether NOVA Relay is already running"); got != 1 {
-		t.Fatalf("detection ran %d times, want 1:\n%s", got, output)
-	}
-	skipped := strings.Index(output, "already installed and running")
-	steps := strings.Index(output, "Next, install the NOVA Relay App")
-	if skipped < 0 || steps < skipped {
-		t.Fatalf("expected skip first, then the install steps after back:\n%s", output)
+	if len(*probed) != 0 || !strings.Contains(output, "Next, install the NOVA Relay App") {
+		t.Fatalf("an explicit relay URL must show the install steps (probed %v):\n%s", *probed, output)
 	}
 }
 
-func TestInteractiveSetupUsesCombinedLinkForDiscoveredNewHA(t *testing.T) {
-	haURL, relayURL := newSetupDetectionServers(t, http.NotFound)
-	exitCode, output := runSetupDetectionWizard(t, haURL, relayURL, "2026.10.1", joinSetupInputs(setupDetectionLeadInputs, []string{"exit"}))
+func TestInteractiveSetupBackFromPairingAfterSkipReturnsToAddress(t *testing.T) {
+	haURL := newSetupDetectionHA(t)
+	stubInstalledRelayProbe(t, true, "")
+	// back at "Press Enter to open NOVA" -> host stage (discovery again) ->
+	// skip again -> pairing; exit there.
+	exitCode, output := runSetupDetectionWizard(t, haURL, "", "back", "exit")
 	if exitCode != 0 {
 		t.Fatalf("exit = %d\n%s", exitCode, output)
 	}
-	if !strings.Contains(output, haInstallRelayAppURL(haURL)) || strings.Contains(output, haAddRepositoryURL(haURL)) {
-		t.Fatalf("expected only the combined install link:\n%s", output)
+	if got := strings.Count(output, "Discovering Home Assistant on your network"); got != 2 {
+		t.Fatalf("back must return to the address step, discovery ran %d times:\n%s", got, output)
 	}
-}
-
-func TestDiscoveryKeepsMDNSVersionAcrossDuplicates(t *testing.T) {
-	originalLookup := lookupDNSSDForDiscovery
-	t.Cleanup(func() { lookupDNSSDForDiscovery = originalLookup })
-	lookupDNSSDForDiscovery = func(_ context.Context, _ string, add dnssd.AddFunc, _ dnssd.RmvFunc) error {
-		// First announcement without a version, duplicate with one.
-		add(dnssd.BrowseEntry{Text: map[string]string{
-			"uuid": "556851affd194582ad3f150856f13a05", "internal_url": "http://192.168.1.5:8123",
-		}})
-		add(dnssd.BrowseEntry{Text: map[string]string{
-			"uuid": "556851affd194582ad3f150856f13a05", "internal_url": "http://192.168.1.5:8123", "version": "2026.10.1",
-		}})
-		return nil
-	}
-	got := discoverHAViaMDNS()
-	if len(got) != 1 || got[0].Version != "2026.10.1" {
-		t.Fatalf("discoverHAViaMDNS() = %+v", got)
-	}
-
-	originalMDNS := discoverHAViaMDNSForDiscovery
-	t.Cleanup(func() { discoverHAViaMDNSForDiscovery = originalMDNS })
-	discoverHAViaMDNSForDiscovery = func() []setupDiscoveryProbe { return got }
-	// The saved address is listed first; the mDNS duplicate still adds its version.
-	probes := collectDiscoveryProbes(runtimeConfig{HAURL: "http://192.168.1.5:8123"})
-	if len(probes) != 1 || probes[0].Version != "2026.10.1" || probes[0].Source != "saved Home Assistant address" {
-		t.Fatalf("collectDiscoveryProbes() = %+v", probes)
+	if strings.Contains(output, "Next, install the NOVA Relay App") {
+		t.Fatalf("back must not land on install steps that were never shown:\n%s", output)
 	}
 }

@@ -170,7 +170,7 @@ func TestAddServerFlowCreatesNamedProfileAndKeepsDefaultIntact(t *testing.T) {
 	}
 
 	originalInstalled := probeInstalledRelayForSetup
-	probeInstalledRelayForSetup = func(string) bool { return false }
+	probeInstalledRelayForSetup = func(string) (bool, string) { return false, "" }
 	t.Cleanup(func() { probeInstalledRelayForSetup = originalInstalled })
 
 	// y (offer) → cabin (name) → 1 (discovery pick) → Enter (open browser)
@@ -496,9 +496,9 @@ func TestAddServerFlowSkipsInstallWhenRelayAlreadyRuns(t *testing.T) {
 	t.Cleanup(func() { probePairingV1ForSetup = originalProbe })
 	probedRelay := ""
 	originalInstalled := probeInstalledRelayForSetup
-	probeInstalledRelayForSetup = func(relayURL string) bool {
+	probeInstalledRelayForSetup = func(relayURL string) (bool, string) {
 		probedRelay = relayURL
-		return true
+		return true, ""
 	}
 	t.Cleanup(func() { probeInstalledRelayForSetup = originalInstalled })
 	originalPair := securePairForSetup
@@ -516,7 +516,7 @@ func TestAddServerFlowSkipsInstallWhenRelayAlreadyRuns(t *testing.T) {
 	// 123456 (code). No install prompts.
 	input := joinSetupInputs([]string{"y", "cabin", "1", "", "123456"})
 	stdout, stderr := captureInteractiveSetupIO(t, input, withAddServerDiscovery(
-		[]setupDiscoveryCandidate{{Host: "192.168.1.7", HAURL: "http://192.168.1.7:8123", Source: "mdns", Version: "2026.10.0"}},
+		[]setupDiscoveryCandidate{{Host: "192.168.1.7", HAURL: "http://192.168.1.7:8123", Source: "mdns"}},
 		func() int {
 			return interactiveSetup(paths, cfg, state, "claude", "", "", "", "", false, marker...)
 		},
@@ -526,6 +526,7 @@ func TestAddServerFlowSkipsInstallWhenRelayAlreadyRuns(t *testing.T) {
 		t.Fatalf("probed relay %q, want the new server's relay", probedRelay)
 	}
 	if !strings.Contains(output, `Server "cabin" is paired and verified`) ||
+		!strings.Contains(output, "NOVA Relay is already running in Home Assistant. Skipping the install step.") ||
 		strings.Contains(output, "Press Enter when the app is running") {
 		t.Fatalf("expected pairing without install steps:\n%s", output)
 	}

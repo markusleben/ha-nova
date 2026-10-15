@@ -148,7 +148,7 @@ func runAddServerStages(
 		return 1
 	}
 
-	host, haURL, haVersion, hostErr := selectAddServerHAHost(reader, out, doc)
+	host, haURL, hostErr := selectAddServerHAHost(reader, out, doc)
 	if hostErr == errSetupBack || hostErr == errSetupExit {
 		renderSetupCancelledNote(out)
 		return 0
@@ -175,8 +175,10 @@ func runAddServerStages(
 	}
 
 	// Another computer may already have installed the App on this instance.
-	if !relayAppAlreadyRunning(out, cfg) {
-		if err := runRelayInstallSteps(reader, out, relayInstallGuideFor(cfg.HAURL, haVersion)); err != nil {
+	if installed, note := detectInstalledRelay(out, paths, cfg, ""); installed {
+		renderSetupSuccessLine(out, "%s", note)
+	} else {
+		if err := runRelayInstallSteps(reader, out, cfg.HAURL); err != nil {
 			if err == errSetupBack || err == errSetupExit {
 				return cancelKeepingPartialProfile()
 			}
@@ -292,7 +294,7 @@ func selectAddServerHAHost(
 	reader *bufio.Reader,
 	out io.Writer,
 	doc *configDocument,
-) (string, string, string, error) {
+) (string, string, error) {
 	result := runSetupDiscoveryWithFeedback(out, runtimeConfig{})
 	configured := configuredServerHostPortKeys(doc)
 	expandConfiguredLocalAliases(configured)
@@ -325,23 +327,17 @@ func selectAddServerHAHost(
 		if len(result.candidates) > 0 {
 			renderSetupParagraphTight(out, "Every discovered Home Assistant instance is already configured.")
 		}
-		host, haURL, err := promptUnconfiguredHost("")
-		return host, haURL, "", err
+		return promptUnconfiguredHost("")
 	}
 	fmt.Fprintf(out, "  Found %d Home Assistant instance(s) that are not configured yet.\n", len(candidates))
 	candidate, selected, err := promptSetupDiscoveryCandidateInteractive(reader, out, candidates)
 	if err != nil {
-		return "", "", "", err
+		return "", "", err
 	}
 	if selected {
-		return candidate.Host, candidate.HAURL, candidate.Version, nil
+		return candidate.Host, candidate.HAURL, nil
 	}
-	host, haURL, err := promptUnconfiguredHost(candidate.Host)
-	if err == nil && candidate.HAURL != "" &&
-		setupDiscoveryEndpointKey(haURL) == setupDiscoveryEndpointKey(candidate.HAURL) {
-		return host, haURL, candidate.Version, nil
-	}
-	return host, haURL, "", err
+	return promptUnconfiguredHost(candidate.Host)
 }
 
 // Instance identity is host:HA-port. A port difference on the same host is a

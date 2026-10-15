@@ -203,7 +203,8 @@ func printUninstallPreflightNotes(out io.Writer, preflight uninstallPreflight) {
 	}
 }
 
-// preflightNoteLines always returns the full server-side cleanup checklist.
+// preflightNoteLines returns the full server-side cleanup checklist unless the
+// user kept the shared App for other computers.
 // The CLI cannot remove the app, the repository, or the LLAT itself, and a
 // currently unreachable relay is no evidence the server side is gone — the
 // old reachability-gated single note left users with a running app and a
@@ -220,7 +221,7 @@ func preflightNoteLines(preflight uninstallPreflight) []string {
 	if preflight.relayStillRunning {
 		lead = "The NOVA Relay is still running. To fully remove HA NOVA:"
 	}
-	notes := []string{lead, "Skip these steps while another computer still uses NOVA with this Home Assistant: removing the app disconnects every paired computer."}
+	notes := []string{lead}
 	if preflight.haURL != "" {
 		notes = append(notes,
 			"1. Remove the NOVA Relay: uninstall the app at "+haRelayAppPageURL(preflight.haURL)+", or stop and remove the container of a standalone relay",
