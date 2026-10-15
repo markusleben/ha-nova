@@ -31,8 +31,9 @@ npm run verify:next-release-version -- v<version>
 - preflight: audit open PRs (Dependabot, workflows, installer/update,
   release metadata) as `blocker now` vs `separate later`; never pull a red or
   unreviewed workflow/release PR in right before publish
-- release worthiness: release when shipped behavior, installer/update flow,
-  or a user-facing bug changed; batch docs/tests/process work otherwise
+- release worthiness: release when shipped behavior, the live release path,
+  published artifacts, the installer/update flow, or a user-facing bug
+  changed; batch docs/tests/process work otherwise
 
 ## 2. Verify
 
@@ -239,6 +240,8 @@ skip it), then run the commands above for the new tag and smoke
 
 Fixed headings: `New Features`, `What To Watch`, `Bug Fixes`.
 
+- `What To Watch` is optional: only real behavior changes, breaking changes,
+  or action-needed items
 - short, concrete, user-visible outcomes; do not list every small fix
 - bullet order is importance: the compact update notice shows only the FIRST
   bullets (one action-needed item plus two feature/fix items) from
