@@ -63,7 +63,7 @@ type verbTarget struct {
 	Area     string `json:"area,omitempty"`
 	Disabled bool   `json:"disabled,omitempty"`
 	State    string `json:"state,omitempty"` // find --state: the current state
-	Group    bool   `json:"group,omitempty"` // find --state: a group (it counts its members again)
+	Group    bool   `json:"group,omitempty"` // find: a group (it counts its members again)
 	By       string `json:"by"`
 }
 
@@ -152,7 +152,7 @@ func runReadVerb(paths runtimePaths, verb string, opts verbOptions, body func(*r
 		relayVersion = session.version()
 		session.close()
 	}
-	env.Notices = verbNotices(paths, relayVersion)
+	env.Notices = append(env.Notices, verbNotices(paths, relayVersion)...)
 	exit := env.exit
 	if err != nil {
 		exit = setVerbError(&env, err)

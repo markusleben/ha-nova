@@ -124,10 +124,8 @@ func readEntityState(s *relaySession, entityID string) (json.RawMessage, verbTar
 			return nil, verbTarget{}, err
 		}
 		domain, objectID, _ := strings.Cut(entityID, ".")
-		similar, err := findEntities(s, findQuery{phrase: strings.ReplaceAll(objectID, "_", " "), domain: domain, limit: 10})
-		if err != nil {
-			return nil, verbTarget{}, err
-		}
+		// the 404 proved absence; a failed candidate search only drops candidates
+		similar, _ := findEntities(s, findQuery{phrase: strings.ReplaceAll(objectID, "_", " "), domain: domain, limit: 10})
 		return nil, verbTarget{}, &verbFailure{
 			exit: verbExitNotFound, code: "NOT_FOUND",
 			message:    fmt.Sprintf("%s does not exist", entityID),

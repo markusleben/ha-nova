@@ -32,6 +32,9 @@ type findResult struct {
 	// unknownDomain: no registry row and no state has the --domain prefix
 	// (a typo like "lights"), so an empty listing is no answer.
 	unknownDomain bool
+	// statesUnread: /api/states failed, so a phrase search saw only the
+	// registry (no unregistered entities, no friendly names).
+	statesUnread error
 }
 
 // registryRow is one entity from either registry listing, already joined
@@ -74,6 +77,12 @@ func runFindCommand(paths runtimePaths, args []string) int {
 		if err != nil {
 			return err
 		}
+		if result.statesUnread != nil {
+			if result.Total == 0 { // no hit proves absence only with every state read
+				return result.statesUnread
+			}
+			env.Notices = append(env.Notices, statesUnreadNotice(result.statesUnread))
+		}
 		// A filter-only listing with no hits is an answer ("no light is on"),
 		// not a failed lookup — unless its domain exists nowhere; a phrase
 		// that matches nothing is NOT_FOUND.
@@ -99,18 +108,35 @@ func runFindCommand(paths runtimePaths, args []string) int {
 // findEntities matches the compact registry first; the full registry is read
 // only when that finds nothing or disabled rows are wanted, and aliases
 // (config/entity_registry/get_entries, the lists carry none) only when names
-// miss there too.
+// miss there too. One /api/states read (session memo) adds each entity's
+// friendly_name to what registry rows match on, and the entities with a state
+// but no registry row (YAML, template, demo) in mergeStates. A phrase search
+// survives a failed states read on the registry alone (statesUnread); a
+// listing (--state, or no phrase) cannot.
 func findEntities(s *relaySession, q findQuery) (findResult, error) {
 	areas, deviceAreas, err := loadAreaContext(s)
 	if err != nil {
 		return findResult{}, err
+	}
+	states, statesErr := loadStates(s)
+	if statesErr != nil && (q.state != "" || q.phrase == "") {
+		return findResult{}, statesErr
+	}
+	friendly := map[string]string{}
+	for _, st := range states {
+		friendly[st.EntityID] = strings.TrimSpace(st.Attributes.FriendlyName)
 	}
 	if q.area != "" {
 		if _, ok := areas[q.area]; !ok {
 			return findResult{}, &verbFailure{exit: verbExitNotFound, code: "NOT_FOUND", message: fmt.Sprintf("unknown area_id %q", q.area), next: "Pass a canonical area_id from the area registry."}
 		}
 	}
-	var matches []verbTarget
+	var matches, hits []verbTarget
+	if statesErr == nil {
+		if hits, err = stateHits(s, states, q); err != nil {
+			return findResult{}, err
+		}
+	}
 	domainKnown := q.domain == ""
 	hasDomain := func(rows []registryRow) bool {
 		return slices.ContainsFunc(rows, func(row registryRow) bool { return strings.HasPrefix(row.entityID, q.domain+".") })
@@ -120,7 +146,7 @@ func findEntities(s *relaySession, q findQuery) (findResult, error) {
 		if err != nil {
 			return findResult{}, err
 		}
-		matches, domainKnown = matchRegistryRows(rows, q), domainKnown || hasDomain(rows)
+		matches, domainKnown = matchRegistryRows(rows, q, friendly), domainKnown || hasDomain(rows)
 	}
 	if len(matches) == 0 || q.completeAliases {
 		rows, err := loadFullRegistry(s, areas, deviceAreas)
@@ -128,29 +154,27 @@ func findEntities(s *relaySession, q findQuery) (findResult, error) {
 			return findResult{}, err
 		}
 		domainKnown = domainKnown || hasDomain(rows)
-		full := matchRegistryRows(rows, q)
-		if len(full) == 0 || q.completeAliases {
+		full := matchRegistryRows(rows, q, friendly)
+		if (len(full) == 0 && len(hits) == 0) || q.completeAliases { // a state-name hit is a name hit too
 			if err := attachAliases(s, rows, q); err != nil {
 				return findResult{}, err
 			}
-			full = matchRegistryRows(rows, q)
+			full = matchRegistryRows(rows, q, friendly)
 		}
 		matches = unionTargets(matches, full)
 	}
-	if q.state != "" || q.phrase == "" {
+	if statesErr == nil {
 		var seen bool
-		if matches, seen, err = mergeStates(s, matches, q); err != nil {
-			return findResult{}, err
-		}
+		matches, seen = mergeStates(states, friendly, matches, hits, q)
 		domainKnown = domainKnown || seen
-		if len(matches) == 0 && q.state != "" && q.phrase != "" && !q.completeAliases {
-			// the names matched only entities in other states: an alias may
-			// name one in this state, as it would without --state
-			q.completeAliases = true
-			return findEntities(s, q)
-		}
 	}
-	result := findResult{Total: len(matches), Matches: matches, unknownDomain: len(matches) == 0 && !domainKnown}
+	if len(matches) == 0 && q.state != "" && q.phrase != "" && !q.completeAliases {
+		// the names matched only entities in other states: an alias may
+		// name one in this state, as it would without --state
+		q.completeAliases = true
+		return findEntities(s, q)
+	}
+	result := findResult{Total: len(matches), Matches: matches, unknownDomain: len(matches) == 0 && !domainKnown, statesUnread: statesErr}
 	if len(matches) > q.limit {
 		result.Matches = matches[:q.limit]
 	}
@@ -228,7 +252,9 @@ func attachAliases(s *relaySession, rows []registryRow, q findQuery) error {
 	return nil
 }
 
-func matchRegistryRows(rows []registryRow, q findQuery) []verbTarget {
+// matchRegistryRows matches entity_id, registry name, friendly_name (a
+// device-named entity has no registry name), and area; aliases after them.
+func matchRegistryRows(rows []registryRow, q findQuery, friendly map[string]string) []verbTarget {
 	tokens := foldTokens(q.phrase)
 	matches := []verbTarget{}
 	for _, row := range rows {
@@ -236,8 +262,9 @@ func matchRegistryRows(rows []registryRow, q findQuery) []verbTarget {
 			continue
 		}
 		by := "name"
-		if !tokensMatch(tokens, row.entityID+" "+row.name+" "+row.area) {
-			if len(row.aliases) == 0 || !tokensMatch(tokens, row.entityID+" "+row.name+" "+row.area+" "+strings.Join(row.aliases, " ")) {
+		text := row.entityID + " " + row.name + " " + friendly[row.entityID] + " " + row.area
+		if !tokensMatch(tokens, text) {
+			if len(row.aliases) == 0 || !tokensMatch(tokens, text+" "+strings.Join(row.aliases, " ")) {
 				continue
 			}
 			by = "alias"

@@ -288,9 +288,12 @@ func (e *tierEngine) resolveTargets(req planCallRequest) ([]verbTarget, error) {
 		}
 		found, err := findEntities(e.s, findQuery{phrase: req.Match, domain: filter, limit: 10, completeAliases: true})
 		switch {
-		case err != nil:
+		case err != nil, found.Total == 0 && found.statesUnread != nil: // no match proves absence only with every state read
 			e.readFailed("", "", "match")
 		case found.Total == 1:
+			if found.statesUnread != nil { // uniqueness unproven: unregistered look-alikes were not searched
+				e.readFailed("", "", "match states")
+			}
 			match := found.Matches[0]
 			match.By = "match"
 			targets = append(targets, match)
