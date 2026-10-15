@@ -305,9 +305,16 @@ func (e *tierEngine) resolveTargets(req planCallRequest) ([]verbTarget, error) {
 			return nil, &verbFailure{exit: verbExitNotFound, code: code, message: message, candidates: found.Matches, next: "Name one entity_id, or a more specific --match."}
 		}
 	}
-	expand := func(by, selector string, ids []string) error {
+	expand := func(by, selector string, ids, skipped []string) error {
 		if len(ids) == 0 {
-			return &verbFailure{exit: verbExitNotFound, code: "NOT_FOUND", message: fmt.Sprintf("no %s entity in %s %q", domain, by, selector)}
+			failure := &verbFailure{exit: verbExitNotFound, code: "NOT_FOUND", message: fmt.Sprintf("no %s entity in %s %q", domain, by, selector)}
+			for _, id := range skipped { // hidden, categorized, or assigned elsewhere: only naming it reaches it
+				failure.candidates = append(failure.candidates, verbTarget{EntityID: id})
+			}
+			if len(skipped) > 0 {
+				failure.next = "Room and device targets skip hidden, configuration, and diagnostic entities, as Home Assistant does; name the entity_id to act on one."
+			}
+			return failure
 		}
 		for _, id := range ids {
 			targets = append(targets, verbTarget{EntityID: id, By: by})
@@ -315,14 +322,17 @@ func (e *tierEngine) resolveTargets(req planCallRequest) ([]verbTarget, error) {
 		return nil
 	}
 	if req.Area != "" {
-		if related, err := e.related("area", req.Area); err != nil {
+		related, err := e.related("area", req.Area)
+		all := filterDomain(related["entity"], domain)
+		if err != nil {
 			e.readFailed("", "", "related area")
-		} else if err := expand("area", req.Area, e.primaryEntities(filterDomain(related["entity"], domain), req.Area)); err != nil {
+		} else if err := expand("area", req.Area, e.primaryEntities(all, req.Area, domain), all); err != nil {
 			return nil, err
 		}
 	}
 	if req.Device != "" && !e.regFailed { // a failed registry read is already a typed gap
-		if err := expand("device", req.Device, e.primaryEntities(e.deviceEntities(req.Device, domain), "")); err != nil {
+		all := e.familyEntities(req.Device, domain)
+		if err := expand("device", req.Device, e.primaryEntities(all, "", domain), all); err != nil {
 			return nil, err
 		}
 	}

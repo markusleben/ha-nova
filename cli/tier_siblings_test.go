@@ -139,10 +139,77 @@ func TestDeviceAccessSiblingOnEveryPath(t *testing.T) {
 				f.ent("cover.blind", "shelly", "open", map[string]any{"_di": "dev_blind", "device_class": "shutter"})
 			},
 			args: []string{"switch.turn_on", "switch.relay"}, exit: 0, tier: "ordinary", absent: typed},
+		{name: "a config button (ping) on a lock's device: preview, not typed",
+			setup: func(f *fakeHA) {
+				f.ent("button.lock_ping", "zwave_js", "unknown", map[string]any{"_di": "dev_door", "_ec": 1})
+				f.ent("lock.door", "zwave_js", "locked", map[string]any{"_di": "dev_door"})
+			},
+			args: []string{"button.press", "button.lock_ping"}, exit: 3, tier: "preview", reasons: typed},
+		{name: "a config button on an ESPHome gate board stays typed (user-authored)",
+			setup: func(f *fakeHA) {
+				f.ent("button.gate_pulse", "esphome", "unknown", map[string]any{"_di": "dev_esp", "_ec": 1})
+				f.ent("cover.gate", "esphome", "closed", map[string]any{"_di": "dev_esp", "device_class": "gate"})
+			},
+			args: []string{"button.press", "button.gate_pulse"}, exit: 3, tier: "typed", reasons: []string{reasonUserButton, reasonDeviceAccessSibling}},
 		{name: "integration service on the device keeps DEVICE_ACCESS",
 			setup: gate, args: []string{"shelly.trigger", "switch.gate_relay"}, exit: 3, tier: "typed", reasons: []string{reasonDeviceAccess}, absent: typed},
 	}
 	runTierCases(t, cases)
+}
+
+// Stored integration calls aimed at a device or an area act on the device
+// itself, and a device target reaches its child devices (Home Assistant
+// 2026.9+); neither depends on which entities are visible.
+func TestStoredDeviceTargetsReachTheDevice(t *testing.T) {
+	hiddenLock := func(f *fakeHA) {
+		f.ent("lock.zw", "zwave_js", "locked", map[string]any{"_di": "dev_zw", "_hb": true})
+		f.ent("sensor.zw_battery", "zwave_js", "90", map[string]any{"_di": "dev_zw", "_ec": 1})
+	}
+	setValue := func(target map[string]any) map[string]any {
+		return map[string]any{"action": "zwave_js.set_value", "target": target, "data": map[string]any{"value": 0}}
+	}
+	runTierCases(t, []tierCase{
+		{name: "integration service over an area with a hidden lock is typed",
+			setup: func(f *fakeHA) {
+				hiddenLock(f)
+				f.related["area:hall"] = []string{"lock.zw", "sensor.zw_battery"}
+				f.related["area-devices:hall"] = []string{"dev_zw"}
+				f.script("hall", setValue(map[string]any{"area_id": "hall"}))
+			},
+			args: []string{"script.turn_on", "script.hall"}, exit: 3, tier: "typed", reasons: []string{reasonDeviceAccess}},
+		{name: "integration service on a device whose lock is disabled is typed",
+			setup: func(f *fakeHA) {
+				f.full = append(f.full, map[string]any{"entity_id": "lock.zw", "platform": "zwave_js", "device_id": "dev_zw", "disabled_by": "user"})
+				f.script("node", setValue(map[string]any{"device_id": "dev_zw"}))
+			},
+			args: []string{"script.turn_on", "script.node"}, exit: 3, tier: "typed", reasons: []string{reasonDeviceAccess}},
+		{name: "a stored press on a parent device reaches the child's gate button",
+			setup: func(f *fakeHA) {
+				f.ent("button.gate_open", "shelly", "unknown", map[string]any{"_di": "dev_child"})
+				f.ent("cover.gate", "shelly", "closed", map[string]any{"_di": "dev_child", "device_class": "gate"})
+				f.devices = []map[string]any{{"id": "dev_parent"}, {"id": "dev_child", "via_device_id": "dev_parent"}}
+				f.script("open", map[string]any{"action": "button.press", "target": map[string]any{"device_id": "dev_parent"}})
+			},
+			args: []string{"script.turn_on", "script.open"}, exit: 3, tier: "typed", reasons: []string{reasonDeviceAccessSibling}},
+		{name: "--device on a parent freezes the child's entities too",
+			setup: func(f *fakeHA) {
+				f.ent("light.parent", "hue", "on", map[string]any{"_di": "dev_parent"})
+				f.ent("light.child", "hue", "on", map[string]any{"_di": "dev_child"})
+				f.devices = []map[string]any{{"id": "dev_child", "via_device_id": "dev_parent"}}
+			},
+			args: []string{"light.turn_off", "--device", "dev_parent"}, exit: 3, tier: "preview", reasons: []string{reasonExpanded},
+			check: func(t *testing.T, env verbTestEnvelope) {
+				if len(env.Resolved) != 2 {
+					t.Fatalf("resolved %+v", env.Resolved)
+				}
+			}},
+		{name: "an unreadable device registry is typed",
+			setup: func(f *fakeHA) {
+				f.ent("switch.out", "shelly", "on", map[string]any{"_di": "dev_2"})
+				f.fail["config/device_registry/list"] = true
+			},
+			args: []string{"switch.turn_off", "--device", "dev_2"}, exit: 3, tier: "typed", reasons: []string{reasonScanFailed}},
+	})
 }
 
 // A config write whose action presses a gate device's button is typed.
@@ -188,12 +255,23 @@ func TestExpansionSkipsWhatHomeAssistantSkips(t *testing.T) {
 				f.related["area:kitchen"] = []string{"switch.child_lock", "switch.kettle"}
 			},
 			args: []string{"switch.turn_on", "--area", "kitchen"}, exit: 0, tier: "ordinary", check: resolved("switch.kettle")},
-		{name: "an area of only categorized entities finds nothing",
+		{name: "an area of only categorized entities finds nothing but names them",
 			setup: func(f *fakeHA) {
 				f.ent("switch.child_lock", "miele", "off", map[string]any{"_ec": 0})
 				f.related["area:kitchen"] = []string{"switch.child_lock"}
 			},
-			args: []string{"switch.turn_on", "--area", "kitchen"}, exit: 5, tier: ""},
+			args: []string{"switch.turn_on", "--area", "kitchen"}, exit: 5, tier: "",
+			check: func(t *testing.T, env verbTestEnvelope) {
+				if env.Error == nil || len(env.Error.Candidates) != 1 || env.Error.Candidates[0].EntityID != "switch.child_lock" || env.Error.Next == "" {
+					t.Fatalf("error %+v", env.Error)
+				}
+			}},
+		{name: "an integration service over an area keeps hidden entities",
+			setup: func(f *fakeHA) {
+				f.ent("light.raw", "shelly", "on", map[string]any{"_hb": true})
+				f.related["area:kitchen"] = []string{"light.raw"}
+			},
+			args: []string{"shelly.blink", "--area", "kitchen"}, exit: 3, tier: "preview", check: resolved("light.raw")},
 		{name: "a device entity assigned to another area is skipped",
 			setup: func(f *fakeHA) {
 				f.ent("light.porch", "hue", "on", map[string]any{"_ai": "garden"})
@@ -212,6 +290,17 @@ func TestExpansionSkipsWhatHomeAssistantSkips(t *testing.T) {
 		{name: "a hidden entity named directly is still acted on",
 			setup: func(f *fakeHA) { f.ent("light.raw", "shelly", "on", map[string]any{"_hb": true}) },
 			args:  []string{"light.turn_off", "light.raw"}, exit: 0, tier: "ordinary", check: resolved("light.raw")},
+		{name: "a device-form step keeps its hidden entity (its consumer unlocks)",
+			setup: func(f *fakeHA) {
+				f.ent("switch.raw", "shelly", "off", map[string]any{"_di": "dev_raw", "_hb": true})
+				f.related["entity:switch.raw"] = []string{"automation.unlock"}
+				f.automation("unlock", "u1", map[string]any{
+					"triggers": []any{map[string]any{"trigger": "state", "entity_id": "switch.raw"}},
+					"actions":  []any{step("lock.unlock", "lock.front")},
+				})
+				f.script("go", map[string]any{"device_id": "dev_raw", "domain": "switch", "type": "turn_on", "entity_id": "9f8e"})
+			},
+			args: []string{"script.turn_on", "script.go"}, exit: 3, tier: "typed", reasons: []string{reasonAccessLock}},
 		{name: "a stored area step skips the hidden light",
 			setup: func(f *fakeHA) {
 				f.ent("light.raw", "shelly", "on", map[string]any{"_hb": true})

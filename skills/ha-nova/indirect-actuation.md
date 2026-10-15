@@ -261,7 +261,11 @@ Then:
   case below, and a person who wrote `lock.unlock` into a button did not make
   it safer by writing it in YAML. Integration buttons split in two. Where the integration
   defines the behaviour — `unifi`, `shelly`, `reolink`, an `update` entity:
-  restart, identify, update — the press is fixed and stays ordinary. Where the
+  restart, identify, update — the press is fixed and stays ordinary, unless
+  the button's device also carries a lock, alarm panel, or access cover
+  (`DEVICE_ACCESS_SIBLING`: a press, switch-on, or cover opening there may be
+  the opener and takes the code; a configuration or diagnostic button and any
+  other action there previews). Where the
   USER defines it in the device's own configuration — `esphome` (an `on_press`
   block in device YAML), `mqtt` (a command topic the user chose) — the action
   is authored, unreadable from here, and escalates. Rules 2 and 3 again; the

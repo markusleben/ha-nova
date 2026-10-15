@@ -55,7 +55,7 @@ func (e *tierEngine) areaEntities(area, domain, via string) []string {
 		e.readFailed("", via, "related area")
 		return nil
 	}
-	return e.primaryEntities(filterDomain(related["entity"], domain), area)
+	return e.primaryEntities(filterDomain(related["entity"], domain), area, domain)
 }
 
 // deviceEntities filters the compact registry by device_id only — never
@@ -69,21 +69,6 @@ func (e *tierEngine) deviceEntities(device, domain string) []string {
 	}
 	sort.Strings(ids)
 	return filterDomain(ids, domain)
-}
-
-// primaryEntities keeps what Home Assistant's own area/device targeting acts
-// on (helpers/target.py async_extract_referenced_entity_ids): no hidden or
-// categorized entity and, for an area, none assigned to another area. An id
-// without a registry row is kept: nothing proves it excluded.
-func (e *tierEngine) primaryEntities(ids []string, area string) []string {
-	out := []string{}
-	for _, id := range ids {
-		row, registered := e.reg[id]
-		if !registered || !(row.hidden || row.categorized || (area != "" && row.ai != "" && row.ai != area)) {
-			out = append(out, id)
-		}
-	}
-	return out
 }
 
 // filterDomain keeps the service domain's entities; a generic or an
@@ -312,70 +297,6 @@ func (e *tierEngine) checkManagers() {
 	}
 	e.complete = false
 	e.raise(tierPreview, tierReason{Code: reasonManager, Detail: strings.Join(present, ", ")})
-}
-
-// deviceAccess: an integration service acts on the target's DEVICE (a Z-Wave
-// node, a Nuki bridge), so any access-capable entity on that device makes it
-// typed; otherwise it is at least preview, never below the targetless case.
-func (e *tierEngine) deviceAccess(id, via, service string) tierLevel {
-	if found := e.deviceAccessEntity(e.reg[id].di); found != "" {
-		e.gap(reasonDeviceAccess, id, via, service+" on the device of "+found)
-		return tierTyped
-	}
-	e.raise(tierPreview, tierReason{Code: reasonIntegrationSvc, EntityID: id, Via: via, Detail: service})
-	return tierPreview
-}
-
-// accessSibling: a core-service call on an entity whose device also carries
-// a lock, alarm panel, or access cover may itself be the opener (a gate
-// relay, a buzzer button). What can energize it — a press, switching on or
-// toggling, opening a cover — is typed; any other actuation is preview.
-// The caller skips access-capable targets: their own table decides.
-func (e *tierEngine) accessSibling(id, via, service string, data map[string]any) tierLevel {
-	found := e.deviceAccessEntity(e.reg[id].di)
-	if found == "" {
-		return tierOrdinary
-	}
-	level := tierPreview
-	if domain, name := splitID(service); service == "button.press" || service == "switch.turn_on" || service == "switch.toggle" ||
-		(domain == "cover" && coverCanOpen(name, data)) {
-		level = tierTyped
-	}
-	e.raise(level, tierReason{Code: reasonDeviceAccessSibling, EntityID: id, Via: via, Detail: found})
-	return level
-}
-
-// deviceAccessEntity returns the first access-capable entity on a device,
-// disabled ones included (the hardware still opens), or "". Only covers
-// need a state; an unread or absent one has no class and counts (fail closed).
-func (e *tierEngine) deviceAccessEntity(device string) string {
-	if device == "" {
-		return ""
-	}
-	ids := e.deviceEntities(device, "homeassistant")
-	rows, err := e.fullRegistry()
-	if err != nil {
-		e.readFailed("", "", "registry")
-	}
-	for _, row := range rows {
-		if row.DeviceID == device && !slices.Contains(ids, row.EntityID) {
-			ids = append(ids, row.EntityID)
-		}
-	}
-	sort.Strings(ids)
-	covers := filterDomain(ids, "cover")
-	e.prefetchStates(covers)
-	for _, id := range ids {
-		dc := ""
-		if slices.Contains(covers, id) {
-			st, _ := e.state(id)
-			dc = st.str("device_class")
-		}
-		if accessCapable(id, dc) {
-			return id
-		}
-	}
-	return ""
 }
 
 // switchAsX: a switch wrapped by an access-capable switch_as_x entity (same

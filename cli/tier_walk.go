@@ -81,11 +81,23 @@ func (e *tierEngine) storedCall(name string, step map[string]any, via string, de
 		e.gap(reasonStoredSelector, "", via, name)
 	}
 	ids := targets["entity_id"]
+	var devices []string
 	for _, area := range targets["area_id"] {
 		ids = append(ids, e.areaEntities(area, domain, via)...)
+		if related, err := e.related("area", area); err == nil {
+			devices = append(devices, related["device"]...)
+		}
 	}
-	for _, device := range targets["device_id"] {
-		ids = append(ids, e.primaryEntities(e.deviceEntities(device, domain), "")...)
+	for _, device := range targets["device_id"] { // unfiltered: a device-form step acts on its chosen entity, hidden or not
+		ids = append(ids, e.familyEntities(device, domain)...)
+		devices = append(devices, e.deviceFamily(device)...)
+	}
+	if !coreDomains[domain] { // an integration resolves the device itself, whatever entities show
+		for _, device := range devices {
+			if found := e.deviceAccessEntity(device); found != "" {
+				e.gap(reasonDeviceAccess, "", via, name+" on the device of "+found)
+			}
+		}
 	}
 	if domain == "script" && !scriptEntityServices[service] {
 		ids, name = append(ids, name), "script.turn_on"

@@ -275,3 +275,21 @@ stopped.
 - Next window starts AFTER HA 2026.10.1 + dev-blog 2026-10-12 + HACS 2.0.5;
   watch the 2026.11 items above, the deferred lawn-mower `idle` bucket, and
   the legacy device-registry removal command for 2027.9.
+
+## 2026-10-16 — ad hoc check (device-sibling access guard): target expansion
+
+- Scope: Home Assistant's own area/device target expansion
+  (`homeassistant/helpers/target.py` `async_extract_referenced_entity_ids`)
+  against the CLI's `--area`/`--device` and stored-target expansion.
+- HIT — since 2026.9.0 a device target also covers its direct child devices
+  (`_add_referenced_device`, core #178666; present in 2026.9.0, 2026.10.0,
+  2026.10.1). The CLI matched the exact device only, so a stored press on a
+  parent device could miss a child's gate button. Landed: device targets
+  expand to direct children via `config/device_registry/list`
+  `via_device_id` (`fix/device-sibling-access-guard`).
+- CLEAN (now matched) — indirect expansion skips hidden entities and, with
+  the default `primary_entities_only`, entities with an entity category;
+  area expansion through a device skips entities assigned to another area.
+- Sources: github.com/home-assistant/core/blob/dev/homeassistant/helpers/target.py;
+  github.com/home-assistant/core/pull/178666; tags 2026.9.0, 2026.10.0,
+  2026.10.1.

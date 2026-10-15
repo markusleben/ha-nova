@@ -88,8 +88,9 @@ type tierEngine struct {
 	events    map[string]int
 	listeners *listenerTable
 	full      []fullRegistryRow
-	regFailed bool     // the compact registry could not be read
-	groups    []string // expanded direct group targets: consumer-scanned, never frozen
+	regFailed bool                // the compact registry could not be read
+	children  map[string][]string // device → its child devices (via_device_id); nil until read
+	groups    []string            // expanded direct group targets: consumer-scanned, never frozen
 	fullRead  bool
 }
 
