@@ -20,6 +20,7 @@ and merged PRs. This changelog will be updated with the next tagged relay versio
 - Concurrent configuration-snapshot saves can no longer exceed the store's hard caps. (#633)
 
 ### Changed
+- Published as prebuilt multi-arch images (`ghcr.io/markusleben/{arch}-ha-nova-relay`): Supervisor downloads the App instead of building it on the device. (#674)
 - Runtime dependency updates: `ws` 8.22, `home-assistant-js-websocket` 9.7, `@peculiar/x509` 2.1. (#649)
 
 ## [Relay 0.9.0] - 2026-08-04

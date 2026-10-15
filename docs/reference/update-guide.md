@@ -45,7 +45,7 @@ Retired pre-v0.20 Gemini/Antigravity paths require one `ha-nova setup` run.
 
 `version.json:min_relay_version` bridges the two: skills declare the minimum Relay version they need. The first-use `ha-nova check-update --quiet`, relay commands, and the typed verbs' `notices[]` warn if the running Relay is too old.
 
-**Why separate?** Skill-only improvements (new checks, better prompts) should not force a Relay reinstall/rebuild on the user's HA instance.
+**Why separate?** Skill-only improvements (new checks, better prompts) should not force a Relay update on the user's HA instance.
 
 ## Relay (Home Assistant App)
 

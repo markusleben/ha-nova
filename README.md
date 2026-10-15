@@ -139,7 +139,7 @@ Once it finishes, try: *"Show me all my automations."*
 
 **macOS** — proven end-to-end on real hardware.
 
-**Linux** — proven end-to-end, including headless setups (servers, containers, LXC, SSH): with no desktop keyring around, the device credential falls back to a private file automatically.
+**Linux** — proven end-to-end, including headless setups (servers, containers, LXC, SSH): with no desktop keyring around, the device credential falls back to a private file automatically. A standalone relay (relay token, no device pairing) on such a machine uses `ha-nova setup --service <client>` (Codex CLI, OpenCode, Hermes Agent).
 
 **Windows** — proven end-to-end on a live Windows 11 system. Ships x64 builds (Windows ARM64 can use the x64 build through emulation; no native ARM64 bundle is shipped).
 - Claude Code is the most tested client on Windows today

@@ -83,6 +83,7 @@ release:
     - **Device control, sent once and verified.** `ha-nova call` and `ha-nova apply` send each action exactly once and check the result. A confirmed plan is re-checked first: if anything changed, nothing is sent.
     - **Automation and script changes with a real diff.** `ha-nova plan write|delete|revert` shows the exact diff, saves once, reloads, and reads the result back; deletes take a config snapshot first.
     - **Use HA NOVA from local MCP clients.** `ha-nova mcp` offers the same checks as tools to clients without a shell, such as Claude Desktop, and reuses this computer's pairing.
+    - **Faster, more reliable Relay App updates.** Installs and updates download a ready image instead of building on your Home Assistant device.
     - **Quick read-only lookups.** `ha-nova find`, `get`, and `history` find entities by name, alias, domain, or current state ("which lights are on?"), read a state or config, and summarize history.
 
     ## Bug Fixes
@@ -91,6 +92,8 @@ release:
     - **Honest verification.** When a device does not reach the expected state in time, HA NOVA says so plainly (for example "still locked after 10s") instead of guessing.
     - **The Relay stops hammering a rejected token.** A revoked Home Assistant token no longer causes an endless reconnect loop, and a stalled login can no longer block later requests.
     - **Ready for Home Assistant 2026.9.** Child devices are recognized correctly, and admin-only update actions get a clear explanation instead of an opaque failure.
+    - **Headless Linux works end to end.** `ha-nova uninstall --purge` works without an unlocked keyring, and Codex CLI and OpenCode can use `ha-nova setup --service <client>` on headless machines and over SSH.
+    - **fish shell support.** The installer puts `ha-nova` on your PATH in fish too, and uninstall removes every PATH entry it added.
     - **Windows updates clean up after themselves.** No leftover updater files in `%TEMP%`, and a failed update launch removes its download.
     - **Setup describes pairing correctly.** The setup intro explains the one-time six-digit code instead of access tokens.
 
