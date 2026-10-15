@@ -206,8 +206,8 @@ func nextStep(envelope map[string]any) string {
 	return ""
 }
 
-// noticeHints: the plain-language step for each update notice kind this
-// session has not been told yet (per server profile: each has its own Relay).
+// noticeHints: the plain-language step for each update notice this session
+// (one MCP process) has not been told yet; emitting the hint counts as told.
 func noticeHints(envelope map[string]any, told map[string]bool) string {
 	notices, _ := envelope["notices"].([]any)
 	server, _ := envelope["server"].(string)
@@ -216,7 +216,10 @@ func noticeHints(envelope map[string]any, told map[string]bool) string {
 		notice, _ := raw.(map[string]any)
 		kind, _ := notice["kind"].(string)
 		hint, known := mcpNoticeHints[kind]
-		key := kind + "\x00" + server
+		key := kind // update: one HA NOVA install for every profile
+		if kind == "relay_outdated" {
+			key += "\x00" + server // each profile has its own Relay
+		}
 		if !known || told[key] {
 			continue
 		}

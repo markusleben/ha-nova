@@ -145,7 +145,11 @@ func (srv *mcpServer) callTool(raw json.RawMessage) (map[string]any, *rpcError) 
 		override, active := serverSelectionOverride, activeServerProfile()
 		defer func() { setServerSelectionOverride(override); setActiveServerProfile(active) }()
 		setServerSelectionOverride(srv.pin)
+		traceRelayVersion.Store("")
 		out, errOut, exit := captureVerb(func() int { return tool.run(srv.paths, pinServer(tool.name, argv, srv.pin)) })
+		if tool.name == "ha_trace" { // trace prints its own object: add the verbs' notices
+			out = withNotices(out, verbNotices(srv.paths, traceRelayVersion.Load().(string)), activeServerProfile())
+		}
 		return toolResult(tool.name, out, errOut, exit, srv.told), nil
 	}
 	return nil, &rpcError{Code: rpcInvalidParams, Message: "unknown tool: " + params.Name}
@@ -173,6 +177,20 @@ func invalidArguments(name string, err error) map[string]any {
 		"error": map[string]any{"code": "INVALID_ARGUMENTS", "message": err.Error() + "; nothing was sent"}}
 	text, _ := json.Marshal(envelope)
 	return map[string]any{"content": []map[string]any{{"type": "text", "text": string(text)}}, "structuredContent": envelope, "isError": true}
+}
+
+// withNotices adds notices and the server to a JSON object output.
+func withNotices(out string, notices []verbNotice, server string) string {
+	var object map[string]any
+	if len(notices) == 0 || json.Unmarshal([]byte(out), &object) != nil || object == nil {
+		return out
+	}
+	object["notices"], object["server"] = notices, server
+	b, err := json.Marshal(object)
+	if err != nil {
+		return out
+	}
+	return string(b)
 }
 
 // toolResult: the envelope as text and as structuredContent — the same

@@ -3,9 +3,11 @@ package main
 import (
 	"encoding/json"
 	"errors"
+	"net/http"
 	"net/http/httptest"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"syscall"
@@ -237,8 +239,62 @@ func TestMCPNoticeHintsOncePerSessionAndServer(t *testing.T) {
 	if other := step("cabin"); !strings.Contains(other, "NOVA Relay App") {
 		t.Fatalf("another server has its own Relay: %q", other)
 	}
+	update := func(server string) string {
+		env := `{"schema_version":1,"verb":"get","server":"` + server + `","status":"ok","notices":[{"kind":"update","text":"HA NOVA update available"}]}`
+		s, _ := toolResult("ha_get", env, "", 0, told)["structuredContent"].(map[string]any)["next_step"].(string)
+		return s
+	}
+	if first, other := update("home"), update("cabin"); !strings.Contains(first, "newer HA NOVA") || other != "" {
+		t.Fatalf("update is one install for every profile: told once, got %q then %q", first, other)
+	}
+	told = map[string]bool{}
 	pending := `{"schema_version":1,"verb":"plan","status":"needs_confirmation","plan":{"id":"p_1"},"notices":[{"kind":"update","text":"HA NOVA update available"}]}`
 	if s := toolResult("ha_plan", pending, "", verbExitConfirmation, told)["structuredContent"].(map[string]any)["next_step"].(string); !strings.HasPrefix(s, "Show this preview") || !strings.Contains(s, "newer HA NOVA") {
 		t.Fatalf("the hint joins the existing next_step: %q", s)
+	}
+}
+
+// ha_trace prints its own object over a transport of its own: a trace-only
+// session still learns that the Relay is outdated.
+func TestMCPTraceOnlySessionGetsTheRelayHint(t *testing.T) {
+	paths, _ := setupFakeRelay(t, func(*http.Request, string, map[string]any) any { return nil }, false)
+	relay := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var payload map[string]any
+		_ = json.NewDecoder(r.Body).Decode(&payload)
+		w.Header().Set(relayVersionHeader, "0.9.0")
+		var data any = []any{}
+		if payload["type"] == "config/entity_registry/get" {
+			data = map[string]any{"unique_id": "u1"}
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "data": data})
+	}))
+	t.Cleanup(relay.Close)
+	cfg, err := loadConfig(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.RelayBaseURL = relay.URL
+	if err := saveConfig(paths, cfg); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Dir(paths.VersionFile), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(paths.VersionFile, []byte(`{"skill_version":"0.26.0","min_relay_version":"0.9.1"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	c := startMCP(t, paths)
+	mcpInit(c)
+	steps := []string{}
+	for range 2 {
+		env := c.tool("ha_trace", map[string]any{"action": "list", "entity_id": "automation.a"})["structuredContent"].(map[string]any)
+		step, _ := env["next_step"].(string)
+		steps = append(steps, step)
+		if notices, _ := env["notices"].([]any); len(notices) != 1 || env["count"] == nil {
+			t.Fatalf("trace result without its relay_outdated notice: %v", env)
+		}
+	}
+	if !strings.Contains(steps[0], "NOVA Relay App needs an update") || steps[1] != "" {
+		t.Fatalf("trace hint must appear once: %q", steps)
 	}
 }
