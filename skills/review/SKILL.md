@@ -53,7 +53,7 @@ For helpers, resolve the family first:
 
 If the target config is not already in the thread context, resolve it yourself:
 1. If the user asks for a bulk audit by `prefix`, `domain`, `area`, or `label`, build a shortlist first using `skills/ha-nova/bulk-patterns.md`.
-   - use `config/entity_registry/list_for_display` for direct `prefix` / `domain` resolution
+   - use `config/entity_registry/list_for_display` for direct `prefix` / `domain` resolution, except a whole automation/script domain (below)
    - escalate to `config/entity_registry/list` and `config/area_registry/list` only when richer area/label evidence is required
    - for room/area phrasing, resolve the area and use `search/related` with `item_type:"area"` before any registry-first fallback
    - treat area-related results as a keyed object (`automation`, `script`, `entity`, `device`, ...), not as a flat array
@@ -64,14 +64,15 @@ If the target config is not already in the thread context, resolve it yourself:
      - `.data.entity` is only a fallback seed for automation/script derivation when the target-family arrays are absent
    - use direct registry `area_id` only as supplemental evidence when it is actually populated
    - dedupe the shortlist on canonical `entity_id`, then sort deterministically and persist the matched shortlist
-   - derive the current review set before any per-item reads:
+   - "all my automations": `ha-nova find --domain automation --limit 200 --include-disabled` (scripts: `ha-nova find --domain script --limit 200 --include-disabled`) is the shortlist — it also lists YAML items without a registry row; its `total` is the matched count
+   - an automation/script bulk audit first reads `skills/ha-nova/bulk-patterns.md` → Static Pass and runs it over EVERY matched target
+   - derive the current review set:
      - exact single target -> current review set = that one target
-     - more than one resolved target -> current review set = the resolved targets in deterministic order, trimmed to the first 5 only when more than 5 targets match
-   - carry the exact matched count plus current review-set size into Bulk Mode Gate
-   - do not resolve unique_ids, read configs, read states, or run collision scans for matched-but-non-audited remainder targets outside the current review set
+     - more than one resolved target -> current review set = the Static Pass's flagged targets (helpers: all resolved targets) in deterministic order, trimmed to the first 5 only when more than 5 are flagged
+   - carry the exact matched, statically checked, and current review-set counts into Bulk Mode Gate
+   - beyond the Static Pass, do not resolve unique_ids, read configs, read states, or run collision scans for targets outside the current review set
    - a narrow collision explanation may inspect one extra target outside the matched remainder when needed to classify a cluster; keep that read explicit, read-only, outside the audited-item count, and clearly marked as related/collision evidence in the transcript
    - prefer explicit command/file naming such as `related-config`; if the marker must live in command transcript output, emit a line like `COLLISION_EVIDENCE=<reason>`
-   - never build a full matched-set config cache or evidence snapshot; if caching helps, cache only the current review set
    - once the shortlist or workset is saved, keep that file immutable; use dedicated filenames for later registry, config, and collision outputs
    - if the user intentionally requested a bulk selector, do not ask a clarifying question just because multiple matches remain
 2. Search by name using entity registry (compact fields: `ei`=entity_id, `en`=name/alias):
@@ -172,15 +173,15 @@ After target resolution:
 - resolved targets `> 1`: enter aggregate multi-target review mode automatically
 
 Multi-target rules:
-- multi-target review starts only after the current review set is trimmed
+- multi-target deep review starts only after the current review set is trimmed (the Static Pass precedes it)
 - Quick-Fix is single-target only; skip Step 4 and its prerequisite state-read step whenever the current review set contains more than one target
 
 Bulk mode rules:
 - use `skills/ha-nova/bulk-patterns.md` for selector semantics, stable ordering, and workset limits
-- audit only the current workset (max 5 targets)
+- deep-audit only the current workset (max 5 targets); the Static Pass already checked every matched automation/script
 - stop after that one workset; do not start a second batch in the same standalone request
-- resolve `unique_id`, config, state, and related-item evidence per target inside the current workset only; no prefetch for the remaining matched targets
-- run the same Step 1 / Step 2 / Step 3 checks per item
+- related-item, trace, and live evidence only per target inside the current workset; no prefetch for the remaining targets
+- Step 1 ran in the Static Pass (helpers: run it per item); run Step 2 / Step 3 per workset item
 - dedupe official-doc verification by pattern across the workset; do not refetch the same doc page per item
 - cap related-config deep reads across the whole workset, not per item
 - aggregate findings by repeated pattern, but preserve affected item lists
@@ -188,7 +189,7 @@ Bulk mode rules:
 - persist collision candidate sets to files when needed; do not embed JSON arrays in shell variables for later command generation
 - when multiple Relay probes are needed inside one temp directory, keep shared temp files serial or use dedicated payload filenames per probe
 - write each Relay payload file as the final JSON body for that request; do not create placeholder templates and patch them later
-- if more targets remain after the current workset, report `matched N / audited M / remaining R` and wait for an explicit follow-up request before continuing
+- if more flagged targets remain after the current workset, report `matched N / statically checked S / deep-audited M / remaining R` and wait for an explicit follow-up request before continuing
 
 ## Flow
 
@@ -444,8 +445,7 @@ For resolved targets `> 1`, return exactly these 6 sections:
 
 **Section 1 — Scope:**
 - filter used
-- matched count
-- audited count
+- matched, statically checked, and deep-audited counts
 - remaining count when applicable
 
 **Section 2 — Summary:**
@@ -462,7 +462,7 @@ For resolved targets `> 1`, return exactly these 6 sections:
 - each pattern lists the affected targets
 
 **Section 5 — Items Checked:**
-- compact per-item table: target, overall status, top finding or clean result
+- compact per-item table: target, overall status, top finding; clean items collapse into one count line
 
 **Section 6 — Collisions by Cluster:**
 - group conflicts by shared controlled entity or linked helper
@@ -492,6 +492,6 @@ For resolved targets `> 1`, return exactly these 6 sections:
 - Only communicate with HA through `ha-nova relay`
 - Never guess entity IDs
 - Limit collision scan to top 3 target entities, max 5 related configs for a single standalone target (post-write scans in `write`/`helper` use max 3 by design)
-- For a bulk workset, trim before reads and keep a shared related-config budget
+- For a bulk workset, trim before deep reads (the Static Pass precedes trimming) and keep a shared related-config budget
 - Never build a config snapshot for the full matched set during bulk review
-- Batch reviews: bulk workset max 5 targets. If more match, review the first 5 in deterministic order and offer to continue.
+- Batch reviews: the Static Pass covers every matched automation/script; bulk workset max 5 targets for deep checks — more flagged → the first 5 in deterministic order, then offer to continue.

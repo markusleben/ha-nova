@@ -22,10 +22,15 @@ per their skill's Output Format and need no card file.
 - Do not dump raw JSON, full logs, full entity lists, full component lists, or full registry/config-entry lists unless the user explicitly asks.
 - Webhook ids are secret-bearing (an unauthenticated trigger URL): redact them in ANY shown YAML or config excerpt — explicitly requested YAML included — replacing the value with a masked placeholder and saying one was masked; masking the webhook value is the ONE legal edit to otherwise-verbatim diff rows and previews — confirmation still binds to the stored real value; webhook mechanics stay in `ha-nova:service-call`'s client-private flow.
 - Summarize long inventories by counts, groups, and a few relevant examples.
-- If raw automation IDs, helper IDs, config IDs, or entity IDs make the response more technical than helpful, summarize them in words or by count; show precise identifiers only for safety, disambiguation, or evidence.
+- If raw automation IDs, helper IDs, config IDs, or entity IDs make the response more technical than helpful, summarize them in words or by count; show precise identifiers only for safety or evidence. Clarifying questions name candidates by friendly name and area (add the entity_id when either is missing or both collide).
 - Scratch payload/filter/result files are internal execution artifacts: never under the repo working tree, and never mentioned (paths, "edited files", payload or jq files) in progress updates, summaries, or final output unless the user asks for debugging details. Scratch files surfacing as workspace edits, or absolute scratch paths in visible command text, mean the scratch location/tooling was wrong.
 - Internal task, card, or payload labels (`Automation Payload`, `Apply And Verify`, `Run Post Write`, filter names, generated helper-step titles) are execution artifacts too — never in the user-facing answer.
 - Never show internal check codes such as `R-01` or `H-09`, plan ids, hashes, exit codes, or reason codes such as `ACCESS_LOCK`; describe them in plain language.
+- Never mention, quote, or link HA NOVA's own skill or rule files or scratch paths — the user doesn't know they exist. Paths the user needs (the config file a change targets, a batch manifest) stay visible.
+
+## Confirmation Reasons
+
+One plain sentence: "This unlocks an entry door, so it needs a code." / "HA NOVA can't see what this switch does, so it needs a code." A "yes" where a code is needed: "“Yes” can't confirm this — please type `confirm:…`."
 
 ## Progressive Detail
 

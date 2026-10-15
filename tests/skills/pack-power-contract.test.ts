@@ -202,7 +202,7 @@ describe("C1-02 bounded-capture generalization (#520)", () => {
   });
   it("counts registry-disabled automations in the stale audit", () => {
     expect(flat(read("skills/ha-nova/bulk-patterns.md"))).toContain(
-      "an exact total is states rows plus disabled rows, never the states count alone",
+      "an exact total is the `find` total, never the states count alone",
     );
   });
 });
