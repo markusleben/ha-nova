@@ -84,7 +84,53 @@ func runApplyCommand(paths runtimePaths, args []string) int {
 }
 
 func refused(code, message string) *verbFailure {
-	return &verbFailure{exit: verbExitRefused, code: code, message: message + "; nothing was sent", next: "Plan again: ha-nova plan call … or ha-nova call …"}
+	next, known := refusalNext[code]
+	if !known {
+		next = replan
+	}
+	return refusedWith(code, message, next)
+}
+
+func refusedWith(code, message, next string) *verbFailure {
+	return &verbFailure{exit: verbExitRefused, code: code, message: message + "; nothing was sent", next: next}
+}
+
+// A re-plan always shows its new preview and asks again: no plan is ever
+// applied without a fresh confirmation.
+const replan = "Plan again (ha-nova plan call|write|delete|revert), show its preview, and get confirmation again."
+
+// A used or claimed plan: the claim precedes recompute and send, so the
+// winner may still be sending — an immediate read proves nothing.
+const mayHaveRun = "Another apply holds or used this plan — its outcome is unknown. Do not plan or apply again; tell the user it may have run and let them check."
+
+// refusalNext is the one next step per refusal code; anything not listed
+// is a plan that must be made again.
+var refusalNext = map[string]string{
+	"PLAN_NOT_FOUND":          mayHaveRun,
+	"PLAN_CLAIMED":            mayHaveRun,
+	"PLAN_EXPIRED":            "Plan again, show the new preview, and get confirmation again.",
+	"PLAN_INVALIDATED":        "Stop and tell the user; plan again only on their explicit request, show the new preview, and get confirmation again.",
+	"SERVER_MISMATCH":         "Apply it with the plan's own server (--server), or plan again for this one.",
+	"UNRESOLVED_TARGET":       "Name the entities explicitly, or check the area or device, then plan again.",
+	"NO_SNAPSHOT_NOT_OFFERED": "Apply without --no-snapshot: the config snapshot is taken first.",
+	"CODE_REQUIRED":           "Ask the user to type the confirmation code shown with the plan, then pass it with --confirm.",
+	"CODE_MISMATCH":           "Ask the user to type the confirmation code again, exactly as shown with the plan.",
+	"NO_UNDO_SNAPSHOT":        "Only the last verified update of an automation or script can be reverted; there is nothing to revert.",
+	"REVERT_UNSUPPORTED":      "To undo an automation or script: plan revert --target <config_id>. The newest checkpoint belongs to a helper: revert that through ha-nova:helper.",
+	"CONFIG_ID_UNSUPPORTED":   "Pass the config_id from `ha-nova get <entity_id> --config`, not the entity_id; a YAML item is edited through ha-nova:yaml-config.",
+	"CONFIG_NOT_UI_MANAGED":   "It is defined in YAML or a package: edit it there through ha-nova:yaml-config.",
+}
+
+// configIDInUseNext: a collision usually means an earlier create already
+// landed (a retry after a timeout); otherwise a script's key is its name, so
+// another one is the user's choice — never an overwrite without them
+// meaning it.
+func configIDInUseNext(domain string) string {
+	const earlier = "It may be the item an earlier apply created — read it first (`ha-nova find \"<alias>\"`); if it is, it exists: do not create another. "
+	if domain == "script" {
+		return earlier + "Otherwise ask the user for another name, then plan again with --id <new> --create; update the existing script only if they mean to replace it."
+	}
+	return earlier + "Otherwise plan again without --id (a new id is minted); update the existing automation only if the user means to replace it."
 }
 
 // applyPlan runs the spec §2.1 apply order: claim (I8), expiry, server,
@@ -173,6 +219,9 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string, noSnapshot
 			message: "something changed since the preview; nothing was sent and the old plan is gone",
 			next:    "Show the new preview (and code) and ask again."})
 	}
+	// From here every envelope shows the STORED plan: the recompute's own
+	// id and code were never saved, and typing them would burn this plan.
+	env.Plan = &verbPlan{ID: plan.ID, Hash: fresh.Hash, ExpiresAt: plan.ExpiresAt, Confirm: fresh.Confirm}
 	// Identity, tier, and code all come from the recomputed plan and the
 	// stored nonce, never from file fields (I2).
 	idHex := planIdentity(strings.TrimPrefix(fresh.Hash, "sha256:"), plan.Nonce)
@@ -224,6 +273,19 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string, noSnapshot
 	return env, env.exit
 }
 
+// afterSend turns a panic once the request may have reached Home Assistant
+// into an unknown outcome (exit 7), never "nothing sent".
+func afterSend(sent *bool, env *verbEnvelope, err *error) {
+	if p := recover(); p != nil {
+		if !*sent {
+			panic(p)
+		}
+		env.OutcomeUnknown = true
+		*err = &verbFailure{exit: verbExitUnknown, status: "unverified", code: "OUTCOME_UNKNOWN",
+			message: fmt.Sprintf("an internal error after the request was sent: %v", p), next: "Verify the target state; never retry automatically."}
+	}
+}
+
 // frozeNothing: a request that named targets (ids, --match, --area,
 // --device) but froze no entity must never become a targetless call, which
 // Home Assistant would apply to every entity of the domain.
@@ -238,7 +300,9 @@ var rejectedStatuses = map[int]bool{400: true, 404: true, 422: true}
 // executeAction sends the frozen action exactly once — the payload is the
 // frozen entity_ids plus the planned data, nothing else (I6, I7) — then
 // verifies it on a fresh read budget.
-func executeAction(s *relaySession, e *tierEngine, env *verbEnvelope, action planAction) error {
+func executeAction(s *relaySession, e *tierEngine, env *verbEnvelope, action planAction) (err error) {
+	sent := false
+	defer afterSend(&sent, env, &err)
 	body := map[string]any{}
 	for key, value := range action.Data {
 		body[key] = value
@@ -248,6 +312,7 @@ func executeAction(s *relaySession, e *tierEngine, env *verbEnvelope, action pla
 	}
 	s.renewBudget()
 	flowsBefore := s.reauthFlows() // best effort, bounded; nil means no correlation
+	sent = true
 	result, err := s.postService(action.Service, body)
 	s.renewBudget() // verification and correlation get their own budget
 	var unknown *relayOutcomeUnknownError

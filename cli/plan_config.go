@@ -43,6 +43,7 @@ type configRequest struct {
 	Domain   string          `json:"domain"`
 	ConfigID string          `json:"config_id,omitempty"`
 	Create   bool            `json:"create,omitempty"` // minted id: must be unused
+	Minted   bool            `json:"minted,omitempty"` // the id was minted or derived, never chosen by the user
 	EntityID string          `json:"entity_id,omitempty"`
 	Draft    json.RawMessage `json:"draft,omitempty"`
 }
@@ -178,11 +179,13 @@ func (req *configRequest) parseInput(positional []string, draftFile string) erro
 		case req.ConfigID != "":
 		case req.Domain == "script": // a create: the key comes from the alias, like the script editor
 			alias, _ := draft["alias"].(string)
-			if req.ConfigID, req.Create = scriptKey(alias), true; req.ConfigID == "" {
+			if req.ConfigID, req.Create, req.Minted = scriptKey(alias), true, true; req.ConfigID == "" && strings.TrimSpace(alias) != "" {
+				return errors.New("the alias has no a-z/0-9 characters to derive a key from; pass --id")
+			} else if req.ConfigID == "" {
 				return errors.New("a new script needs --id or an alias to derive its key from")
 			}
 		default: // an automation create: the Home Assistant UI mints a millisecond id the same way
-			req.ConfigID, req.Create = strconv.FormatInt(verbNow().UnixMilli(), 10), true
+			req.ConfigID, req.Create, req.Minted = strconv.FormatInt(verbNow().UnixMilli(), 10), true, true
 		}
 	}
 	return req.validate()
@@ -209,6 +212,14 @@ func computeConfigPlan(paths runtimePaths, s *relaySession, env *verbEnvelope, r
 			req.ConfigID, err = resolveConfigID(s, req.EntityID, req.Domain, st.raw)
 		} else { // a registry-disabled item has no state: its unique_id is the config id
 			req.ConfigID, err = e.registryConfigID(req.EntityID)
+		}
+		var missing *verbFailure
+		if errors.As(err, &missing) && missing.code == "CONFIG_NOT_FOUND" {
+			if _, yaml, loadErr := loadedConfig(s, req.EntityID, req.Domain); loadErr != nil {
+				return fail(loadErr)
+			} else if yaml { // an id-less YAML item: loaded, not UI-managed
+				return fail(refused("CONFIG_NOT_UI_MANAGED", req.EntityID+" is defined in YAML or a package, not in the UI config; delete it there with ha-nova:yaml-config"))
+			}
 		}
 		if err != nil {
 			return fail(err)
@@ -257,7 +268,7 @@ func computeConfigPlan(paths runtimePaths, s *relaySession, env *verbEnvelope, r
 	case req.Op == "delete" && current == nil:
 		return fail(&verbFailure{exit: verbExitNotFound, code: "CONFIG_NOT_FOUND", message: req.EntityID + " has no stored config to delete"})
 	case req.Op == "write" && req.Create && current != nil:
-		return fail(refused("CONFIG_ID_IN_USE", "config id "+req.ConfigID+" already exists; a create never overwrites — plan again for a new id, or plan an update with --id (without --create) if replacing it is intended"))
+		return fail(refusedWith("CONFIG_ID_IN_USE", "config id "+req.ConfigID+" already exists; a create never overwrites", configIDInUseNext(req.Domain)))
 	case req.Op == "revert":
 		if live := current; live == nil {
 			return fail(revertDrift(req.ConfigID + " no longer exists"))

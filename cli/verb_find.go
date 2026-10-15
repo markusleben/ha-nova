@@ -4,15 +4,19 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"slices"
 	"sort"
+	"strconv"
 	"strings"
 	"unicode"
 )
 
-const findUsage = `ha-nova find "<phrase>" [--domain <d>] [--area <area_id>] [--limit 20] [--include-disabled] [--aliases]`
+const findUsage = `ha-nova find ["<phrase>"] [--domain <d>] [--area <area_id>] [--state <state>] [--limit 20] [--include-disabled] [--aliases]` +
+	"\n(the phrase may be left out when --domain, --area, or --state narrows the list)"
 
 type findQuery struct {
 	phrase, domain, area string
+	state                string // only entities currently in this state
 	limit                int
 	includeDisabled      bool
 	// completeAliases: uniqueness checks (plan/call --match) always run the
@@ -25,6 +29,9 @@ type findResult struct {
 	Total    int          `json:"total"`
 	Returned int          `json:"returned"`
 	Matches  []verbTarget `json:"matches"`
+	// unknownDomain: no registry row and no state has the --domain prefix
+	// (a typo like "lights"), so an empty listing is no answer.
+	unknownDomain bool
 }
 
 // registryRow is one entity from either registry listing, already joined
@@ -45,9 +52,16 @@ func runFindCommand(paths runtimePaths, args []string) int {
 	fs.IntVar(&query.limit, "limit", 20, "maximum rows returned (1-200); total stays exact")
 	fs.BoolVar(&query.includeDisabled, "include-disabled", false, "include disabled entities (reads the full registry)")
 	fs.BoolVar(&query.completeAliases, "aliases", false, "also match aliases even when names already match (use after a rejected name match)")
+	fs.StringVar(&query.state, "state", "", "only entities whose current state is exactly this (e.g. on, off, unavailable)")
 	positional, err := parseVerbArgs(fs, &opts, args, findUsage)
-	if err == nil && (len(positional) != 1 || len(foldTokens(positional[0])) == 0) {
+	query.state = strings.TrimSpace(query.state)
+	filtered := query.domain != "" || query.area != "" || query.state != ""
+	switch {
+	case err != nil:
+	case len(positional) > 1, len(positional) == 1 && len(foldTokens(positional[0])) == 0, len(positional) == 0 && !filtered:
 		err = errors.New("Usage: " + findUsage)
+	case len(positional) == 1:
+		query.phrase = positional[0]
 	}
 	if err == nil && (query.limit < 1 || query.limit > 200) {
 		err = errors.New("--limit must be between 1 and 200")
@@ -55,17 +69,26 @@ func runFindCommand(paths runtimePaths, args []string) int {
 	if err != nil {
 		return verbUsageError("find", err)
 	}
-	query.phrase = positional[0]
 	return runReadVerb(paths, "find", opts, func(s *relaySession, env *verbEnvelope) error {
 		result, err := findEntities(s, query)
 		if err != nil {
 			return err
 		}
-		if result.Total == 0 {
+		// A filter-only listing with no hits is an answer ("no light is on"),
+		// not a failed lookup — unless its domain exists nowhere; a phrase
+		// that matches nothing is NOT_FOUND.
+		if result.unknownDomain {
+			return &verbFailure{exit: verbExitNotFound, code: "NOT_FOUND", message: fmt.Sprintf("no entity has domain %q", query.domain),
+				next: "Check the domain: it is the part before the dot of an entity_id (light, switch, sensor, …)."}
+		}
+		if result.Total == 0 && query.phrase != "" {
+			next := "Try a shorter or different phrase, drop --domain/--area, or add --include-disabled."
+			if query.state != "" {
+				next = "Drop --state to see the matching entities and their current state."
+			}
 			return &verbFailure{
 				exit: verbExitNotFound, code: "NOT_FOUND",
-				message: fmt.Sprintf("no entity matches %q", query.phrase),
-				next:    "Try a shorter or different phrase, drop --domain/--area, or add --include-disabled.",
+				message: fmt.Sprintf("no entity matches %q%s", query.phrase, stateSuffix(query.state)), next: next,
 			}
 		}
 		env.Result = result
@@ -88,18 +111,23 @@ func findEntities(s *relaySession, q findQuery) (findResult, error) {
 		}
 	}
 	var matches []verbTarget
+	domainKnown := q.domain == ""
+	hasDomain := func(rows []registryRow) bool {
+		return slices.ContainsFunc(rows, func(row registryRow) bool { return strings.HasPrefix(row.entityID, q.domain+".") })
+	}
 	if !q.includeDisabled {
 		rows, err := loadCompactRegistry(s, areas, deviceAreas)
 		if err != nil {
 			return findResult{}, err
 		}
-		matches = matchRegistryRows(rows, q)
+		matches, domainKnown = matchRegistryRows(rows, q), domainKnown || hasDomain(rows)
 	}
 	if len(matches) == 0 || q.completeAliases {
 		rows, err := loadFullRegistry(s, areas, deviceAreas)
 		if err != nil {
 			return findResult{}, err
 		}
+		domainKnown = domainKnown || hasDomain(rows)
 		full := matchRegistryRows(rows, q)
 		if len(full) == 0 || q.completeAliases {
 			if err := attachAliases(s, rows, q); err != nil {
@@ -109,12 +137,32 @@ func findEntities(s *relaySession, q findQuery) (findResult, error) {
 		}
 		matches = unionTargets(matches, full)
 	}
-	result := findResult{Total: len(matches), Matches: matches}
+	if q.state != "" || q.phrase == "" {
+		var seen bool
+		if matches, seen, err = mergeStates(s, matches, q); err != nil {
+			return findResult{}, err
+		}
+		domainKnown = domainKnown || seen
+		if len(matches) == 0 && q.state != "" && q.phrase != "" && !q.completeAliases {
+			// the names matched only entities in other states: an alias may
+			// name one in this state, as it would without --state
+			q.completeAliases = true
+			return findEntities(s, q)
+		}
+	}
+	result := findResult{Total: len(matches), Matches: matches, unknownDomain: len(matches) == 0 && !domainKnown}
 	if len(matches) > q.limit {
 		result.Matches = matches[:q.limit]
 	}
 	result.Returned = len(result.Matches)
 	return result, nil
+}
+
+func stateSuffix(state string) string {
+	if state == "" {
+		return ""
+	}
+	return " in state " + strconv.Quote(state)
 }
 
 // unionTargets keeps every entity once (first basis wins), sorted by id.

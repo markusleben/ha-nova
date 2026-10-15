@@ -41,7 +41,8 @@ Use file-based relay requests by default:
 ### Step 1: Resolve a name — `ha-nova find`
 
 ```text
-ha-nova find "<the user's phrase>" [--domain <d>] [--area <area_id>] [--limit 20]
+ha-nova find "<the user's phrase>" [--domain <d>] [--area <area_id>] [--state <s>] [--limit 20]
+ha-nova find --domain <d> [--area <area_id>] [--state <s>]
 ```
 
 Every word of the phrase must match the entity_id, name, or area,
@@ -143,7 +144,7 @@ A capability-oriented request (restart, identify, calibrate, reset, siren, ...) 
 2. List ALL registry entities of that device from the FULL registry (`config/entity_registry/list`, filter by `device_id`) — `list_for_display` omits disabled entities, and the registry row's `disabled_by` decides enabled/disabled status. NEVER validate a disabled candidate through `/api/states`: it has no state there, and its absence proves nothing about the capability. The 20-row display envelope does NOT apply here — a device's own entity list is complete and bounded by nature; capping it could hide the one capability past the cap.
 3. Select by domain, `device_class`, `translation_key`, and entity_id semantics on the SAME device. An entity on another device never qualifies merely because its name matches.
 4. Prefer an enabled exact match. Multiple plausible candidates → ONE bounded clarification listing each candidate's entity ID, domain, device, and enabled/disabled status.
-5. Report a disabled candidate as available-but-disabled WITH its `disabled_by` source and offer the matching enable flow via `ha-nova:organize` (a `"device"`-disabled sibling needs its parent DEVICE re-enabled, not the entity alone; integration/config_entry-disabled items are not enableable from any skill — the HA UI owns those). Never enable anything automatically, and never press or execute from discovery — hand off to the owning skill.
+5. Report a disabled candidate as available-but-disabled WITH its `disabled_by` source and offer the matching enable flow via `ha-nova:organize` (a `"device"`-disabled sibling needs its parent DEVICE re-enabled, not the entity alone; `"integration"` (off by default) enables like `"user"`; `"config_entry"` needs the HA UI). Never enable anything automatically, and never press or execute from discovery — hand off to the owning skill.
 
 This contract is generic — never hard-coded to a brand, to cameras, or to restart buttons.
 
@@ -153,8 +154,11 @@ This contract is generic — never hard-coded to a brand, to cameras, or to rest
 about STATE across many entities, not about finding one. They are reads and
 belong here; `ha-nova:health` answers what is broken, not what is on.
 
-One call answers them: `ha-nova relay core --method GET --path /api/states --out <result-file>`,
-then filter by domain plus `device_class` and state:
+By domain and state: `ha-nova find --domain light --state on` (rows carry the current
+`state`); a second `find` with `--state unavailable` (and
+`unknown`) fills the third bucket. A
+`device_class` filter needs one raw read, `ha-nova relay core --method GET --path /api/states --out <result-file>`,
+filtered by domain, `device_class`, and state:
 
 ```jq
 [.data.body[]
@@ -165,12 +169,12 @@ then filter by domain plus `device_class` and state:
 Three answers, not two: **yes / no / could not tell**. An entity that is
 `unknown` or `unavailable`, and one that is readable but does not report the
 thing being asked, both go in the third bucket and get named. "Everything is
-closed" with three sensors offline is the reassurance nobody should get —
-"none open, 3 could not be read" is the honest form.
+closed" with three sensors offline is false reassurance — "none open, 3 could
+not be read" is the honest form.
 
-Skip group helpers when counting: a Light Group is a real `light.*` entity
-beside its members, so it double-counts. They carry an `entity_id` LIST in
-their attributes — skip any entity whose `attributes.entity_id` is an array.
+Count group helpers separately: a Light Group is a real `light.*` entity
+beside its members, so it double-counts. `find` marks one `group: true`; raw reads
+show an `attributes.entity_id` array.
 (`switch_as_x` mirrors double-count too and carry no such marker; say so if
 the count looks high.)
 

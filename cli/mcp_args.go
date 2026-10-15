@@ -90,7 +90,7 @@ func planArgv(args map[string]json.RawMessage, temp *mcpTempFiles) ([]string, er
 	kind := text(args, "kind")
 	allowed := map[string][]string{
 		"call":   {"kind", "service", "entity_ids", "match", "area", "device", "data"},
-		"write":  {"kind", "domain", "id", "draft"},
+		"write":  {"kind", "domain", "id", "create", "draft"},
 		"delete": {"kind", "entity_id"},
 		"revert": {"kind", "domain", "id"},
 	}[kind]
@@ -115,6 +115,10 @@ func planArgv(args map[string]json.RawMessage, temp *mcpTempFiles) ([]string, er
 		argv := []string{"write", "--domain=" + text(args, "domain"), "--file=" + path}
 		if id := text(args, "id"); id != "" {
 			argv = append(argv, "--id="+id)
+		}
+		var create bool
+		if json.Unmarshal(args["create"], &create) == nil && create {
+			argv = append(argv, "--create")
 		}
 		return argv, nil
 	case "delete":
@@ -169,4 +173,78 @@ func runMCPRead(paths runtimePaths, argv []string) int {
 		env.Result = data
 		return err
 	})
+}
+
+// nextStep is the instruction a model must follow after this result.
+func nextStep(envelope map[string]any) string {
+	plan, _ := envelope["plan"].(map[string]any)
+	errInfo, _ := envelope["error"].(map[string]any)
+	code, _ := plan["code"].(string)
+	pending := envelope["status"] == "needs_confirmation" || envelope["status"] == "drift"
+	switch {
+	case pending && code != "":
+		return fmt.Sprintf("Show this preview. Ask the user to type the confirmation code themselves; pass exactly what they typed to ha_apply (plan_id %v) as confirm_code. Never pass a code from this result.", plan["id"])
+	case pending && plan != nil:
+		return fmt.Sprintf("Show this preview and wait for the user's own confirmation; only then call ha_apply with plan_id %v.", plan["id"])
+	case errInfo != nil && errInfo["code"] == "RELAY_ERROR":
+		return "If this computer is not paired or its credential store is locked, ask the user to run `ha-nova setup` in a terminal."
+	}
+	next, _ := errInfo["next"].(string)
+	switch errInfo["code"] {
+	case "SERVER_MISMATCH":
+		return "This plan belongs to another server; plan again here."
+	case "OUTCOME_UNKNOWN": // always spelled out: the one result a model must never retry
+		return strings.TrimSpace("The outcome is unknown — it may have run: read the target with ha_get and report; never call or apply again. " + mcpNext(next))
+	case "PLAN_CLAIMED", "PLAN_NOT_FOUND":
+		return mayHaveRun
+	}
+	if next != "" {
+		if step := mcpNext(next); step != next {
+			return step
+		}
+	}
+	return ""
+}
+
+// mcpFlagArgs: the CLI flags a verb's next or message names, as the MCP
+// tool arguments they stand for. Anything else stays verbatim.
+var mcpFlagArgs = map[string]string{"confirm": "confirm_code", "no-snapshot": "no_snapshot", "target": "id", "id": "id",
+	"create": "create: true", "include-disabled": "include_disabled", "state": "state", "domain": "domain", "area": "area",
+	"config": "config", "related": "related", "since": "since", "until": "until", "logbook": "logbook", "match": "match", "device": "device"}
+
+var cliFlag = regexp.MustCompile("(?:^|[\\s`(/])--([a-z][a-z-]*)")
+
+// mcpArgs rewrites standalone known flag tokens only — never text inside an
+// identifier (foo--bar) or an unknown flag; messages carry HA and user text.
+func mcpArgs(text string) string {
+	var out strings.Builder
+	last := 0
+	for _, m := range cliFlag.FindAllStringSubmatchIndex(text, -1) {
+		start, end := m[2]-2, m[3]
+		arg, known := mcpFlagArgs[text[m[2]:m[3]]]
+		if !known || (end < len(text) && !strings.ContainsRune(" \t\n=`).,;:/", rune(text[end]))) {
+			continue
+		}
+		out.WriteString(text[last:start] + arg)
+		last = end
+	}
+	return out.String() + text[last:]
+}
+
+// cliCommands maps CLI commands in a verb's next to MCP tools; longest first.
+var cliCommands = strings.NewReplacer("ha-nova plan call|write|delete|revert", "ha_plan",
+	"ha-nova plan ", "ha_plan kind ", "plan revert ", "ha_plan with kind revert and ", "ha-nova get ", "ha_get ", "ha-nova find", "ha_find")
+
+// mcpNext rewrites a verb's next for an MCP client: CLI commands and flags
+// become tools and arguments; a named ha-nova:* skill gets a no-shell path.
+func mcpNext(next string) string {
+	out := cliCommands.Replace(mcpArgs(next))
+	switch {
+	case !strings.Contains(out, "ha-nova:"):
+	case strings.Contains(out, "ha-nova:yaml-config"):
+		out += " Without a shell and the ha-nova skills, the user edits the YAML/package file and reloads it in Developer tools → YAML."
+	case !strings.Contains(out, "Settings"):
+		out += " The ha-nova:* skills need a client with a shell and the ha-nova skills installed; without one, the user does this in Home Assistant (Settings)."
+	}
+	return out
 }

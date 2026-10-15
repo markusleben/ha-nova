@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"slices"
+	"strings"
 	"sync"
 )
 
@@ -252,11 +253,14 @@ func (e *tierEngine) classify(id, service string, data map[string]any, depth int
 	switch pl := entry.pl; {
 	case !registered && st != nil:
 		// Platform unknown (YAML without unique_id): never ordinary; typed
-		// when access-capable (spec §2.2 step 1).
-		if accessCapable(id, st.str("device_class")) {
+		// for an actuator (spec §2.2 step 1) — a YAML group too: without a
+		// platform an entity_id list proves nothing (a template can expose
+		// one); its members are still expanded and classified below.
+		switch {
+		case unregisteredActuatorDomains[domain]: // a YAML template/command_line/rest/mqtt entity: its action is whatever its author wired, unread
 			level = tierTyped
-			e.gap(reasonNoRegistryRow, id, via, "")
-		} else {
+			e.gap(reasonUnregisteredActuator, id, via, unregisteredActuatorDetail)
+		default:
 			level, e.complete = max(level, tierPreview), false
 			e.raise(tierPreview, tierReason{Code: reasonNoRegistryRow, EntityID: id, Via: via})
 		}
@@ -294,9 +298,13 @@ func (e *tierEngine) classify(id, service string, data map[string]any, depth int
 	e.scanConsumers(id, depth)
 }
 
+// notGroupDomains carry an attributes.entity_id list that is not group
+// membership (a scene's targets).
+var notGroupDomains = map[string]bool{"scene": true, "script": true, "automation": true}
+
 // groupMembers returns attributes.entity_id of a group-like entity, or nil.
 func groupMembers(domain string, st *entityState) []string {
-	if domain == "scene" || domain == "script" || domain == "automation" {
+	if notGroupDomains[domain] {
 		return nil
 	}
 	list, isList := st.attr("entity_id").([]any)
@@ -363,6 +371,16 @@ func (e *tierEngine) runConfig(id, domain, via string) (map[string]any, bool) {
 	if err == nil {
 		raw, err = readStoredConfig(e.s, domain, configID)
 	}
+	if errors.As(err, &notFound) { // YAML/package item: read what Home Assistant loaded
+		loaded, ok, loadErr := loadedConfig(e.s, id, domain)
+		if loadErr != nil {
+			e.readFailed(id, via, "config")
+			return nil, false
+		}
+		if ok {
+			return e.parseConfig(id, domain, loadedConfigKey(id), loaded, via)
+		}
+	}
 	switch pl := e.reg[id].pl; {
 	case err == nil:
 	case domain == "scene" && pl != "" && pl != "homeassistant" && errors.As(err, &notFound):
@@ -380,6 +398,33 @@ func (e *tierEngine) runConfig(id, domain, via string) (map[string]any, bool) {
 	}
 	return e.parseConfig(id, domain, configID, raw, via)
 }
+
+// loadedConfig reads the config Home Assistant has loaded for an automation
+// or script by entity_id (WS automation/config, script/config) — the only
+// view of a YAML or package item that has no UI config. Safe to call
+// concurrently (session reads only).
+func loadedConfig(s *relaySession, entityID, domain string) (json.RawMessage, bool, error) {
+	if domain != "automation" && domain != "script" {
+		return nil, false, nil
+	}
+	var loaded struct {
+		Config json.RawMessage `json:"config"`
+	}
+	err := s.wsDecode(map[string]any{"type": domain + "/config", "entity_id": entityID}, &loaded, "the loaded config of "+entityID)
+	switch trimmed := strings.TrimSpace(string(loaded.Config)); {
+	case isUpstreamNotFound(err):
+		return nil, false, nil
+	case err != nil: // permission, transport, decode: a failed read, never "missing"
+		return nil, false, err
+	case trimmed == "" || trimmed == "null":
+		return nil, false, nil
+	}
+	return loaded.Config, true, nil
+}
+
+// loadedConfigKey names a loaded (YAML) config in the plan basis; it never
+// collides with a stored config id.
+func loadedConfigKey(entityID string) string { return "loaded:" + entityID }
 
 // parseConfig decodes a stored config, substitutes use_blueprint, and
 // records the normalized digest in the plan basis.

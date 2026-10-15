@@ -19,7 +19,11 @@ type getResult struct {
 	State    json.RawMessage `json:"state"`
 	ConfigID string          `json:"config_id,omitempty"`
 	Config   json.RawMessage `json:"config,omitempty"`
-	Related  json.RawMessage `json:"related,omitempty"`
+	// Managed is "yaml" when Config is the config Home Assistant loaded from
+	// YAML or a package: readable, not editable through plan write.
+	Managed string          `json:"managed,omitempty"`
+	Note    string          `json:"note,omitempty"`
+	Related json.RawMessage `json:"related,omitempty"`
 }
 
 func runGetCommand(paths runtimePaths, args []string) int {
@@ -43,23 +47,35 @@ func runGetCommand(paths runtimePaths, args []string) int {
 	return runReadVerb(paths, "get", opts, func(s *relaySession, env *verbEnvelope) error {
 		state, target, err := readEntityState(s, entityID)
 		if err != nil {
-			// A registry-disabled automation/script/scene has no state but a
-			// stored config: resolve it through its registry row instead.
+			// A registry-disabled (or unloaded) automation/script/scene has no
+			// state but a stored config: resolve it through its registry row.
 			var missing *verbFailure
-			if !*withConfig || !errors.As(err, &missing) || missing.code != "NOT_FOUND" {
+			if !*withConfig || !errors.As(err, &missing) || (missing.code != "NOT_FOUND" && missing.code != "ENTITY_DISABLED" && missing.code != "ENTITY_NOT_LOADED") {
 				return err
 			}
-			if target, err = disabledConfigTarget(s, entityID); err != nil {
+			if target, err = registryConfigTarget(s, entityID, err); err != nil {
 				return err
 			}
 		}
 		env.Resolved = []verbTarget{target}
 		result := getResult{State: state}
 		if *withConfig {
-			if result.ConfigID, err = resolveConfigID(s, entityID, domain, state); err != nil {
-				return err
+			result.ConfigID, err = resolveConfigID(s, entityID, domain, state)
+			if err == nil {
+				result.Config, err = readStoredConfig(s, domain, result.ConfigID)
 			}
-			if result.Config, err = readStoredConfig(s, domain, result.ConfigID); err != nil {
+			var missing *verbFailure
+			if errors.As(err, &missing) && missing.code == "CONFIG_NOT_FOUND" {
+				// No UI config: a YAML or package item. Read what Home
+				// Assistant loaded; it stays read-only for the typed verbs.
+				if loaded, ok, loadErr := loadedConfig(s, entityID, domain); loadErr != nil {
+					err = loadErr
+				} else if ok {
+					result.Config, result.Managed, err = loaded, "yaml", nil
+					result.Note = "defined in YAML or a package: readable here, not editable through ha-nova plan write (edit it with ha-nova:yaml-config)"
+				}
+			}
+			if err != nil {
 				return err
 			}
 		}
@@ -92,6 +108,21 @@ func readEntityState(s *relaySession, entityID string) (json.RawMessage, verbTar
 		return nil, verbTarget{}, err
 	}
 	if status == http.StatusNotFound {
+		var entry struct {
+			DisabledBy string `json:"disabled_by"`
+		}
+		err := s.wsDecode(map[string]any{"type": "config/entity_registry/get", "entity_id": entityID}, &entry, "the registry entry of "+entityID)
+		switch {
+		case err == nil && entry.DisabledBy != "": // registered but disabled: no state, not missing
+			return nil, verbTarget{}, &verbFailure{exit: verbExitNotFound, code: "ENTITY_DISABLED",
+				message: fmt.Sprintf("%s is disabled (by %s)", entityID, entry.DisabledBy), next: enableNext(entry.DisabledBy)}
+		case err == nil: // registered and enabled, yet no state: never a "did you mean" loop on itself
+			return nil, verbTarget{}, &verbFailure{exit: verbExitNotFound, code: "ENTITY_NOT_LOADED",
+				message: entityID + " is registered but has no state; its integration may not be loaded",
+				next:    "Check the integration (ha-nova:health, or Settings → Devices & services in Home Assistant)."}
+		case !isUpstreamNotFound(err):
+			return nil, verbTarget{}, err
+		}
 		domain, objectID, _ := strings.Cut(entityID, ".")
 		similar, err := findEntities(s, findQuery{phrase: strings.ReplaceAll(objectID, "_", " "), domain: domain, limit: 10})
 		if err != nil {
@@ -116,6 +147,18 @@ func readEntityState(s *relaySession, entityID string) (json.RawMessage, verbTar
 		return nil, verbTarget{}, fmt.Errorf("cannot parse the state of %s: %w", entityID, err)
 	}
 	return body, verbTarget{EntityID: entityID, Name: parsed.Attributes.FriendlyName, By: "exact"}, nil
+}
+
+// enableNext says how to re-enable by who disabled it, always with the plain
+// Home Assistant UI path (an MCP-only client has no organize skill).
+func enableNext(disabledBy string) string {
+	switch disabledBy {
+	case "device":
+		return "Its device is disabled: re-enable the device (Settings → Devices & services → Devices) or pick another entity."
+	case "config_entry": // "integration" only means disabled by default: the user may enable it
+		return "Its integration is disabled: re-enable it in Settings → Devices & services, or pick another entity."
+	}
+	return "Enable it first (ha-nova:organize, or Settings → Devices & services → Entities) or pick another entity."
 }
 
 // resolveConfigID never derives the config id from the entity_id slug
@@ -165,24 +208,20 @@ func readStoredConfig(s *relaySession, domain, configID string) (json.RawMessage
 	return body, nil
 }
 
-// disabledConfigTarget resolves a registry-disabled config entity (no state).
-// The original NOT_FOUND stands when no disabled registry row exists.
-func disabledConfigTarget(s *relaySession, entityID string) (verbTarget, error) {
+// registryConfigTarget resolves a config entity without state — disabled or
+// not loaded — through its registry row; with no row the state read's own
+// error stands.
+func registryConfigTarget(s *relaySession, entityID string, stateErr error) (verbTarget, error) {
 	var entry struct {
 		DisabledBy *string `json:"disabled_by"`
 		Name       *string `json:"name"`
 		Original   *string `json:"original_name"`
 	}
-	notFound := &verbFailure{exit: verbExitNotFound, code: "NOT_FOUND", message: fmt.Sprintf("%s does not exist", entityID),
-		next: `Search with: ha-nova find "<phrase>" --include-disabled`}
 	if err := s.wsDecode(map[string]any{"type": "config/entity_registry/get", "entity_id": entityID}, &entry, "the registry entry of "+entityID); err != nil {
 		if isUpstreamNotFound(err) {
-			return verbTarget{}, notFound
+			return verbTarget{}, stateErr // the state read's own NOT_FOUND, candidates included
 		}
 		return verbTarget{}, err
-	}
-	if entry.DisabledBy == nil {
-		return verbTarget{}, notFound
 	}
 	name := ""
 	if entry.Name != nil {
@@ -190,5 +229,5 @@ func disabledConfigTarget(s *relaySession, entityID string) (verbTarget, error) 
 	} else if entry.Original != nil {
 		name = *entry.Original
 	}
-	return verbTarget{EntityID: entityID, Name: name, Disabled: true, By: "registry"}, nil
+	return verbTarget{EntityID: entityID, Name: name, Disabled: entry.DisabledBy != nil, By: "registry"}, nil
 }

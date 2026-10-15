@@ -116,6 +116,17 @@ func codeParts(plan storedPlan) (string, []string) {
 		if object == "" {
 			object = action.Domain + "." + action.ConfigID
 		}
+		// A create's id is a minted number the user never saw: name the code
+		// after the alias instead (same [a-z0-9_] charset, length bounded by
+		// confirmCode). Binding stays the hash+nonce suffix.
+		if request := plan.ConfigRequest; request != nil && request.Minted { // a user-chosen --id stays the object
+			var draft struct {
+				Alias string `json:"alias"`
+			}
+			if json.Unmarshal(request.Draft, &draft) == nil && scriptKey(draft.Alias) != "" {
+				object = action.Domain + "." + scriptKey(draft.Alias)
+			}
+		}
 		return "config." + action.Op, []string{object}
 	}
 	return plan.Action.Service, plan.Action.EntityIDs

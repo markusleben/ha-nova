@@ -117,23 +117,13 @@ func (e *tierEngine) listenerTable() *listenerTable {
 		entityID, configID string
 		raw                json.RawMessage
 		err                error
+		loaded             bool
 	}
 	var rows []*autoRow
-	var yamlNoID []string
 	for _, st := range states {
-		switch {
-		case !strings.HasPrefix(st.EntityID, "automation.") || st.State != "on": // off automations hold no listeners
-		case st.Attributes.ID == "":
-			yamlNoID = append(yamlNoID, st.EntityID)
-		default:
+		if strings.HasPrefix(st.EntityID, "automation.") && st.State == "on" { // off automations hold no listeners
 			rows = append(rows, &autoRow{entityID: st.EntityID, configID: st.Attributes.ID})
 		}
-	}
-	// An enabled automation this scan cannot read may hold exactly the
-	// listener the live count shows: unread is typed, never "unexplained".
-	sort.Strings(yamlNoID)
-	for _, id := range yamlNoID {
-		e.gap(reasonYAMLNoID, id, "listener scan", "")
 	}
 	sort.Slice(rows, func(i, j int) bool { return rows[i].entityID < rows[j].entityID })
 	if len(rows) > tierMaxAutomations {
@@ -145,14 +135,33 @@ func (e *tierEngine) listenerTable() *listenerTable {
 		wg.Add(1)
 		go func(row *autoRow) {
 			defer wg.Done()
-			row.raw, row.err = readStoredConfig(e.s, "automation", row.configID)
+			row.err = &verbFailure{code: "CONFIG_NOT_FOUND"}
+			if row.configID != "" {
+				row.raw, row.err = readStoredConfig(e.s, "automation", row.configID)
+			}
+			var notFound *verbFailure
+			if errors.As(row.err, &notFound) { // YAML/package: read what Home Assistant loaded
+				loaded, ok, err := loadedConfig(e.s, row.entityID, "automation")
+				switch {
+				case err != nil: // a failed read: typed below, never "no config"
+					row.err = err
+				case ok:
+					row.raw, row.err, row.loaded = loaded, nil, true
+				}
+			}
 		}(row)
 	}
 	wg.Wait()
 	table := &listenerTable{counts: map[string]int{}, hits: map[string][]listenerHit{}}
 	for _, row := range rows {
+		// An enabled automation this scan cannot read may hold exactly the
+		// listener the live count shows: unread is typed, never "unexplained".
 		var notFound *verbFailure
-		if errors.As(row.err, &notFound) { // id but no stored config (packages YAML)
+		switch {
+		case errors.As(row.err, &notFound) && row.configID == "":
+			e.gap(reasonYAMLNoID, row.entityID, "listener scan", "")
+			continue
+		case errors.As(row.err, &notFound):
 			e.gap(reasonUnreadConfig, row.entityID, "listener scan", row.configID)
 			continue
 		}
@@ -163,7 +172,11 @@ func (e *tierEngine) listenerTable() *listenerTable {
 		cfg, cached := e.configs[row.entityID]
 		if !cached {
 			var ok bool
-			if cfg, ok = e.parseConfig(row.entityID, "automation", row.configID, row.raw, "listener scan"); !ok {
+			key := row.configID
+			if row.loaded {
+				key = loadedConfigKey(row.entityID)
+			}
+			if cfg, ok = e.parseConfig(row.entityID, "automation", key, row.raw, "listener scan"); !ok {
 				return nil
 			}
 		} else if cfg == nil {

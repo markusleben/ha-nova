@@ -62,6 +62,8 @@ type verbTarget struct {
 	AreaID   string `json:"area_id,omitempty"`
 	Area     string `json:"area,omitempty"`
 	Disabled bool   `json:"disabled,omitempty"`
+	State    string `json:"state,omitempty"` // find --state: the current state
+	Group    bool   `json:"group,omitempty"` // find --state: a group (it counts its members again)
 	By       string `json:"by"`
 }
 
