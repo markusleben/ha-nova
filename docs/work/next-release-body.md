@@ -109,6 +109,14 @@ the number.
 
 ## Release-prep README edits
 
+- MCP adapter: reframe "Why not an MCP server?" — HA NOVA stays skills-first
+  (one readable skill on demand, no default tool catalog), and now also ships
+  a small local MCP server (`ha-nova mcp`) for clients without a shell that
+  reuses this computer's pairing and runs the same checks; add "Any MCP
+  client" to Supported Clients.
+- Batch deletes: README step 3 "A reviewed batch delete takes one code bound
+  to the exact list of items" no longer holds for automations and scripts —
+  each delete is its own plan with its own code.
 - Typed verbs: the README promise "Every change is previewed and approved
   first" (tagline) and "device control get preview-and-verify" (feature
   note) change to the fast-path wording above — unambiguous everyday actions
