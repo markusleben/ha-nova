@@ -45,8 +45,9 @@ ha-nova find "<the user's phrase>" [--domain <d>] [--area <area_id>] [--state <s
 ha-nova find --domain <d> [--area <area_id>] [--state <s>]
 ```
 
-Every word of the phrase must match the entity_id, name, or area,
-case- and accent-insensitive; aliases are read automatically when names miss.
+Every word of the phrase must match the entity_id, name (registry or
+friendly name), or area, case- and accent-insensitive; aliases are read
+automatically when names miss.
 Entities without a registry row (YAML, template) match on entity_id and
 friendly name only (no area, no aliases).
 The result carries `total` (exact), `returned`, and `matches[]` with each

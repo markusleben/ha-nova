@@ -152,7 +152,7 @@ func runReadVerb(paths runtimePaths, verb string, opts verbOptions, body func(*r
 		relayVersion = session.version()
 		session.close()
 	}
-	env.Notices = verbNotices(paths, relayVersion)
+	env.Notices = append(env.Notices, verbNotices(paths, relayVersion)...)
 	exit := env.exit
 	if err != nil {
 		exit = setVerbError(&env, err)

@@ -291,6 +291,9 @@ func (e *tierEngine) resolveTargets(req planCallRequest) ([]verbTarget, error) {
 		case err != nil:
 			e.readFailed("", "", "match")
 		case found.Total == 1:
+			if found.statesUnread != nil { // uniqueness unproven: unregistered look-alikes were not searched
+				e.readFailed("", "", "match states")
+			}
 			match := found.Matches[0]
 			match.By = "match"
 			targets = append(targets, match)
