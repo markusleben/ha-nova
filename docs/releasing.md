@@ -75,6 +75,8 @@ deploy or tag.
    ```bash
    bash scripts/release/verify-relay-image.sh <reviewed-merge-sha> <relay-version>
    ```
+   and for the `app-image.yml` push run on that SHA (`app-image-verify` green;
+   see App Images below).
 2. Every release needs one green `e2e-disposable-ha.yml` run (dispatched, not the weekly cron) on the commit being tagged.
    Dispatch it and select the run whose `headSha` equals `<reviewed-merge-sha>`:
    ```bash
@@ -113,6 +115,29 @@ deploy or tag.
    re-asserts Latest for stable.
 6. `smoke-installers`: public install/update/uninstall on all three OSes.
 
+## App Images
+
+Supervisor stores track `main`: once `nova/config.yaml` carries
+`image: "ghcr.io/markusleben/{arch}-ha-nova-relay"`, every App version on main
+MUST already have public images for every `nova/build.yaml` arch, or every
+install/update fails. Spec: `docs/work/2026-10-15-app-prebuilt-images-spec.md`.
+
+- `app-image.yml` publishes from the release-prep PR (same-repo, into main,
+  `image:` set) while the version never reached main; versions on main are
+  frozen. Recover a failed publish by re-running the PR's workflow run.
+- `app-image-verify` gates the merge: anonymous existence check, plus a
+  build-input fingerprint match on the change that introduces the version or
+  `image:`. For a PR that changes the App version: `gh pr update-branch`,
+  wait for green on the new head, only then merge — also before `--admin`.
+  A red main-push run on the merge SHA means: ship the next patch version.
+- New GHCR packages start private: flip them to Public once (first release).
+- Manual check: `bash scripts/release/verify-app-image.sh <app-version>`.
+- Regression matrix (App image path changed or first `image:` release):
+  `bash scripts/e2e/supervisor-app/run.sh`, then
+  `E2E_IMAGE_SOURCE=ghcr bash scripts/e2e/supervisor-app/run.sh` once public.
+- Rollback: the next version without `image:` builds locally again; never
+  retag or delete a published version.
+
 ## 6. Home Assistant Cloud
 
 `version.json` is the release switch: `cloud_remote_enabled` plus a
@@ -146,8 +171,10 @@ results in the release PR, no private Cloud URLs). Real-device rows repeat for
 first support or after a change touching their path:
 
 - [ ] `provenance`: `release.yml` bundle smokes green on every enabled OS
-- [ ] `installed_relay_app`: the real App is built by Supervisor from the
-      release commit and reports the `nova/config.yaml` version
+- [ ] `installed_relay_app`: the real App runs the prebuilt image for the
+      `nova/config.yaml` version (Supervisor log: download, no build) — or,
+      while `image:` is absent, Supervisor's local build of the release commit
+      — and reports that version
 - [ ] `health`: reference smoke below returns `ha_ws_connected: true` and the expected App version
 - [ ] `parity`: `/health`, `/ws`, `/core`, `/files`, `/backups` through real Cloud (transport changes)
 - [ ] `stress_10000`: `internal-cloud-stress` on one reference OS (transport or stress-harness changes)

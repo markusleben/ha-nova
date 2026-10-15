@@ -87,6 +87,23 @@ describe("app config contract", () => {
     expect(relayToken).toContain("persists");
   });
 
+  // Supervisor pulls `image:` per arch; an arch without a build_from base has
+  // no published image (scripts/release/verify-app-image.sh), so both lists
+  // must match, and `image:` (when set) must name the images app-image.yml pushes.
+  it("keeps App arches, build bases, and the prebuilt image name in sync", () => {
+    const config = YAML.parse(readFileSync("nova/config.yaml", "utf8")) as {
+      arch: string[];
+      image?: string;
+    };
+    const build = YAML.parse(readFileSync("nova/build.yaml", "utf8")) as {
+      build_from: Record<string, string>;
+    };
+    expect([...config.arch].sort()).toEqual(Object.keys(build.build_from).sort());
+    if (config.image !== undefined) {
+      expect(config.image).toBe("ghcr.io/markusleben/{arch}-ha-nova-relay");
+    }
+  });
+
   it("has relay version >= min_relay_version from version.json", () => {
     const raw = readFileSync("nova/config.yaml", "utf8");
     const parsed = YAML.parse(raw) as Record<string, unknown>;

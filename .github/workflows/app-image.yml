@@ -1,0 +1,247 @@
+name: App Image
+
+# Prebuilt images for the Home Assistant App (nova/Dockerfile on the HA base
+# images from nova/build.yaml), so Supervisor pulls instead of building on the
+# user's device. Spec: docs/work/2026-10-15-app-prebuilt-images-spec.md.
+#
+# Supervisor stores track main, so an image MUST exist before its version
+# lands on main. Therefore:
+# - publish (same-repo PRs into main whose nova/config.yaml has `image:`):
+#   build + push ghcr.io/markusleben/{arch}-ha-nova-relay:<version>, but ONLY
+#   while that version never reached main. A version that reached main is
+#   frozen forever (users and backup restores pull it). Before main, re-pushes
+#   track the PR head; a tag pushed by another PR is never overwritten.
+# - verify (app-image-verify, required check): anonymous registry check that
+#   every arch image exists. When the change introduces the version (or the
+#   `image:` line), each image must also carry this tree's build-input
+#   fingerprint, so the merged code is exactly what users pull.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Per PR (newer pushes cancel older runs) or per commit (main pushes never
+# cancel each other, so every merge SHA keeps its own verify result).
+concurrency:
+  group: app-image-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  # Read-only decision. Fork, stacked (base != main), and bot PRs never get
+  # here, so they never reach the package-write job below.
+  plan:
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.base.ref == 'main' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.user.type != 'Bot'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      publish: ${{ steps.plan.outputs.publish }}
+      version: ${{ steps.plan.outputs.version }}
+    steps:
+      # Full history: the plan reads main's nova/config.yaml history.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Plan
+        id: plan
+        run: |
+          set -euo pipefail
+          source scripts/release/app-image-lib.sh
+          version="$(app_config_version)"
+          [[ "$version" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]] \
+            || { echo "::error::nova/config.yaml version '${version}' is not canonical X.Y.Z"; exit 1; }
+          publish=false
+          if [[ -z "$(app_config_image)" ]]; then
+            echo "skip: nova/config.yaml has no image: — Supervisor builds locally." | tee -a "$GITHUB_STEP_SUMMARY"
+          elif app_version_publishable "$version" origin/main; then
+            publish=true
+            echo "publish: ${version} never reached main; pushing images for this tree." | tee -a "$GITHUB_STEP_SUMMARY"
+          elif [[ "$version" == "$(app_config_version origin/main)" ]]; then
+            echo "skip: ${version} is main's version — its images are frozen." | tee -a "$GITHUB_STEP_SUMMARY"
+          else
+            echo "::error::App ${version} is not newer than main's or was on main before; refusing to publish. Bump nova/config.yaml."
+            exit 1
+          fi
+          echo "publish=${publish}" >> "$GITHUB_OUTPUT"
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+
+  # The ONLY job holding packages:write, and only in real release-prep runs.
+  # Recovery = re-run the PR's workflow run.
+  publish:
+    needs: plan
+    if: needs.plan.outputs.publish == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    # One publisher at a time across PRs: pushes never interleave.
+    concurrency:
+      group: app-image-publish
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Same inputs and labels Supervisor uses for a local build
+      # (supervisor/apps/build.py), one single-platform image per arch, no
+      # attestation index — Supervisor pulls <image>:<version> per platform.
+      # The base is pinned to the digest resolved now (io.ha-nova.base).
+      # ponytail: QEMU for aarch64; native arm runners if build time hurts.
+      - name: Build, smoke, and push every arch
+        env:
+          VERSION: ${{ needs.plan.outputs.version }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          source scripts/release/app-image-lib.sh
+          inputs="$(app_image_inputs HEAD)"
+          declare -A pinned
+          while read -r arch base; do
+            digest="$(docker buildx imagetools inspect "$base" | awk '/^Digest:/ { print $2; exit }')"
+            [[ "$digest" == sha256:* ]] || { echo "::error::could not resolve ${base}"; exit 1; }
+            pinned[$arch]="${base}@${digest}"
+          done < <(app_build_from)
+
+          build() { # <--load|--push>
+            local arch base
+            while read -r arch base; do
+              docker buildx build --platform "$(app_arch_platform "$arch")" \
+                --build-arg "BUILD_FROM=${pinned[$arch]}" \
+                --build-arg "BUILD_ARCH=${arch}" \
+                --build-arg "BUILD_VERSION=${VERSION}" \
+                --label "io.hass.version=${VERSION}" \
+                --label "io.hass.arch=${arch}" \
+                --label "io.hass.type=app" \
+                --label "io.hass.name=NOVA Relay" \
+                --label "io.hass.url=https://github.com/markusleben/ha-nova" \
+                --label "org.opencontainers.image.source=https://github.com/markusleben/ha-nova" \
+                --label "org.opencontainers.image.version=${VERSION}" \
+                --label "org.opencontainers.image.revision=${HEAD_SHA}" \
+                --label "io.ha-nova.inputs=${inputs}" \
+                --label "io.ha-nova.pr=${PR_NUMBER}" \
+                --label "io.ha-nova.base=${pinned[$arch]}" \
+                --provenance=false --sbom=false "$1" \
+                --tag "$(app_image_ref "$arch" "$VERSION")" nova
+            done < <(app_build_from)
+          }
+          build --load
+
+          # Start smoke per arch (QEMU for foreign arches): no Supervisor, so
+          # the relay runs on env config and must answer /health with 401.
+          while read -r arch _; do
+            ref="$(app_image_ref "$arch" "$VERSION")"
+            cid="$(docker run -d --platform "$(app_arch_platform "$arch")" -p 127.0.0.1::8791 \
+              -e RELAY_AUTH_TOKEN=smoke -e HA_LLAT=smoke -e HA_URL=http://127.0.0.1:8123 "$ref")"
+            port="$(docker port "$cid" 8791/tcp | head -1 | sed 's/.*://')"
+            code=""
+            for i in $(seq 1 60); do
+              code="$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:${port}/health" || true)"
+              [[ "$code" == 401 ]] && break
+              sleep 2
+            done
+            [[ "$code" == 401 ]] || { docker logs "$cid" || true; docker rm -f "$cid" >/dev/null; echo "::error::${ref} did not start (last /health: ${code:-none})"; exit 1; }
+            docker rm -f "$cid" >/dev/null
+            echo "smoke ok: ${ref}"
+          done < <(app_build_from)
+
+          # Re-check right before the cached, seconds-long push. ponytail: a
+          # merge inside those seconds still races; the main-push
+          # app-image-verify run flags it.
+          git fetch -q origin main
+          app_version_publishable "$VERSION" FETCH_HEAD \
+            || { echo "::error::${VERSION} reached main during the build; frozen, not pushing."; exit 1; }
+          cur="$(git ls-remote origin "refs/pull/${PR_NUMBER}/head" | cut -f1)"
+          [[ "$cur" == "$HEAD_SHA" ]] \
+            || { echo "::error::stale run: PR head is ${cur:-?}, this run built ${HEAD_SHA}; not pushing."; exit 1; }
+          while read -r arch _; do
+            ref="$(app_image_ref "$arch" "$VERSION")"
+            # Same existence probe as relay-image.yml (proven on a first push).
+            if out="$(docker manifest inspect "$ref" 2>&1)"; then
+              owner="$(docker buildx imagetools inspect "$ref" --format '{{json .Image}}' | jq -r '.config.Labels["io.ha-nova.pr"] // empty')"
+              [[ "$owner" == "$PR_NUMBER" ]] \
+                || { echo "::error::${ref} was pushed by PR #${owner:-?}; refusing to overwrite. Bump the App version."; exit 1; }
+            elif ! grep -qiE 'manifest unknown|no such manifest|not found|name unknown' <<<"$out"; then
+              echo "::error::registry probe for ${ref} failed ambiguously; refusing to guess: ${out}"
+              exit 1
+            fi
+          done < <(app_build_from)
+
+          build --push
+          echo "pushed ${VERSION} for: $(app_build_from | awk '{ print $1 }' | xargs) (inputs ${inputs})" | tee -a "$GITHUB_STEP_SUMMARY"
+
+  verify:
+    name: app-image-verify
+    needs: [plan, publish]
+    # always(): a skipped required check counts as passed, so this job must run
+    # and fail itself when plan or publish failed. Skipped = nothing to publish.
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Plan and publish must not have failed
+        if: >-
+          contains(fromJSON('["failure","cancelled"]'), needs.plan.result) ||
+          contains(fromJSON('["failure","cancelled"]'), needs.publish.result)
+        run: |
+          echo "::error::plan ${{ needs.plan.result }}, publish ${{ needs.publish.result }}"
+          exit 1
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify App images
+        env:
+          EVENT: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+          source scripts/release/app-image-lib.sh
+          case "$EVENT" in
+            pull_request) base="$PR_BASE" ;;
+            push) base="$PUSH_BEFORE" ;;
+            *) base="origin/main" ;;
+          esac
+          base_version=""
+          base_image=""
+          if git cat-file -e "${base}^{commit}" 2>/dev/null; then
+            base_version="$(app_config_version "$base")"
+            base_image="$(app_config_image "$base")"
+          fi
+          version="$(app_config_version)"
+          if [[ -z "$(app_config_image)" ]]; then
+            echo "nova/config.yaml has no image: — Supervisor builds locally; nothing to verify."
+          elif [[ "$version" != "$base_version" || -z "$base_image" ]]; then
+            echo "this change introduces App ${version} images (base: ${base_version:-none}, image: ${base_image:-none}): they must match this tree"
+            bash scripts/release/verify-app-image.sh "$version" "$(app_image_inputs HEAD)"
+          else
+            bash scripts/release/verify-app-image.sh "$version"
+          fi

@@ -44,6 +44,7 @@ For maintainers with an HA instance, when you need to exercise the interactive s
 
 - `slug:` and `name:` → distinct (e.g. `ha_nova_relay_test`, `NOVA Relay TEST`)
 - `ports:` → unused host ports (e.g. `18791`/`18792`)
+- `image:` → delete the line, or Supervisor pulls the published image instead of building your code
 
 Then `rsync` that overlay to `/addons/local/<slug>/`, `ha store reload`, `ha apps install local_<slug>`. When the overlay's `config.yaml` version drifts from the installed one, `ha apps rebuild` becomes a silent no-op — use `ha store reload` + `ha apps update local_<slug>`. Never `docker restart` an ingress add-on from outside (its IP changes and HA's ingress route breaks); only `ha apps …` commands. `scripts/smoke/ha-app-e2e.mjs` runs a Node smoke pass against the deployed app.
 
