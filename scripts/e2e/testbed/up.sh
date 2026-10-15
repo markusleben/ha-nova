@@ -27,6 +27,7 @@ docker info > /dev/null 2>&1 || die "the docker daemon is not running"
 command -v node > /dev/null || die "node >= 22.12 is required (built-in WebSocket)"
 node -e 'process.exit(typeof WebSocket === "function" ? 0 : 1)' || die "node $(node --version) has no built-in WebSocket; use node >= 22.12"
 command -v go > /dev/null || die "go is required to build the CLI (see CONTRIBUTING.md)"
+(cd "$ROOT/cli" && go build -o /dev/null .) || die "the CLI does not build with $(go version); cli/go.mod names the required Go toolchain"
 command -v curl > /dev/null || die "curl is required"
 if [[ -n "$("${COMPOSE[@]}" ps -q 2> /dev/null)" ]]; then
   die "the test bed is already running; run down.sh first (npm run testbed:down)"

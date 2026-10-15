@@ -15,10 +15,8 @@ BIN="$STATE/bin/ha-nova"
 
 [[ -f "$STATE/relay-token" ]] || { echo "testbed: not running; npm run testbed:up first" >&2; exit 1; }
 
-# Rebuild when any CLI source is newer than the binary (go caches the rest).
-if [[ ! -x "$BIN" || -n "$(find "$ROOT/cli" -name '*.go' -newer "$BIN" -print -quit)" ]]; then
-  (cd "$ROOT/cli" && go build -o "$BIN" .) >&2
-fi
+# Always build: go's build cache makes this cheap, and it never runs stale code.
+(cd "$ROOT/cli" && go build -o "$BIN" .) >&2
 
 if [[ ! -f "$CLI_HOME/.config/ha-nova/config.json" ]]; then
   mkdir -p "$CLI_HOME/.config/ha-nova" "$CLI_HOME/.cache/ha-nova"
@@ -35,6 +33,7 @@ ENV_VARS=(
   "HA_NOVA_ALLOW_INSECURE_TEST_KEYRING=1"
   "HA_NOVA_TEST_KEYRING_FILE=$CLI_HOME/.test-relay-token"
   "HA_NOVA_NO_BROWSER=1"
+  "HA_NOVA_DEV_ROOT=$ROOT"
 )
 
 if [[ "${1:-}" == "--env" ]]; then

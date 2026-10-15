@@ -7,6 +7,9 @@ set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 STATE="$HERE/.state"
 
+# The wipe runs as root on whatever .state points at: never follow a link.
+[[ -L "$STATE" ]] && { echo "testbed: $STATE is a symlink; refusing to wipe it" >&2; exit 1; }
+
 RELAY_AUTH_TOKEN="" HA_LLAT="" docker compose -f "$HERE/docker-compose.yml" down -v --remove-orphans >&2
 if [[ -d "$STATE" ]]; then
   docker run --rm -v "$STATE:/target" alpine:3 \
