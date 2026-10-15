@@ -12,6 +12,8 @@ set -euo pipefail
 
 NODE_VERSION=22.23.3
 NODE_SHA256=df450af89261115ef9f9e3830c3eeb2cc9213b63c720b1af623cb5dcbe2e02de
+COSIGN_VERSION=3.1.3
+COSIGN_SHA256=4629c757b7618056f8ddd7e2625ae9fdd94c0372a65049520bc7d9df9efc7f71
 DOCKER_GPG_FPR=9DC858229FC7DD38854AE2D88D81803C0EBFCD88
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
@@ -84,7 +86,7 @@ chmod a+r /etc/apt/keyrings/docker.asc
 echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu $VERSION_CODENAME stable" \
   > /etc/apt/sources.list.d/docker.list
 apt-get update -q
-apt-get install -y -q docker-ce docker-ce-cli containerd.io docker-compose-plugin
+apt-get install -y -q docker-ce docker-ce-cli containerd.io docker-compose-plugin docker-buildx-plugin
 install -m 0755 -d /etc/docker
 cat > /etc/docker/daemon.json << 'CONF'
 {
@@ -107,6 +109,15 @@ if [[ "$(/usr/local/bin/node --version 2> /dev/null || true)" != "v$NODE_VERSION
   install -d /opt/node
   tar --no-same-owner -xJf "$tmp/node.tar.xz" -C /opt/node --strip-components=1
   ln -sf /opt/node/bin/node /usr/local/bin/node
+  rm -rf "$tmp"
+fi
+
+step "cosign $COSIGN_VERSION (Home Assistant image signatures; checksum pinned)"
+if [[ "$(/usr/local/bin/cosign version --json 2> /dev/null | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{console.log(JSON.parse(s).gitVersion)}catch{}})' || true)" != "v$COSIGN_VERSION" ]]; then
+  tmp="$(mktemp -d)"
+  curl -fsSLo "$tmp/cosign" "https://github.com/sigstore/cosign/releases/download/v$COSIGN_VERSION/cosign-linux-amd64"
+  echo "$COSIGN_SHA256  $tmp/cosign" | sha256sum -c --quiet -
+  install -m 0755 "$tmp/cosign" /usr/local/bin/cosign
   rm -rf "$tmp"
 fi
 
@@ -162,6 +173,28 @@ Persistent=true
 [Install]
 WantedBy=timers.target
 UNIT
+cat > /etc/systemd/system/ha-nova-demo-update.service << 'UNIT'
+[Unit]
+Description=HA NOVA demo: move to the latest stable Home Assistant (verified digest)
+Requires=docker.service
+After=docker.service network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/bin/bash /opt/ha-nova/scripts/demo/hosted/update-ha.sh
+TimeoutStartSec=40min
+UNIT
+cat > /etc/systemd/system/ha-nova-demo-update.timer << 'UNIT'
+[Unit]
+Description=HA NOVA demo: nightly Home Assistant update
+
+[Timer]
+OnCalendar=*-*-* 03:10:00 UTC
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+UNIT
 cat > /etc/systemd/system/ha-nova-demo-guard.service << 'UNIT'
 [Unit]
 Description=HA NOVA demo: minute guard (password, users, disk, relay)
@@ -186,17 +219,27 @@ UNIT
 systemctl daemon-reload
 systemctl enable --now ha-nova-demo-shaper.service
 
-step "first build of the demo house"
+step "first build of the demo house (the test bed's pinned Home Assistant, signature-verified)"
+if [[ ! -s /var/lib/ha-nova-demo/ha-image ]]; then
+  pin="$(sed -nE 's#.*homeassistant/home-assistant:([0-9.]+)\}.*#\1#p' /opt/ha-nova/scripts/e2e/testbed/docker-compose.yml)"
+  bash "$HERE/update-ha.sh" --pin "$pin"
+fi
 systemctl start ha-nova-demo-reset.service
-systemctl enable --now ha-nova-demo-reset.timer ha-nova-demo-guard.timer
+systemctl enable --now ha-nova-demo-reset.timer ha-nova-demo-guard.timer ha-nova-demo-update.timer
 
 step "listener check: only 22, 80, 443 may listen beyond loopback"
 bad="$(ss -H -ltn | awk '{print $4}' | grep -v -E '^(127\.|\[::1\]|\[::ffff:127\.)' | grep -v -E ':(22|80|443)$' || true)"
 [[ -z "$bad" ]] || die "unexpected TCP listeners: $bad"
-step "egress check: Home Assistant and the relay have no route out"
-if docker exec ha-nova-testbed-ha curl -s -m 5 -o /dev/null https://example.com; then die "Home Assistant reached the internet"; fi
-if docker exec ha-nova-testbed-relay node -e 'fetch("https://example.com").then(()=>process.exit(0),()=>process.exit(1))'; then
-  die "the relay reached the internet"
-fi
+step "egress gate: no route out and no external DNS from Home Assistant or the relay"
+# Linux dockerd's embedded resolver forwards external names even on internal
+# networks; the compose dns sink (192.0.2.1) must make these lookups fail.
+if docker exec ha-nova-testbed-ha getent hosts example.com; then die "Home Assistant resolved an external name"; fi
+if docker exec ha-nova-testbed-ha curl -s -m 5 -o /dev/null http://1.1.1.1; then die "Home Assistant reached the internet"; fi
+# shellcheck disable=SC2016 # JavaScript, not shell
+probe='require("dns").lookup("example.com",e=>{if(!e)process.exit(0);fetch("http://1.1.1.1").then(()=>process.exit(0),()=>process.exit(1))})'
+if docker exec ha-nova-testbed-relay node -e "$probe"; then die "the relay resolved an external name or reached the internet"; fi
+docker exec ha-nova-testbed-ha getent hosts mosquitto > /dev/null || die "service names no longer resolve on the house network"
 free -m >&2
+# Then move to the latest stable release (a no-op when the pin is current).
+systemctl start --no-block ha-nova-demo-update.service
 echo "bootstrap: done. https://$DOMAIN (login demo / demo) once DNS points here." >&2

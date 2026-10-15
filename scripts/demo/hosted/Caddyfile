@@ -6,11 +6,18 @@
 }
 
 (reset_page) {
-	# Upstream gone = reset.sh is rebuilding the house (or HA restarts).
+	# Upstream gone = reset.sh is rebuilding the house, or HA restarts.
 	handle_errors 502 503 504 {
-		header Content-Type "text/html; charset=utf-8"
 		header Retry-After "60"
-		respond `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width"><meta http-equiv="refresh" content="15"><title>Demo is resetting</title><body style="font:16px system-ui;max-width:32em;margin:4em auto;padding:0 1em"><h1>Demo is resetting</h1><p>The public demo house is wiped and rebuilt every hour at :00 UTC. Back in about 2 minutes; this page reloads by itself.</p>` 503
+		@relay expression {http.request.orig_uri.path}.startsWith("/relay/")
+		handle @relay {
+			header Content-Type "application/json"
+			respond `{"error":"demo_resetting"}` 503
+		}
+		handle {
+			header Content-Type "text/html; charset=utf-8"
+			respond `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width"><meta http-equiv="refresh" content="15"><title>Demo is restarting</title><body style="font:16px system-ui;max-width:32em;margin:4em auto;padding:0 1em"><h1>Demo is restarting</h1><p>The demo is restarting or being reset (full reset every hour at :00 UTC). Back in about 2 minutes; this page reloads by itself.</p><p><a href="/start">About this demo</a></p>` 503
+		}
 	}
 }
 
@@ -53,9 +60,26 @@
 
 	# Unauthenticated file hosting and backup upload/download: never. First
 	# handle block wins; Caddy keeps named-matcher handles in file order.
-	@blocked path /api/backup/* /local/* /api/tts_proxy/* /relay/pair* /relay/home*
+	# Onboarding is open for a few seconds on every rebuild: tooling only.
+	@blocked path /api/backup/* /local/* /api/tts_proxy/* /relay/pair* /relay/home* /api/onboarding* /onboarding.html
 	handle @blocked {
 		respond 403
+	}
+	# Landing page: /start, and / without a query (HA's own redirects to /
+	# always carry one, e.g. ?auth_callback=1).
+	@landing {
+		path /
+		expression {http.request.uri.query} == ""
+	}
+	handle @landing {
+		root * /site
+		rewrite * /start.html
+		file_server
+	}
+	handle /start {
+		root * /site
+		rewrite * /start.html
+		file_server
 	}
 	handle /connect.json {
 		header Cache-Control "no-store"

@@ -9,7 +9,8 @@
 #   only one publishing ports. Ports from the test bed compose are reset.
 # - Every container: no-new-privileges, cap_drop ALL (+ the minimum), CPU,
 #   memory and pids limits, read-only root, no docker.sock, no host network,
-#   nothing privileged; images pinned by digest (bump with the test bed tags).
+#   nothing privileged; images by digest: HA from TESTBED_HA_IMAGE (a
+#   signature-verified digest, update-ha.sh), the broker pinned here.
 networks:
   house:
     external: true
@@ -17,6 +18,10 @@ networks:
 
 x-hardening: &hardening
   restart: unless-stopped
+  # Docker's embedded resolver (127.0.0.11) still answers service names on the
+  # internal network but forwards every other name here: TEST-NET-1, never
+  # routed, so external lookups (a DNS exfiltration channel) go nowhere.
+  dns: ["192.0.2.1"]
   security_opt: ["no-new-privileges:true"]
   cap_drop: [ALL]
   read_only: true
@@ -35,7 +40,9 @@ x-sealed: &sealed { type: tmpfs, read_only: true, tmpfs: { size: 4096 } }
 services:
   homeassistant:
     <<: *hardening
-    image: homeassistant/home-assistant:2026.10.1@sha256:130241f28d01fa80dfa3b44f7d89781c188d8642ecab9024f079f19f9f82baa0
+    # Always a signature-verified digest (update-ha.sh -> /var/lib/ha-nova-demo/ha-image,
+    # exported by reset.sh): never a tag at runtime.
+    image: "${TESTBED_HA_IMAGE:?TESTBED_HA_IMAGE must be a verified digest (reset.sh)}"
     ports: !reset []
     networks: [house]
     # s6-overlay init runs as root and needs these to set up its service

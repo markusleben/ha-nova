@@ -23,7 +23,11 @@ disk="$(df --output=pcent / | tail -1 | tr -dc 0-9)"
 swap="$(free | awk '/^Swap:/ { print ($2 > 0) ? int($3 * 100 / $2) : 0 }')"
 ((swap <= 80)) || reset "swap at ${swap}%"
 
-[[ -s "$TB/.state/ha-llat" && -s /var/lib/ha-nova-demo/public/connect.json ]] || reset "no demo state"
-node "$HOSTED/demo.mjs" guard "$HA" "$(cat "$TB/.state/ha-llat")" || reset "house check failed"
-relay_token="$(node -e 'console.log(require(process.argv[1]).relay_token)' /var/lib/ha-nova-demo/public/connect.json)"
-curl -sf -o /dev/null -m 10 -H "Authorization: Bearer $relay_token" "$HA/relay/health" || reset "relay unhealthy"
+[[ -s "$TB/.state/ha-llat" && -s /var/lib/ha-nova-demo/relay-token ]] || reset "no demo state"
+timeout 30 node "$HOSTED/demo.mjs" guard "$HA" "$(cat "$TB/.state/ha-llat")" || reset "house check failed"
+# A visitor can revoke the relay user's HA token: the relay then reports an
+# auth disconnect (a network blip reports "network" and heals by itself).
+health="$(curl -sf -m 10 -H "Authorization: Bearer $(cat /var/lib/ha-nova-demo/relay-token)" "$HA/relay/health")" \
+  || reset "relay unhealthy"
+reason="$(node -e 'console.log(JSON.parse(process.argv[1]).data.ha_ws_disconnect_reason ?? "")' "$health")"
+[[ "$reason" != auth ]] || reset "relay lost its Home Assistant token"

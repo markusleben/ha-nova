@@ -4,8 +4,8 @@
 # once from bootstrap.sh. Caddy (edge.yml) keeps serving the "resetting" page.
 #
 # down (containers, volumes, .state) -> restore the clone to the pinned ref ->
-# up with this overlay -> relay with the demo user's token -> dashboard ->
-# publish connect.json.
+# up with this overlay -> relay (its own HA user's fresh token behind the
+# stable public relay token) -> dashboard -> publish connect.json.
 set -euo pipefail
 
 # Everything runs inside main: the checkout may rewrite this very file, and
@@ -18,9 +18,20 @@ main() {
   local repo=/opt/ha-nova
   local tb="$repo/scripts/e2e/testbed"
   local hosted="$repo/scripts/demo/hosted"
-  local public=/var/lib/ha-nova-demo/public
+  local public=/var/lib/ha-nova-demo/public state=/var/lib/ha-nova-demo
   local ha=http://127.0.0.1:18123
   export TESTBED_OVERLAY="$hosted"
+  # The Home Assistant image: a candidate under test (update-ha.sh, one run
+  # only) or the last verified good digest. Both were signature-checked.
+  if [[ -s /run/ha-nova-demo/ha-image.candidate ]]; then
+    TESTBED_HA_IMAGE="$(cat /run/ha-nova-demo/ha-image.candidate)"
+    rm -f /run/ha-nova-demo/ha-image.candidate
+  else
+    TESTBED_HA_IMAGE="$(cat "$state/ha-image")"
+  fi
+  [[ "$TESTBED_HA_IMAGE" =~ ^ghcr\.io/home-assistant/home-assistant@sha256:[0-9a-f]{64}$ ]] \
+    || { echo "reset.sh: no verified Home Assistant digest" >&2; exit 1; }
+  export TESTBED_HA_IMAGE
 
   RELAY_AUTH_TOKEN="" HA_LLAT="" bash "$tb/down.sh"
   git -C "$repo" checkout -q --force --detach "$DEMO_REF"
@@ -35,9 +46,11 @@ main() {
   local owner_llat
   owner_llat="$(cat "$tb/.state/ha-llat")"
 
-  # The public relay: a new token every reset, never in the repo.
-  local relay_token
-  relay_token="$(openssl rand -hex 32)"
+  # The public relay token is public anyway (connect.json): generated once
+  # and kept, so agents survive the hourly rebuild. Never in the repo.
+  local token_file="$state/relay-token" relay_token
+  [[ -s "$token_file" ]] || (umask 077 && openssl rand -hex 32 > "$token_file")
+  relay_token="$(cat "$token_file")"
   RELAY_AUTH_TOKEN="$relay_token" HA_LLAT="$(node "$hosted/demo.mjs" token "$ha" "$owner_llat")" \
     RELAY_VERSION="$(sed -nE 's/^version:[[:space:]]*"?([^"]+)"?/\1/p' "$repo/nova/config.yaml" | head -1)" \
     docker compose -f "$tb/docker-compose.yml" -f "$hosted/docker-compose.yml" up -d --build relay >&2
@@ -49,13 +62,15 @@ main() {
   done
 
   node "$hosted/demo.mjs" dashboard "$ha" "$owner_llat"
+  local version
+  version="$(curl -sf -H "Authorization: Bearer $owner_llat" "$ha/api/config" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>console.log(JSON.parse(s).version))')"
 
   local tmp="$public/.connect.json.tmp"
-  printf '{"ha_url":"https://%s","relay_url":"https://%s/relay","relay_token":"%s","login":{"username":"demo","password":"demo"},"next_reset":"%s","abuse":"https://%s/abuse"}\n' \
-    "$DEMO_DOMAIN" "$DEMO_DOMAIN" "$relay_token" "$(date -u -d '+1 hour' +%Y-%m-%dT%H:00:00Z)" "$DEMO_DOMAIN" > "$tmp"
+  printf '{"ha_url":"https://%s","ha_version":"%s","relay_url":"https://%s/relay","relay_token":"%s","login":{"username":"demo","password":"demo"},"next_reset":"%s","abuse":"https://%s/abuse"}\n' \
+    "$DEMO_DOMAIN" "$version" "$DEMO_DOMAIN" "$relay_token" "$(date -u -d '+1 hour' +%Y-%m-%dT%H:00:00Z)" "$DEMO_DOMAIN" > "$tmp"
   chmod 0644 "$tmp"
   mv "$tmp" "$public/connect.json"
-  echo "reset.sh: demo rebuilt at $(git -C "$repo" rev-parse --short HEAD)" >&2
+  echo "reset.sh: demo rebuilt at $(git -C "$repo" rev-parse --short HEAD), Home Assistant $version ($TESTBED_HA_IMAGE)" >&2
 }
 
 main "$@"
