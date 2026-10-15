@@ -204,7 +204,9 @@ func confirmCode(service string, frozen []string, sum string) string {
 	if len(frozen) > 1 {
 		object += fmt.Sprintf("+%d", len(frozen)-1)
 	}
-	return "confirm:" + verb + "-" + object + "-" + sum[:6]
+	// The suffix is the identity hash's 13th-18th hex chars: the plan id
+	// shows only the first 12, so the code cannot be derived from the id.
+	return "confirm:" + verb + "-" + object + "-" + sum[12:18]
 }
 
 // savePlan writes CacheDir/plans/<id>.json (0600, atomic) after pruning

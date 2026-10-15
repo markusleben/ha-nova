@@ -96,6 +96,8 @@ func dispatch(paths runtimePaths, argv0 string, args []string) int {
 		return runCallCommand(paths, args[1:])
 	case "apply":
 		return runApplyCommand(paths, args[1:])
+	case "mcp":
+		return runMCPCommand(paths, args[1:])
 	case "trace":
 		return runTraceCommand(paths, args[1:])
 	case "snapshot":
@@ -228,6 +230,7 @@ func printUsage() {
 	fmt.Fprintln(os.Stdout, "  ha-nova trace <latest|list|get> <automation.entity_id|script.entity_id> [run_id] [--json]")
 	fmt.Fprintln(os.Stdout, "  ha-nova snapshot <save|show|verify>")
 	fmt.Fprintln(os.Stdout, "  ha-nova diff --before <file> --after <file> [--out <file>]")
+	fmt.Fprintln(os.Stdout, "  "+mcpUsage+"  (MCP server over stdio)")
 	fmt.Fprintln(os.Stdout, "  ha-nova version")
 	fmt.Fprintln(os.Stdout, "")
 	fmt.Fprintln(os.Stdout, "Run 'ha-nova <command> --help' to see every flag of a command.")

@@ -29,11 +29,23 @@ var spawnDetachedUpdateRefresh = func() {
 	if err != nil {
 		return
 	}
-	cmd := exec.Command(self, "check-update", "--quiet", "--json")
+	startUpdateRefresh(exec.Command(self, "check-update", "--quiet", "--json"))
+}
+
+// reapUpdateRefresh: a long-running process (ha-nova mcp) waits for the
+// refresh child instead of releasing it, so finished children never linger
+// as zombies. Short-lived commands release it and exit.
+var reapUpdateRefresh = false
+
+func startUpdateRefresh(cmd *exec.Cmd) {
 	// Stdout/Stderr stay nil on purpose: exec connects nil descriptors to
 	// /dev/null, so the child's JSON can never interleave with the relay JSON
 	// on the parent's stdout that skills parse.
 	if err := cmd.Start(); err != nil {
+		return
+	}
+	if reapUpdateRefresh {
+		go func() { _ = cmd.Wait() }()
 		return
 	}
 	_ = cmd.Process.Release()

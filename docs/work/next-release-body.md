@@ -29,6 +29,12 @@ the number.
   to verify it; deletes need a confirmation code and take a config snapshot
   first, and the last update stays one step revertible.
 
+- **Use HA NOVA from any MCP client.** `ha-nova mcp` serves the same
+  find/get/history/trace/read, plan, call, and apply checks as tools to
+  clients without a shell (Claude Desktop and others), with the skills as
+  prompts; it reuses this computer's pairing. See the client integration
+  reference for the one-line configuration.
+
 ## What To Watch
 
 - **The safety promise has one explicit exception now.** Unambiguous

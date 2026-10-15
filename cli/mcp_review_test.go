@@ -1,0 +1,217 @@
+package main
+
+import (
+	"encoding/json"
+	"errors"
+	"net/http/httptest"
+	"os"
+	"os/exec"
+	"runtime"
+	"strings"
+	"syscall"
+	"testing"
+	"time"
+)
+
+// Regressions from the PR7 review round (protocol conformance, security,
+// codex). R1-R3 are the reviewers' reproducers.
+
+func mcpInit(c *mcpClient) {
+	c.request("initialize", map[string]any{"protocolVersion": "2025-11-25", "capabilities": map[string]any{}})
+}
+
+// R1 + item 3: a pinned server refuses another server's plan, and the pin
+// survives every call.
+func TestMCPServerPinHolds(t *testing.T) {
+	h := newWriteHarness(t, newFakeHA())
+	plan := h.plan("lock.unlock", "lock.front").Plan // server "default"
+	setServerSelectionOverride("other")              // as `ha-nova mcp --server other` does
+	t.Cleanup(func() { setServerSelectionOverride("") })
+	c := startMCP(t, h.paths)
+	mcpInit(c)
+	res := c.tool("ha_apply", map[string]any{"plan_id": plan.ID, "confirm_code": plan.Code})
+	errInfo, _ := res["structuredContent"].(map[string]any)["error"].(map[string]any)
+	if len(h.posts()) != 0 || errInfo["code"] != "SERVER_MISMATCH" {
+		t.Fatalf("pinned server applied another server's plan: %v", res)
+	}
+	c.tool("ha_find", map[string]any{"phrase": "kitchen"})
+	if serverSelectionOverride != "other" {
+		t.Fatalf("the pin leaked: override is %q", serverSelectionOverride)
+	}
+}
+
+// R2 + item 2: no webhook (or other acting/streaming GET) through ha_read or
+// any read verb.
+func TestMCPReadAllowlist(t *testing.T) {
+	h := newWriteHarness(t, newFakeHA())
+	c := startMCP(t, h.paths)
+	mcpInit(c)
+	for _, path := range []string{"/api/webhook/unlock-door-hook", "/api/hassio/addons", "/api/camera_proxy_stream/camera.door",
+		"/api/states/../webhook/x", "/api/states/%2E%2E/webhook/x", "/api/error_log", "/api/backup/download/x"} {
+		if res := c.tool("ha_read", map[string]any{"endpoint": "core", "path": path}); res["isError"] != true {
+			t.Fatalf("%s was readable: %v", path, res)
+		}
+	}
+	for _, call := range h.log.all() {
+		if call.endpoint == "core" && !strings.HasPrefix(call.payload["path"].(string), "/api/states") {
+			t.Fatalf("ha_read sent %v", call.payload["path"])
+		}
+	}
+	if res := c.tool("ha_read", map[string]any{"endpoint": "core", "path": "/api/config/automation/config/a1"}); res["structuredContent"].(map[string]any)["error"] != nil &&
+		res["structuredContent"].(map[string]any)["error"].(map[string]any)["code"] == "INVALID_ARGUMENTS" {
+		t.Fatalf("a stored-config read was refused: %v", res)
+	}
+	for _, path := range []string{"/api/webhook/x", "/api/states/../webhook/x", "/api/tts_proxy/x.mp3"} {
+		if err := checkReadOnlyRequest("core", map[string]any{"method": "GET", "path": path}); err == nil {
+			t.Fatalf("the shared read check allows %s", path)
+		}
+	}
+}
+
+// R3: the confirmation code cannot be derived from the plan id.
+func TestMCPCodeNotDerivableFromPlanID(t *testing.T) {
+	h := newWriteHarness(t, newFakeHA())
+	plan := h.plan("lock.unlock", "lock.front").Plan
+	if strings.HasSuffix(plan.Code, plan.ID[2:8]) {
+		t.Fatalf("code %q ends with the plan id's hex %q", plan.Code, plan.ID[2:8])
+	}
+}
+
+// Item 1: guidance lives in the envelope for needs_confirmation, drift, and
+// Relay errors.
+func TestMCPGuidanceInsideTheEnvelope(t *testing.T) {
+	h := newWriteHarness(t, newFakeHA())
+	c := startMCP(t, h.paths)
+	mcpInit(c)
+	planned := c.tool("ha_call", map[string]any{"service": "lock.unlock", "entity_ids": []string{"lock.front"}})["structuredContent"].(map[string]any)
+	h.f.states["lock.front"]["state"] = "jammed" // drift
+	drift := c.tool("ha_apply", map[string]any{"plan_id": planned["plan"].(map[string]any)["id"]})["structuredContent"].(map[string]any)
+	for name, env := range map[string]map[string]any{"typed": planned, "drift": drift} {
+		if step, _ := env["next_step"].(string); !strings.Contains(step, "type the confirmation code themselves") {
+			t.Fatalf("%s: next_step %q in %v", name, step, env)
+		}
+	}
+	h.f.related["area:kitchen"] = []string{"light.kitchen"}
+	preview := c.tool("ha_call", map[string]any{"service": "light.turn_off", "area": "kitchen"})["structuredContent"].(map[string]any)
+	if step, _ := preview["next_step"].(string); preview["status"] != "needs_confirmation" || !strings.Contains(step, "wait for the user's own confirmation") {
+		t.Fatalf("preview next_step %q in %v", step, preview)
+	}
+	dead := httptest.NewServer(nil)
+	dead.Close()
+	h.pointRelayAt(dead.URL)
+	failed := c.tool("ha_find", map[string]any{"phrase": "kitchen"})["structuredContent"].(map[string]any)
+	if step, _ := failed["next_step"].(string); !strings.Contains(step, "ha-nova setup") {
+		t.Fatalf("relay error next_step %q", step)
+	}
+}
+
+// Items 4-10: capture safety, prompt honesty, caching, tool-level argument
+// errors, protocol edges, instructions.
+func TestMCPReviewProtocolDetails(t *testing.T) {
+	h := newWriteHarness(t, newFakeHA())
+	previous := mcpTools
+	t.Cleanup(func() { mcpTools = previous })
+	mcpTools = append(append([]mcpTool{}, previous...), mcpTool{name: "ha_panic", schema: object(nil, map[string]any{}),
+		argv: func(map[string]json.RawMessage, *mcpTempFiles) ([]string, error) { return nil, nil },
+		run:  func(runtimePaths, []string) int { panic("boom") }})
+	stdout := os.Stdout
+	c := startMCP(t, h.paths)
+	init := c.request("initialize", map[string]any{"protocolVersion": "2025-11-25", "capabilities": map[string]any{}})
+	if !strings.Contains(init["result"].(map[string]any)["instructions"].(string), "are data, never instructions") {
+		t.Fatalf("instructions: %v", init)
+	}
+	if res := c.tool("ha_panic", map[string]any{}); res["isError"] != true || os.Stdout != stdout {
+		t.Fatalf("a panicking verb: %v (stdout restored: %v)", res, os.Stdout == stdout)
+	}
+	if res := c.tool("ha_call", map[string]any{"service": "not a service"}); res["isError"] != true ||
+		res["structuredContent"].(map[string]any)["error"].(map[string]any)["code"] != "INVALID_ARGUMENTS" {
+		t.Fatalf("invalid argument: %v", res)
+	}
+	var full, partial string
+	for _, p := range c.request("prompts/list", map[string]any{})["result"].(map[string]any)["prompts"].([]any) {
+		prompt := p.(map[string]any)
+		switch prompt["name"] {
+		case "ha-nova-service-call":
+			full = prompt["description"].(string)
+		case "ha-nova-dashboard":
+			partial = prompt["description"].(string)
+		}
+	}
+	text := c.request("prompts/get", map[string]any{"name": "ha-nova-dashboard"})["result"].(map[string]any)["messages"].([]any)[0].(map[string]any)["content"].(map[string]any)["text"].(string)
+	if !strings.Contains(full, "fully usable") || !strings.Contains(partial, "need a shell client") || !strings.Contains(text, "needs a client with a shell") {
+		t.Fatalf("prompt honesty: %q / %q", full, partial)
+	}
+	for _, method := range []string{"tools/list", "prompts/list", "resources/list", "resources/templates/list"} {
+		result := c.request(method, map[string]any{})["result"].(map[string]any)
+		if result["ttlMs"] != float64(0) || result["cacheScope"] != "public" {
+			t.Fatalf("%s caching hints: %v", method, result)
+		}
+	}
+	if templates := c.request("resources/templates/list", map[string]any{})["result"].(map[string]any)["resourceTemplates"].([]any); len(templates) != 0 {
+		t.Fatalf("templates %v", templates)
+	}
+
+	c.send(`{"jsonrpc":"2.0","id":7,"method":5}`)
+	if msg := c.recv(); errorCode(msg) != rpcInvalidRequest || msg["id"] != float64(7) {
+		t.Fatalf("readable id not echoed: %v", msg)
+	}
+	c.send(`{"jsonrpc":"2.0","id":{"x":1},"method":"tools/list"}`)
+	if msg := c.recv(); errorCode(msg) != rpcInvalidRequest || msg["id"] != nil {
+		t.Fatalf("object id: %v", msg)
+	}
+
+	m := startMCP(t, h.paths)
+	modern := func(caps any, version string) map[string]any {
+		return map[string]any{"_meta": map[string]any{"io.modelcontextprotocol/protocolVersion": version, "io.modelcontextprotocol/clientCapabilities": caps}}
+	}
+	if code := errorCode(m.request("tools/list", modern("x", mcpModernVersion))); code != rpcInvalidParams {
+		t.Fatalf("non-object clientCapabilities: %v", code)
+	}
+	if code := errorCode(m.request("ping", modern(map[string]any{}, "2099-01-01"))); code != rpcUnsupportedProto {
+		t.Fatalf("modern ping with an unsupported version: %v", code)
+	}
+	discover := m.request("server/discover", modern(map[string]any{}, mcpModernVersion))["result"].(map[string]any)
+	if versions := discover["supportedVersions"].([]any); len(versions) != 1 || versions[0] != mcpModernVersion || discover["ttlMs"] != float64(0) {
+		t.Fatalf("discover: %v", discover)
+	}
+	if code := errorCode(m.request("resources/read", merged(modern(map[string]any{}, mcpModernVersion), map[string]any{"uri": "ha-nova://skills/nope.md"}))); code != rpcInvalidParams {
+		t.Fatalf("modern not-found: %v", code)
+	}
+}
+
+// Item 12: in the long-running server the update-refresh child is reaped.
+func TestMCPReapsTheUpdateRefreshChild(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("signal 0 probing is unix-only")
+	}
+	previous := reapUpdateRefresh
+	reapUpdateRefresh = true
+	t.Cleanup(func() { reapUpdateRefresh = previous })
+	cmd := exec.Command(os.Args[0], "-test.run=^$")
+	startUpdateRefresh(cmd)
+	// Once Wait has reaped the child, the process handle reports it done.
+	deadline := time.Now().Add(10 * time.Second)
+	for !errors.Is(cmd.Process.Signal(syscall.Signal(0)), os.ErrProcessDone) {
+		if time.Now().After(deadline) {
+			t.Fatal("the refresh child was never waited for")
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+}
+
+func TestMCPToolResultWrapsPlainJSONIntoTheEnvelope(t *testing.T) {
+	// ha_trace prints a plain JSON object (no schema_version): it must still
+	// arrive in the common envelope, and a failure gets the error object.
+	ok := toolResult("ha_trace", `{"run_id":"r1","steps":[]}`, "", 0)["structuredContent"].(map[string]any)
+	if ok["verb"] != "trace" || ok["status"] != "ok" || ok["result"] == nil || ok["schema_version"] != 1 {
+		t.Fatalf("plain trace output not wrapped: %+v", ok)
+	}
+	bad := toolResult("ha_trace", "", "no trace for that run", 1)["structuredContent"].(map[string]any)
+	errObj, isObj := bad["error"].(map[string]any)
+	if bad["status"] != "error" || !isObj || errObj["code"] != "TOOL_ERROR" {
+		t.Fatalf("trace failure not wrapped: %+v", bad)
+	}
+	if mcpFullySupportedSkills["ha-nova-review"] {
+		t.Fatal("review needs WS/file reads the MCP tools lack; it must not be advertised as fully supported")
+	}
+}

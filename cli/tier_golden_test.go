@@ -217,7 +217,7 @@ func TestPlanCallTierGoldenCases(t *testing.T) {
 			setup: func(f *fakeHA) { f.ent("lock.front_door", "zwave_js", "locked", nil) },
 			args:  []string{"lock.unlock", "lock.front_door"}, exit: 3, tier: "typed", reasons: []string{reasonAccessLock},
 			check: func(t *testing.T, env verbTestEnvelope) {
-				if !regexp.MustCompile(`^confirm:unlock-front_door-[0-9a-f]{6}$`).MatchString(env.Plan.Code) || env.Plan.Code[len(env.Plan.Code)-6:] != env.Plan.ID[2:8] {
+				if !regexp.MustCompile(`^confirm:unlock-front_door-[0-9a-f]{6}$`).MatchString(env.Plan.Code) || env.Plan.Code[len(env.Plan.Code)-6:] == env.Plan.ID[2:8] {
 					t.Fatalf("plan %+v", env.Plan)
 				}
 			}},

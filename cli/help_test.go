@@ -50,6 +50,7 @@ func TestSubcommandHelpFlagPrintsUsageAndFlags(t *testing.T) {
 		// config/token preflight of the proxy path.
 		{"relay core", func() int { return runRelayCommand(paths, []string{"core", "--help"}) }, "Usage: ha-nova relay core", "-body-file"},
 		{"relay ws", func() int { return runRelayCommand(paths, []string{"ws", "--help"}) }, "Usage: ha-nova relay ws", "-data-file"},
+		{"mcp", func() int { return runMCPCommand(paths, []string{"--help"}) }, "Usage: ha-nova mcp", "-server"},
 		{"relay version", func() int { return runRelayCommand(paths, []string{"version", "--help"}) }, "Usage: ha-nova relay version", "No flags"},
 		{"version (root)", func() int { return dispatch(paths, "ha-nova", []string{"version", "--help"}) }, "Usage: ha-nova version", "No flags"},
 		{"trace (parent)", func() int { return runTraceCommand(paths, []string{"--help"}) }, "Usage: ha-nova trace <latest|list|get>", "trace <subcommand> --help"},

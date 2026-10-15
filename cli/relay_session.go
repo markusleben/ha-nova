@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
+	"path"
 	"strings"
 	"sync"
 	"time"
@@ -159,7 +161,7 @@ func checkReadOnlyRequest(endpoint string, payload map[string]any) error {
 	case "core":
 		method, _ := payload["method"].(string)
 		path, _ := payload["path"].(string)
-		if method == http.MethodGet && strings.HasPrefix(path, "/api/") && len(payload) == 2 {
+		if method == http.MethodGet && readablePath(path) && len(payload) == 2 {
 			return nil
 		}
 		return fmt.Errorf("read verbs only send core GET /api/...; refused %q %q, nothing was sent", method, path)
@@ -171,6 +173,27 @@ func checkReadOnlyRequest(endpoint string, payload map[string]any) error {
 	default:
 		return fmt.Errorf("read verbs never use relay %s; nothing was sent", endpoint)
 	}
+}
+
+// GET surfaces that act or stream rather than read: a webhook GET can fire
+// automations, the proxies stream media, backups download archives.
+var readDeniedPrefixes = []string{"/api/webhook", "/api/hassio", "/api/camera_proxy", "/api/image_proxy",
+	"/api/media_player_proxy", "/api/tts_proxy", "/api/backup", "/api/stream"}
+
+// readablePath checks the decoded, normalized path: under /api/, no dot
+// segments or doubled slashes, and not a denied surface.
+func readablePath(raw string) bool {
+	pathPart, _, _ := strings.Cut(raw, "?")
+	decoded, err := url.PathUnescape(pathPart)
+	if err != nil || !strings.HasPrefix(decoded, "/api/") || path.Clean(decoded) != decoded {
+		return false
+	}
+	for _, denied := range readDeniedPrefixes {
+		if strings.HasPrefix(decoded, denied) {
+			return false
+		}
+	}
+	return true
 }
 
 func (s *relaySession) send(endpoint string, body []byte) (json.RawMessage, error) {
