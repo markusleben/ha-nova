@@ -87,13 +87,13 @@ else
 fi
 
 # ── 3. No MCP protocol in relay ──
-# README claims "not an MCP server", "No tool definitions"
+# The Relay is no MCP server and holds no tool definitions (`ha-nova mcp` lives in the CLI)
 echo "[3] No MCP/tool-definition patterns in src/"
 MCP_HITS=$(count_matches "fastmcp\|@mcp\.tool\|mcp\.tool\|McpServer\|MCP_TOOL" "$REPO_ROOT/nova/src")
 if (( MCP_HITS == 0 )); then
   pass "No MCP/tool-definition patterns found in src/"
 else
-  fail "Found ${MCP_HITS} MCP-related patterns in src/ — README claims no MCP server and no tool definitions."
+  fail "Found ${MCP_HITS} MCP-related patterns in src/ — the Relay must hold no MCP server or tool definitions."
 fi
 
 # ── 4. No domain handler patterns in relay ──

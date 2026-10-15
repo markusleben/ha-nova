@@ -37,10 +37,22 @@ describe("release notes contract", () => {
     expect(goreleaser).not.toContain("winget");
   });
 
-  it("keeps v0.25.1 release-facing wording aligned to the shipped stack", () => {
-    expect(goreleaser).toContain("Cloud Remote is back on Windows and Linux");
-    expect(goreleaser).toContain("per-platform release provenance");
-    expect(goreleaser).not.toContain("macOS-only in this release");
+  it("keeps v0.26.0 release-facing wording aligned to the shipped stack", () => {
+    const relayVersion = /^version:\s*"([^"]+)"\s*$/m.exec(readFileSync("nova/config.yaml", "utf8"))?.[1];
+    expect(stableNotes).toContain(`This release needs Relay ${relayVersion}`);
+    expect(stableNotes).toMatch(/## What To Watch\s+- \*\*Update the NOVA Relay App too\.\*\*/);
+    expect(stableNotes).toContain("Unambiguous everyday actions run right away");
+    expect(stableNotes).toContain("one code per item");
+    expect(stableNotes).toContain("`ha-nova mcp`");
+    expect(stableNotes).not.toContain("Cloud Remote is back on Windows and Linux");
+    expect(readme).toContain("only unambiguous everyday actions run right away");
+    expect(readme).toContain("Each automation or script delete takes its own code");
+    expect(readme).toContain("keep your client's approval prompt on for `ha_apply`");
+    expect(readme).toContain("Local MCP clients that launch a command (stdio)");
+    expect(readme).toContain("There is no remote or HTTP MCP endpoint");
+    expect(readme).not.toContain("Every change is previewed and approved first");
+    expect(readme).not.toContain("A reviewed batch delete takes one code");
+    expect(readme).not.toMatch(/census/i);
     expect(readme).toContain(
       "Optional remote access with Home Assistant Cloud (Beta)",
     );

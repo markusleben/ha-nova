@@ -85,6 +85,7 @@ Full relay/upstream error taxonomy: `skills/ha-nova/relay-api.md` -> Error Handl
 - `400 VALIDATION_ERROR` mentioning `on_limit`: never expected — an older relay ignores the field silently rather than rejecting it, so this points at a malformed envelope.
 - `UPSTREAM_WS_TIMEOUT` in window mode means the subscription never even established (broker down, integration not loaded) — that is different from an empty window, and worth saying plainly.
 - `mqtt/device/debug_info` needs a device_id from the device registry; an entity_id is rejected.
+- Publish denied (`.data.status` 401): admin-only since HA 2026.10; a standalone `HA_LLAT` needs an admin owner.
 
 ## Output Format
 

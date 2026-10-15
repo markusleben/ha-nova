@@ -9,6 +9,20 @@ The format follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic
 Recent changes are tracked in [GitHub releases](https://github.com/markusleben/ha-nova/releases)
 and merged PRs. This changelog will be updated with the next tagged relay version.
 
+## [Relay 0.9.1] - 2026-10-15
+
+### Fixed
+- A Home Assistant that rejects the Relay's token no longer causes an endless reconnect loop. (#651)
+- The Home Assistant WebSocket authentication handshake has a deadline; an abandoned connection is closed instead of wedging later calls. (#627)
+- Malformed core REST and Supervisor replies (invalid JSON or UTF-8) fail as `502 / UPSTREAM_HTTP_ERROR` instead of a successful empty result. (#630)
+- `RELAY_PORT` must be a plain integer; values such as `8791oops` are rejected at startup. (#630)
+- Private `/data` files readable by other users are repaired to owner-only; files owned by another user stop the App with a `chown` hint. Persistence failures are logged with their real cause. (#628)
+- Concurrent configuration-snapshot saves can no longer exceed the store's hard caps. (#633)
+
+### Changed
+- Published as prebuilt multi-arch images (`ghcr.io/markusleben/{arch}-ha-nova-relay`): Supervisor downloads the App instead of building it on the device. (#674)
+- Runtime dependency updates: `ws` 8.22, `home-assistant-js-websocket` 9.7, `@peculiar/x509` 2.1. (#649)
+
 ## [Relay 0.9.0] - 2026-08-04
 
 - NOVA page device list: two-step arm/confirm for revoke, legacy revoke, and
