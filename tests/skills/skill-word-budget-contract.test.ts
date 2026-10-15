@@ -127,7 +127,9 @@ const WORD_BUDGETS: Record<string, number> = {
   // audit 2026-09-10 + Codex round 1, measured 5602).
   // PR6: writes run on `ha-nova find|get|plan|apply`; the agent templates and
   // the manual read-back/snapshot steps left the skill (measured 5475).
-  write: 5500,
+  // PR6 codex review: bare-revert shortcut and the create summary's
+  // config-id-before-verify rule (+~20 words). Measured 5520.
+  write: 5540,
   // HACS lifecycle: schema guard, reconcile loops, consumer discovery,
   // migration backup gate, category-appropriate verification (#478);
   // review rounds added pin-durability branches, the uninstall apply

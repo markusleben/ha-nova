@@ -52,7 +52,7 @@ Every draft follows `skills/ha-nova/smallest-solution.md`: the complete explicit
 
 ### Phase 1: Resolve
 
-1. update/delete/revert: `ha-nova find` (exact `entity_id` wins; `--include-disabled` for a disabled item), then `ha-nova get <entity_id> --config` for the current config and `config_id` — `CONFIG_NOT_FOUND` there means a YAML/package item: `ha-nova:yaml-config`. Ambiguity or no match: ask one blocking question for the exact entity. No second ambiguity question. Correct invalid premises.
+1. Bare "undo the last update": straight to `plan revert`. update/delete/named revert: `ha-nova find` (exact `entity_id` wins; `--include-disabled` for a disabled item), then `ha-nova get <entity_id> --config` for the current config and `config_id` — `CONFIG_NOT_FOUND` there means a YAML/package item: `ha-nova:yaml-config`. Ambiguity or no match: ask one blocking question for the exact entity. No second ambiguity question. Correct invalid premises.
 2. Resolve every entity the draft uses with `ha-nova find`/`get`; never guess an id.
 3. Automations: `bp_status` per `skills/ha-nova/best-practices.md` → BP Cache Policy (scripts: `n/a`).
 4. Suggestion candidates per `skills/ha-nova/smallest-solution.md` → Write Suggestion Candidates.
@@ -104,7 +104,7 @@ After the review output, build a Test Plan Card per `skills/ha-nova/test-run.md`
 
 Apply `skills/ha-nova/output-rules.md`.
 
-Previews, delete prompts, results, and the test offer render as the Cards in `skills/ha-nova/output-cards.md` (Test Plan Card mechanics: `skills/ha-nova/test-run.md`); diff mechanics: `skills/ha-nova/write-safety.md`. A create summary names the item (alias + `entity_id`), the entities it uses, then `Triggers`/`Conditions`/`Actions` (scripts: `Fields`/`Sequence`) in short descriptions, and `mode`; the full YAML only on `show yaml`.
+Previews, delete prompts, results, and the test offer render as the Cards in `skills/ha-nova/output-cards.md` (Test Plan Card mechanics: `skills/ha-nova/test-run.md`); diff mechanics: `skills/ha-nova/write-safety.md`. A create summary names the item (alias + config id; `entity_id` once verified), the entities it uses, then `Triggers`/`Conditions`/`Actions` (scripts: `Fields`/`Sequence`) in short descriptions, and `mode`; the full YAML only on `show yaml`.
 
 ## Safety
 
