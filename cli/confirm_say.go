@@ -107,7 +107,8 @@ func sayWhat(e *tierEngine, env *verbEnvelope, plan storedPlan, subject string) 
 		line = sayVerb(verb) + " " + sayList(names)
 		if service == "script.turn_on" {
 			line = "Run the script " + sayList(names)
-		} else if len(targets) == 1 {
+		}
+		if len(targets) == 1 {
 			for _, t := range env.Resolved {
 				if area := sayText(t.Area, true); t.EntityID == targets[0] && area != "" {
 					line += " in " + area
@@ -116,10 +117,12 @@ func sayWhat(e *tierEngine, env *verbEnvelope, plan storedPlan, subject string) 
 			changes, warnings := []string{}, ""
 			for _, d := range env.Deltas {
 				change := sayValue(d.Before) + " → " + sayValue(d.After)
-				if d.Field != "state" {
-					change = sayValue(d.Field) + " " + change
-				}
-				if d.After != "" && d.Before != d.After {
+				switch {
+				case d.Field != "state" && d.Before == "" && d.After != "":
+					changes = append(changes, sayValue(d.Field)+" set to "+sayValue(d.After))
+				case d.Field != "state" && d.Before != d.After: // an explicit "" clears the field: shown as “”
+					changes = append(changes, sayValue(d.Field)+" "+change)
+				case d.Field == "state" && d.After != "" && d.Before != d.After && domain != "script":
 					changes = append(changes, change)
 				}
 				if d.Warning != "" {
@@ -364,8 +367,11 @@ var sayConfirmWord = regexp.MustCompile(`(?i)confirm\s*[^\p{L}\p{N}\s']`)
 var sayPlainValue = regexp.MustCompile(`^[\p{L}\p{N}_%.+-]{1,24}$`)
 
 func sayValue(s string) string {
-	if t := sayText(s, false); t == "" || sayPlainValue.MatchString(t) {
+	if t := sayText(s, false); t != "" && sayPlainValue.MatchString(t) {
 		return t
+	}
+	if sayText(s, false) == "" {
+		return "“”"
 	}
 	return sayText(s, true)
 }

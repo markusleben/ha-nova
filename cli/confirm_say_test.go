@@ -93,6 +93,14 @@ func TestConfirmationSay(t *testing.T) {
 			setup: func(f *fakeHA) { named(f, "lock.front", " \u200b ") },
 			args:  []string{"lock.unlock", "lock.front"},
 			has:   []string{"Unlock “lock.front”: locked"}},
+		{name: "clearing a text shows the empty value",
+			setup: func(f *fakeHA) { f.ent("text.note", "template", "hello", map[string]any{"friendly_name": "Note"}) },
+			args:  []string{"text.set_value", "text.note", "--set", `value=""`},
+			has:   []string{"Set “Note”: value hello → “”."}},
+		{name: "a script run keeps its variables",
+			setup: func(f *fakeHA) { f.script("leave", step("light.turn_off", "light.hall")) },
+			args:  []string{"script.turn_on", "script.leave", "--set", `variables={"mode":"away"}`},
+			has:   []string{"Run the script “script.leave”: variables set to “{'mode':'away'}”. Nothing has run yet."}},
 		{name: "script run is natural",
 			setup: func(f *fakeHA) {
 				f.script("leave", step("light.turn_off", "light.hall"))
