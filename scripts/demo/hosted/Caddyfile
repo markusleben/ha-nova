@@ -1,0 +1,29 @@
+# Hosted demo reverse proxy. Automatic HTTPS (Let's Encrypt) for DEMO_DOMAIN;
+# Home Assistant is reachable only through here. Caddy core has no rate
+# limiting (that needs the third-party caddy-ratelimit plugin and a custom
+# build), so brute force is left to Home Assistant's ip_ban (README.md).
+{
+	admin off
+}
+
+{$DEMO_DOMAIN} {
+	request_body {
+		max_size 1MB
+	}
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+		-Server
+	}
+	# Caddy replaces any client-sent X-Forwarded-For with the real client IP,
+	# so Home Assistant's local_only owner can never be reached from outside.
+	reverse_proxy homeassistant:8123
+}
+
+# Seeding path for up.sh/seed.mjs; published on the host's 127.0.0.1 only.
+http://:18123 {
+	reverse_proxy homeassistant:8123
+}

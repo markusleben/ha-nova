@@ -1,0 +1,88 @@
+# Hosted demo overlay, merged over scripts/e2e/testbed/docker-compose.yml by
+# up.sh/down.sh when TESTBED_OVERLAY points here (see reset.sh, README.md).
+#
+# - Only Caddy publishes ports: 80/443 public, 18123 on 127.0.0.1 for seeding.
+# - Home Assistant and the broker sit on an internal network: no egress at all
+#   (no SSRF, no outbound abuse) and nothing published (ports reset).
+# - Every container: no-new-privileges, cap_drop ALL (+ the minimum), memory
+#   and pids limits, read-only root where the image allows, no docker.sock,
+#   no host network, nothing privileged. Images pinned by digest; bump them
+#   together with the test bed tags.
+networks:
+  house:
+    internal: true
+    ipam:
+      config:
+        - subnet: 10.89.240.0/24
+          # Dynamic addresses start at .128, so no container can ever take
+          # Caddy's fixed .2 (the only trusted proxy) by starting first.
+          ip_range: 10.89.240.128/25
+  edge: {}
+
+x-hardening: &hardening
+  restart: unless-stopped
+  security_opt: ["no-new-privileges:true"]
+  cap_drop: [ALL]
+  logging:
+    driver: local
+    options: { max-size: "10m", max-file: "3" }
+
+services:
+  homeassistant:
+    <<: *hardening
+    image: homeassistant/home-assistant:2026.10.1@sha256:130241f28d01fa80dfa3b44f7d89781c188d8642ecab9024f079f19f9f82baa0
+    ports: !reset []
+    networks: [house]
+    depends_on: [mosquitto, caddy]
+    # The image's s6-overlay init runs as root and needs these to set up its
+    # service tree; s6 executes from /run, hence the exec tmpfs. Verified on
+    # 2026.10.1 with the full seed (README.md, "Verified locally").
+    cap_add: [CHOWN, DAC_OVERRIDE, FOWNER, SETGID, SETUID]
+    read_only: true
+    tmpfs: ["/run:exec", "/tmp"]
+    mem_limit: 640m
+    memswap_limit: 1g
+    pids_limit: 512
+
+  mosquitto:
+    <<: *hardening
+    image: eclipse-mosquitto:2.0.22@sha256:199ea8ef2e35ec2b1b37e59cfd1dbae538ed4dfa4a2251a121a52215a6248a21
+    user: "1883:1883"
+    ports: !reset []
+    networks: [house]
+    read_only: true
+    mem_limit: 64m
+    pids_limit: 64
+
+  caddy:
+    <<: *hardening
+    image: caddy:2.11.4@sha256:0c994536bddb66445885237f1a5dcc1916bccea922661c76b4e9fc24061f9b52
+    container_name: ha-nova-demo-caddy
+    user: "1000:1000"
+    cap_add: [NET_BIND_SERVICE]
+    read_only: true
+    environment:
+      DEMO_DOMAIN: "${DEMO_DOMAIN:?DEMO_DOMAIN is required}"
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+      - "127.0.0.1:18123:18123"
+    networks:
+      edge: {}
+      house:
+        ipv4_address: 10.89.240.2 # = http.trusted_proxies in config/configuration.yaml
+    volumes:
+      - ${TESTBED_OVERLAY:?TESTBED_OVERLAY is required}/Caddyfile:/etc/caddy/Caddyfile:ro
+      # Bind mounts (not named volumes): down -v must never wipe certificates,
+      # or nightly resets hit Let's Encrypt's duplicate-certificate limit.
+      - /var/lib/ha-nova-demo/caddy/data:/data
+      - /var/lib/ha-nova-demo/caddy/config:/config
+    mem_limit: 128m
+    pids_limit: 128
+
+  # Not part of the demo: the relay stays off the public host (README.md,
+  # "Relay exposure"). up.sh never starts it with an overlay; the profile keeps
+  # a bare `docker compose up` from building it either.
+  relay:
+    profiles: [never]

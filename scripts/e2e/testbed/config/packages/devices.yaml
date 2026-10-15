@@ -1,5 +1,5 @@
-# Platform edge cases the tier engine treats specially. Every network target is
-# local: the rest switch polls this Home Assistant's own /manifest.json.
+# Platform edge cases the tier engine treats specially (template entities,
+# groups). Command-running platforms live in commands.yaml.
 template:
   - light:
       - name: Template Desk Lamp
@@ -44,19 +44,6 @@ template:
         press:
           - action: lock.unlock
             target: { entity_id: lock.kitchen_door }
-
-command_line:
-  - switch:
-      name: Garden Pump
-      unique_id: testbed_command_line_garden_pump
-      command_on: "true"
-      command_off: "true"
-
-switch:
-  - platform: rest
-    name: Rest Heater
-    unique_id: testbed_rest_heater
-    resource: http://127.0.0.1:8123/manifest.json
 
 light:
   - platform: group

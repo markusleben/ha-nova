@@ -1,0 +1,15 @@
+# Command-running platforms (UNREAD_COMMAND). Separate file so the hosted
+# demo (scripts/demo/hosted) can mask it: nothing here runs on a public host. Every
+# target is local: the rest switch polls this Home Assistant's own /manifest.json.
+command_line:
+  - switch:
+      name: Garden Pump
+      unique_id: testbed_command_line_garden_pump
+      command_on: "true"
+      command_off: "true"
+
+switch:
+  - platform: rest
+    name: Rest Heater
+    unique_id: testbed_rest_heater
+    resource: http://127.0.0.1:8123/manifest.json

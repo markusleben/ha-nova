@@ -6,10 +6,12 @@
 //   node seed.mjs mint    <ha_url> <access_token>   -> prints a long-lived token
 //   node seed.mjs house   <ha_url> <llat>           -> MQTT entry + registry seed
 //   node seed.mjs summary <ha_url> <llat>           -> prints the summary JSON
+//   node seed.mjs demo-user <ha_url> <llat>         -> hosted demo: non-admin user
+//                                                      demo/demo, owner local-only
 
 const [cmd, haUrl, token] = process.argv.slice(2);
 if (!cmd || !haUrl || !token) {
-  console.error("usage: node seed.mjs mint|house|summary <ha_url> <token>");
+  console.error("usage: node seed.mjs mint|house|summary|demo-user <ha_url> <token>");
   process.exit(2);
 }
 if (!/^http:\/\/(127\.0\.0\.1|localhost):18123\/?$/.test(haUrl)) {
@@ -251,7 +253,43 @@ async function mint() {
   }
 }
 
-const commands = { mint, house: seedHouse, summary };
+// ---- hosted demo user (scripts/demo/hosted) ------------------------------------
+
+// The public login is a NON-admin user (group system-users): it can browse and
+// call non-admin services, never open Settings, config APIs, or admin services.
+// The owner becomes local-only, so even a leaked owner password cannot log in
+// from the internet (the demo's proxy forwards the real client IP).
+async function demoUser() {
+  const ha = await connect();
+  try {
+    const users = await ha.call({ type: "config/auth/list" });
+    const owner = users.find((u) => u.is_owner);
+    if (!owner) throw new Error("no owner user; run onboarding first");
+    await ha.call({ type: "config/auth/update", user_id: owner.id, local_only: true });
+    // HA 2026.10+ imports the YAML http block (proxy + IP bans) as a PENDING
+    // trial and reverts to the stored default (no proxy -> every request 400)
+    // five minutes after boot unless an admin promotes it.
+    let http = await ha.call({ type: "http/config" });
+    if (http.pending && !http.pending.error) {
+      await ha.call({ type: "http/config/promote" });
+      http = await ha.call({ type: "http/config" });
+    }
+    if (!http.stable.use_x_forwarded_for || !(http.stable.trusted_proxies ?? []).length || !http.stable.ip_ban_enabled) {
+      throw new Error(`http config not promoted: ${JSON.stringify(http.stable)}`);
+    }
+    if (users.some((u) => u.username === "demo")) return;
+    const { user } = await ha.call({
+      type: "config/auth/create", name: "Demo", group_ids: ["system-users"], local_only: false,
+    });
+    await ha.call({
+      type: "config/auth_provider/homeassistant/create", user_id: user.id, username: "demo", password: "demo",
+    });
+  } finally {
+    ha.close();
+  }
+}
+
+const commands = { mint, house: seedHouse, summary, "demo-user": demoUser };
 if (!commands[cmd]) {
   console.error(`unknown command ${cmd}`);
   process.exit(2);

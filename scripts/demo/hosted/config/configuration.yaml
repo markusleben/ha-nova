@@ -1,0 +1,38 @@
+# HA NOVA hosted demo house. Replaces the test bed's configuration.yaml at boot
+# (TESTBED_OVERLAY); the packages, automations, scripts, and scenes are the
+# test bed's own. Differences: no default_config (it pulls in cloud, discovery,
+# backup, mobile_app, go2rtc, alerts), only the integrations the house needs,
+# and an http block for the Caddy proxy with login-failure IP bans.
+homeassistant:
+  name: NOVA Demo House
+  latitude: 52.52
+  longitude: 13.405
+  elevation: 34
+  unit_system: metric
+  time_zone: Europe/Berlin
+  currency: EUR
+  country: DE
+  packages: !include_dir_named packages
+
+frontend:
+history:
+logbook:
+energy:
+person:
+sun:
+conversation:
+demo:
+
+http:
+  use_x_forwarded_for: true
+  trusted_proxies:
+    - 10.89.240.2 # Caddy, scripts/demo/hosted/docker-compose.yml
+  ip_ban_enabled: true
+  login_attempts_threshold: 10
+
+automation: !include automations.yaml
+script: !include scripts.yaml
+scene: !include scenes.yaml
+
+logger:
+  default: warning
