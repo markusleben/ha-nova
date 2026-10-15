@@ -33,8 +33,11 @@ jobs:
       verified: ${{ steps.verify.outcome == 'success' }}
       log_tail: ${{ steps.tail.outputs.log_tail }}
     steps:
+      # Always the default branch: a dispatch on another ref must not leak its
+      # changes into the bump PR.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ github.event.repository.default_branch }}
           persist-credentials: false
 
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
@@ -94,6 +97,8 @@ jobs:
       GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
 
       - name: Open or update the pin-bump PR
         run: |
@@ -104,12 +109,16 @@ jobs:
           # Exactly two files, one changed line each, or the pin moved somewhere unexpected.
           [[ "$(git diff --numstat | awk '$1 == 1 && $2 == 1 { n++ } END { print n + 0, NR }')" == "2 2" ]] \
             || { git diff; echo "::error::pin bump did not change exactly one line in each file"; exit 1; }
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git switch -c "$branch"
-          git commit -am "chore(testbed): pin Home Assistant $STABLE"
-          # The branch belongs to this workflow; re-runs replace it.
-          git push --force origin "$branch"
+          # An existing branch may carry maintainer commits: never overwrite it.
+          if git ls-remote --exit-code --heads origin "$branch" > /dev/null; then
+            echo "branch $branch already exists; leaving it untouched"
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git switch -c "$branch"
+            git commit -am "chore(testbed): pin Home Assistant $STABLE"
+            git push origin "$branch"
+          fi
           if [[ -z "$(gh pr list --head "$branch" --state open --json number --jq '.[].number')" ]]; then
             gh pr create --base main --head "$branch" \
               --title "chore(testbed): pin Home Assistant $STABLE" \
@@ -151,3 +160,6 @@ jobs:
           else
             gh issue create --title "$title" --body "$body"
           fi
+          # Reported; keep the run red so Actions monitoring sees the failure.
+          echo "::error::test bed failed on Home Assistant $STABLE"
+          exit 1
