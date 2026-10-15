@@ -85,7 +85,7 @@ func (e *tierEngine) storedCall(name string, step map[string]any, via string, de
 		ids = append(ids, e.areaEntities(area, domain, via)...)
 	}
 	for _, device := range targets["device_id"] {
-		ids = append(ids, e.deviceEntities(device, domain)...)
+		ids = append(ids, e.primaryEntities(e.deviceEntities(device, domain), "")...)
 	}
 	if domain == "script" && !scriptEntityServices[service] {
 		ids, name = append(ids, name), "script.turn_on"

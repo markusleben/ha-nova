@@ -317,12 +317,12 @@ func (e *tierEngine) resolveTargets(req planCallRequest) ([]verbTarget, error) {
 	if req.Area != "" {
 		if related, err := e.related("area", req.Area); err != nil {
 			e.readFailed("", "", "related area")
-		} else if err := expand("area", req.Area, filterDomain(related["entity"], domain)); err != nil {
+		} else if err := expand("area", req.Area, e.primaryEntities(filterDomain(related["entity"], domain), req.Area)); err != nil {
 			return nil, err
 		}
 	}
 	if req.Device != "" && !e.regFailed { // a failed registry read is already a typed gap
-		if err := expand("device", req.Device, e.deviceEntities(req.Device, domain)); err != nil {
+		if err := expand("device", req.Device, e.primaryEntities(e.deviceEntities(req.Device, domain), "")); err != nil {
 			return nil, err
 		}
 	}
@@ -385,47 +385,18 @@ func (e *tierEngine) flatten(t verbTarget, depth int, out *[]verbTarget, seen ma
 }
 
 // singleExpansion: an area or device that resolves to exactly one entity of
-// the service's own domain — visible, without an entity category, in that
-// area itself (or inheriting it from its device), with no group in between
-// and no leaf skipped — acts on exactly what naming that entity would, so it
-// is classified as that direct call (spec I5 exception). Everything else the
-// entity reaches is classified as usual.
+// the service's own domain, with no group in between and no leaf skipped,
+// acts on exactly what naming that entity would, so it is classified as that
+// direct call (spec I5 exception). Expansion already drops what Home
+// Assistant's own targeting skips (hidden, categorized, another area), and
+// classify checks the device's access siblings on every path.
 func (e *tierEngine) singleExpansion(req planCallRequest, targets []verbTarget) bool {
 	domain, _ := splitID(req.Service)
 	if len(targets) != 1 || (req.Area == "") == (req.Device == "") || len(e.groups) > 0 || slices.Contains(e.notes, noteSkippedTargets) {
 		return false
 	}
-	t := targets[0]
-	entityDomain, _ := splitID(t.EntityID)
-	row := e.reg[t.EntityID]
-	if entityDomain != domain || row.hidden || row.categorized || (t.By != "device" && (t.By != "area" || (row.ai != "" && row.ai != req.Area))) {
-		return false
-	}
-	return !e.accessDevice(row.di)
-}
-
-// accessDevice: the device also carries a lock, alarm panel, or access-capable
-// cover. A button or relay there may be the opener, so its single-entity
-// expansion keeps the preview. Only cover classes need a state; an unread one
-// has no class and counts as access-capable (fail closed).
-func (e *tierEngine) accessDevice(device string) bool {
-	if device == "" {
-		return false
-	}
-	siblings := e.deviceEntities(device, "homeassistant")
-	covers := filterDomain(siblings, "cover")
-	e.prefetchStates(covers)
-	for _, sibling := range siblings {
-		dc := ""
-		if slices.Contains(covers, sibling) {
-			st, _ := e.state(sibling)
-			dc = st.str("device_class")
-		}
-		if accessCapable(sibling, dc) {
-			return true
-		}
-	}
-	return false
+	entityDomain, _ := splitID(targets[0].EntityID)
+	return entityDomain == domain && (targets[0].By == "area" || targets[0].By == "device")
 }
 
 // evaluate runs spec §2.2 steps 2–6 on the frozen targets; a non-nil

@@ -60,6 +60,7 @@ const (
 	reasonListenerUnexpl       = "CALL_SERVICE_LISTENER_UNEXPLAINED"
 	reasonRunListenerUnexpl    = "RUN_EVENT_LISTENER_UNEXPLAINED"
 	reasonDeviceAccess         = "DEVICE_ACCESS"
+	reasonDeviceAccessSibling  = "DEVICE_ACCESS_SIBLING"
 	reasonSwitchAsX            = "SWITCH_AS_X_ACCESS"
 	reasonResponseOnly         = "RESPONSE_ONLY_SERVICE"
 	reasonTargetRequired       = "TARGET_REQUIRED"
