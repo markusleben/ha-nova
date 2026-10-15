@@ -40,6 +40,9 @@ func prepareUninstallBeforeGuidedTeardown(
 		if mode != uninstallModePurge {
 			return nil
 		}
+		if err := validatePurgeServiceTokenFile(paths); err != nil {
+			return fmt.Errorf("cannot validate relay token cleanup before Home Assistant removal: %w", err)
+		}
 		if _, err := resumeKeyringDeviceCredentialCleanup(); err != nil {
 			return relayAuthTokenSetupOperationError(
 				"finish device credential storage recovery before Home Assistant removal",
@@ -60,6 +63,15 @@ func prepareUninstallBeforeGuidedTeardown(
 				err,
 			)
 		}
+		// Same backend selection as the purge itself (finalize repeats it and
+		// reports the note), so the guided entry point routes identically.
+		defer pinPurgeDeviceBackend(
+			paths,
+			deviceTargets,
+			cloudTargets,
+			profiles,
+			nil,
+		)()
 		if err := validateUninstallSecureStorageBeforeGuidedTeardown(
 			paths,
 			cloudTargets,

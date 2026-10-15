@@ -64,9 +64,14 @@ func renderUninstallPreflight(out io.Writer, paths runtimePaths, source string) 
 	fmt.Fprintln(out)
 	fmt.Fprintf(out, "  %s\n", session.style("strong", "Full purge also removes:"))
 	fmt.Fprintf(out, "    %s Home Assistant connection config\n", session.bullet())
-	fmt.Fprintf(out, "    %s %s\n", session.bullet(), uninstallTokenLineLabel())
+	if label := uninstallTokenLineLabel(paths); label != "" {
+		fmt.Fprintf(out, "    %s %s\n", session.bullet(), label)
+	}
 	fmt.Fprintf(out, "    %s Home Assistant Cloud authorization (when configured)\n", session.bullet())
 	fmt.Fprintln(out)
+	if warning := uninstallForeignTokenFileWarning(paths); warning != "" {
+		renderSetupParagraphTight(out, session.style("warning", warning))
+	}
 	if runtime.GOOS == "windows" && source == installSourceBundle {
 		renderSetupParagraphTight(out, session.style("muted", uninstallWindowsBundleNote()))
 	}
@@ -84,7 +89,35 @@ func uninstallRuntimeLineLabel(paths runtimePaths, source string) string {
 	}
 }
 
-func uninstallTokenLineLabel() string {
+// configuredRelayTokenFile returns the default profile's relay token file
+// (absolute) and whether it is HA NOVA's managed one.
+func configuredRelayTokenFile(paths runtimePaths) (string, bool) {
+	cfg, err := loadRawDefaultProfileConfig(paths.ConfigFile)
+	if err != nil {
+		return "", false
+	}
+	path := strings.TrimSpace(cfg.RelayTokenFile)
+	if path == "" {
+		return "", false
+	}
+	if !filepath.IsAbs(path) {
+		path = filepath.Join(paths.ConfigDir, path)
+	}
+	_, err = managedServiceTokenFilePath(paths, path)
+	return filepath.Clean(path), err == nil
+}
+
+// uninstallTokenLineLabel names the relay token store this install actually
+// uses: a `setup --service` install keeps it in a file, not the keyring. A
+// token file HA NOVA does not manage is never removed, so it gets no line
+// (see uninstallForeignTokenFileWarning).
+func uninstallTokenLineLabel(paths runtimePaths) string {
+	if path, managed := configuredRelayTokenFile(paths); path != "" {
+		if !managed {
+			return ""
+		}
+		return "Relay token file (" + path + ")"
+	}
 	switch runtime.GOOS {
 	case "darwin":
 		return "Keychain entry (ha-nova.relay-auth-token)"
@@ -93,6 +126,14 @@ func uninstallTokenLineLabel() string {
 	default:
 		return "secure storage token (ha-nova.relay-auth-token)"
 	}
+}
+
+func uninstallForeignTokenFileWarning(paths runtimePaths) string {
+	path, managed := configuredRelayTokenFile(paths)
+	if path == "" || managed {
+		return ""
+	}
+	return fmt.Sprintf("The relay token file is not HA NOVA's managed token file (%s). Full purge will stop: first remove the `relay_token_file` line from %s.", path, paths.ConfigFile)
 }
 
 func uninstallWindowsBundleNote() string {
@@ -165,22 +206,22 @@ func printUninstallPreflightNotes(out io.Writer, preflight uninstallPreflight) {
 // old reachability-gated single note left users with a running app and a
 // valid token they were never told about.
 func preflightNoteLines(preflight uninstallPreflight) []string {
-	lead := "Home Assistant side (if still installed, finish these to fully remove HA NOVA):"
+	lead := "Server side (if still installed, finish these to fully remove HA NOVA):"
 	if preflight.relayStillRunning {
-		lead = "The NOVA Relay app is still running in Home Assistant. To fully remove HA NOVA:"
+		lead = "The NOVA Relay is still running. To fully remove HA NOVA:"
 	}
 	notes := []string{lead}
 	if preflight.haURL != "" {
 		notes = append(notes,
-			"1. Remove the NOVA Relay app: "+haRelayAppPageURL(preflight.haURL),
-			"2. Remove the repository: "+haAppStoreURL(preflight.haURL)+" > three-dot menu > Repositories > remove "+haNovaRepositoryURL,
-			"3. If this was a legacy/standalone install, revoke its \"NOVA\" access token: "+haProfileSecurityURL(preflight.haURL),
+			"1. Remove the NOVA Relay: uninstall the app at "+haRelayAppPageURL(preflight.haURL)+", or stop and remove the container of a standalone relay",
+			"2. App installs: remove the repository: "+haAppStoreURL(preflight.haURL)+" > three-dot menu > Repositories > remove "+haNovaRepositoryURL,
+			"3. Standalone or legacy installs: revoke the \"NOVA\" access token: "+haProfileSecurityURL(preflight.haURL),
 		)
 	} else {
 		notes = append(notes,
-			"1. Remove the NOVA Relay app: Settings > Apps > NOVA Relay > Uninstall (older Home Assistant: Settings > Add-ons)",
-			"2. Remove the repository: Settings > Apps > App Store > three-dot menu > Repositories > remove "+haNovaRepositoryURL,
-			"3. Revoke the \"NOVA\" access token: Profile > Security > Long-lived access tokens",
+			"1. Remove the NOVA Relay: Settings > Apps > NOVA Relay > Uninstall (older Home Assistant: Settings > Add-ons), or stop and remove the container of a standalone relay",
+			"2. App installs: remove the repository: Settings > Apps > App Store > three-dot menu > Repositories > remove "+haNovaRepositoryURL,
+			"3. Standalone or legacy installs: revoke the \"NOVA\" access token: Profile > Security > Long-lived access tokens",
 		)
 	}
 	if preflight.tokenUnavailable != "" {

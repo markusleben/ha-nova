@@ -129,6 +129,20 @@ func requireNoDeviceFileStorageResidue() error {
 			err,
 		)
 	}
+	if deviceFileBackendMarkerHeld {
+		if len(entries) == 0 ||
+			(len(entries) == 1 && entries[0].Name() == deviceCredentialFileBackendMarker) {
+			return nil
+		}
+		for _, entry := range entries {
+			if entry.Name() != deviceCredentialFileBackendMarker {
+				return fmt.Errorf(
+					"device credential residue %s reappeared after full cleanup",
+					entry.Name(),
+				)
+			}
+		}
+	}
 	if len(entries) == 0 {
 		return fmt.Errorf(
 			"device credential residue directory reappeared after full cleanup",
@@ -169,8 +183,12 @@ func deviceCredentialSlotFilesRemain() (bool, error) {
 
 // removeDeviceFileStorageMarkerAndDir drops the machine-wide backend marker and
 // the secrets dir (only when empty), and resets the in-process flags so the
-// same run re-decides the backend.
+// same run re-decides the backend (a full purge without a reachable keyring
+// stays pinned to files, see pinPurgeDeviceBackend).
 func removeDeviceFileStorageMarkerAndDir() error {
+	if deviceFileBackendMarkerHeld {
+		return nil // a full purge removes it last (releaseHeldDeviceFileBackendMarker)
+	}
 	markerPath, err := deviceFileBackendMarkerPath()
 	if err != nil {
 		return fmt.Errorf("resolve device credential storage marker: %w", err)

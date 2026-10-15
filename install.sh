@@ -215,6 +215,7 @@ detect_arch() {
   esac
 }
 
+# PATH targets; `ha-nova uninstall` (cli/path_manage.go) sweeps the same set.
 detect_shell_rc() {
   local shell_name
   shell_name="$(basename "${SHELL:-sh}")"
@@ -228,13 +229,8 @@ detect_shell_rc() {
         printf '%s\n' "${HOME}/.profile"
       fi
       ;;
-    *)
-      if [[ -f "${HOME}/.profile" ]]; then
-        printf '%s\n' "${HOME}/.profile"
-      else
-        printf '%s\n' "${HOME}/.zshrc"
-      fi
-      ;;
+    fish) printf '%s\n' "${XDG_CONFIG_HOME:-${HOME}/.config}/fish/conf.d/ha-nova.fish" ;;
+    *) printf '%s\n' "${HOME}/.profile" ;;
   esac
 }
 
@@ -245,6 +241,8 @@ ensure_bin_dir_on_path() {
 
   mkdir -p "${BIN_DIR}" "$(dirname "${rc_file}")"
   touch "${rc_file}"
+  # `ha-nova uninstall` strips the block from exactly this file first.
+  (umask 077; mkdir -p "${CONFIG_DIR}" && printf '%s\n' "${rc_file}" > "${CONFIG_DIR}/path-target")
 
   case ":${PATH}:" in
     *":${BIN_DIR}:"*) ;;
@@ -256,11 +254,18 @@ ensure_bin_dir_on_path() {
     return 0
   fi
 
-  cat >> "${rc_file}" <<'EOF'
+  if [[ "${rc_file}" == *.fish ]]; then
+    cat >> "${rc_file}" <<'EOF'
+# Added by HA NOVA
+contains -- $HOME/.local/bin $PATH; or set -gx PATH $HOME/.local/bin $PATH
+EOF
+  else
+    cat >> "${rc_file}" <<'EOF'
 
 # Added by HA NOVA
 export PATH="$HOME/.local/bin:$PATH"
 EOF
+  fi
   info "Added ${BIN_DIR} to PATH in ${rc_file}"
 }
 

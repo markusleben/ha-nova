@@ -11,13 +11,33 @@
       "id": "codex",
       "label": "Codex CLI",
       "adapter_kind": "skill_tree",
-      "supported_os": ["macos", "linux", "windows"]
+      "supported_os": ["macos", "linux", "windows"],
+      "setup": {
+        "service_credentials": {
+          "recommended_when": ["headless", "locked_keyring"],
+          "label": "Service / headless mode",
+          "help": "Use this when Codex CLI runs over SSH or on a headless machine without an unlocked desktop keyring. Keep desktop keyring mode for a normal desktop terminal."
+        }
+      },
+      "per_os": {
+        "windows": { "setup": { "service_credentials": { "disabled": true } } }
+      }
     },
     {
       "id": "opencode",
       "label": "OpenCode",
       "adapter_kind": "skill_tree",
-      "supported_os": ["macos", "linux", "windows"]
+      "supported_os": ["macos", "linux", "windows"],
+      "setup": {
+        "service_credentials": {
+          "recommended_when": ["headless", "locked_keyring"],
+          "label": "Service / headless mode",
+          "help": "Use this when OpenCode runs over SSH or on a headless machine without an unlocked desktop keyring. Keep desktop keyring mode for a normal desktop terminal."
+        }
+      },
+      "per_os": {
+        "windows": { "setup": { "service_credentials": { "disabled": true } } }
+      }
     },
     {
       "id": "antigravity",

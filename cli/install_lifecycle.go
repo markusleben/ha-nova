@@ -130,7 +130,10 @@ func markInstallLifecycleStopped(paths runtimePaths) error {
 		return err
 	}
 	// Census-era binaries still running across the upgrade check only the
-	// legacy path; give them the same barrier. Best effort.
+	// legacy path; give them the same barrier. Best effort. Keep this mirror
+	// until the release after next (v0.25.1 processes can still be running
+	// during an upgrade-then-uninstall); then stop writing it and keep only
+	// the read/cleanup paths.
 	_ = writeJSONFile(legacyUninstallMarkerPath(paths), value, 0o600)
 	return nil
 }

@@ -18,6 +18,7 @@ For the stable installer, lifecycle commands, and general troubleshooting, use [
 ## Updates and Repair
 
 - Connect or repair with `ha-nova setup codex`.
+- Headless or SSH session without an unlocked desktop keyring (macOS/Linux): run `ha-nova setup --service codex`. It keeps HA NOVA's credential in a protected file under `~/.config/ha-nova/`.
 - Validate the install with `ha-nova doctor`.
 - Before the first Home Assistant task, the first HA NOVA skill used runs one quiet update check for both HA NOVA and the NOVA Relay App. Relay calls keep a cache-only nudge as fallback; silence only that fallback with `HA_NOVA_NO_UPDATE_NUDGE=1`. `ha-nova check-update` still works manually.
 - After `ha-nova update` succeeds, start a new AI client session to load the updated HA NOVA skills.

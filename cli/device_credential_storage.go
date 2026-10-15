@@ -35,6 +35,18 @@ const deviceCredentialFileBackendMarker = ".file-backend"
 // on a headless system, before the marker write).
 var deviceCredentialFileModeForced = false
 
+// deviceCredentialFileModePinned holds a full purge on the file backend for
+// its whole run. Unlike the forced flag, removing the marker does not reset
+// it, so the purge's final absence proofs read the same backend the purge
+// deleted from instead of re-deciding (and consulting an unreachable keyring).
+var deviceCredentialFileModePinned = false
+
+// deviceFileBackendMarkerHeld keeps the `.file-backend` marker (the backend
+// decision) on disk for a full purge until its final proofs passed. A failed
+// purge therefore can never leave a marker-less install whose retry re-decides
+// to the OS keyring and deletes credentials this install never owned.
+var deviceFileBackendMarkerHeld = false
+
 type deviceStorageProbe struct {
 	// mode is "keyring" or "file" — informational for callers/tests.
 	mode string
@@ -98,7 +110,9 @@ func writeDeviceFileBackendMarker() error {
 // every slot resolves to the same backend — a leftover credential file for one
 // slot can never redirect another slot.
 func deviceSecretFileBacked() bool {
-	return deviceCredentialFileModeForced || deviceFileBackendMarkerExists()
+	return deviceCredentialFileModeForced ||
+		deviceCredentialFileModePinned ||
+		deviceFileBackendMarkerExists()
 }
 
 func deviceSecretFileExists(service string) bool {

@@ -97,6 +97,18 @@ the number.
   scanned no longer fails the scan.
 - The management page and health endpoint keep answering when the snapshot
   store is unreadable, and the operator log says why.
+- Headless Linux: `ha-nova uninstall --purge` works on installs without an
+  unlocked keyring (service mode, file-stored credentials) instead of
+  stopping at "secure storage unavailable" and removing nothing.
+- Codex CLI and OpenCode can use `ha-nova setup --service <client>` on
+  headless machines and SSH sessions; and re-running `ha-nova setup` there
+  keeps an existing service token file instead of demanding the keyring.
+- fish users: the installer puts `~/.local/bin` on PATH through
+  `~/.config/fish/conf.d/ha-nova.fish` (other unknown shells: `~/.profile`),
+  and uninstall removes the PATH entry from every file the installer could
+  have written.
+- Uninstall wording: the summary names the relay token file when one is
+  used, and the server-side checklist covers standalone relay containers.
 
 ## Internal
 
@@ -133,3 +145,7 @@ the number.
   bullet (it also links the removed `docs/reference/census.md`), and change
   the `ha-nova uninstall --purge` row to say it retains small opaque local
   markers that block stale processes from restoring the install.
+- Headless Linux (README "Linux — proven end-to-end, including headless
+  setups"): add that a standalone relay (relay token, no device pairing) on a
+  machine without a desktop keyring uses `ha-nova setup --service <client>`
+  (Codex CLI, OpenCode, Hermes Agent).

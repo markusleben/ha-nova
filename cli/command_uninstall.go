@@ -565,6 +565,9 @@ func finalizeLocalUninstallWithProgressUnlocked(
 		)
 	}
 	if mode == uninstallModePurge {
+		if err := validatePurgeServiceTokenFile(paths); err != nil {
+			return fmt.Errorf("failed to remove relay auth token: %w", err)
+		}
 		// Validate the whole raw Cloud identity set before any external revoke
 		// or local deletion. Duplicate profile IDs must fail closed globally.
 		cloudTargets, err := collectCloudPurgeTargets(
@@ -583,6 +586,13 @@ func finalizeLocalUninstallWithProgressUnlocked(
 				err,
 			)
 		}
+		defer pinPurgeDeviceBackend(
+			paths,
+			purgeTargets,
+			cloudTargets,
+			retirementProfiles,
+			report,
+		)()
 		if err := validateProfilePurgeTargets(purgeTargets); err != nil {
 			return fmt.Errorf(
 				"failed to validate device credential cleanup: %w",
@@ -676,7 +686,7 @@ func finalizeLocalUninstallWithProgressUnlocked(
 			return fmt.Errorf("failed before path_cleanup: %w", err)
 		}
 	}
-	pathRemoval, pathErr := removeManagedPathWithReport(paths, state)
+	pathRemoval, pathErr := removeManagedPathWithReport(paths, state, report)
 	if pathErr != nil {
 		return fmt.Errorf("failed to remove managed PATH entry: %w", pathErr)
 	}
@@ -728,6 +738,16 @@ func finalizeLocalUninstallWithProgressUnlocked(
 			"failed to remove managed config artifacts: %w",
 			configCleanupErr,
 		)
+	}
+	if mode == uninstallModePurge {
+		// Last device step: the backend decision goes only after every proof
+		// passed and the config is gone, so no retry can switch backends.
+		if err := releaseHeldDeviceFileBackendMarker(); err != nil {
+			return fmt.Errorf(
+				"failed to remove device credential storage marker: %w",
+				err,
+			)
+		}
 	}
 	if beforeStep != nil {
 		if err := beforeStep("cache_cleanup"); err != nil {

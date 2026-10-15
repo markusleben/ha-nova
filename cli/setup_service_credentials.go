@@ -25,8 +25,9 @@ func withRelayAuthTokenFileOverride(path string) func() {
 }
 
 // disableServiceRelayTokenFile returns token storage to the OS keyring when
-// setup runs without --service: the documented desktop path must not keep
-// using a previously configured service token file. It clears the config
+// setup runs without --service and the keyring is usable here: the documented
+// desktop path must not keep using a previously configured service token
+// file. Without a usable keyring the file stays (see below). It clears the config
 // field, suppresses token-file routing for the rest of the run, and returns
 // the absolute former file path plus its token (best effort) so setup can
 // migrate the credential and remove the file after success.
@@ -39,6 +40,16 @@ func disableServiceRelayTokenFile(paths runtimePaths, cfg runtimeConfig) (runtim
 		path = filepath.Join(paths.ConfigDir, path)
 	}
 	path = filepath.Clean(path)
+	// The token file is the owner's explicit earlier choice. Return to the
+	// keyring only where the keyring works; otherwise keep the file instead of
+	// failing client wiring on storage this session cannot reach.
+	restore := withRelayAuthTokenFileSuppressed()
+	keyringErr := relayAuthTokenSetupPreflightForSetup()
+	restore()
+	if shouldOfferServiceCredentials(keyringErr) {
+		printHumanInfo("Keeping the service token file %s: secure storage is locked or unavailable in this session. To move the token into secure storage, unlock it (or use the desktop session) and rerun `ha-nova setup`.", path)
+		return cfg, "", "", func() {}
+	}
 	formerToken := ""
 	if token, err := readRelayAuthTokenFile(path); err == nil {
 		formerToken = token
@@ -111,6 +122,21 @@ func requireSelectedClientServiceCredentials(paths runtimePaths, selectedClients
 		return fmt.Errorf("%s does not support service credentials", setupClientLabel(selectedClients[0]))
 	}
 	return fmt.Errorf("none of the selected clients support service credentials")
+}
+
+// setupTokenStorageHint adds the service-mode way out to a non-interactive
+// token-storage failure when the selected client supports it.
+func setupTokenStorageHint(paths runtimePaths, selectedClients []string, err error) string {
+	if hint := setupSecureStorageRecoveryHint(err); hint != "" {
+		return hint
+	}
+	if !shouldOfferServiceCredentials(err) || len(selectedClients) != 1 {
+		return ""
+	}
+	if _, _, ok, hintErr := selectedClientsServiceCredentialHint(paths, selectedClients); hintErr != nil || !ok {
+		return ""
+	}
+	return fmt.Sprintf("Headless or SSH session: run `ha-nova setup --service %s` to keep the relay token in a protected file instead.", selectedClients[0])
 }
 
 func shouldOfferServiceCredentials(tokenStorageErr error) bool {
