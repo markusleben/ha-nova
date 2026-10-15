@@ -32,23 +32,21 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  publish:
-    # Fork PRs never reach the package-write token; stacked PRs (base != main)
-    # never overwrite the images of the PR they stack on. Recovery = re-run
-    # the PR's workflow run.
+  # Read-only decision. Fork, stacked (base != main), and bot PRs never get
+  # here, so they never reach the package-write job below.
+  plan:
     if: >-
       github.event_name == 'pull_request' &&
       github.event.pull_request.base.ref == 'main' &&
-      github.event.pull_request.head.repo.full_name == github.repository
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.user.type != 'Bot'
     runs-on: ubuntu-latest
-    timeout-minutes: 45
-    # One publisher at a time across PRs: pushes never interleave.
-    concurrency:
-      group: app-image-publish
-      cancel-in-progress: false
+    timeout-minutes: 5
     permissions:
       contents: read
-      packages: write
+    outputs:
+      publish: ${{ steps.plan.outputs.publish }}
+      version: ${{ steps.plan.outputs.version }}
     steps:
       # Full history: the plan reads main's nova/config.yaml history.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -79,12 +77,29 @@ jobs:
           echo "publish=${publish}" >> "$GITHUB_OUTPUT"
           echo "version=${version}" >> "$GITHUB_OUTPUT"
 
+  # The ONLY job holding packages:write, and only in real release-prep runs.
+  # Recovery = re-run the PR's workflow run.
+  publish:
+    needs: plan
+    if: needs.plan.outputs.publish == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    # One publisher at a time across PRs: pushes never interleave.
+    concurrency:
+      group: app-image-publish
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
       - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
-        if: steps.plan.outputs.publish == 'true'
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
-        if: steps.plan.outputs.publish == 'true'
       - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
-        if: steps.plan.outputs.publish == 'true'
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -93,23 +108,29 @@ jobs:
       # Same inputs and labels Supervisor uses for a local build
       # (supervisor/apps/build.py), one single-platform image per arch, no
       # attestation index — Supervisor pulls <image>:<version> per platform.
+      # The base is pinned to the digest resolved now (io.ha-nova.base).
       # ponytail: QEMU for aarch64; native arm runners if build time hurts.
-      - name: Build and push every arch
-        if: steps.plan.outputs.publish == 'true'
+      - name: Build, smoke, and push every arch
         env:
-          VERSION: ${{ steps.plan.outputs.version }}
+          VERSION: ${{ needs.plan.outputs.version }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           set -euo pipefail
           source scripts/release/app-image-lib.sh
           inputs="$(app_image_inputs HEAD)"
-          build() { # <push|nopush>
-            local arch base platform
+          declare -A pinned
+          while read -r arch base; do
+            digest="$(docker buildx imagetools inspect "$base" | awk '/^Digest:/ { print $2; exit }')"
+            [[ "$digest" == sha256:* ]] || { echo "::error::could not resolve ${base}"; exit 1; }
+            pinned[$arch]="${base}@${digest}"
+          done < <(app_build_from)
+
+          build() { # <--load|--push>
+            local arch base
             while read -r arch base; do
-              platform="$(app_arch_platform "$arch")"
-              docker buildx build --platform "$platform" \
-                --build-arg "BUILD_FROM=${base}" \
+              docker buildx build --platform "$(app_arch_platform "$arch")" \
+                --build-arg "BUILD_FROM=${pinned[$arch]}" \
                 --build-arg "BUILD_ARCH=${arch}" \
                 --build-arg "BUILD_VERSION=${VERSION}" \
                 --label "io.hass.version=${VERSION}" \
@@ -122,20 +143,40 @@ jobs:
                 --label "org.opencontainers.image.revision=${HEAD_SHA}" \
                 --label "io.ha-nova.inputs=${inputs}" \
                 --label "io.ha-nova.pr=${PR_NUMBER}" \
-                --provenance=false --sbom=false \
-                $([[ "$1" == push ]] && echo --push) \
+                --label "io.ha-nova.base=${pinned[$arch]}" \
+                --provenance=false --sbom=false "$1" \
                 --tag "$(app_image_ref "$arch" "$VERSION")" nova
             done < <(app_build_from)
           }
-          # Slow part first, without pushing.
-          build nopush
+          build --load
 
-          # Re-check right before the cached, seconds-long push: main may have
-          # moved during the build. ponytail: a merge inside those seconds
-          # still races; the main-push app-image-verify run flags it.
+          # Start smoke per arch (QEMU for foreign arches): no Supervisor, so
+          # the relay runs on env config and must answer /health with 401.
+          while read -r arch _; do
+            ref="$(app_image_ref "$arch" "$VERSION")"
+            cid="$(docker run -d --platform "$(app_arch_platform "$arch")" -p 127.0.0.1::8791 \
+              -e RELAY_AUTH_TOKEN=smoke -e HA_LLAT=smoke -e HA_URL=http://127.0.0.1:8123 "$ref")"
+            port="$(docker port "$cid" 8791/tcp | head -1 | sed 's/.*://')"
+            code=""
+            for i in $(seq 1 60); do
+              code="$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:${port}/health" || true)"
+              [[ "$code" == 401 ]] && break
+              sleep 2
+            done
+            [[ "$code" == 401 ]] || { docker logs "$cid" || true; docker rm -f "$cid" >/dev/null; echo "::error::${ref} did not start (last /health: ${code:-none})"; exit 1; }
+            docker rm -f "$cid" >/dev/null
+            echo "smoke ok: ${ref}"
+          done < <(app_build_from)
+
+          # Re-check right before the cached, seconds-long push. ponytail: a
+          # merge inside those seconds still races; the main-push
+          # app-image-verify run flags it.
           git fetch -q origin main
           app_version_publishable "$VERSION" FETCH_HEAD \
             || { echo "::error::${VERSION} reached main during the build; frozen, not pushing."; exit 1; }
+          cur="$(git ls-remote origin "refs/pull/${PR_NUMBER}/head" | cut -f1)"
+          [[ "$cur" == "$HEAD_SHA" ]] \
+            || { echo "::error::stale run: PR head is ${cur:-?}, this run built ${HEAD_SHA}; not pushing."; exit 1; }
           while read -r arch _; do
             ref="$(app_image_ref "$arch" "$VERSION")"
             # Same existence probe as relay-image.yml (proven on a first push).
@@ -149,24 +190,26 @@ jobs:
             fi
           done < <(app_build_from)
 
-          build push
+          build --push
           echo "pushed ${VERSION} for: $(app_build_from | awk '{ print $1 }' | xargs) (inputs ${inputs})" | tee -a "$GITHUB_STEP_SUMMARY"
 
   verify:
     name: app-image-verify
-    needs: publish
+    needs: [plan, publish]
     # always(): a skipped required check counts as passed, so this job must run
-    # and fail itself when publish failed.
+    # and fail itself when plan or publish failed. Skipped = nothing to publish.
     if: ${{ always() }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
       contents: read
     steps:
-      - name: Publish must not have failed
-        if: needs.publish.result == 'failure' || needs.publish.result == 'cancelled'
+      - name: Plan and publish must not have failed
+        if: >-
+          contains(fromJSON('["failure","cancelled"]'), needs.plan.result) ||
+          contains(fromJSON('["failure","cancelled"]'), needs.publish.result)
         run: |
-          echo "::error::publish job ${{ needs.publish.result }}"
+          echo "::error::plan ${{ needs.plan.result }}, publish ${{ needs.publish.result }}"
           exit 1
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

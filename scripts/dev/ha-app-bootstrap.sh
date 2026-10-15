@@ -133,6 +133,10 @@ cd "$APP_DIR"
 # Ensure run script is executable.
 chmod +x ./run
 
+# A dev install must BUILD the synced code: with `image:` Supervisor would pull
+# the published image instead.
+sed -i '/^image:/d' config.yaml
+
 python3 - <<'PY'
 import os
 import pathlib

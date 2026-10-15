@@ -18,10 +18,13 @@ it builds locally again (rollback path).
 
 ## Flow
 
-1. `.github/workflows/app-image.yml` → `publish`: same-repo PRs into main
-   whose `nova/config.yaml` has `image:` and whose version never reached main.
-   Builds `nova/Dockerfile` once per `nova/build.yaml` arch on that arch's
-   `build_from` base, then pushes one single-platform image per arch.
+1. `.github/workflows/app-image.yml` → `plan` (read-only; same-repo, non-bot
+   PRs into main) decides; `publish` runs only when `nova/config.yaml` has
+   `image:` and the version never reached main. It builds `nova/Dockerfile`
+   once per `nova/build.yaml` arch on that arch's `build_from` base (pinned to
+   the digest resolved at build time, recorded as `io.ha-nova.base`),
+   start-smokes every arch (QEMU for foreign arches: `/health` must answer
+   401), then pushes one single-platform image per arch.
 2. `app-image-verify` (every PR, every main push, dispatch):
    `scripts/release/verify-app-image.sh` checks anonymously that every arch
    image exists with the right platform and labels. If the change introduces
@@ -42,7 +45,8 @@ it builds locally again (rollback path).
   restores pull old tags). Before main, re-pushes track the PR head; a tag
   pushed by another PR (`io.ha-nova.pr` label) is never overwritten.
   Publishers are serialized (global concurrency group) and re-check main
-  right before the cached push.
+  right before the cached push; a run whose PR head moved meanwhile (stale
+  re-run) refuses to push.
 - **Image == merged code:** fingerprint match on the introducing change.
 - **Multi-arch = `nova/build.yaml`:** `config.yaml` `arch:` must equal the
   `build_from` keys (verify script + `tests/app/config-contract.test.ts`).
@@ -52,16 +56,17 @@ it builds locally again (rollback path).
   to the repo; overrides the base image's label).
 - **Public:** verify uses an anonymous token, so a private package fails CI
   instead of every user's device.
-- **Least privilege:** only `publish` holds `packages: write`; fork and
-  stacked PRs never run it. Same-repo PR authors already control the workflow
+- **Least privilege:** only `publish` holds `packages: write`, and it runs
+  only when `plan` says so; fork, stacked, and bot PRs never run it. Same-repo PR authors already control the workflow
   file, so the token in that job is no escalation.
 - Dev deploys (`scripts/deploy/ha-app-deploy.sh`) strip `image:` so a local
   App still builds the local code.
 
 ## Known limits
 
-- The fingerprint covers source files, not the floating `*-base:3.21` tag or
-  `apk add nodejs npm`: two publishes of one tree can differ in Node patch.
+- The fingerprint covers source files, not `apk add nodejs npm` (floating)
+  or the base digest (recorded, not compared): two publishes of one tree can
+  differ in Node patch. No SLSA attestations yet.
 - A merge inside the seconds between the pre-push re-check and the push still
   races; the main-push verify run flags it (then ship the next patch).
 - Required checks go stale when main moves. With `--admin` the up-to-date
@@ -106,13 +111,23 @@ Assistant. OLD = `origin/main`'s App (local build), NEW = this checkout.
 | a | Fresh install with `image:` | Supervisor log shows the download and no build; container runs `<image>:<V>`; 401 unauthenticated |
 | b | Update locally built OLD → NEW via pull | `/data` (device registry, TLS cert + key, instance id) byte-identical; a credential migrated into the registry before the update still gets 200; reports NEW |
 | c | Rollback: NEW+1 without `image:` | Supervisor builds locally again; `/data` byte-identical; credential works; reports NEW+1 |
-| d | Arch coverage | `verify-app-image.sh <V>` OK for every `build.yaml` arch; e2e covers the host arch, CI builds the rest |
+| d | Arch coverage | `verify-app-image.sh <V>` OK for every `build.yaml` arch; e2e covers the host arch; CI builds and start-smokes every arch before push |
 | e | Real GHCR pull | `E2E_IMAGE_SOURCE=ghcr bash scripts/e2e/supervisor-app/run.sh` once V is public |
 | f | Client | a CLI paired before the update keeps working (`ha-nova relay health`) — manual, see below |
 
 Manual on a throwaway HAOS VM (amd64 or aarch64) before the first `image:`
-release: add the repo as `https://github.com/markusleben/ha-nova#<release-branch>`
-only on a VM that first had 0.9.0 installed from main, pair the CLI, update
-to 0.9.1 (Supervisor log: `Downloading docker image ghcr.io/markusleben/…`,
-no `Starting build`), confirm `ha-nova relay health` still works without
-re-pairing, then take and restore a partial backup of the App.
+release. Supervisor derives the store slug from the repository URL including
+`#branch`, so adding a second URL installs a second App (port clash) instead
+of testing an update — use ONE test branch that moves:
+
+1. `git push origin origin/main:refs/heads/test/app-update` (App 0.9.0, local
+   build). A plain branch push triggers no publish.
+2. On the VM: add `https://github.com/markusleben/ha-nova#test/app-update`,
+   install the App, pair the CLI, check `ha-nova relay health`.
+3. Once #672's images are public: `git push --force origin
+   <#672-head-sha>:refs/heads/test/app-update`, then `ha store reload` and
+   update the App on the VM.
+4. Expect in the Supervisor log `Downloading docker image
+   ghcr.io/markusleben/…` and no `Starting build`; `ha-nova relay health`
+   still works without re-pairing; take and restore a partial App backup.
+5. Delete `test/app-update` afterwards (maintainer approval).

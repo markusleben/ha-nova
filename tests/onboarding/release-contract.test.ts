@@ -249,6 +249,9 @@ describe("release contract", () => {
     expect(appImage).toContain("if: ${{ always() }}");
     expect(appImage).toContain("github.event.pull_request.head.repo.full_name == github.repository");
     expect(appImage).toContain("refusing to publish");
+    expect(appImage).toContain("github.event.pull_request.user.type != 'Bot'");
+    expect(appImage).toContain("if: needs.plan.outputs.publish == 'true'");
+    expect(appImage).toContain('refs/pull/${PR_NUMBER}/head');
     expect(releasing).toContain("app-image-verify");
   });
 

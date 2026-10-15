@@ -61,5 +61,5 @@ app_version_publishable() { # <version> <git-ref>
   local ref_version
   ref_version="$(app_config_version "$2")"
   [[ "$1" != "$ref_version" && "$(printf '%s\n%s\n' "$1" "$ref_version" | sort -V | tail -1)" == "$1" ]] || return 1
-  [[ -z "$(git -C "$APP_IMAGE_ROOT" log --format=%H -G "^version: \"${1//./\\.}\"" "$2" -- nova/config.yaml)" ]]
+  [[ -z "$(git -C "$APP_IMAGE_ROOT" log --format=%H -G "^version:[[:space:]]*\"?${1//./\\.}\"?[[:space:]]*$" "$2" -- nova/config.yaml)" ]]
 }
