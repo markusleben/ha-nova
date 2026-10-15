@@ -43,7 +43,15 @@ func runGetCommand(paths runtimePaths, args []string) int {
 	return runReadVerb(paths, "get", opts, func(s *relaySession, env *verbEnvelope) error {
 		state, target, err := readEntityState(s, entityID)
 		if err != nil {
-			return err
+			// A registry-disabled automation/script/scene has no state but a
+			// stored config: resolve it through its registry row instead.
+			var missing *verbFailure
+			if !*withConfig || !errors.As(err, &missing) || missing.code != "NOT_FOUND" {
+				return err
+			}
+			if target, err = disabledConfigTarget(s, entityID); err != nil {
+				return err
+			}
 		}
 		env.Resolved = []verbTarget{target}
 		result := getResult{State: state}
@@ -115,7 +123,7 @@ func readEntityState(s *relaySession, entityID string) (json.RawMessage, verbTar
 // scripts and scenes the registry unique_id.
 func resolveConfigID(s *relaySession, entityID, domain string, state json.RawMessage) (string, error) {
 	configID := ""
-	if domain == "automation" {
+	if domain == "automation" && state != nil {
 		var parsed struct {
 			Attributes struct {
 				ID string `json:"id"`
@@ -155,4 +163,32 @@ func readStoredConfig(s *relaySession, domain, configID string) (json.RawMessage
 		return nil, fmt.Errorf("Home Assistant answered HTTP %d for the %s config %q", status, domain, configID)
 	}
 	return body, nil
+}
+
+// disabledConfigTarget resolves a registry-disabled config entity (no state).
+// The original NOT_FOUND stands when no disabled registry row exists.
+func disabledConfigTarget(s *relaySession, entityID string) (verbTarget, error) {
+	var entry struct {
+		DisabledBy *string `json:"disabled_by"`
+		Name       *string `json:"name"`
+		Original   *string `json:"original_name"`
+	}
+	notFound := &verbFailure{exit: verbExitNotFound, code: "NOT_FOUND", message: fmt.Sprintf("%s does not exist", entityID),
+		next: `Search with: ha-nova find "<phrase>" --include-disabled`}
+	if err := s.wsDecode(map[string]any{"type": "config/entity_registry/get", "entity_id": entityID}, &entry, "the registry entry of "+entityID); err != nil {
+		if isUpstreamNotFound(err) {
+			return verbTarget{}, notFound
+		}
+		return verbTarget{}, err
+	}
+	if entry.DisabledBy == nil {
+		return verbTarget{}, notFound
+	}
+	name := ""
+	if entry.Name != nil {
+		name = *entry.Name
+	} else if entry.Original != nil {
+		name = *entry.Original
+	}
+	return verbTarget{EntityID: entityID, Name: name, Disabled: true, By: "registry"}, nil
 }

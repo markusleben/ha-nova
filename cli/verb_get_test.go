@@ -182,3 +182,30 @@ func TestGetConfigOnYAMLSceneWithoutIDExitsFive(t *testing.T) {
 		}
 	}
 }
+
+func TestGetConfigResolvesRegistryDisabledItems(t *testing.T) {
+	// A registry-disabled automation has no state; get --config still reads
+	// its stored config through the registry unique_id (never the slug).
+	paths, log := setupVerbRelayTest(t, func(r *http.Request, endpoint string, payload map[string]any) any {
+		if endpoint == "ws" && payload["type"] == "config/entity_registry/get" {
+			if payload["entity_id"] == "automation.nightly" {
+				return map[string]any{"entity_id": "automation.nightly", "unique_id": "1700000000777", "disabled_by": "user", "name": nil, "original_name": "Nightly"}
+			}
+			return fakeRelayFailure{code: "UPSTREAM_WS_COMMAND_ERROR", message: "HA rejected 'config/entity_registry/get': not_found: Entity not found"}
+		}
+		return haReply(map[string]any{}, nil, nil)(r, endpoint, payload)
+	})
+	exit, env := runVerbForTest(t, func() int { return runGetCommand(paths, []string{"automation.nightly", "--config"}) })
+	var result getResult
+	_ = json.Unmarshal(env.Result, &result)
+	if exit != 0 || result.ConfigID != "1700000000777" || !env.Resolved[0].Disabled || env.Resolved[0].Name != "Nightly" {
+		t.Fatalf("exit %d env %+v result %+v", exit, env, result)
+	}
+	if !strings.Contains(strings.Join(log.corePaths(), ","), "/api/config/automation/config/1700000000777") {
+		t.Fatalf("config not read by unique_id: %v", log.corePaths())
+	}
+	// Without --config, or for an entity with no registry row, NOT_FOUND stands.
+	if exit, env := runVerbForTest(t, func() int { return runGetCommand(paths, []string{"automation.ghost", "--config"}) }); exit != 5 || env.Error.Code != "NOT_FOUND" {
+		t.Fatalf("ghost: exit %d env %+v", exit, env)
+	}
+}
