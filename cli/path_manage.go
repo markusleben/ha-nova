@@ -59,7 +59,10 @@ func removeManagedPathWithReport(paths runtimePaths, state installState, report 
 		}
 		return "HA NOVA PATH entry from Windows user PATH", nil
 	}
-	recorded, swept := managedPathTargets(paths, state)
+	recorded, swept, err := managedPathTargets(paths, state)
+	if err != nil {
+		return "", err
+	}
 	var cleaned []string
 	for _, target := range recorded {
 		removed, err := removePathBlockFromFile(target)
@@ -106,7 +109,7 @@ func pathTargetRecordPath(paths runtimePaths) string {
 // (zsh, bash, fish, ~/.profile) plus older installers (~/.bashrc). The sweep
 // keeps uninstall correct when SHELL changed since the install and for
 // installs made before the target was recorded.
-func managedPathTargets(paths runtimePaths, state installState) (recorded, swept []string) {
+func managedPathTargets(paths runtimePaths, state installState) (recorded, swept []string, err error) {
 	seen := map[string]bool{}
 	add := func(list *[]string, target string) {
 		if key := filepath.Clean(target); target != "" && !seen[key] {
@@ -116,20 +119,25 @@ func managedPathTargets(paths runtimePaths, state installState) (recorded, swept
 	}
 	add(&recorded, strings.TrimSpace(state.PathTarget))
 	if record := pathTargetRecordPath(paths); record != "" {
-		if data, err := os.ReadFile(record); err == nil {
+		data, readErr := os.ReadFile(record)
+		switch {
+		case readErr == nil:
 			if target := strings.TrimSpace(string(data)); validRecordedPathTarget(target) {
 				add(&recorded, target)
 			}
+		case !isNotExist(readErr):
+			// Keep the record for a retry instead of guessing past it.
+			return nil, nil, fmt.Errorf("read recorded PATH target %s: %w", record, readErr)
 		}
 	}
 	if paths.Home == "" {
-		return recorded, swept
+		return recorded, swept, nil
 	}
 	for _, name := range []string{".zshrc", ".bash_profile", ".profile", ".bashrc"} {
 		add(&swept, filepath.Join(paths.Home, name))
 	}
 	add(&swept, filepath.Join(paths.Home, ".config", "fish", "conf.d", pathFishFile))
-	return recorded, swept
+	return recorded, swept, nil
 }
 
 // validRecordedPathTarget only accepts an absolute path to a file install.sh

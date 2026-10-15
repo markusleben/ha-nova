@@ -79,10 +79,9 @@ new_scenario() {
       HA_NOVA_KEYRING_SERVICE="ha-nova.client-matrix.$$")
   fi
   if [[ "$LANE" == macos ]]; then
-    # The macOS keychain is per user, not per HOME: without the file-backend
-    # marker, uninstall --purge reads and deletes the maintainer's real
-    # `ha-nova.device-credential*` keychain items (and `setup --service`
-    # migrates them into this throwaway HOME).
+    # Routes this throwaway install's own device credential to a file. NOT
+    # keychain isolation: the macOS keychain belongs to the OS user, not to
+    # HOME, so purge is skipped below when it holds HA NOVA credentials.
     mkdir -p "$H/.config/ha-nova/secrets" && chmod 700 "$H/.config/ha-nova/secrets"
     (umask 077 && printf 'file\n' >"$H/.config/ha-nova/secrets/.file-backend")
   fi
@@ -264,6 +263,15 @@ check_rc_clean() {
 
 check_relay_alive() { shows '"ok":true' curl -fsS -H "Authorization: Bearer $RELAY_TOKEN" "$RELAY_URL/health" && echo "note: test bed relay still answers"; }
 
+# The macOS keychain is per OS user: never purge in a login session whose
+# keychain holds real HA NOVA device credentials. Item names only, no secrets.
+real_keychain_has_ha_nova() {
+  [[ "$LANE" == macos ]] || return 1
+  local n
+  n="$(security dump-keychain 2>/dev/null | grep -c 'ha-nova.device-credential' || true)"
+  [[ "${n:-0}" -gt 0 ]]
+}
+
 # --- scenarios ----------------------------------------------------------------
 
 scenario_a() {
@@ -306,9 +314,14 @@ scenario_b() {
   run_step update-survived check_survived
   run_step update-clients check_clients "$S/before.txt"
   run_step update-doctor hn doctor
-  run_step purge do_uninstall --purge || return
-  run_step purge-leftovers check_leftovers purge
-  run_step purge-rc check_rc_clean
+  if real_keychain_has_ha_nova; then
+    local why="real keychain holds HA NOVA credentials; run purge on the Linux lane or a separate macOS user"
+    skip purge "$why"; skip purge-leftovers "$why"; skip purge-rc "$why"
+  else
+    run_step purge do_uninstall --purge || return
+    run_step purge-leftovers check_leftovers purge
+    run_step purge-rc check_rc_clean
+  fi
   run_step relay-still-up check_relay_alive
 }
 

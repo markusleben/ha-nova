@@ -127,29 +127,49 @@ func applyUninstallKeyringTokenBestEffort(report *uninstallReport) {
 	report.addRemoved("relay auth token (OS credential store)")
 }
 
+// managedServiceTokenFilePath resolves a configured relay token file and
+// accepts only HA NOVA's own managed file; full purge never deletes any other.
+func managedServiceTokenFilePath(paths runtimePaths, path string) (string, error) {
+	if !filepath.IsAbs(path) {
+		path = filepath.Join(paths.ConfigDir, path)
+	}
+	path = filepath.Clean(path)
+	managedTokenPath := filepath.Clean(defaultRelayAuthTokenFile(paths))
+	if !uninstallPathsEqual(path, managedTokenPath) {
+		return "", fmt.Errorf(
+			"configured relay token file %s is not the managed service-token path %s; refusing to delete it. Nothing was removed: delete or move that file yourself and remove `relay_token_file` from %s, then rerun the purge",
+			path,
+			managedTokenPath,
+			paths.ConfigFile,
+		)
+	}
+	return path, nil
+}
+
+// validatePurgeServiceTokenFile refuses a full purge up front — before any
+// revoke or removal, never halfway through — when the configured relay token
+// file is not HA NOVA's managed one.
+func validatePurgeServiceTokenFile(paths runtimePaths) error {
+	doc, err := loadConfigDocument(paths.ConfigFile)
+	if err != nil {
+		return nil // no readable config: no token file to protect
+	}
+	cfg, ok := doc.flatProfile(defaultServerProfileName)
+	if !ok || strings.TrimSpace(cfg.RelayTokenFile) == "" {
+		return nil
+	}
+	_, err = managedServiceTokenFilePath(paths, strings.TrimSpace(cfg.RelayTokenFile))
+	return err
+}
+
 func applyUninstallServiceTokenFilePolicy(paths runtimePaths, path string, report *uninstallReport) (bool, error) {
 	path = strings.TrimSpace(path)
 	if path == "" {
 		return false, nil
 	}
-	if !filepath.IsAbs(path) {
-		path = filepath.Join(paths.ConfigDir, path)
-	}
-	path = filepath.Clean(path)
-	configDir := filepath.Clean(paths.ConfigDir)
-	rel, err := filepath.Rel(configDir, path)
-	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
-		return true, fmt.Errorf(
-			"configured relay token file is not the managed service-token path %s; refusing to delete it",
-			filepath.Clean(defaultRelayAuthTokenFile(paths)),
-		)
-	}
-	managedTokenPath := filepath.Clean(defaultRelayAuthTokenFile(paths))
-	if !uninstallPathsEqual(path, managedTokenPath) {
-		return true, fmt.Errorf(
-			"configured relay token file is not the managed service-token path %s; refusing to delete it",
-			managedTokenPath,
-		)
+	path, err := managedServiceTokenFilePath(paths, path)
+	if err != nil {
+		return true, err
 	}
 	info, err := os.Lstat(path)
 	if err != nil {

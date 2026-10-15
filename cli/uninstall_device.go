@@ -61,7 +61,10 @@ func purgeAllDeviceCredentialsWithReport(
 	if err := profilePurgeFinalProofHook(); err != nil {
 		return err
 	}
-	return requirePurgedDeviceCredentialsAbsent(targets)
+	if err := requirePurgedDeviceCredentialsAbsent(targets); err != nil {
+		return err
+	}
+	return requireNoStrandedKeyringDeviceCredentials(targets, report)
 }
 
 func requirePurgedDeviceCredentialsAbsent(

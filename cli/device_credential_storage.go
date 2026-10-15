@@ -41,6 +41,12 @@ var deviceCredentialFileModeForced = false
 // deleted from instead of re-deciding (and consulting an unreachable keyring).
 var deviceCredentialFileModePinned = false
 
+// deviceFileBackendMarkerHeld keeps the `.file-backend` marker (the backend
+// decision) on disk for a full purge until its final proofs passed. A failed
+// purge therefore can never leave a marker-less install whose retry re-decides
+// to the OS keyring and deletes credentials this install never owned.
+var deviceFileBackendMarkerHeld = false
+
 type deviceStorageProbe struct {
 	// mode is "keyring" or "file" — informational for callers/tests.
 	mode string

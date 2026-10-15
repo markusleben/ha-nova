@@ -211,3 +211,21 @@ func TestRemoveManagedPathIgnoresTamperedRecord(t *testing.T) {
 		t.Fatalf("record pointed uninstall at an arbitrary file: %q", got)
 	}
 }
+
+func TestRemoveManagedPathKeepsUnreadableRecord(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("unix-only")
+	}
+	home := t.TempDir()
+	configDir := filepath.Join(home, ".config", "ha-nova")
+	record := filepath.Join(configDir, pathTargetRecordFile)
+	if err := os.MkdirAll(record, 0o700); err != nil { // unreadable as a file
+		t.Fatal(err)
+	}
+	if _, err := removeManagedPathWithReport(runtimePaths{Home: home, ConfigDir: configDir}, installState{}, nil); err == nil {
+		t.Fatal("an unreadable PATH target record must fail the PATH step")
+	}
+	if _, err := os.Stat(record); err != nil {
+		t.Fatalf("record must survive for a retry: %v", err)
+	}
+}

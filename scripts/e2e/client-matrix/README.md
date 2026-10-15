@@ -37,10 +37,13 @@ FAIL row even when earlier rows passed.
 - **No keychain/Secret Service.** The relay token goes to a test keyring file
   (`HA_NOVA_ALLOW_INSECURE_TEST_KEYRING=1` + `HA_NOVA_TEST_KEYRING_FILE`, plus
   a unique `HA_NOVA_KEYRING_SERVICE`). On macOS each HOME is also pre-seeded
-  with the device-credential file-backend marker: the keychain is per user,
-  not per HOME, so without it `uninstall --purge` would read and delete the
-  real `ha-nova.device-credential*` items and `setup --service` would migrate
-  them into the throwaway HOME.
+  with the device-credential file-backend marker, which keeps the throwaway
+  install's own device credential in a file. That is **not** keychain
+  isolation: the keychain belongs to the OS user, not to HOME. When the login
+  keychain holds any `ha-nova.device-credential*` item (checked by name with
+  `security dump-keychain`, no secrets read), macOS B SKIPs `purge`,
+  `purge-leftovers`, and `purge-rc`; the Linux lane keeps covering purge. For
+  a macOS purge run, use a separate macOS user account or a VM.
 - Linux runs in a fresh `ubuntu:24.04` container as an unprivileged user.
 
 ## What each lane runs
@@ -48,7 +51,7 @@ FAIL row even when earlier rows passed.
 | Scenario | Shell / rc | Token path | Steps |
 | --- | --- | --- | --- |
 | A | zsh / `.zshrc` | test keyring file | install `--from` → `setup codex`, `setup opencode` (+ `setup claude` when a `claude` binary exists) → `doctor`, `relay health`, read (`find --domain light`, or `relay core GET /api/` before `find` existed) → skill trees resolve into the installed bundle → `mcp` (initialize, tools/list, `ha_find`) when the version has it → update → config fields, stored token, server profile, client wiring, `clients_verified_version` survived → relay-outdated notice asserted against `min_relay_version` vs the test bed relay → `doctor`, read, `mcp` → `uninstall --yes` → leftovers, rc block, relay still up |
-| B | bash / `.profile` | macOS: test keyring file; Linux: real headless `setup --service hermes` (token file) | install → setup → clients → update → survived → `doctor` → `uninstall --yes --purge` → leftovers, rc block, relay still up |
+| B | bash / `.profile` | macOS: test keyring file; Linux: real headless `setup --service hermes` (token file) | install → setup → clients → update → survived → `doctor` → `uninstall --yes --purge` → leftovers, rc block, relay still up (macOS: purge steps SKIP when the login keychain holds HA NOVA credentials) |
 
 Client runtimes (`codex`, `opencode`, `hermes`) are no-op stubs on `PATH`:
 setup only checks they exist, and the lanes assert the files HA NOVA wires.
@@ -83,9 +86,11 @@ served from `127.0.0.1` and installed the supported way:
 
 - zsh → `~/.zshrc`; bash → `~/.bash_profile` if present, else `~/.profile`
   (installer and `uninstall` agree).
-- fish is not covered: the installer writes the PATH block to `~/.profile` if
-  it exists, else `~/.zshrc` (fish reads neither), while `uninstall` only
-  looks at `~/.profile` — with no `~/.profile` the block stays in `~/.zshrc`.
+- fish is not covered by a lane (`installer-contract.test.ts` and
+  `cli/path_manage_test.go` cover it): the installer writes
+  `${XDG_CONFIG_HOME:-~/.config}/fish/conf.d/ha-nova.fish`, unknown shells get
+  `~/.profile`, the target is recorded in `~/.config/ha-nova/path-target`, and
+  `uninstall` also sweeps every file older installers could have written.
 
 ## Windows
 

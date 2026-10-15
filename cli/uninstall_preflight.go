@@ -92,6 +92,9 @@ func uninstallTokenLineLabel(paths runtimePaths) string {
 			if !filepath.IsAbs(path) {
 				path = filepath.Join(paths.ConfigDir, path)
 			}
+			if _, err := managedServiceTokenFilePath(paths, path); err != nil {
+				return "Relay token file: kept (outside HA NOVA's config folder: " + filepath.Clean(path) + "); full purge stops until you remove it from the config"
+			}
 			return "Relay token file (" + filepath.Clean(path) + ")"
 		}
 	}

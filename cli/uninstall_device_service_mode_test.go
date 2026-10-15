@@ -2,6 +2,7 @@ package main
 
 import (
 	"os"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
@@ -112,32 +113,48 @@ func TestPurgePairedFileBackedInstallWithoutKeyringRemovesEverything(t *testing.
 	previous := revokeSelfDeviceV1ForUninstall
 	revokeSelfDeviceV1ForUninstall = func(_, _, _ string) error { return nil }
 	t.Cleanup(func() { revokeSelfDeviceV1ForUninstall = previous })
-	if _, err := runTestPurge(paths); err != nil {
+	report, err := runTestPurge(paths)
+	if err != nil {
 		t.Fatalf("purge error = %v", err)
 	}
 	if deviceSecretFileBacked() {
 		t.Fatal("file-backend marker or routing survived purge")
+	}
+	if !strings.Contains(strings.Join(report.notes, "\n"), "keyring was not checked") {
+		t.Fatalf("missing unchecked-keyring note: %q", report.notes)
 	}
 	if _, err := os.Stat(paths.ConfigFile); !os.IsNotExist(err) {
 		t.Fatalf("config survived purge: %v", err)
 	}
 }
 
-func TestPurgeFileBackedInstallWithReachableKeyringStillProvesKeyringEmpty(t *testing.T) {
-	// A keyring credential stranded by a keyring-to-file switch made while the
-	// keyring was locked must still fail the final proof when it is reachable.
+func TestPurgeFileBackedInstallNeverSwitchesToKeyringOnRetry(t *testing.T) {
+	// A keyring credential this file-backed install never owned (e.g. the
+	// real login keychain under a throwaway HOME, or one stranded by a
+	// keyring-to-file switch made while the keyring was locked) must fail the
+	// purge read-only — and a retry must not re-decide to the keyring and
+	// delete it.
 	paths := setupHeadlessPurgeTest(t, runtimeConfig{}, true)
 	deviceCredentialPreflight = func() error { return nil }
 	if err := writeDeviceFileBackendMarker(); err != nil {
 		t.Fatal(err)
 	}
-	if err := secretKeyringSet(deviceCredentialService, secretUser(), generateTestDeviceCredential(t)); err != nil {
+	foreign := generateTestDeviceCredential(t)
+	if err := secretKeyringSet(deviceCredentialService, secretUser(), foreign); err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = secretKeyringDelete(deviceCredentialService, secretUser()) })
-	if _, err := runTestPurge(paths); err == nil ||
-		!strings.Contains(err.Error(), "reappeared") {
-		t.Fatalf("purge error = %v, want the stranded keyring credential to fail the final proof", err)
+	for attempt := 1; attempt <= 2; attempt++ {
+		if _, err := runTestPurge(paths); err == nil ||
+			!strings.Contains(err.Error(), "still holds a device credential") {
+			t.Fatalf("attempt %d: purge error = %v, want the read-only keyring refusal", attempt, err)
+		}
+		if !deviceFileBackendMarkerExists() {
+			t.Fatalf("attempt %d: the backend marker must survive a failed purge", attempt)
+		}
+		if got, err := secretKeyringGet(deviceCredentialService, secretUser()); err != nil || got != foreign {
+			t.Fatalf("attempt %d: keyring credential = %q, %v; the purge must never delete it", attempt, got, err)
+		}
 	}
 }
 
@@ -159,5 +176,42 @@ func TestGuidedPurgePreflightRoutesLikePurge(t *testing.T) {
 	if err := prepareUninstallBeforeGuidedTeardown(paired, uninstallModePurge); err == nil ||
 		!strings.Contains(err.Error(), "device credential") {
 		t.Fatalf("guided preflight error = %v, want fail-closed device credential error", err)
+	}
+}
+
+func TestPurgeRefusesForeignTokenFileBeforeAnyCleanup(t *testing.T) {
+	paths := setupHeadlessPurgeTest(t, runtimeConfig{}, false)
+	external := filepath.Join(t.TempDir(), "relay-token")
+	if err := writeRelayAuthTokenFile(external, "user-managed"); err != nil {
+		t.Fatal(err)
+	}
+	if err := saveConfig(paths, runtimeConfig{
+		HAHost:         "192.0.2.5",
+		HAURL:          "http://192.0.2.5:8123",
+		RelayBaseURL:   "http://192.0.2.5:8791",
+		RelayTokenFile: external,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := deviceSecretFileSet(deviceCredentialService, generateTestDeviceCredential(t)); err != nil {
+		t.Fatal(err)
+	}
+	zshrc := filepath.Join(paths.Home, ".zshrc")
+	writeTestFile(t, zshrc, pathBlockHeader+"\n"+pathExportLine+"\n")
+	if !strings.Contains(uninstallTokenLineLabel(paths), "kept (outside HA NOVA's config folder") {
+		t.Fatalf("label = %q", uninstallTokenLineLabel(paths))
+	}
+	if _, err := runTestPurge(paths); err == nil ||
+		!strings.Contains(err.Error(), "is not the managed service-token path") {
+		t.Fatalf("purge error = %v", err)
+	}
+	if !deviceSecretFileExists(deviceCredentialService) {
+		t.Fatal("device credential removed before the token-file refusal")
+	}
+	if got, _ := os.ReadFile(zshrc); !strings.Contains(string(got), pathBlockHeader) {
+		t.Fatal("PATH entry removed before the token-file refusal")
+	}
+	if token, err := readRelayAuthTokenFile(external); err != nil || token != "user-managed" {
+		t.Fatalf("external token = %q, %v", token, err)
 	}
 }
