@@ -133,6 +133,9 @@ func verifyConfig(s *relaySession, action configAction, reloaded bool) (verifyRo
 		row.Expect = "config and entity gone"
 		st, stateErr := s.stateFresh(action.EntityID, relaySessionRequestTimeout)
 		row.Observed = fmt.Sprintf("config HTTP %d, entity present: %v", status, st != nil)
+		if err != nil || stateErr != nil { // an unanswered read is not an absence
+			row.Observed = "read failed"
+		}
 		if err == nil && stateErr == nil && status == http.StatusNotFound && st == nil {
 			row.Outcome = "verified"
 		}
@@ -142,15 +145,23 @@ func verifyConfig(s *relaySession, action configAction, reloaded bool) (verifyRo
 	differences, parseErr := configChanges(action.Body, readback)
 	if err != nil || status != http.StatusOK || parseErr != nil {
 		row.Observed = fmt.Sprintf("read-back failed (HTTP %d)", status)
+		if err != nil {
+			row.Observed = "read-back failed"
+		}
 		return row, nil
 	}
 	entityID, disabled := registryEntityFor(s, action.Domain, action.ConfigID)
 	row.EntityID = entityID
 	var st *entityState
+	var stateErr error
 	if entityID != "" && !disabled {
-		st, _ = s.stateFresh(entityID, relaySessionRequestTimeout)
+		st, stateErr = s.stateFresh(entityID, relaySessionRequestTimeout)
 	}
-	row.Observed = fmt.Sprintf("%d differences, reload ok: %v, entity: %q present: %v", len(differences), reloaded, entityID, st != nil)
+	present := fmt.Sprint(st != nil)
+	if stateErr != nil {
+		present = "read failed"
+	}
+	row.Observed = fmt.Sprintf("%d differences, reload ok: %v, entity: %q present: %s", len(differences), reloaded, entityID, present)
 	switch {
 	case !reloaded:
 		row.Note = "saved, but the reload barrier failed: whether the change is running is unknown"

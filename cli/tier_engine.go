@@ -255,9 +255,9 @@ func (e *tierEngine) classify(id, service string, data map[string]any, depth int
 		// Platform unknown (YAML without unique_id): never ordinary; typed
 		// when access-capable (spec §2.2 step 1).
 		switch {
-		case domain == "button": // a YAML template button: its press runs whatever its author wired, unread
+		case unregisteredActuatorDomains[domain]: // a YAML template/command_line/rest/mqtt entity: its action is whatever its author wired, unread
 			level = tierTyped
-			e.gap(reasonUnreadableButton, id, via, "")
+			e.gap(reasonUnregisteredActuator, id, via, "")
 		case accessCapable(id, st.str("device_class")):
 			level = tierTyped
 			e.gap(reasonNoRegistryRow, id, via, "")

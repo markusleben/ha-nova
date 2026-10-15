@@ -71,11 +71,16 @@ func runFindCommand(paths runtimePaths, args []string) int {
 		if err != nil {
 			return err
 		}
-		if result.Total == 0 {
+		// A filter-only listing with no hits is an answer ("no light is on"),
+		// not a failed lookup; a phrase that matches nothing is NOT_FOUND.
+		if result.Total == 0 && query.phrase != "" {
+			next := "Try a shorter or different phrase, drop --domain/--area, or add --include-disabled."
+			if query.state != "" {
+				next = "Drop --state to see the matching entities and their current state."
+			}
 			return &verbFailure{
 				exit: verbExitNotFound, code: "NOT_FOUND",
-				message: fmt.Sprintf("no entity matches %q%s", query.phrase, stateSuffix(query.state)),
-				next:    "Try a shorter or different phrase, drop --domain/--area, or add --include-disabled.",
+				message: fmt.Sprintf("no entity matches %q%s", query.phrase, stateSuffix(query.state)), next: next,
 			}
 		}
 		env.Result = result
@@ -150,6 +155,7 @@ func filterByState(s *relaySession, matches []verbTarget, q findQuery) ([]verbTa
 		State      string `json:"state"`
 		Attributes struct {
 			FriendlyName string `json:"friendly_name"`
+			Members      any    `json:"entity_id"` // a list on group entities
 		} `json:"attributes"`
 	}
 	if err == nil && status != http.StatusOK {
@@ -161,9 +167,10 @@ func filterByState(s *relaySession, matches []verbTarget, q findQuery) ([]verbTa
 	if err != nil {
 		return nil, err
 	}
-	current := map[string]string{}
+	current, group := map[string]string{}, map[string]bool{}
 	for _, st := range states {
 		current[st.EntityID] = st.State
+		_, group[st.EntityID] = st.Attributes.Members.([]any) // a group counts its members again
 	}
 	var compact struct {
 		Entities []struct{ EI string } `json:"entities"`
@@ -179,7 +186,7 @@ func filterByState(s *relaySession, matches []verbTarget, q findQuery) ([]verbTa
 	for _, m := range matches {
 		known[m.EntityID] = true
 		if state, ok := current[m.EntityID]; ok && state == q.state {
-			m.State = state
+			m.State, m.Group = state, group[m.EntityID]
 			kept = append(kept, m)
 		}
 	}
@@ -190,7 +197,7 @@ func filterByState(s *relaySession, matches []verbTarget, q findQuery) ([]verbTa
 			!tokensMatch(tokens, st.EntityID+" "+st.Attributes.FriendlyName) {
 			continue
 		}
-		kept = append(kept, verbTarget{EntityID: st.EntityID, Name: st.Attributes.FriendlyName, State: st.State, By: "state"})
+		kept = append(kept, verbTarget{EntityID: st.EntityID, Name: st.Attributes.FriendlyName, State: st.State, Group: group[st.EntityID], By: "state"})
 	}
 	sort.Slice(kept, func(i, j int) bool { return kept[i].EntityID < kept[j].EntityID })
 	return kept, nil

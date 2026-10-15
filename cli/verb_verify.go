@@ -41,6 +41,7 @@ type probe struct {
 	entityID string
 	checks   []check
 	slow     bool
+	before   *entityState // the plan-time state: "still X" vs "ended X"
 }
 
 var onOffDomains = map[string]bool{
@@ -67,7 +68,7 @@ var sceneAttributes = map[string]float64{
 func expectFor(service, entityID string, data map[string]any, before *entityState, scene bool) (probe, bool) {
 	domain, _ := splitID(entityID)
 	_, name := splitID(effectiveService(service, domain))
-	p := probe{entityID: entityID, slow: slowDomains[domain]}
+	p := probe{entityID: entityID, slow: slowDomains[domain], before: before}
 	literal := func(want string) { p.checks = append(p.checks, check{kind: "literal", want: want}) }
 	switch state, stored := data[sceneStateKey].(string); {
 	case scene && stored:
@@ -263,6 +264,7 @@ func sceneProbes(e *tierEngine, sceneID string) ([]probe, bool) {
 func pollProbes(s *relaySession, probes []probe) []verifyRow {
 	rows := make([]verifyRow, len(probes))
 	last := make([]*entityState, len(probes))
+	late := make([]string, len(probes)) // what went wrong after a good read
 	start := time.Now()
 	window := func(p probe) time.Duration {
 		if p.slow {
@@ -282,14 +284,15 @@ func pollProbes(s *relaySession, probes []probe) []verifyRow {
 			}
 			st, err := s.stateFresh(p.entityID, max(remaining, 100*time.Millisecond))
 			switch {
-			case err != nil && last[i] != nil:
-				// keep the last good observation: one slow read is not a failed device
+			case (err != nil || st == nil) && last[i] != nil:
+				// keep the last good observation: a slow read is not a failed device
+				late[i] = map[bool]string{true: "failed", false: "found the entity missing"}[err != nil]
 			case err != nil:
 				rows[i].Observed = "read failed"
 			case st == nil:
 				rows[i].Observed = "missing"
 			default:
-				last[i] = st
+				last[i], late[i] = st, ""
 				rows[i].Observed = describeObserved(p.checks, st)
 				if st.State == "jammed" {
 					rows[i].Outcome = "failed"
@@ -312,11 +315,36 @@ func pollProbes(s *relaySession, probes []probe) []verifyRow {
 		case rows[i].Outcome != "unverified" || last[i] == nil:
 		case p.slow && transitionalStates[last[i].State]:
 			rows[i].Outcome, rows[i].Note = "accepted", "still "+last[i].State+" when the window closed"
-		default: // the device answered, it just did not change
-			rows[i].Note = fmt.Sprintf("still %s after %s", last[i].State, window(p))
+		case late[i] != "":
+			rows[i].Note = fmt.Sprintf("last read %s; later reads %s", rows[i].Observed, late[i])
+		default: // the device answered, it just did not get there
+			verb := "ended"
+			if unchanged(p, last[i]) {
+				verb = "still"
+			}
+			rows[i].Note = fmt.Sprintf("%s %s after %s (expected %s)", verb, rows[i].Observed, window(p), rows[i].Expect)
 		}
 	}
 	return rows
+}
+
+// unchanged: every check that failed reads exactly what it read before the
+// call — the device did not move ("still"); otherwise it moved elsewhere.
+func unchanged(p probe, now *entityState) bool {
+	if p.before == nil {
+		return false
+	}
+	for _, c := range p.checks {
+		if checksHold([]check{c}, now) {
+			continue
+		}
+		a, _ := json.Marshal(fieldValue(c, now))
+		b, _ := json.Marshal(fieldValue(c, p.before))
+		if string(a) != string(b) {
+			return false
+		}
+	}
+	return true
 }
 
 func fieldValue(c check, st *entityState) any {

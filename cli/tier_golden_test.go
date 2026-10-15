@@ -233,7 +233,7 @@ func TestPlanCallTierGoldenCases(t *testing.T) {
 			args:  []string{"light.turn_off", "light.kitchen"}, exit: 3, tier: "typed", reasons: []string{reasonScanFailed}},
 		{name: "YAML entity without registry row never takes the fast path",
 			setup: func(f *fakeHA) { f.ent("switch.yaml_plug", "", "off", nil) },
-			args:  []string{"switch.turn_on", "switch.yaml_plug"}, exit: 3, tier: "preview", reasons: []string{reasonNoRegistryRow}},
+			args:  []string{"switch.turn_on", "switch.yaml_plug"}, exit: 3, tier: "typed", reasons: []string{reasonUnregisteredActuator}},
 		{name: "consumer acting on an unregistered entity leaves the fast path",
 			setup: func(f *fakeHA) {
 				consumer("lock.lock")(f)
@@ -243,7 +243,7 @@ func TestPlanCallTierGoldenCases(t *testing.T) {
 					"actions":  []any{step("switch.turn_on", "switch.yaml_tpl")},
 				})
 			},
-			args: []string{"input_boolean.turn_on", "input_boolean.guest"}, exit: 3, tier: "preview", reasons: []string{reasonNoRegistryRow}},
+			args: []string{"input_boolean.turn_on", "input_boolean.guest"}, exit: 3, tier: "typed", reasons: []string{reasonUnregisteredActuator}},
 		{name: "ESPHome button press is user-authored: typed",
 			setup: func(f *fakeHA) { f.ent("button.gate", "esphome", "unknown", nil) },
 			args:  []string{"button.press", "button.gate"}, exit: 3, tier: "typed", reasons: []string{reasonUserButton}},

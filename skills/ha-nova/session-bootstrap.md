@@ -1,7 +1,8 @@
 # Session Bootstrap
 
 Apply this contract before the first Home Assistant task in a session,
-regardless of which HA NOVA skill was loaded directly.
+regardless of which HA NOVA skill was loaded directly. In every reply, give
+the plain reason ("it unlocks a door"), never a skill, file, or path.
 
 ## Check
 

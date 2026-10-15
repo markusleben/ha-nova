@@ -26,54 +26,54 @@ func (l tierLevel) String() string {
 // indirect-actuation.md or the typed-verbs spec by
 // TestTierReasonCodesAreDocumented; the engine emits only these constants.
 const (
-	reasonAccessLock        = "ACCESS_LOCK"
-	reasonAccessAlarm       = "ACCESS_ALARM"
-	reasonAccessCover       = "ACCESS_COVER"
-	reasonCoverClassUnknown = "COVER_CLASS_UNKNOWN"
-	reasonDisruptive        = "DISRUPTIVE"
-	reasonDestructiveButton = "DESTRUCTIVE_BUTTON"
-	reasonOwnedService      = "OWNED_SERVICE"
-	reasonOwnedMember       = "OWNED_MEMBER"
-	reasonOwnedTypedMember  = "OWNED_TYPED_MEMBER"
-	reasonHassio            = "HASSIO_NOT_SUPPORTED"
-	reasonSelector          = "UNSUPPORTED_SELECTOR"
-	reasonCodeRequired      = "CODE_REQUIRED"
-	reasonFeature           = "UNSUPPORTED_FEATURE"
-	reasonExpanded          = "EXPANDED_TARGET"
-	reasonBatch             = "EXPLICIT_BATCH"
-	reasonStoredMembers     = "STORED_MEMBERS"
-	reasonNoRegistryRow     = "NO_REGISTRY_ROW"
-	reasonTemplateAction    = "TEMPLATE_ACTION_UNREAD"
-	reasonUserButton        = "USER_AUTHORED_BUTTON"
-	reasonUnreadableButton  = "UNREADABLE_BUTTON"
-	reasonUnreadCommand     = "UNREAD_COMMAND"
-	reasonTemplatedAction   = "TEMPLATED_ACTION"
-	reasonUnresolvedTarget  = "UNRESOLVED_TARGET"
-	reasonStoredSelector    = "STORED_SELECTOR"
-	reasonBlueprint         = "BLUEPRINT_UNRESOLVED"
-	reasonYAMLNoID          = "YAML_NO_ID"
-	reasonUnreadConfig      = "UNREAD_CONFIG"
-	reasonSceneAccess       = "INTEGRATION_SCENE_ACCESS"
-	reasonSceneUnread       = "INTEGRATION_SCENE_UNREAD"
-	reasonReload            = "RELOAD_UNENUMERATED"
-	reasonListener          = "UNENUMERABLE_LISTENER"
-	reasonListenerUnexpl    = "CALL_SERVICE_LISTENER_UNEXPLAINED"
-	reasonRunListenerUnexpl = "RUN_EVENT_LISTENER_UNEXPLAINED"
-	reasonDeviceAccess      = "DEVICE_ACCESS"
-	reasonSwitchAsX         = "SWITCH_AS_X_ACCESS"
-	reasonResponseOnly      = "RESPONSE_ONLY_SERVICE"
-	reasonTargetRequired    = "TARGET_REQUIRED"
-	reasonConfigWrite       = "CONFIG_WRITE"
-	reasonConfigRevert      = "CONFIG_REVERT"
-	reasonConfigDelete      = "CONFIG_DELETE"
-	reasonManager           = "CONSUMER_MANAGER_PRESENT"
-	reasonScanFailed        = "SCAN_FAILED"
-	reasonLimitCut          = "LIMIT_CUT"
-	reasonIntegrationSvc    = "INTEGRATION_SERVICE"
-	reasonUserService       = "USER_AUTHORED_SERVICE"
-	noteTemplates           = "TEMPLATES_NOT_CHECKABLE"
-	noteNoManager           = "NO_CONSUMER_MANAGER_INSTALLED" // good news, not a gap
-	noteSkippedTargets      = "EXPANDED_TARGET_WITHOUT_STATE"
+	reasonAccessLock           = "ACCESS_LOCK"
+	reasonAccessAlarm          = "ACCESS_ALARM"
+	reasonAccessCover          = "ACCESS_COVER"
+	reasonCoverClassUnknown    = "COVER_CLASS_UNKNOWN"
+	reasonDisruptive           = "DISRUPTIVE"
+	reasonDestructiveButton    = "DESTRUCTIVE_BUTTON"
+	reasonOwnedService         = "OWNED_SERVICE"
+	reasonOwnedMember          = "OWNED_MEMBER"
+	reasonOwnedTypedMember     = "OWNED_TYPED_MEMBER"
+	reasonHassio               = "HASSIO_NOT_SUPPORTED"
+	reasonSelector             = "UNSUPPORTED_SELECTOR"
+	reasonCodeRequired         = "CODE_REQUIRED"
+	reasonFeature              = "UNSUPPORTED_FEATURE"
+	reasonExpanded             = "EXPANDED_TARGET"
+	reasonBatch                = "EXPLICIT_BATCH"
+	reasonStoredMembers        = "STORED_MEMBERS"
+	reasonNoRegistryRow        = "NO_REGISTRY_ROW"
+	reasonTemplateAction       = "TEMPLATE_ACTION_UNREAD"
+	reasonUserButton           = "USER_AUTHORED_BUTTON"
+	reasonUnregisteredActuator = "UNREGISTERED_ACTUATOR"
+	reasonUnreadCommand        = "UNREAD_COMMAND"
+	reasonTemplatedAction      = "TEMPLATED_ACTION"
+	reasonUnresolvedTarget     = "UNRESOLVED_TARGET"
+	reasonStoredSelector       = "STORED_SELECTOR"
+	reasonBlueprint            = "BLUEPRINT_UNRESOLVED"
+	reasonYAMLNoID             = "YAML_NO_ID"
+	reasonUnreadConfig         = "UNREAD_CONFIG"
+	reasonSceneAccess          = "INTEGRATION_SCENE_ACCESS"
+	reasonSceneUnread          = "INTEGRATION_SCENE_UNREAD"
+	reasonReload               = "RELOAD_UNENUMERATED"
+	reasonListener             = "UNENUMERABLE_LISTENER"
+	reasonListenerUnexpl       = "CALL_SERVICE_LISTENER_UNEXPLAINED"
+	reasonRunListenerUnexpl    = "RUN_EVENT_LISTENER_UNEXPLAINED"
+	reasonDeviceAccess         = "DEVICE_ACCESS"
+	reasonSwitchAsX            = "SWITCH_AS_X_ACCESS"
+	reasonResponseOnly         = "RESPONSE_ONLY_SERVICE"
+	reasonTargetRequired       = "TARGET_REQUIRED"
+	reasonConfigWrite          = "CONFIG_WRITE"
+	reasonConfigRevert         = "CONFIG_REVERT"
+	reasonConfigDelete         = "CONFIG_DELETE"
+	reasonManager              = "CONSUMER_MANAGER_PRESENT"
+	reasonScanFailed           = "SCAN_FAILED"
+	reasonLimitCut             = "LIMIT_CUT"
+	reasonIntegrationSvc       = "INTEGRATION_SERVICE"
+	reasonUserService          = "USER_AUTHORED_SERVICE"
+	noteTemplates              = "TEMPLATES_NOT_CHECKABLE"
+	noteNoManager              = "NO_LOCAL_CONSUMER_MANAGER" // informational: none installed locally
+	noteSkippedTargets         = "EXPANDED_TARGET_WITHOUT_STATE"
 )
 
 // Engine limits (spec §2.2 "Caching and limits"); any cut is LIMIT_CUT.
@@ -174,6 +174,15 @@ func init() {
 var alarmFeatureBits = map[string]int{
 	"alarm_arm_home": 1, "alarm_arm_away": 2, "alarm_arm_night": 4, "alarm_trigger": 8,
 	"alarm_arm_custom_bypass": 16, "alarm_arm_vacation": 32,
+}
+
+// Actuator domains YAML platforms (template, command_line, rest, mqtt) can
+// define without a unique_id: with no registry row the platform — and so
+// what acting on it runs — cannot be read.
+var unregisteredActuatorDomains = map[string]bool{
+	"button": true, "switch": true, "light": true, "fan": true, "cover": true, "lock": true, "select": true,
+	"number": true, "vacuum": true, "valve": true, "siren": true, "alarm_control_panel": true, "humidifier": true,
+	"climate": true, "water_heater": true, "lawn_mower": true, "text": true, "media_player": true,
 }
 
 // Cover classes known NOT to grant access; every other class — garage,

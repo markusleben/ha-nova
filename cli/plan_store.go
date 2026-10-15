@@ -119,7 +119,7 @@ func codeParts(plan storedPlan) (string, []string) {
 		// A create's id is a minted number the user never saw: name the code
 		// after the alias instead (same [a-z0-9_] charset, length bounded by
 		// confirmCode). Binding stays the hash+nonce suffix.
-		if request := plan.ConfigRequest; request != nil && request.Create {
+		if request := plan.ConfigRequest; request != nil && request.Minted { // a user-chosen --id stays the object
 			var draft struct {
 				Alias string `json:"alias"`
 			}

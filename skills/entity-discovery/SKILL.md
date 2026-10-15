@@ -154,7 +154,9 @@ This contract is generic — never hard-coded to a brand, to cameras, or to rest
 about STATE across many entities, not about finding one. They are reads and
 belong here; `ha-nova:health` answers what is broken, not what is on.
 
-By domain and state: `ha-nova find --domain light --state on`. A
+By domain and state: `ha-nova find --domain light --state on` (rows carry the current
+`state`); a second `find` with `--state unavailable` (and
+`unknown`) fills the third bucket. A
 `device_class` filter needs one raw read, `ha-nova relay core --method GET --path /api/states --out <result-file>`,
 filtered by domain, `device_class`, and state:
 
@@ -167,12 +169,12 @@ filtered by domain, `device_class`, and state:
 Three answers, not two: **yes / no / could not tell**. An entity that is
 `unknown` or `unavailable`, and one that is readable but does not report the
 thing being asked, both go in the third bucket and get named. "Everything is
-closed" with three sensors offline is the reassurance nobody should get —
-"none open, 3 could not be read" is the honest form.
+closed" with three sensors offline is false reassurance — "none open, 3 could
+not be read" is the honest form.
 
-Skip group helpers when counting: a Light Group is a real `light.*` entity
-beside its members, so it double-counts. They carry an `entity_id` LIST in
-their attributes — skip any entity whose `attributes.entity_id` is an array.
+Count group helpers separately: a Light Group is a real `light.*` entity
+beside its members, so it double-counts. `find` marks one `group: true`; raw reads
+show an `attributes.entity_id` array.
 (`switch_as_x` mirrors double-count too and carry no such marker; say so if
 the count looks high.)
 

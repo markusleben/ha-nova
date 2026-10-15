@@ -15,15 +15,19 @@ import (
 func TestUnregisteredButtonsAreTyped(t *testing.T) {
 	cases := []tierCase{
 		{name: "YAML template button press is typed", setup: func(f *fakeHA) { f.ent("button.yaml_gate", "", "unknown", nil) },
-			args: []string{"button.press", "button.yaml_gate"}, exit: 3, tier: "typed", reasons: []string{reasonUnreadableButton}},
+			args: []string{"button.press", "button.yaml_gate"}, exit: 3, tier: "typed", reasons: []string{reasonUnregisteredActuator}},
 		{name: "a stored press of it is typed", setup: func(f *fakeHA) {
 			f.ent("button.yaml_gate", "", "unknown", nil)
 			f.script("open", step("button.press", "button.yaml_gate"))
-		}, args: []string{"script.turn_on", "script.open"}, exit: 3, tier: "typed", reasons: []string{reasonUnreadableButton}},
+		}, args: []string{"script.turn_on", "script.open"}, exit: 3, tier: "typed", reasons: []string{reasonUnregisteredActuator}},
 		{name: "a registered demo button stays ordinary", setup: func(f *fakeHA) { f.ent("button.demo_doorbell", "demo", "unknown", nil) },
 			args: []string{"button.press", "button.demo_doorbell"}, exit: 0, tier: "ordinary"},
-		{name: "a YAML switch without registry row stays preview", setup: func(f *fakeHA) { f.ent("switch.yaml_plug", "", "off", nil) },
-			args: []string{"switch.turn_on", "switch.yaml_plug"}, exit: 3, tier: "preview", reasons: []string{reasonNoRegistryRow}},
+		{name: "any unregistered actuator is typed: a YAML switch", setup: func(f *fakeHA) { f.ent("switch.yaml_plug", "", "off", nil) },
+			args: []string{"switch.turn_on", "switch.yaml_plug"}, exit: 3, tier: "typed", reasons: []string{reasonUnregisteredActuator}},
+		{name: "and a YAML light", setup: func(f *fakeHA) { f.ent("light.yaml_lamp", "", "off", nil) },
+			args: []string{"light.turn_on", "light.yaml_lamp"}, exit: 3, tier: "typed", reasons: []string{reasonUnregisteredActuator}},
+		{name: "a non-actuator without registry row stays preview", setup: func(f *fakeHA) { f.ent("input_boolean.yaml_flag", "", "off", nil) },
+			args: []string{"input_boolean.turn_on", "input_boolean.yaml_flag"}, exit: 3, tier: "preview", reasons: []string{reasonNoRegistryRow}},
 	}
 	runTierCases(t, cases)
 }
@@ -44,7 +48,7 @@ func TestRefusalNextSteps(t *testing.T) {
 			t.Fatalf("%s keeps the call-only copy: %q", code, next)
 		}
 	}
-	if got := refused("PLAN_EXPIRED", "x").next; got != replan {
+	if got := refused("PLAN_INVALID", "x").next; got != replan || !strings.Contains(replan, "get confirmation again") {
 		t.Fatalf("plan-lifecycle refusal next %q", got)
 	}
 }
@@ -176,7 +180,7 @@ func TestVerificationKeepsTheLastGoodRead(t *testing.T) {
 	h := &writeHarness{t: t, f: f, paths: paths, log: log}
 	exit, env := h.run(runCallCommand, "light.turn_off", "light.kitchen")
 	row := env.Verification[0]
-	if exit != 6 || row.Outcome != "unverified" || row.Observed != "on" || !strings.Contains(row.Note, "still on after") || reads.Load() < 2 {
+	if exit != 6 || row.Outcome != "unverified" || row.Observed != "on" || row.Note != "last read on; later reads failed" || reads.Load() < 2 {
 		t.Fatalf("exit %d row %+v reads %d", exit, row, reads.Load())
 	}
 }

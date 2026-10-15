@@ -25,7 +25,7 @@ per their skill's Output Format and need no card file.
 - If raw automation IDs, helper IDs, config IDs, or entity IDs make the response more technical than helpful, summarize them in words or by count; show precise identifiers only for safety, disambiguation, or evidence.
 - Scratch payload/filter/result files are internal execution artifacts: never under the repo working tree, and never mentioned (paths, "edited files", payload or jq files) in progress updates, summaries, or final output unless the user asks for debugging details. Scratch files surfacing as workspace edits, or absolute scratch paths in visible command text, mean the scratch location/tooling was wrong.
 - Internal task, card, or payload labels (`Automation Payload`, `Apply And Verify`, `Run Post Write`, filter names, generated helper-step titles) are execution artifacts too — never in the user-facing answer.
-- Never show internal check codes such as `R-01` or `H-09`, plan ids, hashes, exit codes, or reason codes such as `ACCESS_LOCK`; describe them in plain language. Never cite a skill, file, or path as the reason ("the service-call skill requires…"); give the plain reason ("it unlocks a door").
+- Never show internal check codes such as `R-01` or `H-09`, plan ids, hashes, exit codes, or reason codes such as `ACCESS_LOCK`; describe them in plain language.
 
 ## Progressive Detail
 

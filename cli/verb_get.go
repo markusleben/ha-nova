@@ -50,7 +50,7 @@ func runGetCommand(paths runtimePaths, args []string) int {
 			// A registry-disabled automation/script/scene has no state but a
 			// stored config: resolve it through its registry row instead.
 			var missing *verbFailure
-			if !*withConfig || !errors.As(err, &missing) || (missing.code != "NOT_FOUND" && missing.code != "ENTITY_DISABLED") {
+			if !*withConfig || !errors.As(err, &missing) || (missing.code != "NOT_FOUND" && missing.code != "ENTITY_DISABLED" && missing.code != "ENTITY_NOT_LOADED") {
 				return err
 			}
 			if target, err = disabledConfigTarget(s, entityID); err != nil {
@@ -110,12 +110,15 @@ func readEntityState(s *relaySession, entityID string) (json.RawMessage, verbTar
 			DisabledBy string `json:"disabled_by"`
 		}
 		err := s.wsDecode(map[string]any{"type": "config/entity_registry/get", "entity_id": entityID}, &entry, "the registry entry of "+entityID)
-		if err == nil && entry.DisabledBy != "" { // registered but disabled: no state, not missing
+		switch {
+		case err == nil && entry.DisabledBy != "": // registered but disabled: no state, not missing
 			return nil, verbTarget{}, &verbFailure{exit: verbExitNotFound, code: "ENTITY_DISABLED",
-				message: fmt.Sprintf("%s is disabled in the entity registry (by %s)", entityID, entry.DisabledBy),
-				next:    "Enable it first (ha-nova:organize) or pick another entity."}
-		}
-		if err != nil && !isUpstreamNotFound(err) {
+				message: fmt.Sprintf("%s is disabled (by %s)", entityID, entry.DisabledBy), next: enableNext(entry.DisabledBy)}
+		case err == nil: // registered and enabled, yet no state: never a "did you mean" loop on itself
+			return nil, verbTarget{}, &verbFailure{exit: verbExitNotFound, code: "ENTITY_NOT_LOADED",
+				message: entityID + " is registered but has no state; its integration may not be loaded",
+				next:    "Check the integration (ha-nova:health, or Settings → Devices & services in Home Assistant)."}
+		case !isUpstreamNotFound(err):
 			return nil, verbTarget{}, err
 		}
 		domain, objectID, _ := strings.Cut(entityID, ".")
@@ -142,6 +145,18 @@ func readEntityState(s *relaySession, entityID string) (json.RawMessage, verbTar
 		return nil, verbTarget{}, fmt.Errorf("cannot parse the state of %s: %w", entityID, err)
 	}
 	return body, verbTarget{EntityID: entityID, Name: parsed.Attributes.FriendlyName, By: "exact"}, nil
+}
+
+// enableNext says how to re-enable by who disabled it, always with the plain
+// Home Assistant UI path (an MCP-only client has no organize skill).
+func enableNext(disabledBy string) string {
+	switch disabledBy {
+	case "device":
+		return "Its device is disabled: re-enable the device (Settings → Devices & services → Devices) or pick another entity."
+	case "integration", "config_entry":
+		return "Its integration is disabled: re-enable it in Settings → Devices & services, or pick another entity."
+	}
+	return "Enable it first (ha-nova:organize, or Settings → Devices & services → Entities) or pick another entity."
 }
 
 // resolveConfigID never derives the config id from the entity_id slug

@@ -54,9 +54,9 @@ The dispatch in `cli/main.go:65-133` gains `find get history plan call apply mcp
 
 | Class | Verb | Syntax |
 |---|---|---|
-| read | find | `ha-nova find ["<phrase>"] [--domain d] [--area <area_id>] [--state <s>] [--limit 20]` (the phrase is optional when a filter narrows the list; `--state` filters by current state with one `GET /api/states` and includes entities that have a state but no registry row) |
+| read | find | `ha-nova find ["<phrase>"] [--domain d] [--area <area_id>] [--state <s>] [--limit 20]` (the phrase is optional when a filter narrows the list; `--state` filters by current state with one `GET /api/states` and includes entities that have a state but no registry row; its rows carry the current `state` (`by:"state"` for one without registry row) and `group:true` for a group (an `entity_id` list attribute — it counts its members again); with `--state`, disabled entities never match (they have no state). Zero hits without a phrase is `ok` with `total:0`; a phrase without a hit is `NOT_FOUND`) |
 | read | get | `ha-nova get <entity_id> [--config] [--related]` (`--config` for automation/script/scene: resolves `unique_id` through the registry, never the slug, `relay-api.md:131-158`; a YAML or package automation/script without a UI config returns its loaded config (WS `automation/config`/`script/config` by entity_id) marked `managed: yaml` — readable, never editable through `plan write`) |
-| read | history | `ha-nova history <entity_id> [--since 24h] [--logbook]` (window ≤ 7d, ≤ 200 rows, summarized) |
+| read | history | `ha-nova history <entity_id> [--since 24h] [--until <duration ago or RFC3339>] [--logbook]` (each bound a duration ago or an RFC3339 time; until defaults to now and must follow since; window ≤ 7d, ≤ 200 rows, summarized) |
 | read | trace | unchanged (`cli/trace.go`) |
 | read* | plan | `ha-nova plan call <domain.service> <targets>`, `plan write --domain automation\|script [--id <cfg_id>] --file <draft.json>`, `plan delete <automation.x\|script.x>`, `plan revert [--target <id>]`. Only writes a local plan file. |
 | write | call | `ha-nova call <domain.service> [<entity_id>…] [--match "<phrase>"] [--area <id>] [--device <id>] [--set k=v]… [--data-file f]` |
@@ -77,7 +77,7 @@ Output envelope (`schema_version` 1; fields are omitted when empty):
  "members":[{"entity_id":"lock.front_door","action":"lock.unlock","via":"script.leave/sequence/2","class":"typed"}],
  "consumers":[{"automation":"automation.night","match":"trigger","class":"ordinary"}],
  "reasons":[{"code":"ACCESS_LOCK","entity_id":"lock.front_door"}],
- "coverage":{"complete":true,"notes":["TEMPLATES_NOT_CHECKABLE","NO_CONSUMER_MANAGER_INSTALLED"]},
+ "coverage":{"complete":true,"notes":["TEMPLATES_NOT_CHECKABLE","NO_LOCAL_CONSUMER_MANAGER"]},
  "diff":["| Trigger | 07:00 | 06:30 |"],
  "verification":[{"entity_id":"light.kitchen","expect":"off","observed":"off","outcome":"verified"}],
  "notices":[{"kind":"update|relay_outdated","text":"…"}],
@@ -121,7 +121,7 @@ Each step is the code form of an existing prose rule, cited per step.
 1. **Resolve and expand targets.**
    - Registry list rows carry neither aliases nor `device_class` (verified on HA 2026.10.1). Aliases come from `config/entity_registry/get_entries` for the in-scope candidates (chunks of 500); every `device_class` comes from state attributes. `plan`/`call --match` always runs this alias pass before accepting a unique match; `find` only lists and reads aliases on a name miss.
    - Explicit ids and `--match` use `config/entity_registry/list_for_display` once (`ei, en, pl, di, ai`; `relay-api.md:179`). The full `config/entity_registry/list` is read only when the compact match finds nothing; aliases (`get_entries`) only when its names miss too.
-   - An explicit id with no registry row (YAML entity without `unique_id`) resolves through an exact `GET /api/states/<entity_id>`. Its platform is unknown, so classification fails closed: typed when the domain or `device_class` is access-capable, preview otherwise — never the fast path.
+   - An explicit id with no registry row (YAML entity without `unique_id`) resolves through an exact `GET /api/states/<entity_id>`. Its platform is unknown, so classification fails closed: typed when the domain is an actuator a YAML platform can define (`UNREGISTERED_ACTUATOR`) or access-capable, preview otherwise — never the fast path (maintainer default 2026-10-15: legacy unregistered actuators are rare, the UX cost is accepted).
    - `--area` uses `search/related` on `item_type:"area"` and takes `.data.entity`, filtered by the service domain (`service-call/SKILL.md:95`).
    - `--device` filters the compact registry by `di`.
    - Groups (`attributes.entity_id` is an array) expand to their leaves with `membership_source: attributes`.
@@ -179,9 +179,9 @@ Reason codes (`cli/tier_rules.go`; `TestTierReasonCodesAreDocumented` pins each 
 | `EXPANDED_TARGET` | preview | area, device, or group expansion (I5) |
 | `EXPLICIT_BATCH` | preview | more than 10 explicit ids (§4) |
 | `STORED_MEMBERS` | preview | the direct target is a scene, script, or `automation.trigger` run (I5) |
-| `NO_REGISTRY_ROW` | preview or typed | explicit id without registry row (§2.2 step 1) |
+| `NO_REGISTRY_ROW` | preview or typed | a non-actuator entity without registry row (§2.2 step 1) |
 | `TEMPLATE_ACTION_UNREAD` | typed | `pl: template` target; its stored action is not read in v1 (What triggers the gate) |
-| `UNREADABLE_BUTTON` | typed | a button without a registry row (a YAML template button): its press runs what its author wired, unread (rule 3); other domains without a row stay `NO_REGISTRY_ROW` |
+| `UNREGISTERED_ACTUATOR` | typed | an actuator entity (button, switch, light, fan, cover, lock, select, number, valve, climate, …) with a state but no registry row: a YAML template/command_line/rest/mqtt entity runs whatever its author wired, unread (rule 3); other domains without a row stay `NO_REGISTRY_ROW` (preview) |
 | `USER_AUTHORED_BUTTON` | typed | `esphome`/`mqtt` button press (Expanding the members, buttons) |
 | `UNREAD_COMMAND` | typed | `python_script`, `shell_command`, `rest_command`, `pyscript`, `netdaemon` services; any `command_line`, `rest`, `telnet`, `tcp`, `serial` entity (Expanding the members) |
 | `TEMPLATED_ACTION` | typed | templated action name or `service_template` (When you cannot see the members) |
@@ -207,7 +207,7 @@ Reason codes (`cli/tier_rules.go`; `TestTierReasonCodesAreDocumented` pins each 
 | `SCAN_FAILED` | typed | any failed read inside the traversal (Limits you imposed) |
 | `LIMIT_CUT` | typed | any budget cut (Limits you imposed) |
 | `TEMPLATES_NOT_CHECKABLE` | note | the instance has template entities (step 5d) |
-| `NO_CONSUMER_MANAGER_INSTALLED` | note | informational, not a gap: the presence check found no Node-RED/AppDaemon/pyscript installed locally (step 5c) |
+| `NO_LOCAL_CONSUMER_MANAGER` | note | none installed locally — informational, not a gap: the presence check found no Node-RED/AppDaemon/pyscript here (an external one cannot be seen) (step 5c) |
 | `INTEGRATION_SERVICE` | preview | service of a non-core domain, targetless or on a device without access entities (step 2) |
 | `USER_AUTHORED_SERVICE` | typed | `esphome.*` API service defined in device YAML (rules 2 and 3) |
 | `EXPANDED_TARGET_WITHOUT_STATE` | note | an area/device/group leaf has no state (disabled or not loaded) and is not frozen (step 1) |
