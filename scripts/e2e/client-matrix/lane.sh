@@ -165,7 +165,9 @@ do_claude() { hn setup claude --non-interactive && check_claude "${FROM#v}"; }
 check_claude() { # ha-nova@ha-nova installed, enabled, at the runtime's version
   local out; out="$(claude_plugins 2>&1)"; printf '%s\n' "$out"
   out="$(grep -A4 'ha-nova@ha-nova' <<<"$out")"
-  grep -q "Version: $1" <<<"$out" && grep -q 'enabled' <<<"$out" &&
+  # An RC plugin carries its base version; the release dir names the exact tag.
+  grep -q "Version: ${1%%-rc*}$" <<<"$out" && grep -q "releases/v$1/" <<<"$out" &&
+    grep -q 'enabled' <<<"$out" &&
     echo "note: ha-nova@ha-nova v$1 enabled (isolated CLAUDE_CONFIG_DIR)"
 }
 
