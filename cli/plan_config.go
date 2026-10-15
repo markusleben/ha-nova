@@ -20,7 +20,7 @@ import (
 // action), delete is always typed. Nothing here writes; apply executes.
 
 const (
-	planWriteUsage  = "ha-nova plan write --domain automation|script [--id <config_id>] --file <draft.json>"
+	planWriteUsage  = "ha-nova plan write --domain automation|script [--id <config_id>] [--create] --file <draft.json>"
 	planDeleteUsage = "ha-nova plan delete <automation.x|script.x>"
 	planRevertUsage = "ha-nova plan revert [--target <config_id>] [--domain automation|script]"
 )
@@ -118,6 +118,7 @@ func runPlanConfig(paths runtimePaths, op string, args []string) int {
 	switch op {
 	case "write":
 		fs.StringVar(&req.ConfigID, "id", "", "config id to update (or create with); minted when absent")
+		fs.BoolVar(&req.Create, "create", false, "a new item: refuse if the config id already exists (never overwrites)")
 		fs.StringVar(&draftFile, "file", "", "the full draft config as a JSON object")
 	case "revert":
 		fs.StringVar(&req.ConfigID, "target", "", "config id of the update to revert (default: the newest)")
@@ -164,6 +165,9 @@ func (req *configRequest) parseInput(positional []string, draftFile string) erro
 			return fmt.Errorf("--file must hold one JSON object: %w", err)
 		}
 		req.Draft = exact
+		if _, carriesID := draft["id"]; carriesID && req.Create && req.Domain == "automation" {
+			return errors.New("a new automation's draft must not carry an id (a copied id would collide); remove it, or pass --id")
+		}
 		if id, _ := draft["id"].(string); id != "" && req.Domain == "automation" {
 			if req.ConfigID != "" && req.ConfigID != id {
 				return fmt.Errorf("the draft's id %q differs from --id %q", id, req.ConfigID)
@@ -253,7 +257,7 @@ func computeConfigPlan(paths runtimePaths, s *relaySession, env *verbEnvelope, r
 	case req.Op == "delete" && current == nil:
 		return fail(&verbFailure{exit: verbExitNotFound, code: "CONFIG_NOT_FOUND", message: req.EntityID + " has no stored config to delete"})
 	case req.Op == "write" && req.Create && current != nil:
-		return fail(refused("CONFIG_ID_IN_USE", "the minted config id "+req.ConfigID+" already exists; plan again"))
+		return fail(refused("CONFIG_ID_IN_USE", "config id "+req.ConfigID+" already exists; a create never overwrites — plan again for a new id, or plan an update with --id (without --create) if replacing it is intended"))
 	case req.Op == "revert":
 		if live := current; live == nil {
 			return fail(revertDrift(req.ConfigID + " no longer exists"))

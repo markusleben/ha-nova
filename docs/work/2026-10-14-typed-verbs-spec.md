@@ -421,3 +421,4 @@ PR2 implementation defaults (fail closed; open for maintainer review)
 - A failed read during target resolution is a typed gap (exit 3); a selector that resolves to nothing because its read failed is `UNRESOLVED_TARGET`, and PR3 `apply` must never execute a plan whose request named targets but froze none.
 - A present consumer manager is preview for every target, trigger sources included (Q2 wording), although the prose escalates trigger sources further.
 - `call_service` listeners ignore `event_data` filters: every enumerated listener counts as a consumer of the run (over-approximation).
+- PR6 follow-up landed in the same PR: `plan write --create` refuses an existing config id (`CONFIG_ID_IN_USE`) and an `id` inside an automation draft, so a copied automation can never overwrite its original; the write skill passes `--create` on every create.

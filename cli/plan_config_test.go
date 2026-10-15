@@ -297,3 +297,26 @@ func TestPlanRevertRefusesHelperCheckpointNamingTheHelperSkill(t *testing.T) {
 		t.Fatalf("exit %d env %+v", exit, env)
 	}
 }
+
+// --create never overwrites: an existing id is refused, and a copied
+// automation draft that still carries its original's id is refused before
+// anything is planned.
+func TestPlanWriteCreateNeverOverwrites(t *testing.T) {
+	f := newFakeHA()
+	f.storeConfig("/api/config/automation/config/a1", hallDraft("light.turn_on"))
+	h := newWriteHarness(t, f)
+	if exit, env := h.run(runPlanCommand, "write", "--domain", "automation", "--create", "--id", "a1", "--file", draftFile(t, hallDraft("light.turn_off"))); exit != 4 || env.Error == nil || env.Error.Code != "CONFIG_ID_IN_USE" {
+		t.Fatalf("existing id: exit %d env %+v", exit, env)
+	}
+	copied := hallDraft("light.turn_off")
+	copied["id"] = "a1"
+	if exit, env := h.run(runPlanCommand, "write", "--domain", "automation", "--create", "--file", draftFile(t, copied)); exit != 1 || env.Error == nil || env.Error.Code != "USAGE" {
+		t.Fatalf("copied id: exit %d env %+v", exit, env)
+	}
+	if exit, env := h.run(runPlanCommand, "write", "--domain", "automation", "--create", "--file", draftFile(t, hallDraft("light.turn_off"))); exit != 3 || env.Config == nil || env.Config.Op != "write" {
+		t.Fatalf("fresh create: exit %d env %+v", exit, env)
+	}
+	if len(h.writes()) != 0 {
+		t.Fatalf("planning wrote: %v", h.writes())
+	}
+}

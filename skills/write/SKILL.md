@@ -26,20 +26,19 @@ prefix `HA_NOVA_SERVER=<name>`); name a non-default server once per response.
 
 Typed verbs only — this skill sends no raw `ha-nova relay` config write:
 - Read: `ha-nova find "<phrase>" --domain automation|script`; `ha-nova get <entity_id> --config` (current config + `config_id` from the registry `unique_id`, never the slug); `ha-nova get <entity_id> --related` (who uses an entity).
-- Plan (read-only): `ha-nova plan write --domain automation|script [--id <config_id>] --file <draft.json>`, `ha-nova plan delete <entity_id>`, `ha-nova plan revert [--target <config_id>] [--domain <d>]`.
+- Plan (read-only): `ha-nova plan write --domain automation|script [--id <config_id> | --create] --file <draft.json>`, `ha-nova plan delete <entity_id>`, `ha-nova plan revert [--target <config_id>] [--domain <d>]`.
 - Execute: `ha-nova apply --plan <id> [--confirm <code>] [--no-snapshot]`.
 - Duration halves: `ha-nova get` (restore value, read-back), `ha-nova plan call` + `apply` (`skills/service-call/SKILL.md` exit-code rules).
 
 The draft is the full config as one JSON object in a client-private scratch
 file. The CLI posts its bytes exactly, so key order is behavior: `variables`,
 `trigger_variables`, and script `fields` evaluate top-down — keep an existing
-item's order. Every update passes `--id <config_id>` from `get --config`. A
-create never carries `id` in the draft and never passes `--id` for an
-automation (the CLI mints a fresh id); a script draft has no `id`, its key
-comes from the alias (or `--id` only for a key the user chose) and becomes
-`script.<key>`. The plan is an upsert by id, so check it: a create whose
-`diff` shows any before value would overwrite an existing item, and an update
-whose `diff` has no before side means the item is gone — STOP and ask.
+item's order. Every update passes `--id <config_id>` from `get --config`.
+Every create passes `--create`: the CLI refuses an existing id and an `id`
+inside an automation draft, so a copy never overwrites its original (the CLI
+mints automation ids; a script key comes from the alias, or `--id` only for a
+key the user chose, and becomes `script.<key>`). An update whose `diff` has no
+before side means the item is gone — STOP and ask.
 
 ## Flow
 
