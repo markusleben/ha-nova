@@ -153,7 +153,7 @@ func enableNext(disabledBy string) string {
 	switch disabledBy {
 	case "device":
 		return "Its device is disabled: re-enable the device (Settings → Devices & services → Devices) or pick another entity."
-	case "integration", "config_entry":
+	case "config_entry": // "integration" only means disabled by default: the user may enable it
 		return "Its integration is disabled: re-enable it in Settings → Devices & services, or pick another entity."
 	}
 	return "Enable it first (ha-nova:organize, or Settings → Devices & services → Entities) or pick another entity."

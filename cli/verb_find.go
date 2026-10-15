@@ -170,7 +170,9 @@ func filterByState(s *relaySession, matches []verbTarget, q findQuery) ([]verbTa
 	current, group := map[string]string{}, map[string]bool{}
 	for _, st := range states {
 		current[st.EntityID] = st.State
-		_, group[st.EntityID] = st.Attributes.Members.([]any) // a group counts its members again
+		if domain, _ := splitID(st.EntityID); !notGroupDomains[domain] {
+			_, group[st.EntityID] = st.Attributes.Members.([]any) // a group counts its members again
+		}
 	}
 	var compact struct {
 		Entities []struct{ EI string } `json:"entities"`

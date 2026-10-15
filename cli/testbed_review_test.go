@@ -61,7 +61,7 @@ func TestCreateCollisionsAndCodes(t *testing.T) {
 	}
 	script := map[string]any{"alias": "Hall motion", "sequence": []any{step("lock.unlock", "lock.front")}}
 	exit, env = h.run(runPlanCommand, "write", "--domain", "script", "--file", draftFile(t, script))
-	if exit != 4 || env.Error.Code != "CONFIG_ID_IN_USE" || !strings.Contains(env.Error.Next, "another --id") {
+	if exit != 4 || env.Error.Code != "CONFIG_ID_IN_USE" || !strings.Contains(env.Error.Next, "--id <new> --create") {
 		t.Fatalf("script: exit %d env %+v", exit, env)
 	}
 	_, env = h.run(runPlanCommand, "write", "--domain", "script", "--create", "--id", "front_open", "--file", draftFile(t, script))
@@ -135,6 +135,7 @@ func TestConfigDeleteVerifyReadFailed(t *testing.T) {
 func TestFindByStateDetails(t *testing.T) {
 	f := newFakeHA()
 	f.ent("light.all", "", "on", map[string]any{"entity_id": []any{"light.kitchen"}}) // a YAML light group
+	f.ent("scene.movie", "", "on", map[string]any{"entity_id": []any{"light.kitchen"}})
 	h := newWriteHarness(t, f)
 	if exit, env := h.run(runFindCommand, "--domain", "fan", "--state", "on"); exit != 0 || !strings.Contains(string(env.Result), `"total":0`) {
 		t.Fatalf("empty listing: exit %d %s", exit, env.Result)
@@ -145,6 +146,9 @@ func TestFindByStateDetails(t *testing.T) {
 	_, env := h.run(runFindCommand, "--domain", "light", "--state", "on")
 	var result findResult
 	_ = json.Unmarshal(env.Result, &result)
+	if _, scenes := h.run(runFindCommand, "--domain", "scene", "--state", "on"); strings.Contains(string(scenes.Result), `"group":true`) {
+		t.Fatalf("a scene marked as group: %s", scenes.Result)
+	}
 	for _, m := range result.Matches {
 		if m.State != "on" || m.Group != (m.EntityID == "light.all") || (m.Group && m.By != "state") {
 			t.Fatalf("row %+v", m)
@@ -161,7 +165,7 @@ func TestDisabledAndUnloadedEntities(t *testing.T) {
 	}
 	f.unique["light.ghost"] = "g1"
 	h := newWriteHarness(t, f)
-	for id, want := range map[string]string{"light.d": "device is disabled", "light.i": "integration is disabled", "light.c": "integration is disabled", "light.u": "ha-nova:organize"} {
+	for id, want := range map[string]string{"light.d": "device is disabled", "light.i": "ha-nova:organize", "light.c": "integration is disabled", "light.u": "ha-nova:organize"} {
 		if exit, env := h.run(runGetCommand, id); exit != 5 || env.Error.Code != "ENTITY_DISABLED" || !strings.Contains(env.Error.Next, want) {
 			t.Fatalf("%s: exit %d env %+v", id, exit, env.Error)
 		}
@@ -183,6 +187,9 @@ func TestHistoryBounds(t *testing.T) {
 	since, until, err := historyBounds("2026-10-15T09:00:00Z", "90m", now)
 	if err != nil || !since.Equal(now.Add(-3*time.Hour)) || !until.Equal(now.Add(-90*time.Minute)) {
 		t.Fatalf("since %v until %v err %v", since, until, err)
+	}
+	if _, _, err := historyBounds("24h", "8d", now); err == nil || !strings.Contains(err.Error(), "--until must be a duration ago of at most 7d") {
+		t.Fatalf("--until 8d: %v", err)
 	}
 	for _, bad := range [][2]string{{"1h", "2h"}, {"9d", "1h"}, {"1h", "soon"}} {
 		if _, _, err := historyBounds(bad[0], bad[1], now); err == nil {
@@ -207,10 +214,31 @@ func TestMCPNextStep(t *testing.T) {
 		t.Fatalf("flag next %q", step)
 	}
 	step = nextStep(map[string]any{"error": map[string]any{"next": refusalNext["REVERT_UNSUPPORTED"]}})
-	if !strings.Contains(step, "ha_plan kind revert id <config_id>") || !strings.Contains(step, "Home Assistant (Settings)") {
+	if !strings.Contains(step, "ha_plan with kind revert and id <config_id>") || !strings.Contains(step, "Home Assistant (Settings)") {
 		t.Fatalf("skill next %q", step)
 	}
 	if step := nextStep(map[string]any{"error": map[string]any{"next": refusalNext["CODE_MISMATCH"]}}); step != "" {
 		t.Fatalf("plain next rewritten: %q", step)
+	}
+	step = nextStep(map[string]any{"error": map[string]any{"next": refusalNext["CONFIG_NOT_UI_MANAGED"]}})
+	if !strings.Contains(step, "Developer tools → YAML") || strings.Contains(step, "(Settings)") {
+		t.Fatalf("yaml-config next %q", step)
+	}
+	step = nextStep(map[string]any{"error": map[string]any{"next": enableNext("device")}})
+	if strings.Contains(step, "need a client with a shell") || step != "" {
+		t.Fatalf("a next already naming Settings got the fallback: %q", step)
+	}
+	if step := nextStep(map[string]any{"error": map[string]any{"code": "SERVER_MISMATCH", "next": refusalNext["SERVER_MISMATCH"]}}); step != "This plan belongs to another server; plan again here." {
+		t.Fatalf("server mismatch %q", step)
+	}
+	if step := nextStep(map[string]any{"error": map[string]any{"next": configIDInUseNext("script")}}); !strings.Contains(step, "id <new> create: true") {
+		t.Fatalf("script collision %q", step)
+	}
+	temp := &mcpTempFiles{}
+	t.Cleanup(temp.remove)
+	argv, err := planArgv(map[string]json.RawMessage{"kind": json.RawMessage(`"write"`), "domain": json.RawMessage(`"script"`),
+		"id": json.RawMessage(`"x"`), "create": json.RawMessage(`true`), "draft": json.RawMessage(`{}`)}, temp)
+	if err != nil || !slices.Contains(argv, "--create") {
+		t.Fatalf("ha_plan create argv %v err %v", argv, err)
 	}
 }

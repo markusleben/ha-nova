@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	historyUsage     = "ha-nova history <entity_id> [--since 24h|<RFC3339>] [--until <duration ago>|<RFC3339>] [--logbook]"
+	historyUsage     = "ha-nova history <entity_id> [--since 24h|<RFC3339>] [--until <duration ago>|<RFC3339>] [--logbook] (durations ago and the window: at most 7d)"
 	historyMaxWindow = 7 * 24 * time.Hour
 	historyMaxRows   = 200
 )
@@ -118,7 +118,7 @@ func historyBounds(sinceRaw, untilRaw string, now time.Time) (time.Time, time.Ti
 		}
 		ago, err := parseHistoryWindow(raw)
 		if err != nil {
-			return time.Time{}, fmt.Errorf("%s must be a duration ago (90m, 24h, 7d) or an RFC3339 time", flag)
+			return time.Time{}, fmt.Errorf("%s must be a duration ago of at most 7d (90m, 24h, 7d) or an RFC3339 time", flag)
 		}
 		return now.Add(-ago), nil
 	}
@@ -151,7 +151,7 @@ func parseHistoryWindow(raw string) (time.Duration, error) {
 		window, err = time.ParseDuration(raw)
 	}
 	if err != nil || window <= 0 || window > historyMaxWindow {
-		return 0, errors.New("--since must be a positive window of at most 7d (e.g. 90m, 24h, 7d)")
+		return 0, errors.New("not a positive duration of at most 7d")
 	}
 	return window, nil
 }

@@ -26,6 +26,14 @@ func TestUnregisteredButtonsAreTyped(t *testing.T) {
 			args: []string{"switch.turn_on", "switch.yaml_plug"}, exit: 3, tier: "typed", reasons: []string{reasonUnregisteredActuator}},
 		{name: "and a YAML light", setup: func(f *fakeHA) { f.ent("light.yaml_lamp", "", "off", nil) },
 			args: []string{"light.turn_on", "light.yaml_lamp"}, exit: 3, tier: "typed", reasons: []string{reasonUnregisteredActuator}},
+		{name: "an unregistered template update run by a script is typed", setup: func(f *fakeHA) {
+			f.ent("update.yaml_fw", "", "on", nil)
+			f.script("upgrade", step("update.install", "update.yaml_fw"))
+		}, args: []string{"script.turn_on", "script.upgrade"}, exit: 3, tier: "typed", reasons: []string{reasonUnregisteredActuator}},
+		{name: "a YAML light group stays preview: its members are classified", setup: func(f *fakeHA) {
+			f.ent("light.yaml_group", "", "on", map[string]any{"entity_id": []any{"light.kitchen", "light.hall"}})
+			f.script("dark", step("light.turn_off", "light.yaml_group"))
+		}, args: []string{"script.turn_on", "script.dark"}, exit: 3, tier: "preview", reasons: []string{reasonNoRegistryRow}, absent: []string{reasonUnregisteredActuator}},
 		{name: "a non-actuator without registry row stays preview", setup: func(f *fakeHA) { f.ent("input_boolean.yaml_flag", "", "off", nil) },
 			args: []string{"input_boolean.turn_on", "input_boolean.yaml_flag"}, exit: 3, tier: "preview", reasons: []string{reasonNoRegistryRow}},
 	}

@@ -125,7 +125,7 @@ var refusalNext = map[string]string{
 // overwrite without them meaning it.
 func configIDInUseNext(domain string) string {
 	if domain == "script" {
-		return "The name is taken: ask the user for another --id; update the existing script only if they mean to replace it."
+		return "The name is taken: ask the user for another name, then plan again with --id <new> --create; update the existing script only if they mean to replace it."
 	}
 	return "Plan again without --id (a new id is minted); update the existing automation only if the user means to replace it."
 }

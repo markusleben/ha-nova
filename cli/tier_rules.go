@@ -183,7 +183,10 @@ var unregisteredActuatorDomains = map[string]bool{
 	"button": true, "switch": true, "light": true, "fan": true, "cover": true, "lock": true, "select": true,
 	"number": true, "vacuum": true, "valve": true, "siren": true, "alarm_control_panel": true, "humidifier": true,
 	"climate": true, "water_heater": true, "lawn_mower": true, "text": true, "media_player": true,
+	"update": true, // a template update's install: runs any script
 }
+
+const unregisteredActuatorDetail = "defined in YAML without a unique_id, so what it runs can't be read; adding a unique_id helps for MQTT/KNX-style entities — template and command-line ones still need the code"
 
 // Cover classes known NOT to grant access; every other class — garage,
 // gate, door, a custom one, or none — is access-capable (fail closed, Q3).

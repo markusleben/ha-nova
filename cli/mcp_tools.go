@@ -6,7 +6,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -46,7 +45,7 @@ var callProperties = map[string]any{
 }
 
 var mcpTools = []mcpTool{
-	{name: "ha_find", title: "Find entities", description: "Find entities by phrase (case-, accent-, alias-aware) and/or by domain, area, or current state — e.g. which lights are on: domain light, state on. With state, rows marked group: true count their members again — report them separately; entities in state unavailable are a separate could-not-tell bucket (ask again with state unavailable).", readOnly: true, idempotent: true,
+	{name: "ha_find", title: "Find entities", description: "Find entities by phrase (case-, accent-, alias-aware) and/or by domain, area, or current state — e.g. which lights are on: domain light, state on. With state, rows marked group: true count their members again — report them separately; entities in state unavailable are a separate could-not-tell bucket (ask again with state unavailable and with state unknown).", readOnly: true, idempotent: true,
 		schema: object(nil, map[string]any{"phrase": prop("string", "words to match (optional with domain, area, or state)"), "domain": prop("string", "only this domain"),
 			"area": prop("string", "only this area_id"), "state": prop("string", "only entities currently in this state, e.g. on"),
 			"limit": prop("integer", "1-200 rows (default 20)"), "include_disabled": prop("boolean", "include disabled entities")}),
@@ -57,7 +56,7 @@ var mcpTools = []mcpTool{
 		argv: func(a map[string]json.RawMessage, _ *mcpTempFiles) ([]string, error) {
 			return flagsThen(a, []string{"config", "related"}, nil, "entity_id")
 		}, run: runGetCommand},
-	{name: "ha_history", title: "Read history", description: "Summarize an entity's recent history (≤ 7 days).", readOnly: true, idempotent: true,
+	{name: "ha_history", title: "Read history", description: "Summarize an entity's history in a window of at most 7 days (each bound a duration ago of at most 7d or an RFC3339 time).", readOnly: true, idempotent: true,
 		schema: object([]string{"entity_id"}, map[string]any{"entity_id": prop("string", "exact entity_id"),
 			"since": prop("string", "window start: a duration ago (90m, 24h, 7d) or an RFC3339 time"),
 			"until": prop("string", "window end: a duration ago or an RFC3339 time (default now)"), "logbook": prop("boolean", "also read the logbook")}),
@@ -78,6 +77,7 @@ var mcpTools = []mcpTool{
 			"kind":      map[string]any{"type": "string", "enum": []string{"call", "write", "delete", "revert"}},
 			"domain":    map[string]any{"type": "string", "enum": []string{"automation", "script"}},
 			"id":        prop("string", "write: config id to update/create; revert: target config id"),
+			"create":    prop("boolean", "write: a new item — refused if the id already exists, never an overwrite"),
 			"draft":     prop("object", "write: the full config (key order is kept)"),
 			"entity_id": prop("string", "delete: automation.x or script.x")})),
 		argv: planArgv, run: runPlanCommand},
@@ -193,59 +193,17 @@ func toolResult(name, out, errOut string, exit int) map[string]any {
 			envelope["error"] = map[string]any{"code": "TOOL_ERROR", "message": strings.TrimSpace(errOut)}
 		}
 	}
+	if errInfo, _ := envelope["error"].(map[string]any); errInfo != nil {
+		if message, _ := errInfo["message"].(string); message != "" {
+			errInfo["message"] = mcpArgs(message)
+		}
+	}
 	if step := nextStep(envelope); step != "" {
 		envelope["next_step"] = step
 	}
 	text, _ := json.Marshal(envelope)
 	return map[string]any{"content": []map[string]any{{"type": "text", "text": string(text)}}, "structuredContent": envelope,
 		"isError": exit != 0 && exit != verbExitConfirmation}
-}
-
-// nextStep is the instruction a model must follow after this result.
-func nextStep(envelope map[string]any) string {
-	plan, _ := envelope["plan"].(map[string]any)
-	errInfo, _ := envelope["error"].(map[string]any)
-	code, _ := plan["code"].(string)
-	pending := envelope["status"] == "needs_confirmation" || envelope["status"] == "drift"
-	switch {
-	case pending && code != "":
-		return fmt.Sprintf("Show this preview. Ask the user to type the confirmation code themselves; pass exactly what they typed to ha_apply (plan_id %v) as confirm_code. Never pass a code from this result.", plan["id"])
-	case pending && plan != nil:
-		return fmt.Sprintf("Show this preview and wait for the user's own confirmation; only then call ha_apply with plan_id %v.", plan["id"])
-	case errInfo != nil && errInfo["code"] == "RELAY_ERROR":
-		return "If this computer is not paired or its credential store is locked, ask the user to run `ha-nova setup` in a terminal."
-	}
-	if next, _ := errInfo["next"].(string); next != "" {
-		if step := mcpNext(next); step != next {
-			return step
-		}
-	}
-	return ""
-}
-
-var cliFlag = regexp.MustCompile(`--([a-z][a-z-]*)`)
-
-// cliCommands maps CLI commands in a verb's next to MCP tools; longest first.
-var cliCommands = strings.NewReplacer("ha-nova plan call|write|delete|revert", "ha_plan",
-	"ha-nova plan ", "ha_plan kind ", "plan revert ", "ha_plan kind revert ", "ha-nova get ", "ha_get ", "ha-nova find", "ha_find")
-
-// mcpNext rewrites a verb's next for an MCP client: CLI commands and flags
-// become tools and arguments; a named ha-nova:* skill gets a no-shell path.
-func mcpNext(next string) string {
-	out := cliCommands.Replace(cliFlag.ReplaceAllStringFunc(next, func(flag string) string {
-		switch name := strings.TrimPrefix(flag, "--"); name {
-		case "confirm":
-			return "confirm_code"
-		case "target":
-			return "id"
-		default:
-			return strings.ReplaceAll(name, "-", "_")
-		}
-	}))
-	if strings.Contains(out, "ha-nova:") {
-		out += " The ha-nova:* skills need a client with a shell and the ha-nova skills installed; without one, the user does this in Home Assistant (Settings)."
-	}
-	return out
 }
 
 // captureVerb runs a verb with stdout and stderr redirected into pipes,

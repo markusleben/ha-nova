@@ -253,14 +253,12 @@ func (e *tierEngine) classify(id, service string, data map[string]any, depth int
 	switch pl := entry.pl; {
 	case !registered && st != nil:
 		// Platform unknown (YAML without unique_id): never ordinary; typed
-		// when access-capable (spec §2.2 step 1).
+		// for an actuator (spec §2.2 step 1). A YAML group's members are
+		// expanded and classified one by one below.
 		switch {
-		case unregisteredActuatorDomains[domain]: // a YAML template/command_line/rest/mqtt entity: its action is whatever its author wired, unread
+		case unregisteredActuatorDomains[domain] && groupMembers(domain, st) == nil: // a YAML template/command_line/rest/mqtt entity: its action is whatever its author wired, unread
 			level = tierTyped
-			e.gap(reasonUnregisteredActuator, id, via, "")
-		case accessCapable(id, st.str("device_class")):
-			level = tierTyped
-			e.gap(reasonNoRegistryRow, id, via, "")
+			e.gap(reasonUnregisteredActuator, id, via, unregisteredActuatorDetail)
 		default:
 			level, e.complete = max(level, tierPreview), false
 			e.raise(tierPreview, tierReason{Code: reasonNoRegistryRow, EntityID: id, Via: via})
@@ -299,9 +297,13 @@ func (e *tierEngine) classify(id, service string, data map[string]any, depth int
 	e.scanConsumers(id, depth)
 }
 
+// notGroupDomains carry an attributes.entity_id list that is not group
+// membership (a scene's targets).
+var notGroupDomains = map[string]bool{"scene": true, "script": true, "automation": true}
+
 // groupMembers returns attributes.entity_id of a group-like entity, or nil.
 func groupMembers(domain string, st *entityState) []string {
-	if domain == "scene" || domain == "script" || domain == "automation" {
+	if notGroupDomains[domain] {
 		return nil
 	}
 	list, isList := st.attr("entity_id").([]any)
