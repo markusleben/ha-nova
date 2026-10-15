@@ -464,13 +464,20 @@ log "Syncing app files to ${REMOTE_ADDON_DIR}/"
 # NOTE: Do NOT copy config.yaml into app/ — the Supervisor uses **/config.*
 # glob and a duplicate causes translations/metadata to be lost.
 ADDON_FILES=(Dockerfile package.json package-lock.json tsconfig.json run config.yaml version.json DOCS.md CHANGELOG.md icon.png "icon@2x.png" logo.png "logo@2x.png")
+# A dev deploy must BUILD the local code: with `image:` Supervisor would pull
+# the published image instead, so the deployed config drops it.
+DEV_CONFIG="$(mktemp)"
+trap 'rm -f "$DEV_CONFIG"' EXIT
+grep -v '^image:' "${PROJECT_ROOT}/nova/config.yaml" > "$DEV_CONFIG"
 for f in "${ADDON_FILES[@]}"; do
-  if [[ -f "${PROJECT_ROOT}/nova/${f}" ]]; then
+  src="${PROJECT_ROOT}/nova/${f}"
+  [[ "$f" == "config.yaml" ]] && src="$DEV_CONFIG"
+  if [[ -f "$src" ]]; then
     scp -i "$HA_SSH_KEY" \
       -o StrictHostKeyChecking=accept-new \
       -o BatchMode=yes \
       -P "$SSH_PORT" \
-      "${PROJECT_ROOT}/nova/${f}" \
+      "$src" \
       "${SSH_USER}@${HA_HOST}:${REMOTE_ADDON_DIR}/${f}"
   fi
 done

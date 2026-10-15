@@ -229,6 +229,29 @@ describe("release contract", () => {
     );
   });
 
+  it("rejects non-canonical App image versions before registry checks", () => {
+    const result = spawnSync(
+      "bash",
+      ["scripts/release/verify-app-image.sh", "01.2.3"],
+      { encoding: "utf8" },
+    );
+    expect(result.status).not.toBe(0);
+    expect(`${result.stdout}\n${result.stderr}`).toContain(
+      "App version must be canonical X.Y.Z",
+    );
+  });
+
+  it("publishes App images only from the package-write job, gated by app-image-verify", () => {
+    const appImage = readFileSync(".github/workflows/app-image.yml", "utf8");
+    expect(appImage.match(/packages: write/g)).toHaveLength(1);
+    expect(appImage).toContain("name: app-image-verify");
+    // A skipped required check counts as passed: verify must always run.
+    expect(appImage).toContain("if: ${{ always() }}");
+    expect(appImage).toContain("github.event.pull_request.head.repo.full_name == github.repository");
+    expect(appImage).toContain("refusing to publish");
+    expect(releasing).toContain("app-image-verify");
+  });
+
   it("keeps the RC workflow free of winget artifacts and guidance", () => {
     expect(rcWorkflow).toContain("Build install bundles");
     expect(rcWorkflow).toContain("Upload RC artifacts");
