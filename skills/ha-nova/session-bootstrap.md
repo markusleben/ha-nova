@@ -1,23 +1,23 @@
 # Session Bootstrap
 
-Apply this contract before the first Home Assistant task in a session,
-regardless of which HA NOVA skill was loaded directly.
+Apply this contract before the first Home Assistant task in a session.
 
 ## Check
 
 1. Before the selected server profile's
    first Home Assistant or HA NOVA task, and before any relay command or typed
-   verb, run `ha-nova check-update --quiet` (it also self-heals client
-   integrations and checks for a Relay App update).
-2. Typed verbs (`ha-nova find|get|history|plan|call|apply`) report later
-   status in their JSON `notices[]` (`kind: update` or `relay_outdated`):
-   the same status as step 1, never a substitute for it.
-3. Run one check for every server profile used in this agent session, with the
-   task's `HA_NOVA_SERVER=<name>` selection. Remember a completed check even
-   when it is empty or fails; continue the requested task either way. Empty
-   output stays silent.
-4. `[ha-nova]` lines from relay commands are the same status. Never repeat a
-   notice already surfaced in this session.
+   verb, run `ha-nova check-update --quiet` in the same shell command
+   as that first call: `ha-nova check-update --quiet; ha-nova call …` (a
+   `HA_NOVA_SERVER=<name>` prefix covers only the command it precedes: repeat
+   it). Once a typed verb or relay command for that server answered, a
+   bare `ha-nova relay health` preflight is done; a skill reading its output
+   still runs it.
+2. Run one check for every server profile used in this agent session, with its
+   `HA_NOVA_SERVER=<name>`. A check counts even when empty or failed;
+   continue either way; empty output stays silent.
+3. Later status arrives in typed verbs' `notices[]` (`update`,
+   `relay_outdated`) and `[ha-nova]` relay lines — never a substitute for
+   step 1. Never repeat a notice already surfaced in this session.
 
 ## HA NOVA Update Callout
 

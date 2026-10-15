@@ -13,14 +13,15 @@ Run Home Assistant services now — devices, scenes, scripts, automations, locks
 
 ## Bootstrap (once per session)
 
-Read and follow `../ha-nova/session-bootstrap.md`; later verbs report the same status in `notices[]`. No health probe: an unreachable Relay answers exit 1 `RELAY_ERROR` (then `ha-nova setup` or `ha-nova:onboarding`). Multi-server: add `--server <name>` to every verb (or prefix `HA_NOVA_SERVER=<name>`) and name a non-default server once per response.
+Read and follow `../ha-nova/session-bootstrap.md`. No health probe: an unreachable Relay answers exit 1 `RELAY_ERROR` (then `ha-nova setup` or `ha-nova:onboarding`). Multi-server: add `--server <name>` to every verb (or prefix `HA_NOVA_SERVER=<name>`) and name a non-default server once per response.
 
 ## Relay Contract
 
 Entity service calls run only through the typed verbs:
 - `ha-nova call <domain.service> [<entity_id>…] [--match "<phrase>"] [--area <area_id>] [--device <device_id>] [--set k=v]… [--data-file <file>]`
 - `ha-nova apply --plan <id> [--confirm <code>]`
-- `ha-nova plan call …` (same arguments): read-only "what would happen" answer, never executes.
+- `ha-nova plan call …`: read-only "what would happen" answer, never executes.
+- Look up: `ha-nova find ["<phrase>"] [--domain <d>] [--area <area_id>] [--state <s>]`.
 
 `--set` values are JSON-typed (`brightness_pct=40` is a number); `--data-file` takes a JSON object for nested data. The CLI sends exactly one `POST /api/services/{domain}/{service}` with the frozen entity list and verifies via `/api/states/{entity_id}`. Raw `ha-nova relay core|ws` stays for the routes in `skills/service-call/raw-routes.md` only.
 
