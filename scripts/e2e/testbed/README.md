@@ -111,7 +111,9 @@ Pinned images (reproducible by default, override per run):
 To bump a pin: edit the default in `docker-compose.yml`, run
 `npm run testbed:up && npm run testbed:verify && npm run testbed:down`, and fix
 whatever the new release moved (MQTT config-flow fields and demo entity ids
-are the usual suspects).
+are the usual suspects). `.github/workflows/testbed-ha-stable.yml` does this
+weekly against the current stable Home Assistant: green opens a pin-bump PR,
+red opens a "Test bed fails on Home Assistant <version>" issue.
 
 ## Files
 
