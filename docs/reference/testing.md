@@ -88,6 +88,12 @@ secret:
 security dump-keychain 2>/dev/null | grep -c 'ha-nova.device-credential'   # must print 0
 ```
 
+`HA_NOVA_CONFIG_DIR` does **not** isolate device-credential files: they stay
+in `~/.config/ha-nova/secrets/` under the login `HOME`. Never run
+`uninstall --purge` with `HA_NOVA_CONFIG_DIR` on a machine whose real install
+has `~/.config/ha-nova/secrets/.file-backend` — the purge would remove the
+real install's device credential files.
+
 For installer tests, also point `XDG_CONFIG_HOME` into the throwaway `HOME`
 (or unset it): for fish, `install.sh` writes the PATH entry to
 `$XDG_CONFIG_HOME/fish/conf.d/ha-nova.fish`, and `uninstall` edits the file

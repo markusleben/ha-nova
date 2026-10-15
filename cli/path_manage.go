@@ -137,6 +137,11 @@ func managedPathTargets(paths runtimePaths, state installState) (recorded, swept
 		add(&swept, filepath.Join(paths.Home, name))
 	}
 	add(&swept, filepath.Join(paths.Home, ".config", "fish", "conf.d", pathFishFile))
+	// The record can be lost (re-install with another SHELL, a relocated
+	// HA_NOVA_CONFIG_DIR); install.sh writes fish's file under XDG_CONFIG_HOME.
+	if xdg := strings.TrimSpace(os.Getenv("XDG_CONFIG_HOME")); filepath.IsAbs(xdg) {
+		add(&swept, filepath.Join(xdg, "fish", "conf.d", pathFishFile))
+	}
 	return recorded, swept, nil
 }
 

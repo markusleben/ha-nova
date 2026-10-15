@@ -75,7 +75,7 @@ func requireNoStrandedKeyringDeviceCredentials(
 			}
 			if exists {
 				return fmt.Errorf(
-					"the OS keyring still holds a device credential for server %q (%s) from before this install switched to file storage; nothing there was deleted. Remove that keyring entry (for example in Keychain Access), then rerun `ha-nova uninstall --purge`",
+					"the OS keyring still holds a device credential for server %q (%s) from before this install switched to file storage; nothing there was deleted. Remove that keyring entry (for example in Keychain Access), and remove that device on the NOVA page in Home Assistant, then rerun `ha-nova uninstall --purge`",
 					target.name,
 					service,
 				)

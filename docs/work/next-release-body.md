@@ -105,7 +105,8 @@ the number.
   keeps an existing service token file instead of demanding the keyring.
 - fish users: the installer puts `~/.local/bin` on PATH through
   `~/.config/fish/conf.d/ha-nova.fish` (other unknown shells: `~/.profile`),
-  and uninstall removes the PATH entry from every file an installer wrote.
+  and uninstall removes the PATH entry from every file the installer could
+  have written.
 - Uninstall wording: the summary names the relay token file when one is
   used, and the server-side checklist covers standalone relay containers.
 

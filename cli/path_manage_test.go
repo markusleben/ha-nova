@@ -229,3 +229,30 @@ func TestRemoveManagedPathKeepsUnreadableRecord(t *testing.T) {
 		t.Fatalf("record must survive for a retry: %v", err)
 	}
 }
+
+func TestRemoveManagedPathSweepsAbsoluteXDGFishFileWithoutRecord(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("unix-only")
+	}
+	home := t.TempDir()
+	xdgFish := filepath.Join(t.TempDir(), "fish", "conf.d", pathFishFile)
+	writeTestFile(t, xdgFish, pathBlockHeader+"\n"+pathFishLine+"\n")
+	t.Setenv("XDG_CONFIG_HOME", filepath.Dir(filepath.Dir(filepath.Dir(xdgFish))))
+	removed, err := removeManagedPathWithReport(runtimePaths{Home: home}, installState{}, nil)
+	if err != nil || !strings.Contains(removed, xdgFish) {
+		t.Fatalf("removed = %q, err = %v", removed, err)
+	}
+	if _, err := os.Stat(xdgFish); !os.IsNotExist(err) {
+		t.Fatalf("XDG fish file survived: %v", err)
+	}
+
+	relative := filepath.Join(home, "rel", "fish", "conf.d", pathFishFile)
+	writeTestFile(t, relative, pathBlockHeader+"\n"+pathFishLine+"\n")
+	t.Setenv("XDG_CONFIG_HOME", "rel") // not absolute: ignored
+	if _, err := removeManagedPathWithReport(runtimePaths{Home: home}, installState{}, nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(relative); err != nil {
+		t.Fatalf("relative XDG_CONFIG_HOME must be ignored: %v", err)
+	}
+}

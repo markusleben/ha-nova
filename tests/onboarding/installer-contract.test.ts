@@ -149,6 +149,7 @@ describe("install.sh contract", () => {
     expect(readFileSync(join(fishHome, ".config", "ha-nova", "path-target"), "utf8")).toBe(
       `${fishFile}\n`,
     );
+    expect(statSync(join(fishHome, ".config", "ha-nova", "path-target")).mode & 0o777).toBe(0o600);
 
     const shHome = await pathFor("/bin/sh");
     expect(readFileSync(join(shHome, ".profile"), "utf8")).toContain(

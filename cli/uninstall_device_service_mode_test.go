@@ -198,8 +198,12 @@ func TestPurgeRefusesForeignTokenFileBeforeAnyCleanup(t *testing.T) {
 	}
 	zshrc := filepath.Join(paths.Home, ".zshrc")
 	writeTestFile(t, zshrc, pathBlockHeader+"\n"+pathExportLine+"\n")
-	if !strings.Contains(uninstallTokenLineLabel(paths), "kept (outside HA NOVA's config folder") {
-		t.Fatalf("label = %q", uninstallTokenLineLabel(paths))
+	if label := uninstallTokenLineLabel(paths); label != "" {
+		t.Fatalf("a foreign token file must not be listed as removed: %q", label)
+	}
+	if warning := uninstallForeignTokenFileWarning(paths); !strings.Contains(warning, "Full purge will stop") ||
+		!strings.Contains(warning, paths.ConfigFile) {
+		t.Fatalf("warning = %q", warning)
 	}
 	if _, err := runTestPurge(paths); err == nil ||
 		!strings.Contains(err.Error(), "is not the managed service-token path") {

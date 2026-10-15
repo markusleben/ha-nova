@@ -64,9 +64,14 @@ func renderUninstallPreflight(out io.Writer, paths runtimePaths, source string) 
 	fmt.Fprintln(out)
 	fmt.Fprintf(out, "  %s\n", session.style("strong", "Full purge also removes:"))
 	fmt.Fprintf(out, "    %s Home Assistant connection config\n", session.bullet())
-	fmt.Fprintf(out, "    %s %s\n", session.bullet(), uninstallTokenLineLabel(paths))
+	if label := uninstallTokenLineLabel(paths); label != "" {
+		fmt.Fprintf(out, "    %s %s\n", session.bullet(), label)
+	}
 	fmt.Fprintf(out, "    %s Home Assistant Cloud authorization (when configured)\n", session.bullet())
 	fmt.Fprintln(out)
+	if warning := uninstallForeignTokenFileWarning(paths); warning != "" {
+		renderSetupParagraphTight(out, session.style("warning", warning))
+	}
 	if runtime.GOOS == "windows" && source == installSourceBundle {
 		renderSetupParagraphTight(out, session.style("muted", uninstallWindowsBundleNote()))
 	}
@@ -84,19 +89,34 @@ func uninstallRuntimeLineLabel(paths runtimePaths, source string) string {
 	}
 }
 
+// configuredRelayTokenFile returns the default profile's relay token file
+// (absolute) and whether it is HA NOVA's managed one.
+func configuredRelayTokenFile(paths runtimePaths) (string, bool) {
+	cfg, err := loadRawDefaultProfileConfig(paths.ConfigFile)
+	if err != nil {
+		return "", false
+	}
+	path := strings.TrimSpace(cfg.RelayTokenFile)
+	if path == "" {
+		return "", false
+	}
+	if !filepath.IsAbs(path) {
+		path = filepath.Join(paths.ConfigDir, path)
+	}
+	_, err = managedServiceTokenFilePath(paths, path)
+	return filepath.Clean(path), err == nil
+}
+
 // uninstallTokenLineLabel names the relay token store this install actually
-// uses: a `setup --service` install keeps it in a file, not the keyring.
+// uses: a `setup --service` install keeps it in a file, not the keyring. A
+// token file HA NOVA does not manage is never removed, so it gets no line
+// (see uninstallForeignTokenFileWarning).
 func uninstallTokenLineLabel(paths runtimePaths) string {
-	if cfg, err := loadRawDefaultProfileConfig(paths.ConfigFile); err == nil {
-		if path := strings.TrimSpace(cfg.RelayTokenFile); path != "" {
-			if !filepath.IsAbs(path) {
-				path = filepath.Join(paths.ConfigDir, path)
-			}
-			if _, err := managedServiceTokenFilePath(paths, path); err != nil {
-				return "Relay token file: kept (outside HA NOVA's config folder: " + filepath.Clean(path) + "); full purge stops until you remove it from the config"
-			}
-			return "Relay token file (" + filepath.Clean(path) + ")"
+	if path, managed := configuredRelayTokenFile(paths); path != "" {
+		if !managed {
+			return ""
 		}
+		return "Relay token file (" + path + ")"
 	}
 	switch runtime.GOOS {
 	case "darwin":
@@ -106,6 +126,14 @@ func uninstallTokenLineLabel(paths runtimePaths) string {
 	default:
 		return "secure storage token (ha-nova.relay-auth-token)"
 	}
+}
+
+func uninstallForeignTokenFileWarning(paths runtimePaths) string {
+	path, managed := configuredRelayTokenFile(paths)
+	if path == "" || managed {
+		return ""
+	}
+	return fmt.Sprintf("The relay token file is not HA NOVA's managed token file (%s). Full purge will stop: first remove the `relay_token_file` line from %s.", path, paths.ConfigFile)
 }
 
 func uninstallWindowsBundleNote() string {
