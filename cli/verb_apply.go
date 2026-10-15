@@ -99,8 +99,9 @@ func refusedWith(code, message, next string) *verbFailure {
 // applied without a fresh confirmation.
 const replan = "Plan again (ha-nova plan call|write|delete|revert), show its preview, and get confirmation again."
 
-// A used or claimed plan may already have run.
-const mayHaveRun = "It may already have run: read the target first; plan again only if the change is still missing, show the new preview, and get confirmation again."
+// A used or claimed plan: the claim precedes recompute and send, so the
+// winner may still be sending — an immediate read proves nothing.
+const mayHaveRun = "Another apply holds or used this plan — its outcome is unknown. Do not plan or apply again; tell the user it may have run and let them check."
 
 // refusalNext is the one next step per refusal code; anything not listed
 // is a plan that must be made again.
@@ -120,14 +121,16 @@ var refusalNext = map[string]string{
 	"CONFIG_NOT_UI_MANAGED":   "It is defined in YAML or a package: edit it there through ha-nova:yaml-config.",
 }
 
-// configIDInUseNext: an automation create collided with a minted id; a
-// script's key is its name, so another one is the user's choice — never an
-// overwrite without them meaning it.
+// configIDInUseNext: a collision usually means an earlier create already
+// landed (a retry after a timeout); otherwise a script's key is its name, so
+// another one is the user's choice — never an overwrite without them
+// meaning it.
 func configIDInUseNext(domain string) string {
+	const earlier = "It may be the item an earlier apply created — read it first (`ha-nova find \"<alias>\"`); if it is, it exists: do not create another. "
 	if domain == "script" {
-		return "The name is taken: ask the user for another name, then plan again with --id <new> --create; update the existing script only if they mean to replace it."
+		return earlier + "Otherwise ask the user for another name, then plan again with --id <new> --create; update the existing script only if they mean to replace it."
 	}
-	return "Plan again without --id (a new id is minted); update the existing automation only if the user means to replace it."
+	return earlier + "Otherwise plan again without --id (a new id is minted); update the existing automation only if the user means to replace it."
 }
 
 // applyPlan runs the spec §2.1 apply order: claim (I8), expiry, server,
@@ -216,6 +219,9 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string, noSnapshot
 			message: "something changed since the preview; nothing was sent and the old plan is gone",
 			next:    "Show the new preview (and code) and ask again."})
 	}
+	// From here every envelope shows the STORED plan: the recompute's own
+	// id and code were never saved, and typing them would burn this plan.
+	env.Plan = &verbPlan{ID: plan.ID, Hash: fresh.Hash, ExpiresAt: plan.ExpiresAt, Confirm: fresh.Confirm}
 	// Identity, tier, and code all come from the recomputed plan and the
 	// stored nonce, never from file fields (I2).
 	idHex := planIdentity(strings.TrimPrefix(fresh.Hash, "sha256:"), plan.Nonce)
@@ -267,6 +273,19 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string, noSnapshot
 	return env, env.exit
 }
 
+// afterSend turns a panic once the request may have reached Home Assistant
+// into an unknown outcome (exit 7), never "nothing sent".
+func afterSend(sent *bool, env *verbEnvelope, err *error) {
+	if p := recover(); p != nil {
+		if !*sent {
+			panic(p)
+		}
+		env.OutcomeUnknown = true
+		*err = &verbFailure{exit: verbExitUnknown, status: "unverified", code: "OUTCOME_UNKNOWN",
+			message: fmt.Sprintf("an internal error after the request was sent: %v", p), next: "Verify the target state; never retry automatically."}
+	}
+}
+
 // frozeNothing: a request that named targets (ids, --match, --area,
 // --device) but froze no entity must never become a targetless call, which
 // Home Assistant would apply to every entity of the domain.
@@ -281,7 +300,9 @@ var rejectedStatuses = map[int]bool{400: true, 404: true, 422: true}
 // executeAction sends the frozen action exactly once — the payload is the
 // frozen entity_ids plus the planned data, nothing else (I6, I7) — then
 // verifies it on a fresh read budget.
-func executeAction(s *relaySession, e *tierEngine, env *verbEnvelope, action planAction) error {
+func executeAction(s *relaySession, e *tierEngine, env *verbEnvelope, action planAction) (err error) {
+	sent := false
+	defer afterSend(&sent, env, &err)
 	body := map[string]any{}
 	for key, value := range action.Data {
 		body[key] = value
@@ -291,6 +312,7 @@ func executeAction(s *relaySession, e *tierEngine, env *verbEnvelope, action pla
 	}
 	s.renewBudget()
 	flowsBefore := s.reauthFlows() // best effort, bounded; nil means no correlation
+	sent = true
 	result, err := s.postService(action.Service, body)
 	s.renewBudget() // verification and correlation get their own budget
 	var unknown *relayOutcomeUnknownError

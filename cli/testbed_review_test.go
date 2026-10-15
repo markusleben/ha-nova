@@ -17,11 +17,14 @@ import (
 // 1, 9, 10: a used plan may have run; every re-plan confirms again.
 func TestPlanLifecycleNextSteps(t *testing.T) {
 	for _, code := range []string{"PLAN_NOT_FOUND", "PLAN_CLAIMED"} {
-		if next := refused(code, "x").next; next != mayHaveRun || !strings.Contains(next, "read the target first") {
+		if next := refused(code, "x").next; next != mayHaveRun || !strings.Contains(next, "Do not plan or apply again") {
 			t.Fatalf("%s next %q", code, next)
 		}
+		if step := nextStep(map[string]any{"error": map[string]any{"code": code, "next": mayHaveRun}}); step != mayHaveRun {
+			t.Fatalf("%s MCP next_step %q", code, step)
+		}
 	}
-	for _, code := range []string{"PLAN_EXPIRED", "PLAN_INVALIDATED", "PLAN_INVALID", "PLAN_NOT_FOUND"} {
+	for _, code := range []string{"PLAN_EXPIRED", "PLAN_INVALIDATED", "PLAN_INVALID"} {
 		if next := refused(code, "x").next; !strings.Contains(next, "confirmation again") || strings.Contains(next, "apply the new plan") {
 			t.Fatalf("%s next %q", code, next)
 		}
@@ -79,8 +82,8 @@ func TestVerifyNotes(t *testing.T) {
 		effect                func(*fakeHA)
 		note                  string
 	}{
-		{"unchanged", "light.turn_off", "light.kitchen", func(*fakeHA) {}, "still on after"},
-		{"moved elsewhere", "light.turn_on", "light.hall", func(f *fakeHA) { f.states["light.hall"]["state"] = "unavailable" }, "ended unavailable after"},
+		{"unchanged", "light.turn_off", "light.kitchen", func(*fakeHA) {}, `still "on" after`},
+		{"moved elsewhere", "light.turn_on", "light.hall", func(f *fakeHA) { f.states["light.hall"]["state"] = "unavailable" }, `ended "unavailable" after`},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -104,7 +107,7 @@ func TestVerifyNotes(t *testing.T) {
 		return f.reply(r, endpoint, p)
 	}, true)
 	h := &writeHarness{t: t, f: f, paths: paths, log: log}
-	if _, env := h.run(runCallCommand, "light.turn_off", "light.kitchen"); env.Verification[0].Note != "last read on; later reads found the entity missing" {
+	if _, env := h.run(runCallCommand, "light.turn_off", "light.kitchen"); env.Verification[0].Note != `last read "on"; later reads found the entity missing` {
 		t.Fatalf("late 404: %+v", env.Verification)
 	}
 }
@@ -137,8 +140,18 @@ func TestFindByStateDetails(t *testing.T) {
 	f.ent("light.all", "", "on", map[string]any{"entity_id": []any{"light.kitchen"}}) // a YAML light group
 	f.ent("scene.movie", "", "on", map[string]any{"entity_id": []any{"light.kitchen"}})
 	h := newWriteHarness(t, f)
-	if exit, env := h.run(runFindCommand, "--domain", "fan", "--state", "on"); exit != 0 || !strings.Contains(string(env.Result), `"total":0`) {
+	f.ent("fan.attic", "hue", "off", nil)
+	if exit, env := h.run(runFindCommand, "--domain", "fan", "--state", "On "); exit != 0 || !strings.Contains(string(env.Result), `"total":0`) {
 		t.Fatalf("empty listing: exit %d %s", exit, env.Result)
+	}
+	if exit, env := h.run(runFindCommand, "--domain", "fan", "--state", " OFF"); exit != 0 || !strings.Contains(string(env.Result), "fan.attic") {
+		t.Fatalf("state case: exit %d %s", exit, env.Result)
+	}
+	if exit, env := h.run(runFindCommand, "--domain", "lights"); exit != 5 || !strings.Contains(env.Error.Message, `no entity has domain "lights"`) {
+		t.Fatalf("domain typo: exit %d %+v", exit, env.Error)
+	}
+	if exit, env := h.run(runFindCommand, "--domain", "light"); exit != 0 || !strings.Contains(string(env.Result), "light.all") || !strings.Contains(string(env.Result), "light.kitchen") {
+		t.Fatalf("a plain listing lacks the unregistered light: exit %d %s", exit, env.Result)
 	}
 	if exit, env := h.run(runFindCommand, "kitchen", "--state", "off"); exit != 5 || !strings.Contains(env.Error.Next, "Drop --state") || strings.Contains(env.Error.Next, "include-disabled") {
 		t.Fatalf("state miss: exit %d %+v", exit, env.Error)
@@ -191,10 +204,19 @@ func TestHistoryBounds(t *testing.T) {
 	if _, _, err := historyBounds("24h", "8d", now); err == nil || !strings.Contains(err.Error(), "--until must be a duration ago of at most 7d") {
 		t.Fatalf("--until 8d: %v", err)
 	}
-	for _, bad := range [][2]string{{"1h", "2h"}, {"9d", "1h"}, {"1h", "soon"}} {
+	if since, until, err := historyBounds("", "2026-10-14T12:00:00Z", now); err != nil || until.Sub(since) != 24*time.Hour || !until.Equal(now.Add(-24*time.Hour)) {
+		t.Fatalf("--until alone: since %v until %v err %v", since, until, err)
+	}
+	for _, bad := range [][2]string{{"1h", "2h"}, {"9d", "1h"}, {"1h", "soon"}, {"", "2026-10-16T00:00:00Z"}} {
 		if _, _, err := historyBounds(bad[0], bad[1], now); err == nil {
 			t.Fatalf("%v accepted", bad)
 		}
+	}
+	states := map[string]any{"light.desk": map[string]any{"state": "off", "attributes": map[string]any{}}}
+	paths, _ := setupVerbRelayTest(t, haReply(states, nil, []any{}))
+	exit, env := runVerbForTest(t, func() int { return runHistoryCommand(paths, []string{"light.desk", "--since", "6d", "--until", "5d"}) })
+	if exit != 0 || !strings.Contains(string(env.Result), "no recorded data in this window") {
+		t.Fatalf("empty explicit window: exit %d %s", exit, env.Result)
 	}
 	for _, tool := range mcpTools {
 		if tool.name == "ha_history" {
@@ -278,7 +300,16 @@ func TestTransitionalThenFailedReadIsUnverified(t *testing.T) {
 	}, true)
 	h := &writeHarness{t: t, f: f, paths: paths, log: log}
 	exit, env := h.run(runCallCommand, "cover.open_cover", "cover.blind")
-	if exit != 6 || env.Verification[0].Outcome != "unverified" || env.Verification[0].Note != "last read opening; later reads failed" {
+	if exit != 6 || env.Verification[0].Outcome != "unverified" || env.Verification[0].Note != `last read "opening"; later reads failed` {
 		t.Fatalf("exit %d rows %+v", exit, env.Verification)
+	}
+}
+
+// C5: only standalone known flags are rewritten.
+func TestMCPArgsRewritesOnlyStandaloneFlags(t *testing.T) {
+	got := mcpArgs("foo--id --id x `--confirm` (--target) --identity --id-foo --server a --domain/--area --no-snapshot.")
+	want := "foo--id id x `confirm_code` (id) --identity --id-foo --server a domain/area no_snapshot."
+	if got != want {
+		t.Fatalf("got  %q\nwant %q", got, want)
 	}
 }

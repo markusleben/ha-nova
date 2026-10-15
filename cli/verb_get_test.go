@@ -19,6 +19,8 @@ func haReply(states map[string]any, uniqueIDs map[string]string, history []any) 
 					return map[string]any{"entity_id": payload["entity_id"], "unique_id": uid}
 				}
 				return fakeRelayFailure{"UPSTREAM_ERROR", "not_found: Entity not found"}
+			case "automation/config", "script/config": // no loaded config, as Home Assistant answers for an unknown entity
+				return fakeRelayFailure{"UPSTREAM_WS_COMMAND_ERROR", "not_found: Entity not found"}
 			case "config/entity_registry/list_for_display":
 				return map[string]any{"entities": []map[string]any{{"ei": "light.kitchen_ceiling", "en": "Kitchen ceiling"}, {"ei": "switch.kitchen", "en": "Kitchen"}}}
 			case "search/related":

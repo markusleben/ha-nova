@@ -29,7 +29,9 @@ func snapshotName(id string) string {
 	return "auto-" + slug
 }
 
-func executeConfig(paths runtimePaths, s *relaySession, env *verbEnvelope, action configAction, ctx configContext, noSnapshot bool) error {
+func executeConfig(paths runtimePaths, s *relaySession, env *verbEnvelope, action configAction, ctx configContext, noSnapshot bool) (err error) {
+	sent := false
+	defer afterSend(&sent, env, &err)
 	s.renewBudget()
 	if action.Op == "delete" && !noSnapshot {
 		// The live read-back goes in as raw JSON: no number or order round trip.
@@ -43,7 +45,7 @@ func executeConfig(paths runtimePaths, s *relaySession, env *verbEnvelope, actio
 		env.Snapshot = file
 	}
 	var result serviceResult
-	var err error
+	sent = true
 	if action.Op == "delete" {
 		result, err = s.writeCore(http.MethodDelete, action.Path, nil)
 	} else {
@@ -58,7 +60,11 @@ func executeConfig(paths runtimePaths, s *relaySession, env *verbEnvelope, actio
 		env.BeforeConfig = ctx.current
 	}
 	alreadyGone := action.Op == "delete" && err == nil && (result.status == http.StatusBadRequest || result.status == http.StatusNotFound)
-	if failure := writeFailure(env, result, err); failure != nil && !alreadyGone {
+	createdID := ""
+	if action.Op != "delete" && ctx.current == nil {
+		createdID = action.ConfigID
+	}
+	if failure := writeFailure(env, result, err, createdID); failure != nil && !alreadyGone {
 		if errors.As(err, &unknown) && update {
 			saveCheckpoint(paths, s, env, action, ctx, action.Body)
 		}
@@ -101,13 +107,18 @@ func saveCheckpoint(paths runtimePaths, s *relaySession, env *verbEnvelope, acti
 	}
 }
 
-// writeFailure maps one config write's outcome like a service call's.
-func writeFailure(env *verbEnvelope, result serviceResult, err error) error {
+// writeFailure maps one config write's outcome like a service call's;
+// createdID names a create's config id (a retry must reuse it).
+func writeFailure(env *verbEnvelope, result serviceResult, err error, createdID string) error {
 	var unknown *relayOutcomeUnknownError
 	switch {
 	case errors.As(err, &unknown):
 		env.OutcomeUnknown = true
-		return &verbFailure{exit: verbExitUnknown, status: "unverified", code: "OUTCOME_UNKNOWN", message: err.Error(), next: "Read the config back; never retry automatically."}
+		next := "Read the config back; never retry automatically."
+		if createdID != "" {
+			next += " If it is missing and the user asks to retry, retry only with the same --id " + createdID + " --create."
+		}
+		return &verbFailure{exit: verbExitUnknown, status: "unverified", code: "OUTCOME_UNKNOWN", message: err.Error(), next: next}
 	case err != nil:
 		return fmt.Errorf("%w; Home Assistant did not receive the write", err)
 	case rejectedStatuses[result.status]:
@@ -150,7 +161,7 @@ func verifyConfig(s *relaySession, action configAction, reloaded bool) (verifyRo
 		}
 		return row, nil
 	}
-	entityID, disabled := registryEntityFor(s, action.Domain, action.ConfigID)
+	entityID, disabled, registryErr := registryEntityFor(s, action.Domain, action.ConfigID)
 	row.EntityID = entityID
 	var st *entityState
 	var stateErr error
@@ -158,7 +169,10 @@ func verifyConfig(s *relaySession, action configAction, reloaded bool) (verifyRo
 		st, stateErr = s.stateFresh(entityID, relaySessionRequestTimeout)
 	}
 	present := fmt.Sprint(st != nil)
-	if stateErr != nil {
+	switch {
+	case registryErr != nil: // an unanswered read is not an absence
+		present = "registry read failed"
+	case stateErr != nil:
 		present = "read failed"
 	}
 	row.Observed = fmt.Sprintf("%d differences, reload ok: %v, entity: %q present: %s", len(differences), reloaded, entityID, present)
@@ -194,16 +208,19 @@ func coreGETFresh(s *relaySession, path string) (int, json.RawMessage, error) {
 
 // registryEntityFor matches the config id to the registry unique_id — the
 // real entity_id, never the slug (relay-api.md post-write verification).
-func registryEntityFor(s *relaySession, domain, configID string) (string, bool) {
+func registryEntityFor(s *relaySession, domain, configID string) (string, bool, error) {
 	data, err := s.readFresh("ws", map[string]any{"type": "config/entity_registry/list"}, relaySessionRequestTimeout)
 	var rows []fullRegistryRow
-	if err != nil || json.Unmarshal(data, &rows) != nil {
-		return "", false
+	if err == nil {
+		err = json.Unmarshal(data, &rows)
+	}
+	if err != nil {
+		return "", false, err
 	}
 	for _, row := range rows {
 		if row.Platform == domain && row.UniqueID == configID && strings.HasPrefix(row.EntityID, domain+".") {
-			return row.EntityID, row.DisabledBy != ""
+			return row.EntityID, row.DisabledBy != "", nil
 		}
 	}
-	return "", false
+	return "", false, nil
 }

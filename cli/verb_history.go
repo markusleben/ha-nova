@@ -44,13 +44,14 @@ type historyResult struct {
 	Until   string          `json:"until"`
 	History historySummary  `json:"history"`
 	Logbook *logbookSummary `json:"logbook,omitempty"`
+	Note    string          `json:"note,omitempty"`
 }
 
 func runHistoryCommand(paths runtimePaths, args []string) int {
 	var opts verbOptions
 	fs := flag.NewFlagSet("history", flag.ContinueOnError)
 	addVerbFlags(fs, &opts)
-	sinceRaw := fs.String("since", "24h", "window start: a duration ago (90m, 24h, 7d) or an RFC3339 time")
+	sinceRaw := fs.String("since", "", "window start: a duration ago (90m, 24h, 7d) or an RFC3339 time (default 24h before --until)")
 	untilRaw := fs.String("until", "", "window end: a duration ago or an RFC3339 time (default now); at most 7d after --since")
 	withLogbook := fs.Bool("logbook", false, "also read the logbook for the same window")
 	positional, err := parseVerbArgs(fs, &opts, args, historyUsage)
@@ -91,6 +92,9 @@ func runHistoryCommand(paths runtimePaths, args []string) int {
 			}
 		}
 		result.History = summarizeHistory(rows)
+		if result.History.Total == 0 && (*sinceRaw != "" || *untilRaw != "") {
+			result.Note = "no recorded data in this window (it may be older than the recorder keeps)"
+		}
 		if *withLogbook {
 			body, err := readCoreOK(s, "/api/logbook/"+result.Since+"?"+url.Values{"entity": {entityID}, "end_time": {result.Until}}.Encode())
 			if err != nil {
@@ -109,8 +113,9 @@ func runHistoryCommand(paths runtimePaths, args []string) int {
 }
 
 // historyBounds resolves --since/--until: each a duration ago (90m, 24h,
-// 7d) or an RFC3339 time; until defaults to now, and the window is at most
-// 7 days — an incident window like "since t-30m until t+30m" works too.
+// 7d) or an RFC3339 time; until defaults to now, since to 24h before until,
+// and the window is at most 7 days and never ends in the future — an
+// incident window like "since t-30m until t+30m" works too.
 func historyBounds(sinceRaw, untilRaw string, now time.Time) (time.Time, time.Time, error) {
 	point := func(raw, flag string) (time.Time, error) {
 		if at, err := time.Parse(time.RFC3339, strings.TrimSpace(raw)); err == nil {
@@ -122,14 +127,19 @@ func historyBounds(sinceRaw, untilRaw string, now time.Time) (time.Time, time.Ti
 		}
 		return now.Add(-ago), nil
 	}
-	since, err := point(sinceRaw, "--since")
-	until := now
-	if err == nil && strings.TrimSpace(untilRaw) != "" {
+	until, err := now, error(nil)
+	if strings.TrimSpace(untilRaw) != "" {
 		until, err = point(untilRaw, "--until")
+	}
+	since := until.Add(-24 * time.Hour)
+	if err == nil && strings.TrimSpace(sinceRaw) != "" {
+		since, err = point(sinceRaw, "--since")
 	}
 	switch {
 	case err != nil:
 		return since, until, err
+	case until.After(now):
+		return since, until, errors.New("--until must not be in the future")
 	case !until.After(since):
 		return since, until, errors.New("--until must be later than --since")
 	case until.Sub(since) > historyMaxWindow:

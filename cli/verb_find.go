@@ -1,11 +1,10 @@
 package main
 
 import (
-	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
-	"net/http"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -30,6 +29,9 @@ type findResult struct {
 	Total    int          `json:"total"`
 	Returned int          `json:"returned"`
 	Matches  []verbTarget `json:"matches"`
+	// unknownDomain: no registry row and no state has the --domain prefix
+	// (a typo like "lights"), so an empty listing is no answer.
+	unknownDomain bool
 }
 
 // registryRow is one entity from either registry listing, already joined
@@ -52,6 +54,7 @@ func runFindCommand(paths runtimePaths, args []string) int {
 	fs.BoolVar(&query.completeAliases, "aliases", false, "also match aliases even when names already match (use after a rejected name match)")
 	fs.StringVar(&query.state, "state", "", "only entities whose current state is exactly this (e.g. on, off, unavailable)")
 	positional, err := parseVerbArgs(fs, &opts, args, findUsage)
+	query.state = strings.TrimSpace(query.state)
 	filtered := query.domain != "" || query.area != "" || query.state != ""
 	switch {
 	case err != nil:
@@ -72,7 +75,12 @@ func runFindCommand(paths runtimePaths, args []string) int {
 			return err
 		}
 		// A filter-only listing with no hits is an answer ("no light is on"),
-		// not a failed lookup; a phrase that matches nothing is NOT_FOUND.
+		// not a failed lookup — unless its domain exists nowhere; a phrase
+		// that matches nothing is NOT_FOUND.
+		if result.unknownDomain {
+			return &verbFailure{exit: verbExitNotFound, code: "NOT_FOUND", message: fmt.Sprintf("no entity has domain %q", query.domain),
+				next: "Check the domain: it is the part before the dot of an entity_id (light, switch, sensor, …)."}
+		}
 		if result.Total == 0 && query.phrase != "" {
 			next := "Try a shorter or different phrase, drop --domain/--area, or add --include-disabled."
 			if query.state != "" {
@@ -103,18 +111,23 @@ func findEntities(s *relaySession, q findQuery) (findResult, error) {
 		}
 	}
 	var matches []verbTarget
+	domainKnown := q.domain == ""
+	hasDomain := func(rows []registryRow) bool {
+		return slices.ContainsFunc(rows, func(row registryRow) bool { return strings.HasPrefix(row.entityID, q.domain+".") })
+	}
 	if !q.includeDisabled {
 		rows, err := loadCompactRegistry(s, areas, deviceAreas)
 		if err != nil {
 			return findResult{}, err
 		}
-		matches = matchRegistryRows(rows, q)
+		matches, domainKnown = matchRegistryRows(rows, q), domainKnown || hasDomain(rows)
 	}
 	if len(matches) == 0 || q.completeAliases {
 		rows, err := loadFullRegistry(s, areas, deviceAreas)
 		if err != nil {
 			return findResult{}, err
 		}
+		domainKnown = domainKnown || hasDomain(rows)
 		full := matchRegistryRows(rows, q)
 		if len(full) == 0 || q.completeAliases {
 			if err := attachAliases(s, rows, q); err != nil {
@@ -124,18 +137,20 @@ func findEntities(s *relaySession, q findQuery) (findResult, error) {
 		}
 		matches = unionTargets(matches, full)
 	}
-	if q.state != "" {
-		if matches, err = filterByState(s, matches, q); err != nil {
+	if q.state != "" || q.phrase == "" {
+		var seen bool
+		if matches, seen, err = mergeStates(s, matches, q); err != nil {
 			return findResult{}, err
 		}
-		if len(matches) == 0 && q.phrase != "" && !q.completeAliases {
+		domainKnown = domainKnown || seen
+		if len(matches) == 0 && q.state != "" && q.phrase != "" && !q.completeAliases {
 			// the names matched only entities in other states: an alias may
 			// name one in this state, as it would without --state
 			q.completeAliases = true
 			return findEntities(s, q)
 		}
 	}
-	result := findResult{Total: len(matches), Matches: matches}
+	result := findResult{Total: len(matches), Matches: matches, unknownDomain: len(matches) == 0 && !domainKnown}
 	if len(matches) > q.limit {
 		result.Matches = matches[:q.limit]
 	}
@@ -148,67 +163,6 @@ func stateSuffix(state string) string {
 		return ""
 	}
 	return " in state " + strconv.Quote(state)
-}
-
-// filterByState keeps the matches whose current state is q.state (one GET
-// /api/states). Entities with a state but no registry row (YAML without
-// unique_id) are added when no area filter applies — never dropped
-// silently; their area is unknown, so --area cannot include them.
-func filterByState(s *relaySession, matches []verbTarget, q findQuery) ([]verbTarget, error) {
-	status, body, err := s.coreGET("/api/states")
-	var states []struct {
-		EntityID   string `json:"entity_id"`
-		State      string `json:"state"`
-		Attributes struct {
-			FriendlyName string `json:"friendly_name"`
-			Members      any    `json:"entity_id"` // a list on group entities
-		} `json:"attributes"`
-	}
-	if err == nil && status != http.StatusOK {
-		err = fmt.Errorf("Home Assistant answered HTTP %d for /api/states", status)
-	}
-	if err == nil {
-		err = json.Unmarshal(body, &states)
-	}
-	if err != nil {
-		return nil, err
-	}
-	current, group := map[string]string{}, map[string]bool{}
-	for _, st := range states {
-		current[st.EntityID] = st.State
-		if domain, _ := splitID(st.EntityID); !notGroupDomains[domain] {
-			_, group[st.EntityID] = st.Attributes.Members.([]any) // a group counts its members again
-		}
-	}
-	var compact struct {
-		Entities []struct{ EI string } `json:"entities"`
-	}
-	if err := s.wsDecode(map[string]any{"type": "config/entity_registry/list_for_display"}, &compact, "the compact entity registry"); err != nil {
-		return nil, err
-	}
-	known := map[string]bool{} // registered entities: matched (or not) through the registry above
-	for _, row := range compact.Entities {
-		known[row.EI] = true
-	}
-	kept := []verbTarget{}
-	for _, m := range matches {
-		known[m.EntityID] = true
-		if state, ok := current[m.EntityID]; ok && state == q.state {
-			m.State, m.Group = state, group[m.EntityID]
-			kept = append(kept, m)
-		}
-	}
-	tokens := foldTokens(q.phrase)
-	for _, st := range states {
-		if known[st.EntityID] || st.State != q.state || q.area != "" ||
-			(q.domain != "" && !strings.HasPrefix(st.EntityID, q.domain+".")) ||
-			!tokensMatch(tokens, st.EntityID+" "+st.Attributes.FriendlyName) {
-			continue
-		}
-		kept = append(kept, verbTarget{EntityID: st.EntityID, Name: st.Attributes.FriendlyName, State: st.State, Group: group[st.EntityID], By: "state"})
-	}
-	sort.Slice(kept, func(i, j int) bool { return kept[i].EntityID < kept[j].EntityID })
-	return kept, nil
 }
 
 // unionTargets keeps every entity once (first basis wins), sorted by id.

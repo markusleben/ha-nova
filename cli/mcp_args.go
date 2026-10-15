@@ -189,10 +189,16 @@ func nextStep(envelope map[string]any) string {
 	case errInfo != nil && errInfo["code"] == "RELAY_ERROR":
 		return "If this computer is not paired or its credential store is locked, ask the user to run `ha-nova setup` in a terminal."
 	}
-	if errInfo != nil && errInfo["code"] == "SERVER_MISMATCH" {
+	next, _ := errInfo["next"].(string)
+	switch errInfo["code"] {
+	case "SERVER_MISMATCH":
 		return "This plan belongs to another server; plan again here."
+	case "OUTCOME_UNKNOWN": // always spelled out: the one result a model must never retry
+		return strings.TrimSpace("The outcome is unknown — it may have run: read the target with ha_get and report; never call or apply again. " + mcpNext(next))
+	case "PLAN_CLAIMED", "PLAN_NOT_FOUND":
+		return mayHaveRun
 	}
-	if next, _ := errInfo["next"].(string); next != "" {
+	if next != "" {
 		if step := mcpNext(next); step != next {
 			return step
 		}
@@ -200,22 +206,29 @@ func nextStep(envelope map[string]any) string {
 	return ""
 }
 
-var cliFlag = regexp.MustCompile(`--([a-z][a-z-]*)`)
+// mcpFlagArgs: the CLI flags a verb's next or message names, as the MCP
+// tool arguments they stand for. Anything else stays verbatim.
+var mcpFlagArgs = map[string]string{"confirm": "confirm_code", "no-snapshot": "no_snapshot", "target": "id", "id": "id",
+	"create": "create: true", "include-disabled": "include_disabled", "state": "state", "domain": "domain", "area": "area",
+	"config": "config", "related": "related", "since": "since", "until": "until", "logbook": "logbook", "match": "match", "device": "device"}
 
-// mcpArgs rewrites CLI flags as the MCP tool arguments they stand for.
+var cliFlag = regexp.MustCompile("(?:^|[\\s`(/])--([a-z][a-z-]*)")
+
+// mcpArgs rewrites standalone known flag tokens only — never text inside an
+// identifier (foo--bar) or an unknown flag; messages carry HA and user text.
 func mcpArgs(text string) string {
-	return cliFlag.ReplaceAllStringFunc(text, func(flag string) string {
-		switch name := strings.TrimPrefix(flag, "--"); name {
-		case "confirm":
-			return "confirm_code"
-		case "target":
-			return "id"
-		case "create":
-			return "create: true"
-		default:
-			return strings.ReplaceAll(name, "-", "_")
+	var out strings.Builder
+	last := 0
+	for _, m := range cliFlag.FindAllStringSubmatchIndex(text, -1) {
+		start, end := m[2]-2, m[3]
+		arg, known := mcpFlagArgs[text[m[2]:m[3]]]
+		if !known || (end < len(text) && !strings.ContainsRune(" \t\n=`).,;:/", rune(text[end]))) {
+			continue
 		}
-	})
+		out.WriteString(text[last:start] + arg)
+		last = end
+	}
+	return out.String() + text[last:]
 }
 
 // cliCommands maps CLI commands in a verb's next to MCP tools; longest first.

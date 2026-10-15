@@ -314,30 +314,27 @@ func pollProbes(s *relaySession, probes []probe) []verifyRow {
 		switch {
 		case rows[i].Outcome != "unverified" || last[i] == nil:
 		case late[i] != "": // the final read failed: never accepted on an older answer
-			rows[i].Note = fmt.Sprintf("last read %s; later reads %s", rows[i].Observed, late[i])
+			rows[i].Note = fmt.Sprintf("last read %q; later reads %s", rows[i].Observed, late[i])
 		case p.slow && transitionalStates[last[i].State]:
-			rows[i].Outcome, rows[i].Note = "accepted", "still "+last[i].State+" when the window closed"
+			rows[i].Outcome, rows[i].Note = "accepted", fmt.Sprintf("still %q when the window closed", last[i].State)
 		default: // the device answered, it just did not get there
 			verb := "ended"
 			if unchanged(p, last[i]) {
 				verb = "still"
 			}
-			rows[i].Note = fmt.Sprintf("%s %s after %s (expected %s)", verb, rows[i].Observed, window(p), rows[i].Expect)
+			rows[i].Note = fmt.Sprintf("%s %q after %s (expected %q)", verb, rows[i].Observed, window(p), rows[i].Expect)
 		}
 	}
 	return rows
 }
 
-// unchanged: every check that failed reads exactly what it read before the
-// call — the device did not move ("still"); otherwise it moved elsewhere.
+// unchanged: every checked field reads exactly what it read before the
+// call — the device did not move ("still"); any change is "ended".
 func unchanged(p probe, now *entityState) bool {
 	if p.before == nil {
 		return false
 	}
 	for _, c := range p.checks {
-		if checksHold([]check{c}, now) {
-			continue
-		}
 		a, _ := json.Marshal(fieldValue(c, now))
 		b, _ := json.Marshal(fieldValue(c, p.before))
 		if string(a) != string(b) {

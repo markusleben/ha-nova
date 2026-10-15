@@ -179,7 +179,9 @@ func (req *configRequest) parseInput(positional []string, draftFile string) erro
 		case req.ConfigID != "":
 		case req.Domain == "script": // a create: the key comes from the alias, like the script editor
 			alias, _ := draft["alias"].(string)
-			if req.ConfigID, req.Create, req.Minted = scriptKey(alias), true, true; req.ConfigID == "" {
+			if req.ConfigID, req.Create, req.Minted = scriptKey(alias), true, true; req.ConfigID == "" && strings.TrimSpace(alias) != "" {
+				return errors.New("the alias has no a-z/0-9 characters to derive a key from; pass --id")
+			} else if req.ConfigID == "" {
 				return errors.New("a new script needs --id or an alias to derive its key from")
 			}
 		default: // an automation create: the Home Assistant UI mints a millisecond id the same way
@@ -213,7 +215,9 @@ func computeConfigPlan(paths runtimePaths, s *relaySession, env *verbEnvelope, r
 		}
 		var missing *verbFailure
 		if errors.As(err, &missing) && missing.code == "CONFIG_NOT_FOUND" {
-			if _, yaml := loadedConfig(s, req.EntityID, req.Domain); yaml { // an id-less YAML item: loaded, not UI-managed
+			if _, yaml, loadErr := loadedConfig(s, req.EntityID, req.Domain); loadErr != nil {
+				return fail(loadErr)
+			} else if yaml { // an id-less YAML item: loaded, not UI-managed
 				return fail(refused("CONFIG_NOT_UI_MANAGED", req.EntityID+" is defined in YAML or a package, not in the UI config; delete it there with ha-nova:yaml-config"))
 			}
 		}

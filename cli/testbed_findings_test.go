@@ -30,10 +30,10 @@ func TestUnregisteredButtonsAreTyped(t *testing.T) {
 			f.ent("update.yaml_fw", "", "on", nil)
 			f.script("upgrade", step("update.install", "update.yaml_fw"))
 		}, args: []string{"script.turn_on", "script.upgrade"}, exit: 3, tier: "typed", reasons: []string{reasonUnregisteredActuator}},
-		{name: "a YAML light group stays preview: its members are classified", setup: func(f *fakeHA) {
+		{name: "a YAML light group is typed too: a list attribute proves no group", setup: func(f *fakeHA) {
 			f.ent("light.yaml_group", "", "on", map[string]any{"entity_id": []any{"light.kitchen", "light.hall"}})
 			f.script("dark", step("light.turn_off", "light.yaml_group"))
-		}, args: []string{"script.turn_on", "script.dark"}, exit: 3, tier: "preview", reasons: []string{reasonNoRegistryRow}, absent: []string{reasonUnregisteredActuator}},
+		}, args: []string{"script.turn_on", "script.dark"}, exit: 3, tier: "typed", reasons: []string{reasonUnregisteredActuator}},
 		{name: "a non-actuator without registry row stays preview", setup: func(f *fakeHA) { f.ent("input_boolean.yaml_flag", "", "off", nil) },
 			args: []string{"input_boolean.turn_on", "input_boolean.yaml_flag"}, exit: 3, tier: "preview", reasons: []string{reasonNoRegistryRow}},
 	}
@@ -188,7 +188,7 @@ func TestVerificationKeepsTheLastGoodRead(t *testing.T) {
 	h := &writeHarness{t: t, f: f, paths: paths, log: log}
 	exit, env := h.run(runCallCommand, "light.turn_off", "light.kitchen")
 	row := env.Verification[0]
-	if exit != 6 || row.Outcome != "unverified" || row.Observed != "on" || row.Note != "last read on; later reads failed" || reads.Load() < 2 {
+	if exit != 6 || row.Outcome != "unverified" || row.Observed != "on" || row.Note != `last read "on"; later reads failed` || reads.Load() < 2 {
 		t.Fatalf("exit %d row %+v reads %d", exit, row, reads.Load())
 	}
 }

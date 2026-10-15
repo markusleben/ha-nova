@@ -253,10 +253,11 @@ func (e *tierEngine) classify(id, service string, data map[string]any, depth int
 	switch pl := entry.pl; {
 	case !registered && st != nil:
 		// Platform unknown (YAML without unique_id): never ordinary; typed
-		// for an actuator (spec §2.2 step 1). A YAML group's members are
-		// expanded and classified one by one below.
+		// for an actuator (spec §2.2 step 1) — a YAML group too: without a
+		// platform an entity_id list proves nothing (a template can expose
+		// one); its members are still expanded and classified below.
 		switch {
-		case unregisteredActuatorDomains[domain] && groupMembers(domain, st) == nil: // a YAML template/command_line/rest/mqtt entity: its action is whatever its author wired, unread
+		case unregisteredActuatorDomains[domain]: // a YAML template/command_line/rest/mqtt entity: its action is whatever its author wired, unread
 			level = tierTyped
 			e.gap(reasonUnregisteredActuator, id, via, unregisteredActuatorDetail)
 		default:
@@ -371,7 +372,12 @@ func (e *tierEngine) runConfig(id, domain, via string) (map[string]any, bool) {
 		raw, err = readStoredConfig(e.s, domain, configID)
 	}
 	if errors.As(err, &notFound) { // YAML/package item: read what Home Assistant loaded
-		if loaded, ok := loadedConfig(e.s, id, domain); ok {
+		loaded, ok, loadErr := loadedConfig(e.s, id, domain)
+		if loadErr != nil {
+			e.readFailed(id, via, "config")
+			return nil, false
+		}
+		if ok {
 			return e.parseConfig(id, domain, loadedConfigKey(id), loaded, via)
 		}
 	}
@@ -397,20 +403,23 @@ func (e *tierEngine) runConfig(id, domain, via string) (map[string]any, bool) {
 // or script by entity_id (WS automation/config, script/config) — the only
 // view of a YAML or package item that has no UI config. Safe to call
 // concurrently (session reads only).
-func loadedConfig(s *relaySession, entityID, domain string) (json.RawMessage, bool) {
+func loadedConfig(s *relaySession, entityID, domain string) (json.RawMessage, bool, error) {
 	if domain != "automation" && domain != "script" {
-		return nil, false
+		return nil, false, nil
 	}
 	var loaded struct {
 		Config json.RawMessage `json:"config"`
 	}
-	if err := s.wsDecode(map[string]any{"type": domain + "/config", "entity_id": entityID}, &loaded, "the loaded config of "+entityID); err != nil {
-		return nil, false
+	err := s.wsDecode(map[string]any{"type": domain + "/config", "entity_id": entityID}, &loaded, "the loaded config of "+entityID)
+	switch trimmed := strings.TrimSpace(string(loaded.Config)); {
+	case isUpstreamNotFound(err):
+		return nil, false, nil
+	case err != nil: // permission, transport, decode: a failed read, never "missing"
+		return nil, false, err
+	case trimmed == "" || trimmed == "null":
+		return nil, false, nil
 	}
-	if trimmed := strings.TrimSpace(string(loaded.Config)); trimmed == "" || trimmed == "null" {
-		return nil, false
-	}
-	return loaded.Config, true
+	return loaded.Config, true, nil
 }
 
 // loadedConfigKey names a loaded (YAML) config in the plan basis; it never

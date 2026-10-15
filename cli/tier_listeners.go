@@ -141,7 +141,11 @@ func (e *tierEngine) listenerTable() *listenerTable {
 			}
 			var notFound *verbFailure
 			if errors.As(row.err, &notFound) { // YAML/package: read what Home Assistant loaded
-				if loaded, ok := loadedConfig(e.s, row.entityID, "automation"); ok {
+				loaded, ok, err := loadedConfig(e.s, row.entityID, "automation")
+				switch {
+				case err != nil: // a failed read: typed below, never "no config"
+					row.err = err
+				case ok:
 					row.raw, row.err, row.loaded = loaded, nil, true
 				}
 			}
