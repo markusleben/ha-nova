@@ -6,7 +6,7 @@ Scope: program-level plan for releases 0.14 → 1.0. Each release breaks down in
 
 ## Context
 
-Full audit of ha-nova (Relay + CLI + 20 skills) in July 2026, targeting the best future-proof HA AI skillset that outcompetes `homeassistant-ai/ha-mcp` ("The Unofficial and Awesome HA MCP Server", 3.9k stars, v7.12.3, 87 tools) — deliberately without being an MCP server.
+Full audit of ha-nova (Relay + CLI + 20 skills) in July 2026, targeting a broad, future-proof HA AI skillset — deliberately without being an MCP server.
 
 **Audit verdict: no fundamental refactor needed.** Relay (1,760 LOC TS, 3 generic endpoints, test ratio 1.46:1) genuinely upholds "dumb relay"; onboarding is strong (1 command + 5-step wizard, ~3 irreducible manual actions); skills are disciplined (shared core, 0% German leakage, 19 contract-test files).
 
@@ -15,10 +15,10 @@ Full audit of ha-nova (Relay + CLI + 20 skills) in July 2026, targeting the best
 2. **Safety gates depend on auto-bootstrap**: Write Routing Gate + preview confirmation live only in the context skill → bare agents (Codex/Antigravity/Hermes) lose the guarantees.
 3. **Uninstall is server-side blind**: Relay app stays, repository stays, LLAT revocation never mentioned (note only prints when relay reachable, `cli/uninstall_preflight.go:101`).
 4. **Update notices Claude-only**; other clients need manual `check-update`.
-5. **Platform gate**: add-on requires HA OS/Supervised → ~25% of installs (Container/Core) excluded — exactly ha-mcp's HACS market.
+5. **Platform gate**: add-on requires HA OS/Supervised → ~25% of installs (Container/Core) excluded — those installs need a non-App path (Docker relay or HACS component).
 6. **Token weight**: write path transitively ~25k words (~33–46k tokens).
 
-**2026 ecosystem facts** (researched 2026-07): Agent Skills is an open standard (Anthropic Dec 2025, Linux Foundation AAIF since May 2026, ~40 tools incl. Codex/Cursor/Gemini CLI/OpenCode; skills.sh ~90k skills) → the "skills, not MCP" bet is ecosystem-validated. The official HA MCP server stays Assist-scoped (no config/registry threat). ha-mcp has more feature surface today (logs, camera, HACS, beta YAML/filesystem, screenshots) but weaknesses in context cost (87 tools → their own BM25 tool search is the symptom), no voice/media/notify skills, and in-process risk.
+**2026 ecosystem facts** (researched 2026-07): Agent Skills is an open standard (Anthropic Dec 2025, Linux Foundation AAIF since May 2026, ~40 tools incl. Codex/Cursor/Gemini CLI/OpenCode; skills.sh ~90k skills) → the "skills, not MCP" bet is ecosystem-validated. The official HA MCP server stays Assist-scoped (no config/registry overlap). Coverage gaps to close: logs, camera, HACS, YAML/filesystem, screenshots. Design constraints to keep: low context cost, voice/media/notify coverage, process isolation.
 
 **Maintainer decisions**: all coverage domains incl. YAML-only + the InfluxDB edge case; full client parity; template + linter; guided uninstall teardown; `/files` opt-in (default OFF); Docker relay now, HACS component deferred; minimal-credible trust story; comparison page named/dated/fair.
 
@@ -121,8 +121,8 @@ Dispatch sharpness at 28 skills: `diagnose` = root-cause a concrete failure, `he
 - `skills/ha-nova/SKILL.md` Self-Update: +1 line (surface notice to user once); extend existing pins in `tests/skills/ha-nova-contract.test.ts` only.
 
 ### C3 Distribution
-- **Docker relay (option B)**: same TS code, GHCR publish job (`ghcr.io/markusleben/ha-nova-relay`, lockstep with relay version 0.2.x), wizard branch (~150 LOC: prints `docker run` with generated token; LLAT as env var), docs `--restart unless-stopped`. Relay is already fully env-driven (`nova/src/config/env.ts`) → pure packaging. Unlocks ~25% market (Container/Core). + "run anywhere" footnote (`node nova/dist/...`).
-- **HACS custom component: deferred** with explicit revisit trigger ("when onboarding/support data shows the token paste measurably blocks Container users"). Rationale: second implementation = false-parity bug class; benefit shrinks to one saved paste under NOVA's security model. Positioning bonus: process isolation (a crash can't take HA down; one scoped token instead of the in-process `hass` object).
+- **Docker relay (option B)**: same TS code, GHCR publish job (`ghcr.io/markusleben/ha-nova-relay`, lockstep with relay version 0.2.x), wizard branch (~150 LOC: prints `docker run` with generated token; LLAT as env var), docs `--restart unless-stopped`. Relay is already fully env-driven (`nova/src/config/env.ts`) → pure packaging. Covers the ~25% of installs on Container/Core. + "run anywhere" footnote (`node nova/dist/...`).
+- **HACS custom component: deferred** with explicit revisit trigger ("when onboarding/support data shows the token paste measurably blocks Container users"). Rationale: second implementation = false-parity bug class; benefit shrinks to one saved paste under NOVA's security model. Design benefit: process isolation (a crash can't take HA down; one scoped token instead of the in-process `hass` object).
 - **Listings**: skills.sh (topics `agent-skills`, `home-assistant`, `claude`, `codex`) AFTER partial-install hardening; anthropics/skills PR as an attempt; skip MCP directories (wrong shelf). Highest ROI: HA Community forum, awesome-home-assistant PR, r/homeassistant — timed to the 0.16 "runs everywhere" release.
 
 ### C4 Trust story (minimal credible)
@@ -132,7 +132,7 @@ Dispatch sharpness at 28 skills: `diagnose` = root-cause a concrete failure, `he
 - Cadence: deterministic parts as weekly non-blocking GitHub Action; codex agent evals manually per release with dated report in `docs/safety-evidence/`; 1 revert-stack demo (webp) in `assets/`.
 
 ### C5 Comparison page
-- NEW `docs/comparison.md` ("Why 20 skills instead of 87 tools"), linked from README via release-prep PR (README gate!). ha-mcp named, all claims dated "as of 2026-07": context cost (ha-mcp's own BM25 tool search as evidence), safety model table, token model, process isolation, **honesty column** (what ha-mcp does better today — shrinks with workstream B). Do NOT reuse the historical 9/13-no-verify claim.
+- NEW `docs/comparison.md` ("Why 20 skills instead of 87 tools"), linked from README via release-prep PR (README gate!). ha-mcp named, all claims dated "as of 2026-07": context cost (ha-mcp's own BM25 tool search as evidence), safety model table, token model, process isolation, **honesty column** (what ha-mcp covers today that HA NOVA does not yet). Do NOT reuse the historical 9/13-no-verify claim.
 
 ---
 

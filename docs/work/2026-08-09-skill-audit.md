@@ -97,7 +97,7 @@ The skill layer is in strong shape: the confirmation-tier model is structurally 
 
 ## Charter coverage declarations (condensed)
 
-- **C1:** 20 candidate areas verdicted (13 findings; groups, backup-restore posture, blueprints tiering, energy tariff/forecast audited clean). Dashboard screenshots vs ha-mcp: recommend explicit non-goal (needs a relay delta of size L).
+- **C1:** 20 candidate areas verdicted (13 findings; groups, backup-restore posture, blueprints tiering, energy tariff/forecast audited clean). Dashboard screenshots: recommend explicit non-goal (needs a relay delta of size L).
 - **C2:** 10 dev-blog posts + 2026.8 BI list + feature flags screened — 4 hits, rest clean passes; 11 live read-only probes logged; time-bound claims verified; drift-log entry appended in this PR (clears the carried 2026.7 dev-blog backlog and screens 2026.8).
 - **C3:** line-level compare of relay ground truth vs relay-api/bridge-architecture/ha-api-matrix/PROJECT.md; all 50 capability-map rows checked (44 clean, 6 flagged); intent matrix over domains × 9 verbs (non-trivial cells listed in #516/#518); terminology/link sweeps clean.
 - **C4:** every destructive/high-consequence op tier-verified (op→tier table: 2 P1-adjacent defects, 45+ verified ok; declared exceptions judged sound); recovery-layer map complete and honest; 3 injection attack traces run — gates hold structurally; shell/jq interpolation clean except one diagnose regex.

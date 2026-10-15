@@ -151,12 +151,12 @@ premium, clean; no clutter, no watermark, no UI elements.
   are documented category defaults on the comparison page; the image
   illustrates exactly what the adjacent table claims.
 - Result: bg via `codex exec` (style-referenced, 2 attempts), then a
-  truth-hardening edit pass (verified against ha-mcp's live README
-  2026-07-20): the amber key beside the left laptop was REMOVED (ha-mcp's
-  recommended install is in-process, "no access token to manage" — a
+  truth-hardening edit pass (verified against the comparison page's sources
+  2026-07-20): the amber key beside the left laptop was REMOVED (in-process
+  MCP installs need no separately managed access token — a
   parked-credential metaphor is not category-true anymore) and the left label
-  became "The whole catalog, by default." (their README states verbatim that
-  the full catalog is listed by default; deferred-loading Claude clients pull
+  became "The whole catalog, by default." (MCP clients list the full catalog
+  by default; deferred-loading Claude clients pull
   tools on demand, so the absolute "every session" claim was dropped).
   Canonical v3 star composited above the server
   (`docs/archive/work/2026-07-20-skills-vs-tools-composite.svg`), 2× supersampled.
