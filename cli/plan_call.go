@@ -61,8 +61,8 @@ func runCallVerb(paths runtimePaths, verb, flagSetName, help string, args []stri
 	fs := flag.NewFlagSet(flagSetName, flag.ContinueOnError)
 	addVerbFlags(fs, &opts)
 	fs.StringVar(&req.Match, "match", "", "resolve exactly one non-disabled entity of the service's domain by phrase")
-	fs.StringVar(&req.Area, "area", "", "expand an area_id to the service domain's entities (always previewed)")
-	fs.StringVar(&req.Device, "device", "", "expand a device_id to the service domain's entities (always previewed)")
+	fs.StringVar(&req.Area, "area", "", "expand an area_id to the service domain's entities (previewed unless it resolves to one entity)")
+	fs.StringVar(&req.Device, "device", "", "expand a device_id to the service domain's entities (previewed unless it resolves to one entity)")
 	fs.Func("set", "service data field k=v, JSON-typed when it parses (repeatable)", func(v string) error { sets = append(sets, v); return nil })
 	fs.StringVar(&dataFile, "data-file", "", "JSON object of service data; --set overrides its keys")
 	positional, err := parseVerbArgs(fs, &opts, args, help)
@@ -283,7 +283,7 @@ func (e *tierEngine) resolveTargets(req planCallRequest) ([]verbTarget, error) {
 	}
 	if req.Match != "" {
 		filter := domain
-		if domain == "homeassistant" || !coreDomains[domain] {
+		if domain == "homeassistant" {
 			filter = ""
 		}
 		found, err := findEntities(e.s, findQuery{phrase: req.Match, domain: filter, limit: 10, completeAliases: true})
@@ -384,6 +384,25 @@ func (e *tierEngine) flatten(t verbTarget, depth int, out *[]verbTarget, seen ma
 	return nil
 }
 
+// singleExpansion: an area or device that resolves to exactly one entity of
+// the service's own domain — visible, without an entity category, in that
+// area itself (or inheriting it from its device), with no group in between
+// and no leaf skipped — acts on exactly what naming that entity would, so it
+// is classified as that direct call (spec I5 exception). Everything else the
+// entity reaches is classified as usual.
+func (e *tierEngine) singleExpansion(req planCallRequest, targets []verbTarget) bool {
+	domain, _ := splitID(req.Service)
+	if len(targets) != 1 || len(req.EntityIDs) > 0 || req.Match != "" || (req.Area == "") == (req.Device == "") ||
+		len(e.groups) > 0 || slices.Contains(e.notes, noteSkippedTargets) {
+		return false
+	}
+	t := targets[0]
+	entityDomain, _ := splitID(t.EntityID)
+	row := e.reg[t.EntityID]
+	return entityDomain == domain && !row.hidden && !row.categorized &&
+		(t.By == "device" || (t.By == "area" && (row.ai == "" || row.ai == req.Area)))
+}
+
 // evaluate runs spec §2.2 steps 2–6 on the frozen targets; a non-nil
 // result is a refusal that stops before any plan is stored.
 func (e *tierEngine) evaluate(req planCallRequest, targets []verbTarget) *tierReason {
@@ -395,9 +414,10 @@ func (e *tierEngine) evaluate(req planCallRequest, targets []verbTarget) *tierRe
 	if named && len(targets) == 0 {
 		e.gap(reasonUnresolvedTarget, "", "", "no target resolved") // never a targetless call in disguise
 	}
+	single := e.singleExpansion(req, targets)
 	var reads []func()
 	for _, t := range targets {
-		if t.By != "exact" && t.By != "match" {
+		if t.By != "exact" && t.By != "match" && !single {
 			e.raise(tierPreview, tierReason{Code: reasonExpanded, EntityID: t.EntityID, Via: t.By})
 		}
 		entityDomain, _ := splitID(t.EntityID)

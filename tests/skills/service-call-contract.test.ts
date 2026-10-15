@@ -123,7 +123,7 @@ describe("service call contract", () => {
     it("caps explicit batches and keeps broad targets previewed", () => {
       expect(skillDoc).toContain("up to 10 explicitly named entities in one call");
       expect(skillDoc).toContain("never expand it into entity ids yourself; explicit ids (up to 10) are only for entities the USER named");
-      expect(skillDoc).toContain("`--area <area_id>`/`--device <device_id>` (they expand to concrete entities and always preview)");
+      expect(skillDoc).toContain("`--area <area_id>`/`--device <device_id>` (they expand to concrete entities and preview unless they resolve to one entity)");
     });
   });
 

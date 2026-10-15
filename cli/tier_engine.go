@@ -59,7 +59,12 @@ func (st *entityState) attr(key string) any {
 func (st *entityState) str(key string) string  { s, _ := st.attr(key).(string); return s }
 func (st *entityState) num(key string) float64 { n, _ := st.attr(key).(float64); return n }
 
-type registryEntry struct{ pl, di string }
+// registryEntry is one compact registry row: platform, device, the entity's
+// own area, and whether it is hidden or has an entity category.
+type registryEntry struct {
+	pl, di, ai          string
+	hidden, categorized bool
+}
 
 type tierEngine struct {
 	s         *relaySession
@@ -163,7 +168,10 @@ func (e *tierEngine) gap(code, entityID, via, detail string) {
 // as unregistered (never ordinary) and the run is typed.
 func (e *tierEngine) loadRegistry() {
 	var compact struct {
-		Entities []struct{ EI, PL, DI string } `json:"entities"`
+		Entities []struct {
+			EI, PL, DI, AI string
+			HB, EC         any // present only when set
+		} `json:"entities"`
 	}
 	if err := e.s.wsDecode(map[string]any{"type": "config/entity_registry/list_for_display"}, &compact, "the compact entity registry"); err != nil {
 		e.readFailed("", "", "registry")
@@ -171,7 +179,7 @@ func (e *tierEngine) loadRegistry() {
 		return
 	}
 	for _, row := range compact.Entities {
-		e.reg[row.EI] = registryEntry{pl: row.PL, di: row.DI}
+		e.reg[row.EI] = registryEntry{pl: row.PL, di: row.DI, ai: row.AI, hidden: row.HB != nil && row.HB != false, categorized: row.EC != nil}
 		if row.PL == "template" {
 			e.note(noteTemplates)
 		}

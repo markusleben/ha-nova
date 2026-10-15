@@ -220,7 +220,7 @@ func TestCallOutcomeUnknownNeverRetries(t *testing.T) {
 // I8: single use, expiry, and two concurrent applies send exactly once.
 func TestApplyIsSingleUseExpiringAndRaceFree(t *testing.T) {
 	h := newWriteHarness(t, newFakeHA())
-	h.f.related["area:kitchen"] = []string{"light.kitchen"}
+	h.f.related["area:kitchen"] = []string{"light.kitchen", "light.hall"}
 	id := h.plan("light.turn_off", "--area", "kitchen").Plan.ID // preview: no code
 	// Two real processes race for one plan, as two shells would.
 	cmds := make([]*exec.Cmd, 2)

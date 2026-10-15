@@ -72,7 +72,7 @@ func TestStateBackedFieldsDrift(t *testing.T) {
 	f.ent("input_number.target", "input_number", "20.0", nil)
 	f.related["area:hall"] = []string{"select.mode"}
 	h := newWriteHarness(t, f)
-	planned := h.plan("select.select_option", "--area", "hall", "--set", "option=comfort") // preview
+	planned := h.plan("select.select_option", "--area", "hall", "--set", "option=comfort") // one entity: an ordinary stored plan
 	if planned.Deltas[0].Before != "eco" {
 		t.Fatalf("delta reads the state: %+v", planned.Deltas)
 	}

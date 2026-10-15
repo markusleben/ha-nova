@@ -56,7 +56,13 @@ func (f *fakeHA) ent(id, pl, state string, attrs map[string]any) *fakeHA {
 	}
 	f.states[id] = map[string]any{"entity_id": id, "state": state, "attributes": attrs}
 	if pl != "" {
-		f.compact = append(f.compact, map[string]any{"ei": id, "en": attrs["friendly_name"], "pl": pl, "di": attrs["_di"]})
+		row := map[string]any{"ei": id, "en": attrs["friendly_name"], "pl": pl, "di": attrs["_di"]}
+		for _, key := range []string{"ai", "hb", "ec"} { // present only when set, as in HA
+			if v, set := attrs["_"+key]; set {
+				row[key] = v
+			}
+		}
+		f.compact = append(f.compact, row)
 	}
 	return f
 }

@@ -42,7 +42,7 @@ Safety invariants (each one has a Go test)
 - **I2** A typed-tier plan never runs without its exact code.
 - **I3** At `apply`, the plan is recomputed. Any hash mismatch gives exit 2 and nothing is sent.
 - **I4** An unread user-authored member, a failed scan, or a limit cut is never classified below typed (`indirect-actuation.md:352-366`).
-- **I5** Expanded targets (area, device, group, stored members) never take the fast path.
+- **I5** Expanded targets (area, device, group, stored members) never take the fast path. One exception (2026-10-16): an area or device that resolves to exactly one entity of the service's own domain — visible, without an entity category, in that area itself or inheriting it from its device, no group expanded, no leaf skipped — acts on exactly what naming that entity would, so it is classified as that direct call (every other rule still applies to it).
 - **I6** The payload sent equals the previewed frozen `entity_id` list (`service-call/SKILL.md:95`).
 - **I7** Exactly one POST per execution. No automatic retry, ever. This is stricter than `relay-api.md:590`.
 - **I8** Plans are single-use and expire.
@@ -176,7 +176,7 @@ Reason codes (`cli/tier_rules.go`; `TestTierReasonCodesAreDocumented` pins each 
 | `UNSUPPORTED_SELECTOR` | refused | direct `floor_id`/`label_id` |
 | `CODE_REQUIRED` | refused | code-bearing lock/alarm or a `code` in the payload (`service-call/SKILL.md` → Alarm Panels And Locks) |
 | `UNSUPPORTED_FEATURE` | refused | missing `supported_features` bit (same section) |
-| `EXPANDED_TARGET` | preview | area, device, or group expansion (I5) |
+| `EXPANDED_TARGET` | preview | area, device, or group expansion (I5); not raised for the I5 single-entity area/device exception |
 | `EXPLICIT_BATCH` | preview | more than 10 explicit ids (§4) |
 | `STORED_MEMBERS` | preview | the direct target is a scene, script, or `automation.trigger` run (I5) |
 | `NO_REGISTRY_ROW` | preview | a non-actuator entity without registry row (§2.2 step 1) |
@@ -262,8 +262,9 @@ The Safety Core needs amendments, and they are linter-enforced byte for byte (`d
 |---|---|---|---|
 | One exact id or unique `--match`, ordinary action, no consumer or only ordinary fully-read consumers, coverage notes only | ordinary | execute + verify, no preview | "turn off the kitchen light", "set the hallway thermostat to 21", "lock the front door", "close the garage door" |
 | Explicitly listed ids (≤ 10), each meeting the row above | ordinary | one call, per-member verification | "turn off kitchen and hallway light" |
+| Area / device resolving to exactly one entity of the service's domain (I5 exception), meeting the first row | ordinary | execute + verify, like naming it | "turn off the kitchen lights" (one light there) |
 | Helper / trigger-source write whose consumers are all read and ordinary | ordinary | execute; consumers listed in the result | "turn on guest mode" (an automation answers with lights) |
-| Area / device / group / stored-member run (scene, script, `automation.trigger`) | preview | exit 3 → user "yes" → `apply` | "lights off in the kitchen", "activate Movie Night", "run the bedtime script" |
+| Area / device with several entities (or a hidden, categorized, or elsewhere-assigned one), group, generic `homeassistant.*` over an area/device, stored-member run (scene, script, `automation.trigger`) | preview | exit 3 → user "yes" → `apply` | "lights off in the kitchen", "activate Movie Night", "run the bedtime script" |
 | Disruptive service; unread integration-owned member; consumer manager present (Q2) | preview | exit 3 → natural confirm → `apply` | "restart Home Assistant", Hue scene |
 | Config create/update/revert | preview | `plan write` shows `diff` → `apply` | "create an automation …" |
 | Ambiguous or zero match | — | exit 5, one question | "turn off the light" (12 lights) |
