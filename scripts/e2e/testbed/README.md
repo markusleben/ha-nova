@@ -123,5 +123,5 @@ red opens a "Test bed fails on Home Assistant <version>" issue.
 floors/areas/labels, registry edits, summary), `cli.sh`, `verify.sh`, `down.sh`.
 
 The hosted demo (`scripts/demo/hosted/`) reuses this bed: `TESTBED_OVERLAY` and
-`TESTBED_OWNER_PASSWORD` in `up.sh`/`down.sh` and `seed.mjs demo-user` exist
-for it only; local runs never set them.
+`TESTBED_OWNER_PASSWORD` in `up.sh`/`down.sh` exist for it only; local runs
+never set them.

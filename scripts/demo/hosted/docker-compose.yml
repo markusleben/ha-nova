@@ -1,31 +1,36 @@
 # Hosted demo overlay, merged over scripts/e2e/testbed/docker-compose.yml by
-# up.sh/down.sh when TESTBED_OVERLAY points here (see reset.sh, README.md).
+# up.sh/down.sh/reset.sh when TESTBED_OVERLAY points here (README.md).
 #
-# - Only Caddy publishes ports: 80/443 public, 18123 on 127.0.0.1 for seeding.
-# - Home Assistant and the broker sit on an internal network: no egress at all
-#   (no SSRF, no outbound abuse) and nothing published (ports reset).
-# - Every container: no-new-privileges, cap_drop ALL (+ the minimum), memory
-#   and pids limits, read-only root where the image allows, no docker.sock,
-#   no host network, nothing privileged. Images pinned by digest; bump them
-#   together with the test bed tags.
+# - Every visitor is a Home Assistant ADMIN, so the containers, not HA's
+#   permissions, are the boundary.
+# - All three services sit only on ha-nova-demo-house: an external
+#   `internal: true` network (bootstrap.sh) with no route out. Caddy
+#   (edge.yml, its own project) is the only container with egress and the
+#   only one publishing ports. Ports from the test bed compose are reset.
+# - Every container: no-new-privileges, cap_drop ALL (+ the minimum), CPU,
+#   memory and pids limits, read-only root, no docker.sock, no host network,
+#   nothing privileged; images pinned by digest (bump with the test bed tags).
 networks:
   house:
-    internal: true
-    ipam:
-      config:
-        - subnet: 10.89.240.0/24
-          # Dynamic addresses start at .128, so no container can ever take
-          # Caddy's fixed .2 (the only trusted proxy) by starting first.
-          ip_range: 10.89.240.128/25
-  edge: {}
+    external: true
+    name: ha-nova-demo-house
 
 x-hardening: &hardening
   restart: unless-stopped
   security_opt: ["no-new-privileges:true"]
   cap_drop: [ALL]
+  read_only: true
   logging:
     driver: local
     options: { max-size: "10m", max-file: "3" }
+
+# Empty, read-only directories over every place an admin could drop code or
+# files that HA executes or serves: custom_components, python_scripts, www
+# (/local, served unauthenticated), backups (upload + restore =
+# config replacement), image/tts (uploads, cache), /media (media uploads).
+# www and /media are also HA's only allowlist_external_dirs, so file-writing
+# services (notify.file, camera.snapshot, …) have nowhere to write.
+x-sealed: &sealed { type: tmpfs, read_only: true, tmpfs: { size: 4096 } }
 
 services:
   homeassistant:
@@ -33,56 +38,55 @@ services:
     image: homeassistant/home-assistant:2026.10.1@sha256:130241f28d01fa80dfa3b44f7d89781c188d8642ecab9024f079f19f9f82baa0
     ports: !reset []
     networks: [house]
-    depends_on: [mosquitto, caddy]
-    # The image's s6-overlay init runs as root and needs these to set up its
-    # service tree; s6 executes from /run, hence the exec tmpfs. Verified on
-    # 2026.10.1 with the full seed (README.md, "Verified locally").
+    # s6-overlay init runs as root and needs these to set up its service
+    # tree; it executes from /run, hence the exec tmpfs.
     cap_add: [CHOWN, DAC_OVERRIDE, FOWNER, SETGID, SETUID]
-    read_only: true
-    tmpfs: ["/run:exec", "/tmp"]
+    tmpfs: ["/run:exec", "/tmp:size=64m"]
+    cpus: 1.5
     mem_limit: 640m
     memswap_limit: 1g
     pids_limit: 512
+    volumes:
+      # /config stays writable (.storage, the recorder, and the UI editors'
+      # atomic writes of automations/scripts/scenes.yaml need it); what HA
+      # loads as configuration is read-only.
+      - ./.state/config/configuration.yaml:/config/configuration.yaml:ro
+      - ./.state/config/packages:/config/packages:ro
+      # Never grows: system_log.write and debug logging go nowhere.
+      - /dev/null:/config/home-assistant.log
+      - { <<: *sealed, target: /config/custom_components }
+      - { <<: *sealed, target: /config/python_scripts }
+      - { <<: *sealed, target: /config/www }
+      - { <<: *sealed, target: /config/backups }
+      - { <<: *sealed, target: /config/image }
+      - { <<: *sealed, target: /config/tts }
+      - { <<: *sealed, target: /media }
 
   mosquitto:
     <<: *hardening
     image: eclipse-mosquitto:2.0.22@sha256:199ea8ef2e35ec2b1b37e59cfd1dbae538ed4dfa4a2251a121a52215a6248a21
     user: "1883:1883"
     ports: !reset []
-    networks: [house]
-    read_only: true
+    networks:
+      house:
+        ipv4_address: 10.89.240.3 # = the ACL'd listener in mosquitto.conf
+    volumes:
+      - ${TESTBED_OVERLAY:?TESTBED_OVERLAY is required}/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - ${TESTBED_OVERLAY:?TESTBED_OVERLAY is required}/mosquitto.acl:/mosquitto/config/acl:ro
+    cpus: 0.25
     mem_limit: 64m
     pids_limit: 64
 
-  caddy:
-    <<: *hardening
-    image: caddy:2.11.4@sha256:0c994536bddb66445885237f1a5dcc1916bccea922661c76b4e9fc24061f9b52
-    container_name: ha-nova-demo-caddy
-    user: "1000:1000"
-    cap_add: [NET_BIND_SERVICE]
-    read_only: true
-    environment:
-      DEMO_DOMAIN: "${DEMO_DOMAIN:?DEMO_DOMAIN is required}"
-    ports:
-      - "80:80"
-      - "443:443"
-      - "443:443/udp"
-      - "127.0.0.1:18123:18123"
-    networks:
-      edge: {}
-      house:
-        ipv4_address: 10.89.240.2 # = http.trusted_proxies in config/configuration.yaml
-    volumes:
-      - ${TESTBED_OVERLAY:?TESTBED_OVERLAY is required}/Caddyfile:/etc/caddy/Caddyfile:ro
-      # Bind mounts (not named volumes): down -v must never wipe certificates,
-      # or nightly resets hit Let's Encrypt's duplicate-certificate limit.
-      - /var/lib/ha-nova-demo/caddy/data:/data
-      - /var/lib/ha-nova-demo/caddy/config:/config
-    mem_limit: 128m
-    pids_limit: 128
-
-  # Not part of the demo: the relay stays off the public host (README.md,
-  # "Relay exposure"). up.sh never starts it with an overlay; the profile keeps
-  # a bare `docker compose up` from building it either.
+  # Public behind Caddy (/relay/*) with the demo user's token (reset.sh).
+  # File access stays off; the snapshot store is a small tmpfs.
   relay:
-    profiles: [never]
+    <<: *hardening
+    ports: !reset []
+    networks: [house]
+    environment:
+      FILE_ACCESS: "off"
+      SNAPSHOT_DIR: /data/ha_nova_snapshots
+    tmpfs: ["/data:size=8m,mode=1777"]
+    cpus: 0.25
+    mem_limit: 128m
+    pids_limit: 64

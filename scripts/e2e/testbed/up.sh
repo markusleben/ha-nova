@@ -10,8 +10,9 @@
 #
 # Hosted demo (scripts/demo/hosted/reset.sh) only: TESTBED_OVERLAY=<dir> merges
 # <dir>/docker-compose.yml, copies <dir>/config/ over the seed config, and boots
-# Home Assistant + broker only (no relay, no CLI, no Go), plus seed.mjs
-# demo-user. TESTBED_OWNER_PASSWORD replaces the fixed local owner password.
+# Home Assistant + broker only (no relay, no CLI, no Go) and runs
+# `node <dir>/demo.mjs setup` right after onboarding. TESTBED_OWNER_PASSWORD
+# replaces the fixed local owner password.
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -43,7 +44,9 @@ command -v curl > /dev/null || die "curl is required"
 if [[ -n "$("${COMPOSE[@]}" ps -q 2> /dev/null)" ]]; then
   die "the test bed is already running; run down.sh first (npm run testbed:down)"
 fi
-for port in 18123 18791 11883; do
+# The hosted demo publishes nothing from this project (its Caddy, in another
+# project, already holds 127.0.0.1:18123).
+[[ -n "$OVERLAY" ]] || for port in 18123 18791 11883; do
   if (exec 3<> "/dev/tcp/127.0.0.1/$port") 2> /dev/null; then
     die "port $port is in use on 127.0.0.1; free it (the test bed never uses 8123/8791/1883)"
   fi
@@ -134,8 +137,8 @@ printf '%s\n' "$RELAY_AUTH_TOKEN" > "$STATE/relay-token"
 if [[ -n "$OVERLAY" ]]; then
   # First thing with an admin token: HA reverts an unpromoted http trial (the
   # demo's proxy config) five minutes after boot.
-  step "hosted demo: promoting the http config, demo user, local-only owner"
-  node "$HERE/seed.mjs" demo-user "$HA_URL" "$HA_LLAT"
+  step "hosted demo: overlay setup (demo.mjs setup)"
+  node "$OVERLAY/demo.mjs" setup "$HA_URL" "$HA_LLAT"
 fi
 
 step "seeding the house (MQTT entry, floors, areas, labels, registry)"

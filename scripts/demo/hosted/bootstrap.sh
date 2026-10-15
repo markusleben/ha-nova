@@ -4,7 +4,8 @@
 # /opt/ha-nova at the pinned ref). Idempotent: safe to re-run, e.g. after
 # `git -C /opt/ha-nova fetch` with a new --ref.
 #
-#   bash /opt/ha-nova/scripts/demo/hosted/bootstrap.sh --domain demo.hanova.app --ref <sha|tag>
+#   bash /opt/ha-nova/scripts/demo/hosted/bootstrap.sh --domain demo.hanova.app \
+#     --ref <40-hex commit sha> --abuse-contact <mail or URL>
 #
 # Holds no secrets: everything secret is generated on the host by reset.sh.
 set -euo pipefail
@@ -17,16 +18,18 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 die() { echo "bootstrap: $*" >&2; exit 1; }
 step() { echo "--- $*" >&2; }
 
-DOMAIN="" REF=""
+DOMAIN="" REF="" ABUSE=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --domain) DOMAIN="${2:-}"; shift 2 ;;
     --ref) REF="${2:-}"; shift 2 ;;
+    --abuse-contact) ABUSE="${2:-}"; shift 2 ;;
     *) die "unknown argument: $1" ;;
   esac
 done
 [[ "$DOMAIN" =~ ^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$ ]] || die "--domain is required (e.g. demo.hanova.app)"
-[[ "$REF" =~ ^[A-Za-z0-9._/-]+$ ]] || die "--ref is required (commit sha or tag)"
+[[ "$REF" =~ ^[0-9a-f]{40}$ ]] || die "--ref must be a full 40-hex commit sha (tags and branches can move)"
+[[ "$ABUSE" =~ ^[A-Za-z0-9@._:/+-]+$ ]] || die "--abuse-contact is required (mail address or URL)"
 [[ "$(id -u)" == 0 ]] || die "run as root"
 # shellcheck source=/dev/null
 . /etc/os-release
@@ -64,7 +67,7 @@ APT::Periodic::Update-Package-Lists "1";
 APT::Periodic::Unattended-Upgrade "1";
 CONF
 # Ubuntu security updates are on by default; add Docker's repo and reboot
-# when an update needs it, after the nightly reset (03:30 UTC).
+# when an update needs it (between two hourly resets).
 cat > /etc/apt/apt.conf.d/52ha-nova-demo << 'CONF'
 Unattended-Upgrade::Origins-Pattern { "origin=Docker,label=Docker CE"; };
 Unattended-Upgrade::Automatic-Reboot "true";
@@ -74,8 +77,9 @@ CONF
 step "docker: official repository (key fingerprint pinned), live-restore, no TCP socket"
 install -m 0755 -d /etc/apt/keyrings
 curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
-gpg --show-keys --with-colons /etc/apt/keyrings/docker.asc | grep -q "^fpr:::::::::$DOCKER_GPG_FPR:" \
-  || die "Docker's apt key does not match fingerprint $DOCKER_GPG_FPR"
+keys="$(gpg --show-keys --with-colons /etc/apt/keyrings/docker.asc)"
+[[ "$(grep -c '^pub:' <<< "$keys")" == 1 ]] || die "Docker's apt key file must hold exactly one key"
+grep -q "^fpr:::::::::$DOCKER_GPG_FPR:" <<< "$keys" || die "Docker's apt key does not match fingerprint $DOCKER_GPG_FPR"
 chmod a+r /etc/apt/keyrings/docker.asc
 echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu $VERSION_CODENAME stable" \
   > /etc/apt/sources.list.d/docker.list
@@ -101,20 +105,43 @@ if [[ "$(/usr/local/bin/node --version 2> /dev/null || true)" != "v$NODE_VERSION
   echo "$NODE_SHA256  $tmp/node.tar.xz" | sha256sum -c --quiet -
   rm -rf /opt/node
   install -d /opt/node
-  tar -xJf "$tmp/node.tar.xz" -C /opt/node --strip-components=1
+  tar --no-same-owner -xJf "$tmp/node.tar.xz" -C /opt/node --strip-components=1
   ln -sf /opt/node/bin/node /usr/local/bin/node
   rm -rf "$tmp"
 fi
 
-step "demo config and Caddy state (certificates survive every reset)"
-install -d -o 1000 -g 1000 -m 0700 /var/lib/ha-nova-demo/caddy/data /var/lib/ha-nova-demo/caddy/config
-printf 'DEMO_DOMAIN=%s\nDEMO_REF=%s\n' "$DOMAIN" "$REF" > /etc/ha-nova-demo.env
-chmod 0644 /etc/ha-nova-demo.env
+step "egress cap: 6 Mbit/s out (~2 TB/month, the bundle's transfer allowance)"
+dev="$(ip -4 route show default | awk '{print $5; exit}')"
+[[ -n "$dev" ]] || die "no default route interface"
+cat > /etc/systemd/system/ha-nova-demo-shaper.service << UNIT
+[Unit]
+Description=HA NOVA demo: cap egress at 6 Mbit/s
+After=network-online.target
+Wants=network-online.target
 
-step "nightly reset: ha-nova-demo-reset.timer (03:30 UTC)"
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/sbin/tc qdisc replace dev $dev root tbf rate 6mbit burst 64kb latency 400ms
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+
+step "demo state dirs, env, internal network, Caddy (edge.yml)"
+install -d -o 1000 -g 1000 -m 0700 /var/lib/ha-nova-demo/caddy/data /var/lib/ha-nova-demo/caddy/config /var/lib/ha-nova-demo/logs
+install -d -m 0755 /var/lib/ha-nova-demo/public
+printf 'DEMO_DOMAIN=%s\nDEMO_REF=%s\nABUSE_CONTACT=%s\n' "$DOMAIN" "$REF" "$ABUSE" > /etc/ha-nova-demo.env
+chmod 0644 /etc/ha-nova-demo.env
+# External + internal: survives every reset, and nothing on it has a route out.
+docker network inspect ha-nova-demo-house > /dev/null 2>&1 \
+  || docker network create --internal --subnet 10.89.240.0/24 --ip-range 10.89.240.128/25 ha-nova-demo-house > /dev/null
+DEMO_DOMAIN="$DOMAIN" ABUSE_CONTACT="$ABUSE" docker compose -f "$HERE/edge.yml" up -d >&2
+
+step "timers: full reset every hour at :00 UTC, guard every minute"
 cat > /etc/systemd/system/ha-nova-demo-reset.service << 'UNIT'
 [Unit]
-Description=HA NOVA demo: reset the house to the pristine seed
+Description=HA NOVA demo: rebuild the house from the pinned ref
 Requires=docker.service
 After=docker.service network-online.target
 Wants=network-online.target
@@ -126,23 +153,50 @@ TimeoutStartSec=20min
 UNIT
 cat > /etc/systemd/system/ha-nova-demo-reset.timer << 'UNIT'
 [Unit]
-Description=HA NOVA demo: nightly reset
+Description=HA NOVA demo: hourly reset
 
 [Timer]
-OnCalendar=*-*-* 03:30:00 UTC
+OnCalendar=*-*-* *:00:00 UTC
 Persistent=true
 
 [Install]
 WantedBy=timers.target
 UNIT
-systemctl daemon-reload
-systemctl enable --now ha-nova-demo-reset.timer
+cat > /etc/systemd/system/ha-nova-demo-guard.service << 'UNIT'
+[Unit]
+Description=HA NOVA demo: minute guard (password, users, disk, relay)
+After=docker.service
 
-step "first boot of the demo house"
+[Service]
+Type=oneshot
+ExecStart=/bin/bash /opt/ha-nova/scripts/demo/hosted/guard.sh
+TimeoutStartSec=50s
+UNIT
+cat > /etc/systemd/system/ha-nova-demo-guard.timer << 'UNIT'
+[Unit]
+Description=HA NOVA demo: guard every minute
+
+[Timer]
+OnCalendar=minutely
+AccuracySec=5s
+
+[Install]
+WantedBy=timers.target
+UNIT
+systemctl daemon-reload
+systemctl enable --now ha-nova-demo-shaper.service
+
+step "first build of the demo house"
 systemctl start ha-nova-demo-reset.service
+systemctl enable --now ha-nova-demo-reset.timer ha-nova-demo-guard.timer
 
 step "listener check: only 22, 80, 443 may listen beyond loopback"
 bad="$(ss -H -ltn | awk '{print $4}' | grep -v -E '^(127\.|\[::1\]|\[::ffff:127\.)' | grep -v -E ':(22|80|443)$' || true)"
 [[ -z "$bad" ]] || die "unexpected TCP listeners: $bad"
+step "egress check: Home Assistant and the relay have no route out"
+if docker exec ha-nova-testbed-ha curl -s -m 5 -o /dev/null https://example.com; then die "Home Assistant reached the internet"; fi
+if docker exec ha-nova-testbed-relay node -e 'fetch("https://example.com").then(()=>process.exit(0),()=>process.exit(1))'; then
+  die "the relay reached the internet"
+fi
 free -m >&2
 echo "bootstrap: done. https://$DOMAIN (login demo / demo) once DNS points here." >&2

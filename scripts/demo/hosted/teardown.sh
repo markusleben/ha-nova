@@ -6,9 +6,9 @@
 #   bash scripts/demo/hosted/teardown.sh --dns-removed [--yes]   everything
 #
 # Rebuild (fresh host from the pinned ref, same IP, DNS untouched):
-#   teardown.sh --keep-ip --yes && provision.sh --ref … --alert-email … --yes
+#   teardown.sh --keep-ip --yes && provision.sh --ref … --alert-email … --abuse-contact … --yes
 # A full teardown releases the static IP, which AWS may hand to someone else:
-# delete the A/AAAA records at Namecheap FIRST, or demo.hanova.app would point
+# delete the A record at Namecheap FIRST, or demo.hanova.app would point
 # at a stranger's server (subdomain takeover). --dns-removed confirms that.
 set -euo pipefail
 

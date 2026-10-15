@@ -1,12 +1,40 @@
-# Hosted demo reverse proxy. Automatic HTTPS (Let's Encrypt) for DEMO_DOMAIN;
-# Home Assistant is reachable only through here. Caddy core has no rate
-# limiting (that needs the third-party caddy-ratelimit plugin and a custom
-# build), so brute force is left to Home Assistant's ip_ban (README.md).
+# Hosted demo reverse proxy (edge.yml). Automatic HTTPS (Let's Encrypt) for
+# DEMO_DOMAIN. Caddy core has no rate limiting (that needs the third-party
+# caddy-ratelimit plugin and a custom build), so there is none (README.md).
 {
 	admin off
 }
 
+(reset_page) {
+	# Upstream gone = reset.sh is rebuilding the house (or HA restarts).
+	handle_errors 502 503 504 {
+		header Content-Type "text/html; charset=utf-8"
+		header Retry-After "60"
+		respond `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width"><meta http-equiv="refresh" content="15"><title>Demo is resetting</title><body style="font:16px system-ui;max-width:32em;margin:4em auto;padding:0 1em"><h1>Demo is resetting</h1><p>The public demo house is wiped and rebuilt every hour at :00 UTC. Back in about 2 minutes; this page reloads by itself.</p>` 503
+	}
+}
+
 {$DEMO_DOMAIN} {
+	# Access log: kept 7 days, client IPs truncated (/24, /48), no headers,
+	# no auth query parameters. For abuse handling only.
+	log {
+		output file /logs/access.log {
+			roll_size 10MiB
+			roll_keep 7
+			roll_keep_for 168h
+		}
+		format filter {
+			request>remote_ip ip_mask 24 48
+			request>client_ip ip_mask 24 48
+			request>headers delete
+			request>uri query {
+				delete authSig
+				delete token
+				delete code
+			}
+			resp_headers delete
+		}
+	}
 	request_body {
 		max_size 1MB
 	}
@@ -16,14 +44,44 @@
 		X-Frame-Options "DENY"
 		Referrer-Policy "strict-origin-when-cross-origin"
 		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+		# Visitors are admins: they can add dashboard resources, iframe
+		# dashboards, and markdown with images. Only this origin may serve
+		# scripts, frames, and images, so nobody's browser is pointed elsewhere.
+		Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' data: blob:; worker-src 'self' blob:; frame-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
 		-Server
 	}
-	# Caddy replaces any client-sent X-Forwarded-For with the real client IP,
-	# so Home Assistant's local_only owner can never be reached from outside.
-	reverse_proxy homeassistant:8123
+
+	# Unauthenticated file hosting and backup upload/download: never. First
+	# handle block wins; Caddy keeps named-matcher handles in file order.
+	@blocked path /api/backup/* /local/* /api/tts_proxy/* /relay/pair* /relay/home*
+	handle @blocked {
+		respond 403
+	}
+	handle /connect.json {
+		header Cache-Control "no-store"
+		root * /srv
+		file_server
+	}
+	handle /abuse {
+		respond "Report abuse of this public demo: {$ABUSE_CONTACT}" 200
+	}
+	handle_path /relay/* {
+		reverse_proxy relay:8791
+	}
+	handle {
+		reverse_proxy homeassistant:8123
+	}
+	import reset_page
 }
 
-# Seeding path for up.sh/seed.mjs; published on the host's 127.0.0.1 only.
+# Host tooling path, published on the host's 127.0.0.1 only. Caddy replaces
+# X-Forwarded-For with the real client (a private Docker address), so the
+# local-only owner works here and nowhere else.
 http://:18123 {
-	reverse_proxy homeassistant:8123
+	handle_path /relay/* {
+		reverse_proxy relay:8791
+	}
+	handle {
+		reverse_proxy homeassistant:8123
+	}
 }

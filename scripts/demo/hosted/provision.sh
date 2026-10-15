@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 # Create the hosted demo on AWS Lightsail (account 018368605240, profile
-# "personal", eu-central-1): Ubuntu 24.04 micro_3_0 instance, static IPv4,
-# firewall (80/443 public; 22 only for Lightsail browser SSH and --ssh-cidr),
-# IMDSv2 with hop limit 1, and a 10 USD monthly budget alert.
+# "personal", eu-central-1): Ubuntu 24.04 micro_3_0 instance (IPv4 only),
+# static IPv4, firewall (80/443 public; 22 only for Lightsail browser SSH and
+# --ssh-cidr), IMDSv2 with hop limit 1, and a 10 USD monthly budget alert.
 #
-#   bash scripts/demo/hosted/provision.sh --ref <sha|tag> --alert-email you@example.com [--ssh-cidr 203.0.113.7/32]
+#   bash scripts/demo/hosted/provision.sh --ref <40-hex sha> --alert-email you@example.com \
+#     --abuse-contact abuse@example.com [--ssh-cidr 203.0.113.7/32]
 #   … add --yes to execute; without it every command is only printed.
 #
 # Idempotent: existing resources are kept, the firewall is replaced as a whole.
@@ -21,18 +22,20 @@ DOMAIN=demo.hanova.app
 AZ=eu-central-1a
 BLUEPRINT=ubuntu_24_04
 BUNDLE=micro_3_0
-REF="" EMAIL="" SSH_CIDR=""
+REF="" EMAIL="" SSH_CIDR="" ABUSE=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --ref) REF="${2:-}"; shift 2 ;;
     --alert-email) EMAIL="${2:-}"; shift 2 ;;
     --ssh-cidr) SSH_CIDR="${2:-}"; shift 2 ;;
+    --abuse-contact) ABUSE="${2:-}"; shift 2 ;;
     --domain) DOMAIN="${2:-}"; shift 2 ;;
     --yes) YES=1; shift ;;
     *) die "unknown argument: $1" ;;
   esac
 done
-[[ "$REF" =~ ^[A-Za-z0-9._/-]+$ ]] || die "--ref <commit sha or tag> is required"
+[[ "$REF" =~ ^[0-9a-f]{40}$ ]] || die "--ref must be a full 40-hex commit sha (tags and branches can move)"
+[[ "$ABUSE" =~ ^[A-Za-z0-9@._:/+-]+$ ]] || die "--abuse-contact <mail or URL> is required (shown on /abuse)"
 [[ "$EMAIL" =~ ^[^@[:space:]\"\']+@[^@[:space:]\"\']+\.[a-z]+$ ]] || die "--alert-email is required (budget alerts)"
 [[ "$DOMAIN" =~ ^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$ ]] || die "invalid --domain"
 if [[ -n "$SSH_CIDR" ]]; then
@@ -51,7 +54,7 @@ apt-get update -q
 apt-get install -y -q git
 [[ -d /opt/ha-nova/.git ]] || git clone --quiet $REPO_URL /opt/ha-nova
 git -C /opt/ha-nova checkout --quiet --detach $REF
-bash /opt/ha-nova/scripts/demo/hosted/bootstrap.sh --domain $DOMAIN --ref $REF
+bash /opt/ha-nova/scripts/demo/hosted/bootstrap.sh --domain $DOMAIN --ref $REF --abuse-contact $ABUSE
 EOF_UD
 
 check_account
@@ -61,12 +64,14 @@ if [[ "$YES" == 0 ]] || ! has lightsail get-static-ip --static-ip-name "$STATIC_
   run lightsail allocate-static-ip --static-ip-name "$STATIC_IP"
 fi
 
-# 2. Instance (dual-stack; Lightsail's default key pair for browser SSH).
+# 2. Instance, IPv4 only: Docker's userland proxy would hand every IPv6
+#    visitor to Home Assistant as one bridge address (Lightsail's default key
+#    pair for browser SSH).
 if [[ "$YES" == 0 ]] || ! has lightsail get-instance --instance-name "$INSTANCE"; then
   echo "# user-data ($USER_DATA):" >&2
   sed 's/^/#   /' "$USER_DATA" >&2
   run lightsail create-instances --instance-names "$INSTANCE" --availability-zone "$AZ" \
-    --blueprint-id "$BLUEPRINT" --bundle-id "$BUNDLE" --ip-address-type dualstack \
+    --blueprint-id "$BLUEPRINT" --bundle-id "$BUNDLE" --ip-address-type ipv4 \
     --user-data "file://$USER_DATA" --tags key=project,value=ha-nova-demo
 fi
 if [[ "$YES" == 1 ]]; then
@@ -86,13 +91,13 @@ if [[ "$YES" == 0 ]] || [[ "$(q lightsail get-static-ip --static-ip-name "$STATI
   run lightsail attach-static-ip --static-ip-name "$STATIC_IP" --instance-name "$INSTANCE"
 fi
 
-# 5. Firewall, replaced as a whole: 80/443 (tcp + udp for HTTP/3) public on
-#    IPv4 and IPv6; 22 IPv4-only for Lightsail browser SSH (+ --ssh-cidr).
+# 5. Firewall, replaced as a whole: 80/443 (tcp + udp for HTTP/3) public;
+#    22 only for Lightsail browser SSH (+ --ssh-cidr).
 ssh_cidrs='[]'
 [[ -n "$SSH_CIDR" ]] && ssh_cidrs="[\"$SSH_CIDR\"]"
-pub='"cidrs":["0.0.0.0/0"],"ipv6Cidrs":["::/0"]'
+pub='"cidrs":["0.0.0.0/0"]'
 run lightsail put-instance-public-ports --instance-name "$INSTANCE" --port-infos \
-  "[{\"fromPort\":80,\"toPort\":80,\"protocol\":\"tcp\",$pub},{\"fromPort\":443,\"toPort\":443,\"protocol\":\"tcp\",$pub},{\"fromPort\":443,\"toPort\":443,\"protocol\":\"udp\",$pub},{\"fromPort\":22,\"toPort\":22,\"protocol\":\"tcp\",\"cidrs\":$ssh_cidrs,\"ipv6Cidrs\":[],\"cidrListAliases\":[\"lightsail-connect\"]}]"
+  "[{\"fromPort\":80,\"toPort\":80,\"protocol\":\"tcp\",$pub},{\"fromPort\":443,\"toPort\":443,\"protocol\":\"tcp\",$pub},{\"fromPort\":443,\"toPort\":443,\"protocol\":\"udp\",$pub},{\"fromPort\":22,\"toPort\":22,\"protocol\":\"tcp\",\"cidrs\":$ssh_cidrs,\"cidrListAliases\":[\"lightsail-connect\"]}]"
 if [[ "$YES" == 1 ]]; then
   # Post-condition, not trust: an empty cidrs list must not have meant "all".
   ports="$(q lightsail get-instance-port-states --instance-name "$INSTANCE" --query 'portStates[].fromPort' | tr '\t' '\n' | sort -u | tr '\n' ' ')"
@@ -112,10 +117,9 @@ fi
 
 if [[ "$YES" == 1 ]]; then
   ipv4="$(q lightsail get-static-ip --static-ip-name "$STATIC_IP" --query staticIp.ipAddress)"
-  ipv6="$(q lightsail get-instance --instance-name "$INSTANCE" --query 'instance.ipv6Addresses[0]')"
   cat >&2 << EOF_NEXT
 
-Provisioned. Next (manual, at Namecheap): A $DOMAIN -> $ipv4, AAAA $DOMAIN -> $ipv6
+Provisioned. Next (manual, at Namecheap): A $DOMAIN -> $ipv4 (no AAAA: IPv4 only)
 Bootstrap takes ~10 min; watch it in Lightsail browser SSH:
   sudo tail -f /var/log/cloud-init-output.log
 EOF_NEXT

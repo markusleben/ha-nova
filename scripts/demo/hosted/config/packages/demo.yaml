@@ -1,0 +1,21 @@
+# Hosted demo: the reset schedule, visible to people and agents
+# (`ha-nova get sensor.demo_next_reset`). The host resets every full hour (UTC).
+template:
+  - sensor:
+      - name: Demo next reset
+        unique_id: demo_next_reset
+        device_class: timestamp
+        state: "{{ (now() + timedelta(hours=1)).replace(minute=0, second=0, microsecond=0).isoformat() }}"
+
+automation:
+  - id: demo_reset_warning
+    alias: Demo reset warning
+    triggers:
+      - trigger: time_pattern
+        minutes: 55
+    actions:
+      - action: persistent_notification.create
+        data:
+          notification_id: demo_reset
+          title: Demo reset in 5 minutes
+          message: Everything changed in the last hour is wiped at :00. The house comes back pristine about 2 minutes later.
