@@ -206,3 +206,72 @@ stopped.
   github.com/hacs/integration/releases.
 - Next window starts AFTER HA 2026.9.1 + dev-blog 2026-09-07 + HACS 2.0.5;
   watch the legacy device-registry removal command for 2027.9.
+
+## 2026-10-15 — pre-release screen (v0.26.0 cycle): HA 2026.9.2–2026.10.1 + developer blog + HACS
+
+- Window screened: Core 2026.9.2 (2026-09-11), 2026.9.3 (2026-09-18),
+  2026.9.4 (2026-09-27), 2026.10.0 (2026-10-07), 2026.10.1 (2026-10-10);
+  developer-blog posts after 2026-09-07 through 2026-10-12 (no later post);
+  HACS releases after 2.0.5.
+- HIT — 2026.10 MQTT: `mqtt.publish` and `mqtt.dump` now require an
+  administrator account, like `mqtt.reload` (core #182045). The App's
+  Supervisor system context is unaffected; a standalone relay with a
+  non-admin `HA_LLAT` now fails on publish. Landed: admin-only line in
+  `skills/mqtt/SKILL.md` → Error Handling (word budget allows one line),
+  mirroring the 2026.9 note in `skills/updates/SKILL.md` (release-prep PR
+  `chore/release-0.26.0`).
+- HIT (minor) — 2026.10 State conditions: combining `for` with a state
+  attribute, a list of states, or a state taken from another entity now
+  fails validation (core #174083). No skill example used the combination.
+  Landed: one-line constraint under "State Condition with Attribute" in
+  `skills/ha-nova/automation-patterns.md` (same PR). The live
+  `/conditions/state/` doc page still says lists work with `for`; the
+  release note and PR win.
+- HIT (P3, deferred) — dev-blog 2026-09-11: lawn mowers gain `stop` and
+  activity `idle` ("stopped, but neither docked nor paused") in 2026.10.
+  `skills/entity-discovery/SKILL.md` "is everything OFF" lists `lawn_mower`
+  only in `cleaning`/`mowing`/`returning`/`paused`/`error`; an `idle` mower
+  in the yard reads as put away. Optional one-word fix, not in this train.
+- CLEAN — 2026.10 trigger-ID editor change maps to the existing trigger
+  condition; `condition: trigger` + `id:` guidance stays valid.
+- CLEAN — dev-blog 2026-09-15 `DeviceEntry.config_entries` enforcement
+  concerns Python properties only; WS `config/device_registry/list` keeps
+  `config_entries`/`config_entries_subentries`/`primary_config_entry`.
+  2026.10.1 #185361 keeps the deprecated attributes working in templates.
+- CLEAN — 2026.10.1 #185161: automations without an ID no longer store
+  traces (previously under `automation.None`); matches `trace/list`/`trace/get`
+  keyed by `item_id` = unique_id.
+- CLEAN — 2026.10 authentication legacy-mode removal: `config/auth/list`
+  shape unchanged; the Relay uses LLAT/Supervisor context.
+- CLEAN — Synology DSM reboot/shutdown admin-only, Telegram `download_file`
+  allowlist, Google Sheets empty-range shape, integration removals/sensor
+  renames: no pinned surface.
+- CLEAN — dev-blog 2026-09-17, 2026-09-26 (LLM `ToolResult`), 2026-09-28,
+  2026-09-30 (Probatio error wording; no skill matches voluptuous text),
+  2026-10-06, 2026-10-09, 2026-10-12: integration-internal or additive.
+- CLEAN — 2026.9.2/2026.9.3/2026.9.4: integration fixes and dependency
+  bumps; no pinned WS/REST contract change.
+- CLEAN — no HACS release after 2.0.5.
+- Watch (2026.11): `temperature_unit` state attribute on
+  climate/water_heater (additive); `entity_id` registry renames update the
+  entity in place (old state removed, rewritten under the new ID).
+- Sources: home-assistant.io/blog/2026/10/07/release-202610/;
+  github.com/home-assistant/core/releases (2026.9.2, 2026.9.3, 2026.9.4,
+  2026.10.1); github.com/home-assistant/core/pull/174083;
+  github.com/home-assistant/core/pull/182045;
+  github.com/home-assistant/core/pull/185161;
+  developers.home-assistant.io/blog/2026/09/11/lawn-mower-stop-action-idle-activity;
+  developers.home-assistant.io/blog/2026/09/15/device-entry-config-entries-deprecation;
+  developers.home-assistant.io/blog/2026/09/17/Use-config-entry-exc-in-migration;
+  developers.home-assistant.io/blog/2026/09/26/llm-tool-result;
+  developers.home-assistant.io/blog/2026/09/28/central-config-flow-abort-reasons;
+  developers.home-assistant.io/blog/2026/09/30/probatio-validation-engine;
+  developers.home-assistant.io/blog/2026/10/06/restore-state-last-states-removal;
+  developers.home-assistant.io/blog/2026/10/08/climate-native-temperature;
+  developers.home-assistant.io/blog/2026/10/08/water-heater-native-temperature;
+  developers.home-assistant.io/blog/2026/10/09/uom-selector;
+  developers.home-assistant.io/blog/2026/10/12/new-entity-lifecycle-hooks;
+  github.com/hacs/integration/releases.
+- Next window starts AFTER HA 2026.10.1 + dev-blog 2026-10-12 + HACS 2.0.5;
+  watch the 2026.11 items above, the deferred lawn-mower `idle` bucket, and
+  the legacy device-registry removal command for 2027.9.

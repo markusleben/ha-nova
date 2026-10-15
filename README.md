@@ -16,7 +16,8 @@
 
 <p align="center">
   On HA OS or Supervised, pair your AI with one six-digit code from the NOVA page.<br>
-  Every change is previewed and approved first, then verified by reading it back.
+  Changes are previewed first and verified by reading them back — only unambiguous everyday actions run right away.<br>
+  Locks, gates, the alarm, and deletes need a confirmation code.
 </p>
 
 <p align="center">
@@ -57,11 +58,12 @@ Say what you want. HA NOVA figures out the rest.
 | *"What happened to my living room temperature overnight?"* | Pulls history and summarizes the timeline in plain language |
 | *"Add a weather card to my main dashboard"* | Reads the dashboard, shows the change, writes only after you confirm |
 | *"Move all kitchen devices to the Kitchen area"* | Reassigns entities and devices — shows what will change first |
-| *"Turn off the upstairs lights"* | Turns them off, confirms the new state |
+| *"Turn off the kitchen light"* | Turns it off right away and checks that it really is off — whole rooms, scenes, and riskier actions show a preview first |
+| *"Unlock the front door"* | Shows exactly what will happen and waits for a one-time confirmation code |
 | *"Remind me in 20 minutes to check the oven"* | Creates a one-time reminder that disables itself after it fires |
 | *"Show me all temperature sensors"* | Finds entities by name, room, area, or label |
 
-> Automations and scripts get the full workflow today: preview, review, and a 40+ rule audit. Helpers, dashboards, and device control get preview-and-verify — deeper audits are rolling out with every release.
+> Automations and scripts get the full workflow today: preview, review, and a 40+ rule audit. Helpers and dashboards get preview-and-verify. Device control runs unambiguous everyday actions immediately and verifies them afterwards; everything else shows a preview first, and locks, gates, the alarm, and deletes need a code. Deeper audits are rolling out with every release.
 
 ---
 
@@ -72,8 +74,8 @@ We built this because we didn't trust AI with our own config either.
 **What happens when AI wants to change something:**
 
 1. **Researches first.** Finds your devices, checks your setup, resolves entity names. No guessing.
-2. **Shows you the change.** A clear before/after table of exactly what will change, before anything is written.
-3. **You approve it.** Deletes require a specific confirmation code — not just "yes." A reviewed batch delete takes one code bound to the exact list of items.
+2. **Shows you the change.** A clear before/after table of exactly what will change, before anything is written. The one exception: unambiguous everyday actions — "turn off the kitchen light" — run right away and are verified afterwards. The HA NOVA command decides which actions qualify, never the AI, and it sends nothing if anything changed since a preview.
+3. **You approve it.** Unlocking a door, opening a gate or garage door, disarming the alarm, and deletes require a specific confirmation code — not just "yes." Each automation or script delete takes its own code; other reviewed batch deletes take one code bound to the exact list of items. A code only proves it was you when your client asks you before the apply step runs: the AI sees the code it relays, and HA NOVA tells it never to use one you did not type. Over MCP, keep your client's approval prompt on for `ha_apply` — never "always allow."
 4. **Captures a recovery point first.** Before a covered delete or full-configuration replacement, HA NOVA snapshots the item it is about to change — so "gone" has a way back.
 5. **Writes and verifies.** Reads the config back to confirm the change stuck.
 6. **Audits itself.** Checks for mistakes, conflicts, and reliability issues.
@@ -86,8 +88,7 @@ We built this because we didn't trust AI with our own config either.
 - 🔑 **Every device is paired on its own.** The six-digit code is one-time and short-lived; what it creates is a per-device credential over an encrypted, pinned connection (OPAQUE, RFC 9807 + SPKI-pinned TLS 1.3 under the hood). (On App installs; the standalone container uses one shared token instead.)
 - 🗑️ **Revoke with one click on App installs.** Lost a laptop? Retired a machine? Cut off that paired device from the NOVA page — everything else keeps working.
 - 📖 **Every rule the AI follows is a markdown file you can read.**
-- 🏠 **No HA NOVA-operated cloud relay or usage analytics.** Local mode stays between your machine and Home Assistant. Optional Cloud mode uses your Nabu Casa service; HA NOVA receives none of that traffic.
-- 📊 **Census off by default.** Only after your explicit opt-in, the [Census](docs/reference/census.md) sends the payload schema, a dedicated random Census installation ID, HA NOVA version, operating system, and a recently observed Relay version when available. The ID lets repeat reports from the same participating installation count once; it is not a person count or the complete installed base. HA NOVA sends the first report immediately and another no sooner than seven days later. Cloudflare is the hosting provider and processes source-IP and connection metadata for HTTPS; HA NOVA ingest does not read or store the IP. Aggregate active/known version, OS, and Relay breakdowns stay in private maintainer statistics, with official Relay App totals shown separately. Turn it off anytime with `ha-nova census off`; see [the privacy details](PRIVACY.md).
+- 🏠 **No HA NOVA-operated cloud relay, usage analytics, or installation counting.** Local mode stays between your machine and Home Assistant. Optional Cloud mode uses your Nabu Casa service; HA NOVA receives none of that traffic.
 
 ---
 
@@ -164,7 +165,7 @@ Once it finishes, try: *"Show me all my automations."*
 | `ha-nova pair` | Pair this computer again with a fresh six-digit code |
 | `ha-nova doctor` | Diagnose connection and config problems |
 | `ha-nova uninstall` | Remove HA NOVA (keeps settings for easy reinstall) |
-| `ha-nova uninstall --purge` | Remove runtime, settings, and credentials; retain one opaque local marker that blocks stale processes from restarting census activity |
+| `ha-nova uninstall --purge` | Remove runtime, settings, and credentials; retain small opaque local markers that block stale processes from restoring the install |
 
 **Coming from a pre-Go install?**
 - macOS / Linux: `curl -fsSL https://raw.githubusercontent.com/markusleben/ha-nova/main/scripts/legacy-uninstall.sh | bash`
@@ -194,9 +195,9 @@ Every safety guarantee above is backed by a file and a test — the **[safety pa
 
 ---
 
-## ⚖️ Why not an MCP server?
+## ⚖️ Why skills first, not a tool server?
 
-Fair question — we built one first. 88,000 lines of it, never shipped. What it taught us is exactly what HA NOVA does differently:
+Fair question — we built a tool-based MCP server first. 88,000 lines of it, never shipped. What it taught us is exactly what HA NOVA does differently:
 
 <p align="center">
   <img src="assets/skills-vs-tools.png" alt="Left: a tool server lists its whole catalog by default. Right: HA NOVA sends one markdown skill on demand, and the credential stays locked on the server.">
@@ -205,11 +206,13 @@ Fair question — we built one first. 88,000 lines of it, never shipped. What it
 | | Tool-based MCP server | ✦ HA NOVA |
 |:--|:--|:--|
 | 📖 **Where the know-how lives** | In server code — changing the behavior means changing the server | In markdown files you can open, read, and edit yourself |
-| 🛡️ **Safety model** | Configurable: read-only modes, per-tool toggles, approval policies you set up | Enforced for every change: preview first, deletes take a typed code, every write is verified — each guarantee backed by a test |
+| 🛡️ **Safety model** | Configurable: read-only modes, per-tool toggles, approval policies you set up | Enforced for every change: preview first (only unambiguous everyday actions run right away), locks, gates, the alarm, and deletes take a typed code, every write is verified — each guarantee backed by a test |
 | 🏠 **Where it runs** | The leading project's recommended setup runs inside Home Assistant's own process | A deliberately dumb relay in its own process — a crash can't touch Home Assistant, and it holds no HA business logic |
 | 🔑 **Connecting a device** | A shared secret (URL or token) — or OAuth where configured | A one-time six-digit code per device, each individually revocable from the NOVA page *(App installs; the standalone container keeps a server-side token)* |
 
 > **The honest bit:** the MCP side is ahead on breadth today — more tools (App management, dashboard screenshots, ZHA inspection), more contributors, more stars. It's the older project. But the asymmetry matters: **our gaps close one markdown file at a time — turning a tool server's Python into plain text you can read would be a rewrite.**
+
+> **Need MCP anyway?** For clients without a shell, `ha-nova mcp` is a small local MCP server that your client launches as a command (stdio). It reuses this computer's pairing and runs the same checks — find, read, history, traces, previews, device control, and automation/script changes — with the skills as prompts. There is no remote or HTTP MCP endpoint. Setup: **[client integration](docs/reference/client-integration.md#use-with-any-mcp-client)**.
 
 Full detail, named, dated, honest in both directions: **[comparison page](docs/reference/comparison.md)**.
 
@@ -281,6 +284,7 @@ The skills declare the NOVA Relay version they need (see `version.json`) and war
 | [OpenCode](https://github.com/opencode-ai/opencode) | Terminal |
 | [Google Antigravity](https://antigravity.google/) | Desktop app / Terminal |
 | Hermes Agent (preview) | Terminal |
+| Local MCP clients that launch a command (stdio), via `ha-nova mcp` | MCP adapter |
 
 > Google Antigravity is the current Google client path. `ha-nova setup gemini` remains a legacy alias for existing Gemini-era installs.
 

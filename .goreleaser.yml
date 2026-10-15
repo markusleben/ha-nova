@@ -71,7 +71,28 @@ release:
     Windows uses a single supported install path: `install.ps1`. Return an RC install to stable later with `ha-nova update`.
     {{ else }}## What To Watch
 
-    - **Cloud Remote is back on Windows and Linux.** v0.25.0 briefly shipped it macOS-only; this release restores the full platform list with fresh per-platform release provenance. Updating restores lost Cloud routing.
+    - **Update the NOVA Relay App too.** This release needs Relay 0.9.1: update it under Settings > Apps > NOVA Relay (Container/Core: pull the new image). Until then HA NOVA warns that the Relay is outdated.
+    - **Device control has one explicit fast path.** Unambiguous everyday actions run right away and are verified afterwards; everything else shows a preview first. Locks, gates, the alarm, and deletes need a code.
+    - **Some YAML-only devices now need a code.** Buttons, switches, and other controls defined in YAML without a `unique_id` (template, command_line, MQTT) cannot be inspected, so using them asks for a confirmation code.
+    - **Automation and script deletes take one code per item.** Reverting an update that was changed in the Home Assistant UI since is refused instead of overwriting that edit.
+    - **The Census is gone; HA NOVA collects nothing.** The CLI deletes its old local Census state on first run, and `ha-nova census` no longer exists.
+    - **Shared legacy access is being retired.** It still works in this release and the next. Re-pair each computer once with `ha-nova pair`, then revoke the old shared access on the NOVA page.
+
+    ## New Features
+
+    - **Device control, sent once and verified.** `ha-nova call` and `ha-nova apply` send each action exactly once and check the result. A confirmed plan is re-checked first: if anything changed, nothing is sent.
+    - **Automation and script changes with a real diff.** `ha-nova plan write|delete|revert` shows the exact diff, saves once, reloads, and reads the result back; deletes take a config snapshot first.
+    - **Use HA NOVA from local MCP clients.** `ha-nova mcp` offers the same checks as tools to clients without a shell, such as Claude Desktop, and reuses this computer's pairing.
+    - **Quick read-only lookups.** `ha-nova find`, `get`, and `history` find entities by name, alias, domain, or current state ("which lights are on?"), read a state or config, and summarize history.
+
+    ## Bug Fixes
+
+    - **YAML and package automations are read properly.** They are read through their loaded config, so one YAML automation without an id no longer forces confirmation codes on unrelated actions.
+    - **Honest verification.** When a device does not reach the expected state in time, HA NOVA says so plainly (for example "still locked after 10s") instead of guessing.
+    - **The Relay stops hammering a rejected token.** A revoked Home Assistant token no longer causes an endless reconnect loop, and a stalled login can no longer block later requests.
+    - **Ready for Home Assistant 2026.9.** Child devices are recognized correctly, and admin-only update actions get a clear explanation instead of an opaque failure.
+    - **Windows updates clean up after themselves.** No leftover updater files in `%TEMP%`, and a failed update launch removes its download.
+    - **Setup describes pairing correctly.** The setup intro explains the one-time six-digit code instead of access tokens.
 
     Stable install commands are release-pinned for this tag.
 

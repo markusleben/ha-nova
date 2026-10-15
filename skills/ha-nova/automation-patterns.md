@@ -130,6 +130,8 @@ conditions:
     state: "heating"
 ```
 
+`for:` cannot be combined with `attribute`, a list of states, or a state taken from another entity — Home Assistant 2026.10 rejects that condition at save.
+
 ## Targeting
 
 ### target: Structure (M-03)
