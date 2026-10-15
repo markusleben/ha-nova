@@ -146,7 +146,7 @@ func (srv *mcpServer) callTool(raw json.RawMessage) (map[string]any, *rpcError) 
 		defer func() { setServerSelectionOverride(override); setActiveServerProfile(active) }()
 		setServerSelectionOverride(srv.pin)
 		out, errOut, exit := captureVerb(func() int { return tool.run(srv.paths, pinServer(tool.name, argv, srv.pin)) })
-		return toolResult(tool.name, out, errOut, exit), nil
+		return toolResult(tool.name, out, errOut, exit, srv.told), nil
 	}
 	return nil, &rpcError{Code: rpcInvalidParams, Message: "unknown tool: " + params.Name}
 }
@@ -177,8 +177,9 @@ func invalidArguments(name string, err error) map[string]any {
 
 // toolResult: the envelope as text and as structuredContent — the same
 // object, so a client that reads only one of them still gets the guidance
-// (next_step). isError for failures, not for needs_confirmation.
-func toolResult(name, out, errOut string, exit int) map[string]any {
+// (next_step). isError for failures, not for needs_confirmation. told
+// (nil = no memory) keeps each update notice's hint to once per session.
+func toolResult(name, out, errOut string, exit int, told map[string]bool) map[string]any {
 	var envelope map[string]any
 	// A verb envelope carries schema_version; anything else (trace prints
 	// plain JSON, failures print to stderr) is wrapped into one.
@@ -198,7 +199,7 @@ func toolResult(name, out, errOut string, exit int) map[string]any {
 			errInfo["message"] = mcpArgs(message)
 		}
 	}
-	if step := nextStep(envelope); step != "" {
+	if step := strings.TrimSpace(nextStep(envelope) + " " + noticeHints(envelope, told)); step != "" {
 		envelope["next_step"] = step
 	}
 	text, _ := json.Marshal(envelope)
