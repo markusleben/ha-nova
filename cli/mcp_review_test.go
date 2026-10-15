@@ -198,3 +198,20 @@ func TestMCPReapsTheUpdateRefreshChild(t *testing.T) {
 		time.Sleep(20 * time.Millisecond)
 	}
 }
+
+func TestMCPToolResultWrapsPlainJSONIntoTheEnvelope(t *testing.T) {
+	// ha_trace prints a plain JSON object (no schema_version): it must still
+	// arrive in the common envelope, and a failure gets the error object.
+	ok := toolResult("ha_trace", `{"run_id":"r1","steps":[]}`, "", 0)["structuredContent"].(map[string]any)
+	if ok["verb"] != "trace" || ok["status"] != "ok" || ok["result"] == nil || ok["schema_version"] != 1 {
+		t.Fatalf("plain trace output not wrapped: %+v", ok)
+	}
+	bad := toolResult("ha_trace", "", "no trace for that run", 1)["structuredContent"].(map[string]any)
+	errObj, isObj := bad["error"].(map[string]any)
+	if bad["status"] != "error" || !isObj || errObj["code"] != "TOOL_ERROR" {
+		t.Fatalf("trace failure not wrapped: %+v", bad)
+	}
+	if mcpFullySupportedSkills["ha-nova-review"] {
+		t.Fatal("review needs WS/file reads the MCP tools lack; it must not be advertised as fully supported")
+	}
+}

@@ -177,8 +177,9 @@ func invalidArguments(name string, err error) map[string]any {
 // (next_step). isError for failures, not for needs_confirmation.
 func toolResult(name, out, errOut string, exit int) map[string]any {
 	var envelope map[string]any
-	if json.Unmarshal([]byte(strings.TrimSpace(out)), &envelope) != nil {
-		// trace prints plain JSON; failures print to stderr.
+	// A verb envelope carries schema_version; anything else (trace prints
+	// plain JSON, failures print to stderr) is wrapped into one.
+	if json.Unmarshal([]byte(strings.TrimSpace(out)), &envelope) != nil || envelope["schema_version"] == nil {
 		var payload any
 		status := "ok"
 		if json.Unmarshal([]byte(strings.TrimSpace(out)), &payload) != nil || exit != 0 {

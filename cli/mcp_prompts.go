@@ -31,7 +31,7 @@ improvising. Pass a confirmation code to ha_apply only when the user typed it.
 // Skills whose whole workflow runs over the MCP tools; the others keep their
 // reads but need a shell client with the CLI for their writes.
 var mcpFullySupportedSkills = map[string]bool{"ha-nova": true, "ha-nova-read": true, "ha-nova-entity-discovery": true,
-	"ha-nova-history": true, "ha-nova-service-call": true, "ha-nova-write": true, "ha-nova-review": true}
+	"ha-nova-history": true, "ha-nova-service-call": true, "ha-nova-write": true}
 
 const mcpResourcePrefix = "ha-nova://skills/"
 
