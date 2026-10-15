@@ -103,7 +103,7 @@ Skills reference this section as "context skill → Active Preview Confirmation"
 - `delete`/destructive: typed confirmation code `confirm:<token>`.
   **Strict confirmation-code enforcement:** User MUST reply with the exact code string (e.g., `confirm:del-main-lights`). Any other response — including "yes", "sure, delete it", "do it", or any natural-language confirmation — is NOT valid. Reject and re-prompt with the exact code required. In user-facing output call it the "confirmation code" (localized), never a "token" (see `skills/ha-nova/output-rules.md` → Localization).
   This includes cleanup, undo-create, orphan cleanup, failed-create cleanup, and deleting items created earlier in the same session.
-- destructive multi-target batch: manifest-bound code `confirm:batch-<operation>-<family>-<count>-<digest>` per `skills/ha-nova/batch-safety.md` — only where the owning skill declares batch support, never inferred. Cross-family destructive cleanup takes its own manifest-bound code `confirm:cleanup-<target>-<count>-<digest>` (`skills/ha-nova/grouped-change-set.md` → Cross-Family Destructive Cleanup), under the same never-inferred rule.
+- destructive multi-target batch: manifest-bound code `confirm:batch-<operation>-<family>-<count>-<digest>` per `skills/ha-nova/batch-safety.md` — only where the owning skill declares batch support, never inferred (automations/scripts: one CLI-minted code per item, see there). Cross-family destructive cleanup takes its own manifest-bound code `confirm:cleanup-<target>-<count>-<digest>` (`skills/ha-nova/grouped-change-set.md` → Cross-Family Destructive Cleanup), under the same never-inferred rule.
 - This context skill explicitly owns batch deletion only for exact config snapshot blobs in the `config-snapshots` family (`skills/ha-nova/config-snapshots.md`).
 
 ### Write Routing Gate
@@ -394,9 +394,8 @@ Dispatch to `ha-nova:review` instead when there is no concrete incident: config-
 - For write flows, keep main-thread file reads minimal:
   - context skill (this file)
   - `skills/ha-nova/bulk-patterns.md` only for multi-target discovery/review work
-  - `skills/ha-nova/relay-api.md`
   - `skills/ha-nova/output-rules.md`
   - `skills/ha-nova/write-safety.md`
-  - one agent template per phase
+  - automation/script writes read through `ha-nova find|get` and write through `ha-nova plan write|delete|revert` + `apply`; `skills/ha-nova/relay-api.md` only for raw-relay routes
 - No proactive doctor in success path.
 - Re-read full state snapshot only with explicit reason.

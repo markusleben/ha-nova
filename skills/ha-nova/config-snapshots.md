@@ -80,6 +80,12 @@ every other character with `-`, collapse repeats, trim leading/trailing `-`,
 and truncate so the full name stays within 64 characters. Say in the result
 that a snapshot was taken and how to restore ("restore from snapshot").
 
+Automations and scripts: `ha-nova apply` takes this snapshot itself for a
+`plan delete` (`auto-<entity-slug>`, the raw live config) and reports it as
+`snapshot`; on failure (`SNAPSHOT_FAILED`) it deletes nothing, and
+`--no-snapshot` is accepted only after that failure and the user's choice.
+The rules below apply to the families that capture by hand.
+
 Capture failure is never silent, and never silently skipped: the capture runs
 BEFORE the destructive call, so when it fails (404 = store missing, store
 full, any error), STOP and tell the user there will be no snapshot — offer
@@ -101,11 +107,17 @@ the user just decides informed.
    where the API allows it (see the fidelity table).
 5. Read back and verify like any write of that family.
 
+Automations/scripts restore through `ha-nova plan write --domain <d> --id
+<original config id> --file <snapshot data>` + `apply` (the CLI diffs,
+upserts, reloads, and verifies). Automations carry their id in the data; a
+script's key is the deleted `script.<key>` (the snapshot name lost its
+underscores, and a renamed entity no longer matches its key — ask when unsure; a different key restores the script under a new identity, say so).
+
 ## Restore fidelity (say this in the preview — never overpromise)
 
 | Family | Restore | Identity |
 |---|---|---|
-| automations / scripts | full | config-API upsert keyed by the original `unique_id` — entity_id survives |
+| automations / scripts | full | config-API upsert keyed by the original `unique_id` — entity_id survives (a renamed script: confirm its key, see Restore) |
 | scenes | full | upsert by original `id`; entity derives from `name` |
 | dashboards (content) | full | `lovelace/config/save` by `url_path` while the dashboard exists |
 | dashboards (deleted) | partial | the snapshot carries `{shell, config}`: recreate via `lovelace/dashboards/create` from the shell metadata (`url_path`, title, icon, sidebar, admin flag), then `config/save` the content — content returns fully, the internal `dashboard_id` is new |

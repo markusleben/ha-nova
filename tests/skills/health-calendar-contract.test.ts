@@ -198,7 +198,7 @@ describe("health and calendar skill contracts", () => {
     const calendar = readFileSync("skills/calendar/SKILL.md", "utf8");
     const apiMatrix = readFileSync("docs/reference/ha-api-matrix.md", "utf8");
     const relayApi = readFileSync("skills/ha-nova/relay-api.md", "utf8");
-    const writeSafety = readFileSync("skills/ha-nova/write-safety.md", "utf8");
+    const writeSafety = (readFileSync("skills/ha-nova/write-safety.md", "utf8") + readFileSync("skills/ha-nova/recovery-coverage.md", "utf8") + readFileSync("skills/ha-nova/update-revert.md", "utf8"));
 
     expect(calendar).toContain("name: calendar");
     expect(calendar).toContain(

@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 const sceneSkill = readFileSync("skills/scene/SKILL.md", "utf8");
 const contextSkill = readFileSync("skills/ha-nova/SKILL.md", "utf8");
 const fallbackSkill = readFileSync("skills/fallback/SKILL.md", "utf8");
-const writeSafety = readFileSync("skills/ha-nova/write-safety.md", "utf8");
+const writeSafety = (readFileSync("skills/ha-nova/write-safety.md", "utf8") + readFileSync("skills/ha-nova/recovery-coverage.md", "utf8") + readFileSync("skills/ha-nova/update-revert.md", "utf8"));
 const architectureDoc = readFileSync("docs/reference/skill-architecture.md", "utf8");
 
 describe("scene contract", () => {

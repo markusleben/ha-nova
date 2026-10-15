@@ -254,8 +254,8 @@ func runSnapshotVerify(paths runtimePaths, args []string) int {
 // saveUndoSnapshotBytes parses, validates and atomically writes the snapshot
 // onto the bounded stack: newest first, one entry per domain+target (same
 // target replaces its entry), oldest evicted beyond the limit. The store
-// assumes single-flight writes: the skill's single write path (apply-agent)
-// serialises operations. The write itself is atomic (temp file + rename), so a
+// assumes single-flight writes: one write path at a time (`ha-nova apply`, or a
+// helper write) serialises operations. The write itself is atomic (temp file + rename), so a
 // reader never sees a torn file even if that assumption is violated.
 
 // snapshotServer resolves the server whose checkpoints show/verify select:

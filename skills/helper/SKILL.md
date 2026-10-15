@@ -143,7 +143,7 @@ While `truncated` is true the list proves neither absence nor uniqueness — nar
    ```
 7. Verify by re-reading the same list item.
 8. Run storage-family post-write review (see below).
-9. Update-Revert: after the verified update, capture the snapshot and offer `revert` — see `skills/ha-nova/write-safety.md` → Update-Revert. Storage-family restore rebuilds a schema-valid `{type}/update` from `before_config` (typed `{type}_id` from its `id` + writable fields only — never the raw list item, which lacks `{type}_id` and carries read-only `id`/`entity_id`); `expected_after` is the post-update read-back.
+9. Update-Revert: after the verified update, capture the snapshot (`skills/ha-nova/update-revert.md` → Manual capture) and offer `revert` — see `skills/ha-nova/write-safety.md` → Update-Revert. Storage-family restore rebuilds a schema-valid `{type}/update` from `before_config` (typed `{type}_id` from its `id` + writable fields only — never the raw list item, which lacks `{type}_id` and carries read-only `id`/`entity_id`); `expected_after` is the post-update read-back.
 
 #### Deleting a helper
 
@@ -412,7 +412,7 @@ Do NOT report results to user until complete.
 
 1. Apply `skills/review/checks.md` → Application (storage family: H-01..H-11; H-11 only when a consuming automation/template is in the thread context).
 2. Apply H-01..H-08 directly to the written helper config.
-3. Only evaluate H-09/H-10 if the collision scan finds a referencing automation/script with a direct helper-backed threshold and you also read live helper state per `skills/review/checks.md`.
+3. Only evaluate H-09/H-10 if the collision scan finds a referencing automation/script with a direct helper-backed threshold and you also read live helper state per `skills/review/checks-extended.md` → Helper Threshold Evidence.
 4. Collision scan: `search/related` for the helper entity, max 3 related automations/scripts.
 
 #### Config-entry family

@@ -18,7 +18,8 @@ describe("ha safety contract", () => {
 
   it("rejects pre-preview blanket approval for live writes", () => {
     const context = readFileSync("skills/ha-nova/SKILL.md", "utf8");
-    const applyAgent = readFileSync("skills/ha-nova/agents/apply-agent.md", "utf8");
+    const writeSkill = readFileSync("skills/write/SKILL.md", "utf8");
+    const applyVerb = readFileSync("cli/verb_apply.go", "utf8");
     const architecture = readFileSync("docs/reference/skill-architecture.md", "utf8");
     const relayApi = readFileSync("skills/ha-nova/relay-api.md", "utf8");
 
@@ -32,9 +33,11 @@ describe("ha safety contract", () => {
     expect(context).toContain("confirmation expires");
     expect(context).toContain("Multi-target confirmation is valid only where the owning skill supports multi-target writes");
 
-    expect(applyAgent).toContain("Apply precondition");
-    expect(applyAgent).toContain("pre-preview-only");
-    expect(applyAgent).toContain("BLOCKED: confirmation missing or stale");
+    // PR6: the apply precondition is the plan itself — a preview plan is
+    // applied only after the confirmation, a typed plan needs the user's code.
+    expect(writeSkill).toContain("Pre-preview consent is draft-only; a changed draft needs a new plan and preview.");
+    expect(writeSkill).toContain("A code counts only when the user typed it verbatim after the preview");
+    expect(applyVerb).toContain('refused("CODE_REQUIRED", "this plan needs the confirmation code the user types")');
 
     expect(architecture).toContain("pre-preview approval is never write confirmation");
     expect(relayApi).toContain("Relay API examples are not write authorization");
@@ -65,7 +68,7 @@ describe("ha safety contract", () => {
 
   it("preserves explicit user constraints across multi-step changes", () => {
     const context = readFileSync("skills/ha-nova/SKILL.md", "utf8");
-    const writeSafety = readFileSync("skills/ha-nova/write-safety.md", "utf8");
+    const writeSafety = (readFileSync("skills/ha-nova/write-safety.md", "utf8") + readFileSync("skills/ha-nova/recovery-coverage.md", "utf8") + readFileSync("skills/ha-nova/update-revert.md", "utf8"));
     const grouped = readFileSync("skills/ha-nova/grouped-change-set.md", "utf8");
 
     // Four distinct kinds, never merged.
@@ -189,12 +192,13 @@ describe("ha safety contract", () => {
       'if .ok and (.data | type == "object") then ((.data.automation // []) + (.data.script // []) + (.data.scene // [])) else error("search/related failed: \\(.error.message // "unexpected response shape")") end',
     );
 
-    // Both write-flow call sites route through the canonical filter, and the
-    // inline recreate fallback matches it exactly
-    expect(writeSkill).toContain("skills/ha-nova/search-related-consumers.jq");
-    expect(writeSkill).toContain(consumerFilter.trim());
-    expect(writeSkill).toContain("same canonical `search-related-consumers.jq`");
+    // PR6: both write-flow call sites read through `ha-nova get --related`,
+    // which fails the verb on any read error; the skill fails closed on it.
+    expect(writeSkill).toContain("`ha-nova get <entity_id> --related` on the top entities");
+    expect(writeSkill).toContain("a failed read is \"consumer check inconclusive\" — never a no-consumer claim");
+    expect(writeSkill).toContain("(3c fail-closed rule)");
     expect(writeSkill).toContain("NEVER on the item's own `entity_id`");
+    expect(readFileSync("cli/verb_get.go", "utf8")).toContain('if result.Related, err = s.ws(map[string]any{"type": "search/related", "item_type": "entity", "item_id": entityID}); err != nil {');
 
     // relay-api.md documents the empty-vs-error distinction next to the shape
     expect(relayApi).toContain("search-related-consumers.jq");

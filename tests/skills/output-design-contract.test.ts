@@ -32,7 +32,7 @@ describe("output design system (Cards)", () => {
     expect(outputRules).toContain("take two spaces before the following text");
     const templates = [
       outputRules,
-      readFileSync("skills/ha-nova/write-safety.md", "utf8"),
+      (readFileSync("skills/ha-nova/write-safety.md", "utf8") + readFileSync("skills/ha-nova/recovery-coverage.md", "utf8") + readFileSync("skills/ha-nova/update-revert.md", "utf8")),
       readFileSync("skills/yaml-config/SKILL.md", "utf8"),
     ];
     for (const content of templates) {
@@ -60,7 +60,7 @@ describe("output design system (Cards)", () => {
   it("shows the change table with the canonical header and verbatim-row rule", () => {
     expect(outputRules).toContain("| Field | Before | After |");
     expect(outputRules).toContain("|---|---|---|");
-    expect(outputRules).toContain("pasted verbatim from `ha-nova diff`");
+    expect(outputRules).toContain("pasted verbatim from the CLI (`ha-nova plan write` / `ha-nova diff`)");
     expect(outputRules).toContain("never invented and never re-aligned");
   });
 
@@ -114,7 +114,7 @@ describe("output design system (Cards)", () => {
     const write = readFileSync("skills/write/SKILL.md", "utf8");
     const helper = readFileSync("skills/helper/SKILL.md", "utf8");
     const review = readFileSync("skills/review/SKILL.md", "utf8");
-    const writeSafety = readFileSync("skills/ha-nova/write-safety.md", "utf8");
+    const writeSafety = (readFileSync("skills/ha-nova/write-safety.md", "utf8") + readFileSync("skills/ha-nova/recovery-coverage.md", "utf8") + readFileSync("skills/ha-nova/update-revert.md", "utf8"));
     expect(write).toContain("as the Suggestion Block");
     expect(helper).toContain("render them as the Suggestion Block");
     expect(helper).toContain('💡 Suggested defaults for "{name}"');
@@ -130,8 +130,8 @@ describe("output design system (Cards)", () => {
     expect(outputRules).toContain("hands the item to the owning write skill");
     expect(outputRules).toContain("it never runs anything");
     // The producing agent knows how its items will render.
-    const resolveAgent = readFileSync("skills/ha-nova/agents/resolve-agent.md", "utf8");
-    expect(resolveAgent).toContain("renders these as the Suggestion Block");
+    // The write flow renders its candidates as the Suggestion Block.
+    expect(readFileSync("skills/write/SKILL.md", "utf8")).toContain("the candidates as the Suggestion Block");
   });
 
   it("routes the freeform read skills through the shared shapes", () => {

@@ -90,7 +90,7 @@ describe("hacs lifecycle skill (#478)", () => {
     expect(updates).toContain("(`ha-nova:hacs`)");
     const context = readFileSync("skills/ha-nova/SKILL.md", "utf8");
     expect(context).toContain("| browse or list installed HACS packages, install, pin or downgrade to a specific version, redownload, or remove HACS packages");
-    const writeSafety = readFileSync("skills/ha-nova/write-safety.md", "utf8");
+    const writeSafety = (readFileSync("skills/ha-nova/write-safety.md", "utf8") + readFileSync("skills/ha-nova/recovery-coverage.md", "utf8") + readFileSync("skills/ha-nova/update-revert.md", "utf8"));
     expect(writeSafety).toContain("| `hacs` |");
     const snapshots = readFileSync("skills/ha-nova/config-snapshots.md", "utf8");
     expect(snapshots).toContain("HACS package/registration state");

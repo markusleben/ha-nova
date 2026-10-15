@@ -3,7 +3,8 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 const reviewSkill = readFileSync("skills/review/SKILL.md", "utf8");
-const reviewChecks = readFileSync("skills/review/checks.md", "utf8");
+// The catalog = core + on-demand extended part (evidence boundaries, other families).
+const reviewChecks = readFileSync("skills/review/checks.md", "utf8") + readFileSync("skills/review/checks-extended.md", "utf8");
 const writeSkill = readFileSync("skills/write/SKILL.md", "utf8");
 const helperSkill = readFileSync("skills/helper/SKILL.md", "utf8");
 const contextSkill = readFileSync("skills/ha-nova/SKILL.md", "utf8");

@@ -125,7 +125,11 @@ const WORD_BUDGETS: Record<string, number> = {
   // best-practices.md moved to on demand with an explicit bp_status trigger
   // and the BP-gate refresh pointer, plus the check-deferral triggers (deep
   // audit 2026-09-10 + Codex round 1, measured 5602).
-  write: 5620,
+  // PR6: writes run on `ha-nova find|get|plan|apply`; the agent templates and
+  // the manual read-back/snapshot steps left the skill (measured 5475).
+  // PR6 codex review: bare-revert shortcut and the create summary's
+  // config-id-before-verify rule (+~20 words). Measured 5520.
+  write: 5540,
   // HACS lifecycle: schema guard, reconcile loops, consumer discovery,
   // migration backup gate, category-appropriate verification (#478);
   // review rounds added pin-durability branches, the uninstall apply
@@ -483,8 +487,6 @@ const FOLDED_INTO_BUDGET: Record<string, string[]> = {
 // file cannot silently reset a word budget.
 const STANDALONE_MARKDOWN = new Set([
   "skills/energy/energy-reference.md",
-  "skills/ha-nova/agents/apply-agent.md",
-  "skills/ha-nova/agents/resolve-agent.md",
   "skills/ha-nova/automation-patterns.md",
   "skills/ha-nova/batch-safety.md",
   "skills/ha-nova/best-practices.md",
@@ -504,6 +506,7 @@ const STANDALONE_MARKDOWN = new Set([
   "skills/ha-nova/output-cards.md",
   "skills/ha-nova/output-rules.md",
   "skills/ha-nova/payload-schemas.md",
+  "skills/ha-nova/recovery-coverage.md",
   "skills/ha-nova/recovery-workflows.md",
   "skills/ha-nova/relay-api.md",
   "skills/ha-nova/safe-refactoring.md",
@@ -519,6 +522,7 @@ const STANDALONE_MARKDOWN = new Set([
   "skills/health/availability-analysis.md",
   "skills/maintenance/maintenance-reference.md",
   "skills/review/checks.md",
+  "skills/review/checks-extended.md",
 ].map((file) => resolve(file)));
 
 function subskillPath(name: string): string {

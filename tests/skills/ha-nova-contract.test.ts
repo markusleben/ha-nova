@@ -372,9 +372,9 @@ describe("ha-nova contract", () => {
       "skills/ha-nova/output-rules.md",
       "skills/ha-nova/config-body-filter.jq",
       "skills/ha-nova/bulk-patterns.md",
-      "skills/ha-nova/agents/resolve-agent.md",
-      "skills/ha-nova/agents/apply-agent.md",
+      "skills/ha-nova/recovery-coverage.md",
       "skills/review/checks.md",
+      "skills/review/checks-extended.md",
     ];
 
     for (const file of files) {
@@ -754,44 +754,19 @@ describe("ha-nova contract", () => {
     );
   });
 
-  it("keeps agent templates parameterized and structured", () => {
-    const resolve = readFileSync(
-      "skills/ha-nova/agents/resolve-agent.md",
-      "utf8",
-    );
-    const apply = readFileSync("skills/ha-nova/agents/apply-agent.md", "utf8");
-
-    expect(resolve).toContain("{DOMAIN}");
-    expect(resolve).toContain("{OPERATION}");
-    expect(resolve).toContain("{USER_INTENT}");
-    expect(resolve).toContain("ha-nova relay ws");
-    expect(resolve).toContain("ha-nova relay core");
-    expect(resolve).not.toContain("{RELAY_BASE_URL}");
-    expect(resolve).not.toContain("{RELAY_AUTH_TOKEN}");
-    expect(resolve).not.toContain("macos-onboarding.sh");
-    expect(resolve).not.toContain("git rev-parse");
-    expect(resolve).toContain("RESOLVED_ENTITIES:");
-    expect(resolve).toContain("No entities matching '{USER_INTENT}' found");
-    expect(resolve).toContain("SUGGESTED_ENHANCEMENTS:");
-    expect(resolve).toContain("toggle-stop");
-
-    expect(apply).toContain("{TARGET_ID}");
-    expect(apply).toContain("{PAYLOAD}");
-    expect(apply).toContain("ha-nova relay ws");
-    expect(apply).toContain("ha-nova relay core");
-    expect(apply).not.toContain("{RELAY_BASE_URL}");
-    expect(apply).not.toContain("{RELAY_AUTH_TOKEN}");
-    expect(apply).not.toContain("macos-onboarding.sh");
-    expect(apply).not.toContain("git rev-parse");
-    expect(apply).toContain("RESULT:");
-    expect(apply).toContain("reloaded:");
-    expect(apply).toContain("VERIFICATION:");
-    expect(apply).toContain("trigger` + `triggers");
-    expect(apply).toContain("automation/reload");
-    expect(apply).toContain("script/reload");
-    expect(apply).toContain(
-      "`write`, `read-back`, `reload`, or `runtime-verify`",
-    );
+  it("runs automation/script writes through the typed verbs, not agent templates (PR6)", () => {
+    const write = readFileSync("skills/write/SKILL.md", "utf8");
+    // The resolve/apply agent templates are retired: the CLI resolves,
+    // writes, reloads, and verifies.
+    expect(existsSync("skills/ha-nova/agents")).toBe(false);
+    expect(write).not.toContain("agents/");
+    expect(write).toContain("`ha-nova get <entity_id> --config`");
+    expect(write).toContain("`ha-nova plan write --domain automation|script [--id <config_id> | --create] --file <draft.json>`");
+    expect(write).toContain("`ha-nova plan delete <entity_id>`");
+    expect(write).toContain("`ha-nova apply --plan <id> [--confirm <code>] [--no-snapshot]`");
+    expect(write).toContain("this skill sends no raw `ha-nova relay` config write");
+    expect(write).not.toContain("{RELAY_BASE_URL}");
+    expect(write).not.toContain("macos-onboarding.sh");
   });
 
   it("keeps the history skill read-only, bounded, and stats-aware", () => {
@@ -936,10 +911,7 @@ describe("ha-nova contract", () => {
       "skills/service-call/SKILL.md",
       "skills/ha-nova/safe-refactoring.md",
       "skills/ha-nova/relay-api.md",
-      "skills/ha-nova/agents/resolve-agent.md",
-      "skills/ha-nova/agents/apply-agent.md",
-      "skills/write/SKILL.md",
-      "skills/review/checks.md",
+      "skills/review/checks-extended.md",
     ];
 
     for (const file of files) {
@@ -1005,10 +977,8 @@ describe("ha-nova contract", () => {
       "skills/read/SKILL.md",
       "skills/helper/SKILL.md",
       "skills/review/SKILL.md",
-      "skills/write/SKILL.md",
-      "skills/ha-nova/agents/resolve-agent.md",
       "skills/ha-nova/safe-refactoring.md",
-      "skills/review/checks.md",
+      "skills/review/checks-extended.md",
     ];
 
     for (const file of jqFileExamples) {

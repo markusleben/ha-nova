@@ -103,6 +103,7 @@ const SAFETY_CORE_BLOCKS = ((): { mutation: string; readOnly: string } => {
 // Internal check codes stay in reviewer/mutation files.
 const CHECK_CODE_ALLOWLIST = new Set([
   "skills/review/checks.md",
+  "skills/review/checks-extended.md",
   "skills/review/SKILL.md",
   "skills/write/SKILL.md",
   "skills/helper/SKILL.md",

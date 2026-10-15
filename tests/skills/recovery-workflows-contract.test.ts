@@ -175,7 +175,7 @@ describe("recovery workflows (#568/#569)", () => {
   });
 
   it("wires the review check catalog into the contract", () => {
-    const checks = flat(read("skills/review/checks.md"));
+    const checks = flat((read("skills/review/checks.md") + read("skills/review/checks-extended.md")));
     expect(checks).toContain(
       'R-29 [HIGH]: Edge-triggered "watchdog" without a persistent-fault path',
     );
@@ -190,23 +190,23 @@ describe("recovery workflows (#568/#569)", () => {
     );
   });
   it("keeps the R-29 boundary on declared continuity, not action shape", () => {
-    const checks = flat(read("skills/review/checks.md"));
+    const checks = flat((read("skills/review/checks.md") + read("skills/review/checks-extended.md")));
     expect(checks).toContain(
       "A recovery-shaped action alone (restart, reload, reconnect) is never that evidence",
     );
   });
   it("keeps the probe mandatory for one-shot recoveries", () => {
-    expect(flat(read("skills/review/checks.md"))).toContain(
+    expect(flat((read("skills/review/checks.md") + read("skills/review/checks-extended.md")))).toContain(
       "one-shot never exempts the probe",
     );
   });
   it("flags retries lacking an inter-attempt delay", () => {
-    expect(flat(read("skills/review/checks.md"))).toContain(
+    expect(flat((read("skills/review/checks.md") + read("skills/review/checks-extended.md")))).toContain(
       "no explicit delay or backoff between attempts",
     );
   });
   it("exempts one-shot recoveries from exhaustion-path findings", () => {
-    expect(flat(read("skills/review/checks.md"))).toContain(
+    expect(flat((read("skills/review/checks.md") + read("skills/review/checks-extended.md")))).toContain(
       "an explicitly ONE-SHOT recovery with its single action and post-action probe is exempt",
     );
   });

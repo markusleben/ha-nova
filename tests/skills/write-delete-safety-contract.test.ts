@@ -4,10 +4,9 @@ import { describe, expect, it } from "vitest";
 
 const writeSkill = readFileSync("skills/write/SKILL.md", "utf8");
 const refactorGuide = readFileSync("skills/ha-nova/safe-refactoring.md", "utf8");
-const writeSafety = readFileSync("skills/ha-nova/write-safety.md", "utf8");
+const writeSafety = (readFileSync("skills/ha-nova/write-safety.md", "utf8") + readFileSync("skills/ha-nova/recovery-coverage.md", "utf8") + readFileSync("skills/ha-nova/update-revert.md", "utf8"));
   const updateRevert = readFileSync("skills/ha-nova/update-revert.md", "utf8");
-const applyAgent = readFileSync("skills/ha-nova/agents/apply-agent.md", "utf8");
-const resolveAgent = readFileSync("skills/ha-nova/agents/resolve-agent.md", "utf8");
+const configApply = readFileSync("cli/verb_config_apply.go", "utf8");
 
 describe("write delete safety contract", () => {
   it("requires delete previews to surface consumer-check results before confirmation", () => {
@@ -94,7 +93,7 @@ describe("write delete safety contract", () => {
     expect(writeSafety).toContain("Update-Revert");
     // Drift baseline is the post-write verified read-back, not the draft.
     expect(writeSafety).toContain("expected_after");
-    expect(writeSafety).toContain("VERIFICATION.observed");
+    expect(writeSafety).toContain("complete post-write verified read-back");
     // The snapshot must keep the COMPLETE read-back body, not core fields only —
     // dropping a non-empty field (description/max) reads as drift and blocks revert.
     expect(writeSafety).toContain("complete");
@@ -148,23 +147,17 @@ describe("write delete safety contract", () => {
     expect(context).toContain("never allocate scratch directories or files from visible shell commands");
     expect(context).toContain("set the tool working directory to the scratch directory outside the command text");
     expect(context).toContain("local filenames, not absolute scratch paths");
-    expect(resolveAgent).toContain("Do not allocate scratch directories or files from visible shell commands");
-    expect(resolveAgent).toContain("Do not create relay scratch files under the repo working tree");
-    expect(resolveAgent).toContain("set the tool working directory to the scratch directory outside the command text");
-    expect(resolveAgent).toContain("local filenames, not absolute scratch paths");
-    expect(applyAgent).toContain("do not allocate scratch directories or files from visible shell commands");
-    expect(applyAgent).toContain("Do not create relay scratch files under the repo working tree");
-    expect(applyAgent).toContain("set the tool working directory to the scratch directory outside the command text");
-    expect(applyAgent).toContain("local filenames, not absolute scratch paths");
-    expect(applyAgent).toContain("never describe them as user-facing edits");
+    // PR6: the agent templates are gone; the write draft is a client-private scratch file.
+    expect(writeSkill).toContain("one JSON object in a client-private scratch\nfile");
   });
 
   it("renders the diff deterministically via the CLI, printed verbatim", () => {
     expect(writeSafety).toContain("ha-nova diff");
     expect(writeSafety).toContain("--out <diff-file>");
     expect(writeSafety).toContain("verbatim");
-    expect(writeSkill).toContain("ha-nova diff");
-    expect(writeSkill).toContain("prefer `--out <diff-file>`");
+    // Automation/script diffs come from `ha-nova plan write`.
+    expect(writeSkill).toContain("the plan's `diff` rows **verbatim** in the Changes slot");
+    expect(writeSafety).toContain("prefer `--out <diff-file>`");
   });
 
   it("splits the change table: agent-authored localized header, verbatim CLI rows", () => {
@@ -193,13 +186,13 @@ describe("write delete safety contract", () => {
 
   it("forces the diff/snapshot tools to be run, not hand-computed", () => {
     // The diff must be RUN and printed verbatim — never authored from context.
-    expect(writeSkill).toContain("**run** `ha-nova diff`");
     expect(writeSkill).toContain("never write it yourself");
     expect(writeSafety).toContain("There is no hand-computed fallback");
     // The example is de-realized so it cannot be copied as a hand-rendered block.
-    expect(writeSafety).toContain("paste the ha-nova diff file/stdout");
-    // Snapshot save is an explicit command; revert reads before_config only from it.
-    expect(writeSkill).toContain("**run `ha-nova snapshot save`**");
+    expect(writeSafety).toContain("paste the CLI diff rows here, unchanged");
+    // PR6: `apply` checkpoints an update itself; revert reads before_config only from it.
+    expect(writeSkill).toContain("lands on the undo stack automatically");
+    expect(configApply).toContain("saveCheckpoint(paths, s, env, action, ctx, expected)");
     expect(updateRevert).toContain("only** source of `before_config`");
     expect(updateRevert).toContain("reconstruct the previous config from memory");
   });
@@ -215,11 +208,12 @@ describe("write delete safety contract", () => {
   });
 
   it("treats post-delete absence evidence as successful verification without alternate delete retries", () => {
-    expect(applyAgent).toContain("config read-back not-found after DELETE is expected absence evidence");
-    expect(applyAgent).toContain("entity state not-found after DELETE is expected absence evidence");
-    expect(applyAgent).toContain("`config/entity_registry/get` may return `UPSTREAM_WS_COMMAND_ERROR` (legacy relays below the enforced floor: `UPSTREAM_WS_ERROR`) after deletion");
-    expect(applyAgent).toContain("do not retry alternate deletes");
-    expect(applyAgent).toContain("config/entity_registry/list_for_display");
-    expect(applyAgent).toContain("no exact `entity_id` match");
+    // PR6: `ha-nova apply` verifies a delete by absence (config 404 and no
+    // entity state); a delete answered 400/404 because the item was already
+    // gone is verified with a note; nothing is ever retried.
+    expect(configApply).toContain('row.Expect = "config and entity gone"');
+    expect(configApply).toContain("status == http.StatusNotFound && st == nil");
+    expect(configApply).toContain("already gone when the delete arrived");
+    expect(writeSkill).toContain("Never retry after exit 6 or 7.");
   });
 });

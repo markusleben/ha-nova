@@ -7,7 +7,7 @@ const writeSkill = readFileSync("skills/write/SKILL.md", "utf8");
 const sceneSkill = readFileSync("skills/scene/SKILL.md", "utf8");
 const dashboardSkill = readFileSync("skills/dashboard/SKILL.md", "utf8");
 const helperSkill = readFileSync("skills/helper/SKILL.md", "utf8");
-const writeSafety = readFileSync("skills/ha-nova/write-safety.md", "utf8");
+const writeSafety = (readFileSync("skills/ha-nova/write-safety.md", "utf8") + readFileSync("skills/ha-nova/recovery-coverage.md", "utf8") + readFileSync("skills/ha-nova/update-revert.md", "utf8"));
 const contextSkill = readFileSync("skills/ha-nova/SKILL.md", "utf8");
 
 describe("config snapshots contract", () => {
@@ -51,7 +51,9 @@ describe("config snapshots contract", () => {
   });
 
   it("wires auto-capture before destructive ops in every FULL family", () => {
-    expect(writeSkill).toContain("capture the auto config snapshot of the current read-back first");
+    // PR6: automations/scripts — `ha-nova apply` captures it before a plan delete.
+    expect(writeSkill).toContain("the CLI saves the pre-delete config snapshot");
+    expect(readFileSync("cli/verb_config_apply.go", "utf8")).toContain('if action.Op == "delete" && !noSnapshot {');
     expect(sceneSkill).toContain("Capture the auto config snapshot of the current config first");
     expect(sceneSkill).toContain("When the confirmed update REMOVES scene members, capture the auto config snapshot first");
     expect(dashboardSkill).toContain("capture the auto config snapshot first — data = `{shell:");
@@ -83,7 +85,7 @@ describe("config snapshots contract", () => {
 });
 
 describe("update-revert checkpoint observability (#483)", () => {
-  const writeSafety = readFileSync("skills/ha-nova/write-safety.md", "utf8");
+  const writeSafety = (readFileSync("skills/ha-nova/write-safety.md", "utf8") + readFileSync("skills/ha-nova/recovery-coverage.md", "utf8") + readFileSync("skills/ha-nova/update-revert.md", "utf8"));
   const updateRevert = readFileSync("skills/ha-nova/update-revert.md", "utf8");
   const writeSkill = readFileSync("skills/write/SKILL.md", "utf8");
 

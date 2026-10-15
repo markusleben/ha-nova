@@ -8,7 +8,7 @@ import { describe, expect, it } from "vitest";
 // described as "3-hour trends". These pins hold the shared Time-Window
 // Evidence contract and its wiring in the owning skills.
 
-const writeSafety = readFileSync("skills/ha-nova/write-safety.md", "utf8");
+const writeSafety = (readFileSync("skills/ha-nova/write-safety.md", "utf8") + readFileSync("skills/ha-nova/recovery-coverage.md", "utf8") + readFileSync("skills/ha-nova/update-revert.md", "utf8"));
 const helperSkill = readFileSync("skills/helper/SKILL.md", "utf8");
 const historySkill = readFileSync("skills/history/SKILL.md", "utf8");
 const calibration = readFileSync(
