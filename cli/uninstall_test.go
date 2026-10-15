@@ -231,7 +231,7 @@ func TestRunUninstallPurgeRemovesUnsafeServiceTokenFileBeforeConfig(t *testing.T
 	}
 }
 
-func TestRunUninstallShowsPreflightAndRelayStillRunningNote(t *testing.T) {
+func TestRunUninstallYesShowsPreflightAndLeavesSharedApp(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	t.Setenv("HA_NOVA_ALLOW_INSECURE_TEST_KEYRING", "1")
@@ -300,14 +300,15 @@ func TestRunUninstallShowsPreflightAndRelayStillRunningNote(t *testing.T) {
 		"Full purge also removes:",
 		"Home Assistant connection config",
 		uninstallTokenLineLabel(paths),
-		"The NOVA Relay is still running. To fully remove HA NOVA:",
-		"1. Remove the NOVA Relay: uninstall the app at " + haRelayAppPageURL("http://192.168.1.5:8123") + ", or stop and remove the container of a standalone relay",
-		"2. App installs: remove the repository: " + haAppStoreURL("http://192.168.1.5:8123"),
-		"3. Standalone or legacy installs: revoke the \"NOVA\" access token: http://192.168.1.5:8123/profile/security",
+		// --yes never asked "last computer?", so the shared App is left.
+		sharedAppLeftNote,
 	} {
 		if !strings.Contains(output, want) {
 			t.Fatalf("expected uninstall output %q:\n%s", want, output)
 		}
+	}
+	if strings.Contains(output, "uninstall the app at") || strings.Contains(output, "remove the repository") {
+		t.Fatalf("--yes must not send the user to remove the shared App:\n%s", output)
 	}
 }
 

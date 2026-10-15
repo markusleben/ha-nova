@@ -180,19 +180,19 @@ func TestWindowsUninstallHelperRejectsUnboundRelayEvidence(t *testing.T) {
 	}
 }
 
-func TestWindowsUninstallHelperArgsCarryKeptForOtherDevices(t *testing.T) {
+func TestWindowsUninstallHelperArgsCarryLastComputerConfirmed(t *testing.T) {
 	has := func(args []string) bool {
 		for _, arg := range args {
-			if arg == "--kept-for-other-devices" {
+			if arg == "--last-computer-confirmed" {
 				return true
 			}
 		}
 		return false
 	}
 	if !has(windowsUninstallHelperArgs("h.exe", uninstallModeStandard, false, nil, true)) {
-		t.Fatal("helper args lost the kept-for-other-devices choice")
+		t.Fatal("helper args lost the last-computer answer")
 	}
 	if has(windowsUninstallHelperArgs("h.exe", uninstallModeStandard, false, nil, false)) {
-		t.Fatal("helper args claim a kept App the user never chose")
+		t.Fatal("helper args claim a last-computer answer the user never gave")
 	}
 }

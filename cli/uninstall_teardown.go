@@ -62,7 +62,7 @@ func maybeOfferGuidedTeardown(reader *bufio.Reader, out io.Writer, preflight uni
 		return teardownNotOffered, nil
 	}
 	if err := deps.probeHA(preflight.haURL); err != nil {
-		renderSetupParagraphTight(out, "Home Assistant is not reachable right now — the server-side cleanup checklist is included at the end for when it is back online.")
+		renderSetupParagraphTight(out, "Home Assistant is not reachable right now, so the NOVA Relay App is left as it is.")
 		return teardownNotOffered, nil
 	}
 	stage := teardownStageOffer
@@ -82,7 +82,8 @@ func maybeOfferGuidedTeardown(reader *bufio.Reader, out io.Writer, preflight uni
 			// accidental Enter must never lead toward removing the shared App.
 			last, err := promptWizardYesNoFromReader(reader, out, "Is this the last computer using HA NOVA with this Home Assistant?", false)
 			if err == errSetupBack {
-				return teardownDeclined, nil
+				// No answer is not a confirmation: leave the shared App alone.
+				return teardownNotOffered, nil
 			}
 			if err == errSetupExit {
 				return teardownCancelled, nil
@@ -295,4 +296,12 @@ func printTeardownCompletedNotes(out io.Writer, mode uninstallMode) {
 	for _, note := range teardownCompletedNoteLines(mode) {
 		fmt.Fprintf(out, "  %s %s\n", session.style("success", session.successMarker()), note)
 	}
+}
+
+// teardownConfirmedLastComputer: a declined walkthrough and an unverified
+// removal both followed an explicit "yes, last computer" answer. Every other
+// outcome (not offered, HA unreachable, back, kept) leaves the shared App
+// note in place of the removal checklist.
+func teardownConfirmedLastComputer(outcome teardownOutcome) bool {
+	return outcome == teardownDeclined || outcome == teardownCompletedUnverified
 }

@@ -37,11 +37,14 @@ Status: active
    my.home-assistant.io instance-URL step).
 3. **Uninstall guard.** The guided teardown warns that the App is shared and
    first asks "Is this the last computer using HA NOVA with this Home
-   Assistant?" (default No). No keeps the App: no removal steps, and the final
-   notes (also from the Windows background helper) say the App stays for the
-   other computers. Yes then offers the walkthrough (default No; No prints the
-   checklist). The CLI cannot list paired devices (owner-only NOVA page), so
-   the user confirms.
+   Assistant?" (default No). Yes then offers the walkthrough (default No; No
+   prints the removal checklist). The removal checklist appears ONLY after
+   that explicit yes: every other path (No, back, Home Assistant unreachable,
+   no saved address, `--yes`, non-interactive, Windows recovery, the Windows
+   background helper without `--last-computer-confirmed`) ends with one plain
+   note that the App was left as it is and should be removed later only if no
+   other computer uses HA NOVA. The CLI cannot list paired devices (owner-only
+   NOVA page), so the user confirms.
 
 ## Limits
 
@@ -49,9 +52,8 @@ Status: active
   Older relays show the install steps (safe default).
 - A standalone Container relay on the HA host also answers; the wizard then
   goes to pairing, where 'manual' keeps the token path.
-- Windows uninstall recovery mode (resuming an interrupted background
-  uninstall) does not remember the "kept for other computers" answer and
-  prints the full checklist.
+- `--yes` and other non-interactive uninstalls on the last computer get no
+  App removal steps; the user removes the App in Home Assistant by hand.
 
 ## Docs
 

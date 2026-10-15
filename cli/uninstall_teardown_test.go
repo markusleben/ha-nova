@@ -157,16 +157,17 @@ func TestGuidedTeardownBackFromWalkthroughReturnsToLastComputer(t *testing.T) {
 	}
 }
 
-func TestPreflightNotesNeverAskToRemoveAppKeptForOtherComputers(t *testing.T) {
+func TestPreflightNotesListAppRemovalOnlyAfterLastComputerConfirmed(t *testing.T) {
 	preflight := teardownTestPreflight()
 	preflight.relayStillRunning = true
-	preflight.keptForOtherDevices = true
 	notes := strings.Join(preflightNoteLines(preflight), "\n")
-	if strings.Contains(notes, "uninstall the app") || strings.Contains(notes, "remove the repository") {
-		t.Fatalf("kept-for-others notes must not list App removal:\n%s", notes)
+	if strings.Contains(notes, "uninstall the app") || strings.Contains(notes, "remove the repository") ||
+		notes != sharedAppLeftNote {
+		t.Fatalf("unconfirmed notes must only say the App was left:\n%s", notes)
 	}
-	if !strings.Contains(notes, "stays in Home Assistant for your other computers") {
-		t.Fatalf("missing kept note:\n%s", notes)
+	preflight.lastComputerConfirmed = true
+	if notes := strings.Join(preflightNoteLines(preflight), "\n"); !strings.Contains(notes, "uninstall the app") {
+		t.Fatalf("confirmed last computer must get the checklist:\n%s", notes)
 	}
 }
 
@@ -215,8 +216,41 @@ func TestGuidedTeardownNotOfferedWhenHAUnreachable(t *testing.T) {
 	if outcome != teardownNotOffered {
 		t.Fatalf("outcome = %v, want teardownNotOffered", outcome)
 	}
-	if !strings.Contains(out.String(), "not reachable right now") {
+	if !strings.Contains(out.String(), "not reachable right now, so the NOVA Relay App is left as it is") {
 		t.Fatalf("expected unreachable notice, got:\n%s", out.String())
+	}
+	// The final notes for this outcome must not send the user to remove the
+	// shared App: other computers may still use it.
+	preflight := teardownTestPreflight()
+	preflight.relayStillRunning = true
+	preflight.lastComputerConfirmed = teardownConfirmedLastComputer(outcome)
+	notes := strings.Join(preflightNoteLines(preflight), "\n")
+	if strings.Contains(notes, "uninstall the app") || strings.Contains(notes, "remove the repository") ||
+		!strings.Contains(notes, "left as it is") {
+		t.Fatalf("unreachable HA must leave the App note, not the checklist:\n%s", notes)
+	}
+}
+
+func TestTeardownConfirmedLastComputerOnlyAfterYes(t *testing.T) {
+	for outcome, want := range map[teardownOutcome]bool{
+		teardownNotOffered:          false,
+		teardownKeptForOtherDevices: false,
+		teardownCancelled:           false,
+		teardownCompleted:           false,
+		teardownDeclined:            true,
+		teardownCompletedUnverified: true,
+	} {
+		if got := teardownConfirmedLastComputer(outcome); got != want {
+			t.Errorf("teardownConfirmedLastComputer(%v) = %v, want %v", outcome, got, want)
+		}
+	}
+}
+
+func TestGuidedTeardownBackAtFirstQuestionIsNoConfirmation(t *testing.T) {
+	rec := &teardownRecorder{}
+	outcome, output := runTeardownWithInput(t, "back\n", teardownTestPreflight(), rec)
+	if teardownConfirmedLastComputer(outcome) || len(rec.opened) != 0 {
+		t.Fatalf("back must not count as 'last computer': outcome = %v\n%s", outcome, output)
 	}
 }
 
@@ -261,9 +295,9 @@ func TestTeardownCompletedNoteLinesByMode(t *testing.T) {
 	}
 }
 
-func TestPreflightNoteLinesAlwaysListServerSideCleanup(t *testing.T) {
+func TestPreflightNoteLinesListServerSideCleanupForLastComputer(t *testing.T) {
 	// With a known HA URL the checklist carries deep links.
-	withURL := preflightNoteLines(uninstallPreflight{haURL: "http://ha.local:8123"})
+	withURL := preflightNoteLines(uninstallPreflight{haURL: "http://ha.local:8123", lastComputerConfirmed: true})
 	joined := strings.Join(withURL, "\n")
 	for _, want := range []string{
 		haRelayAppPageURL("http://ha.local:8123"),
@@ -278,7 +312,7 @@ func TestPreflightNoteLinesAlwaysListServerSideCleanup(t *testing.T) {
 
 	// Without any config the checklist still prints with generic panel paths —
 	// an unreachable relay is no evidence the server side is gone.
-	generic := strings.Join(preflightNoteLines(uninstallPreflight{}), "\n")
+	generic := strings.Join(preflightNoteLines(uninstallPreflight{lastComputerConfirmed: true}), "\n")
 	for _, want := range []string{
 		"Settings > Apps > NOVA Relay > Uninstall",
 		"Repositories",
