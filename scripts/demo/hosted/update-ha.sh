@@ -3,7 +3,7 @@
 # only. Runs as root on the demo host: nightly (ha-nova-demo-update.timer,
 # 03:10 UTC) and once from bootstrap.sh.
 #
-#   update-ha.sh              latest stable: resolve, verify, candidate boot, smoke, promote
+#   update-ha.sh              latest stable: resolve, verify, candidate boot, gates, promote
 #   update-ha.sh --pin <ver>  verify <ver> and make it the good digest WITHOUT a candidate
 #                             boot (bootstrap: the test bed's tested pin; manual rollback,
 #                             the only way to go to an older version)
@@ -15,12 +15,10 @@
 # failure the last good digest stays in place and the reason is logged loudly.
 set -euo pipefail
 
-REPO=/opt/ha-nova
-HOSTED="$REPO/scripts/demo/hosted"
-STATE=/var/lib/ha-nova-demo
+# shellcheck source=host-lib.sh
+. "$(dirname "${BASH_SOURCE[0]}")/host-lib.sh"
 IMAGE=ghcr.io/home-assistant/home-assistant
 ISSUER=https://token.actions.githubusercontent.com
-HA=http://127.0.0.1:18123
 
 fail() {
   logger -p user.err -t ha-nova-demo-update "$*"
@@ -49,26 +47,34 @@ persist() {
 }
 
 # Old images would fill the disk over months (and the guard resets at 80 %).
-# Prune only while Home Assistant runs the good digest: an image in use by a
-# container is never pruned, so the good one always survives.
+# Prune only while Home Assistant runs the good digest: an image in use is
+# never pruned, and the relay image carries the keep label.
 prune() {
   local good running
   good="$(cat "$STATE/ha-image" 2> /dev/null || true)"
   running="$(docker inspect ha-nova-testbed-ha --format '{{.Config.Image}}' 2> /dev/null || true)"
   if [[ -n "$good" && "$running" == "$good" ]]; then
-    docker image prune -af --filter until=48h > /dev/null || true
+    docker image prune -af --filter until=48h --filter "label!=$KEEP_LABEL" > /dev/null || true
   else
     log "skipping image prune: Home Assistant is not running the good digest"
   fi
 }
 
-reset_wait() {
-  # A reset already running would swallow our start request (systemd joins it).
-  while [[ "$(systemctl show -p ActiveState --value ha-nova-demo-reset.service)" == activating ]]; do sleep 5; done
-  systemctl start ha-nova-demo-reset.service
+# gates <ref> <version>: the candidate runs, the house passes smoke (every
+# guard invariant included), the relay round-trips, the public site works.
+gates() {
+  local ref="$1" version="$2" running got
+  running="$(docker inspect ha-nova-testbed-ha --format '{{.Config.Image}}' 2> /dev/null || true)"
+  [[ "$running" == "$ref" ]] || { log "running image $running, expected $ref"; return 1; }
+  got="$(timeout 120 node "$HOSTED/demo.mjs" smoke "$HA" "$(cat "$TB/.state/ha-llat")")" || return 1
+  [[ "$got" == "$version" ]] || { log "smoke reports $got, expected $version"; return 1; }
+  relay_roundtrip "$HA/relay" "$(cat "$STATE/relay-token")" || return 1
+  public_gate "$DEMO_DOMAIN" "$(cat "$STATE/relay-token")"
 }
 
 [[ "$(id -u)" == 0 ]] || fail "run as root"
+# shellcheck source=/dev/null
+. /etc/ha-nova-demo.env
 if [[ "${1:-}" == --pin ]]; then
   ref="$(verify "${2:-}")"
   persist "$ref" "$2"
@@ -92,19 +98,10 @@ if [[ -n "$current_version" && "$version" != "$current_version" \
   fail "stable.json offers $version, older than the running $current_version; refusing a downgrade (use --pin)"
 fi
 
-log "candidate Home Assistant $version ($ref); Caddy serves the reset page meanwhile"
-install -d -m 0700 /run/ha-nova-demo
-(umask 077 && printf '%s\n' "$ref" > /run/ha-nova-demo/ha-image.candidate)
-ok=0
-if reset_wait; then
-  running="$(docker inspect ha-nova-testbed-ha --format '{{.Config.Image}}' 2> /dev/null || true)"
-  if [[ "$running" == "$ref" ]] \
-    && got="$(timeout 120 node "$HOSTED/demo.mjs" smoke "$HA" "$(cat "$REPO/scripts/e2e/testbed/.state/ha-llat")")" \
-    && [[ "$got" == "$version" ]]; then
-    ok=1
-  fi
-fi
-if [[ "$ok" == 1 ]]; then
+# The candidate goes to reset.sh as an argument: a timer reset waiting on the
+# lock can never pick it up, and Caddy serves the reset page meanwhile.
+log "candidate Home Assistant $version ($ref)"
+if bash "$HOSTED/reset.sh" --candidate "$ref" && gates "$ref" "$version"; then
   persist "$ref" "$version"
   log "promoted Home Assistant $version ($ref)"
   [[ -z "$current" ]] || docker image rm "$current" > /dev/null 2>&1 || true
@@ -112,9 +109,8 @@ if [[ "$ok" == 1 ]]; then
   exit 0
 fi
 
-rm -f /run/ha-nova-demo/ha-image.candidate
 logger -p user.err -t ha-nova-demo-update "candidate Home Assistant $version failed; rolling back to $current"
-reset_wait || true
+bash "$HOSTED/reset.sh" || true
 docker image rm "$ref" > /dev/null 2>&1 || true
 prune
-fail "candidate Home Assistant $version ($ref) failed its boot or smoke test; kept $current"
+fail "candidate Home Assistant $version ($ref) failed its boot or gates; kept $current"

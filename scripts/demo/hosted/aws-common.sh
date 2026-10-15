@@ -31,6 +31,18 @@ run() {
   aws "$@" --profile "$PROFILE" --region "$REGION" --output json > /dev/null
 }
 
+# converge <aws args…>: like run, but retries for up to 5 min while AWS
+# refuses (e.g. an instance that is still being created).
+converge() {
+  local i
+  run "$@" 2> /dev/null && return 0
+  for i in $(seq 1 60); do
+    sleep 5
+    aws "$@" --profile "$PROFILE" --region "$REGION" --output json > /dev/null 2>&1 && return 0
+  done
+  die "AWS did not accept: aws $*"
+}
+
 # q <aws args…>: read-only query, text output. Never runs without --yes.
 q() {
   [[ "$YES" == 1 ]] || die "internal: query without --yes"

@@ -1,5 +1,5 @@
 # Hosted demo overlay, merged over scripts/e2e/testbed/docker-compose.yml by
-# up.sh/down.sh/reset.sh when TESTBED_OVERLAY points here (README.md).
+# up.sh/down.sh/reset.sh when TESTBED_OVERLAY points here (docs/reference/hosted-demo.md).
 #
 # - Every visitor is a Home Assistant ADMIN, so the containers, not HA's
 #   permissions, are the boundary.
@@ -88,6 +88,11 @@ services:
   # File access stays off; the snapshot store is a small tmpfs.
   relay:
     <<: *hardening
+    # Built once per ref by bootstrap.sh (digest-pinned Node base); a reset
+    # never builds or pulls it.
+    image: "${DEMO_RELAY_IMAGE:?DEMO_RELAY_IMAGE is required (reset.sh)}"
+    build: !reset null
+    pull_policy: never
     ports: !reset []
     networks: [house]
     environment:

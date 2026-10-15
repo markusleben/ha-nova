@@ -25,7 +25,7 @@ if (!/^http:\/\/127\.0\.0\.1:18123\/?$/.test(haUrl)) {
 }
 const base = haUrl.replace(/\/$/, "");
 const DEMO_USER = "demo";
-const DEMO_PASSWORD = "demo"; // public on purpose: on the landing page (/start) and in the README
+const DEMO_PASSWORD = "demo"; // public on purpose: on the landing page (/start) and in docs/reference/hosted-demo.md
 const RELAY_USER = "nova-relay"; // the public relay's HA identity; password random, never shown
 const PROXY = "10.89.240.2/32"; // Caddy (edge.yml) = http.trusted_proxies
 const ONBOARDING_EXTRAS = ["met", "google_translate", "radio_browser", "shopping_list"];
@@ -35,6 +35,7 @@ const SMOKE_ENTITIES = ["light.bed_light", "lock.entrance_door", "cover.testbed_
   "sensor.testbed_temperature", "button.router_restart", "light.template_desk_lamp", "input_boolean.guest_mode",
   "automation.a_guest_mode_unlocks_entrance_door", "script.leave_home", "scene.movie_night", "sensor.demo_next_reset"];
 const HANDSHAKE_MS = 15_000;
+const CALL_MS = 30_000; // per command: a stalled HA must not hang the guard
 // User ids of this build (the test bed's .state is wiped every reset). The
 // guard checks ids, so a visitor cannot swap in a look-alike user by name.
 const IDS_FILE = new URL("../../e2e/testbed/.state/demo-users.json", import.meta.url);
@@ -60,7 +61,8 @@ async function connect(accessToken = token) {
     else if (msg.type === "auth_ok") authed.resolve();
     else if (msg.type === "auth_invalid") authed.reject(new Error(`auth failed: ${msg.message}`));
     else if (msg.type === "result" && pending.has(msg.id)) {
-      const { resolve, reject, type } = pending.get(msg.id);
+      const { resolve, reject, type, timer } = pending.get(msg.id);
+      clearTimeout(timer);
       pending.delete(msg.id);
       if (msg.success) resolve(msg.result);
       else reject(new Error(`${type}: ${JSON.stringify(msg.error)}`));
@@ -76,7 +78,11 @@ async function connect(accessToken = token) {
     call(payload) {
       const id = nextId++;
       return new Promise((resolve, reject) => {
-        pending.set(id, { resolve, reject, type: payload.type });
+        const timer = setTimeout(() => {
+          pending.delete(id);
+          reject(new Error(`${payload.type}: no answer within ${CALL_MS} ms`));
+        }, CALL_MS);
+        pending.set(id, { resolve, reject, type: payload.type, timer });
         ws.send(JSON.stringify({ id, ...payload }));
       });
     },

@@ -38,6 +38,10 @@ done
 [[ "$ID" == ubuntu && "$VERSION_ID" == 24.04 ]] || die "expects Ubuntu 24.04 (got $ID $VERSION_ID)"
 [[ "$(uname -m)" == x86_64 ]] || die "expects x86_64 (Lightsail micro_3_0)"
 [[ "$HERE" == /opt/ha-nova/scripts/demo/hosted ]] || die "expects the clone at /opt/ha-nova (got $HERE)"
+[[ "$(git -C /opt/ha-nova rev-parse HEAD)" == "$REF" ]] \
+  || die "the clone is not at --ref $REF (git -C /opt/ha-nova checkout --detach $REF first)"
+# shellcheck source=host-lib.sh
+. "$HERE/host-lib.sh"
 export DEBIAN_FRONTEND=noninteractive
 
 step "swap: 1 GB swapfile (1 GB RAM is tight for Home Assistant)"
@@ -147,7 +151,17 @@ chmod 0644 /etc/ha-nova-demo.env
 # External + internal: survives every reset, and nothing on it has a route out.
 docker network inspect ha-nova-demo-house > /dev/null 2>&1 \
   || docker network create --internal --subnet 10.89.240.0/24 --ip-range 10.89.240.128/25 ha-nova-demo-house > /dev/null
-DEMO_DOMAIN="$DOMAIN" ABUSE_CONTACT="$ABUSE" docker compose -f "$HERE/edge.yml" up -d >&2
+DEMO_DOMAIN="$DOMAIN" ABUSE_CONTACT="$ABUSE"
+edge_up --force
+
+step "relay image for this ref (digest-pinned Node base; resets never build or pull it)"
+relay="$(relay_image "$REF")"
+if ! docker image inspect "$relay" > /dev/null 2>&1; then
+  docker build -q -f /opt/ha-nova/nova/Dockerfile.standalone \
+    --build-arg "NODE_IMAGE=$NODE_IMAGE" \
+    --build-arg "RELAY_VERSION=$(sed -nE 's/^version:[[:space:]]*"?([^"]+)"?/\1/p' /opt/ha-nova/nova/config.yaml | head -1)" \
+    --label "$KEEP_LABEL" -t "$relay" /opt/ha-nova/nova > /dev/null
+fi
 
 step "timers: full reset every hour at :00 UTC, guard every minute"
 cat > /etc/systemd/system/ha-nova-demo-reset.service << 'UNIT'
@@ -168,6 +182,9 @@ Description=HA NOVA demo: hourly reset
 
 [Timer]
 OnCalendar=*-*-* *:00:00 UTC
+# The broker keeps no state (persistence false): after a reboot the house
+# needs a rebuild, not a restart.
+OnBootSec=2min
 Persistent=true
 
 [Install]
@@ -224,21 +241,11 @@ if [[ ! -s /var/lib/ha-nova-demo/ha-image ]]; then
   pin="$(sed -nE 's#.*homeassistant/home-assistant:([0-9.]+)\}.*#\1#p' /opt/ha-nova/scripts/e2e/testbed/docker-compose.yml)"
   bash "$HERE/update-ha.sh" --pin "$pin"
 fi
-systemctl start ha-nova-demo-reset.service
+# Every gate (egress, DNS, listeners, relay, public site) runs inside the
+# reset; timers start only after this first gated build passed. TLS may not
+# exist yet (DNS not pointed): the public gate is skipped this once, loudly.
+bash "$HERE/reset.sh" --first-boot
 systemctl enable --now ha-nova-demo-reset.timer ha-nova-demo-guard.timer ha-nova-demo-update.timer
-
-step "listener check: only 22, 80, 443 may listen beyond loopback"
-bad="$(ss -H -ltn | awk '{print $4}' | grep -v -E '^(127\.|\[::1\]|\[::ffff:127\.)' | grep -v -E ':(22|80|443)$' || true)"
-[[ -z "$bad" ]] || die "unexpected TCP listeners: $bad"
-step "egress gate: no route out and no external DNS from Home Assistant or the relay"
-# Linux dockerd's embedded resolver forwards external names even on internal
-# networks; the compose dns sink (192.0.2.1) must make these lookups fail.
-if docker exec ha-nova-testbed-ha getent hosts example.com; then die "Home Assistant resolved an external name"; fi
-if docker exec ha-nova-testbed-ha curl -s -m 5 -o /dev/null http://1.1.1.1; then die "Home Assistant reached the internet"; fi
-# shellcheck disable=SC2016 # JavaScript, not shell
-probe='require("dns").lookup("example.com",e=>{if(!e)process.exit(0);fetch("http://1.1.1.1").then(()=>process.exit(0),()=>process.exit(1))})'
-if docker exec ha-nova-testbed-relay node -e "$probe"; then die "the relay resolved an external name or reached the internet"; fi
-docker exec ha-nova-testbed-ha getent hosts mosquitto > /dev/null || die "service names no longer resolve on the house network"
 free -m >&2
 # Then move to the latest stable release (a no-op when the pin is current).
 systemctl start --no-block ha-nova-demo-update.service
