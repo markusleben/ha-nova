@@ -175,3 +175,44 @@ func TestStatesReadFailureKeepsRegistryAnswers(t *testing.T) {
 		t.Fatal("a listing answered without /api/states")
 	}
 }
+
+func TestMatchOnlyUnregisteredWithStatesUnreadIsNoProofOfAbsence(t *testing.T) {
+	f := newFakeHA()
+	f.ent("light.kitchen_strip", "", "on", map[string]any{"friendly_name": "Strip"})
+	f.fail["/api/states"] = true
+	h := newWriteHarness(t, f)
+	exit, env := h.run(runCallCommand, "light.turn_off", "--match", "strip")
+	if (env.Error != nil && env.Error.Code == "NOT_FOUND") || env.Tier == "ordinary" || !strings.Contains(reasonCodes(env), reasonScanFailed) || len(h.posts()) != 0 {
+		t.Fatalf("call --match: exit %d tier %s reasons %s error %+v", exit, env.Tier, reasonCodes(env), env.Error)
+	}
+	exit, env = h.run(runFindCommand, "strip")
+	if exit == 0 || env.Error == nil || env.Error.Code == "NOT_FOUND" {
+		t.Fatalf("find: exit %d error %+v, want the states read error, not NOT_FOUND", exit, env.Error)
+	}
+}
+
+func TestStateNameHitSkipsAliasFallback(t *testing.T) {
+	f := newFakeHA()
+	f.ent("light.reading_lamp_yaml", "", "on", map[string]any{"friendly_name": "Reading lamp"})
+	f.full = []map[string]any{{"entity_id": "light.floor_lamp", "original_name": "Floor lamp"}}
+	f.compact = append(f.compact, map[string]any{"ei": "light.floor_lamp", "en": "Floor lamp"})
+	f.aliases = map[string][]string{"light.floor_lamp": {"reading lamp"}}
+	h := newWriteHarness(t, f)
+	_, env := h.run(runFindCommand, "reading lamp")
+	if result := findResultOf(t, env); result.Total != 1 || result.Matches[0].EntityID != "light.reading_lamp_yaml" {
+		t.Fatalf("without --aliases a state-name hit is a name hit: %+v", result)
+	}
+	for _, wsType := range h.log.wsTypes() {
+		if wsType == "config/entity_registry/get_entries" {
+			t.Fatal("aliases read although a state name matched")
+		}
+	}
+	_, env = h.run(runFindCommand, "reading lamp", "--aliases")
+	if result := findResultOf(t, env); result.Total != 2 {
+		t.Fatalf("--aliases stays exhaustive: %+v", result)
+	}
+	// --match always runs the alias pass: ambiguous, never the YAML lamp alone.
+	if exit, env := h.run(runCallCommand, "light.turn_off", "--match", "reading lamp"); exit != verbExitNotFound || env.Error == nil || env.Error.Code != "AMBIGUOUS_TARGET" {
+		t.Fatalf("call --match: exit %d error %+v", exit, env.Error)
+	}
+}

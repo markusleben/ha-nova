@@ -78,6 +78,9 @@ func runFindCommand(paths runtimePaths, args []string) int {
 			return err
 		}
 		if result.statesUnread != nil {
+			if result.Total == 0 { // no hit proves absence only with every state read
+				return result.statesUnread
+			}
 			env.Notices = append(env.Notices, statesUnreadNotice(result.statesUnread))
 		}
 		// A filter-only listing with no hits is an answer ("no light is on"),
@@ -128,7 +131,12 @@ func findEntities(s *relaySession, q findQuery) (findResult, error) {
 			return findResult{}, &verbFailure{exit: verbExitNotFound, code: "NOT_FOUND", message: fmt.Sprintf("unknown area_id %q", q.area), next: "Pass a canonical area_id from the area registry."}
 		}
 	}
-	var matches []verbTarget
+	var matches, hits []verbTarget
+	if statesErr == nil {
+		if hits, err = stateHits(s, states, q); err != nil {
+			return findResult{}, err
+		}
+	}
 	domainKnown := q.domain == ""
 	hasDomain := func(rows []registryRow) bool {
 		return slices.ContainsFunc(rows, func(row registryRow) bool { return strings.HasPrefix(row.entityID, q.domain+".") })
@@ -147,7 +155,7 @@ func findEntities(s *relaySession, q findQuery) (findResult, error) {
 		}
 		domainKnown = domainKnown || hasDomain(rows)
 		full := matchRegistryRows(rows, q, friendly)
-		if len(full) == 0 || q.completeAliases {
+		if (len(full) == 0 && len(hits) == 0) || q.completeAliases { // a state-name hit is a name hit too
 			if err := attachAliases(s, rows, q); err != nil {
 				return findResult{}, err
 			}
@@ -157,9 +165,7 @@ func findEntities(s *relaySession, q findQuery) (findResult, error) {
 	}
 	if statesErr == nil {
 		var seen bool
-		if matches, seen, err = mergeStates(s, states, friendly, matches, q); err != nil {
-			return findResult{}, err
-		}
+		matches, seen = mergeStates(states, friendly, matches, hits, q)
 		domainKnown = domainKnown || seen
 	}
 	if len(matches) == 0 && q.state != "" && q.phrase != "" && !q.completeAliases {
