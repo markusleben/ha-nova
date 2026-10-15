@@ -253,10 +253,14 @@ func (e *tierEngine) classify(id, service string, data map[string]any, depth int
 	case !registered && st != nil:
 		// Platform unknown (YAML without unique_id): never ordinary; typed
 		// when access-capable (spec §2.2 step 1).
-		if accessCapable(id, st.str("device_class")) {
+		switch {
+		case domain == "button": // a YAML template button: its press runs whatever its author wired, unread
+			level = tierTyped
+			e.gap(reasonUnreadableButton, id, via, "")
+		case accessCapable(id, st.str("device_class")):
 			level = tierTyped
 			e.gap(reasonNoRegistryRow, id, via, "")
-		} else {
+		default:
 			level, e.complete = max(level, tierPreview), false
 			e.raise(tierPreview, tierReason{Code: reasonNoRegistryRow, EntityID: id, Via: via})
 		}

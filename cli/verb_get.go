@@ -46,7 +46,7 @@ func runGetCommand(paths runtimePaths, args []string) int {
 			// A registry-disabled automation/script/scene has no state but a
 			// stored config: resolve it through its registry row instead.
 			var missing *verbFailure
-			if !*withConfig || !errors.As(err, &missing) || missing.code != "NOT_FOUND" {
+			if !*withConfig || !errors.As(err, &missing) || (missing.code != "NOT_FOUND" && missing.code != "ENTITY_DISABLED") {
 				return err
 			}
 			if target, err = disabledConfigTarget(s, entityID); err != nil {
@@ -92,6 +92,18 @@ func readEntityState(s *relaySession, entityID string) (json.RawMessage, verbTar
 		return nil, verbTarget{}, err
 	}
 	if status == http.StatusNotFound {
+		var entry struct {
+			DisabledBy string `json:"disabled_by"`
+		}
+		err := s.wsDecode(map[string]any{"type": "config/entity_registry/get", "entity_id": entityID}, &entry, "the registry entry of "+entityID)
+		if err == nil && entry.DisabledBy != "" { // registered but disabled: no state, not missing
+			return nil, verbTarget{}, &verbFailure{exit: verbExitNotFound, code: "ENTITY_DISABLED",
+				message: fmt.Sprintf("%s is disabled in the entity registry (by %s)", entityID, entry.DisabledBy),
+				next:    "Enable it first (ha-nova:organize) or pick another entity."}
+		}
+		if err != nil && !isUpstreamNotFound(err) {
+			return nil, verbTarget{}, err
+		}
 		domain, objectID, _ := strings.Cut(entityID, ".")
 		similar, err := findEntities(s, findQuery{phrase: strings.ReplaceAll(objectID, "_", " "), domain: domain, limit: 10})
 		if err != nil {

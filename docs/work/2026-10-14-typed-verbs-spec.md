@@ -99,7 +99,7 @@ Exit codes. 2 is reused from `snapshotExitDrift` (`cli/snapshot_store.go:81`).
 | 2 | drift: recomputed plan ≠ stored plan; a new plan is returned; nothing sent |
 | 3 | needs confirmation: plan stored, `tier` is `preview` or `typed` |
 | 4 | refused: service owned by another skill, unsupported selector, code handoff to the UI, unsupported feature bit, plan missing/expired/server mismatch, code mismatch |
-| 5 | target ambiguous or not found |
+| 5 | target ambiguous, not found, or registry-disabled (`ENTITY_DISABLED`: enable it first or pick another entity) |
 | 6 | sent, outcome `unverified` or `failed` |
 | 7 | outcome unknown after send (existing `OUTCOME_UNKNOWN` path, `cli/relay.go:837-904`); never retry |
 
@@ -181,6 +181,7 @@ Reason codes (`cli/tier_rules.go`; `TestTierReasonCodesAreDocumented` pins each 
 | `STORED_MEMBERS` | preview | the direct target is a scene, script, or `automation.trigger` run (I5) |
 | `NO_REGISTRY_ROW` | preview or typed | explicit id without registry row (§2.2 step 1) |
 | `TEMPLATE_ACTION_UNREAD` | typed | `pl: template` target; its stored action is not read in v1 (What triggers the gate) |
+| `UNREADABLE_BUTTON` | typed | a button without a registry row (a YAML template button): its press runs what its author wired, unread (rule 3); other domains without a row stay `NO_REGISTRY_ROW` |
 | `USER_AUTHORED_BUTTON` | typed | `esphome`/`mqtt` button press (Expanding the members, buttons) |
 | `UNREAD_COMMAND` | typed | `python_script`, `shell_command`, `rest_command`, `pyscript`, `netdaemon` services; any `command_line`, `rest`, `telnet`, `tcp`, `serial` entity (Expanding the members) |
 | `TEMPLATED_ACTION` | typed | templated action name or `service_template` (When you cannot see the members) |

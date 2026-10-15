@@ -84,7 +84,28 @@ func runApplyCommand(paths runtimePaths, args []string) int {
 }
 
 func refused(code, message string) *verbFailure {
-	return &verbFailure{exit: verbExitRefused, code: code, message: message + "; nothing was sent", next: "Plan again: ha-nova plan call … or ha-nova call …"}
+	next, known := refusalNext[code]
+	if !known {
+		next = replan
+	}
+	return &verbFailure{exit: verbExitRefused, code: code, message: message + "; nothing was sent", next: next}
+}
+
+const replan = "Plan again (ha-nova plan call|write|delete|revert, or ha-nova call) and apply the new plan."
+
+// refusalNext is the one next step per refusal code; anything not listed
+// is a plan that must be made again.
+var refusalNext = map[string]string{
+	"SERVER_MISMATCH":         "Apply it with the plan's own server (--server), or plan again for this one.",
+	"UNRESOLVED_TARGET":       "Name the entities explicitly, or check the area or device, then plan again.",
+	"NO_SNAPSHOT_NOT_OFFERED": "Apply without --no-snapshot: the config snapshot is taken first.",
+	"CODE_REQUIRED":           "Ask the user to type the confirmation code shown with the plan, then pass it with --confirm.",
+	"CODE_MISMATCH":           "Ask the user to type the confirmation code again, exactly as shown with the plan.",
+	"NO_UNDO_SNAPSHOT":        "Only the last verified update of an automation or script can be reverted; there is nothing to revert.",
+	"REVERT_UNSUPPORTED":      "Revert it through the skill that owns it (for helpers: ha-nova:helper).",
+	"CONFIG_ID_UNSUPPORTED":   "Edit this item in Home Assistant's UI or through ha-nova:yaml-config.",
+	"CONFIG_NOT_UI_MANAGED":   "It is defined in YAML or a package: edit it there through ha-nova:yaml-config.",
+	"CONFIG_ID_IN_USE":        "Plan again (a new id is minted), or plan an update of that id with --id.",
 }
 
 // applyPlan runs the spec §2.1 apply order: claim (I8), expiry, server,

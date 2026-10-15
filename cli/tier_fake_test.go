@@ -112,6 +112,11 @@ func (f *fakeHA) reply(r *http.Request, endpoint string, p map[string]any) any {
 		case "config/entity_registry/list":
 			return append([]map[string]any{}, f.full...)
 		case "config/entity_registry/get":
+			for _, row := range f.full {
+				if row["entity_id"] == p["entity_id"] && row["disabled_by"] != nil {
+					return row
+				}
+			}
 			if uid, ok := f.unique[fmt.Sprint(p["entity_id"])]; ok {
 				return map[string]any{"unique_id": uid}
 			}

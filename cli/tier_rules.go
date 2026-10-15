@@ -45,6 +45,7 @@ const (
 	reasonNoRegistryRow     = "NO_REGISTRY_ROW"
 	reasonTemplateAction    = "TEMPLATE_ACTION_UNREAD"
 	reasonUserButton        = "USER_AUTHORED_BUTTON"
+	reasonUnreadableButton  = "UNREADABLE_BUTTON"
 	reasonUnreadCommand     = "UNREAD_COMMAND"
 	reasonTemplatedAction   = "TEMPLATED_ACTION"
 	reasonUnresolvedTarget  = "UNRESOLVED_TARGET"
