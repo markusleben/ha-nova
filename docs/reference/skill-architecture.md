@@ -34,7 +34,6 @@ skills/
   ha-nova/config-snapshots.md   (reference doc — targeted config-snapshot capture/restore on the relay blob store)
   ha-nova/input-capability-preflight.md (reference doc — verify input-device gestures before planning a remap)
   ha-nova/consumer-discovery-preflight.md (reference doc — find an input's consumers before repurposing it)
-  ha-nova/agents/               (agent templates: resolve, apply)
   read/SKILL.md                         (ha-nova:read — automation/script list/get/trace)
   write/SKILL.md                        (ha-nova:write — automation/script create/update/delete)
   helper/SKILL.md                       (ha-nova:helper — helper CRUD: list/read/create/update/delete)
@@ -86,28 +85,19 @@ The context skill (`ha-nova`) stays the stable entrypoint; sub-skills remain ind
 
 `hooks/session-start` still exists as a repo-local development helper, but it is **not** the production installation model for Claude. Production Claude installs use a versioned local release snapshot under `~/.config/ha-nova/claude-marketplace/releases/vX.Y.Z`. The flat local staged marketplace layout stays a repo-local development tool only.
 
-## Agent vs Inline Decision Rule
+## Execution Model
 
-When building a new skill, decide execution model by these criteria:
-
-**Use agents when ALL of these apply:**
-- 5+ relay calls in a single operation
-- Multi-step deterministic logic (resolve with fallback, write with normalization)
-- Nested payload structures requiring comparison/normalization (e.g., trigger/triggers aliasing)
-- Domain reload required after write
-
-**Use inline when ANY of these apply:**
-- 1-4 relay calls per operation
-- Flat payloads (no nested triggers/conditions/actions)
-- Direct user interaction needed between steps (preview → confirm → execute)
-- No payload normalization quirks
+Every skill runs inline in the main thread. Deterministic multi-call work —
+target resolution, tiering, drift checks, writes, reloads, read-back
+verification — lives in the typed CLI verbs (`ha-nova find|get|plan|call|apply`),
+not in agent templates.
 
 Current mapping:
 
-| Skill | Model | Why |
+| Skill | Execution | Why |
 |-------|-------|-----|
 | read | inline | 1-2 calls, direct output |
-| write | **agents** | 5-7 calls, entity resolution fallback, singular/plural normalization, domain reload |
+| write | inline + CLI | `find`/`get` resolve; `plan write|delete|revert` + `apply` write, reload, and verify the read-back |
 | helper | inline | response-driven relay flows, direct preview/confirm loop, no agent-only normalization requirement |
 | integration-setup | inline | response-driven config flows with direct preview/confirm and HA UI handoff for secrets/external steps |
 | dashboard | inline | read → merge → preview → full-save → readback verify, all user-facing |
@@ -136,43 +126,29 @@ Current mapping:
 | yaml-config | inline | read -> File-Change Preview -> write -> check_config -> reload -> verify |
 | external-sources | inline | read-only, and the query does not go through the relay |
 
-**Rule of thumb:** If a `service-call` could do it, it's inline. If it needs what `write` needs (resolve + normalize + reload), use agents.
 
 ## Write Architecture
 
-`ha-nova:write` uses a deterministic four-phase flow:
+`ha-nova:write` uses a five-phase flow on the typed verbs:
 
-1. Resolve (Agent)
-- load env
-- fetch states
-- resolve entities and target id
-- check existence + current config
-- evaluate best-practice cache status
-
-2. Preview + Decide (Main Thread)
-- build final payload
-- lead the preview with a terminal-friendly Changes slot; full YAML only on `show yaml` (see `ha-nova/write-safety.md` → Pre-Write Diff)
-- update: pre-write impact advisory via `search/related` at preview time (review/ Step 2)
-- show compact preview blocks
-- ask one decision question only if ambiguous
-- confirmation tier:
-  - create/update: natural confirmation bound to active preview
-  - delete: typed confirmation code `confirm:<token>`
-  - pre-preview wording such as "implement the plan", "do it", or "go ahead" authorizes draft/check/preview work only; if the previewed payload, target, or manifest changes, confirmation expires
-
-3. Apply + Verify (Agent)
-- write via relay `/core`
-- read-back verification
-- normalized compare (`trigger(s)`, `condition(s)`, `action(s)`)
-- structured error result on partial or failed verification
-
-4. Review (inline, do NOT invoke `ha-nova:review` as separate skill)
-- post-write config quality checks, collision scan, conflict analysis
-- findings are advisory (write already succeeded)
-- update: capture a durable revert snapshot and offer `revert` (see `ha-nova/write-safety.md` → Update-Revert); creates clean up through the normal delete flow; deletes have no HA NOVA revert
-
-Fallback:
-- if agent dispatch unavailable, execute same phases inline serially.
+1. Resolve — `ha-nova find` / `ha-nova get --config` (config id from the
+   registry `unique_id`, never the slug); best-practice cache status.
+2. Preview + Decide — build the full draft, run the pre-write checks and the
+   update impact advisory (`ha-nova get --related`), then `ha-nova plan write`
+   (`plan delete`, `plan revert`): the plan carries the CLI `diff`, the tier,
+   and its reasons (a draft that would unlock a door is typed; a delete is
+   always typed and lists its consumers). Lead the preview with the verbatim
+   diff; full YAML only on `show yaml`. Pre-preview wording authorizes draft
+   and preview only; a changed draft needs a new plan.
+3. Apply + Verify — `ha-nova apply --plan <id>` re-plans (exit 2 on drift),
+   takes the pre-delete config snapshot, sends the body byte-exactly once,
+   reloads, and verifies the read-back (content and the order of
+   `variables`/`trigger_variables`/`fields`), the reload, and the live entity.
+4. Review (inline, never `ha-nova:review`) — post-write checks, collision
+   scan; findings are advisory. An update lands on the per-server undo stack
+   automatically (`revert` → `plan revert`); creates clean up through the
+   delete flow; deletes restore from their config snapshot.
+5. Test offer — `skills/ha-nova/test-run.md`.
 
 ## Config Snapshot Architecture
 
@@ -681,7 +657,7 @@ When creating a new skill under `skills/{name}/SKILL.md`:
 ## Review Check Single Source of Truth
 
 `skills/review/SKILL.md` is the stable review entrypoint for standalone reviews (workflow, output shape, collision/conflict analysis).
-`skills/review/checks.md` is the authoritative, self-contained source for the detailed review catalog (S/R/P/M/F/H/SC/D/HX/TS) plus its `## Application` section (family matrix, evidence boundaries, live-helper evidence).
+`skills/review/checks.md` (S/R/P/M/F/H rules, Application) plus its on-demand part `skills/review/checks-extended.md` (evidence boundaries, SC/D/HX/TS families) are the authoritative source for the detailed review catalog (S/R/P/M/F/H/SC/D/HX/TS), with the `## Application` section (family matrix, evidence boundaries, live-helper evidence).
 There is deliberately no review agent template: `write` and `helper` run their post-write review inline against `skills/review/checks.md` only — they no longer load the standalone review workflow.
 When adding or modifying checks, update `skills/review/checks.md` first and keep `skills/review/SKILL.md` aligned as the facade/workflow file.
 

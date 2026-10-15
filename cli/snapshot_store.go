@@ -13,10 +13,9 @@ import (
 // pre-write config (to restore) and the post-write verified read-back (to
 // detect external drift before restoring).
 //
-// The store performs NO Home Assistant calls. The skill orchestrates the
-// actual restore through `ha-nova relay` and the apply-agent, so the single
-// write path and the dumb-relay contract stay intact — this command only reads
-// and writes a local JSON file.
+// The store performs NO Home Assistant calls. Automation/script restores run
+// through `ha-nova plan revert` + `apply`; helper restores through the skill's
+// own write path — this store only reads and writes a local JSON file.
 type undoSnapshot struct {
 	SchemaVersion int    `json:"schema_version"`
 	Op            string `json:"op"`

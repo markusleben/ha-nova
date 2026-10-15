@@ -107,6 +107,6 @@ describe("first-hour pack (#528)", () => {
     );
     expect(outputRules).toContain("never a read-only sensor");
     expect(outputRules).toContain("a strategy config for the empty shell");
-    expect(flat(read("skills/ha-nova/agents/resolve-agent.md"))).toContain("outcome alert");
+    expect(flat(read("skills/ha-nova/smallest-solution.md"))).toContain("outcome alert");
   });
 });

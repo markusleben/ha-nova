@@ -11,7 +11,7 @@ import { describe, expect, it } from "vitest";
 // Markdown link traversal because "always" vs "on demand" is prose, not
 // syntax. Ratchet values are the measured totals rounded up; lowering them
 // is the point of any context-reduction change.
-const ROUTE_BUDGETS: Record<string, { files: string[]; limit: number; verbRoute?: boolean; skill?: string; extra?: string[] }> = {
+const ROUTE_BUDGETS: Record<string, { files: string[]; limit: number; verbRoute?: boolean; noRouter?: boolean; skill?: string; extra?: string[] }> = {
   // measured 32941 with the retired 10780-word template snapshot (router
   // 5619 + bootstrap 1176 + output rules 2636 + review 4829 + checks 7901);
   // the official templating page is fetched only when a template check
@@ -25,29 +25,49 @@ const ROUTE_BUDGETS: Record<string, { files: string[]; limit: number; verbRoute?
       "skills/ha-nova/output-cards.md",
       "skills/review/SKILL.md",
       "skills/review/checks.md",
+      "skills/review/checks-extended.md",
     ],
   },
-  // measured 31945 (router trio 9431 + write 2712 + relay-api 4217 +
-  // payload-schemas 1002 + best-practices 1212 + write-safety 3330 +
-  // smallest-solution 327 + resolve-agent 924 + apply-agent 889 + checks
-  // 7901); best-practices.md stays always loaded — its construction rules
-  // (mode selection, enforcement checklist) are needed on the fresh-cache
-  // path too. one-shot-automations.md is on demand and not counted.
+  // Typed-verbs PR6: writes run through `ha-nova find|get` and
+  // `ha-nova plan write|delete|revert` + `apply`, so the agent templates and
+  // relay-api.md left the mandatory list, and the router is no longer read
+  // for a single-item write (installed releases inject nothing; the write
+  // skill carries its own create-summary shape). The card file stays: write
+  // renders Preview/Delete/Result/Test Plan Cards. checks.md is the core
+  // catalog; checks-extended.md (evidence boundaries, other families) is read
+  // only before flagging a check that names a boundary. Measured before PR6:
+  // 31945 (with the router and the agents). Measured now: 15353 (multi-step row: 21121).
   write: {
-    limit: 32150,
+    limit: 15450, // spec target <= 15500
+    noRouter: true,
+    files: [
+      "skills/ha-nova/session-bootstrap.md",
+      "skills/ha-nova/output-rules.md",
+      "skills/ha-nova/output-cards.md",
+      "skills/write/SKILL.md",
+      "skills/ha-nova/payload-schemas.md",
+      "skills/ha-nova/best-practices.md",
+      "skills/ha-nova/write-safety.md",
+      "skills/ha-nova/smallest-solution.md",
+      "skills/review/checks.md",
+    ],
+  },
+  // The same route for a multi-step or multi-target write: the full context
+  // skill joins (Decision Memory, Work Ledger, Interactive Choices). Kept as
+  // its own honest row.
+  "write-multi-step": {
+    limit: 21250,
+    skill: "write",
     files: [
       "skills/ha-nova/SKILL.md",
       "skills/ha-nova/session-bootstrap.md",
       "skills/ha-nova/output-rules.md",
       "skills/ha-nova/output-cards.md",
       "skills/write/SKILL.md",
-      "skills/ha-nova/relay-api.md",
       "skills/ha-nova/payload-schemas.md",
       "skills/ha-nova/best-practices.md",
       "skills/ha-nova/write-safety.md",
       "skills/ha-nova/smallest-solution.md",
-      "skills/ha-nova/agents/resolve-agent.md",
-      "skills/ha-nova/agents/apply-agent.md",
       "skills/review/checks.md",
     ],
   },
@@ -142,16 +162,24 @@ describe("route context ratchet (#521)", () => {
       ).sort(),
     );
     expect(readFileSync("skills/ha-nova/output-rules.md", "utf8")).toContain(`read\n\`${CARDS}\``);
-    for (const [name, { files, verbRoute, skill, extra = [] }] of Object.entries(ROUTE_BUDGETS)) {
+    for (const [name, { files, verbRoute, noRouter, skill, extra = [] }] of Object.entries(ROUTE_BUDGETS)) {
       const route = skill ?? name;
       const text = readFileSync(`skills/${route}/SKILL.md`, "utf8");
       expect(text).toContain("Read and follow `../ha-nova/session-bootstrap.md`");
-      const mandatory = verbRoute ? VERB_ROUTE_MANDATORY : [...ROUTER_MANDATORY, CARDS];
+      const mandatory = verbRoute
+        ? VERB_ROUTE_MANDATORY
+        : noRouter
+          ? [...VERB_ROUTE_MANDATORY, CARDS]
+          : [...ROUTER_MANDATORY, CARDS];
       const expected = new Set([...mandatory, `skills/${route}/SKILL.md`, ...declaredAlwaysLoads(route), ...extra]);
       if (route === "review") {
         // The checks catalog is read on every review (Verify-before-flag rule).
         expect(text).toContain("`skills/review/checks.md`");
         expected.add("skills/review/checks.md");
+        // Reviews flag findings routinely, so the evidence boundaries and the
+        // scene/dashboard/cross-item/TS families are read every time.
+        expect(text).toContain("`skills/review/checks-extended.md`");
+        expected.add("skills/review/checks-extended.md");
       }
       expect([...files].sort(), `${name} route file list must mirror its declarations`).toEqual(
         [...expected].sort(),

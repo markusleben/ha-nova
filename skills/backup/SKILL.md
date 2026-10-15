@@ -50,7 +50,7 @@ WS response body: `.data` (`skills/ha-nova/relay-api.md` → Standard Envelope).
 6. If Status afterwards shows the attempt failed (`last_action_event`/no new backup), report the failure — never claim success from initiation alone.
 
 ### Safety backup before risky changes
-Other skills name HA Backups as the recovery path (see `skills/ha-nova/write-safety.md` → Safety-Mechanism Availability). Proportionality rules:
+Other skills name HA Backups as the recovery path (see `skills/ha-nova/recovery-coverage.md` → Safety-Mechanism Availability). Proportionality rules:
 - Safety backups are for far-reaching changes only (irreversible deletes, full-document overwrites, bulk operations) — never suggest one for routine small edits. A full backup can be many GB and take a long time.
 - Check Status FIRST: when a recent completed full backup already covers the change (for example last night's automatic backup with no config changes since), say so instead of creating another.
 - Create a fresh one only when the user asks or accepts, or the last full backup is stale relative to what the change touches; then proceed with the risky change only after the backup completed.

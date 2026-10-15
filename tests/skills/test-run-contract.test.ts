@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 
 const testRun = readFileSync("skills/ha-nova/test-run.md", "utf8");
 const writeSkill = readFileSync("skills/write/SKILL.md", "utf8");
-const writeSafety = readFileSync("skills/ha-nova/write-safety.md", "utf8");
+const writeSafety = (readFileSync("skills/ha-nova/write-safety.md", "utf8") + readFileSync("skills/ha-nova/recovery-coverage.md", "utf8") + readFileSync("skills/ha-nova/update-revert.md", "utf8"));
 const serviceCall = readFileSync("skills/service-call/SKILL.md", "utf8");
 
 describe("post-write test-offer contract", () => {

@@ -10,7 +10,8 @@ import { describe, expect, it } from "vitest";
 const contract = readFileSync("skills/ha-nova/smallest-solution.md", "utf8");
 const writeSkill = readFileSync("skills/write/SKILL.md", "utf8");
 const outputRules = readFileSync("skills/ha-nova/output-rules.md", "utf8") + readFileSync("skills/ha-nova/output-cards.md", "utf8");
-const resolveAgent = readFileSync("skills/ha-nova/agents/resolve-agent.md", "utf8");
+// PR6: the write suggestion rules moved from the retired resolve agent.
+const resolveAgent = readFileSync("skills/ha-nova/smallest-solution.md", "utf8");
 const helperSkill = readFileSync("skills/helper/SKILL.md", "utf8");
 const contextSkill = readFileSync("skills/ha-nova/SKILL.md", "utf8");
 

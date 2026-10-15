@@ -283,3 +283,17 @@ func TestApplyConfigPlanRaceSendsOnce(t *testing.T) {
 		t.Fatalf("exit codes sum %d, writes %v: want one 0, one 4, one write", exits, h.writes())
 	}
 }
+
+// The undo stack also holds helper checkpoints (saved by the helper skill);
+// a bare revert on one is refused and names the skill that owns it.
+func TestPlanRevertRefusesHelperCheckpointNamingTheHelperSkill(t *testing.T) {
+	h := newWriteHarness(t, newFakeHA())
+	record := []byte(`{"op":"update","domain":"input_number","target_id":"pool_max","before_config":{"id":"pool_max","max":30},"expected_after":{"id":"pool_max","max":35}}`)
+	if _, err := saveUndoSnapshotBytes(h.paths, record); err != nil {
+		t.Fatal(err)
+	}
+	exit, env := h.run(runPlanCommand, "revert")
+	if exit != 4 || env.Error == nil || env.Error.Code != "REVERT_UNSUPPORTED" || !strings.Contains(env.Error.Message, "ha-nova:helper") || env.Plan != nil {
+		t.Fatalf("exit %d env %+v", exit, env)
+	}
+}

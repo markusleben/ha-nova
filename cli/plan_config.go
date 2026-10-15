@@ -215,7 +215,9 @@ func computeConfigPlan(paths runtimePaths, s *relaySession, env *verbEnvelope, r
 			return fail(refused("NO_UNDO_SNAPSHOT", err.Error()))
 		}
 		if snap.Op != "update" || (snap.Domain != "automation" && snap.Domain != "script") {
-			return fail(refused("REVERT_UNSUPPORTED", fmt.Sprintf("the newest checkpoint is a %s %s; revert it through ha-nova:write", snap.Domain, snap.Op)))
+			// Helper checkpoints share the stack; their revert is ha-nova:helper's
+			// manual path (update-revert.md), never this verb.
+			return fail(refused("REVERT_UNSUPPORTED", fmt.Sprintf("the newest checkpoint is a %s %s; revert it through ha-nova:helper, or pass --target for an automation/script", snap.Domain, snap.Op)))
 		}
 		req.ConfigID, req.Domain = snap.TargetID, snap.Domain
 		if req.Draft, _, err = exactConfig(snap.BeforeConfig); err != nil { // restored byte-for-byte, order intact

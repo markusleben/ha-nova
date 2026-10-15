@@ -170,6 +170,8 @@ join a dependency-bound set.
 
 ## Cross-Family Destructive Cleanup (#583)
 
+Automation and script items keep their own `ha-nova plan delete` codes inside the cleanup: the CLI binds a code to one delete, so the manifest lists each item's code and the user types it; never pass a code the user did not type.
+
 A separate typed-confirmation workflow, never part of a non-destructive grouped
 set: when ONE fully resolved logical cleanup target spans several supported
 families (delete a helper plus the automations referencing it; remove a retired

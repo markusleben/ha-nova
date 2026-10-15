@@ -152,7 +152,7 @@ describe("load-bearing rules referenced from where they apply (#518)", () => {
   it("echoes verify-before-flag where findings are generated", () => {
     // checks.md is loaded standalone by write, helper, and yaml-config, which
     // never see the review skill's copy of the rule.
-    const checks = flat(read("skills/review/checks.md"));
+    const checks = flat((read("skills/review/checks.md") + read("skills/review/checks-extended.md")));
     expect(checks).toContain("## Verify Before Flagging (Critical)");
     expect(checks).toContain("costs the user more trust than a missed one");
     expect(checks).toContain(
@@ -184,7 +184,7 @@ describe("load-bearing rules referenced from where they apply (#518)", () => {
     // required-field pin lives in D-07, not in the dashboard skill's
     // save-overwrite notes.
     expect(flat(checks)).toContain(
-      "that a built-in card field is required — the D-07 allowlist above",
+      "that a built-in card field is required — the D-07 allowlist (`checks-extended.md`)",
     );
     expect(flat(checks)).toContain(
       "Citing a section that does not carry the claim is the same error as citing nothing",

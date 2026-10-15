@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 
 const batchSafety = readFileSync("skills/ha-nova/batch-safety.md", "utf8");
 const contextSkill = readFileSync("skills/ha-nova/SKILL.md", "utf8");
-const writeSafety = readFileSync("skills/ha-nova/write-safety.md", "utf8");
+const writeSafety = (readFileSync("skills/ha-nova/write-safety.md", "utf8") + readFileSync("skills/ha-nova/recovery-coverage.md", "utf8") + readFileSync("skills/ha-nova/update-revert.md", "utf8"));
 const outputRules = readFileSync("skills/ha-nova/output-rules.md", "utf8") + readFileSync("skills/ha-nova/output-cards.md", "utf8");
 
 // Every skill that declares batch support must point at the shared contract.

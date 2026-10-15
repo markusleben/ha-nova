@@ -42,6 +42,12 @@ the number.
   else shows a preview first; locks, gates, alarm, and deletes need a code.
   The HA NOVA command decides which is which, never the AI — and it sends
   nothing when anything changed since a preview.
+- **Automation and script deletes use one code per item.** The
+  confirmation code for deleting an automation or script now comes from
+  HA NOVA for that exact delete; a multi-item delete asks for each item's
+  own code instead of one code for the whole list. Reverting an update that
+  was changed in the Home Assistant UI since is refused instead of
+  overwriting that edit.
 - **Malformed Home Assistant replies now fail loud.** A core REST reply
   whose body is not valid JSON or not valid UTF-8 is reported as an upstream
   error (`502 / UPSTREAM_HTTP_ERROR`) instead of a successful empty result.

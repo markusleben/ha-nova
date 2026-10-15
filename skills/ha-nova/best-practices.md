@@ -13,6 +13,7 @@ Freshness cache for best-practice research. Unrelated to `ha-nova snapshot` (upd
   - `automation_bp_sources`
   - `automation_bp_ha_version`
 - Stale threshold: 30 days.
+- `bp_status` (automations; scripts are `n/a`): `fresh` = `automation_bp_refreshed` is boolean `true`, `automation_bp_refreshed_at` a parseable timestamp within the last 30 days (a future one is `invalid`), `automation_bp_sources` a non-empty list, and `automation_bp_ha_version` a non-empty string; older → `stale`; file absent → `missing`; anything else (unparsable, a field absent, empty, or null) → `invalid`.
 
 ## Tiered Gate
 

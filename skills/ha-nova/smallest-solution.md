@@ -38,3 +38,7 @@ mention KISS, MVP, or this contract unless the user asks about the approach.
 - Not "unsolicited": anything the user asked for — reviews, brainstorming,
   findings, safety actions, recovery, verification, and test offers keep
   their own flows and caps.
+
+## Write Suggestion Candidates
+
+For an automation/script write, collect at most 2 concrete optional improvements, each directly relevant to the stated goal and backed by observed evidence (entity capabilities, current config), smallest intervention first; each item: short title, what it does, why it helps. Use none if the requested intent is fully covered — never invent suggestions to fill the list. Common patterns, only where this home's evidence supports them: motion re-trigger grace period or no-motion timeout; presence departure delay; cover + remote toggle-stop or long-press stop; dimmer brightness step on long-press; weekend/holiday skip condition; climate hysteresis; notification cooldown; for a high-consequence action (lock, valve, heating) an outcome alert — a follow-up state check that notifies when the intended state is NOT observed (service errors are not observable inside the sequence); an appropriate `mode`.

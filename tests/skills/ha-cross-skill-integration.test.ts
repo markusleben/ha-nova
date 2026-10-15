@@ -6,9 +6,9 @@ describe("ha cross-skill integration", () => {
   it("routes write flow through resolve + preview + apply + review phases", () => {
     const writeSkill = readFileSync("skills/write/SKILL.md", "utf8");
 
-    expect(writeSkill).toContain("Phase 1: Resolve (Agent)");
-    expect(writeSkill).toContain("Phase 2: Preview + Confirm (Main Thread)");
-    expect(writeSkill).toContain("Phase 3: Apply + Verify (Agent)");
+    expect(writeSkill).toContain("### Phase 1: Resolve");
+    expect(writeSkill).toContain("### Phase 2: Preview + Confirm");
+    expect(writeSkill).toContain("### Phase 3: Apply + Verify");
     expect(writeSkill).toContain("Phase 4: Post-Write Review");
     // M1: write's post-write review loads only the self-contained checks
     // catalog, no longer the standalone review workflow.
@@ -19,31 +19,29 @@ describe("ha cross-skill integration", () => {
     expect(writeSkill).toContain("Changes slot");
     expect(writeSkill).toContain("show yaml");
     expect(writeSkill).toContain("cancel");
-    expect(writeSkill).toContain("Fallback: If agent dispatch unavailable");
+    // PR6: no agent dispatch any more — the CLI is the single write path.
+    expect(writeSkill).not.toContain("agent dispatch");
   });
 
   it("keeps write skill wired to shared relay + best-practices references", () => {
     const writeSkill = readFileSync("skills/write/SKILL.md", "utf8");
 
-    expect(writeSkill).toContain("skills/ha-nova/relay-api.md");
     expect(writeSkill).toContain("skills/ha-nova/best-practices.md");
-    expect(writeSkill).toContain("skills/ha-nova/agents/resolve-agent.md");
-    expect(writeSkill).toContain("skills/ha-nova/agents/apply-agent.md");
     expect(writeSkill).toContain("skills/review/checks.md");
-    expect(writeSkill).toContain("config/entity_registry/get");
-    expect(writeSkill).toContain("list_for_display` only for search/disambiguation");
+    // Resolution through the read verbs (config id from the registry, never the slug).
+    expect(writeSkill).toContain("`ha-nova find \"<phrase>\" --domain automation|script`");
+    expect(writeSkill).toContain("current config + `config_id` from the registry `unique_id`, never the slug");
   });
 
   it("keeps write skill concise and phase-driven", () => {
     const writeSkill = readFileSync("skills/write/SKILL.md", "utf8");
 
     expect(writeSkill).toContain("## Bootstrap (once per session)");
-    expect(writeSkill).toContain("ha-nova relay health");
-    expect(writeSkill).toContain("If this fails, run onboarding: `ha-nova setup`.");
+    expect(writeSkill).toContain("An unreachable Relay answers exit 1 `RELAY_ERROR`");
+    expect(writeSkill).toContain("(then `ha-nova setup`)");
     expect(writeSkill).toContain("## Flow");
-    expect(writeSkill).toContain("Fallback: If agent dispatch unavailable");
     expect(writeSkill).toContain("## Safety");
-    expect(writeSkill).toContain("Agents must use the `ha-nova` CLI only (Relay transport); no third-party MCP server, no direct HA API");
+    expect(writeSkill).toContain("No third-party MCP server, no direct HA API, no raw `ha-nova relay` config write.");
     expect(writeSkill).toContain('description: Use when creating, updating, or deleting');
     expect(writeSkill).not.toContain("RELAY_BASE_URL");
     expect(writeSkill).not.toContain("RELAY_AUTH_TOKEN");
@@ -54,22 +52,21 @@ describe("ha cross-skill integration", () => {
   it("includes proactive suggestions and pre-write checks in write skill", () => {
     const writeSkill = readFileSync("skills/write/SKILL.md", "utf8");
 
-    // Phase 1 extracts suggested_enhancements from resolve agent
-    expect(writeSkill).toContain("suggested_enhancements");
+    // Phase 1 collects suggestion candidates (rules moved to smallest-solution.md)
+    expect(writeSkill).toContain("Suggestion candidates per `skills/ha-nova/smallest-solution.md` → Write Suggestion Candidates");
 
     // Phase 2 Step 3a: suggestions flow
     expect(writeSkill).toContain("3a) Suggestions");
     expect(writeSkill).toContain("max 2, smallest intervention first");
-    expect(writeSkill).toContain('or "skip"');
-    expect(writeSkill).toContain("merge accepted into config BEFORE preview");
-    expect(writeSkill).toContain("SUGGESTED_ENHANCEMENTS: none");
-    expect(writeSkill).toContain("skip for `delete`");
+    expect(writeSkill).toContain("Accepted numbers merge into the draft BEFORE the preview");
+    expect(writeSkill).toContain("no block when there is no candidate and no intent-classification item");
+    expect(writeSkill).toContain("skip for delete and revert");
 
     // Phase 2 Step 3b: pre-write static checks
     expect(writeSkill).toContain("3b) Static Checks");
-    expect(writeSkill).toContain("analytically on the draft YAML");
-    expect(writeSkill).toContain("🔴 findings");
-    expect(writeSkill).toContain("🟠🟡 findings");
+    expect(writeSkill).toContain("analytically on the draft");
+    expect(writeSkill).toContain("🔴 inline with a fix");
+    expect(writeSkill).toContain("🟠🟡 as advisory below the preview");
     expect(writeSkill).toContain("dedup in Phase 4");
     expect(writeSkill).toContain("REST/UI write can break dependent variables");
     expect(writeSkill).toContain("do not block the write");
@@ -82,12 +79,10 @@ describe("ha cross-skill integration", () => {
   it("includes HA normalization awareness and dedup in post-write review", () => {
     const writeSkill = readFileSync("skills/write/SKILL.md", "utf8");
 
-    // HA plural aliasing awareness
-    expect(writeSkill).toContain("Compare read-back vs draft as normalized objects, not raw JSON strings");
-    expect(writeSkill).toContain("key order is irrelevant");
-    expect(writeSkill).toContain("trigger");
-    expect(writeSkill).toContain("triggers");
-    expect(writeSkill).toContain("plural aliasing");
+    // PR6: the read-back comparison moved into `ha-nova apply` — normalized
+    // content plus the semantic order of variables/trigger_variables/fields.
+    expect(writeSkill).toContain("`verified` = the read-back equals the planned body (content and `variables`/`fields` order)");
+    expect(readFileSync("cli/verb_config_apply.go", "utf8")).toContain("differences, parseErr := configChanges(action.Body, readback)");
 
     // Dedup rule with example
     expect(writeSkill).toContain("Dedup");
@@ -133,7 +128,7 @@ describe("ha cross-skill integration", () => {
 
   it("keeps write preview output terminal-friendly and action-oriented", () => {
     const outputRules = readFileSync("skills/ha-nova/output-rules.md", "utf8") + readFileSync("skills/ha-nova/output-cards.md", "utf8");
-    const writeSafety = readFileSync("skills/ha-nova/write-safety.md", "utf8");
+    const writeSafety = (readFileSync("skills/ha-nova/write-safety.md", "utf8") + readFileSync("skills/ha-nova/recovery-coverage.md", "utf8") + readFileSync("skills/ha-nova/update-revert.md", "utf8"));
 
     expect(outputRules).toContain("Terminal-Friendly Shape");
     expect(outputRules).toContain("Localize section headings and labels idiomatically to the user's language");
@@ -158,7 +153,7 @@ describe("ha cross-skill integration", () => {
 
   it("keeps create cleanup honest without implying backup-only rollback", () => {
     const writeSkill = readFileSync("skills/write/SKILL.md", "utf8");
-    const writeSafety = readFileSync("skills/ha-nova/write-safety.md", "utf8");
+    const writeSafety = (readFileSync("skills/ha-nova/write-safety.md", "utf8") + readFileSync("skills/ha-nova/recovery-coverage.md", "utf8") + readFileSync("skills/ha-nova/update-revert.md", "utf8"));
 
     expect(writeSkill).toContain("Creates → cleanup via normal HA NOVA delete flow");
     expect(writeSkill).toContain("preview, `confirm:<token>`, and absence verification");
@@ -171,19 +166,14 @@ describe("ha cross-skill integration", () => {
 
   it("keeps write flow aligned to unique_id-first resolution and runtime verification", () => {
     const writeSkill = readFileSync("skills/write/SKILL.md", "utf8");
-    const resolveAgent = readFileSync("skills/ha-nova/agents/resolve-agent.md", "utf8");
-    const applyAgent = readFileSync("skills/ha-nova/agents/apply-agent.md", "utf8");
+    const configApply = readFileSync("cli/verb_config_apply.go", "utf8");
+    // The CLI maps the config id to the registry unique_id (never the slug)
+    // and requires a live entity for `verified`.
+    expect(configApply).toContain("row.Platform == domain && row.UniqueID == configID");
+    expect(configApply).toContain('row.Expect = "read-back equals the plan, reload ok, entity present"');
 
-    expect(resolveAgent).toContain("resolve `unique_id` from entity registry first");
-    expect(resolveAgent).toContain("do not probe config endpoints with the slug first");
-
-    expect(applyAgent).toContain("actual `entity_id`");
-    expect(applyAgent).toContain("/api/states/{entity_id}");
-    expect(applyAgent).toContain("runtime_state");
-
-    expect(writeSkill).toContain("entity_id -> unique_id");
-    expect(writeSkill).toContain("resolve actual `entity_id` by matching `unique_id == <target_id>`");
-    expect(writeSkill).toContain("matching `unique_id == <target_id>`");
+    expect(writeSkill).toContain("never the slug");
+    expect(writeSkill).toContain("If `verification[].entity_id` differs from the requested slug");
     expect(writeSkill).toContain("do not silently assume the requested slug won");
   });
 });

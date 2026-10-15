@@ -3,7 +3,7 @@
 Dispatch index for Home Assistant tasks (skills load on demand by
 description; only the repo-dev hook injects this file). For Home Assistant
 tasks only: load the full context skill `ha-nova:ha-nova` beside the one task
-skill for config writes, reviews, and multi-step tasks, or when the step you
+skill for reviews and multi-step tasks, or when the step you
 execute depends on a cited "context skill → …" section — a Safety Core
 citation alone does not require it.
 

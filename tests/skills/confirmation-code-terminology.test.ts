@@ -58,6 +58,7 @@ const AUTH_TOKEN_FILES = new Set([
   "skills/ha-nova/SKILL.md",
   "skills/ha-nova/output-rules.md",
   "skills/ha-nova/write-safety.md",
+  "skills/ha-nova/recovery-coverage.md", // split out of write-safety.md (PR6), same auth-token rows
   "skills/ha-nova/batch-safety.md",
   "skills/ha-nova/relay-api.md",
   "docs/reference/safety.md",

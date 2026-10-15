@@ -151,7 +151,7 @@ The jq filter quoting above is a POSIX example. On Windows/PowerShell pass the s
 
 Use the resolved `unique_id` with:
 - Config reads: `GET /api/config/automation/config/{unique_id}`
-- Config writes/deletes: `POST|DELETE /api/config/automation/config/{unique_id}`
+- Config writes/deletes: `POST|DELETE /api/config/automation/config/{unique_id}` — reference only: skills write automations and scripts through `ha-nova plan write|delete|revert` + `ha-nova apply`, never a raw request
 - Trace list: `trace/list` with `"item_id":"{unique_id}"`
 - Trace get: `trace/get` with `"item_id":"{unique_id}"`
 
