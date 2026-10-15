@@ -761,7 +761,7 @@ describe("ha-nova contract", () => {
     expect(existsSync("skills/ha-nova/agents")).toBe(false);
     expect(write).not.toContain("agents/");
     expect(write).toContain("`ha-nova get <entity_id> --config`");
-    expect(write).toContain("`ha-nova plan write --domain automation|script [--id <config_id>] --file <draft.json>`");
+    expect(write).toContain("`ha-nova plan write --domain automation|script [--id <config_id> | --create] --file <draft.json>`");
     expect(write).toContain("`ha-nova plan delete <entity_id>`");
     expect(write).toContain("`ha-nova apply --plan <id> [--confirm <code>] [--no-snapshot]`");
     expect(write).toContain("this skill sends no raw `ha-nova relay` config write");
