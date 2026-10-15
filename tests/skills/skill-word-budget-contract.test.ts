@@ -151,7 +151,9 @@ const WORD_BUDGETS: Record<string, number> = {
   // window, so read history before asking for a time; plus the
   // trigger-entity-stuck-in-its-to-state check (measured 1886); review
   // batch: own state first, triggers from the config (measured 1910).
-  diagnose: 1925,
+  // PR review: full trigger predicate before "it fired", and a script
+  // branch (callers + logbook) for the no-run case (measured 1942).
+  diagnose: 1960,
   // Report-shape declaration line (shared output shapes); repair dedup,
   // attention-threshold definition, cause↔symptom linking (2026-h2 Wave 1c).
   // Table-first redesign: report modes, block shape, ten-block order,

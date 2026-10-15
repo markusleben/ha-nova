@@ -64,7 +64,7 @@ If the target config is not already in the thread context, resolve it yourself:
      - `.data.entity` is only a fallback seed for automation/script derivation when the target-family arrays are absent
    - use direct registry `area_id` only as supplemental evidence when it is actually populated
    - dedupe the shortlist on canonical `entity_id`, then sort deterministically and persist the matched shortlist
-   - "all my automations" (or scripts): `ha-nova find --domain automation|script --limit 200 --include-disabled` is the shortlist — it also lists YAML items without a registry row; its `total` is the matched count
+   - "all my automations": `ha-nova find --domain automation --limit 200 --include-disabled` (scripts: `ha-nova find --domain script --limit 200 --include-disabled`) is the shortlist — it also lists YAML items without a registry row; its `total` is the matched count
    - an automation/script bulk audit first reads `skills/ha-nova/bulk-patterns.md` → Static Pass and runs it over EVERY matched target
    - derive the current review set:
      - exact single target -> current review set = that one target
