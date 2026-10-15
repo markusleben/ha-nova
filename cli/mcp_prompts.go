@@ -14,17 +14,24 @@ import (
 // shared reference files as ha-nova://skills/<path>.md. Read-only, and no
 // path outside the bundle's skills directory is ever opened.
 
-const mcpPromptPreamble = `You are running HA NOVA through MCP tools, not a shell. Where the
-instructions below say "ha-nova find|get|history|trace", call ha_find,
-ha_get, ha_history, ha_trace; "ha-nova call" is ha_call; "ha-nova plan
-call|write|delete|revert" is ha_plan with that kind; "ha-nova apply" is
-ha_apply. A raw "ha-nova relay core --method GET" or a read "ha-nova relay
-ws" is ha_read; there is no raw write — plan it with ha_plan. Pass a
-confirmation code to ha_apply only when the user typed it.
+const mcpPromptPreamble = `You are running HA NOVA through MCP tools, not a shell. What works here:
+reads with ha_find, ha_get, ha_history, ha_trace, and ha_read (for "ha-nova
+find|get|history|trace" and raw GETs); device control with ha_call and
+ha_apply ("ha-nova call|apply"); automation and script create, update,
+delete, and revert with ha_plan (kind write|delete|revert) and ha_apply.
+Everything else the instructions below do with a shell — helper, dashboard,
+scene, registry or organize edits, files, other "ha-nova relay" writes —
+needs a client with a shell and the HA NOVA CLI: tell the user so instead of
+improvising. Pass a confirmation code to ha_apply only when the user typed it.
 
 ---
 
 `
+
+// Skills whose whole workflow runs over the MCP tools; the others keep their
+// reads but need a shell client with the CLI for their writes.
+var mcpFullySupportedSkills = map[string]bool{"ha-nova": true, "ha-nova-read": true, "ha-nova-entity-discovery": true,
+	"ha-nova-history": true, "ha-nova-service-call": true, "ha-nova-write": true, "ha-nova-review": true}
 
 const mcpResourcePrefix = "ha-nova://skills/"
 
@@ -58,7 +65,11 @@ func (srv *mcpServer) listPrompts() (map[string]any, *rpcError) {
 	names, _ := skillPrompts(srv.paths)
 	prompts := []map[string]any{}
 	for _, name := range names {
-		prompts = append(prompts, map[string]any{"name": name, "description": "HA NOVA skill " + name + " (MCP tool mapping included)"})
+		support := "reads work over MCP; its writes need a shell client with the HA NOVA CLI"
+		if mcpFullySupportedSkills[name] {
+			support = "fully usable over MCP"
+		}
+		prompts = append(prompts, map[string]any{"name": name, "description": "HA NOVA skill " + name + " (" + support + ")"})
 	}
 	return map[string]any{"prompts": prompts}, nil
 }
@@ -107,13 +118,16 @@ func (srv *mcpServer) listResources() (map[string]any, *rpcError) {
 // readResource serves only a URI that names one listed reference file:
 // the list itself is the allowlist, so no traversal or symlink trick can
 // reach anything else.
-func (srv *mcpServer) readResource(raw json.RawMessage) (map[string]any, *rpcError) {
+func (srv *mcpServer) readResource(raw json.RawMessage, modern bool) (map[string]any, *rpcError) {
 	var params struct {
 		URI string `json:"uri"`
 	}
 	_ = json.Unmarshal(raw, &params)
 	rel, prefixed := strings.CutPrefix(params.URI, mcpResourcePrefix)
 	notFound := &rpcError{Code: rpcInvalidParams, Message: "resource not found", Data: map[string]any{"uri": params.URI}}
+	if !modern { // the legacy revisions name this error -32002
+		notFound.Code = rpcLegacyNotFound
+	}
 	if !prefixed || !containsText(referenceFiles(srv.paths), rel) {
 		return nil, notFound
 	}

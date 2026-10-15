@@ -137,8 +137,8 @@ func TestMCPLegacySessionEndToEnd(t *testing.T) {
 	planned := c.tool("ha_call", map[string]any{"service": "lock.unlock", "entity_ids": []string{"lock.front"}})
 	envelope := planned["structuredContent"].(map[string]any)
 	plan := envelope["plan"].(map[string]any)
-	guidance := planned["content"].([]any)[0].(map[string]any)["text"].(string)
-	if planned["isError"] != false || envelope["status"] != "needs_confirmation" || plan["code"] == nil || !strings.Contains(guidance, "Never pass a code the user did not type") {
+	guidance, _ := envelope["next_step"].(string)
+	if planned["isError"] != false || envelope["status"] != "needs_confirmation" || plan["code"] == nil || !strings.Contains(guidance, "Never pass a code from this result") {
 		t.Fatalf("ha_call typed: %v", planned)
 	}
 	wrong := c.tool("ha_apply", map[string]any{"plan_id": plan["id"], "confirm_code": "confirm:not-it"})
@@ -176,7 +176,7 @@ func TestMCPLegacySessionEndToEnd(t *testing.T) {
 		t.Fatalf("resource %v", resource)
 	}
 	for _, uri := range []string{"ha-nova://skills/../../AGENTS.md", "ha-nova://skills/ha-nova/../../../go.mod", "ha-nova://skills/ha-nova/SKILL.md", "file:///etc/passwd"} {
-		if code := errorCode(c.request("resources/read", map[string]any{"uri": uri})); code != rpcInvalidParams {
+		if code := errorCode(c.request("resources/read", map[string]any{"uri": uri})); code != rpcLegacyNotFound { // legacy session
 			t.Fatalf("%s: code %v", uri, code)
 		}
 	}
@@ -192,8 +192,11 @@ func TestMCPLegacySessionEndToEnd(t *testing.T) {
 	if code := errorCode(c.request("no/such/method", map[string]any{})); code != rpcMethodNotFound {
 		t.Fatalf("unknown method: %v", code)
 	}
-	if code := errorCode(c.request("tools/call", map[string]any{"name": "ha_find", "arguments": map[string]any{"phrase": "x", "evil": "--server"}})); code != rpcInvalidParams {
-		t.Fatalf("unknown argument: %v", code)
+	if result := c.tool("ha_find", map[string]any{"phrase": "x", "evil": "--server"}); result["isError"] != true {
+		t.Fatalf("unknown argument: %v", result)
+	}
+	if code := errorCode(c.request("tools/call", map[string]any{"name": "ha_nope", "arguments": map[string]any{}})); code != rpcInvalidParams {
+		t.Fatalf("unknown tool: %v", code)
 	}
 }
 
@@ -220,9 +223,11 @@ func TestMCPModernRequestsAndVersionNegotiation(t *testing.T) {
 	}
 
 	c2 := startMCP(t, h.paths)
-	init := c2.request("initialize", map[string]any{"protocolVersion": "1999-01-01", "capabilities": map[string]any{}})
-	if init["result"].(map[string]any)["protocolVersion"] != mcpLegacyVersions[0] {
-		t.Fatalf("unknown legacy version: %v", init)
+	for _, version := range []string{"1999-01-01", "2025-03-26"} { // 2025-03-26 needs batches: not offered
+		init := c2.request("initialize", map[string]any{"protocolVersion": version, "capabilities": map[string]any{}})
+		if init["result"].(map[string]any)["protocolVersion"] != "2025-11-25" {
+			t.Fatalf("initialize %s: %v", version, init)
+		}
 	}
 }
 

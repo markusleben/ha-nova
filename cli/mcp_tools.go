@@ -124,25 +124,57 @@ func (srv *mcpServer) callTool(raw json.RawMessage) (map[string]any, *rpcError) 
 		if tool.name != params.Name {
 			continue
 		}
+		// Invalid arguments are a tool error the model can correct, not a
+		// protocol error.
 		if err := checkArguments(tool.schema, params.Arguments); err != nil {
-			return nil, &rpcError{Code: rpcInvalidParams, Message: err.Error()}
+			return invalidArguments(tool.name, err), nil
 		}
 		temp := &mcpTempFiles{}
 		defer temp.remove()
 		argv, err := tool.argv(params.Arguments, temp)
 		if err != nil {
-			return nil, &rpcError{Code: rpcInvalidParams, Message: err.Error()}
+			return invalidArguments(tool.name, err), nil
 		}
 		mcpVerbLock.Lock()
 		defer mcpVerbLock.Unlock()
-		out, errOut, exit := captureVerb(func() int { return tool.run(srv.paths, argv) })
+		// Verbs set process-wide server selection (apply selects the plan's
+		// server); every call starts from the pin and leaves nothing behind.
+		override, active := serverSelectionOverride, activeServerProfile()
+		defer func() { setServerSelectionOverride(override); setActiveServerProfile(active) }()
+		setServerSelectionOverride(srv.pin)
+		out, errOut, exit := captureVerb(func() int { return tool.run(srv.paths, pinServer(tool.name, argv, srv.pin)) })
 		return toolResult(tool.name, out, errOut, exit), nil
 	}
 	return nil, &rpcError{Code: rpcInvalidParams, Message: "unknown tool: " + params.Name}
 }
 
-// toolResult: the envelope as text and as structuredContent; isError for
-// failures but not for needs_confirmation (the expected next step).
+// pinServer passes the mcp --server pin as the verb's own --server flag,
+// so apply refuses another server's plan (SERVER_MISMATCH) exactly as the
+// CLI does. trace and ha_read read the selection override instead.
+func pinServer(tool string, argv []string, pin string) []string {
+	if pin == "" {
+		return argv
+	}
+	flag := "--server=" + pin
+	switch tool {
+	case "ha_find", "ha_get", "ha_history", "ha_call", "ha_apply":
+		return append([]string{flag}, argv...)
+	case "ha_plan": // after the subcommand
+		return append([]string{argv[0], flag}, argv[1:]...)
+	}
+	return argv
+}
+
+func invalidArguments(name string, err error) map[string]any {
+	envelope := map[string]any{"schema_version": 1, "verb": strings.TrimPrefix(name, "ha_"), "status": "error",
+		"error": map[string]any{"code": "INVALID_ARGUMENTS", "message": err.Error() + "; nothing was sent"}}
+	text, _ := json.Marshal(envelope)
+	return map[string]any{"content": []map[string]any{{"type": "text", "text": string(text)}}, "structuredContent": envelope, "isError": true}
+}
+
+// toolResult: the envelope as text and as structuredContent — the same
+// object, so a client that reads only one of them still gets the guidance
+// (next_step). isError for failures, not for needs_confirmation.
 func toolResult(name, out, errOut string, exit int) map[string]any {
 	var envelope map[string]any
 	if json.Unmarshal([]byte(strings.TrimSpace(out)), &envelope) != nil {
@@ -157,45 +189,70 @@ func toolResult(name, out, errOut string, exit int) map[string]any {
 			envelope["error"] = map[string]any{"code": "TOOL_ERROR", "message": strings.TrimSpace(errOut)}
 		}
 	}
+	if step := nextStep(envelope); step != "" {
+		envelope["next_step"] = step
+	}
 	text, _ := json.Marshal(envelope)
-	content := []map[string]any{{"type": "text", "text": string(text)}}
-	if plan, _ := envelope["plan"].(map[string]any); envelope["status"] == "needs_confirmation" && plan != nil {
-		guidance := "Show this preview to the user and wait for their decision. Then call ha_apply with plan_id " + fmt.Sprint(plan["id"]) + "."
-		if code, _ := plan["code"].(string); code != "" {
-			guidance += " This plan needs the confirmation code " + code + ": the user must type it, and you pass exactly what they typed as confirm_code. Never pass a code the user did not type."
-		}
-		content = append([]map[string]any{{"type": "text", "text": guidance}}, content...)
-	}
-	if errInfo, _ := envelope["error"].(map[string]any); errInfo != nil && errInfo["code"] == "RELAY_ERROR" {
-		content = append(content, map[string]any{"type": "text", "text": "If the device is not paired or its credential store is locked, ask the user to run `ha-nova setup` in a terminal."})
-	}
-	return map[string]any{"content": content, "structuredContent": envelope, "isError": exit != 0 && exit != verbExitConfirmation}
+	return map[string]any{"content": []map[string]any{{"type": "text", "text": string(text)}}, "structuredContent": envelope,
+		"isError": exit != 0 && exit != verbExitConfirmation}
 }
 
-// captureVerb runs a verb with stdout and stderr redirected into pipes.
-func captureVerb(run func() int) (string, string, int) {
-	stdout, stderr := os.Stdout, os.Stderr
-	outR, outW, err1 := os.Pipe()
-	errR, errW, err2 := os.Pipe()
-	if err1 != nil || err2 != nil {
+// nextStep is the instruction a model must follow after this result.
+func nextStep(envelope map[string]any) string {
+	plan, _ := envelope["plan"].(map[string]any)
+	errInfo, _ := envelope["error"].(map[string]any)
+	code, _ := plan["code"].(string)
+	pending := envelope["status"] == "needs_confirmation" || envelope["status"] == "drift"
+	switch {
+	case pending && code != "":
+		return fmt.Sprintf("Show this preview. Ask the user to type the confirmation code themselves; pass exactly what they typed to ha_apply (plan_id %v) as confirm_code. Never pass a code from this result.", plan["id"])
+	case pending && plan != nil:
+		return fmt.Sprintf("Show this preview and wait for the user's own confirmation; only then call ha_apply with plan_id %v.", plan["id"])
+	case errInfo != nil && errInfo["code"] == "RELAY_ERROR":
+		return "If this computer is not paired or its credential store is locked, ask the user to run `ha-nova setup` in a terminal."
+	}
+	return ""
+}
+
+// captureVerb runs a verb with stdout and stderr redirected into pipes,
+// always restores them (a panic becomes a tool error), and closes every pipe.
+func captureVerb(run func() int) (out, errOut string, exit int) {
+	outR, outW, err := os.Pipe()
+	if err != nil {
+		return "", "cannot capture verb output", verbExitError
+	}
+	errR, errW, err := os.Pipe()
+	if err != nil {
+		_, _ = outR.Close(), outW.Close()
 		return "", "cannot capture verb output", verbExitError
 	}
 	read := func(r *os.File, into *string, done chan<- struct{}) {
 		b, _ := io.ReadAll(r)
+		_ = r.Close()
 		*into = string(b)
 		close(done)
 	}
-	var out, errOut string
 	outDone, errDone := make(chan struct{}), make(chan struct{})
 	go read(outR, &out, outDone)
 	go read(errR, &errOut, errDone)
-	os.Stdout, os.Stderr = outW, errW
-	exit := run()
+	stdout, stderr := os.Stdout, os.Stderr
+	var crash string
+	func() {
+		defer func() {
+			if p := recover(); p != nil {
+				exit, crash = verbExitError, fmt.Sprint("internal error: ", p)
+			}
+		}()
+		os.Stdout, os.Stderr = outW, errW
+		exit = run()
+	}()
 	os.Stdout, os.Stderr = stdout, stderr
-	_ = outW.Close()
-	_ = errW.Close()
+	_, _ = outW.Close(), errW.Close()
 	<-outDone
 	<-errDone
+	if crash != "" {
+		out, errOut = "", strings.TrimSpace(errOut+"\n"+crash)
+	}
 	return out, errOut, exit
 }
 
@@ -317,7 +374,11 @@ func findArgv(args map[string]json.RawMessage, _ *mcpTempFiles) ([]string, error
 func readArgv(args map[string]json.RawMessage, _ *mcpTempFiles) ([]string, error) {
 	switch text(args, "endpoint") {
 	case "core":
-		return []string{"core", text(args, "path")}, nil
+		path := text(args, "path")
+		if !mcpReadablePath(path) {
+			return nil, fmt.Errorf("ha_read core reads only /api/states, /api/config, /api/services, /api/events, /api/history/period, /api/logbook, and stored automation/script/scene configs; %q is not one of them", path)
+		}
+		return []string{"core", path}, nil
 	default:
 		return []string{"ws", string(args["payload"])}, nil
 	}

@@ -5,8 +5,10 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"regexp"
 	"strconv"
+	"strings"
 )
 
 // argv builders for the planning and writing tools. Every free-text value
@@ -15,6 +17,25 @@ import (
 // bytes (and key order) intact.
 
 var runIDPattern = regexp.MustCompile(`^[A-Za-z0-9_.:-]{1,128}$`)
+
+var mcpConfigReadPattern = regexp.MustCompile(`^/api/config/(automation|script|scene)/config/[A-Za-z0-9_-]+$`)
+
+// mcpReadablePath is ha_read's explicit allowlist (the read surfaces the
+// skills use), on top of the shared readablePath deny list.
+func mcpReadablePath(raw string) bool {
+	if !readablePath(raw) {
+		return false
+	}
+	pathPart, _, _ := strings.Cut(raw, "?")
+	decoded, _ := url.PathUnescape(pathPart)
+	switch {
+	case decoded == "/api/states", decoded == "/api/config", decoded == "/api/services", decoded == "/api/events":
+		return true
+	case strings.HasPrefix(decoded, "/api/states/"), strings.HasPrefix(decoded, "/api/history/period"), strings.HasPrefix(decoded, "/api/logbook"):
+		return true
+	}
+	return mcpConfigReadPattern.MatchString(decoded)
+}
 
 func traceArgvChecked(args map[string]json.RawMessage, temp *mcpTempFiles) ([]string, error) {
 	entityID, runID := text(args, "entity_id"), text(args, "run_id")
