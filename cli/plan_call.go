@@ -61,8 +61,8 @@ func runCallVerb(paths runtimePaths, verb, flagSetName, help string, args []stri
 	fs := flag.NewFlagSet(flagSetName, flag.ContinueOnError)
 	addVerbFlags(fs, &opts)
 	fs.StringVar(&req.Match, "match", "", "resolve exactly one non-disabled entity of the service's domain by phrase")
-	fs.StringVar(&req.Area, "area", "", "expand an area_id to the service domain's entities (previewed unless it resolves to one entity)")
-	fs.StringVar(&req.Device, "device", "", "expand a device_id to the service domain's entities (previewed unless it resolves to one entity)")
+	fs.StringVar(&req.Area, "area", "", "expand an area_id to the service domain's entities (previewed unless it resolves to exactly one entity of the service's domain)")
+	fs.StringVar(&req.Device, "device", "", "expand a device_id to the service domain's entities (previewed unless it resolves to exactly one entity of the service's domain)")
 	fs.Func("set", "service data field k=v, JSON-typed when it parses (repeatable)", func(v string) error { sets = append(sets, v); return nil })
 	fs.StringVar(&dataFile, "data-file", "", "JSON object of service data; --set overrides its keys")
 	positional, err := parseVerbArgs(fs, &opts, args, help)
@@ -283,7 +283,7 @@ func (e *tierEngine) resolveTargets(req planCallRequest) ([]verbTarget, error) {
 	}
 	if req.Match != "" {
 		filter := domain
-		if domain == "homeassistant" {
+		if domain == "homeassistant" || !coreDomains[domain] {
 			filter = ""
 		}
 		found, err := findEntities(e.s, findQuery{phrase: req.Match, domain: filter, limit: 10, completeAliases: true})
@@ -392,15 +392,40 @@ func (e *tierEngine) flatten(t verbTarget, depth int, out *[]verbTarget, seen ma
 // entity reaches is classified as usual.
 func (e *tierEngine) singleExpansion(req planCallRequest, targets []verbTarget) bool {
 	domain, _ := splitID(req.Service)
-	if len(targets) != 1 || len(req.EntityIDs) > 0 || req.Match != "" || (req.Area == "") == (req.Device == "") ||
-		len(e.groups) > 0 || slices.Contains(e.notes, noteSkippedTargets) {
+	if len(targets) != 1 || (req.Area == "") == (req.Device == "") || len(e.groups) > 0 || slices.Contains(e.notes, noteSkippedTargets) {
 		return false
 	}
 	t := targets[0]
 	entityDomain, _ := splitID(t.EntityID)
 	row := e.reg[t.EntityID]
-	return entityDomain == domain && !row.hidden && !row.categorized &&
-		(t.By == "device" || (t.By == "area" && (row.ai == "" || row.ai == req.Area)))
+	if entityDomain != domain || row.hidden || row.categorized || (t.By != "device" && (t.By != "area" || (row.ai != "" && row.ai != req.Area))) {
+		return false
+	}
+	return !e.accessDevice(row.di)
+}
+
+// accessDevice: the device also carries a lock, alarm panel, or access-capable
+// cover. A button or relay there may be the opener, so its single-entity
+// expansion keeps the preview. Only cover classes need a state; an unread one
+// has no class and counts as access-capable (fail closed).
+func (e *tierEngine) accessDevice(device string) bool {
+	if device == "" {
+		return false
+	}
+	siblings := e.deviceEntities(device, "homeassistant")
+	covers := filterDomain(siblings, "cover")
+	e.prefetchStates(covers)
+	for _, sibling := range siblings {
+		dc := ""
+		if slices.Contains(covers, sibling) {
+			st, _ := e.state(sibling)
+			dc = st.str("device_class")
+		}
+		if accessCapable(sibling, dc) {
+			return true
+		}
+	}
+	return false
 }
 
 // evaluate runs spec §2.2 steps 2–6 on the frozen targets; a non-nil
