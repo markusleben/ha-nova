@@ -42,7 +42,13 @@ describe("agent scenario regressions (2026-10-15)", () => {
     expect(rules).toContain("\"HA NOVA can't see what this switch does, so it needs a code.\"");
     expect(rules).toContain("Never mention, quote, or link a skill, rule, file, or path — the user doesn't know they exist.");
     expect(rules).toContain("Clarifying questions name candidates by friendly name and area (entity_id only when both collide).");
-    expect(flat("skills/service-call/SKILL.md")).toContain("(output-rules.md → Confirmation Reasons)");
-    expect(flat("skills/write/SKILL.md")).toContain("per output-rules.md → Confirmation Reasons");
+    // The pointer alone did not stop citations at the code step: the exact
+    // sentences live inline where the code is requested and a "yes" rejected.
+    for (const file of ["skills/service-call/SKILL.md", "skills/write/SKILL.md"]) {
+      const text = flat(file);
+      expect(text).toContain('Say only: "<plain reason>, so it needs a code. Reply with `<code>` to go ahead."');
+      expect(text).toContain('After a "yes": "“Yes” can\'t confirm this — reply with `<code>` to go ahead."');
+      expect(text).toContain("Never cite, link, or name this skill or any file.");
+    }
   });
 });

@@ -41,7 +41,10 @@ const ROUTE_BUDGETS: Record<string, { files: string[]; limit: number; verbRoute?
     // output-rules.md gained Confirmation Reasons (2026-10-15 agent scenarios: a
     // skill path leaked into 15/39 replies when agents justified a code);
     // the duplicate bootstrap sentence was dropped. Measured 15498.
-    limit: 15500, // spec target <= 15500
+    // Inline code-step sentences in write/SKILL.md (a pointer alone still let
+    // agents cite the skill file): 39 words over the 15500 spec target,
+    // accepted because the leak is user-visible (measured 15537).
+    limit: 15550, // spec target <= 15500
     noRouter: true,
     files: [
       "skills/ha-nova/session-bootstrap.md",
@@ -59,7 +62,7 @@ const ROUTE_BUDGETS: Record<string, { files: string[]; limit: number; verbRoute?
   // skill joins (Decision Memory, Work Ledger, Interactive Choices). Kept as
   // its own honest row.
   "write-multi-step": {
-    limit: 21300, // Confirmation Reasons in output-rules.md (measured 21274)
+    limit: 21350, // Confirmation Reasons + inline code-step sentences (measured 21313)
     skill: "write",
     files: [
       "skills/ha-nova/SKILL.md",
@@ -85,7 +88,7 @@ const ROUTE_BUDGETS: Record<string, { files: string[]; limit: number; verbRoute?
   // services, App/host control, events, webhooks), indirect-actuation.md.
   // Measured 2672 (bootstrap 309 + output-rules 668 + skill 1695).
   "service-call": {
-    limit: 2825, // spec target <= 3000; Confirmation Reasons (measured 2799)
+    limit: 2860, // spec target <= 3000; Confirmation Reasons + inline code-step sentences (measured 2839)
     verbRoute: true,
     files: [
       "skills/ha-nova/session-bootstrap.md",
@@ -97,7 +100,7 @@ const ROUTE_BUDGETS: Record<string, { files: string[]; limit: number; verbRoute?
   // bit the agent is unsure of (common for brightness, temperature, modes):
   // domain-fields.md joins. Kept as its own honest row.
   "service-call-with-fields": {
-    limit: 3850, // Confirmation Reasons (measured 3817)
+    limit: 3875, // Confirmation Reasons + inline code-step sentences (measured 3857)
     verbRoute: true,
     skill: "service-call",
     extra: ["skills/service-call/domain-fields.md"],

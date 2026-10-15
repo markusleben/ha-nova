@@ -129,7 +129,9 @@ const WORD_BUDGETS: Record<string, number> = {
   // the manual read-back/snapshot steps left the skill (measured 5475).
   // PR6 codex review: bare-revert shortcut and the create summary's
   // config-id-before-verify rule (+~20 words). Measured 5520.
-  write: 5540,
+  // Inline code-step sentences for typed codes and a rejected "yes": the
+  // output-rules pointer alone still let agents cite the skill file (measured 5577).
+  write: 5600,
   // HACS lifecycle: schema guard, reconcile loops, consumer discovery,
   // migration backup gate, category-appropriate verification (#478);
   // review rounds added pin-durability branches, the uninstall apply
@@ -263,7 +265,9 @@ const WORD_BUDGETS: Record<string, number> = {
   // PR4: entity calls moved to `ha-nova call`; raw routes split into raw-routes.md (folded), measured 8085.
   // 2026-10-15 agent scenarios: Confirmation Reasons pointer and friendly-name
   // candidates with the entity_id only on a name+area clash (measured 8130).
-  "service-call": 8150,
+  // Inline code-step sentences: the output-rules pointer alone still let
+  // agents cite the skill file at the code step (measured 8168).
+  "service-call": 8190,
   // Carries the canonical File-Change Preview example — the only layout
   // source for file edits; concrete examples are what make a card renderable.
   // Sibling-survival verification (Wave 1b) + yaml snapshot capture with
