@@ -102,17 +102,15 @@ func TestSetupCompletionDropsLegacyUninstallMarker(t *testing.T) {
 	}
 }
 
-func TestUninstallMirrorsBarrierForCensusEraProcesses(t *testing.T) {
+func TestUninstallNoLongerWritesCensusEraMarker(t *testing.T) {
 	paths := legacyCensusTestPaths(t)
 	if err := markInstallLifecycleStopped(paths); err != nil {
 		t.Fatalf("markInstallLifecycleStopped() error: %v", err)
 	}
-	current, err := os.ReadFile(uninstallMarkerPath(paths))
-	if err != nil {
-		t.Fatal(err)
+	if _, err := os.Stat(uninstallMarkerPath(paths)); err != nil {
+		t.Fatalf("uninstall marker missing: %v", err)
 	}
-	legacy, err := os.ReadFile(legacyUninstallMarkerPath(paths))
-	if err != nil || string(legacy) != string(current) {
-		t.Fatalf("legacy barrier = %q, %v; want %q", legacy, err, current)
+	if _, err := os.Stat(legacyUninstallMarkerPath(paths)); !os.IsNotExist(err) {
+		t.Fatalf("legacy census marker written: %v", err)
 	}
 }

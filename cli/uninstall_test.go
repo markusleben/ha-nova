@@ -12,8 +12,27 @@ import (
 )
 
 func TestUninstallTokenLabelMatchesPlatform(t *testing.T) {
-	if uninstallTokenLineLabel() == "" {
+	if uninstallTokenLineLabel(runtimePaths{}) == "" {
 		t.Fatalf("expected %s uninstall to expose a token label", runtime.GOOS)
+	}
+}
+
+func TestUninstallTokenLabelNamesServiceTokenFile(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	paths, err := detectPaths()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := saveConfig(paths, runtimeConfig{
+		HAURL:          "http://192.0.2.5:8123",
+		RelayBaseURL:   "http://192.0.2.5:8791",
+		RelayTokenFile: "relay-token",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	want := "Relay token file (" + defaultRelayAuthTokenFile(paths) + ")"
+	if got := uninstallTokenLineLabel(paths); got != want {
+		t.Fatalf("label = %q, want %q", got, want)
 	}
 }
 
@@ -280,11 +299,11 @@ func TestRunUninstallShowsPreflightAndRelayStillRunningNote(t *testing.T) {
 		"Managed local state and cache",
 		"Full purge also removes:",
 		"Home Assistant connection config",
-		uninstallTokenLineLabel(),
-		"The NOVA Relay app is still running in Home Assistant. To fully remove HA NOVA:",
-		"1. Remove the NOVA Relay app: " + haRelayAppPageURL("http://192.168.1.5:8123"),
-		"2. Remove the repository: " + haAppStoreURL("http://192.168.1.5:8123"),
-		"3. If this was a legacy/standalone install, revoke its \"NOVA\" access token: http://192.168.1.5:8123/profile/security",
+		uninstallTokenLineLabel(paths),
+		"The NOVA Relay is still running. To fully remove HA NOVA:",
+		"1. Remove the NOVA Relay: uninstall the app at " + haRelayAppPageURL("http://192.168.1.5:8123") + ", or stop and remove the container of a standalone relay",
+		"2. App installs: remove the repository: " + haAppStoreURL("http://192.168.1.5:8123"),
+		"3. Standalone or legacy installs: revoke the \"NOVA\" access token: http://192.168.1.5:8123/profile/security",
 	} {
 		if !strings.Contains(output, want) {
 			t.Fatalf("expected uninstall output %q:\n%s", want, output)

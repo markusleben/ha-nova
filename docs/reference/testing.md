@@ -71,6 +71,20 @@ does not namespace the legacy relay-token keyring service.
 `HA_NOVA_KEYRING_SERVICE=<unique-name>` is the alternative if you want a
 throwaway keyring entry instead of a file.
 
+**Device credentials have no env namespace.** The macOS Keychain (and the
+Linux Secret Service) is per OS user, not per `HOME`, and the
+`ha-nova.device-credential*` items have fixed names on purpose — release
+binaries never pick a secret store from the environment. Without the
+file-backend marker, a throwaway-`HOME` `uninstall --purge` reads and
+deletes your **real** device credential, and `setup --service` migrates it
+into the throwaway `HOME`. Pre-seed the marker before the first command (or
+pair with `--credential-store=file`, which writes it):
+
+```bash
+mkdir -p "$HOME/.config/ha-nova/secrets" && chmod 700 "$HOME/.config/ha-nova/secrets"
+printf 'file\n' > "$HOME/.config/ha-nova/secrets/.file-backend"
+```
+
 `HA_NOVA_TEST_SECRET_DIR` is an injected `go test` seam, not a CLI isolation
 interface. Normal development and release binaries deliberately ignore it.
 
@@ -226,7 +240,7 @@ Cross-compile for every target with the same `CGO_ENABLED=0 GOOS=<os> GOARCH=<ar
 
 These are non-negotiable when testing on real machines:
 
-- **Never touch the production App, keyring, or credentials.** For the App, use a distinct slug/ports. For local-only CLI tests, use a throwaway `HOME`, pair with `--credential-store=file`, and redirect the relay token (`HA_NOVA_ALLOW_INSECURE_TEST_KEYRING=1` + `HA_NOVA_TEST_KEYRING_FILE`, or a unique `HA_NOVA_KEYRING_SERVICE`) — without the last one, `uninstall --purge` still deletes your real `ha-nova.relay-auth-token` keyring entry. For native Cloud-secret tests, keep the login `HOME`, set an isolated `HA_NOVA_CONFIG_DIR`, and use unique profile and keyring-service names; use a separate OS user or VM when the real-device gate requires stronger isolation.
+- **Never touch the production App, keyring, or credentials.** For the App, use a distinct slug/ports. For local-only CLI tests, use a throwaway `HOME`, pair with `--credential-store=file`, and redirect the relay token (`HA_NOVA_ALLOW_INSECURE_TEST_KEYRING=1` + `HA_NOVA_TEST_KEYRING_FILE`, or a unique `HA_NOVA_KEYRING_SERVICE`) — without the last one, `uninstall --purge` still deletes your real `ha-nova.relay-auth-token` keyring entry. On macOS also pre-seed `~/.config/ha-nova/secrets/.file-backend` in the throwaway `HOME` (see above): otherwise `uninstall --purge` and `setup --service` touch the real `ha-nova.device-credential` Keychain items. For native Cloud-secret tests, keep the login `HOME`, set an isolated `HA_NOVA_CONFIG_DIR`, and use unique profile and keyring-service names; use a separate OS user or VM when the real-device gate requires stronger isolation.
 - **Only create your own test objects** on a live HA (helpers, automations you made); leave existing objects read-only.
 - **Clean up afterwards** — `ha apps uninstall <test-slug>`, remove the container, and run a leftover scan (0 test objects). Never leave a test App running on someone's HA.
 - **A green CI/host-safe run is not a release proof.** Releasing still needs the live checks above on the exact commit being tagged (see [docs/releasing.md](../releasing.md)).

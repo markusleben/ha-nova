@@ -65,6 +65,9 @@ func TestDisableServiceRelayTokenFileKeepsExternalPaths(t *testing.T) {
 	}
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	previousPreflight := relayAuthTokenPlatformSetupPreflight
+	relayAuthTokenPlatformSetupPreflight = func() error { return nil } // usable keyring
+	t.Cleanup(func() { relayAuthTokenPlatformSetupPreflight = previousPreflight })
 	paths, err := detectPaths()
 	if err != nil {
 		t.Fatalf("detectPaths() error: %v", err)

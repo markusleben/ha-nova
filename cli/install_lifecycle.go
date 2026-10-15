@@ -126,13 +126,9 @@ func markInstallLifecycleStopped(paths runtimePaths) error {
 		return fmt.Errorf("generate uninstall marker nonce: %w", err)
 	}
 	value := fmt.Sprintf("%x", nonce[:])
-	if err := writeJSONFile(marker, value, 0o600); err != nil {
-		return err
-	}
-	// Census-era binaries still running across the upgrade check only the
-	// legacy path; give them the same barrier. Best effort.
-	_ = writeJSONFile(legacyUninstallMarkerPath(paths), value, 0o600)
-	return nil
+	// The legacy Census-era marker is read and cleaned (removeLegacyCensusState,
+	// clearUninstallMarkerAfterSetup) but never written again (#656).
+	return writeJSONFile(marker, value, 0o600)
 }
 
 func clearUninstallMarkerAfterSetup(paths runtimePaths, captured []byte) (bool, error) {

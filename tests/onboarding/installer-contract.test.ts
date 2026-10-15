@@ -4,7 +4,7 @@ import { createServer, type Server } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
-import { constants, mkdtempSync, readFileSync, statSync } from "node:fs";
+import { constants, existsSync, mkdtempSync, readFileSync, statSync } from "node:fs";
 
 import { describe, expect, it } from "vitest";
 
@@ -28,11 +28,18 @@ async function listen(server: Server): Promise<number> {
   return address.port;
 }
 
-async function runInstallerFunctions(script: string): Promise<string> {
-  const result = await execFileAsync("bash", [
-    "-c",
-    `set -euo pipefail; export HA_NOVA_INSTALLER_TEST_EXPORT=1 HA_NOVA_PLAIN_UI=1; source install.sh; ${script}`,
-  ]);
+async function runInstallerFunctions(
+  script: string,
+  env: NodeJS.ProcessEnv = process.env,
+): Promise<string> {
+  const result = await execFileAsync(
+    "bash",
+    [
+      "-c",
+      `set -euo pipefail; export HA_NOVA_INSTALLER_TEST_EXPORT=1 HA_NOVA_PLAIN_UI=1; source install.sh; ${script}`,
+    ],
+    { env },
+  );
   return `${result.stdout}${result.stderr}`;
 }
 
@@ -120,6 +127,37 @@ describe("install.sh contract", () => {
     expect(content).toContain("ensure_bin_dir_on_path()");
     expect(content).toContain('export PATH="$HOME/.local/bin:$PATH"');
     expect(content).not.toContain('cp "${runtime_bin}" "${BIN_DIR}/ha-nova"');
+  });
+
+  it("writes the PATH block where the user's shell reads it", async () => {
+    if (!hasBash()) return;
+    const pathFor = async (shell: string) => {
+      const home = mkdtempSync(join(tmpdir(), "ha-nova-installer-path-"));
+      const { XDG_CONFIG_HOME: _xdg, ...env } = process.env;
+      await runInstallerFunctions("ensure_bin_dir_on_path", { ...env, HOME: home, SHELL: shell });
+      return home;
+    };
+
+    const fishHome = await pathFor("/usr/bin/fish");
+    const fishFile = join(fishHome, ".config", "fish", "conf.d", "ha-nova.fish");
+    expect(readFileSync(fishFile, "utf8")).toBe(
+      "# Added by HA NOVA\ncontains -- $HOME/.local/bin $PATH; or set -gx PATH $HOME/.local/bin $PATH\n",
+    );
+    expect(existsSync(join(fishHome, ".zshrc"))).toBe(false);
+    expect(existsSync(join(fishHome, ".profile"))).toBe(false);
+
+    const shHome = await pathFor("/bin/sh");
+    expect(readFileSync(join(shHome, ".profile"), "utf8")).toContain(
+      'export PATH="$HOME/.local/bin:$PATH"',
+    );
+    expect(existsSync(join(shHome, ".zshrc"))).toBe(false);
+
+    // The Go uninstall strips exactly these payload lines.
+    const goPath = readFileSync("cli/path_manage.go", "utf8");
+    expect(goPath).toContain(
+      "const pathFishLine = `contains -- $HOME/.local/bin $PATH; or set -gx PATH $HOME/.local/bin $PATH`",
+    );
+    expect(goPath).toContain('const pathFishFile = "ha-nova.fish"');
   });
 
   it("keeps bootstrap logic out of product state persistence", () => {

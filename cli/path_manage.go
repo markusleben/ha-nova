@@ -11,6 +11,8 @@ import (
 const pathBlockHeader = "# Added by HA NOVA"
 const pathBlockFooter = "# End HA NOVA"
 const pathExportLine = `export PATH="$HOME/.local/bin:$PATH"`
+const pathFishLine = `contains -- $HOME/.local/bin $PATH; or set -gx PATH $HOME/.local/bin $PATH`
+const pathFishFile = "ha-nova.fish"
 
 func ensurePublicBinary(paths runtimePaths, sourceBinary string) error {
 	if filepath.Clean(paths.PublicBinary) == filepath.Clean(sourceBinary) {
@@ -54,73 +56,98 @@ func removeManagedPathWithReport(paths runtimePaths, state installState) (string
 		}
 		return "HA NOVA PATH entry from Windows user PATH", nil
 	}
-	target := state.PathTarget
-	if target == "" {
-		target = detectShellRC()
-	}
-	if !state.PathManaged {
-		if _, err := os.Stat(target); err != nil {
-			if isNotExist(err) {
-				return "", nil
-			}
+	var cleaned []string
+	for _, target := range managedPathTargets(paths, state) {
+		removed, err := removePathBlockFromFile(target)
+		if err != nil {
 			return "", err
 		}
+		if removed {
+			cleaned = append(cleaned, target)
+		}
 	}
-	data, err := os.ReadFile(target)
-	if err != nil {
-		return "", err
-	}
-	if !state.PathManaged && !strings.Contains(string(data), pathBlockHeader) {
+	if len(cleaned) == 0 {
 		return "", nil
 	}
-	original := string(data)
+	return "HA NOVA PATH entry from " + strings.Join(cleaned, ", "), nil
+}
+
+// managedPathTargets lists every file an installer can have written the PATH
+// block to — install.sh's detect_shell_rc today (zsh, bash, fish, ~/.profile)
+// plus older installers (~/.bashrc) — and a recorded target. Sweeping them all
+// keeps uninstall correct when SHELL changed since the install.
+func managedPathTargets(paths runtimePaths, state installState) []string {
+	var targets []string
+	if target := strings.TrimSpace(state.PathTarget); target != "" {
+		targets = append(targets, target)
+	}
+	if paths.Home == "" {
+		return targets
+	}
+	for _, name := range []string{".zshrc", ".bash_profile", ".profile", ".bashrc"} {
+		targets = append(targets, filepath.Join(paths.Home, name))
+	}
+	configDirs := []string{filepath.Join(paths.Home, ".config")}
+	if xdg := strings.TrimSpace(os.Getenv("XDG_CONFIG_HOME")); xdg != "" {
+		configDirs = append(configDirs, xdg)
+	}
+	for _, dir := range configDirs {
+		targets = append(targets, filepath.Join(dir, "fish", "conf.d", pathFishFile))
+	}
+	seen := map[string]bool{}
+	unique := targets[:0]
+	for _, target := range targets {
+		if key := filepath.Clean(target); !seen[key] {
+			seen[key] = true
+			unique = append(unique, target)
+		}
+	}
+	return unique
+}
+
+// removePathBlockFromFile strips the HA NOVA PATH block (header, payload line,
+// optional footer). The fish conf.d file is HA NOVA's own and is deleted once
+// nothing else is left in it.
+func removePathBlockFromFile(target string) (bool, error) {
+	data, err := os.ReadFile(target)
+	if err != nil {
+		if isNotExist(err) {
+			return false, nil
+		}
+		return false, err
+	}
 	lines := strings.Split(string(data), "\n")
 	filtered := make([]string, 0, len(lines))
 	removed := false
 	for i := 0; i < len(lines); i++ {
-		line := lines[i]
-		if strings.TrimSpace(line) == pathBlockHeader {
-			removed = true
-			if i+1 < len(lines) && strings.TrimSpace(lines[i+1]) == pathExportLine {
-				i++
-			}
-			if i+1 < len(lines) && strings.TrimSpace(lines[i+1]) == pathBlockFooter {
-				i++
-			}
+		if strings.TrimSpace(lines[i]) != pathBlockHeader {
+			filtered = append(filtered, lines[i])
 			continue
 		}
-		filtered = append(filtered, line)
-	}
-	if !removed {
-		return "", nil
-	}
-	updated := strings.Join(filtered, "\n")
-	if updated == original {
-		return "", nil
-	}
-	if err := os.WriteFile(target, []byte(updated), 0o644); err != nil {
-		return "", err
-	}
-	return `HA NOVA PATH entry from ` + target, nil
-}
-
-func detectShellRC() string {
-	shellName := filepath.Base(os.Getenv("SHELL"))
-	home, _ := os.UserHomeDir()
-	switch shellName {
-	case "zsh":
-		return filepath.Join(home, ".zshrc")
-	case "bash":
-		for _, candidate := range []string{".bash_profile", ".profile", ".bashrc"} {
-			path := filepath.Join(home, candidate)
-			if _, err := os.Stat(path); err == nil {
-				return path
+		removed = true
+		if i+1 < len(lines) {
+			if next := strings.TrimSpace(lines[i+1]); next == pathExportLine || next == pathFishLine {
+				i++
 			}
 		}
-		return filepath.Join(home, ".bash_profile")
-	default:
-		return filepath.Join(home, ".profile")
+		if i+1 < len(lines) && strings.TrimSpace(lines[i+1]) == pathBlockFooter {
+			i++
+		}
 	}
+	if !removed {
+		return false, nil
+	}
+	updated := strings.Join(filtered, "\n")
+	if filepath.Base(target) == pathFishFile && strings.TrimSpace(updated) == "" {
+		if err := os.Remove(target); err != nil {
+			return false, err
+		}
+		return true, nil
+	}
+	if err := os.WriteFile(target, []byte(updated), 0o644); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 func splitPATH(value string) []string {

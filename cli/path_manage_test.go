@@ -135,3 +135,48 @@ func TestBuildSetWindowsUserPathCommandKeepsValueOffTheCommandLine(t *testing.T)
 		t.Fatalf("expected the PATH value in the command environment")
 	}
 }
+
+func TestRemoveManagedPathSweepsEveryInstallerTarget(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("unix-only")
+	}
+	home := t.TempDir()
+	xdg := filepath.Join(t.TempDir(), "xdg")
+	t.Setenv("XDG_CONFIG_HOME", xdg)
+	t.Setenv("SHELL", "/usr/bin/fish") // SHELL at uninstall time must not matter
+	block := "\n" + pathBlockHeader + "\n" + pathExportLine + "\n"
+	fishBlock := pathBlockHeader + "\n" + pathFishLine + "\n"
+	zshrc := filepath.Join(home, ".zshrc") // pre-fix installer target for fish users
+	profile := filepath.Join(home, ".profile")
+	homeFish := filepath.Join(home, ".config", "fish", "conf.d", pathFishFile)
+	xdgFish := filepath.Join(xdg, "fish", "conf.d", pathFishFile)
+	writeTestFile(t, zshrc, "# mine\n"+block)
+	writeTestFile(t, profile, "# keep\n")
+	writeTestFile(t, homeFish, fishBlock)
+	writeTestFile(t, xdgFish, "set -gx EDITOR vim\n"+fishBlock)
+
+	removed, err := removeManagedPathWithReport(runtimePaths{Home: home}, installState{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, path := range []string{zshrc, homeFish, xdgFish} {
+		if !strings.Contains(removed, path) {
+			t.Fatalf("report %q misses %s", removed, path)
+		}
+	}
+	if strings.Contains(removed, profile) {
+		t.Fatalf("report names untouched %s: %q", profile, removed)
+	}
+	if got, _ := os.ReadFile(zshrc); strings.Contains(string(got), pathBlockHeader) || !strings.Contains(string(got), "# mine") {
+		t.Fatalf(".zshrc = %q", got)
+	}
+	if _, err := os.Stat(homeFish); !os.IsNotExist(err) {
+		t.Fatalf("HA NOVA-only fish file must be deleted: %v", err)
+	}
+	if got, _ := os.ReadFile(xdgFish); string(got) != "set -gx EDITOR vim\n" {
+		t.Fatalf("shared fish file = %q", got)
+	}
+	if got, _ := os.ReadFile(profile); string(got) != "# keep\n" {
+		t.Fatalf(".profile = %q", got)
+	}
+}

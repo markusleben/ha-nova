@@ -234,9 +234,13 @@ func purgeProfileDeviceCredentialWithReport(
 		)
 	}
 
-	slotLabel := "Device credential (secure storage)"
+	slotStore := "secure storage"
+	if deviceSecretFileBacked() {
+		slotStore = "private file"
+	}
+	slotLabel := fmt.Sprintf("Device credential (%s)", slotStore)
 	if target.name != defaultServerProfileName {
-		slotLabel = fmt.Sprintf("Device credential (secure storage, server %q)", target.name)
+		slotLabel = fmt.Sprintf("Device credential (%s, server %q)", slotStore, target.name)
 	}
 
 	if currentErr != nil {

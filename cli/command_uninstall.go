@@ -583,6 +583,13 @@ func finalizeLocalUninstallWithProgressUnlocked(
 				err,
 			)
 		}
+		defer pinPurgeDeviceBackend(
+			paths,
+			purgeTargets,
+			cloudTargets,
+			retirementProfiles,
+			report,
+		)()
 		if err := validateProfilePurgeTargets(purgeTargets); err != nil {
 			return fmt.Errorf(
 				"failed to validate device credential cleanup: %w",
