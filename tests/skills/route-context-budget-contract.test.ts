@@ -47,7 +47,8 @@ const ROUTE_BUDGETS: Record<string, { files: string[]; limit: number; verbRoute?
     // PR review: the path ban narrowed to internal files (user-relevant
     // paths stay visible) and the entity_id rule for unnamed candidates
     // (measured 15566).
-    limit: 15600, // spec target <= 15500
+    // The CLI's `say` replaced the inline reason and "yes" sentences (measured 15553).
+    limit: 15560, // spec target <= 15500
     noRouter: true,
     files: [
       "skills/ha-nova/session-bootstrap.md",
@@ -65,7 +66,7 @@ const ROUTE_BUDGETS: Record<string, { files: string[]; limit: number; verbRoute?
   // skill joins (Decision Memory, Work Ledger, Interactive Choices). Kept as
   // its own honest row.
   "write-multi-step": {
-    limit: 21375, // Confirmation Reasons + inline code-step sentences + PR-review narrowing (measured 21342)
+    limit: 21330, // Confirmation Reasons + PR-review narrowing; `say` replaced the inline sentences (measured 21329)
     skill: "write",
     files: [
       "skills/ha-nova/SKILL.md",
@@ -91,7 +92,7 @@ const ROUTE_BUDGETS: Record<string, { files: string[]; limit: number; verbRoute?
   // services, App/host control, events, webhooks), indirect-actuation.md.
   // Measured 2672 (bootstrap 309 + output-rules 668 + skill 1695).
   "service-call": {
-    limit: 2900, // spec target <= 3000; Confirmation Reasons + inline code-step sentences + PR-review narrowing (measured 2866)
+    limit: 2875, // spec target <= 3000; Confirmation Reasons + PR-review narrowing; `say` replaced the inline sentences (measured 2860)
     verbRoute: true,
     files: [
       "skills/ha-nova/session-bootstrap.md",
@@ -103,7 +104,7 @@ const ROUTE_BUDGETS: Record<string, { files: string[]; limit: number; verbRoute?
   // bit the agent is unsure of (common for brightness, temperature, modes):
   // domain-fields.md joins. Kept as its own honest row.
   "service-call-with-fields": {
-    limit: 3900, // Confirmation Reasons + inline code-step sentences + PR-review narrowing (measured 3884)
+    limit: 3890, // Confirmation Reasons + PR-review narrowing; `say` replaced the inline sentences (measured 3878)
     verbRoute: true,
     skill: "service-call",
     extra: ["skills/service-call/domain-fields.md"],

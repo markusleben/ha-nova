@@ -41,17 +41,18 @@ describe("agent scenario regressions (2026-10-15)", () => {
   it("confirmation reasons stay plain and never cite skills, files, or paths", () => {
     const rules = flat("skills/ha-nova/output-rules.md");
     expect(rules).toContain("## Confirmation Reasons");
-    expect(rules).toContain('"This unlocks an entry door, so it needs a code."');
-    expect(rules).toContain("\"HA NOVA can't see what this switch does, so it needs a code.\"");
+    // The CLI writes the reason (`say`); the agent relays it and adds none.
+    expect(rules).toContain("A plan's `say` is the reason, localized; add none of your own.");
+    expect(rules).toContain('"This unlocks a door, so it needs a code."');
     expect(rules).toContain("Never mention, quote, or link HA NOVA's own skill or rule files or scratch paths — the user doesn't know they exist. Paths the user needs (the config file a change targets, a batch manifest) stay visible.");
     expect(rules).toContain("Clarifying questions name candidates by friendly name and area (add the entity_id when either is missing or both collide).");
-    // The pointer alone did not stop citations at the code step: the exact
-    // sentences live inline where the code is requested and a "yes" rejected.
+    // The pointer alone did not stop citations at the code step: the CLI
+    // now hands over the sentence (`say`), relayed where the code is
+    // requested; the "yes" rejection stays inline.
     for (const file of ["skills/service-call/SKILL.md", "skills/write/SKILL.md"]) {
       const text = flat(file);
-      expect(text).toContain('Say only: "<plain reason>, so it needs a code. Reply with `<code>` to go ahead."');
-      expect(text).toContain('After a "yes": "“Yes” can\'t confirm this — reply with `<code>` to go ahead."');
-      expect(text).toContain("Never cite, link, or name this skill or any HA NOVA rule file.");
+      expect(text).toMatch(/add no other reason; never cite, link, or name this skill or any HA NOVA rule file\./);
+      expect(text).toContain('After a "yes", repeat `say`\'s last sentence.');
     }
   });
 });

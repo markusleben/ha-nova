@@ -276,11 +276,11 @@ describe("output design system (Cards)", () => {
     const serviceCall = readFileSync("skills/service-call/SKILL.md", "utf8");
     const yamlConfig = readFileSync("skills/yaml-config/SKILL.md", "utf8");
     const review = readFileSync("skills/review/SKILL.md", "utf8");
-    // service-call: multi-value deltas become the mini table; single value
-    // keeps the arrow one-liner; no show yaml for runtime actions.
+    // service-call: multi-target deltas become the mini table; the CLI's
+    // `say` carries a single target's arrow one-liner and the ask; no menu.
     expect(serviceCall).toContain("`Field | Before | After` mini table");
-    expect(serviceCall).toContain("one value keeps the arrow one-liner");
-    expect(serviceCall).toContain("Preview Card (`apply · cancel`)");
+    expect(serviceCall).toContain("a single target's arrow one-liner");
+    expect(serviceCall).toContain("A preview (exit 2 or 3) closes with `say`");
     // yaml-config: layperson file preview — changed section only, never a
     // developer diff, whole file only on show yaml.
     expect(yamlConfig).toContain("## File-Change Preview");

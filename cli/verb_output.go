@@ -24,21 +24,24 @@ const (
 // verbEnvelope is the schema_version 1 output of every typed verb; empty
 // fields are omitted. Result carries the verb-specific read payload.
 type verbEnvelope struct {
-	SchemaVersion int            `json:"schema_version"`
-	Verb          string         `json:"verb"`
-	Server        string         `json:"server,omitempty"`
-	Status        string         `json:"status"`
-	Tier          string         `json:"tier,omitempty"`
-	Plan          *verbPlan      `json:"plan,omitempty"`
-	Action        *planAction    `json:"action,omitempty"`
-	Resolved      []verbTarget   `json:"resolved,omitempty"`
-	Deltas        []planDelta    `json:"deltas,omitempty"`
-	Members       []tierMember   `json:"members,omitempty"`
-	Consumers     []tierConsumer `json:"consumers,omitempty"`
-	Reasons       []tierReason   `json:"reasons,omitempty"`
-	Coverage      *tierCoverage  `json:"coverage,omitempty"`
-	Verification  []verifyRow    `json:"verification,omitempty"`
-	ReauthOpened  []string       `json:"reauth_flows_opened,omitempty"`
+	SchemaVersion int       `json:"schema_version"`
+	Verb          string    `json:"verb"`
+	Server        string    `json:"server,omitempty"`
+	Status        string    `json:"status"`
+	Tier          string    `json:"tier,omitempty"`
+	Plan          *verbPlan `json:"plan,omitempty"`
+	// Say: the plain confirmation text of a plan that needs one (CLI-built
+	// from tier, reasons, and names; skills relay it).
+	Say          string         `json:"say,omitempty"`
+	Action       *planAction    `json:"action,omitempty"`
+	Resolved     []verbTarget   `json:"resolved,omitempty"`
+	Deltas       []planDelta    `json:"deltas,omitempty"`
+	Members      []tierMember   `json:"members,omitempty"`
+	Consumers    []tierConsumer `json:"consumers,omitempty"`
+	Reasons      []tierReason   `json:"reasons,omitempty"`
+	Coverage     *tierCoverage  `json:"coverage,omitempty"`
+	Verification []verifyRow    `json:"verification,omitempty"`
+	ReauthOpened []string       `json:"reauth_flows_opened,omitempty"`
 	// OutcomeUnknown: the request may have reached Home Assistant (exit 7);
 	// status stays in the outcome vocabulary as "unverified".
 	OutcomeUnknown bool `json:"outcome_unknown,omitempty"`
@@ -182,6 +185,9 @@ func setVerbError(env *verbEnvelope, err error) int {
 	}
 	if failure.status != "" {
 		env.Status = failure.status
+	}
+	if env.Status != "drift" { // only a drift result carries a stored plan to confirm
+		env.Say = ""
 	}
 	env.Error = &verbError{Code: failure.code, Message: failure.message, Candidates: failure.candidates, Next: failure.next}
 	return failure.exit

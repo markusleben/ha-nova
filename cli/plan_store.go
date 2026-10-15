@@ -106,6 +106,9 @@ func buildCallPlan(e *tierEngine, env *verbEnvelope, req planCallRequest, target
 	plan, err := sealPlan(e, env, plan, action)
 	env.Action = &action
 	env.Deltas = planDeltas(req.Service, frozen, req.Data, e.states)
+	if env.Status == "needs_confirmation" {
+		env.Say = confirmationSay(e, env, plan, "")
+	}
 	return plan, err
 }
 

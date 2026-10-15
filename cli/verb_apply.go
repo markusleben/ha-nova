@@ -215,12 +215,16 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string, noSnapshot
 		if err := savePlan(paths, fresh); err != nil {
 			return fail(err)
 		}
+		if env.Say != "" {
+			env.Say = "Something changed since the last preview. " + env.Say
+		}
 		return fail(&verbFailure{exit: verbExitDrift, status: "drift", code: "PLAN_DRIFT",
 			message: "something changed since the preview; nothing was sent and the old plan is gone",
 			next:    "Show the new preview (and code) and ask again."})
 	}
 	// From here every envelope shows the STORED plan: the recompute's own
 	// id and code were never saved, and typing them would burn this plan.
+	env.Say = "" // it names the recompute's code
 	env.Plan = &verbPlan{ID: plan.ID, Hash: fresh.Hash, ExpiresAt: plan.ExpiresAt, Confirm: fresh.Confirm}
 	// Identity, tier, and code all come from the recomputed plan and the
 	// stored nonce, never from file fields (I2).

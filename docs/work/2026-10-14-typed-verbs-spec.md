@@ -71,6 +71,7 @@ Output envelope (`schema_version` 1; fields are omitted when empty):
 ```json
 {"schema_version":1,"verb":"call","server":"default","status":"verified","tier":"ordinary",
  "plan":{"id":"p_3fa9c1d20b7e","hash":"sha256:…","expires_at":"…Z","confirm":"none|natural|code","code":"confirm:unlock-front_door-3fa9c1"},
+ "say":"Unlock “Front Door” (Hall): locked → unlocked. Nothing has run yet. This unlocks a door, so it needs a code. Reply with `confirm:unlock-front_door-3fa9c1` to go ahead — a plain yes can't confirm this.",
  "action":{"service":"light.turn_off","entity_ids":["light.kitchen"],"data":{}},
  "resolved":[{"entity_id":"light.kitchen","name":"Kitchen","by":"exact|match|area|device|group"}],
  "deltas":[{"entity_id":"light.kitchen","field":"brightness","before":"100%","after":"0%"}],
@@ -86,6 +87,7 @@ Output envelope (`schema_version` 1; fields are omitted when empty):
 ```
 
 - `deltas` are rendered by the CLI: brightness in %, units, `unavailable` and `unknown` warnings. This replaces `service-call/SKILL.md:100-118`.
+- `say` (only when a plan needs confirmation; `cli/confirm_say.go`) is the user-facing confirmation text, so no agent writes its own reasons: what would happen (friendly names, a single target's deltas and warnings, a not-run/not-saved line), one plain sentence per distinct reason (a member reason names its entity and the automation, script, or group it runs through), and the ask — typed: "Reply with `<code>` to go ahead — a plain yes can't confirm this."; natural call: "Reply yes to go ahead."; natural config write/revert: the card's `apply`/`show yaml`/`cancel` in words. The tier decides the ask, never the clauses. Home Assistant strings are quoted (short state tokens excepted) and defanged: no backticks, quote marks, brackets, Markdown marks, control or invisible characters, autolinks, or `confirm` followed by a colon-like mark; at most 60 characters. A member clause names its entity, what it is, and the item it runs through; when several steps act on one entity through one item, the riskiest names it. Every code-tier clause is shown (up to eight, then counted). `apply` drops it (it would name the recompute's unsaved code) except on drift, where it describes the new plan. Skills relay it, localized with keywords and code literal, and add no reason of their own; a new reason code needs its sentence (`TestConfirmationSayCoversEveryPlanReason`).
 - `diff` is the existing `renderConfigChanges` output (`cli/diff.go:22-80`), passed through verbatim.
 - `outcome` uses the existing vocabulary `verified|accepted|unverified|failed` (`outcome-verification.md:48-65`).
 - `notices` come from the cache-only update nudge (`cli/update_nudge.go:49-55`). They replace the separate `check-update` call.
