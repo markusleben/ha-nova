@@ -123,7 +123,7 @@ scripts for third parties), the AWS account, persistence past :00.
 | HA config surface | `/config` stays writable (`.storage`, recorder, UI editors' atomic writes), but `configuration.yaml` and `packages/` are read-only binds and `custom_components`, `python_scripts`, `www`, `backups`, `image`, `tts`, `/media` are empty read-only tmpfs mounts. `home-assistant.log` is `/dev/null`; `file_upload` lands in a 64 MiB `/tmp` tmpfs. No `default_config`; onboarding's met/google_translate/radio_browser/shopping_list entries are deleted. No shell_command/command_line/rest/python_script anywhere. go2rtc (can run `exec:` sources) has no config flow, so it cannot be added. |
 | MQTT | `mqtt.publish` is an admin service (read in the 2026.10.1 source), so visitors have it. The broker gives HA a listener whose ACL allows reads and only `testbed/+/set`, `testbed/plug/factory_reset`, `testbed/router/restart` writes (verified: discovery deletes/additions dropped, commands pass). Seeding uses a second listener on the broker container's loopback. |
 | Browser | CSP: scripts, images, frames, connections only from this origin (+ `data:`/`blob:`, inline for HA's own boot). Verified: an external dashboard resource and external markdown images are blocked; the HA UI works (dashboards, settings, automations, history, energy, media). HA's markdown sanitizer strips `onerror`, `javascript:` links, `<script>` (verified). HSTS, `nosniff`, `X-Frame-Options DENY`, `frame-ancestors 'none'`, 1 MB request bodies, Caddy admin API off. |
-| Accounts | Guard every minute via the owner's token (WS handshake deadline 15 s, whole check 30 s): owner active + local-only, `demo` and `nova-relay` present, active, admin, not local-only, http config (`use_x_forwarded_for`, no IP bans, trusted proxy, nothing pending) unchanged, relay not reporting an `auth` disconnect, else full reset. Repairs: the `demo` password; failed-login notices (visitor IPs) and notices with links (phishing) dismissed; banner dashboard and default panel restored. HA refuses to delete or deactivate the owner (verified). |
+| Accounts | Guard every minute via the owner's token (WS handshake deadline 15 s, whole check 30 s): owner active + local-only, `demo` and `nova-relay` checked by the user ids recorded at creation (same username, active, admin, not local-only; a deleted and re-created look-alike fails), http config (`use_x_forwarded_for`, no IP bans, trusted proxy, nothing pending) unchanged, relay not reporting an `auth` disconnect, else full reset. Repairs: the `demo` password; failed-login notices (visitor IPs) and notices that look like links (`//`, markdown links and references, `href`, `www.`) dismissed; banner dashboard and default panel restored. HA refuses to delete or deactivate the owner (verified). |
 | Proxy trust | `trusted_proxies` = Caddy's fixed 10.89.240.2 only (dynamic addresses start at .128). HA 2026.10 imports the `http:` YAML as a 5-minute trial; `demo.mjs setup` promotes it right after onboarding and fails loud otherwise. **No IP bans:** HA bans on any 401, the password is public, the owner cannot log in from outside anyway; bans would only lock visitors (or the tooling path) out. |
 | Secrets | None in the repo or user-data (readable via instance metadata). Owner password and token, relay user password and token: generated on the host per reset; the public relay token once. IMDSv2 only, hop limit 1. |
 | AWS | No IAM role or credentials on the instance (Lightsail has none). Budget alarm at 10 USD. |
@@ -228,8 +228,14 @@ Nightly at 03:10 UTC, `update-ha.sh`:
    digest and `demo.mjs smoke` (house complete, a light round-trips, every
    guard invariant, reported version = expected);
 5. pass: the digest becomes `/var/lib/ha-nova-demo/ha-image` (root 0600) for
-   every hourly reset; fail: a reset with the last good digest, and the
-   reason in the journal (`journalctl -t ha-nova-demo-update -p err`).
+   every hourly reset and the previous image is removed; fail: a reset with
+   the last good digest, the candidate image removed, and the reason in the
+   journal (`journalctl -t ha-nova-demo-update -p err`).
+
+A stable version older than the running one is refused (`sort -V`); going
+back needs an explicit `--pin`. Every run ends with `docker image prune -af
+--filter until=48h`, but only while HA is running the good digest: an image
+in use is never pruned, so the good one always survives.
 
 `reset.sh` refuses to run without a verified `ghcr.io/...@sha256` reference;
 compose never falls back to a tag. Bootstrap seeds the file from the test

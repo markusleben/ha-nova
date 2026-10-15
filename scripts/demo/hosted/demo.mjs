@@ -12,6 +12,7 @@
 //   node demo.mjs smoke     <ha_url> <owner_llat>  candidate gate (update-ha.sh); prints the HA version
 
 import { randomBytes } from "node:crypto";
+import { readFileSync, writeFileSync } from "node:fs";
 
 const [cmd, haUrl, token] = process.argv.slice(2);
 if (!cmd || !haUrl || !token) {
@@ -34,6 +35,17 @@ const SMOKE_ENTITIES = ["light.bed_light", "lock.entrance_door", "cover.testbed_
   "sensor.testbed_temperature", "button.router_restart", "light.template_desk_lamp", "input_boolean.guest_mode",
   "automation.a_guest_mode_unlocks_entrance_door", "script.leave_home", "scene.movie_night", "sensor.demo_next_reset"];
 const HANDSHAKE_MS = 15_000;
+// User ids of this build (the test bed's .state is wiped every reset). The
+// guard checks ids, so a visitor cannot swap in a look-alike user by name.
+const IDS_FILE = new URL("../../e2e/testbed/.state/demo-users.json", import.meta.url);
+const readIds = () => {
+  try {
+    return JSON.parse(readFileSync(IDS_FILE, "utf8"));
+  } catch {
+    return {};
+  }
+};
+const rememberId = (username, id) => writeFileSync(IDS_FILE, JSON.stringify({ ...readIds(), [username]: id }), { mode: 0o600 });
 
 async function connect(accessToken = token) {
   const ws = new WebSocket(`${base.replace(/^http/, "ws")}/api/websocket`);
@@ -89,10 +101,12 @@ async function ensureAdmin(ha, users, username, name, password) {
   let user = byUsername(users, username);
   if (user) {
     await ha.call({ type: "config/auth_provider/homeassistant/admin_change_password", user_id: user.id, password });
+    rememberId(username, user.id);
     return user;
   }
   ({ user } = await ha.call({ type: "config/auth/create", name, group_ids: ["system-admin"], local_only: false }));
   await ha.call({ type: "config/auth_provider/homeassistant/create", user_id: user.id, username, password });
+  rememberId(username, user.id);
   return user;
 }
 
@@ -240,9 +254,12 @@ async function guard() {
     const owner = users.find((u) => u.is_owner);
     const problems = [];
     if (!owner?.is_active || !owner.local_only) problems.push("owner changed");
+    const ids = readIds();
     for (const name of [DEMO_USER, RELAY_USER]) {
-      const user = byUsername(users, name);
-      if (!user?.is_active || !isAdmin(user) || user.local_only) problems.push(`user ${name} missing or changed`);
+      const user = users.find((u) => u.id === ids[name]);
+      if (!user || user.username !== name || !user.is_active || !isAdmin(user) || user.local_only) {
+        problems.push(`user ${name} missing or changed`);
+      }
     }
     if (httpProblem(await ha.call({ type: "http/config" }))) problems.push("http config changed");
     if (problems.length) {
@@ -254,12 +271,12 @@ async function guard() {
     // The public password.
     await ha.call({
       type: "config/auth_provider/homeassistant/admin_change_password",
-      user_id: byUsername(users, DEMO_USER).id, password: DEMO_PASSWORD,
+      user_id: ids[DEMO_USER], password: DEMO_PASSWORD,
     });
     // Notices other visitors would see: failed logins (they show visitor IPs)
     // and anything carrying a link (phishing the next visitor).
     for (const n of await ha.call({ type: "persistent_notification/get" })) {
-      if (n.notification_id === "http-login" || /https?:\/\/|\]\(|www\./i.test(`${n.title ?? ""} ${n.message ?? ""}`)) {
+      if (n.notification_id === "http-login" || /\/\/|\]\s*[(\[]|\]:|href|www\./i.test(`${n.title ?? ""} ${n.message ?? ""}`)) {
         await ha.call(service("persistent_notification", "dismiss", { notification_id: n.notification_id }));
       }
     }

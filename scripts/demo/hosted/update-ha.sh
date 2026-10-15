@@ -5,7 +5,8 @@
 #
 #   update-ha.sh              latest stable: resolve, verify, candidate boot, smoke, promote
 #   update-ha.sh --pin <ver>  verify <ver> and make it the good digest WITHOUT a candidate
-#                             boot (bootstrap: the test bed's tested pin)
+#                             boot (bootstrap: the test bed's tested pin; manual rollback,
+#                             the only way to go to an older version)
 #
 # Verified before anything runs: the version string, the digest of
 # ghcr.io/home-assistant/home-assistant:<ver>, and its Sigstore signature,
@@ -47,6 +48,20 @@ persist() {
   mv "$STATE/ha-version.tmp" "$STATE/ha-version"
 }
 
+# Old images would fill the disk over months (and the guard resets at 80 %).
+# Prune only while Home Assistant runs the good digest: an image in use by a
+# container is never pruned, so the good one always survives.
+prune() {
+  local good running
+  good="$(cat "$STATE/ha-image" 2> /dev/null || true)"
+  running="$(docker inspect ha-nova-testbed-ha --format '{{.Config.Image}}' 2> /dev/null || true)"
+  if [[ -n "$good" && "$running" == "$good" ]]; then
+    docker image prune -af --filter until=48h > /dev/null || true
+  else
+    log "skipping image prune: Home Assistant is not running the good digest"
+  fi
+}
+
 reset_wait() {
   # A reset already running would swallow our start request (systemd joins it).
   while [[ "$(systemctl show -p ActiveState --value ha-nova-demo-reset.service)" == activating ]]; do sleep 5; done
@@ -68,7 +83,13 @@ ref="$(verify "$version")"
 current="$(cat "$STATE/ha-image" 2> /dev/null || true)"
 if [[ "$ref" == "$current" ]]; then
   log "already on Home Assistant $version"
+  prune
   exit 0
+fi
+current_version="$(cat "$STATE/ha-version" 2> /dev/null || true)"
+if [[ -n "$current_version" && "$version" != "$current_version" \
+  && "$(printf '%s\n%s\n' "$version" "$current_version" | sort -V | head -1)" == "$version" ]]; then
+  fail "stable.json offers $version, older than the running $current_version; refusing a downgrade (use --pin)"
 fi
 
 log "candidate Home Assistant $version ($ref); Caddy serves the reset page meanwhile"
@@ -86,10 +107,14 @@ fi
 if [[ "$ok" == 1 ]]; then
   persist "$ref" "$version"
   log "promoted Home Assistant $version ($ref)"
+  [[ -z "$current" ]] || docker image rm "$current" > /dev/null 2>&1 || true
+  prune
   exit 0
 fi
 
 rm -f /run/ha-nova-demo/ha-image.candidate
 logger -p user.err -t ha-nova-demo-update "candidate Home Assistant $version failed; rolling back to $current"
 reset_wait || true
+docker image rm "$ref" > /dev/null 2>&1 || true
+prune
 fail "candidate Home Assistant $version ($ref) failed its boot or smoke test; kept $current"
