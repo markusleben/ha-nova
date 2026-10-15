@@ -60,6 +60,15 @@ func prepareUninstallBeforeGuidedTeardown(
 				err,
 			)
 		}
+		// Same backend selection as the purge itself (finalize repeats it and
+		// reports the note), so the guided entry point routes identically.
+		defer pinPurgeDeviceBackend(
+			paths,
+			deviceTargets,
+			cloudTargets,
+			profiles,
+			nil,
+		)()
 		if err := validateUninstallSecureStorageBeforeGuidedTeardown(
 			paths,
 			cloudTargets,

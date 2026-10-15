@@ -140,3 +140,24 @@ func TestPurgeFileBackedInstallWithReachableKeyringStillProvesKeyringEmpty(t *te
 		t.Fatalf("purge error = %v, want the stranded keyring credential to fail the final proof", err)
 	}
 }
+
+func TestGuidedPurgePreflightRoutesLikePurge(t *testing.T) {
+	// Interactive `uninstall` → Full purge runs this preflight BEFORE the
+	// guided teardown and before finalize; it must select the same backend.
+	paths := setupHeadlessPurgeTest(t, runtimeConfig{}, true)
+	if err := prepareUninstallBeforeGuidedTeardown(paths, uninstallModePurge); err != nil {
+		t.Fatalf("guided preflight error = %v", err)
+	}
+	if deviceSecretFileBacked() {
+		t.Fatal("guided preflight leaked process-wide file routing")
+	}
+
+	paired := setupHeadlessPurgeTest(t, runtimeConfig{
+		RelaySecureBaseURL: "https://192.0.2.5:8792",
+		RelaySpkiPin:       "sha256/pin",
+	}, true)
+	if err := prepareUninstallBeforeGuidedTeardown(paired, uninstallModePurge); err == nil ||
+		!strings.Contains(err.Error(), "device credential") {
+		t.Fatalf("guided preflight error = %v, want fail-closed device credential error", err)
+	}
+}
