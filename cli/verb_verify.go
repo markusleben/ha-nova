@@ -313,10 +313,10 @@ func pollProbes(s *relaySession, probes []probe) []verifyRow {
 	for i, p := range probes {
 		switch {
 		case rows[i].Outcome != "unverified" || last[i] == nil:
+		case late[i] != "": // the final read failed: never accepted on an older answer
+			rows[i].Note = fmt.Sprintf("last read %s; later reads %s", rows[i].Observed, late[i])
 		case p.slow && transitionalStates[last[i].State]:
 			rows[i].Outcome, rows[i].Note = "accepted", "still "+last[i].State+" when the window closed"
-		case late[i] != "":
-			rows[i].Note = fmt.Sprintf("last read %s; later reads %s", rows[i].Observed, late[i])
 		default: // the device answered, it just did not get there
 			verb := "ended"
 			if unchanged(p, last[i]) {

@@ -128,6 +128,12 @@ func findEntities(s *relaySession, q findQuery) (findResult, error) {
 		if matches, err = filterByState(s, matches, q); err != nil {
 			return findResult{}, err
 		}
+		if len(matches) == 0 && q.phrase != "" && !q.completeAliases {
+			// the names matched only entities in other states: an alias may
+			// name one in this state, as it would without --state
+			q.completeAliases = true
+			return findEntities(s, q)
+		}
 	}
 	result := findResult{Total: len(matches), Matches: matches}
 	if len(matches) > q.limit {

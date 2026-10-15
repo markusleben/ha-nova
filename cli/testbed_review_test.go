@@ -242,3 +242,43 @@ func TestMCPNextStep(t *testing.T) {
 		t.Fatalf("ha_plan create argv %v err %v", argv, err)
 	}
 }
+
+// Codex P2: a phrase whose name hits are all in other states still finds an
+// alias in the asked state.
+func TestFindByStateFallsBackToAliases(t *testing.T) {
+	f := newFakeHA() // light.kitchen on, light.hall off
+	f.full = append(f.full, map[string]any{"entity_id": "light.kitchen", "platform": "hue", "unique_id": "k1"},
+		map[string]any{"entity_id": "light.hall", "platform": "hue", "unique_id": "h1"})
+	f.aliases = map[string][]string{"light.hall": {"kitchen"}}
+	h := newWriteHarness(t, f)
+	exit, env := h.run(runFindCommand, "kitchen", "--state", "off")
+	if exit != 0 || !strings.Contains(string(env.Result), `"entity_id":"light.hall"`) || strings.Contains(string(env.Result), "light.kitchen") {
+		t.Fatalf("exit %d %s %+v", exit, env.Result, env.Error)
+	}
+}
+
+// Codex P2: a slow device last seen moving is not accepted when the reads
+// after it failed.
+func TestTransitionalThenFailedReadIsUnverified(t *testing.T) {
+	fastVerify(t)
+	f := newFakeHA()
+	f.ent("cover.blind", "hue", "closed", map[string]any{"device_class": "blind"})
+	var posted atomic.Bool
+	var reads atomic.Int32
+	f.service = func(f *fakeHA, _ string, _ map[string]any) any {
+		f.states["cover.blind"]["state"] = "opening"
+		posted.Store(true)
+		return coreReply(200, []any{})
+	}
+	paths, log := setupFakeRelay(t, func(r *http.Request, endpoint string, p map[string]any) any {
+		if p["path"] == "/api/states/cover.blind" && posted.Load() && reads.Add(1) > 1 {
+			return fakeRelayFailure{"UPSTREAM_HTTP_TIMEOUT", "slow"}
+		}
+		return f.reply(r, endpoint, p)
+	}, true)
+	h := &writeHarness{t: t, f: f, paths: paths, log: log}
+	exit, env := h.run(runCallCommand, "cover.open_cover", "cover.blind")
+	if exit != 6 || env.Verification[0].Outcome != "unverified" || env.Verification[0].Note != "last read opening; later reads failed" {
+		t.Fatalf("exit %d rows %+v", exit, env.Verification)
+	}
+}
