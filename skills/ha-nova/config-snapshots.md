@@ -7,7 +7,7 @@ everything smart (what to capture, how to restore, what to promise) lives here.
 
 ## Relay contract
 
-`ha-nova relay backups --data-file <payload-file>` (file-based, like ws/files).
+`ha-nova relay backups --data-file <payload-file>` (`list`/`load` may use `-d '<payload>'`); `--out <file>` saves the reply.
 Responses use the standard relay envelope (`relay-api.md` → Standard Envelope):
 the payload sits under `.data`, errors under `.error`.
 
@@ -109,7 +109,9 @@ the user just decides informed.
 
 Automations/scripts restore through `ha-nova plan write --domain <d> --id
 <original config id> --file <snapshot data>` + `apply` (the CLI diffs,
-upserts, reloads, and verifies). Automations carry their id in the data; a
+upserts, reloads, and verifies). Right after a delete, its result's `snapshot`
+is the file to `load` (no `list`); `.data.data` is the draft, key order intact
+(never via `--jq`, which reorders keys). Automations carry their id in the data; a
 script's key is the deleted `script.<key>` (the snapshot name lost its
 underscores, and a renamed entity no longer matches its key — ask when unsure; a different key restores the script under a new identity, say so).
 

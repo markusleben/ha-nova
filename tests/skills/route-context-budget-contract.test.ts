@@ -17,7 +17,7 @@ const ROUTE_BUDGETS: Record<string, { files: string[]; limit: number; verbRoute?
   // the official templating page is fetched only when a template check
   // needs a signature checks.md lacks. Measured after the cut: 22211.
   review: {
-    limit: 22250, // cards: `say` closes the card (measured 22212)
+    limit: 22210, // cards: `say` closes the card; bootstrap chaining, narrower router description (measured 22205)
     files: [
       "skills/ha-nova/SKILL.md",
       "skills/ha-nova/session-bootstrap.md",
@@ -49,7 +49,7 @@ const ROUTE_BUDGETS: Record<string, { files: string[]; limit: number; verbRoute?
     // (measured 15566).
     // The CLI's `say` replaced the inline reason and "yes" sentences (measured 15553).
     // Batch review: `say` closes the write card; literal names/state values (measured 15571).
-    limit: 15575, // spec target <= 15500
+    limit: 15570, // spec target <= 15500; delete reads only write-safety, bootstrap chaining (measured 15569)
     noRouter: true,
     files: [
       "skills/ha-nova/session-bootstrap.md",
@@ -67,7 +67,7 @@ const ROUTE_BUDGETS: Record<string, { files: string[]; limit: number; verbRoute?
   // skill joins (Decision Memory, Work Ledger, Interactive Choices). Kept as
   // its own honest row.
   "write-multi-step": {
-    limit: 21350, // Confirmation Reasons + PR-review narrowing; `say` replaced the inline sentences and closes the card (measured 21347)
+    limit: 21346, // Confirmation Reasons + PR-review narrowing; `say` replaced the inline sentences and closes the card; bootstrap chaining (measured 21345)
     skill: "write",
     files: [
       "skills/ha-nova/SKILL.md",
@@ -93,7 +93,7 @@ const ROUTE_BUDGETS: Record<string, { files: string[]; limit: number; verbRoute?
   // services, App/host control, events, webhooks), indirect-actuation.md.
   // Measured 2672 (bootstrap 309 + output-rules 668 + skill 1695).
   "service-call": {
-    limit: 2880, // spec target <= 3000; Confirmation Reasons + PR-review narrowing; `say` replaced the inline sentences (measured 2876)
+    limit: 2872, // spec target <= 3000; Confirmation Reasons + PR-review narrowing; `say` replaced the inline sentences; find/get syntax inline (measured 2871)
     verbRoute: true,
     files: [
       "skills/ha-nova/session-bootstrap.md",
@@ -105,7 +105,7 @@ const ROUTE_BUDGETS: Record<string, { files: string[]; limit: number; verbRoute?
   // bit the agent is unsure of (common for brightness, temperature, modes):
   // domain-fields.md joins. Kept as its own honest row.
   "service-call-with-fields": {
-    limit: 3900, // Confirmation Reasons + PR-review narrowing; `say` replaced the inline sentences (measured 3894)
+    limit: 3890, // Confirmation Reasons + PR-review narrowing; `say` replaced the inline sentences; find/get syntax inline (measured 3889)
     verbRoute: true,
     skill: "service-call",
     extra: ["skills/service-call/domain-fields.md"],
