@@ -30,6 +30,12 @@ func haReply(states map[string]any, uniqueIDs map[string]string, history []any) 
 		}
 		path := fmt.Sprint(payload["path"])
 		switch {
+		case path == "/api/states":
+			all := []any{}
+			for _, state := range states {
+				all = append(all, state)
+			}
+			return coreReply(200, all)
 		case strings.HasPrefix(path, "/api/states/"):
 			if state, ok := states[strings.TrimPrefix(path, "/api/states/")]; ok {
 				return coreReply(200, state)

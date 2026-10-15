@@ -138,9 +138,13 @@ func runVerbForTest(t *testing.T, run func() int) (int, verbTestEnvelope) {
 	return exit, env
 }
 
-// registryReply serves the area, device, compact, and full registries.
+// registryReply serves the area, device, compact, and full registries, and
+// an empty /api/states.
 func registryReply(compact []map[string]any, full []map[string]any) func(*http.Request, string, map[string]any) any {
 	return func(_ *http.Request, endpoint string, payload map[string]any) any {
+		if endpoint == "core" && payload["path"] == "/api/states" {
+			return coreReply(200, []any{})
+		}
 		switch payload["type"] {
 		case "config/area_registry/list":
 			return []map[string]any{{"area_id": "kuche", "name": "Küche"}, {"area_id": "office", "name": "Office"}}

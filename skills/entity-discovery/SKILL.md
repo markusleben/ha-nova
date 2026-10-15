@@ -47,8 +47,12 @@ ha-nova find --domain <d> [--area <area_id>] [--state <s>]
 
 Every word of the phrase must match the entity_id, name, or area,
 case- and accent-insensitive; aliases are read automatically when names miss.
+Entities without a registry row (YAML, template) match on entity_id and
+friendly name only (no area, no aliases).
 The result carries `total` (exact), `returned`, and `matches[]` with each
-match basis (`by`: `name` or `alias`).
+match basis (`by`: `name`, `alias`, or `state` for an entity without a
+registry row). `name` is the entity's current friendly name (what the
+Home Assistant UI shows), else its registry name.
 
 - **If the match does not resolve a suitable target** — no results, or only matches the user rejects or that plainly are not what they meant — re-run ONCE with `--aliases` (aliases searched even when a name matched): an alias is exactly where a household keeps the name it actually says. Only then try synonyms, alternative terms, or shorter words, one `find` each. When a resolved entity had no matching alias and the user's word was clearly their habitual name, offer once to store it as an alias via `ha-nova:organize`.
 - `--include-disabled` when a disabled entity may be the target (it reads the full registry).

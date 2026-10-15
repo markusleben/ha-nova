@@ -99,7 +99,8 @@ func runFindCommand(paths runtimePaths, args []string) int {
 // findEntities matches the compact registry first; the full registry is read
 // only when that finds nothing or disabled rows are wanted, and aliases
 // (config/entity_registry/get_entries, the lists carry none) only when names
-// miss there too.
+// miss there too. Entities with a state but no registry row (YAML, template,
+// demo) are matched by entity_id and friendly_name in mergeStates.
 func findEntities(s *relaySession, q findQuery) (findResult, error) {
 	areas, deviceAreas, err := loadAreaContext(s)
 	if err != nil {
@@ -137,18 +138,18 @@ func findEntities(s *relaySession, q findQuery) (findResult, error) {
 		}
 		matches = unionTargets(matches, full)
 	}
-	if q.state != "" || q.phrase == "" {
-		var seen bool
-		if matches, seen, err = mergeStates(s, matches, q); err != nil {
-			return findResult{}, err
-		}
-		domainKnown = domainKnown || seen
-		if len(matches) == 0 && q.state != "" && q.phrase != "" && !q.completeAliases {
-			// the names matched only entities in other states: an alias may
-			// name one in this state, as it would without --state
-			q.completeAliases = true
-			return findEntities(s, q)
-		}
+	// Every search reads /api/states once (session memo): entities with no
+	// registry row are matched there, and display names come from there.
+	var seen bool
+	if matches, seen, err = mergeStates(s, matches, q); err != nil {
+		return findResult{}, err
+	}
+	domainKnown = domainKnown || seen
+	if len(matches) == 0 && q.state != "" && q.phrase != "" && !q.completeAliases {
+		// the names matched only entities in other states: an alias may
+		// name one in this state, as it would without --state
+		q.completeAliases = true
+		return findEntities(s, q)
 	}
 	result := findResult{Total: len(matches), Matches: matches, unknownDomain: len(matches) == 0 && !domainKnown}
 	if len(matches) > q.limit {
