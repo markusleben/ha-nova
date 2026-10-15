@@ -144,7 +144,7 @@ describe("consumer wiring (#571)", () => {
   it("service-call names the shared contract at its step-3 expansion", () => {
     // Since PR4 the expansion runs in the CLI, which the skill routes through.
     expect(flat(read("skills/service-call/SKILL.md"))).toContain(
-      "`--area <area_id>`/`--device <device_id>` (they expand to concrete entities and always preview)",
+      "`--area <area_id>`/`--device <device_id>` (they expand to concrete entities and preview unless exactly one entity of the service's domain remains)",
     );
     expect(read("cli/plan_call.go")).toContain("// resolveTargets turns ids, --match, --area, and --device into the frozen");
   });

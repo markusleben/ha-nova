@@ -93,7 +93,7 @@ func TestMCPGuidanceInsideTheEnvelope(t *testing.T) {
 			t.Fatalf("%s: next_step %q in %v", name, step, env)
 		}
 	}
-	h.f.related["area:kitchen"] = []string{"light.kitchen"}
+	h.f.related["area:kitchen"] = []string{"light.kitchen", "light.hall"}
 	preview := c.tool("ha_call", map[string]any{"service": "light.turn_off", "area": "kitchen"})["structuredContent"].(map[string]any)
 	if step, _ := preview["next_step"].(string); preview["status"] != "needs_confirmation" || !strings.Contains(step, "wait for the user's own confirmation") {
 		t.Fatalf("preview next_step %q in %v", step, preview)

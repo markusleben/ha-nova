@@ -42,7 +42,7 @@ Safety invariants (each one has a Go test)
 - **I2** A typed-tier plan never runs without its exact code.
 - **I3** At `apply`, the plan is recomputed. Any hash mismatch gives exit 2 and nothing is sent.
 - **I4** An unread user-authored member, a failed scan, or a limit cut is never classified below typed (`indirect-actuation.md:352-366`).
-- **I5** Expanded targets (area, device, group, stored members) never take the fast path.
+- **I5** Expanded targets (area, device, group, stored members) never take the fast path. One exception (2026-10-16): an area or device that resolves to exactly one entity of the service's own domain — visible, without an entity category, in that area itself or inheriting it from its device, no group expanded, no leaf skipped, no lock, alarm panel, or access-capable cover on its device — acts on exactly what naming that entity would, so it is classified as that direct call (every other rule still applies to it).
 - **I6** The payload sent equals the previewed frozen `entity_id` list (`service-call/SKILL.md:95`).
 - **I7** Exactly one POST per execution. No automatic retry, ever. This is stricter than `relay-api.md:590`.
 - **I8** Plans are single-use and expire.
@@ -120,7 +120,7 @@ Each step is the code form of an existing prose rule, cited per step.
 
 1. **Resolve and expand targets.**
    - Registry list rows carry neither aliases nor `device_class` (verified on HA 2026.10.1). Aliases come from `config/entity_registry/get_entries` for the in-scope candidates (chunks of 500); every `device_class` comes from state attributes. `plan`/`call --match` always runs this alias pass before accepting a unique match; `find` only lists and reads aliases on a name miss.
-   - Explicit ids and `--match` use `config/entity_registry/list_for_display` once (`ei, en, pl, di, ai`; `relay-api.md:179`). The full `config/entity_registry/list` is read only when the compact match finds nothing; aliases (`get_entries`) only when its names miss too.
+   - Explicit ids and `--match` use `config/entity_registry/list_for_display` once (`ei, en, pl, di, ai`, plus `hb`/`ec` when hidden or categorized; `relay-api.md:179`). The full `config/entity_registry/list` is read only when the compact match finds nothing; aliases (`get_entries`) only when its names miss too.
    - An explicit id with no registry row (YAML entity without `unique_id`) resolves through an exact `GET /api/states/<entity_id>`. Its platform is unknown, so classification fails closed: typed when the domain is an actuator a YAML platform can define (`UNREGISTERED_ACTUATOR`; a YAML group too — an `entity_id` list attribute without a platform proves nothing, a template entity can expose one; its members are still expanded and classified), preview otherwise — never the fast path (maintainer default 2026-10-15: legacy unregistered actuators are rare, the UX cost is accepted).
    - `--area` uses `search/related` on `item_type:"area"` and takes `.data.entity`, filtered by the service domain (`service-call/SKILL.md:95`).
    - `--device` filters the compact registry by `di`.
@@ -154,7 +154,7 @@ Each step is the code form of an existing prose rule, cited per step.
    - (b) Run `GET /api/events` once. If the `call_service` listener count is above the verified baseline, or the target is a `timer`, scan all automation configs (event triggers, `event_data` filters). If enumerated listeners ≠ the live count, the run is typed (`indirect-actuation.md:197-215`). Exception: a `call_service` surplus (live > enumerated automation listeners) is preview with `CALL_SERVICE_LISTENER_UNEXPLAINED`, because an open logbook stream or a raw event subscription adds such a listener (measured on HA 2026.10.1: a stock install has no `call_service` row, so the baseline is 0); listeners the scan attributes to automations keep their own class. Every script run and automation run (direct, stored, or consumer) also fires `script_started`/`automation_triggered`; their listeners are checked the same way, an unexplained surplus being preview with `RUN_EVENT_LISTENER_UNEXPLAINED`. "Unexplained" requires that every enabled automation was read: an enabled automation without id (`YAML_NO_ID`), with an id but no stored config (`UNREAD_CONFIG`), or with a templated `event_type` (`UNENUMERABLE_LISTENER`) is typed; a templated `event_data` filter counts as matching.
    - (c) Check for consumer managers with `config_entries/get` once, plus `hassio` update entities by known slug. If one is present, the run is preview (see Q2).
    - (d) Any `pl:template` entity is a coverage note only (`indirect-actuation.md:228-233`).
-6. **Tier** = the maximum over the direct class, member classes, consumer classes, unresolved items (typed), expansion (preview) and gaps (preview).
+6. **Tier** = the maximum over the direct class, member classes, consumer classes, unresolved items (typed), expansion (preview, except the I5 single-entity area/device case) and gaps (preview).
 
 Caching and limits. All reads go through one `relaySession` per invocation: transport resolved once, request results memoized in memory, 8 concurrent requests, 15 s per request, 30 s overall. There is no disk cache: presence must be checked per run (`indirect-actuation.md:225`). Limits: 64 acted entities, 200 visited nodes, depth 8, 100 consumer configs, 2,000 automations in the full scan. Any cut produces `LIMIT_CUT`, which is typed. This needs a new helper because `relayWSJSONContext` reloads config and reselects transport on every call (`cli/trace_loader.go:197-212`), and `runRelayProxy` is monolithic (`cli/relay.go:341-516`). `trace` then switches to the session helper.
 
@@ -176,7 +176,7 @@ Reason codes (`cli/tier_rules.go`; `TestTierReasonCodesAreDocumented` pins each 
 | `UNSUPPORTED_SELECTOR` | refused | direct `floor_id`/`label_id` |
 | `CODE_REQUIRED` | refused | code-bearing lock/alarm or a `code` in the payload (`service-call/SKILL.md` → Alarm Panels And Locks) |
 | `UNSUPPORTED_FEATURE` | refused | missing `supported_features` bit (same section) |
-| `EXPANDED_TARGET` | preview | area, device, or group expansion (I5) |
+| `EXPANDED_TARGET` | preview | area, device, or group expansion (I5); not raised for the I5 single-entity area/device exception |
 | `EXPLICIT_BATCH` | preview | more than 10 explicit ids (§4) |
 | `STORED_MEMBERS` | preview | the direct target is a scene, script, or `automation.trigger` run (I5) |
 | `NO_REGISTRY_ROW` | preview | a non-actuator entity without registry row (§2.2 step 1) |
@@ -262,8 +262,9 @@ The Safety Core needs amendments, and they are linter-enforced byte for byte (`d
 |---|---|---|---|
 | One exact id or unique `--match`, ordinary action, no consumer or only ordinary fully-read consumers, coverage notes only | ordinary | execute + verify, no preview | "turn off the kitchen light", "set the hallway thermostat to 21", "lock the front door", "close the garage door" |
 | Explicitly listed ids (≤ 10), each meeting the row above | ordinary | one call, per-member verification | "turn off kitchen and hallway light" |
+| Area / device resolving to exactly one entity of the service's domain (I5 exception), meeting the first row | ordinary | execute + verify, like naming it | "turn off the kitchen lights" (one light there) |
 | Helper / trigger-source write whose consumers are all read and ordinary | ordinary | execute; consumers listed in the result | "turn on guest mode" (an automation answers with lights) |
-| Area / device / group / stored-member run (scene, script, `automation.trigger`) | preview | exit 3 → user "yes" → `apply` | "lights off in the kitchen", "activate Movie Night", "run the bedtime script" |
+| Area / device with several entities (or a hidden, categorized, or elsewhere-assigned one, or one on a device that also has a lock, alarm panel, or access cover), group, generic `homeassistant.*` over an area/device, stored-member run (scene, script, `automation.trigger`) | preview | exit 3 → user "yes" → `apply` | "lights off in the kitchen" (several lights there), "activate Movie Night", "run the bedtime script" |
 | Disruptive service; unread integration-owned member; consumer manager present (Q2) | preview | exit 3 → natural confirm → `apply` | "restart Home Assistant", Hue scene |
 | Config create/update/revert | preview | `plan write` shows `diff` → `apply` | "create an automation …" |
 | Ambiguous or zero match | — | exit 5, one question | "turn off the light" (12 lights) |

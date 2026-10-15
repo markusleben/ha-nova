@@ -78,9 +78,11 @@ expect 'script with delayed garage open is typed via stored member' 3 \
   -- plan call script.turn_on script.open_garage_after_delay
 expect 'scene with a group member containing a lock is typed' 3 \
   "d.tier === 'typed' && $reasons.includes('ACCESS_LOCK')" -- plan call scene.turn_on scene.door_scene
-expect 'area target (kuche) is preview with frozen ids' 3 \
-  "d.tier === 'preview' && $reasons.includes('EXPANDED_TARGET') && JSON.stringify(d.action.entity_ids) === '[\"light.kitchen_lights\"]'" \
+expect 'area target with one light (kuche) is ordinary like naming it' 0 \
+  "d.tier === 'ordinary' && JSON.stringify(d.action.entity_ids) === '[\"light.kitchen_lights\"]'" \
   -- plan call light.turn_off --area kuche
+expect 'generic homeassistant.* over the same area stays preview' 3 \
+  "d.tier === 'preview' && $reasons.includes('EXPANDED_TARGET')" -- plan call homeassistant.turn_off --area kuche
 
 echo "--- config writes (plan write; nothing is applied)"
 cat > "$TMP/create.json" << 'EOF'
