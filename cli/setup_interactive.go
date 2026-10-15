@@ -544,6 +544,13 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 	devicePaired := false
 	manualCredentialFlow := false
 	pairingBackStage := setupStageRelayInstall
+	// haVersion comes from the mDNS announcement of the chosen instance; empty
+	// means unknown and keeps the two-step install links.
+	haVersion := ""
+	// Set only on the host -> install transition: a second computer whose
+	// Relay already runs skips the install steps once. Back-navigation and the
+	// repair menu's "full guidance" always show the steps.
+	detectInstalledRelay := false
 	cloudSetupIncomplete := false
 	cloudSetupPaused := false
 	// Service installs pair by default too: secure pairing no longer depends on
@@ -721,6 +728,7 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 				// press-Enter default.
 				renderSetupParagraph(os.Stdout, fmt.Sprintf("The saved address %s could not be used. Enter a new one.", cfg.HAURL))
 				host, haURL, err = promptValidHAHostFromReader(reader, os.Stdout, "")
+				haVersion = ""
 			} else {
 				candidate, selected, discoveryErr := selectDefaultHAHostWithFeedback(reader, os.Stdout, cfg)
 				switch {
@@ -731,6 +739,11 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 					haURL = candidate.HAURL
 				default:
 					host, haURL, err = promptValidHAHostFromReader(reader, os.Stdout, candidate.Host)
+				}
+				haVersion = ""
+				if err == nil && candidate.HAURL != "" &&
+					setupDiscoveryEndpointKey(haURL) == setupDiscoveryEndpointKey(candidate.HAURL) {
+					haVersion = candidate.Version
 				}
 			}
 			if err == errSetupBack {
@@ -787,6 +800,7 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 					verifyFirstReuseFlow = false
 				}
 				hostChangeRetry = false
+				detectInstalledRelay = true
 				stage = setupStageRelayInstall
 			}
 
@@ -797,44 +811,22 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 				steps = buildSetupPairingWizardSteps()
 			}
 			renderSetupStep(os.Stdout, steps.RelayInstall, steps.Total, "Install NOVA Relay in Home Assistant")
-			repositoryURL := haAddRepositoryURL(cfg.HAURL)
-			renderSetupParagraph(os.Stdout,
-				"Next, add the HA NOVA app repository to your Home Assistant.",
-			)
-			renderSetupLink(os.Stdout, "This will open:", repositoryURL)
-			_, err := promptWizardLineFromReader(reader, os.Stdout, "Press Enter to open your browser", "")
-			if err == errSetupBack {
-				stage = setupStageHost
-				continue
-			}
-			if err == errSetupExit {
-				renderSetupCancelledNote(os.Stdout)
-				return 0
-			}
-			if err != nil {
-				printHumanErr("%s", err)
-				return 1
-			}
-			openAnnouncedBrowserURL(os.Stdout, repositoryURL)
-			renderSetupParagraphTight(os.Stdout, `In the browser: log in to Home Assistant if asked, then click "Add" to confirm the repository.`)
-			renderSetupIndentedBlock(os.Stdout, "Once the repository is added:", "    ",
-				"1. Go to Settings > Apps > App Store (on older Home Assistant: Settings > Add-ons)",
-				`2. Search for "NOVA Relay"`,
-				"3. Click Install and wait for it to finish",
-				"4. Click Start",
-			)
-			_, err = promptWizardLineFromReader(reader, os.Stdout, "Press Enter when the app is running", "")
-			if err == errSetupBack {
-				stage = setupStageHost
-				continue
-			}
-			if err == errSetupExit {
-				renderSetupCancelledNote(os.Stdout)
-				return 0
-			}
-			if err != nil {
-				printHumanErr("%s", err)
-				return 1
+			skipInstall := detectInstalledRelay && pairAfterInstall && relayAppAlreadyRunning(os.Stdout, cfg)
+			detectInstalledRelay = false
+			if !skipInstall {
+				err := runRelayInstallSteps(reader, os.Stdout, relayInstallGuideFor(cfg.HAURL, haVersion))
+				if err == errSetupBack {
+					stage = setupStageHost
+					continue
+				}
+				if err == errSetupExit {
+					renderSetupCancelledNote(os.Stdout)
+					return 0
+				}
+				if err != nil {
+					printHumanErr("%s", err)
+					return 1
+				}
 			}
 			if pairAfterInstall {
 				if deviceAlreadyPaired {

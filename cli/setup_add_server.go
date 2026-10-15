@@ -148,7 +148,7 @@ func runAddServerStages(
 		return 1
 	}
 
-	host, haURL, hostErr := selectAddServerHAHost(reader, out, doc)
+	host, haURL, haVersion, hostErr := selectAddServerHAHost(reader, out, doc)
 	if hostErr == errSetupBack || hostErr == errSetupExit {
 		renderSetupCancelledNote(out)
 		return 0
@@ -174,23 +174,15 @@ func runAddServerStages(
 		return 1
 	}
 
-	repositoryURL := haAddRepositoryURL(cfg.HAURL)
-	renderSetupParagraph(out,
-		"Next, install the NOVA Relay App on this Home Assistant instance.",
-	)
-	renderSetupLink(out, "Add the repository:", repositoryURL)
-	renderSetupIndentedBlock(out, "Then:", "    ",
-		"1. Go to Settings > Apps > App Store (on older Home Assistant: Settings > Add-ons)",
-		`2. Search for "NOVA Relay"`,
-		"3. Click Install and wait for it to finish",
-		"4. Click Start",
-	)
-	if _, err := promptWizardLineFromReader(reader, out, "Press Enter when the app is running", ""); err != nil {
-		if err == errSetupBack || err == errSetupExit {
-			return cancelKeepingPartialProfile()
+	// Another computer may already have installed the App on this instance.
+	if !relayAppAlreadyRunning(out, cfg) {
+		if err := runRelayInstallSteps(reader, out, relayInstallGuideFor(cfg.HAURL, haVersion)); err != nil {
+			if err == errSetupBack || err == errSetupExit {
+				return cancelKeepingPartialProfile()
+			}
+			printHumanErr("%s", err)
+			return failKeepingPartialProfile()
 		}
-		printHumanErr("%s", err)
-		return failKeepingPartialProfile()
 	}
 
 	for {
@@ -300,7 +292,7 @@ func selectAddServerHAHost(
 	reader *bufio.Reader,
 	out io.Writer,
 	doc *configDocument,
-) (string, string, error) {
+) (string, string, string, error) {
 	result := runSetupDiscoveryWithFeedback(out, runtimeConfig{})
 	configured := configuredServerHostPortKeys(doc)
 	expandConfiguredLocalAliases(configured)
@@ -333,17 +325,23 @@ func selectAddServerHAHost(
 		if len(result.candidates) > 0 {
 			renderSetupParagraphTight(out, "Every discovered Home Assistant instance is already configured.")
 		}
-		return promptUnconfiguredHost("")
+		host, haURL, err := promptUnconfiguredHost("")
+		return host, haURL, "", err
 	}
 	fmt.Fprintf(out, "  Found %d Home Assistant instance(s) that are not configured yet.\n", len(candidates))
 	candidate, selected, err := promptSetupDiscoveryCandidateInteractive(reader, out, candidates)
 	if err != nil {
-		return "", "", err
+		return "", "", "", err
 	}
 	if selected {
-		return candidate.Host, candidate.HAURL, nil
+		return candidate.Host, candidate.HAURL, candidate.Version, nil
 	}
-	return promptUnconfiguredHost(candidate.Host)
+	host, haURL, err := promptUnconfiguredHost(candidate.Host)
+	if err == nil && candidate.HAURL != "" &&
+		setupDiscoveryEndpointKey(haURL) == setupDiscoveryEndpointKey(candidate.HAURL) {
+		return host, haURL, candidate.Version, nil
+	}
+	return host, haURL, "", err
 }
 
 // Instance identity is host:HA-port. A port difference on the same host is a

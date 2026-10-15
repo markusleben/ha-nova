@@ -10,10 +10,13 @@ import (
 
 type uninstallPreflight struct {
 	relayStillRunning bool
-	tokenUnavailable  string
-	haURL             string
-	relayToken        string
-	config            runtimeConfig
+	// keptForOtherDevices: the user said other computers still use NOVA, so
+	// the notes must not tell them to remove the shared App.
+	keptForOtherDevices bool
+	tokenUnavailable    string
+	haURL               string
+	relayToken          string
+	config              runtimeConfig
 }
 
 // uninstallRelayRemovalEvidence records only Relay removals that guided
@@ -206,11 +209,18 @@ func printUninstallPreflightNotes(out io.Writer, preflight uninstallPreflight) {
 // old reachability-gated single note left users with a running app and a
 // valid token they were never told about.
 func preflightNoteLines(preflight uninstallPreflight) []string {
+	if preflight.keptForOtherDevices {
+		notes := []string{"The NOVA Relay app stays in Home Assistant for your other computers. Run 'ha-nova uninstall' on the last one to remove it."}
+		if preflight.tokenUnavailable != "" {
+			notes = append(notes, preflight.tokenUnavailable)
+		}
+		return notes
+	}
 	lead := "Server side (if still installed, finish these to fully remove HA NOVA):"
 	if preflight.relayStillRunning {
 		lead = "The NOVA Relay is still running. To fully remove HA NOVA:"
 	}
-	notes := []string{lead}
+	notes := []string{lead, "Skip these steps while another computer still uses NOVA with this Home Assistant: removing the app disconnects every paired computer."}
 	if preflight.haURL != "" {
 		notes = append(notes,
 			"1. Remove the NOVA Relay: uninstall the app at "+haRelayAppPageURL(preflight.haURL)+", or stop and remove the container of a standalone relay",

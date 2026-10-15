@@ -47,8 +47,19 @@ func haNOVAAppPanelURL(
 	}, nil
 }
 
+// haAddRepositoryURL is the fallback for Home Assistant before 2026.2 or of
+// unknown version. It only adds the repository; the user then searches the
+// App Store.
 func haAddRepositoryURL(haURL string) string {
 	return haURL + "/_my_redirect/supervisor_add_addon_repository?repository_url=" + url.QueryEscape(haNovaRepositoryURL)
+}
+
+// haInstallRelayAppURL opens the NOVA Relay App page and, when the repository
+// is missing, asks once to add it (Home Assistant >= 2026.2; frontend
+// src/panels/my/ha-panel-my.ts `supervisor_app` with optional repository_url,
+// handled in src/panels/config/apps/ha-config-app-dashboard.ts).
+func haInstallRelayAppURL(haURL string) string {
+	return haURL + "/_my_redirect/supervisor_app?app=" + haNovaRelayAppSlug + "&repository_url=" + url.QueryEscape(haNovaRepositoryURL)
 }
 
 func haProfileSecurityURL(haURL string) string {

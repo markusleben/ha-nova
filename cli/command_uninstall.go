@@ -181,6 +181,7 @@ func runUninstall(paths runtimePaths, args []string) int {
 		if teardown == teardownCompleted {
 			preflight.relayStillRunning = false
 		}
+		preflight.keptForOtherDevices = teardown == teardownKeptForOtherDevices
 	}
 	if runtime.GOOS == "windows" && source == installSourceBundle {
 		teardownDone := teardown == teardownCompleted

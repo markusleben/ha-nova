@@ -86,7 +86,7 @@ func TestInteractiveSetupFreshInstallShowsWizardAndInstallsAntigravitySkills(t *
 		"4) Google Antigravity",
 		"5) Hermes Agent",
 		"Discovering Home Assistant on your network...",
-		"Next, add the HA NOVA app repository to your Home Assistant.",
+		"Next, install the NOVA Relay App in your Home Assistant.",
 		"Once the repository is added:",
 		`Search for "NOVA Relay"`,
 		"NOVA keeps client and Home Assistant access separate",

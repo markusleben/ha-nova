@@ -43,7 +43,7 @@ func TestRetirementRevokesBeforeTemporaryPostRemovalOutage(
 	recorder := &teardownRecorder{relayGone: true}
 	var output bytes.Buffer
 	outcome, err := maybeOfferGuidedTeardown(
-		bufio.NewReader(strings.NewReader("y\n\n\n\n\n\n\n")),
+		bufio.NewReader(strings.NewReader("y\ny\n\n\n\n\n\n\n")),
 		&output,
 		preflight,
 		recorder.deps(),

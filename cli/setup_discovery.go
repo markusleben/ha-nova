@@ -34,6 +34,9 @@ type setupDiscoveryCandidate struct {
 	HAURL  string
 	Via    string
 	Source string
+	// Version is the Home Assistant version from the mDNS TXT record; empty
+	// when the instance was not found via mDNS.
+	Version string
 }
 
 type setupDiscoveryProbe struct {
@@ -42,7 +45,8 @@ type setupDiscoveryProbe struct {
 	// Via carries the advertised .local hostname when the discovery path
 	// rewrote it to an IPv4 URL — the add-server filter matches it against
 	// profiles configured with the .local spelling.
-	Via string
+	Via     string
+	Version string
 }
 
 func detectDefaultHAHost(cfg runtimeConfig) string {
@@ -89,7 +93,7 @@ func discoverReachableHAHosts(cfg runtimeConfig) ([]setupDiscoveryCandidate, str
 
 	probes := collectDiscoveryProbes(cfg)
 	found := make([]setupDiscoveryCandidate, 0, len(probes))
-	seen := map[string]struct{}{}
+	seen := map[string]int{}
 
 	for idx, probe := range probes {
 		remaining := time.Until(deadline)
@@ -111,10 +115,11 @@ func discoverReachableHAHosts(cfg runtimeConfig) ([]setupDiscoveryCandidate, str
 			continue
 		}
 		candidate := setupDiscoveryCandidate{
-			Host:   normalizeHostInput(resolved),
-			HAURL:  strings.TrimRight(resolved, "/"),
-			Source: probe.Source,
-			Via:    probe.Via,
+			Host:    normalizeHostInput(resolved),
+			HAURL:   strings.TrimRight(resolved, "/"),
+			Source:  probe.Source,
+			Via:     probe.Via,
+			Version: probe.Version,
 		}
 		if probeDeadline.After(deadline) {
 			probeDeadline = deadline
@@ -130,10 +135,13 @@ func discoverReachableHAHosts(cfg runtimeConfig) ([]setupDiscoveryCandidate, str
 		if key == "" {
 			continue
 		}
-		if _, exists := seen[key]; exists {
+		if idx, exists := seen[key]; exists {
+			if found[idx].Version == "" {
+				found[idx].Version = candidate.Version
+			}
 			continue
 		}
-		seen[key] = struct{}{}
+		seen[key] = len(found)
 		found = append(found, candidate)
 	}
 
@@ -199,8 +207,13 @@ func collectDiscoveryProbes(cfg runtimeConfig) []setupDiscoveryProbe {
 		if key == "" || len(candidates) >= setupDiscoveryMaxCandidateCount {
 			return
 		}
-		for _, existing := range candidates {
+		for idx, existing := range candidates {
 			if setupDiscoveryEndpointKey(existing.Host) == key {
+				// A saved address listed first must not drop the version
+				// only the mDNS announcement carries.
+				if existing.Version == "" {
+					candidates[idx].Version = probe.Version
+				}
 				return
 			}
 		}
@@ -276,6 +289,9 @@ func discoverHAViaMDNS() []setupDiscoveryProbe {
 				if discovered[idx].Via == "" {
 					discovered[idx].Via = dnssdAdvertisedLocalHost(entry)
 				}
+				if discovered[idx].Version == "" {
+					discovered[idx].Version = strings.TrimSpace(entry.Text["version"])
+				}
 				return
 			}
 			seen[key] = len(discovered)
@@ -286,9 +302,10 @@ func discoverHAViaMDNS() []setupDiscoveryProbe {
 				source += ": " + name
 			}
 			discovered = append(discovered, setupDiscoveryProbe{
-				Host:   endpoint,
-				Source: source,
-				Via:    dnssdAdvertisedLocalHost(entry),
+				Host:    endpoint,
+				Source:  source,
+				Via:     dnssdAdvertisedLocalHost(entry),
+				Version: strings.TrimSpace(entry.Text["version"]),
 			})
 		},
 		func(dnssd.BrowseEntry) {},
