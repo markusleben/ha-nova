@@ -56,7 +56,7 @@ func TestRemoveManagedPathWithReportFailsLoudWhenUnixWriteFails(t *testing.T) {
 	removed, err := removeManagedPathWithReport(runtimePaths{}, installState{
 		PathManaged: true,
 		PathTarget:  rcFile,
-	})
+	}, nil)
 	if err == nil {
 		t.Fatal("expected write failure")
 	}
@@ -79,7 +79,7 @@ func TestRemoveManagedPathWithReportDoesNotStripGenericLocalBinExportWithoutHANO
 	removed, err := removeManagedPathWithReport(runtimePaths{}, installState{
 		PathManaged: true,
 		PathTarget:  rcFile,
-	})
+	}, nil)
 	if err != nil {
 		t.Fatalf("removeManagedPathWithReport() error: %v", err)
 	}
@@ -104,7 +104,7 @@ func TestRemoveManagedPathWithReportSkipsWindowsUserPathBranchOnUnix(t *testing.
 	removed, err := removeManagedPathWithReport(runtimePaths{}, installState{
 		PathManaged: false,
 		PathTarget:  "user-path",
-	})
+	}, nil)
 	if err != nil {
 		t.Fatalf("expected unix cleanup to ignore Windows user-path marker, got %v", err)
 	}
@@ -141,34 +141,44 @@ func TestRemoveManagedPathSweepsEveryInstallerTarget(t *testing.T) {
 		t.Skip("unix-only")
 	}
 	home := t.TempDir()
-	xdg := filepath.Join(t.TempDir(), "xdg")
-	t.Setenv("XDG_CONFIG_HOME", xdg)
+	configDir := filepath.Join(home, ".config", "ha-nova")
 	t.Setenv("SHELL", "/usr/bin/fish") // SHELL at uninstall time must not matter
 	block := "\n" + pathBlockHeader + "\n" + pathExportLine + "\n"
 	fishBlock := pathBlockHeader + "\n" + pathFishLine + "\n"
-	zshrc := filepath.Join(home, ".zshrc") // pre-fix installer target for fish users
-	profile := filepath.Join(home, ".profile")
+	zshrc := filepath.Join(home, ".zshrc")     // pre-fix installer target for fish users
+	bashrc := filepath.Join(home, ".bashrc")   // pre-Go installer header
+	profile := filepath.Join(home, ".profile") // unrelated, untouched
 	homeFish := filepath.Join(home, ".config", "fish", "conf.d", pathFishFile)
-	xdgFish := filepath.Join(xdg, "fish", "conf.d", pathFishFile)
+	xdgFish := filepath.Join(t.TempDir(), "xdg", "fish", "conf.d", pathFishFile) // recorded by install.sh
 	writeTestFile(t, zshrc, "# mine\n"+block)
+	writeTestFile(t, bashrc, "\n"+pathLegacyBlockHeader+"\n"+pathExportLine+"\n")
 	writeTestFile(t, profile, "# keep\n")
 	writeTestFile(t, homeFish, fishBlock)
 	writeTestFile(t, xdgFish, "set -gx EDITOR vim\n"+fishBlock)
-
-	removed, err := removeManagedPathWithReport(runtimePaths{Home: home}, installState{})
-	if err != nil {
+	record := filepath.Join(configDir, pathTargetRecordFile)
+	writeTestFile(t, record, xdgFish+"\n")
+	if err := os.Mkdir(filepath.Join(home, ".bash_profile"), 0o700); err != nil { // unreadable as a file
 		t.Fatal(err)
 	}
-	for _, path := range []string{zshrc, homeFish, xdgFish} {
+
+	report := &uninstallReport{}
+	removed, err := removeManagedPathWithReport(runtimePaths{Home: home, ConfigDir: configDir}, installState{}, report)
+	if err != nil {
+		t.Fatalf("a broken swept dotfile must not abort uninstall: %v", err)
+	}
+	for _, path := range []string{zshrc, bashrc, homeFish, xdgFish} {
 		if !strings.Contains(removed, path) {
 			t.Fatalf("report %q misses %s", removed, path)
 		}
 	}
-	if strings.Contains(removed, profile) {
-		t.Fatalf("report names untouched %s: %q", profile, removed)
+	if !strings.Contains(strings.Join(report.notes, "\n"), ".bash_profile") {
+		t.Fatalf("missing note for the unreadable .bash_profile: %q", report.notes)
 	}
-	if got, _ := os.ReadFile(zshrc); strings.Contains(string(got), pathBlockHeader) || !strings.Contains(string(got), "# mine") {
+	if got, _ := os.ReadFile(zshrc); strings.Contains(string(got), "HA NOVA") || !strings.Contains(string(got), "# mine") {
 		t.Fatalf(".zshrc = %q", got)
+	}
+	if got, _ := os.ReadFile(bashrc); strings.Contains(string(got), "HA NOVA") {
+		t.Fatalf(".bashrc = %q", got)
 	}
 	if _, err := os.Stat(homeFish); !os.IsNotExist(err) {
 		t.Fatalf("HA NOVA-only fish file must be deleted: %v", err)
@@ -178,5 +188,26 @@ func TestRemoveManagedPathSweepsEveryInstallerTarget(t *testing.T) {
 	}
 	if got, _ := os.ReadFile(profile); string(got) != "# keep\n" {
 		t.Fatalf(".profile = %q", got)
+	}
+	if _, err := os.Stat(record); !os.IsNotExist(err) {
+		t.Fatalf("path-target record survived: %v", err)
+	}
+}
+
+func TestRemoveManagedPathIgnoresTamperedRecord(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("unix-only")
+	}
+	home := t.TempDir()
+	configDir := filepath.Join(home, ".config", "ha-nova")
+	other := filepath.Join(t.TempDir(), "notes.txt")
+	content := pathBlockHeader + "\n" + pathExportLine + "\n"
+	writeTestFile(t, other, content)
+	writeTestFile(t, filepath.Join(configDir, pathTargetRecordFile), other)
+	if _, err := removeManagedPathWithReport(runtimePaths{Home: home, ConfigDir: configDir}, installState{}, nil); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := os.ReadFile(other); string(got) != content {
+		t.Fatalf("record pointed uninstall at an arbitrary file: %q", got)
 	}
 }

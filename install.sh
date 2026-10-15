@@ -239,8 +239,10 @@ ensure_bin_dir_on_path() {
   rc_file="$(detect_shell_rc)"
   PATH_RC_FILE="${rc_file}"
 
-  mkdir -p "${BIN_DIR}" "$(dirname "${rc_file}")"
+  mkdir -p "${BIN_DIR}" "$(dirname "${rc_file}")" "${CONFIG_DIR}"
   touch "${rc_file}"
+  # `ha-nova uninstall` strips the block from exactly this file first.
+  printf '%s\n' "${rc_file}" > "${CONFIG_DIR}/path-target"
 
   case ":${PATH}:" in
     *":${BIN_DIR}:"*) ;;

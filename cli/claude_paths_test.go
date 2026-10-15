@@ -67,8 +67,6 @@ func TestMain(m *testing.M) {
 		}
 	}
 	os.Unsetenv("CLAUDE_CONFIG_DIR")
-	// Uninstall sweeps $XDG_CONFIG_HOME/fish/conf.d; keep it off the real one.
-	os.Unsetenv("XDG_CONFIG_HOME")
 	// Same protection class for the update-nudge background refresh: under
 	// `go test`, os.Executable() is the generated test binary, so the real
 	// spawn would detach a recursive test-suite run whenever any test walks a

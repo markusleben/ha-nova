@@ -124,6 +124,21 @@ func requireSelectedClientServiceCredentials(paths runtimePaths, selectedClients
 	return fmt.Errorf("none of the selected clients support service credentials")
 }
 
+// setupTokenStorageHint adds the service-mode way out to a non-interactive
+// token-storage failure when the selected client supports it.
+func setupTokenStorageHint(paths runtimePaths, selectedClients []string, err error) string {
+	if hint := setupSecureStorageRecoveryHint(err); hint != "" {
+		return hint
+	}
+	if !shouldOfferServiceCredentials(err) || len(selectedClients) != 1 {
+		return ""
+	}
+	if _, _, ok, hintErr := selectedClientsServiceCredentialHint(paths, selectedClients); hintErr != nil || !ok {
+		return ""
+	}
+	return fmt.Sprintf("Headless or SSH session: run `ha-nova setup --service %s` to keep the relay token in a protected file instead.", selectedClients[0])
+}
+
 func shouldOfferServiceCredentials(tokenStorageErr error) bool {
 	if tokenStorageErr != nil {
 		return isDesktopKeyringSessionUnavailableError(tokenStorageErr) ||

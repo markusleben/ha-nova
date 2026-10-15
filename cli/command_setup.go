@@ -449,7 +449,7 @@ func runSetup(paths runtimePaths, args []string) int {
 				return completeNonInteractivePairedSetup(paths, cfg, state, selectedClients, setupLifecycle...)
 			}
 			printHumanErr("%s", relayAuthTokenProblemMessage(tokenStoragePreflightErr))
-			if hint := setupSecureStorageRecoveryHint(tokenStoragePreflightErr); hint != "" {
+			if hint := setupTokenStorageHint(paths, selectedClients, tokenStoragePreflightErr); hint != "" {
 				printHumanWarn("%s", hint)
 			}
 			return 1
@@ -488,7 +488,7 @@ func runSetup(paths runtimePaths, args []string) int {
 
 	if tokenStoragePreflightErr != nil {
 		printHumanErr("%s", relayAuthTokenSetupSaveError(tokenStoragePreflightErr))
-		if hint := setupSecureStorageRecoveryHint(tokenStoragePreflightErr); hint != "" {
+		if hint := setupTokenStorageHint(paths, selectedClients, tokenStoragePreflightErr); hint != "" {
 			printHumanWarn("%s", hint)
 		}
 		return 1

@@ -110,3 +110,17 @@ func TestHeadlessDesktopSetupKeepsConfiguredServiceTokenFile(t *testing.T) {
 		t.Fatalf("service token file removed: %v", err)
 	}
 }
+
+func TestHeadlessDesktopSetupPointsToServiceMode(t *testing.T) {
+	paths, haURL := setupHeadlessSetupTest(t)
+	exit, output := captureCommandOutput(t, func() int {
+		return runSetup(paths, []string{
+			"--host", normalizeHostInput(haURL), "--ha-url", haURL,
+			"--relay-url", "http://relay.test:8791", "--relay-token", "tok",
+			"--non-interactive", "codex",
+		})
+	})
+	if exit != 1 || !strings.Contains(output, "ha-nova setup --service codex") {
+		t.Fatalf("exit = %d, want the service-mode hint:\n%s", exit, output)
+	}
+}

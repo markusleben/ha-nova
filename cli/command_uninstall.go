@@ -683,7 +683,7 @@ func finalizeLocalUninstallWithProgressUnlocked(
 			return fmt.Errorf("failed before path_cleanup: %w", err)
 		}
 	}
-	pathRemoval, pathErr := removeManagedPathWithReport(paths, state)
+	pathRemoval, pathErr := removeManagedPathWithReport(paths, state, report)
 	if pathErr != nil {
 		return fmt.Errorf("failed to remove managed PATH entry: %w", pathErr)
 	}

@@ -145,6 +145,10 @@ describe("install.sh contract", () => {
     );
     expect(existsSync(join(fishHome, ".zshrc"))).toBe(false);
     expect(existsSync(join(fishHome, ".profile"))).toBe(false);
+    // Recorded so uninstall finds it even if XDG_CONFIG_HOME/SHELL change.
+    expect(readFileSync(join(fishHome, ".config", "ha-nova", "path-target"), "utf8")).toBe(
+      `${fishFile}\n`,
+    );
 
     const shHome = await pathFor("/bin/sh");
     expect(readFileSync(join(shHome, ".profile"), "utf8")).toContain(
@@ -158,6 +162,7 @@ describe("install.sh contract", () => {
       "const pathFishLine = `contains -- $HOME/.local/bin $PATH; or set -gx PATH $HOME/.local/bin $PATH`",
     );
     expect(goPath).toContain('const pathFishFile = "ha-nova.fish"');
+    expect(goPath).toContain("const pathTargetRecordFile = \"path-target\"");
   });
 
   it("keeps bootstrap logic out of product state persistence", () => {

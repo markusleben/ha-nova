@@ -85,6 +85,11 @@ mkdir -p "$HOME/.config/ha-nova/secrets" && chmod 700 "$HOME/.config/ha-nova/sec
 printf 'file\n' > "$HOME/.config/ha-nova/secrets/.file-backend"
 ```
 
+For installer tests, also point `XDG_CONFIG_HOME` into the throwaway `HOME`
+(or unset it): for fish, `install.sh` writes the PATH entry to
+`$XDG_CONFIG_HOME/fish/conf.d/ha-nova.fish`, and `uninstall` edits the file
+recorded in `~/.config/ha-nova/path-target`.
+
 `HA_NOVA_TEST_SECRET_DIR` is an injected `go test` seam, not a CLI isolation
 interface. Normal development and release binaries deliberately ignore it.
 

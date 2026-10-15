@@ -61,7 +61,7 @@ func TestPurgeUnpairedServiceInstallWithoutKeyringRemovesEverything(t *testing.T
 			t.Fatalf("%s survived purge: %v", path, err)
 		}
 	}
-	if !strings.Contains(strings.Join(report.notes, "\n"), "keyring was not checked for device credentials") {
+	if !strings.Contains(strings.Join(report.notes, "\n"), "keyring was not checked for leftover HA NOVA device credentials") {
 		t.Fatalf("missing unchecked-keyring note: %q", report.notes)
 	}
 }
@@ -120,5 +120,23 @@ func TestPurgePairedFileBackedInstallWithoutKeyringRemovesEverything(t *testing.
 	}
 	if _, err := os.Stat(paths.ConfigFile); !os.IsNotExist(err) {
 		t.Fatalf("config survived purge: %v", err)
+	}
+}
+
+func TestPurgeFileBackedInstallWithReachableKeyringStillProvesKeyringEmpty(t *testing.T) {
+	// A keyring credential stranded by a keyring-to-file switch made while the
+	// keyring was locked must still fail the final proof when it is reachable.
+	paths := setupHeadlessPurgeTest(t, runtimeConfig{}, true)
+	deviceCredentialPreflight = func() error { return nil }
+	if err := writeDeviceFileBackendMarker(); err != nil {
+		t.Fatal(err)
+	}
+	if err := secretKeyringSet(deviceCredentialService, secretUser(), generateTestDeviceCredential(t)); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = secretKeyringDelete(deviceCredentialService, secretUser()) })
+	if _, err := runTestPurge(paths); err == nil ||
+		!strings.Contains(err.Error(), "reappeared") {
+		t.Fatalf("purge error = %v, want the stranded keyring credential to fail the final proof", err)
 	}
 }

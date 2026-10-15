@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -10,6 +11,8 @@ import (
 
 const pathBlockHeader = "# Added by HA NOVA"
 const pathBlockFooter = "# End HA NOVA"
+const pathLegacyBlockHeader = "# Added by HA NOVA installer" // pre-Go installer
+const pathTargetRecordFile = "path-target"                   // written by install.sh
 const pathExportLine = `export PATH="$HOME/.local/bin:$PATH"`
 const pathFishLine = `contains -- $HOME/.local/bin $PATH; or set -gx PATH $HOME/.local/bin $PATH`
 const pathFishFile = "ha-nova.fish"
@@ -26,10 +29,10 @@ func ensurePublicBinary(paths runtimePaths, sourceBinary string) error {
 }
 
 func removeManagedPath(paths runtimePaths, state installState) {
-	_, _ = removeManagedPathWithReport(paths, state)
+	_, _ = removeManagedPathWithReport(paths, state, nil)
 }
 
-func removeManagedPathWithReport(paths runtimePaths, state installState) (string, error) {
+func removeManagedPathWithReport(paths runtimePaths, state installState, report *uninstallReport) (string, error) {
 	if runtime.GOOS == "windows" && (strings.EqualFold(state.PathTarget, "user-path") || isWindowsInstallSourcePath(paths.BinDir)) {
 		if !state.PathManaged && strings.TrimSpace(paths.BinDir) == "" {
 			return "", nil
@@ -56,8 +59,9 @@ func removeManagedPathWithReport(paths runtimePaths, state installState) (string
 		}
 		return "HA NOVA PATH entry from Windows user PATH", nil
 	}
+	recorded, swept := managedPathTargets(paths, state)
 	var cleaned []string
-	for _, target := range managedPathTargets(paths, state) {
+	for _, target := range recorded {
 		removed, err := removePathBlockFromFile(target)
 		if err != nil {
 			return "", err
@@ -66,43 +70,79 @@ func removeManagedPathWithReport(paths runtimePaths, state installState) (string
 			cleaned = append(cleaned, target)
 		}
 	}
+	// The sweep is best effort: an unreadable dotfile the installer may never
+	// have touched must not abort the uninstall.
+	for _, target := range swept {
+		removed, err := removePathBlockFromFile(target)
+		if err != nil {
+			report.addNote(fmt.Sprintf("Could not check %s for the HA NOVA PATH entry (%v); remove the \"%s\" block there manually if present.", target, err, pathBlockHeader))
+			continue
+		}
+		if removed {
+			cleaned = append(cleaned, target)
+		}
+	}
+	if record := pathTargetRecordPath(paths); record != "" {
+		if err := os.Remove(record); err != nil && !isNotExist(err) {
+			return "", err
+		}
+	}
 	if len(cleaned) == 0 {
 		return "", nil
 	}
 	return "HA NOVA PATH entry from " + strings.Join(cleaned, ", "), nil
 }
 
-// managedPathTargets lists every file an installer can have written the PATH
-// block to — install.sh's detect_shell_rc today (zsh, bash, fish, ~/.profile)
-// plus older installers (~/.bashrc) — and a recorded target. Sweeping them all
-// keeps uninstall correct when SHELL changed since the install.
-func managedPathTargets(paths runtimePaths, state installState) []string {
-	var targets []string
-	if target := strings.TrimSpace(state.PathTarget); target != "" {
-		targets = append(targets, target)
+func pathTargetRecordPath(paths runtimePaths) string {
+	if paths.ConfigDir == "" {
+		return ""
 	}
-	if paths.Home == "" {
-		return targets
-	}
-	for _, name := range []string{".zshrc", ".bash_profile", ".profile", ".bashrc"} {
-		targets = append(targets, filepath.Join(paths.Home, name))
-	}
-	configDirs := []string{filepath.Join(paths.Home, ".config")}
-	if xdg := strings.TrimSpace(os.Getenv("XDG_CONFIG_HOME")); xdg != "" {
-		configDirs = append(configDirs, xdg)
-	}
-	for _, dir := range configDirs {
-		targets = append(targets, filepath.Join(dir, "fish", "conf.d", pathFishFile))
-	}
+	return filepath.Join(paths.ConfigDir, pathTargetRecordFile)
+}
+
+// managedPathTargets returns the recorded targets (state.json, and the file
+// install.sh wrote — hard failures) and the best-effort sweep of every file an
+// installer can have written the block to: install.sh's detect_shell_rc today
+// (zsh, bash, fish, ~/.profile) plus older installers (~/.bashrc). The sweep
+// keeps uninstall correct when SHELL changed since the install and for
+// installs made before the target was recorded.
+func managedPathTargets(paths runtimePaths, state installState) (recorded, swept []string) {
 	seen := map[string]bool{}
-	unique := targets[:0]
-	for _, target := range targets {
-		if key := filepath.Clean(target); !seen[key] {
+	add := func(list *[]string, target string) {
+		if key := filepath.Clean(target); target != "" && !seen[key] {
 			seen[key] = true
-			unique = append(unique, target)
+			*list = append(*list, target)
 		}
 	}
-	return unique
+	add(&recorded, strings.TrimSpace(state.PathTarget))
+	if record := pathTargetRecordPath(paths); record != "" {
+		if data, err := os.ReadFile(record); err == nil {
+			if target := strings.TrimSpace(string(data)); validRecordedPathTarget(target) {
+				add(&recorded, target)
+			}
+		}
+	}
+	if paths.Home == "" {
+		return recorded, swept
+	}
+	for _, name := range []string{".zshrc", ".bash_profile", ".profile", ".bashrc"} {
+		add(&swept, filepath.Join(paths.Home, name))
+	}
+	add(&swept, filepath.Join(paths.Home, ".config", "fish", "conf.d", pathFishFile))
+	return recorded, swept
+}
+
+// validRecordedPathTarget only accepts an absolute path to a file install.sh
+// can write, so a tampered record cannot point uninstall at arbitrary files.
+func validRecordedPathTarget(target string) bool {
+	if !filepath.IsAbs(target) {
+		return false
+	}
+	switch filepath.Base(target) {
+	case ".zshrc", ".bash_profile", ".profile", ".bashrc", pathFishFile:
+		return true
+	}
+	return false
 }
 
 // removePathBlockFromFile strips the HA NOVA PATH block (header, payload line,
@@ -120,7 +160,7 @@ func removePathBlockFromFile(target string) (bool, error) {
 	filtered := make([]string, 0, len(lines))
 	removed := false
 	for i := 0; i < len(lines); i++ {
-		if strings.TrimSpace(lines[i]) != pathBlockHeader {
+		if header := strings.TrimSpace(lines[i]); header != pathBlockHeader && header != pathLegacyBlockHeader {
 			filtered = append(filtered, lines[i])
 			continue
 		}

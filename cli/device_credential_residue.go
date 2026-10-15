@@ -169,7 +169,8 @@ func deviceCredentialSlotFilesRemain() (bool, error) {
 
 // removeDeviceFileStorageMarkerAndDir drops the machine-wide backend marker and
 // the secrets dir (only when empty), and resets the in-process flags so the
-// same run re-decides the backend.
+// same run re-decides the backend (a full purge without a reachable keyring
+// stays pinned to files, see pinPurgeDeviceBackend).
 func removeDeviceFileStorageMarkerAndDir() error {
 	markerPath, err := deviceFileBackendMarkerPath()
 	if err != nil {
