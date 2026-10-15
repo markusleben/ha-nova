@@ -145,7 +145,11 @@ const WORD_BUDGETS: Record<string, number> = {
   // Device-level diagnostics row + integration-controlled redaction sentence
   // (#519 C1-13, 2026-08-20, measured 1675).
   // Safety Core fast-path amendment (PR4 typed verbs, +45 words per mutation skill).
-  diagnose: 1770,
+  // Agent-scenario fix (2026-10-15): a day word ("today") already bounds the
+  // window, so read history before asking for a time; plus the
+  // trigger-entity-stuck-in-its-to-state check (measured 1886); review
+  // batch: own state first, triggers from the config (measured 1910).
+  diagnose: 1925,
   // Report-shape declaration line (shared output shapes); repair dedup,
   // attention-threshold definition, cause↔symptom linking (2026-h2 Wave 1c).
   // Table-first redesign: report modes, block shape, ten-block order,
@@ -257,7 +261,9 @@ const WORD_BUDGETS: Record<string, number> = {
   // sibling-discovery pointer — combined trial-merge measured 9325.
   // Full-train union with #603/#604 (trial-merge measured 9691).
   // PR4: entity calls moved to `ha-nova call`; raw routes split into raw-routes.md (folded), measured 8085.
-  "service-call": 8130,
+  // 2026-10-15 agent scenarios: Confirmation Reasons pointer and friendly-name
+  // candidates with the entity_id only on a name+area clash (measured 8130).
+  "service-call": 8150,
   // Carries the canonical File-Change Preview example — the only layout
   // source for file edits; concrete examples are what make a card renderable.
   // Sibling-survival verification (Wave 1b) + yaml snapshot capture with
@@ -423,7 +429,12 @@ const WORD_BUDGETS: Record<string, number> = {
   // Template-reference fetch narrowed to signature gaps in checks.md (deep
   // audit 2026-09-10, measured 4846).
   // Safety Core fast-path amendment (PR4 typed verbs, +45 words per mutation skill).
-  review: 4970,
+  // Agent-scenario fix (2026-10-15): bulk automation audits run a config-only
+  // Static Pass over EVERY matched target before the 5-target deep workset;
+  // the first-5 sample missed a missing entity and an impossible state in
+  // 3/3 runs (measured 5022); review batch: whole-domain carve-out and
+  // Static-Pass-before-trim wording on the deep-read rules (measured 5049).
+  review: 5070,
   // Codex round 2 (#518): the entrypoint carried its own copy of the
   // verify-before-flag gate, which contradicted the corrected one in
   // checks.md and could suppress accepted-but-dangerous findings; trace

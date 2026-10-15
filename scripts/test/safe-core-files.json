@@ -68,6 +68,7 @@
   "tests/security/token-resolver.test.ts",
   "tests/skills/backup-contract.test.ts",
   "tests/skills/batch-safety-contract.test.ts",
+  "tests/skills/agent-scenario-regressions-contract.test.ts",
   "tests/skills/best-practice-patterns-contract.test.ts",
   "tests/skills/bulk-audit-contract.test.ts",
   "tests/skills/config-snapshots-contract.test.ts",

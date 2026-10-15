@@ -56,7 +56,7 @@ Bulk review stays read-only. Do not offer Quick-Fix in bulk mode.
 ## Discovery Pipeline
 
 1. If the selector is `area`, resolve the area name through `config/area_registry/list` when needed, then query `search/related` with `item_type:"area"` first.
-2. If the selector is not `area`, start with `config/entity_registry/list_for_display` for fast inventory and direct `domain` / `prefix` filtering.
+2. If the selector is not `area`, start with `config/entity_registry/list_for_display` for fast inventory and direct `domain` / `prefix` filtering. A whole automation/script domain ("all my automations") uses `ha-nova find --domain automation|script --limit 200 --include-disabled` instead (redirect its JSON to a scratch file): the registry listing misses YAML items without an `id`. When `total` exceeds `returned`, name the unchecked rest.
 3. Escalate to `config/entity_registry/list` only when `label` evidence or richer registry metadata is required.
 4. Dedupe the resolved shortlist on canonical `entity_id` before sorting, counting, or workset trimming.
 5. Save the resolved shortlist with `--out <result-file>` before any bulk review loop.
@@ -178,18 +178,18 @@ When the shortlist is still a plain JSON array of `entity_id` strings, use this 
 
 - Resolved targets `== 1`: stay in normal single-target review mode.
 - Resolved targets `> 1`: enter aggregate multi-target review mode automatically.
-- Audit at most 5 targets in one workset.
+- Deep-audit at most 5 targets in one workset; an automation/script audit runs the Static Pass below over every matched target first.
 - One standalone bulk-review request may audit exactly one workset only.
-- Materialize the current audit workset before any config, state, or collision reads.
-- Never read configs for matched-but-non-audited remainder targets outside the current audit workset.
+- Materialize the current audit workset before any deep (trace, related-item, collision) reads.
+- Beyond the Static Pass, never read configs for targets outside the current audit workset.
 - Never continue automatically into a second workset inside the same response.
-- Never resolve `unique_id` values or build a config snapshot for matched-but-non-audited remainder targets outside the current audit workset.
+- Beyond the Static Pass, never resolve `unique_id` values or build a config snapshot for matched-but-non-audited remainder targets outside the current audit workset.
 - If collision classification needs one extra target outside the matched remainder set, keep it explicit, read-only, outside the audited-item count, and clearly marked as related/collision evidence in the transcript.
   - Prefer explicit command or file naming such as `related-config`.
   - If the justification must live in command transcript output, emit an explicit marker line such as `COLLISION_EVIDENCE=<reason>`.
-- If more than 5 targets match:
-  - audit the first 5 in deterministic order
-  - report `matched N / audited 5 / remaining R`
+- If more than 5 targets are flagged:
+  - deep-audit the first 5 in deterministic order
+  - report `matched N / statically checked S / deep-audited 5 / remaining R`
   - do not prefetch configs, states, or related-item evidence for the remainder
   - make continuation explicit; do not silently continue in the background
 
@@ -200,9 +200,24 @@ When the shortlist is still a plain JSON array of `entity_id` strings, use this 
 - Audit the next workset from the remaining IDs in the same deterministic order.
 - Any selector change (different prefix, domain, area, label, or scope) is a NEW task with a fresh shortlist — not a continuation.
 
+## Static Pass (automation/script audits)
+
+A sample of the first 5 misses whole defect classes, so every matched target gets these config-only checks before any deep work. Typed verbs have no `--out`: redirect their JSON to a scratch file.
+
+1. One `GET /api/states` pull saved with `--out` (never printed; look entities up with `ha-nova relay jq --file`).
+2. Per target, one `ha-nova get <entity_id> --config`, piped through `ha-nova relay jq '.result // .error | {state: .state.state?, attributes: (.state.attributes? // {} | {id, last_triggered, restored}), managed: .managed?, config: (.config? | del(.description?)), code: .code?}'` (a shell loop printing each `entity_id` before its line is fine). Exit 5 `CONFIG_NOT_FOUND`: list the target as not checked (a disabled YAML item, or no longer provided by YAML) — never as clean. A `use_blueprint` config: expand it once per instance with `blueprint/substitute` (`consumer-discovery-preflight.md` → Blueprint-backed automations) and check the expansion; on failure say its body was not checked — never try another WS type.
+3. Check every config against `skills/review/checks.md` (checks that need only the config) plus:
+   - a literal `domain.object_id` absent from the states file: confirm with `ha-nova get <entity_id>` — `NOT_FOUND` is a missing entity (high when a trigger or action depends on it), `ENTITY_DISABLED` a disabled one, `ENTITY_NOT_LOADED` an integration that is not loaded (medium). Device triggers, conditions, and actions carry a 32-hex registry id instead: resolve it through `config/entity_registry/list` (`id`) or skip it and say so — never "missing entity". Template references are not checked; say so.
+   - a literal `state`/`to`/`from` value outside a closed state set — on/off: `light`, `switch`, `fan`, `input_boolean`, `binary_sensor`, `automation`, `script`, `siren`, `remote`, `humidifier`; `sun.sun`: `above_horizon`, `below_horizon`; `lock`: `locked`, `unlocked`, `locking`, `unlocking`, `jammed`, `open`, `opening`; `cover`: `open`, `closed`, `opening`, `closing`; `alarm_control_panel`: `disarmed`, `armed_home`, `armed_away`, `armed_night`, `armed_vacation`, `armed_custom_bypass`, `arming`, `disarming`, `pending`, `triggered`; `input_select`/`select`: its `attributes.options`. `unavailable`/`unknown` are always valid. Skip items with `attribute:`, `to: null`, templates, and any other domain. High: the condition is never true or the trigger never fires.
+   - an action that unlocks or opens a lock, opens a garage, gate, or door cover, or disarms an alarm (also through a script or scene): name what reaches it; high when a helper toggle, webhook, or single event does so without a guard condition.
+   - a webhook trigger with `local_only: false` or `GET` in `allowed_methods` (a link preview can fire it).
+   - automations only: state `unavailable` (not `restored`) — its config failed to load (high); `off` — turned off; `disabled: true` in the `find` row or no state — disabled in the registry; `last_triggered: null` — never ran; a loaded state (not `restored`) without `attributes.id` — YAML without `id`: no traces, not UI-editable. Scripts: `off` is idle, never "disabled". Both: `managed: yaml` — not UI-editable. These are low/info unless noted. Never ran with a `state` trigger whose entity already sits in the `to:` state: it fires only on a new transition, so name the entity and its `last_changed`.
+   - entities targeted by several matched configs: run the review skill's Step 3 conflict test on the loaded configs, no extra reads.
+4. Flag a target for the deep workset only when a finding needs live evidence beyond these reads (traces, history, a related script or scene).
+
 ## Stale Automation Audit (explicit request only)
 
-For "which of my automations never ran / are stale": one `GET /api/states` pull saved with `--out <result-file>` and filtered to `automation.*` via `relay jq` — never printed unfiltered, no per-item config reads. Registry-DISABLED automations have no states row at all: add one compact registry read (`config/entity_registry/list_for_display`, filter `automation.`) and report rows missing from states as "disabled" — an exact total is states rows plus disabled rows, never the states count alone.
+For "which of my automations never ran / are stale": one `GET /api/states` pull saved with `--out <result-file>` and filtered to `automation.*` via `relay jq` — never printed unfiltered, no per-item config reads. Registry-DISABLED automations have no states row at all: add `ha-nova find --domain automation --limit 200 --include-disabled` (it also lists YAML automations without a registry row) and count its `disabled: true` rows as "disabled", separately from `off` — an exact total is the `find` total, never the states count alone.
 
 - Sort by `attributes.last_triggered` ascending; `null` means never triggered — report it as "never", not as an error.
 - Report as a List Frame with exact counts: total automations, never-triggered count, disabled (`state: off`) count, and the oldest entries by last trigger.
@@ -211,7 +226,7 @@ For "which of my automations never ran / are stale": one `GET /api/states` pull 
 
 ## Evidence and Output Rules
 
-- Run the same review checks per item as in single-target review.
+- Run the same review checks per workset item as in single-target review; the other matched items get the Static Pass.
 - Aggregate findings by repeated pattern, but always keep the affected item list.
 - Keep a per-item evidence table with:
   - target id

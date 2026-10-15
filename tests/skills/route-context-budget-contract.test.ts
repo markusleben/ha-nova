@@ -38,7 +38,10 @@ const ROUTE_BUDGETS: Record<string, { files: string[]; limit: number; verbRoute?
   // only before flagging a check that names a boundary. Measured before PR6:
   // 31945 (with the router and the agents). Measured now: 15353 (multi-step row: 21121).
   write: {
-    limit: 15450, // spec target <= 15500
+    // output-rules.md gained Confirmation Reasons (2026-10-15 agent scenarios: a
+    // skill path leaked into 15/39 replies when agents justified a code);
+    // the duplicate bootstrap sentence was dropped. Measured 15498.
+    limit: 15500, // spec target <= 15500
     noRouter: true,
     files: [
       "skills/ha-nova/session-bootstrap.md",
@@ -56,7 +59,7 @@ const ROUTE_BUDGETS: Record<string, { files: string[]; limit: number; verbRoute?
   // skill joins (Decision Memory, Work Ledger, Interactive Choices). Kept as
   // its own honest row.
   "write-multi-step": {
-    limit: 21250,
+    limit: 21300, // Confirmation Reasons in output-rules.md (measured 21274)
     skill: "write",
     files: [
       "skills/ha-nova/SKILL.md",
@@ -82,7 +85,7 @@ const ROUTE_BUDGETS: Record<string, { files: string[]; limit: number; verbRoute?
   // services, App/host control, events, webhooks), indirect-actuation.md.
   // Measured 2672 (bootstrap 309 + output-rules 668 + skill 1695).
   "service-call": {
-    limit: 2750, // spec target <= 3000
+    limit: 2825, // spec target <= 3000; Confirmation Reasons (measured 2799)
     verbRoute: true,
     files: [
       "skills/ha-nova/session-bootstrap.md",
@@ -94,7 +97,7 @@ const ROUTE_BUDGETS: Record<string, { files: string[]; limit: number; verbRoute?
   // bit the agent is unsure of (common for brightness, temperature, modes):
   // domain-fields.md joins. Kept as its own honest row.
   "service-call-with-fields": {
-    limit: 3750,
+    limit: 3850, // Confirmation Reasons (measured 3817)
     verbRoute: true,
     skill: "service-call",
     extra: ["skills/service-call/domain-fields.md"],
