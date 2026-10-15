@@ -1,0 +1,5 @@
+# Anonymous clients on the Home Assistant listener (see mosquitto.conf).
+topic read #
+topic write testbed/+/set
+topic write testbed/plug/factory_reset
+topic write testbed/router/restart

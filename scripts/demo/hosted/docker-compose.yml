@@ -1,0 +1,104 @@
+# Hosted demo overlay, merged over scripts/e2e/testbed/docker-compose.yml by
+# up.sh/down.sh/reset.sh when TESTBED_OVERLAY points here (docs/reference/hosted-demo.md).
+#
+# - Every visitor is a Home Assistant ADMIN, so the containers, not HA's
+#   permissions, are the boundary.
+# - All three services sit only on ha-nova-demo-house: an external
+#   `internal: true` network (bootstrap.sh) with no route out. Caddy
+#   (edge.yml, its own project) is the only container with egress and the
+#   only one publishing ports. Ports from the test bed compose are reset.
+# - Every container: no-new-privileges, cap_drop ALL (+ the minimum), CPU,
+#   memory and pids limits, read-only root, no docker.sock, no host network,
+#   nothing privileged; images by digest: HA from TESTBED_HA_IMAGE (a
+#   signature-verified digest, update-ha.sh), the broker pinned here.
+networks:
+  house:
+    external: true
+    name: ha-nova-demo-house
+
+x-hardening: &hardening
+  restart: unless-stopped
+  # Docker's embedded resolver (127.0.0.11) still answers service names on the
+  # internal network but forwards every other name here: TEST-NET-1, never
+  # routed, so external lookups (a DNS exfiltration channel) go nowhere.
+  dns: ["192.0.2.1"]
+  security_opt: ["no-new-privileges:true"]
+  cap_drop: [ALL]
+  read_only: true
+  logging:
+    driver: local
+    options: { max-size: "10m", max-file: "3" }
+
+# Empty, read-only directories over every place an admin could drop code or
+# files that HA executes or serves: custom_components, python_scripts, www
+# (/local, served unauthenticated), backups (upload + restore =
+# config replacement), image/tts (uploads, cache), /media (media uploads).
+# www and /media are also HA's only allowlist_external_dirs, so file-writing
+# services (notify.file, camera.snapshot, …) have nowhere to write.
+x-sealed: &sealed { type: tmpfs, read_only: true, tmpfs: { size: 4096 } }
+
+services:
+  homeassistant:
+    <<: *hardening
+    # Always a signature-verified digest (update-ha.sh -> /var/lib/ha-nova-demo/ha-image,
+    # exported by reset.sh): never a tag at runtime.
+    image: "${TESTBED_HA_IMAGE:?TESTBED_HA_IMAGE must be a verified digest (reset.sh)}"
+    ports: !reset []
+    networks: [house]
+    # s6-overlay init runs as root and needs these to set up its service
+    # tree; it executes from /run, hence the exec tmpfs.
+    cap_add: [CHOWN, DAC_OVERRIDE, FOWNER, SETGID, SETUID]
+    tmpfs: ["/run:exec", "/tmp:size=64m"]
+    cpus: 1.5
+    mem_limit: 640m
+    memswap_limit: 1g
+    pids_limit: 512
+    volumes:
+      # /config stays writable (.storage, the recorder, and the UI editors'
+      # atomic writes of automations/scripts/scenes.yaml need it); what HA
+      # loads as configuration is read-only.
+      - ./.state/config/configuration.yaml:/config/configuration.yaml:ro
+      - ./.state/config/packages:/config/packages:ro
+      # Never grows: system_log.write and debug logging go nowhere.
+      - /dev/null:/config/home-assistant.log
+      - { <<: *sealed, target: /config/custom_components }
+      - { <<: *sealed, target: /config/python_scripts }
+      - { <<: *sealed, target: /config/www }
+      - { <<: *sealed, target: /config/backups }
+      - { <<: *sealed, target: /config/image }
+      - { <<: *sealed, target: /config/tts }
+      - { <<: *sealed, target: /media }
+
+  mosquitto:
+    <<: *hardening
+    image: eclipse-mosquitto:2.0.22@sha256:199ea8ef2e35ec2b1b37e59cfd1dbae538ed4dfa4a2251a121a52215a6248a21
+    user: "1883:1883"
+    ports: !reset []
+    networks:
+      house:
+        ipv4_address: 10.89.240.3 # = the ACL'd listener in mosquitto.conf
+    volumes:
+      - ${TESTBED_OVERLAY:?TESTBED_OVERLAY is required}/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - ${TESTBED_OVERLAY:?TESTBED_OVERLAY is required}/mosquitto.acl:/mosquitto/config/acl:ro
+    cpus: 0.25
+    mem_limit: 64m
+    pids_limit: 64
+
+  # Public behind Caddy (/relay/*) with the demo user's token (reset.sh).
+  # File access stays off; the snapshot store is a small tmpfs.
+  relay:
+    <<: *hardening
+    # Built once per ref by bootstrap.sh (digest-pinned Node base); a reset
+    # never builds or pulls it.
+    image: "${DEMO_RELAY_IMAGE:?DEMO_RELAY_IMAGE is required (reset.sh)}"
+    build: !reset null
+    pull_policy: never
+    ports: !reset []
+    networks: [house]
+    environment:
+      FILE_ACCESS: "off"
+      SNAPSHOT_DIR: /data/ha_nova_snapshots
+    tmpfs: ["/data:size=8m,mode=1777"]
+    cpus: 0.25
+    mem_limit: 128m
+    pids_limit: 64

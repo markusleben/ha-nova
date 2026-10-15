@@ -7,6 +7,12 @@
 # Steps: prerequisites -> boot HA + broker -> MQTT discovery -> onboarding ->
 # long-lived token -> seed.mjs (MQTT entry, floors/areas/labels, registry) ->
 # relay -> summary JSON. State lives in .state/ (gitignored); down.sh wipes it.
+#
+# Hosted demo (scripts/demo/hosted/reset.sh) only: TESTBED_OVERLAY=<dir> merges
+# <dir>/docker-compose.yml, copies <dir>/config/ over the seed config, and boots
+# Home Assistant + broker only (no relay, no CLI, no Go) and runs
+# `node <dir>/demo.mjs setup` right after onboarding. TESTBED_OWNER_PASSWORD
+# replaces the fixed local owner password.
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -14,7 +20,10 @@ ROOT="$(cd "$HERE/../../.." && pwd)"
 STATE="$HERE/.state"
 HA_URL="http://127.0.0.1:18123"
 RELAY_URL="http://127.0.0.1:18791"
+OVERLAY="${TESTBED_OVERLAY:-}"
+OWNER_PASSWORD="${TESTBED_OWNER_PASSWORD:-testbed-password-1234}"
 COMPOSE=(docker compose -f "$HERE/docker-compose.yml")
+if [[ -n "$OVERLAY" ]]; then COMPOSE+=(-f "$OVERLAY/docker-compose.yml"); fi
 start_ts=$(date +%s)
 
 die() { echo "testbed: $*" >&2; exit 1; }
@@ -26,13 +35,18 @@ docker compose version > /dev/null 2>&1 || die "docker compose v2 is required ('
 docker info > /dev/null 2>&1 || die "the docker daemon is not running"
 command -v node > /dev/null || die "node >= 22.12 is required (built-in WebSocket)"
 node -e 'process.exit(typeof WebSocket === "function" ? 0 : 1)' || die "node $(node --version) has no built-in WebSocket; use node >= 22.12"
-command -v go > /dev/null || die "go is required to build the CLI (see CONTRIBUTING.md)"
-(cd "$ROOT/cli" && go build -o /dev/null .) || die "the CLI does not build with $(go version); cli/go.mod names the required Go toolchain"
+if [[ -z "$OVERLAY" ]]; then
+  command -v go > /dev/null || die "go is required to build the CLI (see CONTRIBUTING.md)"
+  (cd "$ROOT/cli" && go build -o /dev/null .) || die "the CLI does not build with $(go version); cli/go.mod names the required Go toolchain"
+fi
+[[ "$OWNER_PASSWORD" =~ ^[A-Za-z0-9._-]{12,}$ ]] || die "TESTBED_OWNER_PASSWORD must be 12+ chars of [A-Za-z0-9._-]"
 command -v curl > /dev/null || die "curl is required"
 if [[ -n "$("${COMPOSE[@]}" ps -q 2> /dev/null)" ]]; then
   die "the test bed is already running; run down.sh first (npm run testbed:down)"
 fi
-for port in 18123 18791 11883; do
+# The hosted demo publishes nothing from this project (its Caddy, in another
+# project, already holds 127.0.0.1:18123).
+[[ -n "$OVERLAY" ]] || for port in 18123 18791 11883; do
   if (exec 3<> "/dev/tcp/127.0.0.1/$port") 2> /dev/null; then
     die "port $port is in use on 127.0.0.1; free it (the test bed never uses 8123/8791/1883)"
   fi
@@ -45,6 +59,7 @@ step "preparing runtime config in .state/config"
 trap 'code=$?; [[ $code == 0 ]] || echo "testbed: up failed; inspect: docker compose -p ha-nova-testbed logs; clean up: npm run testbed:down" >&2' EXIT
 mkdir -p "$STATE/config"
 cp -R "$HERE/config/." "$STATE/config/"
+if [[ -n "$OVERLAY" ]]; then cp -R "$OVERLAY/config/." "$STATE/config/"; fi
 # Automation D uses the built-in motion_light blueprint. HA copies built-ins
 # into /config/blueprints only after automations first load, so seed it from
 # the pinned image itself (version-matched, no network).
@@ -102,7 +117,7 @@ done
 step "onboarding the owner user"
 json() { node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>console.log(JSON.parse(s)[process.argv[1]]))' "$1"; }
 auth_code="$(curl -sf -X POST "$HA_URL/api/onboarding/users" -H 'Content-Type: application/json' \
-  -d '{"client_id":"http://127.0.0.1:18123/","name":"Testbed Owner","username":"testbed","password":"testbed-password-1234","language":"en"}' | json auth_code)"
+  -d '{"client_id":"http://127.0.0.1:18123/","name":"Testbed Owner","username":"testbed","password":"'"$OWNER_PASSWORD"'","language":"en"}' | json auth_code)"
 access_token="$(curl -sf -X POST "$HA_URL/auth/token" \
   -d "client_id=http://127.0.0.1:18123/&grant_type=authorization_code&code=${auth_code}" | json access_token)"
 for onboarding_step in core_config analytics integration; do
@@ -119,8 +134,21 @@ umask 077
 printf '%s\n' "$HA_LLAT" > "$STATE/ha-llat"
 printf '%s\n' "$RELAY_AUTH_TOKEN" > "$STATE/relay-token"
 
+if [[ -n "$OVERLAY" ]]; then
+  # First thing with an admin token: HA reverts an unpromoted http trial (the
+  # demo's proxy config) five minutes after boot.
+  step "hosted demo: overlay setup (demo.mjs setup)"
+  node "$OVERLAY/demo.mjs" setup "$HA_URL" "$HA_LLAT"
+fi
+
 step "seeding the house (MQTT entry, floors, areas, labels, registry)"
 node "$HERE/seed.mjs" house "$HA_URL" "$HA_LLAT" > "$STATE/registry.json"
+
+if [[ -n "$OVERLAY" ]]; then
+  node "$HERE/seed.mjs" summary "$HA_URL" "$HA_LLAT"
+  echo "testbed: overlay boot done (Home Assistant + broker; no relay, no CLI)" >&2
+  exit 0
+fi
 
 # ---- relay ----------------------------------------------------------------------
 step "building + starting the relay ($RELAY_VERSION)"

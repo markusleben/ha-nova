@@ -1,0 +1,45 @@
+# HA NOVA hosted demo house. Replaces the test bed's configuration.yaml at boot
+# (TESTBED_OVERLAY); the packages, automations, scripts, and scenes are the
+# test bed's own plus packages/demo.yaml. Mounted read-only, like packages/.
+# Differences: no default_config (it pulls in cloud, discovery, backup UI,
+# mobile_app, go2rtc, alerts), only what the house needs, an http block for
+# the Caddy proxy, and a small recorder.
+homeassistant:
+  name: NOVA Demo House
+  latitude: 52.52
+  longitude: 13.405
+  elevation: 34
+  unit_system: metric
+  time_zone: Europe/Berlin
+  currency: EUR
+  country: DE
+  packages: !include_dir_named packages
+
+frontend:
+history:
+logbook:
+energy:
+person:
+sun:
+conversation:
+demo:
+
+http:
+  use_x_forwarded_for: true
+  trusted_proxies:
+    - 10.89.240.2 # Caddy, scripts/demo/hosted/edge.yml
+  # No IP bans: HA bans on ANY 401, the demo password is public anyway, and
+  # the owner is local-only. A ban would only lock visitors out of the demo.
+  ip_ban_enabled: false
+
+# The hourly reset bounds every store; this keeps the hour itself small.
+recorder:
+  purge_keep_days: 1
+  commit_interval: 5
+
+automation: !include automations.yaml
+script: !include scripts.yaml
+scene: !include scenes.yaml
+
+logger:
+  default: warning

@@ -129,7 +129,9 @@ disabled. The public key is compiled in; the private key exists only as the
 rotation is a reviewed source change: generate offline, commit only the public
 half, install the private PEM, verify an RC on every platform, retire the old
 key. While Cloud is enabled, `min_relay_version` equals the App version in
-`nova/config.yaml`.
+`nova/config.yaml`. Every such rise also outdates the hosted demo's relay (built from
+the provisioned ref): re-provision it with the release's merge commit
+(`docs/reference/hosted-demo.md`).
 
 macOS signing secrets (`HA_NOVA_MACOS_CERTIFICATE_P12_BASE64`,
 `HA_NOVA_MACOS_CERTIFICATE_PASSWORD`) live only in `production` and are

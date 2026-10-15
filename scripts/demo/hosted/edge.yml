@@ -1,0 +1,50 @@
+# Hosted demo edge: Caddy in its own compose project, so it keeps serving
+# (TLS, the "resetting" page, connect.json) while reset.sh rebuilds the house.
+# The only container with egress (ACME) and the only one publishing ports.
+#   docker compose -f edge.yml up -d    (bootstrap.sh; env: DEMO_DOMAIN, ABUSE_CONTACT)
+name: ha-nova-demo-edge
+
+networks:
+  house:
+    external: true
+    name: ha-nova-demo-house
+  edge: {}
+
+services:
+  caddy:
+    image: caddy:2.11.4@sha256:0c994536bddb66445885237f1a5dcc1916bccea922661c76b4e9fc24061f9b52
+    container_name: ha-nova-demo-caddy
+    restart: unless-stopped
+    user: "1000:1000"
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    cap_add: [NET_BIND_SERVICE]
+    read_only: true
+    environment:
+      DEMO_DOMAIN: "${DEMO_DOMAIN:?DEMO_DOMAIN is required}"
+      ABUSE_CONTACT: "${ABUSE_CONTACT:?ABUSE_CONTACT is required}"
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+      # Host tooling (up.sh, demo.mjs, guard.sh) and the maintainer's SSH tunnel.
+      - "127.0.0.1:18123:18123"
+    networks:
+      edge: {}
+      house:
+        ipv4_address: 10.89.240.2 # = http.trusted_proxies in config/configuration.yaml
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./site:/site:ro
+      # Host dirs (bootstrap.sh): certificates survive every reset, so the
+      # hourly rebuild never touches Let's Encrypt's rate limits.
+      - ${DEMO_STATE:-/var/lib/ha-nova-demo}/caddy/data:/data
+      - ${DEMO_STATE:-/var/lib/ha-nova-demo}/caddy/config:/config
+      - ${DEMO_STATE:-/var/lib/ha-nova-demo}/logs:/logs
+      - ${DEMO_STATE:-/var/lib/ha-nova-demo}/public:/srv:ro
+    cpus: 0.25
+    mem_limit: 128m
+    pids_limit: 128
+    logging:
+      driver: local
+      options: { max-size: "10m", max-file: "3" }

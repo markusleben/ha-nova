@@ -1,0 +1,3 @@
+# Hosted demo: masks the test bed's packages/commands.yaml (command_line and
+# rest switches). Nothing that runs commands or polls URLs exists here.
+{}

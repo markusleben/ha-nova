@@ -1,0 +1,148 @@
+# Hosted demo reverse proxy (edge.yml). Automatic HTTPS (Let's Encrypt) for
+# DEMO_DOMAIN. Caddy core has no rate limiting (that needs the third-party
+# caddy-ratelimit plugin and a custom build), so there is none
+# (docs/reference/hosted-demo.md).
+{
+	admin off
+}
+
+(restarting_html) {
+	header Content-Type "text/html; charset=utf-8"
+	header Retry-After "60"
+	respond `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width"><meta http-equiv="refresh" content="15"><title>Demo is restarting</title><body style="font:16px system-ui;max-width:32em;margin:4em auto;padding:0 1em"><h1>Demo is restarting</h1><p>The demo is restarting or being reset (full reset every hour at :00 UTC). Back in about 2 minutes; this page reloads by itself.</p><p><a href="/start">About this demo</a></p>` 503
+}
+
+(resetting_json) {
+	header Content-Type "application/json"
+	header Retry-After "60"
+	respond `{"error":"demo_resetting"}` 503
+}
+
+{$DEMO_DOMAIN} {
+	# Access log: kept 7 days, client IPs truncated (/24, /48), no headers,
+	# no auth query parameters. For abuse handling only.
+	log {
+		output file /logs/access.log {
+			roll_size 10MiB
+			roll_keep 7
+			roll_keep_for 168h
+		}
+		format filter {
+			request>remote_ip ip_mask 24 48
+			request>client_ip ip_mask 24 48
+			request>headers delete
+			request>uri query {
+				delete authSig
+				delete token
+				delete code
+			}
+			resp_headers delete
+		}
+	}
+	request_body {
+		max_size 1MB
+	}
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+		# Visitors are admins: they can add dashboard resources, iframe
+		# dashboards, and markdown with images. Only this origin may serve
+		# scripts, frames, images, and connections, so nobody's browser is
+		# pointed elsewhere.
+		Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' data: blob:; worker-src 'self' blob:; frame-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+		-Server
+	}
+
+	# Unauthenticated file hosting, backup upload/download, onboarding (open
+	# for seconds on every rebuild), relay pairing: never.
+	@blocked path /api/backup/* /local/* /api/tts_proxy/* /relay/pair* /relay/home* /api/onboarding* /onboarding.html
+	# Landing page: /start, and / without a query (HA's own redirects to /
+	# always carry one, e.g. ?auth_callback=1).
+	@landing {
+		path /
+		expression {http.request.uri.query} == ""
+	}
+	# reset.sh drops /srv/ready while it rebuilds and touches it only after
+	# every gate passed: until then the house and the relay are not exposed.
+	@notready {
+		not file {
+			root /srv
+			try_files /ready
+		}
+	}
+
+	# route keeps this order literally.
+	route {
+		handle @blocked {
+			respond 403
+		}
+		handle @landing {
+			root * /site
+			rewrite * /start.html
+			file_server
+		}
+		handle /start {
+			root * /site
+			rewrite * /start.html
+			file_server
+		}
+		handle /abuse {
+			respond "Report abuse of this public demo: {$ABUSE_CONTACT}" 200
+		}
+		handle /relay/* {
+			handle @notready {
+				import resetting_json
+			}
+			uri strip_prefix /relay
+			# The relay's own 502s carry its JSON error envelope; only
+			# transport failures (handle_errors) become demo_resetting.
+			reverse_proxy relay:8791
+		}
+		handle {
+			handle @notready {
+				import restarting_html
+			}
+			handle /connect.json {
+				header Cache-Control "no-store"
+				root * /srv
+				file_server
+			}
+			handle {
+				reverse_proxy homeassistant:8123 {
+					# An upstream that answers 502-504 (HA starting or
+					# stopping) gets the same page as one that is gone.
+					@down status 502 503 504
+					handle_response @down {
+						import restarting_html
+					}
+				}
+			}
+		}
+	}
+
+	# Transport errors: the upstream container does not exist or refuses.
+	handle_errors 502 503 504 {
+		@relay expression {http.request.orig_uri.path}.startsWith("/relay/")
+		handle @relay {
+			import resetting_json
+		}
+		handle {
+			import restarting_html
+		}
+	}
+}
+
+# Host tooling path, published on the host's 127.0.0.1 only and never gated.
+# Caddy replaces X-Forwarded-For with the real client (a private Docker
+# address), so the local-only owner works here and nowhere else.
+http://:18123 {
+	handle_path /relay/* {
+		reverse_proxy relay:8791
+	}
+	handle {
+		reverse_proxy homeassistant:8123
+	}
+}

@@ -118,5 +118,10 @@ red opens a "Test bed fails on Home Assistant <version>" issue.
 ## Files
 
 `docker-compose.yml`, `mosquitto.conf`, `config/` (committed seed, copied to
-`.state/config` per run), `up.sh`, `seed.mjs` (LLAT, MQTT config entry,
+`.state/config` per run; command-running platforms live in
+`packages/commands.yaml`), `up.sh`, `seed.mjs` (LLAT, MQTT config entry,
 floors/areas/labels, registry edits, summary), `cli.sh`, `verify.sh`, `down.sh`.
+
+The hosted demo (`scripts/demo/hosted/`) reuses this bed: `TESTBED_OVERLAY` and
+`TESTBED_OWNER_PASSWORD` in `up.sh`/`down.sh` exist for it only; local runs
+never set them.
