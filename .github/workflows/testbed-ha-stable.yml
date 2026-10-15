@@ -1,0 +1,165 @@
+name: Test bed vs HA stable
+
+# Boots the seeded test bed (scripts/e2e/testbed) on the CURRENT stable Home
+# Assistant and runs verify.sh. Outcomes:
+#   - stable == pin, green          -> nothing to do
+#   - stable != pin, green          -> open/update the pin-bump PR
+#   - red (any version)             -> open/update the early-warning issue
+# Scheduled evidence, not a merge gate (like e2e-disposable-ha.yml).
+#
+# Schedule: HA ships the monthly release on the first Wednesday and patch
+# releases (.1, .2, ...) on the following Fridays; Tuesday morning picks up the
+# previous week's patch after the weekend, off the Monday e2e slot.
+
+on:
+  schedule:
+    - cron: "23 5 * * 2"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  testbed:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    outputs:
+      stable: ${{ steps.versions.outputs.stable }}
+      pin: ${{ steps.versions.outputs.pin }}
+      verified: ${{ steps.verify.outcome == 'success' }}
+      log_tail: ${{ steps.tail.outputs.log_tail }}
+    steps:
+      # Always the default branch: a dispatch on another ref must not leak its
+      # changes into the bump PR.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "22"
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: cli/go.mod
+
+      - name: Read stable and pinned Home Assistant versions
+        id: versions
+        run: |
+          set -euo pipefail
+          stable="$(curl -fsS --retry 3 https://version.home-assistant.io/stable.json \
+            | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>console.log(JSON.parse(s).homeassistant.default))')"
+          pin="$(sed -nE 's|.*TESTBED_HA_IMAGE:-homeassistant/home-assistant:([^}]+)}.*|\1|p' scripts/e2e/testbed/docker-compose.yml)"
+          # Both values end up in sed patterns, branch names, and titles.
+          re='^[0-9]{4}\.[0-9]{1,2}\.[0-9]+$'
+          [[ "$stable" =~ $re ]] || { echo "::error::unexpected stable version '$stable'"; exit 1; }
+          [[ "$pin" =~ $re ]] || { echo "::error::could not read the pin from docker-compose.yml ('$pin')"; exit 1; }
+          echo "stable=$stable pin=$pin"
+          echo "stable=$stable" >> "$GITHUB_OUTPUT"
+          echo "pin=$pin" >> "$GITHUB_OUTPUT"
+
+      - name: Boot the test bed and verify
+        id: verify
+        continue-on-error: true
+        env:
+          TESTBED_HA_IMAGE: homeassistant/home-assistant:${{ steps.versions.outputs.stable }}
+        run: |
+          set -o pipefail
+          { bash scripts/e2e/testbed/up.sh && bash scripts/e2e/testbed/verify.sh; } 2>&1 | tee "$RUNNER_TEMP/testbed.log"
+
+      - name: Keep the log tail
+        id: tail
+        if: always()
+        run: |
+          delim="EOF_$(openssl rand -hex 8)"
+          { echo "log_tail<<$delim"; tail -n 80 "$RUNNER_TEMP/testbed.log" 2> /dev/null || true; echo "$delim"; } >> "$GITHUB_OUTPUT"
+
+      - name: Tear down
+        if: always()
+        run: bash scripts/e2e/testbed/down.sh
+
+  bump-pin:
+    needs: testbed
+    if: needs.testbed.outputs.verified == 'true' && needs.testbed.outputs.stable != needs.testbed.outputs.pin
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: write
+    env:
+      STABLE: ${{ needs.testbed.outputs.stable }}
+      PIN: ${{ needs.testbed.outputs.pin }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+
+      - name: Open or update the pin-bump PR
+        run: |
+          set -euo pipefail
+          branch="chore/testbed-ha-$STABLE"
+          sed -i "s|homeassistant/home-assistant:${PIN//./\\.}|homeassistant/home-assistant:$STABLE|" \
+            scripts/e2e/testbed/docker-compose.yml scripts/e2e/testbed/README.md
+          # Exactly two files, one changed line each, or the pin moved somewhere unexpected.
+          [[ "$(git diff --numstat | awk '$1 == 1 && $2 == 1 { n++ } END { print n + 0, NR }')" == "2 2" ]] \
+            || { git diff; echo "::error::pin bump did not change exactly one line in each file"; exit 1; }
+          # An existing branch may carry maintainer commits: never overwrite it.
+          if git ls-remote --exit-code --heads origin "$branch" > /dev/null; then
+            echo "branch $branch already exists; leaving it untouched"
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git switch -c "$branch"
+            git commit -am "chore(testbed): pin Home Assistant $STABLE"
+            git push origin "$branch"
+          fi
+          if [[ -z "$(gh pr list --head "$branch" --state open --json number --jq '.[].number')" ]]; then
+            gh pr create --base main --head "$branch" \
+              --title "chore(testbed): pin Home Assistant $STABLE" \
+              --body "$(cat << EOF
+          Bumps the test bed's Home Assistant pin from \`$PIN\` to \`$STABLE\` (current stable).
+
+          \`verify.sh\` passed against \`homeassistant/home-assistant:$STABLE\` in ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}.
+
+          Note: this PR was opened with GITHUB_TOKEN, so pull_request workflows (CI) do not start on their own. To run them, a maintainer pushes a commit to the branch (an empty one is enough).
+          EOF
+          )"
+          fi
+
+  report-failure:
+    needs: testbed
+    if: needs.testbed.result == 'success' && needs.testbed.outputs.verified != 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      issues: write
+    env:
+      STABLE: ${{ needs.testbed.outputs.stable }}
+      LOG_TAIL: ${{ needs.testbed.outputs.log_tail }}
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - name: Open or update the early-warning issue
+        run: |
+          set -euo pipefail
+          title="Test bed fails on Home Assistant $STABLE"
+          run_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          body="$(printf '%s\n\n%s\n\n```text\n%s\n```\n' \
+            "\`up.sh\` + \`verify.sh\` failed against \`homeassistant/home-assistant:$STABLE\`: $run_url" \
+            "Log tail:" "$LOG_TAIL")"
+          number="$(gh issue list --state open --search "\"$title\" in:title" --json number,title \
+            --jq "map(select(.title == \"$title\")) | .[0].number // empty")"
+          if [[ -n "$number" ]]; then
+            gh issue comment "$number" --body "$body"
+          else
+            gh issue create --title "$title" --body "$body"
+          fi
+          # Reported; keep the run red so Actions monitoring sees the failure.
+          echo "::error::test bed failed on Home Assistant $STABLE"
+          exit 1
