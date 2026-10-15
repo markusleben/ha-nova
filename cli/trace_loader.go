@@ -8,8 +8,13 @@ import (
 	"net/http"
 	"sort"
 	"strings"
+	"sync/atomic"
 	"time"
 )
+
+// traceRelayVersion: the Relay version header of the last trace request, so
+// ha_trace over MCP reports relay_outdated like the typed verbs.
+var traceRelayVersion atomic.Value
 
 func loadLatestTrace(paths runtimePaths, entityID, domain string) (traceLatestOutput, error) {
 	ctx, cancel := context.WithTimeout(
@@ -223,6 +228,9 @@ func relayWSJSONContext(
 		return nil, relayRequestOutcomeUnknownError(selected.BaseURL, err)
 	}
 	defer resp.Body.Close()
+	if version := resp.Header.Get(relayVersionHeader); version != "" {
+		traceRelayVersion.Store(version)
+	}
 	return readRelayWSJSONResponse(resp, maxRelayResponseBytes)
 }
 

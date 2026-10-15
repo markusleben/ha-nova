@@ -73,16 +73,17 @@ release:
 
     - **Update the NOVA Relay App too.** This release needs Relay 0.9.1: update it under Settings > Apps > NOVA Relay (Container/Core: pull the new image). Until then HA NOVA warns that the Relay is outdated.
     - **Device control has one explicit fast path.** Unambiguous everyday actions run right away and are verified afterwards; everything else shows a preview first. Locks, gates, the alarm, and deletes need a code.
-    - **Some YAML-only devices now need a code.** Buttons, switches, and other controls defined in YAML without a `unique_id` (template, command_line, MQTT) cannot be inspected, so using them asks for a confirmation code.
+    - **Over MCP, keep your client's approval prompt on.** A confirmation code proves it was you only when your client asks before applying a change.
+    - **Some YAML-only controls now need a code.** HA NOVA can't see what a YAML switch or button without a `unique_id` does (a template switch could unlock a door), so it asks for one. A `unique_id` fixes MQTT/KNX switches.
     - **Automation and script deletes take one code per item.** Reverting an update that was changed in the Home Assistant UI since is refused instead of overwriting that edit.
-    - **The Census is gone; HA NOVA collects nothing.** The CLI deletes its old local Census state on first run, and `ha-nova census` no longer exists.
+    - **Leaner: the optional Census is removed.** It was always opt-in and off by default; dropping it keeps HA NOVA small and simple. The CLI removes its old local Census setting on first run; `ha-nova census` is gone.
     - **Shared legacy access is being retired.** It still works in this release and the next. Re-pair each computer once with `ha-nova pair`, then revoke the old shared access on the NOVA page.
 
     ## New Features
 
     - **Device control, sent once and verified.** `ha-nova call` and `ha-nova apply` send each action exactly once and check the result. A confirmed plan is re-checked first: if anything changed, nothing is sent.
     - **Automation and script changes with a real diff.** `ha-nova plan write|delete|revert` shows the exact diff, saves once, reloads, and reads the result back; deletes take a config snapshot first.
-    - **Use HA NOVA from local MCP clients.** `ha-nova mcp` offers the same checks as tools to clients without a shell, such as Claude Desktop, and reuses this computer's pairing.
+    - **Use HA NOVA from local MCP clients.** `ha-nova mcp` offers the same checks as tools to clients without a shell, such as Claude Desktop, reuses this computer's pairing, and says when an update is due.
     - **Faster, more reliable Relay App updates.** Installs and updates download a ready image instead of building on your Home Assistant device.
     - **Quick read-only lookups.** `ha-nova find`, `get`, and `history` find entities by name, alias, domain, or current state ("which lights are on?"), read a state or config, and summarize history.
 

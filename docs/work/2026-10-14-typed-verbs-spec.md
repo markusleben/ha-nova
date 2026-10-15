@@ -276,6 +276,7 @@ The Safety Core needs amendments, and they are linter-enforced byte for byte (`d
 - **In-process.** Tools call the same verb functions. No subprocess.
 - **Auth.** The server reuses `loadConfig` + `selectRelayTransport` (paired device credential from the OS store, `cli/relay_transport.go:75-112`). No new credential. A locked keyring returns a tool error with `ha-nova setup`, and no secure-storage UI is shown (`docs/reference/safety.md` ForbidUI row).
 - **Server selection.** `ha-nova mcp --server <name>` or the `HA_NOVA_SERVER` env var in the client config.
+- **Update notices.** Results carry the verbs' `notices[]`; `ha_trace` gets the same notices (cached update notice, Relay version header of its own call) plus `server`. The instructions tell the model to tell the user each kind once per session in plain words. `next_step` adds a plain-language hint for `relay_outdated` and `update` only (`undo` is never hinted). Session = one `ha-nova mcp` process; memory is in-process only. A notice counts as told once its hint is emitted in a result, whether or not the model relays it. `update` is keyed by kind (one HA NOVA install for every profile); `relay_outdated` by kind + server profile (each profile has its own Relay).
 
 | Tool | Verb | readOnlyHint | destructiveHint | idempotentHint |
 |---|---|---|---|---|

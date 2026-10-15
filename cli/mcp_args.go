@@ -206,6 +206,36 @@ func nextStep(envelope map[string]any) string {
 	return ""
 }
 
+// noticeHints: the plain-language step for each update notice this session
+// (one MCP process) has not been told yet; emitting the hint counts as told.
+func noticeHints(envelope map[string]any, told map[string]bool) string {
+	notices, _ := envelope["notices"].([]any)
+	server, _ := envelope["server"].(string)
+	var hints []string
+	for _, raw := range notices {
+		notice, _ := raw.(map[string]any)
+		kind, _ := notice["kind"].(string)
+		hint, known := mcpNoticeHints[kind]
+		key := kind // update: one HA NOVA install for every profile
+		if kind == "relay_outdated" {
+			key += "\x00" + server // each profile has its own Relay
+		}
+		if !known || told[key] {
+			continue
+		}
+		if told != nil {
+			told[key] = true
+		}
+		hints = append(hints, hint)
+	}
+	return strings.Join(hints, " ")
+}
+
+var mcpNoticeHints = map[string]string{
+	"relay_outdated": "After answering, tell the user once: the NOVA Relay App needs an update (Home Assistant → Settings → Apps → NOVA Relay); a standalone Relay needs its new container image pulled.",
+	"update":         "After answering, tell the user once: a newer HA NOVA is available (see notices); they update it in a terminal as the notice says, then start a new session.",
+}
+
 // mcpFlagArgs: the CLI flags a verb's next or message names, as the MCP
 // tool arguments they stand for. Anything else stays verbatim.
 var mcpFlagArgs = map[string]string{"confirm": "confirm_code", "no-snapshot": "no_snapshot", "target": "id", "id": "id",

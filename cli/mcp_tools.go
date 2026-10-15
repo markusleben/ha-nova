@@ -145,8 +145,12 @@ func (srv *mcpServer) callTool(raw json.RawMessage) (map[string]any, *rpcError) 
 		override, active := serverSelectionOverride, activeServerProfile()
 		defer func() { setServerSelectionOverride(override); setActiveServerProfile(active) }()
 		setServerSelectionOverride(srv.pin)
+		traceRelayVersion.Store("")
 		out, errOut, exit := captureVerb(func() int { return tool.run(srv.paths, pinServer(tool.name, argv, srv.pin)) })
-		return toolResult(tool.name, out, errOut, exit), nil
+		if tool.name == "ha_trace" { // trace prints its own object: add the verbs' notices
+			out = withNotices(out, verbNotices(srv.paths, traceRelayVersion.Load().(string)), activeServerProfile())
+		}
+		return toolResult(tool.name, out, errOut, exit, srv.told), nil
 	}
 	return nil, &rpcError{Code: rpcInvalidParams, Message: "unknown tool: " + params.Name}
 }
@@ -175,10 +179,25 @@ func invalidArguments(name string, err error) map[string]any {
 	return map[string]any{"content": []map[string]any{{"type": "text", "text": string(text)}}, "structuredContent": envelope, "isError": true}
 }
 
+// withNotices adds notices and the server to a JSON object output.
+func withNotices(out string, notices []verbNotice, server string) string {
+	var object map[string]any
+	if len(notices) == 0 || json.Unmarshal([]byte(out), &object) != nil || object == nil {
+		return out
+	}
+	object["notices"], object["server"] = notices, server
+	b, err := json.Marshal(object)
+	if err != nil {
+		return out
+	}
+	return string(b)
+}
+
 // toolResult: the envelope as text and as structuredContent — the same
 // object, so a client that reads only one of them still gets the guidance
-// (next_step). isError for failures, not for needs_confirmation.
-func toolResult(name, out, errOut string, exit int) map[string]any {
+// (next_step). isError for failures, not for needs_confirmation. told
+// (nil = no memory) keeps each update notice's hint to once per session.
+func toolResult(name, out, errOut string, exit int, told map[string]bool) map[string]any {
 	var envelope map[string]any
 	// A verb envelope carries schema_version; anything else (trace prints
 	// plain JSON, failures print to stderr) is wrapped into one.
@@ -198,7 +217,7 @@ func toolResult(name, out, errOut string, exit int) map[string]any {
 			errInfo["message"] = mcpArgs(message)
 		}
 	}
-	if step := nextStep(envelope); step != "" {
+	if step := strings.TrimSpace(nextStep(envelope) + " " + noticeHints(envelope, told)); step != "" {
 		envelope["next_step"] = step
 	}
 	text, _ := json.Marshal(envelope)
