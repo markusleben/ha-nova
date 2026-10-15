@@ -46,6 +46,19 @@ Canonical verify entrypoints:
 
 Implementation detail: `npm run verify` uses `test:safe:core` between the docs and onboarding slices so those owned contract tests do not rerun twice. `test:safe:core` is a closed allowlist in `scripts/test/safe-core-files.json`, and `npm run verify:onboarding` starts with `npm run verify:installers` so the committed public installers are checked directly before the wider onboarding contract slice runs.
 
+## Test Without Your Own Home Assistant
+
+The test bed is a throwaway local Home Assistant "house" (demo devices, MQTT devices, areas, aliases, automations, scripts, scenes, helpers) plus the relay, all in Docker on 127.0.0.1 ports 18123/18791/11883. Needs Docker with Compose v2, Node, and Go.
+
+```bash
+npm run testbed:up                        # boot + seed (~35 s warm)
+npm run testbed:cli -- find "Leselampe"    # CLI built from your checkout, isolated HOME
+npm run testbed:verify                    # PASS/FAIL smoke assertions
+npm run testbed:down                      # remove everything, tokens included
+```
+
+Never point tests at a real Home Assistant, and always tear down. What's in the house, which edge case each entity and automation exercises, and how to drive agent scenarios: [scripts/e2e/testbed/README.md](scripts/e2e/testbed/README.md).
+
 ## Architecture Boundaries
 
 Read these before changing runtime behavior:

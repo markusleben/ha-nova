@@ -1,0 +1,20 @@
+# Package (YAML) automations: not UI-managed, so the config API cannot edit them.
+automation:
+  # WITH id: registry row exists, but /api/config/automation/config/<id> is
+  # 404 -> plan write must refuse with CONFIG_NOT_UI_MANAGED.
+  - id: package_hall_light_evening
+    alias: Package hall light evening
+    triggers:
+      - trigger: sun
+        event: sunset
+    actions:
+      - action: light.turn_on
+        target: { entity_id: light.entrance_color_white_lights }
+  # WITHOUT id: no registry row (YAML_NO_ID).
+  - alias: Package night lights off
+    triggers:
+      - trigger: time
+        at: "23:30:00"
+    actions:
+      - action: light.turn_off
+        target: { entity_id: light.ceiling_lights }

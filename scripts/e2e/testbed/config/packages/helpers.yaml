@@ -1,0 +1,48 @@
+# YAML helpers: trigger sources for the tier engine (input_*, counter, timer,
+# schedule writes are gate entries).
+input_boolean:
+  guest_mode:
+    name: Guest mode
+    icon: mdi:account-key
+
+input_number:
+  heat_threshold:
+    name: Heat threshold
+    min: 10
+    max: 40
+    step: 0.5
+    initial: 24
+    unit_of_measurement: "°C"
+
+input_select:
+  house_mode:
+    name: House mode
+    options: [home, away, night]
+    initial: home
+
+input_text:
+  visitor_note:
+    name: Visitor note
+    initial: ""
+
+input_button:
+  doorbell_test:
+    name: Doorbell test
+
+timer:
+  laundry:
+    name: Laundry
+    duration: "00:45:00"
+
+counter:
+  visitors:
+    name: Visitors
+    initial: 0
+    step: 1
+
+schedule:
+  workday:
+    name: Workday
+    monday:
+      - from: "07:00:00"
+        to: "17:00:00"

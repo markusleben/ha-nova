@@ -1,0 +1,49 @@
+# HA NOVA test bed: a throwaway, fully local Home Assistant "house".
+# Isolated compose project + ports (never 8123/8791/1883), all bound to
+# 127.0.0.1. Driven by up.sh / down.sh; see README.md.
+name: ha-nova-testbed
+
+services:
+  homeassistant:
+    image: "${TESTBED_HA_IMAGE:-homeassistant/home-assistant:2026.10.1}"
+    container_name: ha-nova-testbed-ha
+    # Runtime copy of ./config (up.sh copies it; HA writes .storage as root).
+    volumes:
+      - ./.state/config:/config
+    environment:
+      TZ: Europe/Berlin
+    ports:
+      - "127.0.0.1:18123:8123"
+    depends_on:
+      - mosquitto
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8123/manifest.json || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 60
+      start_period: 20s
+
+  mosquitto:
+    image: "${TESTBED_MQTT_IMAGE:-eclipse-mosquitto:2.0.22}"
+    container_name: ha-nova-testbed-mqtt
+    volumes:
+      - ./mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+    ports:
+      - "127.0.0.1:11883:1883"
+
+  relay:
+    build:
+      context: ../../../nova
+      dockerfile: Dockerfile.standalone
+      args:
+        RELAY_VERSION: "${RELAY_VERSION:-testbed}"
+    container_name: ha-nova-testbed-relay
+    depends_on:
+      homeassistant:
+        condition: service_healthy
+    environment:
+      RELAY_AUTH_TOKEN: "${RELAY_AUTH_TOKEN:-}"
+      HA_LLAT: "${HA_LLAT:-}"
+      HA_URL: "http://homeassistant:8123"
+    ports:
+      - "127.0.0.1:18791:8791"

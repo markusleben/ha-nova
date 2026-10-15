@@ -1,0 +1,97 @@
+# UI-managed automations (the config API reads and writes this file).
+# A: a helper write reaches a typed action through a consumer.
+- id: "testbed_a_guest_mode_unlock"
+  alias: "A Guest mode unlocks entrance door"
+  description: "Consumer of input_boolean.guest_mode that reaches lock.unlock."
+  triggers:
+    - trigger: state
+      entity_id: input_boolean.guest_mode
+      to: "on"
+  actions:
+    - action: lock.unlock
+      target:
+        entity_id: lock.entrance_door
+  mode: single
+# B: an ordinary consumer of a living-room light.
+- id: "testbed_b_living_room_follow"
+  alias: "B Living room light follows"
+  description: "Ordinary consumer: living-room light on turns on the bed light."
+  triggers:
+    - trigger: state
+      entity_id: light.living_room_rgbww_lights
+      to: "on"
+  actions:
+    - action: light.turn_on
+      target:
+        entity_id: light.bed_light
+  mode: single
+# C: disabled at startup.
+- id: "testbed_c_disabled_kitchen"
+  alias: "C Disabled kitchen light"
+  description: "Starts disabled (initial_state false)."
+  initial_state: false
+  triggers:
+    - trigger: state
+      entity_id: input_button.doorbell_test
+  actions:
+    - action: light.turn_on
+      target:
+        entity_id: light.kitchen_lights
+  mode: single
+# D: built-in blueprint (members resolve through blueprint/substitute).
+- id: "testbed_d_blueprint_motion"
+  alias: "D Blueprint motion light"
+  description: "Built-in motion_light blueprint."
+  use_blueprint:
+    path: homeassistant/motion_light.yaml
+    input:
+      motion_entity: binary_sensor.movement_backyard
+      light_target:
+        entity_id: light.entrance_color_white_lights
+      no_motion_wait: 60
+# E: webhook trigger (GET-capable), for the webhook-read protection test.
+- id: "testbed_e_webhook_light"
+  alias: "E Webhook turns on kitchen light"
+  description: "A GET to /api/webhook/testbed-kitchen-light would fire this."
+  triggers:
+    - trigger: webhook
+      webhook_id: testbed-kitchen-light
+      allowed_methods:
+        - GET
+        - POST
+      local_only: true
+  actions:
+    - action: light.turn_on
+      target:
+        entity_id: light.kitchen_lights
+  mode: single
+# F: ordered variables; a later variable references an earlier one.
+- id: "testbed_f_ordered_variables"
+  alias: "F Ordered variables"
+  description: "brightness_pct depends on the earlier base variable."
+  triggers:
+    - trigger: state
+      entity_id: input_select.house_mode
+  variables:
+    base: 20
+    brightness_pct: "{{ base * 2 }}"
+  actions:
+    - action: light.turn_on
+      target:
+        entity_id: light.ceiling_lights
+      data:
+        brightness_pct: "{{ brightness_pct }}"
+  mode: single
+# G: numeric_state threshold driven by an input_number.
+- id: "testbed_g_heat_threshold"
+  alias: "G Heat threshold turns on plug"
+  description: "Indoor temperature above input_number.heat_threshold."
+  triggers:
+    - trigger: numeric_state
+      entity_id: sensor.testbed_temperature
+      above: input_number.heat_threshold
+  actions:
+    - action: switch.turn_on
+      target:
+        entity_id: switch.smart_plug
+  mode: single

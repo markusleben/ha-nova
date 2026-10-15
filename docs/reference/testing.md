@@ -28,6 +28,8 @@ It boots a real, throwaway Home Assistant in containers, completes its onboardin
 
 CI runs the same script weekly and on demand via `.github/workflows/e2e-disposable-ha.yml` (`workflow_dispatch`), so you can also trigger it from GitHub without a local Docker setup.
 
+For CLI verbs, the tier engine, skills, and agent scenarios, use the seeded **test bed** instead: a furnished house (MQTT devices, areas, aliases, automations covering the tier edge cases) on isolated ports — `npm run testbed:up`, `npm run testbed:verify`, `npm run testbed:down`. See [scripts/e2e/testbed/README.md](../../scripts/e2e/testbed/README.md).
+
 ## 3. Live against your own HA
 
 For maintainers with an HA instance, when you need to exercise the interactive setup wizard, the NOVA owner console, or the OPAQUE + TLS device pairing on real hardware. **Two hard rules:** deploy an *isolated* test add-on (never your production one), and run an *isolated* CLI (never your real config/keyring). Both are covered below.

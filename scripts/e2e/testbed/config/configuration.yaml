@@ -1,0 +1,24 @@
+# HA NOVA test bed house. Everything here is fake: the demo integration,
+# template/command_line/rest entities, and MQTT discovery devices seeded by
+# up.sh. The MQTT broker connection is a config entry (UI-only since HA moved
+# broker settings out of YAML); up.sh creates it through the config-flow API.
+homeassistant:
+  name: NOVA Testbed
+  latitude: 52.52
+  longitude: 13.405
+  elevation: 34
+  unit_system: metric
+  time_zone: Europe/Berlin
+  currency: EUR
+  country: DE
+  packages: !include_dir_named packages
+
+default_config:
+demo:
+
+automation: !include automations.yaml
+script: !include scripts.yaml
+scene: !include scenes.yaml
+
+logger:
+  default: warning

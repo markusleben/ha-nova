@@ -1,0 +1,31 @@
+leave_home:
+  alias: Leave home
+  sequence:
+    - action: light.turn_off
+      target:
+        entity_id:
+          - light.living_room_rgbww_lights
+          - light.kitchen_lights
+          - light.bed_light
+    - action: lock.lock
+      target:
+        entity_id: lock.entrance_door
+  mode: single
+open_garage_after_delay:
+  alias: Open garage after delay
+  sequence:
+    - delay: "00:00:05"
+    - action: cover.open_cover
+      target:
+        entity_id: cover.garage_door
+  mode: single
+good_night:
+  alias: Good night
+  sequence:
+    - action: scene.turn_on
+      target:
+        entity_id: scene.movie_night
+    - action: lock.lock
+      target:
+        entity_id: lock.entrance_door
+  mode: single

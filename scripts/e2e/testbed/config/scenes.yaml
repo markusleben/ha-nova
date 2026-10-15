@@ -1,0 +1,13 @@
+- id: "testbed_movie_night"
+  name: Movie night
+  entities:
+    light.living_room_rgbww_lights:
+      state: "on"
+      brightness: 60
+    light.ceiling_lights: "off"
+    media_player.living_room: "on"
+- id: "testbed_door_scene"
+  name: Door scene
+  entities:
+    group.door_group: "on"
+    light.bed_light: "on"
