@@ -40,3 +40,6 @@ scripts/demo/casts/*.markers.json
 __pycache__/
 *.py[cod]
 scripts/dev/own-activity.local.json
+
+# HA NOVA test bed runtime state (tokens, HA runtime config, CLI home)
+scripts/e2e/testbed/.state/

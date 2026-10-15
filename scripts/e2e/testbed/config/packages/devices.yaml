@@ -1,0 +1,75 @@
+# Platform edge cases the tier engine treats specially. Every network target is
+# local: the rest switch polls this Home Assistant's own /manifest.json.
+template:
+  - light:
+      - name: Template Desk Lamp
+        unique_id: testbed_template_desk_lamp
+        state: "{{ is_state('light.office_rgbw_lights', 'on') }}"
+        turn_on:
+          - action: light.turn_on
+            target: { entity_id: light.office_rgbw_lights }
+        turn_off:
+          - action: light.turn_off
+            target: { entity_id: light.office_rgbw_lights }
+    switch:
+      - name: Template Porch Switch
+        unique_id: testbed_template_porch_switch
+        state: "{{ is_state('light.entrance_color_white_lights', 'on') }}"
+        turn_on:
+          - action: light.turn_on
+            target: { entity_id: light.entrance_color_white_lights }
+        turn_off:
+          - action: light.turn_off
+            target: { entity_id: light.entrance_color_white_lights }
+    lock:
+      - name: Template Side Gate
+        unique_id: testbed_template_side_gate
+        state: "{{ states('lock.kitchen_door') }}"
+        lock:
+          - action: lock.lock
+            target: { entity_id: lock.kitchen_door }
+        unlock:
+          - action: lock.unlock
+            target: { entity_id: lock.kitchen_door }
+    sensor:
+      - name: Template Indoor Temperature
+        unique_id: testbed_template_indoor_temperature
+        unit_of_measurement: "°C"
+        device_class: temperature
+        state: "{{ states('sensor.outside_temperature') | float(20) + 2 }}"
+    # NO unique_id on purpose: no registry row, so its platform is unknown to
+    # the tier engine while its press action unlocks a door (probe in verify.sh).
+    button:
+      - name: Gate Buzzer
+        press:
+          - action: lock.unlock
+            target: { entity_id: lock.kitchen_door }
+
+command_line:
+  - switch:
+      name: Garden Pump
+      unique_id: testbed_command_line_garden_pump
+      command_on: "true"
+      command_off: "true"
+
+switch:
+  - platform: rest
+    name: Rest Heater
+    unique_id: testbed_rest_heater
+    resource: http://127.0.0.1:8123/manifest.json
+
+light:
+  - platform: group
+    name: Living Room Group
+    unique_id: testbed_light_group_living_room
+    entities:
+      - light.living_room_rgbww_lights
+      - light.ceiling_lights
+
+# Old-style group whose members include a lock.
+group:
+  door_group:
+    name: Door Group
+    entities:
+      - lock.entrance_door
+      - light.entrance_color_white_lights
