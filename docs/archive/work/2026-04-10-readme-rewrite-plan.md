@@ -365,7 +365,7 @@ architecture brief, roadmap for early adopters.
 Key changes:
 - New tagline: 'AI that checks its work before touching your HA'
 - Safety section moved before Quick Start
-- MCP comparison removed (own strengths, not competitor comparison)
+- MCP comparison removed (describe own strengths instead)
 - Platform notes collapsed into <details>
 - 3 new skills (dashboard, organize, history) in capability table
 - What's Next roadmap section with backup feature teaser

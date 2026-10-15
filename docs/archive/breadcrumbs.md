@@ -2229,11 +2229,11 @@
   Merge-Reihenfolge wenn frei: #523 vor #526 (Roadmap-Pointer-Abhängigkeit).
 - Nachbohr-Welle auf User-Wunsch ("es muss noch Lücken geben"): 5 parallele
   Agents (Alltags-Persona 50 Utterances, Power-User 7 Sessions, Neuling/Delight,
-  frischer ha-mcp-v8.1.1-Diff 88/88 Tools, Domain-Tiefe 17 Domains) → 48 neue
+  frischer Capability-Coverage-Abgleich, Domain-Tiefe 17 Domains) → 48 neue
   Findings → Issues #527 (Alltags-Convenience), #528 (Erste Stunde/Delight),
   #529 (Power-Workflows), #530 (Domain-Tiefe inkl. Drift-Fund color_temp-mireds
   + vacuum.clean_area; Drift-Log-Backfill 2026.1-2026.6 fällig), #531
-  (Wettbewerbs-Entscheide: Radio-Writes, Backup-Restore-Haltung, Supervisor-
+  (Produkt-Entscheide: Radio-Writes, Backup-Restore-Haltung, Supervisor-
   Logs-Relay-Delta) + Kommentare auf #519/#520/#522.
 - Umsetzungswelle nach dem Audit (User: "alles angehen"): PRs #532 (#513 P1-
   Sicherheit, geteilte indirect-actuation.md), #533 (#530 Domain-Tiefe,

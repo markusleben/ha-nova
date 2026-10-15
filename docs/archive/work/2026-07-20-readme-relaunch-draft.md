@@ -23,11 +23,11 @@
 > **REMOVE in the release-prep PR** (maintainer decision 2026-07-20 — it shows
 > a very old build and the draft no longer references it; `git rm` on the PR
 > branch, not in older worktrees) ·
-> **rewrite `docs/reference/comparison.md` against ha-mcp's CURRENT README**
-> (verified 2026-07-20): its context-cost claim is outdated — ha-mcp documents
-> that deferred-loading Claude clients pull tools in only when needed — and
-> its token-storage row misses that ha-mcp's recommended install is in-process
-> ("no access token to manage") with webhook-URL/`ha_auth`/OAuth options.
+> **re-verify `docs/reference/comparison.md` against the compared projects'
+> CURRENT READMEs** (verified 2026-07-20): its context-cost claim is outdated —
+> deferred-loading Claude clients pull MCP tools in only when needed — and its
+> token-storage row misses that an in-process MCP install needs no separately
+> managed access token, with webhook-URL/`ha_auth`/OAuth options.
 > Update our side too (per-device pairing, no LLAT in App mode) and the
 > "as of" dates.
 >

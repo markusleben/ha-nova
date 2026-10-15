@@ -9,8 +9,8 @@ The current README (~230 lines) is technically accurate but reads like documenta
 
 ### Research Performed
 
-- 8 specialized agents analyzed: marketing psychology, conversion copywriting, UX writing, competitor positioning, README best practices, skill capabilities, unreleased features, undocumented features
-- Key competitor: ha-mcp (2,177 stars) — has adopted skills concept, but requires token on client side
+- 8 specialized agents analyzed: marketing psychology, conversion copywriting, UX writing, ecosystem landscape, README best practices, skill capabilities, unreleased features, undocumented features
+- Ecosystem: MCP-based HA integrations exist and some adopt skills, but keep the token on the client side
 - Community sentiment: token security is fear #1, HA community rewards authenticity and punishes marketing-speak
 
 ### Key Insights
@@ -29,7 +29,7 @@ Authentic, vision-forward, no corporate tone. The README sells AND shows the vis
 
 ### No MCP Comparison
 
-At 2 stars vs 2,177, a comparison table would advertise the competitor. Instead, differentiate through own strengths (token isolation, safety flow, text-file updates). No mention of MCP in the README.
+The README describes HA NOVA on its own terms rather than through a comparison table. It explains its own strengths (token isolation, safety flow, text-file updates). No mention of MCP in the README.
 
 ### Safety Before Installation
 
@@ -304,7 +304,7 @@ Safety-rule ideas inspired by HALMark by Nathan Curtis. Automation patterns, hel
 |----------------|--------|
 | "What is HA NOVA?" (8 lines) | Replaced by tagline + sub-tagline |
 | "Why People Use It" (4 bullets) | Duplicates capability + safety sections |
-| "Why Not Just Use a Generic MCP Server" (table + prose) | No MCP comparison at 2 stars |
+| "Why Not Just Use a Generic MCP Server" (table + prose) | README describes HA NOVA on its own terms |
 | "Why The Relay + Skills Split Matters" (separate section) | Merged into "How It Works" |
 | "Project Structure" (code block) | Moved to CONTRIBUTING.md |
 | Platform notes inline (30+ lines) | Collapsed into `<details>` |
@@ -328,7 +328,7 @@ Safety-rule ideas inspired by HALMark by Nathan Curtis. Automation patterns, hel
 - No claims that aren't backed by current project state
 - "40+ checks" only claimed for automations/scripts
 - Future features (backups) clearly marked as "coming soon"
-- No competitor names mentioned
+- No other projects named (credits excepted)
 - URLs must be verified against actual repo paths before implementation
 - Existing asset files (demo.webp, how-it-works.png) referenced as-is
 
