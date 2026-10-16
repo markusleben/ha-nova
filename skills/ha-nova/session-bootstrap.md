@@ -1,6 +1,7 @@
 # Session Bootstrap
 
 Apply this contract before the first Home Assistant task in a session.
+On disk, relative skills/<x>/<file> means ../<x>/<file> from the citing file.
 
 ## Check
 
@@ -12,7 +13,7 @@ Apply this contract before the first Home Assistant task in a session.
    it). Once a typed verb or relay command for that server answered, a
    bare `ha-nova relay health` preflight is done; a skill reading its output
    still runs it.
-2. Run one check for every server profile used in this agent session, with its
+2. Run one check for every server profile in this session, with its
    `HA_NOVA_SERVER=<name>`. A check counts even when empty or failed;
    continue either way; empty output stays silent.
 3. Later status arrives in typed verbs' `notices[]` (`update`,
@@ -22,21 +23,20 @@ Apply this contract before the first Home Assistant task in a session.
 ## HA NOVA Update Callout
 
 After the requested result, surface an available HA NOVA update exactly once
-per agent session as a separate localized callout: installed version → latest
-version, up to three supplied highlight lines, the supplied release URL, and
+per session as a separate localized callout: installed → latest version, up to three supplied highlight lines, the supplied release URL, and
 an offer to run `ha-nova update`. Never update without
 consent. After a successful `ha-nova update`, tell the
-user to start a new AI-client session so the refreshed skills take effect.
+user to start a new AI-client session.
 
 ## Relay Update Callout
 
 After the requested result, surface a Relay warning exactly once per selected
 server profile as a separate localized callout:
 
-- Home Assistant NOVA Relay App: name the installed and available versions when
-  supplied, say that the Relay restarts, and ask whether to prepare the guided
+- Home Assistant NOVA Relay App: name the supplied installed and available
+  versions, say that the Relay restarts, and ask whether to prepare the guided
   update. A yes only invokes `ha-nova:updates`; that skill must
   show its App-update preview and obtain
   confirmation before installing with a partial backup.
 - A standalone Container/Core Relay gets no guided install: point to the
-  manual image pull and container recreation instead.
+  manual image pull and container recreation.

@@ -68,7 +68,7 @@ describe("smallest complete solution contract (#452)", () => {
       .filter((path) => existsSync(path));
     const writeFlowSkills = skillFiles.filter((path) =>
       readFileSync(path, "utf8").includes(
-        "authorize drafting and preview only",
+        "never confirms it; only a reply to the preview does",
       ),
     );
     expect(writeFlowSkills.length).toBeGreaterThanOrEqual(23);

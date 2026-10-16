@@ -382,7 +382,7 @@ Alarm/lock rules:
 - Confident suggestions are ranked by intervention depth: fix existing → simplify existing → extend existing → add new
 - User-facing review text never shows internal rule codes; findings use a short descriptive title plus `Why` and `Fix`, and clean states stay generic
 - `R-17` is intra-config only; collision scan stays cross-item conflict work, not overwrite/rebound detection
-- `R-18` is same-mapping only; it checks storage-sensitive sibling-variable references inside one `variables:` block, not cross-scope references
+- `R-18` is same-mapping only; it checks a sibling variable used above its declaration inside one `variables:` block, not cross-scope references
 - `R-19` is branch-structure reachability only; it covers direct `trigger.id` checks in a terminal bare `else` after entity-state `if` / `elif` guards, without intent inference
 - `R-23` catches boolean-like templates compared to string boolean literals such as `"True"` / `"False"`
 - `R-24` is a low-severity capacity-source advisory when a capacity-like variable reads `available_energy`
@@ -611,7 +611,7 @@ Every mutation-capable sub-skill opens its `## Safety` section with this block, 
 ```text
 - Preview before write. The only exception is a call that `ha-nova call` itself executed as `tier: ordinary` (an unambiguous everyday action, verified afterwards); everything else runs or is saved only after the user confirms the shown preview. High-consequence actions (e.g. unlocking or opening a lock, opening a gate, garage, or entry door, disarming the alarm — also through a scene or script) and deletes need a code.
 - Confirmation binds to the displayed preview and expires on any change to target, payload, endpoint, or scope (context skill → Active Preview Confirmation).
-- Pre-preview phrases ("do it", "go ahead", "implement the plan") authorize drafting and preview only — never the write itself.
+- Anything before the preview ("do it", answers to questions) never confirms it; only a reply to the preview does.
 - Delete and destructive operations require the typed confirmation code `confirm:<token>` verbatim; "yes" or any natural-language reply is invalid.
 - Never guess entity, service, or config IDs — resolve them or ask.
 - Home Assistant is reached exclusively through the `ha-nova` CLI.
@@ -642,8 +642,8 @@ After any mutation (automation, script, or helper):
      - storage-based family: H checks only
      - config-entry family: minimal config-entry review contract + collision scan on linked entities
    - Traverse all `variables:` blocks, not just the top-level block.
-   - Storage-sensitive checks such as `R-18` may still be reported from the persisted read-back config even when the rest of the config matches the draft. Do not suppress them purely as pre-write dedup.
-   - If persisted `R-18` remains after a write, add a manual next step to inspect traces after the next real run. Do not auto-trigger the config or auto-read traces from post-write review.
+   - `R-18` may still be reported from the persisted read-back config even when the rest of the config matches the draft. Do not suppress them purely as pre-write dedup.
+   - If persisted `R-18` remains after a write, offer the reorder fix. Do not auto-trigger the config or auto-read traces from post-write review.
    - All other checks, including `R-19`, `R-23`, and `R-24`, follow normal pre-write/post-write dedup. The explicit persisted-repeat exception stays unique to `R-18`.
    Focus on 🔴 findings. Report 🟠🟡 findings as advisory.
 3. Collision scan: `search/related` for top target entities, max 3 related configs (standalone review uses max 5)

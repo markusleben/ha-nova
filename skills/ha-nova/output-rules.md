@@ -1,7 +1,5 @@
 # HA NOVA Output Rules
 
-Canonical path: `skills/ha-nova/output-rules.md`
-
 Apply these rules to every user-facing HA NOVA response.
 Card shapes (Preview/Delete/Result/Test Plan Cards, write-preview slots), the
 Report Shape, List Frame, Suggestion Block, Replication Line, Session Recap,
