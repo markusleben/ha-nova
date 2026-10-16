@@ -76,7 +76,7 @@ export RELAY_VERSION RELAY_AUTH_TOKEN HA_LLAT=""
 step "starting Home Assistant + MQTT broker"
 "${COMPOSE[@]}" up -d homeassistant mosquitto >&2
 
-step "publishing retained MQTT discovery (6 fake devices)"
+step "publishing retained MQTT discovery (7 fake devices)"
 pub() { docker exec ha-nova-testbed-mqtt mosquitto_pub -h 127.0.0.1 -r -t "$1" -m "$2"; }
 for i in $(seq 1 30); do
   docker exec ha-nova-testbed-mqtt mosquitto_pub -h 127.0.0.1 -t testbed/ping -m up 2> /dev/null && break
@@ -89,6 +89,7 @@ GARAGE_DEV="$(dev testbed_garage_opener 'Garage Opener' 'Fake Opener')"
 PLUG_DEV="$(dev testbed_smart_plug 'Smart Plug' 'Fake Plug')"
 CLIMATE_DEV="$(dev testbed_climate 'Climate Sensor' 'Fake Thermometer')"
 ROUTER_DEV="$(dev testbed_router 'Router' 'Fake Router')"
+GATE_DEV="$(dev testbed_driveway_gate 'Driveway Gate' 'Fake Gate Opener')"
 pub homeassistant/lock/testbed_entrance_lock/config \
   "{\"name\":\"Lock\",\"unique_id\":\"testbed_entrance_lock\",\"default_entity_id\":\"lock.entrance_door\",\"command_topic\":\"testbed/entrance_lock/set\",\"state_topic\":\"testbed/entrance_lock/state\",\"device\":$LOCK_DEV}"
 pub homeassistant/cover/testbed_garage/config \
@@ -101,8 +102,12 @@ pub homeassistant/sensor/testbed_temperature/config \
   "{\"name\":\"Temperature\",\"unique_id\":\"testbed_temperature\",\"default_entity_id\":\"sensor.testbed_temperature\",\"device_class\":\"temperature\",\"unit_of_measurement\":\"°C\",\"state_topic\":\"testbed/climate/temperature\",\"device\":$CLIMATE_DEV}"
 pub homeassistant/button/testbed_router_restart/config \
   "{\"name\":\"Router restart\",\"unique_id\":\"testbed_router_restart\",\"default_entity_id\":\"button.router_restart\",\"device_class\":\"restart\",\"command_topic\":\"testbed/router/restart\",\"device\":$ROUTER_DEV}"
+# name null: the entity takes the device name ("Driveway Gate").
+pub homeassistant/cover/testbed_driveway_gate/config \
+  "{\"name\":null,\"unique_id\":\"testbed_driveway_gate\",\"default_entity_id\":\"cover.driveway_gate\",\"device_class\":\"gate\",\"command_topic\":\"testbed/gate/set\",\"state_topic\":\"testbed/gate/state\",\"device\":$GATE_DEV}"
 pub testbed/entrance_lock/state LOCKED
 pub testbed/garage/state closed
+pub testbed/gate/state closed
 pub testbed/plug/state OFF
 pub testbed/climate/temperature 21.5
 

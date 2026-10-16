@@ -56,6 +56,8 @@ expect 'living-room light (ordinary consumer B) is ordinary' 0 \
   -- plan call light.turn_on light.living_room_rgbww_lights
 expect 'MQTT garage cover open is typed (ACCESS_COVER)' 3 \
   "d.tier === 'typed' && $reasons.includes('ACCESS_COVER')" -- plan call cover.open_cover cover.testbed_garage
+expect 'MQTT gate cover open is typed (ACCESS_COVER, device_class gate)' 3 \
+  "d.tier === 'typed' && $reasons.includes('ACCESS_COVER')" -- plan call cover.open_cover cover.driveway_gate
 expect 'device_class override (kitchen_window -> shutter) makes open ordinary' 0 \
   "d.tier === 'ordinary'" -- plan call cover.open_cover cover.kitchen_window
 expect 'registry-less demo lock unlock is typed' 3 \
