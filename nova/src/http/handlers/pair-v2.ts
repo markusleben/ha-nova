@@ -1,4 +1,8 @@
-import type { PairingV1Manager } from "../../security/pairing-v1.js";
+import { checkOwner, type OwnerCheckDeps } from "../../security/owner-check.js";
+import {
+  PAIR_ARM_TTL_MS,
+  type PairingV1Manager,
+} from "../../security/pairing-v1.js";
 import { HttpError } from "../errors.js";
 import type { RouteContext, RouteHandler } from "../router.js";
 import { requireIngressUser } from "./cloud.js";
@@ -17,6 +21,51 @@ export function createPairV2InfoHandler(deps: PairV2Deps): RouteHandler {
       relay_instance_id: deps.relayInstanceId,
       protocol_version: "v2",
       available: true,
+    };
+  };
+}
+
+// POST /pair/v2/arm — Home Assistant sign-in pairing. The owner's own ingress
+// session arms a one-time secret that only this user's /pair/v2/start accepts.
+// Machine-only: browsers always send Sec-Fetch-Site, and requiring JSON forces
+// a CORS preflight, so no web page can arm a pairing for a signed-in owner.
+export function createPairV2ArmHandler(
+  deps: PairV2Deps & OwnerCheckDeps,
+): RouteHandler {
+  return async ({ request }) => {
+    if (request.headers["sec-fetch-site"] !== undefined) {
+      throw new HttpError(
+        403,
+        "MACHINE_REQUEST_REQUIRED",
+        "Browser requests cannot arm pairing",
+      );
+    }
+    const contentType = request.headers["content-type"] ?? "";
+    if (contentType.split(";")[0]?.trim().toLowerCase() !== "application/json") {
+      throw new HttpError(
+        415,
+        "UNSUPPORTED_MEDIA_TYPE",
+        "Content-Type must be application/json",
+      );
+    }
+    const owner = await checkOwner(request, deps);
+    if (!owner.ok) {
+      throw owner.status === 503
+        ? new HttpError(503, "OWNER_CHECK_UNAVAILABLE", owner.message)
+        : new HttpError(403, "OWNER_REQUIRED", owner.message);
+    }
+    const armed = deps.manager.arm(owner.userId);
+    if (armed === null) {
+      throw new HttpError(
+        503,
+        "PAIRING_UNAVAILABLE",
+        "The secure device port is not available",
+      );
+    }
+    return {
+      pairing_secret: armed.secret,
+      expires_in_s: PAIR_ARM_TTL_MS / 1_000,
+      relay_instance_id: deps.relayInstanceId,
     };
   };
 }

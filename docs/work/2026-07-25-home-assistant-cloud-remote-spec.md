@@ -90,6 +90,7 @@ GET  /cloud/v1/info
 POST /cloud/v1/device/bind
 POST /cloud/v1/device/revoke-self
 GET  /pair/v2/info
+POST /pair/v2/arm
 POST /pair/v2/start
 POST /pair/v2/finish
 POST /cloud/v1/device/activate
@@ -114,6 +115,10 @@ slug, started state, version, Ingress root, and `/home` UI entry. Supervisor
 may report that UI entry as either `<root>/home` or `<root>//home` when the App
 configuration contains the leading slash. Only those two exact forms are
 accepted; generic path normalization is forbidden.
+
+`/pair/v2/arm` is the owner-checked Home Assistant sign-in arm for local
+pairing (`docs/work/2026-10-16-ha-sign-in-pairing-spec.md`); its pairing
+yields an unbound local device and does not change the Cloud flows below.
 
 `/cloud/v1/device/bind` converts an existing active local credential to the
 same user-bound record only after the instance ID matches. Pairing v2 performs

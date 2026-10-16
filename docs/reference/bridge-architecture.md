@@ -1,7 +1,8 @@
 # NOVA Relay: Architecture Reference
 
 > **Implementation status:** Seven bounded local endpoint families are implemented.
-> The Cloud remote Beta adds a Supervisor-ingress-only machine surface.
+> The Cloud remote Beta adds a Supervisor-ingress-only machine surface;
+> Home Assistant sign-in pairing uses the same surface.
 > Filesystem access is opt-in/off by default; streaming remains unimplemented.
 
 ## Overview
@@ -293,6 +294,16 @@ The normal App path uses an OPAQUE-derived per-device credential over SPKI-pinne
 TLS. Cloud sends it through a process-local Supervisor Ingress session. Pairing
 v2 atomically activates a user-bound device; existing devices bind only when the
 Relay instance matches. Legacy shared tokens are rejected on Ingress routes.
+
+Home Assistant sign-in pairing arms the pairing slot with `POST /pair/v2/arm`:
+the Home Assistant owner only (fresh `config/auth/list` check on every call),
+JSON only, refused when the request carries `Sec-Fetch-Site` (every browser
+request), answered `no-store`. The 256-bit secret is single use, expires after
+two minutes, is never shown on the NOVA page, and only the arming user's
+`/pair/v2/start` accepts it; `/pair/v1/start` answers as if no code were
+active. It yields an unbound local device that activates over pinned TLS
+exactly like a typed code
+(`docs/work/2026-10-16-ha-sign-in-pairing-spec.md`).
 
 **Upstream (Relay -> HA):**
 The Home Assistant App prefers its process-local `SUPERVISOR_TOKEN` and sends it

@@ -61,6 +61,9 @@ export interface ActiveCode {
   userIdentifier: string;
   registration: OpaqueRegistration;
   expiresAtMs: number;
+  // Set when the owner armed the slot through Home Assistant sign-in: only this
+  // ingress user may use it, and the NOVA page never shows the secret.
+  armedFor?: string;
 }
 
 export interface Handshake {
@@ -74,6 +77,8 @@ export interface Handshake {
 export interface PairingV1Manager {
   getStatus(): PairingV1Status;
   generateCode(): { code: string; expiresAtMs: number };
+  // Null when no secure endpoint exists or ingress pairing is off.
+  arm(userId: string): { secret: string; expiresAtMs: number } | null;
   cancel(): void;
   start(ke1: string, peer: string): StartResult;
   finish(

@@ -34,6 +34,9 @@ export type {
 // finish stays resumable and a lost finish response can be retried idempotently.
 
 export const PAIR_CODE_TTL_MS = 10 * 60 * 1_000;
+// Sign-in pairing: the CLI uses an armed secret within seconds.
+export const PAIR_ARM_TTL_MS = 2 * 60 * 1_000;
+const ARM_SECRET_BYTES = 32; // 256-bit
 export const HANDSHAKE_TTL_MS = 60 * 1_000;
 // How long the owner page keeps saying "a device was just connected".
 export const CONSUMED_NOTICE_TTL_MS = 2 * 60 * 1_000;
@@ -88,7 +91,10 @@ export function createPairingV1Manager(deps: PairingV1Deps): PairingV1Manager {
     getStatus() {
       expireCode();
       if (phase === "active" && active) {
-        return { phase, code: active.code, expiresAtMs: active.expiresAtMs };
+        // An armed sign-in secret is never displayed.
+        return active.armedFor === undefined
+          ? { phase, code: active.code, expiresAtMs: active.expiresAtMs }
+          : { phase: "inactive" };
       }
       return { phase };
     },
@@ -101,20 +107,18 @@ export function createPairingV1Manager(deps: PairingV1Deps): PairingV1Manager {
           "secure device port is not available; cannot activate a pairing code",
         );
       }
-      const t = now();
       const code = rollCode();
-      const generation = ++generationCounter;
-      const userIdentifier = `gen-${generation}-${randomBytes(8).toString("base64url")}`;
-      active = {
-        generation,
-        code,
-        userIdentifier,
-        registration: registerCode(code, userIdentifier),
-        expiresAtMs: t + PAIR_CODE_TTL_MS,
-      };
-      handshakes.clear();
-      phase = "active";
-      return { code, expiresAtMs: active.expiresAtMs };
+      return { code, expiresAtMs: openSlot(code, PAIR_CODE_TTL_MS) };
+    },
+
+    arm(userId) {
+      // Home Assistant sign-in arms a 256-bit secret for exactly this ingress
+      // user instead of a six-digit code (docs/work/2026-10-16-ha-sign-in-pairing-spec.md).
+      if (deps.cloudPairing !== true || deps.secureEndpoint() === null) {
+        return null;
+      }
+      const secret = randomBytes(ARM_SECRET_BYTES).toString("base64url");
+      return { secret, expiresAtMs: openSlot(secret, PAIR_ARM_TTL_MS, userId) };
     },
 
     cancel() {
@@ -141,12 +145,7 @@ export function createPairingV1Manager(deps: PairingV1Deps): PairingV1Manager {
         encryptedMetadataB64,
         peer,
         "local",
-        () => {
-          const endpoint = deps.secureEndpoint();
-          return endpoint === null
-            ? null
-            : { spki_pin: endpoint.spkiPin, secure_port: endpoint.securePort };
-        },
+        localEndpointFields,
         undefined,
       );
     },
@@ -167,11 +166,43 @@ export function createPairingV1Manager(deps: PairingV1Deps): PairingV1Manager {
         encryptedMetadataB64,
         cloudPeer(userId),
         "cloud",
-        () => ({ relay_instance_id: relayInstanceId }),
+        (armed) => {
+          if (!armed) {
+            return { relay_instance_id: relayInstanceId };
+          }
+          // Sign-in pairing yields a local device, so it needs the pin.
+          const local = localEndpointFields();
+          return local === null
+            ? null
+            : { relay_instance_id: relayInstanceId, ...local };
+        },
         { userId, relayInstanceId },
       );
     },
   };
+
+  function openSlot(code: string, ttlMs: number, armedFor?: string): number {
+    const generation = ++generationCounter;
+    const userIdentifier = `gen-${generation}-${randomBytes(8).toString("base64url")}`;
+    active = {
+      generation,
+      code,
+      userIdentifier,
+      registration: registerCode(code, userIdentifier),
+      expiresAtMs: now() + ttlMs,
+      ...(armedFor === undefined ? {} : { armedFor }),
+    };
+    handshakes.clear();
+    phase = "active";
+    return active.expiresAtMs;
+  }
+
+  function localEndpointFields(): Record<string, unknown> | null {
+    const endpoint = deps.secureEndpoint();
+    return endpoint === null
+      ? null
+      : { spki_pin: endpoint.spkiPin, secure_port: endpoint.securePort };
+  }
 
   function startHandshake(
     ke1: string,
@@ -181,6 +212,11 @@ export function createPairingV1Manager(deps: PairingV1Deps): PairingV1Manager {
     expireCode();
     pruneHandshakes();
     if (phase !== "active" || !active) {
+      return { ok: false, reason: "inactive" };
+    }
+    // An armed slot belongs to one ingress user: everyone else, including the
+    // LAN port, sees no active code before any rate-limit budget is spent.
+    if (active.armedFor !== undefined && peer !== cloudPeer(active.armedFor)) {
       return { ok: false, reason: "inactive" };
     }
     if (!isValidMessage(ke1)) {
@@ -218,7 +254,7 @@ export function createPairingV1Manager(deps: PairingV1Deps): PairingV1Manager {
     encryptedMetadataB64: string,
     peer: string,
     mode: "local" | "cloud",
-    responseFields: () => Record<string, unknown> | null,
+    responseFields: (armed: boolean) => Record<string, unknown> | null,
     cloudBinding: { userId: string; relayInstanceId: string } | undefined,
   ): FinishResult {
     const contextKey = pairingContext(
@@ -273,10 +309,14 @@ export function createPairingV1Manager(deps: PairingV1Deps): PairingV1Manager {
       return { ok: false, reason: "invalid" };
     }
 
-    const extraResponse = responseFields();
+    // A sign-in pairing creates an unbound local device that activates over
+    // pinned TLS, exactly like a typed code.
+    const armed = active.armedFor !== undefined;
+    const extraResponse = responseFields(armed);
     if (extraResponse === null) {
       return { ok: false, reason: "invalid" };
     }
+    const binding = armed ? undefined : cloudBinding;
 
     const cred = generateCredential();
     const t = now();
@@ -307,11 +347,11 @@ export function createPairingV1Manager(deps: PairingV1Deps): PairingV1Manager {
           platform: metadata.platform,
           client: metadata.client,
           createdAtMs: t,
-          ...(cloudBinding === undefined
+          ...(binding === undefined
             ? {}
             : {
-                cloudUserId: cloudBinding.userId,
-                cloudRelayInstanceId: cloudBinding.relayInstanceId,
+                cloudUserId: binding.userId,
+                cloudRelayInstanceId: binding.relayInstanceId,
               }),
         },
         {
