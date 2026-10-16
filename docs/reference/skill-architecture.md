@@ -2,7 +2,7 @@
 
 ## Overview
 
-HA NOVA uses a flat skill layout with one context skill and 32 independent sub-skills under `skills/`.
+HA NOVA uses a flat skill layout with one context skill and 33 independent sub-skills under `skills/`.
 
 The repo skill tree is the single source of truth. Client installers adapt that same tree to each client's packaging rules:
 - Claude: plugin marketplace payload
@@ -42,6 +42,8 @@ skills/
   scene/SKILL.md                        (ha-nova:scene — storage-scene list/read/create/update/delete)
   organize/SKILL.md                     (ha-nova:organize — areas/floors/labels/categories/entity+device metadata)
   device/SKILL.md                       (ha-nova:device — replace, onboard, retire a device; re-point its consumers)
+  migrate/SKILL.md                      (ha-nova:migrate — rules from Node-RED, Homey, SmartThings, Hubitat, openHAB, legacy YAML into native config; soak, then retire)
+  migrate/source-mappings.md            (reference doc — per-source export steps, concept tables, traps)
   history/SKILL.md                      (ha-nova:history — bounded history/logbook/statistics reads)
   health/SKILL.md                       (ha-nova:health — read-only home status, repairs, system health)
   home-map/SKILL.md                     (ha-nova:home-map — exact home inventory, where-used, whole-home audit, first look via `ha-nova map`)
@@ -106,6 +108,7 @@ Current mapping:
 | scene | inline | 2-4 calls, flat entities payload, read → merge → preview → full-save → readback verify |
 | organize | inline | field-level registry mutations with direct preview/readback |
 | device | inline + CLI | `get --references` scans; `plan write` + `apply` re-point; every other family hands off to its owner |
+| migrate | inline + CLI | the agent reads the export; `find`/`get` map; `plan write`/`plan call` + `apply` in one group per source rule; helpers and YAML hand off |
 | history | inline | read-only bounded timeline lookups |
 | health | inline | read-only status aggregation, best-effort diagnostics |
 | home-map | inline + CLI | `ha-nova map` computes every count; the skill renders and hands fixes to owning skills |
@@ -249,6 +252,25 @@ names an old device to its replacement), onboard, and retire.
   renames (organize rules; typed for access-capable entities or typed
   consumers); every other family hands off to its owning skill
 - device removal stays in the Home Assistant UI
+
+## Migrate Architecture
+
+`ha-nova:migrate` translates rules from Node-RED, Homey, SmartThings, Hubitat,
+openHAB, and legacy HA YAML into native config. Expertise only: no verb, no
+importer — the agent reads the export the user gives.
+- per source rule: a behaviour list (the acceptance checklist) before any
+  draft; entities mapped through `ha-nova find`/`get`; the smallest design
+  that meets every line (an installed blueprint only when its
+  `blueprint/substitute` expansion does); unmappable parts named
+- writes: one grouped change set per source rule — automation/script creates
+  through `plan write` + `apply`, the old HA automation's `automation.turn_off`
+  through `plan call`; helpers via `ha-nova:helper`, YAML via
+  `ha-nova:yaml-config`; CLI tiers stand
+- soak: new item on, old rule disabled; check-ins read traces and the
+  logbook; the old rule is deleted (HA: typed delete flow with snapshot;
+  elsewhere: the user) only once every behaviour line is proven
+- legacy syntax-only modernization: an in-place update group, `revert` kept,
+  no soak
 
 ## History Architecture
 

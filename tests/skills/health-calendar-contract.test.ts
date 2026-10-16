@@ -250,7 +250,7 @@ describe("health and calendar skill contracts", () => {
     const fallback = readFileSync("skills/fallback/SKILL.md", "utf8");
     const history = readFileSync("skills/history/SKILL.md", "utf8");
 
-    expect(architecture).toContain("32 independent sub-skills");
+    expect(architecture).toContain("33 independent sub-skills");
     expect(architecture).toContain("health/SKILL.md");
     expect(architecture).toContain("calendar/SKILL.md");
     expect(architecture).toContain(

@@ -264,6 +264,7 @@ Match user intent to exactly one skill:
 | activate a scene | `ha-nova:service-call` |
 | organize areas, floors, labels, categories, devices, entities | `ha-nova:organize` |
 | replace a device or phone and re-point everything that used it; onboard or retire a device | `ha-nova:device` |
+| move rules from Node-RED, Homey, SmartThings, Hubitat, or openHAB into Home Assistant; modernize legacy automation YAML | `ha-nova:migrate` |
 | assign or remove entity categories | `ha-nova:organize` |
 | show history, logbook timelines, or long-term statistics | `ha-nova:history` |
 | "is everything closed / locked / off?", "who is home?", "what is running right now?" — a live state snapshot across a domain | `ha-nova:entity-discovery` |
@@ -314,7 +315,7 @@ Match user intent to exactly one skill:
 **"Create an automation"** → `ha-nova:write` (NOT read + write)
 **"Create an input_boolean"** → `ha-nova:helper` (NOT write)
 **"Show my helpers"** → `ha-nova:helper` (NOT read)
-**"Revert that"** / **"Undo the last change"** → re-invoke the skill that made it: `ha-nova:write` (automation/script) or `ha-nova:helper` (helper). `revert` is update-only and lives there (see `write-safety.md` → Update-Revert), never `ha-nova:fallback`; create cleanup uses delete flow, and a deleted item in a snapshot-covered family restores from its auto config snapshot in the owning skill (`config-snapshots.md`); config-entry helpers stay Backup/recreate.
+**"Revert that"** / **"Undo the last change"** → re-invoke the skill that made it (`ha-nova:write` or `ha-nova:helper`; the undo row above), never `ha-nova:fallback`.
 **"Delete these obsolete config snapshots"** → `ha-nova` context skill using `config-snapshots.md`; exact multi-file cleanup may use its declared `config-snapshots` batch family.
 **"Do the same for the kitchen"** (right after a verified AUTOMATION create) → `ha-nova:write`, replicate-across-rooms pattern (`skills/ha-nova/automation-patterns.md`) — resolve the kitchen's OWN entities, never copy entity ids; after any other operation (updates, deletes, failed verifications included), treat it as a fresh request to the owning skill
 **"Create a scene called Movie Night"** → `ha-nova:scene`
@@ -333,6 +334,7 @@ Match user intent to exactly one skill:
 **"Add a markdown card to my dashboard"** → `ha-nova:dashboard`
 **"List my Lovelace resources"** → `ha-nova:dashboard`
 **"My door sensor died, I paired a new one — move everything over"** / **"new phone"** → `ha-nova:device` (one entity rename alone stays `ha-nova:organize`)
+**"Move my Node-RED flows to Home Assistant"** → `ha-nova:migrate` (old rule retired after a soak)
 **"Move this sensor to Area Alpha"** → `ha-nova:organize`
 **"Put this sensor in category Category Alpha"** → `ha-nova:organize`
 **"Add an alias to this area"** → `ha-nova:organize`

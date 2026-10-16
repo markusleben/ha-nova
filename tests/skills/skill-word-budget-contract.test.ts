@@ -544,6 +544,7 @@ const STANDALONE_MARKDOWN = new Set([
   "skills/hacs/hacs-commands.md",
   "skills/health/availability-analysis.md",
   "skills/maintenance/maintenance-reference.md",
+  "skills/migrate/source-mappings.md",
   "skills/review/checks.md",
   "skills/review/checks-extended.md",
 ].map((file) => resolve(file)));

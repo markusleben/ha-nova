@@ -44,6 +44,12 @@ the number.
   saved before each save, and "undo that" restores the previous version.
   "Check my dashboards" lists cards that point at missing entities or at
   custom cards that are not installed.
+- **Move your rules to Home Assistant:** paste a Node-RED, Homey,
+  SmartThings, Hubitat, or openHAB rule, or point at old automation YAML, and
+  HA NOVA turns it into a native automation. It first lists what the rule
+  does, maps each device to a real Home Assistant entity (or asks), and names
+  anything it cannot translate. The old rule stays disabled, not deleted,
+  until the new one has been checked against that list.
 
 ## What To Watch
 
