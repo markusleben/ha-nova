@@ -204,6 +204,8 @@ export async function buildAppMode(
     pairingManager: pairing,
     functional,
     relayVersion: input.relayVersion,
+    // /pair/v2/arm is registered with the other ingress pairing routes.
+    signInPairing: input.cloudRemoteEnabled,
     now: input.now,
     logger: input.logger,
   };

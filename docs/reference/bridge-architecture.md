@@ -302,8 +302,8 @@ request), answered `no-store`. The 256-bit secret is single use, expires after
 two minutes, is never shown on the NOVA page, and only the arming user's
 `/pair/v2/start` accepts it; `/pair/v1/start` answers as if no code were
 active. It yields an unbound local device that activates over pinned TLS
-exactly like a typed code
-(`docs/work/2026-10-16-ha-sign-in-pairing-spec.md`).
+exactly like a typed code; `GET /pair/v1/info` reports `sign_in: true` when
+the route is served (`docs/work/2026-10-16-ha-sign-in-pairing-spec.md`).
 
 **Upstream (Relay -> HA):**
 The Home Assistant App prefers its process-local `SUPERVISOR_TOKEN` and sends it

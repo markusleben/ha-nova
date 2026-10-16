@@ -107,7 +107,9 @@ ingress session exists, before any pairing request.
 ### `POST /pair/v2/arm` (ingress listener only)
 
 Registered with the other pair-v2 ingress routes (present when the relay build
-has Cloud remote enabled, as in current release metadata).
+has Cloud remote enabled, as in current release metadata). The unauthenticated
+`GET /pair/v1/info` capability probe adds `sign_in: true|false`, so the CLI
+offers sign-in only when the relay serves it (older CLIs ignore the field).
 
 - Requires the strict ingress gate: exact Supervisor peer, exactly one
   `X-Remote-User-Id`, exactly one `X-Ingress-Path`.
@@ -159,10 +161,12 @@ plain message and the typed code (which an owner provides).
 ## CLI contract
 
 - Offered only in the interactive wizard pairing step when the relay supports
-  secure pairing, stdin and stdout are terminals, the session is not SSH, and
-  the saved Home Assistant URL is a plain origin (`http`/`https`, host,
-  optional port, no path, query, fragment, or user info). Otherwise the step is
-  exactly today's code prompt. `ha-nova pair` and scripted input are unchanged.
+  secure pairing and advertises `sign_in: true`, stdin and stdout are
+  terminals, the session is not SSH, and the saved Home Assistant URL is a
+  plain origin (`http`/`https`, host, optional port, no path, query, fragment,
+  or user info). Otherwise the step is exactly today's code prompt, so an older
+  NOVA Relay App never sends the user to a browser for nothing. `ha-nova pair`
+  and scripted input are unchanged.
 - OAuth reuses `cli/cloud_oauth_loopback.go`: 127.0.0.1 random port, client ID
   `http://127.0.0.1:<port>/ha-nova`, callback on the same host and port, 256-bit
   state, one GET on the exact path, Host header pinned (no DNS rebinding),
@@ -194,7 +198,7 @@ are kept.
 | No sign-in within five minutes | No sign-in arrived within five minutes. |
 | Signed-in user is not the owner (CLI check or relay 403) | Signed in as X, who is not the Home Assistant owner — only the owner can connect a computer. Ask the owner for a code from NOVA. |
 | No Supervisor (Container/Core) or App not reported | Home Assistant did not report the NOVA Relay App, so sign-in cannot connect this computer. |
-| Relay without `/pair/v2/arm` (older App) | Your NOVA Relay App does not support sign-in yet. Update it in Home Assistant when convenient. |
+| Relay without `/pair/v2/arm` despite the capability flag | Your NOVA Relay App does not support sign-in yet. Update it in Home Assistant when convenient. |
 | Home Assistant unreachable, TLS not trusted, unexpected answer | Could not finish the sign-in with Home Assistant (reason). |
 | Pairing through Home Assistant rejected or interrupted | Connecting through Home Assistant did not finish. |
 

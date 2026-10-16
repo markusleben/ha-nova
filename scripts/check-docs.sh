@@ -49,7 +49,8 @@ echo ""
 # (bounded WS handshake, closed abandoned connections, private-file repair,
 # fail-fast upstream parsing, serialized snapshot quota): about 9300 lines;
 # and to 9500 for Home Assistant sign-in pairing (the owner-checked,
-# machine-only ingress arm route and the armed one-time slot): about 9440 lines.
+# machine-only ingress arm route, the armed one-time slot, and its capability
+# flag on GET /pair/v1/info): about 9450 lines.
 # Further unreviewed Relay growth still fails.
 # Growth here is security surface, and it is reviewed as such. The README's own
 # number is updated in the release-prep PR — README describes the STABLE

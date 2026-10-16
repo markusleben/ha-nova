@@ -118,7 +118,22 @@ describe("pairing listeners wiring", () => {
   it("serves /pair/v1/info bearer-exempt on the bootstrap listener", async () => {
     const res = await fetch(`${bootBase}/pair/v1/info`);
     expect(res.status).toBe(200);
-    expect((await res.json()).data.protocol_version).toBe("v1");
+    const info = (await res.json()).data;
+    expect(info.protocol_version).toBe("v1");
+    expect(info.sign_in).toBe(false);
+  });
+
+  it("advertises Home Assistant sign-in pairing only when it is served", async () => {
+    const server = createHttp(
+      createBootstrapListener({ registry, pairingManager: manager, functional, relayVersion: "0.7.0", now: () => Date.now(), signInPairing: true }),
+    );
+    const port = await listen(server);
+    try {
+      const res = await fetch(`http://127.0.0.1:${port}/pair/v1/info`);
+      expect((await res.json()).data.sign_in).toBe(true);
+    } finally {
+      server.close();
+    }
   });
 
   it("hides the pairing window: start while inactive returns a generic 400, not a distinct code", async () => {
