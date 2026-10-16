@@ -289,7 +289,8 @@ var mcpNoticeHints = map[string]string{
 // tool arguments they stand for. Anything else stays verbatim.
 var mcpFlagArgs = map[string]string{"confirm": "confirm_code", "no-snapshot": "no_snapshot", "snapshot": "snapshot", "target": "id", "id": "id",
 	"create": "create: true", "include-disabled": "include_disabled", "state": "state", "domain": "domain", "area": "area",
-	"config": "config", "related": "related", "since": "since", "until": "until", "logbook": "logbook", "match": "match", "device": "device"}
+	"config": "config", "related": "related", "since": "since", "until": "until", "logbook": "logbook", "match": "match", "device": "device",
+	"references": "references", "aliases": "aliases"}
 
 var cliFlag = regexp.MustCompile("(?:^|[\\s`(/])--([a-z][a-z-]*)")
 

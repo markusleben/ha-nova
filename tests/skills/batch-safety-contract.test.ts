@@ -145,7 +145,7 @@ describe("batch safety contract (issue #327)", () => {
     const helper = readFileSync("skills/helper/SKILL.md", "utf8");
     expect(helper).toContain("storage and config-entry families never mix");
     const dashboard = readFileSync("skills/dashboard/SKILL.md", "utf8");
-    expect(dashboard).toContain("dashboards, resources, and cards are separate families");
+    expect(dashboard).toContain("Dashboards delete one at a time (a `plan delete` code binds one)");
     expect(dashboard).toContain("executes as ONE merged `lovelace/config/save`");
     const maintenance = readFileSync("skills/maintenance/SKILL.md", "utf8");
     expect(maintenance).toContain("one issue group or config entry per manifest");

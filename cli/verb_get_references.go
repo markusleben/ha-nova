@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -31,6 +32,10 @@ type refDevice struct {
 	Model        string   `json:"model,omitempty"`
 	AreaID       string   `json:"area_id,omitempty"`
 	Labels       []string `json:"labels,omitempty"`
+	// LegacyIDs: pre-2026.9 merged device ids that Home Assistant still
+	// resolves to this device (config/device_registry/list_composite_splits).
+	LegacyIDs []string            `json:"legacy_ids,omitempty"`
+	keep      map[string][]string // legacy id → its other split devices
 }
 
 // refEntity carries the mapping hints a swap matches old to new entities by.
@@ -60,6 +65,9 @@ type refHit struct {
 	Needle   string   `json:"needle"`
 	Paths    []string `json:"paths"`
 	Template bool     `json:"template,omitempty"`
+	// Keep: a legacy merged id's other split devices — the target reaches
+	// them too, so a re-point keeps them beside the new device.
+	Keep []string `json:"keep,omitempty"`
 }
 
 type refGap struct {
@@ -241,11 +249,41 @@ func (res *referencesResult) collectNeedles(s *relaySession, entityID string, re
 	}
 	if res.Device != nil {
 		needles = append(needles, res.Device.ID)
+		res.legacyDeviceIDs(s)
+		needles = append(needles, res.Device.LegacyIDs...)
 	}
 	if res.NotifyService != "" {
 		needles = append(needles, strings.TrimPrefix(res.NotifyService, "notify."))
 	}
 	return needles, own, nil
+}
+
+// legacyDeviceIDs: every merged device id whose split list names this
+// device; stored targets can still use it. A core without the command has
+// none; any other failure is a gap, never a silent miss.
+func (res *referencesResult) legacyDeviceIDs(s *relaySession) {
+	var rows map[string]struct {
+		SplitIDs []string `json:"split_ids"`
+	}
+	err := s.wsDecode(map[string]any{"type": "config/device_registry/list_composite_splits"}, &rows, "the device splits")
+	switch {
+	case isUpstreamUnknownCommand(err):
+	case err != nil:
+		res.NotScanned = append(res.NotScanned, refGap{Family: "device", ID: res.Device.ID, Reason: "merged (pre-2026.9) device ids could not be read: " + err.Error()})
+	}
+	for id, row := range rows {
+		if slices.Contains(row.SplitIDs, res.Device.ID) {
+			res.Device.LegacyIDs = append(res.Device.LegacyIDs, id)
+			others := slices.DeleteFunc(slices.Clone(row.SplitIDs), func(d string) bool { return d == res.Device.ID })
+			if len(others) > 0 {
+				if res.Device.keep == nil {
+					res.Device.keep = map[string][]string{}
+				}
+				res.Device.keep[id] = others
+			}
+		}
+	}
+	sort.Strings(res.Device.LegacyIDs)
 }
 
 // notifyService resolves a mobile_app device's legacy notify service: the
@@ -300,10 +338,9 @@ type refFound struct {
 	template bool
 }
 
-// scan records every needle the holder names, with the JSON paths, and
-// returns the needles it found.
-func (sc *refScanner) scan(family, id, configID, managed string, doc any) map[string]*refFound {
-	return sc.record(family, id, configID, managed, sc.find(doc), nil)
+// scan records every needle the holder names, with the JSON paths.
+func (sc *refScanner) scan(family, id, configID, managed string, doc any) {
+	sc.record(family, id, configID, managed, sc.find(doc))
 }
 
 func (sc *refScanner) find(doc any) map[string]*refFound {
@@ -347,16 +384,17 @@ func (sc *refScanner) find(doc any) map[string]*refFound {
 	return hits
 }
 
-// record appends the hits whose needle is not in skip.
-func (sc *refScanner) record(family, id, configID, managed string, hits, skip map[string]*refFound) map[string]*refFound {
+// record appends one hit per needle found.
+func (sc *refScanner) record(family, id, configID, managed string, hits map[string]*refFound) {
 	sc.mu.Lock()
 	defer sc.mu.Unlock()
 	for needle, f := range hits {
-		if skip[needle] == nil {
-			sc.res.Hits = append(sc.res.Hits, refHit{Family: family, ID: id, ConfigID: configID, Managed: managed, Needle: needle, Paths: f.paths, Template: f.template})
+		h := refHit{Family: family, ID: id, ConfigID: configID, Managed: managed, Needle: needle, Paths: f.paths, Template: f.template}
+		if sc.res.Device != nil {
+			h.Keep = sc.res.Device.keep[needle]
 		}
+		sc.res.Hits = append(sc.res.Hits, h)
 	}
-	return hits
 }
 
 func joinRefPath(path, key string) string {

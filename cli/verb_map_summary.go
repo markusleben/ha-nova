@@ -91,7 +91,8 @@ type mapSummary struct {
 }
 
 func (x *homeIndex) counts() map[string]int {
-	c := map[string]int{"floors": len(x.h.floors), "areas": len(x.h.areas), "entities": len(x.enabled), "entities_disabled": len(x.disabled)}
+	c := map[string]int{"floors": len(x.h.floors), "areas": len(x.h.areas), "entities": len(x.enabled), "entities_disabled": len(x.disabled),
+		"devices": 0, "devices_disabled": 0, "devices_without_area": 0, "unregistered": 0, "device_entities_without_area": 0} // exact zeros, never absent
 	for _, d := range x.h.devices {
 		switch {
 		case d.DisabledBy != "":
@@ -208,7 +209,7 @@ func (x *homeIndex) summary() mapSummary {
 	byEntities(areas)
 	s.Areas = cappedAreas{Total: len(areas), Rows: areas[:min(len(areas), mapAreaRows)]}
 	s.Areas.Shown = len(s.Areas.Rows)
-	if s.Areas.Shown < s.Areas.Total {
+	if s.Areas.Shown < s.Areas.Total || len(x.h.floors) > mapAreaRows { // the section lists every floor
 		s.More = append(s.More, "ha-nova map --section areas")
 	}
 	auto, autoRows := x.automations()

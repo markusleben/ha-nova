@@ -48,13 +48,15 @@ var mcpTools = []mcpTool{mcpSkillTool,
 	{name: "ha_find", title: "Find entities", description: "Find entities by phrase (case-, accent-, alias-aware) and/or by domain, area, or current state — e.g. which lights are on: domain light, state on. With state, rows marked group: true count their members again — report them separately; entities in state unavailable are a separate could-not-tell bucket (ask again with state unavailable and with state unknown).", readOnly: true, idempotent: true,
 		schema: object(nil, map[string]any{"phrase": prop("string", "words to match (optional with domain, area, or state)"), "domain": prop("string", "only this domain"),
 			"area": prop("string", "only this area_id"), "state": prop("string", "only entities currently in this state, e.g. on"),
-			"limit": prop("integer", "1-200 rows (default 20)"), "include_disabled": prop("boolean", "include disabled entities")}),
+			"limit": prop("integer", "1-200 rows (default 20)"), "include_disabled": prop("boolean", "include disabled entities"),
+			"aliases": prop("boolean", "also match aliases when names already match (after a rejected name match)")}),
 		argv: findArgv, run: runFindCommand},
 	{name: "ha_get", title: "Read an entity", description: "Read one entity's state, optionally its stored config and relations. managed: yaml means the config is defined in YAML or a package: never edit or delete it through ha_plan; it is changed in those files.", readOnly: true, idempotent: true,
 		schema: object([]string{"entity_id"}, map[string]any{"entity_id": prop("string", "exact entity_id"),
-			"config": prop("boolean", "also read the stored automation/script/scene config"), "related": prop("boolean", "also read search/related")}),
+			"config": prop("boolean", "also read the stored automation/script/scene config"), "related": prop("boolean", "also read search/related"),
+			"references": prop("boolean", "also scan automations, scripts, dashboards, energy, and state attributes for the entity, its device, and the device's other entities (includes related)")}),
 		argv: func(a map[string]json.RawMessage, _ *mcpTempFiles) ([]string, error) {
-			return flagsThen(a, []string{"config", "related"}, nil, "entity_id")
+			return flagsThen(a, []string{"config", "related", "references"}, nil, "entity_id")
 		}, run: runGetCommand},
 	{name: "ha_history", title: "Read history", description: "Summarize an entity's history in a window of at most 7 days (each bound a duration ago of at most 7d or an RFC3339 time).", readOnly: true, idempotent: true,
 		schema: object([]string{"entity_id"}, map[string]any{"entity_id": prop("string", "exact entity_id"),
@@ -405,7 +407,7 @@ func mapArgv(args map[string]json.RawMessage, _ *mcpTempFiles) ([]string, error)
 }
 
 func findArgv(args map[string]json.RawMessage, _ *mcpTempFiles) ([]string, error) {
-	argv, _ := flagsThen(args, []string{"include_disabled"}, []string{"domain", "area", "state"}, "")
+	argv, _ := flagsThen(args, []string{"include_disabled", "aliases"}, []string{"domain", "area", "state"}, "")
 	if raw, present := args["limit"]; present {
 		var n int
 		_ = json.Unmarshal(raw, &n)

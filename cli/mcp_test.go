@@ -275,3 +275,27 @@ func TestMCPHelperProcess(t *testing.T) {
 	}
 	os.Exit(runMCPCommand(paths, nil))
 }
+
+// Every flag a skill names for find/get reaches the CLI through MCP.
+func TestMCPReadFlagsReachTheCLI(t *testing.T) {
+	cases := map[string]struct {
+		args map[string]json.RawMessage
+		want string
+	}{
+		"ha_get":  {map[string]json.RawMessage{"entity_id": json.RawMessage(`"sensor.x"`), "references": json.RawMessage(`true`)}, "--references -- sensor.x"},
+		"ha_find": {map[string]json.RawMessage{"phrase": json.RawMessage(`"lamp"`), "aliases": json.RawMessage(`true`)}, "--aliases -- lamp"},
+	}
+	for _, tool := range mcpTools {
+		tc, ok := cases[tool.name]
+		if !ok {
+			continue
+		}
+		argv, err := tool.argv(tc.args, nil)
+		if err != nil || strings.Join(argv, " ") != tc.want {
+			t.Errorf("%s argv %v (%v), want %s", tool.name, argv, err, tc.want)
+		}
+	}
+	if got := mcpArgs("run ha-nova get x --references or find --aliases"); !strings.Contains(got, "references") || strings.Contains(got, "--references") || strings.Contains(got, "--aliases") {
+		t.Errorf("mcpArgs: %s", got)
+	}
+}

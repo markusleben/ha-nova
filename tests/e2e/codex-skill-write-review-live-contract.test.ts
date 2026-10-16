@@ -1,9 +1,10 @@
 import { execFileSync } from "node:child_process";
-import { constants, existsSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { constants, existsSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
+
+import { makeTempDir } from "../helpers/temp-dir.js";
 
 type WriteReviewScenarioDefinition = {
   id: string;
@@ -349,7 +350,7 @@ fi`,
   it("proves malformed and non-object JSONL transcripts fail atomically without leaving partial parsed output", () => {
     const content = readFileSync("scripts/e2e/codex-ha-nova-write-review-live-e2e.sh", "utf8");
     const normalizeFn = extractShellFunction(content, "normalize_jsonl_transcript");
-    const tempDir = mkdtempSync(join(tmpdir(), "ha-nova-write-jsonl-"));
+    const tempDir = makeTempDir("ha-nova-write-jsonl-");
     const runAtomicNormalization = (name: string, invalidLine: string) => {
       const scenarioLog = join(tempDir, `${name}.jsonl`);
       const parsedLog = join(tempDir, `${name}.parsed.jsonl`);
@@ -399,7 +400,7 @@ fi`,
   it("ignores the codex stdin preamble line during JSONL normalization", () => {
     const content = readFileSync("scripts/e2e/codex-ha-nova-write-review-live-e2e.sh", "utf8");
     const normalizeFn = extractShellFunction(content, "normalize_jsonl_transcript");
-    const tempDir = mkdtempSync(join(tmpdir(), "ha-nova-write-jsonl-preamble-"));
+    const tempDir = makeTempDir("ha-nova-write-jsonl-preamble-");
     const scenarioLog = join(tempDir, "scenario.jsonl");
 
     writeFileSync(
@@ -424,7 +425,7 @@ fi`,
   it("ignores the codex router stdin-closed noise line during JSONL normalization", () => {
     const content = readFileSync("scripts/e2e/codex-ha-nova-write-review-live-e2e.sh", "utf8");
     const normalizeFn = extractShellFunction(content, "normalize_jsonl_transcript");
-    const tempDir = mkdtempSync(join(tmpdir(), "ha-nova-write-jsonl-router-noise-"));
+    const tempDir = makeTempDir("ha-nova-write-jsonl-router-noise-");
     const scenarioLog = join(tempDir, "scenario.jsonl");
 
     writeFileSync(
@@ -453,7 +454,7 @@ fi`,
     const content = readFileSync("scripts/e2e/codex-ha-nova-write-review-live-e2e.sh", "utf8");
     const countCommandHitsFn = extractShellFunction(content, "count_command_hits");
     const countHelperScriptExecHitsFn = extractShellFunction(content, "count_helper_script_exec_hits");
-    const tempDir = mkdtempSync(join(tmpdir(), "ha-nova-write-helper-"));
+    const tempDir = makeTempDir("ha-nova-write-helper-");
     const parsedLog = join(tempDir, "parsed.jsonl");
 
     writeFileSync(
@@ -499,7 +500,7 @@ count_helper_script_exec_hits "$1"`,
     const content = readFileSync("scripts/e2e/codex-ha-nova-write-review-live-e2e.sh", "utf8");
     const countCommandHitsFn = extractShellFunction(content, "count_command_hits");
     const countCommandHitsBeforeIndexFn = extractShellFunction(content, "count_command_hits_before_index");
-    const tempDir = mkdtempSync(join(tmpdir(), "ha-nova-write-onboarding-"));
+    const tempDir = makeTempDir("ha-nova-write-onboarding-");
     const parsedLog = join(tempDir, "parsed.jsonl");
 
     writeFileSync(
@@ -543,7 +544,7 @@ count_command_hits_before_index "$1" 2 '(^|[[:space:]])ha-nova[[:space:]]+(docto
   it("proves multiline shell continuations and long-option equals syntax in write proof parsing", () => {
     const scriptContent = readFileSync("scripts/e2e/codex-ha-nova-write-review-live-e2e.sh", "utf8");
     const python = extractWriteProofPython(scriptContent);
-    const tempDir = mkdtempSync(join(tmpdir(), "ha-nova-r19-proof-"));
+    const tempDir = makeTempDir("ha-nova-r19-proof-");
     const scenarioLog = join(tempDir, "scenario.jsonl");
     const pythonFile = join(tempDir, "extract_write_proof.py");
     const automationId = "nova_write_review_contract_case";
@@ -643,7 +644,7 @@ count_command_hits_before_index "$1" 2 '(^|[[:space:]])ha-nova[[:space:]]+(docto
   it("counts repeated post-write verification operations inside one successful command block", () => {
     const scriptContent = readFileSync("scripts/e2e/codex-ha-nova-write-review-live-e2e.sh", "utf8");
     const python = extractWriteProofPython(scriptContent);
-    const tempDir = mkdtempSync(join(tmpdir(), "ha-nova-write-proof-repeat-"));
+    const tempDir = makeTempDir("ha-nova-write-proof-repeat-");
     const scenarioLog = join(tempDir, "scenario.jsonl");
     const pythonFile = join(tempDir, "extract_write_proof.py");
     const automationId = "nova_write_review_repeat_case";
@@ -695,7 +696,7 @@ count_command_hits_before_index "$1" 2 '(^|[[:space:]])ha-nova[[:space:]]+(docto
   it("rejects collision payload writes when relay ws reads a different --data-file", () => {
     const scriptContent = readFileSync("scripts/e2e/codex-ha-nova-write-review-live-e2e.sh", "utf8");
     const python = extractWriteProofPython(scriptContent);
-    const tempDir = mkdtempSync(join(tmpdir(), "ha-nova-write-proof-mismatch-"));
+    const tempDir = makeTempDir("ha-nova-write-proof-mismatch-");
     const scenarioLog = join(tempDir, "scenario.jsonl");
     const pythonFile = join(tempDir, "extract_write_proof.py");
     const automationId = "nova_write_review_mismatch_case";
@@ -740,7 +741,7 @@ count_command_hits_before_index "$1" 2 '(^|[[:space:]])ha-nova[[:space:]]+(docto
   it("detects write and read-back operations when --path uses escaped quoted arguments", () => {
     const scriptContent = readFileSync("scripts/e2e/codex-ha-nova-write-review-live-e2e.sh", "utf8");
     const python = extractWriteProofPython(scriptContent);
-    const tempDir = mkdtempSync(join(tmpdir(), "ha-nova-write-proof-escaped-"));
+    const tempDir = makeTempDir("ha-nova-write-proof-escaped-");
     const scenarioLog = join(tempDir, "scenario.jsonl");
     const pythonFile = join(tempDir, "extract_write_proof.py");
     const automationId = "nova_write_review_escaped_case";
@@ -794,7 +795,7 @@ count_command_hits_before_index "$1" 2 '(^|[[:space:]])ha-nova[[:space:]]+(docto
   it("rejects automation entity state reads as post-write runtime verification", () => {
     const scriptContent = readFileSync("scripts/e2e/codex-ha-nova-write-review-live-e2e.sh", "utf8");
     const python = extractWriteProofPython(scriptContent);
-    const tempDir = mkdtempSync(join(tmpdir(), "ha-nova-write-proof-automation-state-"));
+    const tempDir = makeTempDir("ha-nova-write-proof-automation-state-");
     const scenarioLog = join(tempDir, "scenario.jsonl");
     const pythonFile = join(tempDir, "extract_write_proof.py");
     const automationId = "nova_write_review_runtime_case";
@@ -841,7 +842,7 @@ count_command_hits_before_index "$1" 2 '(^|[[:space:]])ha-nova[[:space:]]+(docto
   it("flags a post-write section that prints a forbidden empty 'none' bucket", () => {
     const scriptContent = readFileSync("scripts/e2e/codex-ha-nova-write-review-live-e2e.sh", "utf8");
     const python = extractWriteProofPython(scriptContent);
-    const tempDir = mkdtempSync(join(tmpdir(), "ha-nova-write-proof-forbidden-bucket-"));
+    const tempDir = makeTempDir("ha-nova-write-proof-forbidden-bucket-");
     const scenarioLog = join(tempDir, "scenario.jsonl");
     const pythonFile = join(tempDir, "extract_write_proof.py");
     const automationId = "nova_write_review_forbidden_bucket_case";
@@ -929,7 +930,7 @@ count_command_hits_before_index "$1" 2 '(^|[[:space:]])ha-nova[[:space:]]+(docto
   it("flags a post-write section with a bare optional label that has no items", () => {
     const scriptContent = readFileSync("scripts/e2e/codex-ha-nova-write-review-live-e2e.sh", "utf8");
     const python = extractWriteProofPython(scriptContent);
-    const tempDir = mkdtempSync(join(tmpdir(), "ha-nova-write-proof-empty-heading-"));
+    const tempDir = makeTempDir("ha-nova-write-proof-empty-heading-");
     const scenarioLog = join(tempDir, "scenario.jsonl");
     const pythonFile = join(tempDir, "extract_write_proof.py");
     const automationId = "nova_write_review_empty_heading_case";
@@ -1018,7 +1019,7 @@ count_command_hits_before_index "$1" 2 '(^|[[:space:]])ha-nova[[:space:]]+(docto
   it("flags a post-write review that is just a heading with no content", () => {
     const scriptContent = readFileSync("scripts/e2e/codex-ha-nova-write-review-live-e2e.sh", "utf8");
     const python = extractWriteProofPython(scriptContent);
-    const tempDir = mkdtempSync(join(tmpdir(), "ha-nova-write-proof-heading-only-"));
+    const tempDir = makeTempDir("ha-nova-write-proof-heading-only-");
     const scenarioLog = join(tempDir, "scenario.jsonl");
     const pythonFile = join(tempDir, "extract_write_proof.py");
     const automationId = "nova_write_review_heading_only_case";
@@ -1101,7 +1102,7 @@ count_command_hits_before_index "$1" 2 '(^|[[:space:]])ha-nova[[:space:]]+(docto
   it("accepts a clean post-write section that omits empty sections and ends with one confirmation line", () => {
     const scriptContent = readFileSync("scripts/e2e/codex-ha-nova-write-review-live-e2e.sh", "utf8");
     const python = extractWriteProofPython(scriptContent);
-    const tempDir = mkdtempSync(join(tmpdir(), "ha-nova-write-proof-clean-omit-empty-"));
+    const tempDir = makeTempDir("ha-nova-write-proof-clean-omit-empty-");
     const scenarioLog = join(tempDir, "scenario.jsonl");
     const pythonFile = join(tempDir, "extract_write_proof.py");
     const automationId = "nova_write_review_clean_omit_empty_case";
@@ -1184,7 +1185,7 @@ count_command_hits_before_index "$1" 2 '(^|[[:space:]])ha-nova[[:space:]]+(docto
   it("detects repeated prewrite verdicts and duplicated findings/advisory items in write proof parsing", () => {
     const scriptContent = readFileSync("scripts/e2e/codex-ha-nova-write-review-live-e2e.sh", "utf8");
     const python = extractWriteProofPython(scriptContent);
-    const tempDir = mkdtempSync(join(tmpdir(), "ha-nova-write-proof-dup-"));
+    const tempDir = makeTempDir("ha-nova-write-proof-dup-");
     const scenarioLog = join(tempDir, "scenario.jsonl");
     const pythonFile = join(tempDir, "extract_write_proof.py");
     const automationId = "nova_write_review_duplicate_case";
@@ -1282,7 +1283,7 @@ count_command_hits_before_index "$1" 2 '(^|[[:space:]])ha-nova[[:space:]]+(docto
   it("excludes the final machine line from extracted postwrite user text", () => {
     const scriptContent = readFileSync("scripts/e2e/codex-ha-nova-write-review-live-e2e.sh", "utf8");
     const python = extractWriteProofPython(scriptContent);
-    const tempDir = mkdtempSync(join(tmpdir(), "ha-nova-write-proof-status-line-"));
+    const tempDir = makeTempDir("ha-nova-write-proof-status-line-");
     const scenarioLog = join(tempDir, "scenario.jsonl");
     const pythonFile = join(tempDir, "extract_write_proof.py");
     const automationId = "nova_write_review_status_line_case";
@@ -1372,7 +1373,7 @@ count_command_hits_before_index "$1" 2 '(^|[[:space:]])ha-nova[[:space:]]+(docto
   it("accepts a collision scenario that shows the Collision check with the related item", () => {
     const scriptContent = readFileSync("scripts/e2e/codex-ha-nova-write-review-live-e2e.sh", "utf8");
     const python = extractWriteProofPython(scriptContent);
-    const tempDir = mkdtempSync(join(tmpdir(), "ha-nova-write-proof-collision-related-"));
+    const tempDir = makeTempDir("ha-nova-write-proof-collision-related-");
     const scenarioLog = join(tempDir, "scenario.jsonl");
     const pythonFile = join(tempDir, "extract_write_proof.py");
     const automationId = "nova_write_review_collision_related_case";
@@ -1459,7 +1460,7 @@ count_command_hits_before_index "$1" 2 '(^|[[:space:]])ha-nova[[:space:]]+(docto
   it("treats the first target write attempt as the end of prewrite text even when that attempt fails", () => {
     const scriptContent = readFileSync("scripts/e2e/codex-ha-nova-write-review-live-e2e.sh", "utf8");
     const python = extractWriteProofPython(scriptContent);
-    const tempDir = mkdtempSync(join(tmpdir(), "ha-nova-r19-proof-"));
+    const tempDir = makeTempDir("ha-nova-r19-proof-");
     const scenarioLog = join(tempDir, "scenario.jsonl");
     const pythonFile = join(tempDir, "extract_write_proof.py");
     const automationId = "nova_write_review_failed_first_attempt";
@@ -1514,7 +1515,7 @@ count_command_hits_before_index "$1" 2 '(^|[[:space:]])ha-nova[[:space:]]+(docto
   it("tracks retried writes and wrong reload paths in write proof parsing", () => {
     const scriptContent = readFileSync("scripts/e2e/codex-ha-nova-write-review-live-e2e.sh", "utf8");
     const python = extractWriteProofPython(scriptContent);
-    const tempDir = mkdtempSync(join(tmpdir(), "ha-nova-write-proof-retry-"));
+    const tempDir = makeTempDir("ha-nova-write-proof-retry-");
     const scenarioLog = join(tempDir, "scenario.jsonl");
     const pythonFile = join(tempDir, "extract_write_proof.py");
     const automationId = "nova_write_review_retry_case";

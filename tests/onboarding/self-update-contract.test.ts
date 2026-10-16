@@ -1,11 +1,11 @@
-import { existsSync, mkdtempSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
-import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
 import { REPO_ROOT } from "./_helpers.js";
+import { makeTempDir } from "../helpers/temp-dir.js";
 
 describe("legacy shell shims", () => {
   it("scripts/onboarding/bin/ha-nova delegates setup and update commands to the Go runtime", () => {
@@ -36,7 +36,7 @@ describe("legacy shell shims", () => {
   });
 
   it("prefers the native Windows runtime over a stale legacy .local runtime", () => {
-    const home = mkdtempSync(join(tmpdir(), "ha-nova-shim-windows-home-"));
+    const home = makeTempDir("ha-nova-shim-windows-home-");
     const localLegacyDir = join(home, ".local", "share", "ha-nova");
     const localAppDataDir = join(home, "AppData", "Local", "Programs", "ha-nova");
     const marker = join(home, "windows-runtime-args.txt");
@@ -74,7 +74,7 @@ printf '%s\n' "$@" > "${marker}"
   });
 
   it("scripts/onboarding/bin/ha-nova forwards update arguments to the installed runtime", () => {
-    const home = mkdtempSync(join(tmpdir(), "ha-nova-shim-home-"));
+    const home = makeTempDir("ha-nova-shim-home-");
     const binDir = join(home, ".local", "bin");
     const publicBinary = join(binDir, "ha-nova");
     const marker = join(home, "update-args.txt");
@@ -102,7 +102,7 @@ printf '%s\n' "$@" > "${marker}"
   });
 
   it("repo-dev wrappers ignore a stray .exe runtime on Unix and fall back to a repo-built dev runtime", { timeout: 120000 }, () => {
-    const home = mkdtempSync(join(tmpdir(), "ha-nova-shim-exe-home-"));
+    const home = makeTempDir("ha-nova-shim-exe-home-");
     const binDir = join(home, "bin");
     const localBinDir = join(home, ".local", "bin");
     const goMarker = join(home, "go-args.txt");
@@ -206,7 +206,7 @@ exec "${resolve(REPO_ROOT, "scripts/onboarding/bin/ha-nova")}" check-update --qu
   });
 
   it("repo-built dev runtime rebuilds when the go build context changes", { timeout: 120000 }, () => {
-    const home = mkdtempSync(join(tmpdir(), "ha-nova-shim-rebuild-home-"));
+    const home = makeTempDir("ha-nova-shim-rebuild-home-");
     const binDir = join(home, "bin");
     const localBinDir = join(home, ".local", "bin");
     const goMarker = join(home, "go-args.txt");

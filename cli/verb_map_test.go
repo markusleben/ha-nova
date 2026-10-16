@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -475,5 +476,45 @@ func TestMapSummaryStaysSmallOnABigHome(t *testing.T) {
 	t.Logf("big-home first look: %d bytes", len(env.Result))
 	if size := len(env.Result); size > 2<<10 {
 		t.Fatalf("first look is %d bytes, budget 2 KiB", size)
+	}
+}
+
+// Counts are exact zeros, never absent; truncated floors point at the full list.
+func TestMapSummaryZerosAndFloorTruncation(t *testing.T) {
+	f := mapFixture{areas: []map[string]any{{"area_id": "a", "name": "A", "floor_id": "f0"}}}
+	for i := 0; i < mapAreaRows+5; i++ {
+		f.floors = append(f.floors, map[string]any{"floor_id": fmt.Sprintf("f%d", i), "name": fmt.Sprintf("F%d", i), "level": i})
+	}
+	exit, env, _ := runMap(t, f)
+	if exit != 0 {
+		t.Fatalf("exit %d env %+v", exit, env.Error)
+	}
+	var raw struct {
+		Counts map[string]*int `json:"counts"`
+		More   []string        `json:"more"`
+	}
+	if err := json.Unmarshal(env.Result, &raw); err != nil {
+		t.Fatal(err)
+	}
+	for _, k := range []string{"devices", "devices_disabled", "devices_without_area", "unregistered", "device_entities_without_area"} {
+		if raw.Counts[k] == nil || *raw.Counts[k] != 0 {
+			t.Errorf("counts[%s] missing or not 0: %v", k, raw.Counts)
+		}
+	}
+	if !slices.Contains(raw.More, "ha-nova map --section areas") {
+		t.Errorf("more %v", raw.More)
+	}
+}
+
+func TestEffectiveDeviceAreasFollowsDeepChainsAndStopsOnCycles(t *testing.T) {
+	own := map[string]string{"d0": "kitchen", "x": "", "y": ""}
+	parent := map[string]string{"x": "y", "y": "x"}
+	for i := 1; i <= 8; i++ {
+		id := fmt.Sprintf("d%d", i)
+		own[id], parent[id] = "", fmt.Sprintf("d%d", i-1)
+	}
+	got := effectiveDeviceAreas(own, parent)
+	if got["d8"] != "kitchen" || got["x"] != "" {
+		t.Fatalf("areas %v", got)
 	}
 }

@@ -1,9 +1,10 @@
-import { chmodSync, mkdtempSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { chmodSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 
 import { describe, expect, it } from "vitest";
+
+import { makeTempDir } from "../helpers/temp-dir.js";
 
 const RELEASE_ASSETS = [
   "checksums.txt",
@@ -49,7 +50,7 @@ function runAssetGate(
   payload: string,
   apiFails = false,
 ): ReturnType<typeof spawnSync> {
-  const fakeBin = mkdtempSync(join(tmpdir(), "ha-nova-release-assets-"));
+  const fakeBin = makeTempDir("ha-nova-release-assets-");
   writeExecutable(
     join(fakeBin, "gh"),
     `#!/usr/bin/env bash

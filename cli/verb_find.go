@@ -304,13 +304,14 @@ func loadAreaContext(s *relaySession) (map[string]string, map[string]string, err
 
 // effectiveDeviceAreas: a device's own area_id; a child device (Home
 // Assistant 2026.9+ parent_device_id) without one inherits its parent's
-// effective area. A parent missing from the read leaves it unknown.
+// effective area, however deep. A parent missing from the read, or a cycle,
+// leaves it unknown.
 func effectiveDeviceAreas(own, parent map[string]string) map[string]string {
 	out := map[string]string{}
 	for id := range own {
-		cur := id
-		for depth := 0; depth < 5 && own[cur] == "" && parent[cur] != ""; depth++ {
-			cur = parent[cur]
+		cur, seen := id, map[string]bool{}
+		for own[cur] == "" && parent[cur] != "" && !seen[cur] {
+			seen[cur], cur = true, parent[cur]
 		}
 		out[id] = own[cur]
 	}

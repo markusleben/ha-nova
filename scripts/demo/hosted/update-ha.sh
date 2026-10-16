@@ -41,9 +41,9 @@ verify() {
 }
 
 persist() {
-  (umask 077 && printf '%s\n' "$1" > "$STATE/ha-image.tmp" && printf '%s\n' "$2" > "$STATE/ha-version.tmp")
-  mv "$STATE/ha-image.tmp" "$STATE/ha-image"
-  mv "$STATE/ha-version.tmp" "$STATE/ha-version"
+  # One chain: it also runs inside an if condition, where set -e is off.
+  (umask 077 && printf '%s\n' "$1" > "$STATE/ha-image.tmp" && printf '%s\n' "$2" > "$STATE/ha-version.tmp") \
+    && mv "$STATE/ha-image.tmp" "$STATE/ha-image" && mv "$STATE/ha-version.tmp" "$STATE/ha-version"
 }
 
 # Old images would fill the disk over months (and the guard resets at 80 %).
@@ -108,10 +108,11 @@ fi
 # The candidate goes to reset.sh as an argument: a timer reset waiting on the
 # lock can never pick it up, and Caddy serves the reset page meanwhile. The
 # gates hold the lock too; a reset that slips in between fails them, which
-# keeps the last good digest.
+# keeps the last good digest. Promotion stays under the gates' lock: a reset
+# between gates and persist would boot the old digest while state names the
+# candidate.
 log "candidate Home Assistant $version ($ref)"
-if bash "$HOSTED/reset.sh" --candidate "$ref" && (flock 9 && gates "$ref" "$version") 9> "$LOCK"; then
-  persist "$ref" "$version"
+if bash "$HOSTED/reset.sh" --candidate "$ref" && (flock 9 && gates "$ref" "$version" && persist "$ref" "$version") 9> "$LOCK"; then
   log "promoted Home Assistant $version ($ref)"
   [[ -z "$current" ]] || docker image rm "$current" > /dev/null 2>&1 || true
   prune
