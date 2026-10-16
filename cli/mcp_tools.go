@@ -76,7 +76,7 @@ var mcpTools = []mcpTool{mcpSkillTool,
 		schema: object([]string{"endpoint"}, map[string]any{"endpoint": map[string]any{"type": "string", "enum": []string{"core", "ws"}},
 			"path": prop("string", "core: /api/... path (GET only)"), "payload": prop("object", "ws: the message, e.g. {\"type\":\"search/related\",...}")}),
 		argv: readArgv, run: runMCPRead},
-	{name: "ha_plan", title: "Plan a change", description: "Plan without executing: kind call (a service call), write (automation/script config), delete, revert, or restore (a deleted automation/script from the snapshot its delete result named). Returns a preview and, for high-consequence plans, a confirmation code the user must type. coverage.notes are informational: mention one only when it raised the tier or the user asks — except EXPANDED_TARGET_WITHOUT_STATE: always tell the user in plain words which coverage.skipped entries with that code were skipped (not reporting).",
+	{name: "ha_plan", title: "Plan a change", description: "Plan without executing: kind call (a service call), write (automation/script config), delete, revert, or restore (a deleted automation/script from the snapshot its delete result named). Returns a preview; a high-consequence plan needs a confirmation code the user types (no code is returned where their app asks for it in a form). coverage.notes are informational: mention one only when it raised the tier or the user asks — except EXPANDED_TARGET_WITHOUT_STATE: always tell the user in plain words which coverage.skipped entries with that code were skipped (not reporting).",
 		readOnly: true,
 		schema: object([]string{"kind"}, merged(callProperties, map[string]any{
 			"kind":      map[string]any{"type": "string", "enum": []string{"call", "write", "delete", "revert", "restore"}},
@@ -89,10 +89,10 @@ var mcpTools = []mcpTool{mcpSkillTool,
 		argv: planArgv, run: runPlanCommand},
 	{name: "ha_call", title: "Control a device", description: "Call a service. Ordinary calls run now and are verified; anything else returns needs_confirmation with a plan for ha_apply. A call that timed out or returned no result is outcome unknown: read with ha_get; never call again. coverage.notes are informational: mention one only when it raised the tier or the user asks — except EXPANDED_TARGET_WITHOUT_STATE: always tell the user in plain words which coverage.skipped entries with that code were skipped (not reporting).",
 		schema: object([]string{"service"}, callProperties), argv: callArgv, run: runCallCommand},
-	{name: "ha_apply", title: "Apply a confirmed plan", description: "Execute a stored plan once after the user confirmed its preview. confirm_code must be exactly what the user typed. A call that timed out or returned no result is outcome unknown: read with ha_get; never call again.",
+	{name: "ha_apply", title: "Apply a confirmed plan", description: "Execute a stored plan once: a preview plan after the user agreed to its preview; a plan with a confirmation code only with the code the user typed — or, where a result says their app asks for the code in a form, without confirm_code (the form confirms; a passed code is ignored). A call that timed out or returned no result is outcome unknown: read with ha_get; never call again.",
 		destructive: true,
 		schema: object([]string{"plan_id"}, map[string]any{"plan_id": prop("string", "p_ + 12 hex"),
-			"confirm_code": prop("string", "the code exactly as the user typed it"), "no_snapshot": prop("boolean", "deletes only, after a failed snapshot and the user's choice")}),
+			"confirm_code": prop("string", "the code exactly as the user typed it in chat (ignored where the app asks for it in a form)"), "no_snapshot": prop("boolean", "deletes only, after a failed snapshot and the user's choice")}),
 		argv: applyArgv, run: runApplyCommand},
 }
 
@@ -124,12 +124,12 @@ func mcpToolList(paths runtimePaths) []map[string]any {
 // capture, server selection).
 var mcpVerbLock sync.Mutex
 
-func (srv *mcpServer) callTool(raw json.RawMessage) (map[string]any, *rpcError) {
+func (srv *mcpServer) callTool(req rpcRequest) (map[string]any, *rpcError) {
 	var params struct {
 		Name      string                     `json:"name"`
 		Arguments map[string]json.RawMessage `json:"arguments"`
 	}
-	if json.Unmarshal(raw, &params) != nil {
+	if json.Unmarshal(req.Params, &params) != nil {
 		return nil, &rpcError{Code: rpcInvalidParams, Message: "tools/call needs name and arguments"}
 	}
 	for _, tool := range mcpTools {
@@ -143,6 +143,11 @@ func (srv *mcpServer) callTool(raw json.RawMessage) (map[string]any, *rpcError) 
 		}
 		if tool.name == mcpSkillTool.name { // offline: no verb, no lock
 			return srv.callSkill(params.Arguments), nil
+		}
+		if tool.name == "ha_apply" && req.forms { // only the human's answer in a form confirms here
+			if stop, rpcErr := srv.confirmByForm(req, params.Arguments); stop != nil || rpcErr != nil {
+				return stop, rpcErr
+			}
 		}
 		temp := &mcpTempFiles{}
 		defer temp.remove()
@@ -162,7 +167,7 @@ func (srv *mcpServer) callTool(raw json.RawMessage) (map[string]any, *rpcError) 
 		if tool.name == "ha_trace" { // trace prints its own object: add the verbs' notices
 			out = withNotices(out, verbNotices(srv.paths, traceRelayVersion.Load().(string)), activeServerProfile())
 		}
-		return toolResult(tool.name, out, errOut, exit, srv.told), nil
+		return toolResult(tool.name, out, errOut, exit, srv.told, req.forms), nil
 	}
 	return nil, &rpcError{Code: rpcInvalidParams, Message: "unknown tool: " + params.Name}
 }
@@ -209,7 +214,8 @@ func withNotices(out string, notices []verbNotice, server string) string {
 // object, so a client that reads only one of them still gets the guidance
 // (next_step). isError for failures, not for needs_confirmation. told
 // (nil = no memory) keeps each update notice's hint to once per session.
-func toolResult(name, out, errOut string, exit int, told map[string]bool) map[string]any {
+// forms: the client shows confirmation forms, so no code is shown.
+func toolResult(name, out, errOut string, exit int, told map[string]bool, forms bool) map[string]any {
 	var envelope map[string]any
 	// A verb envelope carries schema_version; anything else (trace prints
 	// plain JSON, failures print to stderr) is wrapped into one.
@@ -229,7 +235,11 @@ func toolResult(name, out, errOut string, exit int, told map[string]bool) map[st
 			errInfo["message"] = mcpArgs(message)
 		}
 	}
-	if step := strings.TrimSpace(nextStep(envelope) + " " + noticeHints(envelope, told)); step != "" {
+	next := nextStep(envelope)
+	if forms {
+		next = formsNext(envelope, next)
+	}
+	if step := strings.TrimSpace(next + " " + noticeHints(envelope, told)); step != "" {
 		envelope["next_step"] = step
 	}
 	text, _ := json.Marshal(envelope)

@@ -104,7 +104,7 @@ func TestMCPLegacySessionEndToEnd(t *testing.T) {
 
 	init := c.request("initialize", map[string]any{"protocolVersion": "2025-06-18", "capabilities": map[string]any{}, "clientInfo": map[string]any{"name": "test", "version": "1"}})
 	result := init["result"].(map[string]any)
-	if result["protocolVersion"] != "2025-06-18" || !strings.Contains(fmt.Sprint(result["instructions"]), "Never pass a confirmation code the user\ndid not type") {
+	if result["protocolVersion"] != "2025-06-18" || !strings.Contains(fmt.Sprint(result["instructions"]), "Never pass a confirmation code the user did not type") {
 		t.Fatalf("initialize: %v", result)
 	}
 	c.send(`{"jsonrpc":"2.0","method":"notifications/initialized"}`) // no reply

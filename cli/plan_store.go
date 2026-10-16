@@ -61,6 +61,7 @@ type storedPlan struct {
 	// SnapshotFailed: a delete whose pre-delete snapshot failed was handed
 	// back; only then may the user choose --no-snapshot. Not in the hash.
 	SnapshotFailed bool            `json:"snapshot_failed,omitempty"`
+	Prompt         string          `json:"prompt,omitempty"` // a typed plan's code-free confirmation-form text (mcp_confirm.go); not in the hash
 	Request        planCallRequest `json:"request"`
 	Action         planAction      `json:"action"`
 	ConfigRequest  *configRequest  `json:"config_request,omitempty"` // kinds write/delete/revert/restore
@@ -107,7 +108,7 @@ func buildCallPlan(e *tierEngine, env *verbEnvelope, req planCallRequest, target
 	env.Action = &action
 	env.Deltas = planDeltas(req.Service, frozen, req.Data, e.states)
 	if env.Status == "needs_confirmation" {
-		env.Say = confirmationSay(e, env, plan, "")
+		env.Say, plan.Prompt = confirmationSay(e, env, plan, ""), confirmationPrompt(e, env, plan, "")
 	}
 	return plan, err
 }

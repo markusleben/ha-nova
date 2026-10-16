@@ -313,7 +313,8 @@ func computeConfigPlan(paths runtimePaths, s *relaySession, env *verbEnvelope, r
 	plan, err = sealPlan(e, env, plan, action)
 	env.Config = &action
 	if env.Status == "needs_confirmation" {
-		env.Say = confirmationSay(e, env, plan, configAlias(req.Draft, current))
+		// The form names what is there now; the write card names the draft.
+		env.Say, plan.Prompt = confirmationSay(e, env, plan, configAlias(req.Draft, current)), confirmationPrompt(e, env, plan, configAlias(current, req.Draft))
 	}
 	return e, plan, ctx, err
 }

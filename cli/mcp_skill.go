@@ -34,7 +34,11 @@ names a CLI command, use the tool:
 Everything else (helper, dashboard, scene, registry or organize edits, other
 relay writes, logs, template probes, files on disk) needs a client with a shell
 and the HA NOVA CLI: say so instead of improvising, and say which evidence was
-not checked. Pass a confirmation code to ha_apply only when the user typed it.
+not checked. Pass a confirmation code to ha_apply only when the user typed it
+in chat. Where a result says their app asks for the code in a form, that form
+replaces every code step below: never ask for or wait for a code in chat;
+where the skill would apply the plan (also after a drift, a wrong code, or the
+choice to delete without a copy), call ha_apply without confirm_code.
 
 ---
 
