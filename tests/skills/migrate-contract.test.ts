@@ -50,7 +50,7 @@ describe("migrate skill (needs-analysis TOP 4)", () => {
     expect(mappings).toContain("`drop: false` → `mode: queued` + `delay`");
     expect(mappings).toContain("timeout output unwired → `continue_on_timeout: false`");
     expect(mappings).toContain("`Thread::sleep` | `delay` + `mode: queued`");
-    expect(mappings).toContain("| a card's `duration` | `transition`");
+    expect(mappings).toContain("a `transition` for dim and light cards, otherwise read what that card does with it; never a delay");
   });
 
   it("prefers the smallest native design and checks a blueprint by its expansion", () => {
