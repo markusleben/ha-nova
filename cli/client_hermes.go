@@ -33,6 +33,7 @@ var hermesRequiredSkillDirs = []string{
 	"ha-nova-integration-setup",
 	"ha-nova-maintenance",
 	"ha-nova-media",
+	"ha-nova-migrate",
 	"ha-nova-mqtt",
 	"ha-nova-notify",
 	"ha-nova-onboarding",
