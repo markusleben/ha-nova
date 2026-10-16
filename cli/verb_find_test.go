@@ -280,6 +280,11 @@ func TestRelaySessionRefusesNonReadRequestsBeforeSending(t *testing.T) {
 		{"ws", map[string]any{"type": "execute_script"}},
 		{"files", map[string]any{"op": "read"}},
 		{"backups", map[string]any{"op": "list"}},
+		{"backups", map[string]any{"action": "list"}},
+		{"backups", map[string]any{"action": "load", "file": "scenes/auto-scene-x-20261016T120000000Z.json.gz"}},
+		{"backups", map[string]any{"action": "load", "file": "automations/../x-20261016T120000000Z.json.gz"}},
+		{"backups", map[string]any{"action": "load", "file": "automations/auto-x-20261016T120000000Z.json.gz", "category": "x"}},
+		{"backups", map[string]any{"action": "save", "category": "automations", "name": "auto-x", "data": map[string]any{}}},
 	}
 	for _, r := range refused {
 		if _, err := s.read(r.endpoint, r.payload); err == nil || !strings.Contains(err.Error(), "nothing was sent") {

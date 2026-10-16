@@ -66,6 +66,7 @@ const (
 	reasonTargetRequired       = "TARGET_REQUIRED"
 	reasonConfigWrite          = "CONFIG_WRITE"
 	reasonConfigRevert         = "CONFIG_REVERT"
+	reasonConfigRestore        = "CONFIG_RESTORE"
 	reasonConfigDelete         = "CONFIG_DELETE"
 	reasonManager              = "CONSUMER_MANAGER_PRESENT"
 	reasonScanFailed           = "SCAN_FAILED"

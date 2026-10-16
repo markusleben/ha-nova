@@ -16,6 +16,9 @@ the number.
   six-digit pairing code.
 - **One install link:** setup opens the NOVA Relay App page directly and adds
   the repository on the way — click "Add", then Install and Start.
+- **Undo a deleted automation or script:** "undo that" right after a delete
+  restores it from the copy saved before the delete, under its original
+  id, with the usual preview. It never replaces an item that exists.
 
 ## What To Watch
 

@@ -51,6 +51,8 @@ type verbEnvelope struct {
 	Diff     []string             `json:"diff,omitempty"`
 	Undo     *snapshotSaveReceipt `json:"undo,omitempty"`
 	Snapshot string               `json:"snapshot,omitempty"`
+	// Restore: after a delete with a snapshot, the one command that undoes it.
+	Restore string `json:"restore,omitempty"`
 	// BeforeConfig: the config an update replaced, whenever it may have landed.
 	BeforeConfig json.RawMessage `json:"before_config,omitempty"`
 	Result       any             `json:"result,omitempty"`

@@ -107,19 +107,20 @@ the user just decides informed.
    where the API allows it (see the fidelity table).
 5. Read back and verify like any write of that family.
 
-Automations/scripts restore through `ha-nova plan write --domain <d> --id
-<original config id> --file <snapshot data>` + `apply` (the CLI diffs,
-upserts, reloads, and verifies). Right after a delete, its result's `snapshot`
-is the file to `load` (no `list`); `.data.data` is the draft, key order intact
-(never via `--jq`, which reorders keys). Automations carry their id in the data; a
-script's key is the deleted `script.<key>` (the snapshot name lost its
-underscores, and a renamed entity no longer matches its key — ask when unsure; a different key restores the script under a new identity, say so).
+Automations/scripts skip steps 2-5: `ha-nova plan restore --snapshot <file>
+--id <config id>` + `apply` (a create under the original id that never
+overwrites; the CLI loads, diffs, tiers, and verifies). A delete result's
+`restore` is this exact command. Otherwise `list` resolves the file; a
+script's `--id` is the deleted `script.<key>` (a renamed entity no longer
+matches its key — ask when unsure). An item that still exists: `load`,
+save `.data.data` (never via `--jq`, which reorders keys) as the draft,
+then `plan write --domain <d> --id <config id> --file <draft>`.
 
 ## Restore fidelity (say this in the preview — never overpromise)
 
 | Family | Restore | Identity |
 |---|---|---|
-| automations / scripts | full | config-API upsert keyed by the original `unique_id` — entity_id survives (a renamed script: confirm its key, see Restore) |
+| automations / scripts | full | create under the original `unique_id` — entity_id survives (a renamed script: confirm its key, see Restore) |
 | scenes | full | upsert by original `id`; entity derives from `name` |
 | dashboards (content) | full | `lovelace/config/save` by `url_path` while the dashboard exists |
 | dashboards (deleted) | partial | the snapshot carries `{shell, config}`: recreate via `lovelace/dashboards/create` from the shell metadata (`url_path`, title, icon, sidebar, admin flag), then `config/save` the content — content returns fully, the internal `dashboard_id` is new |

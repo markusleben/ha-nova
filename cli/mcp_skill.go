@@ -19,7 +19,8 @@ names a CLI command, use the tool:
 - ha-nova find|get|history|trace → ha_find|ha_get|ha_history|ha_trace
 - ha-nova plan <kind>|call|apply → ha_plan kind|ha_call|ha_apply; flags become
   arguments (--confirm → confirm_code, --file → draft, --data-file and --set →
-  data, revert --target → id); this connection is pinned: no --server
+  data, revert --target → id, plan restore --snapshot/--id → kind restore
+  with snapshot/id); this connection is pinned: no --server
 - read-only relay core GET and relay ws reads → ha_read, only the paths and
   types it accepts; send payloads inline and apply any --jq-file filter
   yourself. Prefer ha_find/ha_get over whole-list reads such as /api/states
