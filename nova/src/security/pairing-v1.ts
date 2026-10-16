@@ -52,6 +52,9 @@ export function createPairingV1Manager(deps: PairingV1Deps): PairingV1Manager {
   const genCodeNumber =
     deps.generateCodeNumber ?? (() => randomInt(0, CODE_SPACE));
   const rateLimiter = deps.rateLimiter ?? createPairingRateLimiter();
+  // Armed starts keep their own budget: LAN noise cannot spend it, and the
+  // owner's ingress session still cannot flood handshakes.
+  const armedRateLimiter = createPairingRateLimiter();
   const legacyResponseStore = deps.legacyResponseStore;
 
   let phase: PairingPhase = "inactive";
@@ -222,11 +225,9 @@ export function createPairingV1Manager(deps: PairingV1Deps): PairingV1Manager {
     if (!isValidMessage(ke1)) {
       return { ok: false, reason: "invalid" };
     }
-    // The armed user holds a 256-bit secret; LAN noise must not lock them out.
-    const decision =
-      active.armedFor === undefined
-        ? rateLimiter.attempt(peer, now())
-        : { allowed: true as const };
+    const decision = (
+      active.armedFor === undefined ? rateLimiter : armedRateLimiter
+    ).attempt(peer, now());
     if (!decision.allowed) {
       return {
         ok: false,

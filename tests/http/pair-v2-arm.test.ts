@@ -45,6 +45,7 @@ let registry: DeviceRegistry;
 let pairing: PairingV1Manager;
 let users: () => Promise<HaAuthUser[]>;
 let peer: string;
+let corrupt: boolean;
 let servers: Server[];
 
 beforeAll(async () => {
@@ -62,6 +63,7 @@ beforeEach(() => {
   });
   users = async () => [OWNER, ADMIN];
   peer = "172.30.32.2";
+  corrupt = false;
   servers = [];
 });
 
@@ -163,6 +165,13 @@ describe("POST /pair/v2/arm", () => {
     });
     const base = await start();
     await expectError(arm(base, "owner-1"), 503, "PAIRING_UNAVAILABLE");
+  });
+
+  it("arms nothing while the device registry is corrupt", async () => {
+    corrupt = true;
+    const base = await start();
+    await expectError(arm(base, "owner-1"), 503, "PAIRING_UNAVAILABLE");
+    expect(pairing.getStatus().phase).toBe("inactive");
   });
 
   it("is absent while Cloud remote is disabled", async () => {
@@ -315,7 +324,7 @@ function deps(cloudRemoteEnabled: boolean): IngressListenerDeps {
     cloudRemoteEnabled,
     wsClient,
     supervisor,
-    registryCorrupt: () => false,
+    registryCorrupt: () => corrupt,
     resetRegistry: () => {},
     now: () => 1_000_000,
     logger: { warn: () => {}, error: () => {} },

@@ -139,7 +139,12 @@ function registerCloudSetupRoutes(
     "POST",
     "/pair/v2/arm",
     machine("json"),
-    createPairV2ArmHandler({ ...pairV2, fetchAuthUsers, logger: deps.logger }),
+    createPairV2ArmHandler({
+      ...pairV2,
+      fetchAuthUsers,
+      logger: deps.logger,
+      registryCorrupt: deps.registryCorrupt,
+    }),
   );
   registerIngressRoute(
     router,

@@ -137,8 +137,10 @@ page's "Connect a device", with three differences:
 2. The slot is bound to the arming Home Assistant user and accepted only by
    `/pair/v2/start` from that same ingress user. `/pair/v1/start` on the LAN
    port answers as if no code were active, before the rate limiter, so the
-   secret is useless on the LAN; armed starts skip the rate limiter, so LAN
-   noise cannot lock the owner out either.
+   secret is useless on the LAN; armed starts use their own rate budget, so
+   LAN noise cannot lock the owner out and the owner's ingress session still
+   cannot flood handshakes. Nothing is armed while the device registry is
+   corrupt (same gate as the NOVA page).
 3. The NOVA page never shows the secret; it shows that a computer is
    connecting through Home Assistant sign-in, with Cancel, and refreshes.
 

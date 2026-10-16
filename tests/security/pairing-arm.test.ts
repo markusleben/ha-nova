@@ -210,6 +210,19 @@ describe("armed sign-in pairing slot", () => {
     expect(pairCloud(mgr, secret, "owner-1").finished?.ok).toBe(true);
   });
 
+  it("still rate-limits armed starts from the owner's ingress session", () => {
+    const mgr = manager();
+    mgr.arm("owner-1");
+    const ke1 = () => opaque.client.startLogin({ password: "wrong" }).startLoginRequest;
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      expect(mgr.startCloud(ke1(), "owner-1").ok).toBe(true);
+    }
+    expect(mgr.startCloud(ke1(), "owner-1")).toMatchObject({
+      ok: false,
+      reason: "rate_limited",
+    });
+  });
+
   it("expires after two minutes", () => {
     const mgr = manager();
     const { secret } = mgr.arm("owner-1")!;

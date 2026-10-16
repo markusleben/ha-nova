@@ -30,7 +30,7 @@ export function createPairV2InfoHandler(deps: PairV2Deps): RouteHandler {
 // Machine-only: browsers always send Sec-Fetch-Site, and requiring JSON forces
 // a CORS preflight, so no web page can arm a pairing for a signed-in owner.
 export function createPairV2ArmHandler(
-  deps: PairV2Deps & OwnerCheckDeps,
+  deps: PairV2Deps & OwnerCheckDeps & { registryCorrupt: () => boolean },
 ): RouteHandler {
   return async ({ request }) => {
     if (request.headers["sec-fetch-site"] !== undefined) {
@@ -54,12 +54,13 @@ export function createPairV2ArmHandler(
         ? new HttpError(503, "OWNER_CHECK_UNAVAILABLE", owner.message)
         : new HttpError(403, "OWNER_REQUIRED", owner.message);
     }
-    const armed = deps.manager.arm(owner.userId);
+    // Same gate as the NOVA page: no secret while pairing cannot finish.
+    const armed = deps.registryCorrupt() ? null : deps.manager.arm(owner.userId);
     if (armed === null) {
       throw new HttpError(
         503,
         "PAIRING_UNAVAILABLE",
-        "The secure device port is not available",
+        "Pairing is unavailable; open NOVA in Home Assistant for details",
       );
     }
     return {
