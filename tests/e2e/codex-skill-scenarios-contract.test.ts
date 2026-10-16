@@ -1,9 +1,10 @@
 import { execFileSync } from "node:child_process";
-import { constants, existsSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { constants, existsSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
+
+import { makeTempDir } from "../helpers/temp-dir.js";
 
 type ScenarioDefinition = {
   id: string;
@@ -381,7 +382,7 @@ describe("codex skill scenario e2e contract", () => {
   it("proves malformed and non-object JSONL transcripts fail atomically without leaving partial parsed output", () => {
     const content = readFileSync("scripts/e2e/codex-ha-nova-scenarios-e2e.sh", "utf8");
     const normalizeFn = extractShellFunction(content, "normalize_jsonl_transcript");
-    const tempDir = mkdtempSync(join(tmpdir(), "ha-nova-scenarios-jsonl-"));
+    const tempDir = makeTempDir("ha-nova-scenarios-jsonl-");
     const runAtomicNormalization = (name: string, invalidLine: string) => {
       const scenarioLog = join(tempDir, `${name}.jsonl`);
       const parsedLog = join(tempDir, `${name}.parsed.jsonl`);
@@ -431,7 +432,7 @@ fi`,
   it("ignores the codex stdin preamble line during JSONL normalization", () => {
     const content = readFileSync("scripts/e2e/codex-ha-nova-scenarios-e2e.sh", "utf8");
     const normalizeFn = extractShellFunction(content, "normalize_jsonl_transcript");
-    const tempDir = mkdtempSync(join(tmpdir(), "ha-nova-scenarios-jsonl-preamble-"));
+    const tempDir = makeTempDir("ha-nova-scenarios-jsonl-preamble-");
     const scenarioLog = join(tempDir, "scenario.jsonl");
 
     writeFileSync(
@@ -456,7 +457,7 @@ fi`,
     const content = readFileSync("scripts/e2e/codex-ha-nova-scenarios-e2e.sh", "utf8");
     const countCommandHitsFn = extractShellFunction(content, "count_command_hits");
     const countHelperScriptExecHitsFn = extractShellFunction(content, "count_helper_script_exec_hits");
-    const tempDir = mkdtempSync(join(tmpdir(), "ha-nova-scenarios-helper-"));
+    const tempDir = makeTempDir("ha-nova-scenarios-helper-");
     const parsedLog = join(tempDir, "parsed.jsonl");
 
     writeFileSync(
@@ -501,7 +502,7 @@ count_helper_script_exec_hits "$1"`,
   it("detects relay health preflights from local binaries and go run invocations", () => {
     const content = readFileSync("scripts/e2e/codex-ha-nova-scenarios-e2e.sh", "utf8");
     const countCommandHitsFn = extractShellFunction(content, "count_command_hits");
-    const tempDir = mkdtempSync(join(tmpdir(), "ha-nova-scenarios-health-"));
+    const tempDir = makeTempDir("ha-nova-scenarios-health-");
     const parsedLog = join(tempDir, "parsed.jsonl");
 
     writeFileSync(
@@ -570,7 +571,7 @@ fi`,
     const content = readFileSync("scripts/e2e/codex-ha-nova-scenarios-e2e.sh", "utf8");
     const countCommandHitsFn = extractShellFunction(content, "count_command_hits");
     const firstCommandIndexFn = extractShellFunction(content, "first_command_index");
-    const tempDir = mkdtempSync(join(tmpdir(), "ha-nova-scenarios-preflight-order-"));
+    const tempDir = makeTempDir("ha-nova-scenarios-preflight-order-");
     const parsedLog = join(tempDir, "parsed.jsonl");
 
     writeFileSync(

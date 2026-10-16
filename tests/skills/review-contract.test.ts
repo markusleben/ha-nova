@@ -183,7 +183,7 @@ describe("review contract", () => {
   });
 
   it("documents storage-sensitive sibling variable dependencies as R-18", () => {
-    expect(reviewChecks).toContain("R-18 [HIGH]");
+    expect(reviewChecks).toContain("R-18 [MEDIUM]");
     expect(reviewChecks).toContain("Same-block sibling variable dependency");
     expect(reviewChecks).toContain("same `variables:` mapping");
     expect(reviewChecks).not.toContain("sorts alphabetically after");
@@ -194,7 +194,7 @@ describe("review contract", () => {
     expect(reviewChecks).toContain("self-contained template");
     expect(reviewChecks).toContain("ordered `variables` actions");
     expect(reviewSkill).toContain("Traverse all `variables:` mappings");
-    expect(reviewChecks).toContain("future write fragility");
+    expect(reviewChecks).toContain("a bug the save would keep");
     expect(reviewChecks).toContain("persisted runtime risk");
     expect(reviewChecks).toContain("concrete variable pair");
     expect(templateGuidelines).toContain("Do not rely on sibling-variable order inside one `variables:` mapping");

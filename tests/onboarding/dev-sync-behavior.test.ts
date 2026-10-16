@@ -2,18 +2,17 @@ import {
   existsSync,
   lstatSync,
   mkdirSync,
-  mkdtempSync,
   readFileSync,
   symlinkSync,
   writeFileSync,
 } from "node:fs";
 import { spawnSync } from "node:child_process";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
 import { createMockBinaries, mockEnv, REPO_ROOT } from "./_helpers.js";
+import { makeTempDir } from "../helpers/temp-dir.js";
 
 function writeState(home: string, installedClients: string[]): void {
   mkdirSync(join(home, ".config", "ha-nova"), { recursive: true });
@@ -55,7 +54,7 @@ function runDevSyncCloudBuild(appSlug?: string): {
   result: ReturnType<typeof spawnSync>;
   buildLog: string;
 } {
-  const home = mkdtempSync(join(tmpdir(), "ha-nova-dev-sync-cloud-"));
+  const home = makeTempDir("ha-nova-dev-sync-cloud-");
   const binDir = createMockBinaries();
   const runtimeDir = join(home, ".local", "share", "ha-nova");
   const pathBinDir = join(home, ".local", "bin");
@@ -113,7 +112,7 @@ printf '#!/usr/bin/env bash\\nexit 0\\n' > "$output"
 
 describe("dev-sync behavior", () => {
   it("refreshes copied Codex installs instead of skipping them", () => {
-    const home = mkdtempSync(join(tmpdir(), "ha-nova-dev-sync-codex-copy-"));
+    const home = makeTempDir("ha-nova-dev-sync-codex-copy-");
     const binDir = createMockBinaries();
 
     stageCopiedFileClient(home, ".agents/skills");
@@ -140,7 +139,7 @@ describe("dev-sync behavior", () => {
   });
 
   it("refreshes non-Claude clients without Node.js when Claude has no ha-nova records", () => {
-    const home = mkdtempSync(join(tmpdir(), "ha-nova-dev-sync-codex-no-node-"));
+    const home = makeTempDir("ha-nova-dev-sync-codex-no-node-");
     const binDir = createMockBinaries();
 
     stageCopiedFileClient(home, ".agents/skills");
@@ -167,7 +166,7 @@ describe("dev-sync behavior", () => {
   });
 
   it("refreshes copied OpenCode installs instead of skipping them", () => {
-    const home = mkdtempSync(join(tmpdir(), "ha-nova-dev-sync-opencode-copy-"));
+    const home = makeTempDir("ha-nova-dev-sync-opencode-copy-");
     const binDir = createMockBinaries();
 
     stageCopiedFileClient(home, ".config/opencode/skills");
@@ -199,9 +198,7 @@ describe("dev-sync behavior", () => {
     "refreshes Antigravity when only the legacy Gemini marker exists",
     { timeout: 60000 },
     () => {
-      const home = mkdtempSync(
-        join(tmpdir(), "ha-nova-dev-sync-antigravity-legacy-"),
-      );
+      const home = makeTempDir("ha-nova-dev-sync-antigravity-legacy-");
       const binDir = createMockBinaries();
 
       mkdirSync(join(home, ".gemini", "skills", "ha-nova-read"), {
@@ -238,9 +235,7 @@ describe("dev-sync behavior", () => {
     "does not refresh Antigravity from stale Codex flat-copy markers",
     { timeout: 60000 },
     () => {
-      const home = mkdtempSync(
-        join(tmpdir(), "ha-nova-dev-sync-antigravity-codex-stale-"),
-      );
+      const home = makeTempDir("ha-nova-dev-sync-antigravity-codex-stale-");
       const binDir = createMockBinaries();
 
       mkdirSync(join(home, ".agents", "skills", "ha-nova-read"), {
@@ -274,9 +269,7 @@ describe("dev-sync behavior", () => {
     "refreshes shared tools when no file clients are installed",
     { timeout: 90000 },
     () => {
-      const home = mkdtempSync(
-        join(tmpdir(), "ha-nova-dev-sync-shared-tools-"),
-      );
+      const home = makeTempDir("ha-nova-dev-sync-shared-tools-");
       const binDir = createMockBinaries();
       const configDir = join(home, ".config", "ha-nova");
 
@@ -318,9 +311,7 @@ describe("dev-sync behavior", () => {
     "copies the current client registry next to the dev-synced CLI runtime",
     { timeout: 90000 },
     () => {
-      const home = mkdtempSync(
-        join(tmpdir(), "ha-nova-dev-sync-client-registry-"),
-      );
+      const home = makeTempDir("ha-nova-dev-sync-client-registry-");
       const binDir = createMockBinaries();
       const runtimeDir = join(home, ".local", "share", "ha-nova");
       const pathBinDir = join(home, ".local", "bin");
@@ -422,7 +413,7 @@ describe("dev-sync behavior", () => {
   });
 
   it("fails loudly when repo version.json is missing", () => {
-    const fakeRoot = mkdtempSync(join(tmpdir(), "ha-nova-dev-sync-fixture-"));
+    const fakeRoot = makeTempDir("ha-nova-dev-sync-fixture-");
     const binDir = createMockBinaries();
 
     mkdirSync(join(fakeRoot, "scripts", "onboarding", "lib"), {
@@ -499,7 +490,7 @@ describe("dev-sync behavior", () => {
   });
 
   it("reinstalls Claude when state.json still expects it but plugin records are gone", () => {
-    const home = mkdtempSync(join(tmpdir(), "ha-nova-dev-sync-claude-"));
+    const home = makeTempDir("ha-nova-dev-sync-claude-");
     const claudeLogFile = join(home, "claude.log");
     const binDir = createMockBinaries({ claudeLogFile });
 
@@ -524,9 +515,7 @@ describe("dev-sync behavior", () => {
   });
 
   it("reinstalls Claude from stale state without Node.js when no ha-nova records exist yet", () => {
-    const home = mkdtempSync(
-      join(tmpdir(), "ha-nova-dev-sync-claude-no-node-"),
-    );
+    const home = makeTempDir("ha-nova-dev-sync-claude-no-node-");
     const claudeLogFile = join(home, "claude.log");
     const binDir = createMockBinaries({ claudeLogFile });
     writeFileSync(join(binDir, "node"), "#!/usr/bin/env bash\nexit 127\n", {
@@ -556,7 +545,7 @@ describe("dev-sync behavior", () => {
   });
 
   it("reinstalls Claude when state.json still expects it but plugin installPath is missing", () => {
-    const home = mkdtempSync(join(tmpdir(), "ha-nova-dev-sync-claude-"));
+    const home = makeTempDir("ha-nova-dev-sync-claude-");
     const claudeLogFile = join(home, "claude.log");
     const binDir = createMockBinaries({ claudeLogFile });
 
@@ -582,7 +571,7 @@ describe("dev-sync behavior", () => {
   });
 
   it("does not reinstall Claude when state.json does not expect it", () => {
-    const home = mkdtempSync(join(tmpdir(), "ha-nova-dev-sync-claude-"));
+    const home = makeTempDir("ha-nova-dev-sync-claude-");
     const claudeLogFile = join(home, "claude.log");
     const binDir = createMockBinaries({ claudeLogFile });
 
@@ -605,7 +594,7 @@ describe("dev-sync behavior", () => {
   });
 
   it("repairs a stale Claude installPath without reinstalling the plugin", () => {
-    const home = mkdtempSync(join(tmpdir(), "ha-nova-dev-sync-claude-"));
+    const home = makeTempDir("ha-nova-dev-sync-claude-");
     const claudeLogFile = join(home, "claude.log");
     const binDir = createMockBinaries({ claudeLogFile });
     const stalePath = join(
@@ -656,9 +645,7 @@ describe("dev-sync behavior", () => {
   });
 
   it("fails loudly when Claude sync needs the local plugin state helper but Node.js is missing", () => {
-    const home = mkdtempSync(
-      join(tmpdir(), "ha-nova-dev-sync-claude-node-missing-"),
-    );
+    const home = makeTempDir("ha-nova-dev-sync-claude-node-missing-");
     const claudeLogFile = join(home, "claude.log");
     const binDir = createMockBinaries({ claudeLogFile });
     writeFileSync(join(binDir, "node"), "#!/usr/bin/env bash\nexit 127\n", {
@@ -688,9 +675,7 @@ describe("dev-sync behavior", () => {
   });
 
   it("skips stale Claude marketplace-only metadata without requiring Node.js", () => {
-    const home = mkdtempSync(
-      join(tmpdir(), "ha-nova-dev-sync-claude-marketplace-only-"),
-    );
+    const home = makeTempDir("ha-nova-dev-sync-claude-marketplace-only-");
     const claudeLogFile = join(home, "claude.log");
     const binDir = createMockBinaries({ claudeLogFile });
     writeFileSync(join(binDir, "node"), "#!/usr/bin/env bash\nexit 127\n", {
@@ -729,7 +714,7 @@ describe("dev-sync behavior", () => {
       "claude_marketplace_source_dir",
     ].join("\n");
     const sourceDir = (knownMarketplaces: unknown): string => {
-      const home = mkdtempSync(join(tmpdir(), "ha-nova-mkt-src-"));
+      const home = makeTempDir("ha-nova-mkt-src-");
       mkdirSync(join(home, ".claude", "plugins"), { recursive: true });
       writeFileSync(
         join(home, ".claude", "plugins", "known_marketplaces.json"),

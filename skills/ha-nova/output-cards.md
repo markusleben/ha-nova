@@ -151,15 +151,13 @@ is shared.
 ## Suggestion Block
 
 One shape for every improvement offer: write-flow enhancement suggestions,
-helper suggested defaults, review Suggestions items, and separate
+review Suggestions items, and separate
 notification-copy offers. 💡 header line (single space after 💡), numbered
 items. Caps: unsolicited improvement suggestions max 2, smallest intervention
 first, none when the requested solution is already complete
-(`skills/ha-nova/smallest-solution.md`); value-default suggestions (filling
-fields of the requested item, e.g. helper defaults) max 4.
-Item shape: short title + what it does + why it helps; value
-suggestions (helper defaults) may use the value assignment as the title and
-drop the benefit when it is obvious. Menu mechanics follow context skill →
+(`skills/ha-nova/smallest-solution.md`). Helper defaults already merged into
+a preview are not offers: `ha-nova:helper` lists them its own way.
+Item shape: short title + what it does + why it helps. Menu mechanics follow context skill →
 Interactive Choices; skip/decline is always valid; omit the block entirely
 when there is nothing to offer; never post-write — with ONE named exception,
 the Replication Line below. Numeric acceptance resolves

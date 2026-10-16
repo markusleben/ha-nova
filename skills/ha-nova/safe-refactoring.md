@@ -65,7 +65,7 @@ List all configs that reference this entity. For each, note whether the referenc
 - Conditions (entity_id or template referencing entity)
 - Actions (target entity_id or template)
 
-Template references (`states('old.entity_id')`, `is_state(...)`) are NOT auto-updated by HA — they will break silently.
+Template references (`states('old.entity_id')`, `is_state(...)`) are NOT auto-updated by HA — they will break silently. `ha-nova get <entity_id> --references` finds them, plus dashboards and energy sources, which `search/related` does not index.
 
 ### Step 3: Rename
 

@@ -22,9 +22,25 @@ the number.
   code from NOVA as before.
 - **One install link:** setup opens the NOVA Relay App page directly and adds
   the repository on the way — click "Add", then Install and Start.
+- **Know your home with exact numbers:** ask "what do I have?", "where is
+  this sensor used?", or "review my whole setup" — rooms, devices,
+  automations, integrations, unavailable entities, and low batteries are
+  counted by HA NOVA itself, so the AI never guesses a number or a name.
 - **Undo a deleted automation or script:** "undo that" right after a delete
   restores it from the copy saved before the delete, under its original
   id, with the usual preview. It never replaces an item that exists.
+
+- **Replace a device or a phone:** "my door sensor died, I paired a new
+  one" or "I have a new phone" moves automations, scripts, scenes,
+  dashboards, helpers, energy sources, notifications, and presence to the new
+  device in one reviewed plan. When the old device is gone for good, the new
+  one takes over its entity ids, so history and statistics continue.
+- **Build whole dashboards:** ask for a dashboard or a view and HA NOVA
+  builds it, reorders or removes views, and uses custom cards you have
+  installed. The preview lists every view and card that changes; a copy is
+  saved before each save, and "undo that" restores the previous version.
+  "Check my dashboards" lists cards that point at missing entities or at
+  custom cards that are not installed.
 
 ## What To Watch
 

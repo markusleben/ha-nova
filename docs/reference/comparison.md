@@ -2,13 +2,13 @@
 
 HA NOVA is deliberately **skills-first**: one readable skill loaded on demand instead of a tool catalog. This page explains the skills-first choice honestly, including where the alternatives are ahead.
 
-Everything below reflects the state on **2026-07-20**, with HA NOVA's skill count and HACS coverage refreshed on **2026-08-12**. The main alternative — [ha-mcp](https://github.com/homeassistant-ai/ha-mcp), "The Unofficial and Awesome Home Assistant MCP Server" (MIT, 87 tools) — is a good, actively maintained project, and HA NOVA is not trying to pretend otherwise. Their approach is different, and the differences are real in both directions.
+Everything below reflects the state on **2026-07-20**, with HA NOVA's skill count refreshed on **2026-10-16** and HACS coverage on **2026-08-12**. The main alternative — [ha-mcp](https://github.com/homeassistant-ai/ha-mcp), "The Unofficial and Awesome Home Assistant MCP Server" (MIT, 87 tools) — is a good, actively maintained project, and HA NOVA is not trying to pretend otherwise. Their approach is different, and the differences are real in both directions.
 
 ## The three approaches
 
 | | **Home Assistant's official MCP server** | **ha-mcp** (community MCP server) | **HA NOVA** |
 |---|---|---|---|
-| What the AI gets | The Assist API (exposed entities) | 87 MCP tools | 30 task skills (+ 1 context skill) + 4 generic relay endpoints |
+| What the AI gets | The Assist API (exposed entities) | 87 MCP tools | 32 task skills (+ 1 context skill) + 4 generic relay endpoints |
 | Can it edit automations, dashboards, the registry? | No | Yes | Yes |
 | Where the domain knowledge lives | In Home Assistant | In the server's Python code | In markdown you can read and edit |
 | Protocol dependency | MCP | MCP | none — skills are plain text |

@@ -82,7 +82,7 @@ func TestMCPSkillTool(t *testing.T) {
 		!strings.Contains(message, "needs a client with a shell") || refused["next_step"] != nil {
 		t.Fatalf("ha_read refused ws type: %v", refused)
 	}
-	for _, mapping := range []string{"ha-nova find|get|history|trace → ha_find|ha_get|ha_history|ha_trace", "revert --target → id", "7\n  OUTCOME_UNKNOWN", "→ ha_read"} {
+	for _, mapping := range []string{"ha-nova find|get|history|trace|map → ha_find|ha_get|ha_history|ha_trace|ha_map", "revert --target → id", "7\n  OUTCOME_UNKNOWN", "→ ha_read"} {
 		if !strings.Contains(mcpSkillHeader, mapping) {
 			t.Fatalf("header lacks %q", mapping)
 		}

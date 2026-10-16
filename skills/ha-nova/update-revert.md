@@ -15,9 +15,10 @@
 Load this file whenever the user asks to revert, undo, or restore a verified
 update — any of those intents, not only the literal word `revert`.
 
-## Automation / script: `ha-nova plan revert`
+## Automation / script / dashboard: `ha-nova plan revert`
 
-`ha-nova plan revert [--target <config_id>] [--domain automation|script]`
+`ha-nova plan revert [--target <config_id>] [--domain automation|script|dashboard]`
+(a dashboard's target is its `url_path`)
 plans the newest checkpoint of this server (or the named target) as a normal
 update: show its `diff` and behavior narrative, take natural confirmation,
 `ha-nova apply --plan <id>`. The checkpoint is the **only** source of `before_config` — never reconstruct the previous config from memory. A revert

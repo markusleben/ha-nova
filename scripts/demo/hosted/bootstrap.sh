@@ -44,13 +44,22 @@ done
 . "$HERE/host-lib.sh"
 export DEBIAN_FRONTEND=noninteractive
 
-# Re-runs: a timer reset would check the clone back out at the old ref while
-# this runs. Pause the timers and the guard and let a running reset finish;
-# they start again at the end, or on any failure (resets must never stop).
+# Re-runs: a reset checks the clone out at the old DEMO_REF until the env
+# names the new one. Pause the timers and the guard, then hold the lock until
+# the env is written: a running reset (or one a running update starts)
+# finishes first, and the clone is put back at $REF before anything is built
+# from it. One compound command, parsed in full before the checkout can
+# rewrite this file. Timers start again at the end, or on any failure.
 if systemctl is-enabled --quiet ha-nova-demo-reset.timer 2> /dev/null; then
   systemctl stop ha-nova-demo-reset.timer ha-nova-demo-guard.timer ha-nova-demo-update.timer ha-nova-demo-guard.service
   trap 'systemctl start ha-nova-demo-reset.timer ha-nova-demo-guard.timer ha-nova-demo-update.timer' EXIT
-  flock "$LOCK" true
+  exec 9> "$LOCK"
+  flock 9
+  if [[ "$(git -C /opt/ha-nova rev-parse HEAD)" != "$REF" ]]; then
+    git -C /opt/ha-nova checkout -q --force --detach "$REF"
+    # shellcheck source=host-lib.sh
+    . "$HERE/host-lib.sh"
+  fi
 fi
 
 step "swap: 1 GB swapfile (1 GB RAM is tight for Home Assistant)"
@@ -184,6 +193,7 @@ fi
 # Only now: until this ref's relay image exists, resets keep the previous ref.
 printf 'DEMO_DOMAIN=%s\nDEMO_REF=%s\nABUSE_CONTACT=%s\n' "$DOMAIN" "$REF" "$ABUSE" > /etc/ha-nova-demo.env
 chmod 0644 /etc/ha-nova-demo.env
+exec 9>&- # resets may run again (reset.sh below takes the lock itself)
 
 step "timers: full reset every hour at :00 UTC, guard every minute"
 cat > /etc/systemd/system/ha-nova-demo-reset.service << 'UNIT'
