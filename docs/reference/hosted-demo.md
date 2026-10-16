@@ -2,8 +2,9 @@
 
 "Try before you connect": the test bed house (`scripts/e2e/testbed/`) on one
 public AWS Lightsail instance. Every visitor is a Home Assistant **admin**,
-and the house is rebuilt from scratch **every hour at :00 UTC**. Prepared, not
-deployed: nothing here has run against AWS yet. Files live in
+and the house is rebuilt from scratch **every hour at :00 UTC**. First
+provisioned on 2026-10-16 (results below); the site needs the DNS record
+(Run it, step 2) before it serves anything. Files live in
 `scripts/demo/hosted/` (its parent `scripts/demo/` is the unrelated
 video-recording kit, `docs/reference/demo-recording.md`).
 
@@ -12,9 +13,9 @@ video-recording kit, `docs/reference/demo-recording.md`).
 | `provision.sh` | your Mac | Lightsail instance (IPv4 only); firewall + IMDSv2 applied right after the create call and re-applied on every run; static IPv4; budget alert. Prints every `aws` call; executes only with `--yes`. Idempotent. |
 | `teardown.sh` | your Mac | `--keep-ip`: delete the instance (rebuild). `--dns-removed`: instance, static IP, budget. Prints; `--yes` executes. |
 | `aws-common.sh` | your Mac | Sourced by both: every call is `--profile personal --region eu-central-1`, account `018368605240` is checked first, ambient AWS env vars are unset. |
-| `bootstrap.sh` | host, once per ref | Refuses unless the clone is at `--ref`. Swap, SSH hardening, fail2ban, unattended upgrades, Docker (official repo, key pinned), Node + cosign (checksums pinned), 6 Mbit/s egress cap, internal network, Caddy (validated, recreated), the relay image for this ref, the first gated reset, then the timers. |
-| `reset.sh` | host, hourly + 2 min after boot | Under the lock: hide the house, `down.sh`, restore the clone to the pinned sha, `up.sh` with this overlay and the verified HA digest, relay, gates, dashboard, `connect.json`, expose, public gate. |
-| `guard.sh` | host, every minute | Skips while a reset holds the lock. Disk/swap watchdog; `demo.mjs guard` (30 s cap); relay round trip (revoked token: reset at once; other failures: after 3 minutes). Anything wrong → full reset. |
+| `bootstrap.sh` | host, once per ref | Refuses unless the clone is at `--ref`. Swap, SSH hardening, fail2ban, unattended upgrades, Docker (official repo, key pinned), Node + cosign (checksums pinned), 6 Mbit/s egress cap, internal network, Caddy (validated, recreated), the relay image for this ref, the env (only after that image exists), the first gated reset, then the timers. Re-runs pause the timers until done (restarted on failure too). |
+| `reset.sh` | host, hourly + 2 min after boot | Under the lock: hide the house (before any check that can fail), `down.sh`, restore the clone to the pinned sha, restart Caddy if the name points here but nothing is served over TLS yet, `up.sh` with this overlay and the verified HA digest, relay, gates, dashboard, `connect.json`, expose, public gate. |
+| `guard.sh` | host, every minute | Skips while a reset holds the lock. Disk/swap watchdog; `demo.mjs guard` (30 s cap); relay round trip (revoked token: reset at once; other failures: after 3 minutes); TLS that came up after a skipped public gate. Anything wrong → full reset. |
 | `update-ha.sh` | host, nightly | Latest stable HA: resolve digest, verify the Sigstore signature, refuse downgrades, candidate reset + gates, promote or roll back, prune old images. |
 | `host-lib.sh` | host | Shared gates: relay round trip, egress/DNS, listeners, public site; Caddy (re)creation; pinned Node/Caddy images; the lock. |
 | `demo.mjs` | host | `setup` (http trial promote, local-only owner, admin `demo/demo`, drop onboarding extras), `token` (the relay user's LLAT), `dashboard`, `guard`, `smoke`. |
@@ -25,7 +26,9 @@ video-recording kit, `docs/reference/demo-recording.md`).
 
 Test bed hooks (`up.sh`/`down.sh`): `TESTBED_OVERLAY=<this dir>` (merge
 compose, copy config, HA + broker only, skip the port probe, run
-`demo.mjs setup`) and `TESTBED_OWNER_PASSWORD`. Local runs set neither. The
+`demo.mjs setup`), `TESTBED_OWNER_PASSWORD`, and `TESTBED_WIPE_IMAGE` (down.sh
+wipes `.state` with Caddy's pinned image, which prunes never remove). Local
+runs set none of them. The
 relay's `nova/Dockerfile.standalone` takes an optional `NODE_IMAGE` build arg
 (default `node:22-alpine`, unchanged); the demo passes a digest-pinned tag.
 
@@ -36,9 +39,15 @@ relay's `nova/Dockerfile.standalone` takes an optional `NODE_IMAGE` build arg
 bash scripts/demo/hosted/provision.sh --ref <sha> --alert-email <you> --abuse-contact <mail-or-url> [--ssh-cidr <ip>/32]
 bash scripts/demo/hosted/provision.sh --ref <sha> --alert-email <you> --abuse-contact <mail-or-url> --yes
 # 2. Namecheap: A demo.hanova.app -> printed static IPv4 (no AAAA: IPv4 only).
-#    Before the first hourly reset: from then on the public gate needs TLS,
-#    and a reset that fails it keeps the house down (restarting page).
-# 3. Lightsail browser SSH: sudo tail -f /var/log/cloud-init-output.log   (~10 min)
+#    Until then nothing is served over TLS, every reset skips the public
+#    gate (journalctl -u ha-nova-demo-reset), and HA updates wait. The first
+#    reset after the name resolves to this instance (next :00, or the one
+#    after while resolvers still cache "no such name") restarts Caddy before
+#    it rebuilds the house, so the gate usually runs in that reset; if TLS
+#    comes later, the guard starts one reset. Skip the wait:
+#    sudo docker restart ha-nova-demo-caddy
+# 3. Lightsail browser SSH: sudo tail -f /var/log/cloud-init-output.log   (~10 min),
+#    then journalctl -fu ha-nova-demo-reset -u ha-nova-demo-update
 # 4. https://demo.hanova.app, login demo / demo
 ```
 
@@ -94,10 +103,14 @@ the next full hour.
 - Gates in every reset (a failure takes the house down again and logs
   `journalctl -t ha-nova-demo-reset -p err`): relay round trip (`/core` GET
   `/api/`, `/ws` get_states, `/health` connected), egress + DNS (4 s probes
-  in parallel: external name and IP from HA and the relay must fail, service
-  names must resolve), listeners, then the public site through Caddy's TLS on
-  the host (`/`, `/connect.json`, `/relay/health` with the public token, the
-  login page). This also re-checks the sandbox after every dockerd upgrade.
+  in parallel: external name and IP from HA and the relay must fail, while
+  the same tools must reach house targets and service names must resolve),
+  listeners, then the public site through Caddy's TLS on the host (`/`,
+  `/connect.json`, `/relay/health` with the public token, the login page,
+  403 on one path per blocked pattern, read from the Caddyfile); skipped
+  only while nothing at all is served over TLS (anything served, even with
+  an expired or untrusted certificate, must pass). This also re-checks the
+  sandbox after every dockerd upgrade.
 - Landing page: `/` (without a query; HA's own redirects always carry one,
   e.g. `?auth_callback=1`) and `/start`: login, next reset, the running HA
   version, "no personal data", a link to `/connect.json`, abuse link, "Open
@@ -137,7 +150,7 @@ scripts for third parties), the AWS account, persistence past :00.
 | Layer | Control |
 | --- | --- |
 | Network | IPv4-only instance (Docker's userland proxy would hand every IPv6 visitor to HA as one bridge address). Lightsail firewall replaced as a whole right after the create call (retried until the API accepts it for the pending instance; every re-run converges it again, so an aborted run leaves nothing open for long): 80/443 tcp + 443 udp public, 22 tcp only for `lightsail-connect` (+ one `--ssh-cidr`); `provision.sh` then re-reads the port states and IMDS options and fails on any other open port, a public 22, or optional IMDS tokens. Every reset fails on any listener beyond loopback other than 22/80/443. Only Caddy publishes ports; its tooling port binds 127.0.0.1. |
-| Egress | HA, broker, relay sit only on `ha-nova-demo-house` (`internal: true`, no route out). Linux dockerd's embedded resolver can still forward external names from internal networks (a DNS exfiltration channel), so all three use `dns: 192.0.2.1` (TEST-NET-1, unroutable): service names resolve, external ones time out. Every reset (bootstrap's first included) fails if an external name or address is reachable from HA or the relay. Only Caddy (ACME) and dockerd (pulls) reach the internet. Egress capped at 6 Mbit/s (`tc tbf`), ~2 TB/month. |
+| Egress | HA, broker, relay sit only on `ha-nova-demo-house` (`internal: true`, no route out). Linux dockerd's embedded resolver can still forward external names from internal networks (a DNS exfiltration channel), so all three use `dns: 192.0.2.1` (TEST-NET-1, unroutable): service names resolve, external ones time out. Every reset (bootstrap's first included) fails if an external name or address is reachable from HA or the relay, or if the probes cannot reach house targets (a missing tool must not pass). Only Caddy (ACME) and dockerd (pulls) reach the internet. Egress capped at 6 Mbit/s (`tc tbf`), ~2 TB/month. |
 | SSH / OS | Key-only, no root, no passwords, no forwarding of agents/X11; fail2ban. Ubuntu 24.04, unattended upgrades (Ubuntu security + Docker repo), reboot 04:30 UTC when needed. Docker from download.docker.com (one key, fingerprint pinned), `live-restore`, daemon-wide `no-new-privileges`, unix socket only. |
 | Containers | All: `no-new-privileges`, `cap_drop: [ALL]`, read-only root, CPU/memory/pids limits (HA 1.5 CPU, 640 MiB + swap to 1 GiB, 512 pids), size-capped logs, no docker.sock, no host network, nothing privileged, images by digest (HA: verified nightly, below). HA keeps 5 caps for s6-overlay; Caddy uid 1000 + `NET_BIND_SERVICE`; broker uid 1883; relay uid 100. |
 | HA config surface | `/config` stays writable (`.storage`, recorder, UI editors' atomic writes), but `configuration.yaml` and `packages/` are read-only binds and `custom_components`, `python_scripts`, `www`, `backups`, `image`, `tts`, `/media` are empty read-only tmpfs mounts. `home-assistant.log` is `/dev/null`; `file_upload` lands in a 64 MiB `/tmp` tmpfs. No `default_config`; onboarding's met/google_translate/radio_browser/shopping_list entries are deleted. No shell_command/command_line/rest/python_script anywhere. go2rtc (can run `exec:` sources) has no config flow, so it cannot be added. |
@@ -146,13 +159,16 @@ scripts for third parties), the AWS account, persistence past :00.
 | Accounts | Guard every minute via the owner's token (WS handshake deadline 15 s, whole check 30 s): owner active + local-only, `demo` and `nova-relay` checked by the user ids recorded at creation (same username, active, admin, not local-only; a deleted and re-created look-alike fails), http config (`use_x_forwarded_for`, no IP bans, trusted proxy, nothing pending) unchanged, relay not reporting an `auth` disconnect, else full reset. Repairs: the `demo` password; failed-login notices (visitor IPs) and notices that look like links (`//`, markdown links and references, `href`, `www.`) dismissed; banner dashboard and default panel restored. HA refuses to delete or deactivate the owner (verified). |
 | Proxy trust | `trusted_proxies` = Caddy's fixed 10.89.240.2 only (dynamic addresses start at .128). HA 2026.10 imports the `http:` YAML as a 5-minute trial; `demo.mjs setup` promotes it right after onboarding and fails loud otherwise. **No IP bans:** HA bans on any 401, the password is public, the owner cannot log in from outside anyway; bans would only lock visitors (or the tooling path) out. |
 | Secrets | None in the repo or user-data (readable via instance metadata). Owner password and token, relay user password and token: generated on the host per reset; the public relay token once. IMDSv2 only, hop limit 1. |
-| AWS | No IAM role or credentials on the instance (Lightsail has none). Budget alarm at 10 USD. |
+| AWS | No role or credentials of the demo's account on the instance. Lightsail's own platform role (`AmazonLightsailInstanceRole`, instance profile in an AWS-owned account) is on the IMDS for host root only: IMDSv2, hop limit 1, and the house network has no route to it (verified from every container). Budget alarm at 10 USD. |
 | Logs / privacy | Caddy access log: 7 days, client IPs truncated to /24 (/48), no headers, no `authSig`/`token`/`code` query values. `/abuse` shows the contact given at provisioning. |
 | Integrity | Hourly rebuild restores the clone (`checkout --force`, `clean -ffdx`) and all HA state. Caddy is validated with the pinned image and recreated whenever `edge.yml`, the Caddyfile, or `site/` change (hash compare in every reset; `bootstrap.sh` always). Host compromise is not fixed by a reset: rebuild the instance. |
 
 **Detect:** budget mail; `journalctl -u ha-nova-demo-guard -u ha-nova-demo-reset`
 (frequent guard resets = someone breaking things); `docker stats`, `free -m`,
-`df -h`; `ss -ltn`; Caddy log in `/var/lib/ha-nova-demo/logs`. **Respond:**
+`df -h`; `ss -ltn`; Caddy access log in `/var/lib/ha-nova-demo/logs`, ACME and
+TLS in `docker logs ha-nova-demo-caddy`. An expired or untrusted certificate
+fails the public gate and keeps the house down (rebuilt every minute) until
+TLS works again. **Respond:**
 rebuild (`teardown.sh --keep-ip --yes && provision.sh … --yes`); rotate the
 Lightsail key pair if SSH was involved.
 
@@ -184,17 +200,28 @@ fails `demo.mjs guard` after 15 s instead of hanging. Signature: `cosign verify`
 `ghcr.io/home-assistant/home-assistant:2026.10.1` passes with the pinned
 identity + issuer; a different tag's identity and a foreign digest fail.
 
-Docker Desktop is not Linux dockerd: the DNS sink and the egress gate must be
-confirmed on the host (`bootstrap.sh` does, and fails otherwise).
+On the real host (2026-10-16, Lightsail `micro_3_0`, before DNS): `provision.sh`
+and every `aws` call; the launch script under dash; `bootstrap.sh` (about 3.5 min
+from create to the first gated build); systemd timers (the hourly reset at :00
+rebuilt in about 70 s and wiped a visitor's automation, helper state, user, and
+integration); `update-ha.sh` (resolve, cosign verify under systemd, "already
+on"); the guard (restored a visitor-changed `demo` password in 57 s, reset on an
+owner change in 34 s); `tc`, `flock`, `ss`, listener and egress gates on Linux
+dockerd (no route from HA, relay, broker; external DNS, IP, IPv6, IMDS fail; the
+probes reach house targets); limits enforced (a fork past the broker's pids
+limit fails); backup creation fails (read-only `/config/backups`, no other
+agent). From outside, with Caddy's internal CA swapped in for the test: only
+80/443 open (22 only for `lightsail-connect`), headers, every blocked path and
+variant 403, relay token and `/files` off, `demo` login, owner login refused
+with the right password and spoofed forwarding headers ("User cannot
+authenticate remotely"); an untrusted certificate fails the public gate and
+takes the house down. Not yet run: the public gate with a Let's Encrypt
+certificate (needs the DNS record; then it runs on every reset).
 
 Read in code only: ban middleware (any 401 counts; login notices always),
 allowlist defaults (`www` + media dirs always added), `mqtt.publish`
 admin-only, go2rtc/local_file/file manifests and checks, HA 2026.10 sending a
-`lovelace` panel without a dashboard entry to the Home panel. Not run at all:
-`bootstrap.sh`, systemd units, `tc`, `flock`, `ss`, `update-ha.sh` and
-`guard.sh`/`reset.sh` as such (their steps ran through an equivalent local
-driver; macOS has neither `flock` nor `ss`), the public gate over real TLS
-(checked over plain HTTP locally), every `aws` call.
+`lovelace` panel without a dashboard entry to the Home panel.
 
 ### Residual risks (accepted for a simulated, hourly-reset house)
 
@@ -257,7 +284,8 @@ Nightly at 03:10 UTC, `update-ha.sh`:
    running container must use exactly that digest, `demo.mjs smoke` must pass
    (house complete, a light round-trips, every guard invariant, reported
    version = expected), the relay must round-trip, and the public gate must
-   pass;
+   pass (under the lock; while nothing is served over TLS, no candidate
+   is tried at all);
 5. pass: the digest becomes `/var/lib/ha-nova-demo/ha-image` (root 0600) for
    every hourly reset and the previous image is removed; fail: a reset with
    the last good digest, the candidate image removed, and the reason in the

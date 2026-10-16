@@ -305,13 +305,22 @@ func (e *tierEngine) resolveTargets(req planCallRequest) ([]verbTarget, error) {
 			return nil, &verbFailure{exit: verbExitNotFound, code: code, message: message, candidates: found.Matches, next: "Name one entity_id, or a more specific --match."}
 		}
 	}
-	expand := func(by, selector string, ids, skipped []string) error {
+	var filtered []tierReason // what Home Assistant's own targeting skips (hidden, categorized, another area)
+	expand := func(by, selector, area string, all []string) error {
+		var ids []string
+		for _, id := range all {
+			if why := e.skipWhy(id, area, domain); why != "" {
+				filtered = append(filtered, tierReason{Code: noteFilteredTargets, EntityID: id, Via: by, Detail: why})
+			} else {
+				ids = append(ids, id)
+			}
+		}
 		if len(ids) == 0 {
 			failure := &verbFailure{exit: verbExitNotFound, code: "NOT_FOUND", message: fmt.Sprintf("no %s entity in %s %q", domain, by, selector)}
-			for _, id := range skipped { // hidden, categorized, or assigned elsewhere: only naming it reaches it
+			for _, id := range all { // hidden, categorized, or assigned elsewhere: only naming it reaches it
 				failure.candidates = append(failure.candidates, verbTarget{EntityID: id})
 			}
-			if len(skipped) > 0 {
+			if len(all) > 0 {
 				failure.next = "Room and device targets skip hidden, configuration, and diagnostic entities, as Home Assistant does; name the entity_id to act on one."
 			}
 			return failure
@@ -323,16 +332,14 @@ func (e *tierEngine) resolveTargets(req planCallRequest) ([]verbTarget, error) {
 	}
 	if req.Area != "" {
 		related, err := e.related("area", req.Area)
-		all := filterDomain(related["entity"], domain)
 		if err != nil {
 			e.readFailed("", "", "related area")
-		} else if err := expand("area", req.Area, e.primaryEntities(all, req.Area, domain), all); err != nil {
+		} else if err := expand("area", req.Area, req.Area, filterDomain(related["entity"], domain)); err != nil {
 			return nil, err
 		}
 	}
 	if req.Device != "" && !e.regFailed { // a failed registry read is already a typed gap
-		all := e.familyEntities(req.Device, domain)
-		if err := expand("device", req.Device, e.primaryEntities(all, "", domain), all); err != nil {
+		if err := expand("device", req.Device, "", e.familyEntities(req.Device, domain)); err != nil {
 			return nil, err
 		}
 	}
@@ -346,6 +353,13 @@ func (e *tierEngine) resolveTargets(req planCallRequest) ([]verbTarget, error) {
 	for _, t := range targets {
 		if err := e.flatten(t, 0, &out, seen); err != nil {
 			return nil, err
+		}
+	}
+	for _, skip := range filtered { // named, or a group's leaf, it is still acted on
+		if !seen[skip.EntityID] {
+			seen[skip.EntityID] = true
+			e.note(noteFilteredTargets)
+			e.skipped = append(e.skipped, skip)
 		}
 	}
 	return out, nil
@@ -365,9 +379,8 @@ func (e *tierEngine) flatten(t verbTarget, depth int, out *[]verbTarget, seen ma
 		_, _, err := readEntityState(e.s, t.EntityID) // memoized 404 → NOT_FOUND with candidates
 		return err
 	case st == nil: // disabled or not loaded: nothing to act on, nothing to freeze
-		if !slices.Contains(e.notes, noteSkippedTargets) {
-			e.notes = append(e.notes, noteSkippedTargets)
-		}
+		e.note(noteSkippedTargets)
+		e.skipped = append(e.skipped, tierReason{Code: noteSkippedTargets, EntityID: t.EntityID, Via: t.By})
 		return nil
 	}
 	domain, _ := splitID(t.EntityID)

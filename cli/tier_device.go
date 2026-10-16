@@ -183,20 +183,32 @@ func (e *tierEngine) familyEntities(device, domain string) []string {
 }
 
 // primaryEntities keeps what Home Assistant's own area/device targeting acts
-// on for a core service (helpers/target.py async_extract_referenced_entity_ids):
-// no hidden or categorized entity and, for an area, none assigned to another
-// area. An integration resolves its targets itself, so its list stays whole;
-// an id without a registry row is kept: nothing proves it excluded.
+// on for a core service (helpers/target.py async_extract_referenced_entity_ids).
 func (e *tierEngine) primaryEntities(ids []string, area, domain string) []string {
-	if !coreDomains[domain] {
-		return ids
-	}
 	out := []string{}
 	for _, id := range ids {
-		row, registered := e.reg[id]
-		if !registered || !(row.hidden || row.categorized || (area != "" && row.ai != "" && row.ai != area)) {
+		if e.skipWhy(id, area, domain) == "" {
 			out = append(out, id)
 		}
 	}
 	return out
+}
+
+// skipWhy names why that targeting skips id ("" keeps it): hidden, an entity
+// category, or for an area an assignment to another area. An integration
+// resolves its targets itself, so its list stays whole; an id without a
+// registry row is kept: nothing proves it excluded.
+func (e *tierEngine) skipWhy(id, area, domain string) string {
+	row, registered := e.reg[id]
+	switch {
+	case !coreDomains[domain] || !registered:
+		return ""
+	case row.hidden:
+		return "hidden"
+	case row.categorized:
+		return "entity_category"
+	case area != "" && row.ai != "" && row.ai != area:
+		return "other_area"
+	}
+	return ""
 }

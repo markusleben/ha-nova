@@ -9,10 +9,9 @@ documentation.
 Answer in everyday jobs, not skill names, and ground it in the actual home
 with ONE bounded aggregate read:
 
-1. `ha-nova relay core --method GET --path /api/states --out <result-file>`,
-   then `ha-nova relay jq --file <result-file> --jq-file <filter-file>` to
-   count entities per domain (never print the raw dump — it may carry
-   coordinates and presence).
+1. `ha-nova map` — its `domains` are the exact entity counts per domain
+   (never count by hand, and never print the raw dump of any read — states
+   carry coordinates and presence).
 2. Render a short List Frame grouped by everyday jobs, each line naming what
    exists HERE, for example:
    - Control: lights, switches, covers, climate, media (with the counts found)
@@ -33,24 +32,9 @@ with ONE bounded aggregate read:
 
 ## Home Overview — "Show me my home"
 
-Aggregate counts are List-Frame-legal; entity dumps are not.
-
-- One `/api/states` pull with `--out`, counts via `relay jq` — never print or
-  read the raw dump (reuse the Capability Answer read when it happened this
-  session); plus the area registry for room counts.
-- Report: rooms/areas, entities per domain (top groups only), how many
-  automations/scenes/scripts exist — registry-disabled rows included via the
-  full entity-registry read (the AREA registry holds rooms, not entities), a
-  states pull alone undercounts — and current activity
-  (lights on, media playing, anyone home) as counts, not an entity listing —
-  activity comes from a FRESH states read; structural totals may reuse an
-  earlier read from this session ONLY while no write in this conversation
-  touched the counted families — after one, re-read.
-- Never include coordinates, tracker positions, or per-person locations
-  unless the user asked for exactly that.
-- Close with one Next step (e.g. the Structure Check below — owned here,
-  fixes hand to `ha-nova:organize` — or starter proposals per
-  `starter-proposals.md`).
+Owned by `ha-nova:home-map` (What do I have), which reads `ha-nova map`.
+Aggregate counts are List-Frame-legal; entity dumps are not. Never include coordinates, tracker positions, or per-person locations
+unless the user asked for exactly that.
 
 ## Structure Check — "Is my setup tidy?"
 

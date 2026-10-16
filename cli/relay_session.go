@@ -28,6 +28,7 @@ var readOnlyWSTypes = map[string]bool{
 	"config/entity_registry/list":             true,
 	"config/entity_registry/get":              true,
 	"config/area_registry/list":               true,
+	"config/floor_registry/list":              true, // map: floors
 	"config/device_registry/list":             true,
 	// Pre-2026.8 merged device ids → the devices they were split into.
 	"config/device_registry/list_composite_splits": true,
@@ -46,6 +47,11 @@ var readOnlyWSTypes = map[string]bool{
 	// entity_id: YAML and package items without a UI config too.
 	"automation/config": true,
 	"script/config":     true,
+	// get --references: the Lovelace panels, each dashboard's config, and the
+	// energy preferences (consumers search/related does not index).
+	"get_panels":       true,
+	"lovelace/config":  true,
+	"energy/get_prefs": true,
 }
 
 // relaySession resolves config and transport once per invocation and

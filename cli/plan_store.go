@@ -165,7 +165,7 @@ func sealPlan(e *tierEngine, env *verbEnvelope, plan storedPlan, action any) (st
 	}
 	env.Tier, env.Reasons = tier, e.reasons
 	env.Members, env.Consumers = e.members, e.consumers
-	env.Coverage = &tierCoverage{Complete: e.complete, Notes: e.notes}
+	env.Coverage = &tierCoverage{Complete: e.complete, Notes: e.notes, Skipped: e.skipped}
 	env.Plan = &verbPlan{ID: plan.ID, Hash: plan.Hash, ExpiresAt: plan.ExpiresAt, Confirm: plan.Confirm, Code: plan.Code}
 	env.Status = "ready"
 	if e.level != tierOrdinary {

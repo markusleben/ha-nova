@@ -16,7 +16,7 @@ import (
 
 const mcpSkillHeader = `You are running HA NOVA through MCP tools, not a shell. Where the text below
 names a CLI command, use the tool:
-- ha-nova find|get|history|trace → ha_find|ha_get|ha_history|ha_trace
+- ha-nova find|get|history|trace|map → ha_find|ha_get|ha_history|ha_trace|ha_map
 - ha-nova plan <kind>|call|apply → ha_plan kind|ha_call|ha_apply; flags become
   arguments (--confirm → confirm_code, --file → draft, --data-file and --set →
   data, revert --target → id, plan restore --snapshot/--id → kind restore

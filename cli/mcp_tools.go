@@ -63,6 +63,11 @@ var mcpTools = []mcpTool{mcpSkillTool,
 		argv: func(a map[string]json.RawMessage, _ *mcpTempFiles) ([]string, error) {
 			return flagsThen(a, []string{"logbook"}, []string{"since", "until"}, "entity_id")
 		}, run: runHistoryCommand},
+	{name: "ha_map", title: "Map the home", description: "Exact, computed home facts — never count by hand: areas/floors with device and entity counts, automations/scripts/scenes/helpers, integrations, unavailable entities, low batteries. section gives one full list; entity gives where-used (automations, scripts, scenes, groups; not_checked names what was not searched); first_look gives the onboarding summary.", readOnly: true, idempotent: true,
+		schema: object(nil, map[string]any{"section": map[string]any{"type": "string", "enum": []string{"areas", "integrations", "automations", "unavailable", "batteries"}},
+			"entity": prop("string", "exact entity_id: where it is used"), "first_look": prop("boolean", "the onboarding first look"),
+			"limit": prop("integer", "1-200 rows for section or entity")}),
+		argv: mapArgv, run: runMapCommand},
 	{name: "ha_trace", title: "Read automation traces", description: "Latest trace, trace list, or one trace of an automation or script.", readOnly: true, idempotent: true,
 		schema: object([]string{"action", "entity_id"}, map[string]any{"action": map[string]any{"type": "string", "enum": []string{"latest", "list", "get"}},
 			"entity_id": prop("string", "automation.x or script.x"), "run_id": prop("string", "for action get")}),
@@ -71,7 +76,7 @@ var mcpTools = []mcpTool{mcpSkillTool,
 		schema: object([]string{"endpoint"}, map[string]any{"endpoint": map[string]any{"type": "string", "enum": []string{"core", "ws"}},
 			"path": prop("string", "core: /api/... path (GET only)"), "payload": prop("object", "ws: the message, e.g. {\"type\":\"search/related\",...}")}),
 		argv: readArgv, run: runMCPRead},
-	{name: "ha_plan", title: "Plan a change", description: "Plan without executing: kind call (a service call), write (automation/script config), delete, revert, or restore (a deleted automation/script from the snapshot its delete result named). Returns a preview; a high-consequence plan needs a confirmation code the user types (no code is returned where their app asks for it in a form). coverage.notes are informational: mention one only when it raised the tier or the user asks — except EXPANDED_TARGET_WITHOUT_STATE: always tell the user in plain words which entities were skipped (not reporting).",
+	{name: "ha_plan", title: "Plan a change", description: "Plan without executing: kind call (a service call), write (automation/script config), delete, revert, or restore (a deleted automation/script from the snapshot its delete result named). Returns a preview; a high-consequence plan needs a confirmation code the user types (no code is returned where their app asks for it in a form). coverage.notes are informational: mention one only when it raised the tier or the user asks — except EXPANDED_TARGET_WITHOUT_STATE: always tell the user in plain words which coverage.skipped entries with that code were skipped (not reporting).",
 		readOnly: true,
 		schema: object([]string{"kind"}, merged(callProperties, map[string]any{
 			"kind":      map[string]any{"type": "string", "enum": []string{"call", "write", "delete", "revert", "restore"}},
@@ -82,7 +87,7 @@ var mcpTools = []mcpTool{mcpSkillTool,
 			"draft":     prop("object", "write: the full config (key order is kept)"),
 			"entity_id": prop("string", "delete: automation.x or script.x")})),
 		argv: planArgv, run: runPlanCommand},
-	{name: "ha_call", title: "Control a device", description: "Call a service. Ordinary calls run now and are verified; anything else returns needs_confirmation with a plan for ha_apply. A call that timed out or returned no result is outcome unknown: read with ha_get; never call again. coverage.notes are informational: mention one only when it raised the tier or the user asks — except EXPANDED_TARGET_WITHOUT_STATE: always tell the user in plain words which entities were skipped (not reporting).",
+	{name: "ha_call", title: "Control a device", description: "Call a service. Ordinary calls run now and are verified; anything else returns needs_confirmation with a plan for ha_apply. A call that timed out or returned no result is outcome unknown: read with ha_get; never call again. coverage.notes are informational: mention one only when it raised the tier or the user asks — except EXPANDED_TARGET_WITHOUT_STATE: always tell the user in plain words which coverage.skipped entries with that code were skipped (not reporting).",
 		schema: object([]string{"service"}, callProperties), argv: callArgv, run: runCallCommand},
 	{name: "ha_apply", title: "Apply a confirmed plan", description: "Execute a stored plan once: a preview plan after the user agreed to its preview; a plan with a confirmation code only with the code the user typed — or, where a result says their app asks for the code in a form, without confirm_code (the form confirms; a passed code is ignored). A call that timed out or returned no result is outcome unknown: read with ha_get; never call again.",
 		destructive: true,
@@ -176,7 +181,7 @@ func pinServer(tool string, argv []string, pin string) []string {
 	}
 	flag := "--server=" + pin
 	switch tool {
-	case "ha_find", "ha_get", "ha_history", "ha_call", "ha_apply":
+	case "ha_find", "ha_get", "ha_history", "ha_map", "ha_call", "ha_apply":
 		return append([]string{flag}, argv...)
 	case "ha_plan": // after the subcommand
 		return append([]string{argv[0], flag}, argv[1:]...)
@@ -385,6 +390,16 @@ func flagsThen(args map[string]json.RawMessage, bools, strs []string, positional
 	}
 	if positional != "" {
 		argv = append(argv, "--", text(args, positional))
+	}
+	return argv, nil
+}
+
+func mapArgv(args map[string]json.RawMessage, _ *mcpTempFiles) ([]string, error) {
+	argv, _ := flagsThen(args, []string{"first_look"}, []string{"section", "entity"}, "")
+	if raw, present := args["limit"]; present {
+		var n int
+		_ = json.Unmarshal(raw, &n)
+		argv = append(argv, "--limit="+strconv.Itoa(n))
 	}
 	return argv, nil
 }

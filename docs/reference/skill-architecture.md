@@ -2,7 +2,7 @@
 
 ## Overview
 
-HA NOVA uses a flat skill layout with one context skill and 30 independent sub-skills under `skills/`.
+HA NOVA uses a flat skill layout with one context skill and 32 independent sub-skills under `skills/`.
 
 The repo skill tree is the single source of truth. Client installers adapt that same tree to each client's packaging rules:
 - Claude: plugin marketplace payload
@@ -41,8 +41,10 @@ skills/
   dashboard/SKILL.md                    (ha-nova:dashboard — storage dashboards, Lovelace resources, card operations)
   scene/SKILL.md                        (ha-nova:scene — storage-scene list/read/create/update/delete)
   organize/SKILL.md                     (ha-nova:organize — areas/floors/labels/categories/entity+device metadata)
+  device/SKILL.md                       (ha-nova:device — replace, onboard, retire a device; re-point its consumers)
   history/SKILL.md                      (ha-nova:history — bounded history/logbook/statistics reads)
   health/SKILL.md                       (ha-nova:health — read-only home status, repairs, system health)
+  home-map/SKILL.md                     (ha-nova:home-map — exact home inventory, where-used, whole-home audit, first look via `ha-nova map`)
   calendar/SKILL.md                     (ha-nova:calendar — bounded calendar reads and single-event writes)
   hacs/SKILL.md                         (ha-nova:hacs — HACS package lifecycle: registration, download, update, uninstall, migration)
   todo/SKILL.md                         (ha-nova:todo — to-do list items + Local To-do lifecycle)
@@ -103,8 +105,10 @@ Current mapping:
 | dashboard | inline | read → merge → preview → full-save → readback verify, all user-facing |
 | scene | inline | 2-4 calls, flat entities payload, read → merge → preview → full-save → readback verify |
 | organize | inline | field-level registry mutations with direct preview/readback |
+| device | inline + CLI | `get --references` scans; `plan write` + `apply` re-point; every other family hands off to its owner |
 | history | inline | read-only bounded timeline lookups |
 | health | inline | read-only status aggregation, best-effort diagnostics |
+| home-map | inline + CLI | `ha-nova map` computes every count; the skill renders and hands fixes to owning skills |
 | calendar | inline | bounded REST reads plus feature-gated service/WS event writes |
 | todo | inline | service-based item CRUD with feature gate, single-step list flow |
 | backup | inline | WS status/generate/delete with initiation-vs-completion polling |
@@ -231,6 +235,23 @@ Still excluded:
 - device config-entry detachment
 - device categories do not exist; offer entity categories instead
 - zones / persons / tags
+
+## Device Architecture
+
+`ha-nova:device` owns the device lifecycle: swap (re-point everything that
+names an old device to its replacement), onboard, and retire.
+- one read-only scan per device: `ha-nova get <entity_id> --references`
+  (automation/script configs, Lovelace dashboards, energy prefs, state
+  attributes; entity ids, registry ids, the device id, a phone's notify
+  service), with `not_scanned` and `not_covered` named
+- path choice: the entity_id takeover (old device removed first, new entity
+  renamed to the old id: history and statistics continue) or a consumer
+  rewrite; device-level references and notify services are rewritten either way
+- writes it owns: automation/script re-points through `plan write` + `apply`
+  (grouped, at most 5 per group for the undo store, CLI tiers) and takeover
+  renames (organize rules; typed for access-capable entities or typed
+  consumers); every other family hands off to its owning skill
+- device removal stays in the Home Assistant UI
 
 ## History Architecture
 

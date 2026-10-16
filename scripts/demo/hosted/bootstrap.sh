@@ -44,6 +44,15 @@ done
 . "$HERE/host-lib.sh"
 export DEBIAN_FRONTEND=noninteractive
 
+# Re-runs: a timer reset would check the clone back out at the old ref while
+# this runs. Pause the timers and the guard and let a running reset finish;
+# they start again at the end, or on any failure (resets must never stop).
+if systemctl is-enabled --quiet ha-nova-demo-reset.timer 2> /dev/null; then
+  systemctl stop ha-nova-demo-reset.timer ha-nova-demo-guard.timer ha-nova-demo-update.timer ha-nova-demo-guard.service
+  trap 'systemctl start ha-nova-demo-reset.timer ha-nova-demo-guard.timer ha-nova-demo-update.timer' EXIT
+  flock "$LOCK" true
+fi
+
 step "swap: 1 GB swapfile (1 GB RAM is tight for Home Assistant)"
 if ! swapon --show=NAME --noheadings | grep -qx /swapfile; then
   [[ -f /swapfile ]] || fallocate -l 1G /swapfile
@@ -61,12 +70,24 @@ KbdInteractiveAuthentication no
 X11Forwarding no
 AllowAgentForwarding no
 CONF
+# Socket-activated on 24.04: /run/sshd exists only once ssh.service ran, and
+# sshd -t refuses without it.
+install -d -m 0755 /run/sshd
 sshd -t
-systemctl try-reload-or-restart ssh # socket-activated on 24.04: no-op when idle
+systemctl try-reload-or-restart ssh # no-op when idle
 
 step "packages: minimal set, fail2ban for sshd, unattended upgrades"
-apt-get update -q
-apt-get install -y -q ca-certificates curl git gnupg openssl xz-utils fail2ban unattended-upgrades
+# A first-boot apt-daily run can hold the apt locks; apt-get does not wait.
+apt_get() {
+  local i
+  for i in $(seq 1 30); do
+    apt-get -o DPkg::Lock::Timeout=60 "$@" && return 0
+    sleep 10
+  done
+  die "apt-get $* kept failing"
+}
+apt_get update -q
+apt_get install -y -q ca-certificates curl git gnupg openssl xz-utils fail2ban unattended-upgrades
 systemctl enable --now fail2ban
 cat > /etc/apt/apt.conf.d/20auto-upgrades << 'CONF'
 APT::Periodic::Update-Package-Lists "1";
@@ -89,8 +110,8 @@ grep -q "^fpr:::::::::$DOCKER_GPG_FPR:" <<< "$keys" || die "Docker's apt key doe
 chmod a+r /etc/apt/keyrings/docker.asc
 echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu $VERSION_CODENAME stable" \
   > /etc/apt/sources.list.d/docker.list
-apt-get update -q
-apt-get install -y -q docker-ce docker-ce-cli containerd.io docker-compose-plugin docker-buildx-plugin
+apt_get update -q
+apt_get install -y -q docker-ce docker-ce-cli containerd.io docker-compose-plugin docker-buildx-plugin
 install -m 0755 -d /etc/docker
 cat > /etc/docker/daemon.json << 'CONF'
 {
@@ -143,11 +164,9 @@ ExecStart=/usr/sbin/tc qdisc replace dev $dev root tbf rate 6mbit burst 64kb lat
 WantedBy=multi-user.target
 UNIT
 
-step "demo state dirs, env, internal network, Caddy (edge.yml)"
+step "demo state dirs, internal network, Caddy (edge.yml)"
 install -d -o 1000 -g 1000 -m 0700 /var/lib/ha-nova-demo/caddy/data /var/lib/ha-nova-demo/caddy/config /var/lib/ha-nova-demo/logs
 install -d -m 0755 /var/lib/ha-nova-demo/public
-printf 'DEMO_DOMAIN=%s\nDEMO_REF=%s\nABUSE_CONTACT=%s\n' "$DOMAIN" "$REF" "$ABUSE" > /etc/ha-nova-demo.env
-chmod 0644 /etc/ha-nova-demo.env
 # External + internal: survives every reset, and nothing on it has a route out.
 docker network inspect ha-nova-demo-house > /dev/null 2>&1 \
   || docker network create --internal --subnet 10.89.240.0/24 --ip-range 10.89.240.128/25 ha-nova-demo-house > /dev/null
@@ -162,6 +181,9 @@ if ! docker image inspect "$relay" > /dev/null 2>&1; then
     --build-arg "RELAY_VERSION=$(sed -nE 's/^version:[[:space:]]*"?([^"]+)"?/\1/p' /opt/ha-nova/nova/config.yaml | head -1)" \
     --label "$KEEP_LABEL" -t "$relay" /opt/ha-nova/nova > /dev/null
 fi
+# Only now: until this ref's relay image exists, resets keep the previous ref.
+printf 'DEMO_DOMAIN=%s\nDEMO_REF=%s\nABUSE_CONTACT=%s\n' "$DOMAIN" "$REF" "$ABUSE" > /etc/ha-nova-demo.env
+chmod 0644 /etc/ha-nova-demo.env
 
 step "timers: full reset every hour at :00 UTC, guard every minute"
 cat > /etc/systemd/system/ha-nova-demo-reset.service << 'UNIT'
@@ -242,11 +264,11 @@ if [[ ! -s /var/lib/ha-nova-demo/ha-image ]]; then
   bash "$HERE/update-ha.sh" --pin "$pin"
 fi
 # Every gate (egress, DNS, listeners, relay, public site) runs inside the
-# reset; timers start only after this first gated build passed. TLS may not
-# exist yet (DNS not pointed): the public gate is skipped this once, loudly.
-bash "$HERE/reset.sh" --first-boot
+# reset; timers start only after this first gated build passed. Until DNS
+# points here there is no certificate, and every reset skips the public gate.
+bash "$HERE/reset.sh"
 systemctl enable --now ha-nova-demo-reset.timer ha-nova-demo-guard.timer ha-nova-demo-update.timer
 free -m >&2
 # Then move to the latest stable release (a no-op when the pin is current).
 systemctl start --no-block ha-nova-demo-update.service
-echo "bootstrap: done. https://$DOMAIN (login demo / demo) once DNS points here." >&2
+echo "bootstrap: done. https://$DOMAIN (login demo / demo) once DNS points here. More rebuilds follow: journalctl -fu ha-nova-demo-reset -u ha-nova-demo-update" >&2
