@@ -287,7 +287,7 @@ describe("ha-nova contract", () => {
       "If shell is not bash-compatible, stop and ask user to switch shell.",
     );
     expect(context).toContain("Safety Baseline");
-    expect(context).toContain("confirm:<token>");
+    expect(context).toContain("- `delete`/destructive: the one-time code.");
     expect(context).toContain("Do not ask user to paste tokens in chat.");
   });
 
@@ -1205,7 +1205,7 @@ describe("ha-nova contract", () => {
     expect(context).toContain("numbered list");
     // Destructive confirmation must never become a one-click menu.
     expect(context).toContain("Destructive confirmation is never a menu");
-    expect(context).toContain("confirm:<token>");
+    expect(context).toContain("Deletes still require the one-time code");
     // Firewall against a self-written "always use a menu" memory overriding deletes.
     expect(context).toContain("NEVER extends to deletes");
   });

@@ -273,7 +273,7 @@ Then:
 
 - A member that unlocks or opens a lock, disarms an alarm panel, opens a
   garage/gate/entry-door cover by `device_class`, or is physically
-  irreversible puts the WHOLE run on the typed `confirm:<token>` tier.
+  irreversible puts the WHOLE run on the one-time code tier.
 - Locking, closing, and arming grant nothing and stay ordinary.
 - A member whose OWNING skill already requires the typed tier carries that
   tier into the run, and a member whose tier cannot be DETERMINED escalates
@@ -372,4 +372,4 @@ the unresolved branch when:
 A Test Plan Card doubles as the runtime preview, so the option choice is the
 bound confirmation (`skills/ha-nova/test-run.md`). That shortcut never applies
 to a run this gate placed on the typed tier: the card choice does not replace
-`confirm:<token>`.
+the one-time code.

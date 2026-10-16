@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"path/filepath"
-	"regexp"
 	"slices"
 	"strings"
 	"time"
@@ -41,7 +40,7 @@ func withholdCode(envelope map[string]any) {
 	}
 	delete(plan, "code")
 	if say, _ := envelope["say"].(string); say != "" {
-		envelope["say"] = strings.Replace(say, sayTypedAsk(code), sayFormAsk, 1)
+		envelope["say"] = withholdAsk(say, code)
 	}
 }
 
@@ -66,13 +65,13 @@ func formsStep(envelope map[string]any, step string) string {
 	pending := envelope["status"] == "needs_confirmation" || envelope["status"] == "drift"
 	switch {
 	case pending && plan["confirm"] == "code" && strings.Contains(say, sayFormAsk):
-		return fmt.Sprintf("Show this preview. When the user has asked for this change and your workflow has reached this step (a skill's order comes first), call ha_apply with plan_id %v and no confirm_code: their app asks them to type the code in a confirmation form you never see. Never ask for the code in chat. Tell the user `say` as the confirmation text (in their language; names and state values exactly as printed) and add no other reason.", plan["id"])
+		return fmt.Sprintf("Show this preview. When the user has asked for this change and your workflow has reached this step (a skill's order comes first), call ha_apply with plan_id %v and no confirm_code: their app asks them to type the one-time code from HA NOVA in a confirmation form you never see. Never ask for it in chat. Tell the user `say` as the confirmation text (in their language; names and state values exactly as printed) and add no other reason.", plan["id"])
 	case errInfo["code"] == "CODE_MISMATCH":
-		return fmt.Sprintf("The code typed in the form did not match; nothing was sent. If the user still wants this, call ha_apply again with plan_id %v to show the form again.", plan["id"])
+		return fmt.Sprintf("The one-time code typed in the form did not match; nothing was sent. If the user still wants this, call ha_apply again with plan_id %v to show the form again.", plan["id"])
 	case errInfo["code"] == "CODE_REQUIRED": // a typed plan without form text (made by an older HA NOVA)
 		return "This plan can't be confirmed in a form here; plan it again, show the new preview, and confirm again."
 	case errInfo["code"] == "SNAPSHOT_FAILED":
-		return step + fmt.Sprintf(" To delete without a copy (only if the user chooses that), call ha_apply with plan_id %v, no_snapshot true, and no confirm_code: their app asks them for the code again in a form.", plan["id"])
+		return step + fmt.Sprintf(" To delete without a copy (only if the user chooses that), call ha_apply with plan_id %v, no_snapshot true, and no confirm_code: their app asks them for the one-time code again in a form.", plan["id"])
 	}
 	return step
 }
@@ -90,8 +89,8 @@ type elicitAnswer struct {
 var rpcNoReply = &rpcError{Message: "no reply"}
 
 // confirmByForm runs before ha_apply where the request has form
-// elicitation: the model's confirm_code is dropped, and the full code built
-// from what the human typed in the form takes its place. It returns a result
+// elicitation: the model's confirm_code is dropped, and what the human
+// typed in the form takes its place. It returns a result
 // when the call ends here: the form to show (2026-07-28), or why nothing was
 // sent. A plan no form can confirm goes to apply without a code, which
 // refuses it exactly as the CLI does.
@@ -108,7 +107,7 @@ func (srv *mcpServer) confirmByForm(req rpcRequest, args map[string]json.RawMess
 	if !ok {
 		return nil, nil
 	}
-	params, prefix := confirmForm(plan, noSnapshot)
+	params := confirmForm(plan, noSnapshot)
 	key := "confirm" // an answer to the form with a copy never confirms the one without
 	if noSnapshot {
 		key = "confirm_without_copy"
@@ -131,17 +130,14 @@ func (srv *mcpServer) confirmByForm(req rpcRequest, args map[string]json.RawMess
 		}
 	}
 	typed, _ := answer.Content["code"].(string)
-	typed = strings.ToLower(strings.TrimSpace(typed))
-	if !hexCode.MatchString(typed) { // not the form's six characters: no attempt is used
-		typed = ""
-	}
+	typed = typedCode(typed) // anything but the four digits is a wrong code, as in the CLI
 	// Some apps declare forms but turn them down or close them without showing
 	// one: the wording never claims that the user saw it.
-	elsewhere := "If they saw no confirmation form, their app can't show one here: they can make this change in Home Assistant itself or with HA NOVA in a terminal, or add \"--no-forms\" to the ha-nova MCP entry's args (the model then sees the code too)."
+	elsewhere := "If they saw no confirmation form, their app can't show one here: they can make this change in Home Assistant itself or with HA NOVA in a terminal, or add \"--no-forms\" to the ha-nova MCP entry's args (the model then sees the one-time code too)."
 	again := fmt.Sprintf("Tell the user nothing changed. %s Otherwise call ha_apply again with plan_id %s (it shows the form again) only after the user says they still want it.", elsewhere, plan.ID)
 	switch {
 	case answer.stop == "" && answer.Action == "accept" && typed != "":
-		args["confirm_code"], _ = json.Marshal(prefix + typed)
+		args["confirm_code"], _ = json.Marshal(typed)
 		return nil, nil
 	case answer.stop == "" && answer.Action == "decline":
 		return confirmStopped("declined", "CONFIRM_DECLINED", "the confirmation form was declined",
@@ -152,14 +148,12 @@ func (srv *mcpServer) confirmByForm(req rpcRequest, args map[string]json.RawMess
 	case answer.stop == "timeout":
 		return confirmStopped("cancelled", "CONFIRM_CANCELLED", "the confirmation form got no answer in time", again), nil
 	}
-	return confirmStopped("cancelled", "CONFIRM_CANCELLED", "the confirmation form was closed without its six-character code", again), nil
+	return confirmStopped("cancelled", "CONFIRM_CANCELLED", "the confirmation form was closed without the one-time code", again), nil
 }
-
-var hexCode = regexp.MustCompile(`^[0-9a-f]{6}$`)
 
 // formPlan reads the plan ha_apply names when a form can confirm it: typed,
 // with its form text, and not refused by apply before the code check
-// (expired, another server's, --no-snapshot not offered). The file only
+// (expired, another server's, an old-format code, --no-snapshot not offered). The file only
 // decides whether to ask; apply re-checks everything.
 func (srv *mcpServer) formPlan(args map[string]json.RawMessage) (storedPlan, bool, bool) {
 	id := text(args, "plan_id")
@@ -170,20 +164,17 @@ func (srv *mcpServer) formPlan(args map[string]json.RawMessage) (storedPlan, boo
 	}
 	plan, err := readPlanFile(filepath.Join(planDir(srv.paths), id+".json"))
 	expires, timeErr := time.Parse(time.RFC3339, plan.ExpiresAt)
-	ok := err == nil && timeErr == nil && plan.ID == id && plan.Tier == tierTyped.String() && plan.Prompt != "" &&
+	ok := err == nil && timeErr == nil && plan.ID == id && plan.Tier == tierTyped.String() && plan.Prompt != "" && !staleCode(plan) &&
 		verbNow().Before(expires) && (srv.pin == "" || srv.pin == plan.Server) &&
 		(!noSnapshot || plan.Kind == "delete" && plan.SnapshotFailed)
 	return plan, noSnapshot, ok
 }
 
 // confirmForm is the elicitation/create params: the plan's code-free text,
-// the copy note of a delete, and the code's own six-character suffix to
-// type. prefix + suffix is the full code apply checks. No mode field: form is
-// the default in every revision.
-func confirmForm(plan storedPlan, noSnapshot bool) (map[string]any, string) {
-	service, objects := codeParts(plan)
-	code := confirmCode(service, objects, planIdentity(strings.TrimPrefix(plan.Hash, "sha256:"), plan.Nonce))
-	prefix, suffix := code[:len(code)-6], code[len(code)-6:]
+// the copy note of a delete, and the four-digit code to type, derived like
+// apply does. No mode field: form is the default in every revision.
+func confirmForm(plan storedPlan, noSnapshot bool) map[string]any {
+	code := confirmCode(planIdentity(strings.TrimPrefix(plan.Hash, "sha256:"), plan.Nonce))
 	message := plan.Prompt
 	if plan.Kind == "delete" {
 		note := sayCopyNote
@@ -192,10 +183,10 @@ func confirmForm(plan storedPlan, noSnapshot bool) (map[string]any, string) {
 		}
 		message += " " + note
 	}
-	message += " To go ahead, type this confirmation code: " + suffix
-	field := map[string]any{"type": "string", "title": "Confirmation code", "description": "Type " + suffix + " to go ahead", "minLength": 6, "maxLength": 6}
+	message += " To go ahead, type this one-time code from HA NOVA: " + code
+	field := map[string]any{"type": "string", "title": "One-time code from HA NOVA", "description": "Type " + code + " to go ahead", "minLength": 4, "maxLength": 12}
 	return map[string]any{"message": message, "requestedSchema": map[string]any{"type": "object",
-		"properties": map[string]any{"code": field}, "required": []string{"code"}}}, prefix
+		"properties": map[string]any{"code": field}, "required": []string{"code"}}}
 }
 
 // confirmStopped: nothing was sent and the plan is untouched (no claim

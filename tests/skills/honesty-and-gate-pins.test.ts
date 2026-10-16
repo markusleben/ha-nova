@@ -75,7 +75,7 @@ describe("gates whose loss would silently downgrade a tier (#515)", () => {
     expect(mqtt).toContain("persists on the broker");
     expect(mqtt).toContain("can create or destroy entities");
     expect(mqtt).toContain(
-      "Retained publishes therefore require the typed `confirm:<token>`",
+      "Retained publishes therefore require the one-time code",
     );
   });
 

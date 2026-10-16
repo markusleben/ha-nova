@@ -97,7 +97,7 @@ describe("helper contract", () => {
     it("binds helper writes to active-preview confirmation", () => {
       expect(skillDoc).toContain("Active Preview Confirmation");
       expect(skillDoc).toContain("bound to this exact preview");
-      expect(skillDoc).toContain("Destructive cleanup still requires `confirm:<token>`");
+      expect(skillDoc).toContain("Destructive cleanup still requires the one-time code");
     });
 
     it("documents the two-family helper split", () => {

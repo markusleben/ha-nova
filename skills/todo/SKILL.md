@@ -89,7 +89,7 @@ Other providers configure lists in their own integration — point there instead
 ### Delete a list
 1. Resolve `entry_id` via the entity registry `config_entry_id` (WS `config/entity_registry/get`, see `skills/ha-nova/relay-api.md` → Registry Queries), never guess.
 2. **Domain gate:** read the config entry and proceed only if its `domain` is `local_todo`. For any other domain (shopping_list, Google Tasks, CalDAV, Alexa) the entry is the WHOLE integration, not one list — deleting it destroys every list plus the account link; refuse and point to that integration's own management.
-3. Run WS `search/related` on the `todo.<entity>` first and name automations/scripts that reference this list in the preview — they break when it disappears. Deleting the entry destroys the list AND all its items irreversibly (Local To-do also deletes its stored file) — say so plainly, with the list's open-item count in the preview; require exact confirmation code `confirm:<token>` — generate a short code, display it in the Options slot, and proceed only when the user types it back exactly. Deleting several lists at once follows `skills/ha-nova/batch-safety.md` (per-list open-item counts in the manifest); item removal keeps the existing flow.
+3. Run WS `search/related` on the `todo.<entity>` first and name automations/scripts that reference this list in the preview — they break when it disappears. Deleting the entry destroys the list AND all its items irreversibly (Local To-do also deletes its stored file) — say so plainly, with the list's open-item count in the preview; require the one-time code — mint four random digits, display them in the Options slot, and proceed only when the user types it back exactly. Deleting several lists at once follows `skills/ha-nova/batch-safety.md` (per-list open-item counts in the manifest); item removal keeps the existing flow.
 4. DELETE `/api/config/config_entries/entry/<entry_id>`.
 5. Verify the entity is gone (states GET 404).
 
@@ -117,10 +117,9 @@ Use stable localized slot labels in this order; omit empty slots. Item lists ren
 
 ## Safety
 
-- Preview before write. The only exception is a call that `ha-nova call` itself executed as `tier: ordinary` (an unambiguous everyday action, verified afterwards); everything else runs or is saved only after the user confirms the shown preview. High-consequence actions (e.g. unlocking or opening a lock, opening a gate, garage, or entry door, disarming the alarm — also through a scene or script) and deletes need a code.
+- Preview before write. The only exception is a call that `ha-nova call` itself executed as `tier: ordinary` (an unambiguous everyday action, verified afterwards); everything else runs or is saved only after the user confirms the shown preview. High-consequence actions (e.g. unlocking or opening a lock, opening a gate, garage, or entry door, disarming the alarm — also through a scene or script) and deletes or other destructive operations need the one-time code from HA NOVA, typed by the user; "yes" or any other reply is invalid.
 - Confirmation binds to the displayed preview and expires on any change to target, payload, endpoint, or scope (context skill → Active Preview Confirmation).
 - Anything before the preview ("do it", answers to questions) never confirms it; only a reply to the preview does.
-- Delete and destructive operations require the typed confirmation code `confirm:<token>` verbatim; "yes" or any natural-language reply is invalid.
 - Never guess entity, service, or config IDs — resolve them or ask.
 - Home Assistant is reached exclusively through the `ha-nova` CLI.
 - For any HA write this skill does not cover, STOP and invoke `ha-nova:fallback` first — never probe unfamiliar write endpoints.

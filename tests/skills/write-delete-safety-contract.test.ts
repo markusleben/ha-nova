@@ -202,7 +202,7 @@ describe("write delete safety contract", () => {
   });
 
   it("requires the typed confirmation code for same-session cleanup", () => {
-    expect(writeSkill).toContain("Destructive cleanup still requires `confirm:<token>`");
+    expect(writeSkill).toContain("Destructive cleanup still requires the one-time code");
     expect(writeSafety).toContain("even when the item was created earlier in the same session");
     expect(refactorGuide).toContain("cleanup, undo-create, orphan cleanup, failed-create cleanup");
   });

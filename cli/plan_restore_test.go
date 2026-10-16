@@ -135,7 +135,7 @@ func TestPlanRestoreKeepsTierAndPlannedBody(t *testing.T) {
 	f.snapshotFiles = map[string]json.RawMessage{snapAutoFile: json.RawMessage(unlock)}
 	h := newWriteHarness(t, f)
 	exit, env := h.run(runPlanCommand, "restore", "--snapshot", snapAutoFile, "--id", "n1")
-	if exit != 3 || env.Tier != "typed" || !strings.Contains(reasonCodes(env), reasonAccessLock) || !strings.HasPrefix(env.Plan.Code, "confirm:restore-night-") {
+	if exit != 3 || env.Tier != "typed" || !strings.Contains(reasonCodes(env), reasonAccessLock) || !fourDigits.MatchString(env.Plan.Code) {
 		t.Fatalf("exit %d env %+v", exit, env)
 	}
 	if exit, refused := h.run(runApplyCommand, "--plan", env.Plan.ID); exit != 4 || refused.Error.Code != "CODE_REQUIRED" || len(h.writes()) != 0 {

@@ -12,8 +12,8 @@ per their skill's Output Format and need no card file.
 
 - Localize section headings and labels idiomatically to the user's language in answers and progress updates; never mix English slot labels (`Changes`, `Options`, `Pre-write check`) into another language unless the user used them first; they are slots, not literal headings.
 - Keep Home Assistant state values, API names, commands, entity IDs, and service names literal when they are evidence.
-- Keep typed safety keywords literal in every language (`revert`, `show yaml`, `confirm:<token>`, a CLI-minted code exactly as printed); localize the sentence around them.
-- The user-facing name for the typed destructive keyword is the "confirmation code" (localized to the user's language). Never call it a "token" in user-facing output (users know tokens as access credentials).
+- Keep typed safety keywords literal in every language (`revert`, `show yaml`, a one-time code's digits); localize the sentence around them.
+- The user-facing name for the typed code is the "one-time code from HA NOVA" (localized). Never call it a bare "code", "PIN", or "token" in user-facing output.
 
 ## Technical Noise
 
@@ -29,7 +29,7 @@ per their skill's Output Format and need no card file.
 
 ## Confirmation Reasons
 
-A plan's `say` is the reason, localized (names, state values, code literal); add none of your own. Without one, one plain sentence: "This unlocks a door, so it needs a code." A "yes" where a code is needed: "“Yes” can't confirm this — please type `confirm:…`."
+A plan's `say` is the reason, localized (names, state values, code literal); add none of your own. Without one, one plain sentence: "This unlocks a door, so it needs a one-time code from HA NOVA." A "yes" where a code is needed: "“Yes” can't confirm this — please type <code>."
 
 ## Progressive Detail
 

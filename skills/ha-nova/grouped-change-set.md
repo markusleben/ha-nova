@@ -177,7 +177,7 @@ A separate typed-confirmation workflow, never part of a non-destructive grouped
 set: when ONE fully resolved logical cleanup target spans several supported
 families (delete a helper plus the automations referencing it; remove a retired
 device's group memberships and dashboard cards — statistics clears stay in
-maintenance's own same-family `confirm:batch-...` manifest and never join
+maintenance's own same-family batch manifest and never join
 this code), the whole cleanup
 may be confirmed with ONE manifest-bound confirmation code instead of one code
 per family.
@@ -187,9 +187,8 @@ per family.
   owning skill, exact endpoint/payload semantics, per-item dependency/consumer
   impact result, per-family recovery path (snapshots, YAML exports, backup
   gate), and a deterministic execution order that deletes DEPENDENTS before their anchor (the consumers of a helper before the helper itself): fail-fast then never leaves a surviving consumer referencing an already-deleted target.
-- ONE typed code binds to that exact manifest:
-  `confirm:cleanup-<target>-<count>-<digest>` (digest per batch-safety's rule,
-  computed over this manifest). Any change to any operation, target, payload,
+- ONE one-time code binds to that exact manifest (minted per
+  batch-safety's rule). Any change to any operation, target, payload,
   impact result, or order — or an expired confirmation — invalidates it; show
   a new preview with a new manifest and a new code.
 - Execute sequentially through the owning skills; every operation keeps its

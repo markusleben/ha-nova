@@ -61,16 +61,11 @@ targets; anything discovered later belongs to a new manifest.
 
 ## Confirmation Code
 
-Format (typed verbatim, never a menu — context skill → Interactive Choices):
-
-```
-confirm:batch-<operation>-<family>-<count>-<digest>
-```
-
-Example: `confirm:batch-delete-automations-8-a1b2c3d4`. The digest is the
-first 8 hex characters of the SHA-256 of the manifest file — compute it with
-`shasum -a 256 <manifest-file>` (POSIX) or `Get-FileHash` (PowerShell). The
-digest binds the code to the exact target set, payloads, and order; it is a
+One one-time code from HA NOVA per manifest (context skill → Confirmation
+Tiers): four random digits minted when the manifest is shown, typed by the
+user, never a menu (context skill → Interactive Choices). Never reuse an
+earlier code or take digits from the manifest or Home Assistant data. The code
+binds to that exact manifest file — target set, payloads, and order; it is a
 binding discriminator, not a security boundary — the behavioral rule below is
 the real gate.
 
@@ -79,7 +74,7 @@ execution order expires the confirmation; show a new preview with a new
 manifest and a new code.
 
 User-facing wording follows `skills/ha-nova/output-rules.md` → Localization:
-the code is called the "confirmation code" (localized), never a "token".
+the code is called the "one-time code from HA NOVA" (localized), never a "token".
 
 ## Caps
 
@@ -142,7 +137,7 @@ Impact: no consumers found for 7; "Morning routine" is referenced by script.wake
 Recovery: YAML export written; no automatic rollback after delete.
 Runs one by one — stops at the first error.
 ⚠️  Nothing deleted yet.
-To delete all 8, reply exactly: confirm:batch-delete-automations-8-a1b2c3d4
+Type <code> to delete all 8 — a plain yes can't confirm this.
 ```
 
 **Batch Result Card**:

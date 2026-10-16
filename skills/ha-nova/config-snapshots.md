@@ -32,8 +32,7 @@ the `config-snapshots` resource family through
   recovery limits. Never mix another resource type or a prune action into the
   manifest.
 - Cap the manifest at **20** files. Use deterministic bytewise file-path order
-  and the confirmation code
-  `confirm:batch-delete-config-snapshots-<count>-<digest>`.
+  and one one-time code for the manifest (`skills/ha-nova/batch-safety.md`).
 - Record the dependency result per target as not applicable: deleting a
   snapshot copy cannot change the underlying Home Assistant config. State
   plainly that the deleted copy itself has no rollback.

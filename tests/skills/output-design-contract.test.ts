@@ -42,11 +42,11 @@ describe("output design system (Cards)", () => {
     }
   });
 
-  it("names the typed keyword a confirmation code toward users, never a token", () => {
-    expect(outputRules).toContain('is the "confirmation code" (localized');
-    expect(outputRules).toContain('Never call it a "token" in user-facing output');
+  it("names the typed code the one-time code from HA NOVA toward users, never a bare code, PIN, or token", () => {
+    expect(outputRules).toContain('is the "one-time code from HA NOVA" (localized');
+    expect(outputRules).toContain('Never call it a bare "code", "PIN", or "token" in user-facing output');
     const contextSkill = readFileSync("skills/ha-nova/SKILL.md", "utf8");
-    expect(contextSkill).toContain('call it the "confirmation code" (localized), never a "token"');
+    expect(contextSkill).toContain('Call it the "one-time code from HA NOVA" (localized;');
   });
 
   it("requires the preview narrative to cover every touched collection (issue #390)", () => {
@@ -66,7 +66,7 @@ describe("output design system (Cards)", () => {
 
   it("keeps the options line and confirmation-code prompt literal", () => {
     expect(outputRules).toContain("Options: apply · show yaml · cancel");
-    expect(outputRules).toContain("To delete, reply exactly: confirm:<token>");
+    expect(outputRules).toContain("Type <code> to delete.");
     expect(outputRules).toContain("the confirmation-code prompt is always the last line");
   });
 
@@ -175,7 +175,7 @@ describe("output design system (Cards)", () => {
   });
 
   it("makes every skill with a typed-confirmation flow reference the Cards contract (issue #389)", () => {
-    // Self-maintaining adoption lint: any sub-skill carrying a confirm: flow
+    // Self-maintaining adoption lint: any sub-skill carrying a one-time-code flow
     // must name the Cards contract. skills/ha-nova defines the contract itself.
     // Negative prose ("not card-framed") does not count as a reference.
     const CARD_REF = /(Preview Card|Delete Card|Result Card|Test Plan Card|Cards defined there)/;
@@ -184,10 +184,10 @@ describe("output design system (Cards)", () => {
     );
     for (const name of skillDirs) {
       const content = readFileSync(`skills/${name}/SKILL.md`, "utf8");
-      if (!content.includes("confirm:")) continue;
+      if (!content.includes("one-time code")) continue;
       expect(
         CARD_REF.test(content),
-        `skills/${name}/SKILL.md contains a confirm: flow but never references the Cards contract (output-rules.md → Cards)`,
+        `skills/${name}/SKILL.md contains a one-time-code flow but never references the Cards contract (output-rules.md → Cards)`,
       ).toBe(true);
     }
   });
@@ -253,7 +253,7 @@ describe("output design system (Cards)", () => {
     expect(del[0]).toMatch(/^🗑️ {2}Delete:/);
     expect(del.filter((l) => l.startsWith("⚠️")), "exactly one status line").toHaveLength(1);
     expect(del[del.length - 1], "confirmation prompt closes the card").toBe(
-      "To delete, reply exactly: confirm:<token>",
+      "Type <code> to delete.",
     );
     expect(del.findIndex((l) => l.startsWith("⚠️")), "status precedes the prompt").toBe(
       del.length - 2,

@@ -16,7 +16,7 @@ Line, a Session Recap, findings, or review output. The core rules still apply.
 - Use stable localized labels for those slots across a conversation. If a slot has content, show it under the same label and in the same order; if it has no content, omit that slot instead of printing an empty placeholder.
 - Every write preview must explicitly say that nothing has been saved yet before showing the options.
 - Always render write-preview options as an explicit choice block that includes literal `apply`, `show yaml`, and `cancel` for create/update. Sole exception: intermediate previews inside a grouped change set (`skills/ha-nova/grouped-change-set.md`) carry no options block — exactly one final action block closes the group with the same literal keywords.
-- Delete previews must say nothing has been deleted yet and must ask for the exact `confirm:<token>`; never render `apply`, `show yaml`, `cancel`, or a selectable menu for destructive confirmation.
+- Delete previews must say nothing has been deleted yet and must ask for the one-time code; never render `apply`, `show yaml`, `cancel`, or a selectable menu for destructive confirmation.
 - Never hide the available next actions inside a paragraph.
 - A plan's `say` closes the card, replacing the ⚠️ save-status and options or code lines.
 
@@ -49,7 +49,7 @@ Title line: emoji + localized preview label + item type + name. Then one to thre
 Turns all lights off at 23:00 — that stops when it is gone.
 Used by: nothing else found.
 ⚠️  Nothing deleted yet.
-To delete, reply exactly: confirm:<token>
+Type <code> to delete.
 ```
 
 Destructive batch previews and results render the Batch Cards defined in

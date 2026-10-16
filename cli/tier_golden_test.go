@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"regexp"
 	"strings"
 	"testing"
 )
@@ -44,7 +43,7 @@ func TestPlanCallTierGoldenCases(t *testing.T) {
 			setup: func(f *fakeHA) { f.ent("light.tpl", "template", "off", nil) },
 			args:  []string{"light.turn_on", "light.tpl"}, exit: 3, tier: "typed", reasons: []string{reasonTemplateAction},
 			check: func(t *testing.T, env verbTestEnvelope) {
-				if !strings.HasPrefix(env.Plan.Code, "confirm:turn_on-tpl-") || env.Coverage.Notes[0] != noteTemplates {
+				if !fourDigits.MatchString(env.Plan.Code) || env.Coverage.Notes[0] != noteTemplates {
 					t.Fatalf("plan %+v coverage %+v", env.Plan, env.Coverage)
 				}
 			}},
@@ -217,7 +216,7 @@ func TestPlanCallTierGoldenCases(t *testing.T) {
 			setup: func(f *fakeHA) { f.ent("lock.front_door", "zwave_js", "locked", nil) },
 			args:  []string{"lock.unlock", "lock.front_door"}, exit: 3, tier: "typed", reasons: []string{reasonAccessLock},
 			check: func(t *testing.T, env verbTestEnvelope) {
-				if !regexp.MustCompile(`^confirm:unlock-front_door-[0-9a-f]{6}$`).MatchString(env.Plan.Code) || env.Plan.Code[len(env.Plan.Code)-6:] == env.Plan.ID[2:8] {
+				if !fourDigits.MatchString(env.Plan.Code) || !strings.HasSuffix(env.Say, "Type "+env.Plan.Code+" to unlock “lock.front_door” — a plain yes can't confirm this.") {
 					t.Fatalf("plan %+v", env.Plan)
 				}
 			}},

@@ -15,7 +15,7 @@ import (
 func TestApplyRefusalShowsTheStoredPlan(t *testing.T) {
 	h := newWriteHarness(t, newFakeHA())
 	planned := h.plan("lock.unlock", "lock.front")
-	for _, code := range []string{"", "confirm:wrong"} {
+	for _, code := range []string{"", "yes"} {
 		args := []string{"--plan", planned.Plan.ID}
 		if code != "" {
 			args = append(args, "--confirm", code)

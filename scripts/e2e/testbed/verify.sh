@@ -60,8 +60,8 @@ expect 'MQTT gate cover open is typed (ACCESS_COVER, device_class gate)' 3 \
   "d.tier === 'typed' && $reasons.includes('ACCESS_COVER') && d.say.includes('opens a gate')" -- plan call cover.open_cover cover.driveway_gate
 expect 'device_class override (kitchen_window -> shutter) makes open ordinary' 0 \
   "d.tier === 'ordinary'" -- plan call cover.open_cover cover.kitchen_window
-expect 'registry-less demo lock unlock is typed' 3 \
-  "d.tier === 'typed' && $reasons.includes('ACCESS_LOCK') && $reasons.includes('UNREGISTERED_ACTUATOR')" -- plan call lock.unlock lock.front_door
+expect 'registry-less demo lock unlock is typed with a four-digit one-time code' 3 \
+  "d.tier === 'typed' && $reasons.includes('ACCESS_LOCK') && $reasons.includes('UNREGISTERED_ACTUATOR') && /^[0-9]{4}$/.test(d.plan.code) && d.say.includes('Type ' + d.plan.code + ' to unlock ')" -- plan call lock.unlock lock.front_door
 expect '"Plug factory reset" press is typed (DESTRUCTIVE_BUTTON)' 3 \
   "d.tier === 'typed' && $reasons.includes('DESTRUCTIVE_BUTTON')" -- plan call button.press button.plug_factory_reset
 expect 'restart-class button (demo, non-user-authored) press is preview' 3 \

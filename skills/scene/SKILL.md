@@ -96,7 +96,7 @@ Persistence routing per `skills/ha-nova/best-practices.md` → Persistence Model
 ### Delete
 1. Resolve id + platform (Editability Guard).
 2. Consumer check: `{"type":"search/related","item_type":"entity","item_id":"scene.<slug>"}` — read through `skills/ha-nova/search-related-consumers.jq` (recreate per `skills/ha-nova/relay-api.md` → Parsing rule on flat-copy installs); show referencing automations/scripts, or an explicit no-consumer result (only a verified-shape empty `data` object means no consumers; a failed read is inconclusive, never a no-consumer claim).
-3. Require exact confirmation code `confirm:<token>` — generate a short code, display it in the Options slot, and proceed only when the user types it back exactly. Deleting several storage scenes at once follows `skills/ha-nova/batch-safety.md` (Editability Guard per target).
+3. Require the one-time code — mint four random digits, display them in the Options slot, and proceed only when the user types it back exactly. Deleting several storage scenes at once follows `skills/ha-nova/batch-safety.md` (Editability Guard per target).
 4. Capture the auto config snapshot of the current config first (`skills/ha-nova/config-snapshots.md`; on capture failure follow its capture-failure stop).
 5. `ha-nova relay core --method DELETE --path /api/config/scene/config/<id>`
 6. Verify absence: config GET returns status 404 and the entity is gone. Mention the snapshot restore path in the result.
@@ -125,10 +125,9 @@ Use stable localized slot labels in this order; omit empty slots. Reads render t
 
 ## Safety
 
-- Preview before write. The only exception is a call that `ha-nova call` itself executed as `tier: ordinary` (an unambiguous everyday action, verified afterwards); everything else runs or is saved only after the user confirms the shown preview. High-consequence actions (e.g. unlocking or opening a lock, opening a gate, garage, or entry door, disarming the alarm — also through a scene or script) and deletes need a code.
+- Preview before write. The only exception is a call that `ha-nova call` itself executed as `tier: ordinary` (an unambiguous everyday action, verified afterwards); everything else runs or is saved only after the user confirms the shown preview. High-consequence actions (e.g. unlocking or opening a lock, opening a gate, garage, or entry door, disarming the alarm — also through a scene or script) and deletes or other destructive operations need the one-time code from HA NOVA, typed by the user; "yes" or any other reply is invalid.
 - Confirmation binds to the displayed preview and expires on any change to target, payload, endpoint, or scope (context skill → Active Preview Confirmation).
 - Anything before the preview ("do it", answers to questions) never confirms it; only a reply to the preview does.
-- Delete and destructive operations require the typed confirmation code `confirm:<token>` verbatim; "yes" or any natural-language reply is invalid.
 - Never guess entity, service, or config IDs — resolve them or ask.
 - Home Assistant is reached exclusively through the `ha-nova` CLI.
 - For any HA write this skill does not cover, STOP and invoke `ha-nova:fallback` first — never probe unfamiliar write endpoints.

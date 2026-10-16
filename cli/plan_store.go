@@ -113,30 +113,6 @@ func buildCallPlan(e *tierEngine, env *verbEnvelope, req planCallRequest, target
 	return plan, err
 }
 
-// codeParts names a plan's operation and objects for its confirmation code.
-func codeParts(plan storedPlan) (string, []string) {
-	if action := plan.ConfigAction; action != nil {
-		object := action.EntityID
-		if object == "" {
-			object = action.Domain + "." + action.ConfigID
-		}
-		// A create's id is a minted number the user never saw: name the code
-		// after the alias instead (same [a-z0-9_] charset, length bounded by
-		// confirmCode). Binding stays the hash+nonce suffix.
-		// A restore's id is the deleted item's, which the user rarely saw.
-		if request := plan.ConfigRequest; request != nil && (request.Minted || request.Op == "restore") { // a user-chosen --id stays the object
-			var draft struct {
-				Alias string `json:"alias"`
-			}
-			if json.Unmarshal(request.Draft, &draft) == nil && scriptKey(draft.Alias) != "" {
-				object = action.Domain + "." + scriptKey(draft.Alias)
-			}
-		}
-		return "config." + action.Op, []string{object}
-	}
-	return plan.Action.Service, plan.Action.EntityIDs
-}
-
 // sealPlan hashes the action (nonce-free drift hash), draws the nonce, and
 // derives id and code; it fills the envelope fields every plan kind shares.
 func sealPlan(e *tierEngine, env *verbEnvelope, plan storedPlan, action any) (storedPlan, error) {
@@ -160,8 +136,7 @@ func sealPlan(e *tierEngine, env *verbEnvelope, plan storedPlan, action any) (st
 	plan.Tier, plan.Reasons = tier, e.reasons
 	plan.Confirm = map[tierLevel]string{tierOrdinary: "none", tierPreview: "natural", tierTyped: "code"}[e.level]
 	if e.level == tierTyped {
-		service, objects := codeParts(plan)
-		plan.Code = confirmCode(service, objects, idHex)
+		plan.Code = confirmCode(idHex)
 	}
 	env.Tier, env.Reasons = tier, e.reasons
 	env.Members, env.Consumers = e.shown()
@@ -202,27 +177,10 @@ func callPlanBasis(e *tierEngine, service string, frozen []string, data map[stri
 }
 
 // planIdentity is hex(sha256(hash ‖ nonce)): the plan id and the code
-// suffix, recomputable at apply from the recomputed hash and stored nonce.
+// (confirm_code.go), recomputable at apply from the recomputed hash and stored nonce.
 func planIdentity(sum, nonceHex string) string {
 	idSum := sha256.Sum256([]byte(sum + nonceHex))
 	return hex.EncodeToString(idSum[:])
-}
-
-func confirmCode(service string, frozen []string, sum string) string {
-	_, verb := splitID(service)
-	object := verb
-	if len(frozen) > 0 {
-		_, object = splitID(frozen[0])
-	}
-	if len(object) > 24 {
-		object = object[:24]
-	}
-	if len(frozen) > 1 {
-		object += fmt.Sprintf("+%d", len(frozen)-1)
-	}
-	// The suffix is the identity hash's 13th-18th hex chars: the plan id
-	// shows only the first 12, so the code cannot be derived from the id.
-	return "confirm:" + verb + "-" + object + "-" + sum[12:18]
 }
 
 // savePlan writes CacheDir/plans/<id>.json (0600, atomic) after pruning

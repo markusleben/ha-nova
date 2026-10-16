@@ -151,7 +151,7 @@ While `truncated` is true the list proves neither absence nor uniqueness — nar
    - name
    - type
    - entity_id
-3. Confirmation code: `confirm:<token>` (strict: only the exact code accepted; see context skill → Safety Baseline).
+3. One-time code (strict: only the exact code accepted; see context skill → Safety Baseline).
 4. Capture the auto config snapshot of the current list item first (`skills/ha-nova/config-snapshots.md`; on capture failure follow its capture-failure stop). Say in the result that a recreate from it mints a new entity_id.
 5. Execute:
    ```text
@@ -392,7 +392,7 @@ If multiple matches remain, present max 5 candidates and ask one blocking questi
    - if linked entities are known, run `search/related` against up to 3 linked entities before confirmation
    - summarize any related automations/scripts in the preview
    - if linked entities are unknown, say that dependency check coverage is limited
-5. Confirmation code: `confirm:<token>` (strict exact-code rule). This still applies to cleanup and helpers created earlier in the same session. Multi-helper deletes within ONE family follow `skills/ha-nova/batch-safety.md`; storage and config-entry families never mix. Deleting a helper together with its consumers (cross-family) — and removing a retired device's entities FROM a config-entry group helper as one item of such a cleanup — follows `skills/ha-nova/grouped-change-set.md` → Cross-Family Destructive Cleanup: one manifest, one code; the group-member removal keeps this skill's normal update preview and drift check inside the manifest.
+5. One-time code (strict exact-code rule). This still applies to cleanup and helpers created earlier in the same session. Multi-helper deletes within ONE family follow `skills/ha-nova/batch-safety.md`; storage and config-entry families never mix. Deleting a helper together with its consumers (cross-family) — and removing a retired device's entities FROM a config-entry group helper as one item of such a cleanup — follows `skills/ha-nova/grouped-change-set.md` → Cross-Family Destructive Cleanup: one manifest, one code; the group-member removal keeps this skill's normal update preview and drift check inside the manifest.
 6. Execute:
    ```text
    ha-nova relay core --method DELETE --path /api/config/config_entries/entry/{entry_id}
@@ -486,10 +486,9 @@ Never show raw JSON to the user.
 
 ## Safety
 
-- Preview before write. The only exception is a call that `ha-nova call` itself executed as `tier: ordinary` (an unambiguous everyday action, verified afterwards); everything else runs or is saved only after the user confirms the shown preview. High-consequence actions (e.g. unlocking or opening a lock, opening a gate, garage, or entry door, disarming the alarm — also through a scene or script) and deletes need a code.
+- Preview before write. The only exception is a call that `ha-nova call` itself executed as `tier: ordinary` (an unambiguous everyday action, verified afterwards); everything else runs or is saved only after the user confirms the shown preview. High-consequence actions (e.g. unlocking or opening a lock, opening a gate, garage, or entry door, disarming the alarm — also through a scene or script) and deletes or other destructive operations need the one-time code from HA NOVA, typed by the user; "yes" or any other reply is invalid.
 - Confirmation binds to the displayed preview and expires on any change to target, payload, endpoint, or scope (context skill → Active Preview Confirmation).
 - Anything before the preview ("do it", answers to questions) never confirms it; only a reply to the preview does.
-- Delete and destructive operations require the typed confirmation code `confirm:<token>` verbatim; "yes" or any natural-language reply is invalid.
 - Never guess entity, service, or config IDs — resolve them or ask.
 - Home Assistant is reached exclusively through the `ha-nova` CLI.
 - For any HA write this skill does not cover, STOP and invoke `ha-nova:fallback` first — never probe unfamiliar write endpoints.
@@ -497,7 +496,7 @@ Never show raw JSON to the user.
 
 - No guessing entity IDs, linked entities, or config entry IDs; resolve or ask
 - `entry_id` is the canonical write identity for the config-entry family
-- Destructive cleanup still requires `confirm:<token>`, even for helpers created earlier in the same session.
+- Destructive cleanup still requires the one-time code, even for helpers created earlier in the same session.
 - Declared exception to the core delete rule above: abandoning an unfinished create flow this skill started (cancel or expired confirmation) DELETEs only that ephemeral `flow_id` — transient flow state, never a config entry; the user's cancel is sufficient, and this exception never applies to anything already created.
 - Every write MUST end with the Post-Write Review slot; use terminal-friendly labels where Markdown headings add noise.
 

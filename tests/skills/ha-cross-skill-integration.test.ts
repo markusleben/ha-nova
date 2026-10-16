@@ -15,7 +15,7 @@ describe("ha cross-skill integration", () => {
     expect(writeSkill).toContain("skills/review/checks.md");
     expect(writeSkill).not.toContain("skills/review/SKILL.md");
     expect(writeSkill).toContain("full-replacement merge (base=current, overlay=user changes)");
-    expect(writeSkill).toContain("confirm:<token>");
+    expect(writeSkill).toContain("delete=typed confirmation code — the plan's CLI-minted `plan.code`");
     expect(writeSkill).toContain("Changes slot");
     expect(writeSkill).toContain("show yaml");
     expect(writeSkill).toContain("cancel");
@@ -156,7 +156,7 @@ describe("ha cross-skill integration", () => {
     const writeSafety = (readFileSync("skills/ha-nova/write-safety.md", "utf8") + readFileSync("skills/ha-nova/recovery-coverage.md", "utf8") + readFileSync("skills/ha-nova/update-revert.md", "utf8"));
 
     expect(writeSkill).toContain("Creates → cleanup via normal HA NOVA delete flow");
-    expect(writeSkill).toContain("preview, `confirm:<token>`, and absence verification");
+    expect(writeSkill).toContain("preview, one-time code, and absence verification");
     expect(writeSafety).toContain("A create is undone by deleting the new item through the");
     expect(writeSafety).toContain("manual deletion or a full Home Assistant Backup restore is the only cleanup path");
     expect(writeSafety).toContain("Do not call this `revert`");

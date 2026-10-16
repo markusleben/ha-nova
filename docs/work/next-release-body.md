@@ -47,11 +47,17 @@ the number.
 
 ## What To Watch
 
+- **Shorter one-time codes:** unlocking a door, opening a gate or garage,
+  disarming the alarm, and deletes now ask for a four-digit one-time code from
+  HA NOVA ("Type 4821 to unlock “Front Door”") instead of a long
+  `confirm:…` code. A plain "yes" still can't confirm, and a code works only
+  for its own plan. A plan shown before the update has to be made again.
+
 - `ha-nova uninstall` no longer guides removal of the NOVA Relay App by
   default. It first asks whether this is the last computer using HA NOVA,
   because removing the App disconnects every paired computer.
 - Pressing a button, turning on a switch, or opening a cover on a device
-  that also has a lock, alarm, or access cover now needs a code. Configuration
+  that also has a lock, alarm, or access cover now needs a one-time code. Configuration
   and diagnostic buttons there (ping, identify, restart) work as before.
 
 ## Bug Fixes

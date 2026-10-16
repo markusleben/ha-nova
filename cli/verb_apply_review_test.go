@@ -41,8 +41,8 @@ func TestApplyNeverTrustsPlanFileFields(t *testing.T) {
 		t.Fatalf("tier edited to preview: exit %d env %+v", exit, env)
 	}
 	plan := h.plan("lock.unlock", "lock.front").Plan
-	h.tamper(plan.ID, func(p map[string]any) { p["code"] = "confirm:edited" })
-	if exit, env := h.run(runApplyCommand, "--plan", plan.ID, "--confirm", "confirm:edited"); exit != 4 || env.Error.Code != "CODE_MISMATCH" {
+	h.tamper(plan.ID, func(p map[string]any) { p["code"] = wrongCode(plan.Code) })
+	if exit, env := h.run(runApplyCommand, "--plan", plan.ID, "--confirm", wrongCode(plan.Code)); exit != 4 || env.Error.Code != "CODE_MISMATCH" {
 		t.Fatalf("code edited: exit %d env %+v", exit, env)
 	}
 	if exit, env := h.run(runApplyCommand, "--plan", plan.ID, "--confirm", plan.Code); exit != 0 || env.Plan.Code != plan.Code {

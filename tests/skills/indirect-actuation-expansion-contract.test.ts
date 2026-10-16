@@ -168,7 +168,7 @@ describe("indirect actuation and tier classification (#513)", () => {
       expect(flat(assistSkill)).toContain(
         "An utterance is the least enumerable indirect actuation there is",
       );
-      expect(assistSkill).toContain("it takes the typed `confirm:<token>`");
+      expect(assistSkill).toContain("it takes the one-time code");
       expect(assistSkill).toContain("including the re-run proof after an exposure fix");
     });
   });
