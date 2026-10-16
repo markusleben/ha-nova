@@ -263,6 +263,7 @@ Match user intent to exactly one skill:
 | list, show, read, create, update, delete scenes | `ha-nova:scene` |
 | activate a scene | `ha-nova:service-call` |
 | organize areas, floors, labels, categories, devices, entities | `ha-nova:organize` |
+| replace a device or phone and re-point everything that used it; onboard or retire a device | `ha-nova:device` |
 | assign or remove entity categories | `ha-nova:organize` |
 | show history, logbook timelines, or long-term statistics | `ha-nova:history` |
 | "is everything closed / locked / off?", "who is home?", "what is running right now?" — a live state snapshot across a domain | `ha-nova:entity-discovery` |
@@ -331,6 +332,7 @@ Match user intent to exactly one skill:
 **"Delete the Test dashboard"** → `ha-nova:dashboard`
 **"Add a markdown card to my dashboard"** → `ha-nova:dashboard`
 **"List my Lovelace resources"** → `ha-nova:dashboard`
+**"My door sensor died, I paired a new one — move everything over"** / **"new phone"** → `ha-nova:device` (one entity rename alone stays `ha-nova:organize`)
 **"Move this sensor to Area Alpha"** → `ha-nova:organize`
 **"Put this sensor in category Category Alpha"** → `ha-nova:organize`
 **"Add an alias to this area"** → `ha-nova:organize`

@@ -15,7 +15,8 @@ COMPOSE=(docker compose -f "$HERE/docker-compose.yml")
 if [[ -n "${TESTBED_OVERLAY:-}" ]]; then COMPOSE+=(-f "$TESTBED_OVERLAY/docker-compose.yml"); fi
 RELAY_AUTH_TOKEN="" HA_LLAT="" "${COMPOSE[@]}" down -v --remove-orphans >&2
 if [[ -d "$STATE" ]]; then
-  docker run --rm -v "$STATE:/target" alpine:3.24.2@sha256:294b683cb724975bec92580e1e685676bd4b50bda910ddb8c51d4cabeaec77e6 \
+  # Hosted demo: TESTBED_WIPE_IMAGE names an image that is always present.
+  docker run --rm -v "$STATE:/target" "${TESTBED_WIPE_IMAGE:-alpine:3.24.2@sha256:294b683cb724975bec92580e1e685676bd4b50bda910ddb8c51d4cabeaec77e6}" \
     sh -c 'rm -rf /target/* /target/.[!.]* /target/..?*' >&2
   rmdir "$STATE"
 fi

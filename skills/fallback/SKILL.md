@@ -75,6 +75,7 @@ For every Relay-Ready call in this skill:
 | Label CRUD / Rich label metadata | Covered | organize |
 | Category CRUD / Entity category assignment | Covered | organize |
 | Entity / Device metadata updates | Covered | organize |
+| Device replacement (re-point consumers), onboarding, retirement | Covered | device |
 | Blueprints | Relay-Ready | this skill |
 | Energy (analysis + source/device config) | Covered | energy |
 | Other Config-Entry Helpers | Relay-Ready | this skill |
