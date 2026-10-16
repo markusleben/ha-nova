@@ -37,7 +37,10 @@ and write allowlists grow by exactly these types.
 
 1. `ha-nova plan write --domain dashboard --id <url_path> --file <config.json>`
    plans a full-config save of a listed `mode: storage` dashboard (or the
-   unlisted default `lovelace`). `--create --title <t> [--icon <mdi:x>]`
+   unlisted default `lovelace`). An update needs `--base <config_digest>`
+   from `get --dashboard`: a live config that differs from the draft's base
+   is exit 2 `PLAN_DRIFT` (a stale draft would revert a UI edit).
+   `--create --title <t> [--icon <mdi:x>] [--require-admin] [--hide-sidebar]`
    plans a new dashboard shell plus its content; it refuses a listed
    `url_path` (`CONFIG_ID_IN_USE`). A `yaml` dashboard is refused
    (`DASHBOARD_NOT_STORAGE`, read-only). An unknown `url_path` is exit 5
@@ -62,7 +65,12 @@ and write allowlists grow by exactly these types.
    create; exactly one `lovelace/config/save` (one `dashboards/delete` for a
    delete); fresh read-back. `verified` = read-back content equals the draft
    (create: and the dashboard is listed; delete: no longer listed).
-   `SNAPSHOT_FAILED` saves nothing; `--no-snapshot` only after it.
+   `SNAPSHOT_FAILED` saves nothing; `--no-snapshot` only after it. A
+   rejected save still reads back and reports what Home Assistant serves (it
+   swaps its in-memory config before the disk write); a failure after a new
+   shell landed is exit 6 naming the empty dashboard. A delete's `restore`
+   names the way back: a `--create` with the shell's title and flags, or for
+   the default `lovelace` a plain write.
 6. An update lands on the undo stack (domain `dashboard`, target
    `url_path`); `plan revert [--target <url_path> --domain dashboard]`
    restores the before-config and refuses `REVERT_DRIFT` when the dashboard
@@ -70,7 +78,7 @@ and write allowlists grow by exactly these types.
 7. `ha-nova get --dashboards` (sweep: every listed dashboard plus the default)
    and `ha-nova get --dashboard <url_path> [--config]` (one dashboard: views
    with card summaries, custom types with their resource) report the same
-   issues, read-only. YAML dashboards are read like any other.
+   issues and each dashboard's `config_digest`, read-only. YAML dashboards are read like any other.
 
 ## Known limits
 
@@ -85,6 +93,8 @@ and write allowlists grow by exactly these types.
 - A create whose shell lands but whose save fails leaves an empty dashboard:
   reported `unverified`; the next step is a plain `plan write`.
 - Dashboard writes are not exposed through `ha-nova mcp` yet.
+- An apply with an unknown outcome still replaces the target's one undo
+  checkpoint (its before-config is the pre-apply config), like automations.
 
 ## Delivery
 

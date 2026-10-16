@@ -123,10 +123,10 @@ func cardSummary(card any) string {
 		}
 	}
 	if entities := asList(m["entities"]); len(entities) > 0 {
-		return fmt.Sprintf("%s (%d entities)", kind, len(entities))
+		return kind + " (" + plural(len(entities), "entity") + ")"
 	}
 	if cards := asList(m["cards"]); len(cards) > 0 {
-		return fmt.Sprintf("%s (%d cards)", kind, len(cards))
+		return kind + " (" + plural(len(cards), "card") + ")"
 	}
 	return kind
 }
@@ -157,6 +157,9 @@ func viewCardCount(v map[string]any) int {
 func plural(n int, noun string) string {
 	if n == 1 {
 		return "1 " + noun
+	}
+	if strings.HasSuffix(noun, "y") {
+		return fmt.Sprintf("%d %sies", n, strings.TrimSuffix(noun, "y"))
 	}
 	return fmt.Sprintf("%d %ss", n, noun)
 }

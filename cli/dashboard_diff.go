@@ -19,6 +19,13 @@ func dashboardDiff(before, after map[string]any) []string {
 			rows = append(rows, valueRow("Dashboard › "+key, before[key], after[key]))
 		}
 	}
+	if notList(before["views"]) || notList(after["views"]) { // not a view list: show it as a value
+		if !valuesEqual(before["views"], after["views"]) {
+			rows = append(rows, valueRow("Dashboard › views", before["views"], after["views"]))
+		}
+		return capRows(rows)
+	}
+	bRaw, aRaw := asList(before["views"]), asList(after["views"])
 	bViews, aViews := dashboardViews(before), dashboardViews(after)
 	bKeys, aKeys := viewKeys(bViews), viewKeys(aViews)
 	bIndex := map[string]int{}
@@ -36,6 +43,12 @@ func dashboardDiff(before, after map[string]any) []string {
 			continue
 		}
 		aOrder = append(aOrder, label)
+		if bViews[j] == nil || aViews[i] == nil {
+			if !valuesEqual(bRaw[j], aRaw[i]) {
+				rows = append(rows, valueRow(label, bRaw[j], aRaw[i]))
+			}
+			continue
+		}
 		rows = append(rows, viewDiff(label, bViews[j], aViews[i])...)
 	}
 	for j, key := range bKeys {
@@ -53,11 +66,21 @@ func dashboardDiff(before, after map[string]any) []string {
 	if strings.Join(keptBefore, "\x00") != strings.Join(aOrder, "\x00") {
 		rows = append(rows, tableRow("View order", strings.Join(keptBefore, ", "), strings.Join(aOrder, ", ")))
 	}
+	return capRows(rows)
+}
+
+func capRows(rows []string) []string {
 	if len(rows) > maxDashboardDiffRows {
 		more := len(rows) - maxDashboardDiffRows
 		rows = append(rows[:maxDashboardDiffRows], tableRow("…", "", plural(more, "more change")))
 	}
 	return rows
+}
+
+// notList: present but not a JSON array (asList would hide its content).
+func notList(v any) bool {
+	_, isList := v.([]any)
+	return v != nil && !isList
 }
 
 func valueRow(field string, before, after any) string {
@@ -76,7 +99,7 @@ func valueRow(field string, before, after any) string {
 func viewDiff(label string, before, after map[string]any) []string {
 	var rows []string
 	for _, key := range unionKeys(before, after) {
-		if !containerKeys[key] && !valuesEqual(before[key], after[key]) {
+		if (!containerKeys[key] || notList(before[key]) || notList(after[key])) && !valuesEqual(before[key], after[key]) {
 			rows = append(rows, valueRow(label+" › "+key, before[key], after[key]))
 		}
 	}
@@ -91,6 +114,12 @@ func viewDiff(label string, before, after map[string]any) []string {
 		default:
 			b, a := asMap(bSections[pair.b]), asMap(aSections[pair.a])
 			section := fmt.Sprintf("section %d", pair.a+1)
+			if b == nil || a == nil || notList(b["cards"]) || notList(a["cards"]) {
+				if !valuesEqual(bSections[pair.b], aSections[pair.a]) {
+					rows = append(rows, valueRow(label+" › "+section, bSections[pair.b], aSections[pair.a]))
+				}
+				continue
+			}
 			for _, key := range unionKeys(b, a) {
 				if key != "cards" && !valuesEqual(b[key], a[key]) {
 					rows = append(rows, valueRow(label+" › "+section+" › "+key, b[key], a[key]))
@@ -132,7 +161,9 @@ func listDiff(view, container string, before, after []any, pairable func(b, a an
 			place := view + " › " + itemLabel(container, pair.a) + " (" + cardSummary(after[pair.a]) + ")"
 			b, a := asMap(before[pair.b]), asMap(after[pair.a])
 			if b == nil || a == nil {
-				rows = append(rows, valueRow(place, before[pair.b], after[pair.a]))
+				if !valuesEqual(before[pair.b], after[pair.a]) {
+					rows = append(rows, valueRow(place, before[pair.b], after[pair.a]))
+				}
 				continue
 			}
 			for _, key := range unionKeys(b, a) {

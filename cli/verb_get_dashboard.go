@@ -16,15 +16,17 @@ type dashboardView struct {
 }
 
 type dashboardReport struct {
-	URLPath     string            `json:"url_path"`
-	Title       string            `json:"title,omitempty"`
-	Mode        string            `json:"mode"` // storage | yaml | empty (no stored config yet)
-	Views       int               `json:"views"`
-	Cards       int               `json:"cards"`
-	Layout      []dashboardView   `json:"layout,omitempty"` // --dashboard only
-	CustomTypes map[string]string `json:"custom_types,omitempty"`
-	Issues      []dashboardIssue  `json:"issues,omitempty"`
-	Config      json.RawMessage   `json:"config,omitempty"` // --dashboard --config
+	URLPath string `json:"url_path"`
+	Title   string `json:"title,omitempty"`
+	Mode    string `json:"mode"` // storage | yaml | empty (no stored config yet)
+	// ConfigDigest: pass it to plan write --base; it pins the config the draft starts from.
+	ConfigDigest string            `json:"config_digest"`
+	Views        int               `json:"views"`
+	Cards        int               `json:"cards"`
+	Layout       []dashboardView   `json:"layout,omitempty"` // --dashboard only
+	CustomTypes  map[string]string `json:"custom_types,omitempty"`
+	Issues       []dashboardIssue  `json:"issues,omitempty"`
+	Config       json.RawMessage   `json:"config,omitempty"` // --dashboard --config
 }
 
 type dashboardsResult struct {
@@ -66,7 +68,7 @@ func runGetDashboards(s *relaySession, env *verbEnvelope, urlPath string, withCo
 		if err != nil {
 			return err
 		}
-		report := dashboardReport{URLPath: entry.URLPath, Title: entry.Title, Mode: entry.Mode}
+		report := dashboardReport{URLPath: entry.URLPath, Title: entry.Title, Mode: entry.Mode, ConfigDigest: digestOf(raw)}
 		cfg, _ := configObjectFromBytes(raw)
 		if cfg == nil {
 			report.Mode = "empty"

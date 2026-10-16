@@ -43,8 +43,10 @@ func (req configRequest) validateDashboard() error {
 		return errors.New("a deleted dashboard comes back through plan write --domain dashboard --create with its snapshot's shell and config")
 	case !dashboardPathPattern.MatchString(req.ConfigID):
 		return fmt.Errorf("%q is not a dashboard url_path (--id)", req.ConfigID)
-	case req.Create != (req.Title != "") || (req.Icon != "" && !req.Create):
-		return errors.New("--create needs --title; --title and --icon only go with --create")
+	case req.Create != (req.Title != "") || ((req.Icon != "" || req.RequireAdmin || req.HideSidebar) && !req.Create):
+		return errors.New("--create needs --title; --title, --icon, --require-admin, and --hide-sidebar only go with --create")
+	case req.Op == "write" && req.Create == (req.Base != ""):
+		return errors.New("an update needs --base <config_digest> from `ha-nova get --dashboard <url_path>` (the config the draft starts from); a --create takes none")
 	case req.Create && req.Op != "write":
 		return errors.New("--create only goes with plan write")
 	case req.Create && !strings.Contains(req.ConfigID, "-"):
@@ -168,6 +170,11 @@ func computeDashboardPlan(paths runtimePaths, s *relaySession, env *verbEnvelope
 			return fail(err)
 		}
 	}
+	if req.Base != "" && req.Base != digestOf(current) {
+		return fail(&verbFailure{exit: verbExitDrift, status: "drift", code: "PLAN_DRIFT",
+			message: "dashboard " + req.ConfigID + " changed since the draft's base was read; nothing was planned (saving would revert that change)",
+			next:    "Read it again (`ha-nova get --dashboard " + req.ConfigID + " --config`), re-apply the change to that config, and plan again with its config_digest."})
+	}
 	if req.Op == "revert" {
 		if current == nil {
 			return fail(revertDrift(req.ConfigID + " has no stored config any more"))
@@ -188,7 +195,7 @@ func computeDashboardPlan(paths runtimePaths, s *relaySession, env *verbEnvelope
 	} else {
 		action.Body = req.Draft
 		if req.Create {
-			shell := map[string]any{"url_path": req.ConfigID, "title": req.Title}
+			shell := map[string]any{"url_path": req.ConfigID, "title": req.Title, "require_admin": req.RequireAdmin, "show_in_sidebar": !req.HideSidebar}
 			if req.Icon != "" {
 				shell["icon"] = req.Icon
 			}

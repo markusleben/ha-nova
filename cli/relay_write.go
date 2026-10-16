@@ -51,17 +51,27 @@ func checkWriteRequest(endpoint string, payload map[string]any) error {
 func dashboardWrite(payload map[string]any) bool {
 	required := map[any][]string{"lovelace/config/save": {"type", "config"}, "lovelace/dashboards/create": {"type", "url_path", "title"},
 		"lovelace/dashboards/delete": {"type", "dashboard_id"}}[payload["type"]]
-	optional := map[any]string{"lovelace/config/save": "url_path", "lovelace/dashboards/create": "icon"}[payload["type"]]
+	optional := map[any][]string{"lovelace/config/save": {"url_path"}, "lovelace/dashboards/create": {"icon", "require_admin", "show_in_sidebar"}}[payload["type"]]
 	known := 0
-	for _, key := range append(required, optional) {
-		if _, present := payload[key]; present {
-			known++
-		} else if key != optional {
+	for _, key := range required {
+		if _, present := payload[key]; !present {
 			return false
 		}
+		known++
 	}
-	for key, value := range payload { // every field but the config is a non-empty string
-		if text, isText := value.(string); key != "config" && (!isText || text == "") {
+	for _, key := range optional {
+		if _, present := payload[key]; present {
+			known++
+		}
+	}
+	for key, value := range payload { // flags are booleans; every other field but the config is a non-empty string
+		_, isFlag := value.(bool)
+		text, isText := value.(string)
+		if key == "require_admin" || key == "show_in_sidebar" {
+			if !isFlag {
+				return false
+			}
+		} else if key != "config" && (!isText || text == "") {
 			return false
 		}
 	}

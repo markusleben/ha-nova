@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
 )
 
 // Dashboard execution (dashboard-write spec): config snapshot, a fresh
@@ -71,15 +72,42 @@ func executeDashboard(paths runtimePaths, s *relaySession, env *verbEnvelope, ac
 	}
 	if err != nil {
 		what := "nothing was saved"
-		if create {
-			what = "the dashboard exists but is still empty: plan write again without --create"
-		} else if action.Op == "delete" {
+		if action.Op == "delete" {
 			what = "nothing was deleted"
 		}
-		return dashboardWriteFailure(env, err, what, action.ConfigID)
+		var call *relayCallError
+		if action.Op != "delete" && !errors.As(err, &unknown) && errors.As(err, &call) {
+			// Home Assistant swaps its in-memory config before the disk write:
+			// a rejection is reported with what it serves now.
+			s.renewBudget()
+			row := verifyDashboard(s, action)
+			env.Verification = []verifyRow{row}
+			if row.Outcome == "verified" {
+				what = "yet Home Assistant now serves the planned config (it may not survive a restart)"
+				if update {
+					saveCheckpoint(paths, s, env, action, ctx, action.Body)
+				}
+			}
+		}
+		failure := dashboardWriteFailure(env, err, what, action.ConfigID)
+		var shown *verbFailure
+		if create && errors.As(failure, &shown) && shown.exit != verbExitUnknown {
+			// The shell landed: never "nothing happened".
+			shown.exit, shown.status = verbExitUnverified, "unverified"
+			shown.message = "the dashboard " + action.ConfigID + " was created but its content was not saved (" + err.Error() + ")"
+			shown.next = "It exists and is empty: plan write again without --create, or delete it."
+		} else if create && shown == nil {
+			return &verbFailure{exit: verbExitUnverified, status: "unverified", code: "CONFIG_ERROR",
+				message: "the dashboard " + action.ConfigID + " was created but its content was not saved (" + err.Error() + ")",
+				next:    "It exists and is empty: plan write again without --create, or delete it."}
+		}
+		return failure
 	}
 	s.renewBudget()
 	row := verifyDashboard(s, action)
+	if action.Op == "delete" && env.Snapshot != "" {
+		env.Restore = dashboardRestore(action, env.Snapshot, s.server)
+	}
 	env.Verification, env.Status, env.exit = []verifyRow{row}, row.Outcome, verbExitOK
 	if row.Outcome != "verified" {
 		env.exit = verbExitUnverified
@@ -134,7 +162,7 @@ func verifyDashboard(s *relaySession, action configAction) verifyRow {
 	switch {
 	case err != nil:
 		row.Observed = "read-back failed"
-	case canonicalJSON(readback) != canonicalJSON(action.Body):
+	case readback == nil || dashboardDiffers(action.Body, readback):
 		row.Observed, row.Note = "read-back differs", "the stored dashboard is not the planned one (changed by someone else, or adjusted by Home Assistant)"
 	default:
 		row.Observed, row.Outcome = "read-back equals the plan", "verified"
@@ -145,4 +173,42 @@ func verifyDashboard(s *relaySession, action configAction) verifyRow {
 		}
 	}
 	return row
+}
+
+// dashboardDiffers compares content like the revert drift check: numbers by
+// value (1.5 = 1.50), key order ignored.
+func dashboardDiffers(planned, readback json.RawMessage) bool {
+	changes, err := configChanges(planned, readback)
+	return err != nil || len(changes) > 0
+}
+
+// dashboardRestore names the way back from a delete: load the snapshot, then
+// a create from its shell and config. The default dashboard comes back as a
+// plain write (its url_path has no hyphen; once deleted it is the unlisted
+// default again).
+func dashboardRestore(action configAction, snapshot, server string) string {
+	var entry struct {
+		URLPath      string `json:"url_path"`
+		Title        string `json:"title"`
+		RequireAdmin bool   `json:"require_admin"`
+		ShowSidebar  *bool  `json:"show_in_sidebar"`
+	}
+	_ = json.Unmarshal(action.Shell, &entry)
+	command := "load " + snapshot + " (relay backups), save its config to a file, then: ha-nova plan write --domain dashboard --id " + entry.URLPath
+	if entry.URLPath == defaultDashboard {
+		command += " --base <config_digest from get --dashboard " + defaultDashboard + ">"
+	} else {
+		command += " --create --title " + strconv.Quote(entry.Title) + " [--icon <shell.icon>]"
+		if entry.RequireAdmin {
+			command += " --require-admin"
+		}
+		if entry.ShowSidebar != nil && !*entry.ShowSidebar {
+			command += " --hide-sidebar"
+		}
+	}
+	command += " --file <config file>"
+	if server != "" {
+		command += " --server " + server
+	}
+	return command
 }

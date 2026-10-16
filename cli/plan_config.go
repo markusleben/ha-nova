@@ -49,6 +49,12 @@ type configRequest struct {
 	Snapshot string          `json:"snapshot,omitempty"` // restore: the Relay snapshot file the draft came from
 	Title    string          `json:"title,omitempty"`    // dashboard create: the new shell's title
 	Icon     string          `json:"icon,omitempty"`     // dashboard create: the new shell's icon
+	// Dashboard create: the shell's flags (Home Assistant's defaults: false, true).
+	RequireAdmin bool `json:"require_admin,omitempty"`
+	HideSidebar  bool `json:"hide_sidebar,omitempty"`
+	// Base: dashboard update — the config_digest the draft was built from
+	// (get --dashboard); a different live config is drift.
+	Base string `json:"base,omitempty"`
 }
 
 // configAction is the full operation identity the hash covers (§2.1).
@@ -78,7 +84,7 @@ func (req configRequest) validate() error {
 		return fmt.Errorf("unknown config operation %q", req.Op)
 	case req.Domain == "dashboard":
 		return req.validateDashboard()
-	case req.Title != "" || req.Icon != "":
+	case req.Title != "" || req.Icon != "" || req.RequireAdmin || req.HideSidebar || req.Base != "":
 		return errors.New("--title and --icon are for a new dashboard (--domain dashboard --create)")
 	case req.Domain != "automation" && req.Domain != "script":
 		return errors.New("config plans cover automation, script, and dashboard only")
@@ -138,6 +144,9 @@ func runPlanConfig(paths runtimePaths, op string, args []string) int {
 		fs.StringVar(&draftFile, "file", "", "the full draft config as a JSON object")
 		fs.StringVar(&req.Title, "title", "", "dashboard --create: the new dashboard's title")
 		fs.StringVar(&req.Icon, "icon", "", "dashboard --create: the new dashboard's icon (mdi:name)")
+		fs.BoolVar(&req.RequireAdmin, "require-admin", false, "dashboard --create: only administrators see it")
+		fs.BoolVar(&req.HideSidebar, "hide-sidebar", false, "dashboard --create: not shown in the sidebar")
+		fs.StringVar(&req.Base, "base", "", "dashboard update: the config_digest from get --dashboard that the draft starts from")
 	case "delete":
 		fs.StringVar(&req.ConfigID, "id", "", "--domain dashboard: the url_path of the dashboard to delete")
 	case "revert":

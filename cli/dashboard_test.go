@@ -3,6 +3,8 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -119,7 +121,7 @@ func (h *writeHarness) lovelaceSaves() []string {
 
 func TestDashboardWritePreviewsCardLevelDiffSnapshotsSavesOnceAndReverts(t *testing.T) {
 	h := newWriteHarness(t, dashboardFake())
-	exit, env := h.run(runPlanCommand, "write", "--domain", "dashboard", "--id", "home-main", "--file", draftFile(t, editedHome()))
+	exit, env := h.run(runPlanCommand, "write", "--domain", "dashboard", "--id", "home-main", "--base", homeBase(), "--file", draftFile(t, editedHome()))
 	if exit != 3 || env.Tier != "preview" || env.Plan.Confirm != "natural" || env.Config.Body != nil {
 		t.Fatalf("plan: exit %d env %+v", exit, env)
 	}
@@ -159,6 +161,8 @@ func TestDashboardWritePreviewsCardLevelDiffSnapshotsSavesOnceAndReverts(t *test
 	}
 }
 
+func homeBase() string { return digestOf(mustJSON(homeDashboard())) }
+
 func mustJSON(v any) json.RawMessage {
 	raw, _ := json.Marshal(v)
 	return raw
@@ -170,7 +174,7 @@ func TestDashboardUIEditBeforeApplyIsDriftAndSavesNothing(t *testing.T) {
 			f := dashboardFake()
 			f.lovelace.editAt, f.lovelace.editPath = editAt, "home-main"
 			h := newWriteHarness(t, f)
-			_, env := h.run(runPlanCommand, "write", "--domain", "dashboard", "--id", "home-main", "--file", draftFile(t, editedHome()))
+			_, env := h.run(runPlanCommand, "write", "--domain", "dashboard", "--id", "home-main", "--base", homeBase(), "--file", draftFile(t, editedHome()))
 			exit, applied := h.run(runApplyCommand, "--plan", env.Plan.ID)
 			if exit != 2 || applied.Error.Code != "PLAN_DRIFT" || len(h.lovelaceSaves()) != 0 {
 				t.Fatalf("exit %d env %+v saves %v", exit, applied.Error, h.lovelaceSaves())
@@ -189,8 +193,9 @@ func TestDashboardRefusalsSendNothing(t *testing.T) {
 		exit int
 		code string
 	}{
-		{"yaml is read-only", []string{"--id", "yaml-board"}, 4, "DASHBOARD_NOT_STORAGE"},
-		{"unknown url_path", []string{"--id", "nope-board"}, 5, "NOT_FOUND"},
+		{"yaml is read-only", []string{"--id", "yaml-board", "--base", "x"}, 4, "DASHBOARD_NOT_STORAGE"},
+		{"unknown url_path", []string{"--id", "nope-board", "--base", "x"}, 5, "NOT_FOUND"},
+		{"a stale base", []string{"--id", "home-main", "--base", digestOf(mustJSON(map[string]any{"views": []any{}}))}, 2, "PLAN_DRIFT"},
 		{"create over an existing one", []string{"--id", "home-main", "--create", "--title", "Copy"}, 4, "CONFIG_ID_IN_USE"},
 	}
 	for _, tc := range cases {
@@ -205,11 +210,11 @@ func TestDashboardRefusalsSendNothing(t *testing.T) {
 	h := newWriteHarness(t, dashboardFake())
 	draft := homeDashboard()
 	draft["views"] = append(draft["views"].([]any), map[string]any{"cards": []any{map[string]any{"type": "tile", "entity": "light.guessed"}}})
-	exit, env := h.run(runPlanCommand, "write", "--domain", "dashboard", "--id", "home-main", "--file", draftFile(t, draft))
+	exit, env := h.run(runPlanCommand, "write", "--domain", "dashboard", "--id", "home-main", "--base", homeBase(), "--file", draftFile(t, draft))
 	if exit != 4 || env.Error.Code != "UNKNOWN_ENTITY" || !strings.Contains(env.Error.Message, "light.guessed") {
 		t.Fatalf("guessed entity: exit %d env %+v", exit, env.Error)
 	}
-	for _, bad := range [][]string{{"--id", "x-y", "--create"}, {"--id", "home-main", "--title", "T"}, {"--id", "home", "--create", "--title", "T"}, {"--id", "a b"}, {}} {
+	for _, bad := range [][]string{{"--id", "x-y", "--create"}, {"--id", "home-main", "--title", "T"}, {"--id", "home", "--create", "--title", "T"}, {"--id", "a b"}, {"--id", "home-main"}, {}} {
 		if exit, env := h.run(runPlanCommand, append([]string{"write", "--domain", "dashboard", "--file", draftFile(t, draft)}, bad...)...); exit != 1 || env.Error.Code != "USAGE" {
 			t.Fatalf("%v: exit %d", bad, exit)
 		}
@@ -218,7 +223,7 @@ func TestDashboardRefusalsSendNothing(t *testing.T) {
 
 func TestDashboardCreateMakesTheShellThenSavesWithoutSnapshot(t *testing.T) {
 	h := newWriteHarness(t, dashboardFake())
-	exit, env := h.run(runPlanCommand, "write", "--domain", "dashboard", "--id", "new-board", "--create", "--title", "New board", "--icon", "mdi:home", "--file", draftFile(t, homeDashboard()))
+	exit, env := h.run(runPlanCommand, "write", "--domain", "dashboard", "--id", "new-board", "--create", "--title", "New board", "--icon", "mdi:home", "--require-admin", "--hide-sidebar", "--file", draftFile(t, homeDashboard()))
 	if exit != 3 || env.Tier != "preview" || !strings.Contains(strings.Join(env.Diff, "\n"), `| View "Doors" | — | sections view, 1 section, 2 cards |`) {
 		t.Fatalf("plan: exit %d env %+v", exit, env)
 	}
@@ -226,7 +231,8 @@ func TestDashboardCreateMakesTheShellThenSavesWithoutSnapshot(t *testing.T) {
 	if exit != 0 || applied.Status != "verified" || applied.Undo != nil || len(h.f.snapshots) != 0 {
 		t.Fatalf("apply: exit %d env %+v", exit, applied)
 	}
-	if got := strings.Join(h.lovelaceSaves(), ","); got != "lovelace/dashboards/create,lovelace/config/save" || h.f.lovelace.sent[0]["icon"] != "mdi:home" {
+	if got := strings.Join(h.lovelaceSaves(), ","); got != "lovelace/dashboards/create,lovelace/config/save" || h.f.lovelace.sent[0]["icon"] != "mdi:home" ||
+		h.f.lovelace.sent[0]["require_admin"] != true || h.f.lovelace.sent[0]["show_in_sidebar"] != false {
 		t.Fatalf("writes %s %v", got, h.f.lovelace.sent)
 	}
 }
@@ -254,13 +260,14 @@ func TestDashboardRejectedSaveIsFailedWithoutCheckpointAndSnapshotFailureSavesNo
 	f := dashboardFake()
 	f.lovelace.rejectAll = true
 	h := newWriteHarness(t, f)
-	_, env := h.run(runPlanCommand, "write", "--domain", "dashboard", "--id", "home-main", "--file", draftFile(t, editedHome()))
+	_, env := h.run(runPlanCommand, "write", "--domain", "dashboard", "--id", "home-main", "--base", homeBase(), "--file", draftFile(t, editedHome()))
 	exit, applied := h.run(runApplyCommand, "--plan", env.Plan.ID)
-	if exit != 6 || applied.Status != "failed" || applied.Error.Code != "CONFIG_REJECTED" || applied.Undo != nil {
+	if exit != 6 || applied.Status != "failed" || applied.Error.Code != "CONFIG_REJECTED" || applied.Undo != nil ||
+		len(applied.Verification) != 1 || applied.Verification[0].Observed != "read-back differs" {
 		t.Fatalf("rejected: exit %d env %+v", exit, applied)
 	}
 	f.lovelace.rejectAll, f.snapshotErr = false, true
-	_, env = h.run(runPlanCommand, "write", "--domain", "dashboard", "--id", "home-main", "--file", draftFile(t, editedHome()))
+	_, env = h.run(runPlanCommand, "write", "--domain", "dashboard", "--id", "home-main", "--base", homeBase(), "--file", draftFile(t, editedHome()))
 	exit, applied = h.run(runApplyCommand, "--plan", env.Plan.ID)
 	if exit != 1 || applied.Error.Code != "SNAPSHOT_FAILED" || len(h.lovelaceSaves()) != 1 {
 		t.Fatalf("snapshot failure: exit %d env %+v saves %v", exit, applied.Error, h.lovelaceSaves())
@@ -276,7 +283,7 @@ func TestDashboardSaveTimeoutIsUnknownAndStaysRevertible(t *testing.T) {
 	t.Cleanup(func() { relayWriteTimeout = previous })
 	f := dashboardFake()
 	h := newWriteHarness(t, f)
-	_, env := h.run(runPlanCommand, "write", "--domain", "dashboard", "--id", "home-main", "--file", draftFile(t, editedHome()))
+	_, env := h.run(runPlanCommand, "write", "--domain", "dashboard", "--id", "home-main", "--base", homeBase(), "--file", draftFile(t, editedHome()))
 	f.hang["lovelace/config/save"] = true
 	exit, applied := h.run(runApplyCommand, "--plan", env.Plan.ID)
 	if exit != 7 || !applied.OutcomeUnknown || applied.Undo == nil {
@@ -287,7 +294,7 @@ func TestDashboardSaveTimeoutIsUnknownAndStaysRevertible(t *testing.T) {
 func TestDashboardRevertRefusesAfterAnEditInTheUI(t *testing.T) {
 	f := dashboardFake()
 	h := newWriteHarness(t, f)
-	_, env := h.run(runPlanCommand, "write", "--domain", "dashboard", "--id", "home-main", "--file", draftFile(t, editedHome()))
+	_, env := h.run(runPlanCommand, "write", "--domain", "dashboard", "--id", "home-main", "--base", homeBase(), "--file", draftFile(t, editedHome()))
 	h.run(runApplyCommand, "--plan", env.Plan.ID)
 	f.lovelace.configs["home-main"] = map[string]any{"views": []any{}}
 	if exit, revert := h.run(runPlanCommand, "revert", "--target", "home-main", "--domain", "dashboard"); exit != 2 || revert.Error.Code != "REVERT_DRIFT" {
@@ -299,7 +306,7 @@ func TestDashboardUnlistedDefaultSavesWithoutURLPath(t *testing.T) {
 	f := dashboardFake()
 	f.lovelace.configs[""] = homeDashboard()
 	h := newWriteHarness(t, f)
-	_, env := h.run(runPlanCommand, "write", "--domain", "dashboard", "--id", "lovelace", "--file", draftFile(t, editedHome()))
+	_, env := h.run(runPlanCommand, "write", "--domain", "dashboard", "--id", "lovelace", "--base", homeBase(), "--file", draftFile(t, editedHome()))
 	if exit, applied := h.run(runApplyCommand, "--plan", env.Plan.ID); exit != 0 || applied.Status != "verified" {
 		t.Fatalf("exit %d env %+v", exit, applied)
 	}
@@ -382,5 +389,48 @@ func TestDashboardWriteAllowlistIsExact(t *testing.T) {
 	}
 	if checkWriteRequest("backups", map[string]any{"action": "save", "category": "dashboards", "name": "auto-home", "data": map[string]any{}}) != nil {
 		t.Fatal("dashboard snapshot refused")
+	}
+}
+
+func TestDashboardDeleteOfTheListedDefaultNamesAPlainWriteToRestore(t *testing.T) {
+	f := dashboardFake()
+	f.lovelace.entries = append(f.lovelace.entries, map[string]any{"id": "lovelace", "url_path": "lovelace", "title": "Overview", "mode": "storage", "require_admin": true, "show_in_sidebar": true})
+	f.lovelace.configs["lovelace"] = homeDashboard()
+	h := newWriteHarness(t, f)
+	_, env := h.run(runPlanCommand, "delete", "--domain", "dashboard", "--id", "lovelace")
+	_, applied := h.run(runApplyCommand, "--plan", env.Plan.ID, "--confirm", env.Plan.Code)
+	if !strings.Contains(applied.Restore, "--id lovelace --base") || strings.Contains(applied.Restore, "--create") {
+		t.Fatalf("restore %q", applied.Restore)
+	}
+	_, env = h.run(runPlanCommand, "delete", "--domain", "dashboard", "--id", "home-main")
+	if _, applied = h.run(runApplyCommand, "--plan", env.Plan.ID, "--confirm", env.Plan.Code); !strings.Contains(applied.Restore, `--create --title "Home"`) {
+		t.Fatalf("restore %q", applied.Restore)
+	}
+}
+
+func TestDashboardVerifyComparesNumbersByValue(t *testing.T) {
+	f := dashboardFake()
+	h := newWriteHarness(t, f)
+	path := filepath.Join(t.TempDir(), "d.json")
+	_ = os.WriteFile(path, []byte(`{"views":[{"title":"Gauge","cards":[{"type":"gauge","entity":"light.kitchen","min":1.50}]}]}`), 0o600)
+	_, env := h.run(runPlanCommand, "write", "--domain", "dashboard", "--id", "home-main", "--base", homeBase(), "--file", path)
+	// The fake decodes the sent config, so it serves 1.5 for the draft's 1.50.
+	if exit, applied := h.run(runApplyCommand, "--plan", env.Plan.ID); exit != 0 || applied.Status != "verified" {
+		t.Fatalf("exit %d env %+v", exit, applied)
+	}
+}
+
+func TestDashboardDiffShowsNonListShapesAsValues(t *testing.T) {
+	rows := strings.Join(dashboardDiff(map[string]any{"views": []any{map[string]any{"title": "A", "cards": "x"}}},
+		map[string]any{"views": []any{map[string]any{"title": "A", "cards": "y"}}}), "\n")
+	if !strings.Contains(rows, `| View "A" › cards | x | y |`) {
+		t.Fatalf("rows %s", rows)
+	}
+	rows = strings.Join(dashboardDiff(map[string]any{"views": "a"}, map[string]any{"views": "b"}), "\n")
+	if !strings.Contains(rows, "| Dashboard › views | a | b |") {
+		t.Fatalf("rows %s", rows)
+	}
+	if checkReadOnlyRequest("ws", map[string]any{"type": "lovelace/config", "url_path": "a-b", "force": true}) == nil {
+		t.Fatal("a forced lovelace/config read passed the read allowlist")
 	}
 }
