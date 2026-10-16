@@ -1,13 +1,13 @@
 ---
 name: ha-nova
-description: Use when the user wants Home Assistant operations through HA NOVA (App + Relay) with local OS-backed auth.
+description: Use for reviews and multi-step or multi-target Home Assistant work through HA NOVA (App + Relay), or when no other HA NOVA skill fits. Single device actions, lookups, and single automation/script changes need only their own skill.
 license: MIT
 compatibility: Requires the ha-nova CLI (run 'ha-nova setup' first) and the HA NOVA Relay in Home Assistant (App, or standalone container on Container/Core).
 ---
 
 # HA NOVA Context Skill
 
-Sub-skills are discovered independently by client-specific skill descriptions and names; this context loads on demand the same way, and installed releases inject nothing at session start. `skills/ha-nova/index.md` is the compact dispatch index.
+Sub-skills are discovered independently by their descriptions; this context loads on demand the same way. `skills/ha-nova/index.md` is the compact dispatch index.
 
 ## Mission
 
@@ -21,20 +21,19 @@ Operate Home Assistant through HA NOVA with a minimal user-facing flow:
 ## Session Bootstrap
 
 Before the first HA task in a session, read and follow
-`../ha-nova/session-bootstrap.md`. This shared contract owns HA NOVA update
-checks and Relay update checks for the context skill and every independently
-loaded subskill.
+`../ha-nova/session-bootstrap.md`; it owns the update checks for every HA NOVA
+skill.
 
 ## Runtime Prerequisite
 
 After the shared session bootstrap:
 
-1. Raw relay routes: verify relay CLI: `ha-nova relay health`. Typed verbs (`ha-nova find|get|history|plan|call|apply`) need no probe — an unreachable Relay answers exit 1 `RELAY_ERROR`.
+1. Raw relay routes: `ha-nova relay health` once per server, unless a typed verb or relay command for it already answered. Typed verbs need no probe — an unreachable Relay answers exit 1 `RELAY_ERROR`.
 2. If this fails, ask user to run: `ha-nova setup`
 3. Do not run diagnostics proactively; diagnose only after real failure.
 4. Relay-only auth model: do not request or persist LLAT client-side.
    - The Home Assistant App uses its process-local Supervisor credential automatically. Standalone Container/Core keeps `HA_LLAT` in the relay host environment (`docs/reference/relay-container.md`).
-5. Multi-server installs: to target a non-default server profile, prefix every `ha-nova` command with `HA_NOVA_SERVER=<name>` (for example `HA_NOVA_SERVER=cabin ha-nova relay health`). When a non-default server is selected, name that server once per response.
+5. Multi-server installs: to target a non-default server profile, prefix every `ha-nova` command with `HA_NOVA_SERVER=<name>`. When a non-default server is selected, name that server once per response.
 
 Do not ask user to paste tokens in chat.
 

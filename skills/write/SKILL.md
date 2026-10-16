@@ -17,8 +17,7 @@ expiry automation this flow just created (splitting them loses the pairing,
 
 ## Bootstrap (once per session)
 
-Read and follow `../ha-nova/session-bootstrap.md`; later verbs report the same
-status in `notices[]`. An unreachable Relay answers exit 1 `RELAY_ERROR`
+Read and follow `../ha-nova/session-bootstrap.md`. An unreachable Relay answers exit 1 `RELAY_ERROR`
 (then `ha-nova setup`). Multi-server: add `--server <name>` to every verb (or
 prefix `HA_NOVA_SERVER=<name>`); name a non-default server once per response.
 
@@ -54,13 +53,13 @@ Every draft follows `skills/ha-nova/smallest-solution.md`: the complete explicit
 
 1. Bare "undo the last update": straight to `plan revert`. update/delete/named revert: `ha-nova find` (exact `entity_id` wins; `--include-disabled` for a disabled item), then `ha-nova get <entity_id> --config` for the current config and `config_id` — `managed: yaml` or `CONFIG_NOT_FOUND` there means a YAML/package item: `ha-nova:yaml-config`, never `plan write`/`plan delete`. Ambiguity or no match: ask one blocking question for the exact entity. No second ambiguity question. Correct invalid premises.
 2. Resolve every entity the draft uses with `ha-nova find`/`get`; never guess an id.
-3. Automations: `bp_status` per `skills/ha-nova/best-practices.md` → BP Cache Policy (scripts: `n/a`).
+3. Automations: `bp_status` per `skills/ha-nova/best-practices.md` → BP Cache Policy (scripts and deletes: `n/a`).
 4. Suggestion candidates per `skills/ha-nova/smallest-solution.md` → Write Suggestion Candidates.
 
 ### Phase 2: Preview + Confirm
 
 1. Build the draft. Update: full-replacement merge (base=current, overlay=user changes); never rewrite unrelated structure, aliases, or formatting (key order included). Treat notification copy as user-authored content: preserve notification titles, messages, templates, metadata; rename/timing changes must not restyle, relocalize, or restructure existing text, and requested wording changes change only the requested copy. New or explicitly edited notification actions follow the canonical contract `skills/ha-nova/mobile-notification-composition.md`. Its recurring-workflow INTENT classification is not so limited: it runs before the write preview on EVERY recurring-workflow write — existing notification actions and trigger-only edits included, their payloads staying byte-for-byte untouched — and may add an exception-only Suggestion Block item.
-2. BP gate (`skills/ha-nova/write-safety.md`; refresh: `skills/ha-nova/best-practices.md`): fresh, or any status on a simple change → continue; stale/missing/invalid + complex → block.
+2. BP gate (not for delete; `skills/ha-nova/write-safety.md`; refresh: `skills/ha-nova/best-practices.md`): fresh, or any status on a simple change → continue; stale/missing/invalid + complex → block.
 3. Suggestions + Pre-Write Checks (skip for delete and revert):
    - **3a) Suggestions**: the candidates as the Suggestion Block (output-cards.md; max 2, smallest intervention first). Accepted numbers merge into the draft BEFORE the preview; no block when there is no candidate and no intent-classification item.
    - **3b) Static Checks**: `skills/review/checks.md` → Application, analytically on the draft — no relay calls (scripts: F-01..F-08; helper refs: H-01..H-08. Defer H-09/H-10 to Phase 4). One pre-write verdict line ("Pre-write check: no issues worth flagging before save." or "Pre-write check: this draft may not behave as intended."); 🔴 inline with a fix, 🟠🟡 as advisory below the preview, code-free. Advisories do not block the write and do not require extra confirmation:
@@ -129,6 +128,7 @@ Previews, delete prompts, results, and the test offer render as the Cards in `sk
 Always load:
 - `skills/ha-nova/payload-schemas.md`, `skills/ha-nova/best-practices.md`, `skills/ha-nova/write-safety.md`, `skills/ha-nova/smallest-solution.md`
 - Review checks: `skills/review/checks.md` (catalog + Application; evidence boundaries on demand as it says)
+- A delete needs only `skills/ha-nova/write-safety.md` of these.
 
 On demand — read only when the trigger applies:
 - `skills/ha-nova/automation-patterns.md` — new branching, timing, or flow-control logic
