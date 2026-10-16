@@ -7,7 +7,8 @@ import (
 
 // Device siblings (spec §2.2 step 2): a core-service call on an entity whose
 // device also carries a lock, alarm panel, or access cover may be the opener.
-// Press, switch on/toggle, and cover open are typed; other actuation previews.
+// Press, switch on/toggle, and cover open are typed; every other call keeps
+// its own tier.
 func TestDeviceAccessSiblingOnEveryPath(t *testing.T) {
 	gate := func(f *fakeHA) { // a relay board driving a gate: relay, button, light, gate cover
 		f.ent("switch.gate_relay", "shelly", "off", map[string]any{"_di": "dev_gate", "friendly_name": "Gate relay"})
@@ -29,6 +30,19 @@ func TestDeviceAccessSiblingOnEveryPath(t *testing.T) {
 		{name: "relay switched on", setup: gate, args: []string{"switch.turn_on", "switch.gate_relay"}, exit: 3, tier: "typed", reasons: typed},
 		{name: "relay toggled", setup: gate, args: []string{"switch.toggle", "switch.gate_relay"}, exit: 3, tier: "typed", reasons: typed},
 		{name: "generic homeassistant.turn_on on the relay", setup: gate, args: []string{"homeassistant.turn_on", "switch.gate_relay"}, exit: 3, tier: "typed", reasons: typed},
+		{name: "generic homeassistant.toggle on the relay", setup: gate, args: []string{"homeassistant.toggle", "switch.gate_relay"}, exit: 3, tier: "typed", reasons: typed},
+		{name: "a shutter raised by position on a lock's device",
+			setup: func(f *fakeHA) {
+				f.ent("cover.hatch", "shelly", "closed", map[string]any{"_di": "dev_door", "device_class": "shutter"})
+				f.ent("lock.door", "shelly", "locked", map[string]any{"_di": "dev_door"})
+			},
+			args: []string{"cover.set_cover_position", "cover.hatch", "--set", "position=40"}, exit: 3, tier: "typed", reasons: typed},
+		{name: "a shutter closed on a lock's device: ordinary",
+			setup: func(f *fakeHA) {
+				f.ent("cover.hatch", "shelly", "open", map[string]any{"_di": "dev_door", "device_class": "shutter"})
+				f.ent("lock.door", "shelly", "locked", map[string]any{"_di": "dev_door"})
+			},
+			args: []string{"cover.close_cover", "cover.hatch"}, exit: 0, tier: "ordinary", absent: typed},
 		{name: "relay via --match", setup: gate, args: []string{"switch.turn_on", "--match", "gate relay"}, exit: 3, tier: "typed", reasons: typed},
 		{name: "relay via the one-switch device", setup: gate, args: []string{"switch.turn_on", "--device", "dev_gate"}, exit: 3, tier: "typed", reasons: typed, absent: []string{reasonExpanded}},
 		{name: "relay via the one-switch area",
@@ -107,22 +121,23 @@ func TestDeviceAccessSiblingOnEveryPath(t *testing.T) {
 			}),
 			args: []string{"switch.turn_on", "switch.outside"}, exit: 3, tier: "typed", reasons: typed},
 
-		// Preview: other actuation on such a device.
-		{name: "lamp on the gate device turned on: preview", setup: gate, args: []string{"light.turn_on", "light.gate_lamp"}, exit: 3, tier: "preview", reasons: typed},
-		{name: "relay switched off: preview", setup: gate, args: []string{"switch.turn_off", "switch.gate_relay"}, exit: 3, tier: "preview", reasons: typed},
-		{name: "light off on a lock's device: preview, not typed",
+		// Every other call on such a device keeps its own tier.
+		{name: "lamp on the gate device turned on: ordinary", setup: gate, args: []string{"light.turn_on", "light.gate_lamp"}, exit: 0, tier: "ordinary", absent: typed},
+		{name: "relay switched off: ordinary", setup: gate, args: []string{"switch.turn_off", "switch.gate_relay"}, exit: 0, tier: "ordinary", absent: typed},
+		{name: "generic homeassistant.turn_off on the relay: ordinary", setup: gate, args: []string{"homeassistant.turn_off", "switch.gate_relay"}, exit: 0, tier: "ordinary", absent: typed},
+		{name: "light off on a lock's device: ordinary",
 			setup: func(f *fakeHA) {
 				f.ent("light.ring", "nuki", "on", map[string]any{"_di": "dev_nuki"})
 				f.ent("lock.nuki", "nuki", "locked", map[string]any{"_di": "dev_nuki"})
 			},
-			args: []string{"light.turn_off", "light.ring"}, exit: 3, tier: "preview", reasons: typed},
-		{name: "scene member switches the relay off: preview",
+			args: []string{"light.turn_off", "light.ring"}, exit: 0, tier: "ordinary", absent: typed},
+		{name: "scene member switches the relay off: the run's own preview only",
 			setup: with(gate, func(f *fakeHA) {
 				f.ent("scene.leave", "homeassistant", "unknown", nil)
 				f.unique["scene.leave"] = "s2"
 				f.configs["/api/config/scene/config/s2"] = map[string]any{"entities": map[string]any{"switch.gate_relay": "off"}}
 			}),
-			args: []string{"scene.turn_on", "scene.leave"}, exit: 3, tier: "preview", reasons: typed},
+			args: []string{"scene.turn_on", "scene.leave"}, exit: 3, tier: "preview", reasons: []string{reasonStoredMembers}, absent: typed},
 
 		// Unaffected.
 		{name: "refreshing the relay stays ordinary", setup: gate, args: []string{"homeassistant.update_entity", "switch.gate_relay"}, exit: 0, tier: "ordinary", absent: typed},
@@ -139,18 +154,18 @@ func TestDeviceAccessSiblingOnEveryPath(t *testing.T) {
 				f.ent("cover.blind", "shelly", "open", map[string]any{"_di": "dev_blind", "device_class": "shutter"})
 			},
 			args: []string{"switch.turn_on", "switch.relay"}, exit: 0, tier: "ordinary", absent: typed},
-		{name: "a config button (ping) on a lock's device: preview, not typed",
+		{name: "a config button (ping) on a lock's device: ordinary",
 			setup: func(f *fakeHA) {
 				f.ent("button.lock_ping", "zwave_js", "unknown", map[string]any{"_di": "dev_door", "_ec": 1})
 				f.ent("lock.door", "zwave_js", "locked", map[string]any{"_di": "dev_door"})
 			},
-			args: []string{"button.press", "button.lock_ping"}, exit: 3, tier: "preview", reasons: typed},
+			args: []string{"button.press", "button.lock_ping"}, exit: 0, tier: "ordinary", absent: typed},
 		{name: "a config button on an ESPHome gate board stays typed (user-authored)",
 			setup: func(f *fakeHA) {
 				f.ent("button.gate_pulse", "esphome", "unknown", map[string]any{"_di": "dev_esp", "_ec": 1})
 				f.ent("cover.gate", "esphome", "closed", map[string]any{"_di": "dev_esp", "device_class": "gate"})
 			},
-			args: []string{"button.press", "button.gate_pulse"}, exit: 3, tier: "typed", reasons: []string{reasonUserButton, reasonDeviceAccessSibling}},
+			args: []string{"button.press", "button.gate_pulse"}, exit: 3, tier: "typed", reasons: []string{reasonUserButton}},
 		{name: "integration service on the device keeps DEVICE_ACCESS",
 			setup: gate, args: []string{"shelly.trigger", "switch.gate_relay"}, exit: 3, tier: "typed", reasons: []string{reasonDeviceAccess}, absent: typed},
 	}

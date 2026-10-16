@@ -19,25 +19,26 @@ func (e *tierEngine) deviceAccess(id, via, service string) tierLevel {
 	return tierPreview
 }
 
-// accessSibling: a core-service call on an entity whose device also carries
-// a lock, alarm panel, or access cover may itself be the opener (a gate
-// relay, a buzzer button). What can energize it — a press, switching on or
-// toggling, opening a cover — is typed; any other actuation is preview, and
-// so is a press on a config or diagnostic button (ping, identify, restart:
-// the integration fixed it; ESPHome/MQTT ones stay typed as user-authored).
-// The caller skips access-capable targets: their own table decides.
+// accessSibling: a core-service call that can energize an opener — a press,
+// switching on or toggling, opening a cover — on an entity whose device also
+// carries a lock, alarm panel, or access cover is typed: that button or relay
+// may be the opener (a gate relay, a buzzer). Every other call keeps its own
+// tier, and so does a press on a config or diagnostic button (ping, identify,
+// restart: the integration fixed it; ESPHome/MQTT ones are typed as
+// user-authored anyway). The caller skips access-capable targets.
 func (e *tierEngine) accessSibling(id, via, service string, data map[string]any) tierLevel {
+	domain, name := splitID(service)
+	opens := (service == "button.press" && !e.reg[id].categorized) || service == "switch.turn_on" || service == "switch.toggle" ||
+		(domain == "cover" && coverCanOpen(name, data))
+	if !opens {
+		return tierOrdinary
+	}
 	found := e.deviceAccessEntity(e.reg[id].di)
 	if found == "" {
 		return tierOrdinary
 	}
-	level := tierPreview
-	if domain, name := splitID(service); (service == "button.press" && !e.reg[id].categorized) || service == "switch.turn_on" || service == "switch.toggle" ||
-		(domain == "cover" && coverCanOpen(name, data)) {
-		level = tierTyped
-	}
-	e.raise(level, tierReason{Code: reasonDeviceAccessSibling, EntityID: id, Via: via, Detail: found})
-	return level
+	e.raise(tierTyped, tierReason{Code: reasonDeviceAccessSibling, EntityID: id, Via: via, Detail: found})
+	return tierTyped
 }
 
 // deviceAccessEntity returns the first access-capable entity on one device
