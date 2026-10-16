@@ -23,7 +23,7 @@ func dashboardDiff(before, after map[string]any) []string {
 		if keyChanged(before, after, "views") {
 			rows = append(rows, keyRow("Dashboard › views", before, after, "views"))
 		}
-		return capRows(rows)
+		return capDiffRows(rows)
 	}
 	bRaw, aRaw := asList(before["views"]), asList(after["views"])
 	bViews, aViews := dashboardViews(before), dashboardViews(after)
@@ -71,7 +71,7 @@ func dashboardDiff(before, after map[string]any) []string {
 	if strings.Join(keptBefore, "\x00") != strings.Join(keptAfter, "\x00") {
 		rows = append(rows, tableRow("View order", strings.Join(keptBefore, ", "), strings.Join(keptAfter, ", ")))
 	}
-	return capRows(rows)
+	return capDiffRows(rows)
 }
 
 // pairViews matches views by path, else title; the rest pair by position
@@ -124,7 +124,7 @@ func keyChanged(before, after map[string]any, key string) bool {
 	return inBefore != inAfter || !valuesEqual(b, a)
 }
 
-func capRows(rows []string) []string {
+func capDiffRows(rows []string) []string {
 	if len(rows) > maxDashboardDiffRows {
 		more := len(rows) - maxDashboardDiffRows
 		rows = append(rows[:maxDashboardDiffRows], tableRow("…", "", plural(more, "more change")))
