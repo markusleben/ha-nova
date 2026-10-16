@@ -176,6 +176,11 @@ func checkReadOnlyRequest(endpoint string, payload map[string]any) error {
 			return nil
 		}
 		return fmt.Errorf("WS type %q is not on the read-only allowlist; nothing was sent", payload["type"])
+	case "backups": // plan restore: loading one automation/script snapshot
+		if file, _ := payload["file"].(string); payload["action"] == "load" && len(payload) == 2 && restoreDomain(file) != "" {
+			return nil
+		}
+		return errors.New("read verbs only load automation/script config snapshots from relay backups; nothing was sent")
 	default:
 		return fmt.Errorf("read verbs never use relay %s; nothing was sent", endpoint)
 	}

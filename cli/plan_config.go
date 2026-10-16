@@ -39,13 +39,14 @@ func validConfigID(domain, id string) bool {
 
 // configRequest is what apply recomputes a config plan from.
 type configRequest struct {
-	Op       string          `json:"op"` // write | delete | revert
+	Op       string          `json:"op"` // write | delete | revert | restore
 	Domain   string          `json:"domain"`
 	ConfigID string          `json:"config_id,omitempty"`
 	Create   bool            `json:"create,omitempty"` // minted id: must be unused
 	Minted   bool            `json:"minted,omitempty"` // the id was minted or derived, never chosen by the user
 	EntityID string          `json:"entity_id,omitempty"`
 	Draft    json.RawMessage `json:"draft,omitempty"`
+	Snapshot string          `json:"snapshot,omitempty"` // restore: the Relay snapshot file the draft came from
 }
 
 // configAction is the full operation identity the hash covers (§2.1).
@@ -67,18 +68,22 @@ type configContext struct {
 
 func (req configRequest) validate() error {
 	switch {
-	case req.Op != "write" && req.Op != "delete" && req.Op != "revert":
+	case req.Op != "write" && req.Op != "delete" && req.Op != "revert" && req.Op != "restore":
 		return fmt.Errorf("unknown config operation %q", req.Op)
 	case req.Domain != "automation" && req.Domain != "script":
 		return errors.New("config plans cover automation and script only")
 	case req.Op == "delete" && (!entityIDPattern.MatchString(req.EntityID) || !strings.HasPrefix(req.EntityID, req.Domain+".")):
 		return fmt.Errorf("%q is not an %s entity_id", req.EntityID, req.Domain)
-	case (req.Op == "write" || req.ConfigID != "") && !validConfigID(req.Domain, req.ConfigID):
+	case (req.Op == "write" || req.Op == "restore" || req.ConfigID != "") && !validConfigID(req.Domain, req.ConfigID):
 		return fmt.Errorf("%q is not a %s config id", req.ConfigID, req.Domain)
-	case req.Op == "write":
+	case req.Op == "restore" && (!req.Create || restoreDomain(req.Snapshot) != req.Domain):
+		return errors.New("a restore is a create from an automations/ or scripts/ snapshot of its own domain")
+	case req.Op == "write" || req.Op == "restore":
 		draft, err := configObjectFromBytes(req.Draft)
-		if _, carriesID := draft["id"]; err == nil && req.Domain == "script" && carriesID {
+		if id, carriesID := draft["id"]; err == nil && req.Domain == "script" && carriesID {
 			return errors.New("a script config carries no id; its key is --id (or derived from the alias)")
+		} else if err == nil && req.Op == "restore" && req.Domain == "automation" && id != req.ConfigID {
+			return errors.New("a restored automation keeps its own id")
 		}
 		return err
 	}
@@ -111,9 +116,9 @@ func runPlanConfig(paths runtimePaths, op string, args []string) int {
 	req := configRequest{Op: op}
 	fs := flag.NewFlagSet("plan "+op, flag.ContinueOnError)
 	addVerbFlags(fs, &opts)
-	usage := map[string]string{"write": planWriteUsage, "delete": planDeleteUsage, "revert": planRevertUsage}[op]
+	usage := map[string]string{"write": planWriteUsage, "delete": planDeleteUsage, "revert": planRevertUsage, "restore": planRestoreUsage}[op]
 	draftFile := ""
-	if op != "delete" {
+	if op == "write" || op == "revert" {
 		fs.StringVar(&req.Domain, "domain", "", "automation or script")
 	}
 	switch op {
@@ -123,6 +128,9 @@ func runPlanConfig(paths runtimePaths, op string, args []string) int {
 		fs.StringVar(&draftFile, "file", "", "the full draft config as a JSON object")
 	case "revert":
 		fs.StringVar(&req.ConfigID, "target", "", "config id of the update to revert (default: the newest)")
+	case "restore":
+		fs.StringVar(&req.Snapshot, "snapshot", "", "the snapshot file the delete result named")
+		fs.StringVar(&req.ConfigID, "id", "", "the deleted item's config id (required for a script)")
 	}
 	positional, err := parseVerbArgs(fs, &opts, args, usage+"\n\nRead-only: stores a plan; \"ha-nova apply\" executes it.")
 	if err == nil {
@@ -132,6 +140,11 @@ func runPlanConfig(paths runtimePaths, op string, args []string) int {
 		return verbUsageError("plan", err)
 	}
 	return runReadVerb(paths, "plan", opts, func(s *relaySession, env *verbEnvelope) error {
+		if req.Op == "restore" {
+			if err := req.loadRestoreSnapshot(s); err != nil {
+				return err
+			}
+		}
 		_, plan, _, err := computeConfigPlan(paths, s, env, req)
 		if err != nil {
 			return err
@@ -142,6 +155,8 @@ func runPlanConfig(paths runtimePaths, op string, args []string) int {
 
 func (req *configRequest) parseInput(positional []string, draftFile string) error {
 	switch req.Op {
+	case "restore":
+		return req.parseRestore(positional)
 	case "delete":
 		if len(positional) != 1 {
 			return errors.New("Usage: " + planDeleteUsage)
@@ -267,6 +282,8 @@ func computeConfigPlan(paths runtimePaths, s *relaySession, env *verbEnvelope, r
 	switch {
 	case req.Op == "delete" && current == nil:
 		return fail(&verbFailure{exit: verbExitNotFound, code: "CONFIG_NOT_FOUND", message: req.EntityID + " has no stored config to delete"})
+	case req.Op == "restore" && current != nil:
+		return fail(restoreIDInUse(req.ConfigID))
 	case req.Op == "write" && req.Create && current != nil:
 		return fail(refusedWith("CONFIG_ID_IN_USE", "config id "+req.ConfigID+" already exists; a create never overwrites", configIDInUseNext(req.Domain)))
 	case req.Op == "revert":
@@ -282,7 +299,7 @@ func computeConfigPlan(paths runtimePaths, s *relaySession, env *verbEnvelope, r
 		e.referencedBy(req.EntityID)
 	} else {
 		action.Body = req.Draft
-		e.raise(tierPreview, tierReason{Code: map[string]string{"write": reasonConfigWrite, "revert": reasonConfigRevert}[req.Op], Via: req.Domain + "." + req.ConfigID})
+		e.raise(tierPreview, tierReason{Code: map[string]string{"write": reasonConfigWrite, "revert": reasonConfigRevert, "restore": reasonConfigRestore}[req.Op], Via: req.Domain + "." + req.ConfigID})
 		e.classifyDraft(req.Domain, req.ConfigID, req.Draft)
 		before := current
 		if before == nil {
@@ -294,7 +311,7 @@ func computeConfigPlan(paths runtimePaths, s *relaySession, env *verbEnvelope, r
 	}
 	plan := storedPlan{Kind: req.Op, ConfigRequest: &req, ConfigAction: &action, Basis: configPlanBasis(e, current, req.Draft)}
 	plan, err = sealPlan(e, env, plan, action)
-	env.Config = &action
+	env.Config, env.Snapshot = &action, req.Snapshot
 	if env.Status == "needs_confirmation" {
 		env.Say = confirmationSay(e, env, plan, configAlias(req.Draft, current))
 	}

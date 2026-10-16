@@ -90,10 +90,11 @@ func callArgv(args map[string]json.RawMessage, temp *mcpTempFiles) ([]string, er
 func planArgv(args map[string]json.RawMessage, temp *mcpTempFiles) ([]string, error) {
 	kind := text(args, "kind")
 	allowed := map[string][]string{
-		"call":   {"kind", "service", "entity_ids", "match", "area", "device", "data"},
-		"write":  {"kind", "domain", "id", "create", "draft"},
-		"delete": {"kind", "entity_id"},
-		"revert": {"kind", "domain", "id"},
+		"call":    {"kind", "service", "entity_ids", "match", "area", "device", "data"},
+		"write":   {"kind", "domain", "id", "create", "draft"},
+		"delete":  {"kind", "entity_id"},
+		"revert":  {"kind", "domain", "id"},
+		"restore": {"kind", "snapshot", "id"},
 	}[kind]
 	for key := range args {
 		if !containsText(allowed, key) {
@@ -128,6 +129,16 @@ func planArgv(args map[string]json.RawMessage, temp *mcpTempFiles) ([]string, er
 			return nil, fmt.Errorf("%q is not an entity_id", entityID)
 		}
 		return []string{"delete", entityID}, nil
+	case "restore":
+		snapshot := text(args, "snapshot")
+		if restoreDomain(snapshot) == "" {
+			return nil, fmt.Errorf("%q is not an automations/ or scripts/ snapshot file", snapshot)
+		}
+		argv := []string{"restore", "--snapshot=" + snapshot}
+		if id := text(args, "id"); id != "" {
+			argv = append(argv, "--id="+id)
+		}
+		return argv, nil
 	}
 	argv := []string{"revert"}
 	if id := text(args, "id"); id != "" {
@@ -220,6 +231,9 @@ func nextStep(envelope map[string]any) string {
 	case errInfo != nil && errInfo["code"] == "RELAY_ERROR":
 		return "If this computer is not paired or its credential store is locked, ask the user to run `ha-nova setup` in a terminal."
 	}
+	if restore, _ := envelope["restore"].(string); restore != "" && errInfo == nil {
+		return "If the user asks to undo this delete: " + mcpNext(restore) + "."
+	}
 	next, _ := errInfo["next"].(string)
 	switch errInfo["code"] {
 	case "SERVER_MISMATCH":
@@ -269,7 +283,7 @@ var mcpNoticeHints = map[string]string{
 
 // mcpFlagArgs: the CLI flags a verb's next or message names, as the MCP
 // tool arguments they stand for. Anything else stays verbatim.
-var mcpFlagArgs = map[string]string{"confirm": "confirm_code", "no-snapshot": "no_snapshot", "target": "id", "id": "id",
+var mcpFlagArgs = map[string]string{"confirm": "confirm_code", "no-snapshot": "no_snapshot", "snapshot": "snapshot", "target": "id", "id": "id",
 	"create": "create: true", "include-disabled": "include_disabled", "state": "state", "domain": "domain", "area": "area",
 	"config": "config", "related": "related", "since": "since", "until": "until", "logbook": "logbook", "match": "match", "device": "device"}
 

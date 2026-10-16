@@ -63,7 +63,7 @@ type storedPlan struct {
 	SnapshotFailed bool            `json:"snapshot_failed,omitempty"`
 	Request        planCallRequest `json:"request"`
 	Action         planAction      `json:"action"`
-	ConfigRequest  *configRequest  `json:"config_request,omitempty"` // kinds write/delete/revert
+	ConfigRequest  *configRequest  `json:"config_request,omitempty"` // kinds write/delete/revert/restore
 	ConfigAction   *configAction   `json:"config_action,omitempty"`
 	Reasons        []tierReason    `json:"reasons"`
 	Basis          map[string]any  `json:"basis"`
@@ -122,7 +122,8 @@ func codeParts(plan storedPlan) (string, []string) {
 		// A create's id is a minted number the user never saw: name the code
 		// after the alias instead (same [a-z0-9_] charset, length bounded by
 		// confirmCode). Binding stays the hash+nonce suffix.
-		if request := plan.ConfigRequest; request != nil && request.Minted { // a user-chosen --id stays the object
+		// A restore's id is the deleted item's, which the user rarely saw.
+		if request := plan.ConfigRequest; request != nil && (request.Minted || request.Op == "restore") { // a user-chosen --id stays the object
 			var draft struct {
 				Alias string `json:"alias"`
 			}

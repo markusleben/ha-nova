@@ -147,7 +147,7 @@ Current mapping:
 4. Review (inline, never `ha-nova:review`) — post-write checks, collision
    scan; findings are advisory. An update lands on the per-server undo stack
    automatically (`revert` → `plan revert`); creates clean up through the
-   delete flow; deletes restore from their config snapshot.
+   delete flow; a delete's result names its one-call undo (`plan restore`).
 5. Test offer — `skills/ha-nova/test-run.md`.
 
 ## Config Snapshot Architecture

@@ -18,12 +18,27 @@ import (
 func (f *fakeHA) configReply(r *http.Request, endpoint string, p map[string]any) (any, bool) {
 	path := fmt.Sprint(p["path"])
 	switch {
+	case endpoint == "backups" && p["action"] == "load":
+		if data, ok := f.snapshotFiles[fmt.Sprint(p["file"])]; ok {
+			return map[string]any{"data": data, "created_at": "2026-10-16T12:00:00.000Z"}, true
+		}
+		return fakeRelayFailure{"SNAPSHOT_NOT_FOUND", "No snapshot at " + fmt.Sprint(p["file"])}, true
 	case endpoint == "backups":
 		if f.snapshotErr {
 			return fakeRelayFailure{"SNAPSHOT_STORE_FULL", "store full"}, true
 		}
+		var sent struct {
+			Data json.RawMessage `json:"data"`
+		}
+		raw, _ := io.ReadAll(r.Body)
+		_ = json.Unmarshal(raw, &sent)
 		f.snapshots = append(f.snapshots, p)
-		return map[string]any{"file": fmt.Sprintf("%s/%s-1.json.gz", p["category"], p["name"])}, true
+		file := fmt.Sprintf("%s/%s-20261016T120000%03dZ.json.gz", p["category"], p["name"], len(f.snapshots))
+		if f.snapshotFiles == nil {
+			f.snapshotFiles = map[string]json.RawMessage{}
+		}
+		f.snapshotFiles[file] = sent.Data
+		return map[string]any{"file": file}, true
 	case !strings.HasPrefix(path, "/api/config/"):
 		return nil, false
 	case p["method"] == "POST":
@@ -226,7 +241,8 @@ func TestPlanDeleteIsTypedAndSnapshotsFirst(t *testing.T) {
 	}
 	h.f.snapshotErr = false
 	exit, deleted := h.run(runApplyCommand, "--plan", env.Plan.ID, "--confirm", env.Plan.Code)
-	if exit != 0 || deleted.Status != "verified" || deleted.Snapshot != "automations/auto-automation-night-1.json.gz" {
+	if exit != 0 || deleted.Status != "verified" || deleted.Snapshot != "automations/auto-automation-night-20261016T120000001Z.json.gz" ||
+		deleted.Restore != "ha-nova plan restore --snapshot "+deleted.Snapshot+" --id n1" {
 		t.Fatalf("delete: exit %d env %+v", exit, deleted)
 	}
 	var order []string

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
@@ -35,10 +36,12 @@ type fakeHA struct {
 	service func(f *fakeHA, path string, body map[string]any) any
 	mu      sync.Mutex
 	// Config writes (PR5): configWrite overrides how a POSTed config is
-	// stored (nil: verbatim); snapshots records /backups saves.
-	configWrite func(f *fakeHA, path string, body map[string]any) any
-	snapshots   []map[string]any
-	snapshotErr bool
+	// stored (nil: verbatim); snapshots records /backups saves, whose raw
+	// data snapshotFiles keeps by file for a load.
+	configWrite   func(f *fakeHA, path string, body map[string]any) any
+	snapshots     []map[string]any
+	snapshotFiles map[string]json.RawMessage
+	snapshotErr   bool
 	// deleteStatus: answer DELETE with this status after removing the item
 	// (a concurrent removal: Home Assistant says 400 "Resource not found").
 	deleteStatus int
