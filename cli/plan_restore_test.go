@@ -37,9 +37,9 @@ func nightHarness(t *testing.T) *writeHarness {
 	return newWriteHarness(t, f)
 }
 
-// The delete names its undo; that one plan call restores the exact bytes
-// under the original id, and apply verifies it.
-func TestPlanRestoreUndoesADeleteByteExact(t *testing.T) {
+// The delete names its undo; that one plan call restores the snapshot's
+// bytes (key order kept) under the original id, and apply verifies it.
+func TestPlanRestoreUndoesADeleteWithTheSnapshotBytes(t *testing.T) {
 	h := nightHarness(t)
 	_, env := h.run(runPlanCommand, "delete", "automation.night")
 	exit, deleted := h.run(runApplyCommand, "--plan", env.Plan.ID, "--confirm", env.Plan.Code)
@@ -48,7 +48,7 @@ func TestPlanRestoreUndoesADeleteByteExact(t *testing.T) {
 	}
 	exit, planned := h.run(runPlanCommand, restoreArgs(t, deleted.Restore)...)
 	if exit != 3 || planned.Tier != "preview" || reasonCodes(planned) != reasonConfigRestore || planned.Config == nil ||
-		planned.Config.Op != "restore" || planned.Config.ConfigID != "n1" || planned.Snapshot != deleted.Snapshot || planned.Say == "" {
+		planned.Config.Op != "restore" || planned.Config.ConfigID != "n1" || planned.Snapshot != "" || planned.Say == "" {
 		t.Fatalf("plan restore: exit %d env %+v", exit, planned)
 	}
 	if string(planned.Config.Body) != nightRaw {
@@ -92,6 +92,7 @@ func TestPlanRestoreRefusesForeignSnapshots(t *testing.T) {
 		{"not an object", snapAutoFile, `[1]`, "SNAPSHOT_MISMATCH", nil, 4},
 		{"scenes category", "scenes/auto-scene-x-20261016T120000000Z.json.gz", `{}`, "USAGE", nil, 1},
 		{"missing file", "automations/auto-gone-20261016T120000000Z.json.gz", "", "SNAPSHOT_NOT_FOUND", nil, 5},
+		{"corrupt file", snapAutoFile, "corrupt", "SNAPSHOT_CORRUPT", nil, 1},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -157,7 +158,7 @@ func TestMCPPlanRestore(t *testing.T) {
 	if _, err := planArgv(map[string]json.RawMessage{"kind": json.RawMessage(`"restore"`), "snapshot": json.RawMessage(`"--id=x"`)}, nil); err == nil {
 		t.Fatal("a flag-shaped snapshot was accepted")
 	}
-	step := nextStep(map[string]any{"status": "verified", "restore": "ha-nova plan restore --snapshot " + snapScript + " --id night_mode"})
+	step := nextStep(map[string]any{"status": "verified", "restore": "ha-nova plan restore --snapshot " + snapScript + " --id night_mode --server home"})
 	if step != "If the user asks to undo this delete: ha_plan kind restore snapshot "+snapScript+" id night_mode." {
 		t.Fatalf("next_step %q", step)
 	}

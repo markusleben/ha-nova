@@ -30,9 +30,14 @@ func restoreDomain(file string) string {
 	return strings.TrimSuffix(m[1], "s")
 }
 
-// restoreCommand is the one call that undoes a delete, named in its result.
-func restoreCommand(action configAction, snapshot string) string {
-	return "ha-nova plan restore --snapshot " + snapshot + " --id " + action.ConfigID
+// restoreCommand is the one call that undoes a delete, named in its result;
+// the snapshot lives in that server's Relay, so the command names it.
+func restoreCommand(action configAction, snapshot, server string) string {
+	command := "ha-nova plan restore --snapshot " + snapshot + " --id " + action.ConfigID
+	if server != "" {
+		command += " --server " + server
+	}
+	return command
 }
 
 func (req *configRequest) parseRestore(positional []string) error {
@@ -52,14 +57,19 @@ func (req *configRequest) parseRestore(positional []string) error {
 }
 
 // loadRestoreSnapshot reads the snapshot through the Relay and makes its
-// config the draft, byte for byte (only whitespace removed, key order kept).
+// config the draft as the Relay returns it (whitespace removed, key order
+// kept; the Relay stored it as parsed JSON, see the spec's known limit).
 // It must hold one config of the file's domain, under the given id.
 func (req *configRequest) loadRestoreSnapshot(s *relaySession) error {
 	data, err := s.read("backups", map[string]any{"action": "load", "file": req.Snapshot})
 	var call *relayCallError
-	if errors.As(err, &call) && call.code == "SNAPSHOT_NOT_FOUND" {
+	switch {
+	case errors.As(err, &call) && call.code == "SNAPSHOT_NOT_FOUND":
 		return &verbFailure{exit: verbExitNotFound, code: "SNAPSHOT_NOT_FOUND", message: "no config snapshot " + req.Snapshot + " in this server's Relay; nothing was planned",
 			next: "Pass the snapshot file exactly as the delete result named it, on the same server."}
+	case errors.As(err, &call) && call.code == "SNAPSHOT_CORRUPT":
+		return &verbFailure{exit: verbExitError, code: "SNAPSHOT_CORRUPT", message: "config snapshot " + req.Snapshot + " cannot be read; nothing was planned",
+			next: "This copy is lost; a full Home Assistant backup is the way back (ha-nova:backup)."}
 	}
 	if err != nil {
 		return err

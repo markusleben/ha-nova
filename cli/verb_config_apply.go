@@ -79,7 +79,7 @@ func executeConfig(paths runtimePaths, s *relaySession, env *verbEnvelope, actio
 	s.renewBudget()
 	row, readback := verifyConfig(s, action, reloaded)
 	if action.Op == "delete" && env.Snapshot != "" {
-		env.Restore = restoreCommand(action, env.Snapshot)
+		env.Restore = restoreCommand(action, env.Snapshot, s.server)
 	}
 	if alreadyGone && row.Outcome == "verified" {
 		row.Note = "already gone when the delete arrived (removed concurrently)"

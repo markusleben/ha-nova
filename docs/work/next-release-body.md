@@ -18,7 +18,7 @@ the number.
   the repository on the way — click "Add", then Install and Start.
 - **Undo a deleted automation or script:** "undo that" right after a delete
   restores it from the copy saved before the delete, under its original
-  identity, with the usual preview. It never replaces an item that exists.
+  id, with the usual preview. It never replaces an item that exists.
 
 ## What To Watch
 

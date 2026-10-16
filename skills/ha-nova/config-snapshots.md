@@ -112,7 +112,9 @@ Automations/scripts skip steps 2-5: `ha-nova plan restore --snapshot <file>
 overwrites; the CLI loads, diffs, tiers, and verifies). A delete result's
 `restore` is this exact command. Otherwise `list` resolves the file; a
 script's `--id` is the deleted `script.<key>` (a renamed entity no longer
-matches its key — ask when unsure).
+matches its key — ask when unsure). An item that still exists: `load`,
+save `.data.data` (never via `--jq`, which reorders keys) as the draft,
+then `plan write --domain <d> --id <config id> --file <draft>`.
 
 ## Restore fidelity (say this in the preview — never overpromise)
 

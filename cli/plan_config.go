@@ -311,7 +311,7 @@ func computeConfigPlan(paths runtimePaths, s *relaySession, env *verbEnvelope, r
 	}
 	plan := storedPlan{Kind: req.Op, ConfigRequest: &req, ConfigAction: &action, Basis: configPlanBasis(e, current, req.Draft)}
 	plan, err = sealPlan(e, env, plan, action)
-	env.Config, env.Snapshot = &action, req.Snapshot
+	env.Config = &action
 	if env.Status == "needs_confirmation" {
 		env.Say = confirmationSay(e, env, plan, configAlias(req.Draft, current))
 	}

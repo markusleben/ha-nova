@@ -232,6 +232,7 @@ func nextStep(envelope map[string]any) string {
 		return "If this computer is not paired or its credential store is locked, ask the user to run `ha-nova setup` in a terminal."
 	}
 	if restore, _ := envelope["restore"].(string); restore != "" && errInfo == nil {
+		restore, _, _ = strings.Cut(restore, " --server ") // an MCP session is pinned to one server
 		return "If the user asks to undo this delete: " + mcpNext(restore) + "."
 	}
 	next, _ := errInfo["next"].(string)

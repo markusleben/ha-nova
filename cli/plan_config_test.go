@@ -19,7 +19,9 @@ func (f *fakeHA) configReply(r *http.Request, endpoint string, p map[string]any)
 	path := fmt.Sprint(p["path"])
 	switch {
 	case endpoint == "backups" && p["action"] == "load":
-		if data, ok := f.snapshotFiles[fmt.Sprint(p["file"])]; ok {
+		if data := f.snapshotFiles[fmt.Sprint(p["file"])]; string(data) == "corrupt" {
+			return fakeRelayFailure{"SNAPSHOT_CORRUPT", "could not be decompressed/parsed"}, true
+		} else if data != nil {
 			return map[string]any{"data": data, "created_at": "2026-10-16T12:00:00.000Z"}, true
 		}
 		return fakeRelayFailure{"SNAPSHOT_NOT_FOUND", "No snapshot at " + fmt.Sprint(p["file"])}, true
@@ -242,7 +244,7 @@ func TestPlanDeleteIsTypedAndSnapshotsFirst(t *testing.T) {
 	h.f.snapshotErr = false
 	exit, deleted := h.run(runApplyCommand, "--plan", env.Plan.ID, "--confirm", env.Plan.Code)
 	if exit != 0 || deleted.Status != "verified" || deleted.Snapshot != "automations/auto-automation-night-20261016T120000001Z.json.gz" ||
-		deleted.Restore != "ha-nova plan restore --snapshot "+deleted.Snapshot+" --id n1" {
+		deleted.Restore != "ha-nova plan restore --snapshot "+deleted.Snapshot+" --id n1 --server default" {
 		t.Fatalf("delete: exit %d env %+v", exit, deleted)
 	}
 	var order []string
