@@ -109,6 +109,7 @@
   "tests/skills/live-schema-preflight-contract.test.ts",
   "tests/skills/maintenance-contract.test.ts",
   "tests/skills/membership-resolution-contract.test.ts",
+  "tests/skills/migrate-contract.test.ts",
   "tests/skills/notify-composition-contract.test.ts",
   "tests/skills/outcome-verification-contract.test.ts",
   "tests/skills/output-design-contract.test.ts",
