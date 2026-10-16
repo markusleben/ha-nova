@@ -23,15 +23,15 @@ The file is a JSON array of nodes: `id`, `type`, `z` (the flow tab), `name`, `wi
 
 | Node `type` | Home Assistant |
 |---|---|
-| `server-state-changed` (Events: state) | state trigger on `entityId`; `ifState` with `ifStateOperator` `is` → `to:`, `is_not` → `not_to:`, numeric operators → `numeric_state` — the node then has TWO outputs, the second fires on every other state: check which outputs are wired; `for` → trigger `for:`; `ignorePrevState*` → `not_from:`; `ignoreCurrentState*` → `not_to:`; `outputInitially` → also a start trigger with the current state |
+| `server-state-changed` (Events: state) | state trigger on the node's entities — older nodes: `entityId` + `entityIdType`; version 6: `entities.entity`, `entities.substring`, `entities.regex`; `ifState` with `ifStateOperator` `is` → `to:`, `is_not` → `not_to:`, numeric operators → a state trigger plus a numeric condition or `choose` (Node-RED tests every event; `numeric_state` fires only on crossing) — the node then has TWO outputs, the second fires on every other state: check which outputs are wired; `for` → trigger `for:`; `ignorePrevState*` → `not_from:`; `ignoreCurrentState*` → `not_to:`; `outputInitially` → also a `homeassistant` start trigger and an `automation_reloaded` event trigger (it ran on every Node-RED deploy — name the difference) |
 | `trigger-state` | state trigger + conditions from its constraints |
 | `poll-state` | `time_pattern` + condition only when the periodic output matters; otherwise a state trigger (name the difference) |
 | `ha-time` | time trigger `at: <input_datetime or timestamp sensor>` with `offset` |
 | `inject` | `crontab` (`mm hh * * dow`) → time trigger with `weekday:`; `repeat` → `time_pattern`; `once` → `homeassistant` start trigger |
-| `api-call-service` (Action) | the action: `action` (older nodes: `domain` + `service`), targets from `entityId`/`areaId`/`deviceId`/`labelId`, `data` (JSONata data → a template); an incoming `msg.payload` with `action`/`data`/`target` overrides the node — trace upstream |
+| `api-call-service` (Action) | the action: `action` (older nodes: `domain` + `service`), targets from `entityId`/`areaId`/`deviceId`/`labelId`, `data` (JSONata data → a template); unless `blockInputOverrides` is true, an incoming `msg.payload` with `action`/`data`/`target` overrides the node — trace upstream |
 | `api-current-state` | a condition; two outputs like the events node |
 | `ha-wait-until` | `wait_for_trigger` or `wait_template` with the node's `timeout`; its timeout output → `if: "{{ not wait.completed }}"` (for `wait_template`) or `wait.trigger is none`; timeout output unwired → `continue_on_timeout: false` |
-| `trigger` (core) | sends `op1`, waits `duration` `units`, sends `op2`. `extend: false` (default): re-triggers are ignored while it waits → `mode: single` + `delay`. `extend: true` → `mode: restart` + `delay`. `duration: 0` waits for a reset message |
+| `trigger` (core) | sends `op1`, waits `duration` `units`, sends `op2`. `extend: false` (default): re-triggers are ignored while it waits → `mode: single` + `delay`. `extend: true` reschedules only `op2`, never resends `op1`: `mode: restart` + `delay` re-runs `op1`'s action on every extension — fine when it is idempotent (`turn_on`), otherwise guard it so a re-trigger only reschedules. `bytopic` other than `all`: one timer per topic value — one automation per topic, or **not migrated**. `duration: 0` waits for a reset message |
 | `delay` | `pauseType: delay`: every message is delayed on its own — two motions give two separate offs → `mode: parallel` + `delay` keeps that; `rate`: `drop: true` → `mode: single` + `delay`, `drop: false` → `mode: queued` + `delay` |
 | `switch` | `choose` / `if`; `checkall: "true"` (the default) runs every matching branch |
 | `change` | sets message values; a `flow.`/`global.` target becomes a helper |
@@ -49,9 +49,9 @@ Entity ids in the export are Home Assistant ids from the time of export: `ha-nov
 | When card | trigger |
 | And cards (`inverted`: "is not"; OR-groups) | conditions (`not`, `or`) |
 | Then / Else cards | they run side by side, each card's delay counted from the flow start: `parallel:` branches, each with its own `delay`; with Else cards the And cards become the `if:` (as automation `conditions:` they would make Else unreachable) |
-| a card's `duration` | `transition` ("dim over 5 s"), not a delay |
+| a card's `duration` | the card's own argument (milliseconds): a `transition` for dim and light cards, otherwise read what that card does with it; never a delay |
 | runs that overlap | each run delays on its own → `mode: parallel` |
-| Advanced Flow `any` / `all` cards | they join execution paths (continue when any / all incoming paths arrive) — not `or` / `and` conditions; `all` → `wait_for_trigger` / `wait_template` per path |
+| Advanced Flow `any` / `all` cards | they join execution paths of the same run — not `or` / `and` conditions; `all` → the incoming paths as `parallel:` branches, the following cards after that block (it ends when every branch is done); `any` → **not migrated** unless one path can run alone |
 | Logic variables | helpers |
 | zones | areas |
 
@@ -100,7 +100,7 @@ Map devices by name and capability (`switch`, `switchLevel` 0–100 → `brightn
 | `Item X received update` | fires on every update, also unchanged — a state trigger fires on changes only: name the difference |
 | `Item X received command` | no exact equivalent: nearest is an event trigger on `call_service` for that entity, or a state trigger on the result — name it |
 | `Member of G changed` | the group's members today, as a list — future members are not included: name it |
-| `Time cron "<s m h dom mon dow>"` | time trigger or `time_pattern` (the first field is seconds) |
+| `Time cron "<s m h dom mon dow>"` | time trigger or `time_pattern` (the first field is seconds); day-of-month or month fields → a template condition on `now().day` / `now().month`, else **not migrated** |
 | `System started` | `homeassistant` start trigger |
 | `sendCommand` | the action on the mapped entity |
 | `postUpdate` | a helper value; on a device item it changes only openHAB's view — no equivalent |
@@ -119,7 +119,7 @@ Syntax-only — identical behaviour, no soak; UI items as an in-place `plan writ
 - trigger `platform:` → `trigger:`
 - top-level `trigger:` / `condition:` / `action:` → `triggers:` / `conditions:` / `actions:`
 - `data_template:` → `data:`
-- `entity_id` inside `data:` → `target:`
+- `entity_id` inside `data:` → `target:` — only for an action that takes a target; where `entity_id` is a data field (e.g. `recorder.purge_entities`) it stays
 
 A migration with a soak — the entity id or the behaviour changes:
 

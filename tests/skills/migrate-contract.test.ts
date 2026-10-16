@@ -36,12 +36,15 @@ describe("migrate skill (needs-analysis TOP 4)", () => {
     expect(skill).toContain("what a re-trigger does while it waits");
     expect(skill).toContain("with `ha-nova find` / `ha-nova get`, never by name similarity alone");
     expect(skill).toContain("an unmatched reference keeps its rule waiting");
-    expect(skill).toContain("Convert units and scales and name each conversion");
+    expect(skill).toContain("Convert units and scales, naming each conversion");
   });
 
   it("keeps timing semantics: re-trigger behaviour decides the mode", () => {
     expect(mappings).toContain("`extend: false` (default): re-triggers are ignored while it waits → `mode: single` + `delay`");
-    expect(mappings).toContain("`extend: true` → `mode: restart` + `delay`");
+    expect(mappings).toContain("`extend: true` reschedules only `op2`, never resends `op1`");
+    expect(mappings).toContain("`bytopic` other than `all`: one timer per topic value");
+    expect(mappings).toContain("version 6: `entities.entity`, `entities.substring`, `entities.regex`");
+    expect(mappings).toContain("where `entity_id` is a data field (e.g. `recorder.purge_entities`) it stays");
     expect(mappings).toContain("Never swap one for the other.");
     expect(mappings).toContain("the second fires on every other state: check which outputs are wired");
     expect(mappings).toContain("`drop: false` → `mode: queued` + `delay`");
@@ -59,7 +62,7 @@ describe("migrate skill (needs-analysis TOP 4)", () => {
   it("names unmappable parts with their options", () => {
     expect(skill).toContain("A part with no faithful translation is listed as **not migrated** with its options: a template, a script, a helper, or keep it in the old system");
     expect(mappings).toContain("→ **not migrated**: offer a script or keep it in Node-RED");
-    expect(skill).toContain("keep it in the old system (external rules only;");
+    expect(skill).toContain("only if the source can disable just the migrated part (Node-RED nodes); else the rule waits for the user to split it");
   });
 
   it("writes only through plan/apply in grouped sets and never lowers a tier", () => {
@@ -83,7 +86,9 @@ describe("migrate skill (needs-analysis TOP 4)", () => {
     expect(skill).toContain("an external rule is deleted by the user, never reported as done");
     expect(skill).toContain("`initial_state: true` comes back on at restart");
     expect(skill).toContain("a failed or abandoned create turns it back on");
-    expect(skill).toContain("Rules sharing state (variables, modes, links) migrate together.");
+    expect(skill).toContain("Rules sharing state (variables, modes, links) cut over together: all creates, then every old rule off.");
+    expect(skill).toContain("new item off, runs stopped (default `stop_actions`)");
+    expect(skill).toContain("a line neither proven nor accepted by name");
   });
 
   it("keeps legacy syntax modernization an in-place update with revert", () => {
