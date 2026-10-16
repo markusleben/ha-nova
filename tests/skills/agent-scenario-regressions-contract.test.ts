@@ -90,7 +90,7 @@ describe("agent scenario regressions (2026-10-16)", () => {
 
   it("resolves sibling skill paths in repo and installed layouts", () => {
     expect(flat("skills/ha-nova/session-bootstrap.md")).toContain(
-      "On disk, a relative skills/<x>/<file> is ../<x>/<file> from the citing file; absolute paths stay.",
+      "On disk, relative skills/<x>/<file> means ../<x>/<file> from the citing file.",
     );
   });
 

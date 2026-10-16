@@ -1,7 +1,7 @@
 # Session Bootstrap
 
 Apply this contract before the first Home Assistant task in a session.
-On disk, a relative skills/<x>/<file> is ../<x>/<file> from the citing file; absolute paths stay.
+On disk, relative skills/<x>/<file> means ../<x>/<file> from the citing file.
 
 ## Check
 
