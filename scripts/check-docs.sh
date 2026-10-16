@@ -47,17 +47,20 @@ echo ""
 # typed registry-reset gate, and throttled last-used tracking with disk-failure
 # fallback in the device auth path; and to 9400 for the 2026-09-10 audit fixes
 # (bounded WS handshake, closed abandoned connections, private-file repair,
-# fail-fast upstream parsing, serialized snapshot quota): about 9300 lines.
+# fail-fast upstream parsing, serialized snapshot quota): about 9300 lines;
+# and to 9500 for Home Assistant sign-in pairing (the owner-checked,
+# machine-only ingress arm route, the armed one-time slot, and its capability
+# flag on GET /pair/v1/info): about 9450 lines.
 # Further unreviewed Relay growth still fails.
 # Growth here is security surface, and it is reviewed as such. The README's own
 # number is updated in the release-prep PR — README describes the STABLE
 # release, not main.
 echo "[1] Relay LOC (must stay readable in one sitting)"
 ACTUAL_LOC=$(find "$REPO_ROOT/nova/src" -name '*.ts' -exec cat {} + | wc -l | tr -d ' ')
-if (( ACTUAL_LOC >= 1000 && ACTUAL_LOC <= 9400 )); then
-  pass "src/ = ${ACTUAL_LOC} LOC (within 1000–9400 range)"
+if (( ACTUAL_LOC >= 1000 && ACTUAL_LOC <= 9500 )); then
+  pass "src/ = ${ACTUAL_LOC} LOC (within 1000–9500 range)"
 else
-  fail "src/ = ${ACTUAL_LOC} LOC — outside the 1000–9400 range. Justify real Relay growth in active architecture docs; update README only in a release-prep PR."
+  fail "src/ = ${ACTUAL_LOC} LOC — outside the 1000–9500 range. Justify real Relay growth in active architecture docs; update README only in a release-prep PR."
 fi
 
 # ── 2. Skill count ──

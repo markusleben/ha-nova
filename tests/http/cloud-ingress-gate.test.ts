@@ -40,19 +40,25 @@ const MACHINE_ROUTES = [
   {
     method: "GET",
     path: "/pair/v2/info",
-    disabledStatus: 404,
+    disabledStatus: 200,
     enabledStatus: 200,
   },
   {
     method: "POST",
+    path: "/pair/v2/arm",
+    disabledStatus: 503,
+    enabledStatus: 503,
+  },
+  {
+    method: "POST",
     path: "/pair/v2/start",
-    disabledStatus: 404,
+    disabledStatus: 400,
     enabledStatus: 400,
   },
   {
     method: "POST",
     path: "/pair/v2/finish",
-    disabledStatus: 404,
+    disabledStatus: 400,
     enabledStatus: 400,
   },
   { method: "GET", path: "/health", disabledStatus: 404, enabledStatus: 401 },
@@ -140,6 +146,7 @@ function deps(cloudRemoteEnabled: boolean): IngressListenerDeps {
   } as unknown as DeviceRegistry;
   const pairing = {
     getStatus: () => ({ phase: "inactive" }),
+    arm: () => null,
   } as unknown as PairingV1Manager;
   const supervisor: SupervisorClient = {
     getSelfInfo: async () => ({

@@ -118,7 +118,9 @@ describe("pairing listeners wiring", () => {
   it("serves /pair/v1/info bearer-exempt on the bootstrap listener", async () => {
     const res = await fetch(`${bootBase}/pair/v1/info`);
     expect(res.status).toBe(200);
-    expect((await res.json()).data.protocol_version).toBe("v1");
+    const info = (await res.json()).data;
+    expect(info.protocol_version).toBe("v1");
+    expect(info.sign_in).toBe(true);
   });
 
   it("hides the pairing window: start while inactive returns a generic 400, not a distinct code", async () => {

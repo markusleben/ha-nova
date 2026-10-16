@@ -71,7 +71,7 @@ function functionalAuthorize(deps: PairingListenerDeps, transport: Transport) {
 // resolver).
 export function createBootstrapListener(deps: PairingListenerDeps): RequestListener {
   const router = createRouter();
-  router.register("GET", "/pair/v1/info", createPairV1InfoHandler({ manager: deps.pairingManager, relayVersion: deps.relayVersion }));
+  router.register("GET", "/pair/v1/info", createPairV1InfoHandler({ manager: deps.pairingManager, relayVersion: deps.relayVersion, signIn: true }));
   router.register("POST", "/pair/v1/start", createPairV1StartHandler({ manager: deps.pairingManager, relayVersion: deps.relayVersion }));
   router.register("POST", "/pair/v1/finish", createPairV1FinishHandler({ manager: deps.pairingManager, relayVersion: deps.relayVersion }));
   registerFunctional(router, deps.functional);
