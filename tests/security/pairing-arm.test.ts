@@ -140,9 +140,20 @@ describe("armed sign-in pairing slot", () => {
     });
   });
 
-  it("is unavailable without ingress pairing or a secure port", () => {
-    expect(manager({ cloudPairing: false }).arm("owner-1")).toBeNull();
+  it("needs a secure port but not Cloud remote", () => {
+    expect(manager({ cloudPairing: false }).arm("owner-1")).not.toBeNull();
     expect(manager({ secureEndpoint: () => null }).arm("owner-1")).toBeNull();
+  });
+
+  it("keeps typed-code pair v2 a Cloud feature", () => {
+    const mgr = manager({ cloudPairing: false });
+    const { code } = mgr.generateCode();
+    expect(pairCloud(mgr, code, "user-1").started).toEqual({
+      ok: false,
+      reason: "invalid",
+    });
+    const { secret } = mgr.arm("owner-1")!;
+    expect(pairCloud(mgr, secret, "owner-1").finished?.ok).toBe(true);
   });
 
   it("pairs only the arming user and yields an unbound local device with the pin", () => {

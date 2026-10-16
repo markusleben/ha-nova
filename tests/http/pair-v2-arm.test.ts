@@ -174,9 +174,21 @@ describe("POST /pair/v2/arm", () => {
     expect(pairing.getStatus().phase).toBe("inactive");
   });
 
-  it("is absent while Cloud remote is disabled", async () => {
+  it("pairs a local device without Cloud remote", async () => {
+    pairing = createPairingV1Manager({
+      registry,
+      secureEndpoint: () => ({ spkiPin: "local-pin", securePort: 8792 }),
+      now: () => 1_000_000,
+    });
     const base = await start(false);
-    expect((await arm(base, "owner-1")).status).toBe(404);
+    const armed = await arm(base, "owner-1");
+    expect(armed.status).toBe(200);
+    const { data } = (await armed.json()) as { data: { pairing_secret: string } };
+    expect(await pairThroughIngress(base, data.pairing_secret)).toMatchObject({
+      spki_pin: "local-pin",
+      secure_port: 8792,
+    });
+    expect(registry.list()[0]?.cloudUserId).toBeUndefined();
   });
 });
 
