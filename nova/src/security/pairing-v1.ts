@@ -117,7 +117,7 @@ export function createPairingV1Manager(deps: PairingV1Deps): PairingV1Manager {
     arm(userId) {
       // Home Assistant sign-in arms a 256-bit secret for exactly this ingress
       // user instead of a six-digit code (docs/work/2026-10-16-ha-sign-in-pairing-spec.md).
-      if (deps.cloudPairing !== true || deps.secureEndpoint() === null) {
+      if (deps.secureEndpoint() === null) {
         return null;
       }
       const secret = randomBytes(ARM_SECRET_BYTES).toString("base64url");
@@ -135,7 +135,8 @@ export function createPairingV1Manager(deps: PairingV1Deps): PairingV1Manager {
     },
 
     startCloud(ke1, userId) {
-      if (deps.cloudPairing !== true) {
+      // Without Cloud remote only an armed sign-in slot pairs over ingress.
+      if (deps.cloudPairing !== true && active?.armedFor === undefined) {
         return { ok: false, reason: "invalid" };
       }
       return startHandshake(ke1, cloudPeer(userId), "cloud");
@@ -160,9 +161,6 @@ export function createPairingV1Manager(deps: PairingV1Deps): PairingV1Manager {
       userId,
       relayInstanceId,
     ) {
-      if (deps.cloudPairing !== true) {
-        return { ok: false, reason: "invalid" };
-      }
       return finishHandshake(
         handshakeId,
         ke3,
@@ -317,6 +315,9 @@ export function createPairingV1Manager(deps: PairingV1Deps): PairingV1Manager {
     // A sign-in pairing creates an unbound local device that activates over
     // pinned TLS, exactly like a typed code.
     const armed = active.armedFor !== undefined;
+    if (mode === "cloud" && !armed && deps.cloudPairing !== true) {
+      return { ok: false, reason: "invalid" };
+    }
     const extraResponse = responseFields(armed);
     if (extraResponse === null) {
       return { ok: false, reason: "invalid" };

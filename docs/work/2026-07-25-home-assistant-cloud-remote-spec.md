@@ -742,8 +742,10 @@ binds its SHA-256, platform, version, enabled platform list, and reviewed Git
 tree. The compiled public key matches the protected production private key
 through a committed non-secret verification signature; the private key never
 enters source or artifacts.
-The Relay keeps its owner Ingress page and local pairing path when disabled, but
-registers only `/cloud/v1/info` plus exact device self-revocation for cleanup.
+The Relay keeps its owner Ingress page, local pairing, and the owner-armed
+sign-in pairing (`/pair/v2/arm` plus armed `/pair/v2/info|start|finish`, which
+yield local devices) when disabled, but otherwise registers only
+`/cloud/v1/info` plus exact device self-revocation for cleanup.
 The info response advertises cleanup-only capabilities. Cloud setup, pairing,
 and functional machine routes remain unregistered.
 

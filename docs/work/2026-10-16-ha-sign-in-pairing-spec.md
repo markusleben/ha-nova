@@ -111,8 +111,9 @@ ingress session exists, before any pairing request.
 
 ### `POST /pair/v2/arm` (ingress listener only)
 
-Registered with the other pair-v2 ingress routes (present when the relay build
-has Cloud remote enabled, as in current release metadata). The unauthenticated
+Registered in App mode with `/pair/v2/info|start|finish`, independent of the
+Cloud remote build flag: without Cloud remote, only armed handshakes use pair v2
+(typed-code pair v2 stays a Cloud feature). The unauthenticated
 `GET /pair/v1/info` capability probe adds `sign_in: true|false`, so the CLI
 offers sign-in only when the relay serves it (older CLIs ignore the field).
 
@@ -326,8 +327,6 @@ Two stacked PRs, each reviewable on its own:
   browser on the same computer (not over SSH).
 - A Home Assistant behind HTTPS with a certificate the system does not trust
   falls back to the code.
-- The relay registers arm only in builds with Cloud remote enabled (current
-  release metadata); otherwise the CLI sees 404 and falls back.
 - If the CLI is killed between token exchange and revocation, Home Assistant
   keeps one unused HA NOVA refresh token until it expires (90 days unused) or
   the user removes it under Profile → Security.

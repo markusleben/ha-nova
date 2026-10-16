@@ -53,8 +53,11 @@ export function createIngressRoutes(deps: IngressListenerDeps): {
   };
   registerOwnerRoutes(router, policies, deps, fetchAuthUsers);
   registerCloudCleanupRoutes(router, policies, deps);
+  // Sign-in pairing yields local devices, so pair v2 serves it with or without
+  // Cloud remote; typed-code pair v2 stays a Cloud feature (pairing manager).
+  registerPairingV2Routes(router, policies, deps, fetchAuthUsers);
   if (deps.cloudRemoteEnabled) {
-    registerCloudSetupRoutes(router, policies, deps, fetchAuthUsers);
+    registerCloudSetupRoutes(router, policies, deps);
     registerFunctionalRoutes(router, policies, deps.functional);
   }
   return { router, policies };
@@ -97,17 +100,11 @@ function registerCloudSetupRoutes(
   router: ReturnType<typeof createRouter>,
   policies: IngressRoutePolicies,
   deps: IngressListenerDeps,
-  fetchAuthUsers: () => Promise<HaAuthUser[]>,
 ): void {
   const cloudDevice = {
     registry: deps.registry,
     relayInstanceId: deps.relayInstanceId,
     now: deps.now,
-  };
-  const pairV2 = {
-    manager: deps.pairing,
-    relayInstanceId: deps.relayInstanceId,
-    relayVersion: deps.relayVersion,
   };
   registerIngressRoute(
     router,
@@ -125,6 +122,19 @@ function registerCloudSetupRoutes(
     machine("json"),
     createCloudDeviceActivateHandler(cloudDevice),
   );
+}
+
+function registerPairingV2Routes(
+  router: ReturnType<typeof createRouter>,
+  policies: IngressRoutePolicies,
+  deps: IngressListenerDeps,
+  fetchAuthUsers: () => Promise<HaAuthUser[]>,
+): void {
+  const pairV2 = {
+    manager: deps.pairing,
+    relayInstanceId: deps.relayInstanceId,
+    relayVersion: deps.relayVersion,
+  };
   registerIngressRoute(
     router,
     policies,
