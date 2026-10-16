@@ -90,6 +90,8 @@ func dispatch(paths runtimePaths, argv0 string, args []string) int {
 		return runGetCommand(paths, args[1:])
 	case "history":
 		return runHistoryCommand(paths, args[1:])
+	case "map":
+		return runMapCommand(paths, args[1:])
 	case "plan":
 		return runPlanCommand(paths, args[1:])
 	case "call":
@@ -221,6 +223,7 @@ func printUsage() {
 	fmt.Fprintln(os.Stdout, "  "+findUsage)
 	fmt.Fprintln(os.Stdout, "  "+getUsage)
 	fmt.Fprintln(os.Stdout, "  "+historyUsage)
+	fmt.Fprintln(os.Stdout, "  "+mapUsage)
 	fmt.Fprintln(os.Stdout, "  "+planCallUsage+"  (read-only; never executes)")
 	fmt.Fprintln(os.Stdout, "  "+planWriteUsage)
 	fmt.Fprintln(os.Stdout, "  "+planDeleteUsage)

@@ -34,8 +34,9 @@ confirmation step, so run it only after the user confirmed that preview. A
 typed plan needs --confirm with the exact code the user typed (three wrong
 codes discard the plan; that counter guards against slips, not tampering).
 Config plans (plan write/delete/revert) save the config once, reload, and
-verify the read-back; an update lands on the undo stack, and a delete takes
-a config snapshot first (--no-snapshot only after the user chose that).
+verify the read-back; an update lands on the undo stack, and a delete (and
+every dashboard save) takes a config snapshot first (--no-snapshot only
+after that snapshot failed and the user chose to proceed without one).
 Exit: 0 verified/accepted, 2 drift, 4 refused/missing/expired/wrong code,
 5 target gone, 6 unverified/failed, 7 outcome unknown (verify; never retry).`
 
@@ -115,8 +116,8 @@ var refusalNext = map[string]string{
 	"NO_SNAPSHOT_NOT_OFFERED": "Apply without --no-snapshot: the config snapshot is taken first.",
 	"CODE_REQUIRED":           "Ask the user to type the confirmation code shown with the plan, then pass it with --confirm.",
 	"CODE_MISMATCH":           "Ask the user to type the confirmation code again, exactly as shown with the plan.",
-	"NO_UNDO_SNAPSHOT":        "Only the last verified update of an automation or script can be reverted; there is nothing to revert.",
-	"REVERT_UNSUPPORTED":      "To undo an automation or script: plan revert --target <config_id>. The newest checkpoint belongs to a helper: revert that through ha-nova:helper.",
+	"NO_UNDO_SNAPSHOT":        "Only the last verified update of an automation, script, or dashboard can be reverted; there is nothing to revert.",
+	"REVERT_UNSUPPORTED":      "To undo an automation, script, or dashboard: plan revert --target <config_id> (for a dashboard, its url_path). The newest checkpoint belongs to a helper: revert that through ha-nova:helper.",
 	"CONFIG_ID_UNSUPPORTED":   "Pass the config_id from `ha-nova get <entity_id> --config`, not the entity_id; a YAML item is edited through ha-nova:yaml-config.",
 	"CONFIG_NOT_UI_MANAGED":   "It is defined in YAML or a package: edit it there through ha-nova:yaml-config.",
 }
@@ -188,11 +189,11 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string, noSnapshot
 		return fail(refused("SERVER_MISMATCH", fmt.Sprintf("plan %s belongs to server %q", id, plan.Server)))
 	case isCall && frozeNothing(request, plan.Action):
 		return fail(refused("UNRESOLVED_TARGET", "the plan named targets but froze none"))
-	case noSnapshot && !(plan.Kind == "delete" && plan.SnapshotFailed):
+	case noSnapshot && !plan.SnapshotFailed: // only a delete or a dashboard save takes a snapshot that can fail
 		if os.Rename(claimed, open) == nil {
 			consumed = false
 		}
-		return fail(refused("NO_SNAPSHOT_NOT_OFFERED", "--no-snapshot applies only after this delete's snapshot failed and the user chose to proceed without one"))
+		return fail(refused("NO_SNAPSHOT_NOT_OFFERED", "--no-snapshot applies only after this plan's snapshot failed and the user chose to proceed without one"))
 	}
 
 	// Recompute the whole plan from the stored request (I3).
@@ -223,6 +224,9 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string, noSnapshot
 		return fail(err)
 	}
 	if fresh.Hash != plan.Hash {
+		if fresh.Prompt != "" { // a confirmation form shows it without the preview (mcp_confirm.go)
+			fresh.Prompt = "Something changed since the last preview. " + fresh.Prompt
+		}
 		if err := savePlan(paths, fresh); err != nil {
 			return fail(err)
 		}
@@ -272,7 +276,7 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string, noSnapshot
 	if isConfig {
 		err := executeConfig(paths, s, &env, *fresh.ConfigAction, ctx, noSnapshot)
 		if errors.Is(err, errSnapshotFailed) {
-			plan.SnapshotFailed = true // nothing was deleted: the typed code stays valid for --no-snapshot
+			plan.SnapshotFailed = true // nothing was deleted or saved: the plan (and a typed code) stays valid for --no-snapshot
 			if writePlanFile(claimed, plan) == nil && os.Rename(claimed, open) == nil {
 				consumed = false
 			}

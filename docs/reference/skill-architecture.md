@@ -2,7 +2,7 @@
 
 ## Overview
 
-HA NOVA uses a flat skill layout with one context skill and 30 independent sub-skills under `skills/`.
+HA NOVA uses a flat skill layout with one context skill and 32 independent sub-skills under `skills/`.
 
 The repo skill tree is the single source of truth. Client installers adapt that same tree to each client's packaging rules:
 - Claude: plugin marketplace payload
@@ -41,8 +41,10 @@ skills/
   dashboard/SKILL.md                    (ha-nova:dashboard — storage dashboards, Lovelace resources, card operations)
   scene/SKILL.md                        (ha-nova:scene — storage-scene list/read/create/update/delete)
   organize/SKILL.md                     (ha-nova:organize — areas/floors/labels/categories/entity+device metadata)
+  device/SKILL.md                       (ha-nova:device — replace, onboard, retire a device; re-point its consumers)
   history/SKILL.md                      (ha-nova:history — bounded history/logbook/statistics reads)
   health/SKILL.md                       (ha-nova:health — read-only home status, repairs, system health)
+  home-map/SKILL.md                     (ha-nova:home-map — exact home inventory, where-used, whole-home audit, first look via `ha-nova map`)
   calendar/SKILL.md                     (ha-nova:calendar — bounded calendar reads and single-event writes)
   hacs/SKILL.md                         (ha-nova:hacs — HACS package lifecycle: registration, download, update, uninstall, migration)
   todo/SKILL.md                         (ha-nova:todo — to-do list items + Local To-do lifecycle)
@@ -103,8 +105,10 @@ Current mapping:
 | dashboard | inline | read → merge → preview → full-save → readback verify, all user-facing |
 | scene | inline | 2-4 calls, flat entities payload, read → merge → preview → full-save → readback verify |
 | organize | inline | field-level registry mutations with direct preview/readback |
+| device | inline + CLI | `get --references` scans; `plan write` + `apply` re-point; every other family hands off to its owner |
 | history | inline | read-only bounded timeline lookups |
 | health | inline | read-only status aggregation, best-effort diagnostics |
+| home-map | inline + CLI | `ha-nova map` computes every count; the skill renders and hands fixes to owning skills |
 | calendar | inline | bounded REST reads plus feature-gated service/WS event writes |
 | todo | inline | service-based item CRUD with feature gate, single-step list flow |
 | backup | inline | WS status/generate/delete with initiation-vs-completion polling |
@@ -181,8 +185,11 @@ store and gains no Home Assistant business logic.
 - create a storage dashboard shell
 - update dashboard metadata
 - create/update/delete Lovelace resources
-- add/update/move/delete cards inside existing views
+- build whole dashboards and views; add/reorder/delete views; add/update/move/delete cards; installed custom cards
+- broken-card sweep (`ha-nova get --dashboards`, read-only)
 - delete a storage dashboard
+
+Content writes, creates, and deletes go through `ha-nova plan write|delete|revert --domain dashboard` + `ha-nova apply` (view/card diff, snapshot before every save, drift check, one save, read-back verify, revert); the CLI refuses new unknown entities and YAML dashboards.
 
 Write contract:
 - resolve `dashboard_id`, `url_path`, and `mode` through `lovelace/dashboards/list`
@@ -192,17 +199,11 @@ Write contract:
 - `dashboard_id` is the mutation identifier for `update|delete`; `url_path` is the config identifier for `lovelace/config|save`
 - resource CRUD goes through `lovelace/resources|create|update|delete`
 - content edits always read the current full config first
-- resolve the exact target card/badge/header by view + title/entity/type/position before changing it
-- merge in memory
-- preview the merged result
-- save through `lovelace/config/save` with the full config only
-- read back and verify the intended change plus unrelated-view survival
+- merge in memory; the draft is the full config
+- custom card types only when their resource is installed; options from the card's documentation or existing usage
 
 Still excluded:
-- broad raw Lovelace editing without a concrete requested change
-- view create/delete/reorder
 - non-storage dashboard writes/deletes
-- freeform new custom-card creation
 - energy dashboard preferences
 
 ## Organize Architecture
@@ -231,6 +232,23 @@ Still excluded:
 - device config-entry detachment
 - device categories do not exist; offer entity categories instead
 - zones / persons / tags
+
+## Device Architecture
+
+`ha-nova:device` owns the device lifecycle: swap (re-point everything that
+names an old device to its replacement), onboard, and retire.
+- one read-only scan per device: `ha-nova get <entity_id> --references`
+  (automation/script configs, Lovelace dashboards, energy prefs, state
+  attributes; entity ids, registry ids, the device id, a phone's notify
+  service), with `not_scanned` and `not_covered` named
+- path choice: the entity_id takeover (old device removed first, new entity
+  renamed to the old id: history and statistics continue) or a consumer
+  rewrite; device-level references and notify services are rewritten either way
+- writes it owns: automation/script re-points through `plan write` + `apply`
+  (grouped, at most 5 per group for the undo store, CLI tiers) and takeover
+  renames (organize rules; typed for access-capable entities or typed
+  consumers); every other family hands off to its owning skill
+- device removal stays in the Home Assistant UI
 
 ## History Architecture
 
@@ -364,7 +382,7 @@ Alarm/lock rules:
 - Confident suggestions are ranked by intervention depth: fix existing → simplify existing → extend existing → add new
 - User-facing review text never shows internal rule codes; findings use a short descriptive title plus `Why` and `Fix`, and clean states stay generic
 - `R-17` is intra-config only; collision scan stays cross-item conflict work, not overwrite/rebound detection
-- `R-18` is same-mapping only; it checks storage-sensitive sibling-variable references inside one `variables:` block, not cross-scope references
+- `R-18` is same-mapping only; it checks a sibling variable used above its declaration inside one `variables:` block, not cross-scope references
 - `R-19` is branch-structure reachability only; it covers direct `trigger.id` checks in a terminal bare `else` after entity-state `if` / `elif` guards, without intent inference
 - `R-23` catches boolean-like templates compared to string boolean literals such as `"True"` / `"False"`
 - `R-24` is a low-severity capacity-source advisory when a capacity-like variable reads `available_energy`
@@ -593,7 +611,7 @@ Every mutation-capable sub-skill opens its `## Safety` section with this block, 
 ```text
 - Preview before write. The only exception is a call that `ha-nova call` itself executed as `tier: ordinary` (an unambiguous everyday action, verified afterwards); everything else runs or is saved only after the user confirms the shown preview. High-consequence actions (e.g. unlocking or opening a lock, opening a gate, garage, or entry door, disarming the alarm — also through a scene or script) and deletes need a code.
 - Confirmation binds to the displayed preview and expires on any change to target, payload, endpoint, or scope (context skill → Active Preview Confirmation).
-- Pre-preview phrases ("do it", "go ahead", "implement the plan") authorize drafting and preview only — never the write itself.
+- Anything before the preview ("do it", answers to questions) never confirms it; only a reply to the preview does.
 - Delete and destructive operations require the typed confirmation code `confirm:<token>` verbatim; "yes" or any natural-language reply is invalid.
 - Never guess entity, service, or config IDs — resolve them or ask.
 - Home Assistant is reached exclusively through the `ha-nova` CLI.
@@ -624,8 +642,8 @@ After any mutation (automation, script, or helper):
      - storage-based family: H checks only
      - config-entry family: minimal config-entry review contract + collision scan on linked entities
    - Traverse all `variables:` blocks, not just the top-level block.
-   - Storage-sensitive checks such as `R-18` may still be reported from the persisted read-back config even when the rest of the config matches the draft. Do not suppress them purely as pre-write dedup.
-   - If persisted `R-18` remains after a write, add a manual next step to inspect traces after the next real run. Do not auto-trigger the config or auto-read traces from post-write review.
+   - `R-18` may still be reported from the persisted read-back config even when the rest of the config matches the draft. Do not suppress them purely as pre-write dedup.
+   - If persisted `R-18` remains after a write, offer the reorder fix. Do not auto-trigger the config or auto-read traces from post-write review.
    - All other checks, including `R-19`, `R-23`, and `R-24`, follow normal pre-write/post-write dedup. The explicit persisted-repeat exception stays unique to `R-18`.
    Focus on 🔴 findings. Report 🟠🟡 findings as advisory.
 3. Collision scan: `search/related` for top target entities, max 3 related configs (standalone review uses max 5)

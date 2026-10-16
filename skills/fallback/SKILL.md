@@ -75,6 +75,7 @@ For every Relay-Ready call in this skill:
 | Label CRUD / Rich label metadata | Covered | organize |
 | Category CRUD / Entity category assignment | Covered | organize |
 | Entity / Device metadata updates | Covered | organize |
+| Device replacement (re-point consumers), onboarding, retirement | Covered | device |
 | Blueprints | Relay-Ready | this skill |
 | Energy (analysis + source/device config) | Covered | energy |
 | Other Config-Entry Helpers | Relay-Ready | this skill |
@@ -222,7 +223,7 @@ Every experimental call result names the tier (Relay-Ready / Roadmap / External)
 
 - Preview before write. The only exception is a call that `ha-nova call` itself executed as `tier: ordinary` (an unambiguous everyday action, verified afterwards); everything else runs or is saved only after the user confirms the shown preview. High-consequence actions (e.g. unlocking or opening a lock, opening a gate, garage, or entry door, disarming the alarm — also through a scene or script) and deletes need a code.
 - Confirmation binds to the displayed preview and expires on any change to target, payload, endpoint, or scope (context skill → Active Preview Confirmation).
-- Pre-preview phrases ("do it", "go ahead", "implement the plan") authorize drafting and preview only — never the write itself.
+- Anything before the preview ("do it", answers to questions) never confirms it; only a reply to the preview does.
 - Delete and destructive operations require the typed confirmation code `confirm:<token>` verbatim; "yes" or any natural-language reply is invalid.
 - Never guess entity, service, or config IDs — resolve them or ask.
 - Home Assistant is reached exclusively through the `ha-nova` CLI.

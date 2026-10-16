@@ -113,8 +113,8 @@ describe("write delete safety contract", () => {
     // Skills without revert point to HA Backups before destructive writes.
     expect(organizeSkill).toContain("Registry deletes are irreversible");
     expect(organizeSkill).toContain("Home Assistant Backups (Settings > System > Backups)");
-    expect(dashboardSkill).toContain("Dashboard writes have no `revert`");
-    expect(dashboardSkill).toContain("recovery for dashboard/card deletes is the auto config snapshot");
+    expect(dashboardSkill).toContain("`revert` undoes the last verified save");
+    expect(dashboardSkill).toContain("Dashboard deletes restore partially from their snapshot");
     expect(dashboardSkill).toContain("resources recover via Home Assistant Backups");
     // Fallback full-replace writes verify survival of unrelated content after write.
     expect(fallbackSkill).toContain("verify both the intended change and the survival of unrelated content");

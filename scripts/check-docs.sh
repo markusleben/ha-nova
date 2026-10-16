@@ -61,14 +61,14 @@ else
 fi
 
 # ── 2. Skill count ──
-# Active skill inventory expects 31 top-level skill directories
-# (context skill + 30 sub-skills; hacs added 2026-08-04)
-echo "[2] Skill directory count (current inventory expects 31)"
+# Active skill inventory expects 33 top-level skill directories
+# (context skill + 32 sub-skills; hacs added 2026-08-04, device and home-map 2026-10-16)
+echo "[2] Skill directory count (current inventory expects 33)"
 SKILL_COUNT=$(find "$REPO_ROOT/skills" -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' ')
-if (( SKILL_COUNT == 31 )); then
+if (( SKILL_COUNT == 33 )); then
   pass "skills/ has ${SKILL_COUNT} directories"
 else
-  fail "skills/ has ${SKILL_COUNT} directories — active docs/contracts expect 31. Update PROJECT and architecture docs; update README only in release prep."
+  fail "skills/ has ${SKILL_COUNT} directories — active docs/contracts expect 33. Update PROJECT and architecture docs; update README only in release prep."
 fi
 
 # ── 2b. One relay codebase, two distributions ──

@@ -164,6 +164,7 @@ join a dependency-bound set.
 | `scene` | yes | storage scene creates/updates (Editability Guard per target) |
 | `organize` | yes | registry metadata updates (areas, labels, categories, entity/device metadata) |
 | `service-call` | yes | service calls planned with `ha-nova plan call` and run with `ha-nova apply --plan <id>` per plan after the set's one confirmation; typed-tier plans (confirmation code) excluded |
+| `device` | yes | one swap's entity_id takeover renames, and its automation/script re-points (at most 5 per group) |
 | `todo` | yes | item operations on ONE list (add, complete, rename, update); list creates/deletes stay single-operation |
 | `dashboard` | downstream only | an entity reference on an existing dashboard as the DOWNSTREAM operation of a dependency-bound set (see Dependency-Bound Outputs); never a standalone grouped family |
 | all others | no | single-operation flows or the destructive batch contract |

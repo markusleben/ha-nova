@@ -13,7 +13,8 @@ import (
 // The only write surface of the typed verbs (spec §2.3, I7): each request
 // is sent exactly once, never retried, never through the read path (read()
 // refuses it, I1), and must pass checkWriteRequest — service calls, the
-// automation/script config endpoints, and a config-snapshot save.
+// automation/script config endpoints, the dashboard save/create/delete WS
+// commands, and a config-snapshot save.
 
 var relayWriteTimeout = 30 * time.Second
 
@@ -36,11 +37,45 @@ func checkWriteRequest(endpoint string, payload map[string]any) error {
 	case endpoint == "core" && method == http.MethodDelete && !hasBody && len(payload) == 2 && configPathPattern.MatchString(path):
 		return nil
 	case endpoint == "backups" && payload["action"] == "save" && len(payload) == 4 && payload["data"] != nil &&
-		(payload["category"] == "automations" || payload["category"] == "scripts") &&
+		(payload["category"] == "automations" || payload["category"] == "scripts" || payload["category"] == "dashboards") &&
 		snapshotNamePattern.MatchString(fmt.Sprint(payload["name"])):
+		return nil
+	case endpoint == "ws" && dashboardWrite(payload):
 		return nil
 	}
 	return fmt.Errorf("refused a write outside the typed-verb allowlist (%s %s %s); nothing was sent", endpoint, method, path)
+}
+
+// dashboardWrite: one dashboard save, create, or delete with exactly the
+// fields the CLI sends (dashboard-write spec).
+func dashboardWrite(payload map[string]any) bool {
+	required := map[any][]string{"lovelace/config/save": {"type", "config"}, "lovelace/dashboards/create": {"type", "url_path", "title"},
+		"lovelace/dashboards/delete": {"type", "dashboard_id"}}[payload["type"]]
+	optional := map[any][]string{"lovelace/config/save": {"url_path"}, "lovelace/dashboards/create": {"icon", "require_admin", "show_in_sidebar"}}[payload["type"]]
+	known := 0
+	for _, key := range required {
+		if _, present := payload[key]; !present {
+			return false
+		}
+		known++
+	}
+	for _, key := range optional {
+		if _, present := payload[key]; present {
+			known++
+		}
+	}
+	for key, value := range payload { // flags are booleans; every other field but the config is a non-empty string
+		_, isFlag := value.(bool)
+		text, isText := value.(string)
+		if key == "require_admin" || key == "show_in_sidebar" {
+			if !isFlag {
+				return false
+			}
+		} else if key != "config" && (!isText || text == "") {
+			return false
+		}
+	}
+	return required != nil && known == len(payload)
 }
 
 // serviceResult is Home Assistant's own answer to a core write.
@@ -138,7 +173,10 @@ func (s *relaySession) write(endpoint string, payload map[string]any) (json.RawM
 		return nil, relayPostRequestOutcomeUnknownError("validating the Relay result envelope", errors.New("not a valid result envelope"))
 	}
 	if !*envelope.OK {
-		if resp.StatusCode >= http.StatusInternalServerError { // upstream error or timeout: it may have run
+		// Home Assistant answered a WS command with its own error: rejected,
+		// not unknown (the Relay wraps it as 502 UPSTREAM_WS_COMMAND_ERROR).
+		rejectedByHA := endpoint == "ws" && envelope.Error.Code == "UPSTREAM_WS_COMMAND_ERROR"
+		if resp.StatusCode >= http.StatusInternalServerError && !rejectedByHA { // upstream error or timeout: it may have run
 			return nil, relayHTTPOutcomeUnknownError(resp.StatusCode)
 		}
 		return nil, &relayCallError{endpoint: endpoint, status: resp.StatusCode, code: envelope.Error.Code, message: envelope.Error.Message}

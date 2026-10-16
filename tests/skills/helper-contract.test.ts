@@ -37,14 +37,17 @@ describe("helper contract", () => {
       expect(skillDoc).toContain("Group related fields into one item");
     });
 
-    it("supports accept all, partial, or skip", () => {
-      expect(skillDoc).toContain("Accept all");
-      expect(skillDoc).toContain('pick by number');
+    it("includes defaults by default; the user drops some by number or all with skip", () => {
+      expect(skillDoc).toContain("`apply` saves them; drop by number");
       expect(skillDoc).toContain('"skip"');
+      expect(skillDoc).toContain("A dropped item changes the payload: re-preview.");
     });
 
-    it("merges accepted defaults before preview", () => {
-      expect(skillDoc).toContain("merge into payload BEFORE preview");
+    // 2026-10-16 agent scenario H1: the defaults block asked before the preview
+    // cost a round-trip; they now ride the preview card.
+    it("merges defaults into the preview, never a separate question first", () => {
+      expect(skillDoc).toContain("render them as the Suggestion Block (output-cards.md) inside the step 3 preview — never a separate question first");
+      expect(skillDoc).not.toContain("merge into payload BEFORE preview");
     });
 
     it("silently skips when no defaults inferable", () => {

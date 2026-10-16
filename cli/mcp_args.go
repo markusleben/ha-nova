@@ -213,7 +213,8 @@ func runMCPRead(paths runtimePaths, argv []string) int {
 	})
 }
 
-// nextStep is the instruction a model must follow after this result.
+// nextStep is the instruction a model must follow after this result
+// (formsStep adjusts it where the client shows confirmation forms).
 func nextStep(envelope map[string]any) string {
 	plan, _ := envelope["plan"].(map[string]any)
 	errInfo, _ := envelope["error"].(map[string]any)
@@ -243,6 +244,8 @@ func nextStep(envelope map[string]any) string {
 		return strings.TrimSpace("The outcome is unknown — it may have run: read the target with ha_get and report; never call or apply again. " + mcpNext(next))
 	case "PLAN_CLAIMED", "PLAN_NOT_FOUND":
 		return mayHaveRun
+	case "CONFIRM_DECLINED", "CONFIRM_CANCELLED", "CONFIRM_UNAVAILABLE": // a confirmation form's outcome (mcp_confirm.go)
+		return next
 	}
 	if next != "" {
 		if step := mcpNext(next); step != next {

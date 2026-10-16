@@ -20,9 +20,9 @@ import (
 // action), delete is always typed. Nothing here writes; apply executes.
 
 const (
-	planWriteUsage  = "ha-nova plan write --domain automation|script [--id <config_id>] [--create] --file <draft.json>"
-	planDeleteUsage = "ha-nova plan delete <automation.x|script.x>"
-	planRevertUsage = "ha-nova plan revert [--target <config_id>] [--domain automation|script]"
+	planWriteUsage  = "ha-nova plan write --domain automation|script [--id <config_id>] [--create] --file <draft.json>\n       ha-nova plan write --domain dashboard --id <url_path> [--create --title <title> [--icon <mdi:icon>]] --file <config.json>"
+	planDeleteUsage = "ha-nova plan delete <automation.x|script.x> | --domain dashboard --id <url_path>"
+	planRevertUsage = "ha-nova plan revert [--target <config_id|url_path>] [--domain automation|script|dashboard]"
 )
 
 // Config ids per domain: automation ids as the UI and YAML use them; script
@@ -47,6 +47,14 @@ type configRequest struct {
 	EntityID string          `json:"entity_id,omitempty"`
 	Draft    json.RawMessage `json:"draft,omitempty"`
 	Snapshot string          `json:"snapshot,omitempty"` // restore: the Relay snapshot file the draft came from
+	Title    string          `json:"title,omitempty"`    // dashboard create: the new shell's title
+	Icon     string          `json:"icon,omitempty"`     // dashboard create: the new shell's icon
+	// Dashboard create: the shell's flags (Home Assistant's defaults: false, true).
+	RequireAdmin bool `json:"require_admin,omitempty"`
+	HideSidebar  bool `json:"hide_sidebar,omitempty"`
+	// Base: dashboard update — the config_digest the draft was built from
+	// (get --dashboard); a different live config is drift.
+	Base string `json:"base,omitempty"`
 }
 
 // configAction is the full operation identity the hash covers (§2.1).
@@ -57,6 +65,10 @@ type configAction struct {
 	Path     string          `json:"path"`
 	EntityID string          `json:"entity_id,omitempty"`
 	Body     json.RawMessage `json:"body,omitempty"`
+	// Dashboards: Shell is the create payload, or the list entry a delete
+	// removes; Default addresses the unlisted default dashboard (no url_path).
+	Shell   json.RawMessage `json:"shell,omitempty"`
+	Default bool            `json:"default_dashboard,omitempty"`
 }
 
 // configContext carries what planning read and execution needs (never hashed
@@ -70,8 +82,12 @@ func (req configRequest) validate() error {
 	switch {
 	case req.Op != "write" && req.Op != "delete" && req.Op != "revert" && req.Op != "restore":
 		return fmt.Errorf("unknown config operation %q", req.Op)
+	case req.Domain == "dashboard":
+		return req.validateDashboard()
+	case req.Title != "" || req.Icon != "" || req.RequireAdmin || req.HideSidebar || req.Base != "":
+		return errors.New("--title and --icon are for a new dashboard (--domain dashboard --create)")
 	case req.Domain != "automation" && req.Domain != "script":
-		return errors.New("config plans cover automation and script only")
+		return errors.New("config plans cover automation, script, and dashboard only")
 	case req.Op == "delete" && (!entityIDPattern.MatchString(req.EntityID) || !strings.HasPrefix(req.EntityID, req.Domain+".")):
 		return fmt.Errorf("%q is not an %s entity_id", req.EntityID, req.Domain)
 	case (req.Op == "write" || req.Op == "restore" || req.ConfigID != "") && !validConfigID(req.Domain, req.ConfigID):
@@ -118,14 +134,21 @@ func runPlanConfig(paths runtimePaths, op string, args []string) int {
 	addVerbFlags(fs, &opts)
 	usage := map[string]string{"write": planWriteUsage, "delete": planDeleteUsage, "revert": planRevertUsage, "restore": planRestoreUsage}[op]
 	draftFile := ""
-	if op == "write" || op == "revert" {
-		fs.StringVar(&req.Domain, "domain", "", "automation or script")
+	if op == "write" || op == "revert" || op == "delete" {
+		fs.StringVar(&req.Domain, "domain", "", "automation, script, or dashboard")
 	}
 	switch op {
 	case "write":
-		fs.StringVar(&req.ConfigID, "id", "", "config id to update (or create with); minted when absent")
+		fs.StringVar(&req.ConfigID, "id", "", "config id (dashboard: url_path) to update or create with; minted when absent")
 		fs.BoolVar(&req.Create, "create", false, "a new item: refuse if the config id already exists (never overwrites)")
 		fs.StringVar(&draftFile, "file", "", "the full draft config as a JSON object")
+		fs.StringVar(&req.Title, "title", "", "dashboard --create: the new dashboard's title")
+		fs.StringVar(&req.Icon, "icon", "", "dashboard --create: the new dashboard's icon (mdi:name)")
+		fs.BoolVar(&req.RequireAdmin, "require-admin", false, "dashboard --create: only administrators see it")
+		fs.BoolVar(&req.HideSidebar, "hide-sidebar", false, "dashboard --create: not shown in the sidebar")
+		fs.StringVar(&req.Base, "base", "", "dashboard update: the config_digest from get --dashboard that the draft starts from")
+	case "delete":
+		fs.StringVar(&req.ConfigID, "id", "", "--domain dashboard: the url_path of the dashboard to delete")
 	case "revert":
 		fs.StringVar(&req.ConfigID, "target", "", "config id of the update to revert (default: the newest)")
 	case "restore":
@@ -158,7 +181,10 @@ func (req *configRequest) parseInput(positional []string, draftFile string) erro
 	case "restore":
 		return req.parseRestore(positional)
 	case "delete":
-		if len(positional) != 1 {
+		if req.Domain == "dashboard" && len(positional) == 0 {
+			return req.validate()
+		}
+		if len(positional) != 1 || req.Domain != "" || req.ConfigID != "" {
 			return errors.New("Usage: " + planDeleteUsage)
 		}
 		req.EntityID = positional[0]
@@ -181,6 +207,9 @@ func (req *configRequest) parseInput(positional []string, draftFile string) erro
 			return fmt.Errorf("--file must hold one JSON object: %w", err)
 		}
 		req.Draft = exact
+		if req.Domain == "dashboard" { // the url_path is always given (--id), never minted
+			return req.validate()
+		}
 		if _, carriesID := draft["id"]; carriesID && req.Create && req.Domain == "automation" {
 			return errors.New("a new automation's draft must not carry an id (a copied id would collide); remove it, or pass --id")
 		}
@@ -211,6 +240,9 @@ func (req *configRequest) parseInput(positional []string, draftFile string) erro
 func computeConfigPlan(paths runtimePaths, s *relaySession, env *verbEnvelope, req configRequest) (*tierEngine, storedPlan, configContext, error) {
 	var ctx configContext
 	fail := func(err error) (*tierEngine, storedPlan, configContext, error) { return nil, storedPlan{}, ctx, err }
+	if req.Domain == "dashboard" {
+		return computeDashboardPlan(paths, s, env, req)
+	}
 	e := newTierEngine(s)
 	e.loadRegistry()
 	if err := s.unreachableError(); err != nil {
@@ -244,10 +276,14 @@ func computeConfigPlan(paths runtimePaths, s *relaySession, env *verbEnvelope, r
 		if snap, err = selectServerUndoSnapshot(paths, s.server, req.ConfigID, req.Domain); err != nil {
 			return fail(refused("NO_UNDO_SNAPSHOT", err.Error()))
 		}
-		if snap.Op != "update" || (snap.Domain != "automation" && snap.Domain != "script") {
+		if snap.Op != "update" || (snap.Domain != "automation" && snap.Domain != "script" && snap.Domain != "dashboard") {
 			// Helper checkpoints share the stack; their revert is ha-nova:helper's
 			// manual path (update-revert.md), never this verb.
-			return fail(refused("REVERT_UNSUPPORTED", fmt.Sprintf("the newest checkpoint is a %s %s; revert it through ha-nova:helper, or pass --target for an automation/script", snap.Domain, snap.Op)))
+			return fail(refused("REVERT_UNSUPPORTED", fmt.Sprintf("the newest checkpoint is a %s %s; revert it through ha-nova:helper, or pass --target for an automation/script/dashboard", snap.Domain, snap.Op)))
+		}
+		if snap.Domain == "dashboard" {
+			req.ConfigID, req.Domain = snap.TargetID, snap.Domain
+			return computeDashboardPlan(paths, s, env, req)
 		}
 		req.ConfigID, req.Domain = snap.TargetID, snap.Domain
 		if req.Draft, _, err = exactConfig(snap.BeforeConfig); err != nil { // restored byte-for-byte, order intact
@@ -313,7 +349,8 @@ func computeConfigPlan(paths runtimePaths, s *relaySession, env *verbEnvelope, r
 	plan, err = sealPlan(e, env, plan, action)
 	env.Config = &action
 	if env.Status == "needs_confirmation" {
-		env.Say = confirmationSay(e, env, plan, configAlias(req.Draft, current))
+		// The form names what is there now; the write card names the draft.
+		env.Say, plan.Prompt = confirmationSay(e, env, plan, configAlias(req.Draft, current)), confirmationPrompt(e, env, plan, configAlias(current, req.Draft))
 	}
 	return e, plan, ctx, err
 }

@@ -37,7 +37,7 @@ services:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - ./site:/site:ro
       # Host dirs (bootstrap.sh): certificates survive every reset, so the
-      # hourly rebuild never touches Let's Encrypt's rate limits.
+      # hourly rebuild never re-issues one.
       - ${DEMO_STATE:-/var/lib/ha-nova-demo}/caddy/data:/data
       - ${DEMO_STATE:-/var/lib/ha-nova-demo}/caddy/config:/config
       - ${DEMO_STATE:-/var/lib/ha-nova-demo}/logs:/logs

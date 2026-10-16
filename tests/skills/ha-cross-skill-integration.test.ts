@@ -68,7 +68,7 @@ describe("ha cross-skill integration", () => {
     expect(writeSkill).toContain("🔴 inline with a fix");
     expect(writeSkill).toContain("🟠🟡 as advisory below the preview");
     expect(writeSkill).toContain("dedup in Phase 4");
-    expect(writeSkill).toContain("REST/UI write can break dependent variables");
+    expect(writeSkill).toContain("R-18: a variable used above the sibling it reads — move that sibling up.");
     expect(writeSkill).toContain("do not block the write");
     expect(writeSkill).toContain("do not require extra confirmation");
     expect(writeSkill).toContain("final else branch is only reached when the earlier entity-state branches are false");
@@ -88,10 +88,10 @@ describe("ha cross-skill integration", () => {
     expect(writeSkill).toContain("Dedup");
     expect(writeSkill).toContain("MUST NOT repeat");
     expect(writeSkill).toContain("check type");
-    expect(writeSkill).toContain("storage-sensitive R-18 subset");
+    expect(writeSkill).toContain("re-run R-18 on the read-back");
     expect(writeSkill).toContain("persisted runtime risk");
     expect(writeSkill).toContain("report it again");
-    expect(writeSkill).toContain("inspect traces after the next real run");
+    expect(writeSkill).toContain("with the reorder fix");
     expect(writeSkill).toContain("Do not auto-trigger or auto-read traces");
     expect(writeSkill).toContain("`R-19` follows normal dedup");
 
