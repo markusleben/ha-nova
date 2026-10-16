@@ -98,7 +98,7 @@ describe("hacs lifecycle skill (#478)", () => {
       "docs/reference/skill-architecture.md",
       "utf8",
     );
-    expect(architecture).toContain("33 independent sub-skills");
+    expect(architecture).toContain("34 independent sub-skills");
     expect(architecture).toContain("`ha-nova:hacs` owns the HACS package lifecycle");
   });
 });
