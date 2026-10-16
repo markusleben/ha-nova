@@ -70,37 +70,39 @@ type registryEntry struct {
 }
 
 type tierEngine struct {
-	s         *relaySession
-	reg       map[string]registryEntry
-	states    map[string]*entityState // nil value: entity absent (HTTP 404)
-	configs   map[string]map[string]any
-	basis     map[string]string // config key → sha256 of the normalized config
-	level     tierLevel
-	scopes    []*tierLevel
-	reasons   []tierReason
-	seen      map[string]bool
-	members   []tierMember
-	consumers []tierConsumer
-	notes     []string
-	skipped   []tierReason
-	complete  bool
-	visited   map[string]bool
-	done      map[string]tierLevel // finished visit/consumer → the class it reached
-	acted     []string
-	nodes     int
-	reads     int // consumer config reads
-	events    map[string]int
-	listeners *listenerTable
-	full      []fullRegistryRow
-	regFailed bool         // the compact registry could not be read
-	devices   *deviceGraph // device registry links; nil until read
-	groups    []string     // expanded direct group targets: consumer-scanned, never frozen
-	fullRead  bool
-	routes    map[string][]string // extra ways an entity is reached: "" direct, else a deduplicated visit's via
-	firedOn   map[string][]fired  // consumer automation → each scanned entity its triggers matched, with that verdict
-	runs      map[string][]string // automation → the vias that run it explicitly (automation.trigger)
-	gated     []string            // via prefixes that run only after a condition, wait, or stop step
-	draft     bool                // a config draft: it runs later, so plan-time state proves nothing
+	s            *relaySession
+	reg          map[string]registryEntry
+	states       map[string]*entityState // nil value: entity absent (HTTP 404)
+	configs      map[string]map[string]any
+	basis        map[string]string // config key → sha256 of the normalized config
+	level        tierLevel
+	scopes       []*tierLevel
+	reasons      []tierReason
+	seen         map[string]bool
+	members      []tierMember
+	consumers    []tierConsumer
+	notes        []string
+	skipped      []tierReason
+	complete     bool
+	visited      map[string]bool
+	done         map[string]tierLevel // finished visit/consumer → the class it reached
+	acted        []string
+	nodes        int
+	reads        int // consumer config reads
+	events       map[string]int
+	listeners    *listenerTable
+	full         []fullRegistryRow
+	regFailed    bool         // the compact registry could not be read
+	devices      *deviceGraph // device registry links; nil until read
+	groups       []string     // expanded direct group targets: consumer-scanned, never frozen
+	fullRead     bool
+	routes       map[string][]string    // extra ways an entity is reached: "" direct, else a deduplicated visit's via
+	firedOn      map[string][]fired     // consumer automation → each scanned entity its triggers matched, with that verdict
+	runs         map[string][]string    // automation → the vias that run it explicitly (automation.trigger)
+	gated        []string               // via prefixes that run only after a condition, wait, or stop step
+	draft        bool                   // a config draft: it runs later, so plan-time state proves nothing
+	services     map[string]serviceSpec // /api/services by "domain.service"; nil when unreadable
+	servicesRead bool
 }
 
 func newTierEngine(s *relaySession) *tierEngine {

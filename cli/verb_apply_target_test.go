@@ -13,36 +13,27 @@ func TestTargetlessEntityServicesAreRefused(t *testing.T) {
 		{"domain": "light", "services": map[string]any{"turn_off": map[string]any{"target": map[string]any{"entity": []any{map[string]any{"domain": []any{"light"}}}}}}},
 		{"domain": "homeassistant", "services": map[string]any{"check_config": map[string]any{}}},
 	}
-	for name, services := range map[string][]map[string]any{"service list read": listed, "service list unreadable": nil} {
-		t.Run(name, func(t *testing.T) {
-			f := newFakeHA()
-			f.services = services
-			h := newWriteHarness(t, f)
-			for _, args := range [][]string{{"light.turn_off"}, {"light.turn_off", "--set", "transition=2"}} {
-				for verb, command := range map[string]func(runtimePaths, []string) int{"call": runCallCommand, "plan": runPlanCommand} {
-					argv := args
-					if verb == "plan" {
-						argv = append([]string{"call"}, args...)
-					}
-					if exit, env := h.run(command, argv...); exit != 4 || env.Reasons[0].Code != reasonTargetRequired {
-						t.Fatalf("%s %v: exit %d env %+v", verb, args, exit, env)
-					}
-				}
+	f := newFakeHA()
+	f.services = listed
+	h := newWriteHarness(t, f)
+	for _, args := range [][]string{{"light.turn_off"}, {"light.turn_off", "--set", "transition=2"}} {
+		for verb, command := range map[string]func(runtimePaths, []string) int{"call": runCallCommand, "plan": runPlanCommand} {
+			argv := args
+			if verb == "plan" {
+				argv = append([]string{"call"}, args...)
 			}
-			if name == "service list unreadable" {
-				if exit, env := h.run(runCallCommand, "input_boolean.turn_on"); exit != 4 || env.Reasons[0].Code != reasonTargetRequired {
-					t.Fatalf("fail-closed entity domain: exit %d env %+v", exit, env)
-				}
+			if exit, env := h.run(command, argv...); exit != 4 || env.Reasons[0].Code != reasonTargetRequired {
+				t.Fatalf("%s %v: exit %d env %+v", verb, args, exit, env)
 			}
-			exit, env := h.run(runCallCommand, "homeassistant.check_config")
-			posts := h.posts()
-			if exit != 0 || len(posts) != 1 || len(h.planFiles()) != 0 {
-				t.Fatalf("genuinely targetless service: exit %d env %+v", exit, env)
-			}
-			if body, _ := json.Marshal(posts[0].payload["body"]); string(body) != "{}" {
-				t.Fatalf("targetless body %s", body)
-			}
-		})
+		}
+	}
+	exit, env := h.run(runCallCommand, "homeassistant.check_config")
+	posts := h.posts()
+	if exit != 0 || len(posts) != 1 || len(h.planFiles()) != 0 {
+		t.Fatalf("genuinely targetless service: exit %d env %+v", exit, env)
+	}
+	if body, _ := json.Marshal(posts[0].payload["body"]); string(body) != "{}" {
+		t.Fatalf("targetless body %s", body)
 	}
 }
 

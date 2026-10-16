@@ -263,6 +263,8 @@ func sayReason(e *tierEngine, env *verbEnvelope, plan storedPlan, r tierReason) 
 		return "Something else may react to this that HA NOVA can't see", false
 	case reasonIntegrationSvc:
 		return "This runs an integration's own service, which HA NOVA can't fully check", false
+	case reasonServiceNotFound:
+		return "A step calls " + sayText(r.Detail, true) + ", which Home Assistant doesn't have: that step will fail when it runs", false
 	case reasonConfigWrite, reasonConfigRevert, reasonConfigRestore:
 		return "", false
 	}

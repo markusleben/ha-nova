@@ -86,6 +86,14 @@ func (e *tierEngine) storedCall(name string, step map[string]any, via string, de
 		e.gap(reasonTemplatedAction, "", via, name)
 		return
 	}
+	if e.draft && len(e.scopes) == 0 && !deviceForm { // the draft's own step; HA saves it anyway, so a finding, not a refusal
+		switch spec := e.serviceSpec(name); {
+		case !spec.known:
+			e.readFailed("", "", "services")
+		case !spec.listed:
+			e.raise(tierPreview, tierReason{Code: reasonServiceNotFound, Via: via, Detail: name})
+		}
+	}
 	data, dataKnown := stepData(step)
 	targets, targetsKnown := collectTargets(step)
 	if !dataKnown || !targetsKnown {
