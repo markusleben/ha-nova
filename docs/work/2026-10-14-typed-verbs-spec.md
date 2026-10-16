@@ -78,7 +78,7 @@ Output envelope (`schema_version` 1; fields are omitted when empty):
  "members":[{"entity_id":"lock.front_door","action":"lock.unlock","via":"script.leave/sequence/2","class":"typed"}],
  "consumers":[{"automation":"automation.night","match":"trigger","class":"ordinary"}],
  "reasons":[{"code":"ACCESS_LOCK","entity_id":"lock.front_door"}],
- "coverage":{"complete":true,"notes":["TEMPLATES_NOT_CHECKABLE","NO_LOCAL_CONSUMER_MANAGER"]},
+ "coverage":{"complete":true,"notes":["TEMPLATES_NOT_CHECKABLE","EXPANDED_TARGET_FILTERED"],"skipped":[{"code":"EXPANDED_TARGET_FILTERED","entity_id":"light.kitchen_raw","via":"area","detail":"hidden"}]},
  "diff":["| Trigger | 07:00 | 06:30 |"],
  "verification":[{"entity_id":"light.kitchen","expect":"off","observed":"off","outcome":"verified"}],
  "notices":[{"kind":"update|relay_outdated","text":"…"}],
@@ -126,7 +126,7 @@ Each step is the code form of an existing prose rule, cited per step.
    - An explicit id with no registry row (YAML entity without `unique_id`) resolves through an exact `GET /api/states/<entity_id>`. Its platform is unknown, so classification fails closed: typed when the domain is an actuator a YAML platform can define (`UNREGISTERED_ACTUATOR`; a YAML group too — an `entity_id` list attribute without a platform proves nothing, a template entity can expose one; its members are still expanded and classified), preview otherwise — never the fast path (maintainer default 2026-10-15: legacy unregistered actuators are rare, the UX cost is accepted).
    - `--area` uses `search/related` on `item_type:"area"` and takes `.data.entity`, filtered by the service domain (`service-call/SKILL.md:95`).
    - `--device` filters the compact registry by `di`, over the device and its direct child devices (child rows of `config/device_registry/list` carry `parent_device_id`; `via_device_id` is a hub link, not a child), as Home Assistant expands a device target since 2026.9; a pre-2026.8 merged device id that is no longer listed resolves to its split devices (`config/device_registry/list_composite_splits`; an older core without the command has none) and their children; stored `device_id` targets expand the same way. A stored integration-service step aimed at a device or area is typed when one of those devices carries an access entity (`DEVICE_ACCESS`), whatever entities are visible.
-   - `--area`/`--device` and stored `area_id`/`device_id` service targets drop, for a core-domain service, what Home Assistant's own targeting skips (`helpers/target.py` `async_extract_referenced_entity_ids`, primary entities only; an integration resolves its targets itself): hidden entities, entities with an entity category, and for an area entities assigned to another area. An entity without a registry row is kept. When this leaves nothing, `NOT_FOUND` lists the skipped entities as candidates. A device-form step (`domain` + `type`) stays unfiltered: it acts on its own chosen entity, hidden or not.
+   - `--area`/`--device` and stored `area_id`/`device_id` service targets drop, for a core-domain service, what Home Assistant's own targeting skips (`helpers/target.py` `async_extract_referenced_entity_ids`, primary entities only; an integration resolves its targets itself): hidden entities, entities with an entity category, and for an area entities assigned to another area. An entity without a registry row is kept. When this leaves nothing, `NOT_FOUND` lists the skipped entities as candidates; otherwise `coverage.skipped` names each one left out of a call target (`EXPANDED_TARGET_FILTERED`, `detail` `hidden`, `entity_category`, or `other_area`), as it names a leaf without state (`EXPANDED_TARGET_WITHOUT_STATE`). An entity the call acts on anyway (named, or a group's leaf) is never listed. A device-form step (`domain` + `type`) stays unfiltered: it acts on its own chosen entity, hidden or not.
    - Groups (`attributes.entity_id` is an array) expand to their leaves with `membership_source: attributes`.
    - Expansion always produces a frozen `entity_ids` list (I6).
 2. **Classify the direct action** with a static table that mirrors `SKILL.md:99` and `service-call/SKILL.md:293-295`.
@@ -217,6 +217,7 @@ Reason codes (`cli/tier_rules.go`; `TestTierReasonCodesAreDocumented` pins each 
 | `INTEGRATION_SERVICE` | preview | service of a non-core domain, targetless or on a device without access entities (step 2) |
 | `USER_AUTHORED_SERVICE` | typed | `esphome.*` API service defined in device YAML (rules 2 and 3) |
 | `EXPANDED_TARGET_WITHOUT_STATE` | note | an area/device/group leaf has no state (disabled or not loaded) and is not frozen (step 1) |
+| `EXPANDED_TARGET_FILTERED` | note | an `--area`/`--device` entity Home Assistant's own targeting skips (hidden, entity category, another area) is not frozen; `coverage.skipped` names it (step 1) |
 
 ### 2.3 Execute and verify
 
