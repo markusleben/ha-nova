@@ -241,10 +241,22 @@ func (e *tierEngine) shown() ([]tierMember, []tierConsumer) {
 			consumers = append(consumers, c)
 		}
 	}
-	members := []tierMember{}
+	// A row keeps only a live route of its own; a dropped row whose action a
+	// live path repeated (deduplicated, so it left no row) is shown through
+	// that path.
+	members, shownLive := []tierMember{}, map[string]bool{}
 	for _, m := range e.members {
-		if (m.EntityID != "" && live(m.EntityID, map[string]bool{})) || (m.EntityID == "" && routeLive(m.Via, map[string]bool{})) {
-			members = append(members, m)
+		if routeLive(m.Via, map[string]bool{}) {
+			members, shownLive[m.EntityID] = append(members, m), true
+		}
+	}
+	for _, m := range e.members {
+		if m.EntityID == "" || shownLive[m.EntityID] || routeLive(m.Via, map[string]bool{}) {
+			continue
+		}
+		if i := slices.IndexFunc(e.routes[m.EntityID], func(via string) bool { return via != "" && routeLive(via, map[string]bool{}) }); i >= 0 {
+			m.Via = e.routes[m.EntityID][i]
+			members, shownLive[m.EntityID] = append(members, m), true
 		}
 	}
 	return members, consumers

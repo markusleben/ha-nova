@@ -107,9 +107,24 @@ func TestConsumerFiresForPlannedChange(t *testing.T) {
 		{name: "turning it on fires it: will, with its member",
 			setup: func(f *fakeHA) { followLight(nil)(f); f.ent("light.lr", "hue", "off", nil) },
 			args:  []string{"light.turn_on", "light.lr"}, exit: 0, tier: "ordinary", check: expectShown("light.bed", "automation.b:will")},
-		{name: "SC2: a script turning the light off lists no follow-on",
-			setup: func(f *fakeHA) { followLight(nil)(f); f.script("leave", step("light.turn_off", "light.lr")) },
-			args:  []string{"script.turn_on", "script.leave"}, exit: 3, tier: "preview", check: expectShown("light.lr", "-")},
+		{name: "SC2: a script turning the lights off lists no follow-on",
+			setup: func(f *fakeHA) {
+				followLight(nil)(f)
+				f.script("leave", map[string]any{"action": "light.turn_off", "target": map[string]any{"entity_id": []any{"light.lr", "light.bed"}}})
+			},
+			args: []string{"script.turn_on", "script.leave"}, exit: 3, tier: "preview", check: expectShown("light.lr,light.bed", "-")},
+		{name: "a member the dropped consumer reached first stays shown through the step that repeats it",
+			setup: func(f *fakeHA) {
+				followLight(nil)(f)
+				f.script("leave", step("light.turn_off", "light.lr"), step("light.turn_on", "light.bed"))
+			},
+			args: []string{"script.turn_on", "script.leave"}, exit: 3, tier: "preview",
+			check: func(t *testing.T, env verbTestEnvelope) {
+				expectShown("light.lr,light.bed", "-")(t, env)
+				if via := env.Members[1].Via; via != "script.leave/sequence/1" {
+					t.Fatalf("light.bed via %s", via)
+				}
+			}},
 		{name: "SN1: a scene keeping an on light on fires no on-trigger",
 			setup: func(f *fakeHA) {
 				followLight(nil)(f)
