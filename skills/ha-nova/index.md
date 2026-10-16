@@ -31,6 +31,7 @@ citation alone does not require it.
 - `ha-nova:scene` — scene configs (activation is service-call)
 - `ha-nova:organize` — areas, floors, labels, categories, metadata
 - `ha-nova:device` — replace a device or phone and re-point everything; onboard or retire a device
+- `ha-nova:home-map` — home inventory, where-used, whole-setup review
 - `ha-nova:health` — repairs, unavailable entities, batteries
 - `ha-nova:diagnose` — why something failed: traces, logs, root cause
 - `ha-nova:integration-setup` — add integrations, reauthentication, options
@@ -42,5 +43,5 @@ citation alone does not require it.
 - Named by their domain: `ha-nova:dashboard`, `ha-nova:history` (incl. logbook, statistics), `ha-nova:media`, `ha-nova:notify`, `ha-nova:camera`, `ha-nova:mqtt`, `ha-nova:calendar`, `ha-nova:todo`, `ha-nova:backup`, `ha-nova:updates`, `ha-nova:energy`, `ha-nova:hacs`
 - `ha-nova:onboarding` — Relay, pairing, or connectivity errors
 - `ha-nova:fallback` — anything else (mandatory before any unfamiliar raw write)
-- `ha-nova:ha-nova` — capabilities, home overview, safety, structure audit, starter proposals, session recap, loaded version, config-snapshot list/delete
+- `ha-nova:ha-nova` — capabilities, safety, structure audit, starter proposals, session recap, loaded version, config-snapshot list/delete
 - Undo, revert, or snapshot restore — the skill that owns the item (write, helper, scene, dashboard, energy, yaml-config, organize)
