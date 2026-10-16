@@ -2,6 +2,8 @@ import { spawnSync } from "node:child_process";
 
 import { describe, expect, it } from "vitest";
 
+import { makeTempDir } from "../helpers/temp-dir.js";
+
 type PythonRuntimeCandidate = [command: string, prefixArgs: string[]];
 
 function runPythonValidator(script: string) {
@@ -13,6 +15,8 @@ function runPythonValidator(script: string) {
     const result = spawnSync(command, [...prefixArgs, "-c", script], {
       cwd: process.cwd(),
       encoding: "utf8",
+      // The script mkdtemps its OUTPUT_DIR on import unless one is given.
+      env: { ...process.env, OUTPUT_DIR: makeTempDir("ha-nova-codex-bulk-live-") },
     });
     if (result.error && "code" in result.error && result.error.code === "ENOENT") {
       continue;
