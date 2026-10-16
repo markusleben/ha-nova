@@ -30,6 +30,7 @@ citation alone does not require it.
 - `ha-nova:helper` — helpers, incl. a reusable timer entity
 - `ha-nova:scene` — scene configs (activation is service-call)
 - `ha-nova:organize` — areas, floors, labels, categories, metadata
+- `ha-nova:device` — replace a device or phone and re-point everything; onboard or retire a device
 - `ha-nova:health` — repairs, unavailable entities, batteries
 - `ha-nova:diagnose` — why something failed: traces, logs, root cause
 - `ha-nova:integration-setup` — add integrations, reauthentication, options
