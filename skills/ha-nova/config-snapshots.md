@@ -82,7 +82,8 @@ that a snapshot was taken and how to restore ("restore from snapshot").
 
 Automations and scripts: `ha-nova apply` takes this snapshot itself for a
 `plan delete` (`auto-<entity-slug>`, the raw live config) and reports it as
-`snapshot`; on failure (`SNAPSHOT_FAILED`) it deletes nothing, and
+`snapshot`. Dashboards: `ha-nova apply` takes it before every save and delete
+(`auto-<url_path>`; a delete stores `{shell, config}`), with the same failure rule; on failure (`SNAPSHOT_FAILED`) it deletes nothing, and
 `--no-snapshot` is accepted only after that failure and the user's choice.
 The rules below apply to the families that capture by hand.
 
@@ -123,7 +124,7 @@ then `plan write --domain <d> --id <config id> --file <draft>`.
 | automations / scripts | full | create under the original `unique_id` — entity_id survives (a renamed script: confirm its key, see Restore) |
 | scenes | full | upsert by original `id`; entity derives from `name` |
 | dashboards (content) | full | `lovelace/config/save` by `url_path` while the dashboard exists |
-| dashboards (deleted) | partial | the snapshot carries `{shell, config}`: recreate via `lovelace/dashboards/create` from the shell metadata (`url_path`, title, icon, sidebar, admin flag), then `config/save` the content — content returns fully, the internal `dashboard_id` is new |
+| dashboards (deleted) | partial | the snapshot carries `{shell, config}`: the delete result's `restore`: `plan write --domain dashboard --create` with the shell's `url_path`, title, icon, and admin/sidebar flags (the main `lovelace` dashboard: a plain write) and the snapshot `config` — content returns fully; the internal `dashboard_id` is new |
 | energy prefs | full | whole-document `save_prefs` |
 | yaml files | full | data carries `{path, content}`; restore is `write_file` to that exact stored path (the slug name alone is lossy) |
 | helpers (storage) | update: full / delete: partial | recreate mints a NEW id — inbound references stay broken; say so |

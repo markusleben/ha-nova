@@ -29,6 +29,12 @@ the number.
   dashboards, helpers, energy sources, notifications, and presence to the new
   device in one reviewed plan. When the old device is gone for good, the new
   one takes over its entity ids, so history and statistics continue.
+- **Build whole dashboards:** ask for a dashboard or a view and HA NOVA
+  builds it, reorders or removes views, and uses custom cards you have
+  installed. The preview lists every view and card that changes; a copy is
+  saved before each save, and "undo that" restores the previous version.
+  "Check my dashboards" lists cards that point at missing entities or at
+  custom cards that are not installed.
 
 ## What To Watch
 

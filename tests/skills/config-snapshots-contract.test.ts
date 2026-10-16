@@ -56,8 +56,9 @@ describe("config snapshots contract", () => {
     expect(readFileSync("cli/verb_config_apply.go", "utf8")).toContain('if action.Op == "delete" && !noSnapshot {');
     expect(sceneSkill).toContain("Capture the auto config snapshot of the current config first");
     expect(sceneSkill).toContain("When the confirmed update REMOVES scene members, capture the auto config snapshot first");
-    expect(dashboardSkill).toContain("capture the auto config snapshot first — data = `{shell:");
-    expect(dashboardSkill).toContain("capture the auto config snapshot of the pre-save document when the save removes views or cards");
+    // Dashboards: `ha-nova apply` captures it before every save and delete.
+    expect(dashboardSkill).toContain("`ha-nova apply` takes an auto config snapshot first");
+    expect(readFileSync("cli/dashboard_apply.go", "utf8")).toContain('data = map[string]any{"shell": action.Shell, "config": ctx.current}');
     expect(helperSkill).toContain("Capture the auto config snapshot of the current list item first");
   });
 

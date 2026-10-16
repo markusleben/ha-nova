@@ -65,10 +65,10 @@ Changes block (the consumer-check result covers it).
 Applies to every write that replaces a whole document or whole list: an
 automation or script update, a scene, a dashboard config, energy preferences, and a YAML file.
 Home Assistant has no optimistic locking anywhere — the last writer wins, silently.
-Confirmation binds to the previewed BASIS, not only the payload. Automation
-and script writes get this from the CLI: `ha-nova apply` re-plans against the
+Confirmation binds to the previewed BASIS, not only the payload. Automation,
+script, and dashboard writes get this from the CLI: `ha-nova apply` re-plans against the
 live config and sends nothing on any change (exit 2). Every other
-whole-document or whole-list write (scene, dashboard config, energy
+whole-document or whole-list write (scene, energy
 preferences, YAML file, helper list item): if the conversation paused or the
 target may have been edited elsewhere, re-read it immediately before the write
 and compare it with the preview's basis; on any foreign change STOP — the

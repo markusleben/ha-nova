@@ -133,6 +133,9 @@ describe("ha-nova contract", () => {
     const organize = readFileSync("skills/organize/SKILL.md", "utf8");
 
     expect(dashboard).toContain("create a new storage dashboard shell");
+    expect(dashboard).toContain("build a whole dashboard or view; add, reorder, and delete views");
+    expect(dashboard).toContain("broken-card sweep over every dashboard (read-only)");
+    expect(dashboard).toContain("Dashboard content goes through typed verbs only");
     expect(dashboard).toContain("delete an existing storage dashboard");
     expect(dashboard).toContain("list Lovelace resources");
     expect(dashboard).toContain("inspect the current dashboard structure");
@@ -140,10 +143,10 @@ describe("ha-nova contract", () => {
       "create, update, and delete Lovelace resources",
     );
     expect(dashboard).toContain(
-      "add, update, move, and delete cards inside existing views",
+      "add, update, move, and delete cards; configure installed custom cards",
     );
     expect(dashboard).toContain(
-      "only write/delete when the dashboard `mode` is `storage`",
+      "Writes go only to `mode: storage` dashboards",
     );
     expect(dashboard).toContain(
       "`dashboard_id` for `lovelace/dashboards/update|delete`",
@@ -163,19 +166,17 @@ describe("ha-nova contract", () => {
       "do not resend `url_path`, `mode`, or unrelated config fields in the update payload",
     );
     expect(dashboard).toContain(
-      "new cards may be created only from this built-in allowlist",
+      "Custom cards: only a `custom:` type whose resource is installed",
+    );
+    expect(dashboard).toContain("Never invent its options: read its documentation first");
+    expect(dashboard).toContain(
+      "Never probe a different dashboard's config to infer the target's mode or structure",
     );
     expect(dashboard).toContain(
-      "existing custom cards may only be moved, deleted, or shallow-updated when the exact field already exists",
+      "Dashboard and resource delete uses exact confirmation code only",
     );
     expect(dashboard).toContain(
-      "Never probe a different dashboard's config just to infer behavior for the target dashboard.",
-    );
-    expect(dashboard).toContain(
-      "Dashboard/resource/card delete uses exact confirmation code only",
-    );
-    expect(dashboard).toContain(
-      "persisted card removal is destructive and requires exact confirmation code `confirm:<token>`",
+      "Removing views or cards inside a save is previewed (natural confirmation) because every save is recoverable",
     );
     expect(dashboard).toContain("Active Preview Confirmation");
     expect(dashboard).toContain(
@@ -537,8 +538,9 @@ describe("ha-nova contract", () => {
     expect(architecture).toContain("list Lovelace resources");
     expect(architecture).toContain("create/update/delete Lovelace resources");
     expect(architecture).toContain(
-      "add/update/move/delete cards inside existing views",
+      "add/update/move/delete cards; installed custom cards",
     );
+    expect(architecture).toContain("go through `ha-nova plan write|delete|revert --domain dashboard`");
     expect(architecture).toContain("create a storage dashboard shell");
     expect(architecture).toContain(
       "`dashboard_id` is the mutation identifier for `update|delete`",
