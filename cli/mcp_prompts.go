@@ -14,20 +14,6 @@ import (
 // shared reference files as ha-nova://skills/<path>.md. Read-only, and no
 // path outside the bundle's skills directory is ever opened.
 
-const mcpPromptPreamble = `You are running HA NOVA through MCP tools, not a shell. What works here:
-reads with ha_find, ha_get, ha_history, ha_trace, and ha_read (for "ha-nova
-find|get|history|trace" and raw GETs); device control with ha_call and
-ha_apply ("ha-nova call|apply"); automation and script create, update,
-delete, and revert with ha_plan (kind write|delete|revert) and ha_apply.
-Everything else the instructions below do with a shell — helper, dashboard,
-scene, registry or organize edits, files, other "ha-nova relay" writes —
-needs a client with a shell and the HA NOVA CLI: tell the user so instead of
-improvising. Pass a confirmation code to ha_apply only when the user typed it.
-
----
-
-`
-
 // Skills whose whole workflow runs over the MCP tools; the others keep their
 // reads but need a shell client with the CLI for their writes.
 var mcpFullySupportedSkills = map[string]bool{"ha-nova": true, "ha-nova-read": true, "ha-nova-entity-discovery": true,
@@ -47,7 +33,7 @@ func skillPrompts(paths runtimePaths) ([]string, map[string]string) {
 	var names []string
 	for _, entry := range entries {
 		path := filepath.Join(root, entry.Name(), "SKILL.md")
-		if _, err := os.Stat(path); !entry.IsDir() || err != nil {
+		if info, err := os.Lstat(path); !entry.IsDir() || err != nil || !info.Mode().IsRegular() {
 			continue
 		}
 		name := "ha-nova-" + entry.Name()
@@ -86,7 +72,7 @@ func (srv *mcpServer) getPrompt(raw json.RawMessage) (map[string]any, *rpcError)
 		return nil, &rpcError{Code: rpcInvalidParams, Message: "unknown prompt: " + params.Name}
 	}
 	return map[string]any{"description": "HA NOVA skill " + params.Name, "messages": []map[string]any{
-		{"role": "user", "content": map[string]any{"type": "text", "text": mcpPromptPreamble + string(body)}},
+		{"role": "user", "content": map[string]any{"type": "text", "text": mcpSkillHeader + string(body)}},
 	}}, nil
 }
 

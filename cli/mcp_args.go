@@ -276,9 +276,9 @@ func mcpNext(next string) string {
 	switch {
 	case !strings.Contains(out, "ha-nova:"):
 	case strings.Contains(out, "ha-nova:yaml-config"):
-		out += " Without a shell and the ha-nova skills, the user edits the YAML/package file and reloads it in Developer tools → YAML."
+		out += " Without a shell client, the user edits the YAML/package file and reloads it in Developer tools → YAML."
 	case !strings.Contains(out, "Settings"):
-		out += " The ha-nova:* skills need a client with a shell and the ha-nova skills installed; without one, the user does this in Home Assistant (Settings)."
+		out += " Load that skill with ha_skill; its steps beyond these tools need a client with a shell and the HA NOVA CLI — without one, the user does this in Home Assistant (Settings)."
 	}
 	return out
 }

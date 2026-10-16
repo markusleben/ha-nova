@@ -44,7 +44,7 @@ var callProperties = map[string]any{
 	"data":       prop("object", "service data; never entity_id/area_id/device_id/target"),
 }
 
-var mcpTools = []mcpTool{
+var mcpTools = []mcpTool{mcpSkillTool,
 	{name: "ha_find", title: "Find entities", description: "Find entities by phrase (case-, accent-, alias-aware) and/or by domain, area, or current state — e.g. which lights are on: domain light, state on. With state, rows marked group: true count their members again — report them separately; entities in state unavailable are a separate could-not-tell bucket (ask again with state unavailable and with state unknown).", readOnly: true, idempotent: true,
 		schema: object(nil, map[string]any{"phrase": prop("string", "words to match (optional with domain, area, or state)"), "domain": prop("string", "only this domain"),
 			"area": prop("string", "only this area_id"), "state": prop("string", "only entities currently in this state, e.g. on"),
@@ -101,9 +101,12 @@ func merged(a, b map[string]any) map[string]any {
 	return out
 }
 
-func mcpToolList() []map[string]any {
+func mcpToolList(paths runtimePaths) []map[string]any {
 	var tools []map[string]any
 	for _, t := range mcpTools {
+		if t.name == mcpSkillTool.name {
+			t.description = skillDescription(paths)
+		}
 		tools = append(tools, map[string]any{"name": t.name, "title": t.title, "description": t.description, "inputSchema": t.schema,
 			"annotations": map[string]any{"title": t.title, "readOnlyHint": t.readOnly, "destructiveHint": t.destructive,
 				"idempotentHint": t.idempotent, "openWorldHint": false}})
@@ -131,6 +134,9 @@ func (srv *mcpServer) callTool(raw json.RawMessage) (map[string]any, *rpcError) 
 		// protocol error.
 		if err := checkArguments(tool.schema, params.Arguments); err != nil {
 			return invalidArguments(tool.name, err), nil
+		}
+		if tool.name == mcpSkillTool.name { // offline: no verb, no lock
+			return srv.callSkill(params.Arguments), nil
 		}
 		temp := &mcpTempFiles{}
 		defer temp.remove()
