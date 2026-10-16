@@ -293,3 +293,21 @@ stopped.
 - Sources: github.com/home-assistant/core/blob/dev/homeassistant/helpers/target.py;
   github.com/home-assistant/core/pull/178666; tags 2026.9.0, 2026.10.0,
   2026.10.1.
+
+## 2026-10-16 — correction: child device rows
+
+- The child-device expansion landed with `fix/device-sibling-access-guard`
+  read `via_device_id`, which is the hub link of a regular device. Home
+  Assistant 2026.9+ child devices are separate `ChildDeviceEntry` rows that
+  carry `parent_device_id` (`helpers/device_registry.py`
+  `async_entries_for_parent_device`, tag 2026.10.1; contract in
+  `skills/ha-nova/membership-resolution.md` → Device rows). Fixed in
+  `fix/child-device-parent-field`.
+- HIT — since 2026.8 a device shared by several integrations is split into
+  one device per config entry; the old (composite) id is no longer listed,
+  but targets naming it still reach every split device and its children
+  (`helpers/target.py` `_resolve_referenced_devices`,
+  `config/device_registry/list_composite_splits`). Landed in the same branch.
+- Note — Shelly multi-channel and ESPHome sub-devices link with
+  `via_device_id`, not `parent_device_id`; the sibling check does not follow
+  hub links (every Z-Wave/Zigbee node links to its controller).

@@ -43,21 +43,31 @@ func (e *tierEngine) accessSibling(id, via, service string, data map[string]any)
 	return tierTyped
 }
 
-// deviceAccessEntity returns the first access-capable entity on one device
-// (never its parent or children: a hub links to every node), disabled ones
-// included (the hardware still opens), or "". Only covers need a state; an
-// unread or absent one has no class and counts (fail closed).
+// deviceAccessEntity returns the first access-capable entity on a device
+// or on the rest of its parent/child family (a child device is part of its
+// parent; a via_device_id hub link never counts: a hub links to every node),
+// disabled ones included (the hardware still opens), or "". Only covers need
+// a state; an unread or absent one has no class and counts (fail closed).
 func (e *tierEngine) deviceAccessEntity(device string) string {
 	if device == "" {
 		return ""
 	}
-	ids := e.deviceEntities(device, "homeassistant")
+	g := e.deviceGraph()
+	root := device
+	if parent := g.parent[device]; parent != "" {
+		root = parent
+	}
+	family := append([]string{root}, g.children[root]...)
+	var ids []string
+	for _, d := range family {
+		ids = append(ids, e.deviceEntities(d, "homeassistant")...)
+	}
 	rows, err := e.fullRegistry()
 	if err != nil {
 		e.readFailed("", "", "registry")
 	}
 	for _, row := range rows {
-		if row.DeviceID == device && !slices.Contains(ids, row.EntityID) {
+		if slices.Contains(family, row.DeviceID) && !slices.Contains(ids, row.EntityID) {
 			ids = append(ids, row.EntityID)
 		}
 	}
@@ -77,26 +87,83 @@ func (e *tierEngine) deviceAccessEntity(device string) string {
 	return ""
 }
 
-// deviceFamily is a targeted device plus its direct child devices, as Home
-// Assistant expands a device target (helpers/target.py, since 2026.9). An
-// unreadable device registry is typed; the device itself still counts.
-func (e *tierEngine) deviceFamily(device string) []string {
-	if e.children == nil {
-		e.children = map[string][]string{}
-		var rows []struct {
-			ID     string `json:"id"`
-			Parent string `json:"via_device_id"`
-		}
-		if err := e.s.wsDecode(map[string]any{"type": "config/device_registry/list"}, &rows, "the device registry"); err != nil {
-			e.readFailed("", "", "device registry")
-		}
-		for _, row := range rows {
-			if row.Parent != "" {
-				e.children[row.Parent] = append(e.children[row.Parent], row.ID)
-			}
+// deviceGraph links devices as config/device_registry/list shows them (Home
+// Assistant 2026.9+): a child row carries parent_device_id; via_device_id is
+// a hub link, not a child. An unreadable registry is typed and links nothing.
+type deviceGraph struct {
+	read     bool
+	known    map[string]bool
+	children map[string][]string
+	parent   map[string]string
+	splits   map[string][]string // composite id → split device ids; nil until read
+}
+
+func (e *tierEngine) deviceGraph() *deviceGraph {
+	if e.devices != nil {
+		return e.devices
+	}
+	g := &deviceGraph{known: map[string]bool{}, children: map[string][]string{}, parent: map[string]string{}}
+	e.devices = g
+	var rows []struct {
+		ID     string `json:"id"`
+		Parent string `json:"parent_device_id"`
+	}
+	if err := e.s.wsDecode(map[string]any{"type": "config/device_registry/list"}, &rows, "the device registry"); err != nil {
+		e.readFailed("", "", "device registry")
+		return g
+	}
+	g.read = true
+	for _, row := range rows {
+		g.known[row.ID] = true
+		if row.Parent != "" {
+			g.children[row.Parent] = append(g.children[row.Parent], row.ID)
+			g.parent[row.ID] = row.Parent
 		}
 	}
-	return append([]string{device}, e.children[device]...)
+	return g
+}
+
+// deviceFamily is what a device target reaches, as Home Assistant expands it
+// (helpers/target.py): the device plus its direct child devices (since
+// 2026.9); a pre-2026.8 merged device id no longer listed resolves to the
+// devices it was split into, each with its children.
+func (e *tierEngine) deviceFamily(device string) []string {
+	g := e.deviceGraph()
+	roots := []string{device}
+	if g.read && !g.known[device] {
+		if splits := e.compositeSplits()[device]; len(splits) > 0 {
+			roots = splits
+		}
+	}
+	var out []string
+	for _, root := range roots {
+		out = append(out, root)
+		out = append(out, g.children[root]...)
+	}
+	return out
+}
+
+// compositeSplits reads the merged-device splits once; a core without the
+// command (before 2026.8) has none, any other failure is typed.
+func (e *tierEngine) compositeSplits() map[string][]string {
+	g := e.deviceGraph()
+	if g.splits != nil {
+		return g.splits
+	}
+	g.splits = map[string][]string{}
+	var rows map[string]struct {
+		SplitIDs []string `json:"split_ids"`
+	}
+	err := e.s.wsDecode(map[string]any{"type": "config/device_registry/list_composite_splits"}, &rows, "the device splits")
+	switch {
+	case isUpstreamUnknownCommand(err):
+	case err != nil:
+		e.readFailed("", "", "device splits")
+	}
+	for id, row := range rows {
+		g.splits[id] = row.SplitIDs
+	}
+	return g.splits
 }
 
 // familyEntities: the entities a device target reaches, children included.
