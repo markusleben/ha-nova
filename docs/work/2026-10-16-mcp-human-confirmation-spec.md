@@ -32,11 +32,10 @@ tool-approval prompt (`docs/reference/client-integration.md`).
      plan time; a config plan names its live item first: "Delete the
      automation “Night lights”.", "Change …"/"Create …"), the copy note for a
      delete ("A copy is saved first…", or that none could be saved with
-     `no_snapshot`), then "To go ahead, type this confirmation code: <6 hex>"
-     — the six characters after the twelve the plan id shows, i.e. the code's
-     own suffix;
-   - `requestedSchema`: one required string `code` titled "Confirmation code"
-     (6 characters). No `mode` field (form is the default in every revision).
+     `no_snapshot`), then "To go ahead, type this one-time code from HA NOVA:
+     <4 digits>" — the whole code (typed-verbs spec §2.1a);
+   - `requestedSchema`: one required string `code` titled "One-time code from
+     HA NOVA" (4-12 characters: spaces are allowed). No `mode` field (form is the default in every revision).
    Otherwise the plan goes to apply without a code, which refuses it as the
    CLI does.
 4. **Transport per era.**
@@ -52,12 +51,12 @@ tool-approval prompt (`docs/reference/client-integration.md`).
      `inputRequests.confirm` (`confirm_without_copy` for a `no_snapshot`
      delete, so an answer to one form never confirms the other); the client's
      retry carries the answer in `inputResponses`. A malformed answer is
-     `-32602`. No `requestState`: the code binds the answer to the plan.
-5. **Outcomes.** `accept` with six hex characters → apply with `<code
-   prefix><typed suffix>` (trimmed, lowercased), once; apply's checks are unchanged: claim,
+     `-32602`. No `requestState`: the retry names its `plan_id`, and apply checks that plan's own code (a replayed answer for another plan matches with p = 10⁻⁴, typed-verbs spec §2.1a).
+5. **Outcomes.** `accept` with an answer that reads as four digits (as in
+   the CLI: spaces removed, other digit scripts folded) → apply with them, once; apply's checks are unchanged: claim,
    recompute, drift, code from the recomputed plan, one send, three wrong
    codes discard the plan. `decline` → `CONFIRM_DECLINED`; `cancel`, an answer
-   that is not six hex characters (no attempt used), or a timeout →
+   that is not four digits (no attempt used), or a timeout →
    `CONFIRM_CANCELLED`; a JSON-RPC error from the client →
    `CONFIRM_UNAVAILABLE`. All three: exit 4, nothing sent, the plan untouched
    (no claim before the answer); their wording never claims the user saw a

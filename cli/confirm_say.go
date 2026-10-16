@@ -22,7 +22,7 @@ func confirmationSay(e *tierEngine, env *verbEnvelope, plan storedPlan, subject 
 	}
 	switch {
 	case plan.Confirm == "code":
-		parts = append(parts, sayTypedAsk(plan.Code))
+		parts = append(parts, sayTypedAsk(plan.Code, lowerFirst(sayGoal(e, env, plan, subject))))
 	case plan.ConfigAction != nil: // the write card's literal options line
 		parts = append(parts, "Options: apply · show yaml · cancel")
 	default:
@@ -33,14 +33,6 @@ func confirmationSay(e *tierEngine, env *verbEnvelope, plan storedPlan, subject 
 
 const sayCopyNote = "A copy is saved first, so it can be restored."
 
-func sayTypedAsk(code string) string {
-	return "Reply with `" + code + "` to go ahead — a plain yes can't confirm this."
-}
-
-// sayFormAsk replaces sayTypedAsk where the client shows a confirmation
-// form: the code is never in a tool result there (mcp_confirm.go).
-const sayFormAsk = "Your app will ask you to type a code to go ahead — a plain yes can't confirm this."
-
 // confirmationPrompt is a typed plan's code-free text for a confirmation
 // form: the form stands alone (no write card above it), so a config plan
 // names its item first (subject: the live item's alias, else the draft's).
@@ -50,6 +42,15 @@ func confirmationPrompt(e *tierEngine, env *verbEnvelope, plan storedPlan, subje
 		return ""
 	}
 	what := sayWhat(e, env, plan, subject)
+	if plan.ConfigAction != nil {
+		what = sayGoal(e, env, plan, subject) + ". " + what
+	}
+	return strings.Join(append([]string{what}, sayReasons(e, env, plan)...), " ")
+}
+
+// sayGoal: "Unlock “Front Door”", "Delete the automation “Night”" — the
+// plan's action and objects only. subject names a config item.
+func sayGoal(e *tierEngine, env *verbEnvelope, plan storedPlan, subject string) string {
 	if action := plan.ConfigAction; action != nil {
 		name := sayText(subject, true)
 		if name == "" {
@@ -66,13 +67,29 @@ func confirmationPrompt(e *tierEngine, env *verbEnvelope, plan storedPlan, subje
 		default:
 			verb = "Change"
 		}
-		what = verb + " the " + action.Domain + " " + name + ". " + what
+		return verb + " the " + action.Domain + " " + name
 	}
-	return strings.Join(append([]string{what}, sayReasons(e, env, plan)...), " ")
+	service := plan.Action.Service
+	domain, verb := splitID(service)
+	names := []string{}
+	for _, id := range plan.Action.EntityIDs {
+		names = append(names, sayText(e.sayName(env, id), true))
+	}
+	switch {
+	case domain == "script" && !scriptEntityServices[verb]:
+		return "Run the script " + sayText(e.sayName(env, service), true)
+	case len(names) == 0 && domain == "homeassistant":
+		return sayVerb(verb) + " Home Assistant"
+	case len(names) == 0:
+		return "Run " + sayText(service, true)
+	case service == "script.turn_on":
+		return "Run the script " + sayList(names)
+	}
+	return sayVerb(verb) + " " + sayList(names)
 }
 
 // sayReasons: one sentence per distinct reason; a typed plan's first one
-// says that it needs a code.
+// says that it needs a one-time code from HA NOVA.
 func sayReasons(e *tierEngine, env *verbEnvelope, plan storedPlan) []string {
 	var parts, typed, other []string
 	seen := map[string]bool{}
@@ -90,17 +107,17 @@ func sayReasons(e *tierEngine, env *verbEnvelope, plan storedPlan) []string {
 	}
 	if plan.Confirm == "code" {
 		// The tier decides the ask, never the clauses: a typed plan whose
-		// reasons have no typed sentence still asks for the code.
+		// reasons have no typed sentence still asks for the one-time code.
 		first := "HA NOVA can't fully check what this would do"
 		if len(typed) > 0 {
 			first, typed = typed[0], typed[1:]
 		}
-		parts = append(parts, first+", so it needs a code.")
+		parts = append(parts, first+", so it needs a four-digit one-time code from HA NOVA.")
 	}
 	// Every code-tier clause is shown (up to 8); the milder ones fill up to
 	// four sentences and the rest are counted, never dropped silently.
 	if len(typed) > 8 {
-		typed = append(typed[:8], sayMore(len(typed)-8, "that need a code; the preview lists them"))
+		typed = append(typed[:8], sayMore(len(typed)-8, "that need the one-time code from HA NOVA; the preview lists them"))
 	}
 	if room := max(4-len(typed), 1); len(other) > room {
 		other = append(other[:room], sayMore(len(other)-room, "the preview lists"))
@@ -122,58 +139,36 @@ func sayWhat(e *tierEngine, env *verbEnvelope, plan storedPlan, subject string) 
 		}
 		return "Nothing is saved yet."
 	}
-	service := plan.Action.Service
-	domain, verb := splitID(service)
+	domain, verb := splitID(plan.Action.Service)
 	targets := plan.Action.EntityIDs
-	var line string
-	switch {
-	case domain == "script" && !scriptEntityServices[verb]:
-		line = "Run the script " + sayText(e.sayName(env, service), true) + sayData(plan.Action.Data)
-	case len(targets) == 0 && domain == "homeassistant":
-		line = sayVerb(verb) + " Home Assistant" + sayData(plan.Action.Data)
-	case len(targets) == 0:
-		line = "Run " + sayText(service, true) + sayData(plan.Action.Data)
-	default:
-		names := []string{}
-		for _, id := range targets {
-			names = append(names, sayText(e.sayName(env, id), true))
-		}
-		line = sayVerb(verb) + " " + sayList(names)
-		if service == "script.turn_on" {
-			line = "Run the script " + sayList(names)
-		}
-		if len(targets) > 1 {
-			line += sayData(plan.Action.Data)
-		}
-		if len(targets) == 1 {
-			for _, t := range env.Resolved {
-				if area := sayText(t.Area, true); t.EntityID == targets[0] && area != "" {
-					line += " in " + area
-				}
-			}
-			changes, warnings := []string{}, ""
-			for _, d := range env.Deltas {
-				change := sayValue(d.Before) + " → " + sayValue(d.After)
-				switch {
-				case d.Field != "state" && d.Before == "" && d.After != "":
-					changes = append(changes, sayValue(d.Field)+" set to "+sayValue(d.After))
-				case d.Field != "state" && d.Before != d.After: // an explicit "" clears the field: shown as “”
-					changes = append(changes, sayValue(d.Field)+" "+change)
-				case d.Field == "state" && d.After != "" && d.Before != d.After && domain != "script":
-					changes = append(changes, change)
-				}
-				if d.Warning != "" {
-					warnings = " " + d.Warning
-				}
-			}
-			if len(changes) > 0 {
-				line += ": " + strings.Join(changes, ", ")
-			}
-			line += "." + warnings
-			return line + " Nothing has run yet."
+	line := sayGoal(e, env, plan, "")
+	if len(targets) != 1 || domain == "script" && !scriptEntityServices[verb] {
+		return line + sayData(plan.Action.Data) + ". Nothing has run yet."
+	}
+	for _, t := range env.Resolved {
+		if area := sayText(t.Area, true); t.EntityID == targets[0] && area != "" {
+			line += " in " + area
 		}
 	}
-	return line + ". Nothing has run yet."
+	changes, warnings := []string{}, ""
+	for _, d := range env.Deltas {
+		change := sayValue(d.Before) + " → " + sayValue(d.After)
+		switch {
+		case d.Field != "state" && d.Before == "" && d.After != "":
+			changes = append(changes, sayValue(d.Field)+" set to "+sayValue(d.After))
+		case d.Field != "state" && d.Before != d.After: // an explicit "" clears the field: shown as “”
+			changes = append(changes, sayValue(d.Field)+" "+change)
+		case d.Field == "state" && d.After != "" && d.Before != d.After && domain != "script":
+			changes = append(changes, change)
+		}
+		if d.Warning != "" {
+			warnings = " " + d.Warning
+		}
+	}
+	if len(changes) > 0 {
+		line += ": " + strings.Join(changes, ", ")
+	}
+	return line + "." + warnings + " Nothing has run yet."
 }
 
 // sayReason is one plain clause per reason code; typed reports whether the

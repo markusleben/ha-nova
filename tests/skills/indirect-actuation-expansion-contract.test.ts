@@ -78,7 +78,7 @@ describe("indirect actuation and tier classification (#513)", () => {
         "a deliberate superset of the context skill's high-consequence confirmation tier",
       );
       expect(flat(testRunDoc)).toContain(
-        "Members that grant physical access still take the typed confirmation code",
+        "Members that grant physical access still take the one-time code",
       );
     });
 
@@ -157,7 +157,7 @@ describe("indirect actuation and tier classification (#513)", () => {
         "the single card confirmation never replaces it",
       );
       expect(flat(writeSkill)).toContain(
-        "the card confirmation never replaces the typed confirmation code",
+        "the card confirmation never replaces the one-time code",
       );
       expect(flat(skillDoc)).toContain(
         "if the CLI put the run on the typed tier, the card choice never replaces the code",
@@ -168,7 +168,7 @@ describe("indirect actuation and tier classification (#513)", () => {
       expect(flat(assistSkill)).toContain(
         "An utterance is the least enumerable indirect actuation there is",
       );
-      expect(assistSkill).toContain("it takes the typed `confirm:<token>`");
+      expect(assistSkill).toContain("it takes the one-time code");
       expect(assistSkill).toContain("including the re-run proof after an exposure fix");
     });
   });

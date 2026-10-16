@@ -61,7 +61,7 @@ Other skills name HA Backups as the recovery path (see `skills/ha-nova/recovery-
 ### Delete
 1. Require `state: idle` first (one backup operation at a time). Resolve the exact `backup_id` from Status; show name, date, and locations in the preview — deletion removes it from ALL listed locations, irreversibly.
 2. Never delete the only backup or the newest completed backup — manual or automatic — refuse outright and explain: it is the recovery net every other skill points to (a manual safety backup can be the freshest recovery point). If the user insists (for example the newest backup is corrupted or partial), point to the HA UI (Settings > System > Backups) for that deliberate exception; this skill does not carry a bypass.
-3. Require exact confirmation code `confirm:<token>` — generate a short code, display it in the Options slot, and proceed only when the user types it back exactly.
+3. Require the one-time code — mint four random digits, display them in the Options slot, and proceed only on a reply that is just the code (spaces ignored).
 4. `{"type":"backup/delete","backup_id":"<id>"}`; verify via Status that the backup is gone.
 
 ## Error Handling
@@ -78,7 +78,7 @@ Apply `skills/ha-nova/output-rules.md` to all output. Write previews, delete con
 - `Backups` / `Status`
 - `Planned change`
 - `Save status` / `Delete status` before confirmation
-- `Options` / confirmation-code prompt
+- `Options` / one-time-code prompt
 - `Verification`
 - `Next step`
 
@@ -86,17 +86,16 @@ Use stable localized slot labels in this order; omit empty slots. Status renders
 
 ## Safety
 
-- Preview before write. The only exception is a call that `ha-nova call` itself executed as `tier: ordinary` (an unambiguous everyday action, verified afterwards); everything else runs or is saved only after the user confirms the shown preview. High-consequence actions (e.g. unlocking or opening a lock, opening a gate, garage, or entry door, disarming the alarm — also through a scene or script) and deletes need a code.
+- Preview before write. The only exception is a call that `ha-nova call` itself executed as `tier: ordinary` (an unambiguous everyday action, verified afterwards); everything else runs or is saved only after the user confirms the shown preview. High-consequence actions (e.g. unlocking or opening a lock, opening a gate, garage, or entry door, disarming the alarm — also through a scene or script) and deletes or other destructive operations need the one-time code from HA NOVA, typed by the user; "yes" or any other reply is invalid.
 - Confirmation binds to the displayed preview and expires on any change to target, payload, endpoint, or scope (context skill → Active Preview Confirmation).
 - Anything before the preview ("do it", answers to questions) never confirms it; only a reply to the preview does.
-- Delete and destructive operations require the typed confirmation code `confirm:<token>` verbatim; "yes" or any natural-language reply is invalid.
 - Never guess entity, service, or config IDs — resolve them or ask.
 - Home Assistant is reached exclusively through the `ha-nova` CLI.
 - For any HA write this skill does not cover, STOP and invoke `ha-nova:fallback` first — never probe unfamiliar write endpoints.
 
 - Drafts follow `skills/ha-nova/smallest-solution.md`: the complete requested outcome in the simplest safe design, nothing for hypothetical future needs.
 
-- Create uses natural confirmation; delete uses exact confirmation code only.
+- Create uses natural confirmation; delete uses the one-time code only.
 - Restore is never executed here — it reboots the system; always route to the HA UI.
 - A backup is only real once it appears completed in Status — initiation is not success.
 - One backup operation at a time; verify by re-reading Status, not by command success alone.

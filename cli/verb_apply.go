@@ -19,7 +19,7 @@ const callHelp = callUsage + `
 Plans the call like "plan call". An ordinary call — up to 10 named targets
 or a targetless call, nothing behind it — runs now: exactly one request,
 never retried, then verified. Anything else stores the plan and exits 3; run "ha-nova apply"
-after the user confirms the preview (or types the code).
+after the user confirms the preview (or types the one-time code).
 Exit: 0 verified/accepted, 3 needs confirmation, 4 refused, 5 ambiguous or
 not found, 6 unverified/failed, 7 outcome unknown (verify; never retry).`
 
@@ -31,8 +31,9 @@ Executes a stored plan once. Apply claims the plan, checks expiry and server,
 re-plans from the stored request, and sends nothing when anything changed
 (exit 2 with a new plan). A preview plan needs no code: running apply IS the
 confirmation step, so run it only after the user confirmed that preview. A
-typed plan needs --confirm with the exact code the user typed (three wrong
-codes discard the plan; that counter guards against slips, not tampering).
+typed plan needs --confirm with the four-digit one-time code the user typed
+(spaces ignored; three wrong codes discard the plan; that counter guards
+against slips, not tampering).
 Config plans (plan write/delete/revert) save the config once, reload, and
 verify the read-back; an update lands on the undo stack, and a delete (and
 every dashboard save) takes a config snapshot first (--no-snapshot only
@@ -68,7 +69,7 @@ func runApplyCommand(paths runtimePaths, args []string) int {
 	fs := flag.NewFlagSet("apply", flag.ContinueOnError)
 	addVerbFlags(fs, &opts)
 	id := fs.String("plan", "", "plan id from plan/call (p_ + 12 hex)")
-	code := fs.String("confirm", "", "the exact confirmation code the user typed (typed plans only)")
+	code := fs.String("confirm", "", "the one-time code from HA NOVA, exactly as the user typed it (typed plans only)")
 	noSnapshot := fs.Bool("no-snapshot", false, "delete plans: proceed without the pre-delete config snapshot (only after the user chose that)")
 	positional, err := parseVerbArgs(fs, &opts, args, applyHelp)
 	if err == nil && (len(positional) != 0 || !planIDPattern.MatchString(*id)) {
@@ -114,8 +115,8 @@ var refusalNext = map[string]string{
 	"SERVER_MISMATCH":         "Apply it with the plan's own server (--server), or plan again for this one.",
 	"UNRESOLVED_TARGET":       "Name the entities explicitly, or check the area or device, then plan again.",
 	"NO_SNAPSHOT_NOT_OFFERED": "Apply without --no-snapshot: the config snapshot is taken first.",
-	"CODE_REQUIRED":           "Ask the user to type the confirmation code shown with the plan, then pass it with --confirm.",
-	"CODE_MISMATCH":           "Ask the user to type the confirmation code again, exactly as shown with the plan.",
+	"CODE_REQUIRED":           "Ask the user to type only the four digits of the one-time code from HA NOVA shown with the plan, then pass exactly what they typed with --confirm.",
+	"CODE_MISMATCH":           "Ask the user to type only the four digits of the one-time code from HA NOVA again, as shown with the plan.",
 	"NO_UNDO_SNAPSHOT":        "Only the last verified update of an automation, script, or dashboard can be reverted; there is nothing to revert.",
 	"REVERT_UNSUPPORTED":      "To undo an automation, script, or dashboard: plan revert --target <config_id> (for a dashboard, its url_path). The newest checkpoint belongs to a helper: revert that through ha-nova:helper.",
 	"CONFIG_ID_UNSUPPORTED":   "Pass the config_id from `ha-nova get <entity_id> --config`, not the entity_id; a YAML item is edited through ha-nova:yaml-config.",
@@ -185,6 +186,8 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string, noSnapshot
 		return fail(refuse(&env, *staticRefusal(request)))
 	case !verbNow().Before(expires):
 		return fail(refused("PLAN_EXPIRED", "plan "+id+" expired at "+plan.ExpiresAt))
+	case staleCode(plan): // a `confirm:…` code from before four-digit codes: never typed against a new one
+		return fail(refused("PLAN_EXPIRED", "plan "+id+" was made by an earlier HA NOVA version"))
 	case plan.Server != s.server:
 		return fail(refused("SERVER_MISMATCH", fmt.Sprintf("plan %s belongs to server %q", id, plan.Server)))
 	case isCall && frozeNothing(request, plan.Action):
@@ -244,32 +247,29 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string, noSnapshot
 	// id and code were never saved, and typing them would burn this plan.
 	env.Say = "" // it names the recompute's code
 	env.Plan = &verbPlan{ID: plan.ID, Hash: fresh.Hash, ExpiresAt: plan.ExpiresAt, Confirm: fresh.Confirm}
-	// Identity, tier, and code all come from the recomputed plan and the
-	// stored nonce, never from file fields (I2).
+	// Identity, tier, and code come from the recompute and nonce, never file fields (I2).
 	idHex := planIdentity(strings.TrimPrefix(fresh.Hash, "sha256:"), plan.Nonce)
 	if plan.ID != "p_"+idHex[:12] || plan.Tier != fresh.Tier {
 		return fail(refused("PLAN_INVALID", "plan "+id+" does not match its own hash"))
 	}
 	wantCode := ""
 	if fresh.Tier == tierTyped.String() {
-		service, objects := codeParts(fresh)
-		wantCode = confirmCode(service, objects, idHex)
-		switch typed := strings.TrimSpace(code); {
-		case typed == "":
+		wantCode = confirmCode(idHex)
+		switch typed := typedCode(code); {
+		case !fourDigits.MatchString(typed): // nothing, or not four digits: it can never match, so no attempt is used
 			if os.Rename(claimed, open) == nil {
 				consumed = false
 			}
-			return fail(refused("CODE_REQUIRED", "this plan needs the confirmation code the user types"))
+			return fail(refused("CODE_REQUIRED", "this plan needs the four digits of its one-time code from HA NOVA, typed by the user"))
 		case typed != wantCode:
-			// The counter lives in the local plan file: it limits accidents,
-			// not anyone who can edit that file.
+			// The counter lives in the plan file: it limits slips, not editors.
 			if plan.Mismatches++; plan.Mismatches >= 3 {
-				return fail(refused("PLAN_INVALIDATED", "three wrong confirmation codes; the plan is gone"))
+				return fail(refused("PLAN_INVALIDATED", "three wrong one-time codes; the plan is gone"))
 			}
 			if writePlanFile(claimed, plan) == nil && os.Rename(claimed, open) == nil {
 				consumed = false
 			}
-			return fail(refused("CODE_MISMATCH", fmt.Sprintf("the confirmation code does not match (%d of 3 attempts used)", plan.Mismatches)))
+			return fail(refused("CODE_MISMATCH", fmt.Sprintf("the one-time code does not match (%d of 3 attempts used)", plan.Mismatches)))
 		}
 	}
 	env.Plan = &verbPlan{ID: plan.ID, Hash: fresh.Hash, ExpiresAt: plan.ExpiresAt, Confirm: fresh.Confirm, Code: wantCode}

@@ -91,10 +91,10 @@ var mcpTools = []mcpTool{mcpSkillTool,
 		argv: planArgv, run: runPlanCommand},
 	{name: "ha_call", title: "Control a device", description: "Call a service. Ordinary calls run now and are verified; anything else returns needs_confirmation with a plan for ha_apply. A call that timed out or returned no result is outcome unknown: read with ha_get; never call again. coverage.notes are informational: mention one only when it raised the tier or the user asks — except EXPANDED_TARGET_WITHOUT_STATE: always tell the user in plain words which coverage.skipped entries with that code were skipped (not reporting).",
 		schema: object([]string{"service"}, callProperties), argv: callArgv, run: runCallCommand},
-	{name: "ha_apply", title: "Apply a confirmed plan", description: "Execute a stored plan once: a preview plan after the user agreed to its preview; a plan with a confirmation code only with the code the user typed — or, where a result says their app asks for the code in a form, without confirm_code (the form confirms; a passed code is ignored). A call that timed out or returned no result is outcome unknown: read with ha_get; never call again.",
+	{name: "ha_apply", title: "Apply a confirmed plan", description: "Execute a stored plan once: a preview plan after the user agreed to its preview; a plan with a one-time code from HA NOVA only with the code the user typed for it — or, where a result says their app asks for it in a form, without confirm_code (the form confirms; a passed code is ignored). A call that timed out or returned no result is outcome unknown: read with ha_get; never call again.",
 		destructive: true,
 		schema: object([]string{"plan_id"}, map[string]any{"plan_id": prop("string", "p_ + 12 hex"),
-			"confirm_code": prop("string", "the code exactly as the user typed it in chat (ignored where the app asks for it in a form)"), "no_snapshot": prop("boolean", "deletes only, after a failed snapshot and the user's choice")}),
+			"confirm_code": prop("string", "the four-digit one-time code exactly as the user typed it in chat (ignored where the app asks for it in a form)"), "no_snapshot": prop("boolean", "deletes only, after a failed snapshot and the user's choice")}),
 		argv: applyArgv, run: runApplyCommand},
 }
 

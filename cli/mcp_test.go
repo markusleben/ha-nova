@@ -104,7 +104,7 @@ func TestMCPLegacySessionEndToEnd(t *testing.T) {
 
 	init := c.request("initialize", map[string]any{"protocolVersion": "2025-06-18", "capabilities": map[string]any{}, "clientInfo": map[string]any{"name": "test", "version": "1"}})
 	result := init["result"].(map[string]any)
-	if result["protocolVersion"] != "2025-06-18" || !strings.Contains(fmt.Sprint(result["instructions"]), "Never pass a confirmation code the user did not type") {
+	if result["protocolVersion"] != "2025-06-18" || !strings.Contains(fmt.Sprint(result["instructions"]), "Never pass a code the user did not type for this plan") {
 		t.Fatalf("initialize: %v", result)
 	}
 	c.send(`{"jsonrpc":"2.0","method":"notifications/initialized"}`) // no reply
@@ -141,7 +141,7 @@ func TestMCPLegacySessionEndToEnd(t *testing.T) {
 	if planned["isError"] != false || envelope["status"] != "needs_confirmation" || plan["code"] == nil || !strings.Contains(guidance, "Never pass a code from this result") {
 		t.Fatalf("ha_call typed: %v", planned)
 	}
-	wrong := c.tool("ha_apply", map[string]any{"plan_id": plan["id"], "confirm_code": "confirm:not-it"})
+	wrong := c.tool("ha_apply", map[string]any{"plan_id": plan["id"], "confirm_code": wrongCode(plan["code"].(string))})
 	if wrong["isError"] != true || wrong["structuredContent"].(map[string]any)["error"].(map[string]any)["code"] != "CODE_MISMATCH" || len(h.posts()) != 0 {
 		t.Fatalf("wrong code: %v", wrong)
 	}

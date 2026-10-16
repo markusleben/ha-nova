@@ -4,7 +4,7 @@ Canonical path: `skills/ha-nova/grouped-change-set.md`
 
 The only supported route for confirming several NON-destructive mutations of one
 logical task with a single natural confirmation. The destructive sibling is
-`skills/ha-nova/batch-safety.md` (typed confirmation code, immutable manifest);
+`skills/ha-nova/batch-safety.md` (one-time code, immutable manifest);
 a grouped set never carries a destructive operation. The one destructive
 workflow defined in this file is Cross-Family Destructive Cleanup below — a
 separate typed-confirmation tier, never part of a grouped set.
@@ -31,7 +31,7 @@ ledger.
 
 - **Cap: 10 operations.** Above it, split into explicit separate groups, each
   with its own previews and final confirmation.
-- **No destructive operations.** Anything that requires a confirmation code
+- **No destructive operations.** Anything that requires a one-time code
   (deletes, destructive batches, high-consequence runtime actions) is rejected
   from the group and keeps its own flow. A task mixing both keeps the task's
   dependency order: each code-gated operation runs in its own flow at its
@@ -163,7 +163,7 @@ join a dependency-bound set.
 | `helper` | yes | storage and supported config-entry helper creates/updates |
 | `scene` | yes | storage scene creates/updates (Editability Guard per target) |
 | `organize` | yes | registry metadata updates (areas, labels, categories, entity/device metadata) |
-| `service-call` | yes | service calls planned with `ha-nova plan call` and run with `ha-nova apply --plan <id>` per plan after the set's one confirmation; typed-tier plans (confirmation code) excluded |
+| `service-call` | yes | service calls planned with `ha-nova plan call` and run with `ha-nova apply --plan <id>` per plan after the set's one confirmation; typed-tier plans (one-time code) excluded |
 | `device` | yes | one swap's entity_id takeover renames, and its automation/script re-points (at most 5 per group) |
 | `migrate` | yes | one source rule's automation/script creates or updates (at most 5 updates) and the old automation's `automation.turn_off` |
 | `todo` | yes | item operations on ONE list (add, complete, rename, update); list creates/deletes stay single-operation |
@@ -172,15 +172,15 @@ join a dependency-bound set.
 
 ## Cross-Family Destructive Cleanup (#583)
 
-Automation and script items keep their own `ha-nova plan delete` codes inside the cleanup: the CLI binds a code to one delete, so the manifest lists each item's code and the user types it; never pass a code the user did not type.
+Automation and script items keep their own `ha-nova plan delete` codes inside the cleanup: the CLI binds a code to one delete, so the manifest lists each item's code and the user types each one as its own reply, in manifest order; pass each code only to the plan whose `say` asked for it, never a code the user did not type.
 
 A separate typed-confirmation workflow, never part of a non-destructive grouped
 set: when ONE fully resolved logical cleanup target spans several supported
 families (delete a helper plus the automations referencing it; remove a retired
 device's group memberships and dashboard cards — statistics clears stay in
-maintenance's own same-family `confirm:batch-...` manifest and never join
+maintenance's own same-family batch manifest and never join
 this code), the whole cleanup
-may be confirmed with ONE manifest-bound confirmation code instead of one code
+may be confirmed with ONE manifest-bound one-time code instead of one code
 per family.
 
 - Build one immutable manifest per `skills/ha-nova/batch-safety.md` mechanics,
@@ -188,9 +188,8 @@ per family.
   owning skill, exact endpoint/payload semantics, per-item dependency/consumer
   impact result, per-family recovery path (snapshots, YAML exports, backup
   gate), and a deterministic execution order that deletes DEPENDENTS before their anchor (the consumers of a helper before the helper itself): fail-fast then never leaves a surviving consumer referencing an already-deleted target.
-- ONE typed code binds to that exact manifest:
-  `confirm:cleanup-<target>-<count>-<digest>` (digest per batch-safety's rule,
-  computed over this manifest). Any change to any operation, target, payload,
+- ONE one-time code belongs to that exact manifest (minted per
+  batch-safety's rule). Any change to any operation, target, payload,
   impact result, or order — or an expired confirmation — invalidates it; show
   a new preview with a new manifest and a new code.
 - Execute sequentially through the owning skills; every operation keeps its
@@ -215,7 +214,7 @@ workflow exists only when the one logical target genuinely spans families.
 
 Never grouped, regardless of task shape:
 
-- any operation requiring a typed confirmation code (deletes, destructive
+- any operation requiring a one-time code (deletes, destructive
   batches, high-consequence runtime actions). ONE named exception: a duration
   request's immediate action and its expiry automation are two halves of a
   single write, not a group of two operations — they preview and confirm

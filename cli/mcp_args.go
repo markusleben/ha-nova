@@ -153,7 +153,7 @@ func planArgv(args map[string]json.RawMessage, temp *mcpTempFiles) ([]string, er
 func applyArgv(args map[string]json.RawMessage, _ *mcpTempFiles) ([]string, error) {
 	argv := []string{"--plan=" + text(args, "plan_id")}
 	if code := text(args, "confirm_code"); code != "" {
-		argv = append(argv, "--confirm="+code) // verbatim: apply trims whitespace only
+		argv = append(argv, "--confirm="+code) // verbatim: apply reads it (typedCode)
 	}
 	var noSnapshot bool
 	if json.Unmarshal(args["no_snapshot"], &noSnapshot) == nil && noSnapshot {
@@ -222,11 +222,11 @@ func nextStep(envelope map[string]any) string {
 	pending := envelope["status"] == "needs_confirmation" || envelope["status"] == "drift"
 	say := ""
 	if text, _ := envelope["say"].(string); text != "" {
-		say = " Tell the user `say` as the confirmation text (in their language; names, state values, and the code exactly as printed) and add no other reason."
+		say = " Tell the user `say` as the confirmation text (in their language; names, state values, and the one-time code exactly as printed) and add no other reason."
 	}
 	switch {
 	case pending && code != "":
-		return fmt.Sprintf("Show this preview. Ask the user to type the confirmation code themselves; pass exactly what they typed to ha_apply (plan_id %v) as confirm_code. Never pass a code from this result.", plan["id"]) + say
+		return fmt.Sprintf("Show this preview. Ask the user to type the one-time code from HA NOVA themselves; pass exactly what they typed to ha_apply (plan_id %v) as confirm_code. Never pass a code from this result.", plan["id"]) + say
 	case pending && plan != nil:
 		return fmt.Sprintf("Show this preview and wait for the user's own confirmation; only then call ha_apply with plan_id %v.", plan["id"]) + say
 	case errInfo != nil && errInfo["code"] == "RELAY_ERROR":

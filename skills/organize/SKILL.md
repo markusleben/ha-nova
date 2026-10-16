@@ -83,7 +83,7 @@ Use `search/related` when a delete needs a quick impact preview on linked items.
    - areas/floors: show linked areas or assignments that will lose placement; run WS `search/related` with the matching item type (`"area"` for an area, `"floor"` for a floor) and name automations/scripts/scenes that target it — the delete leaves those targets dangling
    - labels: run WS `search/related` (`item_type: "label"`) and name the automations/scripts that reference the label; show other linked items when quickly resolvable
    - categories: show affected entity count and a small example set when resolvable
-   - require typed confirmation code `confirm:<token>`
+   - require the one-time code
    - same-family batch deletes follow `skills/ha-nova/batch-safety.md`, only when related-item impact is complete for every target
 5. Execute exactly one mutation (or the confirmed batch manifest, sequentially; or a confirmed grouped change set per `skills/ha-nova/grouped-change-set.md`, sequentially).
 6. Read back and verify the requested fields:
@@ -117,7 +117,7 @@ Apply `skills/ha-nova/output-rules.md` to all user-facing output. Write previews
 - `Requested change`
 - `Impact` for deletes
 - `Save status` / `Delete status` before confirmation
-- `Options` / confirmation-code prompt
+- `Options` / one-time-code prompt
 - `Verification`
 - `Next step`
 
@@ -127,10 +127,9 @@ Metadata reads render the Report shape; registry inventories render the List Fra
 
 ## Safety
 
-- Preview before write. The only exception is a call that `ha-nova call` itself executed as `tier: ordinary` (an unambiguous everyday action, verified afterwards); everything else runs or is saved only after the user confirms the shown preview. High-consequence actions (e.g. unlocking or opening a lock, opening a gate, garage, or entry door, disarming the alarm — also through a scene or script) and deletes need a code.
+- Preview before write. The only exception is a call that `ha-nova call` itself executed as `tier: ordinary` (an unambiguous everyday action, verified afterwards); everything else runs or is saved only after the user confirms the shown preview. High-consequence actions (e.g. unlocking or opening a lock, opening a gate, garage, or entry door, disarming the alarm — also through a scene or script) and deletes or other destructive operations need the one-time code from HA NOVA, typed by the user; "yes" or any other reply is invalid.
 - Confirmation binds to the displayed preview and expires on any change to target, payload, endpoint, or scope (context skill → Active Preview Confirmation).
 - Anything before the preview ("do it", answers to questions) never confirms it; only a reply to the preview does.
-- Delete and destructive operations require the typed confirmation code `confirm:<token>` verbatim; "yes" or any natural-language reply is invalid.
 - Never guess entity, service, or config IDs — resolve them or ask.
 - Home Assistant is reached exclusively through the `ha-nova` CLI.
 - For any HA write this skill does not cover, STOP and invoke `ha-nova:fallback` first — never probe unfamiliar write endpoints.
@@ -138,13 +137,13 @@ Metadata reads render the Report shape; registry inventories render the List Fra
 - Drafts follow `skills/ha-nova/smallest-solution.md`: the complete requested outcome in the simplest safe design, nothing for hypothetical future needs.
 - `search/related` verdicts fail closed: verify `ok=true` and `data` is an object before projecting family keys (`skills/ha-nova/relay-api.md` → Parsing rule); a failed or unexecuted scan is inconclusive — never a no-consumer result.
 
-- Delete uses the typed confirmation code only, even for cleanup of items created earlier in the same session.
+- Delete uses the one-time code only, even for cleanup of items created earlier in the same session.
 - Registry deletes (areas, floors, labels, categories) are irreversible and a recreate mints a new id — inbound references stay broken. Offer a safety backup via `ha-nova:backup` before them (never for metadata edits).
 - Entity removal goes to `ha-nova:maintenance` (dead registry entries only; offer disable for live entities). Config-entry detachment goes to `ha-nova:fallback`.
 
 ## Guardrails
 
-- One resource at a time — except a confirmed batch manifest per `skills/ha-nova/batch-safety.md` (its `confirm:batch-...` code replaces the single-target confirmation code for that batch), a non-destructive grouped change set (max 10 registry updates), or this skill's items inside a cross-family destructive cleanup manifest — both per `skills/ha-nova/grouped-change-set.md`.
+- One resource at a time — except a confirmed batch manifest per `skills/ha-nova/batch-safety.md` (its one manifest code replaces the single-target codes for that batch), a non-destructive grouped change set (max 10 registry updates), or this skill's items inside a cross-family destructive cleanup manifest — both per `skills/ha-nova/grouped-change-set.md`.
 - One category scope at a time.
 - Metadata updates only; no destructive registry admin beyond area/floor/label/category delete.
 - Verify the changed field values, not just the WS success response.

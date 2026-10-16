@@ -68,7 +68,7 @@ func TestCreateCollisionsAndCodes(t *testing.T) {
 		t.Fatalf("script: exit %d env %+v", exit, env)
 	}
 	_, env = h.run(runPlanCommand, "write", "--domain", "script", "--create", "--id", "front_open", "--file", draftFile(t, script))
-	if !strings.HasPrefix(env.Plan.Code, "confirm:write-front_open-") {
+	if !fourDigits.MatchString(env.Plan.Code) {
 		t.Fatalf("a chosen id left the code: %q", env.Plan.Code)
 	}
 }

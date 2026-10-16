@@ -26,11 +26,9 @@ read-only response service needs none while its consumer scan stays
 ordinary): show the Preview Card (`skills/ha-nova/output-cards.md`) with an
 explicit not-executed-yet line, take confirmation bound to that exact preview,
 send exactly one request, verify per `skills/ha-nova/outcome-verification.md`,
-and never retry automatically. Where a section below demands the typed
-`confirm:<token>`, you mint a short code naming the action (for example
-`confirm:fire-movie_night`); it counts only when the user typed it verbatim in
-a reply after the preview — "yes" is invalid — and never comes from Home
-Assistant data. A raw route never classifies its own tier where the CLI can:
+and never retry automatically. Where a section below demands the one-time
+code, you mint four random digits per preview; it counts only when the user typed it in a reply after the preview —
+"yes" is invalid — and never comes from Home Assistant data. A raw route never classifies its own tier where the CLI can:
 see Response services.
 
 ## Owning-Skill Deferrals
@@ -86,8 +84,8 @@ Both paths are runtime actions that can start every matching automation. Never u
 ### Custom events
 
 1. Require the exact user-defined `event_type` and a JSON-object payload. Never normalize or invent the name, and never fire core lifecycle/state events through this flow.
-2. Read `GET /api/events` for the total listener count. Scan readable automation configs for current event triggers (`trigger: event`) and legacy triggers (`platform: event`) with the same static `event_type`; apply any literal `event_data` filters to classify known matches. Templated event types and non-automation listeners (Node-RED, AppDaemon) are not safely enumerable — disclose that limit, and treat their presence the way the shared gate does: an unenumerable listener cannot be shown to be harmless, so the fire takes the typed `confirm:<token>` rather than natural confirmation (`skills/ha-nova/indirect-actuation.md`). This scan is the shared event-consumer pattern of `skills/ha-nova/consumer-discovery-preflight.md`.
-3. Inspect known matching automations for high-consequence actions. Preview the exact event type, payload fields, known matching automations, total listener count, unclassified-listener warning, and risk tier. Use natural bound confirmation only when EVERY listener was enumerable and none of them reaches the high-consequence tier. Any unenumerable listener, or a known high-consequence match, requires `confirm:<token>` — unknown impact is not low impact, and step 2 already established that an opaque listener cannot be shown to be harmless.
+2. Read `GET /api/events` for the total listener count. Scan readable automation configs for current event triggers (`trigger: event`) and legacy triggers (`platform: event`) with the same static `event_type`; apply any literal `event_data` filters to classify known matches. Templated event types and non-automation listeners (Node-RED, AppDaemon) are not safely enumerable — disclose that limit, and treat their presence the way the shared gate does: an unenumerable listener cannot be shown to be harmless, so the fire takes the one-time code rather than natural confirmation (`skills/ha-nova/indirect-actuation.md`). This scan is the shared event-consumer pattern of `skills/ha-nova/consumer-discovery-preflight.md`.
+3. Inspect known matching automations for high-consequence actions. Preview the exact event type, payload fields, known matching automations, total listener count, unclassified-listener warning, and risk tier. Use natural bound confirmation only when EVERY listener was enumerable and none of them reaches the high-consequence tier. Any unenumerable listener, or a known high-consequence match, requires the one-time code — unknown impact is not low impact, and step 2 already established that an opaque listener cannot be shown to be harmless.
 4. Execute `POST /api/events/<event_type>` with the JSON object. A success response proves only that Home Assistant accepted the bus fire.
 5. For known matching automations, compare `last_triggered` or a new trace with the pre-call baseline using up to three reads over ten seconds — that proves the listener STARTED (`accepted`), never that its actions succeeded: `verified` requires the previewed effect probes per `skills/ha-nova/outcome-verification.md`. Never claim that every listener completed, and never repeat an event automatically after any timeout or transport error.
 

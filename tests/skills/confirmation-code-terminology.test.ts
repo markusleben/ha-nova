@@ -3,10 +3,9 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-// Issue #392: the user-facing name for the typed destructive keyword is the
-// "confirmation code" (skills/ha-nova/output-rules.md → Localization). The
-// machine syntax `confirm:<token>` is unchanged; prose must never call the
-// value a token. Auth terminology ("access token", relay token, LLAT) stays.
+// Issue #392: prose must never call the typed code a token. Since the
+// four-digit codes its user-facing name is the "one-time code from HA NOVA"
+// (skills/ha-nova/output-rules.md → Localization). Auth terminology ("access token", relay token, LLAT) stays.
 
 const SKILLS_ROOT = "skills";
 
@@ -73,7 +72,7 @@ const AUTH_CONTEXT =
 const strip = (md: string): string =>
   md
     .replace(/```[\s\S]*?```/g, "") // fenced blocks (SSOT quotes, examples)
-    .replace(/`[^`\n]*`/g, "") // inline code — removes confirm:<token> spans
+    .replace(/`[^`\n]*`/g, "") // inline code spans
     .replace(/"token"/g, ""); // the meta-rule idiom (never call it a "token")
 
 interface Violation {
@@ -114,6 +113,15 @@ describe("confirmation-code terminology (issue #392)", () => {
     }
   });
 
+  // The typed code has one name in skill prose: "one-time code" (users read
+  // "one-time code from HA NOVA"), never the pre-2026-10-17 "confirmation code".
+  it("calls the typed code a one-time code, never a confirmation code", () => {
+    for (const file of ALL_SKILL_MD_FILES) {
+      const hits = readFileSync(file, "utf8").split("\n").flatMap((line, idx) => (/confirmation[- ]codes?/i.test(line) ? [`L${idx + 1}: ${line.trim()}`] : []));
+      expect(hits, `${file} says "confirmation code":\n${hits.join("\n")}`).toEqual([]);
+    }
+  });
+
   it("keeps the auth-language exception alive (real auth wording still passes)", () => {
     const externalSources = readFileSync("skills/external-sources/SKILL.md", "utf8");
     const admin = readFileSync("skills/admin/SKILL.md", "utf8");
@@ -123,8 +131,8 @@ describe("confirmation-code terminology (issue #392)", () => {
 
   it("pins the canonical localization rule the checker enforces", () => {
     const outputRules = readFileSync("skills/ha-nova/output-rules.md", "utf8") + readFileSync("skills/ha-nova/output-cards.md", "utf8");
-    expect(outputRules).toContain('the "confirmation code" (localized');
-    expect(outputRules).toContain('Never call it a "token" in user-facing output');
+    expect(outputRules).toContain('the "one-time code from HA NOVA" (localized');
+    expect(outputRules).toContain('Never call it a bare "code", "PIN", or "token" in user-facing output');
   });
 
   // Generic localization fixtures: destructive-card copy in English and a
@@ -133,16 +141,16 @@ describe("confirmation-code terminology (issue #392)", () => {
     const englishCard = [
       "🗑️ Delete automation: Morning Lights",
       "⚠️ Nothing deleted yet.",
-      "To delete, reply exactly: `confirm:del-morning-lights`",
-      "Type the confirmation code exactly as shown.",
+      "Type 4821 to delete — a plain yes can't confirm this.",
+      "Type the one-time code from HA NOVA exactly as shown.",
     ].join("\n");
     const germanCard = [
       "🗑️ Automation löschen: Morgenlicht",
       "⚠️ Noch nichts gelöscht.",
-      "Zum Löschen antworte exakt: `confirm:del-morgenlicht`",
-      "Gib den Bestätigungscode exakt so ein.",
+      "Tippe 4821 zum Löschen — ein einfaches Ja reicht hier nicht.",
+      "Gib den Einmalcode von HA NOVA exakt so ein.",
     ].join("\n");
-    const tokenJargonCard = "Reply with the typed token `confirm:<token>` to proceed.";
+    const tokenJargonCard = "Reply with the typed token 4821 to proceed.";
     const authSentence = "Never ask the user to paste an access token or password in chat.";
 
     expect(findTokenViolations(englishCard, false)).toEqual([]);

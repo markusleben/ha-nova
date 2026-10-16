@@ -96,7 +96,7 @@ Persistence routing per `skills/ha-nova/best-practices.md` → Persistence Model
 ### Delete
 1. Resolve id + platform (Editability Guard).
 2. Consumer check: `{"type":"search/related","item_type":"entity","item_id":"scene.<slug>"}` — read through `skills/ha-nova/search-related-consumers.jq` (recreate per `skills/ha-nova/relay-api.md` → Parsing rule on flat-copy installs); show referencing automations/scripts, or an explicit no-consumer result (only a verified-shape empty `data` object means no consumers; a failed read is inconclusive, never a no-consumer claim).
-3. Require exact confirmation code `confirm:<token>` — generate a short code, display it in the Options slot, and proceed only when the user types it back exactly. Deleting several storage scenes at once follows `skills/ha-nova/batch-safety.md` (Editability Guard per target).
+3. Require the one-time code — mint four random digits, display them in the Options slot, and proceed only on a reply that is just the code (spaces ignored). Deleting several storage scenes at once follows `skills/ha-nova/batch-safety.md` (Editability Guard per target).
 4. Capture the auto config snapshot of the current config first (`skills/ha-nova/config-snapshots.md`; on capture failure follow its capture-failure stop).
 5. `ha-nova relay core --method DELETE --path /api/config/scene/config/<id>`
 6. Verify absence: config GET returns status 404 and the entity is gone. Mention the snapshot restore path in the result.
@@ -117,7 +117,7 @@ Apply `skills/ha-nova/output-rules.md` to all user-facing output. Write previews
 - `Mode`
 - `Planned change`
 - `Save status` / `Delete status` before confirmation
-- `Options` / confirmation-code prompt
+- `Options` / one-time-code prompt
 - `Verification`
 - `Next step`
 
@@ -125,16 +125,15 @@ Use stable localized slot labels in this order; omit empty slots. Reads render t
 
 ## Safety
 
-- Preview before write. The only exception is a call that `ha-nova call` itself executed as `tier: ordinary` (an unambiguous everyday action, verified afterwards); everything else runs or is saved only after the user confirms the shown preview. High-consequence actions (e.g. unlocking or opening a lock, opening a gate, garage, or entry door, disarming the alarm — also through a scene or script) and deletes need a code.
+- Preview before write. The only exception is a call that `ha-nova call` itself executed as `tier: ordinary` (an unambiguous everyday action, verified afterwards); everything else runs or is saved only after the user confirms the shown preview. High-consequence actions (e.g. unlocking or opening a lock, opening a gate, garage, or entry door, disarming the alarm — also through a scene or script) and deletes or other destructive operations need the one-time code from HA NOVA, typed by the user; "yes" or any other reply is invalid.
 - Confirmation binds to the displayed preview and expires on any change to target, payload, endpoint, or scope (context skill → Active Preview Confirmation).
 - Anything before the preview ("do it", answers to questions) never confirms it; only a reply to the preview does.
-- Delete and destructive operations require the typed confirmation code `confirm:<token>` verbatim; "yes" or any natural-language reply is invalid.
 - Never guess entity, service, or config IDs — resolve them or ask.
 - Home Assistant is reached exclusively through the `ha-nova` CLI.
 - For any HA write this skill does not cover, STOP and invoke `ha-nova:fallback` first — never probe unfamiliar write endpoints.
 
-- Create/update use natural confirmation after preview; delete uses exact confirmation code only, even for scenes created earlier in the same session.
+- Create/update use natural confirmation after preview; delete uses the one-time code only, even for scenes created earlier in the same session.
 - Scene writes have no `revert`; recovery is the auto config snapshot (deletes and member-removing updates capture one). Offer a safety backup via `ha-nova:backup` before a delete only when the snapshot store is unavailable (never for routine edits).
 - One scene per mutation; verify read-back, not just the save response.
 - Activation hands off to `ha-nova:service-call` — `scene.turn_on` supports `transition` (lights only); `scene.apply` applies a one-off state set without storing a scene.
-- After a verified create/update, OFFER an apply-test: one Test-Plan-style card (mechanics: `skills/ha-nova/test-run.md` — name every member device and its target state, single bound confirmation, run via `scene.turn_on`, verify the timestamp advanced plus member states). Say honestly that activation changes real devices and prior states are not restored. members are classified by `skills/ha-nova/indirect-actuation.md`, not by a list kept here — that gate also covers nested script and scene runs, `template`-platform members, physically irreversible actions, and members whose owning skill already demands the typed tier. Anything it puts on the typed tier keeps the typed confirmation code from the context skill's high-consequence tier — the single card confirmation never replaces it.
+- After a verified create/update, OFFER an apply-test: one Test-Plan-style card (mechanics: `skills/ha-nova/test-run.md` — name every member device and its target state, single bound confirmation, run via `scene.turn_on`, verify the timestamp advanced plus member states). Say honestly that activation changes real devices and prior states are not restored. members are classified by `skills/ha-nova/indirect-actuation.md`, not by a list kept here — that gate also covers nested script and scene runs, `template`-platform members, physically irreversible actions, and members whose owning skill already demands the typed tier. Anything it puts on the typed tier keeps the one-time code from the context skill's high-consequence tier — the single card confirmation never replaces it.

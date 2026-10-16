@@ -152,7 +152,7 @@ act on a name match alone.
   canonical `full_name`; missing after the re-read means the add failed
   (duplicate/rename detection happens on the same re-read). Registration
   does not download anything; say so.
-- Remove registration: typed confirmation code, and only with exact identity
+- Remove registration: one-time code, and only with exact identity
   plus installation state known — and only when `installed == false`.
   Unregistering an installed repository strands its files (the ID vanishes
   from `list`, so a later uninstall would need re-registration): when it is
@@ -183,7 +183,7 @@ HACS-specific consumer discovery FIRST and shows the result in the preview:
   dashboard configs for the package's custom element references; manual YAML
   dashboards and template consumers are not enumerable — name them as an
   unscanned surface, never claim "no consumers"
-Then the Delete Card with the typed `confirm:<token>`. On confirmation
+Then the Delete Card with the one-time code. On confirmation
 APPLY the uninstall — `hacs/repository/remove` (deletes the downloaded
 files) — and read back until `installed == false` in the repository info
 (reconcile loop on timeout); only that read-back is success. Dependent
@@ -270,10 +270,9 @@ at runtime.
 
 ## Safety
 
-- Preview before write. The only exception is a call that `ha-nova call` itself executed as `tier: ordinary` (an unambiguous everyday action, verified afterwards); everything else runs or is saved only after the user confirms the shown preview. High-consequence actions (e.g. unlocking or opening a lock, opening a gate, garage, or entry door, disarming the alarm — also through a scene or script) and deletes need a code.
+- Preview before write. The only exception is a call that `ha-nova call` itself executed as `tier: ordinary` (an unambiguous everyday action, verified afterwards); everything else runs or is saved only after the user confirms the shown preview. High-consequence actions (e.g. unlocking or opening a lock, opening a gate, garage, or entry door, disarming the alarm — also through a scene or script) and deletes or other destructive operations need the one-time code from HA NOVA, typed by the user; "yes" or any other reply is invalid.
 - Confirmation binds to the displayed preview and expires on any change to target, payload, endpoint, or scope (context skill → Active Preview Confirmation).
 - Anything before the preview ("do it", answers to questions) never confirms it; only a reply to the preview does.
-- Delete and destructive operations require the typed confirmation code `confirm:<token>` verbatim; "yes" or any natural-language reply is invalid.
 - Never guess entity, service, or config IDs — resolve them or ask.
 - Home Assistant is reached exclusively through the `ha-nova` CLI.
 - For any HA write this skill does not cover, STOP and invoke `ha-nova:fallback` first — never probe unfamiliar write endpoints.
@@ -281,7 +280,7 @@ at runtime.
 - Drafts follow `skills/ha-nova/smallest-solution.md`: the complete requested outcome in the simplest safe design, nothing for hypothetical future needs.
 
 - Confirmation tiers: natural confirmation for install/update/redownload;
-  the typed confirmation code for uninstall, registration removal, and
+  the one-time code for uninstall, registration removal, and
   dependent config-entry deletion.
 - The migration backup gate is non-negotiable: no destructive migration
   step before a COMPLETED and CURRENT full Home Assistant Backup exists.

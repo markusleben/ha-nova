@@ -5,6 +5,7 @@ import json
 import os
 import queue
 import re
+import secrets
 import shlex
 import shutil
 import signal
@@ -954,7 +955,7 @@ def build_dashboard_delete_token_prompt(fixture: dict[str, Any]) -> tuple[str, s
     token = fixture["token"]
     status_line = f'NOVA_PROMOTED_SKILL_RESULT id=dashboard_delete_token ok url_path={fixture["url_path"]} deleted=true'
     task = f"""You are handling the delete step for the existing storage dashboard at url path `{fixture["url_path"]}`.
-In this test fixture, the previous turn showed the concrete delete preview for this exact dashboard and the exact confirmation code was `{token}`.
+In this test fixture, the previous turn showed the concrete delete preview for this exact dashboard and the one-time code from HA NOVA was `{token}`.
 The user's current reply is exactly `{token}`.
 Resolve the dashboard, execute only the delete path, verify the dashboard is gone from the dashboard list, and finish.
 Use Relay WebSocket calls only for this dashboard flow.
@@ -966,7 +967,7 @@ def build_dashboard_delete_reject_prompt(fixture: dict[str, Any]) -> tuple[str, 
     token = fixture["token"]
     status_line = f'NOVA_PROMOTED_SKILL_RESULT id=dashboard_delete_reject_natural ok url_path={fixture["url_path"]} refused=true'
     task = f"""You are handling the delete step for the existing storage dashboard at url path `{fixture["url_path"]}`.
-In this test fixture, the previous turn showed the concrete delete preview for this exact dashboard and the exact confirmation code was `{token}`.
+In this test fixture, the previous turn showed the concrete delete preview for this exact dashboard and the one-time code from HA NOVA was `{token}`.
 The user's current reply is only `yes`.
 Do not delete anything. Explain briefly that the exact confirmation code is still required, include the code literally, and stop.
 Use Relay WebSocket calls only for this dashboard flow.
@@ -1080,7 +1081,7 @@ def build_organize_category_delete_prompt(fixture: dict[str, Any]) -> tuple[str,
         f'category_id={fixture["category_id"]} deleted=true'
     )
     task = f"""You are handling the delete step for category `{fixture["category_id"]}` in scope `{fixture["scope"]}`.
-In this test fixture, the previous turn showed the concrete delete preview for this exact category and scope, and the exact confirmation code was `{token}`.
+In this test fixture, the previous turn showed the concrete delete preview for this exact category and scope, and the one-time code from HA NOVA was `{token}`.
 The user's current reply is exactly `{token}`.
 Delete the category, verify it is absent from the category registry for that scope, and verify entity `{fixture["entity_id"]}` no longer keeps that category in the same scope.
 Every category registry call in this scenario must include the provided scope."""
@@ -1204,7 +1205,7 @@ def validate_dashboard_resource_flow(events: list[dict[str, Any]], invalid_lines
 
 
 def token_wording_errors(final_message: str, fixture: dict[str, Any]) -> list[str]:
-    # Issue #392: destructive-card copy calls the value a "confirmation code",
+    # Issue #392: destructive-card copy calls the value a "one-time code from HA NOVA",
     # never a "token". The literal code value and the harness status line
     # (whose scenario id may contain "token") are exempt.
     text = final_message.replace(fixture["token"], "")
@@ -1503,7 +1504,7 @@ def main(argv: list[str]) -> int:
         if "dashboard_delete_token" in requested:
             suffix = str(int(time.time()))
             fixture = dashboard_seed(f"nova-codex-delete-{suffix}", f"NOVA Codex Delete {suffix}", with_config=True)
-            fixture["token"] = f"confirm:del-dashboard-{suffix}"
+            fixture["token"] = f"{secrets.randbelow(10000):04d}"
             fixtures["dashboard_delete_token"] = fixture
             cleanup_dashboards.append(fixture)
             prompt, status_line = build_dashboard_delete_token_prompt(fixture)
@@ -1512,7 +1513,7 @@ def main(argv: list[str]) -> int:
         if "dashboard_delete_reject_natural" in requested:
             suffix = str(int(time.time()))
             fixture = dashboard_seed(f"nova-codex-refuse-{suffix}", f"NOVA Codex Refuse {suffix}", with_config=True)
-            fixture["token"] = f"confirm:del-dashboard-refuse-{suffix}"
+            fixture["token"] = f"{secrets.randbelow(10000):04d}"
             fixtures["dashboard_delete_reject_natural"] = fixture
             prompt, status_line = build_dashboard_delete_reject_prompt(fixture)
             results.append(run_case("dashboard_delete_reject_natural", prompt, status_line, validate_dashboard_delete_reject, fixture))
@@ -1605,7 +1606,7 @@ def main(argv: list[str]) -> int:
                 "scope": scope,
                 "category_id": category["category_id"],
                 "entity_id": entity_fixture["entity_id"],
-                "token": f"confirm:del-category-{suffix}",
+                "token": f"{secrets.randbelow(10000):04d}",
             }
             fixtures["organize_category_delete_token"] = fixture
             cleanup_categories.append(fixture)

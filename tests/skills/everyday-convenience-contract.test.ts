@@ -215,7 +215,7 @@ describe("flows that cost the user extra turns (#527)", () => {
     const patterns = flat((read("skills/ha-nova/automation-patterns.md") + "\n" + read("skills/ha-nova/one-shot-automations.md")));
     // A duration does not soften the first half: the door is open the whole
     // window, so the auto re-lock is not a mitigation.
-    expect(patterns).toContain("the one preview takes the typed `confirm:<token>`");
+    expect(patterns).toContain("the one preview takes the one-time code");
     // The tier is the MAXIMUM of both halves. "lock the door for an hour" is an
     // ordinary lock.lock now and a scheduled, unattended lock.unlock later —
     // keying the tier on the immediate half schedules the grant.

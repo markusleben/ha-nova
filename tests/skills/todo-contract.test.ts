@@ -58,8 +58,8 @@ describe("todo contract", () => {
     expect(todoSkill).toContain("`todo_list_name`");
     expect(todoSkill).toContain("registry lag: retry once");
     expect(todoSkill).toContain("destroys the list AND all its items irreversibly");
-    expect(todoSkill).toContain("`confirm:<token>`");
-    expect(todoSkill).toContain("proceed only when the user types it back exactly");
+    expect(todoSkill).toContain("require the one-time code — mint four random digits");
+    expect(todoSkill).toContain("proceed only on a reply that is just the code (spaces ignored)");
     expect(todoSkill).toContain("Resolve `entry_id` via the entity registry `config_entry_id`");
     expect(todoSkill).toContain("never derive the entity_id by slugifying the name");
     // Other providers configure lists in their own integration.

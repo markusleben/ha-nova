@@ -137,7 +137,7 @@ func TestPlanWriteReachingAnUnlockIsTyped(t *testing.T) {
 	draft := hallDraft("light.turn_on")
 	draft["actions"] = []any{step("lock.unlock", "lock.front")}
 	exit, env := h.run(runPlanCommand, "write", "--domain", "automation", "--file", draftFile(t, draft))
-	if exit != 3 || env.Tier != "typed" || !strings.Contains(reasonCodes(env), reasonAccessLock) || !strings.HasPrefix(env.Plan.Code, "confirm:write-") {
+	if exit != 3 || env.Tier != "typed" || !strings.Contains(reasonCodes(env), reasonAccessLock) || !fourDigits.MatchString(env.Plan.Code) {
 		t.Fatalf("exit %d env %+v", exit, env)
 	}
 	if exit, env := h.run(runApplyCommand, "--plan", env.Plan.ID); exit != 4 || env.Error.Code != "CODE_REQUIRED" || len(h.writes()) != 0 {
@@ -234,7 +234,7 @@ func TestPlanDeleteIsTypedAndSnapshotsFirst(t *testing.T) {
 	f.related["entity:automation.night"] = []string{"automation.caller"}
 	h := newWriteHarness(t, f)
 	exit, env := h.run(runPlanCommand, "delete", "automation.night")
-	if exit != 3 || env.Tier != "typed" || !strings.HasPrefix(env.Plan.Code, "confirm:delete-night-") || len(env.Consumers) != 1 || env.Consumers[0].Automation != "automation.caller" {
+	if exit != 3 || env.Tier != "typed" || !fourDigits.MatchString(env.Plan.Code) || len(env.Consumers) != 1 || env.Consumers[0].Automation != "automation.caller" {
 		t.Fatalf("plan delete: exit %d env %+v", exit, env)
 	}
 	h.f.snapshotErr = true

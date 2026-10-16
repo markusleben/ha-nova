@@ -56,7 +56,7 @@ describe("post-write test-offer contract", () => {
     // natural-confirmation bypass of the high-consequence tier.
     expect(testRun).toContain("the single card confirmation never\n  replaces it");
     expect(writeSkill).toContain(
-      "the card confirmation never replaces the typed confirmation code",
+      "the card confirmation never replaces the one-time code",
     );
     expect(serviceCall).toContain(
       "if the CLI put the run on the typed tier, the card choice never replaces the code",

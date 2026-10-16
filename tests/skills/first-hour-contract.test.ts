@@ -36,7 +36,7 @@ describe("first-hour pack (#528)", () => {
 
   it("renders the safety story from enforced guarantees only (P3-03)", () => {
     expect(capability).toContain("Nothing is written without a preview you confirm first");
-    expect(capability).toContain("typed confirmation code");
+    expect(capability).toContain("one-time code");
     expect(capability).toContain("the honest limit is part of the story");
   });
 

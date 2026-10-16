@@ -174,7 +174,7 @@ func TestPlanCallFailOpenRegressions(t *testing.T) {
 			}},
 		{name: "multi-target code names the first target and the count", setup: func(f *fakeHA) { f.ent("lock.back", "zwave_js", "locked", nil) },
 			args: []string{"lock.unlock", "lock.front", "lock.back"}, exit: 3, tier: "typed", check: func(t *testing.T, env verbTestEnvelope) {
-				if !strings.HasPrefix(env.Plan.Code, "confirm:unlock-front+1-") {
+				if !fourDigits.MatchString(env.Plan.Code) {
 					t.Fatalf("code %s", env.Plan.Code)
 				}
 			}},

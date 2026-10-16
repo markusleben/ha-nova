@@ -250,14 +250,14 @@ are already applied — never continue silently into a half-applied state.
 
 This section covers multi-target updates. Deleting a reviewed multi-item
 workset routes through `skills/ha-nova/batch-safety.md`: one immutable
-manifest, one typed confirmation code (automations/scripts: one CLI code per item), per-target impact checks and
+manifest, one one-time code (automations/scripts: one CLI code per item), per-target impact checks and
 verification retained, one resource family per manifest.
 
 ## Update-Revert (durable, identity-preserving)
 
 Scope: **update only**. A create is undone by deleting the new item through the
-normal HA NOVA delete flow; that delete still requires a delete preview, exact
-`confirm:<token>`, and absence verification, even when the item was created earlier in the same session.
+normal HA NOVA delete flow; that delete still requires a delete preview, one-time
+code, and absence verification, even when the item was created earlier in the same session.
 Do not call this `revert`, and do not imply that manual deletion or a full Home Assistant Backup restore is the only cleanup path.
 A delete has no HA NOVA `revert`; a snapshot-covered delete restores from its
 auto config snapshot (`skills/ha-nova/config-snapshots.md`) — that is the

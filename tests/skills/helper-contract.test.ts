@@ -90,14 +90,14 @@ describe("helper contract", () => {
       expect(skillDoc).toContain("Changes slot");
       expect(skillDoc).toContain("explicit not-saved-yet line");
       expect(skillDoc).toContain("Options block (`apply`, `show yaml`, `cancel`)");
-      expect(skillDoc).toContain("explicit not-deleted-yet line before the confirmation code");
+      expect(skillDoc).toContain("explicit not-deleted-yet line before the one-time code");
       expect(skillDoc).not.toContain("as a `## Changes` diff");
     });
 
     it("binds helper writes to active-preview confirmation", () => {
       expect(skillDoc).toContain("Active Preview Confirmation");
       expect(skillDoc).toContain("bound to this exact preview");
-      expect(skillDoc).toContain("Destructive cleanup still requires `confirm:<token>`");
+      expect(skillDoc).toContain("Destructive cleanup still requires the one-time code");
     });
 
     it("documents the two-family helper split", () => {

@@ -73,8 +73,8 @@ Zigbee2MQTT publishes its network state on retained `zigbee2mqtt/bridge/...` top
 
 ## Publishing Safety (read before any publish)
 
-- A **retained** message (`retain: true`) persists on the broker and is re-delivered to every future subscriber — including Home Assistant's discovery layer. A wrong retained payload on a `homeassistant/...` discovery topic can create or destroy entities and keeps doing so after a restart. Retained publishes therefore require the typed `confirm:<token>`, not natural confirmation.
-- Publishing to a device's `set`/command topic actuates real hardware. Preview it as an action, not as a message — typed `confirm:<token>`, see Safety.
+- A **retained** message (`retain: true`) persists on the broker and is re-delivered to every future subscriber — including Home Assistant's discovery layer. A wrong retained payload on a `homeassistant/...` discovery topic can create or destroy entities and keeps doing so after a restart. Retained publishes therefore require the one-time code, not natural confirmation.
+- Publishing to a device's `set`/command topic actuates real hardware. Preview it as an action, not as a message — one-time code, see Safety.
 - Clearing a retained message means publishing an EMPTY payload to the same topic with `retain: true` — say this explicitly when a retained message is the problem.
 - Retained-discovery cleanup clears only the broker side; the dead entity-registry entries it leaves behind are the registry-side sibling cleanup in `ha-nova:maintenance`.
 
@@ -95,17 +95,16 @@ Render the Report shape (output-cards.md). For a listen: the topic, the window l
 
 ## Safety
 
-- Preview before write. The only exception is a call that `ha-nova call` itself executed as `tier: ordinary` (an unambiguous everyday action, verified afterwards); everything else runs or is saved only after the user confirms the shown preview. High-consequence actions (e.g. unlocking or opening a lock, opening a gate, garage, or entry door, disarming the alarm — also through a scene or script) and deletes need a code.
+- Preview before write. The only exception is a call that `ha-nova call` itself executed as `tier: ordinary` (an unambiguous everyday action, verified afterwards); everything else runs or is saved only after the user confirms the shown preview. High-consequence actions (e.g. unlocking or opening a lock, opening a gate, garage, or entry door, disarming the alarm — also through a scene or script) and deletes or other destructive operations need the one-time code from HA NOVA, typed by the user; "yes" or any other reply is invalid.
 - Confirmation binds to the displayed preview and expires on any change to target, payload, endpoint, or scope (context skill → Active Preview Confirmation).
 - Anything before the preview ("do it", answers to questions) never confirms it; only a reply to the preview does.
-- Delete and destructive operations require the typed confirmation code `confirm:<token>` verbatim; "yes" or any natural-language reply is invalid.
 - Never guess entity, service, or config IDs — resolve them or ask.
 - Home Assistant is reached exclusively through the `ha-nova` CLI.
 - For any HA write this skill does not cover, STOP and invoke `ha-nova:fallback` first — never probe unfamiliar write endpoints.
 
 - Drafts follow `skills/ha-nova/smallest-solution.md`: the complete requested outcome in the simplest safe design, nothing for hypothetical future needs.
 
-- Retained publishes and command/`set` topics take the typed `confirm:<token>` — they change device state or broker state persistently, which is a stricter tier than an ordinary service call.
+- Retained publishes and command/`set` topics take the one-time code — they change device state or broker state persistently, which is a stricter tier than an ordinary service call.
 - Listening is read-only, but keep windows short and topics narrow: a broad subscription on a busy broker is noise, and the relay caps it anyway.
 - Never publish to `homeassistant/...` discovery topics unless the user explicitly asks and understands that it can create or delete entities.
 

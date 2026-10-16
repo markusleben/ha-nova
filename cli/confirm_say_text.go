@@ -95,9 +95,6 @@ func sayButtonNoun(entityID string, st *entityState) string {
 	return "a reset button (HA NOVA can't tell what it resets)"
 }
 
-// "confirm" followed by any colon-like mark, after invisible characters are gone.
-var sayConfirmWord = regexp.MustCompile(`(?i)confirm\s*[^\p{L}\p{N}\s']`)
-
 // sayPlainValue: a short token (state, number, unit) needs no quotes.
 var sayPlainValue = regexp.MustCompile(`^[\p{L}\p{N}_%.+-]{1,24}$`)
 
@@ -113,8 +110,7 @@ func sayValue(s string) string {
 
 // sayText defangs a Home Assistant string for the confirmation text: no
 // control characters or line breaks, no backticks or quote marks (a name
-// cannot fake the code or close its own quotes), no "confirm:" (a name
-// cannot look like a code), at most 60 characters; quoted when asked.
+// cannot close its own quotes), at most 60 characters; quoted when asked.
 func sayText(s string, quote bool) string {
 	s = strings.Map(func(r rune) rune {
 		switch {
@@ -134,7 +130,7 @@ func sayText(s string, quote bool) string {
 		return r
 	}, s)
 	s = strings.ReplaceAll(s, "://", ": //") // no autolinks
-	s = strings.Join(strings.Fields(sayConfirmWord.ReplaceAllString(s, "confirm ")), " ")
+	s = strings.Join(strings.Fields(s), " ")
 	if runes := []rune(s); len(runes) > 60 {
 		s = string(runes[:59]) + "…"
 	}

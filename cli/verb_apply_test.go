@@ -133,8 +133,8 @@ func TestApplyTypedPlanRequiresTheExactCode(t *testing.T) {
 	if exit, env := h.run(runApplyCommand, "--plan", plan.ID); exit != 4 || env.Error.Code != "CODE_REQUIRED" {
 		t.Fatalf("no code: exit %d env %+v", exit, env)
 	}
-	if exit, env := h.run(runApplyCommand, "--plan", plan.ID, "--confirm", "yes"); exit != 4 || env.Error.Code != "CODE_MISMATCH" {
-		t.Fatalf("wrong code: exit %d env %+v", exit, env)
+	if exit, env := h.run(runApplyCommand, "--plan", plan.ID, "--confirm", "yes"); exit != 4 || env.Error.Code != "CODE_REQUIRED" {
+		t.Fatalf("a plain yes: exit %d env %+v", exit, env)
 	}
 	exit, env := h.run(runApplyCommand, "--plan", plan.ID, "--confirm", "  "+plan.Code+"\n")
 	if exit != 0 || env.Status != "verified" || len(h.posts()) != 1 || h.f.states["lock.front"]["state"] != "unlocked" {
@@ -148,7 +148,7 @@ func TestApplyTypedPlanRequiresTheExactCode(t *testing.T) {
 	h.f.states["lock.front"]["state"] = "locked"
 	plan = h.plan("lock.unlock", "lock.front").Plan
 	for i := 1; i <= 3; i++ {
-		exit, env := h.run(runApplyCommand, "--plan", plan.ID, "--confirm", "confirm:nope")
+		exit, env := h.run(runApplyCommand, "--plan", plan.ID, "--confirm", wrongCode(plan.Code))
 		want := map[bool]string{true: "PLAN_INVALIDATED", false: "CODE_MISMATCH"}[i == 3]
 		if exit != 4 || env.Error.Code != want {
 			t.Fatalf("attempt %d: exit %d env %+v", i, exit, env)
@@ -275,7 +275,7 @@ func TestApplyRefusesAPlanThatFrozeNoTarget(t *testing.T) {
 	h := newWriteHarness(t, f)
 	env := h.plan("light.turn_off", "--area", "kitchen")
 	plan := env.Plan
-	if strings.Contains(env.Say, "Reply") || strings.Contains(env.Say, "confirm:") {
+	if strings.Contains(env.Say, "Reply") || strings.Contains(env.Say, "Type ") {
 		t.Fatalf("say asks for a plan apply refuses: %q", env.Say)
 	}
 	if exit, env := h.run(runApplyCommand, "--plan", plan.ID, "--confirm", plan.Code); exit != 4 || env.Error.Code != "UNRESOLVED_TARGET" || len(h.posts()) != 0 {

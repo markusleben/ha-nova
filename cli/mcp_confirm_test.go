@@ -2,8 +2,10 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -12,7 +14,21 @@ import (
 // The human types the code in a confirmation form, never the model
 // (docs/work/2026-10-16-mcp-human-confirmation-spec.md).
 
-var formCode = regexp.MustCompile(`To go ahead, type this confirmation code: ([0-9a-f]{6})$`)
+var formCode = regexp.MustCompile(`To go ahead, type this one-time code from HA NOVA: ([0-9]{4})$`)
+
+var planIDText = regexp.MustCompile(`p_[0-9a-f]{12}`)
+
+// wrongNumber is wrongCode as a JSON number.
+func wrongNumber(code string) float64 {
+	n, _ := strconv.Atoi(wrongCode(code))
+	return float64(n)
+}
+
+// wrongCode is four digits that are not code.
+func wrongCode(code string) string {
+	n, _ := strconv.Atoi(code)
+	return fmt.Sprintf("%04d", (n+1)%10000)
+}
 
 // recvAny reads one line the server wrote: a response, or its own request
 // or notification.
@@ -104,18 +120,20 @@ func storedCode(t *testing.T, h *writeHarness, id string) string {
 	return plan.Code
 }
 
-// noCode: the result shows neither the code nor its suffix anywhere.
+// noCode: the result carries no code field and no text shows the code (a
+// hash or timestamp may contain the same four digits by chance).
 func noCode(t *testing.T, what string, result map[string]any, code string) {
 	t.Helper()
 	raw, _ := json.Marshal(result)
-	suffix := code[len(code)-6:]
-	if code == "" || strings.Contains(string(raw), code) || strings.Contains(string(raw), "-"+suffix) {
+	if !fourDigits.MatchString(code) || strings.Contains(string(raw), `"code":"`+code) {
 		t.Fatalf("%s shows the code %q: %s", what, code, raw)
 	}
 	envelope := envelopeOf(result)
-	for _, field := range []string{"say", "next_step"} {
-		if text, _ := envelope[field].(string); strings.Contains(text, suffix) {
-			t.Fatalf("%s %s shows the code suffix: %q", what, field, text)
+	errInfo, _ := envelope["error"].(map[string]any)
+	shown := regexp.MustCompile(`(^|[^0-9])` + code + `([^0-9]|$)`)
+	for _, text := range []any{envelope["say"], envelope["next_step"], errInfo["message"], errInfo["next"]} {
+		if text, _ := text.(string); shown.MatchString(planIDText.ReplaceAllString(text, "")) { // an id may hold the digits by chance
+			t.Fatalf("%s shows the code %q: %q", what, code, text)
 		}
 	}
 }
@@ -145,7 +163,7 @@ func TestMCPFormConfirmsTypedPlanLegacy(t *testing.T) {
 	say, _ := envelope["say"].(string)
 	step, _ := envelope["next_step"].(string)
 	if planned["isError"] != false || envelope["status"] != "needs_confirmation" || plan["confirm"] != "code" || plan["code"] != nil ||
-		!strings.HasSuffix(say, sayFormAsk) || !strings.Contains(step, "call ha_apply with plan_id "+id+" and no confirm_code") || !strings.Contains(step, "Never ask for the code in chat") {
+		!strings.HasSuffix(say, sayFormAsk) || !strings.Contains(step, "call ha_apply with plan_id "+id+" and no confirm_code") || !strings.Contains(step, "Never ask for it in chat") {
 		t.Fatalf("typed plan with forms: %v", planned)
 	}
 	noCode(t, "ha_call", planned, code)
@@ -154,8 +172,8 @@ func TestMCPFormConfirmsTypedPlanLegacy(t *testing.T) {
 	formID, params, typed := c.form()
 	schema := params["requestedSchema"].(map[string]any)
 	field := schema["properties"].(map[string]any)["code"].(map[string]any)
-	if !strings.HasSuffix(code, "-"+typed) || params["mode"] != nil || !strings.HasPrefix(params["message"].(string), "Unlock “lock.front”") ||
-		!strings.Contains(params["message"].(string), "so it needs a code.") || field["type"] != "string" || schema["required"].([]any)[0] != "code" {
+	if code != typed || params["mode"] != nil || !strings.HasPrefix(params["message"].(string), "Unlock “lock.front”") || field["title"] != "One-time code from HA NOVA" ||
+		!strings.Contains(params["message"].(string), "so it needs a four-digit one-time code from HA NOVA.") || field["type"] != "string" || schema["required"].([]any)[0] != "code" {
 		t.Fatalf("form %v (code %s)", params, code)
 	}
 	if len(h.posts()) != 0 {
@@ -188,8 +206,8 @@ func TestMCPFormLegacyOutcomes(t *testing.T) {
 		{"decline", func(string) any { return map[string]any{"action": "decline"} }, "CONFIRM_DECLINED"},
 		{"cancel", func(string) any { return map[string]any{"action": "cancel"} }, "CONFIRM_CANCELLED"},
 		{"empty code", func(string) any { return map[string]any{"action": "accept", "content": map[string]any{"code": "  "}} }, "CONFIRM_CANCELLED"},
-		{"wrong code", func(string) any {
-			return map[string]any{"action": "accept", "content": map[string]any{"code": "000000"}}
+		{"wrong code", func(typed string) any {
+			return map[string]any{"action": "accept", "content": map[string]any{"code": wrongCode(typed)}}
 		}, "CODE_MISMATCH"},
 		{"odd action", func(typed string) any {
 			return map[string]any{"action": "maybe", "content": map[string]any{"code": typed}}
@@ -273,7 +291,7 @@ func TestMCPFormLegacyOutcomes(t *testing.T) {
 	}
 
 	// The right code from the human: exactly one send; the plan is used up.
-	call = c.startCall(applyArgs(id, map[string]any{"confirm_code": "confirm:not-it"}))
+	call = c.startCall(applyArgs(id, map[string]any{"confirm_code": wrongCode(code)}))
 	formID, _, typed = c.form()
 	c.answer(formID, map[string]any{"action": "accept", "content": map[string]any{"code": " " + strings.ToUpper(typed) + " "}})
 	applied := c.final(call)
@@ -319,7 +337,7 @@ func TestMCPFormConfirmsTypedPlanModern(t *testing.T) {
 		asked := call(applyArgs(id, extra))
 		form := asked["inputRequests"].(map[string]any)["confirm"].(map[string]any)
 		message := form["params"].(map[string]any)["message"].(string)
-		if asked["resultType"] != "input_required" || asked["content"] != nil || form["method"] != "elicitation/create" || !strings.HasSuffix(message, "confirmation code: "+code[len(code)-6:]) || len(h.posts()) != 0 {
+		if asked["resultType"] != "input_required" || asked["content"] != nil || form["method"] != "elicitation/create" || !strings.HasSuffix(message, "one-time code from HA NOVA: "+code) || len(h.posts()) != 0 {
 			t.Fatalf("want the form, got %v", asked)
 		}
 	}
@@ -328,15 +346,16 @@ func TestMCPFormConfirmsTypedPlanModern(t *testing.T) {
 		params["inputResponses"] = map[string]any{"confirm": answer}
 		return call(params)
 	}
-	suffix := code[len(code)-6:]
 	for _, tc := range []struct {
 		answer map[string]any
 		want   string
 	}{
 		{map[string]any{"action": "cancel"}, "CONFIRM_CANCELLED"},
 		{map[string]any{"action": "accept"}, "CONFIRM_CANCELLED"},
-		{map[string]any{"action": "accept", "content": map[string]any{"code": suffix + "."}}, "CONFIRM_CANCELLED"}, // not the six characters: no attempt used
-		{map[string]any{"action": "accept", "content": map[string]any{"code": "000000"}}, "CODE_MISMATCH"},
+		{map[string]any{"action": "accept", "content": map[string]any{"code": " \t"}}, "CONFIRM_CANCELLED"},         // nothing typed: no attempt used
+		{map[string]any{"action": "accept", "content": map[string]any{"code": code + "."}}, "CONFIRM_CANCELLED"},    // not four digits: can never match, no attempt used
+		{map[string]any{"action": "accept", "content": map[string]any{"code": wrongNumber(code)}}, "CODE_MISMATCH"}, // a JSON number reads as its four digits
+		{map[string]any{"action": "accept", "content": map[string]any{"code": wrongCode(code)}}, "CODE_MISMATCH"},
 	} {
 		result := retry(tc.answer)
 		step, _ := envelopeOf(result)["next_step"].(string)
@@ -345,8 +364,8 @@ func TestMCPFormConfirmsTypedPlanModern(t *testing.T) {
 			t.Fatalf("%v: %v", tc.answer, result)
 		}
 	}
-	if plan, _ := readPlanFile(filepath.Join(planDir(h.paths), id+".json")); plan.Mismatches != 1 {
-		t.Fatalf("only the wrong code counts as an attempt: %d", plan.Mismatches)
+	if plan, _ := readPlanFile(filepath.Join(planDir(h.paths), id+".json")); plan.Mismatches != 2 {
+		t.Fatalf("only the wrong codes count as attempts: %d", plan.Mismatches)
 	}
 	for _, responses := range []any{map[string]any{"confirm": "x"}, map[string]any{"confirm": map[string]any{"action": 5}}, "x"} {
 		params := applyArgs(id, nil)
@@ -358,7 +377,7 @@ func TestMCPFormConfirmsTypedPlanModern(t *testing.T) {
 	if declined := retry(map[string]any{"action": "decline"}); errCode(declined) != "CONFIRM_DECLINED" || len(h.posts()) != 0 {
 		t.Fatalf("declined: %v", declined)
 	}
-	accept := map[string]any{"action": "accept", "content": map[string]any{"code": code[len(code)-6:]}}
+	accept := map[string]any{"action": "accept", "content": map[string]any{"code": " " + code[:2] + " " + code[2:] + " "}} // spaces are ignored
 	if applied := retry(accept); envelopeOf(applied)["status"] != "verified" || applied["resultType"] != "complete" || len(h.posts()) != 1 {
 		t.Fatalf("accepted: %v (posts %d)", applied, len(h.posts()))
 	}

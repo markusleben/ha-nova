@@ -181,7 +181,7 @@ ha-nova relay core --method DELETE --path /api/config/config_entries/entry/<entr
 **Risks:** Remove
 deletes every device and
 entity that entry owns and is not undoable — preview the counts before asking,
-and take the typed confirmation code. `search/related` needs a concrete item
+and take the one-time code. `search/related` needs a concrete item
 type and id, so the config entry id alone does not query it: read the entry's
 own devices and entities first with WS `{"type":"config/entity_registry/list"}`
 and `{"type":"config/device_registry/list"}`. The two registries express

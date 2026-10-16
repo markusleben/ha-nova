@@ -37,7 +37,7 @@ describe("maintenance contract", () => {
     expect(maintenanceSkill).toContain("`recorder/clear_statistics` is IRREVERSIBLE");
     // The anti-Spook gate: never clear an energy-dashboard statistic silently.
     expect(maintenanceSkill).toContain("`energy/get_prefs` cross-check");
-    expect(maintenanceSkill).toContain("Typed confirmation code");
+    expect(maintenanceSkill).toContain("One-time code");
     // Red-team blocker: the confirmation code must bind to the fully enumerated set, not a capped sample.
     expect(maintenanceSkill).toContain("a capped sample never authorizes the uncapped set");
     expect(maintenanceSkill).toContain(

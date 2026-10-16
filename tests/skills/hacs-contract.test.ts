@@ -62,7 +62,7 @@ describe("hacs lifecycle skill (#478)", () => {
     expect(normalized).toContain("verify against the commit-ish `installed_version`");
     expect(normalized).toContain("never silently replaced by a newer release");
     expect(normalized).toContain("prerelease only on explicit request");
-    expect(skill).toContain("confirm:<token>");
+    expect(skill).toContain("Delete Card with the one-time code");
     expect(normalized).toContain(
       "natural confirmation for install/update/redownload",
     );
@@ -70,7 +70,7 @@ describe("hacs lifecycle skill (#478)", () => {
 
   it("carries the canonical mutation Safety Core and file-based relay usage", () => {
     expect(skill).toContain(
-      "- Preview before write. The only exception is a call that `ha-nova call` itself executed as `tier: ordinary` (an unambiguous everyday action, verified afterwards); everything else runs or is saved only after the user confirms the shown preview. High-consequence actions (e.g. unlocking or opening a lock, opening a gate, garage, or entry door, disarming the alarm — also through a scene or script) and deletes need a code.",
+      "- Preview before write. The only exception is a call that `ha-nova call` itself executed as `tier: ordinary` (an unambiguous everyday action, verified afterwards); everything else runs or is saved only after the user confirms the shown preview. High-consequence actions (e.g. unlocking or opening a lock, opening a gate, garage, or entry door, disarming the alarm — also through a scene or script) and deletes or other destructive operations need the one-time code from HA NOVA, typed by the user; \"yes\" or any other reply is invalid.",
     );
     expect(skill).toContain(
       "Home Assistant is reached exclusively through the `ha-nova` CLI.",

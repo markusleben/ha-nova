@@ -252,7 +252,7 @@ func TestDashboardCreateMakesTheShellThenSavesWithoutSnapshot(t *testing.T) {
 func TestDashboardDeleteIsTypedAndSnapshotsShellAndConfig(t *testing.T) {
 	h := newWriteHarness(t, dashboardFake())
 	exit, env := h.run(runPlanCommand, "delete", "--domain", "dashboard", "--id", "home-main")
-	if exit != 3 || env.Tier != "typed" || !strings.HasPrefix(env.Plan.Code, "confirm:delete-home-main-") || !strings.Contains(env.Say, env.Plan.Code) {
+	if exit != 3 || env.Tier != "typed" || !fourDigits.MatchString(env.Plan.Code) || !strings.Contains(env.Say, env.Plan.Code) {
 		t.Fatalf("plan: exit %d env %+v", exit, env)
 	}
 	if exit, _ := h.run(runApplyCommand, "--plan", env.Plan.ID); exit != 4 || len(h.lovelaceSaves()) != 0 {

@@ -111,7 +111,7 @@ describe("cross-family destructive cleanup (issue #583)", () => {
   });
 
   it("binds one typed code to the exact manifest and invalidates it on any drift", () => {
-    expect(grouped).toContain("`confirm:cleanup-<target>-<count>-<digest>`");
+    expect(grouped).toContain("ONE one-time code belongs to that exact manifest");
     expect(groupedFlat).toContain(
       "Any change to any operation, target, payload, impact result, or order — or an expired confirmation — invalidates it",
     );
@@ -179,12 +179,12 @@ describe("cross-family destructive cleanup (issue #583)", () => {
   });
   it("names the cleanup code in the canonical confirmation tiers", () => {
     expect(flat(read("skills/ha-nova/SKILL.md"))).toContain(
-      "Cross-family destructive cleanup takes its own manifest-bound code `confirm:cleanup-<target>-<count>-<digest>`",
+      "Cross-family destructive cleanup takes its own manifest's code",
     );
   });
   it("keeps statistics clears in maintenance's own manifest", () => {
     expect(flat(read("skills/ha-nova/grouped-change-set.md"))).toContain(
-      "statistics clears stay in maintenance's own same-family `confirm:batch-...` manifest and never join this code",
+      "statistics clears stay in maintenance's own same-family batch manifest and never join this code",
     );
   });
   it("opts group-member removal into the cleanup manifest", () => {

@@ -43,7 +43,7 @@ describe("agent scenario regressions (2026-10-15)", () => {
     expect(rules).toContain("## Confirmation Reasons");
     // The CLI writes the reason (`say`); the agent relays it and adds none.
     expect(rules).toContain("A plan's `say` is the reason, localized (names, state values, code literal); add none of your own.");
-    expect(rules).toContain('"This unlocks a door, so it needs a code."');
+    expect(rules).toContain('"This unlocks a door, so it needs a one-time code from HA NOVA."');
     expect(rules).toContain("Never mention, quote, or link HA NOVA's own skill or rule files or scratch paths — the user doesn't know they exist. Paths the user needs (the config file a change targets, a batch manifest) stay visible.");
     expect(rules).toContain("Clarifying questions name candidates by friendly name and area (add the entity_id when either is missing or both collide).");
     // The pointer alone did not stop citations at the code step: the CLI

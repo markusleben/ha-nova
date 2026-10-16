@@ -71,7 +71,7 @@ Relay-core response body is under `.data.body` (envelope contract: `skills/ha-no
    - a recurring create takes an RFC 5545 `rrule` string and goes through WS `calendar/event/create` (the REST service has no recurrence field); non-recurring creates keep the REST service
    - update is a full event replacement: merge requested changes into the current summary/start/end/description/location/rrule instead of sending a patch; omit absent optional fields, use an empty string only to clear description/location, and omit `rrule` to clear recurrence
 4. For an occurrence with `recurrence_id`, ask whether the scope is **this occurrence** (`recurrence_range:""`) or **this and future occurrences** (`"THISANDFUTURE"`). Bind that scope to the preview. For a single-occurrence update, omit `rrule` from the replacement event. Do not invent an entire-series mode.
-5. Show the Preview Card with operation, calendar, exact event identity, summary, start/end, timezone or all-day range, changed fields, and recurrence scope. Create/update use natural bound confirmation; delete uses the typed `confirm:<token>` from the core rule.
+5. Show the Preview Card with operation, calendar, exact event identity, summary, start/end, timezone or all-day range, changed fields, and recurrence scope. Create/update use natural bound confirmation; delete uses the one-time code from the core rule.
 6. Immediately before execution, re-read the target window and calendar state; this event set is the create baseline. Abort and rebuild the preview if capability, identity, current fields, or recurrence scope drifted.
 7. Execute exactly one write:
    - create: POST `{"entity_id":"calendar.example","summary":"Event","start_date_time":"<start>","end_date_time":"<end>"}` to `/api/services/calendar/create_event`
@@ -105,17 +105,16 @@ These slots render the Report shape (output-cards.md); event groups follow the L
 
 ## Safety
 
-- Preview before write. The only exception is a call that `ha-nova call` itself executed as `tier: ordinary` (an unambiguous everyday action, verified afterwards); everything else runs or is saved only after the user confirms the shown preview. High-consequence actions (e.g. unlocking or opening a lock, opening a gate, garage, or entry door, disarming the alarm — also through a scene or script) and deletes need a code.
+- Preview before write. The only exception is a call that `ha-nova call` itself executed as `tier: ordinary` (an unambiguous everyday action, verified afterwards); everything else runs or is saved only after the user confirms the shown preview. High-consequence actions (e.g. unlocking or opening a lock, opening a gate, garage, or entry door, disarming the alarm — also through a scene or script) and deletes or other destructive operations need the one-time code from HA NOVA, typed by the user; "yes" or any other reply is invalid.
 - Confirmation binds to the displayed preview and expires on any change to target, payload, endpoint, or scope (context skill → Active Preview Confirmation).
 - Anything before the preview ("do it", answers to questions) never confirms it; only a reply to the preview does.
-- Delete and destructive operations require the typed confirmation code `confirm:<token>` verbatim; "yes" or any natural-language reply is invalid.
 - Never guess entity, service, or config IDs — resolve them or ask.
 - Home Assistant is reached exclusively through the `ha-nova` CLI.
 - For any HA write this skill does not cover, STOP and invoke `ha-nova:fallback` first — never probe unfamiliar write endpoints.
 
 - Drafts follow `skills/ha-nova/smallest-solution.md`: the complete requested outcome in the simplest safe design, nothing for hypothetical future needs.
 
-- Create and update require natural confirmation; delete retains the core typed confirmation-code gate.
+- Create and update require natural confirmation; delete retains the core one-time code gate.
 - Calendar event writes have no HA NOVA revert. A provider recycle bin may exist but is not guaranteed; recreate only from a user-approved preview.
 - Always use bounded windows.
 - Never guess a calendar id from a partial name when multiple matches exist.

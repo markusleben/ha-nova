@@ -102,8 +102,8 @@ when the captured value moved or confirmation arrived after the deadline.
 
 The tier is the HIGHER of the two halves, never the first one. If the
 immediate action grants physical access ("unlock the front door for five
-minutes", "open the garage for ten"), the one preview takes the typed
-`confirm:<token>` — a duration does not soften what the first half does, and
+minutes", "open the garage for ten"), the one preview takes the
+one-time code — a duration does not soften what the first half does, and
 the automatic re-lock is not a mitigation because the door is open for the
 whole window. But the counter-action is the restore, and restoring can be the
 grant: "lock the door for an hour" is an ordinary `lock.lock` now and a

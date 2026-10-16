@@ -70,12 +70,16 @@ func TestMCPReadAllowlist(t *testing.T) {
 	}
 }
 
-// R3: the confirmation code cannot be derived from the plan id.
+// R3: the one-time code cannot be derived from the plan id: it reads only
+// identity hex the id does not show.
 func TestMCPCodeNotDerivableFromPlanID(t *testing.T) {
 	h := newWriteHarness(t, newFakeHA())
-	plan := h.plan("lock.unlock", "lock.front").Plan
-	if strings.HasSuffix(plan.Code, plan.ID[2:8]) {
-		t.Fatalf("code %q ends with the plan id's hex %q", plan.Code, plan.ID[2:8])
+	if plan := h.plan("lock.unlock", "lock.front").Plan; !fourDigits.MatchString(plan.Code) {
+		t.Fatalf("code %q", plan.Code)
+	}
+	rest := "0123456789abcdef" + strings.Repeat("0", 36)
+	if confirmCode(strings.Repeat("a", 12)+rest) != confirmCode(strings.Repeat("b", 12)+rest) {
+		t.Fatal("the code depends on the hex the plan id shows")
 	}
 }
 
@@ -89,7 +93,7 @@ func TestMCPGuidanceInsideTheEnvelope(t *testing.T) {
 	h.f.states["lock.front"]["state"] = "jammed" // drift
 	drift := c.tool("ha_apply", map[string]any{"plan_id": planned["plan"].(map[string]any)["id"]})["structuredContent"].(map[string]any)
 	for name, env := range map[string]map[string]any{"typed": planned, "drift": drift} {
-		if step, _ := env["next_step"].(string); !strings.Contains(step, "type the confirmation code themselves") {
+		if step, _ := env["next_step"].(string); !strings.Contains(step, "type the one-time code from HA NOVA themselves") {
 			t.Fatalf("%s: next_step %q in %v", name, step, env)
 		}
 	}
