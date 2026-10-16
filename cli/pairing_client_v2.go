@@ -36,7 +36,36 @@ func pairDeviceV2(
 	metadata deviceMetadata,
 	expectedRelayInstanceID string,
 ) (*cloudProvisionedCredential, error) {
-	if client == nil || !validPairingCode(code) ||
+	if !validPairingCode(code) {
+		return nil, newCloudError(CloudErrInvalidInput, "prepare Cloud device pairing", nil)
+	}
+	plaintext, err := pairV2Exchange(ctx, client, code, metadata, expectedRelayInstanceID)
+	if err != nil {
+		return nil, err
+	}
+	var provisioned cloudProvisionedCredential
+	if err := decodeStrictJSON(plaintext, &provisioned); err != nil {
+		return nil, newCloudError(CloudErrHAProtocol, "decode Cloud pairing credential", err)
+	}
+	parsed := parseDeviceCredential(provisioned.Credential)
+	if parsed == nil || provisioned.DeviceID != parsed.deviceID ||
+		provisioned.RelayInstanceID != expectedRelayInstanceID {
+		return nil, newCloudError(CloudErrRelayInstance, "validate Cloud pairing credential", nil)
+	}
+	return &provisioned, nil
+}
+
+// pairV2Exchange runs pair-v2 start/finish through the ingress session with the
+// given OPAQUE password (a six-digit code or an armed sign-in secret) and
+// returns the decrypted finish response.
+func pairV2Exchange(
+	ctx context.Context,
+	client *CloudIngressClient,
+	password string,
+	metadata deviceMetadata,
+	expectedRelayInstanceID string,
+) ([]byte, error) {
+	if client == nil || password == "" ||
 		!validIdentifier(expectedRelayInstanceID, 256) ||
 		!validCloudPairingMetadata(metadata) {
 		return nil, newCloudError(CloudErrInvalidInput, "prepare Cloud device pairing", nil)
@@ -55,7 +84,7 @@ func pairDeviceV2(
 	if err != nil {
 		return nil, fmt.Errorf("opaque client: %w", err)
 	}
-	ke1, err := opaqueClient.GenerateKE1([]byte(code))
+	ke1, err := opaqueClient.GenerateKE1([]byte(password))
 	if err != nil {
 		return nil, fmt.Errorf("opaque KE1: %w", err)
 	}
@@ -141,21 +170,7 @@ func pairDeviceV2(
 	if !ok {
 		return nil, newCloudError(CloudErrHAProtocol, "decrypt Cloud pairing credential", nil)
 	}
-	decoder := json.NewDecoder(bytes.NewReader(plaintext))
-	decoder.DisallowUnknownFields()
-	var provisioned cloudProvisionedCredential
-	if err := decoder.Decode(&provisioned); err != nil {
-		return nil, newCloudError(CloudErrHAProtocol, "decode Cloud pairing credential", err)
-	}
-	if err := ensureJSONEOF(decoder); err != nil {
-		return nil, newCloudError(CloudErrHAProtocol, "decode Cloud pairing credential", err)
-	}
-	parsed := parseDeviceCredential(provisioned.Credential)
-	if parsed == nil || provisioned.DeviceID != parsed.deviceID ||
-		provisioned.RelayInstanceID != expectedRelayInstanceID {
-		return nil, newCloudError(CloudErrRelayInstance, "validate Cloud pairing credential", nil)
-	}
-	return &provisioned, nil
+	return plaintext, nil
 }
 
 func cloudPairingCall(

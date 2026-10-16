@@ -193,7 +193,7 @@ func runAddServerStages(
 		// closed on relays without secure pairing).
 		_, pairErr := runSetupPairingFlow(reader, out, paths, &cfg, true, lifecycleMarker...)
 		if pairErr == errSetupRelayTokenStep {
-			renderSetupErrorLine(out, "Additional servers pair with the six-digit code only; the manual token path stays on the default server.")
+			renderSetupErrorLine(out, "Additional servers pair by signing in or with the six-digit code; the manual token path stays on the default server.")
 			continue
 		}
 		if errors.Is(pairErr, errSetupDevicePaired) {

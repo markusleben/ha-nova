@@ -60,7 +60,19 @@ func (f *OAuthLoopbackFlow) Authorize(
 	if err != nil {
 		return OAuthAuthorizationCode{}, err
 	}
-	if f == nil || f.Listen == nil || f.Random == nil || openBrowser == nil {
+	return f.AuthorizeOrigin(ctx, origin, openBrowser)
+}
+
+// AuthorizeOrigin runs the loopback flow against an origin the caller already
+// validated (the canonical Cloud origin, or the saved local Home Assistant
+// origin for sign-in pairing).
+func (f *OAuthLoopbackFlow) AuthorizeOrigin(
+	ctx context.Context,
+	origin *url.URL,
+	openBrowser OAuthBrowserOpener,
+) (OAuthAuthorizationCode, error) {
+	if f == nil || f.Listen == nil || f.Random == nil || openBrowser == nil ||
+		origin == nil {
 		return OAuthAuthorizationCode{}, newCloudError(CloudErrInvalidInput, "start OAuth authorization", nil)
 	}
 	timeout := f.Timeout
@@ -114,7 +126,7 @@ func (f *OAuthLoopbackFlow) Authorize(
 		case r.ContentLength != 0 || len(r.TransferEncoding) != 0:
 			http.Error(w, "Authorization callback must not contain a body.", http.StatusBadRequest)
 		case completed.Load():
-			http.Error(w, "Authorization callback already handled.", http.StatusGone)
+			http.Error(w, "This sign-in was already used. Go back to the terminal.", http.StatusGone)
 		default:
 			query, queryErr := url.ParseQuery(r.URL.RawQuery)
 			result, valid := validateOAuthCallback(query, state)
@@ -123,16 +135,16 @@ func (f *OAuthLoopbackFlow) Authorize(
 				return
 			}
 			if !completed.CompareAndSwap(false, true) {
-				http.Error(w, "Authorization callback already handled.", http.StatusGone)
+				http.Error(w, "This sign-in was already used. Go back to the terminal.", http.StatusGone)
 				return
 			}
 			resultCh <- result
 			if result.err != nil {
-				http.Error(w, "Authorization was not completed.", http.StatusBadRequest)
+				http.Error(w, "Sign-in did not finish. Go back to the terminal to continue.", http.StatusBadRequest)
 				return
 			}
 			w.WriteHeader(http.StatusOK)
-			_, _ = io.WriteString(w, "<!doctype html><html><head><meta charset=\"utf-8\"><title>HA NOVA</title></head><body><p>Authorization complete. You can close this tab.</p></body></html>")
+			_, _ = io.WriteString(w, "<!doctype html><html><head><meta charset=\"utf-8\"><title>HA NOVA</title></head><body><p>Done. You can close this tab and go back to the terminal.</p></body></html>")
 		}
 	})
 	server := &http.Server{
