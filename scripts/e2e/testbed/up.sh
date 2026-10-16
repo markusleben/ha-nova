@@ -140,8 +140,8 @@ printf '%s\n' "$HA_LLAT" > "$STATE/ha-llat"
 printf '%s\n' "$RELAY_AUTH_TOKEN" > "$STATE/relay-token"
 
 if [[ -n "$OVERLAY" ]]; then
-  # First thing with an admin token: HA reverts an unpromoted http trial (the
-  # demo's proxy config) five minutes after boot.
+  # First thing with an admin token: the demo's own users and http checks
+  # before anything else touches the house.
   step "hosted demo: overlay setup (demo.mjs setup)"
   node "$OVERLAY/demo.mjs" setup "$HA_URL" "$HA_LLAT"
 fi

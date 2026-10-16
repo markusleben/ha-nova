@@ -50,15 +50,27 @@
 		Permissions-Policy "camera=(), microphone=(), geolocation=()"
 		# Visitors are admins: they can add dashboard resources, iframe
 		# dashboards, and markdown with images. Only this origin may serve
-		# scripts, frames, images, and connections, so nobody's browser is
-		# pointed elsewhere.
-		Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' data: blob:; worker-src 'self' blob:; frame-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+		# scripts, frames, and connections, so nobody's browser is pointed
+		# elsewhere. Images: this origin plus Home Assistant's public brand
+		# icon CDN (@brand below), nothing else.
+		Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://brands.home-assistant.io; media-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' data: blob:; worker-src 'self' blob:; frame-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
 		-Server
 	}
 
 	# Unauthenticated file hosting, backup upload/download, onboarding (open
 	# for seconds on every rebuild), relay pairing: never.
 	@blocked path /api/backup/* /local/* /api/tts_proxy/* /relay/pair* /relay/home* /api/onboarding* /onboarding.html
+	# Integration icons. HA serves them at /api/brands/ by fetching
+	# brands.home-assistant.io itself, which the house cannot (no egress):
+	# broken icons in Settings. The visitor's browser gets the same public
+	# image from the CDN instead, by a redirect that keeps only the domain and
+	# file name (HA's eight icon/logo names), never the token query. CDN paths as in
+	# HA's brands integration: _/ falls back to a placeholder, brands/ is exact.
+	@brand path_regexp brand ^/api/brands/integration/([a-z0-9_]+)/((?:dark_)?(?:icon|logo)(?:@2x)?\.png)$
+	@brand_exact {
+		path_regexp brand ^/api/brands/integration/([a-z0-9_]+)/((?:dark_)?(?:icon|logo)(?:@2x)?\.png)$
+		query placeholder=no
+	}
 	# Landing page: /start, and / without a query (HA's own redirects to /
 	# always carry one, e.g. ?auth_callback=1).
 	@landing {
@@ -78,6 +90,12 @@
 	route {
 		handle @blocked {
 			respond 403
+		}
+		handle @brand_exact {
+			redir https://brands.home-assistant.io/brands/{re.brand.1}/{re.brand.2} 302
+		}
+		handle @brand {
+			redir https://brands.home-assistant.io/_/{re.brand.1}/{re.brand.2} 302
 		}
 		handle @landing {
 			root * /site

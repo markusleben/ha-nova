@@ -2,8 +2,8 @@
 # (TESTBED_OVERLAY); the packages, automations, scripts, and scenes are the
 # test bed's own plus packages/demo.yaml. Mounted read-only, like packages/.
 # Differences: no default_config (it pulls in cloud, discovery, backup UI,
-# mobile_app, go2rtc, alerts), only what the house needs, an http block for
-# the Caddy proxy, and a small recorder.
+# mobile_app, go2rtc, alerts), only what the house needs, the Caddy proxy
+# settings (seeded as .storage/http), and a small recorder.
 homeassistant:
   name: NOVA Demo House
   latitude: 52.52
@@ -24,13 +24,12 @@ sun:
 conversation:
 demo:
 
-http:
-  use_x_forwarded_for: true
-  trusted_proxies:
-    - 10.89.240.2 # Caddy, scripts/demo/hosted/edge.yml
-  # No IP bans: HA bans on ANY 401, the demo password is public anyway, and
-  # the owner is local-only. A ban would only lock visitors out of the demo.
-  ip_ban_enabled: false
+# No http: block. HA 2026.10 deprecated it (a repair, then a 5-minute trial
+# to promote). The proxy settings are seeded as HA's own store instead,
+# .storage/http next to this file: forwarded-for trusted only from Caddy
+# (10.89.240.2, edge.yml), and no IP bans (HA bans on ANY 401, the demo
+# password is public anyway, the owner is local-only; a ban would only lock
+# visitors out). demo.mjs setup and guard check exactly these values.
 
 # The hourly reset bounds every store; this keeps the hour itself small.
 recorder:
