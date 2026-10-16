@@ -81,12 +81,8 @@ func limitOr(limit, fallback int) int {
 }
 
 type homeData struct {
-	floors []struct {
-		FloorID string `json:"floor_id"`
-		Name    string `json:"name"`
-		Level   *int   `json:"level"`
-	}
-	areas []struct {
+	floors []floorRow
+	areas  []struct {
 		AreaID  string `json:"area_id"`
 		Name    string `json:"name"`
 		FloorID string `json:"floor_id"`
@@ -101,6 +97,7 @@ type homeData struct {
 		ConfigEntries []string `json:"config_entries"`
 		Name          string   `json:"name"`
 		NameByUser    string   `json:"name_by_user"`
+		EntryType     string   `json:"entry_type"` // "service": a cloud/service device, never in a room
 	}
 	entities []struct {
 		EntityID     string `json:"entity_id"`
@@ -110,6 +107,8 @@ type homeData struct {
 		DeviceID     string `json:"device_id"`
 		DisabledBy   string `json:"disabled_by"`
 		Platform     string `json:"platform"`
+		Category     string `json:"entity_category"`
+		HiddenBy     string `json:"hidden_by"`
 		ConfigEntry  string `json:"config_entry_id"`
 	}
 	entries, helperEntries []struct {
@@ -122,6 +121,12 @@ type homeData struct {
 	states []mapState
 }
 
+type floorRow struct {
+	FloorID string `json:"floor_id"`
+	Name    string `json:"name"`
+	Level   *int   `json:"level"`
+}
+
 type mapState struct {
 	EntityID    string `json:"entity_id"`
 	State       string `json:"state"`
@@ -130,7 +135,9 @@ type mapState struct {
 		FriendlyName  string  `json:"friendly_name"`
 		DeviceClass   any     `json:"device_class"`
 		LastTriggered *string `json:"last_triggered"`
-		Members       any     `json:"entity_id"` // a list on group entities
+		Members       any     `json:"entity_id"`    // a list on group entities
+		Restored      bool    `json:"restored"`     // registry row kept, integration no longer provides it
+		HueGroup      bool    `json:"is_hue_group"` // a Hue room or zone
 	} `json:"attributes"`
 }
 
@@ -139,7 +146,7 @@ func (st *mapState) deviceClass() string { s, _ := st.Attributes.DeviceClass.(st
 func (st *mapState) isGroup() bool {
 	domain, _ := splitID(st.EntityID)
 	_, list := st.Attributes.Members.([]any)
-	return list && !notGroupDomains[domain]
+	return (list || st.Attributes.HueGroup) && !notGroupDomains[domain]
 }
 
 var (
@@ -160,7 +167,7 @@ func loadHome(s *relaySession) (*homeData, error) {
 		reads = append(reads, func() { _, _ = s.ws(request) })
 	}
 	prefetch(reads)
-	h := &homeData{}
+	h := &homeData{floors: []floorRow{}}
 	if err := s.wsDecode(floorsRequest, &h.floors, "the floor registry"); err != nil && !isUpstreamUnknownCommand(err) {
 		return nil, err
 	}
@@ -194,12 +201,15 @@ type homeIndex struct {
 	floorName    map[string]string
 	deviceArea   map[string]string // effective, enabled and disabled devices
 	deviceOn     map[string]bool   // device not disabled
+	service      map[string]bool   // entry_type service: no room to be in
 	deviceDomain map[string]string // owning integration domain
 	entryDomain  map[string]string
 	helperEntry  map[string]bool
 	state        map[string]*mapState
 	registered   map[string]bool // any registry row, disabled included
 	platform     map[string]string
+	category     map[string]string // entity_category: config, diagnostic
+	hidden       map[string]bool
 	entityArea   map[string]string // enabled entities: effective area_id
 	entityDevice map[string]string
 	regName      map[string]string
@@ -208,9 +218,9 @@ type homeIndex struct {
 }
 
 func indexHome(h *homeData, now time.Time) *homeIndex {
-	x := &homeIndex{h: h, now: now, areaName: map[string]string{}, floorName: map[string]string{}, deviceOn: map[string]bool{},
+	x := &homeIndex{h: h, now: now, service: map[string]bool{}, areaName: map[string]string{}, floorName: map[string]string{}, deviceOn: map[string]bool{},
 		deviceDomain: map[string]string{}, entryDomain: map[string]string{}, helperEntry: map[string]bool{}, state: map[string]*mapState{},
-		registered: map[string]bool{}, platform: map[string]string{}, entityArea: map[string]string{}, entityDevice: map[string]string{}, regName: map[string]string{}}
+		registered: map[string]bool{}, platform: map[string]string{}, category: map[string]string{}, hidden: map[string]bool{}, entityArea: map[string]string{}, entityDevice: map[string]string{}, regName: map[string]string{}}
 	for _, f := range h.floors {
 		x.floorName[f.FloorID] = f.Name
 	}
@@ -227,6 +237,7 @@ func indexHome(h *homeData, now time.Time) *homeIndex {
 	for _, d := range h.devices {
 		own[d.ID], parent[d.ID] = d.AreaID, d.Parent
 		x.deviceOn[d.ID] = d.DisabledBy == ""
+		x.service[d.ID] = d.EntryType == "service"
 		entry := d.ConfigEntry
 		if entry == "" {
 			entry = d.PrimaryEntry
@@ -243,13 +254,14 @@ func indexHome(h *homeData, now time.Time) *homeIndex {
 	for _, e := range h.entities {
 		x.registered[e.EntityID] = true
 		x.platform[e.EntityID] = e.Platform
+		x.regName[e.EntityID] = firstNonEmpty(e.Name, e.OriginalName)
+		x.entityDevice[e.EntityID] = e.DeviceID
+		x.category[e.EntityID], x.hidden[e.EntityID] = e.Category, e.HiddenBy != ""
 		if e.DisabledBy != "" {
 			x.disabled = append(x.disabled, e.EntityID)
 			continue
 		}
 		x.enabled = append(x.enabled, e.EntityID)
-		x.entityDevice[e.EntityID] = e.DeviceID
-		x.regName[e.EntityID] = firstNonEmpty(e.Name, e.OriginalName)
 		area := e.AreaID
 		if area == "" {
 			area = x.deviceArea[e.DeviceID]

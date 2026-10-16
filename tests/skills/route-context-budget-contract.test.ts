@@ -17,7 +17,9 @@ const ROUTE_BUDGETS: Record<string, { files: string[]; limit: number; verbRoute?
   // the official templating page is fetched only when a template check
   // needs a signature checks.md lacks. Measured after the cut: 22211.
   review: {
-    limit: 22210, // cards: `say` closes the card; bootstrap chaining, narrower router description (measured 22205)
+    // home-map routing: the whole-home row plus the "review my whole setup"
+    // disambiguation, so a whole-home audit never lands in review (measured 22220).
+    limit: 22225, // cards: `say` closes the card; bootstrap chaining, narrower router description (measured 22205)
     files: [
       "skills/ha-nova/SKILL.md",
       "skills/ha-nova/session-bootstrap.md",
@@ -67,7 +69,8 @@ const ROUTE_BUDGETS: Record<string, { files: string[]; limit: number; verbRoute?
   // skill joins (Decision Memory, Work Ledger, Interactive Choices). Kept as
   // its own honest row.
   "write-multi-step": {
-    limit: 21346, // Confirmation Reasons + PR-review narrowing; `say` replaced the inline sentences and closes the card; bootstrap chaining (measured 21345)
+    // home-map routing rows in the router (measured 21356).
+    limit: 21360, // Confirmation Reasons + PR-review narrowing; `say` replaced the inline sentences and closes the card; bootstrap chaining (measured 21345)
     skill: "write",
     files: [
       "skills/ha-nova/SKILL.md",

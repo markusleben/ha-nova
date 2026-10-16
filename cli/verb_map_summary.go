@@ -5,15 +5,20 @@ import (
 )
 
 const (
-	mapExamples        = 5
+	mapExamples        = 3
+	mapProblemRows     = 5
 	mapAreaRows        = 20
 	mapIntegrationRows = 10
 	batteryLowBelow    = 20 // health skill's structured detector
 )
 
 // Domains whose normal state is unknown (never pressed, never activated).
-var statelessDomains = map[string]bool{"button": true, "input_button": true, "event": true, "scene": true, "stt": true, "tts": true,
+var statelessDomains = map[string]bool{"tag": true, "button": true, "input_button": true, "event": true, "scene": true, "stt": true, "tts": true,
 	"conversation": true, "notify": true, "wake_word": true, "ai_task": true, "image": true, "assist_satellite": true}
+
+// presenceDomains never appear in map output: their names and states are
+// who is where (spec §5).
+var presenceDomains = map[string]bool{"person": true, "device_tracker": true, "zone": true, "geo_location": true}
 
 var storageHelperDomains = []string{"input_boolean", "input_button", "input_datetime", "input_number", "input_select", "input_text", "counter", "timer", "schedule"}
 
@@ -30,8 +35,14 @@ type mapRow struct {
 	Age      string `json:"age,omitempty"`
 	Level    string `json:"level,omitempty"`
 	Low      bool   `json:"low,omitempty"`
-	Phone    bool   `json:"phone,omitempty"`
-	Via      string `json:"via,omitempty"`
+	// Kind (batteries): "device" (a diagnostic battery entity), "phone"
+	// (mobile_app), or "level" (a charge level without device-battery
+	// evidence: a vehicle, home storage, or unclassified).
+	Kind string `json:"kind,omitempty"`
+	Via  string `json:"via,omitempty"`
+	// Restored: Home Assistant keeps the registry row but no integration
+	// provides the entity any more (an orphan cleanup candidate).
+	Restored bool `json:"restored,omitempty"`
 	// LastTriggered: automations section, the age of the last run ("never").
 	LastTriggered string `json:"last_triggered_age,omitempty"`
 }
@@ -85,7 +96,7 @@ func (x *homeIndex) counts() map[string]int {
 		switch {
 		case d.DisabledBy != "":
 			c["devices_disabled"]++
-		case x.deviceArea[d.ID] == "":
+		case x.deviceArea[d.ID] == "" && !x.service[d.ID]:
 			c["devices"]++
 			c["devices_without_area"]++
 		default:
@@ -96,7 +107,7 @@ func (x *homeIndex) counts() map[string]int {
 		if !x.registered[id] {
 			c["unregistered"]++
 		}
-		if device := x.entityDevice[id]; device != "" && x.entityArea[id] == "" {
+		if device := x.entityDevice[id]; device != "" && x.entityArea[id] == "" && !x.service[device] {
 			c["device_entities_without_area"]++
 		}
 	}
@@ -115,7 +126,7 @@ func (x *homeIndex) domains() map[string]int {
 // areaRows: every area, ordered by floor (level, then name), then name.
 func (x *homeIndex) areaRows(withDomains bool) []areaSummary {
 	rows := map[string]*areaSummary{}
-	var out []areaSummary
+	out := []areaSummary{}
 	for _, a := range x.h.areas {
 		rows[a.AreaID] = &areaSummary{AreaID: a.AreaID, Name: a.Name, FloorID: a.FloorID}
 	}
@@ -192,8 +203,9 @@ func (x *homeIndex) summary() mapSummary {
 	sort.SliceStable(s.Floors, func(i, j int) bool {
 		return order(s.Floors[i]["floor_id"].(string)) < order(s.Floors[j]["floor_id"].(string))
 	})
+	s.Floors = s.Floors[:min(len(s.Floors), mapAreaRows)] // counts.floors stays exact
 	areas := x.areaRows(false)
-	sort.SliceStable(areas, func(i, j int) bool { return areas[i].Entities > areas[j].Entities })
+	byEntities(areas)
 	s.Areas = cappedAreas{Total: len(areas), Rows: areas[:min(len(areas), mapAreaRows)]}
 	s.Areas.Shown = len(s.Areas.Rows)
 	if s.Areas.Shown < s.Areas.Total {
@@ -217,8 +229,8 @@ func (x *homeIndex) summary() mapSummary {
 		return rows[i].Devices > rows[j].Devices
 	})
 	s.Integrations = map[string]any{"entries": entries, "domains": all, "disabled": disabled, "shown": min(all, mapIntegrationRows),
-		"rows": rows[:min(all, mapIntegrationRows)], "problems": problems}
-	if all > mapIntegrationRows {
+		"rows": rows[:min(all, mapIntegrationRows)], "problems": problems[:min(len(problems), mapProblemRows)], "problems_total": len(problems)}
+	if all > mapIntegrationRows || len(problems) > mapProblemRows {
 		s.More = append(s.More, "ha-nova map --section integrations")
 	}
 	unavail, unavailRows := x.unavailable()
@@ -230,7 +242,7 @@ func (x *homeIndex) summary() mapSummary {
 	batteries, batteryRows := x.batteries()
 	var low []mapRow
 	for _, row := range batteryRows {
-		if row.Low && !row.Phone {
+		if row.Low && row.Kind == "device" {
 			low = append(low, row)
 		}
 	}
@@ -240,6 +252,16 @@ func (x *homeIndex) summary() mapSummary {
 	}
 	s.Batteries = batteries
 	return s
+}
+
+// byEntities: most entities first, then name (stable for ties).
+func byEntities(areas []areaSummary) {
+	sort.SliceStable(areas, func(i, j int) bool {
+		if areas[i].Entities != areas[j].Entities {
+			return areas[i].Entities > areas[j].Entities
+		}
+		return areas[i].Name < areas[j].Name
+	})
 }
 
 func capRows(rows []mapRow, n int) []mapRow {
@@ -252,7 +274,7 @@ func capRows(rows []mapRow, n int) []mapRow {
 // automations: counts plus the problem rows (unavailable first, then
 // enabled automations that never ran), each sorted by name.
 func (x *homeIndex) automations() (map[string]any, []mapRow) {
-	c := map[string]any{"total": 0, "on": 0, "off": 0, "unavailable": 0, "disabled": 0, "never_triggered": 0}
+	c := map[string]any{"total": 0, "on": 0, "off": 0, "unavailable": 0, "restored": 0, "disabled": 0, "never_triggered": 0}
 	var broken, never []mapRow
 	for _, id := range x.enabled {
 		st := x.state[id]
@@ -260,16 +282,18 @@ func (x *homeIndex) automations() (map[string]any, []mapRow) {
 			continue
 		}
 		c["total"] = c["total"].(int) + 1
-		switch st.State {
-		case "on", "off", "unavailable":
+		issue := automationIssue(st)
+		if issue == "restored" || issue == "never_triggered" {
+			c[issue] = c[issue].(int) + 1
+		}
+		if issue != "restored" && (st.State == "on" || st.State == "off" || st.State == "unavailable") {
 			c[st.State] = c[st.State].(int) + 1
 		}
-		switch {
-		case st.State == "unavailable":
-			broken = append(broken, mapRow{EntityID: id, Name: x.name(id), State: st.State, Issue: "unavailable"})
-		case st.State == "on" && st.Attributes.LastTriggered == nil:
-			c["never_triggered"] = c["never_triggered"].(int) + 1
-			never = append(never, mapRow{EntityID: id, Name: x.name(id), State: st.State, Issue: "never_triggered"})
+		switch issue {
+		case "unavailable":
+			broken = append(broken, mapRow{EntityID: id, Name: x.name(id), State: st.State, Issue: issue})
+		case "never_triggered":
+			never = append(never, mapRow{EntityID: id, Name: x.name(id), State: st.State, Issue: issue})
 		}
 	}
 	for _, id := range x.disabled {
@@ -281,6 +305,22 @@ func (x *homeIndex) automations() (map[string]any, []mapRow) {
 	byName(broken)
 	byName(never)
 	return c, append(broken, never...)
+}
+
+// automationIssue: "unavailable" — Home Assistant could not load the config,
+// so it never runs; "restored" — unavailable only because nothing provides
+// it any more (its config is gone: an orphan); "never_triggered" — enabled,
+// no run recorded.
+func automationIssue(st *mapState) string {
+	switch {
+	case st.State == "unavailable" && st.Attributes.Restored:
+		return "restored"
+	case st.State == "unavailable":
+		return "unavailable"
+	case st.State == "on" && st.Attributes.LastTriggered == nil:
+		return "never_triggered"
+	}
+	return ""
 }
 
 func byName(rows []mapRow) {

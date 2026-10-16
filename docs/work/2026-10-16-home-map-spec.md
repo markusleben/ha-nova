@@ -30,8 +30,8 @@ ha-nova map [--section areas|integrations|automations|unavailable|batteries]
   `config/area_registry/list`, `config/device_registry/list`,
   `config/entity_registry/list`, `config_entries/get` (all entries, and
   `type_filter:["helper"]` to tell helpers from integrations), and
-  `GET /api/states`. `--entity` adds `search/related` for the entity and its
-  device. Any failed read → exit 1, no partial map (counts are never guessed).
+  `GET /api/states`. `--entity` adds `search/related` for the entity, its
+  device, and the device's other entities (§3). Any failed read → exit 1, no partial map (counts are never guessed).
 - At most one mode: default summary, one `--section`, `--entity`, or
   `--first-look`. `--limit` (1–200) caps row lists in `--section` (default 50)
   and `--entity` (default 20); totals always stay exact.
@@ -45,13 +45,13 @@ ha-nova map [--section areas|integrations|automations|unavailable|batteries]
 | `domains` | `entities` per domain, every domain present |
 | area membership | entity `area_id`, else its device's effective area; a child device (`parent_device_id`) with null `area_id` inherits its parent's (membership-resolution.md → Device rows). Same rule as `ha-nova find --area`, so "show me" follow-ups list exactly the counted rows |
 | area `devices` / `entities` | enabled devices / enabled entities with that effective area |
-| `devices_without_area` / `device_entities_without_area` | enabled devices with no effective area / enabled entities on such a device without their own area (service entities such as automations or persons are never counted) |
-| automations | from states: `on`, `off`, `unavailable` (Home Assistant could not load the config: it never runs); `disabled` = registry-disabled rows (no state); `never_triggered` = `on` with `last_triggered` null |
+| `devices_without_area` / `device_entities_without_area` | enabled devices with no effective area / enabled entities on such a device without their own area; `entry_type: service` devices (Supervisor Apps, sun, met, …) and device-less entities (automations, persons) never count |
+| automations | from states: `on`, `off`, `unavailable` (Home Assistant could not load the config: it never runs); `restored` = `unavailable` with `restored: true` (the config is gone, only the registry row remains: an orphan, never counted as `unavailable`); `disabled` = registry-disabled rows (no state); `never_triggered` = `on` with `last_triggered` null |
 | scripts / scenes | state rows; scripts also `unavailable` and `disabled` |
 | helpers | storage helper entities (`input_*`, `counter`, `timer`, `schedule`) by domain + config-entry helper entries (`type_filter:["helper"]`) by domain |
-| integrations | config entries except `source:"ignore"` and helper entries, grouped by domain: `entries`, `devices` (owning entry: `config_entry_id`, else `primary_config_entry`, else the first `config_entries` element), `entities` (registry `platform`); `problems` = entries in `setup_error`, `setup_retry`, `migration_error`, `failed_unload`, or `not_loaded` while not disabled |
-| unavailable | states `unavailable`, and `unknown` outside stateless domains (`button`, `input_button`, `event`, `scene`, `stt`, `tts`, `conversation`, `notify`, `wake_word`, `ai_task`, `image`, `assist_satellite`); `age` = time since `last_changed` — the current state row's age, a lower bound, never the outage length; `at_least_7d` counts ages ≥ 7 d |
-| batteries | states with `device_class: battery`; `low` = numeric `< 20`, or state `low`, or a `binary_sensor` battery `on` (health skill's detector); `mobile_app` batteries count as `phones_low`, never as device batteries |
+| integrations | config entries except `source:"ignore"` and helper entries, grouped by domain: `entries`, `devices` (owning entry: `config_entry_id`, else `primary_config_entry`, else the first `config_entries` element), `entities` (registry `config_entry_id`, as on the integration page); `problems` = entries in `setup_error`, `setup_retry`, `migration_error`, `failed_unload`, or `not_loaded` while not disabled |
+| unavailable | states `unavailable`, and `unknown` outside stateless domains (`tag`, `button`, `input_button`, `event`, `scene`, `stt`, `tts`, `conversation`, `notify`, `wake_word`, `ai_task`, `image`, `assist_satellite`); never `person`, `device_tracker`, `zone`, `geo_location` (presence, §5); `restored` counts rows Home Assistant restored without a provider (orphans); `age` = time since `last_changed` — the current state row's age, a lower bound, never the outage length; `at_least_7d` counts ages ≥ 7 d |
+| batteries | battery ENTITIES (one device may carry a level and a low-battery binary sensor) with `device_class: battery`; low = numeric `< 20`, or state `low`, or a `binary_sensor` battery `on` (health skill's detector). Kinds: `phone` (`mobile_app`) → `phones_low`; `device` (`entity_category: diagnostic`, how Zigbee/Z-Wave/Matter device batteries are registered) → `low`; anything else is a charge level (a car, home storage, unclassified) → `levels_low`, never a fault |
 
 ### 3. Output shapes (`result`)
 
@@ -64,35 +64,45 @@ pinned by a Go test):
  "domains":{"sensor":210,"light":18},
  "floors":[{"floor_id":"ground","name":"Ground floor","areas":4}],
  "areas":{"total":9,"shown":9,"rows":[{"area_id":"kitchen","name":"Kitchen","floor_id":"ground","devices":5,"entities":31}]},
- "automations":{"total":40,"on":35,"off":3,"unavailable":1,"disabled":1,"never_triggered":4,
+ "automations":{"total":40,"on":35,"off":3,"unavailable":1,"restored":0,"disabled":1,"never_triggered":4,
   "examples":[{"entity_id":"automation.x","name":"X","state":"unavailable"}]},
  "scripts":{"total":12,"unavailable":0,"disabled":0},"scenes":{"total":6},
  "helpers":{"total":25,"by_domain":{"input_boolean":8,"template":3}},
  "integrations":{"entries":38,"domains":31,"shown":10,"rows":[{"domain":"hue","entries":1,"devices":12,"entities":40}],
-  "problems":[{"domain":"x","state":"setup_retry","entries":1}]},
- "unavailable":{"total":12,"unavailable":9,"unknown":3,"at_least_7d":5,
+  "problems":[{"domain":"x","state":"setup_retry","entries":1}],"problems_total":1},
+ "unavailable":{"total":12,"unavailable":9,"unknown":3,"at_least_7d":5,"restored":2,
   "examples":[{"entity_id":"sensor.x","name":"X","state":"unavailable","age":"9d"}]},
- "batteries":{"total":20,"low":2,"phones_low":1,"threshold":20,
-  "examples":[{"entity_id":"sensor.door_battery","name":"Door battery","level":"7%"}]},
+ "batteries":{"total":20,"low":2,"levels_low":1,"phones_low":1,"threshold":20,
+  "examples":[{"entity_id":"sensor.door_battery","name":"Door battery","level":"7%","low":true,"kind":"device"}]},
  "more":["ha-nova map --section areas", "..."]}
 ```
 
-- Capped lists: `areas` 20 rows (by entities, then name), integration rows 10
-  (by entities), every `examples` list 5. Each says `total`/`shown`; `more`
-  names the exact command for the full list (Progressive Detail).
+- Capped lists: `areas` 20 rows (by entities, then name), `floors` 20,
+  integration rows 10 (by entities), `problems` 5 (+ `problems_total`), every
+  `examples` list 3 (device batteries only). Each says `total`/`shown`;
+  `more` names the exact command for the full list (Progressive Detail).
+  Measured: 7.4 KB on a synthetic 60-area / 5,300-entity / 150-entry home with
+  long German and CJK names (Go test bound 8 KiB).
 - `--section areas`: every area grouped by floor order, with a `domains` map
   per area. `integrations`: every integration row + problems. `automations`:
-  every automation `{entity_id,name,state,last_triggered_age}` (registry-disabled
-  ones with `state:"disabled"`). `unavailable`, `batteries`: every row, sorted
-  (longest age first; lowest level first).
+  every automation `{entity_id,name,state,last_triggered_age,issue}`, problems
+  first (unavailable/restored, then never ran), registry-disabled ones last
+  with `state:"disabled"`. `unavailable`, `batteries`: every row, sorted
+  (longest age first; lowest level first). Past the 200-row ceiling `more`
+  says so (narrow with `find`) instead of naming the same command again.
 - `--entity <id>` (where-used): `{entity_id,name,area,device,integration,
   automations,scripts,scenes,groups,via_device,not_checked}`. Each list is
   `{total,shown,rows:[{entity_id,name}]}` from `search/related` on the entity;
-  automations that reference only its device (device triggers/actions) come
-  from `search/related` on the device and carry `"via":"device"`.
-  `not_checked` always lists what `search/related` cannot see (`dashboards`,
-  `templates`, `other config entries' options`), so "not used" is never
-  claimed beyond what was read. Unknown entity → exit 5 `NOT_FOUND`.
+  groups also from group states listing it. Automations and scripts that
+  reference its device come from `search/related` on the device MINUS what
+  `search/related` returns for the device's other entities (a device read
+  includes those), and carry `"via":"device"`; scenes and groups never come
+  from the device read. A device with more than 30 entities skips the device
+  read and says so in `not_checked`. `not_checked` always lists what
+  `search/related` cannot see (`dashboards`, `templates`, `helper and
+  integration options`, `disabled or unloadable automations and scripts`,
+  `area, floor, and label targets`), so "not used" is never claimed beyond
+  what was read. Unknown entity → exit 5 `NOT_FOUND`.
 
 ### 4. First-look contract (for the onboarding PR)
 
@@ -114,24 +124,28 @@ the test bed; the session's own 30 s budget still applies). Exit 0 with:
 
 - `home`: the one-line counts (same definitions as §2; `automations` = total).
 - `observations`: at most 2, distinct kinds, in this priority:
-  `battery_low` (lowest device battery; never a phone) →
-  `automation_unavailable` (it can never run) → `integration_problem`
+  `battery_low` (lowest device battery; never a phone or a charge level) →
+  `automation_unavailable` (it can never run; never a restored orphan) → `integration_problem`
   (`domain`, `state`; no title) → `automation_never_triggered` →
   `unavailable_long` (≥ 7 d). Each carries `count` of its kind. Empty list = nothing worth saying; never invent one.
 - `seeds`: real names for example prompts; each key only when it exists.
-  `area` = the area with most entities; `light` = a non-group light, preferring
+  `area` = the area with most entities (ties by name); entity seeds skip
+  hidden and `entity_category` rows; `light` = a non-group light (no
+  `entity_id` list, no `is_hue_group`), preferring
   that area; `climate` = a `climate` entity, else a temperature sensor
   (`device_class: temperature`), preferring that area; `cover` likewise;
   `automation` = the most recently triggered `on` automation. Never persons,
   device trackers, or zones.
 - The onboarding skill renders: one line from `home`, the observations in
-  plain words, three prompts built from `seeds` in the user's language. Any
+  plain words, up to three prompts (one per seed present) built from `seeds`
+  in the user's language. Any
   non-zero exit → skip the first look silently (pairing already succeeded).
 
 ### 5. Privacy
 
 - Output carries ids, friendly names, area/floor names, integration domains,
-  counts, ages, and battery levels only. No other attributes, no config-entry
+  counts, ages, and battery levels only; presence domains never appear in any
+  list. No other attributes, no config-entry
   titles (they can hold account e-mails), no reasons/URLs, no coordinates, no
   person/tracker state.
 - No secrets exist on these surfaces; the verb never reads configs or files.

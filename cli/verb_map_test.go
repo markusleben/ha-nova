@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -20,7 +21,7 @@ func st(id, state string, attrs map[string]any) map[string]any {
 
 type mapFixture struct {
 	floors, areas, devices, entities, entries, helpers, states []map[string]any
-	related                                                     map[string]map[string][]string
+	related                                                    map[string]map[string][]string
 }
 
 func (f mapFixture) reply(_ *http.Request, endpoint string, payload map[string]any) any {
@@ -69,13 +70,18 @@ func smallHome() mapFixture {
 			{"id": "d_sensor", "area_id": "living", "config_entries": []string{"e_zha"}},
 			{"id": "d_off", "area_id": "bedroom", "disabled_by": "user", "config_entry_id": "e_zha"},
 			{"id": "d_phone", "area_id": nil, "config_entry_id": "e_mobile"},
+			{"id": "d_service", "area_id": nil, "config_entry_id": "e_bad", "entry_type": "service"},
 		},
 		entities: []map[string]any{
 			ent("light.kitchen", "d_bulb", "hue", "e_hue", nil),
 			ent("light.kitchen_child", "d_child", "hue", "e_hue", nil),
-			ent("sensor.door_battery", "d_sensor", "zha", "e_zha", nil),
-			ent("sensor.window_battery", "d_sensor", "zha", "e_zha", nil),
-			ent("binary_sensor.remote_battery", "", "zha", "e_zha", map[string]any{"area_id": "bedroom"}),
+			ent("sensor.door_battery", "d_sensor", "zha", "e_zha", map[string]any{"entity_category": "diagnostic"}),
+			ent("sensor.window_battery", "d_sensor", "zha", "e_zha", map[string]any{"entity_category": "diagnostic"}),
+			ent("binary_sensor.remote_battery", "", "zha", "e_zha", map[string]any{"area_id": "bedroom", "entity_category": "diagnostic"}),
+			ent("sensor.car_battery", "", "tesla", "", nil),
+			ent("light.kitchen_status", "d_bulb", "hue", "e_hue", nil),
+			ent("automation.ghost", "", "automation", "", nil),
+			ent("sensor.met_status", "d_service", "met", "e_bad", nil),
 			ent("sensor.phone_battery", "d_phone", "mobile_app", "e_mobile", nil),
 			ent("sensor.temp", "d_sensor", "zha", "e_zha", nil),
 			ent("sensor.hub_status", "d_bridge", "hue", "e_hue", nil),
@@ -110,6 +116,11 @@ func smallHome() mapFixture {
 			st("sensor.window_battery", "15", map[string]any{"device_class": "battery", "friendly_name": "Window battery"}),
 			st("binary_sensor.remote_battery", "on", map[string]any{"device_class": "battery", "friendly_name": "Remote battery"}),
 			st("sensor.phone_battery", "5", map[string]any{"device_class": "battery", "friendly_name": "Phone battery"}),
+			st("sensor.car_battery", "10", map[string]any{"device_class": "battery", "friendly_name": "Car charge"}),
+			st("light.kitchen_status", "on", map[string]any{"friendly_name": "Kitchen status light"}),
+			st("automation.ghost", "unavailable", map[string]any{"friendly_name": "Ghost", "restored": true}),
+			st("sensor.met_status", "ok", nil),
+			st("device_tracker.someone_phone", "unknown", map[string]any{"friendly_name": "Someone phone"}),
 			st("sensor.temp", "21.5", map[string]any{"device_class": "temperature", "friendly_name": "Living temperature"}),
 			hub,
 			st("automation.morning", "on", map[string]any{"friendly_name": "Morning", "last_triggered": ago(time.Hour)}),
@@ -127,7 +138,9 @@ func smallHome() mapFixture {
 		},
 		related: map[string]map[string][]string{
 			"entity:light.kitchen": {"automation": {"automation.morning"}, "scene": {"scene.movie"}, "device": {"d_bulb"}},
-			"device:d_bulb":        {"automation": {"automation.never", "automation.morning"}, "script": {"script.a"}, "entity": {"light.kitchen"}},
+			// a device read also returns what uses the device's other entities
+			"device:d_bulb":               {"automation": {"automation.never", "automation.morning", "automation.old"}, "script": {"script.a"}, "scene": {"scene.movie"}, "entity": {"light.kitchen", "light.kitchen_status"}},
+			"entity:light.kitchen_status": {"automation": {"automation.old"}},
 		},
 	}
 }
@@ -154,14 +167,15 @@ func TestMapSummaryCountsExactly(t *testing.T) {
 		t.Fatalf("exit %d env %+v", exit, env.Error)
 	}
 	s := decodeInto[mapSummary](t, env.Result)
-	want := map[string]int{"floors": 2, "areas": 4, "devices": 5, "devices_disabled": 1, "devices_without_area": 2,
-		"entities": 20, "entities_disabled": 2, "unregistered": 2, "device_entities_without_area": 2}
+	// d_service (entry_type service) never counts as a device without area
+	want := map[string]int{"floors": 2, "areas": 4, "devices": 6, "devices_disabled": 1, "devices_without_area": 2,
+		"entities": 25, "entities_disabled": 2, "unregistered": 3, "device_entities_without_area": 2}
 	for k, v := range want {
 		if s.Counts[k] != v {
 			t.Errorf("counts[%s] = %d, want %d (all %v)", k, s.Counts[k], v, s.Counts)
 		}
 	}
-	if s.Domains["light"] != 3 || s.Domains["automation"] != 4 || s.Domains["person"] != 1 {
+	if s.Domains["light"] != 4 || s.Domains["automation"] != 5 || s.Domains["person"] != 1 {
 		t.Errorf("domains %v", s.Domains)
 	}
 	areas := map[string]areaSummary{}
@@ -170,7 +184,7 @@ func TestMapSummaryCountsExactly(t *testing.T) {
 	}
 	// d_child inherits the kitchen from its parent; the disabled bedroom
 	// device does not count; the remote counts through its own area.
-	if a := areas["kitchen"]; a.Devices != 2 || a.Entities != 2 {
+	if a := areas["kitchen"]; a.Devices != 2 || a.Entities != 3 {
 		t.Errorf("kitchen %+v", a)
 	}
 	if a := areas["living"]; a.Devices != 1 || a.Entities != 3 {
@@ -179,14 +193,14 @@ func TestMapSummaryCountsExactly(t *testing.T) {
 	if a := areas["bedroom"]; a.Devices != 0 || a.Entities != 1 {
 		t.Errorf("bedroom %+v", a)
 	}
-	if s.Areas.Total != 4 || s.Areas.Shown != 4 || s.Areas.Rows[0].AreaID != "living" {
+	if s.Areas.Total != 4 || s.Areas.Shown != 4 || s.Areas.Rows[0].AreaID != "kitchen" || s.Areas.Rows[1].AreaID != "living" { // tie: by name
 		t.Errorf("areas %+v", s.Areas)
 	}
 	if s.Floors[0]["floor_id"] != "ground" || s.Floors[0]["areas"] != float64(2) {
 		t.Errorf("floors by level: %v", s.Floors)
 	}
 	auto := s.Automations
-	for k, v := range map[string]float64{"total": 5, "on": 2, "off": 1, "unavailable": 1, "disabled": 1, "never_triggered": 1} {
+	for k, v := range map[string]float64{"total": 6, "on": 2, "off": 1, "unavailable": 1, "restored": 1, "disabled": 1, "never_triggered": 1} {
 		if auto[k] != v {
 			t.Errorf("automations[%s] = %v, want %v", k, auto[k], v)
 		}
@@ -206,31 +220,32 @@ func TestMapSummaryCountsExactly(t *testing.T) {
 		t.Errorf("problems %s", problems)
 	}
 	rows := fmt.Sprint(integrations["rows"])
-	if !strings.Contains(rows, "map[devices:3 domain:hue entities:3 entries:1]") {
+	if !strings.Contains(rows, "map[devices:3 domain:hue entities:4 entries:1]") {
 		t.Errorf("hue row: %s", rows)
 	}
 	u := s.Unavailable
-	if u["total"] != float64(3) || u["unavailable"] != float64(2) || u["unknown"] != float64(1) || u["at_least_7d"] != float64(1) {
+	// the device tracker's unknown is presence, never an availability row
+	if u["total"] != float64(4) || u["unavailable"] != float64(3) || u["unknown"] != float64(1) || u["at_least_7d"] != float64(1) || u["restored"] != float64(1) {
 		t.Errorf("unavailable %v", u)
 	}
 	if !strings.HasPrefix(fmt.Sprint(u["examples"]), "[map[age:9d entity_id:sensor.hub_status") {
 		t.Errorf("oldest first: %v", u["examples"])
 	}
 	b := s.Batteries
-	if b["total"] != float64(4) || b["low"] != float64(3) || b["phones_low"] != float64(1) {
+	if b["total"] != float64(5) || b["low"] != float64(3) || b["phones_low"] != float64(1) || b["levels_low"] != float64(1) {
 		t.Errorf("batteries %v", b)
 	}
-	if ex := fmt.Sprint(b["examples"]); strings.Contains(ex, "phone") || !strings.Contains(ex, "level:low") {
+	if ex := fmt.Sprint(b["examples"]); strings.Contains(ex, "phone") || strings.Contains(ex, "car") || !strings.Contains(ex, "level:low") {
 		t.Errorf("battery examples %s", ex)
 	}
 	raw := string(env.Result)
-	for _, leak := range []string{"owner@example.com", "do-not-leak", "52.1", "latitude"} {
+	for _, leak := range []string{"owner@example.com", "do-not-leak", "52.1", "latitude", "person.", "device_tracker."} {
 		if strings.Contains(raw, leak) {
 			t.Errorf("output leaks %q", leak)
 		}
 	}
-	if len(s.More) != 0 {
-		t.Errorf("nothing capped, more = %v", s.More)
+	if strings.Join(s.More, ",") != "ha-nova map --section unavailable" { // 4 rows, 3 examples
+		t.Errorf("more = %v", s.More)
 	}
 	for _, path := range log.corePaths() {
 		if path != "/api/states" {
@@ -245,14 +260,14 @@ func TestMapFirstLookContract(t *testing.T) {
 		t.Fatalf("exit %d %+v", exit, env.Error)
 	}
 	r := decodeInto[firstLookResult](t, env.Result)
-	if r.Home["areas"] != 4 || r.Home["devices"] != 5 || r.Home["automations"] != 5 || r.Home["integrations"] != 5 {
+	if r.Home["areas"] != 4 || r.Home["devices"] != 6 || r.Home["automations"] != 6 || r.Home["integrations"] != 5 {
 		t.Errorf("home %v", r.Home)
 	}
 	if len(r.Observations) != 2 || r.Observations[0].Kind != "battery_low" || r.Observations[0].EntityID != "binary_sensor.remote_battery" ||
 		r.Observations[0].Count != 3 || r.Observations[1].Kind != "automation_unavailable" || r.Observations[1].EntityID != "automation.broken" {
 		t.Errorf("observations %+v", r.Observations)
 	}
-	if r.Seeds["area"].AreaID != "living" || r.Seeds["light"].EntityID != "light.kitchen" || r.Seeds["climate"].EntityID != "sensor.temp" ||
+	if r.Seeds["area"].AreaID != "kitchen" || r.Seeds["light"].EntityID != "light.kitchen" || r.Seeds["climate"].EntityID != "sensor.temp" ||
 		r.Seeds["automation"].EntityID != "automation.morning" {
 		t.Errorf("seeds %+v", r.Seeds)
 	}
@@ -297,6 +312,10 @@ func TestMapWhereUsed(t *testing.T) {
 	if r.Scripts.Total != 1 || r.Scripts.Rows[0].Via != "device" || r.Scenes.Total != 1 {
 		t.Errorf("scripts %+v scenes %+v", r.Scripts, r.Scenes)
 	}
+	// automation.old uses only light.kitchen_status (a sibling): never listed
+	if strings.Contains(string(env.Result), "automation.old") {
+		t.Error("a sibling's automation listed as a use")
+	}
 	// the group state lists the light; a scene's entity_id list is no group
 	if r.Groups.Total != 1 || r.Groups.Rows[0].EntityID != "light.group_all" {
 		t.Errorf("groups %+v", r.Groups)
@@ -310,8 +329,8 @@ func TestMapWhereUsed(t *testing.T) {
 			related++
 		}
 	}
-	if related != 2 {
-		t.Errorf("search/related reads = %d, want entity + device", related)
+	if related != 3 {
+		t.Errorf("search/related reads = %d, want entity + device + its other entity", related)
 	}
 }
 
@@ -342,11 +361,11 @@ func TestMapSections(t *testing.T) {
 		Rows  []mapRow `json:"rows"`
 		More  string   `json:"more"`
 	}](t, env.Result)
-	if autos.Total != 5 || autos.Shown != 2 || autos.Rows[0].Name != "Broken" || autos.More == "" {
+	if autos.Total != 6 || autos.Shown != 2 || autos.Rows[0].Name != "Broken" || autos.Rows[1].Issue != "restored" || autos.More == "" {
 		t.Errorf("automations section %+v", autos)
 	}
 	_, env, _ = runMap(t, smallHome(), "--section", "batteries")
-	if !strings.Contains(string(env.Result), `"entity_id":"sensor.phone_battery","name":"Phone battery","level":"5%","low":true,"phone":true`) {
+	if !strings.Contains(string(env.Result), `"entity_id":"sensor.phone_battery","name":"Phone battery","level":"5%","low":true,"kind":"phone"`) {
 		t.Errorf("batteries section %s", env.Result)
 	}
 }
@@ -394,29 +413,36 @@ func TestMapToleratesACoreWithoutFloors(t *testing.T) {
 func TestMapSummaryStaysSmallOnABigHome(t *testing.T) {
 	f := mapFixture{related: map[string]map[string][]string{}}
 	domains := []string{"light", "switch", "sensor", "binary_sensor", "cover", "climate", "media_player", "number", "select", "button",
-		"update", "event", "fan", "lock", "camera", "device_tracker", "text", "siren", "valve", "vacuum"}
+		"update", "event", "fan", "lock", "camera", "device_tracker", "text", "siren", "valve", "vacuum", "water_heater", "humidifier",
+		"alarm_control_panel", "remote", "scene", "script", "input_boolean", "input_number", "input_select", "input_text", "counter", "timer",
+		"weather", "sun", "zone", "person", "calendar", "todo", "image", "notify", "tts", "stt", "conversation", "wake_word", "lawn_mower", "date"}
 	for i := range 8 {
 		f.floors = append(f.floors, map[string]any{"floor_id": fmt.Sprintf("floor_%d", i), "name": fmt.Sprintf("Floor number %d", i), "level": i})
 	}
 	for i := range 60 {
-		f.areas = append(f.areas, map[string]any{"area_id": fmt.Sprintf("area_%02d", i), "name": fmt.Sprintf("Area with a long name %02d", i), "floor_id": fmt.Sprintf("floor_%d", i%8)})
+		f.areas = append(f.areas, map[string]any{"area_id": fmt.Sprintf("area_%02d", i), "name": fmt.Sprintf("Wohnküche Erdgeschoß 客厅和餐厅 %02d", i), "floor_id": fmt.Sprintf("floor_%d", i%8)})
 	}
-	for i := range 80 {
-		f.entries = append(f.entries, map[string]any{"entry_id": fmt.Sprintf("e%d", i), "domain": fmt.Sprintf("integration_domain_%02d", i), "state": "loaded"})
+	for i := range 150 { // 60 integration domains, 40 entries retrying setup
+		state := "loaded"
+		if i%150 < 40 {
+			state = "setup_retry"
+		}
+		f.entries = append(f.entries, map[string]any{"entry_id": fmt.Sprintf("e%d", i), "domain": fmt.Sprintf("integration_domain_%02d", i%60), "state": state})
 	}
 	for i := range 400 {
-		f.devices = append(f.devices, map[string]any{"id": fmt.Sprintf("d%d", i), "area_id": fmt.Sprintf("area_%02d", i%60), "config_entry_id": fmt.Sprintf("e%d", i%80)})
+		f.devices = append(f.devices, map[string]any{"id": fmt.Sprintf("d%d", i), "area_id": fmt.Sprintf("area_%02d", i%60), "config_entry_id": fmt.Sprintf("e%d", i%150)})
 	}
 	for i := range 5000 {
 		id := fmt.Sprintf("%s.entity_number_%04d", domains[i%len(domains)], i)
-		f.entities = append(f.entities, ent(id, fmt.Sprintf("d%d", i%400), "x", fmt.Sprintf("e%d", i%80), nil))
-		state, attrs := "on", map[string]any{"friendly_name": "A fairly long friendly entity name " + id}
+		var extra map[string]any
+		state, attrs := "on", map[string]any{"friendly_name": "Ein ziemlich langer Gerätename 长名称的设备 " + id}
 		switch {
 		case i%25 == 0:
 			state = "unavailable"
 		case i%100 == 1:
-			state, attrs["device_class"] = "9", "battery"
+			state, attrs["device_class"], extra = "9", "battery", map[string]any{"entity_category": "diagnostic"}
 		}
+		f.entities = append(f.entities, ent(id, fmt.Sprintf("d%d", i%400), "x", fmt.Sprintf("e%d", i%150), extra))
 		f.states = append(f.states, st(id, state, attrs))
 	}
 	for i := range 300 {
@@ -429,11 +455,14 @@ func TestMapSummaryStaysSmallOnABigHome(t *testing.T) {
 		t.Fatalf("exit %d %+v", exit, env.Error)
 	}
 	t.Logf("big-home summary: %d bytes", len(env.Result))
+	if os.Getenv("MAP_DUMP") != "" {
+		_ = os.WriteFile(os.Getenv("MAP_DUMP"), env.Result, 0o600)
+	}
 	if size := len(env.Result); size > 8<<10 {
 		t.Fatalf("summary is %d bytes on a big home, budget 8 KiB", size)
 	}
 	s := decodeInto[mapSummary](t, env.Result)
-	if s.Counts["entities"] != 5300 || s.Areas.Shown != mapAreaRows || len(s.More) != 5 {
+	if s.Counts["entities"] != 5300 || s.Areas.Shown != mapAreaRows || len(s.More) != 5 || s.Integrations["problems_total"] != float64(40) {
 		t.Errorf("counts %v shown %d more %v", s.Counts, s.Areas.Shown, s.More)
 	}
 	_, env, _ = runMap(t, f, "--first-look")

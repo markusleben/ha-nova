@@ -31,7 +31,9 @@ type whereUsedResult struct {
 
 // whereUsedNotChecked: what search/related cannot see, so an empty list is
 // never read as "used nowhere".
-var whereUsedNotChecked = []string{"dashboards", "templates", "helper and integration options"}
+const whereUsedMaxSiblings = 30
+
+var whereUsedNotChecked = []string{"dashboards", "templates", "helper and integration options", "disabled or unloadable automations and scripts", "area, floor, and label targets"}
 
 func (x *homeIndex) whereUsed(s *relaySession, id string, limit int) (whereUsedResult, error) {
 	if x.state[id] == nil && !x.registered[id] {
@@ -39,22 +41,56 @@ func (x *homeIndex) whereUsed(s *relaySession, id string, limit int) (whereUsedR
 			next: `Search with: ha-nova find "<phrase>"`}
 	}
 	device := x.entityDevice[id]
-	requests := []map[string]any{{"type": "search/related", "item_type": "entity", "item_id": id}}
-	if device != "" {
-		requests = append(requests, map[string]any{"type": "search/related", "item_type": "device", "item_id": device})
+	var siblings []string
+	for other, owner := range x.entityDevice {
+		if owner == device && device != "" && other != id {
+			siblings = append(siblings, other)
+		}
+	}
+	sort.Strings(siblings)
+	notChecked := slices.Clone(whereUsedNotChecked)
+	related := func(itemType, itemID string) map[string]any {
+		return map[string]any{"type": "search/related", "item_type": itemType, "item_id": itemID}
+	}
+	// search/related on a device also returns what uses the device's OTHER
+	// entities; those are subtracted, so a device row is a reference to the
+	// device itself (device triggers, conditions, actions). ponytail: an
+	// item naming both the device and a sibling drops out too.
+	requests := []map[string]any{related("entity", id)}
+	switch {
+	case device == "":
+	case len(siblings) > whereUsedMaxSiblings:
+		notChecked = append(notChecked, "device-level references (the device has many entities)")
+	default:
+		requests = append(requests, related("device", device))
+		for _, sibling := range siblings {
+			requests = append(requests, related("entity", sibling))
+		}
 	}
 	var reads []func()
 	for _, request := range requests {
 		reads = append(reads, func() { _, _ = s.ws(request) })
 	}
 	prefetch(reads)
-	related := make([]map[string][]string, len(requests))
+	results := make([]map[string][]string, len(requests))
 	for i, request := range requests {
-		if err := s.wsDecode(request, &related[i], "search/related for "+fmt.Sprint(request["item_id"])); err != nil {
+		if err := s.wsDecode(request, &results[i], "search/related for "+fmt.Sprint(request["item_id"])); err != nil {
 			return whereUsedResult{}, err
 		}
 	}
-	r := whereUsedResult{EntityID: id, Name: x.name(id), Area: x.area(id), Integration: x.platform[id], NotChecked: whereUsedNotChecked}
+	viaDevice := map[string]bool{}
+	if len(results) > 1 {
+		siblingUse := map[string]bool{}
+		for _, rel := range results[2:] {
+			for _, item := range append(rel["automation"], rel["script"]...) {
+				siblingUse[item] = true
+			}
+		}
+		for _, item := range append(results[1]["automation"], results[1]["script"]...) {
+			viaDevice[item] = !siblingUse[item]
+		}
+	}
+	r := whereUsedResult{EntityID: id, Name: x.name(id), Area: x.area(id), Integration: x.platform[id], NotChecked: notChecked}
 	for _, d := range x.h.devices {
 		if d.ID == device {
 			r.Device = firstNonEmpty(d.NameByUser, d.Name)
@@ -62,16 +98,16 @@ func (x *homeIndex) whereUsed(s *relaySession, id string, limit int) (whereUsedR
 	}
 	list := func(key string) usedList {
 		rows, seen := []mapRow{}, map[string]bool{}
-		for i, rel := range related {
-			for _, item := range rel[key] {
-				if !seen[item] && item != id {
-					seen[item] = true
-					row := mapRow{EntityID: item, Name: x.name(item)}
-					if i == 1 {
-						row.Via = "device"
-					}
-					rows = append(rows, row)
-				}
+		for _, item := range results[0][key] {
+			if !seen[item] && item != id {
+				seen[item] = true
+				rows = append(rows, mapRow{EntityID: item, Name: x.name(item)})
+			}
+		}
+		for item, direct := range viaDevice {
+			if direct && !seen[item] && inDomain(item, key) {
+				seen[item] = true
+				rows = append(rows, mapRow{EntityID: item, Name: x.name(item), Via: "device"})
 			}
 		}
 		if key == "group" { // a group state lists its members
@@ -128,7 +164,7 @@ func (x *homeIndex) firstLook() firstLookResult {
 	_, batteries := x.batteries()
 	var low []mapRow
 	for _, b := range batteries {
-		if b.Low && !b.Phone {
+		if b.Low && b.Kind == "device" {
 			low = append(low, b)
 		}
 	}
@@ -168,7 +204,7 @@ func (x *homeIndex) firstLook() firstLookResult {
 // seeds: real names for example prompts; persons, trackers, and zones never.
 func (x *homeIndex) seeds(out map[string]firstSeed) {
 	areas := x.areaRows(false)
-	sort.SliceStable(areas, func(i, j int) bool { return areas[i].Entities > areas[j].Entities })
+	byEntities(areas)
 	top := ""
 	if len(areas) > 0 && areas[0].Entities > 0 {
 		top = areas[0].AreaID
@@ -178,7 +214,7 @@ func (x *homeIndex) seeds(out map[string]firstSeed) {
 		best := ""
 		for _, id := range x.enabled { // sorted: the first hit is stable
 			st := x.state[id]
-			if st == nil || st.State == "unavailable" || !match(id, st) {
+			if st == nil || st.State == "unavailable" || x.hidden[id] || x.category[id] != "" || !match(id, st) {
 				continue
 			}
 			if x.entityArea[id] == top && top != "" {

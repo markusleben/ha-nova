@@ -11,7 +11,8 @@ const mapGo = readFileSync("cli/verb_map.go", "utf8") + readFileSync("cli/verb_m
 describe("home-map skill (needs-analysis TOP 3)", () => {
   it("routes whole-home understanding to home-map and keeps single items with review", () => {
     expect(router).toContain('| "show me my home", "where is X used?", audit or document the whole home, first look | `ha-nova:home-map` |');
-    expect(router).toContain("(whole home: `ha-nova:home-map`) | `ha-nova:review`");
+    expect(router).toContain("| `ha-nova:review` (reads config internally); the whole home: `ha-nova:home-map` |");
+    expect(router).toContain('**"Review my whole setup"** → `ha-nova:home-map` (NOT review or health)');
   });
 
   it("never lets the model count", () => {
@@ -23,7 +24,9 @@ describe("home-map skill (needs-analysis TOP 3)", () => {
   it("never claims unused beyond what search/related saw", () => {
     expect(skill).toContain("Always name the `not_checked` surfaces");
     expect(skill).toContain('never "unused" or "safe to delete"');
-    expect(mapGo).toContain('var whereUsedNotChecked = []string{"dashboards", "templates", "helper and integration options"}');
+    for (const surface of ["dashboards", "templates", "helper and integration options", "disabled or unloadable automations and scripts", "area, floor, and label targets"]) {
+      expect(mapGo).toContain(`"${surface}"`);
+    }
   });
 
   it("keeps persistent notes in Home Assistant's own description field", () => {
@@ -37,7 +40,7 @@ describe("home-map skill (needs-analysis TOP 3)", () => {
     for (const kind of ["battery_low", "automation_unavailable", "integration_problem", "automation_never_triggered", "unavailable_long"]) {
       expect(spec).toContain(`\`${kind}\``);
       expect(skill).toContain(`\`${kind}\``);
-      expect(mapGo).toContain(kind.startsWith("automation_") ? `"${kind.slice("automation_".length)}"` : `"${kind}"`);
+      expect(mapGo).toContain(kind.startsWith("automation_") ? `addAutomation("${kind.slice("automation_".length)}")` : `"${kind}"`);
     }
     expect(skill).toContain("Any non-zero exit: skip the first look without comment.");
   });

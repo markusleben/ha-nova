@@ -12,8 +12,7 @@ compatibility: Requires the ha-nova CLI (run 'ha-nova setup' first) and the HA N
 
 Read-only understanding of the whole home through `ha-nova map`, which
 computes every count, so you never count by hand:
-- inventory: floors, areas, devices, entities per domain, automations,
-  scripts, scenes, helpers, integrations
+- inventory with exact counts
 - where-used for one entity (automations, scripts, scenes, groups)
 - one ranked "review my whole setup" report
 - a plain-language document of how the home is built and why
@@ -36,10 +35,8 @@ answers exit 1 with `RELAY_ERROR`; then `ha-nova setup`.
 
 ## Relay Contract
 
-- `ha-nova map` — the summary: `counts`, `domains`, `floors`, `areas`
-  (top 20), `automations`, `scripts`, `scenes`, `helpers`, `integrations`
-  (top 10 + `problems`), `unavailable`, `batteries`, and `more` (the exact
-  commands for every capped list)
+- `ha-nova map` — the summary; capped lists carry `total` and `shown`,
+  and `more` names the command for each full list
 - `ha-nova map --section areas|integrations|automations|unavailable|batteries [--limit N]`
   — one full list (default 50, max 200 rows; `total` stays exact)
 - `ha-nova map --entity <entity_id> [--limit N]` — where-used; resolve a
@@ -48,8 +45,7 @@ answers exit 1 with `RELAY_ERROR`; then `ha-nova setup`.
 - `ha-nova get <automation.x|script.x> --config` — one item's config and
   `description`
 
-A failed read fails the whole map (exit 1): say the home could not be
-read, never estimate.
+A failed read fails the whole map (exit 1): say so, never estimate.
 
 ## Flow
 
@@ -66,17 +62,21 @@ Definitions to keep when you explain a number:
   area (a child device inherits its parent's area) — the same rule as
   `ha-nova find --area`, which lists exactly the counted rows.
 - automation `unavailable`: Home Assistant could not load it, so it never
-  runs. `never_triggered`: enabled, no run recorded.
+  runs; `restored`: its config is gone, only the registry row remains (an
+  orphan for `ha-nova:maintenance`). `never_triggered`: enabled, no run yet.
 - `age` on an unavailable entity is the age of its current state — "for at
-  least 9 days", never "since 9 days ago it broke".
-- `batteries.low` excludes phones (`phones_low`): never suggest replacing a
-  phone battery.
+  least 9 days", never "since 9 days ago it broke". `restored` rows are
+  orphans too.
+- batteries are low battery levels: `low` counts device batteries;
+  `levels_low` are charge levels (a car or home storage — low is normal
+  there, not a fault); `phones_low` are phones — never suggest a
+  replacement for either.
 
 ### What do I have / show me my home
 
 Run `ha-nova map`. Answer with: one line for the house (floors, areas,
-devices, entities, automations), a compact floor → area table (devices,
-entities), one line each for automations (with how many are off,
+devices, entities, automations), a compact table of the largest areas
+(devices, entities), one line each for automations (with how many are off,
 unavailable, never ran), helpers, integrations (count plus the largest), and
 one line of open problems with counts. Offer the matching `--section` for
 anything capped.
@@ -85,10 +85,9 @@ anything capped.
 
 Resolve the entity, then `ha-nova map --entity <id>`. List automations,
 scripts, scenes, and groups by name; mark `via: device` rows as "through
-its device". Always name the `not_checked` surfaces (dashboards, templates,
-helper and integration options): an empty result means "nothing found in
+its device". Always name the `not_checked` surfaces: an empty result means "nothing found in
 automations, scripts, scenes, or groups", never "unused" or "safe to delete".
-Deleting or renaming goes to the owning skill's impact check.
+Deletes and renames go to the owning skill.
 
 ### Review my whole setup
 
@@ -97,11 +96,11 @@ Deleting or renaming goes to the owning skill's impact check.
    unavailable automations → entities unavailable for at least 7 days → low
    device batteries → enabled automations that never ran → devices without
    an area.
-3. One row per finding: what, how many, one example by name, and who fixes
-   it (the owning skill, in plain words).
-4. Close with the deeper checks the map does not run, each as a next step
-   the user can pick: repairs and system health, an automation quality
-   review, cleanup of orphans and statistics, pending updates.
+3. One row per finding: what, how many, an example only where the map
+   gives one, and who fixes it (in plain words).
+4. Close with the deeper checks the map does not run, as next steps:
+   repairs and system health, automation quality, orphan and statistics
+   cleanup, pending updates.
 
 ### Document why it is built this way
 
@@ -124,15 +123,14 @@ Deleting or renaming goes to the owning skill's impact check.
 ### First look (after pairing)
 
 Run `ha-nova map --first-look`. Render:
-1. one line from `home` ("9 rooms, 42 devices, 40 automations");
+1. one line from `home` (rooms, devices, automations);
 2. each observation in plain words — `battery_low` (name, area, `value`,
    plus "and N more" from `count`), `automation_unavailable` ("can never
    run"), `integration_problem` (integration domain and state in plain
    words), `automation_never_triggered`, `unavailable_long`;
-3. three example prompts in the user's language, built only from `seeds`
-   names (the area, the light, the climate or temperature entity, the cover,
-   the automation), each a different everyday job: control, question, why
-   or change.
+3. up to three example prompts in the user's language, one per seed
+   present, built only from `seeds` names, each a different everyday job
+   (control, question, why or change).
 No observations: skip that line, never invent one. Any non-zero exit: skip
 the first look without comment.
 
