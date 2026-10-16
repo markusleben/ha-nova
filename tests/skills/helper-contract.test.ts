@@ -46,7 +46,7 @@ describe("helper contract", () => {
     // 2026-10-16 agent scenario H1: the defaults block asked before the preview
     // cost a round-trip; they now ride the preview card.
     it("merges defaults into the preview, never a separate question first", () => {
-      expect(skillDoc).toContain("render them as the Suggestion Block (output-cards.md) inside the step 3 preview — never a separate question first");
+      expect(skillDoc).toContain("list them in the step 3 preview (not a Suggestion Block) — never a separate question first");
       expect(skillDoc).not.toContain("merge into payload BEFORE preview");
     });
 

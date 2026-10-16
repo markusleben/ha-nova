@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"regexp"
 	"sort"
 	"sync"
 )
@@ -66,8 +67,8 @@ func (sc *refScanner) scanConfigs(s *relaySession, registry []refRegistryRow, st
 			sc.mu.Lock()
 			sc.res.Scanned[it.domain]++
 			sc.mu.Unlock()
-			own := sc.scan(it.domain, it.entityID, it.configID, managed, doc)
-			sc.scanBlueprint(s, it.domain, it.entityID, it.configID, doc, own)
+			sc.scan(it.domain, it.entityID, it.configID, managed, doc)
+			sc.scanBlueprint(s, it.domain, it.entityID, it.configID, doc)
 		}(it)
 	}
 	wg.Wait()
@@ -132,17 +133,18 @@ func (sc *refScanner) scanEnergy(s *relaySession) {
 	}
 }
 
-// scanBlueprint expands a blueprint instance like the tier engine does: a
-// needle the instance's inputs do not name but the blueprint body (a
-// default, a template) does is a hit with managed "blueprint" — the
-// blueprint file, not the instance, has to change.
-func (sc *refScanner) scanBlueprint(s *relaySession, domain, entityID, configID string, doc any, own map[string]*refFound) {
+// scanBlueprint expands a blueprint instance like the tier engine does, with
+// every needle masked in the instance's inputs: whatever needle the expansion
+// still names comes from the blueprint body (a default, a template, a
+// hard-coded id) and is a hit with managed "blueprint" — the blueprint file,
+// not the instance, has to change, even where an input names the same id.
+func (sc *refScanner) scanBlueprint(s *relaySession, domain, entityID, configID string, doc any) {
 	cfg, _ := doc.(map[string]any)
 	bp, isBlueprint := cfg["use_blueprint"].(map[string]any)
 	if !isBlueprint {
 		return
 	}
-	input := bp["input"]
+	input := sc.mask(bp["input"])
 	if input == nil {
 		input = map[string]any{}
 	}
@@ -157,5 +159,33 @@ func (sc *refScanner) scanBlueprint(s *relaySession, domain, entityID, configID 
 		sc.gap(domain, entityID, fmt.Sprintf("blueprint %v could not be expanded (only its inputs were scanned): %v", bp["path"], err))
 		return
 	}
-	sc.record(domain, entityID, configID, "blueprint", sc.find(sub.Config), own)
+	sc.record(domain, entityID, configID, "blueprint", sc.find(sub.Config))
+}
+
+// mask copies v with every whole-id needle occurrence in its strings
+// replaced, so a substitution no longer carries the instance's own ids.
+func (sc *refScanner) mask(v any) any {
+	switch t := v.(type) {
+	case map[string]any:
+		out := make(map[string]any, len(t))
+		for k, x := range t {
+			out[sc.mask(k).(string)] = sc.mask(x) // an id-keyed input (scene entities) too
+		}
+		return out
+	case []any:
+		out := make([]any, len(t))
+		for i, x := range t {
+			out[i] = sc.mask(x)
+		}
+		return out
+	case string:
+		for _, n := range matchNeedles(t, sc.needles) {
+			re := regexp.MustCompile(`(^|[^A-Za-z0-9_])` + regexp.QuoteMeta(n) + `($|[^A-Za-z0-9_])`)
+			for len(matchNeedles(t, []string{n})) > 0 { // adjacent matches share a boundary
+				t = re.ReplaceAllString(t, "${1}ha_nova.masked${2}")
+			}
+		}
+		return t
+	}
+	return v
 }

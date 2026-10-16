@@ -81,7 +81,7 @@ describe("agent scenario regressions (2026-10-16)", () => {
     const core = '- Anything before the preview ("do it", answers to questions) never confirms it; only a reply to the preview does.';
     expect(readFileSync("docs/reference/skill-architecture.md", "utf8")).toContain(core);
     expect(flat("skills/write/SKILL.md")).toContain(
-      "An answer to a clarifying question is never a confirmation: end the turn with each new or changed plan's preview (Phase 3 re-plans excepted).",
+      "An answer to a clarifying question is never a confirmation: end the turn with each new or changed plan's preview (except Phase 3 step 4's natural-confirmation duration call re-plan with action and tier unchanged).",
     );
     expect(flat("skills/ha-nova/SKILL.md")).toContain(
       "Neither is an answer to a clarifying question; only a reply to the preview confirms.",
@@ -95,12 +95,12 @@ describe("agent scenario regressions (2026-10-16)", () => {
   });
 
   it("resolves scene entities through find, aliases included", () => {
-    expect(flat("skills/scene/SKILL.md")).toContain('with `ha-nova find "<phrase>"` (it matches aliases;');
+    expect(flat("skills/scene/SKILL.md")).toContain('with `ha-nova find "<phrase>" --aliases` (exact');
   });
 
   it("previews a whole-domain call once and restates a typed call's consequence", () => {
     const sc = flat("skills/service-call/SKILL.md");
-    expect(sc).toContain("`ha-nova find --domain light --state on --limit 200` (narrow first if `returned` < `total`) → one `plan call` preview, no pre-question.");
+    expect(sc).toContain("`ha-nova find --domain light --state on --limit 200` (narrow first if `returned` < `total`) → one `plan call` preview, no pre-question; none: say so.");
     // Up to 10 explicit ids would run at once (ordinary tier); the domain list never may.
     expect(sc).not.toContain("one `call`, no pre-question");
     expect(sc).toContain("more → a `plan call` preview, an area/device target, or ask.");

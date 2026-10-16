@@ -95,7 +95,7 @@ func (e *tierEngine) scanConsumers(id string, depth int, d stateDelta) {
 	}
 	if slices.Contains(e.acted, id) { // scanned already: this change may fire what the first did not
 		for automation, ons := range e.firedOn {
-			if cfg := e.configs[automation]; cfg != nil && slices.Contains(ons, id) {
+			if cfg := e.configs[automation]; cfg != nil && slices.ContainsFunc(ons, func(f fired) bool { return f.on == id }) {
 				e.matchConsumer(automation, triggerMatch(cfg, id, needles, d), id)
 			}
 		}

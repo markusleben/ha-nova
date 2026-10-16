@@ -86,7 +86,7 @@ the code is called the "confirmation code" (localized), never a "token".
 The preview always shows `count / cap`. Above the cap, refuse and split into
 separate manifests, each with its own preview and confirmation code:
 
-- config-item families (automations, scripts, helpers, scenes, dashboards,
+- config-item families (automations, scripts, helpers, scenes,
   resources, cards within one dashboard, to-do lists, registry
   categories/labels/areas/floors, config snapshot blobs): **20**
 - evidence-derived cleanup families (retained discovery topics, orphaned
@@ -167,7 +167,7 @@ the offer of a remaining-targets manifest).
 | `mqtt` | yes | retained discovery cleanup for ONE resolved device (topics only from `mqtt/device/debug_info`); command/`set` topics excluded |
 | `maintenance` | yes (already grouped) | statistics clears per issue group via the API's single-call group clear (ledger from per-ID re-validation); orphan registry removal per config entry, sequential; all existing gates unchanged |
 | `scene` | yes | storage scenes only (Editability Guard per target) |
-| `dashboard` | yes | dashboards, resources, and cards are three separate families; a card batch is one merged save (single-call path) |
+| `dashboard` | yes | resources and cards are separate families; a card batch is one merged save (single-call path); dashboards delete one at a time (a `plan delete` code binds one) |
 | `todo` | yes | list deletion with per-list open-item counts; item removal keeps its existing natural-confirmation flow |
 | `organize` | yes | one registry family per manifest; only with complete related-item impact per target |
 | `device` | no | destructive steps (device removal, orphan rows) stay with the HA UI and `maintenance` |

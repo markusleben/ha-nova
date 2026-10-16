@@ -107,9 +107,9 @@ While `truncated` is true the list proves neither absence nor uniqueness — nar
 2. Use-case defaults (create only, skip on update/delete):
    - Infer use-case from helper name + type using general HA knowledge.
    - Consult `skills/ha-nova/helper-schemas.md` → Suggested Defaults for principles and field name reminders.
-   - If sensible defaults can be inferred: merge them into fields the user left unset and render them as the Suggestion Block (output-cards.md) inside the step 3 preview — never a separate question first — max 4 as numbered list (feature-style offers per `skills/ha-nova/smallest-solution.md`, max 2, numbered apart, only when picked). Group related fields into one item.
+   - If sensible defaults can be inferred: merge them into fields the user left unset and list them in the step 3 preview (not a Suggestion Block) — never a separate question first — max 4 as numbered list (feature-style offers per `skills/ha-nova/smallest-solution.md`, max 2, numbered apart, only when picked). Group related fields into one item.
      ```
-     💡 Suggested defaults for "{name}" ({type}), included:
+     Suggested defaults for "{name}" ({type}), included:
      1. min: 16, max: 30, step: 0.5
      2. unit_of_measurement: "°C"
      3. mode: slider

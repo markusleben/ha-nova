@@ -72,7 +72,7 @@ lines:
   a typed confirmation code — a plain "yes" is never enough there; the same
   code gates high-consequence actions like unlocking doors or opening the
   garage.
-- Automation, script, dashboard, and storage-helper updates keep a revert path; deleted
+- Automation, script, dashboard-content, and storage-helper updates keep a revert path; deleted
   items in snapshot-covered families restore from automatic config snapshots.
 - Reads are bounded; pairing and authentication secrets never appear in
   chat, and webhook trigger ids are masked even in raw YAML you explicitly

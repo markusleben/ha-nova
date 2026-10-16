@@ -116,8 +116,9 @@ describe("output design system (Cards)", () => {
     const review = readFileSync("skills/review/SKILL.md", "utf8");
     const writeSafety = (readFileSync("skills/ha-nova/write-safety.md", "utf8") + readFileSync("skills/ha-nova/recovery-coverage.md", "utf8") + readFileSync("skills/ha-nova/update-revert.md", "utf8"));
     expect(write).toContain("as the Suggestion Block");
-    expect(helper).toContain("render them as the Suggestion Block");
-    expect(helper).toContain('💡 Suggested defaults for "{name}"');
+    expect(helper).toContain("list them in the step 3 preview (not a Suggestion Block)");
+    expect(helper).toContain('Suggested defaults for "{name}"');
+    expect(helper).not.toContain('💡 Suggested defaults'); // included defaults are not an offer
     // Review keeps its plain sectioned header; only the item shape is shared.
     expect(review).toContain("Suggestion Block item shape");
     expect(writeSafety).toContain("separate Suggestion Block item");
