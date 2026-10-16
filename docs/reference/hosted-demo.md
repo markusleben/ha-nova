@@ -36,8 +36,9 @@ relay's `nova/Dockerfile.standalone` takes an optional `NODE_IMAGE` build arg
 bash scripts/demo/hosted/provision.sh --ref <sha> --alert-email <you> --abuse-contact <mail-or-url> [--ssh-cidr <ip>/32]
 bash scripts/demo/hosted/provision.sh --ref <sha> --alert-email <you> --abuse-contact <mail-or-url> --yes
 # 2. Namecheap: A demo.hanova.app -> printed static IPv4 (no AAAA: IPv4 only).
-#    Before the first hourly reset: from then on the public gate needs TLS,
-#    and a reset that fails it keeps the house down (restarting page).
+#    Until then Caddy has no certificate and every reset skips the public
+#    gate (noted in the journal); the first reset after the name resolves
+#    restarts Caddy, which then gets its certificate within a minute.
 # 3. Lightsail browser SSH: sudo tail -f /var/log/cloud-init-output.log   (~10 min)
 # 4. https://demo.hanova.app, login demo / demo
 ```
@@ -97,7 +98,8 @@ the next full hour.
   in parallel: external name and IP from HA and the relay must fail, service
   names must resolve), listeners, then the public site through Caddy's TLS on
   the host (`/`, `/connect.json`, `/relay/health` with the public token, the
-  login page). This also re-checks the sandbox after every dockerd upgrade.
+  login page, 403 on one path per blocked pattern); skipped while Caddy holds
+  no certificate. This also re-checks the sandbox after every dockerd upgrade.
 - Landing page: `/` (without a query; HA's own redirects always carry one,
   e.g. `?auth_callback=1`) and `/start`: login, next reset, the running HA
   version, "no personal data", a link to `/connect.json`, abuse link, "Open

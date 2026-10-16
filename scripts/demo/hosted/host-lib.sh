@@ -75,26 +75,32 @@ listener_gate() {
   [[ -z "$bad" ]] || { echo "listener gate: unexpected TCP listeners: $bad" >&2; return 1; }
 }
 
-# public_gate <domain> <relay_token> [first-boot]: the public site as a
-# visitor sees it, through Caddy's TLS on this host. On bootstrap's first run
-# no certificate may exist yet (DNS not pointed): then it is skipped, loudly.
+# public_gate <domain> <relay_token>: the public site as a visitor sees it,
+# through Caddy's TLS on this host, blocked paths included. Until Caddy holds
+# a certificate (DNS not pointed here yet) nothing is served over TLS: the
+# gate is skipped, noted on stdout (callers capture stderr for failures
+# only). Once the name resolves, Caddy is restarted so it retries ACME now;
+# its own backoff waits up to 6 h and stops after 30 days.
 public_gate() {
-  local domain="$1" token="$2" first="${3:-}" url
-  url=(--resolve "$domain:443:127.0.0.1" -sf -m 15)
-  if ! curl "${url[@]}" -o /dev/null "https://$domain/start"; then
-    if [[ "$first" == first-boot ]]; then
-      echo "public gate: SKIPPED, no TLS for $domain yet (point DNS here; the next reset checks)" >&2
-      return 0
-    fi
-    echo "public gate: https://$domain unreachable" >&2
-    return 1
+  local domain="$1" token="$2" url path code
+  if ! compgen -G "$STATE/caddy/data/caddy/certificates/acme*/$domain/$domain.crt" > /dev/null; then
+    echo "public gate: SKIPPED, Caddy has no certificate for $domain yet (point DNS here)"
+    if getent ahostsv4 "$domain" > /dev/null; then docker restart ha-nova-demo-caddy > /dev/null; fi
+    return 0
   fi
+  url=(--resolve "$domain:443:127.0.0.1" -sf -m 15)
+  curl "${url[@]}" -o /dev/null "https://$domain/start" || { echo "public gate: https://$domain unreachable" >&2; return 1; }
   curl "${url[@]}" "https://$domain/" | grep -q "HA NOVA demo house" || { echo "public gate: landing page" >&2; return 1; }
   curl "${url[@]}" "https://$domain/connect.json" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>process.exit(JSON.parse(s).relay_token?0:1))' \
     || { echo "public gate: connect.json" >&2; return 1; }
   curl "${url[@]}" -o /dev/null -H "Authorization: Bearer $token" "https://$domain/relay/health" || { echo "public gate: relay" >&2; return 1; }
   curl "${url[@]}" -o /dev/null "https://$domain/auth/authorize?response_type=code&client_id=https://$domain/&redirect_uri=https://$domain/" \
     || { echo "public gate: login page" >&2; return 1; }
+  # One path per @blocked pattern in the Caddyfile.
+  for path in /api/backup/upload /local/x /api/tts_proxy/x /relay/pair /relay/home /api/onboarding /onboarding.html; do
+    code="$(curl --resolve "$domain:443:127.0.0.1" -s -m 15 -o /dev/null -w '%{http_code}' "https://$domain$path" || true)"
+    [[ "$code" == 403 ]] || { echo "public gate: $path answered $code, not 403" >&2; return 1; }
+  done
 }
 
 # edge_up [--force]: (re)create Caddy when its files changed (or forced),

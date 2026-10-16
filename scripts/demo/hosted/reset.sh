@@ -7,7 +7,6 @@
 #
 #   reset.sh                        last verified good Home Assistant digest
 #   reset.sh --candidate <ref>      a verified candidate (update-ha.sh only)
-#   reset.sh --first-boot           bootstrap: TLS may not exist yet
 #
 # lock -> hide the house (drop /srv/ready) -> down -> restore the clone ->
 # up -> relay (stable public token, fresh HA token) -> egress, DNS, listener,
@@ -23,10 +22,9 @@ main() {
   # DEMO_DOMAIN, DEMO_REF, ABUSE_CONTACT (written by bootstrap.sh)
   # shellcheck source=/dev/null
   . /etc/ha-nova-demo.env
-  local candidate="" first=""
+  local candidate=""
   case "${1:-}" in
     --candidate) candidate="${2:-}" ;;
-    --first-boot) first="first-boot" ;;
     "") ;;
     *) echo "reset.sh: unknown argument $1" >&2; exit 2 ;;
   esac
@@ -81,7 +79,7 @@ main() {
   chmod 0644 "$tmp"
   mv "$tmp" "$PUBLIC/connect.json"
   touch "$PUBLIC/ready"
-  public_gate "$DEMO_DOMAIN" "$relay_token" "$first" 2> "$STATE/gate.err" || gate_failed "$(cat "$STATE/gate.err")"
+  public_gate "$DEMO_DOMAIN" "$relay_token" 2> "$STATE/gate.err" || gate_failed "$(cat "$STATE/gate.err")"
   echo "reset.sh: demo rebuilt at $(git -C "$REPO" rev-parse --short HEAD), Home Assistant $version ($TESTBED_HA_IMAGE)" >&2
 }
 

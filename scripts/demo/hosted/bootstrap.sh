@@ -242,9 +242,9 @@ if [[ ! -s /var/lib/ha-nova-demo/ha-image ]]; then
   bash "$HERE/update-ha.sh" --pin "$pin"
 fi
 # Every gate (egress, DNS, listeners, relay, public site) runs inside the
-# reset; timers start only after this first gated build passed. TLS may not
-# exist yet (DNS not pointed): the public gate is skipped this once, loudly.
-bash "$HERE/reset.sh" --first-boot
+# reset; timers start only after this first gated build passed. Until DNS
+# points here there is no certificate, and every reset skips the public gate.
+bash "$HERE/reset.sh"
 systemctl enable --now ha-nova-demo-reset.timer ha-nova-demo-guard.timer ha-nova-demo-update.timer
 free -m >&2
 # Then move to the latest stable release (a no-op when the pin is current).

@@ -46,13 +46,16 @@ fi
 
 USER_DATA="$(mktemp)"
 trap 'rm -f "$USER_DATA"' EXIT
+# POSIX sh only: Lightsail puts its own launch commands (the browser-SSH CA
+# key) in front of this script, so their #!/bin/sh picks the shell: dash on
+# Ubuntu, which rejects pipefail and [[ ]].
 cat > "$USER_DATA" << EOF_UD
-#!/bin/bash
-set -euo pipefail
+#!/bin/sh
+set -eu
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -q
 apt-get install -y -q git
-[[ -d /opt/ha-nova/.git ]] || git clone --quiet $REPO_URL /opt/ha-nova
+[ -d /opt/ha-nova/.git ] || git clone --quiet $REPO_URL /opt/ha-nova
 git -C /opt/ha-nova checkout --quiet --detach $REF
 bash /opt/ha-nova/scripts/demo/hosted/bootstrap.sh --domain $DOMAIN --ref $REF --abuse-contact $ABUSE
 EOF_UD
