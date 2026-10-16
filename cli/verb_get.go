@@ -96,7 +96,11 @@ func runGetCommand(paths runtimePaths, args []string) int {
 		}
 		if *withRelated || *withReferences {
 			if result.Related, err = s.ws(map[string]any{"type": "search/related", "item_type": "entity", "item_id": entityID}); err != nil {
-				return err
+				if result.References == nil {
+					return err
+				}
+				// The scan stands; a failed cross-check is named, not fatal.
+				result.References.NotScanned = append(result.References.NotScanned, refGap{Family: "related", Reason: err.Error()})
 			}
 		}
 		env.Result = result

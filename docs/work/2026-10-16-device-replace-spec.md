@@ -29,8 +29,10 @@ device trackers and classic `group.*` members ARE covered by `search/related`.
 
 One scan over the entity's whole device, so a swap needs one call per device.
 
-- Needles: every entity of the device (registry rows by `device_id`; the given
-  entity alone when it has no device), each entity's registry id, the
+- Needles: every entity of the device (registry rows by `device_id` of the
+  device's owning config entry — a helper linked to the device, such as a
+  utility meter, is a consumer, not the device's own; the given entity alone
+  when it has no device), each entity's registry id, the
   `device_id`, and — for a `mobile_app` device — its notify service, checked
   against `GET /api/services`.
 - A removed entity (no state, no registry row) is still scanned for its
@@ -40,13 +42,16 @@ One scan over the entity's whole device, so a swap needs one call per device.
 - Holders scanned, read-only:
   - every automation and script: the stored config (registry `unique_id`), or
     the loaded config (WS `automation/config`/`script/config`) for YAML items;
-    registry-disabled items too;
+    registry-disabled items too; a blueprint instance is also expanded
+    (`blueprint/substitute`): a needle only the blueprint body names is a hit
+    with `managed: blueprint`;
   - every Lovelace dashboard from `get_panels` (`lovelace/config`; an
     auto-generated dashboard has no config and nothing to re-point);
   - `energy/get_prefs`;
   - every state's attributes (`/api/states`): scenes, groups, group helpers,
     persons (`device_trackers`), min_max, utility meter/derivative/integral
-    `source`, threshold.
+    `source`, threshold. An unavailable helper hides its attributes: it is a
+    `not_scanned` row, never a silent zero.
 - Matching: whole-id boundaries (`sensor.temp` never matches
   `sensor.temp_2` or `binary_sensor.temp`; `states.sensor.temp.state`
   matches), in string values AND object keys (scene `entities:`). Each hit:
@@ -57,7 +62,10 @@ One scan over the entity's whole device, so a swap needs one call per device.
   classes no read can see (template helpers and YAML template entities,
   helpers that show no source attribute, YAML-only integrations, Node-RED /
   AppDaemon, protocol-level groups and bindings in ZHA/Zigbee2MQTT).
-- `--references` includes `related` (search/related) too.
+- `--references` includes `related` (search/related) too; its failure is a
+  `not_scanned` row, not a lost scan.
+- Mapping hints per entity: platform, translation key, original name, device
+  class, unit, state, area, labels.
 - Read allowlist (I1) grows by `get_panels`, `lovelace/config`,
   `energy/get_prefs` — all reads.
 
@@ -87,13 +95,23 @@ Swap:
    rewritten.
 4. One plan card: the mapping, every hit by family with its owning route,
    coverage, the path and why.
-5. Execute:
+5. Execute (tiers decided in the plan card, before anything is removed —
+   the **Access Check**: a takeover or a person/group hand-off is typed when
+   the entity is access-capable or sits on such a device, when any consumer
+   — including the automations of a person or group that holds the id —
+   plans typed, or when a consumer's tier cannot be read; carrying an area
+   or label onto an access-capable entity likewise). Order: device-level
+   re-points first (the new ids are known; a removed device's ids can never
+   be scanned again), then the old device's removal, the renames (carrying
+   area and labels, which membership targets need), the re-point of holders
+   that named the new ids, and the hand-offs:
    - automation/script rewrites: `ha-nova plan write` + `apply`, a grouped
      change set (`grouped-change-set.md`); the CLI computes each plan's tier
      from the performed actions (an automation that unlocks a door is typed,
      whichever part changed); a typed plan leaves the group. At most 5
      automation/script updates per group, because the undo store keeps the
-     last 5 targets; a swap with more offers a backup first.
+     last 5 targets across the whole swap; a swap with more says which
+     updates lose `revert` and offers a backup first.
    - takeover renames: registry updates per `organize` (metadata snapshot,
      consumer check). The takeover's tier is the highest tier of its
      automation/script consumers — planned unchanged with `plan write`, never

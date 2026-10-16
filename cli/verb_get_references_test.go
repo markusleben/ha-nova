@@ -36,12 +36,18 @@ func TestMatchNeedlesMatchesWholeIDsOnly(t *testing.T) {
 // battery sensor and a tracker, consumed by every holder family.
 func refHome(t *testing.T, extra func(endpoint string, payload map[string]any) (any, bool)) func(*http.Request, string, map[string]any) any {
 	registry := []map[string]any{
-		{"id": "reg1battery00000000000000000000aa", "entity_id": "sensor.pixel_7_battery", "platform": "mobile_app", "device_id": "dev1", "unique_id": "u1", "original_name": "Battery level", "translation_key": nil},
-		{"id": "reg2tracker00000000000000000000bb", "entity_id": "device_tracker.pixel_7", "platform": "mobile_app", "device_id": "dev1", "unique_id": "u2", "original_name": "Pixel 7"},
+		{"id": "reg1battery00000000000000000000aa", "entity_id": "sensor.pixel_7_battery", "platform": "mobile_app", "device_id": "dev1", "config_entry_id": "ce_mobile", "unique_id": "u1", "original_name": "Battery level", "translation_key": nil},
+		{"id": "reg2tracker00000000000000000000bb", "entity_id": "device_tracker.pixel_7", "platform": "mobile_app", "device_id": "dev1", "config_entry_id": "ce_mobile", "unique_id": "u2", "original_name": "Pixel 7"},
 		{"id": "reg3other0000000000000000000000cc", "entity_id": "sensor.pixel_7_battery_2", "platform": "mqtt", "device_id": "dev2", "unique_id": "u3"},
 		{"id": "r4", "entity_id": "automation.low_battery", "platform": "automation", "unique_id": "100"},
 		{"id": "r5", "entity_id": "automation.arrive", "platform": "automation", "unique_id": "200", "disabled_by": "user"},
 		{"id": "r6", "entity_id": "script.package_script", "platform": "script", "unique_id": "package_script"},
+		// A helper linked to the phone's device by its own config entry, and
+		// a group helper that is unavailable (attributes hidden).
+		{"id": "r9", "entity_id": "sensor.pixel_7_battery_meter", "platform": "utility_meter", "device_id": "dev1", "config_entry_id": "ce_meter", "unique_id": "u9"},
+		{"id": "r10", "entity_id": "light.dead_group", "platform": "group", "config_entry_id": "ce_group", "unique_id": "u10"},
+		{"id": "r7", "entity_id": "automation.bp_battery", "platform": "automation", "unique_id": "300"},
+		{"id": "r8", "entity_id": "automation.bp_missing", "platform": "automation", "unique_id": "400"},
 	}
 	states := []map[string]any{
 		{"entity_id": "sensor.pixel_7_battery", "state": "80", "attributes": map[string]any{"device_class": "battery", "unit_of_measurement": "%"}},
@@ -50,6 +56,8 @@ func refHome(t *testing.T, extra func(endpoint string, payload map[string]any) (
 		{"entity_id": "automation.low_battery", "state": "on", "attributes": map[string]any{"id": "100"}},
 		{"entity_id": "automation.yaml_without_id", "state": "on", "attributes": map[string]any{}},
 		{"entity_id": "script.package_script", "state": "off", "attributes": map[string]any{}},
+		{"entity_id": "sensor.pixel_7_battery_meter", "state": "3", "attributes": map[string]any{"source": "sensor.pixel_7_battery"}},
+		{"entity_id": "light.dead_group", "state": "unavailable", "attributes": map[string]any{"friendly_name": "Dead group"}},
 		{"entity_id": "person.markus", "state": "home", "attributes": map[string]any{"device_trackers": []any{"device_tracker.pixel_7"}}},
 		{"entity_id": "sensor.min_battery", "state": "80", "attributes": map[string]any{"entity_id": []any{"sensor.pixel_7_battery", "sensor.pixel_7_battery_2"}}},
 	}
@@ -63,6 +71,12 @@ func refHome(t *testing.T, extra func(endpoint string, payload map[string]any) (
 			"triggers": []any{map[string]any{"trigger": "device", "device_id": "dev1", "entity_id": "reg2tracker00000000000000000000bb", "domain": "device_tracker", "type": "enters", "zone": "zone.home"}},
 			"actions":  []any{map[string]any{"action": "lock.unlock", "target": map[string]any{"entity_id": "lock.front"}}}},
 	}
+	// A blueprint whose body names the battery by default; its instance names
+	// only the tracker. A second instance's blueprint is gone.
+	configs["/api/config/automation/config/300"] = map[string]any{"alias": "Battery blueprint",
+		"use_blueprint": map[string]any{"path": "battery.yaml", "input": map[string]any{"tracker": "device_tracker.pixel_7"}}}
+	configs["/api/config/automation/config/400"] = map[string]any{"alias": "Missing blueprint",
+		"use_blueprint": map[string]any{"path": "missing.yaml"}}
 	return func(_ *http.Request, endpoint string, payload map[string]any) any {
 		if extra != nil {
 			if reply, ok := extra(endpoint, payload); ok {
@@ -81,7 +95,7 @@ func refHome(t *testing.T, extra func(endpoint string, payload map[string]any) (
 				}
 				return fakeRelayFailure{"UPSTREAM_WS_COMMAND_ERROR", "not_found: Entity not found"}
 			case "config/device_registry/list":
-				return []any{map[string]any{"id": "dev1", "name": "Pixel 7", "name_by_user": "Markus phone", "manufacturer": "Google", "model": "Pixel 7"}}
+				return []any{map[string]any{"id": "dev1", "name": "Pixel 7", "name_by_user": "Markus phone", "manufacturer": "Google", "model": "Pixel 7", "config_entries": []any{"ce_mobile", "ce_meter"}, "primary_config_entry": "ce_mobile"}}
 			case "script/config":
 				if payload["entity_id"] == "script.package_script" {
 					return map[string]any{"config": map[string]any{"sequence": []any{map[string]any{"condition": "state", "entity_id": "device_tracker.pixel_7", "state": "home"}}}}
@@ -90,6 +104,13 @@ func refHome(t *testing.T, extra func(endpoint string, payload map[string]any) (
 				if payload["entity_id"] == "automation.yaml_without_id" {
 					return fakeRelayFailure{"UPSTREAM_ERROR", "Relay timeout"}
 				}
+			case "blueprint/substitute":
+				if payload["path"] == "battery.yaml" {
+					return map[string]any{"substituted_config": map[string]any{
+						"triggers":   []any{map[string]any{"trigger": "numeric_state", "entity_id": "sensor.pixel_7_battery", "below": 10}},
+						"conditions": []any{map[string]any{"condition": "state", "entity_id": "device_tracker.pixel_7", "state": "home"}}}}
+				}
+				return fakeRelayFailure{"UPSTREAM_WS_COMMAND_ERROR", "home_assistant_error: Failed to load blueprint"}
 			case "get_panels":
 				return map[string]any{
 					"lovelace":       map[string]any{"component_name": "lovelace", "url_path": "lovelace", "config": map[string]any{"mode": "storage"}},
@@ -171,6 +192,9 @@ func TestGetReferencesScansEveryHolderForTheWholeDevice(t *testing.T) {
 		"energy energy sensor.pixel_7_battery":                           {"device_consumption[0].stat_consumption"},
 		"entity person.markus device_tracker.pixel_7":                    {"attributes.device_trackers[0]"},
 		"entity sensor.min_battery sensor.pixel_7_battery":               {"attributes.entity_id[0]"},
+		"automation automation.bp_battery device_tracker.pixel_7":        {"use_blueprint.input.tracker"},
+		"automation automation.bp_battery sensor.pixel_7_battery":        {"triggers[0].entity_id"},
+		"entity sensor.pixel_7_battery_meter sensor.pixel_7_battery":     {"attributes.source"},
 	}
 	for key, wantPaths := range want {
 		h, ok := hits[key]
@@ -195,12 +219,24 @@ func TestGetReferencesScansEveryHolderForTheWholeDevice(t *testing.T) {
 	if h := hits["dashboard dashboard-yaml sensor.pixel_7_battery"]; h.Managed != "yaml" {
 		t.Errorf("yaml dashboard must be managed yaml: %+v", h)
 	}
-	// The failed read is named, never a silent zero; the auto-generated
-	// dashboard counts as scanned.
-	if len(refs.NotScanned) != 1 || refs.NotScanned[0].ID != "automation.yaml_without_id" {
+	// The blueprint body's own reference is flagged: the blueprint, not the
+	// instance, holds it; the instance's input stays an ordinary hit.
+	if h := hits["automation automation.bp_battery sensor.pixel_7_battery"]; h.Managed != "blueprint" {
+		t.Errorf("blueprint-owned hit: %+v", h)
+	}
+	if h := hits["automation automation.bp_battery device_tracker.pixel_7"]; h.Managed != "" {
+		t.Errorf("instance input hit: %+v", h)
+	}
+	// Failed reads and expansions are named, never a silent zero; the
+	// auto-generated dashboard counts as scanned.
+	gaps := map[string]bool{}
+	for _, g := range refs.NotScanned {
+		gaps[g.ID] = true
+	}
+	if len(refs.NotScanned) != 3 || !gaps["automation.yaml_without_id"] || !gaps["automation.bp_missing"] || !gaps["light.dead_group"] {
 		t.Errorf("not_scanned = %+v", refs.NotScanned)
 	}
-	if refs.Scanned["automation"] != 2 || refs.Scanned["script"] != 1 || refs.Scanned["dashboard"] != 3 || refs.Scanned["energy"] != 1 {
+	if refs.Scanned["automation"] != 4 || refs.Scanned["script"] != 1 || refs.Scanned["dashboard"] != 3 || refs.Scanned["energy"] != 1 {
 		t.Errorf("scanned = %+v", refs.Scanned)
 	}
 	if len(result.Related) == 0 || len(refs.NotCovered) == 0 {
@@ -291,4 +327,30 @@ func sortedCopy(in []string) []string {
 	out := append([]string(nil), in...)
 	sort.Strings(out)
 	return out
+}
+
+func TestGetReferencesKeepsTheScanWhenACrossCheckFails(t *testing.T) {
+	paths, _ := setupVerbRelayTest(t, refHome(t, func(endpoint string, payload map[string]any) (any, bool) {
+		switch {
+		case endpoint == "ws" && payload["type"] == "search/related":
+			return fakeRelayFailure{"UPSTREAM_ERROR", "Relay timeout"}, true
+		case endpoint == "ws" && payload["type"] == "lovelace/config" && payload["url_path"] == "dashboard-yaml":
+			// a YAML dashboard whose file is missing is a gap, never "auto-generated"
+			return fakeRelayFailure{"UPSTREAM_WS_COMMAND_ERROR", "config_not_found: No config found."}, true
+		}
+		return nil, false
+	}))
+	exit, env := runVerbForTest(t, func() int { return runGetCommand(paths, []string{"sensor.pixel_7_battery", "--references"}) })
+	result, hits := referencesOf(t, env)
+	gaps := map[string]bool{}
+	for _, g := range result.References.NotScanned {
+		gaps[g.Family+" "+g.ID] = true
+	}
+	if exit != 0 || !gaps["related "] || !gaps["dashboard dashboard-yaml"] || len(hits) == 0 {
+		t.Fatalf("exit %d, not_scanned %+v", exit, result.References.NotScanned)
+	}
+	// Plain --related still fails loud.
+	if exit, _ := runVerbForTest(t, func() int { return runGetCommand(paths, []string{"sensor.pixel_7_battery", "--related"}) }); exit != verbExitError {
+		t.Fatalf("--related with a failed search: exit %d", exit)
+	}
 }
