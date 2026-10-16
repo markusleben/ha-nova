@@ -8,14 +8,22 @@
   body { font: 16px/1.5 system-ui, sans-serif; max-width: 36em; margin: 3em auto; padding: 0 1em; color: #1c1c1c; background: #fafafa; }
   @media (prefers-color-scheme: dark) { body { color: #e1e1e1; background: #111; } a { color: #7cc4ff; } }
   code { background: rgba(127, 127, 127, .15); padding: .1em .35em; border-radius: 4px; }
+  .warn { margin: 1.5em 0; padding: .9em 1.1em; border: 2px solid #b45309; border-radius: 8px; background: #fff7ed; color: #431407; }
+  .warn h2 { margin: 0 0 .3em; font-size: 1.1em; }
+  .warn p { margin: 0; }
+  @media (prefers-color-scheme: dark) { .warn { border-color: #f59e0b; background: #2a1a06; color: #fde7c8; } }
   .open { display: inline-block; margin: 1em 0; padding: .7em 1.4em; border-radius: 8px; background: #03a9f4; color: #fff; text-decoration: none; font-weight: 600; }
 </style>
 </head>
 <body>
 <h1>HA NOVA demo house</h1>
+<section class="warn" role="note" aria-labelledby="warn-title">
+<h2 id="warn-title">Public demo — everyone shares one account.</h2>
+<p>Anything you enter is visible to other visitors until the next reset. <strong>Never enter real names, addresses, passwords, API keys or tokens, and don't connect real accounts or devices.</strong></p>
+</section>
 <p>A simulated Home Assistant house (no real devices) for trying Home Assistant and HA NOVA before you connect your own.</p>
 <p>Log in with <code>demo</code> / <code>demo</code>. You are an admin: change anything, write automations, break things.</p>
-<p><strong>Everything is wiped every hour at :00 UTC</strong>; next reset in <span id="next">less than 60</span> min. Everyone shares the same account, so <strong>don't enter personal data</strong>.</p>
+<p><strong>Everything is wiped every hour at :00 UTC</strong>; next reset in <span id="next">less than 60</span> min.</p>
 <a class="open" href="/demo-house/house">Open the demo</a>
 <p id="version"></p>
 <p>Machine-readable connection details (relay URL and its public token): <a href="/connect.json">/connect.json</a>.</p>

@@ -18,7 +18,7 @@ video-recording kit, `docs/reference/demo-recording.md`).
 | `guard.sh` | host, every minute | Skips while a reset holds the lock. Disk/swap watchdog; `demo.mjs guard` (30 s cap); relay round trip (revoked token: reset at once; other failures: after 3 minutes); TLS that came up after a skipped public gate. Anything wrong → full reset. |
 | `update-ha.sh` | host, nightly | Latest stable HA: resolve digest, verify the Sigstore signature, refuse downgrades, candidate reset + gates, promote or roll back, prune old images. |
 | `host-lib.sh` | host | Shared gates: relay round trip, egress/DNS, listeners, public site; Caddy (re)creation; pinned Node/Caddy images; the lock. |
-| `demo.mjs` | host | `setup` (http trial promote, local-only owner, admin `demo/demo`, drop onboarding extras), `token` (the relay user's LLAT), `dashboard`, `guard`, `smoke`. |
+| `demo.mjs` | host | `setup` (seeded http config check, local-only owner, "Demo add-on" device shown as "Demo app", admin `demo/demo`, drop onboarding extras), `token` (the relay user's LLAT), `dashboard`, `guard`, `smoke`. |
 | `edge.yml`, `Caddyfile`, `site/` | host | Caddy in its own compose project: TLS, CSP, blocked paths, landing page, restarting page, `/relay/*`, `/connect.json`, `/abuse`, privacy-filtered access log. |
 | `docker-compose.yml` | host | Overlay over the test bed compose: internal network only, DNS sink, sealed directories, limits, relay settings. |
 | `mosquitto.conf`, `mosquitto.acl` | host | Broker split: seeding listener (container loopback) vs. Home Assistant listener (no discovery writes). |
@@ -113,13 +113,14 @@ the next full hour.
   sandbox after every dockerd upgrade.
 - Landing page: `/` (without a query; HA's own redirects always carry one,
   e.g. `?auth_callback=1`) and `/start`: login, next reset, the running HA
-  version, "no personal data", a link to `/connect.json`, abuse link, "Open
+  version, a personal-data warning callout above everything else, a link to `/connect.json`, abuse link, "Open
   the demo" (`/demo-house/house`). It promises nothing unreleased. Verified:
   login redirect, logout redirect.
 - In HA: `sensor.demo_next_reset` (UTC timestamp; agents:
   `ha-nova get sensor.demo_next_reset`), the `demo-house` dashboard as the
-  system-wide default with a banner as every view's header (minutes to the
-  reset, HA version, links to `/start` and `/abuse`), and a notice at :55 UTC.
+  system-wide default with a banner as every view's header (the personal-data
+  warning first, minutes to the reset, HA version, links to `/start` and
+  `/abuse`), and a notice at :55 UTC (with the same warning).
   Both use `utcnow()`, because visitors can change HA's time zone.
 - The guard restores the banner dashboard and the default panel within a
   minute; anything else comes back at :00.
@@ -155,9 +156,9 @@ scripts for third parties), the AWS account, persistence past :00.
 | Containers | All: `no-new-privileges`, `cap_drop: [ALL]`, read-only root, CPU/memory/pids limits (HA 1.5 CPU, 640 MiB + swap to 1 GiB, 512 pids), size-capped logs, no docker.sock, no host network, nothing privileged, images by digest (HA: verified nightly, below). HA keeps 5 caps for s6-overlay; Caddy uid 1000 + `NET_BIND_SERVICE`; broker uid 1883; relay uid 100. |
 | HA config surface | `/config` stays writable (`.storage`, recorder, UI editors' atomic writes), but `configuration.yaml` and `packages/` are read-only binds and `custom_components`, `python_scripts`, `www`, `backups`, `image`, `tts`, `/media` are empty read-only tmpfs mounts. `home-assistant.log` is `/dev/null`; `file_upload` lands in a 64 MiB `/tmp` tmpfs. No `default_config`; onboarding's met/google_translate/radio_browser/shopping_list entries are deleted. No shell_command/command_line/rest/python_script anywhere. go2rtc (can run `exec:` sources) has no config flow, so it cannot be added. |
 | MQTT | `mqtt.publish` is an admin service (read in the 2026.10.1 source), so visitors have it. The broker gives HA a listener whose ACL allows reads and only `testbed/+/set`, `testbed/plug/factory_reset`, `testbed/router/restart` writes (verified: discovery deletes/additions dropped, commands pass). Seeding uses a second listener on the broker container's loopback. |
-| Browser | CSP: scripts, images, frames, connections only from this origin (+ `data:`/`blob:`, inline for HA's own boot). Verified: an external dashboard resource and external markdown images are blocked; the HA UI works (dashboards, settings, automations, history, energy, media). HA's markdown sanitizer strips `onerror`, `javascript:` links, `<script>` (verified). HSTS, `nosniff`, `X-Frame-Options DENY`, `frame-ancestors 'none'`, 1 MB request bodies, Caddy admin API off. |
+| Browser | CSP: scripts, frames, connections only from this origin (+ `data:`/`blob:`, inline for HA's own boot); images from this origin and `https://brands.home-assistant.io`. HA 2026.10 serves integration icons at `/api/brands/integration/<domain>/<file>` by fetching that CDN server-side, which the house cannot; Caddy answers those paths (domain and file name allowlisted like HA's, no query kept) with a 302 to the same public image, so the visitor's browser fetches it and the house still has no egress. Map tiles (`/api/map_tiles/`, e.g. the Zones page map) are proxied the same way and stay blank on purpose: the map library fetches them with `fetch()`, so a redirect would also widen `connect-src`, and it would skip the caching HA's proxy does for OpenStreetMap's tile usage policy. Verified: an external dashboard resource and external markdown images are blocked; the HA UI works (dashboards, settings, automations, history, energy, media). HA's markdown sanitizer strips `onerror`, `javascript:` links, `<script>` (verified). HSTS, `nosniff`, `X-Frame-Options DENY`, `frame-ancestors 'none'`, 1 MB request bodies, Caddy admin API off. |
 | Accounts | Guard every minute via the owner's token (WS handshake deadline 15 s, whole check 30 s): owner active + local-only, `demo` and `nova-relay` checked by the user ids recorded at creation (same username, active, admin, not local-only; a deleted and re-created look-alike fails), http config (`use_x_forwarded_for`, no IP bans, trusted proxy, nothing pending) unchanged, relay not reporting an `auth` disconnect, else full reset. Repairs: the `demo` password; failed-login notices (visitor IPs) and notices that look like links (`//`, markdown links and references, `href`, `www.`) dismissed; banner dashboard and default panel restored. HA refuses to delete or deactivate the owner (verified). |
-| Proxy trust | `trusted_proxies` = Caddy's fixed 10.89.240.2 only (dynamic addresses start at .128). HA 2026.10 imports the `http:` YAML as a 5-minute trial; `demo.mjs setup` promotes it right after onboarding and fails loud otherwise. **No IP bans:** HA bans on any 401, the password is public, the owner cannot log in from outside anyway; bans would only lock visitors (or the tooling path) out. |
+| Proxy trust | `trusted_proxies` = Caddy's fixed 10.89.240.2 only (dynamic addresses start at .128). HA 2026.10 deprecated the `http:` YAML (a repair, plus a 5-minute trial to promote), so there is none: `config/.storage/http` seeds HA's own store (stable slot, YAML migration marked done) before the first boot, every reset; `demo.mjs setup` fails loud if HA runs anything else. **No IP bans:** HA bans on any 401, the password is public, the owner cannot log in from outside anyway; bans would only lock visitors (or the tooling path) out. |
 | Secrets | None in the repo or user-data (readable via instance metadata). Owner password and token, relay user password and token: generated on the host per reset; the public relay token once. IMDSv2 only, hop limit 1. |
 | AWS | No role or credentials of the demo's account on the instance. Lightsail's own platform role (`AmazonLightsailInstanceRole`, instance profile in an AWS-owned account) is on the IMDS for host root only: IMDSv2, hop limit 1, and the house network has no route to it (verified from every container). Budget alarm at 10 USD. |
 | Logs / privacy | Caddy access log: 7 days, client IPs truncated to /24 (/48), no headers, no `authSig`/`token`/`code` query values. `/abuse` shows the contact given at provisioning. |
@@ -304,7 +305,7 @@ The full test bed `verify.sh` is not the gate: it needs the Go CLI and the
 command_line/rest entities the demo masks; `smoke` covers what the demo
 relies on. Manual rollback: `update-ha.sh --pin <older version>`, then
 `systemctl start ha-nova-demo-reset`. A release that changes what the demo
-depends on (e.g. the `http:` YAML import, breaking in 2027.2) fails its smoke
+depends on (e.g. the seeded `.storage/http` format) fails its smoke
 test and stays out until the repo is fixed.
 
 ## Bumping other pins

@@ -3,7 +3,7 @@
 // on the demo host. Talks only to the local seeding path through Caddy
 // (http://127.0.0.1:18123) with the owner's long-lived token. No dependencies.
 //
-//   node demo.mjs setup     <ha_url> <owner_llat>  http trial promote, owner local-only,
+//   node demo.mjs setup     <ha_url> <owner_llat>  http config check, owner local-only,
 //                                                  admin user demo/demo, drop onboarding entries
 //   node demo.mjs token     <ha_url> <owner_llat>  prints a long-lived token of the relay's own
 //                                                  admin user (not demo, not the owner)
@@ -27,9 +27,9 @@ const base = haUrl.replace(/\/$/, "");
 const DEMO_USER = "demo";
 const DEMO_PASSWORD = "demo"; // public on purpose: on the landing page (/start) and in docs/reference/hosted-demo.md
 const RELAY_USER = "nova-relay"; // the public relay's HA identity; password random, never shown
-const PROXY = "10.89.240.2/32"; // Caddy (edge.yml) = http.trusted_proxies
+const PROXY = "10.89.240.2/32"; // Caddy (edge.yml) = trusted_proxies in config/.storage/http
 const ONBOARDING_EXTRAS = ["met", "google_translate", "radio_browser", "shopping_list"];
-const BANNER_MARK = "**Public demo.**";
+const BANNER_MARK = "**Public demo — everyone shares one account.**";
 const DASHBOARD = "demo-house"; // storage dashboard; the system-wide default panel
 const SMOKE_ENTITIES = ["light.bed_light", "lock.entrance_door", "cover.testbed_garage", "switch.smart_plug",
   "sensor.testbed_temperature", "button.router_restart", "light.template_desk_lamp", "input_boolean.guest_mode",
@@ -116,17 +116,13 @@ async function ensureAdmin(ha, users, username, name, password) {
   return user;
 }
 
-// HA 2026.10+ imports the YAML http block as a PENDING trial and reverts to
-// the stored default (no proxy: every request 400) five minutes after boot
-// unless an admin promotes it. Runs right after onboarding (up.sh).
+// Runs right after onboarding (up.sh). The proxy settings come from the
+// seeded store (config/.storage/http), not YAML: fail loud if HA did not
+// take them as they are.
 async function setup() {
   await withHa(async (ha) => {
-    let http = await ha.call({ type: "http/config" });
-    if (http.pending && !http.pending.error) {
-      await ha.call({ type: "http/config/promote" });
-      http = await ha.call({ type: "http/config" });
-    }
-    if (httpProblem(http)) throw new Error(`http config not promoted: ${JSON.stringify(http.stable)}`);
+    const http = await ha.call({ type: "http/config" });
+    if (httpProblem(http)) throw new Error(`http config is not the seeded one: ${JSON.stringify(http)}`);
 
     const users = await ha.call({ type: "config/auth/list" });
     const owner = users.find((u) => u.is_owner);
@@ -134,6 +130,10 @@ async function setup() {
     // The owner is host tooling only: never a login from the internet.
     await ha.call({ type: "config/auth/update", user_id: owner.id, local_only: true });
     await ensureAdmin(ha, users, DEMO_USER, "Demo", DEMO_PASSWORD);
+    // The demo integration names this update device "Demo add-on"; HA calls them apps.
+    const devices = await ha.call({ type: "config/device_registry/list" });
+    const app = devices.find((d) => d.identifiers.some(([domain, id]) => domain === "demo" && id === "update_addon"));
+    if (app) await ha.call({ type: "config/device_registry/update", device_id: app.id, name_by_user: "Demo app" });
 
     // Onboarding adds these; they only call out (blocked anyway) or store data.
     const entries = await ha.call({ type: "config_entries/get" });
@@ -176,9 +176,11 @@ async function relayToken() {
 
 const banner = (version) => [
   BANNER_MARK,
+  "Anything you enter is visible to other visitors until the next reset.",
+  "**Never enter real names, addresses, passwords, API keys or tokens, and don't connect real accounts or devices.**",
   "Everything you change is wiped every hour at :00 UTC.",
   "Next reset in {{ ((as_timestamp(states('sensor.demo_next_reset'), as_timestamp(now())) - as_timestamp(now())) / 60) | round(0, 'ceil') | int }} min.",
-  `Don't enter personal data. Running Home Assistant ${version}.`,
+  `Running Home Assistant ${version}.`,
   "[About this demo](/start) · [Report abuse](/abuse)",
 ].join(" ");
 const TILE_DOMAINS = ["light", "switch", "cover", "lock", "climate", "fan", "media_player", "vacuum", "humidifier",

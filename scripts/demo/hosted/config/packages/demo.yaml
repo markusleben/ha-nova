@@ -19,4 +19,7 @@ automation:
         data:
           notification_id: demo_reset
           title: Demo reset in 5 minutes
-          message: Everything changed in the last hour is wiped at :00 UTC. The house comes back pristine about 2 minutes later.
+          message: >-
+            Everything changed in the last hour is wiped at :00 UTC. The house comes back pristine about 2 minutes later.
+            Public demo, one shared account: never enter real names, addresses, passwords, API keys or tokens,
+            and don't connect real accounts or devices.

@@ -32,7 +32,7 @@ services:
     networks:
       edge: {}
       house:
-        ipv4_address: 10.89.240.2 # = http.trusted_proxies in config/configuration.yaml
+        ipv4_address: 10.89.240.2 # = trusted_proxies in config/.storage/http
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - ./site:/site:ro
