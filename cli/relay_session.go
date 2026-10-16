@@ -52,6 +52,10 @@ var readOnlyWSTypes = map[string]bool{
 	"get_panels":       true,
 	"lovelace/config":  true,
 	"energy/get_prefs": true,
+	// Dashboards (dashboard-write spec): the list and the installed resources
+	// (lovelace/config above; a read with force: true is refused below).
+	"lovelace/dashboards/list": true,
+	"lovelace/resources":       true,
 }
 
 // relaySession resolves config and transport once per invocation and
@@ -178,7 +182,8 @@ func checkReadOnlyRequest(endpoint string, payload map[string]any) error {
 		}
 		return fmt.Errorf("read verbs only send core GET /api/...; refused %q %q, nothing was sent", method, path)
 	case "ws":
-		if wsType, _ := payload["type"].(string); readOnlyWSTypes[wsType] {
+		forced := payload["force"] == true // lovelace/config with force re-reads YAML from disk: never sent
+		if wsType, _ := payload["type"].(string); readOnlyWSTypes[wsType] && !(wsType == "lovelace/config" && forced) {
 			return nil
 		}
 		return fmt.Errorf("WS type %q is not on the read-only allowlist; nothing was sent", payload["type"])

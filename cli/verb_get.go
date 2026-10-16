@@ -11,7 +11,7 @@ import (
 	"strings"
 )
 
-const getUsage = "ha-nova get <entity_id> [--config] [--related] [--references]"
+const getUsage = "ha-nova get <entity_id> [--config] [--related] [--references]\n       ha-nova get --dashboard <url_path> [--config] | --dashboards"
 
 var entityIDPattern = regexp.MustCompile(`^[a-z0-9_]+\.[a-z0-9_]+$`)
 
@@ -35,7 +35,17 @@ func runGetCommand(paths runtimePaths, args []string) int {
 	withConfig := fs.Bool("config", false, "also read the stored config (automation/script/scene) by its config id")
 	withRelated := fs.Bool("related", false, "also read search/related for the entity")
 	withReferences := fs.Bool("references", false, "also scan automations, scripts, dashboards, energy, and state attributes for the entity, its device, and the device's other entities (includes --related)")
+	dashboard := fs.String("dashboard", "", "one dashboard (url_path): its views, cards, custom card types, and issues")
+	dashboards := fs.Bool("dashboards", false, "every dashboard: the broken-card sweep (missing entities, unconfirmed custom card types)")
 	positional, err := parseVerbArgs(fs, &opts, args, getUsage)
+	if err == nil && (*dashboard != "" || *dashboards) {
+		if len(positional) != 0 || *withRelated || *withReferences || (*dashboards && (*dashboard != "" || *withConfig)) || (*dashboard != "" && !dashboardPathPattern.MatchString(*dashboard)) {
+			return verbUsageError("get", errors.New("Usage: "+getUsage))
+		}
+		return runReadVerb(paths, "get", opts, func(s *relaySession, env *verbEnvelope) error {
+			return runGetDashboards(s, env, *dashboard, *withConfig)
+		})
+	}
 	entityID := ""
 	if err == nil {
 		entityID, err = singleEntityID(positional, getUsage)

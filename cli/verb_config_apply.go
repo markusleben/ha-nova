@@ -13,9 +13,9 @@ import (
 // reload, a read-back compared with the plan, the registry entity and its
 // state. A delete is preceded by a pre-delete config snapshot.
 
-// errSnapshotFailed: nothing was deleted, so apply releases the plan (the
-// typed code stays valid for --no-snapshot).
-var errSnapshotFailed = errors.New("pre-delete snapshot failed")
+// errSnapshotFailed: nothing was deleted or saved, so apply releases the
+// plan (a typed code stays valid for --no-snapshot).
+var errSnapshotFailed = errors.New("pre-write snapshot failed")
 
 var nonSlug = regexp.MustCompile(`[^a-z0-9]+`)
 
@@ -30,6 +30,9 @@ func snapshotName(id string) string {
 }
 
 func executeConfig(paths runtimePaths, s *relaySession, env *verbEnvelope, action configAction, ctx configContext, noSnapshot bool) (err error) {
+	if action.Domain == "dashboard" {
+		return executeDashboard(paths, s, env, action, ctx, noSnapshot)
+	}
 	sent := false
 	defer afterSend(&sent, env, &err)
 	s.renewBudget()
@@ -64,6 +67,9 @@ func executeConfig(paths runtimePaths, s *relaySession, env *verbEnvelope, actio
 	if action.Op == "write" && ctx.current == nil { // a restore retries as itself: CONFIG_ID_IN_USE once it landed
 		createdID = action.ConfigID
 	}
+	if action.Op == "delete" && env.Snapshot != "" { // the delete was sent: its way back, whatever comes next
+		env.Restore = restoreCommand(action, env.Snapshot, s.server)
+	}
 	if failure := writeFailure(env, result, err, createdID); failure != nil && !alreadyGone {
 		if errors.As(err, &unknown) && update {
 			saveCheckpoint(paths, s, env, action, ctx, action.Body)
@@ -78,9 +84,6 @@ func executeConfig(paths runtimePaths, s *relaySession, env *verbEnvelope, actio
 	reloaded := reloadErr == nil && reload.status < 400
 	s.renewBudget()
 	row, readback := verifyConfig(s, action, reloaded)
-	if action.Op == "delete" && env.Snapshot != "" {
-		env.Restore = restoreCommand(action, env.Snapshot, s.server)
-	}
 	if alreadyGone && row.Outcome == "verified" {
 		row.Note = "already gone when the delete arrived (removed concurrently)"
 	}

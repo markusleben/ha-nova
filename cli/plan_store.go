@@ -58,8 +58,8 @@ type storedPlan struct {
 	Code          string `json:"code,omitempty"`
 	Nonce         string `json:"nonce"`
 	Mismatches    int    `json:"code_mismatches,omitempty"` // apply attempts with a wrong code (3 invalidate)
-	// SnapshotFailed: a delete whose pre-delete snapshot failed was handed
-	// back; only then may the user choose --no-snapshot. Not in the hash.
+	// SnapshotFailed: a delete (or dashboard save) whose snapshot failed was
+	// handed back; only then may the user choose --no-snapshot. Not in the hash.
 	SnapshotFailed bool            `json:"snapshot_failed,omitempty"`
 	Prompt         string          `json:"prompt,omitempty"` // a typed plan's code-free confirmation-form text (mcp_confirm.go); not in the hash
 	Request        planCallRequest `json:"request"`
