@@ -187,8 +187,9 @@ func openHASignInIngress(
 			"Home Assistant may still list this sign-in (%s). You can remove it under Profile → Security → Refresh tokens: %s",
 			authorization.ClientID, haProfileSecurityURL(haURL))
 	}
-	if err != nil && ctx.Err() != nil {
-		return haSignInSession{user: result.session.user}, errors.Join(errSignInStopped, err)
+	if ctx.Err() != nil {
+		// Ctrl+C wins even when the steps finished meanwhile.
+		return haSignInSession{user: result.session.user}, errors.Join(errSignInStopped, context.Canceled)
 	}
 	return result.session, err
 }

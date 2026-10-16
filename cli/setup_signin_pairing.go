@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"unicode"
 )
 
 // "Sign in with Home Assistant" in the setup pairing step
@@ -96,6 +97,10 @@ func signInAndPair(
 		return false, haSignInRetryable(err), nil
 	}
 	renderSetupSuccessLine(out, "Signed in to Home Assistant as %s (owner)", haSignInUserName(session.user))
+	// The ingress pairing exchange gets the same bound as the other steps
+	// after the browser returns.
+	ctx, cancel := context.WithTimeout(ctx, haSignInStepTimeout)
+	defer cancel()
 	_, pairErr := runSetupSpinnerWithResult(out, "Connecting this computer...", setupSpinnerDebounce, func() (struct{}, error) {
 		var pairErr error
 		lockErr := withSetupLifecycleGuard(paths, lifecycleMarker, func() error {
@@ -157,16 +162,16 @@ func haSignInFallbackLine(err error, user HACurrentUser) string {
 	case errors.Is(err, errSignInBrowser) && IsCloudErrorCode(err, CloudErrTimeout):
 		return "No sign-in arrived within five minutes."
 	case errors.Is(err, errSignInNotOwner):
-		if user.Name == "" {
+		if terminalSafeName(user.Name) == "" {
 			return "The account you signed in with is not the Home Assistant owner. Only the owner can connect a computer."
 		}
-		return fmt.Sprintf("Signed in as %s, who is not the Home Assistant owner. Only the owner can connect a computer.", user.Name)
+		return fmt.Sprintf("Signed in as %s, who is not the Home Assistant owner. Only the owner can connect a computer.", terminalSafeName(user.Name))
 	case errors.Is(err, errSignInAppMissing):
 		return "Home Assistant did not find a running NOVA Relay App, so sign-in cannot connect this computer."
 	case errors.Is(err, errSignInRelayUnsupported):
 		return "Your NOVA Relay App does not support sign-in yet. Update it in Home Assistant when convenient."
 	case errors.Is(err, errSignInRelayNotReady):
-		return "NOVA Relay is not ready to connect computers yet. Restart the NOVA Relay App in Home Assistant, then run ha-nova setup again."
+		return "NOVA Relay is not ready to connect computers yet. Open NOVA in Home Assistant for details, then run ha-nova setup again."
 	case errors.As(err, &pairing):
 		return "Connecting through Home Assistant did not finish."
 	case errors.As(err, &certificate), errors.As(err, &authority):
@@ -182,8 +187,19 @@ func haSignInFallbackLine(err error, user HACurrentUser) string {
 }
 
 func haSignInUserName(user HACurrentUser) string {
-	if user.Name != "" {
-		return user.Name
+	if name := terminalSafeName(user.Name); name != "" {
+		return name
 	}
 	return "the owner"
+}
+
+// Account names come from Home Assistant; control characters (terminal
+// escape sequences) never reach the terminal.
+func terminalSafeName(name string) string {
+	return strings.TrimSpace(strings.Map(func(r rune) rune {
+		if unicode.IsControl(r) {
+			return -1
+		}
+		return r
+	}, name))
 }

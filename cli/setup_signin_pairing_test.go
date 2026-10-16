@@ -29,6 +29,7 @@ type fakeSignInHA struct {
 	owner       bool
 	noSuper     bool
 	silentWS    bool
+	onSession   func()
 	mu          sync.Mutex
 	revoked     bool
 	events      []string
@@ -156,6 +157,9 @@ func (ha *fakeSignInHA) websocket(w http.ResponseWriter, r *http.Request) {
 				signInTestIngressRoot + `","ingress_url":"` + signInTestIngressRoot + `/home"}`
 		case command.Endpoint == "/ingress/session":
 			result = `{"session":"` + strings.Repeat("b", 128) + `"}`
+			if ha.onSession != nil {
+				ha.onSession()
+			}
 		default:
 			ha.t.Errorf("unexpected WebSocket command %s", data)
 			return
@@ -273,6 +277,41 @@ func TestHASignInBoundsAnUnresponsiveHomeAssistantAndStillRevokes(t *testing.T) 
 	defer ha.mu.Unlock()
 	if !ha.revoked {
 		t.Fatal("a stalled Home Assistant must still get the refresh token revoked")
+	}
+}
+
+func TestHASignInCtrlCAfterTheSessionExistsStillStopsAndRevokes(t *testing.T) {
+	ha := newFakeSignInHA(t)
+	useFakeBrowser(t, ha, signedInQuery)
+	previous := haSignInInterrupt
+	t.Cleanup(func() { haSignInInterrupt = previous })
+	var stop context.CancelFunc
+	haSignInInterrupt = func(ctx context.Context) (context.Context, context.CancelFunc) {
+		ctx, stop = context.WithCancel(ctx)
+		return ctx, stop
+	}
+	ha.onSession = func() { stop() } // Ctrl+C right as the ingress session is created
+	session, err := openHASignInIngress(context.Background(), io.Discard, ha.server.URL)
+	if !errors.Is(err, errSignInStopped) || session.ingress != nil {
+		t.Fatalf("session=%+v err=%v", session, err)
+	}
+	ha.mu.Lock()
+	defer ha.mu.Unlock()
+	if !ha.revoked {
+		t.Fatal("the refresh token must be revoked after a late Ctrl+C")
+	}
+}
+
+func TestHASignInNamesNeverCarryTerminalControls(t *testing.T) {
+	user := HACurrentUser{Name: "Ev\x1b[2Jil\x07"}
+	if got := haSignInUserName(user); got != "Ev[2Jil" {
+		t.Fatalf("name = %q", got)
+	}
+	if line := haSignInFallbackLine(errSignInNotOwner, user); strings.ContainsAny(line, "\x1b\x07") {
+		t.Fatalf("line = %q", line)
+	}
+	if got := haSignInUserName(HACurrentUser{Name: "\x1b"}); got != "the owner" {
+		t.Fatalf("control-only name = %q", got)
 	}
 }
 
