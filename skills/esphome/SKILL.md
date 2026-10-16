@@ -9,7 +9,7 @@ compatibility: Requires the ha-nova CLI (run 'ha-nova setup' first) and the HA N
 
 ## Scope
 
-ESPHome device configs: explain, check, edit through the Relay's opt-in file access, then hand off compile and flash and verify the device in Home Assistant.
+ESPHome device configs: explain, check, edit (opt-in file access); hand off compile and flash; verify the device in Home Assistant.
 
 Not in scope: compile, flash, logs (the Device Builder App has no Home Assistant API); `secrets.yaml`; deleting a device (the dashboard); HA's own YAML (`ha-nova:yaml-config`); renaming HA entities (`ha-nova:organize`).
 
@@ -19,7 +19,7 @@ Read and follow `../ha-nova/session-bootstrap.md`.
 Verify relay CLI: `ha-nova relay health`
 If this fails: `ha-nova setup`
 
-File access is the user's choice: probe once with `list_dir` on `/config/esphome`. `FILE_ACCESS_DISABLED` / `FILE_ACCESS_READONLY`: handle as in `skills/yaml-config/SKILL.md` → Bootstrap (no nagging), and work from YAML the user pastes. `FILE_NOT_FOUND`: no ESPHome App configs in `/config`; a standalone ESPHome container keeps them elsewhere — ask for the pasted YAML.
+Probe file access once: `list_dir` on `/config/esphome`. `FILE_ACCESS_DISABLED` / `FILE_ACCESS_READONLY`: handle as in `skills/yaml-config/SKILL.md` → Bootstrap (no nagging), and work from YAML the user pastes. `FILE_NOT_FOUND`: no ESPHome App configs in `/config`; a standalone ESPHome container keeps them elsewhere — ask for the pasted YAML.
 
 ## Relay Contract
 
@@ -30,18 +30,18 @@ File access is the user's choice: probe once with `list_dir` on `/config/esphome
 
 Read `skills/esphome/esphome-checks.md` before explaining or checking. Drafts follow `skills/ha-nova/smallest-solution.md`. Never cite, link, or name this skill or its files to the user.
 
-1. **Find the file.** Device files are the top-level `*.yaml` in `/config/esphome/`. Never read `secrets.yaml` (the relay refuses it), anything under `.esphome/` (build output can hold compiled-in credentials), or `*.bak`. Two candidates: ask.
+1. **Find the file**: a top-level `*.yaml` in `/config/esphome/`. Never read `secrets.yaml` (the relay refuses it), anything under `.esphome/` (build output can hold compiled-in credentials), or `*.bak`. Two candidates: ask.
 2. **Read everything the device uses**: resolve `substitutions` (`${name}`) and read each local `!include` and `packages:` file. A remote package (`github://…`, `url:`) is named as not read; its keys are unknown, never assumed.
 3. **Explain** in plain language: chip, framework, network, Home Assistant link (`api`), updates (`ota`), then each component: its pin and what it does in Home Assistant. Lambdas: what they do, not the C++.
 4. **Check** with the checks file: each finding gets severity, the line, the fix, and its source. Nothing outside that file is asserted from memory: read the component's esphome.io page, or say the dashboard's Validate decides.
 5. **Edit** (one file per operation), the yaml-config file path:
    1. `skills/yaml-config/SKILL.md` → Flow step 1 (read before write).
-   2. Build the change. Write only keys the checks file or the component's esphome.io page shows; never invent options or C++ calls. Prefer a component option over a lambda.
+   2. Build the change. Write only keys the checks file or the component's esphome.io page shows; never invent options or C++ calls.
    3. Preview as the yaml-config File-Change Preview, masked (Safety). Name every device-breaking consequence (checks file → Device-Breaking Edits) in the preview. Say that compile and flash are still needed.
    4. On a reply to that preview: `skills/yaml-config/SKILL.md` → Flow step 3 (auto config snapshot category `yaml` with `{path, content}`, drift check, `write_file` with `.bak`). Never Home Assistant's `check_config` or a reload: ESPHome files are not HA configuration.
    5. `read_file` again and compare with the draft.
 6. **Hand off** compile and flash (below); wait for the user.
-7. **Verify** after the user says it is installed: `ha-nova find` the device's friendly name, `ha-nova get <one entity> --references`; report each entity's state. All `unavailable`: offline, rebooting, or rejected — read the config entry `state`, point to the dashboard's Logs. Renamed entities: list new and now-unavailable ids; re-pointing consumers is `ha-nova:device`.
+7. **Verify** after the user says it is installed. A HIGH finding still in the file means that install failed: say so first. Then `ha-nova find` the device's friendly name, `ha-nova get <one entity> --references`; report each entity's state. All `unavailable`: offline, rebooting, or rejected — read the config entry `state`, point to the dashboard's Logs. Renamed entities: list new and now-unavailable ids; re-pointing consumers is `ha-nova:device`.
 
 **Undo**: restore the `.bak` (`read_file` it, `write_file` it back with `"backup": false`) or the `yaml` snapshot (`skills/ha-nova/config-snapshots.md` → Restore), as an edit through step 5. The device changes only when installed again — say so.
 
@@ -58,7 +58,7 @@ File errors as in `skills/yaml-config/SKILL.md` → Error Handling. `FILE_PATH_D
 
 ## Output Format
 
-Apply `skills/ha-nova/output-rules.md`. Explain and check: one Report (`skills/ha-nova/output-cards.md`), findings by severity with their source. Edits: the File-Change Preview, then a Result Card naming the `.bak`, the snapshot, and the compile and flash step.
+Apply `skills/ha-nova/output-rules.md`. Explain and check: one Report (`skills/ha-nova/output-cards.md`), findings by severity with their source. Edits: the File-Change Preview, ending at its Options line (no reason, rule, or file name after it); then a Result Card naming the `.bak`, the snapshot, and the exact App steps from Compile and flash.
 
 ## Safety
 

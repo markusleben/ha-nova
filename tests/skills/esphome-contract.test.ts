@@ -112,5 +112,8 @@ describe("esphome skill (needs-analysis TOP 5)", () => {
     expect(skill).toContain("**Verify** after the user says it is installed");
     expect(skill).toContain("Never report a change as on the device before the user installed it and the entities came back.");
     expect(skill).toContain("re-pointing consumers is `ha-nova:device`");
+    expect(skill).toContain("A HIGH finding still in the file means that install failed: say so first.");
+    expect(skill).toContain("ending at its Options line (no reason, rule, or file name after it)");
+    expect(skill).toContain("the exact App steps from Compile and flash");
   });
 });
