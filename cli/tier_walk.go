@@ -268,6 +268,9 @@ func (e *tierEngine) sceneMember(id string, value any, via string, depth int) {
 	if leaves := groupMembers(domain, st); leaves != nil {
 		state, _ := json.Marshal(value)
 		key := "scene-group " + id + " " + string(state) // per requested state
+		if e.visited[key] {
+			e.routes[id] = append(e.routes[id], via)
+		}
 		if e.visited[key] || e.cut(depth+1, id, via) {
 			return
 		}

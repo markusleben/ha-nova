@@ -204,9 +204,20 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string, noSnapshot
 	} else {
 		e, fresh, ctx, err = computeConfigPlan(paths, s, &env, *config)
 	}
+	// release hands the claimed plan back after a failure before anything
+	// reached Home Assistant, so the same apply can be retried.
+	release := func(err error) error {
+		var failure *verbFailure
+		if errors.Is(err, errNothingSent) && errors.As(err, &failure) {
+			if consumed = os.Rename(claimed, open) != nil; consumed {
+				failure.next = "Nothing was sent, so retrying is safe: " + replan
+			}
+		}
+		return err
+	}
 	var expected *verbFailure
-	if err != nil && !errors.As(err, &expected) && os.Rename(claimed, open) == nil {
-		consumed = false // the Relay is unreachable: nothing was sent, the plan stays usable
+	if err != nil && !errors.As(err, &expected) {
+		return fail(release(nothingSent(err))) // the Relay is unreachable: nothing was sent
 	}
 	if err != nil {
 		return fail(err)
@@ -267,7 +278,7 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string, noSnapshot
 			}
 		}
 		if err != nil {
-			return fail(err)
+			return fail(release(err))
 		}
 		return env, env.exit
 	}
@@ -275,9 +286,19 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string, noSnapshot
 		return fail(refused("UNRESOLVED_TARGET", "the plan named targets but froze none"))
 	}
 	if err := executeAction(s, e, &env, fresh.Action); err != nil {
-		return fail(err)
+		return fail(release(err))
 	}
 	return env, env.exit
+}
+
+// errNothingSent: the write failed before reaching Home Assistant, so the
+// claimed plan is released and a retry is safe.
+var errNothingSent = errors.New("nothing was sent")
+
+// nothingSent words a failure before anything reached Home Assistant.
+func nothingSent(err error) *verbFailure {
+	next := "Nothing was sent, so retrying is safe: run the same command again once the Relay answers, and tell the user it was retried."
+	return &verbFailure{exit: verbExitError, code: "RELAY_ERROR", message: err.Error() + "; nothing was sent to Home Assistant", next: next, cause: errNothingSent}
 }
 
 // afterSend turns a panic once the request may have reached Home Assistant
@@ -327,8 +348,8 @@ func executeAction(s *relaySession, e *tierEngine, env *verbEnvelope, action pla
 	case errors.As(err, &unknown):
 		env.OutcomeUnknown = true
 		return &verbFailure{exit: verbExitUnknown, status: "unverified", code: "OUTCOME_UNKNOWN", message: err.Error(), next: "Verify the target state; never retry automatically."}
-	case err != nil:
-		return fmt.Errorf("%w; Home Assistant did not receive the call", err)
+	case err != nil: // refused or answered before reaching Home Assistant
+		return nothingSent(err)
 	case rejectedStatuses[result.status]:
 		return &verbFailure{exit: verbExitUnverified, status: "failed", code: "SERVICE_REJECTED",
 			message: fmt.Sprintf("Home Assistant rejected the call (HTTP %d): %s", result.status, truncate(string(result.body), 300)),

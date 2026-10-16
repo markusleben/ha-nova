@@ -45,21 +45,21 @@ expect 'find "Leselampe" resolves light.bed_light by alias' 0 \
 expect 'find "Haustür" resolves lock.entrance_door by alias' 0 \
   'd.result.matches[0].entity_id === "lock.entrance_door"' -- find "Haustür"
 expect 'registry-disabled switch.ac is never a target' 5 \
-  'd.error.code === "NOT_FOUND"' -- plan call switch.turn_on switch.ac
+  'd.error.code === "ENTITY_DISABLED"' -- plan call switch.turn_on switch.ac
 
 echo "--- tiering (plan call)"
 expect 'helper write reaching lock.unlock via automation A is typed' 3 \
-  "d.tier === 'typed' && $reasons.includes('ACCESS_LOCK') && d.consumers.some(c => c.automation === 'automation.a_guest_mode_unlocks_entrance_door' && c.class === 'typed')" \
+  "d.tier === 'typed' && $reasons.includes('ACCESS_LOCK') && d.consumers.some(c => c.automation === 'automation.a_guest_mode_unlocks_entrance_door' && c.class === 'typed' && c.match === (d.deltas[0].before === 'off' ? 'will' : 'may'))" \
   -- plan call input_boolean.turn_on input_boolean.guest_mode
-expect 'living-room light (ordinary consumer B) is ordinary' 0 \
-  "d.tier === 'ordinary' && d.consumers.some(c => c.automation === 'automation.b_living_room_light_follows' && c.class === 'ordinary')" \
-  -- plan call light.turn_on light.living_room_rgbww_lights
+expect 'living-room light off is ordinary; consumer B (fires on "on") is not listed' 0 \
+  "d.tier === 'ordinary' && !(d.consumers || []).some(c => c.automation === 'automation.b_living_room_light_follows')" \
+  -- plan call light.turn_off light.living_room_rgbww_lights
 expect 'MQTT garage cover open is typed (ACCESS_COVER)' 3 \
   "d.tier === 'typed' && $reasons.includes('ACCESS_COVER')" -- plan call cover.open_cover cover.testbed_garage
 expect 'device_class override (kitchen_window -> shutter) makes open ordinary' 0 \
   "d.tier === 'ordinary'" -- plan call cover.open_cover cover.kitchen_window
 expect 'registry-less demo lock unlock is typed' 3 \
-  "d.tier === 'typed' && $reasons.includes('ACCESS_LOCK') && $reasons.includes('NO_REGISTRY_ROW')" -- plan call lock.unlock lock.front_door
+  "d.tier === 'typed' && $reasons.includes('ACCESS_LOCK') && $reasons.includes('UNREGISTERED_ACTUATOR')" -- plan call lock.unlock lock.front_door
 expect '"Plug factory reset" press is typed (DESTRUCTIVE_BUTTON)' 3 \
   "d.tier === 'typed' && $reasons.includes('DESTRUCTIVE_BUTTON')" -- plan call button.press button.plug_factory_reset
 expect 'restart-class button (demo, non-user-authored) press is preview' 3 \
@@ -69,8 +69,8 @@ expect 'MQTT "Router restart" press is typed (user-authored button outranks DISR
   -- plan call button.press button.router_restart
 expect 'command_line switch is typed (UNREAD_COMMAND)' 3 \
   "d.tier === 'typed' && $reasons.includes('UNREAD_COMMAND')" -- plan call switch.turn_on switch.garden_pump
-expect 'light referenced by a package automation without id is typed (YAML_NO_ID)' 3 \
-  "d.tier === 'typed' && $reasons.includes('YAML_NO_ID')" -- plan call light.turn_on light.ceiling_lights
+expect 'light acted on by a package automation without id: its loaded config is read (ordinary, no YAML_NO_ID)' 0 \
+  "d.tier === 'ordinary' && !(d.reasons || []).some(r => r.code === 'YAML_NO_ID')" -- plan call light.turn_on light.ceiling_lights
 expect 'template light is typed (TEMPLATE_ACTION_UNREAD)' 3 \
   "d.tier === 'typed' && $reasons.includes('TEMPLATE_ACTION_UNREAD')" -- plan call light.turn_on light.template_desk_lamp
 expect 'script with delayed garage open is typed via stored member' 3 \
@@ -106,8 +106,8 @@ expect 'plan write of a draft that unlocks a door is typed with a code' 3 \
 expect 'plan write update keeps ordered variables (base before brightness_pct)' 3 \
   "Object.keys(d.config.body.variables).join() === 'base,brightness_pct' && d.diff.length > 0" \
   -- plan write --domain automation --id testbed_f_ordered_variables --file "$TMP/ordered.json"
-expect 'get --config on a package automation is CONFIG_NOT_FOUND' 5 \
-  "d.error.code === 'CONFIG_NOT_FOUND'" -- get automation.package_hall_light_evening --config
+expect 'get --config on a package automation returns its loaded config (managed: yaml)' 0 \
+  "d.result.managed === 'yaml' && d.result.config.alias === 'Package hall light evening'" -- get automation.package_hall_light_evening --config
 expect 'plan write over a package automation is refused (CONFIG_NOT_UI_MANAGED)' 4 \
   "d.error.code === 'CONFIG_NOT_UI_MANAGED'" \
   -- plan write --domain automation --id package_hall_light_evening --file "$TMP/package.json"

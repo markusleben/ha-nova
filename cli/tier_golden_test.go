@@ -157,7 +157,7 @@ func TestPlanCallTierGoldenCases(t *testing.T) {
 		{name: "consumer automation with only ordinary actions keeps the fast path (Q1)",
 			setup: consumer("lock.lock"), args: []string{"input_boolean.turn_on", "input_boolean.guest"}, exit: 0, tier: "ordinary",
 			check: func(t *testing.T, env verbTestEnvelope) {
-				if len(env.Consumers) != 1 || env.Consumers[0] != (tierConsumer{"automation.guest_lights", "trigger", "ordinary"}) {
+				if len(env.Consumers) != 1 || env.Consumers[0] != (tierConsumer{"automation.guest_lights", "will", "ordinary"}) {
 					t.Fatalf("consumers %+v", env.Consumers)
 				}
 			}},
