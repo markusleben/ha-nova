@@ -58,6 +58,7 @@ const FORBIDDEN_HEADINGS = [
 const MUTATION_SKILLS = new Set([
   "hacs",
   "device",
+  "migrate",
   "write",
   "diagnose",
   "media",
