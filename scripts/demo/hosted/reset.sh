@@ -31,20 +31,30 @@ main() {
 
   exec 9> "$LOCK"
   flock 9
-
-  TESTBED_HA_IMAGE="${candidate:-$(cat "$STATE/ha-image")}"
-  [[ "$TESTBED_HA_IMAGE" =~ ^ghcr\.io/home-assistant/home-assistant@sha256:[0-9a-f]{64}$ ]] \
-    || { echo "reset.sh: no verified Home Assistant digest" >&2; exit 1; }
-  DEMO_RELAY_IMAGE="$(relay_image "$DEMO_REF")"
-  docker image inspect "$DEMO_RELAY_IMAGE" > /dev/null \
-    || { echo "reset.sh: relay image $DEMO_RELAY_IMAGE missing; re-run bootstrap.sh" >&2; exit 1; }
-  export TESTBED_OVERLAY="$HOSTED" TESTBED_HA_IMAGE DEMO_RELAY_IMAGE DEMO_DOMAIN ABUSE_CONTACT
-
+  # Hidden before anything can fail: no exit below may leave last hour's
+  # house exposed (gate_failed also takes it down).
   rm -f "$PUBLIC/ready"
+
+  TESTBED_HA_IMAGE="${candidate:-$(cat "$STATE/ha-image" 2> /dev/null || true)}"
+  [[ "$TESTBED_HA_IMAGE" =~ ^ghcr\.io/home-assistant/home-assistant@sha256:[0-9a-f]{64}$ ]] \
+    || gate_failed "no verified Home Assistant digest"
+  DEMO_RELAY_IMAGE="$(relay_image "$DEMO_REF")"
+  docker image inspect "$DEMO_RELAY_IMAGE" > /dev/null 2>&1 \
+    || gate_failed "relay image $DEMO_RELAY_IMAGE missing; re-run bootstrap.sh"
+  # down.sh wipes .state with this image: in use by Caddy, so never pruned.
+  export TESTBED_OVERLAY="$HOSTED" TESTBED_HA_IMAGE DEMO_RELAY_IMAGE DEMO_DOMAIN ABUSE_CONTACT TESTBED_WIPE_IMAGE="$CADDY_IMAGE"
+
   RELAY_AUTH_TOKEN="" HA_LLAT="" timeout 300 bash "$TB/down.sh"
   git -C "$REPO" checkout -q --force --detach "$DEMO_REF"
   git -C "$REPO" clean -qffdx
   edge_up
+  # Nothing served over TLS but the name points here: Caddy retries ACME now
+  # instead of after its backoff (up to 6 h; it stops after 30 days). Here
+  # the house is hidden, and up.sh waits for HA through Caddy anyway.
+  if ! tls_served "$DEMO_DOMAIN" && dns_points_here "$DEMO_DOMAIN"; then
+    echo "reset.sh: $DEMO_DOMAIN points here, no certificate yet; restarting Caddy to retry ACME (docker logs ha-nova-demo-caddy)"
+    docker restart ha-nova-demo-caddy > /dev/null
+  fi
 
   # Fresh owner password per reset; the owner is local-only (demo.mjs setup)
   # and only host tooling uses it, through its long-lived token.
@@ -79,7 +89,10 @@ main() {
   chmod 0644 "$tmp"
   mv "$tmp" "$PUBLIC/connect.json"
   touch "$PUBLIC/ready"
-  public_gate "$DEMO_DOMAIN" "$relay_token" 2> "$STATE/gate.err" || gate_failed "$(cat "$STATE/gate.err")"
+  # 2 = skipped: nothing is served over TLS yet (no certificate).
+  local rc=0
+  public_gate "$DEMO_DOMAIN" "$relay_token" 2> "$STATE/gate.err" || rc=$?
+  ((rc == 0 || rc == 2)) || gate_failed "$(cat "$STATE/gate.err")"
   echo "reset.sh: demo rebuilt at $(git -C "$REPO" rev-parse --short HEAD), Home Assistant $version ($TESTBED_HA_IMAGE)" >&2
 }
 

@@ -7,6 +7,9 @@ set -euo pipefail
 
 # shellcheck source=host-lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/host-lib.sh"
+# DEMO_DOMAIN (written by bootstrap.sh)
+# shellcheck source=/dev/null
+. /etc/ha-nova-demo.env
 RELAY_STRIKES=/run/ha-nova-demo-relay-strikes
 
 reset() {
@@ -27,6 +30,9 @@ swap="$(free | awk '/^Swap:/ { print ($2 > 0) ? int($3 * 100 / $2) : 0 }')"
 ((swap <= 80)) || reset "swap at ${swap}%"
 
 [[ -s "$TB/.state/ha-llat" && -s "$STATE/relay-token" && -e "$PUBLIC/ready" ]] || reset "no demo state"
+# The last reset skipped the public gate (nothing served over TLS); now
+# something is: run the gate through a reset.
+if [[ -e "$PENDING" ]] && tls_served "$DEMO_DOMAIN"; then reset "TLS for $DEMO_DOMAIN is up, public gate pending"; fi
 timeout 30 node "$HOSTED/demo.mjs" guard "$HA" "$(cat "$TB/.state/ha-llat")" || reset "house check failed"
 
 # The relay: a revoked HA token (auth) resets at once; anything else

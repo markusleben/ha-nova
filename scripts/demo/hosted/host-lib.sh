@@ -11,8 +11,12 @@ PUBLIC="$STATE/public"
 HA=http://127.0.0.1:18123
 # One lock for everything that rebuilds or inspects the house: reset.sh holds
 # it for the whole rebuild, guard.sh skips while it is held, update-ha.sh
-# passes its candidate straight to reset.sh (nothing to steal).
+# passes its candidate straight to reset.sh (nothing to steal) and holds it
+# for its own gates.
 LOCK=/run/ha-nova-demo.lock
+# Set while the public gate was skipped (nothing served over TLS); guard.sh
+# starts a reset, and with it the gate, as soon as TLS is served.
+PENDING="$STATE/public-gate-pending"
 # The relay image: built once per ref by bootstrap.sh from a digest-pinned
 # Node base, never pulled or rebuilt by a reset, labelled so prunes keep it.
 NODE_IMAGE=node:22.23.3-alpine3.24@sha256:0a7108bf6c7bf5de370ffb1a3ed6be93d405b43ff159f681a8d18c0e2bc2e402
@@ -61,8 +65,18 @@ egress_gate() {
     failed=1
   fi
   rm -rf "$dir"
+  # Positive controls: the same tools must work on house targets, or a
+  # missing tool or container would read as "blocked".
   if ! timeout 4 docker exec ha-nova-testbed-ha getent hosts mosquitto > /dev/null; then
     echo "egress gate: service names no longer resolve on the house network" >&2
+    failed=1
+  fi
+  if ! timeout 4 docker exec ha-nova-testbed-ha curl -sf -m 3 -o /dev/null http://127.0.0.1:8123/manifest.json; then
+    echo "egress gate: the curl probe does not work inside Home Assistant" >&2
+    failed=1
+  fi
+  if ! timeout 4 docker exec ha-nova-testbed-relay node -e 'fetch("http://homeassistant:8123/manifest.json").then(r=>process.exit(r.ok?0:1),()=>process.exit(1))'; then
+    echo "egress gate: the fetch/DNS probe does not work inside the relay" >&2
     failed=1
   fi
   return "$failed"
@@ -75,32 +89,50 @@ listener_gate() {
   [[ -z "$bad" ]] || { echo "listener gate: unexpected TCP listeners: $bad" >&2; return 1; }
 }
 
+# tls_served <domain>: Caddy completes a TLS handshake for the name on this
+# host and answers, whatever the certificate (expired, internal, untrusted).
+tls_served() { curl -sk -m 15 --resolve "$1:443:127.0.0.1" -o /dev/null "https://$1/start"; }
+
+# dns_points_here <domain>: the name resolves to this instance's public IPv4
+# (IMDSv2; the hop limit of 1 keeps containers out, not the host).
+dns_points_here() {
+  local token ip
+  token="$(curl -sf -m 3 -X PUT -H 'X-aws-ec2-metadata-token-ttl-seconds: 60' http://169.254.169.254/latest/api/token)" || return 1
+  ip="$(curl -sf -m 3 -H "X-aws-ec2-metadata-token: $token" http://169.254.169.254/latest/meta-data/public-ipv4)" || return 1
+  [[ -n "$ip" && " $(getent ahostsv4 "$1" | awk '{print $1}' | tr '\n' ' ') " == *" $ip "* ]]
+}
+
 # public_gate <domain> <relay_token>: the public site as a visitor sees it,
-# through Caddy's TLS on this host, blocked paths included. Until Caddy holds
-# a certificate (DNS not pointed here yet) nothing is served over TLS: the
-# gate is skipped, noted on stdout (callers capture stderr for failures
-# only). Once the name resolves, Caddy is restarted so it retries ACME now;
-# its own backoff waits up to 6 h and stops after 30 days.
+# through Caddy's TLS on this host (verified), blocked paths included.
+# Returns 2, the gate skipped, only while nothing at all is served over TLS
+# (no certificate yet: DNS not pointed here); noted on stdout (callers
+# capture stderr for failures only), and $PENDING makes guard.sh start a
+# reset as soon as TLS is served. Anything served goes through the gate.
 public_gate() {
-  local domain="$1" token="$2" url path code
-  if ! compgen -G "$STATE/caddy/data/caddy/certificates/acme*/$domain/$domain.crt" > /dev/null; then
-    echo "public gate: SKIPPED, Caddy has no certificate for $domain yet (point DNS here)"
-    if getent ahostsv4 "$domain" > /dev/null; then docker restart ha-nova-demo-caddy > /dev/null; fi
-    return 0
+  local domain="$1" token="$2" url pats pat code
+  if ! tls_served "$domain"; then
+    echo "public gate: SKIPPED, nothing served over TLS for $domain yet (no certificate: A record to this host? docker logs ha-nova-demo-caddy)"
+    touch "$PENDING"
+    return 2
   fi
+  rm -f "$PENDING"
   url=(--resolve "$domain:443:127.0.0.1" -sf -m 15)
-  curl "${url[@]}" -o /dev/null "https://$domain/start" || { echo "public gate: https://$domain unreachable" >&2; return 1; }
-  curl "${url[@]}" "https://$domain/" | grep -q "HA NOVA demo house" || { echo "public gate: landing page" >&2; return 1; }
+  curl "${url[@]}" -o /dev/null "https://$domain/start" || { echo "public gate: https://$domain does not verify or answer" >&2; return 1; }
+  # grep -c reads to the end: grep -q could exit early and fail curl (pipefail).
+  curl "${url[@]}" "https://$domain/" | grep -c "HA NOVA demo house" > /dev/null || { echo "public gate: landing page" >&2; return 1; }
   curl "${url[@]}" "https://$domain/connect.json" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>process.exit(JSON.parse(s).relay_token?0:1))' \
     || { echo "public gate: connect.json" >&2; return 1; }
   curl "${url[@]}" -o /dev/null -H "Authorization: Bearer $token" "https://$domain/relay/health" || { echo "public gate: relay" >&2; return 1; }
   curl "${url[@]}" -o /dev/null "https://$domain/auth/authorize?response_type=code&client_id=https://$domain/&redirect_uri=https://$domain/" \
     || { echo "public gate: login page" >&2; return 1; }
-  # One path per @blocked pattern in the Caddyfile.
-  for path in /api/backup/upload /local/x /api/tts_proxy/x /relay/pair /relay/home /api/onboarding /onboarding.html; do
-    code="$(curl --resolve "$domain:443:127.0.0.1" -s -m 15 -o /dev/null -w '%{http_code}' "https://$domain$path" || true)"
-    [[ "$code" == 403 ]] || { echo "public gate: $path answered $code, not 403" >&2; return 1; }
+  # Every @blocked pattern of the Caddyfile, read from it (read -a: no globbing).
+  read -ra pats <<< "$(sed -n 's/^[[:space:]]*@blocked path //p' "$HOSTED/Caddyfile")"
+  ((${#pats[@]} > 0)) || { echo "public gate: no @blocked patterns in the Caddyfile" >&2; return 1; }
+  for pat in "${pats[@]}"; do
+    code="$(curl --resolve "$domain:443:127.0.0.1" -s -m 15 -o /dev/null -w '%{http_code}' "https://$domain${pat//\*/x}" || true)"
+    [[ "$code" == 403 ]] || { echo "public gate: ${pat//\*/x} answered $code, not 403" >&2; return 1; }
   done
+  echo "public gate: passed"
 }
 
 # edge_up [--force]: (re)create Caddy when its files changed (or forced),
