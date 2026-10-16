@@ -22,7 +22,7 @@ Read and follow `../ha-nova/session-bootstrap.md`. An unreachable Relay answers 
 ## Relay Contract
 
 - Scan (read-only): `ha-nova get <entity_id> --references` covers the entity's whole device. `result.references`: `device`, `entities[]` (mapping hints: `platform`, `translation_key`, `original_name`, `device_class`, `unit`, `state`, `registry_id`), `notify_service`, `hits[]` (`family`, `id`, `config_id`, `managed`, `needle`, `paths`, `template`), `scanned`, `not_scanned[]`, `not_covered[]`; `result.related` is search/related. An entity that no longer exists is scanned by its id (`resolved[0].by` = `absent`).
-- Resolve: `ha-nova find "<phrase>"`, `ha-nova get <entity_id> --config`.
+- Resolve: `ha-nova find "<phrase>"`, `ha-nova get <entity_id> --config`; registry reads (`config/entity_registry/get`, `config/device_registry/list`) per `skills/organize/SKILL.md`.
 - Re-point: `ha-nova plan write --domain automation|script --id <config_id> --file <draft.json>`, then `ha-nova apply --plan <id> [--confirm <code>]` (`skills/write/SKILL.md` Phase 2-3 rules).
 - Takeover: `ha-nova relay ws --data-file <payload-file>` with `{"type":"config/entity_registry/update","entity_id":"<new id>","new_entity_id":"<old id>"}`.
 
@@ -37,14 +37,14 @@ Read and follow `../ha-nova/session-bootstrap.md`. An unreachable Relay answers 
 | `energy` | `ha-nova:energy` |
 | `entity` on `scene.*` / `person.*` / `group.*` | `ha-nova:scene` / `ha-nova:admin` / `ha-nova:yaml-config` |
 | other `entity` (group, min_max, utility meter, derivative, integral, threshold helper) | `ha-nova:helper`; no helper → `ha-nova:fallback` |
-| old entity's Assist exposure | `ha-nova:assist` |
+| old entity's Assist exposure (a takeover keeps the new entity's own) | compare; differences: `ha-nova:assist` |
 | a `related` item missing from `hits` (a blueprint naming the entity) | read its config; treat it as a hit |
 
 ## Access Check
 
 A swap can hand a door to a new device without anyone editing a lock automation: a takeover re-points every unlock, disarm, or open that names the old id, a new phone's tracker can feed the person or group an unlock waits for, and an area or label can widen what an access automation targets. Decided in the plan card, before the old device is removed, a step takes the typed confirmation code (`confirm:takeover-<old object id>` for a rename; the owning flow's code for a hand-off) when:
 - the entity is a lock, an alarm panel, or a cover not of class awning, blind, curtain, damper, shade, shutter, or window — or sits on a device (old or new) with one;
-- any automation/script consumer plans `typed`: plan its current config unchanged (`get --config` → `plan write --id`), read only the tier, never apply it. Consumers include one level up: the `related` automations and scripts of every `entity` hit (a person, a group);
+- any automation/script consumer plans `typed` (a consumer the swap re-points: its re-point plan's tier; any other: plan its current config unchanged (`get --config` → `plan write --id`), read only the tier, never apply it). Consumers include one level up: the `related` automations and scripts of every `entity` hit (a person, a group);
 - a consumer's tier cannot be read (`managed: yaml` or `blueprint`, a `not_scanned` automation or script): it counts as typed.
 
 It covers takeover renames, person and group hand-offs, and carrying an area or label onto such an entity.
@@ -65,8 +65,8 @@ Drafts follow `skills/ha-nova/smallest-solution.md`: the complete requested outc
 5. **Execute** in this order (Re-point Group below):
    a. Device-level re-points — and on the rewrite path every re-point — before anything is removed: the new ids are known now, and a removed device's ids can never be scanned again.
    b. Takeover only: the user removes the old device in Home Assistant. Verify each mapped old id: `ha-nova get <old id>` exits 5 `NOT_FOUND`; a leftover row goes to `ha-nova:maintenance`.
-   c. Takeover renames, one registry update per pair on the NEW entity, per `skills/organize/SKILL.md` → Entity / Device Update Fields (metadata snapshot first); tier per Access Check, ordinary renames in one grouped change set. Carry the old entity's `area_id` and `labels` (area and label targets reach a device only through them) and, when the user wants, its `name`, `icon`, `aliases`. Rewrite path: the same area and labels go to the new device through `ha-nova:organize`.
-   d. Takeover only, after the renames are verified: re-point every holder that names a NEW entity's own id (the new scan's hits) to its taken-over id.
+   c. Takeover renames, one registry update per pair on the NEW entity, per `skills/organize/SKILL.md` → Entity / Device Update Fields (metadata snapshot first); tier per Access Check, ordinary renames in one grouped change set. Carry the old entity's `area_id` and `labels` (area and label targets reach a device only through them) and, when the user wants, its `name`, `icon`, `aliases`. Both paths: the old device's area and labels go to the new device through `ha-nova:organize`.
+   d. Takeover only, after the renames are verified: re-point every holder that names a NEW entity's own id (the new scan's hits) to its taken-over id; a holder that named both ids now names one entity twice — the user picks which reference stays.
    e. Hand-offs, one owning skill at a time (Hit Routing), each with exact holders, paths, and the mapping; their previews, snapshots, and tiers stay, raised by the Access Check where it applies. The Work Ledger carries the open families.
 6. **Verify**: re-scan the new device. Every holder of both scans shows the new needles or was dropped by the user's choice; on the rewrite path the old device's re-scan has no hits. Report applied, handed off, still open, and the coverage limits. A pure re-point needs no further review; a converted device trigger gets the write skill's Phase 4 review.
 
