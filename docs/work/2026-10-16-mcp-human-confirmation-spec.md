@@ -100,8 +100,10 @@ tool-approval prompt (`docs/reference/client-integration.md`).
   (headless `claude -p`/`codex exec`, auto-approve modes, some extension
   surfaces — reported for Claude Code's VS Code extension, anthropics/claude-code#98256)
   cannot confirm a typed plan, and its decline looks like a person's: nothing
-  is sent, and the result points to Home Assistant or the CLI. A
-  `--no-forms` opt-out is the follow-up if testers need one.
+  is sent, and the result points to Home Assistant, the CLI, or
+  `ha-nova mcp --no-forms`: that flag ignores the client's elicitation
+  capability (both eras), so the code is in the result again — the model sees
+  it, and the app's approval prompt for `ha_apply` stays the gate.
 - Client-side automation that answers forms (for example a Claude Code
   `Elicitation` hook) answers for the user; that is the user's configuration.
 - The form text is English (the CLI has no translations); the agent's preview

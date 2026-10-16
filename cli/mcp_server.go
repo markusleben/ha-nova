@@ -20,7 +20,13 @@ import (
 // and earlier) open with initialize, which scopes legacy semantics to this
 // process. Tools run the same verb functions as the CLI, in process.
 
-const mcpUsage = "ha-nova mcp [--server <name>]"
+const mcpUsage = "ha-nova mcp [--server <name>] [--no-forms]"
+
+// mcpNoForms (mcp --no-forms): ignore the client's elicitation capability,
+// for apps that declare forms but never show them. The code is then in the
+// tool result as for clients without forms; the app's approval prompt for
+// ha_apply stays the gate (mcp_confirm.go).
+var mcpNoForms bool
 
 const mcpModernVersion = "2026-07-28"
 
@@ -86,6 +92,7 @@ type mcpServer struct {
 	out         io.Writer
 	legacy      string          // negotiated legacy revision once initialize ran ("" = none)
 	legacyForms bool            // initialize declared form elicitation
+	noForms     bool            // mcp --no-forms
 	pin         string          // mcp --server: every tool call runs against this profile
 	told        map[string]bool // notice kind+server already hinted in next_step
 	lines       <-chan []byte   // client messages, one per line
@@ -97,6 +104,7 @@ func runMCPCommand(paths runtimePaths, args []string) int {
 	var opts verbOptions
 	fs := flag.NewFlagSet("mcp", flag.ContinueOnError)
 	fs.StringVar(&opts.server, "server", "", "server profile name (or HA_NOVA_SERVER)")
+	fs.BoolVar(&mcpNoForms, "no-forms", false, "never ask for codes in a confirmation form (the model then sees the code; the app's approval prompt stays the gate)")
 	positional, err := parseVerbArgs(fs, &opts, args, mcpUsage+"\n\nEXPERIMENTAL — not supported yet; the interface may change.\nServes the HA NOVA tools over MCP (stdio). Configure your MCP client with command \"ha-nova\", args [\"mcp\"].")
 	if errors.Is(err, errHelpShown) {
 		return 0
@@ -145,7 +153,7 @@ func serveMCP(paths runtimePaths, in io.Reader, out io.Writer) error {
 			}
 		}
 	}()
-	srv := &mcpServer{paths: paths, out: out, pin: serverSelectionOverride, told: map[string]bool{}, lines: lines}
+	srv := &mcpServer{paths: paths, out: out, pin: serverSelectionOverride, noForms: mcpNoForms, told: map[string]bool{}, lines: lines}
 	for {
 		line, open := srv.next()
 		if !open {
@@ -232,6 +240,7 @@ func (srv *mcpServer) dispatch(req rpcRequest) (map[string]any, *rpcError) {
 	if req.modern {
 		req.forms = formElicitation(capabilities)
 	}
+	req.forms = req.forms && !srv.noForms
 	result, rpcErr := srv.route(req)
 	if cacheableMethods[req.Method] && result != nil { // 2026-07-28 caching hints
 		result["ttlMs"], result["cacheScope"] = 0, "public"

@@ -541,3 +541,23 @@ func TestMCPFormNotShown(t *testing.T) {
 		t.Fatalf("stdin closed during a form: got %q (posts %d)", line, len(h.posts()))
 	}
 }
+
+// mcp --no-forms: the client's elicitation capability is ignored in both
+// eras; the code is in the result and confirm_code applies it.
+func TestMCPNoFormsOptOut(t *testing.T) {
+	mcpNoForms = true
+	t.Cleanup(func() { mcpNoForms = false })
+	h := newWriteHarness(t, newFakeHA())
+	c := startMCP(t, h.paths)
+	formsInit(c)
+	plan := envelopeOf(c.tool("ha_call", map[string]any{"service": "lock.unlock", "entity_ids": []string{"lock.front"}}))["plan"].(map[string]any)
+	if applied := c.tool("ha_apply", map[string]any{"plan_id": plan["id"], "confirm_code": plan["code"]}); plan["code"] == nil || envelopeOf(applied)["status"] != "verified" || len(h.posts()) != 1 {
+		t.Fatalf("--no-forms: %v / %v", plan, applied)
+	}
+	modern := map[string]any{"name": "ha_call", "arguments": map[string]any{"service": "lock.unlock", "entity_ids": []string{"lock.front"}},
+		"_meta": map[string]any{"io.modelcontextprotocol/protocolVersion": mcpModernVersion, "io.modelcontextprotocol/clientCapabilities": map[string]any{"elicitation": map[string]any{}}}}
+	h.f.states["lock.front"]["state"] = "locked"
+	if planned := envelopeOf(c.request("tools/call", modern)["result"].(map[string]any)); planned["plan"].(map[string]any)["code"] == nil {
+		t.Fatalf("--no-forms, 2026-07-28: %v", planned)
+	}
+}

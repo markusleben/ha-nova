@@ -137,7 +137,7 @@ func (srv *mcpServer) confirmByForm(req rpcRequest, args map[string]json.RawMess
 	}
 	// Some apps declare forms but turn them down or close them without showing
 	// one: the wording never claims that the user saw it.
-	elsewhere := "If they saw no confirmation form, their app can't show one here: they can make this change in Home Assistant itself, or with HA NOVA in a terminal."
+	elsewhere := "If they saw no confirmation form, their app can't show one here: they can make this change in Home Assistant itself or with HA NOVA in a terminal, or add \"--no-forms\" to the ha-nova MCP entry's args (the model then sees the code too)."
 	again := fmt.Sprintf("Tell the user nothing changed. %s Otherwise call ha_apply again with plan_id %s (it shows the form again) only after the user says they still want it.", elsewhere, plan.ID)
 	switch {
 	case answer.stop == "" && answer.Action == "accept" && typed != "":
