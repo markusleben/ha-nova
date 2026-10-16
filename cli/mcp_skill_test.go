@@ -61,7 +61,7 @@ func TestMCPSkillTool(t *testing.T) {
 	}
 	for name, want := range map[string]string{"skills/review/checks.md": "# HA NOVA skills/review/checks.md\n",
 		"../ha-nova/session-bootstrap.md": "# HA NOVA skills/ha-nova/session-bootstrap.md\n\n# Session Bootstrap",
-		"ha-nova": "# HA NOVA skill ha-nova\n\n---\nname: ha-nova", "ha-nova:ha-nova": "# HA NOVA skill ha-nova\n"} {
+		"ha-nova":                         "# HA NOVA skill ha-nova\n\n---\nname: ha-nova", "ha-nova:ha-nova": "# HA NOVA skill ha-nova\n"} {
 		if text := skillText0(t, c.tool("ha_skill", map[string]any{"name": name})); !strings.HasPrefix(text, mcpSkillHeader+want) {
 			t.Fatalf("%q: %.300q", name, text)
 		}
