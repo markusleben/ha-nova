@@ -107,17 +107,16 @@ While `truncated` is true the list proves neither absence nor uniqueness — nar
 2. Use-case defaults (create only, skip on update/delete):
    - Infer use-case from helper name + type using general HA knowledge.
    - Consult `skills/ha-nova/helper-schemas.md` → Suggested Defaults for principles and field name reminders.
-   - If sensible defaults can be inferred: render them as the Suggestion Block (output-cards.md), max 4 as numbered list (value defaults fill the requested item; feature-style improvement offers follow `skills/ha-nova/smallest-solution.md` — max 2). Group related fields into one item.
+   - If sensible defaults can be inferred: merge them into fields the user left unset and render them as the Suggestion Block (output-cards.md) inside the step 3 preview — never a separate question first — max 4 as numbered list (feature-style offers per `skills/ha-nova/smallest-solution.md`, max 2, numbered apart, only when picked). Group related fields into one item.
      ```
-     💡 Suggested defaults for "{name}" ({type}):
+     💡 Suggested defaults for "{name}" ({type}), included:
      1. min: 16, max: 30, step: 0.5
      2. unit_of_measurement: "°C"
      3. mode: slider
      4. icon: mdi:thermometer
-     Accept all, pick by number (e.g. "1 and 3"), or "skip".
+     `apply` saves them; drop by number (e.g. "skip 2") or "skip" all.
      ```
-   - User accepts all, picks by number, or says "skip".
-   - Accepted → merge into payload BEFORE preview.
+   - A dropped item changes the payload: re-preview.
    - No useful defaults inferable → silently skip.
 3. Preview the payload with the shared write-preview shape: compact summary, pre-write check when applicable, explicit not-saved-yet line, and Options block (`apply`, `show yaml`, `cancel`).
 4. Ask for natural confirmation bound to this exact preview (see context skill → Active Preview Confirmation).
@@ -489,7 +488,7 @@ Never show raw JSON to the user.
 
 - Preview before write. The only exception is a call that `ha-nova call` itself executed as `tier: ordinary` (an unambiguous everyday action, verified afterwards); everything else runs or is saved only after the user confirms the shown preview. High-consequence actions (e.g. unlocking or opening a lock, opening a gate, garage, or entry door, disarming the alarm — also through a scene or script) and deletes need a code.
 - Confirmation binds to the displayed preview and expires on any change to target, payload, endpoint, or scope (context skill → Active Preview Confirmation).
-- Pre-preview phrases ("do it", "go ahead", "implement the plan") authorize drafting and preview only — never the write itself.
+- Anything before the preview ("do it", answers to questions) never confirms it; only a reply to the preview does.
 - Delete and destructive operations require the typed confirmation code `confirm:<token>` verbatim; "yes" or any natural-language reply is invalid.
 - Never guess entity, service, or config IDs — resolve them or ask.
 - Home Assistant is reached exclusively through the `ha-nova` CLI.
