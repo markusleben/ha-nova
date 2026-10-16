@@ -2,9 +2,7 @@ package main
 
 import (
 	"fmt"
-	"regexp"
 	"strings"
-	"unicode"
 )
 
 // confirmationSay is the user-facing confirmation text of a plan that needs
@@ -14,6 +12,10 @@ import (
 // Home Assistant string in it is quoted and defanged (sayText). subject
 // names a config item (alias); calls name their resolved targets.
 func confirmationSay(e *tierEngine, env *verbEnvelope, plan storedPlan, subject string) string {
+	if plan.ConfigAction == nil && frozeNothing(plan.Request, plan.Action) {
+		// apply refuses such a plan (UNRESOLVED_TARGET): never ask for it.
+		return "Nothing could be resolved for the target you named, so this can't run. Name the entities instead."
+	}
 	parts := []string{sayWhat(e, env, plan, subject)}
 	var typed, other []string
 	seen := map[string]bool{}
@@ -41,10 +43,10 @@ func confirmationSay(e *tierEngine, env *verbEnvelope, plan storedPlan, subject 
 	// Every code-tier clause is shown (up to 8); the milder ones fill up to
 	// four sentences and the rest are counted, never dropped silently.
 	if len(typed) > 8 {
-		typed = append(typed[:8], sayMore(len(typed)-8)+" that need a code; the preview lists them")
+		typed = append(typed[:8], sayMore(len(typed)-8, "that need a code; the preview lists them"))
 	}
 	if room := max(4-len(typed), 1); len(other) > room {
-		other = append(other[:room], sayMore(len(other)-room)+" the preview lists")
+		other = append(other[:room], sayMore(len(other)-room, "the preview lists"))
 	}
 	rest := append(typed, other...)
 	for _, text := range rest {
@@ -56,37 +58,23 @@ func confirmationSay(e *tierEngine, env *verbEnvelope, plan storedPlan, subject 
 	switch {
 	case plan.Confirm == "code":
 		parts = append(parts, "Reply with `"+plan.Code+"` to go ahead — a plain yes can't confirm this.")
-	case plan.ConfigAction != nil: // the write card's options, in words
-		parts = append(parts, "Reply apply to save it, show yaml to see it first, or cancel.")
+	case plan.ConfigAction != nil: // the write card's literal options line
+		parts = append(parts, "Options: apply · show yaml · cancel")
 	default:
 		parts = append(parts, "Reply yes to go ahead.")
 	}
 	return strings.Join(parts, " ")
 }
 
-func sayMore(n int) string {
-	if n == 1 {
-		return "It does 1 more thing"
-	}
-	return fmt.Sprintf("It does %d more things", n)
-}
-
 // sayWhat: "Unlock “Front Door” (Hall): locked → unlocked. Nothing has run yet."
 func sayWhat(e *tierEngine, env *verbEnvelope, plan storedPlan, subject string) string {
 	if action := plan.ConfigAction; action != nil {
-		name := sayText(subject, true)
-		if name == "" {
-			name = sayText(action.Domain+"."+action.ConfigID, true)
+		// The write card already names the item and shows the diff: `say`
+		// is its closing block (save status, reasons, ask).
+		if action.Op == "delete" {
+			return "Nothing is deleted yet."
 		}
-		switch {
-		case action.Op == "delete":
-			return fmt.Sprintf("Delete the %s %s. Nothing is deleted yet.", action.Domain, name)
-		case action.Op == "revert":
-			return fmt.Sprintf("Undo the last change to the %s %s. Nothing is saved yet.", action.Domain, name)
-		case plan.Basis["current"] == "absent":
-			return fmt.Sprintf("Create the %s %s. Nothing is saved yet.", action.Domain, name)
-		}
-		return fmt.Sprintf("Change the %s %s. Nothing is saved yet.", action.Domain, name)
+		return "Nothing is saved yet."
 	}
 	service := plan.Action.Service
 	domain, verb := splitID(service)
@@ -94,11 +82,11 @@ func sayWhat(e *tierEngine, env *verbEnvelope, plan storedPlan, subject string) 
 	var line string
 	switch {
 	case domain == "script" && !scriptEntityServices[verb]:
-		line = "Run the script " + sayText(e.sayName(env, service), true)
+		line = "Run the script " + sayText(e.sayName(env, service), true) + sayData(plan.Action.Data)
 	case len(targets) == 0 && domain == "homeassistant":
-		line = sayVerb(verb) + " Home Assistant"
+		line = sayVerb(verb) + " Home Assistant" + sayData(plan.Action.Data)
 	case len(targets) == 0:
-		line = "Run " + sayText(service, true)
+		line = "Run " + sayText(service, true) + sayData(plan.Action.Data)
 	default:
 		names := []string{}
 		for _, id := range targets {
@@ -107,6 +95,9 @@ func sayWhat(e *tierEngine, env *verbEnvelope, plan storedPlan, subject string) 
 		line = sayVerb(verb) + " " + sayList(names)
 		if service == "script.turn_on" {
 			line = "Run the script " + sayList(names)
+		}
+		if len(targets) > 1 {
+			line += sayData(plan.Action.Data)
 		}
 		if len(targets) == 1 {
 			for _, t := range env.Resolved {
@@ -137,26 +128,6 @@ func sayWhat(e *tierEngine, env *verbEnvelope, plan storedPlan, subject string) 
 		}
 	}
 	return line + ". Nothing has run yet."
-}
-
-var sayVerbs = map[string]string{
-	"turn_on": "Turn on", "turn_off": "Turn off", "open_cover": "Open", "close_cover": "Close", "stop_cover": "Stop",
-	"set_cover_position": "Set the position of", "alarm_disarm": "Disarm", "alarm_trigger": "Set off", "press": "Press",
-	"trigger": "Run", "set_value": "Set", "select_option": "Set",
-}
-
-func sayVerb(name string) string {
-	if v := sayVerbs[name]; v != "" {
-		return v
-	}
-	if strings.HasPrefix(name, "alarm_arm_") {
-		return "Arm"
-	}
-	words := []rune(strings.ReplaceAll(name, "_", " "))
-	if len(words) == 0 {
-		return "Run"
-	}
-	return string(unicode.ToUpper(words[0])) + string(words[1:])
 }
 
 // sayReason is one plain clause per reason code; typed reports whether the
@@ -200,22 +171,31 @@ func sayReason(e *tierEngine, env *verbEnvelope, plan storedPlan, r tierReason) 
 		reasonUnreadConfig, reasonListener, reasonScanFailed, reasonLimitCut:
 		return "HA NOVA can't check everything this would set off", true
 	case reasonSceneAccess:
-		return "HA NOVA can't see what the scene " + name + " does, and its integration also runs locks or doors", true
+		return "HA NOVA can't read the scene " + name + ", and its integration also controls locks, alarms, gates, or doors", true
 	case reasonReload:
 		return "A reload can change what runs in Home Assistant, and HA NOVA can't check that ahead", true
 	case reasonDeviceAccess:
 		return subject + " is on a device that also has a lock, alarm, or door" + through, true
 	case reasonSwitchAsX:
+		if e.reg[r.EntityID].di == "" { // matched only by having no device either
+			return subject + " may work a lock or a door" + through, true
+		}
 		return subject + " works a lock or a door" + through, true
 	case reasonOwnedTypedMember:
-		return "This also sends a raw device message or controls an App, which HA NOVA can't check" + through, true
+		return "This also " + sayOwnedAction(env, r) + ", which HA NOVA can't check" + through, true
 	case reasonConfigDelete:
 		return "This removes it from Home Assistant", true
 	case reasonOwnedMember:
 		return "This also runs an action that normally gets its own check" + through, false
 	case reasonExpanded, reasonBatch:
 		if n := len(plan.Action.EntityIDs); n != 1 {
-			return fmt.Sprintf("This acts on %d devices at once", n), false
+			return fmt.Sprintf("This acts on %d entities at once", n), false
+		}
+		switch {
+		case r.Via == "": // a batch that named one entity several times
+			return "", false
+		case e.accessDevice(e.reg[r.EntityID].di):
+			return subject + " is on a device that also has a lock, alarm, or door", false
 		}
 		return "HA NOVA picked it from the " + sayText(r.Via, false) + " you named", false
 	case reasonStoredMembers:
@@ -243,6 +223,33 @@ func sayReason(e *tierEngine, env *verbEnvelope, plan storedPlan, r tierReason) 
 	return "HA NOVA can't fully check this", r.Code != "" // a code without a sentence never reads as harmless
 }
 
+// sayOwnedAction words a Supervisor or raw-MQTT step after what it does.
+func sayOwnedAction(env *verbEnvelope, r tierReason) string {
+	action := ""
+	if env.Action != nil && r.Via == "" {
+		action = env.Action.Service
+	}
+	for _, m := range env.Members {
+		if m.EntityID == r.EntityID && m.Via == r.Via {
+			action = m.Action
+		}
+	}
+	_, name := splitID(action)
+	switch {
+	case action == "mqtt.publish":
+		return "sends a raw MQTT message"
+	case name == "host_shutdown":
+		return "shuts down the machine Home Assistant runs on"
+	case name == "host_reboot":
+		return "restarts the machine Home Assistant runs on"
+	case strings.HasPrefix(name, "restore_"):
+		return "restores a backup over the current setup"
+	case strings.HasPrefix(name, "addon_"):
+		return "starts, stops, or changes an App"
+	}
+	return "runs a Supervisor action"
+}
+
 // sayPhrase: named = the verb alone says what the named entity is
 // (unlocks, disarms); otherwise a member keeps the noun beside its name.
 type sayPhrase struct {
@@ -255,12 +262,23 @@ type sayPhrase struct {
 func sayActionPhrase(e *tierEngine, env *verbEnvelope, r tierReason) (sayPhrase, bool, bool) {
 	// Several steps can act on one entity through one item (unlock, then
 	// lock): the riskiest step names the clause, never the last one.
+	// Only steps that raise this very code word it; another step through the
+	// same item (disarm vs. trigger) never lends its action.
 	action, data, rank := "", map[string]any(nil), -1
-	for _, m := range env.Members {
-		if m.EntityID == r.EntityID && m.Via == r.Via {
+	for _, own := range []bool{true, false} {
+		for _, m := range env.Members {
+			if m.EntityID != r.EntityID || m.Via != r.Via {
+				continue
+			}
+			if _, code := classifyOnEntity(m.EntityID, m.Action, m.data, e.states[m.EntityID]); own && code != r.Code {
+				continue
+			}
 			if mr := sayActionRank(m); mr > rank {
 				action, data, rank = m.Action, m.data, mr
 			}
+		}
+		if action != "" {
+			break
 		}
 	}
 	if action == "" && env.Action != nil {
@@ -285,13 +303,7 @@ func sayActionPhrase(e *tierEngine, env *verbEnvelope, r tierReason) (sayPhrase,
 		if noun == "" {
 			noun = "a cover that may be a door, gate, or garage"
 		}
-		switch {
-		case name == "toggle":
-			return sayPhrase{verb: "opens or closes", noun: noun}, true, true
-		case coverCanOpen(name, data):
-			return sayPhrase{verb: "opens", noun: noun}, true, true
-		}
-		return sayPhrase{verb: "acts on", noun: noun}, true, true
+		return sayPhrase{verb: sayCoverVerb(name, data, e.states[r.EntityID]), noun: noun}, true, true
 	case reasonDestructiveButton:
 		return sayPhrase{verb: "presses", noun: "a button that can wipe a device's settings"}, true, true
 	case reasonDisruptive:
@@ -301,11 +313,18 @@ func sayActionPhrase(e *tierEngine, env *verbEnvelope, r tierReason) (sayPhrase,
 		case action == "homeassistant.stop":
 			return sayPhrase{verb: "stops", noun: "Home Assistant"}, false, true
 		case strings.HasPrefix(action, "siren."):
-			return sayPhrase{verb: "sounds", noun: "a siren"}, false, true
+			verb := "sounds"
+			if name == "toggle" {
+				verb = map[string]string{"on": "silences", "off": "sounds"}[e.states[r.EntityID].state()]
+				if verb == "" {
+					verb = "sounds or silences"
+				}
+			}
+			return sayPhrase{verb: verb, noun: "a siren"}, false, true
 		case name == "alarm_trigger":
 			return sayPhrase{verb: "sets off", noun: "the alarm"}, false, true
 		}
-		return sayPhrase{verb: "presses", noun: "a button that restarts, updates, or switches off a device"}, false, true
+		return sayPhrase{verb: "presses", noun: sayButtonNoun(r.EntityID, e.states[r.EntityID])}, false, true
 	}
 	return sayPhrase{}, false, false
 }
@@ -358,73 +377,4 @@ func (e *tierEngine) sayName(env *verbEnvelope, id string) string {
 		}
 	}
 	return id
-}
-
-// "confirm" followed by any colon-like mark, after invisible characters are gone.
-var sayConfirmWord = regexp.MustCompile(`(?i)confirm\s*[^\p{L}\p{N}\s']`)
-
-// sayPlainValue: a short token (state, number, unit) needs no quotes.
-var sayPlainValue = regexp.MustCompile(`^[\p{L}\p{N}_%.+-]{1,24}$`)
-
-func sayValue(s string) string {
-	if t := sayText(s, false); t != "" && sayPlainValue.MatchString(t) {
-		return t
-	}
-	if sayText(s, false) == "" {
-		return "“”"
-	}
-	return sayText(s, true)
-}
-
-// sayText defangs a Home Assistant string for the confirmation text: no
-// control characters or line breaks, no backticks or quote marks (a name
-// cannot fake the code or close its own quotes), no "confirm:" (a name
-// cannot look like a code), at most 60 characters; quoted when asked.
-func sayText(s string, quote bool) string {
-	s = strings.Map(func(r rune) rune {
-		switch {
-		case unicode.Is(unicode.Cf, r): // zero-width and bidi controls
-			return -1
-		case unicode.IsControl(r) || unicode.IsSpace(r):
-			return ' '
-		case unicode.In(r, unicode.Pi, unicode.Pf) || strings.ContainsRune("`\"″＂〝〞〟", r):
-			return '\''
-		case r == '[' || r == '<':
-			return '('
-		case r == ']' || r == '>':
-			return ')'
-		case strings.ContainsRune("*|#~", r): // no Markdown emphasis, tables, or headings
-			return ' '
-		}
-		return r
-	}, s)
-	s = strings.ReplaceAll(s, "://", ": //") // no autolinks
-	s = strings.Join(strings.Fields(sayConfirmWord.ReplaceAllString(s, "confirm ")), " ")
-	if runes := []rune(s); len(runes) > 60 {
-		s = string(runes[:59]) + "…"
-	}
-	if s == "" || !quote {
-		return s
-	}
-	return "“" + s + "”"
-}
-
-// sayList: “A”, “B” and “C”, or the first three and "N more".
-func sayList(names []string) string {
-	if len(names) > 3 {
-		return strings.Join(names[:3], ", ") + fmt.Sprintf(" and %d more", len(names)-3)
-	}
-	if len(names) <= 1 {
-		return strings.Join(names, "")
-	}
-	return strings.Join(names[:len(names)-1], ", ") + " and " + names[len(names)-1]
-}
-
-func appendUnique(list []string, s string) []string {
-	for _, have := range list {
-		if have == s {
-			return list
-		}
-	}
-	return append(list, s)
 }

@@ -18,10 +18,11 @@ Line, a Session Recap, findings, or review output. The core rules still apply.
 - Always render write-preview options as an explicit choice block that includes literal `apply`, `show yaml`, and `cancel` for create/update. Sole exception: intermediate previews inside a grouped change set (`skills/ha-nova/grouped-change-set.md`) carry no options block — exactly one final action block closes the group with the same literal keywords.
 - Delete previews must say nothing has been deleted yet and must ask for the exact `confirm:<token>`; never render `apply`, `show yaml`, `cancel`, or a selectable menu for destructive confirmation.
 - Never hide the available next actions inside a paragraph.
+- A plan's `say` closes the card, replacing the ⚠️ save-status and options or code lines.
 
 ## Cards (Write-Flow Visual System)
 
-Write and action flows render one of four cards — the same shape every time, so users recognize them at a glance. Labels localize at runtime; emoji, literal keywords, entity IDs, state values, and CLI diff rows do not. Fixed emoji vocabulary: 📝 preview (write previews and the test-plan offer), 🗑️ delete preview, ✅ result, ⚠️ save status, 💡 suggestion, plus the 🔴🟠🟡 severity markers — nothing else decorative, never color. Cards frame writes and runtime actions only; review and read output keep their own sections. Emoji that end in a variation selector (🗑️, ⚠️) take two spaces before the following text — many terminals render them double-width over the next column and visually swallow a single space; the other card emoji keep one space.
+Write and action flows render one of four cards — the same shape every time, so users recognize them at a glance. Labels localize at runtime; emoji, literal keywords, entity IDs, state values, and CLI diff rows do not. Fixed emoji vocabulary: 📝 preview (write previews and the test-plan offer), 🗑️ delete preview, ✅ result, ⚠️ save status, 💡 suggestion, plus the 🔴🟠🟡 severity markers — nothing else decorative, never color. Cards frame writes and runtime actions only; review and read output keep their own sections. Emoji that end in a variation selector (🗑️, ⚠️) take two spaces before the following text (terminals draw them double-width); the other card emoji keep one space.
 
 **Preview Card** (create/update — values illustrative, labels localized at runtime):
 
@@ -39,7 +40,7 @@ Pre-write check: no concerns.
 Options: apply · show yaml · cancel
 ```
 
-Title line: emoji + localized preview label + item type + name. Then one to three plain sentences on what the change DOES. They must cover every collection the diff touches — each added, removed, replaced, or modified entry described by its effect, never only by count or type name; grouped entries may share a sentence, and coverage beats the three-sentence guideline. The changes block: in diff-backed skills you author only the localized header row and the literal separator — the data rows are pasted verbatim from the CLI (`ha-nova plan write` / `ha-nova diff`), never invented and never re-aligned (mechanics: `skills/ha-nova/write-safety.md`); skills without a CLI diff author one short planned-change row or line per changed field; file-editing skills show the changed section as a snippet instead of a table. Existing per-skill slots map into the card: identity slots (name/mode/target) fold into the title line, `Planned change` is the changes block, `Save status` is the ⚠️ line, `Options` or the confirmation-code prompt closes the card. Runtime actions use `apply · cancel` and an explicit not-executed-yet line.
+Title line: emoji + localized preview label + item type + name. Then one to three plain sentences on what the change DOES. They must cover every collection the diff touches — each added, removed, replaced, or modified entry described by its effect, never only by count or type name; grouped entries may share a sentence, and coverage beats the three-sentence guideline. The changes block: in diff-backed skills you author only the localized header row and the literal separator — the data rows are pasted verbatim from the CLI (`ha-nova plan write` / `ha-nova diff`), never invented and never re-aligned (mechanics: `skills/ha-nova/write-safety.md`); skills without a CLI diff author one short planned-change row or line per changed field; file-editing skills show the changed section as a snippet instead of a table. Existing per-skill slots map into the card: identity slots (name/mode/target) fold into the title line, `Planned change` is the changes block, `Save status` is the ⚠️ line, `Options` or the confirmation-code prompt closes the card. Runtime actions close with the plan's `say` (an explicit not-executed-yet line and the ask).
 
 **Delete Card** (destructive — never a menu; the confirmation-code prompt is always the last line):
 
@@ -95,7 +96,7 @@ write flow renders outside this system:
 | Grouped change set (non-destructive, one logical task) | Preview Cards without options → one final action block → Result Card (`skills/ha-nova/grouped-change-set.md`) |
 | Snapshot restore (`skills/ha-nova/config-snapshots.md`) | Preview Card → Result Card |
 | Post-write test offer | Test Plan Card |
-| Runtime action (service call, experimental write) | CLI fast path (`tier: ordinary`): no preview, the three-line verb result (`output-rules.md` → Verb Results). Otherwise Preview Card (`apply · cancel`; high-consequence actions escalate to the typed confirmation code — context skill → Confirmation Tiers) → Result Card (verb routes: the three-line verb result) |
+| Runtime action (service call, experimental write) | CLI fast path (`tier: ordinary`): no preview, the three-line verb result (`output-rules.md` → Verb Results). Otherwise a preview closing with the plan's `say` (high-consequence actions escalate to the typed confirmation code — context skill → Confirmation Tiers) → Result Card (verb routes: the three-line verb result) |
 
 ## Report Shape (Read & Analysis Results)
 

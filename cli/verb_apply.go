@@ -215,6 +215,9 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string, noSnapshot
 		if err := savePlan(paths, fresh); err != nil {
 			return fail(err)
 		}
+		if env.Say == "" && isCall { // the new plan may need no confirmation; a drift still does
+			env.Say = confirmationSay(e, &env, fresh, "")
+		}
 		if env.Say != "" {
 			env.Say = "Something changed since the last preview. " + env.Say
 		}

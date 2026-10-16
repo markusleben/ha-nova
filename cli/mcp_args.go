@@ -183,7 +183,7 @@ func nextStep(envelope map[string]any) string {
 	pending := envelope["status"] == "needs_confirmation" || envelope["status"] == "drift"
 	say := ""
 	if text, _ := envelope["say"].(string); text != "" {
-		say = " Tell the user `say` as the confirmation text (in their language, the code exactly as printed) and add no other reason."
+		say = " Tell the user `say` as the confirmation text (in their language; names, state values, and the code exactly as printed) and add no other reason."
 	}
 	switch {
 	case pending && code != "":
