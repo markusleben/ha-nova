@@ -86,7 +86,7 @@ describe("fallback capability map is complete and truthful (#516)", () => {
     expect(f).toContain(
       "deletes every device and entity that entry owns and is not undoable",
     );
-    expect(f).toContain("take the typed confirmation code");
+    expect(f).toContain("take the one-time code");
   });
 });
 

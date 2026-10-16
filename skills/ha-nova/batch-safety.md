@@ -32,7 +32,7 @@ Exception: automations and scripts — `ha-nova plan delete` binds each code to 
 2. The complete target set is shown before confirmation.
 3. Dependency/consumer impact is checked per target (each family's existing
    check, e.g. `search/related`).
-4. The confirmation is bound to that exact set (see Confirmation Code).
+4. The confirmation is bound to that exact set (see One-Time Code).
 5. Execution is sequential and verified per target.
 6. Any change to the set invalidates the confirmation.
 
@@ -59,15 +59,14 @@ No selector, wildcard, prefix, label, area, query, or "all matching"
 expression may be expanded after confirmation. The manifest lists literal
 targets; anything discovered later belongs to a new manifest.
 
-## Confirmation Code
+## One-Time Code
 
 One one-time code from HA NOVA per manifest (context skill → Confirmation
 Tiers): four random digits minted when the manifest is shown, typed by the
 user, never a menu (context skill → Interactive Choices). Never reuse an
 earlier code or take digits from the manifest or Home Assistant data. The code
-binds to that exact manifest file — target set, payloads, and order; it is a
-binding discriminator, not a security boundary — the behavioral rule below is
-the real gate.
+belongs to that exact manifest — target set, payloads, and order; the
+behavioral rule below is the real gate.
 
 Any change to a target, payload, endpoint, scope, dependency result, or
 execution order expires the confirmation; show a new preview with a new
@@ -79,7 +78,7 @@ the code is called the "one-time code from HA NOVA" (localized), never a "token"
 ## Caps
 
 The preview always shows `count / cap`. Above the cap, refuse and split into
-separate manifests, each with its own preview and confirmation code:
+separate manifests, each with its own preview and one-time code:
 
 - config-item families (automations, scripts, helpers, scenes,
   resources, cards within one dashboard, to-do lists, registry
@@ -109,7 +108,7 @@ separate manifests, each with its own preview and confirmation code:
   subset, the failure, and what was not attempted — never continue silently
   into a half-applied state.
 - Resume operates only on a new manifest for the remaining targets, with a
-  new preview and a new confirmation code — the target set changed.
+  new preview and a new one-time code — the target set changed.
 
 ## Recovery
 
@@ -137,7 +136,7 @@ Impact: no consumers found for 7; "Morning routine" is referenced by script.wake
 Recovery: YAML export written; no automatic rollback after delete.
 Runs one by one — stops at the first error.
 ⚠️  Nothing deleted yet.
-Type <code> to delete all 8 — a plain yes can't confirm this.
+Type <four digits> to delete all 8 — a plain yes can't confirm this.
 ```
 
 **Batch Result Card**:

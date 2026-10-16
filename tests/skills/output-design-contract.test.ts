@@ -66,8 +66,8 @@ describe("output design system (Cards)", () => {
 
   it("keeps the options line and confirmation-code prompt literal", () => {
     expect(outputRules).toContain("Options: apply · show yaml · cancel");
-    expect(outputRules).toContain("Type <code> to delete.");
-    expect(outputRules).toContain("the confirmation-code prompt is always the last line");
+    expect(outputRules).toContain("Type <four digits> to delete.");
+    expect(outputRules).toContain("the one-time-code prompt is always the last line");
   });
 
   it("maps existing per-skill slots into the cards centrally", () => {
@@ -199,7 +199,7 @@ describe("output design system (Cards)", () => {
       "| Create / update (any supported family) | Preview Card → Result Card |",
     );
     expect(outputRules).toContain(
-      "| Delete / destructive operation (typed confirmation code) | Delete Card → Result Card |",
+      "| Delete / destructive operation (one-time code) | Delete Card → Result Card |",
     );
     // Natural-confirmation removals (snapshot prune, todo item removes) never
     // pull the Delete Card's typed gate.
@@ -215,7 +215,7 @@ describe("output design system (Cards)", () => {
     expect(outputRules).toContain("| Post-write test offer | Test Plan Card |");
     // Runtime actions never downgrade the high-consequence typed gate.
     expect(outputRules).toContain(
-      "high-consequence actions escalate to the typed confirmation code",
+      "high-consequence actions escalate to the one-time code",
     );
     // Restore flows are covered explicitly, not by convention.
     const configSnapshots = readFileSync("skills/ha-nova/config-snapshots.md", "utf8");
@@ -253,7 +253,7 @@ describe("output design system (Cards)", () => {
     expect(del[0]).toMatch(/^🗑️ {2}Delete:/);
     expect(del.filter((l) => l.startsWith("⚠️")), "exactly one status line").toHaveLength(1);
     expect(del[del.length - 1], "confirmation prompt closes the card").toBe(
-      "Type <code> to delete.",
+      "Type <four digits> to delete.",
     );
     expect(del.findIndex((l) => l.startsWith("⚠️")), "status precedes the prompt").toBe(
       del.length - 2,

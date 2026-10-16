@@ -51,12 +51,12 @@ tool-approval prompt (`docs/reference/client-integration.md`).
      `inputRequests.confirm` (`confirm_without_copy` for a `no_snapshot`
      delete, so an answer to one form never confirms the other); the client's
      retry carries the answer in `inputResponses`. A malformed answer is
-     `-32602`. No `requestState`: the code binds the answer to the plan.
-5. **Outcomes.** `accept` with a non-empty answer → apply with what was
-   typed (read as in the CLI: spaces removed, full-width digits), once; apply's checks are unchanged: claim,
+     `-32602`. No `requestState`: the retry names its `plan_id`, and apply checks that plan's own code (a replayed answer for another plan matches with p = 10⁻⁴, typed-verbs spec §2.1a).
+5. **Outcomes.** `accept` with an answer that reads as four digits (as in
+   the CLI: spaces removed, other digit scripts folded) → apply with them, once; apply's checks are unchanged: claim,
    recompute, drift, code from the recomputed plan, one send, three wrong
-   codes discard the plan. `decline` → `CONFIRM_DECLINED`; `cancel`, an empty
-   answer (no attempt used), or a timeout →
+   codes discard the plan. `decline` → `CONFIRM_DECLINED`; `cancel`, an answer
+   that is not four digits (no attempt used), or a timeout →
    `CONFIRM_CANCELLED`; a JSON-RPC error from the client →
    `CONFIRM_UNAVAILABLE`. All three: exit 4, nothing sent, the plan untouched
    (no claim before the answer); their wording never claims the user saw a

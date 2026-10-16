@@ -34,7 +34,7 @@ This file defines only how the test plan is chosen, presented, and verified.
   exact preview — do not ask a second time. Any change to the plan expires
   the choice and requires a fresh card. High-consequence members (locks,
   alarm panels, garage/gate/entry-door covers by `device_class`, and
-  physically irreversible actions) keep the typed confirmation code from the
+  physically irreversible actions) keep the one-time code from the
   context skill's high-consequence tier — the single card confirmation never
   replaces it.
 
@@ -57,7 +57,7 @@ change belong in the high-consequence row.
 
 This row is the test-planning risk class, a deliberate superset of the
 context skill's high-consequence confirmation tier. Members that grant
-physical access still take the typed confirmation code; merely disruptive
+physical access still take the one-time code; merely disruptive
 members such as `homeassistant.restart` take a warned bound confirmation.
 Plan them alike, confirm them by their own tier.
 

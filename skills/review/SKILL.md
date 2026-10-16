@@ -315,7 +315,7 @@ After completing Steps 1-3, check if the current entity state (from the earlier 
 **If qualified:**
 1. Show current state vs expected state
 2. Show exact service call that would fix it
-3. Ask for natural confirmation bound to this exact service-call preview (same tier as `ha-nova:service-call`; see context skill → Active Preview Confirmation; no typed confirmation code needed for ordinary service calls)
+3. Ask for natural confirmation bound to this exact service-call preview (same tier as `ha-nova:service-call`; see context skill → Active Preview Confirmation; no one-time code needed for ordinary service calls)
 
 **On confirmation:**
 Execute the planned call once, verified by the CLI:

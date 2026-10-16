@@ -115,8 +115,8 @@ var refusalNext = map[string]string{
 	"SERVER_MISMATCH":         "Apply it with the plan's own server (--server), or plan again for this one.",
 	"UNRESOLVED_TARGET":       "Name the entities explicitly, or check the area or device, then plan again.",
 	"NO_SNAPSHOT_NOT_OFFERED": "Apply without --no-snapshot: the config snapshot is taken first.",
-	"CODE_REQUIRED":           "Ask the user to type the one-time code from HA NOVA shown with the plan, then pass exactly what they typed with --confirm.",
-	"CODE_MISMATCH":           "Ask the user to type the one-time code from HA NOVA again, exactly as shown with the plan.",
+	"CODE_REQUIRED":           "Ask the user to type only the four digits of the one-time code from HA NOVA shown with the plan, then pass exactly what they typed with --confirm.",
+	"CODE_MISMATCH":           "Ask the user to type only the four digits of the one-time code from HA NOVA again, as shown with the plan.",
 	"NO_UNDO_SNAPSHOT":        "Only the last verified update of an automation, script, or dashboard can be reverted; there is nothing to revert.",
 	"REVERT_UNSUPPORTED":      "To undo an automation, script, or dashboard: plan revert --target <config_id> (for a dashboard, its url_path). The newest checkpoint belongs to a helper: revert that through ha-nova:helper.",
 	"CONFIG_ID_UNSUPPORTED":   "Pass the config_id from `ha-nova get <entity_id> --config`, not the entity_id; a YAML item is edited through ha-nova:yaml-config.",
@@ -256,11 +256,11 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string, noSnapshot
 	if fresh.Tier == tierTyped.String() {
 		wantCode = confirmCode(idHex)
 		switch typed := typedCode(code); {
-		case typed == "":
+		case !fourDigits.MatchString(typed): // nothing, or not four digits: it can never match, so no attempt is used
 			if os.Rename(claimed, open) == nil {
 				consumed = false
 			}
-			return fail(refused("CODE_REQUIRED", "this plan needs the one-time code from HA NOVA, typed by the user"))
+			return fail(refused("CODE_REQUIRED", "this plan needs the four digits of its one-time code from HA NOVA, typed by the user"))
 		case typed != wantCode:
 			// The counter lives in the plan file: it limits slips, not editors.
 			if plan.Mismatches++; plan.Mismatches >= 3 {

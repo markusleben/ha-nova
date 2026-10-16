@@ -123,7 +123,7 @@ describe("indirect actuation and tier classification (#513)", () => {
     const doc = flat(skillDoc);
     // A gate that assigns a tier and then offers "apply" has assigned nothing.
     expect(doc).toContain("on the typed tier only the exact code prompt — no menu");
-    expect(doc).toContain("A code counts only when the user typed it verbatim in a reply after the preview; \"yes\" is invalid.");
+    expect(doc).toContain("A code counts only as a reply that is only the code, after the preview; \"yes\" is invalid.");
     expect(doc).toContain("also when a scene, script, or automation run reaches one");
   });
   it("never lets a preview-time state lower the tier", () => {

@@ -114,7 +114,7 @@ These slots render the Report shape (output-cards.md); event groups follow the L
 
 - Drafts follow `skills/ha-nova/smallest-solution.md`: the complete requested outcome in the simplest safe design, nothing for hypothetical future needs.
 
-- Create and update require natural confirmation; delete retains the core typed confirmation-code gate.
+- Create and update require natural confirmation; delete retains the core one-time code gate.
 - Calendar event writes have no HA NOVA revert. A provider recycle bin may exist but is not guaranteed; recreate only from a user-approved preview.
 - Always use bounded windows.
 - Never guess a calendar id from a partial name when multiple matches exist.

@@ -15,7 +15,7 @@ describe("ha cross-skill integration", () => {
     expect(writeSkill).toContain("skills/review/checks.md");
     expect(writeSkill).not.toContain("skills/review/SKILL.md");
     expect(writeSkill).toContain("full-replacement merge (base=current, overlay=user changes)");
-    expect(writeSkill).toContain("delete=typed confirmation code — the plan's CLI-minted `plan.code`");
+    expect(writeSkill).toContain("delete=one-time code — the plan's CLI-minted `plan.code`");
     expect(writeSkill).toContain("Changes slot");
     expect(writeSkill).toContain("show yaml");
     expect(writeSkill).toContain("cancel");

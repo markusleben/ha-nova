@@ -112,7 +112,7 @@ func sayReasons(e *tierEngine, env *verbEnvelope, plan storedPlan) []string {
 		if len(typed) > 0 {
 			first, typed = typed[0], typed[1:]
 		}
-		parts = append(parts, first+", so it needs a one-time code from HA NOVA.")
+		parts = append(parts, first+", so it needs a four-digit one-time code from HA NOVA.")
 	}
 	// Every code-tier clause is shown (up to 8); the milder ones fill up to
 	// four sentences and the rest are counted, never dropped silently.

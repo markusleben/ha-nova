@@ -62,11 +62,11 @@ describe("grouped change set contract (issue #391)", () => {
   it("rejects destructive operations from the group", () => {
     expect(grouped).toContain("**No destructive operations.**");
     expect(grouped).toContain(
-      "Anything that requires a confirmation code",
+      "Anything that requires a one-time code",
     );
     expect(grouped).toContain("keeps its own flow");
     expect(contextSkill).toContain(
-      "confirmation-code operations follow that contract's exclusions and duration-pair exception",
+      "one-time-code operations follow that contract's exclusions and duration-pair exception",
     );
   });
 

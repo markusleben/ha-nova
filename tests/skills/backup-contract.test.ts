@@ -45,7 +45,7 @@ describe("backup contract", () => {
     expect(backupSkill).toContain("Never delete the only backup or the newest completed backup — manual or automatic — refuse outright");
     expect(backupSkill).toContain("this skill does not carry a bypass");
     expect(backupSkill).toContain("Require the one-time code — mint four random digits");
-    expect(backupSkill).toContain("proceed only when the user types it back exactly");
+    expect(backupSkill).toContain("proceed only on a reply that is just the code (spaces ignored)");
     // A failing backup location is silent data-loss risk.
     expect(backupSkill).toContain("`agent_errors`");
     expect(backupSkill).toContain("say plainly when automatic backups are NOT configured");

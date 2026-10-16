@@ -133,8 +133,8 @@ func TestApplyTypedPlanRequiresTheExactCode(t *testing.T) {
 	if exit, env := h.run(runApplyCommand, "--plan", plan.ID); exit != 4 || env.Error.Code != "CODE_REQUIRED" {
 		t.Fatalf("no code: exit %d env %+v", exit, env)
 	}
-	if exit, env := h.run(runApplyCommand, "--plan", plan.ID, "--confirm", "yes"); exit != 4 || env.Error.Code != "CODE_MISMATCH" {
-		t.Fatalf("wrong code: exit %d env %+v", exit, env)
+	if exit, env := h.run(runApplyCommand, "--plan", plan.ID, "--confirm", "yes"); exit != 4 || env.Error.Code != "CODE_REQUIRED" {
+		t.Fatalf("a plain yes: exit %d env %+v", exit, env)
 	}
 	exit, env := h.run(runApplyCommand, "--plan", plan.ID, "--confirm", "  "+plan.Code+"\n")
 	if exit != 0 || env.Status != "verified" || len(h.posts()) != 1 || h.f.states["lock.front"]["state"] != "unlocked" {

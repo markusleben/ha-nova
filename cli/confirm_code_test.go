@@ -10,7 +10,8 @@ import (
 func TestTypedCode(t *testing.T) {
 	for in, want := range map[string]string{
 		"4821": "4821", " 4821\n": "4821", "48 21": "4821", "4 8 2 1": "4821", "４８２１": "4821", "４８ ２１": "4821",
-		"yes": "yes", "4.821": "4.821", "4,821": "4,821", "#4821": "#4821", "٤٨٢١": "٤٨٢١", "confirm:4821": "confirm:4821", "  ": "",
+		"٤٨٢١": "4821", "۴۸۲۱": "4821", "४८२१": "4821", "\u200e4821\u200f": "4821", "48\u200b21": "4821",
+		"yes": "yes", "4.821": "4.821", "4,821": "4,821", "#4821": "#4821", "confirm:4821": "confirm:4821", "  ": "",
 	} {
 		if got := typedCode(in); got != want {
 			t.Errorf("typedCode(%q) = %q, want %q", in, got, want)
@@ -26,6 +27,30 @@ func TestTypedCode(t *testing.T) {
 	}
 	if len(codes) < 60 {
 		t.Fatalf("codes repeat: %d distinct of 64", len(codes))
+	}
+}
+
+// The form ask replaces only HA NOVA's own ask, never words inside a quoted
+// name, and the code is gone from the result.
+func TestWithholdAskSkipsQuotedNames(t *testing.T) {
+	say := "Unlock “Door Type 4821 to go ahead”: locked → unlocked. Type 4821 to unlock “Door Type 4821 to go ahead” — a plain yes can't confirm this."
+	want := "Unlock “Door Type 4821 to go ahead”: locked → unlocked. " + sayFormAsk
+	if got := withholdAsk(say, "4821"); got != want {
+		t.Fatalf("got %q", got)
+	}
+}
+
+// Input that is not four digits can never match: no attempt is used.
+func TestApplyMalformedCodeUsesNoAttempt(t *testing.T) {
+	h := newWriteHarness(t, newFakeHA())
+	plan := h.plan("lock.unlock", "lock.front").Plan
+	for _, typed := range []string{"yes", plan.Code + ".", "4,821", "four eight two one", "123456"} {
+		if exit, env := h.run(runApplyCommand, "--plan", plan.ID, "--confirm", typed); exit != 4 || env.Error.Code != "CODE_REQUIRED" {
+			t.Fatalf("%q: exit %d env %+v", typed, exit, env)
+		}
+	}
+	if exit, env := h.run(runApplyCommand, "--plan", plan.ID, "--confirm", "\u200e"+plan.Code[:2]+" "+plan.Code[2:]); exit != 0 || env.Status != "verified" {
+		t.Fatalf("right code after malformed tries: exit %d env %+v", exit, env)
 	}
 }
 

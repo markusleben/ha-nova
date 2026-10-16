@@ -113,6 +113,15 @@ describe("confirmation-code terminology (issue #392)", () => {
     }
   });
 
+  // The typed code has one name in skill prose: "one-time code" (users read
+  // "one-time code from HA NOVA"), never the pre-2026-10-17 "confirmation code".
+  it("calls the typed code a one-time code, never a confirmation code", () => {
+    for (const file of ALL_SKILL_MD_FILES) {
+      const hits = readFileSync(file, "utf8").split("\n").flatMap((line, idx) => (/confirmation[- ]codes?/i.test(line) ? [`L${idx + 1}: ${line.trim()}`] : []));
+      expect(hits, `${file} says "confirmation code":\n${hits.join("\n")}`).toEqual([]);
+    }
+  });
+
   it("keeps the auth-language exception alive (real auth wording still passes)", () => {
     const externalSources = readFileSync("skills/external-sources/SKILL.md", "utf8");
     const admin = readFileSync("skills/admin/SKILL.md", "utf8");

@@ -23,7 +23,7 @@ func TestConfirmationSay(t *testing.T) {
 		{name: "direct unlock",
 			setup: func(f *fakeHA) { named(f, "lock.front", "Front Door") },
 			args:  []string{"lock.unlock", "lock.front"},
-			want:  "Unlock “Front Door”: locked → unlocked. Nothing has run yet. This unlocks a door, so it needs a one-time code from HA NOVA. Type CODE to unlock “Front Door” — a plain yes can't confirm this."},
+			want:  "Unlock “Front Door”: locked → unlocked. Nothing has run yet. This unlocks a door, so it needs a four-digit one-time code from HA NOVA. Type CODE to unlock “Front Door” — a plain yes can't confirm this."},
 		{name: "indirect unlock through an automation",
 			setup: func(f *fakeHA) {
 				named(f, "lock.front", "Entrance Door")
@@ -36,28 +36,28 @@ func TestConfirmationSay(t *testing.T) {
 				named(f, "automation.guest", "Guest mode unlocks")
 			},
 			args: []string{"input_boolean.turn_on", "input_boolean.guest"},
-			want: "Turn on “Guest mode”: off → on. Nothing has run yet. This also unlocks “Entrance Door” through the automation “Guest mode unlocks”, so it needs a one-time code from HA NOVA. Type CODE to turn on “Guest mode” — a plain yes can't confirm this."},
+			want: "Turn on “Guest mode”: off → on. Nothing has run yet. This also unlocks “Entrance Door” through the automation “Guest mode unlocks”, so it needs a four-digit one-time code from HA NOVA. Type CODE to turn on “Guest mode” — a plain yes can't confirm this."},
 		{name: "unregistered switch",
 			setup: func(f *fakeHA) { f.ent("switch.porch", "", "off", map[string]any{"friendly_name": "Porch"}) },
 			args:  []string{"switch.turn_on", "switch.porch"},
-			has:   []string{"HA NOVA can't see what “Porch” does, so it needs a one-time code from HA NOVA.", "Type CODE to turn on “Porch” — a plain yes can't confirm this."}},
+			has:   []string{"HA NOVA can't see what “Porch” does, so it needs a four-digit one-time code from HA NOVA.", "Type CODE to turn on “Porch” — a plain yes can't confirm this."}},
 		{name: "every delta of one target",
 			setup: func(f *fakeHA) { f.ent("light.tpl", "template", "off", map[string]any{"friendly_name": "Desk"}) },
 			args:  []string{"light.turn_on", "light.tpl", "--set", "brightness_pct=40"},
-			has:   []string{"Turn on “Desk”: off → on, brightness 0% → 40%. Nothing has run yet. HA NOVA can't see what “Desk” does, so it needs a one-time code from HA NOVA."}},
+			has:   []string{"Turn on “Desk”: off → on, brightness 0% → 40%. Nothing has run yet. HA NOVA can't see what “Desk” does, so it needs a four-digit one-time code from HA NOVA."}},
 		{name: "closing a garage to position 0 is not called opening",
 			setup: func(f *fakeHA) {
 				f.ent("cover.garage", "zwave_js", "open", map[string]any{"device_class": "garage", "friendly_name": "Garage", "supported_features": 15.0})
 			},
 			args: []string{"cover.set_cover_position", "cover.garage", "--set", "position=0"},
-			has:  []string{"This closes a garage door, so it needs a one-time code from HA NOVA."}},
+			has:  []string{"This closes a garage door, so it needs a four-digit one-time code from HA NOVA."}},
 		{name: "a member keeps what it is beside its name",
 			setup: func(f *fakeHA) {
 				f.ent("button.plug_wipe", "zha", "unknown", map[string]any{"friendly_name": "Maintenance"})
 				f.script("tidy", step("button.press", "button.plug_wipe"))
 			},
 			args: []string{"script.turn_on", "script.tidy"},
-			has:  []string{"This also presses “Maintenance” (a button that can wipe a device's settings) through the script “script.tidy”, so it needs a one-time code from HA NOVA."}},
+			has:  []string{"This also presses “Maintenance” (a button that can wipe a device's settings) through the script “script.tidy”, so it needs a four-digit one-time code from HA NOVA."}},
 		{name: "unlock then lock through one group names the unlock",
 			setup: func(f *fakeHA) {
 				named(f, "lock.front", "Front")
@@ -125,7 +125,7 @@ func TestConfirmationSay(t *testing.T) {
 				f.ent("cover.gar", "zwave_js", "closed", map[string]any{"device_class": "garage", "_di": "g1"})
 			},
 			args: []string{"button.press", "--device", "g1"},
-			has:  []string{"“Trigger” is on the same device as “cover.gar” (a garage door): pressing it may open it, so it needs a one-time code from HA NOVA."}},
+			has:  []string{"“Trigger” is on the same device as “cover.gar” (a garage door): pressing it may open it, so it needs a four-digit one-time code from HA NOVA."}},
 		{name: "several targets show the value once",
 			setup: func(f *fakeHA) { f.ent("light.tpl", "template", "off", map[string]any{"friendly_name": "Desk"}) },
 			args:  []string{"light.turn_on", "light.tpl", "light.hall", "--set", "brightness_pct=30"},
@@ -196,7 +196,7 @@ func TestConfirmationSayDelete(t *testing.T) {
 	f.storeConfig("/api/config/automation/config/n1", map[string]any{"alias": "Night", "actions": []any{}})
 	h := newWriteHarness(t, f)
 	_, env := h.run(runPlanCommand, "delete", "automation.night")
-	want := "Nothing is deleted yet. This removes it from Home Assistant, so it needs a one-time code from HA NOVA. A copy is saved first, so it can be restored. Type " + env.Plan.Code + " to delete the automation “Night” — a plain yes can't confirm this."
+	want := "Nothing is deleted yet. This removes it from Home Assistant, so it needs a four-digit one-time code from HA NOVA. A copy is saved first, so it can be restored. Type " + env.Plan.Code + " to delete the automation “Night” — a plain yes can't confirm this."
 	if env.Say != want {
 		t.Fatalf("say\n got %q\nwant %q", env.Say, want)
 	}
@@ -206,7 +206,7 @@ func TestConfirmationSayDelete(t *testing.T) {
 	_, created := h.run(runPlanCommand, "write", "--domain", "automation", "--file", draftFile(t, map[string]any{
 		"alias": "Porch", "triggers": []any{map[string]any{"trigger": "sun", "event": "sunset"}}, "actions": []any{step("lock.unlock", "lock.front")},
 	}))
-	if !strings.HasPrefix(created.Say, "Nothing is saved yet. This also unlocks “lock.front” through this automation, so it needs a one-time code from HA NOVA. Type "+created.Plan.Code+" to create the automation “Porch” — ") {
+	if !strings.HasPrefix(created.Say, "Nothing is saved yet. This also unlocks “lock.front” through this automation, so it needs a four-digit one-time code from HA NOVA. Type "+created.Plan.Code+" to create the automation “Porch” — ") {
 		t.Fatalf("create say %q", created.Say)
 	}
 	_, natural := h.run(runPlanCommand, "write", "--domain", "automation", "--file", draftFile(t, map[string]any{"alias": "Hall", "actions": []any{step("light.turn_on", "light.hall")}}))

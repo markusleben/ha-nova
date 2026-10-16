@@ -117,7 +117,7 @@ Apply `skills/ha-nova/output-rules.md` to all user-facing output. Write previews
 - `Requested change`
 - `Impact` for deletes
 - `Save status` / `Delete status` before confirmation
-- `Options` / confirmation-code prompt
+- `Options` / one-time-code prompt
 - `Verification`
 - `Next step`
 
@@ -137,7 +137,7 @@ Metadata reads render the Report shape; registry inventories render the List Fra
 - Drafts follow `skills/ha-nova/smallest-solution.md`: the complete requested outcome in the simplest safe design, nothing for hypothetical future needs.
 - `search/related` verdicts fail closed: verify `ok=true` and `data` is an object before projecting family keys (`skills/ha-nova/relay-api.md` → Parsing rule); a failed or unexecuted scan is inconclusive — never a no-consumer result.
 
-- Delete uses the typed confirmation code only, even for cleanup of items created earlier in the same session.
+- Delete uses the one-time code only, even for cleanup of items created earlier in the same session.
 - Registry deletes (areas, floors, labels, categories) are irreversible and a recreate mints a new id — inbound references stay broken. Offer a safety backup via `ha-nova:backup` before them (never for metadata edits).
 - Entity removal goes to `ha-nova:maintenance` (dead registry entries only; offer disable for live entities). Config-entry detachment goes to `ha-nova:fallback`.
 

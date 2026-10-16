@@ -16,6 +16,14 @@ import (
 
 var formCode = regexp.MustCompile(`To go ahead, type this one-time code from HA NOVA: ([0-9]{4})$`)
 
+var planIDText = regexp.MustCompile(`p_[0-9a-f]{12}`)
+
+// wrongNumber is wrongCode as a JSON number.
+func wrongNumber(code string) float64 {
+	n, _ := strconv.Atoi(wrongCode(code))
+	return float64(n)
+}
+
 // wrongCode is four digits that are not code.
 func wrongCode(code string) string {
 	n, _ := strconv.Atoi(code)
@@ -124,7 +132,7 @@ func noCode(t *testing.T, what string, result map[string]any, code string) {
 	errInfo, _ := envelope["error"].(map[string]any)
 	shown := regexp.MustCompile(`(^|[^0-9])` + code + `([^0-9]|$)`)
 	for _, text := range []any{envelope["say"], envelope["next_step"], errInfo["message"], errInfo["next"]} {
-		if text, _ := text.(string); shown.MatchString(text) {
+		if text, _ := text.(string); shown.MatchString(planIDText.ReplaceAllString(text, "")) { // an id may hold the digits by chance
 			t.Fatalf("%s shows the code %q: %q", what, code, text)
 		}
 	}
@@ -165,7 +173,7 @@ func TestMCPFormConfirmsTypedPlanLegacy(t *testing.T) {
 	schema := params["requestedSchema"].(map[string]any)
 	field := schema["properties"].(map[string]any)["code"].(map[string]any)
 	if code != typed || params["mode"] != nil || !strings.HasPrefix(params["message"].(string), "Unlock “lock.front”") || field["title"] != "One-time code from HA NOVA" ||
-		!strings.Contains(params["message"].(string), "so it needs a one-time code from HA NOVA.") || field["type"] != "string" || schema["required"].([]any)[0] != "code" {
+		!strings.Contains(params["message"].(string), "so it needs a four-digit one-time code from HA NOVA.") || field["type"] != "string" || schema["required"].([]any)[0] != "code" {
 		t.Fatalf("form %v (code %s)", params, code)
 	}
 	if len(h.posts()) != 0 {
@@ -344,8 +352,9 @@ func TestMCPFormConfirmsTypedPlanModern(t *testing.T) {
 	}{
 		{map[string]any{"action": "cancel"}, "CONFIRM_CANCELLED"},
 		{map[string]any{"action": "accept"}, "CONFIRM_CANCELLED"},
-		{map[string]any{"action": "accept", "content": map[string]any{"code": " \t"}}, "CONFIRM_CANCELLED"},  // nothing typed: no attempt used
-		{map[string]any{"action": "accept", "content": map[string]any{"code": code + "."}}, "CODE_MISMATCH"}, // anything but the digits is wrong
+		{map[string]any{"action": "accept", "content": map[string]any{"code": " \t"}}, "CONFIRM_CANCELLED"},         // nothing typed: no attempt used
+		{map[string]any{"action": "accept", "content": map[string]any{"code": code + "."}}, "CONFIRM_CANCELLED"},    // not four digits: can never match, no attempt used
+		{map[string]any{"action": "accept", "content": map[string]any{"code": wrongNumber(code)}}, "CODE_MISMATCH"}, // a JSON number reads as its four digits
 		{map[string]any{"action": "accept", "content": map[string]any{"code": wrongCode(code)}}, "CODE_MISMATCH"},
 	} {
 		result := retry(tc.answer)

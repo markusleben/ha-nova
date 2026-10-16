@@ -173,7 +173,7 @@ describe("ha-nova contract", () => {
       "Never probe a different dashboard's config to infer the target's mode or structure",
     );
     expect(dashboard).toContain(
-      "Dashboard and resource delete uses exact confirmation code only",
+      "Dashboard and resource delete uses the one-time code only",
     );
     expect(dashboard).toContain(
       "Removing views or cards inside a save is previewed (natural confirmation) because every save is recoverable",
@@ -229,7 +229,7 @@ describe("ha-nova contract", () => {
     );
     expect(organize).toContain("Device categories do not exist");
     expect(organize).toContain(
-      "Delete uses the typed confirmation code only, even for cleanup of items created earlier in the same session.",
+      "Delete uses the one-time code only, even for cleanup of items created earlier in the same session.",
     );
     expect(organize).toContain("Active Preview Confirmation");
     expect(organize).toContain("One category scope at a time.");

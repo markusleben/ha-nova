@@ -387,7 +387,7 @@ If multiple matches remain, present max 5 candidates and ask one blocking questi
    - domain
    - linked entities if known
    - `entry_id` only when needed to disambiguate duplicate titles/domains
-   - explicit not-deleted-yet line before the confirmation code
+   - explicit not-deleted-yet line before the one-time code
 4. Run a pre-delete dependency check:
    - if linked entities are known, run `search/related` against up to 3 linked entities before confirmation
    - summarize any related automations/scripts in the preview

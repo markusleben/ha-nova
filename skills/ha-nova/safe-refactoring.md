@@ -46,7 +46,7 @@ ha-nova relay ws --data-file <payload-file>
 ha-nova relay ws --data-file <payload-file>
 ```
 
-Only proceed with permanent deletion after the typed confirmation code (see write skill → Phase 2).
+Only proceed with permanent deletion after the one-time code (see write skill → Phase 2).
 
 ## Entity Rename Workflow
 
@@ -134,7 +134,7 @@ If no automations or scripts reference it, it's an orphan candidate.
 
 ### Cleanup
 
-For confirmed orphans, delete via the helper skill flow (typed confirmation code required).
+For confirmed orphans, delete via the helper skill flow (one-time code required).
 
 ## Safety Rules
 

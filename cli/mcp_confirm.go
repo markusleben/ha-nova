@@ -130,7 +130,12 @@ func (srv *mcpServer) confirmByForm(req rpcRequest, args map[string]json.RawMess
 		}
 	}
 	typed, _ := answer.Content["code"].(string)
-	typed = typedCode(typed) // anything but the four digits is a wrong code, as in the CLI
+	if n, isNumber := answer.Content["code"].(float64); isNumber && n == float64(int(n)) && n >= 0 && n <= 9999 {
+		typed = fmt.Sprintf("%04d", int(n)) // a client may send the all-digit field as a JSON number
+	}
+	if typed = typedCode(typed); !fourDigits.MatchString(typed) { // can never match: no attempt is used, as in the CLI
+		typed = ""
+	}
 	// Some apps declare forms but turn them down or close them without showing
 	// one: the wording never claims that the user saw it.
 	elsewhere := "If they saw no confirmation form, their app can't show one here: they can make this change in Home Assistant itself or with HA NOVA in a terminal, or add \"--no-forms\" to the ha-nova MCP entry's args (the model then sees the one-time code too)."
@@ -148,7 +153,7 @@ func (srv *mcpServer) confirmByForm(req rpcRequest, args map[string]json.RawMess
 	case answer.stop == "timeout":
 		return confirmStopped("cancelled", "CONFIRM_CANCELLED", "the confirmation form got no answer in time", again), nil
 	}
-	return confirmStopped("cancelled", "CONFIRM_CANCELLED", "the confirmation form was closed without the one-time code", again), nil
+	return confirmStopped("cancelled", "CONFIRM_CANCELLED", "the confirmation form was closed without the four-digit one-time code", again), nil
 }
 
 // formPlan reads the plan ha_apply names when a form can confirm it: typed,

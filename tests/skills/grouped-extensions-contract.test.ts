@@ -111,7 +111,7 @@ describe("cross-family destructive cleanup (issue #583)", () => {
   });
 
   it("binds one typed code to the exact manifest and invalidates it on any drift", () => {
-    expect(grouped).toContain("ONE one-time code binds to that exact manifest");
+    expect(grouped).toContain("ONE one-time code belongs to that exact manifest");
     expect(groupedFlat).toContain(
       "Any change to any operation, target, payload, impact result, or order — or an expired confirmation — invalidates it",
     );

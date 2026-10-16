@@ -10,7 +10,7 @@ describe("ha safety contract", () => {
     expect(router).toContain("Never guess entity IDs, service names, or config IDs.");
     expect(router).toContain("create`/`update`: natural confirmation");
     expect(router).toContain("high-consequence runtime action (grants physical access or is physically irreversible): the one-time code");
-    expect(writeSkill).toContain("Confirmation: create/update=natural, delete=typed confirmation code — the plan's CLI-minted `plan.code`");
+    expect(writeSkill).toContain("Confirmation: create/update=natural, delete=one-time code — the plan's CLI-minted `plan.code`");
     // Safety Core wording (A3): the no-guessing rule now arrives via the
     // byte-identical core block in every mutation-capable skill.
     expect(writeSkill).toContain("Never guess entity, service, or config IDs — resolve them or ask.");
@@ -36,8 +36,8 @@ describe("ha safety contract", () => {
     // PR6: the apply precondition is the plan itself — a preview plan is
     // applied only after the confirmation, a typed plan needs the user's code.
     expect(writeSkill).toContain("Pre-preview consent is draft-only; a changed draft needs a new plan and preview.");
-    expect(writeSkill).toContain("A code counts only when the user typed it verbatim after the preview");
-    expect(applyVerb).toContain('refused("CODE_REQUIRED", "this plan needs the one-time code from HA NOVA, typed by the user")');
+    expect(writeSkill).toContain("A code counts only as a reply that is only the code, after the preview");
+    expect(applyVerb).toContain('refused("CODE_REQUIRED", "this plan needs the four digits of its one-time code from HA NOVA, typed by the user")');
 
     expect(architecture).toContain("pre-preview approval is never write confirmation");
     expect(relayApi).toContain("Relay API examples are not write authorization");

@@ -23,17 +23,20 @@ func confirmCode(idHex string) string {
 
 var fourDigits = regexp.MustCompile(`^[0-9]{4}$`)
 
-// typedCode is what the user typed as a code: every space removed and
-// full-width digits (CJK keyboards) read as ASCII, so "48 21" and "４８２１"
-// are 4821. Nothing else is read: letters, punctuation, other scripts, and
-// "yes" stay as typed and never match.
+// typedCode is what the user typed as a code: spaces and invisible format
+// characters (LRM, RLM, ZWSP) removed, and full-width (CJK keyboards),
+// Arabic-Indic, Persian, and Devanagari digits read as 0-9, so "48 21" and
+// "４８２１" are 4821. Nothing else is read: letters, punctuation, and "yes"
+// stay as typed and never match.
 func typedCode(s string) string {
 	return strings.Map(func(r rune) rune {
-		switch {
-		case unicode.IsSpace(r):
+		if unicode.IsSpace(r) || unicode.Is(unicode.Cf, r) {
 			return -1
-		case r >= '０' && r <= '９':
-			return '0' + r - '０'
+		}
+		for _, zero := range []rune{'０', '٠', '۰', '०'} {
+			if r >= zero && r <= zero+9 {
+				return '0' + r - zero
+			}
 		}
 		return r
 	}, s)
@@ -55,14 +58,27 @@ func sayTypedAsk(code, goal string) string {
 
 // sayFormAsk replaces sayTypedAsk where the client shows a confirmation
 // form: the code is never in a tool result there (mcp_confirm.go).
-const sayFormAsk = "Your app will show it in a form: type it there to go ahead — a plain yes can't confirm this."
+const sayFormAsk = "Your app will ask for the four-digit one-time code from HA NOVA in a form — a plain yes can't confirm this."
 
-// withholdAsk swaps the closing ask (always the last sentence) for sayFormAsk.
+// withholdAsk swaps the closing ask for sayFormAsk: the last "Type <code> to "
+// outside “…”, since a Home Assistant name (always quoted; sayText strips
+// quote marks from it) may contain the same words.
 func withholdAsk(say, code string) string {
-	if i := strings.LastIndex(say, "Type "+code+" to "); i >= 0 {
-		return say[:i] + sayFormAsk
+	at, depth := -1, 0
+	for i, r := range say {
+		switch {
+		case r == '“':
+			depth++
+		case r == '”':
+			depth--
+		case depth == 0 && strings.HasPrefix(say[i:], "Type "+code+" to "):
+			at = i
+		}
 	}
-	return say
+	if at < 0 { // unreachable (say and code come from one plan); fail closed
+		return sayFormAsk
+	}
+	return say[:at] + sayFormAsk
 }
 
 // lowerFirst: "Unlock “Door”" → "unlock “Door”" (names are quoted, so only

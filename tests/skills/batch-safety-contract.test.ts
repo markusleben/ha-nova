@@ -97,7 +97,7 @@ describe("batch safety contract (issue #327)", () => {
 
   it("forces resume onto a fresh manifest with a fresh confirmation", () => {
     expect(batchSafety).toContain("Resume operates only on a new manifest for the remaining targets");
-    expect(batchSafety).toContain("new preview and a new confirmation code");
+    expect(batchSafety).toContain("new preview and a new one-time code");
   });
 
   it("keeps recovery gates intact without weakening the typed confirmation", () => {

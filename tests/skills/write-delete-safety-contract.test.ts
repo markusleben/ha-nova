@@ -198,7 +198,7 @@ describe("write delete safety contract", () => {
   });
 
   it("keeps delete a typed confirmation code even under menu pressure", () => {
-    expect(writeSkill).toContain("delete is the typed confirmation code, never a menu");
+    expect(writeSkill).toContain("delete is the one-time code, never a menu");
   });
 
   it("requires the typed confirmation code for same-session cleanup", () => {

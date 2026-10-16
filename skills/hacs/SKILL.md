@@ -152,7 +152,7 @@ act on a name match alone.
   canonical `full_name`; missing after the re-read means the add failed
   (duplicate/rename detection happens on the same re-read). Registration
   does not download anything; say so.
-- Remove registration: typed confirmation code, and only with exact identity
+- Remove registration: one-time code, and only with exact identity
   plus installation state known — and only when `installed == false`.
   Unregistering an installed repository strands its files (the ID vanishes
   from `list`, so a later uninstall would need re-registration): when it is
@@ -280,7 +280,7 @@ at runtime.
 - Drafts follow `skills/ha-nova/smallest-solution.md`: the complete requested outcome in the simplest safe design, nothing for hypothetical future needs.
 
 - Confirmation tiers: natural confirmation for install/update/redownload;
-  the typed confirmation code for uninstall, registration removal, and
+  the one-time code for uninstall, registration removal, and
   dependent config-entry deletion.
 - The migration backup gate is non-negotiable: no destructive migration
   step before a COMPLETED and CURRENT full Home Assistant Backup exists.
