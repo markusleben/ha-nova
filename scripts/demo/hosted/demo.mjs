@@ -25,7 +25,7 @@ if (!/^http:\/\/127\.0\.0\.1:18123\/?$/.test(haUrl)) {
 }
 const base = haUrl.replace(/\/$/, "");
 const DEMO_USER = "demo";
-const DEMO_PASSWORD = "demo"; // public on purpose: on the landing page (/start) and in docs/reference/hosted-demo.md
+const DEMO_PASSWORD = "demo"; // public on purpose: on the landing page (hanova.app/demo/) and in docs/reference/hosted-demo.md
 const RELAY_USER = "nova-relay"; // the public relay's HA identity; password random, never shown
 const PROXY = "10.89.240.2/32"; // Caddy (edge.yml) = trusted_proxies in config/.storage/http
 const ONBOARDING_EXTRAS = ["met", "google_translate", "radio_browser", "shopping_list"];

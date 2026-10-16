@@ -26,7 +26,12 @@ npm run verify:next-release-version -- v<version>
   README; every release-bound README claim gets its site copy in a prepared
   site PR (desktop + mobile screenshots, maintainer go), merged right after
   the FINAL stable tag publishes (never for an RC) — a release is not done
-  until the site matches
+  until the site matches. The hosted demo's landing page (`demo/` there)
+  stays unlinked and `noindex` until the release that ships the demo, so it
+  may merge before a tag; that release's site PR links it and drops
+  `noindex`. A brand change to
+  `assets/icon.svg` also updates `scripts/demo/hosted/site/icon.svg` (the
+  demo's restarting page; a test keeps them equal)
 - merging the release-prep PR starts the tag sequence immediately
 - preflight: audit open PRs (Dependabot, workflows, installer/update,
   release metadata) as `blocker now` vs `separate later`; never pull a red or

@@ -19,7 +19,7 @@ video-recording kit, `docs/reference/demo-recording.md`).
 | `update-ha.sh` | host, nightly | Latest stable HA: resolve digest, verify the Sigstore signature, refuse downgrades, candidate reset + gates, promote or roll back, prune old images. |
 | `host-lib.sh` | host | Shared gates: relay round trip, egress/DNS, listeners, public site; Caddy (re)creation; pinned Node/Caddy images; the lock. |
 | `demo.mjs` | host | `setup` (seeded http config check, local-only owner, admin `demo/demo`, drop onboarding extras), `token` (the relay user's LLAT), `dashboard` (also shows the "Demo add-on" device as "Demo app"), `guard`, `smoke`. |
-| `edge.yml`, `Caddyfile`, `site/` | host | Caddy in its own compose project: TLS, CSP, blocked paths, landing page, restarting page, `/relay/*`, `/connect.json`, `/abuse`, privacy-filtered access log. |
+| `edge.yml`, `Caddyfile`, `site/` | host | Caddy in its own compose project: TLS, CSP, blocked paths, landing redirect, restarting page (`site/icon.svg`: a copy of `assets/icon.svg`, kept equal by `tests/config/hosted-demo-icon.test.ts`), `/relay/*`, `/connect.json`, `/abuse`, privacy-filtered access log. |
 | `docker-compose.yml` | host | Overlay over the test bed compose: internal network only, DNS sink, sealed directories, limits, relay settings. |
 | `mosquitto.conf`, `mosquitto.acl` | host | Broker split: seeding listener (container loopback) vs. Home Assistant listener (no discovery writes). |
 | `config/` | host | Over the test bed config: `configuration.yaml`, `packages/demo.yaml` (reset sensor + :55 warning), `packages/commands.yaml` (masks command_line + rest). |
@@ -48,7 +48,7 @@ bash scripts/demo/hosted/provision.sh --ref <sha> --alert-email <you> --abuse-co
 #    sudo docker restart ha-nova-demo-caddy
 # 3. Lightsail browser SSH: sudo tail -f /var/log/cloud-init-output.log   (~10 min),
 #    then journalctl -fu ha-nova-demo-reset -u ha-nova-demo-update
-# 4. https://demo.hanova.app, login demo / demo
+# 4. https://demo.hanova.app -> hanova.app/demo/ -> Open the demo, login demo / demo
 ```
 
 Rebuild from scratch (new ref, or incident response):
@@ -96,7 +96,8 @@ the next full hour.
 - The house is exposed only after every gate passed: `reset.sh` removes
   `/var/lib/ha-nova-demo/public/ready` first and touches it last. Until then,
   and whenever HA is gone or answers 502/503/504, Caddy serves "Demo is
-  restarting" (503, auto-refresh 15 s, link to `/start`); `/relay/*` answers
+  restarting" (503, auto-refresh 15 s, link to `/start`; styled like
+  hanova.app, its star `/_demo/icon.svg` is served while down); `/relay/*` answers
   `{"error":"demo_resetting"}` (503) when the relay is gone or the house not
   ready, while the relay's own JSON errors (it uses 502 for upstream
   failures) pass through.
@@ -105,17 +106,28 @@ the next full hour.
   `/api/`, `/ws` get_states, `/health` connected), egress + DNS (4 s probes
   in parallel: external name and IP from HA and the relay must fail, while
   the same tools must reach house targets and service names must resolve),
-  listeners, then the public site through Caddy's TLS on the host (`/`,
-  `/connect.json`, `/relay/health` with the public token, the login page,
+  listeners, then the public site through Caddy's TLS on the host (`/`
+  redirects to the landing page, `/?auth_callback=1` reaches HA,
+  `/connect.json` with its CORS header, `/_demo/icon.svg`, `/relay/health`
+  with the public token, the login page,
   403 on one path per blocked pattern, read from the Caddyfile); skipped
   only while nothing at all is served over TLS (anything served, even with
   an expired or untrusted certificate, must pass). This also re-checks the
   sandbox after every dockerd upgrade.
-- Landing page: `/` (without a query; HA's own redirects always carry one,
-  e.g. `?auth_callback=1`) and `/start`: login, next reset, the running HA
-  version, a personal-data warning callout above everything else, a link to `/connect.json`, abuse link, "Open
-  the demo" (`/demo-house/house`). It promises nothing unreleased. Verified:
-  login redirect, logout redirect.
+- Landing page: `https://hanova.app/demo/` (`demo/index.html` in
+  `markusleben/ha-nova-site`, the site's design). `/` without a query and
+  `/start` answer 302 there; HA's own redirects to `/` always carry a query
+  (sign-in returns to `/?auth_callback=1&code=...`) and still reach HA. It
+  shows the personal-data warning above the buttons, login, admin rights,
+  the next reset, the running HA version (read from `/connect.json`, which
+  answers GETs with `Access-Control-Allow-Origin: https://hanova.app`), a
+  link to `/connect.json`, the abuse link, and "Open the demo"
+  (`/demo-house/house`). It promises nothing unreleased and stays unlinked
+  from the site (`noindex`) until the demo ships in a release. Deploy this
+  Caddyfile only once that page is live (`bootstrap.sh` refuses otherwise). Verified locally (throwaway HA
+  2026.10.1 behind this Caddyfile): logged-out `/` and `/start`, sign-in
+  back to a deep link and to `/?auth_callback=1`, logout (HA goes to `/`)
+  lands on the landing page.
 - In HA: `sensor.demo_next_reset` (UTC timestamp; agents:
   `ha-nova get sensor.demo_next_reset`), the `demo-house` dashboard as the
   system-wide default with a banner as every view's header (the personal-data
@@ -161,7 +173,7 @@ scripts for third parties), the AWS account, persistence past :00.
 | Proxy trust | `trusted_proxies` = Caddy's fixed 10.89.240.2 only (dynamic addresses start at .128). HA 2026.10 deprecated the `http:` YAML (a repair, plus a 5-minute trial to promote), so there is none: `config/.storage/http` seeds HA's own store (stable slot, YAML migration marked done) before the first boot, every reset; `demo.mjs setup` fails loud if HA runs anything else. **No IP bans:** HA bans on any 401, the password is public, the owner cannot log in from outside anyway; bans would only lock visitors (or the tooling path) out. |
 | Secrets | None in the repo or user-data (readable via instance metadata). Owner password and token, relay user password and token: generated on the host per reset; the public relay token once. IMDSv2 only, hop limit 1. |
 | AWS | No role or credentials of the demo's account on the instance. Lightsail's own platform role (`AmazonLightsailInstanceRole`, instance profile in an AWS-owned account) is on the IMDS for host root only: IMDSv2, hop limit 1, and the house network has no route to it (verified from every container). Budget alarm at 10 USD. |
-| Logs / privacy | Caddy access log: 7 days, client IPs truncated to /24 (/48), no headers, no `authSig`/`token`/`code` query values. `/abuse` shows the contact given at provisioning. Visitors' browsers fetch integration icons from `brands.home-assistant.io` (their IP, and the demo's origin as referrer); no other third party. |
+| Logs / privacy | Caddy access log: 7 days, client IPs truncated to /24 (/48), no headers, no `authSig`/`token`/`code` query values. `/abuse` shows the contact given at provisioning. Visitors' browsers fetch integration icons from `brands.home-assistant.io` (their IP, and the demo's origin as referrer); `/` and `/start` redirect to the landing page on hanova.app (GitHub Pages), which in turn fetches `/connect.json`; no other third party. |
 | Integrity | Hourly rebuild restores the clone (`checkout --force`, `clean -ffdx`) and all HA state. Caddy is validated with the pinned image and recreated whenever `edge.yml`, the Caddyfile, or `site/` change (hash compare in every reset; `bootstrap.sh` always). Host compromise is not fixed by a reset: rebuild the instance. |
 
 **Detect:** budget mail; `journalctl -u ha-nova-demo-guard -u ha-nova-demo-reset`
@@ -189,11 +201,11 @@ banner dashboard and an overridden default panel (`frontend` system data
 `core.default_panel`), dismisses a link notice and keeps a plain one; relay
 reports `ha_ws_disconnect_reason: "auth"` once its user is deleted and it
 reconnects; relay `/files` off, 8 MB store; CSP in a real browser (external
-script and images blocked, UI works); landing page, login and logout
-redirects; no 401s from admin UI browsing; masked access log; CPU and pids
+script and images blocked, UI works); login and logout redirects (the
+landing redirect re-checked locally after the move to hanova.app); no 401s from admin UI browsing; masked access log; CPU and pids
 limits. Gated reset sequence (driver with `host-lib.sh` sourced): house and
-relay hidden until `ready` (503 page / `demo_resetting` JSON, landing still
-200), relay round trip with the prebuilt image (built from the digest-pinned
+relay hidden until `ready` (503 page / `demo_resetting` JSON, landing
+redirect still served), relay round trip with the prebuilt image (built from the digest-pinned
 Node base, keep label set), parallel egress gate in 4 s, public gate; an
 upstream answering 502, 503, or 504 and a missing upstream both get the
 restarting page, while the relay's own 502 JSON passes through; a paused HA

@@ -180,6 +180,10 @@ install -d -m 0755 /var/lib/ha-nova-demo/public
 docker network inspect ha-nova-demo-house > /dev/null 2>&1 \
   || docker network create --internal --subnet 10.89.240.0/24 --ip-range 10.89.240.128/25 ha-nova-demo-house > /dev/null
 DEMO_DOMAIN="$DOMAIN" ABUSE_CONTACT="$ABUSE"
+# / and /start redirect to the landing page on hanova.app (ha-nova-site,
+# demo/): never send visitors to a page that is not published yet.
+curl -sf -m 15 -o /dev/null https://hanova.app/demo/ \
+  || die "https://hanova.app/demo/ does not answer: publish the site's demo page first"
 edge_up --force
 
 step "relay image for this ref (digest-pinned Node base; resets never build or pull it)"
