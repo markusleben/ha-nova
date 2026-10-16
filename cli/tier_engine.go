@@ -41,6 +41,9 @@ type tierConsumer struct {
 type tierCoverage struct {
 	Complete bool     `json:"complete"`
 	Notes    []string `json:"notes,omitempty"`
+	// Skipped: what an area, device, or group target reached but left out,
+	// each under its note code (detail: hidden, entity_category, other_area).
+	Skipped []tierReason `json:"skipped,omitempty"`
 }
 
 type entityState struct {
@@ -79,6 +82,7 @@ type tierEngine struct {
 	members   []tierMember
 	consumers []tierConsumer
 	notes     []string
+	skipped   []tierReason
 	complete  bool
 	visited   map[string]bool
 	done      map[string]tierLevel // finished visit/consumer → the class it reached
