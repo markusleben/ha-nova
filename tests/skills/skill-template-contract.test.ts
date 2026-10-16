@@ -87,6 +87,7 @@ const READ_ONLY_SKILLS = new Set([
   "entity-discovery",
   "history",
   "health",
+  "home-map",
   "onboarding",
 ]);
 

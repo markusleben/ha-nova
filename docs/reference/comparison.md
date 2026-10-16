@@ -8,7 +8,7 @@ Everything below reflects the state on **2026-07-20**, with HA NOVA's skill coun
 
 | | **Home Assistant's official MCP server** | **ha-mcp** (community MCP server) | **HA NOVA** |
 |---|---|---|---|
-| What the AI gets | The Assist API (exposed entities) | 87 MCP tools | 30 task skills (+ 1 context skill) + 4 generic relay endpoints |
+| What the AI gets | The Assist API (exposed entities) | 87 MCP tools | 31 task skills (+ 1 context skill) + 4 generic relay endpoints |
 | Can it edit automations, dashboards, the registry? | No | Yes | Yes |
 | Where the domain knowledge lives | In Home Assistant | In the server's Python code | In markdown you can read and edit |
 | Protocol dependency | MCP | MCP | none — skills are plain text |

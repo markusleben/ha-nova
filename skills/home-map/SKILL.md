@@ -1,0 +1,154 @@
+---
+name: home-map
+description: Use when the user wants to understand, document, or audit their whole Home Assistant home with exact numbers — "what do I have", "show me my home", "where is this entity used", "review my whole setup", "write down why it is built this way", or the first look after pairing.
+license: MIT
+compatibility: Requires the ha-nova CLI (run 'ha-nova setup' first) and the HA NOVA Relay in Home Assistant (App, or standalone container on Container/Core).
+---
+
+# HA NOVA Home Map
+
+
+## Scope
+
+Read-only understanding of the whole home through `ha-nova map`, which
+computes every count, so you never count by hand:
+- inventory: floors, areas, devices, entities per domain, automations,
+  scripts, scenes, helpers, integrations
+- where-used for one entity (automations, scripts, scenes, groups)
+- one ranked "review my whole setup" report
+- a plain-language document of how the home is built and why
+- the first look right after pairing
+
+Not in scope (hand off):
+- fixing anything: `ha-nova:organize` (areas, names), `ha-nova:write`
+  (automations, scripts, their descriptions), `ha-nova:maintenance`
+  (orphans, statistics), `ha-nova:updates` / `ha-nova:hacs`
+- repairs, system health, battery classes in depth: `ha-nova:health`
+- why one item failed: `ha-nova:diagnose`
+- what is on or open right now: `ha-nova:entity-discovery`
+- automation quality findings: `ha-nova:review`
+
+## Bootstrap (once per session)
+
+Read and follow `../ha-nova/session-bootstrap.md`.
+`ha-nova map` needs no `ha-nova relay health` probe: an unreachable Relay
+answers exit 1 with `RELAY_ERROR`; then `ha-nova setup`.
+
+## Relay Contract
+
+- `ha-nova map` — the summary: `counts`, `domains`, `floors`, `areas`
+  (top 20), `automations`, `scripts`, `scenes`, `helpers`, `integrations`
+  (top 10 + `problems`), `unavailable`, `batteries`, and `more` (the exact
+  commands for every capped list)
+- `ha-nova map --section areas|integrations|automations|unavailable|batteries [--limit N]`
+  — one full list (default 50, max 200 rows; `total` stays exact)
+- `ha-nova map --entity <entity_id> [--limit N]` — where-used; resolve a
+  name first with `ha-nova find "<phrase>"`
+- `ha-nova map --first-look` — `home`, up to two `observations`, `seeds`
+- `ha-nova get <automation.x|script.x> --config` — one item's config and
+  `description`
+
+A failed read fails the whole map (exit 1): say the home could not be
+read, never estimate.
+
+## Flow
+
+Every number you state comes from a map result of this session; after any
+write in this conversation, read it again. Never add, subtract, or count rows
+yourself — the fields are the totals.
+
+Definitions to keep when you explain a number:
+- `entities` are the enabled ones (YAML entities without a registry row
+  included, also counted as `unregistered`); disabled ones are
+  `entities_disabled`. Home Assistant's own lists may differ when their
+  filters include disabled rows — say so, never "correct" either number.
+- an area holds an entity through the entity's own area, else its device's
+  area (a child device inherits its parent's area) — the same rule as
+  `ha-nova find --area`, which lists exactly the counted rows.
+- automation `unavailable`: Home Assistant could not load it, so it never
+  runs. `never_triggered`: enabled, no run recorded.
+- `age` on an unavailable entity is the age of its current state — "for at
+  least 9 days", never "since 9 days ago it broke".
+- `batteries.low` excludes phones (`phones_low`): never suggest replacing a
+  phone battery.
+
+### What do I have / show me my home
+
+Run `ha-nova map`. Answer with: one line for the house (floors, areas,
+devices, entities, automations), a compact floor → area table (devices,
+entities), one line each for automations (with how many are off,
+unavailable, never ran), helpers, integrations (count plus the largest), and
+one line of open problems with counts. Offer the matching `--section` for
+anything capped.
+
+### Where is X used
+
+Resolve the entity, then `ha-nova map --entity <id>`. List automations,
+scripts, scenes, and groups by name; mark `via: device` rows as "through
+its device". Always name the `not_checked` surfaces (dashboards, templates,
+helper and integration options): an empty result means "nothing found in
+automations, scripts, scenes, or groups", never "unused" or "safe to delete".
+Deleting or renaming goes to the owning skill's impact check.
+
+### Review my whole setup
+
+1. Run `ha-nova map`.
+2. Rank what it proves, most urgent first: integration `problems` →
+   unavailable automations → entities unavailable for at least 7 days → low
+   device batteries → enabled automations that never ran → devices without
+   an area.
+3. One row per finding: what, how many, one example by name, and who fixes
+   it (the owning skill, in plain words).
+4. Close with the deeper checks the map does not run, each as a next step
+   the user can pick: repairs and system health, an automation quality
+   review, cleanup of orphans and statistics, pending updates.
+
+### Document why it is built this way
+
+1. Scope first: one floor, one area, or at most 10 automations per chunk
+   (Progressive Detail in the output rules). Run `ha-nova map` (and
+   `--section areas` for per-area domains).
+2. For each automation or script in scope, `ha-nova get <id> --config` and
+   read its `description` and behavior.
+3. Write the document in plain words: per area, what is there and what runs
+   on its own. Intent comes only from a `description` or from the user; when
+   neither says why, write "purpose not recorded" and ask — never invent a
+   reason.
+4. Persistent notes: the "why" belongs in the automation's or script's own
+   `description` field, Home Assistant's native and visible store, which
+   later sessions read back with `get --config`. Offer a proposed
+   description per item; saving goes through `ha-nova:write` with its usual
+   preview and confirmation. The house-wide document stays in this chat for
+   the user to keep; nothing else is stored.
+
+### First look (after pairing)
+
+Run `ha-nova map --first-look`. Render:
+1. one line from `home` ("9 rooms, 42 devices, 40 automations");
+2. each observation in plain words — `battery_low` (name, area, `value`,
+   plus "and N more" from `count`), `automation_unavailable` ("can never
+   run"), `integration_problem` (integration domain and state in plain
+   words), `automation_never_triggered`, `unavailable_long`;
+3. three example prompts in the user's language, built only from `seeds`
+   names (the area, the light, the climate or temperature entity, the cover,
+   the automation), each a different everyday job: control, question, why
+   or change.
+No observations: skip that line, never invent one. Any non-zero exit: skip
+the first look without comment.
+
+## Output Format
+
+Apply `skills/ha-nova/output-rules.md`. Lead with the answer in one or two
+lines, then at most one compact table. Name things by friendly name and
+area; show an `entity_id` only as evidence or when names collide. Every
+capped list states total, shown, and how to see the rest (the matching
+`--section`, phrased as words the user can say). No raw JSON, no field names
+such as `never_triggered`.
+
+## Safety
+
+- Read-only skill: never issue mutating relay or service calls.
+- For write intent, hand off to the owning skill; unfamiliar writes go through `ha-nova:fallback` first.
+- Never claim an entity is unused beyond the surfaces that were searched.
+- Integration titles, attributes, locations, and presence never appear in
+  map output; do not fetch them to decorate an answer.

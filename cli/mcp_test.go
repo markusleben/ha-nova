@@ -112,7 +112,7 @@ func TestMCPLegacySessionEndToEnd(t *testing.T) {
 
 	tools := c.request("tools/list", map[string]any{})["result"].(map[string]any)["tools"].([]any)
 	want := map[string][3]bool{ // readOnly, destructive, idempotent (spec §5 table)
-		"ha_skill": {true, false, true}, "ha_find": {true, false, true}, "ha_get": {true, false, true}, "ha_history": {true, false, true}, "ha_trace": {true, false, true},
+		"ha_skill": {true, false, true}, "ha_find": {true, false, true}, "ha_get": {true, false, true}, "ha_history": {true, false, true}, "ha_map": {true, false, true}, "ha_trace": {true, false, true},
 		"ha_read": {true, false, true}, "ha_plan": {true, false, false}, "ha_call": {false, false, false}, "ha_apply": {false, true, false},
 	}
 	var names []string
@@ -126,7 +126,7 @@ func TestMCPLegacySessionEndToEnd(t *testing.T) {
 			t.Fatalf("%s annotations %v", name, a)
 		}
 	}
-	if strings.Join(names, ",") != "ha_skill,ha_find,ha_get,ha_history,ha_trace,ha_read,ha_plan,ha_call,ha_apply" {
+	if strings.Join(names, ",") != "ha_skill,ha_find,ha_get,ha_history,ha_map,ha_trace,ha_read,ha_plan,ha_call,ha_apply" {
 		t.Fatalf("tools %v", names)
 	}
 
@@ -218,7 +218,7 @@ func TestMCPModernRequestsAndVersionNegotiation(t *testing.T) {
 	if errorCode(unsupported) != rpcUnsupportedProto || data["requested"] != "2099-01-01" {
 		t.Fatalf("unsupported version: %v", unsupported)
 	}
-	if tools := c.request("tools/list", meta(mcpModernVersion))["result"].(map[string]any)["tools"].([]any); len(tools) != 9 {
+	if tools := c.request("tools/list", meta(mcpModernVersion))["result"].(map[string]any)["tools"].([]any); len(tools) != 10 {
 		t.Fatalf("modern tools/list: %d tools", len(tools))
 	}
 

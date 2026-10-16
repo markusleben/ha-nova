@@ -28,6 +28,7 @@ var readOnlyWSTypes = map[string]bool{
 	"config/entity_registry/list":             true,
 	"config/entity_registry/get":              true,
 	"config/area_registry/list":               true,
+	"config/floor_registry/list":              true, // map: floors
 	"config/device_registry/list":             true,
 	// Pre-2026.8 merged device ids → the devices they were split into.
 	"config/device_registry/list_composite_splits": true,
