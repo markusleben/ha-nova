@@ -246,7 +246,7 @@ async function summary() {
 async function mint() {
   const ha = await connect();
   try {
-    console.log(await ha.call({ type: "auth/long_lived_access_token", client_name: "HA NOVA testbed", lifespan: 1 }));
+    console.log(await ha.call({ type: "auth/long_lived_access_token", client_name: "HA NOVA testbed", lifespan: 30 }));
   } finally {
     ha.close();
   }
