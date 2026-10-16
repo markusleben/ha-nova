@@ -6,10 +6,12 @@
 	admin off
 }
 
+# In the hanova.app look (night sky, the star from site/icon.svg via /_demo/).
+# Style attributes only: braces in a respond body read as placeholders.
 (restarting_html) {
 	header Content-Type "text/html; charset=utf-8"
 	header Retry-After "60"
-	respond `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width"><meta http-equiv="refresh" content="15"><title>Demo is restarting</title><body style="font:16px system-ui;max-width:32em;margin:4em auto;padding:0 1em"><h1>Demo is restarting</h1><p>The demo is restarting or being reset (full reset every hour at :00 UTC). Back in about 2 minutes; this page reloads by itself.</p><p><a href="/start">About this demo</a></p>` 503
+	respond `<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta http-equiv="refresh" content="15"><title>Demo is restarting</title><body style="margin:0;min-height:100vh;background:#0A1628 linear-gradient(180deg,#0A0E1A 0%,#0D1525 45%,#0A1628 100%);color:#B8CCE0;font:17px/1.65 -apple-system,'Helvetica Neue','Segoe UI',sans-serif;text-align:center"><main style="max-width:34em;margin:0 auto;padding:clamp(3rem,12vh,6rem) 1.5rem"><img src="/_demo/icon.svg" alt="" width="96" height="96" style="display:block;margin:0 auto"><p style="margin:1.25rem 0 0;font-size:1rem;font-weight:600;letter-spacing:.34em;padding-left:.34em">HA NOVA</p><h1 style="margin:.75rem 0 0;color:#E8EDF2;font-size:2rem;line-height:1.2">Demo is restarting</h1><p style="margin:1.25rem 0 0">The demo is being reset (at the top of every hour, UTC) or restarted. Back in about 2 minutes; this page reloads by itself.</p><p style="margin:1.5rem 0 0"><a href="/start" style="color:#18BCF2;text-underline-offset:3px">About this demo</a></p></main>` 503
 }
 
 (resetting_json) {
@@ -71,8 +73,10 @@
 		path_regexp brand ^/api/brands/integration/([a-z0-9_]+)/((?:dark_)?(?:icon|logo)(?:@2x)?\.png)$
 		query placeholder=no
 	}
-	# Landing page: /start, and / without a query (HA's own redirects to /
-	# always carry one, e.g. ?auth_callback=1).
+	# Landing page, on hanova.app/demo/ (repo markusleben/ha-nova-site):
+	# /start, and / without a query only. HA's own redirects to / always
+	# carry one (sign-in returns to /?auth_callback=1&code=...), and those
+	# must reach HA.
 	@landing {
 		path /
 		expression {http.request.uri.query} == ""
@@ -98,13 +102,14 @@
 			redir https://brands.home-assistant.io/_/{re.brand.1}/{re.brand.2} 302
 		}
 		handle @landing {
-			root * /site
-			rewrite * /start.html
-			file_server
+			redir https://hanova.app/demo/ 302
 		}
 		handle /start {
+			redir https://hanova.app/demo/ 302
+		}
+		# The restarting page's star; served while the house is down too.
+		handle_path /_demo/* {
 			root * /site
-			rewrite * /start.html
 			file_server
 		}
 		handle /abuse {
@@ -125,6 +130,10 @@
 			}
 			handle /connect.json {
 				header Cache-Control "no-store"
+				# The landing page reads ha_version from here. A plain GET
+				# needs no preflight, so no other CORS header.
+				@get method GET
+				header @get Access-Control-Allow-Origin "https://hanova.app"
 				root * /srv
 				file_server
 			}

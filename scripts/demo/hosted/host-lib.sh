@@ -118,10 +118,20 @@ public_gate() {
   rm -f "$PENDING"
   url=(--resolve "$domain:443:127.0.0.1" -sf -m 15)
   curl "${url[@]}" -o /dev/null "https://$domain/start" || { echo "public gate: https://$domain does not verify or answer" >&2; return 1; }
-  # grep -c reads to the end: grep -q could exit early and fail curl (pipefail).
-  curl "${url[@]}" "https://$domain/" | grep -c "HA NOVA demo house" > /dev/null || { echo "public gate: landing page" >&2; return 1; }
+  # The landing page lives on hanova.app; HA's sign-in return (/ with a
+  # query) must still reach HA.
+  for pat in / /start; do
+    code="$(curl "${url[@]}" -o /dev/null -w '%{http_code} %{redirect_url}' "https://$domain$pat" || true)"
+    [[ "$code" == "302 https://hanova.app/demo/" ]] || { echo "public gate: $pat answered '$code', not the landing redirect" >&2; return 1; }
+  done
+  code="$(curl "${url[@]}" -o /dev/null -w '%{http_code} %{redirect_url}' "https://$domain/?auth_callback=1" || true)"
+  [[ "$code" == "200 " ]] || { echo "public gate: /?auth_callback=1 answered '$code', not Home Assistant" >&2; return 1; }
   curl "${url[@]}" "https://$domain/connect.json" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>process.exit(JSON.parse(s).relay_token?0:1))' \
     || { echo "public gate: connect.json" >&2; return 1; }
+  # grep -c reads to the end: grep -q could exit early and fail curl (pipefail).
+  curl "${url[@]}" -o /dev/null -D - "https://$domain/connect.json" | tr -d '\r' | grep -ci '^access-control-allow-origin: https://hanova\.app$' > /dev/null \
+    || { echo "public gate: connect.json lacks the hanova.app CORS header" >&2; return 1; }
+  curl "${url[@]}" -o /dev/null "https://$domain/_demo/icon.svg" || { echo "public gate: restarting page star" >&2; return 1; }
   curl "${url[@]}" -o /dev/null -H "Authorization: Bearer $token" "https://$domain/relay/health" || { echo "public gate: relay" >&2; return 1; }
   curl "${url[@]}" -o /dev/null "https://$domain/auth/authorize?response_type=code&client_id=https://$domain/&redirect_uri=https://$domain/" \
     || { echo "public gate: login page" >&2; return 1; }
