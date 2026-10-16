@@ -398,6 +398,7 @@ func (e *tierEngine) classifyDraft(domain, configID string, draft json.RawMessag
 	if !ok {
 		return
 	}
+	e.draft = true
 	if domain == "script" {
 		e.walk(cfg["sequence"], "draft/sequence", 1)
 		return

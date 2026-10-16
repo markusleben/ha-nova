@@ -96,11 +96,15 @@ type tierEngine struct {
 	devices   *deviceGraph // device registry links; nil until read
 	groups    []string     // expanded direct group targets: consumer-scanned, never frozen
 	fullRead  bool
+	routes    map[string][]string // extra ways an entity is reached: "" direct, else a deduplicated visit's via
+	firedOn   map[string][]string // consumer automation → the scanned entities its triggers matched
+	draft     bool                // a config draft: it runs later, so plan-time state proves nothing
 }
 
 func newTierEngine(s *relaySession) *tierEngine {
 	return &tierEngine{s: s, reg: map[string]registryEntry{}, states: map[string]*entityState{}, configs: map[string]map[string]any{},
-		basis: map[string]string{}, seen: map[string]bool{}, visited: map[string]bool{}, done: map[string]tierLevel{}, complete: true}
+		basis: map[string]string{}, seen: map[string]bool{}, visited: map[string]bool{}, done: map[string]tierLevel{}, complete: true,
+		routes: map[string][]string{}, firedOn: map[string][]string{}}
 }
 
 // raise records a reason and lifts the run (and every open consumer scope).
@@ -235,6 +239,9 @@ func (e *tierEngine) cut(depth int, id, via string) bool {
 func (e *tierEngine) visit(id, service string, data map[string]any, depth int, via string) {
 	payload, _ := json.Marshal(data)
 	key := id + " " + service + " " + string(payload)
+	if depth == 0 || e.visited[key] {
+		e.routes[id] = append(e.routes[id], via)
+	}
 	if e.visited[key] { // repeat or cycle: classified (or flagged) already
 		if level, finished := e.done[key]; finished {
 			e.lift(level)
@@ -311,7 +318,11 @@ func (e *tierEngine) classify(id, service string, data map[string]any, depth int
 	if domain == "timer" {
 		e.checkEvents("timer.", id)
 	}
-	e.scanConsumers(id, depth)
+	d := plannedDelta(id, eff, data, st)
+	if e.draft {
+		d.from = ""
+	}
+	e.scanConsumers(id, depth, d)
 }
 
 // notGroupDomains carry an attributes.entity_id list that is not group

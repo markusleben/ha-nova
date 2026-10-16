@@ -84,23 +84,27 @@ func filterDomain(ids []string, domain string) []string {
 }
 
 // scanConsumers runs once per acted entity: automations related to the
-// entity or its device whose triggers reference it are read and classified.
-func (e *tierEngine) scanConsumers(id string, depth int) {
-	for _, acted := range e.acted {
-		if acted == id {
-			return
-		}
-	}
-	e.acted = append(e.acted, id)
-	if len(e.acted) > tierMaxActed {
-		e.gap(reasonLimitCut, "", "", fmt.Sprintf("more than %d acted entities", tierMaxActed))
-		return
-	}
+// entity or its device whose triggers reference it are read and classified;
+// d (the entity's planned change) only words the consumer list.
+func (e *tierEngine) scanConsumers(id string, depth int, d stateDelta) {
 	needles := []string{id}
 	items := [][2]string{{"entity", id}}
 	if device := e.reg[id].di; device != "" {
 		needles = append(needles, device)
 		items = append(items, [2]string{"device", device})
+	}
+	if slices.Contains(e.acted, id) { // scanned already: this change may fire what the first did not
+		for automation, ons := range e.firedOn {
+			if cfg := e.configs[automation]; cfg != nil && slices.Contains(ons, id) {
+				e.matchConsumer(automation, triggerMatch(cfg, id, needles, d), id)
+			}
+		}
+		return
+	}
+	e.acted = append(e.acted, id)
+	if len(e.acted) > tierMaxActed {
+		e.gap(reasonLimitCut, "", "", fmt.Sprintf("more than %d acted entities", tierMaxActed))
+		return
 	}
 	var reads []func()
 	for _, item := range items {
@@ -145,31 +149,11 @@ func (e *tierEngine) scanConsumers(id string, depth int) {
 	}
 	prefetch(configReads)
 	for _, automation := range automations {
-		e.consumer(automation, "trigger", depth, func(cfg map[string]any) bool { return triggersReference(cfg, needles) })
+		e.consumer(automation, "", id, depth, func(cfg map[string]any) string { return triggerMatch(cfg, id, needles, d) })
 	}
 	for _, group := range slices.Compact(containers) {
-		e.scanConsumers(group, depth)
+		e.scanConsumers(group, depth, stateDelta{}) // a group's own change is not derived
 	}
-}
-
-// triggersReference: a trigger naming the entity or its device, or one
-// targeted by a selector this scan does not resolve (area, floor, label,
-// device, or a templated target) — counted as a match, never dropped.
-func triggersReference(cfg map[string]any, needles []string) bool {
-	for _, trigger := range flattenTriggers(firstPresent(cfg, "triggers", "trigger")) {
-		if target, present := trigger["target"]; present {
-			if m, isMap := target.(map[string]any); !isMap || m["area_id"] != nil || m["floor_id"] != nil || m["label_id"] != nil || m["device_id"] != nil {
-				return true
-			}
-		}
-		raw, _ := json.Marshal(trigger)
-		for _, needle := range needles {
-			if strings.Contains(string(raw), needle) {
-				return true
-			}
-		}
-	}
-	return false
 }
 
 // flattenTriggers returns the enabled trigger maps, descending into nested
@@ -194,11 +178,17 @@ func flattenTriggers(node any) []map[string]any {
 }
 
 // consumer classifies one automation's actions as a consumer of the run;
-// its class is the maximum it reaches (Q1: fully read + ordinary stays ordinary).
-func (e *tierEngine) consumer(automation, match string, depth int, matches func(map[string]any) bool) {
+// its class is the maximum it reaches (Q1: fully read + ordinary stays
+// ordinary). fires (nil for event listeners, which keep match) returns ""
+// for no reference to on, else the trigger verdict that becomes match.
+func (e *tierEngine) consumer(automation, match, on string, depth int, fires func(map[string]any) string) {
 	key := "consumer " + automation
 	if e.visited[key] {
 		e.lift(e.done[key])
+		if cfg := e.configs[automation]; cfg != nil && fires != nil {
+			match = fires(cfg)
+		}
+		e.matchConsumer(automation, match, on) // an event listener keeps its own match
 		return
 	}
 	if _, cached := e.configs[automation]; !cached {
@@ -208,7 +198,10 @@ func (e *tierEngine) consumer(automation, match string, depth int, matches func(
 		}
 	}
 	cfg, ok := e.runConfig(automation, "automation", "consumer")
-	if !ok || (matches != nil && !matches(cfg)) {
+	if ok && fires != nil {
+		match = fires(cfg)
+	}
+	if !ok || match == "" {
 		return
 	}
 	e.visited[key] = true
@@ -217,13 +210,16 @@ func (e *tierEngine) consumer(automation, match string, depth int, matches func(
 			e.note(noteTemplates) // its dependencies are computed at runtime
 		}
 	}
+	row := len(e.consumers) // listed before the walk, so a nested repeat can upgrade its match
+	e.consumers = append(e.consumers, tierConsumer{Automation: automation})
+	e.matchConsumer(automation, match, on)
 	class := tierOrdinary
 	e.scopes = append(e.scopes, &class)
 	e.walk(automationActions(cfg), automation+"/actions", depth+1)
 	e.checkEvents("automation_triggered", automation) // a consumer run fires one too
 	e.scopes = e.scopes[:len(e.scopes)-1]
 	e.done[key] = class
-	e.consumers = append(e.consumers, tierConsumer{Automation: automation, Match: match, Class: class.String()})
+	e.consumers[row].Class = class.String()
 }
 
 func firstPresent(m map[string]any, keys ...string) any {

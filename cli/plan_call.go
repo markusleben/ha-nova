@@ -463,7 +463,7 @@ func (e *tierEngine) evaluate(req planCallRequest, targets []verbTarget) *tierRe
 		e.visit(t.EntityID, req.Service, req.Data, 0, "")
 	}
 	for _, group := range e.groups { // its consumers react to the leaves' change
-		e.scanConsumers(group, 0)
+		e.scanConsumers(group, 0, stateDelta{})
 	}
 	e.checkManagers()
 	return nil

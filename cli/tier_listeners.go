@@ -64,7 +64,7 @@ func (e *tierEngine) checkEvents(eventType, entityID string) {
 		}
 		for _, hit := range table.hits[t] {
 			if entityID == "" || hit.entityFilter == "" || hit.entityFilter == entityID {
-				e.consumer(hit.automation, "event:"+t, 1, nil)
+				e.consumer(hit.automation, "event:"+t, "", 1, nil)
 			}
 		}
 	}

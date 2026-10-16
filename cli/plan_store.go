@@ -164,7 +164,7 @@ func sealPlan(e *tierEngine, env *verbEnvelope, plan storedPlan, action any) (st
 		plan.Code = confirmCode(service, objects, idHex)
 	}
 	env.Tier, env.Reasons = tier, e.reasons
-	env.Members, env.Consumers = e.members, e.consumers
+	env.Members, env.Consumers = e.shown()
 	env.Coverage = &tierCoverage{Complete: e.complete, Notes: e.notes, Skipped: e.skipped}
 	env.Plan = &verbPlan{ID: plan.ID, Hash: plan.Hash, ExpiresAt: plan.ExpiresAt, Confirm: plan.Confirm, Code: plan.Code}
 	env.Status = "ready"

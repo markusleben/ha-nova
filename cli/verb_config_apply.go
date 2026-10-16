@@ -125,8 +125,8 @@ func writeFailure(env *verbEnvelope, result serviceResult, err error, createdID 
 			next += " If it is missing and the user asks to retry, retry only with the same --id " + createdID + " --create."
 		}
 		return &verbFailure{exit: verbExitUnknown, status: "unverified", code: "OUTCOME_UNKNOWN", message: err.Error(), next: next}
-	case err != nil:
-		return fmt.Errorf("%w; Home Assistant did not receive the write", err)
+	case err != nil: // refused or answered before reaching Home Assistant
+		return nothingSent(err)
 	case rejectedStatuses[result.status]:
 		return &verbFailure{exit: verbExitUnverified, status: "failed", code: "CONFIG_REJECTED",
 			message: fmt.Sprintf("Home Assistant rejected the config (HTTP %d): %s", result.status, truncate(string(result.body), 300)),
