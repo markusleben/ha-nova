@@ -5,7 +5,6 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"net/http"
 	"os"
 	"slices"
 	"strings"
@@ -165,13 +164,16 @@ func computeCallPlan(s *relaySession, env *verbEnvelope, req planCallRequest) (*
 	if err := s.unreachableError(); err != nil {
 		return nil, storedPlan{}, err
 	}
+	spec := e.serviceSpec(req.Service)
+	if !spec.listed { // before any target or tier: an invented service never reaches a confirmation
+		return nil, storedPlan{}, e.refuseUnlisted(env, req, spec)
+	}
 	targets, err := e.resolveTargets(req)
 	if err != nil {
 		return nil, storedPlan{}, err
 	}
 	env.Resolved = targets
-	spec := e.serviceSpec(req.Service)
-	if spec.responseOnly { // a failed list read refuses nothing: HA then rejects the call (400) before running it
+	if spec.responseOnly {
 		return nil, storedPlan{}, refuse(env, tierReason{Code: reasonResponseOnly, Skill: "ha-nova:service-call", Detail: "Home Assistant runs this service only with return_response"})
 	}
 	if e.targetRequired(req, spec) {
@@ -184,59 +186,13 @@ func computeCallPlan(s *relaySession, env *verbEnvelope, req planCallRequest) (*
 	return e, plan, err
 }
 
-// serviceSpec is what /api/services says about one service: listed,
-// takes a target, runs only with return_response. known is false when the
-// list cannot be read.
-type serviceSpec struct{ listed, target, responseOnly, known bool }
-
-func (e *tierEngine) serviceSpec(service string) serviceSpec {
-	status, body, err := e.s.coreGET("/api/services")
-	var domains []struct {
-		Domain   string `json:"domain"`
-		Services map[string]struct {
-			Target   json.RawMessage `json:"target"`
-			Response *struct {
-				Optional bool `json:"optional"`
-			} `json:"response"`
-		} `json:"services"`
-	}
-	if err != nil || status != http.StatusOK || json.Unmarshal(body, &domains) != nil {
-		return serviceSpec{}
-	}
-	domain, name := splitID(service)
-	for _, d := range domains {
-		if spec, listed := d.Services[name]; d.Domain == domain && listed {
-			return serviceSpec{listed: true, known: true, target: spec.Target != nil,
-				responseOnly: spec.Response != nil && !spec.Response.Optional}
-		}
-	}
-	return serviceSpec{known: true}
-}
-
 // targetRequired: a service that takes a target, called with none, acts on
-// EVERY entity of its domain in Home Assistant. Without a readable service
-// list it fails closed for any entity domain. A script run by its own name
+// EVERY entity of its domain in Home Assistant. A script run by its own name
 // and scene.apply (entities in its data) name their targets themselves.
 func (e *tierEngine) targetRequired(req planCallRequest, spec serviceSpec) bool {
 	domain, name := splitID(req.Service)
 	named := len(req.EntityIDs) > 0 || req.Match != "" || req.Area != "" || req.Device != ""
-	switch {
-	case named || req.Service == "scene.apply" || (domain == "script" && !scriptEntityServices[name]):
-		return false
-	case spec.listed:
-		return spec.target
-	case name == "reload":
-		return false
-	}
-	if entityDomains[domain] {
-		return true
-	}
-	for id := range e.reg {
-		if strings.HasPrefix(id, domain+".") {
-			return true
-		}
-	}
-	return false
+	return spec.target && !named && req.Service != "scene.apply" && (domain != "script" || scriptEntityServices[name])
 }
 
 // staticRefusal: owned services, hassio.*, floor/label selectors, and codes
@@ -261,7 +217,7 @@ func staticRefusal(req planCallRequest) *tierReason {
 	return nil
 }
 
-func refuse(env *verbEnvelope, r tierReason) error {
+func refuse(env *verbEnvelope, r tierReason) *verbFailure {
 	env.Tier = tierRefused.String()
 	env.Reasons = []tierReason{r}
 	next := "Finish this in the Home Assistant UI."

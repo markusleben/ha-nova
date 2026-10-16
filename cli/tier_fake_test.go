@@ -27,7 +27,7 @@ type fakeHA struct {
 	aliases       map[string][]string // entity → aliases (get_entries only, as in HA)
 	loaded        map[string]any      // entity → loaded config (WS automation/config, script/config)
 	flows         []map[string]any    // config_entries/flow/progress
-	services      []map[string]any    // GET /api/services (nil: 404)
+	services      []map[string]any    // GET /api/services (nil: defaultServices; fail it with f.fail["/api/services"])
 	devices       []map[string]any    // config/device_registry/list rows (id, parent_device_id)
 	splits        map[string]any      // config/device_registry/list_composite_splits (nil: {})
 	splitsUnknown bool                // that command is unknown (a core before 2026.8)
@@ -182,6 +182,8 @@ func (f *fakeHA) reply(r *http.Request, endpoint string, p map[string]any) any {
 	switch {
 	case path == "/api/services" && f.services != nil:
 		return coreReply(200, f.services)
+	case path == "/api/services":
+		return coreReply(200, f.defaultServices())
 	case path == "/api/events":
 		return coreReply(200, append([]map[string]any{}, f.events...))
 	case path == "/api/states":
@@ -200,6 +202,47 @@ func (f *fakeHA) reply(r *http.Request, endpoint string, p map[string]any) any {
 		}
 	}
 	return coreReply(404, map[string]any{"message": "not found"})
+}
+
+// fakeServices is what the default fake Home Assistant lists: every
+// service the tests call, plus script.<id> per script. Entity-domain
+// services take a target; homeassistant.*, reloads, and integration
+// services do not.
+var fakeServices = strings.Fields(`script.turn_on script.turn_off script.toggle lock.unlock lock.lock lock.open
+	light.turn_on light.turn_off light.toggle text.set_value switch.turn_on switch.turn_off switch.toggle
+	input_boolean.turn_on input_boolean.turn_off input_boolean.toggle cover.set_cover_position cover.open_cover
+	cover.close_cover cover.stop_cover button.press automation.trigger scene.turn_on select.select_option
+	climate.set_temperature input_select.select_option input_number.set_value group.reload homeassistant.turn_on homeassistant.turn_off homeassistant.toggle
+	homeassistant.restart homeassistant.update_entity homeassistant.reload_config_entry homeassistant.check_config
+	zwave_js.set_value acme.pulse shelly.blink shelly.trigger hue.activate_scene zha.set_lock_user_code
+	pyscript.open_garage nuki.lock_n_go netdaemon.open_gate esphome.garage_open envisalink.alarm_keypress`)
+
+func (f *fakeHA) defaultServices() []map[string]any {
+	byDomain := map[string]map[string]any{}
+	add := func(id string, spec map[string]any) {
+		domain, name := splitID(id)
+		if byDomain[domain] == nil {
+			byDomain[domain] = map[string]any{}
+		}
+		byDomain[domain][name] = spec
+	}
+	for _, id := range fakeServices {
+		if domain, name := splitID(id); coreDomains[domain] && domain != "homeassistant" && name != "reload" {
+			add(id, map[string]any{"target": map[string]any{}})
+		} else {
+			add(id, map[string]any{})
+		}
+	}
+	for id := range f.states {
+		if strings.HasPrefix(id, "script.") {
+			add(id, map[string]any{})
+		}
+	}
+	var out []map[string]any
+	for domain, services := range byDomain {
+		out = append(out, map[string]any{"domain": domain, "services": services})
+	}
+	return out
 }
 
 func runPlanForTest(t *testing.T, f *fakeHA, args ...string) (int, verbTestEnvelope, runtimePaths, *fakeRelayLog) {
