@@ -116,6 +116,7 @@ const ENTITY_EDITS = [
   { entity_id: "lock.entrance_door", aliases: ["Haustür"], labels: ["Security"] },
   { entity_id: "cover.garage_door", labels: ["Security"] },
   { entity_id: "cover.testbed_garage", labels: ["Security"] },
+  { entity_id: "cover.driveway_gate", labels: ["Security"] },
   // device_class override: a class-less cover becomes a (non-access) shutter.
   { entity_id: "cover.kitchen_window", device_class: "shutter" },
   // A non-user-authored restart button (the MQTT one is USER_AUTHORED_BUTTON).
@@ -127,7 +128,7 @@ const REQUIRED_ENTITIES = [
   ...Object.keys(DEVICE_AREAS),
   "light.office_rgbw_lights", "light.entrance_color_white_lights",
   "cover.kitchen_window", "button.push", "switch.ac", "button.plug_factory_reset",
-  "button.router_restart", "binary_sensor.movement_backyard",
+  "button.router_restart", "binary_sensor.movement_backyard", "cover.driveway_gate",
 ];
 
 async function seedHouse() {
@@ -233,7 +234,7 @@ async function summary() {
       scripts: count("script"),
       scenes: count("scene"),
       helpers: count("input_boolean", "input_number", "input_select", "input_text", "input_button", "timer", "counter", "schedule"),
-      mqtt_entities: states.filter((s) => /^(lock\.entrance_door|cover\.testbed_garage|switch\.smart_plug|sensor\.testbed_temperature|button\.(plug_factory_reset|router_restart))$/.test(s.entity_id)).length,
+      mqtt_entities: states.filter((s) => /^(lock\.entrance_door|cover\.(testbed_garage|driveway_gate)|switch\.smart_plug|sensor\.testbed_temperature|button\.(plug_factory_reset|router_restart))$/.test(s.entity_id)).length,
     }, null, 2));
   } finally {
     ha.close();
@@ -245,7 +246,7 @@ async function summary() {
 async function mint() {
   const ha = await connect();
   try {
-    console.log(await ha.call({ type: "auth/long_lived_access_token", client_name: "HA NOVA testbed", lifespan: 1 }));
+    console.log(await ha.call({ type: "auth/long_lived_access_token", client_name: "HA NOVA testbed", lifespan: 30 }));
   } finally {
     ha.close();
   }

@@ -59,6 +59,7 @@ integration (lights, covers, locks, media players, climate, …).
 | `lock.front_door` | demo lock without registry row | NO_REGISTRY_ROW + typed |
 | `cover.testbed_garage` | MQTT cover, `device_class: garage`, Garage | ACCESS_COVER |
 | `cover.garage_door` | demo garage cover, Garage | ACCESS_COVER |
+| `cover.driveway_gate` | MQTT cover, `device_class: gate`, no area | ACCESS_COVER (gate wording) |
 | `cover.kitchen_window` | demo cover, registry `device_class` override → shutter | non-access cover, ordinary |
 | `switch.smart_plug` | MQTT plug; device in Küche, **entity** area Wohnzimmer | entity-level area override |
 | `button.plug_factory_reset` | MQTT button on the plug | DESTRUCTIVE_BUTTON (typed) |
