@@ -195,11 +195,12 @@ func haSignInUserName(user HACurrentUser) string {
 	return "the owner"
 }
 
-// Account names come from Home Assistant; control characters (terminal
-// escape sequences) never reach the terminal.
+// Names come from Home Assistant; control characters (terminal escape
+// sequences) and format characters (bidi overrides, zero-width) never reach
+// the terminal.
 func terminalSafeName(name string) string {
 	return strings.TrimSpace(strings.Map(func(r rune) rune {
-		if unicode.IsControl(r) {
+		if unicode.IsControl(r) || unicode.Is(unicode.Cf, r) {
 			return -1
 		}
 		return r

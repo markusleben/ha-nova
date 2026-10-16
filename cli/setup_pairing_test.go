@@ -270,7 +270,7 @@ func TestInteractiveSetupPairsStoresTokenAndVerifiesHealthAndWS(t *testing.T) {
 	const pairedToken = "paired-token-never-render"
 	var pairCalls atomic.Int32
 	var healthCalls atomic.Int32
-	var wsCalls atomic.Int32
+	var wsCalls, firstLookCalls atomic.Int32
 	relayServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
 		switch request.URL.Path {
 		case "/pair":
@@ -293,7 +293,20 @@ func TestInteractiveSetupPairsStoresTokenAndVerifiesHealthAndWS(t *testing.T) {
 			assertPairedBearer(t, request, pairedToken)
 			_, _ = w.Write([]byte(`{"status":"ok","data":{"ha_ws_connected":true}}`))
 		case "/ws":
-			wsCalls.Add(1)
+			var payload struct {
+				Type string `json:"type"`
+			}
+			_ = json.NewDecoder(request.Body).Decode(&payload)
+			if payload.Type != "ping" {
+				// The first look's registry reads: this fake answers them
+				// with nonsense, so the first look is skipped silently.
+				firstLookCalls.Add(1)
+				if err := checkReadOnlyRequest("ws", map[string]any{"type": payload.Type}); err != nil {
+					t.Errorf("first look sent a non-read request: %v", err)
+				}
+			} else {
+				wsCalls.Add(1)
+			}
 			assertPairedBearer(t, request, pairedToken)
 			_, _ = w.Write([]byte(`{"ok":true,"data":{"type":"pong"}}`))
 		default:
@@ -336,6 +349,10 @@ func TestInteractiveSetupPairsStoresTokenAndVerifiesHealthAndWS(t *testing.T) {
 	}
 	if pairCalls.Load() != 1 || healthCalls.Load() != 2 || wsCalls.Load() != 1 {
 		t.Fatalf("calls pair/health/ws = %d/%d/%d, want 1/2/1", pairCalls.Load(), healthCalls.Load(), wsCalls.Load())
+	}
+	// A fresh pairing tries the first look; its failure keeps the old banner.
+	if firstLookCalls.Load() == 0 || !strings.Contains(output, `"List my automations"`) || strings.Contains(output, "Your home") {
+		t.Fatalf("first look attempts = %d; output:\n%s", firstLookCalls.Load(), output)
 	}
 	storedToken, err := readRelayAuthToken()
 	if err != nil || storedToken != pairedToken {

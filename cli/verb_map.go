@@ -138,6 +138,7 @@ type mapState struct {
 		Members       any     `json:"entity_id"`    // a list on group entities
 		Restored      bool    `json:"restored"`     // registry row kept, integration no longer provides it
 		HueGroup      bool    `json:"is_hue_group"` // a Hue room or zone
+		CodeFormat    any     `json:"code_format"`  // a keypad lock: HA asks for its own code
 	} `json:"attributes"`
 }
 

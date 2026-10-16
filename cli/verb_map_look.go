@@ -219,40 +219,61 @@ func (x *homeIndex) firstLook() firstLookResult {
 	return r
 }
 
-// seeds: real names for example prompts; persons, trackers, and zones never.
-func (x *homeIndex) seeds(out map[string]firstSeed) {
+// seedArea: the area with most entities (ties by name), if any has one.
+func (x *homeIndex) seedArea() (firstSeed, bool) {
 	areas := x.areaRows(false)
 	byEntities(areas)
-	top := ""
 	if len(areas) > 0 && areas[0].Entities > 0 {
-		top = areas[0].AreaID
-		out["area"] = firstSeed{AreaID: top, Name: areas[0].Name}
+		return firstSeed{AreaID: areas[0].AreaID, Name: areas[0].Name}, true
+	}
+	return firstSeed{}, false
+}
+
+// pickSeed: the first usable match in area top, else the first anywhere.
+func (x *homeIndex) pickSeed(top string, match func(id string, st *mapState) bool) (firstSeed, bool) {
+	best := ""
+	for _, id := range x.enabled { // sorted: the first hit is stable
+		st := x.state[id]
+		if st == nil || st.State == "unavailable" || x.hidden[id] || x.category[id] != "" || !match(id, st) {
+			continue
+		}
+		if x.entityArea[id] == top && top != "" {
+			best = id
+			break
+		}
+		if best == "" {
+			best = id
+		}
+	}
+	if best == "" {
+		return firstSeed{}, false
+	}
+	return firstSeed{EntityID: best, Name: x.name(best), Area: x.area(best)}, true
+}
+
+// seeds: real names for example prompts; persons, trackers, and zones never.
+func (x *homeIndex) seeds(out map[string]firstSeed) {
+	area, ok := x.seedArea()
+	if ok {
+		out["area"] = area
 	}
 	pick := func(key string, match func(id string, st *mapState) bool) {
-		best := ""
-		for _, id := range x.enabled { // sorted: the first hit is stable
-			st := x.state[id]
-			if st == nil || st.State == "unavailable" || x.hidden[id] || x.category[id] != "" || !match(id, st) {
-				continue
-			}
-			if x.entityArea[id] == top && top != "" {
-				best = id
-				break
-			}
-			if best == "" {
-				best = id
-			}
-		}
-		if best != "" {
-			out[key] = firstSeed{EntityID: best, Name: x.name(best), Area: x.area(best)}
+		if seed, ok := x.pickSeed(area.AreaID, match); ok {
+			out[key] = seed
 		}
 	}
 	pick("light", func(id string, st *mapState) bool { return inDomain(id, "light") && !st.isGroup() })
 	pick("climate", func(id string, _ *mapState) bool { return inDomain(id, "climate") })
 	if _, ok := out["climate"]; !ok {
-		pick("climate", func(id string, st *mapState) bool { return inDomain(id, "sensor") && st.deviceClass() == "temperature" })
+		pick("climate", func(id string, st *mapState) bool {
+			return inDomain(id, "sensor") && st.deviceClass() == "temperature" && x.platform[id] != "mobile_app"
+		})
 	}
-	pick("cover", func(id string, st *mapState) bool { return inDomain(id, "cover") && !st.isGroup() })
+	// Only covers that need no code (a garage door or gate is never an
+	// everyday example: closing one runs at once).
+	pick("cover", func(id string, st *mapState) bool {
+		return inDomain(id, "cover") && !st.isGroup() && nonAccessCoverClasses[st.deviceClass()]
+	})
 	var last time.Time
 	for _, id := range x.enabled {
 		st := x.state[id]

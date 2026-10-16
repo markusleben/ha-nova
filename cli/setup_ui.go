@@ -188,7 +188,9 @@ func renderSetupDiscoveryResult(out io.Writer, host, via string, discovered bool
 	}
 }
 
-func renderSetupCompleteBanner(out io.Writer, clients []string) {
+// look, when present, replaces the generic example prompts with the first
+// look (setup_first_look.go).
+func renderSetupCompleteBanner(out io.Writer, clients []string, look *setupFirstLook) {
 	session := resolveSetupUISession(out)
 	renderSetupHeader(out)
 	fmt.Fprintln(out)
@@ -198,11 +200,16 @@ func renderSetupCompleteBanner(out io.Writer, clients []string) {
 		fmt.Fprintf(out, "  Installed for: %s\n", session.style("strong", labels))
 		fmt.Fprintln(out)
 	}
-	fmt.Fprintf(out, "  Open %s and try asking:\n", session.style("strong", setupClientLabelsForPrompt(clients)))
-	fmt.Fprintln(out)
-	fmt.Fprintln(out, `    "Turn off the living room light"`)
-	fmt.Fprintln(out, `    "List my automations"`)
-	fmt.Fprintln(out)
+	promptHeader := fmt.Sprintf("Open %s and try asking:", session.style("strong", setupClientLabelsForPrompt(clients)))
+	if look != nil {
+		renderSetupFirstLook(out, look, promptHeader)
+	} else {
+		fmt.Fprintf(out, "  %s\n", promptHeader)
+		fmt.Fprintln(out)
+		fmt.Fprintln(out, `    "Turn off the living room light"`)
+		fmt.Fprintln(out, `    "List my automations"`)
+		fmt.Fprintln(out)
+	}
 	fmt.Fprintln(out, "  Need help? Run: ha-nova doctor")
 	fmt.Fprintln(out)
 }
@@ -226,7 +233,7 @@ func renderSetupAlreadyDoneBanner(out io.Writer, legacyToken bool) {
 	fmt.Fprintln(out)
 }
 
-func renderSetupCloudFallbackReadyBanner(out io.Writer) {
+func renderSetupCloudFallbackReadyBanner(out io.Writer, look *setupFirstLook) {
 	session := resolveSetupUISession(out)
 	renderSetupHeader(out)
 	fmt.Fprintln(out)
@@ -237,6 +244,9 @@ func renderSetupCloudFallbackReadyBanner(out io.Writer) {
 	fmt.Fprintln(out, "    Away from home: Ready — Home Assistant Cloud")
 	fmt.Fprintln(out, "    Routing:        Automatic — Cloud is used only when local access is unavailable")
 	fmt.Fprintln(out)
+	if look != nil {
+		renderSetupFirstLook(out, look, "Try asking:")
+	}
 	fmt.Fprintln(out, "  Run 'ha-nova doctor' for full diagnostics.")
 	fmt.Fprintln(out)
 }

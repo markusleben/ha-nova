@@ -58,7 +58,7 @@ $ curl -fsSL https://raw.githubusercontent.com/markusleben/ha-nova/main/install.
   ✓ This computer is connected to NOVA Relay
   ● ● ● ○  Step 3 of 4 - Verifying connection     ✓
   ● ● ● ●  Step 4 of 4 - Installing HA NOVA skills ✓
-  [first look from `ha-nova map` — integration point, see below]
+  [completion banner with the first look, see "First look" below]
   ✓ HA NOVA is ready. Start a new Claude Code session and ask about your home.
 ```
 
@@ -274,14 +274,55 @@ used.
   `storeToken` only for its own client ID (`src/auth/ha-authorize.ts`,
   `src/auth/ha-auth-flow.ts`), so the strict callback stays valid.
 
-## First look (integration point)
+## First look
 
-Right after a verified pairing the wizard should show the read-only first look
-from `ha-nova map` (feat/home-map; house in one line, 1-2 observations, three
-example prompts with real names, one safety line; < 5 s, read-only). This
-change builds no first-look logic: it marks the call site in
-`cli/setup_interactive.go`, after the skills step and before the completion
-banner, where the first-look mode is invoked once it lands.
+After a pairing that succeeded in this setup run (sign-in or six-digit code;
+not on re-runs that only verify an existing pairing, not on the legacy token
+path), the wizard reads the first look in-process (`cli/setup_first_look.go`:
+the same read-only reads as `ha-nova map --first-look`, one session bounded
+by 5 s) and shows it inside the completion banner, in place of the generic
+example prompts:
+
+```
+  ✓ Setup complete!
+
+  Installed for: Claude Code
+
+  Your home: 5 rooms, 68 devices, 9 automations.
+
+  Worth a look:
+    - Low battery: Door battery (Hall) is at 7% (and 1 more).
+    - The automation "Night mode" can't run right now.
+
+  Open Claude Code and try asking:
+
+    "Turn on Sofa lamp"
+    "How warm is it in Living room?"
+    "Why did the automation 'Morning' run last time?"
+
+  Ask to unlock Front door and HA NOVA first shows you a one-time code; nothing happens until you type it back.
+```
+
+- Home line: rooms, devices, automations; zero counts are left out.
+- Up to two observations in plain words; none → no "Worth a look" block.
+  An integration problem never names the integration or its entry title
+  ("An integration couldn't start."); a long outage says "has not reported
+  anything for at least N days" (the age is a lower bound).
+- Up to three prompts, one per seed present (light, climate, automation,
+  cover, area — in that order), built only from real seed names (never a
+  bare entity_id); without seeds, two prompts that name nothing.
+- Safety line: it states the code step and never invites a real unlock.
+  Its example is setup-only (not part of `ha-nova map`): a lock without its
+  own keypad `code_format` (those go to the Home Assistant UI), else a
+  garage/gate/door cover; otherwise a generic sentence naming nothing.
+- Names pass `terminalSafeName` (control and format characters dropped);
+  presence domains (person, device_tracker, zone) never render, even if a
+  result carried them.
+- An error, a read past 5 s (6 s backstop), or a panic while building the
+  first look → the banner shows its old generic prompts; nothing is printed
+  about it. (The Relay reads themselves run in `prefetch` goroutines, which
+  only do HTTP and JSON.) Setup has no JSON mode, and `--non-interactive`
+  never reaches this banner.
 
 ## Demo-first (design note, not in this change)
 

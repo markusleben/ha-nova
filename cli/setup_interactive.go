@@ -83,7 +83,7 @@ func maybeHandleInteractiveSetupCurrentState(reader *bufio.Reader, out io.Writer
 		// partial add under a success banner.
 		if !addAttempted && cloudAttempted && cfg.Cloud.ready() &&
 			cfg.RoutePolicy == routePolicyAutomatic {
-			renderSetupCloudFallbackReadyBanner(out)
+			renderSetupCloudFallbackReadyBanner(out, nil)
 			return true, 0
 		}
 		// After a ran add flow (success or cancel) its own closing lines are
@@ -542,6 +542,7 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 	pairingFlow := false
 	pairingCredentialReceived := false
 	devicePaired := false
+	pairedThisRun := false // a pairing (sign-in or code) succeeded in this run
 	manualCredentialFlow := false
 	pairingBackStage := setupStageRelayInstall
 	// Set only on the host -> install transition: a second computer whose
@@ -851,6 +852,7 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 			// Any route into the token stage is the legacy path by definition:
 			// verify must judge the token, never a leftover device pairing.
 			devicePaired = false
+			pairedThisRun = false
 			current = detectSetupStateWithToken(paths, cfg, state, target, savedTokenBeforeSetup, hadSavedTokenBeforeSetup)
 			existingToken = ""
 			if relayTokenFlag == "" && hadSavedTokenBeforeSetup {
@@ -1026,6 +1028,7 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 				// secure endpoint in the config; there is no relay token to keep,
 				// and activation already proved the connection.
 				devicePaired = true
+				pairedThisRun = true
 				token = ""
 				pairingCredentialReceived = false
 				manualCredentialFlow = false
@@ -1039,6 +1042,7 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 			}
 			token = pairedToken
 			pairingCredentialReceived = true
+			pairedThisRun = true
 			devicePaired = false
 			manualCredentialFlow = false
 			verifyFirstReuseFlow = false
@@ -1249,13 +1253,16 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 			if exit != 0 {
 				return exit
 			}
-			// Integration point: the read-only first look of `ha-nova map`
-			// (feat/home-map) runs here once it lands
+			// The read-only first look after a pairing in this run
 			// (docs/work/2026-10-16-ha-sign-in-pairing-spec.md, "First look").
+			var look *setupFirstLook
+			if pairedThisRun && !cloudSetupPaused {
+				look = loadSetupFirstLook(os.Stdout, paths)
+			}
 			if cfg.Cloud.ready() && cfg.RoutePolicy == routePolicyAutomatic {
-				renderSetupCloudFallbackReadyBanner(os.Stdout)
+				renderSetupCloudFallbackReadyBanner(os.Stdout, look)
 			} else if !cloudSetupPaused {
-				renderSetupCompleteBanner(os.Stdout, selectedClients)
+				renderSetupCompleteBanner(os.Stdout, selectedClients, look)
 			}
 			return 0
 		}
@@ -1276,7 +1283,7 @@ func renderSetupCompletionOutcomeWithCloudPause(
 		renderSetupIncompleteBanner(out, setupIssueCloudAccess)
 		return 1
 	}
-	renderSetupCompleteBanner(out, selectedClients)
+	renderSetupCompleteBanner(out, selectedClients, nil)
 	return 0
 }
 

@@ -134,7 +134,10 @@ the test bed; the session's own 30 s budget still applies). Exit 0 with:
   hidden and `entity_category` rows; `light` = a non-group light (no
   `entity_id` list, no `is_hue_group`), preferring
   that area; `climate` = a `climate` entity, else a temperature sensor
-  (`device_class: temperature`), preferring that area; `cover` likewise;
+  (`device_class: temperature`, never a `mobile_app` phone sensor),
+  preferring that area; `cover` likewise, but only a class that needs no
+  code (awning, blind, curtain, damper, shade, shutter, window — a garage
+  door or gate is never an everyday example);
   `automation` = the most recently triggered `on` automation. Never persons,
   device trackers, or zones.
 - The onboarding skill renders: one line from `home`, the observations in
