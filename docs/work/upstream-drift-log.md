@@ -293,3 +293,13 @@ stopped.
 - Sources: github.com/home-assistant/core/blob/dev/homeassistant/helpers/target.py;
   github.com/home-assistant/core/pull/178666; tags 2026.9.0, 2026.10.0,
   2026.10.1.
+
+## 2026-10-16 — correction: child device rows
+
+- The child-device expansion landed with `fix/device-sibling-access-guard`
+  read `via_device_id`, which is the hub link of a regular device. Home
+  Assistant 2026.9+ child devices are separate `ChildDeviceEntry` rows that
+  carry `parent_device_id` (`helpers/device_registry.py`
+  `async_entries_for_parent_device`, tag 2026.10.1; contract in
+  `skills/ha-nova/membership-resolution.md` → Device rows). Fixed in
+  `fix/child-device-parent-field`.

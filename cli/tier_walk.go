@@ -29,13 +29,13 @@ func (e *tierEngine) walk(node any, via string, depth int) {
 		actionType, _ := n["type"].(string)
 		switch {
 		case name != "":
-			e.storedCall(name, n, via, depth)
+			e.storedCall(name, n, via, depth, false)
 		case n["service_template"] != nil:
 			e.gap(reasonTemplatedAction, "", via, "service_template")
 		case domain != "" && actionType != "" && n["device_id"] != nil:
-			e.storedCall(deviceActionService(domain, actionType), map[string]any{"device_id": n["device_id"], "data": map[string]any{"position": n["position"]}}, via, depth)
+			e.storedCall(deviceActionService(domain, actionType), map[string]any{"device_id": n["device_id"], "data": map[string]any{"position": n["position"]}}, via, depth, true)
 		case n["scene"] != nil:
-			e.storedCall("scene.turn_on", map[string]any{"entity_id": n["scene"]}, via, depth)
+			e.storedCall("scene.turn_on", map[string]any{"entity_id": n["scene"]}, via, depth, false)
 		case n["event"] != nil:
 			if eventType, _ := n["event"].(string); eventType == "" || isTemplated(eventType) {
 				e.gap(reasonListener, "", via, "templated event type")
@@ -61,7 +61,9 @@ var walkSkipKeys = map[string]bool{
 
 // storedCall classifies one stored service step against its literal
 // targets. A payload or target Home Assistant renders at runtime is unknown.
-func (e *tierEngine) storedCall(name string, step map[string]any, via string, depth int) {
+// deviceForm marks a device action (domain + type), which acts on its own
+// chosen entity, hidden or categorized or not.
+func (e *tierEngine) storedCall(name string, step map[string]any, via string, depth int, deviceForm bool) {
 	if isTemplated(name) || !entityIDPattern.MatchString(name) {
 		e.gap(reasonTemplatedAction, "", via, name)
 		return
@@ -88,8 +90,12 @@ func (e *tierEngine) storedCall(name string, step map[string]any, via string, de
 			devices = append(devices, related["device"]...)
 		}
 	}
-	for _, device := range targets["device_id"] { // unfiltered: a device-form step acts on its chosen entity, hidden or not
-		ids = append(ids, e.familyEntities(device, domain)...)
+	for _, device := range targets["device_id"] {
+		family := e.familyEntities(device, domain)
+		if !deviceForm { // a service call skips what Home Assistant's target helper skips
+			family = e.primaryEntities(family, "", domain)
+		}
+		ids = append(ids, family...)
 		devices = append(devices, e.deviceFamily(device)...)
 	}
 	if !coreDomains[domain] { // an integration resolves the device itself, whatever entities show

@@ -27,7 +27,7 @@ type fakeHA struct {
 	loaded        map[string]any      // entity → loaded config (WS automation/config, script/config)
 	flows         []map[string]any    // config_entries/flow/progress
 	services      []map[string]any    // GET /api/services (nil: 404)
-	devices       []map[string]any    // config/device_registry/list rows (id, via_device_id)
+	devices       []map[string]any    // config/device_registry/list rows (id, parent_device_id)
 	// service answers POST /api/services/<d>/<s> (nil: 200 and no effect);
 	// it runs under mu and may change states.
 	service func(f *fakeHA, path string, body map[string]any) any

@@ -23,7 +23,8 @@ the number.
   default. It first asks whether this is the last computer using HA NOVA,
   because removing the App disconnects every paired computer.
 - Pressing a button, turning on a switch, or opening a cover on a device
-  that also has a lock, alarm, or access cover now needs a code.
+  that also has a lock, alarm, or access cover now needs a code. Configuration
+  and diagnostic buttons there (ping, identify, restart) work as before.
 
 ## Bug Fixes
 

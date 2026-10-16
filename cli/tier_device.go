@@ -78,14 +78,15 @@ func (e *tierEngine) deviceAccessEntity(device string) string {
 }
 
 // deviceFamily is a targeted device plus its direct child devices, as Home
-// Assistant expands a device target (helpers/target.py, since 2026.9). An
+// Assistant expands a device target (helpers/target.py, since 2026.9). Child
+// rows carry parent_device_id; via_device_id is a hub link, not a child. An
 // unreadable device registry is typed; the device itself still counts.
 func (e *tierEngine) deviceFamily(device string) []string {
 	if e.children == nil {
 		e.children = map[string][]string{}
 		var rows []struct {
 			ID     string `json:"id"`
-			Parent string `json:"via_device_id"`
+			Parent string `json:"parent_device_id"`
 		}
 		if err := e.s.wsDecode(map[string]any{"type": "config/device_registry/list"}, &rows, "the device registry"); err != nil {
 			e.readFailed("", "", "device registry")

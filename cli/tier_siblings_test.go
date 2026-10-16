@@ -217,7 +217,7 @@ func TestStoredDeviceTargetsReachTheDevice(t *testing.T) {
 			setup: func(f *fakeHA) {
 				f.ent("button.gate_open", "shelly", "unknown", map[string]any{"_di": "dev_child"})
 				f.ent("cover.gate", "shelly", "closed", map[string]any{"_di": "dev_child", "device_class": "gate"})
-				f.devices = []map[string]any{{"id": "dev_parent"}, {"id": "dev_child", "via_device_id": "dev_parent"}}
+				f.devices = []map[string]any{{"id": "dev_parent"}, {"id": "dev_child", "parent_device_id": "dev_parent"}}
 				f.script("open", map[string]any{"action": "button.press", "target": map[string]any{"device_id": "dev_parent"}})
 			},
 			args: []string{"script.turn_on", "script.open"}, exit: 3, tier: "typed", reasons: []string{reasonDeviceAccessSibling}},
@@ -225,7 +225,7 @@ func TestStoredDeviceTargetsReachTheDevice(t *testing.T) {
 			setup: func(f *fakeHA) {
 				f.ent("light.parent", "hue", "on", map[string]any{"_di": "dev_parent"})
 				f.ent("light.child", "hue", "on", map[string]any{"_di": "dev_child"})
-				f.devices = []map[string]any{{"id": "dev_child", "via_device_id": "dev_parent"}}
+				f.devices = []map[string]any{{"id": "dev_child", "parent_device_id": "dev_parent"}}
 			},
 			args: []string{"light.turn_off", "--device", "dev_parent"}, exit: 3, tier: "preview", reasons: []string{reasonExpanded},
 			check: func(t *testing.T, env verbTestEnvelope) {
