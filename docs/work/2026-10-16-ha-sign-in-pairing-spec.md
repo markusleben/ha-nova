@@ -38,20 +38,23 @@ $ curl -fsSL https://raw.githubusercontent.com/markusleben/ha-nova/main/install.
   ● ● ○ ○  Step 2 of 4 - Pair this device
 
   Sign in with Home Assistant to connect this computer. Your browser opens
-  your Home Assistant login: sign in as the owner. Home Assistant then names
-  "http://127.0.0.1:…/ha-nova" as the app asking for access: that is HA NOVA
-  on this computer. This computer gets its own connection, and you can
-  revoke it in NOVA at any time.
+  the Home Assistant login: sign in with the owner's username and password.
+  Home Assistant warns "You're about to give http://127.0.0.1:…/ha-nova
+  access": that is HA NOVA on this computer. This computer gets its own
+  connection, which you can remove in NOVA at any time.
 
   Press Enter to sign in, or type 'code' to use a six-digit code from NOVA:  [Enter]
   Opening Home Assistant in your browser...
+  If no browser opened, open this link on this computer: http://homeassistant.local:8123/auth/authorize?…
 
         (browser) "You're about to give http://127.0.0.1:53817/ha-nova access
         to your Home Assistant instance."  Username / Password  [Log in]
         (browser) "Done. You can close this tab and go back to the terminal."
 
-  ⠋ Waiting for you to sign in (4:52)
+  ⠋ Waiting for you to sign in (4:52 left, Ctrl+C to use a code instead)
+  ⠋ Checking your sign-in with Home Assistant...
   ✓ Signed in to Home Assistant as Markus (owner)
+  ⠋ Connecting this computer...
   ✓ This computer is connected to NOVA Relay
   ● ● ● ○  Step 3 of 4 - Verifying connection     ✓
   ● ● ● ●  Step 4 of 4 - Installing HA NOVA skills ✓
@@ -66,13 +69,15 @@ on a pre-selected default is listed separately.
 
 | Journey | Before this change | With this change |
 |---|---|---|
-| Pairing step alone | Enter to open NOVA, find NOVA, click "Connect a device", read the code, type six digits, Enter (5-6 actions, 2 context switches, 1 transcription) | Enter, sign in in the browser (1 Enter + 1 action; the browser login is the approval) |
+| Pairing step alone | Enter to open NOVA, find NOVA, click "Connect a device", read the code, type six digits, Enter (5-6 actions, 2 context switches, 1 transcription; no password when the browser is already signed in) | Enter, switch to the browser, sign in with the owner's username and password (plus the two-factor code if enabled), switch back (1 Enter + 1 sign-in, 2 context switches, no NOVA code; Home Assistant asks for the password even when this browser is already signed in) |
 | Extra computer, App running, from "I have HA and an AI client" | 1 command + 3 default Enters + 5-6 pairing actions | 1 command + 4 default Enters + 1 sign-in |
 | First computer | as above + App install clicks (repository, Install, Start) | unchanged install clicks until PR4 automates them through the same sign-in |
 
 Target from the maintainer: ≤ 3 deliberate actions (run one command, sign in,
 approve once) and no copy/paste of codes, URLs, or tokens. This change
-delivers the sign-in and removes the only transcription. The remaining
+delivers the sign-in and removes the NOVA-code transcription (a two-factor
+code, when enabled, is Home Assistant's own step). "Local + Home Assistant
+Cloud" mode still means a second, separate Cloud sign-in. The remaining
 default-Enters (client, connection mode, address) are follow-ups: auto-accept a
 single detected client, keep "Local only" without a prompt when Home Assistant
 Cloud is not detected, accept a single verified address. Each is a small wizard
@@ -132,8 +137,10 @@ page's "Connect a device", with three differences:
 2. The slot is bound to the arming Home Assistant user and accepted only by
    `/pair/v2/start` from that same ingress user. `/pair/v1/start` on the LAN
    port answers as if no code were active, before the rate limiter, so the
-   secret is useless on the LAN and LAN noise cannot spend the pairing budget.
-3. The NOVA page never shows an armed secret (status reads as no active code).
+   secret is useless on the LAN; armed starts skip the rate limiter, so LAN
+   noise cannot lock the owner out either.
+3. The NOVA page never shows the secret; it shows that a computer is
+   connecting through Home Assistant sign-in, with Cancel, and refreshes.
 
 Arming replaces an open NOVA-page code; "Connect a device" replaces an armed
 slot. The slot is in memory only, single use, and gone on App restart.
@@ -162,17 +169,29 @@ plain message and the typed code (which an owner provides).
 
 - Offered only in the interactive wizard pairing step when the relay supports
   secure pairing and advertises `sign_in: true`, stdin and stdout are
-  terminals, the session is not SSH, and the saved Home Assistant URL is a
-  plain origin (`http`/`https`, host, optional port, no path, query, fragment,
-  or user info). Otherwise the step is exactly today's code prompt, so an older
-  NOVA Relay App never sends the user to a browser for nothing. `ha-nova pair`
-  and scripted input are unchanged.
+  terminals, the session is not SSH, Linux has a desktop session (`DISPLAY`,
+  `WAYLAND_DISPLAY`, or WSL), and the saved Home Assistant URL is a plain origin
+  (`http`/`https`, host, optional port, no path, query, fragment, or user info).
+  Otherwise the step is exactly today's code prompt, so an older NOVA Relay App
+  never sends the user to a browser for nothing. `ha-nova pair` and scripted
+  input are unchanged.
+- Before the prompt, a public `GET /auth/providers` through the sign-in client
+  proves the CLI can reach that origin (TLS trusted, no redirect); otherwise one
+  line explains why and the code prompt follows.
+- At the prompt: Enter, `y`, or `yes` signs in; `code` goes to the code prompt;
+  six digits are used as the code directly; `manual` keeps the token path.
 - OAuth reuses `cli/cloud_oauth_loopback.go`: 127.0.0.1 random port, client ID
   `http://127.0.0.1:<port>/ha-nova`, callback on the same host and port, 256-bit
   state, one GET on the exact path, Host header pinned (no DNS rebinding),
-  static no-store page. Wait bounded to five minutes with a visible countdown.
-- Every Home Assistant request goes to exactly the saved origin; redirects are
-  never followed; HTTPS uses the system trust store (no "trust anyway").
+  static no-store page. Wait bounded to five minutes with a visible countdown;
+  Ctrl+C during sign-in stops it and continues with the code (a second Ctrl+C
+  exits). The link is printed as well, because a launched browser command does
+  not prove a browser appeared; it carries only the one-time state, no
+  credential.
+- Every Home Assistant request goes to exactly the saved origin through a
+  client that ignores proxy settings (like the relay client); redirects are
+  never followed; HTTPS uses the system trust store (no "trust anyway"). The
+  steps after the browser returns are bounded to 30 seconds.
 - No PKCE: the client and callback share one loopback origin, which Home
   Assistant accepts without PKCE on every supported version; Home Assistant
   2026.10 rejects a `code_verifier` whose authorize request carried no challenge.
@@ -180,31 +199,36 @@ plain message and the typed code (which an owner provides).
 - The App is identified exactly like the Cloud path (`NOVAAppInfo`: slug,
   started, ingress root, `/home` entry).
 - Tokens never enter config, keyring, environment, arguments, logs, or error
-  text (`CloudError` never carries bodies or tokens). Revocation failure prints
-  one warning line pointing at Profile → Security in Home Assistant.
+  text (`CloudError` never carries bodies or tokens). A failed revocation, or a
+  token exchange whose outcome is unknown, prints one warning line pointing at
+  Profile → Security in Home Assistant.
 - The credential tail is the shared local path (`cli/pairing_flow.go`): pending
   credential stored first, pinned-TLS activation, promotion, and resume after
   interruption all behave as for a typed code.
 
 ## Failures: one plain line, then the code
 
-Every row prints one line and continues in the same step with today's code
-prompt (`promptToOpenNOVAForPairing`); address, client, and install progress
-are kept.
+Every row prints one line and stays in the same step; address, client, and
+install progress are kept. Retryable rows (canceled, stopped, timed out, wrong
+account, no answer) ask "Press Enter to sign in again, or type 'code' …"; all
+others continue with today's code prompt (`promptToOpenNOVAForPairing`) after
+"Use a six-digit code from NOVA instead."
 
 | Failure | Line shown |
 |---|---|
 | Sign-in canceled or denied in the browser | Sign-in was canceled. |
+| Ctrl+C during sign-in | Sign-in stopped. |
 | No sign-in within five minutes | No sign-in arrived within five minutes. |
-| Signed-in user is not the owner (CLI check or relay 403) | Signed in as X, who is not the Home Assistant owner — only the owner can connect a computer. Ask the owner for a code from NOVA. |
-| No Supervisor (Container/Core) or App not reported | Home Assistant did not report the NOVA Relay App, so sign-in cannot connect this computer. |
+| Signed-in user is not the owner (CLI check or relay 403) | Signed in as X, who is not the Home Assistant owner. Only the owner can connect a computer. |
+| No Supervisor (Container/Core) or App not running | Home Assistant did not find a running NOVA Relay App, so sign-in cannot connect this computer. |
 | Relay without `/pair/v2/arm` despite the capability flag | Your NOVA Relay App does not support sign-in yet. Update it in Home Assistant when convenient. |
-| Home Assistant unreachable, TLS not trusted, unexpected answer | Could not finish the sign-in with Home Assistant (reason). |
+| Relay secure port not ready (after one retry) | NOVA Relay is not ready to connect computers yet. Restart the NOVA Relay App in Home Assistant, then run ha-nova setup again. |
+| Home Assistant unreachable, TLS not trusted, redirect | Could not finish the sign-in: (plain reason). |
 | Pairing through Home Assistant rejected or interrupted | Connecting through Home Assistant did not finish. |
 
-Followed by: "Use a six-digit code from NOVA instead." Security stops never
-fall back: a TLS pin mismatch at activation stops exactly like the typed path,
-and a credential-store failure stops before any secret is used.
+Security stops never fall back: a TLS pin mismatch at activation stops exactly
+like the typed path, and a credential-store failure stops before any secret is
+used.
 
 ## Threat model
 
@@ -212,7 +236,7 @@ and a credential-store failure stops before any secret is used.
 |---|---|
 | CSRF on arm | The ingress cookie is `SameSite=Strict` (frontend `src/data/hassio/ingress.ts`); arm needs `application/json` (no simple form or text/plain request) and refuses any `Sec-Fetch-Site`; the response is unreadable cross-origin; owner check per request |
 | Replay | The secret is single use and expires after two minutes; a captured arm request only yields a new secret to a holder of the owner's ingress session; finish replay returns the stored sealed response only for the same handshake, KE3, and ingress user (existing) |
-| LAN attacker | The secret is never accepted on the LAN port; OPAQUE keeps the secret from passive observers; over plain-HTTP Home Assistant an active attacker who reads ingress traffic also reads the owner's password at login, so this adds no new exposure; over HTTPS the whole exchange is protected; the SPKI pin travels inside the OPAQUE-sealed response |
+| LAN attacker | The secret is never accepted on the LAN port. Over plain-HTTP Home Assistant a passive observer can read the arm response and the ingress cookie (and could race the pairing), exactly as they read the owner's password at login and the NOVA-page code today, so this adds no new exposure; OPAQUE protects only the sealed credential and pin. Over HTTPS the whole exchange is protected. The SPKI pin travels inside the OPAQUE-sealed response |
 | Malicious local process on the loopback port | The port is bound before the browser opens; exact host, path, and method; 256-bit state; one shot. Not covered: a same-user process that reads the browser URL could exchange the code first; such a process can already read the browser's Home Assistant session (PKCE is the upgrade path) |
 | Token leakage into logs or backups | Tokens stay in memory; the refresh token is revoked before pairing starts, which also ends the access token, so `.storage/auth` (and backups) keep no HA NOVA session; the relay never sees an HA token and never logs the secret, cookies, or headers; the registry stores only digests |
 | Non-admin or non-owner Home Assistant users | Any user may create an ingress session (`WS_NO_ADMIN_ENDPOINTS`), so the relay checks ownership itself; the CLI checks first only for a friendlier message |
@@ -280,8 +304,9 @@ Two stacked PRs, each reviewable on its own:
   offer rules (TTY, SSH, origin), wizard fallback keeps progress.
 - E2E, throwaway only: the local test bed (Home Assistant Container) proves the
   real loopback authorize → token → WebSocket → revoke chain and the
-  Container fallback; the Supervisor sandbox proves arm + pairing through real
-  ingress with the CLI in a Linux container.
+  Container fallback (run); the pairing harness proves CLI ↔ relay arm + pair v2
+  through the real ingress listener (run, also in CI); the Supervisor sandbox
+  modes `paired` and `not-owner` of the same test are pending a run.
 
 ## Limits
 
@@ -294,3 +319,13 @@ Two stacked PRs, each reviewable on its own:
 - If the CLI is killed between token exchange and revocation, Home Assistant
   keeps one unused HA NOVA refresh token until it expires (90 days unused) or
   the user removes it under Profile → Security.
+- The owner's Supervisor ingress session (in CLI memory only) stays valid for
+  a sliding 15 minutes after the last pairing call; Supervisor offers no API to
+  end it. Whoever held it could arm pairing as the owner in that window.
+- Home Assistant returns the App `options` to admins with the App info; a
+  leftover legacy `relay_auth_token` option (only after an unreset corrupt
+  registry) therefore crosses the same channel into CLI memory, as in the
+  Cloud path.
+- No PKCE yet (see CLI contract): a same-user process that reads the browser's
+  callback URL could exchange the code first; such a process can already read
+  the browser's Home Assistant session.

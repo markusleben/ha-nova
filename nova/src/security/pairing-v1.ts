@@ -94,7 +94,7 @@ export function createPairingV1Manager(deps: PairingV1Deps): PairingV1Manager {
         // An armed sign-in secret is never displayed.
         return active.armedFor === undefined
           ? { phase, code: active.code, expiresAtMs: active.expiresAtMs }
-          : { phase: "inactive" };
+          : { phase: "armed", expiresAtMs: active.expiresAtMs };
       }
       return { phase };
     },
@@ -222,7 +222,11 @@ export function createPairingV1Manager(deps: PairingV1Deps): PairingV1Manager {
     if (!isValidMessage(ke1)) {
       return { ok: false, reason: "invalid" };
     }
-    const decision = rateLimiter.attempt(peer, now());
+    // The armed user holds a 256-bit secret; LAN noise must not lock them out.
+    const decision =
+      active.armedFor === undefined
+        ? rateLimiter.attempt(peer, now())
+        : { allowed: true as const };
     if (!decision.allowed) {
       return {
         ok: false,

@@ -104,6 +104,9 @@ export function renderPage(m: PageModel): string {
          <p class="code">${escapeHtml(formatCode(m.pairing.code))}</p>
          <p class="muted waiting">Waiting for the device… this page updates on its own once it connects.</p>
          ${formOpen}${csrfField("cancel_code")}<button class="secondary" type="submit">Cancel</button></form>`
+      : m.pairing.phase === "armed"
+        ? `<p class="muted waiting">A computer is connecting through Home Assistant sign-in… this page updates on its own once it connects.</p>
+         ${formOpen}${csrfField("cancel_code")}<button class="secondary" type="submit">Cancel</button></form>`
       : `<p class="muted">Generate a one-time code, then enter it on your computer when NOVA asks. Each device gets its own secure connection.</p>
          ${formOpen}${csrfField("generate_code")}<button type="submit">Connect a device</button></form>${
           m.pairing.phase === "consumed" ? `<p class="ok">✓ A device was just connected.</p>` : ""
@@ -141,7 +144,7 @@ export function renderPage(m: PageModel): string {
   // While a code is active we auto-refresh so the owner sees the device appear
   // without reloading — pure HTML (this page runs no JavaScript by design). The
   // refresh stops the moment pairing is consumed or cancelled.
-  const autoRefresh = m.pairing.phase === "active" ? `<meta http-equiv="refresh" content="5">` : "";
+  const autoRefresh = m.pairing.phase === "active" || m.pairing.phase === "armed" ? `<meta http-equiv="refresh" content="5">` : "";
 
   return `<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">${autoRefresh}

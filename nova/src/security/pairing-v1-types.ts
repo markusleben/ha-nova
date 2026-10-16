@@ -3,7 +3,7 @@ import type { DeviceRegistry } from "./device-registry-types.js";
 import type { OpaqueRegistration } from "./opaque-server.js";
 import type { PairingRateLimiter } from "./pairing-rate-limit.js";
 
-export type PairingPhase = "inactive" | "active" | "consumed";
+export type PairingPhase = "inactive" | "active" | "armed" | "consumed";
 
 export interface SecureEndpoint {
   spkiPin: string;

@@ -134,7 +134,10 @@ describe("armed sign-in pairing slot", () => {
     expect(armed).not.toBeNull();
     expect(armed!.secret).toMatch(/^[A-Za-z0-9_-]{43}$/);
     expect(armed!.expiresAtMs).toBe(clock + PAIR_ARM_TTL_MS);
-    expect(mgr.getStatus()).toEqual({ phase: "inactive" });
+    expect(mgr.getStatus()).toEqual({
+      phase: "armed",
+      expiresAtMs: clock + PAIR_ARM_TTL_MS,
+    });
   });
 
   it("is unavailable without ingress pairing or a secure port", () => {
@@ -189,6 +192,13 @@ describe("armed sign-in pairing slot", () => {
 
   it("answers the LAN port as inactive without spending the pairing budget", () => {
     const mgr = manager();
+    // A typed-code window first spends the whole global budget from the LAN.
+    mgr.generateCode();
+    for (let peer = 0; peer < 6; peer += 1) {
+      for (let attempt = 0; attempt < 5; attempt += 1) {
+        mgr.start(opaque.client.startLogin({ password: "000000" }).startLoginRequest, `192.168.1.${peer}`);
+      }
+    }
     const { secret } = mgr.arm("owner-1")!;
     const login = opaque.client.startLogin({ password: secret });
     for (let attempt = 0; attempt < 40; attempt += 1) {

@@ -91,8 +91,9 @@ describe("POST /pair/v2/arm", () => {
     expect(data.expires_in_s).toBe(120);
     expect(data.relay_instance_id).toBe(RELAY_ID);
 
-    const page = await call(base, "GET", "/", "owner-1");
-    expect(await page.text()).not.toContain(data.pairing_secret);
+    const page = await (await call(base, "GET", "/", "owner-1")).text();
+    expect(page).not.toContain(data.pairing_secret);
+    expect(page).toContain("connecting through Home Assistant sign-in");
 
     const provisioned = await pairThroughIngress(base, data.pairing_secret);
     expect(provisioned).toMatchObject({
