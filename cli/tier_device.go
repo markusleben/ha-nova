@@ -11,7 +11,7 @@ import (
 // node, a Nuki bridge), so any access-capable entity on that device makes it
 // typed; otherwise it is at least preview, never below the targetless case.
 func (e *tierEngine) deviceAccess(id, via, service string) tierLevel {
-	if found := e.deviceAccessEntity(e.reg[id].di); found != "" {
+	if found := e.deviceAccessEntity(e.reg[id].di, false); found != "" {
 		e.gap(reasonDeviceAccess, id, via, service+" on the device of "+found)
 		return tierTyped
 	}
@@ -35,7 +35,7 @@ func (e *tierEngine) accessSibling(id, via, service string, data map[string]any)
 	if !opens {
 		return tierOrdinary
 	}
-	found := e.deviceAccessEntity(e.reg[id].di)
+	found := e.deviceAccessEntity(e.reg[id].di, true)
 	if found == "" {
 		return tierOrdinary
 	}
@@ -43,23 +43,29 @@ func (e *tierEngine) accessSibling(id, via, service string, data map[string]any)
 	return tierTyped
 }
 
-// deviceAccessEntity returns the first access-capable entity on a device
-// or on the rest of its parent/child family (a child device is part of its
-// parent; a via_device_id hub link never counts: a hub links to every node),
-// disabled ones included (the hardware still opens), or "". Only covers need
-// a state; an unread or absent one has no class and counts (fail closed).
-func (e *tierEngine) deviceAccessEntity(device string) string {
+// deviceAccessEntity returns the first access-capable entity on a device,
+// disabled ones included (the hardware still opens), or "". With family it
+// also searches the rest of the device's parent/child family — for the
+// core-service sibling guard: a child device is part of its parent. An
+// integration service acts on its target's own device only, and a
+// via_device_id hub link never counts (a hub links to every node). Only
+// covers need a state; an unread or absent one has no class and counts
+// (fail closed).
+func (e *tierEngine) deviceAccessEntity(device string, family bool) string {
 	if device == "" {
 		return ""
 	}
-	g := e.deviceGraph()
-	root := device
-	if parent := g.parent[device]; parent != "" {
-		root = parent
+	devices := []string{device}
+	if family {
+		g := e.deviceGraph()
+		root := device
+		if parent := g.parent[device]; parent != "" {
+			root = parent
+		}
+		devices = append([]string{root}, g.children[root]...)
 	}
-	family := append([]string{root}, g.children[root]...)
 	var ids []string
-	for _, d := range family {
+	for _, d := range devices {
 		ids = append(ids, e.deviceEntities(d, "homeassistant")...)
 	}
 	rows, err := e.fullRegistry()
@@ -67,7 +73,7 @@ func (e *tierEngine) deviceAccessEntity(device string) string {
 		e.readFailed("", "", "registry")
 	}
 	for _, row := range rows {
-		if slices.Contains(family, row.DeviceID) && !slices.Contains(ids, row.EntityID) {
+		if slices.Contains(devices, row.DeviceID) && !slices.Contains(ids, row.EntityID) {
 			ids = append(ids, row.EntityID)
 		}
 	}
