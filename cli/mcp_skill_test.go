@@ -59,10 +59,12 @@ func TestMCPSkillTool(t *testing.T) {
 			t.Fatalf("%q: %.300q", name, text)
 		}
 	}
-	for name, want := range map[string]string{"skills/review/checks.md": "# HA NOVA skills/review/checks.md\n",
-		"../ha-nova/session-bootstrap.md": "# HA NOVA skills/ha-nova/session-bootstrap.md\n\n# Session Bootstrap",
-		"ha-nova":                         "# HA NOVA skill ha-nova\n\n---\nname: ha-nova", "ha-nova:ha-nova": "# HA NOVA skill ha-nova\n"} {
-		if text := skillText0(t, c.tool("ha_skill", map[string]any{"name": name})); !strings.HasPrefix(text, mcpSkillHeader+want) {
+	for name, want := range map[string]string{"ha-nova": mcpSkillHeader + "# HA NOVA skill ha-nova\n\n---\nname: ha-nova",
+		"ha-nova:ha-nova":                 mcpSkillHeader + "# HA NOVA skill ha-nova\n",
+		"skills/review/checks.md":         "# HA NOVA skills/review/checks.md (CLI commands map",
+		"../ha-nova/session-bootstrap.md": "# HA NOVA skills/ha-nova/session-bootstrap.md (CLI commands map",
+		"raw-routes.md":                   "# HA NOVA skills/service-call/raw-routes.md (CLI commands map"} {
+		if text := skillText0(t, c.tool("ha_skill", map[string]any{"name": name})); !strings.HasPrefix(text, want) {
 			t.Fatalf("%q: %.300q", name, text)
 		}
 	}
@@ -72,6 +74,18 @@ func TestMCPSkillTool(t *testing.T) {
 	}
 	if len(h.log.all()) != before {
 		t.Fatalf("ha_skill reached the Relay")
+	}
+
+	refused := c.tool("ha_read", map[string]any{"endpoint": "ws", "payload": map[string]any{"type": "system_log/list"}})["structuredContent"].(map[string]any)
+	message, _ := refused["error"].(map[string]any)["message"].(string)
+	if refused["error"].(map[string]any)["code"] != "INVALID_ARGUMENTS" || !strings.Contains(message, "search/related") ||
+		!strings.Contains(message, "needs a client with a shell") || refused["next_step"] != nil {
+		t.Fatalf("ha_read refused ws type: %v", refused)
+	}
+	for _, mapping := range []string{"ha-nova find|get|history|trace → ha_find|ha_get|ha_history|ha_trace", "revert --target → id", "7\n  OUTCOME_UNKNOWN", "→ ha_read"} {
+		if !strings.Contains(mcpSkillHeader, mapping) {
+			t.Fatalf("header lacks %q", mapping)
+		}
 	}
 
 	unknown := c.tool("ha_skill", map[string]any{"name": "nope"})
@@ -125,12 +139,13 @@ func TestMCPSkillAllowlist(t *testing.T) {
 	}
 	mustWrite(outside, "SECRET")
 	mustWrite(filepath.Join(root, "AGENTS.md"), "SECRET")
-	mustWrite(filepath.Join(root, "skills", "write", "SKILL.md"), "write skill")
+	mustWrite(filepath.Join(root, "skills", "write", "SKILL.md"), "write skill, see ha-nova/output-rules.md")
 	mustWrite(filepath.Join(root, "skills", "ha-nova", "filter.jq"), "SECRET")
 	if err := os.MkdirAll(filepath.Join(root, "skills", "evil"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	for _, link := range []string{filepath.Join(root, "skills", "ha-nova", "leak.md"), filepath.Join(root, "skills", "evil", "SKILL.md")} {
+	for _, link := range []string{filepath.Join(root, "skills", "ha-nova", "leak.md"), filepath.Join(root, "skills", "evil", "SKILL.md"),
+		filepath.Join(root, "skills", "ha-nova", "output-rules.md"), filepath.Join(root, "skills", "ha-nova", "index.md")} {
 		if err := os.Symlink(outside, link); err != nil {
 			t.Fatal(err)
 		}
@@ -140,14 +155,18 @@ func TestMCPSkillAllowlist(t *testing.T) {
 	}
 	t.Setenv("HA_NOVA_DEV_ROOT", root)
 	srv := &mcpServer{paths: runtimePaths{}}
-	if text := skillText0(t, callSkillJSON(t, srv, "write")); !strings.HasSuffix(text, "write skill") {
+	if text := skillText0(t, callSkillJSON(t, srv, "write")); !strings.HasSuffix(text, "write skill, see ha-nova/output-rules.md") {
 		t.Fatalf("write: %q", text)
 	}
 	for _, name := range []string{"../AGENTS.md", "../../AGENTS.md", "skills/../AGENTS.md", "ha-nova/../../AGENTS.md", root + "/AGENTS.md",
-		"/etc/passwd", "ha-nova/filter.jq", "ha-nova/leak.md", "evil", "linked/secret.md", "linked", "skills/linked/secret.md"} {
+		"/etc/passwd", "ha-nova/filter.jq", "output-rules.md", "index.md", "secret.md", "ha-nova/leak.md", "evil", "linked/secret.md", "linked", "skills/linked/secret.md"} {
 		res := callSkillJSON(t, srv, name)
 		if res["isError"] != true || skillErrorCode(res) != "UNKNOWN_SKILL" || strings.Contains(res["content"].([]any)[0].(map[string]any)["text"].(string), "SECRET") {
 			t.Fatalf("%q served: %v", name, res)
 		}
+	}
+	raw, _ := json.Marshal(srv.callSkill(map[string]json.RawMessage{"task": json.RawMessage(`"x"`)}))
+	if strings.Contains(string(raw), "SECRET") || !strings.Contains(string(raw), "UNKNOWN_SKILL") {
+		t.Fatalf("task through a symlinked index: %s", raw)
 	}
 }

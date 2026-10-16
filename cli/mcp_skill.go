@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"os"
+	pathpkg "path"
 	"path/filepath"
 	"strings"
 )
@@ -16,15 +17,23 @@ import (
 const mcpSkillHeader = `You are running HA NOVA through MCP tools, not a shell. Where the text below
 names a CLI command, use the tool:
 - ha-nova find|get|history|trace → ha_find|ha_get|ha_history|ha_trace
-- ha-nova plan|call|apply → ha_plan|ha_call|ha_apply; flags become arguments
-  (--confirm → confirm_code, plan write --file → draft, --data-file → data)
-- read-only ha-nova relay core GET /api/… and relay ws reads → ha_read
-- skip ha-nova check-update and relay health: tool results carry notices[]
+- ha-nova plan <kind>|call|apply → ha_plan kind|ha_call|ha_apply; flags become
+  arguments (--confirm → confirm_code, --file → draft, --data-file and --set →
+  data, revert --target → id); this connection is pinned: no --server
+- read-only relay core GET and relay ws reads → ha_read, only the paths and
+  types it accepts; send payloads inline and apply any --jq-file filter
+  yourself. Prefer ha_find/ha_get over whole-list reads such as /api/states
+- exit codes → status: 2 drift, 3 needs_confirmation, 6 unverified, 7
+  OUTCOME_UNKNOWN (read with ha_get, never retry); others status error
+- skip the session bootstrap (check-update, relay health): results carry
+  notices[]. Cache files under ~/.cache/ha-nova are out of reach: missing
+- "context skill" → ha_skill name ha-nova; a cited file (skills/….md,
+  ../ha-nova/….md, or a bare file name): ha_skill with it as name, when the
+  step you run needs it
 Everything else (helper, dashboard, scene, registry or organize edits, other
-relay writes, files, jq) needs a client with a shell and the HA NOVA CLI: tell
-the user so instead of improvising. Pass a confirmation code to ha_apply only
-when the user typed it. A cited file (skills/….md, ../ha-nova/….md): call
-ha_skill with that path as name when the step you run needs it.
+relay writes, logs, template probes, files on disk) needs a client with a shell
+and the HA NOVA CLI: say so instead of improvising, and say which evidence was
+not checked. Pass a confirmation code to ha_apply only when the user typed it.
 
 ---
 
@@ -32,7 +41,7 @@ ha_skill with that path as name when the step you run needs it.
 
 // mcpSkillBudget bounds a skill response with an inlined cited file; the
 // skill itself is never truncated.
-const mcpSkillBudget = 40 << 10
+const mcpSkillBudget = 28 << 10 // stays under a ~10k-token client output cap
 
 const mcpOutputRules = "ha-nova/output-rules.md"
 
@@ -61,9 +70,10 @@ func skillDescription(paths runtimePaths) string {
 	return mcpSkillTool.description + " Skill ids: " + strings.Join(ids, ", ") + "."
 }
 
-// resolveSkill matches a name to an allowlisted file: the skill id or the
-// skills/-relative reference path it stands for.
-func resolveSkill(paths runtimePaths, name string) (label, path string, isSkill bool) {
+// resolveSkill matches a name to an allowlisted file: the skill id, the
+// skills/-relative reference path, or a bare file name a skill cites
+// ("raw-routes.md") when exactly one listed file carries it.
+func resolveSkill(paths runtimePaths, name string) (label, file string, isSkill bool) {
 	n := strings.TrimPrefix(strings.TrimSpace(name), "ha-nova:")
 	for _, prefix := range []string{"./", "../", "skills/"} {
 		n = strings.TrimPrefix(n, prefix)
@@ -76,10 +86,24 @@ func resolveSkill(paths runtimePaths, name string) (label, path string, isSkill 
 	if file, ok := byID[strings.TrimPrefix(n, "ha-nova-")]; ok { // a prompt name
 		return strings.TrimPrefix(n, "ha-nova-"), file, true
 	}
-	if containsText(referenceFiles(paths), n) {
-		return "skills/" + n, filepath.Join(skillsRoot(paths), filepath.FromSlash(n)), false
+	var matches []string
+	for _, rel := range referenceFiles(paths) {
+		if rel == n || !strings.Contains(n, "/") && pathpkg.Base(rel) == n {
+			matches = append(matches, rel)
+		}
 	}
-	return "", "", false
+	if len(matches) != 1 {
+		return "", "", false
+	}
+	return "skills/" + matches[0], filepath.Join(skillsRoot(paths), filepath.FromSlash(matches[0])), false
+}
+
+// readReference reads a skills/-relative reference only through the allowlist.
+func readReference(paths runtimePaths, rel string) ([]byte, error) {
+	if _, file, isSkill := resolveSkill(paths, rel); file != "" && !isSkill {
+		return os.ReadFile(file)
+	}
+	return nil, os.ErrNotExist
 }
 
 func (srv *mcpServer) callSkill(args map[string]json.RawMessage) map[string]any {
@@ -88,18 +112,17 @@ func (srv *mcpServer) callSkill(args map[string]json.RawMessage) map[string]any 
 	pick := "Call ha_skill with name set to one skill id: " + strings.Join(ids, ", ") + "; or pass task to get the dispatch table."
 	switch {
 	case name != "":
-		label, path, isSkill := resolveSkill(srv.paths, name)
-		body, err := os.ReadFile(path)
+		label, file, isSkill := resolveSkill(srv.paths, name)
+		body, err := os.ReadFile(file)
 		if label == "" || err != nil {
 			return skillError("UNKNOWN_SKILL", "no HA NOVA skill or cited file named "+quoteShort(name)+"; nothing was read", pick)
 		}
-		title := label
-		if isSkill {
-			title = "skill " + label
+		if !isSkill { // the skill's response carried the header already
+			return skillText("# HA NOVA " + label + " (CLI commands map to the MCP tools as in the skill's header)\n\n" + string(body))
 		}
-		out := mcpSkillHeader + "# HA NOVA " + title + "\n\n" + string(body)
-		if isSkill && strings.Contains(string(body), mcpOutputRules) {
-			extra, err := os.ReadFile(filepath.Join(skillsRoot(srv.paths), filepath.FromSlash(mcpOutputRules)))
+		out := mcpSkillHeader + "# HA NOVA skill " + label + "\n\n" + string(body)
+		if strings.Contains(string(body), mcpOutputRules) {
+			extra, err := readReference(srv.paths, mcpOutputRules)
 			cited := "\n\n---\n\n# Cited file skills/" + mcpOutputRules + " (included)\n\n" + string(extra)
 			if err == nil && len(out)+len(cited) <= mcpSkillBudget {
 				out += cited
@@ -107,11 +130,11 @@ func (srv *mcpServer) callSkill(args map[string]json.RawMessage) map[string]any 
 		}
 		return skillText(out)
 	case task != "":
-		index, err := os.ReadFile(filepath.Join(skillsRoot(srv.paths), "ha-nova", "index.md"))
+		index, err := readReference(srv.paths, "ha-nova/index.md")
 		if err != nil {
 			return skillError("UNKNOWN_SKILL", "the dispatch table is missing from this HA NOVA install", pick)
 		}
-		return skillText(mcpSkillHeader + "Pick the ONE skill whose Dispatch line matches the task, then call ha_skill with name set to its id (the ha-nova: prefix is optional). Device control and lookups need no skill.\n\n" + string(index))
+		return skillText(mcpSkillHeader + "Pick the task skill whose Dispatch line matches the task, then call ha_skill with name set to its id (the ha-nova: prefix is optional); the index says when the context skill (name ha-nova) loads beside it. Device control and lookups need no skill.\n\n" + string(index))
 	}
 	return skillError("INVALID_ARGUMENTS", "ha_skill needs name or task; nothing was read", pick)
 }

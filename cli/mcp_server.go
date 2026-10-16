@@ -30,7 +30,8 @@ var mcpLegacyVersions = []string{"2025-11-25", "2025-06-18", "2024-11-05"}
 
 const mcpInstructions = `HA NOVA controls one Home Assistant through typed tools.
 Before you build, change, review or diagnose anything, call ha_skill for the
-matching skill and follow it; device control and lookups need only the tools.
+matching skill (once per skill per session) and follow it; device control and
+lookups need only the tools.
 Read freely with ha_find, ha_get, ha_history, ha_trace, and ha_read.
 Change things only with ha_call (devices) or ha_plan followed by ha_apply.
 Ordinary everyday actions run immediately and are verified; anything else

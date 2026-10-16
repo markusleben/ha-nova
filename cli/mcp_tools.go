@@ -390,16 +390,3 @@ func findArgv(args map[string]json.RawMessage, _ *mcpTempFiles) ([]string, error
 	}
 	return argv, nil
 }
-
-func readArgv(args map[string]json.RawMessage, _ *mcpTempFiles) ([]string, error) {
-	switch text(args, "endpoint") {
-	case "core":
-		path := text(args, "path")
-		if !mcpReadablePath(path) {
-			return nil, fmt.Errorf("ha_read core reads only /api/states, /api/config, /api/services, /api/events, /api/history/period, /api/logbook, and stored automation/script/scene configs; %q is not one of them", path)
-		}
-		return []string{"core", path}, nil
-	default:
-		return []string{"ws", string(args["payload"])}, nil
-	}
-}

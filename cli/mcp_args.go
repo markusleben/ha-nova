@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 )
@@ -150,6 +151,32 @@ func applyArgv(args map[string]json.RawMessage, _ *mcpTempFiles) ([]string, erro
 	return argv, nil
 }
 
+func readArgv(args map[string]json.RawMessage, _ *mcpTempFiles) ([]string, error) {
+	shell := " needs a client with a shell and the HA NOVA CLI: skip that evidence and say it was not checked"
+	switch text(args, "endpoint") {
+	case "core":
+		path := text(args, "path")
+		if !mcpReadablePath(path) {
+			return nil, fmt.Errorf("ha_read core reads only /api/states, /api/config, /api/services, /api/events, /api/history/period, /api/logbook, and stored automation/script/scene configs; %q%s", path, shell)
+		}
+		return []string{"core", path}, nil
+	default:
+		var payload struct {
+			Type string `json:"type"`
+		}
+		_ = json.Unmarshal(args["payload"], &payload)
+		if !readOnlyWSTypes[payload.Type] { // refused here, not as a Relay error that reads like a pairing problem
+			types := make([]string, 0, len(readOnlyWSTypes))
+			for wsType := range readOnlyWSTypes {
+				types = append(types, wsType)
+			}
+			sort.Strings(types)
+			return nil, fmt.Errorf("ha_read ws reads only %s; %q%s", strings.Join(types, ", "), payload.Type, shell)
+		}
+		return []string{"ws", string(args["payload"])}, nil
+	}
+}
+
 // runMCPRead is ha_read: one raw read through the session's read allowlist
 // (I1) — core GET /api/... or an allowlisted WS message.
 func runMCPRead(paths runtimePaths, argv []string) int {
@@ -278,7 +305,7 @@ func mcpNext(next string) string {
 	case strings.Contains(out, "ha-nova:yaml-config"):
 		out += " Without a shell client, the user edits the YAML/package file and reloads it in Developer tools → YAML."
 	case !strings.Contains(out, "Settings"):
-		out += " Load that skill with ha_skill; its steps beyond these tools need a client with a shell and the HA NOVA CLI — without one, the user does this in Home Assistant (Settings)."
+		out += " That skill's writes need a client with a shell and the HA NOVA CLI (ha_skill serves it for its read steps); without one, the user does this in Home Assistant (Settings)."
 	}
 	return out
 }
