@@ -76,25 +76,34 @@ Validate decides.
   accept the named consequence: `esphome: name:` change (use the
   dashboard's Rename instead), removing or replacing `api:` encryption keys,
   removing `ota:`, Wi-Fi/`manual_ip` changes without `ap:` +
-  `captive_portal:`, an entity `name:` change (HA may create a new entity).
+  `captive_portal:`, any `manual_ip` change (`use_address` for one
+  install), an `ota` password change (`on_boot` → `set_auth_password`), a
+  changed `api` key (also the OTA key on 2026.9.0+ with OTA encryption), an
+  entity `name:` change (HA may create a new entity), and a shared
+  `packages:`/`!include` file or `substitutions` edit (every device and key
+  it reaches is listed).
 - One file per operation.
 
 ### Secrets
 
-- Never show, ask for, or write a credential value. Inline values
-  (any `password`, `key`, or `psk` value) are masked in every
-  shown YAML, explicitly requested YAML included; confirmation binds to the
-  stored value behind the mask.
-- Moving an inline value to `!secret <name>`: the skill writes the
-  reference; the user adds the value in the dashboard's secrets file
-  before installing. Said in the preview.
+- Never show, ask for, or write a credential value. A credential is the
+  value of any key whose name contains `password`, `key`, `psk`, `token`,
+  `secret`, `auth`, or `bearer`, every HTTP header value, and every
+  substitution feeding one, in any read file. It is masked in every reply:
+  YAML (explicitly requested included), prose, pasted Validate/log output;
+  confirmation binds to the stored value behind the mask. A mask string is
+  never written: untouched credential lines stay byte-identical.
+- An inline credential is LOW (the wizard writes the `api` key inline).
+  Moving one to `!secret <name>` only on request; the preview tells the user
+  to copy the current value unchanged into the dashboard's secrets file
+  first, because a different value is a new credential.
 
 ### Compile and flash: external
 
 Exact next step, either path:
 - App: Home Assistant → Settings → Apps → ESPHome Device Builder → Open Web
-  UI → device card → ⋮ → Validate, then Install → Wirelessly (first install:
-  USB). Logs on the card.
+  UI → device card → ⋮ → Validate, then Install → On the network (older
+  dashboard: Wirelessly; first install: USB). Logs on the card.
 - CLI: `esphome config <file>` (redacts secrets), `esphome run <file>`
   (compile, upload, logs), `esphome logs <file>`.
 
@@ -102,7 +111,9 @@ Exact next step, either path:
 
 After the user reports the install: `ha-nova find "<friendly name>"`, then
 `ha-nova get <one entity> --references` → `references.entities[]` (platform
-`esphome`, state). All `unavailable` = device offline or not reconnected;
+`esphome`, state), then the device registry `sw_version` (ESPHome version
+and build time): a build older than the write means the file is not on the
+device yet. All `unavailable` = device offline or not reconnected;
 config entry state via `config_entries/get` with `domain: esphome`. A new
 device not yet in HA: Discovered → `ha-nova:integration-setup` (the user
 enters the encryption key in the HA UI, never in chat).

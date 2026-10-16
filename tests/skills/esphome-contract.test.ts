@@ -15,6 +15,8 @@ describe("esphome skill (needs-analysis TOP 5)", () => {
     expect(router).toContain("| ESPHome device YAML: explain, check, edit; verify the device after an install | `ha-nova:esphome` |");
     expect(index).toContain("`ha-nova:esphome` —");
     expect(yamlConfig).toContain("ESPHome device files (`ha-nova:esphome`)");
+    expect(router).toContain("`ha-nova:yaml-config` (files; `/config/esphome/`: `ha-nova:esphome`)");
+    expect(flat(readFileSync("skills/ha-nova/output-rules.md", "utf8"))).toContain("masking it (or an ESPHome credential) is the ONE legal edit");
   });
 
   it("uses the existing opt-in file access and works from pasted YAML without it", () => {
@@ -35,10 +37,16 @@ describe("esphome skill (needs-analysis TOP 5)", () => {
 
   it("never puts secrets into chat or into a file", () => {
     expect(skill).toContain("**Secrets never reach chat.** `!secret <name>` stays a reference.");
-    expect(skill).toContain("in every shown YAML, explicitly requested YAML included, and say a value was masked");
+    expect(skill).toContain("Mask every credential (checks file → Secrets) in every reply: YAML (explicitly requested included), prose, and pasted output; say a value was masked");
     expect(skill).toContain("confirmation binds to the stored value behind the mask");
     expect(skill).toContain("Never ask for a credential and never write one");
-    expect(skill).toContain("moving an inline value to `!secret` writes the reference only");
+    expect(skill).toContain("Never write a mask: credential lines the user did not ask to change stay byte-identical to the step-1 read.");
+    expect(skill).toContain("Validate fails after an edit: show its message (masked)");
+    expect(checks).toContain("the value of any key whose name contains `password`, `key`, `psk`, `token`, `secret`, `auth`, or `bearer` (any case), every HTTP header value, and every substitution that feeds one");
+    expect(checks).toContain("the relay refuses only `secrets.yaml`, so `credentials.yaml` reads like any file");
+    expect(checks).toContain("say where it lives (this device file, or the dashboard's secrets file), never the value");
+    expect(checks).toContain("copy the current value unchanged into the dashboard's secrets file under `<name>`");
+    expect(checks).toContain("Move one to `!secret <name>` only when asked.");
     expect(skill).toContain("The user types the encryption key there, never in chat.");
     expect(checks).toContain("A `!secret` name cannot be checked here (the relay never serves `secrets.yaml`)");
   });
@@ -53,7 +61,7 @@ describe("esphome skill (needs-analysis TOP 5)", () => {
   });
 
   it("names device-breaking edits before they are confirmed", () => {
-    expect(skill).toContain("Name every device-breaking consequence (checks file → Device-Breaking Edits) in the preview.");
+    expect(skill).toContain("Name every device-breaking consequence and every other device the file reaches (checks file → Device-Breaking Edits).");
     expect(skill).toContain("An edit never removes or replaces `api:`, its encryption key, `ota:`, or the network block of a device that works");
     for (const line of [
       "`esphome:` → `name:` is the hostname the next wireless install looks for",
@@ -61,6 +69,12 @@ describe("esphome skill (needs-analysis TOP 5)", () => {
       "A new or replaced `api` `encryption` `key`: Home Assistant loses the device",
       "Removing `ota:`: every later install needs USB.",
       "without `ap:` + `captive_portal:`: one mistake means USB.",
+      "OTA reuses that key and \"the device only accepts the key it is running\": the next wireless install fails, USB needed.",
+      "Never generate a new key for a device Home Assistant already uses.",
+      "A changed `ota` `password`: the install authenticates with the new one and the device refuses it.",
+      "set `wifi` → `use_address: <current IP>` for that one install",
+      "A file in `packages:` or `!include` of other devices changes all of them",
+      "A `substitutions` edit is an edit of every key it feeds",
     ]) {
       expect(checks).toContain(line);
     }
@@ -84,6 +98,8 @@ describe("esphome skill (needs-analysis TOP 5)", () => {
       "esphome.io/components/esp32 (\"Defaults to `esp-idf` for all ESP32 variants\")",
       "ESPHome 2026.6.0 changelog (\"Removes deprecated `custom_components` folder loading\")",
       "`min_auth_mode` now defaults to WPA2",
+      "ESPHome 2026.7.0 blog (\"The single-package `!include` form is removed\")",
+      "`toolchain: platformio` keeps the old build",
     ]) {
       expect(checks).toContain(row);
     }
@@ -92,7 +108,9 @@ describe("esphome skill (needs-analysis TOP 5)", () => {
 
   it("checks pins per chip family with sources", () => {
     expect(checks).toContain("| ESP32 | GPIO34-39 | input only, no internal pull-up/pull-down");
-    expect(checks).toContain("| ESP32 | GPIO6-11, GPIO16-17 |");
+    expect(checks).toContain("| ESP32 | GPIO6-8, GPIO11 | the flash interface: validation error | HIGH |");
+    expect(checks).toContain("| ESP32 | GPIO9-10 | flash data in QUAD IO flash mode: validation warning | MEDIUM |");
+    expect(checks).toContain("| ESP32 | GPIO16-17 | PSRAM on modules that have it (WROVER)");
     expect(checks).toContain("| ESP32 | GPIO0, 2, 5, 12, 15 | strapping pins");
     expect(checks).toContain("ADC2 is also used by Wi-Fi");
     expect(checks).toContain("| ESP8266 | ADC | only GPIO17 (A0/TOUT), 0-1.0 V |");
@@ -101,7 +119,7 @@ describe("esphome skill (needs-analysis TOP 5)", () => {
 
   it("keeps compile and flash external with exact next steps", () => {
     expect(skill).toContain("Settings → Apps → ESPHome Device Builder → Open Web UI");
-    expect(skill).toContain("**Validate**, then **Install** → Wirelessly");
+    expect(skill).toContain("**Validate**, then **Install** → On the network (older dashboard: Wirelessly)");
     expect(skill).toContain("The very first install, or a device without `ota:`, needs USB.");
     expect(skill).toContain("`esphome config <file>.yaml` (validates; secrets redacted), `esphome run <file>.yaml` (compile, upload, logs)");
   });
@@ -112,7 +130,8 @@ describe("esphome skill (needs-analysis TOP 5)", () => {
     expect(skill).toContain("**Verify** after the user says it is installed");
     expect(skill).toContain("Never report a change as on the device before the user installed it and the entities came back.");
     expect(skill).toContain("re-pointing consumers is `ha-nova:device`");
-    expect(skill).toContain("A HIGH finding still in the file means that install failed: say so first.");
+    expect(skill).toContain("`{\"type\":\"config/device_registry/list\"}` with `--jq-file` to the `references.device.id` row (`sw_version`: ESPHome version and build time)");
+    expect(skill).toContain("a build time before the write means the new file is not on the device — say so");
     expect(skill).toContain("ending at its Options line (no reason, rule, or file name after it)");
     expect(skill).toContain("the exact App steps from Compile and flash");
   });

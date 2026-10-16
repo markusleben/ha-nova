@@ -305,7 +305,7 @@ Match user intent to exactly one skill:
 | "explain this automation / what does it do?" | `ha-nova:read` — behavior narrative first, YAML only on request |
 | structure audit — "is my setup tidy?", "which entities have no area?" | `ha-nova` (this context skill); Structure Check in `skills/ha-nova/capability-answer.md` — fixes hand to `ha-nova:organize` |
 | list or delete config snapshots ("what snapshots do I have?", "delete these obsolete snapshots") | `ha-nova` (this context skill); mechanics: `skills/ha-nova/config-snapshots.md` |
-| restore a config snapshot ("restore X from a snapshot") | the skill that owns the item family — `ha-nova:write` (automations/scripts), `ha-nova:scene`, `ha-nova:dashboard`, `ha-nova:helper`, `ha-nova:energy` (prefs), `ha-nova:yaml-config` (files), `ha-nova:organize` (metadata); mechanics: `skills/ha-nova/config-snapshots.md` |
+| restore a config snapshot ("restore X from a snapshot") | the skill that owns the item family — `ha-nova:write` (automations/scripts), `ha-nova:scene`, `ha-nova:dashboard`, `ha-nova:helper`, `ha-nova:energy` (prefs), `ha-nova:yaml-config` (files; `/config/esphome/`: `ha-nova:esphome`), `ha-nova:organize` (metadata); mechanics: `skills/ha-nova/config-snapshots.md` |
 | **any HA task not matched above** — blueprints, unsupported admin writes, any unfamiliar raw relay/ws/core write | `ha-nova:fallback` **(mandatory fallback — never skip)** |
 
 **"Analyze my automation"** → `ha-nova:review` (NOT read + review)
