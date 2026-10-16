@@ -18,7 +18,7 @@ video-recording kit, `docs/reference/demo-recording.md`).
 | `guard.sh` | host, every minute | Skips while a reset holds the lock. Disk/swap watchdog; `demo.mjs guard` (30 s cap); relay round trip (revoked token: reset at once; other failures: after 3 minutes); TLS that came up after a skipped public gate. Anything wrong → full reset. |
 | `update-ha.sh` | host, nightly | Latest stable HA: resolve digest, verify the Sigstore signature, refuse downgrades, candidate reset + gates, promote or roll back, prune old images. |
 | `host-lib.sh` | host | Shared gates: relay round trip, egress/DNS, listeners, public site; Caddy (re)creation; pinned Node/Caddy images; the lock. |
-| `demo.mjs` | host | `setup` (seeded http config check, local-only owner, "Demo add-on" device shown as "Demo app", admin `demo/demo`, drop onboarding extras), `token` (the relay user's LLAT), `dashboard`, `guard`, `smoke`. |
+| `demo.mjs` | host | `setup` (seeded http config check, local-only owner, admin `demo/demo`, drop onboarding extras), `token` (the relay user's LLAT), `dashboard` (also shows the "Demo add-on" device as "Demo app"), `guard`, `smoke`. |
 | `edge.yml`, `Caddyfile`, `site/` | host | Caddy in its own compose project: TLS, CSP, blocked paths, landing page, restarting page, `/relay/*`, `/connect.json`, `/abuse`, privacy-filtered access log. |
 | `docker-compose.yml` | host | Overlay over the test bed compose: internal network only, DNS sink, sealed directories, limits, relay settings. |
 | `mosquitto.conf`, `mosquitto.acl` | host | Broker split: seeding listener (container loopback) vs. Home Assistant listener (no discovery writes). |

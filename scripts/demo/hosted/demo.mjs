@@ -130,10 +130,6 @@ async function setup() {
     // The owner is host tooling only: never a login from the internet.
     await ha.call({ type: "config/auth/update", user_id: owner.id, local_only: true });
     await ensureAdmin(ha, users, DEMO_USER, "Demo", DEMO_PASSWORD);
-    // The demo integration names this update device "Demo add-on"; HA calls them apps.
-    const devices = await ha.call({ type: "config/device_registry/list" });
-    const app = devices.find((d) => d.identifiers.some(([domain, id]) => domain === "demo" && id === "update_addon"));
-    if (app) await ha.call({ type: "config/device_registry/update", device_id: app.id, name_by_user: "Demo app" });
 
     // Onboarding adds these; they only call out (blocked anyway) or store data.
     const entries = await ha.call({ type: "config_entries/get" });
@@ -244,8 +240,22 @@ async function setDefaultPanel(ha) {
   }
 }
 
+// The demo integration names this update device "Demo add-on"; HA calls them
+// apps. Cosmetic: skipped if a future demo integration drops the device.
+async function nameAppDevice(ha) {
+  const devices = await ha.call({ type: "config/device_registry/list" });
+  const app = devices.find((d) => d.identifiers.some(([domain, id]) => domain === "demo" && id === "update_addon"));
+  if (app && app.name_by_user !== "Demo app") {
+    await ha.call({ type: "config/device_registry/update", device_id: app.id, name_by_user: "Demo app" });
+  }
+}
+
+// After the house is seeded (reset.sh): seed.mjs waited for the demo entities.
 async function dashboard() {
-  await withHa(saveDashboard);
+  await withHa(async (ha) => {
+    await saveDashboard(ha);
+    await nameAppDevice(ha);
+  });
 }
 
 function httpProblem(http) {
