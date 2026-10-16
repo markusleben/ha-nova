@@ -28,6 +28,7 @@ var readOnlyWSTypes = map[string]bool{
 	"config/entity_registry/list":             true,
 	"config/entity_registry/get":              true,
 	"config/area_registry/list":               true,
+	"config/floor_registry/list":              true, // map: floors
 	"config/device_registry/list":             true,
 	// Pre-2026.8 merged device ids → the devices they were split into.
 	"config/device_registry/list_composite_splits": true,
@@ -46,6 +47,15 @@ var readOnlyWSTypes = map[string]bool{
 	// entity_id: YAML and package items without a UI config too.
 	"automation/config": true,
 	"script/config":     true,
+	// get --references: the Lovelace panels, each dashboard's config, and the
+	// energy preferences (consumers search/related does not index).
+	"get_panels":       true,
+	"lovelace/config":  true,
+	"energy/get_prefs": true,
+	// Dashboards (dashboard-write spec): the list and the installed resources
+	// (lovelace/config above; a read with force: true is refused below).
+	"lovelace/dashboards/list": true,
+	"lovelace/resources":       true,
 }
 
 // relaySession resolves config and transport once per invocation and
@@ -172,7 +182,8 @@ func checkReadOnlyRequest(endpoint string, payload map[string]any) error {
 		}
 		return fmt.Errorf("read verbs only send core GET /api/...; refused %q %q, nothing was sent", method, path)
 	case "ws":
-		if wsType, _ := payload["type"].(string); readOnlyWSTypes[wsType] {
+		forced := payload["force"] == true // lovelace/config with force re-reads YAML from disk: never sent
+		if wsType, _ := payload["type"].(string); readOnlyWSTypes[wsType] && !(wsType == "lovelace/config" && forced) {
 			return nil
 		}
 		return fmt.Errorf("WS type %q is not on the read-only allowlist; nothing was sent", payload["type"])

@@ -63,7 +63,7 @@ Every draft follows `skills/ha-nova/smallest-solution.md`: the complete explicit
 3. Suggestions + Pre-Write Checks (skip for delete and revert):
    - **3a) Suggestions**: the candidates as the Suggestion Block (output-cards.md; max 2, smallest intervention first). Accepted numbers merge into the draft BEFORE the preview; no block when there is no candidate and no intent-classification item.
    - **3b) Static Checks**: `skills/review/checks.md` → Application, analytically on the draft — no relay calls (scripts: F-01..F-08; helper refs: H-01..H-08. Defer H-09/H-10 to Phase 4). One pre-write verdict line ("Pre-write check: no issues worth flagging before save." or "Pre-write check: this draft may not behave as intended."); 🔴 inline with a fix, 🟠🟡 as advisory below the preview, code-free. Advisories do not block the write and do not require extra confirmation:
-     - R-18: REST/UI write can break dependent variables in that block — inspect traces after the next real run; never auto-trigger or read them.
+     - R-18: a variable used above the sibling it reads — move that sibling up.
      - R-19: final else branch is only reached when the earlier entity-state branches are false — move `trigger.id` into `elif` or use `choose` + `condition: trigger`.
      - If R-23 matches: boolean-like template values compared to `"True"`/`"False"` — use the boolean.
      - If R-24 matches: `available_energy` may be current charge, not capacity — ask the user; never rewrite integration entity ids.
@@ -75,7 +75,7 @@ Every draft follows `skills/ha-nova/smallest-solution.md`: the complete explicit
    - update/revert: the plan's `diff` rows **verbatim** in the Changes slot — never write it yourself; state the behavioral effect in the summary sentence (write-safety → Behavior narrative). create: summary. Name the `members[]` that set the tier. Close the card with the plan's `say` (it ends in `apply` · `show yaml` · `cancel` or the code; those, names, and state values stay literal); several plans in one preview keep each reason and ask once, naming each typed plan's code.
    - Delete preview MUST include the consumer-check result before confirmation, from the plan's `consumers[]` (who references the item's OWN `entity_id`): the consumers, an explicit none, or an explicit "consumer check inconclusive" line when the scan failed or did not run (`coverage.complete` false). Never present a failed or skipped scan as a no-consumer result. No menu — only `say`.
    - Batch delete of one family (automations OR scripts, never mixed) follows `skills/ha-nova/batch-safety.md`; each item keeps its consumer check, its own CLI code (the manifest lists them; at most 10 items, planned just in time), and absence verification.
-6. Confirmation: create/update=natural, delete=typed confirmation code `confirm:<token>` — the plan's CLI-minted `plan.code`; a create/update/revert whose plan says `code` takes it too; delete is the typed confirmation code, never a menu. A duration request takes the code when EITHER half grants physical access or is physically irreversible (`lock.lock` for an hour schedules an unattended `lock.unlock`). A cross-family destructive cleanup (`skills/ha-nova/grouped-change-set.md`) still needs each automation/script item's own CLI code. Relay `say` and add no other reason; never cite, link, or name this skill or any HA NOVA rule file. A code counts only when the user typed it verbatim after the preview; "yes" is invalid. After a "yes", repeat `say`'s last sentence. Never pass a code the user did not type. Pre-preview consent is draft-only; a changed draft needs a new plan and preview.
+6. Confirmation: create/update=natural, delete=typed confirmation code `confirm:<token>` — the plan's CLI-minted `plan.code`; a create/update/revert whose plan says `code` takes it too; delete is the typed confirmation code, never a menu. A duration request takes the code when EITHER half grants physical access or is physically irreversible (`lock.lock` for an hour schedules an unattended `lock.unlock`). A cross-family destructive cleanup (`skills/ha-nova/grouped-change-set.md`) still needs each automation/script item's own CLI code. Relay `say` and add no other reason; never cite, link, or name this skill or any HA NOVA rule file. A code counts only when the user typed it verbatim after the preview; "yes" is invalid. After a "yes", repeat `say`'s last sentence. Never pass a code the user did not type. Pre-preview consent is draft-only; a changed draft needs a new plan and preview. An answer to a clarifying question is never a confirmation: end the turn with each new or changed plan's preview (except Phase 3 step 4's natural-confirmation duration call re-plan with action and tier unchanged).
 
 ### Phase 3: Apply + Verify
 
@@ -90,7 +90,7 @@ Every draft follows `skills/ha-nova/smallest-solution.md`: the complete explicit
 Do NOT invoke `ha-nova:review` separately.
 
 1. Reviewed config: the draft when `verified`, else `ha-nova get <entity_id> --config`. If `verification[].entity_id` differs from the requested slug, report it and point to `skills/ha-nova/safe-refactoring.md` — do not silently assume the requested slug won.
-2. Checks: verified → skip what Phase 2 covered, re-run the storage-sensitive R-18 subset; a differing read-back → full checks per `skills/review/checks.md` → Application. **Dedup**: findings the user saw in 3b MUST NOT repeat (by check type) — except R-18 still matching the persisted config: report it again as a persisted runtime risk (inspect traces after the next real run. Do not auto-trigger or auto-read traces outside an accepted Phase 5 test plan). `R-19` follows normal dedup, as do R-23/R-24. Actions referencing helpers: always H-01..H-11.
+2. Checks: verified → skip what Phase 2 covered, re-run R-18 on the read-back; a differing read-back → full checks per `skills/review/checks.md` → Application. **Dedup**: findings the user saw in 3b MUST NOT repeat (by check type) — except R-18 still matching the persisted config: report it again as a persisted runtime risk with the reorder fix. Do not auto-trigger or auto-read traces outside an accepted Phase 5 test plan. `R-19` follows normal dedup, as do R-23/R-24. Actions referencing helpers: always H-01..H-11.
 3. Collision scan: `ha-nova get <entity_id> --related` on the written item (3c fail-closed rule); read max 3 related configs.
 4. Output (localized; `skills/ha-nova/output-cards.md` → Findings, Empty States): **Findings** real issues only; **Collision check** only when related items exist (a failed scan is "consumer check inconclusive", not empty); **Advisory** only when non-empty. Omit any section with nothing to report — never print an empty "none" bucket; nothing at all → collapse to one scope-honest confirmation line (write-safety → Verification Honesty). Never emit `Questions to consider`, `Suggestions`, or `Instant help` post-write; never repeat an item across **Findings** and **Advisory**. Sole exception: the one-line Replication Line after a verified create (`output-cards.md`).
 5. Update-Revert: an update (a revert too) lands on the undo stack automatically — reflect the save receipt in the result — the `undo` receipt (`replaced`: only this newest update stays revertible; evicted targets are no longer revertible) and offer `revert` (write-safety → Update-Revert). Creates → cleanup via normal HA NOVA delete flow with preview, `confirm:<token>`, and absence verification. Deletes → offer `restore` (one plan + apply), else Home Assistant Backups.
@@ -103,13 +103,13 @@ After the review output, build a Test Plan Card per `skills/ha-nova/test-run.md`
 
 Apply `skills/ha-nova/output-rules.md`.
 
-Previews, delete prompts, results, and the test offer render as the Cards in `skills/ha-nova/output-cards.md` (Test Plan Card mechanics: `skills/ha-nova/test-run.md`); diff mechanics: `skills/ha-nova/write-safety.md`. A create summary names the item (alias + config id; `entity_id` once verified), the entities it uses, then `Triggers`/`Conditions`/`Actions` (scripts: `Fields`/`Sequence`) in short descriptions, and `mode`; the full YAML only on `show yaml`.
+Previews, delete prompts, results, and the test offer render as the Cards in `skills/ha-nova/output-cards.md` (Test Plan Card mechanics: `skills/ha-nova/test-run.md`). A create summary names the item (alias + config id; `entity_id` once verified), the entities it uses, then `Triggers`/`Conditions`/`Actions` (scripts: `Fields`/`Sequence`) in short descriptions, and `mode`; the full YAML only on `show yaml`.
 
 ## Safety
 
 - Preview before write. The only exception is a call that `ha-nova call` itself executed as `tier: ordinary` (an unambiguous everyday action, verified afterwards); everything else runs or is saved only after the user confirms the shown preview. High-consequence actions (e.g. unlocking or opening a lock, opening a gate, garage, or entry door, disarming the alarm — also through a scene or script) and deletes need a code.
 - Confirmation binds to the displayed preview and expires on any change to target, payload, endpoint, or scope (context skill → Active Preview Confirmation).
-- Pre-preview phrases ("do it", "go ahead", "implement the plan") authorize drafting and preview only — never the write itself.
+- Anything before the preview ("do it", answers to questions) never confirms it; only a reply to the preview does.
 - Delete and destructive operations require the typed confirmation code `confirm:<token>` verbatim; "yes" or any natural-language reply is invalid.
 - Never guess entity, service, or config IDs — resolve them or ask.
 - Home Assistant is reached exclusively through the `ha-nova` CLI.
@@ -121,7 +121,7 @@ Previews, delete prompts, results, and the test offer render as the Cards in `sk
 
 ## Guardrails
 
-- Never use raw `get_states`; max 3 related configs in a collision scan.
+- Never use raw `get_states`.
 
 ## References
 

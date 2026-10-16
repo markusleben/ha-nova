@@ -104,7 +104,7 @@ func TestMCPLegacySessionEndToEnd(t *testing.T) {
 
 	init := c.request("initialize", map[string]any{"protocolVersion": "2025-06-18", "capabilities": map[string]any{}, "clientInfo": map[string]any{"name": "test", "version": "1"}})
 	result := init["result"].(map[string]any)
-	if result["protocolVersion"] != "2025-06-18" || !strings.Contains(fmt.Sprint(result["instructions"]), "Never pass a confirmation code the user\ndid not type") {
+	if result["protocolVersion"] != "2025-06-18" || !strings.Contains(fmt.Sprint(result["instructions"]), "Never pass a confirmation code the user did not type") {
 		t.Fatalf("initialize: %v", result)
 	}
 	c.send(`{"jsonrpc":"2.0","method":"notifications/initialized"}`) // no reply
@@ -112,7 +112,7 @@ func TestMCPLegacySessionEndToEnd(t *testing.T) {
 
 	tools := c.request("tools/list", map[string]any{})["result"].(map[string]any)["tools"].([]any)
 	want := map[string][3]bool{ // readOnly, destructive, idempotent (spec §5 table)
-		"ha_skill": {true, false, true}, "ha_find": {true, false, true}, "ha_get": {true, false, true}, "ha_history": {true, false, true}, "ha_trace": {true, false, true},
+		"ha_skill": {true, false, true}, "ha_find": {true, false, true}, "ha_get": {true, false, true}, "ha_history": {true, false, true}, "ha_map": {true, false, true}, "ha_trace": {true, false, true},
 		"ha_read": {true, false, true}, "ha_plan": {true, false, false}, "ha_call": {false, false, false}, "ha_apply": {false, true, false},
 	}
 	var names []string
@@ -126,7 +126,7 @@ func TestMCPLegacySessionEndToEnd(t *testing.T) {
 			t.Fatalf("%s annotations %v", name, a)
 		}
 	}
-	if strings.Join(names, ",") != "ha_skill,ha_find,ha_get,ha_history,ha_trace,ha_read,ha_plan,ha_call,ha_apply" {
+	if strings.Join(names, ",") != "ha_skill,ha_find,ha_get,ha_history,ha_map,ha_trace,ha_read,ha_plan,ha_call,ha_apply" {
 		t.Fatalf("tools %v", names)
 	}
 
@@ -218,7 +218,7 @@ func TestMCPModernRequestsAndVersionNegotiation(t *testing.T) {
 	if errorCode(unsupported) != rpcUnsupportedProto || data["requested"] != "2099-01-01" {
 		t.Fatalf("unsupported version: %v", unsupported)
 	}
-	if tools := c.request("tools/list", meta(mcpModernVersion))["result"].(map[string]any)["tools"].([]any); len(tools) != 9 {
+	if tools := c.request("tools/list", meta(mcpModernVersion))["result"].(map[string]any)["tools"].([]any); len(tools) != 10 {
 		t.Fatalf("modern tools/list: %d tools", len(tools))
 	}
 
@@ -274,4 +274,28 @@ func TestMCPHelperProcess(t *testing.T) {
 		os.Exit(1)
 	}
 	os.Exit(runMCPCommand(paths, nil))
+}
+
+// Every flag a skill names for find/get reaches the CLI through MCP.
+func TestMCPReadFlagsReachTheCLI(t *testing.T) {
+	cases := map[string]struct {
+		args map[string]json.RawMessage
+		want string
+	}{
+		"ha_get":  {map[string]json.RawMessage{"entity_id": json.RawMessage(`"sensor.x"`), "references": json.RawMessage(`true`)}, "--references -- sensor.x"},
+		"ha_find": {map[string]json.RawMessage{"phrase": json.RawMessage(`"lamp"`), "aliases": json.RawMessage(`true`)}, "--aliases -- lamp"},
+	}
+	for _, tool := range mcpTools {
+		tc, ok := cases[tool.name]
+		if !ok {
+			continue
+		}
+		argv, err := tool.argv(tc.args, nil)
+		if err != nil || strings.Join(argv, " ") != tc.want {
+			t.Errorf("%s argv %v (%v), want %s", tool.name, argv, err, tc.want)
+		}
+	}
+	if got := mcpArgs("run ha-nova get x --references or find --aliases"); !strings.Contains(got, "references") || strings.Contains(got, "--references") || strings.Contains(got, "--aliases") {
+		t.Errorf("mcpArgs: %s", got)
+	}
 }

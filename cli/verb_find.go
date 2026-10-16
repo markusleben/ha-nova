@@ -283,6 +283,7 @@ func loadAreaContext(s *relaySession) (map[string]string, map[string]string, err
 	var deviceRows []struct {
 		ID     string `json:"id"`
 		AreaID string `json:"area_id"`
+		Parent string `json:"parent_device_id"`
 	}
 	if err := s.wsDecode(map[string]any{"type": "config/area_registry/list"}, &areaRows, "the area registry"); err != nil {
 		return nil, nil, err
@@ -294,11 +295,27 @@ func loadAreaContext(s *relaySession) (map[string]string, map[string]string, err
 	for _, a := range areaRows {
 		areas[a.AreaID] = a.Name
 	}
-	deviceAreas := map[string]string{}
+	own, parent := map[string]string{}, map[string]string{}
 	for _, d := range deviceRows {
-		deviceAreas[d.ID] = d.AreaID
+		own[d.ID], parent[d.ID] = d.AreaID, d.Parent
 	}
-	return areas, deviceAreas, nil
+	return areas, effectiveDeviceAreas(own, parent), nil
+}
+
+// effectiveDeviceAreas: a device's own area_id; a child device (Home
+// Assistant 2026.9+ parent_device_id) without one inherits its parent's
+// effective area, however deep. A parent missing from the read, or a cycle,
+// leaves it unknown.
+func effectiveDeviceAreas(own, parent map[string]string) map[string]string {
+	out := map[string]string{}
+	for id := range own {
+		cur, seen := id, map[string]bool{}
+		for own[cur] == "" && parent[cur] != "" && !seen[cur] {
+			seen[cur], cur = true, parent[cur]
+		}
+		out[id] = own[cur]
+	}
+	return out
 }
 
 func loadCompactRegistry(s *relaySession, areas, deviceAreas map[string]string) ([]registryRow, error) {

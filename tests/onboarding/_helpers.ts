@@ -2,9 +2,11 @@
  * Shared test helpers for onboarding integration tests.
  * Provides isolated HOME dirs and mock binaries for CI-safe testing.
  */
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { spawnSync } from "node:child_process";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
+
+import { makeTempDir } from "../helpers/temp-dir.js";
 
 const FIXTURES_DIR = resolve(__dirname, "../fixtures");
 const REPO_ROOT = resolve(__dirname, "../..");
@@ -41,7 +43,7 @@ export interface MockHomeOpts {
  * Creates an isolated HOME directory with optional pre-populated config/token/skills.
  */
 export function createMockHome(opts: MockHomeOpts = {}): string {
-  const home = mkdtempSync(join(tmpdir(), "ha-nova-test-"));
+  const home = makeTempDir("ha-nova-test-");
 
   if (opts.config) {
     const configDir = join(home, ".config/ha-nova");
@@ -90,7 +92,7 @@ export interface MockBinaryOpts {
  * Returns the bin dir path to prepend to PATH.
  */
 export function createMockBinaries(opts: MockBinaryOpts = {}): string {
-  const binDir = mkdtempSync(join(tmpdir(), "ha-nova-bin-"));
+  const binDir = makeTempDir("ha-nova-bin-");
   const claudeLogFile = opts.claudeLogFile ?? "";
 
   // --- security mock (Keychain) ---
@@ -238,6 +240,21 @@ export function readFixture(name: string): string {
   return readFileSync(join(FIXTURES_DIR, name), "utf8");
 }
 
+let goCacheEnvMemo: Record<string, string> | undefined;
+
+/**
+ * The real user's Go module and build caches. Go derives both from HOME, so a
+ * Go child of a temp HOME would otherwise rebuild ~0.5 GB of cache in it.
+ */
+export function goCacheEnv(): Record<string, string> {
+  if (goCacheEnvMemo === undefined) {
+    const result = spawnSync("go", ["env", "GOMODCACHE", "GOCACHE"], { encoding: "utf8" });
+    const [modCache, buildCache] = result.status === 0 ? result.stdout.trim().split("\n") : [];
+    goCacheEnvMemo = modCache && buildCache ? { GOMODCACHE: modCache, GOCACHE: buildCache } : {};
+  }
+  return goCacheEnvMemo;
+}
+
 /** Build PATH with mock bin dir prepended */
 export function mockEnv(
   home: string,
@@ -253,6 +270,7 @@ export function mockEnv(
     HA_NOVA_NO_BROWSER: "1",
     HA_NOVA_ALLOW_INSECURE_TEST_KEYRING: "1",
     HA_NOVA_TEST_KEYRING_FILE: join(home, ".config/ha-nova/.test-relay-auth-token"),
+    ...goCacheEnv(),
     ...extra,
   };
 }

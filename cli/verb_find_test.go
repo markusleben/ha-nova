@@ -94,6 +94,11 @@ func setupFakeRelay(t *testing.T, reply func(r *http.Request, endpoint string, p
 		log.mu.Unlock()
 		w.Header().Set("content-type", "application/json")
 		data := reply(r, endpoint, payload)
+		if refusal, isRefusal := data.(fakeRelayRefusal); isRefusal { // the Relay itself refuses: nothing forwarded
+			w.WriteHeader(http.StatusBadRequest)
+			_ = json.NewEncoder(w).Encode(map[string]any{"ok": false, "error": map[string]any{"code": refusal.code, "message": "refused"}})
+			return
+		}
 		if failure, isFailure := data.(fakeRelayFailure); isFailure {
 			w.WriteHeader(http.StatusBadGateway)
 			_ = json.NewEncoder(w).Encode(map[string]any{"ok": false, "error": map[string]any{"code": failure.code, "message": failure.message}})
@@ -347,6 +352,8 @@ func TestRelaySessionBoundsEachRequest(t *testing.T) {
 
 // fakeRelayFailure makes the fake relay answer a Relay error envelope.
 type fakeRelayFailure struct{ code, message string }
+
+type fakeRelayRefusal struct{ code string }
 
 func TestTokensMatchDecomposedAccents(t *testing.T) {
 	decomposed := "Éclair Küche"

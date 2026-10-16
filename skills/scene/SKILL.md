@@ -67,7 +67,7 @@ Write `<filter-file>` with:
 3. Present name, entities, and captured target states. Flag captured entity_ids missing from the registry (renamed or deleted since capture — the scene then applies partially, silently); offer removal, never preserve or drop silently.
 
 ### Create
-1. Resolve every entity the scene should capture (exact `entity_id`; on ambiguity ask one blocking question). Scenes take actionable domains only (light, switch, cover, climate, fan, media_player, lock, humidifier, stateful `input_*` — never stateless `input_button`, ...); refuse read-only domains (sensor, binary_sensor, ...). If the scene list (List flow, both sources) already has this name, ask before creating a duplicate. Read each entity's state; warn on `unknown`/`unavailable` and omit it unless the user insists.
+1. Resolve every entity the scene should capture with `ha-nova find "<phrase>" --aliases` (exact `entity_id` wins; on ambiguity ask one blocking question) — never from raw registry or state dumps. Scenes take actionable domains only (light, switch, cover, climate, fan, media_player, lock, humidifier, stateful `input_*` — never stateless `input_button`, ...); refuse read-only domains (sensor, binary_sensor, ...). If the scene list (List flow, both sources) already has this name, ask before creating a duplicate. Read each entity's state (`ha-nova get <entity_id>`); warn on `unknown`/`unavailable` and omit it unless the user insists.
 2. Build the config body — `id` in the body MUST equal the id in the path; use the current epoch-milliseconds string as the new id (HA editor convention; POSIX example `date +%s000`). The POST is an upsert: before creating, GET the id and require a 404 so an existing scene is never silently overwritten.
    ```json
    {"id":"<epoch-ms>","name":"<name>","icon":"mdi:sofa","entities":{"<entity_id>":{"state":"on"}}}
@@ -127,7 +127,7 @@ Use stable localized slot labels in this order; omit empty slots. Reads render t
 
 - Preview before write. The only exception is a call that `ha-nova call` itself executed as `tier: ordinary` (an unambiguous everyday action, verified afterwards); everything else runs or is saved only after the user confirms the shown preview. High-consequence actions (e.g. unlocking or opening a lock, opening a gate, garage, or entry door, disarming the alarm — also through a scene or script) and deletes need a code.
 - Confirmation binds to the displayed preview and expires on any change to target, payload, endpoint, or scope (context skill → Active Preview Confirmation).
-- Pre-preview phrases ("do it", "go ahead", "implement the plan") authorize drafting and preview only — never the write itself.
+- Anything before the preview ("do it", answers to questions) never confirms it; only a reply to the preview does.
 - Delete and destructive operations require the typed confirmation code `confirm:<token>` verbatim; "yes" or any natural-language reply is invalid.
 - Never guess entity, service, or config IDs — resolve them or ask.
 - Home Assistant is reached exclusively through the `ha-nova` CLI.
