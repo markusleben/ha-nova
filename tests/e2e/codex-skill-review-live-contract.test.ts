@@ -1,9 +1,10 @@
 import { execFileSync } from "node:child_process";
-import { constants, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { constants, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
+
+import { makeTempDir } from "../helpers/temp-dir.js";
 
 type ReviewScenarioDefinition = {
   id: string;
@@ -289,7 +290,7 @@ fi`,
   it("ignores codex transport noise during review JSONL normalization", () => {
     const content = readFileSync("scripts/e2e/codex-ha-nova-review-live-e2e.sh", "utf8");
     const normalizeFn = extractShellFunction(content, "normalize_jsonl_transcript");
-    const tempDir = mkdtempSync(join(tmpdir(), "ha-nova-review-jsonl-noise-"));
+    const tempDir = makeTempDir("ha-nova-review-jsonl-noise-");
     const scriptFile = join(tempDir, "check.sh");
     const scenarioLog = join(tempDir, "scenario.jsonl");
 
@@ -320,7 +321,7 @@ normalize_jsonl_transcript "$1"`
     const content = readFileSync("scripts/e2e/codex-ha-nova-review-live-e2e.sh", "utf8");
     const countCommandHitsFn = extractShellFunction(content, "count_command_hits");
     const installedSkillCopyHitsFn = extractShellFunction(content, "count_installed_skill_copy_hits");
-    const tempDir = mkdtempSync(join(tmpdir(), "ha-nova-review-installed-skill-"));
+    const tempDir = makeTempDir("ha-nova-review-installed-skill-");
     const parsedLog = join(tempDir, "parsed.jsonl");
     const scriptFile = join(tempDir, "check.sh");
 
@@ -369,7 +370,7 @@ count_installed_skill_copy_hits "$1"`
   it("detects helper-script execution through wrapped shell commands", () => {
     const content = readFileSync("scripts/e2e/codex-ha-nova-review-live-e2e.sh", "utf8");
     const helperScriptHitsFn = extractShellFunction(content, "count_helper_script_exec_hits");
-    const tempDir = mkdtempSync(join(tmpdir(), "ha-nova-review-helper-script-"));
+    const tempDir = makeTempDir("ha-nova-review-helper-script-");
     const parsedLog = join(tempDir, "parsed.jsonl");
     const scriptFile = join(tempDir, "check.sh");
 
@@ -424,7 +425,7 @@ count_helper_script_exec_hits "$1"`
   it("normalizes escaped markdown backticks before required-text checks", () => {
     const content = readFileSync("scripts/e2e/codex-ha-nova-review-live-e2e.sh", "utf8");
     const normalizeMatchTextFn = extractShellFunction(content, "normalize_match_text");
-    const tempDir = mkdtempSync(join(tmpdir(), "ha-nova-review-normalize-match-"));
+    const tempDir = makeTempDir("ha-nova-review-normalize-match-");
     const scriptFile = join(tempDir, "check.sh");
     const escapedText =
       "Fix: \\`Move the \\\\`trigger.id\\\\` check into an explicit \\\\`elif\\\\`. Or refactor to \\\\`choose\\\\` + \\\\`condition: trigger\\\\`.\\`";
@@ -448,7 +449,7 @@ printf '%s' "$normalized"`
   it("validates ordered standalone headings against the real message text", () => {
     const content = readFileSync("scripts/e2e/codex-ha-nova-review-live-e2e.sh", "utf8");
     const assertHeadingSequenceFn = extractShellFunction(content, "assert_heading_sequence");
-    const tempDir = mkdtempSync(join(tmpdir(), "ha-nova-review-headings-"));
+    const tempDir = makeTempDir("ha-nova-review-headings-");
     const scriptFile = join(tempDir, "check.sh");
 
     writeFileSync(

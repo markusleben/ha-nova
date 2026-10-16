@@ -1,12 +1,13 @@
 import { createHash } from "node:crypto";
 import { execFile, execFileSync } from "node:child_process";
 import { createServer, type Server } from "node:http";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
-import { constants, existsSync, mkdtempSync, readFileSync, statSync } from "node:fs";
+import { constants, existsSync, readFileSync, statSync } from "node:fs";
 
 import { describe, expect, it } from "vitest";
+
+import { makeTempDir } from "../helpers/temp-dir.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -132,7 +133,7 @@ describe("install.sh contract", () => {
   it("writes the PATH block where the user's shell reads it", async () => {
     if (!hasBash()) return;
     const pathFor = async (shell: string) => {
-      const home = mkdtempSync(join(tmpdir(), "ha-nova-installer-path-"));
+      const home = makeTempDir("ha-nova-installer-path-");
       const { XDG_CONFIG_HOME: _xdg, ...env } = process.env;
       await runInstallerFunctions("ensure_bin_dir_on_path", { ...env, HOME: home, SHELL: shell });
       return home;
@@ -231,7 +232,7 @@ describe("install.sh contract", () => {
       res.writeHead(200).end("payload");
     });
     const port = await listen(server);
-    const outFile = join(mkdtempSync(join(tmpdir(), "ha-nova-installer-test-")), "asset");
+    const outFile = join(makeTempDir("ha-nova-installer-test-"), "asset");
 
     try {
       await runInstallerFunctions(`fetch_url "http://127.0.0.1:${port}/asset" "${outFile}"`);
@@ -265,7 +266,7 @@ describe("install.sh contract", () => {
       res.writeHead(200).end(payload);
     });
     const port = await listen(server);
-    const tempDir = mkdtempSync(join(tmpdir(), "ha-nova-installer-test-"));
+    const tempDir = makeTempDir("ha-nova-installer-test-");
     const archiveFile = join(tempDir, "bundle.tar.gz");
     const checksumFile = `${archiveFile}.sha256`;
 

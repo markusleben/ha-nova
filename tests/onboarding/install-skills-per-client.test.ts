@@ -2,13 +2,13 @@
  * S-4: Client-specific skill installation (5 clients)
  * S-5: Multi-client ("all")
  */
-import { existsSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, readlinkSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, readdirSync, readlinkSync, statSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
-import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { createMockBinaries, mockEnv, REPO_ROOT } from "./_helpers.js";
+import { makeTempDir } from "../helpers/temp-dir.js";
 
 /** Source directory names under skills/ (short, no prefix) */
 const SOURCE_SUB_SKILLS = readdirSync(join(REPO_ROOT, "skills"), { withFileTypes: true })
@@ -39,7 +39,7 @@ function installSkills(
   extraEnv: Record<string, string> = {},
   timeout = 120000,
 ): { home: string; result: ReturnType<typeof spawnSync> } {
-  const home = mkdtempSync(join(tmpdir(), `ha-nova-skill-${client}-`));
+  const home = makeTempDir(`ha-nova-skill-${client}-`);
   const claudeLogFile = join(home, "claude.log");
   const binDir = createMockBinaries({ claudeLogFile });
   const result = spawnSync(
@@ -57,7 +57,7 @@ function installSkills(
 
 describe("S-4: client-specific skill installation", () => {
   it("cleans legacy flat skills during codex install", () => {
-    const home = mkdtempSync(join(tmpdir(), "ha-nova-skill-codex-legacy-"));
+    const home = makeTempDir("ha-nova-skill-codex-legacy-");
     const claudeLogFile = join(home, "claude.log");
     const binDir = createMockBinaries({ claudeLogFile });
 
@@ -175,7 +175,7 @@ describe("S-4: client-specific skill installation", () => {
   });
 
   it("does not delete user-owned Antigravity skills during cleanup", { timeout: 120000 }, () => {
-    const home = mkdtempSync(join(tmpdir(), "ha-nova-skill-antigravity-user-owned-"));
+    const home = makeTempDir("ha-nova-skill-antigravity-user-owned-");
     const claudeLogFile = join(home, "claude.log");
     const binDir = createMockBinaries({ claudeLogFile });
     const userSkill = join(home, ".gemini", "config", "skills", "ha-novation");
@@ -199,7 +199,7 @@ describe("S-4: client-specific skill installation", () => {
   });
 
   it("accepts legacy gemini target as an antigravity alias and removes HA NOVA-owned legacy Gemini copies", { timeout: 120000 }, () => {
-    const home = mkdtempSync(join(tmpdir(), "ha-nova-skill-gemini-alias-"));
+    const home = makeTempDir("ha-nova-skill-gemini-alias-");
     const claudeLogFile = join(home, "claude.log");
     const binDir = createMockBinaries({ claudeLogFile });
 
@@ -296,7 +296,7 @@ describe("S-4: client-specific skill installation", () => {
   });
 
   it("fails loudly when Hermes Agent is missing from PATH", () => {
-    const home = mkdtempSync(join(tmpdir(), "ha-nova-skill-hermes-missing-"));
+    const home = makeTempDir("ha-nova-skill-hermes-missing-");
     const result = spawnSync(
       "bash",
       ["scripts/onboarding/install-local-skills.sh", "hermes"],
@@ -342,7 +342,7 @@ describe("S-4: client-specific skill installation", () => {
   });
 
   it("fails loudly when Claude CLI is missing", () => {
-    const home = mkdtempSync(join(tmpdir(), "ha-nova-skill-claude-missing-"));
+    const home = makeTempDir("ha-nova-skill-claude-missing-");
     const result = spawnSync(
       "bash",
       ["scripts/onboarding/install-local-skills.sh", "claude"],
@@ -362,7 +362,7 @@ describe("S-4: client-specific skill installation", () => {
   });
 
   it("installs Claude without Node.js when no prior local Claude state exists", () => {
-    const home = mkdtempSync(join(tmpdir(), "ha-nova-skill-claude-node-optional-"));
+    const home = makeTempDir("ha-nova-skill-claude-node-optional-");
     const claudeLogFile = join(home, "claude.log");
     const binDir = createMockBinaries({ claudeLogFile });
     writeFileSync(join(binDir, "node"), "#!/usr/bin/env bash\nexit 127\n", { mode: 0o755 });
@@ -388,7 +388,7 @@ describe("S-4: client-specific skill installation", () => {
   });
 
   it("installs Claude without Node.js when unrelated Claude plugin metadata exists", () => {
-    const home = mkdtempSync(join(tmpdir(), "ha-nova-skill-claude-node-unrelated-"));
+    const home = makeTempDir("ha-nova-skill-claude-node-unrelated-");
     const claudeLogFile = join(home, "claude.log");
     const binDir = createMockBinaries({ claudeLogFile });
     writeFileSync(join(binDir, "node"), "#!/usr/bin/env bash\nexit 127\n", { mode: 0o755 });
@@ -423,7 +423,7 @@ describe("S-4: client-specific skill installation", () => {
   });
 
   it("fails loudly when Node.js is missing for the Claude helper path", () => {
-    const home = mkdtempSync(join(tmpdir(), "ha-nova-skill-claude-node-missing-"));
+    const home = makeTempDir("ha-nova-skill-claude-node-missing-");
     const claudeLogFile = join(home, "claude.log");
     const binDir = createMockBinaries({ claudeLogFile });
     writeFileSync(join(binDir, "node"), "#!/usr/bin/env bash\nexit 127\n", { mode: 0o755 });
@@ -452,7 +452,7 @@ describe("S-4: client-specific skill installation", () => {
   });
 
   it("installs Claude without Node.js when only a stale ha-nova marketplace record exists", () => {
-    const home = mkdtempSync(join(tmpdir(), "ha-nova-skill-claude-marketplace-only-"));
+    const home = makeTempDir("ha-nova-skill-claude-marketplace-only-");
     const claudeLogFile = join(home, "claude.log");
     const binDir = createMockBinaries({ claudeLogFile });
     writeFileSync(join(binDir, "node"), "#!/usr/bin/env bash\nexit 127\n", { mode: 0o755 });
@@ -483,7 +483,7 @@ describe("S-4: client-specific skill installation", () => {
   });
 
   it("fails loudly when Claude install cannot restore a previous plugin without a marketplace source", () => {
-    const home = mkdtempSync(join(tmpdir(), "ha-nova-skill-claude-missing-marketplace-"));
+    const home = makeTempDir("ha-nova-skill-claude-missing-marketplace-");
     const claudeLogFile = join(home, "claude.log");
     const binDir = createMockBinaries({ claudeLogFile });
     mkdirSync(join(home, ".claude", "plugins"), { recursive: true });
@@ -525,7 +525,7 @@ exit 0
   });
 
   it("fails loudly when repo version.json is missing", () => {
-    const fakeRoot = mkdtempSync(join(tmpdir(), "ha-nova-skill-fixture-"));
+    const fakeRoot = makeTempDir("ha-nova-skill-fixture-");
     const binDir = createMockBinaries();
 
     mkdirSync(join(fakeRoot, "scripts", "onboarding", "lib"), { recursive: true });
@@ -559,7 +559,7 @@ exit 0
   });
 
   it("reinstalls an existing Claude plugin for local repo validation", () => {
-    const home = mkdtempSync(join(tmpdir(), "ha-nova-skill-claude-update-"));
+    const home = makeTempDir("ha-nova-skill-claude-update-");
     const claudeLogFile = join(home, "claude.log");
     const binDir = createMockBinaries({ claudeLogFile });
     mkdirSync(join(home, ".claude", "plugins"), { recursive: true });
@@ -589,7 +589,7 @@ exit 0
   });
 
   it("reinstalls Claude locally instead of reusing a stale cached plugin payload", () => {
-    const home = mkdtempSync(join(tmpdir(), "ha-nova-skill-claude-local-"));
+    const home = makeTempDir("ha-nova-skill-claude-local-");
     const claudeLogFile = join(home, "claude.log");
     const binDir = createMockBinaries({ claudeLogFile });
     mkdirSync(join(home, ".claude", "plugins", "cache", "ha-nova", "ha-nova", "0.1.12"), { recursive: true });
@@ -620,7 +620,7 @@ exit 0
   });
 
   it("reinstalls Claude locally when the current cache layout lives directly under cache/ha-nova", () => {
-    const home = mkdtempSync(join(tmpdir(), "ha-nova-skill-claude-current-cache-"));
+    const home = makeTempDir("ha-nova-skill-claude-current-cache-");
     const claudeLogFile = join(home, "claude.log");
     const binDir = createMockBinaries({ claudeLogFile });
     mkdirSync(join(home, ".claude", "plugins", "cache", "ha-nova", "skills"), { recursive: true });

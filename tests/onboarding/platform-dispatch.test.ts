@@ -1,6 +1,5 @@
-import { existsSync, lstatSync, mkdtempSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, lstatSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
@@ -11,12 +10,13 @@ import {
   mockEnv,
   REPO_ROOT,
 } from "./_helpers.js";
+import { makeTempDir } from "../helpers/temp-dir.js";
 
 const WINDOWS_INSTALL_TIMEOUT_MS = 180000;
 
 describe("Windows dev installer contract", () => {
   it("installs file-based clients with copy fallback on Windows and prefers a bundled relay.exe", () => {
-    const home = mkdtempSync(join(tmpdir(), "ha-nova-windows-install-"));
+    const home = makeTempDir("ha-nova-windows-install-");
     const binDir = createMockBinaries();
     addWindowsMocks(binDir, home);
     const bundledRelay = join(home, "bundle-relay.exe");

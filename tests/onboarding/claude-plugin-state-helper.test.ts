@@ -1,10 +1,10 @@
-import { existsSync, mkdtempSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { REPO_ROOT } from "./_helpers.js";
+import { makeTempDir } from "../helpers/temp-dir.js";
 
 const helperPath = join(REPO_ROOT, "scripts/dev/claude-plugin-state.mjs");
 
@@ -17,7 +17,7 @@ function runHelper(args: string[]) {
 
 describe("Claude plugin state helper", () => {
   it("captures a full Claude attachment snapshot from home", () => {
-    const home = mkdtempSync(join(tmpdir(), "ha-nova-claude-state-"));
+    const home = makeTempDir("ha-nova-claude-state-");
     const installPath = join(home, ".claude", "plugins", "cache", "ha-nova", "ha-nova", "0.4.0");
     mkdirSync(installPath, { recursive: true });
     mkdirSync(join(home, ".claude", "plugins"), { recursive: true });
@@ -78,7 +78,7 @@ describe("Claude plugin state helper", () => {
   });
 
   it("does not treat another plugin record as HA NOVA", () => {
-    const home = mkdtempSync(join(tmpdir(), "ha-nova-claude-other-plugin-"));
+    const home = makeTempDir("ha-nova-claude-other-plugin-");
     mkdirSync(join(home, ".claude", "plugins"), { recursive: true });
     writeFileSync(
       join(home, ".claude", "plugins", "installed_plugins.json"),
@@ -123,7 +123,7 @@ describe("Claude plugin state helper", () => {
   });
 
   it("records watch events and latest snapshot", () => {
-    const home = mkdtempSync(join(tmpdir(), "ha-nova-claude-watch-"));
+    const home = makeTempDir("ha-nova-claude-watch-");
     mkdirSync(join(home, ".claude", "plugins"), { recursive: true });
     writeFileSync(
       join(home, ".claude", "plugins", "installed_plugins.json"),
@@ -160,7 +160,7 @@ describe("Claude plugin state helper", () => {
   });
 
   it("does not call a blank install path attached", () => {
-    const home = mkdtempSync(join(tmpdir(), "ha-nova-claude-blank-install-"));
+    const home = makeTempDir("ha-nova-claude-blank-install-");
     mkdirSync(join(home, ".claude", "plugins"), { recursive: true });
     writeFileSync(
       join(home, ".claude", "plugins", "installed_plugins.json"),
@@ -200,7 +200,7 @@ describe("Claude plugin state helper", () => {
   });
 
   it("treats a legacy string entry as installed but not attached", () => {
-    const home = mkdtempSync(join(tmpdir(), "ha-nova-claude-legacy-string-"));
+    const home = makeTempDir("ha-nova-claude-legacy-string-");
     mkdirSync(join(home, ".claude", "plugins"), { recursive: true });
     writeFileSync(
       join(home, ".claude", "plugins", "installed_plugins.json"),
@@ -227,7 +227,7 @@ describe("Claude plugin state helper", () => {
   });
 
   it("treats BOM-prefixed JSON as parseable", () => {
-    const home = mkdtempSync(join(tmpdir(), "ha-nova-claude-bom-"));
+    const home = makeTempDir("ha-nova-claude-bom-");
     mkdirSync(join(home, ".claude", "plugins"), { recursive: true });
     writeFileSync(
       join(home, ".claude", "plugins", "installed_plugins.json"),
@@ -243,7 +243,7 @@ describe("Claude plugin state helper", () => {
   });
 
   it("treats BOM-prefixed known marketplaces json as parseable", () => {
-    const home = mkdtempSync(join(tmpdir(), "ha-nova-claude-known-bom-"));
+    const home = makeTempDir("ha-nova-claude-known-bom-");
     mkdirSync(join(home, ".claude", "plugins"), { recursive: true });
     writeFileSync(
       join(home, ".claude", "plugins", "known_marketplaces.json"),
@@ -267,7 +267,7 @@ describe("Claude plugin state helper", () => {
   });
 
   it("preserves pinned GitHub refs in marketplace source output", () => {
-    const home = mkdtempSync(join(tmpdir(), "ha-nova-claude-known-pinned-"));
+    const home = makeTempDir("ha-nova-claude-known-pinned-");
     mkdirSync(join(home, ".claude", "plugins"), { recursive: true });
     writeFileSync(
       join(home, ".claude", "plugins", "known_marketplaces.json"),
@@ -291,7 +291,7 @@ describe("Claude plugin state helper", () => {
   });
 
   it("keeps snapshot output when known marketplaces json is invalid", () => {
-    const home = mkdtempSync(join(tmpdir(), "ha-nova-claude-invalid-known-"));
+    const home = makeTempDir("ha-nova-claude-invalid-known-");
     mkdirSync(join(home, ".claude", "plugins"), { recursive: true });
     writeFileSync(
       join(home, ".claude", "plugins", "installed_plugins.json"),
@@ -313,7 +313,7 @@ describe("Claude plugin state helper", () => {
   });
 
   it("keeps snapshot output when a tracked registry path is a directory", () => {
-    const home = mkdtempSync(join(tmpdir(), "ha-nova-claude-dir-known-"));
+    const home = makeTempDir("ha-nova-claude-dir-known-");
     mkdirSync(join(home, ".claude", "plugins", "known_marketplaces.json"), { recursive: true });
 
     const result = runHelper(["snapshot-home", home]);

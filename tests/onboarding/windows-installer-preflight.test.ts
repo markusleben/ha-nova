@@ -1,16 +1,17 @@
 import { spawnSync } from "node:child_process";
-import { chmodSync, mkdtempSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { chmodSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
+
+import { makeTempDir } from "../helpers/temp-dir.js";
 
 function hasPowerShell(): boolean {
   return spawnSync("pwsh", ["-NoProfile", "-Command", "exit 0"]).status === 0;
 }
 
 function runPreflightProbe(body: string): { status: number | null; output: string } {
-  const tempDir = mkdtempSync(join(tmpdir(), "ha-nova-windows-preflight-"));
+  const tempDir = makeTempDir("ha-nova-windows-preflight-");
   const probe = join(tempDir, "probe.ps1");
   const installScript = join(process.cwd(), "install.ps1").replaceAll("'", "''");
   writeFileSync(
@@ -35,7 +36,7 @@ ${body}
 }
 
 function createNativeExitProbe(exitCode: number): string {
-  const tempDir = mkdtempSync(join(tmpdir(), "ha-nova-native-exit-"));
+  const tempDir = makeTempDir("ha-nova-native-exit-");
   if (process.platform === "win32") {
     const probe = join(tempDir, "probe.cmd");
     writeFileSync(probe, `@exit /b ${exitCode}\r\n`, "utf8");
@@ -204,7 +205,7 @@ Invoke-WindowsInstallerPreflight
 
   it("fails an unwritable per-user install root before the TLS probe", () => {
     if (!hasPowerShell()) return;
-    const tempDir = mkdtempSync(join(tmpdir(), "ha-nova-unwritable-root-"));
+    const tempDir = makeTempDir("ha-nova-unwritable-root-");
     const blocker = join(tempDir, "not-a-directory");
     writeFileSync(blocker, "blocked", "utf8");
     const escapedBlocker = blocker.replaceAll("'", "''");

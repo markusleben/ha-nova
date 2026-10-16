@@ -1,10 +1,11 @@
 import { createHash } from "node:crypto";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { execFileSync } from "node:child_process";
-import { constants, mkdtempSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { constants, readFileSync, statSync, writeFileSync } from "node:fs";
 
 import { describe, expect, it } from "vitest";
+
+import { makeTempDir } from "../helpers/temp-dir.js";
 
 describe("install.ps1 contract", () => {
   const content = readFileSync("install.ps1", "utf8");
@@ -123,7 +124,7 @@ describe("install.ps1 contract", () => {
 
     const payload = Buffer.from("verified fallback payload", "utf8");
     const expectedHash = createHash("sha256").update(payload).digest("hex");
-    const tempDir = mkdtempSync(join(tmpdir(), "ha-nova-installer-test-"));
+    const tempDir = makeTempDir("ha-nova-installer-test-");
     const outFile = join(tempDir, "bundle.zip");
     const probe = join(tempDir, "probe.ps1");
     const installScript = join(process.cwd(), "install.ps1").replaceAll("'", "''");

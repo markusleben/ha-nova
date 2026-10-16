@@ -2,13 +2,13 @@
  * S-6: SessionStart hook (4 variants)
  * Tests the hooks/session-start script output in various configurations.
  */
-import { readFileSync, readdirSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { readFileSync, readdirSync, mkdirSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { createMockBinaries, createMockHome, mockEnv, REPO_ROOT } from "../onboarding/_helpers.js";
+import { makeTempDir } from "../helpers/temp-dir.js";
 
 describe("S-6: session-start hook", () => {
   it("outputs valid JSON with skill content", () => {
@@ -40,7 +40,7 @@ describe("S-6: session-start hook", () => {
 
   // A copied plugin root, so the hook can run against a broken or hostile tree.
   const pluginCopy = (index: string | null): string => {
-    const root = mkdtempSync(join(tmpdir(), "ha-nova-hook-root-"));
+    const root = makeTempDir("ha-nova-hook-root-");
     mkdirSync(join(root, "hooks"));
     mkdirSync(join(root, "skills", "ha-nova"), { recursive: true });
     writeFileSync(join(root, "hooks", "session-start"), readFileSync("hooks/session-start", "utf8"), { mode: 0o755 });
@@ -134,7 +134,7 @@ describe("S-6: session-start hook", () => {
   });
 
   it("surfaces cached release highlights and release URL in the update notice", () => {
-    const home = mkdtempSync(join(tmpdir(), "ha-nova-hook-home-"));
+    const home = makeTempDir("ha-nova-hook-home-");
     const cacheDir = join(home, ".cache", "ha-nova");
     mkdirSync(cacheDir, { recursive: true });
     writeFileSync(
@@ -158,7 +158,7 @@ describe("S-6: session-start hook", () => {
     // Deterministic ha-nova mock: a released (non-dev) version so the update
     // notice branch runs; every other subcommand no-ops. Keep the normal test
     // PATH otherwise — the other hook tests rely on the same bash resolution.
-    const binDir = mkdtempSync(join(tmpdir(), "ha-nova-hook-bin-"));
+    const binDir = makeTempDir("ha-nova-hook-bin-");
     writeFileSync(
       join(binDir, "ha-nova"),
       `#!/usr/bin/env bash
