@@ -70,7 +70,8 @@ describe("pre-write drift check covers every full-document write (#514)", () => 
   it("keeps the two families that already had the STOP", () => {
     // Regression guard: these were the correct precedents the gap was
     // measured against, so they must not quietly lose it.
-    expect(flat(dashboard)).toContain("STOP — confirmation expired");
+    // Dashboards moved the STOP into the CLI (apply re-plans; exit 2).
+    expect(flat(dashboard)).toContain("exit 2 means it changed since the preview");
     expect(flat(scene)).toContain(
       "if the live scene differs from the previewed basis, STOP",
     );

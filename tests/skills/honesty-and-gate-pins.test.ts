@@ -101,11 +101,14 @@ describe("gates whose loss would silently downgrade a tier (#515)", () => {
     // Pin the CONDITION, not the message: the guarantee is that a foreign
     // change during the confirmation pause blocks the save and forces a fresh
     // preview. The words alone could survive the reread being removed.
+    // The CLI enforces it now (cli/dashboard_test.go
+    // TestDashboardUIEditBeforeApplyIsDriftAndSavesNothing); the skill must
+    // route exit 2 to a fresh read and a new preview, never a retry.
     const dashboard = flat(read("skills/dashboard/SKILL.md"));
-    expect(dashboard).toContain("STOP — confirmation expired");
-    expect(dashboard).toContain("conversation paused");
-    expect(dashboard).toContain("compare the FULL document against the merge basis");
-    expect(dashboard).toContain("on any foreign change");
+    expect(dashboard).toContain("Apply re-reads the live dashboard first, and again right before the save");
+    expect(dashboard).toContain("exit 2 means it changed since the preview");
+    expect(dashboard).toContain("read it again, re-merge, re-preview");
+    expect(dashboard).toContain("Never send `lovelace/config/save`");
   });
 
   it("rolls back an invalid YAML write before reporting, and never reloads it", () => {

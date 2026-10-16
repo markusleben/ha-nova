@@ -185,8 +185,11 @@ store and gains no Home Assistant business logic.
 - create a storage dashboard shell
 - update dashboard metadata
 - create/update/delete Lovelace resources
-- add/update/move/delete cards inside existing views
+- build whole dashboards and views; add/reorder/delete views; add/update/move/delete cards; installed custom cards
+- broken-card sweep (`ha-nova get --dashboards`, read-only)
 - delete a storage dashboard
+
+Content writes, creates, and deletes go through `ha-nova plan write|delete|revert --domain dashboard` + `ha-nova apply` (view/card diff, snapshot before every save, drift check, one save, read-back verify, revert); the CLI refuses new unknown entities and YAML dashboards.
 
 Write contract:
 - resolve `dashboard_id`, `url_path`, and `mode` through `lovelace/dashboards/list`
@@ -196,17 +199,11 @@ Write contract:
 - `dashboard_id` is the mutation identifier for `update|delete`; `url_path` is the config identifier for `lovelace/config|save`
 - resource CRUD goes through `lovelace/resources|create|update|delete`
 - content edits always read the current full config first
-- resolve the exact target card/badge/header by view + title/entity/type/position before changing it
-- merge in memory
-- preview the merged result
-- save through `lovelace/config/save` with the full config only
-- read back and verify the intended change plus unrelated-view survival
+- merge in memory; the draft is the full config
+- custom card types only when their resource is installed; options from the card's documentation or existing usage
 
 Still excluded:
-- broad raw Lovelace editing without a concrete requested change
-- view create/delete/reorder
 - non-storage dashboard writes/deletes
-- freeform new custom-card creation
 - energy dashboard preferences
 
 ## Organize Architecture

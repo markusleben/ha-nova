@@ -30,7 +30,7 @@ operations and for relays whose `/backups` answers 404.
 | `integration-setup` | flow-step preview + config-entry read-back; credential-recovery reload previews the entry reload (non-destructive, entities briefly drop) | no (multi-step add/reauth flow) | cancel only an unfinished add flow started in this session; after entry creation, manage or remove it in Home Assistant UI |
 | `calendar` | event-field preview + bounded event read-back | no (provider event mutation) | provider recycle bin when available; otherwise recreate from the approved preview |
 | `hacs` | repository/category/version preview + category-appropriate read-back | no (package lifecycle) | reinstall the previous pinned version from recorded pre-change state; HA Backup for migrations (config entries sit outside config snapshots) |
-| `dashboard` | preview + read-back verify | no | config snapshot (auto before delete / content-dropping save); HA Backups |
+| `dashboard` | yes (`plan write` view/card diff) | yes (`plan revert`; saved by `apply`) | config snapshot (taken by `apply` before every save and delete; a deleted dashboard restores partially); HA Backups |
 | `scene` | preview + read-back verify | no | config snapshot (auto before delete, identity-preserving restore); HA Backups |
 | `todo` | preview + read-back verify | no (list delete irreversible) | re-add items; HA Backups for lists |
 | `updates` | preview + entity re-read verify | no (updates not downgradable) | HA Backups (offered pre-install for core/OS) |
