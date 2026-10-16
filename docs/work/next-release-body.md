@@ -33,7 +33,5 @@ the number.
 
 - Room and device commands now skip hidden entities and configuration or
   diagnostic entities, as Home Assistant's own room targeting does; when that
-  leaves nothing, the answer names the skipped entities. A room or device
-  command also names every entity it left out, so the preview shows the
-  full picture. A device command
+  leaves nothing, the answer names the skipped entities. A device command
   also reaches the device's child devices, as Home Assistant does.
