@@ -19,11 +19,11 @@ import (
 
 // Test seams.
 var (
-	openHASignInIngressForSetup    = openHASignInIngress
-	checkHASignInReachableForSetup = checkHASignInReachable
-	pairDeviceV2ArmedForSetup      = pairDeviceV2Armed
-	signInPairForSetup             = runSecurePairingWithProvisioner
-	haSignInOffered                = defaultHASignInOffered
+	openHASignInIngressForSetup   = openHASignInIngress
+	resolveHASignInOriginForSetup = resolveHASignInOrigin
+	pairDeviceV2ArmedForSetup     = pairDeviceV2Armed
+	signInPairForSetup            = runSecurePairingWithProvisioner
+	haSignInOffered               = defaultHASignInOffered
 )
 
 // haSignInPairingError marks a failure inside the ingress pairing exchange,
@@ -43,7 +43,8 @@ func runHASignInPairingStep(
 	cfg *runtimeConfig,
 	lifecycleMarker ...[]byte,
 ) (bool, string, error) {
-	if err := checkHASignInReachableForSetup(context.Background(), cfg.HAURL); err != nil {
+	origin, err := resolveHASignInOriginForSetup(context.Background(), cfg.HAURL)
+	if err != nil {
 		renderSetupWarningLine(out, "%s", haSignInFallbackLine(err, HACurrentUser{}))
 		renderSetupParagraph(out, "Use a six-digit code from NOVA instead.")
 		return false, "", nil
@@ -72,7 +73,7 @@ func runHASignInPairingStep(
 			renderSetupErrorLine(out, "Press Enter to sign in, or type 'code'.")
 			continue
 		}
-		paired, retry, err := signInAndPair(out, paths, cfg, lifecycleMarker...)
+		paired, retry, err := signInAndPair(out, paths, cfg, origin.String(), lifecycleMarker...)
 		if paired || err != nil {
 			return paired, "", err
 		}
@@ -88,10 +89,11 @@ func signInAndPair(
 	out io.Writer,
 	paths runtimePaths,
 	cfg *runtimeConfig,
+	haOrigin string,
 	lifecycleMarker ...[]byte,
 ) (paired bool, retry bool, err error) {
 	ctx := context.Background()
-	session, err := openHASignInIngressForSetup(ctx, out, cfg.HAURL)
+	session, err := openHASignInIngressForSetup(ctx, out, haOrigin)
 	if err != nil {
 		renderSetupWarningLine(out, "%s", haSignInFallbackLine(err, session.user))
 		return false, haSignInRetryable(err), nil

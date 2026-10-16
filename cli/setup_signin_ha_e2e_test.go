@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"os"
@@ -45,9 +46,12 @@ func TestHASignInAgainstThrowawayHomeAssistant(t *testing.T) {
 	t.Cleanup(func() { openBrowserForSetup = previousOpen })
 	t.Setenv("HA_NOVA_NO_BROWSER", "")
 
-	if err := checkHASignInReachable(context.Background(), haURL); err != nil {
+	origin, err := resolveHASignInOrigin(context.Background(), haURL)
+	if err != nil {
 		t.Fatalf("pre-check of the saved origin: %v", err)
 	}
+	t.Logf("sign-in origin: %s", origin)
+	haURL = origin.String()
 	var out bytes.Buffer
 	session, err := openHASignInIngress(context.Background(), &out, haURL)
 	if strings.Contains(out.String(), "may still list this sign-in") {
@@ -95,8 +99,36 @@ func TestHASignInAgainstThrowawayHomeAssistant(t *testing.T) {
 	if !ok || deviceIDOf(current) != deviceID {
 		t.Fatal("credential not stored")
 	}
-	if code := securedFunctional(t, cfg.RelaySecureBaseURL, cfg.RelaySpkiPin, current); code != http.StatusOK {
-		t.Fatalf("functional /health over pinned TLS = %d", code)
+	// A real relay call over pinned TLS that reaches Home Assistant itself.
+	ping, err := http.NewRequest(http.MethodPost, cfg.RelaySecureBaseURL+"/ws", strings.NewReader(`{"type":"ping"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ping.Header.Set("Authorization", "Bearer "+current)
+	ping.Header.Set("Content-Type", "application/json")
+	response, err := spkiPinnedClient(cfg.RelaySpkiPin).Do(ping)
+	if err != nil {
+		t.Fatalf("relay /ws ping over pinned TLS: %v", err)
+	}
+	body, _ := io.ReadAll(io.LimitReader(response.Body, 4096))
+	response.Body.Close()
+	if response.StatusCode != http.StatusOK || !strings.Contains(string(body), `"ok":true`) {
+		t.Fatalf("relay /ws ping = %d %s", response.StatusCode, body)
+	}
+	// The ping opened the relay's Home Assistant WebSocket; health says so.
+	health, err := http.NewRequest(http.MethodGet, cfg.RelaySecureBaseURL+"/health", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	health.Header.Set("Authorization", "Bearer "+current)
+	response, err = spkiPinnedClient(cfg.RelaySpkiPin).Do(health)
+	if err != nil {
+		t.Fatalf("relay /health over pinned TLS: %v", err)
+	}
+	body, _ = io.ReadAll(io.LimitReader(response.Body, 4096))
+	response.Body.Close()
+	if response.StatusCode != http.StatusOK || !strings.Contains(string(body), `"ha_ws_connected":true`) {
+		t.Fatalf("relay /health = %d %s", response.StatusCode, body)
 	}
 	t.Logf("paired device %s via %s (pin %s)", deviceID, cfg.RelaySecureBaseURL, cfg.RelaySpkiPin)
 }

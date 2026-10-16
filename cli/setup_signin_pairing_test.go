@@ -382,11 +382,13 @@ func TestHASignInFallbackLinesStayPlain(t *testing.T) {
 }
 
 func TestHASignInStepPairsRetriesOrFallsBackInTheSameStep(t *testing.T) {
-	previousOpen, previousPair, previousCheck := openHASignInIngressForSetup, signInPairForSetup, checkHASignInReachableForSetup
+	previousOpen, previousPair, previousResolve := openHASignInIngressForSetup, signInPairForSetup, resolveHASignInOriginForSetup
 	t.Cleanup(func() {
-		openHASignInIngressForSetup, signInPairForSetup, checkHASignInReachableForSetup = previousOpen, previousPair, previousCheck
+		openHASignInIngressForSetup, signInPairForSetup, resolveHASignInOriginForSetup = previousOpen, previousPair, previousResolve
 	})
-	checkHASignInReachableForSetup = func(context.Context, string) error { return nil }
+	resolveHASignInOriginForSetup = func(context.Context, string) (*url.URL, error) {
+		return &url.URL{Scheme: "http", Host: "ha.local"}, nil
+	}
 	owner := haSignInSession{user: HACurrentUser{Name: "Markus", IsOwner: true}}
 	cfg := &runtimeConfig{HAURL: "http://ha.local:8123", RelayBaseURL: "http://ha.local:8791"}
 	paths := runtimePaths{ConfigDir: t.TempDir()}
@@ -416,7 +418,10 @@ func TestHASignInStepPairsRetriesOrFallsBackInTheSameStep(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			signIns := append([]error(nil), test.signIns...)
-			openHASignInIngressForSetup = func(context.Context, io.Writer, string) (haSignInSession, error) {
+			openHASignInIngressForSetup = func(_ context.Context, _ io.Writer, origin string) (haSignInSession, error) {
+				if origin != "http://ha.local" {
+					t.Fatalf("sign-in must use the resolved origin, got %q", origin)
+				}
 				err := signIns[0]
 				signIns = signIns[1:]
 				return owner, err
@@ -439,10 +444,10 @@ func TestHASignInStepPairsRetriesOrFallsBackInTheSameStep(t *testing.T) {
 }
 
 func TestHASignInStepSkipsTheBrowserWhenHomeAssistantIsUnreachable(t *testing.T) {
-	previousOpen, previousCheck := openHASignInIngressForSetup, checkHASignInReachableForSetup
-	t.Cleanup(func() { openHASignInIngressForSetup, checkHASignInReachableForSetup = previousOpen, previousCheck })
-	checkHASignInReachableForSetup = func(context.Context, string) error {
-		return newCloudError(CloudErrRedirectRejected, "reach Home Assistant", nil)
+	previousOpen, previousResolve := openHASignInIngressForSetup, resolveHASignInOriginForSetup
+	t.Cleanup(func() { openHASignInIngressForSetup, resolveHASignInOriginForSetup = previousOpen, previousResolve })
+	resolveHASignInOriginForSetup = func(context.Context, string) (*url.URL, error) {
+		return nil, newCloudError(CloudErrRedirectRejected, "reach Home Assistant", nil)
 	}
 	openHASignInIngressForSetup = func(context.Context, io.Writer, string) (haSignInSession, error) {
 		t.Fatal("no browser may open when Home Assistant is unreachable")
@@ -456,22 +461,49 @@ func TestHASignInStepSkipsTheBrowserWhenHomeAssistantIsUnreachable(t *testing.T)
 	}
 }
 
-func TestCheckHASignInReachableNeedsAPlainAnswerFromTheSavedOrigin(t *testing.T) {
-	for status, want := range map[int]CloudErrorCode{http.StatusOK: "", http.StatusFound: CloudErrRedirectRejected, http.StatusBadRequest: CloudErrHAProtocol} {
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if r.URL.Path != "/auth/providers" {
-				http.NotFound(w, r)
-				return
-			}
-			if status == http.StatusFound {
-				w.Header().Set("Location", "https://elsewhere.example/")
-			}
-			w.WriteHeader(status)
+func TestResolveHASignInOriginFollowsOnlyTheSameHostPortMove(t *testing.T) {
+	providers := func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/auth/providers" {
+			http.NotFound(w, r)
+			return
+		}
+		_, _ = io.WriteString(w, `{"providers":[]}`)
+	}
+	moved := httptest.NewServer(http.HandlerFunc(providers))
+	defer moved.Close()
+	redirectTo := func(target string) *httptest.Server {
+		return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			http.Redirect(w, r, target+r.URL.Path, http.StatusTemporaryRedirect)
 		}))
-		err := checkHASignInReachable(context.Background(), server.URL)
-		server.Close()
-		if (want == "" && err != nil) || (want != "" && !IsCloudErrorCode(err, want)) {
-			t.Errorf("status %d: err = %v, want %q", status, err, want)
+	}
+	plain := httptest.NewServer(http.HandlerFunc(providers))
+	defer plain.Close()
+	legacy := redirectTo(moved.URL) // Home Assistant 2026.10: 8123 -> 80 on the same host
+	defer legacy.Close()
+	elsewhere := redirectTo(strings.Replace(moved.URL, "127.0.0.1", "localhost", 1))
+	defer elsewhere.Close()
+	chained := redirectTo(legacy.URL)
+	defer chained.Close()
+	broken := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusBadRequest) }))
+	defer broken.Close()
+
+	for name, test := range map[string]struct {
+		url  string
+		want string
+		code CloudErrorCode
+	}{
+		"plain answer":     {url: plain.URL, want: plain.URL},
+		"legacy port move": {url: legacy.URL, want: moved.URL},
+		"other host":       {url: elsewhere.URL, code: CloudErrRedirectRejected},
+		"two redirects":    {url: chained.URL, code: CloudErrRedirectRejected},
+		"unexpected":       {url: broken.URL, code: CloudErrHAProtocol},
+	} {
+		origin, err := resolveHASignInOrigin(context.Background(), test.url)
+		switch {
+		case test.code != "" && !IsCloudErrorCode(err, test.code):
+			t.Errorf("%s: err = %v, want %s", name, err, test.code)
+		case test.code == "" && (err != nil || origin.String() != test.want):
+			t.Errorf("%s: origin = %v, err = %v, want %s", name, origin, err, test.want)
 		}
 	}
 }

@@ -121,32 +121,62 @@ func relayAdvertisesSignIn(relayURL string) bool {
 		json.Unmarshal(body, &info) == nil && info.OK && info.Data.SignIn
 }
 
-// checkHASignInReachable proves, before any browser opens, that this computer
-// reaches the saved origin's public login API (trusted TLS, no redirect).
-func checkHASignInReachable(ctx context.Context, haURL string) error {
+// resolveHASignInOrigin proves, before any browser opens, that this computer
+// reaches the public login API (trusted TLS) and returns the origin sign-in
+// must use. Under Supervisor, Home Assistant 2026.10+ serves port 80 and
+// answers the legacy port 8123 with a 307 to the same URL on the new port
+// (core http/server.py); exactly one such same-host redirect is followed.
+func resolveHASignInOrigin(ctx context.Context, haURL string) (*url.URL, error) {
 	origin, err := parseLocalHAOrigin(haURL)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
+	location, err := probeHAAuthProviders(ctx, origin)
+	if err != nil || location == nil {
+		return origin, err
+	}
+	rejected := newCloudError(CloudErrRedirectRejected, "reach Home Assistant", nil)
+	if !strings.EqualFold(location.Hostname(), origin.Hostname()) || location.Path != "/auth/providers" {
+		return nil, rejected
+	}
+	moved, err := parseLocalHAOrigin(location.Scheme + "://" + location.Host)
+	if err != nil {
+		return nil, rejected
+	}
+	if again, err := probeHAAuthProviders(ctx, moved); err != nil || again != nil {
+		if err == nil {
+			err = rejected
+		}
+		return nil, err
+	}
+	return moved, nil
+}
+
+// probeHAAuthProviders returns nil on 200 or the redirect target.
+func probeHAAuthProviders(ctx context.Context, origin *url.URL) (*url.URL, error) {
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, origin.String()+"/auth/providers", nil)
 	if err != nil {
-		return newCloudError(CloudErrInvalidInput, "reach Home Assistant", err)
+		return nil, newCloudError(CloudErrInvalidInput, "reach Home Assistant", err)
 	}
 	response, err := haSignInHTTPClient.Do(request)
 	if err != nil {
-		return cloudRequestError("reach Home Assistant", err)
+		return nil, cloudRequestError("reach Home Assistant", err)
 	}
 	defer response.Body.Close()
 	_, _ = io.Copy(io.Discard, io.LimitReader(response.Body, 64<<10))
 	switch {
 	case isHTTPRedirect(response.StatusCode):
-		return newCloudHTTPError(CloudErrRedirectRejected, "reach Home Assistant", response.StatusCode, false)
+		location, err := response.Location()
+		if err != nil {
+			return nil, newCloudHTTPError(CloudErrRedirectRejected, "reach Home Assistant", response.StatusCode, false)
+		}
+		return location, nil
 	case response.StatusCode != http.StatusOK:
-		return newCloudHTTPError(CloudErrHAProtocol, "reach Home Assistant", response.StatusCode, false)
+		return nil, newCloudHTTPError(CloudErrHAProtocol, "reach Home Assistant", response.StatusCode, false)
 	}
-	return nil
+	return nil, nil
 }
 
 func openHASignInIngress(
