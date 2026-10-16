@@ -171,6 +171,7 @@ the offer of a remaining-targets manifest).
 | `todo` | yes | list deletion with per-list open-item counts; item removal keeps its existing natural-confirmation flow |
 | `organize` | yes | one registry family per manifest; only with complete related-item impact per target |
 | `device` | no | destructive steps (device removal, orphan rows) stay with the HA UI and `maintenance` |
+| `migrate` | no | retiring an old rule is one delete through `write` or `yaml-config` |
 | `yaml-config` | no | file edits are single-document operations with their own backup flow |
 | `energy` | no | preference saves are corrective single-document writes, not enumerable deletes |
 | `service-call` | no | actuating calls are excluded; its grouped manifest is a separate non-destructive tier (`skills/ha-nova/grouped-change-set.md`) |
