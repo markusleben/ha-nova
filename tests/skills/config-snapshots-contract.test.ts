@@ -63,7 +63,7 @@ describe("config snapshots contract", () => {
   });
 
   it("updates the safety matrix and dispatch", () => {
-    expect(writeSafety).toContain("`skills/ha-nova/config-snapshots.md` is the SSOT");
+    expect(writeSafety).toContain("`../ha-nova/config-snapshots.md` is the SSOT");
     expect(writeSafety).toContain("config snapshot (auto before delete, identity-preserving restore); HA Backups");
     expect(contextSkill).toContain("list or delete config snapshots");
     expect(contextSkill).toContain("restore a config snapshot");

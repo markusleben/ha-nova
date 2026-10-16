@@ -134,7 +134,7 @@ func TestRewriteHermesMarkdownAbsolutizesCrossSkillRefs(t *testing.T) {
 
 	content := "Same-skill: `skills/write/patterns.md`. Cross-skill: `skills/review/SKILL.md`.\n" +
 		"Agent template: `skills/ha-nova/agents/apply-agent.md`. Filter: `skills/ha-nova/config-body-filter.jq`.\n" +
-		"Session: `../ha-nova/session-bootstrap.md`.\n" +
+		"Session: `../ha-nova/session-bootstrap.md`. Relative: `../write/patterns.md`, `../review/checks.md`.\n" +
 		"Docs: `docs/reference/ha-api-matrix.md`.\n"
 
 	got := rewriteHermesMarkdown("write", content, sourceDir, sourceRoot, []string{"write", "review"})
@@ -144,15 +144,16 @@ func TestRewriteHermesMarkdownAbsolutizesCrossSkillRefs(t *testing.T) {
 		"`" + filepath.Join(sourceRoot, "skills", "review", "SKILL.md") + "`",
 		"`" + filepath.Join(sourceRoot, "skills", "ha-nova", "agents", "apply-agent.md") + "`",
 		"`" + filepath.Join(sourceRoot, "skills", "ha-nova", "config-body-filter.jq") + "`",
-		"`../ha-nova/session-bootstrap.md`",
+		"`../ha-nova/session-bootstrap.md`", // kept: the bootstrap repair's layout marker
+		"Relative: `patterns.md`, `" + filepath.Join(sourceRoot, "skills", "review", "checks.md") + "`",
 		"`" + filepath.Join(sourceRoot, "docs", "reference", "ha-api-matrix.md") + "`",
 	} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("expected rewritten content to contain %q, got:\n%s", want, got)
 		}
 	}
-	if strings.Contains(got, "`skills/") {
-		t.Fatalf("expected no relative skills/ refs to remain, got:\n%s", got)
+	if strings.Contains(got, "`skills/") || strings.Count(got, "`../") != 1 {
+		t.Fatalf("expected no relative skill refs to remain, got:\n%s", got)
 	}
 }
 

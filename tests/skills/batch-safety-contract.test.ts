@@ -36,13 +36,13 @@ const MATRIX_SKILLS = [
 
 describe("batch safety contract (issue #327)", () => {
   it("is referenced by the context skill, write-safety, output-rules, and every opted-in skill", () => {
-    expect(contextSkill).toContain("skills/ha-nova/batch-safety.md");
-    expect(writeSafety).toContain("skills/ha-nova/batch-safety.md");
-    expect(outputRules).toContain("skills/ha-nova/batch-safety.md");
+    expect(contextSkill).toContain("../ha-nova/batch-safety.md");
+    expect(writeSafety).toContain("../ha-nova/batch-safety.md");
+    expect(outputRules).toContain("../ha-nova/batch-safety.md");
     for (const skill of OPTED_IN_SKILLS) {
       const content = readFileSync(`skills/${skill}/SKILL.md`, "utf8");
       expect(content, `skills/${skill}/SKILL.md must reference batch-safety.md`).toContain(
-        "skills/ha-nova/batch-safety.md",
+        "../ha-nova/batch-safety.md",
       );
     }
   });
@@ -150,10 +150,10 @@ describe("batch safety contract (issue #327)", () => {
     const maintenance = readFileSync("skills/maintenance/SKILL.md", "utf8");
     expect(maintenance).toContain("one issue group or config entry per manifest");
     expect(maintenance).toContain("every safety gate below stays unchanged");
-    expect(maintenance).toContain("Manifest-bound one-time code (`skills/ha-nova/batch-safety.md`)");
+    expect(maintenance).toContain("Manifest-bound one-time code (`../ha-nova/batch-safety.md`)");
     expect(maintenance).toContain("Manifest-bound typed confirmation, one code and one config entry per manifest");
     expect(maintenance).toContain("splits into multiple manifests over disjoint subsets");
     const organize = readFileSync("skills/organize/SKILL.md", "utf8");
-    expect(organize).toContain("except a confirmed batch manifest per `skills/ha-nova/batch-safety.md`");
+    expect(organize).toContain("except a confirmed batch manifest per `../ha-nova/batch-safety.md`");
   });
 });

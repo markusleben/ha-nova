@@ -37,7 +37,7 @@ type verbEnvelope struct {
 	Resolved     []verbTarget   `json:"resolved,omitempty"`
 	Deltas       []planDelta    `json:"deltas,omitempty"`
 	Members      []tierMember   `json:"members,omitempty"`
-	Consumers    []tierConsumer `json:"consumers,omitempty"`
+	Consumers    []tierConsumer `json:"consumers,omitzero"` // [] = scanned, none (a delete); absent = no complete scan
 	Reasons      []tierReason   `json:"reasons,omitempty"`
 	Coverage     *tierCoverage  `json:"coverage,omitempty"`
 	Verification []verifyRow    `json:"verification,omitempty"`

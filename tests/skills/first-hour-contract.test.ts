@@ -15,11 +15,11 @@ const patterns = flat(read("skills/ha-nova/automation-patterns.md"));
 describe("first-hour pack (#528)", () => {
   it("routes the beginner questions to owned surfaces (P3-01/02/03/05/08)", () => {
     expect(context).toContain('"what can you do (here)?"');
-    expect(context).toContain("skills/ha-nova/capability-answer.md");
+    expect(context).toContain("../ha-nova/capability-answer.md");
     expect(context).toContain('"show me my home"');
     expect(context).toContain('"can I break something?"');
     expect(context).toContain('"analyze my home and suggest automations"');
-    expect(context).toContain("skills/ha-nova/starter-proposals.md");
+    expect(context).toContain("../ha-nova/starter-proposals.md");
     expect(context).toContain('"what did you do today / this session?"');
   });
 

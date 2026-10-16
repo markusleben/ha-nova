@@ -76,13 +76,13 @@ If a requested feature bit is absent, say so plainly instead of calling the serv
    - Queue placement uses the same service: `enqueue: add | next | play | replace` (bit 2097152). "Play this next" is `next`, "add to the queue" is `add`; without the bit the player only replaces what is playing — say that instead of silently replacing.
      - **`add` and `next` have no success signal.** They deliberately do not change `state` or `media_title` — that is what queueing means — and Home Assistant exposes no standard queue attribute to read back. Step 7's re-read therefore proves nothing here: report the call as accepted, name what would have changed if it had played instead, and do not present unchanged state as a discrepancy.
    - Playback modes are separate services: `media_player.shuffle_set` (`shuffle` boolean, bit 32768) and `media_player.repeat_set` (`repeat: off | all | one`, bit 262144 — not the grouping bit). "Repeat this song" is `one`, "repeat the album" is `all`. Verify these from their OWN attributes — `shuffle` and `repeat` in the state — not from the fields step 7 names: a mode change leaves `state`, `volume_level`, `source` and `media_title` untouched, so the generic re-read would report success without having checked anything.
-5. Grouping (bit 524288 — NOT 262144, which is repeat): `media_player.join` with `group_members: [<entity_ids>]` on the master; `media_player.unjoin` to remove a player. Read `group_members` back to verify. Speaker-group membership resolves per the shared contract `skills/ha-nova/membership-resolution.md` — `group_members` is authoritative, re-read immediately before execution.
+5. Grouping (bit 524288 — NOT 262144, which is repeat): `media_player.join` with `group_members: [<entity_ids>]` on the master; `media_player.unjoin` to remove a player. Read `group_members` back to verify. Speaker-group membership resolves per the shared contract `../ha-nova/membership-resolution.md` — `group_members` is authoritative, re-read immediately before execution.
 6. TTS announcement: `tts.speak` with `entity_id` of a TTS entity, `media_player_entity_id` of the target, and `message`. Discover engines with WS `{"type":"tts/engine/list"}`. For a legacy setup without TTS entities, fall back to the integration's own `tts.*_say` service and say which one you used.
 7. Verify by re-reading the player's state (`state`, `volume_level`, `source`, `media_title`) — never report success from the service response alone. Streaming players may show `buffering` or a briefly unchanged state; wait a few seconds and re-read once before reporting a discrepancy.
 
 ## Error Handling
 
-Full relay/upstream error taxonomy: `skills/ha-nova/relay-api.md` -> Error Handling. Media specifics:
+Full relay/upstream error taxonomy: `../ha-nova/relay-api.md` -> Error Handling. Media specifics:
 - WS `media_player/browse_media` fails with a command error when the player does not support browsing — check bit 131072 first.
 - `media_content_type` and `media_content_id` must be provided together; a lone id is rejected.
 - A service call can succeed while the player ignores it (offline speaker, wrong source): always verify by re-reading state.
@@ -90,7 +90,7 @@ Full relay/upstream error taxonomy: `skills/ha-nova/relay-api.md` -> Error Handl
 
 ## Output Format
 
-Apply `skills/ha-nova/output-rules.md` to all user-facing output. Write previews, delete confirmations, and results render as the Cards defined there (`skills/ha-nova/output-cards.md`).
+Apply `../ha-nova/output-rules.md` to all user-facing output. Write previews, delete confirmations, and results render as the Cards defined there (`../ha-nova/output-cards.md`).
 
 Render the Report shape (output-cards.md): what is playing where — player, state, current media, volume, source, and group members when relevant. Browse results render the List Frame (title + type), never the raw tree.
 
@@ -103,7 +103,7 @@ Render the Report shape (output-cards.md): what is playing where — player, sta
 - Home Assistant is reached exclusively through the `ha-nova` CLI.
 - For any HA write this skill does not cover, STOP and invoke `ha-nova:fallback` first — never probe unfamiliar write endpoints.
 
-- Drafts follow `skills/ha-nova/smallest-solution.md`: the complete requested outcome in the simplest safe design, nothing for hypothetical future needs.
+- Drafts follow `../ha-nova/smallest-solution.md`: the complete requested outcome in the simplest safe design, nothing for hypothetical future needs.
 
 - Volume: preview the target level; treat a large jump (or anything above ~0.8) as disruptive and confirm explicitly — a loud announcement at night is a real-world side effect.
 - Announcements interrupt whatever is playing; say so before sending one.

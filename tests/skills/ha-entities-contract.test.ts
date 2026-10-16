@@ -22,7 +22,7 @@ describe("ha entity-discovery contract", () => {
     expect(content).toContain("count only the requested domain unless the user explicitly asks");
     expect(content).toContain("ha-nova relay jq --file <result-file> length");
     expect(content).toContain("bulk inventory by `prefix`, `domain`, `area`, or `label`");
-    expect(content).toContain("skills/ha-nova/bulk-patterns.md");
+    expect(content).toContain("../ha-nova/bulk-patterns.md");
     expect(content).toContain("matched count");
     expect(content).toContain('{"type":"search/related","item_type":"area","item_id":"<area_id>"}');
     expect(content).toContain("Resolve room name to area_id");

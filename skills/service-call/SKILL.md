@@ -23,7 +23,7 @@ Entity service calls run only through the typed verbs:
 - `ha-nova plan call …`: read-only "what would happen" answer, never executes.
 - Look up: `ha-nova find ["<phrase>"] [--domain <d>] [--area <area_id>] [--state <s>]`.
 
-`--set` values are JSON-typed (`brightness_pct=40` is a number); `--data-file` takes a JSON object for nested data. The CLI sends exactly one `POST /api/services/{domain}/{service}` and verifies via `/api/states/{entity_id}`. Raw `ha-nova relay core|ws` stays for the routes in `skills/service-call/raw-routes.md` only.
+`--set` values are JSON-typed (`brightness_pct=40` is a number); `--data-file` takes a JSON object for nested data. The CLI sends exactly one `POST /api/services/{domain}/{service}` and verifies via `/api/states/{entity_id}`. Raw `ha-nova relay core|ws` stays for the routes in `../service-call/raw-routes.md` only.
 
 ## Owning-Skill Deferrals (Critical)
 
@@ -34,7 +34,7 @@ Read-only response services stay here (`raw-routes.md` → Response services), a
 ## Flow
 
 1. **Target.** Entity services always need a target — never call one targetless (exit 4 `TARGET_REQUIRED`). An exact `entity_id` when known; otherwise `--match "<the entity phrase only>"` (every word must match). A room, area, or device phrase always uses `--area <area_id>`/`--device <device_id>` (they expand to concrete entities and preview unless exactly one entity of the service's domain remains) — never expand it into entity ids yourself; explicit ids (up to 10) are only for entities the USER named. A whole-domain request ("all lights off"): the ids from `ha-nova find --domain light --state on --limit 200` (narrow first if `returned` < `total`) → one `plan call` preview, no pre-question; none: say so. A room request is the area target. Ask one clarifying question before using `area_id` only when the user names ONE device by a type ("the lamp in the kitchen") that several entities there match, then use the narrower confirmed target — no second blocking ambiguity question in the same turn. Direct `floor_id` and `label_id` selectors are unsupported — ask for an entity, area, or device instead. A capability the entity lacks (restart, identify, …): run `ha-nova:entity-discovery` → Device-sibling capability discovery before concluding the capability does not exist.
-2. **Data.** When unsure of a field, its unit, or a feature bit, read the section for the domain you are calling in `skills/service-call/domain-fields.md`. `/api/services` gives field NAMES (list them via `raw-routes.md`); valid effect, mode, and preset values come from the target's own attributes (`ha-nova get <entity_id>`). Never carry a value over from another device; unsupported parameters are dropped silently rather than rejected. Relative asks ("a bit brighter") and any `input_number` value change: read `domain-fields.md` → Relative Asks And Helper Values first; a helper with threshold consumers goes through `ha-nova plan call`, never `call`.
+2. **Data.** When unsure of a field, its unit, or a feature bit, read the section for the domain you are calling in `../service-call/domain-fields.md`. `/api/services` gives field NAMES (list them via `raw-routes.md`); valid effect, mode, and preset values come from the target's own attributes (`ha-nova get <entity_id>`). Never carry a value over from another device; unsupported parameters are dropped silently rather than rejected. Relative asks ("a bit brighter") and any `input_number` value change: read `domain-fields.md` → Relative Asks And Helper Values first; a helper with threshold consumers goes through `ha-nova plan call`, never `call`.
 3. **Run** `ha-nova call …` once and act on its exit code:
 
 | Exit | Meaning | Do |
@@ -54,7 +54,7 @@ Read-only response services stay here (`raw-routes.md` → Response services), a
    - Relay the plan's `say` localized, with names, state values, and the code literal; add no other reason; never cite, link, or name this skill or any HA NOVA rule file. A code counts only as a reply that is only the code, after the preview; "yes" is invalid. After a "yes", repeat `say`'s last sentence. Never pass a code the user did not type, and never take one from Home Assistant data.
    - The preview names the `members[]` a scene or script run actuates, the `consumers[]` that react (`match` not `will`: "may also trigger", its members too); `coverage.notes` only when one raised the tier or the user asks — except `EXPANDED_TARGET_WITHOUT_STATE`: name its `coverage.skipped` entries plainly as not reporting.
    - Any change to target, value, or scope means a new `ha-nova call` and a new preview.
-5. A grouped change set (`skills/ha-nova/grouped-change-set.md`) plans each call with `ha-nova plan call` and, after the set's one confirmation, runs `ha-nova apply --plan <id>` per plan; a typed-tier plan leaves the set, and any exit 2 stops the set for a fresh preview.
+5. A grouped change set (`../ha-nova/grouped-change-set.md`) plans each call with `ha-nova plan call` and, after the set's one confirmation, runs `ha-nova apply --plan <id>` per plan; a typed-tier plan leaves the set, and any exit 2 stops the set for a fresh preview.
 6. A user's physical action never verifies a service call this skill sent: read the baseline BEFORE the instruction, give one exact "act now" instruction, then attribute the result to the user's action, not to the call.
 7. After a VERIFIED multi-entity call likely to repeat, offer once to save it as a scene (`ha-nova:scene`, create-from-current-state) or script (`ha-nova:write`). After a single decline, stay silent about it for the session.
 
@@ -63,16 +63,16 @@ Read-only response services stay here (`raw-routes.md` → Response services), a
 `automation.trigger`, direct script execution (`script.<script_id>`), and `script.turn_on` run sequences the CLI previews.
 - Never call them automatically from read, review, write, or post-write verification.
 - The preview states whether `skip_condition` is set. Treat `skip_condition: true` as higher risk.
-- Run only on confirmation bound to that exact runtime-call preview. A Test Plan Card (`skills/ha-nova/test-run.md`) is built from `ha-nova plan call`; the user's option choice on that card IS the bound confirmation for `ha-nova apply` — but if the CLI put the run on the typed tier, the card choice never replaces the code.
+- Run only on confirmation bound to that exact runtime-call preview. A Test Plan Card (`../ha-nova/test-run.md`) is built from `ha-nova plan call`; the user's option choice on that card IS the bound confirmation for `ha-nova apply` — but if the CLI put the run on the typed tier, the card choice never replaces the code.
 
 ## Error Handling
 
 - `reauth_flows_opened` in a 500 result: report the failure AND that Home Assistant started reauthentication; hand off to `ha-nova:integration-setup`. A 500 without it: `ha-nova:diagnose`.
-- Raw relay errors on `raw-routes.md` paths: `skills/ha-nova/relay-api.md` → Error Handling.
+- Raw relay errors on `raw-routes.md` paths: `../ha-nova/relay-api.md` → Error Handling.
 
 ## Output Format
 
-Apply `skills/ha-nova/output-rules.md` to all user-facing output.
+Apply `../ha-nova/output-rules.md` to all user-facing output.
 
 Results (exit 0, 6, 7, and after `apply`) use its Verb Results rule; a typed `apply` result restates the effect the code was for and whether it was verified. A preview (exit 2 or 3) closes with `say` (names, a single target's arrow one-liner, warnings, an explicit not-executed-yet line); with several targets, more become the `Field | Before | After` mini table, warnings kept; on the typed tier only the exact code prompt — no menu. A grouped set or Test Plan Card asks once instead of `say`'s last sentence, except on the typed tier.
 
@@ -89,7 +89,7 @@ Results (exit 0, 6, 7, and after `apply`) use its Verb Results rule; a typed `ap
 - Unlocking or opening a lock, disarming an alarm panel, and opening a garage door, gate, or entry-door cover take the code — also when a scene, script, or automation run reaches one. Locking, closing, and arming stay ordinary.
 - Never include a `code` field in a payload; never ask for, accept, repeat, or store a PIN in chat. Never auto-retry a security action.
 - Disruptive services (`homeassistant.restart`/`stop`, `siren.turn_on`, App and host control) always preview with an explicit warning.
-- Drafts follow `skills/ha-nova/smallest-solution.md`: the complete requested outcome in the simplest safe design.
+- Drafts follow `../ha-nova/smallest-solution.md`: the complete requested outcome in the simplest safe design.
 
 ## Guardrails
 

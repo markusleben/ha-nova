@@ -22,7 +22,7 @@ Read and follow `../ha-nova/session-bootstrap.md`.
 Verify relay CLI: `ha-nova relay health`
 If this fails: `ha-nova setup`
 
-Bounded subscription windows are guaranteed by the skills' enforced relay floor (`skills/ha-nova/relay-api.md` -> Bounded Event Collection). If a relay-outdated warning appeared, have the user update the NOVA Relay instead of working around it — an older relay silently ignores `on_limit`, which turns a normal quiet window into a hard error.
+Bounded subscription windows are guaranteed by the skills' enforced relay floor (`../ha-nova/relay-api.md` -> Bounded Event Collection). If a relay-outdated warning appeared, have the user update the NOVA Relay instead of working around it — an older relay silently ignores `on_limit`, which turns a normal quiet window into a hard error.
 
 Requires the `mqtt` integration: check `GET /api/components` for `mqtt`. If it is absent, say so — this skill cannot add it.
 
@@ -80,7 +80,7 @@ Zigbee2MQTT publishes its network state on retained `zigbee2mqtt/bridge/...` top
 
 ## Error Handling
 
-Full relay/upstream error taxonomy: `skills/ha-nova/relay-api.md` -> Error Handling. MQTT specifics:
+Full relay/upstream error taxonomy: `../ha-nova/relay-api.md` -> Error Handling. MQTT specifics:
 - `UNSUPPORTED_WS_TYPE` on `mqtt/subscribe`: check YOUR request first. A BARE `mqtt/subscribe` is rejected by every relay version — that is by design, and it means the subscription was not wrapped in a `collect_events` envelope. Fix the request. Only if the request WAS enveloped does this error mean the relay predates bounded windows; confirm with `ha-nova relay health` before telling the user to update the App.
 - `400 VALIDATION_ERROR` mentioning `on_limit`: never expected — an older relay ignores the field silently rather than rejecting it, so this points at a malformed envelope.
 - `UPSTREAM_WS_TIMEOUT` in window mode means the subscription never even established (broker down, integration not loaded) — that is different from an empty window, and worth saying plainly.
@@ -89,7 +89,7 @@ Full relay/upstream error taxonomy: `skills/ha-nova/relay-api.md` -> Error Handl
 
 ## Output Format
 
-Apply `skills/ha-nova/output-rules.md` to all user-facing output. Write previews, delete confirmations, and results render as the Cards defined there (`skills/ha-nova/output-cards.md`).
+Apply `../ha-nova/output-rules.md` to all user-facing output. Write previews, delete confirmations, and results render as the Cards defined there (`../ha-nova/output-cards.md`).
 
 Render the Report shape (output-cards.md). For a listen: the topic, the window length, how many messages arrived (live versus retained — never merge those two), the distinct topics seen, and a few representative payloads — never the raw dump. Say explicitly when nothing arrived, and when everything that arrived was a retained replay. For a publish: the topic, payload, and whether it was retained.
 
@@ -102,7 +102,7 @@ Render the Report shape (output-cards.md). For a listen: the topic, the window l
 - Home Assistant is reached exclusively through the `ha-nova` CLI.
 - For any HA write this skill does not cover, STOP and invoke `ha-nova:fallback` first — never probe unfamiliar write endpoints.
 
-- Drafts follow `skills/ha-nova/smallest-solution.md`: the complete requested outcome in the simplest safe design, nothing for hypothetical future needs.
+- Drafts follow `../ha-nova/smallest-solution.md`: the complete requested outcome in the simplest safe design, nothing for hypothetical future needs.
 
 - Retained publishes and command/`set` topics take the one-time code — they change device state or broker state persistently, which is a stricter tier than an ordinary service call.
 - Listening is read-only, but keep windows short and topics narrow: a broad subscription on a busy broker is noise, and the relay caps it anyway.
@@ -110,6 +110,6 @@ Render the Report shape (output-cards.md). For a listen: the topic, the window l
 
 ## Guardrails
 
-- One topic per window; one publish per confirmation — except a manifest-bound retained-discovery cleanup batch per `skills/ha-nova/batch-safety.md`: one resolved device per manifest, topics taken only from `mqtt/device/debug_info`, never guessed or globbed; command/`set` topics always stay single-target.
+- One topic per window; one publish per confirmation — except a manifest-bound retained-discovery cleanup batch per `../ha-nova/batch-safety.md`: one resolved device per manifest, topics taken only from `mqtt/device/debug_info`, never guessed or globbed; command/`set` topics always stay single-target.
 - Windows are bounded by the relay (max 100 events / 10 s) — never claim continuous monitoring.
 - Never guess a `device_id` or invent a payload schema; read what the device actually publishes first.

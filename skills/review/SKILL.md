@@ -12,7 +12,7 @@ compatibility: Requires the ha-nova CLI (run 'ha-nova setup' first) and the HA N
 
 Read-only quality review for automations, scripts, helpers, storage scenes, and storage dashboards:
 - Config quality checks (safety, reliability, performance, style)
-- Notification checks follow `skills/ha-nova/mobile-notification-composition.md`: objective schema, capability, safety, or privacy violations are findings; optional style differences are suggestions; recurring-workflow intent advice is low-severity usability advice, never a correctness finding
+- Notification checks follow `../ha-nova/mobile-notification-composition.md`: objective schema, capability, safety, or privacy violations are findings; optional style differences are suggestions; recurring-workflow intent advice is low-severity usability advice, never a correctness finding
 - Collision scan (other automations targeting same entities)
 - Conflict analysis (real conflicts vs safe patterns)
 - Explorative questions for complex automation/script behavior
@@ -44,7 +44,7 @@ Relay CLI: `ha-nova relay`
 
 If user provides an exact automation/script `entity_id` (e.g., `automation.main_lights`), skip search and go directly to config read.
 
-Storage scenes resolve like automations (registry `unique_id` → `GET /api/config/scene/config/<id>`; name-based requests search the `scene.` domain in the compact registry exactly like the automation keyword search). The Editability Guard from `ha-nova:scene` applies. A scene without registry `unique_id` is YAML-backed: run SC checks only when that scene's exact YAML is already in context; otherwise STOP and ask for the pasted scene YAML — never emit an empty or inferred review. Storage dashboards resolve by `url_path` (`lovelace/dashboards/list` → `lovelace/config`), and D-02/D-05 additionally read `lovelace/resources`. Apply the SC/D families from `skills/review/checks-extended.md`; cross-item HX rules run in aggregate/bulk mode OR whenever their required registry/state context is already loaded. A dashboard D-01/D-06 pass normally loads that context, so apply HX-05 to visible card actions without expanding the workset. Flow adaptation for these targets: a SCENE replaces the Step-2 collision scan with a consumer scan (`search/related` on the scene entity — who activates it) and skips conflict analysis; a DASHBOARD skips Steps 2–4 entirely (no collision surface, no Quick-Fix) — its review is the D config-quality pass plus suggestion synthesis. Output for both: keep the Report shape but include ONLY the sections that ran (findings, consumers for scenes, suggestions, next step) — never render empty collision/conflict/Quick-Fix sections for checks that were intentionally skipped.
+Storage scenes resolve like automations (registry `unique_id` → `GET /api/config/scene/config/<id>`; name-based requests search the `scene.` domain in the compact registry exactly like the automation keyword search). The Editability Guard from `ha-nova:scene` applies. A scene without registry `unique_id` is YAML-backed: run SC checks only when that scene's exact YAML is already in context; otherwise STOP and ask for the pasted scene YAML — never emit an empty or inferred review. Storage dashboards resolve by `url_path` (`lovelace/dashboards/list` → `lovelace/config`), and D-02/D-05 additionally read `lovelace/resources`. Apply the SC/D families from `../review/checks-extended.md`; cross-item HX rules run in aggregate/bulk mode OR whenever their required registry/state context is already loaded. A dashboard D-01/D-06 pass normally loads that context, so apply HX-05 to visible card actions without expanding the workset. Flow adaptation for these targets: a SCENE replaces the Step-2 collision scan with a consumer scan (`search/related` on the scene entity — who activates it) and skips conflict analysis; a DASHBOARD skips Steps 2–4 entirely (no collision surface, no Quick-Fix) — its review is the D config-quality pass plus suggestion synthesis. Output for both: keep the Report shape but include ONLY the sections that ran (findings, consumers for scenes, suggestions, next step) — never render empty collision/conflict/Quick-Fix sections for checks that were intentionally skipped.
 
 For helpers, resolve the family first:
 - storage-based family: entity_id domain is one of `input_boolean`, `input_number`, `input_text`, `input_select`, `input_datetime`, `input_button`, `counter`, `timer`, `schedule`
@@ -52,7 +52,7 @@ For helpers, resolve the family first:
 - config-entry helper review remains minimal, but target resolution must still normalize to a real `entry_id`
 
 If the target config is not already in the thread context, resolve it yourself:
-1. If the user asks for a bulk audit by `prefix`, `domain`, `area`, or `label`, build a shortlist first using `skills/ha-nova/bulk-patterns.md`.
+1. If the user asks for a bulk audit by `prefix`, `domain`, `area`, or `label`, build a shortlist first using `../ha-nova/bulk-patterns.md`.
    - use `config/entity_registry/list_for_display` for direct `prefix` / `domain` resolution, except a whole automation/script domain (below)
    - escalate to `config/entity_registry/list` and `config/area_registry/list` only when richer area/label evidence is required
    - for room/area phrasing, resolve the area and use `search/related` with `item_type:"area"` before any registry-first fallback
@@ -65,7 +65,7 @@ If the target config is not already in the thread context, resolve it yourself:
    - use direct registry `area_id` only as supplemental evidence when it is actually populated
    - dedupe the shortlist on canonical `entity_id`, then sort deterministically and persist the matched shortlist
    - "all my automations": `ha-nova find --domain automation --limit 200 --include-disabled` (scripts: `ha-nova find --domain script --limit 200 --include-disabled`) is the shortlist — it also lists YAML items without a registry row; its `total` is the matched count
-   - an automation/script bulk audit first reads `skills/ha-nova/bulk-patterns.md` → Static Pass and runs it over EVERY matched target
+   - an automation/script bulk audit first reads `../ha-nova/bulk-patterns.md` → Static Pass and runs it over EVERY matched target
    - derive the current review set:
      - exact single target -> current review set = that one target
      - more than one resolved target -> current review set = the Static Pass's flagged targets (helpers: all resolved targets) in deterministic order, trimmed to the first 5 only when more than 5 are flagged
@@ -127,7 +127,7 @@ If the target config is not already in the thread context, resolve it yourself:
    # Helper (storage-based family, WS list + filter):
    ha-nova relay ws --data-file <payload-file> --jq-file <helper-filter-file> --out <target-file>
    ```
-   Preferred: copy `skills/ha-nova/config-body-filter.jq` to `<config-filter-file>` and use that copied file directly.
+   Preferred: copy `../ha-nova/config-body-filter.jq` to `<config-filter-file>` and use that copied file directly.
    If the canonical file is unavailable (flat-copy installs), recreate it with exactly:
    ```jq
    if .ok then .data.body else error("relay error: \(.error.message // "unknown")") end
@@ -177,7 +177,7 @@ Multi-target rules:
 - Quick-Fix is single-target only; skip Step 4 and its prerequisite state-read step whenever the current review set contains more than one target
 
 Bulk mode rules:
-- use `skills/ha-nova/bulk-patterns.md` for selector semantics, stable ordering, and workset limits
+- use `../ha-nova/bulk-patterns.md` for selector semantics, stable ordering, and workset limits
 - deep-audit only the current workset (max 5 targets); the Static Pass already checked every matched automation/script
 - stop after that one workset; do not start a second batch in the same standalone request
 - related-item, trace, and live evidence only per target inside the current workset; no prefetch for the remaining targets
@@ -201,13 +201,13 @@ Before analyzing, consult these sources:
 - Trigger issues → https://www.home-assistant.io/docs/automation/trigger/
 - Mode issues → https://www.home-assistant.io/docs/automation/modes/
 - Action/script issues → https://www.home-assistant.io/docs/scripts/
-- Templates present (`{{` / `{%`) → https://www.home-assistant.io/docs/configuration/templating/ (functions, filters, constants, and documented semantic hazards; fetch once per review — the checks in `skills/review/checks.md` stay local and offline). No web access or a failed fetch: continue with the local checks and say in the output that template function validity was not verified against the official reference.
+- Templates present (`{{` / `{%`) → https://www.home-assistant.io/docs/configuration/templating/ (functions, filters, constants, and documented semantic hazards; fetch once per review — the checks in `../review/checks.md` stay local and offline). No web access or a failed fetch: continue with the local checks and say in the output that template function validity was not verified against the official reference.
 - Schema questions → https://www.home-assistant.io/docs/automation/yaml/
 
 Only fetch pages relevant to the triggers, actions, and templates found in the config. Cross-check against documented gotchas and constraints — this catches issues beyond the hardcoded checks below.
 
 **Verify-before-flag rule:** the canonical sequence lives in
-`skills/review/checks.md` → Verify Before Flagging, because the post-write
+`../review/checks.md` → Verify Before Flagging, because the post-write
 phases load that file without this one. Resolve every finding against a source
 before reporting it, and flag it when the source confirms the CLAIM you are
 making — semantics or risk for behavioral checks, schema invalidity only for
@@ -224,11 +224,11 @@ Analyze config against the review catalog plus any additional issues found in th
 Traverse all `variables:` mappings in the config, not just the top-level block. Include root `variables:` on the automation/script plus local `variables:` actions inside `choose`, `if` / `then` / `else`, `default`, `repeat`, and nested `sequence` blocks.
 
 **Rule Catalog**
-- Load `skills/review/checks.md` and `skills/review/checks-extended.md` (evidence boundaries and the scene/dashboard/cross-item/TS families) before evaluating findings.
-- `skills/review/SKILL.md` is the stable review entrypoint; `skills/review/checks.md` plus `skills/review/checks-extended.md` are the full rule catalog.
+- Load `../review/checks.md` and `../review/checks-extended.md` (evidence boundaries and the scene/dashboard/cross-item/TS families) before evaluating findings.
+- `../review/SKILL.md` is the stable review entrypoint; `../review/checks.md` plus `../review/checks-extended.md` are the full rule catalog.
 
 **Apply the catalog:**
-- Load `skills/review/checks.md` and follow its `## Application` section — the family-by-domain matrix, the per-check evidence boundaries (R-17..R-25, M-05), and the live-helper evidence rules live there.
+- Load `../review/checks.md` and follow its `## Application` section — the family-by-domain matrix, the per-check evidence boundaries (R-17..R-25, M-05), and the live-helper evidence rules live there.
 - Codes stay internal (checks.md → Output Guardrail): never show them in user-facing output — describe findings in plain language instead.
 
 ### Step 2: Collision Scan
@@ -249,7 +249,7 @@ Branch by target family:
    ```text
    ha-nova relay ws --data-file <payload-file> --jq-file <filter-file>
    ```
-   `<filter-file>` is the canonical `skills/ha-nova/search-related-consumers.jq` (recreate per `skills/ha-nova/relay-api.md` → Parsing rule on flat-copy installs).
+   `<filter-file>` is the canonical `../ha-nova/search-related-consumers.jq` (recreate per `../ha-nova/relay-api.md` → Parsing rule on flat-copy installs).
 3. Collect related automations/scripts (exclude current target).
 4. Read configs of related items (max 5 for a single standalone target; keep a tighter shared budget across a bulk workset; post-write scans inside `write`/`helper` deliberately use a tighter budget of max 3 related configs). Resolve `unique_id` first for automation/script targets (see Target Resolution step 5), then:
    ```text
@@ -272,8 +272,8 @@ In that case:
 1. Prefer the normalized CLI helper fields from `ha-nova trace latest <automation_or_script_entity_id> --json`, `ha-nova trace list <automation_or_script_entity_id> --json`, and `ha-nova trace get <automation_or_script_entity_id> <run_id> --json`; they are enough for run selection, result status, timestamp, item binding, and most review findings.
 2. Inspect raw trace internals only when step-level evidence is required. Raw trace nodes can be arrays of event records; type-check before reading `path`, `result`, `changed_variables`, or `error`, and avoid large jq projections as the standard path.
 3. Cross-reference trace findings with config quality findings from Step 1
-4. Verify `item_id` in every trace matches the target's `unique_id` before attributing results. see `skills/ha-nova/SKILL.md` → Claim-Evidence Binding.
-5. Include trace-based findings in the Findings section with a descriptive title (e.g., `🔴 Condition blocked — condition was never met in last 3 runs`). Localize at runtime per `skills/ha-nova/output-rules.md`.
+4. Verify `item_id` in every trace matches the target's `unique_id` before attributing results. see `../ha-nova/SKILL.md` → Claim-Evidence Binding.
+5. Include trace-based findings in the Findings section with a descriptive title (e.g., `🔴 Condition blocked — condition was never met in last 3 runs`). Localize at runtime per `../ha-nova/output-rules.md`.
 
 ### Step 3: Conflict Analysis
 
@@ -292,7 +292,7 @@ For each related automation/script, apply the 3-step conflict test:
 - Mutually exclusive conditions (e.g., `sleep_mode: on` vs `off`) → **no conflict, skip**
 - No mutual exclusion → **real conflict risk, report**
 
-Use the known safe/problem patterns from `skills/review/checks.md` when deciding whether a related automation pair is truly benign or a real conflict.
+Use the known safe/problem patterns from `../review/checks.md` when deciding whether a related automation pair is truly benign or a real conflict.
 
 ### Step 4: Quick-Fix Detection (single-target only)
 
@@ -310,7 +310,7 @@ After completing Steps 1-3, check if the current entity state (from the earlier 
 - Fix requires config change (that's a Suggestions item)
 - Multiple equally valid corrections exist (ambiguous — note in Questions to consider instead)
 - State read failed or entity unavailable — skip, note in Instant Help section: localized equivalent of "Skipped: current state unavailable."
-- The corrective call would grant physical access or is physically irreversible — unlocking or opening a lock, disarming an alarm panel, opening a garage/gate/entry-door cover by `device_class`, or running a scene, script, or automation that reaches one. Every corrective call — ordinary device control or a trigger-source write such as resetting a desynchronized `input_select` — must RUN the indirect-actuation gate first: `ha-nova plan call <domain.service> <entity_id> [--set k=v]…` (read-only; the CLI runs the gate per `skills/ha-nova/indirect-actuation.md` — ordinary device control still carries its CONSUMER scan). What disqualifies it is the gate's VERDICT, not having consulted the gate: an `ordinary` or `preview` plan stays Quick-Fixable, while a `typed` plan — or a scan that could not enumerate the consumers — sends it out of Quick-Fix. Never Quick-Fix those: name the fix and offer to run it as a separate service call, which carries the typed high-consequence gate this step does not.
+- The corrective call would grant physical access or is physically irreversible — unlocking or opening a lock, disarming an alarm panel, opening a garage/gate/entry-door cover by `device_class`, or running a scene, script, or automation that reaches one. Every corrective call — ordinary device control or a trigger-source write such as resetting a desynchronized `input_select` — must RUN the indirect-actuation gate first: `ha-nova plan call <domain.service> <entity_id> [--set k=v]…` (read-only; the CLI runs the gate per `../ha-nova/indirect-actuation.md` — ordinary device control still carries its CONSUMER scan). What disqualifies it is the gate's VERDICT, not having consulted the gate: an `ordinary` or `preview` plan stays Quick-Fixable, while a `typed` plan — or a scan that could not enumerate the consumers — sends it out of Quick-Fix. Never Quick-Fix those: name the fix and offer to run it as a separate service call, which carries the typed high-consequence gate this step does not.
 
 **If qualified:**
 1. Show current state vs expected state
@@ -322,7 +322,7 @@ Execute the planned call once, verified by the CLI:
 ```text
 ha-nova apply --plan <id>
 ```
-Report the result in the three-line verb result (`skills/ha-nova/output-rules.md` → Verb Results); exit 2 means the state changed since the plan — show the new plan and ask again; never retry after exit 6 or 7.
+Report the result in the three-line verb result (`../ha-nova/output-rules.md` → Verb Results); exit 2 means the state changed since the plan — show the new plan and ask again; never retry after exit 6 or 7.
 
 ### Step 5: Explorative Questions (standalone automation/script only)
 
@@ -383,7 +383,7 @@ Rules:
 
 ## Output Format
 
-Apply `skills/ha-nova/output-rules.md` to all user-facing output.
+Apply `../ha-nova/output-rules.md` to all user-facing output.
 
 Review output is sectioned, not card-framed; only a Section 8 quick-fix proposal renders as the service-call Preview Card (`apply · cancel`, output-cards.md → Cards) when it proposes a call.
 
@@ -478,7 +478,7 @@ For resolved targets `> 1`, return exactly these 6 sections:
 - Home Assistant is reached exclusively through the `ha-nova` CLI.
 - For any HA write this skill does not cover, STOP and invoke `ha-nova:fallback` first — never probe unfamiliar write endpoints.
 
-- Drafts follow `skills/ha-nova/smallest-solution.md`: the complete requested outcome in the simplest safe design, nothing for hypothetical future needs.
+- Drafts follow `../ha-nova/smallest-solution.md`: the complete requested outcome in the simplest safe design, nothing for hypothetical future needs.
 
 - Read-only analysis: no config writes through the relay (see Scope for the single Quick-Fix exception).
 - The Quick-Fix service call requires confirmation bound to its exact preview; bulk mode disables it entirely.

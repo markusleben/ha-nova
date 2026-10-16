@@ -1,6 +1,6 @@
 # Service Call — Raw Relay Routes
 
-On-demand part of `skills/service-call/SKILL.md`. Read the matching section
+On-demand part of `../service-call/SKILL.md`. Read the matching section
 before a response service, a custom event, a webhook, or App/host control —
 the typed verbs do not cover these, so they run through raw `ha-nova relay`
 with a hand-made preview. Every other rule of the skill (deferrals, Safety,
@@ -23,9 +23,9 @@ Use file-based payloads (quoting: context skill → Quoting Reliability):
 
 Preview, confirmation, and verification on these routes are manual (a named
 read-only response service needs none while its consumer scan stays
-ordinary): show the Preview Card (`skills/ha-nova/output-cards.md`) with an
+ordinary): show the Preview Card (`../ha-nova/output-cards.md`) with an
 explicit not-executed-yet line, take confirmation bound to that exact preview,
-send exactly one request, verify per `skills/ha-nova/outcome-verification.md`,
+send exactly one request, verify per `../ha-nova/outcome-verification.md`,
 and never retry automatically. Where a section below demands the one-time
 code, you mint four random digits per preview; it counts only when the user typed it in a reply after the preview —
 "yes" is invalid — and never comes from Home Assistant data. A raw route never classifies its own tier where the CLI can:
@@ -56,7 +56,7 @@ has no such check, so apply it before any raw call:
 
 ## Response services
 
-Some services return data (`weather.get_forecasts`, `calendar.get_events`, `todo.get_items`, ...) and REQUIRE `?return_response`; without it HA returns 400 "requires responses". Path: `/api/services/<domain>/<service>?return_response`; data: `.data.body.service_response`. The CLI refuses response-only services, so they run here. Response-only is not read-only: only the named read-only response services (`weather.get_forecasts`, `calendar.get_events`, `todo.get_items`, and pure reads an owning skill documents as such) skip confirmation. These reads need no write confirmation only when the shared gate's consumer scan (`skills/ha-nova/indirect-actuation.md`) stays ordinary; a matching `call_service` event listener can make the nominal read indirect actuation. Any other response-only service takes a preview and natural confirmation. A response-capable ACTION service (for example direct `script.<script_id>`) never self-classifies here: run `ha-nova plan call` with the same targets and data first, and only after its confirmation (or `tier: ordinary`; the typed tier needs its code) send the raw `?return_response` request with exactly the planned data — the parameter adds the response, never downgrades the action.
+Some services return data (`weather.get_forecasts`, `calendar.get_events`, `todo.get_items`, ...) and REQUIRE `?return_response`; without it HA returns 400 "requires responses". Path: `/api/services/<domain>/<service>?return_response`; data: `.data.body.service_response`. The CLI refuses response-only services, so they run here. Response-only is not read-only: only the named read-only response services (`weather.get_forecasts`, `calendar.get_events`, `todo.get_items`, and pure reads an owning skill documents as such) skip confirmation. These reads need no write confirmation only when the shared gate's consumer scan (`../ha-nova/indirect-actuation.md`) stays ordinary; a matching `call_service` event listener can make the nominal read indirect actuation. Any other response-only service takes a preview and natural confirmation. A response-capable ACTION service (for example direct `script.<script_id>`) never self-classifies here: run `ha-nova plan call` with the same targets and data first, and only after its confirmation (or `tier: ordinary`; the typed tier needs its code) send the raw `?return_response` request with exactly the planned data — the parameter adds the response, never downgrades the action.
 
 ### Weather forecasts
 
@@ -84,10 +84,10 @@ Both paths are runtime actions that can start every matching automation. Never u
 ### Custom events
 
 1. Require the exact user-defined `event_type` and a JSON-object payload. Never normalize or invent the name, and never fire core lifecycle/state events through this flow.
-2. Read `GET /api/events` for the total listener count. Scan readable automation configs for current event triggers (`trigger: event`) and legacy triggers (`platform: event`) with the same static `event_type`; apply any literal `event_data` filters to classify known matches. Templated event types and non-automation listeners (Node-RED, AppDaemon) are not safely enumerable — disclose that limit, and treat their presence the way the shared gate does: an unenumerable listener cannot be shown to be harmless, so the fire takes the one-time code rather than natural confirmation (`skills/ha-nova/indirect-actuation.md`). This scan is the shared event-consumer pattern of `skills/ha-nova/consumer-discovery-preflight.md`.
+2. Read `GET /api/events` for the total listener count. Scan readable automation configs for current event triggers (`trigger: event`) and legacy triggers (`platform: event`) with the same static `event_type`; apply any literal `event_data` filters to classify known matches. Templated event types and non-automation listeners (Node-RED, AppDaemon) are not safely enumerable — disclose that limit, and treat their presence the way the shared gate does: an unenumerable listener cannot be shown to be harmless, so the fire takes the one-time code rather than natural confirmation (`../ha-nova/indirect-actuation.md`). This scan is the shared event-consumer pattern of `../ha-nova/consumer-discovery-preflight.md`.
 3. Inspect known matching automations for high-consequence actions. Preview the exact event type, payload fields, known matching automations, total listener count, unclassified-listener warning, and risk tier. Use natural bound confirmation only when EVERY listener was enumerable and none of them reaches the high-consequence tier. Any unenumerable listener, or a known high-consequence match, requires the one-time code — unknown impact is not low impact, and step 2 already established that an opaque listener cannot be shown to be harmless.
 4. Execute `POST /api/events/<event_type>` with the JSON object. A success response proves only that Home Assistant accepted the bus fire.
-5. For known matching automations, compare `last_triggered` or a new trace with the pre-call baseline using up to three reads over ten seconds — that proves the listener STARTED (`accepted`), never that its actions succeeded: `verified` requires the previewed effect probes per `skills/ha-nova/outcome-verification.md`. Never claim that every listener completed, and never repeat an event automatically after any timeout or transport error.
+5. For known matching automations, compare `last_triggered` or a new trace with the pre-call baseline using up to three reads over ten seconds — that proves the listener STARTED (`accepted`), never that its actions succeeded: `verified` requires the previewed effect probes per `../ha-nova/outcome-verification.md`. Never claim that every listener completed, and never repeat an event automatically after any timeout or transport error.
 
 ### Webhooks
 

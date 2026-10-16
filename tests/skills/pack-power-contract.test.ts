@@ -39,7 +39,7 @@ describe("P2-09 organize bulk seam (#529)", () => {
       "selected by prefix, domain, area, or label",
     );
     expect(organize).toContain(
-      "resolve the shortlist per `skills/ha-nova/bulk-patterns.md` (Selector Semantics + Discovery Pipeline)",
+      "resolve the shortlist per `../ha-nova/bulk-patterns.md` (Selector Semantics + Discovery Pipeline)",
     );
     expect(organize).toContain(
       "binds to that exact saved id list — never to the raw selector",

@@ -22,8 +22,8 @@ Read and follow `../ha-nova/session-bootstrap.md`. An unreachable Relay answers 
 ## Relay Contract
 
 - Scan (read-only): `ha-nova get <entity_id> --references` covers the entity's whole device. `result.references`: `device`, `entities[]` (mapping hints: `platform`, `translation_key`, `original_name`, `device_class`, `unit`, `state`, `registry_id`), `notify_service`, `hits[]` (`family`, `id`, `config_id`, `managed`, `needle`, `paths`, `template`), `scanned`, `not_scanned[]`, `not_covered[]`; `result.related` is search/related. An entity that no longer exists is scanned by its id (`resolved[0].by` = `absent`).
-- Resolve: `ha-nova find "<phrase>"`, `ha-nova get <entity_id> --config`; registry reads (`config/entity_registry/get`, `config/device_registry/list`) per `skills/organize/SKILL.md`.
-- Re-point: `ha-nova plan write --domain automation|script --id <config_id> --file <draft.json>`, then `ha-nova apply --plan <id> [--confirm <code>]` (`skills/write/SKILL.md` Phase 2-3 rules).
+- Resolve: `ha-nova find "<phrase>"`, `ha-nova get <entity_id> --config`; registry reads (`config/entity_registry/get`, `config/device_registry/list`) per `../organize/SKILL.md`.
+- Re-point: `ha-nova plan write --domain automation|script --id <config_id> --file <draft.json>`, then `ha-nova apply --plan <id> [--confirm <code>]` (`../write/SKILL.md` Phase 2-3 rules).
 - Takeover: `ha-nova relay ws --data-file <payload-file>` with `{"type":"config/entity_registry/update","entity_id":"<new id>","new_entity_id":"<old id>"}`.
 
 ## Hit Routing
@@ -51,12 +51,12 @@ It covers takeover renames, person and group hand-offs, and carrying an area or 
 
 ## Flow
 
-Drafts follow `skills/ha-nova/smallest-solution.md`: the complete requested outcome in the simplest safe design, nothing for hypothetical future needs.
+Drafts follow `../ha-nova/smallest-solution.md`: the complete requested outcome in the simplest safe design, nothing for hypothetical future needs.
 
 ### Swap
 
 1. **Scan both devices first.** `get <old entity> --references` and `get <new entity> --references` BEFORE the old device is removed: afterwards its device and registry ids are gone and device-level references cannot be found. A phone whose device is already gone: scan its old ids the same way, including its notify service (`get notify.mobile_app_<old name> --references`; hits confirm the name).
-2. **Map** old → new from `entities[]`: same domain, then `device_class`, `translation_key`, `unit`, `original_name` without the device name. One-to-one; ambiguity is one question. An old entity with hits but no counterpart is named with the choice: drop the reference, or point it at an entity the user names. Remotes and buttons: `skills/ha-nova/input-capability-preflight.md` first.
+2. **Map** old → new from `entities[]`: same domain, then `device_class`, `translation_key`, `unit`, `original_name` without the device name. One-to-one; ambiguity is one question. An old entity with hits but no counterpart is named with the choice: drop the reference, or point it at an entity the user names. Remotes and buttons: `../ha-nova/input-capability-preflight.md` first.
 3. **Choose the path**:
    - **Takeover** — smaller when the old device is gone for good and the mapped entities share a domain: remove the old device, then rename each new entity to its old entity_id. Every reference by entity_id keeps working (dashboards, energy, groups, persons, scenes, templates) and history and long-term statistics continue, because the old id's recorder rows stay. Never rename the old entity away to free the id: its history and statistics move with it, and the energy dashboard loses that source's past.
    - **Rewrite** each consumer — when the old device stays in use, a domain differs, the old entity has no registry row, or the user wants the new ids. A rewritten energy source starts its history fresh: say so.
@@ -65,12 +65,12 @@ Drafts follow `skills/ha-nova/smallest-solution.md`: the complete requested outc
 5. **Execute** in this order (Re-point Group below):
    a. Device-level re-points — and on the rewrite path every re-point — before anything is removed: the new ids are known now, and a removed device's ids can never be scanned again.
    b. Takeover only: the user removes the old device in Home Assistant. Verify each mapped old id: `ha-nova get <old id>` exits 5 `NOT_FOUND`; a leftover row goes to `ha-nova:maintenance`.
-   c. Takeover renames, one registry update per pair on the NEW entity, per `skills/organize/SKILL.md` → Entity / Device Update Fields (metadata snapshot first); tier per Access Check, ordinary renames in one grouped change set. Carry the old entity's `area_id` and `labels` (area and label targets reach a device only through them) and, when the user wants, its `name`, `icon`, `aliases`. Both paths: the old device's area and labels go to the new device through `ha-nova:organize`.
+   c. Takeover renames, one registry update per pair on the NEW entity, per `../organize/SKILL.md` → Entity / Device Update Fields (metadata snapshot first); tier per Access Check, ordinary renames in one grouped change set. Carry the old entity's `area_id` and `labels` (area and label targets reach a device only through them) and, when the user wants, its `name`, `icon`, `aliases`. Both paths: the old device's area and labels go to the new device through `ha-nova:organize`.
    d. Takeover only, after the renames are verified: re-point every holder that names a NEW entity's own id (the new scan's hits) to its taken-over id; a holder that named both ids now names one entity twice — the user picks which reference stays.
    e. Hand-offs, one owning skill at a time (Hit Routing), each with exact holders, paths, and the mapping; their previews, snapshots, and tiers stay, raised by the Access Check where it applies. The Work Ledger carries the open families.
 6. **Verify**: re-scan the new device. Every holder of both scans shows the new needles or was dropped by the user's choice; on the rewrite path the old device's re-scan has no hits. Report applied, handed off, still open, and the coverage limits. A pure re-point needs no further review; a converted device trigger gets the write skill's Phase 4 review.
 
-**Re-point Group.** Draft = the current config with each mapped needle replaced, templates included, a hit's `keep` devices kept beside it, nothing else changed (key order kept); the takeover path replaces device ids, registry ids, and the notify service only, because the old entity ids will name the new entities. One grouped change set (`skills/ha-nova/grouped-change-set.md`) of at most 5 updates. The undo store keeps the last 5 updated targets across every write of the swap — re-points, typed plans, helper hand-offs: when the swap makes more, the earliest lose `revert`; say so in the plan card and offer `ha-nova:backup` before the first write. The CLI tiers each plan by what the config performs, whichever part changed; a typed plan leaves the group with its own code. Diff rows verbatim.
+**Re-point Group.** Draft = the current config with each mapped needle replaced, templates included, a hit's `keep` devices kept beside it, nothing else changed (key order kept); the takeover path replaces device ids, registry ids, and the notify service only, because the old entity ids will name the new entities. One grouped change set (`../ha-nova/grouped-change-set.md`) of at most 5 updates. The undo store keeps the last 5 updated targets across every write of the swap — re-points, typed plans, helper hand-offs: when the swap makes more, the earliest lose `revert`; say so in the plan card and offer `ha-nova:backup` before the first write. The CLI tiers each plan by what the config performs, whichever part changed; a typed plan leaves the group with its own code. Diff rows verbatim.
 
 Partial failure: each group stops at the first failure and reports its ledger; nothing is atomic. Applied updates keep their `revert` until the undo store evicts them (the `undo` receipts name evictions). A failed rename after the old device's removal leaves the old id unclaimed — the state the dead device left: if `get <old id>` still exits 5, retry that rename; if the id is taken again, stop and re-scan. Never rename anything else to cover. Undoing a takeover renames the entity away and takes the old id's history with it: say so before such a revert.
 
@@ -82,11 +82,11 @@ Partial failure: each group stops at the first failure and reports its ledger; n
 
 ### Retire
 
-`get <entity> --references` on the device, then `skills/ha-nova/safe-refactoring.md` → Pre-Delete Impact Check with these hits as the consumer list and the coverage limits named. Removing the device stays in the HA UI.
+`get <entity> --references` on the device, then `../ha-nova/safe-refactoring.md` → Pre-Delete Impact Check with these hits as the consumer list and the coverage limits named. Removing the device stays in the HA UI.
 
 ## Output Format
 
-Apply `skills/ha-nova/output-rules.md`. The plan is a Report (`skills/ha-nova/output-cards.md`); the mapping reads `old → new` per line, holders by alias or title, paths only on request. Writes keep their owning flows' Preview and Result Cards; a group closes per `skills/ha-nova/grouped-change-set.md`.
+Apply `../ha-nova/output-rules.md`. The plan is a Report (`../ha-nova/output-cards.md`); the mapping reads `old → new` per line, holders by alias or title, paths only on request. Writes keep their owning flows' Preview and Result Cards; a group closes per `../ha-nova/grouped-change-set.md`.
 
 ## Safety
 
@@ -108,5 +108,5 @@ Apply `skills/ha-nova/output-rules.md`. The plan is a Report (`skills/ha-nova/ou
 
 ## References
 
-- `skills/write/SKILL.md` (Phase 2-3), `skills/ha-nova/write-safety.md`, `skills/ha-nova/grouped-change-set.md`, `skills/ha-nova/smallest-solution.md`
-- On demand: `skills/ha-nova/safe-refactoring.md` (retire), `skills/ha-nova/input-capability-preflight.md` (remotes, buttons), `skills/organize/SKILL.md` (takeover fields)
+- `../write/SKILL.md` (Phase 2-3), `../ha-nova/write-safety.md`, `../ha-nova/grouped-change-set.md`, `../ha-nova/smallest-solution.md`
+- On demand: `../ha-nova/safe-refactoring.md` (retire), `../ha-nova/input-capability-preflight.md` (remotes, buttons), `../organize/SKILL.md` (takeover fields)

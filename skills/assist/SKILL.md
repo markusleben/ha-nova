@@ -49,7 +49,7 @@ If this fails: `ha-nova setup`
 
 ## Custom Sentences
 
-Teach Assist a phrase it does not understand out of the box. This skill owns the workflow; the file paths, payload mechanics, and search query live in `skills/fallback/relay-ready.md` → Assist Custom Sentences — read that section first, do not duplicate it here.
+Teach Assist a phrase it does not understand out of the box. This skill owns the workflow; the file paths, payload mechanics, and search query live in `../fallback/relay-ready.md` → Assist Custom Sentences — read that section first, do not duplicate it here.
 
 1. **Opt-in gate**: sentence files need the relay's opt-in file access (`ha-nova:yaml-config` → Bootstrap explains enabling it). Without it, stop and say so.
 2. **Write** the sentence file (and, only when the intent is new, the `intent_script:` block in `configuration.yaml`) per the fallback section's mechanics — `backup: true`, read the whole file before replacing it.
@@ -60,14 +60,14 @@ Teach Assist a phrase it does not understand out of the box. This skill owns the
 
 ## Error Handling
 
-Full relay/upstream error taxonomy: `skills/ha-nova/relay-api.md` -> Error Handling. Assist specifics:
+Full relay/upstream error taxonomy: `../ha-nova/relay-api.md` -> Error Handling. Assist specifics:
 - `assist_pipeline/run` is NOT usable here: it is a streaming subscription (audio), and the relay is request/response. Testing an utterance goes through `/api/conversation/process` instead.
 - An unknown WS command usually means an older Home Assistant — say which version introduced it rather than guessing a workaround.
 - A conversation response of "Sorry, I couldn't understand that" is a real answer, not an error: it means the intent did not match. Report what Assist actually said.
 
 ## Output Format
 
-Apply `skills/ha-nova/output-rules.md` to all user-facing output. Write previews, delete confirmations, and results render as the Cards defined there (`skills/ha-nova/output-cards.md`).
+Apply `../ha-nova/output-rules.md` to all user-facing output. Write previews, delete confirmations, and results render as the Cards defined there (`../ha-nova/output-cards.md`).
 
 Render the Report shape (output-cards.md). For an utterance test: the exact response text Assist gave, what it did (or did not) match, and which entities it touched. For pipelines: name, engines, language, and which one is preferred. Never paraphrase Assist's answer into something friendlier than it was.
 
@@ -80,7 +80,7 @@ Render the Report shape (output-cards.md). For an utterance test: the exact resp
 - Home Assistant is reached exclusively through the `ha-nova` CLI.
 - For any HA write this skill does not cover, STOP and invoke `ha-nova:fallback` first — never probe unfamiliar write endpoints.
 
-- Drafts follow `skills/ha-nova/smallest-solution.md`: the complete requested outcome in the simplest safe design, nothing for hypothetical future needs.
+- Drafts follow `../ha-nova/smallest-solution.md`: the complete requested outcome in the simplest safe design, nothing for hypothetical future needs.
 
 - **A test utterance is a live command.** `conversation/process` executes what it understands. Anything that could change state gets a preview and confirmation, exactly like a service call.
 - An utterance is the least enumerable indirect actuation there is: what it reaches is decided by the conversation agent at runtime. When the utterance plausibly reaches a lock, alarm panel, or access cover — the words themselves, or the exposed entity set makes it reachable — it takes the one-time code (context skill → Confirmation Tiers), including the re-run proof after an exposure fix.

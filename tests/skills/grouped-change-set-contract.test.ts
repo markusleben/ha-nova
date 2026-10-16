@@ -19,16 +19,16 @@ const OPTED_IN_SKILLS = [
 
 describe("grouped change set contract (issue #391)", () => {
   it("is referenced by the context skill, output-rules, write-safety, batch-safety, and every opted-in skill", () => {
-    expect(contextSkill).toContain("skills/ha-nova/grouped-change-set.md");
-    expect(outputRules).toContain("skills/ha-nova/grouped-change-set.md");
-    expect(writeSafety).toContain("skills/ha-nova/grouped-change-set.md");
-    expect(batchSafety).toContain("skills/ha-nova/grouped-change-set.md");
+    expect(contextSkill).toContain("../ha-nova/grouped-change-set.md");
+    expect(outputRules).toContain("../ha-nova/grouped-change-set.md");
+    expect(writeSafety).toContain("../ha-nova/grouped-change-set.md");
+    expect(batchSafety).toContain("../ha-nova/grouped-change-set.md");
     for (const skill of OPTED_IN_SKILLS) {
       const doc = readFileSync(`skills/${skill}/SKILL.md`, "utf8");
       expect(
         doc,
         `skills/${skill}/SKILL.md must reference the grouped contract`,
-      ).toContain("skills/ha-nova/grouped-change-set.md");
+      ).toContain("../ha-nova/grouped-change-set.md");
     }
   });
 

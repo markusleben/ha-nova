@@ -152,7 +152,7 @@ describe("helper contract", () => {
       expect(skillDoc).toContain("verified for the `sensor` subtype");
       expect(skillDoc).not.toContain("does **not** support update yet");
       // Template authoring safety: broken templates render entities unavailable.
-      expect(skillDoc).toContain("skills/ha-nova/template-guidelines.md");
+      expect(skillDoc).toContain("../ha-nova/template-guidelines.md");
       expect(skillDoc).toContain("post-write verification must read the rendered state");
       expect(flowSchemasDoc).toContain("`name` is NOT editable via the options flow");
       // Menu-flow safety machinery covers template like group (16 unverified subtypes).

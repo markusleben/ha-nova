@@ -60,7 +60,7 @@ File-based relay requests only:
   uninstall/migration flow, after its own typed confirmation
 - `--jq-file <filter-file>` for non-trivial filters
 
-Envelope parsing follows `skills/ha-nova/relay-api.md` → Standard Envelope;
+Envelope parsing follows `../ha-nova/relay-api.md` → Standard Envelope;
 WS results live under `.data`.
 
 The pinned command map, repository-identity rules, error asymmetry, and
@@ -172,8 +172,8 @@ HACS-specific consumer discovery FIRST and shows the result in the preview:
   footprint is incomplete — never that there is none
 - REFERENCING automations/scripts/scenes through `search/related` on those
   entities — read the response ONLY through the canonical filter
-  `skills/ha-nova/search-related-consumers.jq` (recreate it per
-  `skills/ha-nova/relay-api.md` → Parsing rule on flat-copy installs). Fail
+  `../ha-nova/search-related-consumers.jq` (recreate it per
+  `../ha-nova/relay-api.md` → Parsing rule on flat-copy installs). Fail
   closed: only a verified-shape empty result means "no linked consumers
   found"; a failed, skipped, or wrong-path scan renders as "consumer check
   inconclusive", NEVER as a no-consumer claim. The canonical filter covers
@@ -262,9 +262,9 @@ the operation, the observed state, and the next safe step.
 
 ## Output Format
 
-Apply `skills/ha-nova/output-rules.md` to all user-facing output: List Frame
+Apply `../ha-nova/output-rules.md` to all user-facing output: List Frame
 for inventories (counts first, Progressive Detail follow-ups), Preview/Delete
-/Result Cards for mutations (both in `skills/ha-nova/output-cards.md`), no raw JSON. Keep repository `full_name`,
+/Result Cards for mutations (both in `../ha-nova/output-cards.md`), no raw JSON. Keep repository `full_name`,
 versions, categories, and HA state values literal; localize everything else
 at runtime.
 
@@ -277,7 +277,7 @@ at runtime.
 - Home Assistant is reached exclusively through the `ha-nova` CLI.
 - For any HA write this skill does not cover, STOP and invoke `ha-nova:fallback` first — never probe unfamiliar write endpoints.
 
-- Drafts follow `skills/ha-nova/smallest-solution.md`: the complete requested outcome in the simplest safe design, nothing for hypothetical future needs.
+- Drafts follow `../ha-nova/smallest-solution.md`: the complete requested outcome in the simplest safe design, nothing for hypothetical future needs.
 
 - Confirmation tiers: natural confirmation for install/update/redownload;
   the one-time code for uninstall, registration removal, and

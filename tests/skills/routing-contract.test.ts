@@ -61,7 +61,7 @@ describe("boundary statements between neighbouring skills (#518)", () => {
       /### Trace Evidence[\s\S]*?### Step 3: Conflict Analysis/,
     )?.[0];
     expect(traceEvidence).toBeDefined();
-    expect(traceEvidence ?? "").not.toContain("skills/read/SKILL.md");
+    expect(traceEvidence ?? "").not.toContain("../read/SKILL.md");
     // And the entrypoint must not keep its own contradicting verify gate.
     expect(review).toContain("the canonical sequence lives in");
     expect(review).not.toContain("Only flag as error if confirmed invalid after both checks");
@@ -161,11 +161,11 @@ describe("load-bearing rules referenced from where they apply (#518)", () => {
     // A standalone loader cannot follow "check the local reference doc" unless
     // the doc is named, and the sequence must not demand two confirmations
     // for something the first source already settled.
-    expect(checks).toContain("skills/ha-nova/template-guidelines.md");
+    expect(checks).toContain("../ha-nova/template-guidelines.md");
     // Every local reference needs its full path: a direct loader cannot open
     // "automation-patterns.md" relative to nothing.
-    expect(checks).toContain("skills/ha-nova/automation-patterns.md");
-    expect(checks).toContain("skills/ha-nova/helper-flow-schemas.md");
+    expect(checks).toContain("../ha-nova/automation-patterns.md");
+    expect(checks).toContain("../ha-nova/helper-flow-schemas.md");
     expect(checks).toContain("home-assistant.io/docs/automation/trigger/");
     // Most of the catalog flags valid-but-risky config, so demanding schema
     // invalidity would suppress even HIGH runtime hazards.

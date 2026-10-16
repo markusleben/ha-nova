@@ -11,8 +11,9 @@ const configApply = readFileSync("cli/verb_config_apply.go", "utf8");
 describe("write delete safety contract", () => {
   it("requires delete previews to surface consumer-check results before confirmation", () => {
     expect(writeSkill).toContain("Delete preview MUST include the consumer-check result before confirmation");
-    expect(writeSkill).toContain('an explicit "consumer check inconclusive" line when the scan failed or did not run');
-    expect(writeSkill).toContain("Never present a failed or skipped scan as a no-consumer result");
+    // The CLI emits `consumers: []` only for a complete delete scan (plan_config.go).
+    expect(writeSkill).toContain("`[]` is an explicit none");
+    expect(writeSkill).toContain('absent (`coverage.complete` false) is "consumer check inconclusive", never a no-consumer result');
   });
 
   it("requires destructive writes to stay unclaimed until verification proves the target is gone", () => {
@@ -25,7 +26,7 @@ describe("write delete safety contract", () => {
     expect(writeSkill).toContain("Changes slot");
     expect(writeSkill).toContain("Pre-Write Impact");
     expect(writeSkill).toContain("Update-Revert");
-    expect(writeSkill).toContain("skills/ha-nova/write-safety.md");
+    expect(writeSkill).toContain("../ha-nova/write-safety.md");
     // YAML is opt-in, not dumped by default, for a non-technical audience.
     expect(writeSkill).toContain("show yaml");
     expect(writeSkill).toContain("cancel");

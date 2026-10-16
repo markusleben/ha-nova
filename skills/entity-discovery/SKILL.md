@@ -59,7 +59,7 @@ match basis (`by`: `name`, `alias`, or `state` for unregistered).
 ### Step 1b: Bulk inventory — raw relay
 
 `find` matches phrases; `prefix`, `label`, and domain-count inventories use the
-relay. For bulk selectors, follow `skills/ha-nova/bulk-patterns.md`.
+relay. For bulk selectors, follow `../ha-nova/bulk-patterns.md`.
 - `prefix`: case-insensitive prefix match on the entity_id suffix and display name
 - `domain`: exact domain filter
 - `area`: resolve the area, then use `search/related` as the primary shortlist source; use `ai` only as optional extra evidence when present
@@ -78,7 +78,7 @@ Create `<payload-file>` with `{"type":"config/entity_registry/list_for_display"}
 ha-nova relay ws --data-file <payload-file> --jq-file <filter-file>
 ```
 
-Write `<filter-file>` by copying the canonical `skills/ha-nova/discovery-filter.jq`
+Write `<filter-file>` by copying the canonical `../ha-nova/discovery-filter.jq`
 and replacing `KEYWORD` with the pattern; if the canonical file is unavailable
 (flat-copy installs), recreate it with exactly:
 
@@ -255,7 +255,7 @@ If ambiguity remains: present top candidates (max 10) and state the match basis 
 
 ## Output Format
 
-Apply `skills/ha-nova/output-rules.md` to all user-facing output.
+Apply `../ha-nova/output-rules.md` to all user-facing output.
 
 Render the Step 4 shortlist as the List Frame (output-cards.md); never dump raw `get_states` output.
 

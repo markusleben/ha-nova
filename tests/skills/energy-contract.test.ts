@@ -136,7 +136,7 @@ describe("energy contract", () => {
 
   it("teaches file-based relay payloads and localized output slots", () => {
     expect(energySkill).toMatch(/--(data-file|body-file|out)\b/);
-    expect(energySkill).toContain("skills/ha-nova/output-rules.md");
+    expect(energySkill).toContain("../ha-nova/output-rules.md");
     expect(energySkill).toContain("Use stable localized slot labels in this order; omit empty slots.");
   });
 });

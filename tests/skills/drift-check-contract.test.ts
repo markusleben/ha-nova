@@ -28,7 +28,7 @@ describe("pre-write drift check covers every full-document write (#514)", () => 
 
   it("wires energy save_prefs to the clause instead of relying on the post-save check", () => {
     expect(flat(energy)).toContain(
-      "run the drift check before applying (`skills/ha-nova/write-safety.md` → Drift check before apply)",
+      "run the drift check before applying (`../ha-nova/write-safety.md` → Drift check before apply)",
     );
     expect(flat(energy)).toContain("re-read `get_prefs` immediately before the save");
     expect(flat(energy)).toContain("On any other foreign change STOP");
@@ -43,7 +43,7 @@ describe("pre-write drift check covers every full-document write (#514)", () => 
   it("wires the yaml whole-file write to the clause, last before the write", () => {
     const y = flat(yamlConfig);
     expect(y).toContain(
-      "run the drift check IMMEDIATELY before the write (`skills/ha-nova/write-safety.md` → Drift check before apply)",
+      "run the drift check IMMEDIATELY before the write (`../ha-nova/write-safety.md` → Drift check before apply)",
     );
     // Ordering matters: a snapshot round trip after the re-read reopens the
     // very window the re-read exists to close.

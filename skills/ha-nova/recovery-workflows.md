@@ -3,7 +3,7 @@
 Shared contract for automations that monitor a health signal and act to
 restore it (#568) and for workflows that repeat a recovery action after a
 failed attempt (#569). Outcome evidence vocabulary and result classes:
-`skills/ha-nova/outcome-verification.md` (#567).
+`../ha-nova/outcome-verification.md` (#567).
 
 ## Liveness against persistent faults (#568)
 
@@ -31,7 +31,7 @@ Distinguish four design classes before drafting or judging:
 Any watchdog-intent design requires ALL of:
 
 - The monitored health signal is re-checked after the recovery action per
-  `skills/ha-nova/outcome-verification.md` — still unhealthy is `failed`,
+  `../ha-nova/outcome-verification.md` — still unhealthy is `failed`,
   never inferred success.
 - An explicit persistent-fault path: bounded retry, periodic re-evaluation,
   or failure escalation.
@@ -79,7 +79,7 @@ Rules:
 - An ambiguous transport failure never triggers a retry: the first action may
   already have been applied.
 - Every retry keys on semantic failure evidence per
-  `skills/ha-nova/outcome-verification.md` — a bare service-call error is
+  `../ha-nova/outcome-verification.md` — a bare service-call error is
   never retry evidence. Each attempt gets its own bounded
   outcome-verification window. The probe must stay REACHABLE when the
   recovery action itself errors: Home Assistant aborts an action sequence on

@@ -39,7 +39,7 @@ group, channel, clearing, priority, attachment, or action metadata:
 - Critical or high-priority delivery only for genuinely urgent events.
 
 **Actionable notifications are a separate high-risk payload family.** The
-supported flow is the durable listener contract (`skills/notify/SKILL.md`): an
+supported flow is the durable listener contract (`../notify/SKILL.md`): an
 existing, verified automation filtered to the exact `event_data.action` ID —
 never a send-specific listener invented for one run. Invocation-unique action
 identifiers and bounded waits apply only where a genuinely supported

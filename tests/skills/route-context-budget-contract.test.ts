@@ -151,7 +151,7 @@ function declaredAlwaysLoads(route: string): string[] {
   return [
     ...new Set(
       blocks.flatMap((block) =>
-        [...block.matchAll(/`((?:skills|docs)\/[^`]+\.md)`/g)].map((match) => match[1] ?? ""),
+        [...block.matchAll(/`((?:skills|docs|\.\.)\/[^`]+\.md)`/g)].map((match) => (match[1] ?? "").replace(/^\.\.\//, "skills/")),
       ),
     ),
   ];
@@ -176,7 +176,7 @@ describe("route context ratchet (#521)", () => {
         (file) => file !== "skills/ha-nova/SKILL.md" && file !== "skills/ha-nova/session-bootstrap.md",
       ).sort(),
     );
-    expect(readFileSync("skills/ha-nova/output-rules.md", "utf8")).toContain(`read\n\`${CARDS}\``);
+    expect(readFileSync("skills/ha-nova/output-rules.md", "utf8")).toContain(`read\n\`${CARDS.replace(/^skills\//, "../")}\``);
     for (const [name, { files, verbRoute, noRouter, skill, extra = [] }] of Object.entries(ROUTE_BUDGETS)) {
       const route = skill ?? name;
       const text = readFileSync(`skills/${route}/SKILL.md`, "utf8");
@@ -189,11 +189,11 @@ describe("route context ratchet (#521)", () => {
       const expected = new Set([...mandatory, `skills/${route}/SKILL.md`, ...declaredAlwaysLoads(route), ...extra]);
       if (route === "review") {
         // The checks catalog is read on every review (Verify-before-flag rule).
-        expect(text).toContain("`skills/review/checks.md`");
+        expect(text).toContain("`../review/checks.md`");
         expected.add("skills/review/checks.md");
         // Reviews flag findings routinely, so the evidence boundaries and the
         // scene/dashboard/cross-item/TS families are read every time.
-        expect(text).toContain("`skills/review/checks-extended.md`");
+        expect(text).toContain("`../review/checks-extended.md`");
         expected.add("skills/review/checks-extended.md");
       }
       expect([...files].sort(), `${name} route file list must mirror its declarations`).toEqual(

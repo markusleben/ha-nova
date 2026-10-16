@@ -153,7 +153,7 @@ describe("updates contract", () => {
 
   it("teaches file-based relay payloads and localized output slots", () => {
     expect(updatesSkill).toMatch(/--(data-file|body-file|out)\b/);
-    expect(updatesSkill).toContain("skills/ha-nova/output-rules.md");
+    expect(updatesSkill).toContain("../ha-nova/output-rules.md");
     expect(updatesSkill).toContain("Use stable localized slot labels in this order; omit empty slots.");
   });
 });

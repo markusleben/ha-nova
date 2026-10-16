@@ -5,7 +5,7 @@
 <!-- Copyright (c) Sergey Kadentsev (@sergeykad), Julien Lapointe (@julienld) -->
 
 Compact reference for native HA constructs that LLMs commonly replace with templates.
-For template decision trees see `template-guidelines.md`. For review checks see `skills/review/checks.md`.
+For template decision trees see `template-guidelines.md`. For review checks see `../review/checks.md`.
 
 ## Action Flow Control
 
@@ -377,11 +377,11 @@ re-resolution, never copy-paste:
 
 A request that should not outlive its purpose — "tell me when the laundry
 finishes", "run the sprinkler for 30 minutes" — follows
-`skills/ha-nova/one-shot-automations.md`: self-disabling patterns, deadline
+`../ha-nova/one-shot-automations.md`: self-disabling patterns, deadline
 expiry with startup recovery, and duration requests where write owns both
 halves.
 
 ## Save / Restore Patterns
 
-- Save → modify → restore designs that must survive a restart: check `skills/ha-nova/best-practices.md` → Persistence Model before choosing the storage construct. `scene.create` snapshots and `variables:` do not survive restarts.
+- Save → modify → restore designs that must survive a restart: check `../ha-nova/best-practices.md` → Persistence Model before choosing the storage construct. `scene.create` snapshots and `variables:` do not survive restarts.
 - Pair the forward (save) branch with a state flag and guard the reverse (restore) branch on that flag; clear the flag after restoring. An unguarded reverse branch overwrites user-set state after cycles where the forward branch never ran.

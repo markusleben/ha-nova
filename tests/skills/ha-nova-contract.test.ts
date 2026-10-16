@@ -45,8 +45,8 @@ describe("ha-nova contract", () => {
     // permits hand-written diffs.
     const latencySection = context.split("keep main-thread file reads minimal:")[1] ?? "";
     const allowlist = latencySection.split("- No proactive doctor")[0];
-    expect(allowlist).toContain("`skills/ha-nova/output-rules.md`");
-    expect(allowlist).toContain("`skills/ha-nova/write-safety.md`");
+    expect(allowlist).toContain("`../ha-nova/output-rules.md`");
+    expect(allowlist).toContain("`../ha-nova/write-safety.md`");
   });
 
   it("routes dashboard, organization, and history intents to dedicated skills", () => {
@@ -324,7 +324,7 @@ describe("ha-nova contract", () => {
     const context = readFileSync("skills/ha-nova/SKILL.md", "utf8");
     const outputRules = readFileSync("skills/ha-nova/output-rules.md", "utf8") + readFileSync("skills/ha-nova/output-cards.md", "utf8");
 
-    expect(context).toContain("skills/ha-nova/output-rules.md");
+    expect(context).toContain("../ha-nova/output-rules.md");
     expect(context).toContain("internal-code hiding");
     expect(outputRules).toContain("Localize section headings and labels");
     expect(outputRules).toContain("Keep Home Assistant state values");
@@ -362,7 +362,7 @@ describe("ha-nova contract", () => {
       expect(
         skill,
         `${skillPath} must reference shared output rules`,
-      ).toContain("skills/ha-nova/output-rules.md");
+      ).toContain("../ha-nova/output-rules.md");
     }
   });
 
@@ -632,7 +632,7 @@ describe("ha-nova contract", () => {
 
     // Write flow blocks remap drafts until the gesture is more than assumed.
     expect(write).toContain(
-      "run the capability preflight per `skills/ha-nova/input-capability-preflight.md` before drafting",
+      "run the capability preflight per `../ha-nova/input-capability-preflight.md` before drafting",
     );
     expect(write).toContain(
       "the write stays blocked while the chosen gesture is only assumed or its evidence conflicts",
@@ -685,7 +685,7 @@ describe("ha-nova contract", () => {
     );
 
     // Zigbee button authoring points at the preflight first.
-    expect(bp).toContain("skills/ha-nova/input-capability-preflight.md");
+    expect(bp).toContain("../ha-nova/input-capability-preflight.md");
   });
 
   it("discovers consumers before an input is repurposed", () => {
@@ -704,7 +704,7 @@ describe("ha-nova contract", () => {
 
     // Write flow routes repurpose/cleanup through the discovery preflight.
     expect(write).toContain(
-      "additionally runs `skills/ha-nova/consumer-discovery-preflight.md`",
+      "additionally runs `../ha-nova/consumer-discovery-preflight.md`",
     );
     expect(write).toContain(
       'incomplete coverage is disclosed, never claimed as "unused"',
@@ -746,13 +746,13 @@ describe("ha-nova contract", () => {
 
     // Cross-links: companion pair + shared event-scan + External anchor.
     expect(capability).toContain(
-      "skills/ha-nova/consumer-discovery-preflight.md",
+      "../ha-nova/consumer-discovery-preflight.md",
     );
     expect(serviceCall).toContain(
-      "the shared event-consumer pattern of `skills/ha-nova/consumer-discovery-preflight.md`",
+      "the shared event-consumer pattern of `../ha-nova/consumer-discovery-preflight.md`",
     );
     expect(fallback).toContain(
-      "only through a documented adapter (`skills/ha-nova/consumer-discovery-preflight.md`",
+      "only through a documented adapter (`../ha-nova/consumer-discovery-preflight.md`",
     );
   });
 

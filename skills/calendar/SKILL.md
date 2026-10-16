@@ -39,7 +39,7 @@ Use REST reads, one create service, and feature-gated WebSocket writes:
 `<calendar-events-path>` is:
 `/api/calendars/<calendar_entity_id>?start=<timestamp>&end=<timestamp>`
 
-Relay-core response body is under `.data.body` (envelope contract: `skills/ha-nova/relay-api.md` → Standard Envelope).
+Relay-core response body is under `.data.body` (envelope contract: `../ha-nova/relay-api.md` → Standard Envelope).
 
 ## Flow
 
@@ -87,14 +87,14 @@ Relay-core response body is under `.data.body` (envelope contract: `skills/ha-no
 
 ## Error Handling
 
-- Relay/upstream failures follow `skills/ha-nova/relay-api.md` → Error Handling.
+- Relay/upstream failures follow `../ha-nova/relay-api.md` → Error Handling.
 - Unsupported feature or missing `uid`: stop and name the limitation; do not try another endpoint.
 - Timeout/`502`: verify first. Create may already have produced an event, so automatic retry risks a duplicate.
 - Provider rejection: surface the Home Assistant reason without guessing a corrected payload.
 
 ## Output Format
 
-Apply `skills/ha-nova/output-rules.md` to all user-facing output.
+Apply `../ha-nova/output-rules.md` to all user-facing output.
 
 - `Calendar`
 - `Window`
@@ -112,7 +112,7 @@ These slots render the Report shape (output-cards.md); event groups follow the L
 - Home Assistant is reached exclusively through the `ha-nova` CLI.
 - For any HA write this skill does not cover, STOP and invoke `ha-nova:fallback` first — never probe unfamiliar write endpoints.
 
-- Drafts follow `skills/ha-nova/smallest-solution.md`: the complete requested outcome in the simplest safe design, nothing for hypothetical future needs.
+- Drafts follow `../ha-nova/smallest-solution.md`: the complete requested outcome in the simplest safe design, nothing for hypothetical future needs.
 
 - Create and update require natural confirmation; delete retains the core one-time code gate.
 - Calendar event writes have no HA NOVA revert. A provider recycle bin may exist but is not guaranteed; recreate only from a user-approved preview.
@@ -122,5 +122,5 @@ These slots render the Report shape (output-cards.md); event groups follow the L
 
 ## References
 
-- Relay API: `skills/ha-nova/relay-api.md`
-- Shared write safety: `skills/ha-nova/write-safety.md`
+- Relay API: `../ha-nova/relay-api.md`
+- Shared write safety: `../ha-nova/write-safety.md`
