@@ -253,7 +253,7 @@ Match user intent to exactly one skill:
 | User wants to… | Invoke exactly |
 |---|---|
 | list, show, read automations/scripts | `ha-nova:read` |
-| analyze, review, audit, check, find problems | `ha-nova:review` (reads config internally) |
+| analyze, review, audit, check, find problems | `ha-nova:review` (reads config internally); the whole home: `ha-nova:home-map` |
 | create, update, delete automations/scripts | `ha-nova:write` (resolves + reviews internally) |
 | do something FOR a duration when the service has NO native duration field ("sprinkler for 30 minutes", "lights on for an hour") | `ha-nova:write` — one preview covering the immediate service call AND the expiry automation, per `skills/ha-nova/one-shot-automations.md`; routing the halves to two skills loses the pairing |
 | list, show, read helpers | `ha-nova:helper` |
@@ -296,7 +296,7 @@ Match user intent to exactly one skill:
 | fix relay/auth/connectivity errors | `ha-nova:onboarding` |
 | undo, revert, or restore the last automation/script/helper change | the skill that wrote it — `ha-nova:write` (automation/script) or `ha-nova:helper` (helper). `revert` applies only to supported verified updates. Creates clean up through the normal delete flow; a DELETED automation/script/scene/dashboard/STORAGE helper restores from its auto config snapshot in the owning skill (`skills/ha-nova/config-snapshots.md`); config-entry helpers are not snapshot-covered — their recovery stays Backup/recreate. Run `ha-nova snapshot show` to see the saved update target if unsure |
 | "what can you do (here)?" — the capability question | `ha-nova` (this context skill); answer per `skills/ha-nova/capability-answer.md`, grounded in this home |
-| "show me my home" — an aggregate overview | `ha-nova` (this context skill); Home Overview in `skills/ha-nova/capability-answer.md` |
+| "show me my home", "where is X used?", audit or document the whole home, first look | `ha-nova:home-map` |
 | "can I break something?", "is this safe?" | `ha-nova` (this context skill); Safety Story in `skills/ha-nova/capability-answer.md` |
 | "analyze my home and suggest automations", "what should I automate?" | `ha-nova` (this context skill); `skills/ha-nova/starter-proposals.md` — read-only until an item is accepted |
 | "what did you do today / this session?" | `ha-nova` (this context skill); Session Recap rule in `skills/ha-nova/output-cards.md` |
@@ -307,6 +307,7 @@ Match user intent to exactly one skill:
 | **any HA task not matched above** — blueprints, unsupported admin writes, any unfamiliar raw relay/ws/core write | `ha-nova:fallback` **(mandatory fallback — never skip)** |
 
 **"Analyze my automation"** → `ha-nova:review` (NOT read + review)
+**"Review my whole setup"** → `ha-nova:home-map` (NOT review or health)
 **"Review my utility meter helper"** → `ha-nova:review` (minimal config-entry helper review)
 **"Show my automations"** → `ha-nova:read` (NOT review)
 **"Show all automations with prefix routine_"** → `ha-nova:entity-discovery` (bulk inventory, not full YAML dump)
@@ -391,7 +392,7 @@ Dispatch to `ha-nova:review` instead when there is no concrete incident: config-
 ## Latency Policy
 
 - Prefer one-shot reads over multi-step probing.
-- For lookups prefer the typed read verbs (`ha-nova find|get|history`); otherwise try Relay `/ws` directly.
+- For lookups prefer the typed read verbs (`ha-nova find|get|history|map`); otherwise try Relay `/ws` directly.
 - For write flows, keep main-thread file reads minimal:
   - context skill (this file)
   - `skills/ha-nova/bulk-patterns.md` only for multi-target discovery/review work

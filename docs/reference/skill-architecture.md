@@ -2,7 +2,7 @@
 
 ## Overview
 
-HA NOVA uses a flat skill layout with one context skill and 31 independent sub-skills under `skills/`.
+HA NOVA uses a flat skill layout with one context skill and 32 independent sub-skills under `skills/`.
 
 The repo skill tree is the single source of truth. Client installers adapt that same tree to each client's packaging rules:
 - Claude: plugin marketplace payload
@@ -44,6 +44,7 @@ skills/
   device/SKILL.md                       (ha-nova:device — replace, onboard, retire a device; re-point its consumers)
   history/SKILL.md                      (ha-nova:history — bounded history/logbook/statistics reads)
   health/SKILL.md                       (ha-nova:health — read-only home status, repairs, system health)
+  home-map/SKILL.md                     (ha-nova:home-map — exact home inventory, where-used, whole-home audit, first look via `ha-nova map`)
   calendar/SKILL.md                     (ha-nova:calendar — bounded calendar reads and single-event writes)
   hacs/SKILL.md                         (ha-nova:hacs — HACS package lifecycle: registration, download, update, uninstall, migration)
   todo/SKILL.md                         (ha-nova:todo — to-do list items + Local To-do lifecycle)
@@ -107,6 +108,7 @@ Current mapping:
 | device | inline + CLI | `get --references` scans; `plan write` + `apply` re-point; every other family hands off to its owner |
 | history | inline | read-only bounded timeline lookups |
 | health | inline | read-only status aggregation, best-effort diagnostics |
+| home-map | inline + CLI | `ha-nova map` computes every count; the skill renders and hands fixes to owning skills |
 | calendar | inline | bounded REST reads plus feature-gated service/WS event writes |
 | todo | inline | service-based item CRUD with feature gate, single-step list flow |
 | backup | inline | WS status/generate/delete with initiation-vs-completion polling |

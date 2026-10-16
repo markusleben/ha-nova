@@ -32,7 +32,7 @@ const mcpInstructions = `HA NOVA controls one Home Assistant through typed tools
 Before you build, change, review or diagnose anything, call ha_skill for the
 matching skill (once per skill per session) and follow it; device control and
 lookups need only the tools.
-Read freely with ha_find, ha_get, ha_history, ha_trace, and ha_read.
+Read freely with ha_find, ha_get, ha_history, ha_map, ha_trace, and ha_read.
 Change things only with ha_call (devices) or ha_plan followed by ha_apply.
 Ordinary everyday actions run immediately and are verified; anything else
 returns status needs_confirmation with a preview: show that preview to the

@@ -63,6 +63,11 @@ var mcpTools = []mcpTool{mcpSkillTool,
 		argv: func(a map[string]json.RawMessage, _ *mcpTempFiles) ([]string, error) {
 			return flagsThen(a, []string{"logbook"}, []string{"since", "until"}, "entity_id")
 		}, run: runHistoryCommand},
+	{name: "ha_map", title: "Map the home", description: "Exact, computed home facts — never count by hand: areas/floors with device and entity counts, automations/scripts/scenes/helpers, integrations, unavailable entities, low batteries. section gives one full list; entity gives where-used (automations, scripts, scenes, groups; not_checked names what was not searched); first_look gives the onboarding summary.", readOnly: true, idempotent: true,
+		schema: object(nil, map[string]any{"section": map[string]any{"type": "string", "enum": []string{"areas", "integrations", "automations", "unavailable", "batteries"}},
+			"entity": prop("string", "exact entity_id: where it is used"), "first_look": prop("boolean", "the onboarding first look"),
+			"limit": prop("integer", "1-200 rows for section or entity")}),
+		argv: mapArgv, run: runMapCommand},
 	{name: "ha_trace", title: "Read automation traces", description: "Latest trace, trace list, or one trace of an automation or script.", readOnly: true, idempotent: true,
 		schema: object([]string{"action", "entity_id"}, map[string]any{"action": map[string]any{"type": "string", "enum": []string{"latest", "list", "get"}},
 			"entity_id": prop("string", "automation.x or script.x"), "run_id": prop("string", "for action get")}),
@@ -171,7 +176,7 @@ func pinServer(tool string, argv []string, pin string) []string {
 	}
 	flag := "--server=" + pin
 	switch tool {
-	case "ha_find", "ha_get", "ha_history", "ha_call", "ha_apply":
+	case "ha_find", "ha_get", "ha_history", "ha_map", "ha_call", "ha_apply":
 		return append([]string{flag}, argv...)
 	case "ha_plan": // after the subcommand
 		return append([]string{argv[0], flag}, argv[1:]...)
@@ -375,6 +380,16 @@ func flagsThen(args map[string]json.RawMessage, bools, strs []string, positional
 	}
 	if positional != "" {
 		argv = append(argv, "--", text(args, positional))
+	}
+	return argv, nil
+}
+
+func mapArgv(args map[string]json.RawMessage, _ *mcpTempFiles) ([]string, error) {
+	argv, _ := flagsThen(args, []string{"first_look"}, []string{"section", "entity"}, "")
+	if raw, present := args["limit"]; present {
+		var n int
+		_ = json.Unmarshal(raw, &n)
+		argv = append(argv, "--limit="+strconv.Itoa(n))
 	}
 	return argv, nil
 }
