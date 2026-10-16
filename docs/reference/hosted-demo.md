@@ -304,7 +304,8 @@ bed's pinned version (`update-ha.sh --pin 2026.10.1`, signature-checked).
 The full test bed `verify.sh` is not the gate: it needs the Go CLI and the
 command_line/rest entities the demo masks; `smoke` covers what the demo
 relies on. Manual rollback: `update-ha.sh --pin <older version>` (2026.10 or
-newer: older releases cannot read the seeded `.storage/http`), then
+newer; `--pin` refuses older releases, which cannot read the seeded
+`.storage/http`), then
 `systemctl start ha-nova-demo-reset`. A release that changes what the demo
 depends on (e.g. the seeded `.storage/http` format) fails its smoke
 test and stays out until the repo is fixed.
