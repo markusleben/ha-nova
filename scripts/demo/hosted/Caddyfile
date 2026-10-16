@@ -64,7 +64,7 @@
 	# brands.home-assistant.io itself, which the house cannot (no egress):
 	# broken icons in Settings. The visitor's browser gets the same public
 	# image from the CDN instead, by a redirect that keeps only the domain and
-	# file name (HA's own allowlist), never the token query. CDN paths as in
+	# file name (HA's eight icon/logo names), never the token query. CDN paths as in
 	# HA's brands integration: _/ falls back to a placeholder, brands/ is exact.
 	@brand path_regexp brand ^/api/brands/integration/([a-z0-9_]+)/((?:dark_)?(?:icon|logo)(?:@2x)?\.png)$
 	@brand_exact {

@@ -250,7 +250,8 @@ async function dashboard() {
 
 function httpProblem(http) {
   const s = http.stable;
-  return Boolean(http.pending) || s.use_x_forwarded_for !== true || s.ip_ban_enabled !== false
+  return Boolean(http.pending) || http.active_config_type !== "stable"
+    || s.use_x_forwarded_for !== true || s.ip_ban_enabled !== false
     || JSON.stringify(s.trusted_proxies) !== JSON.stringify([PROXY]);
 }
 
