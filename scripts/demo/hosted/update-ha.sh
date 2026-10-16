@@ -21,7 +21,7 @@ IMAGE=ghcr.io/home-assistant/home-assistant
 ISSUER=https://token.actions.githubusercontent.com
 
 fail() {
-  logger -p user.err -t ha-nova-demo-update "$*"
+  logger -p user.err -t ha-nova-demo-update -- "$*"
   echo "update-ha: FAILED: $*" >&2
   exit 1
 }
@@ -82,7 +82,7 @@ if [[ "${1:-}" == --pin ]]; then
   # Older releases cannot read the seeded config/.storage/http (no http YAML
   # any more): the house would stay down with no good digest to go back to.
   [[ "$(printf '%s\n%s\n' 2026.10.0 "${2:-}" | sort -V | head -1)" == 2026.10.0 ]] \
-    || fail "--pin ${2:-}: older than 2026.10, which cannot read the seeded config/.storage/http"
+    || fail "refusing --pin ${2:-}: older than 2026.10, which cannot read the seeded config/.storage/http"
   ref="$(verify "${2:-}")"
   persist "$ref" "$2"
   log "pinned Home Assistant $2 ($ref)"
