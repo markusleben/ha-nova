@@ -178,8 +178,11 @@ plain message and the typed code (which an owner provides).
   never sends the user to a browser for nothing. `ha-nova pair` and scripted
   input are unchanged.
 - Before the prompt, a public `GET /auth/providers` through the sign-in client
-  proves the CLI can reach that origin (TLS trusted, no redirect); otherwise one
-  line explains why and the code prompt follows.
+  proves the CLI can reach that origin (TLS trusted); otherwise one line explains
+  why and the code prompt follows. Under Supervisor, Home Assistant 2026.10+
+  serves port 80 and answers the legacy port 8123 with a 307 to the same URL on
+  port 80; the CLI follows exactly one such same-host move and signs in against
+  the new origin. Any other redirect falls back to the code.
 - At the prompt: Enter, `y`, or `yes` signs in; `code` goes to the code prompt;
   six digits are used as the code directly; `manual` keeps the token path.
 - OAuth reuses `cli/cloud_oauth_loopback.go`: 127.0.0.1 random port, client ID
@@ -262,6 +265,10 @@ used.
 - Supervisor 2026.10.2 sets `X-Remote-User-*` from the session and strips
   client-supplied copies (`supervisor/api/ingress.py` 370-397) and invalidates
   sessions of removed or inactive users (333-367).
+- Under Supervisor, core 2026.10 defaults to port 80 (`SUPERVISOR_DEFAULT_PORT`,
+  `http/const.py`) and runs a legacy 8123 redirect server that answers every
+  request with a method-preserving 307 to the same URL on the new port
+  (`http/server.py` 581-596).
 - Frontend 20260930.3 shows "You're about to give {clientId} access" and adds
   `storeToken` only for its own client ID (`src/auth/ha-authorize.ts`,
   `src/auth/ha-auth-flow.ts`), so the strict callback stays valid.
@@ -308,7 +315,10 @@ Two stacked PRs, each reviewable on its own:
   real loopback authorize → token → WebSocket → revoke chain and the
   Container fallback (run); the pairing harness proves CLI ↔ relay arm + pair v2
   through the real ingress listener (run, also in CI); the Supervisor sandbox
-  modes `paired` and `not-owner` of the same test are pending a run.
+  (Supervisor 2026.10.2, Core 2026.10.1) runs both `not-owner` (CLI check and
+  relay refusal through real ingress) and `paired` (sign-in via the legacy
+  8123 URL → port 80, arm, pair v2 through ingress, pinned-TLS activation,
+  relay `/ws` ping and `ha_ws_connected: true`) (run).
 
 ## Limits
 
