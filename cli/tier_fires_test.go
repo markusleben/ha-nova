@@ -208,6 +208,41 @@ func TestConsumerFiresForPlannedChange(t *testing.T) {
 				f.script("leave", step("automation.turn_off", "automation.b"), step("light.turn_off", "light.lr"))
 			},
 			args: []string{"script.turn_on", "script.leave"}, exit: 3, tier: "preview", check: expectShown("automation.b,light.lr,light.bed", "automation.b:may")},
+		{name: "an automation.trigger after a condition step is not a certain run: its downstream consumer is may",
+			setup: func(f *fakeHA) {
+				followLight(nil)(f)
+				f.related["entity:light.bed"] = []string{"automation.z"}
+				f.automation("z", "z1", map[string]any{"triggers": []any{map[string]any{"trigger": "state", "entity_id": "light.bed", "to": "on"}},
+					"actions": []any{step("light.turn_on", "light.hall")}})
+				f.script("maybe", map[string]any{"condition": "sun", "after": "sunset"}, step("automation.trigger", "automation.b"))
+			},
+			args: []string{"script.turn_on", "script.maybe"}, exit: 3, tier: "preview", check: expectShown("automation.b,light.bed,light.hall", "automation.z:may")},
+		{name: "an automation.trigger inside a choose branch is not a certain run",
+			setup: func(f *fakeHA) {
+				followLight(nil)(f)
+				f.related["entity:light.bed"] = []string{"automation.z"}
+				f.automation("z", "z1", map[string]any{"triggers": []any{map[string]any{"trigger": "state", "entity_id": "light.bed", "to": "on"}},
+					"actions": []any{step("light.turn_on", "light.hall")}})
+				f.script("maybe", map[string]any{"choose": []any{map[string]any{"conditions": []any{map[string]any{"condition": "sun", "after": "sunset"}},
+					"sequence": []any{step("automation.trigger", "automation.b")}}}})
+			},
+			args: []string{"script.turn_on", "script.maybe"}, exit: 3, tier: "preview", check: expectShown("automation.b,light.bed,light.hall", "automation.z:may")},
+		{name: "a conditional run does not hide a certain trigger source: the consumer stays will",
+			setup: func(f *fakeHA) {
+				followLight(nil)(f)
+				f.ent("light.lr", "hue", "off", nil)
+				f.script("both", step("light.turn_on", "light.lr"), map[string]any{"condition": "sun", "after": "sunset"}, step("automation.trigger", "automation.b"))
+			},
+			args: []string{"script.turn_on", "script.both"}, exit: 3, tier: "preview", check: expectShown("light.lr,light.bed,automation.b", "automation.b:will")},
+		{name: "an unconditional automation.trigger is a certain run: its downstream consumer is will",
+			setup: func(f *fakeHA) {
+				followLight(nil)(f)
+				f.related["entity:light.bed"] = []string{"automation.z"}
+				f.automation("z", "z1", map[string]any{"triggers": []any{map[string]any{"trigger": "state", "entity_id": "light.bed", "to": "on"}},
+					"actions": []any{step("light.turn_on", "light.hall")}})
+				f.script("sure", step("automation.trigger", "automation.b"))
+			},
+			args: []string{"script.turn_on", "script.sure"}, exit: 3, tier: "preview", check: expectShown("automation.b,light.bed,light.hall", "automation.z:will")},
 		{name: "an unconditional script step keeps will",
 			setup: func(f *fakeHA) {
 				followLight(nil)(f)

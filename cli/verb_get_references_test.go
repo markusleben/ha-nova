@@ -233,6 +233,13 @@ func TestGetReferencesScansEveryHolderForTheWholeDevice(t *testing.T) {
 	}
 	// The blueprint body's own reference is flagged: the blueprint, not the
 	// instance, holds it; the instance's input stays an ordinary hit.
+	// A merged id reaches its other split device too: a re-point keeps it.
+	if h := hits["automation automation.arrive merged1"]; strings.Join(h.Keep, ",") != "devX" {
+		t.Errorf("merged id hit must keep its other split devices: %+v", h)
+	}
+	if h := hits["automation automation.arrive dev1"]; len(h.Keep) != 0 {
+		t.Errorf("the device's own id keeps nothing: %+v", h)
+	}
 	if h := hits["automation automation.bp_battery sensor.pixel_7_battery (blueprint)"]; h.Managed != "blueprint" {
 		t.Errorf("blueprint-owned hit: %+v", h)
 	}

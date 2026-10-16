@@ -220,9 +220,16 @@ func (e *tierEngine) shown() ([]tierMember, []tierConsumer) {
 		}
 		return false
 	}
-	ran := func(automation string) bool { // run explicitly (automation.trigger) on a live path, not only by its trigger
-		return slices.ContainsFunc(e.runs[automation], func(via string) bool { return via == "" || routeLive(via, map[string]bool{}) })
+	// ran: run explicitly (automation.trigger) on a live path, not only by
+	// its trigger — enough to keep it listed; sureRun: on a path that
+	// certainly runs (not a conditional step) — enough for certainty.
+	runOn := func(automation string, sure bool) bool {
+		return slices.ContainsFunc(e.runs[automation], func(via string) bool {
+			return via == "" || (!(sure && e.conditional(via)) && routeLive(via, map[string]bool{}))
+		})
 	}
+	ran := func(automation string) bool { return runOn(automation, false) }
+	sureRun := func(automation string) bool { return runOn(automation, true) }
 	for changed := true; changed; {
 		changed = false
 		for _, c := range e.consumers {
@@ -248,14 +255,14 @@ func (e *tierEngine) shown() ([]tierMember, []tierConsumer) {
 		switch {
 		case seen[id]:
 			return false
-		case consumer && !ran(id) && m != firesWill:
+		case consumer && !sureRun(id) && m != firesWill:
 			return false
-		case !member && (!consumer || ran(id)):
+		case !member && (!consumer || sureRun(id)):
 			return true // a direct target, or not acted on as a member
 		}
 		seen[id] = true
 		defer delete(seen, id)
-		if consumer && !ran(id) { // a will consumer is as certain as the source its will rests on
+		if consumer && !sureRun(id) { // a will consumer is as certain as the source its will rests on
 			return slices.ContainsFunc(e.firedOn[id], func(f fired) bool { return f.match == firesWill && certain(f.on, seen) })
 		}
 		return slices.ContainsFunc(routes[id], func(via string) bool {
@@ -265,7 +272,9 @@ func (e *tierEngine) shown() ([]tierMember, []tierConsumer) {
 	}
 	consumers := []tierConsumer{}
 	for _, c := range e.consumers {
-		_, actedOn := routes[c.Automation] // the plan itself turns it off, on, or toggles it
+		actedOn := slices.ContainsFunc(e.members, func(m tierMember) bool { // the plan itself turns it off, on, or toggles it
+			return m.EntityID == c.Automation && m.Action != "automation.trigger"
+		})
 		switch {
 		case c.Match == firesWont || (c.Match == firesWill && actedOn):
 			c.Match = firesMay
