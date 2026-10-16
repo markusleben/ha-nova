@@ -43,6 +43,12 @@ func TestDeviceAccessSiblingOnEveryPath(t *testing.T) {
 				f.ent("lock.door", "shelly", "locked", map[string]any{"_di": "dev_door"})
 			},
 			args: []string{"cover.close_cover", "cover.hatch"}, exit: 0, tier: "ordinary", absent: typed},
+		{name: "a switch_as_x light wrapping the gate relay, turned on",
+			setup: with(gate, func(f *fakeHA) { f.ent("light.gate_relay", "switch_as_x", "off", map[string]any{"_di": "dev_gate"}) }),
+			args:  []string{"light.turn_on", "light.gate_relay"}, exit: 3, tier: "typed", reasons: typed},
+		{name: "a switch_as_x fan wrapping the gate relay, toggled via homeassistant",
+			setup: with(gate, func(f *fakeHA) { f.ent("fan.gate_relay", "switch_as_x", "off", map[string]any{"_di": "dev_gate"}) }),
+			args:  []string{"homeassistant.toggle", "fan.gate_relay"}, exit: 3, tier: "typed", reasons: typed},
 		{name: "relay via --match", setup: gate, args: []string{"switch.turn_on", "--match", "gate relay"}, exit: 3, tier: "typed", reasons: typed},
 		{name: "relay via the one-switch device", setup: gate, args: []string{"switch.turn_on", "--device", "dev_gate"}, exit: 3, tier: "typed", reasons: typed, absent: []string{reasonExpanded}},
 		{name: "relay via the one-switch area",
@@ -148,6 +154,15 @@ func TestDeviceAccessSiblingOnEveryPath(t *testing.T) {
 				f.ent("lock.nuki", "nuki", "unlocked", map[string]any{"_di": "dev_nuki"})
 			},
 			args: []string{"lock.lock", "lock.nuki"}, exit: 0, tier: "ordinary", absent: typed},
+		{name: "a switch_as_x light turned off on the gate device: ordinary",
+			setup: with(gate, func(f *fakeHA) { f.ent("light.gate_relay", "switch_as_x", "on", map[string]any{"_di": "dev_gate"}) }),
+			args:  []string{"light.turn_off", "light.gate_relay"}, exit: 0, tier: "ordinary", absent: typed},
+		{name: "a switch_as_x light on a device without an access entity: ordinary",
+			setup: func(f *fakeHA) {
+				f.ent("switch.lamp_plug", "tplink", "off", map[string]any{"_di": "dev_plug"})
+				f.ent("light.lamp_plug", "switch_as_x", "off", map[string]any{"_di": "dev_plug"})
+			},
+			args: []string{"light.turn_on", "light.lamp_plug"}, exit: 0, tier: "ordinary", absent: typed},
 		{name: "relay next to a shutter only stays ordinary",
 			setup: func(f *fakeHA) {
 				f.ent("switch.relay", "shelly", "off", map[string]any{"_di": "dev_blind"})

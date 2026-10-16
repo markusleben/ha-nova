@@ -25,11 +25,13 @@ func (e *tierEngine) deviceAccess(id, via, service string) tierLevel {
 // may be the opener (a gate relay, a buzzer). Every other call keeps its own
 // tier, and so does a press on a config or diagnostic button (ping, identify,
 // restart: the integration fixed it; ESPHome/MQTT ones are typed as
-// user-authored anyway). The caller skips access-capable targets.
+// user-authored anyway). A switch_as_x light, fan, … is that relay, so its
+// turn_on/toggle counts as switching it on. The caller skips access-capable
+// targets.
 func (e *tierEngine) accessSibling(id, via, service string, data map[string]any) tierLevel {
 	domain, name := splitID(service)
 	opens := (service == "button.press" && !e.reg[id].categorized) || service == "switch.turn_on" || service == "switch.toggle" ||
-		(domain == "cover" && coverCanOpen(name, data))
+		(domain == "cover" && coverCanOpen(name, data)) || (e.reg[id].pl == "switch_as_x" && (name == "turn_on" || name == "toggle"))
 	if !opens {
 		return tierOrdinary
 	}
