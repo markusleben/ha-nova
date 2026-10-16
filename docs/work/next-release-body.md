@@ -12,8 +12,14 @@ the number.
   verified, exactly like naming that device. Rooms with several matching
   devices and groups still show a preview first.
 - **Faster setup on extra computers:** when the NOVA Relay App already runs on
-  your Home Assistant, setup skips the install steps and goes straight to the
-  six-digit pairing code.
+  your Home Assistant, setup skips the install steps and goes straight to
+  pairing this computer.
+- **Sign in with Home Assistant to pair:** setup opens your Home Assistant
+  login in the browser. Sign in as the owner, and setup connects this computer
+  by itself, with its own connection that you can remove in NOVA at any time.
+  Over SSH, with an older NOVA Relay App, or when sign-in does not work out
+  (for example another Home Assistant user), setup uses the one-time six-digit
+  code from NOVA as before.
 - **One install link:** setup opens the NOVA Relay App page directly and adds
   the repository on the way — click "Add", then Install and Start.
 - **Know your home with exact numbers:** ask "what do I have?", "where is

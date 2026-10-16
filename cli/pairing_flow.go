@@ -50,8 +50,12 @@ var explicitPairingSecretStoreUIPolicy = func() SecretStoreUIPolicy {
 	return SecretStoreForbidUI
 }
 
-func runSecurePairingWithValidationPolicy(
-	bootstrapURL, code string,
+// runSecurePairingWithProvisioner is the one local pairing tail behind every
+// provisioner: storage proof first, then pending store, pinned-TLS
+// activation, and promotion, resumable after interruption.
+func runSecurePairingWithProvisioner(
+	bootstrapURL string,
+	provision pairingProvisioner,
 	cfg *runtimeConfig,
 	saveCfg func(*runtimeConfig) error,
 	info pairingClientInfo,
@@ -85,7 +89,7 @@ func runSecurePairingWithValidationPolicy(
 		return "", fmt.Errorf("could not establish an install id: %w", err)
 	}
 
-	prov, err := pairDeviceV1ForPairing(nil, bootstrapURL, code, deviceMetadata{
+	prov, err := provision(deviceMetadata{
 		Name:            info.name,
 		Platform:        info.platform,
 		Client:          info.client,

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 )
@@ -16,6 +17,7 @@ const (
 	CloudEndpointDeviceActivate CloudIngressEndpoint = "device_activate"
 	CloudEndpointDeviceRevoke   CloudIngressEndpoint = "device_revoke"
 	CloudEndpointPairInfo       CloudIngressEndpoint = "pair_info"
+	CloudEndpointPairArm        CloudIngressEndpoint = "pair_arm"
 	CloudEndpointPairStart      CloudIngressEndpoint = "pair_start"
 	CloudEndpointPairFinish     CloudIngressEndpoint = "pair_finish"
 	CloudEndpointHealth         CloudIngressEndpoint = "health"
@@ -31,6 +33,7 @@ const (
 	CloudPathDeviceActivate = "/cloud/v1/device/activate"
 	CloudPathDeviceRevoke   = "/cloud/v1/device/revoke-self"
 	CloudPathPairInfo       = "/pair/v2/info"
+	CloudPathPairArm        = "/pair/v2/arm"
 	CloudPathPairStart      = "/pair/v2/start"
 	CloudPathPairFinish     = "/pair/v2/finish"
 )
@@ -54,6 +57,7 @@ var cloudIngressEndpointContracts = map[CloudIngressEndpoint]cloudIngressEndpoin
 	CloudEndpointDeviceActivate: {method: http.MethodPost, path: CloudPathDeviceActivate, deviceBearer: true},
 	CloudEndpointDeviceRevoke:   {method: http.MethodPost, path: CloudPathDeviceRevoke, deviceBearer: true},
 	CloudEndpointPairInfo:       {method: http.MethodGet, path: CloudPathPairInfo},
+	CloudEndpointPairArm:        {method: http.MethodPost, path: CloudPathPairArm},
 	CloudEndpointPairStart:      {method: http.MethodPost, path: CloudPathPairStart},
 	CloudEndpointPairFinish:     {method: http.MethodPost, path: CloudPathPairFinish},
 	CloudEndpointHealth:         {method: http.MethodGet, path: "/health", deviceBearer: true},
@@ -89,6 +93,14 @@ func NewCloudIngressClient(
 	if err != nil {
 		return nil, err
 	}
+	return newCloudIngressClientForOrigin(origin, ingressRoot, ingressSession, httpClient)
+}
+
+func newCloudIngressClientForOrigin(
+	origin *url.URL,
+	ingressRoot, ingressSession string,
+	httpClient *http.Client,
+) (*CloudIngressClient, error) {
 	if !supervisorIngressEntryPattern.MatchString(ingressRoot) ||
 		!supervisorIngressSessionPattern.MatchString(ingressSession) {
 		return nil, newCloudError(CloudErrInvalidInput, "initialize Cloud ingress client", nil)

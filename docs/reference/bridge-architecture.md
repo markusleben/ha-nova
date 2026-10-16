@@ -321,7 +321,11 @@ upstream with its Supervisor token. Standalone Container/Core installs must
 provide both `RELAY_AUTH_TOKEN` and `HA_LLAT` server-side.
 
 The interactive CLI's normal App path never asks the user to copy the relay
-token. It asks for the current Home Base code, sends it only in the JSON body of
+token. In a local desktop terminal it first offers Home Assistant sign-in: the
+owner signs in through the browser, the CLI opens a process-local ingress
+session, revokes the Home Assistant session, and pairs through `/pair/v2/arm`
+plus pair v2. Otherwise, or after any sign-in failure, it asks for the current
+Home Base code, sends it only in the JSON body of
 `POST /pair`, stores the returned token in the existing OS credential backend,
 and verifies both `/health` and `/ws`. Pairing requests do not follow redirects;
 the code is not accepted through argv and is not persisted in normal config.
