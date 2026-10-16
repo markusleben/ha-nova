@@ -52,6 +52,10 @@ var readOnlyWSTypes = map[string]bool{
 	"get_panels":       true,
 	"lovelace/config":  true,
 	"energy/get_prefs": true,
+	// Dashboards (dashboard-write spec): the list and the installed resources
+	// (lovelace/config above; a forced read is refused below).
+	"lovelace/dashboards/list": true,
+	"lovelace/resources":       true,
 }
 
 // relaySession resolves config and transport once per invocation and

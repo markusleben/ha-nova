@@ -13,9 +13,9 @@ import (
 // reload, a read-back compared with the plan, the registry entity and its
 // state. A delete is preceded by a pre-delete config snapshot.
 
-// errSnapshotFailed: nothing was deleted, so apply releases the plan (the
-// typed code stays valid for --no-snapshot).
-var errSnapshotFailed = errors.New("pre-delete snapshot failed")
+// errSnapshotFailed: nothing was deleted or saved, so apply releases the
+// plan (a typed code stays valid for --no-snapshot).
+var errSnapshotFailed = errors.New("pre-write snapshot failed")
 
 var nonSlug = regexp.MustCompile(`[^a-z0-9]+`)
 
@@ -30,6 +30,9 @@ func snapshotName(id string) string {
 }
 
 func executeConfig(paths runtimePaths, s *relaySession, env *verbEnvelope, action configAction, ctx configContext, noSnapshot bool) (err error) {
+	if action.Domain == "dashboard" {
+		return executeDashboard(paths, s, env, action, ctx, noSnapshot)
+	}
 	sent := false
 	defer afterSend(&sent, env, &err)
 	s.renewBudget()
