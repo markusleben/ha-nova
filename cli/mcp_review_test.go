@@ -204,11 +204,11 @@ func TestMCPReapsTheUpdateRefreshChild(t *testing.T) {
 func TestMCPToolResultWrapsPlainJSONIntoTheEnvelope(t *testing.T) {
 	// ha_trace prints a plain JSON object (no schema_version): it must still
 	// arrive in the common envelope, and a failure gets the error object.
-	ok := toolResult("ha_trace", `{"run_id":"r1","steps":[]}`, "", 0, nil)["structuredContent"].(map[string]any)
+	ok := toolResult("ha_trace", `{"run_id":"r1","steps":[]}`, "", 0, nil, false)["structuredContent"].(map[string]any)
 	if ok["verb"] != "trace" || ok["status"] != "ok" || ok["result"] == nil || ok["schema_version"] != 1 {
 		t.Fatalf("plain trace output not wrapped: %+v", ok)
 	}
-	bad := toolResult("ha_trace", "", "no trace for that run", 1, nil)["structuredContent"].(map[string]any)
+	bad := toolResult("ha_trace", "", "no trace for that run", 1, nil, false)["structuredContent"].(map[string]any)
 	errObj, isObj := bad["error"].(map[string]any)
 	if bad["status"] != "error" || !isObj || errObj["code"] != "TOOL_ERROR" {
 		t.Fatalf("trace failure not wrapped: %+v", bad)
@@ -227,7 +227,7 @@ func TestMCPNoticeHintsOncePerSessionAndServer(t *testing.T) {
 		return `{"schema_version":1,"verb":"get","server":"` + server + `","status":"ok","notices":[{"kind":"relay_outdated","text":"Relay outdated: v0.9.0 is below minimum v0.9.1."},{"kind":"undo","text":"x"}]}`
 	}
 	step := func(server string) string {
-		s, _ := toolResult("ha_get", envelope(server), "", 0, told)["structuredContent"].(map[string]any)["next_step"].(string)
+		s, _ := toolResult("ha_get", envelope(server), "", 0, told, false)["structuredContent"].(map[string]any)["next_step"].(string)
 		return s
 	}
 	if first := step("home"); !strings.Contains(first, "NOVA Relay App needs an update") || strings.Contains(first, "--") {
@@ -241,7 +241,7 @@ func TestMCPNoticeHintsOncePerSessionAndServer(t *testing.T) {
 	}
 	update := func(server string) string {
 		env := `{"schema_version":1,"verb":"get","server":"` + server + `","status":"ok","notices":[{"kind":"update","text":"HA NOVA update available"}]}`
-		s, _ := toolResult("ha_get", env, "", 0, told)["structuredContent"].(map[string]any)["next_step"].(string)
+		s, _ := toolResult("ha_get", env, "", 0, told, false)["structuredContent"].(map[string]any)["next_step"].(string)
 		return s
 	}
 	if first, other := update("home"), update("cabin"); !strings.Contains(first, "newer HA NOVA") || other != "" {
@@ -249,7 +249,7 @@ func TestMCPNoticeHintsOncePerSessionAndServer(t *testing.T) {
 	}
 	told = map[string]bool{}
 	pending := `{"schema_version":1,"verb":"plan","status":"needs_confirmation","plan":{"id":"p_1"},"notices":[{"kind":"update","text":"HA NOVA update available"}]}`
-	if s := toolResult("ha_plan", pending, "", verbExitConfirmation, told)["structuredContent"].(map[string]any)["next_step"].(string); !strings.HasPrefix(s, "Show this preview") || !strings.Contains(s, "newer HA NOVA") {
+	if s := toolResult("ha_plan", pending, "", verbExitConfirmation, told, false)["structuredContent"].(map[string]any)["next_step"].(string); !strings.HasPrefix(s, "Show this preview") || !strings.Contains(s, "newer HA NOVA") {
 		t.Fatalf("the hint joins the existing next_step: %q", s)
 	}
 }

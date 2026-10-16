@@ -212,6 +212,9 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string, noSnapshot
 		return fail(err)
 	}
 	if fresh.Hash != plan.Hash {
+		if fresh.Prompt != "" { // a confirmation form shows it without the preview (mcp_confirm.go)
+			fresh.Prompt = "Something changed since the last preview. " + fresh.Prompt
+		}
 		if err := savePlan(paths, fresh); err != nil {
 			return fail(err)
 		}
