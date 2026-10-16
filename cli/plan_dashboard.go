@@ -248,10 +248,8 @@ func draftIssues(e *tierEngine, current, draft json.RawMessage) ([]dashboardIssu
 	if err != nil {
 		return nil, err
 	}
-	known, knownTypes := map[string]bool{}, map[string]bool{}
-	if cfg, _ := configObjectFromBytes(current); cfg != nil {
-		dashboardRefs(cfg, false, known, knownTypes)
-	}
+	before, _ := configObjectFromBytes(current) // nil on a create: nothing is known yet
+	known, knownTypes := configRefs(before)
 	cfg, err := configObjectFromBytes(draft)
 	if err != nil {
 		return nil, err

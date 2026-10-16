@@ -15,58 +15,113 @@ const maxDashboardDiffRows = 40
 func dashboardDiff(before, after map[string]any) []string {
 	var rows []string
 	for _, key := range unionKeys(before, after) {
-		if key != "views" && !valuesEqual(before[key], after[key]) {
-			rows = append(rows, valueRow("Dashboard › "+key, before[key], after[key]))
+		if key != "views" && keyChanged(before, after, key) {
+			rows = append(rows, keyRow("Dashboard › "+key, before, after, key))
 		}
 	}
 	if notList(before["views"]) || notList(after["views"]) { // not a view list: show it as a value
-		if !valuesEqual(before["views"], after["views"]) {
-			rows = append(rows, valueRow("Dashboard › views", before["views"], after["views"]))
+		if keyChanged(before, after, "views") {
+			rows = append(rows, keyRow("Dashboard › views", before, after, "views"))
 		}
 		return capRows(rows)
 	}
 	bRaw, aRaw := asList(before["views"]), asList(after["views"])
 	bViews, aViews := dashboardViews(before), dashboardViews(after)
-	bKeys, aKeys := viewKeys(bViews), viewKeys(aViews)
-	bIndex := map[string]int{}
-	for i, key := range bKeys {
-		bIndex[key] = i
-	}
-	aIndex := map[string]int{}
-	var aOrder []string // labels of the views both sides keep, in after order
-	for i, key := range aKeys {
-		aIndex[key] = i
+	pairs := pairViews(bViews, aViews) // after index → before index
+	for i := range aViews {
 		label := viewLabel(i, aViews[i])
-		j, kept := bIndex[key]
-		if !kept {
+		j, kept := pairs[i]
+		switch {
+		case !kept:
 			rows = append(rows, tableRow(label, "—", viewSummary(aViews[i])))
-			continue
-		}
-		aOrder = append(aOrder, label)
-		if bViews[j] == nil || aViews[i] == nil {
+			rows = append(rows, containerRows(label, aViews[i], false)...)
+		case bViews[j] == nil || aViews[i] == nil:
 			if !valuesEqual(bRaw[j], aRaw[i]) {
 				rows = append(rows, valueRow(label, bRaw[j], aRaw[i]))
 			}
-			continue
-		}
-		rows = append(rows, viewDiff(label, bViews[j], aViews[i])...)
-	}
-	for j, key := range bKeys {
-		if _, kept := aIndex[key]; !kept {
-			rows = append(rows, tableRow(viewLabel(j, bViews[j]), viewSummary(bViews[j]), "—"))
+		default:
+			rows = append(rows, viewDiff(label, bViews[j], aViews[i])...)
 		}
 	}
-	// The kept views in before order, relabeled with their after labels.
-	var keptBefore []string
-	for _, key := range bKeys {
-		if i, kept := aIndex[key]; kept {
-			keptBefore = append(keptBefore, viewLabel(i, aViews[i]))
+	kept := map[int]bool{}
+	for _, j := range pairs {
+		kept[j] = true
+	}
+	for j := range bViews {
+		if !kept[j] {
+			label := viewLabel(j, bViews[j])
+			rows = append(rows, tableRow(label, viewSummary(bViews[j]), "—"))
+			rows = append(rows, containerRows(label, bViews[j], true)...)
 		}
 	}
-	if strings.Join(keptBefore, "\x00") != strings.Join(aOrder, "\x00") {
-		rows = append(rows, tableRow("View order", strings.Join(keptBefore, ", "), strings.Join(aOrder, ", ")))
+	// The kept views in before order vs after order, both with after labels.
+	var keptBefore, keptAfter []string
+	for j := range bViews {
+		for i, pj := range pairs {
+			if pj == j {
+				keptBefore = append(keptBefore, viewLabel(i, aViews[i]))
+			}
+		}
+	}
+	for i := range aViews {
+		if _, ok := pairs[i]; ok {
+			keptAfter = append(keptAfter, viewLabel(i, aViews[i]))
+		}
+	}
+	if strings.Join(keptBefore, "\x00") != strings.Join(keptAfter, "\x00") {
+		rows = append(rows, tableRow("View order", strings.Join(keptBefore, ", "), strings.Join(keptAfter, ", ")))
 	}
 	return capRows(rows)
+}
+
+// pairViews matches views by path, else title; the rest pair by position
+// among themselves, so a renamed view still shows its card changes.
+func pairViews(bViews, aViews []map[string]any) map[int]int {
+	bKeys, aKeys := viewKeys(bViews), viewKeys(aViews)
+	bIndex := map[string]int{}
+	for j, key := range bKeys {
+		bIndex[key] = j
+	}
+	pairs, used := map[int]int{}, map[int]bool{}
+	for i, key := range aKeys {
+		if j, ok := bIndex[key]; ok && !strings.HasPrefix(key, "#") {
+			pairs[i], used[j] = j, true
+		}
+	}
+	var bFree []int
+	for j := range bViews {
+		if !used[j] {
+			bFree = append(bFree, j)
+		}
+	}
+	for i := range aViews {
+		if _, ok := pairs[i]; !ok && len(bFree) > 0 {
+			pairs[i], bFree = bFree[0], bFree[1:]
+		}
+	}
+	return pairs
+}
+
+// containerRows lists every card of an added or removed view, row by row.
+func containerRows(label string, view map[string]any, removed bool) []string {
+	var rows []string
+	for _, c := range viewContainers(view) {
+		for j, card := range c.items {
+			before, after := "—", cardSummary(card)
+			if removed {
+				before, after = after, before
+			}
+			rows = append(rows, tableRow(label+" › "+itemLabel(c.label, j), before, after))
+		}
+	}
+	return rows
+}
+
+// keyChanged: a key added, removed (null included), or changed.
+func keyChanged(before, after map[string]any, key string) bool {
+	b, inBefore := before[key]
+	a, inAfter := after[key]
+	return inBefore != inAfter || !valuesEqual(b, a)
 }
 
 func capRows(rows []string) []string {
@@ -83,14 +138,21 @@ func notList(v any) bool {
 	return v != nil && !isList
 }
 
+// keyRow: one key's change; an absent key shows "—", an explicit null "null".
+func keyRow(field string, before, after map[string]any, key string) string {
+	cell := func(m map[string]any) string {
+		v, present := m[key]
+		if present && v == nil {
+			return "null"
+		}
+		return formatValue(v)
+	}
+	b, a := focusDivergence(cell(before), cell(after))
+	return tableRow(field, b, a)
+}
+
 func valueRow(field string, before, after any) string {
 	b, a := formatValue(before), formatValue(after)
-	if before == nil {
-		b = "—"
-	}
-	if after == nil {
-		a = "—"
-	}
 	b, a = focusDivergence(b, a)
 	return tableRow(field, b, a)
 }
@@ -99,8 +161,8 @@ func valueRow(field string, before, after any) string {
 func viewDiff(label string, before, after map[string]any) []string {
 	var rows []string
 	for _, key := range unionKeys(before, after) {
-		if (!containerKeys[key] || notList(before[key]) || notList(after[key])) && !valuesEqual(before[key], after[key]) {
-			rows = append(rows, valueRow(label+" › "+key, before[key], after[key]))
+		if (!containerKeys[key] || notList(before[key]) || notList(after[key])) && keyChanged(before, after, key) {
+			rows = append(rows, keyRow(label+" › "+key, before, after, key))
 		}
 	}
 	rows = append(rows, listDiff(label, "", asList(before["cards"]), asList(after["cards"]), sameType)...)
@@ -108,9 +170,13 @@ func viewDiff(label string, before, after map[string]any) []string {
 	for _, pair := range alignItems(bSections, aSections, func(any, any) bool { return true }) {
 		switch {
 		case pair.b < 0:
-			rows = append(rows, tableRow(fmt.Sprintf("%s › section %d", label, pair.a+1), "—", sectionSummary(aSections[pair.a])))
+			section := fmt.Sprintf("%s › section %d", label, pair.a+1)
+			rows = append(rows, tableRow(section, "—", sectionSummary(aSections[pair.a])))
+			rows = append(rows, listDiff(section, "", nil, asList(asMap(aSections[pair.a])["cards"]), sameType)...)
 		case pair.a < 0:
-			rows = append(rows, tableRow(fmt.Sprintf("%s › section %d", label, pair.b+1), sectionSummary(bSections[pair.b]), "—"))
+			section := fmt.Sprintf("%s › section %d", label, pair.b+1)
+			rows = append(rows, tableRow(section, sectionSummary(bSections[pair.b]), "—"))
+			rows = append(rows, listDiff(section, "", asList(asMap(bSections[pair.b])["cards"]), nil, sameType)...)
 		default:
 			b, a := asMap(bSections[pair.b]), asMap(aSections[pair.a])
 			section := fmt.Sprintf("section %d", pair.a+1)
@@ -121,8 +187,8 @@ func viewDiff(label string, before, after map[string]any) []string {
 				continue
 			}
 			for _, key := range unionKeys(b, a) {
-				if key != "cards" && !valuesEqual(b[key], a[key]) {
-					rows = append(rows, valueRow(label+" › "+section+" › "+key, b[key], a[key]))
+				if key != "cards" && keyChanged(b, a, key) {
+					rows = append(rows, keyRow(label+" › "+section+" › "+key, b, a, key))
 				}
 			}
 			rows = append(rows, listDiff(label, section, asList(b["cards"]), asList(a["cards"]), sameType)...)
@@ -148,7 +214,7 @@ func sameType(b, a any) bool {
 }
 
 // listDiff: added and removed cards as one row each, a kept card's changed
-// keys as one row per key.
+// keys as one row per key (nested card lists recursed).
 func listDiff(view, container string, before, after []any, pairable func(b, a any) bool) []string {
 	var rows []string
 	for _, pair := range alignItems(before, after, pairable) {
@@ -159,18 +225,37 @@ func listDiff(view, container string, before, after []any, pairable func(b, a an
 			rows = append(rows, tableRow(view+" › "+itemLabel(container, pair.b), cardSummary(before[pair.b]), "—"))
 		default:
 			place := view + " › " + itemLabel(container, pair.a) + " (" + cardSummary(after[pair.a]) + ")"
-			b, a := asMap(before[pair.b]), asMap(after[pair.a])
-			if b == nil || a == nil {
-				if !valuesEqual(before[pair.b], after[pair.a]) {
-					rows = append(rows, valueRow(place, before[pair.b], after[pair.a]))
-				}
-				continue
-			}
-			for _, key := range unionKeys(b, a) {
-				if !valuesEqual(b[key], a[key]) {
-					rows = append(rows, valueRow(place+" › "+key, b[key], a[key]))
-				}
-			}
+			rows = append(rows, cardDiff(place, before[pair.b], after[pair.a])...)
+		}
+	}
+	return rows
+}
+
+// nestedLists are card keys holding cards (stacks, grid), picture-elements
+// elements, or heading badges; they are diffed card by card.
+var nestedLists = map[string]string{"cards": "", "elements": "elements", "badges": "badges"}
+
+func cardDiff(place string, before, after any) []string {
+	b, a := asMap(before), asMap(after)
+	if b == nil || a == nil {
+		if !valuesEqual(before, after) {
+			return []string{valueRow(place, before, after)}
+		}
+		return nil
+	}
+	var rows []string
+	for _, key := range unionKeys(b, a) {
+		container, nested := nestedLists[key]
+		_, bList := b[key].([]any)
+		_, aList := a[key].([]any)
+		switch {
+		case !keyChanged(b, a, key):
+		case nested && bList && aList:
+			rows = append(rows, listDiff(place, container, asList(b[key]), asList(a[key]), sameType)...)
+		case key == "card" && asMap(b[key]) != nil && asMap(a[key]) != nil: // conditional, entity-filter
+			rows = append(rows, cardDiff(place+" › card ("+cardSummary(a[key])+")", b[key], a[key])...)
+		default:
+			rows = append(rows, keyRow(place+" › "+key, b, a, key))
 		}
 	}
 	return rows

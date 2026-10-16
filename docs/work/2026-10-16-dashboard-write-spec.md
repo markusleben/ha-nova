@@ -65,10 +65,13 @@ and write allowlists grow by exactly these types.
    create; exactly one `lovelace/config/save` (one `dashboards/delete` for a
    delete); fresh read-back. `verified` = read-back content equals the draft
    (create: and the dashboard is listed; delete: no longer listed).
-   `SNAPSHOT_FAILED` saves nothing; `--no-snapshot` only after it. A
-   rejected save still reads back and reports what Home Assistant serves (it
-   swaps its in-memory config before the disk write); a failure after a new
-   shell landed is exit 6 naming the empty dashboard. A delete's `restore`
+   `SNAPSHOT_FAILED` saves nothing; `--no-snapshot` only after it. A save,
+   delete, or create that Home Assistant answers with an error is reported by
+   a fresh read-back, never by the error alone (it swaps its in-memory config
+   before the disk write): unchanged → exit 6 `failed`; landed anyway → exit 6
+   `unverified` with the way back; unreadable → exit 7. A failure after a new
+   shell landed names the dashboard it left empty. Whenever a delete was sent
+   with a snapshot, its `restore` is named (automations and scripts too). A delete's `restore`
    names the way back: a `--create` with the shell's title and flags, or for
    the default `lovelace` a plain write.
 6. An update lands on the undo stack (domain `dashboard`, target
@@ -78,7 +81,11 @@ and write allowlists grow by exactly these types.
 7. `ha-nova get --dashboards` (sweep: every listed dashboard plus the default)
    and `ha-nova get --dashboard <url_path> [--config]` (one dashboard: views
    with card summaries, custom types with their resource) report the same
-   issues and each dashboard's `config_digest`, read-only. YAML dashboards are read like any other.
+   issues and each dashboard's `config_digest`, read-only. The walk covers
+   bare-id badges, `header.card`, section settings, nested `cards`/`card`/
+   `elements`, `image_entity`; statistic cards are not judged as entities.
+   The sweep records an unreadable dashboard (a missing YAML file, a non-object
+   config) per dashboard and goes on. YAML dashboards are read like any other.
 
 ## Known limits
 

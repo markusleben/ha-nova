@@ -67,6 +67,9 @@ func executeConfig(paths runtimePaths, s *relaySession, env *verbEnvelope, actio
 	if action.Op == "write" && ctx.current == nil { // a restore retries as itself: CONFIG_ID_IN_USE once it landed
 		createdID = action.ConfigID
 	}
+	if action.Op == "delete" && env.Snapshot != "" { // the delete was sent: its way back, whatever comes next
+		env.Restore = restoreCommand(action, env.Snapshot, s.server)
+	}
 	if failure := writeFailure(env, result, err, createdID); failure != nil && !alreadyGone {
 		if errors.As(err, &unknown) && update {
 			saveCheckpoint(paths, s, env, action, ctx, action.Body)
@@ -81,9 +84,6 @@ func executeConfig(paths runtimePaths, s *relaySession, env *verbEnvelope, actio
 	reloaded := reloadErr == nil && reload.status < 400
 	s.renewBudget()
 	row, readback := verifyConfig(s, action, reloaded)
-	if action.Op == "delete" && env.Snapshot != "" {
-		env.Restore = restoreCommand(action, env.Snapshot, s.server)
-	}
 	if alreadyGone && row.Outcome == "verified" {
 		row.Note = "already gone when the delete arrived (removed concurrently)"
 	}

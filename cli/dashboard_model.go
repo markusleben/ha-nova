@@ -86,6 +86,9 @@ func viewContainers(v map[string]any) []cardContainer {
 	for i, section := range asList(v["sections"]) {
 		containers = append(containers, cardContainer{label: fmt.Sprintf("section %d", i+1), items: asList(asMap(section)["cards"])})
 	}
+	if card := asMap(v["header"])["card"]; card != nil { // a sections view's header card
+		containers = append(containers, cardContainer{label: "header", items: []any{card}})
+	}
 	return append(containers, cardContainer{label: "badges", items: asList(v["badges"])})
 }
 
@@ -133,6 +136,9 @@ func cardSummary(card any) string {
 
 // viewSummary: "sections view, 3 sections, 12 cards".
 func viewSummary(v map[string]any) string {
+	if strategy, _ := asMap(v["strategy"])["type"].(string); strategy != "" {
+		return strategy + " strategy view"
+	}
 	kind, _ := v["type"].(string)
 	if kind == "" {
 		kind = "masonry"
@@ -167,8 +173,9 @@ func plural(n int, noun string) string {
 // placedCard is one card (or badge, or a view's own settings) with its
 // readable place; refs walks everything inside it.
 type placedCard struct {
-	where string
-	value any
+	where  string
+	value  any
+	bareID bool // a badge given as a bare entity_id
 }
 
 func placedCards(cfg map[string]any) []placedCard {
@@ -187,17 +194,20 @@ func placedCards(cfg map[string]any) []placedCard {
 				own[k] = val
 			}
 		}
-		for _, section := range asList(v["sections"]) { // section settings (and a heading's) belong to the view
-			for k, val := range asMap(section) {
-				if k != "cards" {
-					own[k+"@section"] = val
-				}
-			}
+		if header := asMap(v["header"]); header != nil { // its card is placed on its own below
+			trimmed := maps.Clone(header)
+			delete(trimmed, "card")
+			own["header"] = trimmed
 		}
 		placed = append(placed, placedCard{where: label, value: own})
+		for j, section := range asList(v["sections"]) { // each section's own settings (visibility, type)
+			settings := maps.Clone(asMap(section))
+			delete(settings, "cards")
+			placed = append(placed, placedCard{where: fmt.Sprintf("%s › section %d", label, j+1), value: settings})
+		}
 		for _, c := range viewContainers(v) {
 			for j, card := range c.items {
-				placed = append(placed, placedCard{where: label + " › " + itemLabel(c.label, j) + " (" + cardSummary(card) + ")", value: card})
+				placed = append(placed, placedCard{where: label + " › " + itemLabel(c.label, j) + " (" + cardSummary(card) + ")", value: card, bareID: c.label == "badges"})
 			}
 		}
 	}
@@ -207,26 +217,31 @@ func placedCards(cfg map[string]any) []placedCard {
 // entityRefKeys hold entity ids in Lovelace configs (cards, rows, badges,
 // conditions, action targets); other strings that look like ids (an action
 // name such as light.turn_on) are never read as entities.
-var entityRefKeys = map[string]bool{"entity": true, "entity_id": true, "entities": true, "camera_image": true}
+var entityRefKeys = map[string]bool{"entity": true, "entity_id": true, "entities": true, "camera_image": true, "image_entity": true}
+
+// statisticCards name long-term statistics, which may outlive their entity:
+// their ids are never judged as entities.
+var statisticCards = map[string]bool{"statistic": true, "statistics-graph": true}
 
 // dashboardRefs collects the literal entity ids and custom: types anywhere
 // inside v (templates and wildcards are not literal ids).
 func dashboardRefs(v any, underRefKey bool, entities, types map[string]bool) {
 	switch t := v.(type) {
 	case string:
-		if underRefKey && entityIDPattern.MatchString(t) {
-			entities[t] = true
+		if id := strings.ToLower(t); underRefKey && entityIDPattern.MatchString(id) { // Home Assistant ids are lower case
+			entities[id] = true
 		}
 	case []any:
 		for _, item := range t {
 			dashboardRefs(item, underRefKey, entities, types)
 		}
 	case map[string]any:
+		statistics := statisticCards[fmt.Sprint(t["type"])]
 		for k, item := range t {
 			if text, isText := item.(string); k == "type" && isText && strings.HasPrefix(text, "custom:") {
 				types[text] = true
 			}
-			dashboardRefs(item, entityRefKeys[k], entities, types)
+			dashboardRefs(item, entityRefKeys[k] && !statistics, entities, types)
 		}
 	}
 }
@@ -241,7 +256,7 @@ func dashboardIssues(cfg map[string]any, present entityPresence, resources []lov
 	var issues []dashboardIssue
 	for _, p := range placedCards(cfg) {
 		entities, types := map[string]bool{}, map[string]bool{}
-		dashboardRefs(p.value, false, entities, types)
+		dashboardRefs(p.value, p.bareID, entities, types)
 		for _, id := range slices.Sorted(maps.Keys(entities)) {
 			if why := present(id); why != "" {
 				issues = append(issues, dashboardIssue{Kind: "missing_entity", Where: p.where, EntityID: id, Detail: why})
@@ -259,9 +274,18 @@ func dashboardIssues(cfg map[string]any, present entityPresence, resources []lov
 
 // customTypes lists the custom: types a config uses, sorted.
 func customTypes(cfg map[string]any) []string {
-	entities, types := map[string]bool{}, map[string]bool{}
-	dashboardRefs(cfg, false, entities, types)
+	_, types := configRefs(cfg)
 	return slices.Sorted(maps.Keys(types))
+}
+
+// configRefs: every entity id and custom: type a config references, walked
+// exactly like the issue checks (bare badge ids included).
+func configRefs(cfg map[string]any) (entities, types map[string]bool) {
+	entities, types = map[string]bool{}, map[string]bool{}
+	for _, p := range placedCards(cfg) {
+		dashboardRefs(p.value, p.bareID, entities, types)
+	}
+	return entities, types
 }
 
 // nonProviderDirs are URL folders that name no card.

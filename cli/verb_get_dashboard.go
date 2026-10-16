@@ -26,7 +26,10 @@ type dashboardReport struct {
 	Layout       []dashboardView   `json:"layout,omitempty"` // --dashboard only
 	CustomTypes  map[string]string `json:"custom_types,omitempty"`
 	Issues       []dashboardIssue  `json:"issues,omitempty"`
-	Config       json.RawMessage   `json:"config,omitempty"` // --dashboard --config
+	Config       json.RawMessage   `json:"config,omitempty"`   // --dashboard --config
+	Strategy     string            `json:"strategy,omitempty"` // a strategy dashboard: Home Assistant generates its views
+	// Error: this dashboard could not be read; the sweep goes on with the others.
+	Error string `json:"error,omitempty"`
 }
 
 type dashboardsResult struct {
@@ -65,14 +68,22 @@ func runGetDashboards(s *relaySession, env *verbEnvelope, urlPath string, withCo
 			continue
 		}
 		raw, err := readDashboardConfig(s, entry.URLPath, entry.raw == nil, false)
-		if err != nil {
+		if err != nil && urlPath != "" {
 			return err
+		}
+		if err != nil { // one unreadable dashboard never hides the others
+			result.Dashboards = append(result.Dashboards, dashboardReport{URLPath: entry.URLPath, Title: entry.Title, Mode: entry.Mode, Error: err.Error()})
+			continue
 		}
 		report := dashboardReport{URLPath: entry.URLPath, Title: entry.Title, Mode: entry.Mode, ConfigDigest: digestOf(raw)}
 		cfg, _ := configObjectFromBytes(raw)
-		if cfg == nil {
+		switch {
+		case cfg == nil && entry.Mode == "yaml": // a YAML dashboard without its file is broken, not empty
+			report.Issues = []dashboardIssue{{Kind: "config_missing", Where: "Dashboard", Detail: "its YAML file could not be loaded (Home Assistant: config_not_found)"}}
+		case cfg == nil:
 			report.Mode = "empty"
-		} else {
+		default:
+			report.Strategy, _ = asMap(cfg["strategy"])["type"].(string)
 			report.Issues = dashboardIssues(cfg, present, resources)
 			for _, cardType := range customTypes(cfg) {
 				if report.CustomTypes == nil {

@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,14 +13,16 @@ import (
 
 // fakeLovelace is Home Assistant's dashboard store behind the fake Relay.
 type fakeLovelace struct {
-	entries   []map[string]any
-	configs   map[string]any // url_path ("" = unlisted default) → config; absent → config_not_found
-	resources []map[string]any
-	reads     int    // lovelace/config reads so far
-	editAt    int    // before answering this read, the UI edits the dashboard
-	editPath  string // which dashboard that edit changes
-	rejectAll bool   // every save is refused by Home Assistant
-	sent      []map[string]any
+	entries        []map[string]any
+	configs        map[string]any // url_path ("" = unlisted default) → config; absent → config_not_found
+	resources      []map[string]any
+	reads          int    // lovelace/config reads so far
+	editAt         int    // before answering this read, the UI edits the dashboard
+	editPath       string // which dashboard that edit changes
+	rejectAll      bool   // every save is refused by Home Assistant
+	landThenReject bool   // save/delete: applied in memory, then answered with an error
+	failReadsFrom  int    // lovelace/config reads from this one on fail (0: never)
+	sent           []map[string]any
 }
 
 func (f *fakeHA) lovelaceReply(endpoint string, p map[string]any) (any, bool) {
@@ -37,6 +40,9 @@ func (f *fakeHA) lovelaceReply(endpoint string, p map[string]any) (any, bool) {
 		return append([]map[string]any{}, l.resources...), true
 	case "lovelace/config":
 		l.reads++
+		if l.failReadsFrom > 0 && l.reads >= l.failReadsFrom {
+			return fakeRelayFailure{"UPSTREAM_ERROR", "boom"}, true
+		}
 		if l.reads == l.editAt {
 			l.configs[l.editPath] = map[string]any{"views": []any{map[string]any{"title": "Edited in the UI"}}}
 		}
@@ -57,6 +63,9 @@ func (f *fakeHA) lovelaceReply(endpoint string, p map[string]any) (any, bool) {
 			return fakeRelayFailure{"UPSTREAM_WS_COMMAND_ERROR", "HA rejected 'lovelace/config/save': error: invalid"}, true
 		}
 		l.configs[urlPath] = p["config"]
+		if l.landThenReject {
+			return fakeRelayFailure{"UPSTREAM_WS_COMMAND_ERROR", "HA rejected 'lovelace/config/save': error: disk full"}, true
+		}
 		return nil, true
 	case "lovelace/dashboards/create":
 		l.entries = append(l.entries, map[string]any{"id": strings.ReplaceAll(urlPath, "-", "_"), "url_path": urlPath, "title": p["title"], "mode": "storage", "require_admin": false, "show_in_sidebar": true})
@@ -66,6 +75,9 @@ func (f *fakeHA) lovelaceReply(endpoint string, p map[string]any) (any, bool) {
 			if e["id"] == p["dashboard_id"] {
 				delete(l.configs, fmt.Sprint(e["url_path"]))
 				l.entries = append(l.entries[:i], l.entries[i+1:]...)
+				if l.landThenReject {
+					return fakeRelayFailure{"UPSTREAM_WS_COMMAND_ERROR", "HA rejected 'lovelace/dashboards/delete': error: storage"}, true
+				}
 				return nil, true
 			}
 		}
@@ -432,5 +444,173 @@ func TestDashboardDiffShowsNonListShapesAsValues(t *testing.T) {
 	}
 	if checkReadOnlyRequest("ws", map[string]any{"type": "lovelace/config", "url_path": "a-b", "force": true}) == nil {
 		t.Fatal("a forced lovelace/config read passed the read allowlist")
+	}
+}
+
+func TestDashboardErrorsAreReportedByWhatHomeAssistantHoldsAfterwards(t *testing.T) {
+	// A save that lands in memory and is then answered with an error.
+	f := dashboardFake()
+	f.lovelace.landThenReject = true
+	h := newWriteHarness(t, f)
+	_, env := h.run(runPlanCommand, "write", "--domain", "dashboard", "--id", "home-main", "--base", homeBase(), "--file", draftFile(t, editedHome()))
+	exit, applied := h.run(runApplyCommand, "--plan", env.Plan.ID)
+	if exit != 6 || applied.Status != "unverified" || !strings.Contains(applied.Error.Message, "yet it now serves the planned config") ||
+		applied.Undo == nil || applied.BeforeConfig == nil {
+		t.Fatalf("landed save: exit %d env %+v", exit, applied)
+	}
+	// A delete that lands and is then answered with an error keeps its restore.
+	_, env = h.run(runPlanCommand, "delete", "--domain", "dashboard", "--id", "home-main")
+	exit, applied = h.run(runApplyCommand, "--plan", env.Plan.ID, "--confirm", env.Plan.Code)
+	if exit != 6 || !strings.Contains(applied.Error.Message, "the dashboard is gone") || applied.Restore == "" {
+		t.Fatalf("landed delete: exit %d env %+v", exit, applied)
+	}
+	// A rejected save whose read-back fails is unknown, never "nothing was saved".
+	f = dashboardFake()
+	f.lovelace.rejectAll, f.lovelace.failReadsFrom = true, 4 // plan, recompute, pre-save re-read succeed
+	h = newWriteHarness(t, f)
+	_, env = h.run(runPlanCommand, "write", "--domain", "dashboard", "--id", "home-main", "--base", homeBase(), "--file", draftFile(t, editedHome()))
+	if exit, applied = h.run(runApplyCommand, "--plan", env.Plan.ID); exit != 7 || !applied.OutcomeUnknown || applied.Undo == nil {
+		t.Fatalf("unread rejection: exit %d env %+v", exit, applied)
+	}
+	// A create whose content save is rejected names the empty dashboard.
+	f = dashboardFake()
+	f.lovelace.rejectAll = true
+	h = newWriteHarness(t, f)
+	_, env = h.run(runPlanCommand, "write", "--domain", "dashboard", "--id", "new-board", "--create", "--title", "New", "--file", draftFile(t, homeDashboard()))
+	if exit, applied = h.run(runApplyCommand, "--plan", env.Plan.ID); exit != 6 || !strings.Contains(applied.Error.Message, "exists, but it is empty") {
+		t.Fatalf("rejected create: exit %d env %+v", exit, applied.Error)
+	}
+}
+
+func TestDashboardEmptyDeleteRestoresFromAnEmptyObject(t *testing.T) {
+	f := dashboardFake()
+	delete(f.lovelace.configs, "home-main")
+	h := newWriteHarness(t, f)
+	_, env := h.run(runPlanCommand, "delete", "--domain", "dashboard", "--id", "home-main")
+	if _, applied := h.run(runApplyCommand, "--plan", env.Plan.ID, "--confirm", env.Plan.Code); !strings.Contains(applied.Restore, "a file holding {}") {
+		t.Fatalf("restore %q", applied.Restore)
+	}
+}
+
+func TestDashboardShapesBareBadgesHeaderCardsAndMissingYAML(t *testing.T) {
+	f := dashboardFake()
+	cfg := homeDashboard()
+	doors := cfg["views"].([]any)[1].(map[string]any)
+	doors["badges"] = []any{"sensor.gone_badge"}
+	doors["header"] = map[string]any{"layout": "center", "card": map[string]any{"type": "markdown", "content": "Hi"}}
+	f.lovelace.configs["home-main"] = cfg
+	delete(f.lovelace.configs, "yaml-board")
+	paths, _ := setupVerbRelayTest(t, f.reply)
+	_, env := runVerbForTest(t, func() int { return runGetCommand(paths, []string{"--dashboards"}) })
+	got := string(env.Result)
+	for _, want := range []string{`"entity_id":"sensor.gone_badge"`, `"url_path":"yaml-board","title":"YAML board","mode":"yaml"`, `"kind":"config_missing"`, `"cards":5`} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("missing %s in %s", want, got)
+		}
+	}
+	h := newWriteHarness(t, dashboardFake())
+	draft := homeDashboard()
+	draft["views"].([]any)[0].(map[string]any)["badges"] = []any{"sensor.guessed_badge"}
+	if exit, plan := h.run(runPlanCommand, "write", "--domain", "dashboard", "--id", "home-main", "--base", homeBase(), "--file", draftFile(t, draft)); exit != 4 || plan.Error.Code != "UNKNOWN_ENTITY" {
+		t.Fatalf("guessed bare badge: exit %d %+v", exit, plan.Error)
+	}
+}
+
+func shapeConfig(t *testing.T, raw string) map[string]any {
+	t.Helper()
+	cfg, err := configObjectFromBytes([]byte(raw))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return cfg
+}
+
+// Shapes from the review: every literal entity reference is found, actions
+// and templates are not, statistics are never judged as entities.
+func TestDashboardIssuesCoverEveryCardShape(t *testing.T) {
+	present := func(id string) string {
+		if id == "light.real" {
+			return ""
+		}
+		return "not in Home Assistant"
+	}
+	cfg := shapeConfig(t, `{"views":[{"type":"sections","sections":[
+	 {"type":"grid","visibility":[{"condition":"state","entity":"light.guess1"}],"cards":[{"type":"heading","heading":"x","badges":[{"type":"entity","entity":"sensor.guess3"}]}]},
+	 {"type":"grid","visibility":[{"condition":"state","entity":"light.real"}],"cards":[]}]},
+	 {"cards":[{"type":"picture","image_entity":"image.guess"},{"type":"conditional","conditions":[{"entity":"light.guess4"}],"card":{"type":"tile","entity":"light.Guess5"}},
+	  {"type":"glance","entities":["light.guess6","all"]},{"type":"button","tap_action":{"action":"perform-action","perform_action":"light.turn_on","target":{"entity_id":"all"}}},
+	  {"type":"statistic","entity":"sensor.old_energy"},{"type":"markdown","content":"{{ states('sensor.tpl') }}"}]}]}`)
+	var got []string
+	for _, issue := range dashboardIssues(cfg, present, nil) {
+		got = append(got, issue.EntityID)
+	}
+	if want := "light.guess1,sensor.guess3,image.guess,light.guess4,light.guess5,light.guess6"; strings.Join(got, ",") != want {
+		t.Fatalf("issues %v, want %s", got, want)
+	}
+	if summary := viewSummary(asMap(shapeConfig(t, `{"strategy":{"type":"custom:foo"}}`))); summary != "custom:foo strategy view" {
+		t.Fatalf("strategy view summary %q", summary)
+	}
+}
+
+func TestDashboardDiffRecursesAndPairsRenamedViews(t *testing.T) {
+	cases := []struct{ before, after, want string }{
+		{`{"views":[{"cards":[{"type":"grid","cards":[{"type":"tile","entity":"light.a"},{"type":"tile","entity":"light.c"}]}]}]}`,
+			`{"views":[{"cards":[{"type":"grid","cards":[{"type":"tile","entity":"light.a"},{"type":"tile","entity":"light.z"}]}]}]}`,
+			`| View 1 › card 1 (grid (2 cards)) › card 2 (tile light.z) › entity | light.c | light.z |`},
+		{`{"views":[{"title":"Home","cards":[{"type":"tile","entity":"light.a"},{"type":"tile","entity":"light.b"}]}]}`,
+			`{"views":[{"title":"House","cards":[{"type":"tile","entity":"light.a"},{"type":"tile","entity":"lock.front"}]}]}`,
+			`| View "House" › card 2 (tile lock.front) › entity | light.b | lock.front |`},
+		{`{"views":[{"cards":[{"type":"conditional","card":{"type":"tile","entity":"light.a"}}]}]}`,
+			`{"views":[{"cards":[{"type":"conditional","card":{"type":"tile","entity":"lock.front"}}]}]}`,
+			`| View 1 › card 1 (conditional) › card (tile lock.front) › entity | light.a | lock.front |`},
+		{`{"views":[]}`, `{"views":[{"title":"New","cards":[{"type":"tile","entity":"light.a"}]}]}`,
+			`| View "New" › card 1 | — | tile light.a |`},
+		{`{"views":[{"cards":[{"type":"tile","entity":"light.a"}]}]}`, `{"views":[{"cards":[{"type":"tile","entity":"light.a","name":null}]}]}`,
+			`| View 1 › card 1 (tile light.a) › name | — | null |`},
+	}
+	for _, tc := range cases {
+		if rows := strings.Join(dashboardDiff(shapeConfig(t, tc.before), shapeConfig(t, tc.after)), "\n"); !strings.Contains(rows, tc.want) {
+			t.Fatalf("want %s in:\n%s", tc.want, rows)
+		}
+	}
+}
+
+func TestGetDashboardsSweepGoesOnPastAnUnreadableDashboard(t *testing.T) {
+	f := dashboardFake()
+	f.lovelace.configs["yaml-board"] = "views: [broken" // a config that is not an object
+	paths, _ := setupVerbRelayTest(t, f.reply)
+	exit, env := runVerbForTest(t, func() int { return runGetCommand(paths, []string{"--dashboards"}) })
+	if exit != 0 || !strings.Contains(string(env.Result), `"url_path":"yaml-board"`) || !strings.Contains(string(env.Result), `"error":`) ||
+		!strings.Contains(string(env.Result), `"url_path":"home-main"`) {
+		t.Fatalf("exit %d %s", exit, env.Result)
+	}
+	if exit, _ := runVerbForTest(t, func() int { return runGetCommand(paths, []string{"--dashboard", "yaml-board"}) }); exit == 0 {
+		t.Fatal("a single unreadable dashboard read must fail")
+	}
+}
+
+// Sibling sweep: an automation delete whose outcome is unknown still names
+// its restore, since the delete may have landed.
+func TestConfigDeleteWithUnknownOutcomeKeepsItsRestore(t *testing.T) {
+	previous := relayWriteTimeout
+	relayWriteTimeout = 200 * time.Millisecond
+	t.Cleanup(func() { relayWriteTimeout = previous })
+	f := newFakeHA()
+	f.storeConfig("/api/config/automation/config/n1", map[string]any{"alias": "Night", "actions": []any{}})
+	fastVerify(t)
+	hangDelete := false
+	paths, log := setupFakeRelay(t, func(r *http.Request, endpoint string, p map[string]any) any {
+		if hangDelete && p["method"] == "DELETE" {
+			<-r.Context().Done()
+			return nil
+		}
+		return f.reply(r, endpoint, p)
+	}, true)
+	h := &writeHarness{t: t, f: f, paths: paths, log: log}
+	_, env := h.run(runPlanCommand, "delete", "automation.night")
+	hangDelete = true
+	exit, applied := h.run(runApplyCommand, "--plan", env.Plan.ID, "--confirm", env.Plan.Code)
+	if exit != 7 || applied.Snapshot == "" || applied.Restore == "" {
+		t.Fatalf("exit %d env %+v", exit, applied)
 	}
 }

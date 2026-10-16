@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 )
 
 // Dashboard execution (dashboard-write spec): config snapshot, a fresh
@@ -45,14 +46,13 @@ func executeDashboard(paths runtimePaths, s *relaySession, env *verbEnvelope, ac
 				next:    "Plan again from the live dashboard, show the new preview, and ask again."}
 		}
 	}
-	update := action.Op != "delete" && ctx.current != nil
 	if create {
 		var shell map[string]any
 		_ = json.Unmarshal(action.Shell, &shell)
 		shell["type"] = "lovelace/dashboards/create"
 		sent = true
 		if _, err := s.write("ws", shell); err != nil {
-			return dashboardWriteFailure(env, err, "the dashboard was not created", action.ConfigID)
+			return dashboardCreateFailure(s, env, action.ConfigID, err)
 		}
 	}
 	var payload map[string]any
@@ -65,49 +65,12 @@ func executeDashboard(paths runtimePaths, s *relaySession, env *verbEnvelope, ac
 		payload["config"] = action.Body // raw bytes: the draft as given
 	}
 	sent = true
-	_, err = s.write("ws", payload)
-	var unknown *relayOutcomeUnknownError
-	if update && (err == nil || errors.As(err, &unknown)) { // it may have landed: keep the way back
-		saveCheckpoint(paths, s, env, action, ctx, action.Body)
-	}
-	if err != nil {
-		what := "nothing was saved"
-		if action.Op == "delete" {
-			what = "nothing was deleted"
-		}
-		var call *relayCallError
-		if action.Op != "delete" && !errors.As(err, &unknown) && errors.As(err, &call) {
-			// Home Assistant swaps its in-memory config before the disk write:
-			// a rejection is reported with what it serves now.
-			s.renewBudget()
-			row := verifyDashboard(s, action)
-			env.Verification = []verifyRow{row}
-			if row.Outcome == "verified" {
-				what = "yet Home Assistant now serves the planned config (it may not survive a restart)"
-				if update {
-					saveCheckpoint(paths, s, env, action, ctx, action.Body)
-				}
-			}
-		}
-		failure := dashboardWriteFailure(env, err, what, action.ConfigID)
-		var shown *verbFailure
-		if create && errors.As(failure, &shown) && shown.exit != verbExitUnknown {
-			// The shell landed: never "nothing happened".
-			shown.exit, shown.status = verbExitUnverified, "unverified"
-			shown.message = "the dashboard " + action.ConfigID + " was created but its content was not saved (" + err.Error() + ")"
-			shown.next = "It exists and is empty: plan write again without --create, or delete it."
-		} else if create && shown == nil {
-			return &verbFailure{exit: verbExitUnverified, status: "unverified", code: "CONFIG_ERROR",
-				message: "the dashboard " + action.ConfigID + " was created but its content was not saved (" + err.Error() + ")",
-				next:    "It exists and is empty: plan write again without --create, or delete it."}
-		}
-		return failure
+	if _, err = s.write("ws", payload); err != nil {
+		return dashboardWriteFailure(paths, s, env, action, ctx, create, err)
 	}
 	s.renewBudget()
-	row := verifyDashboard(s, action)
-	if action.Op == "delete" && env.Snapshot != "" {
-		env.Restore = dashboardRestore(action, env.Snapshot, s.server)
-	}
+	row, _, _ := verifyDashboard(s, action)
+	dashboardLanded(paths, s, env, action, ctx)
 	env.Verification, env.Status, env.exit = []verifyRow{row}, row.Outcome, verbExitOK
 	if row.Outcome != "verified" {
 		env.exit = verbExitUnverified
@@ -115,35 +78,135 @@ func executeDashboard(paths runtimePaths, s *relaySession, env *verbEnvelope, ac
 	return nil
 }
 
-// dashboardWriteFailure maps one dashboard write's outcome: Home Assistant's
-// own error rejected it; a transport failure after sending is unknown.
-func dashboardWriteFailure(env *verbEnvelope, err error, rejected, urlPath string) error {
-	var unknown *relayOutcomeUnknownError
+// dashboardLanded keeps the way back whenever the write may have landed: an
+// update's checkpoint and before_config, a delete's restore.
+func dashboardLanded(paths runtimePaths, s *relaySession, env *verbEnvelope, action configAction, ctx configContext) {
+	switch {
+	case action.Op == "delete" && env.Snapshot != "":
+		env.Restore = dashboardRestore(action, ctx.current, env.Snapshot, s.server)
+	case action.Op != "delete" && ctx.current != nil:
+		env.BeforeConfig = ctx.current
+		saveCheckpoint(paths, s, env, action, ctx, action.Body)
+	}
+}
+
+// rejectedByHA: Home Assistant itself answered the command with an error
+// (it got the write); any other Relay error never reached it.
+func rejectedByHA(err error) (*relayCallError, bool) {
 	var call *relayCallError
+	return call, errors.As(err, &call) && call.code == "UPSTREAM_WS_COMMAND_ERROR"
+}
+
+const readBackNext = "Read the dashboard back (`ha-nova get --dashboard %s`) and tell the user what it holds; never retry automatically."
+
+// dashboardWriteFailure reports a failed save or delete by what Home
+// Assistant holds afterwards, never by the error alone: it swaps its
+// in-memory config before the disk write, and a delete may land anyway.
+func dashboardWriteFailure(paths runtimePaths, s *relaySession, env *verbEnvelope, action configAction, ctx configContext, create bool, err error) error {
+	var unknown *relayOutcomeUnknownError
+	empty := ""
+	if create {
+		empty = "the new dashboard " + action.ConfigID + " exists, "
+	}
+	call, answered := rejectedByHA(err)
+	switch {
+	case errors.As(err, &unknown):
+		dashboardLanded(paths, s, env, action, ctx)
+		env.OutcomeUnknown = true
+		return &verbFailure{exit: verbExitUnknown, status: "unverified", code: "OUTCOME_UNKNOWN", message: empty + err.Error(), next: fmt.Sprintf(readBackNext, action.ConfigID)}
+	case !answered && create:
+		return &verbFailure{exit: verbExitUnverified, status: "unverified", code: "CONFIG_ERROR",
+			message: empty + "but its content never reached Home Assistant (" + err.Error() + "): it is empty",
+			next:    "Plan write again without --create, or delete it."}
+	case !answered:
+		return fmt.Errorf("%w; Home Assistant did not receive the write", err)
+	}
+	s.renewBudget()
+	row, readback, readOK := verifyDashboard(s, action)
+	env.Verification = []verifyRow{row}
+	reason := "Home Assistant answered with an error (" + truncate(call.message, 300) + ")"
+	unchanged := readOK && (action.Op == "delete" && row.Outcome != "verified" ||
+		action.Op != "delete" && !dashboardDiffers(orEmpty(ctx.current), orEmpty(readback)) && (ctx.current == nil) == (readback == nil))
+	switch {
+	case row.Outcome == "verified": // it landed anyway
+		dashboardLanded(paths, s, env, action, ctx)
+		landed := "it now serves the planned config (it may not survive a restart)"
+		if action.Op == "delete" {
+			landed = "the dashboard is gone"
+		}
+		return &verbFailure{exit: verbExitUnverified, status: "unverified", code: "CONFIG_REJECTED", message: reason + ", yet " + landed,
+			next: "Do not plan again: tell the user, check Home Assistant's log and storage, and read it back (`ha-nova get --dashboard " + action.ConfigID + "`) after a restart."}
+	case !readOK:
+		dashboardLanded(paths, s, env, action, ctx)
+		env.OutcomeUnknown = true
+		return &verbFailure{exit: verbExitUnknown, status: "unverified", code: "OUTCOME_UNKNOWN",
+			message: empty + reason + ", and the read-back failed: whether it changed is unknown", next: fmt.Sprintf(readBackNext, action.ConfigID)}
+	case unchanged:
+		what := "nothing was saved"
+		if action.Op == "delete" {
+			what = "nothing was deleted"
+		} else if create {
+			what = empty + "but it is empty"
+		}
+		return &verbFailure{exit: verbExitUnverified, status: "failed", code: "CONFIG_REJECTED", message: reason + "; " + what,
+			next: "Fix the cause, plan again, and show the new preview."}
+	}
+	return &verbFailure{exit: verbExitUnverified, status: "unverified", code: "CONFIG_REJECTED",
+		message: reason + "; the dashboard now holds a config that is neither the planned nor the previous one", next: fmt.Sprintf(readBackNext, action.ConfigID)}
+}
+
+func orEmpty(raw json.RawMessage) json.RawMessage {
+	if raw == nil {
+		return json.RawMessage(`{}`)
+	}
+	return raw
+}
+
+// dashboardCreateFailure reports a failed shell create by the dashboard list.
+func dashboardCreateFailure(s *relaySession, env *verbEnvelope, urlPath string, err error) error {
+	var unknown *relayOutcomeUnknownError
+	call, answered := rejectedByHA(err)
 	switch {
 	case errors.As(err, &unknown):
 		env.OutcomeUnknown = true
 		return &verbFailure{exit: verbExitUnknown, status: "unverified", code: "OUTCOME_UNKNOWN", message: err.Error(),
-			next: "Read the dashboard back (`ha-nova get --dashboard " + urlPath + "`) before anything else; never retry automatically."}
-	case errors.As(err, &call) && call.code == "UPSTREAM_WS_COMMAND_ERROR":
-		return &verbFailure{exit: verbExitUnverified, status: "failed", code: "CONFIG_REJECTED",
-			message: "Home Assistant rejected it: " + truncate(call.message, 300) + "; " + rejected,
-			next:    "Fix the cause, plan again, and show the new preview."}
+			next: "Check whether the dashboard exists (`ha-nova get --dashboards`); never retry automatically."}
+	case !answered:
+		return fmt.Errorf("%w; Home Assistant did not receive the write", err)
 	}
-	return fmt.Errorf("%w; Home Assistant did not receive the write", err)
+	s.renewBudget()
+	entries, listErr := readDashboardsFresh(s)
+	reason := "Home Assistant answered with an error (" + truncate(call.message, 300) + ")"
+	switch {
+	case listErr != nil:
+		env.OutcomeUnknown = true
+		return &verbFailure{exit: verbExitUnknown, status: "unverified", code: "OUTCOME_UNKNOWN", message: reason + ", and the dashboard list could not be read",
+			next: "Check whether the dashboard exists (`ha-nova get --dashboards`); never retry automatically."}
+	case findDashboard(entries, urlPath) != nil:
+		return &verbFailure{exit: verbExitUnverified, status: "unverified", code: "CONFIG_REJECTED", message: reason + ", yet the dashboard " + urlPath + " exists; its content was not saved",
+			next: "It is empty: plan write again without --create, or delete it."}
+	}
+	return &verbFailure{exit: verbExitUnverified, status: "failed", code: "CONFIG_REJECTED", message: reason + "; the dashboard was not created",
+		next: "Fix the cause, plan again, and show the new preview."}
+}
+
+func readDashboardsFresh(s *relaySession) ([]dashboardEntry, error) {
+	data, err := s.readFresh("ws", map[string]any{"type": "lovelace/dashboards/list"}, relaySessionRequestTimeout)
+	var entries []dashboardEntry
+	if err == nil {
+		err = json.Unmarshal(data, &entries)
+	}
+	return entries, err
 }
 
 // verifyDashboard: a save is verified when the fresh read-back equals the
 // draft (a create also needs the dashboard listed); a delete when the
-// dashboard is no longer listed.
-func verifyDashboard(s *relaySession, action configAction) verifyRow {
+// dashboard is no longer listed. readOK is false when Home Assistant could
+// not be read: then nothing about the outcome is known.
+func verifyDashboard(s *relaySession, action configAction) (verifyRow, json.RawMessage, bool) {
 	row := verifyRow{EntityID: "dashboard." + action.ConfigID, Outcome: "unverified"}
 	listed := func() (bool, error) {
-		data, err := s.readFresh("ws", map[string]any{"type": "lovelace/dashboards/list"}, relaySessionRequestTimeout)
-		var entries []dashboardEntry
-		if err == nil {
-			err = json.Unmarshal(data, &entries)
-		}
+		entries, err := readDashboardsFresh(s)
 		return findDashboard(entries, action.ConfigID) != nil, err
 	}
 	if action.Op == "delete" {
@@ -152,16 +215,19 @@ func verifyDashboard(s *relaySession, action configAction) verifyRow {
 		row.Observed = fmt.Sprintf("listed: %v", present)
 		if err != nil { // an unanswered read is not an absence
 			row.Observed = "read failed"
-		} else if !present {
+			return row, nil, false
+		}
+		if !present {
 			row.Outcome = "verified"
 		}
-		return row
+		return row, nil, true
 	}
 	row.Expect = "read-back equals the plan"
 	readback, err := readDashboardConfig(s, action.ConfigID, action.Default, true)
 	switch {
 	case err != nil:
 		row.Observed = "read-back failed"
+		return row, nil, false
 	case readback == nil || dashboardDiffers(action.Body, readback):
 		row.Observed, row.Note = "read-back differs", "the stored dashboard is not the planned one (changed by someone else, or adjusted by Home Assistant)"
 	default:
@@ -172,7 +238,7 @@ func verifyDashboard(s *relaySession, action configAction) verifyRow {
 			row.Outcome, row.Note = "unverified", "the content is saved, but the new dashboard is not listed"
 		}
 	}
-	return row
+	return row, readback, true
 }
 
 // dashboardDiffers compares content like the revert drift check: numbers by
@@ -186,7 +252,7 @@ func dashboardDiffers(planned, readback json.RawMessage) bool {
 // a create from its shell and config. The default dashboard comes back as a
 // plain write (its url_path has no hyphen; once deleted it is the unlisted
 // default again).
-func dashboardRestore(action configAction, snapshot, server string) string {
+func dashboardRestore(action configAction, current json.RawMessage, snapshot, server string) string {
 	var entry struct {
 		URLPath      string `json:"url_path"`
 		Title        string `json:"title"`
@@ -205,6 +271,9 @@ func dashboardRestore(action configAction, snapshot, server string) string {
 		if entry.ShowSidebar != nil && !*entry.ShowSidebar {
 			command += " --hide-sidebar"
 		}
+	}
+	if current == nil { // it had no saved content: an empty object recreates it
+		command = strings.Replace(command, "save its config to a file", "write a file holding {} (it had no saved content)", 1)
 	}
 	command += " --file <config file>"
 	if server != "" {
