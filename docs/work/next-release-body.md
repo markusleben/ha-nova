@@ -22,6 +22,9 @@ the number.
   code from NOVA as before.
 - **One install link:** setup opens the NOVA Relay App page directly and adds
   the repository on the way — click "Add", then Install and Start.
+- **A first look right after pairing:** setup ends with your home in one
+  line, up to two things worth a look (a low battery, an automation that
+  can't run), and example prompts that use your own room and device names.
 - **Know your home with exact numbers:** ask "what do I have?", "where is
   this sensor used?", or "review my whole setup" — rooms, devices,
   automations, integrations, unavailable entities, and low batteries are

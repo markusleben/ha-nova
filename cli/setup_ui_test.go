@@ -463,7 +463,7 @@ func TestRenderSetupMutedNoteBlockKeepsReminderSecondary(t *testing.T) {
 func TestRenderSetupCompleteBannerUsesClientLabel(t *testing.T) {
 	output := &bytes.Buffer{}
 
-	renderSetupCompleteBanner(output, []string{"claude"})
+	renderSetupCompleteBanner(output, []string{"claude"}, nil)
 
 	rendered := output.String()
 	for _, want := range []string{
@@ -481,7 +481,7 @@ func TestRenderSetupCompleteBannerUsesClientLabel(t *testing.T) {
 func TestRenderSetupCompleteBannerShowsInstalledClientsForMultipleTargets(t *testing.T) {
 	output := &bytes.Buffer{}
 
-	renderSetupCompleteBanner(output, []string{"claude", "antigravity"})
+	renderSetupCompleteBanner(output, []string{"claude", "antigravity"}, nil)
 
 	rendered := output.String()
 	for _, want := range []string{

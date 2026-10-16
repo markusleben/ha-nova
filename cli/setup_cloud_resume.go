@@ -251,6 +251,6 @@ func finishInteractiveCloudOnlySetup(
 		printHumanErr("client installation failed: %s", err)
 		return 1
 	}
-	renderSetupCompleteBanner(out, selectedClients)
+	renderSetupCompleteBanner(out, selectedClients, nil)
 	return 0
 }

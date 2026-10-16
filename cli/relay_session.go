@@ -83,6 +83,12 @@ type relayMemo struct {
 }
 
 func newRelaySession(paths runtimePaths, opts verbOptions) (*relaySession, error) {
+	return newRelaySessionWithin(paths, opts, relaySessionOverallTimeout)
+}
+
+// newRelaySessionWithin bounds the whole session (transport selection and
+// every read) by budget; setup's first look uses a shorter one.
+func newRelaySessionWithin(paths runtimePaths, opts verbOptions, budget time.Duration) (*relaySession, error) {
 	if opts.serverSet {
 		setServerSelectionOverride(opts.server)
 	}
@@ -94,7 +100,7 @@ func newRelaySession(paths runtimePaths, opts verbOptions) (*relaySession, error
 	if opts.viaSet {
 		via, _ = parseRelayVia(opts.via)
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), relaySessionOverallTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), budget)
 	transport, err := selectRelayTransport(ctx, cfg, via, opts.viaSet)
 	if err != nil {
 		cancel()
