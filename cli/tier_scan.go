@@ -87,21 +87,24 @@ func filterDomain(ids []string, domain string) []string {
 // entity or its device whose triggers reference it are read and classified;
 // d (the entity's planned change) only words the consumer list.
 func (e *tierEngine) scanConsumers(id string, depth int, d stateDelta) {
-	for _, acted := range e.acted {
-		if acted == id {
-			return
-		}
-	}
-	e.acted = append(e.acted, id)
-	if len(e.acted) > tierMaxActed {
-		e.gap(reasonLimitCut, "", "", fmt.Sprintf("more than %d acted entities", tierMaxActed))
-		return
-	}
 	needles := []string{id}
 	items := [][2]string{{"entity", id}}
 	if device := e.reg[id].di; device != "" {
 		needles = append(needles, device)
 		items = append(items, [2]string{"device", device})
+	}
+	if slices.Contains(e.acted, id) { // scanned already: this change may fire what the first did not
+		for automation, ons := range e.firedOn {
+			if cfg := e.configs[automation]; cfg != nil && slices.Contains(ons, id) {
+				e.matchConsumer(automation, triggerMatch(cfg, id, needles, d), id)
+			}
+		}
+		return
+	}
+	e.acted = append(e.acted, id)
+	if len(e.acted) > tierMaxActed {
+		e.gap(reasonLimitCut, "", "", fmt.Sprintf("more than %d acted entities", tierMaxActed))
+		return
 	}
 	var reads []func()
 	for _, item := range items {
@@ -183,8 +186,9 @@ func (e *tierEngine) consumer(automation, match, on string, depth int, fires fun
 	if e.visited[key] {
 		e.lift(e.done[key])
 		if cfg := e.configs[automation]; cfg != nil && fires != nil {
-			e.matchConsumer(automation, fires(cfg), on)
+			match = fires(cfg)
 		}
+		e.matchConsumer(automation, match, on) // an event listener keeps its own match
 		return
 	}
 	if _, cached := e.configs[automation]; !cached {

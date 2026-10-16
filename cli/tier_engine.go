@@ -98,6 +98,7 @@ type tierEngine struct {
 	fullRead  bool
 	routes    map[string][]string // extra ways an entity is reached: "" direct, else a deduplicated visit's via
 	firedOn   map[string][]string // consumer automation → the scanned entities its triggers matched
+	draft     bool                // a config draft: it runs later, so plan-time state proves nothing
 }
 
 func newTierEngine(s *relaySession) *tierEngine {
@@ -317,7 +318,11 @@ func (e *tierEngine) classify(id, service string, data map[string]any, depth int
 	if domain == "timer" {
 		e.checkEvents("timer.", id)
 	}
-	e.scanConsumers(id, depth, plannedDelta(id, eff, data, st))
+	d := plannedDelta(id, eff, data, st)
+	if e.draft {
+		d.from = ""
+	}
+	e.scanConsumers(id, depth, d)
 }
 
 // notGroupDomains carry an attributes.entity_id list that is not group

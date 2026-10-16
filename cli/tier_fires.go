@@ -18,35 +18,37 @@ const (
 
 var firesRank = map[string]int{"": 0, firesWont: 1, firesMay: 2, firesWill: 3}
 
-// stateDelta is the planned state change of a scanned entity; known only for
-// an on/off entity whose before and after states are both certain.
+// stateDelta is the planned state change of a scanned entity. to comes from
+// the action alone (turn_on/turn_off on an on/off entity), so a verdict that
+// rests on it holds whenever the step runs; from is the plan-time state and
+// only ever decides will versus may, never wont.
 type stateDelta struct {
 	from, to string
-	known    bool
 }
 
 func plannedDelta(id, eff string, data map[string]any, st *entityState) stateDelta {
 	domain, _ := splitID(id)
 	serviceDomain, name := splitID(eff)
-	before := st.state()
-	if serviceDomain != domain || !onOffDomains[domain] || (before != "on" && before != "off") {
+	d := stateDelta{from: st.state()}
+	if d.from != "on" && d.from != "off" {
+		d.from = ""
+	}
+	if serviceDomain != domain || !onOffDomains[domain] {
 		return stateDelta{}
 	}
 	switch name {
 	case "turn_off":
-		return stateDelta{before, "off", true}
-	case "toggle":
-		return stateDelta{before, map[string]string{"on": "off", "off": "on"}[before], true}
+		d.to = "off"
 	case "turn_on":
 		for key, v := range data { // brightness 0 or a step can end off
 			n, isNumber := numberOf(v)
 			if strings.Contains(key, "_step") || (slices.Contains([]string{"brightness", "brightness_pct", "percentage"}, key) && (!isNumber || n <= 0)) {
-				return stateDelta{}
+				return d
 			}
 		}
-		return stateDelta{before, "on", true}
+		d.to = "on"
 	}
-	return stateDelta{}
+	return d // toggle: its end state follows live state, so to stays unknown
 }
 
 // triggerMatch: "" when no trigger references the entity (or its device);
@@ -79,42 +81,37 @@ func strongest(a, b string) string {
 	return a
 }
 
-// stateTriggerFires: will only for a plain state trigger on the entity whose
-// to/from filters accept the known change (or that has none); wont only when
-// those filters provably reject it; everything else (other trigger kinds,
-// attribute, templated or unknown ids, unknown delta) may.
+// stateTriggerFires: wont only when the trigger's to/not_to filters reject
+// the end state the action itself sets; will only for a plain state trigger
+// on the entity whose filters accept a real change (to known, from known and
+// different); everything else (other trigger kinds, attribute, templated or
+// unknown ids, an unknown or unchanged state) may.
 func stateTriggerFires(trigger map[string]any, id string, d stateDelta) string {
 	if firstPresent(trigger, "trigger", "platform") != "state" || trigger["attribute"] != nil || !slices.Contains(literalIDs(trigger["entity_id"]), id) {
 		return firesMay
 	}
-	filtered := false
-	for _, key := range []string{"to", "from", "not_to", "not_from"} {
+	verdict := firesWill
+	for _, key := range []string{"to", "not_to", "from", "not_from"} {
 		v, present := trigger[key]
-		if !present {
-			continue
-		}
-		filtered = true // any filter: only a real state change fires
-		if v == nil {
+		if !present || v == nil { // to: null still needs a state change, checked below
 			continue
 		}
 		values, literal := literalStates(v)
-		if !literal || !d.known {
-			return firesMay
-		}
 		want := map[bool]string{true: d.to, false: d.from}[key == "to" || key == "not_to"]
-		if slices.Contains(values, want) == strings.HasPrefix(key, "not_") {
+		switch {
+		case !literal || want == "":
+			verdict = firesMay
+		case slices.Contains(values, want) != strings.HasPrefix(key, "not_"):
+		case key == "to" || key == "not_to":
 			return firesWont
+		default:
+			verdict = firesMay // from is live state: it never proves wont
 		}
 	}
-	switch {
-	case !filtered:
-		return firesWill // fires on any state or attribute change
-	case !d.known:
-		return firesMay
-	case d.from == d.to:
-		return firesWont
+	if verdict == firesWill && (d.to == "" || d.from == "" || d.from == d.to) {
+		verdict = firesMay
 	}
-	return firesWill
+	return verdict
 }
 
 func literalIDs(v any) []string {
@@ -217,10 +214,14 @@ func (e *tierEngine) shown() ([]tierMember, []tierConsumer) {
 		}
 		return false
 	}
+	ran := func(automation string) bool { // run as a step or a direct target, not only by its trigger
+		_, member := routes[automation]
+		return member || len(e.routes[automation]) > 0
+	}
 	for changed := true; changed; {
 		changed = false
 		for _, c := range e.consumers {
-			if dropped[c.Automation] || c.Class != tierOrdinary.String() {
+			if dropped[c.Automation] || c.Class != tierOrdinary.String() || ran(c.Automation) {
 				continue
 			}
 			unreached := len(e.firedOn[c.Automation]) > 0 && !slices.ContainsFunc(e.firedOn[c.Automation], func(on string) bool { return live(on, map[string]bool{}) })
@@ -229,12 +230,40 @@ func (e *tierEngine) shown() ([]tierMember, []tierConsumer) {
 			}
 		}
 	}
-	if len(dropped) == 0 && !slices.ContainsFunc(e.consumers, func(c tierConsumer) bool { return c.Match == firesWont }) {
-		return e.members, e.consumers
+	// certain: reached without passing through a consumer that only may
+	// fire, so a will downstream of a may stays may.
+	match := map[string]string{}
+	for _, c := range e.consumers {
+		match[c.Automation] = c.Match
+	}
+	var certain func(id string, seen map[string]bool) bool
+	certain = func(id string, seen map[string]bool) bool {
+		m, consumer := match[id]
+		_, member := routes[id]
+		switch {
+		case seen[id]:
+			return false
+		case consumer && !ran(id) && m != firesWill:
+			return false
+		case !member && (!consumer || ran(id)):
+			return true // a direct target, or not acted on as a member
+		}
+		seen[id] = true
+		defer delete(seen, id)
+		if consumer && !ran(id) { // a will consumer is as certain as what fires it
+			return slices.ContainsFunc(e.firedOn[id], func(on string) bool { return certain(on, seen) })
+		}
+		return slices.ContainsFunc(routes[id], func(via string) bool {
+			root, _, _ := strings.Cut(via, "/")
+			return !dropped[root] && certain(root, seen)
+		})
 	}
 	consumers := []tierConsumer{}
 	for _, c := range e.consumers {
-		if c.Match == firesWont {
+		switch {
+		case c.Match == firesWont:
+			c.Match = firesMay
+		case c.Match == firesWill && !slices.ContainsFunc(e.firedOn[c.Automation], func(on string) bool { return certain(on, map[string]bool{}) }):
 			c.Match = firesMay
 		}
 		if !dropped[c.Automation] {

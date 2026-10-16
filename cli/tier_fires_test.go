@@ -5,22 +5,23 @@ import (
 )
 
 func TestStateTriggerFires(t *testing.T) {
-	onToOff := stateDelta{"on", "off", true}
+	onToOff := stateDelta{"on", "off"}
 	cases := []struct {
 		trigger map[string]any
 		d       stateDelta
 		want    string
 	}{
 		{map[string]any{"trigger": "state", "entity_id": "light.lr", "to": "on"}, onToOff, firesWont},
+		{map[string]any{"trigger": "state", "entity_id": "light.lr", "to": "on"}, stateDelta{"", "off"}, firesWont}, // the action alone proves it
 		{map[string]any{"trigger": "state", "entity_id": "light.lr", "to": "off"}, onToOff, firesWill},
 		{map[string]any{"platform": "state", "entity_id": []any{"light.x", "light.lr"}, "to": []any{"off", "unavailable"}}, onToOff, firesWill},
-		{map[string]any{"trigger": "state", "entity_id": "light.x, light.lr", "from": "off"}, onToOff, firesWont},
+		{map[string]any{"trigger": "state", "entity_id": "light.x, light.lr", "from": "off"}, onToOff, firesMay}, // from is live state
 		{map[string]any{"trigger": "state", "entity_id": "light.lr", "not_to": "off"}, onToOff, firesWont},
 		{map[string]any{"trigger": "state", "entity_id": "light.lr", "not_from": "off"}, onToOff, firesWill},
-		{map[string]any{"trigger": "state", "entity_id": "light.lr", "to": nil}, stateDelta{"on", "on", true}, firesWont},
-		{map[string]any{"trigger": "state", "entity_id": "light.lr", "to": "on"}, stateDelta{"on", "on", true}, firesWont},
-		{map[string]any{"trigger": "state", "entity_id": "light.lr"}, stateDelta{"on", "on", true}, firesWill}, // attribute changes fire it
-		{map[string]any{"trigger": "state", "entity_id": "light.lr"}, stateDelta{}, firesWill},
+		{map[string]any{"trigger": "state", "entity_id": "light.lr", "to": nil}, stateDelta{"on", "on"}, firesMay},
+		{map[string]any{"trigger": "state", "entity_id": "light.lr", "to": "on"}, stateDelta{"on", "on"}, firesMay},
+		{map[string]any{"trigger": "state", "entity_id": "light.lr"}, onToOff, firesWill},
+		{map[string]any{"trigger": "state", "entity_id": "light.lr"}, stateDelta{}, firesMay},
 		{map[string]any{"trigger": "state", "entity_id": "light.lr", "to": "on"}, stateDelta{}, firesMay},
 		{map[string]any{"trigger": "state", "entity_id": "light.lr", "to": true}, onToOff, firesMay},
 		{map[string]any{"trigger": "state", "entity_id": "light.lr", "attribute": "brightness", "to": 3}, onToOff, firesMay},
@@ -38,14 +39,17 @@ func TestStateTriggerFires(t *testing.T) {
 func TestPlannedDeltaUncertainTurnOn(t *testing.T) {
 	off := &entityState{State: "off"}
 	for _, data := range []map[string]any{{"brightness": 0.0}, {"brightness_pct": "{{ x }}"}, {"brightness_step_pct": -100.0}} {
-		if d := plannedDelta("light.lr", "light.turn_on", data, off); d.known {
+		if d := plannedDelta("light.lr", "light.turn_on", data, off); d.to != "" {
 			t.Errorf("%v: delta %+v is not certain", data, d)
 		}
 	}
-	if d := plannedDelta("light.lr", "light.turn_on", map[string]any{"brightness": 60.0}, off); d != (stateDelta{"off", "on", true}) {
+	if d := plannedDelta("light.lr", "light.turn_on", map[string]any{"brightness": 60.0}, off); d != (stateDelta{"off", "on"}) {
 		t.Errorf("delta %+v", d)
 	}
-	if d := plannedDelta("lock.front", "lock.lock", nil, &entityState{State: "unlocked"}); d.known {
+	if d := plannedDelta("light.lr", "light.toggle", nil, off); d.to != "" {
+		t.Errorf("a toggle's end state follows live state: %+v", d)
+	}
+	if d := plannedDelta("lock.front", "lock.lock", nil, &entityState{State: "unlocked"}); d.to != "" {
 		t.Errorf("a lock has transitional states: %+v", d)
 	}
 }
@@ -125,14 +129,14 @@ func TestConsumerFiresForPlannedChange(t *testing.T) {
 					t.Fatalf("light.bed via %s", via)
 				}
 			}},
-		{name: "SN1: a scene keeping an on light on fires no on-trigger",
+		{name: "SN1: a scene keeping an on light on may fire an on-trigger (live state proves nothing)",
 			setup: func(f *fakeHA) {
 				followLight(nil)(f)
 				f.ent("scene.movie", "homeassistant", "unknown", nil)
 				f.unique["scene.movie"] = "m1"
 				f.configs["/api/config/scene/config/m1"] = map[string]any{"entities": map[string]any{"light.lr": map[string]any{"state": "on", "brightness": 60.0}}}
 			},
-			args: []string{"scene.turn_on", "scene.movie"}, exit: 3, tier: "preview", check: expectShown("light.lr", "-")},
+			args: []string{"scene.turn_on", "scene.movie"}, exit: 3, tier: "preview", check: expectShown("light.lr,light.bed", "automation.b:may")},
 		{name: "a consumer that cannot fire still raises the tier and stays listed as may",
 			setup: followLight(nil, step("lock.unlock", "lock.front")),
 			args:  []string{"light.turn_off", "light.lr"}, exit: 3, tier: "typed", reasons: []string{reasonAccessLock},
@@ -145,6 +149,28 @@ func TestConsumerFiresForPlannedChange(t *testing.T) {
 					"actions": []any{step("light.turn_on", "light.hall")}})
 			},
 			args: []string{"light.turn_off", "light.lr"}, exit: 0, tier: "ordinary", check: expectShown("-", "-")},
+		{name: "off then on in one script: the second step fires the on-trigger",
+			setup: func(f *fakeHA) {
+				followLight(nil)(f)
+				f.ent("light.lr", "hue", "off", nil)
+				f.script("blink", step("light.turn_off", "light.lr"), step("light.turn_on", "light.lr"))
+			},
+			args: []string{"script.turn_on", "script.blink"}, exit: 3, tier: "preview", check: expectShown("light.lr,light.bed,light.lr", "automation.b:will")},
+		{name: "a consumer the script also runs explicitly keeps its members",
+			setup: func(f *fakeHA) {
+				followLight(nil)(f)
+				f.script("leave", step("light.turn_off", "light.lr"), step("automation.trigger", "automation.b"))
+			},
+			args: []string{"script.turn_on", "script.leave"}, exit: 3, tier: "preview", check: expectShown("light.lr,light.bed,automation.b", "automation.b:may")},
+		{name: "a will downstream of a conditional consumer is may",
+			setup: func(f *fakeHA) {
+				followLight(map[string]any{"trigger": "state", "entity_id": "light.lr", "to": "off"})(f)
+				f.configs["/api/config/automation/config/b1"].(map[string]any)["conditions"] = []any{map[string]any{"condition": "sun", "after": "sunset"}}
+				f.related["entity:light.bed"] = []string{"automation.z"}
+				f.automation("z", "z1", map[string]any{"triggers": []any{map[string]any{"trigger": "state", "entity_id": "light.bed", "to": "on"}},
+					"actions": []any{step("light.turn_on", "light.hall")}})
+			},
+			args: []string{"light.turn_off", "light.lr"}, exit: 0, tier: "ordinary", check: expectShown("light.bed,light.hall", "automation.b:may,automation.z:may")},
 		{name: "conditions make a matching trigger may",
 			setup: func(f *fakeHA) {
 				followLight(map[string]any{"trigger": "state", "entity_id": "light.lr"})(f)
@@ -155,4 +181,18 @@ func TestConsumerFiresForPlannedChange(t *testing.T) {
 			setup: followLight(map[string]any{"trigger": "numeric_state", "entity_id": "light.lr", "attribute": "brightness", "below": 10}),
 			args:  []string{"light.turn_off", "light.lr"}, exit: 0, tier: "ordinary", check: expectShown("light.bed", "automation.b:may")},
 	})
+}
+
+// A draft runs later: today's state never makes its consumer a will.
+func TestDraftConsumerIsNeverWill(t *testing.T) {
+	f := newFakeHA()
+	followLight(nil)(f)
+	f.ent("light.lr", "hue", "off", nil)
+	h := newWriteHarness(t, f)
+	draft := map[string]any{"alias": "Evening", "triggers": []any{map[string]any{"trigger": "time", "at": "19:00:00"}},
+		"actions": []any{step("light.turn_on", "light.lr")}}
+	_, env := h.run(runPlanCommand, "write", "--domain", "automation", "--create", "--file", draftFile(t, draft))
+	if len(env.Consumers) != 1 || env.Consumers[0].Match != firesMay {
+		t.Fatalf("consumers %+v", env.Consumers)
+	}
 }
