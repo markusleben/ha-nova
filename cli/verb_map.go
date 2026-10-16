@@ -202,6 +202,7 @@ type homeIndex struct {
 	deviceArea   map[string]string // effective, enabled and disabled devices
 	deviceOn     map[string]bool   // device not disabled
 	service      map[string]bool   // entry_type service: no room to be in
+	children     map[string][]string
 	deviceDomain map[string]string // owning integration domain
 	entryDomain  map[string]string
 	helperEntry  map[string]bool
@@ -218,7 +219,7 @@ type homeIndex struct {
 }
 
 func indexHome(h *homeData, now time.Time) *homeIndex {
-	x := &homeIndex{h: h, now: now, service: map[string]bool{}, areaName: map[string]string{}, floorName: map[string]string{}, deviceOn: map[string]bool{},
+	x := &homeIndex{h: h, now: now, service: map[string]bool{}, children: map[string][]string{}, areaName: map[string]string{}, floorName: map[string]string{}, deviceOn: map[string]bool{},
 		deviceDomain: map[string]string{}, entryDomain: map[string]string{}, helperEntry: map[string]bool{}, state: map[string]*mapState{},
 		registered: map[string]bool{}, platform: map[string]string{}, category: map[string]string{}, hidden: map[string]bool{}, entityArea: map[string]string{}, entityDevice: map[string]string{}, regName: map[string]string{}}
 	for _, f := range h.floors {
@@ -238,6 +239,9 @@ func indexHome(h *homeData, now time.Time) *homeIndex {
 		own[d.ID], parent[d.ID] = d.AreaID, d.Parent
 		x.deviceOn[d.ID] = d.DisabledBy == ""
 		x.service[d.ID] = d.EntryType == "service"
+		if d.Parent != "" {
+			x.children[d.Parent] = append(x.children[d.Parent], d.ID)
+		}
 		entry := d.ConfigEntry
 		if entry == "" {
 			entry = d.PrimaryEntry

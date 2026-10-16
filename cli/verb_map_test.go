@@ -139,8 +139,10 @@ func smallHome() mapFixture {
 		related: map[string]map[string][]string{
 			"entity:light.kitchen": {"automation": {"automation.morning"}, "scene": {"scene.movie"}, "device": {"d_bulb"}},
 			// a device read also returns what uses the device's other entities
-			"device:d_bulb":               {"automation": {"automation.never", "automation.morning", "automation.old"}, "script": {"script.a"}, "scene": {"scene.movie"}, "entity": {"light.kitchen", "light.kitchen_status"}},
+			"device:d_bulb":               {"automation": {"automation.never", "automation.morning", "automation.old", "automation.child_only"}, "script": {"script.a"}, "scene": {"scene.movie"}, "entity": {"light.kitchen", "light.kitchen_status"}},
 			"entity:light.kitchen_status": {"automation": {"automation.old"}},
+			// a device read includes its child devices and their entities
+			"entity:light.kitchen_child": {"automation": {"automation.child_only"}},
 		},
 	}
 }
@@ -313,7 +315,7 @@ func TestMapWhereUsed(t *testing.T) {
 		t.Errorf("scripts %+v scenes %+v", r.Scripts, r.Scenes)
 	}
 	// automation.old uses only light.kitchen_status (a sibling): never listed
-	if strings.Contains(string(env.Result), "automation.old") {
+	if strings.Contains(string(env.Result), "automation.old") || strings.Contains(string(env.Result), "automation.child_only") {
 		t.Error("a sibling's automation listed as a use")
 	}
 	// the group state lists the light; a scene's entity_id list is no group
@@ -329,8 +331,8 @@ func TestMapWhereUsed(t *testing.T) {
 			related++
 		}
 	}
-	if related != 3 {
-		t.Errorf("search/related reads = %d, want entity + device + its other entity", related)
+	if related != 5 {
+		t.Errorf("search/related reads = %d, want entity + device + child device + the family's 2 other entities", related)
 	}
 }
 
@@ -363,6 +365,10 @@ func TestMapSections(t *testing.T) {
 	}](t, env.Result)
 	if autos.Total != 6 || autos.Shown != 2 || autos.Rows[0].Name != "Broken" || autos.Rows[1].Issue != "restored" || autos.More == "" {
 		t.Errorf("automations section %+v", autos)
+	}
+	_, env, _ = runMap(t, smallHome(), "--section", "integrations", "--limit", "1")
+	if !strings.Contains(string(env.Result), `"problems_total":1`) || !strings.Contains(string(env.Result), `"more":"ha-nova map --section integrations --limit 200"`) {
+		t.Errorf("integrations section %s", env.Result)
 	}
 	_, env, _ = runMap(t, smallHome(), "--section", "batteries")
 	if !strings.Contains(string(env.Result), `"entity_id":"sensor.phone_battery","name":"Phone battery","level":"5%","low":true,"kind":"phone"`) {

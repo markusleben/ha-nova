@@ -11,6 +11,7 @@ import (
 func (x *homeIndex) section(name string, limit int) map[string]any {
 	out := map[string]any{"section": name}
 	var total int
+	problemsCut := false
 	switch name {
 	case "areas":
 		rows := x.areaRows(true)
@@ -19,6 +20,8 @@ func (x *homeIndex) section(name string, limit int) map[string]any {
 	case "integrations":
 		rows, problems, _, _ := x.integrations()
 		total, out["rows"], out["problems"] = len(rows), rows[:min(len(rows), limit)], problems[:min(len(problems), limit)]
+		out["problems_total"] = len(problems)
+		problemsCut = len(problems) > limit
 	case "automations":
 		rows := x.automationRows()
 		total, out["rows"] = len(rows), rows[:min(len(rows), limit)]
@@ -31,9 +34,9 @@ func (x *homeIndex) section(name string, limit int) map[string]any {
 	}
 	out["total"], out["shown"] = total, min(total, limit)
 	switch {
-	case total > limit && limit < 200:
+	case (total > limit || problemsCut) && limit < 200:
 		out["more"] = "ha-nova map --section " + name + " --limit 200"
-	case total > limit: // the verb's ceiling: say so, never a loop
+	case total > limit || problemsCut: // the verb's ceiling: say so, never a loop
 		out["more"] = "first 200 of the total; narrow with ha-nova find --domain/--area/--state"
 	}
 	return out

@@ -31,7 +31,7 @@ ha-nova map [--section areas|integrations|automations|unavailable|batteries]
   `config/entity_registry/list`, `config_entries/get` (all entries, and
   `type_filter:["helper"]` to tell helpers from integrations), and
   `GET /api/states`. `--entity` adds `search/related` for the entity, its
-  device, and the device's other entities (§3). Any failed read → exit 1, no partial map (counts are never guessed).
+  device, and the rest of the device's family (§3). Any failed read → exit 1, no partial map (counts are never guessed).
 - At most one mode: default summary, one `--section`, `--entity`, or
   `--first-look`. `--limit` (1–200) caps row lists in `--section` (default 50)
   and `--entity` (default 20); totals always stay exact.
@@ -95,9 +95,10 @@ pinned by a Go test):
   `{total,shown,rows:[{entity_id,name}]}` from `search/related` on the entity;
   groups also from group states listing it. Automations and scripts that
   reference its device come from `search/related` on the device MINUS what
-  `search/related` returns for the device's other entities (a device read
-  includes those), and carry `"via":"device"`; scenes and groups never come
-  from the device read. A device with more than 30 entities skips the device
+  `search/related` returns for the rest of the device's family — its child
+  devices and every family entity except this one (a device read includes
+  them all) — and carry `"via":"device"`; scenes and groups never come
+  from the device read. A family with more than 30 other entities and child devices skips the device
   read and says so in `not_checked`. `not_checked` always lists what
   `search/related` cannot see (`dashboards`, `templates`, `helper and
   integration options`, `disabled or unloadable automations and scripts`,

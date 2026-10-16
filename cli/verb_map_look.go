@@ -41,9 +41,24 @@ func (x *homeIndex) whereUsed(s *relaySession, id string, limit int) (whereUsedR
 			next: `Search with: ha-nova find "<phrase>"`}
 	}
 	device := x.entityDevice[id]
+	// The device read covers the device's descendants too (child devices and
+	// all their entities); everything in that family except this entity is
+	// read separately and subtracted.
+	family := map[string]bool{}
+	var descendants []string
+	for queue := []string{device}; device != "" && len(queue) > 0; queue = queue[1:] {
+		if !family[queue[0]] {
+			family[queue[0]] = true
+			if queue[0] != device {
+				descendants = append(descendants, queue[0])
+			}
+			queue = append(queue, x.children[queue[0]]...)
+		}
+	}
+	sort.Strings(descendants)
 	var siblings []string
 	for other, owner := range x.entityDevice {
-		if owner == device && device != "" && other != id {
+		if family[owner] && other != id {
 			siblings = append(siblings, other)
 		}
 	}
@@ -59,10 +74,13 @@ func (x *homeIndex) whereUsed(s *relaySession, id string, limit int) (whereUsedR
 	requests := []map[string]any{related("entity", id)}
 	switch {
 	case device == "":
-	case len(siblings) > whereUsedMaxSiblings:
+	case len(siblings)+len(descendants) > whereUsedMaxSiblings:
 		notChecked = append(notChecked, "device-level references (the device has many entities)")
 	default:
 		requests = append(requests, related("device", device))
+		for _, child := range descendants {
+			requests = append(requests, related("device", child))
+		}
 		for _, sibling := range siblings {
 			requests = append(requests, related("entity", sibling))
 		}
