@@ -20,8 +20,8 @@ read, the membership is unknown — never substituted with a guess:
 | Legacy `group.*` | `attributes.entity_id` where exposed; otherwise uninspectable |
 | Notify groups | UI-built notify group entities resolve like modern group helpers (row 1); a legacy notify group SERVICE exposes no readable membership — `/api/services` proves it exists, never who it reaches: treat it as uninspectable |
 | Media player groups | the `group_members` state attribute |
-| Areas | entity/device registry plus `search/related` on the resolved area (`skills/ha-nova/bulk-patterns.md`) |
-| Devices | the entity registry filtered by `device_id` ONLY — never combined with the device's area expansion: a device-scoped action must not reach room neighbours |
+| Areas | entity/device registry plus `search/related` on the resolved area (`skills/ha-nova/bulk-patterns.md`); for a core-domain service, hidden entities, entities with an entity category, and entities assigned to another area are left out, as Home Assistant's own area targeting does |
+| Devices | the entity registry filtered by `device_id` ONLY — never combined with the device's area expansion: a device-scoped action must not reach room neighbours; for a core-domain service, hidden and categorized entities are left out, as for an area |
 | Presence-routed household | `person.*` states mapped to real notify targets (`skills/notify/SKILL.md` → Household routing) |
 
 ## Device rows (Home Assistant 2026.9+ child devices)
