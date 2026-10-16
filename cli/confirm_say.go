@@ -176,6 +176,8 @@ func sayReason(e *tierEngine, env *verbEnvelope, plan storedPlan, r tierReason) 
 		return "A reload can change what runs in Home Assistant, and HA NOVA can't check that ahead", true
 	case reasonDeviceAccess:
 		return subject + " is on a device that also has a lock, alarm, or door" + through, true
+	case reasonDeviceAccessSibling:
+		return sayDeviceSibling(e, env, r, subject) + through, true
 	case reasonSwitchAsX:
 		if e.reg[r.EntityID].di == "" { // matched only by having no device either
 			return subject + " may work a lock or a door" + through, true
@@ -191,12 +193,10 @@ func sayReason(e *tierEngine, env *verbEnvelope, plan storedPlan, r tierReason) 
 		if n := len(plan.Action.EntityIDs); n != 1 {
 			return fmt.Sprintf("This acts on %d entities at once", n), false
 		}
-		switch {
-		case r.Via == "": // a batch that named one entity several times
+		if r.Via == "" { // a batch that named one entity several times
 			return "", false
-		case e.accessDevice(e.reg[r.EntityID].di):
-			return subject + " is on a device that also has a lock, alarm, or door", false
 		}
+		// A sibling of an access device carries DEVICE_ACCESS_SIBLING itself.
 		return "HA NOVA picked it from the " + sayText(r.Via, false) + " you named", false
 	case reasonStoredMembers:
 		var names []string
@@ -221,33 +221,6 @@ func sayReason(e *tierEngine, env *verbEnvelope, plan storedPlan, r tierReason) 
 		return "", false
 	}
 	return "HA NOVA can't fully check this", r.Code != "" // a code without a sentence never reads as harmless
-}
-
-// sayOwnedAction words a Supervisor or raw-MQTT step after what it does.
-func sayOwnedAction(env *verbEnvelope, r tierReason) string {
-	action := ""
-	if env.Action != nil && r.Via == "" {
-		action = env.Action.Service
-	}
-	for _, m := range env.Members {
-		if m.EntityID == r.EntityID && m.Via == r.Via {
-			action = m.Action
-		}
-	}
-	_, name := splitID(action)
-	switch {
-	case action == "mqtt.publish":
-		return "sends a raw MQTT message"
-	case name == "host_shutdown":
-		return "shuts down the machine Home Assistant runs on"
-	case name == "host_reboot":
-		return "restarts the machine Home Assistant runs on"
-	case strings.HasPrefix(name, "restore_"):
-		return "restores a backup over the current setup"
-	case strings.HasPrefix(name, "addon_"):
-		return "starts, stops, or changes an App"
-	}
-	return "runs a Supervisor action"
 }
 
 // sayPhrase: named = the verb alone says what the named entity is

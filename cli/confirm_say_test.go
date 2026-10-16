@@ -119,13 +119,13 @@ func TestConfirmationSay(t *testing.T) {
 			setup: func(f *fakeHA) { f.script("door", step("light.turn_off", "light.hall")) },
 			args:  []string{"script.door", "--set", "which=hall"},
 			has:   []string{"Run the script “script.door” with which hall. Nothing has run yet."}},
-		{name: "a single device pick next to a garage door says so",
+		{name: "a button next to a garage door says what it may open",
 			setup: func(f *fakeHA) {
 				f.ent("button.trigger", "mqtt_x", "unknown", map[string]any{"friendly_name": "Trigger", "_di": "g1"})
 				f.ent("cover.gar", "zwave_js", "closed", map[string]any{"device_class": "garage", "_di": "g1"})
 			},
 			args: []string{"button.press", "--device", "g1"},
-			has:  []string{"“Trigger” is on a device that also has a lock, alarm, or door."}},
+			has:  []string{"“Trigger” is on the same device as “cover.gar” (a garage door): pressing it may open it, so it needs a code."}},
 		{name: "several targets show the value once",
 			setup: func(f *fakeHA) { f.ent("light.tpl", "template", "off", map[string]any{"friendly_name": "Desk"}) },
 			args:  []string{"light.turn_on", "light.tpl", "light.hall", "--set", "brightness_pct=30"},
@@ -333,5 +333,25 @@ func TestConfirmationSayCounts(t *testing.T) {
 	}
 	if got := sayMore(3, "the preview lists"); got != "There are 3 more things the preview lists" {
 		t.Error(got)
+	}
+}
+
+// DEVICE_ACCESS_SIBLING names the entity, the access device it shares, and
+// what acting on it may do — also through a member.
+func TestConfirmationSayDeviceSibling(t *testing.T) {
+	e := newTierEngine(nil)
+	e.states["switch.relay"] = &entityState{Attributes: map[string]any{"friendly_name": "Gate relay"}}
+	e.states["cover.gate"] = &entityState{Attributes: map[string]any{"friendly_name": "Gate", "device_class": "gate"}}
+	e.states["lock.door"] = &entityState{Attributes: map[string]any{"friendly_name": "Door"}}
+	e.states["automation.guest"] = &entityState{Attributes: map[string]any{"friendly_name": "Guest"}}
+	env := &verbEnvelope{Action: &planAction{Service: "input_boolean.turn_on"},
+		Members: []tierMember{{EntityID: "switch.relay", Action: "switch.turn_on", Via: "automation.guest/actions/0", Class: "typed"}}}
+	got, typed := sayReason(e, env, storedPlan{}, tierReason{Code: reasonDeviceAccessSibling, EntityID: "switch.relay", Via: "automation.guest/actions/0", Detail: "cover.gate"})
+	if want := "“Gate relay” is on the same device as “Gate” (a gate): switching it on may open it, through the automation “Guest”"; got != want || !typed {
+		t.Errorf("member: %q typed %v", got, typed)
+	}
+	env = &verbEnvelope{Action: &planAction{Service: "switch.turn_on"}}
+	if got, _ := sayReason(e, env, storedPlan{}, tierReason{Code: reasonDeviceAccessSibling, EntityID: "switch.relay", Detail: "lock.door"}); got != "“Gate relay” is on the same device as “Door” (a lock): switching it on may unlock it" {
+		t.Errorf("direct: %q", got)
 	}
 }

@@ -163,3 +163,67 @@ func appendUnique(list []string, s string) []string {
 	}
 	return append(list, s)
 }
+
+// sayDeviceSibling: "“Gate relay” is on the same device as “Gate” (a gate):
+// switching it on may open it". Detail names the access entity.
+func sayDeviceSibling(e *tierEngine, env *verbEnvelope, r tierReason, subject string) string {
+	action := ""
+	for _, m := range env.Members {
+		if m.EntityID == r.EntityID && m.Via == r.Via {
+			action = m.Action
+		}
+	}
+	if action == "" && env.Action != nil {
+		domain, _ := splitID(r.EntityID)
+		action = effectiveService(env.Action.Service, domain)
+	}
+	_, name := splitID(action)
+	doing := map[string]string{"press": "pressing it", "turn_on": "switching it on", "toggle": "switching it on"}[name]
+	found, other, effect := r.Detail, "a lock, alarm, or door", "may open it"
+	if doing == "" {
+		doing, effect = "opening it", "may also open it"
+	}
+	domain, _ := splitID(found)
+	switch domain {
+	case "lock":
+		other, effect = "a lock", "may unlock it"
+	case "alarm_control_panel":
+		other, effect = "an alarm", "may disarm it"
+	case "cover":
+		other = map[string]string{"garage": "a garage door", "gate": "a gate", "door": "a door"}[e.states[found].str("device_class")]
+		if other == "" {
+			other = "a cover that may be a door, gate, or garage"
+		}
+	}
+	if !entityIDPattern.MatchString(found) {
+		return subject + " is on the same device as " + other + ": " + doing + " " + effect
+	}
+	return subject + " is on the same device as " + sayText(e.sayName(env, found), true) + " (" + other + "): " + doing + " " + effect
+}
+
+// sayOwnedAction words a Supervisor or raw-MQTT step after what it does.
+func sayOwnedAction(env *verbEnvelope, r tierReason) string {
+	action := ""
+	if env.Action != nil && r.Via == "" {
+		action = env.Action.Service
+	}
+	for _, m := range env.Members {
+		if m.EntityID == r.EntityID && m.Via == r.Via {
+			action = m.Action
+		}
+	}
+	_, name := splitID(action)
+	switch {
+	case action == "mqtt.publish":
+		return "sends a raw MQTT message"
+	case name == "host_shutdown":
+		return "shuts down the machine Home Assistant runs on"
+	case name == "host_reboot":
+		return "restarts the machine Home Assistant runs on"
+	case strings.HasPrefix(name, "restore_"):
+		return "restores a backup over the current setup"
+	case strings.HasPrefix(name, "addon_"):
+		return "starts, stops, or changes an App"
+	}
+	return "runs a Supervisor action"
+}
