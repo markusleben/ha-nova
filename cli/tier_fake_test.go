@@ -28,6 +28,8 @@ type fakeHA struct {
 	flows         []map[string]any    // config_entries/flow/progress
 	services      []map[string]any    // GET /api/services (nil: 404)
 	devices       []map[string]any    // config/device_registry/list rows (id, parent_device_id)
+	splits        map[string]any      // config/device_registry/list_composite_splits (nil: {})
+	splitsUnknown bool                // that command is unknown (a core before 2026.8)
 	// service answers POST /api/services/<d>/<s> (nil: 200 and no effect);
 	// it runs under mu and may change states.
 	service func(f *fakeHA, path string, body map[string]any) any
@@ -151,6 +153,14 @@ func (f *fakeHA) reply(r *http.Request, endpoint string, p map[string]any) any {
 			return append([]map[string]any{}, f.flows...)
 		case "config/device_registry/list":
 			return append([]map[string]any{}, f.devices...)
+		case "config/device_registry/list_composite_splits":
+			if f.splitsUnknown {
+				return fakeRelayFailure{"UPSTREAM_WS_COMMAND_ERROR", "unknown_command: Unknown command."}
+			}
+			if f.splits == nil {
+				return map[string]any{}
+			}
+			return f.splits
 		case "config_entries/get":
 			return append([]map[string]any{}, f.entries...)
 		case "blueprint/substitute":

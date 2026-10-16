@@ -81,3 +81,81 @@ func TestChildDevicesAndStoredDeviceTargets(t *testing.T) {
 			args: []string{"script.turn_on", "script.hue"}, exit: 3, tier: "preview", check: members("light.desk_raw")},
 	})
 }
+
+// A pre-2026.8 merged device id resolves to its split devices (Home
+// Assistant still acts on them); a child device shares its parent's access
+// siblings, a via_device_id hub link never does.
+func TestCompositeIdsAndFamilySiblings(t *testing.T) {
+	splitGate := func(f *fakeHA) {
+		f.devices = []map[string]any{{"id": "dev_split1", "parent_device_id": nil}, {"id": "dev_split2", "parent_device_id": nil}}
+		f.splits = map[string]any{"old_composite": map[string]any{"split_ids": []any{"dev_split1", "dev_split2"}, "primary_id": "dev_split1"}}
+		f.ent("button.gate_open", "shelly", "unknown", map[string]any{"_di": "dev_split1"})
+		f.ent("cover.gate", "shelly", "closed", map[string]any{"_di": "dev_split1", "device_class": "gate"})
+		f.ent("lock.gate", "nuki", "locked", map[string]any{"_di": "dev_split2"})
+	}
+	consumer := func(step map[string]any) func(*fakeHA) {
+		return func(f *fakeHA) {
+			f.ent("input_boolean.guest", "input_boolean", "off", nil)
+			f.related["entity:input_boolean.guest"] = []string{"automation.guest"}
+			f.automation("guest", "g1", map[string]any{
+				"triggers": []any{map[string]any{"trigger": "state", "entity_id": "input_boolean.guest"}},
+				"actions":  []any{step},
+			})
+		}
+	}
+	press := map[string]any{"action": "button.press", "target": map[string]any{"device_id": "old_composite"}}
+	guest := []string{"input_boolean.turn_on", "input_boolean.guest"}
+	family := func(coverOn, actorOn string) func(*fakeHA) {
+		return func(f *fakeHA) {
+			f.devices = []map[string]any{{"id": "dev_parent", "parent_device_id": nil}, {"id": "dev_child", "parent_device_id": "dev_parent"}}
+			f.ent("cover.gate", "shelly", "closed", map[string]any{"_di": coverOn, "device_class": "gate"})
+			f.ent("switch.gate_relay", "shelly", "off", map[string]any{"_di": actorOn})
+		}
+	}
+	runTierCases(t, []tierCase{
+		{name: "consumer pressing an old merged device id reaches the split's gate button: typed",
+			setup: func(f *fakeHA) { splitGate(f); consumer(press)(f) },
+			args:  guest, exit: 3, tier: "typed", reasons: []string{reasonDeviceAccessSibling}},
+		{name: "integration service on an old merged device id sees the split's lock: typed",
+			setup: func(f *fakeHA) {
+				splitGate(f)
+				consumer(map[string]any{"action": "nuki.lock_n_go", "target": map[string]any{"device_id": "old_composite"}})(f)
+			},
+			args: guest, exit: 3, tier: "typed", reasons: []string{reasonDeviceAccess}},
+		{name: "--device with an old merged device id freezes the split devices' entities",
+			setup: splitGate, args: []string{"button.press", "--device", "old_composite"}, exit: 3, tier: "typed", reasons: []string{reasonDeviceAccessSibling}},
+		{name: "a core without split support: an unknown device id stays a no-op",
+			setup: func(f *fakeHA) { splitGate(f); f.splitsUnknown = true; consumer(press)(f) },
+			args:  guest, exit: 0, tier: "ordinary", absent: []string{reasonScanFailed}},
+		{name: "an unreadable split list is typed",
+			setup: func(f *fakeHA) {
+				splitGate(f)
+				f.fail["config/device_registry/list_composite_splits"] = true
+				consumer(press)(f)
+			},
+			args: guest, exit: 3, tier: "typed", reasons: []string{reasonScanFailed}},
+		{name: "relay on a child, gate cover on its parent: typed",
+			setup: family("dev_parent", "dev_child"), args: []string{"switch.turn_on", "switch.gate_relay"}, exit: 3, tier: "typed", reasons: []string{reasonDeviceAccessSibling}},
+		{name: "relay on a parent, gate cover on its child: typed",
+			setup: family("dev_child", "dev_parent"), args: []string{"switch.turn_on", "switch.gate_relay"}, exit: 3, tier: "typed", reasons: []string{reasonDeviceAccessSibling}},
+		{name: "relay on one child, gate cover on another child of the same parent: typed",
+			setup: func(f *fakeHA) {
+				family("dev_child", "dev_child2")(f)
+				f.devices = append(f.devices, map[string]any{"id": "dev_child2", "parent_device_id": "dev_parent"})
+			},
+			args: []string{"switch.turn_on", "switch.gate_relay"}, exit: 3, tier: "typed", reasons: []string{reasonDeviceAccessSibling}},
+		{name: "a hub link (via_device_id) shares no siblings: ordinary",
+			setup: func(f *fakeHA) {
+				f.devices = []map[string]any{{"id": "dev_hub", "via_device_id": nil}, {"id": "dev_node", "via_device_id": "dev_hub"}}
+				f.ent("lock.node", "zwave_js", "locked", map[string]any{"_di": "dev_node"})
+				f.ent("switch.hub_led", "zwave_js", "off", map[string]any{"_di": "dev_hub"})
+			},
+			args: []string{"switch.turn_on", "switch.hub_led"}, exit: 0, tier: "ordinary", absent: []string{reasonDeviceAccessSibling}},
+		{name: "an unreadable device registry is typed for an opening call",
+			setup: func(f *fakeHA) {
+				f.ent("switch.relay", "shelly", "off", map[string]any{"_di": "dev_x"})
+				f.fail["config/device_registry/list"] = true
+			},
+			args: []string{"switch.turn_on", "switch.relay"}, exit: 3, tier: "typed", reasons: []string{reasonScanFailed}},
+	})
+}

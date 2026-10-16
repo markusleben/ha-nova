@@ -303,3 +303,11 @@ stopped.
   `async_entries_for_parent_device`, tag 2026.10.1; contract in
   `skills/ha-nova/membership-resolution.md` → Device rows). Fixed in
   `fix/child-device-parent-field`.
+- HIT — since 2026.8 a device shared by several integrations is split into
+  one device per config entry; the old (composite) id is no longer listed,
+  but targets naming it still reach every split device and its children
+  (`helpers/target.py` `_resolve_referenced_devices`,
+  `config/device_registry/list_composite_splits`). Landed in the same branch.
+- Note — Shelly multi-channel and ESPHome sub-devices link with
+  `via_device_id`, not `parent_device_id`; the sibling check does not follow
+  hub links (every Z-Wave/Zigbee node links to its controller).

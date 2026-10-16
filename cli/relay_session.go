@@ -29,7 +29,9 @@ var readOnlyWSTypes = map[string]bool{
 	"config/entity_registry/get":              true,
 	"config/area_registry/list":               true,
 	"config/device_registry/list":             true,
-	"search/related":                          true,
+	// Pre-2026.8 merged device ids → the devices they were split into.
+	"config/device_registry/list_composite_splits": true,
+	"search/related": true,
 	// Tier engine (PR2): config_entries/get lists entries (consumer-manager
 	// presence); blueprint/substitute renders a blueprint with inputs and
 	// returns it without storing anything.
@@ -312,6 +314,13 @@ type relayCallError struct {
 
 func (e *relayCallError) Error() string {
 	return fmt.Sprintf("relay %s failed (HTTP %d, %s): %s", e.endpoint, e.status, e.code, e.message)
+}
+
+// isUpstreamUnknownCommand: Home Assistant does not know the WS command
+// (an older core).
+func isUpstreamUnknownCommand(err error) bool {
+	var call *relayCallError
+	return errors.As(err, &call) && strings.Contains(call.message, "unknown_command")
 }
 
 func isUpstreamNotFound(err error) bool {
