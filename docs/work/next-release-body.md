@@ -20,6 +20,12 @@ the number.
   restores it from the copy saved before the delete, under its original
   id, with the usual preview. It never replaces an item that exists.
 
+- **Replace a device or a phone:** "my door sensor died, I paired a new
+  one" or "I have a new phone" moves automations, scripts, scenes,
+  dashboards, helpers, energy sources, notifications, and presence to the new
+  device in one reviewed plan. When the old device is gone for good, the new
+  one takes over its entity ids, so history and statistics continue.
+
 ## What To Watch
 
 - `ha-nova uninstall` no longer guides removal of the NOVA Relay App by

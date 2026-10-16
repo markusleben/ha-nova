@@ -11,7 +11,7 @@ import (
 	"strings"
 )
 
-const getUsage = "ha-nova get <entity_id> [--config] [--related]"
+const getUsage = "ha-nova get <entity_id> [--config] [--related] [--references]"
 
 var entityIDPattern = regexp.MustCompile(`^[a-z0-9_]+\.[a-z0-9_]+$`)
 
@@ -24,6 +24,8 @@ type getResult struct {
 	Managed string          `json:"managed,omitempty"`
 	Note    string          `json:"note,omitempty"`
 	Related json.RawMessage `json:"related,omitempty"`
+	// References: get --references, the device-wide scan beyond search/related.
+	References *referencesResult `json:"references,omitempty"`
 }
 
 func runGetCommand(paths runtimePaths, args []string) int {
@@ -32,6 +34,7 @@ func runGetCommand(paths runtimePaths, args []string) int {
 	addVerbFlags(fs, &opts)
 	withConfig := fs.Bool("config", false, "also read the stored config (automation/script/scene) by its config id")
 	withRelated := fs.Bool("related", false, "also read search/related for the entity")
+	withReferences := fs.Bool("references", false, "also scan automations, scripts, dashboards, energy, and state attributes for the entity, its device, and the device's other entities (includes --related)")
 	positional, err := parseVerbArgs(fs, &opts, args, getUsage)
 	entityID := ""
 	if err == nil {
@@ -46,19 +49,26 @@ func runGetCommand(paths runtimePaths, args []string) int {
 	}
 	return runReadVerb(paths, "get", opts, func(s *relaySession, env *verbEnvelope) error {
 		state, target, err := readEntityState(s, entityID)
+		result := getResult{}
 		if err != nil {
 			// A registry-disabled (or unloaded) automation/script/scene has no
 			// state but a stored config: resolve it through its registry row.
+			// --references scans for an entity without state too: dangling
+			// references to a removed device are what a swap must find.
 			var missing *verbFailure
-			if !*withConfig || !errors.As(err, &missing) || (missing.code != "NOT_FOUND" && missing.code != "ENTITY_DISABLED" && missing.code != "ENTITY_NOT_LOADED") {
+			if (!*withConfig && !*withReferences) || !errors.As(err, &missing) || (missing.code != "NOT_FOUND" && missing.code != "ENTITY_DISABLED" && missing.code != "ENTITY_NOT_LOADED") {
 				return err
 			}
 			if target, err = registryConfigTarget(s, entityID, err); err != nil {
-				return err
+				if !*withReferences || *withConfig || !errors.As(err, &missing) || missing.code != "NOT_FOUND" {
+					return err
+				}
+				target, err = verbTarget{EntityID: entityID, By: "absent"}, nil
+				result.Note = entityID + " does not exist: the references below name a removed entity"
 			}
 		}
 		env.Resolved = []verbTarget{target}
-		result := getResult{State: state}
+		result.State = state
 		if *withConfig {
 			result.ConfigID, err = resolveConfigID(s, entityID, domain, state)
 			if err == nil {
@@ -79,7 +89,12 @@ func runGetCommand(paths runtimePaths, args []string) int {
 				return err
 			}
 		}
-		if *withRelated {
+		if *withReferences {
+			if result.References, err = scanReferences(s, entityID); err != nil {
+				return err
+			}
+		}
+		if *withRelated || *withReferences {
 			if result.Related, err = s.ws(map[string]any{"type": "search/related", "item_type": "entity", "item_id": entityID}); err != nil {
 				return err
 			}

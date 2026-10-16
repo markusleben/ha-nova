@@ -46,6 +46,11 @@ var readOnlyWSTypes = map[string]bool{
 	// entity_id: YAML and package items without a UI config too.
 	"automation/config": true,
 	"script/config":     true,
+	// get --references: the Lovelace panels, each dashboard's config, and the
+	// energy preferences (consumers search/related does not index).
+	"get_panels":       true,
+	"lovelace/config":  true,
+	"energy/get_prefs": true,
 }
 
 // relaySession resolves config and transport once per invocation and
