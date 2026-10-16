@@ -106,6 +106,9 @@ func buildCallPlan(e *tierEngine, env *verbEnvelope, req planCallRequest, target
 	plan, err := sealPlan(e, env, plan, action)
 	env.Action = &action
 	env.Deltas = planDeltas(req.Service, frozen, req.Data, e.states)
+	if env.Status == "needs_confirmation" {
+		env.Say = confirmationSay(e, env, plan, "")
+	}
 	return plan, err
 }
 
@@ -291,16 +294,23 @@ var serviceAfterState = map[string]string{
 // unavailable/unknown warnings. This is the rule's source since the
 // service-call skill moved to `ha-nova call` (formerly its state-delta rules).
 func planDeltas(service string, frozen []string, data map[string]any, states map[string]*entityState) []planDelta {
-	_, name := splitID(service)
-	after := serviceAfterState[name]
-	if strings.HasPrefix(name, "alarm_arm_") {
-		after = "armed_" + strings.TrimPrefix(name, "alarm_arm_")
-	}
 	var deltas []planDelta
 	for _, id := range frozen {
 		st := states[id]
 		if st == nil {
 			continue
+		}
+		// The state a target ends in follows the service it really gets
+		// (homeassistant.turn_on on a cover opens it); scenes and scripts
+		// have no on/off end state.
+		domain, _ := splitID(id)
+		_, name := splitID(effectiveService(service, domain))
+		after := serviceAfterState[name]
+		if strings.HasPrefix(name, "alarm_arm_") {
+			after = "armed_" + strings.TrimPrefix(name, "alarm_arm_")
+		}
+		if domain == "scene" || domain == "script" || (name == "turn_on" || name == "turn_off") && !onOffDomains[domain] {
+			after = ""
 		}
 		warning := map[string]string{"unavailable": "Device is offline or unreachable.", "unknown": "State not yet known; the call may still work."}[st.State]
 		if after != "" || warning != "" {

@@ -33,7 +33,8 @@ Read freely with ha_find, ha_get, ha_history, ha_trace, and ha_read.
 Change things only with ha_call (devices) or ha_plan followed by ha_apply.
 Ordinary everyday actions run immediately and are verified; anything else
 returns status needs_confirmation with a preview: show that preview to the
-user and wait. A preview plan runs with ha_apply after the user agrees in
+user, end with its say text (the reason and how to go ahead; add no other
+reason), and wait. A preview plan runs with ha_apply after the user agrees in
 their own words. A plan with a confirmation code (locks, gates, garage
 doors, alarm disarm, deletes) needs the code typed by the user: pass it to
 ha_apply verbatim as confirm_code. Never pass a confirmation code the user

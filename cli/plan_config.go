@@ -295,6 +295,9 @@ func computeConfigPlan(paths runtimePaths, s *relaySession, env *verbEnvelope, r
 	plan := storedPlan{Kind: req.Op, ConfigRequest: &req, ConfigAction: &action, Basis: configPlanBasis(e, current, req.Draft)}
 	plan, err = sealPlan(e, env, plan, action)
 	env.Config = &action
+	if env.Status == "needs_confirmation" {
+		env.Say = confirmationSay(e, env, plan, configAlias(req.Draft, current))
+	}
 	return e, plan, ctx, err
 }
 
@@ -312,6 +315,19 @@ func (e *tierEngine) registryConfigID(entityID string) (string, error) {
 	}
 	_, _, err = readEntityState(e.s, entityID)
 	return "", err
+}
+
+// configAlias names a config item for the confirmation text: the draft's
+// alias, else the live config's.
+func configAlias(draft, current json.RawMessage) string {
+	for _, raw := range []json.RawMessage{draft, current} {
+		if cfg, err := configObjectFromBytes(raw); err == nil {
+			if alias, _ := cfg["alias"].(string); alias != "" {
+				return alias
+			}
+		}
+	}
+	return ""
 }
 
 func revertDrift(message string) *verbFailure {

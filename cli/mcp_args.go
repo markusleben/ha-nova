@@ -181,11 +181,15 @@ func nextStep(envelope map[string]any) string {
 	errInfo, _ := envelope["error"].(map[string]any)
 	code, _ := plan["code"].(string)
 	pending := envelope["status"] == "needs_confirmation" || envelope["status"] == "drift"
+	say := ""
+	if text, _ := envelope["say"].(string); text != "" {
+		say = " Tell the user `say` as the confirmation text (in their language; names, state values, and the code exactly as printed) and add no other reason."
+	}
 	switch {
 	case pending && code != "":
-		return fmt.Sprintf("Show this preview. Ask the user to type the confirmation code themselves; pass exactly what they typed to ha_apply (plan_id %v) as confirm_code. Never pass a code from this result.", plan["id"])
+		return fmt.Sprintf("Show this preview. Ask the user to type the confirmation code themselves; pass exactly what they typed to ha_apply (plan_id %v) as confirm_code. Never pass a code from this result.", plan["id"]) + say
 	case pending && plan != nil:
-		return fmt.Sprintf("Show this preview and wait for the user's own confirmation; only then call ha_apply with plan_id %v.", plan["id"])
+		return fmt.Sprintf("Show this preview and wait for the user's own confirmation; only then call ha_apply with plan_id %v.", plan["id"]) + say
 	case errInfo != nil && errInfo["code"] == "RELAY_ERROR":
 		return "If this computer is not paired or its credential store is locked, ask the user to run `ha-nova setup` in a terminal."
 	}

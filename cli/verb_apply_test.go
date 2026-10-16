@@ -273,7 +273,11 @@ func TestApplyRefusesAPlanThatFrozeNoTarget(t *testing.T) {
 	f := newFakeHA()
 	f.fail["search/related"] = true // --area cannot resolve: typed UNRESOLVED_TARGET
 	h := newWriteHarness(t, f)
-	plan := h.plan("light.turn_off", "--area", "kitchen").Plan
+	env := h.plan("light.turn_off", "--area", "kitchen")
+	plan := env.Plan
+	if strings.Contains(env.Say, "Reply") || strings.Contains(env.Say, "confirm:") {
+		t.Fatalf("say asks for a plan apply refuses: %q", env.Say)
+	}
 	if exit, env := h.run(runApplyCommand, "--plan", plan.ID, "--confirm", plan.Code); exit != 4 || env.Error.Code != "UNRESOLVED_TARGET" || len(h.posts()) != 0 {
 		t.Fatalf("exit %d env %+v", exit, env)
 	}
