@@ -297,14 +297,34 @@ func runSetupPairingFlow(reader *bufio.Reader, out io.Writer, paths runtimePaths
 		}
 	}
 
-	if err := promptToOpenNOVAForPairing(reader, out, cfg.HAURL); err != nil {
-		return "", err
+	typedCode := ""
+	if secure && haSignInOffered(out, *cfg) {
+		paired, code, err := runHASignInPairingStep(reader, out, paths, cfg, lifecycleMarker...)
+		if paired {
+			renderSetupSuccessLine(out, "This computer is connected to NOVA Relay")
+			return "", errSetupDevicePaired
+		}
+		if err != nil {
+			return "", err
+		}
+		typedCode = code
+	}
+
+	if typedCode == "" {
+		if err := promptToOpenNOVAForPairing(reader, out, cfg.HAURL); err != nil {
+			return "", err
+		}
 	}
 
 	for {
-		entered, err := promptWizardLineFromReader(reader, out, "Six-digit code from NOVA (or type 'manual')", "")
-		if err != nil {
-			return "", err
+		entered := typedCode
+		typedCode = ""
+		if entered == "" {
+			var err error
+			entered, err = promptWizardLineFromReader(reader, out, "Six-digit code from NOVA (or type 'manual')", "")
+			if err != nil {
+				return "", err
+			}
 		}
 		if strings.EqualFold(strings.TrimSpace(entered), "manual") {
 			return "", errSetupRelayTokenStep

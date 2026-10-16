@@ -10,6 +10,9 @@ import type { PairingV1Manager } from "../../security/pairing-v1.js";
 export interface PairV1Deps {
   manager: PairingV1Manager;
   relayVersion: string;
+  // Home Assistant sign-in pairing (/pair/v2/arm) is served (App mode); lets
+  // the CLI offer sign-in before the user opens a browser for nothing.
+  signIn?: boolean;
 }
 
 export function createPairV1InfoHandler(deps: PairV1Deps): RouteHandler {
@@ -17,6 +20,7 @@ export function createPairV1InfoHandler(deps: PairV1Deps): RouteHandler {
     relay_version: deps.relayVersion,
     protocol_version: "v1",
     available: true,
+    sign_in: deps.signIn === true,
   });
 }
 

@@ -76,6 +76,7 @@ const (
 	noteTemplates              = "TEMPLATES_NOT_CHECKABLE"
 	noteNoManager              = "NO_LOCAL_CONSUMER_MANAGER" // informational: none installed locally
 	noteSkippedTargets         = "EXPANDED_TARGET_WITHOUT_STATE"
+	noteFilteredTargets        = "EXPANDED_TARGET_FILTERED"
 )
 
 // Engine limits (spec §2.2 "Caching and limits"); any cut is LIMIT_CUT.

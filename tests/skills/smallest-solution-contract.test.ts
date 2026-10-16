@@ -50,9 +50,9 @@ describe("smallest complete solution contract (#452)", () => {
     // resolve agent generates at most two evidence-backed enhancements
     expect(resolveAgent).toContain("at most 2 concrete optional improvements");
     expect(resolveAgent).toContain("never invent suggestions to fill the list");
-    // output rules differentiate improvement vs value-default caps
+    // output rules cap improvement offers; helper defaults are not offers
     expect(outputRules).toContain("unsolicited improvement suggestions max 2");
-    expect(outputRules).toContain("value-default suggestions");
+    expect(outputRules).toContain("Helper defaults already merged into");
     // helper: unconditional draft rule, plus value defaults stay at 4 while
     // feature offers route to the contract
     expect(helperSkill).toContain(
@@ -68,7 +68,7 @@ describe("smallest complete solution contract (#452)", () => {
       .filter((path) => existsSync(path));
     const writeFlowSkills = skillFiles.filter((path) =>
       readFileSync(path, "utf8").includes(
-        "authorize drafting and preview only",
+        "never confirms it; only a reply to the preview does",
       ),
     );
     expect(writeFlowSkills.length).toBeGreaterThanOrEqual(23);

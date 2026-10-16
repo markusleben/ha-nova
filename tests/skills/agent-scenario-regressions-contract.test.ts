@@ -73,3 +73,44 @@ describe("agent scenario regressions (2026-10-15)", () => {
     expect(flat("skills/write/SKILL.md")).toContain("A delete needs only `skills/ha-nova/write-safety.md` of these.");
   });
 });
+
+// 2026-10-16 scenario suite (40 scenarios): skill-text defects behind a
+// preview-less config write, avoidable rounds, and failed first reads.
+describe("agent scenario regressions (2026-10-16)", () => {
+  it("never treats an answer to a clarifying question as confirmation", () => {
+    const core = '- Anything before the preview ("do it", answers to questions) never confirms it; only a reply to the preview does.';
+    expect(readFileSync("docs/reference/skill-architecture.md", "utf8")).toContain(core);
+    expect(flat("skills/write/SKILL.md")).toContain(
+      "An answer to a clarifying question is never a confirmation: end the turn with each new or changed plan's preview (except Phase 3 step 4's natural-confirmation duration call re-plan with action and tier unchanged).",
+    );
+    expect(flat("skills/ha-nova/SKILL.md")).toContain(
+      "Neither is an answer to a clarifying question; only a reply to the preview confirms.",
+    );
+  });
+
+  it("resolves sibling skill paths in repo and installed layouts", () => {
+    expect(flat("skills/ha-nova/session-bootstrap.md")).toContain(
+      "On disk, relative skills/<x>/<file> means ../<x>/<file> from the citing file.",
+    );
+  });
+
+  it("resolves scene entities through find, aliases included", () => {
+    expect(flat("skills/scene/SKILL.md")).toContain('with `ha-nova find "<phrase>" --aliases` (exact');
+  });
+
+  it("previews a whole-domain call once and restates a typed call's consequence", () => {
+    const sc = flat("skills/service-call/SKILL.md");
+    expect(sc).toContain("`ha-nova find --domain light --state on --limit 200` (narrow first if `returned` < `total`) → one `plan call` preview, no pre-question; none: say so.");
+    // Up to 10 explicit ids would run at once (ordinary tier); the domain list never may.
+    expect(sc).not.toContain("one `call`, no pre-question");
+    expect(sc).toContain("more → a `plan call` preview, an area/device target, or ask.");
+    expect(sc).toContain("a typed `apply` result restates the effect the code was for and whether it was verified.");
+  });
+
+  it("flags a sibling variable only when it is used above its declaration", () => {
+    const checks = flat("skills/review/checks.md");
+    expect(checks).toContain("R-18 [MEDIUM]");
+    expect(checks).toContain("B above A: no finding.");
+    expect(checks).not.toContain("may reorder mapping keys");
+  });
+});

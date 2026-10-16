@@ -138,6 +138,12 @@ const WORD_BUDGETS: Record<string, number> = {
   // step, and the prerelease-toggle rule (measured 2217).
   // Safety Core fast-path amendment (PR4 typed verbs, +45 words per mutation skill).
   hacs: 2330,
+  // Device swap/onboard/retire: one scan contract, the hit-routing table
+  // across eight owning skills, the takeover-vs-rewrite choice with its
+  // history rule, the Access Check (takeover, person/group hand-offs, area
+  // and label carry), and the removal-safe execution order from the pre-PR
+  // adversarial pass (measured 1960).
+  device: 1990,
   // Cards adoption pointer (#389).
   // Charset restriction on the value interpolated into the log-filter regex,
   // plus the escaping rule Codex round 1 added: an entity_id is not literal

@@ -12,6 +12,7 @@ import {
   type NovaPageDeps,
 } from "../http/handlers/nova-page.js";
 import {
+  createPairV2ArmHandler,
   createPairV2FinishHandler,
   createPairV2InfoHandler,
   createPairV2StartHandler,
@@ -39,8 +40,22 @@ export function createIngressRoutes(deps: IngressListenerDeps): {
 } {
   const router = createRouter();
   const policies: IngressRoutePolicies = new Map();
-  registerOwnerRoutes(router, policies, deps);
+  const fetchAuthUsers = async (): Promise<HaAuthUser[]> => {
+    const result = await deps.wsClient.sendMessage({
+      type: "config/auth/list",
+    });
+    if (!Array.isArray(result)) {
+      // A non-list reply is a Supervisor/HA fault, not "no owner": throw so
+      // the owner check answers 503 (retry) instead of a false 403.
+      throw new Error("config/auth/list returned a non-list result");
+    }
+    return result as HaAuthUser[];
+  };
+  registerOwnerRoutes(router, policies, deps, fetchAuthUsers);
   registerCloudCleanupRoutes(router, policies, deps);
+  // Sign-in pairing yields local devices, so pair v2 serves it with or without
+  // Cloud remote; typed-code pair v2 stays a Cloud feature (pairing manager).
+  registerPairingV2Routes(router, policies, deps, fetchAuthUsers);
   if (deps.cloudRemoteEnabled) {
     registerCloudSetupRoutes(router, policies, deps);
     registerFunctionalRoutes(router, policies, deps.functional);
@@ -91,11 +106,6 @@ function registerCloudSetupRoutes(
     relayInstanceId: deps.relayInstanceId,
     now: deps.now,
   };
-  const pairV2 = {
-    manager: deps.pairing,
-    relayInstanceId: deps.relayInstanceId,
-    relayVersion: deps.relayVersion,
-  };
   registerIngressRoute(
     router,
     policies,
@@ -112,6 +122,19 @@ function registerCloudSetupRoutes(
     machine("json"),
     createCloudDeviceActivateHandler(cloudDevice),
   );
+}
+
+function registerPairingV2Routes(
+  router: ReturnType<typeof createRouter>,
+  policies: IngressRoutePolicies,
+  deps: IngressListenerDeps,
+  fetchAuthUsers: () => Promise<HaAuthUser[]>,
+): void {
+  const pairV2 = {
+    manager: deps.pairing,
+    relayInstanceId: deps.relayInstanceId,
+    relayVersion: deps.relayVersion,
+  };
   registerIngressRoute(
     router,
     policies,
@@ -119,6 +142,19 @@ function registerCloudSetupRoutes(
     "/pair/v2/info",
     machine("none"),
     createPairV2InfoHandler(pairV2),
+  );
+  registerIngressRoute(
+    router,
+    policies,
+    "POST",
+    "/pair/v2/arm",
+    machine("json"),
+    createPairV2ArmHandler({
+      ...pairV2,
+      fetchAuthUsers,
+      logger: deps.logger,
+      registryCorrupt: deps.registryCorrupt,
+    }),
   );
   registerIngressRoute(
     router,
@@ -189,20 +225,11 @@ function registerOwnerRoutes(
   router: ReturnType<typeof createRouter>,
   policies: IngressRoutePolicies,
   deps: IngressListenerDeps,
+  fetchAuthUsers: () => Promise<HaAuthUser[]>,
 ): void {
   const csrf = createCsrfStore();
   const novaDeps: NovaPageDeps = {
-    fetchAuthUsers: async () => {
-      const result = await deps.wsClient.sendMessage({
-        type: "config/auth/list",
-      });
-      if (!Array.isArray(result)) {
-        // A non-list reply is a Supervisor/HA fault, not "no owner": throw so
-        // the owner check answers 503 (retry) instead of a false 403.
-        throw new Error("config/auth/list returned a non-list result");
-      }
-      return result as HaAuthUser[];
-    },
+    fetchAuthUsers,
     csrf,
     pairing: deps.pairing,
     registry: deps.registry,

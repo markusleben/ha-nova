@@ -48,13 +48,15 @@ var mcpTools = []mcpTool{mcpSkillTool,
 	{name: "ha_find", title: "Find entities", description: "Find entities by phrase (case-, accent-, alias-aware) and/or by domain, area, or current state — e.g. which lights are on: domain light, state on. With state, rows marked group: true count their members again — report them separately; entities in state unavailable are a separate could-not-tell bucket (ask again with state unavailable and with state unknown).", readOnly: true, idempotent: true,
 		schema: object(nil, map[string]any{"phrase": prop("string", "words to match (optional with domain, area, or state)"), "domain": prop("string", "only this domain"),
 			"area": prop("string", "only this area_id"), "state": prop("string", "only entities currently in this state, e.g. on"),
-			"limit": prop("integer", "1-200 rows (default 20)"), "include_disabled": prop("boolean", "include disabled entities")}),
+			"limit": prop("integer", "1-200 rows (default 20)"), "include_disabled": prop("boolean", "include disabled entities"),
+			"aliases": prop("boolean", "also match aliases when names already match (after a rejected name match)")}),
 		argv: findArgv, run: runFindCommand},
 	{name: "ha_get", title: "Read an entity", description: "Read one entity's state, optionally its stored config and relations. managed: yaml means the config is defined in YAML or a package: never edit or delete it through ha_plan; it is changed in those files.", readOnly: true, idempotent: true,
 		schema: object([]string{"entity_id"}, map[string]any{"entity_id": prop("string", "exact entity_id"),
-			"config": prop("boolean", "also read the stored automation/script/scene config"), "related": prop("boolean", "also read search/related")}),
+			"config": prop("boolean", "also read the stored automation/script/scene config"), "related": prop("boolean", "also read search/related"),
+			"references": prop("boolean", "also scan automations, scripts, dashboards, energy, and state attributes for the entity, its device, and the device's other entities (includes related)")}),
 		argv: func(a map[string]json.RawMessage, _ *mcpTempFiles) ([]string, error) {
-			return flagsThen(a, []string{"config", "related"}, nil, "entity_id")
+			return flagsThen(a, []string{"config", "related", "references"}, nil, "entity_id")
 		}, run: runGetCommand},
 	{name: "ha_history", title: "Read history", description: "Summarize an entity's history in a window of at most 7 days (each bound a duration ago of at most 7d or an RFC3339 time).", readOnly: true, idempotent: true,
 		schema: object([]string{"entity_id"}, map[string]any{"entity_id": prop("string", "exact entity_id"),
@@ -63,6 +65,11 @@ var mcpTools = []mcpTool{mcpSkillTool,
 		argv: func(a map[string]json.RawMessage, _ *mcpTempFiles) ([]string, error) {
 			return flagsThen(a, []string{"logbook"}, []string{"since", "until"}, "entity_id")
 		}, run: runHistoryCommand},
+	{name: "ha_map", title: "Map the home", description: "Exact, computed home facts — never count by hand: areas/floors with device and entity counts, automations/scripts/scenes/helpers, integrations, unavailable entities, low batteries. section gives one full list; entity gives where-used (automations, scripts, scenes, groups; not_checked names what was not searched); first_look gives the onboarding summary.", readOnly: true, idempotent: true,
+		schema: object(nil, map[string]any{"section": map[string]any{"type": "string", "enum": []string{"areas", "integrations", "automations", "unavailable", "batteries"}},
+			"entity": prop("string", "exact entity_id: where it is used"), "first_look": prop("boolean", "the onboarding first look"),
+			"limit": prop("integer", "1-200 rows for section or entity")}),
+		argv: mapArgv, run: runMapCommand},
 	{name: "ha_trace", title: "Read automation traces", description: "Latest trace, trace list, or one trace of an automation or script.", readOnly: true, idempotent: true,
 		schema: object([]string{"action", "entity_id"}, map[string]any{"action": map[string]any{"type": "string", "enum": []string{"latest", "list", "get"}},
 			"entity_id": prop("string", "automation.x or script.x"), "run_id": prop("string", "for action get")}),
@@ -71,7 +78,7 @@ var mcpTools = []mcpTool{mcpSkillTool,
 		schema: object([]string{"endpoint"}, map[string]any{"endpoint": map[string]any{"type": "string", "enum": []string{"core", "ws"}},
 			"path": prop("string", "core: /api/... path (GET only)"), "payload": prop("object", "ws: the message, e.g. {\"type\":\"search/related\",...}")}),
 		argv: readArgv, run: runMCPRead},
-	{name: "ha_plan", title: "Plan a change", description: "Plan without executing: kind call (a service call), write (automation/script config), delete, revert, or restore (a deleted automation/script from the snapshot its delete result named). Returns a preview and, for high-consequence plans, a confirmation code the user must type. coverage.notes are informational: mention one only when it raised the tier or the user asks — except EXPANDED_TARGET_WITHOUT_STATE: always tell the user in plain words which entities were skipped (not reporting).",
+	{name: "ha_plan", title: "Plan a change", description: "Plan without executing: kind call (a service call), write (automation/script config), delete, revert, or restore (a deleted automation/script from the snapshot its delete result named). Returns a preview; a high-consequence plan needs a confirmation code the user types (no code is returned where their app asks for it in a form). coverage.notes are informational: mention one only when it raised the tier or the user asks — except EXPANDED_TARGET_WITHOUT_STATE: always tell the user in plain words which coverage.skipped entries with that code were skipped (not reporting).",
 		readOnly: true,
 		schema: object([]string{"kind"}, merged(callProperties, map[string]any{
 			"kind":      map[string]any{"type": "string", "enum": []string{"call", "write", "delete", "revert", "restore"}},
@@ -82,12 +89,12 @@ var mcpTools = []mcpTool{mcpSkillTool,
 			"draft":     prop("object", "write: the full config (key order is kept)"),
 			"entity_id": prop("string", "delete: automation.x or script.x")})),
 		argv: planArgv, run: runPlanCommand},
-	{name: "ha_call", title: "Control a device", description: "Call a service. Ordinary calls run now and are verified; anything else returns needs_confirmation with a plan for ha_apply. A call that timed out or returned no result is outcome unknown: read with ha_get; never call again. coverage.notes are informational: mention one only when it raised the tier or the user asks — except EXPANDED_TARGET_WITHOUT_STATE: always tell the user in plain words which entities were skipped (not reporting).",
+	{name: "ha_call", title: "Control a device", description: "Call a service. Ordinary calls run now and are verified; anything else returns needs_confirmation with a plan for ha_apply. A call that timed out or returned no result is outcome unknown: read with ha_get; never call again. coverage.notes are informational: mention one only when it raised the tier or the user asks — except EXPANDED_TARGET_WITHOUT_STATE: always tell the user in plain words which coverage.skipped entries with that code were skipped (not reporting).",
 		schema: object([]string{"service"}, callProperties), argv: callArgv, run: runCallCommand},
-	{name: "ha_apply", title: "Apply a confirmed plan", description: "Execute a stored plan once after the user confirmed its preview. confirm_code must be exactly what the user typed. A call that timed out or returned no result is outcome unknown: read with ha_get; never call again.",
+	{name: "ha_apply", title: "Apply a confirmed plan", description: "Execute a stored plan once: a preview plan after the user agreed to its preview; a plan with a confirmation code only with the code the user typed — or, where a result says their app asks for the code in a form, without confirm_code (the form confirms; a passed code is ignored). A call that timed out or returned no result is outcome unknown: read with ha_get; never call again.",
 		destructive: true,
 		schema: object([]string{"plan_id"}, map[string]any{"plan_id": prop("string", "p_ + 12 hex"),
-			"confirm_code": prop("string", "the code exactly as the user typed it"), "no_snapshot": prop("boolean", "deletes only, after a failed snapshot and the user's choice")}),
+			"confirm_code": prop("string", "the code exactly as the user typed it in chat (ignored where the app asks for it in a form)"), "no_snapshot": prop("boolean", "deletes only, after a failed snapshot and the user's choice")}),
 		argv: applyArgv, run: runApplyCommand},
 }
 
@@ -119,12 +126,12 @@ func mcpToolList(paths runtimePaths) []map[string]any {
 // capture, server selection).
 var mcpVerbLock sync.Mutex
 
-func (srv *mcpServer) callTool(raw json.RawMessage) (map[string]any, *rpcError) {
+func (srv *mcpServer) callTool(req rpcRequest) (map[string]any, *rpcError) {
 	var params struct {
 		Name      string                     `json:"name"`
 		Arguments map[string]json.RawMessage `json:"arguments"`
 	}
-	if json.Unmarshal(raw, &params) != nil {
+	if json.Unmarshal(req.Params, &params) != nil {
 		return nil, &rpcError{Code: rpcInvalidParams, Message: "tools/call needs name and arguments"}
 	}
 	for _, tool := range mcpTools {
@@ -138,6 +145,11 @@ func (srv *mcpServer) callTool(raw json.RawMessage) (map[string]any, *rpcError) 
 		}
 		if tool.name == mcpSkillTool.name { // offline: no verb, no lock
 			return srv.callSkill(params.Arguments), nil
+		}
+		if tool.name == "ha_apply" && req.forms { // only the human's answer in a form confirms here
+			if stop, rpcErr := srv.confirmByForm(req, params.Arguments); stop != nil || rpcErr != nil {
+				return stop, rpcErr
+			}
 		}
 		temp := &mcpTempFiles{}
 		defer temp.remove()
@@ -157,7 +169,7 @@ func (srv *mcpServer) callTool(raw json.RawMessage) (map[string]any, *rpcError) 
 		if tool.name == "ha_trace" { // trace prints its own object: add the verbs' notices
 			out = withNotices(out, verbNotices(srv.paths, traceRelayVersion.Load().(string)), activeServerProfile())
 		}
-		return toolResult(tool.name, out, errOut, exit, srv.told), nil
+		return toolResult(tool.name, out, errOut, exit, srv.told, req.forms), nil
 	}
 	return nil, &rpcError{Code: rpcInvalidParams, Message: "unknown tool: " + params.Name}
 }
@@ -171,7 +183,7 @@ func pinServer(tool string, argv []string, pin string) []string {
 	}
 	flag := "--server=" + pin
 	switch tool {
-	case "ha_find", "ha_get", "ha_history", "ha_call", "ha_apply":
+	case "ha_find", "ha_get", "ha_history", "ha_map", "ha_call", "ha_apply":
 		return append([]string{flag}, argv...)
 	case "ha_plan": // after the subcommand
 		return append([]string{argv[0], flag}, argv[1:]...)
@@ -204,7 +216,8 @@ func withNotices(out string, notices []verbNotice, server string) string {
 // object, so a client that reads only one of them still gets the guidance
 // (next_step). isError for failures, not for needs_confirmation. told
 // (nil = no memory) keeps each update notice's hint to once per session.
-func toolResult(name, out, errOut string, exit int, told map[string]bool) map[string]any {
+// forms: the client shows confirmation forms, so no code is shown.
+func toolResult(name, out, errOut string, exit int, told map[string]bool, forms bool) map[string]any {
 	var envelope map[string]any
 	// A verb envelope carries schema_version; anything else (trace prints
 	// plain JSON, failures print to stderr) is wrapped into one.
@@ -224,7 +237,11 @@ func toolResult(name, out, errOut string, exit int, told map[string]bool) map[st
 			errInfo["message"] = mcpArgs(message)
 		}
 	}
-	if step := strings.TrimSpace(nextStep(envelope) + " " + noticeHints(envelope, told)); step != "" {
+	next := nextStep(envelope)
+	if forms {
+		next = formsNext(envelope, next)
+	}
+	if step := strings.TrimSpace(next + " " + noticeHints(envelope, told)); step != "" {
 		envelope["next_step"] = step
 	}
 	text, _ := json.Marshal(envelope)
@@ -379,8 +396,18 @@ func flagsThen(args map[string]json.RawMessage, bools, strs []string, positional
 	return argv, nil
 }
 
+func mapArgv(args map[string]json.RawMessage, _ *mcpTempFiles) ([]string, error) {
+	argv, _ := flagsThen(args, []string{"first_look"}, []string{"section", "entity"}, "")
+	if raw, present := args["limit"]; present {
+		var n int
+		_ = json.Unmarshal(raw, &n)
+		argv = append(argv, "--limit="+strconv.Itoa(n))
+	}
+	return argv, nil
+}
+
 func findArgv(args map[string]json.RawMessage, _ *mcpTempFiles) ([]string, error) {
-	argv, _ := flagsThen(args, []string{"include_disabled"}, []string{"domain", "area", "state"}, "")
+	argv, _ := flagsThen(args, []string{"include_disabled", "aliases"}, []string{"domain", "area", "state"}, "")
 	if raw, present := args["limit"]; present {
 		var n int
 		_ = json.Unmarshal(raw, &n)

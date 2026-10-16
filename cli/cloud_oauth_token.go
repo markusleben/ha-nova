@@ -31,11 +31,15 @@ func NewHAOAuthClient(canonicalOrigin string, httpClient *http.Client) (*HAOAuth
 	if err != nil {
 		return nil, err
 	}
+	return newHAOAuthClientForOrigin(origin, httpClient), nil
+}
+
+func newHAOAuthClientForOrigin(origin *url.URL, httpClient *http.Client) *HAOAuthClient {
 	return &HAOAuthClient{
 		origin: origin.String(),
 		http:   cloudNoRedirectHTTPClient(httpClient, 15*time.Second),
 		now:    time.Now,
-	}, nil
+	}
 }
 
 func (c *HAOAuthClient) ExchangeAuthorizationCode(ctx context.Context, authorization OAuthAuthorizationCode) (HAOAuthToken, error) {

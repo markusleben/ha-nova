@@ -1,7 +1,8 @@
 # NOVA Relay: Architecture Reference
 
 > **Implementation status:** Seven bounded local endpoint families are implemented.
-> The Cloud remote Beta adds a Supervisor-ingress-only machine surface.
+> The Cloud remote Beta adds a Supervisor-ingress-only machine surface;
+> Home Assistant sign-in pairing uses the same surface.
 > Filesystem access is opt-in/off by default; streaming remains unimplemented.
 
 ## Overview
@@ -294,6 +295,16 @@ TLS. Cloud sends it through a process-local Supervisor Ingress session. Pairing
 v2 atomically activates a user-bound device; existing devices bind only when the
 Relay instance matches. Legacy shared tokens are rejected on Ingress routes.
 
+Home Assistant sign-in pairing arms the pairing slot with `POST /pair/v2/arm`:
+the Home Assistant owner only (fresh `config/auth/list` check on every call),
+JSON only, refused when the request carries `Sec-Fetch-Site` (every browser
+request), answered `no-store`. The 256-bit secret is single use, expires after
+two minutes, is never shown on the NOVA page, and only the arming user's
+`/pair/v2/start` accepts it; `/pair/v1/start` answers as if no code were
+active. It yields an unbound local device that activates over pinned TLS
+exactly like a typed code; `GET /pair/v1/info` reports `sign_in: true` when
+the route is served (`docs/work/2026-10-16-ha-sign-in-pairing-spec.md`).
+
 **Upstream (Relay -> HA):**
 The Home Assistant App prefers its process-local `SUPERVISOR_TOKEN` and sends it
 only to the official `http://supervisor/core/api` and
@@ -310,7 +321,11 @@ upstream with its Supervisor token. Standalone Container/Core installs must
 provide both `RELAY_AUTH_TOKEN` and `HA_LLAT` server-side.
 
 The interactive CLI's normal App path never asks the user to copy the relay
-token. It asks for the current Home Base code, sends it only in the JSON body of
+token. In a local desktop terminal it first offers Home Assistant sign-in: the
+owner signs in through the browser, the CLI opens a process-local ingress
+session, revokes the Home Assistant session, and pairs through `/pair/v2/arm`
+plus pair v2. Otherwise, or after any sign-in failure, it asks for the current
+Home Base code, sends it only in the JSON body of
 `POST /pair`, stores the returned token in the existing OS credential backend,
 and verifies both `/health` and `/ws`. Pairing requests do not follow redirects;
 the code is not accepted through argv and is not persisted in normal config.

@@ -28,7 +28,13 @@ ROOT = Path(__file__).resolve().parents[2]
 READ_SKILL_FILE = ROOT / "skills" / "read" / "SKILL.md"
 REVIEW_SKILL_FILE = ROOT / "skills" / "review" / "SKILL.md"
 BULK_PATTERNS_FILE = ROOT / "skills" / "ha-nova" / "bulk-patterns.md"
-OUTPUT_DIR = Path(os.environ.get("OUTPUT_DIR", tempfile.mkdtemp(prefix="ha-nova-codex-bulk-live.")))
+# Only mkdtemp when OUTPUT_DIR is unset: a .get() default would run on every
+# import, including the validator unit tests.
+OUTPUT_DIR = Path(
+    os.environ["OUTPUT_DIR"]
+    if "OUTPUT_DIR" in os.environ
+    else tempfile.mkdtemp(prefix="ha-nova-codex-bulk-live.")
+)
 RUN_ID = datetime.now().strftime("%Y%m%d-%H%M%S")
 LOG_DIR = OUTPUT_DIR / f"logs-{RUN_ID}"
 FIXTURES_FILE = OUTPUT_DIR / f"fixtures-{RUN_ID}.json"

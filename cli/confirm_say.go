@@ -16,8 +16,65 @@ func confirmationSay(e *tierEngine, env *verbEnvelope, plan storedPlan, subject 
 		// apply refuses such a plan (UNRESOLVED_TARGET): never ask for it.
 		return "Nothing could be resolved for the target you named, so this can't run. Name the entities instead."
 	}
-	parts := []string{sayWhat(e, env, plan, subject)}
-	var typed, other []string
+	parts := append([]string{sayWhat(e, env, plan, subject)}, sayReasons(e, env, plan)...)
+	if plan.Kind == "delete" {
+		parts = append(parts, sayCopyNote)
+	}
+	switch {
+	case plan.Confirm == "code":
+		parts = append(parts, sayTypedAsk(plan.Code))
+	case plan.ConfigAction != nil: // the write card's literal options line
+		parts = append(parts, "Options: apply · show yaml · cancel")
+	default:
+		parts = append(parts, "Reply yes to go ahead.")
+	}
+	return strings.Join(parts, " ")
+}
+
+const sayCopyNote = "A copy is saved first, so it can be restored."
+
+func sayTypedAsk(code string) string {
+	return "Reply with `" + code + "` to go ahead — a plain yes can't confirm this."
+}
+
+// sayFormAsk replaces sayTypedAsk where the client shows a confirmation
+// form: the code is never in a tool result there (mcp_confirm.go).
+const sayFormAsk = "Your app will ask you to type a code to go ahead — a plain yes can't confirm this."
+
+// confirmationPrompt is a typed plan's code-free text for a confirmation
+// form: the form stands alone (no write card above it), so a config plan
+// names its item first (subject: the live item's alias, else the draft's).
+// Empty when apply would refuse the plan anyway.
+func confirmationPrompt(e *tierEngine, env *verbEnvelope, plan storedPlan, subject string) string {
+	if plan.Confirm != "code" || plan.ConfigAction == nil && frozeNothing(plan.Request, plan.Action) {
+		return ""
+	}
+	what := sayWhat(e, env, plan, subject)
+	if action := plan.ConfigAction; action != nil {
+		name := sayText(subject, true)
+		if name == "" {
+			name = sayText(action.EntityID, true)
+		}
+		if name == "" {
+			name = sayText(action.Domain+"."+action.ConfigID, true)
+		}
+		verb := map[string]string{"delete": "Delete", "revert": "Revert", "restore": "Restore"}[action.Op]
+		switch {
+		case verb != "":
+		case plan.Basis["current"] == "absent": // no live config: a create
+			verb = "Create"
+		default:
+			verb = "Change"
+		}
+		what = verb + " the " + action.Domain + " " + name + ". " + what
+	}
+	return strings.Join(append([]string{what}, sayReasons(e, env, plan)...), " ")
+}
+
+// sayReasons: one sentence per distinct reason; a typed plan's first one
+// says that it needs a code.
+func sayReasons(e *tierEngine, env *verbEnvelope, plan storedPlan) []string {
+	var parts, typed, other []string
 	seen := map[string]bool{}
 	for _, r := range env.Reasons {
 		text, isTyped := sayReason(e, env, plan, r)
@@ -52,18 +109,7 @@ func confirmationSay(e *tierEngine, env *verbEnvelope, plan storedPlan, subject 
 	for _, text := range rest {
 		parts = append(parts, text+".")
 	}
-	if plan.Kind == "delete" {
-		parts = append(parts, "A copy is saved first, so it can be restored.")
-	}
-	switch {
-	case plan.Confirm == "code":
-		parts = append(parts, "Reply with `"+plan.Code+"` to go ahead — a plain yes can't confirm this.")
-	case plan.ConfigAction != nil: // the write card's literal options line
-		parts = append(parts, "Options: apply · show yaml · cancel")
-	default:
-		parts = append(parts, "Reply yes to go ahead.")
-	}
-	return strings.Join(parts, " ")
+	return parts
 }
 
 // sayWhat: "Unlock “Front Door” (Hall): locked → unlocked. Nothing has run yet."

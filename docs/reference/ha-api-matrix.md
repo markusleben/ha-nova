@@ -128,6 +128,7 @@ Observed locally on a real HA instance on 2026-03-19: raw WS `config_entries/flo
 | `lovelace/resources/update` | Update UI resource by `resource_id` |
 | `lovelace/resources/delete` | Delete UI resource by `resource_id` |
 | `lovelace/info` | Global Lovelace resource mode |
+| `get_panels` | Frontend panels: every Lovelace dashboard incl. YAML mode (read by `ha-nova get --references`) |
 
 ### Recorder statistics
 | WS Type | Purpose |

@@ -1,14 +1,14 @@
-import { mkdtempSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
 import { readAppOptions } from "../../nova/src/config/app-options.js";
+import { makeTempDir } from "../helpers/temp-dir.js";
 
 describe("readAppOptions", () => {
   it("returns parsed options when file exists", () => {
-    const dir = mkdtempSync(join(tmpdir(), "ha-nova-options-"));
+    const dir = makeTempDir("ha-nova-options-");
     const file = join(dir, "options.json");
     writeFileSync(file, JSON.stringify({ ha_llat: "token", feature_flag: true }), "utf8");
 
@@ -27,7 +27,7 @@ describe("readAppOptions", () => {
   });
 
   it("throws on invalid json", () => {
-    const dir = mkdtempSync(join(tmpdir(), "ha-nova-options-"));
+    const dir = makeTempDir("ha-nova-options-");
     const file = join(dir, "options.json");
     writeFileSync(file, "{ broken-json", "utf8");
 

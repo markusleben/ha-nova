@@ -81,15 +81,14 @@ describe("strategy dashboard config (#519 C1-03 increment 1)", () => {
     expect(dashboard).toContain("Home Assistant generates all views and cards");
   });
 
-  it("skips the card allowlist only because no cards are authored", () => {
-    expect(dashboard).toContain("the card allowlist is not consulted because no cards are authored");
-    expect(dashboard).toContain("Freeform card authoring beyond the allowlist stays refused");
+  it("grounds authored cards in documentation or existing usage", () => {
+    expect(dashboard).toContain("with options from that card's page only");
+    expect(dashboard).toContain("or copy the shape of its existing usage in the user's dashboards");
   });
 
   it("treats strategizing a populated dashboard as destructive", () => {
-    expect(dashboard).toContain("switching a populated dashboard TO a strategy discards its stored views");
-    // View authoring (increment 2) is NOT unlocked by this item.
-    expect(dashboard).toContain("view create/delete/reorder");
+    expect(dashboard).toContain("Switching a populated dashboard TO a strategy discards its stored views");
+    expect(dashboard).toContain("name that in the preview");
   });
 });
 

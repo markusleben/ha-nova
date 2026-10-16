@@ -21,6 +21,9 @@ func formatSetupCountdownLabel(label string, deadline time.Time) string {
 	if seconds < 0 {
 		seconds = 0
 	}
+	if seconds >= 60 {
+		return fmt.Sprintf("%s (%d:%02d left)", label, seconds/60, seconds%60)
+	}
 	return fmt.Sprintf("%s (%ds left)", label, seconds)
 }
 

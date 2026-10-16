@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -93,6 +94,15 @@ func DialHAWebSocket(
 	if err != nil {
 		return nil, err
 	}
+	return dialHAWebSocketForOrigin(ctx, origin, accessToken, options)
+}
+
+func dialHAWebSocketForOrigin(
+	ctx context.Context,
+	origin *url.URL,
+	accessToken string,
+	options HAWebSocketClientOptions,
+) (*HAWebSocketClient, error) {
 	if !validSecretText(accessToken, 8192) {
 		return nil, newCloudError(CloudErrInvalidInput, "authenticate Home Assistant WebSocket", nil)
 	}
@@ -105,7 +115,11 @@ func DialHAWebSocket(
 		dialer = coderHAWebSocketDialer{}
 	}
 	httpClient := cloudNoRedirectHTTPClient(options.HTTPClient, 15*time.Second)
-	endpoint := "wss://" + origin.Host + "/api/websocket"
+	scheme := "wss"
+	if origin.Scheme == "http" {
+		scheme = "ws"
+	}
+	endpoint := scheme + "://" + origin.Host + "/api/websocket"
 	conn, status, err := dialer.Dial(ctx, endpoint, httpClient, maxMessageBytes)
 	if err != nil {
 		if isHTTPRedirect(status) {

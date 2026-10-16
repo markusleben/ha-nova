@@ -1,9 +1,10 @@
 import { spawnSync } from "node:child_process";
-import { cpSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { cpSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { expect, it } from "vitest";
+
+import { makeTempDir } from "../helpers/temp-dir.js";
 
 // Cloud Remote stays enabled only through release-time signing and these
 // guards; shrinking the platform list is a maintainer decision (AGENTS.md).
@@ -21,7 +22,7 @@ export function registerCloudReleaseBuildContractTests(): void {
   });
 
   it("rejects Cloud metadata drift between the CLI bundle and the Relay App", () => {
-    const root = mkdtempSync(join(tmpdir(), "ha-nova-metadata-"));
+    const root = makeTempDir("ha-nova-metadata-");
     for (const file of ["version.json", "package.json", "package-lock.json", ".claude-plugin", "nova/version.json", "nova/config.yaml"]) {
       cpSync(file, join(root, file), { recursive: true });
     }

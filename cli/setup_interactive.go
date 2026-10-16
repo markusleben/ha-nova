@@ -1249,6 +1249,9 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 			if exit != 0 {
 				return exit
 			}
+			// Integration point: the read-only first look of `ha-nova map`
+			// (feat/home-map) runs here once it lands
+			// (docs/work/2026-10-16-ha-sign-in-pairing-spec.md, "First look").
 			if cfg.Cloud.ready() && cfg.RoutePolicy == routePolicyAutomatic {
 				renderSetupCloudFallbackReadyBanner(os.Stdout)
 			} else if !cloudSetupPaused {
