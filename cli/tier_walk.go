@@ -100,7 +100,7 @@ func (e *tierEngine) storedCall(name string, step map[string]any, via string, de
 	}
 	if !coreDomains[domain] { // an integration resolves the device itself, whatever entities show
 		for _, device := range devices {
-			if found := e.deviceAccessEntity(device); found != "" {
+			if found := e.deviceAccessEntity(device, false); found != "" { // each targeted device itself
 				e.gap(reasonDeviceAccess, "", via, name+" on the device of "+found)
 			}
 		}

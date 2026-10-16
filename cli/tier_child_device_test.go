@@ -159,3 +159,30 @@ func TestCompositeIdsAndFamilySiblings(t *testing.T) {
 			args: []string{"switch.turn_on", "switch.relay"}, exit: 3, tier: "typed", reasons: []string{reasonScanFailed}},
 	})
 }
+
+// An integration service acts on its target's own device: an access entity
+// elsewhere in the parent/child family does not make it typed. The
+// core-service sibling guard still spans the family.
+func TestIntegrationServiceScopeIsTheOwnDevice(t *testing.T) {
+	tree := func(lockOn string) func(*fakeHA) {
+		return func(f *fakeHA) {
+			f.devices = []map[string]any{{"id": "dev_parent", "parent_device_id": nil},
+				{"id": "dev_child1", "parent_device_id": "dev_parent"}, {"id": "dev_child2", "parent_device_id": "dev_parent"}}
+			f.ent("lock.door", "acme", "locked", map[string]any{"_di": lockOn})
+			f.ent("switch.relay", "acme", "off", map[string]any{"_di": "dev_child2"})
+		}
+	}
+	integration := []string{"acme.pulse", "switch.relay"}
+	runTierCases(t, []tierCase{
+		{name: "integration call on a child, lock on a sibling child: its normal tier",
+			setup: tree("dev_child1"), args: integration, exit: 3, tier: "preview", reasons: []string{reasonIntegrationSvc}, absent: []string{reasonDeviceAccess}},
+		{name: "integration call on a child, lock on the parent: its normal tier",
+			setup: tree("dev_parent"), args: integration, exit: 3, tier: "preview", reasons: []string{reasonIntegrationSvc}, absent: []string{reasonDeviceAccess}},
+		{name: "integration call on a child whose own device has the lock: typed",
+			setup: tree("dev_child2"), args: integration, exit: 3, tier: "typed", reasons: []string{reasonDeviceAccess}},
+		{name: "core opening call on a child, lock on the parent: typed",
+			setup: tree("dev_parent"), args: []string{"switch.turn_on", "switch.relay"}, exit: 3, tier: "typed", reasons: []string{reasonDeviceAccessSibling}},
+		{name: "core opening call on a child, lock on a sibling child: typed",
+			setup: tree("dev_child1"), args: []string{"switch.turn_on", "switch.relay"}, exit: 3, tier: "typed", reasons: []string{reasonDeviceAccessSibling}},
+	})
+}
