@@ -17,7 +17,9 @@ func TestStateTriggerFires(t *testing.T) {
 		{map[string]any{"platform": "state", "entity_id": []any{"light.x", "light.lr"}, "to": []any{"off", "unavailable"}}, onToOff, firesWill},
 		{map[string]any{"trigger": "state", "entity_id": "light.x, light.lr", "from": "off"}, onToOff, firesMay}, // from is live state
 		{map[string]any{"trigger": "state", "entity_id": "light.lr", "not_to": "off"}, onToOff, firesWont},
-		{map[string]any{"trigger": "state", "entity_id": "light.lr", "not_from": "off"}, onToOff, firesWill},
+		{map[string]any{"trigger": "state", "entity_id": "light.lr", "not_from": "off"}, onToOff, firesMay},              // from is live state
+		{map[string]any{"trigger": "state", "entity_id": "light.lr", "to": "off", "for": "00:05:00"}, onToOff, firesMay}, // a later change cancels it
+		{map[string]any{"trigger": "state", "entity_id": "light.lr", "to": "on", "for": "00:05:00"}, onToOff, firesWont},
 		{map[string]any{"trigger": "state", "entity_id": "light.lr", "to": nil}, stateDelta{"on", "on"}, firesMay},
 		{map[string]any{"trigger": "state", "entity_id": "light.lr", "to": "on"}, stateDelta{"on", "on"}, firesMay},
 		{map[string]any{"trigger": "state", "entity_id": "light.lr"}, onToOff, firesWill},
@@ -177,6 +179,58 @@ func TestConsumerFiresForPlannedChange(t *testing.T) {
 				f.configs["/api/config/automation/config/b1"].(map[string]any)["conditions"] = []any{map[string]any{"condition": "sun", "after": "sunset"}}
 			},
 			args: []string{"light.turn_off", "light.lr"}, exit: 0, tier: "ordinary", check: expectShown("light.bed", "automation.b:may")},
+		{name: "a step inside a choose branch may not run: its consumer is may",
+			setup: func(f *fakeHA) {
+				followLight(nil)(f)
+				f.ent("light.lr", "hue", "off", nil)
+				f.script("maybe", map[string]any{"choose": []any{map[string]any{"conditions": []any{map[string]any{"condition": "sun", "after": "sunset"}},
+					"sequence": []any{step("light.turn_on", "light.lr")}}}})
+			},
+			args: []string{"script.turn_on", "script.maybe"}, exit: 3, tier: "preview", check: expectShown("light.lr,light.bed", "automation.b:may")},
+		{name: "a step after a condition step may not run: its consumer is may",
+			setup: func(f *fakeHA) {
+				followLight(nil)(f)
+				f.ent("light.lr", "hue", "off", nil)
+				f.script("gated", map[string]any{"condition": "sun", "after": "sunset"}, step("light.turn_on", "light.lr"))
+			},
+			args: []string{"script.turn_on", "script.gated"}, exit: 3, tier: "preview", check: expectShown("light.lr,light.bed", "automation.b:may")},
+		{name: "a stop nested in an earlier if ends the run: the step after it is may",
+			setup: func(f *fakeHA) {
+				followLight(nil)(f)
+				f.ent("light.lr", "hue", "off", nil)
+				f.script("early", map[string]any{"if": []any{map[string]any{"condition": "sun", "after": "sunset"}}, "then": []any{map[string]any{"stop": "done"}}},
+					step("light.turn_on", "light.lr"))
+			},
+			args: []string{"script.turn_on", "script.early"}, exit: 3, tier: "preview", check: expectShown("light.lr,light.bed", "automation.b:may")},
+		{name: "a consumer the plan itself turns off is may, never will",
+			setup: func(f *fakeHA) {
+				followLight(map[string]any{"trigger": "state", "entity_id": "light.lr", "to": "off"})(f)
+				f.script("leave", step("automation.turn_off", "automation.b"), step("light.turn_off", "light.lr"))
+			},
+			args: []string{"script.turn_on", "script.leave"}, exit: 3, tier: "preview", check: expectShown("automation.b,light.lr,light.bed", "automation.b:may")},
+		{name: "an unconditional script step keeps will",
+			setup: func(f *fakeHA) {
+				followLight(nil)(f)
+				f.ent("light.lr", "hue", "off", nil)
+				f.script("plain", step("light.turn_on", "light.lr"))
+			},
+			args: []string{"script.turn_on", "script.plain"}, exit: 3, tier: "preview", check: expectShown("light.lr,light.bed", "automation.b:will")},
+		{name: "turning a consumer off is not running it: a wont consumer is still left out",
+			setup: func(f *fakeHA) {
+				followLight(nil)(f)
+				f.script("leave", step("automation.turn_off", "automation.b"), step("light.turn_off", "light.lr"))
+			},
+			args: []string{"script.turn_on", "script.leave"}, exit: 3, tier: "preview", check: expectShown("automation.b,light.lr", "-")},
+		{name: "will rests on its own source: a certain wont source does not make an uncertain will certain",
+			setup: func(f *fakeHA) {
+				followLight(map[string]any{"trigger": "state", "entity_id": "light.lr", "to": "off"})(f)
+				f.ent("light.c", "hue", "on", nil)
+				f.related["entity:light.c"] = []string{"automation.b"}
+				cfg := f.configs["/api/config/automation/config/b1"].(map[string]any)
+				cfg["triggers"] = append(cfg["triggers"].([]any), map[string]any{"trigger": "state", "entity_id": "light.c", "to": "on"})
+				f.script("leave", step("light.turn_off", "light.c"), map[string]any{"condition": "sun", "after": "sunset"}, step("light.turn_off", "light.lr"))
+			},
+			args: []string{"script.turn_on", "script.leave"}, exit: 3, tier: "preview", check: expectShown("light.c,light.bed,light.lr", "automation.b:may")},
 		{name: "a numeric_state trigger may fire",
 			setup: followLight(map[string]any{"trigger": "numeric_state", "entity_id": "light.lr", "attribute": "brightness", "below": 10}),
 			args:  []string{"light.turn_off", "light.lr"}, exit: 0, tier: "ordinary", check: expectShown("light.bed", "automation.b:may")},

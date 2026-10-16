@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"sort"
 	"strconv"
@@ -14,8 +15,13 @@ import (
 func (e *tierEngine) walk(node any, via string, depth int) {
 	switch n := node.(type) {
 	case []any:
+		gated := false
 		for i, child := range n {
+			if gated {
+				e.gated = append(e.gated, via+"/"+strconv.Itoa(i))
+			}
 			e.walk(child, via+"/"+strconv.Itoa(i), depth)
+			gated = gated || gatesRest(child)
 		}
 	case map[string]any:
 		if n["enabled"] == false || n["condition"] != nil || n["trigger"] != nil || n["platform"] != nil {
@@ -49,6 +55,18 @@ func (e *tierEngine) walk(node any, via string, depth int) {
 			}
 		}
 	}
+}
+
+// gatesRest: an enabled step after which the rest of its sequence may not
+// run: a condition step, or a wait or stop anywhere inside it (a nested stop
+// ends the whole run). A payload key spelled the same only errs toward may.
+func gatesRest(step any) bool {
+	n, isMap := step.(map[string]any)
+	if !isMap || n["enabled"] == false {
+		return false
+	}
+	raw, _ := json.Marshal(n)
+	return n["condition"] != nil || bytes.Contains(raw, []byte(`"stop":`)) || bytes.Contains(raw, []byte(`"wait_template":`)) || bytes.Contains(raw, []byte(`"wait_for_trigger":`))
 }
 
 // Keys holding conditions, triggers, payloads, or targets — never actions.
