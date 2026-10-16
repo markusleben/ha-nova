@@ -18,7 +18,12 @@ const (
 	// still answered the post-removal probes — the final report must keep the
 	// full HA checklist instead of claiming the server side is gone.
 	teardownCompletedUnverified
+	// teardownKeptForOtherDevices: the user wants to remove HA NOVA from this
+	// computer only; the shared server side stays for the other devices.
+	teardownKeptForOtherDevices
 )
+
+const teardownSharedAppWarning = "The NOVA Relay app is shared: removing it disconnects every computer paired with this Home Assistant, not just this one. To see which devices are still paired, open NOVA in the Home Assistant sidebar."
 
 // teardownDeps isolates the guided teardown's side effects so tests can
 // script the whole flow with a reader and a buffer.
@@ -40,6 +45,7 @@ func defaultTeardownDeps() teardownDeps {
 
 const (
 	teardownStageOffer = iota
+	teardownStageWalkthrough
 	teardownStageApp
 	teardownStageRepo
 	teardownStageLLAT
@@ -56,7 +62,7 @@ func maybeOfferGuidedTeardown(reader *bufio.Reader, out io.Writer, preflight uni
 		return teardownNotOffered, nil
 	}
 	if err := deps.probeHA(preflight.haURL); err != nil {
-		renderSetupParagraphTight(out, "Home Assistant is not reachable right now — the server-side cleanup checklist is included at the end for when it is back online.")
+		renderSetupParagraphTight(out, "Home Assistant is not reachable right now, so the NOVA Relay App is left as it is.")
 		return teardownNotOffered, nil
 	}
 	stage := teardownStageOffer
@@ -67,10 +73,35 @@ func maybeOfferGuidedTeardown(reader *bufio.Reader, out io.Writer, preflight uni
 	for {
 		switch stage {
 		case teardownStageOffer:
-			renderSetupParagraph(out, "Home Assistant still hosts the server side: the NOVA Relay app, the HA NOVA repository, and the \"NOVA\" access token.")
-			confirmed, err := promptWizardYesNoFromReader(reader, out, "Remove them now with a guided walkthrough?", true)
+			renderSetupParagraph(out,
+				"Home Assistant still hosts the server side: the NOVA Relay app, the HA NOVA repository, and the \"NOVA\" access token.",
+				teardownSharedAppWarning,
+			)
+			// Asked first, default No: the CLI cannot list the devices paired
+			// with the relay (that list is owner-only on the NOVA page), and an
+			// accidental Enter must never lead toward removing the shared App.
+			last, err := promptWizardYesNoFromReader(reader, out, "Is this the last computer using HA NOVA with this Home Assistant?", false)
 			if err == errSetupBack {
-				return teardownDeclined, nil
+				// No answer is not a confirmation: leave the shared App alone.
+				return teardownNotOffered, nil
+			}
+			if err == errSetupExit {
+				return teardownCancelled, nil
+			}
+			if err != nil {
+				return teardownNotOffered, err
+			}
+			if !last {
+				renderSetupParagraphTight(out, "Keeping the NOVA Relay app so your other computers keep working. Only this computer is removed.")
+				return teardownKeptForOtherDevices, nil
+			}
+			stage = teardownStageWalkthrough
+
+		case teardownStageWalkthrough:
+			confirmed, err := promptWizardYesNoFromReader(reader, out, "Remove them now with a guided walkthrough?", false)
+			if err == errSetupBack {
+				stage = teardownStageOffer
+				continue
 			}
 			if err == errSetupExit {
 				return teardownCancelled, nil
@@ -88,7 +119,7 @@ func maybeOfferGuidedTeardown(reader *bufio.Reader, out io.Writer, preflight uni
 			renderSetupLink(out, "This will open:", haRelayAppPageURL(preflight.haURL))
 			_, err := promptWizardLineFromReader(reader, out, "Press Enter to open your browser", "")
 			if err == errSetupBack {
-				stage = teardownStageOffer
+				stage = teardownStageWalkthrough
 				continue
 			}
 			if err == errSetupExit {
@@ -104,7 +135,7 @@ func maybeOfferGuidedTeardown(reader *bufio.Reader, out io.Writer, preflight uni
 			)
 			_, err = promptWizardLineFromReader(reader, out, "Press Enter when the app is removed", "")
 			if err == errSetupBack {
-				stage = teardownStageOffer
+				stage = teardownStageWalkthrough
 				continue
 			}
 			if err == errSetupExit {
@@ -265,4 +296,12 @@ func printTeardownCompletedNotes(out io.Writer, mode uninstallMode) {
 	for _, note := range teardownCompletedNoteLines(mode) {
 		fmt.Fprintf(out, "  %s %s\n", session.style("success", session.successMarker()), note)
 	}
+}
+
+// teardownConfirmedLastComputer: a declined walkthrough and an unverified
+// removal both followed an explicit "yes, last computer" answer. Every other
+// outcome (not offered, HA unreachable, back, kept) leaves the shared App
+// note in place of the removal checklist.
+func teardownConfirmedLastComputer(outcome teardownOutcome) bool {
+	return outcome == teardownDeclined || outcome == teardownCompletedUnverified
 }

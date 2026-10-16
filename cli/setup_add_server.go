@@ -174,23 +174,17 @@ func runAddServerStages(
 		return 1
 	}
 
-	repositoryURL := haAddRepositoryURL(cfg.HAURL)
-	renderSetupParagraph(out,
-		"Next, install the NOVA Relay App on this Home Assistant instance.",
-	)
-	renderSetupLink(out, "Add the repository:", repositoryURL)
-	renderSetupIndentedBlock(out, "Then:", "    ",
-		"1. Go to Settings > Apps > App Store (on older Home Assistant: Settings > Add-ons)",
-		`2. Search for "NOVA Relay"`,
-		"3. Click Install and wait for it to finish",
-		"4. Click Start",
-	)
-	if _, err := promptWizardLineFromReader(reader, out, "Press Enter when the app is running", ""); err != nil {
-		if err == errSetupBack || err == errSetupExit {
-			return cancelKeepingPartialProfile()
+	// Another computer may already have installed the App on this instance.
+	if installed, note := detectInstalledRelay(out, paths, cfg, ""); installed {
+		renderSetupSuccessLine(out, "%s", note)
+	} else {
+		if err := runRelayInstallSteps(reader, out, cfg.HAURL); err != nil {
+			if err == errSetupBack || err == errSetupExit {
+				return cancelKeepingPartialProfile()
+			}
+			printHumanErr("%s", err)
+			return failKeepingPartialProfile()
 		}
-		printHumanErr("%s", err)
-		return failKeepingPartialProfile()
 	}
 
 	for {

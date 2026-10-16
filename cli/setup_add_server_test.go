@@ -169,9 +169,13 @@ func TestAddServerFlowCreatesNamedProfileAndKeepsDefaultIntact(t *testing.T) {
 		t.Fatal("default profile missing before add-server flow")
 	}
 
-	// y (offer) → cabin (name) → 1 (discovery pick) → Enter (app running)
-	// → Enter (open NOVA) → 123456 (code).
-	input := joinSetupInputs([]string{"y", "cabin", "1", "", "", "123456"})
+	originalInstalled := probeInstalledRelayForSetup
+	probeInstalledRelayForSetup = func(string) (bool, string) { return false, "" }
+	t.Cleanup(func() { probeInstalledRelayForSetup = originalInstalled })
+
+	// y (offer) → cabin (name) → 1 (discovery pick) → Enter (open browser)
+	// → Enter (app running) → Enter (open NOVA) → 123456 (code).
+	input := joinSetupInputs([]string{"y", "cabin", "1", "", "", "", "123456"})
 	stdout, stderr := captureInteractiveSetupIO(t, input, withAddServerDiscovery(
 		[]setupDiscoveryCandidate{
 			{Host: "192.168.1.7", HAURL: "http://192.168.1.7:8123", Via: "mDNS", Source: "mdns"},
@@ -480,5 +484,50 @@ func TestAddServerCancelSuppressesCloudFallbackReadyBanner(t *testing.T) {
 	}
 	if strings.Contains(output, "Everything is already set up!") {
 		t.Fatalf("cancelled add flow must suppress the already-done banner:\n%s", output)
+	}
+}
+
+func TestAddServerFlowSkipsInstallWhenRelayAlreadyRuns(t *testing.T) {
+	paths, cfg, state, marker := setupCompletedInstallFixture(t)
+	stubAddServerTTY(t)
+
+	originalProbe := probePairingV1ForSetup
+	probePairingV1ForSetup = func(string) bool { return true }
+	t.Cleanup(func() { probePairingV1ForSetup = originalProbe })
+	probedRelay := ""
+	originalInstalled := probeInstalledRelayForSetup
+	probeInstalledRelayForSetup = func(relayURL string) (bool, string) {
+		probedRelay = relayURL
+		return true, ""
+	}
+	t.Cleanup(func() { probeInstalledRelayForSetup = originalInstalled })
+	originalPair := securePairForSetup
+	securePairForSetup = func(_ string, _ string, pairCfg *runtimeConfig, save func(*runtimeConfig) error, _ pairingClientInfo) (string, error) {
+		pairCfg.RelaySecureBaseURL = "https://192.168.1.7:8792"
+		pairCfg.RelaySpkiPin = "test-pin"
+		return "", save(pairCfg)
+	}
+	t.Cleanup(func() { securePairForSetup = originalPair })
+	originalVerify := verifyDeviceHealth
+	verifyDeviceHealth = func(runtimeConfig) bool { return true }
+	t.Cleanup(func() { verifyDeviceHealth = originalVerify })
+
+	// y (offer) → cabin (name) → 1 (discovery pick) → Enter (open NOVA) →
+	// 123456 (code). No install prompts.
+	input := joinSetupInputs([]string{"y", "cabin", "1", "", "123456"})
+	stdout, stderr := captureInteractiveSetupIO(t, input, withAddServerDiscovery(
+		[]setupDiscoveryCandidate{{Host: "192.168.1.7", HAURL: "http://192.168.1.7:8123", Source: "mdns"}},
+		func() int {
+			return interactiveSetup(paths, cfg, state, "claude", "", "", "", "", false, marker...)
+		},
+	))
+	output := stdout + stderr
+	if probedRelay != "http://192.168.1.7:8791" {
+		t.Fatalf("probed relay %q, want the new server's relay", probedRelay)
+	}
+	if !strings.Contains(output, `Server "cabin" is paired and verified`) ||
+		!strings.Contains(output, "NOVA Relay is already running in Home Assistant. Skipping the install step.") ||
+		strings.Contains(output, "Press Enter when the app is running") {
+		t.Fatalf("expected pairing without install steps:\n%s", output)
 	}
 }

@@ -134,6 +134,7 @@ func TestLaunchWindowsUninstallPersistsEvidenceBeforeHelperStarts(
 		uninstallRelayRemovalEvidence{
 			defaultServerProfileName: "relay-guided",
 		},
+		false,
 	)
 	if err == nil {
 		t.Fatal("launch unexpectedly succeeded without a helper binary")
@@ -176,5 +177,22 @@ func TestWindowsUninstallHelperRejectsUnboundRelayEvidence(t *testing.T) {
 		" relay-guided ",
 	); err == nil {
 		t.Fatal("helper accepted malformed Relay evidence")
+	}
+}
+
+func TestWindowsUninstallHelperArgsCarryLastComputerConfirmed(t *testing.T) {
+	has := func(args []string) bool {
+		for _, arg := range args {
+			if arg == "--last-computer-confirmed" {
+				return true
+			}
+		}
+		return false
+	}
+	if !has(windowsUninstallHelperArgs("h.exe", uninstallModeStandard, false, nil, true)) {
+		t.Fatal("helper args lost the last-computer answer")
+	}
+	if has(windowsUninstallHelperArgs("h.exe", uninstallModeStandard, false, nil, false)) {
+		t.Fatal("helper args claim a last-computer answer the user never gave")
 	}
 }

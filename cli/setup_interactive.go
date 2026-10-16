@@ -544,6 +544,13 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 	devicePaired := false
 	manualCredentialFlow := false
 	pairingBackStage := setupStageRelayInstall
+	// Set only on the host -> install transition: a second computer whose
+	// Relay already runs skips the install steps. The repair menu's "full
+	// guidance" always shows them.
+	detectRelayOnInstall := false
+	// Shown under the pairing step header: renderSetupHeader clears the
+	// screen, so a note printed in the install stage would vanish.
+	relaySkipNote := ""
 	cloudSetupIncomplete := false
 	cloudSetupPaused := false
 	// Service installs pair by default too: secure pairing no longer depends on
@@ -787,6 +794,7 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 					verifyFirstReuseFlow = false
 				}
 				hostChangeRetry = false
+				detectRelayOnInstall = true
 				stage = setupStageRelayInstall
 			}
 
@@ -796,57 +804,44 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 			if pairAfterInstall {
 				steps = buildSetupPairingWizardSteps()
 			}
-			renderSetupStep(os.Stdout, steps.RelayInstall, steps.Total, "Install NOVA Relay in Home Assistant")
-			repositoryURL := haAddRepositoryURL(cfg.HAURL)
-			renderSetupParagraph(os.Stdout,
-				"Next, add the HA NOVA app repository to your Home Assistant.",
-			)
-			renderSetupLink(os.Stdout, "This will open:", repositoryURL)
-			_, err := promptWizardLineFromReader(reader, os.Stdout, "Press Enter to open your browser", "")
-			if err == errSetupBack {
-				stage = setupStageHost
-				continue
+			skipInstall := false
+			if detectRelayOnInstall && pairAfterInstall {
+				skipInstall, relaySkipNote = detectInstalledRelay(os.Stdout, paths, cfg, relayURLFlag)
 			}
-			if err == errSetupExit {
-				renderSetupCancelledNote(os.Stdout)
-				return 0
-			}
-			if err != nil {
-				printHumanErr("%s", err)
-				return 1
-			}
-			openAnnouncedBrowserURL(os.Stdout, repositoryURL)
-			renderSetupParagraphTight(os.Stdout, `In the browser: log in to Home Assistant if asked, then click "Add" to confirm the repository.`)
-			renderSetupIndentedBlock(os.Stdout, "Once the repository is added:", "    ",
-				"1. Go to Settings > Apps > App Store (on older Home Assistant: Settings > Add-ons)",
-				`2. Search for "NOVA Relay"`,
-				"3. Click Install and wait for it to finish",
-				"4. Click Start",
-			)
-			_, err = promptWizardLineFromReader(reader, os.Stdout, "Press Enter when the app is running", "")
-			if err == errSetupBack {
-				stage = setupStageHost
-				continue
-			}
-			if err == errSetupExit {
-				renderSetupCancelledNote(os.Stdout)
-				return 0
-			}
-			if err != nil {
-				printHumanErr("%s", err)
-				return 1
+			detectRelayOnInstall = false
+			if !skipInstall {
+				relaySkipNote = ""
+				renderSetupStep(os.Stdout, steps.RelayInstall, steps.Total, "Install NOVA Relay in Home Assistant")
+				err := runRelayInstallSteps(reader, os.Stdout, cfg.HAURL)
+				if err == errSetupBack {
+					stage = setupStageHost
+					continue
+				}
+				if err == errSetupExit {
+					renderSetupCancelledNote(os.Stdout)
+					return 0
+				}
+				if err != nil {
+					printHumanErr("%s", err)
+					return 1
+				}
 			}
 			if pairAfterInstall {
 				if deviceAlreadyPaired {
 					// An earlier pairing already gave this device its own
 					// credential: verify it against the (re)installed relay
 					// first — a failed verify still routes back to pairing.
+					relaySkipNote = ""
 					devicePaired = true
 					stage = setupStageVerify
 					continue
 				}
 				pairingFlow = true
 				pairingBackStage = setupStageRelayInstall
+				if skipInstall {
+					// No install screen was shown; back returns to the address.
+					pairingBackStage = setupStageHost
+				}
 				stage = setupStagePairing
 			} else {
 				stage = setupStageToken
@@ -997,6 +992,10 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 		case setupStagePairing:
 			steps := buildSetupPairingWizardSteps()
 			renderSetupStep(os.Stdout, steps.Pairing, steps.Total, "Pair this device")
+			if relaySkipNote != "" {
+				renderSetupSuccessLine(os.Stdout, "%s", relaySkipNote)
+				relaySkipNote = ""
+			}
 			if serviceMode {
 				// `setup --service` documents that the device credential lands in a
 				// protected file — service installs must not depend on a desktop

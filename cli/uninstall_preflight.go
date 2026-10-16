@@ -10,10 +10,15 @@ import (
 
 type uninstallPreflight struct {
 	relayStillRunning bool
-	tokenUnavailable  string
-	haURL             string
-	relayToken        string
-	config            runtimeConfig
+	// lastComputerConfirmed: the user answered that no other computer uses
+	// HA NOVA with this Home Assistant. Only then may the notes list the App
+	// removal; every other path (HA unreachable, --yes, non-interactive,
+	// recovery, "other computers still use it") leaves the shared App alone.
+	lastComputerConfirmed bool
+	tokenUnavailable      string
+	haURL                 string
+	relayToken            string
+	config                runtimeConfig
 }
 
 // uninstallRelayRemovalEvidence records only Relay removals that guided
@@ -200,12 +205,24 @@ func printUninstallPreflightNotes(out io.Writer, preflight uninstallPreflight) {
 	}
 }
 
-// preflightNoteLines always returns the full server-side cleanup checklist.
+// preflightNoteLines returns the full server-side cleanup checklist only after
+// the user confirmed this is the last computer; otherwise one plain note that
+// the shared App was left as it is (removing it disconnects every paired
+// computer, and the CLI cannot see which ones still use it).
 // The CLI cannot remove the app, the repository, or the LLAT itself, and a
 // currently unreachable relay is no evidence the server side is gone — the
 // old reachability-gated single note left users with a running app and a
 // valid token they were never told about.
+const sharedAppLeftNote = "The NOVA Relay App in Home Assistant was left as it is. Remove it there later only if no other computer uses HA NOVA: removing it disconnects every paired computer."
+
 func preflightNoteLines(preflight uninstallPreflight) []string {
+	if !preflight.lastComputerConfirmed {
+		notes := []string{sharedAppLeftNote}
+		if preflight.tokenUnavailable != "" {
+			notes = append(notes, preflight.tokenUnavailable)
+		}
+		return notes
+	}
 	lead := "Server side (if still installed, finish these to fully remove HA NOVA):"
 	if preflight.relayStillRunning {
 		lead = "The NOVA Relay is still running. To fully remove HA NOVA:"

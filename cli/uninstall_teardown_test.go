@@ -54,9 +54,9 @@ func runTeardownWithInput(t *testing.T, input string, preflight uninstallPreflig
 
 func TestGuidedTeardownHappyPathOpensAllThreePages(t *testing.T) {
 	rec := &teardownRecorder{relayGone: true}
-	// offer yes, then Enter through: open app page, app removed, open store,
-	// repo removed, open profile, token revoked.
-	outcome, output := runTeardownWithInput(t, "y\n\n\n\n\n\n\n", teardownTestPreflight(), rec)
+	// last computer yes, walkthrough yes, then Enter through: open app page, app
+	// removed, open store, repo removed, open profile, token revoked.
+	outcome, output := runTeardownWithInput(t, "y\ny\n\n\n\n\n\n\n", teardownTestPreflight(), rec)
 
 	if outcome != teardownCompleted {
 		t.Fatalf("outcome = %v, want teardownCompleted\noutput:\n%s", outcome, output)
@@ -90,12 +90,84 @@ func TestGuidedTeardownHappyPathOpensAllThreePages(t *testing.T) {
 
 func TestGuidedTeardownDeclinedLeavesEverythingAlone(t *testing.T) {
 	rec := &teardownRecorder{}
-	outcome, _ := runTeardownWithInput(t, "n\n", teardownTestPreflight(), rec)
+	// Last computer yes, walkthrough no: the checklist stays for later.
+	outcome, _ := runTeardownWithInput(t, "y\nn\n", teardownTestPreflight(), rec)
 	if outcome != teardownDeclined {
 		t.Fatalf("outcome = %v, want teardownDeclined", outcome)
 	}
 	if len(rec.opened) != 0 {
 		t.Fatalf("declined teardown must not open URLs, opened %v", rec.opened)
+	}
+}
+
+func TestGuidedTeardownDefaultsToKeepingTheApp(t *testing.T) {
+	rec := &teardownRecorder{}
+	outcome, output := runTeardownWithInput(t, "\n", teardownTestPreflight(), rec)
+	if outcome != teardownKeptForOtherDevices || len(rec.opened) != 0 {
+		t.Fatalf("a bare Enter must keep the App: outcome = %v, opened %v\n%s", outcome, rec.opened, output)
+	}
+	for _, want := range []string{
+		"disconnects every computer paired with this Home Assistant",
+		"Is this the last computer using HA NOVA with this Home Assistant? [y/N]",
+	} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("expected %q:\n%s", want, output)
+		}
+	}
+	if strings.Contains(output, "guided walkthrough") {
+		t.Fatalf("the removal offer must not appear before the last-computer answer:\n%s", output)
+	}
+}
+
+func TestGuidedTeardownKeepsAppWhenOtherComputersStillUseIt(t *testing.T) {
+	for _, input := range []string{"n\n", "\n"} {
+		rec := &teardownRecorder{}
+		outcome, output := runTeardownWithInput(t, input, teardownTestPreflight(), rec)
+		if outcome != teardownKeptForOtherDevices {
+			t.Fatalf("input %q: outcome = %v, want teardownKeptForOtherDevices\n%s", input, outcome, output)
+		}
+		if len(rec.opened) != 0 || strings.Contains(output, "Step 1 of 3") {
+			t.Fatalf("input %q: App removal must not start, opened %v\n%s", input, rec.opened, output)
+		}
+		if !strings.Contains(output, "Keeping the NOVA Relay app") {
+			t.Fatalf("input %q: missing keep note:\n%s", input, output)
+		}
+	}
+}
+
+func TestGuidedTeardownWalkthroughDefaultsToNo(t *testing.T) {
+	rec := &teardownRecorder{}
+	outcome, output := runTeardownWithInput(t, "y\n\n", teardownTestPreflight(), rec)
+	if outcome != teardownDeclined || len(rec.opened) != 0 {
+		t.Fatalf("outcome = %v, opened %v\n%s", outcome, rec.opened, output)
+	}
+	if !strings.Contains(output, "Remove them now with a guided walkthrough? [y/N]") {
+		t.Fatalf("walkthrough offer must default to No:\n%s", output)
+	}
+}
+
+func TestGuidedTeardownBackFromWalkthroughReturnsToLastComputer(t *testing.T) {
+	rec := &teardownRecorder{}
+	outcome, output := runTeardownWithInput(t, "y\nback\nn\n", teardownTestPreflight(), rec)
+	if outcome != teardownKeptForOtherDevices || len(rec.opened) != 0 {
+		t.Fatalf("outcome = %v, opened %v\n%s", outcome, rec.opened, output)
+	}
+	if got := strings.Count(output, "Is this the last computer using HA NOVA"); got != 2 {
+		t.Fatalf("expected the last-computer question twice after back, got %d\n%s", got, output)
+	}
+}
+
+func TestPreflightNotesListAppRemovalOnlyAfterLastComputerConfirmed(t *testing.T) {
+	preflight := teardownTestPreflight()
+	preflight.relayStillRunning = true
+	notes := strings.Join(preflightNoteLines(preflight), "\n")
+	if strings.Contains(notes, "uninstall the app") || strings.Contains(notes, "remove the repository") ||
+		notes != sharedAppLeftNote {
+		t.Fatalf("unconfirmed notes must only say the App was left:\n%s", notes)
+	}
+	preflight.lastComputerConfirmed = true
+	if notes := strings.Join(preflightNoteLines(preflight), "\n"); !strings.Contains(notes, "uninstall the app") {
+		t.Fatalf("confirmed last computer must get the checklist:\n%s", notes)
 	}
 }
 
@@ -109,9 +181,9 @@ func TestGuidedTeardownExitCancelsWholeUninstall(t *testing.T) {
 
 func TestGuidedTeardownBackReturnsToPreviousStep(t *testing.T) {
 	rec := &teardownRecorder{relayGone: true}
-	// offer yes → app step (Enter, Enter) → repo step: back → app step again
+	// last computer yes → walkthrough yes → app step (Enter, Enter) → repo step: back → app step again
 	// (Enter, Enter) → repo (Enter, Enter) → llat (Enter, Enter).
-	outcome, output := runTeardownWithInput(t, "y\n\n\nback\n\n\n\n\n\n\n", teardownTestPreflight(), rec)
+	outcome, output := runTeardownWithInput(t, "y\ny\n\n\nback\n\n\n\n\n\n\n", teardownTestPreflight(), rec)
 	if outcome != teardownCompleted {
 		t.Fatalf("outcome = %v, want teardownCompleted\noutput:\n%s", outcome, output)
 	}
@@ -144,14 +216,47 @@ func TestGuidedTeardownNotOfferedWhenHAUnreachable(t *testing.T) {
 	if outcome != teardownNotOffered {
 		t.Fatalf("outcome = %v, want teardownNotOffered", outcome)
 	}
-	if !strings.Contains(out.String(), "not reachable right now") {
+	if !strings.Contains(out.String(), "not reachable right now, so the NOVA Relay App is left as it is") {
 		t.Fatalf("expected unreachable notice, got:\n%s", out.String())
+	}
+	// The final notes for this outcome must not send the user to remove the
+	// shared App: other computers may still use it.
+	preflight := teardownTestPreflight()
+	preflight.relayStillRunning = true
+	preflight.lastComputerConfirmed = teardownConfirmedLastComputer(outcome)
+	notes := strings.Join(preflightNoteLines(preflight), "\n")
+	if strings.Contains(notes, "uninstall the app") || strings.Contains(notes, "remove the repository") ||
+		!strings.Contains(notes, "left as it is") {
+		t.Fatalf("unreachable HA must leave the App note, not the checklist:\n%s", notes)
+	}
+}
+
+func TestTeardownConfirmedLastComputerOnlyAfterYes(t *testing.T) {
+	for outcome, want := range map[teardownOutcome]bool{
+		teardownNotOffered:          false,
+		teardownKeptForOtherDevices: false,
+		teardownCancelled:           false,
+		teardownCompleted:           false,
+		teardownDeclined:            true,
+		teardownCompletedUnverified: true,
+	} {
+		if got := teardownConfirmedLastComputer(outcome); got != want {
+			t.Errorf("teardownConfirmedLastComputer(%v) = %v, want %v", outcome, got, want)
+		}
+	}
+}
+
+func TestGuidedTeardownBackAtFirstQuestionIsNoConfirmation(t *testing.T) {
+	rec := &teardownRecorder{}
+	outcome, output := runTeardownWithInput(t, "back\n", teardownTestPreflight(), rec)
+	if teardownConfirmedLastComputer(outcome) || len(rec.opened) != 0 {
+		t.Fatalf("back must not count as 'last computer': outcome = %v\n%s", outcome, output)
 	}
 }
 
 func TestGuidedTeardownStillAnsweringRelayDowngradesToUnverified(t *testing.T) {
 	rec := &teardownRecorder{relayGone: false}
-	outcome, output := runTeardownWithInput(t, "y\n\n\n\n\n\n\n", teardownTestPreflight(), rec)
+	outcome, output := runTeardownWithInput(t, "y\ny\n\n\n\n\n\n\n", teardownTestPreflight(), rec)
 	// A relay that positively still answers must not produce the verified
 	// outcome — runUninstall would otherwise replace the HA checklist with a
 	// "server side removed" claim.
@@ -170,7 +275,7 @@ func TestGuidedTeardownVerifySkippedWithoutToken(t *testing.T) {
 	rec := &teardownRecorder{}
 	preflight := teardownTestPreflight()
 	preflight.relayToken = ""
-	outcome, output := runTeardownWithInput(t, "y\n\n\n\n\n\n\n", preflight, rec)
+	outcome, output := runTeardownWithInput(t, "y\ny\n\n\n\n\n\n\n", preflight, rec)
 	if outcome != teardownCompleted {
 		t.Fatalf("outcome = %v, want teardownCompleted\noutput:\n%s", outcome, output)
 	}
@@ -190,9 +295,9 @@ func TestTeardownCompletedNoteLinesByMode(t *testing.T) {
 	}
 }
 
-func TestPreflightNoteLinesAlwaysListServerSideCleanup(t *testing.T) {
+func TestPreflightNoteLinesListServerSideCleanupForLastComputer(t *testing.T) {
 	// With a known HA URL the checklist carries deep links.
-	withURL := preflightNoteLines(uninstallPreflight{haURL: "http://ha.local:8123"})
+	withURL := preflightNoteLines(uninstallPreflight{haURL: "http://ha.local:8123", lastComputerConfirmed: true})
 	joined := strings.Join(withURL, "\n")
 	for _, want := range []string{
 		haRelayAppPageURL("http://ha.local:8123"),
@@ -207,7 +312,7 @@ func TestPreflightNoteLinesAlwaysListServerSideCleanup(t *testing.T) {
 
 	// Without any config the checklist still prints with generic panel paths —
 	// an unreachable relay is no evidence the server side is gone.
-	generic := strings.Join(preflightNoteLines(uninstallPreflight{}), "\n")
+	generic := strings.Join(preflightNoteLines(uninstallPreflight{lastComputerConfirmed: true}), "\n")
 	for _, want := range []string{
 		"Settings > Apps > NOVA Relay > Uninstall",
 		"Repositories",

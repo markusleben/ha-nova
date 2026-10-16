@@ -47,8 +47,15 @@ func haNOVAAppPanelURL(
 	}, nil
 }
 
-func haAddRepositoryURL(haURL string) string {
-	return haURL + "/_my_redirect/supervisor_add_addon_repository?repository_url=" + url.QueryEscape(haNovaRepositoryURL)
+// haInstallRelayAppURL opens the NOVA Relay App page and, when the repository
+// is missing, asks once to add it. The supervisor_addon My redirect has taken
+// the optional repository_url on every supported Home Assistant version
+// (frontend hassio/src/hassio-my-redirect.ts + addon-view/hassio-addon-dashboard.ts
+// before 2026.2; src/panels/my/ha-panel-my.ts + config/apps/ha-config-app-dashboard.ts
+// since). It replaces the supervisor_add_addon_repository link
+// (home-assistant/my.home-assistant.io#698) and the store search after it.
+func haInstallRelayAppURL(haURL string) string {
+	return haRelayAppPageURL(haURL) + "&repository_url=" + url.QueryEscape(haNovaRepositoryURL)
 }
 
 func haProfileSecurityURL(haURL string) string {
