@@ -19,6 +19,7 @@ type fullRegistryRow struct {
 	Platform      string `json:"platform"`
 	UniqueID      string `json:"unique_id"`
 	ConfigEntryID string `json:"config_entry_id"`
+	DeviceID      string `json:"device_id"`
 	DisabledBy    string `json:"disabled_by"`
 }
 
@@ -54,7 +55,7 @@ func (e *tierEngine) areaEntities(area, domain, via string) []string {
 		e.readFailed("", via, "related area")
 		return nil
 	}
-	return filterDomain(related["entity"], domain)
+	return e.primaryEntities(filterDomain(related["entity"], domain), area, domain)
 }
 
 // deviceEntities filters the compact registry by device_id only — never
@@ -296,30 +297,6 @@ func (e *tierEngine) checkManagers() {
 	}
 	e.complete = false
 	e.raise(tierPreview, tierReason{Code: reasonManager, Detail: strings.Join(present, ", ")})
-}
-
-// deviceAccess: an integration service acts on the target's DEVICE (a Z-Wave
-// node, a Nuki bridge), so any access-capable entity on that device makes it
-// typed; otherwise it is at least preview, never below the targetless case.
-func (e *tierEngine) deviceAccess(id, via, service string) tierLevel {
-	var siblings []string
-	if device := e.reg[id].di; device != "" {
-		siblings = e.deviceEntities(device, "homeassistant")
-	}
-	e.prefetchStates(siblings)
-	for _, sibling := range siblings {
-		st, err := e.state(sibling)
-		if err != nil {
-			e.readFailed(sibling, via, "state")
-			return tierTyped
-		}
-		if dc := st.str("device_class"); accessCapable(sibling, dc) {
-			e.gap(reasonDeviceAccess, id, via, service+" on the device of "+sibling)
-			return tierTyped
-		}
-	}
-	e.raise(tierPreview, tierReason{Code: reasonIntegrationSvc, EntityID: id, Via: via, Detail: service})
-	return tierPreview
 }
 
 // switchAsX: a switch wrapped by an access-capable switch_as_x entity (same

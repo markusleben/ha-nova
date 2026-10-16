@@ -27,6 +27,7 @@ type fakeHA struct {
 	loaded        map[string]any      // entity → loaded config (WS automation/config, script/config)
 	flows         []map[string]any    // config_entries/flow/progress
 	services      []map[string]any    // GET /api/services (nil: 404)
+	devices       []map[string]any    // config/device_registry/list rows (id, via_device_id)
 	// service answers POST /api/services/<d>/<s> (nil: 200 and no effect);
 	// it runs under mu and may change states.
 	service func(f *fakeHA, path string, body map[string]any) any
@@ -131,7 +132,7 @@ func (f *fakeHA) reply(r *http.Request, endpoint string, p map[string]any) any {
 		case "search/related":
 			items := f.related[fmt.Sprint(p["item_type"])+":"+fmt.Sprint(p["item_id"])]
 			if p["item_type"] == "area" {
-				return map[string]any{"entity": items}
+				return map[string]any{"entity": items, "device": f.related["area-devices:"+fmt.Sprint(p["item_id"])]}
 			}
 			return map[string]any{"automation": items, "group": f.relatedGroups[fmt.Sprint(p["item_id"])]}
 		case "config/entity_registry/get_entries":
@@ -148,6 +149,8 @@ func (f *fakeHA) reply(r *http.Request, endpoint string, p map[string]any) any {
 			return fakeRelayFailure{"UPSTREAM_WS_COMMAND_ERROR", "not_found: Entity not found"}
 		case "config_entries/flow/progress":
 			return append([]map[string]any{}, f.flows...)
+		case "config/device_registry/list":
+			return append([]map[string]any{}, f.devices...)
 		case "config_entries/get":
 			return append([]map[string]any{}, f.entries...)
 		case "blueprint/substitute":

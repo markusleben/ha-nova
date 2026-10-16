@@ -69,21 +69,6 @@ func TestSingleEntityExpansionIsTheDirectCall(t *testing.T) {
 					t.Fatalf("notes %+v", env.Coverage.Notes)
 				}
 			}},
-		{name: "a hidden entity stays preview",
-			setup: func(f *fakeHA) { f.ent("light.raw", "shelly", "on", map[string]any{"_hb": true}); area("light.raw")(f) },
-			args:  []string{"light.turn_off", "--area", "kitchen"}, exit: 3, tier: "preview", reasons: []string{reasonExpanded}},
-		{name: "an entity with a category stays preview",
-			setup: func(f *fakeHA) {
-				f.ent("switch.child_lock", "miele", "off", map[string]any{"_ec": 0})
-				area("switch.child_lock")(f)
-			},
-			args: []string{"switch.turn_on", "--area", "kitchen"}, exit: 3, tier: "preview", reasons: []string{reasonExpanded}},
-		{name: "an entity whose own area is elsewhere stays preview",
-			setup: func(f *fakeHA) {
-				f.ent("light.porch", "hue", "on", map[string]any{"_ai": "garden"})
-				area("light.porch")(f)
-			},
-			args: []string{"light.turn_off", "--area", "kitchen"}, exit: 3, tier: "preview", reasons: []string{reasonExpanded}},
 		{name: "area plus device selectors stay preview",
 			setup: func(f *fakeHA) {
 				f.ent("light.desk", "hue", "on", map[string]any{"_di": "dev_desk"})
@@ -97,12 +82,6 @@ func TestSingleEntityExpansionIsTheDirectCall(t *testing.T) {
 				f.ent("switch.gang_2", "shelly", "on", map[string]any{"_di": "dev_2gang"})
 			},
 			args: []string{"switch.turn_off", "--device", "dev_2gang"}, exit: 3, tier: "preview", reasons: []string{reasonExpanded}},
-		{name: "a hidden entity on the device stays preview",
-			setup: func(f *fakeHA) { f.ent("switch.raw", "shelly", "on", map[string]any{"_di": "dev_raw", "_hb": true}) },
-			args:  []string{"switch.turn_off", "--device", "dev_raw"}, exit: 3, tier: "preview", reasons: []string{reasonExpanded}},
-		{name: "a categorized entity on the device stays preview",
-			setup: func(f *fakeHA) { f.ent("switch.led", "shelly", "on", map[string]any{"_di": "dev_led", "_ec": 0}) },
-			args:  []string{"switch.turn_off", "--device", "dev_led"}, exit: 3, tier: "preview", reasons: []string{reasonExpanded}},
 		{name: "generic homeassistant service over a device stays preview",
 			setup: func(f *fakeHA) { f.ent("switch.plug", "tplink", "on", map[string]any{"_di": "dev_plug"}) },
 			args:  []string{"homeassistant.turn_off", "--device", "dev_plug"}, exit: 3, tier: "preview", reasons: []string{reasonExpanded}},
@@ -111,12 +90,12 @@ func TestSingleEntityExpansionIsTheDirectCall(t *testing.T) {
 				f.ent("light.room", "hue", "on", map[string]any{"_di": "dev_bridge", "entity_id": []any{"light.kitchen"}})
 			},
 			args: []string{"light.turn_off", "--device", "dev_bridge"}, exit: 3, tier: "preview", reasons: []string{reasonExpanded}},
-		{name: "a button on a gate device stays preview (it may be the opener)",
+		{name: "a button on a gate device is typed (it may be the opener)",
 			setup: func(f *fakeHA) {
 				f.ent("button.gate_trigger", "shelly", "unknown", map[string]any{"_di": "dev_gate"})
 				f.ent("cover.gate", "shelly", "closed", map[string]any{"_di": "dev_gate", "device_class": "gate"})
 			},
-			args: []string{"button.press", "--device", "dev_gate"}, exit: 3, tier: "preview", reasons: []string{reasonExpanded}},
+			args: []string{"button.press", "--device", "dev_gate"}, exit: 3, tier: "typed", reasons: []string{reasonDeviceAccessSibling}},
 		{name: "a shutter on the same device is no access entity: ordinary",
 			setup: func(f *fakeHA) {
 				f.ent("light.blind_led", "shelly", "on", map[string]any{"_di": "dev_blind"})
@@ -124,21 +103,21 @@ func TestSingleEntityExpansionIsTheDirectCall(t *testing.T) {
 				area("light.blind_led")(f)
 			},
 			args: []string{"light.turn_off", "--area", "kitchen"}, exit: 0, tier: "ordinary"},
-		{name: "the one light in an area whose device also has a lock stays preview",
+		{name: "the one light in an area whose device also has a lock: ordinary (turning it off opens nothing)",
 			setup: func(f *fakeHA) {
 				f.ent("light.door_ring", "nuki", "on", map[string]any{"_di": "dev_nuki"})
 				f.ent("lock.nuki", "nuki", "locked", map[string]any{"_di": "dev_nuki"})
 				area("light.door_ring")(f)
 			},
-			args: []string{"light.turn_off", "--area", "kitchen"}, exit: 3, tier: "preview", reasons: []string{reasonExpanded}},
-		{name: "an unreadable sibling cover state keeps the preview",
+			args: []string{"light.turn_off", "--area", "kitchen"}, exit: 0, tier: "ordinary", absent: []string{reasonDeviceAccessSibling}},
+		{name: "an unreadable sibling cover state makes the one relay in an area typed",
 			setup: func(f *fakeHA) {
-				f.ent("light.porch", "shelly", "on", map[string]any{"_di": "dev_porch"})
+				f.ent("switch.porch", "shelly", "off", map[string]any{"_di": "dev_porch"})
 				f.ent("cover.porch_gate", "shelly", "closed", map[string]any{"_di": "dev_porch", "device_class": "shutter"})
 				f.fail["/api/states/cover.porch_gate"] = true
-				area("light.porch")(f)
+				area("switch.porch")(f)
 			},
-			args: []string{"light.turn_off", "--area", "kitchen"}, exit: 3, tier: "preview", reasons: []string{reasonExpanded}},
+			args: []string{"switch.turn_on", "--area", "kitchen"}, exit: 3, tier: "typed", reasons: []string{reasonDeviceAccessSibling}},
 
 		// Strict neighbours: what acting on the one entity reaches.
 		{name: "opening the one garage door in an area stays typed",

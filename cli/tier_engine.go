@@ -88,8 +88,9 @@ type tierEngine struct {
 	events    map[string]int
 	listeners *listenerTable
 	full      []fullRegistryRow
-	regFailed bool     // the compact registry could not be read
-	groups    []string // expanded direct group targets: consumer-scanned, never frozen
+	regFailed bool                // the compact registry could not be read
+	children  map[string][]string // device → its child devices (via_device_id); nil until read
+	groups    []string            // expanded direct group targets: consumer-scanned, never frozen
 	fullRead  bool
 }
 
@@ -282,8 +283,11 @@ func (e *tierEngine) classify(id, service string, data map[string]any, depth int
 		level = tierTyped
 		e.gap(reasonUserButton, id, via, pl)
 	}
-	if serviceDomain, _ := splitID(eff); !coreDomains[serviceDomain] {
+	switch serviceDomain, _ := splitID(eff); {
+	case !coreDomains[serviceDomain]:
 		level = max(level, e.deviceAccess(id, via, eff))
+	case eff != "homeassistant.update_entity" && !accessCapable(id, st.str("device_class")):
+		level = max(level, e.accessSibling(id, via, eff, data))
 	}
 	if domain == "switch" && entry.pl != "switch_as_x" {
 		level = max(level, e.switchAsX(id, via))

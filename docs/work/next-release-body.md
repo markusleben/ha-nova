@@ -10,8 +10,7 @@ the number.
 - A room or device command that reaches exactly one matching device ("turn
   off the kitchen lights" with one light there) now runs right away and is
   verified, exactly like naming that device. Rooms with several matching
-  devices, groups, and devices that also carry a lock, alarm, or gate still
-  show a preview first.
+  devices and groups still show a preview first.
 - **Faster setup on extra computers:** when the NOVA Relay App already runs on
   your Home Assistant, setup skips the install steps and goes straight to the
   six-digit pairing code.
@@ -23,3 +22,12 @@ the number.
 - `ha-nova uninstall` no longer guides removal of the NOVA Relay App by
   default. It first asks whether this is the last computer using HA NOVA,
   because removing the App disconnects every paired computer.
+- Pressing a button, turning on a switch, or opening a cover on a device
+  that also has a lock, alarm, or access cover now needs a code.
+
+## Bug Fixes
+
+- Room and device commands now skip hidden entities and configuration or
+  diagnostic entities, as Home Assistant's own room targeting does; when that
+  leaves nothing, the answer names the skipped entities. A device command
+  also reaches the device's child devices, as Home Assistant does.
