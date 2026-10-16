@@ -35,7 +35,7 @@ describe("migrate skill (needs-analysis TOP 4)", () => {
     expect(skill).toContain("**Behaviour list** per rule, before any draft — the acceptance checklist");
     expect(skill).toContain("what a re-trigger does while it waits");
     expect(skill).toContain("with `ha-nova find` / `ha-nova get`, never by name similarity alone");
-    expect(skill).toContain("a reference with no match keeps its rule waiting");
+    expect(skill).toContain("an unmatched reference keeps its rule waiting");
     expect(skill).toContain("Convert units and scales and name each conversion");
   });
 
@@ -66,8 +66,9 @@ describe("migrate skill (needs-analysis TOP 4)", () => {
     expect(skill).toContain("`ha-nova plan write --domain automation|script --create --file <draft.json>`");
     expect(skill).toContain("One source rule = one grouped change set");
     expect(skill).toContain("The CLI tiers every plan; a typed plan leaves the group with its own code.");
+    expect(skill).toContain("The preview shows the plans (diff rows, `say`), never YAML to paste.");
+    expect(skill).toContain("The user confirms or corrects it (no write consent).");
     expect(skill).toContain("Never down-tier");
-    expect(skill).toContain("A confirmed behaviour list authorizes no write.");
     expect(grouped).toContain("| `migrate` | yes |");
     expect(skill).toContain("`ha-nova plan call automation.turn_off <entity_id> --set stop_actions=false`");
     expect(skill).toContain("helpers first via `ha-nova:helper` (ids as Dependency-Bound Outputs)");
