@@ -130,6 +130,20 @@ func TestWindowOpenFailureFallsBackToChat(t *testing.T) {
 	}
 }
 
+// The fallback keeps a user's no-copy choice (a failed snapshot, then
+// --no-snapshot): the chat plan still offers it.
+func TestWindowFallbackKeepsNoSnapshot(t *testing.T) {
+	h := newWriteHarness(t, newFakeHA())
+	useWindow(t, windowFailed)
+	old := h.plan("lock.unlock", "lock.front").Plan
+	h.tamper(old.ID, func(p map[string]any) { p["snapshot_failed"] = true }) // not in the hash
+	exit, env := h.run(runApplyCommand, "--plan", old.ID, "--no-snapshot")
+	stored, err := readPlanFile(filepath.Join(planDir(h.paths), env.Plan.ID+".json"))
+	if exit != 3 || err != nil || !stored.SnapshotFailed || !strings.Contains(env.NextStep, "--no-snapshot") {
+		t.Fatalf("fallback after a failed snapshot: exit %d %+v (%v)", exit, env, err)
+	}
+}
+
 // Form precedence and no downgrade through the MCP server: a client with
 // forms gets the form (no window opens); a client without forms, or
 // --no-forms, gets the window where one can open, never the code.

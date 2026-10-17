@@ -153,7 +153,7 @@ func confirmByWindow(paths runtimePaths, opts verbOptions, id string, noSnapshot
 		return windowStopped(s, "declined", "CONFIRM_DECLINED", "the confirmation window was cancelled",
 			"Tell the user nothing changed. Apply this plan again only if they ask for it.")
 	case windowFailed:
-		return windowFallback(paths, s, plan)
+		return windowFallback(paths, s, plan, noSnapshot)
 	}
 	return windowStopped(s, "cancelled", "CONFIRM_CANCELLED", "the confirmation window got no answer in time", again)
 }
@@ -179,7 +179,7 @@ func askWindow(message string, wait time.Duration) windowAnswer {
 // windowFallback: the window could not open (a sandbox, no desktop), so
 // the plan becomes a chat plan (fallback E) — said, never silent. The new
 // plan replaces the window plan; its `say` carries the code and its limit.
-func windowFallback(paths runtimePaths, s *relaySession, plan storedPlan) (verbEnvelope, int, bool) {
+func windowFallback(paths runtimePaths, s *relaySession, plan storedPlan, noSnapshot bool) (verbEnvelope, int, bool) {
 	env := verbEnvelope{SchemaVersion: 1, Verb: "apply", Status: "ok", Server: s.server}
 	fresh, ok := replanStored(paths, s, &env, plan, channelChat)
 	if !ok || fresh.Hash != plan.Hash || fresh.Tier != plan.Tier || env.Plan == nil {
@@ -191,14 +191,19 @@ func windowFallback(paths runtimePaths, s *relaySession, plan storedPlan) (verbE
 	if os.Rename(open, claimed) != nil {
 		return windowStopped(s, "refused", "PLAN_CLAIMED", "plan "+plan.ID+" was already claimed or used", mayHaveRun)
 	}
+	fresh.SnapshotFailed = plan.SnapshotFailed // a user's no-copy choice stays offered
 	if err := savePlan(paths, fresh); err != nil {
 		_ = os.Rename(claimed, open)
 		return windowStopped(s, "error", "CONFIRM_UNAVAILABLE", "the confirmation window could not open, and no code could be prepared instead ("+err.Error()+")",
 			"Tell the user nothing changed; they can try again in a moment, or make this change in Home Assistant itself.")
 	}
 	_ = os.Remove(claimed)
+	flag := ""
+	if noSnapshot { // the user already chose to go on without a copy
+		env.Say, flag = strings.Replace(env.Say, sayCopyNote, "No copy could be saved, so once deleted it can't be restored.", 1), " --no-snapshot"
+	}
 	env.Say = "The confirmation window couldn't open on this computer. " + env.Say
-	env.NextStep = fmt.Sprintf("The window couldn't open, so this is a new plan with a one-time code: show `say`; only after a reply that is only that code, run ha-nova apply --plan %s --confirm <the user's text>.", env.Plan.ID)
+	env.NextStep = fmt.Sprintf("The window couldn't open, so this is a new plan with a one-time code: show `say`; only after a reply that is only that code, run ha-nova apply --plan %s --confirm <the user's text>%s.", env.Plan.ID, flag)
 	return env, env.exit, true
 }
 
