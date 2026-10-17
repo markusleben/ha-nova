@@ -100,13 +100,10 @@ func TestPlanFileHoldsNoUsableCode(t *testing.T) {
 		confirmCode("test-token", idHex, channelForm, "x") == confirmCode("test-token", idHex, channelChat, "x") {
 		t.Fatal("the code ignores the credential and the channel")
 	}
-	if confirmCode("test-token", idHex, channelForm, fmt.Sprint(stored["expires_at"])) == plan.Code {
-		return // p = 1e-4: the edited channel's code happens to be the same
-	}
 	h.tamper(plan.ID, func(p map[string]any) { p["channel"] = channelForm })
-	humanAnswer = plan.Code // a form answer of the chat-plan code no longer fits the edited channel
+	humanAnswer = plan.Code // the edited channel breaks the plan's channel seal
 	defer func() { humanAnswer = "" }()
-	if exit, env := h.run(runApplyCommand, "--plan", plan.ID); exit != 4 || env.Error.Code != "CODE_MISMATCH" || len(h.posts()) != 0 {
+	if exit, env := h.run(runApplyCommand, "--plan", plan.ID); exit != 4 || env.Error.Code != "PLAN_INVALID" || len(h.posts()) != 0 {
 		t.Fatalf("an edited channel kept the code valid: exit %d %+v", exit, env.Error)
 	}
 }

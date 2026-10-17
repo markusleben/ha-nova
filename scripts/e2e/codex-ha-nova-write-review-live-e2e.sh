@@ -210,9 +210,9 @@ Hard requirements:
 4. Do not browse the web and do not use external research tools or docs fetches.
 5. Do not use Exa, Ref, web search, or official-doc lookup tools.
 6. Do not run onboarding ready/doctor/quick checks before the first HA action.
-7. This is a real write-flow scenario. Create or replace exactly one disposable automation whose final config id is "${automation_id}".
-8. For this harness, prefer the deterministic automation id even if the normal write skill would otherwise generate a timestamp for a fresh create.
-9. Preview payload first. This harness simulates the user's next post-preview reply only for that exact preview; if the payload changes after preview, repeat preview before applying.
+7. This is a real write-flow scenario. Create exactly one disposable automation whose final config id is "${automation_id}".
+8. For this harness, pass the deterministic automation id as \`--id ${automation_id} --create\` even though the normal write skill would let the CLI mint one for a fresh create. The draft file itself must not carry an "id" key.
+9. Plan first, then preview: run the plan write, then show the preview for that plan. This harness simulates the user's next post-preview reply only for that exact preview (a natural confirmation, never a one-time code: do not pass --confirm); if the payload changes after preview, plan it again and show a new preview before applying.
 10. Do not run --help, dry-run probes, CLI shape checks, or fallback discovery commands. Use the repo-local skill contract directly.
 11. Do not retry the write flow with alternate commands after a failed attempt. Use one clean write path only.
 12. Do not delete the automation yourself; the harness will clean it up after the session.
@@ -231,13 +231,13 @@ Hard requirements:
 24. Before the apply step, print exactly one explicit prewrite verdict line:
     - safe draft: Pre-write check: no issues worth flagging before save.
     - flagged draft: Pre-write check: this draft may not behave as intended.
-25. After the preview, immediately apply the write and then perform exactly these post-write checks in order: config read-back, automation reload, one target entity state read, one collision scan.
+25. After the preview, immediately run the apply and then perform exactly these post-write checks in order: one target entity state read, one collision scan. The apply itself saves, reloads, reads the config back, and verifies the automation entity; do not add a separate config read-back or reload.
 26. The one target entity state read must be a single GET to /api/states/input_boolean.mcp_stress_toggle.
 27. Keep the collision-scan evidence explicit. The successful command block that runs \`ha-nova relay ws --data-file ...\` must also inline or create the \`search/related\` payload for the target entity in that same command block. Use one dedicated payload file for that collision scan command block, make the \`--data-file\` argument point to that same file, and write that payload file exactly once before the ws call. Do not hide the collision target only inside a previously prepared external file.
 28. Do not include internal shorthand like R18 or R19 in preview aliases, descriptions, or any other user-facing names.
 29. In the final user-facing result, do not echo raw related automation ids, raw config ids, or other machine-like related-item identifiers from the collision scan. Summarize overlap in natural language or by count instead.
-30. Use this exact simple Relay sequence after the preview: one POST write with --body-file, one raw GET read-back for the same config path, one POST reload to /api/services/automation/reload, one raw GET state read to /api/states/input_boolean.mcp_stress_toggle, one ws collision scan with --data-file. Do not use /api/config/automation/reload. Do not add jq/jq-file filters, extra parsing helper steps, or alternate Relay variants.
-31. Use simple deterministic local filenames such as draft.json, readback.json, reload.json, state.json, and collision.json. Do not use mktemp.
+30. Use this exact simple sequence: before the preview, one \`ha-nova plan write --domain automation --id ${automation_id} --create --file draft.json > plan.json\` (exit 3 means a stored plan awaits confirmation and is normal: write that command as \`... > plan.json || test \$? -eq 3\`; the plan id is \`plan.id\` in that JSON envelope); after the preview, one \`ha-nova apply --plan <plan.id>\`, one raw GET state read to /api/states/input_boolean.mcp_stress_toggle, one ws collision scan with --data-file. Never send a raw automation config write, a raw reload, or any POST to /api/services/ or /api/config/automation/. Do not add jq/jq-file filters beyond reading plan.id, extra parsing helper steps, or alternate Relay variants.
+31. Use simple deterministic local filenames such as draft.json, plan.json, state.json, and collision.json (redirect with \`>\`; \`ha-nova apply\` has no \`--out\` flag). Do not use mktemp.
 32. If you use inline Python to create local JSON payload files, use \`python3\` only. Do not use \`python\`.
 33. Any shell command block that contains the write flow must begin with \`set -e\` so a local prep error aborts before the write. Do not continue after a prep error and do not retry with a second write path.
 34. In user-facing text, never print tool-call syntax, JSON command envelopes, raw exec transcripts, or fragments like \`to=functions.exec_command\`, \`to=multi_tool_use.parallel\`, or \`{\"cmd\":...\` . The only allowed JSON in user-facing output is the fenced preview payload, plus the final machine line.
@@ -245,7 +245,7 @@ Hard requirements:
 36. After those checks, stop and print the final user-facing result, the ## Post-Write Review section, and the machine line. Do not emit extra messages after the machine line.
 37. Before the first HA action, read at most these repo-local files unless a write would otherwise fail: skills/ha-nova/SKILL.md, directly referenced skills/ha-nova/*.md reference files, skills/write/SKILL.md, skills/review/checks.md.
 38. Do not read docs/reference/, tests/, workflows, or release files for this harness.
-39. Do not emit todo lists, meta progress updates, or extra planning summaries. Move directly from the minimal local reads to preview payload, explicit prewrite verdict, apply, ordered checks, final result, and machine line.
+39. Do not emit todo lists, meta progress updates, or extra planning summaries. Move directly from the minimal local reads to the plan write, preview payload, explicit prewrite verdict, apply, ordered checks, final result, and machine line.
 EOF_PROMPT
 }
 
@@ -433,26 +433,38 @@ status_line_count = 0
 final_message_last_line = ""
 status_line_event_idx = 0
 unexpected_events_after_final_message = 0
+# The write is the typed flow: `ha-nova plan write` (read-only, stores a plan)
+# before the preview, then `ha-nova apply` (saves, reloads, reads back, and
+# verifies the entity itself). "write" below means the apply.
+first_plan_write_idx = 0
+plan_write_attempts = 0
+plan_write_key = None
+target_plan_files = set()
+target_plan_ids = set()
+target_plan_vars = set()  # shell variables set from a target plan file: plan_id="$(jq -r .plan.id plan.json)"
+preview_message_idx = 0
 first_write_idx = 0
 first_write_attempt_idx = 0
 first_write_pos = -1
 write_attempts = 0
 successful_write_attempts = 0
 write_hits = 0
-readback_after_write_key = None
-reload_after_write_key = None
+apply_key = None
+raw_write_count = 0
 state_after_write_key = None
 collision_after_write_key = None
-readback_after_write_count = 0
-reload_after_write_count = 0
-wrong_reload_after_write_count = 0
 state_after_write_count = 0
 collision_after_write_count = 0
 
-post_pattern = re.compile(r'"method"\s*:\s*"POST"|(?:^|\s)-X\s+POST\b|--method(?:=|\s+)POST\b')
-get_pattern = re.compile(r'"method"\s*:\s*"GET"|(?:^|\s)-X\s+GET\b|--method(?:=|\s+)GET\b')
-reload_pattern = re.compile(r"/api/services/automation/reload")
-wrong_reload_pattern = re.compile(r"/api/config/automation/reload")
+get_pattern = re.compile(r'"method"\s*:\s*"GET"|(?:^|\s)-X\s+GET\b|--method(?:=|\s+)GET\b', re.IGNORECASE)
+mutating_method_pattern = re.compile(
+    r'"method"\s*:\s*"(?:POST|DELETE)"|(?:^|\s)-X\s+(?:POST|DELETE)\b|--method(?:=|\s+)(?:\\?[\'"])?(?:POST|DELETE)\b',
+    re.IGNORECASE,
+)
+plan_write_pattern = re.compile(r"\bha-nova\s+plan\s+write\b")
+apply_pattern = re.compile(r"\bha-nova\s+apply\b")
+raw_write_path_pattern = re.compile(r"/api/services/|/api/config/automation/")
+relay_core_pattern = re.compile(r"\bha-nova\s+relay\s+core\b")
 state_target_pattern = re.compile(
     rf"/api/states/{re.escape(collision_item_id)}(?=$|[^A-Za-z0-9_])"
 ) if collision_item_id else re.compile(r"$^")
@@ -464,19 +476,6 @@ status_line_pattern = re.compile(
 )
 
 command_separator_pattern = re.compile(r"(?:&&|\|\||[;\n])")
-
-def first_pattern_pos_after(command: str, pattern: re.Pattern[str], min_pos: int) -> int:
-    for match in pattern.finditer(command):
-        if match.start() > min_pos:
-            return match.start()
-    return -1
-
-def first_pattern_pos(command: str, pattern: re.Pattern[str]) -> int:
-    match = pattern.search(command)
-    return match.start() if match else -1
-
-def count_pattern_after(command: str, pattern: re.Pattern[str], min_pos: int) -> int:
-    return sum(1 for match in pattern.finditer(command) if match.start() > min_pos)
 
 def maybe_set_key(current, idx: int, pos: int):
     if pos < 0:
@@ -521,35 +520,58 @@ def count_path_arg_operations_after(command: str, positions: list[int], method_r
             count += 1
     return count
 
-def extract_target_path_positions(command: str):
-    literal_path_pattern = re.compile(
-        rf"/api/config/automation/config/{re.escape(automation_id)}(?=$|[^A-Za-z0-9_])"
-    )
-    positions = [match.start() for match in literal_path_pattern.finditer(command)]
+def segment_from(command: str, pos: int) -> str:
+    _, segment_end = command_segment_bounds(command, pos)
+    return command[pos:segment_end]
 
+def plan_write_id_pattern(command: str) -> re.Pattern[str]:
+    refs = [re.escape(automation_id)]
     for match in re.finditer(rf"\b([A-Za-z_][A-Za-z0-9_]*)=(['\"]?){re.escape(automation_id)}\2", command):
-        var_name = match.group(1)
-        ref_pattern = re.compile(
-            rf"/api/config/automation/config/\$\{{?{re.escape(var_name)}\}}?(?=$|[^A-Za-z0-9_])"
+        refs.append(rf"\$\{{?{re.escape(match.group(1))}\}}?")
+    return re.compile(rf"--id(?:=|\s+)(?:\\?['\"])?(?:{'|'.join(refs)})(?=$|[^A-Za-z0-9_])")
+
+def plan_write_positions(command: str):
+    # A target plan write: `ha-nova plan write --domain automation --id <automation_id> --create`
+    # in one shell segment (the id may come through a shell variable set in the same block).
+    id_pattern = plan_write_id_pattern(command)
+    positions = []
+    for match in plan_write_pattern.finditer(command):
+        segment = segment_from(command, match.start())
+        if (
+            re.search(r"--domain(?:=|\s+)(?:\\?['\"])?automation\b", segment)
+            and re.search(r"--create\b", segment)
+            and id_pattern.search(segment)
+        ):
+            positions.append(match.start())
+    return positions
+
+plan_id_pattern = re.compile(r"\bp_[0-9a-f]{12}\b")
+
+def apply_positions(command: str):
+    # Only an apply of the target plan counts: it names the file the target
+    # plan write went to, or a plan id that file's envelope showed.
+    positions = []
+    for match in apply_pattern.finditer(command):
+        segment = segment_from(command, match.start())
+        bound = (
+            any(name in segment for name in target_plan_files)
+            or any(plan_id in target_plan_ids for plan_id in plan_id_pattern.findall(segment))
+            or any(re.search(rf"\$\{{?{re.escape(var)}\b", segment) for var in target_plan_vars)
         )
-        positions.extend(ref_match.start() for ref_match in ref_pattern.finditer(command))
-    return sorted(set(positions))
+        if re.search(r"--plan\b", segment) and bound:
+            positions.append(match.start())
+    return positions
 
-def first_target_operation_pos_after(command: str, method_re: re.Pattern[str], min_pos: int):
-    return first_path_arg_operation_pos_after(
-        command,
-        extract_target_path_positions(command),
-        method_re,
-        min_pos,
-    )
-
-def count_target_operations_after(command: str, method_re: re.Pattern[str], min_pos: int):
-    return count_path_arg_operations_after(
-        command,
-        extract_target_path_positions(command),
-        method_re,
-        min_pos,
-    )
+def count_raw_writes(command: str) -> int:
+    # Raw automation config writes, raw reloads, and service POSTs are refused by the
+    # raw guard; the typed plan/apply flow replaces them.
+    count = 0
+    for match in raw_write_path_pattern.finditer(command):
+        segment_start, segment_end = command_segment_bounds(command, match.start())
+        segment = command[segment_start:segment_end]
+        if relay_core_pattern.search(segment) and mutating_method_pattern.search(segment):
+            count += 1
+    return count
 
 def command_bound_to_state_target(command: str) -> bool:
     return first_state_target_pos_after(command, -1) >= 0
@@ -826,6 +848,8 @@ for idx, event in enumerate(events, start=1):
         stripped_lines = [line.strip() for line in text.splitlines() if line.strip()]
         if stripped_lines:
             final_message_last_line = stripped_lines[-1]
+        if preview_message_idx == 0 and re.search(r"^(?:##\s*)?Preview Payload\b", text, re.MULTILINE):
+            preview_message_idx = idx
         if first_write_attempt_idx == 0:
             pre_messages.append(text)
         else:
@@ -836,83 +860,41 @@ for idx, event in enumerate(events, start=1):
     if event.get("type") == "item.completed" and item.get("type") == "command_execution":
         command = collapse_shell_line_continuations(item.get("command") or "")
         exit_code = item.get("exit_code")
-        write_attempt_pos = first_target_operation_pos_after(command, post_pattern, -1)
-        write_attempts += count_target_operations_after(command, post_pattern, -1)
-        if write_attempt_pos >= 0 and first_write_attempt_idx == 0:
-            first_write_attempt_idx = idx
-        write_pos = write_attempt_pos
-        if write_pos >= 0 and first_write_idx == 0:
-            first_write_idx = idx
-            first_write_pos = write_pos
-        if write_pos >= 0 and exit_code == 0:
-            successful_write_attempts += count_target_operations_after(command, post_pattern, -1)
+        raw_write_count += count_raw_writes(command)
+        # A plan write exits 3 (stored plan awaits confirmation), so it counts
+        # whatever the block's exit code; the apply must succeed.
+        plan_positions = plan_write_positions(command)
+        plan_write_attempts += len(plan_positions)
+        if plan_positions and exit_code in (0, 3):  # 3 = stored plan awaits confirmation; a refused plan (exit 4) never counts
+            plan_write_key = maybe_set_key(plan_write_key, idx, plan_positions[0])
+            if first_plan_write_idx == 0:
+                first_plan_write_idx = idx
+            for pos in plan_positions:
+                target_plan_files.update(
+                    name.strip("'\")") for name in re.findall(r"(?<![0-9&])>\s*([^\s;&|]+)", segment_from(command, pos)) if not name.startswith("/dev/")
+                )
+        for name in target_plan_files:
+            target_plan_vars.update(re.findall(rf"\b([A-Za-z_][A-Za-z0-9_]*)=[\"']?\$\([^)]*{re.escape(name)}", command))
+        if first_plan_write_idx and (plan_positions or any(name in command for name in target_plan_files)):
+            target_plan_ids.update(plan_id_pattern.findall(item.get("aggregated_output") or ""))
+        applies = apply_positions(command)
+        write_attempts += len(applies)
+        if applies and first_write_idx == 0:
+            first_write_idx = first_write_attempt_idx = idx
+            first_write_pos = applies[0]
+        if applies and exit_code == 0:
+            successful_write_attempts += len(applies)
             write_hits += 1
+            apply_key = maybe_set_key(apply_key, idx, applies[0])
         if first_write_idx > 0 and exit_code == 0:
-            if idx == first_write_idx:
-                readback_pos = first_target_operation_pos_after(command, get_pattern, first_write_pos)
-                readback_after_write_count += count_target_operations_after(command, get_pattern, first_write_pos)
-                readback_after_write_key = maybe_set_key(
-                    readback_after_write_key,
-                    idx,
-                    readback_pos,
-                )
-                reload_pos = first_pattern_pos_after(command, reload_pattern, first_write_pos)
-                reload_after_write_count += count_pattern_after(command, reload_pattern, first_write_pos)
-                wrong_reload_after_write_count += count_pattern_after(command, wrong_reload_pattern, first_write_pos)
-                reload_after_write_key = maybe_set_key(
-                    reload_after_write_key,
-                    idx,
-                    reload_pos,
-                )
-                if command_bound_to_state_target(command):
-                    state_pos = first_state_target_pos_after(command, first_write_pos)
-                    state_after_write_count += count_state_target_operations_after(command, first_write_pos)
-                    state_after_write_key = maybe_set_key(
-                        state_after_write_key,
-                        idx,
-                        state_pos,
-                    )
-                collision_pos = first_collision_scan_pos_after(command, first_write_pos)
-                collision_after_write_count += count_collision_scans_after(command, first_write_pos)
-                if collision_pos >= 0:
-                    collision_after_write_key = maybe_set_key(
-                        collision_after_write_key,
-                        idx,
-                        collision_pos,
-                    )
-            else:
-                readback_pos = first_target_operation_pos_after(command, get_pattern, -1)
-                readback_after_write_count += count_target_operations_after(command, get_pattern, -1)
-                if readback_pos >= 0:
-                    readback_after_write_key = maybe_set_key(
-                        readback_after_write_key,
-                        idx,
-                        readback_pos,
-                    )
-                reload_pos = first_pattern_pos(command, reload_pattern)
-                reload_after_write_count += count_pattern_after(command, reload_pattern, -1)
-                wrong_reload_after_write_count += count_pattern_after(command, wrong_reload_pattern, -1)
-                reload_after_write_key = maybe_set_key(
-                    reload_after_write_key,
-                    idx,
-                    reload_pos,
-                )
-                if command_bound_to_state_target(command):
-                    state_pos = first_state_target_pos_after(command, -1)
-                    state_after_write_count += count_state_target_operations_after(command, -1)
-                    state_after_write_key = maybe_set_key(
-                        state_after_write_key,
-                        idx,
-                        state_pos,
-                    )
-                collision_pos = first_collision_scan_pos_after(command, -1)
-                collision_after_write_count += count_collision_scans_after(command, -1)
-                if collision_pos >= 0:
-                    collision_after_write_key = maybe_set_key(
-                        collision_after_write_key,
-                        idx,
-                        collision_pos,
-                    )
+            min_pos = first_write_pos if idx == first_write_idx else -1
+            if command_bound_to_state_target(command):
+                state_pos = first_state_target_pos_after(command, min_pos)
+                state_after_write_count += count_state_target_operations_after(command, min_pos)
+                state_after_write_key = maybe_set_key(state_after_write_key, idx, state_pos)
+            collision_pos = first_collision_scan_pos_after(command, min_pos)
+            collision_after_write_count += count_collision_scans_after(command, min_pos)
+            collision_after_write_key = maybe_set_key(collision_after_write_key, idx, collision_pos)
 
 for idx, event in enumerate(events, start=1):
     if status_line_event_idx == 0 or idx <= status_line_event_idx:
@@ -926,14 +908,18 @@ for idx, event in enumerate(events, start=1):
         unexpected_events_after_final_message += 1
 
 ordered_postwrite_verification = bool(
-    readback_after_write_key
-    and reload_after_write_key
+    plan_write_key
+    and apply_key
     and state_after_write_key
     and collision_after_write_key
-    and readback_after_write_key < reload_after_write_key < state_after_write_key < collision_after_write_key
+    and plan_write_key < apply_key < state_after_write_key < collision_after_write_key
 )
 
 result = {
+    "first_plan_write_idx": first_plan_write_idx,
+    "plan_write_attempts": plan_write_attempts,
+    "preview_after_plan_write": bool(first_plan_write_idx and preview_message_idx > first_plan_write_idx),
+    "raw_write_count": raw_write_count,
     "first_write_attempt_idx": first_write_attempt_idx,
     "first_write_idx": first_write_idx,
     "write_attempts": write_attempts,
@@ -944,9 +930,6 @@ result = {
     "status_line": status_line,
     "status_line_count": status_line_count,
     "final_message_last_line": final_message_last_line,
-    "readback_after_write": readback_after_write_count,
-    "reload_after_write": reload_after_write_count,
-    "wrong_reload_after_write": wrong_reload_after_write_count,
     "state_after_write": state_after_write_count,
     "collision_after_write": collision_after_write_count,
     "ordered_postwrite_verification": ordered_postwrite_verification,
@@ -1058,12 +1041,45 @@ print(json.dumps(result))
 PY
 }
 
+# Best-effort, outside the Codex session: raw config deletes are refused, so the
+# harness resolves the entity from the registry (platform automation, unique_id
+# = config id: also when no state exists), plans the delete, applies it with
+# the plan's own code, and removes the delete's snapshot copy (test debris).
+# The code never reaches a log.
 cleanup_automation() {
   local automation_id="$1"
-  local cleanup_body="${OUTPUT_DIR}/cleanup-empty.json"
+  local entity_id plan_json plan_id plan_code applied_json snapshot
 
-  printf '{}' > "$cleanup_body"
-  ha-nova relay core --method DELETE --path "/api/config/automation/config/${automation_id}" --body-file "$cleanup_body" >/dev/null 2>&1 || true
+  entity_id="$(ha-nova relay ws -d '{"type":"config/entity_registry/list"}' 2>/dev/null \
+    | jq -r --arg id "$automation_id" '.data[]? | select(.platform == "automation" and .unique_id == $id) | .entity_id' 2>/dev/null \
+    | head -n 1)" || true
+  if [[ -z "$entity_id" ]]; then
+    # A saved config whose reload failed has no registry row, and plan delete
+    # takes an entity: say so loudly, or the next --create run fails on it.
+    if ha-nova relay core --method GET --path "/api/config/automation/config/${automation_id}" 2>/dev/null | jq -e '.data.status == 200' >/dev/null 2>&1; then
+      log "cleanup: automation config ${automation_id} is left without an entity; delete it in Home Assistant (Settings > Automations) before the next run"
+    fi
+    return 0
+  fi
+  plan_json="$(ha-nova plan delete "$entity_id" 2>/dev/null)" || true
+  plan_id="$(jq -r '.plan.id // empty' <<<"$plan_json" 2>/dev/null)" || true
+  plan_code="$(jq -r '.plan.code // empty' <<<"$plan_json" 2>/dev/null)" || true
+  if [[ -n "$plan_id" && -z "$plan_code" ]]; then
+    log "cleanup: the delete of ${entity_id} needs the confirmation window; run the harness with 'ha-nova setup confirm-window off' in its test HOME"
+    return 0
+  fi
+  if [[ -z "$plan_id" ]]; then
+    log "cleanup: could not plan the delete of ${entity_id}; remove it in Home Assistant"
+    return 0
+  fi
+  applied_json="$(ha-nova apply --plan "$plan_id" --confirm "$plan_code" 2>/dev/null)" || {
+    log "cleanup: the delete of ${entity_id} did not apply; remove it in Home Assistant"
+    return 0
+  }
+  snapshot="$(jq -r '.snapshot // empty' <<<"$applied_json" 2>/dev/null)" || true
+  if [[ -n "$snapshot" ]]; then
+    ha-nova relay backups -d "$(jq -cn --arg f "$snapshot" '{action:"delete",file:$f}')" >/dev/null 2>&1 || true
+  fi
 }
 
 run_scenario() {
@@ -1093,14 +1109,14 @@ run_scenario() {
   local final_message_last_line
   local prewrite_text
   local postwrite_text
+  local first_plan_write_idx
+  local plan_write_attempts
+  local raw_write_count
   local first_write_attempt_idx
   local write_hits
   local write_attempts
   local successful_write_attempts
   local first_write_idx
-  local readback_after_write
-  local reload_after_write
-  local wrong_reload_after_write
   local state_after_write
   local collision_after_write
   local ordered_postwrite_verification
@@ -1122,6 +1138,8 @@ run_scenario() {
 
   start_ts="$(date +%s)"
   while true; do
+    # A leftover from an aborted run or attempt would make --create refuse.
+    cleanup_automation "$automation_id"
     set +e
     run_codex_with_timeout "$max_duration_sec" "$prompt_file" "$scenario_log"
     codex_status="$?"
@@ -1190,6 +1208,9 @@ run_scenario() {
 
   if [[ "$status" == "pass" ]]; then
     extract_write_proof "$parsed_log" "$automation_id" "$collision_item_id" >"$analysis_json"
+    first_plan_write_idx="$(jq -r '.first_plan_write_idx' "$analysis_json")"
+    plan_write_attempts="$(jq -r '.plan_write_attempts' "$analysis_json")"
+    raw_write_count="$(jq -r '.raw_write_count' "$analysis_json")"
     first_write_attempt_idx="$(jq -r '.first_write_attempt_idx' "$analysis_json")"
     write_hits="$(jq -r '.write_hits' "$analysis_json")"
     write_attempts="$(jq -r '.write_attempts' "$analysis_json")"
@@ -1200,9 +1221,6 @@ run_scenario() {
     status_line="$(jq -r '.status_line' "$analysis_json")"
     status_line_count="$(jq -r '.status_line_count' "$analysis_json")"
     final_message_last_line="$(jq -r '.final_message_last_line' "$analysis_json")"
-    readback_after_write="$(jq -r '.readback_after_write' "$analysis_json")"
-    reload_after_write="$(jq -r '.reload_after_write' "$analysis_json")"
-    wrong_reload_after_write="$(jq -r '.wrong_reload_after_write' "$analysis_json")"
     state_after_write="$(jq -r '.state_after_write' "$analysis_json")"
     collision_after_write="$(jq -r '.collision_after_write' "$analysis_json")"
     ordered_postwrite_verification="$(jq -r '.ordered_postwrite_verification' "$analysis_json")"
@@ -1215,6 +1233,14 @@ run_scenario() {
     preview_has_canonical_keys="$(jq -r '.preview_has_canonical_keys' "$analysis_json")"
     count_only_preview_without_narrative="$(jq -r '.count_only_preview_without_narrative' "$analysis_json")"
 
+    [[ "$plan_write_attempts" -ge 1 && "$first_plan_write_idx" -gt 0 ]] || {
+      status="fail"
+      validation_error="missing_plan_write"
+    }
+    [[ "$(jq -r '.preview_after_plan_write' "$analysis_json")" == "true" ]] || {
+      status="fail"
+      validation_error="preview_before_plan_write"
+    }
     [[ "$write_hits" -ge 1 ]] || {
       status="fail"
       validation_error="missing_first_write"
@@ -1230,7 +1256,7 @@ run_scenario() {
   fi
 
   if [[ "$status" == "pass" ]]; then
-    onboarding_count="$(count_command_hits_before_index "$parsed_log" "$first_write_attempt_idx" '(^|[[:space:]])ha-nova[[:space:]]+(doctor|ready|quick)([[:space:]]|$)')"
+    onboarding_count="$(count_command_hits_before_index "$parsed_log" "$first_plan_write_idx" '(^|[[:space:]])ha-nova[[:space:]]+(doctor|ready|quick)([[:space:]]|$)')"
     [[ "$onboarding_count" -eq 0 ]] || {
       status="fail"
       validation_error="forbidden_onboarding_check_detected"
@@ -1279,13 +1305,13 @@ run_scenario() {
     validation_error="postwrite_section_structure_invalid"
   fi
 
-  if [[ "$status" == "pass" && "$wrong_reload_after_write" -gt 0 ]]; then
+  if [[ "$status" == "pass" && "$raw_write_count" -gt 0 ]]; then
     status="fail"
-    validation_error="wrong_reload_path_detected"
+    validation_error="raw_relay_write_detected"
   fi
 
   if [[ "$status" == "pass" ]]; then
-    [[ "$readback_after_write" -ge 1 && "$reload_after_write" -ge 1 && "$state_after_write" -ge 1 && "$collision_after_write" -ge 1 ]] || {
+    [[ "$state_after_write" -ge 1 && "$collision_after_write" -ge 1 ]] || {
       status="fail"
       validation_error="missing_postwrite_verification"
     }

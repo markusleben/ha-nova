@@ -123,6 +123,11 @@ func runGuidedRelayUpdate(paths runtimePaths, cfg config, token string, in *bufi
 		"entity_id": candidate.EntityID,
 		"backup":    true,
 	}
+	// Not a raw route (relay_raw_guard.go): no model input reaches it. The
+	// service, entity (registry-proven NOVA Relay App), and payload are fixed,
+	// it runs only on an interactive terminal after the person's yes, and
+	// `ha-nova call update.install --skill ha-nova:updates` tiers the same
+	// install preview (a plain yes), so this path skips no tier.
 	installBody, marshalErr := json.Marshal(installPayload)
 	if marshalErr != nil {
 		fmt.Fprintln(out, "Could not build the confirmed install request. Nothing was installed.")

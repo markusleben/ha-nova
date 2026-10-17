@@ -142,6 +142,9 @@ func confirmByWindow(paths runtimePaths, opts verbOptions, id string, noSnapshot
 		return env, 0, false
 	}
 	defer s.close()
+	if !planSealed(plan, s.transport.Credential) { // an edited plan file: no window, and apply refuses it
+		return env, 0, false
+	}
 	fresh, ok := replanStored(paths, s, &verbEnvelope{}, plan, channelWindow)
 	idHex := planIdentity(strings.TrimPrefix(plan.Hash, "sha256:"), plan.Nonce)
 	if !ok || fresh.Hash != plan.Hash || fresh.Tier != plan.Tier || plan.ID != "p_"+idHex[:12] || fresh.Prompt == "" {
@@ -204,7 +207,7 @@ func windowFallback(paths runtimePaths, s *relaySession, plan storedPlan, noSnap
 		return windowStopped(s, "refused", "PLAN_CLAIMED", "plan "+plan.ID+" was already claimed or used", mayHaveRun)
 	}
 	fresh.SnapshotFailed = plan.SnapshotFailed // a user's no-copy choice stays offered
-	if err := savePlan(paths, fresh); err != nil {
+	if err := savePlan(paths, fresh, s.transport.Credential); err != nil {
 		_ = os.Rename(claimed, open)
 		return windowStopped(s, "error", "CONFIRM_UNAVAILABLE", "the confirmation window could not open, and no code could be prepared instead ("+err.Error()+")",
 			"Tell the user nothing changed; they can try again in a moment, or make this change in Home Assistant itself.")

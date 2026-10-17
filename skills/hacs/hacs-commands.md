@@ -76,7 +76,8 @@ never guessed, reused across sessions, or derived from names.
 ## Mutations
 
 - `{"type":"hacs/repositories/add","repository":"<url-or-owner/repo>","category":"<category>"}` —
-  registers a custom repository; does NOT download. The socket cannot
+  registers a custom repository; does NOT download. Refused raw (the user
+  adds custom repositories in the HACS UI); kept here for reference. The socket cannot
   report add failures reliably: parseable requests return `{}` even on
   failure, an unparseable URL returns NOTHING (a Relay timeout), and an
   invalid category fails log-only. The canonical re-list for the expected

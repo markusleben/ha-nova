@@ -26,7 +26,7 @@ func TestDirectLocalRelayAuthFailuresGuideSelectedProfileRepair(
 					[]string{
 						"--server", "cabin",
 						"--via", "local",
-						"--data", `{}`,
+						"--data", `{"type":"ping"}`,
 					},
 				)
 			},

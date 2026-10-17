@@ -303,15 +303,11 @@ Integrations that ship their OWN configuration API outside the config-entry flow
 
 **Search:** `<integration name> home assistant configuration api endpoints 2026` — prefer the integration's own repository docs for payload schemas.
 
-**Experimental relay calls (no skill guardrails):**
+**Experimental relay calls (read only):**
 ```text
 ha-nova relay core --method GET --path /api/<integration>/<resource> --out <result-file>
-ha-nova relay core --method POST --path /api/<integration>/<resource> --body-file <payload-file>
 ```
 
-**Observed API behavior (Alarmo; treat as the default assumption for this class):**
-- Write commands often exist only as HTTP POST paths, not WS commands (`unknown_command`); such paths answer GET with `405`, which reveals their existence.
-- Whether a POST creates or updates depends solely on whether an identifier is present in the body (`area_id`, `entity_id`, `automation_id`, ...) — `POST` with `{}` silently CREATES an empty object (`../ha-nova/relay-api.md` → Write-Probing Asymmetry).
-- Nested blocks must be sent complete; partial objects overwrite the rest.
+Writes to these APIs are refused (`POST /api/<integration>/…` is not on the raw allowlist): such an API can arm, disarm, or change codes with no tier. Read the config here; make the change in the integration's own panel in the Home Assistant UI.
 
-**Risks:** These APIs are private and version-dependent. Never probe schemas with empty or partial POST bodies — resolve the schema via web search first. After ANY write, read the affected list/config back and verify no unintended object appeared; an accidental create can trigger integration side effects (Alarmo auto-enables its master panel at two areas).
+**Risks:** These APIs are private and version-dependent; a read can still be large — use `--out`.

@@ -4,6 +4,7 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/binary"
+	"encoding/hex"
 	"fmt"
 	"regexp"
 	"strings"
@@ -22,6 +23,23 @@ func confirmCode(credential, idHex, channel, expiresAt string) string {
 	mac := hmac.New(sha256.New, []byte(credential))
 	mac.Write([]byte("ha-nova/confirm-code/v1\x00" + idHex + "\x00" + channel + "\x00" + expiresAt))
 	return fmt.Sprintf("%04d", binary.BigEndian.Uint64(mac.Sum(nil)[:8])%10000)
+}
+
+// channelSeal binds a typed plan's channel, kind, and form text to its id
+// under the Relay credential. Without it, a form plan edited to "chat" in the
+// (user-writable) plan file would take argv codes against a code nobody was
+// shown (the file's mismatch counter, which an editor resets, would not stop
+// guessing), and an edited prompt would show the human a different action
+// next to the real code.
+func channelSeal(credential string, plan storedPlan) string {
+	mac := hmac.New(sha256.New, []byte(credential))
+	mac.Write([]byte("ha-nova/plan-seal/v1\x00" + plan.ID + "\x00" + plan.Channel + "\x00" + plan.Kind + "\x00" + plan.Prompt))
+	return hex.EncodeToString(mac.Sum(nil))
+}
+
+// planSealed: the plan's seal matches (every typed plan carries one).
+func planSealed(plan storedPlan, credential string) bool {
+	return hmac.Equal([]byte(plan.ChannelSeal), []byte(channelSeal(credential, plan)))
 }
 
 // Where the human confirms a typed plan (spec §3; human-confirmation-

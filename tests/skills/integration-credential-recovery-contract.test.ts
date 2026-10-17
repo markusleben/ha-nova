@@ -39,7 +39,7 @@ describe("integration-setup credential recovery (#585)", () => {
 
   it("uses only the documented reload surface and preserves the entry", () => {
     const s = flat(section ?? "");
-    expect(s).toContain("POST /api/config/config_entries/entry/<entry_id>/reload");
+    expect(s).toContain("ha-nova call homeassistant.reload_config_entry --set entry_id=<entry_id>");
     expect(s).toContain("Preserve the entry and every subentry; never delete or recreate anything");
     expect(s).toContain('A new flow with `context.source == "reauth"` and the same `entry_id`');
   });
@@ -47,11 +47,11 @@ describe("integration-setup credential recovery (#585)", () => {
   it("fails closed on unsupported upstream triggers", () => {
     const s = flat(section ?? "");
     expect(s).toContain(
-      "Still no flow on a settled, SUCCESSFUL re-read — AND step 3's reload check passed (result true, entry `loaded`)",
+      "Still no flow on a settled, SUCCESSFUL re-read — AND step 3's reload check passed (call succeeded, entry `loaded`)",
     );
-    // A 200-with-false reload or a non-loaded entry is its own outcome, not
+    // A failed reload call or a non-loaded entry is its own outcome, not
     // evidence that no upstream trigger exists.
-    expect(s).toContain("a `false` result or a non-`loaded` entry means the reload itself did not complete");
+    expect(s).toContain("a failed call or a non-`loaded` entry means the reload itself did not complete");
     // A transient read error after the reload must never be reported as an
     // upstream limitation.
     expect(s).toContain("A FAILED re-read is not that evidence");

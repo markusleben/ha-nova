@@ -87,12 +87,19 @@ func TestWindowCannotBeSkipped(t *testing.T) {
 		t.Fatalf("apply with the right code but no window: exit %d %+v", exit, env.Error)
 	}
 	h.tamper(plan.ID, func(p map[string]any) { p["prompt"] = "Turn on the hallway light." })
+	if exit, env := h.run(runApplyCommand, "--plan", plan.ID); exit != 4 || env.Error.Code != "PLAN_INVALID" || len(h.posts()) != 0 {
+		t.Fatalf("edited prompt: exit %d %+v", exit, env.Error)
+	}
+	if len(w.messages) != 0 {
+		t.Fatalf("an edited plan opened a window: %q", w.messages)
+	}
+	plan = h.plan("lock.unlock", "lock.front").Plan
 	w.before = func() { h.f.states["lock.front"]["state"] = "unlocked" } // drift while the window is open
 	if exit, env := h.run(runApplyCommand, "--plan", plan.ID); exit != 2 || env.Status != "drift" || len(h.posts()) != 0 {
 		t.Fatalf("drift during the window: exit %d %+v", exit, env)
 	}
-	if strings.Contains(w.messages[0], "hallway") || !strings.Contains(w.messages[0], "lock.front") {
-		t.Fatalf("the window showed the plan file's text: %q", w.messages[0])
+	if !strings.Contains(w.messages[0], "lock.front") {
+		t.Fatalf("window text: %q", w.messages[0])
 	}
 	if _, err := os.Stat(filepath.Join(planDir(h.paths), plan.ID+".json")); !os.IsNotExist(err) {
 		t.Fatalf("the drifted plan is still there: %v", err)

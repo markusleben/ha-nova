@@ -378,7 +378,7 @@ Rules:
 - alarm-panel runtime services with feature bits 1/2/4/8/16/32
 - lock runtime services, with `lock.open` gated by feature bit 1
 
-Raw event firing (`POST /api/events/{event_type}`, WS `fire_event`), webhook calls (`/api/webhook/*`, WS `webhook/*`), and every raw service POST are refused by the CLI (`cli/relay_raw_guard.go`, exit 4; `docs/work/2026-10-17-confirmation-hardening-spec.md`). Running an automation on purpose goes through `ha-nova call automation.trigger`, tiered by what it runs.
+Raw event firing (`POST /api/events/{event_type}`, WS `fire_event`), webhook calls (`/api/webhook/*`, WS `webhook/*`), and every raw service POST are refused by the CLI (`cli/relay_raw_guard.go`, exit 4; `docs/work/2026-10-17-confirmation-hardening-spec.md`). Raw writes are deny-by-default: a skill that needs a new raw write adds it to `cli/relay_raw_allow.go` with a one-line reason, and only if it cannot act on a device. Running an automation on purpose goes through `ha-nova call automation.trigger`, tiered by what it runs.
 
 Alarm/lock rules:
 - inspect the exact state and `supported_features` immediately before preview

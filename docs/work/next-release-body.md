@@ -83,6 +83,10 @@ the number.
 - Pressing a button, turning on a switch, or opening a cover on a device
   that also has a lock, alarm, or access cover now needs a one-time code. Configuration
   and diagnostic buttons there (ping, identify, restart) work as before.
+- HA NOVA now only makes the low-level changes it has a checked rule for.
+  Settings changes through an integration's own interface (Z-Wave, Zigbee,
+  Alarmo, and others) are pointed to the Home Assistant UI instead, so none
+  of them can open a lock or disarm an alarm without the one-time code.
 
 ## Bug Fixes
 

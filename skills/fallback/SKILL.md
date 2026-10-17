@@ -35,6 +35,7 @@ For every Relay-Ready call in this skill:
 - use `ha-nova relay ws --data-file <payload-file>` or `ha-nova relay core --method <METHOD> --path <PATH> --body-file <payload-file>`
 - use `--out <result-file>` for large responses
 - treat inline `-d` as an optional tiny diagnostic path, not the canonical contract
+- raw writes are deny-by-default: the CLI sends only the writes and WebSocket types the skills use; any other write or type is refused (exit 4, nothing sent). That refusal is the answer: point to the Home Assistant UI, never retry through another endpoint
 - transports diverge on empty write bodies: WS validates missing required fields fail-closed, but a parameterless WS write executes on its bare `type`, and `/core` POST may silently CREATE — read `../ha-nova/relay-api.md` → Write-Probing Asymmetry before any experimental write
 
 ## Capability Map
@@ -82,7 +83,7 @@ For every Relay-Ready call in this skill:
 | Statistics repair / Purge / Entity registry remove | Covered | maintenance |
 | Device config-entry detach | External | -- (Home Assistant UI; HA 2026.8+ removes the device) |
 | Integration onboarding (add / re-auth an integration via config flow) | Covered | integration-setup |
-| Custom-integration configuration APIs — the integration's OWN endpoints (Alarmo, Scheduler, Frigate, ...) | Relay-Ready | this skill |
+| Custom-integration configuration APIs — the integration's OWN endpoints (Alarmo, Scheduler, Frigate, ...) | Relay-Ready (reads only; changes: the integration's own panel in the UI) | this skill |
 | Event capture — bounded window (a button's event, a short watch after an action) | Relay-Ready | this skill; `mqtt` for MQTT topics |
 | Event streaming — continuous | Roadmap Phase 1c | -- |
 | Backups (status, create, inspect, delete) | Covered | backup |

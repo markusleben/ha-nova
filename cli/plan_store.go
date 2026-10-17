@@ -22,7 +22,7 @@ import (
 const (
 	planTTL           = 15 * time.Minute
 	planMaxFiles      = 20
-	planSchemaVersion = 2 // 2: no code at rest, channel (2026-10-17); apply refuses older plans
+	planSchemaVersion = 3 // 2: no code at rest, channel; 3: channel seal (2026-10-17); apply refuses older plans
 )
 
 type planAction struct {
@@ -59,7 +59,8 @@ type storedPlan struct {
 	ExpiresAt     string `json:"expires_at"`
 	Tier          string `json:"tier"`
 	Confirm       string `json:"confirm"`
-	Channel       string `json:"channel"` // where the code is typed (confirm_code.go); inside the code's MAC
+	Channel       string `json:"channel"`                // where the code is typed (confirm_code.go); inside the code's MAC
+	ChannelSeal   string `json:"channel_seal,omitempty"` // a typed plan's channelSeal (savePlan): an edited channel or prompt is refused
 	Nonce         string `json:"nonce"`
 	code          string // a typed plan's code, for its own envelope and say; never stored
 	Mismatches    int    `json:"code_mismatches,omitempty"` // apply attempts with a wrong code (3 invalidate)
@@ -213,7 +214,10 @@ func planIdentity(sum, nonceHex string) string {
 
 // savePlan writes CacheDir/plans/<id>.json (0600, atomic) after pruning
 // expired files and keeping at most planMaxFiles plans.
-func savePlan(paths runtimePaths, plan storedPlan) error {
+func savePlan(paths runtimePaths, plan storedPlan, credential string) error {
+	if plan.Tier == tierTyped.String() {
+		plan.ChannelSeal = channelSeal(credential, plan) // after Prompt is final
+	}
 	dir := planDir(paths)
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return fmt.Errorf("cannot store the plan: %w", err)

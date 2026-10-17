@@ -43,14 +43,17 @@ describe("codex promoted skill live e2e contract", () => {
     expect(content).toContain("List the current Lovelace resources first.");
     expect(content).toContain("Then create a new Lovelace resource");
     expect(content).toContain("update the same resource");
-    expect(content).toContain("Immediately save a full config with one view titled");
-    expect(content).toContain("Read the dashboard config after that save to verify the new view exists.");
+    expect(content).toContain("one `ha-nova plan write --domain dashboard --create` plan plus `ha-nova apply`");
+    expect(content).toContain("Read the dashboard config after that apply to verify the new view exists.");
     expect(content).toContain("do not resend `url_path` or `mode`");
     expect(content).toContain("Do not probe any other dashboard's config to infer behavior for this target.");
-    expect(content).toContain("previous turn showed the concrete delete preview for this exact dashboard");
+    expect(content).toContain("the previous turn ran `ha-nova plan delete --domain dashboard --id");
+    expect(content).toContain('fixture["plan_id"], fixture["token"] = delete_plan["id"], typed_code(delete_plan)');
     expect(content).toContain("previous turn showed the concrete delete preview for this exact category and scope");
     expect(content).toContain("The user's current reply is only `yes`.");
-    expect(content).toContain("Use Relay WebSocket calls only for this dashboard flow.");
+    expect(content).toContain("Use Relay WebSocket calls only for this dashboard flow."); // resources stay raw
+    expect(content).toContain("Dashboard content goes through `ha-nova plan write` + `ha-nova apply` only");
+    expect(content).toContain("forbidden_raw_dashboard_content_write");
     expect(content).toContain("Create a category in scope");
     expect(content).toContain("Create and verify richer floor and area metadata in one careful flow.");
     expect(content).toContain("Create and verify richer label and entity metadata in one careful flow.");
@@ -73,6 +76,15 @@ describe("codex promoted skill live e2e contract", () => {
     expect(content).toContain("lovelace/dashboards/update");
     expect(content).toContain("lovelace/dashboards/delete");
     expect(content).toContain("lovelace/config/save");
+    // Fixture seeds and cleanup go through the typed dashboard verbs: raw dashboard writes are refused.
+    expect(content).not.toContain('"type": "lovelace/dashboards/create"');
+    expect(content).not.toContain('"type": "lovelace/config/save"');
+    expect(content).not.toContain('"type": "lovelace/dashboards/delete"');
+    expect(content).toContain('"write", "--domain", "dashboard", "--id", url_path, "--create"');
+    expect(content).toContain('plan_and_apply(["delete", "--domain", "dashboard", "--id", fixture["url_path"]])');
+    expect(content).toContain("cleanup_dashboard_snapshots(snapshots_before)");
+    expect(content).toContain('apply_args += ["--confirm", typed_code(plan)]');
+    expect(content).toContain('cleanup_dashboard({"dashboard_id": dashboard_id, "url_path": url_path})');
     expect(content).toContain("lovelace/resources/create");
     expect(content).toContain("lovelace/resources/update");
     expect(content).toContain("config/category_registry/create");

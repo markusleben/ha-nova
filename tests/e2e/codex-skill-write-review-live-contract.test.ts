@@ -48,6 +48,29 @@ function extractShellFunction(content: string, name: string): string {
   return match[0] ?? "";
 }
 
+// The typed write flow: a plan write (exit 3: stored plan awaits confirmation)
+// before the preview, then one apply that saves, reloads, reads back, and verifies.
+function typedWriteEvents(automationId: string) {
+  return [
+    {
+      type: "item.completed",
+      item: {
+        type: "command_execution",
+        exit_code: 3,
+        command: `ha-nova plan write --domain automation --id ${automationId} --create --file draft.json > plan.json`,
+      },
+    },
+    {
+      type: "item.completed",
+      item: {
+        type: "command_execution",
+        exit_code: 0,
+        command: 'ha-nova apply --plan "$(jq -r .plan.id plan.json)" > apply.json',
+      },
+    },
+  ] as const;
+}
+
 describe("codex write-review live e2e contract", () => {
   it("provides executable write-review live e2e harness script", () => {
     const file = "scripts/e2e/codex-ha-nova-write-review-live-e2e.sh";
@@ -89,7 +112,9 @@ describe("codex write-review live e2e contract", () => {
     expect(content).toContain("multiple_write_attempts_detected");
     expect(content).toContain('write_attempts="$(jq -r \'.write_attempts\' "$analysis_json")"');
     expect(content).toContain('[[ "$write_attempts" -eq 1 ]] || {');
-    expect(content).toContain("wrong_reload_path_detected");
+    expect(content).toContain("raw_relay_write_detected");
+    expect(content).not.toContain("wrong_reload_path_detected");
+    expect(content).toContain("missing_plan_write");
     expect(content).toContain("missing_prewrite_preview_section");
     expect(content).toContain("missing_postwrite_review_section");
     expect(content).toContain("missing_final_status_line");
@@ -125,10 +150,21 @@ describe("codex write-review live e2e contract", () => {
     expect(content).not.toContain("If the collision scan finds no related items, print exactly: No related items found.");
     expect(content).not.toContain("If the Advisory section has no items, print exactly: No additional advisories.");
     expect(content).toContain("Do not repeat a Pre-write check line inside the post-write section.");
-    expect(content).toContain("config read-back, automation reload, one target entity state read, one collision scan");
+    expect(content).toContain("post-write checks in order: one target entity state read, one collision scan.");
+    expect(content).toContain("The apply itself saves, reloads, reads the config back, and verifies the automation entity");
+    expect(content).not.toContain("config read-back, automation reload");
     expect(content).toContain("The one target entity state read must be a single GET to /api/states/input_boolean.mcp_stress_toggle.");
-    expect(content).toContain("Do not use /api/config/automation/reload.");
-    expect(content).toContain("Use simple deterministic local filenames such as draft.json, readback.json, reload.json, state.json, and collision.json. Do not use mktemp.");
+    expect(content).toContain(
+      "Never send a raw automation config write, a raw reload, or any POST to /api/services/ or /api/config/automation/."
+    );
+    expect(content).toContain("Use simple deterministic local filenames such as draft.json, plan.json, state.json, and collision.json (redirect with \\`>\\`; \\`ha-nova apply\\` has no \\`--out\\` flag). Do not use mktemp.");
+    // Typed write flow: plan write before the preview, then one apply.
+    expect(content).toContain("ha-nova plan write --domain automation --id ${automation_id} --create --file draft.json > plan.json");
+    expect(content).toContain("exit 3 means a stored plan awaits confirmation and is normal");
+    expect(content).toContain("after the preview, one \\`ha-nova apply --plan <plan.id>\\`");
+    expect(content).toContain('The draft file itself must not carry an "id" key.');
+    expect(content).toContain("never a one-time code: do not pass --confirm");
+    expect(content).not.toContain("one POST write with --body-file");
     expect(content).toContain("Keep the collision-scan evidence explicit.");
     expect(content).toContain("must also inline or create the");
     expect(content).toContain("search/related");
@@ -160,8 +196,13 @@ describe("codex write-review live e2e contract", () => {
     expect(content).toContain("Do not emit todo lists, meta progress updates, or extra planning summaries.");
     expect(content).toContain("End with exactly one final machine line on its own line");
     expect(content).toContain("NOVA_WRITE_REVIEW_RESULT id=${scenario_id} automation_id=${automation_id} status=ok");
-    expect(content).toContain("/api/config/automation/config/");
-    expect(content).toContain("/api/services/automation/reload");
+    expect(content).not.toContain("/api/services/automation/reload");
+    expect(content).not.toContain("--method DELETE");
+    // Cleanup runs outside the Codex session through plan delete + apply with the plan's code.
+    expect(content).toContain('ha-nova plan delete "$entity_id"');
+    expect(content).toContain('applied_json="$(ha-nova apply --plan "$plan_id" --confirm "$plan_code" 2>/dev/null)"');
+    expect(content).toContain('select(.platform == "automation" and .unique_id == $id)');
+    expect(content).toContain("'{action:\"delete\",file:$f}'");
     expect(content).toContain("/api/states/");
     expect(content).toContain('"type":"search/related"');
     expect(content).toContain("include exactly one Preview Payload slot");
@@ -514,7 +555,7 @@ count_helper_script_exec_hits "$1"`,
           type: "item.completed",
           item: {
             type: "command_execution",
-            command: "ha-nova relay core --method=POST --path=/api/config/automation/config/test-id --body-file draft.json",
+            command: "ha-nova plan write --domain automation --id test-id --create --file draft.json",
           },
         }),
         JSON.stringify({
@@ -541,7 +582,7 @@ count_command_hits_before_index "$1" 2 '(^|[[:space:]])ha-nova[[:space:]]+(docto
     expect(output.trim()).toBe("1");
   });
 
-  it("proves multiline shell continuations and long-option equals syntax in write proof parsing", () => {
+  it("proves multiline shell continuations and long-option equals syntax in plan/apply proof parsing", () => {
     const scriptContent = readFileSync("scripts/e2e/codex-ha-nova-write-review-live-e2e.sh", "utf8");
     const python = extractWriteProofPython(scriptContent);
     const tempDir = makeTempDir("ha-nova-r19-proof-");
@@ -564,7 +605,7 @@ count_command_hits_before_index "$1" 2 '(^|[[:space:]])ha-nova[[:space:]]+(docto
           type: "command_execution",
           exit_code: 0,
           command:
-            `ha-nova relay core \\\n  --method=POST \\\n  --path=/api/config/automation/config/${automationId} \\\n  --body-file=draft.json`,
+            `ha-nova plan write \\\n  --domain=automation \\\n  --id=${automationId} \\\n  --create \\\n  --file=draft.json > plan.json || test $? -eq 3`,
         },
       },
       {
@@ -572,16 +613,7 @@ count_command_hits_before_index "$1" 2 '(^|[[:space:]])ha-nova[[:space:]]+(docto
         item: {
           type: "command_execution",
           exit_code: 0,
-          command:
-            `ha-nova relay core \\\n  --method=GET \\\n  --path=/api/config/automation/config/${automationId}`,
-        },
-      },
-      {
-        type: "item.completed",
-        item: {
-          type: "command_execution",
-          exit_code: 0,
-          command: "ha-nova relay core --method=POST --path=/api/services/automation/reload",
+          command: 'ha-nova apply \\\n  --plan="$(jq -r .plan.id plan.json)" > apply.json',
         },
       },
       {
@@ -620,8 +652,8 @@ count_command_hits_before_index "$1" 2 '(^|[[:space:]])ha-nova[[:space:]]+(docto
       })
     ) as {
       write_hits: number;
-      readback_after_write: number;
-      reload_after_write: number;
+      plan_write_attempts: number;
+      write_attempts: number;
       state_after_write: number;
       collision_after_write: number;
       ordered_postwrite_verification: boolean;
@@ -630,8 +662,8 @@ count_command_hits_before_index "$1" 2 '(^|[[:space:]])ha-nova[[:space:]]+(docto
     };
 
     expect(result.write_hits).toBe(1);
-    expect(result.readback_after_write).toBe(1);
-    expect(result.reload_after_write).toBe(1);
+    expect(result.plan_write_attempts).toBe(1);
+    expect(result.write_attempts).toBe(1);
     expect(result.state_after_write).toBe(1);
     expect(result.collision_after_write).toBe(1);
     expect(result.ordered_postwrite_verification).toBe(true);
@@ -657,11 +689,8 @@ count_command_hits_before_index "$1" 2 '(^|[[:space:]])ha-nova[[:space:]]+(docto
           type: "command_execution",
           exit_code: 0,
           command: [
-            `ha-nova relay core --method=POST --path=/api/config/automation/config/${automationId} --body-file=draft.json`,
-            `ha-nova relay core --method=GET --path=/api/config/automation/config/${automationId}`,
-            `ha-nova relay core --method=GET --path=/api/config/automation/config/${automationId}`,
-            "ha-nova relay core --method=POST --path=/api/services/automation/reload",
-            "ha-nova relay core --method=POST --path=/api/services/automation/reload",
+            `{ ha-nova plan write --domain automation --id ${automationId} --create --file draft.json > plan.json || test $? -eq 3; }`,
+            'ha-nova apply --plan "$(jq -r .plan.id plan.json)"',
             `ha-nova relay core --method=GET --path=/api/states/${collisionItemId}`,
             `ha-nova relay core --method=GET --path=/api/states/${collisionItemId}`,
             `printf '{"type":"search/related","item_id":"${collisionItemId}"}' > payload.json && ha-nova relay ws --data-file=payload.json`,
@@ -679,14 +708,16 @@ count_command_hits_before_index "$1" 2 '(^|[[:space:]])ha-nova[[:space:]]+(docto
         encoding: "utf8",
       })
     ) as {
-      readback_after_write: number;
-      reload_after_write: number;
+      plan_write_attempts: number;
+      write_attempts: number;
       state_after_write: number;
       collision_after_write: number;
+      ordered_postwrite_verification: boolean;
     };
 
-    expect(result.readback_after_write).toBe(2);
-    expect(result.reload_after_write).toBe(2);
+    expect(result.plan_write_attempts).toBe(1);
+    expect(result.write_attempts).toBe(1);
+    expect(result.ordered_postwrite_verification).toBe(true);
     expect(result.state_after_write).toBe(2);
     expect(result.collision_after_write).toBe(2);
 
@@ -709,9 +740,8 @@ count_command_hits_before_index "$1" 2 '(^|[[:space:]])ha-nova[[:space:]]+(docto
           type: "command_execution",
           exit_code: 0,
           command: [
-            `ha-nova relay core --method POST --path /api/config/automation/config/${automationId} --body-file payload.json`,
-            `ha-nova relay core --method GET --path /api/config/automation/config/${automationId} --out readback.json`,
-            "ha-nova relay core --method POST --path /api/services/automation/reload --out reload.json",
+            `{ ha-nova plan write --domain automation --id ${automationId} --create --file draft.json > plan.json || test $? -eq 3; }`,
+            'ha-nova apply --plan "$(jq -r .plan.id plan.json)" > apply.json',
             `ha-nova relay core --method GET --path /api/states/${collisionItemId} --out state.json`,
             `printf '{\"type\":\"search/related\",\"item_type\":\"entity\",\"item_id\":\"${collisionItemId}\"}' > collision.json`,
             "ha-nova relay ws --data-file other.json --out collision-out.json",
@@ -738,7 +768,7 @@ count_command_hits_before_index "$1" 2 '(^|[[:space:]])ha-nova[[:space:]]+(docto
     rmSync(tempDir, { recursive: true, force: true });
   });
 
-  it("detects write and read-back operations when --path uses escaped quoted arguments", () => {
+  it("detects a plan write bound through a shell variable and escaped quoted arguments", () => {
     const scriptContent = readFileSync("scripts/e2e/codex-ha-nova-write-review-live-e2e.sh", "utf8");
     const python = extractWriteProofPython(scriptContent);
     const tempDir = makeTempDir("ha-nova-write-proof-escaped-");
@@ -755,9 +785,8 @@ count_command_hits_before_index "$1" 2 '(^|[[:space:]])ha-nova[[:space:]]+(docto
           exit_code: 0,
           command: [
             "/bin/zsh -lc 'automation_id=\"nova_write_review_escaped_case\"",
-            `ha-nova relay core --method POST --path \\\"/api/config/automation/config/$automation_id\\\" --body-file payload.json --out apply.json`,
-            `ha-nova relay core --method GET --path \\\"/api/config/automation/config/$automation_id\\\" --out readback.json`,
-            "ha-nova relay core --method POST --path \\\"/api/services/automation/reload\\\" --out reload.json",
+            `{ ha-nova plan write --domain \\\"automation\\\" --id \\\"$automation_id\\\" --create --file draft.json > plan.json || test $? -eq 3; }`,
+            "ha-nova apply --plan \\\"$(jq -r .plan.id plan.json)\\\" > apply.json",
             `ha-nova relay core --method GET --path \\\"/api/states/${collisionItemId}\\\" --out state.json`,
             `cat > collision.json <<'EOF'\n{\"type\":\"search/related\",\"item_type\":\"entity\",\"item_id\":\"${collisionItemId}\"}\nEOF`,
             "ha-nova relay ws --data-file collision.json --out collision-out.json'",
@@ -776,16 +805,16 @@ count_command_hits_before_index "$1" 2 '(^|[[:space:]])ha-nova[[:space:]]+(docto
     ) as {
       first_write_attempt_idx: number;
       first_write_idx: number;
-      readback_after_write: number;
-      reload_after_write: number;
+      plan_write_attempts: number;
       state_after_write: number;
       collision_after_write: number;
+      ordered_postwrite_verification: boolean;
     };
 
     expect(result.first_write_attempt_idx).toBe(1);
     expect(result.first_write_idx).toBe(1);
-    expect(result.readback_after_write).toBe(1);
-    expect(result.reload_after_write).toBe(1);
+    expect(result.plan_write_attempts).toBe(1);
+    expect(result.ordered_postwrite_verification).toBe(true);
     expect(result.state_after_write).toBe(1);
     expect(result.collision_after_write).toBe(1);
 
@@ -808,9 +837,8 @@ count_command_hits_before_index "$1" 2 '(^|[[:space:]])ha-nova[[:space:]]+(docto
           type: "command_execution",
           exit_code: 0,
           command: [
-            `ha-nova relay core --method POST --path /api/config/automation/config/${automationId} --body-file payload.json`,
-            `ha-nova relay core --method GET --path /api/config/automation/config/${automationId} --out readback.json`,
-            "ha-nova relay core --method POST --path /api/services/automation/reload --out reload.json",
+            `{ ha-nova plan write --domain automation --id ${automationId} --create --file draft.json > plan.json || test $? -eq 3; }`,
+            'ha-nova apply --plan "$(jq -r .plan.id plan.json)" > apply.json',
             `ha-nova relay core --method GET --path /api/states/automation.${automationId} --out state.json`,
             `printf '{\"type\":\"search/related\",\"item_type\":\"entity\",\"item_id\":\"${collisionItemId}\"}' > collision.json`,
             "ha-nova relay ws --data-file collision.json --out collision-out.json",
@@ -849,30 +877,7 @@ count_command_hits_before_index "$1" 2 '(^|[[:space:]])ha-nova[[:space:]]+(docto
     const collisionItemId = "input_boolean.mcp_stress_toggle";
 
     const events = [
-      {
-        type: "item.completed",
-        item: {
-          type: "command_execution",
-          exit_code: 0,
-          command: `ha-nova relay core --method=POST --path=/api/config/automation/config/${automationId} --body-file=draft.json`,
-        },
-      },
-      {
-        type: "item.completed",
-        item: {
-          type: "command_execution",
-          exit_code: 0,
-          command: `ha-nova relay core --method=GET --path=/api/config/automation/config/${automationId}`,
-        },
-      },
-      {
-        type: "item.completed",
-        item: {
-          type: "command_execution",
-          exit_code: 0,
-          command: "ha-nova relay core --method=POST --path=/api/services/automation/reload",
-        },
-      },
+      ...typedWriteEvents(automationId),
       {
         type: "item.completed",
         item: {
@@ -937,30 +942,7 @@ count_command_hits_before_index "$1" 2 '(^|[[:space:]])ha-nova[[:space:]]+(docto
     const collisionItemId = "input_boolean.mcp_stress_toggle";
 
     const events = [
-      {
-        type: "item.completed",
-        item: {
-          type: "command_execution",
-          exit_code: 0,
-          command: `ha-nova relay core --method=POST --path=/api/config/automation/config/${automationId} --body-file=draft.json`,
-        },
-      },
-      {
-        type: "item.completed",
-        item: {
-          type: "command_execution",
-          exit_code: 0,
-          command: `ha-nova relay core --method=GET --path=/api/config/automation/config/${automationId}`,
-        },
-      },
-      {
-        type: "item.completed",
-        item: {
-          type: "command_execution",
-          exit_code: 0,
-          command: "ha-nova relay core --method=POST --path=/api/services/automation/reload",
-        },
-      },
+      ...typedWriteEvents(automationId),
       {
         type: "item.completed",
         item: {
@@ -1026,30 +1008,7 @@ count_command_hits_before_index "$1" 2 '(^|[[:space:]])ha-nova[[:space:]]+(docto
     const collisionItemId = "input_boolean.mcp_stress_toggle";
 
     const events = [
-      {
-        type: "item.completed",
-        item: {
-          type: "command_execution",
-          exit_code: 0,
-          command: `ha-nova relay core --method=POST --path=/api/config/automation/config/${automationId} --body-file=draft.json`,
-        },
-      },
-      {
-        type: "item.completed",
-        item: {
-          type: "command_execution",
-          exit_code: 0,
-          command: `ha-nova relay core --method=GET --path=/api/config/automation/config/${automationId}`,
-        },
-      },
-      {
-        type: "item.completed",
-        item: {
-          type: "command_execution",
-          exit_code: 0,
-          command: "ha-nova relay core --method=POST --path=/api/services/automation/reload",
-        },
-      },
+      ...typedWriteEvents(automationId),
       {
         type: "item.completed",
         item: {
@@ -1109,30 +1068,7 @@ count_command_hits_before_index "$1" 2 '(^|[[:space:]])ha-nova[[:space:]]+(docto
     const collisionItemId = "input_boolean.mcp_stress_toggle";
 
     const events = [
-      {
-        type: "item.completed",
-        item: {
-          type: "command_execution",
-          exit_code: 0,
-          command: `ha-nova relay core --method=POST --path=/api/config/automation/config/${automationId} --body-file=draft.json`,
-        },
-      },
-      {
-        type: "item.completed",
-        item: {
-          type: "command_execution",
-          exit_code: 0,
-          command: `ha-nova relay core --method=GET --path=/api/config/automation/config/${automationId}`,
-        },
-      },
-      {
-        type: "item.completed",
-        item: {
-          type: "command_execution",
-          exit_code: 0,
-          command: "ha-nova relay core --method=POST --path=/api/services/automation/reload",
-        },
-      },
+      ...typedWriteEvents(automationId),
       {
         type: "item.completed",
         item: {
@@ -1199,30 +1135,7 @@ count_command_hits_before_index "$1" 2 '(^|[[:space:]])ha-nova[[:space:]]+(docto
           text: `Preview Payload\ntriggers:\nconditions:\nactions:\n${warnedPrewriteVerdict}`,
         },
       },
-      {
-        type: "item.completed",
-        item: {
-          type: "command_execution",
-          exit_code: 0,
-          command: `ha-nova relay core --method=POST --path=/api/config/automation/config/${automationId} --body-file=draft.json`,
-        },
-      },
-      {
-        type: "item.completed",
-        item: {
-          type: "command_execution",
-          exit_code: 0,
-          command: `ha-nova relay core --method=GET --path=/api/config/automation/config/${automationId}`,
-        },
-      },
-      {
-        type: "item.completed",
-        item: {
-          type: "command_execution",
-          exit_code: 0,
-          command: "ha-nova relay core --method=POST --path=/api/services/automation/reload",
-        },
-      },
+      ...typedWriteEvents(automationId),
       {
         type: "item.completed",
         item: {
@@ -1290,30 +1203,7 @@ count_command_hits_before_index "$1" 2 '(^|[[:space:]])ha-nova[[:space:]]+(docto
     const collisionItemId = "input_boolean.mcp_stress_toggle";
 
     const events = [
-      {
-        type: "item.completed",
-        item: {
-          type: "command_execution",
-          exit_code: 0,
-          command: `ha-nova relay core --method=POST --path=/api/config/automation/config/${automationId} --body-file=draft.json`,
-        },
-      },
-      {
-        type: "item.completed",
-        item: {
-          type: "command_execution",
-          exit_code: 0,
-          command: `ha-nova relay core --method=GET --path=/api/config/automation/config/${automationId}`,
-        },
-      },
-      {
-        type: "item.completed",
-        item: {
-          type: "command_execution",
-          exit_code: 0,
-          command: "ha-nova relay core --method=POST --path=/api/services/automation/reload",
-        },
-      },
+      ...typedWriteEvents(automationId),
       {
         type: "item.completed",
         item: {
@@ -1380,30 +1270,7 @@ count_command_hits_before_index "$1" 2 '(^|[[:space:]])ha-nova[[:space:]]+(docto
     const collisionItemId = "input_boolean.mcp_stress_toggle";
 
     const events = [
-      {
-        type: "item.completed",
-        item: {
-          type: "command_execution",
-          exit_code: 0,
-          command: `ha-nova relay core --method=POST --path=/api/config/automation/config/${automationId} --body-file=draft.json`,
-        },
-      },
-      {
-        type: "item.completed",
-        item: {
-          type: "command_execution",
-          exit_code: 0,
-          command: `ha-nova relay core --method=GET --path=/api/config/automation/config/${automationId}`,
-        },
-      },
-      {
-        type: "item.completed",
-        item: {
-          type: "command_execution",
-          exit_code: 0,
-          command: "ha-nova relay core --method=POST --path=/api/services/automation/reload",
-        },
-      },
+      ...typedWriteEvents(automationId),
       {
         type: "item.completed",
         item: {
@@ -1457,7 +1324,7 @@ count_command_hits_before_index "$1" 2 '(^|[[:space:]])ha-nova[[:space:]]+(docto
     rmSync(tempDir, { recursive: true, force: true });
   });
 
-  it("treats the first target write attempt as the end of prewrite text even when that attempt fails", () => {
+  it("treats the first apply attempt as the end of prewrite text even when that attempt fails", () => {
     const scriptContent = readFileSync("scripts/e2e/codex-ha-nova-write-review-live-e2e.sh", "utf8");
     const python = extractWriteProofPython(scriptContent);
     const tempDir = makeTempDir("ha-nova-r19-proof-");
@@ -1465,16 +1332,11 @@ count_command_hits_before_index "$1" 2 '(^|[[:space:]])ha-nova[[:space:]]+(docto
     const pythonFile = join(tempDir, "extract_write_proof.py");
     const automationId = "nova_write_review_failed_first_attempt";
     const collisionItemId = "input_boolean.mcp_stress_toggle";
+    const [planWrite, apply] = typedWriteEvents(automationId);
 
     const events = [
-      {
-        type: "item.completed",
-        item: {
-          type: "command_execution",
-          exit_code: 1,
-          command: `ha-nova relay core --method=POST --path=/api/config/automation/config/${automationId} --body-file=draft.json`,
-        },
-      },
+      planWrite,
+      { ...apply, item: { ...apply.item, exit_code: 1 } },
       {
         type: "item.completed",
         item: {
@@ -1482,14 +1344,7 @@ count_command_hits_before_index "$1" 2 '(^|[[:space:]])ha-nova[[:space:]]+(docto
           text: `Preview Payload\ntriggers:\nconditions:\nactions:\n${cleanPrewriteVerdict}`,
         },
       },
-      {
-        type: "item.completed",
-        item: {
-          type: "command_execution",
-          exit_code: 0,
-          command: `ha-nova relay core --method=POST --path=/api/config/automation/config/${automationId} --body-file=draft.json`,
-        },
-      },
+      apply,
     ];
 
     writeFileSync(scenarioLog, `${events.map((event) => JSON.stringify(event)).join("\n")}\n`);
@@ -1500,19 +1355,21 @@ count_command_hits_before_index "$1" 2 '(^|[[:space:]])ha-nova[[:space:]]+(docto
         encoding: "utf8",
       })
     ) as {
+      first_plan_write_idx: number;
       first_write_attempt_idx: number;
       preview_section_count: number;
       prewrite_text: string;
     };
 
-    expect(result.first_write_attempt_idx).toBe(1);
+    expect(result.first_plan_write_idx).toBe(1);
+    expect(result.first_write_attempt_idx).toBe(2);
     expect(result.preview_section_count).toBe(0);
     expect(result.prewrite_text).not.toContain("Preview Payload");
 
     rmSync(tempDir, { recursive: true, force: true });
   });
 
-  it("tracks retried writes and wrong reload paths in write proof parsing", () => {
+  it("tracks retried applies and refused raw relay writes in write proof parsing", () => {
     const scriptContent = readFileSync("scripts/e2e/codex-ha-nova-write-review-live-e2e.sh", "utf8");
     const python = extractWriteProofPython(scriptContent);
     const tempDir = makeTempDir("ha-nova-write-proof-retry-");
@@ -1520,25 +1377,22 @@ count_command_hits_before_index "$1" 2 '(^|[[:space:]])ha-nova[[:space:]]+(docto
     const pythonFile = join(tempDir, "extract_write_proof.py");
     const automationId = "nova_write_review_retry_case";
     const collisionItemId = "input_boolean.mcp_stress_toggle";
+    const [planWrite, apply] = typedWriteEvents(automationId);
 
     const events = [
-      {
-        type: "item.completed",
-        item: {
-          type: "command_execution",
-          exit_code: 1,
-          command: `ha-nova relay core --method=POST --path=/api/config/automation/config/${automationId} --body-file=draft.json`,
-        },
-      },
+      planWrite,
+      { ...apply, item: { ...apply.item, exit_code: 6 } },
       {
         type: "item.completed",
         item: {
           type: "command_execution",
           exit_code: 0,
           command: [
-            `ha-nova relay core --method=POST --path=/api/config/automation/config/${automationId} --body-file=draft.json`,
+            'ha-nova apply --plan "$(jq -r .plan.id plan.json)"',
             `ha-nova relay core --method=GET --path=/api/config/automation/config/${automationId}`,
-            "ha-nova relay core --method=POST --path=/api/config/automation/reload",
+            `ha-nova relay core --method=POST --path=/api/config/automation/config/${automationId} --body-file=draft.json`,
+            "ha-nova relay core --method POST --path /api/services/automation/reload",
+            `ha-nova relay core --method=DELETE --path=/api/config/automation/config/${automationId}`,
             `ha-nova relay core --method=GET --path=/api/states/${collisionItemId}`,
             `printf '{"type":"search/related","item_id":"${collisionItemId}"}' > collision.json && ha-nova relay ws --data-file=collision.json`,
           ].join(" && "),
@@ -1559,17 +1413,122 @@ count_command_hits_before_index "$1" 2 '(^|[[:space:]])ha-nova[[:space:]]+(docto
       write_attempts: number;
       successful_write_attempts: number;
       write_hits: number;
-      reload_after_write: number;
-      wrong_reload_after_write: number;
+      raw_write_count: number;
     };
 
-    expect(result.first_write_attempt_idx).toBe(1);
-    expect(result.first_write_idx).toBe(1);
+    expect(result.first_write_attempt_idx).toBe(2);
+    expect(result.first_write_idx).toBe(2);
     expect(result.write_attempts).toBe(2);
     expect(result.successful_write_attempts).toBe(1);
     expect(result.write_hits).toBe(1);
-    expect(result.reload_after_write).toBe(0);
-    expect(result.wrong_reload_after_write).toBe(1);
+    // The config GET is a read; the POST write, the reload, and the DELETE are refused raw writes.
+    expect(result.raw_write_count).toBe(3);
+
+    rmSync(tempDir, { recursive: true, force: true });
+  });
+
+  it("ignores plan writes for another id or without --create, and rejects an apply before the plan write", () => {
+    const scriptContent = readFileSync("scripts/e2e/codex-ha-nova-write-review-live-e2e.sh", "utf8");
+    const python = extractWriteProofPython(scriptContent);
+    const tempDir = makeTempDir("ha-nova-write-proof-plan-binding-");
+    const scenarioLog = join(tempDir, "scenario.jsonl");
+    const pythonFile = join(tempDir, "extract_write_proof.py");
+    const automationId = "nova_write_review_binding_case";
+    const collisionItemId = "input_boolean.mcp_stress_toggle";
+    const [planWrite, apply] = typedWriteEvents(automationId);
+    const command = (text: string) => ({
+      type: "item.completed",
+      item: { type: "command_execution", exit_code: 0, command: text },
+    });
+
+    const events = [
+      command(`ha-nova plan write --domain automation --id ${automationId}_other --create --file draft.json`),
+      command(`ha-nova plan write --domain automation --id ${automationId} --file draft.json`),
+      command(`ha-nova plan write --domain script --id ${automationId} --create --file draft.json`),
+      apply,
+      planWrite,
+      command(`ha-nova relay core --method=GET --path=/api/states/${collisionItemId}`),
+      command(
+        `printf '{"type":"search/related","item_id":"${collisionItemId}"}' > collision.json && ha-nova relay ws --data-file=collision.json`
+      ),
+    ];
+
+    writeFileSync(scenarioLog, `${events.map((event) => JSON.stringify(event)).join("\n")}\n`);
+    writeFileSync(pythonFile, python);
+
+    const result = JSON.parse(
+      execFileSync("python3", [pythonFile, scenarioLog, automationId, collisionItemId], {
+        encoding: "utf8",
+      })
+    ) as {
+      first_plan_write_idx: number;
+      plan_write_attempts: number;
+      write_hits: number;
+      state_after_write: number;
+      collision_after_write: number;
+      ordered_postwrite_verification: boolean;
+    };
+
+    expect(result.plan_write_attempts).toBe(1);
+    expect(result.first_plan_write_idx).toBe(5);
+    // The apply before the target plan write is not bound to it: no write.
+    expect(result.write_hits).toBe(0);
+    expect(result.state_after_write).toBe(0);
+    expect(result.collision_after_write).toBe(0);
+    expect(result.ordered_postwrite_verification).toBe(false);
+
+    rmSync(tempDir, { recursive: true, force: true });
+  });
+  it("counts only an apply bound to a successful target plan write", () => {
+    const python = extractWriteProofPython(readFileSync("scripts/e2e/codex-ha-nova-write-review-live-e2e.sh", "utf8"));
+    const tempDir = makeTempDir("ha-nova-write-proof-apply-binding-");
+    const scenarioLog = join(tempDir, "scenario.jsonl");
+    const pythonFile = join(tempDir, "extract_write_proof.py");
+    const automationId = "nova_write_review_apply_binding";
+    const collisionItemId = "input_boolean.mcp_stress_toggle";
+    const command = (text: string, exit = 0, output = "") => ({
+      type: "item.completed",
+      item: { type: "command_execution", exit_code: exit, command: text, aggregated_output: output },
+    });
+    const run = (events: object[]) => {
+      writeFileSync(scenarioLog, `${events.map((event) => JSON.stringify(event)).join("\n")}\n`);
+      writeFileSync(pythonFile, python);
+      return JSON.parse(execFileSync("python3", [pythonFile, scenarioLog, automationId, collisionItemId], { encoding: "utf8" })) as {
+        write_hits: number;
+        ordered_postwrite_verification: boolean;
+      };
+    };
+    const reads = [
+      command(`ha-nova relay core --method=GET --path=/api/states/${collisionItemId}`),
+      command(`printf '{"type":"search/related","item_id":"${collisionItemId}"}' > collision.json && ha-nova relay ws --data-file=collision.json`),
+    ];
+
+    // A refused target plan (exit 4) followed by an apply of some other plan proves nothing.
+    const refused = run([
+      command(`ha-nova plan write --domain automation --id ${automationId} --create --file draft.json > plan.json`, 4),
+      command("ha-nova apply --plan p_aaaaaaaaaaaa"),
+      ...reads,
+    ]);
+    expect(refused.write_hits).toBe(0);
+    expect(refused.ordered_postwrite_verification).toBe(false);
+
+    // A literal plan id counts once the target plan's envelope showed it.
+    const shown = run([
+      command(`ha-nova plan write --domain automation --id ${automationId} --create --file draft.json`, 3, '{"plan":{"id":"p_0123456789ab"}}'),
+      command("ha-nova apply --plan p_aaaaaaaaaaaa"),
+      command("ha-nova apply --plan p_0123456789ab"),
+      ...reads,
+    ]);
+    expect(shown.write_hits).toBe(1);
+    expect(shown.ordered_postwrite_verification).toBe(true);
+
+    // A shell variable read from the target plan's file binds the apply too.
+    const viaVariable = run([
+      command(`ha-nova plan write --domain automation --id ${automationId} --create --file draft.json > plan.json || test $? -eq 3`),
+      command('plan_id="$(jq -r .plan.id plan.json)"; ha-nova apply --plan "$plan_id"'),
+      ...reads,
+    ]);
+    expect(viaVariable.write_hits).toBe(1);
 
     rmSync(tempDir, { recursive: true, force: true });
   });

@@ -144,14 +144,12 @@ act on a name match alone.
 
 ### Custom repositories
 
-- Add: validate the GitHub reference AND resolve the repository category —
-  `add` requires it: derive it from repository evidence (manifest, topics,
-  structure), ask the user when ambiguous, and bind the chosen category in
-  the preview; never guess silently. Then `hacs/repositories/add`. The
-  socket reports success EVEN ON FAILURE — verify by re-listing for the
-  canonical `full_name`; missing after the re-read means the add failed
-  (duplicate/rename detection happens on the same re-read). Registration
-  does not download anything; say so.
+- Add: a custom repository is code nobody has vetted, so HA NOVA does not
+  add one (a raw `hacs/repositories/add` is refused). Validate the GitHub
+  reference and its category (manifest, topics, structure; ask when
+  ambiguous), then hand the user the steps: HACS > ⋮ > Custom repositories,
+  paste the URL, pick that category. Afterwards re-list for the canonical
+  `full_name` to confirm it appeared; registration downloads nothing.
 - Remove registration: one-time code, and only with exact identity
   plus installation state known — and only when `installed == false`.
   Unregistering an installed repository strands its files (the ID vanishes

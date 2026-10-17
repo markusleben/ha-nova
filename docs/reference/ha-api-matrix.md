@@ -34,7 +34,7 @@ Which HA operations require REST, WS, or filesystem?
 | `/api/config/scene/config/{id}` | DELETE | Delete storage scene |
 | `/api/events` | GET | List event types with total listener counts |
 | `/api/config/config_entries/entry` | GET | List config entries (REST alternative to WS `config_entries/get`) |
-| `/api/config/config_entries/entry/{id}/reload` | POST | Reload config entry |
+| `/api/config/config_entries/entry/{id}/reload` | POST | Reload config entry — raw refused: `ha-nova call homeassistant.reload_config_entry --set entry_id=…` (typed, like every reload) |
 | `/api/config/config_entries/flow_handlers` | GET | List config-flow handler domains |
 | `/api/config/config_entries/flow` | POST | Start an integration/helper config flow |
 | `/api/config/config_entries/flow/{flow_id}` | GET / POST / DELETE | Read, submit, or cancel one config flow |
@@ -49,6 +49,8 @@ Which HA operations require REST, WS, or filesystem?
 - `lock.open` requires feature bit `1`; `lock.lock` and `lock.unlock` have no feature bit. Code-bearing alarm/lock actions stay in the Home Assistant UI.
 
 ## WebSocket API (requires Relay as proxy)
+
+Raw `ha-nova relay ws` sends only the types on `cli/relay_raw_allow.go` (raw `relay core` the writes there; GETs stay open); this matrix also lists commands HA NOVA reaches only through its verbs, or not at all.
 
 ### Registries (CRUD)
 | WS Type | Purpose |
@@ -224,7 +226,7 @@ guardrails.
 | To-do | `todo/item/move`; `ha-nova call todo.* --skill ha-nova:todo` / `todo.get_items --response` | todo |
 | Conversation | `ha-nova call conversation.process --skill ha-nova:assist --response` (typed; raw refused) | assist |
 | Thread / Matter | `otbr/info`, `thread/list_datasets` (dataset is a network credential — `--out` file only), `matter/node_diagnostics` (takes `device_id`) | fallback |
-| Custom-integration config APIs | REST `/api/<integration>/<resource>` (GET/POST; private, version-dependent — Alarmo, Scheduler, Frigate, ...) | fallback |
+| Custom-integration config APIs | REST `/api/<integration>/<resource>` (GET only; private, version-dependent — Alarmo, Scheduler, Frigate, ...; raw POSTs are refused) | fallback |
 | HACS | `hacs/*` (17 commands) — not a Home Assistant API; the pinned map lives in `skills/hacs/hacs-commands.md` | hacs |
 
 Out of scope: InfluxDB paths (`/api/v2/query`, `/api/v3/query_sql`) pinned in

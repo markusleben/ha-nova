@@ -102,7 +102,7 @@ func TestRelayRejectsBOMLessUTF16JQFilterBeforeRequest(t *testing.T) {
 
 func TestRelayUnicodeRoundTripAndOutAreDeterministicUTF8(t *testing.T) {
 	paths, capture := setupStrictInputRelay(t)
-	payload := []byte(`{"title":"Grüße – Öl & Überschuss · café · 東京 · 😀"}`)
+	payload := []byte(`{"type":"ping","title":"Grüße – Öl & Überschuss · café · 東京 · 😀"}`)
 
 	cases := []struct {
 		name        string

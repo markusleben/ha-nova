@@ -174,7 +174,7 @@ func planCall(paths runtimePaths, s *relaySession, env *verbEnvelope, req planCa
 	if err != nil {
 		return err
 	}
-	return savePlan(paths, plan)
+	return savePlan(paths, plan, s.transport.Credential)
 }
 
 // computeCallPlan resolves, tiers, and builds the plan (not stored). plan

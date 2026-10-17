@@ -195,7 +195,7 @@ func TestRelayRejectsMalformedJSONBeforeRequest(t *testing.T) {
 func TestRelayValidFilePayloadReachesNetworkWithoutTranscoding(t *testing.T) {
 	paths, capture := setupStrictInputRelay(t)
 	payloadPath := filepath.Join(t.TempDir(), "payload.json")
-	payload := []byte("{\"title\":\"Übersicht ☕ \uFFFD \uFEFF\"}")
+	payload := []byte("{\"type\":\"ping\",\"title\":\"Übersicht ☕ \uFFFD \uFEFF\"}")
 	if err := os.WriteFile(payloadPath, append(append([]byte{}, utf8BOM...), payload...), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -210,8 +210,8 @@ func TestRelayValidFilePayloadReachesNetworkWithoutTranscoding(t *testing.T) {
 		{
 			name:     "core",
 			endpoint: "core",
-			args:     []string{"--method", "POST", "--path", "/api/test", "--body-file", payloadPath},
-			want:     append(append([]byte(`{"method":"POST","path":"/api/test","body":`), payload...), '}'),
+			args:     []string{"--method", "POST", "--path", "/api/template", "--body-file", payloadPath},
+			want:     append(append([]byte(`{"method":"POST","path":"/api/template","body":`), payload...), '}'),
 		},
 	}
 	for _, tc := range cases {

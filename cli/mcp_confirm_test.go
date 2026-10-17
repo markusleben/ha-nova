@@ -229,11 +229,11 @@ func TestMCPFormLegacyOutcomes(t *testing.T) {
 		noCode(t, tc.name, result, code)
 	}
 
-	// A form plan no form can show (its text was removed) is never applied by
-	// the model's code: apply takes a form plan's code only from the form.
+	// A form plan whose text was removed breaks its seal: never applied by
+	// the model's code, the plan is gone, and the step is to plan again.
 	h.tamper(id, func(p map[string]any) { delete(p, "prompt") })
-	if result := c.tool("ha_apply", map[string]any{"plan_id": id, "confirm_code": code}); errCode(result) != "CONFIRM_IN_FORM" || len(h.posts()) != 0 ||
-		!strings.Contains(envelopeOf(result)["next_step"].(string), "plan it again") {
+	if result := c.tool("ha_apply", map[string]any{"plan_id": id, "confirm_code": code}); errCode(result) != "PLAN_INVALID" || len(h.posts()) != 0 ||
+		!strings.Contains(envelopeOf(result)["next_step"].(string), "Plan again") {
 		t.Fatalf("a plan without form text: %v", result)
 	}
 	id, code = plan()
@@ -617,5 +617,45 @@ func TestFormPlanRefusesTypedCode(t *testing.T) {
 	c.answer(formID, map[string]any{"action": "accept", "content": map[string]any{"code": typed}})
 	if applied := c.final(call); envelopeOf(applied)["status"] != "verified" || len(h.posts()) != 1 {
 		t.Fatalf("form after refusals: %v", applied)
+	}
+}
+
+// The mismatch counter lives in the user-writable plan file. A form plan
+// edited to "chat" would take argv codes against a code nobody saw, and an
+// editor resets the counter: the sealed channel refuses that edit.
+func TestFormPlanChannelEditRefused(t *testing.T) {
+	h := newWriteHarness(t, newFakeHA())
+	c := startMCP(t, h.paths)
+	formsInit(c)
+	id := envelopeOf(c.tool("ha_call", map[string]any{"service": "lock.unlock", "entity_ids": []string{"lock.front"}}))["plan"].(map[string]any)["id"].(string)
+	file := filepath.Join(planDir(h.paths), id+".json")
+	plan, err := readPlanFile(file)
+	if err != nil || plan.Channel != channelForm || plan.ChannelSeal == "" {
+		t.Fatalf("form plan: %+v %v", plan, err)
+	}
+	plan.Channel = channelChat
+	if err := writePlanFile(file, plan); err != nil {
+		t.Fatal(err)
+	}
+	if exit, env := h.run(runApplyCommand, "--plan", id, "--confirm", storedCode(t, h, id)); exit != 4 || env.Error.Code != "PLAN_INVALID" {
+		t.Fatalf("downgraded form plan: exit %d %+v", exit, env.Error)
+	}
+	// An edited form text would show the human another action next to the
+	// real code: no form is shown, and apply refuses the plan.
+	h.f.states["lock.front"]["state"] = "locked"
+	id = envelopeOf(c.tool("ha_call", map[string]any{"service": "lock.unlock", "entity_ids": []string{"lock.front"}}))["plan"].(map[string]any)["id"].(string)
+	file = filepath.Join(planDir(h.paths), id+".json")
+	if plan, err = readPlanFile(file); err != nil {
+		t.Fatal(err)
+	}
+	plan.Prompt = "Turn on the hallway light?"
+	if err := writePlanFile(file, plan); err != nil {
+		t.Fatal(err)
+	}
+	if res := c.tool("ha_apply", map[string]any{"plan_id": id}); errCode(res) != "PLAN_INVALID" {
+		t.Fatalf("edited prompt: %v", res)
+	}
+	if len(h.posts()) != 0 {
+		t.Fatalf("sent %d requests for an edited plan", len(h.posts()))
 	}
 }
