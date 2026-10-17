@@ -49,13 +49,13 @@ const (
 	channelChat   = "chat"   // the code is in `say`; the model sees it too (fallback E)
 	channelForm   = "form"   // the client showed confirmation forms and no window could open when the plan was made
 	channelWindow = "window" // a native window on this computer asks (confirm_window.go)
-	channelPhone  = "phone"  // the Home Assistant owner's phone asks (confirm_phone.go)
-	// channelPhoneMissing is never stored: the pinned phone can't be reached,
-	// so the plan is refused (confirm_phone_setup.go).
+	channelPhone  = "phone"  // the linked phone asks (confirm_phone.go)
+	// channelPhoneMissing is never stored: the linked phone can't be asked
+	// now, so the plan is refused (confirm_phone_setup.go).
 	channelPhoneMissing = "phone-missing"
-	// channelPhoneUnpinned is never stored: the phone was found but its pin
-	// could not be saved, so the plan is refused rather than unprotected.
-	channelPhoneUnpinned = "phone-unpinned"
+	// channelPhoneUnlinked is never stored: #719's pin, no phone chosen yet,
+	// so the plan is refused until one is linked, never downgraded.
+	channelPhoneUnlinked = "phone-unlinked"
 )
 
 // humanChannel: the human answers in a window or on a phone; the plan's

@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 	"sync"
 	"testing"
@@ -19,32 +18,43 @@ import (
 type fakePhones struct {
 	mu       sync.Mutex
 	setup    phoneSetup
-	found    bool
+	status   phoneStatus
 	sent     []map[string]any // every notify body, by service order
 	services []string
-	answer   func(ok, no string) []phoneEvent // the events a tap produces; nil: none
+	answer   func(ok, no string) []phoneEvent          // the events a tap produces; nil: none
+	tapBy    func(service, ok, no string) []phoneEvent // set: answers every notification with buttons
 	events   chan phoneEvent
 	probeErr error // the Relay can't subscribe
 }
 
 func usePhones(t *testing.T, targets ...string) *fakePhones {
 	t.Helper()
-	p := &fakePhones{found: len(targets) > 0, events: make(chan phoneEvent, 8),
-		setup: phoneSetup{owner: "owner-id", relayUser: "relay-id"}}
+	p := &fakePhones{events: make(chan phoneEvent, 8),
+		setup: phoneSetup{owner: "owner-id", relayUser: "relay-id", confirmer: "owner-id"}}
+	if len(targets) > 0 {
+		p.status = phoneReady
+	}
 	for _, s := range targets {
 		p.setup.targets = append(p.setup.targets, phoneTarget{Service: s, Name: s})
 	}
 	saved := []any{windowAvailable, phoneDiscover, phoneNotify, phoneCollect, phoneSettle, windowMinWait, windowWait}
 	windowAvailable = func() bool { return false }
 	phoneSettle, windowMinWait, windowWait = 10*time.Millisecond, time.Second, 2*time.Second
-	phoneDiscover = func(*relaySession) (phoneSetup, bool) { return p.setup, p.found }
+	phoneDiscover = func(*relaySession) (phoneSetup, phoneStatus) { return p.setup, p.status }
 	phoneNotify = func(_ *relaySession, service string, body map[string]any) error {
 		p.mu.Lock()
 		defer p.mu.Unlock()
 		p.sent, p.services = append(p.sent, body), append(p.services, service)
 		data, _ := body["data"].(map[string]any)
 		actions, _ := data["actions"].([]any)
-		if len(actions) == 2 && p.answer != nil && len(p.sent) == 1 { // the first phone's notification is tapped
+		if len(actions) == 2 && p.tapBy != nil {
+			ok := actions[0].(map[string]any)["action"].(string)
+			no := actions[1].(map[string]any)["action"].(string)
+			for _, ev := range p.tapBy(service, ok, no) {
+				p.events <- ev
+			}
+		}
+		if len(actions) == 2 && p.answer != nil && len(p.sent) == 1 { // the first notification is tapped
 			ok := actions[0].(map[string]any)["action"].(string)
 			no := actions[1].(map[string]any)["action"].(string)
 			for _, ev := range p.answer(ok, no) {
@@ -68,7 +78,7 @@ func usePhones(t *testing.T, targets ...string) *fakePhones {
 		}
 	}
 	t.Cleanup(func() {
-		windowAvailable, phoneDiscover = saved[0].(func() bool), saved[1].(func(*relaySession) (phoneSetup, bool))
+		windowAvailable, phoneDiscover = saved[0].(func() bool), saved[1].(func(*relaySession) (phoneSetup, phoneStatus))
 		phoneNotify = saved[2].(func(*relaySession, string, map[string]any) error)
 		phoneCollect = saved[3].(func(context.Context, *relaySession, time.Duration) ([]phoneEvent, error))
 		phoneSettle, windowMinWait, windowWait = saved[4].(time.Duration), saved[5].(time.Duration), saved[6].(time.Duration)
@@ -84,7 +94,7 @@ func tap(action, user, origin string) phoneEvent {
 }
 
 func TestJudgePhoneEvent(t *testing.T) {
-	setup := phoneSetup{owner: "owner-id", relayUser: "relay-id"}
+	setup := phoneSetup{owner: "owner-id", relayUser: "relay-id", confirmer: "owner-id"}
 	cases := []struct {
 		ev   phoneEvent
 		want phoneAnswer
@@ -103,23 +113,24 @@ func TestJudgePhoneEvent(t *testing.T) {
 			t.Errorf("case %d: %v, want %v", i, got, c.want)
 		}
 	}
-	// The relay acting as the owner can never confirm (discovery refuses it anyway).
-	if got := judgePhoneEvent(tap("OK", "x", "REMOTE"), "OK", "NO", phoneSetup{owner: "x", relayUser: "x"}); got != phoneRejected {
-		t.Errorf("relay = owner: %v", got)
+	// The Relay acting as the confirming user can never confirm (discovery refuses it anyway).
+	if got := judgePhoneEvent(tap("OK", "x", "REMOTE"), "OK", "NO", phoneSetup{confirmer: "x", relayUser: "x"}); got != phoneRejected {
+		t.Errorf("relay = confirmer: %v", got)
+	}
+	// Only the linked user counts, not the owner.
+	if got := judgePhoneEvent(tap("OK", "owner-id", "REMOTE"), "OK", "NO", phoneSetup{owner: "owner-id", relayUser: "relay-id", confirmer: "partner-id"}); got != phoneRejected {
+		t.Errorf("owner tap on a partner's link: %v", got)
 	}
 }
 
-func TestPhonePlanConfirmsOnThePhoneAndClearsEveryPhone(t *testing.T) {
+func TestPhonePlanConfirmsOnTheLinkedPhoneAndClearsIt(t *testing.T) {
 	h := newWriteHarness(t, newFakeHA())
-	p := usePhones(t, "mobile_app_iphone", "mobile_app_pixel")
+	p := usePhones(t, "mobile_app_iphone")
 	env := h.plan("lock.unlock", "lock.front")
 	plan := env.Plan
 	if plan.Channel != channelPhone || plan.Code != "" || !strings.HasSuffix(env.Say, sayPhoneAsk) || strings.Contains(env.Say, "one-time code") ||
 		!strings.Contains(env.NextStep, "a notification on their phone") || !strings.Contains(env.NextStep, "Never ask for a code") {
 		t.Fatalf("phone plan: %+v say %q next %q", plan, env.Say, env.NextStep)
-	}
-	if phonePin(h.paths, "owner-id") != "on" {
-		t.Fatalf("the found phone is not pinned")
 	}
 	p.answer = func(ok, _ string) []phoneEvent {
 		return []phoneEvent{tap("HANOVA_OK_unrelated", "owner-id", "REMOTE"), tap(ok, "owner-id", "REMOTE")}
@@ -130,20 +141,17 @@ func TestPhonePlanConfirmsOnThePhoneAndClearsEveryPhone(t *testing.T) {
 	if exit != 0 || applied.Status != "verified" || len(h.posts()) != 1 {
 		t.Fatalf("confirm: exit %d %+v posts %d", exit, applied.Error, len(h.posts()))
 	}
-	if !strings.Contains(stderr, phoneSentText) {
+	if !strings.Contains(stderr, fmt.Sprintf(phoneSentText, "mobile_app_iphone", "Confirm")) {
 		t.Fatalf("stderr %q", stderr)
 	}
-	// Both phones got it, and both were cleared afterwards.
-	sends, cleared := append([]string{}, p.services[:2]...), append([]string{}, p.services[2:]...) // both run in parallel
-	sort.Strings(sends)
-	sort.Strings(cleared)
-	if strings.Join(sends, ",")+","+strings.Join(cleared, ",") != "mobile_app_iphone,mobile_app_pixel,mobile_app_iphone,mobile_app_pixel" ||
-		p.sent[2]["message"] != "clear_notification" || p.sent[3]["message"] != "clear_notification" {
+	// The linked phone got it once and was cleared afterwards; nothing else was sent.
+	if strings.Join(p.services, ",") != "mobile_app_iphone,mobile_app_iphone" || p.sent[1]["message"] != "clear_notification" {
 		t.Fatalf("notify calls %v %v", p.services, p.sent)
 	}
 	data := p.sent[0]["data"].(map[string]any)
 	confirm := data["actions"].([]any)[0].(map[string]any)
-	if confirm["authenticationRequired"] != true || confirm["destructive"] != true || !strings.HasPrefix(data["tag"].(string), "ha-nova-"+plan.ID+"-") || p.sent[2]["data"].(map[string]any)["tag"] != data["tag"] ||
+	if confirm["authenticationRequired"] != true || confirm["destructive"] != true || confirm["title"] != "Confirm" || p.sent[0]["title"] != phoneTitle+"Confirm" ||
+		!strings.HasPrefix(data["tag"].(string), "ha-nova-"+plan.ID+"-") || p.sent[1]["data"].(map[string]any)["tag"] != data["tag"] ||
 		!strings.Contains(p.sent[0]["message"].(string), "Unlock “lock.front”") {
 		t.Fatalf("payload %+v", p.sent[0])
 	}
@@ -184,87 +192,29 @@ func TestPhoneForgedOrMissingAnswersSendNothing(t *testing.T) {
 	}
 }
 
-// Without the owner's phone (a standalone Relay on the owner's token), B is
-// unavailable and the plan uses the next channel; once pinned, a missing
-// phone refuses instead of moving to a channel the model can answer.
-func TestPhoneUnavailableFallsThroughUntilPinned(t *testing.T) {
+// No linked phone: the next channel. A linked phone that can't be asked
+// refuses at plan and at apply, and #719's pin refuses until a phone is
+// linked: never a move to a channel the model can answer.
+func TestPhoneUnlinkedFallsThroughLinkedMissingRefuses(t *testing.T) {
 	h := newWriteHarness(t, newFakeHA())
 	p := usePhones(t)
 	if plan := h.plan("lock.unlock", "lock.front").Plan; plan.Channel != channelChat || plan.Code == "" {
 		t.Fatalf("no phone: %+v", plan)
 	}
-	if err := setPhonePin(h.paths, "owner-id", "on"); err != nil {
-		t.Fatal(err)
-	}
-	exit, env := h.run(runPlanCommand, "call", "lock.unlock", "lock.front")
-	if exit != 4 || env.Error == nil || env.Error.Code != "CONFIRM_UNAVAILABLE" || env.Plan != nil {
-		t.Fatalf("pinned, missing: exit %d %+v", exit, env)
+	for status, next := range map[phoneStatus]string{phoneMissing: "ha-nova setup confirm-phone", phoneLegacy: "ha-nova setup confirm-phone \"<that phone's name>\""} {
+		p.status = status
+		exit, env := h.run(runPlanCommand, "call", "lock.unlock", "lock.front")
+		if exit != 4 || env.Error == nil || env.Error.Code != "CONFIRM_UNAVAILABLE" || env.Plan != nil || !strings.Contains(env.Error.Next, next) {
+			t.Fatalf("status %d: exit %d %+v", status, exit, env.Error)
+		}
 	}
 	// A phone plan whose phone is gone at apply time never falls back.
-	p.found = true
+	p.status = phoneReady
+	p.setup.targets = []phoneTarget{{Service: "mobile_app_iphone"}}
 	plan := h.plan("lock.unlock", "lock.front").Plan
-	p.found = false
+	p.status = phoneMissing
 	if exit, env := h.run(runApplyCommand, "--plan", plan.ID); exit != 4 || env.Error.Code != "CONFIRM_UNAVAILABLE" || len(h.posts()) != 0 || len(p.sent) != 0 {
 		t.Fatalf("apply, phone gone: exit %d %+v", exit, env.Error)
-	}
-	// The pin belongs to this Home Assistant's owner, not to a server name:
-	// another home's "off" changes nothing here.
-	if err := setPhonePin(h.paths, "another-owner", "off"); err != nil {
-		t.Fatal(err)
-	}
-	p.found = true
-	if plan := h.plan("lock.unlock", "lock.front").Plan; plan.Channel != channelPhone {
-		t.Fatalf("another owner's off: %+v", plan)
-	}
-	if err := setPhonePin(h.paths, "owner-id", "off"); err != nil {
-		t.Fatal(err)
-	}
-	if plan := h.plan("lock.unlock", "lock.front").Plan; plan.Channel != channelChat {
-		t.Fatalf("off: %+v", plan)
-	}
-}
-
-// discoverPhone against the Relay: the owner's Companion phones, and none
-// when the Relay is the owner (standalone Relay on the owner's token).
-func TestDiscoverPhoneNeedsAnOwnerOtherThanTheRelay(t *testing.T) {
-	for _, relayUser := range []string{"supervisor-id", "owner-id"} {
-		f := newFakeHA()
-		f.services = append(f.defaultServices(), map[string]any{"domain": "notify", "services": map[string]any{"mobile_app_markuss_iphone": map[string]any{}, "persistent_notification": map[string]any{}}})
-		f.extra = func(endpoint string, p map[string]any) (any, bool) {
-			switch {
-			case p["type"] == "auth/current_user":
-				return map[string]any{"id": relayUser}, true
-			case p["type"] == "config/auth/list":
-				return []map[string]any{{"id": "supervisor-id", "system_generated": true, "is_active": true},
-					{"id": "owner-id", "is_owner": true, "is_active": true}}, true
-			case p["path"] == "/api/template":
-				vars := p["body"].(map[string]any)["variables"].(map[string]any)
-				if vars["owner"] != "owner-id" {
-					return coreReply(200, "[]"), true
-				}
-				return coreReply(200, `[{"service":"mobile_app_markuss_iphone","name":"Markus’s iPhone"},{"service":"mobile_app_gone","name":"Gone"}]`), true
-			}
-			return nil, false
-		}
-		h := newWriteHarness(t, f)
-		saved := windowAvailable
-		windowAvailable = func() bool { return false }
-		t.Cleanup(func() { windowAvailable = saved })
-		s, err := newRelaySession(h.paths, verbOptions{})
-		if err != nil {
-			t.Fatal(err)
-		}
-		setup, ok := discoverPhone(s)
-		s.close()
-		if relayUser == "owner-id" {
-			if ok {
-				t.Fatalf("relay = owner: %+v", setup)
-			}
-			continue
-		}
-		if !ok || len(setup.targets) != 1 || setup.targets[0].Service != "mobile_app_markuss_iphone" || setup.owner != "owner-id" || setup.relayUser != "supervisor-id" {
-			t.Fatalf("setup %+v ok %v", setup, ok)
-		}
 	}
 }
 
@@ -294,22 +244,6 @@ func TestWindowThatCannotOpenFallsBackToThePhone(t *testing.T) {
 	if exit != 3 || env.Plan == nil || env.Plan.Channel != channelPhone || env.Plan.Code != "" || len(h.posts()) != 0 ||
 		!strings.HasSuffix(env.Say, sayPhoneAsk) || !strings.Contains(env.NextStep, "a notification on their phone") {
 		t.Fatalf("fallback: exit %d %+v say %q next %q", exit, env.Plan, env.Say, env.NextStep)
-	}
-}
-
-// A found phone whose pin can't be saved refuses: without the pin, a later
-// broken phone setup would move plans to a channel the model can answer.
-func TestPhonePinThatCannotBeSavedRefuses(t *testing.T) {
-	h := newWriteHarness(t, newFakeHA())
-	usePhones(t, "mobile_app_iphone")
-	dir := filepath.Dir(h.paths.ConfigFile)
-	if err := os.Chmod(dir, 0o500); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = os.Chmod(dir, 0o700) })
-	exit, env := h.run(runPlanCommand, "call", "lock.unlock", "lock.front")
-	if exit != 4 || env.Error == nil || env.Error.Code != "CONFIRM_UNAVAILABLE" || env.Plan != nil {
-		t.Fatalf("unsaved pin: exit %d %+v", exit, env)
 	}
 }
 
@@ -347,7 +281,7 @@ func TestPhoneNeverSendsWithoutAListener(t *testing.T) {
 // A stalled notify service never holds apply past the confirmation wait.
 func TestPhoneStalledSendIsBoundedByTheWait(t *testing.T) {
 	h := newWriteHarness(t, newFakeHA())
-	usePhones(t, "mobile_app_iphone", "mobile_app_pixel")
+	usePhones(t, "mobile_app_iphone")
 	plan := h.plan("lock.unlock", "lock.front").Plan
 	phoneNotify = func(*relaySession, string, map[string]any) error { time.Sleep(10 * time.Second); return nil }
 	start := time.Now()
@@ -388,15 +322,25 @@ func TestDraftWatchingConfirmationsIsTyped(t *testing.T) {
 	}
 }
 
-// An unreadable owner never skips a pin: the plan is refused, not moved.
-func TestPhonePinWithUnknownOwnerRefuses(t *testing.T) {
-	h := newWriteHarness(t, newFakeHA())
-	p := usePhones(t)
-	p.setup.owner = "" // the owner's account couldn't be read
-	if err := setPhonePin(h.paths, "owner-id", "on"); err != nil {
-		t.Fatal(err)
-	}
-	if exit, env := h.run(runPlanCommand, "call", "lock.unlock", "lock.front"); exit != 4 || env.Error == nil || env.Error.Code != "CONFIRM_UNAVAILABLE" {
-		t.Fatalf("unknown owner: exit %d %+v", exit, env.Error)
+// A tap counts only while its phone is still the linked one: unlinked,
+// replaced, or its user demoted during the wait, nothing is sent.
+func TestPhoneTapAfterTheLinkChangedSendsNothing(t *testing.T) {
+	for name, change := range map[string]func(p *fakePhones){
+		"unlinked": func(p *fakePhones) { p.status = phoneNone },
+		"demoted":  func(p *fakePhones) { p.status = phoneMissing },
+		"replaced": func(p *fakePhones) { p.setup.confirmer = "anna-id" },
+	} {
+		t.Run(name, func(t *testing.T) {
+			h := newWriteHarness(t, newFakeHA())
+			p := usePhones(t, "mobile_app_iphone")
+			plan := h.plan("lock.unlock", "lock.front").Plan
+			p.answer = func(ok, _ string) []phoneEvent {
+				change(p)
+				return []phoneEvent{tap(ok, "owner-id", "REMOTE")}
+			}
+			if exit, env := h.run(runApplyCommand, "--plan", plan.ID); exit != 4 || env.Error == nil || env.Error.Code != "CONFIRM_UNAVAILABLE" || len(h.posts()) != 0 {
+				t.Fatalf("exit %d %+v posts %d", exit, env.Error, len(h.posts()))
+			}
+		})
 	}
 }

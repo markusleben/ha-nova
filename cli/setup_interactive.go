@@ -1253,6 +1253,9 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 			if exit != 0 {
 				return exit
 			}
+			if pairedThisRun && !cloudSetupPaused && !serviceMode && isInteractiveTTY() && writerSupportsTTYForSetup(os.Stdout) {
+				offerPhoneLink(reader, os.Stdout, paths) // optional; never fails setup
+			}
 			// The read-only first look after a pairing in this run
 			// (docs/work/2026-10-16-ha-sign-in-pairing-spec.md, "First look").
 			var look *setupFirstLook

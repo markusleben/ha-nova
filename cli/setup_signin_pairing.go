@@ -130,6 +130,7 @@ func signInAndPair(
 	var soft *haSignInPairingError
 	switch {
 	case pairErr == nil:
+		setupSignedInUser = session.user.ID // the phone step proposes this user's phone
 		return true, false, nil
 	case errors.As(pairErr, &soft):
 		renderSetupWarningLine(out, "%s", haSignInFallbackLine(pairErr, session.user))

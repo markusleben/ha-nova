@@ -74,19 +74,24 @@ the number.
   too. To turn the window off: `ha-nova setup
   confirm-window off` (you confirm that in the window).
 - **Or confirm on your phone:** over SSH, without a desktop, or where the
-  window can't open, HA NOVA sends Confirm and Cancel to the Home Assistant
-  owner's phone (Companion app): hold or expand the notification and press
-  Confirm (the phone asks for Face ID, fingerprint, or passcode). Only the
-  owner's own app counts. Not with a standalone NOVA Relay that runs on the
-  owner's own token. Without a phone, HA NOVA shows the one-time code in chat
-  as before and says that the assistant can see it too.
+  window can't open, HA NOVA sends Confirm and Cancel to the one phone you
+  linked (Companion app): hold or expand the notification and press Confirm
+  (the phone asks for Face ID, fingerprint, or passcode). Setup offers to link
+  your phone right after you sign in with Home Assistant, or run
+  `ha-nova setup confirm-phone`: pick your phone, then tap "Yes, link" on it.
+  Only the linked phone ever gets HA NOVA confirmations, nobody else's in your
+  home, and only its Home Assistant user (an administrator) counts. Not with a
+  standalone NOVA Relay that runs on the owner's own token. Without a linked
+  phone, HA NOVA shows the one-time code in chat as before and says that the
+  assistant can see it too.
 
 ### What To Watch (phone confirmation)
 
-- Once HA NOVA has found your phone, an unlock or delete is refused (nothing
-  changes) when it can't reach that phone, instead of falling back to a code
-  in chat. To stop using the phone: `ha-nova setup confirm-phone off`
-  (confirmed on the phone).
+- Once a phone is linked, an unlock or delete is refused (nothing changes)
+  when HA NOVA can't reach that phone, instead of falling back to a code in
+  chat. Changing or unlinking it (`ha-nova setup confirm-phone off`) is
+  confirmed on that phone. Lost it? Remove it in Home Assistant (Settings →
+  Devices & services → Mobile App), then link the new one.
 
 - `ha-nova uninstall` no longer guides removal of the NOVA Relay App by
   default. It first asks whether this is the last computer using HA NOVA,

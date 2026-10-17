@@ -35,7 +35,7 @@ typed plan needs --confirm with the four-digit one-time code the user typed
 against slips, not tampering). A typed plan with "channel": "window" takes
 no code: apply opens a confirmation window on this computer and waits for
 the user (up to 90 s); if it can't open, apply returns a new plan. One with
-"channel": "phone" sends Confirm/Cancel to the Home Assistant owner's phone
+"channel": "phone" sends Confirm/Cancel to the phone linked to HA NOVA
 (Companion app) and waits the same way.
 Config plans (plan write/delete/revert) save the config once, reload, and
 verify the read-back; an update lands on the undo stack, and a delete (and
@@ -297,7 +297,7 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string, noSnapshot
 				consumed = false
 			}
 			if plan.Channel == channelPhone {
-				return fail(refusedWith("CONFIRM_ON_PHONE", "plan "+id+" is confirmed on the Home Assistant owner's phone, not with a typed code",
+				return fail(refusedWith("CONFIRM_ON_PHONE", "plan "+id+" is confirmed on the phone linked to HA NOVA, not with a typed code",
 					"Run ha-nova apply --plan "+id+" again without --confirm: it sends the confirmation to their phone. Never ask the user for a code."))
 			}
 			return fail(refusedWith("CONFIRM_IN_WINDOW", "plan "+id+" is confirmed in a window on this computer, not with a typed code",
