@@ -171,12 +171,19 @@ func checkRawWS(message map[string]any) error {
 	}
 	switch wsType {
 	case "subscribe_events":
-		if eventType, _ := message["event_type"].(string); eventType == "" || eventType == "*" || strings.EqualFold(eventType, "call_service") {
+		eventType, _ := message["event_type"].(string)
+		if eventType == "" || eventType == "*" || strings.EqualFold(eventType, "call_service") {
 			return rawRefusal("subscription to every event or to call_service", "subscribe to the one event type you need")
 		}
+		if phoneEventName(eventType) {
+			return rawRefusal("subscription to phone notification events (they can carry a phone confirmation's IDs)", rawNextUI)
+		}
 	case "subscribe_trigger":
-		if trigger, _ := json.Marshal(message["trigger"]); strings.Contains(strings.ToLower(string(trigger)), "call_service") {
-			return rawRefusal("trigger subscription on call_service", "watch the entity or event you need instead")
+		trigger, _ := json.Marshal(message["trigger"])
+		text := strings.ToLower(string(trigger))
+		// A template can name any event type, so no template in a raw trigger.
+		if strings.Contains(text, "call_service") || phoneEventName(text) || strings.Contains(text, "{{") || strings.Contains(text, "{%") {
+			return rawRefusal("trigger subscription on call_service, phone notification events, or a template", "watch the entity or event you need instead")
 		}
 	case "lovelace/config":
 		if message["force"] == true { // re-reads a YAML dashboard from disk, like a reload
@@ -213,4 +220,12 @@ func checkRawWS(message map[string]any) error {
 		// A button rename is checked against the registry (relay_raw_targets.go).
 	}
 	return nil
+}
+
+// phoneEventName: the Companion app's notification events. Android echoes
+// every action ID and the phone's webhook ID in them, so a raw listener could
+// learn a phone confirmation's IDs (confirm_phone.go).
+func phoneEventName(text string) bool {
+	text = strings.ToLower(text)
+	return strings.Contains(text, "mobile_app_notification") || strings.Contains(text, "ios.notification")
 }

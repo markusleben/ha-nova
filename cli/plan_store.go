@@ -147,15 +147,18 @@ func sealPlan(e *tierEngine, env *verbEnvelope, plan storedPlan, action any) (st
 			return storedPlan{}, errors.New("cannot derive the one-time code: no Relay credential")
 		}
 		if plan.Channel == "" {
-			plan.Channel = detectChannel(e.s.paths)
+			plan.Channel = detectChannel(e.s)
 		}
-		if plan.Channel != channelWindow { // a window plan's code never leaves this process
+		if plan.Channel == channelPhoneMissing {
+			return storedPlan{}, refusedWith("CONFIRM_UNAVAILABLE", "this change is confirmed on the Home Assistant owner's phone, and HA NOVA can't reach it now", phoneMissingNext)
+		}
+		if !humanChannel(plan.Channel) { // a window or phone plan's code never leaves this process
 			plan.code = confirmCode(e.s.transport.Credential, idHex, plan.Channel, plan.ExpiresAt)
 		}
 		shownChannel = plan.Channel
 	}
-	if shownChannel == channelWindow {
-		env.NextStep = fmt.Sprintf("Show `say`. When the user has asked for this change and your workflow has reached this step (a skill's order comes first), run ha-nova apply --plan %s without --confirm and wait for its result (give the command up to 2 minutes): a confirmation window on their computer asks them. Never ask for a code in chat.", plan.ID)
+	if where := map[string]string{channelWindow: "a confirmation window on their computer", channelPhone: "a notification on their phone"}[shownChannel]; where != "" {
+		env.NextStep = fmt.Sprintf("Show `say`. When the user has asked for this change and your workflow has reached this step (a skill's order comes first), run ha-nova apply --plan %s without --confirm and wait for its result (give the command up to 2 minutes): %s asks them. Never ask for a code in chat.", plan.ID, where)
 	}
 	if plan.Channel == "" { // no code, so where it would be typed does not matter
 		plan.Channel = channelChat

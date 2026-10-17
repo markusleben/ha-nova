@@ -68,6 +68,9 @@ func dispatch(paths runtimePaths, argv0 string, args []string) int {
 		if len(args) > 1 && args[1] == "confirm-window" {
 			return runConfirmWindowSetting(paths, args[2:])
 		}
+		if len(args) > 1 && args[1] == "confirm-phone" {
+			return runConfirmPhoneSetting(paths, args[2:])
+		}
 		return runSetup(paths, args[1:])
 	case "doctor":
 		return runDoctor(paths, args[1:])

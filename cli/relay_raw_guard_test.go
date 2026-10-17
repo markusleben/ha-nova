@@ -117,6 +117,20 @@ func TestRawRelayRefusesCallServiceSubscriptions(t *testing.T) {
 	rawRefused(t, "ws", `{"message":{"type":"subscribe_events","event_type":"*"},"collect_events":{"max_events":1}}`)
 	rawRefused(t, "ws", `{"message":{"type":"subscribe_trigger","trigger":{"platform":"event","event_type":"call_service"}},"collect_events":{}}`)
 	rawAllowed(t, "ws", `{"message":{"type":"subscribe_events","event_type":"zha_event"},"collect_events":{"max_events":1}}`)
+	// Phone confirmation (confirm_phone.go): its IDs, and the webhook IDs that
+	// could forge a tap, never reach a raw listener.
+	for _, event := range []string{"mobile_app_notification_action", "MOBILE_APP_NOTIFICATION_received", "mobile_app_notification_cleared", "ios.notification_action_fired"} {
+		rawRefused(t, "ws", `{"message":{"type":"subscribe_events","event_type":"`+event+`"},"collect_events":{"max_events":1}}`)
+		rawRefused(t, "ws", `{"message":{"type":"subscribe_trigger","trigger":{"platform":"event","event_type":"`+event+`"}},"collect_events":{}}`)
+	}
+	rawRefused(t, "ws", `{"message":{"type":"subscribe_trigger","trigger":{"platform":"event","event_type":"{{ 'mobile_app_' ~ 'x' }}"}},"collect_events":{}}`)
+	rawRefused(t, "ws", `{"type":"cloud/status"}`)
+	rawRefused(t, "ws", `{"message":{"type":"mobile_app/push_notification_channel","webhook_id":"x"},"collect_events":{}}`)
+	rawRefused(t, "ws", `{"type":"webhook/list"}`)
+	rawRefused(t, "ws", `{"type":"webhook/handle","webhook_id":"x","method":"POST","body":"{}"}`)
+	rawRefused(t, "ws", `{"type":"fire_event","event_type":"mobile_app_notification_action","event_data":{"action":"HANOVA_OK_x"}}`)
+	rawRefused(t, "core", `{"method":"POST","path":"/api/events/mobile_app_notification_action","body":{"action":"HANOVA_OK_x"}}`)
+	rawRefused(t, "core", `{"method":"POST","path":"/api/webhook/abc","body":{"type":"fire_event"}}`)
 	rawAllowed(t, "ws", `{"message":{"type":"subscribe_trigger","trigger":{"platform":"state","entity_id":"event.x"}},"collect_events":{}}`)
 }
 

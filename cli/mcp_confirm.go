@@ -176,8 +176,8 @@ func (srv *mcpServer) formPlan(args map[string]json.RawMessage) (storedPlan, boo
 	}
 	plan, err := readPlanFile(filepath.Join(planDir(srv.paths), id+".json"))
 	expires, timeErr := time.Parse(time.RFC3339, plan.ExpiresAt)
-	// A window plan is confirmed only in its window (confirm_window.go), never in a form.
-	ok := err == nil && timeErr == nil && plan.ID == id && plan.Tier == tierTyped.String() && plan.Prompt != "" && plan.SchemaVersion == planSchemaVersion && plan.Channel != channelWindow &&
+	// A window or phone plan is confirmed only there (confirm_window.go, confirm_phone.go), never in a form.
+	ok := err == nil && timeErr == nil && plan.ID == id && plan.Tier == tierTyped.String() && plan.Prompt != "" && plan.SchemaVersion == planSchemaVersion && !humanChannel(plan.Channel) &&
 		verbNow().Before(expires) && (srv.pin == "" || srv.pin == plan.Server) &&
 		(!noSnapshot || plan.Kind == "delete" && plan.SnapshotFailed)
 	return plan, noSnapshot, ok

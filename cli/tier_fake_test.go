@@ -46,6 +46,8 @@ type fakeHA struct {
 	// (a concurrent removal: Home Assistant says 400 "Resource not found").
 	deleteStatus int
 	lovelace     *fakeLovelace // dashboards (dashboard_test.go); nil: none
+	// extra answers first when set (confirm_phone_test.go).
+	extra func(endpoint string, p map[string]any) (any, bool)
 }
 
 func newFakeHA() *fakeHA {
@@ -102,6 +104,11 @@ func (f *fakeHA) reply(r *http.Request, endpoint string, p map[string]any) any {
 	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	if f.extra != nil {
+		if reply, handled := f.extra(endpoint, p); handled {
+			return reply
+		}
+	}
 	if reply, handled := f.configReply(r, endpoint, p); handled {
 		return reply
 	}

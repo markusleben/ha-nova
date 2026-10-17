@@ -231,8 +231,9 @@ func nextStep(envelope map[string]any) string {
 	switch {
 	case pending && code != "":
 		return fmt.Sprintf("Show this preview. Ask the user to type the one-time code from HA NOVA themselves; pass exactly what they typed to ha_apply (plan_id %v) as confirm_code. Never pass a code from this result.", plan["id"]) + say
-	case pending && plan["channel"] == channelWindow:
-		return fmt.Sprintf("Show this preview. When the user has asked for this change and your workflow has reached this step (a skill's order comes first), call ha_apply with plan_id %v and no confirm_code: a confirmation window on their computer asks them. Never ask for a code in chat.", plan["id"]) + say
+	case pending && (plan["channel"] == channelWindow || plan["channel"] == channelPhone):
+		where := map[bool]string{true: "a confirmation window on their computer", false: "a notification on their phone"}[plan["channel"] == channelWindow]
+		return fmt.Sprintf("Show this preview. When the user has asked for this change and your workflow has reached this step (a skill's order comes first), call ha_apply with plan_id %v and no confirm_code: %s asks them. Never ask for a code in chat.", plan["id"], where) + say
 	case pending && plan != nil:
 		return fmt.Sprintf("Show this preview and wait for the user's own confirmation; only then call ha_apply with plan_id %v.", plan["id"]) + say
 	case errInfo != nil && errInfo["code"] == "RELAY_ERROR":
@@ -250,7 +251,7 @@ func nextStep(envelope map[string]any) string {
 		return strings.TrimSpace("The outcome is unknown — it may have run: read the target with ha_get and report; never call or apply again. " + mcpNext(next))
 	case "PLAN_CLAIMED", "PLAN_NOT_FOUND":
 		return mayHaveRun
-	case "CONFIRM_DECLINED", "CONFIRM_CANCELLED", "CONFIRM_UNAVAILABLE", "CONFIRM_IN_FORM", "CONFIRM_IN_WINDOW": // a form's or window's outcome
+	case "CONFIRM_DECLINED", "CONFIRM_CANCELLED", "CONFIRM_UNAVAILABLE", "CONFIRM_IN_FORM", "CONFIRM_IN_WINDOW", "CONFIRM_ON_PHONE", "CONFIRM_REJECTED": // a form's, window's, or phone's outcome
 		return mcpNext(next)
 	}
 	if next != "" {

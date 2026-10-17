@@ -49,7 +49,15 @@ const (
 	channelChat   = "chat"   // the code is in `say`; the model sees it too (fallback E)
 	channelForm   = "form"   // the client showed confirmation forms and no window could open when the plan was made
 	channelWindow = "window" // a native window on this computer asks (confirm_window.go)
+	channelPhone  = "phone"  // the Home Assistant owner's phone asks (confirm_phone.go)
+	// channelPhoneMissing is never stored: the pinned phone can't be reached,
+	// so the plan is refused (confirm_phone_setup.go).
+	channelPhoneMissing = "phone-missing"
 )
+
+// humanChannel: the human answers in a window or on a phone; the plan's
+// code never leaves this process.
+func humanChannel(channel string) bool { return channel == channelWindow || channel == channelPhone }
 
 // planChannel is set only by the MCP server, from the client's handshake,
 // for the verb it runs; empty means the CLI detects it (detectChannel).
@@ -93,6 +101,9 @@ func sayTypedAsk(code, goal string) string {
 
 // sayWindowAsk closes a window plan's `say`: the code is never shown.
 const sayWindowAsk = "A confirmation window opens on this computer — confirm there."
+
+// sayPhoneAsk closes a phone plan's `say`: the code is never shown.
+const sayPhoneAsk = "HA NOVA sends a confirmation to your phone — tap Confirm there."
 
 // sayFormAsk replaces sayTypedAsk where the client shows a confirmation
 // form: the code is never in a tool result there (mcp_confirm.go).

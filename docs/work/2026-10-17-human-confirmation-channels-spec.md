@@ -1,4 +1,4 @@
-# Human confirmation channels, part 1: the confirmation window (2026-10-17)
+# Human confirmation channels: the confirmation window (part 1) and the phone (part 2) (2026-10-17)
 
 Status: active
 
@@ -13,12 +13,12 @@ A typed plan's channel is set when the plan is made and is part of its code's MA
 | Order | Channel | When | The human |
 |---|---|---|---|
 | 1 | A `window` | this computer can show a window (§2) and the user has not turned it off (§4) — in the CLI and inside `ha-nova mcp` alike | clicks Confirm in a native window |
-| 2 | C `form` | otherwise, when the plan is made inside `ha-nova mcp` for a client that declares form elicitation (not `--no-forms`): remote, headless, and later phone connectors | types the four-digit code shown in the form |
-| 3 | B phone | not built; `detectChannel` (`cli/confirm_window.go`) is the slot, before chat | — |
+| 2 | B `phone` | no window can open (or windows are off), the Home Assistant owner has a phone with the Companion app, and the Relay is not the owner (§7) | taps Confirm in a notification on their phone (unlocked: Face ID, fingerprint, or passcode) |
+| 3 | C `form` | otherwise, when the plan is made inside `ha-nova mcp` for a client that declares form elicitation (not `--no-forms`): remote, headless, and later phone connectors | types the four-digit code shown in the form |
 | 4 | E `chat` | everything else | types the code shown in chat; `say` says the assistant sees it too |
 
 - Why the window comes first (decision 2026-10-17, coordinator, logged in `docs/choices.md`): a model with a shell can start `ha-nova mcp` itself, declare forms, and answer its own form (the code is in the form's message); it cannot answer an OS window without computer use or accessibility rights. The approved order was C before A; it was flipped in this PR before merge.
-- A window that can't open in a forms session falls back to the form, not to chat.
+- A window that can't open falls back to the phone where one is found (§7), else to the form in a forms session, else to chat.
 - A window plan is never confirmed in a form (`formPlan` skips it): applied inside `ha-nova mcp`, it opens its window too.
 - A form or window plan never takes a code from argv: `apply --confirm` is ignored for it (`CONFIRM_IN_WINDOW`, `CONFIRM_IN_FORM`; no attempt is used). Its code never leaves the process: not in the envelope, `say`, the plan file, or the apply result.
 - MCP without forms (Claude Desktop, `--no-forms`, a client that declares no elicitation) now detects like the CLI, so leaving out the capability or adding `--no-forms` no longer yields a code the model sees where a window can open.
@@ -71,3 +71,58 @@ Linux reads two environment variables because a dialog cannot reach a display wi
 - `cli/confirm_window_test.go` (fake window): confirm, cancel, no answer, a code from argv never replaces the window, an edited plan-file prompt is not shown, drift during the window sends nothing, could-not-open falls back to a chat plan with `say` and `next_step`, form precedence in MCP, MCP `--no-forms` gets the window (no code anywhere), and the off switch.
 - `cli/confirm_window_darwin_test.go`: osascript result classification; `HA_NOVA_REAL_WINDOW=timeout|failed` opens the real window (manual only).
 - Real macOS 26 check (this change): the window opened with an empty environment and timed out after 2 s (`timeout`); under the approximated Claude Code sandbox profile detection said available and opening failed (`windowFailed` → E).
+
+## 7. Part 2: the phone (B)
+
+Inputs: the channels report §2 B and §3 B (sniff and forge paths reproduced on a throwaway HA).
+
+### 7.1 Order: window → phone → form → chat (decision 2026-10-17, logged in `docs/choices.md`)
+
+The phone comes before the form: a model with a shell can start `ha-nova mcp` itself, declare forms, and answer its own form (the code is in the form's message); it can't tap a phone. It comes after the window because the window needs no phone, no push round trip, and no Companion app, and is equally out of a same-user model's reach on macOS. A window that can't open moves the plan to the phone where one is found (`windowFallback`), else to the form or chat as before.
+
+### 7.2 Who confirms, and where
+
+- **The Home Assistant owner.** In the App only the owner can arm a pairing (`nova/src/security/owner-check.ts`), so "the user this computer is paired for" is the owner; the Relay records no other user. The owner is one fixed account that the Relay's user can't become, and that a model can't add (a new HA user never counts).
+- **Their phones:** the owner's `person` → its device trackers from `mobile_app` → each device's legacy `notify.mobile_app_<slug>` service. The slug comes from Home Assistant itself (one `POST /api/template` with a fixed template and the owner id as a template variable, never as source), so names like "Markus’s iPhone" match exactly; a target counts only when that notify service exists. Reads: `auth/current_user`, `config/auth/list`, the template, `/api/services` — a fixed allowlist (`checkPhoneRead`), not the model-facing read allowlist.
+- **Available only when** an owner exists, the Relay's own user (`auth/current_user`) is not the owner, and at least one target exists. App mode: the Relay is the Supervisor user → available. A standalone Relay on the owner's long-lived token → unavailable (a forged tap would carry the owner's id); on a separate HA user's token → available.
+- **Several phones:** all of them get it; the first decisive answer wins; then every phone that got it is sent `clear_notification` with the same `tag` (also after Cancel and no answer).
+
+### 7.3 The notification
+
+`notify.mobile_app_<slug>` with title "HA NOVA", the plan's code-free text (`confirmText`, cut at 600 characters) plus "Requested by your AI assistant. Confirm only if you want this.", and `data`: `tag: ha-nova-<plan id>`, actions Confirm (`destructive`, `authenticationRequired`: the phone must be unlocked) and Cancel, iOS `push.interruption-level: time-sensitive` and `apns_headers.apns-expiration` (the wait's end), Android `priority: high`, `channel: HA NOVA`, `importance: high`, `timeout` (seconds left). No `ttl: 0` (the push relay drops it).
+
+The action ids are `HANOVA_OK_<32 hex>` / `HANOVA_NO_<32 hex>`, drawn per apply from `crypto/rand`, held only in the apply process: never printed, logged, stored in the plan file, or in the envelope.
+
+### 7.4 Waiting and the identity check
+
+- The CLI listens through the Relay's existing bounded `collect_events` (`subscribe_events` `mobile_app_notification_action`, `max_events: 1`, 10 s cap) in two overlapping lanes 5 s apart, so one re-subscribes while the other listens. No Relay change (no App release, works with installed Relays). The push goes out 1 s after the first window starts; a window that fails at once means no listener, so nothing is sent.
+- An event decides only if `data.action` is one of our two ids. It then counts only if `origin` is `REMOTE`, `context.user_id` is the owner, and that id is not the Relay's own user; otherwise the wait ends as `CONFIRM_REJECTED` (exit 4, nothing sent). Ending, not ignoring: a matching id from someone else means the id leaked, and the human can simply apply again for a fresh one. Other actions (other notifications' buttons) are ignored.
+- Timeouts as the window: 90 s in the CLI, 40 s in `ha-nova mcp`, never past the plan's expiry, at least 15 s left or `PLAN_EXPIRED`.
+- Outcomes: Confirm → the code is derived in process (`humanAnswer`) and apply claims, re-plans, and checks as always; Cancel → `CONFIRM_DECLINED`; no answer → `CONFIRM_CANCELLED` (apply again sends a new notification); could not listen or send → `CONFIRM_UNAVAILABLE`. All keep the plan and send nothing. A phone plan never falls back to another channel. A code from argv never replaces the phone (`CONFIRM_ON_PHONE` when apply is reached without the answer).
+
+### 7.5 No downgrade: the phone pin
+
+Detection is automatic, so a model could break it in Home Assistant (remove the phone from the person, disable the Companion app's entry) to move later plans to the form or chat. Therefore the first time a phone is found, `config.json` gets `"confirm_phone": {"<server>": "on"}`; from then on a typed plan whose phone can't be found (or whose Relay now acts as the owner) is refused (`CONFIRM_UNAVAILABLE`, exit 4), never moved. `ha-nova setup confirm-phone off` is confirmed on the phone itself and writes `"off"`; where no phone can be reached it changes nothing and names the key to edit by hand. `on` removes `"off"`. Editing `config.json` is T3, as for the window.
+
+### 7.6 Forgery paths closed (raw guard, `cli/relay_raw_guard.go`)
+
+Already refused before this change: `fire_event`, `POST /api/events/*`, `/api/webhook/*` (any method), WS `webhook/*` (`webhook/list`, `webhook/handle`), `subscribe_events` without a type, `*`, or `call_service` (the notify call carries the ids). Added: `subscribe_events` and `subscribe_trigger` on `mobile_app_notification_*` and iOS `ios.notification_action_fired` (Android echoes every action id and its webhook id in them), any raw `subscribe_trigger` holding a template (an event trigger's type can be templated), WS `cloud/status` (lists cloudhook webhook ids) and `mobile_app/*` (the local push channel). Overlap: the open `fix/raw-writes-deny-by-default` work moves raw WS to an allowlist; these refusals sit in the per-type rules it keeps, so whichever lands second keeps both.
+
+### 7.7 Honest limits
+
+- **T3 as before:** a model that reads the Relay credential or edits `config.json` (pin off, window off) is not stopped.
+- **Leaked ids are not enough on their own:** a forged tap also needs the owner's identity. Paths that carry it: an Android (unencrypted) registration's webhook id plus `POST /api/webhook/<id>` from outside the Relay. The raw guard closes the known ways to learn it through the Relay; a model that builds its own reader (for example a SQL sensor over the recorder's event table through a config flow) or reads HA's debug log after raising its level (`logger.set_level` is preview) could learn ids — T3-adjacent, stated. iOS registrations are encrypted: `webhook/handle` and a plain webhook post are refused there.
+- **The owner's own context:** a script the model wrote and the owner then runs from a dashboard fires with the owner's user; with a leaked id it could confirm. Narrow; stated.
+- **Listening gap:** an unrelated notification action ends both listening windows at once; a tap in the milliseconds before they re-subscribe is lost (no answer, nothing sent).
+- **Delivery:** push quota and push-relay errors are silent in Home Assistant (the call still succeeds): the wait then ends as no answer. A phone with no route to HA (no cloud, remote URL, or LAN) loses the tap. A swipe-away is no answer (Android's cleared event is not read).
+- **Who:** only the owner confirms; a household member who is not the owner can't confirm on their phone, and a phone added to the owner's person but registered by another HA user is rejected.
+- **The pin** is set on the first typed plan that finds a phone; before that, a broken phone setup is not noticed. A Relay that later runs on the owner's token refuses typed plans until the pin is turned off.
+- **MCP:** the server answers no `ping` during the up to 40 s wait, as with the window.
+- **Untested:** the real Companion apps (simulated registrations only; the push payload is per the apps' sources), App mode itself (a separate admin HA user stood in for the Supervisor user), and remote connectors.
+- **Language:** the notification text is English, like the window.
+
+### 7.8 Tests
+
+- `cli/confirm_phone_test.go` (fake phones): event judging (wrong user, Relay user, `LOCAL` origin, no user, wrong id, other events); confirm on one of two phones sends once and clears both; the ids never appear in output, stderr, the plan file, or `config.json`; wrong user, Relay user, local fire, wrong id, cancel, and no answer send nothing and keep the plan; no phone → chat, pinned and missing → refused at plan and apply; off → chat; discovery needs an owner other than the Relay; a window that can't open falls back to the phone.
+- `cli/relay_raw_guard_test.go`: the added refusals.
+- Throwaway HA `2026.10.1` (project `ha-nova-phonepush`, 127.0.0.1:28323/28391, not the test bed): owner with two simulated Android registrations, a second user with one, the Relay on a separate admin user's token, the CLI built from this branch with windows off. The plan picked `phone` and pinned it; both owner phones got the push (with "Owner’s Pixel" slugged by HA), the other user's phone none. A real `mobile_app_notification_action` from the other user's phone webhook → `CONFIRM_REJECTED`, lock stayed locked; the Relay user's own `POST /api/events` with the right id → `CONFIRM_REJECTED`; the owner's Cancel → `CONFIRM_DECLINED`; the owner's Confirm → `verified`, unlocked, and both owner phones got `clear_notification`. A raw `subscribe_events` on the event was refused. With the Relay restarted on the owner's token: the pinned home refused (`CONFIRM_UNAVAILABLE`), a fresh home got `chat`. Containers, network, and image removed afterwards.

@@ -29,33 +29,31 @@ const (
 	// A late Confirm still re-plans, sends, and verifies within the host's limit.
 	cliWindowWait = 90 * time.Second // under Claude Code's 120 s default command timeout
 	mcpWindowWait = 40 * time.Second // under the common 60 s MCP tool-call timeout
-	windowMinWait = 15 * time.Second // less left before expiry: no window
 	windowOpened  = "A confirmation window opened on this computer — confirm there."
 	windowAsked   = "Requested by your AI assistant. Go ahead only if you want this."
 	windowSetting = "confirm_window" // config.json top level; "off" = codes in chat
 )
 
 var (
-	windowWait = cliWindowWait
-	formsShown bool // set by the MCP server: its client shows confirmation forms
+	windowWait    = cliWindowWait
+	windowMinWait = 15 * time.Second // less left before expiry: no window or phone ask
+	formsShown    bool               // set by the MCP server: its client shows confirmation forms
 	// The OS window (confirm_window_<os>.go); tests replace both.
 	windowAvailable = nativeWindowAvailable
 	windowRunner    = nativeWindow
 )
 
 // detectChannel picks a typed plan's channel: the window when this computer
-// can show one and the user has not turned it off, else an MCP client's
-// form, else chat. The window comes first because a model with a shell can
-// start ha-nova mcp itself and answer its own form, but not an OS window.
-// The phone (B) slots in before chat in its own change.
-func detectChannel(paths runtimePaths) string {
-	switch {
-	case !windowOff(paths) && windowAvailable():
+// can show one and the user has not turned it off, else the owner's phone,
+// else an MCP client's form, else chat (detectAfterWindow). The window and
+// the phone come before the form because a model with a shell can start
+// ha-nova mcp itself and answer its own form, but can't click an OS window
+// or tap a phone.
+func detectChannel(s *relaySession) string {
+	if !windowOff(s.paths) && windowAvailable() {
 		return channelWindow
-	case formsShown:
-		return channelForm
 	}
-	return channelChat
+	return detectAfterWindow(s)
 }
 
 // windowOff: the user turned confirmation windows off
@@ -125,32 +123,11 @@ func runConfirmWindowSetting(paths runtimePaths, args []string) int {
 // apply runs and reports whatever kept the window closed (drift, expiry, a
 // refusal); asked=true: env is the result and nothing was sent.
 func confirmByWindow(paths runtimePaths, opts verbOptions, id string, noSnapshot bool) (env verbEnvelope, exit int, asked bool) {
-	if humanAnswer != "" || !planIDPattern.MatchString(id) { // a form already answered
-		return env, 0, false
-	}
-	plan, err := readPlanFile(filepath.Join(planDir(paths), id+".json"))
-	expires, timeErr := time.Parse(time.RFC3339, plan.ExpiresAt)
-	if err != nil || timeErr != nil || plan.ID != id || plan.Tier != tierTyped.String() || plan.Channel != channelWindow ||
-		plan.SchemaVersion != planSchemaVersion || !verbNow().Before(expires) || expires.After(verbNow().Add(planTTL+time.Minute)) ||
-		opts.serverSet && opts.server != plan.Server ||
-		noSnapshot && !plan.SnapshotFailed {
-		return env, 0, false
-	}
-	opts.server, opts.serverSet = plan.Server, true
-	s, err := newRelaySession(paths, opts)
-	if err != nil {
+	plan, fresh, s, idHex, wait, ok := humanPlan(paths, opts, id, noSnapshot, channelWindow)
+	if !ok {
 		return env, 0, false
 	}
 	defer s.close()
-	if !planSealed(plan, s.transport.Credential) { // an edited plan file: no window, and apply refuses it
-		return env, 0, false
-	}
-	fresh, ok := replanStored(paths, s, &verbEnvelope{}, plan, channelWindow)
-	idHex := planIdentity(strings.TrimPrefix(plan.Hash, "sha256:"), plan.Nonce)
-	if !ok || fresh.Hash != plan.Hash || fresh.Tier != plan.Tier || plan.ID != "p_"+idHex[:12] || fresh.Prompt == "" {
-		return env, 0, false
-	}
-	wait := min(windowWait, expires.Sub(verbNow()))
 	if wait < windowMinWait {
 		return windowStopped(s, "refused", "PLAN_EXPIRED", "plan "+id+" expires before a confirmation window could get an answer", replan)
 	}
@@ -192,9 +169,9 @@ func askWindow(message string, wait time.Duration) windowAnswer {
 // plan replaces the window plan; its `say` carries the code and its limit.
 func windowFallback(paths runtimePaths, s *relaySession, plan storedPlan, noSnapshot bool) (verbEnvelope, int, bool) {
 	env := verbEnvelope{SchemaVersion: 1, Verb: "apply", Status: "ok", Server: s.server}
-	channel := channelChat
-	if formsShown { // inside ha-nova mcp for a client with forms: the form is next
-		channel = channelForm
+	channel := detectAfterWindow(s) // the phone, else a form, else chat
+	if channel == channelPhoneMissing {
+		return windowStopped(s, "refused", "CONFIRM_UNAVAILABLE", "the confirmation window couldn't open, and HA NOVA can't reach the Home Assistant owner's phone either", phoneMissingNext)
 	}
 	fresh, ok := replanStored(paths, s, &env, plan, channel)
 	if !ok || fresh.Hash != plan.Hash || fresh.Tier != plan.Tier || env.Plan == nil {
@@ -218,6 +195,12 @@ func windowFallback(paths runtimePaths, s *relaySession, plan storedPlan, noSnap
 		env.Say, flag = strings.Replace(env.Say, sayCopyNote, "No copy could be saved, so once deleted it can't be restored.", 1), " --no-snapshot"
 	}
 	env.Say = "The confirmation window couldn't open on this computer. " + env.Say
+	if channel == channelPhone { // no code: sealPlan's next_step applies
+		if noSnapshot {
+			env.NextStep = strings.Replace(env.NextStep, "without --confirm", "with --no-snapshot and without --confirm", 1)
+		}
+		return env, env.exit, true
+	}
 	env.NextStep = fmt.Sprintf("The window couldn't open, so this is a new plan with a one-time code: show `say`; only after a reply that is only that code, run ha-nova apply --plan %s --confirm <the user's text>%s.", env.Plan.ID, flag)
 	return env, env.exit, true
 }

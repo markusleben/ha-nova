@@ -10,7 +10,7 @@ Confirmation validity stays owned by `../ha-nova/SKILL.md` → Safety
 Baseline → Active Preview Confirmation. This file defines only the batch
 mechanics: manifest, code format, caps, execution, and recovery.
 
-Exception: automations and scripts — `ha-nova plan delete` binds each code to one delete, so their manifest lists one CLI code per item (at most 10 items, planned just in time) and the user types each (a window plan has none: follow its `next_step`); never pass a code the user did not type.
+Exception: automations and scripts — `ha-nova plan delete` binds each code to one delete, so their manifest lists one CLI code per item (at most 10 items, planned just in time) and the user types each (a window or phone plan has none: follow its `next_step`); never pass a code the user did not type.
 
 ## Purpose & Opt-In
 
