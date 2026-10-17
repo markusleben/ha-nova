@@ -380,6 +380,9 @@ func TestRawRelayHidesPhoneWebhookIDs(t *testing.T) {
 	if raw := string(redactPhoneSecrets(body, true)); strings.Contains(raw, "deadbeefwebhook") || strings.Contains(raw, "HANOVA_") || !strings.Contains(raw, "my-automation-hook") {
 		t.Fatalf("raw trace: %s", raw) // the raw route's filter (relay.go)
 	}
+	if trailing := `{"platform":"mobile_app","unique_id":"deadbeefwebhook_x"} {}`; string(redactPhoneSecrets([]byte(trailing), true)) != trailing {
+		t.Fatal("a response with trailing data was rewritten into a valid one")
+	}
 	if verb := string(redactPhoneSecrets(body, false)); strings.Contains(verb, "deadbeefwebhook") || !strings.Contains(verb, "HANOVA_OK_0123") {
 		t.Fatalf("session reads keep action ids for the phone listener: %s", verb)
 	}

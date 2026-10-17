@@ -374,6 +374,14 @@ func setPhoneLink(paths runtimePaths, owner string, prev phoneEntry, link *phone
 	return writeJSONFileIfUnchanged(paths.ConfigFile, top, 0o600, doc.source)
 }
 
+// phoneStillLinked re-reads the link after a tap: unlinked, replaced, or its
+// user demoted while the notification was open, the tap no longer counts.
+func phoneStillLinked(s *relaySession, setup phoneSetup) bool {
+	again, status := phoneDiscover(s)
+	return status == phoneReady && again.confirmer == setup.confirmer && len(setup.targets) == 1 &&
+		again.targets[0].DeviceID == setup.targets[0].DeviceID
+}
+
 func samePhoneEntry(a, b phoneEntry) bool {
 	return a.legacy == b.legacy && (a.link == nil) == (b.link == nil) && (a.link == nil || *a.link == *b.link)
 }

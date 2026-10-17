@@ -316,6 +316,9 @@ func confirmByPhone(paths runtimePaths, opts verbOptions, id string, noSnapshot 
 	}
 	switch askPhone(s, setup, "ha-nova-"+plan.ID, phoneMessage(fresh, noSnapshot), "Confirm", time.Until(deadline)) {
 	case phoneConfirmed:
+		if !phoneStillLinked(s, setup) {
+			return windowStopped(s, "refused", "CONFIRM_UNAVAILABLE", "the phone that confirmed is no longer the linked phone, or its user is no longer an administrator", phoneMissingNext)
+		}
 		humanAnswer = confirmCode(s.transport.Credential, idHex, channelPhone, plan.ExpiresAt)
 		return env, 0, false
 	case phoneDeclined:

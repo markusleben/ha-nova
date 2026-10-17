@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"io"
 	"strings"
 )
 
@@ -22,6 +23,9 @@ func redactPhoneSecrets(body []byte, nonces bool) []byte {
 	dec.UseNumber()
 	var v any
 	if dec.Decode(&v) != nil {
+		return body
+	}
+	if _, err := dec.Token(); err != io.EOF { // trailing data: never rewrite a malformed response into a valid one
 		return body
 	}
 	v, changed := redactPhoneValue(v, nonces)

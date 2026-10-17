@@ -321,3 +321,26 @@ func TestDraftWatchingConfirmationsIsTyped(t *testing.T) {
 		t.Fatalf("tap listener: %q %+v", tap.Tier, tap.Reasons)
 	}
 }
+
+// A tap counts only while its phone is still the linked one: unlinked,
+// replaced, or its user demoted during the wait, nothing is sent.
+func TestPhoneTapAfterTheLinkChangedSendsNothing(t *testing.T) {
+	for name, change := range map[string]func(p *fakePhones){
+		"unlinked": func(p *fakePhones) { p.status = phoneNone },
+		"demoted":  func(p *fakePhones) { p.status = phoneMissing },
+		"replaced": func(p *fakePhones) { p.setup.confirmer = "anna-id" },
+	} {
+		t.Run(name, func(t *testing.T) {
+			h := newWriteHarness(t, newFakeHA())
+			p := usePhones(t, "mobile_app_iphone")
+			plan := h.plan("lock.unlock", "lock.front").Plan
+			p.answer = func(ok, _ string) []phoneEvent {
+				change(p)
+				return []phoneEvent{tap(ok, "owner-id", "REMOTE")}
+			}
+			if exit, env := h.run(runApplyCommand, "--plan", plan.ID); exit != 4 || env.Error == nil || env.Error.Code != "CONFIRM_UNAVAILABLE" || len(h.posts()) != 0 {
+				t.Fatalf("exit %d %+v posts %d", exit, env.Error, len(h.posts()))
+			}
+		})
+	}
+}
