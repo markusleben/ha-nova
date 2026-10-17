@@ -12,7 +12,7 @@ describe("write delete safety contract", () => {
   it("requires delete previews to surface consumer-check results before confirmation", () => {
     expect(writeSkill).toContain("Delete preview MUST include the consumer-check result before confirmation");
     // The CLI emits `consumers: []` only for a complete delete scan (plan_config.go).
-    expect(writeSkill).toContain("`[]` is an explicit none");
+    expect(writeSkill).toContain("`[]` is an explicit none among automations, scripts, and scenes");
     expect(writeSkill).toContain('absent (`coverage.complete` false) is "consumer check inconclusive", never a no-consumer result');
   });
 

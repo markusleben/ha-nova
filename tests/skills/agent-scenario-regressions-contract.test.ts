@@ -91,7 +91,7 @@ describe("agent scenario regressions (2026-10-16)", () => {
 
   it("resolves sibling skill paths in repo and installed layouts", () => {
     expect(flat("skills/ha-nova/session-bootstrap.md")).toContain(
-      "Cited `../<x>/<file>` paths are relative to the citing file.",
+      "Cited ../<x>/<file> paths are relative to the citing file.",
     );
     // r91: `skills/ha-nova/x.md` was read as ~/.agents/skills/ha-nova/x.md (the
     // tree install ends in skills/ha-nova). Cite files relative to the citing
