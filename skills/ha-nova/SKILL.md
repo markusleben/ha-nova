@@ -265,6 +265,7 @@ Match user intent to exactly one skill:
 | organize areas, floors, labels, categories, devices, entities | `ha-nova:organize` |
 | replace a device or phone and re-point everything that used it; onboard or retire a device | `ha-nova:device` |
 | move rules from Node-RED, Homey, SmartThings, Hubitat, or openHAB into Home Assistant; modernize legacy automation YAML | `ha-nova:migrate` |
+| ESPHome device YAML: explain, check, edit; verify the device after an install | `ha-nova:esphome` |
 | assign or remove entity categories | `ha-nova:organize` |
 | show history, logbook timelines, or long-term statistics | `ha-nova:history` |
 | "is everything closed / locked / off?", "who is home?", "what is running right now?" — a live state snapshot across a domain | `ha-nova:entity-discovery` |
@@ -304,7 +305,7 @@ Match user intent to exactly one skill:
 | "explain this automation / what does it do?" | `ha-nova:read` — behavior narrative first, YAML only on request |
 | structure audit — "is my setup tidy?", "which entities have no area?" | `ha-nova` (this context skill); Structure Check in `../ha-nova/capability-answer.md` — fixes hand to `ha-nova:organize` |
 | list or delete config snapshots ("what snapshots do I have?", "delete these obsolete snapshots") | `ha-nova` (this context skill); mechanics: `../ha-nova/config-snapshots.md` |
-| restore a config snapshot ("restore X from a snapshot") | the skill that owns the item family — `ha-nova:write` (automations/scripts), `ha-nova:scene`, `ha-nova:dashboard`, `ha-nova:helper`, `ha-nova:energy` (prefs), `ha-nova:yaml-config` (files), `ha-nova:organize` (metadata); mechanics: `../ha-nova/config-snapshots.md` |
+| restore a config snapshot ("restore X from a snapshot") | the skill that owns the item family — `ha-nova:write` (automations/scripts), `ha-nova:scene`, `ha-nova:dashboard`, `ha-nova:helper`, `ha-nova:energy` (prefs), `ha-nova:yaml-config` (files; `/config/esphome/`: `ha-nova:esphome`), `ha-nova:organize` (metadata); mechanics: `../ha-nova/config-snapshots.md` |
 | **any HA task not matched above** — blueprints, unsupported admin writes, any unfamiliar raw relay/ws/core write | `ha-nova:fallback` **(mandatory fallback — never skip)** |
 
 **"Analyze my automation"** → `ha-nova:review` (NOT read + review)
@@ -370,8 +371,7 @@ Match user intent to exactly one skill:
 **"Import a blueprint"** → `ha-nova:fallback` (relay-ready, no skill)
 **"How do I manage Apps?"** → `ha-nova:fallback` (external, web search)
 **"Show history for sensor X"** → `ha-nova:history`
-**"Modify my dashboard"** → `ha-nova:dashboard`
-**"Save the Lovelace config"** → `ha-nova:dashboard` (must resolve storage mode, then read-merge-verify)
+**"Save the Lovelace config"** → `ha-nova:dashboard`
 **"Remove this entity from Home Assistant"** → `ha-nova:maintenance` (dead registry entries only; live entities get disabled via `ha-nova:organize`)
 **"Detach this config entry from the device"** → `ha-nova:fallback`
 
@@ -387,9 +387,9 @@ After any `read` or `review` task, re-evaluate intent once before continuing:
 - keep this sequential: one skill at a time, never parallel
 - for multi-target scope, keep the same safety and evidence rules; see `../ha-nova/bulk-patterns.md`
 
-**Problem-description intents** ("X doesn't work", "Y is wrong", "stopped working", "didn't fire last night"): dispatch to `ha-nova:diagnose` — a concrete failure is a root-cause task (traces, error/system logs, bounded windows), regardless of whether the user literally says "why". Diagnose hands the fix back to `write` / `helper` / `service-call`.
+**Problem-description intents** ("X doesn't work", "Y is wrong", "stopped working", "didn't fire last night"): dispatch to `ha-nova:diagnose` (ESPHome YAML or build errors: `ha-nova:esphome`) — a concrete failure is a root-cause task (traces, logs), whether or not the user says "why". Diagnose hands the fix back to `write` / `helper` / `service-call`.
 
-Dispatch to `ha-nova:review` instead when there is no concrete incident: config-quality audits ("check my automations", "review this script", "is this a good automation?"). Review analyzes the config AND checks current entity state — if an acute fix is possible, it offers a Quick-Fix service call at the end. Bulk review is the exception: it stays read-only and does not offer Quick-Fix.
+Dispatch to `ha-nova:review` instead when there is no concrete incident: config-quality audits ("check my automations", "review this script", "is this a good automation?"). Review also checks current entity state and may offer a Quick-Fix service call at the end. Bulk review is the exception: it stays read-only and does not offer Quick-Fix.
 
 ## Latency Policy
 

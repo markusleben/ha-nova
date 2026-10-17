@@ -59,6 +59,7 @@ const MUTATION_SKILLS = new Set([
   "hacs",
   "device",
   "migrate",
+  "esphome",
   "write",
   "diagnose",
   "media",

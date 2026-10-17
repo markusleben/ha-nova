@@ -23,6 +23,7 @@ var hermesRequiredSkillDirs = []string{
 	"ha-nova-diagnose",
 	"ha-nova-energy",
 	"ha-nova-entity-discovery",
+	"ha-nova-esphome",
 	"ha-nova-external-sources",
 	"ha-nova-fallback",
 	"ha-nova-hacs",
