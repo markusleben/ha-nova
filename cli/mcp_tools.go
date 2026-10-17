@@ -167,13 +167,13 @@ func (srv *mcpServer) callTool(req rpcRequest) (map[string]any, *rpcError) {
 		override, active := serverSelectionOverride, activeServerProfile()
 		defer func() { setServerSelectionOverride(override); setActiveServerProfile(active) }()
 		setServerSelectionOverride(srv.pin)
-		// The plan channel and the form answer come from this server only
-		// (confirm_code.go); every call starts from the CLI defaults again.
-		planChannel, formAnswer = channelChat, answered
+		// Channel and form answer come from this server only: a form, else what
+		// the CLI detects (confirm_window.go); a window waits less here.
+		planChannel, humanAnswer, windowWait = "", answered, mcpWindowWait
 		if req.forms {
 			planChannel = channelForm
 		}
-		defer func() { planChannel, formAnswer = channelChat, "" }()
+		defer func() { planChannel, humanAnswer, windowWait = "", "", cliWindowWait }()
 		traceRelayVersion.Store("")
 		out, errOut, exit := captureVerb(func() int { return tool.run(srv.paths, pinServer(tool.name, argv, srv.pin)) })
 		if tool.name == "ha_trace" { // trace prints its own object: add the verbs' notices

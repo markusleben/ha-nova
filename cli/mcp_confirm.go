@@ -142,11 +142,11 @@ func (srv *mcpServer) confirmByForm(req rpcRequest, args map[string]json.RawMess
 	}
 	// Some apps declare forms but turn them down or close them without showing
 	// one: the wording never claims that the user saw it.
-	elsewhere := "If they saw no confirmation form, their app can't show one here: they can make this change in Home Assistant itself, or add \"--no-forms\" to the ha-nova MCP entry's args and plan the change again (the model then sees the one-time code too)."
+	elsewhere := "If they saw no confirmation form, their app can't show one here: they can make this change in Home Assistant itself, or add \"--no-forms\" to the ha-nova MCP entry's args and plan the change again (then a window on this computer asks them; where none can open, the model sees the one-time code too)."
 	again := fmt.Sprintf("Tell the user nothing changed. %s Otherwise call ha_apply again with plan_id %s (it shows the form again) only after the user says they still want it.", elsewhere, plan.ID)
 	switch {
 	case answer.stop == "" && answer.Action == "accept" && typed != "":
-		*answered = typed // in process only: apply reads it as formAnswer, never from argv
+		*answered = typed // in process only: apply reads it as humanAnswer, never from argv
 		return nil, nil
 	case answer.stop == "" && answer.Action == "decline":
 		return confirmStopped("declined", "CONFIRM_DECLINED", "the confirmation form was declined",
@@ -173,7 +173,8 @@ func (srv *mcpServer) formPlan(args map[string]json.RawMessage) (storedPlan, boo
 	}
 	plan, err := readPlanFile(filepath.Join(planDir(srv.paths), id+".json"))
 	expires, timeErr := time.Parse(time.RFC3339, plan.ExpiresAt)
-	ok := err == nil && timeErr == nil && plan.ID == id && plan.Tier == tierTyped.String() && plan.Prompt != "" && plan.SchemaVersion == planSchemaVersion &&
+	// A window plan is confirmed only in its window (confirm_window.go), never in a form.
+	ok := err == nil && timeErr == nil && plan.ID == id && plan.Tier == tierTyped.String() && plan.Prompt != "" && plan.SchemaVersion == planSchemaVersion && plan.Channel != channelWindow &&
 		verbNow().Before(expires) && (srv.pin == "" || srv.pin == plan.Server) &&
 		(!noSnapshot || plan.Kind == "delete" && plan.SnapshotFailed)
 	return plan, noSnapshot, ok
@@ -184,18 +185,23 @@ func (srv *mcpServer) formPlan(args map[string]json.RawMessage) (storedPlan, boo
 // apply does. No mode field: form is the default in every revision.
 func confirmForm(plan storedPlan, noSnapshot bool, credential string) map[string]any {
 	code := confirmCode(credential, planIdentity(strings.TrimPrefix(plan.Hash, "sha256:"), plan.Nonce), plan.Channel, plan.ExpiresAt)
-	message := plan.Prompt
-	if plan.Kind == "delete" {
-		note := sayCopyNote
-		if noSnapshot {
-			note = "No copy could be saved, so once deleted it can't be restored."
-		}
-		message += " " + note
-	}
-	message += " To go ahead, type this one-time code from HA NOVA: " + code
+	message := confirmText(plan, noSnapshot) + " To go ahead, type this one-time code from HA NOVA: " + code
 	field := map[string]any{"type": "string", "title": "One-time code from HA NOVA", "description": "Type " + code + " to go ahead", "minLength": 4, "maxLength": 12}
 	return map[string]any{"message": message, "requestedSchema": map[string]any{"type": "object",
 		"properties": map[string]any{"code": field}, "required": []string{"code"}}}
+}
+
+// confirmText is a typed plan's standalone text for a form or window: its
+// code-free prompt and, for a delete, the copy note.
+func confirmText(plan storedPlan, noSnapshot bool) string {
+	if plan.Kind != "delete" {
+		return plan.Prompt
+	}
+	note := sayCopyNote
+	if noSnapshot {
+		note = "No copy could be saved, so once deleted it can't be restored."
+	}
+	return plan.Prompt + " " + note
 }
 
 // planCredential reads the Relay credential of the plan's server the way

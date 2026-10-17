@@ -24,19 +24,23 @@ func confirmCode(credential, idHex, channel, expiresAt string) string {
 	return fmt.Sprintf("%04d", binary.BigEndian.Uint64(mac.Sum(nil)[:8])%10000)
 }
 
-// Where the human types a typed plan's code (spec §3). A form plan never
-// takes a code from argv: only the MCP server's own form answer confirms it.
+// Where the human confirms a typed plan (spec §3; human-confirmation-
+// channels spec §2). A form or window plan never takes a code from argv:
+// only the human's answer in that form or window confirms it.
 const (
-	channelChat = "chat" // the code is in `say`; the model sees it too (fallback E)
-	channelForm = "form" // the client showed confirmation forms when the plan was made
+	channelChat   = "chat"   // the code is in `say`; the model sees it too (fallback E)
+	channelForm   = "form"   // the client showed confirmation forms when the plan was made
+	channelWindow = "window" // a native window on this computer asks (confirm_window.go)
 )
 
 // planChannel is set only by the MCP server, from the client's handshake,
-// for the verb it runs; formAnswer is what the human typed in its form for
-// the apply it runs. Neither has a flag: the CLI keeps chat and no answer.
+// for the verb it runs; empty means the CLI detects it (detectChannel).
+// humanAnswer is the code the CLI derives in process once the human
+// confirmed in a form or window, for the apply it runs. Neither has a flag
+// or an environment variable.
 var (
-	planChannel = channelChat
-	formAnswer  string
+	planChannel string
+	humanAnswer string
 )
 
 // sayChatNote closes a chat plan's ask: the honest limit of fallback E.
@@ -68,6 +72,9 @@ func typedCode(s string) string {
 func sayTypedAsk(code, goal string) string {
 	return "Type " + code + " to " + goal + " — a plain yes can't confirm this."
 }
+
+// sayWindowAsk closes a window plan's `say`: the code is never shown.
+const sayWindowAsk = "A confirmation window opens on this computer — confirm there."
 
 // sayFormAsk replaces sayTypedAsk where the client shows a confirmation
 // form: the code is never in a tool result there (mcp_confirm.go).

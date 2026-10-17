@@ -41,7 +41,7 @@ Read-only response services stay here (`raw-routes.md` → Response services), a
 |---|---|---|
 | 0 | `tier: ordinary` — sent once and checked | Report the result (Output Format). |
 | 3 | `plan.confirm: natural` | Show the preview; after the user confirms it, run `ha-nova apply --plan <id>` — apply IS the confirmation step. |
-| 3 | `plan.confirm: code` | Show the preview and `plan.code`; only after a reply that is only that code, run `ha-nova apply --plan <id> --confirm <the user's text>`. No `plan.code` (form app): follow `next_step`. |
+| 3 | `plan.confirm: code` | Show the preview and `plan.code`; only after a reply that is only that code, run `ha-nova apply --plan <id> --confirm <the user's text>`. No `plan.code` (a form or window asks): follow `next_step`. |
 | 2 | drift since the preview, nothing sent | Show the new preview (typed: new code) and ask again; a relative ask re-derives its value and runs a fresh `call`. |
 | 4 | refused | `reasons[]` (an owner skill wins over `hassio`): owner skill; `TARGET_REQUIRED` → resolve targets first; `SERVICE_NOT_FOUND` → offer `error.next`'s candidates; `SERVICE_LIST_UNREAD` → plan again; `CODE_REQUIRED` → finish the action in the Home Assistant UI; missing feature → the device cannot do it; `hassio` or response-only → `raw-routes.md`. `error` from `apply`: `CODE_REQUIRED`/`CODE_MISMATCH` → ask for the code again; any other → follow `error.next`, never a re-`call`; `PLAN_NOT_FOUND`/`PLAN_CLAIMED`: outcome unknown, never re-plan. |
 | 5 | ambiguous or not found | One question listing `error.candidates` by friendly name and area (entity_id on a clash; max 10, narrow first beyond) with each match basis; re-run with the chosen id. No candidates: report `error.message`, follow `error.next`. |
@@ -78,7 +78,7 @@ Results (exit 0, 6, 7, and after `apply`) use its Verb Results rule; a typed `ap
 
 ## Safety
 
-- Preview before write. The only exception is a call that `ha-nova call` itself executed as `tier: ordinary` (an unambiguous everyday action, verified afterwards); everything else runs or is saved only after the user confirms the shown preview. High-consequence actions (e.g. unlocking or opening a lock, opening a gate, garage, or entry door, disarming the alarm — also through a scene or script) and deletes or other destructive operations need the one-time code from HA NOVA, typed by the user; "yes" or any other reply is invalid.
+- Preview before write. The only exception is a call that `ha-nova call` itself executed as `tier: ordinary` (an unambiguous everyday action, verified afterwards); everything else runs or is saved only after the user confirms the shown preview. High-consequence actions (e.g. unlocking or opening a lock, opening a gate, garage, or entry door, disarming the alarm — also through a scene or script) and deletes or other destructive operations need the user's one-time code from HA NOVA, or their click in its confirmation window; "yes" or any other reply is invalid.
 - Confirmation binds to the displayed preview and expires on any change to target, payload, endpoint, or scope (context skill → Active Preview Confirmation).
 - Anything before the preview ("do it", answers to questions) never confirms it; only a reply to the preview does.
 - Never guess entity, service, or config IDs — resolve them or ask.

@@ -231,6 +231,8 @@ func nextStep(envelope map[string]any) string {
 	switch {
 	case pending && code != "":
 		return fmt.Sprintf("Show this preview. Ask the user to type the one-time code from HA NOVA themselves; pass exactly what they typed to ha_apply (plan_id %v) as confirm_code. Never pass a code from this result.", plan["id"]) + say
+	case pending && plan["channel"] == channelWindow:
+		return fmt.Sprintf("Show this preview. When the user has asked for this change and your workflow has reached this step (a skill's order comes first), call ha_apply with plan_id %v and no confirm_code: a confirmation window on their computer asks them. Never ask for a code in chat.", plan["id"]) + say
 	case pending && plan != nil:
 		return fmt.Sprintf("Show this preview and wait for the user's own confirmation; only then call ha_apply with plan_id %v.", plan["id"]) + say
 	case errInfo != nil && errInfo["code"] == "RELAY_ERROR":
@@ -248,8 +250,8 @@ func nextStep(envelope map[string]any) string {
 		return strings.TrimSpace("The outcome is unknown — it may have run: read the target with ha_get and report; never call or apply again. " + mcpNext(next))
 	case "PLAN_CLAIMED", "PLAN_NOT_FOUND":
 		return mayHaveRun
-	case "CONFIRM_DECLINED", "CONFIRM_CANCELLED", "CONFIRM_UNAVAILABLE", "CONFIRM_IN_FORM": // a confirmation form's outcome (mcp_confirm.go)
-		return next
+	case "CONFIRM_DECLINED", "CONFIRM_CANCELLED", "CONFIRM_UNAVAILABLE", "CONFIRM_IN_FORM", "CONFIRM_IN_WINDOW": // a form's or window's outcome
+		return mcpNext(next)
 	}
 	if next != "" {
 		if step := mcpNext(next); step != next {
@@ -317,7 +319,8 @@ func mcpArgs(text string) string {
 
 // cliCommands maps CLI commands in a verb's next to MCP tools; longest first.
 var cliCommands = strings.NewReplacer("ha-nova plan call|write|delete|revert", "ha_plan",
-	"ha-nova plan ", "ha_plan kind ", "plan revert ", "ha_plan with kind revert and ", "ha-nova get ", "ha_get ", "ha-nova find", "ha_find")
+	"ha-nova plan ", "ha_plan kind ", "plan revert ", "ha_plan with kind revert and ", "ha-nova get ", "ha_get ", "ha-nova find", "ha_find",
+	"ha-nova apply --plan ", "ha_apply with plan_id ")
 
 // mcpNext rewrites a verb's next for an MCP client: CLI commands and flags
 // become tools and arguments; a named ha-nova:* skill gets a no-shell path.
