@@ -55,7 +55,7 @@ func runCallCommand(paths runtimePaths, args []string) int {
 			return err
 		}
 		if e.level != tierOrdinary {
-			return savePlan(paths, plan) // exit 3: confirmation through apply
+			return savePlan(paths, plan, s.transport.Credential) // exit 3: confirmation through apply
 		}
 		if frozeNothing(req, plan.Action) { // defense in depth: such a plan is typed anyway
 			return refused("UNRESOLVED_TARGET", "the call named targets but froze none")
@@ -205,6 +205,10 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string, noSnapshot
 			consumed = false
 		}
 		return fail(refused("NO_SNAPSHOT_NOT_OFFERED", "--no-snapshot applies only after this plan's snapshot failed and the user chose to proceed without one"))
+	case plan.Tier == tierTyped.String() && !planSealed(plan, s.transport.Credential):
+		// An edited channel (form → chat) would open argv codes to guessing; an
+		// edited prompt would show a form plan's code next to another action.
+		return fail(refused("PLAN_INVALID", "plan "+id+" was changed after it was made"))
 	case plan.Tier == tierTyped.String() && plan.Channel == channelForm && formAnswer == "":
 		// Made where the client shows forms: only the human's answer in that
 		// form confirms it, never a code from argv (spec §3). No attempt is used.
@@ -245,7 +249,7 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string, noSnapshot
 		if fresh.Prompt != "" { // a confirmation form shows it without the preview (mcp_confirm.go)
 			fresh.Prompt = "Something changed since the last preview. " + fresh.Prompt
 		}
-		if err := savePlan(paths, fresh); err != nil {
+		if err := savePlan(paths, fresh, s.transport.Credential); err != nil {
 			return fail(err)
 		}
 		if env.Say == "" && isCall { // the new plan may need no confirmation; a drift still does
@@ -280,7 +284,9 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string, noSnapshot
 			}
 			return fail(refused("CODE_REQUIRED", "this plan needs the four digits of its one-time code from HA NOVA, typed by the user"))
 		case typed != wantCode:
-			// The counter lives in the plan file: it limits slips, not editors.
+			// The counter lives in the plan file and limits slips, not editors.
+			// That is enough: a chat plan's code is in `say`, and a form plan
+			// (its channel sealed above) never takes an argv code.
 			if plan.Mismatches++; plan.Mismatches >= 3 {
 				return fail(refused("PLAN_INVALIDATED", "three wrong one-time codes; the plan is gone"))
 			}

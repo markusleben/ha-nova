@@ -122,7 +122,7 @@ then `plan write --domain <d> --id <config id> --file <draft>`.
 |---|---|---|
 | automations / scripts | full | create under the original `unique_id` — entity_id survives (a renamed script: confirm its key, see Restore) |
 | scenes | full | upsert by original `id`; entity derives from `name` |
-| dashboards (content) | full | `lovelace/config/save` by `url_path` while the dashboard exists |
+| dashboards (content) | full | `plan write --domain dashboard --id <url_path> --base <config_digest>` while the dashboard exists |
 | dashboards (deleted) | partial | the snapshot carries `{shell, config}`: the delete result's `restore`: `plan write --domain dashboard --create` with the shell's `url_path`, title, icon, and admin/sidebar flags (the main `lovelace` dashboard: a plain write) and the snapshot `config` — content returns fully; the internal `dashboard_id` is new |
 | energy prefs | full | whole-document `save_prefs` |
 | yaml files | full | data carries `{path, content}`; restore is `write_file` to that exact stored path (the slug name alone is lossy) |

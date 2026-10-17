@@ -180,6 +180,23 @@ def parse_requested_scenarios(argv: list[str]) -> list[str]:
     return requested
 
 
+def dashboard_snapshot_files() -> set[str]:
+    completed = subprocess.run(["ha-nova", "relay", "backups", "-d", '{"action":"list","category":"dashboards"}'],
+                               cwd=ROOT, text=True, capture_output=True, check=False)
+    try:
+        return {item["file"] for item in json.loads(completed.stdout).get("data", [])}
+    except (ValueError, KeyError, TypeError, AttributeError):
+        return set()
+
+
+def cleanup_dashboard_snapshots(before: set[str]) -> None:
+    # Every dashboard save and delete the scenarios apply leaves a snapshot copy:
+    # test debris that would fill the Relay's snapshot store over repeated runs.
+    for file in sorted(dashboard_snapshot_files() - before):
+        subprocess.run(["ha-nova", "relay", "backups", "-d", json.dumps({"action": "delete", "file": file})],
+                       cwd=ROOT, capture_output=True, check=False)
+
+
 def cleanup_promoted_residue() -> None:
     cleanup_stale_promoted_dashboards()
     cleanup_stale_promoted_resources()
@@ -458,59 +475,78 @@ def common_errors(events: list[dict[str, Any]], invalid_lines: list[str], expect
     return errors, commands, messages, final_message
 
 
-def dashboard_seed(url_path: str, title: str, with_config: bool) -> dict[str, Any]:
-    created = relay_ws(
+def ha_nova_json(args: list[str], ok_exits: tuple[int, ...] = (0,)) -> dict[str, Any]:
+    completed = subprocess.run(["ha-nova", *args], cwd=ROOT, text=True, capture_output=True, check=False)
+    if completed.returncode not in ok_exits:
+        raise subprocess.CalledProcessError(completed.returncode, ["ha-nova", *args], output=completed.stdout, stderr=completed.stderr)
+    return json.loads(completed.stdout)
+
+
+def plan_and_apply(plan_args: list[str]) -> dict[str, Any]:
+    # Raw dashboard writes are refused: the harness plans through the typed verbs
+    # (exit 3 = needs confirmation) and confirms as the user, with the plan's own
+    # code when the plan is typed. Never runs inside a Codex session.
+    plan = ha_nova_json(["plan", *plan_args], ok_exits=(0, 3)).get("plan") or {}
+    apply_args = ["apply", "--plan", plan["id"]]
+    if plan.get("confirm") == "code":
+        apply_args += ["--confirm", plan["code"]]
+    return ha_nova_json(apply_args)
+
+
+DASHBOARD_PLAN_WRITE_RE = re.compile(r"\bha-nova\s+plan\s+write\b[^\n]*--domain[ =]dashboard\b")
+DASHBOARD_PLAN_CREATE_RE = re.compile(r"\bha-nova\s+plan\s+write\b(?=[^\n]*--domain[ =]dashboard\b)(?=[^\n]*--create\b)")
+RAW_DASHBOARD_CONTENT_RE = re.compile(r"lovelace/config/save|lovelace/dashboards/create")
+
+SEED_DASHBOARD_CONFIG: dict[str, Any] = {
+    "views": [
         {
-            "type": "lovelace/dashboards/create",
-            "url_path": url_path,
-            "title": title,
-            "icon": "mdi:test-tube",
-            "show_in_sidebar": False,
-            "require_admin": True,
+            "title": "Seed View",
+            "path": "default_view",
+            "cards": [{"type": "markdown", "content": "seed"}],
         }
-    )
-    if with_config:
-        relay_ws(
-            {
-                "type": "lovelace/config/save",
-                "url_path": url_path,
-                "config": {
-                    "views": [
-                        {
-                            "title": "Seed View",
-                            "path": "default_view",
-                            "cards": [{"type": "markdown", "content": "seed"}],
-                        }
-                    ]
-                },
-            }
+    ]
+}
+
+
+def dashboard_seed(url_path: str, title: str, config: dict[str, Any] = SEED_DASHBOARD_CONFIG) -> dict[str, Any]:
+    with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as handle:
+        json.dump(config, handle)
+        config_path = handle.name
+    try:
+        plan_and_apply(
+            [
+                "write", "--domain", "dashboard", "--id", url_path, "--create",
+                "--title", title, "--icon", "mdi:test-tube", "--require-admin", "--hide-sidebar",
+                "--file", config_path,
+            ]
         )
+    finally:
+        Path(config_path).unlink(missing_ok=True)
+    dashboards = relay_ws({"type": "lovelace/dashboards/list"}).get("data", [])
+    created = next(item for item in dashboards if item.get("url_path") == url_path)
     return {
-        "dashboard_id": created["data"]["id"],
+        "dashboard_id": created["id"],
         "url_path": url_path,
         "title": title,
     }
 
 
 def dashboard_card_seed(url_path: str, title: str, view_title: str) -> dict[str, Any]:
-    seeded = dashboard_seed(url_path, title, with_config=False)
-    relay_ws(
+    seeded = dashboard_seed(
+        url_path,
+        title,
         {
-            "type": "lovelace/config/save",
-            "url_path": url_path,
-            "config": {
-                "views": [
-                    {
-                        "title": view_title,
-                        "path": "cards_view",
-                        "cards": [
-                            {"type": "markdown", "title": "Alpha Card", "content": "alpha"},
-                            {"type": "markdown", "title": "Beta Card", "content": "beta"},
-                        ],
-                    }
-                ]
-            },
-        }
+            "views": [
+                {
+                    "title": view_title,
+                    "path": "cards_view",
+                    "cards": [
+                        {"type": "markdown", "title": "Alpha Card", "content": "alpha"},
+                        {"type": "markdown", "title": "Beta Card", "content": "beta"},
+                    ],
+                }
+            ]
+        },
     )
     seeded["view_title"] = view_title
     return seeded
@@ -520,9 +556,9 @@ def cleanup_dashboard(fixture: dict[str, Any] | None) -> None:
     if not fixture:
         return
     try:
-        relay_ws({"type": "lovelace/dashboards/delete", "dashboard_id": fixture["dashboard_id"]})
-    except subprocess.CalledProcessError:
-        pass
+        plan_and_apply(["delete", "--domain", "dashboard", "--id", fixture["url_path"]])  # its snapshot: cleanup_dashboard_snapshots
+    except (subprocess.CalledProcessError, KeyError, ValueError) as exc:
+        print(f"cleanup of dashboard {fixture.get('url_path')} failed: {type(exc).__name__}", file=sys.stderr)
 
 
 def cleanup_resource(resource_id: str | None) -> None:
@@ -735,7 +771,7 @@ def cleanup_stale_promoted_dashboards() -> None:
             continue
         if not PROMOTED_DASHBOARD_ID_RE.search(dashboard_id) and not PROMOTED_DASHBOARD_PATH_RE.search(url_path):
             continue
-        cleanup_dashboard({"dashboard_id": dashboard_id})
+        cleanup_dashboard({"dashboard_id": dashboard_id, "url_path": url_path})
 
 
 def cleanup_stale_promoted_categories() -> None:
@@ -897,16 +933,15 @@ Hard requirements:
 
 def build_dashboard_lifecycle_prompt(fixture: dict[str, Any]) -> tuple[str, str]:
     status_line = f'NOVA_PROMOTED_SKILL_RESULT id=dashboard_storage_lifecycle ok url_path={fixture["url_path"]} title="{fixture["final_title"]}"'
-    task = f"""Create a new storage dashboard shell titled `{fixture["initial_title"]}` at url path `{fixture["url_path"]}` with icon `mdi:test-tube`, hidden from the sidebar, and admin-only.
-Immediately save a full config with one view titled `{fixture["view_title"]}`.
-Read the dashboard config after that save to verify the new view exists.
+    task = f"""Create a new storage dashboard titled `{fixture["initial_title"]}` at url path `{fixture["url_path"]}` with icon `mdi:test-tube`, hidden from the sidebar, and admin-only, whose config has one view titled `{fixture["view_title"]}` — one `ha-nova plan write --domain dashboard --create` plan plus `ha-nova apply` (this harness confirms that plan's preview for the user).
+Read the dashboard config after that apply to verify the new view exists.
 Then update the dashboard metadata so the title becomes `{fixture["final_title"]}`, the icon becomes `mdi:view-dashboard-edit`, `show_in_sidebar` becomes true, and `require_admin` becomes false.
 Read back through dashboard list and dashboard config again to verify everything stuck.
 For the metadata update payload, use `dashboard_id` plus only `title`, `icon`, `show_in_sidebar`, and `require_admin`; do not resend `url_path` or `mode`.
 Do not probe any other dashboard's config to infer behavior for this target.
 
 This is a storage-dashboard create + metadata-update + config-save proof. Do not delete the dashboard in the assistant session.
-Use Relay WebSocket calls only for this dashboard flow.
+Dashboard content goes through `ha-nova plan write` + `ha-nova apply` only; raw Relay WebSocket calls only for the metadata update and reads.
 """
     return base_prompt(ROOT / "skills" / "dashboard" / "SKILL.md", "dashboard", task, status_line), status_line
 
@@ -925,10 +960,10 @@ Keep the final view with exactly these two cards in this order:
 
 Use targeted dashboard-card behavior only:
 - resolve the exact view and card targets before each change
-- use full config read -> in-memory patch -> full save -> readback verification
+- use full config read -> in-memory patch -> one `ha-nova plan write --domain dashboard` plan for all changes -> `ha-nova apply` (this harness confirms that plan's preview for the user) -> readback verification
 - do not touch other views
 - do not create or guess any custom-card schema
-- use Relay WebSocket calls only for this dashboard flow
+- never send raw `lovelace/config/save`
 """
     return base_prompt(ROOT / "skills" / "dashboard" / "SKILL.md", "dashboard", task, status_line), status_line
 
@@ -955,10 +990,9 @@ def build_dashboard_delete_token_prompt(fixture: dict[str, Any]) -> tuple[str, s
     token = fixture["token"]
     status_line = f'NOVA_PROMOTED_SKILL_RESULT id=dashboard_delete_token ok url_path={fixture["url_path"]} deleted=true'
     task = f"""You are handling the delete step for the existing storage dashboard at url path `{fixture["url_path"]}`.
-In this test fixture, the previous turn showed the concrete delete preview for this exact dashboard and the one-time code from HA NOVA was `{token}`.
+In this test fixture, the previous turn ran `ha-nova plan delete --domain dashboard --id {fixture["url_path"]}`, showed its delete preview (plan `{fixture["plan_id"]}`), and the one-time code from HA NOVA was `{token}`.
 The user's current reply is exactly `{token}`.
-Resolve the dashboard, execute only the delete path, verify the dashboard is gone from the dashboard list, and finish.
-Use Relay WebSocket calls only for this dashboard flow.
+Execute only that plan (`ha-nova apply --plan {fixture["plan_id"]}` with the user's code), verify the dashboard is gone from the dashboard list, and finish.
 """
     return base_prompt(ROOT / "skills" / "dashboard" / "SKILL.md", "dashboard", task, status_line), status_line
 
@@ -969,8 +1003,7 @@ def build_dashboard_delete_reject_prompt(fixture: dict[str, Any]) -> tuple[str, 
     task = f"""You are handling the delete step for the existing storage dashboard at url path `{fixture["url_path"]}`.
 In this test fixture, the previous turn showed the concrete delete preview for this exact dashboard and the one-time code from HA NOVA was `{token}`.
 The user's current reply is only `yes`.
-Do not delete anything. Explain briefly that the exact confirmation code is still required, include the code literally, and stop.
-Use Relay WebSocket calls only for this dashboard flow.
+Do not delete anything and do not run `ha-nova apply`. Explain briefly that the exact confirmation code is still required, include the code literally, and stop.
 """
     return base_prompt(ROOT / "skills" / "dashboard" / "SKILL.md", "dashboard", task, status_line), status_line
 
@@ -1119,14 +1152,15 @@ def validate_dashboard_lifecycle(events: list[dict[str, Any]], invalid_lines: li
     text = "\n".join(item.get("command", "") for item in commands)
     if count_ws_mentions(text, "lovelace/dashboards/list") < 1:
         errors.append("dashboard_list_readback_missing")
-    for token, error in (
-        ("lovelace/dashboards/create", "dashboard_create_missing"),
-        ("lovelace/dashboards/update", "dashboard_metadata_update_missing"),
-        ("lovelace/config/save", "dashboard_save_missing"),
-    ):
-        if token not in text:
-            errors.append(error)
-    if count_ws_mentions(text, "lovelace/config") < 2:
+    if not DASHBOARD_PLAN_CREATE_RE.search(text):
+        errors.append("dashboard_create_missing")
+    if "ha-nova apply" not in text:
+        errors.append("dashboard_save_missing")
+    if "lovelace/dashboards/update" not in text:
+        errors.append("dashboard_metadata_update_missing")
+    if RAW_DASHBOARD_CONTENT_RE.search(text):
+        errors.append("forbidden_raw_dashboard_content_write")
+    if count_ws_mentions(text, "lovelace/config") + text.count("ha-nova get --dashboard ") < 2:
         errors.append("dashboard_config_readback_missing")
     if "lovelace/config/delete" in text:
         errors.append("forbidden_dashboard_config_delete")
@@ -1159,10 +1193,12 @@ def validate_dashboard_lifecycle(events: list[dict[str, Any]], invalid_lines: li
 def validate_dashboard_card_flow(events: list[dict[str, Any]], invalid_lines: list[str], fixture: dict[str, Any], status_line: str) -> list[str]:
     errors, commands, _messages, _final_message = common_errors(events, invalid_lines, status_line)
     text = "\n".join(item.get("command", "") for item in commands)
-    if count_ws_mentions(text, "lovelace/config") < 2:
+    if count_ws_mentions(text, "lovelace/config") + text.count("ha-nova get --dashboard ") < 2:
         errors.append("dashboard_card_inventory_missing")
-    if count_ws_mentions(text, "lovelace/config/save") < 3:
+    if not DASHBOARD_PLAN_WRITE_RE.search(text) or "ha-nova apply" not in text:
         errors.append("dashboard_card_save_sequence_missing")
+    if RAW_DASHBOARD_CONTENT_RE.search(text):
+        errors.append("forbidden_raw_dashboard_content_write")
     if "lovelace/dashboards/delete" in text or "lovelace/config/delete" in text:
         errors.append("dashboard_card_flow_should_not_delete_dashboard")
 
@@ -1219,11 +1255,11 @@ def validate_dashboard_delete_token(events: list[dict[str, Any]], invalid_lines:
     errors, commands, _messages, final_message = common_errors(events, invalid_lines, status_line)
     errors.extend(token_wording_errors(final_message, fixture))
     text = "\n".join(item.get("command", "") for item in commands)
-    if "lovelace/dashboards/delete" not in text:
+    if not re.search(rf"\bha-nova\s+apply\b[^\n]*{re.escape(fixture['plan_id'])}", text):
         errors.append("dashboard_delete_missing")
-    if "lovelace/config/delete" in text:
+    if "lovelace/config/delete" in text or "lovelace/dashboards/delete" in text:
         errors.append("forbidden_dashboard_config_delete")
-    if "lovelace/config/save" in text:
+    if "lovelace/config/save" in text or "plan write" in text:
         errors.append("unexpected_dashboard_save")
     dashboards = relay_ws({"type": "lovelace/dashboards/list"}).get("data", [])
     if any(item.get("url_path") == fixture["url_path"] for item in dashboards):
@@ -1234,7 +1270,7 @@ def validate_dashboard_delete_token(events: list[dict[str, Any]], invalid_lines:
 def validate_dashboard_delete_reject(events: list[dict[str, Any]], invalid_lines: list[str], fixture: dict[str, Any], status_line: str) -> list[str]:
     errors, commands, _messages, final_message = common_errors(events, invalid_lines, status_line)
     text = "\n".join(item.get("command", "") for item in commands)
-    if "lovelace/dashboards/delete" in text or "lovelace/config/delete" in text:
+    if "lovelace/dashboards/delete" in text or "lovelace/config/delete" in text or re.search(r"\bha-nova\s+apply\b", text):
         errors.append("dashboard_delete_should_not_run")
     dashboards = relay_ws({"type": "lovelace/dashboards/list"}).get("data", [])
     if not any(item.get("url_path") == fixture["url_path"] for item in dashboards):
@@ -1445,6 +1481,7 @@ def main(argv: list[str]) -> int:
     requested = parse_requested_scenarios(argv)
     fixtures: dict[str, dict[str, Any]] = {}
     results: list[ScenarioResult] = []
+    snapshots_before = dashboard_snapshot_files()
     cleanup_dashboards: list[dict[str, Any]] = []
     cleanup_resources: list[str] = []
     cleanup_categories: list[dict[str, Any]] = []
@@ -1503,8 +1540,10 @@ def main(argv: list[str]) -> int:
 
         if "dashboard_delete_token" in requested:
             suffix = str(int(time.time()))
-            fixture = dashboard_seed(f"nova-codex-delete-{suffix}", f"NOVA Codex Delete {suffix}", with_config=True)
-            fixture["token"] = f"{secrets.randbelow(10000):04d}"
+            fixture = dashboard_seed(f"nova-codex-delete-{suffix}", f"NOVA Codex Delete {suffix}")
+            # The real typed plan the "previous turn" showed: its id and code.
+            delete_plan = ha_nova_json(["plan", "delete", "--domain", "dashboard", "--id", fixture["url_path"]], ok_exits=(3,)).get("plan") or {}
+            fixture["plan_id"], fixture["token"] = delete_plan["id"], delete_plan["code"]
             fixtures["dashboard_delete_token"] = fixture
             cleanup_dashboards.append(fixture)
             prompt, status_line = build_dashboard_delete_token_prompt(fixture)
@@ -1512,7 +1551,7 @@ def main(argv: list[str]) -> int:
 
         if "dashboard_delete_reject_natural" in requested:
             suffix = str(int(time.time()))
-            fixture = dashboard_seed(f"nova-codex-refuse-{suffix}", f"NOVA Codex Refuse {suffix}", with_config=True)
+            fixture = dashboard_seed(f"nova-codex-refuse-{suffix}", f"NOVA Codex Refuse {suffix}")
             fixture["token"] = f"{secrets.randbelow(10000):04d}"
             fixtures["dashboard_delete_reject_natural"] = fixture
             prompt, status_line = build_dashboard_delete_reject_prompt(fixture)
@@ -1681,6 +1720,7 @@ def main(argv: list[str]) -> int:
         for dashboard in cleanup_dashboards:
             cleanup_dashboard(dashboard)
         cleanup_promoted_residue()
+        cleanup_dashboard_snapshots(snapshots_before)
 
     return exit_code
 

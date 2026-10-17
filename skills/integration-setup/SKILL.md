@@ -36,7 +36,7 @@ Use response-driven config flows through the relay:
 - `ha-nova relay ws --data-file <payload-file> --out <entries-file>` with `{"type":"config_entries/get"}`
 - `ha-nova relay core --method GET|POST|DELETE --path /api/config/config_entries/flow[/<flow_id>] --body-file <payload-file> --out <flow-file>`
 - `ha-nova relay core --method GET|POST|DELETE --path /api/config/config_entries/options/flow[/<flow_id>] --body-file <payload-file> --out <flow-file>`
-- `ha-nova relay core --method POST --path /api/config/config_entries/entry/<entry_id>/reload`
+- reload: `ha-nova call homeassistant.reload_config_entry --set entry_id=<entry_id>` (every reload is typed: the user types the one-time code; a raw reload is refused)
 
 Omit `--body-file` on GET and DELETE. Relay-core response data is under `.data.body`.
 
@@ -92,7 +92,7 @@ Standard config-entry flows for an EXISTING entry, under the same `../ha-nova/li
 
 - **Options** (requires `supports_options: true` on the entry): start with POST `{"handler":"<entry_id>"}` to `/api/config/config_entries/options/flow`, iterate `.../options/flow/<flow_id>`. Read `description.suggested_value` as the current values, merge only the requested changes over them, preserve unrelated existing options, and never submit a field the live step does not expose. Verify by reopening the options flow and reading the changed fields back — the terminal response alone is not evidence, and neither is unrelated entity state. Then DELETE the reopened verification flow — it is an agent-started transient flow under the same ephemeral-flow cleanup rule as an unfinished add flow.
 - **Reconfigure**: start POST `{"handler":"<domain>","entry_id":"<entry_id>"}` to `/api/config/config_entries/flow` — `entry_id` selects reconfigure mode (a body `source` key is ignored by the API); without `entry_id` Home Assistant starts a normal ADD flow. The first response must be this entry's reconfigure step; integrations without reconfigure support typically fail the flow start — treat any non-reconfigure form (a plain add form included) as unsupported: DELETE the flow and stop. A secret, OAuth `external`, or `progress` step in an agent-started options/reconfigure flow gets its own handoff: DELETE the transient flow and point at the entry's own Configure/Reconfigure control under **Settings > Devices & services** — these are neither add flows nor pre-existing reauth flows, and no secret is ever collected in chat. Verify: the same `entry_id` persists and the before/after `config_entries/get` diff shows NO new entry.
-- **Reload**: preview with the disruption disclosure — reload re-runs setup and briefly drops the entry's entities — confirm, POST the reload path, then re-read `config_entries/get` and report the entry's ACTUAL state; a `false` result or non-`loaded` entry is the outcome to report, never a success.
+- **Reload**: preview with the disruption disclosure — reload re-runs setup and briefly drops the entry's entities — confirm, run the reload call, then re-read `config_entries/get` and report the entry's ACTUAL state; a `false` result or non-`loaded` entry is the outcome to report, never a success.
 
 ### Credential Recovery (no reauth pending)
 
@@ -102,13 +102,13 @@ matching reauth flow:
 1. `loaded` is lifecycle state, never proof the stored credential works — do
    not call an entry healthy because it is `loaded`.
 2. Preview, confirm, then reload the entry —
-   `POST /api/config/config_entries/entry/<entry_id>/reload` — the documented
+   `ha-nova call homeassistant.reload_config_entry --set entry_id=<entry_id>` — the documented
    surface that makes the integration re-validate its stored credential. The
    preview states that reload re-runs setup and briefly drops the entry's
    entities. Preserve the entry and every subentry; never delete or recreate
    anything.
-3. Inspect the reload response and re-read `config_entries/get` first: a
-   `false` result or a non-`loaded` entry means the reload itself did not
+3. Inspect the reload call's result and re-read `config_entries/get` first: a
+   failed call or a non-`loaded` entry means the reload itself did not
    complete — report that actual entry state, never a missing upstream
    trigger. Then re-read `config_entries/flow/progress` either way (an auth
    failure can still open reauth). Reauth flows open asynchronously (often
@@ -117,7 +117,7 @@ matching reauth flow:
    `context.source == "reauth"` and the same `entry_id` → continue with the
    normal reauthentication handoff above.
 4. Still no flow on a settled, SUCCESSFUL re-read — AND step 3's reload
-   check passed (result true, entry `loaded`): Home Assistant exposes no
+   check passed (call succeeded, entry `loaded`): Home Assistant exposes no
    supported trigger for this integration — say so plainly and hand off to
    **Settings > Devices & services**. A FAILED re-read is not that evidence:
    report step 3's actual reload result (done only if its check passed) and

@@ -95,7 +95,7 @@ func TestPlanStorePrunesExpiredAndBoundsCount(t *testing.T) {
 	}
 	freshClaim := filepath.Join(dir, "p_z.claimed-7")
 	_ = os.WriteFile(freshClaim, []byte("{}"), 0o600)
-	if err := savePlan(paths, storedPlan{ID: "p_new"}); err != nil {
+	if err := savePlan(paths, storedPlan{ID: "p_new"}, ""); err != nil {
 		t.Fatal(err)
 	}
 	plans, _ := filepath.Glob(filepath.Join(dir, "*.json"))

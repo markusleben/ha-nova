@@ -376,6 +376,13 @@ func runRelayProxy(paths runtimePaths, endpoint string, args []string) int {
 		printErr("%s", err)
 		return rawRefusedExit // not 1: an agent must not read a refusal as "run ha-nova setup"
 	}
+	if refusal, err := checkRawAccessTarget(paths, verbOptions{server: opts.Server, serverSet: opts.ServerSet, via: opts.Via, viaSet: opts.ViaSet}, endpoint, requestBody); refusal != nil {
+		printErr("%s", refusal)
+		return rawRefusedExit
+	} else if err != nil {
+		printErr("%s", err)
+		return 1
+	}
 	if opts.ServerSet {
 		// Selection order: --server > HA_NOVA_SERVER > default_server. An
 		// unknown name fails loud in loadConfig with the list of profiles.

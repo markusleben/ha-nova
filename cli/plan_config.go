@@ -172,7 +172,7 @@ func runPlanConfig(paths runtimePaths, op string, args []string) int {
 		if err != nil {
 			return err
 		}
-		return savePlan(paths, plan)
+		return savePlan(paths, plan, s.transport.Credential)
 	})
 }
 

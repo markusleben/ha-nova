@@ -255,13 +255,10 @@ State/config helpers:
 - `GET /api/states/{entity_id}`
 - reloads: `ha-nova call automation.reload` / `ha-nova call script.reload` (typed; raw service POSTs are refused)
 
-Dashboard / Lovelace WS:
+Dashboard / Lovelace WS (`create`, `config/save`, `delete` run only through `ha-nova plan`; raw, they are refused):
 - `lovelace/dashboards/list`
-- `lovelace/dashboards/create`
 - `lovelace/dashboards/update`
-- `lovelace/dashboards/delete`
 - `lovelace/config`
-- `lovelace/config/save`
 - `lovelace/resources`
 - `lovelace/resources/create`
 - `lovelace/resources/update`
@@ -409,7 +406,7 @@ Rules:
 - pre-existing reauth flows are preserved and continue through their matching Home Assistant UI card when one of those UI-only steps is reached
 - add verification uses terminal `result.entry_id`, or a constrained before/after `config_entries/get` diff when it is absent
 - successful reauth uses terminal abort reason `reauth_successful`, the same surviving `entry_id`, and absence of the completed pending flow
-- credential recovery with no pending reauth flow (`ha-nova:integration-setup` → Credential Recovery) uses `POST /api/config/config_entries/entry/<entry_id>/reload` as its only trigger, then re-reads `config_entries/flow/progress` with a settle re-read
+- credential recovery with no pending reauth flow (`ha-nova:integration-setup` → Credential Recovery) uses `ha-nova call homeassistant.reload_config_entry --set entry_id=<entry_id>` (typed) as its only trigger, then re-reads `config_entries/flow/progress` with a settle re-read
 
 ## Domain Payload Rules
 
@@ -508,7 +505,7 @@ Relay errors and upstream HA errors arrive differently. Agents must distinguish 
 
 If the CLI says a request was already sent or its outcome is unknown, verify the target state and do not retry automatically.
 
-A `refused raw …` error (exit 4) is a safety rule, not a setup or connection problem: nothing was sent; follow its message (`ha-nova call`, `plan`), never `ha-nova setup`.
+A `refused raw …` error (exit 4) is a safety rule, not a setup or connection problem: nothing was sent; follow its message (`ha-nova call`, `plan`, or the Home Assistant UI), never `ha-nova setup`. Raw writes are deny-by-default: only the writes and WebSocket types the skills use are sent; any other write or WS type (read or write) is refused.
 
 ### Relay Errors (HTTP-level)
 

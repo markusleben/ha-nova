@@ -111,6 +111,9 @@ func (srv *mcpServer) confirmByForm(req rpcRequest, args map[string]json.RawMess
 	if err != nil {
 		return confirmStopped("error", "RELAY_ERROR", err.Error(), "Tell the user nothing changed; HA NOVA could not reach its Relay to show the confirmation form."), nil
 	}
+	if !planSealed(plan, credential) { // an edited plan file: no form, apply refuses it
+		return nil, nil
+	}
 	params := confirmForm(plan, noSnapshot, credential)
 	key := "confirm" // an answer to the form with a copy never confirms the one without
 	if noSnapshot {
