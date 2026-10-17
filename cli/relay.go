@@ -454,6 +454,9 @@ func runRelayProxy(paths runtimePaths, endpoint string, args []string) int {
 		printRelayFailure(read, "validating the Relay response", err)
 		return 1
 	}
+	if endpoint == "ws" || endpoint == "core" {
+		bodyBytes = redactPhoneWebhooks(bodyBytes) // before --jq, which could pick it out
+	}
 	envelopeValid, taskSucceeded := relayEnvelopeResult(bodyBytes)
 	if !envelopeValid {
 		printRelayFailure(read,

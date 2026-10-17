@@ -1253,7 +1253,7 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 			if exit != 0 {
 				return exit
 			}
-			if pairedThisRun && !cloudSetupPaused && isInteractiveTTY() && writerSupportsTTYForSetup(os.Stdout) {
+			if pairedThisRun && !cloudSetupPaused && !serviceMode && isInteractiveTTY() && writerSupportsTTYForSetup(os.Stdout) {
 				offerPhoneLink(reader, os.Stdout, paths) // optional; never fails setup
 			}
 			// The read-only first look after a pairing in this run

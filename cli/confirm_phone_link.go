@@ -7,29 +7,35 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // Linking the phone that confirms (spec §7.9). No broadcast: the link
 // question goes to the one phone the user picked, and only a tap there,
 // from that phone's own administrator, links it. Changing or unlinking is
-// confirmed on the phone linked now, or in the window where none is.
+// confirmed on the phone linked now, or in the window where none can answer.
 
 // setupSignedInUser is the Home Assistant user who signed in during this
-// setup run (setup_signin_pairing.go): the wizard proposes their phones.
+// setup run (setup_signin_pairing.go): the wizard proposes their phone.
 var setupSignedInUser string
 
-const confirmPhoneUsage = `ha-nova setup confirm-phone ["<phone name>" | off]`
+// phoneLinkBudget bounds a run without a terminal (an AI agent's command):
+// both asks together stay under the common 120 s command limit.
+var phoneLinkBudget = cliWindowWait
+
+const confirmPhoneUsage = `ha-nova setup confirm-phone ["<phone name>" | list | off]`
 
 const (
 	phoneLinkButton = "Yes, link"
-	phoneNoneFound  = "No phone with the Home Assistant app was found for a Home Assistant administrator here. To confirm on your phone: install the Home Assistant app, sign in with your own Home Assistant account (an administrator), then run ha-nova setup confirm-phone. Until then HA NOVA asks in a window on this computer, in your AI app's form, or with a one-time code in chat."
+	phoneNoneFound  = "No phone with the Home Assistant app was found for a Home Assistant administrator here. To confirm on your phone: install the Home Assistant app, sign in with your own Home Assistant account, then run ha-nova setup confirm-phone. If your account isn't an administrator, ask the Home Assistant owner to make it one. Until then HA NOVA asks in a window on this computer, in your AI app's form, or with a one-time code in chat."
 	phoneOwnerToken = "This HA NOVA Relay signs in to Home Assistant as the owner, so a tap on a phone can't be told apart from HA NOVA itself. Phone confirmation isn't available with this Relay. Nothing changed."
 	phoneReadFailed = "HA NOVA can't read this Home Assistant's phones right now. Nothing changed; try again in a moment."
+	phoneListHeader = "Only Home Assistant administrators' phones are listed. The phone you pick gets one notification, so pick your own; if yours is missing, ask the Home Assistant owner to make your account an administrator."
 )
 
 func runConfirmPhoneSetting(paths runtimePaths, args []string) int {
 	if len(args) == 1 && (args[0] == "--help" || args[0] == "-h") {
-		fmt.Println("Usage: " + confirmPhoneUsage + "\n\nWhere no confirmation window can open, HA NOVA asks one phone you link (Home Assistant\napp) to confirm unlocks and deletes. Only that phone ever gets these confirmations.\n\n  (no name)     pick your phone from a list, then tap \"Yes, link\" on it\n  \"<name>\"      link that phone (the list shows the names)\n  off           stop asking on the phone (you confirm that on the phone)")
+		fmt.Println("Usage: " + confirmPhoneUsage + "\n\nWhere no confirmation window can open, HA NOVA asks one phone you link (Home Assistant\napp) to confirm unlocks and deletes. Only that phone ever gets these confirmations.\n\n  (nothing)     pick your phone from a list, then tap “Yes, link” on it\n  \"<name>\"      link that phone (list shows the names)\n  list          show the phones and which one is linked; sends nothing\n  off           stop asking on the phone (you confirm that on the phone)")
 		return 0
 	}
 	if len(args) > 1 {
@@ -42,15 +48,17 @@ func runConfirmPhoneSetting(paths runtimePaths, args []string) int {
 		return 1
 	}
 	defer s.close()
-	if len(args) == 1 && args[0] == "off" {
+	run := phoneLinkRun{interactive: isInteractiveTTY() && stdoutIsInteractiveTTY()}
+	switch {
+	case len(args) == 0 || args[0] == "on":
+	case args[0] == "off":
 		return unlinkPhone(s, os.Stdout)
+	case args[0] == "list":
+		run.interactive, run.listOnly = false, true
+	default:
+		run.pick = args[0]
 	}
-	pick := ""
-	if len(args) == 1 && args[0] != "on" {
-		pick = args[0]
-	}
-	interactive := isInteractiveTTY() && stdoutIsInteractiveTTY()
-	return linkPhone(s, bufio.NewReader(os.Stdin), os.Stdout, phoneLinkRun{interactive: interactive, pick: pick})
+	return linkPhone(s, bufio.NewReader(os.Stdin), os.Stdout, run)
 }
 
 // offerPhoneLink is the setup wizard's step after a pairing in this run.
@@ -65,12 +73,14 @@ func offerPhoneLink(reader *bufio.Reader, out io.Writer, paths runtimePaths) {
 
 type phoneLinkRun struct {
 	interactive bool
+	listOnly    bool   // list: show, never send
 	pick        string // a phone's name or list number from the command line
-	signedIn    string // whose phones to propose
+	signedIn    string // whose phone to propose
 	offer       bool   // the wizard: quiet where there is nothing to do
 }
 
 func linkPhone(s *relaySession, reader *bufio.Reader, out io.Writer, run phoneLinkRun) int {
+	start := time.Now()
 	links, readable := phoneLinks(s.paths)
 	home, err := lookupPhones(s, links)
 	if !readable || err != nil {
@@ -85,17 +95,33 @@ func linkPhone(s *relaySession, reader *bufio.Reader, out io.Writer, run phoneLi
 		}
 		return 1
 	}
+	prev := links[home.owner]
 	current, status := home.status(links, nil)
-	if run.offer && status == phoneReady {
-		fmt.Fprintf(out, "  “%s” confirms HA NOVA actions from this computer.\n", terminalSafeName(current.targets[0].Name))
-		return 0
-	}
-	if run.offer {
+	run.listOnly = run.listOnly || !run.interactive && run.pick == "" && !run.offer
+	switch {
+	case status == phoneReady && (run.offer || run.listOnly):
+		fmt.Fprintf(out, "  Linked now: “%s” confirms HA NOVA actions from “%s”.\n", terminalSafeName(current.targets[0].Name), phoneHost())
+		if run.offer {
+			return 0
+		}
+	case status == phoneMissing:
+		fmt.Fprintln(out, "  "+home.missingLine(prev, current.why))
+		if !current.why.replaceable() && !run.listOnly {
+			return 1 // fixed in Home Assistant first; the phone linked now still decides
+		}
+	case status == phoneLegacy && run.listOnly:
+		fmt.Fprintln(out, "  HA NOVA now asks on one phone you choose, and none is chosen on this computer yet.")
+	case run.offer:
 		renderSetupParagraph(out, "Confirm on your phone (optional): where no confirmation window can open on this computer, for example over SSH, HA NOVA asks your phone before it unlocks or deletes something. Only the phone you link ever gets these confirmations.")
 	}
 	all := home.eligible("")
 	if len(all) == 0 {
-		fmt.Fprintln(out, "  "+phoneNoneFound)
+		for _, name := range home.shared {
+			fmt.Fprintln(out, "  "+phoneSharedLine(name))
+		}
+		if len(home.shared) == 0 {
+			fmt.Fprintln(out, "  "+phoneNoneFound)
+		}
 		return 1
 	}
 	var chosen phoneTarget
@@ -105,54 +131,69 @@ func linkPhone(s *relaySession, reader *bufio.Reader, out io.Writer, run phoneLi
 		if chosen, ok = home.pickPhone(out, all, run.pick); !ok {
 			return 1
 		}
-	case !run.interactive:
-		fmt.Fprintln(out, "  Which phone should confirm HA NOVA actions? These phones can:")
-		listPhones(out, all)
-		fmt.Fprintln(out, "  Nothing was sent. Link one by name: ha-nova setup confirm-phone \"<phone name>\" — then tap \"Yes, link\" on that phone.")
+	case run.listOnly:
+		fmt.Fprintln(out, "  Which phone should confirm HA NOVA actions? "+phoneListHeader)
+		listPhones(out, all, home.shared)
+		fmt.Fprintln(out, "  Nothing was sent. To link one: tell the user to watch that phone for “Link this phone to HA NOVA?” and to hold or expand it and tap “Yes, link”, then run ha-nova setup confirm-phone \"<phone name>\" (it waits up to 90 seconds).")
 		return 0
 	default:
-		if chosen, ok = choosePhone(reader, out, home.eligible(run.signedIn), all, run.signedIn != ""); !ok {
+		if chosen, ok = choosePhone(reader, out, home, run.signedIn); !ok {
 			fmt.Fprintln(out, "  No phone linked. You can link one later: ha-nova setup confirm-phone")
 			return 0
 		}
 	}
 	name := terminalSafeName(chosen.Name)
 	if status == phoneReady && current.targets[0].DeviceID == chosen.DeviceID && current.confirmer == chosen.UserID {
-		fmt.Fprintf(out, "  “%s” is already the phone that confirms HA NOVA actions from this computer.\n", name)
+		fmt.Fprintf(out, "  “%s” is already the phone that confirms HA NOVA actions from “%s”.\n", name, phoneHost())
 		return 0
 	}
-	if !allowPhoneChange(s, out, home, links, fmt.Sprintf("Link “%s” to confirm HA NOVA actions from this computer?", name), false) {
+	// Without a terminal both asks share one budget; the first gets two thirds.
+	stepWait, deadline := windowWait, time.Time{}
+	if !run.interactive {
+		deadline = start.Add(phoneLinkBudget)
+		stepWait = min(windowWait, phoneLinkBudget*2/3)
+	}
+	if !allowPhoneChange(s, out, home, links, fmt.Sprintf("Link “%s” to confirm HA NOVA actions from “%s”?", name, phoneHost()), name, false, stepWait) {
+		return 1
+	}
+	linkWait := windowWait
+	if !deadline.IsZero() {
+		linkWait = min(windowWait, time.Until(deadline))
+	}
+	if linkWait < windowMinWait {
+		fmt.Fprintln(out, "  Nothing linked: time ran out before the new phone could be asked. Run ha-nova setup confirm-phone again.")
 		return 1
 	}
 	ask := phoneSetup{owner: home.owner, relayUser: home.relay, confirmer: chosen.UserID, targets: []phoneTarget{chosen}}
-	message := fmt.Sprintf("Link this phone to HA NOVA on “%s”? Only this phone then gets HA NOVA's confirmations for unlocks and deletes from that computer. Tap %s only if you are setting this up right now.", phoneHost(), phoneLinkButton)
-	switch askPhone(s, ask, "ha-nova-link", message, phoneLinkButton, windowWait) {
+	message := fmt.Sprintf("Link this phone to HA NOVA? Only this phone then gets HA NOVA's confirmations for unlocks and deletes from “%s”. Tap “%s” only if you are setting this up right now.\n\nRequested on “%s” (by you, or your AI assistant).", phoneHost(), phoneLinkButton, phoneHost())
+	again := " Run ha-nova setup confirm-phone again to retry."
+	switch askPhone(s, ask, "ha-nova-link", message, phoneLinkButton, linkWait) {
 	case phoneConfirmed:
 	case phoneRejected:
-		fmt.Fprintf(out, "  Nothing linked: the answer came from a phone signed in to Home Assistant as someone other than %s.\n", terminalSafeName(chosen.Person))
+		fmt.Fprintf(out, "  Nothing linked: the tap came from a phone signed in to Home Assistant as someone other than %s. Link a phone signed in with your own account.\n", terminalSafeName(chosen.Person))
 		return 1
 	case phoneDeclined:
-		fmt.Fprintln(out, "  Nothing linked: it was cancelled on the phone.")
+		fmt.Fprintln(out, "  Nothing linked: it was cancelled on the phone."+again)
 		return 1
 	case phoneFailed:
-		fmt.Fprintln(out, "  Nothing linked: HA NOVA couldn't send the notification. Check that the phone's Home Assistant app is signed in and can reach Home Assistant, then try again.")
+		fmt.Fprintln(out, "  Nothing linked: HA NOVA couldn't send the notification, or couldn't listen for the tap through its Relay. Check that the phone's Home Assistant app is signed in and can reach Home Assistant."+again)
 		return 1
 	default:
-		fmt.Fprintln(out, "  Nothing linked: “Yes, link” was not tapped in time. Run ha-nova setup confirm-phone to try again.")
+		fmt.Fprintln(out, "  Nothing linked: “Yes, link” was not tapped in time (hold or expand the notification to see it)."+again)
 		return 1
 	}
 	link := &phoneLink{Service: chosen.Service, DeviceID: chosen.DeviceID, UserID: chosen.UserID, Name: terminalSafeName(chosen.Name)}
-	if err := setPhoneLink(s.paths, home.owner, link); err != nil {
-		fmt.Fprintf(out, "  Nothing linked: HA NOVA couldn't save its configuration (%s).\n", err)
+	if err := setPhoneLink(s.paths, home.owner, prev, link); err != nil {
+		fmt.Fprintf(out, "  Nothing linked: %s.\n", err)
 		return 1
 	}
-	fmt.Fprintf(out, "  Linked “%s”. Only this phone gets HA NOVA confirmations from this computer.\n", name)
+	fmt.Fprintf(out, "  Linked “%s”. Only this phone gets HA NOVA confirmations from “%s”.\n", name, phoneHost())
 	return 0
 }
 
-// unlinkPhone: a downgrade (the next channel is the form or chat), so it
-// is confirmed on the linked phone, or in the window when that phone was
-// removed from Home Assistant; never by the tap alone.
+// unlinkPhone: a downgrade (the next channel is the form or chat), so it is
+// confirmed on the linked phone, or in the window when that phone can never
+// answer again; never without either.
 func unlinkPhone(s *relaySession, out io.Writer) int {
 	links, readable := phoneLinks(s.paths)
 	home, err := lookupPhones(s, links)
@@ -160,65 +201,99 @@ func unlinkPhone(s *relaySession, out io.Writer) int {
 		fmt.Fprintln(out, "  "+phoneReadFailed)
 		return 1
 	}
-	switch _, status := home.status(links, nil); status {
+	prev := links[home.owner]
+	current, status := home.status(links, nil)
+	switch status {
 	case phoneNone:
 		fmt.Fprintln(out, "  No phone is linked for this Home Assistant on this computer. Nothing changed.")
 		return 0
 	case phoneLegacy:
 		fmt.Fprintln(out, "  HA NOVA now asks on one phone you choose. Link yours first (ha-nova setup confirm-phone); you can then turn it off from that phone. Nothing changed.")
 		return 1
+	case phoneMissing:
+		fmt.Fprintln(out, "  "+home.missingLine(prev, current.why))
 	}
-	if !allowPhoneChange(s, out, home, links, "Stop confirming HA NOVA actions on this phone? HA NOVA then asks in a window, in your AI app's form, or with a one-time code in chat that your AI assistant can see too.", true) {
+	if !allowPhoneChange(s, out, home, links, "Stop confirming HA NOVA actions on this phone? HA NOVA then asks in a window, in your AI app's form, or with a one-time code in chat that your AI assistant can see too.", "", true, windowWait) {
 		return 1
 	}
-	if err := setPhoneLink(s.paths, home.owner, nil); err != nil {
-		fmt.Fprintf(out, "  Nothing changed: HA NOVA couldn't save its configuration (%s).\n", err)
+	if err := setPhoneLink(s.paths, home.owner, prev, nil); err != nil {
+		fmt.Fprintf(out, "  Nothing changed: %s.\n", err)
 		return 1
 	}
-	fmt.Fprintln(out, "  Phone confirmation is off: no phone gets HA NOVA confirmations from this computer.")
+	fmt.Fprintf(out, "  Phone confirmation is off: no phone gets HA NOVA confirmations from “%s”.\n", phoneHost())
 	return 0
 }
 
 // allowPhoneChange asks whoever may approve changing this home's phone: the
-// linked phone while it can be asked; the window where no phone is linked
-// yet (or #719's pin, or the linked one was removed from Home Assistant).
-// A window that can't open lets a link go on to its tap, never an unlink.
-func allowPhoneChange(s *relaySession, out io.Writer, home phoneHome, links map[string]phoneEntry, question string, unlink bool) bool {
+// linked phone while it can be asked; the window where the linked one can
+// never answer again (removed, its user no longer an administrator, or now
+// the Relay's user: a model can cause each, so never by a tap alone). With
+// no phone linked yet (or #719's pin) the window asks where one can open;
+// where none can, the first link is its tap alone (trust on first use).
+func allowPhoneChange(s *relaySession, out io.Writer, home phoneHome, links map[string]phoneEntry, question, newPhone string, unlink bool, wait time.Duration) bool {
 	current, status := home.status(links, nil)
-	question += "\n\n" + fmt.Sprintf("Requested by HA NOVA on “%s”. Confirm only if you want this.", phoneHost())
+	question += "\n\n" + fmt.Sprintf("Requested on “%s” (by you, or your AI assistant). Confirm only if you want this.", phoneHost())
 	switch {
 	case status == phoneReady:
-		fmt.Fprintf(out, "  First confirm on the phone linked now, “%s”.\n", terminalSafeName(current.targets[0].Name))
-		if askPhone(s, current, "ha-nova-setting", question, "Confirm", windowWait) == phoneConfirmed {
+		old := terminalSafeName(current.targets[0].Name)
+		fmt.Fprintf(out, "  First confirm on the phone linked now, “%s”: hold or expand the notification and tap “Confirm”.\n", old)
+		if askPhone(s, current, "ha-nova-setting", question, "Confirm", wait) == phoneConfirmed {
 			return true
 		}
-		fmt.Fprintln(out, "  Nothing changed: Confirm was not tapped on the linked phone in time, or the notification could not be sent.")
+		fmt.Fprintf(out, "  Nothing changed: “Confirm” was not tapped on “%s” in time, or the notification could not be sent. If that phone is lost, remove it in Home Assistant (Settings → Devices & services → Mobile App), then run this again.\n", old)
 		return false
-	case status == phoneMissing && !home.gone:
-		name := ""
-		if link := links[home.owner].link; link != nil {
-			name = " (“" + terminalSafeName(link.Name) + "”)"
-		}
-		fmt.Fprintf(out, "  HA NOVA can't reach the phone linked now%s, so it can't ask there. Nothing changed. If that phone is lost or replaced, remove it in Home Assistant (Settings → Devices & services → Mobile App), then run this again.\n", name)
-		return false
+	case status == phoneMissing && !current.why.replaceable():
+		return false // missingLine said why and what to do
 	}
+	windowOnly := unlink || status == phoneMissing
 	if windowOff(s.paths) || !windowAvailable() {
-		if unlink {
-			fmt.Fprintf(out, "  The linked phone is no longer in Home Assistant, and no confirmation window can open here, so HA NOVA can't check that this is you. Nothing changed. Link your new phone with ha-nova setup confirm-phone, or remove \"%s\" from %s yourself.\n", phoneSettingKey, s.paths.ConfigFile)
+		if windowOnly {
+			fmt.Fprintf(out, "  No confirmation window can open here (or windows are turned off), so HA NOVA can't check that this is you. Nothing changed. Run this at the computer's desktop, where a confirmation window opens, or remove \"%s\" from %s yourself.\n", phoneSettingKey, s.paths.ConfigFile)
 			return false
 		}
 		return true // the first link: only the tap on the chosen phone links it
 	}
-	switch askWindow(question, windowWait) {
+	if newPhone != "" {
+		fmt.Fprintf(out, "  A confirmation window opens on this computer first; then “%s” gets the link question.\n", newPhone)
+	}
+	switch askWindow(question, wait) {
 	case windowConfirmed:
 		return true
 	case windowFailed:
-		if !unlink {
+		if !windowOnly {
 			return true
 		}
 	}
 	fmt.Fprintln(out, "  Nothing changed: the confirmation window was cancelled or got no answer.")
 	return false
+}
+
+// missingLine: why the linked phone can't be asked now, and what to do.
+func (h phoneHome) missingLine(prev phoneEntry, why phoneWhy) string {
+	name, person := "the linked phone", "its user"
+	if prev.link != nil {
+		name = "“" + terminalSafeName(prev.link.Name) + "”"
+		if u := h.users[prev.link.UserID]; u.Name != "" {
+			person = terminalSafeName(u.Name)
+		}
+	}
+	switch why {
+	case whyRemoved:
+		return "Linked now: " + name + ", which is no longer in Home Assistant. You can link another phone."
+	case whyDemoted:
+		return "Linked now: " + name + ", but " + person + " is no longer a Home Assistant administrator, so it can't confirm. You can link an administrator's phone, or ask the owner to make " + person + " an administrator again."
+	case whyRelayUser:
+		return "Linked now: " + name + ", but HA NOVA's Relay now signs in to Home Assistant as " + person + ", so a tap there can't be told apart from HA NOVA itself. You can link another person's phone."
+	case whyShared:
+		return "Linked now: " + name + ". " + phoneSharedLine(strings.Trim(name, "“”"))
+	case whyUnreachable:
+		return "Linked now: " + name + ", which can't get notifications now (its Home Assistant app is signed out, or its entry is disabled). Sign in to the app on it again. If that phone is lost or replaced, remove it in Home Assistant (Settings → Devices & services → Mobile App), then run this again."
+	}
+	return phoneReadFailed
+}
+
+func phoneSharedLine(name string) string {
+	return fmt.Sprintf("Two devices in Home Assistant are called “%s”: remove the old one or rename one in its Home Assistant app, then try again.", terminalSafeName(name))
 }
 
 // eligible: the phones that may be linked — an administrator's, never the
@@ -235,22 +310,28 @@ func (h phoneHome) eligible(signedIn string) []phoneTarget {
 
 // pickPhone finds the phone named (or numbered) on the command line.
 func (h phoneHome) pickPhone(out io.Writer, all []phoneTarget, pick string) (phoneTarget, bool) {
-	if n, err := strconv.Atoi(pick); err == nil && n >= 1 && n <= len(all) {
-		return all[n-1], true
-	}
 	for _, t := range all {
 		if phoneNameKey(t.Name) == phoneNameKey(pick) {
 			return t, true // names are unique: a shared one is never listed
 		}
 	}
+	if n, err := strconv.Atoi(pick); err == nil && n >= 1 && n <= len(all) {
+		return all[n-1], true
+	}
 	for _, t := range h.phones {
 		if phoneNameKey(t.Name) == phoneNameKey(pick) {
-			fmt.Fprintf(out, "  “%s” belongs to %s, who isn't a Home Assistant administrator (or is HA NOVA's own user). Only an administrator's phone can confirm unlocks and deletes. Nothing changed.\n", terminalSafeName(t.Name), terminalSafeName(t.Person))
+			fmt.Fprintf(out, "  “%s” belongs to %s, who isn't a Home Assistant administrator (or is HA NOVA's own user). Only an administrator's phone can confirm unlocks and deletes; the Home Assistant owner can make %s an administrator. Nothing changed.\n", terminalSafeName(t.Name), terminalSafeName(t.Person), terminalSafeName(t.Person))
+			return phoneTarget{}, false
+		}
+	}
+	for _, name := range h.shared {
+		if phoneNameKey(name) == phoneNameKey(pick) {
+			fmt.Fprintln(out, "  "+phoneSharedLine(name))
 			return phoneTarget{}, false
 		}
 	}
 	fmt.Fprintf(out, "  No phone is called “%s”. These phones can confirm HA NOVA actions:\n", terminalSafeName(pick))
-	listPhones(out, all)
+	listPhones(out, all, h.shared)
 	return phoneTarget{}, false
 }
 
@@ -258,17 +339,22 @@ func phoneNameKey(name string) string {
 	return strings.ToLower(strings.NewReplacer("’", "'", "‘", "'").Replace(strings.TrimSpace(name)))
 }
 
-func listPhones(out io.Writer, phones []phoneTarget) {
+func listPhones(out io.Writer, phones []phoneTarget, shared []string) {
 	for i, t := range phones {
-		fmt.Fprintf(out, "    %d) %s — %s\n", i+1, terminalSafeName(t.Name), terminalSafeName(t.Person))
+		fmt.Fprintf(out, "    %d) %s (%s)\n", i+1, terminalSafeName(t.Name), terminalSafeName(t.Person))
+	}
+	for _, name := range shared {
+		fmt.Fprintln(out, "  "+phoneSharedLine(name))
 	}
 }
 
 // choosePhone: the signed-in user's only phone is proposed; otherwise every
 // administrator's phones are a numbered list. ok=false: skipped.
-func choosePhone(reader *bufio.Reader, out io.Writer, own, all []phoneTarget, signedIn bool) (phoneTarget, bool) {
-	if signedIn && len(own) == 1 {
-		answer, err := promptLineWithOptions(reader, out, fmt.Sprintf("Use “%s” for HA NOVA confirmations? Press Enter, type 'other' for another phone, or 'skip'", terminalSafeName(own[0].Name)), "", false)
+func choosePhone(reader *bufio.Reader, out io.Writer, home phoneHome, signedIn string) (phoneTarget, bool) {
+	all := home.eligible("")
+	if own := home.eligible(signedIn); signedIn != "" && len(own) == 1 {
+		label := fmt.Sprintf("Use “%s” (%s) for HA NOVA confirmations? Press Enter, type 'other' for another phone, or 'skip'", terminalSafeName(own[0].Name), terminalSafeName(own[0].Person))
+		answer, err := promptLineWithOptions(reader, out, label, "", false)
 		switch answer = strings.ToLower(strings.TrimSpace(answer)); {
 		case err != nil:
 			return phoneTarget{}, false
@@ -278,16 +364,18 @@ func choosePhone(reader *bufio.Reader, out io.Writer, own, all []phoneTarget, si
 			return phoneTarget{}, false
 		}
 	}
-	fmt.Fprintln(out, "  Which phone should confirm HA NOVA actions?")
-	listPhones(out, all)
+	fmt.Fprintln(out, "  Which phone should confirm HA NOVA actions? "+phoneListHeader)
+	listPhones(out, all, home.shared)
 	for {
 		answer, err := promptLineWithOptions(reader, out, "Type the number of your phone, or press Enter to skip", "", false)
-		if err != nil || strings.TrimSpace(answer) == "" {
+		answer = strings.TrimSpace(answer)
+		if err != nil || answer == "" {
 			return phoneTarget{}, false
 		}
-		if n, err := strconv.Atoi(strings.TrimSpace(answer)); err == nil && n >= 1 && n <= len(all) {
+		if n, err := strconv.Atoi(answer); err == nil && n >= 1 && n <= len(all) {
 			return all[n-1], true
 		}
+		fmt.Fprintf(out, "  Type a number from 1 to %d, or press Enter to skip.\n", len(all))
 	}
 }
 

@@ -17,15 +17,14 @@ import (
 // user while they are an administrator other than the Relay's own user.
 
 // phoneTemplate lists every person's Companion phones (device id, name, and
-// legacy notify service, slugged by Home Assistant itself), every mobile_app
-// device's service (two devices with one name share it), and the linked
-// device by id. The id is a template variable, never template source.
+// legacy notify service, slugged by Home Assistant itself), the service of
+// every Companion device named in names (from the device registry, so a
+// device whose entities are disabled still counts: two devices with one
+// name share a service), and the linked device by id. names and the id are
+// template variables, never template source.
 const phoneTemplate = `{%- set ns = namespace(phones=[], all=[]) -%}
 {%- set apps = integration_entities('mobile_app') -%}
-{%- for d in apps | map('device_id') | select | unique -%}
-{%- set n = device_attr(d, 'name') -%}
-{%- if n -%}{%- set ns.all = ns.all + [('mobile_app_' ~ n) | slugify] -%}{%- endif -%}
-{%- endfor -%}
+{%- for n in names -%}{%- set ns.all = ns.all + [('mobile_app_' ~ n) | slugify] -%}{%- endfor -%}
 {%- for p in states.person if p.attributes.user_id -%}
 {%- for t in p.attributes.device_trackers | default([], true) if t in apps -%}
 {%- set d = device_id(t) -%}
@@ -42,15 +41,26 @@ var phoneServicePattern = regexp.MustCompile(`^mobile_app_[a-z0-9_]+$`)
 func checkPhoneRead(endpoint string, payload map[string]any) error {
 	switch endpoint {
 	case "ws":
-		if t := payload["type"]; len(payload) == 1 && (t == "auth/current_user" || t == "config/auth/list") {
+		if t := payload["type"]; len(payload) == 1 && (t == "auth/current_user" || t == "config/auth/list" || t == "config/device_registry/list") {
 			return nil
 		}
 	case "core":
 		body, _ := payload["body"].(map[string]any)
 		vars, _ := body["variables"].(map[string]any)
 		_, isText := vars["device"].(string)
+		isList := false
+		switch names := vars["names"].(type) { // []any once decoded
+		case []string:
+			isList = !slices.Contains(names, "")
+		case []any:
+			isList = true
+			for _, n := range names {
+				text, ok := n.(string)
+				isList = isList && ok && text != ""
+			}
+		}
 		if len(payload) == 3 && payload["method"] == http.MethodPost && payload["path"] == "/api/template" &&
-			len(body) == 2 && body["template"] == phoneTemplate && len(vars) == 1 && isText {
+			len(body) == 2 && body["template"] == phoneTemplate && len(vars) == 2 && isText && isList {
 			return nil
 		}
 	}
@@ -92,8 +102,9 @@ type phoneHome struct {
 	owner, relay string
 	users        map[string]haUser
 	phones       []phoneTarget // on a person with a user, reachable, name not shared
+	shared       []string      // names of person phones left out because another device has the same name
 	linked       *phoneTarget  // the linked device while it exists; Service "" when it can't be reached
-	gone         bool          // the reads worked and the linked device no longer exists
+	linkedWhy    phoneWhy      // why linked can't be reached
 }
 
 // lookupPhones reads the home. owner is set whenever it is known, also on
@@ -121,12 +132,28 @@ func lookupPhones(s *relaySession, links map[string]phoneEntry) (phoneHome, erro
 	if link := links[home.owner].link; link != nil {
 		device = link.DeviceID
 	}
+	var devices []struct {
+		Name        string     `json:"name"`
+		Identifiers [][]string `json:"identifiers"`
+	}
+	if err := s.phoneRead("ws", map[string]any{"type": "config/device_registry/list"}, &devices); err != nil {
+		return home, err
+	}
+	names := []string{}
+	for _, d := range devices {
+		for _, id := range d.Identifiers {
+			if len(id) > 0 && id[0] == "mobile_app" && d.Name != "" {
+				names = append(names, d.Name)
+				break
+			}
+		}
+	}
 	var core struct {
 		Status int             `json:"status"`
 		Body   json.RawMessage `json:"body"`
 	}
 	payload := map[string]any{"method": http.MethodPost, "path": "/api/template",
-		"body": map[string]any{"template": phoneTemplate, "variables": map[string]any{"device": device}}}
+		"body": map[string]any{"template": phoneTemplate, "variables": map[string]any{"device": device, "names": names}}}
 	if err := s.phoneRead("core", payload, &core); err != nil {
 		return home, err
 	}
@@ -173,7 +200,13 @@ func (h *phoneHome) fill(rendered, services json.RawMessage, device string) erro
 	}
 	seen := map[string]bool{}
 	for _, t := range found.Phones {
-		if usable(t) && t.UserID != "" && !seen[t.DeviceID] {
+		switch {
+		case seen[t.DeviceID] || t.UserID == "":
+		case shared[t.Service] > 1:
+			if !slices.Contains(h.shared, t.Name) {
+				h.shared = append(h.shared, t.Name)
+			}
+		case usable(t):
 			seen[t.DeviceID] = true
 			h.phones = append(h.phones, t)
 		}
@@ -183,16 +216,35 @@ func (h *phoneHome) fill(rendered, services json.RawMessage, device string) erro
 	case found.Linked != nil && found.Linked.DeviceID == device:
 		linked := *found.Linked
 		if !usable(linked) {
-			linked.Service = ""
+			linked.Service, h.linkedWhy = "", whyUnreachable
+			if shared[found.Linked.Service] > 1 {
+				h.linkedWhy = whyShared
+			}
 		}
 		h.linked = &linked
-	case device != "":
-		h.gone = true
 	}
 	return nil
 }
 
 type phoneStatus int
+
+// phoneWhy: why a linked phone can't be asked (phoneMissing).
+type phoneWhy int
+
+const (
+	whyNone        phoneWhy = iota
+	whyRead                 // a read failed
+	whyOwnerToken           // the Relay signs in as the owner
+	whyRelayUser            // the Relay now signs in as the linked user
+	whyDemoted              // the linked user is no longer an active administrator
+	whyRemoved              // the linked device is no longer in Home Assistant
+	whyShared               // another device has the linked phone's name
+	whyUnreachable          // its notify service is gone (app signed out or disabled)
+)
+
+// replaceable: the linked phone can never answer again as it is, so the
+// window (where one opens) approves changing it, as when none is linked.
+func (w phoneWhy) replaceable() bool { return w == whyRemoved || w == whyDemoted || w == whyRelayUser }
 
 const (
 	phoneNone    phoneStatus = iota // no phone linked for this home on this computer: the next channel
@@ -205,7 +257,7 @@ const (
 // read is phoneMissing wherever any link exists.
 func (h phoneHome) status(links map[string]phoneEntry, err error) (phoneSetup, phoneStatus) {
 	if h.owner == "" {
-		return phoneSetup{}, phoneMissing // a link exists on this computer; whether it is this home's can't be checked
+		return phoneSetup{why: whyRead}, phoneMissing // a link exists on this computer; whether it is this home's can't be checked
 	}
 	entry, ok := links[h.owner]
 	switch {
@@ -215,8 +267,21 @@ func (h phoneHome) status(links map[string]phoneEntry, err error) (phoneSetup, p
 		return phoneSetup{owner: h.owner, relayUser: h.relay}, phoneLegacy
 	}
 	setup := phoneSetup{owner: h.owner, relayUser: h.relay, confirmer: entry.link.UserID}
-	if err != nil || h.relay == h.owner || setup.confirmer == h.relay || !phoneAdmin(h.users[setup.confirmer]) ||
-		h.linked == nil || h.linked.Service == "" {
+	switch {
+	case err != nil:
+		setup.why = whyRead
+	case h.relay == h.owner:
+		setup.why = whyOwnerToken
+	case setup.confirmer == h.relay:
+		setup.why = whyRelayUser
+	case !phoneAdmin(h.users[setup.confirmer]):
+		setup.why = whyDemoted
+	case h.linked == nil:
+		setup.why = whyRemoved
+	case h.linked.Service == "":
+		setup.why = h.linkedWhy
+	}
+	if setup.why != whyNone {
 		return setup, phoneMissing
 	}
 	target := *h.linked
@@ -229,7 +294,7 @@ func (h phoneHome) status(links map[string]phoneEntry, err error) (phoneSetup, p
 func discoverPhone(s *relaySession) (phoneSetup, phoneStatus) {
 	links, readable := phoneLinks(s.paths)
 	if !readable {
-		return phoneSetup{}, phoneMissing
+		return phoneSetup{why: whyRead}, phoneMissing
 	}
 	if len(links) == 0 {
 		return phoneSetup{}, phoneNone
@@ -279,11 +344,18 @@ func phoneLinks(paths runtimePaths) (map[string]phoneEntry, bool) {
 	return links, true
 }
 
-// setPhoneLink stores this home's link; nil removes it.
-func setPhoneLink(paths runtimePaths, owner string, link *phoneLink) error {
+var errPhoneLinkChanged = errors.New("the phone setting for this Home Assistant changed while HA NOVA was asking; run it again")
+
+// setPhoneLink stores this home's link (nil removes it) only while the
+// home's entry is still prev, the one the confirmation approved changing: a
+// concurrent change is never overwritten without its own approval.
+func setPhoneLink(paths runtimePaths, owner string, prev phoneEntry, link *phoneLink) error {
 	doc, err := loadConfigDocument(paths.ConfigFile)
 	if err != nil {
 		return err
+	}
+	if now, ok := phoneLinks(paths); !ok || !samePhoneEntry(now[owner], prev) {
+		return errPhoneLinkChanged
 	}
 	links := map[string]json.RawMessage{}
 	_ = json.Unmarshal(doc.top[phoneSettingKey], &links) // unreadable: start over
@@ -300,6 +372,10 @@ func setPhoneLink(paths runtimePaths, owner string, link *phoneLink) error {
 		top[phoneSettingKey], _ = json.Marshal(links)
 	}
 	return writeJSONFileIfUnchanged(paths.ConfigFile, top, 0o600, doc.source)
+}
+
+func samePhoneEntry(a, b phoneEntry) bool {
+	return a.legacy == b.legacy && (a.link == nil) == (b.link == nil) && (a.link == nil || *a.link == *b.link)
 }
 
 // detectAfterWindow picks the channel where no window opens: the linked

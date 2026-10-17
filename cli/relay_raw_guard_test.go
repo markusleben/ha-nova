@@ -343,3 +343,28 @@ func TestSkillWSTypesAreAllowlisted(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+// A Companion app's registry unique_id holds its webhook id, which alone
+// acts as that phone: raw reads never show it, not even through --jq.
+func TestRawRelayHidesPhoneWebhookIDs(t *testing.T) {
+	f := newFakeHA()
+	f.extra = func(_ string, p map[string]any) (any, bool) {
+		if p["type"] == "config/entity_registry/list" {
+			return []map[string]any{
+				{"entity_id": "sensor.pixel_battery", "platform": "mobile_app", "unique_id": "deadbeefwebhook_battery_level"},
+				{"entity_id": "light.kitchen", "platform": "hue", "unique_id": "hue-1 <&>"},
+			}, true
+		}
+		return nil, false
+	}
+	h := newWriteHarness(t, f)
+	for _, args := range [][]string{
+		{"--data", `{"type":"config/entity_registry/list"}`},
+		{"--data", `{"type":"config/entity_registry/list"}`, "--jq", `[.data[] | .unique_id]`},
+	} {
+		exit, out := captureCommandOutput(t, func() int { return runRelayProxy(h.paths, "ws", args) })
+		if exit != 0 || strings.Contains(out, "deadbeefwebhook") || !strings.Contains(out, "hue-1") || !strings.Contains(out, "hidden") {
+			t.Fatalf("args %v: exit %d out %q", args, exit, out)
+		}
+	}
+}

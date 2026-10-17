@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+	"time"
 )
 
 // Linking (confirm_phone_link.go) against a fake family home: Markus (the
@@ -57,13 +58,27 @@ func (home *fakeHome) install(t *testing.T, f *fakeHA) {
 				return fakeRelayFailure{"UPSTREAM_WS_TIMEOUT", "timed out"}, true
 			}
 			return home.users, true
+		case p["type"] == "config/device_registry/list":
+			var rows []map[string]any
+			for _, d := range home.devices {
+				rows = append(rows, map[string]any{"id": d.DeviceID, "name": d.Name, "identifiers": [][]string{{"mobile_app", "app-" + d.DeviceID}}})
+			}
+			return append(rows, map[string]any{"id": "hue-bridge", "name": "Anna’s Pixel", "identifiers": [][]string{{"hue", "x"}}}), true
 		case p["path"] == "/api/template":
-			device := p["body"].(map[string]any)["variables"].(map[string]any)["device"]
+			vars := p["body"].(map[string]any)["variables"].(map[string]any)
+			device := vars["device"]
 			var phones []phoneTarget
 			var all []string
 			var linked any
+			for _, n := range vars["names"].([]any) { // Home Assistant slugs each name
+				for _, d := range home.devices {
+					if d.Name == n {
+						all = append(all, d.Service)
+						break
+					}
+				}
+			}
 			for _, d := range home.devices {
-				all = append(all, d.Service)
 				if d.UserID != "" {
 					phones = append(phones, d)
 				}
@@ -135,6 +150,17 @@ func calls(h *writeHarness) int {
 	return n
 }
 
+// seedLink stores a link as a finished linking would.
+func seedLink(t *testing.T, h *writeHarness, link *phoneLink) {
+	t.Helper()
+	links, _ := phoneLinks(h.paths)
+	if err := setPhoneLink(h.paths, "owner-id", links["owner-id"], link); err != nil {
+		t.Fatal(err)
+	}
+}
+
+var annaLink = phoneLink{Service: "mobile_app_annas_pixel", DeviceID: "dev-anna", UserID: "anna-id", Name: "Anna’s Pixel"}
+
 func linked(t *testing.T, h *writeHarness) *phoneLink {
 	t.Helper()
 	links, ok := phoneLinks(h.paths)
@@ -151,7 +177,7 @@ func TestLinkPhoneByTapOnTheChosenPhoneOnly(t *testing.T) {
 	h, p, _ := familyLink(t)
 	p.tapBy = tapFrom("mobile_app_annas_pixel", "anna-id", true)
 	exit, out := runLink(t, h, "\n", phoneLinkRun{interactive: true, signedIn: "anna-id", offer: true})
-	if exit != 0 || !strings.Contains(out, "Use “Anna’s Pixel” for HA NOVA confirmations?") || !strings.Contains(out, "Only this phone gets HA NOVA confirmations") {
+	if exit != 0 || !strings.Contains(out, "Use “Anna’s Pixel” (Anna) for HA NOVA confirmations?") || !strings.Contains(out, "Only this phone gets HA NOVA confirmations") {
 		t.Fatalf("exit %d out %q", exit, out)
 	}
 	if strings.Join(p.services, ",") != "mobile_app_annas_pixel,mobile_app_annas_pixel" || p.sent[0]["title"] != phoneTitle+phoneLinkButton {
@@ -181,7 +207,7 @@ func TestLinkPhoneByTapOnTheChosenPhoneOnly(t *testing.T) {
 	}
 	// The wizard on a computer that already has a phone just says so.
 	p.services = nil
-	if exit, out := runLink(t, h, "", phoneLinkRun{interactive: true, signedIn: "anna-id", offer: true}); exit != 0 || !strings.Contains(out, "“Anna’s Pixel” confirms") || len(p.services) != 0 {
+	if exit, out := runLink(t, h, "", phoneLinkRun{interactive: true, signedIn: "anna-id", offer: true}); exit != 0 || !strings.Contains(out, "Linked now: “Anna’s Pixel” confirms") || len(p.services) != 0 {
 		t.Fatalf("offer when linked: %d %q %v", exit, out, p.services)
 	}
 }
@@ -191,7 +217,7 @@ func TestLinkPhoneByTapOnTheChosenPhoneOnly(t *testing.T) {
 func TestLinkPhoneWithoutTerminalOnlyLists(t *testing.T) {
 	h, p, _ := familyLink(t)
 	exit, out := runLink(t, h, "", phoneLinkRun{})
-	if exit != 0 || !strings.Contains(out, "1) Anna’s Pixel — Anna") || !strings.Contains(out, "Family iPad — Markus") || !strings.Contains(out, "Markus’s iPhone — Markus") ||
+	if exit != 0 || !strings.Contains(out, "1) Anna’s Pixel (Anna)") || !strings.Contains(out, "Family iPad (Markus)") || !strings.Contains(out, "Markus’s iPhone (Markus)") || !strings.Contains(out, "Only Home Assistant administrators' phones") ||
 		strings.Contains(out, "Kid") || !strings.Contains(out, "Nothing was sent") || len(p.sent) != 0 || linked(t, h) != nil {
 		t.Fatalf("exit %d out %q sent %v", exit, out, p.services)
 	}
@@ -236,9 +262,7 @@ func TestLinkPhoneRefusesOtherUsersAndNonAdmins(t *testing.T) {
 // nothing until the old one confirmed.
 func TestRelinkAndUnlinkNeedTheOldPhone(t *testing.T) {
 	h, p, home := familyLink(t)
-	if err := setPhoneLink(h.paths, "owner-id", &phoneLink{Service: "mobile_app_annas_pixel", DeviceID: "dev-anna", UserID: "anna-id", Name: "Anna’s Pixel"}); err != nil {
-		t.Fatal(err)
-	}
+	seedLink(t, h, &phoneLink{Service: "mobile_app_annas_pixel", DeviceID: "dev-anna", UserID: "anna-id", Name: "Anna’s Pixel"})
 	p.tapBy = tapFrom("mobile_app_annas_pixel", "anna-id", false)
 	if exit, out := runLink(t, h, "", phoneLinkRun{pick: "Markus’s iPhone"}); exit != 1 || !strings.Contains(out, "First confirm on the phone linked now, “Anna’s Pixel”") ||
 		linked(t, h).DeviceID != "dev-anna" || strings.Contains(strings.Join(p.services, ","), "markus") {
@@ -261,9 +285,7 @@ func TestRelinkAndUnlinkNeedTheOldPhone(t *testing.T) {
 	}
 	// A linked phone that can't be reached (its app's notify service is gone)
 	// blocks a change; nothing is sent anywhere.
-	if err := setPhoneLink(h.paths, "owner-id", &phoneLink{Service: "mobile_app_annas_pixel", DeviceID: "dev-anna", UserID: "anna-id", Name: "Anna’s Pixel"}); err != nil {
-		t.Fatal(err)
-	}
+	seedLink(t, h, &phoneLink{Service: "mobile_app_annas_pixel", DeviceID: "dev-anna", UserID: "anna-id", Name: "Anna’s Pixel"})
 	home.notify = home.notify[:1]
 	home.install(t, h.f)
 	p.services, p.sent = nil, nil
@@ -272,31 +294,100 @@ func TestRelinkAndUnlinkNeedTheOldPhone(t *testing.T) {
 	}
 }
 
-// The linked phone removed from Home Assistant: a new phone links by its own
-// tap (the window first where one can open); unlinking needs the window.
-func TestRemovedLinkedPhone(t *testing.T) {
-	h, p, _ := familyLink(t)
-	if err := setPhoneLink(h.paths, "owner-id", &phoneLink{Service: "mobile_app_old", DeviceID: "dev-gone", UserID: "owner-id", Name: "Old Phone"}); err != nil {
-		t.Fatal(err)
-	}
+// A linked phone that can never answer again (removed from Home Assistant,
+// or its user no longer an administrator; a model can cause both) is
+// replaced or unlinked only in the window — never by a tap alone, never
+// when the window can't open.
+func TestReplacingAPhoneThatCantAnswerNeedsTheWindow(t *testing.T) {
+	h, p, home := familyLink(t)
+	seedLink(t, h, &phoneLink{Service: "mobile_app_old", DeviceID: "dev-gone", UserID: "owner-id", Name: "Old Phone"})
 	if plan, env := h.run(runPlanCommand, "call", "lock.unlock", "lock.front"); plan != 4 || env.Error.Code != "CONFIRM_UNAVAILABLE" {
 		t.Fatalf("plan with a removed phone: %d %+v", plan, env.Error)
 	}
-	if exit, out := runUnlink(t, h); exit != 1 || !strings.Contains(out, "no confirmation window can open") || linked(t, h) == nil {
-		t.Fatalf("unlink without a window: %d %q", exit, out)
-	}
-	w := useWindow(t, windowConfirmed)
-	if exit, _ := runUnlink(t, h); exit != 0 || linked(t, h) != nil || len(w.messages) != 1 {
-		t.Fatalf("unlink in the window: %d", exit)
-	}
-	// First link with a window: the window, then the tap.
-	w = useWindow(t, windowCancelled, windowConfirmed)
 	p.tapBy = tapFrom("mobile_app_markuss_iphone", "owner-id", true)
-	if exit, _ := runLink(t, h, "", phoneLinkRun{pick: "Markus’s iPhone"}); exit != 1 || len(p.sent) != 0 || linked(t, h) != nil {
+	for _, run := range []func() (int, string){
+		func() (int, string) { return runUnlink(t, h) },
+		func() (int, string) { return runLink(t, h, "", phoneLinkRun{pick: "Markus’s iPhone"}) },
+	} {
+		if exit, out := run(); exit != 1 || !strings.Contains(out, "No confirmation window can open") || linked(t, h).DeviceID != "dev-gone" || len(p.sent) != 0 {
+			t.Fatalf("without a window: %d %q %v", exit, out, p.services)
+		}
+	}
+	useWindow(t, windowFailed)
+	if exit, _ := runLink(t, h, "", phoneLinkRun{pick: "Markus’s iPhone"}); exit != 1 || linked(t, h).DeviceID != "dev-gone" || len(p.sent) != 0 {
+		t.Fatalf("a window that can't open replaced the phone: %d", exit)
+	}
+	w := useWindow(t, windowCancelled, windowConfirmed)
+	if exit, _ := runLink(t, h, "", phoneLinkRun{pick: "Markus’s iPhone"}); exit != 1 || len(p.sent) != 0 || linked(t, h).DeviceID != "dev-gone" {
 		t.Fatalf("window cancelled: %d %v", exit, p.services)
 	}
-	if exit, _ := runLink(t, h, "", phoneLinkRun{pick: "Markus’s iPhone"}); exit != 0 || linked(t, h) == nil || !strings.Contains(w.messages[1], "Link “Markus’s iPhone”") {
-		t.Fatalf("window confirmed: %d %v", exit, w.messages)
+	if exit, out := runLink(t, h, "", phoneLinkRun{pick: "Markus’s iPhone"}); exit != 0 || linked(t, h).DeviceID != "dev-markus" || !strings.Contains(w.messages[1], "Link “Markus’s iPhone”") ||
+		!strings.Contains(out, "no longer in Home Assistant") || !strings.Contains(out, "A confirmation window opens on this computer first") {
+		t.Fatalf("window confirmed: %d %q %v", exit, out, w.messages)
+	}
+	// Markus demoted: his linked phone can't confirm, and the window may approve a change.
+	home.users[1]["is_owner"], home.users[1]["group_ids"] = false, []string{"system-users"}
+	home.users[2]["is_owner"] = true // Anna owns this home now
+	h.f.mu.Lock()
+	home.install(t, h.f)
+	h.f.mu.Unlock()
+	links, _ := phoneLinks(h.paths)
+	if err := setPhoneLink(h.paths, "anna-id", links["anna-id"], links["owner-id"].link); err != nil {
+		t.Fatal(err)
+	}
+	p.services, p.sent = nil, nil
+	p.tapBy = tapFrom("mobile_app_annas_pixel", "anna-id", true)
+	w = useWindow(t, windowConfirmed)
+	s, _ := newRelaySession(h.paths, verbOptions{})
+	defer s.close()
+	var out strings.Builder
+	if exit := linkPhone(s, bufio.NewReader(strings.NewReader("")), &out, phoneLinkRun{pick: "Anna’s Pixel"}); exit != 0 || !strings.Contains(out.String(), "Markus is no longer a Home Assistant administrator") ||
+		strings.Contains(out.String(), "remove it in Home Assistant") || strings.Join(p.services, ",") != "mobile_app_annas_pixel,mobile_app_annas_pixel" {
+		t.Fatalf("demoted: %d %q %v", exit, out.String(), p.services)
+	}
+}
+
+// A link approved against one state never overwrites a change made
+// meanwhile without that change's own approval.
+func TestPhoneLinkWriteNeedsTheApprovedState(t *testing.T) {
+	h, _, _ := familyLink(t)
+	before, _ := phoneLinks(h.paths)
+	seedLink(t, h, &annaLink)
+	if err := setPhoneLink(h.paths, "owner-id", before["owner-id"], nil); err != errPhoneLinkChanged || linked(t, h) == nil {
+		t.Fatalf("stale unlink: %v", err)
+	}
+}
+
+// Two devices with one name share a notify service, so neither is offered,
+// and the user is told how to fix it instead of "install the app"; a
+// device whose entities are gone still counts (the device registry).
+func TestSharedPhoneNamesAreNamed(t *testing.T) {
+	h, p, home := familyLink(t)
+	home.users = home.users[:2] // only Markus is an administrator
+	home.devices = append(home.devices, phoneTarget{Service: "mobile_app_markuss_iphone", Name: "Markus’s iPhone", DeviceID: "dev-old"},
+		phoneTarget{Service: "mobile_app_family_ipad", Name: "Family iPad", DeviceID: "dev-old-ipad"})
+	exit, out := runLink(t, h, "", phoneLinkRun{})
+	if exit != 1 || !strings.Contains(out, "Two devices in Home Assistant are called “Markus’s iPhone”") || strings.Contains(out, "install the Home Assistant app") || len(p.sent) != 0 {
+		t.Fatalf("shared: %d %q", exit, out)
+	}
+}
+
+// Without a terminal, old phone plus new phone stay within one budget.
+func TestPhoneLinkWithoutTerminalStaysInItsBudget(t *testing.T) {
+	h, p, _ := familyLink(t)
+	saved := phoneLinkBudget
+	phoneLinkBudget = 3 * time.Second
+	t.Cleanup(func() { phoneLinkBudget = saved })
+	seedLink(t, h, &annaLink)
+	p.tapBy = func(service, ok, no string) []phoneEvent {
+		if service == "mobile_app_annas_pixel" {
+			return []phoneEvent{tap(ok, "anna-id", "REMOTE")}
+		}
+		return nil // the new phone never answers
+	}
+	start := time.Now()
+	if exit, out := runLink(t, h, "", phoneLinkRun{pick: "Markus’s iPhone"}); exit != 1 || time.Since(start) > 4*time.Second || !strings.Contains(out, "was not tapped in time") {
+		t.Fatalf("budget: %d after %v: %q", exit, time.Since(start), out)
 	}
 }
 
@@ -339,10 +430,7 @@ func TestDiscoverLinkedPhone(t *testing.T) {
 	if plan := h.plan("lock.unlock", "lock.front").Plan; plan.Channel != channelChat || home.reads != 0 {
 		t.Fatalf("no link: %+v reads %d", plan, home.reads)
 	}
-	link := &phoneLink{Service: "mobile_app_annas_pixel", DeviceID: "dev-anna", UserID: "anna-id", Name: "Anna’s Pixel"}
-	if err := setPhoneLink(h.paths, "owner-id", link); err != nil {
-		t.Fatal(err)
-	}
+	seedLink(t, h, &annaLink)
 	refused := func(why string) {
 		t.Helper()
 		if exit, env := h.run(runPlanCommand, "call", "lock.unlock", "lock.front"); exit != 4 || env.Error.Code != "CONFIRM_UNAVAILABLE" {
@@ -365,7 +453,7 @@ func TestDiscoverLinkedPhone(t *testing.T) {
 	home.users[2]["group_ids"] = []string{"system-admin"}
 	home.devices = append(home.devices, phoneTarget{Service: "mobile_app_annas_pixel", Name: "Anna’s Pixel", DeviceID: "dev-anna-2"})
 	refused("name shared with another device")
-	if exit, out := runLink(t, h, "", phoneLinkRun{}); exit != 0 || strings.Contains(out, "Anna") {
+	if exit, out := runLink(t, h, "", phoneLinkRun{}); exit != 0 || strings.Contains(out, ") Anna") || !strings.Contains(out, "Two devices in Home Assistant are called “Anna’s Pixel”") {
 		t.Fatalf("shared name listed: %q", out)
 	}
 	home.devices = home.devices[:len(home.devices)-1]

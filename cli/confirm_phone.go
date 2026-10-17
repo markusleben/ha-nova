@@ -36,7 +36,7 @@ const (
 const (
 	phoneEventType  = "mobile_app_notification_action"
 	phoneSentText   = "HA NOVA sent a notification to “%s” (only that phone) — hold or expand it and tap %s there."
-	phoneAsked      = "Requested by your AI assistant. Confirm only if you want this."
+	phoneAsked      = "Requested by the AI assistant on “%s”. Confirm only if you want this."
 	phoneWindowSpan = 10 * time.Second               // the Relay's collect_events cap; two lanes overlap by half
 	phoneMaxMessage = 600                            // runes: a lock-screen summary, not the whole preview
 	phoneTitle      = "HA NOVA: hold or expand for " // + the button; a plain tap only opens the app
@@ -71,6 +71,7 @@ type phoneTarget struct {
 type phoneSetup struct {
 	owner, relayUser, confirmer string
 	targets                     []phoneTarget
+	why                         phoneWhy // phoneMissing: why
 }
 
 type phoneEvent struct {
@@ -271,7 +272,7 @@ func phoneMessage(plan storedPlan, noSnapshot bool) string {
 	if len(text) > phoneMaxMessage {
 		text = append(text[:phoneMaxMessage-1], '…')
 	}
-	return string(text) + "\n\n" + phoneAsked
+	return string(text) + "\n\n" + fmt.Sprintf(phoneAsked, phoneHost())
 }
 
 // collectPhoneEvents is one bounded listening window on the Relay: it
@@ -332,12 +333,12 @@ func confirmByPhone(paths runtimePaths, opts verbOptions, id string, noSnapshot 
 
 const (
 	phoneMissingWhy  = "this change is confirmed on the phone linked to HA NOVA, and HA NOVA can't reach it now"
-	phoneMissingNext = "Tell the user nothing changed: HA NOVA could not reach their linked phone. They can make this change in Home Assistant itself, or try again later; if they replaced or lost that phone, they remove it in Home Assistant and link the new one in a terminal: ha-nova setup confirm-phone. Never ask them for a code."
-	phoneRejectedWhy = "the answer came from a device that isn't signed in to Home Assistant as the person who linked this phone"
+	phoneMissingNext = "Tell the user nothing changed: HA NOVA could not reach their linked phone. `ha-nova setup confirm-phone list` (it sends nothing; in a terminal if you have no shell) says why and what to do. They can also make this change in Home Assistant itself, or try again later. Never ask them for a code."
+	phoneRejectedWhy = "the tap came from a device signed in to Home Assistant as someone other than the person whose phone is linked"
 	// #719's pin: no phone chosen yet. The agent may run the listing itself;
 	// only a tap on the chosen phone links it.
 	phoneUnlinkedWhy  = "HA NOVA now confirms on one phone the user chooses, and none is chosen on this computer yet"
-	phoneUnlinkedNext = "Tell the user nothing changed: HA NOVA now asks on one phone they choose. Run ha-nova setup confirm-phone to list their phones, ask which one is theirs, then run ha-nova setup confirm-phone \"<that phone's name>\" and tell them to tap 'Yes, link' on it. Then plan again. Never ask them for a code."
+	phoneUnlinkedNext = "Tell the user nothing changed: HA NOVA now asks on one phone they choose. With a shell: run ha-nova setup confirm-phone list (it sends nothing), ask which phone is theirs, tell them to watch it for “Link this phone to HA NOVA?” and tap “Yes, link”, then run ha-nova setup confirm-phone \"<that phone's name>\" (it waits up to 90 seconds) and plan again. Without a shell, they run ha-nova setup confirm-phone in a terminal. Never ask them for a code."
 )
 
 // humanPlan reads a typed plan of channel and re-plans it like apply, for
