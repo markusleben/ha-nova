@@ -142,6 +142,9 @@ func confirmByWindow(paths runtimePaths, opts verbOptions, id string, noSnapshot
 		return env, 0, false
 	}
 	defer s.close()
+	if !planSealed(plan, s.transport.Credential) { // an edited plan file: no window, and apply refuses it
+		return env, 0, false
+	}
 	fresh, ok := replanStored(paths, s, &verbEnvelope{}, plan, channelWindow)
 	idHex := planIdentity(strings.TrimPrefix(plan.Hash, "sha256:"), plan.Nonce)
 	if !ok || fresh.Hash != plan.Hash || fresh.Tier != plan.Tier || plan.ID != "p_"+idHex[:12] || fresh.Prompt == "" {

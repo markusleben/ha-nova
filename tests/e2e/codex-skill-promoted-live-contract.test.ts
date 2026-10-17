@@ -48,7 +48,7 @@ describe("codex promoted skill live e2e contract", () => {
     expect(content).toContain("do not resend `url_path` or `mode`");
     expect(content).toContain("Do not probe any other dashboard's config to infer behavior for this target.");
     expect(content).toContain("the previous turn ran `ha-nova plan delete --domain dashboard --id");
-    expect(content).toContain('fixture["plan_id"], fixture["token"] = delete_plan["id"], delete_plan["code"]');
+    expect(content).toContain('fixture["plan_id"], fixture["token"] = delete_plan["id"], typed_code(delete_plan)');
     expect(content).toContain("previous turn showed the concrete delete preview for this exact category and scope");
     expect(content).toContain("The user's current reply is only `yes`.");
     expect(content).toContain("Use Relay WebSocket calls only for this dashboard flow."); // resources stay raw
@@ -83,7 +83,7 @@ describe("codex promoted skill live e2e contract", () => {
     expect(content).toContain('"write", "--domain", "dashboard", "--id", url_path, "--create"');
     expect(content).toContain('plan_and_apply(["delete", "--domain", "dashboard", "--id", fixture["url_path"]])');
     expect(content).toContain("cleanup_dashboard_snapshots(snapshots_before)");
-    expect(content).toContain('apply_args += ["--confirm", plan["code"]]');
+    expect(content).toContain('apply_args += ["--confirm", typed_code(plan)]');
     expect(content).toContain('cleanup_dashboard({"dashboard_id": dashboard_id, "url_path": url_path})');
     expect(content).toContain("lovelace/resources/create");
     expect(content).toContain("lovelace/resources/update");

@@ -180,19 +180,47 @@ def parse_requested_scenarios(argv: list[str]) -> list[str]:
     return requested
 
 
-def dashboard_snapshot_files() -> set[str]:
+def undo_list_path() -> Path:
+    return Path(os.environ.get("HA_NOVA_CONFIG_DIR") or Path.home() / ".config" / "ha-nova") / "undo-snapshots.json"
+
+
+def save_undo_list() -> bytes | None:
+    # Dashboard applies push checkpoints for harness dashboards onto the
+    # user's undo list (5 entries): put the list back as it was.
+    try:
+        return undo_list_path().read_bytes()
+    except FileNotFoundError:
+        return None
+
+
+def restore_undo_list(saved: bytes | None) -> None:
+    if saved is None:
+        undo_list_path().unlink(missing_ok=True)
+    else:
+        undo_list_path().write_bytes(saved)
+
+
+def dashboard_snapshot_files() -> set[str] | None:
+    # None = unreadable: the sweep is skipped rather than guessing what is new.
     completed = subprocess.run(["ha-nova", "relay", "backups", "-d", '{"action":"list","category":"dashboards"}'],
                                cwd=ROOT, text=True, capture_output=True, check=False)
     try:
-        return {item["file"] for item in json.loads(completed.stdout).get("data", [])}
+        envelope = json.loads(completed.stdout)
+        if completed.returncode != 0 or envelope.get("ok") is not True:
+            return None
+        return {item["file"] for item in envelope["data"]}
     except (ValueError, KeyError, TypeError, AttributeError):
-        return set()
+        return None
 
 
-def cleanup_dashboard_snapshots(before: set[str]) -> None:
+def cleanup_dashboard_snapshots(before: set[str] | None) -> None:
     # Every dashboard save and delete the scenarios apply leaves a snapshot copy:
     # test debris that would fill the Relay's snapshot store over repeated runs.
-    for file in sorted(dashboard_snapshot_files() - before):
+    after = dashboard_snapshot_files()
+    if before is None or after is None:
+        print("dashboard snapshot sweep skipped: the snapshot list could not be read", file=sys.stderr)
+        return
+    for file in sorted(name for name in after - before if "auto-nova-codex-" in name):
         subprocess.run(["ha-nova", "relay", "backups", "-d", json.dumps({"action": "delete", "file": file})],
                        cwd=ROOT, capture_output=True, check=False)
 
@@ -422,6 +450,8 @@ def is_benign_failed_command(command: dict[str, Any]) -> bool:
     text = command.get("command", "")
     if exit_code == 1 and re.search(r"\b(?:rg|grep)\b", text):
         return True
+    if exit_code == 3 and re.search(r"\bha-nova\s+(?:plan|call)\b", text):  # a stored plan awaits confirmation
+        return True
 
     return False
 
@@ -482,6 +512,14 @@ def ha_nova_json(args: list[str], ok_exits: tuple[int, ...] = (0,)) -> dict[str,
     return json.loads(completed.stdout)
 
 
+def typed_code(plan: dict[str, Any]) -> str:
+    # A window plan (#717) shows no code: the harness cannot click the window.
+    if not plan.get("code"):
+        raise RuntimeError("a typed plan came without a code (the confirmation window is on): run the harness "
+                           "with `ha-nova setup confirm-window off` in its test HOME")
+    return plan["code"]
+
+
 def plan_and_apply(plan_args: list[str]) -> dict[str, Any]:
     # Raw dashboard writes are refused: the harness plans through the typed verbs
     # (exit 3 = needs confirmation) and confirms as the user, with the plan's own
@@ -489,12 +527,17 @@ def plan_and_apply(plan_args: list[str]) -> dict[str, Any]:
     plan = ha_nova_json(["plan", *plan_args], ok_exits=(0, 3)).get("plan") or {}
     apply_args = ["apply", "--plan", plan["id"]]
     if plan.get("confirm") == "code":
-        apply_args += ["--confirm", plan["code"]]
+        apply_args += ["--confirm", typed_code(plan)]
     return ha_nova_json(apply_args)
 
 
-DASHBOARD_PLAN_WRITE_RE = re.compile(r"\bha-nova\s+plan\s+write\b[^\n]*--domain[ =]dashboard\b")
-DASHBOARD_PLAN_CREATE_RE = re.compile(r"\bha-nova\s+plan\s+write\b(?=[^\n]*--domain[ =]dashboard\b)(?=[^\n]*--create\b)")
+DASHBOARD_PLAN_WRITE_RE = re.compile(r"\bha-nova\s+plan\s+write\b[^\n]*--domain(?:=|\s+)['\"]?dashboard\b")
+DASHBOARD_PLAN_CREATE_RE = re.compile(r"\bha-nova\s+plan\s+write\b(?=[^\n]*--domain(?:=|\s+)['\"]?dashboard\b)(?=[^\n]*--create\b)")
+
+
+def joined_commands(commands: list[dict[str, Any]]) -> str:
+    # One line per command: shell line continuations folded, as the CLI sees it.
+    return "\n".join(re.sub(r"\\[ \t]*\n[ \t]*", " ", item.get("command", "")) for item in commands)
 RAW_DASHBOARD_CONTENT_RE = re.compile(r"lovelace/config/save|lovelace/dashboards/create")
 
 SEED_DASHBOARD_CONFIG: dict[str, Any] = {
@@ -557,7 +600,7 @@ def cleanup_dashboard(fixture: dict[str, Any] | None) -> None:
         return
     try:
         plan_and_apply(["delete", "--domain", "dashboard", "--id", fixture["url_path"]])  # its snapshot: cleanup_dashboard_snapshots
-    except (subprocess.CalledProcessError, KeyError, ValueError) as exc:
+    except (subprocess.CalledProcessError, KeyError, ValueError, RuntimeError) as exc:
         print(f"cleanup of dashboard {fixture.get('url_path')} failed: {type(exc).__name__}", file=sys.stderr)
 
 
@@ -1149,7 +1192,7 @@ Return the normal history-skill shape with `Target`, `Window`, `Summary`, `Key p
 
 def validate_dashboard_lifecycle(events: list[dict[str, Any]], invalid_lines: list[str], fixture: dict[str, Any], status_line: str) -> list[str]:
     errors, commands, _messages, _final_message = common_errors(events, invalid_lines, status_line)
-    text = "\n".join(item.get("command", "") for item in commands)
+    text = joined_commands(commands)
     if count_ws_mentions(text, "lovelace/dashboards/list") < 1:
         errors.append("dashboard_list_readback_missing")
     if not DASHBOARD_PLAN_CREATE_RE.search(text):
@@ -1192,7 +1235,7 @@ def validate_dashboard_lifecycle(events: list[dict[str, Any]], invalid_lines: li
 
 def validate_dashboard_card_flow(events: list[dict[str, Any]], invalid_lines: list[str], fixture: dict[str, Any], status_line: str) -> list[str]:
     errors, commands, _messages, _final_message = common_errors(events, invalid_lines, status_line)
-    text = "\n".join(item.get("command", "") for item in commands)
+    text = joined_commands(commands)
     if count_ws_mentions(text, "lovelace/config") + text.count("ha-nova get --dashboard ") < 2:
         errors.append("dashboard_card_inventory_missing")
     if not DASHBOARD_PLAN_WRITE_RE.search(text) or "ha-nova apply" not in text:
@@ -1254,7 +1297,7 @@ def token_wording_errors(final_message: str, fixture: dict[str, Any]) -> list[st
 def validate_dashboard_delete_token(events: list[dict[str, Any]], invalid_lines: list[str], fixture: dict[str, Any], status_line: str) -> list[str]:
     errors, commands, _messages, final_message = common_errors(events, invalid_lines, status_line)
     errors.extend(token_wording_errors(final_message, fixture))
-    text = "\n".join(item.get("command", "") for item in commands)
+    text = joined_commands(commands)
     if not re.search(rf"\bha-nova\s+apply\b[^\n]*{re.escape(fixture['plan_id'])}", text):
         errors.append("dashboard_delete_missing")
     if "lovelace/config/delete" in text or "lovelace/dashboards/delete" in text:
@@ -1269,7 +1312,7 @@ def validate_dashboard_delete_token(events: list[dict[str, Any]], invalid_lines:
 
 def validate_dashboard_delete_reject(events: list[dict[str, Any]], invalid_lines: list[str], fixture: dict[str, Any], status_line: str) -> list[str]:
     errors, commands, _messages, final_message = common_errors(events, invalid_lines, status_line)
-    text = "\n".join(item.get("command", "") for item in commands)
+    text = joined_commands(commands)
     if "lovelace/dashboards/delete" in text or "lovelace/config/delete" in text or re.search(r"\bha-nova\s+apply\b", text):
         errors.append("dashboard_delete_should_not_run")
     dashboards = relay_ws({"type": "lovelace/dashboards/list"}).get("data", [])
@@ -1423,7 +1466,7 @@ def validate_history(events: list[dict[str, Any]], invalid_lines: list[str], fix
         errors.append("bounded_logbook_call_missing")
     if re.search(r"\bha-nova relay ws\b", command_text):
         errors.append("unexpected_history_ws_usage")
-    if re.search(r"\bha-nova relay core\b[^\n]*--method\s+(?:POST|PUT|PATCH|DELETE)\b", command_text):
+    if re.search(r"\bha-nova relay core\b[^\n]*--method(?:=|\s+)['\"]?(?:POST|PUT|PATCH|DELETE)\b", command_text, re.IGNORECASE):
         errors.append("unexpected_mutating_core_usage")
     for section in ("Target", "Window", "Summary", "Next step"):
         if section not in final_message:
@@ -1438,7 +1481,7 @@ def validate_history_statistics(events: list[dict[str, Any]], invalid_lines: lis
     command_text = "\n".join(item.get("command", "") for item in commands)
     if "recorder/statistics_during_period" not in command_text:
         errors.append("statistics_ws_call_missing")
-    if re.search(r"\bha-nova relay core\b[^\n]*--method\s+(?:POST|PUT|PATCH|DELETE)\b", command_text):
+    if re.search(r"\bha-nova relay core\b[^\n]*--method(?:=|\s+)['\"]?(?:POST|PUT|PATCH|DELETE)\b", command_text, re.IGNORECASE):
         errors.append("unexpected_mutating_core_usage")
     if "Key periods" not in final_message:
         errors.append("history_statistics_output_missing_key_periods")
@@ -1475,13 +1518,17 @@ def main(argv: list[str]) -> int:
             print(scenario)
         return 0
     if "--cleanup-only" in argv:
+        snapshots_before, undo_before = dashboard_snapshot_files(), save_undo_list()
         cleanup_promoted_residue()
+        cleanup_dashboard_snapshots(snapshots_before)
+        restore_undo_list(undo_before)
         return 0
 
     requested = parse_requested_scenarios(argv)
     fixtures: dict[str, dict[str, Any]] = {}
     results: list[ScenarioResult] = []
     snapshots_before = dashboard_snapshot_files()
+    undo_before = save_undo_list()
     cleanup_dashboards: list[dict[str, Any]] = []
     cleanup_resources: list[str] = []
     cleanup_categories: list[dict[str, Any]] = []
@@ -1543,7 +1590,7 @@ def main(argv: list[str]) -> int:
             fixture = dashboard_seed(f"nova-codex-delete-{suffix}", f"NOVA Codex Delete {suffix}")
             # The real typed plan the "previous turn" showed: its id and code.
             delete_plan = ha_nova_json(["plan", "delete", "--domain", "dashboard", "--id", fixture["url_path"]], ok_exits=(3,)).get("plan") or {}
-            fixture["plan_id"], fixture["token"] = delete_plan["id"], delete_plan["code"]
+            fixture["plan_id"], fixture["token"] = delete_plan["id"], typed_code(delete_plan)
             fixtures["dashboard_delete_token"] = fixture
             cleanup_dashboards.append(fixture)
             prompt, status_line = build_dashboard_delete_token_prompt(fixture)
@@ -1721,6 +1768,7 @@ def main(argv: list[str]) -> int:
             cleanup_dashboard(dashboard)
         cleanup_promoted_residue()
         cleanup_dashboard_snapshots(snapshots_before)
+        restore_undo_list(undo_before)
 
     return exit_code
 

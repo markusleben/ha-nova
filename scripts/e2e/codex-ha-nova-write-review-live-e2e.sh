@@ -245,7 +245,7 @@ Hard requirements:
 36. After those checks, stop and print the final user-facing result, the ## Post-Write Review section, and the machine line. Do not emit extra messages after the machine line.
 37. Before the first HA action, read at most these repo-local files unless a write would otherwise fail: skills/ha-nova/SKILL.md, directly referenced skills/ha-nova/*.md reference files, skills/write/SKILL.md, skills/review/checks.md.
 38. Do not read docs/reference/, tests/, workflows, or release files for this harness.
-39. Do not emit todo lists, meta progress updates, or extra planning summaries. Move directly from the minimal local reads to preview payload, explicit prewrite verdict, apply, ordered checks, final result, and machine line.
+39. Do not emit todo lists, meta progress updates, or extra planning summaries. Move directly from the minimal local reads to the plan write, preview payload, explicit prewrite verdict, apply, ordered checks, final result, and machine line.
 EOF_PROMPT
 }
 
@@ -456,9 +456,10 @@ collision_after_write_key = None
 state_after_write_count = 0
 collision_after_write_count = 0
 
-get_pattern = re.compile(r'"method"\s*:\s*"GET"|(?:^|\s)-X\s+GET\b|--method(?:=|\s+)GET\b')
+get_pattern = re.compile(r'"method"\s*:\s*"GET"|(?:^|\s)-X\s+GET\b|--method(?:=|\s+)GET\b', re.IGNORECASE)
 mutating_method_pattern = re.compile(
-    r'"method"\s*:\s*"(?:POST|DELETE)"|(?:^|\s)-X\s+(?:POST|DELETE)\b|--method(?:=|\s+)(?:\\?[\'"])?(?:POST|DELETE)\b'
+    r'"method"\s*:\s*"(?:POST|DELETE)"|(?:^|\s)-X\s+(?:POST|DELETE)\b|--method(?:=|\s+)(?:\\?[\'"])?(?:POST|DELETE)\b',
+    re.IGNORECASE,
 )
 plan_write_pattern = re.compile(r"\bha-nova\s+plan\s+write\b")
 apply_pattern = re.compile(r"\bha-nova\s+apply\b")
@@ -870,7 +871,7 @@ for idx, event in enumerate(events, start=1):
                 first_plan_write_idx = idx
             for pos in plan_positions:
                 target_plan_files.update(
-                    name for name in re.findall(r"(?<![0-9&])>\s*([^\s;&|]+)", segment_from(command, pos)) if not name.startswith("/dev/")
+                    name.strip("'\")") for name in re.findall(r"(?<![0-9&])>\s*([^\s;&|]+)", segment_from(command, pos)) if not name.startswith("/dev/")
                 )
         for name in target_plan_files:
             target_plan_vars.update(re.findall(rf"\b([A-Za-z_][A-Za-z0-9_]*)=[\"']?\$\([^)]*{re.escape(name)}", command))
@@ -1052,11 +1053,22 @@ cleanup_automation() {
   entity_id="$(ha-nova relay ws -d '{"type":"config/entity_registry/list"}' 2>/dev/null \
     | jq -r --arg id "$automation_id" '.data[]? | select(.platform == "automation" and .unique_id == $id) | .entity_id' 2>/dev/null \
     | head -n 1)" || true
-  [[ -n "$entity_id" ]] || return 0
+  if [[ -z "$entity_id" ]]; then
+    # A saved config whose reload failed has no registry row, and plan delete
+    # takes an entity: say so loudly, or the next --create run fails on it.
+    if ha-nova relay core --method GET --path "/api/config/automation/config/${automation_id}" 2>/dev/null | jq -e '.data.status == 200' >/dev/null 2>&1; then
+      log "cleanup: automation config ${automation_id} is left without an entity; delete it in Home Assistant (Settings > Automations) before the next run"
+    fi
+    return 0
+  fi
   plan_json="$(ha-nova plan delete "$entity_id" 2>/dev/null)" || true
   plan_id="$(jq -r '.plan.id // empty' <<<"$plan_json" 2>/dev/null)" || true
   plan_code="$(jq -r '.plan.code // empty' <<<"$plan_json" 2>/dev/null)" || true
-  if [[ -z "$plan_id" || -z "$plan_code" ]]; then
+  if [[ -n "$plan_id" && -z "$plan_code" ]]; then
+    log "cleanup: the delete of ${entity_id} needs the confirmation window; run the harness with 'ha-nova setup confirm-window off' in its test HOME"
+    return 0
+  fi
+  if [[ -z "$plan_id" ]]; then
     log "cleanup: could not plan the delete of ${entity_id}; remove it in Home Assistant"
     return 0
   fi
@@ -1123,11 +1135,11 @@ run_scenario() {
   local codex_attempt=1
 
   build_prompt_file "$scenario_id" "$scenario_prompt" "$automation_id" "$prompt_file"
-  # A leftover from an aborted run would make the scenario's --create refuse.
-  cleanup_automation "$automation_id"
 
   start_ts="$(date +%s)"
   while true; do
+    # A leftover from an aborted run or attempt would make --create refuse.
+    cleanup_automation "$automation_id"
     set +e
     run_codex_with_timeout "$max_duration_sec" "$prompt_file" "$scenario_log"
     codex_status="$?"
