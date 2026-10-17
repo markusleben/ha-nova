@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -12,7 +13,7 @@ import (
 	"time"
 )
 
-const callUsage = `ha-nova call <domain.service> [<entity_id>…] [--match "<phrase>"] [--area <area_id>] [--device <device_id>] [--set k=v]… [--data-file <file>]`
+const callUsage = `ha-nova call <domain.service> [<entity_id>…] [--match "<phrase>"] [--area <area_id>] [--device <device_id>] [--set k=v]… [--data-file <file>] [--response] [--skill <owner>]`
 
 const callHelp = callUsage + `
 
@@ -117,6 +118,7 @@ var refusalNext = map[string]string{
 	"NO_SNAPSHOT_NOT_OFFERED": "Apply without --no-snapshot: the config snapshot is taken first.",
 	"CODE_REQUIRED":           "Ask the user to type only the four digits of the one-time code from HA NOVA shown with the plan, then pass exactly what they typed with --confirm.",
 	"CODE_MISMATCH":           "Ask the user to type only the four digits of the one-time code from HA NOVA again, as shown with the plan.",
+	"CONFIRM_IN_FORM":         "Apply it in the app where it was planned (its confirmation form asks the user), or plan it again here and show the new preview.",
 	"NO_UNDO_SNAPSHOT":        "Only the last verified update of an automation, script, or dashboard can be reverted; there is nothing to revert.",
 	"REVERT_UNSUPPORTED":      "To undo an automation, script, or dashboard: plan revert --target <config_id> (for a dashboard, its url_path). The newest checkpoint belongs to a helper: revert that through ha-nova:helper.",
 	"CONFIG_ID_UNSUPPORTED":   "Pass the config_id from `ha-nova get <entity_id> --config`, not the entity_id; a YAML item is edited through ha-nova:yaml-config.",
@@ -176,7 +178,8 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string, noSnapshot
 	request, config := plan.Request, plan.ConfigRequest
 	// The file is untrusted beyond its hash: kind, version, and the stored
 	// request are re-validated exactly as a fresh plan would be.
-	valid := err == nil && timeErr == nil && plan.ID == id && plan.SchemaVersion == 1
+	valid := err == nil && timeErr == nil && plan.ID == id && plan.SchemaVersion >= 1 &&
+		(plan.Channel == channelChat || plan.Channel == channelForm || plan.SchemaVersion < planSchemaVersion)
 	isCall := valid && plan.Kind == "call" && config == nil && request.validate() == nil
 	isConfig := valid && config != nil && config.Op == plan.Kind && config.ConfigID != "" && config.validate() == nil
 	switch {
@@ -186,7 +189,12 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string, noSnapshot
 		return fail(refuse(&env, *staticRefusal(request)))
 	case !verbNow().Before(expires):
 		return fail(refused("PLAN_EXPIRED", "plan "+id+" expired at "+plan.ExpiresAt))
-	case staleCode(plan): // a `confirm:…` code from before four-digit codes: never typed against a new one
+	case expires.After(verbNow().Add(planTTL + time.Minute)):
+		// The plan file is user-writable; a far-future expiry would turn the
+		// 4-digit code into an unbounded online brute force. No plan is ever
+		// valid longer than its TTL, so refuse one claiming to be.
+		return fail(refused("PLAN_EXPIRED", "plan "+id+" has an expiry beyond its lifetime"))
+	case plan.SchemaVersion != planSchemaVersion: // its code scheme is gone: never typed against a new one
 		return fail(refused("PLAN_EXPIRED", "plan "+id+" was made by an earlier HA NOVA version"))
 	case plan.Server != s.server:
 		return fail(refused("SERVER_MISMATCH", fmt.Sprintf("plan %s belongs to server %q", id, plan.Server)))
@@ -197,6 +205,13 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string, noSnapshot
 			consumed = false
 		}
 		return fail(refused("NO_SNAPSHOT_NOT_OFFERED", "--no-snapshot applies only after this plan's snapshot failed and the user chose to proceed without one"))
+	case plan.Tier == tierTyped.String() && plan.Channel == channelForm && formAnswer == "":
+		// Made where the client shows forms: only the human's answer in that
+		// form confirms it, never a code from argv (spec §3). No attempt is used.
+		if os.Rename(claimed, open) == nil {
+			consumed = false
+		}
+		return fail(refused("CONFIRM_IN_FORM", "plan "+id+" is confirmed in the confirmation form of the app it was planned in, not with a typed code"))
 	}
 
 	// Recompute the whole plan from the stored request (I3).
@@ -253,8 +268,11 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string, noSnapshot
 		return fail(refused("PLAN_INVALID", "plan "+id+" does not match its own hash"))
 	}
 	wantCode := ""
+	if formAnswer != "" { // the MCP server's form answer replaces any argv code
+		code = formAnswer
+	}
 	if fresh.Tier == tierTyped.String() {
-		wantCode = confirmCode(idHex)
+		wantCode = confirmCode(s.transport.Credential, idHex, plan.Channel, plan.ExpiresAt)
 		switch typed := typedCode(code); {
 		case !fourDigits.MatchString(typed): // nothing, or not four digits: it can never match, so no attempt is used
 			if os.Rename(claimed, open) == nil {
@@ -345,7 +363,7 @@ func executeAction(s *relaySession, e *tierEngine, env *verbEnvelope, action pla
 	s.renewBudget()
 	flowsBefore := s.reauthFlows() // best effort, bounded; nil means no correlation
 	sent = true
-	result, err := s.postService(action.Service, body)
+	result, err := s.postService(action.Service, body, action.Response)
 	s.renewBudget() // verification and correlation get their own budget
 	var unknown *relayOutcomeUnknownError
 	switch {
@@ -358,6 +376,11 @@ func executeAction(s *relaySession, e *tierEngine, env *verbEnvelope, action pla
 		return &verbFailure{exit: verbExitUnverified, status: "failed", code: "SERVICE_REJECTED",
 			message: fmt.Sprintf("Home Assistant rejected the call (HTTP %d): %s", result.status, truncate(string(result.body), 300)),
 			next:    "Nothing ran; check the service data and the target."}
+	}
+	if action.Response && result.status < 400 && len(result.body) > 0 {
+		// The whole upstream body, so the skills' `result.service_response[...]`
+		// path matches what the old raw `.data.body.service_response` gave.
+		env.Result = json.RawMessage(result.body)
 	}
 	rows, outcome := verifyCall(s, e, action)
 	env.Verification = rows

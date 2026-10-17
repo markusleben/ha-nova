@@ -68,7 +68,7 @@ For every Relay-Ready call in this skill:
 | External data stores (InfluxDB long-term history, Prometheus, ...) | Covered | external-sources |
 | Weather forecasts (`weather.get_forecasts`) | Covered | service-call |
 | Calendar Events (read / create / update / delete) | Covered | calendar |
-| Custom events / known JSON webhooks | Covered | service-call |
+| Custom events / known JSON webhooks | Covered (raw firing refused: `automation.trigger`) | service-call |
 | Alarm / lock runtime control | Covered | service-call |
 | To-do Lists (items + Local To-do lifecycle) | Covered | todo |
 | Area / Floor CRUD | Covered | organize |
@@ -184,7 +184,7 @@ territory and stays external. The common premise that "the Supervisor API needs
 different auth and endpoints" is only half true: on HA OS/Supervised the
 `hassio` integration proxies it under `/api/hassio/*`, and start/stop/restart
 plus host reboot/shutdown are ordinary Home Assistant services — those live in
-`ha-nova:service-call` under its disruptive tier, with a refusal for the App
+`ha-nova:service-call` under the typed tier, with a refusal for the App
 running this Relay. App UPDATES are `ha-nova:updates`.
 
 **Search:** `home assistant supervisor app add-on install manage api 2026`

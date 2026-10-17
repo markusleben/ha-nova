@@ -2,7 +2,7 @@
 
 Single source of truth for recorder-statistics repair payloads, the issue matrix, purge semantics, and orphan-removal gates. Verified against Home Assistant core source (2026-07) and a live instance.
 
-Payloads below are WS request bodies — write them to a payload file and send via `ha-nova relay ws --data-file <payload-file> --out <result-file>` — EXCEPT the recorder purge section, whose payloads are REST service bodies sent via `ha-nova relay core --method POST --path <service-path> --body-file <payload-file>`.
+Payloads below are WS request bodies — write them to a payload file and send via `ha-nova relay ws --data-file <payload-file> --out <result-file>` — EXCEPT the recorder purge section, which runs through `ha-nova call recorder.<service> --skill ha-nova:maintenance` (raw service POST is refused).
 
 ## Statistics Issue Matrix (`recorder/validate_statistics`)
 
@@ -74,7 +74,7 @@ Semantics: adds `adjustment` to the `sum` of the bucket starting at `start_time`
 
 ## Recorder Purge (services, via REST — not WS)
 
-REST body for `ha-nova relay core --method POST --path /api/services/recorder/purge --body-file <payload-file>`:
+Call it (raw `POST /api/services/*` is refused): `ha-nova call recorder.purge --skill ha-nova:maintenance --data-file <payload-file>` with:
 
 ```json
 {"keep_days": 30, "repack": false, "apply_filter": false}
@@ -82,10 +82,10 @@ REST body for `ha-nova relay core --method POST --path /api/services/recorder/pu
 
 Deletes states, events, and short-term statistics older than the cutoff. **Long-term (hourly) statistics are never purged.**
 
-REST body for `--path /api/services/recorder/purge_entities` (also accepts `domains`, `entity_globs`; at least one selector required):
+`ha-nova call recorder.purge_entities <entity_id>… --skill ha-nova:maintenance --set keep_days=0` (name the entities as arguments — expand any `domains`/`entity_globs` selector to the concrete entities first, as the skill flow requires):
 
 ```json
-{"entity_id": ["sensor.dead"], "keep_days": 0}
+{"keep_days": 0}
 ```
 
 `keep_days: 0` (default) deletes ALL state history for the match. Does NOT touch statistics — pair with `clear_statistics` consciously.

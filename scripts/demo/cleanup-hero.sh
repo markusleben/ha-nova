@@ -70,14 +70,17 @@ fi
 
 echo "Deleting ${#ids[@]} demo automation(s): ${ids[*]}"
 for ei in "${ids[@]}"; do
-  uid=$(ha-nova relay ws -d "{\"type\":\"config/entity_registry/get\",\"entity_id\":\"$ei\"}" \
-    -jq '.data.unique_id' | ha-nova relay jq -r '.')
-  if [[ -z "$uid" || "$uid" == "null" ]]; then
-    echo "ERROR: no unique_id for $ei — delete manually." >&2
+  # Raw config deletes are refused (cli/relay_raw_guard.go); a delete is a
+  # typed plan. This maintainer-run demo tool confirms its own demo plans.
+  plan=$(ha-nova plan delete "$ei" || true)
+  plan_id=$(printf '%s' "$plan" | ha-nova relay jq -r '.plan.id // empty')
+  code=$(printf '%s' "$plan" | ha-nova relay jq -r '.plan.code // empty')
+  if [[ -z "$plan_id" || -z "$code" ]]; then
+    echo "ERROR: could not plan the delete of $ei — delete manually." >&2
     exit 1
   fi
-  ha-nova relay core -method DELETE -path "/api/config/automation/config/$uid" >/dev/null
-  echo "  deleted $ei (config id $uid)"
+  ha-nova apply --plan "$plan_id" --confirm "$code" >/dev/null
+  echo "  deleted $ei (plan $plan_id)"
 done
 
 sleep 1

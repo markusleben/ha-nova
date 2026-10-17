@@ -21,7 +21,7 @@ citation alone does not require it.
 
 ## Dispatch — one task skill per intent
 
-- `ha-nova:service-call` — control now: devices, scenes, scripts, locks, alarms, events, webhooks; enable/disable/trigger automations; start/pause timers
+- `ha-nova:service-call` — control now: devices, scenes, scripts, locks, alarms; enable/disable/trigger automations; start/pause timers
 - `ha-nova:entity-discovery` — find entities; live snapshots ("is everything closed?")
 - `ha-nova:read` — list, show, explain automations and scripts
 - `ha-nova:write` — automation/script CRUD; "for 30 minutes" actions; delays inside automations

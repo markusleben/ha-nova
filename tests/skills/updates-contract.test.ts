@@ -44,7 +44,7 @@ describe("updates contract", () => {
     expect(updatesSkill).toContain("Immediately before POST, re-read state and registry");
     expect(updatesSkill).toContain("with `in_progress` false");
     expect(updatesSkill).toContain("Any drift invalidates confirmation");
-    expect(updatesSkill).toContain('the confirmed `"version": "<v>"` only with bit 2');
+    expect(updatesSkill).toContain("the confirmed `--set version=<v>` only with bit 2");
     expect(updatesSkill).not.toContain("verify afterwards via `ha-nova relay health`");
     // Firmware caution.
     expect(updatesSkill).toContain("must not be interrupted");
@@ -136,11 +136,11 @@ describe("updates contract", () => {
     );
     expect(updatesSkill).toContain("`home_assistant_{core,os,supervisor}_version_latest` = HA stack");
     // backup:true is never unconditional for core/OS (would bypass the offer).
-    expect(updatesSkill).toContain('`"backup": true` for App updates');
+    expect(updatesSkill).toContain("`--set backup=true` for App updates");
     expect(updatesSkill).toContain("ONLY when the confirmed preview explicitly included that built-in backup");
     // Skip is reversible (live-verified skip -> clear_skipped roundtrip).
-    expect(updatesSkill).toContain("`/api/services/update/skip`");
-    expect(updatesSkill).toContain("`/api/services/update/clear_skipped`");
+    expect(updatesSkill).toContain("ha-nova call update.skip update.<id> --skill ha-nova:updates");
+    expect(updatesSkill).toContain("ha-nova call update.clear_skipped update.<id> --skill ha-nova:updates");
   });
 
   it("is wired into dispatch, capability map, availability table, and architecture doc", () => {

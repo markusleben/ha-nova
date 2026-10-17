@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 	"os"
@@ -19,14 +20,16 @@ import (
 // only writes plans; nothing here executes one.
 
 const (
-	planTTL      = 15 * time.Minute
-	planMaxFiles = 20
+	planTTL           = 15 * time.Minute
+	planMaxFiles      = 20
+	planSchemaVersion = 2 // 2: no code at rest, channel (2026-10-17); apply refuses older plans
 )
 
 type planAction struct {
 	Service   string         `json:"service"`
 	EntityIDs []string       `json:"entity_ids"`
 	Data      map[string]any `json:"data"`
+	Response  bool           `json:"response,omitempty"` // sent with ?return_response
 }
 
 type verbPlan struct {
@@ -55,8 +58,9 @@ type storedPlan struct {
 	ExpiresAt     string `json:"expires_at"`
 	Tier          string `json:"tier"`
 	Confirm       string `json:"confirm"`
-	Code          string `json:"code,omitempty"`
+	Channel       string `json:"channel"` // where the code is typed (confirm_code.go); inside the code's MAC
 	Nonce         string `json:"nonce"`
+	code          string // a typed plan's code, for its own envelope and say; never stored
 	Mismatches    int    `json:"code_mismatches,omitempty"` // apply attempts with a wrong code (3 invalidate)
 	// SnapshotFailed: a delete (or dashboard save) whose snapshot failed was
 	// handed back; only then may the user choose --no-snapshot. Not in the hash.
@@ -102,7 +106,7 @@ func buildCallPlan(e *tierEngine, env *verbEnvelope, req planCallRequest, target
 	for _, t := range targets {
 		frozen = append(frozen, t.EntityID)
 	}
-	action := planAction{Service: req.Service, EntityIDs: frozen, Data: req.Data}
+	action := planAction{Service: req.Service, EntityIDs: frozen, Data: req.Data, Response: req.wantsResponse()}
 	plan := storedPlan{Kind: "call", Request: req, Action: action, Basis: callPlanBasis(e, req.Service, frozen, req.Data)}
 	plan, err := sealPlan(e, env, plan, action)
 	env.Action = &action
@@ -131,12 +135,15 @@ func sealPlan(e *tierEngine, env *verbEnvelope, plan storedPlan, action any) (st
 	}
 	idHex := planIdentity(sum, hex.EncodeToString(nonce))
 	now := verbNow().UTC()
-	plan.SchemaVersion, plan.ID, plan.Hash, plan.Server, plan.Nonce = 1, "p_"+idHex[:12], "sha256:"+sum, env.Server, hex.EncodeToString(nonce)
+	plan.SchemaVersion, plan.ID, plan.Hash, plan.Server, plan.Nonce = planSchemaVersion, "p_"+idHex[:12], "sha256:"+sum, env.Server, hex.EncodeToString(nonce)
 	plan.CreatedAt, plan.ExpiresAt = now.Format(time.RFC3339), now.Add(planTTL).Format(time.RFC3339)
-	plan.Tier, plan.Reasons = tier, e.reasons
+	plan.Tier, plan.Reasons, plan.Channel = tier, e.reasons, planChannel
 	plan.Confirm = map[tierLevel]string{tierOrdinary: "none", tierPreview: "natural", tierTyped: "code"}[e.level]
 	if e.level == tierTyped {
-		plan.Code = confirmCode(idHex)
+		if e.s.transport.Credential == "" { // unreachable: a session always holds one
+			return storedPlan{}, errors.New("cannot derive the one-time code: no Relay credential")
+		}
+		plan.code = confirmCode(e.s.transport.Credential, idHex, plan.Channel, plan.ExpiresAt)
 	}
 	env.Tier, env.Reasons = tier, e.reasons
 	env.Members, env.Consumers = e.shown()
@@ -148,7 +155,7 @@ func sealPlan(e *tierEngine, env *verbEnvelope, plan storedPlan, action any) (st
 		env.Consumers = nil // omitted: no complete delete scan
 	}
 	env.Coverage = &tierCoverage{Complete: e.complete, Notes: e.notes, Skipped: e.skipped}
-	env.Plan = &verbPlan{ID: plan.ID, Hash: plan.Hash, ExpiresAt: plan.ExpiresAt, Confirm: plan.Confirm, Code: plan.Code}
+	env.Plan = &verbPlan{ID: plan.ID, Hash: plan.Hash, ExpiresAt: plan.ExpiresAt, Confirm: plan.Confirm, Code: plan.code}
 	env.Status = "ready"
 	if e.level != tierOrdinary {
 		env.Status, env.exit = "needs_confirmation", verbExitConfirmation
@@ -183,8 +190,8 @@ func callPlanBasis(e *tierEngine, service string, frozen []string, data map[stri
 	return map[string]any{"entities": entities, "before": before, "configs": e.basis}
 }
 
-// planIdentity is hex(sha256(hash ‖ nonce)): the plan id and the code
-// (confirm_code.go), recomputable at apply from the recomputed hash and stored nonce.
+// planIdentity is hex(sha256(hash ‖ nonce)): the plan id and the code's MAC
+// input (confirm_code.go), recomputable at apply from the recomputed hash and stored nonce.
 func planIdentity(sum, nonceHex string) string {
 	idSum := sha256.Sum256([]byte(sum + nonceHex))
 	return hex.EncodeToString(idSum[:])

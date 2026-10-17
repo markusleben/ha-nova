@@ -1,6 +1,6 @@
 ---
 name: service-call
-description: Use when the user wants to control something in Home Assistant right now — turn lights, switches, covers, climate, vacuums, or any device on, off, up, down, open, or closed; run a scene, script, or automation; call any service by name; fire custom events or known webhooks; operate alarm panels and locks — through HA NOVA Relay.
+description: Use when the user wants to control something in Home Assistant right now — turn lights, switches, covers, climate, vacuums, or any device on, off, up, down, open, or closed; run a scene, script, or automation; call any service by name; operate alarm panels and locks — through HA NOVA Relay.
 license: MIT
 compatibility: Requires the ha-nova CLI (run 'ha-nova setup' first) and the HA NOVA Relay in Home Assistant (App, or standalone container on Container/Core).
 ---
@@ -9,7 +9,7 @@ compatibility: Requires the ha-nova CLI (run 'ha-nova setup' first) and the HA N
 
 ## Scope
 
-Run Home Assistant services now — devices, scenes, scripts, automations, locks, alarm panels, custom events, known JSON webhooks. No config mutations (`ha-nova:write`, `ha-nova:helper`, `ha-nova:scene`).
+Run Home Assistant services now — devices, scenes, scripts, automations, locks, alarm panels (raw event/webhook firing is refused). No config mutations (`ha-nova:write`, `ha-nova:helper`, `ha-nova:scene`).
 
 ## Bootstrap (once per session)
 
@@ -18,7 +18,7 @@ Read and follow `../ha-nova/session-bootstrap.md`. No health probe; exit 1 `RELA
 ## Relay Contract
 
 Entity service calls run only through the typed verbs:
-- `ha-nova call <domain.service> [<entity_id>…] [--match "<phrase>"] [--area <area_id>] [--device <device_id>] [--set k=v]… [--data-file <file>]`
+- `ha-nova call <domain.service> [<entity_id>…] [--match "<phrase>"] [--area <area_id>] [--device <device_id>] [--set k=v]… [--data-file <file>] [--response] [--skill <owner>]`
 - `ha-nova apply --plan <id> [--confirm <code>]`
 - `ha-nova plan call …`: read-only "what would happen" answer, never executes.
 - Look up: `ha-nova find ["<phrase>"] [--domain <d>] [--area <area_id>] [--state <s>]`.
@@ -41,7 +41,7 @@ Read-only response services stay here (`raw-routes.md` → Response services), a
 |---|---|---|
 | 0 | `tier: ordinary` — sent once and checked | Report the result (Output Format). |
 | 3 | `plan.confirm: natural` | Show the preview; after the user confirms it, run `ha-nova apply --plan <id>` — apply IS the confirmation step. |
-| 3 | `plan.confirm: code` | Show the preview and `plan.code`; only after a reply that is only that code, run `ha-nova apply --plan <id> --confirm <the user's text>`. |
+| 3 | `plan.confirm: code` | Show the preview and `plan.code`; only after a reply that is only that code, run `ha-nova apply --plan <id> --confirm <the user's text>`. No `plan.code` (form app): follow `next_step`. |
 | 2 | drift since the preview, nothing sent | Show the new preview (typed: new code) and ask again; a relative ask re-derives its value and runs a fresh `call`. |
 | 4 | refused | `reasons[]` (an owner skill wins over `hassio`): owner skill; `TARGET_REQUIRED` → resolve targets first; `SERVICE_NOT_FOUND` → offer `error.next`'s candidates; `SERVICE_LIST_UNREAD` → plan again; `CODE_REQUIRED` → finish the action in the Home Assistant UI; missing feature → the device cannot do it; `hassio` or response-only → `raw-routes.md`. `error` from `apply`: `CODE_REQUIRED`/`CODE_MISMATCH` → ask for the code again; any other → follow `error.next`, never a re-`call`; `PLAN_NOT_FOUND`/`PLAN_CLAIMED`: outcome unknown, never re-plan. |
 | 5 | ambiguous or not found | One question listing `error.candidates` by friendly name and area (entity_id on a clash; max 10, narrow first beyond) with each match basis; re-run with the chosen id. No candidates: report `error.message`, follow `error.next`. |
@@ -88,7 +88,7 @@ Results (exit 0, 6, 7, and after `apply`) use its Verb Results rule; a typed `ap
 - No one-time code needed for ordinary service calls.
 - Unlocking or opening a lock, disarming an alarm panel, and opening a garage door, gate, or entry-door cover take the code — also when a scene, script, or automation run reaches one. Locking, closing, and arming stay ordinary.
 - Never include a `code` field in a payload; never ask for, accept, repeat, or store a PIN in chat. Never auto-retry a security action.
-- Disruptive services (`homeassistant.restart`/`stop`, `siren.turn_on`, App and host control) always preview with an explicit warning.
+- `homeassistant.restart`/`stop` and App/host control (`hassio.*`) take the one-time code; `siren.turn_on`/`toggle` preview.
 - Drafts follow `../ha-nova/smallest-solution.md`: the complete requested outcome in the simplest safe design.
 
 ## Guardrails

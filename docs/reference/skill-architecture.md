@@ -59,7 +59,7 @@ skills/
   review/SKILL.md                       (ha-nova:review — config quality review + collision scan)
   entity-discovery/SKILL.md             (ha-nova:entity-discovery — entity lookup)
   service-call/SKILL.md                 (ha-nova:service-call — services through `ha-nova call`/`apply`, alarm/lock runtime control)
-  service-call/raw-routes.md            (on-demand — response services, App/host control, events/webhooks, full deferral table)
+  service-call/raw-routes.md            (on-demand — response services, App/host control, refused event/webhook routes, full deferral table)
   fallback/SKILL.md                     (ha-nova:fallback — mandatory fallback for relay-ready features)
   onboarding/SKILL.md                   (ha-nova:onboarding — onboarding + diagnostics)
   diagnose/SKILL.md                     (ha-nova:diagnose — failure root-cause: traces, logs, bounded windows)
@@ -374,19 +374,11 @@ Rules:
 
 ## Service Call Architecture
 
-`ha-nova:service-call` runs entity service calls through the typed verbs `ha-nova call` / `ha-nova apply`: the CLI resolves and freezes targets, computes the tier (ordinary runs at once and is verified; preview needs natural confirmation; typed needs the CLI-minted code), refuses owned services, sends exactly one request, and verifies. The raw-relay routes (response services, App/host control, events, webhooks) live in the on-demand `skills/service-call/raw-routes.md`. It owns ordinary HA service calls plus four guarded runtime families:
-- custom event firing through `POST /api/events/{event_type}`
-- known JSON-webhook triggering through `POST /api/webhook/{webhook_id}`
+`ha-nova:service-call` runs entity service calls through the typed verbs `ha-nova call` / `ha-nova apply`: the CLI resolves and freezes targets, computes the tier (ordinary runs at once and is verified; preview needs natural confirmation; typed needs the user's one-time code), refuses owned services unless `--skill <owner>` names the calling skill, sends exactly one request, and verifies. Response services use `--response`; App/host control uses `--skill ha-nova:service-call` (on-demand `skills/service-call/raw-routes.md`). It owns ordinary HA service calls plus two guarded runtime families:
 - alarm-panel runtime services with feature bits 1/2/4/8/16/32
 - lock runtime services, with `lock.open` gated by feature bit 1
 
-Event/webhook rules:
-- resolve an exact event type or an exact automation with a static webhook ID; never probe either endpoint
-- scan readable automation configs for every matching current/legacy trigger and classify literal event-data filters; compare with `GET /api/events` for unclassified event listeners
-- use WS `webhook/list` with `--out` into client-private scratch storage to check registration, POST support, and `local_only`; the full response never reaches stdout, user output, or persistent storage
-- preview payload fields, known listeners, unknown-listener limits, and inherited action risk before bound confirmation
-- event success proves bus acceptance only; webhook HTTP 200 is deliberately opaque and does not prove registration, locality, or handler success
-- verify known automation runs against pre-call `last_triggered`/trace baselines; never auto-retry either runtime action
+Raw event firing (`POST /api/events/{event_type}`, WS `fire_event`), webhook calls (`/api/webhook/*`, WS `webhook/*`), and every raw service POST are refused by the CLI (`cli/relay_raw_guard.go`, exit 4; `docs/work/2026-10-17-confirmation-hardening-spec.md`). Running an automation on purpose goes through `ha-nova call automation.trigger`, tiered by what it runs.
 
 Alarm/lock rules:
 - inspect the exact state and `supported_features` immediately before preview
@@ -502,7 +494,7 @@ Rules: never invent a `media_content_id`; volume jumps and announcements are dis
 ## Assist Architecture
 
 `ha-nova:assist` owns Home Assistant's voice assistant:
-- utterance testing through `POST /api/conversation/process` — the flagship capability, and a LIVE command: it executes what it understands, so anything state-changing is previewed and confirmed like a service call
+- utterance testing through `ha-nova call conversation.process --skill ha-nova:assist --response` — the flagship capability, and a LIVE command: it executes what it understands, so the CLI always puts it on the typed tier
 - pipelines via WS `assist_pipeline/pipeline/*` (update resends every settings field addressed by `pipeline_id`; delete is code-gated because a satellite may depend on it)
 - voice exposure via WS `homeassistant/expose_entity[/list]`
 - engine inventories: `tts/engine/list`, `stt/engine/list`, `conversation/agent/list`, `wake_word/info`

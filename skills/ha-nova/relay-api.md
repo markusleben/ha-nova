@@ -100,7 +100,7 @@ Examples:
 ```text
 ha-nova relay ws --data-file <payload-file> --jq-file <filter-file>
 ha-nova relay core --method GET --path /api/config/automation/config/<id> --out <result-file>
-ha-nova relay core --method POST --path /api/services/light/turn_on --body-file <payload-file>
+ha-nova call light.turn_on light.main_light --set brightness=128
 ```
 
 The wrapper handles auth (OS credential store), headers, timeouts, and base URL internally.
@@ -253,8 +253,7 @@ Script config:
 State/config helpers:
 - `GET /api/states`
 - `GET /api/states/{entity_id}`
-- `POST /api/services/automation/reload`
-- `POST /api/services/script/reload`
+- reloads: `ha-nova call automation.reload` / `ha-nova call script.reload` (typed; raw service POSTs are refused)
 
 Dashboard / Lovelace WS:
 - `lovelace/dashboards/list`
@@ -419,62 +418,29 @@ Script fields: `alias`, `sequence`, `mode`, `description`, `fields`, `variables`
 
 Method: create/update = `POST`, delete = `DELETE`
 
-## Service Calls (via /core)
+## Service Calls
 
-List all available services:
+List all available services (read):
 ```json
 {"method":"GET","path":"/api/services"}
 ```
 
-Call a service:
-```json
-{"method":"POST","path":"/api/services/light/turn_on","body":{"entity_id":"light.main_light","brightness":128}}
-```
+Call a service through the typed verbs, never a raw request: `ha-nova call <domain.service> [<entity_id>…] [--set k=v]… [--data-file <file>]` — it computes the tier, freezes the targets, sends exactly one `POST /api/services/{domain}/{service}` (`cli/relay_write.go`), and verifies. An owned service (`mqtt.publish`, `notify.*`, …) adds `--skill <its owning skill>`; a response service adds `--response` (the data is in the result). A raw `POST /api/services/*` is refused (`cli/relay_raw_guard.go`, exit 4 — a safety rule, never a setup or connection problem): it would skip the tier.
 
-Call with response data:
-```json
-{"method":"POST","path":"/api/services/weather/get_forecasts?return_response","body":{"entity_id":"weather.home","type":"daily"}}
-```
-
-Supported target fields: `entity_id` (string or array), `area_id`, `device_id`.
+Supported target fields: `entity_id` (string or array), `area_id`, `device_id` — passed as arguments, `--area`, `--device`, never in the body.
 
 ## Runtime Events And Webhooks
 
-Fire a custom event with an event-data JSON object:
+Firing an event and calling a webhook are refused on the raw routes (`cli/relay_raw_guard.go`): both start whatever automation listens, with no tier. There is no verb for them in v1. To run an automation on purpose, call it: `ha-nova call automation.trigger <automation.x>` — it is tiered by what the automation does. Anything that genuinely needs a raw event or webhook is a Home Assistant-UI task.
 
-```json
-{"method":"POST","path":"/api/events/example_event","body":{"source":"ha_nova"}}
-```
-
-Inspect registered webhook metadata through WS without exposing the returned IDs:
-
-```json
-{"type":"webhook/list"}
-```
-
-Run that payload only with `ha-nova relay ws --data-file <payload-file> --out <result-file>`, with both files in client-private scratch storage. Never print the full response to stdout; inspect the saved result internally and expose only redacted metadata.
-
-Trigger a known JSON webhook only after the owning skill resolves the exact ID internally:
-
-```json
-{"method":"POST","path":"/api/webhook/<webhook_id>","body":{"example":"value"}}
-```
-
-Rules:
-
-- `/api/events/{event_type}` requires an exact custom event name and an object body; a successful response proves bus acceptance, not listener completion
-- automation webhook triggers default to POST/PUT and `local_only: true`; inspect the registered `allowed_methods` and locality before calling
-- multiple automation triggers can share one webhook ID and all will run
-- webhook IDs are authentication secrets; keep them in client-private scratch storage and out of previews, stdout, user-facing results, and logs
-- Home Assistant intentionally answers unknown IDs, blocked non-local requests, and handler failures with HTTP 200; verify matched automation runs instead
-- events and webhooks may already have fired when transport evidence is ambiguous; never retry automatically
+- `/api/events/{event_type}`, `/api/webhook/*` (any method), and WS `fire_event` / `webhook/*` are all refused.
+- A webhook ID is an authentication secret; `webhook/list` is refused too, so it never reaches the model.
 
 ## Calendar Event Writes
 
-`ha-nova:calendar` creates events through the service API and updates/deletes them through WS:
+`ha-nova:calendar` creates events with `ha-nova call calendar.create_event calendar.example --skill ha-nova:calendar --set summary=Event --set start_date_time=… --set end_date_time=…` and updates/deletes them through WS:
 
 ```json
-{"method":"POST","path":"/api/services/calendar/create_event","body":{"entity_id":"calendar.example","summary":"Event","start_date_time":"2026-07-15T14:00:00+02:00","end_date_time":"2026-07-15T15:00:00+02:00"}}
 {"type":"calendar/event/update","entity_id":"calendar.example","uid":"<uid>","event":{"summary":"Event","dtstart":"2026-07-15T14:00:00+02:00","dtend":"2026-07-15T15:00:00+02:00"}}
 {"type":"calendar/event/delete","entity_id":"calendar.example","uid":"<uid>"}
 ```
@@ -541,6 +507,8 @@ Trace response includes: `trace.trigger`, `trace.condition`, `trace.action` node
 Relay errors and upstream HA errors arrive differently. Agents must distinguish them.
 
 If the CLI says a request was already sent or its outcome is unknown, verify the target state and do not retry automatically.
+
+A `refused raw …` error (exit 4) is a safety rule, not a setup or connection problem: nothing was sent; follow its message (`ha-nova call`, `plan`), never `ha-nova setup`.
 
 ### Relay Errors (HTTP-level)
 

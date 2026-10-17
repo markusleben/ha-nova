@@ -259,7 +259,7 @@ is not set up yet, so its reload service does not exist, and neither
 applies, and do not run the phrase test before that reload or restart: it
 would fail for a valid file and trigger a pointless rollback. Then run the
 exact phrase
-through `ha-nova:assist` (`POST /api/conversation/process`): a sentence file
+through `ha-nova:assist` (`ha-nova call conversation.process --skill ha-nova:assist --response`): a sentence file
 that parses is not a sentence Assist matched. If the phrase does not match, or
 a previously working phrase stops matching, restore immediately — write the
 `.bak` back (or `delete_file` the new file), reload again, and re-test one

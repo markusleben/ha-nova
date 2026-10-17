@@ -90,31 +90,32 @@ func TestRelayRejectsPositionalArgumentsBeforeRequest(t *testing.T) {
 }
 
 func TestRelayCoreEnvelopeUsesJSONEscaping(t *testing.T) {
-	paths, capture := setupStrictInputRelay(t)
+	// The envelope builder escapes a control character as JSON...
 	wantPath := "/api/control-\x01"
-	exitCode, output := captureCommandOutput(t, func() int {
-		return runRelayProxy(paths, "core", []string{"--method", "POST", "--path", wantPath})
-	})
-	if exitCode != 0 {
-		t.Fatalf("exit/output = %d, %q", exitCode, output)
-	}
-	var body []byte
-	select {
-	case body = <-capture.bodies:
-	default:
-		t.Fatal("request body was not captured")
-	}
-	if !json.Valid(body) {
-		t.Fatalf("core envelope is not valid JSON: %q", body)
+	body, err := buildRelayRequestBody("core", relayRequestOptions{Method: "POST", Path: wantPath}, nil)
+	if err != nil || !json.Valid(body) {
+		t.Fatalf("core envelope %q is not valid JSON: %v", body, err)
 	}
 	var envelope struct {
 		Path string `json:"path"`
 	}
-	if err := json.Unmarshal(body, &envelope); err != nil {
-		t.Fatal(err)
+	if err := json.Unmarshal(body, &envelope); err != nil || envelope.Path != wantPath {
+		t.Fatalf("path = %q (%v), want %q", envelope.Path, err, wantPath)
 	}
-	if envelope.Path != wantPath {
-		t.Fatalf("path = %q, want %q", envelope.Path, wantPath)
+	// ...but such a path is never sent: the Relay's URL parse would strip the
+	// control character, so the path HA sees is not the one the guard checked
+	// (cli/relay_raw_guard.go).
+	paths, capture := setupStrictInputRelay(t)
+	exitCode, output := captureCommandOutput(t, func() int {
+		return runRelayProxy(paths, "core", []string{"--method", "POST", "--path", wantPath})
+	})
+	if exitCode != verbExitRefused || !strings.Contains(output, "nothing was sent") {
+		t.Fatalf("exit/output = %d, %q", exitCode, output)
+	}
+	select {
+	case body := <-capture.bodies:
+		t.Fatalf("a refused path was sent: %q", body)
+	default:
 	}
 }
 

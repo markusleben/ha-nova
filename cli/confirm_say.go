@@ -24,13 +24,26 @@ func confirmationSay(e *tierEngine, env *verbEnvelope, plan storedPlan, subject 
 	}
 	switch {
 	case plan.Confirm == "code":
-		parts = append(parts, sayTypedAsk(plan.Code, lowerFirst(sayGoal(e, env, plan, subject))))
+		parts = append(parts, sayTypedAsk(plan.code, lowerFirst(sayGoal(e, env, plan, subject))))
+		if plan.Channel == channelChat {
+			parts = append(parts, sayChatNote)
+		}
 	case plan.ConfigAction != nil: // the write card's literal options line
 		parts = append(parts, "Options: apply · show yaml · cancel")
 	default:
 		parts = append(parts, "Reply yes to go ahead.")
 	}
 	return strings.Join(parts, " ")
+}
+
+// directOwnedCall: the reason is the call itself, made from its owning
+// skill (--skill), not a member it runs.
+func directOwnedCall(env *verbEnvelope, r tierReason) bool {
+	if r.Via != "" || env.Action == nil {
+		return false
+	}
+	domain, _ := splitID(env.Action.Service)
+	return ownerSkill(env.Action.Service) != "" || domain == "hassio"
 }
 
 const sayCopyNote = "A copy is saved first, so it can be restored."
@@ -224,7 +237,7 @@ func sayReason(e *tierEngine, env *verbEnvelope, plan storedPlan, r tierReason) 
 	case reasonSceneAccess:
 		return "HA NOVA can't read the scene " + name + ", and its integration also controls locks, alarms, gates, or doors", true
 	case reasonReload:
-		return "A reload can change what runs in Home Assistant, and HA NOVA can't check that ahead", true
+		return "A reload or restart can change what runs in Home Assistant, and HA NOVA can't check that ahead", true
 	case reasonDeviceAccess:
 		return subject + " is on a device that also has a lock, alarm, or door" + through, true
 	case reasonDeviceAccessSibling:
@@ -235,10 +248,17 @@ func sayReason(e *tierEngine, env *verbEnvelope, plan storedPlan, r tierReason) 
 		}
 		return subject + " works a lock or a door" + through, true
 	case reasonOwnedTypedMember:
-		return "This also " + sayOwnedAction(env, r) + ", which HA NOVA can't check" + through, true
+		also := " also "
+		if directOwnedCall(env, r) {
+			also = " "
+		}
+		return "This" + also + sayOwnedAction(env, r) + ", which HA NOVA can't check" + through, true
 	case reasonConfigDelete:
 		return "This removes it from Home Assistant", true
 	case reasonOwnedMember:
+		if directOwnedCall(env, r) { // its preview says it all
+			return "", false
+		}
 		return "This also runs an action that normally gets its own check" + through, false
 	case reasonExpanded, reasonBatch:
 		if n := len(plan.Action.EntityIDs); n != 1 {

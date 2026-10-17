@@ -27,11 +27,9 @@ If this fails: `ha-nova setup`
 
 ## Relay Contract
 
-File-based:
-- `ha-nova relay core --method POST --path <service-path> --body-file <payload-file>`
-- `--out <result-file>` for large responses
+`ha-nova call` returns the preview: confirm it once, then `ha-nova apply --plan <id>`.
 
-Relay-core response body: `.data.body` (`../ha-nova/relay-api.md` → Standard Envelope).
+Item writes: `ha-nova call <todo.service> todo.<list> --skill ha-nova:todo [--set k=v]…` (the list is the argument, never `entity_id` data). Reads: `ha-nova call todo.get_items todo.<list> --response` (no `--skill`: read-only). Raw service POSTs are refused.
 
 ## Feature Gate (critical)
 
@@ -55,28 +53,28 @@ If the operation or field is not in the mask, name the provider limitation and o
 `ha-nova relay core --method GET --path /api/states --out <result-file>`, then filter `todo.*`: entity_id, friendly_name, `state` (open-item count), `supported_features`. If several lists plausibly match the user's name, ask one blocking question — never guess between similar names.
 
 ### Read items
-`todo.get_items` is a response service — the query parameter is mandatory, without it HA returns 400:
+`todo.get_items` is a response service (`--response` adds the mandatory `?return_response`; without it HA returns 400):
 ```text
-ha-nova relay core --method POST --path "/api/services/todo/get_items?return_response" --body-file <payload-file> --out <result-file>
+ha-nova call todo.get_items todo.<list> --response
 ```
-Body: `{"entity_id":"todo.<list>"}`. Items live under `.data.body.service_response["todo.<list>"].items` with `uid`, `summary`, `status` (`needs_action`/`completed`), optional `due`, `description`. Filter by status only when the user asks.
+Items live under `result.service_response["todo.<list>"].items` with `uid`, `summary`, `status` (`needs_action`/`completed`), optional `due`, `description`. Filter by status only when the user asks.
 
 ### Add item
-Body: `{"entity_id":"todo.<list>","item":"<summary>","due_date":"YYYY-MM-DD","description":"..."}` → POST `/api/services/todo/add_item`.
+`ha-nova call todo.add_item todo.<list> --skill ha-nova:todo --set item="<summary>" [--set due_date=YYYY-MM-DD] [--set description=…]`.
 - `due_date` and `due_datetime` are mutually exclusive; include either or `description` only when the Feature Gate allows.
 - Check for an existing open (`needs_action`) item with the same summary first; ask before adding a duplicate.
 - Read items back to confirm (get the new `uid`).
 
 ### Update / complete / rename
-POST `/api/services/todo/update_item` with `{"entity_id":"todo.<list>","item":"<uid>", ...}` — `item` = the `uid` from Read items (a summary works but is ambiguous when duplicated — always prefer `uid`), plus any of `status` (`completed`/`needs_action`), `rename`, `due_date`/`due_datetime`, `description`.
+`ha-nova call todo.update_item todo.<list> --skill ha-nova:todo --set item="<uid>" …` — `item` = the `uid` from Read items (a summary is ambiguous when duplicated — always prefer `uid`), plus any of `--set status=completed|needs_action`, `--set rename=…`, `--set due_date=…`/`--set due_datetime=…`, `--set description=…`.
 
 ### Reorder items (feature bit 8)
 No service exists — send WS `{"type":"todo/item/move","entity_id":"todo.<list>","uid":"<uid>","previous_uid":"<uid>"}` via `ha-nova relay ws --data-file <payload-file>`; omit `previous_uid` for the top; read back to confirm.
 
 ### Remove items
 1. Read items first and resolve exact `uid`s — removing a non-existent item is a raw HA error (400 or 500 by version), not a clean message.
-2. POST `/api/services/todo/remove_item` with `{"entity_id":"todo.<list>","item":[...]}` (one or many uids).
-3. "Clear completed": POST `/api/services/todo/remove_completed_items` with `{"entity_id":"todo.<list>"}` — the service requires the target; without it, nothing happens silently. After a conversation pause, re-read and re-preview the completed set first.
+2. `ha-nova call todo.remove_item todo.<list> --skill ha-nova:todo --data-file <payload-file>` with `{"item":[...]}` (one or many uids).
+3. "Clear completed": `ha-nova call todo.remove_completed_items todo.<list> --skill ha-nova:todo`. After a conversation pause, re-read and re-preview the completed set first.
 4. Read back and confirm — for clear-completed, zero `completed` items remain; otherwise the expected item count.
 
 ### Create a list (Local To-do)

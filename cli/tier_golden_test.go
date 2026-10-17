@@ -216,7 +216,7 @@ func TestPlanCallTierGoldenCases(t *testing.T) {
 			setup: func(f *fakeHA) { f.ent("lock.front_door", "zwave_js", "locked", nil) },
 			args:  []string{"lock.unlock", "lock.front_door"}, exit: 3, tier: "typed", reasons: []string{reasonAccessLock},
 			check: func(t *testing.T, env verbTestEnvelope) {
-				if !fourDigits.MatchString(env.Plan.Code) || !strings.HasSuffix(env.Say, "Type "+env.Plan.Code+" to unlock “lock.front_door” — a plain yes can't confirm this.") {
+				if !fourDigits.MatchString(env.Plan.Code) || !strings.HasSuffix(env.Say, "Type "+env.Plan.Code+" to unlock “lock.front_door” — a plain yes can't confirm this. "+sayChatNote) {
 					t.Fatalf("plan %+v", env.Plan)
 				}
 			}},
@@ -246,8 +246,8 @@ func TestPlanCallTierGoldenCases(t *testing.T) {
 		{name: "ESPHome button press is user-authored: typed",
 			setup: func(f *fakeHA) { f.ent("button.gate", "esphome", "unknown", nil) },
 			args:  []string{"button.press", "button.gate"}, exit: 3, tier: "typed", reasons: []string{reasonUserButton}},
-		{name: "restart is disruptive: preview",
-			args: []string{"homeassistant.restart"}, exit: 3, tier: "preview", reasons: []string{reasonDisruptive}},
+		{name: "restart loads every config file again: typed like a reload",
+			args: []string{"homeassistant.restart"}, exit: 3, tier: "typed", reasons: []string{reasonReload}},
 	}
 	runTierCases(t, cases)
 }

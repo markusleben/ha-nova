@@ -31,7 +31,7 @@ This file defines only how the test plan is chosen, presented, and verified.
 - Single confirmation: the Test Plan Card doubles as the runtime-call
   preview (exact service, target, payload, `skip_condition` value, device
   delta). The user's option choice is the natural confirmation bound to that
-  exact preview — do not ask a second time. Any change to the plan expires
+  exact preview — do not ask a second time (a typed plan still takes the user's code). Any change to the plan expires
   the choice and requires a fresh card. High-consequence members (locks,
   alarm panels, garage/gate/entry-door covers by `device_class`, and
   physically irreversible actions) keep the one-time code from the
@@ -58,7 +58,7 @@ change belong in the high-consequence row.
 This row is the test-planning risk class, a deliberate superset of the
 context skill's high-consequence confirmation tier. Members that grant
 physical access still take the one-time code; merely disruptive
-members such as `homeassistant.restart` take a warned bound confirmation.
+members such as `homeassistant.restart`/`stop` now take the one-time code.
 Plan them alike, confirm them by their own tier.
 
 Co-listeners escalate: the risk class covers everything the run can set in
@@ -79,8 +79,9 @@ now and recommend the logic check or waiting until the device is back.
 
 Trigger type (drives which options exist):
 
-- `state` / `numeric_state` / `template` / `event` / `mqtt` — the full real
-  path is testable (recipes below).
+- `state` / `numeric_state` / `template` / `mqtt` — the full real path is
+  testable (recipes below). `event` is not (firing is refused): run the
+  automation with `ha-nova call automation.trigger`.
 - `time` / `time_pattern` / `sun` / `calendar` — the real path cannot be
   faked honestly. Offer "run actions now" plus a trace check after the next
   scheduled occurrence (name the expected time). Never change the system
@@ -148,8 +149,10 @@ the card that other event listeners cannot be ruled out.
   then read the trace; otherwise fall back to "run actions now".
 - `template`: run the logic check first; then manipulate the underlying
   entities as above.
-- `event`: `POST /api/events/<event_type>` with the payload the trigger
-  expects. Fires for every listener in the instance — name co-listeners.
+- `event`: firing a custom event is refused (`cli/relay_raw_guard.go`); it
+  would run every listener untiered. Run the automation's own actions with
+  `ha-nova call automation.trigger <automation.x>` (tiered by what it does),
+  and say the event-trigger path itself was not exercised.
 - `mqtt`: publish the expected topic and payload via `ha-nova:mqtt`.
 - Branches keyed on `trigger.id`: one real-path run per branch, each via its
   own trigger source.

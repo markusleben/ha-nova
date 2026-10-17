@@ -63,7 +63,7 @@ func TestPlanFileIsPrivateAndBindsTheRequest(t *testing.T) {
 	if err := json.Unmarshal(raw, &stored); err != nil {
 		t.Fatal(err)
 	}
-	if stored.Kind != "call" || stored.Server != env.Server || stored.Code != env.Plan.Code || stored.Action.Service != "lock.unlock" ||
+	if stored.Kind != "call" || stored.Server != env.Server || stored.Channel != channelChat || stored.SchemaVersion != planSchemaVersion || env.Plan.Code == "" || stored.Action.Service != "lock.unlock" ||
 		len(stored.Action.EntityIDs) != 1 || stored.Request.EntityIDs[0] != "lock.front_door" || "sha256:"+planHash(stored.Kind, stored.Server, stored.Action, stored.Tier, stored.Reasons, stored.Basis) != stored.Hash {
 		t.Fatalf("stored plan does not bind the request: %+v", stored)
 	}

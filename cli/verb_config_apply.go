@@ -80,7 +80,7 @@ func executeConfig(paths runtimePaths, s *relaySession, env *verbEnvelope, actio
 	if action.Domain == "automation" { // the scope Home Assistant's own config hook reloads
 		reloadData["id"] = action.ConfigID
 	}
-	reload, reloadErr := s.postService(action.Domain+".reload", reloadData)
+	reload, reloadErr := s.postService(action.Domain+".reload", reloadData, false)
 	reloaded := reloadErr == nil && reload.status < 400
 	s.renewBudget()
 	row, readback := verifyConfig(s, action, reloaded)

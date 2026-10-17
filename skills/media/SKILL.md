@@ -26,7 +26,7 @@ If this fails: `ha-nova setup`
 ## Relay Contract
 
 - `ha-nova relay ws --data-file <payload-file>` for WS commands (browse, search)
-- `ha-nova relay core --method POST --path /api/services/<domain>/<service> --body-file <payload-file>` for service calls
+- `ha-nova call <domain.service> <entity_id> --skill ha-nova:media [--set k=v]… [--data-file <payload-file>]` for `media_player.*`/`tts.*` calls (the target is an argument, never `entity_id` in the data): show its preview, then `ha-nova apply --plan <id>` (exit codes: `../service-call/SKILL.md` → Flow)
 - `ha-nova relay core --method GET --path /api/states/<entity_id>` to read a player's state and attributes
 - `--out <result-file>` for large browse responses; `--jq-file <filter-file>` for non-trivial filters
 
@@ -85,7 +85,6 @@ If a requested feature bit is absent, say so plainly instead of calling the serv
 Full relay/upstream error taxonomy: `../ha-nova/relay-api.md` -> Error Handling. Media specifics:
 - WS `media_player/browse_media` fails with a command error when the player does not support browsing — check bit 131072 first.
 - `media_content_type` and `media_content_id` must be provided together; a lone id is rejected.
-- A service call can succeed while the player ignores it (offline speaker, wrong source): always verify by re-reading state.
 - `media_player/search_media` and `media_source/search_media` exist only on newer Home Assistant versions and only for some integrations or sources — feature-detect (bit 4194304, `can_search`), and degrade to browsing instead of guessing.
 
 ## Output Format

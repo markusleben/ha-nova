@@ -28,7 +28,7 @@ If this fails: `ha-nova setup`
 - `ha-nova relay core --method GET --path /api/services --out <result-file>` to discover notify services
 - `ha-nova relay ws --data-file <payload-file>` for WS commands (entity registry, persistent notifications)
 - `ha-nova relay core --method GET --path /api/states --out <result-file>` — the household-routing read: `person.*` states before the preview and again before sending
-- `ha-nova relay core --method POST --path /api/services/<domain>/<service> --body-file <payload-file>` to send
+- `ha-nova call <domain.service> [<entity_id>…] [--set k=v]… [--data-file <payload-file>] --skill ha-nova:notify` to send (raw service POSTs are refused)
 - `--jq-file <filter-file>` for non-trivial filters
 
 ## Target Discovery (do this first)
@@ -64,8 +64,8 @@ Canonical contract: `../ha-nova/mobile-notification-composition.md` — read it 
      - **iOS — under `data.push`**: `interruption-level`, `sound`, `badge`. `push` is the iOS-only container; do not put Android channel/importance there.
      Read the target's platform from the device name or ask, and place the keys accordingly.
    - A `message: "clear_notification"` with a matching `tag` removes a previously sent notification instead of sending a new one.
-4. Preview the exact payload (target + title + message + any `data`) and get confirmation — a notification is an irreversible, user-visible side effect.
-5. Send, then report what was sent where: a successful service call means Home Assistant accepted it, not that the phone displayed it — say so honestly. There is no delivery receipt by default — one exists only through a pre-existing, verified received-event automation (canonical contract → Delivery honesty; never built ad hoc for a send); receipt never proves reading.
+4. Plan it with `ha-nova call` (exit 3): show its preview with the exact payload (target + title + message + any `data`) and get one confirmation — a notification is an irreversible, user-visible side effect.
+5. Send with `ha-nova apply --plan <id>`, then report what was sent where: a successful service call means Home Assistant accepted it, not that the phone displayed it — say so honestly. There is no delivery receipt by default — one exists only through a pre-existing, verified received-event automation (canonical contract → Delivery honesty; never built ad hoc for a send); receipt never proves reading.
 
 ## Persistent Notifications (Home Assistant UI)
 

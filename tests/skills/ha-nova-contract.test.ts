@@ -748,9 +748,9 @@ describe("ha-nova contract", () => {
     expect(capability).toContain(
       "../ha-nova/consumer-discovery-preflight.md",
     );
-    expect(serviceCall).toContain(
-      "the shared event-consumer pattern of `../ha-nova/consumer-discovery-preflight.md`",
-    );
+    // Event firing is refused now; running an automation goes through the
+    // typed verb, which does the consumer scan in the CLI tier engine.
+    expect(serviceCall).toContain("ha-nova call automation.trigger");
     expect(fallback).toContain(
       "only through a documented adapter (`../ha-nova/consumer-discovery-preflight.md`",
     );
@@ -1035,7 +1035,7 @@ describe("ha-nova contract", () => {
       "| Calendar Events (read / create / update / delete) | Covered | calendar |",
     );
     expect(fallback).toContain(
-      "| Custom events / known JSON webhooks | Covered | service-call |",
+      "| Custom events / known JSON webhooks | Covered (raw firing refused: `automation.trigger`) | service-call |",
     );
     expect(fallback).toContain(
       "| Alarm / lock runtime control | Covered | service-call |",

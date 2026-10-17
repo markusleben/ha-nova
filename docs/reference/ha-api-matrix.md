@@ -10,12 +10,12 @@ Which HA operations require REST, WS, or filesystem?
 | `/api/states` | GET | All entity states |
 | `/api/states/{entity_id}` | GET | Single entity state |
 | `/api/services` | GET | All available services (with ETag caching) |
-| `/api/services/{domain}/{service}` | POST | Call service (`?return_response` for response data) |
+| `/api/services/{domain}/{service}` | POST | Call service (`?return_response` for response data) — raw refused (`cli/relay_raw_guard.go`): only through `ha-nova call` (`--response`, `--skill`) |
 | `/api/config` | GET | HA Core configuration |
 | `/api/config/core/check_config` | POST | Validate YAML configuration |
 | `/api/template` | POST | Render Jinja2 template (body: `{"template": "..."}`) |
-| `/api/events/{event_type}` | POST | Fire a custom event (admin; JSON object; asynchronous listener execution) |
-| `/api/webhook/{webhook_id}` | POST | Invoke a known JSON webhook (opaque HTTP 200; effect verification required) |
+| `/api/events/{event_type}` | POST | Fire a custom event (admin; JSON object; asynchronous listener execution) — raw refused |
+| `/api/webhook/{webhook_id}` | POST | Invoke a known JSON webhook (opaque HTTP 200; effect verification required) — raw refused |
 | `/api/history/period/{start_iso}` | GET | State history (with `?filter_entity_id=...&end_time=...`) |
 | `/api/logbook/{timestamp}` | GET | Logbook entries |
 | `/api/error_log` | GET | Error log of the current session — **404 on HA OS/Supervised since 2025.11** (log file moved to journald; official docs are stale). Re-enable: `ha core options --duplicate-log-file=true` + `ha core rebuild` + `ha core restart` (2026.1+). Prefer WS `system_log/list` |
@@ -163,7 +163,7 @@ Recurring instances add `recurrence_id`; `recurrence_range` is `""` for only tha
 ### Misc
 | WS Type | Purpose |
 |---------|-----|
-| `webhook/list` | Registered webhook IDs plus domain/name, locality, and allowed methods (secret-bearing; private `--out` file only, never stdout) |
+| `webhook/list` | Registered webhook IDs plus domain/name, locality, and allowed methods (secret-bearing) — raw refused |
 | `repairs/list_issues` | Repairs/Deprecation Issues |
 | `config_entries/get` | Config-entry metadata; health uses not-loaded entries as integration status |
 | `system_health/info` | System health finite event response (Skill opts into Relay `collect_events` until `finish`) |
@@ -221,8 +221,8 @@ guardrails.
 | Updates | `update/release_notes` | updates |
 | Logger | `logger/log_info` (numeric levels; `logger.set_level` takes names) | diagnose |
 | Diagnostics | `diagnostics/list`; REST `/api/diagnostics/config_entry/<entry_id>[/device/<device_id>]` | diagnose |
-| To-do | `todo/item/move`; REST `/api/services/todo/*?return_response` | todo |
-| Conversation | REST `/api/conversation/process` (executes what it understands) | assist |
+| To-do | `todo/item/move`; `ha-nova call todo.* --skill ha-nova:todo` / `todo.get_items --response` | todo |
+| Conversation | `ha-nova call conversation.process --skill ha-nova:assist --response` (typed; raw refused) | assist |
 | Thread / Matter | `otbr/info`, `thread/list_datasets` (dataset is a network credential — `--out` file only), `matter/node_diagnostics` (takes `device_id`) | fallback |
 | Custom-integration config APIs | REST `/api/<integration>/<resource>` (GET/POST; private, version-dependent — Alarmo, Scheduler, Frigate, ...) | fallback |
 | HACS | `hacs/*` (17 commands) — not a Home Assistant API; the pinned map lives in `skills/hacs/hacs-commands.md` | hacs |
@@ -248,5 +248,5 @@ Completeness: rebuilt 2026-08-19 against `skills/**/*.md` (issue #517).
   - clear one scope: `{"categories":{"<scope>":null}}`
   - do not rely on `{"categories":{}}` to clear an existing scoped category
 - **Long-term trends use recorder statistics**, not wide history scans, when the question spans many days
-- **Services** can be called with `?return_response` for response data
+- **Services** can be called with `?return_response` for response data (`ha-nova call --response`; raw refused)
 - **ETag caching** for `/api/services` saves bandwidth on repeated calls

@@ -19,9 +19,9 @@ describe("todo contract", () => {
   });
 
   it("teaches the mandatory return_response query parameter (live-verified 400 without it)", () => {
-    expect(todoSkill).toContain("?return_response");
+    expect(todoSkill).toContain("--response");
     expect(todoSkill).toContain("without it HA returns 400");
-    expect(todoSkill).toContain('.data.body.service_response["todo.<list>"].items');
+    expect(todoSkill).toContain('result.service_response["todo.<list>"].items');
     // Error taxonomy for the live-verified failure shapes.
     expect(todoSkill).toContain('`get_items` returning 400 "requires responses"');
     expect(todoSkill).toContain("Item-service 400/500: the item does not exist");
@@ -41,9 +41,9 @@ describe("todo contract", () => {
     expect(todoSkill).toContain('"type":"todo/item/move"');
     // Every item-write body carries the entity_id target explicitly —
     // entity services without a target are silent no-ops.
-    expect(todoSkill).toContain('`/api/services/todo/update_item` with `{"entity_id":"todo.<list>","item":"<uid>", ...}`');
-    expect(todoSkill).toContain('`/api/services/todo/remove_item` with `{"entity_id":"todo.<list>","item":[...]}`');
-    expect(todoSkill).toContain('`/api/services/todo/remove_completed_items` with `{"entity_id":"todo.<list>"}`');
+    expect(todoSkill).toContain("ha-nova call todo.update_item todo.<list> --skill ha-nova:todo");
+    expect(todoSkill).toContain("ha-nova call todo.remove_item todo.<list> --skill ha-nova:todo");
+    expect(todoSkill).toContain("ha-nova call todo.remove_completed_items todo.<list> --skill ha-nova:todo");
   });
 
   it("domain-gates list deletion so integration entries are never deleted as lists", () => {
