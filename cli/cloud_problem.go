@@ -53,9 +53,9 @@ func (p *cloudProblem) Error() string {
 		return ""
 	}
 	if p.Detail != "" {
-		return fmt.Sprintf("Home Assistant Cloud: %s (code %s; next: %s)", p.Detail, p.Code, p.Remediation)
+		return fmt.Sprintf("Home Assistant Link: %s (code %s; next: %s)", p.Detail, p.Code, p.Remediation)
 	}
-	return fmt.Sprintf("Home Assistant Cloud failed (code %s; next: %s)", p.Code, p.Remediation)
+	return fmt.Sprintf("Home Assistant Link failed (code %s; next: %s)", p.Code, p.Remediation)
 }
 
 func (p *cloudProblem) Unwrap() error {
@@ -137,10 +137,10 @@ func cloudProblemForError(err error) *cloudProblem {
 		problem.Detail = "the authorization response was lost or invalid; review HA NOVA sessions in Home Assistant before retrying"
 	case CloudErrForbidden, CloudErrSubscriptionInactive:
 		problem.Code, problem.Remediation = cloudProblemSubscription, cloudRemediationManagePlan
-		problem.Detail = "the Home Assistant Cloud account cannot use remote access"
+		problem.Detail = "the Home Assistant Link account cannot use remote access"
 	case CloudErrCloudNotReady:
 		problem.Code, problem.Remediation = cloudProblemRemoteDisabled, cloudRemediationEnableRemote
-		problem.Detail = "Home Assistant Cloud remote access is not ready"
+		problem.Detail = "Home Assistant Link remote access is not ready"
 	case CloudErrAppNotReady:
 		problem.Code, problem.Remediation = cloudProblemApp, cloudRemediationManageApp
 		problem.Detail = "the NOVA Relay App is not ready for Cloud access"
@@ -176,7 +176,7 @@ func cloudProblemForError(err error) *cloudProblem {
 		problem.Detail = "the request may have reached the Relay; verify the target state and do not retry automatically"
 	default:
 		problem.Code, problem.Remediation = cloudProblemUnavailable, cloudRemediationRetry
-		problem.Detail = "Home Assistant Cloud is temporarily unavailable"
+		problem.Detail = "Home Assistant Link is temporarily unavailable"
 	}
 	return problem
 }

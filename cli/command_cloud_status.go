@@ -258,20 +258,20 @@ func runCloudStatusCommand(paths runtimePaths, args []string) int {
 		printCloudStatusJSON(summary)
 	} else if summary.Status == "ready" {
 		printHumanInfo(
-			"Home Assistant Cloud is ready for %q (%s; route %s).",
+			"Home Assistant Link is ready for %q (%s; route %s).",
 			summary.Server,
 			summary.Origin,
 			summary.RoutePolicy,
 		)
 	} else if summary.CurrentReady {
 		printHumanInfo(
-			"Current Home Assistant Cloud access is ready, but an update is waiting at %q.",
+			"Current Home Assistant Link access is ready, but an update is waiting at %q.",
 			summary.Lifecycle,
 		)
 		printCloudStatusResumeOrDisabled(summary.NextCommand)
 	} else {
 		printHumanInfo(
-			"Home Assistant Cloud setup is waiting at %q.",
+			"Home Assistant Link setup is waiting at %q.",
 			summary.Lifecycle,
 		)
 		printCloudStatusResumeOrDisabled(summary.NextCommand)

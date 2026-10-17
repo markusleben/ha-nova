@@ -28,7 +28,7 @@ func completeServerRemovalUnlocked(
 		serverProfileContainsCloudState(doc, name); err != nil ||
 		hasCloud {
 		printHumanErr(
-			"server profile %q changed during removal and now contains Home Assistant Cloud state; preserved it for explicit Cloud cleanup",
+			"server profile %q changed during removal and now contains Home Assistant Link state; preserved it for explicit Cloud cleanup",
 			name,
 		)
 		return 1
@@ -121,7 +121,7 @@ func completeServerRemovalUnlocked(
 			name,
 		); err != nil || hasCloud {
 		printHumanErr(
-			"server profile %q gained Home Assistant Cloud state during credential cleanup; preserved it for explicit Cloud cleanup",
+			"server profile %q gained Home Assistant Link state during credential cleanup; preserved it for explicit Cloud cleanup",
 			name,
 		)
 		return 1

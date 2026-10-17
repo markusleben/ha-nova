@@ -66,7 +66,7 @@ func runCloudConnectCommand(
 	}
 	if !cloudInteractivePromptSessionForSetup() {
 		printHumanErr(
-			"Home Assistant Cloud setup requires an interactive desktop session: use a local, non-elevated graphical desktop terminal (not SSH, sudo/root, or WSL); no authorization was changed.",
+			"Home Assistant Link setup requires an interactive desktop session: use a local, non-elevated graphical desktop terminal (not SSH, sudo/root, or WSL); no authorization was changed.",
 		)
 		if loadedCfgErr == nil && loadedCfg.Cloud != nil {
 			renderCloudCheckpointActions(
@@ -169,10 +169,10 @@ func runCloudConnectCommand(
 		return 1
 	}
 	if effectiveRoutePolicy(connected.RoutePolicy) == routePolicyCloud {
-		printHumanInfo("Home Assistant Cloud access is ready. This profile uses Cloud routing.")
+		printHumanInfo("Home Assistant Link access is ready. This profile uses Cloud routing.")
 		return 0
 	}
-	printHumanInfo("Home Assistant Cloud access is ready. Local access stays preferred.")
+	printHumanInfo("Home Assistant Link access is ready. Local access stays preferred.")
 	return 0
 }
 
@@ -180,7 +180,7 @@ func printCloudURLPromptCancellation(paths runtimePaths) {
 	cfg, err := loadSelectedRuntimeConfigUnchecked(paths)
 	if err == nil && cfg.Cloud != nil {
 		printHumanInfo(
-			"Home Assistant Cloud setup remains paused at the saved checkpoint %q. No authorization was changed by this attempt.",
+			"Home Assistant Link setup remains paused at the saved checkpoint %q. No authorization was changed by this attempt.",
 			cfg.Cloud.State,
 		)
 		if hold := cloudRecoveryHoldProblem(cfg); hold != nil {
@@ -208,12 +208,12 @@ func printCloudURLPromptCancellation(paths runtimePaths) {
 	}
 	if err == nil && cfg.ProfileID != "" {
 		printHumanInfo(
-			"Home Assistant Cloud setup was cancelled before an authorization checkpoint was saved. The existing server profile was not changed.",
+			"Home Assistant Link setup was cancelled before an authorization checkpoint was saved. The existing server profile was not changed.",
 		)
 		return
 	}
 	printHumanInfo(
-		"Home Assistant Cloud setup was cancelled before a checkpoint was saved. No authorization was changed.",
+		"Home Assistant Link setup was cancelled before a checkpoint was saved. No authorization was changed.",
 	)
 }
 
@@ -346,7 +346,7 @@ func promptCloudRemoteOriginFromReader(
 ) (CloudOrigin, error) {
 	renderSetupParagraph(
 		out,
-		"Enter the Home Assistant Cloud remote URL shown in Home Assistant under Settings > Home Assistant Cloud.",
+		"Enter the Home Assistant Link remote URL shown in Home Assistant under Settings > Home Assistant Cloud (Home Assistant 2026.12 and newer: Settings > Home Assistant Link).",
 	)
 	return promptValidatedCloudRemoteOrigin(
 		ctx,

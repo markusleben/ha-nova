@@ -71,7 +71,7 @@ func expectedRemoteCloudRelayIdentity(
 	if discovery.Origin.CanonicalOrigin != request.Origin.CanonicalOrigin {
 		return "", newCloudError(
 			CloudErrIdentityMismatch,
-			"match local and requested Home Assistant Cloud origins",
+			"match local and requested Home Assistant Link origins",
 			nil,
 		)
 	}

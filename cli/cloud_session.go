@@ -47,7 +47,7 @@ func verifyCloudAccess(
 	if envelope.HAUserID != "" && envelope.HAUserID != user.ID {
 		return cloudVerifiedSession{}, newCloudError(
 			CloudErrIdentityMismatch,
-			"verify Home Assistant Cloud user",
+			"verify Home Assistant Link user",
 			nil,
 		)
 	}
@@ -67,7 +67,7 @@ func verifyCloudAccess(
 		envelope.RefreshTokenID != refreshMetadata.ID {
 		return cloudVerifiedSession{}, newCloudError(
 			CloudErrOAuthInvalidGrant,
-			"verify Home Assistant Cloud refresh token identity",
+			"verify Home Assistant Link refresh token identity",
 			nil,
 		)
 	}
@@ -145,7 +145,7 @@ func cloudOriginFromMetadata(metadata cloudConnectionMetadata) (CloudOrigin, err
 	if !origin.CustomDomain && origin.InputOrigin != origin.CanonicalOrigin {
 		return CloudOrigin{}, newCloudError(
 			CloudErrInvalidInput,
-			"validate saved Home Assistant Cloud origin",
+			"validate saved Home Assistant Link origin",
 			nil,
 		)
 	}

@@ -241,8 +241,8 @@ func renderSetupCloudFallbackReadyBanner(out io.Writer, look *setupFirstLook) {
 	fmt.Fprintln(out)
 	fmt.Fprintln(out, "  Connections:")
 	fmt.Fprintln(out, "    Local:          Ready — preferred")
-	fmt.Fprintln(out, "    Away from home: Ready — Home Assistant Cloud")
-	fmt.Fprintln(out, "    Routing:        Automatic — Cloud is used only when local access is unavailable")
+	fmt.Fprintln(out, "    Away from home: Ready — Home Assistant Link")
+	fmt.Fprintln(out, "    Routing:        Automatic — Home Assistant Link is used only when local access is unavailable")
 	fmt.Fprintln(out)
 	if look != nil {
 		renderSetupFirstLook(out, look, "Try asking:")
@@ -267,8 +267,8 @@ func renderSetupIncompleteBanner(out io.Writer, issue string) {
 		fmt.Fprintln(out, "  The Home Assistant connection is configured, but local skill installation still needs another run.")
 		fmt.Fprintln(out, "  Re-run setup or install the HA NOVA skills again for your client.")
 	case setupIssueCloudAccess:
-		fmt.Fprintln(out, "  Local access and skills are ready, but the selected Home Assistant Cloud connection is not.")
-		fmt.Fprintln(out, "  Re-run setup to resume Cloud authorization; local access remains available.")
+		fmt.Fprintln(out, "  Local access and skills are ready, but the selected Home Assistant Link connection is not.")
+		fmt.Fprintln(out, "  Re-run setup to resume Home Assistant Link authorization; local access remains available.")
 	default:
 		fmt.Fprintln(out, "  HA NOVA saved your local setup, but the system is not fully ready yet.")
 	}

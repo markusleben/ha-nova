@@ -270,7 +270,7 @@ func TestPausedHybridOutcomeIsNeitherFailureNorFullSuccess(t *testing.T) {
 		true,
 	)
 	if exit != 0 ||
-		!strings.Contains(output.String(), "Cloud setup paused") ||
+		!strings.Contains(output.String(), "Link setup paused") ||
 		strings.Contains(output.String(), "Setup complete!") ||
 		strings.Contains(output.String(), "Setup incomplete") {
 		t.Fatalf("paused outcome exit=%d: %s", exit, output.String())

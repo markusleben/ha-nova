@@ -15,7 +15,7 @@ func renderCloudCheckpointActions(
 	if err != nil {
 		fmt.Fprintln(
 			out,
-			"  Home Assistant Cloud setup is incomplete, but no recovery command can be shown until the server profile selection is repaired.",
+			"  Home Assistant Link setup is incomplete, but no recovery command can be shown until the server profile selection is repaired.",
 		)
 		renderCloudSelectionRepair(out, err)
 		return
@@ -37,7 +37,7 @@ func renderCloudCheckpointActionsForProfile(
 	if err := validateServerProfileName(profile); err != nil {
 		fmt.Fprintln(
 			out,
-			"  Home Assistant Cloud setup is incomplete, but no recovery command can be shown until the server profile selection is repaired.",
+			"  Home Assistant Link setup is incomplete, but no recovery command can be shown until the server profile selection is repaired.",
 		)
 		renderCloudSelectionRepair(out, err)
 		return
@@ -48,12 +48,12 @@ func renderCloudCheckpointActionsForProfile(
 	if cfg.Cloud.ready() {
 		fmt.Fprintln(
 			out,
-			"  Home Assistant Cloud access remains saved for this server profile.",
+			"  Home Assistant Link access remains saved for this server profile.",
 		)
 	} else {
 		fmt.Fprintf(
 			out,
-			"  Home Assistant Cloud setup remains incomplete at the saved checkpoint %q.\n",
+			"  Home Assistant Link setup remains incomplete at the saved checkpoint %q.\n",
 			cfg.Cloud.State,
 		)
 	}
@@ -93,7 +93,7 @@ func renderCloudCheckpointActionsForProfile(
 
 func renderSetupCloudPausedOutcome(out io.Writer) {
 	fmt.Fprintln(out)
-	fmt.Fprintln(out, "  Home Assistant Cloud setup paused")
+	fmt.Fprintln(out, "  Home Assistant Link setup paused")
 	fmt.Fprintln(out)
 	fmt.Fprintln(
 		out,

@@ -92,7 +92,7 @@ func maybeOfferCloudForCompletedSetup(
 			!coordinator.Available()) {
 		fmt.Fprintln(
 			out,
-			"  Home Assistant Cloud access is unavailable because this build or platform has Cloud setup disabled.",
+			"  Home Assistant Link access is unavailable because this build or platform has Cloud setup disabled.",
 		)
 		renderCloudCheckpointActions(out, paths, cfg, false)
 		return cfg, true, 1
@@ -101,7 +101,7 @@ func maybeOfferCloudForCompletedSetup(
 		return cfg, false, 0
 	}
 	if serviceMode || !cloudSetupPromptEligible(out) {
-		fmt.Fprintln(out, "  Home Assistant Cloud remote access (Beta) is available only from an interactive desktop session.")
+		fmt.Fprintln(out, "  Home Assistant Link remote access (Beta) is available only from an interactive desktop session.")
 		fmt.Fprintln(out, "  Your working local connection was not changed.")
 		if hybridCloudSetupPending(cfg) {
 			renderCloudCheckpointActions(out, paths, cfg, true)
@@ -151,7 +151,7 @@ func maybeOfferCloudForCompletedSetup(
 			return cfg, true, 1
 		}
 		if resumed {
-			printHumanInfo("Home Assistant Cloud access is ready. Local access stays preferred.")
+			printHumanInfo("Home Assistant Link access is ready. Local access stays preferred.")
 			return cfg, true, 0
 		}
 	}
@@ -163,7 +163,7 @@ func maybeOfferCloudForCompletedSetup(
 	}
 	localDeviceReady, err := reusableLocalDeviceForCloudSetup(cfg)
 	if err != nil {
-		fmt.Fprintln(out, "  Home Assistant Cloud access needs the existing paired-device credential.")
+		fmt.Fprintln(out, "  Home Assistant Link access needs the existing paired-device credential.")
 		renderCloudFailure(out, paths, err)
 		if hybridCloudSetupPending(cfg) {
 			return cfg, true, 1
@@ -184,25 +184,25 @@ func maybeOfferCloudForCompletedSetup(
 		cfg.Cloud.Current == nil
 	if resuming {
 		renderSetupParagraph(out,
-			"A previous Home Assistant Cloud (Beta) setup is ready to resume.",
+			"A previous away-from-home access setup through Home Assistant Link (Beta) is ready to resume.",
 			"Local access stays preferred.",
 		)
 	} else {
 		renderSetupParagraph(out,
-			"Home Assistant Cloud (Beta) adds a secure fallback when this computer",
-			"cannot reach Home Assistant locally.",
+			"Home Assistant Link (formerly Home Assistant Cloud) adds a secure fallback (Beta)",
+			"when this computer cannot reach Home Assistant locally.",
 			"Local access stays preferred.",
 		)
 	}
 	renderSetupParagraphTight(
 		out,
-		"Your Cloud authorization stays in this computer's native secure storage.",
+		"Your Home Assistant authorization for HA NOVA stays in this computer's native secure storage.",
 	)
 	fmt.Fprintln(out)
-	prompt := "Add Home Assistant Cloud fallback now?"
+	prompt := "Add Home Assistant Link fallback now?"
 	defaultYes := false
 	if resuming {
-		prompt = "Resume Home Assistant Cloud setup now?"
+		prompt = "Resume Home Assistant Link setup now?"
 		defaultYes = true
 	}
 	configSnapshot, hadConfig, err := readOptionalFile(paths.ConfigFile)
@@ -273,7 +273,7 @@ func maybeOfferCloudForCompletedSetup(
 		renderCloudFailure(out, paths, err)
 		return cfg, true, 1
 	}
-	printHumanInfo("Home Assistant Cloud access is ready. Local access stays preferred.")
+	printHumanInfo("Home Assistant Link access is ready. Local access stays preferred.")
 	return cfg, true, 0
 }
 

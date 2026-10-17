@@ -7,7 +7,7 @@ Four layers, cheapest first. Use the smallest one that covers your change.
 | 1. Host-safe checks | Types, contracts, unit + Go behaviour | Nothing (never touches real secure stores or a browser) | `npm run verify` |
 | 2. Disposable-HA E2E | The relay against a **real** Home Assistant | Docker + Python 3 (`pip install websockets`) — **no HA of your own** | `bash scripts/e2e/disposable-ha/run.sh` |
 | 3. Live local against your own HA | The local onboarding wizard + device pairing on real hardware | An HA instance you control | See [Live against your own HA](#3-live-against-your-own-ha) |
-| 4. Home Assistant Cloud Beta gate | OAuth, native storage, Supervisor Ingress, user binding, routing, and lifecycle on real services | Home Assistant OS/Supervised, active Home Assistant Cloud remote access, and supported desktop OSes | See [Home Assistant Cloud Beta real-device gate](#4-home-assistant-cloud-beta-real-device-gate) |
+| 4. Home Assistant Link remote Beta gate | OAuth, native storage, Supervisor Ingress, user binding, routing, and lifecycle on real services | Home Assistant OS/Supervised, active Home Assistant Link (formerly Home Assistant Cloud) remote access, and supported desktop OSes | See [Home Assistant Link Beta real-device gate](#4-home-assistant-link-remote-beta-real-device-gate) |
 
 Layer 1 is documented in [CONTRIBUTING.md → Verification Matrix](../../CONTRIBUTING.md#verification-matrix); this page covers layers 2 through 4, plus the isolation env vars and the safety rules that keep them from touching anything you care about.
 
@@ -113,7 +113,7 @@ interface. Normal development and release binaries deliberately ignore it.
 | `HA_NOVA_NO_BROWSER=1` | `setup` never opens a browser | Scripted / headless runs |
 | `HA_NOVA_NO_UPDATE_NUDGE=1` | Suppresses the background update check | Deterministic test output |
 
-## 4. Home Assistant Cloud Beta real-device gate
+## 4. Home Assistant Link remote Beta real-device gate
 
 Host-safe tests prove parsing, lifecycle, redirect rejection, no-UI policy, and
 transport selection with injected stores and servers. They do not prove a
@@ -199,7 +199,7 @@ Repeat a real-device row for first support or after a change that touches
 its path; signed provenance on all enabled OSes always runs in `release.yml`:
 
 - `/health`, `/ws`, `/core`, `/files`, and `/backups` parity through a real
-  Home Assistant Cloud route on one reference platform after a transport
+  Home Assistant Link route on one reference platform after a transport
   change;
 - one real canonical Nabu Casa OAuth flow and one real standard
   non-administrator binding; Home Assistant owns the MFA challenge before
@@ -244,7 +244,7 @@ docker run -d --name nova-linux-e2e \
 docker exec nova-linux-e2e ha-nova pair --relay-url http://<ip>:18791 --code NNNNNN
 ```
 
-That device-credential fallback does not apply to Home Assistant Cloud OAuth.
+That device-credential fallback does not apply to Home Assistant Link OAuth.
 Cloud setup is desktop-only and fails closed in SSH, WSL, containers, services,
 gateways, and other headless sessions; the local transport remains available.
 

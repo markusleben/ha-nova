@@ -520,8 +520,8 @@ func TestInteractiveSetupPairedDeviceReRunVerifiesWithoutNewCode(t *testing.T) {
 		"Secure connection verified",
 		"Setup complete!",
 		"Local:          Ready — preferred",
-		"Away from home: Ready — Home Assistant Cloud",
-		"Routing:        Automatic — Cloud is used only when local access is unavailable",
+		"Away from home: Ready — Home Assistant Link",
+		"Routing:        Automatic — Home Assistant Link is used only when local access is unavailable",
 	} {
 		if !strings.Contains(output, want) {
 			t.Fatalf("output missing %q:\n%s", want, output)
@@ -530,7 +530,7 @@ func TestInteractiveSetupPairedDeviceReRunVerifiesWithoutNewCode(t *testing.T) {
 	completionIndex := strings.Index(output, "Setup complete!")
 	cloudPromptIndex := strings.Index(
 		output,
-		"Add Home Assistant Cloud fallback now? [y/N]",
+		"Add Home Assistant Link fallback now? [y/N]",
 	)
 	if cloudPromptIndex == -1 || completionIndex <= cloudPromptIndex {
 		t.Fatalf("setup must finalize before reporting completion:\n%s", output)

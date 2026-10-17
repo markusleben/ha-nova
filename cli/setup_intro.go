@@ -13,9 +13,9 @@ func renderSetupIntro(out io.Writer) {
 	)
 	renderSetupIndentedBlock(out, "This setup will:", "    ",
 		"- ask which AI client you use",
-		"- ask whether this computer should connect locally or through Home Assistant Cloud",
+		"- ask whether this computer should connect locally or through Home Assistant Link (formerly Home Assistant Cloud)",
 		"- for local setup: find Home Assistant and install the NOVA App",
-		"- for Cloud-only setup: connect to an existing NOVA App through your Cloud Remote URL",
+		"- for Home Assistant Link only: connect to an existing NOVA App through your Home Assistant Link remote URL",
 		"- pair this computer with a one-time six-digit code from the NOVA page (each device gets its own connection you can revoke anytime)",
 		`- verify the connection and teach your AI assistant the Home Assistant commands (the "skills")`,
 	)
@@ -24,7 +24,7 @@ func renderSetupIntro(out io.Writer) {
 		"page in your web browser. Do the step there, then come back to this window.",
 	)
 	renderSetupParagraph(out,
-		"You'll need: either local Home Assistant administrator access, or an active Home Assistant Cloud Remote connection with the NOVA App already installed.",
-		"Cloud-only setup also requires a Home Assistant Owner to approve this device in the NOVA App.",
+		"You'll need: either local Home Assistant administrator access, or active Home Assistant Link remote access with the NOVA App already installed.",
+		"Setup with Home Assistant Link only also requires a Home Assistant Owner to approve this device in the NOVA App.",
 	)
 }

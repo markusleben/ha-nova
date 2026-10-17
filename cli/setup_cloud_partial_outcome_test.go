@@ -21,7 +21,7 @@ func TestSelectedHybridCloudFailureIsNotReportedAsComplete(t *testing.T) {
 	for _, required := range []string{
 		"Setup incomplete",
 		"Local access and skills are ready",
-		"Cloud connection is not",
+		"Link connection is not",
 		"Re-run setup",
 	} {
 		if !strings.Contains(output.String(), required) {

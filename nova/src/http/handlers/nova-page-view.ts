@@ -245,7 +245,7 @@ function renderConfirmSection(
       const cloudLine =
         device.cloudUserId === undefined
           ? "local network only"
-          : `Home Assistant Cloud (user ${escapeHtml(device.cloudUserId)})`;
+          : `Home Assistant Link (user ${escapeHtml(device.cloudUserId)})`;
       return `<section class="confirm"><h2>Confirm revoke</h2>
 <p><strong>${escapeHtml(device.name)}</strong>${cloudBadge(device)}<span class="muted"> — ${escapeHtml(device.platform)} · ${escapeHtml(device.client)}</span></p>
 <p class="muted meta">added ${escapeHtml(formatWhen(device.createdAtMs))} · last used ${escapeHtml(formatLastUsed(device.lastUsedAtMs))} · reaches NOVA via ${cloudLine}</p>

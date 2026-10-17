@@ -249,7 +249,7 @@ func TestDisabledReadyCloudStateIsNotCalledIncomplete(t *testing.T) {
 	if !handled || code != 1 ||
 		!strings.Contains(
 			output.String(),
-			"Home Assistant Cloud access remains saved",
+			"Home Assistant Link access remains saved",
 		) ||
 		!strings.Contains(
 			output.String(),

@@ -189,7 +189,7 @@ func cloudOriginForSetupResume(
 	renderSetupHeader(out)
 	renderSetupParagraph(
 		out,
-		"Resume Home Assistant Cloud setup with the remote URL shown under Settings > Home Assistant Cloud.",
+		"Resume Home Assistant Link setup with the remote URL shown under Settings > Home Assistant Cloud (Home Assistant 2026.12 and newer: Settings > Home Assistant Link).",
 		"OAuth credentials will stay only in this computer's native secure storage.",
 	)
 	return promptValidatedCloudRemoteOrigin(

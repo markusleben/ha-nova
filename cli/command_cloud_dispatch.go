@@ -78,7 +78,7 @@ func parseCloudCommandFlags(
 			&result.url,
 			"url",
 			"",
-			"Home Assistant Cloud URL for remote-first setup",
+			"Home Assistant Link URL for remote-first setup",
 		)
 	}
 	if command == "add" || command == "reconnect" {

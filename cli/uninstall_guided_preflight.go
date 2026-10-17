@@ -52,7 +52,7 @@ func prepareUninstallBeforeGuidedTeardown(
 		cloudTargets, err := collectCloudPurgeTargets(paths.ConfigFile)
 		if err != nil {
 			return fmt.Errorf(
-				"cannot validate Home Assistant Cloud cleanup before Home Assistant removal: %w",
+				"cannot validate Home Assistant Link cleanup before Home Assistant removal: %w",
 				err,
 			)
 		}
@@ -121,7 +121,7 @@ func validateUninstallSecureStorageBeforeGuidedTeardown(
 		store, err := newCloudSecretStoreForCLI(target.profileID)
 		if err != nil {
 			return fmt.Errorf(
-				"cannot inspect Home Assistant Cloud credentials for server %q before Home Assistant removal: %w",
+				"cannot inspect Home Assistant Link credentials for server %q before Home Assistant removal: %w",
 				target.profileName,
 				cloudProblemForError(err),
 			)
@@ -132,7 +132,7 @@ func validateUninstallSecureStorageBeforeGuidedTeardown(
 			store,
 		); err != nil {
 			return fmt.Errorf(
-				"cannot inspect Home Assistant Cloud credentials for server %q before Home Assistant removal: %w",
+				"cannot inspect Home Assistant Link credentials for server %q before Home Assistant removal: %w",
 				target.profileName,
 				cloudProblemForError(
 					cloudAuthorizationCleanupErrorWithRecoveryCommand(
@@ -148,7 +148,7 @@ func validateUninstallSecureStorageBeforeGuidedTeardown(
 			target.profileName,
 		); err != nil {
 			return fmt.Errorf(
-				"cannot validate Home Assistant Cloud device cleanup for server %q before Home Assistant removal: %w",
+				"cannot validate Home Assistant Link device cleanup for server %q before Home Assistant removal: %w",
 				target.profileName,
 				cloudProblemForError(err),
 			)

@@ -29,7 +29,7 @@ func TestCloudOriginPromptRepromptsAfterUntrustedHTTPSOrigin(t *testing.T) {
 	}
 	if !strings.Contains(
 		output.String(),
-		"not a verified Home Assistant Cloud remote URL",
+		"not a verified Home Assistant Link remote URL",
 	) {
 		t.Fatalf("missing untrusted-origin guidance:\n%s", output.String())
 	}
@@ -62,7 +62,7 @@ func TestCloudOriginPromptFailsClosedOnResolverTransportError(t *testing.T) {
 	}
 	if strings.Contains(
 		output.String(),
-		"not a verified Home Assistant Cloud remote URL",
+		"not a verified Home Assistant Link remote URL",
 	) {
 		t.Fatalf("transport failure was rendered as input retry:\n%s", output.String())
 	}

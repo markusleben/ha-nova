@@ -14,7 +14,7 @@ func prepareDeviceCredentialRetirement(
 	previous := *cfg
 	if cfg.Cloud != nil {
 		return previous, fmt.Errorf(
-			"Home Assistant Cloud access is configured; remove it before switching away from the paired device transport",
+			"Home Assistant Link access is configured; remove it before switching away from the paired device transport",
 		)
 	}
 	cfg.RelaySecureBaseURL = ""

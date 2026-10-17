@@ -68,7 +68,7 @@ func (coordinator productionCloudSetupCoordinator) AddRemoteWithPairing(
 	if err := reopenRemoteCloudDeviceAccess(
 		ctx,
 		session.Relay.RelayInstanceID,
-		"Home Assistant Cloud sign-in",
+		"Home Assistant Link sign-in",
 	); err != nil {
 		return cloudSetupResult{}, err
 	}

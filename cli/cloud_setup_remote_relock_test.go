@@ -106,7 +106,7 @@ func TestRemoteCloudSetupKeepsAuthorizationWhenPostOAuthUnlockDenied(
 	if !errors.Is(err, locked) ||
 		!strings.Contains(
 			err.Error(),
-			"re-open device secure storage after Home Assistant Cloud sign-in",
+			"re-open device secure storage after Home Assistant Link sign-in",
 		) {
 		t.Fatalf("post-OAuth unlock error = %v", err)
 	}

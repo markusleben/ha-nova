@@ -334,7 +334,7 @@ describe("nova-page", () => {
       req({ url: `/?confirm=revoke_device&device=${c.deviceId}` }),
     );
     expect(confirm.body).toContain("ha-user-9");
-    expect(confirm.body).toContain("Home Assistant Cloud");
+    expect(confirm.body).toContain("Home Assistant Link");
   });
 
   it("shows a legacy-access section only while a legacy credential exists, and revokes it through the confirm flow", async () => {

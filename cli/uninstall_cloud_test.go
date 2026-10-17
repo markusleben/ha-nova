@@ -98,7 +98,7 @@ func TestCloudPurgeRevokesBeforeDeletingNativeSecrets(t *testing.T) {
 		}
 	}
 	if len(report.removed) != 1 ||
-		!strings.Contains(report.removed[0], "Cloud authorization") {
+		!strings.Contains(report.removed[0], "Link authorization") {
 		t.Fatalf("purge report = %+v", report.removed)
 	}
 }
@@ -193,7 +193,7 @@ func TestFullPurgeStopsBeforeLocalRemovalWhenCloudRevocationCannotStart(t *testi
 		uninstallModePurge,
 		false,
 	)
-	if err == nil || !strings.Contains(err.Error(), "Cloud authorization") {
+	if err == nil || !strings.Contains(err.Error(), "Link authorization") {
 		t.Fatalf("full purge error = %v", err)
 	}
 	if _, statErr := os.Stat(paths.ConfigFile); statErr != nil {

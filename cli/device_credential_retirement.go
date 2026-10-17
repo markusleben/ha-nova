@@ -236,7 +236,7 @@ func resumeDeviceCredentialRetirementCheckpoint(
 	case deviceRetirementEndpointsCleared(current):
 		if current.Cloud != nil {
 			return false, fmt.Errorf(
-				"Home Assistant Cloud state appeared after device retirement was interrupted; refusing automatic revocation",
+				"Home Assistant Link state appeared after device retirement was interrupted; refusing automatic revocation",
 			)
 		}
 		if strings.TrimSpace(current.RelayInstanceID) != "" {

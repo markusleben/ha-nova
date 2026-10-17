@@ -567,7 +567,7 @@ func finalizeLocalUninstallWithProgressUnlocked(
 		)
 		if err != nil {
 			return fmt.Errorf(
-				"failed to inspect Home Assistant Cloud authorization: %w",
+				"failed to inspect Home Assistant Link authorization: %w",
 				err,
 			)
 		}
@@ -614,7 +614,7 @@ func finalizeLocalUninstallWithProgressUnlocked(
 			report,
 		); err != nil {
 			return fmt.Errorf(
-				"failed to revoke Home Assistant Cloud authorization: %w",
+				"failed to revoke Home Assistant Link authorization: %w",
 				err,
 			)
 		}

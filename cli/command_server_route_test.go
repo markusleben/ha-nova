@@ -85,7 +85,7 @@ func TestServerRouteRejectsCloudWithoutCompletedCloudSetup(t *testing.T) {
 	exit, out := captureCommandOutput(t, func() int {
 		return runServerCommand(paths, []string{"route", "cloud", "--server", "default"})
 	})
-	if exit != 1 || !strings.Contains(out, "no completed Home Assistant Cloud setup") {
+	if exit != 1 || !strings.Contains(out, "no completed Home Assistant Link setup") {
 		t.Fatalf("exit=%d output=%s", exit, out)
 	}
 	after, err := os.ReadFile(paths.ConfigFile)
