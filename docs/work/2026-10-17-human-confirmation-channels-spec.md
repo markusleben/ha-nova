@@ -2,7 +2,7 @@
 
 Status: active
 
-Inputs: `docs/internal/2026-10-17-human-confirmation-channels.md` (matrix, hands-on results), `docs/work/2026-10-17-confirmation-hardening-spec.md` (#716: plan secret, form precedence, fallback E), `docs/work/2026-10-16-mcp-human-confirmation-spec.md` (form C).
+Inputs: `docs/internal/2026-10-17-human-confirmation-channels.md` (matrix, hands-on results), `docs/work/2026-10-17-confirmation-hardening-spec.md` (#716: plan secret, channel binding, fallback E), `docs/work/2026-10-16-mcp-human-confirmation-spec.md` (form C).
 
 Goal: a typed-tier `apply` (unlock, open a gate or garage, disarm, delete, reload) asks the human through the simplest channel the model can't forge, chosen automatically. Threat model and actors T1–T3 as in the hardening spec §1: this change closes T1/T2 paths where a window can open; T3 stays stated, not solved.
 
@@ -12,11 +12,13 @@ A typed plan's channel is set when the plan is made and is part of its code's MA
 
 | Order | Channel | When | The human |
 |---|---|---|---|
-| 1 | C `form` | the plan is made inside `ha-nova mcp` for a client that declares form elicitation (not `--no-forms`) | types the four-digit code shown in the form |
-| 2 | A `window` | otherwise, when this computer can show a window (§2) and the user has not turned it off (§4) | clicks Confirm in a native window |
+| 1 | A `window` | this computer can show a window (§2) and the user has not turned it off (§4) — in the CLI and inside `ha-nova mcp` alike | clicks Confirm in a native window |
+| 2 | C `form` | otherwise, when the plan is made inside `ha-nova mcp` for a client that declares form elicitation (not `--no-forms`): remote, headless, and later phone connectors | types the four-digit code shown in the form |
 | 3 | B phone | not built; `detectChannel` (`cli/confirm_window.go`) is the slot, before chat | — |
 | 4 | E `chat` | everything else | types the code shown in chat; `say` says the assistant sees it too |
 
+- Why the window comes first (decision 2026-10-17, coordinator, logged in `docs/choices.md`): a model with a shell can start `ha-nova mcp` itself, declare forms, and answer its own form (the code is in the form's message); it cannot answer an OS window without computer use or accessibility rights. The approved order was C before A; it was flipped in this PR before merge.
+- A window that can't open in a forms session falls back to the form, not to chat.
 - A window plan is never confirmed in a form (`formPlan` skips it): applied inside `ha-nova mcp`, it opens its window too.
 - A form or window plan never takes a code from argv: `apply --confirm` is ignored for it (`CONFIRM_IN_WINDOW`, `CONFIRM_IN_FORM`; no attempt is used). Its code never leaves the process: not in the envelope, `say`, the plan file, or the apply result.
 - MCP without forms (Claude Desktop, `--no-forms`, a client that declares no elicitation) now detects like the CLI, so leaving out the capability or adding `--no-forms` no longer yields a code the model sees where a window can open.
@@ -48,7 +50,7 @@ Linux reads two environment variables because a dialog cannot reach a display wi
 
 ## 4. Turning windows off
 
-`ha-nova setup confirm-window off` writes `"confirm_window": "off"` at the top level of `config.json`; typed plans then use E. Turning off is confirmed in the window itself, so a model that runs the command can't complete it; where no window can open, nothing is written (E applies anyway, and an "off" written there would persist into later desktop sessions). `on` (the default) removes the key and needs no confirmation. If a window opens where no one sees it, the human sets the key by hand (the command prints the path after a window that got no answer). Editing `config.json` is a T3 action, as is every other config edit.
+`ha-nova setup confirm-window off` writes `"confirm_window": "off"` at the top level of `config.json`; typed plans then use the form where the MCP client shows one, else E. Turning off is confirmed in the window itself, so a model that runs the command can't complete it; where no window can open, nothing is written (E applies anyway, and an "off" written there would persist into later desktop sessions). `on` (the default) removes the key and needs no confirmation. If a window opens where no one sees it, the human sets the key by hand (the command prints the path after a window that got no answer). Editing `config.json` is a T3 action, as is every other config edit.
 
 ## 5. Honest limits
 
@@ -56,7 +58,7 @@ Linux reads two environment variables because a dialog cannot reach a display wi
 - **Computer use:** with a host's computer-use feature on, the model can click the window on every OS.
 - **Sandboxes:** inside Codex's seatbelt or Claude Code's sandbox the window fails to open (verified with an approximated Claude Code profile here); apply then falls back to E and says so. In practice `ha-nova` already runs outside Codex's sandbox because it needs the network.
 - **Forced fallback (T3):** a model that wraps `ha-nova` in its own OS sandbox or a process limit (`ulimit -u`, so the window program can't start), unsets `DISPLAY`/`WAYLAND_DISPLAY`, runs it from an SSH session, or points Linux `DISPLAY` at a virtual display it controls gets E or a window it can click. Each is the same class as reading the Relay credential (hardening spec §1.1), which defeats every channel on this computer.
-- **Form C is not human-only in a host that also gives the model a shell:** the model can start `ha-nova mcp` itself, declare forms, and answer its own form (the code is in the form's message). Pre-existing (hardening spec §4); preferring A over C where both are available would close it for desktops and is a product decision for a follow-up.
+- **Form C is not human-only in a host that also gives the model a shell:** the model can start `ha-nova mcp` itself, declare forms, and answer its own form (the code is in the form's message). With the window first this is closed where a window can open; it stays where none can (headless or SSH hosts with a shell, a sandboxed command, the windows turned off).
 - **Unattended screen:** a `tmux`/`screen` session started on the Mac's desktop and reattached over SSH still reports `Aqua`, so the window opens on the Mac's screen, where whoever is there can click it; the remote user sees no window and gets no answer.
 - **What the window shows:** a summary (names, the action, the reasons), not a config diff or the server name; with several homes the window does not say which one.
 - **A window no one sees** (a virtual display, behind a full-screen app) times out every time, the off switch included; the way out is editing `config.json` by hand (§4) or Home Assistant itself.

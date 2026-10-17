@@ -144,24 +144,40 @@ func TestWindowFallbackKeepsNoSnapshot(t *testing.T) {
 	}
 }
 
-// Form precedence and no downgrade through the MCP server: a client with
-// forms gets the form (no window opens); a client without forms, or
-// --no-forms, gets the window where one can open, never the code.
+// The window comes before the form (a model with a shell can answer its own
+// form, not an OS window); the form is the channel where no window opens.
+// Leaving forms out, or --no-forms, never yields a code where a window can
+// open.
 func TestWindowAndMCPChannels(t *testing.T) {
 	h := newWriteHarness(t, newFakeHA())
-	useWindow(t) // any window opening fails the test
+	w := useWindow(t, windowFailed)
+	unlock := map[string]any{"service": "lock.unlock", "entity_ids": []string{"lock.front"}}
 	c := startMCP(t, h.paths)
 	formsInit(c)
-	plan := envelopeOf(c.tool("ha_call", map[string]any{"service": "lock.unlock", "entity_ids": []string{"lock.front"}}))["plan"].(map[string]any)
-	if plan["channel"] != channelForm {
-		t.Fatalf("forms client: %v", plan)
+	plan := envelopeOf(c.tool("ha_call", unlock))["plan"].(map[string]any)
+	if plan["channel"] != channelWindow || plan["code"] != nil {
+		t.Fatalf("forms client, window available: %v", plan)
 	}
+	// The window can't open: the fallback is the client's form, not chat.
+	fallback := c.tool("ha_apply", map[string]any{"plan_id": plan["id"]})
+	env := envelopeOf(fallback)
+	if next, _ := env["next_step"].(string); env["plan"].(map[string]any)["channel"] != channelForm || !strings.Contains(next, "confirmation form") || len(w.messages) != 1 {
+		t.Fatalf("window failed in a forms session: %v", env)
+	}
+	noCode(t, "form fallback", fallback, storedCode(t, h, env["plan"].(map[string]any)["id"].(string)))
+
+	windowAvailable = func() bool { return false }
+	if plan := envelopeOf(c.tool("ha_call", unlock))["plan"].(map[string]any); plan["channel"] != channelForm {
+		t.Fatalf("forms client, no window: %v", plan)
+	}
+	windowAvailable = func() bool { return true }
+
 	mcpNoForms = true
 	t.Cleanup(func() { mcpNoForms = false })
 	plain := startMCP(t, h.paths)
 	formsInit(plain)
-	result := plain.tool("ha_call", map[string]any{"service": "lock.unlock", "entity_ids": []string{"lock.front"}})
-	env := envelopeOf(result)
+	result := plain.tool("ha_call", unlock)
+	env = envelopeOf(result)
 	plan = env["plan"].(map[string]any)
 	next, _ := env["next_step"].(string)
 	if plan["channel"] != channelWindow || plan["code"] != nil || !strings.Contains(next, "confirmation window") || !strings.Contains(next, "no confirm_code") {

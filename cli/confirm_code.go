@@ -29,7 +29,7 @@ func confirmCode(credential, idHex, channel, expiresAt string) string {
 // only the human's answer in that form or window confirms it.
 const (
 	channelChat   = "chat"   // the code is in `say`; the model sees it too (fallback E)
-	channelForm   = "form"   // the client showed confirmation forms when the plan was made
+	channelForm   = "form"   // the client showed confirmation forms and no window could open when the plan was made
 	channelWindow = "window" // a native window on this computer asks (confirm_window.go)
 )
 

@@ -37,23 +37,30 @@ const (
 
 var (
 	windowWait = cliWindowWait
+	formsShown bool // set by the MCP server: its client shows confirmation forms
 	// The OS window (confirm_window_<os>.go); tests replace both.
 	windowAvailable = nativeWindowAvailable
 	windowRunner    = nativeWindow
 )
 
-// detectChannel picks a typed plan's channel where no MCP form asks: the
-// window when this computer can show one and the user has not turned it
-// off, else chat. The phone (B) slots in before chat in its own change.
+// detectChannel picks a typed plan's channel: the window when this computer
+// can show one and the user has not turned it off, else an MCP client's
+// form, else chat. The window comes first because a model with a shell can
+// start ha-nova mcp itself and answer its own form, but not an OS window.
+// The phone (B) slots in before chat in its own change.
 func detectChannel(paths runtimePaths) string {
-	if !windowOff(paths) && windowAvailable() {
+	switch {
+	case !windowOff(paths) && windowAvailable():
 		return channelWindow
+	case formsShown:
+		return channelForm
 	}
 	return channelChat
 }
 
 // windowOff: the user turned confirmation windows off
-// (`ha-nova setup confirm-window off`, which the window itself confirms).
+// (`ha-nova setup confirm-window off`, which the window itself confirms);
+// typed plans then use a form where the app shows one, else chat.
 func windowOff(paths runtimePaths) bool {
 	doc, err := loadConfigDocument(paths.ConfigFile)
 	var value string
@@ -68,7 +75,7 @@ const confirmWindowUsage = "ha-nova setup confirm-window on|off"
 // On needs no confirmation.
 func runConfirmWindowSetting(paths runtimePaths, args []string) int {
 	if len(args) == 1 && (args[0] == "--help" || args[0] == "-h") {
-		fmt.Println("Usage: " + confirmWindowUsage + "\n\nWhere a typed change (unlock, open, disarm, delete) asks you: \"on\" (default) opens a\nconfirmation window on this computer when one can open; \"off\" shows a one-time code in\nchat instead (your AI assistant can see it too). Turning it off is confirmed in that window.")
+		fmt.Println("Usage: " + confirmWindowUsage + "\n\nWhere a typed change (unlock, open, disarm, delete) asks you: \"on\" (default) opens a\nconfirmation window on this computer when one can open; \"off\" uses your app's\nconfirmation form, or a one-time code in chat that your AI assistant can see too. Turning it off is confirmed in that window.")
 		return 0
 	}
 	if len(args) != 1 || args[0] != "on" && args[0] != "off" {
@@ -82,13 +89,13 @@ func runConfirmWindowSetting(paths runtimePaths, args []string) int {
 	}
 	if args[0] == "off" && !windowOff(paths) {
 		if !windowAvailable() {
-			printHumanInfo("No confirmation window can open here, so HA NOVA already shows a one-time code in chat. Nothing changed.")
+			printHumanInfo("No confirmation window can open here, so HA NOVA already asks in your app's form or with a one-time code in chat. Nothing changed.")
 			return 0
 		}
-		switch askWindow("Turn off confirmation windows? HA NOVA then shows a one-time code in chat instead, which your AI assistant can see too.", cliWindowWait) {
+		switch askWindow("Turn off confirmation windows? HA NOVA then asks in your app's confirmation form, or shows a one-time code in chat that your AI assistant can see too.", cliWindowWait) {
 		case windowConfirmed:
 		case windowFailed:
-			printHumanInfo("The confirmation window couldn't open here, so HA NOVA shows a one-time code in chat anyway. Nothing changed.")
+			printHumanInfo("The confirmation window couldn't open here, so HA NOVA asks in your app's form or with a one-time code in chat anyway. Nothing changed.")
 			return 0
 		default:
 			printHumanErr("Nothing changed: the window was cancelled or got no answer. If no window appeared at all, set \"%s\": \"off\" in %s yourself.", windowSetting, paths.ConfigFile)
@@ -177,11 +184,16 @@ func askWindow(message string, wait time.Duration) windowAnswer {
 }
 
 // windowFallback: the window could not open (a sandbox, no desktop), so
-// the plan becomes a chat plan (fallback E) — said, never silent. The new
+// the plan becomes a form plan where the MCP client shows forms, else a
+// chat plan (fallback E) — said, never silent. The new
 // plan replaces the window plan; its `say` carries the code and its limit.
 func windowFallback(paths runtimePaths, s *relaySession, plan storedPlan, noSnapshot bool) (verbEnvelope, int, bool) {
 	env := verbEnvelope{SchemaVersion: 1, Verb: "apply", Status: "ok", Server: s.server}
-	fresh, ok := replanStored(paths, s, &env, plan, channelChat)
+	channel := channelChat
+	if formsShown { // inside ha-nova mcp for a client with forms: the form is next
+		channel = channelForm
+	}
+	fresh, ok := replanStored(paths, s, &env, plan, channel)
 	if !ok || fresh.Hash != plan.Hash || fresh.Tier != plan.Tier || env.Plan == nil {
 		return verbEnvelope{}, 0, false // apply reports the drift or the error
 	}

@@ -67,7 +67,8 @@ the number.
   for its own plan. A plan shown before the update has to be made again.
 - **Confirm on your computer, not in chat:** where your computer can show
   one, these actions now open a confirmation window — click Confirm there, or
-  Cancel. Your AI assistant never sees a code. It still can click the window
+  Cancel. This also replaces the confirmation form in apps that show one; the
+  form stays where no window can open. Your AI assistant never sees a code. It still can click the window
   if you allow it to control your screen (computer use, or apps you granted
   Accessibility), and on Windows and some Linux desktops other programs can
   too. Over
