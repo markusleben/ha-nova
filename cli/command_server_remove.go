@@ -73,15 +73,15 @@ func runServerRemove(paths runtimePaths, args []string) int {
 	}
 	hasCloudState, cloudStateErr := serverProfileContainsCloudState(doc, name)
 	if cloudStateErr != nil {
-		printHumanErr("cannot safely inspect Home Assistant Cloud state for server profile %q (%v); nothing was removed", name, cloudStateErr)
+		printHumanErr("cannot safely inspect Home Assistant Link state for server profile %q (%v); nothing was removed", name, cloudStateErr)
 		return 1
 	}
 	if hasCloudState {
 		if len(doc.profileNames()) == 1 {
-			printHumanErr("%q is the only server profile and still has Home Assistant Cloud state. Revoke its authorization and remove HA NOVA with: ha-nova uninstall --purge", name)
+			printHumanErr("%q is the only server profile and still has Home Assistant Link state. Revoke its authorization and remove HA NOVA with: ha-nova uninstall --purge", name)
 			return 1
 		}
-		printHumanErr("server profile %q still has Home Assistant Cloud state; remove Cloud access first so its native secure-storage credentials are not stranded. Nothing was removed.", name)
+		printHumanErr("server profile %q still has Home Assistant Link state; remove Cloud access first so its native secure-storage credentials are not stranded. Nothing was removed.", name)
 		return 1
 	}
 	if len(doc.profileNames()) == 1 {

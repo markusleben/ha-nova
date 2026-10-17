@@ -44,7 +44,7 @@ func promptRemoteOwnerPairingCode(
 	renderSetupParagraph(
 		out,
 		"OAuth sign-in is complete. Device pairing now requires a Home Assistant Owner.",
-		"Open a separate private/incognito window or a different browser profile. Sign in to the same Home Assistant Cloud instance as an Owner, open NOVA from the sidebar, and choose “Connect a device”.",
+		"Open a separate private/incognito window or a different browser profile. Sign in to the same Home Assistant (through the same Home Assistant Link remote URL) as an Owner, open NOVA from the sidebar, and choose “Connect a device”.",
 		"Keep the OAuth browser session separate. A standard Home Assistant account is preferred for OAuth, but an Owner OAuth account is also supported.",
 	)
 	// Do not auto-open the capability URL in the OAuth browser session. That

@@ -24,12 +24,12 @@ Shipped and current:
 3. Context skill `ha-nova` plus 34 task skills, flat under `skills/` — the dispatch table in `skills/ha-nova/SKILL.md` is the authoritative inventory
 4. Shared references under `skills/ha-nova/` (relay API contract, output rules, write safety, batch safety, schemas)
 
-HA NOVA also contains an opt-in Home Assistant Cloud remote transport Beta for
-Home Assistant OS/Supervised. Release metadata enables it per platform, and a
+HA NOVA also contains an opt-in Home Assistant Link (formerly Home Assistant
+Cloud) remote transport Beta for Home Assistant OS/Supervised. Release metadata enables it per platform, and a
 release binary turns it on only with its signed bundle provenance:
 
-1. The wizard offers `Local + Home Assistant Cloud`, `Local only`, and
-   `Home Assistant Cloud only`. Service and headless setup stay local-only.
+1. The wizard offers `Local + Home Assistant Link`, `Local only`, and
+   `Home Assistant Link only`. Service and headless setup stay local-only.
 2. Cloud setup uses Home Assistant OAuth, Supervisor WebSocket APIs, and a
    process-local Ingress session. HA NOVA operates no public tunnel or broker.
 3. OAuth refresh tokens use a dedicated native OS credential store. Normal

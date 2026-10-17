@@ -15,7 +15,7 @@ func handleNonInteractiveCloudSetupRecovery(
 	if !cloudRemoteFeatureAvailable() {
 		printHumanErr("%s", cloudAdapterUnavailableProblem())
 		printHumanInfo(
-			"Local access remains available, but saved Home Assistant Cloud state requires explicit cleanup.",
+			"Local access remains available, but saved Home Assistant Link state requires explicit cleanup.",
 		)
 		renderCloudCheckpointActions(
 			os.Stdout,
@@ -29,7 +29,7 @@ func handleNonInteractiveCloudSetupRecovery(
 		return false
 	}
 	printHumanErr(
-		"Home Assistant Cloud setup is incomplete and requires an interactive desktop session.",
+		"Home Assistant Link setup is incomplete and requires an interactive desktop session.",
 	)
 	renderCloudCheckpointActions(
 		os.Stdout,
@@ -49,7 +49,7 @@ func handleNonInteractiveCloudRecoveryHold(
 		return false
 	}
 	printHumanErr(
-		"Home Assistant Cloud setup is paused by a recovery safety hold: %s",
+		"Home Assistant Link setup is paused by a recovery safety hold: %s",
 		problem,
 	)
 	profile, err := cloudRecoveryCommandProfile(paths)

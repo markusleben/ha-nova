@@ -10,7 +10,8 @@
 The Relay is a lean transport App on the HA host. It proxies WebSocket and REST,
 offers contained opt-in file access, stores generic config snapshots, and
 performs credential exchange. HA NOVA operates no public tunnel or broker;
-optional remote traffic uses Home Assistant Cloud and Supervisor Ingress.
+optional remote traffic uses Home Assistant Link (formerly Home Assistant
+Cloud) and Supervisor Ingress.
 
 ## Endpoints
 

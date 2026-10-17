@@ -128,7 +128,7 @@ func TestCloudConnectValidatesConfigBeforePromptResolutionOrStorage(
 			if exit != 1 ||
 				!strings.Contains(
 					output,
-					"cannot safely continue Home Assistant Cloud setup",
+					"cannot safely continue Home Assistant Link setup",
 				) {
 				t.Fatalf(
 					"invalid config exit=%d output=%s",
@@ -324,7 +324,7 @@ func TestCloudConnectHeadlessValidatesSavedConfigBeforeDesktopGuidance(
 			if exit != 1 ||
 				!strings.Contains(
 					output,
-					"cannot safely continue Home Assistant Cloud setup",
+					"cannot safely continue Home Assistant Link setup",
 				) ||
 				strings.Contains(
 					output,

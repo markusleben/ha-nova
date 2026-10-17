@@ -144,7 +144,7 @@ install/update fails. Spec: `docs/work/2026-10-15-app-prebuilt-images-spec.md`.
 - Rollback: the next version without `image:` builds locally again; never
   retag or delete a published version.
 
-## 6. Home Assistant Cloud
+## 6. Home Assistant Link (formerly Home Assistant Cloud)
 
 `version.json` is the release switch: `cloud_remote_enabled` plus a
 non-empty, duplicate-free subset of `darwin`, `linux`, `windows` in

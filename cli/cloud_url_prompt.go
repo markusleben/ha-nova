@@ -17,7 +17,7 @@ func promptValidatedCloudRemoteOrigin(
 		raw, err := promptWizardLineFromReader(
 			reader,
 			out,
-			"Home Assistant Cloud URL (or type 'back'/'exit')",
+			"Home Assistant Link URL (or type 'back'/'exit')",
 			defaultValue,
 		)
 		if err != nil {
@@ -41,7 +41,7 @@ func promptValidatedCloudRemoteOrigin(
 		if IsCloudErrorCode(err, CloudErrInvalidInput) {
 			renderSetupErrorLine(
 				out,
-				"This HTTPS URL is not a verified Home Assistant Cloud remote URL. Check the URL shown by Home Assistant and try again.",
+				"This HTTPS URL is not a verified Home Assistant Link remote URL. Check the URL shown by Home Assistant and try again.",
 			)
 			continue
 		}

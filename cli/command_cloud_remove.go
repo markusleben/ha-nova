@@ -60,23 +60,23 @@ func runCloudRemoveCommand(paths runtimePaths, args []string) int {
 		}
 		fmt.Fprintln(
 			os.Stdout,
-			"This revokes HA NOVA's Home Assistant Cloud authorization.",
+			"This revokes HA NOVA's Home Assistant Link authorization.",
 		)
 		if remoteOnly {
 			fmt.Fprintln(
 				os.Stdout,
-				"The Cloud-only NOVA device pairing is revoked too; the Home Assistant Cloud subscription stays unchanged.",
+				"The Cloud-only NOVA device pairing is revoked too; the Home Assistant Link subscription stays unchanged.",
 			)
 		} else {
 			fmt.Fprintln(
 				os.Stdout,
-				"The local NOVA device pairing and Home Assistant Cloud subscription stay unchanged.",
+				"The local NOVA device pairing and Home Assistant Link subscription stay unchanged.",
 			)
 		}
 		confirmed, promptErr := promptWizardYesNoFromReader(
 			bufio.NewReader(os.Stdin),
 			os.Stdout,
-			"Remove Home Assistant Cloud access",
+			"Remove Home Assistant Link access",
 			false,
 		)
 		if promptErr != nil || !confirmed {
@@ -388,7 +388,7 @@ func runCloudRemoveCommand(paths runtimePaths, args []string) int {
 			paths,
 			activeServerProfile(),
 		); needsRecovery {
-		printHumanInfo("Home Assistant Cloud access was removed.")
+		printHumanInfo("Home Assistant Link access was removed.")
 		if nextCommand != "" {
 			printHumanInfo("Continue recovery with: %s", nextCommand)
 		} else if recoveryErr != nil {
@@ -400,9 +400,9 @@ func runCloudRemoveCommand(paths runtimePaths, args []string) int {
 		return 0
 	}
 	if updated.RelaySecureBaseURL != "" && updated.RelaySpkiPin != "" {
-		printHumanInfo("Home Assistant Cloud access was removed. Local access remains ready.")
+		printHumanInfo("Home Assistant Link access was removed. Local access remains ready.")
 	} else {
-		printHumanInfo("Home Assistant Cloud access was removed. This profile now needs a local pairing before it can be used.")
+		printHumanInfo("Home Assistant Link access was removed. This profile now needs a local pairing before it can be used.")
 	}
 	return 0
 }

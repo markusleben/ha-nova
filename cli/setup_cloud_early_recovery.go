@@ -25,7 +25,7 @@ func handleInteractiveCloudRecoveryBeforeClients(
 	if !cloudRemoteFeatureAvailable() {
 		fmt.Fprintln(
 			out,
-			"  Home Assistant Cloud access is unavailable because this build or platform has Cloud setup disabled.",
+			"  Home Assistant Link access is unavailable because this build or platform has Cloud setup disabled.",
 		)
 		renderCloudCheckpointActions(out, paths, cfg, false)
 		return cfg, true, 1
@@ -36,7 +36,7 @@ func handleInteractiveCloudRecoveryBeforeClients(
 			if explicitLocalSetup {
 				fmt.Fprintln(
 					out,
-					"  Finish or remove the saved Home Assistant Cloud checkpoint before changing local or service credentials.",
+					"  Finish or remove the saved Home Assistant Link checkpoint before changing local or service credentials.",
 				)
 				return cfg, true, 1
 			}

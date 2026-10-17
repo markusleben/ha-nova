@@ -11,7 +11,7 @@ import (
 func announceCloudOAuthBrowserForSetup() {
 	renderSetupParagraph(
 		os.Stdout,
-		"Opening Home Assistant Cloud in your browser for sign-in.",
+		"Opening your Home Assistant sign-in page (through Home Assistant Link) in your browser.",
 		"Approve HA NOVA there, then return to this terminal.",
 	)
 }

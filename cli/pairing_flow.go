@@ -196,7 +196,7 @@ func validateLocalDeviceReplacementAllowedWithPolicy(
 ) error {
 	if cfg.Cloud != nil {
 		return fmt.Errorf(
-			"Home Assistant Cloud access is configured; remove it before replacing the local device pairing (the code was not used)",
+			"Home Assistant Link access is configured; remove it before replacing the local device pairing (the code was not used)",
 		)
 	}
 	ctx, cancel := boundedNativeOAuthSecretContext(
@@ -216,7 +216,7 @@ func validateLocalDeviceReplacementAllowedWithPolicy(
 		switch {
 		case pending.Source == pendingDeviceCredentialSourceCloud:
 			return fmt.Errorf(
-				"Home Assistant Cloud device pairing is still pending; resume or remove Cloud access before starting a local pairing (the code was not used)",
+				"Home Assistant Link device pairing is still pending; resume or remove Cloud access before starting a local pairing (the code was not used)",
 			)
 		case pending.Source == pendingDeviceCredentialSourceLocal &&
 			strings.TrimSpace(cfg.PendingSecureBaseURL) != "" &&
@@ -256,7 +256,7 @@ func resumePendingActivationWithPolicy(
 	}
 	if cfg.Cloud != nil {
 		return false, fmt.Errorf(
-			"cannot resume a local device replacement while Home Assistant Cloud access is configured; remove Cloud access first",
+			"cannot resume a local device replacement while Home Assistant Link access is configured; remove Cloud access first",
 		)
 	}
 	// Choose the backend that actually holds the interrupted pairing, without a

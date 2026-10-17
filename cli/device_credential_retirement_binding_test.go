@@ -172,7 +172,7 @@ func TestDeviceRetirementCheckpointRejectsNewCloudState(t *testing.T) {
 		},
 	)
 	if err == nil ||
-		!strings.Contains(err.Error(), "Cloud state appeared") ||
+		!strings.Contains(err.Error(), "Link state appeared") ||
 		resumed ||
 		revokeCalls != 0 {
 		t.Fatalf(

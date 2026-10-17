@@ -20,7 +20,7 @@ macOS self-managed lifecycle:
 10. confirm standard uninstall removed runtime/state/cache and kept the Home Assistant config/token
 11. reinstall the runtime, then run `ha-nova uninstall --yes --purge`
 12. confirm purge removed runtime/config/state/cache, deleted the relay auth token, and reported only the opaque uninstall-safety markers retained outside managed directories
-13. when Home Assistant Cloud support changes, configure a real Cloud profile before the stable-to-RC update, run `ha-nova cloud unlock` after each stable-to-RC, RC-to-stable, and reinstall transition, and confirm the selected existing current/pending Keychain slot works afterward with ordinary no-UI `cloud status`
+13. when Home Assistant Link (formerly Home Assistant Cloud) support changes, configure a real Cloud profile before the stable-to-RC update, run `ha-nova cloud unlock` after each stable-to-RC, RC-to-stable, and reinstall transition, and confirm the selected existing current/pending Keychain slot works afterward with ordinary no-UI `cloud status`
 14. confirm each selected current/pending/retiring slot opens at most one native prompt in a foreground action, the total prompt count stays bounded by those selected slots, and no refresh token appears in argv, environment, logs, diagnostics, or command output; current unsigned macOS artifacts cannot enable Cloud Beta, so a stable signing identity and this successful update proof are both mandatory
 
 Linux real-machine onboarding:

@@ -60,7 +60,7 @@ func validateCloudConnectSavedDocument(paths runtimePaths) error {
 	}
 	if err := normalizeServerProfilesV3(servers); err != nil {
 		return fmt.Errorf(
-			"cannot safely continue Home Assistant Cloud setup with the saved server configuration: %w",
+			"cannot safely continue Home Assistant Link setup with the saved server configuration: %w",
 			err,
 		)
 	}
@@ -73,7 +73,7 @@ func validateCloudConnectSavedConfig(
 ) error {
 	if err := validateRuntimeConfigSave(paths, cfg); err != nil {
 		return fmt.Errorf(
-			"cannot safely continue Home Assistant Cloud setup with the saved server configuration: %w",
+			"cannot safely continue Home Assistant Link setup with the saved server configuration: %w",
 			err,
 		)
 	}

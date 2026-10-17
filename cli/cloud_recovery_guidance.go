@@ -87,7 +87,7 @@ func handlePausedCloudOwnerPairing(
 	if selectionErr != nil {
 		fmt.Fprintln(
 			out,
-			"  Home Assistant Cloud setup is paused, but no recovery command can be shown until the server profile selection is repaired.",
+			"  Home Assistant Link setup is paused, but no recovery command can be shown until the server profile selection is repaired.",
 		)
 		renderCloudSelectionRepair(out, selectionErr)
 		return true
@@ -96,7 +96,7 @@ func handlePausedCloudOwnerPairing(
 	if loadErr != nil {
 		fmt.Fprintln(
 			out,
-			"  Home Assistant Cloud setup is paused, but its saved state could not be read.",
+			"  Home Assistant Link setup is paused, but its saved state could not be read.",
 		)
 		fmt.Fprintf(
 			out,
@@ -108,14 +108,14 @@ func handlePausedCloudOwnerPairing(
 	if cfg.Cloud == nil {
 		fmt.Fprintln(
 			out,
-			"  Home Assistant Cloud setup was cancelled before a checkpoint was saved. No authorization was changed.",
+			"  Home Assistant Link setup was cancelled before a checkpoint was saved. No authorization was changed.",
 		)
 		return true
 	}
 	if hold := cloudRecoveryHoldProblem(cfg); hold != nil {
 		fmt.Fprintf(
 			out,
-			"  Home Assistant Cloud setup remains paused at %q: %s\n",
+			"  Home Assistant Link setup remains paused at %q: %s\n",
 			cfg.Cloud.State,
 			hold.Detail,
 		)
@@ -136,12 +136,12 @@ func handlePausedCloudOwnerPairing(
 	if cfg.Cloud.State == cloudStateCloudVerified && cfg.Cloud.Pending != nil {
 		fmt.Fprintln(
 			out,
-			"  Home Assistant Cloud setup is paused. OAuth authorization is saved; Owner device pairing is still pending.",
+			"  Home Assistant Link setup is paused. OAuth authorization is saved; Owner device pairing is still pending.",
 		)
 	} else {
 		fmt.Fprintf(
 			out,
-			"  Home Assistant Cloud setup is paused at the saved checkpoint %q.\n",
+			"  Home Assistant Link setup is paused at the saved checkpoint %q.\n",
 			cfg.Cloud.State,
 		)
 	}
@@ -205,7 +205,7 @@ func renderCloudRecoveryGuidance(
 	if cfg.Cloud != nil && cfg.Cloud.ready() {
 		fmt.Fprintln(
 			out,
-			"  The saved Home Assistant Cloud configuration was not changed.",
+			"  The saved Home Assistant Link configuration was not changed.",
 		)
 		if !cloudRemoteFeatureAvailable() {
 			fmt.Fprintf(

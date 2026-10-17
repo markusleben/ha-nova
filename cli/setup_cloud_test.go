@@ -121,10 +121,10 @@ func TestCompletedSetupAddsCloudByReusingExistingDevice(t *testing.T) {
 	output := out.String()
 	orderedCopy := []string{
 		"Optional — Away-from-home access",
-		"Home Assistant Cloud (Beta) adds a secure fallback",
+		"Home Assistant Link (formerly Home Assistant Cloud) adds a secure fallback",
 		"Local access stays preferred.",
-		"Your Cloud authorization stays in this computer's native secure storage.",
-		"Add Home Assistant Cloud fallback now? [y/N]",
+		"Your Home Assistant authorization for HA NOVA stays in this computer's native secure storage.",
+		"Add Home Assistant Link fallback now? [y/N]",
 	}
 	previous := -1
 	for _, want := range orderedCopy {
@@ -140,8 +140,8 @@ func TestCompletedSetupAddsCloudByReusingExistingDevice(t *testing.T) {
 	for _, want := range []string{
 		"Setup complete!",
 		"Local:          Ready — preferred",
-		"Away from home: Ready — Home Assistant Cloud",
-		"Routing:        Automatic — Cloud is used only when local access is unavailable",
+		"Away from home: Ready — Home Assistant Link",
+		"Routing:        Automatic — Home Assistant Link is used only when local access is unavailable",
 	} {
 		if !strings.Contains(output, want) {
 			t.Fatalf("Cloud completion missing %q:\n%s", want, output)
@@ -209,7 +209,7 @@ func TestCompletedSetupDefaultsPendingHybridResumeToYes(t *testing.T) {
 	if coordinator.addCalls != 1 ||
 		!strings.Contains(
 			output.String(),
-			"Resume Home Assistant Cloud setup now?",
+			"Resume Home Assistant Link setup now?",
 		) {
 		t.Fatalf(
 			"resume calls=%d output=%s",

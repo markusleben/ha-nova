@@ -7,8 +7,8 @@ Current `main` branch is supported for security fixes.
 ## Security Architecture
 
 - The Relay remains transport-only. HA NOVA runs no hosted tunnel or broker.
-- Optional Home Assistant Cloud remote access uses Home Assistant OAuth and
-  Supervisor Ingress. Credential-bearing requests use only a verified canonical
+- Optional Home Assistant Link (formerly Home Assistant Cloud) remote access
+  uses Home Assistant OAuth and Supervisor Ingress. Credential-bearing requests use only a verified canonical
   `https://*.ui.nabu.casa` origin and reject redirects.
 - OAuth refresh tokens use a dedicated native OS credential store with no file,
   environment-variable, argument, or config fallback.

@@ -156,6 +156,9 @@ func TestSetupConnectionModeDefaultsAndRecoversFromInvalidInput(t *testing.T) {
 		{name: "local words", input: "local only\n", want: setupConnectionLocal},
 		{name: "cloud number", input: "3\n", want: setupConnectionCloud},
 		{name: "cloud words", input: "cloud only\n", want: setupConnectionCloud},
+		{name: "link words", input: "Link only\n", want: setupConnectionCloud},
+		{name: "link word", input: "link\n", want: setupConnectionCloud},
+		{name: "hybrid link words", input: "local + link\n", want: setupConnectionHybrid},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
 			var output strings.Builder

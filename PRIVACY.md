@@ -15,13 +15,13 @@ installation that stops reporting has its record deleted automatically after
 Older releases that were opted in keep reporting weekly until they are
 updated.
 
-## Optional Home Assistant Cloud transport
+## Optional Home Assistant Link transport
 
-Home Assistant Cloud remote access is available
+Home Assistant Link (formerly Home Assistant Cloud) remote access is available
 only in release-gated desktop Beta builds. Selecting `Local only` sends no Home
-Assistant traffic through Home Assistant Cloud. Selecting either Cloud mode
-uses the user's Nabu Casa service to reach that user's own Home Assistant
-through Home Assistant OAuth and Supervisor Ingress. HA NOVA operates no
+Assistant traffic through Home Assistant Link. Selecting either Home Assistant
+Link mode uses the user's Nabu Casa service to reach that user's own Home
+Assistant through Home Assistant OAuth and Supervisor Ingress. HA NOVA operates no
 additional public tunnel, hosted broker, or Cloud endpoint for Home Assistant
 requests.
 
@@ -40,7 +40,7 @@ unavailable.
 
 `ha-nova cloud remove` revokes and verifies the HA NOVA OAuth authorization,
 then removes its local Cloud secret and metadata. It does not cancel the Home
-Assistant Cloud subscription or remove the local NOVA device pairing. Standard
+Assistant Link subscription or remove the local NOVA device pairing. Standard
 uninstall keeps Home Assistant connection config, device pairing, and Cloud
 authorization to support reinstall. `ha-nova uninstall --purge` first revokes
 and verifies every configured Cloud authorization, then removes the related

@@ -53,7 +53,7 @@ func TestProductionCloudModeIsNotOfferedOutsideSafePromptSession(t *testing.T) {
 		"",
 		false,
 	) {
-		t.Fatal("unsafe prompt session offered Home Assistant Cloud setup")
+		t.Fatal("unsafe prompt session offered Home Assistant Link setup")
 	}
 }
 

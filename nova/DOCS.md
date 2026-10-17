@@ -7,7 +7,7 @@ It provides secure, authenticated access to Home Assistant's APIs and extends th
 
 ```
 Local: AI Client → NOVA Relay (this App) → Home Assistant APIs
-Cloud: AI Client → Home Assistant Cloud → Supervisor Ingress → NOVA Relay → Home Assistant APIs
+Cloud: AI Client → Home Assistant Link → Supervisor Ingress → NOVA Relay → Home Assistant APIs
 ```
 
 Your AI client (Claude Code, Claude Desktop, Codex, OpenCode, Google Antigravity, Hermes Agent) connects
@@ -15,9 +15,14 @@ to the relay with its own secure device credential — created by pairing, never
 copied or pasted by hand. Intelligence lives in the AI client's skills, not in
 the relay.
 
-The optional Home Assistant Cloud path is a release-gated desktop Beta.
-Enabled release builds use the user's existing Nabu Casa remote service; HA
-NOVA runs no public tunnel or broker. Local-only operation is unchanged.
+The optional Home Assistant Link (formerly Home Assistant Cloud) path is a
+release-gated desktop Beta. Enabled release builds use the user's existing
+Nabu Casa remote service; HA NOVA runs no public tunnel or broker. Local-only
+operation is unchanged. In Home Assistant, the service is under
+**Settings > Home Assistant Cloud** (Home Assistant 2026.12 and newer:
+**Settings > Home Assistant Link**). The `ha-nova cloud`
+commands, the `cloud` route, and the "Cloud" mode name in HA NOVA keep their
+names.
 
 ## The NOVA page
 
@@ -119,10 +124,10 @@ When a validated build enables Cloud Remote, a supported interactive desktop
 offers:
 
 - **Local only (recommended default)** — unchanged local setup; no Home
-  Assistant Cloud subscription or background Cloud probe required.
-- **Local + Home Assistant Cloud** — pair locally once, then explicitly add
+  Assistant Link subscription or background Cloud probe required.
+- **Local + Home Assistant Link** — pair locally once, then explicitly add
   secure remote access with the same device credential.
-- **Home Assistant Cloud only** — authorize remotely, then pair through
+- **Home Assistant Link only** — authorize remotely, then pair through
   Supervisor Ingress with a six-digit code from the owner-only NOVA page.
 
 A standard Home Assistant user is recommended for everyday Cloud calls; owner
@@ -190,7 +195,7 @@ ha-nova cloud status --server <name>
 ha-nova relay health --server <name> --via cloud
 ```
 
-`cloud status` verifies OAuth, Home Assistant Cloud state, the current user,
+`cloud status` verifies OAuth, Home Assistant Link state, the current user,
 NOVA Relay Ingress discovery, Relay instance identity, and the bound device
 credential. With `--json`, it always emits one object; failures include typed
 `verification_error` and `next_command` fields. It does not print tokens,
@@ -249,7 +254,9 @@ A healthy response looks like:
 
 **Cloud remote access is unavailable**
 
-- Confirm the Home Assistant Cloud subscription and Remote UI are active
+- Confirm the Home Assistant Link subscription and remote access are active
+  (in Home Assistant: **Settings > Home Assistant Cloud**; 2026.12 and newer:
+  **Settings > Home Assistant Link**)
 - Confirm the NOVA Relay App is installed, current, and running
 - Run `ha-nova cloud status --server <name>` for a typed remediation code
 - Treat any Relay-instance or user mismatch as a security stop; do not bypass it
@@ -264,7 +271,7 @@ A healthy response looks like:
 ## Removing Cloud Access
 
 `ha-nova cloud remove` revokes and verifies HA NOVA's OAuth authorization, then
-removes its local Cloud secret and metadata. It leaves the Home Assistant Cloud
+removes its local Cloud secret and metadata. It leaves the Home Assistant Link
 subscription and local NOVA pairing unchanged.
 
 A standard `ha-nova uninstall` keeps Home Assistant connection config, device
@@ -281,7 +288,7 @@ providers. SSH, WSL, containers, services, gateways, and other headless
 contexts stay local-only for starting an authorization; an interrupted,
 already-verified setup on a supported machine may finish over SSH with
 `ha-nova cloud add --remote-resume`. Every publication remains gated on exact-source Home
-Assistant Cloud parity, native-keyring, user-role, redirect, lifecycle, App
+Assistant Link parity, native-keyring, user-role, redirect, lifecycle, App
 restart/update/reinstall, and 10,000-command Ingress-session stress evidence.
 See
 [`docs/work/2026-07-25-home-assistant-cloud-remote-spec.md`](../docs/work/2026-07-25-home-assistant-cloud-remote-spec.md).

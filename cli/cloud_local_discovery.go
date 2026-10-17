@@ -79,7 +79,7 @@ func discoverCloudFromLocalRelay(ctx context.Context, cfg runtimeConfig) (cloudL
 	if err != nil {
 		return cloudLocalDiscovery{}, newCloudError(
 			CloudErrCloudNotReady,
-			"discover Home Assistant Cloud origin",
+			"discover Home Assistant Link origin",
 			err,
 		)
 	}

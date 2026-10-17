@@ -41,7 +41,7 @@ func TestLocalPairingDoesNotReplaceConfiguredCloudDevice(t *testing.T) {
 		},
 		defaultPairingClientInfo(),
 	)
-	if err == nil || !strings.Contains(err.Error(), "Cloud access is configured") {
+	if err == nil || !strings.Contains(err.Error(), "Link access is configured") {
 		t.Fatalf("configured Cloud local pairing error = %v", err)
 	}
 	if pairCalls != 0 || cfg.RelayInstanceID != "relay-cloud" {
@@ -86,7 +86,7 @@ func TestLocalPairingDoesNotOverwriteOrphanedCloudPending(t *testing.T) {
 		func(*runtimeConfig) error { return nil },
 		defaultPairingClientInfo(),
 	)
-	if err == nil || !strings.Contains(err.Error(), "Cloud device pairing is still pending") {
+	if err == nil || !strings.Contains(err.Error(), "Link device pairing is still pending") {
 		t.Fatalf("orphaned Cloud pending local pairing error = %v", err)
 	}
 	record, exists, readErr := readPendingDeviceCredentialRecord()

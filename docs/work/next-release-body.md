@@ -60,6 +60,11 @@ the number.
 
 ## What To Watch
 
+- **Home Assistant Link:** Nabu Casa is renaming Home Assistant Cloud to
+  Home Assistant Link (same subscription, same features). HA NOVA's setup
+  and messages now say Home Assistant Link. Commands stay the same
+  (`ha-nova cloud …`), and until the rename reaches your Home Assistant, the
+  setting is still under Settings > Home Assistant Cloud.
 - **Shorter one-time codes:** unlocking a door, opening a gate or garage,
   disarming the alarm, and deletes now ask for a four-digit one-time code from
   HA NOVA ("Type 4821 to unlock “Front Door”") instead of a long

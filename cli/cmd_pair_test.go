@@ -64,7 +64,7 @@ func TestRunPairCommandRejectsCloudBeforeMigrationOrPrompt(t *testing.T) {
 		)
 	})
 	if exit != 1 ||
-		!strings.Contains(output, "Cloud access is configured") ||
+		!strings.Contains(output, "Link access is configured") ||
 		strings.Contains(output, "Six-digit code") {
 		t.Fatalf("Cloud-guarded pair exit=%d output=%s", exit, output)
 	}

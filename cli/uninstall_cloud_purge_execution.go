@@ -158,7 +158,7 @@ func executeCloudPurgePlans(
 		if execution.authorizationPlan.hasAuthorization() &&
 			report != nil {
 			report.addRemoved(fmt.Sprintf(
-				"Home Assistant Cloud authorization (server %q)",
+				"Home Assistant Link authorization (server %q)",
 				execution.target.profileName,
 			))
 		}

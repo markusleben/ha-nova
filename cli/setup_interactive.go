@@ -43,7 +43,7 @@ func maybeHandleInteractiveSetupCurrentState(reader *bufio.Reader, out io.Writer
 	if cfg.Cloud != nil && !cloudRemoteFeatureAvailable() {
 		fmt.Fprintln(
 			out,
-			"  Home Assistant Cloud access is unavailable because this build or platform has Cloud setup disabled.",
+			"  Home Assistant Link access is unavailable because this build or platform has Cloud setup disabled.",
 		)
 		renderCloudCheckpointActions(out, paths, cfg, false)
 		return true, 1
@@ -1091,7 +1091,7 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 				if connectionMode == setupConnectionHybrid && !cfg.Cloud.ready() {
 					renderSetupParagraph(
 						os.Stdout,
-						"Local access is ready. Now connecting Home Assistant Cloud for away-from-home access.",
+						"Local access is ready. Now connecting Home Assistant Link for away-from-home access.",
 					)
 					cfg, err = addHybridCloudAfterLocal(
 						paths,
@@ -1113,7 +1113,7 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 						stage = setupStageSkills
 						continue
 					}
-					renderSetupSuccessLine(os.Stdout, "Home Assistant Cloud access verified")
+					renderSetupSuccessLine(os.Stdout, "Home Assistant Link access verified")
 				}
 				stage = setupStageSkills
 				continue

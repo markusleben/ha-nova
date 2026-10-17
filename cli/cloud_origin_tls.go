@@ -23,7 +23,7 @@ func verifyCloudOriginTLS(ctx context.Context, origin CloudOrigin) error {
 	if origin.InputHost == "" || origin.CanonicalHost == "" {
 		return newCloudError(
 			CloudErrInvalidInput,
-			"prove Home Assistant Cloud origin",
+			"prove Home Assistant Link origin",
 			nil,
 		)
 	}
@@ -48,7 +48,7 @@ func verifyCloudOriginTLS(ctx context.Context, origin CloudOrigin) error {
 			(errors.As(err, &networkError) && networkError.Timeout()) {
 			return newCloudError(
 				CloudErrTimeout,
-				"prove Home Assistant Cloud origin",
+				"prove Home Assistant Link origin",
 				err,
 			)
 		}
@@ -62,13 +62,13 @@ func verifyCloudOriginTLS(ctx context.Context, origin CloudOrigin) error {
 			errors.As(err, &verificationError) {
 			return newCloudError(
 				CloudErrIdentityMismatch,
-				"prove Home Assistant Cloud origin",
+				"prove Home Assistant Link origin",
 				err,
 			)
 		}
 		return newCloudError(
 			CloudErrNetwork,
-			"prove Home Assistant Cloud origin",
+			"prove Home Assistant Link origin",
 			err,
 		)
 	}
@@ -77,7 +77,7 @@ func verifyCloudOriginTLS(ctx context.Context, origin CloudOrigin) error {
 	if !ok {
 		return newCloudError(
 			CloudErrIdentityMismatch,
-			"prove Home Assistant Cloud origin",
+			"prove Home Assistant Link origin",
 			nil,
 		)
 	}
@@ -85,7 +85,7 @@ func verifyCloudOriginTLS(ctx context.Context, origin CloudOrigin) error {
 	if len(state.VerifiedChains) == 0 || len(state.PeerCertificates) == 0 {
 		return newCloudError(
 			CloudErrIdentityMismatch,
-			"prove Home Assistant Cloud origin",
+			"prove Home Assistant Link origin",
 			nil,
 		)
 	}

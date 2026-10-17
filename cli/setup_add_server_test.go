@@ -470,7 +470,7 @@ func TestAddServerCancelSuppressesCloudFallbackReadyBanner(t *testing.T) {
 		return interactiveSetup(paths, cfg, state, "claude", "", "", "", "", false, marker...)
 	})
 	output := stdout + stderr
-	if !strings.Contains(output, "Add Home Assistant Cloud fallback now?") {
+	if !strings.Contains(output, "Add Home Assistant Link fallback now?") {
 		t.Fatalf("expected the fresh Cloud offer:\n%s", output)
 	}
 	if !strings.Contains(output, "Add another Home Assistant server?") {

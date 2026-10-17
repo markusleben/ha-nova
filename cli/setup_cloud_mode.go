@@ -26,11 +26,13 @@ func promptSetupConnectionMode(
 		fmt.Fprintln(out, "  How should this computer connect to Home Assistant?")
 		fmt.Fprintln(out)
 		fmt.Fprintln(out, "    1) Local only (recommended)")
-		fmt.Fprintln(out, "       No Home Assistant Cloud subscription required.")
-		fmt.Fprintln(out, "    2) Local + Home Assistant Cloud")
+		fmt.Fprintln(out, "       No Home Assistant Link subscription required.")
+		fmt.Fprintln(out, "    2) Local + Home Assistant Link")
 		fmt.Fprintln(out, "       Fast at home; secure remote access when away.")
-		fmt.Fprintln(out, "    3) Home Assistant Cloud only")
+		fmt.Fprintln(out, "    3) Home Assistant Link only")
 		fmt.Fprintln(out, "       For a computer that is not on the Home Assistant network.")
+		fmt.Fprintln(out)
+		fmt.Fprintln(out, "  Home Assistant Link is Nabu Casa's remote access service, formerly Home Assistant Cloud.")
 		fmt.Fprintln(out)
 		fmt.Fprint(out, "  Enter [1-3] (default 1, or type 'back'/'exit'): ")
 		line, err := reader.ReadString('\n')
@@ -40,9 +42,9 @@ func promptSetupConnectionMode(
 		switch strings.ToLower(strings.TrimSpace(line)) {
 		case "", "1", "local", "local only":
 			return setupConnectionLocal, nil
-		case "2", "hybrid", "local + cloud":
+		case "2", "hybrid", "local + cloud", "local + link":
 			return setupConnectionHybrid, nil
-		case "3", "cloud", "cloud only":
+		case "3", "cloud", "cloud only", "link", "link only":
 			return setupConnectionCloud, nil
 		case "back":
 			return "", errSetupBack
@@ -123,7 +125,7 @@ func runInteractiveCloudOnlySetupForWizard(
 	renderSetupHeader(out)
 	renderSetupParagraph(
 		out,
-		"Enter the Home Assistant Cloud remote URL shown in Home Assistant under Settings > Home Assistant Cloud.",
+		"Enter the Home Assistant Link remote URL shown in Home Assistant under Settings > Home Assistant Cloud (Home Assistant 2026.12 and newer: Settings > Home Assistant Link).",
 		"OAuth credentials will stay only in this computer's native secure storage.",
 	)
 	origin, err := promptValidatedCloudRemoteOrigin(

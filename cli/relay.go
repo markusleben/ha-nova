@@ -867,7 +867,7 @@ func relayConnectErrorMessage(baseURL string, err error) string {
 func relayRequestOutcomeUnknownMessage(baseURL string, err error) string {
 	if strings.TrimRight(baseURL, "/") == cloudRelayVirtualBaseURL {
 		return fmt.Sprintf(
-			"OUTCOME_UNKNOWN: Home Assistant Cloud could not complete the NOVA Relay request: %s\nThe request outcome is unknown: it may have reached the Relay. Verify the target state; do not retry automatically.",
+			"OUTCOME_UNKNOWN: Home Assistant Link could not complete the NOVA Relay request: %s\nThe request outcome is unknown: it may have reached the Relay. Verify the target state; do not retry automatically.",
 			cloudOutcomeUnknownCause(err),
 		)
 	}

@@ -98,7 +98,7 @@ func runServerRoute(paths runtimePaths, args []string) int {
 		}
 	}
 	if opts.Policy != routePolicyLocal && !cfg.Cloud.configured() {
-		printHumanErr("server profile %q has no completed Home Assistant Cloud setup; add away-from-home access before selecting %s routing", name, opts.Policy)
+		printHumanErr("server profile %q has no completed Home Assistant Link setup; add away-from-home access before selecting %s routing", name, opts.Policy)
 		return 1
 	}
 	if opts.Policy == routePolicyAutomatic &&

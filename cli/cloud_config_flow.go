@@ -8,7 +8,7 @@ import (
 type cloudConfigSaver func(runtimeConfig) error
 
 var errCloudAlreadyConfigured = errors.New(
-	"Home Assistant Cloud access is already configured",
+	"Home Assistant Link access is already configured",
 )
 
 func connectExistingDeviceToCloud(

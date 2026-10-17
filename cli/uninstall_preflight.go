@@ -72,7 +72,7 @@ func renderUninstallPreflight(out io.Writer, paths runtimePaths, source string) 
 	if label := uninstallTokenLineLabel(paths); label != "" {
 		fmt.Fprintf(out, "    %s %s\n", session.bullet(), label)
 	}
-	fmt.Fprintf(out, "    %s Home Assistant Cloud authorization (when configured)\n", session.bullet())
+	fmt.Fprintf(out, "    %s Home Assistant Link authorization (when configured)\n", session.bullet())
 	fmt.Fprintln(out)
 	if warning := uninstallForeignTokenFileWarning(paths); warning != "" {
 		renderSetupParagraphTight(out, session.style("warning", warning))

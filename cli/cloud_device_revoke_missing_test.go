@@ -92,7 +92,7 @@ func TestCloudRemoveMissingCurrentDeviceFailsBeforeOAuthAndKeepsProfile(
 			[]string{"remove", remoteOnlyCloudTestProfile},
 		)
 	})
-	if exit != 1 || !strings.Contains(output, "still has Home Assistant Cloud state") {
+	if exit != 1 || !strings.Contains(output, "still has Home Assistant Link state") {
 		t.Fatalf(
 			"server remove bypassed missing-device hold: exit=%d output=%s",
 			exit,

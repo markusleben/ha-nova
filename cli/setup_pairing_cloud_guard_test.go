@@ -29,7 +29,7 @@ func TestSetupPairingRejectsCloudBeforeProbeBrowserOrCodePrompt(t *testing.T) {
 		&cfg,
 		false,
 	)
-	if err == nil || !strings.Contains(err.Error(), "Cloud access is configured") {
+	if err == nil || !strings.Contains(err.Error(), "Link access is configured") {
 		t.Fatalf("Cloud-guarded setup error=%v output=%s", err, output.String())
 	}
 	for _, forbidden := range []string{

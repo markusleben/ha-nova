@@ -145,7 +145,7 @@ func TestCloudConnectHeadlessMissingStatePreflightDoesNotCreateProfile(
 				}
 			}`,
 			args:           []string{"--server", "cabin"},
-			want:           "cannot safely continue Home Assistant Cloud setup",
+			want:           "cannot safely continue Home Assistant Link setup",
 			wantConfigFile: true,
 		},
 		{

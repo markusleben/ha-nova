@@ -123,21 +123,21 @@ func (status HACloudStatus) ValidateForOrigin(origin CloudOrigin) error {
 	if !status.LoggedIn {
 		return newCloudError(
 			CloudErrUnauthorized,
-			"validate Home Assistant Cloud sign-in",
+			"validate Home Assistant Link sign-in",
 			nil,
 		)
 	}
 	if !status.ActiveSubscription {
 		return newCloudError(
 			CloudErrSubscriptionInactive,
-			"validate Home Assistant Cloud subscription",
+			"validate Home Assistant Link subscription",
 			nil,
 		)
 	}
 	if !status.Prefs.RemoteEnabled ||
 		!status.RemoteConnected || status.RemoteCertificateStatus != "ready" ||
 		domain != origin.CanonicalHost || status.RemoteCertificate == nil {
-		return newCloudError(CloudErrCloudNotReady, "validate Home Assistant Cloud status", nil)
+		return newCloudError(CloudErrCloudNotReady, "validate Home Assistant Link status", nil)
 	}
 	names := make(map[string]struct{}, len(status.RemoteCertificate.AlternativeNames)+1)
 	names[strings.ToLower(strings.TrimSuffix(status.RemoteCertificate.CommonName, "."))] = struct{}{}
@@ -145,11 +145,11 @@ func (status HACloudStatus) ValidateForOrigin(origin CloudOrigin) error {
 		names[strings.ToLower(strings.TrimSuffix(strings.TrimSpace(name), "."))] = struct{}{}
 	}
 	if _, ok := names[origin.CanonicalHost]; !ok {
-		return newCloudError(CloudErrCloudNotReady, "validate Home Assistant Cloud certificate", nil)
+		return newCloudError(CloudErrCloudNotReady, "validate Home Assistant Link certificate", nil)
 	}
 	if origin.CustomDomain {
 		if _, ok := names[origin.InputHost]; !ok {
-			return newCloudError(CloudErrCloudNotReady, "validate custom Home Assistant Cloud certificate", nil)
+			return newCloudError(CloudErrCloudNotReady, "validate custom Home Assistant Link certificate", nil)
 		}
 	}
 	return nil
