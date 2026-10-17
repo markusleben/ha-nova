@@ -13,7 +13,7 @@ const flat = (text: string): string => text.replace(/\s+/g, " ");
 
 describe("service-call reauth reconciliation (#586)", () => {
   const skill = flat(read("skills/service-call/SKILL.md"));
-  const apply = read("cli/verb_apply.go");
+  const apply = read("cli/verb_execute.go"); // newReauthFlows moved with executeAction
   const relayWrite = read("cli/relay_write.go");
 
   it("detects NEW flows against a pre-call snapshot, never pre-existing ones", () => {

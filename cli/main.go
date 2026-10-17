@@ -65,6 +65,9 @@ func dispatch(paths runtimePaths, argv0 string, args []string) int {
 
 	switch args[0] {
 	case "setup":
+		if len(args) > 1 && args[1] == "confirm-window" {
+			return runConfirmWindowSetting(paths, args[2:])
+		}
 		return runSetup(paths, args[1:])
 	case "doctor":
 		return runDoctor(paths, args[1:])

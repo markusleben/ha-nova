@@ -61,7 +61,7 @@ Raw `relay core|ws|files|backups` stays for reads and for config surfaces that d
 
 ## 3. Human channel precedence and the fallback (E)
 
-- Channel at plan time: `form` when the plan is made inside `ha-nova mcp` for a client with form elicitation (not `--no-forms`); `chat` otherwise. The CLI has no human channel today (a native dialog or phone channel is follow-up work), so every CLI plan is `chat`.
+- Channel at plan time: a confirmation window where one can open (`window`, `docs/work/2026-10-17-human-confirmation-channels-spec.md`); otherwise `form` when the plan is made inside `ha-nova mcp` for a client with form elicitation (not `--no-forms`); else `chat`.
 - Detection is not model-controlled per plan: the channel is set by the MCP server from the client's handshake, carried in the MAC, and a `form` plan never falls back.
 - `chat` plans keep the code in `say` and add one sentence: "Note: the assistant can see this code too, so it only counts if you type it yourself in your reply." Skills: the Safety Core already forbids typing the code; it now says the code is never typed, passed, or derived by the agent.
 

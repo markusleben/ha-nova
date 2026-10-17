@@ -32,7 +32,10 @@ type verbEnvelope struct {
 	Plan          *verbPlan `json:"plan,omitempty"`
 	// Say: the plain confirmation text of a plan that needs one (CLI-built
 	// from tier, reasons, and names; skills relay it).
-	Say          string         `json:"say,omitempty"`
+	Say string `json:"say,omitempty"`
+	// NextStep: the agent's next step where it is not the usual one (a
+	// window plan: apply without a code; its fallback: a new code plan).
+	NextStep     string         `json:"next_step,omitempty"`
 	Action       *planAction    `json:"action,omitempty"`
 	Resolved     []verbTarget   `json:"resolved,omitempty"`
 	Deltas       []planDelta    `json:"deltas,omitempty"`

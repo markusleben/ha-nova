@@ -227,3 +227,13 @@ func sayOwnedAction(env *verbEnvelope, r tierReason) string {
 	}
 	return "runs a Supervisor action"
 }
+
+// directOwnedCall: the reason is the call itself, made from its owning
+// skill (--skill), not a member it runs.
+func directOwnedCall(env *verbEnvelope, r tierReason) bool {
+	if r.Via != "" || env.Action == nil {
+		return false
+	}
+	domain, _ := splitID(env.Action.Service)
+	return ownerSkill(env.Action.Service) != "" || domain == "hassio"
+}
