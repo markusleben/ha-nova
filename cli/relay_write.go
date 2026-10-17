@@ -19,7 +19,7 @@ import (
 var relayWriteTimeout = 30 * time.Second
 
 var (
-	servicePathPattern  = regexp.MustCompile(`^/api/services/[a-z0-9_]+/[a-z0-9_]+$`)
+	servicePathPattern  = regexp.MustCompile(`^/api/services/[a-z0-9_]+/[a-z0-9_]+(\?return_response)?$`)
 	configPathPattern   = regexp.MustCompile(`^/api/config/(automation|script)/config/[A-Za-z0-9_-]+$`)
 	snapshotNamePattern = regexp.MustCompile(`^auto-[a-z0-9-]{1,59}$`)
 )
@@ -84,10 +84,15 @@ type serviceResult struct {
 	body   json.RawMessage
 }
 
-// postService sends one service call.
-func (s *relaySession) postService(service string, body map[string]any) (serviceResult, error) {
+// postService sends one service call; response asks for its
+// service_response (?return_response).
+func (s *relaySession) postService(service string, body map[string]any, response bool) (serviceResult, error) {
 	domain, name := splitID(service)
-	return s.writeCore(http.MethodPost, "/api/services/"+domain+"/"+name, body)
+	path := "/api/services/" + domain + "/" + name
+	if response {
+		path += "?return_response"
+	}
+	return s.writeCore(http.MethodPost, path, body)
 }
 
 // writeCore sends one core write. Errors are either a relayCallError / plain

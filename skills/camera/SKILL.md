@@ -31,7 +31,7 @@ Binary responses are guaranteed by the skills' enforced relay floor (`skills/ha-
 
 - `ha-nova relay core --method GET --path /api/camera_proxy/<entity_id> --out-binary <image-file>` — the ONLY correct way to fetch a frame: the relay returns the image base64-marked and `--out-binary` decodes it to real bytes. Never use `--out` for an image (that writes the JSON envelope) and never pipe it through `--jq`.
 - `ha-nova relay ws --data-file <payload-file>` for WS commands
-- `ha-nova relay core --method POST --path /api/services/camera/<service> --body-file <payload-file>` for camera services
+- `ha-nova call camera.<service> camera.<id> --skill ha-nova:camera [--set k=v]…` for camera services (the camera is an argument, never `entity_id` in the data): show its preview, then `ha-nova apply --plan <id>` (exit codes: `skills/service-call/SKILL.md` → Flow)
 
 ## Flow
 
@@ -39,9 +39,9 @@ Binary responses are guaranteed by the skills' enforced relay floor (`skills/ha-
 2. Read its state (`/api/states/<entity_id>`): `state` (`idle`/`recording`/`streaming`/`unavailable`), `attributes.supported_features` (1 = ON_OFF, 2 = STREAM), `entity_picture`, `frontend_stream_type`. An `unavailable` camera cannot deliver a frame — say so instead of retrying.
 3. **Snapshot for the agent to see**: fetch the current frame into a client-private scratch file with `--out-binary`, then open that file with the client's own image-reading tool. Only describe what is actually visible in the frame; never infer content you did not see. Viewing the frame is a client capability — classify this check per context skill → Verification Planning (client capabilities) before promising it.
 4. **Stream URL** (needs STREAM, bit 2): WS `{"type":"camera/stream","entity_id":"camera.<id>"}` returns an HLS URL under `.data.url`. It is relative to the Home Assistant base URL and short-lived — give it to the user, do not try to consume it here.
-5. **Snapshot/record to the HA host** (mutating): services `camera.snapshot` (`filename`) and `camera.record` (`filename`, `duration`, `lookback`). The path must be inside HA's `allowlist_external_dirs`, or the call fails — say this before the call rather than after. Preview the exact filename and confirm. These write files on the Home Assistant server, not on this machine.
+5. **Snapshot/record to the HA host** (mutating): services `camera.snapshot` (`filename`) and `camera.record` (`filename`, `duration`, `lookback`). The path must be inside HA's `allowlist_external_dirs`, or the call fails — say this before the call rather than after. Preview the exact filename. These write files on the Home Assistant server, not on this machine.
 6. `camera.turn_on` / `camera.turn_off` need ON_OFF (bit 1); verify by re-reading the state. A restart/reboot ask is neither of these: find the device's own capability entity (often a disabled sibling) via `ha-nova:entity-discovery` → Device-sibling capability discovery.
-7. **Cast to a screen**: `camera.play_stream` puts the live view on a TV or display. Payload: `{"entity_id":"camera.<id>","media_player":"media_player.<id>"}` — the receiver field is `media_player` (required), NOT `media_player_entity_id`, which belongs to `tts.speak`; `format` is optional and defaults to `hls`. Two entities, two gates: the camera needs STREAM (bit 2) and the receiver needs PLAY_MEDIA (bit 512), because HA forwards the stream URL to `media_player.play_media` internally. Resolve the receiver like any other target (registry lookup, ask once on ambiguity — never guess a player id) and read its state for that bit before previewing. Verify on the RECEIVER's state, not the camera's: this is the only camera action whose result shows up on another entity.
+7. **Cast to a screen**: `camera.play_stream` puts the live view on a TV or display. Data: `--set media_player=media_player.<id>` — the receiver field is `media_player` (required), NOT `media_player_entity_id`, which belongs to `tts.speak`; `format` is optional and defaults to `hls`. Two entities, two gates: the camera needs STREAM (bit 2) and the receiver needs PLAY_MEDIA (bit 512), because HA forwards the stream URL to `media_player.play_media` internally. Resolve the receiver like any other target (registry lookup, ask once on ambiguity — never guess a player id) and read its state for that bit before previewing. Verify on the RECEIVER's state, not the camera's: this is the only camera action whose result shows up on another entity.
 8. `camera.enable_motion_detection` / `camera.disable_motion_detection` toggle detection where the integration implements it. Verify via the `motion_detection` attribute when the camera exposes it; when it does not, say the toggle was accepted but could not be verified rather than claiming success.
 
 ## Error Handling
@@ -49,7 +49,6 @@ Binary responses are guaranteed by the skills' enforced relay floor (`skills/ha-
 Full relay/upstream error taxonomy: `skills/ha-nova/relay-api.md` -> Error Handling. Camera specifics:
 - `--out-binary` refusing with "no base64 marker": the response was not an image — usually a 404 (wrong entity) or an error envelope. Re-run without `--out-binary` to read the actual error.
 - Frames larger than the relay's 8 MiB binary ceiling fail loudly; that is a stream, not a still — use the stream URL instead.
-- `camera/stream` errors when the camera has no STREAM feature: check bit 2 first.
 - `camera.snapshot` failing with a path error means the target directory is not in `allowlist_external_dirs` — that is an HA configuration change the user must make in `configuration.yaml`.
 
 ## Output Format

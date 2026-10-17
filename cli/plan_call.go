@@ -10,7 +10,7 @@ import (
 	"strings"
 )
 
-const planCallUsage = `ha-nova plan call <domain.service> [<entity_id>…] [--match "<phrase>"] [--area <area_id>] [--device <device_id>] [--set k=v]… [--data-file <file>]`
+const planCallUsage = `ha-nova plan call <domain.service> [<entity_id>…] [--match "<phrase>"] [--area <area_id>] [--device <device_id>] [--set k=v]… [--data-file <file>] [--response] [--skill <owner>]`
 
 const planCallHelp = planCallUsage + `
 
@@ -28,6 +28,10 @@ type planCallRequest struct {
 	Area      string         `json:"area,omitempty"`
 	Device    string         `json:"device,omitempty"`
 	Data      map[string]any `json:"data"`
+	// Skill: the owning skill an owned service is called from (--skill);
+	// Response: the call returns Home Assistant's service_response.
+	Skill    string `json:"skill,omitempty"`
+	Response bool   `json:"response,omitempty"`
 }
 
 func runPlanCommand(paths runtimePaths, args []string) int {
@@ -64,6 +68,8 @@ func runCallVerb(paths runtimePaths, verb, flagSetName, help string, args []stri
 	fs.StringVar(&req.Device, "device", "", "expand a device_id to the service domain's entities (previewed unless it resolves to exactly one entity of the service's domain)")
 	fs.Func("set", "service data field k=v, JSON-typed when it parses (repeatable)", func(v string) error { sets = append(sets, v); return nil })
 	fs.StringVar(&dataFile, "data-file", "", "JSON object of service data; --set overrides its keys")
+	fs.StringVar(&req.Skill, "skill", "", "the owning skill an owned service is called from, e.g. ha-nova:mqtt")
+	fs.BoolVar(&req.Response, "response", false, "return the service's response data (result); implied for weather.get_forecasts, calendar.get_events, todo.get_items")
 	positional, err := parseVerbArgs(fs, &opts, args, help)
 	if err == nil {
 		err = req.parse(positional, sets, dataFile)
@@ -126,6 +132,11 @@ func (req *planCallRequest) parse(positional, sets []string, dataFile string) er
 
 // validate holds for every request a plan may carry: parse checks fresh
 // input with it, apply re-checks the stored request with it.
+// wantsResponse: --response, implied for the read-only response services.
+func (req planCallRequest) wantsResponse() bool {
+	return req.Response || readOnlyResponseServices[req.Service]
+}
+
 func (req planCallRequest) validate() error {
 	if !entityIDPattern.MatchString(req.Service) {
 		return fmt.Errorf("%q is not a domain.service", req.Service)
@@ -173,8 +184,8 @@ func computeCallPlan(s *relaySession, env *verbEnvelope, req planCallRequest) (*
 		return nil, storedPlan{}, err
 	}
 	env.Resolved = targets
-	if spec.responseOnly {
-		return nil, storedPlan{}, refuse(env, tierReason{Code: reasonResponseOnly, Skill: "ha-nova:service-call", Detail: "Home Assistant runs this service only with return_response"})
+	if spec.responseOnly && !req.wantsResponse() {
+		return nil, storedPlan{}, refuse(env, tierReason{Code: reasonResponseOnly, Detail: "Home Assistant runs this service only with a response: call it again with --response"})
 	}
 	if e.targetRequired(req, spec) {
 		return nil, storedPlan{}, refuse(env, tierReason{Code: reasonTargetRequired, Detail: "without a target this service acts on every entity of its domain; name the entities, or use --area/--device"})
@@ -203,12 +214,17 @@ func staticRefusal(req planCallRequest) *tierReason {
 	_, label := req.Data["label_id"]
 	_, code := req.Data["code"]
 	switch {
-	case readOnlyResponseServices[req.Service]:
-		return &tierReason{Code: reasonResponseOnly, Skill: "ha-nova:service-call", Detail: "a response service changes nothing; read it through the service-call read path"}
-	case ownerSkill(req.Service) != "":
+	case ownerSkill(req.Service) != "" && req.Skill != ownerSkill(req.Service):
 		return &tierReason{Code: reasonOwnedService, Skill: ownerSkill(req.Service)}
 	case domain == "hassio":
-		return &tierReason{Code: reasonHassio, Skill: hassioOwner(name)}
+		// Only the five App/host-control services run through `ha-nova call`,
+		// and only from service-call (raw-routes.md → App And Host Control).
+		// restore_full/restore_partial, addon_update, and every other hassio.*
+		// stay refused whatever --skill says: their owning skills drive them
+		// through their own flows, not a raw call.
+		if !serviceCallHassio[name] || req.Skill != "ha-nova:service-call" {
+			return &tierReason{Code: reasonHassio, Skill: hassioOwner(name)}
+		}
 	case floor || label:
 		return &tierReason{Code: reasonSelector, Detail: "floor_id and label_id are unsupported; name entities, an area, or a device"}
 	case code:
@@ -221,7 +237,14 @@ func refuse(env *verbEnvelope, r tierReason) *verbFailure {
 	env.Tier = tierRefused.String()
 	env.Reasons = []tierReason{r}
 	next := "Finish this in the Home Assistant UI."
-	if r.Skill != "" {
+	skillRuns := r.Code == reasonOwnedService || (r.Code == reasonHassio && r.Skill == "ha-nova:service-call")
+	switch {
+	case r.Code == reasonResponseOnly:
+		next = "Call it again with --response to get its data."
+	case skillRuns:
+		// The call runs through `ha-nova call` from its owning skill: name it.
+		next = "Call it with --skill " + r.Skill + " (only from that skill)."
+	case r.Skill != "":
 		next = "Continue in " + r.Skill + "."
 	}
 	return &verbFailure{exit: verbExitRefused, code: "REFUSED", message: "refused (" + r.Code + "); nothing was planned or sent", next: next}

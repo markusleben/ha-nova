@@ -183,19 +183,28 @@ func TestVerificationGetsAFreshBudgetAfterASlowCall(t *testing.T) {
 	}
 }
 
-// Item 10: response-only services are refused, statically and from
-// /api/services, before anything is sent.
-func TestResponseOnlyServicesAreRefused(t *testing.T) {
+// Item 10, since 2026-10-17: a response-only service runs through call with
+// --response (implied for the read-only ones) and returns its data; without
+// it, it is refused before anything is sent.
+func TestResponseServicesRunThroughCall(t *testing.T) {
 	f := newFakeHA()
-	f.services = []map[string]any{{"domain": "music", "services": map[string]any{"search": map[string]any{"response": map[string]any{"optional": false}}}}}
-	h := newWriteHarness(t, f)
-	for _, args := range [][]string{{"weather.get_forecasts", "--set", "type=daily"}, {"music.search", "--set", "q=x"}} {
-		if exit, env := h.run(runCallCommand, args...); exit != 4 || env.Reasons[0].Code != reasonResponseOnly {
-			t.Fatalf("%v: exit %d env %+v", args, exit, env)
-		}
+	f.services = []map[string]any{
+		{"domain": "music", "services": map[string]any{"search": map[string]any{"response": map[string]any{"optional": false}}}},
+		{"domain": "weather", "services": map[string]any{"get_forecasts": map[string]any{"target": map[string]any{}, "response": map[string]any{"optional": false}}}},
 	}
-	if len(h.posts()) != 0 {
-		t.Fatalf("posts %+v", h.posts())
+	f.ent("weather.home", "met", "sunny", nil)
+	f.service = func(f *fakeHA, path string, body map[string]any) any {
+		return coreReply(200, map[string]any{"service_response": map[string]any{"weather.home": map[string]any{"forecast": []any{}}}, "changed_states": []any{}})
+	}
+	h := newWriteHarness(t, f)
+	if exit, env := h.run(runCallCommand, "music.search", "--set", "q=x"); exit != 4 || env.Reasons[0].Code != reasonResponseOnly || len(h.posts()) != 0 {
+		t.Fatalf("without --response: exit %d env %+v", exit, env)
+	}
+	exit, env := h.run(runCallCommand, "weather.get_forecasts", "weather.home", "--set", "type=daily")
+	posts := h.posts()
+	if exit != 0 || len(posts) != 1 || posts[0].payload["path"] != "/api/services/weather/get_forecasts?return_response" ||
+		!strings.Contains(string(env.Result), "service_response") || !strings.Contains(string(env.Result), "weather.home") {
+		t.Fatalf("weather.get_forecasts: exit %d env %+v posts %+v", exit, env, posts)
 	}
 }
 
@@ -221,13 +230,8 @@ func TestUnreachableRelayIsAnOperationalError(t *testing.T) {
 		t.Fatal(err)
 	}
 	live := cfg.RelayBaseURL
-	id := h.plan("lock.unlock", "lock.front").Plan.ID
-	code := ""
-	if raw, err := os.ReadFile(filepath.Join(planDir(h.paths), id+".json")); err == nil {
-		var stored storedPlan
-		_ = json.Unmarshal(raw, &stored)
-		code = stored.Code
-	}
+	planned := h.plan("lock.unlock", "lock.front").Plan
+	id, code := planned.ID, planned.Code
 	dead := httptest.NewServer(nil)
 	dead.Close()
 	h.pointRelayAt(dead.URL)
@@ -247,5 +251,18 @@ func TestUnreachableRelayIsAnOperationalError(t *testing.T) {
 	h.pointRelayAt(live)
 	if exit, env := h.run(runApplyCommand, "--plan", id, "--confirm", code); exit != 0 || len(h.posts()) != 1 {
 		t.Fatalf("apply after the outage: exit %d env %+v", exit, env)
+	}
+}
+
+// A far-future expiry in the user-writable plan file must not extend the
+// code's guessing window: apply refuses a plan claiming to outlive its TTL.
+func TestApplyRefusesFarFutureExpiry(t *testing.T) {
+	h := newWriteHarness(t, newFakeHA())
+	plan := h.plan("lock.unlock", "lock.front").Plan
+	h.tamper(plan.ID, func(p map[string]any) {
+		p["expires_at"] = verbNow().UTC().Add(72 * time.Hour).Format(time.RFC3339)
+	})
+	if exit, env := h.run(runApplyCommand, "--plan", plan.ID, "--confirm", plan.Code); exit != 4 || env.Error.Code != "PLAN_EXPIRED" || len(h.posts()) != 0 {
+		t.Fatalf("far-future expiry: exit %d env %+v", exit, env.Error)
 	}
 }

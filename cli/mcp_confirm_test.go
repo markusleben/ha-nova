@@ -109,15 +109,15 @@ func errCode(result map[string]any) any {
 	return errInfo["code"]
 }
 
-// storedCode is the full code from the plan file, as anyone who can read the
-// cache could compute it.
+// storedCode is the plan's code as the CLI derives it with the test Relay
+// credential (the plan file alone does not yield it).
 func storedCode(t *testing.T, h *writeHarness, id string) string {
 	t.Helper()
 	plan, err := readPlanFile(filepath.Join(planDir(h.paths), id+".json"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	return plan.Code
+	return confirmCode("test-token", planIdentity(strings.TrimPrefix(plan.Hash, "sha256:"), plan.Nonce), plan.Channel, plan.ExpiresAt)
 }
 
 // noCode: the result carries no code field and no text shows the code (a
@@ -229,10 +229,10 @@ func TestMCPFormLegacyOutcomes(t *testing.T) {
 		noCode(t, tc.name, result, code)
 	}
 
-	// A typed plan without form text (an older HA NOVA made it) is never
-	// applied by the model's code: apply asks for a code and gets none.
+	// A form plan no form can show (its text was removed) is never applied by
+	// the model's code: apply takes a form plan's code only from the form.
 	h.tamper(id, func(p map[string]any) { delete(p, "prompt") })
-	if result := c.tool("ha_apply", map[string]any{"plan_id": id, "confirm_code": code}); errCode(result) != "CODE_REQUIRED" || len(h.posts()) != 0 ||
+	if result := c.tool("ha_apply", map[string]any{"plan_id": id, "confirm_code": code}); errCode(result) != "CONFIRM_IN_FORM" || len(h.posts()) != 0 ||
 		!strings.Contains(envelopeOf(result)["next_step"].(string), "plan it again") {
 		t.Fatalf("a plan without form text: %v", result)
 	}
@@ -578,5 +578,44 @@ func TestMCPNoFormsOptOut(t *testing.T) {
 	h.f.states["lock.front"]["state"] = "locked"
 	if planned := envelopeOf(c.request("tools/call", modern)["result"].(map[string]any)); planned["plan"].(map[string]any)["code"] == nil {
 		t.Fatalf("--no-forms, 2026-07-28: %v", planned)
+	}
+}
+
+// B10: a plan made where the client shows forms takes its code only from
+// that form. A declined form, a CLI apply with the right code, and a
+// --no-forms session's apply all send nothing and use no attempt.
+func TestFormPlanRefusesTypedCode(t *testing.T) {
+	h := newWriteHarness(t, newFakeHA())
+	c := startMCP(t, h.paths)
+	formsInit(c)
+	id := envelopeOf(c.tool("ha_call", map[string]any{"service": "lock.unlock", "entity_ids": []string{"lock.front"}}))["plan"].(map[string]any)["id"].(string)
+	code := storedCode(t, h, id)
+
+	call := c.startCall(applyArgs(id, nil))
+	formID, _, _ := c.form()
+	c.answer(formID, map[string]any{"action": "decline"})
+	if declined := c.final(call); errCode(declined) != "CONFIRM_DECLINED" {
+		t.Fatalf("decline: %v", declined)
+	}
+	for i := 0; i < 4; i++ { // more than the three attempts a code would get
+		if exit, env := h.run(runApplyCommand, "--plan", id, "--confirm", code); exit != 4 || env.Error.Code != "CONFIRM_IN_FORM" {
+			t.Fatalf("CLI apply with the form plan's code: exit %d %+v", exit, env.Error)
+		}
+	}
+	mcpNoForms = true
+	plain := startMCP(t, h.paths)
+	formsInit(plain)
+	mcpNoForms = false
+	if res := plain.tool("ha_apply", map[string]any{"plan_id": id, "confirm_code": code}); errCode(res) != "CONFIRM_IN_FORM" {
+		t.Fatalf("--no-forms session: %v", res)
+	}
+	if len(h.posts()) != 0 {
+		t.Fatalf("sent %d requests without the form", len(h.posts()))
+	}
+	call = c.startCall(applyArgs(id, nil)) // the plan is intact: the human can still confirm in the form
+	formID, _, typed := c.form()
+	c.answer(formID, map[string]any{"action": "accept", "content": map[string]any{"code": typed}})
+	if applied := c.final(call); envelopeOf(applied)["status"] != "verified" || len(h.posts()) != 1 {
+		t.Fatalf("form after refusals: %v", applied)
 	}
 }

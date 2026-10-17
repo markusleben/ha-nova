@@ -34,7 +34,7 @@ This skill needs **Relay 0.9.1 or newer** AND file access enabled. Both are the 
 
 - `ha-nova relay files --data-file <payload-file>` — file transport. Actions: `list_dir`, `read_file`, `write_file` (`content`, `backup` defaults to true), `delete_file`.
 - `ha-nova relay core --method POST --path /api/config/core/check_config` — validate the configuration BEFORE reloading.
-- `ha-nova relay core --method POST --path /api/services/<domain>/<service> --body-file <payload-file>` — apply the reload from Flow step 5 (`template/reload`, `frontend/reload_themes`, ...).
+- `ha-nova call <domain>.reload` — apply the reload from Flow step 5 (`template.reload`, `frontend.reload_themes`, ...). Reloads are typed (no reload is provably side-effect-free), so this returns a one-time code; raw service POST is refused.
 - `ha-nova relay core --method GET --path /api/states/<entity_id>` — verify the entity actually exists afterwards.
 
 ## Flow

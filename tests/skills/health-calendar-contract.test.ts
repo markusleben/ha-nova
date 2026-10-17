@@ -213,7 +213,7 @@ describe("health and calendar skill contracts", () => {
     expect(calendar).toContain("Never guess a calendar id from a partial name");
     expect(calendar).toContain("--out <result-file>");
     expect(calendar).toContain("--jq-file");
-    expect(calendar).toContain("/api/services/calendar/create_event");
+    expect(calendar).toContain("ha-nova call calendar.create_event");
     expect(calendar).toContain("`calendar/event/update`");
     expect(calendar).toContain("`calendar/event/delete`");
     expect(calendar).toContain("`supported_features & 1`");

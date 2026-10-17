@@ -368,6 +368,9 @@ func runRelayProxy(paths runtimePaths, endpoint string, args []string) int {
 		}
 	}
 	requestBody, err := buildRelayRequestBody(endpoint, opts, payloadBytes)
+	if err == nil {
+		err = checkRawRelayRequest(endpoint, requestBody)
+	}
 	if err != nil {
 		printErr("%s", err)
 		return 1

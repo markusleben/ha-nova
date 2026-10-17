@@ -25,7 +25,8 @@ If this fails: `ha-nova setup`
 
 File-based relay requests only:
 - `ha-nova relay core --method GET --path <PATH>` for REST reads (`--out <result-file>` for large output)
-- `ha-nova relay core --method POST --path <PATH> --body-file <payload-file>` for REST calls with a body (template probes, service calls)
+- `ha-nova relay core --method POST --path /api/template --body-file <payload-file>` for template probes (renders only)
+- `ha-nova call <domain.service> --skill ha-nova:diagnose [--set k=v]…` for a service call (`logger.set_level`; raw service POST is refused)
 - `ha-nova relay ws --data-file <payload-file>` for WS commands
 - `ha-nova trace latest <entity_id> --json` / `ha-nova trace list <entity_id> --json` / `ha-nova trace get <entity_id> <run_id> --json` for run traces (positional entity, `automation.<id>` or `script.<id>`)
 - `--jq-file <filter-file>` for non-trivial filters
@@ -71,8 +72,8 @@ Only where the log file exists (Container/Core installs; on HA OS/Supervised the
 4. Reconstruct context: bounded logbook + history windows (±30 minutes around the incident, or the day-word window) for the involved entities (`ha-nova history --since --until`, above; omit `--until` for a window ending now — a future one is rejected); probe suspect conditions/templates against live state (`relay core --method POST --path /api/template --body-file <payload-file>`, body `{"template":"{{ ... }}"}`; the rendered value comes back in `.data.body`).
 5. Debug escalation (optional, the only mutation): if evidence is insufficient and the user agrees, raise one integration's log level.
    - FIRST read the current levels: WS `{"type":"logger/log_info"}` → `[{"domain":..., "level": <numeric>}]`. `logger/log_info` reports NUMBERS but `logger.set_level` only accepts NAMES — map the recorded number back before building any payload: `10` → `debug`, `20` → `info`, `30` → `warning`, `40` → `error`, `50` → `critical`. A numeric level in a `set_level` payload is rejected by Home Assistant, which would leave debug logging raised until the next restart. Record the target logger's mapped level — that is the state you must restore. If it has no entry, the effective level is the configured default (HA's own default is `warning`, but `configuration.yaml` may set another).
-   - Escalate: service `logger.set_level` with `{"homeassistant.components.<domain>":"debug"}`. Preview the exact payload and get confirmation.
-   - ALWAYS pair it with the reset: after reproducing, restore the recorded level as its NAME (mapped above) — never the raw number, and never a hard-coded `warning`, which would silently overwrite a level the user set on purpose. Home Assistant has no "remove override" service: an override persists until the next restart, so restoring means setting the recorded level back explicitly (or restarting HA for a truly clean state). Say this plainly before escalating.
+   - Escalate: `ha-nova call logger.set_level --skill ha-nova:diagnose --set homeassistant.components.<domain>=debug`. Preview, confirm.
+   - ALWAYS pair it with the reset: after reproducing, run the same call with the recorded level NAME (mapped above) instead of `debug` — never the raw number, and never a hard-coded `warning`, which would silently overwrite a level the user set on purpose. Home Assistant has no "remove override" service: an override persists until the next restart, so restoring means setting the recorded level back explicitly (or restarting HA for a truly clean state). Say this plainly before escalating.
 6. Conclude with Claim-Evidence Binding: name the root cause only when the evidence shows it (trace step, log line, state sequence). Otherwise present the ranked hypotheses, each with its evidence and the one probe that would decide it.
 7. Hand off the fix: config changes -> `ha-nova:write` / `ha-nova:helper`; a one-off corrective action -> `ha-nova:service-call`; invalid credentials or a pending reauthentication -> `ha-nova:integration-setup`; systemic issues (repairs, unavailable entities) -> `ha-nova:health`.
 

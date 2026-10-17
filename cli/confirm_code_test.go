@@ -19,7 +19,7 @@ func TestTypedCode(t *testing.T) {
 	}
 	codes := map[string]bool{}
 	for i := 0; i < 64; i++ {
-		code := confirmCode(strings.Repeat("0", 12) + strings.Repeat("0", 14) + string("0123456789abcdef"[i%16]) + string("0123456789abcdef"[i/16]) + strings.Repeat("0", 36))
+		code := confirmCode("credential", strings.Repeat("0", 26)+string("0123456789abcdef"[i%16])+string("0123456789abcdef"[i/16])+strings.Repeat("0", 36), channelChat, "t")
 		if !fourDigits.MatchString(code) {
 			t.Fatalf("code %q", code)
 		}
@@ -54,13 +54,17 @@ func TestApplyMalformedCodeUsesNoAttempt(t *testing.T) {
 	}
 }
 
-// A typed plan stored before four-digit codes is refused, also on its old
-// code or a "yes"; the user re-plans and gets a four-digit code.
+// A typed plan stored by an earlier HA NOVA (schema 1: a `confirm:` or a
+// four-digit code at rest) is refused, also on that code or a "yes"; the
+// user re-plans.
 func TestApplyRefusesAPlanWithAnOldCode(t *testing.T) {
 	h := newWriteHarness(t, newFakeHA())
 	for _, typed := range []string{"confirm:unlock-front-abcdef", "yes", ""} {
 		plan := h.plan("lock.unlock", "lock.front").Plan
-		h.tamper(plan.ID, func(p map[string]any) { p["code"] = "confirm:unlock-front-abcdef" })
+		h.tamper(plan.ID, func(p map[string]any) {
+			p["schema_version"], p["code"] = 1, "confirm:unlock-front-abcdef"
+			delete(p, "channel")
+		})
 		args := []string{"--plan", plan.ID}
 		if typed != "" {
 			args = append(args, "--confirm", typed)

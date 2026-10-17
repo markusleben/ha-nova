@@ -57,7 +57,7 @@ describe("indirect actuation and tier classification (#513)", () => {
       // The rule already lived in Safety; the publish bullet is where an
       // agent about to publish actually is, so it has to say it too.
       expect(mqttSkill).toContain(
-        "Preview it as an action, not as a message — one-time code, see Safety",
+        "Preview it as an action, not a message",
       );
       expect(mqttSkill).toContain(
         "Retained publishes and command/`set` topics take the one-time code",

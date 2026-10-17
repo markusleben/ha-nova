@@ -168,7 +168,9 @@ describe("per-domain service depth (#530)", () => {
     expect(cameraSkill).toContain("`camera.play_stream`");
     // The schema field is `media_player`; `media_player_entity_id` belongs to
     // tts.speak, so the wrong name makes the call fail outright.
-    expect(cameraSkill).toContain('{"entity_id":"camera.<id>","media_player":"media_player.<id>"}');
+    // The camera is the call's target argument (ha-nova call refuses
+    // entity_id in the data); the receiver rides in the data.
+    expect(cameraSkill).toContain("`--set media_player=media_player.<id>`");
     expect(cameraSkill).toContain("NOT `media_player_entity_id`");
     // Two entities, two capability gates.
     expect(flat(cameraSkill)).toContain(

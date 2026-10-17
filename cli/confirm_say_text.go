@@ -212,6 +212,10 @@ func sayOwnedAction(env *verbEnvelope, r tierReason) string {
 	switch {
 	case action == "mqtt.publish":
 		return "sends a raw MQTT message"
+	case action == "conversation.process":
+		return "sends a sentence to Assist that can control any device it understands"
+	case action == "recorder.purge" || action == "recorder.purge_entities":
+		return "permanently deletes recorder history, which can't be undone"
 	case name == "host_shutdown":
 		return "shuts down the machine Home Assistant runs on"
 	case name == "host_reboot":

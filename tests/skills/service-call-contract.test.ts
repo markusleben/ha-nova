@@ -48,16 +48,17 @@ const apiMatrix = readFileSync(
 );
 describe("service call contract", () => {
   describe("relay-api.md documents service call paths", () => {
-    it("documents POST /api/services/{domain}/{service}", () => {
-      expect(relayApi).toContain("/api/services/light/turn_on");
+    it("routes service calls through ha-nova call, not a raw POST", () => {
+      expect(relayApi).toContain("ha-nova call <domain.service>");
+      expect(relayApi).toContain("A raw `POST /api/services/*` is refused");
     });
 
     it("documents GET /api/services for listing", () => {
       expect(relayApi).toContain('"method":"GET","path":"/api/services"');
     });
 
-    it("documents return_response query parameter", () => {
-      expect(relayApi).toContain("return_response");
+    it("documents --response for response services", () => {
+      expect(relayApi).toContain("a response service adds `--response`");
     });
 
     it("documents supported target fields", () => {
@@ -145,12 +146,12 @@ describe("service call contract", () => {
   });
 
   describe("response services", () => {
-    it("teaches the mandatory return_response query parameter", () => {
-      // Live-verified: weather.get_forecasts returns 400 without it.
+    it("runs response services through ha-nova call --response", () => {
+      // Live-verified: weather.get_forecasts returns 400 without return_response.
       expect(rawRoutes).toContain("## Response services");
       expect(rawRoutes).toContain("REQUIRE `?return_response`");
-      expect(rawRoutes).toContain("`.data.body.service_response`");
-      expect(rawRoutes).toContain("These reads need no write confirmation only when the shared gate's consumer scan");
+      expect(rawRoutes).toContain("--response");
+      expect(rawRoutes).toContain("the CLI adds `?return_response` and returns HA's `.data.body.service_response`");
       expect(rawRoutes).toContain("a matching `call_service` event listener can make the nominal read indirect actuation");
       expect(rawRoutes).toContain("never downgrades the action");
       expect(skillAll).not.toContain("Read-only: no confirmation needed");
@@ -171,42 +172,24 @@ describe("service call contract", () => {
   });
 
   describe("custom event and webhook runtime actions", () => {
-    it("pins event listener impact, confirmation, and bounded verification", () => {
+    it("refuses raw event firing and routes intent through automation.trigger", () => {
       expect(rawRoutes).toContain("## Custom Events And Webhooks");
-      expect(rawRoutes).toContain("GET /api/events");
-      expect(rawRoutes).toContain("`webhook/list` metadata");
-      expect(rawRoutes).toContain("`trigger: event`");
-      expect(rawRoutes).toContain("`platform: event`");
-      expect(rawRoutes).toContain("literal `event_data` filters");
-      expect(rawRoutes).toContain("unclassified-listener warning");
-      // The direct fire path needs the same escalation as the stored event:
-      // action path — an opaque listener is opaque either way.
-      expect(flat(rawRoutes)).toContain(
-        "an unenumerable listener cannot be shown to be harmless",
-      );
-      // The confirmation step must not downgrade what step 2 escalated.
-      expect(flat(rawRoutes)).toContain(
-        "only when EVERY listener was enumerable",
-      );
-      expect(flat(rawRoutes)).toContain("unknown impact is not low impact");
-      expect(rawRoutes).toContain("up to three reads over ten seconds");
-      expect(rawRoutes).toContain("never repeat an event automatically");
-      expect(relayApi).toContain('"path":"/api/events/example_event"');
+      expect(rawRoutes).toContain("are REFUSED by the CLI");
+      expect(rawRoutes).toContain("cli/relay_raw_guard.go");
+      expect(rawRoutes).toContain("ha-nova call automation.trigger");
+      expect(rawRoutes).toContain("tiers the run by what the automation actually does");
+      // Raw event firing is refused at the relay boundary (2026-10-17).
+      expect(relayApi).toContain("refused on the raw routes");
+      expect(relayApi).toContain("ha-nova call automation.trigger");
       expect(apiMatrix).toContain("Custom events use an exact user-defined event type");
     });
 
-    it("keeps webhook IDs secret and rejects opaque HTTP 200 as proof", () => {
-      expect(rawRoutes).toContain("WS `webhook/list`");
-      expect(rawRoutes).toContain("never allow its secret-bearing response on stdout");
-      expect(rawRoutes).toContain("`--out <result-file>` in client-private scratch storage");
-      expect(rawRoutes).toContain("multiple triggers can share one webhook");
-      expect(rawRoutes).toContain("never ask the user to paste it");
-      expect(rawRoutes).toContain("persist it outside client-private scratch storage");
-      expect(rawRoutes).toContain("unknown IDs, blocked remote calls, and handler errors");
-      expect(rawRoutes).toContain("never weaken `local_only`");
-      expect(relayApi).toContain('{"type":"webhook/list"}');
-      expect(relayApi).toContain("Never print the full response to stdout");
-      expect(relayApi).toContain("multiple automation triggers can share one webhook ID");
+    it("keeps webhook IDs secret: webhook/list is refused", () => {
+      expect(rawRoutes).toContain("the webhook ID is an authentication secret");
+      expect(rawRoutes).toContain("`webhook/list` is refused");
+      // The CLI guard, not the skill, now enforces this.
+      expect(relayApi).toContain("`webhook/list` is refused");
+      expect(relayApi).toContain("A webhook ID is an authentication secret");
       expect(apiMatrix).toContain("opaque HTTP 200; effect verification required");
     });
 

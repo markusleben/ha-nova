@@ -18,7 +18,7 @@ Read and follow `../ha-nova/session-bootstrap.md`. No health probe; exit 1 `RELA
 ## Relay Contract
 
 Entity service calls run only through the typed verbs:
-- `ha-nova call <domain.service> [<entity_id>…] [--match "<phrase>"] [--area <area_id>] [--device <device_id>] [--set k=v]… [--data-file <file>]`
+- `ha-nova call <domain.service> [<entity_id>…] [--match "<phrase>"] [--area <area_id>] [--device <device_id>] [--set k=v]… [--data-file <file>] [--response] [--skill <owner>]`
 - `ha-nova apply --plan <id> [--confirm <code>]`
 - `ha-nova plan call …`: read-only "what would happen" answer, never executes.
 - Look up: `ha-nova find ["<phrase>"] [--domain <d>] [--area <area_id>] [--state <s>]`.
@@ -88,7 +88,7 @@ Results (exit 0, 6, 7, and after `apply`) use its Verb Results rule; a typed `ap
 - No one-time code needed for ordinary service calls.
 - Unlocking or opening a lock, disarming an alarm panel, and opening a garage door, gate, or entry-door cover take the code — also when a scene, script, or automation run reaches one. Locking, closing, and arming stay ordinary.
 - Never include a `code` field in a payload; never ask for, accept, repeat, or store a PIN in chat. Never auto-retry a security action.
-- Disruptive services (`homeassistant.restart`/`stop`, `siren.turn_on`, App and host control) always preview with an explicit warning.
+- `homeassistant.restart`/`stop` and App/host control (`hassio.*`) take the one-time code (config reload or HA down). `siren.turn_on`/`toggle` preview (disruptive).
 - Drafts follow `skills/ha-nova/smallest-solution.md`: the complete requested outcome in the simplest safe design.
 
 ## Guardrails

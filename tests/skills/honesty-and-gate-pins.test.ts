@@ -75,7 +75,7 @@ describe("gates whose loss would silently downgrade a tier (#515)", () => {
     expect(mqtt).toContain("persists on the broker");
     expect(mqtt).toContain("can create or destroy entities");
     expect(mqtt).toContain(
-      "Retained publishes therefore require the one-time code",
+      "Retained publishes and command/`set` topics take the one-time code",
     );
   });
 
@@ -122,7 +122,7 @@ describe("gates whose loss would silently downgrade a tier (#515)", () => {
 
   it("restores the recorded log level by name, never a hard-coded default", () => {
     const diagnose = flat(read("skills/diagnose/SKILL.md"));
-    expect(diagnose).toContain("restore the recorded level as its NAME");
+    expect(diagnose).toContain("recorded level NAME (mapped above)");
     expect(diagnose).toContain("never a hard-coded `warning`");
     // An override survives until restart, so "reset" means setting it back.
     expect(diagnose).toContain("an override persists until the next restart");

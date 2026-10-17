@@ -43,9 +43,10 @@ describe("semantic outcome verification (#567/#566)", () => {
     expect(doc).toContain("the command itself was DEFINITIVELY rejected");
     // Early opposite readings are in-progress, never failure.
     expect(doc).toContain("an opposite reading early in the window is in-progress, not failure");
-    // Event/webhook listener starts are acceptance, not effect proof.
+    // Firing events/webhooks is refused now; the automation.trigger path is
+    // tiered and verified like any call.
     expect(flat(read("skills/service-call/raw-routes.md"))).toContain(
-      "that proves the listener STARTED (`accepted`), never that its actions succeeded",
+      "are REFUSED by the CLI",
     );
     expect(doc).toContain("never proves rejection and never permits a retry");
   });

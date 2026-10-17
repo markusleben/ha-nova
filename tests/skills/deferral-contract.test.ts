@@ -85,7 +85,7 @@ describe("owning-skill deferrals and lifecycle paths (#513)", () => {
         .split("\n")
         .filter((line) => line.startsWith("|") && line.includes("hassio"));
       expect(rows.length).toBeGreaterThanOrEqual(2);
-      expect(rows.join(" ")).toContain("disruptive tier");
+      expect(rows.join(" ")).toContain("typed tier");
       // The domain is not a wildcard: restores reboot HA and updates have an
       // owning skill, so both must route away from the generic flow.
       expect(flat(skillDoc)).toContain("The `hassio` domain is NOT a wildcard");

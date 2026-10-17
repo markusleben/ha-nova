@@ -71,9 +71,11 @@ describe("indirect actuation and tier classification (#513)", () => {
     });
 
     it("keeps disruptive services distinct from the access-granting tier", () => {
-      // Disruptive is preview in the engine, never the typed tier.
-      expect(tierRules).toContain('"homeassistant.restart": true, "homeassistant.stop": true, "siren.turn_on": true');
-      expect(skillDoc).toContain("Disruptive services (`homeassistant.restart`/`stop`, `siren.turn_on`, App and host control) always preview with an explicit warning.");
+      // restart/stop reload config (or stop HA), so they are typed like a
+      // reload (2026-10-17); siren stays disruptive/preview.
+      expect(tierRules).toContain('"siren.turn_on": true, "siren.toggle": true');
+      expect(tierRules).toContain('service == "homeassistant.restart" || service == "homeassistant.stop"');
+      expect(skillDoc).toContain("`homeassistant.restart`/`stop` and App/host control (`hassio.*`) take the one-time code");
       expect(flat(testRunDoc)).toContain(
         "a deliberate superset of the context skill's high-consequence confirmation tier",
       );

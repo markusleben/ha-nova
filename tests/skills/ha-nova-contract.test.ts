@@ -748,9 +748,9 @@ describe("ha-nova contract", () => {
     expect(capability).toContain(
       "skills/ha-nova/consumer-discovery-preflight.md",
     );
-    expect(serviceCall).toContain(
-      "the shared event-consumer pattern of `skills/ha-nova/consumer-discovery-preflight.md`",
-    );
+    // Event firing is refused now; running an automation goes through the
+    // typed verb, which does the consumer scan in the CLI tier engine.
+    expect(serviceCall).toContain("ha-nova call automation.trigger");
     expect(fallback).toContain(
       "only through a documented adapter (`skills/ha-nova/consumer-discovery-preflight.md`",
     );

@@ -32,7 +32,7 @@ Use REST reads, one create service, and feature-gated WebSocket writes:
 - `ha-nova relay core --method GET --path /api/calendars --out <result-file>`
 - `ha-nova relay core --method GET --path /api/states/<calendar_entity_id> --out <result-file>`
 - `ha-nova relay core --method GET --path <calendar-events-path> --out <result-file>`
-- `ha-nova relay core --method POST --path /api/services/calendar/create_event --body-file <payload-file> --out <result-file>`
+- `ha-nova call calendar.create_event <calendar_entity_id> --skill ha-nova:calendar [--set k=v]…` (non-recurring create; raw POST refused)
 - `ha-nova relay ws --data-file <payload-file> --out <result-file>` for `calendar/event/create` (recurring creates), `calendar/event/update`, and `calendar/event/delete`
 - `ha-nova relay jq --file <result-file> --jq-file <filter-file>`
 
@@ -74,7 +74,7 @@ Relay-core response body is under `.data.body` (envelope contract: `skills/ha-no
 5. Show the Preview Card with operation, calendar, exact event identity, summary, start/end, timezone or all-day range, changed fields, and recurrence scope. Create/update use natural bound confirmation; delete uses the one-time code from the core rule.
 6. Immediately before execution, re-read the target window and calendar state; this event set is the create baseline. Abort and rebuild the preview if capability, identity, current fields, or recurrence scope drifted.
 7. Execute exactly one write:
-   - create: POST `{"entity_id":"calendar.example","summary":"Event","start_date_time":"<start>","end_date_time":"<end>"}` to `/api/services/calendar/create_event`
+   - create: `ha-nova call calendar.create_event calendar.example --skill ha-nova:calendar --set summary=Event --set start_date_time=<start> --set end_date_time=<end>`
    - recurring create: WS `{"type":"calendar/event/create","entity_id":"calendar.example","event":{"summary":"Event","dtstart":"<start>","dtend":"<end>","rrule":"FREQ=WEEKLY;BYDAY=MO"}}` — `dtstart`/`dtend` describe the FIRST instance
    - update: WS `{"type":"calendar/event/update","entity_id":"calendar.example","uid":"<uid>","recurrence_id":"<instance>","recurrence_range":"<range>","event":{"summary":"Event","dtstart":"<start>","dtend":"<end>"}}`; omit recurrence keys for a non-recurring event
    - delete: WS `{"type":"calendar/event/delete","entity_id":"calendar.example","uid":"<uid>","recurrence_id":"<instance>","recurrence_range":"<range>"}`; omit recurrence keys for a non-recurring event

@@ -215,7 +215,8 @@ var fakeServices = strings.Fields(`script.turn_on script.turn_off script.toggle 
 	climate.set_temperature input_select.select_option input_number.set_value group.reload homeassistant.turn_on homeassistant.turn_off homeassistant.toggle
 	homeassistant.restart homeassistant.update_entity homeassistant.reload_config_entry homeassistant.check_config
 	zwave_js.set_value acme.pulse shelly.blink shelly.trigger hue.activate_scene zha.set_lock_user_code
-	pyscript.open_garage nuki.lock_n_go netdaemon.open_gate esphome.garage_open envisalink.alarm_keypress`)
+	pyscript.open_garage nuki.lock_n_go netdaemon.open_gate esphome.garage_open envisalink.alarm_keypress
+	notify.notify mqtt.publish conversation.process media_player.media_pause hassio.addon_restart hassio.host_reboot todo.add_item`)
 
 func (f *fakeHA) defaultServices() []map[string]any {
 	byDomain := map[string]map[string]any{}
@@ -227,7 +228,7 @@ func (f *fakeHA) defaultServices() []map[string]any {
 		byDomain[domain][name] = spec
 	}
 	for _, id := range fakeServices {
-		if domain, name := splitID(id); coreDomains[domain] && domain != "homeassistant" && name != "reload" {
+		if domain, name := splitID(id); coreDomains[domain] && domain != "homeassistant" && domain != "notify" && domain != "conversation" && name != "reload" {
 			add(id, map[string]any{"target": map[string]any{}})
 		} else {
 			add(id, map[string]any{})

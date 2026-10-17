@@ -68,10 +68,14 @@ func targetArgv(args map[string]json.RawMessage, temp *mcpTempFiles) ([]string, 
 		}
 		argv = append(argv, id)
 	}
-	for _, key := range []string{"match", "area", "device"} {
+	for _, key := range []string{"match", "area", "device", "skill"} {
 		if value := text(args, key); value != "" {
 			argv = append(argv, "--"+key+"="+value)
 		}
+	}
+	var response bool
+	if json.Unmarshal(args["response"], &response) == nil && response {
+		argv = append(argv, "--response")
 	}
 	if data, present := args["data"]; present {
 		path, err := temp.write(data)
@@ -90,7 +94,7 @@ func callArgv(args map[string]json.RawMessage, temp *mcpTempFiles) ([]string, er
 func planArgv(args map[string]json.RawMessage, temp *mcpTempFiles) ([]string, error) {
 	kind := text(args, "kind")
 	allowed := map[string][]string{
-		"call":    {"kind", "service", "entity_ids", "match", "area", "device", "data"},
+		"call":    {"kind", "service", "entity_ids", "match", "area", "device", "data", "skill", "response"},
 		"write":   {"kind", "domain", "id", "create", "draft"},
 		"delete":  {"kind", "entity_id"},
 		"revert":  {"kind", "domain", "id"},
@@ -244,7 +248,7 @@ func nextStep(envelope map[string]any) string {
 		return strings.TrimSpace("The outcome is unknown — it may have run: read the target with ha_get and report; never call or apply again. " + mcpNext(next))
 	case "PLAN_CLAIMED", "PLAN_NOT_FOUND":
 		return mayHaveRun
-	case "CONFIRM_DECLINED", "CONFIRM_CANCELLED", "CONFIRM_UNAVAILABLE": // a confirmation form's outcome (mcp_confirm.go)
+	case "CONFIRM_DECLINED", "CONFIRM_CANCELLED", "CONFIRM_UNAVAILABLE", "CONFIRM_IN_FORM": // a confirmation form's outcome (mcp_confirm.go)
 		return next
 	}
 	if next != "" {

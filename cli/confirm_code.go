@@ -1,9 +1,11 @@
 package main
 
 import (
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/binary"
 	"fmt"
 	"regexp"
-	"strconv"
 	"strings"
 	"unicode"
 )
@@ -11,15 +13,34 @@ import (
 // The one-time code from HA NOVA (docs/work/2026-10-14-typed-verbs-spec.md
 // §2.1 Code): four digits a typed plan carries and only the user types.
 
-// confirmCode is four digits drawn from the plan identity hex(sha256(hash ‖
-// nonce)): uniform over 0000-9999 (the bias of a 64-bit value mod 10^4 is
-// below 10^-15), unpredictable without the 16-byte CSPRNG nonce, and
-// recomputed at apply from the recomputed hash, never read from the file.
-// The id shows only the first 12 hex characters; the code takes the next 16.
-func confirmCode(idHex string) string {
-	n, _ := strconv.ParseUint(idHex[12:28], 16, 64)
-	return fmt.Sprintf("%04d", n%10000)
+// confirmCode is four digits of HMAC-SHA256(Relay credential, identity ‖
+// channel ‖ expiry) (docs/work/2026-10-17-confirmation-hardening-spec.md
+// §2 B9): no plan file field yields it, a file edit (channel, expiry) changes
+// it, and minting a plan file needs the credential, which never leaves the
+// CLI. Uniform over 0000-9999 (bias below 10^-15); recomputed at apply.
+func confirmCode(credential, idHex, channel, expiresAt string) string {
+	mac := hmac.New(sha256.New, []byte(credential))
+	mac.Write([]byte("ha-nova/confirm-code/v1\x00" + idHex + "\x00" + channel + "\x00" + expiresAt))
+	return fmt.Sprintf("%04d", binary.BigEndian.Uint64(mac.Sum(nil)[:8])%10000)
 }
+
+// Where the human types a typed plan's code (spec §3). A form plan never
+// takes a code from argv: only the MCP server's own form answer confirms it.
+const (
+	channelChat = "chat" // the code is in `say`; the model sees it too (fallback E)
+	channelForm = "form" // the client showed confirmation forms when the plan was made
+)
+
+// planChannel is set only by the MCP server, from the client's handshake,
+// for the verb it runs; formAnswer is what the human typed in its form for
+// the apply it runs. Neither has a flag: the CLI keeps chat and no answer.
+var (
+	planChannel = channelChat
+	formAnswer  string
+)
+
+// sayChatNote closes a chat plan's ask: the honest limit of fallback E.
+const sayChatNote = "Note: the assistant can see this code too, so it only counts if you type it yourself in your reply."
 
 var fourDigits = regexp.MustCompile(`^[0-9]{4}$`)
 
@@ -40,14 +61,6 @@ func typedCode(s string) string {
 		}
 		return r
 	}, s)
-}
-
-// staleCode: a typed plan stored by an HA NOVA before four-digit codes
-// (`confirm:…`). Apply refuses it and no form is shown; the user re-plans.
-// The file field only ever narrows: apply still compares against the code
-// it derives itself.
-func staleCode(plan storedPlan) bool {
-	return plan.Tier == tierTyped.String() && !fourDigits.MatchString(plan.Code)
 }
 
 // sayTypedAsk ends a typed plan's `say`; goal is the plan's own action

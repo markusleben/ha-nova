@@ -29,7 +29,7 @@ Requires the `mqtt` integration: check `GET /api/components` for `mqtt`. If it i
 ## Relay Contract
 
 - `ha-nova relay ws --data-file <payload-file>` for WS commands
-- `ha-nova relay core --method POST --path /api/services/mqtt/publish --body-file <payload-file>` to publish
+- `ha-nova call mqtt.publish --skill ha-nova:mqtt --data-file <payload-file>` to publish — always the typed tier: show its preview and `plan.code`, then `ha-nova apply --plan <id> --confirm <the user's text>` (exit codes: `skills/service-call/SKILL.md` → Flow)
 - `--out <result-file>` for large windows; `--jq-file <filter-file>` for filtering
 
 ## Listening (bounded window)
@@ -73,8 +73,8 @@ Zigbee2MQTT publishes its network state on retained `zigbee2mqtt/bridge/...` top
 
 ## Publishing Safety (read before any publish)
 
-- A **retained** message (`retain: true`) persists on the broker and is re-delivered to every future subscriber — including Home Assistant's discovery layer. A wrong retained payload on a `homeassistant/...` discovery topic can create or destroy entities and keeps doing so after a restart. Retained publishes therefore require the one-time code, not natural confirmation.
-- Publishing to a device's `set`/command topic actuates real hardware. Preview it as an action, not as a message — one-time code, see Safety.
+- A **retained** message (`retain: true`) persists on the broker and is re-delivered to every future subscriber — including Home Assistant's discovery layer. A wrong retained payload on a `homeassistant/...` discovery topic can create or destroy entities and keeps doing so after a restart.
+- Publishing to a device's `set`/command topic actuates real hardware. Preview it as an action, not a message.
 - Clearing a retained message means publishing an EMPTY payload to the same topic with `retain: true` — say this explicitly when a retained message is the problem.
 - Retained-discovery cleanup clears only the broker side; the dead entity-registry entries it leaves behind are the registry-side sibling cleanup in `ha-nova:maintenance`.
 
@@ -104,12 +104,11 @@ Render the Report shape (output-cards.md). For a listen: the topic, the window l
 
 - Drafts follow `skills/ha-nova/smallest-solution.md`: the complete requested outcome in the simplest safe design, nothing for hypothetical future needs.
 
-- Retained publishes and command/`set` topics take the one-time code — they change device state or broker state persistently, which is a stricter tier than an ordinary service call.
-- Listening is read-only, but keep windows short and topics narrow: a broad subscription on a busy broker is noise, and the relay caps it anyway.
+- Retained publishes and command/`set` topics take the one-time code; the CLI puts every publish on the typed tier.
 - Never publish to `homeassistant/...` discovery topics unless the user explicitly asks and understands that it can create or delete entities.
 
 ## Guardrails
 
-- One topic per window; one publish per confirmation — except a manifest-bound retained-discovery cleanup batch per `skills/ha-nova/batch-safety.md`: one resolved device per manifest, topics taken only from `mqtt/device/debug_info`, never guessed or globbed; command/`set` topics always stay single-target.
+- One topic per window; one publish per `ha-nova call`. A retained-discovery cleanup is several `ha-nova call mqtt.publish` plans, each its own typed plan with its own one-time code — typed one reply each in manifest order per `skills/ha-nova/batch-safety.md` (no shared batch code): one resolved device, topics taken only from `mqtt/device/debug_info`, never guessed or globbed; command/`set` topics always stay single-target.
 - Windows are bounded by the relay (max 100 events / 10 s) — never claim continuous monitoring.
 - Never guess a `device_id` or invent a payload schema; read what the device actually publishes first.

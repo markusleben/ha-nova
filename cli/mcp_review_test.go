@@ -3,12 +3,14 @@ package main
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"syscall"
 	"testing"
@@ -70,16 +72,42 @@ func TestMCPReadAllowlist(t *testing.T) {
 	}
 }
 
-// R3: the one-time code cannot be derived from the plan id: it reads only
-// identity hex the id does not show.
-func TestMCPCodeNotDerivableFromPlanID(t *testing.T) {
+// R3 / B9: the one-time code needs the Relay credential: no plan file field
+// yields it, the old public formula over the stored nonce does not match, and
+// a file edit (channel, expiry) or another credential changes it.
+func TestPlanFileHoldsNoUsableCode(t *testing.T) {
 	h := newWriteHarness(t, newFakeHA())
-	if plan := h.plan("lock.unlock", "lock.front").Plan; !fourDigits.MatchString(plan.Code) {
-		t.Fatalf("code %q", plan.Code)
+	plan := h.plan("lock.unlock", "lock.front").Plan
+	raw, err := os.ReadFile(filepath.Join(planDir(h.paths), plan.ID+".json"))
+	if err != nil {
+		t.Fatal(err)
 	}
-	rest := "0123456789abcdef" + strings.Repeat("0", 36)
-	if confirmCode(strings.Repeat("a", 12)+rest) != confirmCode(strings.Repeat("b", 12)+rest) {
-		t.Fatal("the code depends on the hex the plan id shows")
+	var stored map[string]any
+	if err := json.Unmarshal(raw, &stored); err != nil {
+		t.Fatal(err)
+	}
+	if _, present := stored["code"]; present || strings.Contains(string(raw), `"`+plan.Code+`"`) {
+		t.Fatalf("the plan file holds the code: %s", raw)
+	}
+	idHex := planIdentity(strings.TrimPrefix(fmt.Sprint(stored["hash"]), "sha256:"), fmt.Sprint(stored["nonce"]))
+	n, _ := strconv.ParseUint(idHex[12:28], 16, 64)
+	if legacy := fmt.Sprintf("%04d", n%10000); legacy != plan.Code { // equal with p = 1e-4: nothing to show then
+		if exit, env := h.run(runApplyCommand, "--plan", plan.ID, "--confirm", legacy); exit != 4 || env.Error.Code != "CODE_MISMATCH" || len(h.posts()) != 0 {
+			t.Fatalf("the code derived from the file's nonce: exit %d %+v", exit, env.Error)
+		}
+	}
+	if confirmCode("other credential", idHex, channelChat, "x") == confirmCode("test-token", idHex, channelChat, "x") &&
+		confirmCode("test-token", idHex, channelForm, "x") == confirmCode("test-token", idHex, channelChat, "x") {
+		t.Fatal("the code ignores the credential and the channel")
+	}
+	if confirmCode("test-token", idHex, channelForm, fmt.Sprint(stored["expires_at"])) == plan.Code {
+		return // p = 1e-4: the edited channel's code happens to be the same
+	}
+	h.tamper(plan.ID, func(p map[string]any) { p["channel"] = channelForm })
+	formAnswer = plan.Code // a form answer of the chat-plan code no longer fits the edited channel
+	defer func() { formAnswer = "" }()
+	if exit, env := h.run(runApplyCommand, "--plan", plan.ID); exit != 4 || env.Error.Code != "CODE_MISMATCH" || len(h.posts()) != 0 {
+		t.Fatalf("an edited channel kept the code valid: exit %d %+v", exit, env.Error)
 	}
 }
 

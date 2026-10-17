@@ -42,6 +42,8 @@ var callProperties = map[string]any{
 	"area":       prop("string", "an area_id: expands to its entities (previewed unless it resolves to exactly one entity of the service's domain)"),
 	"device":     prop("string", "a device_id: expands to its entities (previewed unless it resolves to exactly one entity of the service's domain)"),
 	"data":       prop("object", "service data; never entity_id/area_id/device_id/target"),
+	"skill":      prop("string", "the owning skill, e.g. ha-nova:mqtt, required for an owned service (mqtt.publish, notify.*, todo.*, calendar.*, media_player.*, camera.*, tts.*, recorder.purge*, update.*, logger.set_level, conversation.process, hassio.addon_*/host_*)"),
+	"response":   prop("boolean", "return the service's response data in result (for response services like weather.get_forecasts)"),
 }
 
 var mcpTools = []mcpTool{mcpSkillTool,
@@ -146,8 +148,9 @@ func (srv *mcpServer) callTool(req rpcRequest) (map[string]any, *rpcError) {
 		if tool.name == mcpSkillTool.name { // offline: no verb, no lock
 			return srv.callSkill(params.Arguments), nil
 		}
+		answered := ""
 		if tool.name == "ha_apply" && req.forms { // only the human's answer in a form confirms here
-			if stop, rpcErr := srv.confirmByForm(req, params.Arguments); stop != nil || rpcErr != nil {
+			if stop, rpcErr := srv.confirmByForm(req, params.Arguments, &answered); stop != nil || rpcErr != nil {
 				return stop, rpcErr
 			}
 		}
@@ -164,6 +167,13 @@ func (srv *mcpServer) callTool(req rpcRequest) (map[string]any, *rpcError) {
 		override, active := serverSelectionOverride, activeServerProfile()
 		defer func() { setServerSelectionOverride(override); setActiveServerProfile(active) }()
 		setServerSelectionOverride(srv.pin)
+		// The plan channel and the form answer come from this server only
+		// (confirm_code.go); every call starts from the CLI defaults again.
+		planChannel, formAnswer = channelChat, answered
+		if req.forms {
+			planChannel = channelForm
+		}
+		defer func() { planChannel, formAnswer = channelChat, "" }()
 		traceRelayVersion.Store("")
 		out, errOut, exit := captureVerb(func() int { return tool.run(srv.paths, pinServer(tool.name, argv, srv.pin)) })
 		if tool.name == "ha_trace" { // trace prints its own object: add the verbs' notices

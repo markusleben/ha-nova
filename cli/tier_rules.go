@@ -126,6 +126,13 @@ func ownerSkill(service string) string {
 	return ownedDomains[domain]
 }
 
+// serviceCallHassio: the only App/host-control services `ha-nova call` runs
+// (with --skill ha-nova:service-call); every other hassio.* stays refused.
+var serviceCallHassio = map[string]bool{
+	"addon_start": true, "addon_stop": true, "addon_restart": true,
+	"host_reboot": true, "host_shutdown": true,
+}
+
 // hassioOwner names where a hassio.* call goes; v1 verbs never run one.
 func hassioOwner(name string) string {
 	switch name {
@@ -140,7 +147,7 @@ func hassioOwner(name string) string {
 }
 
 var disruptiveServices = map[string]bool{
-	"homeassistant.restart": true, "homeassistant.stop": true, "siren.turn_on": true, "siren.toggle": true,
+	"siren.turn_on": true, "siren.toggle": true,
 	"alarm_control_panel.alarm_trigger": true,
 }
 
@@ -236,6 +243,8 @@ func classifyAction(service string, data map[string]any, st *entityState) (tierL
 		if dc := st.str("device_class"); !nonAccessCoverClasses[dc] {
 			return tierTyped, accessReason("cover.x", dc)
 		}
+	case service == "homeassistant.restart" || service == "homeassistant.stop": // reloads every config file, or takes HA down with no way back from here
+		return tierTyped, reasonReload
 	case disruptiveServices[service]:
 		return tierPreview, reasonDisruptive
 	case unreadCommandDomains[domain]:
@@ -244,7 +253,7 @@ func classifyAction(service string, data map[string]any, st *entityState) (tierL
 		return tierTyped, reasonReload // no reload is provably side-effect-free in v1
 	case domain == "esphome":
 		return tierTyped, reasonUserService
-	case service == "mqtt.publish" || domain == "hassio":
+	case service == "mqtt.publish" || service == "conversation.process" || service == "recorder.purge" || service == "recorder.purge_entities" || domain == "hassio": // each moves a device or irreversibly deletes
 		return tierTyped, reasonOwnedTypedMember
 	case ownerSkill(service) != "":
 		return tierPreview, reasonOwnedMember

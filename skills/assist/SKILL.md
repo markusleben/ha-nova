@@ -27,15 +27,14 @@ If this fails: `ha-nova setup`
 ## Relay Contract
 
 - `ha-nova relay ws --data-file <payload-file>` for WS commands
-- `ha-nova relay core --method POST --path /api/conversation/process --body-file <payload-file>` to test an utterance
+- `ha-nova call conversation.process --skill ha-nova:assist --response --set text="<utterance>"` to test an utterance (always typed — a sentence can control any device — so it returns a code; raw POST is refused)
 - `--out <result-file>` for large listings
 
 ## Flow
 
-1. **Testing an utterance** (the most useful thing here): `POST /api/conversation/process` with `{"text":"turn on the kitchen light","language":"en"}` (add `"agent_id"` to target a specific agent). The response says what Assist understood and what it did.
-   - **This ACTUALLY EXECUTES the command.** "Turn on the light" turns the light on. Treat it as a service call: preview it, confirm it, and never fire a test utterance that changes something without asking.
-   - A read-only utterance ("what is the temperature in the kitchen") is safe to run directly.
-   - `"conversation_id"` continues a previous exchange; omit it for a fresh one.
+1. **Testing an utterance** (the most useful thing here): `ha-nova call conversation.process --skill ha-nova:assist --response --set text="turn on the kitchen light"` (`--set language=en`, `--set agent_id=<id>` optional). The result's `result` field says what Assist understood and did.
+   - **This ACTUALLY EXECUTES the command.** The CLI puts every test utterance on the typed tier (it cannot tell a read-only phrase from an actuating one), so it returns a one-time code the user types — even a "what is the temperature" query.
+   - `--set conversation_id=<id>` continues a previous exchange; omit it for a fresh one.
 2. **Pipelines**: WS `assist_pipeline/pipeline/list` shows every pipeline plus `preferred_pipeline`. Each carries `stt_engine`, `conversation_engine`, `tts_engine`, and language settings.
    - change the preferred one: WS `assist_pipeline/pipeline/set_preferred` with `pipeline_id`
    - create: WS `assist_pipeline/pipeline/create`. The named default is **clone-preferred-with-a-different-engine**: read the preferred pipeline from the list, carry its settings fields over, add the REQUIRED new `name`, and swap only the engine(s) the user asked for (the local-LLM move: same STT/TTS, different `conversation_engine`). Resolve the new engine id from step 4's inventories — never invent one. Preview every field, labeling cloned vs changed, confirm, then create; verify by re-reading the pipeline list for the new pipeline with the requested settings. Creating never changes the preferred pipeline — offer `set_preferred` separately
@@ -55,13 +54,13 @@ Teach Assist a phrase it does not understand out of the box. This skill owns the
 2. **Write** the sentence file (and, only when the intent is new, the `intent_script:` block in `configuration.yaml`) per the fallback section's mechanics — `backup: true`, read the whole file before replacing it.
 3. **Validate BEFORE any reload**: when `configuration.yaml` changed, `POST /api/config/core/check_config` FIRST. On `invalid`, restore that file's `.bak` immediately and do not reload.
 4. **Reload the right thing**: `conversation.reload` reloads the sentence matcher — enough when only sentence files changed. A handler in an existing `intent_script:` block reloads via `intent_script.reload` — a new intent changed BOTH files, so run `conversation.reload` too; only the FIRST-ever top-level `intent_script:` block takes a Home Assistant restart (the integration is not yet set up). Say which applies; no phrase test before.
-5. **Live test is mandatory**: run the exact phrase through `POST /api/conversation/process` (Flow step 1 rules — a test utterance executes what it matches). A sentence file that parses is not a sentence Assist matched; never claim success without this test.
+5. **Live test is mandatory**: run the exact phrase through `ha-nova call conversation.process` (Flow step 1 — a test utterance executes what it matches). A sentence file that parses is not a sentence Assist matched; never claim success without this test.
 6. **Rollback distinguishes reload from restart**: a failed phrase test after a sentence-file change → restore the `.bak` (or delete the new file), `conversation.reload` again, re-test one known-good phrase. A rolled-back `intent_script` drops its stale handler with `intent_script.reload`; if the block never loaded (first-block), the restore alone suffices.
 
 ## Error Handling
 
 Full relay/upstream error taxonomy: `skills/ha-nova/relay-api.md` -> Error Handling. Assist specifics:
-- `assist_pipeline/run` is NOT usable here: it is a streaming subscription (audio), and the relay is request/response. Testing an utterance goes through `/api/conversation/process` instead.
+- `assist_pipeline/run` is NOT usable here: it is a streaming subscription (audio), and the relay is request/response. Testing an utterance goes through `ha-nova call conversation.process` instead.
 - An unknown WS command usually means an older Home Assistant — say which version introduced it rather than guessing a workaround.
 - A conversation response of "Sorry, I couldn't understand that" is a real answer, not an error: it means the intent did not match. Report what Assist actually said.
 
