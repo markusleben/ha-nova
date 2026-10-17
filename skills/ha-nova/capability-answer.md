@@ -46,7 +46,7 @@ preview/confirm flow:
 - count AREA-ASSIGNABLE entities without an EFFECTIVE area: device-bound
   ones (an empty entity `area_id` inherits the device's area — join the
   device registry first; a child device's null `area_id` inherits its
-  parent's, `skills/ha-nova/membership-resolution.md` → Device rows) AND
+  parent's, `../ha-nova/membership-resolution.md` → Device rows) AND
   device-less entities that accept an
   entity-level `area_id` (template sensors and the like); persons,
   automations, scripts, scenes, and other non-room service entities (sun,

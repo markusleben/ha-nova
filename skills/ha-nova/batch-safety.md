@@ -1,12 +1,12 @@
 # HA NOVA Batch Safety (Scoped Batch Manifest)
 
-Canonical path: `skills/ha-nova/batch-safety.md`
+Canonical path: `../ha-nova/batch-safety.md`
 
 The only supported route for confirming a destructive multi-target operation
 with a single typed confirmation. Skill source stays English; localize labels
-at runtime per `skills/ha-nova/output-rules.md`.
+at runtime per `../ha-nova/output-rules.md`.
 
-Confirmation validity stays owned by `skills/ha-nova/SKILL.md` → Safety
+Confirmation validity stays owned by `../ha-nova/SKILL.md` → Safety
 Baseline → Active Preview Confirmation. This file defines only the batch
 mechanics: manifest, code format, caps, execution, and recovery.
 
@@ -22,7 +22,7 @@ Exception: automations and scripts — `ha-nova plan delete` binds each code to 
 - One resource family per manifest. Never mix families (e.g. automations and
   scripts, storage helpers and config-entry helpers, dashboards and resources)
   — split into separate manifests, each with its own preview and confirmation.
-  The sole cross-family route is `skills/ha-nova/grouped-change-set.md` →
+  The sole cross-family route is `../ha-nova/grouped-change-set.md` →
   Cross-Family Destructive Cleanup (one logical target, one manifest-bound
   code).
 
@@ -72,7 +72,7 @@ Any change to a target, payload, endpoint, scope, dependency result, or
 execution order expires the confirmation; show a new preview with a new
 manifest and a new code.
 
-User-facing wording follows `skills/ha-nova/output-rules.md` → Localization:
+User-facing wording follows `../ha-nova/output-rules.md` → Localization:
 the code is called the "one-time code from HA NOVA" (localized), never a "token".
 
 ## Caps
@@ -113,7 +113,7 @@ separate manifests, each with its own preview and one-time code:
 ## Recovery
 
 - Run the proportional backup gate before broad or hard-to-reconstruct
-  deletes (`skills/ha-nova/recovery-coverage.md` → Safety-Mechanism Availability; offer `ha-nova:backup`).
+  deletes (`../ha-nova/recovery-coverage.md` → Safety-Mechanism Availability; offer `ha-nova:backup`).
 - Export or snapshot reconstructable configs (e.g. automation/script YAML to
   a user-visible file) before deleting, when feasible.
 - State plainly when there is no automatic rollback. A backup or snapshot
@@ -121,7 +121,7 @@ separate manifests, each with its own preview and one-time code:
 
 ## Batch Cards
 
-Same rules as `skills/ha-nova/output-cards.md` → Cards (fixed emoji
+Same rules as `../ha-nova/output-cards.md` → Cards (fixed emoji
 vocabulary, two spaces after 🗑️/⚠️, labels localized at runtime).
 
 **Batch Delete Card** (the code prompt is always the last line). The line
@@ -169,7 +169,7 @@ the offer of a remaining-targets manifest).
 | `yaml-config` | no | file edits are single-document operations with their own backup flow |
 | `esphome` | no | one device file per edit, through the yaml-config backup flow |
 | `energy` | no | preference saves are corrective single-document writes, not enumerable deletes |
-| `service-call` | no | actuating calls are excluded; its grouped manifest is a separate non-destructive tier (`skills/ha-nova/grouped-change-set.md`) |
+| `service-call` | no | actuating calls are excluded; its grouped manifest is a separate non-destructive tier (`../ha-nova/grouped-change-set.md`) |
 | `backup` | no | backup deletion stays single-target |
 | `updates` | no | Core/OS/App updates stay single-target |
 | `admin` | no | user/person/account deletion stays single-target |
@@ -186,7 +186,7 @@ Keep these single-target regardless of manifest quality:
 - backup deletion
 - arbitrary service calls that actuate devices (see `ha-nova:service-call` —
   its grouped manifest is non-destructive and separate from this contract:
-  `skills/ha-nova/grouped-change-set.md`)
+  `../ha-nova/grouped-change-set.md`)
 - MQTT command/`set` topics
 - mixed resource families (sole route: the cross-family cleanup workflow, see
   Purpose & Opt-In)

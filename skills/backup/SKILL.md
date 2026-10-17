@@ -28,7 +28,7 @@ If this fails: `ha-nova setup`
 ## Relay Contract
 
 File-based WS requests: `ha-nova relay ws --data-file <payload-file> --out <result-file>`.
-WS response body: `.data` (`skills/ha-nova/relay-api.md` → Standard Envelope).
+WS response body: `.data` (`../ha-nova/relay-api.md` → Standard Envelope).
 
 ## Flow
 
@@ -50,7 +50,7 @@ WS response body: `.data` (`skills/ha-nova/relay-api.md` → Standard Envelope).
 6. If Status afterwards shows the attempt failed (`last_action_event`/no new backup), report the failure — never claim success from initiation alone.
 
 ### Safety backup before risky changes
-Other skills name HA Backups as the recovery path (see `skills/ha-nova/recovery-coverage.md` → Safety-Mechanism Availability). Proportionality rules:
+Other skills name HA Backups as the recovery path (see `../ha-nova/recovery-coverage.md` → Safety-Mechanism Availability). Proportionality rules:
 - Safety backups are for far-reaching changes only (irreversible deletes, full-document overwrites, bulk operations) — never suggest one for routine small edits. A full backup can be many GB and take a long time.
 - Check Status FIRST: when a recent completed full backup already covers the change (for example last night's automatic backup with no config changes since), say so instead of creating another.
 - Create a fresh one only when the user asks or accepts, or the last full backup is stale relative to what the change touches; then proceed with the risky change only after the backup completed.
@@ -69,11 +69,11 @@ Other skills name HA Backups as the recovery path (see `skills/ha-nova/recovery-
 - `generate_with_automatic_settings` failing on an instance without automatic settings: expected — use the explicit fallback (Create step 4), and suggest configuring automatic backups in the HA UI.
 - `state` stuck in progress across the poll window: the backup may be large — do not fire a second generate; report and offer to check later.
 - Unknown `backup_id` on details/delete: re-run Status — backups can be pruned by retention settings between reads.
-- Full relay error taxonomy: `skills/ha-nova/relay-api.md` → Error Handling.
+- Full relay error taxonomy: `../ha-nova/relay-api.md` → Error Handling.
 
 ## Output Format
 
-Apply `skills/ha-nova/output-rules.md` to all output. Write previews, delete confirmations, and results render as the Cards defined there (`skills/ha-nova/output-cards.md`).
+Apply `../ha-nova/output-rules.md` to all output. Write previews, delete confirmations, and results render as the Cards defined there (`../ha-nova/output-cards.md`).
 
 - `Backups` / `Status`
 - `Planned change`
@@ -93,7 +93,7 @@ Use stable localized slot labels in this order; omit empty slots. Status renders
 - Home Assistant is reached exclusively through the `ha-nova` CLI.
 - For any HA write this skill does not cover, STOP and invoke `ha-nova:fallback` first — never probe unfamiliar write endpoints.
 
-- Drafts follow `skills/ha-nova/smallest-solution.md`: the complete requested outcome in the simplest safe design, nothing for hypothetical future needs.
+- Drafts follow `../ha-nova/smallest-solution.md`: the complete requested outcome in the simplest safe design, nothing for hypothetical future needs.
 
 - Create uses natural confirmation; delete uses the one-time code only.
 - Restore is never executed here — it reboots the system; always route to the HA UI.

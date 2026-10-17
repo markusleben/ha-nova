@@ -1,6 +1,6 @@
 # Indirect Actuation Gate
 
-Canonical path: `skills/ha-nova/indirect-actuation.md`
+Canonical path: `../ha-nova/indirect-actuation.md`
 
 Some runtime calls actuate entities the request never names. The confirmation
 tier must follow the action that actually gets performed, not the service that
@@ -159,14 +159,14 @@ Then:
   its config-entry options; the `attributes.entity_id` array is the fallback
   read only when the options are unreadable, and readable-but-disagreeing
   sources are unresolved — never classify from the stale side
-  (`skills/ha-nova/membership-resolution.md`). Read the membership and classify the members recursively: a group can contain a group, script, or access-granting
+  (`../ha-nova/membership-resolution.md`). Read the membership and classify the members recursively: a group can contain a group, script, or access-granting
   scene.
 - Resolve `area_id` and `device_id` targets to entities for classification
   only. Treat stored `floor_id` and `label_id` selectors as unresolved and
   escalate; never invent partial membership. This never rewrites a payload.
 - A stored `event:` action reaches further than the config you are reading:
   its listeners run too. Apply the same consumer scan the direct path uses
-  (`skills/ha-nova/consumer-discovery-preflight.md` — scan readable automation
+  (`../ha-nova/consumer-discovery-preflight.md` — scan readable automation
   configs for that exact `event_type`) and classify what they do. Listeners
   that are not enumerable (templated event types, non-automation consumers
   such as Node-RED or AppDaemon) cannot be judged access-capable or not, so
@@ -215,7 +215,7 @@ Then:
   stored-`event:` path does.
 - A zero-hit scan is NOT "no consumers". `search/related` does not index
   Node-RED flows, AppDaemon apps, HACS consumer managers, templated listeners,
-  or dashboard references — `skills/ha-nova/consumer-discovery-preflight.md`
+  or dashboard references — `../ha-nova/consumer-discovery-preflight.md`
   lists them as **not checkable**, and its Coverage Report is what a
   trigger-source expansion produces here too. The strongest claim an empty
   scan supports is "no consumers in the checked families". A not-checkable
@@ -280,7 +280,7 @@ Then:
   rather than defaulting down: an `mqtt.publish` with a templated `topic` or
   `retain` is exactly that case — you cannot tell whether it hits a command
   topic, so the unreadable-member fallback does not apply — `mqtt.publish` to a command or `set` topic, or any
-  retained publish, is the standing case (`skills/mqtt/SKILL.md`). Physical
+  retained publish, is the standing case (`../mqtt/SKILL.md`). Physical
   access is not the only reason a member is gated, and expanding a run must
   not downgrade what calling the member directly would have required.
 - For a scene the target STATE decides, not the entity's presence:
@@ -370,6 +370,6 @@ the unresolved branch when:
 ## Single-confirmation cards
 
 A Test Plan Card doubles as the runtime preview, so the option choice is the
-bound confirmation (`skills/ha-nova/test-run.md`). That shortcut never applies
+bound confirmation (`../ha-nova/test-run.md`). That shortcut never applies
 to a run this gate placed on the typed tier: the card choice does not replace
 the one-time code.

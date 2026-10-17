@@ -27,7 +27,7 @@ describe("review contract", () => {
 
   it("keeps the review facade pointed at the externalized rule catalog", () => {
     expect(reviewSkill).toContain("Rule Catalog");
-    expect(reviewSkill).toContain("skills/review/checks.md");
+    expect(reviewSkill).toContain("../review/checks.md");
     expect(reviewSkill).not.toContain("H-09 [MEDIUM → HIGH]");
     expect(reviewSkill).not.toContain("H-10 [LOW]");
   });
@@ -40,7 +40,7 @@ describe("review contract", () => {
 
   it("hoists the internal-code suppression rule into a top-level output guardrail", () => {
     expect(reviewChecks).toContain("## Output Guardrail (Critical)");
-    expect(reviewChecks).toContain("skills/ha-nova/output-rules.md");
+    expect(reviewChecks).toContain("../ha-nova/output-rules.md");
     expect(reviewChecks).toContain("not user-facing labels");
     expect(reviewChecks).toContain("describe each finding in plain language");
     expect(reviewChecks).toContain("not only during formal review runs");
@@ -365,7 +365,7 @@ describe("review contract", () => {
     expect(reviewSkill).toContain("beyond the Static Pass, do not resolve unique_ids, read configs, read states, or run collision scans for targets outside the current review set");
     expect(reviewSkill).toContain("a narrow collision explanation may inspect one extra target outside the matched remainder");
     expect(reviewSkill).toContain("clearly marked as related/collision evidence in the transcript");
-    expect(reviewSkill).toContain("first reads `skills/ha-nova/bulk-patterns.md` → Static Pass and runs it over EVERY matched target");
+    expect(reviewSkill).toContain("first reads `../ha-nova/bulk-patterns.md` → Static Pass and runs it over EVERY matched target");
     expect(reviewSkill).toContain("related-item, trace, and live evidence only per target inside the current workset; no prefetch for the remaining targets");
     expect(reviewSkill).toContain("Quick-Fix is single-target only");
     expect(reviewSkill).toContain("step 7 above");

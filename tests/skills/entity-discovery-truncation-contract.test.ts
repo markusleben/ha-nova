@@ -39,7 +39,7 @@ describe("entity-discovery truncation contract (#582)", () => {
 
   it("makes the skill fail closed while truncated is true", () => {
     const skill = flat(read("skills/entity-discovery/SKILL.md"));
-    expect(skill).toContain("skills/ha-nova/discovery-filter.jq");
+    expect(skill).toContain("../ha-nova/discovery-filter.jq");
     expect(skill).toContain("{total, shown, omitted, truncated, matches}");
     expect(skill).toContain(
       "the 20-row cap applies to `matches` only; the counts are exact",

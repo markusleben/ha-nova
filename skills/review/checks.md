@@ -1,12 +1,12 @@
 # HA NOVA Review Check Catalog
 
-Canonical path: `skills/review/checks.md`
+Canonical path: `../review/checks.md`
 
-Core catalog (its extended part is named below): load this file before evaluating findings — from `skills/review/SKILL.md` for standalone reviews, or directly from `skills/write/SKILL.md` / `skills/helper/SKILL.md` post-write phases.
+Core catalog (its extended part is named below): load this file before evaluating findings — from `../review/SKILL.md` for standalone reviews, or directly from `../write/SKILL.md` / `../helper/SKILL.md` post-write phases.
 
 Split for load size: Evidence Boundaries (R-02 … R-30, P-04), the H-09/H-10
 threshold evidence, and the scene, dashboard, cross-item, and template/REST/
-command-line sensor families live in `skills/review/checks-extended.md`.
+command-line sensor families live in `../review/checks-extended.md`.
 Before flagging or escalating a check that has a boundary there — R-02, R-04,
 R-12, R-17, R-18, R-19, R-21, R-22, R-23, R-24, R-25, R-26, R-29, R-30, P-04,
 and the H-09/H-10 threshold evidence — read that boundary; before reviewing a scene, dashboard,
@@ -14,7 +14,7 @@ bulk/cross-item set, or YAML sensor, read its family section there.
 
 ## Output Guardrail (Critical)
 
-- Apply `skills/ha-nova/output-rules.md` whenever this catalog informs user-facing output.
+- Apply `../ha-nova/output-rules.md` whenever this catalog informs user-facing output.
 - Check codes (`R-17`, `S-01`, `H-02`, ...) are internal reasoning artifacts, not user-facing labels.
 - Instead, describe each finding in plain language: a short descriptive title plus why it matters and how to fix it.
 - This guardrail applies whenever check knowledge is used, not only during formal review runs.
@@ -25,11 +25,11 @@ A finding that turns out to be valid Home Assistant costs the user more trust
 than a missed one costs them behavior. Before reporting ANY issue, resolve it
 against a source rather than memory, in this order:
 
-1. `skills/ha-nova/template-guidelines.md` for template and Jinja questions,
-   `skills/ha-nova/best-practices.md` and
-   `skills/ha-nova/automation-patterns.md` for trigger/action/mode shapes,
-   `skills/ha-nova/helper-schemas.md` and
-   `skills/ha-nova/helper-flow-schemas.md` for helper fields.
+1. `../ha-nova/template-guidelines.md` for template and Jinja questions,
+   `../ha-nova/best-practices.md` and
+   `../ha-nova/automation-patterns.md` for trigger/action/mode shapes,
+   `../ha-nova/helper-schemas.md` and
+   `../ha-nova/helper-flow-schemas.md` for helper fields.
 2. If the local reference does not settle it, the official documentation page
    for that surface: triggers <https://www.home-assistant.io/docs/automation/trigger/>,
    modes <https://www.home-assistant.io/docs/automation/modes/>, scripts
@@ -50,12 +50,12 @@ against a source rather than memory, in this order:
      already read. Nothing else can prove them.
    - The BEHAVIOURAL claim attached to them comes from a named source, and
      each claim has exactly one: that mixed colour attributes reproduce wrong
-     or a domain is not reproducible — `skills/scene/SKILL.md` → Capture
+     or a domain is not reproducible — `../scene/SKILL.md` → Capture
      attributes deliberately; that a built-in card field is required — the
      D-07 allowlist (`checks-extended.md`), which is the only schema pin in this repo and is
      deliberately closed (a type not on it has no known required field, so it
      produces no finding); that a save loses omitted content or a custom-card
-     schema cannot be invented — `skills/dashboard/SKILL.md` → Critical
+     schema cannot be invented — `../dashboard/SKILL.md` → Critical
      behavior. Beyond those, the Lovelace and scene pages on
      home-assistant.io. Citing a section that does not carry the claim is the
      same error as citing nothing.
@@ -77,7 +77,7 @@ file directly and never see the review skill's copy of the rule.
 
 ## Application (family matrix + evidence boundaries)
 
-Orphan/no-consumer verdicts (F-09, H-07, SC-07, collision scans) fail closed: read `search/related` through `skills/ha-nova/search-related-consumers.jq` (recreate per `skills/ha-nova/relay-api.md` → Parsing rule on flat-copy installs; its automation/script/scene projection covers F-09's scene requirement) — or, through `ha-nova get <entity_id> --related`, the lists `.result.related.automation`/`.script`/`.scene` (a non-zero exit is a failed scan); a failed or unexecuted scan is inconclusive — never evidence of an orphan.
+Orphan/no-consumer verdicts (F-09, H-07, SC-07, collision scans) fail closed: read `search/related` through `../ha-nova/search-related-consumers.jq` (recreate per `../ha-nova/relay-api.md` → Parsing rule on flat-copy installs; its automation/script/scene projection covers F-09's scene requirement) — or, through `ha-nova get <entity_id> --related`, the lists `.result.related.automation`/`.script`/`.scene` (a non-zero exit is a failed scan); a failed or unexecuted scan is inconclusive — never evidence of an orphan.
 
 **Apply these families by domain:**
 - Automation: S-01..S-03, R-01..R-30, P-01..P-05, M-01..M-05
@@ -87,7 +87,7 @@ Orphan/no-consumer verdicts (F-09, H-07, SC-07, collision scans) fail closed: re
 - Cross-item: HX-01..HX-05 — only during aggregate/bulk reviews or when the registry context is already loaded; never a license for a full-instance sweep the user did not ask for
 - Template/REST/command-line sensor YAML: TS-01..TS-07 — applied by `ha-nova:yaml-config` at write time, and by review only when such YAML is in the workset
 - Helper (storage-based family): H-01..H-11
-- Helper (config-entry family): minimal config-entry review plus H-12/H-13/H-15 where the fields are readable — reading `source`/member/template fields requires the non-persisting options-flow readback (the `skills/helper/SKILL.md` pattern) or the rendered-state read; when that readback is unavailable, say the fields were not readable instead of skipping silently — and H-14 when the energy prefs are already loaded
+- Helper (config-entry family): minimal config-entry review plus H-12/H-13/H-15 where the fields are readable — reading `source`/member/template fields requires the non-persisting options-flow readback (the `../helper/SKILL.md` pattern) or the rendered-state read; when that readback is unavailable, say the fields were not readable instead of skipping silently — and H-14 when the energy prefs are already loaded
   - do not apply H-01..H-11
   - confirm config-entry metadata is present
   - inspect linked entities when available
@@ -103,11 +103,11 @@ Orphan/no-consumer verdicts (F-09, H-07, SC-07, collision scans) fail closed: re
 - For R-19 output, state: final else branch is only reached when the earlier entity-state branches are false. Move the `trigger.id` check into an explicit `elif`. Or refactor to `choose` + `condition: trigger`.
 - R-23 applies only to boolean-like templates compared to string boolean literals (`'True'`, `'true'`, `'False'`, `'false'`) in either comparison direction. Do not flag bare boolean checks such as `is true` or `== true`.
 - R-24 is advisory only and applies only when a capacity-like variable reads an `available_energy` source. Do not hard-code integration-specific replacement entities.
-- R-25 applies only to pasted or draft YAML containing `platform: template` entity definitions (domain-level blocks or bare `!include`-file lists); configs read back from HA never carry this syntax. When it fires, fetch the HA version via `/api/config` on demand and phrase the finding version-sensitively (removed as of HA 2026.6; deprecated 2025.12–2026.5; still current earlier — see the R-25 Evidence Boundary in `skills/review/checks-extended.md`).
+- R-25 applies only to pasted or draft YAML containing `platform: template` entity definitions (domain-level blocks or bare `!include`-file lists); configs read back from HA never carry this syntax. When it fires, fetch the HA version via `/api/config` on demand and phrase the finding version-sensitively (removed as of HA 2026.6; deprecated 2025.12–2026.5; still current earlier — see the R-25 Evidence Boundary in `../review/checks-extended.md`).
 - M-05 is a modernize advisory for legacy automation keys (`platform:` in triggers, singular `trigger:`/`condition:`/`action:` blocks). Mention once, never as an error, never rewrite just to modernize.
 
 **Live helper evidence for H-09/H-10:**
-- See `skills/review/checks-extended.md` → Helper Threshold Evidence
+- See `../review/checks-extended.md` → Helper Threshold Evidence
 - Read `/api/states/<helper_entity_id>` only when the threshold reference is direct
 - If `state`, `attributes.min`, `attributes.max`, or `attributes.step` are missing or non-numeric, skip H-09/H-10
 - Do not emit unrelated findings just because an H-09/H-10 signal matched
@@ -141,7 +141,7 @@ Orphan/no-consumer verdicts (F-09, H-07, SC-07, collision scans) fail closed: re
 - R-19 [MEDIUM]: Unreachable `trigger.id` in bare `else` branch — a Jinja2 `if` + `elif` chain uses entity-state-style guards, and the terminal bare `else` contains a direct `trigger.id` comparison. final else branch is only reached when the earlier entity-state branches are false. Move the `trigger.id` check into an explicit `elif`. Or refactor to `choose` + `condition: trigger`.
 - R-20 [MEDIUM]: `trigger_variables` using `states()`, `is_state()`, `state_attr()`, or other state-snapshot helpers — evaluated once at attach time; the captured value is stale for the lifetime of the automation and silently produces wrong values (not stylistic — real reliability hazard). Fix: use a top-level `variables:` block evaluated per run, or read state inside the action template instead. (Migrated from former M-04.)
 - R-21 [HIGH]: Reverse branch without re-entry guard on capture-state flag — a complementary forward/reverse branch pair (save/restore, activate/deactivate, arm/disarm) where the forward branch saves state and sets a flag (any helper type, for example an `input_boolean`), but the reverse branch fires on its trigger alone without a condition that the flag is set. The reverse branch then also runs after cycles where the forward branch never executed and silently overwrites user-set state with stale helper values — no error, no log. Fix: guard the reverse branch on the flag being set, and clear the flag after restoring. Applies to `choose:` branches, `if/else` actions, and trigger-id-split action chains; bidirectional. See R-21 Evidence Boundary.
-- R-22 [HIGH]: Restart-dependent restore from transient storage — a restore path is reachable from a Home Assistant startup trigger (`trigger: homeassistant` with `event: start`), but the state it restores was captured in a transient construct (`scene.create` runtime snapshot, automation/script `variables:`, `trigger_variables`, timer without `restore: true`). Transient constructs do not survive a restart, so the startup restore path silently does nothing or applies wrong values. Fix: persist the saved state in a helper (`input_number`, `input_text`, `input_select`, ...) or another persistent construct — see `skills/ha-nova/best-practices.md` → Persistence Model. See R-22 Evidence Boundary.
+- R-22 [HIGH]: Restart-dependent restore from transient storage — a restore path is reachable from a Home Assistant startup trigger (`trigger: homeassistant` with `event: start`), but the state it restores was captured in a transient construct (`scene.create` runtime snapshot, automation/script `variables:`, `trigger_variables`, timer without `restore: true`). Transient constructs do not survive a restart, so the startup restore path silently does nothing or applies wrong values. Fix: persist the saved state in a helper (`input_number`, `input_text`, `input_select`, ...) or another persistent construct — see `../ha-nova/best-practices.md` → Persistence Model. See R-22 Evidence Boundary.
 - R-23 [MEDIUM]: Boolean-like template compared to a string literal — a template compares a boolean-like variable or expression to `'True'`, `"True"`, `'true'`, `"true"`, `'False'`, `"False"`, `'false'`, or `"false"`, including reversed comparisons such as `'True' == avg_valid`. Home Assistant traces can expose template variables as real booleans, so string comparison can make a valid plan evaluate false. Fix: use the boolean directly (`{{ avg_valid }}`), negate it directly (`{{ not avg_valid }}`), or use boolean tests when genuinely needed. Do not flag bare boolean comparisons such as `== true`, `is true`, or `is sameas true`.
 - R-24 [LOW]: Capacity-like variable reads `available_energy` — a variable named like `capacity`, `capacity_kwh`, `maximum_energy`, or similar reads an entity containing `available_energy`. Available charge may not be nominal or maximum battery capacity, so calculated targets can be wrong. Advisory only: verify whether a maximum, nominal, or capacity entity is the intended source. Do not hard-code integration-specific replacements or automatically rewrite entity IDs.
 - R-25 [HIGH]: Legacy template platform syntax (removed in HA 2026.6) — pasted/draft YAML defines template entities under a domain platform key (`sensor:`, `binary_sensor:`, `cover:`, `fan:`, `light:`, `lock:`, `switch:`, `vacuum:`, `weather:`, or `alarm_control_panel:` containing `- platform: template`), or as a bare top-level `- platform: template` list (pasted contents of an `!include` file such as `sensors.yaml`; entity-shaped items only, see the Evidence Boundary). Home Assistant 2026.6 removed this syntax entirely: the entities silently stop being created — no error banner, automations depending on them stop firing. It was deprecated in 2025.12 and still current before that — always phrase per the version split in the R-25 Evidence Boundary. Fix: migrate to the modern top-level `template:` syntax (`value_template` → `state`, `friendly_name` → `name`, per-entity maps → list items). Applies only when reviewing pasted or draft YAML (see R-25 Evidence Boundary).
@@ -149,16 +149,16 @@ Orphan/no-consumer verdicts (F-09, H-07, SC-07, collision scans) fail closed: re
 - R-26 [MEDIUM → HIGH]: Exact-state equality narrower than the stated intent — a condition/trigger pins one literal state (classic: `== 'not_home'`) on a domain whose runtime states exceed a simple pair (person/device_tracker report named zones as states; media_player, vacuum, climate carry multi-state enums), while the user's stated intent is the broader category ("nobody home", "the TV is off" — which `standby`/`idle` also satisfy). The config is valid, saves, reloads, and read-back matches — it just never matches legitimate runtime states (a person at zone `work` has state `work`, not `not_home`). Fix: express the category (`!= 'home'` for away-semantics, `zone.home` person count for nobody-home, negations over enumerations). Default MEDIUM; escalate to HIGH when the narrow comparison gates the automation's core purpose. See R-26 Evidence Boundary.
 - R-27 [MEDIUM]: Fixed `delay:` standing in for asynchronous completion — an action starts an asynchronous operation (non-blocking `script.turn_on`, a device command that takes variable time) and a following fixed `delay:` is the only thing "guaranteeing" completion before dependent actions run. The delay documents a hope, not a fact. Fix: `wait_template`/`wait_for_trigger` on the actual completion signal, with `timeout:` (R-04) and a defined timeout path. Do not flag delays that are themselves the intent (light on for 5 minutes).
 - R-28 [MEDIUM]: Startup race — a `trigger: homeassistant` / `event: start` path immediately reads integration-backed entity states in conditions or actions. Right after startup those states can be `unknown`, `unavailable`, or stale-restored before their integration first updates. Fix: guard with an availability wait (`wait_template` on `has_value(...)` with timeout) or accept-and-document the race. Helpers restore their own state and rarely need the guard; template sensors inherit the race from their integration-backed dependencies.
-- R-29 [HIGH]: Edge-triggered "watchdog" without a persistent-fault path — the name, description, or user request promises watchdog/self-healing/continuous-monitoring continuity (a recovery-shaped action alone is never that evidence — an intentionally one-shot recovery is its own class), but every entry is a one-time firing — an unhealthy-state edge trigger (`numeric_state`, `state` to an unhealthy value, binary health sensor, template false→true), with or without a `homeassistant` startup trigger beside it (startup fires once per boot and keeps nothing live) — and no bounded retry, periodic re-evaluation, or failure escalation exists. A failed recovery with a continuously unhealthy signal never re-fires, and an HA restart into an existing fault sees no transition. Also flag a missing post-action health re-check (`skills/ha-nova/outcome-verification.md`), and evaluate multi-target recovery liveness per target. Contract: `skills/ha-nova/recovery-workflows.md`. See R-29 Evidence Boundary.
-- R-30 [MEDIUM → HIGH]: Retry-policy violation in a recovery workflow — an unbounded or implicit attempt count (`repeat`/`until` without a finite bound, self-re-triggering loop), a retry keyed on a bare service-call error or an ambiguous transport failure instead of semantic failure evidence, a retried physical-access/irreversible/non-idempotent action, missing outcome verification between attempts (a SINGLE-attempt recovery without its post-action health probe is the same defect — one-shot never exempts the probe), no `mode`/guard against overlapping recovery runs, periodic re-entry without a cooldown where one is necessary (an interval that already exceeds the bounded execution time with a non-overlapping `mode` needs none), no explicit delay or backoff between attempts (an immediate re-attempt hammers the failing device — the owning policy requires a per-case choice), retry state shared across targets, exhaustion emitting more than one notification per incident (notification storm), or NO explicit exhaustion path at all — a finite loop that simply ends after the last failed probe silently abandons the unhealthy target (an explicitly ONE-SHOT recovery with its single action and post-action probe is exempt: reporting the probe's honest outcome IS its end state, no retry or escalation was requested). Policy: `skills/ha-nova/recovery-workflows.md`. Default MEDIUM; escalate to HIGH for unbounded loops, unsafe repeat actions, or ambiguous-failure retries. See R-30 Evidence Boundary.
+- R-29 [HIGH]: Edge-triggered "watchdog" without a persistent-fault path — the name, description, or user request promises watchdog/self-healing/continuous-monitoring continuity (a recovery-shaped action alone is never that evidence — an intentionally one-shot recovery is its own class), but every entry is a one-time firing — an unhealthy-state edge trigger (`numeric_state`, `state` to an unhealthy value, binary health sensor, template false→true), with or without a `homeassistant` startup trigger beside it (startup fires once per boot and keeps nothing live) — and no bounded retry, periodic re-evaluation, or failure escalation exists. A failed recovery with a continuously unhealthy signal never re-fires, and an HA restart into an existing fault sees no transition. Also flag a missing post-action health re-check (`../ha-nova/outcome-verification.md`), and evaluate multi-target recovery liveness per target. Contract: `../ha-nova/recovery-workflows.md`. See R-29 Evidence Boundary.
+- R-30 [MEDIUM → HIGH]: Retry-policy violation in a recovery workflow — an unbounded or implicit attempt count (`repeat`/`until` without a finite bound, self-re-triggering loop), a retry keyed on a bare service-call error or an ambiguous transport failure instead of semantic failure evidence, a retried physical-access/irreversible/non-idempotent action, missing outcome verification between attempts (a SINGLE-attempt recovery without its post-action health probe is the same defect — one-shot never exempts the probe), no `mode`/guard against overlapping recovery runs, periodic re-entry without a cooldown where one is necessary (an interval that already exceeds the bounded execution time with a non-overlapping `mode` needs none), no explicit delay or backoff between attempts (an immediate re-attempt hammers the failing device — the owning policy requires a per-case choice), retry state shared across targets, exhaustion emitting more than one notification per incident (notification storm), or NO explicit exhaustion path at all — a finite loop that simply ends after the last failed probe silently abandons the unhealthy target (an explicitly ONE-SHOT recovery with its single action and post-action probe is exempt: reporting the probe's honest outcome IS its end state, no retry or escalation was requested). Policy: `../ha-nova/recovery-workflows.md`. Default MEDIUM; escalate to HIGH for unbounded loops, unsafe repeat actions, or ambiguous-failure retries. See R-30 Evidence Boundary.
 
 ## Performance (Medium)
 
-- P-01: `trigger: template` trigger that could be a `trigger: state` trigger (see `skills/ha-nova/template-guidelines.md` → Decision Tree)
+- P-01: `trigger: template` trigger that could be a `trigger: state` trigger (see `../ha-nova/template-guidelines.md` → Decision Tree)
 - P-02: `homeassistant.update_entity` inside a `repeat:` loop without meaningful delay
 - P-03: Polling loop (`repeat: while:` + short `delay:`) instead of `wait_for_trigger`
 - P-04 [MEDIUM → HIGH]: Template trigger using `now()` for time-sensitive logic — re-evaluates only once per minute; for sub-minute precision use `time_pattern` trigger or a dedicated sensor. Default MEDIUM. Escalate to HIGH only with concrete sub-minute precision needs (see P-04 Evidence Boundary).
-- P-05 [LOW]: `trigger: device` with `device_id` where a `trigger: state` with `entity_id` would work — `device_id` is not persistent across device re-adds; exception: Zigbee2MQTT autodiscovered device triggers and ZHA button/remote events (see `skills/ha-nova/best-practices.md` → Zigbee Button Patterns)
+- P-05 [LOW]: `trigger: device` with `device_id` where a `trigger: state` with `entity_id` would work — `device_id` is not persistent across device re-adds; exception: Zigbee2MQTT autodiscovered device triggers and ZHA button/remote events (see `../ha-nova/best-practices.md` → Zigbee Button Patterns)
 
 ## Style (Low)
 
@@ -188,7 +188,7 @@ Orphan/no-consumer verdicts (F-09, H-07, SC-07, collision scans) fail closed: re
 - H-04 [LOW]: `input_select` `initial` not set — defaults to first option, may not be intended
 - H-05 [MEDIUM]: `counter` without `minimum`/`maximum` — unbounded growth risk
 - H-06 [LOW]: `timer` without `duration` — must be set via service call before start
-- H-07 [LOW]: Orphaned helper — not referenced by any automation/script (cleanup hint, not a runtime hazard; check via `search/related`; for cleanup workflow see `skills/ha-nova/safe-refactoring.md` → Orphan Cleanup)
+- H-07 [LOW]: Orphaned helper — not referenced by any automation/script (cleanup hint, not a runtime hazard; check via `search/related`; for cleanup workflow see `../ha-nova/safe-refactoring.md` → Orphan Cleanup)
 - H-08 [LOW]: Naming inconsistency — mixed patterns across helpers (e.g., `sleep_mode` vs `Sleep Mode` vs `sleepMode`)
 - H-09 [MEDIUM → HIGH]: Threshold effectively weakened — `input_number` is used as a direct threshold and its current value sits at or near the boundary that makes the guard trivially easy to satisfy. Operator-aware: `>`/`>=` is risky near `min`; `<`/`<=` is risky near `max`. "Near" means within `1 × step`, including the exact boundary. Escalate to HIGH only with concrete loop evidence (`repeat:`, or R-10/R-12 matched at HIGH also applies).
 - H-10 [LOW]: Threshold value off the configured step grid — current `input_number` value does not land on the configured `step` lattice relative to `min`; likely set programmatically rather than through the UI. Supplementary signal for H-09, not a severity escalator by itself.

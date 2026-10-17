@@ -4,7 +4,7 @@ Tiered policy for automation writes.
 
 ## BP Cache Policy
 
-Freshness cache for best-practice research. Unrelated to `ha-nova snapshot` (update-revert, see `skills/ha-nova/write-safety.md`).
+Freshness cache for best-practice research. Unrelated to `ha-nova snapshot` (update-revert, see `../ha-nova/write-safety.md`).
 
 - BP cache file: `${HOME}/.cache/ha-nova/automation-bp-snapshot.json`
 - BP cache fields:
@@ -109,7 +109,7 @@ All the config-entry rows below — plus `template` itself when no built-in fits
 
 Zigbee buttons/remotes are stateless devices — they fire events, not state changes. The trigger pattern depends on the integration.
 
-Before remapping a button, verify the gesture exists on the active integration path: `skills/ha-nova/input-capability-preflight.md`. The Developer-Tools discovery below stays as the manual fallback.
+Before remapping a button, verify the gesture exists on the active integration path: `../ha-nova/input-capability-preflight.md`. The Developer-Tools discovery below stays as the manual fallback.
 
 ### ZHA (Zigbee Home Automation)
 

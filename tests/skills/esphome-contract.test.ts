@@ -21,7 +21,7 @@ describe("esphome skill (needs-analysis TOP 5)", () => {
 
   it("uses the existing opt-in file access and works from pasted YAML without it", () => {
     expect(skill).toContain('`{"action":"list_dir","path":"/config/esphome"}`');
-    expect(skill).toContain("`FILE_ACCESS_DISABLED` / `FILE_ACCESS_READONLY`: say once how to turn it on (`skills/yaml-config/SKILL.md` → Bootstrap), no nagging.");
+    expect(skill).toContain("`FILE_ACCESS_DISABLED` / `FILE_ACCESS_READONLY`: say once how to turn it on (`../yaml-config/SKILL.md` → Bootstrap), no nagging.");
     expect(skill).toContain("an edit becomes the changed sections (masked, no credential line) for the user to change in the dashboard's editor, then Validate and Install");
     expect(skill).toContain("a standalone ESPHome container keeps them elsewhere");
   });
@@ -60,9 +60,9 @@ describe("esphome skill (needs-analysis TOP 5)", () => {
   });
 
   it("edits through the yaml-config file path with snapshot, drift check, preview, and no HA reload", () => {
-    expect(skill).toContain("`skills/yaml-config/SKILL.md` → Flow step 1 (read before write)");
+    expect(skill).toContain("`../yaml-config/SKILL.md` → Flow step 1 (read before write)");
     expect(skill).toContain("Preview as the yaml-config File-Change Preview, masked (Safety)");
-    expect(skill).toContain("On a reply to that preview: `skills/yaml-config/SKILL.md` → Flow step 3 (auto config snapshot category `yaml` with `{path, content}`, drift check, `write_file` with `.bak`)");
+    expect(skill).toContain("On a reply to that preview: `../yaml-config/SKILL.md` → Flow step 3 (auto config snapshot category `yaml` with `{path, content}`, drift check, `write_file` with `.bak`)");
     expect(skill).toContain("Never Home Assistant's `check_config` or a reload: ESPHome files are not HA configuration.");
     expect(skill).toContain("one file per operation");
     expect(skill).toContain("The device changes only when installed again — say so.");

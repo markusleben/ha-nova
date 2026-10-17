@@ -16,7 +16,7 @@ When the draft contains Jinja (`{{` / `{%`), fetch https://www.home-assistant.io
 | Calculate a value from multiple sensors | `trigger: template` (trigger) or `value_template` (condition) | Hardcoded thresholds |
 | Store a user-adjustable value | Helper (`input_number`, `input_select`, etc.) | Template sensor |
 | Derived read-only value reused across automations | Template sensor (via HA UI) | Inline template repeated in each automation |
-| Derived numeric value (average, sum, threshold, rate, energy) | Built-in helper first (`skills/ha-nova/best-practices.md` → Platform Helpers vs Template Sensors) | Template sensor |
+| Derived numeric value (average, sum, threshold, rate, energy) | Built-in helper first (`../ha-nova/best-practices.md` → Platform Helpers vs Template Sensors) | Template sensor |
 | One-off inline calculation | Template in automation | Dedicated template sensor |
 | Format a notification message | Template in `message:` field | Hardcoded string |
 

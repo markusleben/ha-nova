@@ -28,7 +28,7 @@ const flat = (text: string): string => text.replace(/\s+/g, " ");
 
 describe("per-domain service depth (#530)", () => {
   it("is reachable from the skill without loading it for every call", () => {
-    expect(serviceCall).toContain("skills/service-call/domain-fields.md");
+    expect(serviceCall).toContain("../service-call/domain-fields.md");
     expect(flat(serviceCall)).toContain(
       "read the section for the domain you are calling",
     );

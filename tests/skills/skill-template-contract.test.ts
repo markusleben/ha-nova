@@ -360,7 +360,7 @@ describe("skill template v2 contract", () => {
       const body = sectionBody(readFileSync(subskillPath(name), "utf8"), "Output Format");
       const firstLine = body.split("\n").find((l) => l.trim() !== "") ?? "";
       expect(
-        firstLine.trimStart().startsWith("Apply `skills/ha-nova/output-rules.md`"),
+        firstLine.trimStart().startsWith("Apply `../ha-nova/output-rules.md`"),
         `${name}: Output Format must start with the output-rules pointer, got: ${firstLine}`,
       ).toBe(true);
     }

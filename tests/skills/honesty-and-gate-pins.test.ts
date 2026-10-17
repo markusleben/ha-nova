@@ -199,7 +199,7 @@ describe("every dispatch target exists as a skill (#515)", () => {
       // arrives inside prose ("write (an automation on `x`); ..."). A path
       // like skills/ha-nova/... is documentation, not an owner, so strip
       // those before matching or every such row resolves as `ha-nova`.
-      const prose = cell.replace(/`?skills\/[a-z-]+\/[^\s`]*`?/g, " ");
+      const prose = cell.replace(/`?(?:skills|\.\.)\/[a-z-]+\/[^\s`]*`?/g, " ");
       // Two owner forms name a rule instead of a directory, and both are
       // legitimate: the fallback skill itself, and "the owning family skill"
       // for families whose owner depends on the item being restored.

@@ -1,8 +1,8 @@
 # HA NOVA Review Checks — Extended
 
-Canonical path: `skills/review/checks-extended.md`
+Canonical path: `../review/checks-extended.md`
 
-On-demand part of `skills/review/checks.md` (whose Output Guardrail, Verify
+On-demand part of `../review/checks.md` (whose Output Guardrail, Verify
 Before Flagging, and Application rules apply here too): the Evidence
 Boundaries, the H-09/H-10 threshold evidence, and the scene, dashboard,
 cross-item, and template/REST/command-line sensor families.
@@ -129,7 +129,7 @@ Self-trigger / feedback loop = the automation triggers on an entity that it also
 
 - Apply only when both hold:
   1. a trigger or branch explicitly handles HA startup (`trigger: homeassistant` with `event: start`, or a trigger id routed into a startup branch)
-  2. that startup path reads state captured by a construct from the transient list in `skills/ha-nova/best-practices.md` → Persistence Model
+  2. that startup path reads state captured by a construct from the transient list in `../ha-nova/best-practices.md` → Persistence Model
 - Without a startup trigger, transient snapshots are fine for short-lived save/restore cycles — do not flag them.
 - `scene.create` alone is not a finding; the finding is the combination with a restart-recovery expectation.
 - When the storage construct is ambiguous (for example a custom integration entity), ask instead of flagging.

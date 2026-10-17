@@ -85,9 +85,9 @@ No service exists — send WS `{"type":"todo/item/move","entity_id":"todo.<list>
 Other providers configure lists in their own integration — point there instead of guessing flows.
 
 ### Delete a list
-1. Resolve `entry_id` via the entity registry `config_entry_id` (WS `config/entity_registry/get`, see `skills/ha-nova/relay-api.md` → Registry Queries), never guess.
+1. Resolve `entry_id` via the entity registry `config_entry_id` (WS `config/entity_registry/get`, see `../ha-nova/relay-api.md` → Registry Queries), never guess.
 2. **Domain gate:** read the config entry and proceed only if its `domain` is `local_todo`. For any other domain (shopping_list, Google Tasks, CalDAV, Alexa) the entry is the WHOLE integration, not one list — deleting it destroys every list plus the account link; refuse and point to that integration's own management.
-3. Run WS `search/related` on the `todo.<entity>` first and name automations/scripts that reference this list in the preview — they break when it disappears. Deleting the entry destroys the list AND all its items irreversibly (Local To-do also deletes its stored file) — say so plainly, with the list's open-item count in the preview; require the one-time code — mint four random digits, display them in the Options slot, and proceed only on a reply that is just the code (spaces ignored). Deleting several lists at once follows `skills/ha-nova/batch-safety.md` (per-list open-item counts in the manifest); item removal keeps the existing flow.
+3. Run WS `search/related` on the `todo.<entity>` first and name automations/scripts that reference this list in the preview — they break when it disappears. Deleting the entry destroys the list AND all its items irreversibly (Local To-do also deletes its stored file) — say so plainly, with the list's open-item count in the preview; require the one-time code — mint four random digits, display them in the Options slot, and proceed only on a reply that is just the code (spaces ignored). Deleting several lists at once follows `../ha-nova/batch-safety.md` (per-list open-item counts in the manifest); item removal keeps the existing flow.
 4. DELETE `/api/config/config_entries/entry/<entry_id>`.
 5. Verify the entity is gone (states GET 404).
 
@@ -98,11 +98,11 @@ Other providers configure lists in their own integration — point there instead
 - Read-back missing a just-added item on a cloud provider (Google Tasks, CalDAV): sync lag, not failure — retry `get_items` once before reporting; never re-add.
 - HA has no recurring items — for "every week/day" requests, offer a scheduled automation calling `todo.add_item` (`ha-nova:write`).
 - Due datetimes use the HA instance timezone unless an offset is given; phrase times for the user locally.
-- Full relay error taxonomy: `skills/ha-nova/relay-api.md` → Error Handling.
+- Full relay error taxonomy: `../ha-nova/relay-api.md` → Error Handling.
 
 ## Output Format
 
-Apply `skills/ha-nova/output-rules.md` to all output. Write previews, delete confirmations, and results render as the Cards defined there (`skills/ha-nova/output-cards.md`).
+Apply `../ha-nova/output-rules.md` to all output. Write previews, delete confirmations, and results render as the Cards defined there (`../ha-nova/output-cards.md`).
 
 - `List`
 - `Items` / `Planned change`
@@ -122,10 +122,10 @@ Use stable localized slot labels in this order; omit empty slots. Item lists ren
 - Home Assistant is reached exclusively through the `ha-nova` CLI.
 - For any HA write this skill does not cover, STOP and invoke `ha-nova:fallback` first — never probe unfamiliar write endpoints.
 
-- Drafts follow `skills/ha-nova/smallest-solution.md`: the complete requested outcome in the simplest safe design, nothing for hypothetical future needs.
-- `search/related` verdicts fail closed: verify `ok=true` and `data` is an object before projecting family keys (`skills/ha-nova/relay-api.md` → Parsing rule); a failed or unexecuted scan is inconclusive — never a no-consumer result.
+- Drafts follow `../ha-nova/smallest-solution.md`: the complete requested outcome in the simplest safe design, nothing for hypothetical future needs.
+- `search/related` verdicts fail closed: verify `ok=true` and `data` is an object before projecting family keys (`../ha-nova/relay-api.md` → Parsing rule); a failed or unexecuted scan is inconclusive — never a no-consumer result.
 
 - Declared exception to the core delete rule above: item removes (`todo.remove_item`, `todo.remove_completed_items`) are re-addable data edits, deliberately below the destructive one-time-code tier — they use natural confirmation bound to the compact preview. List deletion stays at the one-time code.
 - Item operations have no `revert`; removed items are gone — bulk removals list what will be removed in the preview.
 - Never guess uids or entry_ids; resolve via Read items / registry first.
-- Item operations on ONE list — adds, completes, renames, updates, up to 10 — may confirm as a single grouped change set (`skills/ha-nova/grouped-change-set.md`): one manifest listing every item with its duplicate check and one natural confirmation. Re-read the list before EACH operation, not once before the batch, and compare it to the manifest: another client can change the list between two of your own operations just as easily as before the first one, and a single pre-batch snapshot goes stale the moment operation one lands. A post-write read-back does not close this either — it only confirms what this batch wrote, never what someone else did. The read before operation N doubles as the read-back for operation N-1, so this is one read per item, not two — plus one final read after the LAST operation, which has no successor to verify it. Skipping that one lets a provider silently drop the last mutation while the ledger reports the whole batch applied. Any drift stops the batch there and re-previews the rest. A provider that silently ignores the first update must stop the batch there, per the grouped contract's fail-fast ledger; a single trailing read would record the rest as applied anyway. Four items should not cost four rounds. List deletes keep `batch-safety.md` unchanged. One list per mutation; verify by reading back, not by service success alone.
+- Item operations on ONE list — adds, completes, renames, updates, up to 10 — may confirm as a single grouped change set (`../ha-nova/grouped-change-set.md`): one manifest listing every item with its duplicate check and one natural confirmation. Re-read the list before EACH operation, not once before the batch, and compare it to the manifest: another client can change the list between two of your own operations just as easily as before the first one, and a single pre-batch snapshot goes stale the moment operation one lands. A post-write read-back does not close this either — it only confirms what this batch wrote, never what someone else did. The read before operation N doubles as the read-back for operation N-1, so this is one read per item, not two — plus one final read after the LAST operation, which has no successor to verify it. Skipping that one lets a provider silently drop the last mutation while the ledger reports the whole batch applied. Any drift stops the batch there and re-previews the rest. A provider that silently ignores the first update must stop the batch there, per the grouped contract's fail-fast ledger; a single trailing read would record the rest as applied anyway. Four items should not cost four rounds. List deletes keep `batch-safety.md` unchanged. One list per mutation; verify by reading back, not by service success alone.

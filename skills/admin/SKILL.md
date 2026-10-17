@@ -55,13 +55,13 @@ If this fails: `ha-nova setup`
 
 ## Error Handling
 
-Full relay/upstream error taxonomy: `skills/ha-nova/relay-api.md` -> Error Handling. Admin specifics:
+Full relay/upstream error taxonomy: `../ha-nova/relay-api.md` -> Error Handling. Admin specifics:
 - `config/auth/*` requires owner/admin rights upstream: a permission error here means the Relay's upstream credential lacks HA admin (App: Supervisor credential; container: the host-side `HA_LLAT`), not that the command is wrong.
 - Deleting a zone that automations reference succeeds — Home Assistant does not stop you. The damage shows up later, which is exactly why the impact advisory runs before the write.
 
 ## Output Format
 
-Apply `skills/ha-nova/output-rules.md` to all user-facing output. Write previews, delete confirmations, and results render as the Cards defined there (`skills/ha-nova/output-cards.md`).
+Apply `../ha-nova/output-rules.md` to all user-facing output. Write previews, delete confirmations, and results render as the Cards defined there (`../ha-nova/output-cards.md`).
 
 Render the Report shape (output-cards.md); person/zone/user inventories render the List Frame. For persons: name, device trackers, linked user. For zones: name, radius, and which automations depend on them. For users: name, whether they are owner/active/system-generated — never their tokens or credentials. State what was verified after the write.
 
@@ -74,8 +74,8 @@ Render the Report shape (output-cards.md); person/zone/user inventories render t
 - Home Assistant is reached exclusively through the `ha-nova` CLI.
 - For any HA write this skill does not cover, STOP and invoke `ha-nova:fallback` first — never probe unfamiliar write endpoints.
 
-- Drafts follow `skills/ha-nova/smallest-solution.md`: the complete requested outcome in the simplest safe design, nothing for hypothetical future needs.
-- `search/related` verdicts fail closed: verify `ok=true` and `data` is an object before projecting family keys (`skills/ha-nova/relay-api.md` → Parsing rule); a failed or unexecuted scan is inconclusive — never a no-consumer result.
+- Drafts follow `../ha-nova/smallest-solution.md`: the complete requested outcome in the simplest safe design, nothing for hypothetical future needs.
+- `search/related` verdicts fail closed: verify `ok=true` and `data` is an object before projecting family keys (`../ha-nova/relay-api.md` → Parsing rule); a failed or unexecuted scan is inconclusive — never a no-consumer result.
 
 - Zone and person deletes take the one-time code, and the preview must first name the automations that depend on them (`search/related`).
 - User deletion is the strictest operation in HA NOVA: owner, system-generated, and the relay's own account are refused outright, and everything else needs the one-time code plus a plain statement of what is lost.

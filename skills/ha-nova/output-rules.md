@@ -4,7 +4,7 @@ Apply these rules to every user-facing HA NOVA response.
 Card shapes (Preview/Delete/Result/Test Plan Cards, write-preview slots), the
 Report Shape, List Frame, Suggestion Block, Replication Line, Session Recap,
 findings, and empty states live in the on-demand part: read
-`skills/ha-nova/output-cards.md` once per session before the first response
+`../ha-nova/output-cards.md` once per session before the first response
 that renders one of them. Verb routes (`ha-nova call`/`apply`) render previews
 per their skill's Output Format and need no card file.
 

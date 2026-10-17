@@ -17,7 +17,7 @@ describe("one-shot and temporary automations (#527)", () => {
   const patterns = automationPatterns + "\n" + oneShotPatterns;
 
   it("gives the self-disabling pattern a home and says why it beats a delay", () => {
-    expect(automationPatterns).toContain("skills/ha-nova/one-shot-automations.md");
+    expect(automationPatterns).toContain("../ha-nova/one-shot-automations.md");
     expect(patterns).toContain("action: automation.turn_off");
     expect(patterns).toContain("{{ this.entity_id }}");
     // A long delay does not survive a restart; disabling does.

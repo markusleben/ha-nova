@@ -1,15 +1,15 @@
 # HA NOVA Test Run (Post-Write Test Offer)
 
-Canonical path: `skills/ha-nova/test-run.md`
+Canonical path: `../ha-nova/test-run.md`
 
 How to build, present, and follow up the optional test offer after an
 automation or script write (write flow → Phase 5: Test Offer). Skill source
 stays English; localize labels at runtime per
-`skills/ha-nova/output-rules.md`.
+`../ha-nova/output-rules.md`.
 
 Execution rules and confirmation validity stay owned by
 `ha-nova:service-call` → Automation And Script Runtime Calls and
-`skills/ha-nova/SKILL.md` → Safety Baseline → Active Preview Confirmation.
+`../ha-nova/SKILL.md` → Safety Baseline → Active Preview Confirmation.
 This file defines only how the test plan is chosen, presented, and verified.
 
 ## Purpose & Invariants
@@ -65,7 +65,7 @@ Co-listeners escalate: the risk class covers everything the run can set in
 motion, not just the tested automation's own actions. Before recommending
 any run option, check `search/related` on every entity the test will change
 — manipulated trigger sources and action targets alike (fail-closed read per
-`skills/ha-nova/relay-api.md` → Parsing rule; a failed scan means the
+`../ha-nova/relay-api.md` → Parsing rule; a failed scan means the
 co-listener check is incomplete — say so on the card, never treat it as
 "no co-listeners"). If a named
 co-listener performs physical or high-consequence actions (the classic
@@ -226,8 +226,8 @@ it without asking again:
 
 ## Offer Format (Test Plan Card)
 
-This is the Test Plan Card of `skills/ha-nova/output-cards.md` → Cards; menu
-mechanics follow `skills/ha-nova/SKILL.md` → Interactive Choices (labels
+This is the Test Plan Card of `../ha-nova/output-cards.md` → Cards; menu
+mechanics follow `../ha-nova/SKILL.md` → Interactive Choices (labels
 localized at runtime):
 
 - Recommended option first and marked; at most 3 options plus `skip`.

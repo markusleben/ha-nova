@@ -72,7 +72,7 @@ for hold, or cancel." Never create the hold automation on spec.
 ## Companion
 
 Repurposing or cleaning up an input also needs the consumer side: what currently
-listens to these events is `skills/ha-nova/consumer-discovery-preflight.md`.
+listens to these events is `../ha-nova/consumer-discovery-preflight.md`.
 
 ## Output
 

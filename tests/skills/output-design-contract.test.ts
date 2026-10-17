@@ -164,9 +164,9 @@ describe("output design system (Cards)", () => {
   it("folds the test plan card into the central card system", () => {
     const testRun = readFileSync("skills/ha-nova/test-run.md", "utf8");
     const write = readFileSync("skills/write/SKILL.md", "utf8");
-    expect(testRun).toContain("Test Plan Card of `skills/ha-nova/output-cards.md`");
-    expect(write).toContain("Test Plan Card mechanics: `skills/ha-nova/test-run.md`");
-    expect(outputRules).toContain("skills/ha-nova/test-run.md");
+    expect(testRun).toContain("Test Plan Card of `../ha-nova/output-cards.md`");
+    expect(write).toContain("Test Plan Card mechanics: `../ha-nova/test-run.md`");
+    expect(outputRules).toContain("../ha-nova/test-run.md");
   });
 
   it("keeps the canonical Next step label free of drift", () => {
@@ -207,10 +207,10 @@ describe("output design system (Cards)", () => {
       "| Natural-confirmation removals (e.g. snapshot prune, todo item removes) | Preview Card → Result Card |",
     );
     expect(outputRules).toContain(
-      "| Batch mutation (manifest-gated) | Batch Cards (`skills/ha-nova/batch-safety.md`) |",
+      "| Batch mutation (manifest-gated) | Batch Cards (`../ha-nova/batch-safety.md`) |",
     );
     expect(outputRules).toContain(
-      "| Snapshot restore (`skills/ha-nova/config-snapshots.md`) | Preview Card → Result Card |",
+      "| Snapshot restore (`../ha-nova/config-snapshots.md`) | Preview Card → Result Card |",
     );
     expect(outputRules).toContain("| Post-write test offer | Test Plan Card |");
     // Runtime actions never downgrade the high-consequence typed gate.

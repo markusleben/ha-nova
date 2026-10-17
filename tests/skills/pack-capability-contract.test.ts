@@ -120,7 +120,7 @@ describe("helper families generic_thermostat + switch_as_x (#531 P4-05)", () => 
     expect(flowSchemas).toContain("hides the original switch entity");
     expect(flowSchemas).toContain("The target domain is create-only");
     // Live-schema preflight is the contract that makes an uninventoried flow safe.
-    expect(helper).toContain("every field comes from the live form per `skills/ha-nova/live-schema-preflight.md`");
+    expect(helper).toContain("every field comes from the live form per `../ha-nova/live-schema-preflight.md`");
   });
 
   it("removes both domains from every fallback-owned list", () => {
@@ -157,7 +157,7 @@ describe("assist custom sentences ownership (#519 C1-08)", () => {
   it("gives assist the owning workflow and points at fallback's file mechanics", () => {
     expect(assist).toContain("## Custom Sentences");
     expect(assist).toContain("This skill owns the workflow");
-    expect(assist).toContain("`skills/fallback/relay-ready.md` → Assist Custom Sentences");
+    expect(assist).toContain("`../fallback/relay-ready.md` → Assist Custom Sentences");
     expect(assist).toContain("do not duplicate it here");
     expect(relayReady).toContain("Owned by `ha-nova:assist` → Custom Sentences");
   });

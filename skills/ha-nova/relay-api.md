@@ -47,8 +47,8 @@ Write the raw bytes with `ha-nova relay core --method GET --path <path> --out-bi
 - `GET /health`
 - `POST /ws`
 - `POST /core`
-- `POST /files` — opt-in filesystem ops (`list_dir` / `read_file` / `write_file` / `delete_file`), default off; CLI: `ha-nova relay files` (flows owned by `skills/yaml-config/SKILL.md` and, for `/config/esphome/`, `skills/esphome/SKILL.md`)
-- `POST /backups` — config-snapshot blob store (`save` / `load` / `list` / `delete` / `prune`); CLI: `ha-nova relay backups` (flows owned by `skills/ha-nova/config-snapshots.md`)
+- `POST /files` — opt-in filesystem ops (`list_dir` / `read_file` / `write_file` / `delete_file`), default off; CLI: `ha-nova relay files` (flows owned by `../yaml-config/SKILL.md` and, for `/config/esphome/`, `../esphome/SKILL.md`)
+- `POST /backups` — config-snapshot blob store (`save` / `load` / `list` / `delete` / `prune`); CLI: `ha-nova relay backups` (flows owned by `../ha-nova/config-snapshots.md`)
 
 Relay-enforced limits: request bodies up to 1 MiB (413 above); text/JSON `/core` responses and individual upstream WS frames up to 256 MiB — a `collect_events` response aggregates up to 100 events with no additional aggregate cap; binary responses up to 8 MiB; `/files` reads up to 1 MiB and writes up to 768 KiB.
 
@@ -192,7 +192,7 @@ Parsing rule:
   - script shortlist -> `(.data.script // [])[]`
   - entity shortlist -> `(.data.entity // [])[]`
   - `.data.entity` is only a fallback seed when automation/script arrays are absent
-- `search/related` consumer scan (`item_type:"entity"`): use `skills/ha-nova/search-related-consumers.jq`; if unavailable (flat-copy installs), recreate exactly:
+- `search/related` consumer scan (`item_type:"entity"`): use `../ha-nova/search-related-consumers.jq`; if unavailable (flat-copy installs), recreate exactly:
   ```jq
   if .ok and (.data | type == "object") then ((.data.automation // []) + (.data.script // []) + (.data.scene // [])) else error("search/related failed: \(.error.message // "unexpected response shape")") end
   ```
@@ -227,7 +227,7 @@ Parsing rule:
 - Success flag: `.ok`
 - Upstream status: `.data.status`
 - Upstream payload: `.data.body`
-- Preferred config-body jq file: `skills/ha-nova/config-body-filter.jq`
+- Preferred config-body jq file: `../ha-nova/config-body-filter.jq`
 
 ### Write-Probing Asymmetry (WS vs /core)
 
@@ -292,7 +292,7 @@ ha-nova relay ws --data-file <payload-file> --out <result-file>
 
 No domain reload needed — storage-based helpers take effect immediately.
 
-See `skills/ha-nova/helper-schemas.md` for type-specific fields and constraints.
+See `../ha-nova/helper-schemas.md` for type-specific fields and constraints.
 
 ## Config-Entry Helpers
 
@@ -381,7 +381,7 @@ Observed locally on a real HA instance on 2026-03-19:
 - raw WS `config_entries/flow` did not succeed in this session
 - field-level update verification required reopening the options flow
 
-See `skills/ha-nova/helper-flow-schemas.md` for the observed field sets and domain-specific notes.
+See `../ha-nova/helper-flow-schemas.md` for the observed field sets and domain-specific notes.
 
 ## Integration Config Flows
 
@@ -482,7 +482,7 @@ Extra fields a trigger supports:
 {"type":"device_automation/trigger/capabilities","trigger":{"platform":"device","domain":"mqtt","device_id":"{device_id}","type":"action","subtype":"single"}}
 ```
 
-For event-entity devices, the advertised set is the `event.*` entity's `event_types` attribute — read `/api/states/{entity_id}`. An empty trigger list is a valid answer (the integration advertises nothing), not an error. Advertised metadata is not proof an action fires — see `skills/ha-nova/input-capability-preflight.md`.
+For event-entity devices, the advertised set is the `event.*` entity's `event_types` attribute — read `/api/states/{entity_id}`. An empty trigger list is a valid answer (the integration advertises nothing), not an error. Advertised metadata is not proof an action fires — see `../ha-nova/input-capability-preflight.md`.
 
 ## Trace Queries (via /ws)
 
@@ -555,7 +555,7 @@ The relay server has its own internal upstream timeout of 10 seconds per WS/HTTP
 
 On `502 / UPSTREAM_*_TIMEOUT` or CLI-level timeout:
 - verify state/config first before retrying
-- for a SERVICE call: retry exactly once only when verification shows no state change AND the call is a direct, consumer-free state-changing action whose read-back proves non-application — never for indirect or asynchronous runs (their effects are delayed), never for consumer-bearing calls (a listener can have fired on the first accepted call), and never for disruptive or restart-class actions (`skills/ha-nova/outcome-verification.md`). Config writes verified by read-back and reload retries keep their own adjacent rules — this clause narrows service-call retries only
+- for a SERVICE call: retry exactly once only when verification shows no state change AND the call is a direct, consumer-free state-changing action whose read-back proves non-application — never for indirect or asynchronous runs (their effects are delayed), never for consumer-bearing calls (a listener can have fired on the first accepted call), and never for disruptive or restart-class actions (`../ha-nova/outcome-verification.md`). Config writes verified by read-back and reload retries keep their own adjacent rules — this clause narrows service-call retries only
 - if config read-back succeeded but reload timed out, treat it as partial verification and confirm registry/state before retrying
 
 ## Safe Bulk Patterns
@@ -564,7 +564,7 @@ For bulk inspection or review preparation:
 1. save discovery output with `--out <result-file>`
 2. keep JSON filtering in `--jq-file` or `ha-nova relay jq --file <result-file>`
 3. iterate over the saved shortlist with native file/loop tools
-4. follow selector semantics, stable ordering, and workset limits from `skills/ha-nova/bulk-patterns.md`
+4. follow selector semantics, stable ordering, and workset limits from `../ha-nova/bulk-patterns.md`
 
 Do not rely on external `jq` pipes as the canonical path. Never call external `jq`; use `--jq`, `--jq-file`, or `ha-nova relay jq`.
 

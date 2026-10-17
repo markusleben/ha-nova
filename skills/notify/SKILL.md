@@ -79,7 +79,7 @@ When composing a COMPLEX mobile-app payload (actionable buttons, images, critica
 
 ### Household routing ("tell whoever is home")
 
-Recipient-group and household resolution follow the shared contract `skills/ha-nova/membership-resolution.md`; the unreadable-presence handling below stays authoritative.
+Recipient-group and household resolution follow the shared contract `../ha-nova/membership-resolution.md`; the unreadable-presence handling below stays authoritative.
 
 Presence-conditional sends resolve recipients before the preview AND again
 immediately before sending: presence is the one input that changes on its own
@@ -107,7 +107,7 @@ flow.
 
 ## Error Handling
 
-Full relay/upstream error taxonomy: `skills/ha-nova/relay-api.md` -> Error Handling. Notify specifics:
+Full relay/upstream error taxonomy: `../ha-nova/relay-api.md` -> Error Handling. Notify specifics:
 - `404/NOT_FOUND` on `notify.mobile_app_<device>`: the device name is wrong or the companion app is not registered — re-discover, never guess.
 - A service call returning 200 says nothing about delivery: the phone may be offline, or Android may hold the message while dozing (`priority: high` in `data` affects that).
 - `notify.send_message` rejects mobile-app `data` extras — that is the entity-platform limit, not a payload bug: switch to the legacy service.
@@ -115,7 +115,7 @@ Full relay/upstream error taxonomy: `skills/ha-nova/relay-api.md` -> Error Handl
 
 ## Output Format
 
-Apply `skills/ha-nova/output-rules.md` to all user-facing output. Write previews, delete confirmations, and results render as the Cards defined there (`skills/ha-nova/output-cards.md`).
+Apply `../ha-nova/output-rules.md` to all user-facing output. Write previews, delete confirmations, and results render as the Cards defined there (`../ha-nova/output-cards.md`).
 
 Render the Report shape (output-cards.md): the resolved target, the sent title/message, and any extras used. Report acceptance honestly (accepted by Home Assistant, not confirmed on the device). Discovery renders the List Frame, grouped by surface (entities vs mobile-app services).
 
@@ -128,7 +128,7 @@ Render the Report shape (output-cards.md): the resolved target, the sent title/m
 - Home Assistant is reached exclusively through the `ha-nova` CLI.
 - For any HA write this skill does not cover, STOP and invoke `ha-nova:fallback` first — never probe unfamiliar write endpoints.
 
-- Drafts follow `skills/ha-nova/smallest-solution.md`: the complete requested outcome in the simplest safe design, nothing for hypothetical future needs.
+- Drafts follow `../ha-nova/smallest-solution.md`: the complete requested outcome in the simplest safe design, nothing for hypothetical future needs.
 
 - A notification is irreversible and user-visible: always preview the exact payload and confirm before sending, even for a single short message.
 - Never send test notifications unprompted, and never send to every discovered target at once.

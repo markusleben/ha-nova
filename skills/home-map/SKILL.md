@@ -136,7 +136,7 @@ the first look without comment.
 
 ## Output Format
 
-Apply `skills/ha-nova/output-rules.md`. Lead with the answer in one or two
+Apply `../ha-nova/output-rules.md`. Lead with the answer in one or two
 lines, then at most one compact table. Name things by friendly name and
 area; show an `entity_id` only as evidence or when names collide. Every
 capped list states total, shown, and how to see the rest (the matching

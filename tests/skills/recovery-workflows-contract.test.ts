@@ -53,7 +53,7 @@ describe("recovery workflows (#568/#569)", () => {
 
   it("requires post-action re-check per #567 and a persistent-fault path", () => {
     expect(doc).toContain(
-      "re-checked after the recovery action per `skills/ha-nova/outcome-verification.md`",
+      "re-checked after the recovery action per `../ha-nova/outcome-verification.md`",
     );
     expect(doc).toContain(
       "An explicit persistent-fault path: bounded retry, periodic re-evaluation, or failure escalation",
@@ -115,7 +115,7 @@ describe("recovery workflows (#568/#569)", () => {
 
   it("keys every retry on semantic failure evidence with bounded verification", () => {
     expect(doc).toContain(
-      "Every retry keys on semantic failure evidence per `skills/ha-nova/outcome-verification.md`",
+      "Every retry keys on semantic failure evidence per `../ha-nova/outcome-verification.md`",
     );
     expect(doc).toContain("a bare service-call error is never retry evidence");
     // The probe must survive a raised action error, or the retry and
@@ -167,7 +167,7 @@ describe("recovery workflows (#568/#569)", () => {
   it("wires the write skill into the contract", () => {
     const write = flat(read("skills/write/SKILL.md"));
     expect(write).toContain(
-      "A recovery, watchdog, self-healing, or retry intent reads `skills/ha-nova/recovery-workflows.md` before drafting",
+      "A recovery, watchdog, self-healing, or retry intent reads `../ha-nova/recovery-workflows.md` before drafting",
     );
     expect(write).toContain(
       "the persistent-fault path only where the intent promises",

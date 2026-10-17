@@ -65,7 +65,7 @@ For reauthentication, GET the matched `/api/config/config_entries/flow/<flow_id>
 
 ### Iterate live steps
 
-This iteration follows the shared `skills/ha-nova/live-schema-preflight.md` contract, which additionally binds pre-confirmation navigation to steps proven non-persisting for the family and stops before every terminal submit.
+This iteration follows the shared `../ha-nova/live-schema-preflight.md` contract, which additionally binds pre-confirmation navigation to steps proven non-persisting for the family and stops before every terminal submit.
 
 Treat every response as authoritative:
 
@@ -88,7 +88,7 @@ If the user cancels an add flow created by this skill, DELETE that unfinished `f
 
 ### Options, Reconfigure, and Reload
 
-Standard config-entry flows for an EXISTING entry, under the same `skills/ha-nova/live-schema-preflight.md` contract and step rules above. Resolve the exact `entry_id` from `config_entries/get` first; classify by the operation surface, not the integration's brand — an integration's OWN configuration API stays with `ha-nova:fallback`.
+Standard config-entry flows for an EXISTING entry, under the same `../ha-nova/live-schema-preflight.md` contract and step rules above. Resolve the exact `entry_id` from `config_entries/get` first; classify by the operation surface, not the integration's brand — an integration's OWN configuration API stays with `ha-nova:fallback`.
 
 - **Options** (requires `supports_options: true` on the entry): start with POST `{"handler":"<entry_id>"}` to `/api/config/config_entries/options/flow`, iterate `.../options/flow/<flow_id>`. Read `description.suggested_value` as the current values, merge only the requested changes over them, preserve unrelated existing options, and never submit a field the live step does not expose. Verify by reopening the options flow and reading the changed fields back — the terminal response alone is not evidence, and neither is unrelated entity state. Then DELETE the reopened verification flow — it is an agent-started transient flow under the same ephemeral-flow cleanup rule as an unfinished add flow.
 - **Reconfigure**: start POST `{"handler":"<domain>","entry_id":"<entry_id>"}` to `/api/config/config_entries/flow` — `entry_id` selects reconfigure mode (a body `source` key is ignored by the API); without `entry_id` Home Assistant starts a normal ADD flow. The first response must be this entry's reconfigure step; integrations without reconfigure support typically fail the flow start — treat any non-reconfigure form (a plain add form included) as unsupported: DELETE the flow and stop. A secret, OAuth `external`, or `progress` step in an agent-started options/reconfigure flow gets its own handoff: DELETE the transient flow and point at the entry's own Configure/Reconfigure control under **Settings > Devices & services** — these are neither add flows nor pre-existing reauth flows, and no secret is ever collected in chat. Verify: the same `entry_id` persists and the before/after `config_entries/get` diff shows NO new entry.
@@ -135,14 +135,14 @@ matching reauth flow:
 
 ## Error Handling
 
-- Relay/upstream failures follow `skills/ha-nova/relay-api.md` → Error Handling.
+- Relay/upstream failures follow `../ha-nova/relay-api.md` → Error Handling.
 - `404`: flow expired or handler unavailable — re-read handlers/progress before retrying.
 - `405`: wrong method — use POST for the collection start, GET/POST/DELETE for a specific flow.
 - `abort` or form errors: surface Home Assistant's reason; do not retry with guessed fields.
 
 ## Output Format
 
-Apply `skills/ha-nova/output-rules.md` to all user-facing output.
+Apply `../ha-nova/output-rules.md` to all user-facing output.
 
 Use the Preview Card for flow start, menu selection, each non-secret form submit, and every entry reload (credential-recovery reload included). The menu choice block is its bound confirmation. Results name the integration, operation, config-entry state, and the exact verification scope. UI handoffs state what remains and never display secret fields or values.
 
@@ -155,7 +155,7 @@ Use the Preview Card for flow start, menu selection, each non-secret form submit
 - Home Assistant is reached exclusively through the `ha-nova` CLI.
 - For any HA write this skill does not cover, STOP and invoke `ha-nova:fallback` first — never probe unfamiliar write endpoints.
 
-- Drafts follow `skills/ha-nova/smallest-solution.md`: the complete requested outcome in the simplest safe design, nothing for hypothetical future needs.
+- Drafts follow `../ha-nova/smallest-solution.md`: the complete requested outcome in the simplest safe design, nothing for hypothetical future needs.
 
 - Declared exception to the core delete rule above: canceling an unfinished flow created by this skill — add, options, or reconfigure — including cleanup before a required credential, external/OAuth, or progress UI restart, deletes only ephemeral flow state; an explicit `cancel` or the UI-restart branch is sufficient, and this exception never applies to a config entry.
 - Never request, echo, persist, or submit credentials from chat; finish credential-bearing steps in the Home Assistant UI.
@@ -170,5 +170,5 @@ Use the Preview Card for flow start, menu selection, each non-secret form submit
 
 ## References
 
-- Relay API: `skills/ha-nova/relay-api.md`
-- Shared write safety: `skills/ha-nova/write-safety.md`
+- Relay API: `../ha-nova/relay-api.md`
+- Shared write safety: `../ha-nova/write-safety.md`

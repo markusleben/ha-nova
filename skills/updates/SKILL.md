@@ -29,7 +29,7 @@ If this fails: `ha-nova setup`
 ## Relay Contract
 
 File-based requests: `ha-nova relay core --method <METHOD> --path <PATH> --body-file <payload-file>` and `ha-nova relay ws --data-file <payload-file>`; `--out <result-file>` for large responses.
-REST body: `.data.body`; WS body: `.data` (`skills/ha-nova/relay-api.md` → Standard Envelope).
+REST body: `.data.body`; WS body: `.data` (`../ha-nova/relay-api.md` → Standard Envelope).
 
 ## Feature Gate (critical)
 
@@ -83,13 +83,13 @@ Bit 16 set: WS `{"type":"update/release_notes","entity_id":"update.<id>"}` → m
 
 - `not_supported` on release notes: expected without bit 16 — use `release_url`.
 - Install rejected: report HA's error, no blind retry — a running update (`in_progress`) blocks a second install.
-- Upstream permission denial on install/skip/clear_skipped — REST envelope `.ok == true` with `.data.status` 401, or `502 / UPSTREAM_WS_COMMAND_ERROR` carrying HA's `unauthorized`: the upstream user is not an administrator (HA 2026.9 admin-only actions). The App runs as the Supervisor system user and is not affected; on a standalone container the `HA_LLAT` must belong to an administrator — fix it, never retry. A top-level `401 / UNAUTHORIZED` (`.ok == false`) is the Relay's own client authentication, not this case (`skills/ha-nova/relay-api.md` → Error Handling).
+- Upstream permission denial on install/skip/clear_skipped — REST envelope `.ok == true` with `.data.status` 401, or `502 / UPSTREAM_WS_COMMAND_ERROR` carrying HA's `unauthorized`: the upstream user is not an administrator (HA 2026.9 admin-only actions). The App runs as the Supervisor system user and is not affected; on a standalone container the `HA_LLAT` must belong to an administrator — fix it, never retry. A top-level `401 / UNAUTHORIZED` (`.ok == false`) is the Relay's own client authentication, not this case (`../ha-nova/relay-api.md` → Error Handling).
 - Entity vanished mid-poll: re-read once; NOVA Relay uses the health-poll window above.
-- Full relay error taxonomy: `skills/ha-nova/relay-api.md` → Error Handling.
+- Full relay error taxonomy: `../ha-nova/relay-api.md` → Error Handling.
 
 ## Output Format
 
-Apply `skills/ha-nova/output-rules.md`. Write previews, delete confirmations, and results render as the Cards defined there (`skills/ha-nova/output-cards.md`).
+Apply `../ha-nova/output-rules.md`. Write previews, delete confirmations, and results render as the Cards defined there (`../ha-nova/output-cards.md`).
 
 - `Updates` / `Status`
 - `Planned change`
@@ -108,7 +108,7 @@ Use stable localized slot labels in this order; omit empty slots. The overview r
 - Home Assistant is reached exclusively through the `ha-nova` CLI.
 - For any HA write this skill does not cover, STOP and invoke `ha-nova:fallback` first — never probe unfamiliar write endpoints.
 
-- Drafts follow `skills/ha-nova/smallest-solution.md`: the complete requested outcome in the simplest safe design, nothing for hypothetical future needs.
+- Drafts follow `../ha-nova/smallest-solution.md`: the complete requested outcome in the simplest safe design, nothing for hypothetical future needs.
 
 - Installs: natural confirmation per update after preview; batches need an explicitly confirmed plan.
 - Updates are effectively irreversible — for core/OS name the safety-backup offer before, not after.

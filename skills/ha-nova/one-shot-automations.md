@@ -1,8 +1,8 @@
 # One-Shot And Temporary Automations
 
-Canonical path: `skills/ha-nova/one-shot-automations.md`
+Canonical path: `../ha-nova/one-shot-automations.md`
 
-Split out of `skills/ha-nova/automation-patterns.md` to keep that file under
+Split out of `../ha-nova/automation-patterns.md` to keep that file under
 the repo's ~400-line ceiling. Everything here is about automations that must
 not outlive their purpose: fire-once notifications, and actions bounded by a
 duration.
@@ -110,7 +110,7 @@ grant: "lock the door for an hour" is an ordinary `lock.lock` now and a
 SCHEDULED, UNATTENDED `lock.unlock` later, and the same holds for "close the
 garage until 7" and "arm the alarm until 6". Classify both halves and take the
 maximum. Same tier as calling the service directly
-(`skills/ha-nova/SKILL.md` → confirmation tiers) — and `ha-nova:write` applies
+(`../ha-nova/SKILL.md` → confirmation tiers) — and `ha-nova:write` applies
 that tier here even though its own create flow is otherwise natural
 confirmation: the duration request is the exception, because its first half is
 a runtime access grant rather than a config change.

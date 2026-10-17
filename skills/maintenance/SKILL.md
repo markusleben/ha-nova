@@ -37,8 +37,8 @@ If this fails: `ha-nova setup`
 
 `ha-nova call` returns the preview: confirm it once, then `ha-nova apply --plan <id>`.
 
-File-based requests: `ha-nova relay ws --data-file <payload-file>`; `--out <result-file>` for large responses. WS body: `.data`; REST body: `.data.body` (`skills/ha-nova/relay-api.md` → Standard Envelope).
-Payloads, issue matrix, and gate checklists: `skills/maintenance/maintenance-reference.md` — read it before any write.
+File-based requests: `ha-nova relay ws --data-file <payload-file>`; `--out <result-file>` for large responses. WS body: `.data`; REST body: `.data.body` (`../ha-nova/relay-api.md` → Standard Envelope).
+Payloads, issue matrix, and gate checklists: `../maintenance/maintenance-reference.md` — read it before any write.
 
 ## Flow
 
@@ -46,9 +46,9 @@ Payloads, issue matrix, and gate checklists: `skills/maintenance/maintenance-ref
 WS `{"type":"recorder/validate_statistics"}` → group results by issue type and report counts per group with examples — never dump hundreds of IDs. Map each type to its default remediation from the reference matrix (relabel vs. clear vs. report-only). Hundreds of `no_state` orphans are normal on older installs.
 
 ### Statistics repair (gated)
-Grouped clears and per-config-entry registry removals are batch operations per `skills/ha-nova/batch-safety.md` — one issue group or config entry per manifest, one code per manifest, completion ledger; every safety gate below stays unchanged. A registry removal may instead ride a cross-family destructive cleanup manifest (`skills/ha-nova/grouped-change-set.md`) with every gate below intact.
+Grouped clears and per-config-entry registry removals are batch operations per `../ha-nova/batch-safety.md` — one issue group or config entry per manifest, one code per manifest, completion ledger; every safety gate below stays unchanged. A registry removal may instead ride a cross-family destructive cleanup manifest (`../ha-nova/grouped-change-set.md`) with every gate below intact.
 - `units_changed` → default is the non-destructive relabel (`recorder/update_statistics_metadata`, `unit_class` REQUIRED) — only after confirming the values are the same quantity merely mislabeled; if the sensor changed what it measures, relabel corrupts data — then clear or keep.
-- Orphan cleanup (`no_state` etc.) → `recorder/clear_statistics` is IRREVERSIBLE. Preview per group: the FULL ID list (write long lists to a file the user can open — a capped sample never authorizes the uncapped set), each ID's data span and `has_sum`, and — mandatory — the `energy/get_prefs` cross-check: whether any ID appears anywhere in that JSON or in `energy/info` → `cost_sensors` (warn loudly — clearing erases its energy history), plus a scan of storage dashboards for the IDs (YAML dashboards stay a stated caveat). Manifest-bound one-time code (`skills/ha-nova/batch-safety.md`) — it binds to one issue group and the manifest's full enumerated ID set; a group above the batch cap splits into multiple manifests over disjoint subsets of that group, each with its own preview and code; never one confirmation for multiple groups. Execute in one call, but verify per ID by re-running validate; a WS timeout after ~10 s is NOT failure — the job finishes in the background, re-read instead of retrying.
+- Orphan cleanup (`no_state` etc.) → `recorder/clear_statistics` is IRREVERSIBLE. Preview per group: the FULL ID list (write long lists to a file the user can open — a capped sample never authorizes the uncapped set), each ID's data span and `has_sum`, and — mandatory — the `energy/get_prefs` cross-check: whether any ID appears anywhere in that JSON or in `energy/info` → `cost_sensors` (warn loudly — clearing erases its energy history), plus a scan of storage dashboards for the IDs (YAML dashboards stay a stated caveat). Manifest-bound one-time code (`../ha-nova/batch-safety.md`) — it binds to one issue group and the manifest's full enumerated ID set; a group above the batch cap splits into multiple manifests over disjoint subsets of that group, each with its own preview and code; never one confirmation for multiple groups. Execute in one call, but verify per ID by re-running validate; a WS timeout after ~10 s is NOT failure — the job finishes in the background, re-read instead of retrying.
 - Sum spike → confirm the jump is spurious (glitch, meter swap) and not real usage — when unsure, ask. Locate the bad bucket via `statistics_during_period` (hourly; `5minute` only if <10 days old), derive the corrected `change` from neighboring buckets or user input, then `recorder/adjust_sum_statistics` with `adjustment = corrected − original` at the bucket's start. Reversible via the inverse call — offer that rollback. Check `energy/info` → `cost_sensors` for a linked cost statistic; verify each of the pair before offering the paired fix. Verify by re-reading the bucket.
 
 ### Recorder purge (gated)
@@ -58,7 +58,7 @@ Grouped clears and per-config-entry registry removals are batch operations per `
 ### Orphan cleanup (gated)
 Detection: join `/api/states` with `config/entity_registry/list`. A candidate must pass ALL gates in the reference checklist — headline gates: state is `unavailable` WITH attribute `restored: true`; owning config entry is gone or permanently failed (never `setup_retry`/loading); not `disabled_by`; not part of a whole-integration outage (group those as one finding — report only, never removal); `search/related` returns no automations/scripts/scenes/dashboards — with the honest caveat that YAML dashboards and templates are not covered; entities with `config_entry_id: null` (template/YAML platforms) are removal candidates only when the ghost persists across a restart (method in the reference — if no restart boundary can be established, report only; never restart or reload HA from this skill).
 Live/healthy entities: refuse removal — offer disable via `ha-nova:organize` instead; the gates are not negotiable.
-Preview per config entry with the LTS consequence named ("registry removal keeps statistics — they then report as `no_state`"; deleted entries are restorable for ~30 days if the integration returns). Manifest-bound typed confirmation, one code and one config entry per manifest (`skills/ha-nova/batch-safety.md`); execute per entity via `config/entity_registry/remove`; verify by re-reading the registry.
+Preview per config entry with the LTS consequence named ("registry removal keeps statistics — they then report as `no_state`"; deleted entries are restorable for ~30 days if the integration returns). Manifest-bound typed confirmation, one code and one config entry per manifest (`../ha-nova/batch-safety.md`); execute per entity via `config/entity_registry/remove`; verify by re-reading the registry.
 
 ### Long-unavailable report
 Per entity, label the timestamp source: LTS last-data bucket (reliable, years back, numeric sensors only), state history transition (only within recorder retention; how-to in the reference), or "since last restart at earliest" (`last_changed` resets on restart — never present it as the outage start).
@@ -67,11 +67,11 @@ Per entity, label the timestamp source: LTS last-data bucket (reliable, years ba
 
 - `clear_statistics` timeout: expected on big batches — verify by re-read, never blind-retry.
 - Purge services return before finishing — absence of an error is not completion.
-- Full relay error taxonomy: `skills/ha-nova/relay-api.md` → Error Handling.
+- Full relay error taxonomy: `../ha-nova/relay-api.md` → Error Handling.
 
 ## Output Format
 
-Apply `skills/ha-nova/output-rules.md`. Write previews, delete confirmations, and results render as the Cards defined there (`skills/ha-nova/output-cards.md`).
+Apply `../ha-nova/output-rules.md`. Write previews, delete confirmations, and results render as the Cards defined there (`../ha-nova/output-cards.md`).
 
 - `Maintenance` / `Status`
 - `Planned change`
@@ -90,8 +90,8 @@ Use stable localized slot labels in this order; omit empty slots. Triage renders
 - Home Assistant is reached exclusively through the `ha-nova` CLI.
 - For any HA write this skill does not cover, STOP and invoke `ha-nova:fallback` first — never probe unfamiliar write endpoints.
 
-- Drafts follow `skills/ha-nova/smallest-solution.md`: the complete requested outcome in the simplest safe design, nothing for hypothetical future needs.
-- `search/related` verdicts fail closed: verify `ok=true` and `data` is an object before projecting family keys (`skills/ha-nova/relay-api.md` → Parsing rule); a failed or unexecuted scan is inconclusive — never a no-consumer result. An inconclusive scan fails the ghost-entity removal gate: report only, never remove.
+- Drafts follow `../ha-nova/smallest-solution.md`: the complete requested outcome in the simplest safe design, nothing for hypothetical future needs.
+- `search/related` verdicts fail closed: verify `ok=true` and `data` is an object before projecting family keys (`../ha-nova/relay-api.md` → Parsing rule); a failed or unexecuted scan is inconclusive — never a no-consumer result. An inconclusive scan fails the ghost-entity removal gate: report only, never remove.
 
 - Every write: preview → confirmation → per-item verification. Clear/purge/registry remove take the one-time code; the reversible spike adjustment and unit relabel take payload-bound natural confirmation — offer the spike rollback.
 - Backup gate: before clearing statistics in bulk, purging with low keep_days, repack, or bulk registry removal, check for a recent backup via `ha-nova:backup` (proportional — never for a single small fix).

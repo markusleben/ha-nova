@@ -409,7 +409,7 @@ func (e *tierEngine) classifyDraft(domain, configID string, draft json.RawMessag
 // referencedBy lists what references the item a delete removes.
 func (e *tierEngine) referencedBy(entityID string) {
 	related, err := e.related("entity", entityID)
-	if err != nil {
+	if err != nil || related == nil { // a null answer is no scan, never "none"
 		e.readFailed(entityID, "", "related")
 		return
 	}

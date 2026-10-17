@@ -1,6 +1,6 @@
 # Relay-Ready Features
 
-Split out of `skills/fallback/SKILL.md` to keep that file under the repo's
+Split out of `../fallback/SKILL.md` to keep that file under the repo's
 ~400-line ceiling. These are the surfaces the Relay can already reach but no
 skill owns yet; the fallback Flow sends `Relay-Ready` rows here.
 
@@ -56,7 +56,7 @@ ha-nova relay core --method DELETE --path /api/config/config_entries/entry/{entr
 
 **Risks:** Multi-step flows are complex. Each step returns the next step's schema. Update support can be domain- and version-specific. Delete requires correct `entry_id` resolution first. Prefer HA UI for these.
 
-The supported families' orchestration contract is `skills/ha-nova/live-schema-preflight.md`; this experimental lane stays outside it and remains fail-closed per #493 (Write-Probing Asymmetry).
+The supported families' orchestration contract is `../ha-nova/live-schema-preflight.md`; this experimental lane stays outside it and remains fail-closed per #493 (Write-Probing Asymmetry).
 
 ### Zigbee / Z-Wave Network Status -- RELAY-READY
 
@@ -88,7 +88,7 @@ with `unknown_command` — never guess a write variant from it.
 
 Watching what a physical button fires, or what happens in the seconds after an
 action. The mechanics are already contracted in
-`skills/ha-nova/relay-api.md` → Bounded Event Collection — do not restate them
+`../ha-nova/relay-api.md` → Bounded Event Collection — do not restate them
 here, and do not invent a bare subscription: the relay rejects one outside the
 envelope with `UNSUPPORTED_WS_TYPE`.
 
@@ -106,7 +106,7 @@ all. Read the entity's `platform` from the registry and pick accordingly. A remo
 with no entity at all — only a device-registry row — has no `platform` to
 read: resolve it through the device's singular `config_entry_id` (older rows:
 `config_entries`, which hold opaque entry ids rather than domains — see
-`skills/ha-nova/membership-resolution.md` → Device rows): read `{"type":"config_entries/get"}` (or the REST
+`../ha-nova/membership-resolution.md` → Device rows): read `{"type":"config_entries/get"}` (or the REST
 `/api/config/config_entries/entry`) and take the entry's `domain`. Where that
 is still ambiguous — several entries, or none — ASK which integration the
 remote belongs to rather than guessing an event type. A guess produces an empty window that
@@ -187,7 +187,7 @@ own devices and entities first with WS `{"type":"config/entity_registry/list"}`
 and `{"type":"config/device_registry/list"}`. The two registries express
 ownership differently and mixing them up undercounts: an ENTITY row carries a
 singular `config_entry_id`; on Home Assistant 2026.8+ a DEVICE row does too
-(2026.9 child rows carry only the singular field — `skills/ha-nova/membership-resolution.md`
+(2026.9 child rows carry only the singular field — `../ha-nova/membership-resolution.md`
 → Device rows). Older rows and compatibility responses may expose a `config_entries` array —
 match on membership there when the singular field is absent. Count every
 matched device as deleted in the safety preview: removing its owning entry
@@ -201,7 +201,7 @@ a platform from it — do not use this sentence as an argument that it cannot. T
 `search/related` per DEVICE **and** per ENTITY. Neither covers the other — a
 device-level scan does not reach its child entities' consumers, and an
 automation can reference a `device_id` directly, which no entity scan sees
-(`skills/organize/SKILL.md`). An entry id is not a related-item type at all,
+(`../organize/SKILL.md`). An entry id is not a related-item type at all,
 so there is no shortcut: the automations, scripts and scenes that break are
 the point of the preview.
 
@@ -311,7 +311,7 @@ ha-nova relay core --method POST --path /api/<integration>/<resource> --body-fil
 
 **Observed API behavior (Alarmo; treat as the default assumption for this class):**
 - Write commands often exist only as HTTP POST paths, not WS commands (`unknown_command`); such paths answer GET with `405`, which reveals their existence.
-- Whether a POST creates or updates depends solely on whether an identifier is present in the body (`area_id`, `entity_id`, `automation_id`, ...) — `POST` with `{}` silently CREATES an empty object (`skills/ha-nova/relay-api.md` → Write-Probing Asymmetry).
+- Whether a POST creates or updates depends solely on whether an identifier is present in the body (`area_id`, `entity_id`, `automation_id`, ...) — `POST` with `{}` silently CREATES an empty object (`../ha-nova/relay-api.md` → Write-Probing Asymmetry).
 - Nested blocks must be sent complete; partial objects overwrite the rest.
 
 **Risks:** These APIs are private and version-dependent. Never probe schemas with empty or partial POST bodies — resolve the schema via web search first. After ANY write, read the affected list/config back and verify no unintended object appeared; an accidental create can trigger integration side effects (Alarmo auto-enables its master panel at two areas).

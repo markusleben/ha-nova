@@ -135,7 +135,7 @@ describe("shared membership-resolution contract (#571)", () => {
     );
     // Scene/script/automation expansion stays with the indirect-actuation gate.
     expect(contract).toContain(
-      "`skills/ha-nova/indirect-actuation.md` owns indirect actuation",
+      "`../ha-nova/indirect-actuation.md` owns indirect actuation",
     );
   });
 });
@@ -152,7 +152,7 @@ describe("consumer wiring (#571)", () => {
   it("notify routes recipient groups here and keeps presence handling", () => {
     const notify = flat(read("skills/notify/SKILL.md"));
     expect(notify).toContain(
-      "follow the shared contract `skills/ha-nova/membership-resolution.md`",
+      "follow the shared contract `../ha-nova/membership-resolution.md`",
     );
     expect(notify).toContain(
       "the unreadable-presence handling below stays authoritative",
@@ -162,7 +162,7 @@ describe("consumer wiring (#571)", () => {
   it("media points speaker grouping at the shared contract", () => {
     const media = flat(read("skills/media/SKILL.md"));
     expect(media).toContain(
-      "resolves per the shared contract `skills/ha-nova/membership-resolution.md`",
+      "resolves per the shared contract `../ha-nova/membership-resolution.md`",
     );
     expect(media).toContain(
       "`group_members` is authoritative, re-read immediately before execution",

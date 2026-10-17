@@ -101,7 +101,7 @@ describe("scene contract", () => {
 
   it("teaches file-based relay payloads and localized output slots", () => {
     expect(sceneSkill).toMatch(/--(data-file|body-file|out)\b/);
-    expect(sceneSkill).toContain("skills/ha-nova/output-rules.md");
+    expect(sceneSkill).toContain("../ha-nova/output-rules.md");
     expect(sceneSkill).toContain("Use stable localized slot labels in this order; omit empty slots.");
   });
 });

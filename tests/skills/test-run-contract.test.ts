@@ -10,9 +10,9 @@ const serviceCall = readFileSync("skills/service-call/SKILL.md", "utf8");
 describe("post-write test-offer contract", () => {
   it("is wired into write, write-safety, and service-call", () => {
     expect(writeSkill).toContain("### Phase 5: Test Offer (create/update only)");
-    expect(writeSkill).toContain("skills/ha-nova/test-run.md");
-    expect(writeSafety).toContain("skills/ha-nova/test-run.md");
-    expect(serviceCall).toContain("skills/ha-nova/test-run.md");
+    expect(writeSkill).toContain("../ha-nova/test-run.md");
+    expect(writeSafety).toContain("../ha-nova/test-run.md");
+    expect(serviceCall).toContain("../ha-nova/test-run.md");
     // Ownership split: test-run defines the plan, service-call owns execution.
     expect(testRun).toContain("Automation And Script Runtime Calls");
     expect(testRun).toContain("This file defines only how the test plan is chosen, presented, and verified");

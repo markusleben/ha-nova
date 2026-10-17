@@ -126,17 +126,17 @@ describe("live-schema preflight contract (#594)", () => {
 
   it("is wired from all three owning surfaces", () => {
     expect(helperSkill).toContain(
-      "Config-entry flow orchestration follows the shared contract in `skills/ha-nova/live-schema-preflight.md`",
+      "Config-entry flow orchestration follows the shared contract in `../ha-nova/live-schema-preflight.md`",
     );
     // The integration-setup pointer ADDS the navigation and terminal-stop
     // rules on top of its existing every-response-is-authoritative stance.
     expect(integrationSkill).toContain(
-      "follows the shared `skills/ha-nova/live-schema-preflight.md` contract, which additionally binds pre-confirmation navigation",
+      "follows the shared `../ha-nova/live-schema-preflight.md` contract, which additionally binds pre-confirmation navigation",
     );
     expect(integrationSkill).toContain("Treat every response as authoritative");
     // Fallback's experimental lane stays outside the contract, fail-closed.
     expect(relayReady).toContain(
-      "The supported families' orchestration contract is `skills/ha-nova/live-schema-preflight.md`",
+      "The supported families' orchestration contract is `../ha-nova/live-schema-preflight.md`",
     );
     expect(relayReady).toContain(
       "this experimental lane stays outside it and remains fail-closed per #493",

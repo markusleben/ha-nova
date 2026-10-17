@@ -41,14 +41,14 @@ This skill needs **Relay 0.9.1 or newer** AND file access enabled. Both are the 
 
 ## Flow
 
-Drafts follow `skills/ha-nova/smallest-solution.md`: the complete requested outcome in the simplest safe design, nothing for hypothetical future needs.
+Drafts follow `../ha-nova/smallest-solution.md`: the complete requested outcome in the simplest safe design, nothing for hypothetical future needs.
 
 
 Never skip a step.
 
 1. **Read before write.** `read_file` the target (or `list_dir` to find it). Never write a file you have not read: `write_file` replaces the whole file, so an unread file means an unknown loss.
-2. **Build the change in memory**. For template/REST/command-line SENSOR definitions, apply the TS checks from `skills/review/checks-extended.md` → Template/REST/Command-line Sensors to the draft first — fix HIGH findings inline, show the rest as plain-language advisories below the preview (never the internal codes). Then preview it as the File-Change Preview (below). Never a `-`/`+` unified diff, never the whole file unless asked — but say plainly that the whole file is replaced on save.
-3. **Confirm**, then capture the auto config snapshot (category `yaml`; data = `{path: <exact logical path>, content: <current file content>}` — the slugified name is lossy, the stored `path` is what makes the promised path-stable restore possible; `skills/ha-nova/config-snapshots.md` — the `.bak` holds only ONE step, the snapshot store keeps history; on capture failure follow its capture-failure stop; skip for a brand-new file), then run the drift check IMMEDIATELY before the write (`skills/ha-nova/write-safety.md` → Drift check before apply) — last, so the snapshot round trip cannot open a new window behind it:
+2. **Build the change in memory**. For template/REST/command-line SENSOR definitions, apply the TS checks from `../review/checks-extended.md` → Template/REST/Command-line Sensors to the draft first — fix HIGH findings inline, show the rest as plain-language advisories below the preview (never the internal codes). Then preview it as the File-Change Preview (below). Never a `-`/`+` unified diff, never the whole file unless asked — but say plainly that the whole file is replaced on save.
+3. **Confirm**, then capture the auto config snapshot (category `yaml`; data = `{path: <exact logical path>, content: <current file content>}` — the slugified name is lossy, the stored `path` is what makes the promised path-stable restore possible; `../ha-nova/config-snapshots.md` — the `.bak` holds only ONE step, the snapshot store keeps history; on capture failure follow its capture-failure stop; skip for a brand-new file), then run the drift check IMMEDIATELY before the write (`../ha-nova/write-safety.md` → Drift check before apply) — last, so the snapshot round trip cannot open a new window behind it:
    - existing file: `read_file` it once more and compare against the content step 1 read. Changed? STOP — someone edited it during the pause (the File editor app is the common case) and `write_file` would revert them. Show the new content and ask again.
    - brand-new file: absence IS the basis. Probe the exact path with `read_file`: `FILE_NOT_FOUND` is the expected answer and confirms the file is still absent — treat it as success here, not as an error. Any other outcome means the file exists now, so STOP: something created it since step 1 and writing would overwrite a file nobody read. Do not use `list_dir` for this: it returns at most 500 entries and sets `truncated: true`, so a busy directory can report a file as absent when it is not.
 
@@ -71,7 +71,7 @@ Never skip a step.
 
 ## File-Change Preview
 
-The Preview Card variant for file edits (`skills/ha-nova/output-cards.md` -> Cards) — effect sentences, then ONLY the changed section (after-state), what it replaces, the backup line:
+The Preview Card variant for file edits (`../ha-nova/output-cards.md` -> Cards) — effect sentences, then ONLY the changed section (after-state), what it replaces, the backup line:
 
 ```
 📝 Preview: file change template_sensors.yaml
@@ -94,7 +94,7 @@ Do not argue around it. Produce the exact YAML block, name the file, and give th
 
 ## Error Handling
 
-Full relay/upstream error taxonomy: `skills/ha-nova/relay-api.md` -> Error Handling. yaml-config specifics:
+Full relay/upstream error taxonomy: `../ha-nova/relay-api.md` -> Error Handling. yaml-config specifics:
 - `FILE_ACCESS_DISABLED` / `FILE_ACCESS_READONLY`: a configuration choice, not an error — see Bootstrap.
 - `FILE_PATH_DENIED`: the path is permanently off-limits (secrets, `.storage`, database, logs, executable dirs). Do not look for a way around it.
 - `FILE_TYPE_DENIED`: not a writable configuration format (see Conventions).
@@ -103,7 +103,7 @@ Full relay/upstream error taxonomy: `skills/ha-nova/relay-api.md` -> Error Handl
 
 ## Output Format
 
-Apply `skills/ha-nova/output-rules.md` to all user-facing output.
+Apply `../ha-nova/output-rules.md` to all user-facing output.
 
 Previews use the File-Change Preview above; results use the Result Card. Report the verification result: which entity appeared, with which state. If the entity did not appear, say so plainly and offer the restore.
 
@@ -125,6 +125,6 @@ Previews use the File-Change Preview above; results use the Result Card. Report 
 
 - One file per operation.
 - Never write a file without a preceding read and a shown File-Change Preview.
-- A user-requested `delete_file` is code-gated like any delete AND captures the auto config snapshot of the file first (it has no `.bak`; `skills/ha-nova/config-snapshots.md`).
+- A user-requested `delete_file` is code-gated like any delete AND captures the auto config snapshot of the file first (it has no `.bak`; `../ha-nova/config-snapshots.md`).
 - Never claim success from a reload alone — the entity must exist in `/api/states`.
 - Do not add `!include` lines that already exist, and never rewrite `configuration.yaml` wholesale to add one.

@@ -17,7 +17,7 @@ citation alone does not require it.
   unfamiliar writes go through `ha-nova:fallback` first.
 - Multi-server: `--server <name>` on typed verbs (or `HA_NOVA_SERVER=<name>`);
   name a non-default server once per response.
-- Home Assistant responses follow `skills/ha-nova/output-rules.md`.
+- Home Assistant responses follow `../ha-nova/output-rules.md`.
 
 ## Dispatch — one task skill per intent
 

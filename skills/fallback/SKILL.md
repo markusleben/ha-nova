@@ -35,7 +35,7 @@ For every Relay-Ready call in this skill:
 - use `ha-nova relay ws --data-file <payload-file>` or `ha-nova relay core --method <METHOD> --path <PATH> --body-file <payload-file>`
 - use `--out <result-file>` for large responses
 - treat inline `-d` as an optional tiny diagnostic path, not the canonical contract
-- transports diverge on empty write bodies: WS validates missing required fields fail-closed, but a parameterless WS write executes on its bare `type`, and `/core` POST may silently CREATE — read `skills/ha-nova/relay-api.md` → Write-Probing Asymmetry before any experimental write
+- transports diverge on empty write bodies: WS validates missing required fields fail-closed, but a parameterless WS write executes on its bare `type`, and `/core` POST may silently CREATE — read `../ha-nova/relay-api.md` → Write-Probing Asymmetry before any experimental write
 
 ## Capability Map
 
@@ -86,7 +86,7 @@ For every Relay-Ready call in this skill:
 | Event capture — bounded window (a button's event, a short watch after an action) | Relay-Ready | this skill; `mqtt` for MQTT topics |
 | Event streaming — continuous | Roadmap Phase 1c | -- |
 | Backups (status, create, inspect, delete) | Covered | backup |
-| Config snapshots (targeted capture/restore of automations, scripts, scenes, dashboards, helpers, energy prefs, metadata, YAML files) | Covered | the owning family skill (see `skills/ha-nova/config-snapshots.md`) |
+| Config snapshots (targeted capture/restore of automations, scripts, scenes, dashboards, helpers, energy prefs, metadata, YAML files) | Covered | the owning family skill (see `../ha-nova/config-snapshots.md`) |
 | Updates (pending, release notes, install, skip) | Covered | updates |
 | Apps / Supervisor: install, uninstall, configure, store | External | -- (updates: `updates`; start/stop/restart and host reboot: `service-call`) |
 | HACS (registration, download, version switching, uninstall, migration) | Covered | hacs |
@@ -98,7 +98,7 @@ For every Relay-Ready call in this skill:
 | Integration entry enable/disable | External | -- (Settings > Devices & services) |
 | Matter / Thread status (border router, datasets, node diagnostics) | Relay-Ready | this skill |
 | Matter / Thread commissioning | External | -- (companion app; BLE pairing is not an API surface) |
-| Assist custom sentences / intent scripts | Covered | assist (owning workflow; file mechanics stay in `skills/fallback/relay-ready.md`) |
+| Assist custom sentences / intent scripts | Covered | assist (owning workflow; file mechanics stay in `../fallback/relay-ready.md`) |
 | Creating a calendar (the `local_calendar` integration) | Covered | integration-setup |
 | Device category assignment | Not a Home Assistant surface | -- (devices carry no category; entity categories are `organize`) |
 
@@ -138,14 +138,14 @@ permissive matching row (External over Relay-Ready).
    c. Point to HA UI path
 ```
 
-External storage becomes scannable only through a documented adapter (`skills/ha-nova/consumer-discovery-preflight.md` → Extension Adapter Contract) — never by ad-hoc parsing.
+External storage becomes scannable only through a documented adapter (`../ha-nova/consumer-discovery-preflight.md` → Extension Adapter Contract) — never by ad-hoc parsing.
 
 **Web search is mandatory for Relay-Ready writes.** The relay call examples below cover common read patterns, but write payloads change across HA versions. Always verify the current schema via web search before constructing a write payload.
 
 ## Relay-Ready Features
 
 Per-feature payloads, search queries and caveats live in
-`skills/fallback/relay-ready.md`. Read it when the Capability Map row says
+`../fallback/relay-ready.md`. Read it when the Capability Map row says
 `Relay-Ready`; the Flow branch above still governs how to use them.
 
 ## Roadmap Features
@@ -158,7 +158,7 @@ Real-time event streams for state changes, automation triggers, and custom event
 
 **Status:** CONTINUOUS streams are Phase 1c, blocked by the absence of an SSE
 endpoint. BOUNDED capture already works: wrap the subscription in a
-`collect_events` envelope (max 100 events, max 10 s — `skills/ha-nova/relay-api.md`
+`collect_events` envelope (max 100 events, max 10 s — `../ha-nova/relay-api.md`
 → Bounded Event Collection) and the relay unsubscribes for you. That is enough
 to answer "what event does this button fire" or to watch a short window after
 an action; `ha-nova:mqtt` uses exactly this pattern.
@@ -207,7 +207,7 @@ Device pairing is hardware-specific, requires direct coordinator access (ZHA, Z2
 
 ## Error Handling
 
-Experimental calls may fail with unfamiliar errors. Full relay/upstream error taxonomy: `skills/ha-nova/relay-api.md` → Error Handling. Fallback-specific rules:
+Experimental calls may fail with unfamiliar errors. Full relay/upstream error taxonomy: `../ha-nova/relay-api.md` → Error Handling. Fallback-specific rules:
 
 - `400/VALIDATION_ERROR`: payload schema wrong -- search web for current WS type schema
 - `404/NOT_FOUND`: endpoint may not exist in this HA version -- check HA release notes
@@ -215,7 +215,7 @@ Experimental calls may fail with unfamiliar errors. Full relay/upstream error ta
 
 ## Output Format
 
-Apply `skills/ha-nova/output-rules.md` to all user-facing output. Write previews, delete confirmations, and results render as the Cards defined there (`skills/ha-nova/output-cards.md`).
+Apply `../ha-nova/output-rules.md` to all user-facing output. Write previews, delete confirmations, and results render as the Cards defined there (`../ha-nova/output-cards.md`).
 
 Every experimental call result names the tier (Relay-Ready / Roadmap / External), carries the EXPERIMENTAL marker where required, and summarizes verified outcomes only.
 
@@ -235,18 +235,18 @@ Premise handling:
 
 Rules for all experimental relay calls in this skill:
 
-- Drafts follow `skills/ha-nova/smallest-solution.md`: the complete requested outcome in the simplest safe design, nothing for hypothetical future needs.
+- Drafts follow `../ha-nova/smallest-solution.md`: the complete requested outcome in the simplest safe design, nothing for hypothetical future needs.
 
 - Read before write: fetch current state first for any destructive operation
-- **Full-document overwrites** (e.g., `lovelace/config/save`): MUST read full config, merge changes in memory, preview merged result with a plain-language behavior line (`skills/ha-nova/write-safety.md` → Behavior narrative), then write. There is no partial update endpoint — the entire config is replaced. After the write, read the document back and verify both the intended change and the survival of unrelated content (views, cards, sources) before reporting success.
+- **Full-document overwrites** (e.g., `lovelace/config/save`): MUST read full config, merge changes in memory, preview merged result with a plain-language behavior line (`../ha-nova/write-safety.md` → Behavior narrative), then write. There is no partial update endpoint — the entire config is replaced. After the write, read the document back and verify both the intended change and the survival of unrelated content (views, cards, sources) before reporting success.
 - **Field-level list replacements** (e.g., `energy/save_prefs`): omitted top-level keys are preserved, but each provided key replaces its entire list. To add one item, read the existing list first, append, then save back the full list. After the write, read the prefs back and verify the pre-existing list items survived alongside the new one.
 - **Web search before write**: always search for current payload schema before constructing any write payload. HA APIs evolve across versions — the examples in this skill are starting points, not authoritative schemas.
-- **Schema discovery never probes writes**: never send an empty or partial body to a `/core` POST path to elicit a validation error — `/core` has no schema check and may CREATE an object instead — and never send a bare WS `type` you have not verified to be read-only, because a parameterless write command executes immediately (`skills/ha-nova/relay-api.md` → Write-Probing Asymmetry). Empty-body probing is limited to WS commands already documented as read-only; the write schema still comes from web search.
-- **Pre-delete `search/related` verdicts fail closed**: verify `ok=true` and `data` is an object before projecting family keys (`skills/ha-nova/relay-api.md` → Parsing rule); a failed or unexecuted scan is inconclusive — never a no-consumer result.
+- **Schema discovery never probes writes**: never send an empty or partial body to a `/core` POST path to elicit a validation error — `/core` has no schema check and may CREATE an object instead — and never send a bare WS `type` you have not verified to be read-only, because a parameterless write command executes immediately (`../ha-nova/relay-api.md` → Write-Probing Asymmetry). Empty-body probing is limited to WS commands already documented as read-only; the write schema still comes from web search.
+- **Pre-delete `search/related` verdicts fail closed**: verify `ok=true` and `data` is an object before projecting family keys (`../ha-nova/relay-api.md` → Parsing rule); a failed or unexecuted scan is inconclusive — never a no-consumer result.
 - Every experimental call must show: "EXPERIMENTAL: No dedicated subskill schema guardrails. Proceed with caution."
 - **No diff or auto-undo here**: these writes have no `## Changes` preview or `revert`. When a write may be hard to reverse, say so plainly and point to Home Assistant Backups (Settings > System > Backups) as the safety net before confirming.
 - One resource at a time (no batch writes)
-- Experimental results may be unexpected — verify data-target match before presenting conclusions (see `skills/ha-nova/SKILL.md` → Claim-Evidence Binding)
+- Experimental results may be unexpected — verify data-target match before presenting conclusions (see `../ha-nova/SKILL.md` → Claim-Evidence Binding)
 
 ### Write Safety by Endpoint Type
 

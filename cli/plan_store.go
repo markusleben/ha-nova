@@ -147,6 +147,13 @@ func sealPlan(e *tierEngine, env *verbEnvelope, plan storedPlan, action any) (st
 	}
 	env.Tier, env.Reasons = tier, e.reasons
 	env.Members, env.Consumers = e.shown()
+	switch {
+	case len(env.Consumers) > 0:
+	case plan.Kind == "delete" && plan.ConfigAction != nil && plan.ConfigAction.Domain != "dashboard" && e.complete:
+		env.Consumers = []tierConsumer{} // referencedBy scanned it all and found none: say so
+	default:
+		env.Consumers = nil // omitted: no complete delete scan
+	}
 	env.Coverage = &tierCoverage{Complete: e.complete, Notes: e.notes, Skipped: e.skipped}
 	env.Plan = &verbPlan{ID: plan.ID, Hash: plan.Hash, ExpiresAt: plan.ExpiresAt, Confirm: plan.Confirm, Code: plan.code}
 	env.Status = "ready"

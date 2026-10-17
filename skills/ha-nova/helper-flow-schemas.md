@@ -346,7 +346,7 @@ Observed locally on a real HA instance on 2026-03-19:
 - Handler: `generic_thermostat`
 - No observed field inventory yet (promoted 2026-08-20, pack item P4-05): the
   live `data_schema` is the ONLY field source — preview and submit exactly what
-  the live form exposes, per `skills/ha-nova/live-schema-preflight.md`
+  the live form exposes, per `../ha-nova/live-schema-preflight.md`
 - Expect at minimum a heater switch and a target temperature sensor among the
   live fields; both are entity references — resolve them, never guess
 - Update: options flow when `supports_options: true`; same live-form rules
@@ -358,7 +358,7 @@ Observed locally on a real HA instance on 2026-03-19:
 - Handler: `switch_as_x`
 - No observed field inventory yet (promoted 2026-08-20, pack item P4-05): the
   live `data_schema` is the ONLY field source — preview and submit exactly what
-  the live form exposes, per `skills/ha-nova/live-schema-preflight.md`
+  the live form exposes, per `../ha-nova/live-schema-preflight.md`
 - Create wraps one `switch.*` entity as a different domain (light, cover, fan,
   lock, siren, valve); Home Assistant hides the original switch entity behind
   the new one — say so in the preview

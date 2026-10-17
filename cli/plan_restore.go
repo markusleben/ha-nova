@@ -82,7 +82,7 @@ func (req *configRequest) loadRestoreSnapshot(s *relaySession) error {
 	}
 	mismatch := func(why string) error {
 		return refusedWith("SNAPSHOT_MISMATCH", "snapshot "+req.Snapshot+" "+why,
-			"Pass --snapshot and --id exactly as the delete result's restore names them; otherwise restore by hand (skills/ha-nova/config-snapshots.md).")
+			"Pass --snapshot and --id exactly as the delete result's restore names them; otherwise restore by hand (config-snapshots.md in the ha-nova skill).")
 	}
 	exact, cfg, err := exactConfig(loaded.Data)
 	if err != nil {

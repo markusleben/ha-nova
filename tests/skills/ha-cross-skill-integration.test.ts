@@ -12,8 +12,8 @@ describe("ha cross-skill integration", () => {
     expect(writeSkill).toContain("Phase 4: Post-Write Review");
     // M1: write's post-write review loads only the self-contained checks
     // catalog, no longer the standalone review workflow.
-    expect(writeSkill).toContain("skills/review/checks.md");
-    expect(writeSkill).not.toContain("skills/review/SKILL.md");
+    expect(writeSkill).toContain("../review/checks.md");
+    expect(writeSkill).not.toContain("../review/SKILL.md");
     expect(writeSkill).toContain("full-replacement merge (base=current, overlay=user changes)");
     expect(writeSkill).toContain("delete=one-time code — the plan's CLI-minted `plan.code`");
     expect(writeSkill).toContain("Changes slot");
@@ -26,8 +26,8 @@ describe("ha cross-skill integration", () => {
   it("keeps write skill wired to shared relay + best-practices references", () => {
     const writeSkill = readFileSync("skills/write/SKILL.md", "utf8");
 
-    expect(writeSkill).toContain("skills/ha-nova/best-practices.md");
-    expect(writeSkill).toContain("skills/review/checks.md");
+    expect(writeSkill).toContain("../ha-nova/best-practices.md");
+    expect(writeSkill).toContain("../review/checks.md");
     // Resolution through the read verbs (config id from the registry, never the slug).
     expect(writeSkill).toContain("`ha-nova find \"<phrase>\" --domain automation|script`");
     expect(writeSkill).toContain("current config + `config_id` from the registry `unique_id`, never the slug");
@@ -53,7 +53,7 @@ describe("ha cross-skill integration", () => {
     const writeSkill = readFileSync("skills/write/SKILL.md", "utf8");
 
     // Phase 1 collects suggestion candidates (rules moved to smallest-solution.md)
-    expect(writeSkill).toContain("Suggestion candidates per `skills/ha-nova/smallest-solution.md` → Write Suggestion Candidates");
+    expect(writeSkill).toContain("Suggestion candidates per `../ha-nova/smallest-solution.md` → Write Suggestion Candidates");
 
     // Phase 2 Step 3a: suggestions flow
     expect(writeSkill).toContain("3a) Suggestions");
@@ -103,7 +103,7 @@ describe("ha cross-skill integration", () => {
     expect(writeSkill).toContain("collapse to one scope-honest confirmation line");
     expect(writeSkill).toContain("Never emit `Questions to consider`, `Suggestions`, or `Instant help` post-write");
     expect(writeSkill).toContain("never repeat an item across **Findings** and **Advisory**");
-    expect(writeSkill).toContain("skills/ha-nova/output-rules.md");
+    expect(writeSkill).toContain("../ha-nova/output-rules.md");
     // The old always-on "none" buckets must be gone (that was the noise the maintainer flagged).
     expect(writeSkill).not.toContain('localized equivalent of "No related items found."');
     expect(writeSkill).not.toContain('localized equivalent of "No conflicts found."');

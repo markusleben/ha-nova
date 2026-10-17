@@ -1,6 +1,6 @@
 # Service Call — Raw Relay Routes
 
-On-demand part of `skills/service-call/SKILL.md`. Read the matching section
+On-demand part of `../service-call/SKILL.md`. Read the matching section
 before a response service or App/host control — the typed verbs cover these
 through `ha-nova call` (a response service with `--response`, an owned domain
 such as `hassio.*` with `--skill ha-nova:service-call`). Firing a custom
@@ -52,7 +52,7 @@ cannot be used to dodge the owner's own flow. The table is the routing:
 
 ## Response services
 
-Some services return data (`weather.get_forecasts`, `calendar.get_events`, `todo.get_items`, ...) and REQUIRE `?return_response`; without it HA returns 400 "requires responses". Run them through `ha-nova call <domain.service> [<entity_id>…] --set … --response`: the CLI adds `?return_response`, and the data is at `result.service_response` in the verb envelope. Response-only is not read-only: `ha-nova call` tiers it like any call. The three named read-only response services (`weather.get_forecasts`, `calendar.get_events`, `todo.get_items`) stay ordinary and skip confirmation only while the shared gate's consumer scan (`skills/ha-nova/indirect-actuation.md`) stays ordinary; a matching `call_service` event listener can make the nominal read indirect actuation and raise the tier. Any other response service is tiered on its own effect. A response-capable ACTION service (for example direct `script.<script_id>`) is tiered on the action, not downgraded by the response: `ha-nova call` with `--response` previews and confirms the action first, and the parameter never downgrades the action.
+Some services return data (`weather.get_forecasts`, `calendar.get_events`, `todo.get_items`, ...) and REQUIRE `?return_response`; without it HA returns 400 "requires responses". Run them through `ha-nova call <domain.service> [<entity_id>…] --set … --response`: the CLI adds `?return_response`, and the data is at `result.service_response` in the verb envelope. Response-only is not read-only: `ha-nova call` tiers it like any call. The three named read-only response services (`weather.get_forecasts`, `calendar.get_events`, `todo.get_items`) stay ordinary and skip confirmation only while the shared gate's consumer scan (`../ha-nova/indirect-actuation.md`) stays ordinary; a matching `call_service` event listener can make the nominal read indirect actuation and raise the tier. Any other response service is tiered on its own effect. A response-capable ACTION service (for example direct `script.<script_id>`) is tiered on the action, not downgraded by the response: `ha-nova call` with `--response` previews and confirms the action first, and the parameter never downgrades the action.
 
 ### Weather forecasts
 

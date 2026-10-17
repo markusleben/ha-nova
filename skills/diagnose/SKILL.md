@@ -68,7 +68,7 @@ Only where the log file exists (Container/Core installs; on HA OS/Supervised the
 ## Flow
 
 1. Pin the symptom: which entity/automation/script, what expected vs observed behavior, and WHEN. A day word ("today", "this morning", "last night", "yesterday") already sets the window: that span in HA's time zone (`GET /api/config` → `time_zone`), ending now at the latest — read the evidence first, and ask only if it is still ambiguous. Ask one question for the time only when nothing bounds it. Resolve names with `ha-nova find "<phrase>" --domain automation` (no `--name` flag).
-2. For automation/script symptoms, read the trace first (`ha-nova trace latest <entity_id> --json`; older runs via `trace list <entity_id>` + `trace get <entity_id> <run_id>`). The trace usually answers it: triggered or not, which condition stopped it, which step errored. No run in the window (no trace, `last_triggered` null or older): check its own state first (`off`, `unavailable`). Automation: take its triggers from `ha-nova get <entity_id> --config` (blueprint instance: expand once with `blueprint/substitute`, `skills/ha-nova/consumer-discovery-preflight.md`) and compare each trigger's full predicate (`from`/`not_from`, `to`/`not_to`, `attribute`, `for:`) against the trigger entity's history for the window — only a matching change means it fired, so check the conditions. No change while the entity sits in the `to:` state → a `state` trigger fires only on a transition, so that is the root cause: name the state and its `last_changed`. Script: it runs only when called — check its callers (`ha-nova get <entity_id> --related`) and the logbook (`ha-nova history <entity_id> --logbook`).
+2. For automation/script symptoms, read the trace first (`ha-nova trace latest <entity_id> --json`; older runs via `trace list <entity_id>` + `trace get <entity_id> <run_id>`). The trace usually answers it: triggered or not, which condition stopped it, which step errored. No run in the window (no trace, `last_triggered` null or older): check its own state first (`off`, `unavailable`). Automation: take its triggers from `ha-nova get <entity_id> --config` (blueprint instance: expand once with `blueprint/substitute`, `../ha-nova/consumer-discovery-preflight.md`) and compare each trigger's full predicate (`from`/`not_from`, `to`/`not_to`, `attribute`, `for:`) against the trigger entity's history for the window — only a matching change means it fired, so check the conditions. No change while the entity sits in the `to:` state → a `state` trigger fires only on a transition, so that is the root cause: name the state and its `last_changed`. Script: it runs only when called — check its callers (`ha-nova get <entity_id> --related`) and the logbook (`ha-nova history <entity_id> --logbook`).
 3. Correlate logs: search `system_log/list` (and the error log where it exists) for the involved entities, integrations, and the incident window. Quote only the relevant lines. Align timestamps before claiming causation: the log line must sit within minutes of the trace's failing step — an error far outside that window is context, not the cause; say which it is.
 4. Reconstruct context: bounded logbook + history windows (±30 minutes around the incident, or the day-word window) for the involved entities (`ha-nova history --since --until`, above; omit `--until` for a window ending now — a future one is rejected); probe suspect conditions/templates against live state (`relay core --method POST --path /api/template --body-file <payload-file>`, body `{"template":"{{ ... }}"}`; the rendered value comes back in `.data.body`).
 5. Debug escalation (optional, the only mutation): if evidence is insufficient and the user agrees, raise one integration's log level.
@@ -80,14 +80,14 @@ Only where the log file exists (Container/Core installs; on HA OS/Supervised the
 
 ## Error Handling
 
-Full relay/upstream error taxonomy: `skills/ha-nova/relay-api.md` -> Error Handling. Diagnose specifics:
+Full relay/upstream error taxonomy: `../ha-nova/relay-api.md` -> Error Handling. Diagnose specifics:
 - `/api/error_log` 404: normal on HA OS/Supervised since 2025.11 — continue with `system_log/list` and mention the `--duplicate-log-file` re-enable only if the user asks for the raw file.
 - Missing traces (empty `trace list`): traces are kept per entity with a small cap and reset on reload/restart — say so instead of guessing.
 - `system_log/list` empty after a restart is normal; fall back to logbook/history windows.
 
 ## Output Format
 
-Apply `skills/ha-nova/output-rules.md` to all user-facing output. Write previews, delete confirmations, and results render as the Cards defined there (`skills/ha-nova/output-cards.md`).
+Apply `../ha-nova/output-rules.md` to all user-facing output. Write previews, delete confirmations, and results render as the Cards defined there (`../ha-nova/output-cards.md`).
 
 Render the Report shape, Diagnosis specialization (output-cards.md → Report Shape): root cause first, then the evidence chain, then the recommended fix with the owning skill. Quote log lines sparingly — never dump raw logs.
 
@@ -100,7 +100,7 @@ Render the Report shape, Diagnosis specialization (output-cards.md → Report Sh
 - Home Assistant is reached exclusively through the `ha-nova` CLI.
 - For any HA write this skill does not cover, STOP and invoke `ha-nova:fallback` first — never probe unfamiliar write endpoints.
 
-- Drafts follow `skills/ha-nova/smallest-solution.md`: the complete requested outcome in the simplest safe design, nothing for hypothetical future needs.
+- Drafts follow `../ha-nova/smallest-solution.md`: the complete requested outcome in the simplest safe design, nothing for hypothetical future needs.
 
 - The debug escalation (`logger.set_level`) is this skill's single declared mutation: read the current level via `logger/log_info` first, preview + natural confirmation, and always schedule the restore of THAT recorded level (never a hard-coded default) in the same interaction.
 - Never "fix" anything from here — fixes hand off to the owning skill after the diagnosis.

@@ -72,7 +72,7 @@ For WS payloads:
 
 ## Data Shapes
 
-Envelope parsing follows `skills/ha-nova/relay-api.md` → Standard Envelope. Normalize each saved relay result separately before summarizing:
+Envelope parsing follows `../ha-nova/relay-api.md` → Standard Envelope. Normalize each saved relay result separately before summarizing:
 - REST `/api/config`, `/api/components`, `/api/states`: use `.data.body`
 - WS `repairs/list_issues`: use `.data.issues`
 - WS `config_entries/get`: use `.data` as an array
@@ -84,7 +84,7 @@ Envelope parsing follows `skills/ha-nova/relay-api.md` → Standard Envelope. No
 Private detail uses explicit, minimal source fields — never more:
 - state rows: `entity_id`, `state`, `last_changed`, `attributes.restored`, `attributes.friendly_name`, structured battery/SOC metadata
 - entity registry: `entity_id`, `config_entry_id`, `device_id`, `platform`, `name`, `original_name`, `area_id`
-- device registry: `id`, `name_by_user`, `name`, `area_id`, `parent_device_id`, `config_entry_id` — effective area is the row's own `area_id`, else the parent's (`skills/ha-nova/membership-resolution.md` → Device rows)
+- device registry: `id`, `name_by_user`, `name`, `area_id`, `parent_device_id`, `config_entry_id` — effective area is the row's own `area_id`, else the parent's (`../ha-nova/membership-resolution.md` → Device rows)
 - config entries: existing state/domain fields plus `title`, sanitized before display
 
 Optional display metadata that is unavailable is marked unavailable; it never
@@ -204,7 +204,7 @@ pair `🔴`/`🟠`/`🟡` with a plain-language title or status ("act", "check",
 
 ## Output Format
 
-Apply `skills/ha-nova/output-rules.md` (including → Progressive Detail: every
+Apply `../ha-nova/output-rules.md` (including → Progressive Detail: every
 truncation carries total/shown/omitted counts and a precise request for the
 full set — never a bare "N more").
 

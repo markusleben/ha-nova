@@ -60,16 +60,19 @@ rewrite_flat_markdown() {
     local companion_name
     companion_name="$(basename "${companion}")"
     [[ "${companion_name}" == "SKILL.md" ]] && continue
-    local same_skill_ref same_skill_local
+    local same_skill_ref same_skill_rel same_skill_local
     printf -v same_skill_ref '`skills/%s/%s`' "${skill_name}" "${companion_name}"
+    printf -v same_skill_rel '`../%s/%s`' "${skill_name}" "${companion_name}"
     printf -v same_skill_local '`%s`' "${companion_name}"
     content="${content//${same_skill_ref}/${same_skill_local}}"
+    # ../ha-nova/session-bootstrap.md stays: the bootstrap repair's layout marker
+    [[ "${same_skill_rel}" == '`../ha-nova/session-bootstrap.md`' ]] || content="${content//${same_skill_rel}/${same_skill_local}}"
   done
 
   content="$(
     printf '%s' "${content}" | HA_NOVA_ROOT="${REPO_ROOT}" perl -0pe '
       s{`docs/reference/([^`]+)`}{sprintf("`%s/docs/reference/%s`", $ENV{HA_NOVA_ROOT}, $1)}ge;
-      s{`skills/([^`]+)`}{sprintf("`%s/skills/%s`", $ENV{HA_NOVA_ROOT}, $1)}ge;
+      s{`(?:skills|\.\.)/(?!ha-nova/session-bootstrap\.md`)([^`]+)`}{sprintf("`%s/skills/%s`", $ENV{HA_NOVA_ROOT}, $1)}ge;
     '
   )"
 
@@ -132,16 +135,19 @@ rewrite_hermes_markdown() {
     local companion_name
     companion_name="$(basename "${companion}")"
     [[ "${companion_name}" == "SKILL.md" ]] && continue
-    local same_skill_ref same_skill_local
+    local same_skill_ref same_skill_rel same_skill_local
     printf -v same_skill_ref '`skills/%s/%s`' "${skill_name}" "${companion_name}"
+    printf -v same_skill_rel '`../%s/%s`' "${skill_name}" "${companion_name}"
     printf -v same_skill_local '`%s`' "${companion_name}"
     content="${content//${same_skill_ref}/${same_skill_local}}"
+    # ../ha-nova/session-bootstrap.md stays: the bootstrap repair's layout marker
+    [[ "${same_skill_rel}" == '`../ha-nova/session-bootstrap.md`' ]] || content="${content//${same_skill_rel}/${same_skill_local}}"
   done
 
   content="$(
     printf '%s' "${content}" | HA_NOVA_ROOT="${REPO_ROOT}" perl -0pe '
       s{`docs/reference/([^`]+)`}{sprintf("`%s/docs/reference/%s`", $ENV{HA_NOVA_ROOT}, $1)}ge;
-      s{`skills/([^`]+)`}{sprintf("`%s/skills/%s`", $ENV{HA_NOVA_ROOT}, $1)}ge;
+      s{`(?:skills|\.\.)/(?!ha-nova/session-bootstrap\.md`)([^`]+)`}{sprintf("`%s/skills/%s`", $ENV{HA_NOVA_ROOT}, $1)}ge;
     '
   )"
 

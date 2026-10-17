@@ -21,7 +21,7 @@ Read only:
 Not for helpers — use `ha-nova:helper`.
 
 Multi-target is inventory-only:
-- use `skills/ha-nova/bulk-patterns.md` for `prefix` / `domain` / `area` / `label`
+- use `../ha-nova/bulk-patterns.md` for `prefix` / `domain` / `area` / `label`
 - keep full YAML reads single-target only
 
 No writes.
@@ -74,7 +74,7 @@ Write `<filter-file>` with one of:
 | {total: length, shown: (.[0:30] | length), omitted: ([length - 30, 0] | max), truncated: (length > 30), matches: .[0:30]}
 ```
 
-For bulk inventory by `prefix`, `domain`, `area`, or `label`, reuse `skills/ha-nova/bulk-patterns.md` and return the compact table only. For area scope, use the `search/related` area projection rules, not compact-registry `ai`.
+For bulk inventory by `prefix`, `domain`, `area`, or `label`, reuse `../ha-nova/bulk-patterns.md` and return the compact table only. For area scope, use the `search/related` area projection rules, not compact-registry `ai`.
 
 ### Keyword search
 
@@ -94,7 +94,7 @@ Write `<filter-file>` with:
 If 0 results: try synonyms/shorter stems: `test("kw1|kw2";"i")`.
 While `truncated` is true, narrow further — the capped list proves neither absence nor uniqueness.
 
-For "automations in room X": stay inside `read` and follow the area-first `search/related` flow from `skills/ha-nova/bulk-patterns.md`.
+For "automations in room X": stay inside `read` and follow the area-first `search/related` flow from `../ha-nova/bulk-patterns.md`.
 
 ### Reading a single config
 
@@ -109,7 +109,7 @@ Resolve the config key via entity registry first; UI-created items often use num
 2. Fetch config into `<result-file>`:
    - `ha-nova relay core --method GET --path /api/config/automation/config/{unique_id} --jq-file <filter-file> --out <result-file>`
    - for scripts: `/api/config/script/config/{unique_id}`
-   - prefer copying `skills/ha-nova/config-body-filter.jq` to `<filter-file>`
+   - prefer copying `../ha-nova/config-body-filter.jq` to `<filter-file>`
    - if unavailable (flat-copy installs), recreate exactly:
      ```jq
      if .ok then .data.body else error("relay error: \(.error.message // "unknown")") end
@@ -143,7 +143,7 @@ If id is ambiguous, ask one clarifying question. Never use raw `get_states`.
 
 ## Output Format
 
-Apply `skills/ha-nova/output-rules.md` to all user-facing output.
+Apply `../ha-nova/output-rules.md` to all user-facing output.
 
 After reading a config, present (the bold labels below are semantic slots — localize them at runtime per output-rules.md, never print them as literal English headings):
 
@@ -215,7 +215,7 @@ Manual relay path:
 4. Summarize timestamp, trigger, conditions, actions, and result.
 5. Treat trace config as historical; compare current config separately.
 6. If traces do not cover the relevant period, optionally check `last_changed` via `/api/states/{entity_id}`.
-7. Before presenting conclusions, verify `item_id` in trace data matches the target's `unique_id`. see `skills/ha-nova/SKILL.md` → Claim-Evidence Binding.
+7. Before presenting conclusions, verify `item_id` in trace data matches the target's `unique_id`. see `../ha-nova/SKILL.md` → Claim-Evidence Binding.
 
 ## Latency Policy
 

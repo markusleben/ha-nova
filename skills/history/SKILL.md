@@ -51,18 +51,18 @@ Canonical paths:
 - `recorder/statistics_during_period`
 
 Prefer `minimal_response` and `no_attributes` on large history queries when the task only needs state transitions.
-Envelope parsing follows `skills/ha-nova/relay-api.md` → Standard Envelope; relay-core response shape here stays under `.data.body`.
+Envelope parsing follows `../ha-nova/relay-api.md` → Standard Envelope; relay-core response shape here stays under `.data.body`.
 - history series: `.data.body[0]`
 - logbook entries: `.data.body`
 - do not probe `.[0]` or `.[0][0]` against the relay envelope
 Recorder statistics response stays under WS `.data`.
 
 Statistics semantics (`recorder/statistics_during_period`) — check which keys the response actually carries before summarizing:
-- Measurement stats (temperature, humidity) carry `mean`/`min`/`max`. Metered `total_increasing` stats (energy, water, gas) are consumption: request `change` in the `types` list and SUM the per-bucket `change` values over the window (the pattern `skills/energy/energy-reference.md` uses) — never an average, and never `last sum − first sum`, which drops the first bucket's consumption and reads 0 for a single bucket.
+- Measurement stats (temperature, humidity) carry `mean`/`min`/`max`. Metered `total_increasing` stats (energy, water, gas) are consumption: request `change` in the `types` list and SUM the per-bucket `change` values over the window (the pattern `../energy/energy-reference.md` uses) — never an average, and never `last sum − first sum`, which drops the first bucket's consumption and reads 0 for a single bucket.
 - Long-term statistics carry their own unit, which can differ from the entity's current unit after a unit change (the exact trap `ha-nova:maintenance` repairs) — report the unit from the statistics metadata, and flag a mismatch instead of mixing units.
 - `statistic_id` is not always an `entity_id`: external statistics use `domain:object_id` (colon) and have no entity — resolve via `recorder/list_statistic_ids` when unsure.
 - Daily/monthly buckets follow the HA server's local timezone including DST shifts — a "day" is not a fixed 24 h; name the bucket timezone when precision matters.
-- The queried window is what was REQUESTED, not what was observed: report the actual first-to-last sample span and material gaps alongside the requested window, and never phrase a result as covering "the last N days" when the evidence spans less (`skills/ha-nova/write-safety.md` → Time-Window Evidence — applies to raw history summaries too). For `recorder/statistics_during_period` the response carries aggregated period BUCKETS, not sample timestamps: report the first-to-last bucket span and NAME it as bucket coverage — sample density claims come only from raw state history, never from LTS buckets.
+- The queried window is what was REQUESTED, not what was observed: report the actual first-to-last sample span and material gaps alongside the requested window, and never phrase a result as covering "the last N days" when the evidence spans less (`../ha-nova/write-safety.md` → Time-Window Evidence — applies to raw history summaries too). For `recorder/statistics_during_period` the response carries aggregated period BUCKETS, not sample timestamps: report the first-to-last bucket span and NAME it as bucket coverage — sample density claims come only from raw state history, never from LTS buckets.
 
 ## Flow
 
@@ -89,7 +89,7 @@ Statistics semantics (`recorder/statistics_during_period`) — check which keys 
 
 ## Output Format
 
-Apply `skills/ha-nova/output-rules.md` to all user-facing output.
+Apply `../ha-nova/output-rules.md` to all user-facing output.
 
 - `Target`
 - `Window`

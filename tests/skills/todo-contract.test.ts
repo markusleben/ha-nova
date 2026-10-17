@@ -77,7 +77,7 @@ describe("todo contract", () => {
 
   it("teaches file-based relay payloads and localized output slots", () => {
     expect(todoSkill).toMatch(/--(data-file|body-file|out)\b/);
-    expect(todoSkill).toContain("skills/ha-nova/output-rules.md");
+    expect(todoSkill).toContain("../ha-nova/output-rules.md");
     expect(todoSkill).toContain("Use stable localized slot labels in this order; omit empty slots.");
     expect(todoSkill).toContain("never raw JSON");
   });
