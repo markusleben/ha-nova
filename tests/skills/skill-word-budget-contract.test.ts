@@ -510,6 +510,7 @@ const FOLDED_INTO_BUDGET: Record<string, string[]> = {
 // file cannot silently reset a word budget.
 const STANDALONE_MARKDOWN = new Set([
   "skills/energy/energy-reference.md",
+  "skills/esphome/esphome-checks.md",
   "skills/ha-nova/automation-patterns.md",
   "skills/ha-nova/batch-safety.md",
   "skills/ha-nova/best-practices.md",

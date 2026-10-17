@@ -16,7 +16,7 @@ Configuration that has NO Home Assistant API and only exists as a YAML file:
 - frontend themes
 - `recorder:` configuration blocks (include/exclude filters, `purge_keep_days`) — recorder is not reloadable, a restart applies it
 
-Not in scope: anything with an API — config-entry template helpers (`ha-nova:helper`), automations and scripts (`ha-nova:write`), dashboards (`ha-nova:dashboard`), scenes (`ha-nova:scene`). If a helper can express it, use the helper: it is safer, reloadable, and editable in the UI.
+Not in scope: anything with an API — config-entry template helpers (`ha-nova:helper`), automations and scripts (`ha-nova:write`), dashboards (`ha-nova:dashboard`), scenes (`ha-nova:scene`), ESPHome device files (`ha-nova:esphome`). If a helper can express it, use the helper: it is safer, reloadable, and editable in the UI.
 
 ## Bootstrap (once per session)
 
