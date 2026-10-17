@@ -266,16 +266,20 @@ func TestRelayReadFailureSaysNothingChanged(t *testing.T) {
 
 func TestRawRelayReadClassifiesOnlyReads(t *testing.T) {
 	for body, want := range map[string]bool{
-		`{"method":"get","path":"/api/states"}`:                                true,
-		`{"method":"POST","path":"/api/template"}`:                             false,
-		`{"path":"/api/states"}`:                                               false,
-		`{"type":"get_states"}`:                                                true,
-		`{"type":"input_boolean/create","name":"x"}`:                           false,
-		`{"type":"nope"}`:                                                      false,
-		`{"message":{"type":"subscribe_events","event_type":"state_changed"}}`: true,
-		`{"message":{"type":"input_boolean/delete"}}`:                          false,
-		`{"type":"get_states","message":{"type":"input_boolean/delete"}}`:      false,
-		`{"type":"input_boolean/delete","message":{"type":"get_states"}}`:      false,
+		`{"method":"GET","path":"/api/config/config_entries/flow/abc"}`:           false,
+		`{"method":"GET","path":"/api/states/../config/config_entries/flow/abc"}`: false,
+		`{"method":"GET","path":"/api/%73tates"}`:                                 false,
+		`{"method":"get","path":"/api/states?x=1"}`:                               true,
+		`{"method":"get","path":"/api/states"}`:                                   true,
+		`{"method":"POST","path":"/api/template"}`:                                false,
+		`{"path":"/api/states"}`:                                                  false,
+		`{"type":"get_states"}`:                                                   true,
+		`{"type":"input_boolean/create","name":"x"}`:                              false,
+		`{"type":"nope"}`:                                                         false,
+		`{"message":{"type":"subscribe_events","event_type":"state_changed"}}`:    true,
+		`{"message":{"type":"input_boolean/delete"}}`:                             false,
+		`{"type":"get_states","message":{"type":"input_boolean/delete"}}`:         false,
+		`{"type":"input_boolean/delete","message":{"type":"get_states"}}`:         false,
 		`not json`: false,
 	} {
 		endpoint := "ws"

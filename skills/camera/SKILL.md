@@ -60,8 +60,8 @@ Render the Report shape (output-cards.md). For a snapshot, describe what is visi
 ## Safety
 
 - Preview before write. The only exception is a call that `ha-nova call` itself executed as `tier: ordinary`; everything else waits for the user's confirmation of the shown preview. High-consequence actions (e.g. unlocking or opening a lock, opening a gate, garage, or entry door, disarming the alarm — also through a scene or script) and deletes or other destructive operations need the user's one-time code from HA NOVA, or their window click or phone tap; "yes" or any other reply is invalid.
-- Confirmation binds to the displayed preview; any change to target, payload, endpoint, or scope voids it (context skill → Active Preview Confirmation).
-- Relay a plan's `say` in full, localized; never drop or shorten sentences.
+- Confirmation binds to the displayed preview; any target, payload, endpoint, or scope change voids it (context skill → Active Preview Confirmation).
+- Relay a plan's `say` localized: every reason, code ask, and note in full.
 - Anything before the preview ("do it", answers to questions) never confirms it; only a reply to the preview does.
 - Never guess entity, service, or config IDs — resolve them or ask.
 - Home Assistant is reached exclusively through the `ha-nova` CLI.

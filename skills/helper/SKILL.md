@@ -298,7 +298,7 @@ If multiple matches remain, present max 5 candidates and ask one blocking questi
 8. Iterate the flow until terminal success:
    - if the current response is a menu step, submit only the selected `next_step_id`
    - if that menu step leads to an unobserved `group` or `template` subtype form, stop and preview the live subtype fields before the terminal submit
-   - after that live subtype preview, ask for a second natural confirmation before sending the terminal subtype-specific payload
+   - after that live subtype preview, end the turn for a second natural confirmation before sending the terminal subtype-specific payload
    - if the current response is a form step, compare its live `data_schema` against the confirmed draft BEFORE submitting: identical fields → the confirmation carries and the submit contains those fields only — but ONLY for steps the confirmed preview actually displayed live; a LATER form the preview never showed (multi-step `statistics`/`history_stats`) re-previews from its live schema and re-confirms even when it matches the observed draft. ANY divergence (fields, defaults, enum options, extra or reordered steps) → stop, re-preview from the live form, and re-confirm — a live form never silently narrows or widens the confirmed payload (`../ha-nova/live-schema-preflight.md`)
    - the submit body for a form step must contain form fields only
    - if a required field is still unresolved and there is no safe value, stop and ask one blocking question
@@ -487,8 +487,8 @@ Never show raw JSON to the user.
 ## Safety
 
 - Preview before write. The only exception is a call that `ha-nova call` itself executed as `tier: ordinary`; everything else waits for the user's confirmation of the shown preview. High-consequence actions (e.g. unlocking or opening a lock, opening a gate, garage, or entry door, disarming the alarm — also through a scene or script) and deletes or other destructive operations need the user's one-time code from HA NOVA, or their window click or phone tap; "yes" or any other reply is invalid.
-- Confirmation binds to the displayed preview; any change to target, payload, endpoint, or scope voids it (context skill → Active Preview Confirmation).
-- Relay a plan's `say` in full, localized; never drop or shorten sentences.
+- Confirmation binds to the displayed preview; any target, payload, endpoint, or scope change voids it (context skill → Active Preview Confirmation).
+- Relay a plan's `say` localized: every reason, code ask, and note in full.
 - Anything before the preview ("do it", answers to questions) never confirms it; only a reply to the preview does.
 - Never guess entity, service, or config IDs — resolve them or ask.
 - Home Assistant is reached exclusively through the `ha-nova` CLI.

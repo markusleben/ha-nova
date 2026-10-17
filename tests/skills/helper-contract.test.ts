@@ -243,7 +243,7 @@ describe("helper contract", () => {
       expect(skillDoc).toContain("for unobserved `group` or `template` subtypes, say that the final subtype form will be previewed after the menu step returns live fields");
       expect(skillDoc).toContain("this first confirmation authorizes only the non-persisting menu-step submit");
       expect(skillDoc).toContain("if that menu step leads to an unobserved `group` or `template` subtype form, stop and preview the live subtype fields before the terminal submit");
-      expect(skillDoc).toContain("ask for a second natural confirmation before sending the terminal subtype-specific payload");
+      expect(skillDoc).toContain("end the turn for a second natural confirmation before sending the terminal subtype-specific payload");
       expect(skillDoc).toContain("carry forward unchanged required fields");
       expect(skillDoc).toContain("fail loud as unsupported update for that field on this HA version");
       expect(skillDoc).toContain("do not silently ignore non-exposed requested fields");

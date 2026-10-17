@@ -291,8 +291,20 @@ func rawRelayRead(endpoint string, body []byte) bool {
 	}
 	switch endpoint {
 	case "core":
+		// A GET on a write route (a config flow step) can advance the flow.
 		method, _ := payload["method"].(string)
-		return strings.ToUpper(strings.TrimSpace(method)) == http.MethodGet
+		raw, _ := payload["path"].(string)
+		pathPart, _, _ := strings.Cut(raw, "#")
+		pathPart, _, _ = strings.Cut(pathPart, "?")
+		if strings.ToUpper(strings.TrimSpace(method)) != http.MethodGet || strings.ContainsAny(pathPart, "%\\") || path.Clean(pathPart) != pathPart {
+			return false
+		}
+		for _, write := range rawCoreWrites {
+			if write.path.MatchString(pathPart) {
+				return false
+			}
+		}
+		return true
 	case "ws":
 		message, hasMessage := payload["message"].(map[string]any)
 		if hasMessage && !isRead(message) {

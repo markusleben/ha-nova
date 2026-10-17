@@ -78,7 +78,7 @@ Write `<filter-file>` with:
    - prefer individual lights over light groups — group snapshots are a known HA reproduce-state trouble spot
    - switch/lock/input_boolean: `state` only
    - other domains: `state` plus the attributes scene reproduction actually reads. A scene stores STATE attributes, not service parameters, and the two differ per domain: a cover stores `current_position` / `current_tilt_position` (storing `position` loses a partial target — the cover then just opens fully), while a setpoint domain stores the setpoint itself — climate `hvac_mode` plus whichever setpoint the state actually carries — `temperature` on a single-setpoint thermostat, `target_temp_low` AND `target_temp_high` on one in a range mode; capture both when both are present, or activating the scene restores the mode without either boundary. Climate reproduction also restores `preset_mode`, `fan_mode`, `swing_mode`, `swing_horizontal_mode` and `humidity`, each through its own service — capture every one the state actually carries, or the scene silently leaves the AC on yesterday's Boost preset while the temperature looks right. Humidifier `humidity`/`mode`, fan `percentage`/`preset_mode` plus `oscillating` and `direction` when present — and never its `current_*` sensor twin (`current_temperature`, `current_humidity`); never copy measurement or diagnostic attributes
-4. Preview name + full entities map; natural confirmation bound to this exact preview (see context skill → Active Preview Confirmation). Creates may join a grouped change set (max 10) per `../ha-nova/grouped-change-set.md` — previews stay, one final confirmation.
+4. Preview name + full entities map and end the turn with it (see context skill → Active Preview Confirmation). Creates may join a grouped change set (max 10) per `../ha-nova/grouped-change-set.md` — previews stay, one final confirmation.
 5. `ha-nova relay core --method POST --path /api/config/scene/config/<id> --body-file <payload-file>`
 6. Read back via GET and verify the fields; the config API reloads scenes automatically. Resolve the new entity_id from the registry by matching `unique_id` to the config id (the entity_id derives from `name`, not the id; never guess the slug — the registry can lag the write by a moment, retry once), then confirm it via `/api/states/<entity_id>`.
 
@@ -89,7 +89,7 @@ Persistence routing per `../ha-nova/best-practices.md` → Persistence Model: a 
 ### Update
 1. Read the current config (Read flow).
 2. Merge the requested change in memory — the POST replaces the ENTIRE scene config; never send a partial body and never drop entities the user did not mention.
-3. When the update adds or changes a member that assigns a threshold-backing `input_number` consumed by a physical-process `numeric_state`, run the calibration preflight per `../ha-nova/threshold-calibration.md` first. Preview a concise before/after excerpt plus a plain-language line on what changes behaviorally (write-safety → Behavior narrative) — never entity counts alone; natural confirmation bound to this exact preview. Non-destructive storage-scene worksets (max 10) may confirm as one grouped change set per `../ha-nova/grouped-change-set.md`.
+3. When the update adds or changes a member that assigns a threshold-backing `input_number` consumed by a physical-process `numeric_state`, run the calibration preflight per `../ha-nova/threshold-calibration.md` first. Preview a concise before/after excerpt plus a plain-language line on what changes behaviorally (write-safety → Behavior narrative) — never entity counts alone; end the turn with it. Non-destructive storage-scene worksets (max 10) may confirm as one grouped change set per `../ha-nova/grouped-change-set.md`.
 4. If the conversation paused between read and confirmation, re-read and re-verify the merge basis before writing; if the live scene differs from the previewed basis, STOP — confirmation expired; show the updated merge and ask again (never silently overwrite an external edit). Apply the orphaned-member flag from Read step 3. When the confirmed update REMOVES scene members, capture the auto config snapshot first (`../ha-nova/config-snapshots.md`; on capture failure follow its capture-failure stop).
 5. POST the full merged body, then read back and verify both the intended change and the survival of unrelated entities.
 
@@ -126,8 +126,8 @@ Use stable localized slot labels in this order; omit empty slots. Reads render t
 ## Safety
 
 - Preview before write. The only exception is a call that `ha-nova call` itself executed as `tier: ordinary`; everything else waits for the user's confirmation of the shown preview. High-consequence actions (e.g. unlocking or opening a lock, opening a gate, garage, or entry door, disarming the alarm — also through a scene or script) and deletes or other destructive operations need the user's one-time code from HA NOVA, or their window click or phone tap; "yes" or any other reply is invalid.
-- Confirmation binds to the displayed preview; any change to target, payload, endpoint, or scope voids it (context skill → Active Preview Confirmation).
-- Relay a plan's `say` in full, localized; never drop or shorten sentences.
+- Confirmation binds to the displayed preview; any target, payload, endpoint, or scope change voids it (context skill → Active Preview Confirmation).
+- Relay a plan's `say` localized: every reason, code ask, and note in full.
 - Anything before the preview ("do it", answers to questions) never confirms it; only a reply to the preview does.
 - Never guess entity, service, or config IDs — resolve them or ask.
 - Home Assistant is reached exclusively through the `ha-nova` CLI.
