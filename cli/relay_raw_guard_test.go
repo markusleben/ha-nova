@@ -1,8 +1,10 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/fs"
 	"net/http"
 	"net/http/httptest"
@@ -348,6 +350,10 @@ func TestSkillWSTypesAreAllowlisted(t *testing.T) {
 // acts as that phone: raw reads never show it, not even through --jq.
 func TestRawRelayHidesPhoneWebhookIDs(t *testing.T) {
 	f := newFakeHA()
+	tapTrace := map[string]any{"trace": map[string]any{"changed_variables": map[string]any{"trigger": map[string]any{"platform": "event", "event": map[string]any{
+		"event_type": "mobile_app_notification_action", "origin": "REMOTE",
+		"data": map[string]any{"action": "HANOVA_OK_0123", "webhook_id": "deadbeefwebhook"}}}}},
+		"automation_webhook": map[string]any{"platform": "webhook", "webhook_id": "my-automation-hook"}}
 	f.extra = func(_ string, p map[string]any) (any, bool) {
 		if p["type"] == "config/entity_registry/list" {
 			return []map[string]any{
@@ -366,5 +372,19 @@ func TestRawRelayHidesPhoneWebhookIDs(t *testing.T) {
 		if exit != 0 || strings.Contains(out, "deadbeefwebhook") || !strings.Contains(out, "hue-1") || !strings.Contains(out, "hidden") {
 			t.Fatalf("args %v: exit %d out %q", args, exit, out)
 		}
+	}
+	// A tap's automation trace keeps the event: raw trace/get and the trace
+	// verb's reader hide its webhook id and the confirmation id, not an
+	// automation's own webhook trigger.
+	body, _ := json.Marshal(map[string]any{"ok": true, "data": tapTrace})
+	if raw := string(redactPhoneSecrets(body, true)); strings.Contains(raw, "deadbeefwebhook") || strings.Contains(raw, "HANOVA_") || !strings.Contains(raw, "my-automation-hook") {
+		t.Fatalf("raw trace: %s", raw) // the raw route's filter (relay.go)
+	}
+	if verb := string(redactPhoneSecrets(body, false)); strings.Contains(verb, "deadbeefwebhook") || !strings.Contains(verb, "HANOVA_OK_0123") {
+		t.Fatalf("session reads keep action ids for the phone listener: %s", verb)
+	}
+	read, err := readRelayWSJSONResponse(&http.Response{StatusCode: 200, Body: io.NopCloser(bytes.NewReader(body))}, maxRelayResponseBytes)
+	if err != nil || strings.Contains(string(read), "deadbeefwebhook") || strings.Contains(string(read), "HANOVA_") || !strings.Contains(string(read), "my-automation-hook") {
+		t.Fatalf("trace verb: %v %s", err, read)
 	}
 }

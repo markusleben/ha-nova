@@ -256,6 +256,7 @@ func readRelayWSJSONResponse(
 			err,
 		)
 	}
+	body = redactPhoneSecrets(body, true) // a tap's trace keeps the event, webhook id included
 	var envelope struct {
 		OK    *bool `json:"ok"`
 		Error struct {

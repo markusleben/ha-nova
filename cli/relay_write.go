@@ -166,6 +166,7 @@ func (s *relaySession) write(endpoint string, payload map[string]any) (json.RawM
 	if err != nil {
 		return nil, relayPostRequestOutcomeUnknownError("reading the Relay response", err)
 	}
+	raw = redactPhoneSecrets(raw, true)
 	var envelope struct {
 		OK    *bool           `json:"ok"`
 		Data  json.RawMessage `json:"data"`
