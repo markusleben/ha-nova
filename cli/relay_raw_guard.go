@@ -171,12 +171,19 @@ func checkRawWS(message map[string]any) error {
 	}
 	switch wsType {
 	case "subscribe_events":
-		if eventType, _ := message["event_type"].(string); eventType == "" || eventType == "*" || strings.EqualFold(eventType, "call_service") {
+		eventType, _ := message["event_type"].(string)
+		if eventType == "" || eventType == "*" || strings.EqualFold(eventType, "call_service") {
 			return rawRefusal("subscription to every event or to call_service", "subscribe to the one event type you need")
 		}
+		if phoneEventName(eventType) {
+			return rawRefusal("subscription to phone notification events (they can carry a phone confirmation's IDs)", rawNextUI)
+		}
 	case "subscribe_trigger":
-		if trigger, _ := json.Marshal(message["trigger"]); strings.Contains(strings.ToLower(string(trigger)), "call_service") {
-			return rawRefusal("trigger subscription on call_service", "watch the entity or event you need instead")
+		trigger, _ := json.Marshal(message["trigger"])
+		text := strings.ToLower(string(trigger))
+		// A template can name any event type, so no template in a raw trigger.
+		if strings.Contains(text, "call_service") || phoneEventName(text) || strings.Contains(text, "{{") || strings.Contains(text, "{%") {
+			return rawRefusal("trigger subscription on call_service, phone notification events, or a template", "watch the entity or event you need instead")
 		}
 	case "lovelace/config":
 		if message["force"] == true { // re-reads a YAML dashboard from disk, like a reload
@@ -213,6 +220,62 @@ func checkRawWS(message map[string]any) error {
 		// A button rename is checked against the registry (relay_raw_targets.go).
 	}
 	return nil
+}
+
+// phoneEventName: the Companion app's notification events. Android echoes
+// every action ID and the phone's webhook ID in them, so a raw listener could
+// learn a phone confirmation's IDs (confirm_phone.go).
+func phoneEventName(text string) bool {
+	text = strings.ToLower(text)
+	return strings.Contains(text, "mobile_app_notification") || strings.Contains(text, "ios.notification")
+}
+
+// watchesConfirmation: a config with an event trigger (or wait_for_trigger)
+// on call_service, on a phone notification event other than the tap itself,
+// or on a templated event type. Such an automation could copy a phone
+// confirmation's buttons into a notification with its own text, and the
+// owner's genuine tap would confirm what they never read; writing one is
+// typed. A listener on the tap itself (mobile_app_notification_action) sees
+// the ids only after the decision, when they are dead.
+func watchesConfirmation(v any) bool {
+	switch t := v.(type) {
+	case map[string]any:
+		if t["platform"] == "event" || t["trigger"] == "event" {
+			var types []string
+			switch et := t["event_type"].(type) {
+			case string:
+				types = []string{et}
+			case []any:
+				for _, x := range et {
+					text, ok := x.(string)
+					if !ok {
+						return true
+					}
+					types = append(types, text)
+				}
+			default:
+				return true // missing or unreadable: assume the worst
+			}
+			for _, et := range types {
+				et = strings.ToLower(strings.TrimSpace(et))
+				if strings.Contains(et, "call_service") || strings.ContainsAny(et, "{}%") || phoneEventName(et) && et != phoneEventType && et != "ios.notification_action_fired" {
+					return true
+				}
+			}
+		}
+		for _, x := range t {
+			if watchesConfirmation(x) {
+				return true
+			}
+		}
+	case []any:
+		for _, x := range t {
+			if watchesConfirmation(x) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // rawRelayRead: the request only reads (a core GET, or WS types listed as

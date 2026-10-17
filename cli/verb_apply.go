@@ -34,7 +34,9 @@ typed plan needs --confirm with the four-digit one-time code the user typed
 (spaces ignored; three wrong codes discard the plan; that counter guards
 against slips, not tampering). A typed plan with "channel": "window" takes
 no code: apply opens a confirmation window on this computer and waits for
-the user (up to 90 s); if it can't open, apply returns a new plan with a code.
+the user (up to 90 s); if it can't open, apply returns a new plan. One with
+"channel": "phone" sends Confirm/Cancel to the Home Assistant owner's phone
+(Companion app) and waits the same way.
 Config plans (plan write/delete/revert) save the config once, reload, and
 verify the read-back; an update lands on the undo stack, and a delete (and
 every dashboard save) takes a config snapshot first (--no-snapshot only
@@ -80,6 +82,9 @@ func runApplyCommand(paths runtimePaths, args []string) int {
 		return verbUsageError("apply", err)
 	}
 	env, exit, asked := confirmByWindow(paths, opts, *id, *noSnapshot)
+	if !asked {
+		env, exit, asked = confirmByPhone(paths, opts, *id, *noSnapshot)
+	}
 	if !asked {
 		env, exit = applyPlan(paths, opts, *id, *code, *noSnapshot)
 	}
@@ -183,7 +188,7 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string, noSnapshot
 	// The file is untrusted beyond its hash: kind, version, and the stored
 	// request are re-validated exactly as a fresh plan would be.
 	valid := err == nil && timeErr == nil && plan.ID == id && plan.SchemaVersion >= 1 &&
-		(plan.Channel == channelChat || plan.Channel == channelForm || plan.Channel == channelWindow || plan.SchemaVersion < planSchemaVersion)
+		(plan.Channel == channelChat || plan.Channel == channelForm || humanChannel(plan.Channel) || plan.SchemaVersion < planSchemaVersion)
 	isCall := valid && plan.Kind == "call" && config == nil && request.validate() == nil
 	isConfig := valid && config != nil && config.Op == plan.Kind && config.ConfigID != "" && config.validate() == nil
 	switch {
@@ -222,7 +227,13 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string, noSnapshot
 		return fail(refused("CONFIRM_IN_FORM", "plan "+id+" is confirmed in the confirmation form of the app it was planned in, not with a typed code"))
 	}
 
-	// Recompute the whole plan from the stored request (I3).
+	// Recompute the whole plan from the stored request (I3). A typed plan
+	// keeps its sealed channel: re-detecting (a phone lookup) could refuse a
+	// plan the human just confirmed.
+	if plan.Tier == tierTyped.String() {
+		defer func(saved string) { planChannel = saved }(planChannel)
+		planChannel = plan.Channel
+	}
 	var e *tierEngine
 	var fresh storedPlan
 	var ctx configContext
@@ -281,9 +292,13 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string, noSnapshot
 	}
 	if fresh.Tier == tierTyped.String() {
 		wantCode = confirmCode(s.transport.Credential, idHex, plan.Channel, plan.ExpiresAt)
-		if plan.Channel == channelWindow && humanAnswer == "" { // its code was never shown: no attempt is used
+		if humanChannel(plan.Channel) && humanAnswer == "" { // its code was never shown: no attempt is used
 			if os.Rename(claimed, open) == nil {
 				consumed = false
+			}
+			if plan.Channel == channelPhone {
+				return fail(refusedWith("CONFIRM_ON_PHONE", "plan "+id+" is confirmed on the Home Assistant owner's phone, not with a typed code",
+					"Run ha-nova apply --plan "+id+" again without --confirm: it sends the confirmation to their phone. Never ask the user for a code."))
 			}
 			return fail(refusedWith("CONFIRM_IN_WINDOW", "plan "+id+" is confirmed in a window on this computer, not with a typed code",
 				"Run ha-nova apply --plan "+id+" again without --confirm: it opens the confirmation window on this computer. Never ask the user for a code."))
@@ -307,7 +322,7 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string, noSnapshot
 			return fail(refused("CODE_MISMATCH", fmt.Sprintf("the one-time code does not match (%d of 3 attempts used)", plan.Mismatches)))
 		}
 	}
-	if plan.Channel == channelWindow {
+	if humanChannel(plan.Channel) {
 		wantCode = "" // never shown, not even once used
 	}
 	env.Plan = &verbPlan{ID: plan.ID, Hash: fresh.Hash, ExpiresAt: plan.ExpiresAt, Confirm: fresh.Confirm, Code: wantCode}

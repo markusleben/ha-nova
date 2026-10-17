@@ -71,11 +71,22 @@ the number.
   form stays where no window can open. Your AI assistant never sees a code. It still can click the window
   if you allow it to control your screen (computer use, or apps you granted
   Accessibility), and on Windows and some Linux desktops other programs can
-  too. Over
-  SSH, without a desktop, or where the window can't open (some AI sandboxes),
-  HA NOVA shows the one-time code in chat as before and says that the
-  assistant can see it too. To turn the window off: `ha-nova setup
+  too. To turn the window off: `ha-nova setup
   confirm-window off` (you confirm that in the window).
+- **Or confirm on your phone:** over SSH, without a desktop, or where the
+  window can't open, HA NOVA sends Confirm and Cancel to the Home Assistant
+  owner's phone (Companion app): hold or expand the notification and press
+  Confirm (the phone asks for Face ID, fingerprint, or passcode). Only the
+  owner's own app counts. Not with a standalone NOVA Relay that runs on the
+  owner's own token. Without a phone, HA NOVA shows the one-time code in chat
+  as before and says that the assistant can see it too.
+
+### What To Watch (phone confirmation)
+
+- Once HA NOVA has found your phone, an unlock or delete is refused (nothing
+  changes) when it can't reach that phone, instead of falling back to a code
+  in chat. To stop using the phone: `ha-nova setup confirm-phone off`
+  (confirmed on the phone).
 
 - `ha-nova uninstall` no longer guides removal of the NOVA Relay App by
   default. It first asks whether this is the last computer using HA NOVA,

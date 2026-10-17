@@ -86,7 +86,8 @@ func setupFakeRelay(t *testing.T, reply func(r *http.Request, endpoint string, p
 			t.Errorf("decode payload: %v", err)
 		}
 		// Invariant I1 oracle: every verb test fails on a non-read request.
-		if err := checkReadOnlyRequest(endpoint, payload); err != nil && !(allowServiceWrites && checkWriteRequest(endpoint, payload) == nil) {
+		// Typed plans also look for the owner's phone (its own fixed allowlist).
+		if err := checkReadOnlyRequest(endpoint, payload); err != nil && !(allowServiceWrites && checkWriteRequest(endpoint, payload) == nil) && checkPhoneRead(endpoint, payload) != nil {
 			t.Errorf("read verb sent a non-read request: %v", err)
 		}
 		log.mu.Lock()

@@ -70,7 +70,7 @@ describe("hacs lifecycle skill (#478)", () => {
 
   it("carries the canonical mutation Safety Core and file-based relay usage", () => {
     expect(skill).toContain(
-      "- Preview before write. The only exception is a call that `ha-nova call` itself executed as `tier: ordinary`; everything else waits for the user's confirmation of the shown preview. High-consequence actions (e.g. unlocking or opening a lock, opening a gate, garage, or entry door, disarming the alarm — also through a scene or script) and deletes or other destructive operations need the user's one-time code from HA NOVA, or their click in its confirmation window; \"yes\" or any other reply is invalid.",
+      "- Preview before write. The only exception is a call that `ha-nova call` itself executed as `tier: ordinary`; everything else waits for the user's confirmation of the shown preview. High-consequence actions (e.g. unlocking or opening a lock, opening a gate, garage, or entry door, disarming the alarm — also through a scene or script) and deletes or other destructive operations need the user's one-time code from HA NOVA, or their window click or phone tap; \"yes\" or any other reply is invalid.",
     );
     expect(skill).toContain(
       "Home Assistant is reached exclusively through the `ha-nova` CLI.",

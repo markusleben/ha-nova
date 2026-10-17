@@ -25,6 +25,8 @@ func confirmationSay(e *tierEngine, env *verbEnvelope, plan storedPlan, subject 
 	switch {
 	case plan.Confirm == "code" && plan.Channel == channelWindow:
 		parts = append(parts, sayWindowAsk)
+	case plan.Confirm == "code" && plan.Channel == channelPhone:
+		parts = append(parts, sayPhoneAsk)
 	case plan.Confirm == "code":
 		parts = append(parts, sayTypedAsk(plan.code, lowerFirst(sayGoal(e, env, plan, subject))))
 		if plan.Channel == channelChat {
@@ -130,7 +132,7 @@ func sayReasons(e *tierEngine, env *verbEnvelope, plan storedPlan) []string {
 		if len(typed) > 0 {
 			first, typed = typed[0], typed[1:]
 		}
-		needs := map[bool]string{false: "a four-digit one-time code from HA NOVA", true: "your confirmation"}[plan.Channel == channelWindow]
+		needs := map[bool]string{false: "a four-digit one-time code from HA NOVA", true: "your confirmation"}[humanChannel(plan.Channel)]
 		parts = append(parts, first+", so it needs "+needs+".")
 	}
 	// Every code-tier clause is shown (up to 8); the milder ones fill up to
@@ -227,6 +229,8 @@ func sayReason(e *tierEngine, env *verbEnvelope, plan storedPlan, r tierReason) 
 	case reasonTemplatedAction, reasonUnresolvedTarget, reasonStoredSelector, reasonBlueprint, reasonYAMLNoID,
 		reasonUnreadConfig, reasonListener, reasonScanFailed, reasonLimitCut:
 		return "HA NOVA can't check everything this would set off", true
+	case reasonConfirmWatch:
+		return "It watches service calls or phone notifications, so it could see another confirmation's buttons", true
 	case reasonSceneAccess:
 		return "HA NOVA can't read the scene " + name + ", and its integration also controls locks, alarms, gates, or doors", true
 	case reasonReload:

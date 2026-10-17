@@ -71,7 +71,8 @@ func formsStep(envelope map[string]any, step string) string {
 	case errInfo["code"] == "CODE_REQUIRED": // a typed plan without form text (made by an older HA NOVA)
 		return "This plan can't be confirmed in a form here; plan it again, show the new preview, and confirm again."
 	case errInfo["code"] == "SNAPSHOT_FAILED":
-		return step + fmt.Sprintf(" To delete without a copy (only if the user chooses that), call ha_apply with plan_id %v, no_snapshot true, and no confirm_code: their app asks them for the one-time code again in a form.", plan["id"])
+		again := map[bool]string{true: "their app asks them for the one-time code again in a form", false: "the confirmation window or their phone asks them again"}[plan["channel"] == channelForm]
+		return step + fmt.Sprintf(" To delete without a copy (only if the user chooses that), call ha_apply with plan_id %v, no_snapshot true, and no confirm_code: %s.", plan["id"], again)
 	}
 	return step
 }
@@ -176,8 +177,8 @@ func (srv *mcpServer) formPlan(args map[string]json.RawMessage) (storedPlan, boo
 	}
 	plan, err := readPlanFile(filepath.Join(planDir(srv.paths), id+".json"))
 	expires, timeErr := time.Parse(time.RFC3339, plan.ExpiresAt)
-	// A window plan is confirmed only in its window (confirm_window.go), never in a form.
-	ok := err == nil && timeErr == nil && plan.ID == id && plan.Tier == tierTyped.String() && plan.Prompt != "" && plan.SchemaVersion == planSchemaVersion && plan.Channel != channelWindow &&
+	// A window or phone plan is confirmed only there (confirm_window.go, confirm_phone.go), never in a form.
+	ok := err == nil && timeErr == nil && plan.ID == id && plan.Tier == tierTyped.String() && plan.Prompt != "" && plan.SchemaVersion == planSchemaVersion && !humanChannel(plan.Channel) &&
 		verbNow().Before(expires) && (srv.pin == "" || srv.pin == plan.Server) &&
 		(!noSnapshot || plan.Kind == "delete" && plan.SnapshotFailed)
 	return plan, noSnapshot, ok
