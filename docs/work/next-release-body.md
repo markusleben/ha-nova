@@ -50,6 +50,13 @@ the number.
   does, maps each device to a real Home Assistant entity (or asks), and names
   anything it cannot translate. The old rule stays disabled, not deleted,
   until the new one has been checked against that list.
+- **ESPHome device configs:** ask what a device in `/config/esphome/` does,
+  or to check it, and HA NOVA explains it in plain words and flags keys that
+  newer ESPHome releases removed, pins that cannot do what the file asks, and
+  passwords written into the file. With file access turned on, edits show the
+  changed part first and save a copy. Passwords and keys are never shown. Installing on the device stays
+  in the ESPHome App; afterwards HA NOVA checks that the device's entities
+  came back.
 
 ## What To Watch
 

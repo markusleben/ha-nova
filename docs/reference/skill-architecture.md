@@ -2,7 +2,7 @@
 
 ## Overview
 
-HA NOVA uses a flat skill layout with one context skill and 33 independent sub-skills under `skills/`.
+HA NOVA uses a flat skill layout with one context skill and 34 independent sub-skills under `skills/`.
 
 The repo skill tree is the single source of truth. Client installers adapt that same tree to each client's packaging rules:
 - Claude: plugin marketplace payload
@@ -70,6 +70,8 @@ skills/
   assist/SKILL.md                       (ha-nova:assist — utterance testing, pipelines, voice exposure, engine inventory)
   admin/SKILL.md                        (ha-nova:admin — persons, zones, tags, user accounts)
   yaml-config/SKILL.md                  (ha-nova:yaml-config — YAML-only configuration through opt-in file access)
+  esphome/SKILL.md                      (ha-nova:esphome — explain, check, and edit ESPHome device YAML in /config/esphome/; compile and flash stay external)
+  esphome/esphome-checks.md             (reference doc — required blocks, removed keys, pin rules, device-breaking edits, each with its source)
   external-sources/SKILL.md             (ha-nova:external-sources — read-only queries against InfluxDB and friends)
 ```
 
@@ -131,6 +133,7 @@ Current mapping:
 | assist | inline | read/test flows plus full-object pipeline writes |
 | admin | inline | registry-style writes with impact advisory and hard user guards |
 | yaml-config | inline | read -> File-Change Preview -> write -> check_config -> reload -> verify |
+| esphome | inline + CLI | read -> check -> File-Change Preview -> snapshot + drift check -> write (no check_config/reload) -> external compile/flash -> `find`/`get --references` verify |
 | external-sources | inline | read-only, and the query does not go through the relay |
 
 
@@ -521,6 +524,20 @@ Rules: never invent a `media_content_id`; volume jumps and announcements are dis
 - whole-file replacement: never write a file that was not read first
 - when `file_access` is off (the default), the skill degrades to producing the exact YAML block plus the two commands to apply it — a fully supported path, not a failure
 - HA NOVA's own additions live in `/config/ha_nova/`, included once from `configuration.yaml`
+
+## ESPHome Architecture
+
+`ha-nova:esphome` reads, explains, checks, and edits ESPHome device YAML in
+`/config/esphome/` through the same opt-in `relay files` path. Expertise only:
+no verb, no relay change.
+- checks come from `skills/esphome/esphome-checks.md`, each with its
+  esphome.io or changelog source; anything else is not asserted from memory
+- edits reuse yaml-config's read-before-write, `yaml` snapshot, drift check,
+  and `.bak`; never Home Assistant's `check_config` or a reload
+- secrets: the relay refuses every `secrets.yaml`; inline credential values
+  are masked in every shown YAML and never written by the skill
+- compile, flash, and logs stay in the ESPHome Device Builder App or CLI; the
+  skill verifies the device's entities afterwards with `find`/`get --references`
 
 ## External Sources Architecture
 

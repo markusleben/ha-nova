@@ -29,16 +29,17 @@ citation alone does not require it.
 - `ha-nova:helper` — helpers, incl. a reusable timer entity
 - `ha-nova:scene` — scene configs (activation is service-call)
 - `ha-nova:organize` — areas, floors, labels, categories, metadata
-- `ha-nova:device` — replace a device or phone and re-point everything; onboard or retire a device
+- `ha-nova:device` — swap (re-point everything), onboard, or retire a device or phone
 - `ha-nova:home-map` — home inventory, where-used, whole-setup review
-- `ha-nova:migrate` — move rules from Node-RED, Homey, SmartThings, Hubitat, openHAB, legacy YAML
+- `ha-nova:migrate` — rules from Node-RED, Homey, SmartThings, Hubitat, openHAB, legacy YAML
 - `ha-nova:health` — repairs, unavailable entities, batteries
 - `ha-nova:diagnose` — why something failed: traces, logs, root cause
 - `ha-nova:integration-setup` — add integrations, reauthentication, options
 - `ha-nova:assist` — voice assistant tests, pipelines, exposure
 - `ha-nova:admin` — persons, zones, tags, user accounts
 - `ha-nova:yaml-config` — YAML-only configuration
-- `ha-nova:external-sources` — InfluxDB and other external history stores
+- `ha-nova:esphome` — ESPHome device configs
+- `ha-nova:external-sources` — InfluxDB and other external history
 - `ha-nova:maintenance` — statistics repair, recorder purge, registry cleanup
 - Named by their domain: `ha-nova:dashboard`, `ha-nova:history` (incl. logbook, statistics), `ha-nova:media`, `ha-nova:notify`, `ha-nova:camera`, `ha-nova:mqtt`, `ha-nova:calendar`, `ha-nova:todo`, `ha-nova:backup`, `ha-nova:updates`, `ha-nova:energy`, `ha-nova:hacs`
 - `ha-nova:onboarding` — Relay, pairing, or connectivity errors
