@@ -209,7 +209,7 @@ func TestRelayInputPreflightWinsBeforeMissingCredential(t *testing.T) {
 func TestRelayRuntimeJQFailureWarnsAgainstRetry(t *testing.T) {
 	paths, capture := setupStrictInputRelay(t)
 	payloadPath := filepath.Join(t.TempDir(), "payload.json")
-	if err := os.WriteFile(payloadPath, []byte(`{"type":"ping"}`), 0o600); err != nil {
+	if err := os.WriteFile(payloadPath, []byte(`{"type":"config/area_registry/create","name":"Kitchen"}`), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -229,7 +229,7 @@ func TestRelayOutputFailureWarnsAgainstRetry(t *testing.T) {
 	dir := t.TempDir()
 	payloadPath := filepath.Join(dir, "payload.json")
 	blockedParent := filepath.Join(dir, "not-a-directory")
-	if err := os.WriteFile(payloadPath, []byte(`{"type":"ping"}`), 0o600); err != nil {
+	if err := os.WriteFile(payloadPath, []byte(`{"type":"config/area_registry/create","name":"Kitchen"}`), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(blockedParent, []byte("file"), 0o600); err != nil {

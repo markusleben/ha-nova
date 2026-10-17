@@ -214,3 +214,61 @@ func checkRawWS(message map[string]any) error {
 	}
 	return nil
 }
+
+// rawRelayRead: the request only reads (a core GET, or WS types listed as
+// reads), so a failure after it was sent changed nothing in Home Assistant.
+func rawRelayRead(endpoint string, body []byte) bool {
+	payload, ok := decodeObject(body)
+	if !ok {
+		return false
+	}
+	isRead := func(message map[string]any) bool {
+		wsType, _ := message["type"].(string)
+		return rawWSAllowed[wsType] == rawWSRead
+	}
+	switch endpoint {
+	case "core":
+		method, _ := payload["method"].(string)
+		return strings.ToUpper(strings.TrimSpace(method)) == http.MethodGet
+	case "ws":
+		message, hasMessage := payload["message"].(map[string]any)
+		if hasMessage && !isRead(message) {
+			return false
+		}
+		_, typed := payload["type"]
+		return !typed && hasMessage || isRead(payload)
+	}
+	return false
+}
+
+// relayReadFailed words a failed read: its outcome is never unknown.
+func relayReadFailed(cause string) string {
+	return "READ_FAILED: " + cause + "\nThis was a read: nothing in Home Assistant was changed. Fix the cause, then run it again."
+}
+
+func printRelaySendFailure(read bool, baseURL string, err error) {
+	switch {
+	case !read:
+		printErr("%s", relayRequestOutcomeUnknownMessage(baseURL, err))
+	case strings.TrimRight(baseURL, "/") == cloudRelayVirtualBaseURL:
+		printErr("%s", relayReadFailed("Home Assistant Cloud could not complete the NOVA Relay request: "+cloudOutcomeUnknownCause(err)))
+	default:
+		printErr("%s", relayReadFailed(relayConnectErrorMessage(baseURL, err)))
+	}
+}
+
+func printRelayFailure(read bool, stage string, err error) {
+	if read {
+		printErr("%s", relayReadFailed(stage+" failed: "+err.Error()))
+		return
+	}
+	printRelayPostRequestError(stage, err)
+}
+
+func printRelayHTTPFailure(read bool, status int) {
+	if read {
+		printErr("%s", relayReadFailed(fmt.Sprintf("Relay returned HTTP %d", status)))
+		return
+	}
+	printRelayHTTPOutcomeUnknown(status)
+}
