@@ -119,12 +119,12 @@ describe("threshold calibration preflight (#484)", () => {
       "adds/changes an action setting a threshold-backing `input_number`",
     );
     expect(readFileSync("skills/scene/SKILL.md", "utf8")).toContain(
-      "run the calibration preflight per `skills/ha-nova/threshold-calibration.md`",
+      "run the calibration preflight per `../ha-nova/threshold-calibration.md`",
     );
     // Helper VALUE changes through service calls trigger the same preflight.
     expect(calibration).toContain("The same duty applies OUTSIDE config updates");
     expect(readFileSync("skills/service-call/domain-fields.md", "utf8")).toContain(
-      "run the calibration preflight per `skills/ha-nova/threshold-calibration.md`",
+      "run the calibration preflight per `../ha-nova/threshold-calibration.md`",
     );
     // Helper-backed boundaries move over the window; conditions evaluate at
     // run time, so condition conclusions bind to trace evaluation moments.
@@ -141,12 +141,12 @@ describe("threshold calibration preflight (#484)", () => {
       "3d) Threshold Calibration (update; create for stored threshold setters)",
     );
     expect(writeSkill).toContain("otherwise create keeps its 3c skip");
-    expect(writeSkill).toContain("skills/ha-nova/threshold-calibration.md");
+    expect(writeSkill).toContain("../ha-nova/threshold-calibration.md");
     expect(writeSkill).toContain("longest ambiguous phase");
     expect(writeSkill).toContain("Unrelated numeric edits skip it.");
     expect(writeSkill).toContain("explicit exception to the no-auto-trace rule");
     const helperSkill = readFileSync("skills/helper/SKILL.md", "utf8");
-    expect(helperSkill).toContain("skills/ha-nova/threshold-calibration.md");
+    expect(helperSkill).toContain("../ha-nova/threshold-calibration.md");
     expect(helperSkill).toContain("`lower`, `upper`, or `hysteresis`");
   });
 });

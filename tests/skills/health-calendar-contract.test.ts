@@ -173,7 +173,7 @@ describe("health and calendar skill contracts", () => {
     expect(health).toContain(
       "These names are semantic output slots, not literal headings.",
     );
-    expect(health).toContain("skills/ha-nova/output-rules.md");
+    expect(health).toContain("../ha-nova/output-rules.md");
     expect(health).toContain(
       "Do not mix English labels with localized prose unless the label is a Home Assistant state/value.",
     );

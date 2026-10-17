@@ -1,15 +1,15 @@
 # HA NOVA Grouped Change Set (Non-Destructive)
 
-Canonical path: `skills/ha-nova/grouped-change-set.md`
+Canonical path: `../ha-nova/grouped-change-set.md`
 
 The only supported route for confirming several NON-destructive mutations of one
 logical task with a single natural confirmation. The destructive sibling is
-`skills/ha-nova/batch-safety.md` (one-time code, immutable manifest);
+`../ha-nova/batch-safety.md` (one-time code, immutable manifest);
 a grouped set never carries a destructive operation. The one destructive
 workflow defined in this file is Cross-Family Destructive Cleanup below — a
 separate typed-confirmation tier, never part of a grouped set.
 
-Confirmation validity stays owned by `skills/ha-nova/SKILL.md` → Safety Baseline
+Confirmation validity stays owned by `../ha-nova/SKILL.md` → Safety Baseline
 → Active Preview Confirmation. This file defines only the grouping mechanics:
 scope, preview protocol, the single final action block, execution, and the
 ledger.
@@ -99,7 +99,7 @@ grouped set with fresh previews.
 
 ## Grouped Cards
 
-Same rules as `skills/ha-nova/output-cards.md` → Cards. Per-operation Preview
+Same rules as `../ha-nova/output-cards.md` → Cards. Per-operation Preview
 Cards render unchanged minus the options line; the group closes with:
 
 ```
@@ -183,7 +183,7 @@ this code), the whole cleanup
 may be confirmed with ONE manifest-bound one-time code instead of one code
 per family.
 
-- Build one immutable manifest per `skills/ha-nova/batch-safety.md` mechanics,
+- Build one immutable manifest per `../ha-nova/batch-safety.md` mechanics,
   extended across families: every operation with its stable target identifier,
   owning skill, exact endpoint/payload semantics, per-item dependency/consumer
   impact result, per-family recovery path (snapshots, YAML exports, backup
@@ -221,7 +221,7 @@ Never grouped, regardless of task shape:
   together at the HIGHER tier of the two halves — the counter-action is the
   restore, and a restore can be the grant (`lock.lock` for an hour schedules an
   unattended `lock.unlock`)
-  (`skills/ha-nova/one-shot-automations.md`). Separating them would leave a
+  (`../ha-nova/one-shot-automations.md`). Separating them would leave a
   scheduled turn-off for something that was never turned on.
 - experimental/fallback writes and YAML file edits
 - operations whose preview cannot be rendered canonically

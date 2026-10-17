@@ -1,7 +1,7 @@
 # HA NOVA Recovery Coverage
 
-Canonical path: `skills/ha-nova/recovery-coverage.md` (moved out of
-`skills/ha-nova/write-safety.md`, which keeps the pointer).
+Canonical path: `../ha-nova/recovery-coverage.md` (moved out of
+`../ha-nova/write-safety.md`, which keeps the pointer).
 
 ## Safety-Mechanism Availability by Skill
 
@@ -11,14 +11,14 @@ far-reaching changes (irreversible deletes, full-document overwrites, bulk
 operations) offer to create one first via `ha-nova:backup` — its safety-backup
 flow checks for a recent full backup before creating, because full backups are
 expensive. EXCEPTION: when the operation auto-captures a config snapshot
-(`skills/ha-nova/config-snapshots.md`) and the store is available, the snapshot
+(`../ha-nova/config-snapshots.md`) and the store is available, the snapshot
 IS the recovery net — skip the full-backup offer for that config-level op.
 Never suggest a backup for routine small edits.
 
 Config-level recovery: relays with the snapshot store (`POST /backups`) let the
 covered families auto-capture a config snapshot before deletes/full-document
 overwrites and restore selectively through their own write path —
-`skills/ha-nova/config-snapshots.md` is the SSOT (capture rules, restore
+`../ha-nova/config-snapshots.md` is the SSOT (capture rules, restore
 fidelity, honest limits). The full-backup offer stays for system-level
 operations and for relays whose `/backups` answers 404.
 

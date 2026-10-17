@@ -6,7 +6,7 @@
   domain+target, ONE step back to the last verified update; a same-target
   update replaces it. `ha-nova snapshot show --list` shows what is still
   revertible (alias, saved time, server).
-- **Config snapshot** (`skills/ha-nova/config-snapshots.md`): captured before
+- **Config snapshot** (`../ha-nova/config-snapshots.md`): captured before
   covered destructive HA NOVA operations; restores the deleted/overwritten
   item itself.
 - **Home Assistant Backup**: full system recovery, the safety net when
@@ -47,7 +47,7 @@ Revert: `ha-nova snapshot show --target <target_id>` (add `--domain <d>` when id
 selection (a bare `verify` checks the NEWEST snapshot). `drift` (exit 2) → do
 NOT overwrite; show what differs and ask. `match` → rebuild a schema-valid
 `{type}/update` payload from `before_config` (set `{type}_id` from its stored
-`id`, keep only writable fields — `skills/ha-nova/helper-schemas.md` → Common
+`id`, keep only writable fields — `../ha-nova/helper-schemas.md` → Common
 Rules), preview, confirm, write, re-read to confirm. Config-entry helpers have
 no auto-revert — point to HA Backups.
 

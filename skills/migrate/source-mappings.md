@@ -1,6 +1,6 @@
 # Migrate: Source Mappings
 
-Reference for `skills/migrate/SKILL.md`. Read only the section of the source at hand. Every mapping below is a starting point: the behaviour list decides, and every entity goes through `ha-nova find` / `ha-nova get`.
+Reference for `../migrate/SKILL.md`. Read only the section of the source at hand. Every mapping below is a starting point: the behaviour list decides, and every entity goes through `ha-nova find` / `ha-nova get`.
 
 ## Every source
 

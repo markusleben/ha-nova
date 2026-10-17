@@ -42,11 +42,11 @@ describe("smallest complete solution contract (#452)", () => {
   it("wires the contract at every solution-design entry point", () => {
     // write: draft baseline + suggestion cap + always-load reference
     expect(writeSkill).toContain(
-      "Every draft follows `skills/ha-nova/smallest-solution.md`",
+      "Every draft follows `../ha-nova/smallest-solution.md`",
     );
     expect(writeSkill).toContain("max 2, smallest intervention first");
     expect(writeSkill).not.toContain("max 4, numbered/menu");
-    expect(writeSkill).toContain("`skills/ha-nova/smallest-solution.md`\n");
+    expect(writeSkill).toContain("`../ha-nova/smallest-solution.md`\n");
     // resolve agent generates at most two evidence-backed enhancements
     expect(resolveAgent).toContain("at most 2 concrete optional improvements");
     expect(resolveAgent).toContain("never invent suggestions to fill the list");
@@ -56,7 +56,7 @@ describe("smallest complete solution contract (#452)", () => {
     // helper: unconditional draft rule, plus value defaults stay at 4 while
     // feature offers route to the contract
     expect(helperSkill).toContain(
-      "Drafts follow `skills/ha-nova/smallest-solution.md`",
+      "Drafts follow `../ha-nova/smallest-solution.md`",
     );
     expect(helperSkill).toContain("max 2");
     // Every skill with the canonical write flow loads independently and must
@@ -78,8 +78,8 @@ describe("smallest complete solution contract (#452)", () => {
         `${path} has the write flow and must wire the draft rule`,
       ).toContain(
         /skills\/(write|helper)\//.test(path)
-          ? "`skills/ha-nova/smallest-solution.md`"
-          : "Drafts follow `skills/ha-nova/smallest-solution.md`",
+          ? "`../ha-nova/smallest-solution.md`"
+          : "Drafts follow `../ha-nova/smallest-solution.md`",
       );
     }
     // context skill carries the baseline for dispatch-level awareness

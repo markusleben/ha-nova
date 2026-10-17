@@ -226,6 +226,24 @@ func TestApplyWriteVerificationHonesty(t *testing.T) {
 	}
 }
 
+// A complete delete scan that found no consumers says so (`consumers: []`);
+// a failed scan keeps the field absent and coverage incomplete (r91 S4/D3).
+func TestPlanDeleteNamesAnEmptyConsumerScan(t *testing.T) {
+	for name, failRelated := range map[string]bool{"none found": false, "scan failed": true} {
+		t.Run(name, func(t *testing.T) {
+			f := newFakeHA()
+			f.storeConfig("/api/config/automation/config/n1", map[string]any{"alias": "Night", "actions": []any{}})
+			f.fail["search/related"] = failRelated
+			h := newWriteHarness(t, f)
+			exit, env := h.run(runPlanCommand, "delete", "automation.night")
+			scanned := env.Consumers != nil && len(env.Consumers) == 0
+			if exit != 3 || env.Coverage == nil || env.Coverage.Complete == failRelated || scanned == failRelated {
+				t.Fatalf("exit %d consumers %#v coverage %+v", exit, env.Consumers, env.Coverage)
+			}
+		})
+	}
+}
+
 // Delete: always typed, consumers listed, the snapshot is taken before the
 // DELETE; a failed snapshot deletes nothing and keeps the plan.
 func TestPlanDeleteIsTypedAndSnapshotsFirst(t *testing.T) {

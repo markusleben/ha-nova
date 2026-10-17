@@ -1,6 +1,6 @@
 # Membership Resolution
 
-Canonical path: `skills/ha-nova/membership-resolution.md`
+Canonical path: `../ha-nova/membership-resolution.md`
 
 Shared contract for resolving the membership of a dynamic or composite
 target — a group, an area, a device, a presence-routed household — BEFORE
@@ -20,9 +20,9 @@ read, the membership is unknown — never substituted with a guess:
 | Legacy `group.*` | `attributes.entity_id` where exposed; otherwise uninspectable |
 | Notify groups | UI-built notify group entities resolve like modern group helpers (row 1); a legacy notify group SERVICE exposes no readable membership — `/api/services` proves it exists, never who it reaches: treat it as uninspectable |
 | Media player groups | the `group_members` state attribute |
-| Areas | entity/device registry plus `search/related` on the resolved area (`skills/ha-nova/bulk-patterns.md`); for a core-domain service, hidden entities, entities with an entity category, and entities assigned to another area are left out, as Home Assistant's own area targeting does |
+| Areas | entity/device registry plus `search/related` on the resolved area (`../ha-nova/bulk-patterns.md`); for a core-domain service, hidden entities, entities with an entity category, and entities assigned to another area are left out, as Home Assistant's own area targeting does |
 | Devices | the entity registry filtered by `device_id` ONLY — never combined with the device's area expansion: a device-scoped action must not reach room neighbours; for a core-domain service, hidden and categorized entities are left out, as for an area |
-| Presence-routed household | `person.*` states mapped to real notify targets (`skills/notify/SKILL.md` → Household routing) |
+| Presence-routed household | `person.*` states mapped to real notify targets (`../notify/SKILL.md` → Household routing) |
 
 ## Device rows (Home Assistant 2026.9+ child devices)
 
@@ -99,23 +99,23 @@ dangerous as the most dangerous thing in it. An unreadable USER-AUTHORED
 member escalates rather than defaulting down, while an integration-owned
 member keeps the gate's bounded exception (ordinary with the gap named when
 its platform provides no access-class entity) — both exactly per
-`skills/ha-nova/indirect-actuation.md`, whose classification rules this
+`../ha-nova/indirect-actuation.md`, whose classification rules this
 contract never overrides. When the action promises member-state changes, verification
 covers the expanded members, not the collection entity.
 
 ## Existing instances
 
 - `ha-nova call` / `ha-nova plan call` (`cli/plan_call.go`,
-  `cli/tier_engine.go`), which `skills/service-call/SKILL.md` runs every entity
+  `cli/tier_engine.go`), which `../service-call/SKILL.md` runs every entity
   call through: area/device/group expansion with the frozen leaf member list.
-- `skills/ha-nova/indirect-actuation.md`: legacy `group.*` targets forward
+- `../ha-nova/indirect-actuation.md`: legacy `group.*` targets forward
   to their members and classify recursively.
-- `skills/notify/SKILL.md` → Household routing: presence re-read immediately
+- `../notify/SKILL.md` → Household routing: presence re-read immediately
   before sending; its unreadable-presence handling stays authoritative.
 
 ## Out of scope
 
 Creating or editing groups; expanding scenes, scripts, and automations
-(`skills/ha-nova/indirect-actuation.md` owns indirect actuation); replacing
+(`../ha-nova/indirect-actuation.md` owns indirect actuation); replacing
 a group call with member calls when semantics differ; claiming notification
 delivery.

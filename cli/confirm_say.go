@@ -3,6 +3,8 @@ package main
 import (
 	"fmt"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 )
 
 // confirmationSay is the user-facing confirmation text of a plan that needs
@@ -93,7 +95,18 @@ func sayGoal(e *tierEngine, env *verbEnvelope, plan storedPlan, subject string) 
 func sayReasons(e *tierEngine, env *verbEnvelope, plan storedPlan) []string {
 	var parts, typed, other []string
 	seen := map[string]bool{}
+	// "can't see what “Front Door” does" adds nothing once that entity's own
+	// typed action ("This unlocks a door") already says why.
+	explained := map[string]bool{}
 	for _, r := range env.Reasons {
+		if _, isTyped, ok := sayActionPhrase(e, env, r); ok && isTyped {
+			explained[r.EntityID+"|"+r.Via] = true
+		}
+	}
+	for _, r := range env.Reasons {
+		if sayUnseenCodes[r.Code] && explained[r.EntityID+"|"+r.Via] {
+			continue
+		}
 		text, isTyped := sayReason(e, env, plan, r)
 		if text == "" || seen[text] {
 			continue
@@ -191,21 +204,18 @@ func sayReason(e *tierEngine, env *verbEnvelope, plan storedPlan, r tierReason) 
 		}
 		return "This " + phrase.verb + " " + phrase.noun, typed
 	}
-	unseen := "HA NOVA can't see what " + name + " does"
-	if name == "" {
-		unseen = "HA NOVA can't check everything this would set off"
-	}
 	subject := "This"
 	if name != "" {
 		subject = name
 	}
-	through := ""
-	if via := sayVia(e, env, plan, r.Via); via != "" {
+	via, through := sayVia(e, env, plan, r.Via), ""
+	if via != "" {
 		through = ", through " + via
 	}
+	if sayUnseenCodes[r.Code] {
+		return sayUnseen(name, via), true
+	}
 	switch r.Code {
-	case reasonUnregisteredActuator, reasonTemplateAction, reasonUserButton, reasonUnreadCommand:
-		return unseen + through, true
 	case reasonUserService:
 		return "This runs a service defined on the device itself, which HA NOVA can't read", true
 	case reasonTemplatedAction, reasonUnresolvedTarget, reasonStoredSelector, reasonBlueprint, reasonYAMLNoID,
@@ -354,6 +364,23 @@ func sayActionRank(m tierMember) int {
 		return 1
 	}
 	return 0
+}
+
+var sayUnseenCodes = map[string]bool{reasonUnregisteredActuator: true, reasonTemplateAction: true, reasonUserButton: true, reasonUnreadCommand: true}
+
+// sayUnseen: "HA NOVA can't see what “X” does"; reached through an item,
+// that item leads ("This automation uses “X”, and …").
+func sayUnseen(name, via string) string {
+	switch {
+	case name == "" && via == "":
+		return "HA NOVA can't check everything this would set off"
+	case name == "":
+		return "HA NOVA can't check everything " + via + " would set off"
+	case via == "":
+		return "HA NOVA can't see what " + name + " does"
+	}
+	first, size := utf8.DecodeRuneInString(via)
+	return string(unicode.ToUpper(first)) + via[size:] + " uses " + name + ", and HA NOVA can't see what that does"
 }
 
 // sayVia names the item a member reason runs through ("the automation

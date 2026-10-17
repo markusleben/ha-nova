@@ -51,7 +51,7 @@ const mcpSkillBudget = 28 << 10 // stays under a ~10k-token client output cap
 const mcpOutputRules = "ha-nova/output-rules.md"
 
 var mcpSkillTool = mcpTool{name: "ha_skill", title: "Load a skill", readOnly: true, idempotent: true,
-	description: "HA NOVA's know-how: returns the skill (a Markdown workflow) to follow before you build, change, review, or diagnose anything — automations, scripts, helpers, scenes, dashboards, failures, audits. Device control and lookups need only the other tools. Read-only; reads no Home Assistant data. Pass name (a skill id, or a file a skill cites such as skills/ha-nova/output-rules.md), or task (a few words) to get the dispatch table.",
+	description: "HA NOVA's know-how: returns the skill (a Markdown workflow) to follow before you build, change, review, or diagnose anything — automations, scripts, helpers, scenes, dashboards, failures, audits. Device control and lookups need only the other tools. Read-only; reads no Home Assistant data. Pass name (a skill id, or a file a skill cites such as ../ha-nova/output-rules.md), or task (a few words) to get the dispatch table.",
 	schema: object(nil, map[string]any{"name": prop("string", "a skill id (e.g. write, review, diagnose) or a cited file path"),
 		"task": prop("string", "what the user wants, when unsure which skill fits")})}
 

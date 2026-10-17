@@ -164,9 +164,12 @@ func rewriteHermesMarkdown(skillName, content, sourceDir, sourceRoot string, sub
 			if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".md") || entry.Name() == "SKILL.md" {
 				continue
 			}
-			from := fmt.Sprintf("`skills/%s/%s`", skillName, entry.Name())
-			to := fmt.Sprintf("`%s`", entry.Name())
-			content = strings.ReplaceAll(content, from, to)
+			for _, prefix := range []string{"skills/", "../"} {
+				from := fmt.Sprintf("`%s%s/%s`", prefix, skillName, entry.Name())
+				if from != "`"+sessionBootstrapPointer+"`" { // the layout marker stays (bootstrap repair)
+					content = strings.ReplaceAll(content, from, fmt.Sprintf("`%s`", entry.Name()))
+				}
+			}
 		}
 	}
 
@@ -175,6 +178,9 @@ func rewriteHermesMarkdown(skillName, content, sourceDir, sourceRoot string, sub
 		return fmt.Sprintf("`%s`", filepath.Join(sourceRoot, "docs", "reference", parts[1]))
 	})
 	content = sharedSkillRefPattern.ReplaceAllStringFunc(content, func(match string) string {
+		if match == "`"+sessionBootstrapPointer+"`" { // the layout marker the bootstrap repair checks for
+			return match
+		}
 		parts := sharedSkillRefPattern.FindStringSubmatch(match)
 		return fmt.Sprintf("`%s`", filepath.Join(sourceRoot, "skills", parts[1]))
 	})

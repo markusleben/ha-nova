@@ -54,7 +54,7 @@ describe("migrate skill (needs-analysis TOP 4)", () => {
   });
 
   it("prefers the smallest native design and checks a blueprint by its expansion", () => {
-    expect(skill).toContain("Drafts follow `skills/ha-nova/smallest-solution.md`");
+    expect(skill).toContain("Drafts follow `../ha-nova/smallest-solution.md`");
     expect(skill).toContain("an installed blueprint, only when its `blueprint/substitute` expansion meets every line");
     expect(mappings).toContain("The built-in `homeassistant/motion_light.yaml` turns off a set time after motion *clears*");
   });

@@ -73,7 +73,7 @@ Verification NEVER repeats the original action automatically — not after
 `unverified`, not after `failed`, and not after a transport error on a
 disruptive or restart-class action. This binds the VERIFICATION step only: an
 explicitly requested recovery workflow with a bounded, pre-approved retry
-policy (`skills/ha-nova/recovery-workflows.md`) repeats by its own rules,
+policy (`../ha-nova/recovery-workflows.md`) repeats by its own rules,
 never by this step.
 
 ## Restart and reboot actions (#566)

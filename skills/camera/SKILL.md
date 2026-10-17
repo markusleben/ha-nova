@@ -25,7 +25,7 @@ Read and follow `../ha-nova/session-bootstrap.md`.
 Verify relay CLI: `ha-nova relay health`
 If this fails: `ha-nova setup`
 
-Binary responses are guaranteed by the skills' enforced relay floor (`skills/ha-nova/relay-api.md` -> Bounded Event Collection). If any relay command printed a relay-outdated warning, have the user update the NOVA Relay before fetching frames — an older relay would corrupt the image bytes.
+Binary responses are guaranteed by the skills' enforced relay floor (`../ha-nova/relay-api.md` -> Bounded Event Collection). If any relay command printed a relay-outdated warning, have the user update the NOVA Relay before fetching frames — an older relay would corrupt the image bytes.
 
 ## Relay Contract
 
@@ -46,7 +46,7 @@ Binary responses are guaranteed by the skills' enforced relay floor (`skills/ha-
 
 ## Error Handling
 
-Full relay/upstream error taxonomy: `skills/ha-nova/relay-api.md` -> Error Handling. Camera specifics:
+Full relay/upstream error taxonomy: `../ha-nova/relay-api.md` -> Error Handling. Camera specifics:
 - `--out-binary` refusing with "no base64 marker": the response was not an image — usually a 404 (wrong entity) or an error envelope. Re-run without `--out-binary` to read the actual error.
 - Frames larger than the relay's 8 MiB binary ceiling fail loudly; that is a stream, not a still — use the stream URL instead.
 - `camera/stream` errors when the camera has no STREAM feature: check bit 2 first.
@@ -54,7 +54,7 @@ Full relay/upstream error taxonomy: `skills/ha-nova/relay-api.md` -> Error Handl
 
 ## Output Format
 
-Apply `skills/ha-nova/output-rules.md` to all user-facing output. Write previews, delete confirmations, and results render as the Cards defined there (`skills/ha-nova/output-cards.md`).
+Apply `../ha-nova/output-rules.md` to all user-facing output. Write previews, delete confirmations, and results render as the Cards defined there (`../ha-nova/output-cards.md`).
 
 Render the Report shape (output-cards.md). For a snapshot, describe what is visible in the frame and name the camera plus the time it was taken. For a stream, give the URL and say it is short-lived. Never claim to have seen something the frame does not show.
 
@@ -67,7 +67,7 @@ Render the Report shape (output-cards.md). For a snapshot, describe what is visi
 - Home Assistant is reached exclusively through the `ha-nova` CLI.
 - For any HA write this skill does not cover, STOP and invoke `ha-nova:fallback` first — never probe unfamiliar write endpoints.
 
-- Drafts follow `skills/ha-nova/smallest-solution.md`: the complete requested outcome in the simplest safe design, nothing for hypothetical future needs.
+- Drafts follow `../ha-nova/smallest-solution.md`: the complete requested outcome in the simplest safe design, nothing for hypothetical future needs.
 
 - A camera frame is private data: keep it in client-private scratch storage, never write it into the project workspace, and never send it anywhere outside this conversation.
 - `camera.snapshot` / `camera.record` write files on the Home Assistant server — preview the exact path and confirm; they can overwrite an existing file.

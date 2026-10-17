@@ -11,9 +11,9 @@ by `ha-nova:write` and `ha-nova:helper` (do not duplicate them):
 - **Update-Revert** — durably undo the most recent update.
 
 Skill source stays English. Localize headings and labels at runtime per
-`skills/ha-nova/output-rules.md`.
+`../ha-nova/output-rules.md`.
 
-Confirmation validity is owned by `skills/ha-nova/SKILL.md` → Safety Baseline →
+Confirmation validity is owned by `../ha-nova/SKILL.md` → Safety Baseline →
 Active Preview Confirmation. This file only defines preview/diff/revert
 mechanics.
 
@@ -140,7 +140,7 @@ should learn one shape and always recognize it:
 4. Save-status slot: explicitly say that nothing has been saved yet (the ⚠️ line).
 5. Options slot: explicit choices with literal `apply`, `show yaml`, and `cancel`.
 
-This is the Preview Card of `skills/ha-nova/output-cards.md` → Cards; the
+This is the Preview Card of `../ha-nova/output-cards.md` → Cards; the
 Result Card and Delete Card there frame the post-write and delete sides.
 
 Do **not** re-describe the whole automation (entities, every trigger/action) —
@@ -192,7 +192,7 @@ Wording rules for the result and the collapsed no-findings line:
   manual trigger via `ha-nova:service-call` (its own preview + confirmation —
   it may actuate real devices; never run it unrequested). For automations and
   scripts, structure that offer as the Test Plan Card in
-  `skills/ha-nova/test-run.md` (write flow → Phase 5); helper writes keep
+  `../ha-nova/test-run.md` (write flow → Phase 5); helper writes keep
   this plain single offer. If the user
   declines, the uncertainty stays in the final wording — do not let the
   closing sentence sound more conclusive than the checks were.
@@ -240,7 +240,7 @@ previews alone hide the whole picture. Before the FIRST per-target preview:
    Exception: where the owning skill declares grouped support and the workset
    is non-destructive with at most 10 operations, the per-target previews
    render without intermediate menus and ONE final action block confirms the
-   whole set (`skills/ha-nova/grouped-change-set.md`).
+   whole set (`../ha-nova/grouped-change-set.md`).
 4. Close with a combined summary: all targets applied, the still-revertible
    targets named (`ha-nova snapshot show --list`), and the
    verification-honesty wording for the whole change.
@@ -249,7 +249,7 @@ If a mid-sequence target fails or is cancelled, stop and show which targets
 are already applied — never continue silently into a half-applied state.
 
 This section covers multi-target updates. Deleting a reviewed multi-item
-workset routes through `skills/ha-nova/batch-safety.md`: one immutable
+workset routes through `../ha-nova/batch-safety.md`: one immutable
 manifest, one one-time code (automations/scripts: one CLI code per item), per-target impact checks and
 verification retained, one resource family per manifest.
 
@@ -260,7 +260,7 @@ normal HA NOVA delete flow; that delete still requires a delete preview, one-tim
 code, and absence verification, even when the item was created earlier in the same session.
 Do not call this `revert`, and do not imply that manual deletion or a full Home Assistant Backup restore is the only cleanup path.
 A delete has no HA NOVA `revert`; a snapshot-covered delete restores from its
-auto config snapshot (`skills/ha-nova/config-snapshots.md`) — that is the
+auto config snapshot (`../ha-nova/config-snapshots.md`) — that is the
 first rollback path. When no config snapshot was captured, rollback requires
 restoring a suitable existing Home Assistant Backup (Settings > System >
 Backups), or recreating the item.
@@ -268,14 +268,14 @@ Backups), or recreating the item.
 Checkpoints: the store keeps the last 5 updated targets per server, one step
 back each. Automation/script updates (reverts included) are checkpointed by
 `ha-nova apply` itself — repeat the structured receipt it returns as `undo` — a `replaced` receipt means the target's PREVIOUS checkpoint is gone and only the newest update stays revertible; name evicted targets as no longer revertible. Helper storage updates capture their checkpoint by hand:
-`skills/ha-nova/update-revert.md` → Manual capture.
+`../ha-nova/update-revert.md` → Manual capture.
 
 After reporting the update, offer a localized affordance that names the point-in-time
 rollback option in the same breath — never a bare "undo":
 
 > reply `revert` to undo this update; for point-in-time rollback, restore a suitable existing Home Assistant Backup.
 
-Execution lives in `skills/ha-nova/update-revert.md`; load it whenever the user
+Execution lives in `../ha-nova/update-revert.md`; load it whenever the user
 asks to revert, undo, or restore a verified update (any of those intents — not
 only the literal word `revert`).
 
@@ -284,6 +284,6 @@ only the literal word `revert`).
 Never imply a recovery mechanism a skill does not have; when only Backups
 remain, say so before the write. The per-skill matrix (diff, update-revert,
 fallback recovery path) and the full-backup offer rules live in
-`skills/ha-nova/recovery-coverage.md` — read it before promising or offering a
+`../ha-nova/recovery-coverage.md` — read it before promising or offering a
 recovery path outside this skill's own (`write`: `plan write` diff,
 `plan revert`, config snapshot before delete, HA Backups).

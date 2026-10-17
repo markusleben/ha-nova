@@ -81,7 +81,7 @@ describe("backup contract", () => {
 
   it("teaches file-based relay payloads and localized output slots", () => {
     expect(backupSkill).toMatch(/--(data-file|body-file|out)\b/);
-    expect(backupSkill).toContain("skills/ha-nova/output-rules.md");
+    expect(backupSkill).toContain("../ha-nova/output-rules.md");
     expect(backupSkill).toContain("Use stable localized slot labels in this order; omit empty slots.");
   });
 });

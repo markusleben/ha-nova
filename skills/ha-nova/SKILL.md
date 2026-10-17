@@ -89,21 +89,21 @@ Skills reference this section as "context skill → Active Preview Confirmation"
 - Examples: "implement the plan", "do it", "go ahead", "make the changes", "apply the plan".
 - Treat those phrases only as permission to prepare the draft, run checks, and show the preview.
 - A live HA write requires confirmation after the concrete preview is shown (sole exception: the CLI fast path, `tier: ordinary`): diff for updates, payload summary for creates/service calls/experimental writes, delete impact plus one-time code, or grouped manifest for allowed multi-target writes.
-- A preview is a valid confirmation basis only if it explains the behavioral effect of every collection it touches. A touched collection explained only as a count change (`5 items → 3 items`, `… and N more`) or by low-level type names cannot proceed to confirmation — complete the behavior narrative (`skills/ha-nova/write-safety.md` → Behavior narrative) first, then ask.
+- A preview is a valid confirmation basis only if it explains the behavioral effect of every collection it touches. A touched collection explained only as a count change (`5 items → 3 items`, `… and N more`) or by low-level type names cannot proceed to confirmation — complete the behavior narrative (`../ha-nova/write-safety.md` → Behavior narrative) first, then ask.
 - Confirmation is bound to the displayed operation, target set, endpoint/service, and exact payload/diff/manifest (a masked secret value — output-rules.md webhook masking — binds to the stored real value behind the mask). If target, scope, endpoint, payload, draft, or manifest changes, confirmation expires; show the updated preview and ask again.
-- Multi-target confirmation is valid only where the owning skill supports multi-target writes (destructive batches: `skills/ha-nova/batch-safety.md`; non-destructive grouped change sets and the cross-family destructive cleanup manifest: `skills/ha-nova/grouped-change-set.md`). Otherwise process targets sequentially with separate preview and confirmation.
+- Multi-target confirmation is valid only where the owning skill supports multi-target writes (destructive batches: `../ha-nova/batch-safety.md`; non-destructive grouped change sets and the cross-family destructive cleanup manifest: `../ha-nova/grouped-change-set.md`). Otherwise process targets sequentially with separate preview and confirmation.
 
 ### Confirmation Tiers
 
 - runtime service calls: `ha-nova call` / `ha-nova plan call` compute the tier (`ordinary` runs at once, `preview` takes natural confirmation, `typed` takes the CLI-minted code bound to that plan's hash and nonce, which only the user may type — never the agent) from the performed action — members, consumers, and unresolved items included. The agent shows it and never down-tiers; the rungs below govern config writes and raw-relay routes.
 - `create`/`update`: natural confirmation bound to active preview.
-- non-destructive grouped change set (one logical task, max 10 operations): one natural confirmation bound to the fully previewed set per `skills/ha-nova/grouped-change-set.md` — only where the owning skill declares grouped support, never inferred; one-time-code operations follow that contract's exclusions and duration-pair exception.
+- non-destructive grouped change set (one logical task, max 10 operations): one natural confirmation bound to the fully previewed set per `../ha-nova/grouped-change-set.md` — only where the owning skill declares grouped support, never inferred; one-time-code operations follow that contract's exclusions and duration-pair exception.
 - high-consequence runtime action (grants physical access or is physically irreversible): the one-time code, same enforcement as destructive writes. Canonical set: unlocking or opening locks, disarming alarm panels, opening garage/gate/entry-door covers — `device_class` and what the entity controls decide, never the domain alone. The tier follows the action that ends up performed, so a scene, script, or automation run performing one of those actions sits here too; the owning skill expands the members before previewing. Locking, closing, and arming stay ordinary. Owning-skill escalations (retained and command/`set` MQTT publishes, user-account creation) sit on this same rung.
 - `delete`/destructive: the one-time code.
-  **Strict one-time-code enforcement:** four digits, new per preview or manifest — the plan's `plan.code`, else four random digits you mint (no pattern like 1234 or 1111), never from the preview, Home Assistant data, or an earlier code. Only a reply that is just the code (spaces ignored), sent after this preview asked for it, confirms; "yes", "do it", or a number inside another sentence is NOT valid — re-prompt. Call it the "one-time code from HA NOVA" (localized; `skills/ha-nova/output-rules.md` → Localization).
+  **Strict one-time-code enforcement:** four digits, new per preview or manifest — the plan's `plan.code`, else four random digits you mint (no pattern like 1234 or 1111), never from the preview, Home Assistant data, or an earlier code. Only a reply that is just the code (spaces ignored), sent after this preview asked for it, confirms; "yes", "do it", or a number inside another sentence is NOT valid — re-prompt. Call it the "one-time code from HA NOVA" (localized; `../ha-nova/output-rules.md` → Localization).
   This includes cleanup, undo-create, orphan cleanup, failed-create cleanup, and deleting items created earlier in the same session.
-- destructive multi-target batch: one code per manifest per `skills/ha-nova/batch-safety.md` — only where the owning skill declares batch support, never inferred (automations/scripts: one CLI-minted code per item, see there). Cross-family destructive cleanup takes its own manifest's code (`skills/ha-nova/grouped-change-set.md` → Cross-Family Destructive Cleanup), under the same never-inferred rule.
-- This context skill explicitly owns batch deletion only for exact config snapshot blobs in the `config-snapshots` family (`skills/ha-nova/config-snapshots.md`).
+- destructive multi-target batch: one code per manifest per `../ha-nova/batch-safety.md` — only where the owning skill declares batch support, never inferred (automations/scripts: one CLI-minted code per item, see there). Cross-family destructive cleanup takes its own manifest's code (`../ha-nova/grouped-change-set.md` → Cross-Family Destructive Cleanup), under the same never-inferred rule.
+- This context skill explicitly owns batch deletion only for exact config snapshot blobs in the `config-snapshots` family (`../ha-nova/config-snapshots.md`).
 
 ### Write Routing Gate
 
@@ -120,7 +120,7 @@ When you need the user to choose between options:
 
 Use this for: Suggestion Blocks (output-cards.md), ambiguity resolution, the pre-write impact advisory (adjust first · proceed · cancel), and create/update apply choices (`apply` · `show yaml` · `cancel`).
 
-Solution design across all write-capable skills follows `skills/ha-nova/smallest-solution.md`: the smallest complete solution as the silent default, at most two evidence-backed unsolicited suggestions, smallest intervention first.
+Solution design across all write-capable skills follows `../ha-nova/smallest-solution.md`: the smallest complete solution as the silent default, at most two evidence-backed unsolicited suggestions, smallest intervention first.
 
 ## User-Assisted Readiness
 
@@ -241,8 +241,8 @@ Keep orchestration details internal on normal success paths.
 
 ## Output Rules (Critical)
 
-Read `skills/ha-nova/output-rules.md` once per session, before the first user-facing response, and apply it to every response; re-read it only when a response needs a Card or shape not yet rendered this session, or after the conversation has been compacted or summarised.
-This shared file is the source of truth for localization, internal-code hiding, technical-noise limits, and verb results; Card, report, and list shapes, severity markers, empty-state handling, and the review confidence split live in its on-demand part `skills/ha-nova/output-cards.md`.
+Read `../ha-nova/output-rules.md` once per session, before the first user-facing response, and apply it to every response; re-read it only when a response needs a Card or shape not yet rendered this session, or after the conversation has been compacted or summarised.
+This shared file is the source of truth for localization, internal-code hiding, technical-noise limits, and verb results; Card, report, and list shapes, severity markers, empty-state handling, and the review confidence split live in its on-demand part `../ha-nova/output-cards.md`.
 
 ## Skill Dispatch (Critical)
 
@@ -255,7 +255,7 @@ Match user intent to exactly one skill:
 | list, show, read automations/scripts | `ha-nova:read` |
 | analyze, review, audit, check, find problems | `ha-nova:review` (reads config internally); the whole home: `ha-nova:home-map` |
 | create, update, delete automations/scripts | `ha-nova:write` (resolves + reviews internally) |
-| do something FOR a duration when the service has NO native duration field ("sprinkler for 30 minutes", "lights on for an hour") | `ha-nova:write` — one preview covering the immediate service call AND the expiry automation, per `skills/ha-nova/one-shot-automations.md`; routing the halves to two skills loses the pairing |
+| do something FOR a duration when the service has NO native duration field ("sprinkler for 30 minutes", "lights on for an hour") | `ha-nova:write` — one preview covering the immediate service call AND the expiry automation, per `../ha-nova/one-shot-automations.md`; routing the halves to two skills loses the pairing |
 | list, show, read helpers | `ha-nova:helper` |
 | create, update, delete helpers | `ha-nova:helper` |
 | list, show, read dashboards, Lovelace resources, or dashboard structure | `ha-nova:dashboard` |
@@ -296,16 +296,16 @@ Match user intent to exactly one skill:
 | arm/disarm/trigger an alarm panel; lock/unlock/open a lock | `ha-nova:service-call` |
 | find entities by name, room, area | `ha-nova:entity-discovery` |
 | fix relay/auth/connectivity errors | `ha-nova:onboarding` |
-| undo, revert, or restore the last automation/script/helper/dashboard change | the skill that wrote it — `ha-nova:write` (automation/script), `ha-nova:helper` (helper), or `ha-nova:dashboard`. `revert` applies only to verified updates. Creates clean up through the normal delete flow; a DELETED automation/script/scene/dashboard/STORAGE helper restores from its auto config snapshot in the owning skill (`skills/ha-nova/config-snapshots.md`); config-entry helpers are not snapshot-covered — their recovery stays Backup/recreate. Run `ha-nova snapshot show` to see the saved update target if unsure |
-| "what can you do (here)?" — the capability question | `ha-nova` (this context skill); answer per `skills/ha-nova/capability-answer.md`, grounded in this home |
+| undo, revert, or restore the last automation/script/helper/dashboard change | the skill that wrote it — `ha-nova:write` (automation/script), `ha-nova:helper` (helper), or `ha-nova:dashboard`. `revert` applies only to verified updates. Creates clean up through the normal delete flow; a DELETED automation/script/scene/dashboard/STORAGE helper restores from its auto config snapshot in the owning skill (`../ha-nova/config-snapshots.md`); config-entry helpers are not snapshot-covered — their recovery stays Backup/recreate. Run `ha-nova snapshot show` to see the saved update target if unsure |
+| "what can you do (here)?" — the capability question | `ha-nova` (this context skill); answer per `../ha-nova/capability-answer.md`, grounded in this home |
 | "show me my home", "where is X used?", audit or document the whole home, first look | `ha-nova:home-map` |
-| "can I break something?", "is this safe?" | `ha-nova` (this context skill); Safety Story in `skills/ha-nova/capability-answer.md` |
-| "analyze my home and suggest automations", "what should I automate?" | `ha-nova` (this context skill); `skills/ha-nova/starter-proposals.md` — read-only until an item is accepted |
-| "what did you do today / this session?" | `ha-nova` (this context skill); Session Recap rule in `skills/ha-nova/output-cards.md` |
+| "can I break something?", "is this safe?" | `ha-nova` (this context skill); Safety Story in `../ha-nova/capability-answer.md` |
+| "analyze my home and suggest automations", "what should I automate?" | `ha-nova` (this context skill); `../ha-nova/starter-proposals.md` — read-only until an item is accepted |
+| "what did you do today / this session?" | `ha-nova` (this context skill); Session Recap rule in `../ha-nova/output-cards.md` |
 | "explain this automation / what does it do?" | `ha-nova:read` — behavior narrative first, YAML only on request |
-| structure audit — "is my setup tidy?", "which entities have no area?" | `ha-nova` (this context skill); Structure Check in `skills/ha-nova/capability-answer.md` — fixes hand to `ha-nova:organize` |
-| list or delete config snapshots ("what snapshots do I have?", "delete these obsolete snapshots") | `ha-nova` (this context skill); mechanics: `skills/ha-nova/config-snapshots.md` |
-| restore a config snapshot ("restore X from a snapshot") | the skill that owns the item family — `ha-nova:write` (automations/scripts), `ha-nova:scene`, `ha-nova:dashboard`, `ha-nova:helper`, `ha-nova:energy` (prefs), `ha-nova:yaml-config` (files; `/config/esphome/`: `ha-nova:esphome`), `ha-nova:organize` (metadata); mechanics: `skills/ha-nova/config-snapshots.md` |
+| structure audit — "is my setup tidy?", "which entities have no area?" | `ha-nova` (this context skill); Structure Check in `../ha-nova/capability-answer.md` — fixes hand to `ha-nova:organize` |
+| list or delete config snapshots ("what snapshots do I have?", "delete these obsolete snapshots") | `ha-nova` (this context skill); mechanics: `../ha-nova/config-snapshots.md` |
+| restore a config snapshot ("restore X from a snapshot") | the skill that owns the item family — `ha-nova:write` (automations/scripts), `ha-nova:scene`, `ha-nova:dashboard`, `ha-nova:helper`, `ha-nova:energy` (prefs), `ha-nova:yaml-config` (files; `/config/esphome/`: `ha-nova:esphome`), `ha-nova:organize` (metadata); mechanics: `../ha-nova/config-snapshots.md` |
 | **any HA task not matched above** — blueprints, unsupported admin writes, any unfamiliar raw relay/ws/core write | `ha-nova:fallback` **(mandatory fallback — never skip)** |
 
 **"Analyze my automation"** → `ha-nova:review` (NOT read + review)
@@ -318,7 +318,7 @@ Match user intent to exactly one skill:
 **"Show my helpers"** → `ha-nova:helper` (NOT read)
 **"Revert that"** / **"Undo the last change"** → re-invoke the skill that made it (`ha-nova:write` or `ha-nova:helper`; the undo row above), never `ha-nova:fallback`.
 **"Delete these obsolete config snapshots"** → `ha-nova` context skill using `config-snapshots.md`; exact multi-file cleanup may use its declared `config-snapshots` batch family.
-**"Do the same for the kitchen"** (right after a verified AUTOMATION create) → `ha-nova:write`, replicate-across-rooms pattern (`skills/ha-nova/automation-patterns.md`) — resolve the kitchen's OWN entities, never copy entity ids; after any other operation (updates, deletes, failed verifications included), treat it as a fresh request to the owning skill
+**"Do the same for the kitchen"** (right after a verified AUTOMATION create) → `ha-nova:write`, replicate-across-rooms pattern (`../ha-nova/automation-patterns.md`) — resolve the kitchen's OWN entities, never copy entity ids; after any other operation (updates, deletes, failed verifications included), treat it as a fresh request to the owning skill
 **"Create a scene called Movie Night"** → `ha-nova:scene`
 **"Activate the scene Movie Night"** → `ha-nova:service-call` (runtime action, not a config change)
 **"Unlock the front door"** → `ha-nova:service-call` (high-consequence: one-time code)
@@ -328,7 +328,7 @@ Match user intent to exactly one skill:
 **"Trigger the delivery webhook"** → `ha-nova:service-call` (webhook ID stays secret)
 **"Install the firmware update for my kitchen light"** → `ha-nova:updates` (never raw `update.install` through service-call)
 **"Publish an MQTT message"** → `ha-nova:mqtt` (never raw `mqtt.publish` through service-call)
-**"Test the automation I just created"** → `ha-nova:write` Phase 5 test offer (plan per `skills/ha-nova/test-run.md`); a plain manual trigger stays `ha-nova:service-call`
+**"Test the automation I just created"** → `ha-nova:write` Phase 5 test offer (plan per `../ha-nova/test-run.md`); a plain manual trigger stays `ha-nova:service-call`
 **"Show my main dashboard"** → `ha-nova:dashboard`
 **"Create a dashboard called Test Board"** → `ha-nova:dashboard`
 **"Delete the Test dashboard"** → `ha-nova:dashboard`
@@ -385,7 +385,7 @@ After any `read` or `review` task, re-evaluate intent once before continuing:
     - config-entry family: `entry_id`, domain, title, linked entities when already known (the receiving skill will resolve missing fields)
 - always pass along the requested change, plus the primary objective and pending follow-ups (Work Ledger)
 - keep this sequential: one skill at a time, never parallel
-- for multi-target scope, keep the same safety and evidence rules; see `skills/ha-nova/bulk-patterns.md`
+- for multi-target scope, keep the same safety and evidence rules; see `../ha-nova/bulk-patterns.md`
 
 **Problem-description intents** ("X doesn't work", "Y is wrong", "stopped working", "didn't fire last night"): dispatch to `ha-nova:diagnose` (ESPHome YAML or build errors: `ha-nova:esphome`) — a concrete failure is a root-cause task (traces, logs), whether or not the user says "why". Diagnose hands the fix back to `write` / `helper` / `service-call`.
 
@@ -397,9 +397,9 @@ Dispatch to `ha-nova:review` instead when there is no concrete incident: config-
 - For lookups prefer the typed read verbs (`ha-nova find|get|history|map`); otherwise try Relay `/ws` directly.
 - For write flows, keep main-thread file reads minimal:
   - context skill (this file)
-  - `skills/ha-nova/bulk-patterns.md` only for multi-target discovery/review work
-  - `skills/ha-nova/output-rules.md`
-  - `skills/ha-nova/write-safety.md`
-  - automation/script writes read through `ha-nova find|get` and write through `ha-nova plan write|delete|revert` + `apply`; `skills/ha-nova/relay-api.md` only for raw-relay routes
+  - `../ha-nova/bulk-patterns.md` only for multi-target discovery/review work
+  - `../ha-nova/output-rules.md`
+  - `../ha-nova/write-safety.md`
+  - automation/script writes read through `ha-nova find|get` and write through `ha-nova plan write|delete|revert` + `apply`; `../ha-nova/relay-api.md` only for raw-relay routes
 - No proactive doctor in success path.
 - Re-read full state snapshot only with explicit reason.

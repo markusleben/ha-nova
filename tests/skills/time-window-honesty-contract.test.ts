@@ -73,7 +73,7 @@ describe("time-window honesty contract (#596)", () => {
       "for `statistics` and `history_stats` writes, also read the linked entity's state attributes",
     );
     expect(helperSkill).toContain(
-      "`skills/ha-nova/write-safety.md` → Time-Window Evidence",
+      "`../ha-nova/write-safety.md` → Time-Window Evidence",
     );
     expect(helperSkill).toContain(
       "partial window coverage (`age_coverage_ratio` below 1) or an invalid source is an advisory in the result, never a failed create",
@@ -94,7 +94,7 @@ describe("time-window honesty contract (#596)", () => {
       'never phrase a result as covering "the last N days" when the evidence spans less',
     );
     expect(historySkill).toContain(
-      "`skills/ha-nova/write-safety.md` → Time-Window Evidence",
+      "`../ha-nova/write-safety.md` → Time-Window Evidence",
     );
     // Pre-existing honesty duties the new rule builds on stay in place.
     expect(historySkill).toContain("notable gaps or bursts");

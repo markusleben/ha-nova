@@ -49,7 +49,7 @@ If missing: `ha-nova setup`
 
 ## Output Format
 
-Apply `skills/ha-nova/output-rules.md` to all user-facing output.
+Apply `../ha-nova/output-rules.md` to all user-facing output.
 
 Return a short diagnostic report:
 1. **Status** — one-line result (e.g., "Relay reachable", "Auth token mismatch")

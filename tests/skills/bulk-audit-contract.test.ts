@@ -57,7 +57,7 @@ describe("bulk audit contract", () => {
 
   it("keeps entity discovery as the bulk inventory surface", () => {
     expect(discoverySkill).toContain("bulk inventory by `prefix`, `domain`, `area`, or `label`");
-    expect(discoverySkill).toContain("skills/ha-nova/bulk-patterns.md");
+    expect(discoverySkill).toContain("../ha-nova/bulk-patterns.md");
     expect(discoverySkill).toContain("save the shortlist with `--out <result-file>`");
     expect(discoverySkill).toContain("domain, then entity_id");
     expect(discoverySkill).toContain("matched count");
@@ -80,7 +80,7 @@ describe("bulk audit contract", () => {
     expect(readSkill).toContain("keep full YAML reads single-target only");
     expect(readSkill).toContain("return the compact table only");
     expect(readSkill).toContain('stay inside `read` and follow the area-first `search/related` flow');
-    expect(readSkill).toContain("prefer copying `skills/ha-nova/config-body-filter.jq`");
+    expect(readSkill).toContain("prefer copying `../ha-nova/config-body-filter.jq`");
     expect(readSkill).toContain("do not create alternate config-filter filenames");
     expect(readSkill).not.toContain("use entity-discovery skill's area-first `search/related` flow");
   });
@@ -92,16 +92,16 @@ describe("bulk audit contract", () => {
     expect(reviewSkill).toContain("more than one resolved target -> current review set = the Static Pass's flagged targets (helpers: all resolved targets) in deterministic order, trimmed to the first 5 only when more than 5 are flagged");
     expect(reviewSkill).not.toContain("2-3 resolved targets -> current review set = all resolved targets, reviewed serially in deterministic order");
     expect(reviewSkill).not.toContain("more than 3 resolved targets -> current review set = first 5 targets only");
-    expect(reviewSkill).toContain("skills/ha-nova/bulk-patterns.md");
+    expect(reviewSkill).toContain("../ha-nova/bulk-patterns.md");
     expect(reviewSkill).toContain("deep-audit only the current workset (max 5 targets)");
     expect(reviewSkill).toContain("stop after that one workset; do not start a second batch in the same standalone request");
     expect(reviewSkill).toContain("beyond the Static Pass, do not resolve unique_ids, read configs, read states, or run collision scans for targets outside the current review set");
     expect(reviewSkill).toContain("a narrow collision explanation may inspect one extra target outside the matched remainder");
     expect(reviewSkill).toContain("clearly marked as related/collision evidence in the transcript");
-    expect(reviewSkill).toContain("first reads `skills/ha-nova/bulk-patterns.md` → Static Pass and runs it over EVERY matched target");
+    expect(reviewSkill).toContain("first reads `../ha-nova/bulk-patterns.md` → Static Pass and runs it over EVERY matched target");
     expect(reviewSkill).toContain("related-item, trace, and live evidence only per target inside the current workset; no prefetch for the remaining targets");
     expect(reviewSkill).toContain("paste that jq program body exactly as shown");
-    expect(reviewSkill).toContain("Preferred: copy `skills/ha-nova/config-body-filter.jq`");
+    expect(reviewSkill).toContain("Preferred: copy `../ha-nova/config-body-filter.jq`");
     expect(reviewSkill).toContain("POSIX shell example only:");
     expect(reviewSkill).toContain("overwrite the same `config_filter_file` with the exact canonical line before the first config read");
     expect(reviewSkill).toContain("do not create probe variants or alternate filenames");
@@ -133,6 +133,6 @@ describe("bulk audit contract", () => {
     expect(contextSkill).toContain("area-first aggregate review when more than one target resolves");
     expect(contextSkill).not.toContain("resolved set is >3");
     expect(contextSkill).toContain("Bulk review is the exception: it stays read-only and does not offer Quick-Fix.");
-    expect(contextSkill).toContain("skills/ha-nova/bulk-patterns.md");
+    expect(contextSkill).toContain("../ha-nova/bulk-patterns.md");
   });
 });

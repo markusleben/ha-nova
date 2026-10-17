@@ -26,6 +26,8 @@ function expectRepoRefsRewritten(content: string): void {
   if (content.includes("/skills/") || content.includes("/docs/reference/")) {
     expect(content).toMatch(REWRITTEN_REPO_REF);
   }
+  // Flat copies resolve every relative skill ref except the bootstrap marker.
+  expect(content).not.toMatch(/`\.\.\/(?!ha-nova\/session-bootstrap\.md`)/);
 }
 
 function expectSessionBootstrapResolves(skillPath: string): void {

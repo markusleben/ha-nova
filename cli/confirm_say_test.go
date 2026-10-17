@@ -37,6 +37,10 @@ func TestConfirmationSay(t *testing.T) {
 			},
 			args: []string{"input_boolean.turn_on", "input_boolean.guest"},
 			want: "Turn on “Guest mode”: off → on. Nothing has run yet. This also unlocks “Entrance Door” through the automation “Guest mode unlocks”, so it needs a four-digit one-time code from HA NOVA. Type CODE to turn on “Guest mode” — a plain yes can't confirm this."},
+		{name: "an unreadable lock is explained once",
+			setup: func(f *fakeHA) { f.ent("lock.yaml", "", "locked", map[string]any{"friendly_name": "Front Door"}) }, // no registry row
+			args:  []string{"lock.unlock", "lock.yaml"},
+			want:  "Unlock “Front Door”: locked → unlocked. Nothing has run yet. This unlocks a door, so it needs a four-digit one-time code from HA NOVA. Type CODE to unlock “Front Door” — a plain yes can't confirm this."},
 		{name: "unregistered switch",
 			setup: func(f *fakeHA) { f.ent("switch.porch", "", "off", map[string]any{"friendly_name": "Porch"}) },
 			args:  []string{"switch.turn_on", "switch.porch"},
@@ -208,6 +212,11 @@ func TestConfirmationSayDelete(t *testing.T) {
 	}))
 	if !strings.HasPrefix(created.Say, "Nothing is saved yet. This also unlocks “lock.front” through this automation, so it needs a four-digit one-time code from HA NOVA. Type "+created.Plan.Code+" to create the automation “Porch” — ") {
 		t.Fatalf("create say %q", created.Say)
+	}
+	h.f.ent("light.tpl", "template", "off", map[string]any{"friendly_name": "Desk"})
+	_, unread := h.run(runPlanCommand, "write", "--domain", "automation", "--file", draftFile(t, map[string]any{"alias": "Desk", "actions": []any{step("light.turn_on", "light.tpl")}}))
+	if !strings.HasPrefix(unread.Say, "Nothing is saved yet. This automation uses “Desk”, and HA NOVA can't see what that does, so it needs a four-digit one-time code from HA NOVA. Type ") {
+		t.Fatalf("unread member say %q", unread.Say)
 	}
 	_, natural := h.run(runPlanCommand, "write", "--domain", "automation", "--file", draftFile(t, map[string]any{"alias": "Hall", "actions": []any{step("light.turn_on", "light.hall")}}))
 	if natural.Say != "Nothing is saved yet. Options: apply · show yaml · cancel" {

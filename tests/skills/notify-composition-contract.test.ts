@@ -233,7 +233,7 @@ describe("consumer wiring", () => {
   it("write points at composition and pre-preview intent classification", () => {
     const write = flat(read("skills/write/SKILL.md"));
     expect(write).toContain(
-      "follow the canonical contract `skills/ha-nova/mobile-notification-composition.md`",
+      "follow the canonical contract `../ha-nova/mobile-notification-composition.md`",
     );
     expect(write).toContain(
       "INTENT classification is not so limited: it runs before the write preview on EVERY recurring-workflow write",
@@ -243,7 +243,7 @@ describe("consumer wiring", () => {
   it("review separates findings from style and intent advice", () => {
     const review = flat(read("skills/review/SKILL.md"));
     expect(review).toContain(
-      "Notification checks follow `skills/ha-nova/mobile-notification-composition.md`",
+      "Notification checks follow `../ha-nova/mobile-notification-composition.md`",
     );
     expect(review).toContain(
       "objective schema, capability, safety, or privacy violations are findings; optional style differences are suggestions",

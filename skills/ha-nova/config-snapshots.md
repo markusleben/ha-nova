@@ -21,7 +21,7 @@ the payload sits under `.data`, errors under `.error`.
 
 The `ha-nova` context skill explicitly supports destructive batch deletion for
 the `config-snapshots` resource family through
-`skills/ha-nova/batch-safety.md`. Single-file delete stays the default.
+`../ha-nova/batch-safety.md`. Single-file delete stays the default.
 
 - Run an unfiltered `list` immediately before building the manifest. Every
   target must be a literal `.data[].file` value with its category, bytes, and
@@ -32,7 +32,7 @@ the `config-snapshots` resource family through
   recovery limits. Never mix another resource type or a prune action into the
   manifest.
 - Cap the manifest at **20** files. Use deterministic bytewise file-path order
-  and one one-time code for the manifest (`skills/ha-nova/batch-safety.md`).
+  and one one-time code for the manifest (`../ha-nova/batch-safety.md`).
 - Record the dependency result per target as not applicable: deleting a
   snapshot copy cannot change the underlying Home Assistant config. State
   plainly that the deleted copy itself has no rollback.
@@ -101,7 +101,7 @@ the user just decides informed.
 3. Diff against the LIVE state (`ha-nova diff` where the family supports it),
    preview, and confirm — a restore is a normal write, never a blind put.
    The restore preview and result render as the Preview and Result Cards
-   (`skills/ha-nova/output-cards.md` → Cards), like any write of that family.
+   (`../ha-nova/output-cards.md` → Cards), like any write of that family.
 4. Write IN PLACE via the family's own API — never delete+recreate.
    A deleted item restores as a create that reuses the original identity key
    where the API allows it (see the fidelity table).

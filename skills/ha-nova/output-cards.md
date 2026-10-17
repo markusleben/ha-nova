@@ -1,8 +1,8 @@
 # HA NOVA Output Cards
 
-Canonical path: `skills/ha-nova/output-cards.md`
+Canonical path: `../ha-nova/output-cards.md`
 
-On-demand part of `skills/ha-nova/output-rules.md`: read it once per session
+On-demand part of `../ha-nova/output-rules.md`: read it once per session
 before the first response that renders a write or action Card, a write
 preview, a Report Shape, a List Frame, a Suggestion Block, the Replication
 Line, a Session Recap, findings, or review output. The core rules still apply.
@@ -15,7 +15,7 @@ Line, a Session Recap, findings, or review output. The core rules still apply.
 - Keep delete previews structured in this order: preview summary, consumer-check impact, save status, exact one-time-code prompt.
 - Use stable localized labels for those slots across a conversation. If a slot has content, show it under the same label and in the same order; if it has no content, omit that slot instead of printing an empty placeholder.
 - Every write preview must explicitly say that nothing has been saved yet before showing the options.
-- Always render write-preview options as an explicit choice block that includes literal `apply`, `show yaml`, and `cancel` for create/update. Sole exception: intermediate previews inside a grouped change set (`skills/ha-nova/grouped-change-set.md`) carry no options block — exactly one final action block closes the group with the same literal keywords.
+- Always render write-preview options as an explicit choice block that includes literal `apply`, `show yaml`, and `cancel` for create/update. Sole exception: intermediate previews inside a grouped change set (`../ha-nova/grouped-change-set.md`) carry no options block — exactly one final action block closes the group with the same literal keywords.
 - Delete previews must say nothing has been deleted yet and must ask for the one-time code; never render `apply`, `show yaml`, `cancel`, or a selectable menu for destructive confirmation.
 - Never hide the available next actions inside a paragraph.
 - A plan's `say` closes the card, replacing the ⚠️ save-status and options or code lines.
@@ -40,7 +40,7 @@ Pre-write check: no concerns.
 Options: apply · show yaml · cancel
 ```
 
-Title line: emoji + localized preview label + item type + name. Then one to three plain sentences on what the change DOES. They must cover every collection the diff touches — each added, removed, replaced, or modified entry described by its effect, never only by count or type name; grouped entries may share a sentence, and coverage beats the three-sentence guideline. The changes block: in diff-backed skills you author only the localized header row and the literal separator — the data rows are pasted verbatim from the CLI (`ha-nova plan write` / `ha-nova diff`), never invented and never re-aligned (mechanics: `skills/ha-nova/write-safety.md`); skills without a CLI diff author one short planned-change row or line per changed field; file-editing skills show the changed section as a snippet instead of a table. Existing per-skill slots map into the card: identity slots (name/mode/target) fold into the title line, `Planned change` is the changes block, `Save status` is the ⚠️ line, `Options` or the one-time-code prompt closes the card. Runtime actions close with the plan's `say` (an explicit not-executed-yet line and the ask).
+Title line: emoji + localized preview label + item type + name. Then one to three plain sentences on what the change DOES. They must cover every collection the diff touches — each added, removed, replaced, or modified entry described by its effect, never only by count or type name; grouped entries may share a sentence, and coverage beats the three-sentence guideline. The changes block: in diff-backed skills you author only the localized header row and the literal separator — the data rows are pasted verbatim from the CLI (`ha-nova plan write` / `ha-nova diff`), never invented and never re-aligned (mechanics: `../ha-nova/write-safety.md`); skills without a CLI diff author one short planned-change row or line per changed field; file-editing skills show the changed section as a snippet instead of a table. Existing per-skill slots map into the card: identity slots (name/mode/target) fold into the title line, `Planned change` is the changes block, `Save status` is the ⚠️ line, `Options` or the one-time-code prompt closes the card. Runtime actions close with the plan's `say` (an explicit not-executed-yet line and the ask).
 
 **Delete Card** (destructive — never a menu; the one-time-code prompt is always the last line):
 
@@ -53,9 +53,9 @@ Type <four digits> to delete.
 ```
 
 Destructive batch previews and results render the Batch Cards defined in
-`skills/ha-nova/batch-safety.md` — same emoji vocabulary and rules.
+`../ha-nova/batch-safety.md` — same emoji vocabulary and rules.
 
-**Result Card** (after verification — name only the proven scope, per `skills/ha-nova/write-safety.md` → Verification Honesty; findings, if any, follow with 🔴🟠🟡):
+**Result Card** (after verification — name only the proven scope, per `../ha-nova/write-safety.md` → Verification Honesty; findings, if any, follow with 🔴🟠🟡):
 
 ```
 ✅ Saved: automation "Morning routine"
@@ -64,7 +64,7 @@ Reply revert to undo this update.
 ```
 
 **Test Plan Card** (test offer after create/update — feasibility logic, option
-selection, and post-run follow-up live in `skills/ha-nova/test-run.md`; menu
+selection, and post-run follow-up live in `../ha-nova/test-run.md`; menu
 mechanics: context skill → Interactive Choices):
 
 ```
@@ -92,9 +92,9 @@ write flow renders outside this system:
 | Create / update (any supported family) | Preview Card → Result Card |
 | Delete / destructive operation (one-time code) | Delete Card → Result Card |
 | Natural-confirmation removals (e.g. snapshot prune, todo item removes) | Preview Card → Result Card |
-| Batch mutation (manifest-gated) | Batch Cards (`skills/ha-nova/batch-safety.md`) |
-| Grouped change set (non-destructive, one logical task) | Preview Cards without options → one final action block → Result Card (`skills/ha-nova/grouped-change-set.md`) |
-| Snapshot restore (`skills/ha-nova/config-snapshots.md`) | Preview Card → Result Card |
+| Batch mutation (manifest-gated) | Batch Cards (`../ha-nova/batch-safety.md`) |
+| Grouped change set (non-destructive, one logical task) | Preview Cards without options → one final action block → Result Card (`../ha-nova/grouped-change-set.md`) |
+| Snapshot restore (`../ha-nova/config-snapshots.md`) | Preview Card → Result Card |
 | Post-write test offer | Test Plan Card |
 | Runtime action (service call, experimental write) | CLI fast path (`tier: ordinary`): no preview, the three-line verb result (`output-rules.md` → Verb Results). Otherwise a preview closing with the plan's `say` (high-consequence actions escalate to the one-time code — context skill → Confirmation Tiers) → Result Card (verb routes: the three-line verb result) |
 
@@ -155,7 +155,7 @@ review Suggestions items, and separate
 notification-copy offers. 💡 header line (single space after 💡), numbered
 items. Caps: unsolicited improvement suggestions max 2, smallest intervention
 first, none when the requested solution is already complete
-(`skills/ha-nova/smallest-solution.md`). Helper defaults already merged into
+(`../ha-nova/smallest-solution.md`). Helper defaults already merged into
 a preview are not offers: `ha-nova:helper` lists them its own way.
 Item shape: short title + what it does + why it helps. Menu mechanics follow context skill →
 Interactive Choices; skip/decline is always valid; omit the block entirely
@@ -204,7 +204,7 @@ one sentence, evidence named, ending in an offer ("The kitchen and bedroom
 have the same motion+light pairing — say 'do the same for the kitchen' to
 replicate."). No Suggestion Block, no list, no second line, nothing invented
 from name patterns. Accepting hands to `ha-nova:write`'s replicate pattern
-(`skills/ha-nova/automation-patterns.md`), one preview per room.
+(`../ha-nova/automation-patterns.md`), one preview per room.
 
 ## Session Recap ("what did you do today?")
 
@@ -230,5 +230,5 @@ are named as such, never upgraded to successes in recap.
 
 - Standalone and bulk review keep their full shape because the user explicitly asked for review; a clear "no issues found" result is useful.
 - Post-write review is different: the user asked to write, not to review. Show only sections that carry substance.
-- Do not print empty "none" buckets in post-write review. If every post-write check is clean, collapse to one localized confirmation line — scope-honest per `skills/ha-nova/write-safety.md` → Verification Honesty, never a bare "verified".
+- Do not print empty "none" buckets in post-write review. If every post-write check is clean, collapse to one localized confirmation line — scope-honest per `../ha-nova/write-safety.md` → Verification Honesty, never a bare "verified".
 - In review output, put uncertainty in `Questions to consider`; put only confident recommendations in `Suggestions`.

@@ -32,7 +32,7 @@ Use file-based requests:
 - `ha-nova relay core --method <METHOD> --path <PATH> --body-file <payload-file>`
 - `--out <result-file>` for large responses, `--jq-file <filter-file>` for filters
 
-Relay-core response body: `.data.body` (`skills/ha-nova/relay-api.md` → Standard Envelope).
+Relay-core response body: `.data.body` (`../ha-nova/relay-api.md` → Standard Envelope).
 
 ## Editability Guard (critical)
 
@@ -47,7 +47,7 @@ ha-nova relay ws --data-file <payload-file> --out <registry-file>
 
 ## Flow
 
-Drafts follow `skills/ha-nova/smallest-solution.md`: the complete requested outcome in the simplest safe design, nothing for hypothetical future needs.
+Drafts follow `../ha-nova/smallest-solution.md`: the complete requested outcome in the simplest safe design, nothing for hypothetical future needs.
 
 
 ### List
@@ -78,26 +78,26 @@ Write `<filter-file>` with:
    - prefer individual lights over light groups — group snapshots are a known HA reproduce-state trouble spot
    - switch/lock/input_boolean: `state` only
    - other domains: `state` plus the attributes scene reproduction actually reads. A scene stores STATE attributes, not service parameters, and the two differ per domain: a cover stores `current_position` / `current_tilt_position` (storing `position` loses a partial target — the cover then just opens fully), while a setpoint domain stores the setpoint itself — climate `hvac_mode` plus whichever setpoint the state actually carries — `temperature` on a single-setpoint thermostat, `target_temp_low` AND `target_temp_high` on one in a range mode; capture both when both are present, or activating the scene restores the mode without either boundary. Climate reproduction also restores `preset_mode`, `fan_mode`, `swing_mode`, `swing_horizontal_mode` and `humidity`, each through its own service — capture every one the state actually carries, or the scene silently leaves the AC on yesterday's Boost preset while the temperature looks right. Humidifier `humidity`/`mode`, fan `percentage`/`preset_mode` plus `oscillating` and `direction` when present — and never its `current_*` sensor twin (`current_temperature`, `current_humidity`); never copy measurement or diagnostic attributes
-4. Preview name + full entities map; natural confirmation bound to this exact preview (see context skill → Active Preview Confirmation). Creates may join a grouped change set (max 10) per `skills/ha-nova/grouped-change-set.md` — previews stay, one final confirmation.
+4. Preview name + full entities map; natural confirmation bound to this exact preview (see context skill → Active Preview Confirmation). Creates may join a grouped change set (max 10) per `../ha-nova/grouped-change-set.md` — previews stay, one final confirmation.
 5. `ha-nova relay core --method POST --path /api/config/scene/config/<id> --body-file <payload-file>`
 6. Read back via GET and verify the fields; the config API reloads scenes automatically. Resolve the new entity_id from the registry by matching `unique_id` to the config id (the entity_id derives from `name`, not the id; never guess the slug — the registry can lag the write by a moment, retry once), then confirm it via `/api/states/<entity_id>`.
 
 ### Create from current state ("save this room as a scene")
 Same as Create, but the entities map IS the live state: read each requested entity's state and copy it (attribute rules from Create step 3). Show captured entities and values before confirming.
-Persistence routing per `skills/ha-nova/best-practices.md` → Persistence Model: a stored scene is a static capture that never updates itself; `scene.create` snapshots and automation-driven save → modify → restore cycles hand off to `ha-nova:write` (helpers, not scenes).
+Persistence routing per `../ha-nova/best-practices.md` → Persistence Model: a stored scene is a static capture that never updates itself; `scene.create` snapshots and automation-driven save → modify → restore cycles hand off to `ha-nova:write` (helpers, not scenes).
 
 ### Update
 1. Read the current config (Read flow).
 2. Merge the requested change in memory — the POST replaces the ENTIRE scene config; never send a partial body and never drop entities the user did not mention.
-3. When the update adds or changes a member that assigns a threshold-backing `input_number` consumed by a physical-process `numeric_state`, run the calibration preflight per `skills/ha-nova/threshold-calibration.md` first. Preview a concise before/after excerpt plus a plain-language line on what changes behaviorally (write-safety → Behavior narrative) — never entity counts alone; natural confirmation bound to this exact preview. Non-destructive storage-scene worksets (max 10) may confirm as one grouped change set per `skills/ha-nova/grouped-change-set.md`.
-4. If the conversation paused between read and confirmation, re-read and re-verify the merge basis before writing; if the live scene differs from the previewed basis, STOP — confirmation expired; show the updated merge and ask again (never silently overwrite an external edit). Apply the orphaned-member flag from Read step 3. When the confirmed update REMOVES scene members, capture the auto config snapshot first (`skills/ha-nova/config-snapshots.md`; on capture failure follow its capture-failure stop).
+3. When the update adds or changes a member that assigns a threshold-backing `input_number` consumed by a physical-process `numeric_state`, run the calibration preflight per `../ha-nova/threshold-calibration.md` first. Preview a concise before/after excerpt plus a plain-language line on what changes behaviorally (write-safety → Behavior narrative) — never entity counts alone; natural confirmation bound to this exact preview. Non-destructive storage-scene worksets (max 10) may confirm as one grouped change set per `../ha-nova/grouped-change-set.md`.
+4. If the conversation paused between read and confirmation, re-read and re-verify the merge basis before writing; if the live scene differs from the previewed basis, STOP — confirmation expired; show the updated merge and ask again (never silently overwrite an external edit). Apply the orphaned-member flag from Read step 3. When the confirmed update REMOVES scene members, capture the auto config snapshot first (`../ha-nova/config-snapshots.md`; on capture failure follow its capture-failure stop).
 5. POST the full merged body, then read back and verify both the intended change and the survival of unrelated entities.
 
 ### Delete
 1. Resolve id + platform (Editability Guard).
-2. Consumer check: `{"type":"search/related","item_type":"entity","item_id":"scene.<slug>"}` — read through `skills/ha-nova/search-related-consumers.jq` (recreate per `skills/ha-nova/relay-api.md` → Parsing rule on flat-copy installs); show referencing automations/scripts, or an explicit no-consumer result (only a verified-shape empty `data` object means no consumers; a failed read is inconclusive, never a no-consumer claim).
-3. Require the one-time code — mint four random digits, display them in the Options slot, and proceed only on a reply that is just the code (spaces ignored). Deleting several storage scenes at once follows `skills/ha-nova/batch-safety.md` (Editability Guard per target).
-4. Capture the auto config snapshot of the current config first (`skills/ha-nova/config-snapshots.md`; on capture failure follow its capture-failure stop).
+2. Consumer check: `{"type":"search/related","item_type":"entity","item_id":"scene.<slug>"}` — read through `../ha-nova/search-related-consumers.jq` (recreate per `../ha-nova/relay-api.md` → Parsing rule on flat-copy installs); show referencing automations/scripts, or an explicit no-consumer result (only a verified-shape empty `data` object means no consumers; a failed read is inconclusive, never a no-consumer claim).
+3. Require the one-time code — mint four random digits, display them in the Options slot, and proceed only on a reply that is just the code (spaces ignored). Deleting several storage scenes at once follows `../ha-nova/batch-safety.md` (Editability Guard per target).
+4. Capture the auto config snapshot of the current config first (`../ha-nova/config-snapshots.md`; on capture failure follow its capture-failure stop).
 5. `ha-nova relay core --method DELETE --path /api/config/scene/config/<id>`
 6. Verify absence: config GET returns status 404 and the entity is gone. Mention the snapshot restore path in the result.
 
@@ -107,11 +107,11 @@ Persistence routing per `skills/ha-nova/best-practices.md` → Persistence Model
 - Config GET 404 on a `homeassistant`-platform scene: the scene was deleted outside this session — re-list instead of retrying.
 - Registry get miss on a live scene entity: a YAML scene without an `id:` — not API-editable; point to `scenes.yaml`.
 - POST/DELETE failures: show HA's error, stop; do not retry blind. If every scene config call fails, `scenes.yaml` may be missing from the config includes — point to HA docs.
-- Full relay error taxonomy: `skills/ha-nova/relay-api.md` → Error Handling.
+- Full relay error taxonomy: `../ha-nova/relay-api.md` → Error Handling.
 
 ## Output Format
 
-Apply `skills/ha-nova/output-rules.md` to all user-facing output. Write previews, delete confirmations, and results render as the Cards defined there (`skills/ha-nova/output-cards.md`).
+Apply `../ha-nova/output-rules.md` to all user-facing output. Write previews, delete confirmations, and results render as the Cards defined there (`../ha-nova/output-cards.md`).
 
 - `Scene`
 - `Mode`
@@ -136,4 +136,4 @@ Use stable localized slot labels in this order; omit empty slots. Reads render t
 - Scene writes have no `revert`; recovery is the auto config snapshot (deletes and member-removing updates capture one). Offer a safety backup via `ha-nova:backup` before a delete only when the snapshot store is unavailable (never for routine edits).
 - One scene per mutation; verify read-back, not just the save response.
 - Activation hands off to `ha-nova:service-call` — `scene.turn_on` supports `transition` (lights only); `scene.apply` applies a one-off state set without storing a scene.
-- After a verified create/update, OFFER an apply-test: one Test-Plan-style card (mechanics: `skills/ha-nova/test-run.md` — name every member device and its target state, single bound confirmation, run via `scene.turn_on`, verify the timestamp advanced plus member states). Say honestly that activation changes real devices and prior states are not restored. members are classified by `skills/ha-nova/indirect-actuation.md`, not by a list kept here — that gate also covers nested script and scene runs, `template`-platform members, physically irreversible actions, and members whose owning skill already demands the typed tier. Anything it puts on the typed tier keeps the one-time code from the context skill's high-consequence tier — the single card confirmation never replaces it.
+- After a verified create/update, OFFER an apply-test: one Test-Plan-style card (mechanics: `../ha-nova/test-run.md` — name every member device and its target state, single bound confirmation, run via `scene.turn_on`, verify the timestamp advanced plus member states). Say honestly that activation changes real devices and prior states are not restored. members are classified by `../ha-nova/indirect-actuation.md`, not by a list kept here — that gate also covers nested script and scene runs, `template`-platform members, physically irreversible actions, and members whose owning skill already demands the typed tier. Anything it puts on the typed tier keeps the one-time code from the context skill's high-consequence tier — the single card confirmation never replaces it.
