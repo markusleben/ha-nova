@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"path"
+	"regexp"
 	"strconv"
 	"strings"
 )
@@ -278,6 +279,10 @@ func watchesConfirmation(v any) bool {
 	return false
 }
 
+// flowStepPath: a GET on a config flow step re-runs it, which can finish the
+// flow (a progress or external step) and create an entry.
+var flowStepPath = regexp.MustCompile(`^/api/config/config_entries/(options/)?flow/`)
+
 // rawRelayRead: the request only reads (a core GET, or WS types listed as
 // reads), so a failure after it was sent changed nothing in Home Assistant.
 func rawRelayRead(endpoint string, body []byte) bool {
@@ -291,7 +296,6 @@ func rawRelayRead(endpoint string, body []byte) bool {
 	}
 	switch endpoint {
 	case "core":
-		// A GET on a write route (a config flow step) can advance the flow.
 		method, _ := payload["method"].(string)
 		raw, _ := payload["path"].(string)
 		pathPart, _, _ := strings.Cut(raw, "#")
@@ -299,12 +303,7 @@ func rawRelayRead(endpoint string, body []byte) bool {
 		if strings.ToUpper(strings.TrimSpace(method)) != http.MethodGet || !strings.HasPrefix(pathPart, "/") || strings.ContainsAny(pathPart, "%\\") || path.Clean(pathPart) != pathPart { // the Relay roots a relative path
 			return false
 		}
-		for _, write := range rawCoreWrites {
-			if write.path.MatchString(pathPart) {
-				return false
-			}
-		}
-		return true
+		return !flowStepPath.MatchString(pathPart)
 	case "ws":
 		message, hasMessage := payload["message"].(map[string]any)
 		if hasMessage && !isRead(message) {

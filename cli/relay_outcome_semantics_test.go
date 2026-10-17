@@ -272,6 +272,7 @@ func TestRawRelayReadClassifiesOnlyReads(t *testing.T) {
 		`{"method":"GET","path":"api/config/config_entries/flow/abc"}`:            false,
 		`{"method":"GET","path":"/api/config/config_entries/options/flow/abc"}`:   false,
 		`{"method":"GET","path":"api/states"}`:                                    false,
+		`{"method":"GET","path":"/api/config/scene/config/abc"}`:                  true,
 		`{"method":"get","path":"/api/states?x=1"}`:                               true,
 		`{"method":"get","path":"/api/states"}`:                                   true,
 		`{"method":"POST","path":"/api/template"}`:                                false,
