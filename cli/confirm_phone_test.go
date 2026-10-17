@@ -295,3 +295,21 @@ func TestPhonePinThatCannotBeSavedRefuses(t *testing.T) {
 		t.Fatalf("unsaved pin: exit %d %+v", exit, env)
 	}
 }
+
+// An edited phone plan file (its prompt or channel) is never asked on the
+// phone, and apply refuses it.
+func TestEditedPhonePlanIsNeverAsked(t *testing.T) {
+	for _, edit := range []func(map[string]any){
+		func(p map[string]any) { p["prompt"] = "Turn on “Kitchen”." },
+		func(p map[string]any) { p["channel"] = channelChat },
+	} {
+		h := newWriteHarness(t, newFakeHA())
+		p := usePhones(t, "mobile_app_iphone")
+		plan := h.plan("lock.unlock", "lock.front").Plan
+		h.tamper(plan.ID, edit)
+		exit, env := h.run(runApplyCommand, "--plan", plan.ID, "--confirm", storedCode(t, h, plan.ID))
+		if exit != 4 || len(p.sent) != 0 || len(h.posts()) != 0 {
+			t.Fatalf("edited plan: exit %d %+v phone %d posts %d", exit, env.Error, len(p.sent), len(h.posts()))
+		}
+	}
+}
