@@ -190,8 +190,8 @@ func detectAfterWindow(s *relaySession) string {
 	switch pin := phonePin(s.paths, s.server); {
 	case pin == "off":
 	case phoneAvailable(s):
-		if pin == "" {
-			_ = setPhonePin(s.paths, s.server, "on") // best effort: unpinned, the next plan detects again
+		if pin == "" && setPhonePin(s.paths, s.server, "on") != nil {
+			return channelPhoneUnpinned // unpinned, a later broken phone setup would move plans to a weaker channel
 		}
 		return channelPhone
 	case pin == "on":
@@ -244,11 +244,11 @@ func runConfirmPhoneSetting(paths runtimePaths, args []string) int {
 			printHumanInfo("HA NOVA found no phone that can confirm here, so it doesn't use one. Nothing changed.")
 			return 0
 		}
-		printHumanErr("HA NOVA can't reach the phone that confirms, so it can't ask there. Nothing changed. To turn it off anyway, set \"%s\": {\"%s\": \"off\"} in %s yourself.", phoneSettingKey, s.server, paths.ConfigFile)
+		printHumanErr("HA NOVA can't reach the phone that confirms, so it can't ask there. Nothing changed. Sign in to the Home Assistant Companion app as the owner on your phone, or, to turn it off anyway, set \"%s\": {\"%s\": \"off\"} in %s yourself.", phoneSettingKey, s.server, paths.ConfigFile)
 		return 1
 	}
 	if askPhone(s, setup, "ha-nova-setting", "Turn off phone confirmation? HA NOVA then asks in a window, in your app's form, or with a one-time code in chat that your AI assistant can see too.\n\n"+phoneAsked, cliWindowWait) != phoneConfirmed {
-		printHumanErr("Nothing changed: the phone confirmation was cancelled, refused, or got no answer.")
+		printHumanErr("Nothing changed: Confirm was not pressed on the phone in time, or the notification could not be sent.")
 		return 1
 	}
 	if err := setPhonePin(paths, s.server, "off"); err != nil {

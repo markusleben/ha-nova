@@ -53,6 +53,9 @@ const (
 	// channelPhoneMissing is never stored: the pinned phone can't be reached,
 	// so the plan is refused (confirm_phone_setup.go).
 	channelPhoneMissing = "phone-missing"
+	// channelPhoneUnpinned is never stored: the phone was found but its pin
+	// could not be saved, so the plan is refused rather than unprotected.
+	channelPhoneUnpinned = "phone-unpinned"
 )
 
 // humanChannel: the human answers in a window or on a phone; the plan's

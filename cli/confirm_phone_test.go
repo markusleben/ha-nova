@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"testing"
@@ -126,13 +127,15 @@ func TestPhonePlanConfirmsOnThePhoneAndClearsEveryPhone(t *testing.T) {
 		t.Fatalf("stderr %q", stderr)
 	}
 	// Both phones got it, and both were cleared afterwards.
-	if strings.Join(p.services, ",") != "mobile_app_iphone,mobile_app_pixel,mobile_app_iphone,mobile_app_pixel" ||
+	cleared := append([]string{}, p.services[2:]...) // the clears run in parallel
+	sort.Strings(cleared)
+	if strings.Join(p.services[:2], ",")+","+strings.Join(cleared, ",") != "mobile_app_iphone,mobile_app_pixel,mobile_app_iphone,mobile_app_pixel" ||
 		p.sent[2]["message"] != "clear_notification" || p.sent[3]["message"] != "clear_notification" {
 		t.Fatalf("notify calls %v %v", p.services, p.sent)
 	}
 	data := p.sent[0]["data"].(map[string]any)
 	confirm := data["actions"].([]any)[0].(map[string]any)
-	if confirm["authenticationRequired"] != true || confirm["destructive"] != true || data["tag"] != "ha-nova-"+plan.ID ||
+	if confirm["authenticationRequired"] != true || confirm["destructive"] != true || !strings.HasPrefix(data["tag"].(string), "ha-nova-"+plan.ID+"-") || p.sent[2]["data"].(map[string]any)["tag"] != data["tag"] ||
 		!strings.Contains(p.sent[0]["message"].(string), "Unlock “lock.front”") {
 		t.Fatalf("payload %+v", p.sent[0])
 	}
@@ -274,5 +277,21 @@ func TestWindowThatCannotOpenFallsBackToThePhone(t *testing.T) {
 	if exit != 3 || env.Plan == nil || env.Plan.Channel != channelPhone || env.Plan.Code != "" || len(h.posts()) != 0 ||
 		!strings.HasSuffix(env.Say, sayPhoneAsk) || !strings.Contains(env.NextStep, "a notification on their phone") {
 		t.Fatalf("fallback: exit %d %+v say %q next %q", exit, env.Plan, env.Say, env.NextStep)
+	}
+}
+
+// A found phone whose pin can't be saved refuses: without the pin, a later
+// broken phone setup would move plans to a channel the model can answer.
+func TestPhonePinThatCannotBeSavedRefuses(t *testing.T) {
+	h := newWriteHarness(t, newFakeHA())
+	usePhones(t, "mobile_app_iphone")
+	dir := filepath.Dir(h.paths.ConfigFile)
+	if err := os.Chmod(dir, 0o500); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(dir, 0o700) })
+	exit, env := h.run(runPlanCommand, "call", "lock.unlock", "lock.front")
+	if exit != 4 || env.Error == nil || env.Error.Code != "CONFIRM_UNAVAILABLE" || env.Plan != nil {
+		t.Fatalf("unsaved pin: exit %d %+v", exit, env)
 	}
 }

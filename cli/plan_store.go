@@ -149,8 +149,11 @@ func sealPlan(e *tierEngine, env *verbEnvelope, plan storedPlan, action any) (st
 		if plan.Channel == "" {
 			plan.Channel = detectChannel(e.s)
 		}
-		if plan.Channel == channelPhoneMissing {
+		switch plan.Channel {
+		case channelPhoneMissing:
 			return storedPlan{}, refusedWith("CONFIRM_UNAVAILABLE", "this change is confirmed on the Home Assistant owner's phone, and HA NOVA can't reach it now", phoneMissingNext)
+		case channelPhoneUnpinned:
+			return storedPlan{}, refusedWith("CONFIRM_UNAVAILABLE", "HA NOVA could not save its phone-confirmation setting in its configuration file", "Tell the user nothing changed: HA NOVA could not write its configuration file; `ha-nova doctor` in a terminal checks it. They can also make this change in Home Assistant itself.")
 		}
 		if !humanChannel(plan.Channel) { // a window or phone plan's code never leaves this process
 			plan.code = confirmCode(e.s.transport.Credential, idHex, plan.Channel, plan.ExpiresAt)

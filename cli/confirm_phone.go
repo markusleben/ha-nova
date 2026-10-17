@@ -37,8 +37,10 @@ const (
 	phoneEventType  = "mobile_app_notification_action"
 	phoneSentText   = "HA NOVA sent a confirmation to your phone — tap Confirm there."
 	phoneAsked      = "Requested by your AI assistant. Confirm only if you want this."
-	phoneWindowSpan = 10 * time.Second // the Relay's collect_events cap; two lanes overlap by half
-	phoneMaxMessage = 600              // runes: a lock-screen summary, not the whole preview
+	phoneWindowSpan = 10 * time.Second                      // the Relay's collect_events cap; two lanes overlap by half
+	phoneMaxMessage = 600                                   // runes: a lock-screen summary, not the whole preview
+	phoneTitle      = "HA NOVA: hold or expand for Confirm" // a plain tap only opens the app
+	phoneClearSpan  = 3 * time.Second                       // cleanup never delays apply longer
 )
 
 var (
@@ -109,9 +111,13 @@ func phoneNonce(kind string) (string, error) {
 func askPhone(s *relaySession, setup phoneSetup, tag, message string, wait time.Duration) phoneAnswer {
 	ok, errOK := phoneNonce("OK")
 	no, errNo := phoneNonce("NO")
-	if errOK != nil || errNo != nil {
+	attempt, errTag := phoneNonce("T")
+	if errOK != nil || errNo != nil || errTag != nil {
 		return phoneFailed
 	}
+	// A fresh tag per attempt: a late clear of an earlier attempt can't remove this one.
+	tag += "-" + attempt[len(attempt)-8:]
+	collect, notify := phoneCollect, phoneNotify // the lanes may outlive this call
 	ctx, cancel := context.WithTimeout(context.Background(), wait)
 	defer cancel()
 	events, failed := make(chan phoneEvent, 16), make(chan error, 4)
@@ -122,7 +128,7 @@ func askPhone(s *relaySession, setup phoneSetup, tag, message string, wait time.
 			return
 		}
 		for ctx.Err() == nil {
-			got, err := phoneCollect(ctx, s)
+			got, err := collect(ctx, s)
 			if err != nil {
 				select {
 				case failed <- err:
@@ -156,11 +162,11 @@ func askPhone(s *relaySession, setup phoneSetup, tag, message string, wait time.
 	deadline, _ := ctx.Deadline()
 	var sent []string
 	for _, target := range setup.targets {
-		if phoneNotify(s, target.Service, phonePayload(message, tag, ok, no, deadline)) == nil {
+		if notify(s, target.Service, phonePayload(message, tag, ok, no, deadline)) == nil {
 			sent = append(sent, target.Service)
 		}
 	}
-	defer clearPhones(s, sent, tag)
+	defer clearPhones(s, notify, sent, tag)
 	if len(sent) == 0 {
 		return phoneFailed
 	}
@@ -188,7 +194,7 @@ func askPhone(s *relaySession, setup phoneSetup, tag, message string, wait time.
 // notification expires with the wait (Android timeout, iOS apns-expiration).
 func phonePayload(message, tag, ok, no string, deadline time.Time) map[string]any {
 	seconds := max(int(time.Until(deadline).Seconds()), 1)
-	return map[string]any{"title": "HA NOVA", "message": message, "data": map[string]any{
+	return map[string]any{"title": phoneTitle, "message": message, "data": map[string]any{
 		"tag": tag,
 		"actions": []any{
 			map[string]any{"action": ok, "title": "Confirm", "destructive": true, "authenticationRequired": true},
@@ -200,11 +206,24 @@ func phonePayload(message, tag, ok, no string, deadline time.Time) map[string]an
 	}}
 }
 
-// clearPhones removes the notification from every phone it reached (best
-// effort: a stale one has dead buttons, since its ids died with the wait).
-func clearPhones(s *relaySession, services []string, tag string) {
+// clearPhones removes the notification from every phone it reached, in
+// parallel and for at most phoneClearSpan (best effort: a stale one has dead
+// buttons, since its ids died with the wait; a slow Relay never delays apply).
+func clearPhones(s *relaySession, notify func(*relaySession, string, map[string]any) error, services []string, tag string) {
+	done := make(chan struct{}, len(services))
 	for _, service := range services {
-		_ = phoneNotify(s, service, map[string]any{"message": "clear_notification", "data": map[string]any{"tag": tag}})
+		go func() {
+			_ = notify(s, service, map[string]any{"message": "clear_notification", "data": map[string]any{"tag": tag}})
+			done <- struct{}{}
+		}()
+	}
+	timeout := time.After(phoneClearSpan)
+	for range services {
+		select {
+		case <-done:
+		case <-timeout:
+			return
+		}
 	}
 }
 
@@ -246,6 +265,7 @@ func confirmByPhone(paths runtimePaths, opts verbOptions, id string, noSnapshot 
 		return env, 0, false
 	}
 	defer s.close()
+	deadline := time.Now().Add(wait) // discovery counts against the wait
 	if wait < windowMinWait {
 		return windowStopped(s, "refused", "PLAN_EXPIRED", "plan "+id+" expires before the phone could get an answer", replan)
 	}
@@ -253,7 +273,7 @@ func confirmByPhone(paths runtimePaths, opts verbOptions, id string, noSnapshot 
 	if !found {
 		return windowStopped(s, "refused", "CONFIRM_UNAVAILABLE", "this change is confirmed on the Home Assistant owner's phone, and HA NOVA can't reach it now", phoneMissingNext)
 	}
-	switch askPhone(s, setup, "ha-nova-"+plan.ID, phoneMessage(fresh, noSnapshot), wait) {
+	switch askPhone(s, setup, "ha-nova-"+plan.ID, phoneMessage(fresh, noSnapshot), time.Until(deadline)) {
 	case phoneConfirmed:
 		humanAnswer = confirmCode(s.transport.Credential, idHex, channelPhone, plan.ExpiresAt)
 		return env, 0, false
@@ -261,16 +281,16 @@ func confirmByPhone(paths runtimePaths, opts verbOptions, id string, noSnapshot 
 		return windowStopped(s, "declined", "CONFIRM_DECLINED", "the confirmation was cancelled on the phone",
 			"Tell the user nothing changed. Apply this plan again only if they ask for it.")
 	case phoneRejected:
-		return windowStopped(s, "refused", "CONFIRM_REJECTED", "an answer to the phone confirmation did not come from the owner's phone app",
-			"Tell the user nothing changed and that the answer did not come from their phone. Apply again only if they ask; never ask them for a code.")
+		return windowStopped(s, "refused", "CONFIRM_REJECTED", "the answer came from a device that isn't signed in to Home Assistant as the owner",
+			"Tell the user nothing changed: the answer came from a device that isn't signed in to Home Assistant as the owner. Apply again only if they ask; never ask them for a code.")
 	case phoneFailed:
 		return windowStopped(s, "refused", "CONFIRM_UNAVAILABLE", "the confirmation could not be sent to the phone", phoneMissingNext)
 	}
 	return windowStopped(s, "cancelled", "CONFIRM_CANCELLED", "the phone confirmation got no answer in time",
-		fmt.Sprintf("Tell the user nothing changed. Run ha-nova apply --plan %s again (a new confirmation goes to their phone) only after they say they still want it; never ask them for a code. If no notification arrived, they can make this change in Home Assistant itself.", id))
+		fmt.Sprintf("Tell the user nothing changed: Confirm was not pressed in time (hold or expand the notification to see it; a plain tap only opens the app). Run ha-nova apply --plan %s again (a new notification goes to their phone) only after they say they still want it; never ask them for a code. If no notification arrived, they can make this change in Home Assistant itself.", id))
 }
 
-const phoneMissingNext = "Tell the user nothing changed: HA NOVA could not reach their phone through the Home Assistant Companion app. They can make this change in Home Assistant itself, or try again once the app works; never ask them for a code."
+const phoneMissingNext = "Tell the user nothing changed: HA NOVA could not reach their phone. They can make this change in Home Assistant itself, or try again later; never ask them for a code."
 
 // humanPlan reads a typed plan of channel and re-plans it like apply, for
 // a window or phone ask. ok=false: apply runs and reports whatever is

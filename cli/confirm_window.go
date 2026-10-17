@@ -170,7 +170,7 @@ func askWindow(message string, wait time.Duration) windowAnswer {
 func windowFallback(paths runtimePaths, s *relaySession, plan storedPlan, noSnapshot bool) (verbEnvelope, int, bool) {
 	env := verbEnvelope{SchemaVersion: 1, Verb: "apply", Status: "ok", Server: s.server}
 	channel := detectAfterWindow(s) // the phone, else a form, else chat
-	if channel == channelPhoneMissing {
+	if channel == channelPhoneMissing || channel == channelPhoneUnpinned {
 		return windowStopped(s, "refused", "CONFIRM_UNAVAILABLE", "the confirmation window couldn't open, and HA NOVA can't reach the Home Assistant owner's phone either", phoneMissingNext)
 	}
 	fresh, ok := replanStored(paths, s, &env, plan, channel)
