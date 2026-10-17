@@ -229,3 +229,51 @@ func phoneEventName(text string) bool {
 	text = strings.ToLower(text)
 	return strings.Contains(text, "mobile_app_notification") || strings.Contains(text, "ios.notification")
 }
+
+// watchesConfirmation: a config with an event trigger (or wait_for_trigger)
+// on call_service, on a phone notification event other than the tap itself,
+// or on a templated event type. Such an automation could copy a phone
+// confirmation's buttons into a notification with its own text, and the
+// owner's genuine tap would confirm what they never read; writing one is
+// typed. A listener on the tap itself (mobile_app_notification_action) sees
+// the ids only after the decision, when they are dead.
+func watchesConfirmation(v any) bool {
+	switch t := v.(type) {
+	case map[string]any:
+		if t["platform"] == "event" || t["trigger"] == "event" {
+			var types []string
+			switch et := t["event_type"].(type) {
+			case string:
+				types = []string{et}
+			case []any:
+				for _, x := range et {
+					text, ok := x.(string)
+					if !ok {
+						return true
+					}
+					types = append(types, text)
+				}
+			default:
+				return true // missing or unreadable: assume the worst
+			}
+			for _, et := range types {
+				et = strings.ToLower(strings.TrimSpace(et))
+				if strings.Contains(et, "call_service") || strings.ContainsAny(et, "{}%") || phoneEventName(et) && et != phoneEventType && et != "ios.notification_action_fired" {
+					return true
+				}
+			}
+		}
+		for _, x := range t {
+			if watchesConfirmation(x) {
+				return true
+			}
+		}
+	case []any:
+		for _, x := range t {
+			if watchesConfirmation(x) {
+				return true
+			}
+		}
+	}
+	return false
+}

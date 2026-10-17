@@ -227,7 +227,13 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string, noSnapshot
 		return fail(refused("CONFIRM_IN_FORM", "plan "+id+" is confirmed in the confirmation form of the app it was planned in, not with a typed code"))
 	}
 
-	// Recompute the whole plan from the stored request (I3).
+	// Recompute the whole plan from the stored request (I3). A typed plan
+	// keeps its sealed channel: re-detecting (a phone lookup) could refuse a
+	// plan the human just confirmed.
+	if plan.Tier == tierTyped.String() {
+		defer func(saved string) { planChannel = saved }(planChannel)
+		planChannel = plan.Channel
+	}
 	var e *tierEngine
 	var fresh storedPlan
 	var ctx configContext

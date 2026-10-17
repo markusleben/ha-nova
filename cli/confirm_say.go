@@ -229,6 +229,8 @@ func sayReason(e *tierEngine, env *verbEnvelope, plan storedPlan, r tierReason) 
 	case reasonTemplatedAction, reasonUnresolvedTarget, reasonStoredSelector, reasonBlueprint, reasonYAMLNoID,
 		reasonUnreadConfig, reasonListener, reasonScanFailed, reasonLimitCut:
 		return "HA NOVA can't check everything this would set off", true
+	case reasonConfirmWatch:
+		return "It watches service calls or phone notifications, so it could see another confirmation's buttons", true
 	case reasonSceneAccess:
 		return "HA NOVA can't read the scene " + name + ", and its integration also controls locks, alarms, gates, or doors", true
 	case reasonReload:

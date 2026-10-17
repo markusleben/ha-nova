@@ -399,6 +399,9 @@ func (e *tierEngine) classifyDraft(domain, configID string, draft json.RawMessag
 		return
 	}
 	e.draft = true
+	if watchesConfirmation(cfg) {
+		e.raise(tierTyped, tierReason{Code: reasonConfirmWatch, EntityID: domain + "." + configID, Via: "draft"})
+	}
 	if domain == "script" {
 		e.walk(cfg["sequence"], "draft/sequence", 1)
 		return

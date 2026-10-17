@@ -71,7 +71,8 @@ func formsStep(envelope map[string]any, step string) string {
 	case errInfo["code"] == "CODE_REQUIRED": // a typed plan without form text (made by an older HA NOVA)
 		return "This plan can't be confirmed in a form here; plan it again, show the new preview, and confirm again."
 	case errInfo["code"] == "SNAPSHOT_FAILED":
-		return step + fmt.Sprintf(" To delete without a copy (only if the user chooses that), call ha_apply with plan_id %v, no_snapshot true, and no confirm_code: their app asks them for the one-time code again in a form.", plan["id"])
+		again := map[bool]string{true: "their app asks them for the one-time code again in a form", false: "the confirmation window or their phone asks them again"}[plan["channel"] == channelForm]
+		return step + fmt.Sprintf(" To delete without a copy (only if the user chooses that), call ha_apply with plan_id %v, no_snapshot true, and no confirm_code: %s.", plan["id"], again)
 	}
 	return step
 }

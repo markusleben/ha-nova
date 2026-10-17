@@ -156,7 +156,7 @@ the offer of a remaining-targets manifest).
 | Skill | Batch support | Families / rationale |
 |---|---|---|
 | `ha-nova` | yes | exact config snapshot blobs only (`config-snapshots` family); categories may mix because they remain one generic blob resource family |
-| `write` | yes | automations OR scripts (never mixed); per-item consumer check; each item keeps its own `ha-nova plan delete` code (the CLI binds a code to one delete — the manifest lists them all and the user types each; no single batch code); the CLI takes each item's config snapshot |
+| `write` | yes | automations OR scripts (never mixed); per-item consumer check; each item keeps its own `ha-nova plan delete` code (the CLI binds a code to one delete — the manifest lists them all and the user types each, none in a window or phone plan; no single batch code); the CLI takes each item's config snapshot |
 | `helper` | yes | one helper family per manifest; storage and config-entry families never mixed |
 | `mqtt` | yes | retained discovery cleanup for ONE resolved device (topics only from `mqtt/device/debug_info`); command/`set` topics excluded |
 | `maintenance` | yes (already grouped) | statistics clears per issue group via the API's single-call group clear (ledger from per-ID re-validation); orphan registry removal per config entry, sequential; all existing gates unchanged |

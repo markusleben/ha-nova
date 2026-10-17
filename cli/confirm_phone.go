@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -128,7 +129,7 @@ func askPhone(s *relaySession, setup phoneSetup, tag, message string, wait time.
 			return
 		}
 		for ctx.Err() == nil {
-			got, err := collect(ctx, s)
+			got, err := collect(ctx, s, phoneWindowSpan)
 			if err != nil {
 				select {
 				case failed <- err:
@@ -149,6 +150,11 @@ func askPhone(s *relaySession, setup phoneSetup, tag, message string, wait time.
 			}
 		}
 	}
+	// A short probe window proves the Relay can subscribe at all before any
+	// notification goes out: buttons no listener can hear are never sent.
+	if _, err := collect(ctx, s, time.Millisecond); err != nil {
+		return phoneFailed
+	}
 	// Two overlapping lanes: one re-subscribes while the other still listens.
 	go lane(0)
 	go lane(phoneWindowSpan / 2)
@@ -160,13 +166,12 @@ func askPhone(s *relaySession, setup phoneSetup, tag, message string, wait time.
 		return phoneNoAnswer
 	}
 	deadline, _ := ctx.Deadline()
-	var sent []string
+	sent := sendPhones(ctx, s, notify, setup.targets, phonePayload(message, tag, ok, no, deadline))
+	all := make([]string, 0, len(setup.targets))
 	for _, target := range setup.targets {
-		if notify(s, target.Service, phonePayload(message, tag, ok, no, deadline)) == nil {
-			sent = append(sent, target.Service)
-		}
+		all = append(all, target.Service)
 	}
-	defer clearPhones(s, notify, sent, tag)
+	defer clearPhones(s, notify, all, tag) // every phone: a send still in flight at the deadline may land later
 	if len(sent) == 0 {
 		return phoneFailed
 	}
@@ -187,6 +192,35 @@ func askPhone(s *relaySession, setup phoneSetup, tag, message string, wait time.
 			}
 		}
 	}
+}
+
+// sendPhones sends to every phone in parallel, bounded by the wait: a
+// stalled notify service never holds apply past the confirmation deadline.
+// It returns the services that accepted it.
+func sendPhones(ctx context.Context, s *relaySession, notify func(*relaySession, string, map[string]any) error, targets []phoneTarget, body map[string]any) []string {
+	accepted := make(chan string, len(targets))
+	for _, target := range targets {
+		go func() {
+			if notify(s, target.Service, body) == nil {
+				accepted <- target.Service
+				return
+			}
+			accepted <- ""
+		}()
+	}
+	var sent []string
+	for range targets {
+		select {
+		case service := <-accepted:
+			if service != "" {
+				sent = append(sent, service)
+			}
+		case <-ctx.Done():
+			return sent
+		}
+	}
+	sort.Strings(sent)
+	return sent
 }
 
 // phonePayload: Confirm needs an unlocked phone (Face ID, fingerprint, or
@@ -237,13 +271,15 @@ func phoneMessage(plan storedPlan, noSnapshot bool) string {
 }
 
 // collectPhoneEvents is one bounded listening window on the Relay: it
-// returns at the first notification action or after phoneWindowSpan.
-func collectPhoneEvents(ctx context.Context, s *relaySession) ([]phoneEvent, error) {
+// returns at the first notification action or after span (≤ the Relay's
+// 10 s cap; the window starts only once Home Assistant acknowledged the
+// subscription, and a failed subscription is an error).
+func collectPhoneEvents(ctx context.Context, s *relaySession, span time.Duration) ([]phoneEvent, error) {
 	body, _ := json.Marshal(map[string]any{
 		"message":        map[string]any{"type": "subscribe_events", "event_type": phoneEventType},
-		"collect_events": map[string]any{"max_events": 1, "timeout_ms": phoneWindowSpan.Milliseconds(), "on_limit": "return"},
+		"collect_events": map[string]any{"max_events": 1, "timeout_ms": max(span.Milliseconds(), 1), "on_limit": "return"},
 	})
-	data, err := s.sendIn(ctx, "ws", body, phoneWindowSpan+5*time.Second)
+	data, err := s.sendIn(ctx, "ws", body, span+5*time.Second)
 	if err != nil {
 		return nil, err
 	}

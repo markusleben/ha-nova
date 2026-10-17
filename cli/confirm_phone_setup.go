@@ -4,8 +4,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"net/http"
+	"os"
 	"regexp"
+	"slices"
 	"sort"
 )
 
@@ -75,6 +78,8 @@ type haUser struct {
 
 // discoverPhone: ok only when the owner has a phone with the Companion app
 // and the Relay is not the owner itself. Any failed read is "no phone".
+// setup.owner is set whenever the owner is known, also when !ok: the pin
+// is keyed by it.
 func discoverPhone(s *relaySession) (phoneSetup, bool) {
 	var current haUser
 	var users []haUser
@@ -89,7 +94,7 @@ func discoverPhone(s *relaySession) (phoneSetup, bool) {
 		}
 	}
 	if owner == "" || current.ID == "" || owner == current.ID {
-		return phoneSetup{}, false // the Relay acts as the owner: a forged tap would look genuine
+		return phoneSetup{owner: owner}, false // the Relay acts as the owner: a forged tap would look genuine
 	}
 	var core struct {
 		Status int             `json:"status"`
@@ -98,11 +103,11 @@ func discoverPhone(s *relaySession) (phoneSetup, bool) {
 	payload := map[string]any{"method": http.MethodPost, "path": "/api/template",
 		"body": map[string]any{"template": phoneTargetsTemplate, "variables": map[string]any{"owner": owner}}}
 	if s.phoneRead("core", payload, &core) != nil || core.Status != http.StatusOK {
-		return phoneSetup{}, false
+		return phoneSetup{owner: owner}, false
 	}
 	status, services, err := s.coreGET("/api/services")
 	if err != nil || status != http.StatusOK {
-		return phoneSetup{}, false
+		return phoneSetup{owner: owner}, false
 	}
 	targets := phoneTargetsFrom(core.Body, services)
 	return phoneSetup{owner: owner, relayUser: current.ID, targets: targets}, len(targets) > 0
@@ -144,21 +149,35 @@ func phoneTargetsFrom(rendered, services json.RawMessage) []phoneTarget {
 	return out
 }
 
-// The phone pin (config.json top level, per server): "on" once a phone was
-// found — later a missing phone refuses typed plans instead of moving them
-// to a weaker channel — or "off" (the owner turned it off on the phone).
+// The phone pin (config.json top level, keyed by the Home Assistant owner's
+// user id, which is unique per Home Assistant — not by the reusable server
+// name, so a removed or renamed server profile can't carry it to another
+// home): "on" once a phone was found — later a missing phone refuses typed
+// plans instead of moving them to a weaker channel — or "off" (the owner
+// turned it off on the phone).
 const phoneSettingKey = "confirm_phone"
 
-func phonePin(paths runtimePaths, server string) string {
-	doc, err := loadConfigDocument(paths.ConfigFile)
-	var pins map[string]string
-	if err != nil || json.Unmarshal(doc.top[phoneSettingKey], &pins) != nil {
+func phonePin(paths runtimePaths, owner string) string {
+	if owner == "" {
 		return ""
 	}
-	return pins[server]
+	pins, _ := phonePins(paths)
+	return pins[owner]
 }
 
-func setPhonePin(paths runtimePaths, server, value string) error {
+// phonePins: ok=false when config.json can't be read now (mid-transaction,
+// unreadable): the pins are unknown, never "none".
+func phonePins(paths runtimePaths) (map[string]string, bool) {
+	doc, err := loadConfigDocument(paths.ConfigFile)
+	if err != nil {
+		return nil, os.IsNotExist(err)
+	}
+	var pins map[string]string
+	_ = json.Unmarshal(doc.top[phoneSettingKey], &pins) // unreadable: as if none (setPhonePin starts over the same way)
+	return pins, true
+}
+
+func setPhonePin(paths runtimePaths, owner, value string) error {
 	doc, err := loadConfigDocument(paths.ConfigFile)
 	if err != nil {
 		return err
@@ -170,9 +189,9 @@ func setPhonePin(paths runtimePaths, server, value string) error {
 		top[key] = v
 	}
 	if value == "" {
-		delete(pins, server)
+		delete(pins, owner)
 	} else {
-		pins[server] = value
+		pins[owner] = value
 	}
 	delete(top, phoneSettingKey)
 	if len(pins) > 0 {
@@ -187,10 +206,18 @@ func setPhonePin(paths runtimePaths, server, value string) error {
 // (channelPhoneMissing), so breaking the phone's setup in Home Assistant
 // can't move a plan to a channel the model can answer.
 func detectAfterWindow(s *relaySession) string {
-	switch pin := phonePin(s.paths, s.server); {
+	setup, found := phoneDiscover(s)
+	pins, readable := phonePins(s.paths)
+	if !readable || setup.owner == "" && slices.Contains(slices.Collect(maps.Values(pins)), "on") {
+		// The pin can't be checked (the owner unread, or config.json
+		// unreadable now): refuse rather than risk a weaker channel.
+		return channelPhoneMissing
+	}
+	switch pin := pins[setup.owner]; {
 	case pin == "off":
-	case phoneAvailable(s):
-		if pin == "" && setPhonePin(s.paths, s.server, "on") != nil {
+	case found:
+		// A concurrent planner may have written it first: its "on" counts.
+		if pin == "" && setPhonePin(s.paths, setup.owner, "on") != nil && phonePin(s.paths, setup.owner) != "on" {
 			return channelPhoneUnpinned // unpinned, a later broken phone setup would move plans to a weaker channel
 		}
 		return channelPhone
@@ -201,11 +228,6 @@ func detectAfterWindow(s *relaySession) string {
 		return channelForm
 	}
 	return channelChat
-}
-
-func phoneAvailable(s *relaySession) bool {
-	_, ok := phoneDiscover(s)
-	return ok
 }
 
 const confirmPhoneUsage = "ha-nova setup confirm-phone on|off"
@@ -227,10 +249,15 @@ func runConfirmPhoneSetting(paths runtimePaths, args []string) int {
 		return 1
 	}
 	defer s.close()
-	pin := phonePin(paths, s.server)
+	setup, found := phoneDiscover(s)
+	if setup.owner == "" {
+		printHumanErr("HA NOVA can't read who owns this Home Assistant, so it can't change phone confirmation here. Nothing changed.")
+		return 1
+	}
+	pin := phonePin(paths, setup.owner)
 	if args[0] == "on" || pin == "off" {
 		if args[0] == "on" && pin == "off" {
-			if err := setPhonePin(paths, s.server, ""); err != nil {
+			if err := setPhonePin(paths, setup.owner, ""); err != nil {
 				printHumanErr("cannot save the setting: %s", err)
 				return 1
 			}
@@ -238,20 +265,19 @@ func runConfirmPhoneSetting(paths runtimePaths, args []string) int {
 		printHumanInfo("Phone confirmation is %s.", args[0])
 		return 0
 	}
-	setup, found := phoneDiscover(s)
 	if !found {
 		if pin != "on" {
 			printHumanInfo("HA NOVA found no phone that can confirm here, so it doesn't use one. Nothing changed.")
 			return 0
 		}
-		printHumanErr("HA NOVA can't reach the phone that confirms, so it can't ask there. Nothing changed. Sign in to the Home Assistant Companion app as the owner on your phone, or, to turn it off anyway, set \"%s\": {\"%s\": \"off\"} in %s yourself.", phoneSettingKey, s.server, paths.ConfigFile)
+		printHumanErr("HA NOVA can't reach the phone that confirms, so it can't ask there. Nothing changed. Sign in to the Home Assistant Companion app as the owner on your phone, or, to turn it off anyway, set \"%s\": {\"%s\": \"off\"} in %s yourself.", phoneSettingKey, setup.owner, paths.ConfigFile)
 		return 1
 	}
 	if askPhone(s, setup, "ha-nova-setting", "Turn off phone confirmation? HA NOVA then asks in a window, in your app's form, or with a one-time code in chat that your AI assistant can see too.\n\n"+phoneAsked, cliWindowWait) != phoneConfirmed {
 		printHumanErr("Nothing changed: Confirm was not pressed on the phone in time, or the notification could not be sent.")
 		return 1
 	}
-	if err := setPhonePin(paths, s.server, "off"); err != nil {
+	if err := setPhonePin(paths, setup.owner, "off"); err != nil {
 		printHumanErr("cannot save the setting: %s", err)
 		return 1
 	}
