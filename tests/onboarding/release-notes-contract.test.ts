@@ -44,13 +44,20 @@ describe("release notes contract", () => {
     expect(stableNotes).toContain(`This release needs Relay ${relayVersion}`);
     expect(stableNotes).toMatch(/## What To Watch\s+- \*\*Update the NOVA Relay App too\.\*\*/);
     expect(stableNotes).toContain("Unambiguous everyday actions run right away");
-    expect(stableNotes).toContain("one code per item");
+    expect(stableNotes).toContain("one confirmation per item");
+    expect(stableNotes).toContain("`ha-nova setup confirm-window off`");
+    expect(stableNotes).toContain("`ha-nova setup confirm-phone`");
+    expect(stableNotes).toContain("has to be made again");
+    expect(stableNotes).toContain("Home Assistant Cloud is becoming Home Assistant Link");
     // The MCP adapter ships experimental and unadvertised until it carries the skills.
     expect(stableNotes).not.toMatch(/mcp/i);
     expect(stableNotes).not.toContain("Cloud Remote is back on Windows and Linux");
     expect(readme).toContain("only unambiguous everyday actions run right away");
-    expect(readme).toContain("Each automation or script delete takes its own code");
-    expect(readme).toContain("A code only proves it was you when your client asks you before the apply step runs");
+    expect(readme).toContain("Each automation or script delete is confirmed on its own");
+    expect(readme).toContain("the AI can see it too, so it only counts when you type it yourself");
+    expect(readme).toContain("ha-nova setup confirm-window off");
+    expect(readme).toContain("https://hanova.app/demo/");
+    expect(readme).toContain("34 task skills plus the HA NOVA context skill");
     expect(readme).not.toContain("ha-nova mcp");
     expect(readme).not.toContain("ha_apply");
     expect(readme).not.toContain("Local MCP clients");
@@ -60,8 +67,10 @@ describe("release notes contract", () => {
     expect(readme).not.toContain("A reviewed batch delete takes one code");
     expect(readme).not.toMatch(/census/i);
     expect(readme).toContain(
-      "Optional remote access with Home Assistant Cloud (Beta)",
+      "Optional remote access with Home Assistant Link (Beta)",
     );
+    expect(readme).toContain("#optional-remote-access-with-home-assistant-link-beta");
+    expect(readme).toContain("(formerly Home Assistant Cloud)");
     expect(readme).toContain("Local only");
     expect(readme).toContain("automatic remote fallback");
     expect(readme).toContain("HA NOVA runs no additional public tunnel");

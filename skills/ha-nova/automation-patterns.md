@@ -130,7 +130,7 @@ conditions:
     state: "heating"
 ```
 
-`for:` cannot be combined with `attribute`, a list of states, or a state taken from another entity — Home Assistant 2026.10 rejects that condition at save.
+`for:` cannot be combined with `attribute` or a state taken from another entity — Home Assistant 2026.10 rejects that condition at save. A list of states with `for:` is rejected on 2026.10.0–2026.10.1 only; from 2026.10.2 a switch between listed states restarts the timer.
 
 ## Targeting
 

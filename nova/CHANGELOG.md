@@ -9,6 +9,15 @@ The format follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic
 Recent changes are tracked in [GitHub releases](https://github.com/markusleben/ha-nova/releases)
 and merged PRs. This changelog will be updated with the next tagged relay version.
 
+## [Relay 0.10.0] - 2026-10-17
+
+### Added
+- Home Assistant sign-in pairing: `POST /pair/v2/arm` (ingress, owner only, machine requests only) arms a one-time secret, valid for two minutes, that only that owner's `/pair/v2/start` accepts. `GET /pair/v1/info` reports `sign_in: true`, so the CLI offers sign-in only where the Relay serves it. The ingress `/pair/v2/*` routes are served with or without Cloud remote. (#701)
+- The NOVA page shows "A computer is connecting through Home Assistant sign-in…" with Cancel while such a pairing is armed; the secret is never displayed. (#701)
+
+### Changed
+- Copy says Home Assistant Link (formerly Home Assistant Cloud): the device confirm line on the NOVA page and `DOCS.md`. Routes, config keys, and the `cloud` domain keep their names. (#722)
+
 ## [Relay 0.9.1] - 2026-10-15
 
 ### Fixed
