@@ -135,7 +135,7 @@ describe("esphome skill (needs-analysis TOP 5)", () => {
     expect(skill).toContain("re-pointing consumers is `ha-nova:device`");
     expect(skill).toContain("`{\"type\":\"config/device_registry/list\"}` with `--jq-file` to the `references.device.id` row (`sw_version`: ESPHome version and build time)");
     expect(skill).toContain("a build time before the write means the new file is not on the device — say so");
-    expect(skill).toContain("ending at its Options line (no reason, rule, or file name after it)");
+    expect(skill).toContain("The Options line is the reply's last line: no reason after it, and never quote, cite, or link this skill, its rules, or any HA NOVA file.");
     expect(skill).toContain("the exact App steps from Compile and flash");
   });
 });
