@@ -67,8 +67,8 @@ var rawWSAllowed = map[string]string{
 	"otbr/info": rawWSRead, "thread/list_datasets": rawWSRead, "matter/node_diagnostics": rawWSRead,
 
 	// Writes.
-	"config/entity_registry/update":           "an entity's name, area, labels, aliases, or visibility (a cover's class and a button's name are refused below)",
-	"config/entity_registry/remove":           "removes an orphaned registry entry (maintenance)",
+	"config/entity_registry/update":           "an entity's name, area, labels, aliases, or visibility (a cover's or button's class, disabling a lock, alarm panel, or cover, and renaming a destructive button are refused)",
+	"config/entity_registry/remove":           "removes an orphaned registry entry (maintenance; a lock, alarm panel, or access cover is refused)",
 	"config/device_registry/update":           "a device's name, area, labels, or enabled state",
 	"lovelace/dashboards/update":              "a dashboard's title, icon, or sidebar flags; its content goes through plan write",
 	"lovelace/resources/create":               "registers a frontend card resource already on this Home Assistant (/hacsfiles/, /local/; other URLs are refused below)",
