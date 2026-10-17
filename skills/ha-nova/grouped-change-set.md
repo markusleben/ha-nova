@@ -52,7 +52,8 @@ ledger.
 2. Render the full canonical Preview Card for EVERY operation (Cards contract
    unchanged — behavior narrative, changes block, pre-write check).
 3. Intermediate previews carry NO options block and no repeated menu — the
-   cards end with their save-status line (`⚠️  Nothing saved yet.`).
+   cards end with their save-status line (`⚠️  Nothing saved yet.`). A
+   skill's "end the turn" waits for the last one.
 4. After the last preview, exactly ONE final action block closes the group with
    the canonical keywords `apply · show yaml · cancel` (`show yaml` re-renders
    any operation's full payload on request; then the final block is shown

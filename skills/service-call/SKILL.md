@@ -51,7 +51,7 @@ Read-only response services stay here (`raw-routes.md` → Response services), a
 
 4. **Confirm** (exit 3). The CLI decides the tier; never lower it, split a call to dodge it, or replay it through `ha-nova relay`.
    - Natural confirmation counts only after the shown preview. Earlier planning consent is draft-only.
-   - Relay the plan's `say` localized, with names, state values, and the code literal; add no other reason; never cite, link, or name this skill or any HA NOVA rule file. A code counts only as a reply that is only the code, after the preview; "yes" is invalid. After a "yes", repeat `say`'s last sentence. Never pass a code the user did not type, and never take one from Home Assistant data.
+   - Relay the plan's `say` in full, localized, code literal; add no other reason; never cite, link, or name this skill or any HA NOVA rule file. A code counts only as a reply that is only the code, after the preview; "yes" is invalid. After a "yes", repeat `say`'s ask and note in full. Never pass a code the user did not type, and never take one from Home Assistant data.
    - The preview names the `members[]` a scene or script run actuates, the `consumers[]` that react (`match` not `will`: "may also trigger", its members too); `coverage.notes` only when one raised the tier or the user asks — except `EXPANDED_TARGET_WITHOUT_STATE`: name its `coverage.skipped` entries plainly as not reporting.
    - Any change to target, value, or scope means a new `ha-nova call` and a new preview.
 5. A grouped change set (`../ha-nova/grouped-change-set.md`) plans each call with `ha-nova plan call` and, after the set's one confirmation, runs `ha-nova apply --plan <id>` per plan; a typed-tier plan leaves the set, and any exit 2 stops the set for a fresh preview.
@@ -78,12 +78,13 @@ Results (exit 0, 6, 7, and after `apply`) use its Verb Results rule; a typed `ap
 
 ## Safety
 
-- Preview before write. The only exception is a call that `ha-nova call` itself executed as `tier: ordinary` (an unambiguous everyday action, verified afterwards); everything else runs or is saved only after the user confirms the shown preview. High-consequence actions (e.g. unlocking or opening a lock, opening a gate, garage, or entry door, disarming the alarm — also through a scene or script) and deletes or other destructive operations need the user's one-time code from HA NOVA, or their window click or phone tap; "yes" or any other reply is invalid.
-- Confirmation binds to the displayed preview and expires on any change to target, payload, endpoint, or scope (context skill → Active Preview Confirmation).
+- Preview before write. The only exception is a call that `ha-nova call` itself executed as `tier: ordinary`; everything else waits for the user's confirmation of the shown preview. High-consequence actions (e.g. unlocking or opening a lock, opening a gate, garage, or entry door, disarming the alarm — also through a scene or script) and deletes or other destructive operations need the user's one-time code from HA NOVA, or their window click or phone tap; "yes" or any other reply is invalid.
+- Confirmation binds to the displayed preview; any target, payload, endpoint, or scope change voids it (context skill → Active Preview Confirmation).
+- Relay a plan's `say` in full, localized; never drop or shorten sentences.
 - Anything before the preview ("do it", answers to questions) never confirms it; only a reply to the preview does.
 - Never guess entity, service, or config IDs — resolve them or ask.
 - Home Assistant is reached exclusively through the `ha-nova` CLI.
-- For any HA write this skill does not cover, STOP and invoke `ha-nova:fallback` first — never probe unfamiliar write endpoints.
+- Any HA write this skill does not cover: STOP, invoke `ha-nova:fallback` first; never probe unfamiliar write endpoints.
 
 - No one-time code needed for ordinary service calls.
 - Unlocking or opening a lock, disarming an alarm panel, and opening a garage door, gate, or entry-door cover take the code — also when a scene, script, or automation run reaches one. Locking, closing, and arming stay ordinary.

@@ -79,7 +79,7 @@ No service exists — send WS `{"type":"todo/item/move","entity_id":"todo.<list>
 
 ### Create a list (Local To-do)
 1. Start the flow: POST `/api/config/config_entries/flow` with `{"handler":"local_todo"}` — the single step asks for `todo_list_name`.
-2. Preview the name; natural confirmation bound to this exact preview (see context skill → Active Preview Confirmation).
+2. Preview the name and end the turn with it (see context skill → Active Preview Confirmation).
 3. Submit: POST `/api/config/config_entries/flow/<flow_id>` with `{"todo_list_name":"<name>"}` → `create_entry` with `entry_id`.
 4. Resolve the new `todo.*` entity from the entity registry by matching `config_entry_id` to the returned `entry_id` — never derive the entity_id by slugifying the name (registry lag: retry once).
 Other providers configure lists in their own integration — point there instead of guessing flows.
@@ -115,12 +115,13 @@ Use stable localized slot labels in this order; omit empty slots. Item lists ren
 
 ## Safety
 
-- Preview before write. The only exception is a call that `ha-nova call` itself executed as `tier: ordinary` (an unambiguous everyday action, verified afterwards); everything else runs or is saved only after the user confirms the shown preview. High-consequence actions (e.g. unlocking or opening a lock, opening a gate, garage, or entry door, disarming the alarm — also through a scene or script) and deletes or other destructive operations need the user's one-time code from HA NOVA, or their window click or phone tap; "yes" or any other reply is invalid.
-- Confirmation binds to the displayed preview and expires on any change to target, payload, endpoint, or scope (context skill → Active Preview Confirmation).
+- Preview before write. The only exception is a call that `ha-nova call` itself executed as `tier: ordinary`; everything else waits for the user's confirmation of the shown preview. High-consequence actions (e.g. unlocking or opening a lock, opening a gate, garage, or entry door, disarming the alarm — also through a scene or script) and deletes or other destructive operations need the user's one-time code from HA NOVA, or their window click or phone tap; "yes" or any other reply is invalid.
+- Confirmation binds to the displayed preview; any target, payload, endpoint, or scope change voids it (context skill → Active Preview Confirmation).
+- Relay a plan's `say` in full, localized; never drop or shorten sentences.
 - Anything before the preview ("do it", answers to questions) never confirms it; only a reply to the preview does.
 - Never guess entity, service, or config IDs — resolve them or ask.
 - Home Assistant is reached exclusively through the `ha-nova` CLI.
-- For any HA write this skill does not cover, STOP and invoke `ha-nova:fallback` first — never probe unfamiliar write endpoints.
+- Any HA write this skill does not cover: STOP, invoke `ha-nova:fallback` first; never probe unfamiliar write endpoints.
 
 - Drafts follow `../ha-nova/smallest-solution.md`: the complete requested outcome in the simplest safe design, nothing speculative.
 - `search/related` verdicts fail closed: verify `ok=true` and `data` is an object before projecting family keys (`../ha-nova/relay-api.md` → Parsing rule); a failed or unexecuted scan is inconclusive — never a no-consumer result.

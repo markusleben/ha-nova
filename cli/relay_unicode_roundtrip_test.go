@@ -285,7 +285,7 @@ func TestRelayRejectsInvalidUTF8ResponseBeforeTextOutput(t *testing.T) {
 	dir := t.TempDir()
 	payloadPath := filepath.Join(dir, "payload.json")
 	outputPath := filepath.Join(dir, "response.json")
-	if err := os.WriteFile(payloadPath, []byte(`{"type":"ping"}`), 0o600); err != nil {
+	if err := os.WriteFile(payloadPath, []byte(`{"type":"config/area_registry/create","name":"Kitchen"}`), 0o600); err != nil {
 		t.Fatal(err)
 	}
 

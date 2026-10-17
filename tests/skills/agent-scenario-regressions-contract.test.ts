@@ -44,6 +44,11 @@ describe("agent scenario regressions (2026-10-15)", () => {
     expect(rules).toContain("## Confirmation Reasons");
     // The CLI writes the reason (`say`); the agent relays it and adds none.
     expect(rules).toContain("A plan's `say` is the reason, localized (names, state values, code literal); add none of your own.");
+    // Suite r101: agents shortened `say` and dropped the chat-code note
+    // (4 of 18 runs); the Safety Core now carries "in full" to every skill.
+    expect(readFileSync("docs/reference/skill-architecture.md", "utf8")).toContain(
+      "- Relay a plan's `say` in full, localized; never drop or shorten sentences.",
+    );
     expect(rules).toContain('"This unlocks a door, so it needs a one-time code from HA NOVA."');
     expect(rules).toContain("Never mention, quote, or link HA NOVA's own skill or rule files or scratch paths — the user doesn't know they exist. Paths the user needs (the config file a change targets, a batch manifest) stay visible.");
     expect(rules).toContain("Clarifying questions name candidates by friendly name and area (add the entity_id when either is missing or both collide).");
@@ -53,7 +58,7 @@ describe("agent scenario regressions (2026-10-15)", () => {
     for (const file of ["skills/service-call/SKILL.md", "skills/write/SKILL.md"]) {
       const text = flat(file);
       expect(text).toMatch(/add no other reason; never cite, link, or name this skill or any HA NOVA rule file\./);
-      expect(text).toContain('After a "yes", repeat `say`\'s last sentence.');
+      expect(text).toContain('After a "yes", repeat `say`\'s ask and note in full.');
     }
   });
   // 2026-10-16 agent path analysis: avoidable tool rounds and reads on the

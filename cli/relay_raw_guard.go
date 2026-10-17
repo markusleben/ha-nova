@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"path"
+	"regexp"
 	"strconv"
 	"strings"
 )
@@ -276,4 +277,72 @@ func watchesConfirmation(v any) bool {
 		}
 	}
 	return false
+}
+
+// flowStepPath: a GET on a config flow step re-runs it, which can finish the
+// flow (a progress or external step) and create an entry.
+var flowStepPath = regexp.MustCompile(`^/api/config/config_entries/(options/)?flow/`)
+
+// rawRelayRead: the request only reads (a core GET, or WS types listed as
+// reads), so a failure after it was sent changed nothing in Home Assistant.
+func rawRelayRead(endpoint string, body []byte) bool {
+	payload, ok := decodeObject(body)
+	if !ok {
+		return false
+	}
+	isRead := func(message map[string]any) bool {
+		wsType, _ := message["type"].(string)
+		return rawWSAllowed[wsType] == rawWSRead
+	}
+	switch endpoint {
+	case "core":
+		method, _ := payload["method"].(string)
+		raw, _ := payload["path"].(string)
+		pathPart, _, _ := strings.Cut(raw, "#")
+		pathPart, _, _ = strings.Cut(pathPart, "?")
+		if strings.ToUpper(strings.TrimSpace(method)) != http.MethodGet || !strings.HasPrefix(pathPart, "/") || strings.ContainsAny(pathPart, "%\\") || path.Clean(pathPart) != pathPart { // the Relay roots a relative path
+			return false
+		}
+		return !flowStepPath.MatchString(pathPart)
+	case "ws":
+		message, hasMessage := payload["message"].(map[string]any)
+		if hasMessage && !isRead(message) {
+			return false
+		}
+		_, typed := payload["type"]
+		return !typed && hasMessage || isRead(payload)
+	}
+	return false
+}
+
+// relayReadFailed words a failed read: its outcome is never unknown.
+func relayReadFailed(cause string) string {
+	return "READ_FAILED: " + cause + "\nThis was a read: nothing in Home Assistant was changed. Fix the cause, then run it again."
+}
+
+func printRelaySendFailure(read bool, baseURL string, err error) {
+	switch {
+	case !read:
+		printErr("%s", relayRequestOutcomeUnknownMessage(baseURL, err))
+	case strings.TrimRight(baseURL, "/") == cloudRelayVirtualBaseURL:
+		printErr("%s", relayReadFailed("Home Assistant Cloud could not complete the NOVA Relay request: "+cloudOutcomeUnknownCause(err)))
+	default:
+		printErr("%s", relayReadFailed(relayConnectErrorMessage(baseURL, err)))
+	}
+}
+
+func printRelayFailure(read bool, stage string, err error) {
+	if read {
+		printErr("%s", relayReadFailed(stage+" failed: "+err.Error()))
+		return
+	}
+	printRelayPostRequestError(stage, err)
+}
+
+func printRelayHTTPFailure(read bool, status int) {
+	if read {
+		printErr("%s", relayReadFailed(fmt.Sprintf("Relay returned HTTP %d", status)))
+		return
+	}
+	printRelayHTTPOutcomeUnknown(status)
 }

@@ -34,7 +34,7 @@ describe("integration setup skill contract", () => {
     expect(skill).toContain('`abort`');
     expect(skill).toContain('reason == "reauth_successful"');
     expect(skill).toContain("use only fields returned by the live `data_schema`");
-    expect(skill).toContain("confirmation bound to this preview");
+    expect(skill).toContain("End the turn with this preview for confirmation.");
     expect(skill).toContain("selection is the bound confirmation");
     expect(skill).toContain("validation errors");
     expect(skill).toContain("never guess a replacement");

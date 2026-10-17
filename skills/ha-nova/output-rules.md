@@ -29,7 +29,7 @@ per their skill's Output Format and need no card file.
 
 ## Confirmation Reasons
 
-A plan's `say` is the reason, localized (names, state values, code literal); add none of your own. Without one, one plain sentence: "This unlocks a door, so it needs a one-time code from HA NOVA." A "yes" where a code is needed: "“Yes” can't confirm this — please type <four digits>."
+A plan's `say` is the reason, localized (names, state values, code literal); add none of your own. Without one, one plain sentence: "This unlocks a door, so it needs a one-time code from HA NOVA." A "yes" or other confirm attempt without the code: repeat `say`'s ask and note in full.
 
 ## Progressive Detail
 

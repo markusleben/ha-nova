@@ -96,7 +96,9 @@ describe("helper contract", () => {
 
     it("binds helper writes to active-preview confirmation", () => {
       expect(skillDoc).toContain("Active Preview Confirmation");
-      expect(skillDoc).toContain("bound to this exact preview");
+      // Suite r101 H1: a create ran in the request's own turn, no preview.
+      expect(skillDoc).toContain("4. End the turn with this preview; only the user's reply to it confirms, never the request");
+      expect(skillDoc).not.toContain("bound to this exact preview");
       expect(skillDoc).toContain("Destructive cleanup still requires the one-time code");
     });
 
@@ -241,7 +243,7 @@ describe("helper contract", () => {
       expect(skillDoc).toContain("for unobserved `group` or `template` subtypes, say that the final subtype form will be previewed after the menu step returns live fields");
       expect(skillDoc).toContain("this first confirmation authorizes only the non-persisting menu-step submit");
       expect(skillDoc).toContain("if that menu step leads to an unobserved `group` or `template` subtype form, stop and preview the live subtype fields before the terminal submit");
-      expect(skillDoc).toContain("ask for a second natural confirmation before sending the terminal subtype-specific payload");
+      expect(skillDoc).toContain("end the turn for a second natural confirmation before sending the terminal subtype-specific payload");
       expect(skillDoc).toContain("carry forward unchanged required fields");
       expect(skillDoc).toContain("fail loud as unsupported update for that field on this HA version");
       expect(skillDoc).toContain("do not silently ignore non-exposed requested fields");

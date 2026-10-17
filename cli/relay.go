@@ -417,18 +417,19 @@ func runRelayProxy(paths runtimePaths, endpoint string, args []string) int {
 		return 1
 	}
 
+	read := rawRelayRead(endpoint, requestBody) // a failed read changed nothing: never OUTCOME_UNKNOWN
 	resp, err := client.Do(req)
 	if err != nil {
 		if resp != nil {
 			_ = resp.Body.Close()
 		}
-		printErr("%s", relayRequestOutcomeUnknownMessage(baseURL, err))
+		printRelaySendFailure(read, baseURL, err)
 		return 1
 	}
 	defer resp.Body.Close()
 
 	if isHTTPRedirect(resp.StatusCode) {
-		printRelayHTTPOutcomeUnknown(resp.StatusCode)
+		printRelayHTTPFailure(read, resp.StatusCode)
 		return 1
 	}
 	if notice := checkRelayVersionValue(paths, resp.Header.Get(relayVersionHeader)); !notice.empty() {
@@ -445,17 +446,17 @@ func runRelayProxy(paths runtimePaths, endpoint string, args []string) int {
 
 	bodyBytes, err := readAllLimited(resp.Body, maxRelayResponseBytes)
 	if err != nil {
-		printRelayPostRequestError("reading the Relay response", err)
+		printRelayFailure(read, "reading the Relay response", err)
 		return 1
 	}
 	bodyBytes, err = normalizeUTF8Bytes(bodyBytes, "Relay response")
 	if err != nil {
-		printRelayPostRequestError("validating the Relay response", err)
+		printRelayFailure(read, "validating the Relay response", err)
 		return 1
 	}
 	envelopeValid, taskSucceeded := relayEnvelopeResult(bodyBytes)
 	if !envelopeValid {
-		printRelayPostRequestError(
+		printRelayFailure(read,
 			"validating the Relay result envelope",
 			errors.New("Relay response did not contain a valid result envelope"),
 		)
@@ -470,7 +471,7 @@ func runRelayProxy(paths runtimePaths, endpoint string, args []string) int {
 	if compiledJQ != nil {
 		res, err := applyCompiledJQFilter(compiledJQ, bodyBytes, false)
 		if err != nil {
-			printRelayPostRequestError("jq filtering", err)
+			printRelayFailure(read, "jq filtering", err)
 			return 1
 		}
 		bodyBytes = []byte(res.output)
@@ -478,12 +479,12 @@ func runRelayProxy(paths runtimePaths, endpoint string, args []string) int {
 
 	if opts.BinaryOutFile != "" {
 		if err := writeRelayBinaryBody(bodyBytes, opts.BinaryOutFile); err != nil {
-			printRelayPostRequestError("processing --out-binary", err)
+			printRelayFailure(read, "processing --out-binary", err)
 			return 1
 		}
 	} else if opts.OutputFile != "" {
 		if err := writeRelayTextOutput(opts.OutputFile, bodyBytes); err != nil {
-			printRelayPostRequestError("writing --out", err)
+			printRelayFailure(read, "writing --out", err)
 			return 1
 		}
 	} else {
@@ -492,19 +493,19 @@ func runRelayProxy(paths runtimePaths, endpoint string, args []string) int {
 			err = io.ErrShortWrite
 		}
 		if err != nil {
-			printRelayPostRequestError("writing stdout", err)
+			printRelayFailure(read, "writing stdout", err)
 			return 1
 		}
 		if len(bodyBytes) > 0 && bodyBytes[len(bodyBytes)-1] != '\n' {
 			if _, err := fmt.Fprintln(os.Stdout); err != nil {
-				printRelayPostRequestError("writing stdout", err)
+				printRelayFailure(read, "writing stdout", err)
 				return 1
 			}
 		}
 	}
 
 	if resp.StatusCode >= http.StatusInternalServerError {
-		printRelayHTTPOutcomeUnknown(resp.StatusCode)
+		printRelayHTTPFailure(read, resp.StatusCode)
 	}
 	exitStatus := 0
 	if resp.StatusCode >= 400 {
