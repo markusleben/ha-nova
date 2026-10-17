@@ -222,7 +222,7 @@ func computeDashboardPlan(paths runtimePaths, s *relaySession, env *verbEnvelope
 	shown.Body, shown.Shell = nil, nil // the draft is the caller's file; never echo a whole dashboard
 	env.Config, env.Result = &shown, result
 	if env.Status == "needs_confirmation" {
-		env.Say = confirmationSay(e, env, plan, result.Title)
+		env.Say, plan.Prompt = confirmationSay(e, env, plan, result.Title), confirmationPrompt(e, env, plan, result.Title)
 	}
 	return e, plan, ctx, err
 }

@@ -38,6 +38,7 @@ type verbPlan struct {
 	ExpiresAt string `json:"expires_at"`
 	Confirm   string `json:"confirm"`
 	Code      string `json:"code,omitempty"`
+	Channel   string `json:"channel,omitempty"` // typed plans: where the human confirms (chat, form, window)
 }
 
 type planDelta struct {
@@ -140,11 +141,24 @@ func sealPlan(e *tierEngine, env *verbEnvelope, plan storedPlan, action any) (st
 	plan.CreatedAt, plan.ExpiresAt = now.Format(time.RFC3339), now.Add(planTTL).Format(time.RFC3339)
 	plan.Tier, plan.Reasons, plan.Channel = tier, e.reasons, planChannel
 	plan.Confirm = map[tierLevel]string{tierOrdinary: "none", tierPreview: "natural", tierTyped: "code"}[e.level]
+	shownChannel := ""
 	if e.level == tierTyped {
 		if e.s.transport.Credential == "" { // unreachable: a session always holds one
 			return storedPlan{}, errors.New("cannot derive the one-time code: no Relay credential")
 		}
-		plan.code = confirmCode(e.s.transport.Credential, idHex, plan.Channel, plan.ExpiresAt)
+		if plan.Channel == "" {
+			plan.Channel = detectChannel(e.s.paths)
+		}
+		if plan.Channel != channelWindow { // a window plan's code never leaves this process
+			plan.code = confirmCode(e.s.transport.Credential, idHex, plan.Channel, plan.ExpiresAt)
+		}
+		shownChannel = plan.Channel
+	}
+	if shownChannel == channelWindow {
+		env.NextStep = fmt.Sprintf("Show `say`. When the user has asked for this change and your workflow has reached this step (a skill's order comes first), run ha-nova apply --plan %s without --confirm and wait for its result (give the command up to 2 minutes): a confirmation window on their computer asks them. Never ask for a code in chat.", plan.ID)
+	}
+	if plan.Channel == "" { // no code, so where it would be typed does not matter
+		plan.Channel = channelChat
 	}
 	env.Tier, env.Reasons = tier, e.reasons
 	env.Members, env.Consumers = e.shown()
@@ -156,7 +170,7 @@ func sealPlan(e *tierEngine, env *verbEnvelope, plan storedPlan, action any) (st
 		env.Consumers = nil // omitted: no complete delete scan
 	}
 	env.Coverage = &tierCoverage{Complete: e.complete, Notes: e.notes, Skipped: e.skipped}
-	env.Plan = &verbPlan{ID: plan.ID, Hash: plan.Hash, ExpiresAt: plan.ExpiresAt, Confirm: plan.Confirm, Code: plan.code}
+	env.Plan = &verbPlan{ID: plan.ID, Hash: plan.Hash, ExpiresAt: plan.ExpiresAt, Confirm: plan.Confirm, Code: plan.code, Channel: shownChannel}
 	env.Status = "ready"
 	if e.level != tierOrdinary {
 		env.Status, env.exit = "needs_confirmation", verbExitConfirmation

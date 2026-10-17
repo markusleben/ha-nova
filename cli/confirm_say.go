@@ -23,6 +23,8 @@ func confirmationSay(e *tierEngine, env *verbEnvelope, plan storedPlan, subject 
 		parts = append(parts, sayCopyNote)
 	}
 	switch {
+	case plan.Confirm == "code" && plan.Channel == channelWindow:
+		parts = append(parts, sayWindowAsk)
 	case plan.Confirm == "code":
 		parts = append(parts, sayTypedAsk(plan.code, lowerFirst(sayGoal(e, env, plan, subject))))
 		if plan.Channel == channelChat {
@@ -34,16 +36,6 @@ func confirmationSay(e *tierEngine, env *verbEnvelope, plan storedPlan, subject 
 		parts = append(parts, "Reply yes to go ahead.")
 	}
 	return strings.Join(parts, " ")
-}
-
-// directOwnedCall: the reason is the call itself, made from its owning
-// skill (--skill), not a member it runs.
-func directOwnedCall(env *verbEnvelope, r tierReason) bool {
-	if r.Via != "" || env.Action == nil {
-		return false
-	}
-	domain, _ := splitID(env.Action.Service)
-	return ownerSkill(env.Action.Service) != "" || domain == "hassio"
 }
 
 const sayCopyNote = "A copy is saved first, so it can be restored."
@@ -138,7 +130,8 @@ func sayReasons(e *tierEngine, env *verbEnvelope, plan storedPlan) []string {
 		if len(typed) > 0 {
 			first, typed = typed[0], typed[1:]
 		}
-		parts = append(parts, first+", so it needs a four-digit one-time code from HA NOVA.")
+		needs := map[bool]string{false: "a four-digit one-time code from HA NOVA", true: "your confirmation"}[plan.Channel == channelWindow]
+		parts = append(parts, first+", so it needs "+needs+".")
 	}
 	// Every code-tier clause is shown (up to 8); the milder ones fill up to
 	// four sentences and the rest are counted, never dropped silently.

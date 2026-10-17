@@ -1,14 +1,12 @@
 package main
 
 import (
-	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
-	"slices"
 	"strings"
 	"time"
 )
@@ -34,7 +32,9 @@ re-plans from the stored request, and sends nothing when anything changed
 confirmation step, so run it only after the user confirmed that preview. A
 typed plan needs --confirm with the four-digit one-time code the user typed
 (spaces ignored; three wrong codes discard the plan; that counter guards
-against slips, not tampering).
+against slips, not tampering). A typed plan with "channel": "window" takes
+no code: apply opens a confirmation window on this computer and waits for
+the user (up to 90 s); if it can't open, apply returns a new plan with a code.
 Config plans (plan write/delete/revert) save the config once, reload, and
 verify the read-back; an update lands on the undo stack, and a delete (and
 every dashboard save) takes a config snapshot first (--no-snapshot only
@@ -79,7 +79,11 @@ func runApplyCommand(paths runtimePaths, args []string) int {
 	if err != nil {
 		return verbUsageError("apply", err)
 	}
-	env, exit := applyPlan(paths, opts, *id, *code, *noSnapshot)
+	env, exit, asked := confirmByWindow(paths, opts, *id, *noSnapshot)
+	if !asked {
+		env, exit = applyPlan(paths, opts, *id, *code, *noSnapshot)
+	}
+	defer func() { humanAnswer = "" }()
 	if !printVerbEnvelope(env) {
 		return verbExitError
 	}
@@ -179,7 +183,7 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string, noSnapshot
 	// The file is untrusted beyond its hash: kind, version, and the stored
 	// request are re-validated exactly as a fresh plan would be.
 	valid := err == nil && timeErr == nil && plan.ID == id && plan.SchemaVersion >= 1 &&
-		(plan.Channel == channelChat || plan.Channel == channelForm || plan.SchemaVersion < planSchemaVersion)
+		(plan.Channel == channelChat || plan.Channel == channelForm || plan.Channel == channelWindow || plan.SchemaVersion < planSchemaVersion)
 	isCall := valid && plan.Kind == "call" && config == nil && request.validate() == nil
 	isConfig := valid && config != nil && config.Op == plan.Kind && config.ConfigID != "" && config.validate() == nil
 	switch {
@@ -209,7 +213,7 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string, noSnapshot
 		// An edited channel (form → chat) would open argv codes to guessing; an
 		// edited prompt would show a form plan's code next to another action.
 		return fail(refused("PLAN_INVALID", "plan "+id+" was changed after it was made"))
-	case plan.Tier == tierTyped.String() && plan.Channel == channelForm && formAnswer == "":
+	case plan.Tier == tierTyped.String() && plan.Channel == channelForm && humanAnswer == "":
 		// Made where the client shows forms: only the human's answer in that
 		// form confirms it, never a code from argv (spec §3). No attempt is used.
 		if os.Rename(claimed, open) == nil {
@@ -260,11 +264,11 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string, noSnapshot
 		}
 		return fail(&verbFailure{exit: verbExitDrift, status: "drift", code: "PLAN_DRIFT",
 			message: "something changed since the preview; nothing was sent and the old plan is gone",
-			next:    "Show the new preview (and code) and ask again."})
+			next:    "Show the new preview and ask again (with its code; a plan without one: follow next_step)."})
 	}
 	// From here every envelope shows the STORED plan: the recompute's own
 	// id and code were never saved, and typing them would burn this plan.
-	env.Say = "" // it names the recompute's code
+	env.Say, env.NextStep = "", "" // they name the recompute's code or id
 	env.Plan = &verbPlan{ID: plan.ID, Hash: fresh.Hash, ExpiresAt: plan.ExpiresAt, Confirm: fresh.Confirm}
 	// Identity, tier, and code come from the recompute and nonce, never file fields (I2).
 	idHex := planIdentity(strings.TrimPrefix(fresh.Hash, "sha256:"), plan.Nonce)
@@ -272,11 +276,18 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string, noSnapshot
 		return fail(refused("PLAN_INVALID", "plan "+id+" does not match its own hash"))
 	}
 	wantCode := ""
-	if formAnswer != "" { // the MCP server's form answer replaces any argv code
-		code = formAnswer
+	if humanAnswer != "" { // the human's answer in a form or window replaces any argv code
+		code = humanAnswer
 	}
 	if fresh.Tier == tierTyped.String() {
 		wantCode = confirmCode(s.transport.Credential, idHex, plan.Channel, plan.ExpiresAt)
+		if plan.Channel == channelWindow && humanAnswer == "" { // its code was never shown: no attempt is used
+			if os.Rename(claimed, open) == nil {
+				consumed = false
+			}
+			return fail(refusedWith("CONFIRM_IN_WINDOW", "plan "+id+" is confirmed in a window on this computer, not with a typed code",
+				"Run ha-nova apply --plan "+id+" again without --confirm: it opens the confirmation window on this computer. Never ask the user for a code."))
+		}
 		switch typed := typedCode(code); {
 		case !fourDigits.MatchString(typed): // nothing, or not four digits: it can never match, so no attempt is used
 			if os.Rename(claimed, open) == nil {
@@ -295,6 +306,9 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string, noSnapshot
 			}
 			return fail(refused("CODE_MISMATCH", fmt.Sprintf("the one-time code does not match (%d of 3 attempts used)", plan.Mismatches)))
 		}
+	}
+	if plan.Channel == channelWindow {
+		wantCode = "" // never shown, not even once used
 	}
 	env.Plan = &verbPlan{ID: plan.ID, Hash: fresh.Hash, ExpiresAt: plan.ExpiresAt, Confirm: fresh.Confirm, Code: wantCode}
 	if isConfig {
@@ -348,100 +362,4 @@ func afterSend(sent *bool, env *verbEnvelope, err *error) {
 func frozeNothing(req planCallRequest, action planAction) bool {
 	named := len(req.EntityIDs) > 0 || req.Match != "" || req.Area != "" || req.Device != ""
 	return named && len(action.EntityIDs) == 0
-}
-
-// Home Assistant statuses that prove the call was rejected before running.
-var rejectedStatuses = map[int]bool{400: true, 404: true, 422: true}
-
-// executeAction sends the frozen action exactly once — the payload is the
-// frozen entity_ids plus the planned data, nothing else (I6, I7) — then
-// verifies it on a fresh read budget.
-func executeAction(s *relaySession, e *tierEngine, env *verbEnvelope, action planAction) (err error) {
-	sent := false
-	defer afterSend(&sent, env, &err)
-	body := map[string]any{}
-	for key, value := range action.Data {
-		body[key] = value
-	}
-	if len(action.EntityIDs) > 0 {
-		body["entity_id"] = slices.Clone(action.EntityIDs)
-	}
-	s.renewBudget()
-	flowsBefore := s.reauthFlows() // best effort, bounded; nil means no correlation
-	sent = true
-	result, err := s.postService(action.Service, body, action.Response)
-	s.renewBudget() // verification and correlation get their own budget
-	var unknown *relayOutcomeUnknownError
-	switch {
-	case errors.As(err, &unknown):
-		env.OutcomeUnknown = true
-		return &verbFailure{exit: verbExitUnknown, status: "unverified", code: "OUTCOME_UNKNOWN", message: err.Error(), next: "Verify the target state; never retry automatically."}
-	case err != nil: // refused or answered before reaching Home Assistant
-		return nothingSent(err)
-	case rejectedStatuses[result.status]:
-		return &verbFailure{exit: verbExitUnverified, status: "failed", code: "SERVICE_REJECTED",
-			message: fmt.Sprintf("Home Assistant rejected the call (HTTP %d): %s", result.status, truncate(string(result.body), 300)),
-			next:    "Nothing ran; check the service data and the target."}
-	}
-	if action.Response && result.status < 400 && len(result.body) > 0 {
-		// The whole upstream body, so the skills' `result.service_response[...]`
-		// path matches what the old raw `.data.body.service_response` gave.
-		env.Result = json.RawMessage(result.body)
-	}
-	rows, outcome := verifyCall(s, e, action)
-	env.Verification = rows
-	if result.status >= 400 { // e.g. 500: it may have partly run — probes shown, never verified
-		if result.status >= 500 && flowsBefore != nil {
-			env.ReauthOpened = newReauthFlows(s, e, action.EntityIDs, flowsBefore)
-		}
-		return &verbFailure{exit: verbExitUnverified, status: "unverified", code: "SERVICE_ERROR",
-			message: fmt.Sprintf("Home Assistant answered HTTP %d: %s", result.status, truncate(string(result.body), 300)),
-			next:    "Do not retry automatically; check the target and the integration."}
-	}
-	env.Status, env.exit = outcome, verbExitOK
-	if outcome == "unverified" || outcome == "failed" {
-		env.exit = verbExitUnverified
-	}
-	return nil
-}
-
-// newReauthFlows reports reauth flows that opened during the call and belong
-// to a target: same config entry, or same integration with exactly one
-// entry. This is the rule's source since the service-call skill moved to
-// `ha-nova call` (formerly its Generic 500 with a reauth side effect section).
-func newReauthFlows(s *relaySession, e *tierEngine, targets []string, before map[string]reauthFlow) []string {
-	time.Sleep(reauthSettle)
-	rows, _ := e.fullRegistry()
-	var entries []struct {
-		EntryID string `json:"entry_id"`
-		Domain  string `json:"domain"`
-	}
-	_ = s.wsDecode(map[string]any{"type": "config_entries/get"}, &entries, "the config entries")
-	perDomain := map[string]int{}
-	for _, entry := range entries {
-		perDomain[entry.Domain]++
-	}
-	targetEntries, targetPlatforms := map[string]bool{}, map[string]bool{}
-	for _, row := range rows {
-		if slices.Contains(targets, row.EntityID) {
-			targetEntries[row.ConfigEntryID], targetPlatforms[row.Platform] = true, true
-		}
-	}
-	var opened []string
-	for id, flow := range s.reauthFlows() {
-		_, existed := before[id]
-		matches := (flow.entryID != "" && targetEntries[flow.entryID]) || (targetPlatforms[flow.handler] && perDomain[flow.handler] == 1)
-		if !existed && matches {
-			opened = append(opened, flow.handler)
-		}
-	}
-	slices.Sort(opened)
-	return opened
-}
-
-func truncate(text string, n int) string {
-	if len(text) <= n {
-		return text
-	}
-	return text[:n] + "…"
 }

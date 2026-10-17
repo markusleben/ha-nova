@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/brutella/dnssd"
 	"github.com/zalando/go-keyring"
@@ -36,6 +37,12 @@ func TestMain(m *testing.M) {
 	// override on top (e.g. keyring_linux_test.go stubs keyringGetWithService, or
 	// device-storage tests stub deviceStorageKeyringCanary).
 	keyring.MockInit()
+	// No test opens a real confirmation window: typed plans use chat unless a
+	// test installs its own window (confirm_window_test.go).
+	windowAvailable = func() bool { return false }
+	windowRunner = func(context.Context, string, time.Duration) windowAnswer {
+		panic("a test opened a real confirmation window")
+	}
 	secretKeyringGet = keyring.Get
 	secretKeyringGetWithPolicy = defaultSecretKeyringGetWithPolicy
 	secretKeyringSetWithPolicy = defaultSecretKeyringSetWithPolicy

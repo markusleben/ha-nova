@@ -101,8 +101,8 @@ func TestPlanFileHoldsNoUsableCode(t *testing.T) {
 		t.Fatal("the code ignores the credential and the channel")
 	}
 	h.tamper(plan.ID, func(p map[string]any) { p["channel"] = channelForm })
-	formAnswer = plan.Code // the edited channel breaks the plan's channel seal
-	defer func() { formAnswer = "" }()
+	humanAnswer = plan.Code // the edited channel breaks the plan's channel seal
+	defer func() { humanAnswer = "" }()
 	if exit, env := h.run(runApplyCommand, "--plan", plan.ID); exit != 4 || env.Error.Code != "PLAN_INVALID" || len(h.posts()) != 0 {
 		t.Fatalf("an edited channel kept the code valid: exit %d %+v", exit, env.Error)
 	}

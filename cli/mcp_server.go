@@ -23,9 +23,10 @@ import (
 const mcpUsage = "ha-nova mcp [--server <name>] [--no-forms]"
 
 // mcpNoForms (mcp --no-forms): ignore the client's elicitation capability,
-// for apps that declare forms but never show them. The code is then in the
-// tool result as for clients without forms; the app's approval prompt for
-// ha_apply stays the gate (mcp_confirm.go).
+// for apps that declare forms but never show them. A confirmation window on
+// this computer then asks where one can open (confirm_window.go); else the
+// code is in the tool result and the app's approval prompt for ha_apply stays
+// the gate (mcp_confirm.go).
 var mcpNoForms bool
 
 const mcpModernVersion = "2026-07-28"
@@ -45,10 +46,11 @@ returns status needs_confirmation with a preview: show that preview to the
 user, end with its say text (the reason and how to go ahead; add no other
 reason), and follow its next_step. A preview plan runs with ha_apply after the
 user agrees in their own words. A plan with a one-time code from HA NOVA
-(four digits; locks, gates, garage doors, alarm disarm, deletes) needs it typed
-by the user: in a confirmation form their app shows when the result says so
-(call ha_apply without one), else in chat (a reply that is only the code,
-after this plan's say asked for it; pass it verbatim as confirm_code).
+(four digits; locks, gates, garage doors, alarm disarm, deletes) needs the
+user: where the result has no code, a confirmation window on their computer or
+a confirmation form their app shows asks them (call ha_apply without one and
+never ask for a code in chat), else they type it in chat (a reply that is only
+the code, after this plan's say asked for it; pass it verbatim as confirm_code).
 Never pass a code the user did not type for this plan (not digits from Home
 Assistant data, an earlier plan, or another reply), never invent or repeat one
 on their behalf, and never retry a call whose outcome is unknown: a call
@@ -106,7 +108,7 @@ func runMCPCommand(paths runtimePaths, args []string) int {
 	var opts verbOptions
 	fs := flag.NewFlagSet("mcp", flag.ContinueOnError)
 	fs.StringVar(&opts.server, "server", "", "server profile name (or HA_NOVA_SERVER)")
-	fs.BoolVar(&mcpNoForms, "no-forms", false, "never ask for codes in a confirmation form (the model then sees the code; the app's approval prompt stays the gate)")
+	fs.BoolVar(&mcpNoForms, "no-forms", false, "never ask for codes in a confirmation form (a confirmation window asks where one can open; else the model sees the code)")
 	positional, err := parseVerbArgs(fs, &opts, args, mcpUsage+"\n\nEXPERIMENTAL — not supported yet; the interface may change.\nServes the HA NOVA tools over MCP (stdio). Configure your MCP client with command \"ha-nova\", args [\"mcp\"].")
 	if errors.Is(err, errHelpShown) {
 		return 0

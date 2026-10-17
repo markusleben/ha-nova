@@ -36,7 +36,7 @@ Use response-driven config flows through the relay:
 - `ha-nova relay ws --data-file <payload-file> --out <entries-file>` with `{"type":"config_entries/get"}`
 - `ha-nova relay core --method GET|POST|DELETE --path /api/config/config_entries/flow[/<flow_id>] --body-file <payload-file> --out <flow-file>`
 - `ha-nova relay core --method GET|POST|DELETE --path /api/config/config_entries/options/flow[/<flow_id>] --body-file <payload-file> --out <flow-file>`
-- reload: `ha-nova call homeassistant.reload_config_entry --set entry_id=<entry_id>` (every reload is typed: the user types the one-time code; a raw reload is refused)
+- reload: `ha-nova call homeassistant.reload_config_entry --set entry_id=<entry_id>` (typed, like every reload)
 
 Omit `--body-file` on GET and DELETE. Relay-core response data is under `.data.body`.
 
@@ -148,7 +148,7 @@ Use the Preview Card for flow start, menu selection, each non-secret form submit
 
 ## Safety
 
-- Preview before write. The only exception is a call that `ha-nova call` itself executed as `tier: ordinary` (an unambiguous everyday action, verified afterwards); everything else runs or is saved only after the user confirms the shown preview. High-consequence actions (e.g. unlocking or opening a lock, opening a gate, garage, or entry door, disarming the alarm — also through a scene or script) and deletes or other destructive operations need the one-time code from HA NOVA, typed by the user; "yes" or any other reply is invalid.
+- Preview before write. The only exception is a call that `ha-nova call` itself executed as `tier: ordinary` (an unambiguous everyday action, verified afterwards); everything else runs or is saved only after the user confirms the shown preview. High-consequence actions (e.g. unlocking or opening a lock, opening a gate, garage, or entry door, disarming the alarm — also through a scene or script) and deletes or other destructive operations need the user's one-time code from HA NOVA, or their click in its confirmation window; "yes" or any other reply is invalid.
 - Confirmation binds to the displayed preview and expires on any change to target, payload, endpoint, or scope (context skill → Active Preview Confirmation).
 - Anything before the preview ("do it", answers to questions) never confirms it; only a reply to the preview does.
 - Never guess entity, service, or config IDs — resolve them or ask.
