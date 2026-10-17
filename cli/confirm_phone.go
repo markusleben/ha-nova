@@ -15,33 +15,32 @@ import (
 )
 
 // Channel B (docs/work/2026-10-17-human-confirmation-channels-spec.md §7):
-// a Companion-app notification on the Home Assistant owner's phones with
-// Confirm and Cancel. The action ids are random nonces that live only in
-// this process; the tap counts only when Home Assistant reports it from
-// the owner's own app (context.user_id = owner, origin REMOTE), never from
-// the Relay's own user. Where the Relay acts as the owner (a standalone
-// Relay on the owner's token) that can't be told apart, so B is
-// unavailable there.
+// a Companion-app notification on the linked phone (confirm_phone_link.go)
+// with Confirm and Cancel. The action ids are random nonces that live only
+// in this process; the tap counts only when Home Assistant reports it from
+// the linked user's own app (context.user_id = that user, origin REMOTE),
+// never from the Relay's own user. Where the Relay acts as the owner (a
+// standalone Relay on the owner's token) B is unavailable.
 
 type phoneAnswer int
 
 const (
 	phoneIgnored   phoneAnswer = iota // not ours: keep waiting
 	phoneNoAnswer                     // timed out: nothing is sent
-	phoneConfirmed                    // the owner tapped Confirm
-	phoneDeclined                     // the owner tapped Cancel
+	phoneConfirmed                    // the linked user tapped Confirm
+	phoneDeclined                     // the linked user tapped Cancel
 	phoneRejected                     // one of our ids came from someone else: stop, nothing is sent
 	phoneFailed                       // the notification could not be sent: nothing is sent, no fallback
 )
 
 const (
 	phoneEventType  = "mobile_app_notification_action"
-	phoneSentText   = "HA NOVA sent a confirmation to your phone — tap Confirm there."
+	phoneSentText   = "HA NOVA sent a notification to “%s” (only that phone) — hold or expand it and tap %s there."
 	phoneAsked      = "Requested by your AI assistant. Confirm only if you want this."
-	phoneWindowSpan = 10 * time.Second                      // the Relay's collect_events cap; two lanes overlap by half
-	phoneMaxMessage = 600                                   // runes: a lock-screen summary, not the whole preview
-	phoneTitle      = "HA NOVA: hold or expand for Confirm" // a plain tap only opens the app
-	phoneClearSpan  = 3 * time.Second                       // cleanup never delays apply longer
+	phoneWindowSpan = 10 * time.Second               // the Relay's collect_events cap; two lanes overlap by half
+	phoneMaxMessage = 600                            // runes: a lock-screen summary, not the whole preview
+	phoneTitle      = "HA NOVA: hold or expand for " // + the button; a plain tap only opens the app
+	phoneClearSpan  = 3 * time.Second                // cleanup never delays apply longer
 )
 
 var (
@@ -59,15 +58,19 @@ var (
 )
 
 type phoneTarget struct {
-	Service string `json:"service"` // notify service: mobile_app_<slug>
-	Name    string `json:"name"`
+	Service  string `json:"service"` // notify service: mobile_app_<slug>
+	Name     string `json:"name"`
+	DeviceID string `json:"device_id"`
+	UserID   string `json:"user_id"` // the person's user it is listed under
+	Person   string `json:"person"`
 }
 
-// phoneSetup: who confirms (the owner) and where (their phones), plus the
-// Relay's own user, whose events never count.
+// phoneSetup: who confirms (the linked user) and where (the linked phone,
+// the only target), plus the owner (the links' key) and the Relay's own
+// user, whose events never count.
 type phoneSetup struct {
-	owner, relayUser string
-	targets          []phoneTarget
+	owner, relayUser, confirmer string
+	targets                     []phoneTarget
 }
 
 type phoneEvent struct {
@@ -83,13 +86,13 @@ type phoneEvent struct {
 }
 
 // judgePhoneEvent: only an event carrying one of our ids decides, and only
-// from the owner's own app.
+// from the confirming user's own app.
 func judgePhoneEvent(ev phoneEvent, ok, no string, setup phoneSetup) phoneAnswer {
 	if ev.EventType != phoneEventType || ev.Data.Action != ok && ev.Data.Action != no {
 		return phoneIgnored
 	}
 	user := ev.Context.UserID
-	if ev.Origin != "REMOTE" || user == "" || user != setup.owner || user == setup.relayUser {
+	if ev.Origin != "REMOTE" || user == "" || user != setup.confirmer || user == setup.relayUser {
 		return phoneRejected
 	}
 	if ev.Data.Action == ok {
@@ -106,10 +109,11 @@ func phoneNonce(kind string) (string, error) {
 	return "HANOVA_" + kind + "_" + hex.EncodeToString(b), nil
 }
 
-// askPhone sends the notification to every phone, waits for the first
-// decisive answer, and then clears it everywhere. The ids are never
-// printed, logged, or stored.
-func askPhone(s *relaySession, setup phoneSetup, tag, message string, wait time.Duration) phoneAnswer {
+// askPhone sends the notification to the setup's phone (the linked one, or
+// the one being linked), waits for a decisive answer, and then clears it.
+// confirm is the button's title. The ids are never printed, logged, or
+// stored.
+func askPhone(s *relaySession, setup phoneSetup, tag, message, confirm string, wait time.Duration) phoneAnswer {
 	ok, errOK := phoneNonce("OK")
 	no, errNo := phoneNonce("NO")
 	attempt, errTag := phoneNonce("T")
@@ -166,7 +170,7 @@ func askPhone(s *relaySession, setup phoneSetup, tag, message string, wait time.
 		return phoneNoAnswer
 	}
 	deadline, _ := ctx.Deadline()
-	sent := sendPhones(ctx, s, notify, setup.targets, phonePayload(message, tag, ok, no, deadline))
+	sent := sendPhones(ctx, s, notify, setup.targets, phonePayload(message, confirm, tag, ok, no, deadline))
 	all := make([]string, 0, len(setup.targets))
 	for _, target := range setup.targets {
 		all = append(all, target.Service)
@@ -175,7 +179,7 @@ func askPhone(s *relaySession, setup phoneSetup, tag, message string, wait time.
 	if len(sent) == 0 {
 		return phoneFailed
 	}
-	fmt.Fprintln(os.Stderr, phoneSentText)
+	fmt.Fprintf(os.Stderr, phoneSentText+"\n", terminalSafeName(setup.targets[0].Name), confirm)
 	seen := map[string]bool{}
 	for {
 		select {
@@ -226,12 +230,12 @@ func sendPhones(ctx context.Context, s *relaySession, notify func(*relaySession,
 // phonePayload: Confirm needs an unlocked phone (Face ID, fingerprint, or
 // passcode; iOS, Android 12+) and is styled destructive (iOS); the
 // notification expires with the wait (Android timeout, iOS apns-expiration).
-func phonePayload(message, tag, ok, no string, deadline time.Time) map[string]any {
+func phonePayload(message, confirm, tag, ok, no string, deadline time.Time) map[string]any {
 	seconds := max(int(time.Until(deadline).Seconds()), 1)
-	return map[string]any{"title": phoneTitle, "message": message, "data": map[string]any{
+	return map[string]any{"title": phoneTitle + confirm, "message": message, "data": map[string]any{
 		"tag": tag,
 		"actions": []any{
-			map[string]any{"action": ok, "title": "Confirm", "destructive": true, "authenticationRequired": true},
+			map[string]any{"action": ok, "title": confirm, "destructive": true, "authenticationRequired": true},
 			map[string]any{"action": no, "title": "Cancel"},
 		},
 		"push":         map[string]any{"interruption-level": "time-sensitive"},
@@ -305,11 +309,11 @@ func confirmByPhone(paths runtimePaths, opts verbOptions, id string, noSnapshot 
 	if wait < windowMinWait {
 		return windowStopped(s, "refused", "PLAN_EXPIRED", "plan "+id+" expires before the phone could get an answer", replan)
 	}
-	setup, found := phoneDiscover(s)
-	if !found {
-		return windowStopped(s, "refused", "CONFIRM_UNAVAILABLE", "this change is confirmed on the Home Assistant owner's phone, and HA NOVA can't reach it now", phoneMissingNext)
+	setup, status := phoneDiscover(s)
+	if status != phoneReady {
+		return windowStopped(s, "refused", "CONFIRM_UNAVAILABLE", phoneMissingWhy, phoneMissingNext)
 	}
-	switch askPhone(s, setup, "ha-nova-"+plan.ID, phoneMessage(fresh, noSnapshot), time.Until(deadline)) {
+	switch askPhone(s, setup, "ha-nova-"+plan.ID, phoneMessage(fresh, noSnapshot), "Confirm", time.Until(deadline)) {
 	case phoneConfirmed:
 		humanAnswer = confirmCode(s.transport.Credential, idHex, channelPhone, plan.ExpiresAt)
 		return env, 0, false
@@ -317,8 +321,8 @@ func confirmByPhone(paths runtimePaths, opts verbOptions, id string, noSnapshot 
 		return windowStopped(s, "declined", "CONFIRM_DECLINED", "the confirmation was cancelled on the phone",
 			"Tell the user nothing changed. Apply this plan again only if they ask for it.")
 	case phoneRejected:
-		return windowStopped(s, "refused", "CONFIRM_REJECTED", "the answer came from a device that isn't signed in to Home Assistant as the owner",
-			"Tell the user nothing changed: the answer came from a device that isn't signed in to Home Assistant as the owner. Apply again only if they ask; never ask them for a code.")
+		return windowStopped(s, "refused", "CONFIRM_REJECTED", phoneRejectedWhy,
+			"Tell the user nothing changed: "+phoneRejectedWhy+". Apply again only if they ask; never ask them for a code.")
 	case phoneFailed:
 		return windowStopped(s, "refused", "CONFIRM_UNAVAILABLE", "the confirmation could not be sent to the phone", phoneMissingNext)
 	}
@@ -326,7 +330,15 @@ func confirmByPhone(paths runtimePaths, opts verbOptions, id string, noSnapshot 
 		fmt.Sprintf("Tell the user nothing changed: Confirm was not pressed in time (hold or expand the notification to see it; a plain tap only opens the app). Run ha-nova apply --plan %s again (a new notification goes to their phone) only after they say they still want it; never ask them for a code. If no notification arrived, they can make this change in Home Assistant itself.", id))
 }
 
-const phoneMissingNext = "Tell the user nothing changed: HA NOVA could not reach their phone. They can make this change in Home Assistant itself, or try again later; never ask them for a code."
+const (
+	phoneMissingWhy  = "this change is confirmed on the phone linked to HA NOVA, and HA NOVA can't reach it now"
+	phoneMissingNext = "Tell the user nothing changed: HA NOVA could not reach their linked phone. They can make this change in Home Assistant itself, or try again later; if they replaced or lost that phone, they remove it in Home Assistant and link the new one in a terminal: ha-nova setup confirm-phone. Never ask them for a code."
+	phoneRejectedWhy = "the answer came from a device that isn't signed in to Home Assistant as the person who linked this phone"
+	// #719's pin: no phone chosen yet. The agent may run the listing itself;
+	// only a tap on the chosen phone links it.
+	phoneUnlinkedWhy  = "HA NOVA now confirms on one phone the user chooses, and none is chosen on this computer yet"
+	phoneUnlinkedNext = "Tell the user nothing changed: HA NOVA now asks on one phone they choose. Run ha-nova setup confirm-phone to list their phones, ask which one is theirs, then run ha-nova setup confirm-phone \"<that phone's name>\" and tell them to tap 'Yes, link' on it. Then plan again. Never ask them for a code."
+)
 
 // humanPlan reads a typed plan of channel and re-plans it like apply, for
 // a window or phone ask. ok=false: apply runs and reports whatever is

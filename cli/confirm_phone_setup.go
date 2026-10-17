@@ -3,8 +3,6 @@ package main
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
-	"maps"
 	"net/http"
 	"os"
 	"regexp"
@@ -12,26 +10,31 @@ import (
 	"sort"
 )
 
-// Who confirms on a phone, and where (confirm_phone.go). The confirmer is
-// the Home Assistant owner: only the owner can arm a pairing in the App
-// (nova/src/security/owner-check.ts), so "the user this computer is paired
-// for" is the owner there, and the owner is one fixed account the Relay
-// can't become. Their phones: the owner's person → its device trackers
-// from the Companion app (mobile_app) → each device's legacy notify
-// service, named by Home Assistant's own slugify (rendered by Home
-// Assistant, so it matches exactly).
+// Who confirms on a phone, and where (spec §7.2). One phone per computer and
+// Home Assistant, linked by the user (confirm_phone_link.go): config.json
+// stores its device id and the Home Assistant user its link tap arrived as.
+// Only that phone is ever sent anything, and a tap counts only from that
+// user while they are an administrator other than the Relay's own user.
 
-// phoneTargetsTemplate lists the owner's Companion phones; the owner id is a
-// template variable, never template source.
-const phoneTargetsTemplate = `{%- set ns = namespace(out=[]) -%}
+// phoneTemplate lists every person's Companion phones (device id, name, and
+// legacy notify service, slugged by Home Assistant itself), every mobile_app
+// device's service (two devices with one name share it), and the linked
+// device by id. The id is a template variable, never template source.
+const phoneTemplate = `{%- set ns = namespace(phones=[], all=[]) -%}
 {%- set apps = integration_entities('mobile_app') -%}
-{%- for p in states.person if p.attributes.user_id == owner -%}
+{%- for d in apps | map('device_id') | select | unique -%}
+{%- set n = device_attr(d, 'name') -%}
+{%- if n -%}{%- set ns.all = ns.all + [('mobile_app_' ~ n) | slugify] -%}{%- endif -%}
+{%- endfor -%}
+{%- for p in states.person if p.attributes.user_id -%}
 {%- for t in p.attributes.device_trackers | default([], true) if t in apps -%}
-{%- set name = device_attr(device_id(t), 'name') -%}
-{%- if name -%}{%- set ns.out = ns.out + [{'service': ('mobile_app_' ~ name) | slugify, 'name': name}] -%}{%- endif -%}
+{%- set d = device_id(t) -%}
+{%- set n = device_attr(d, 'name') if d else none -%}
+{%- if n -%}{%- set ns.phones = ns.phones + [{'service': ('mobile_app_' ~ n) | slugify, 'name': n, 'device_id': d, 'user_id': p.attributes.user_id, 'person': p.name}] -%}{%- endif -%}
 {%- endfor -%}
 {%- endfor -%}
-{{ ns.out | to_json }}`
+{%- set n = device_attr(device, 'name') if device else none -%}
+{{ {'phones': ns.phones, 'all': ns.all, 'linked': ({'service': ('mobile_app_' ~ n) | slugify, 'name': n, 'device_id': device} if n else none)} | to_json }}`
 
 var phoneServicePattern = regexp.MustCompile(`^mobile_app_[a-z0-9_]+$`)
 
@@ -45,9 +48,9 @@ func checkPhoneRead(endpoint string, payload map[string]any) error {
 	case "core":
 		body, _ := payload["body"].(map[string]any)
 		vars, _ := body["variables"].(map[string]any)
-		_, isText := vars["owner"].(string)
+		_, isText := vars["device"].(string)
 		if len(payload) == 3 && payload["method"] == http.MethodPost && payload["path"] == "/api/template" &&
-			len(body) == 2 && body["template"] == phoneTargetsTemplate && len(vars) == 1 && isText {
+			len(body) == 2 && body["template"] == phoneTemplate && len(vars) == 1 && isText {
 			return nil
 		}
 	}
@@ -70,64 +73,88 @@ func (s *relaySession) phoneRead(endpoint string, payload map[string]any, into a
 }
 
 type haUser struct {
-	ID              string `json:"id"`
-	IsOwner         bool   `json:"is_owner"`
-	IsActive        bool   `json:"is_active"`
-	SystemGenerated bool   `json:"system_generated"`
+	ID              string   `json:"id"`
+	Name            string   `json:"name"`
+	IsOwner         bool     `json:"is_owner"`
+	IsActive        bool     `json:"is_active"`
+	SystemGenerated bool     `json:"system_generated"`
+	GroupIDs        []string `json:"group_ids"`
 }
 
-// discoverPhone: ok only when the owner has a phone with the Companion app
-// and the Relay is not the owner itself. Any failed read is "no phone".
-// setup.owner is set whenever the owner is known, also when !ok: the pin
-// is keyed by it.
-func discoverPhone(s *relaySession) (phoneSetup, bool) {
+// phoneAdmin: confirming unlocks and deletes needs an active person who
+// administers Home Assistant (never a system user such as the Supervisor).
+func phoneAdmin(u haUser) bool {
+	return u.ID != "" && u.IsActive && !u.SystemGenerated && (u.IsOwner || slices.Contains(u.GroupIDs, "system-admin"))
+}
+
+// phoneHome is one Home Assistant as phone confirmation sees it.
+type phoneHome struct {
+	owner, relay string
+	users        map[string]haUser
+	phones       []phoneTarget // on a person with a user, reachable, name not shared
+	linked       *phoneTarget  // the linked device while it exists; Service "" when it can't be reached
+	gone         bool          // the reads worked and the linked device no longer exists
+}
+
+// lookupPhones reads the home. owner is set whenever it is known, also on
+// error: links are keyed by it.
+func lookupPhones(s *relaySession, links map[string]phoneEntry) (phoneHome, error) {
 	var current haUser
 	var users []haUser
-	if s.phoneRead("ws", map[string]any{"type": "auth/current_user"}, &current) != nil ||
-		s.phoneRead("ws", map[string]any{"type": "config/auth/list"}, &users) != nil {
-		return phoneSetup{}, false
+	if err := s.phoneRead("ws", map[string]any{"type": "auth/current_user"}, &current); err != nil {
+		return phoneHome{}, err
 	}
-	owner := ""
+	if err := s.phoneRead("ws", map[string]any{"type": "config/auth/list"}, &users); err != nil {
+		return phoneHome{}, err
+	}
+	home := phoneHome{relay: current.ID, users: map[string]haUser{}}
 	for _, u := range users {
+		home.users[u.ID] = u
 		if u.IsOwner && u.IsActive && !u.SystemGenerated {
-			owner = u.ID
+			home.owner = u.ID
 		}
 	}
-	if owner == "" || current.ID == "" || owner == current.ID {
-		return phoneSetup{owner: owner}, false // the Relay acts as the owner: a forged tap would look genuine
+	if home.owner == "" || current.ID == "" {
+		return home, errors.New("Home Assistant's owner or the Relay's user could not be read")
+	}
+	device := ""
+	if link := links[home.owner].link; link != nil {
+		device = link.DeviceID
 	}
 	var core struct {
 		Status int             `json:"status"`
 		Body   json.RawMessage `json:"body"`
 	}
 	payload := map[string]any{"method": http.MethodPost, "path": "/api/template",
-		"body": map[string]any{"template": phoneTargetsTemplate, "variables": map[string]any{"owner": owner}}}
-	if s.phoneRead("core", payload, &core) != nil || core.Status != http.StatusOK {
-		return phoneSetup{owner: owner}, false
+		"body": map[string]any{"template": phoneTemplate, "variables": map[string]any{"device": device}}}
+	if err := s.phoneRead("core", payload, &core); err != nil {
+		return home, err
 	}
 	status, services, err := s.coreGET("/api/services")
-	if err != nil || status != http.StatusOK {
-		return phoneSetup{owner: owner}, false
+	if err != nil || core.Status != http.StatusOK || status != http.StatusOK {
+		return home, errors.New("the Companion phones could not be read")
 	}
-	targets := phoneTargetsFrom(core.Body, services)
-	return phoneSetup{owner: owner, relayUser: current.ID, targets: targets}, len(targets) > 0
+	return home, home.fill(core.Body, services, device)
 }
 
-// phoneTargetsFrom keeps the rendered targets whose notify service exists.
-// rendered is the template's text (a JSON string holding the list), or the
-// list itself.
-func phoneTargetsFrom(rendered, services json.RawMessage) []phoneTarget {
+// fill keeps the rendered phones whose notify service exists and is theirs
+// alone. rendered is the template's text (a JSON string), or the object.
+func (h *phoneHome) fill(rendered, services json.RawMessage, device string) error {
 	var text string
 	if json.Unmarshal(rendered, &text) == nil {
 		rendered = json.RawMessage(text)
 	}
-	var found []phoneTarget
+	var found struct {
+		Phones []phoneTarget `json:"phones"`
+		All    []string      `json:"all"`
+		Linked *phoneTarget  `json:"linked"`
+	}
 	var domains []struct {
 		Domain   string                     `json:"domain"`
 		Services map[string]json.RawMessage `json:"services"`
 	}
 	if json.Unmarshal(rendered, &found) != nil || json.Unmarshal(services, &domains) != nil {
-		return nil
+		return errors.New("the Companion phones could not be read")
 	}
 	notify := map[string]bool{}
 	for _, d := range domains {
@@ -137,150 +164,159 @@ func phoneTargetsFrom(rendered, services json.RawMessage) []phoneTarget {
 			}
 		}
 	}
+	shared := map[string]int{}
+	for _, service := range found.All {
+		shared[service]++
+	}
+	usable := func(t phoneTarget) bool {
+		return phoneServicePattern.MatchString(t.Service) && notify[t.Service] && shared[t.Service] <= 1 && t.DeviceID != ""
+	}
 	seen := map[string]bool{}
-	var out []phoneTarget
-	for _, t := range found {
-		if phoneServicePattern.MatchString(t.Service) && notify[t.Service] && !seen[t.Service] {
-			seen[t.Service] = true
-			out = append(out, t)
+	for _, t := range found.Phones {
+		if usable(t) && t.UserID != "" && !seen[t.DeviceID] {
+			seen[t.DeviceID] = true
+			h.phones = append(h.phones, t)
 		}
 	}
-	sort.Slice(out, func(i, j int) bool { return out[i].Service < out[j].Service })
-	return out
+	sort.SliceStable(h.phones, func(i, j int) bool { return h.phones[i].Name < h.phones[j].Name })
+	switch {
+	case found.Linked != nil && found.Linked.DeviceID == device:
+		linked := *found.Linked
+		if !usable(linked) {
+			linked.Service = ""
+		}
+		h.linked = &linked
+	case device != "":
+		h.gone = true
+	}
+	return nil
 }
 
-// The phone pin (config.json top level, keyed by the Home Assistant owner's
-// user id, which is unique per Home Assistant — not by the reusable server
-// name, so a removed or renamed server profile can't carry it to another
-// home): "on" once a phone was found — later a missing phone refuses typed
-// plans instead of moving them to a weaker channel — or "off" (the owner
-// turned it off on the phone).
+type phoneStatus int
+
+const (
+	phoneNone    phoneStatus = iota // no phone linked for this home on this computer: the next channel
+	phoneReady                      // the linked phone can be asked
+	phoneMissing                    // linked, but it can't be asked now: refuse, never downgrade
+	phoneLegacy                     // #719's pin ("on"), no phone chosen yet: refuse until linked
+)
+
+// status: the linked phone's setup, or why it can't be asked. A failed
+// read is phoneMissing wherever any link exists.
+func (h phoneHome) status(links map[string]phoneEntry, err error) (phoneSetup, phoneStatus) {
+	if h.owner == "" {
+		return phoneSetup{}, phoneMissing // a link exists on this computer; whether it is this home's can't be checked
+	}
+	entry, ok := links[h.owner]
+	switch {
+	case !ok:
+		return phoneSetup{owner: h.owner, relayUser: h.relay}, phoneNone
+	case entry.legacy:
+		return phoneSetup{owner: h.owner, relayUser: h.relay}, phoneLegacy
+	}
+	setup := phoneSetup{owner: h.owner, relayUser: h.relay, confirmer: entry.link.UserID}
+	if err != nil || h.relay == h.owner || setup.confirmer == h.relay || !phoneAdmin(h.users[setup.confirmer]) ||
+		h.linked == nil || h.linked.Service == "" {
+		return setup, phoneMissing
+	}
+	target := *h.linked
+	target.UserID = setup.confirmer
+	setup.targets = []phoneTarget{target}
+	return setup, phoneReady
+}
+
+// discoverPhone: the linked phone, read only when this computer has a link.
+func discoverPhone(s *relaySession) (phoneSetup, phoneStatus) {
+	links, readable := phoneLinks(s.paths)
+	if !readable {
+		return phoneSetup{}, phoneMissing
+	}
+	if len(links) == 0 {
+		return phoneSetup{}, phoneNone
+	}
+	home, err := lookupPhones(s, links)
+	return home.status(links, err)
+}
+
+// The link store (config.json top level, keyed by the Home Assistant owner's
+// user id, unique per Home Assistant): a phoneLink, or #719's "on" pin.
 const phoneSettingKey = "confirm_phone"
 
-func phonePin(paths runtimePaths, owner string) string {
-	if owner == "" {
-		return ""
-	}
-	pins, _ := phonePins(paths)
-	return pins[owner]
+type phoneLink struct {
+	Service  string `json:"service"`
+	DeviceID string `json:"device_id"`
+	UserID   string `json:"user_id"` // the tap's context.user_id
+	Name     string `json:"name"`
 }
 
-// phonePins: ok=false when config.json can't be read now (mid-transaction,
-// unreadable): the pins are unknown, never "none".
-func phonePins(paths runtimePaths) (map[string]string, bool) {
+type phoneEntry struct {
+	legacy bool
+	link   *phoneLink
+}
+
+// phoneLinks: ok=false when config.json can't be read now (mid-transaction,
+// unreadable): the links are unknown, never "none". #719's "off" is no link.
+func phoneLinks(paths runtimePaths) (map[string]phoneEntry, bool) {
 	doc, err := loadConfigDocument(paths.ConfigFile)
 	if err != nil {
 		return nil, os.IsNotExist(err)
 	}
-	var pins map[string]string
-	_ = json.Unmarshal(doc.top[phoneSettingKey], &pins) // unreadable: as if none (setPhonePin starts over the same way)
-	return pins, true
+	var raw map[string]json.RawMessage
+	_ = json.Unmarshal(doc.top[phoneSettingKey], &raw) // unreadable: as if none (setPhoneLink starts over the same way)
+	links := map[string]phoneEntry{}
+	for owner, value := range raw {
+		var pin string
+		if json.Unmarshal(value, &pin) == nil {
+			if pin == "on" {
+				links[owner] = phoneEntry{legacy: true}
+			}
+			continue
+		}
+		link := &phoneLink{}
+		_ = json.Unmarshal(value, link) // malformed: an empty link, which is never usable
+		links[owner] = phoneEntry{link: link}
+	}
+	return links, true
 }
 
-func setPhonePin(paths runtimePaths, owner, value string) error {
+// setPhoneLink stores this home's link; nil removes it.
+func setPhoneLink(paths runtimePaths, owner string, link *phoneLink) error {
 	doc, err := loadConfigDocument(paths.ConfigFile)
 	if err != nil {
 		return err
 	}
-	pins := map[string]string{}
-	_ = json.Unmarshal(doc.top[phoneSettingKey], &pins) // unreadable: start over
+	links := map[string]json.RawMessage{}
+	_ = json.Unmarshal(doc.top[phoneSettingKey], &links) // unreadable: start over
 	top := make(map[string]json.RawMessage, len(doc.top))
 	for key, v := range doc.top {
 		top[key] = v
 	}
-	if value == "" {
-		delete(pins, owner)
-	} else {
-		pins[owner] = value
+	delete(links, owner)
+	if link != nil {
+		links[owner], _ = json.Marshal(link)
 	}
 	delete(top, phoneSettingKey)
-	if len(pins) > 0 {
-		raw, _ := json.Marshal(pins)
-		top[phoneSettingKey] = raw
+	if len(links) > 0 {
+		top[phoneSettingKey], _ = json.Marshal(links)
 	}
 	return writeJSONFileIfUnchanged(paths.ConfigFile, top, 0o600, doc.source)
 }
 
-// detectAfterWindow picks the channel where no window opens: the phone,
-// else a form, else chat. A pinned phone that is missing now refuses
-// (channelPhoneMissing), so breaking the phone's setup in Home Assistant
+// detectAfterWindow picks the channel where no window opens: the linked
+// phone, else a form, else chat. A linked phone that can't be asked now
+// refuses (channelPhoneMissing), so breaking its setup in Home Assistant
 // can't move a plan to a channel the model can answer.
 func detectAfterWindow(s *relaySession) string {
-	setup, found := phoneDiscover(s)
-	pins, readable := phonePins(s.paths)
-	if !readable || setup.owner == "" && slices.Contains(slices.Collect(maps.Values(pins)), "on") {
-		// The pin can't be checked (the owner unread, or config.json
-		// unreadable now): refuse rather than risk a weaker channel.
-		return channelPhoneMissing
-	}
-	switch pin := pins[setup.owner]; {
-	case pin == "off":
-	case found:
-		// A concurrent planner may have written it first: its "on" counts.
-		if pin == "" && setPhonePin(s.paths, setup.owner, "on") != nil && phonePin(s.paths, setup.owner) != "on" {
-			return channelPhoneUnpinned // unpinned, a later broken phone setup would move plans to a weaker channel
-		}
+	switch _, status := phoneDiscover(s); status {
+	case phoneReady:
 		return channelPhone
-	case pin == "on":
+	case phoneMissing:
 		return channelPhoneMissing
+	case phoneLegacy:
+		return channelPhoneUnlinked
 	}
 	if formsShown {
 		return channelForm
 	}
 	return channelChat
-}
-
-const confirmPhoneUsage = "ha-nova setup confirm-phone on|off"
-
-// runConfirmPhoneSetting: off is confirmed on the phone itself, so a model
-// that runs it can't complete it; on (back to automatic) needs none.
-func runConfirmPhoneSetting(paths runtimePaths, args []string) int {
-	if len(args) == 1 && (args[0] == "--help" || args[0] == "-h") {
-		fmt.Println("Usage: " + confirmPhoneUsage + "\n\nWhere no confirmation window can open, HA NOVA asks the Home Assistant owner's\nphone (Companion app) to confirm unlocks and deletes: \"on\" (default) uses it when\nfound; \"off\" uses your app's form, or a one-time code in chat that your AI\nassistant can see too. Turning it off is confirmed on the phone.")
-		return 0
-	}
-	if len(args) != 1 || args[0] != "on" && args[0] != "off" {
-		printHumanErr("Usage: %s", confirmPhoneUsage)
-		return 1
-	}
-	s, err := newRelaySession(paths, verbOptions{})
-	if err != nil {
-		printHumanErr("cannot reach HA NOVA (run ha-nova setup first): %s", err)
-		return 1
-	}
-	defer s.close()
-	setup, found := phoneDiscover(s)
-	if setup.owner == "" {
-		printHumanErr("HA NOVA can't read who owns this Home Assistant, so it can't change phone confirmation here. Nothing changed.")
-		return 1
-	}
-	pin := phonePin(paths, setup.owner)
-	if args[0] == "on" || pin == "off" {
-		if args[0] == "on" && pin == "off" {
-			if err := setPhonePin(paths, setup.owner, ""); err != nil {
-				printHumanErr("cannot save the setting: %s", err)
-				return 1
-			}
-		}
-		printHumanInfo("Phone confirmation is %s.", args[0])
-		return 0
-	}
-	if !found {
-		if pin != "on" {
-			printHumanInfo("HA NOVA found no phone that can confirm here, so it doesn't use one. Nothing changed.")
-			return 0
-		}
-		printHumanErr("HA NOVA can't reach the phone that confirms, so it can't ask there. Nothing changed. Sign in to the Home Assistant Companion app as the owner on your phone, or, to turn it off anyway, set \"%s\": {\"%s\": \"off\"} in %s yourself.", phoneSettingKey, setup.owner, paths.ConfigFile)
-		return 1
-	}
-	if askPhone(s, setup, "ha-nova-setting", "Turn off phone confirmation? HA NOVA then asks in a window, in your app's form, or with a one-time code in chat that your AI assistant can see too.\n\n"+phoneAsked, cliWindowWait) != phoneConfirmed {
-		printHumanErr("Nothing changed: Confirm was not pressed on the phone in time, or the notification could not be sent.")
-		return 1
-	}
-	if err := setPhonePin(paths, setup.owner, "off"); err != nil {
-		printHumanErr("cannot save the setting: %s", err)
-		return 1
-	}
-	printHumanInfo("Phone confirmation is off.")
-	return 0
 }
