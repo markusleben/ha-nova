@@ -71,30 +71,41 @@ release:
     Windows uses a single supported install path: `install.ps1`. Return an RC install to stable later with `ha-nova update`.
     {{ else }}## What To Watch
 
-    - **Update the NOVA Relay App too.** This release needs Relay 0.9.1: update it under Settings > Apps > NOVA Relay (Container/Core: pull the new image). Until then HA NOVA warns that the Relay is outdated.
-    - **Device control has one explicit fast path.** Unambiguous everyday actions run right away and are verified afterwards; everything else shows a preview first. Locks, gates, the alarm, and deletes need a code.
-    - **Some YAML-only controls now need a code.** HA NOVA can't see what a YAML switch or button without a `unique_id` does (a template switch could unlock a door), so it asks for one. A `unique_id` fixes MQTT/KNX switches.
-    - **Automation and script deletes take one code per item.** Reverting an update that was changed in the Home Assistant UI since is refused instead of overwriting that edit.
-    - **Leaner: the optional Census is removed.** It was always opt-in and off by default; dropping it keeps HA NOVA small and simple. The CLI removes its old local Census setting on first run; `ha-nova census` is gone.
-    - **Shared legacy access is being retired.** It still works in this release and the next. Re-pair each computer once with `ha-nova pair`, then revoke the old shared access on the NOVA page.
+    - **Update the NOVA Relay App too.** This release needs Relay 0.10.0: update it under Settings > Apps > NOVA Relay (Container/Core: pull the new image). Until then HA NOVA warns that the Relay is outdated.
+    - **Confirm outside the chat.** Unlocks, gates, garages, alarm disarms, restarts, and automation, script, or dashboard deletes open a confirmation window or ask your linked phone. Other deletes take a four-digit code.
+    - **Window and phone settings.** `ha-nova setup confirm-window off` turns the window off. `ha-nova setup confirm-phone` links one phone; once linked, an action it can't reach is refused instead of falling back to chat.
+    - **Some low-level changes are refused.** Firing custom events or webhooks, Z-Wave/Zigbee/Alarmo settings, and custom HACS repositories: use the HA UI. For an event, HA NOVA offers to run the automation itself.
+    - **Home Assistant Link.** Home Assistant Cloud is becoming Home Assistant Link, and HA NOVA says Link now. Commands stay `ha-nova cloud …`; until the rename reaches your HA, it is under Settings > Home Assistant Cloud.
+    - **No re-pairing needed.** Paired computers keep their connection. Still on the old shared access? It works in this release and the next: re-pair once with `ha-nova pair`, then revoke it on the NOVA page.
+    - **Device control has one explicit fast path.** Unambiguous everyday actions run right away and are verified afterwards, also for a room with exactly one matching device; everything else shows a preview first.
+    - **More actions need confirmation.** Reloads, App and host control, template controls, ESPHome or MQTT buttons, YAML controls without a `unique_id`, and automation or script deletes, one confirmation per item.
+    - **`ha-nova uninstall` keeps the shared App.** It asks whether this is the last computer using HA NOVA before guiding removal of the NOVA Relay App, which would disconnect every computer.
+    - **Leaner: the optional Census is removed.** It was always opt-in and off by default. The CLI removes its old local setting on first run; `ha-nova census` is gone.
+    - **Testing the release candidate?** A plan shown before this update has to be made again. Previews and codes from the earlier version are refused, and nothing is sent.
 
     ## New Features
 
-    - **Device control, sent once and verified.** `ha-nova call` and `ha-nova apply` send each action exactly once and check the result. A confirmed plan is re-checked first: if anything changed, nothing is sent.
-    - **Automation and script changes with a real diff.** `ha-nova plan write|delete|revert` shows the exact diff, saves once, reloads, and reads the result back; deletes take a config snapshot first.
-    - **Faster, more reliable Relay App updates.** Installs and updates download a ready image instead of building on your Home Assistant device.
+    - **Sign in with Home Assistant to pair.** Setup opens your Home Assistant login: sign in as the owner and this computer connects by itself. Over SSH or as another user, the six-digit code from NOVA still works.
+    - **Confirm in a window or on your phone.** A click on your computer or a tap on your linked phone (Companion app) confirms unlocks and automation, script, or dashboard deletes, so your AI assistant never sees a code.
+    - **Easier setup.** One link opens the NOVA Relay App page and adds the repository, a running App is skipped, and setup ends with a first look at your home and prompts with your own names.
+    - **Know your home with exact numbers.** Ask "what do I have?", "where is this sensor used?", or "review my whole setup": HA NOVA counts rooms, devices, automations, and low batteries itself.
+    - **Replace a device or a phone.** Automations, scripts, scenes, dashboards, helpers, energy sources, and notifications move to the new device in one reviewed plan; history continues when the old one is gone for good.
+    - **Build whole dashboards.** Views and cards, with your installed custom cards. Every change is previewed, a copy is saved first, and "undo that" restores it. "Check my dashboards" finds broken cards.
+    - **Move rules to Home Assistant.** Node-RED, Homey, SmartThings, Hubitat, or openHAB rules and old YAML become native automations; the old rule stays disabled, not deleted, until the new one checks out.
+    - **ESPHome device configs.** HA NOVA explains a device file and flags removed keys, impossible pins, and passwords in the file. With file access on, edits show the change first and save a copy.
+    - **Undo a deleted automation or script.** "Undo that" right after a delete restores it under its original id, with the usual preview.
+    - **Changes sent once and verified.** `ha-nova call`, `plan`, and `apply` send each change exactly once, show automation and script diffs, and read the result back; a confirmed plan is re-checked first.
     - **Quick read-only lookups.** `ha-nova find`, `get`, and `history` find entities by name, alias, domain, or current state ("which lights are on?"), read a state or config, and summarize history.
+    - **Faster, more reliable Relay App updates.** Installs and updates download a ready image instead of building on your Home Assistant device.
 
     ## Bug Fixes
 
-    - **YAML and package automations are read properly.** They are read through their loaded config, so one YAML automation without an id no longer forces confirmation codes on unrelated actions.
-    - **Honest verification.** When a device does not reach the expected state in time, HA NOVA says so plainly (for example "still locked after 10s") instead of guessing.
+    - **YAML and package automations are read properly.** They are read through their loaded config, so one YAML automation without an id no longer forces confirmation on unrelated actions.
+    - **Made-up services are refused.** A service Home Assistant does not list is refused before any preview, and HA NOVA names the real buttons or services that fit instead.
     - **The Relay stops hammering a rejected token.** A revoked Home Assistant token no longer causes an endless reconnect loop, and a stalled login can no longer block later requests.
-    - **Ready for Home Assistant 2026.9.** Child devices are recognized correctly, and admin-only update actions get a clear explanation instead of an opaque failure.
     - **Headless Linux works end to end.** `ha-nova uninstall --purge` works without an unlocked keyring, and Codex CLI and OpenCode can use `ha-nova setup --service <client>` on headless machines and over SSH.
     - **fish shell support.** The installer puts `ha-nova` on your PATH in fish too, and uninstall removes every PATH entry it added.
     - **Windows updates clean up after themselves.** No leftover updater files in `%TEMP%`, and a failed update launch removes its download.
-    - **Setup describes pairing correctly.** The setup intro explains the one-time six-digit code instead of access tokens.
 
     Stable install commands are release-pinned for this tag.
 

@@ -9,15 +9,15 @@
 </p>
 
 <p align="center">
-  <b><a href="https://hanova.app/">hanova.app</a></b> · the 5-minute tour
+  <b><a href="https://hanova.app/">hanova.app</a></b> · the 5-minute tour · <b><a href="https://hanova.app/demo/">the demo house</a></b> · look around before you connect your own
 </p>
 
 <h2 align="center">One code to connect. Every change checked.</h2>
 
 <p align="center">
-  On HA OS or Supervised, pair your AI with one six-digit code from the NOVA page.<br>
+  On HA OS or Supervised, connect your AI by signing in with Home Assistant — or with one six-digit code from the NOVA page.<br>
   Changes are previewed first and verified by reading them back — only unambiguous everyday actions run right away.<br>
-  Locks, gates, the alarm, and deletes need a confirmation code.
+  Locks, gates, the alarm, and deletes wait for you: a click in a window on your computer, a tap on your linked phone, or a one-time code.
 </p>
 
 <p align="center">
@@ -26,20 +26,22 @@
 
 > *"When I get home, set my main lights to a warm welcome scene"* — one sentence in, a fully reviewed automation out, including suggestions you might not have thought of.
 
-## ✦ Three steps, one code
+## ✦ Three steps to connect
 
-1. **Run the installer** — one command; the wizard finds your Home Assistant and sets up the NOVA Relay App.
-2. **Click "Connect a device"** — on the NOVA page in your Home Assistant sidebar (the wizard opens Home Assistant at the right spot for you).
-3. **Type the six-digit code** — done. Your AI is paired.
+1. **Run the installer** — one command; the wizard finds your Home Assistant and opens the NOVA Relay App page for you: click "Add", then Install and Start. Already running for another computer? The wizard skips this step.
+2. **Sign in with Home Assistant** — the wizard opens your Home Assistant login in the browser. Sign in as the owner, and this computer connects by itself.
+3. **Get a first look** — setup ends with your home in one line, up to two things worth a look (a low battery, an automation that can't run), and example prompts with your own room and device names.
+
+No browser here, over SSH, or signed in as another Home Assistant user? Pair with a one-time code instead: click **"Connect a device"** on the NOVA page in your Home Assistant sidebar and type the six-digit code.
 
 <p align="center">
-  <img src="assets/pairing-flow.png" alt="Pairing flow: run the installer, click Connect a device on the NOVA page, type the six-digit code">
+  <img src="assets/pairing-flow.png" alt="Pairing with a code: run the installer, click Connect a device on the NOVA page, type the six-digit code">
 </p>
 
-*The code is one-time and expires in minutes. Each device gets its own connection you can revoke anytime from NOVA.*
+*Sign-in and the code are one-time and expire in minutes. Each device gets its own connection you can revoke anytime from NOVA.*
 
 <p align="center">
-  <b><a href="#-what-you-can-do">What it does</a></b> · <b><a href="#%EF%B8%8F-safe-by-design">Is it safe?</a></b> · <b><a href="#-get-started">Get started</a></b> · <b><a href="#optional-remote-access-with-home-assistant-cloud-beta">Cloud</a></b> · <b><a href="#%EF%B8%8F-how-it-works">How it works</a></b>
+  <b><a href="#-what-you-can-do">What it does</a></b> · <b><a href="#%EF%B8%8F-safe-by-design">Is it safe?</a></b> · <b><a href="#-get-started">Get started</a></b> · <b><a href="#optional-remote-access-with-home-assistant-link-beta">Remote access</a></b> · <b><a href="#%EF%B8%8F-how-it-works">How it works</a></b>
 </p>
 
 > **Actively developed.** Core workflows are proven end-to-end on macOS, Linux, and Windows — and the product is young enough that your feedback still shapes it. Back up your configs before letting AI touch anything. Hit a problem? [Open an issue](https://github.com/markusleben/ha-nova/issues).
@@ -56,14 +58,18 @@ Say what you want. HA NOVA figures out the rest.
 | *"Why didn't my motion light trigger last night?"* | Replays the actual trace and tells you exactly where it failed and why |
 | *"Turn on the porch light at sunset and off at 11 PM"* | Builds, previews, and reviews the automation before it touches your config |
 | *"What happened to my living room temperature overnight?"* | Pulls history and summarizes the timeline in plain language |
-| *"Add a weather card to my main dashboard"* | Reads the dashboard, shows the change, writes only after you confirm |
+| *"Build a dashboard for the living room"* | Builds whole dashboards and views with the custom cards you installed, lists every view and card that changes, saves a copy first — "undo that" restores it |
 | *"Move all kitchen devices to the Kitchen area"* | Reassigns entities and devices — shows what will change first |
 | *"Turn off the kitchen light"* | Turns it off right away and checks that it really is off — whole rooms, scenes, and riskier actions show a preview first |
-| *"Unlock the front door"* | Shows exactly what will happen and waits for a one-time confirmation code |
+| *"Unlock the front door"* | Shows exactly what will happen, then waits for you: Confirm in a window on your computer, a tap on your linked phone, or a one-time code |
+| *"What do I have, and where is this sensor used?"* | Counts rooms, devices, automations, and integrations itself and lists every place a sensor is used — exact numbers, never a guess |
+| *"My door sensor died, I paired a new one"* | Moves automations, scripts, scenes, dashboards, helpers, and energy sources to the new device in one reviewed plan |
+| *"Turn this Node-RED flow into an automation"* | Lists what the rule does, maps each device to a real entity, builds a native automation, and keeps the old rule disabled, not deleted |
+| *"Check my ESPHome config for the garage sensor"* | Explains the device file in plain words and flags removed keys, pins that can't do what the file asks, and passwords written into it |
 | *"Remind me in 20 minutes to check the oven"* | Creates a one-time reminder that disables itself after it fires |
 | *"Show me all temperature sensors"* | Finds entities by name, room, area, or label |
 
-> Automations and scripts get the full workflow today: preview, review, and a 40+ rule audit. Helpers and dashboards get preview-and-verify. Device control runs unambiguous everyday actions immediately and verifies them afterwards; everything else shows a preview first, and locks, gates, the alarm, and deletes need a code. Deeper audits are rolling out with every release.
+> Automations and scripts get the full workflow today: preview, review, and a 40+ rule audit. Helpers get preview-and-verify; dashboards get a preview of every changed view and card, a copy before each save, and undo. Device control runs unambiguous everyday actions immediately and verifies them afterwards; everything else shows a preview first, and locks, gates, the alarm, and deletes need your confirmation. Deeper audits are rolling out with every release.
 
 ---
 
@@ -75,17 +81,17 @@ We built this because we didn't trust AI with our own config either.
 
 1. **Researches first.** Finds your devices, checks your setup, resolves entity names. No guessing.
 2. **Shows you the change.** A clear before/after table of exactly what will change, before anything is written. The one exception: unambiguous everyday actions — "turn off the kitchen light" — run right away and are verified afterwards. The HA NOVA command decides which actions qualify, never the AI, and it sends nothing if anything changed since a preview.
-3. **You approve it.** Unlocking a door, opening a gate or garage door, disarming the alarm, and deletes require a specific confirmation code — not just "yes." Each automation or script delete takes its own code; other reviewed batch deletes take one code bound to the exact list of items. A code only proves it was you when your client asks you before the apply step runs: the AI sees the code it relays, and HA NOVA tells it never to use one you did not type.
+3. **You approve it.** Unlocking a door, opening a gate or garage door, disarming the alarm, restarting Home Assistant, and deletes need your explicit confirmation — not just "yes." Where your computer can show one, a confirmation window opens: click Confirm (OK on Windows) or Cancel, and your AI never sees a code. Over SSH or without a desktop, the one phone you linked asks (Home Assistant Companion app; not with a standalone relay that runs on your own token). Without either, you get a four-digit one-time code in chat; the AI can see it too, so it only counts when you type it yourself. Automation, script, and dashboard deletes use the same window or phone; other deletes (helpers, scenes, areas, and the like) take a four-digit code in chat. Each automation or script delete is confirmed on its own; other reviewed batch deletes take one confirmation bound to the exact list of items. Anything you allow to control your screen (computer use, or apps you granted Accessibility; on Windows and some Linux desktops, other programs) can click that window too — turn it off with `ha-nova setup confirm-window off`.
 4. **Captures a recovery point first.** Before a covered delete or full-configuration replacement, HA NOVA snapshots the item it is about to change — so "gone" has a way back.
 5. **Writes and verifies.** Reads the config back to confirm the change stuck.
 6. **Audits itself.** Checks for mistakes, conflicts, and reliability issues.
 7. **Offers a safe test.** After saving a new or changed automation or script, you get a test plan matched to the risk — from a zero-impact logic check to a real run that names exactly which devices will switch before you say go.
-8. **Offers a way back — three clearly separated layers.** Reply `revert` to undo the latest verified update. Restore a deleted automation, script, scene, dashboard, or storage helper from its config snapshot through the same preview-and-confirm flow — "restore the kitchen automation you deleted yesterday" works. For everything beyond that, a Home Assistant Backup. `revert` and config snapshots cover changes made **through HA NOVA** only — edits made directly in the Home Assistant UI, by other tools, or by hand in YAML are not captured, and a config snapshot restores the item itself, not every reference to it. Home Assistant Backups remain system-wide.
+8. **Offers a way back — three clearly separated layers.** Reply `revert` to undo the latest verified update. Restore a deleted automation, script, scene, dashboard, or storage helper from its config snapshot through the same preview-and-confirm flow — "undo that" right after a delete, or "restore the kitchen automation you deleted yesterday", works. For everything beyond that, a Home Assistant Backup. `revert` and config snapshots cover changes made **through HA NOVA** only — edits made directly in the Home Assistant UI, by other tools, or by hand in YAML are not captured, and a config snapshot restores the item itself, not every reference to it. Home Assistant Backups remain system-wide.
 
 **The ground rules — always:**
 
 - 🔒 **Relay credentials stay out of the AI.** The App's Home Assistant credential stays inside the Relay. Optional Cloud access uses a separate Home Assistant OAuth authorization in this computer's native credential store; neither credential is exposed to the AI.
-- 🔑 **Every device is paired on its own.** The six-digit code is one-time and short-lived; what it creates is a per-device credential over an encrypted, pinned connection (OPAQUE, RFC 9807 + SPKI-pinned TLS 1.3 under the hood). (On App installs; the standalone container uses one shared token instead.)
+- 🔑 **Every device is paired on its own.** Home Assistant sign-in and the six-digit code are one-time and short-lived; what they create is a per-device credential over an encrypted, pinned connection (OPAQUE, RFC 9807 + SPKI-pinned TLS 1.3 under the hood). (On App installs; the standalone container uses one shared token instead.)
 - 🗑️ **Revoke with one click on App installs.** Lost a laptop? Retired a machine? Cut off that paired device from the NOVA page — everything else keeps working.
 - 📖 **Every rule the AI follows is a markdown file you can read.**
 - 🏠 **No HA NOVA-operated cloud relay, usage analytics, or installation counting.** Local mode stays between your machine and Home Assistant. Optional Cloud mode uses your Nabu Casa service; HA NOVA receives none of that traffic.
@@ -94,7 +100,7 @@ We built this because we didn't trust AI with our own config either.
 
 ## 🚀 Get Started
 
-One installer. One wizard. One code. It even finds your Home Assistant automatically.
+One installer. One wizard. One sign-in. It even finds your Home Assistant automatically.
 
 > **You need:** Home Assistant — any install type. HA OS and Supervised get the NOVA Relay App, and the wizard below walks you through it. Container and Core run the same relay as a [standalone container](docs/reference/relay-container.md) — same skills, same safety guarantees, with a token-based setup: skip the steps below and follow that guide end to end instead.
 
@@ -110,21 +116,23 @@ curl -fsSL https://raw.githubusercontent.com/markusleben/ha-nova/main/install.sh
 irm https://raw.githubusercontent.com/markusleben/ha-nova/main/install.ps1 | iex
 ```
 
-The installer selects the latest stable release. Run the command for your OS; the wizard discovers your Home Assistant, walks you through installing the NOVA Relay App, and configures your AI clients. At the pairing step it opens Home Assistant for you — open **NOVA** in the sidebar (or "Open Web UI" on the app page), click **"Connect a device"**, type the six-digit code, done.
+The installer selects the latest stable release. Run the command for your OS; the wizard discovers your Home Assistant, opens the NOVA Relay App page with the repository added on the way (click "Add", then Install and Start; skipped when the App already runs), and configures your AI clients. To pair, it opens your Home Assistant login: sign in as the owner, and this computer connects by itself. Over SSH, as another Home Assistant user, or when sign-in doesn't work out, it asks for the code instead — open **NOVA** in the sidebar (or "Open Web UI" on the app page), click **"Connect a device"**, and type the six-digit code. After pairing, setup offers to link your phone for confirmations (signed in to the Home Assistant app as an administrator), and it ends with a first look at your home.
 
-### Optional remote access with Home Assistant Cloud (Beta)
+> **Want to look first?** The [demo house](https://hanova.app/demo/) is a simulated Home Assistant with no real devices, to look around before you connect your own. Everyone shares one login and it resets every hour, so never enter real names, passwords, or tokens there.
 
-The wizard keeps **Local only** as the recommended default. If you have a paid Home Assistant Cloud subscription from Nabu Casa with Remote UI enabled, choose **Local + Home Assistant Cloud** for automatic remote fallback or **Home Assistant Cloud only** for remote-first setup. The wizard validates your Cloud URL, opens Home Assistant OAuth, and stores the authorization in the native macOS, Windows, or Linux desktop credential store. HA NOVA runs no additional public tunnel or hosted broker.
+### Optional remote access with Home Assistant Link (Beta)
+
+The wizard keeps **Local only** as the recommended default. If you have a paid Home Assistant Link subscription (formerly Home Assistant Cloud) from Nabu Casa with remote access enabled, choose **Local + Home Assistant Link** for automatic remote fallback or **Home Assistant Link only** for remote-first setup. In Home Assistant the service is under **Settings > Home Assistant Cloud** until the rename reaches your Home Assistant. The wizard validates your Cloud URL, opens Home Assistant OAuth, and stores the authorization in the native macOS, Windows, or Linux desktop credential store. HA NOVA runs no additional public tunnel or hosted broker.
 
 Cloud Remote requires Home Assistant OS/Supervised and a supported desktop session for authorization; an interrupted, already-verified setup can finish over SSH with `ha-nova cloud add --remote-resume`. Headless, WSL, service, gateway, Container, and Core setups stay local-only. Remote-first pairing uses a separate private Owner session to create the one-time NOVA device code; the OAuth user can remain a standard Home Assistant user.
 
 Already installed locally? Run `ha-nova cloud add`, or rerun `ha-nova setup` for the same guided choice.
 
 <p align="center">
-  <img src="assets/cloud-fallback.png" alt="Local first, Cloud fallback: at home your machine reaches Home Assistant over the direct local connection; away, the same session falls back through your Home Assistant Cloud remote access.">
+  <img src="assets/cloud-fallback.png" alt="Local first, Cloud fallback: at home your machine reaches Home Assistant over the direct local connection; away, the same session falls back through your Home Assistant Link remote access.">
 </p>
 
-*Local stays first: the CLI prefers the direct connection and uses your Home Assistant Cloud remote access only as an automatic fallback — no manual URL switching.*
+*Local stays first: the CLI prefers the direct connection and uses your Home Assistant Link remote access only as an automatic fallback — no manual URL switching.*
 
 Once it finishes, try: *"Show me all my automations."*
 
@@ -164,7 +172,9 @@ Once it finishes, try: *"Show me all my automations."*
 | `ha-nova setup` | Re-run the setup wizard |
 | `ha-nova pair` | Pair this computer again with a fresh six-digit code |
 | `ha-nova doctor` | Diagnose connection and config problems |
-| `ha-nova uninstall` | Remove HA NOVA (keeps settings for easy reinstall) |
+| `ha-nova setup confirm-window off` | Turn the confirmation window off (you confirm that in the window); `on` turns it back on |
+| `ha-nova setup confirm-phone` | Link one phone for confirmations (pick it, then tap "Yes, link" on it); `off` unlinks it, confirmed on that phone |
+| `ha-nova uninstall` | Remove HA NOVA (keeps settings for easy reinstall; guides removing the NOVA Relay App only when you say this is the last computer using it) |
 | `ha-nova uninstall --purge` | Remove runtime, settings, and credentials; retain small opaque local markers that block stale processes from restoring the install |
 
 **Coming from a pre-Go install?**
@@ -173,14 +183,14 @@ Once it finishes, try: *"Show me all my automations."*
 
 </details>
 
-> **Not a terminal person?** Setup is one copy-pasted command; after that, Claude Desktop and Google Antigravity Desktop give you the same skills in an app window — and pairing another computer is just one more six-digit code.
+> **Not a terminal person?** Setup is one copy-pasted command; after that, Claude Desktop and Google Antigravity Desktop give you the same skills in an app window — and pairing another computer is just one more sign-in (or one six-digit code).
 
 ---
 
 ## ⚙️ How It Works
 
 <p align="center">
-  <img src="assets/how-it-works-v3.png" alt="How HA NOVA connects: your AI client and markdown skills on your machine talk to the NOVA Relay on your Home Assistant server over a pinned, per-device connection, with optional Home Assistant Cloud as the automatic remote fallback.">
+  <img src="assets/how-it-works-v3.png" alt="How HA NOVA connects: your AI client and markdown skills on your machine talk to the NOVA Relay on your Home Assistant server over a pinned, per-device connection, with optional Home Assistant Link as the automatic remote fallback.">
 </p>
 
 **Skills** live on your machine as plain markdown. They're the AI's playbook — what to check, what to show you first, what to verify after a change. You can open them, read them, even edit them.
@@ -206,9 +216,9 @@ Fair question — we built a tool-based MCP server first. 88,000 lines of it, ne
 | | Tool-based MCP server | ✦ HA NOVA |
 |:--|:--|:--|
 | 📖 **Where the know-how lives** | In server code — changing the behavior means changing the server | In markdown files you can open, read, and edit yourself |
-| 🛡️ **Safety model** | Configurable: read-only modes, per-tool toggles, approval policies you set up | Enforced for every change: preview first (only unambiguous everyday actions run right away), locks, gates, the alarm, and deletes take a typed code, every write is verified — each guarantee backed by a test |
+| 🛡️ **Safety model** | Configurable: read-only modes, per-tool toggles, approval policies you set up | Enforced for every change: preview first (only unambiguous everyday actions run right away), locks, gates, the alarm, and deletes wait for a Confirm in a window or on your phone, or a one-time code; every write is verified — each guarantee backed by a test |
 | 🏠 **Where it runs** | The leading project's recommended setup runs inside Home Assistant's own process | A deliberately dumb relay in its own process — a crash can't touch Home Assistant, and it holds no HA business logic |
-| 🔑 **Connecting a device** | A shared secret (URL or token) — or OAuth where configured | A one-time six-digit code per device, each individually revocable from the NOVA page *(App installs; the standalone container keeps a server-side token)* |
+| 🔑 **Connecting a device** | A shared secret (URL or token) — or OAuth where configured | Home Assistant sign-in or a one-time six-digit code per device, each individually revocable from the NOVA page *(App installs; the standalone container keeps a server-side token)* |
 
 > **The honest bit:** the MCP side is ahead on breadth today — more tools (App management, dashboard screenshots, ZHA inspection), more contributors, more stars. It's the older project. But the asymmetry matters: **our gaps close one markdown file at a time — turning a tool server's Python into plain text you can read would be a rewrite.**
 
@@ -218,16 +228,16 @@ Full detail, named, dated, honest in both directions: **[comparison page](docs/r
 
 ## 🧩 Skills
 
-30 task skills plus the HA NOVA context skill — each one a markdown file you can read and edit.
+34 task skills plus the HA NOVA context skill — each one a markdown file you can read and edit.
 
-- ✏️ **Build & change** — automations & scripts, helpers, scenes, dashboards, areas & labels, device control, YAML-only config
-- 🔍 **Understand & debug** — config reading, 40+ rule audits, root-cause tracing, history & stats, entity discovery, system health
+- ✏️ **Build & change** — automations & scripts, helpers, scenes, dashboards, areas & labels, device control, device replacement, rule migration, YAML-only config, ESPHome configs
+- 🔍 **Understand & debug** — config reading, a map of your whole home, 40+ rule audits, root-cause tracing, history & stats, entity discovery, system health
 - 🧰 **Run & maintain** — backups, updates, HACS packages, recorder & statistics repair, energy, MQTT, InfluxDB history, integration setup
 - 🏠 **Everyday** — media & speakers, notifications, cameras, voice assistants, to-dos, calendars
 - 🛟 **Admin & safety net** — persons, zones & users (owner-guarded), blueprint fallback, onboarding & troubleshooting
 
 <details>
-<summary><strong>The full list — all 30 skills</strong></summary>
+<summary><strong>The full list — all 34 skills</strong></summary>
 
 <br>
 
@@ -236,7 +246,7 @@ Full detail, named, dated, honest in both directions: **[comparison page](docs/r
 | ✏️ **write** | Build and change automations with full preview and safety checks |
 | 📖 **read** | Inspect your automation and script configs as they really are |
 | 🔍 **review** | Audit your setup for mistakes, conflicts, and reliability gaps |
-| 🧱 **dashboard** | Edit dashboards, cards, and Lovelace resources safely |
+| 🧱 **dashboard** | Build and change dashboards, views, and cards (installed custom cards included), find broken cards, manage Lovelace resources — with a copy before each save |
 | 🎬 **scene** | Create and manage scenes, including "save this room as a scene" |
 | 🗂️ **organize** | Manage areas, floors, labels, and entity metadata |
 | 🕒 **history** | Query history, logbook timelines, and long-term stats |
@@ -250,6 +260,10 @@ Full detail, named, dated, honest in both directions: **[comparison page](docs/r
 | 🧹 **maintenance** | Repair statistics, purge recorder history, and clean up dead entities — with strict safety gates |
 | 🎛️ **service-call** | Control lights, climate, covers, switches, and media players |
 | 🔎 **entity-discovery** | Find entities by name, room, area, or label |
+| 🗺️ **home-map** | Your whole home with exact numbers: rooms, devices, automations, integrations, where an entity is used, and the first look after pairing |
+| 🔁 **device** | Replace a dead device or a new phone and move everything that used it in one reviewed plan; onboard or retire a device |
+| 🚚 **migrate** | Turn Node-RED, Homey, SmartThings, Hubitat, or openHAB rules and old automation YAML into native automations |
+| 📟 **esphome** | Explain, check, and edit ESPHome device configs; check the device's entities after an install |
 | 🧩 **helper** | Create and manage helpers: counters, timers, template sensors, and more |
 | 🩺 **diagnose** | Root-cause a concrete failure: "why didn't my automation run?" |
 | 🎵 **media** | Control media players, browse libraries, group speakers, send TTS announcements |
