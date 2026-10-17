@@ -48,6 +48,7 @@ Editing the plan file (channel, expiry, tier, request) changes the MAC input or 
 | B12 | Plan file edited with a far-future `expires_at` to keep guessing the 4-digit code past its 15-minute life | `apply` refuses a plan whose expiry is more than `planTTL` ahead | `TestApplyRefusesFarFutureExpiry` |
 | B13 | Guard/Relay path-parse mismatch: `POST /api/services/lock/unlock#/../../../template` cleans to `/api/template` in the guard while the Relay drops the `#fragment` and forwards the unlock | The guard drops the `#fragment` and `?query` before normalizing, exactly as the Relay's URL parse does | `TestRawRelayRefusesFragmentPathTricks` |
 | B14 | Guard fail-open on a JSON number the Relay's JS parser accepts but Go's float64 overflows (`"id":1e1000`), hiding a `call_service` from the guard | The guard decodes with `UseNumber`, so such a payload still parses and the WS type is seen | `TestRawRelayRefusesNumberOverflow` |
+| B15 | Guard/Relay parse mismatch on whitespace and control characters: the Relay's URL parse strips a leading space or an inner tab/newline (and maps `\` to `/`), so ` /api/services/…` passed the guard; the read allowlist (`readablePath`, `ha_read`) had the same gap, e.g. `/api/states/.\t./webhook/x` | Both refuse any path holding whitespace, a control character, `\`, or `#` (read side) before matching | `TestRawRelayRefusesWhitespaceAndControlPaths` |
 
 ### 2.1 What raw routes keep
 
@@ -78,4 +79,7 @@ Raw `relay core|ws|files|backups` stays for reads and for config surfaces that d
 
 ## 5. Changed behavior (for the PR body)
 
-See §2 and §3; the PR body lists every refused route with its replacement.
+See §2 and §3; the PR body lists every refused route with its replacement. Also:
+- A raw-route refusal exits 4 (the verbs' "refused"), not 1, and says it is a safety rule, never a setup or connection problem.
+- `--set` keeps a number as the typed string when JSON would change it (`version=1.10` stays `"1.10"`, `1e3` stays `"1e3"`); objects, lists, booleans, and exact numbers are typed as before.
+- `homeassistant.stop`, `recorder.purge`, `recorder.purge_entities` are typed.

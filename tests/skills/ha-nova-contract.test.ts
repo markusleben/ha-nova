@@ -1035,7 +1035,7 @@ describe("ha-nova contract", () => {
       "| Calendar Events (read / create / update / delete) | Covered | calendar |",
     );
     expect(fallback).toContain(
-      "| Custom events / known JSON webhooks | Covered | service-call |",
+      "| Custom events / known JSON webhooks | Covered (raw firing refused: `automation.trigger`) | service-call |",
     );
     expect(fallback).toContain(
       "| Alarm / lock runtime control | Covered | service-call |",

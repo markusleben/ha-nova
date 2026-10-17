@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"path"
+	"strconv"
 	"strings"
 )
 
@@ -50,8 +51,12 @@ var rawWSDenied = map[string]string{
 	"lovelace/dashboards/delete": "use `ha-nova plan delete --domain dashboard --id <url_path>`, then `ha-nova apply`",
 }
 
+// rawRefusedExit is the verbs' "refused" exit (4), never 1: exit 1 reads as
+// a connection or pairing problem, and a refusal is neither.
+const rawRefusedExit = verbExitRefused
+
 func rawRefusal(what, next string) error {
-	return fmt.Errorf("refused raw %s: %s; nothing was sent", what, next)
+	return fmt.Errorf("refused raw %s (a safety rule, not a setup or connection problem): %s; nothing was sent", what, next)
 }
 
 // decodeObject parses body as a JSON object with UseNumber, so a number the
@@ -96,6 +101,9 @@ func checkRawRelayRequest(endpoint string, body []byte) error {
 // decodes up to four rounds), then cleaned and lowercased (broader than HA's
 // case-sensitive routes, never narrower).
 func checkRawCore(method, raw string) error {
+	if strings.ContainsFunc(raw, func(r rune) bool { return r <= ' ' || r == 0x7f }) { // the URL parse strips these
+		return rawRefusal("core path "+strconv.Quote(raw), "the path holds whitespace or control characters")
+	}
 	pathPart, _, _ := strings.Cut(raw, "#") // the Relay parses as a URL: the fragment is dropped
 	pathPart, _, _ = strings.Cut(pathPart, "?")
 	decoded := pathPart

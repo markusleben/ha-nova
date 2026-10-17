@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -54,7 +55,8 @@ func TestRawRelayRefusesServiceCalls(t *testing.T) {
 	for _, args := range cases {
 		var exit int
 		stderr := captureStderr(t, func() { exit = runRelayCommand(paths, args) })
-		if exit == 0 || !strings.Contains(stderr, "nothing was sent") || !strings.Contains(stderr, "ha-nova call") {
+		if exit != verbExitRefused || !strings.Contains(stderr, "nothing was sent") || !strings.Contains(stderr, "ha-nova call") ||
+			strings.Contains(stderr, "ha-nova setup") {
 			t.Errorf("%v: exit %d, stderr %q; want a refusal naming ha-nova call", args, exit, stderr)
 		}
 	}
@@ -143,4 +145,24 @@ func TestRawRelayRefusesFragmentPathTricks(t *testing.T) {
 func TestRawRelayRefusesNumberOverflow(t *testing.T) {
 	rawRefused(t, "ws", `{"type":"call_service","domain":"lock","service":"unlock","id":1e1000}`)
 	rawRefused(t, "core", `{"method":"POST","path":"/api/services/lock/unlock","id":99999999999999999999999}`)
+}
+
+// The Relay's URL parse strips whitespace and control characters (and turns
+// `\` into `/`) before HA sees the path; neither the guard nor the read
+// allowlist may check a different path than the one sent.
+func TestRawRelayRefusesWhitespaceAndControlPaths(t *testing.T) {
+	for _, path := range []string{" /api/services/lock/unlock", "/api/serv\tices/lock/unlock", "/api/services/lock/unlock\n", "\x01/api/events/e"} {
+		body, _ := json.Marshal(map[string]any{"method": "POST", "path": path})
+		if err := checkRawRelayRequest("core", body); err == nil {
+			t.Errorf("%q: allowed, want refused", path)
+		}
+	}
+	for _, path := range []string{"/api/states/.\t./webhook/abc", "/api/states/..\\webhook/abc", " /api/webhook/abc", "/api/states/x#/../../webhook/a"} {
+		if readablePath(path) || mcpReadablePath(path) {
+			t.Errorf("read allowlist accepted %q", path)
+		}
+	}
+	if !readablePath("/api/states/lock.front_door") || !mcpReadablePath("/api/history/period?filter_entity_id=light.x") {
+		t.Error("plain reads must stay allowed")
+	}
 }

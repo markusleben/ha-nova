@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 )
@@ -34,6 +35,20 @@ func TestOwnedServicesRunFromTheirSkill(t *testing.T) {
 		}
 		if strings.Contains(env.Say, "This also") {
 			t.Errorf("%v: the call itself reads as a member: %q", tc.args, env.Say)
+		}
+	}
+}
+
+// --set types a value only when the JSON round-trip is lossless: a version
+// such as 1.10 must reach Home Assistant as typed, never as 1.1.
+func TestSetValueKeepsLossyNumbersAsStrings(t *testing.T) {
+	for in, want := range map[string]any{
+		"40": float64(40), "true": true, "null": nil, `"x"`: "x", "[1,2]": []any{float64(1), float64(2)},
+		"1.10": "1.10", "1e3": "1e3", "007": "007", "2026.10.1": "2026.10.1", "1.0": "1.0", "abc": "abc", " 4": " 4", "[255, 0, 0]": []any{float64(255), float64(0), float64(0)},
+	} {
+		got := setValue(in)
+		if fmt.Sprint(got) != fmt.Sprint(want) || fmt.Sprintf("%T", got) != fmt.Sprintf("%T", want) {
+			t.Errorf("setValue(%q) = %#v, want %#v", in, got, want)
 		}
 	}
 }

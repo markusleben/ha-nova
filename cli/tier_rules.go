@@ -111,8 +111,8 @@ var ownedDomains = map[string]string{
 	"notify": "ha-nova:notify", "persistent_notification": "ha-nova:notify", "calendar": "ha-nova:calendar",
 }
 
-// Read-only response services stay with service-call's read path; call and
-// apply refuse them (they need return_response and change nothing).
+// Read-only response services: call adds --response for them implicitly and
+// tiers them like any call (a matching call_service listener raises them).
 var readOnlyResponseServices = map[string]bool{"calendar.get_events": true, "todo.get_items": true, "weather.get_forecasts": true}
 
 func ownerSkill(service string) string {
@@ -133,7 +133,8 @@ var serviceCallHassio = map[string]bool{
 	"host_reboot": true, "host_shutdown": true,
 }
 
-// hassioOwner names where a hassio.* call goes; v1 verbs never run one.
+// hassioOwner names where a hassio.* call goes; `ha-nova call` runs only the
+// serviceCallHassio five (with --skill ha-nova:service-call).
 func hassioOwner(name string) string {
 	switch name {
 	case "restore_full", "restore_partial":

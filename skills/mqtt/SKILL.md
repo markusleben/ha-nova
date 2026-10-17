@@ -29,7 +29,7 @@ Requires the `mqtt` integration: check `GET /api/components` for `mqtt`. If it i
 ## Relay Contract
 
 - `ha-nova relay ws --data-file <payload-file>` for WS commands
-- `ha-nova call mqtt.publish --skill ha-nova:mqtt --data-file <payload-file>` to publish — always the typed tier: show its preview and `plan.code`, then `ha-nova apply --plan <id> --confirm <the user's text>` (exit codes: `skills/service-call/SKILL.md` → Flow)
+- `ha-nova call mqtt.publish --skill ha-nova:mqtt --data-file <payload-file>` to publish — always the typed tier: show its preview, then follow the result's `next_step` (`ha-nova apply`; `--confirm` only with a code the user typed in chat) (exit codes: `skills/service-call/SKILL.md` → Flow)
 - `--out <result-file>` for large windows; `--jq-file <filter-file>` for filtering
 
 ## Listening (bounded window)
@@ -68,7 +68,7 @@ Zigbee2MQTT publishes its network state on retained `zigbee2mqtt/bridge/...` top
 1. Clarify the topic. Prefer the narrowest one that answers the question (`zigbee2mqtt/<device>` beats `zigbee2mqtt/#`).
 2. Listen in a bounded window (above). Summarize: which topics appeared, how many messages, and — separately — how many were live (`retain: false`) versus retained replays. Quote at most a few payloads.
 3. Device discovery/debug: WS `{"type":"mqtt/device/debug_info","device_id":"<device_id>"}` shows the subscribed topics and discovery payloads for one MQTT device (resolve `device_id` from the device registry, never guess it).
-4. Publishing (mutating): service `mqtt.publish` with `topic`, `payload`, `qos`, `retain`. There is no `payload_template` field in the current schema — render any template yourself and send the finished string as `payload`. (`evaluate_payload: true` only tells HA to evaluate a Python-literal payload for raw bytes; it is not a template switch.) Preview the exact topic + payload and confirm.
+4. Publishing (mutating): service `mqtt.publish` with `topic`, `payload`, `qos`, `retain`. There is no `payload_template` field in the current schema — render any template yourself and send the finished string as `payload`. (`evaluate_payload: true` only tells HA to evaluate a Python-literal payload for raw bytes; it is not a template switch.) Plan it; confirm its exact topic + payload once.
 5. Verify a command/`set` publish: when the topic belongs to an HA-known device, read the affected entity's state back after a moment — a broker accept is not device confirmation; if HA shows no corresponding change, say so. For topics HA does not mirror, state plainly that HA-side verification is not possible.
 
 ## Publishing Safety (read before any publish)

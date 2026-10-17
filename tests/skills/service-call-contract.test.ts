@@ -151,7 +151,8 @@ describe("service call contract", () => {
       expect(rawRoutes).toContain("## Response services");
       expect(rawRoutes).toContain("REQUIRE `?return_response`");
       expect(rawRoutes).toContain("--response");
-      expect(rawRoutes).toContain("the CLI adds `?return_response` and returns HA's `.data.body.service_response`");
+      expect(rawRoutes).toContain("the data is at `result.service_response` in the verb envelope");
+      expect(rawRoutes).not.toContain("`.data.body.service_response`");
       expect(rawRoutes).toContain("a matching `call_service` event listener can make the nominal read indirect actuation");
       expect(rawRoutes).toContain("never downgrades the action");
       expect(skillAll).not.toContain("Read-only: no confirmation needed");
@@ -194,12 +195,13 @@ describe("service call contract", () => {
     });
 
     it("moves ownership out of mandatory fallback", () => {
-      expect(contextSkill).toContain("fire a custom event or trigger a known JSON webhook");
-      expect(contextSkill).toContain('**"Fire the movie_night event"** → `ha-nova:service-call`');
-      expect(fallbackSkill).toContain("| Custom events / known JSON webhooks | Covered | service-call |");
+      // Raw event/webhook firing is refused (2026-10-17): routing says so.
+      expect(contextSkill).toContain("fire a custom event or webhook (refused raw: `automation.trigger` instead)");
+      expect(contextSkill).toContain('**"Fire the movie_night event"** → `ha-nova:service-call` (refused raw');
+      expect(fallbackSkill).toContain("| Custom events / known JSON webhooks | Covered (raw firing refused: `automation.trigger`) | service-call |");
       expect(fallbackSkill + relayReadySplit).not.toContain("### Events / Webhooks -- RELAY-READY");
       expect(architecture).toContain("## Service Call Architecture");
-      expect(architecture).toContain("webhook HTTP 200 is deliberately opaque");
+      expect(architecture).toContain("Raw event firing (`POST /api/events/{event_type}`, WS `fire_event`), webhook calls");
     });
   });
 

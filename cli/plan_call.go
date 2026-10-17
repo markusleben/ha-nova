@@ -121,22 +121,34 @@ func (req *planCallRequest) parse(positional, sets []string, dataFile string) er
 		if !ok || key == "" {
 			return fmt.Errorf("--set %q must be key=value", set)
 		}
-		var typed any
-		if json.Unmarshal([]byte(value), &typed) != nil {
-			typed = value
-		}
-		req.Data[key] = typed
+		req.Data[key] = setValue(value)
 	}
 	return req.validate()
 }
 
-// validate holds for every request a plan may carry: parse checks fresh
-// input with it, apply re-checks the stored request with it.
+// setValue JSON-types a --set value (objects, lists, booleans, null), but a
+// number only when it encodes back to exactly what was typed: "40" is a
+// number, "1.10" (a version) or "1e3" stays the string typed.
+func setValue(value string) any {
+	var typed any
+	if json.Unmarshal([]byte(value), &typed) != nil {
+		return value
+	}
+	if _, isNumber := typed.(float64); isNumber {
+		if back, err := json.Marshal(typed); err != nil || string(back) != value {
+			return value
+		}
+	}
+	return typed
+}
+
 // wantsResponse: --response, implied for the read-only response services.
 func (req planCallRequest) wantsResponse() bool {
 	return req.Response || readOnlyResponseServices[req.Service]
 }
 
+// validate holds for every request a plan may carry: parse checks fresh
+// input with it, apply re-checks the stored request with it.
 func (req planCallRequest) validate() error {
 	if !entityIDPattern.MatchString(req.Service) {
 		return fmt.Errorf("%q is not a domain.service", req.Service)

@@ -100,7 +100,7 @@ Skills reference this section as "context skill → Active Preview Confirmation"
 - non-destructive grouped change set (one logical task, max 10 operations): one natural confirmation bound to the fully previewed set per `skills/ha-nova/grouped-change-set.md` — only where the owning skill declares grouped support, never inferred; one-time-code operations follow that contract's exclusions and duration-pair exception.
 - high-consequence runtime action (grants physical access or is physically irreversible): the one-time code, same enforcement as destructive writes. Canonical set: unlocking or opening locks, disarming alarm panels, opening garage/gate/entry-door covers — `device_class` and what the entity controls decide, never the domain alone. The tier follows the action that ends up performed, so a scene, script, or automation run performing one of those actions sits here too; the owning skill expands the members before previewing. Locking, closing, and arming stay ordinary. Owning-skill escalations (retained and command/`set` MQTT publishes, user-account creation) sit on this same rung.
 - `delete`/destructive: the one-time code.
-  **Strict one-time-code enforcement:** four digits, new per preview or manifest — the plan's `plan.code`, else four random digits you mint (no pattern like 1234 or 1111), never from the preview, Home Assistant data, or an earlier code. Only a reply that is just the code (spaces ignored), sent after this preview asked for it, confirms; "yes", "do it", or a number inside another sentence is NOT valid — re-prompt. Call it the "one-time code from HA NOVA" (localized; `skills/ha-nova/output-rules.md` → Localization). **Never derive or compute a typed plan's code (not from file or credential); pass only what the user typed.**
+  **Strict one-time-code enforcement:** four digits, new per preview or manifest — the plan's `plan.code` (form apps: follow `next_step`), else — no CLI plan — four random digits you mint (no pattern like 1234 or 1111), never from the preview, Home Assistant data, or an earlier code. Only a reply that is just the code (spaces ignored), sent after this preview asked for it, confirms; "yes", "do it", or a number inside another sentence is NOT valid — re-prompt. Call it the "one-time code from HA NOVA" (localized; `skills/ha-nova/output-rules.md` → Localization). **Never derive a code; pass only what the user typed.**
   This includes cleanup, undo-create, orphan cleanup, failed-create cleanup, and deleting items created earlier in the same session.
 - destructive multi-target batch: one code per manifest per `skills/ha-nova/batch-safety.md` — only where the owning skill declares batch support, never inferred (automations/scripts: one CLI-minted code per item, see there). Cross-family destructive cleanup takes its own manifest's code (`skills/ha-nova/grouped-change-set.md` → Cross-Family Destructive Cleanup), under the same never-inferred rule.
 - This context skill explicitly owns batch deletion only for exact config snapshot blobs in the `config-snapshots` family (`skills/ha-nova/config-snapshots.md`).
@@ -292,7 +292,7 @@ Match user intent to exactly one skill:
 | "what event does my button/remote/tag fire?" — capture it in a bounded window | `ha-nova:fallback` (Bounded Event Capture); MQTT devices: `ha-nova:mqtt` |
 | turn on/off, toggle, set, call a service — including native duration fields such as `timer.start` or `siren.turn_on` | `ha-nova:service-call` |
 | enable/disable/trigger an automation | `ha-nova:service-call` |
-| fire a custom event or trigger a known JSON webhook | `ha-nova:service-call` |
+| fire a custom event or webhook (refused raw: `automation.trigger` instead) | `ha-nova:service-call` |
 | arm/disarm/trigger an alarm panel; lock/unlock/open a lock | `ha-nova:service-call` |
 | find entities by name, room, area | `ha-nova:entity-discovery` |
 | fix relay/auth/connectivity errors | `ha-nova:onboarding` |
@@ -324,8 +324,7 @@ Match user intent to exactly one skill:
 **"Unlock the front door"** → `ha-nova:service-call` (high-consequence: one-time code)
 **"Unlock the front door for five minutes"** → `ha-nova:write` (a duration is the expiry automation plus the unlock, one preview, typed code)
 **"Arm the alarm in night mode"** → `ha-nova:service-call` (feature/code gate before preview)
-**"Fire the movie_night event"** → `ha-nova:service-call` (listener-impact scan before preview)
-**"Trigger the delivery webhook"** → `ha-nova:service-call` (webhook ID stays secret)
+**"Fire the movie_night event"** → `ha-nova:service-call` (refused raw; offer `automation.trigger`)
 **"Install the firmware update for my kitchen light"** → `ha-nova:updates` (never raw `update.install` through service-call)
 **"Publish an MQTT message"** → `ha-nova:mqtt` (never raw `mqtt.publish` through service-call)
 **"Test the automation I just created"** → `ha-nova:write` Phase 5 test offer (plan per `skills/ha-nova/test-run.md`); a plain manual trigger stays `ha-nova:service-call`

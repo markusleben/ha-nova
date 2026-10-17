@@ -253,8 +253,7 @@ Script config:
 State/config helpers:
 - `GET /api/states`
 - `GET /api/states/{entity_id}`
-- `POST /api/services/automation/reload`
-- `POST /api/services/script/reload`
+- reloads: `ha-nova call automation.reload` / `ha-nova call script.reload` (typed; raw service POSTs are refused)
 
 Dashboard / Lovelace WS:
 - `lovelace/dashboards/list`
@@ -426,7 +425,7 @@ List all available services (read):
 {"method":"GET","path":"/api/services"}
 ```
 
-Call a service through the typed verbs, never a raw request: `ha-nova call <domain.service> [<entity_id>…] [--set k=v]… [--data-file <file>]` — it computes the tier, freezes the targets, sends exactly one `POST /api/services/{domain}/{service}` (`cli/relay_write.go`), and verifies. An owned service (`mqtt.publish`, `notify.*`, …) adds `--skill <its owning skill>`; a response service adds `--response` (the data is in the result). A raw `POST /api/services/*` is refused (`cli/relay_raw_guard.go`): it would skip the tier.
+Call a service through the typed verbs, never a raw request: `ha-nova call <domain.service> [<entity_id>…] [--set k=v]… [--data-file <file>]` — it computes the tier, freezes the targets, sends exactly one `POST /api/services/{domain}/{service}` (`cli/relay_write.go`), and verifies. An owned service (`mqtt.publish`, `notify.*`, …) adds `--skill <its owning skill>`; a response service adds `--response` (the data is in the result). A raw `POST /api/services/*` is refused (`cli/relay_raw_guard.go`, exit 4 — a safety rule, never a setup or connection problem): it would skip the tier.
 
 Supported target fields: `entity_id` (string or array), `area_id`, `device_id` — passed as arguments, `--area`, `--device`, never in the body.
 
@@ -439,10 +438,9 @@ Firing an event and calling a webhook are refused on the raw routes (`cli/relay_
 
 ## Calendar Event Writes
 
-`ha-nova:calendar` creates events through the service API and updates/deletes them through WS:
+`ha-nova:calendar` creates events with `ha-nova call calendar.create_event calendar.example --skill ha-nova:calendar --set summary=Event --set start_date_time=… --set end_date_time=…` and updates/deletes them through WS:
 
 ```json
-{"method":"POST","path":"/api/services/calendar/create_event","body":{"entity_id":"calendar.example","summary":"Event","start_date_time":"2026-07-15T14:00:00+02:00","end_date_time":"2026-07-15T15:00:00+02:00"}}
 {"type":"calendar/event/update","entity_id":"calendar.example","uid":"<uid>","event":{"summary":"Event","dtstart":"2026-07-15T14:00:00+02:00","dtend":"2026-07-15T15:00:00+02:00"}}
 {"type":"calendar/event/delete","entity_id":"calendar.example","uid":"<uid>"}
 ```
@@ -509,6 +507,8 @@ Trace response includes: `trace.trigger`, `trace.condition`, `trace.action` node
 Relay errors and upstream HA errors arrive differently. Agents must distinguish them.
 
 If the CLI says a request was already sent or its outcome is unknown, verify the target state and do not retry automatically.
+
+A `refused raw …` error (exit 4) is a safety rule, not a setup or connection problem: nothing was sent; follow its message (`ha-nova call`, `plan`), never `ha-nova setup`.
 
 ### Relay Errors (HTTP-level)
 

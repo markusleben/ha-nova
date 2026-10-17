@@ -14,8 +14,8 @@ Raw `ha-nova relay core --method POST --path /api/services/*`, `/api/events/*`,
 and `/api/webhook/*` are refused by the CLI (`cli/relay_raw_guard.go`): they
 would skip the tier the typed verbs compute. Use the typed verbs instead.
 - `ha-nova relay core --method GET --path /api/services` to list services and their field names (read)
-- `ha-nova call <domain.service> [<entity_id>…] [--set k=v]… [--data-file <file>] --response` for a response service (the data is in the result's `result` field)
-- `ha-nova call hassio.<addon_start|addon_stop|addon_restart|host_reboot|host_shutdown> --skill ha-nova:service-call --set addon=<slug>` for App and host control
+- `ha-nova call <domain.service> [<entity_id>…] [--set k=v]… [--data-file <file>] --response` for a response service (the data is at `result.service_response`)
+- `ha-nova call hassio.<addon_start|addon_stop|addon_restart> --skill ha-nova:service-call --set addon=<slug>` for App control; `ha-nova call hassio.<host_reboot|host_shutdown> --skill ha-nova:service-call` (no data) for host control
 - `ha-nova relay ws --data-file <payload-file>` for `config/entity_registry/get` (App slug lookup)
 - `ha-nova relay core --method GET --path /api/states/<entity_id>`
 - `--out <result-file>` when the response is large
@@ -52,7 +52,7 @@ cannot be used to dodge the owner's own flow. The table is the routing:
 
 ## Response services
 
-Some services return data (`weather.get_forecasts`, `calendar.get_events`, `todo.get_items`, ...) and REQUIRE `?return_response`; without it HA returns 400 "requires responses". Run them through `ha-nova call <domain.service> [<entity_id>…] --set … --response`: the CLI adds `?return_response` and returns HA's `.data.body.service_response` in the result's `result` field. Response-only is not read-only: `ha-nova call` tiers it like any call. The three named read-only response services (`weather.get_forecasts`, `calendar.get_events`, `todo.get_items`) stay ordinary and skip confirmation only while the shared gate's consumer scan (`skills/ha-nova/indirect-actuation.md`) stays ordinary; a matching `call_service` event listener can make the nominal read indirect actuation and raise the tier. Any other response service is tiered on its own effect. A response-capable ACTION service (for example direct `script.<script_id>`) is tiered on the action, not downgraded by the response: `ha-nova call` with `--response` previews and confirms the action first, and the parameter never downgrades the action.
+Some services return data (`weather.get_forecasts`, `calendar.get_events`, `todo.get_items`, ...) and REQUIRE `?return_response`; without it HA returns 400 "requires responses". Run them through `ha-nova call <domain.service> [<entity_id>…] --set … --response`: the CLI adds `?return_response`, and the data is at `result.service_response` in the verb envelope. Response-only is not read-only: `ha-nova call` tiers it like any call. The three named read-only response services (`weather.get_forecasts`, `calendar.get_events`, `todo.get_items`) stay ordinary and skip confirmation only while the shared gate's consumer scan (`skills/ha-nova/indirect-actuation.md`) stays ordinary; a matching `call_service` event listener can make the nominal read indirect actuation and raise the tier. Any other response service is tiered on its own effect. A response-capable ACTION service (for example direct `script.<script_id>`) is tiered on the action, not downgraded by the response: `ha-nova call` with `--response` previews and confirms the action first, and the parameter never downgrades the action.
 
 ### Weather forecasts
 

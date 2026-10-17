@@ -208,9 +208,19 @@ func checkReadOnlyRequest(endpoint string, payload map[string]any) error {
 var readDeniedPrefixes = []string{"/api/webhook", "/api/hassio", "/api/camera_proxy", "/api/image_proxy",
 	"/api/media_player_proxy", "/api/tts_proxy", "/api/backup", "/api/stream"}
 
+// plainRelayPath: no character the Relay's URL parse would strip or rewrite
+// before Home Assistant sees the path (whitespace, controls, backslash, a
+// #fragment), so the path checked here is the path that is sent.
+func plainRelayPath(raw string) bool {
+	return !strings.ContainsFunc(raw, func(r rune) bool { return r <= ' ' || r == 0x7f || r == '\\' || r == '#' })
+}
+
 // readablePath checks the decoded, normalized path: under /api/, no dot
 // segments or doubled slashes, and not a denied surface.
 func readablePath(raw string) bool {
+	if !plainRelayPath(raw) {
+		return false
+	}
 	pathPart, _, _ := strings.Cut(raw, "?")
 	decoded, err := url.PathUnescape(pathPart)
 	if err != nil || !strings.HasPrefix(decoded, "/api/") || path.Clean(decoded) != decoded {

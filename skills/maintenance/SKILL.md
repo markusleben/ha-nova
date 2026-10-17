@@ -35,6 +35,8 @@ If this fails: `ha-nova setup`
 
 ## Relay Contract
 
+`ha-nova call` returns the preview: confirm it once, then `ha-nova apply --plan <id>`.
+
 File-based requests: `ha-nova relay ws --data-file <payload-file>`; `--out <result-file>` for large responses. WS body: `.data`; REST body: `.data.body` (`skills/ha-nova/relay-api.md` → Standard Envelope).
 Payloads, issue matrix, and gate checklists: `skills/maintenance/maintenance-reference.md` — read it before any write.
 

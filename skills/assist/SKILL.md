@@ -26,14 +26,16 @@ If this fails: `ha-nova setup`
 
 ## Relay Contract
 
+`ha-nova call` returns the preview: confirm it once, then `ha-nova apply --plan <id>`.
+
 - `ha-nova relay ws --data-file <payload-file>` for WS commands
-- `ha-nova call conversation.process --skill ha-nova:assist --response --set text="<utterance>"` to test an utterance (always typed — a sentence can control any device — so it returns a code; raw POST is refused)
+- `ha-nova call conversation.process --skill ha-nova:assist --response --set text="<utterance>"` to test an utterance (always typed: a sentence can control any device)
 - `--out <result-file>` for large listings
 
 ## Flow
 
-1. **Testing an utterance** (the most useful thing here): `ha-nova call conversation.process --skill ha-nova:assist --response --set text="turn on the kitchen light"` (`--set language=en`, `--set agent_id=<id>` optional). The result's `result` field says what Assist understood and did.
-   - **This ACTUALLY EXECUTES the command.** The CLI puts every test utterance on the typed tier (it cannot tell a read-only phrase from an actuating one), so it returns a one-time code the user types — even a "what is the temperature" query.
+1. **Testing an utterance** (the most useful thing here): `ha-nova call conversation.process --skill ha-nova:assist --response --set text="turn on the kitchen light"` (`--set language=en`, `--set agent_id=<id>` optional). `result.service_response.response` says what Assist understood and did.
+   - **This ACTUALLY EXECUTES the command.** Every test utterance is typed (the CLI can't tell a read-only phrase from an actuating one) — even a "what is the temperature" query.
    - `--set conversation_id=<id>` continues a previous exchange; omit it for a fresh one.
 2. **Pipelines**: WS `assist_pipeline/pipeline/list` shows every pipeline plus `preferred_pipeline`. Each carries `stt_engine`, `conversation_engine`, `tts_engine`, and language settings.
    - change the preferred one: WS `assist_pipeline/pipeline/set_preferred` with `pipeline_id`
