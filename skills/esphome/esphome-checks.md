@@ -14,12 +14,13 @@ today, breaks on a likely next step; LOW = advisory.
 | No network block (`wifi:`, `ethernet:`, …) | HIGH | add `wifi:` with `ssid: !secret wifi_ssid`, `password: !secret wifi_password` | esphome.io/components/wifi: "You need to have a network configuration … or ESPHome will fail in the config validation stage" |
 | No `api:` (and no `mqtt:`) | HIGH | add `api:` with `encryption: key: !secret <device>_api_key`; the device appears in HA only with it | esphome.io/components/api |
 | `api:` without `encryption:` | LOW | add `encryption: key:` (a 32-byte base64 string) as a `!secret`; HA then asks for the key once (Settings → Devices & services) | esphome.io/components/api ("encryption will not be used until it is set") |
-| No `ota:` | MEDIUM | add `ota:` with `- platform: esphome`; until one install carries it, updates need USB | esphome.io/components/ota |
+| No `ota:` | MEDIUM | add `ota:` → `- platform: esphome` with a bare `encryption:` (reuses the `api` key; ESPHome 2026.9.0+) or `password: !secret <name>`, never neither; until one install carries it, updates need USB | esphome.io/components/ota/esphome ("unless a `password:` is set anyone who can reach the device can upload to it") |
+| `ota:` with neither `password:` nor `encryption:` | MEDIUM | the same fix | esphome.io/components/ota/esphome |
 | `wifi:` without `ap:` and `captive_portal:` | LOW | add both: the device opens its own hotspot when it cannot reach the router (`ap_timeout`, default 90s), so a wrong network name or password stays fixable without USB (a wrong static IP does not: the device still counts as connected) | esphome.io/components/wifi ("only enable the access point when no connection to the WiFi router can be made") |
 
 ## Removed or Changed Keys
 
-Ask which ESPHome version last installed the device (the dashboard shows it; an `update.*` firmware entity of the device, when present, too) — rows older than that version have already been dealt with.
+Check every row against the file itself, whatever version runs on the device: a restored or pasted file can still carry a removed key. The version only explains when it broke.
 
 | Old YAML | Since | What happens | Fix | Source |
 |---|---|---|---|---|
@@ -61,6 +62,7 @@ The same pin used by two components is a validation error unless it sets `allow_
 ## Secrets
 
 - **What is a credential:** the value of any key whose name contains `password`, `key`, `psk`, `token`, `secret`, `auth`, or `bearer` (any case), every HTTP header value, and every substitution that feeds one. The same in every included file: the relay refuses only `secrets.yaml`, so `credentials.yaml` reads like any file.
+- **Also a credential**: a secret inside any string — a lambda argument (`set_auth_password("…")`), a URL with an access key or `user:password@`, a header value.
 - **Mask it everywhere**: shown YAML (explicitly requested, restore previews, diffs), prose, and pasted Validate or log output. "What is my Wi-Fi password?": say where it lives (this device file, or the dashboard's secrets file), never the value.
 - **An inline credential**: LOW — the ESPHome wizard writes the `api` key inline, and it works. Move one to `!secret <name>` only when asked. The preview then says: before applying, copy the current value unchanged into the dashboard's secrets file under `<name>` (open this device in the dashboard editor to see it); a different value is a new credential (Device-Breaking Edits). esphome.io/components/wifi: "It is highly recommended to use secrets."
 - A `!secret` name cannot be checked here (the relay never serves `secrets.yaml`): Validate reports a missing one.
@@ -70,6 +72,7 @@ The same pin used by two components is a validation error unless it sets `allow_
 - `esphome:` → `name:` is the hostname the next wireless install looks for; the device keeps its old one until then. Use the dashboard's rename action, which installs the new name to the old address.
 - An entity's `name:`: Home Assistant may treat it as a new entity, leaving the old id unavailable and its automations pointing at nothing. To rename only in HA: `ha-nova:organize`.
 - A new or replaced `api` `encryption` `key`: Home Assistant loses the device until the user enters the new key (Settings → Devices & services). On ESPHome 2026.9.0+ with OTA encryption, OTA reuses that key and "the device only accepts the key it is running": the next wireless install fails, USB needed. Never generate a new key for a device Home Assistant already uses. esphome.io/components/ota/esphome
+- Switching `ota` from `password:` to `encryption:` (they cannot be combined): read the Encryption section of esphome.io/components/ota/esphome before drafting it.
 - A changed `ota` `password`: the install authenticates with the new one and the device refuses it. The documented path: give `ota` an `id`, set the new password once from `on_boot` with `set_auth_password`, install, then move it into `ota:`. esphome.io/components/ota/esphome
 - Removing `ota:`: every later install needs USB.
 - `wifi` `ssid`/`password` changes without `ap:` + `captive_portal:`: one mistake means USB.

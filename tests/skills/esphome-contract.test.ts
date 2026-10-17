@@ -47,6 +47,9 @@ describe("esphome skill (needs-analysis TOP 5)", () => {
     expect(checks).toContain("say where it lives (this device file, or the dashboard's secrets file), never the value");
     expect(checks).toContain("copy the current value unchanged into the dashboard's secrets file under `<name>`");
     expect(checks).toContain("Move one to `!secret <name>` only when asked.");
+    expect(checks).toContain("a secret inside any string — a lambda argument (`set_auth_password(\"…\")`), a URL with an access key or `user:password@`, a header value");
+    expect(checks).toContain("with a bare `encryption:` (reuses the `api` key; ESPHome 2026.9.0+) or `password: !secret <name>`, never neither");
+    expect(checks).toContain("Check every row against the file itself, whatever version runs on the device");
     expect(skill).toContain("The user types the encryption key there, never in chat.");
     expect(checks).toContain("A `!secret` name cannot be checked here (the relay never serves `secrets.yaml`)");
   });
