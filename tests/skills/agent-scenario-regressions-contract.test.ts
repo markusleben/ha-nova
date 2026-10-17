@@ -47,7 +47,7 @@ describe("agent scenario regressions (2026-10-15)", () => {
     // Suite r101: agents shortened `say` and dropped the chat-code note
     // (4 of 18 runs); the Safety Core now carries "in full" to every skill.
     expect(readFileSync("docs/reference/skill-architecture.md", "utf8")).toContain(
-      "- Relay a plan's `say` localized: every reason, code ask, and note in full.",
+      "- Relay a plan's `say` in full, localized; never drop or shorten sentences.",
     );
     expect(rules).toContain('"This unlocks a door, so it needs a one-time code from HA NOVA."');
     expect(rules).toContain("Never mention, quote, or link HA NOVA's own skill or rule files or scratch paths — the user doesn't know they exist. Paths the user needs (the config file a change targets, a batch manifest) stay visible.");
