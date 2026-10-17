@@ -296,7 +296,7 @@ func rawRelayRead(endpoint string, body []byte) bool {
 		raw, _ := payload["path"].(string)
 		pathPart, _, _ := strings.Cut(raw, "#")
 		pathPart, _, _ = strings.Cut(pathPart, "?")
-		if strings.ToUpper(strings.TrimSpace(method)) != http.MethodGet || strings.ContainsAny(pathPart, "%\\") || path.Clean(pathPart) != pathPart {
+		if strings.ToUpper(strings.TrimSpace(method)) != http.MethodGet || !strings.HasPrefix(pathPart, "/") || strings.ContainsAny(pathPart, "%\\") || path.Clean(pathPart) != pathPart { // the Relay roots a relative path
 			return false
 		}
 		for _, write := range rawCoreWrites {
