@@ -41,6 +41,7 @@ operations and for relays whose `/backups` answers 404.
 | `admin` (persons/zones/tags/users) | field preview | no (deletes irreversible; user credentials/tokens unrecoverable) | recreate from previewed fields (tags keep their physical `tag_id`; other recreates mint new ids); HA Backups |
 | `assist` (pipelines/exposure) | change preview | no | re-toggle exposure / resend prior pipeline fields; deleted pipelines recreate with a new id |
 | `yaml-config` | File-Change Preview + `check_config` | one-step `.bak` restore (writes only; a second write overwrites it) | config snapshot with stored path (auto before overwrites/deletes, multi-step history); `.bak`; HA Backups |
+| `esphome` | File-Change Preview (masked) | one-step `.bak` restore | config snapshot with stored path; the device changes only on the next install, and a broken key or OTA setup needs USB |
 | `mqtt` (publish) | payload preview | no (broker/device state) | clear a retained message by publishing an empty retained payload; corrective publish |
 | `backup` (delete) | delete preview | no | none — a deleted archive is gone |
 | `fallback` (experimental writes) | payload preview + read-back verify | no | HA Backups |

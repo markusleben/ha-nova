@@ -13,10 +13,12 @@ today, breaks on a likely next step; LOW = advisory.
 |---|---|---|---|
 | No network block (`wifi:`, `ethernet:`, …) | HIGH | add `wifi:` with `ssid: !secret wifi_ssid`, `password: !secret wifi_password` | esphome.io/components/wifi: "You need to have a network configuration … or ESPHome will fail in the config validation stage" |
 | No `api:` (and no `mqtt:`) | HIGH | add `api:` with `encryption: key: !secret <device>_api_key`; the device appears in HA only with it | esphome.io/components/api |
-| `api:` without `encryption:` | LOW | add `encryption: key:` (a 32-byte base64 string) as a `!secret`; HA then asks for the key once (Settings → Devices & services) | esphome.io/components/api ("encryption will not be used until it is set") |
-| No `ota:` | MEDIUM | add `ota:` → `- platform: esphome` with a bare `encryption:` (reuses the `api` key; ESPHome 2026.9.0+) or `password: !secret <name>`, never neither; until one install carries it, updates need USB | esphome.io/components/ota/esphome ("unless a `password:` is set anyone who can reach the device can upload to it") |
-| `ota:` with neither `password:` nor `encryption:` | MEDIUM | the same fix | esphome.io/components/ota/esphome |
-| `wifi:` without `ap:` and `captive_portal:` | LOW | add both: the device opens its own hotspot when it cannot reach the router (`ap_timeout`, default 90s), so a wrong network name or password stays fixable without USB (a wrong static IP does not: the device still counts as connected) | esphome.io/components/wifi ("only enable the access point when no connection to the WiFi router can be made") |
+| `api:` without `encryption:` | MEDIUM (security) | add `encryption:` → `key: !secret <device>_api_key` (a new credential: a 32-byte base64 string); HA then asks for the key once (Settings → Devices & services) | esphome.io/guides/security_best_practices ("Anyone on your local network can … Control switches, lights, and other entities") |
+| `web_server:` without `auth:` | MEDIUM (security) | add `auth:` with `username:` and `password: !secret <name>` (a new credential), or remove an unneeded `web_server:` | esphome.io/guides/security_best_practices ("no cross-site (CSRF) protection by design") |
+| No `ota:` | MEDIUM | add `ota:` → `- platform: esphome` with `password: !secret <name>` (a new credential), never without; until one install carries it, updates need USB | esphome.io/components/ota/esphome ("unless a `password:` is set anyone who can reach the device can upload to it") |
+| `ota:` with neither `password:` nor `encryption:` | MEDIUM (security) | add `password: !secret <name>` (a new credential) | esphome.io/components/ota/esphome |
+| `ota:` with `password:` and an `api` encryption key | LOW | OTA encryption, in two installs: 1) keep `password:`, install with ESPHome 2026.9.0+ (log: "Encryption: offered, plaintext accepted"); 2) replace `password:` with a bare `encryption:` and install. Adding `encryption:` before step 1 ran makes the install refuse ("the device did not offer encryption"). | esphome.io/components/ota/esphome (migration) |
+| `wifi:` without `ap:` and `captive_portal:` | LOW | add both, `ap:` always with `password: !secret <name>` (a new credential; anyone who joins an open hotspot can flash the device through `captive_portal`): the device opens its own hotspot when it cannot reach the router (`ap_timeout`, default 90s), so a wrong network name or password stays fixable without USB (a wrong static IP does not: the device still counts as connected) | esphome.io/components/wifi ("only enable the access point when no connection to the WiFi router can be made") |
 
 ## Removed or Changed Keys
 
@@ -61,10 +63,11 @@ The same pin used by two components is a validation error unless it sets `allow_
 
 ## Secrets
 
-- **What is a credential:** the value of any key whose name contains `password`, `key`, `psk`, `token`, `secret`, `auth`, or `bearer` (any case), every HTTP header value, and every substitution that feeds one. The same in every included file: the relay refuses only `secrets.yaml`, so `credentials.yaml` reads like any file.
+- **What is a credential:** the value of any key named, or ending in, `password`, `key`, `psk`, `token`, `secret`, or `pin_code` (any case; option names such as `min_auth_mode` are not), everything under an `auth:` block, every HTTP header value, and every substitution that feeds one. The same in every included file: the relay refuses only `secrets.yaml`, so `credentials.yaml` reads like any file.
 - **Also a credential**: a secret inside any string — a lambda argument (`set_auth_password("…")`), a URL with an access key or `user:password@`, a header value.
 - **Mask it everywhere**: shown YAML (explicitly requested, restore previews, diffs), prose, and pasted Validate or log output. "What is my Wi-Fi password?": say where it lives (this device file, or the dashboard's secrets file), never the value.
-- **An inline credential**: LOW — the ESPHome wizard writes the `api` key inline, and it works. Move one to `!secret <name>` only when asked. The preview then says: before applying, copy the current value unchanged into the dashboard's secrets file under `<name>` (open this device in the dashboard editor to see it); a different value is a new credential (Device-Breaking Edits). esphome.io/components/wifi: "It is highly recommended to use secrets."
+- **An inline credential**: LOW — the ESPHome wizard writes the `api` key inline, and it works. Move one to `!secret <name>` only when asked, with a device-prefixed `<name>` (`kitchen_sensor_wifi_password`): another device may already use the plain one. The preview then says: before applying, copy the current value unchanged into the dashboard's secrets file under `<name>` (open this device in the dashboard editor to see it); a different value is a new credential (Device-Breaking Edits). esphome.io/components/wifi: "It is highly recommended to use secrets."
+- **A fix that needs a new credential** (marked above) writes only `!secret <name>`; the preview tells the user to add a value under `<name>` in the dashboard's secrets file before installing.
 - A `!secret` name cannot be checked here (the relay never serves `secrets.yaml`): Validate reports a missing one.
 
 ## Device-Breaking Edits (name each in the preview)
@@ -72,10 +75,18 @@ The same pin used by two components is a validation error unless it sets `allow_
 - `esphome:` → `name:` is the hostname the next wireless install looks for; the device keeps its old one until then. Use the dashboard's rename action, which installs the new name to the old address.
 - An entity's `name:`: Home Assistant may treat it as a new entity, leaving the old id unavailable and its automations pointing at nothing. To rename only in HA: `ha-nova:organize`.
 - A new or replaced `api` `encryption` `key`: Home Assistant loses the device until the user enters the new key (Settings → Devices & services). On ESPHome 2026.9.0+ with OTA encryption, OTA reuses that key and "the device only accepts the key it is running": the next wireless install fails, USB needed. Never generate a new key for a device Home Assistant already uses. esphome.io/components/ota/esphome
-- Switching `ota` from `password:` to `encryption:` (they cannot be combined): read the Encryption section of esphome.io/components/ota/esphome before drafting it.
-- A changed `ota` `password`: the install authenticates with the new one and the device refuses it. The documented path: give `ota` an `id`, set the new password once from `on_boot` with `set_auth_password`, install, then move it into `ota:`. esphome.io/components/ota/esphome
+- Switching `ota` from `password:` to `encryption:` (they cannot be combined): only as the two installs in Required Blocks.
+- A changed `ota` `password`: the install authenticates with the new one and the device refuses it. The documented path: give `ota` an `id`, set the new password once from `on_boot` with `set_auth_password`, install, then move it into `ota:`. Never as a literal: `substitutions:` → `ota_new: !secret <name>` (the user adds the value first) and `set_auth_password("${ota_new}")`; Validate decides. esphome.io/components/ota/esphome
 - Removing `ota:`: every later install needs USB.
-- `wifi` `ssid`/`password` changes without `ap:` + `captive_portal:`: one mistake means USB.
+- `wifi` `ssid`/`password` changes without `ap:` (with its password) + `captive_portal:`: one mistake means USB.
+- Security-weakening (name the exposure): removing `ota` `password:`/`encryption:`, `api` `encryption:`, `web_server` `auth:`, or the `ap` password; adding `web_server:` without `auth:`. Anyone on the network, or in hotspot range, can then control or flash the device.
 - A changed `manual_ip` `static_ip`: the install goes to the configured address, which the device does not have yet — set `wifi` → `use_address: <current IP>` for that one install. A wrong gateway or subnet strands it even with the hotspot. esphome.io/components/wifi
-- A file in `packages:` or `!include` of other devices changes all of them: list each device file that includes it (scan the top-level files). A `substitutions` edit is an edit of every key it feeds (`${name}` → the hostname).
+- A file in `packages:` or `!include` of other devices changes all of them: list each device file that includes it (scan the top-level files). A `list_dir` with `truncated: true` cannot prove the list complete: say so and edit the shared file only after the user names every device that uses it. A `substitutions` edit is an edit of every key it feeds (`${name}` → the hostname).
 - A `framework:` change: a clean rebuild; some components need Arduino.
+
+## Hand-Off (give these steps exactly)
+
+- App: Settings → Apps → ESPHome Device Builder → Open Web UI → the device card → ⋮ → **Validate**, then **Install** → On the network (older dashboard: Wirelessly). The very first install, or a device without `ota:`, needs USB. **Logs** on the same card. The device's encryption key, when Home Assistant asks for it: ⋮ → **Show encryption key** — the user copies it there, never into chat.
+- CLI: `esphome config <file>.yaml` (validates; it hides secrets only on screen, so pasted output still needs masking), `esphome run <file>.yaml` (compile, upload, logs), `esphome logs <file>.yaml`.
+- A device not in Home Assistant yet: Settings → Devices & services → Discovered → `ha-nova:integration-setup`.
+- Home Assistant's ESPHome firmware update entity compiles and installs the current file too: a pending edit is on the device after that update.

@@ -371,7 +371,7 @@ Match user intent to exactly one skill:
 **"Import a blueprint"** → `ha-nova:fallback` (relay-ready, no skill)
 **"How do I manage Apps?"** → `ha-nova:fallback` (external, web search)
 **"Show history for sensor X"** → `ha-nova:history`
-**"Save the Lovelace config"** → `ha-nova:dashboard` (must resolve storage mode, then read-merge-verify)
+**"Save the Lovelace config"** → `ha-nova:dashboard`
 **"Remove this entity from Home Assistant"** → `ha-nova:maintenance` (dead registry entries only; live entities get disabled via `ha-nova:organize`)
 **"Detach this config entry from the device"** → `ha-nova:fallback`
 
@@ -387,7 +387,7 @@ After any `read` or `review` task, re-evaluate intent once before continuing:
 - keep this sequential: one skill at a time, never parallel
 - for multi-target scope, keep the same safety and evidence rules; see `skills/ha-nova/bulk-patterns.md`
 
-**Problem-description intents** ("X doesn't work", "Y is wrong", "stopped working", "didn't fire last night"): dispatch to `ha-nova:diagnose` — a concrete failure is a root-cause task (traces, logs), whether or not the user says "why". Diagnose hands the fix back to `write` / `helper` / `service-call`.
+**Problem-description intents** ("X doesn't work", "Y is wrong", "stopped working", "didn't fire last night"): dispatch to `ha-nova:diagnose` (ESPHome YAML or build errors: `ha-nova:esphome`) — a concrete failure is a root-cause task (traces, logs), whether or not the user says "why". Diagnose hands the fix back to `write` / `helper` / `service-call`.
 
 Dispatch to `ha-nova:review` instead when there is no concrete incident: config-quality audits ("check my automations", "review this script", "is this a good automation?"). Review also checks current entity state and may offer a Quick-Fix service call at the end. Bulk review is the exception: it stays read-only and does not offer Quick-Fix.
 

@@ -98,6 +98,17 @@ Validate decides.
   to copy the current value unchanged into the dashboard's secrets file
   first, because a different value is a new credential.
 
+### Security findings
+
+Open device endpoints are rated MEDIUM (security), never advisory: `api`
+without encryption, `web_server` without `auth`, `ota` with neither password
+nor encryption. A recommended fix never opens one: a fallback `ap:` always
+gets a `!secret` password, OTA encryption follows ESPHome's two-install
+migration, and a fix that needs a new credential writes only `!secret <name>`
+for the user to fill. Edits that weaken security are named in the preview.
+Without file access, the user pastes YAML with inline values replaced by
+`***`, and edits become changed sections for the dashboard editor.
+
 ### Compile and flash: external
 
 Exact next step, either path:
