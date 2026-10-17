@@ -510,7 +510,7 @@ Rules: never invent a `media_content_id`; volume jumps and announcements are dis
 
 ## YAML Config Architecture
 
-`ha-nova:yaml-config` owns configuration that has no API, through the relay's opt-in file access. The current release enforces Relay >= 0.10.0:
+`ha-nova:yaml-config` owns configuration that has no API, through the relay's opt-in file access (probed once, not version-gated):
 - read -> File-Change Preview (effect sentences + the changed section only, never a unified diff) -> confirm -> `write_file` (automatic `.bak`) -> `POST /api/config/core/check_config` -> targeted reload -> verify the entity in `/api/states`
 - an invalid `check_config` restores the `.bak` BEFORE reporting, and never reloads
 - whole-file replacement: never write a file that was not read first

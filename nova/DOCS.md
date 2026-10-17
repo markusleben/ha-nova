@@ -142,7 +142,7 @@ when discovery finds none. If this App already runs (for another computer),
 setup skips the install step. Its normal App flow opens your Home Assistant login:
 sign in as the owner and this computer pairs by itself. Over SSH, with another
 Home Assistant user, or when sign-in does not work out, it asks for the
-six-digit code from the NOVA page instead. Either way it pairs securely: the
+six-digit code from the NOVA page instead (the owner generates it there). Either way it pairs securely: the
 device receives its own credential
 (kept in the client's OS credential store — or in a private file for
 `--service` installs, explicit `ha-nova pair --credential-store=file` opt-ins,
