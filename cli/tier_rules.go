@@ -51,6 +51,7 @@ const (
 	reasonUnresolvedTarget     = "UNRESOLVED_TARGET"
 	reasonStoredSelector       = "STORED_SELECTOR"
 	reasonBlueprint            = "BLUEPRINT_UNRESOLVED"
+	reasonConfirmWatch         = "CONFIRMATION_WATCH" // a draft that could read a phone confirmation's buttons
 	reasonYAMLNoID             = "YAML_NO_ID"
 	reasonUnreadConfig         = "UNREAD_CONFIG"
 	reasonSceneAccess          = "INTEGRATION_SCENE_ACCESS"
