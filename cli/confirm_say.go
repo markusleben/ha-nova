@@ -366,8 +366,6 @@ func sayActionRank(m tierMember) int {
 	return 0
 }
 
-// sayVia names the item a member reason runs through ("the automation
-// “Guest mode”"); "" for a direct target or an area/device expansion.
 var sayUnseenCodes = map[string]bool{reasonUnregisteredActuator: true, reasonTemplateAction: true, reasonUserButton: true, reasonUnreadCommand: true}
 
 // sayUnseen: "HA NOVA can't see what “X” does"; reached through an item,
@@ -385,6 +383,8 @@ func sayUnseen(name, via string) string {
 	return string(unicode.ToUpper(first)) + via[size:] + " uses " + name + ", and HA NOVA can't see what that does"
 }
 
+// sayVia names the item a member reason runs through ("the automation
+// “Guest mode”"); "" for a direct target or an area/device expansion.
 func sayVia(e *tierEngine, env *verbEnvelope, plan storedPlan, via string) string {
 	root := firstSegment(via)
 	switch {

@@ -347,9 +347,6 @@ func computeConfigPlan(paths runtimePaths, s *relaySession, env *verbEnvelope, r
 	}
 	plan := storedPlan{Kind: req.Op, ConfigRequest: &req, ConfigAction: &action, Basis: configPlanBasis(e, current, req.Draft)}
 	plan, err = sealPlan(e, env, plan, action)
-	if req.Op == "delete" && env.Consumers == nil && env.Coverage != nil && env.Coverage.Complete {
-		env.Consumers = []tierConsumer{} // scanned, none found
-	}
 	env.Config = &action
 	if env.Status == "needs_confirmation" {
 		// The form names what is there now; the write card names the draft.
