@@ -75,8 +75,8 @@ describe("grouped change set contract (issue #391)", () => {
       "Render the full canonical Preview Card for EVERY operation",
     );
     expect(grouped).toContain("Intermediate previews carry NO options block");
-    expect(grouped).toContain("exactly ONE final action block");
-    expect(grouped).toContain("`apply · show yaml · cancel`");
+    expect(grouped).toContain("exactly ONE final question closes the group");
+    expect(grouped).not.toContain("show yaml");
     // The carve-out lives next to the rule it excepts.
     expect(outputRules).toContain(
       "Sole exception: intermediate previews inside a grouped change set",
@@ -120,7 +120,7 @@ describe("grouped change set contract (issue #391)", () => {
   it("keeps grouped cards inside the shared card system", () => {
     expect(grouped).toContain("output-cards.md` → Cards");
     expect(grouped).toContain("⚠️  Nothing saved yet");
-    expect(grouped).toContain("Options: apply · show yaml · cancel");
+    expect(grouped).toContain("Save all 3? I can also show the details.");
     expect(grouped).toContain("Ledger:");
     expect(outputRules).toContain(
       "| Grouped change set (non-destructive, one logical task) |",

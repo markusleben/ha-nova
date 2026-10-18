@@ -64,8 +64,8 @@ describe("output design system (Cards)", () => {
     expect(outputRules).toContain("never invented and never re-aligned");
   });
 
-  it("keeps the options line and confirmation-code prompt literal", () => {
-    expect(outputRules).toContain("Options: apply · show yaml · cancel");
+  it("asks a natural save question and keeps the confirmation-code prompt literal", () => {
+    expect(outputRules).toContain("Save it? I can also show the details.");
     expect(outputRules).toContain("Type <four digits> to delete.");
     expect(outputRules).toContain("the one-time-code prompt is always the last line");
   });
@@ -241,7 +241,7 @@ describe("output design system (Cards)", () => {
     const preview = cardTemplate("Preview Card");
     expect(preview[0]).toMatch(/^📝 Preview:/);
     expect(preview.filter((l) => l.startsWith("⚠️")), "exactly one status line").toHaveLength(1);
-    const previewOptions = preview.filter((l) => l.startsWith("Options:"));
+    const previewOptions = preview.filter((l) => l.startsWith("Save it?"));
     expect(previewOptions, "exactly one action block").toHaveLength(1);
     expect(preview[preview.length - 1], "action block closes the card").toBe(previewOptions[0]);
     expect(
@@ -283,11 +283,11 @@ describe("output design system (Cards)", () => {
     expect(serviceCall).toContain("a single target's arrow one-liner");
     expect(serviceCall).toContain("A preview (exit 2 or 3) closes with `say`");
     // yaml-config: layperson file preview — changed section only, never a
-    // developer diff, whole file only on show yaml.
+    // developer diff, whole file only when asked.
     expect(yamlConfig).toContain("## File-Change Preview");
     expect(yamlConfig).toContain("New section (the only part that changes):");
     expect(yamlConfig).toContain("Never a `-`/`+` unified diff");
-    expect(yamlConfig).toContain("show yaml = the whole resulting file");
+    expect(yamlConfig).toContain("Save it? I can also show the whole resulting file.");
     // review keeps its pinned sections; only the quick-fix crosses into cards.
     expect(review).toContain("Review output is sectioned, not card-framed");
   });

@@ -58,7 +58,7 @@ describe("agent scenario regressions (2026-10-15)", () => {
     for (const file of ["skills/service-call/SKILL.md", "skills/write/SKILL.md"]) {
       const text = flat(file);
       expect(text).toMatch(/add no other reason; never cite, link, or name this skill or any HA NOVA rule file\./);
-      expect(text).toContain('After a "yes", repeat `say`\'s ask and note in full.');
+      expect(text).toContain('After a "yes" to a code plan, repeat `say`\'s ask and note in full.');
     }
   });
   // 2026-10-16 agent path analysis: avoidable tool rounds and reads on the

@@ -33,8 +33,8 @@ type verbEnvelope struct {
 	// Say: the plain confirmation text of a plan that needs one (CLI-built
 	// from tier, reasons, and names; skills relay it).
 	Say string `json:"say,omitempty"`
-	// NextStep: the agent's next step where it is not the usual one (a
-	// window plan: apply without a code; its fallback: a new code plan).
+	// NextStep: the agent's next step (a preview plan: wait for the user's
+	// reply; a window plan: apply without a code; its fallback: a new code plan).
 	NextStep     string         `json:"next_step,omitempty"`
 	Action       *planAction    `json:"action,omitempty"`
 	Resolved     []verbTarget   `json:"resolved,omitempty"`
@@ -193,7 +193,7 @@ func setVerbError(env *verbEnvelope, err error) int {
 		env.Status = failure.status
 	}
 	if env.Status != "drift" { // only a drift result carries a stored plan to confirm
-		env.Say = ""
+		env.Say, env.NextStep = "", "" // a plan that failed to store has nothing to show or apply
 	}
 	env.Error = &verbError{Code: failure.code, Message: failure.message, Candidates: failure.candidates, Next: failure.next}
 	return failure.exit

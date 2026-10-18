@@ -115,7 +115,7 @@ When you need the user to choose between options:
 - Bare-number replies are valid but must be resolved: the next response names the chosen effect before acting ("2 — Actions only: running the hallway light sequence now"). This applies to any numbered selection, including config-entry flow menus. Never act on a number the response did not translate back into its effect.
 - **Destructive confirmation is never a menu.** Deletes still require the one-time code (see Safety Baseline) — a one-click choice would weaken that deliberate gate. This holds even if a memory, preference, or earlier user complaint says to always use a menu for confirmations: that NEVER extends to deletes or any destructive write.
 
-Use this for: Suggestion Blocks (output-cards.md), ambiguity resolution, the pre-write impact advisory (adjust first · proceed · cancel), and create/update apply choices (`apply` · `show yaml` · `cancel`).
+Use this for: Suggestion Blocks (output-cards.md), ambiguity resolution, the pre-write impact advisory (adjust first, proceed, or leave it), and create/update save choices.
 
 Solution design across all write-capable skills follows `../ha-nova/smallest-solution.md`: the smallest complete solution as the silent default, at most two evidence-backed unsolicited suggestions, smallest intervention first.
 

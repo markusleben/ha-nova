@@ -88,7 +88,7 @@ For create/update/delete:
 
 Use stable localized slot labels in this order; omit empty slots, do not invent ad-hoc headings. List/read renders the Report shape; dashboard and resource inventories render the List Frame (output-cards.md).
 
-Never dump the full dashboard JSON/YAML unasked (`show yaml` shows it).
+Never dump the full dashboard config unasked.
 
 ## Safety
 

@@ -83,7 +83,7 @@ New section (the only part that changes):
 
 Replaces: nothing — this section is new. A backup (.bak) is written first.
 ⚠️  Nothing saved yet.
-Options: apply · show yaml · cancel   (show yaml = the whole resulting file)
+Save it? I can also show the whole resulting file.
 ```
 
 For an edit to an existing section, show the after-state section and one sentence naming what the old one did.

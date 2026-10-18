@@ -15,14 +15,14 @@ Line, a Session Recap, findings, or review output. The core rules still apply.
 - Keep delete previews structured in this order: preview summary, consumer-check impact, save status, exact one-time-code prompt.
 - Use stable localized labels for those slots across a conversation. If a slot has content, show it under the same label and in the same order; if it has no content, omit that slot instead of printing an empty placeholder.
 - Every write preview must explicitly say that nothing has been saved yet before showing the options.
-- Always render write-preview options as an explicit choice block that includes literal `apply`, `show yaml`, and `cancel` for create/update. Sole exception: intermediate previews inside a grouped change set (`../ha-nova/grouped-change-set.md`) carry no options block — exactly one final action block closes the group with the same literal keywords.
-- Delete previews must say nothing has been deleted yet and must ask for the one-time code; never render `apply`, `show yaml`, `cancel`, or a selectable menu for destructive confirmation.
+- Close every create/update preview with one natural question (save it, show the details, or leave it). Sole exception: intermediate previews inside a grouped change set (`../ha-nova/grouped-change-set.md`) carry none — one final question closes the group.
+- Delete previews must say nothing has been deleted yet and must ask for the one-time code; never a save question or a selectable menu for destructive confirmation.
 - Never hide the available next actions inside a paragraph.
 - A plan's `say` closes the card, replacing the ⚠️ save-status and options or code lines.
 
 ## Cards (Write-Flow Visual System)
 
-Write and action flows render one of four cards — the same shape every time, so users recognize them at a glance. Labels localize at runtime; emoji, literal keywords, entity IDs, state values, and CLI diff rows do not. Fixed emoji vocabulary: 📝 preview (write previews and the test-plan offer), 🗑️ delete preview, ✅ result, ⚠️ save status, 💡 suggestion, plus the 🔴🟠🟡 severity markers — nothing else decorative, never color. Cards frame writes and runtime actions only; review and read output keep their own sections. Emoji that end in a variation selector (🗑️, ⚠️) take two spaces before the following text (terminals draw them double-width); the other card emoji keep one space.
+Write and action flows render one of four cards — the same shape every time, so users recognize them at a glance. Labels localize at runtime; emoji, entity IDs, state values, and CLI diff rows do not. Fixed emoji vocabulary: 📝 preview (write previews and the test-plan offer), 🗑️ delete preview, ✅ result, ⚠️ save status, 💡 suggestion, plus the 🔴🟠🟡 severity markers — nothing else decorative, never color. Cards frame writes and runtime actions only; review and read output keep their own sections. Emoji that end in a variation selector (🗑️, ⚠️) take two spaces before the following text (terminals draw them double-width); the other card emoji keep one space.
 
 **Preview Card** (create/update — values illustrative, labels localized at runtime):
 
@@ -37,7 +37,7 @@ The three light actions now only run when someone is home.
 
 Pre-write check: no concerns.
 ⚠️  Nothing saved yet.
-Options: apply · show yaml · cancel
+Save it? I can also show the details.
 ```
 
 Title line: emoji + localized preview label + item type + name. Then one to three plain sentences on what the change DOES. They must cover every collection the diff touches — each added, removed, replaced, or modified entry described by its effect, never only by count or type name; grouped entries may share a sentence, and coverage beats the three-sentence guideline. The changes block: in diff-backed skills you author only the localized header row and the literal separator — the data rows are pasted verbatim from the CLI (`ha-nova plan write` / `ha-nova diff`), never invented and never re-aligned (mechanics: `../ha-nova/write-safety.md`); skills without a CLI diff author one short planned-change row or line per changed field; file-editing skills show the changed section as a snippet instead of a table. Existing per-skill slots map into the card: identity slots (name/mode/target) fold into the title line, `Planned change` is the changes block, `Save status` is the ⚠️ line, `Options` or the one-time-code prompt closes the card. Runtime actions close with the plan's `say` (an explicit not-executed-yet line and the ask).
@@ -59,8 +59,8 @@ Destructive batch previews and results render the Batch Cards defined in
 
 ```
 ✅ Saved: automation "Morning routine"
-Checked: config persisted, reload OK, entity live. Runtime behavior was not exercised.
-Reply revert to undo this update.
+Checked: stored and loaded by Home Assistant. Runtime behavior was not exercised.
+To undo this change, just say so.
 ```
 
 **Test Plan Card** (test offer after create/update — feasibility logic, option
@@ -68,7 +68,7 @@ selection, and post-run follow-up live in `../ha-nova/test-run.md`; menu
 mechanics: context skill → Interactive Choices):
 
 ```
-📝 Test: automation.morning_lights (saved — runtime not exercised yet)
+📝 Test: automation "Morning lights" (saved — not run yet)
 1 (recommended) — Real test: what runs, what it proves, what it switches
 2 — Actions only: …
 skip — test later
@@ -77,12 +77,8 @@ skip — test later
 Recommended option first and marked; at most 3 options plus `skip`; the option
 choice is the single confirmation bound to that exact card.
 
-Menu essentials (full rules: context skill → Interactive Choices): a
-selectable menu where the client offers one, else a numbered list; every
-option label opens with its concrete effect, one effect per option; a
-bare-number reply is translated back into its named effect before acting —
-never act on a number you did not translate; destructive confirmation is
-never a menu.
+Menu rules: context skill → Interactive Choices (restate a bare number's
+effect before acting; destructive confirmation is never a menu).
 
 Card coverage — every mutation and restore flow maps onto these cards; no
 write flow renders outside this system:
@@ -135,17 +131,18 @@ changed" — whenever rows are truncated, carry the Progressive Detail
 fields: total, shown, omitted, the exact follow-up, and the fresh-read
 notice), then compact pipe tables
 (max 4 short columns — they degrade to plain pipe text in raw terminals) or
-grouped lists with counts; never raw JSON. Canonical column order: ID, Name,
-one or two domain-specific columns (Type, State, Reason), Area. Domains keep
+grouped lists with counts; never raw JSON. Canonical column order: Name,
+one or two domain-specific columns (Type, State, Reason), Area; an ID only
+when a name is missing or collides. Domains keep
 their own columns — the frame (count line, column order, stated cap) is what
 is shared.
 
 ```
 23 automations found, showing first 10, 13 omitted — say "show all automations" for the rest (fresh read — results may have changed).
 
-| Entity ID | Name | Area |
+| Name | State | Area |
 |---|---|---|
-| automation.morning | Morning routine | Hallway |
+| Morning routine | on | Hallway |
 ```
 
 ## Suggestion Block

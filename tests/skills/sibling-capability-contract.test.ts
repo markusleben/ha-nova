@@ -53,7 +53,7 @@ describe("device-sibling capability discovery contract (#564)", () => {
   it("bounds ambiguity to one clarification carrying the four status fields", () => {
     expect(DISCOVERY).toContain("Prefer an enabled exact match");
     expect(DISCOVERY).toContain(
-      "ONE bounded clarification listing each candidate's entity ID, domain, device, and enabled/disabled status",
+      "ONE bounded clarification listing each candidate by name, device, and whether it is disabled (entity ID only on a name clash)",
     );
   });
 
