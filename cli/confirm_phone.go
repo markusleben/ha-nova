@@ -172,13 +172,20 @@ func askPhone(s *relaySession, setup phoneSetup, tag string, ask phoneAsk, wait 
 		return phoneNoAnswer, reply
 	}
 	deadline, _ := ctx.Deadline()
-	sent := sendPhones(ctx, s, notify, setup.targets, phonePayload(ask, tag, ok, no, deadline))
+	sent, sending := sendPhones(ctx, s, notify, setup.targets, phonePayload(ask, tag, ok, no, deadline))
 	all := make([]string, 0, len(setup.targets))
 	for _, target := range setup.targets {
 		all = append(all, target.Service)
 	}
 	// Every phone: a send still in flight at the deadline may land later.
-	reply = phoneReply{once: &sync.Once{}, tell: func(title, body string) { tellPhones(s, notify, all, phoneResultPayload(title, body, tag)) }}
+	// The result waits for an ask still in flight (bounded): a late ask would replace it.
+	reply = phoneReply{once: &sync.Once{}, tell: func(title, body string) {
+		select {
+		case <-sending:
+		case <-time.After(phoneTellSpan):
+		}
+		tellPhones(s, notify, all, phoneResultPayload(title, body, tag))
+	}}
 	if len(sent) == 0 {
 		return phoneFailed, reply
 	}
@@ -203,11 +210,16 @@ func askPhone(s *relaySession, setup phoneSetup, tag string, ask phoneAsk, wait 
 
 // sendPhones sends to every phone in parallel, bounded by the wait: a
 // stalled notify service never holds apply past the confirmation deadline.
-// It returns the services that accepted it.
-func sendPhones(ctx context.Context, s *relaySession, notify func(*relaySession, string, map[string]any) error, targets []phoneTarget, body map[string]any) []string {
-	accepted := make(chan string, len(targets))
+// It returns the services that accepted it, and a channel closed once
+// every send has finished (one may outlive the wait).
+func sendPhones(ctx context.Context, s *relaySession, notify func(*relaySession, string, map[string]any) error, targets []phoneTarget, body map[string]any) ([]string, <-chan struct{}) {
+	accepted, sending := make(chan string, len(targets)), make(chan struct{})
+	var wg sync.WaitGroup
+	wg.Add(len(targets))
+	go func() { wg.Wait(); close(sending) }()
 	for _, target := range targets {
 		go func() {
+			defer wg.Done()
 			if notify(s, target.Service, body) == nil {
 				accepted <- target.Service
 				return
@@ -223,11 +235,11 @@ func sendPhones(ctx context.Context, s *relaySession, notify func(*relaySession,
 				sent = append(sent, service)
 			}
 		case <-ctx.Done():
-			return sent
+			return sent, sending
 		}
 	}
 	sort.Strings(sent)
-	return sent
+	return sent, sending
 }
 
 // tellPhones sends body to every phone the ask reached, in parallel and for

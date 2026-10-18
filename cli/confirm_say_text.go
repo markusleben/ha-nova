@@ -43,11 +43,13 @@ var sayVerbs = map[string]string{
 func sayAsk(e *tierEngine, env *verbEnvelope, plan storedPlan, subject string) [3]string {
 	verb, object := sayGoal(e, env, plan, subject)
 	domain, _ := splitID(plan.Action.Service)
+	// phrased: the title already says this effect — only "Unlock"/"Open" a
+	// lock and "Disarm" the alarm; a wiping button or a garage cover keeps its line.
 	own := func(r tierReason) (mine, phrased bool) {
-		_, _, phrased = sayActionPhrase(e, env, r)
+		phrase, _, ok := sayActionPhrase(e, env, r)
 		target, _ := splitID(r.EntityID)
 		mine = r.Via == "" && slices.Equal(plan.Action.EntityIDs, []string{r.EntityID}) && phoneButton(verb) != "Confirm"
-		return mine, phrased && domain == target
+		return mine, ok && domain == target && (r.Code == reasonAccessLock || r.Code == reasonAccessAlarm) && strings.HasPrefix(phrase.verb, strings.ToLower(verb))
 	}
 	named := slices.ContainsFunc(env.Reasons, func(r tierReason) bool { mine, phrased := own(r); return mine && phrased })
 	for _, r := range env.Reasons {

@@ -14,11 +14,11 @@ import (
 func TestPhoneAnswerAfterTheReadBudgetStillRechecks(t *testing.T) {
 	h, p, home := familyLink(t)
 	previous := relaySessionOverallTimeout
-	relaySessionOverallTimeout = 300 * time.Millisecond
+	relaySessionOverallTimeout = time.Second
 	t.Cleanup(func() { relaySessionOverallTimeout = previous })
 	users := map[string]string{"mobile_app_markuss_iphone": "owner-id", "mobile_app_annas_pixel": "anna-id"}
 	p.tapBy = func(service, ok, _ string) []phoneEvent {
-		time.AfterFunc(500*time.Millisecond, func() { p.events <- tap(ok, users[service], "REMOTE") })
+		time.AfterFunc(1300*time.Millisecond, func() { p.events <- tap(ok, users[service], "REMOTE") })
 		return nil
 	}
 	if exit, out := runLink(t, h, "", phoneLinkRun{pick: "Markus’s iPhone"}); exit != 0 || linked(t, h) == nil || linked(t, h).DeviceID != "dev-markus" {
@@ -31,7 +31,7 @@ func TestPhoneAnswerAfterTheReadBudgetStillRechecks(t *testing.T) {
 	// A typed plan confirmed by a slow tap runs.
 	relaySessionOverallTimeout = previous
 	plan := h.plan("lock.unlock", "lock.front").Plan
-	relaySessionOverallTimeout = 300 * time.Millisecond
+	relaySessionOverallTimeout = time.Second
 	if exit, env := h.run(runApplyCommand, "--plan", plan.ID); plan.Channel != channelPhone || exit != 0 || env.Status != "verified" || calls(h) != 1 {
 		t.Fatalf("slow tap on apply: %d %+v", exit, env.Error)
 	}

@@ -38,7 +38,7 @@ func phoneChangeAsk(newPhone string) phoneAsk {
 	if newPhone == "" {
 		return phoneAsk{title: "Stop HA NOVA confirmations here?", body: "After this, HA NOVA may ask in chat, where your AI assistant can answer. " + phoneRequested(), button: "Stop", unlock: true}
 	}
-	return phoneAsk{title: phoneTitle("Move HA NOVA confirmations to", "“"+newPhone+"”"), body: phoneRequested(), button: "Move", unlock: true}
+	return phoneAsk{title: phoneTitle("Move HA NOVA confirmations to", sayText(newPhone, true)), body: phoneRequested(), button: "Move", unlock: true}
 }
 
 // phonePlanAsk: "Unlock “Front Door”?" with an Unlock button, and the
@@ -46,7 +46,7 @@ func phoneChangeAsk(newPhone string) phoneAsk {
 func phonePlanAsk(goal [3]string, noSnapshot bool) phoneAsk {
 	body := phoneRequested()
 	if goal[2] != "" {
-		body = phoneCut(goal[2], phoneWhyLimit, "") + ". " + body
+		body = phoneCut(goal[2], phoneWhyLimit) + ". " + body
 	}
 	if noSnapshot {
 		body = "Can't be undone. " + body
@@ -65,28 +65,39 @@ func phoneButton(verb string) string {
 
 func phoneRequested() string { return "Requested by “" + phoneHost() + "”. " + phoneHint }
 
-// phoneTitle: verb + object + "?" in one line. A long list keeps its end
-// ("… and 4 more"), and a cut name never leaves an open quote.
+// phoneTitle: verb + object + "?" in one line. Too long with several
+// names, it keeps the first and counts every other one ("Unlock “A” and 6
+// more?"), so the title never understates what a tap confirms. Names are
+// sayText-quoted: “ marks each one, and "and N more" counts the rest.
 func phoneTitle(verb, object string) string {
-	more := ""
-	if i := strings.LastIndex(object, " and "); i > 0 && strings.HasSuffix(object, " more") { // sayList's count
-		object, more = object[:i], object[i:]
+	if title := verb + " " + object + "?"; len([]rune(title)) <= phoneTitleLimit {
+		return title
 	}
-	return phoneCut(verb+" "+object, phoneTitleLimit-1-len([]rune(more)), "”") + more + "?"
+	total, rest := strings.Count(object, "“"), 0
+	if i := strings.LastIndex(object, " and "); i > 0 {
+		if _, err := fmt.Sscanf(object[i:], " and %d more", &rest); err == nil {
+			total += rest
+		}
+	}
+	head, more := object, ""
+	if j := strings.Index(object, "”"); total > 1 && j > 0 {
+		head, more = object[:j+len("”")], fmt.Sprintf(" and %d more", total-1)
+	}
+	return verb + " " + phoneCut(head, phoneTitleLimit-len([]rune(verb+more))-2) + more + "?"
 }
 
-// phoneCut shortens text to limit runes with "…", back to the last end
-// mark (a closing quote) when one fits.
-func phoneCut(text string, limit int, end string) string {
+// phoneCut shortens text to limit runes with "…", closing a quote it cut
+// open (“Front Do…”).
+func phoneCut(text string, limit int) string {
 	runes := []rune(text)
 	if len(runes) <= limit {
 		return text
 	}
-	cut := string(runes[:max(limit-1, 0)])
-	if i := strings.LastIndex(cut, end); end != "" && i > 0 {
-		cut = cut[:i+len(end)]
+	cut := string(runes[:max(limit-1, 0)]) + "…"
+	if strings.Count(cut, "“") > strings.Count(cut, "”") {
+		cut = string(runes[:max(limit-2, 0)]) + "…”"
 	}
-	return cut + "…"
+	return cut
 }
 
 // phonePayload: the first button is styled destructive (iOS). A plan's
@@ -165,7 +176,7 @@ type phoneReply struct {
 
 func (r phoneReply) say(title, body string) {
 	if r.once != nil {
-		r.once.Do(func() { r.tell(phoneCut(title, phoneTitleLimit, "”"), body) })
+		r.once.Do(func() { r.tell(phoneCut(title, phoneTitleLimit), body) })
 	}
 }
 
