@@ -26,10 +26,7 @@ func TestWindowsHelperNamesAvoidInstallerDetectionKeywords(t *testing.T) {
 }
 
 func TestSweepStaleWindowsHelpersRemovesOldLeftoversOnly(t *testing.T) {
-	tmp := t.TempDir()
-	t.Setenv("TMPDIR", tmp)
-	t.Setenv("TEMP", tmp)
-	t.Setenv("TMP", tmp)
+	tmp := isolateTempDir(t)
 	old := time.Now().Add(-2 * staleWindowsHelperAge)
 	write := func(name string, mod time.Time) string {
 		path := filepath.Join(tmp, name)
@@ -76,10 +73,7 @@ func TestSweepStaleWindowsHelpersRemovesOldLeftoversOnly(t *testing.T) {
 }
 
 func TestLaunchWindowsUninstallRemovesHelperCopyWhenLaunchFails(t *testing.T) {
-	tmp := t.TempDir()
-	t.Setenv("TMPDIR", tmp)
-	t.Setenv("TEMP", tmp)
-	t.Setenv("TMP", tmp)
+	isolateTempDir(t)
 	root := t.TempDir()
 	// A text file named like the CLI: the copy succeeds, the start fails.
 	if err := os.WriteFile(filepath.Join(root, publicBinaryName()), []byte("not an executable\n"), 0o644); err != nil {
@@ -96,4 +90,15 @@ func TestLaunchWindowsUninstallRemovesHelperCopyWhenLaunchFails(t *testing.T) {
 	if _, err := os.Stat(helper); !os.IsNotExist(err) {
 		t.Fatalf("helper copy %s must be removed after a failed launch (%v)", helper, err)
 	}
+}
+
+// isolateTempDir points os.TempDir() at a test-owned dir, so the helper sweep
+// never touches the shared machine temp.
+func isolateTempDir(t *testing.T) string {
+	t.Helper()
+	tmp := t.TempDir()
+	t.Setenv("TMPDIR", tmp)
+	t.Setenv("TEMP", tmp)
+	t.Setenv("TMP", tmp)
+	return tmp
 }

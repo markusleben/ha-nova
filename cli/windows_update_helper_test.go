@@ -66,7 +66,7 @@ func TestBuildWindowsHelperCommandMirrorsParentOutputStreams(t *testing.T) {
 	}
 }
 
-func TestBuildWindowsCleanupCommandStaysDetached(t *testing.T) {
+func TestBuildWindowsCleanupCommandRunsWithoutParentStreams(t *testing.T) {
 	cmd := buildWindowsCleanupCommand(`C:\Temp\ha-nova-remover.exe`)
 	if cmd.Stdout != nil || cmd.Stderr != nil {
 		t.Fatalf("expected cleanup command to avoid parent output streams")
@@ -145,6 +145,7 @@ func TestLaunchWindowsReplaceCleansHelperAndStageWhenLaunchFails(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(installRoot, publicBinaryName()), []byte("not an executable\n"), 0o644); err != nil {
 		t.Fatalf("write fake binary: %v", err)
 	}
+	isolateTempDir(t) // the launch sweeps os.TempDir(); keep it off the shared temp
 	stageDir, err := os.MkdirTemp("", "ha-nova-stage-*")
 	if err != nil {
 		t.Fatalf("stage dir: %v", err)
