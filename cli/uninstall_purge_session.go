@@ -117,17 +117,15 @@ func purgeReadyForWindowsHandoff(paths runtimePaths, mode uninstallMode, teardow
 	return true
 }
 
-// validatePurgeBeforeWindowsHandoff runs the purge's read-only device
-// credential checks in this terminal. The detached Windows helper runs them
-// again, but its failure would only show later in doctor.
+// validatePurgeBeforeWindowsHandoff runs the purge's read-only Link, device
+// credential, and relay token checks (the guided preflight's) in this
+// terminal. The detached Windows helper runs them again, but its failure
+// would only show later in doctor.
 func validatePurgeBeforeWindowsHandoff(paths runtimePaths) error {
-	targets, _, release, err := pinnedPurgeTargets(paths)
+	targets, cloudTargets, release, err := pinnedPurgeTargets(paths)
 	if err != nil {
 		return err
 	}
 	defer release()
-	if err := validateProfilePurgeTargets(targets); err != nil {
-		return fmt.Errorf("cannot check device credential cleanup: %w", err)
-	}
-	return nil
+	return validateUninstallSecureStorageBeforeGuidedTeardown(paths, cloudTargets, targets)
 }

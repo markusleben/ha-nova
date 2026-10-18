@@ -105,7 +105,7 @@ func TestValidatePurgeBeforeWindowsHandoffReportsHelperFailures(t *testing.T) {
 		t.Fatal(err)
 	}
 	err = validatePurgeBeforeWindowsHandoff(paths)
-	if err == nil || !strings.Contains(err.Error(), "current credential is missing") {
+	if err == nil || !strings.Contains(err.Error(), "credential is missing") {
 		t.Fatalf("err = %v", err)
 	}
 }
