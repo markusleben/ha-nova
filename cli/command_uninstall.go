@@ -123,6 +123,9 @@ func runUninstall(paths runtimePaths, args []string) int {
 	recoveryMode := false
 	recoveredTeardown := false
 	var recoveredRemovedRelays uninstallRelayRemovalEvidence
+	if purgeRefusedOutsideDesktop(paths, mode, *yes) {
+		return 1
+	}
 	if recovery := inspectWindowsUninstallStatus(paths); recovery.Kind != windowsUninstallStatusKindNone {
 		if exitCode := handleWindowsUninstallRecovery(recovery, mode); exitCode != 0 {
 			return exitCode
@@ -156,7 +159,7 @@ func runUninstall(paths runtimePaths, args []string) int {
 		mode = selectedMode
 	}
 
-	if purgeRefusedOutsideDesktop(paths, mode, *yes) {
+	if !*purge && purgeRefusedOutsideDesktop(paths, mode, *yes) {
 		return 1
 	}
 
@@ -198,13 +201,13 @@ func runUninstall(paths runtimePaths, args []string) int {
 			teardownDone = recoveredTeardown
 			removedRelays = recoveredRemovedRelays
 		}
+		if !purgeReadyForWindowsHandoff(paths, mode, teardown, *yes) {
+			return 1
+		}
 		if teardownDone {
 			printTeardownCompletedNotes(os.Stdout, mode)
 		} else {
 			printUninstallPreflightNotes(os.Stdout, preflight)
-		}
-		if !purgeReadyForWindowsHandoff(paths, mode, teardown) {
-			return 1
 		}
 		if err := launchWindowsUninstall(
 			paths,

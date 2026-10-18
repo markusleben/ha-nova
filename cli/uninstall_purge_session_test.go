@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"strings"
+	"syscall"
 	"testing"
 )
 
@@ -40,7 +41,7 @@ func TestPurgeOverSSHRefusesBeforeChangingAnything(t *testing.T) {
 	}
 	for _, want := range []string{
 		"can't reach secure storage from this terminal",
-		"Nothing changed.",
+		"This run changed nothing.",
 		"Next step: sign in to the desktop of the computer HA NOVA is installed on",
 		"then run: ha-nova uninstall --yes --purge",
 		"Details: access native secure storage: SECRET_STORE_UNAVAILABLE",
@@ -106,5 +107,53 @@ func TestValidatePurgeBeforeWindowsHandoffReportsHelperFailures(t *testing.T) {
 	err = validatePurgeBeforeWindowsHandoff(paths)
 	if err == nil || !strings.Contains(err.Error(), "current credential is missing") {
 		t.Fatalf("err = %v", err)
+	}
+}
+
+// A device credential kept in a file proves nothing about the native store:
+// the purge's relay token step still reads Credential Manager, which fails
+// over SSH with ERROR_NO_SUCH_LOGON_SESSION (security review of N1).
+func TestPurgeOverSSHRefusesWhenOnlyTheTokenStoreIsUnreachable(t *testing.T) {
+	withDeviceStorageTestHome(t)
+	paths, err := detectPaths()
+	if err != nil {
+		t.Fatal(err)
+	}
+	deviceCredentialFileModeForced = true
+	onSecureStoragePlatform(t, "windows")
+	installSafeNativePromptContext(t)
+	t.Setenv("SSH_CONNECTION", "10.0.0.2 50000 10.0.0.3 22")
+	failSecureStorageReads(t, newCloudError(CloudErrSecretStore, "device slots must not reach the keyring", nil))
+	original := purgeRelayTokenRead
+	t.Cleanup(func() { purgeRelayTokenRead = original })
+	purgeRelayTokenRead = func() (string, error) {
+		return "", relayAuthTokenReadError("ha-nova.relay-auth-token", syscall.Errno(1312))
+	}
+	err = purgeSecureStorageSessionError(paths)
+	if err == nil || !strings.Contains(err.Error(), "relay auth token") {
+		t.Fatalf("err = %v, want the token store refusal", err)
+	}
+}
+
+// rc2 lane N2: after a purge and a reinstall, pair and update ask for setup
+// without claiming HA NOVA is uninstalled.
+func TestUnsetUpInstallAsksForSetupNotUninstalled(t *testing.T) {
+	withDeviceStorageTestHome(t)
+	paths, err := detectPaths()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := markInstallLifecycleStopped(paths); err != nil {
+		t.Fatal(err)
+	}
+	for name, run := range map[string]func() int{
+		"pair":   func() int { return runPairCommand(paths, nil) },
+		"update": func() int { return runUpdate(paths, nil) },
+	} {
+		exitCode, output := captureCommandOutput(t, run)
+		if exitCode != 1 || !strings.Contains(output, "HA NOVA is not set up on this computer yet; run: ha-nova setup") ||
+			strings.Contains(output, "uninstalled") {
+			t.Fatalf("%s: exit %d\n%s", name, exitCode, output)
+		}
 	}
 }

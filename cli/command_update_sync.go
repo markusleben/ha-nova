@@ -37,7 +37,7 @@ func postUpdateSyncWithResult(paths runtimePaths) postUpdateSyncResult {
 		return postUpdateSyncResult{Err: fmt.Errorf("cannot inspect install lifecycle: %w", err)}
 	}
 	if installLifecycleStopped(paths) {
-		return postUpdateSyncResult{Err: fmt.Errorf("HA NOVA was uninstalled; run `ha-nova setup` before syncing clients")}
+		return postUpdateSyncResult{Err: fmt.Errorf("HA NOVA is not set up on this computer yet; run: ha-nova setup")}
 	}
 	return postUpdateSyncWithResultForLifecycle(paths, lifecycleMarker)
 }
