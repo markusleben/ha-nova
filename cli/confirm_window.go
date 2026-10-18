@@ -50,7 +50,7 @@ var (
 // ha-nova mcp itself and answer its own form, but can't click an OS window
 // or tap a phone.
 func detectChannel(s *relaySession) string {
-	if !windowOff(s.paths) && windowAvailable() {
+	if chatCall == nil && !windowOff(s.paths) && windowAvailable() { // ha-nova serve runs on a server: never a window
 		return channelWindow
 	}
 	return detectAfterWindow(s)
@@ -174,7 +174,7 @@ func windowFallback(paths runtimePaths, s *relaySession, plan storedPlan, noSnap
 	channel := detectAfterWindow(s) // the phone, else a form, else chat
 	switch channel {
 	case channelPhoneMissing:
-		return windowStopped(s, "refused", "CONFIRM_UNAVAILABLE", "the confirmation window couldn't open, and HA NOVA can't reach the linked phone either", phoneMissingNext)
+		return windowStopped(s, "refused", "CONFIRM_UNAVAILABLE", "the confirmation window couldn't open, and HA NOVA can't reach the linked phone either", phoneMissingStep())
 	case channelPhoneUnlinked:
 		return windowStopped(s, "refused", "CONFIRM_UNAVAILABLE", "the confirmation window couldn't open, and "+phoneUnlinkedWhy, phoneUnlinkedNext)
 	}
@@ -235,4 +235,38 @@ func windowStopped(s *relaySession, status, code, message, next string) (verbEnv
 	env := verbEnvelope{SchemaVersion: 1, Verb: "apply", Server: s.server}
 	exit := setVerbError(&env, &verbFailure{exit: verbExitRefused, status: status, code: code, message: message + "; nothing was sent", next: next})
 	return env, exit, true
+}
+
+// humanPlan reads a typed plan of channel and re-plans it like apply, for
+// a window or phone ask (goal: the phone's verb and object). ok=false:
+// apply runs and reports whatever is wrong (drift, expiry, a refusal); s is
+// open only when ok.
+func humanPlan(paths runtimePaths, opts verbOptions, id string, noSnapshot bool, channel string) (plan, fresh storedPlan, s *relaySession, idHex string, wait time.Duration, goal [3]string, ok bool) {
+	if humanAnswer != "" || !planIDPattern.MatchString(id) { // a form already answered
+		return
+	}
+	plan, err := readPlanFile(filepath.Join(planDir(paths), id+".json"))
+	expires, timeErr := time.Parse(time.RFC3339, plan.ExpiresAt)
+	if err != nil || timeErr != nil || plan.ID != id || plan.Tier != tierTyped.String() || plan.Channel != channel ||
+		plan.SchemaVersion != planSchemaVersion || !verbNow().Before(expires) || expires.After(verbNow().Add(planTTL+time.Minute)) ||
+		opts.serverSet && opts.server != plan.Server ||
+		noSnapshot && !plan.SnapshotFailed {
+		return
+	}
+	opts.server, opts.serverSet = plan.Server, true
+	if s, err = newRelaySession(paths, opts); err != nil {
+		return plan, fresh, nil, "", 0, goal, false
+	}
+	if !planSealed(plan, s.transport.Credential) { // an edited plan file: no ask, and apply refuses it
+		s.close()
+		return plan, fresh, nil, "", 0, goal, false
+	}
+	env := verbEnvelope{}
+	fresh, ok = replanStored(paths, s, &env, plan, channel)
+	idHex = planIdentity(strings.TrimPrefix(plan.Hash, "sha256:"), plan.Nonce)
+	if !ok || fresh.Hash != plan.Hash || fresh.Tier != plan.Tier || plan.ID != "p_"+idHex[:12] || fresh.Prompt == "" {
+		s.close()
+		return plan, fresh, nil, "", 0, goal, false
+	}
+	return plan, fresh, s, idHex, min(windowWait, expires.Sub(verbNow())), env.ask, true
 }

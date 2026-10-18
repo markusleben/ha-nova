@@ -149,11 +149,8 @@ func sealPlan(e *tierEngine, env *verbEnvelope, plan storedPlan, action any) (st
 		if plan.Channel == "" {
 			plan.Channel = detectChannel(e.s)
 		}
-		switch plan.Channel {
-		case channelPhoneMissing:
-			return storedPlan{}, refusedWith("CONFIRM_UNAVAILABLE", phoneMissingWhy, phoneMissingNext)
-		case channelPhoneUnlinked:
-			return storedPlan{}, refusedWith("CONFIRM_UNAVAILABLE", phoneUnlinkedWhy, phoneUnlinkedNext)
+		if refusal := channelRefusal(plan.Channel); refusal != nil {
+			return storedPlan{}, refusal
 		}
 		if !humanChannel(plan.Channel) { // a window or phone plan's code never leaves this process
 			plan.code = confirmCode(e.s.transport.Credential, idHex, plan.Channel, plan.ExpiresAt)

@@ -49,7 +49,7 @@ func phonePlanAsk(goal [3]string, noSnapshot bool) phoneAsk {
 	if goal[2] != "" {
 		why := goal[2]
 		if len([]rune(why)) > phoneWhyLimit {
-			why = phoneCut(why, phoneWhyLimit-25) + " (more on the computer)"
+			why = phoneCut(why, phoneWhyLimit-25) + map[bool]string{true: " (more in the chat)", false: " (more on the computer)"}[chatCall != nil]
 		}
 		body = why + ". " + body
 	}
@@ -69,7 +69,12 @@ func phoneButton(verb string) string {
 	return verb
 }
 
-func phoneRequested() string { return "Requested by “" + phoneHost() + "”. " + phoneHint }
+func phoneRequested() string {
+	if chatCall != nil { // ha-nova serve: the host is the NOVA App, not the user's computer
+		return "Requested in your AI chat app. " + phoneHint
+	}
+	return "Requested by “" + phoneHost() + "”. " + phoneHint
+}
 
 // phoneTitle: verb + object + "?" in one line. Too long with several
 // names, it keeps the first and counts every other one ("Unlock “A” and 6
@@ -238,3 +243,24 @@ func phoneApplyResult(env verbEnvelope, exit int) (string, string) {
 func phoneResultTitle(prefix string, goal [3]string) string {
 	return strings.TrimSuffix(phoneTitle(prefix+": "+goal[0], goal[1]), "?")
 }
+
+// phoneStillLinked re-reads the link after a tap: unlinked, replaced, or its
+// user demoted while the notification was open, the tap no longer counts.
+func phoneStillLinked(s *relaySession, setup phoneSetup) (linked, unread bool) {
+	again, status := discoverConfirmer(s)
+	if status == phoneMissing && again.why == whyRead { // unknown, never "changed"
+		return false, true
+	}
+	return status == phoneReady && again.confirmer == setup.confirmer && len(setup.targets) == 1 &&
+		again.targets[0].DeviceID == setup.targets[0].DeviceID, false
+}
+
+const (
+	phoneMissingWhy  = "this change is confirmed on the phone linked to HA NOVA, and HA NOVA can't reach it now"
+	phoneMissingNext = "Tell the user nothing changed: HA NOVA could not reach their linked phone. `ha-nova setup confirm-phone list` (it sends nothing; in a terminal if you have no shell) says why and what to do. They can also make this change in Home Assistant itself, or try again later. Never ask them for a code."
+	phoneRejectedWhy = "the tap came from a device signed in to Home Assistant as someone other than the person whose phone is linked"
+	// #719's pin: no phone chosen yet. The agent may run the listing itself;
+	// only a tap on the chosen phone links it.
+	phoneUnlinkedWhy  = "HA NOVA now confirms on one phone the user chooses, and none is chosen on this computer yet"
+	phoneUnlinkedNext = "Tell the user nothing changed: HA NOVA now asks on one phone they choose. With a shell: run ha-nova setup confirm-phone list (it sends nothing), ask which phone is theirs, tell them to watch it for “Link this phone to HA NOVA?” and tap “Link”, then run ha-nova setup confirm-phone \"<that phone's name>\" (it waits up to 90 seconds) and plan again. Without a shell, they run ha-nova setup confirm-phone in a terminal. Never ask them for a code."
+)

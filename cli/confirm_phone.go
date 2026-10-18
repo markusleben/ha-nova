@@ -6,10 +6,9 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
-	"path/filepath"
 	"sort"
-	"strings"
 	"sync"
 	"time"
 )
@@ -112,7 +111,7 @@ func phoneNonce(kind string) (string, error) {
 // the one being linked) and waits for a decisive answer. The caller closes
 // it with reply.say (the result replaces it); every caller defers one. The
 // ids are never printed, logged, or stored.
-func askPhone(s *relaySession, setup phoneSetup, tag string, ask phoneAsk, wait time.Duration) (answer phoneAnswer, reply phoneReply) {
+func askPhone(s *relaySession, setup phoneSetup, tag string, ask phoneAsk, wait time.Duration, notice io.Writer) (answer phoneAnswer, reply phoneReply) {
 	ok, errOK := phoneNonce("OK")
 	no, errNo := phoneNonce("NO")
 	attempt, errTag := phoneNonce("T")
@@ -191,7 +190,9 @@ func askPhone(s *relaySession, setup phoneSetup, tag string, ask phoneAsk, wait 
 	if len(sent) == 0 {
 		return phoneFailed, reply
 	}
-	fmt.Fprintf(os.Stderr, phoneSentText+"\n", terminalSafeName(setup.targets[0].Name), ask.button)
+	if notice != nil {
+		fmt.Fprintf(notice, phoneSentText+"\n", terminalSafeName(setup.targets[0].Name), ask.button)
+	}
 	seen := map[string]bool{}
 	for {
 		select {
@@ -290,43 +291,96 @@ func collectPhoneEvents(ctx context.Context, s *relaySession, span time.Duration
 // confirmByPhone runs before apply for a phone plan, like confirmByWindow:
 // on Confirm it hands apply the plan's code in process (humanAnswer). A
 // phone plan never falls back to another channel.
-func confirmByPhone(paths runtimePaths, opts verbOptions, id string, noSnapshot bool) (env verbEnvelope, exit int, asked bool) {
+func confirmByPhone(paths runtimePaths, opts verbOptions, id string, noSnapshot bool) (verbEnvelope, int, bool) {
+	if chatCall != nil { // ha-nova serve asks only in its background job (chatApply); apply then refuses the plan
+		return verbEnvelope{}, 0, false
+	}
+	a, env, exit, asked := startPhoneAsk(paths, opts, id, noSnapshot)
+	if a == nil {
+		return env, exit, asked
+	}
+	a.wait(os.Stderr)
+	return a.finish()
+}
+
+// phoneAsking is a phone plan between its checks and the answer: ha-nova
+// serve waits for it outside the verb lock (mcp_serve_phone.go).
+type phoneAsking struct {
+	id       string
+	plan     storedPlan
+	s        *relaySession
+	idHex    string
+	goal     [3]string
+	setup    phoneSetup
+	ask      phoneAsk
+	deadline time.Time
+	answer   phoneAnswer
+	reply    phoneReply
+}
+
+// startPhoneAsk checks a phone plan before its ask. nil: nothing to ask
+// (asked=false: apply runs and reports; asked=true: env says why not).
+func startPhoneAsk(paths runtimePaths, opts verbOptions, id string, noSnapshot bool) (*phoneAsking, verbEnvelope, int, bool) {
 	plan, _, s, idHex, wait, goal, ok := humanPlan(paths, opts, id, noSnapshot, channelPhone)
 	if !ok {
-		return env, 0, false
+		return nil, verbEnvelope{}, 0, false
 	}
-	var answer phoneAnswer
-	var reply phoneReply
-	handed := false
-	defer func() { // the phone hears how it ended once apply has printed (phoneApplied)
-		if !handed {
-			prefix, line := phoneNothing(answer)
-			phoneApplied = func(verbEnvelope, int) { reply.say(phoneResultTitle(prefix, goal), line); s.close() }
-		}
-	}()
+	stop := func(code, message, next string) (*phoneAsking, verbEnvelope, int, bool) {
+		phoneApplied = func(verbEnvelope, int) { s.close() } // apply closes the session after its output
+		env, exit, asked := windowStopped(s, "refused", code, message, next)
+		return nil, env, exit, asked
+	}
 	deadline := time.Now().Add(wait) // discovery counts against the wait
 	if wait < windowMinWait {
-		return windowStopped(s, "refused", "PLAN_EXPIRED", "plan "+id+" expires before the phone could get an answer", replan)
+		return stop("PLAN_EXPIRED", "plan "+id+" expires before the phone could get an answer", replan)
 	}
-	setup, status := phoneDiscover(s)
+	setup, status := discoverConfirmer(s)
 	if status != phoneReady {
-		return windowStopped(s, "refused", "CONFIRM_UNAVAILABLE", phoneMissingWhy, phoneMissingNext)
+		return stop("CONFIRM_UNAVAILABLE", phoneMissingWhy, phoneMissingStep())
 	}
-	ask := phonePlanAsk(goal, noSnapshot)
-	answer, reply = askPhone(s, setup, "ha-nova-"+plan.ID, ask, time.Until(deadline))
-	switch answer {
+	return &phoneAsking{id: id, plan: plan, s: s, idHex: idHex, goal: goal, setup: setup, ask: phonePlanAsk(goal, noSnapshot), deadline: deadline}, verbEnvelope{}, 0, false
+}
+
+// wait sends the notification and waits for the answer; notice hears the
+// "sent to" line (nil: nobody).
+func (a *phoneAsking) wait(notice io.Writer) {
+	a.answer, a.reply = askPhone(a.s, a.setup, "ha-nova-"+a.plan.ID, a.ask, time.Until(a.deadline), notice)
+}
+
+// refuse: the tap came, but the bridge's policy changed meanwhile; the
+// phone hears that nothing changed.
+func (a *phoneAsking) refuse(code, message, next string) (verbEnvelope, int, bool) {
+	s, reply := a.s, a.reply
+	prefix, line := phoneNothing(phoneRejected)
+	phoneApplied = func(verbEnvelope, int) { reply.say(phoneResultTitle(prefix, a.goal), line); s.close() }
+	return windowStopped(s, "refused", code, message, next)
+}
+
+// finish turns the answer into apply's input: on Confirm the code in
+// process, else why nothing was sent. The phone hears how it ended once
+// apply has printed (phoneApplied).
+func (a *phoneAsking) finish() (env verbEnvelope, exit int, asked bool) {
+	s, id, reply := a.s, a.id, a.reply
+	handed := false
+	defer func() {
+		if !handed {
+			prefix, line := phoneNothing(a.answer)
+			phoneApplied = func(verbEnvelope, int) { reply.say(phoneResultTitle(prefix, a.goal), line); s.close() }
+		}
+	}()
+	switch a.answer {
 	case phoneConfirmed:
-		switch still, unread := phoneStillLinked(s, setup); {
+		switch still, unread := phoneStillLinked(s, a.setup); {
 		case unread:
 			return windowStopped(s, "refused", "CONFIRM_UNAVAILABLE", "HA NOVA couldn't re-check the linked phone in Home Assistant after the tap",
 				fmt.Sprintf("Tell the user nothing changed: their tap arrived, but HA NOVA couldn't re-check the linked phone in Home Assistant, so nothing ran. Run ha-nova apply --plan %s again (a new notification goes to their phone) only after they say they still want it; never ask them for a code.", id))
 		case !still:
-			return windowStopped(s, "refused", "CONFIRM_UNAVAILABLE", "the phone that confirmed is no longer the linked phone, or its user is no longer an administrator", phoneMissingNext)
+			return windowStopped(s, "refused", "CONFIRM_UNAVAILABLE", "the phone that confirmed is no longer the linked phone, or its user is no longer an administrator", phoneMissingStep())
 		}
-		humanAnswer = confirmCode(s.transport.Credential, idHex, channelPhone, plan.ExpiresAt)
+		humanAnswer = confirmCode(s.transport.Credential, a.idHex, channelPhone, a.plan.ExpiresAt)
 		handed, phoneApplied = true, func(env verbEnvelope, exit int) {
 			prefix, line := phoneApplyResult(env, exit)
-			reply.say(phoneResultTitle(prefix, goal), line)
+			reply.say(phoneResultTitle(prefix, a.goal), line)
 			s.close()
 		}
 		return env, 0, false
@@ -337,63 +391,8 @@ func confirmByPhone(paths runtimePaths, opts verbOptions, id string, noSnapshot 
 		return windowStopped(s, "refused", "CONFIRM_REJECTED", phoneRejectedWhy,
 			"Tell the user nothing changed: "+phoneRejectedWhy+". Apply again only if they ask; never ask them for a code.")
 	case phoneFailed:
-		return windowStopped(s, "refused", "CONFIRM_UNAVAILABLE", "the confirmation could not be sent to the phone", phoneMissingNext)
+		return windowStopped(s, "refused", "CONFIRM_UNAVAILABLE", "the confirmation could not be sent to the phone", phoneMissingStep())
 	}
 	return windowStopped(s, "cancelled", "CONFIRM_CANCELLED", "the phone confirmation got no answer in time",
-		fmt.Sprintf("Tell the user nothing changed: “%s” was not tapped in time (next time, expand the notification; a plain tap only opens the app; if they tapped on an Apple Watch, they open the Home Assistant app on the watch once). Run ha-nova apply --plan %s again (a new notification goes to their phone) only after they say they still want it; never ask them for a code. If no notification arrived, they can make this change in Home Assistant itself.", ask.button, id))
-}
-
-// phoneStillLinked re-reads the link after a tap: unlinked, replaced, or its
-// user demoted while the notification was open, the tap no longer counts.
-func phoneStillLinked(s *relaySession, setup phoneSetup) (linked, unread bool) {
-	again, status := phoneDiscover(s)
-	if status == phoneMissing && again.why == whyRead { // unknown, never "changed"
-		return false, true
-	}
-	return status == phoneReady && again.confirmer == setup.confirmer && len(setup.targets) == 1 &&
-		again.targets[0].DeviceID == setup.targets[0].DeviceID, false
-}
-
-const (
-	phoneMissingWhy  = "this change is confirmed on the phone linked to HA NOVA, and HA NOVA can't reach it now"
-	phoneMissingNext = "Tell the user nothing changed: HA NOVA could not reach their linked phone. `ha-nova setup confirm-phone list` (it sends nothing; in a terminal if you have no shell) says why and what to do. They can also make this change in Home Assistant itself, or try again later. Never ask them for a code."
-	phoneRejectedWhy = "the tap came from a device signed in to Home Assistant as someone other than the person whose phone is linked"
-	// #719's pin: no phone chosen yet. The agent may run the listing itself;
-	// only a tap on the chosen phone links it.
-	phoneUnlinkedWhy  = "HA NOVA now confirms on one phone the user chooses, and none is chosen on this computer yet"
-	phoneUnlinkedNext = "Tell the user nothing changed: HA NOVA now asks on one phone they choose. With a shell: run ha-nova setup confirm-phone list (it sends nothing), ask which phone is theirs, tell them to watch it for “Link this phone to HA NOVA?” and tap “Link”, then run ha-nova setup confirm-phone \"<that phone's name>\" (it waits up to 90 seconds) and plan again. Without a shell, they run ha-nova setup confirm-phone in a terminal. Never ask them for a code."
-)
-
-// humanPlan reads a typed plan of channel and re-plans it like apply, for
-// a window or phone ask (goal: the phone's verb and object). ok=false:
-// apply runs and reports whatever is wrong (drift, expiry, a refusal); s is
-// open only when ok.
-func humanPlan(paths runtimePaths, opts verbOptions, id string, noSnapshot bool, channel string) (plan, fresh storedPlan, s *relaySession, idHex string, wait time.Duration, goal [3]string, ok bool) {
-	if humanAnswer != "" || !planIDPattern.MatchString(id) { // a form already answered
-		return
-	}
-	plan, err := readPlanFile(filepath.Join(planDir(paths), id+".json"))
-	expires, timeErr := time.Parse(time.RFC3339, plan.ExpiresAt)
-	if err != nil || timeErr != nil || plan.ID != id || plan.Tier != tierTyped.String() || plan.Channel != channel ||
-		plan.SchemaVersion != planSchemaVersion || !verbNow().Before(expires) || expires.After(verbNow().Add(planTTL+time.Minute)) ||
-		opts.serverSet && opts.server != plan.Server ||
-		noSnapshot && !plan.SnapshotFailed {
-		return
-	}
-	opts.server, opts.serverSet = plan.Server, true
-	if s, err = newRelaySession(paths, opts); err != nil {
-		return plan, fresh, nil, "", 0, goal, false
-	}
-	if !planSealed(plan, s.transport.Credential) { // an edited plan file: no ask, and apply refuses it
-		s.close()
-		return plan, fresh, nil, "", 0, goal, false
-	}
-	env := verbEnvelope{}
-	fresh, ok = replanStored(paths, s, &env, plan, channel)
-	idHex = planIdentity(strings.TrimPrefix(plan.Hash, "sha256:"), plan.Nonce)
-	if !ok || fresh.Hash != plan.Hash || fresh.Tier != plan.Tier || plan.ID != "p_"+idHex[:12] || fresh.Prompt == "" {
-		s.close()
-		return plan, fresh, nil, "", 0, goal, false
-	}
-	return plan, fresh, s, idHex, min(windowWait, expires.Sub(verbNow())), env.ask, true
+		fmt.Sprintf("Tell the user nothing changed: “%s” was not tapped in time (next time, expand the notification; a plain tap only opens the app; if they tapped on an Apple Watch, they open the Home Assistant app on the watch once). Run ha-nova apply --plan %s again (a new notification goes to their phone) only after they say they still want it; never ask them for a code. If no notification arrived, they can make this change in Home Assistant itself.", a.ask.button, id))
 }

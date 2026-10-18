@@ -106,6 +106,8 @@ func dispatch(paths runtimePaths, argv0 string, args []string) int {
 		return runApplyCommand(paths, args[1:])
 	case "mcp":
 		return runMCPCommand(paths, args[1:])
+	case "serve":
+		return runServeCommand(paths, args[1:])
 	case "trace":
 		return runTraceCommand(paths, args[1:])
 	case "snapshot":

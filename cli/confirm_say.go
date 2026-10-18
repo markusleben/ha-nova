@@ -32,7 +32,7 @@ func confirmationSay(e *tierEngine, env *verbEnvelope, plan storedPlan, subject 
 	case plan.Confirm == "code":
 		parts = append(parts, sayTypedAsk(plan.code, lowerFirst(sayGoalText(e, env, plan, subject))))
 		if plan.Channel == channelChat {
-			parts = append(parts, sayChatNote)
+			parts = append(parts, chatNote())
 		}
 	case plan.ConfigAction != nil: // the write card's save question
 		parts = append(parts, "Save it? I can also show the details.")
