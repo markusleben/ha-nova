@@ -29,7 +29,7 @@ Requires the `mqtt` integration: check `GET /api/components` for `mqtt`. If it i
 ## Relay Contract
 
 - `ha-nova relay ws --data-file <payload-file>` for WS commands
-- `ha-nova call mqtt.publish --skill ha-nova:mqtt --data-file <payload-file>` to publish — always the typed tier: show its preview, then follow the result's `next_step` (`ha-nova apply`; `--confirm` only with a code the user typed in chat) (exit codes: `../service-call/SKILL.md` → Flow)
+- `ha-nova call mqtt.publish --skill ha-nova:mqtt --data-file <payload-file>` to publish — always the typed tier: show its preview, then follow the result's `next_step` (`ha-nova apply [--confirm <code typed in chat>] --plan <id>`) (exit codes: `../service-call/SKILL.md` → Flow)
 - `--out <result-file>` for large windows; `--jq-file <filter-file>` for filtering
 
 ## Listening (bounded window)

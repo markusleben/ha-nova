@@ -23,7 +23,7 @@ after the user confirms the preview (or types the one-time code).
 Exit: 0 verified/accepted, 3 needs confirmation, 4 refused, 5 ambiguous or
 not found, 6 unverified/failed, 7 outcome unknown (verify; never retry).`
 
-const applyUsage = "ha-nova apply --plan <id> [--confirm <code>]"
+const applyUsage = "ha-nova apply [--confirm <code>] --plan <id>"
 
 const applyHelp = applyUsage + `
 
@@ -136,7 +136,7 @@ var refusalNext = map[string]string{
 	"SERVER_MISMATCH":         "Apply it with the plan's own server (--server), or plan again for this one.",
 	"UNRESOLVED_TARGET":       "Name the entities explicitly, or check the area or device, then plan again.",
 	"NO_SNAPSHOT_NOT_OFFERED": "Apply without --no-snapshot: the config snapshot is taken first.",
-	"CODE_REQUIRED":           "Ask the user to type only the four digits of the one-time code from HA NOVA shown with the plan, then pass exactly what they typed with --confirm.",
+	"CODE_REQUIRED":           "Ask the user to type only the four digits of the one-time code from HA NOVA shown with the plan, then pass exactly what they typed with --confirm, written before --plan.",
 	"CODE_MISMATCH":           "Ask the user to type only the four digits of the one-time code from HA NOVA again, as shown with the plan.",
 	"CONFIRM_IN_FORM":         "Apply it in the app where it was planned (its confirmation form asks the user), or plan it again here and show the new preview.",
 	"NO_UNDO_SNAPSHOT":        "Only the last verified update of an automation, script, or dashboard can be reverted; there is nothing to revert.",

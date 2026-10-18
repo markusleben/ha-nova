@@ -25,6 +25,9 @@ type installState struct {
 	ClientInstallModes     map[string]string `json:"client_install_modes"`
 	PathManaged            bool              `json:"path_managed"`
 	PathTarget             string            `json:"path_target"`
+	// ClaudeApplyRuleFile is the Claude Code settings file setup added
+	// claudeApplyRule to, with the user's consent; uninstall removes it there.
+	ClaudeApplyRuleFile string `json:"claude_apply_rule_file,omitempty"`
 }
 
 func loadState(paths runtimePaths) (installState, error) {

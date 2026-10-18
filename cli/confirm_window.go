@@ -206,7 +206,7 @@ func windowFallback(paths runtimePaths, s *relaySession, plan storedPlan, noSnap
 		}
 		return env, env.exit, true
 	}
-	env.NextStep = fmt.Sprintf("The window couldn't open, so this is a new plan with a one-time code: show `say`; only after a reply that is only that code, run ha-nova apply --plan %s --confirm <the user's text>%s.", env.Plan.ID, flag)
+	env.NextStep = fmt.Sprintf("The window couldn't open, so this is a new plan with a one-time code: show `say`; only after a reply that is only that code, run ha-nova apply --confirm <the user's text> --plan %s%s.", env.Plan.ID, flag)
 	return env, env.exit, true
 }
 

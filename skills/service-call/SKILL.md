@@ -19,7 +19,7 @@ Read and follow `../ha-nova/session-bootstrap.md`. No health probe; exit 1 `RELA
 
 Entity service calls run only through the typed verbs:
 - `ha-nova call <domain.service> [<entity_id>…] [--match "<phrase>"] [--area <area_id>] [--device <device_id>] [--set k=v]… [--data-file <file>] [--response] [--skill <owner>]`
-- `ha-nova apply --plan <id> [--confirm <code>]`
+- `ha-nova apply [--confirm <code>] --plan <id>`
 - `ha-nova plan call …`: read-only "what would happen" answer, never executes.
 - Look up: `ha-nova find ["<phrase>"] [--domain <d>] [--area <area_id>] [--state <s>]`.
 
@@ -41,7 +41,7 @@ Read-only response services stay here (`raw-routes.md` → Response services), a
 |---|---|---|
 | 0 | `tier: ordinary` — sent once and checked | Report the result (Output Format). |
 | 3 | `plan.confirm: natural` | Show the preview; after the user confirms it, run `ha-nova apply --plan <id>` — apply IS the confirmation step. |
-| 3 | `plan.confirm: code` | Show the preview and `plan.code`; only after a reply that is only that code, run `ha-nova apply --plan <id> --confirm <the user's text>`. No `plan.code` (a form, window, or phone asks): follow `next_step`. |
+| 3 | `plan.confirm: code` | Show the preview and `plan.code`; only after a reply that is only that code, run `ha-nova apply --confirm <the user's text> --plan <id>`. No `plan.code` (a form, window, or phone asks): follow `next_step`. |
 | 2 | drift since the preview, nothing sent | Show the new preview (typed: new code) and ask again; a relative ask re-derives its value and runs a fresh `call`. |
 | 4 | refused | `reasons[]` (an owner skill wins over `hassio`): owner skill; `TARGET_REQUIRED` → resolve targets first; `SERVICE_NOT_FOUND` → offer `error.next`'s candidates; `SERVICE_LIST_UNREAD` → plan again; `CODE_REQUIRED` → finish the action in the Home Assistant UI; missing feature → the device cannot do it; `hassio` or response-only → `raw-routes.md`. `error` from `apply`: `CODE_REQUIRED`/`CODE_MISMATCH` → ask for the code again; any other → follow `error.next`, never a re-`call`; `PLAN_NOT_FOUND`/`PLAN_CLAIMED`: outcome unknown, never re-plan. |
 | 5 | ambiguous or not found | One question listing `error.candidates` by friendly name and area (entity_id on a clash; max 10, narrow first beyond) with each match basis; re-run with the chosen id. No candidates: report `error.message`, follow `error.next`. |

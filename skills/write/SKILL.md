@@ -26,7 +26,7 @@ prefix `HA_NOVA_SERVER=<name>`); name a non-default server once per response.
 Typed verbs only — this skill sends no raw `ha-nova relay` config write:
 - Read: `ha-nova find "<phrase>" --domain automation|script`; `ha-nova get <entity_id> --config` (current config + `config_id` from the registry `unique_id`, never the slug); `ha-nova get <entity_id> --related` (who uses an entity).
 - Plan (read-only): `ha-nova plan write --domain automation|script [--id <config_id> | --create] --file <draft.json>`, `ha-nova plan delete <entity_id>`, `ha-nova plan revert [--target <config_id>] [--domain <d>]`.
-- Execute: `ha-nova apply --plan <id> [--confirm <code>] [--no-snapshot]`.
+- Execute: `ha-nova apply [--confirm <code>] --plan <id> [--no-snapshot]`.
 - Duration halves: `ha-nova get` (restore value, read-back), `ha-nova plan call` + `apply` (`../service-call/SKILL.md` exit-code rules).
 
 The draft is the full config as one JSON object in a client-private scratch
@@ -79,9 +79,9 @@ Every draft follows `../ha-nova/smallest-solution.md`: the complete explicit out
 
 ### Phase 3: Apply + Verify
 
-1. `ha-nova apply --plan <id>` (`--confirm <the user's exact text>` when typed; no `plan.code`: per `next_step`). Apply re-plans first: exit 2 means the live config changed since the preview — nothing written; show the new diff and ask again. Never retry after exit 6 or 7.
+1. `ha-nova apply --plan <id>` (typed: `ha-nova apply --confirm <the user's exact text> --plan <id>`; no `plan.code`: per `next_step`). Apply re-plans first: exit 2 means the live config changed since the preview — nothing written; show the new diff and ask again. Never retry after exit 6 or 7.
 2. `verified` = the read-back equals the planned body (content and `variables`/`fields` order), the reload succeeded, the registry entity is live; `unverified` says why in `verification[].note` or `.observed` (a failed reload: saved, but whether it runs is unknown — say so and offer a reload through `ha-nova:service-call`); exit 7 is unknown — read `ha-nova get <entity_id> --config` before saying anything; `before_config` in the result is the way back. A notice of kind `undo` means the update is not revertible: say so. Do not report destructive success until verification proves the target is gone.
-3. Deletes: the CLI saves the pre-delete config snapshot (`snapshot` in the result). `SNAPSHOT_FAILED` deleted nothing: offer pruning the snapshot store, a full safety backup (`ha-nova:backup`), or proceeding without one; only after the user picks the last, `apply --plan <id> --confirm <code> --no-snapshot`.
+3. Deletes: the CLI saves the pre-delete config snapshot (`snapshot` in the result). `SNAPSHOT_FAILED` deleted nothing: offer pruning the snapshot store, a full safety backup (`ha-nova:backup`), or proceeding without one; only after the user picks the last, `apply --confirm <code> --plan <id> --no-snapshot`.
 4. **Duration requests carry an immediate action too** — "sprinkler for 30 minutes" is the expiry automation PLUS the turn-on under one preview (`../ha-nova/automation-patterns.md`): plan both first (`plan write`, `plan call`) for the one preview. Apply and verify the automation, re-check deadline margin and restore value — if stale, disable the armed expiry immediately and remove it through the delete flow before re-previewing. The new automation watches the actuator, so the call plan drifts: re-plan it (`plan call`) and apply the new plan under the same confirmation only if action and tier are unchanged (typed: the user types its new code); otherwise it fails below. VERIFY the immediate action by reading the target back; on any failure — a non-zero exit (drift, expired plan, refusal, error) included — disable the automation at once (`ha-nova call automation.turn_off <entity_id>`) and clean it up through the delete flow before anything is re-previewed. Never hand the immediate half back to the user as a separate step.
 5. Report the result. No raw curl/JSON in output.
 

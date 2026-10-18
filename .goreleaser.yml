@@ -74,6 +74,7 @@ release:
     - **Update the NOVA Relay App too.** This release needs Relay 0.10.0: update it under Settings > Apps > NOVA Relay (Container/Core: pull the new image). Until then HA NOVA warns that the Relay is outdated.
     - **Confirm outside the chat.** Unlocks, gates, garages, alarm disarms, restarts, and automation, script, or dashboard deletes open a confirmation window or ask your linked phone. Other deletes take a four-digit code.
     - **Window and phone settings.** `ha-nova setup confirm-window off` turns the window off. `ha-nova setup confirm-phone` links one phone; once linked, an action it can't reach is refused instead of falling back to chat.
+    - **Claude Code auto mode.** Run `ha-nova setup` once and choose “Add rule” so Claude Code can open the confirmation window. You still confirm every unlock or delete yourself.
     - **Some low-level changes are refused.** Firing custom events or webhooks, Z-Wave/Zigbee/Alarmo settings, and custom HACS repositories: use the HA UI. For an event, HA NOVA offers to run the automation itself.
     - **Home Assistant Link.** Home Assistant Cloud is becoming Home Assistant Link, and HA NOVA says Link now. Commands stay `ha-nova cloud …`; until the rename reaches your HA, it is under Settings > Home Assistant Cloud.
     - **No re-pairing needed.** Paired computers keep their connection. Still on the old shared access? It works in this release and the next: re-pair once with `ha-nova pair`, then revoke it on the NOVA page.
