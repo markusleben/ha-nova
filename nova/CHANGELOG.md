@@ -4,19 +4,17 @@ All notable changes to this project are documented in this file.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
-
-Recent changes are tracked in [GitHub releases](https://github.com/markusleben/ha-nova/releases)
-and merged PRs. This changelog will be updated with the next tagged relay version.
-
 ## [Relay 0.10.0] - 2026-10-17
 
 ### Added
-- Home Assistant sign-in pairing: `POST /pair/v2/arm` (ingress, owner only, machine requests only) arms a one-time secret, valid for two minutes, that only that owner's `/pair/v2/start` accepts. `GET /pair/v1/info` reports `sign_in: true`, so the CLI offers sign-in only where the Relay serves it. The ingress `/pair/v2/*` routes are served with or without Cloud remote. (#701)
-- The NOVA page shows "A computer is connecting through Home Assistant sign-in…" with Cancel while such a pairing is armed; the secret is never displayed. (#701)
+- Connect a computer by signing in with Home Assistant: the HA NOVA setup on that computer opens your Home Assistant login, you sign in as the owner, and the computer is connected without typing a code. The six-digit code from the NOVA page keeps working as before. Requires the matching HA NOVA release on the computer; older versions keep using the code. (#701)
+- While a computer is connecting this way, the NOVA page shows "A computer is connecting through Home Assistant sign-in…" with a Cancel button. (#701)
 
 ### Changed
-- Copy says Home Assistant Link (formerly Home Assistant Cloud): the device confirm line on the NOVA page and `DOCS.md`. Routes, config keys, and the `cloud` domain keep their names. (#722)
+- Home Assistant Cloud is now called Home Assistant Link on the NOVA page and in the documentation, following Nabu Casa's rename. Nothing to change on your side. (#722)
+
+### Upgrade notes
+- Computers that are already connected stay connected; no re-pairing.
 
 ## [Relay 0.9.1] - 2026-10-15
 
