@@ -30,6 +30,7 @@ type fakeSignInHA struct {
 	noSuper     bool
 	silentWS    bool
 	onSession   func()
+	extra       func(data []byte) (string, bool) // more WebSocket commands
 	mu          sync.Mutex
 	revoked     bool
 	events      []string
@@ -144,8 +145,12 @@ func (ha *fakeSignInHA) websocket(w http.ResponseWriter, r *http.Request) {
 		}
 		_ = json.Unmarshal(data, &command)
 		ha.record(command.Type + " " + command.Endpoint)
-		result := ""
+		result, handled := "", false
+		if ha.extra != nil {
+			result, handled = ha.extra(data)
+		}
 		switch {
+		case handled:
 		case command.Type == "auth/current_user":
 			result = fmt.Sprintf(`{"id":"user-1","name":"Markus","is_owner":%t,"is_admin":true}`, ha.owner)
 		case command.Type == "supervisor/api" && ha.noSuper:

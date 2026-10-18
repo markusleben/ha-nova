@@ -215,6 +215,8 @@ func probePairingV1(relayBaseURL string) bool {
 // missing AND no service-token file is configured, so the legacy /pair token
 // (which needs one of those) cannot be stored on this box.
 func runSetupPairingFlow(reader *bufio.Reader, out io.Writer, paths runtimePaths, cfg *runtimeConfig, legacyTokenStoreUnavailable bool, lifecycleMarker ...[]byte) (string, error) {
+	installed := setupInstalledSignIn // taken once, used or not
+	setupInstalledSignIn = nil
 	guardPairingMutation := func() error {
 		return requireSettledDeviceCredentialRetirement(
 			paths,
@@ -288,6 +290,19 @@ func runSetupPairingFlow(reader *bufio.Reader, out io.Writer, paths runtimePaths
 	if secure {
 		if err := prepareSecurePairingClientInstallID(paths, cfg, lifecycleMarker...); err != nil {
 			return "", renderSetupSecureStorageFailure(out, "Could not prepare this device before pairing", err)
+		}
+	}
+
+	// "Sign in and install NOVA" already holds the owner's ingress session:
+	// pair with it instead of a second sign-in.
+	if secure && installed != nil {
+		paired, _, err := pairWithHASignInSession(out, paths, cfg, *installed, lifecycleMarker...)
+		if paired {
+			renderSetupSuccessLine(out, "This computer is connected")
+			return "", errSetupDevicePaired
+		}
+		if err != nil {
+			return "", err
 		}
 	}
 

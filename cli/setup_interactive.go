@@ -818,7 +818,8 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 			if !skipInstall {
 				relaySkipNote = ""
 				renderSetupStep(os.Stdout, steps.RelayInstall, steps.Total, "Install the NOVA App")
-				err := runRelayInstallSteps(reader, os.Stdout, cfg.HAURL)
+				note, err := runRelayInstallSteps(reader, os.Stdout, paths, cfg, pairAfterInstall)
+				relaySkipNote = note
 				if err == errSetupBack {
 					stage = setupStageHost
 					continue
@@ -831,6 +832,9 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 					printHumanErr("%s", err)
 					return 1
 				}
+			}
+			if !pairAfterInstall {
+				setupInstalledSignIn = nil // no pairing follows that could use it
 			}
 			if pairAfterInstall {
 				if deviceAlreadyPaired {
