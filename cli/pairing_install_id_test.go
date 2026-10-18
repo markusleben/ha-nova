@@ -237,9 +237,9 @@ func TestRepairRetiresPreviousDeviceOnlyOnSameRelay(t *testing.T) {
 			if err := writeDeviceCredential(old); err != nil {
 				t.Fatal(err)
 			}
-			readPreviousLocalDevice(cfg, SecretStoreForbidUI).retireOnSameRelay(tc.newID, tc.newPin)
+			readPreviousLocalDevice(cfg, SecretStoreForbidUI).retireOnSameRelay("https://ha-new:8792", tc.newID, tc.newPin)
 			if len(revoked) != tc.want ||
-				(tc.want == 1 && revoked[0] != "https://ha:8792|PIN|"+old) {
+				(tc.want == 1 && revoked[0] != "https://ha-new:8792|PIN|"+old) {
 				t.Fatalf("revoked = %q, want %d call(s)", revoked, tc.want)
 			}
 		})

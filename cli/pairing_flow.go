@@ -145,7 +145,7 @@ func runSecurePairingWithProvisioner(
 	if err := activateDeviceV1ForPairing(secureBase, prov.SpkiPin, prov.Credential); err != nil {
 		return "", fmt.Errorf("could not activate the new device: %w", err)
 	}
-	previous.retireOnSameRelay(prov.DeviceID, prov.SpkiPin)
+	previous.retireOnSameRelay(secureBase, prov.DeviceID, prov.SpkiPin)
 
 	// Save the live endpoint BEFORE promoting the credential (which deletes the
 	// pending slot), and keep the pending endpoint until after promotion. A crash
