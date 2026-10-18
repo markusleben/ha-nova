@@ -94,7 +94,7 @@ func TestWindowCannotBeSkipped(t *testing.T) {
 		t.Fatalf("an edited plan opened a window: %q", w.messages)
 	}
 	plan = h.plan("lock.unlock", "lock.front").Plan
-	w.before = func() { h.f.states["lock.front"]["state"] = "unlocked" } // drift while the window is open
+	w.before = func() { h.f.states["lock.front"]["state"] = "jammed" } // drift while the window is open (unlocked: no_change)
 	if exit, env := h.run(runApplyCommand, "--plan", plan.ID); exit != 2 || env.Status != "drift" || len(h.posts()) != 0 {
 		t.Fatalf("drift during the window: exit %d %+v", exit, env)
 	}

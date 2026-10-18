@@ -5,6 +5,7 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"time"
 	"unicode"
 )
 
@@ -272,4 +273,19 @@ func directOwnedCall(env *verbEnvelope, r tierReason) bool {
 	}
 	domain, _ := splitID(env.Action.Service)
 	return ownerSkill(env.Action.Service) != "" || domain == "hassio"
+}
+
+// sayAgo: how long ago, relative ("12 minutes ago"); never a clock time,
+// which an agent shows in UTC (expires_at stays RFC3339 UTC for machines).
+func sayAgo(d time.Duration) string {
+	switch m := int(d.Minutes()); {
+	case m < 1:
+		return "just now"
+	case m == 1:
+		return "1 minute ago"
+	case m < 120:
+		return fmt.Sprintf("%d minutes ago", m)
+	default:
+		return fmt.Sprintf("%d hours ago", m/60)
+	}
 }

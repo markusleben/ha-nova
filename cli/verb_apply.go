@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 )
@@ -53,6 +54,9 @@ var reauthSettle = 2 * time.Second
 func runCallCommand(paths runtimePaths, args []string) int {
 	return runCallVerb(paths, "call", "call", callHelp, args, func(s *relaySession, env *verbEnvelope, req planCallRequest) error {
 		e, plan, err := computeCallPlan(s, env, req)
+		if noChangeCall(e, env, req, err) { // nothing to confirm or send (call_no_change.go)
+			return nil
+		}
 		if err != nil {
 			return err
 		}
@@ -204,7 +208,7 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string, noSnapshot
 	case isCall && staticRefusal(request) != nil:
 		return fail(refuse(&env, *staticRefusal(request)))
 	case !verbNow().Before(expires):
-		return fail(refused("PLAN_EXPIRED", "plan "+id+" expired at "+plan.ExpiresAt))
+		return fail(refused("PLAN_EXPIRED", "plan "+id+" expired "+sayAgo(verbNow().Sub(expires))))
 	case expires.After(verbNow().Add(planTTL + time.Minute)):
 		// The plan file is user-writable; a far-future expiry would turn the
 		// 4-digit code into an unbounded online brute force. No plan is ever
@@ -268,6 +272,12 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string, noSnapshot
 		return fail(err)
 	}
 	if fresh.Hash != plan.Hash {
+		// It got there meanwhile: nothing to send or re-confirm — only for the
+		// very targets the user confirmed (a changed area is a new preview).
+		if isCall && slices.Equal(fresh.Action.EntityIDs, plan.Action.EntityIDs) && alreadyDone(e, &env, fresh.Action) {
+			markNoChange(e, &env, fresh.Action)
+			return env, verbExitOK
+		}
 		if fresh.Prompt != "" { // a confirmation form shows it without the preview (mcp_confirm.go)
 			fresh.Prompt = "Something changed since the last preview. " + fresh.Prompt
 		}

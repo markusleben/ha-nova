@@ -110,6 +110,7 @@ release:
     - **Windows setup explains its firewall prompt.** HA NOVA says the Windows Firewall question on a first setup comes from its search for Home Assistant. Cancel is fine: setup goes on, and you can type the address.
     - **Two profiles for one Home Assistant stay connected.** A second HA NOVA profile for the same Home Assistant no longer disconnects the first. Already disconnected? Pair it again; the other may need one more pairing.
     - **A clear next step when secure storage is out of reach.** Over SSH or as admin on Windows and macOS, setup, `pair`, `doctor`, and `uninstall --purge` point to a desktop terminal; local installs don't blame Link.
+    - **Nothing to confirm when it's already done.** When Home Assistant already shows a door unlocked or a garage open, HA NOVA usually just says so instead of asking for a confirmation; nothing is sent.
 
     Stable install commands are release-pinned for this tag.
 
