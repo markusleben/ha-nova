@@ -61,6 +61,9 @@ func TestHASignInAgainstThrowawayHomeAssistant(t *testing.T) {
 		if os.Getenv("HA_NOVA_SIGNIN_E2E_APP_SLUG") != "" {
 			t.Fatal("the install mode installs the official App; unset HA_NOVA_SIGNIN_E2E_APP_SLUG")
 		}
+		previous := cloudRemoteBuildIdentityForRuntime // tests default to a developer App
+		cloudRemoteBuildIdentityForRuntime = func() cloudRemoteBuildIdentity { return cloudRemoteBuildIdentity{Official: true} }
+		t.Cleanup(func() { cloudRemoteBuildIdentityForRuntime = previous })
 		prepare = func(ctx context.Context, socket haWSCaller, _ HACurrentUser) error {
 			var state novaAppState
 			if err := newNOVAAppSupervisor(socket).ensure(ctx, &out, &state, false, ""); err != nil {
