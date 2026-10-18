@@ -46,7 +46,9 @@ func TestRunCheckUpdateQuietBoundsRelayDiscoveryAsOneDeadline(t *testing.T) {
 	}
 }
 
-func TestRunCheckUpdateQuietSurfacesReturnToStable(t *testing.T) {
+// An RC ahead of stable is current for its tester: the first-use quiet check
+// (agent-facing) stays silent instead of relaying a return-to-stable nag.
+func TestRunCheckUpdateQuietSilentForRCAheadOfStable(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	paths, err := detectPaths()
@@ -70,9 +72,9 @@ func TestRunCheckUpdateQuietSurfacesReturnToStable(t *testing.T) {
 		return runCheckUpdate(paths, []string{"--quiet"})
 	})
 	if exitCode != 0 {
-		t.Fatalf("stable-return notice must not fail check-update: exit %d\n%s", exitCode, output)
+		t.Fatalf("RC ahead of stable must not fail check-update: exit %d\n%s", exitCode, output)
 	}
-	if !strings.Contains(output, "Return to stable: v0.22.0-rc1 -> v0.21.0") {
-		t.Fatalf("quiet check-update missed stable-return notice:\n%s", output)
+	if strings.Contains(output, "stable") || strings.Contains(output, "v0.21.0") {
+		t.Fatalf("quiet check-update must stay silent for an RC ahead of stable:\n%s", output)
 	}
 }
