@@ -43,7 +43,9 @@ func sayAsk(e *tierEngine, env *verbEnvelope, plan storedPlan, subject string) [
 	for _, r := range env.Reasons {
 		text, typed := sayReason(e, env, plan, r)
 		_, _, phrased := sayActionPhrase(e, env, r)
-		said := r.Via == "" && phrased && slices.Contains(plan.Action.EntityIDs, r.EntityID) && phoneButton(verb) != "Confirm"
+		domain, _ := splitID(plan.Action.Service)
+		target, _ := splitID(r.EntityID)
+		said := r.Via == "" && phrased && slices.Equal(plan.Action.EntityIDs, []string{r.EntityID}) && domain == target && phoneButton(verb) != "Confirm"
 		if typed && text != "" && !said {
 			return [3]string{verb, object, text}
 		}

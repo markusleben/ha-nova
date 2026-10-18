@@ -16,6 +16,7 @@ import (
 type phoneAsk struct {
 	title, body, button string
 	urgent              bool // a pending action: iOS time-sensitive; else active
+	unlock              bool // the phone must be unlocked to answer (link, move, stop)
 }
 
 const (
@@ -26,16 +27,16 @@ const (
 )
 
 func phoneLinkAsk() phoneAsk {
-	return phoneAsk{title: "Link this phone to HA NOVA?", body: "For confirmations from “" + phoneHost() + "”. " + phoneHint, button: phoneLinkButton}
+	return phoneAsk{title: "Link this phone to HA NOVA?", body: "For confirmations from “" + phoneHost() + "”. " + phoneHint, button: phoneLinkButton, unlock: true}
 }
 
 // phoneChangeAsk goes to the phone linked now: stop (newPhone "") or move
 // HA NOVA's confirmations to newPhone. Stopping says what it gives up.
 func phoneChangeAsk(newPhone string) phoneAsk {
 	if newPhone == "" {
-		return phoneAsk{title: "Stop HA NOVA confirmations here?", body: "After this, HA NOVA may ask in chat, where your AI assistant can answer. " + phoneRequested(), button: "Stop"}
+		return phoneAsk{title: "Stop HA NOVA confirmations here?", body: "After this, HA NOVA may ask in chat, where your AI assistant can answer. " + phoneRequested(), button: "Stop", unlock: true}
 	}
-	return phoneAsk{title: phoneTitle("Move HA NOVA confirmations to", "“"+newPhone+"”"), body: phoneRequested(), button: "Move"}
+	return phoneAsk{title: phoneTitle("Move HA NOVA confirmations to", "“"+newPhone+"”"), body: phoneRequested(), button: "Move", unlock: true}
 }
 
 // phonePlanAsk: "Unlock “Front Door”?" with an Unlock button, and the
@@ -86,23 +87,28 @@ func phoneCut(text string, limit int, end string) string {
 	return cut + "…"
 }
 
-// phonePayload: Confirm is styled destructive (iOS) and needs no device
-// unlock — an Apple Watch never fires an authenticationRequired action, and
-// the watch must be able to confirm (maintainer decision). So whoever holds
-// the linked phone can answer the one open request; the ids die with the
-// wait (Android timeout, iOS apns-expiration).
+// phonePayload: the first button is styled destructive (iOS). A plan's
+// Confirm needs no device unlock — an Apple Watch never fires an
+// authenticationRequired action, and the watch must be able to confirm
+// (maintainer decision) — so whoever holds the linked phone can answer that
+// one open request. Linking, moving, and stopping last beyond one request:
+// they need the unlocked phone (iOS, Android 12+), asked at the computer.
+// The ids die with the wait (Android timeout, iOS apns-expiration).
 // A pending action is time-sensitive (iOS shows it through Focus); linking
 // and its changes are asked while the person is at the computer: active.
 func phonePayload(ask phoneAsk, tag, ok, no string, deadline time.Time) map[string]any {
 	seconds := max(int(time.Until(deadline).Seconds()), 1)
-	level := "active"
+	level, confirm := "active", map[string]any{"action": ok, "title": ask.button, "destructive": true}
 	if ask.urgent {
 		level = "time-sensitive"
+	}
+	if ask.unlock {
+		confirm["authenticationRequired"] = true
 	}
 	return map[string]any{"title": ask.title, "message": ask.body, "data": map[string]any{
 		"tag": tag,
 		"actions": []any{
-			map[string]any{"action": ok, "title": ask.button, "destructive": true},
+			confirm,
 			map[string]any{"action": no, "title": "Cancel"},
 		},
 		"push":         map[string]any{"interruption-level": level},

@@ -25,7 +25,7 @@ func TestPhoneAskTexts(t *testing.T) {
 		{phonePlanAsk([3]string{"Cancel", "“Timer”"}, false), "Cancel “Timer”?", requested, "Confirm", true},
 	}
 	for _, c := range cases {
-		if c.got != (phoneAsk{c.title, c.body, c.button, c.urgent}) {
+		if c.got != (phoneAsk{c.title, c.body, c.button, c.urgent, !c.urgent}) { // link, move, stop need the unlocked phone
 			t.Errorf("ask %+v, want %q %q %q %v", c.got, c.title, c.body, c.button, c.urgent)
 		}
 	}
@@ -63,5 +63,22 @@ func TestPhonePlanNamesTheHiddenEffect(t *testing.T) {
 	if p.sent[0]["title"] != "Turn on “Guest mode”?" ||
 		p.sent[0]["message"] != "This also unlocks “Entrance Door” through the automation “Guest mode unlocks”. Requested by “"+phoneHost()+"”. "+phoneHint {
 		t.Fatalf("notification %q / %q", p.sent[0]["title"], p.sent[0]["message"])
+	}
+}
+
+// Several targets: the title may cut them, so the reason always shows.
+func TestPhonePlanReasonWithSeveralTargets(t *testing.T) {
+	f := newFakeHA()
+	f.ent("lock.back", "zwave_js", "locked", map[string]any{"friendly_name": "Back Door"})
+	h := newWriteHarness(t, f)
+	p := usePhones(t, "mobile_app_iphone")
+	plan := h.plan("lock.unlock", "lock.front", "lock.back").Plan
+	p.answer = func(_, no string) []phoneEvent { return []phoneEvent{tap(no, "owner-id", "REMOTE")} }
+	if exit, _ := h.run(runApplyCommand, "--plan", plan.ID); exit != 4 || len(p.sent) == 0 || !strings.HasPrefix(p.sent[0]["message"].(string), "This unlocks") {
+		t.Fatalf("exit %d sent %v", exit, p.sent)
+	}
+	confirm := p.sent[0]["data"].(map[string]any)["actions"].([]any)[0].(map[string]any)
+	if _, auth := confirm["authenticationRequired"]; auth { // a plan's Confirm: the watch can answer
+		t.Fatalf("plan confirm needs an unlock: %v", confirm)
 	}
 }

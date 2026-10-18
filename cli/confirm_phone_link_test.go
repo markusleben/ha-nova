@@ -180,7 +180,8 @@ func TestLinkPhoneByTapOnTheChosenPhoneOnly(t *testing.T) {
 		t.Fatalf("exit %d out %q", exit, out)
 	}
 	if strings.Join(p.services, ",") != "mobile_app_annas_pixel,mobile_app_annas_pixel" || p.sent[0]["title"] != "Link this phone to HA NOVA?" ||
-		p.sent[0]["message"] != "For confirmations from “"+phoneHost()+"”. "+phoneHint || p.sent[0]["data"].(map[string]any)["push"].(map[string]any)["interruption-level"] != "active" {
+		p.sent[0]["message"] != "For confirmations from “"+phoneHost()+"”. "+phoneHint || p.sent[0]["data"].(map[string]any)["push"].(map[string]any)["interruption-level"] != "active" ||
+		p.sent[0]["data"].(map[string]any)["actions"].([]any)[0].(map[string]any)["authenticationRequired"] != true {
 		t.Fatalf("notified %v %v", p.services, p.sent)
 	}
 	if l := linked(t, h); l == nil || l.DeviceID != "dev-anna" || l.UserID != "anna-id" || l.Service != "mobile_app_annas_pixel" || l.Name != "Anna’s Pixel" {
