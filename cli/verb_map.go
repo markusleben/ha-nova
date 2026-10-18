@@ -23,7 +23,7 @@ func runMapCommand(paths runtimePaths, args []string) int {
 	fs := flag.NewFlagSet("map", flag.ContinueOnError)
 	addVerbFlags(fs, &opts)
 	section := fs.String("section", "", "full list of one part: areas, integrations, automations, unavailable, batteries")
-	entity := fs.String("entity", "", "where-used of one entity_id (automations, scripts, scenes, groups)")
+	entity := fs.String("entity", "", "where-used of one entity_id (automations, scripts, scenes, groups, helpers, dashboards)")
 	firstLook := fs.Bool("first-look", false, "the onboarding first look: one-line counts, up to 2 observations, prompt seeds")
 	limit := fs.Int("limit", 0, "rows per list for --section (default 50) and --entity (default 20), 1-200; totals stay exact")
 	positional, err := parseVerbArgs(fs, &opts, args, mapUsage)

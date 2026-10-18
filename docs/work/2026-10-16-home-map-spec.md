@@ -31,7 +31,8 @@ ha-nova map [--section areas|integrations|automations|unavailable|batteries]
   `config/entity_registry/list`, `config_entries/get` (all entries, and
   `type_filter:["helper"]` to tell helpers from integrations), and
   `GET /api/states`. `--entity` adds `search/related` for the entity, its
-  device, and the rest of the device's family (§3). Any failed read → exit 1, no partial map (counts are never guessed).
+  device, and the rest of the device's family (§3), plus `get_panels` and
+  each `lovelace/config` (a failed dashboard read is a `not_checked` line, never an exit). Any other failed read → exit 1, no partial map (counts are never guessed).
 - At most one mode: default summary, one `--section`, `--entity`, or
   `--first-look`. `--limit` (1–200) caps row lists in `--section` (default 50)
   and `--entity` (default 20); totals always stay exact.
@@ -91,7 +92,7 @@ pinned by a Go test):
   (longest age first; lowest level first). Past the 200-row ceiling `more`
   says so (narrow with `find`) instead of naming the same command again.
 - `--entity <id>` (where-used): `{entity_id,name,area,device,integration,
-  automations,scripts,scenes,groups,via_device,not_checked}`. Each list is
+  automations,scripts,scenes,groups,helpers,dashboards,via_device,not_checked}`. Each list is
   `{total,shown,rows:[{entity_id,name}]}` from `search/related` on the entity;
   groups also from group states listing it. Automations and scripts that
   reference its device come from `search/related` on the device MINUS what
@@ -99,11 +100,17 @@ pinned by a Go test):
   devices and every family entity except this one (a device read includes
   them all) — and carry `"via":"device"`; scenes and groups never come
   from the device read. A family with more than 30 other entities and child devices skips the device
-  read and says so in `not_checked`. `not_checked` always lists what
-  `search/related` cannot see (`dashboards`, `templates`, `helper and
-  integration options`, `disabled or unloadable automations and scripts`,
-  `area, floor, and label targets`), so "not used" is never claimed beyond
-  what was read. Unknown entity → exit 5 `NOT_FOUND`.
+  read and says so in `not_checked`. `helpers`: other entities whose state
+  attributes name it (a person's trackers, a meter's source). `dashboards`:
+  `{total,shown,rows:[{dashboard,url_path,view,card}]}` — every Lovelace panel
+  from `get_panels` (storage, YAML, the default), each card, badge, or header
+  card naming the id anywhere inside (nested stacks and conditionals give the
+  path to the innermost card; no `card` = only view or dashboard settings).
+  `not_checked` always lists what was not read (`templates`, `helpers that
+  hide their source`, `integration options`, `disabled or unloadable
+  automations and scripts`, `area, floor, and label targets`), plus
+  `dashboards` when the panel list fails or `N dashboards (could not be
+  read)`, so "not used" is never claimed beyond what was read. Unknown entity → exit 5 `NOT_FOUND`.
 
 ### 4. First-look contract (for the onboarding PR)
 
@@ -180,7 +187,7 @@ the test bed; the session's own 30 s budget still applies). Exit 0 with:
 
 ## Non-goals
 
-- Dashboards, energy prefs, notify targets in where-used (device-lifecycle work, TOP-1).
+- Energy prefs and notify targets in where-used (`get --references` covers them).
 - Automation descriptions in the map (N config reads; `get --config` per item).
 - Stale-by-`last_updated` heuristics (a quiet sensor is not a fault).
 - Any write, cache, or Relay change beyond the allowlist entry.

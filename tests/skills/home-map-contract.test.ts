@@ -6,7 +6,7 @@ const flat = (s: string) => s.replace(/\s+/g, " ");
 const skill = flat(readFileSync("skills/home-map/SKILL.md", "utf8"));
 const router = flat(readFileSync("skills/ha-nova/SKILL.md", "utf8"));
 const spec = flat(readFileSync("docs/work/2026-10-16-home-map-spec.md", "utf8"));
-const mapGo = readFileSync("cli/verb_map.go", "utf8") + readFileSync("cli/verb_map_look.go", "utf8");
+const mapGo = readFileSync("cli/verb_map.go", "utf8") + readFileSync("cli/verb_map_look.go", "utf8") + readFileSync("cli/verb_map_first_look.go", "utf8");
 
 describe("home-map skill (needs-analysis TOP 3)", () => {
   it("routes whole-home understanding to home-map and keeps single items with review", () => {
@@ -24,7 +24,7 @@ describe("home-map skill (needs-analysis TOP 3)", () => {
   it("never claims unused beyond what search/related saw", () => {
     expect(skill).toContain("Always name the `not_checked` surfaces");
     expect(skill).toContain('never "unused" or "safe to delete"');
-    for (const surface of ["dashboards", "templates", "helper and integration options", "disabled or unloadable automations and scripts", "area, floor, and label targets"]) {
+    for (const surface of ["dashboards", "templates", "helpers that hide their source", "integration options", "disabled or unloadable automations and scripts", "area, floor, and label targets"]) {
       expect(mapGo).toContain(`"${surface}"`);
     }
   });
