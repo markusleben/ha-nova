@@ -367,6 +367,10 @@ func TestEnsureNOVAAppUpdateRules(t *testing.T) {
 			setup: func(f *fakeSupervisor) { f.info["version_latest"] = "0.9.0" }, minimum: "0.10.0",
 			line: "only offers NOVA App v0.9.0; this HA NOVA needs v0.10.0",
 		},
+		"version that can't be compared": {
+			setup: func(f *fakeSupervisor) { f.info["version_latest"] = "0.10" }, minimum: "0.10.0",
+			line: "can't tell whether NOVA App v0.10 is new enough",
+		},
 		"starting after an update is not started twice": {
 			setup:  func(f *fakeSupervisor) { f.installedApp("0.9.2", "startup", "0.10.0") },
 			update: true, writes: []string{update},

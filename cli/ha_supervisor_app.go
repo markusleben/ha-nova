@@ -15,7 +15,7 @@ import (
 
 // Installs, updates, and starts the NOVA App through the Supervisor with the
 // owner's sign-in, only after the owner chose "Sign in and install NOVA"
-// (docs/work/2026-10-18-onboarding-0.27-spec.md §6, §7.1). Every Supervisor
+// (docs/work/2026-10-19-setup-app-install-spec.md). Every Supervisor
 // call passes allowed(); anything else is refused before it leaves this process.
 
 const haNovaAppName = "NOVA Relay" // nova/config.yaml name
@@ -243,7 +243,11 @@ func (s novaAppSupervisor) ensure(ctx context.Context, out io.Writer, state *nov
 		return &novaAppInstallError{line: "Home Assistant doesn't list a newer NOVA App yet."}
 	}
 	if minimum != "" {
-		if cmp, err := compareReleaseVersions(state.version, minimum); err == nil && cmp < 0 {
+		cmp, err := compareReleaseVersions(state.version, minimum)
+		if err != nil {
+			return &novaAppInstallError{line: fmt.Sprintf("HA NOVA can't tell whether NOVA App v%s is new enough (it needs v%s or newer).", state.version, minimum), cause: err}
+		}
+		if cmp < 0 {
 			return &novaAppInstallError{line: fmt.Sprintf("Home Assistant only offers NOVA App v%s; this HA NOVA needs v%s or newer.", state.version, minimum)}
 		}
 	}
