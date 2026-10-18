@@ -156,6 +156,10 @@ func runUninstall(paths runtimePaths, args []string) int {
 		mode = selectedMode
 	}
 
+	if purgeRefusedOutsideDesktop(paths, mode, *yes) {
+		return 1
+	}
+
 	guidedSession := !*yes && !recoveryMode && isInteractiveTTY()
 	if guidedSession {
 		if err := prepareUninstallBeforeGuidedTeardown(
@@ -198,6 +202,9 @@ func runUninstall(paths runtimePaths, args []string) int {
 			printTeardownCompletedNotes(os.Stdout, mode)
 		} else {
 			printUninstallPreflightNotes(os.Stdout, preflight)
+		}
+		if !purgeReadyForWindowsHandoff(paths, mode, teardown) {
+			return 1
 		}
 		if err := launchWindowsUninstall(
 			paths,

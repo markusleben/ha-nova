@@ -128,7 +128,7 @@ func runPairCommand(paths runtimePaths, args []string) int {
 		return 1
 	}
 	if installLifecycleStopped(paths) {
-		printErr("HA NOVA was uninstalled; run `ha-nova setup` before pairing.")
+		printErr("HA NOVA is not set up on this computer yet; run: ha-nova setup")
 		return 1
 	}
 
