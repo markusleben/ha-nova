@@ -39,9 +39,10 @@ func runSetupDiscoveryWithFeedback(out io.Writer, cfg runtimeConfig) setupDiscov
 	// The mDNS search listens on UDP 5353 on every interface (it must: the
 	// answers come from the LAN), so the first run on Windows raises a
 	// firewall prompt. Every other listener is loopback-only.
-	// Shown on a first run at the desktop only (over SSH no prompt can show).
+	// Shown on a first run in a desktop session only (over SSH, session 0,
+	// no prompt can show); an elevated desktop terminal still gets it.
 	if input, _ := preferredConfiguredHAInput(cfg); input == "" && setupDiscoveryPlatformOS == "windows" &&
-		nativeSecretPromptBaseContextAvailable() {
+		windowAvailable() {
 		renderSetupParagraph(out,
 			`Windows may now ask whether "ha-nova" may use your network (publisher unknown: HA NOVA isn't code-signed yet).`,
 			"That's this search for Home Assistant. You can choose Cancel: setup continues, and if nothing is found you type the address.",

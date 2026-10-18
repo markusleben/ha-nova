@@ -274,6 +274,9 @@ func runPairCommand(paths runtimePaths, args []string) int {
 	})
 	if guardErr != nil {
 		printErr("Pairing cannot start: %s", guardErr)
+		if secureStorageSessionProblem(guardErr) {
+			printErr("%s. Next step: %s, then run this command there.", secureStorageSessionReason, secureStorageSessionNextStep())
+		}
 		return 1
 	}
 	// Storage mutation only AFTER every selection/bootstrap guard above: a pair
