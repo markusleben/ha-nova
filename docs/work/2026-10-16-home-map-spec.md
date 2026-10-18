@@ -101,11 +101,12 @@ pinned by a Go test):
   them all) — and carry `"via":"device"`; scenes and groups never come
   from the device read. A family with more than 30 other entities and child devices skips the device
   read and says so in `not_checked`. `helpers`: other entities whose state
-  attributes name it (a person's trackers, a meter's source). `dashboards`:
+  attributes name it (a person's trackers, a meter's source); an unavailable
+  source helper hides them and adds `N unavailable helpers (source hidden)`. `dashboards`:
   `{total,shown,rows:[{dashboard,url_path,view,card}]}` — every Lovelace panel
   from `get_panels` (storage, YAML, the default), each card, badge, or header
-  card naming the id anywhere inside (nested stacks and conditionals give the
-  path to the innermost card; no `card` = only view or dashboard settings).
+  card naming the id anywhere inside (each nested match in a stack or
+  conditional is its own row with the path to its innermost card; no `card` = only view or dashboard settings).
   `not_checked` always lists what was not read (`templates`, `helpers that
   hide their source`, `integration options`, `disabled or unloadable
   automations and scripts`, `area, floor, and label targets`), plus

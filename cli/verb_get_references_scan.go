@@ -83,8 +83,13 @@ type lovelaceBoard struct {
 
 // readLovelacePanels reads every Lovelace panel's config (storage and YAML mode,
 // the default one included) in parallel. Unreadable ones come back as gaps;
-// err means the panel list itself failed.
+// err means the panel list itself failed. The default dashboard is addressed
+// by url_path only when the dashboard list carries it (HA 2026.10+ can list a
+// saved Overview); else without, as the unlisted default.
 func readLovelacePanels(s *relaySession) ([]lovelaceBoard, []refGap, error) {
+	var listed []dashboardEntry
+	var listErr error
+	prefetch([]func(){func() { _, _ = s.ws(map[string]any{"type": "get_panels"}) }, func() { listed, listErr = readDashboards(s) }})
 	var panels map[string]struct {
 		Component string  `json:"component_name"`
 		URLPath   string  `json:"url_path"`
@@ -103,31 +108,42 @@ func readLovelacePanels(s *relaySession) ([]lovelaceBoard, []refGap, error) {
 		}
 	}
 	sort.Strings(keys)
+	var boards []lovelaceBoard
+	var gaps []refGap
 	payloads := make([]map[string]any, len(keys))
 	var reads []func()
 	for i, key := range keys {
+		p := panels[key]
+		if p.URLPath == defaultDashboard && listErr != nil {
+			gaps = append(gaps, refGap{Family: "dashboard", ID: p.URLPath, Reason: listErr.Error()})
+			continue
+		}
 		payloads[i] = map[string]any{"type": "lovelace/config", "force": false}
-		if p := panels[key]; p.URLPath != "lovelace" { // the default dashboard is addressed without url_path
+		if p.URLPath != defaultDashboard || findDashboard(listed, defaultDashboard) != nil {
 			payloads[i]["url_path"] = p.URLPath
 		}
 		reads = append(reads, func() { _, _ = s.ws(payloads[i]) })
 	}
 	prefetch(reads)
-	var boards []lovelaceBoard
-	var gaps []refGap
 	for i, key := range keys {
 		p := panels[key]
+		if payloads[i] == nil { // already a gap
+			continue
+		}
 		b := lovelaceBoard{URLPath: p.URLPath, Mode: p.Config.Mode, Title: p.URLPath}
 		if p.Title != nil && *p.Title != "" {
 			b.Title = *p.Title
-		} else if p.URLPath == "lovelace" {
+		} else if p.URLPath == defaultDashboard {
 			b.Title = "Overview"
 		}
 		err := s.wsDecode(payloads[i], &b.Config, "the dashboard "+p.URLPath)
 		switch {
 		case isUpstreamNotFound(err) && p.Config.Mode != "yaml": // auto-generated
-			b.Config = nil
-		case err != nil:
+			b.Config, err = nil, nil
+		case err == nil && asMap(b.Config) == nil:
+			err = errors.New("the dashboard config is not a JSON object")
+		}
+		if err != nil {
 			gaps = append(gaps, refGap{Family: "dashboard", ID: p.URLPath, Reason: err.Error()})
 			continue
 		}
@@ -144,7 +160,9 @@ func (sc *refScanner) scanDashboards(s *relaySession) {
 		sc.gap("dashboard", "", err.Error())
 		return
 	}
-	sc.res.NotScanned = append(sc.res.NotScanned, gaps...)
+	for _, g := range gaps {
+		sc.gap(g.Family, g.ID, g.Reason)
+	}
 	for _, b := range boards {
 		sc.res.Scanned["dashboard"]++
 		if b.Config == nil {

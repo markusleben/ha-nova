@@ -46,9 +46,10 @@ type dashboardUse struct {
 	Card      string `json:"card,omitempty"`
 }
 
-// whereUsedNotChecked: what search/related cannot see, so an empty list is
-// never read as "used nowhere".
 const whereUsedMaxSiblings = 30
+
+// whereUsedNotChecked: what this read cannot see, so an empty list is never
+// read as "used nowhere".
 
 var whereUsedNotChecked = []string{"templates", "helpers that hide their source", "integration options", "disabled or unloadable automations and scripts", "area, floor, and label targets"}
 
@@ -168,9 +169,12 @@ func (x *homeIndex) whereUsed(s *relaySession, id string, limit int) (whereUsedR
 		return usedList{Total: len(rows), Shown: min(len(rows), limit), Rows: rows[:min(len(rows), limit)]}
 	}
 	r.Automations, r.Scripts, r.Scenes, r.Groups = list("automation"), list("script"), list("scene"), list("group")
-	helpers, err := x.attributeUsers(s, id)
+	helpers, hidden, err := x.attributeUsers(s, id)
 	if err != nil {
 		return whereUsedResult{}, err
+	}
+	if hidden > 0 {
+		r.NotChecked = append(r.NotChecked, plural(hidden, "unavailable helper")+" (source hidden)")
 	}
 	r.Helpers = usedList{Total: len(helpers), Shown: min(len(helpers), limit), Rows: helpers[:min(len(helpers), limit)]}
 	uses := dashboardUses(boards, id)
@@ -180,21 +184,27 @@ func (x *homeIndex) whereUsed(s *relaySession, id string, limit int) (whereUsedR
 
 // attributeUsers: other entities whose state attributes name id (a person's
 // trackers, a utility meter's or threshold's source); automations, scripts,
-// scenes, and groups are listed on their own. /api/states is memoized.
-func (x *homeIndex) attributeUsers(s *relaySession, id string) ([]mapRow, error) {
+// scenes, and groups are listed on their own; zones list people at runtime.
+// hidden counts source helpers that are unavailable: Home Assistant drops
+// their attributes. /api/states is memoized.
+func (x *homeIndex) attributeUsers(s *relaySession, id string) ([]mapRow, int, error) {
 	_, body, err := s.coreGET("/api/states")
 	var states []refState
 	if err == nil {
 		err = json.Unmarshal(body, &states)
 	}
 	if err != nil {
-		return nil, fmt.Errorf("cannot parse /api/states: %w", err)
+		return nil, 0, fmt.Errorf("cannot parse /api/states: %w", err)
 	}
 	match := &refScanner{needles: []string{id}}
-	rows := []mapRow{}
+	rows, hidden := []mapRow{}, 0
 	for _, st := range states {
 		domain, _ := splitID(st.EntityID)
-		if st.EntityID == id || domain == "automation" || domain == "script" || domain == "scene" || x.state[st.EntityID] != nil && x.state[st.EntityID].isGroup() {
+		if st.EntityID == id || domain == "automation" || domain == "script" || domain == "scene" || domain == "zone" || x.state[st.EntityID] != nil && x.state[st.EntityID].isGroup() {
+			continue
+		}
+		if st.State == "unavailable" && sourceHelperPlatforms[x.platform[st.EntityID]] {
+			hidden++
 			continue
 		}
 		if len(match.find(st.Attributes)) > 0 {
@@ -202,24 +212,29 @@ func (x *homeIndex) attributeUsers(s *relaySession, id string) ([]mapRow, error)
 		}
 	}
 	sort.Slice(rows, func(i, j int) bool { return rows[i].EntityID < rows[j].EntityID })
-	return rows, nil
+	return rows, hidden, nil
 }
 
 // dashboardUses: every card, badge, or header card that names id as a whole
 // id anywhere inside (entities rows, nested stacks, conditions, templates);
-// a nested match names the path down to the innermost card.
+// each nested match names the path down to its innermost card.
 func dashboardUses(boards []lovelaceBoard, id string) []dashboardUse {
 	match := &refScanner{needles: []string{id}}
 	mentions := func(v any) bool { return len(match.find(v)) > 0 }
-	var trail func(card any) string
-	trail = func(card any) string {
-		m := asMap(card)
+	var trails func(card any) []string
+	trails = func(card any) []string {
+		m, out := asMap(card), []string{}
 		for _, child := range append(asList(m["cards"]), m["card"]) {
 			if child != nil && mentions(child) {
-				return cardSummary(card) + " › " + trail(child)
+				for _, t := range trails(child) {
+					out = append(out, cardSummary(card)+" › "+t)
+				}
 			}
 		}
-		return cardSummary(card)
+		if len(out) == 0 { // the card itself names it (entities, conditions, templates)
+			out = []string{cardSummary(card)}
+		}
+		return out
 	}
 	uses := []dashboardUse{}
 	for _, b := range boards {
@@ -244,11 +259,12 @@ func dashboardUses(boards []lovelaceBoard, id string) []dashboardUse {
 					if !mentions(item) {
 						continue
 					}
-					card := trail(item)
-					if c.label == "badges" || c.label == "header" {
-						card = strings.TrimSuffix(c.label, "s") + ": " + card
+					for _, card := range trails(item) {
+						if c.label == "badges" || c.label == "header" {
+							card = strings.TrimSuffix(c.label, "s") + ": " + card
+						}
+						uses = append(uses, dashboardUse{Dashboard: b.Title, URLPath: b.URLPath, View: view, Card: card})
 					}
-					uses = append(uses, dashboardUse{Dashboard: b.Title, URLPath: b.URLPath, View: view, Card: card})
 				}
 			}
 			if len(uses) == before { // only the view's own settings (visibility, background)
