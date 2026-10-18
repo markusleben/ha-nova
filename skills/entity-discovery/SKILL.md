@@ -130,11 +130,9 @@ This is more reliable than keyword search or assuming `.ai` is populated for roo
 
 ### Step 4: Return shortlist
 
-- `entity_id`, `friendly_name`, `state` (if fetched), short relevance reason
-- for bulk inventory: filter used, matched count, displayed rows
+- `friendly_name` (verbatim), `state` (if fetched), short relevance reason; `entity_id` only on a name clash
+- for bulk inventory: matched count, displayed rows
 - do not fetch full YAML for every matched item in one response
-
-**IMPORTANT:** Never dump raw `get_states` — it returns thousands of entities with full attributes.
 
 ### Device-sibling capability discovery
 
@@ -257,7 +255,7 @@ If ambiguity remains: present top candidates (max 10) and state the match basis 
 
 Apply `../ha-nova/output-rules.md` to all user-facing output.
 
-Render the Step 4 shortlist as the List Frame (output-cards.md); never dump raw `get_states` output.
+Render the Step 4 shortlist as the List Frame (output-cards.md). Never dump raw `get_states` output.
 
 ## Safety
 

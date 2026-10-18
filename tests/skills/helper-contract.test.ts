@@ -37,9 +37,8 @@ describe("helper contract", () => {
       expect(skillDoc).toContain("Group related fields into one item");
     });
 
-    it("includes defaults by default; the user drops some by number or all with skip", () => {
-      expect(skillDoc).toContain("`apply` saves them; drop by number");
-      expect(skillDoc).toContain('"skip"');
+    it("includes defaults by default; the user drops some by number", () => {
+      expect(skillDoc).toContain("Saving keeps them; say a number to drop one");
       expect(skillDoc).toContain("A dropped item changes the payload: re-preview.");
     });
 
@@ -89,7 +88,8 @@ describe("helper contract", () => {
       expect(skillDoc).toContain("shared write-preview shape");
       expect(skillDoc).toContain("Changes slot");
       expect(skillDoc).toContain("explicit not-saved-yet line");
-      expect(skillDoc).toContain("Options block (`apply`, `show yaml`, `cancel`)");
+      expect(skillDoc).toContain("explicit not-saved-yet line, and the save question");
+      expect(skillDoc).not.toContain("show yaml");
       expect(skillDoc).toContain("explicit not-deleted-yet line before the one-time code");
       expect(skillDoc).not.toContain("as a `## Changes` diff");
     });

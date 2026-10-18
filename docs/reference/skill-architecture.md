@@ -148,7 +148,7 @@ Current mapping:
    (`plan delete`, `plan revert`): the plan carries the CLI `diff`, the tier,
    and its reasons (a draft that would unlock a door is typed; a delete is
    always typed and lists its consumers). Lead the preview with the verbatim
-   diff; full YAML only on `show yaml`. Pre-preview wording authorizes draft
+   diff; full YAML only when asked. Pre-preview wording authorizes draft
    and preview only; a changed draft needs a new plan.
 3. Apply + Verify — `ha-nova apply --plan <id>` re-plans (exit 2 on drift),
    takes the pre-delete config snapshot, sends the body byte-exactly once,

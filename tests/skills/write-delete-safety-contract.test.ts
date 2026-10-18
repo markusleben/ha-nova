@@ -28,8 +28,7 @@ describe("write delete safety contract", () => {
     expect(writeSkill).toContain("Update-Revert");
     expect(writeSkill).toContain("../ha-nova/write-safety.md");
     // YAML is opt-in, not dumped by default, for a non-technical audience.
-    expect(writeSkill).toContain("show yaml");
-    expect(writeSkill).toContain("cancel");
+    expect(writeSkill).toContain("the full config only when asked");
   });
 
   it("requires an understandable preview and honest verification wording (issue #274)", () => {

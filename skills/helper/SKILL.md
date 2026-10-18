@@ -114,11 +114,11 @@ While `truncated` is true the list proves neither absence nor uniqueness — nar
      2. unit_of_measurement: "°C"
      3. mode: slider
      4. icon: mdi:thermometer
-     `apply` saves them; drop by number (e.g. "skip 2") or "skip" all.
+     Saving keeps them; say a number to drop one (e.g. "not 2").
      ```
    - A dropped item changes the payload: re-preview.
    - No useful defaults inferable → silently skip.
-3. Preview the payload with the shared write-preview shape: compact summary, pre-write check when applicable, explicit not-saved-yet line, and Options block (`apply`, `show yaml`, `cancel`).
+3. Preview the payload with the shared write-preview shape: compact summary, pre-write check when applicable, explicit not-saved-yet line, and the save question.
 4. End the turn with this preview; only the user's reply to it confirms, never the request (context skill → Active Preview Confirmation).
    - for unobserved `group` or `template` subtypes, this first confirmation authorizes only the non-persisting menu-step submit, not the final subtype-specific payload
 5. Execute:
@@ -133,7 +133,7 @@ While `truncated` is true the list proves neither absence nor uniqueness — nar
 
 1. Resolve target from `{type}/list` by `name` or internal `id`.
 2. Extract `id` from the list response (this is the `{type}_id` for the update command).
-3. Validate the merged current+proposed fields against the same cross-field constraints as create (Creating step 1) — an update can break `min`/`max`, `minimum`/`maximum`, `initial` ∈ `options`, or datetime/timer constraints just as easily. Then preview current vs proposed in the Changes slot with `ha-nova diff` (see `../ha-nova/write-safety.md` → Pre-Write Diff) plus the behavior narrative (write-safety → Behavior narrative) — a count-only diff row never stands alone. Then run a pre-write impact check — `search/related` on this helper entity (max 3 related configs) — and surface affected automations/scripts as an advisory. Advisory only; never block. Include an explicit not-saved-yet line and Options block (`apply`, `show yaml`, `cancel`).
+3. Validate the merged current+proposed fields against the same cross-field constraints as create (Creating step 1) — an update can break `min`/`max`, `minimum`/`maximum`, `initial` ∈ `options`, or datetime/timer constraints just as easily. Then preview current vs proposed in the Changes slot with `ha-nova diff` (see `../ha-nova/write-safety.md` → Pre-Write Diff) plus the behavior narrative (write-safety → Behavior narrative) — a count-only diff row never stands alone. Then run a pre-write impact check — `search/related` on this helper entity (max 3 related configs) — and surface affected automations/scripts as an advisory. Advisory only; never block. Include an explicit not-saved-yet line and the save question.
 4. End the turn with this preview; only the user's reply to it confirms (context skill → Active Preview Confirmation).
 5. If the conversation paused since the preview, re-read the list item; a changed basis expires the confirmation (`write-safety.md` → Drift check before apply).
 6. Execute:
@@ -274,7 +274,7 @@ If multiple matches remain, present max 5 candidates and ask one blocking questi
    - known step plan
    - all fields already known at this point
    - for unobserved `group` or `template` subtypes, say that the final subtype form will be previewed after the menu step returns live fields
-   - include an explicit not-saved-yet line and Options block (`apply`, `show yaml`, `cancel`)
+   - include an explicit not-saved-yet line and the save question
 4. Start the flow BEFORE confirming (steps 5-7 below run first; reading a
    form step persists nothing — only the terminal submit does), then re-render
    the preview from the LIVE form: label every field live-confirmed or
@@ -352,7 +352,7 @@ If multiple matches remain, present max 5 candidates and ask one blocking questi
    - for `history_stats`, preserve HA's two-key window invariant across `start`, `end`, and `duration`
    - for `history_stats`, if the requested change switches to a different valid window pair, drop the old third key explicitly so the submit body still contains exactly two of `start`, `end`, and `duration`
    - for `template`, when the change touches the `state` template, resolve every entity ID referenced in the NEW template before submitting (entity registry, then `/api/states/<entity_id>` fallback — YAML/manual entities are absent from the registry but valid) — a typo like `is_state('binary_sensor.typo','on')` renders a clean boolean, so the post-write rendered-state read cannot catch it; a reference missing from both is a blocking question, not a submit
-7. For a `threshold` helper whose `lower`, `upper`, or `hysteresis` changes against a physical-process sensor — or whose compared `entity_id` is swapped while boundaries stay — run the calibration preflight per `../ha-nova/threshold-calibration.md` first and carry its findings into the preview. Then preview current vs proposed in the Changes slot with `ha-nova diff` (see `../ha-nova/write-safety.md` → Pre-Write Diff) plus the behavior narrative (write-safety → Behavior narrative). Include an explicit not-saved-yet line and Options block (`apply`, `show yaml`, `cancel`).
+7. For a `threshold` helper whose `lower`, `upper`, or `hysteresis` changes against a physical-process sensor — or whose compared `entity_id` is swapped while boundaries stay — run the calibration preflight per `../ha-nova/threshold-calibration.md` first and carry its findings into the preview. Then preview current vs proposed in the Changes slot with `ha-nova diff` (see `../ha-nova/write-safety.md` → Pre-Write Diff) plus the behavior narrative (write-safety → Behavior narrative). Include an explicit not-saved-yet line and the save question.
 8. End the turn with this preview; only the user's reply to it confirms (context skill → Active Preview Confirmation).
 9. Submit the current step:
    ```text

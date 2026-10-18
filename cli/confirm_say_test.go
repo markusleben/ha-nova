@@ -219,7 +219,7 @@ func TestConfirmationSayDelete(t *testing.T) {
 		t.Fatalf("unread member say %q", unread.Say)
 	}
 	_, natural := h.run(runPlanCommand, "write", "--domain", "automation", "--file", draftFile(t, map[string]any{"alias": "Hall", "actions": []any{step("light.turn_on", "light.hall")}}))
-	if natural.Say != "Nothing is saved yet. Options: apply · show yaml · cancel" {
+	if natural.Say != "Nothing is saved yet. Save it? I can also show the details." {
 		t.Fatalf("natural create say %q", natural.Say)
 	}
 }

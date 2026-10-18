@@ -34,8 +34,8 @@ func confirmationSay(e *tierEngine, env *verbEnvelope, plan storedPlan, subject 
 		if plan.Channel == channelChat {
 			parts = append(parts, sayChatNote)
 		}
-	case plan.ConfigAction != nil: // the write card's literal options line
-		parts = append(parts, "Options: apply · show yaml · cancel")
+	case plan.ConfigAction != nil: // the write card's save question
+		parts = append(parts, "Save it? I can also show the details.")
 	default:
 		parts = append(parts, "Reply yes to go ahead.")
 	}
