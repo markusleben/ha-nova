@@ -34,7 +34,7 @@ func runUpdate(paths runtimePaths, args []string) int {
 		return 1
 	}
 	if installLifecycleStopped(paths) {
-		printHumanErr("HA NOVA was uninstalled; run `ha-nova setup` before updating.")
+		printHumanErr("HA NOVA is not set up on this computer yet; run: ha-nova setup")
 		return 1
 	}
 

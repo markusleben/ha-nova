@@ -123,6 +123,12 @@ func runUninstall(paths runtimePaths, args []string) int {
 	recoveryMode := false
 	recoveredTeardown := false
 	var recoveredRemovedRelays uninstallRelayRemovalEvidence
+	// Without the mode menu, refuse before any recovery output; with it, the
+	// user may still pick Standard remove, which needs no credentials.
+	purgeChecked := *yes || !isInteractiveTTY()
+	if purgeChecked && purgeRefusedOutsideDesktop(paths, mode, *yes) {
+		return 1
+	}
 	if recovery := inspectWindowsUninstallStatus(paths); recovery.Kind != windowsUninstallStatusKindNone {
 		if exitCode := handleWindowsUninstallRecovery(recovery, mode); exitCode != 0 {
 			return exitCode
@@ -154,6 +160,10 @@ func runUninstall(paths runtimePaths, args []string) int {
 			return 0
 		}
 		mode = selectedMode
+	}
+
+	if !purgeChecked && purgeRefusedOutsideDesktop(paths, mode, *yes) {
+		return 1
 	}
 
 	guidedSession := !*yes && !recoveryMode && isInteractiveTTY()
@@ -193,6 +203,9 @@ func runUninstall(paths runtimePaths, args []string) int {
 		if recoveryMode {
 			teardownDone = recoveredTeardown
 			removedRelays = recoveredRemovedRelays
+		}
+		if !purgeReadyForWindowsHandoff(paths, mode, teardown, *yes) {
+			return 1
 		}
 		if teardownDone {
 			printTeardownCompletedNotes(os.Stdout, mode)
