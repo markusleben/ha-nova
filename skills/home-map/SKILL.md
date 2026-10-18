@@ -13,7 +13,7 @@ compatibility: Requires the ha-nova CLI (run 'ha-nova setup' first) and the HA N
 Read-only understanding of the whole home through `ha-nova map`, which
 computes every count, so you never count by hand:
 - inventory with exact counts
-- where-used for one entity (automations, scripts, scenes, groups)
+- where-used for one entity (automations, scripts, scenes, groups, helpers, dashboards)
 - one ranked "review my whole setup" report
 - a plain-language document of how the home is built and why
 - the first look right after pairing
@@ -83,10 +83,10 @@ anything capped.
 
 ### Where is X used
 
-Resolve the entity, then `ha-nova map --entity <id>`. List automations,
-scripts, scenes, and groups by name; mark `via: device` rows as "through
-its device". Always name the `not_checked` surfaces: an empty result means "nothing found in
-automations, scripts, scenes, or groups", never "unused" or "safe to delete".
+Resolve the entity, then `ha-nova map --entity <id>`. List every hit by
+name (dashboards: dashboard › view › card); mark `via: device` rows
+as "through its device". Always name the `not_checked` surfaces in one line: an
+empty result means "nothing found where checked", never "unused" or "safe to delete".
 Deletes and renames go to the owning skill.
 
 ### Review my whole setup

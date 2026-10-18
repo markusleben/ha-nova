@@ -74,19 +74,32 @@ func (sc *refScanner) scanConfigs(s *relaySession, registry []refRegistryRow, st
 	wg.Wait()
 }
 
-// scanDashboards reads every Lovelace panel's config; an auto-generated
-// dashboard has none and nothing to re-point.
-func (sc *refScanner) scanDashboards(s *relaySession) {
+// lovelaceBoard is one Lovelace panel; Config is nil for an auto-generated
+// dashboard, which has no stored config.
+type lovelaceBoard struct {
+	URLPath, Title, Mode string
+	Config               any
+}
+
+// readLovelacePanels reads every Lovelace panel's config (storage and YAML mode,
+// the default one included) in parallel. Unreadable ones come back as gaps;
+// err means the panel list itself failed. The default dashboard is addressed
+// by url_path only when the dashboard list carries it (HA 2026.10+ can list a
+// saved Overview); else without, as the unlisted default.
+func readLovelacePanels(s *relaySession) ([]lovelaceBoard, []refGap, error) {
+	var listed []dashboardEntry
+	var listErr error
+	prefetch([]func(){func() { _, _ = s.ws(map[string]any{"type": "get_panels"}) }, func() { listed, listErr = readDashboards(s) }})
 	var panels map[string]struct {
-		Component string `json:"component_name"`
-		URLPath   string `json:"url_path"`
+		Component string  `json:"component_name"`
+		URLPath   string  `json:"url_path"`
+		Title     *string `json:"title"`
 		Config    struct {
 			Mode string `json:"mode"`
 		} `json:"config"`
 	}
 	if err := s.wsDecode(map[string]any{"type": "get_panels"}, &panels, "the panels"); err != nil {
-		sc.gap("dashboard", "", err.Error())
-		return
+		return nil, nil, err
 	}
 	var keys []string
 	for key, p := range panels {
@@ -95,28 +108,71 @@ func (sc *refScanner) scanDashboards(s *relaySession) {
 		}
 	}
 	sort.Strings(keys)
-	for _, key := range keys {
+	var boards []lovelaceBoard
+	var gaps []refGap
+	payloads := make([]map[string]any, len(keys))
+	var reads []func()
+	for i, key := range keys {
 		p := panels[key]
-		payload := map[string]any{"type": "lovelace/config", "force": false}
-		if p.URLPath != "lovelace" { // the default dashboard is addressed without url_path
-			payload["url_path"] = p.URLPath
+		if p.URLPath == defaultDashboard && listErr != nil {
+			gaps = append(gaps, refGap{Family: "dashboard", ID: p.URLPath, Reason: listErr.Error()})
+			continue
 		}
-		var doc any
-		err := s.wsDecode(payload, &doc, "the dashboard "+p.URLPath)
+		payloads[i] = map[string]any{"type": "lovelace/config", "force": false}
+		if p.URLPath != defaultDashboard || findDashboard(listed, defaultDashboard) != nil {
+			payloads[i]["url_path"] = p.URLPath
+		}
+		reads = append(reads, func() { _, _ = s.ws(payloads[i]) })
+	}
+	prefetch(reads)
+	for i, key := range keys {
+		p := panels[key]
+		if payloads[i] == nil { // already a gap
+			continue
+		}
+		b := lovelaceBoard{URLPath: p.URLPath, Mode: p.Config.Mode, Title: p.URLPath}
+		if p.Title != nil && *p.Title != "" {
+			b.Title = *p.Title
+		} else if p.URLPath == defaultDashboard {
+			b.Title = "Overview"
+		}
+		err := s.wsDecode(payloads[i], &b.Config, "the dashboard "+p.URLPath)
 		switch {
 		case isUpstreamNotFound(err) && p.Config.Mode != "yaml": // auto-generated
-			sc.res.Scanned["dashboard"]++
-			continue
-		case err != nil:
-			sc.gap("dashboard", p.URLPath, err.Error())
+			b.Config, err = nil, nil
+		case err == nil && asMap(b.Config) == nil:
+			err = errors.New("the dashboard config is not a JSON object")
+		}
+		if err != nil {
+			gaps = append(gaps, refGap{Family: "dashboard", ID: p.URLPath, Reason: err.Error()})
 			continue
 		}
+		boards = append(boards, b)
+	}
+	return boards, gaps, nil
+}
+
+// scanDashboards scans every readable dashboard; an auto-generated one has
+// nothing to re-point.
+func (sc *refScanner) scanDashboards(s *relaySession) {
+	boards, gaps, err := readLovelacePanels(s)
+	if err != nil {
+		sc.gap("dashboard", "", err.Error())
+		return
+	}
+	for _, g := range gaps {
+		sc.gap(g.Family, g.ID, g.Reason)
+	}
+	for _, b := range boards {
 		sc.res.Scanned["dashboard"]++
+		if b.Config == nil {
+			continue
+		}
 		managed := ""
-		if p.Config.Mode == "yaml" {
+		if b.Mode == "yaml" {
 			managed = "yaml"
 		}
-		sc.scan("dashboard", p.URLPath, "", managed, doc)
+		sc.scan("dashboard", b.URLPath, "", managed, b.Config)
 	}
 }
 
