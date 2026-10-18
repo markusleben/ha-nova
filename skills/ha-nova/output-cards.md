@@ -59,8 +59,8 @@ Destructive batch previews and results render the Batch Cards defined in
 
 ```
 ✅ Saved: automation "Morning routine"
-Checked: config persisted, reload OK, entity live. Runtime behavior was not exercised.
-Want it undone? Just say so.
+Checked: stored, loaded by Home Assistant, active. Runtime behavior was not exercised.
+You can undo this any time — just say so.
 ```
 
 **Test Plan Card** (test offer after create/update — feasibility logic, option
@@ -77,12 +77,8 @@ skip — test later
 Recommended option first and marked; at most 3 options plus `skip`; the option
 choice is the single confirmation bound to that exact card.
 
-Menu essentials (full rules: context skill → Interactive Choices): a
-selectable menu where the client offers one, else a numbered list; every
-option label opens with its concrete effect, one effect per option; a
-bare-number reply is translated back into its named effect before acting —
-never act on a number you did not translate; destructive confirmation is
-never a menu.
+Menu rules: context skill → Interactive Choices (restate a bare number's
+effect before acting; destructive confirmation is never a menu).
 
 Card coverage — every mutation and restore flow maps onto these cards; no
 write flow renders outside this system:
@@ -137,7 +133,7 @@ notice), then compact pipe tables
 (max 4 short columns — they degrade to plain pipe text in raw terminals) or
 grouped lists with counts; never raw JSON. Canonical column order: Name,
 one or two domain-specific columns (Type, State, Reason), Area; an ID only
-when names collide. Domains keep
+when a name is missing or collides. Domains keep
 their own columns — the frame (count line, column order, stated cap) is what
 is shared.
 

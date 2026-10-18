@@ -130,7 +130,7 @@ This is more reliable than keyword search or assuming `.ai` is populated for roo
 
 ### Step 4: Return shortlist
 
-- `friendly_name` (verbatim), `state` (if fetched), short relevance reason; `entity_id` only on a name clash
+- `friendly_name` (verbatim), `state` (if fetched), short relevance reason; `entity_id` only for a missing or clashing name
 - for bulk inventory: matched count, displayed rows
 - do not fetch full YAML for every matched item in one response
 
@@ -141,7 +141,7 @@ A capability-oriented request (restart, identify, calibrate, reset, siren, ...) 
 1. Resolve the physical device: for an entity target, read its registry row (WS `config/entity_registry/get`) and take its `device_id`; a target already resolved AS a device (a device-registry row or config-entry device) supplies its `device_id` directly — no entity row is required to proceed.
 2. List ALL registry entities of that device from the FULL registry (`config/entity_registry/list`, filter by `device_id`) — `list_for_display` omits disabled entities, and the registry row's `disabled_by` decides enabled/disabled status. NEVER validate a disabled candidate through `/api/states`: it has no state there, and its absence proves nothing about the capability. The 20-row display envelope does NOT apply here — a device's own entity list is complete and bounded by nature; capping it could hide the one capability past the cap.
 3. Select by domain, `device_class`, `translation_key`, and entity_id semantics on the SAME device. An entity on another device never qualifies merely because its name matches.
-4. Prefer an enabled exact match. Multiple plausible candidates → ONE bounded clarification listing each candidate's entity ID, domain, device, and enabled/disabled status.
+4. Prefer an enabled exact match. Multiple plausible candidates → ONE bounded clarification listing each candidate by name, device, and whether it is disabled (entity ID only on a name clash).
 5. Report a disabled candidate as available-but-disabled WITH its `disabled_by` source and offer the matching enable flow via `ha-nova:organize` (a `"device"`-disabled sibling needs its parent DEVICE re-enabled, not the entity alone; `"integration"` (off by default) enables like `"user"`; `"config_entry"` needs the HA UI). Never enable anything automatically, and never press or execute from discovery — hand off to the owning skill.
 
 This contract is generic — never hard-coded to a brand, to cameras, or to restart buttons.

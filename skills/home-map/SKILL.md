@@ -137,8 +137,7 @@ the first look without comment.
 ## Output Format
 
 Apply `../ha-nova/output-rules.md`. Lead with the answer in one or two
-lines, then at most one compact table. Name things by friendly name and
-area. A capped list follows Progressive Detail; you run the matching
+lines, then at most one compact table. A capped list follows Progressive Detail; you run the matching
 `--section` when asked. No raw JSON, no field names such as `never_triggered`.
 
 ## Safety

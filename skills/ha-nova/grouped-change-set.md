@@ -116,7 +116,7 @@ The Result Card reports the ledger:
 ```
 ✅ Applied: 3 of 3 operations
 Ledger: 3 applied · 0 skipped · 0 failed.
-Ran one by one — not atomic; each change can still be undone on its own.
+Ran one by one — not atomic; anything to undo goes one change at a time, where that change can be undone.
 ```
 
 On partial completion the ✅ line names the applied subset and the ledger shows
