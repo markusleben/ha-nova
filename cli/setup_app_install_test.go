@@ -51,12 +51,12 @@ func stubAppInstallSignIn(t *testing.T, supervisor *fakeSupervisor, results ...e
 	return &calls
 }
 
-func runAppInstallStep(t *testing.T, input string, update bool) (bool, error, string) {
+func runAppInstallStep(t *testing.T, input string, update bool) (appInstallResult, error, string) {
 	t.Helper()
 	var out bytes.Buffer
 	cfg := runtimeConfig{HAURL: "http://ha.local:8123", RelayBaseURL: "http://ha.local:8791"}
-	done, err := runSignInAppInstall(bufio.NewReader(strings.NewReader(input)), &out, cfg, update, "0.9.2", "0.10.0")
-	return done, err, out.String()
+	result, err := runSignInAppInstall(bufio.NewReader(strings.NewReader(input)), &out, cfg, update, "0.9.2", "0.10.0")
+	return result, err, out.String()
 }
 
 func TestAppInstallNeedsAnExplicitChoice(t *testing.T) {
@@ -75,9 +75,9 @@ func TestAppInstallNeedsAnExplicitChoice(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			calls := stubAppInstallSignIn(t, newFakeSupervisor(t))
-			done, err, output := runAppInstallStep(t, test.input, test.update)
-			if done || !errors.Is(err, test.err) || (test.err == nil && err != nil) || *calls != 0 {
-				t.Fatalf("done=%v err=%v sign-ins=%d\n%s", done, err, *calls, output)
+			result, err, output := runAppInstallStep(t, test.input, test.update)
+			if result == appInstallDone || !errors.Is(err, test.err) || (test.err == nil && err != nil) || *calls != 0 {
+				t.Fatalf("result=%v err=%v sign-ins=%d\n%s", result, err, *calls, output)
 			}
 			if !strings.Contains(output, test.output) {
 				t.Fatalf("output lacks %q:\n%s", test.output, output)
@@ -92,9 +92,9 @@ func TestAppInstallNeedsAnExplicitChoice(t *testing.T) {
 func TestAppInstallAfterYesInstallsAndHandsTheSignInToPairing(t *testing.T) {
 	supervisor := newFakeSupervisor(t)
 	calls := stubAppInstallSignIn(t, supervisor)
-	done, err, output := runAppInstallStep(t, "yes\n", false)
-	if !done || err != nil || *calls != 1 || setupInstalledSignIn == nil {
-		t.Fatalf("done=%v err=%v sign-ins=%d session=%v\n%s", done, err, *calls, setupInstalledSignIn, output)
+	result, err, output := runAppInstallStep(t, "yes\n", false)
+	if result != appInstallDone || err != nil || *calls != 1 || setupInstalledSignIn == nil {
+		t.Fatalf("result=%v err=%v sign-ins=%d session=%v\n%s", result, err, *calls, setupInstalledSignIn, output)
 	}
 	for _, line := range []string{"Signed in to Home Assistant as Markus (owner)", "NOVA App source added", "NOVA App installed (v0.10.0)", "NOVA App started", "NOVA App is ready"} {
 		if !strings.Contains(output, line) {
@@ -106,10 +106,11 @@ func TestAppInstallAfterYesInstallsAndHandsTheSignInToPairing(t *testing.T) {
 func TestAppInstallRetriesOnlyWhileNothingChanged(t *testing.T) {
 	// A wrong account changes nothing: offer the sign-in again.
 	calls := stubAppInstallSignIn(t, newFakeSupervisor(t), errSignInNotOwner)
-	done, err, output := runAppInstallStep(t, "yes\nyes\n", false)
-	if !done || err != nil || *calls != 2 || !strings.Contains(output, "sign in again and install NOVA") ||
-		!strings.Contains(output, "Nothing was changed in Home Assistant.") {
-		t.Fatalf("done=%v err=%v sign-ins=%d\n%s", done, err, *calls, output)
+	result, err, output := runAppInstallStep(t, "yes\nyes\n", false)
+	if result != appInstallDone || err != nil || *calls != 2 || !strings.Contains(output, "sign in again and install NOVA") ||
+		!strings.Contains(output, "Nothing was changed in Home Assistant.") ||
+		!strings.Contains(output, "Only the owner can install the NOVA App.") {
+		t.Fatalf("result=%v err=%v sign-ins=%d\n%s", result, err, *calls, output)
 	}
 
 	// Half done: say what exists, then hand over to the manual steps; never
@@ -118,12 +119,13 @@ func TestAppInstallRetriesOnlyWhileNothingChanged(t *testing.T) {
 	supervisor := newFakeSupervisor(t)
 	supervisor.startFails = true
 	calls = stubAppInstallSignIn(t, supervisor)
-	done, err, output = runAppInstallStep(t, "yes\n", false)
-	if done || err != nil || *calls != 1 || setupInstalledSignIn != nil {
-		t.Fatalf("done=%v err=%v sign-ins=%d\n%s", done, err, *calls, output)
+	result, err, output = runAppInstallStep(t, "yes\n", false)
+	if result != appInstallManual || err != nil || *calls != 1 || setupInstalledSignIn != nil {
+		t.Fatalf("result=%v err=%v sign-ins=%d\n%s", result, err, *calls, output)
 	}
 	if !strings.Contains(output, "Home Assistant couldn't start the NOVA App.") ||
-		!strings.Contains(output, "The NOVA App (v0.10.0) is installed but not running.") {
+		!strings.Contains(output, "Home Assistant may still be starting the NOVA App.") ||
+		!strings.Contains(output, "wait until Home Assistant finishes, then click Start") {
 		t.Fatalf("failure must say what exists:\n%s", output)
 	}
 	for _, write := range supervisor.writes() {
@@ -133,13 +135,36 @@ func TestAppInstallRetriesOnlyWhileNothingChanged(t *testing.T) {
 	}
 }
 
-func TestAppInstallOnHomeAssistantWithoutAppsPointsToTheContainerGuide(t *testing.T) {
-	supervisor := newFakeSupervisor(t)
-	supervisor.noHassio = true
-	stubAppInstallSignIn(t, supervisor)
-	done, err, output := runAppInstallStep(t, "yes\n", false)
-	if done || err != nil || !strings.Contains(output, relayContainerGuideURL) {
-		t.Fatalf("done=%v err=%v\n%s", done, err, output)
+func TestAppInstallWithoutAppsPointsToTheContainerGuideOnly(t *testing.T) {
+	for name, setup := range map[string]func(*fakeSupervisor){
+		"Container or Core":  func(f *fakeSupervisor) { f.noHassio = true },
+		"unsupported system": func(f *fakeSupervisor) { f.info["available"] = false },
+	} {
+		t.Run(name, func(t *testing.T) {
+			supervisor := newFakeSupervisor(t)
+			setup(supervisor)
+			stubAppInstallSignIn(t, supervisor)
+			result, err, output := runAppInstallStep(t, "yes\n\n", false)
+			if result != appInstallContinue || err != nil || !strings.Contains(output, relayContainerGuideURL) ||
+				strings.Contains(output, "App page") {
+				t.Fatalf("result=%v err=%v\n%s", result, err, output)
+			}
+		})
+	}
+}
+
+// After a failure with the App up and running, the next step is pairing,
+// not the App page.
+func TestAppInstallFailureWithARunningAppGoesOnToPairing(t *testing.T) {
+	previous := haAppReadyTimeout
+	haAppReadyTimeout = 50 * time.Millisecond
+	t.Cleanup(func() { haAppReadyTimeout = previous })
+	stubAppInstallSignIn(t, newFakeSupervisor(t))
+	relayAdvertisesSignInForSetup = func(string) bool { return false }
+	result, err, output := runAppInstallStep(t, "yes\n", false)
+	if result != appInstallContinue || err != nil || setupInstalledSignIn != nil ||
+		!strings.Contains(output, "didn't get ready") || !strings.Contains(output, "Connect this computer next.") {
+		t.Fatalf("result=%v err=%v\n%s", result, err, output)
 	}
 }
 
@@ -158,18 +183,23 @@ func TestRelayInstallStepsFallBackToTheManualPageOrContinue(t *testing.T) {
 	for name, test := range map[string]struct {
 		running   bool
 		version   string
+		noHassio  bool
 		input     string
 		calls     int
 		wantSteps bool
+		wantNote  bool
 	}{
-		"installed for you":      {input: "yes\n", calls: 1},
-		"install it myself":      {input: "manual\n\n\n", wantSteps: true},
-		"outdated, update later": {running: true, version: "0.9.2", input: "later\n"},
-		"outdated, updated":      {running: true, version: "0.9.2", input: "yes\n", calls: 1},
+		"installed for you":         {input: "yes\n", calls: 1},
+		"install it myself":         {input: "manual\n\n\n", wantSteps: true},
+		"no Apps: guide only":       {noHassio: true, input: "yes\n\n", calls: 1},
+		"running current: no offer": {running: true, version: "0.10.0", input: "\n\n", wantSteps: true},
+		"outdated, update later":    {running: true, version: "0.9.2", input: "later\n", wantNote: true},
+		"outdated, updated":         {running: true, version: "0.9.2", input: "yes\n", calls: 1},
 	} {
 		t.Run(name, func(t *testing.T) {
 			stubInstalledRelayProbe(t, test.running, test.version)
 			supervisor := newFakeSupervisor(t)
+			supervisor.noHassio = test.noHassio
 			if test.running {
 				supervisor.installedApp(test.version, "started", "0.10.0")
 			}
@@ -178,11 +208,23 @@ func TestRelayInstallStepsFallBackToTheManualPageOrContinue(t *testing.T) {
 			openBrowserForSetup = func(string) error { return nil }
 			t.Cleanup(func() { openBrowserForSetup = previousOpen })
 			var out bytes.Buffer
-			err := runRelayInstallSteps(bufio.NewReader(strings.NewReader(test.input)), &out, paths, cfg)
-			if err != nil || *calls != test.calls || strings.Contains(out.String(), manual) != test.wantSteps {
-				t.Fatalf("err=%v sign-ins=%d manual steps=%v\n%s", err, *calls, strings.Contains(out.String(), manual), out.String())
+			note, err := runRelayInstallSteps(bufio.NewReader(strings.NewReader(test.input)), &out, paths, cfg, true)
+			if err != nil || *calls != test.calls || strings.Contains(out.String(), manual) != test.wantSteps ||
+				strings.Contains(note, "update to v0.10.0 or newer") != test.wantNote {
+				t.Fatalf("err=%v sign-ins=%d manual steps=%v note=%q\n%s", err, *calls, strings.Contains(out.String(), manual), note, out.String())
 			}
 		})
+	}
+	// Without pairing next (relay token path) nothing is offered.
+	stubInstalledRelayProbe(t, false, "")
+	calls := stubAppInstallSignIn(t, newFakeSupervisor(t))
+	previousOpen := openBrowserForSetup
+	openBrowserForSetup = func(string) error { return nil }
+	t.Cleanup(func() { openBrowserForSetup = previousOpen })
+	var out bytes.Buffer
+	if _, err := runRelayInstallSteps(bufio.NewReader(strings.NewReader("\n\n")), &out, paths, cfg, false); err != nil ||
+		*calls != 0 || !strings.Contains(out.String(), manual) || strings.Contains(out.String(), "Sign in and install") {
+		t.Fatalf("err=%v sign-ins=%d\n%s", err, *calls, out.String())
 	}
 }
 

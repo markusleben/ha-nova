@@ -205,9 +205,13 @@ func openHASignInIngressWith(
 	ctx, stop := haSignInInterrupt(ctx)
 	defer stop()
 	flow := haSignInOAuthFlow()
+	waiting := "Waiting for you to sign in, Ctrl+C to use a code instead"
+	if prepare != nil {
+		waiting = "Waiting for you to sign in, Ctrl+C to stop"
+	}
 	authorization, err := runSetupCountdownSpinnerWithResult(
 		out,
-		"Waiting for you to sign in, Ctrl+C to use a code instead",
+		waiting,
 		flow.Timeout,
 		500*time.Millisecond,
 		func() (OAuthAuthorizationCode, error) {

@@ -58,12 +58,15 @@ func TestHASignInAgainstThrowawayHomeAssistant(t *testing.T) {
 	var out bytes.Buffer
 	var prepare haSignInPrepare
 	if os.Getenv("HA_NOVA_SIGNIN_E2E_INSTALL") == "1" {
+		if os.Getenv("HA_NOVA_SIGNIN_E2E_APP_SLUG") != "" {
+			t.Fatal("the install mode installs the official App; unset HA_NOVA_SIGNIN_E2E_APP_SLUG")
+		}
 		prepare = func(ctx context.Context, socket haWSCaller, _ HACurrentUser) error {
 			var state novaAppState
-			if err := newNOVAAppSupervisor(socket).ensure(ctx, &out, &state, false); err != nil {
+			if err := newNOVAAppSupervisor(socket).ensure(ctx, &out, &state, false, ""); err != nil {
 				return fmt.Errorf("%w (%s)", err, describeNOVAAppState(state))
 			}
-			return waitForNOVAAppSignIn(ctx, &out, os.Getenv("HA_NOVA_SIGNIN_E2E_RELAY_URL"))
+			return waitForNOVAAppSignIn(ctx, &out, socket, os.Getenv("HA_NOVA_SIGNIN_E2E_RELAY_URL"))
 		}
 	}
 	session, err := openHASignInIngressWith(context.Background(), &out, haURL, prepare)

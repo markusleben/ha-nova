@@ -14,15 +14,17 @@ import (
 // fakeSupervisor is Home Assistant's WebSocket with the hassio component and
 // a Supervisor that holds at most the NOVA App. It records every call.
 type fakeSupervisor struct {
-	t          *testing.T
-	noHassio   bool
-	repos      []map[string]string
-	info       map[string]any // the App as /addons/<slug>/info returns it
-	jobErr     string         // the install/update job fails with this message
-	jobNever   bool           // the job never finishes
-	startFails bool
-	addFails   bool
-	calls      []string
+	t           *testing.T
+	noHassio    bool
+	repos       []map[string]string
+	info        map[string]any // the App as /addons/<slug>/info returns it
+	jobErr      string         // the install/update job fails with this message
+	jobNever    bool           // the job never finishes
+	startFails  bool
+	addFails    bool
+	targetBuild bool   // the update target would need a local build
+	reloadTo    string // a store reload makes this version available
+	calls       []string
 }
 
 const fakeJobID = "0123456789abcdef0123456789abcdef"
@@ -66,6 +68,9 @@ func (f *fakeSupervisor) Call(ctx context.Context, commandType string, fields ma
 		}
 		return reply(map[string]any{"components": components})
 	}
+	if commandType == "auth/current_user" {
+		return nil // the readiness wait keeps the socket busy
+	}
 	if commandType != "supervisor/api" {
 		f.t.Fatalf("unexpected WebSocket command %s", commandType)
 	}
@@ -98,6 +103,18 @@ func (f *fakeSupervisor) Call(ctx context.Context, commandType string, fields ma
 			job["child_jobs"] = []any{map[string]any{"done": true, "errors": []any{map[string]string{"message": f.jobErr}}}}
 		}
 		return reply(job)
+	case "get /store/addons/" + slug:
+		target := map[string]any{}
+		for key, value := range f.info {
+			target[key] = value
+		}
+		target["build"] = f.targetBuild
+		return reply(target)
+	case "post /store/reload":
+		if f.reloadTo != "" {
+			f.info["version_latest"], f.info["update_available"] = f.reloadTo, true
+		}
+		return nil
 	case "post /addons/" + slug + "/start":
 		if f.startFails {
 			return fail
@@ -114,7 +131,7 @@ func ensureWithFake(t *testing.T, f *fakeSupervisor, update bool) (novaAppState,
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	var state novaAppState
-	err := newNOVAAppSupervisor(f).ensure(ctx, io.Discard, &state, update)
+	err := newNOVAAppSupervisor(f).ensure(ctx, io.Discard, &state, update, "")
 	return state, err
 }
 
@@ -202,7 +219,8 @@ func TestEnsureNOVAAppUpdatesAnOutdatedApp(t *testing.T) {
 	f.installedApp("0.9.2", "started", "")
 	_, err = ensureWithFake(t, f, true)
 	var failure *novaAppInstallError
-	if !errors.As(err, &failure) || !strings.Contains(failure.line, "doesn't list a newer") || len(f.writes()) != 0 {
+	if !errors.As(err, &failure) || !strings.Contains(failure.line, "doesn't list a newer") ||
+		strings.Join(f.writes(), ",") != "post /store/reload" {
 		t.Fatalf("err = %v, writes = %v", err, f.writes())
 	}
 }
@@ -264,11 +282,11 @@ func TestEnsureNOVAAppFailuresSayWhatExists(t *testing.T) {
 		state string
 	}{
 		"add fails": {func(f *fakeSupervisor) { f.addFails = true },
-			"couldn't add the NOVA App source", "Nothing was changed in Home Assistant."},
+			"couldn't add the NOVA App source", "may still be adding the NOVA App source"},
 		"install job fails": {func(f *fakeSupervisor) { f.jobErr = "Can't pull image\x1b[31m: 500" },
 			"couldn't install the NOVA App: Can't pull image[31m: 500", "lists the NOVA App source; the App is not installed"},
 		"start fails": {func(f *fakeSupervisor) { f.startFails = true },
-			"couldn't start the NOVA App", "is installed but not running"},
+			"couldn't start the NOVA App", "may still be starting the NOVA App"},
 		"update job fails": {func(f *fakeSupervisor) { f.installedApp("0.9.2", "stopped", "0.10.0"); f.jobErr = "No space left" },
 			"couldn't update the NOVA App: No space left", "NOVA App (v0.9.2) is installed but not running"},
 	} {
@@ -296,7 +314,7 @@ func TestEnsureNOVAAppJobTimeoutNeverClaimsNothingHappened(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
 	defer cancel()
 	var state novaAppState
-	err := newNOVAAppSupervisor(f).ensure(ctx, io.Discard, &state, false)
+	err := newNOVAAppSupervisor(f).ensure(ctx, io.Discard, &state, false, "")
 	var failure *novaAppInstallError
 	if !errors.As(err, &failure) || !strings.Contains(failure.line, "didn't finish the install") {
 		t.Fatalf("err = %v", err)
@@ -315,5 +333,83 @@ func TestSupervisorJobErrorIsOneBoundedLine(t *testing.T) {
 	}
 	if fmt.Sprint(supervisorJob{Done: true}.firstError()) != "" {
 		t.Fatal("a clean job has no error")
+	}
+}
+
+func TestEnsureNOVAAppUpdateRules(t *testing.T) {
+	update := "post /store/addons/" + HAOfficialNOVAAppSlug + "/update"
+	for name, test := range map[string]struct {
+		setup   func(*fakeSupervisor)
+		update  bool
+		minimum string
+		line    string // "" = success
+		writes  []string
+	}{
+		"update consent never installs": {
+			setup: func(*fakeSupervisor) {}, update: true,
+			line: "nothing to update", writes: []string{"post /store/repositories"},
+		},
+		"target would build locally": {
+			setup:  func(f *fakeSupervisor) { f.installedApp("0.9.2", "started", "0.10.0"); f.targetBuild = true },
+			update: true, line: "can't download the NOVA App update",
+		},
+		"store reload finds the update": {
+			setup:  func(f *fakeSupervisor) { f.installedApp("0.9.2", "started", ""); f.reloadTo = "0.10.0" },
+			update: true, writes: []string{"post /store/reload", update},
+		},
+		"stale listed source is reloaded before install": {
+			setup: func(f *fakeSupervisor) {
+				f.repos = []map[string]string{{"slug": "2368fcfa", "source": haNovaRepositoryURL}}
+			},
+			writes: []string{"post /store/reload", "post /store/addons/" + HAOfficialNOVAAppSlug + "/install", "post /addons/" + HAOfficialNOVAAppSlug + "/start"},
+		},
+		"installed version below the minimum": {
+			setup: func(f *fakeSupervisor) { f.info["version_latest"] = "0.9.0" }, minimum: "0.10.0",
+			line: "only offers NOVA App v0.9.0; this HA NOVA needs v0.10.0",
+		},
+		"starting after an update is not started twice": {
+			setup:  func(f *fakeSupervisor) { f.installedApp("0.9.2", "startup", "0.10.0") },
+			update: true, writes: []string{update},
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			f := newFakeSupervisor(t)
+			test.setup(f)
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			var state novaAppState
+			err := newNOVAAppSupervisor(f).ensure(ctx, io.Discard, &state, test.update, test.minimum)
+			var failure *novaAppInstallError
+			switch {
+			case test.line == "" && err != nil:
+				t.Fatalf("err = %v", err)
+			case test.line != "" && (!errors.As(err, &failure) || !strings.Contains(failure.line, test.line)):
+				t.Fatalf("err = %v, want %q", err, test.line)
+			}
+			if test.writes != nil && strings.Join(f.writes(), ",") != strings.Join(test.writes, ",") {
+				t.Fatalf("writes = %v, want %v", f.writes(), test.writes)
+			}
+			if test.line != "" && test.writes == nil {
+				for _, write := range f.writes() {
+					if write == update {
+						t.Fatalf("refused update still sent: %v", f.writes())
+					}
+				}
+			}
+		})
+	}
+}
+
+// A write whose answer was lost keeps its outcome unknown: Supervisor
+// shields add, start, and background jobs and keeps going without us.
+func TestEnsureNOVAAppLostAnswersStayUnknown(t *testing.T) {
+	f := newFakeSupervisor(t)
+	f.startFails = true
+	f.info["state"] = "stopped"
+	f.info["version"] = "0.10.0"
+	f.repos = []map[string]string{{"slug": "2368fcfa", "source": haNovaRepositoryURL}}
+	state, err := ensureWithFake(t, f, false)
+	if err == nil || describeNOVAAppState(state) != "Home Assistant may still be starting the NOVA App." {
+		t.Fatalf("err = %v, state line %q", err, describeNOVAAppState(state))
 	}
 }
