@@ -85,6 +85,9 @@ func runSecurePairingWithProvisioner(
 		return "", fmt.Errorf("cannot store a device credential on this system (the code was not used): %w", err)
 	}
 	installID, err := getOrCreateClientInstallID(cfg, saveCfg)
+	if err == nil {
+		installID, err = pairingClientInstallID(installID, activeServerProfile())
+	}
 	if err != nil {
 		return "", fmt.Errorf("could not establish an install id: %w", err)
 	}

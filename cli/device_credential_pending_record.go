@@ -116,6 +116,27 @@ func getOrCreateClientInstallID(
 	return cfg.ClientInstallID, nil
 }
 
+// pairingClientInstallID is the install id one profile sends when it pairs.
+// The Relay drops every other active device with the same id on activation, so
+// two profiles of this install paired with one Relay must not share it. The
+// default profile keeps the plain id (re-pairing it still replaces its own old
+// device); every other profile appends its name. Profile names are the
+// credential-slot key and a paired profile cannot be renamed, so the derived id
+// is stable while the device exists.
+func pairingClientInstallID(installID, profile string) (string, error) {
+	if profile == defaultServerProfileName {
+		return installID, nil
+	}
+	if err := validateServerProfileName(profile); err != nil {
+		return "", err
+	}
+	id := installID + "-" + profile
+	if !validIdentifier(id, 128) {
+		return "", fmt.Errorf("%w: too long for server profile %q", errInvalidClientInstallID, profile)
+	}
+	return id, nil
+}
+
 func newClientInstallID() (string, error) {
 	buf := make([]byte, 16)
 	if _, err := rand.Read(buf); err != nil {
