@@ -21,7 +21,8 @@ type phoneAsk struct {
 const (
 	phoneHint       = "Hold or expand to answer."
 	phoneSentText   = "Sent to “%s”. Hold or expand the notification and tap “%s”, only if you started this."
-	phoneTitleLimit = 80 // runes: one lock-screen line
+	phoneTitleLimit = 80  // runes: one lock-screen line
+	phoneWhyLimit   = 140 // runes: the reason line
 )
 
 func phoneLinkAsk() phoneAsk {
@@ -29,34 +30,60 @@ func phoneLinkAsk() phoneAsk {
 }
 
 // phoneChangeAsk goes to the phone linked now: stop (newPhone "") or move
-// HA NOVA's confirmations to newPhone.
+// HA NOVA's confirmations to newPhone. Stopping says what it gives up.
 func phoneChangeAsk(newPhone string) phoneAsk {
 	if newPhone == "" {
-		return phoneAsk{title: "Stop HA NOVA confirmations here?", body: phoneRequested(), button: "Stop"}
+		return phoneAsk{title: "Stop HA NOVA confirmations here?", body: "After this, HA NOVA may ask in chat, where your AI assistant can answer. " + phoneRequested(), button: "Stop"}
 	}
-	return phoneAsk{title: phoneCut("Move HA NOVA confirmations to “" + newPhone + "”?"), body: phoneRequested(), button: "Move"}
+	return phoneAsk{title: phoneTitle("Move HA NOVA confirmations to", "“"+newPhone+"”"), body: phoneRequested(), button: "Move"}
 }
 
-// phonePlanAsk: "Unlock “Front Door”?" with an Unlock button (a long verb
-// such as "Set the position of" is a Confirm button).
-func phonePlanAsk(goal [2]string, noSnapshot bool) phoneAsk {
-	ask := phoneAsk{title: phoneCut(goal[0] + " " + goal[1] + "?"), body: phoneRequested(), button: goal[0], urgent: true}
-	if strings.Count(goal[0], " ") > 1 || goal[0] == "" {
-		ask.button = "Confirm"
+// phonePlanAsk: "Unlock “Front Door”?" with an Unlock button, and the
+// reason it needs a confirmation where the title doesn't say it (sayAsk).
+func phonePlanAsk(goal [3]string, noSnapshot bool) phoneAsk {
+	body := phoneRequested()
+	if goal[2] != "" {
+		body = phoneCut(goal[2], phoneWhyLimit, "") + ". " + body
 	}
 	if noSnapshot {
-		ask.body = "Can't be undone. " + ask.body
+		body = "Can't be undone. " + body
 	}
-	return ask
+	return phoneAsk{title: phoneTitle(goal[0], goal[1]), body: body, button: phoneButton(goal[0]), urgent: true}
+}
+
+// phoneButton: the goal's verb ("Unlock", "Turn on"); a longer one such as
+// "Set the position of", or one that reads like the other button, is Confirm.
+func phoneButton(verb string) string {
+	if verb == "" || strings.Count(verb, " ") > 1 || strings.EqualFold(verb, "Cancel") {
+		return "Confirm"
+	}
+	return verb
 }
 
 func phoneRequested() string { return "Requested by “" + phoneHost() + "”. " + phoneHint }
 
-func phoneCut(title string) string {
-	if runes := []rune(title); len(runes) > phoneTitleLimit {
-		return string(runes[:phoneTitleLimit-2]) + "…?"
+// phoneTitle: verb + object + "?" in one line. A long list keeps its end
+// ("… and 4 more"), and a cut name never leaves an open quote.
+func phoneTitle(verb, object string) string {
+	more := ""
+	if i := strings.LastIndex(object, " and "); i > 0 && strings.HasSuffix(object, " more") { // sayList's count
+		object, more = object[:i], object[i:]
 	}
-	return title
+	return phoneCut(verb+" "+object, phoneTitleLimit-1-len([]rune(more)), "”") + more + "?"
+}
+
+// phoneCut shortens text to limit runes with "…", back to the last end
+// mark (a closing quote) when one fits.
+func phoneCut(text string, limit int, end string) string {
+	runes := []rune(text)
+	if len(runes) <= limit {
+		return text
+	}
+	cut := string(runes[:max(limit-1, 0)])
+	if i := strings.LastIndex(cut, end); end != "" && i > 0 {
+		cut = cut[:i+len(end)]
+	}
+	return cut + "…"
 }
 
 // phonePayload: Confirm needs an unlocked phone (Face ID, fingerprint, or

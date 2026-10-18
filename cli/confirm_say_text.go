@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"regexp"
+	"slices"
 	"strings"
 	"unicode"
 )
@@ -32,6 +33,22 @@ var sayVerbs = map[string]string{
 	"turn_on": "Turn on", "turn_off": "Turn off", "open_cover": "Open", "close_cover": "Close", "stop_cover": "Stop",
 	"set_cover_position": "Set the position of", "alarm_disarm": "Disarm", "alarm_trigger": "Set off", "press": "Press",
 	"trigger": "Run", "set_value": "Set", "select_option": "Set",
+}
+
+// sayAsk: a typed plan's phone question — the goal's verb and object, and
+// the first reason it needs a confirmation that the title doesn't already
+// say (an automation that also unlocks, a device sibling, an unseen effect).
+func sayAsk(e *tierEngine, env *verbEnvelope, plan storedPlan, subject string) [3]string {
+	verb, object := sayGoal(e, env, plan, subject)
+	for _, r := range env.Reasons {
+		text, typed := sayReason(e, env, plan, r)
+		_, _, phrased := sayActionPhrase(e, env, r)
+		said := r.Via == "" && phrased && slices.Contains(plan.Action.EntityIDs, r.EntityID) && phoneButton(verb) != "Confirm"
+		if typed && text != "" && !said {
+			return [3]string{verb, object, text}
+		}
+	}
+	return [3]string{verb, object, ""}
 }
 
 // sayGoalText: sayGoal as one phrase, "Unlock “Front Door”".

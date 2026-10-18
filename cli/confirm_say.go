@@ -27,7 +27,8 @@ func confirmationSay(e *tierEngine, env *verbEnvelope, plan storedPlan, subject 
 	case plan.Confirm == "code" && plan.Channel == channelWindow:
 		parts = append(parts, sayWindowAsk)
 	case plan.Confirm == "code" && plan.Channel == channelPhone:
-		parts = append(parts, sayPhoneAsk)
+		verb, _ := sayGoal(e, env, plan, subject)
+		parts = append(parts, sayPhoneAsk(phoneButton(verb)))
 	case plan.Confirm == "code":
 		parts = append(parts, sayTypedAsk(plan.code, lowerFirst(sayGoalText(e, env, plan, subject))))
 		if plan.Channel == channelChat {
@@ -51,7 +52,7 @@ func confirmationPrompt(e *tierEngine, env *verbEnvelope, plan storedPlan, subje
 	if plan.Confirm != "code" || plan.ConfigAction == nil && frozeNothing(plan.Request, plan.Action) {
 		return ""
 	}
-	env.ask[0], env.ask[1] = sayGoal(e, env, plan, subject) // a phone plan's button and question
+	env.ask = sayAsk(e, env, plan, subject) // a phone plan's question
 	what := sayWhat(e, env, plan, subject)
 	if plan.ConfigAction != nil {
 		what = env.ask[0] + " " + env.ask[1] + ". " + what

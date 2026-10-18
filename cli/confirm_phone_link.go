@@ -105,6 +105,7 @@ func linkPhone(s *relaySession, reader *bufio.Reader, out io.Writer, run phoneLi
 		if run.offer {
 			return 0
 		}
+		fmt.Fprintln(out, "  Changing it asks that phone first: the user taps “Move” there, then “Link” on the new phone.")
 	case status == phoneMissing:
 		fmt.Fprintln(out, "  "+home.missingLine(prev, current.why))
 		if !current.why.replaceable() && !run.listOnly {

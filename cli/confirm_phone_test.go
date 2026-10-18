@@ -128,7 +128,7 @@ func TestPhonePlanConfirmsOnTheLinkedPhoneAndClearsIt(t *testing.T) {
 	p := usePhones(t, "mobile_app_iphone")
 	env := h.plan("lock.unlock", "lock.front")
 	plan := env.Plan
-	if plan.Channel != channelPhone || plan.Code != "" || !strings.HasSuffix(env.Say, sayPhoneAsk) || strings.Contains(env.Say, "one-time code") ||
+	if plan.Channel != channelPhone || plan.Code != "" || !strings.HasSuffix(env.Say, sayPhoneAsk("Unlock")) || strings.Contains(env.Say, "one-time code") ||
 		!strings.Contains(env.NextStep, "a notification on their phone") || !strings.Contains(env.NextStep, "Never ask for a code") {
 		t.Fatalf("phone plan: %+v say %q next %q", plan, env.Say, env.NextStep)
 	}
@@ -243,7 +243,7 @@ func TestWindowThatCannotOpenFallsBackToThePhone(t *testing.T) {
 	}
 	exit, env := h.run(runApplyCommand, "--plan", plan.ID)
 	if exit != 3 || env.Plan == nil || env.Plan.Channel != channelPhone || env.Plan.Code != "" || len(h.posts()) != 0 ||
-		!strings.HasSuffix(env.Say, sayPhoneAsk) || !strings.Contains(env.NextStep, "a notification on their phone") {
+		!strings.HasSuffix(env.Say, sayPhoneAsk("Unlock")) || !strings.Contains(env.NextStep, "a notification on their phone") {
 		t.Fatalf("fallback: exit %d %+v say %q next %q", exit, env.Plan, env.Say, env.NextStep)
 	}
 }

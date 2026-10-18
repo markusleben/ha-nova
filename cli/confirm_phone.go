@@ -286,12 +286,13 @@ func confirmByPhone(paths runtimePaths, opts verbOptions, id string, noSnapshot 
 	if status != phoneReady {
 		return windowStopped(s, "refused", "CONFIRM_UNAVAILABLE", phoneMissingWhy, phoneMissingNext)
 	}
-	switch askPhone(s, setup, "ha-nova-"+plan.ID, phonePlanAsk(goal, noSnapshot), time.Until(deadline)) {
+	ask := phonePlanAsk(goal, noSnapshot)
+	switch askPhone(s, setup, "ha-nova-"+plan.ID, ask, time.Until(deadline)) {
 	case phoneConfirmed:
 		switch still, unread := phoneStillLinked(s, setup); {
 		case unread:
 			return windowStopped(s, "refused", "CONFIRM_UNAVAILABLE", "HA NOVA couldn't re-check the linked phone in Home Assistant after the tap",
-				fmt.Sprintf("Tell the user nothing changed: HA NOVA couldn't re-check their linked phone after the tap. Run ha-nova apply --plan %s again (a new notification goes to their phone) only after they say they still want it; never ask them for a code.", id))
+				fmt.Sprintf("Tell the user nothing changed: their tap arrived, but HA NOVA couldn't re-check the linked phone in Home Assistant, so nothing ran. Run ha-nova apply --plan %s again (a new notification goes to their phone) only after they say they still want it; never ask them for a code.", id))
 		case !still:
 			return windowStopped(s, "refused", "CONFIRM_UNAVAILABLE", "the phone that confirmed is no longer the linked phone, or its user is no longer an administrator", phoneMissingNext)
 		}
@@ -307,7 +308,7 @@ func confirmByPhone(paths runtimePaths, opts verbOptions, id string, noSnapshot 
 		return windowStopped(s, "refused", "CONFIRM_UNAVAILABLE", "the confirmation could not be sent to the phone", phoneMissingNext)
 	}
 	return windowStopped(s, "cancelled", "CONFIRM_CANCELLED", "the phone confirmation got no answer in time",
-		fmt.Sprintf("Tell the user nothing changed: the phone's button was not tapped in time (hold or expand the notification to see it; a plain tap only opens the app). Run ha-nova apply --plan %s again (a new notification goes to their phone) only after they say they still want it; never ask them for a code. If no notification arrived, they can make this change in Home Assistant itself.", id))
+		fmt.Sprintf("Tell the user nothing changed: “%s” was not tapped in time (hold or expand the notification to see it; a plain tap only opens the app). Run ha-nova apply --plan %s again (a new notification goes to their phone) only after they say they still want it; never ask them for a code. If no notification arrived, they can make this change in Home Assistant itself.", ask.button, id))
 }
 
 // phoneStillLinked re-reads the link after a tap: unlinked, replaced, or its
@@ -335,7 +336,7 @@ const (
 // a window or phone ask (goal: the phone's verb and object). ok=false:
 // apply runs and reports whatever is wrong (drift, expiry, a refusal); s is
 // open only when ok.
-func humanPlan(paths runtimePaths, opts verbOptions, id string, noSnapshot bool, channel string) (plan, fresh storedPlan, s *relaySession, idHex string, wait time.Duration, goal [2]string, ok bool) {
+func humanPlan(paths runtimePaths, opts verbOptions, id string, noSnapshot bool, channel string) (plan, fresh storedPlan, s *relaySession, idHex string, wait time.Duration, goal [3]string, ok bool) {
 	if humanAnswer != "" || !planIDPattern.MatchString(id) { // a form already answered
 		return
 	}
