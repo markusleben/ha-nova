@@ -23,9 +23,6 @@ func applyWindowsProcessLaunchProfile(cmd *exec.Cmd, profile windowsProcessLaunc
 	if profile.createNoWindow {
 		creationFlags |= windows.CREATE_NO_WINDOW
 	}
-	if profile.detached {
-		creationFlags |= windows.DETACHED_PROCESS
-	}
 	if creationFlags == 0 && !profile.hideWindow && profile.inheritHandles {
 		return
 	}

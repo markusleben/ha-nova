@@ -8,7 +8,6 @@ import (
 	"io"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"runtime"
 	"strconv"
 )
@@ -318,8 +317,9 @@ func buildWindowsReplaceCommand(paths runtimePaths, tempHelper, stageRoot string
 }
 
 func launchWindowsReplace(paths runtimePaths, stageRoot string, lifecycleMarker []byte) error {
-	tempHelper := filepath.Join(os.TempDir(), "ha-nova-updater-"+strconv.Itoa(os.Getpid())+".exe")
-	if err := copyFile(filepath.Join(paths.InstallRoot, publicBinaryName()), tempHelper); err != nil {
+	tempHelper, err := stageWindowsHelperCopy(paths, windowsUpdateHelperPrefix, stageRoot)
+	if err != nil {
+		_ = os.Remove(tempHelper)
 		cleanupStagedBundle(stageRoot)
 		return err
 	}

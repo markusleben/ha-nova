@@ -68,7 +68,7 @@ release:
     irm https://raw.githubusercontent.com/markusleben/ha-nova/{{ .Tag }}/install.ps1 | iex
     ```
 
-    Windows uses a single supported install path: `install.ps1`. Return an RC install to stable later with `ha-nova update`.
+    Windows uses a single supported install path: `install.ps1`. Return an RC install to stable later with `ha-nova update`; if it reports that it needs admin rights, rerun the stable Windows install command instead.
     {{ else }}## What To Watch
 
     - **Update the NOVA Relay App too.** This release needs Relay 0.10.0: update it under Settings > Apps > NOVA Relay (Container/Core: pull the new image). Until then HA NOVA warns that the Relay is outdated.
@@ -81,6 +81,7 @@ release:
     - **More actions need confirmation.** Reloads, App and host control, template controls, ESPHome or MQTT buttons, YAML controls without a `unique_id`, and automation or script deletes, one confirmation per item.
     - **`ha-nova uninstall` keeps the shared App.** It asks whether this is the last computer using HA NOVA before guiding removal of the NOVA Relay App, which would disconnect every computer.
     - **Leaner: the optional Census is removed.** It was always opt-in and off by default. The CLI removes its old local setting on first run; `ha-nova census` is gone.
+    - **Windows: update with the install command once.** `ha-nova update` from 0.25.x asks for admin rights or fails; run the Windows install command below. After that, no admin prompt.
     - **Testing the release candidate?** A plan shown before this update has to be made again. Previews and codes from the earlier version are refused, and nothing is sent.
 
     ## New Features
@@ -105,7 +106,7 @@ release:
     - **The Relay stops hammering a rejected token.** A revoked Home Assistant token no longer causes an endless reconnect loop, and a stalled login can no longer block later requests.
     - **Headless Linux works end to end.** `ha-nova uninstall --purge` works without an unlocked keyring, and Codex CLI and OpenCode can use `ha-nova setup --service <client>` on headless machines and over SSH.
     - **fish shell support.** The installer puts `ha-nova` on your PATH in fish too, and uninstall removes every PATH entry it added.
-    - **Windows updates clean up after themselves.** No leftover updater files in `%TEMP%`, and a failed update launch removes its download.
+    - **Windows update and uninstall need no admin rights.** No admin prompt, no helper files left in `%TEMP%`, and a failed update launch removes its download.
 
     Stable install commands are release-pinned for this tag.
 

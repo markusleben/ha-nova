@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
@@ -314,14 +313,10 @@ func launchWindowsUninstall(
 			err,
 		)
 	}
-	tempHelper := filepath.Join(os.TempDir(), "ha-nova-uninstall-"+strconv.Itoa(os.Getpid())+".exe")
-	if err := copyFile(filepath.Join(paths.InstallRoot, publicBinaryName()), tempHelper); err != nil {
-		return failWindowsUninstallStatus(
-			paths,
-			status,
-			"bundle_runtime_cleanup",
-			err,
-		)
+	tempHelper, err := stageWindowsHelperCopy(paths, windowsUninstallHelperPrefix, "")
+	if err != nil {
+		_ = os.Remove(tempHelper)
+		return failWindowsUninstallStatus(paths, status, "bundle_runtime_cleanup", err)
 	}
 	statusTicks := windowsUninstallStatusMarkerTicks(paths.UninstallStatusFile)
 	args := windowsUninstallHelperArgs(tempHelper, mode, teardownDone, removedRelays, lastComputerConfirmed)
@@ -332,6 +327,8 @@ func launchWindowsUninstall(
 		helperInstallRootEnv(paths.InstallRoot),
 		args...,
 	); err != nil {
+		// Declined or failed start: nobody runs the copy, so it must not leak.
+		_ = os.Remove(tempHelper)
 		return failWindowsUninstallStatus(
 			paths,
 			status,

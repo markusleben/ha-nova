@@ -118,6 +118,7 @@ func TestWindowsUninstallTeardownEvidenceMatchesOnlyExactRelay(
 func TestLaunchWindowsUninstallPersistsEvidenceBeforeHelperStarts(
 	t *testing.T,
 ) {
+	isolateTempDir(t)
 	root := t.TempDir()
 	paths := runtimePaths{
 		InstallRoot: filepath.Join(root, "missing-install-root"),

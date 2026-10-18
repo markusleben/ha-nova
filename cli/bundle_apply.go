@@ -30,8 +30,11 @@ const (
 	installBackupPrefixFailed = ".ha-nova-failed-"
 )
 
+// bundleStageDirPrefix names the %TEMP% download/extract dir of an update.
+const bundleStageDirPrefix = "ha-nova-stage-"
+
 func stageBundle(paths runtimePaths, version string) (string, error) {
-	stageDir, err := os.MkdirTemp("", "ha-nova-stage-*")
+	stageDir, err := os.MkdirTemp("", bundleStageDirPrefix+"*")
 	if err != nil {
 		return "", err
 	}
@@ -79,7 +82,7 @@ func stageBundle(paths runtimePaths, version string) (string, error) {
 
 func cleanupStagedBundle(stageRoot string) {
 	stageDir := filepath.Dir(stageRoot)
-	if strings.HasPrefix(filepath.Base(stageDir), "ha-nova-stage-") {
+	if strings.HasPrefix(filepath.Base(stageDir), bundleStageDirPrefix) {
 		_ = os.RemoveAll(stageDir)
 	}
 }
