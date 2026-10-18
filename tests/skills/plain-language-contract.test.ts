@@ -17,7 +17,8 @@ describe("plain-language output rules", () => {
     expect(rules).toContain("Never show the user a command to run: you run `ha-nova` yourself");
     expect(rules).toContain("Sole exception: setup or permission steps only the user can do.");
     expect(rules).toContain("Choices are natural questions");
-    expect(rules).toContain("never a paragraph");
+    expect(rules).toContain("What was not checked is one line naming each surface");
+    expect(rules).toContain("Choices are natural questions that end your turn");
     expect(rules).toContain("Say each fact once per answer.");
   });
 

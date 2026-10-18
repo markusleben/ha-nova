@@ -222,6 +222,10 @@ func TestConfirmationSayDelete(t *testing.T) {
 	if natural.Say != "Nothing is saved yet. Save it? I can also show the details." {
 		t.Fatalf("natural create say %q", natural.Say)
 	}
+	// The request is not the approval: a preview plan tells the agent to wait.
+	if !strings.Contains(natural.NextStep, "end your turn; run ha-nova apply --plan "+natural.Plan.ID+" only after the user's own reply approves it") {
+		t.Fatalf("natural create next_step %q", natural.NextStep)
+	}
 }
 
 // Every reason a stored plan can carry has its own plain sentence, on the
