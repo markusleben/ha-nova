@@ -101,7 +101,7 @@ pinned by a Go test):
   them all) — and carry `"via":"device"`; scenes and groups never come
   from the device read. A family with more than 30 other entities and child devices skips the device
   read and says so in `not_checked`. `helpers`: other entities whose state
-  attributes name it (a person's trackers, a meter's source); an unavailable
+  attributes name it (a meter's or min/max's source; never presence); an unavailable
   source helper hides them and adds `N unavailable helpers (source hidden)`. `dashboards`:
   `{total,shown,rows:[{dashboard,url_path,view,card}]}` — every Lovelace panel
   from `get_panels` (storage, YAML, the default), each card, badge, or header

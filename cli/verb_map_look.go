@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
 	"slices"
 	"sort"
 	"strings"
@@ -38,7 +39,7 @@ type whereUsedResult struct {
 }
 
 // dashboardUse: one card (or badge) that names the entity; Card is empty
-// when only the view's or dashboard's own settings do.
+// for the view's own settings, View too for the dashboard's.
 type dashboardUse struct {
 	Dashboard string `json:"dashboard"`
 	URLPath   string `json:"url_path"`
@@ -159,7 +160,7 @@ func (x *homeIndex) whereUsed(s *relaySession, id string, limit int) (whereUsedR
 		if key == "group" { // a group state lists its members
 			for _, st := range x.h.states {
 				members, _ := st.Attributes.Members.([]any)
-				if st.isGroup() && !seen[st.EntityID] && slices.Contains(members, any(id)) {
+				if x.realGroup(st.EntityID) && !seen[st.EntityID] && slices.Contains(members, any(id)) {
 					seen[st.EntityID] = true
 					rows = append(rows, mapRow{EntityID: st.EntityID, Name: x.name(st.EntityID)})
 				}
@@ -182,9 +183,16 @@ func (x *homeIndex) whereUsed(s *relaySession, id string, limit int) (whereUsedR
 	return r, nil
 }
 
-// attributeUsers: other entities whose state attributes name id (a person's
-// trackers, a utility meter's or threshold's source); automations, scripts,
-// scenes, and groups are listed on their own; zones list people at runtime.
+// realGroup: a group entity, not a source helper (min/max) that lists its
+// sources the same way.
+func (x *homeIndex) realGroup(id string) bool {
+	st, platform := x.state[id], x.platform[id]
+	return st != nil && st.isGroup() && (platform == "group" || !sourceHelperPlatforms[platform])
+}
+
+// attributeUsers: other entities whose state attributes name id (a utility
+// meter's, min/max's, or threshold's source); automations, scripts, scenes,
+// and groups are listed on their own; presence never appears in map output.
 // hidden counts source helpers that are unavailable: Home Assistant drops
 // their attributes. /api/states is memoized.
 func (x *homeIndex) attributeUsers(s *relaySession, id string) ([]mapRow, int, error) {
@@ -200,7 +208,7 @@ func (x *homeIndex) attributeUsers(s *relaySession, id string) ([]mapRow, int, e
 	rows, hidden := []mapRow{}, 0
 	for _, st := range states {
 		domain, _ := splitID(st.EntityID)
-		if st.EntityID == id || domain == "automation" || domain == "script" || domain == "scene" || domain == "zone" || x.state[st.EntityID] != nil && x.state[st.EntityID].isGroup() {
+		if st.EntityID == id || domain == "automation" || domain == "script" || domain == "scene" || presenceDomains[domain] || x.realGroup(st.EntityID) {
 			continue
 		}
 		if st.State == "unavailable" && sourceHelperPlatforms[x.platform[st.EntityID]] {
@@ -221,18 +229,25 @@ func (x *homeIndex) attributeUsers(s *relaySession, id string) ([]mapRow, int, e
 func dashboardUses(boards []lovelaceBoard, id string) []dashboardUse {
 	match := &refScanner{needles: []string{id}}
 	mentions := func(v any) bool { return len(match.find(v)) > 0 }
+	summary := func(card any) string { // presence never appears in map output
+		if entity, _ := asMap(card)["entity"].(string); presenceDomains[strings.SplitN(entity, ".", 2)[0]] {
+			kind, _ := asMap(card)["type"].(string)
+			return kind
+		}
+		return cardSummary(card)
+	}
 	var trails func(card any) []string
 	trails = func(card any) []string {
 		m, out := asMap(card), []string{}
+		if m == nil || mentions(without(m, "cards", "card")) { // the card's own settings (entities, conditions, templates)
+			out = append(out, summary(card))
+		}
 		for _, child := range append(asList(m["cards"]), m["card"]) {
 			if child != nil && mentions(child) {
 				for _, t := range trails(child) {
-					out = append(out, cardSummary(card)+" › "+t)
+					out = append(out, summary(card)+" › "+t)
 				}
 			}
-		}
-		if len(out) == 0 { // the card itself names it (entities, conditions, templates)
-			out = []string{cardSummary(card)}
 		}
 		return out
 	}
@@ -242,7 +257,9 @@ func dashboardUses(boards []lovelaceBoard, id string) []dashboardUse {
 		if !mentions(cfg) {
 			continue
 		}
-		found := len(uses)
+		if mentions(without(cfg, "views")) { // the dashboard's own settings
+			uses = append(uses, dashboardUse{Dashboard: b.Title, URLPath: b.URLPath})
+		}
 		for i, v := range dashboardViews(cfg) {
 			if !mentions(v) {
 				continue
@@ -253,7 +270,13 @@ func dashboardUses(boards []lovelaceBoard, id string) []dashboardUse {
 			} else if view == "" {
 				view = fmt.Sprintf("view %d", i+1)
 			}
-			before := len(uses)
+			own := []any{without(v, "cards", "sections", "badges", "header"), without(asMap(v["header"]), "card")}
+			for _, section := range asList(v["sections"]) {
+				own = append(own, without(asMap(section), "cards"))
+			}
+			if mentions(own) { // the view's own settings (visibility, a section's visibility, background)
+				uses = append(uses, dashboardUse{Dashboard: b.Title, URLPath: b.URLPath, View: view})
+			}
 			for _, c := range viewContainers(v) {
 				for _, item := range c.items {
 					if !mentions(item) {
@@ -267,13 +290,16 @@ func dashboardUses(boards []lovelaceBoard, id string) []dashboardUse {
 					}
 				}
 			}
-			if len(uses) == before { // only the view's own settings (visibility, background)
-				uses = append(uses, dashboardUse{Dashboard: b.Title, URLPath: b.URLPath, View: view})
-			}
-		}
-		if len(uses) == found { // only the dashboard's own settings
-			uses = append(uses, dashboardUse{Dashboard: b.Title, URLPath: b.URLPath})
 		}
 	}
 	return uses
+}
+
+// without copies m minus keys.
+func without(m map[string]any, keys ...string) map[string]any {
+	out := maps.Clone(m)
+	for _, k := range keys {
+		delete(out, k)
+	}
+	return out
 }

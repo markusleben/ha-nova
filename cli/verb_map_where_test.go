@@ -14,9 +14,11 @@ import (
 func dashboardHome(panelsFail bool) func(*http.Request, string, map[string]any) any {
 	f := smallHome()
 	f.states = append(f.states, st("sensor.kitchen_energy", "1.2", map[string]any{"friendly_name": "Kitchen energy", "source": "light.kitchen"}),
-		st("sensor.kitchen_daily", "unavailable", nil),                             // a meter whose source Home Assistant hides
-		st("zone.home", "1", map[string]any{"persons": []string{"light.kitchen"}})) // runtime, never a use
-	f.entities = append(f.entities, ent("sensor.kitchen_daily", "", "utility_meter", "", nil))
+		st("sensor.kitchen_daily", "unavailable", nil),                                                                        // a meter whose source Home Assistant hides
+		st("zone.home", "1", map[string]any{"persons": []string{"light.kitchen"}}),                                            // presence never appears
+		st("person.guest", "home", map[string]any{"device_trackers": []string{"light.kitchen"}}),                              // presence never appears
+		st("sensor.kitchen_min", "1", map[string]any{"friendly_name": "Kitchen min", "entity_id": []string{"light.kitchen"}})) // min/max: a helper, not a group
+	f.entities = append(f.entities, ent("sensor.kitchen_daily", "", "utility_meter", "", nil), ent("sensor.kitchen_min", "", "min_max", "", nil))
 	configs := map[string]any{
 		"lovelace": map[string]any{"views": []any{
 			map[string]any{"title": "Home", "cards": []any{
@@ -25,6 +27,7 @@ func dashboardHome(panelsFail bool) func(*http.Request, string, map[string]any) 
 						"entities": []any{"sensor.temp", map[string]any{"entity": "light.kitchen"}}}},
 				}},
 				map[string]any{"type": "tile", "entity": "light.kitchen_status"}, // a sibling id, never a match
+				map[string]any{"type": "tile", "entity": "person.guest", "visibility": []any{map[string]any{"condition": "state", "entity": "light.kitchen", "state": "on"}}},
 			}},
 			map[string]any{"path": "lights", "cards": []any{map[string]any{"type": "markdown", "content": "{{ states('light.kitchen') }}"},
 				map[string]any{"type": "horizontal-stack", "cards": []any{map[string]any{"type": "tile", "entity": "light.kitchen"},
@@ -32,7 +35,9 @@ func dashboardHome(panelsFail bool) func(*http.Request, string, map[string]any) 
 				"badges": []any{"light.kitchen"}},
 			map[string]any{"title": "Away", "sections": []any{map[string]any{
 				"visibility": []any{map[string]any{"condition": "state", "entity": "light.kitchen", "state": "on"}},
-				"cards":      []any{map[string]any{"type": "heading", "heading": "Away"}}}}},
+				"cards": []any{map[string]any{"type": "heading", "heading": "Away"},
+					map[string]any{"type": "conditional", "conditions": []any{map[string]any{"condition": "state", "entity": "light.kitchen", "state": "on"}},
+						"card": map[string]any{"type": "tile", "entity": "light.kitchen"}}}}}},
 		}},
 		"dashboard-wall":   map[string]any{"views": []any{map[string]any{"cards": []any{map[string]any{"type": "entities", "entities": []any{"light.kitchen"}}}}}},
 		"dashboard-energy": map[string]any{"views": []any{map[string]any{"title": "Energy", "cards": []any{map[string]any{"type": "tile", "entity": "sensor.temp"}}}}},
@@ -88,11 +93,14 @@ func TestMapWhereUsedFindsDashboardCards(t *testing.T) {
 	want := []dashboardUse{ // dashboards in url_path order
 		{Dashboard: "Wall", URLPath: "dashboard-wall", View: "view 1", Card: "entities (1 entity)"},
 		{Dashboard: "Overview", URLPath: "lovelace", View: "Home", Card: `vertical-stack (1 card) › conditional › entities "Kitchen"`},
+		{Dashboard: "Overview", URLPath: "lovelace", View: "Home", Card: "tile"}, // a person's card: no presence id
 		{Dashboard: "Overview", URLPath: "lovelace", View: "/lights", Card: "markdown"},
 		{Dashboard: "Overview", URLPath: "lovelace", View: "/lights", Card: "horizontal-stack (2 cards) › tile light.kitchen"},
 		{Dashboard: "Overview", URLPath: "lovelace", View: "/lights", Card: `horizontal-stack (2 cards) › button "Spot"`},
 		{Dashboard: "Overview", URLPath: "lovelace", View: "/lights", Card: "badge: light.kitchen"},
-		{Dashboard: "Overview", URLPath: "lovelace", View: "Away"}, // only a section's visibility names it
+		{Dashboard: "Overview", URLPath: "lovelace", View: "Away"},                      // a section's visibility
+		{Dashboard: "Overview", URLPath: "lovelace", View: "Away", Card: "conditional"}, // its condition
+		{Dashboard: "Overview", URLPath: "lovelace", View: "Away", Card: "conditional › tile light.kitchen"},
 	}
 	if r.Dashboards.Total != len(want) || !slices.Equal(r.Dashboards.Rows, want) {
 		t.Errorf("dashboards %+v\nwant %+v", r.Dashboards.Rows, want)
@@ -101,7 +109,8 @@ func TestMapWhereUsedFindsDashboardCards(t *testing.T) {
 		t.Errorf("not_checked %v", r.NotChecked)
 	}
 	// the meter names the light in its source; the group and scene are listed on their own
-	if r.Helpers.Total != 1 || r.Helpers.Rows[0].EntityID != "sensor.kitchen_energy" || r.Helpers.Rows[0].Name != "Kitchen energy" {
+	if r.Helpers.Total != 2 || r.Helpers.Rows[0].EntityID != "sensor.kitchen_energy" || r.Helpers.Rows[0].Name != "Kitchen energy" ||
+		r.Helpers.Rows[1].EntityID != "sensor.kitchen_min" || r.Groups.Total != 1 || r.Groups.Rows[0].EntityID != "light.group_all" {
 		t.Errorf("helpers %+v", r.Helpers)
 	}
 }
@@ -120,7 +129,7 @@ func TestMapWhereUsedLimitCapsDashboardRows(t *testing.T) {
 	paths, _ := setupVerbRelayTest(t, dashboardHome(false))
 	exit, env := runVerbForTest(t, func() int { return runMapCommand(paths, []string{"--entity", "light.kitchen", "--limit", "2"}) })
 	r := decodeInto[whereUsedResult](t, env.Result)
-	if exit != 0 || r.Dashboards.Total != 7 || r.Dashboards.Shown != 2 || len(r.Dashboards.Rows) != 2 ||
+	if exit != 0 || r.Dashboards.Total != 10 || r.Dashboards.Shown != 2 || len(r.Dashboards.Rows) != 2 ||
 		!strings.HasPrefix(r.Dashboards.Rows[1].Card, "vertical-stack") {
 		t.Errorf("exit %d dashboards %+v", exit, r.Dashboards)
 	}
@@ -156,7 +165,7 @@ func TestMapWhereUsedReadsAListedDefaultByItsPath(t *testing.T) {
 		switch {
 		case exit != 0:
 			t.Fatalf("exit %d %+v", exit, env.Error)
-		case !listFails && (overview != 6 || !slices.Contains(r.NotChecked, "2 dashboards (could not be read)")):
+		case !listFails && (overview != 9 || !slices.Contains(r.NotChecked, "2 dashboards (could not be read)")):
 			t.Errorf("listed default: overview rows %d not_checked %v", overview, r.NotChecked)
 		case listFails && (overview != 0 || !slices.Contains(r.NotChecked, "3 dashboards (could not be read)")):
 			t.Errorf("unreadable list: overview rows %d not_checked %v", overview, r.NotChecked)
