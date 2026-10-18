@@ -36,12 +36,12 @@ const (
 const (
 	phoneEventType  = "mobile_app_notification_action"
 	phoneWindowSpan = 10 * time.Second // the Relay's collect_events cap; two lanes overlap by half
-	phoneTellSpan   = 10 * time.Second // the result reaches a slow Relay before the process exits; output is already printed
 )
 
 var (
-	phoneApplied func(env verbEnvelope, exit int) // set by confirmByPhone on Confirm: apply tells the phone how it ended
-	phoneSettle  = time.Second                    // a failing subscription returns at once; a working one has acked by then
+	phoneApplied  func(env verbEnvelope, exit int) // set by confirmByPhone: apply tells the phone how it ended, after its output
+	phoneTellSpan = 10 * time.Second               // the result reaches a slow Relay before the process exits
+	phoneSettle   = time.Second                    // a failing subscription returns at once; a working one has acked by then
 	// The Relay calls; tests replace them.
 	phoneDiscover = discoverPhone
 	phoneNotify   = func(s *relaySession, service string, body map[string]any) error {
@@ -284,11 +284,10 @@ func confirmByPhone(paths runtimePaths, opts verbOptions, id string, noSnapshot 
 	var answer phoneAnswer
 	var reply phoneReply
 	what, handed := "", false
-	defer func() { // the phone hears how it ended; on Confirm, apply tells it (phoneApplied)
+	defer func() { // the phone hears how it ended once apply has printed (phoneApplied)
 		if !handed {
 			prefix, line := phoneNothing(answer)
-			reply.say(prefix+": "+what, line)
-			s.close()
+			phoneApplied = func(verbEnvelope, int) { reply.say(prefix+": "+what, line); s.close() }
 		}
 	}()
 	deadline := time.Now().Add(wait) // discovery counts against the wait
