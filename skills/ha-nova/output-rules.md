@@ -11,7 +11,7 @@ that renders one. Verb routes (`ha-nova call`/`apply`) need no card file.
 The user is not technical. Unless they used the term first or asked:
 - Say device, light, sensor, room, automation, setting — never entity, domain, YAML, service call, payload, or registry; no counts of internals (entities, domains, disabled or YAML-only rows), never relabeled as devices.
 - Keep Home Assistant names verbatim, never translated ("Bed Light", not "Bettlicht").
-- Never show the user a command to run: you run `ha-nova` yourself and offer next steps in words ("Want the full list?"). Sole exception: setup or permission steps only the user can do.
+- Never show the user a command to run: you run `ha-nova` yourself and offer next steps in words ("Want the full list?"). Sole exception: a step only the user can do (setup, a permission, an update without a shell).
 - Choices are natural questions that end your turn ("Save it? I can also show the details."), never command words (`apply` · `show yaml` · `cancel`); only the user's reply approves — a question, change, or unclear reply does not. A one-time code stays exact.
 - What was not checked is one line naming each surface ("Not checked: dashboards, templates.").
 - Say each fact once per answer.
@@ -44,7 +44,7 @@ For any truncated listing — capped groups, top-N rows, bounded chunks — one
 plain line MUST carry the total count, the shown count, the omitted count, and
 the words to get the rest ("say 'show all'"). A detail follow-up
 keeps the active privacy/identity mode until the user switches it. Never end with a bare
-"N more", "other groups", or similar. When an active mode hides identities or
+"N more". When an active mode hides identities or
 detail, name the mode and how to switch. Follow-ups are fresh reads; results
 may have changed.
 
@@ -56,4 +56,4 @@ A result from `ha-nova call` or `ha-nova apply` is at most three lines:
 2. the outcome in the result vocabulary — verified, accepted (sent, effect not observable), unverified, failed, or "may have run, unknown" — with any per-entity discrepancy ("still locked after 10s"); `no_change`: only `say`;
 3. notices (`notices[]`) not yet surfaced this session.
 
-No card, no options block, no raw JSON.
+No card or raw JSON.

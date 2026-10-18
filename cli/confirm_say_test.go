@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"os"
 	"regexp"
 	"strings"
@@ -369,5 +370,14 @@ func TestConfirmationSayDeviceSibling(t *testing.T) {
 	env = &verbEnvelope{Action: &planAction{Service: "switch.turn_on"}}
 	if got, _ := sayReason(e, env, storedPlan{}, tierReason{Code: reasonDeviceAccessSibling, EntityID: "switch.relay", Detail: "lock.door"}); got != "“Gate relay” is on the same device as “Door” (a lock): switching it on may unlock it" {
 		t.Errorf("direct: %q", got)
+	}
+}
+
+// A plan that failed to store leaves no preview to show or plan to apply.
+func TestVerbErrorClearsPlanGuidance(t *testing.T) {
+	env := &verbEnvelope{Say: "Nothing is saved yet.", NextStep: "Show the preview ending with `say` and end your turn."}
+	setVerbError(env, errors.New("disk full"))
+	if env.Say != "" || env.NextStep != "" {
+		t.Fatalf("say %q next_step %q", env.Say, env.NextStep)
 	}
 }

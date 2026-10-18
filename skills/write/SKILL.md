@@ -75,7 +75,7 @@ Every draft follows `../ha-nova/smallest-solution.md`: the complete explicit out
    - update/revert: the plan's `diff` rows **verbatim** in the Changes slot — never write it yourself; state the behavioral effect in the summary sentence (write-safety → Behavior narrative). create: summary. Close the card with the plan's `say` (it names the `members[]` that set the tier — never repeat them, except those it says the preview lists; it ends with the save ask or code); several plans in one preview keep each reason and ask once: each typed code, the note once.
    - Delete preview MUST include the consumer-check result before confirmation, from the plan's `consumers` (who references the item's OWN `entity_id`): the consumers; `[]` is an explicit none among automations, scripts, and scenes; absent (`coverage.complete` false) is "consumer check inconclusive", never a no-consumer result. No menu — only `say`.
    - Batch delete of one family (automations OR scripts, never mixed) follows `../ha-nova/batch-safety.md`; each item keeps its consumer check, its own CLI code (none in a window or phone plan: follow `next_step`; the manifest lists them; at most 10 items, planned just in time), and absence verification.
-6. Confirmation: create/update=natural, delete=one-time code — the plan's CLI-minted `plan.code` (none: follow `next_step`); a create/update/revert whose plan says `code` takes it too; delete is the one-time code, never a menu. A duration request takes the code when EITHER half grants physical access or is physically irreversible (`lock.lock` for an hour schedules an unattended `lock.unlock`). A cross-family destructive cleanup (`../ha-nova/grouped-change-set.md`) still needs each automation/script item's own CLI code. Relay `say` and add no other reason; never cite, link, or name this skill or any HA NOVA rule file. A code counts only as a reply that is only the code, after the preview; "yes" is invalid. After a "yes", repeat `say`'s ask and note in full. Never pass a code the user did not type. Pre-preview consent is draft-only; a changed draft needs a new plan and preview. An answer to a clarifying question is never a confirmation: end the turn with each new or changed plan's preview (except Phase 3 step 4's natural-confirmation duration call re-plan with action and tier unchanged).
+6. Confirmation: create/update=natural, delete=one-time code — the plan's CLI-minted `plan.code` (none: follow `next_step`); a create/update/revert whose plan says `code` takes it too; delete is the one-time code, never a menu. A duration request takes the code when EITHER half grants physical access or is physically irreversible (`lock.lock` for an hour schedules an unattended `lock.unlock`). A cross-family destructive cleanup (`../ha-nova/grouped-change-set.md`) still needs each automation/script item's own CLI code. Relay `say` and add no other reason; never cite, link, or name this skill or any HA NOVA rule file. A code counts only as a reply that is only the code, after the preview; "yes" is invalid. After a "yes" to a code plan, repeat `say`'s ask and note in full. Never pass a code the user did not type. Pre-preview consent is draft-only; a changed draft needs a new plan and preview. An answer to a clarifying question is never a confirmation: end the turn with each new or changed plan's preview (except Phase 3 step 4's natural-confirmation duration call re-plan with action and tier unchanged).
 
 ### Phase 3: Apply + Verify
 
@@ -87,7 +87,7 @@ Every draft follows `../ha-nova/smallest-solution.md`: the complete explicit out
 
 ### Phase 4: Post-Write Review (MANDATORY)
 
-Do NOT invoke `ha-nova:review` separately.
+Not via `ha-nova:review`.
 
 1. Reviewed config: the draft when `verified`, else `ha-nova get <entity_id> --config`. If `verification[].entity_id` differs from the requested slug, report it and point to `../ha-nova/safe-refactoring.md` — do not silently assume the requested slug won.
 2. Checks: verified → skip what Phase 2 covered, re-run R-18 on the read-back; a differing read-back → full checks per `../review/checks.md` → Application. **Dedup**: findings the user saw in 3b MUST NOT repeat (by check type) — except R-18 still matching the persisted config: report it again as a persisted runtime risk with the reorder fix. Do not auto-trigger or auto-read traces outside an accepted Phase 5 test plan. `R-19` follows normal dedup, as do R-23/R-24. Actions referencing helpers: always H-01..H-11.
@@ -121,7 +121,7 @@ Previews, delete prompts, results, and the test offer render as the Cards in `..
 
 ## Guardrails
 
-- Never use raw `get_states`.
+- No raw `get_states`.
 
 ## References
 

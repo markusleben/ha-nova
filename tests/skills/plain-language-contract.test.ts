@@ -15,7 +15,7 @@ describe("plain-language output rules", () => {
     expect(rules).toContain("## Plain Language");
     expect(rules).toContain('Keep Home Assistant names verbatim, never translated ("Bed Light", not "Bettlicht").');
     expect(rules).toContain("Never show the user a command to run: you run `ha-nova` yourself");
-    expect(rules).toContain("Sole exception: setup or permission steps only the user can do.");
+    expect(rules).toContain("Sole exception: a step only the user can do (setup, a permission, an update without a shell).");
     expect(rules).toContain("Choices are natural questions");
     expect(rules).toContain("What was not checked is one line naming each surface");
     expect(rules).toContain("Choices are natural questions that end your turn");

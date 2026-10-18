@@ -176,7 +176,7 @@ describe("helper contract", () => {
       expect(skillDoc).toContain("Supports options-flow editing:");
       // List Frame trim (max 4 short columns): options-flow support and linked
       // entities live in the per-helper detail read, not the list table.
-      expect(skillDoc).toContain("| Title | Domain | Entry ID | State |");
+      expect(skillDoc).toContain("| Title | Type | State |");
       // Ambiguous entries still get their linked-entity context for selection.
       expect(skillDoc).toContain("add a\n   short disambiguation line");
       expect(skillDoc).toContain("Current flow step:");

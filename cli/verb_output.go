@@ -193,7 +193,7 @@ func setVerbError(env *verbEnvelope, err error) int {
 		env.Status = failure.status
 	}
 	if env.Status != "drift" { // only a drift result carries a stored plan to confirm
-		env.Say = ""
+		env.Say, env.NextStep = "", "" // a plan that failed to store has nothing to show or apply
 	}
 	env.Error = &verbError{Code: failure.code, Message: failure.message, Candidates: failure.candidates, Next: failure.next}
 	return failure.exit

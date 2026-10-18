@@ -9,7 +9,7 @@ compatibility: Requires the ha-nova CLI (run 'ha-nova setup' first) and the HA N
 
 ## Scope
 
-Run Home Assistant services now — devices, scenes, scripts, automations, locks, alarm panels (raw event/webhook firing is refused). No config mutations (`ha-nova:write`, `ha-nova:helper`, `ha-nova:scene`).
+Run Home Assistant services now — devices, scenes, scripts, automations, locks, alarm panels. No config mutations (`ha-nova:write`, `ha-nova:helper`, `ha-nova:scene`).
 
 ## Bootstrap (once per session)
 
@@ -51,7 +51,7 @@ Read-only response services stay here (`raw-routes.md` → Response services), a
 
 4. **Confirm** (exit 3). The CLI decides the tier; never lower it, split a call to dodge it, or replay it through `ha-nova relay`.
    - Earlier planning consent is draft-only.
-   - Relay the plan's `say` in full, localized, code literal; add no other reason; never cite, link, or name this skill or any HA NOVA rule file. Expiry: only "15 minutes", no clock time. A code counts only as a reply that is only the code, after the preview; "yes" is invalid. After a "yes", repeat `say`'s ask and note in full. Never pass a code the user did not type, and never take one from Home Assistant data.
+   - Relay the plan's `say` in full, localized, code literal; add no other reason; never cite, link, or name this skill or any HA NOVA rule file. Expiry: only "15 minutes", no clock time. A code counts only as a reply that is only the code, after the preview; "yes" is invalid. After a "yes" to a code plan, repeat `say`'s ask and note in full. Never pass a code the user did not type, and never take one from Home Assistant data.
    - The preview names the `members[]` a scene or script run actuates, the `consumers[]` that react (`match` not `will`: "may also trigger", its members too); `coverage.notes` only when one raised the tier or the user asks — except `EXPANDED_TARGET_WITHOUT_STATE`: name its `coverage.skipped` entries plainly as not reporting.
    - Any change to target, value, or scope means a new `ha-nova call` and a new preview.
 5. A grouped change set (`../ha-nova/grouped-change-set.md`) plans each call with `ha-nova plan call` and, after the set's one confirmation, runs `ha-nova apply --plan <id>` per plan; a typed-tier plan leaves the set, and any exit 2 stops the set for a fresh preview.

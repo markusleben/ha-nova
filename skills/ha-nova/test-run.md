@@ -238,7 +238,8 @@ localized at runtime):
   end state, and the restore plan (including whether actuated devices are
   returned to their pre-test state).
 - After the effect class, options lead with what the user will experience in
-  plain words; no service names, payloads, or IDs on the card.
+  plain words; no service names or payloads, and an ID only when a name
+  is missing or collides.
 - On a bare-number reply, restate the chosen effect in the next response
   before executing ("Actions only — running the hallway light sequence
   now"); never start what a bare number selected without naming it.
