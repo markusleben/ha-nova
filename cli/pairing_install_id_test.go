@@ -210,7 +210,6 @@ func TestRepairRetiresPreviousDeviceOnlyOnSameRelay(t *testing.T) {
 	t.Setenv("HA_NOVA_ALLOW_INSECURE_TEST_KEYRING", "1")
 	resetServerProfileSelection(t)
 	old, replacement := validCredential(21), validCredential(22)
-	newID := parseDeviceCredential(replacement).deviceID
 
 	var revoked []string
 	previousRevoke := revokeSelfDeviceV1ForPairing
@@ -222,13 +221,13 @@ func TestRepairRetiresPreviousDeviceOnlyOnSameRelay(t *testing.T) {
 
 	cfg := runtimeConfig{RelaySecureBaseURL: "https://ha:8792", RelaySpkiPin: "PIN"}
 	for _, tc := range []struct {
-		name, profile, newPin, newID string
-		want                         int
+		name, profile, newPin, newCredential string
+		want                                 int
 	}{
-		{"named profile, same Relay", "cabin", "PIN", newID, 1},
-		{"other Relay", "cabin", "OTHER", newID, 0},
-		{"same device", "cabin", "PIN", parseDeviceCredential(old).deviceID, 0},
-		{"default relies on Relay replacement", defaultServerProfileName, "PIN", newID, 0},
+		{"named profile, same Relay", "cabin", "PIN", replacement, 1},
+		{"other Relay", "cabin", "OTHER", replacement, 0},
+		{"same device", "cabin", "PIN", old, 0},
+		{"default relies on Relay replacement", defaultServerProfileName, "PIN", replacement, 0},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Setenv("HA_NOVA_TEST_SECRET_DIR", t.TempDir())
@@ -237,11 +236,90 @@ func TestRepairRetiresPreviousDeviceOnlyOnSameRelay(t *testing.T) {
 			if err := writeDeviceCredential(old); err != nil {
 				t.Fatal(err)
 			}
-			readPreviousLocalDevice(cfg, SecretStoreForbidUI).retireOnSameRelay("https://ha-new:8792", tc.newID, tc.newPin)
+			readPreviousLocalDevice(cfg, SecretStoreForbidUI).retireOnSameRelay("https://ha-new:8792", tc.newCredential, tc.newPin)
 			if len(revoked) != tc.want ||
 				(tc.want == 1 && revoked[0] != "https://ha-new:8792|PIN|"+old) {
 				t.Fatalf("revoked = %q, want %d call(s)", revoked, tc.want)
 			}
 		})
+	}
+}
+
+func stubRetirement(t *testing.T) *[]string {
+	t.Helper()
+	var revoked []string
+	previous := revokeSelfDeviceV1ForPairing
+	revokeSelfDeviceV1ForPairing = func(base, pin, credential string) error {
+		revoked = append(revoked, base+"|"+pin+"|"+credential)
+		return nil
+	}
+	t.Cleanup(func() { revokeSelfDeviceV1ForPairing = previous })
+	return &revoked
+}
+
+// A failed re-pair must keep the working credential: no retirement before the
+// replacement is durable.
+func TestLegacyRepairKeepsOldDeviceWhenFinalizeFails(t *testing.T) {
+	t.Setenv("HA_NOVA_ALLOW_INSECURE_TEST_KEYRING", "1")
+	t.Setenv("HA_NOVA_TEST_SECRET_DIR", t.TempDir())
+	resetServerProfileSelection(t)
+	setActiveServerProfile("cabin")
+	revoked := stubRetirement(t)
+	old, replacement := validCredential(31), validCredential(32)
+	if err := writeDeviceCredential(old); err != nil {
+		t.Fatal(err)
+	}
+	origPair, origActivate := pairDeviceV1ForPairing, activateDeviceV1ForPairing
+	pairDeviceV1ForPairing = func(_ *http.Client, _, _ string, _ deviceMetadata) (*provisionedCredential, error) {
+		return &provisionedCredential{DeviceID: parseDeviceCredential(replacement).deviceID,
+			Credential: replacement, SpkiPin: "PIN", SecurePort: 8792}, nil
+	}
+	activateDeviceV1ForPairing = func(_, _, _ string) error { return nil }
+	t.Cleanup(func() {
+		pairDeviceV1ForPairing = origPair
+		activateDeviceV1ForPairing = origActivate
+	})
+	saves := 0
+	cfg := runtimeConfig{ClientInstallID: "inst-x", RelaySecureBaseURL: "https://ha:8792", RelaySpkiPin: "PIN"}
+	if _, err := runSecurePairing("http://ha:8791", "123456", &cfg, func(*runtimeConfig) error {
+		saves++
+		if saves == 2 {
+			return errors.New("disk full")
+		}
+		return nil
+	}, defaultPairingClientInfo()); err == nil {
+		t.Fatal("expected the endpoint save to fail")
+	}
+	if len(*revoked) != 0 {
+		t.Fatalf("old device revoked before the replacement was durable: %q", *revoked)
+	}
+}
+
+func TestResumedLegacyRepairRetiresOldDevice(t *testing.T) {
+	t.Setenv("HA_NOVA_ALLOW_INSECURE_TEST_KEYRING", "1")
+	t.Setenv("HA_NOVA_TEST_SECRET_DIR", t.TempDir())
+	resetServerProfileSelection(t)
+	setActiveServerProfile("cabin")
+	revoked := stubRetirement(t)
+	old, replacement := validCredential(41), validCredential(42)
+	if err := writeDeviceCredential(old); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := boundedNativeOAuthSecretContext(context.Background(), SecretStoreForbidUI)
+	defer cancel()
+	if err := writePendingDeviceCredentialWithPolicy(ctx, replacement, SecretStoreForbidUI); err != nil {
+		t.Fatal(err)
+	}
+	origActivate := activateDeviceV1ForPairing
+	activateDeviceV1ForPairing = func(_, _, _ string) error { return nil }
+	t.Cleanup(func() { activateDeviceV1ForPairing = origActivate })
+
+	cfg := runtimeConfig{RelaySecureBaseURL: "https://ha:8792", RelaySpkiPin: "PIN",
+		PendingSecureBaseURL: "https://ha-new:8792", PendingSpkiPin: "PIN"}
+	if resumed, err := resumePendingActivation(&cfg, func(*runtimeConfig) error { return nil }); err != nil || !resumed {
+		t.Fatalf("resume = %v, %v", resumed, err)
+	}
+	if len(*revoked) != 1 || (*revoked)[0] != "https://ha-new:8792|PIN|"+old {
+		t.Fatalf("revoked = %q", *revoked)
 	}
 }

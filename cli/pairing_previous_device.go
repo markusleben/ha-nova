@@ -40,15 +40,16 @@ func readPreviousLocalDevice(
 	return previousLocalDevice{credential, cfg.RelaySpkiPin}
 }
 
-// retireOnSameRelay revokes the replaced device after the new one is active,
-// only on the same pinned Relay (same SPKI pin, so the new endpoint reaches it
-// even after an address change) and only when it is a different device. A
-// device the Relay already retired answers 401, which counts as done.
+// retireOnSameRelay revokes the replaced device once the new credential is
+// promoted (a failed re-pair keeps the working one), only on the same pinned
+// Relay (same SPKI pin, so the new endpoint reaches it even after an address
+// change) and only when it is a different device. A device the Relay already
+// retired answers 401, which counts as done.
 func (previous previousLocalDevice) retireOnSameRelay(
-	secureBaseURL, newDeviceID, newSpkiPin string,
+	secureBaseURL, newCredential, newSpkiPin string,
 ) {
-	parsed := parseDeviceCredential(previous.credential)
-	if parsed == nil || parsed.deviceID == newDeviceID ||
+	old, replacement := parseDeviceCredential(previous.credential), parseDeviceCredential(newCredential)
+	if old == nil || replacement == nil || old.deviceID == replacement.deviceID ||
 		previous.spkiPin != newSpkiPin {
 		return
 	}

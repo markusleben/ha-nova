@@ -145,7 +145,6 @@ func runSecurePairingWithProvisioner(
 	if err := activateDeviceV1ForPairing(secureBase, prov.SpkiPin, prov.Credential); err != nil {
 		return "", fmt.Errorf("could not activate the new device: %w", err)
 	}
-	previous.retireOnSameRelay(secureBase, prov.DeviceID, prov.SpkiPin)
 
 	// Save the live endpoint BEFORE promoting the credential (which deletes the
 	// pending slot), and keep the pending endpoint until after promotion. A crash
@@ -173,6 +172,7 @@ func runSecurePairingWithProvisioner(
 	if err != nil {
 		return "", fmt.Errorf("activated but could not finalize the credential: %w", err)
 	}
+	previous.retireOnSameRelay(secureBase, prov.Credential, prov.SpkiPin)
 	// Credential + live endpoint are now durable and working; clearing the stale
 	// pending endpoint is best-effort (resume ignores it — the pending credential
 	// is gone — so a failed clear leaves only an inert value).
@@ -343,12 +343,12 @@ func resumePendingActivationWithPolicy(
 			return false, kerr
 		}
 	}
+	previous := readPreviousLocalDevice(*cfg, ui) // before promotion overwrites it
 	if err := activateDeviceV1ForPairing(base, pin, pending); err != nil {
 		return false, err
 	}
-	// Same ordering as runSecurePairing: save the live endpoint before promoting
-	// the credential, keep the pending endpoint until afterwards, so a crash
-	// mid-way stays resumable.
+	// Same ordering as runSecurePairing: live endpoint saved before promotion,
+	// pending endpoint kept until afterwards, so a crash stays resumable.
 	cfg.RelaySecureBaseURL = base
 	cfg.RelaySpkiPin = pin
 	// The resumed local pairing proves the endpoint and pin, but not the
@@ -378,6 +378,7 @@ func resumePendingActivationWithPolicy(
 			return false, err
 		}
 	}
+	previous.retireOnSameRelay(base, pending, pin)
 	cfg.PendingSecureBaseURL = ""
 	cfg.PendingSpkiPin = ""
 	_ = saveCfg(cfg)
