@@ -20,6 +20,9 @@ func claudeRuleTestPaths(t *testing.T) (runtimePaths, string) {
 		t.Fatal(err)
 	}
 	paths := runtimePaths{Home: home, ConfigDir: config, StateFile: filepath.Join(config, "state.json")}
+	if err := saveState(paths, defaultInstallState()); err != nil { // an installed HA NOVA
+		t.Fatal(err)
+	}
 	return paths, claudeUserSettingsPath(home)
 }
 
@@ -67,6 +70,7 @@ func TestClaudeApplyRuleMergesIntoExistingSettings(t *testing.T) {
 	out := offerAnswer(t, paths, "add\n")
 	if !strings.Contains(out, "This adds one rule to your Claude Code settings: Bash(ha-nova apply --plan *)") ||
 		!strings.Contains(out, "You still confirm every unlock or delete yourself.") ||
+		!strings.Contains(out, "asking before other HA NOVA changes you already approved in chat.") ||
 		strings.Count(out, settings) != 1 || !strings.Contains(out, "Added.") {
 		t.Fatalf("offer output:\n%s", out)
 	}
@@ -151,7 +155,7 @@ func TestClaudeApplyRuleLeavesUnreadableSettingsAlone(t *testing.T) {
 		paths, settings := claudeRuleTestPaths(t)
 		writeClaudeSettings(t, settings, content)
 		out := offerAnswer(t, paths, "add\n")
-		if !strings.Contains(out, "won't change it") || !strings.Contains(out, claudeApplyRuleManual) || strings.Contains(out, "Add rule") {
+		if !strings.Contains(out, "left it unchanged") || !strings.Contains(out, claudeApplyRuleManual) || strings.Contains(out, "Add rule") {
 			t.Fatalf("%s: offer output:\n%s", content, out)
 		}
 		if _, err := changeClaudeApplyRule(settings, true); err == nil {
@@ -181,6 +185,38 @@ func TestClaudeApplyRuleWritesThroughSymlink(t *testing.T) {
 	}
 	if !strings.Contains(readClaudeSettings(t, target), claudeApplyRule) {
 		t.Fatal("rule missing in the symlink target")
+	}
+}
+
+func TestClaudeApplyRuleKeepsDanglingSymlink(t *testing.T) {
+	paths, settings := claudeRuleTestPaths(t)
+	if err := os.MkdirAll(filepath.Dir(settings), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(filepath.Join(paths.Home, "missing", "settings.json"), settings); err != nil {
+		t.Skipf("no symlinks here: %v", err)
+	}
+	if added, err := changeClaudeApplyRule(settings, true); added || err == nil {
+		t.Fatalf("add through a dangling link = %v, %v", added, err)
+	}
+	if info, err := os.Lstat(settings); err != nil || info.Mode()&os.ModeSymlink == 0 {
+		t.Fatalf("dangling link replaced: %v", err)
+	}
+}
+
+func TestClaudeApplyRuleNotWrittenAfterUninstall(t *testing.T) {
+	paths, settings := claudeRuleTestPaths(t)
+	if err := os.Remove(paths.StateFile); err != nil { // uninstall finished while the menu waited
+		t.Fatal(err)
+	}
+	if out := offerAnswer(t, paths, "add\n"); !strings.Contains(out, "Nothing was written") {
+		t.Fatalf("offer output:\n%s", out)
+	}
+	if _, err := os.Stat(settings); !os.IsNotExist(err) {
+		t.Fatalf("settings written after uninstall: %v", err)
+	}
+	if _, err := os.Stat(paths.StateFile); !os.IsNotExist(err) {
+		t.Fatalf("state.json recreated after uninstall: %v", err)
 	}
 }
 

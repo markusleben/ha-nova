@@ -45,22 +45,25 @@ func offerClaudeApplyRule(reader *bufio.Reader, out io.Writer, paths runtimePath
 	}
 	fmt.Fprintln(out)
 	if err != nil {
-		fmt.Fprintf(out, "  HA NOVA can't read %s, so it won't change it.\n", path)
+		fmt.Fprintf(out, "  HA NOVA can't safely edit %s, so it left it unchanged.\n", path)
 		fmt.Fprintln(out, "  To let Claude Code open HA NOVA's confirmation window: "+claudeApplyRuleManual)
 		return
 	}
 	fmt.Fprintln(out, "  Let Claude Code open HA NOVA's confirmation window?")
 	fmt.Fprintln(out, "  This adds one rule to your Claude Code settings: "+claudeApplyRule)
-	fmt.Fprintln(out, "  You still confirm every unlock or delete yourself.")
+	fmt.Fprintln(out, "  You still confirm every unlock or delete yourself. Claude Code also stops")
+	fmt.Fprintln(out, "  asking before other HA NOVA changes you already approved in chat.")
 	fmt.Fprintln(out, "  File: "+path)
 	spec := setupMenuSpec{
 		Prompt:       "Use ↑/↓ or j/k, Enter to select",
 		DefaultValue: "add",
 		Options: []setupMenuOption{
 			{Value: "add", Label: "Add rule (recommended)"},
-			{Value: "skip", Label: "Skip"},
+			{Value: "skip", Label: "Skip for now"},
 		},
 	}
+	armSetupNextPromptSkipsStaleBlankInput() // an Enter typed during the install never answers this
+	defer clearSetupNextPromptSkipsStaleBlankInput()
 	answer, err := promptSetupMenu(reader, out, spec, func() (string, error) {
 		// Without the menu, Enter skips: only a typed "add" consents.
 		answer, err := promptLineWithOptions(reader, out, "Type 'add' to add the rule, or press Enter to skip", "", false)
@@ -73,24 +76,33 @@ func offerClaudeApplyRule(reader *bufio.Reader, out io.Writer, paths runtimePath
 		fmt.Fprintln(out, "  Skipped. To add it later, run ha-nova setup again.")
 		return
 	}
-	added, err := changeClaudeApplyRule(path, true)
-	if err != nil {
-		fmt.Fprintf(out, "  Nothing was written: %s. %s\n", err, claudeApplyRuleManual)
-		return
-	}
-	if added {
-		if err := withClientMutationLock(paths, func() error {
-			state, err := loadStateOrDefaultChecked(paths)
-			if err != nil {
-				return err
-			}
-			state.ClaudeApplyRuleFile = path
-			return saveState(paths, state)
-		}); err != nil {
-			// The rule stays; uninstall just won't know to remove it.
-			fmt.Fprintf(out, "  Added, but HA NOVA couldn't note it (%s): uninstall will leave it in place.\n", err)
-			return
+	// Under the lock and only while HA NOVA is installed (an uninstall in
+	// another terminal removes state.json), so the rule and its record land
+	// together.
+	var unrecorded error
+	err = withClientMutationLock(paths, func() error {
+		state, err := loadState(paths)
+		if errors.Is(err, os.ErrNotExist) {
+			return errors.New("HA NOVA was uninstalled meanwhile")
 		}
+		if err != nil {
+			return err
+		}
+		added, err := changeClaudeApplyRule(path, true)
+		if err != nil || !added {
+			return err
+		}
+		state.ClaudeApplyRuleFile = path
+		unrecorded = saveState(paths, state)
+		return nil
+	})
+	switch {
+	case err != nil:
+		fmt.Fprintf(out, "  Nothing was written (%s). %s\n", err, claudeApplyRuleManual)
+		return
+	case unrecorded != nil:
+		fmt.Fprintf(out, "  Added, but HA NOVA couldn't note it (%s): uninstall will leave it in place.\n", unrecorded)
+		return
 	}
 	fmt.Fprintln(out, "  Added. Claude Code can now open HA NOVA's confirmation window.")
 }
@@ -98,13 +110,14 @@ func offerClaudeApplyRule(reader *bufio.Reader, out io.Writer, paths runtimePath
 // claudeApplyRuleHint is doctor's line while the rule is missing ("" once
 // it is there).
 func claudeApplyRuleHint(home string) string {
+	const why = "Optional: if Claude Code's auto mode blocks HA NOVA's confirmation window, "
 	switch present, err := claudeApplyRulePresent(claudeUserSettingsPath(home)); {
 	case err != nil:
-		return "Claude Code: to let auto mode open HA NOVA's confirmation window: " + claudeApplyRuleManual
+		return why + "add the rule yourself. " + claudeApplyRuleManual
 	case present:
 		return ""
 	}
-	return "Claude Code: to let auto mode open HA NOVA's confirmation window, run `ha-nova setup` and choose “Add rule”. Or: " + claudeApplyRuleManual
+	return why + "run `ha-nova setup` and choose “Add rule”. " + claudeApplyRuleManual
 }
 
 // removeClaudeApplyRuleForUninstall removes the rule only from the file setup
@@ -138,7 +151,11 @@ func claudeApplyRulePresent(path string) (bool, error) {
 // symlink, keeping the file's mode, atomically, and only if nothing else
 // wrote the file in between.
 func changeClaudeApplyRule(path string, add bool) (bool, error) {
-	if target, err := filepath.EvalSymlinks(path); err == nil {
+	if info, err := os.Lstat(path); err == nil && info.Mode()&os.ModeSymlink != 0 {
+		target, err := filepath.EvalSymlinks(path)
+		if err != nil { // a dangling dotfiles link: never replace it with a file
+			return false, fmt.Errorf("%s is a link HA NOVA can't follow", path)
+		}
 		path = target
 	}
 	before, err := os.ReadFile(path)
@@ -178,7 +195,8 @@ var jsonIndentPattern = regexp.MustCompile(`\n([ \t]+)\S`)
 
 // editClaudeAllow adds (once) or removes (one byte-identical copy of) the
 // rule in permissions.allow. Key order, every other key, deny and ask rules,
-// and each other value's bytes stay; the file keeps its own indent.
+// and every string's bytes stay; whitespace is re-indented with the file's
+// own indent.
 func editClaudeAllow(data []byte, add bool) ([]byte, bool, error) {
 	if len(bytes.TrimSpace(data)) == 0 {
 		data = []byte("{}\n")
