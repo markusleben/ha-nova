@@ -96,3 +96,41 @@ func TestPhonePlanSkipsTheTargetsOwnReason(t *testing.T) {
 		t.Fatalf("exit %d sent %v", exit, p.sent)
 	}
 }
+
+// Only a verified result is "Done"; a claimed plan may have run.
+func TestPhoneApplyResult(t *testing.T) {
+	claimed := verbEnvelope{Error: &verbError{Code: "PLAN_CLAIMED"}}
+	cases := []struct {
+		env   verbEnvelope
+		exit  int
+		title string
+	}{
+		{verbEnvelope{Status: "verified"}, verbExitOK, "Done: X"},
+		{verbEnvelope{Status: "accepted"}, verbExitOK, "Sent: X"},
+		{verbEnvelope{Status: "failed"}, verbExitUnverified, "Didn't work: X"},
+		{verbEnvelope{Status: "unverified"}, verbExitUnverified, "Check: X"},
+		{verbEnvelope{}, verbExitUnknown, "Unclear: X"},
+		{claimed, verbExitRefused, "Unclear: X"},
+		{verbEnvelope{}, verbExitRefused, "Not done: X"},
+	}
+	for _, c := range cases {
+		if title, _ := phoneApplyResult("X", c.env, c.exit); title != c.title {
+			t.Errorf("%+v %d: %q, want %q", c.env, c.exit, title, c.title)
+		}
+	}
+}
+
+// A move or stop that gets no answer on the old phone still ends there.
+func TestPhoneChangeTimeoutTellsTheOldPhone(t *testing.T) {
+	h, p, _ := familyLink(t)
+	seedLink(t, h, &annaLink)
+	for _, run := range []func() (int, string){
+		func() (int, string) { return runLink(t, h, "", phoneLinkRun{pick: "Markus’s iPhone"}) },
+		func() (int, string) { return runUnlink(t, h) },
+	} {
+		p.sent, p.services = nil, nil
+		if exit, out := run(); exit != 1 || len(p.sent) != 2 || p.sent[1]["title"] != "Not confirmed" || p.services[1] != "mobile_app_annas_pixel" {
+			t.Fatalf("exit %d out %q sent %v", exit, out, p.sent)
+		}
+	}
+}

@@ -38,18 +38,22 @@ var sayVerbs = map[string]string{
 // sayAsk: a typed plan's phone question — the goal's verb and object, and
 // the first reason it needs a confirmation that the title doesn't already
 // say (an automation that also unlocks, a device sibling, an unseen effect).
+// Said: the one target's own action ("This unlocks a door"), and then also
+// that HA NOVA can't see what that target does; never a reason via another item.
 func sayAsk(e *tierEngine, env *verbEnvelope, plan storedPlan, subject string) [3]string {
 	verb, object := sayGoal(e, env, plan, subject)
+	domain, _ := splitID(plan.Action.Service)
+	own := func(r tierReason) (mine, phrased bool) {
+		_, _, phrased = sayActionPhrase(e, env, r)
+		target, _ := splitID(r.EntityID)
+		mine = r.Via == "" && slices.Equal(plan.Action.EntityIDs, []string{r.EntityID}) && phoneButton(verb) != "Confirm"
+		return mine, phrased && domain == target
+	}
+	named := slices.ContainsFunc(env.Reasons, func(r tierReason) bool { mine, phrased := own(r); return mine && phrased })
 	for _, r := range env.Reasons {
 		text, typed := sayReason(e, env, plan, r)
-		_, _, phrased := sayActionPhrase(e, env, r)
-		// Said: the one target's own action (or that HA NOVA can't see what it
-		// does) — the title names it; never a reason through another item.
-		domain, _ := splitID(plan.Action.Service)
-		target, _ := splitID(r.EntityID)
-		own := r.Via == "" && slices.Equal(plan.Action.EntityIDs, []string{r.EntityID}) && phoneButton(verb) != "Confirm"
-		said := own && (phrased && domain == target || sayUnseenCodes[r.Code])
-		if typed && text != "" && !said {
+		mine, phrased := own(r)
+		if typed && text != "" && !(mine && (phrased || named && sayUnseenCodes[r.Code])) {
 			return [3]string{verb, object, text}
 		}
 	}

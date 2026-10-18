@@ -170,7 +170,9 @@ func (srv *mcpServer) callTool(req rpcRequest) (map[string]any, *rpcError) {
 		// Channel and form answer come from this server only: the CLI detects
 		// the channel (confirm_window.go), a form only where no window opens.
 		planChannel, humanAnswer, windowWait, formsShown = "", answered, mcpWindowWait, req.forms
-		defer func() { planChannel, humanAnswer, windowWait, formsShown = "", "", cliWindowWait, false }()
+		defer func() {
+			planChannel, humanAnswer, windowWait, formsShown, phoneApplied = "", "", cliWindowWait, false, nil
+		}()
 		traceRelayVersion.Store("")
 		out, errOut, exit := captureVerb(func() int { return tool.run(srv.paths, pinServer(tool.name, argv, srv.pin)) })
 		if tool.name == "ha_trace" { // trace prints its own object: add the verbs' notices

@@ -36,12 +36,12 @@ const (
 const (
 	phoneEventType  = "mobile_app_notification_action"
 	phoneWindowSpan = 10 * time.Second // the Relay's collect_events cap; two lanes overlap by half
-	phoneClearSpan  = 3 * time.Second  // cleanup never delays apply longer
+	phoneTellSpan   = 10 * time.Second // the result reaches a slow Relay before the process exits; output is already printed
 )
 
 var (
-	phoneApplied func(exit int) // set by confirmByPhone on Confirm: apply tells the phone how it ended
-	phoneSettle  = time.Second  // a failing subscription returns at once; a working one has acked by then
+	phoneApplied func(env verbEnvelope, exit int) // set by confirmByPhone on Confirm: apply tells the phone how it ended
+	phoneSettle  = time.Second                    // a failing subscription returns at once; a working one has acked by then
 	// The Relay calls; tests replace them.
 	phoneDiscover = discoverPhone
 	phoneNotify   = func(s *relaySession, service string, body map[string]any) error {
@@ -120,9 +120,9 @@ func askPhone(s *relaySession, setup phoneSetup, tag string, ask phoneAsk, wait 
 	}
 	// The person's wait is not read time: the caller's re-check after the
 	// answer gets a fresh read budget (a tap after the session's 30 s was
-	// read as "the phone changed"). Runs after the clear and the lanes' cancel.
+	// read as "the phone changed"). Runs after the lanes' cancel.
 	defer s.renewBudget()
-	// A fresh tag per attempt: a late clear of an earlier attempt can't remove this one.
+	// A fresh tag per attempt: a late result of an earlier attempt can't replace this one.
 	tag += "-" + attempt[len(attempt)-8:]
 	collect, notify := phoneCollect, phoneNotify // the lanes may outlive this call
 	ctx, cancel := context.WithTimeout(context.Background(), wait)
@@ -231,7 +231,7 @@ func sendPhones(ctx context.Context, s *relaySession, notify func(*relaySession,
 }
 
 // tellPhones sends body to every phone the ask reached, in parallel and for
-// at most phoneClearSpan (best effort: a stale ask has dead buttons, since
+// at most phoneTellSpan (best effort: a stale ask has dead buttons, since
 // its ids died with the wait; a slow Relay never delays apply).
 func tellPhones(s *relaySession, notify func(*relaySession, string, map[string]any) error, services []string, body map[string]any) {
 	done := make(chan struct{}, len(services))
@@ -241,7 +241,7 @@ func tellPhones(s *relaySession, notify func(*relaySession, string, map[string]a
 			done <- struct{}{}
 		}()
 	}
-	timeout := time.After(phoneClearSpan)
+	timeout := time.After(phoneTellSpan)
 	for range services {
 		select {
 		case <-done:
@@ -312,7 +312,7 @@ func confirmByPhone(paths runtimePaths, opts verbOptions, id string, noSnapshot 
 			return windowStopped(s, "refused", "CONFIRM_UNAVAILABLE", "the phone that confirmed is no longer the linked phone, or its user is no longer an administrator", phoneMissingNext)
 		}
 		humanAnswer = confirmCode(s.transport.Credential, idHex, channelPhone, plan.ExpiresAt)
-		handed, phoneApplied = true, func(exit int) { reply.say(phoneApplyResult(what, exit)); s.close() }
+		handed, phoneApplied = true, func(env verbEnvelope, exit int) { reply.say(phoneApplyResult(what, env, exit)); s.close() }
 		return env, 0, false
 	case phoneDeclined:
 		return windowStopped(s, "declined", "CONFIRM_DECLINED", "the confirmation was cancelled on the phone",

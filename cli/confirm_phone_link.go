@@ -265,7 +265,7 @@ func allowPhoneChange(s *relaySession, out io.Writer, home phoneHome, links map[
 				reply.say("Approved", "HA NOVA turns off confirmations on this phone; the computer shows the result.")
 				return true
 			case still:
-				reply.say("Approved", "“"+newPhone+"” gets the link question next.")
+				reply.say("Approved", "“"+newPhone+"” must confirm next; the computer shows the result.")
 				return true
 			case unread:
 				fmt.Fprintf(out, "  Nothing changed: HA NOVA couldn't re-check “%s” in Home Assistant after the tap. Run this again.\n", old)

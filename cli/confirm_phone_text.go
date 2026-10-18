@@ -11,8 +11,8 @@ import (
 
 // The phone's notification (Companion app): a short question as the title,
 // one line naming the computer that asked, and the hint last — a plain tap
-// only opens the app; the buttons show when it is held (iOS) or expanded
-// (Android). Everything else (what it means, "only if you started this")
+// only opens the app; the buttons show when it is expanded (a long-press on
+// iOS; on Android a long-press opens settings). Everything else (what it means, "only if you started this")
 // is in the terminal, not on the lock screen.
 
 type phoneAsk struct {
@@ -165,7 +165,7 @@ type phoneReply struct {
 
 func (r phoneReply) say(title, body string) {
 	if r.once != nil {
-		r.once.Do(func() { r.tell(title, body) })
+		r.once.Do(func() { r.tell(phoneCut(title, phoneTitleLimit, "”"), body) })
 	}
 }
 
@@ -187,18 +187,29 @@ func phoneNothing(answer phoneAnswer) (string, string) {
 		return "Not confirmed", "The tap came from another Home Assistant user. Nothing changed."
 	case phoneConfirmed:
 		return "Not done", "Your tap arrived, but HA NOVA stopped. Nothing changed; the computer says why."
+	case phoneFailed:
+		return "Not asked", "HA NOVA couldn't ask here. Nothing changed."
 	}
 	return "Not confirmed", "No answer reached Home Assistant. Nothing changed."
 }
 
-// phoneApplyResult: how a confirmed plan ended, for the phone.
-func phoneApplyResult(what string, exit int) (string, string) {
-	switch exit {
-	case verbExitOK:
+// phoneApplyResult: how a confirmed plan ended, for the phone. "Done" only
+// for a verified result.
+func phoneApplyResult(what string, env verbEnvelope, exit int) (string, string) {
+	code := ""
+	if env.Error != nil {
+		code = env.Error.Code
+	}
+	switch {
+	case exit == verbExitOK && env.Status == "verified":
 		return "Done: " + what, "Home Assistant confirms it."
-	case verbExitUnverified:
+	case exit == verbExitOK:
+		return "Sent: " + what, "Home Assistant took it; HA NOVA can't confirm the result yet."
+	case exit == verbExitUnverified && env.Status == "failed":
+		return "Didn't work: " + what, "Check Home Assistant."
+	case exit == verbExitUnverified:
 		return "Check: " + what, "Sent, but HA NOVA couldn't verify it. Check Home Assistant."
-	case verbExitUnknown:
+	case exit == verbExitUnknown || code == "PLAN_CLAIMED" || code == "PLAN_NOT_FOUND":
 		return "Unclear: " + what, "It may have run. Check Home Assistant."
 	}
 	return "Not done: " + what, "Nothing changed; the computer says why."

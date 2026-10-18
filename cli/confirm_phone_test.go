@@ -123,7 +123,7 @@ func TestJudgePhoneEvent(t *testing.T) {
 	}
 }
 
-func TestPhonePlanConfirmsOnTheLinkedPhoneAndClearsIt(t *testing.T) {
+func TestPhonePlanConfirmsOnTheLinkedPhoneAndReplacesIt(t *testing.T) {
 	h := newWriteHarness(t, newFakeHA())
 	p := usePhones(t, "mobile_app_iphone")
 	env := h.plan("lock.unlock", "lock.front")
