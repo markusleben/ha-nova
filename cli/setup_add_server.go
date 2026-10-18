@@ -178,7 +178,7 @@ func runAddServerStages(
 	if installed, note := detectInstalledRelay(out, paths, cfg, ""); installed {
 		renderSetupSuccessLine(out, "%s", note)
 	} else {
-		if err := runRelayInstallSteps(reader, out, cfg.HAURL); err != nil {
+		if err := runRelayInstallSteps(reader, out, paths, cfg); err != nil {
 			if err == errSetupBack || err == errSetupExit {
 				return cancelKeepingPartialProfile()
 			}

@@ -133,9 +133,21 @@ func signInAndPair(
 		return false, haSignInRetryable(err), nil
 	}
 	renderSetupSuccessLine(out, "Signed in to Home Assistant as %s (owner)", haSignInUserName(session.user))
+	return pairWithHASignInSession(out, paths, cfg, session, lifecycleMarker...)
+}
+
+// pairWithHASignInSession connects this computer through the owner's ingress
+// session, from sign-in or from "Sign in and install NOVA".
+func pairWithHASignInSession(
+	out io.Writer,
+	paths runtimePaths,
+	cfg *runtimeConfig,
+	session haSignInSession,
+	lifecycleMarker ...[]byte,
+) (paired bool, retry bool, err error) {
 	// The ingress pairing exchange gets the same bound as the other steps
 	// after the browser returns.
-	ctx, cancel := context.WithTimeout(ctx, haSignInStepTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), haSignInStepTimeout)
 	defer cancel()
 	_, pairErr := runSetupSpinnerWithResult(out, "Connecting this computer...", setupSpinnerDebounce, func() (struct{}, error) {
 		var pairErr error

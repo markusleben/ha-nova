@@ -25,6 +25,9 @@ import (
 //	                            "not-owner" (USER is a non-owner admin)
 //	HA_NOVA_SIGNIN_E2E_RELAY_URL   relay bootstrap URL (paired only)
 //	HA_NOVA_SIGNIN_E2E_APP_SLUG    App slug, e.g. local_ha_nova_relay (paired only)
+//	HA_NOVA_SIGNIN_E2E_INSTALL=1   "Sign in and install NOVA" first: adds the
+//	                               official repository and installs, updates,
+//	                               and starts the App (paired only)
 func TestHASignInAgainstThrowawayHomeAssistant(t *testing.T) {
 	haURL := os.Getenv("HA_NOVA_SIGNIN_E2E_HA_URL")
 	if haURL == "" {
@@ -53,7 +56,18 @@ func TestHASignInAgainstThrowawayHomeAssistant(t *testing.T) {
 	t.Logf("sign-in origin: %s", origin)
 	haURL = origin.String()
 	var out bytes.Buffer
-	session, err := openHASignInIngress(context.Background(), &out, haURL)
+	var prepare haSignInPrepare
+	if os.Getenv("HA_NOVA_SIGNIN_E2E_INSTALL") == "1" {
+		prepare = func(ctx context.Context, socket haWSCaller, _ HACurrentUser) error {
+			var state novaAppState
+			if err := newNOVAAppSupervisor(socket).ensure(ctx, &out, &state, false); err != nil {
+				return fmt.Errorf("%w (%s)", err, describeNOVAAppState(state))
+			}
+			return waitForNOVAAppSignIn(ctx, &out, os.Getenv("HA_NOVA_SIGNIN_E2E_RELAY_URL"))
+		}
+	}
+	session, err := openHASignInIngressWith(context.Background(), &out, haURL, prepare)
+	t.Logf("sign-in output:\n%s", out.String())
 	if strings.Contains(out.String(), "may still list this sign-in") {
 		t.Fatalf("Home Assistant session was not revoked: %q", out.String())
 	}
