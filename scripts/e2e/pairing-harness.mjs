@@ -124,4 +124,10 @@ if (!code) {
 }
 
 process.stdout.write(`${JSON.stringify({ bootstrapPort, securePort, code, ingressPort, ingressRoot, ingressSession })}\n`);
+// Each stdin line asks for a fresh one-time code, printed as {"code"} on its own
+// line, so one Relay can pair several devices (second-profile e2e).
+process.stdin.on("data", () => {
+  pairing.generateCode();
+  process.stdout.write(`${JSON.stringify({ code: pairing.getStatus().code })}\n`);
+});
 // Keep running until the test kills us; the open servers hold the event loop.
