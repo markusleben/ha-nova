@@ -87,7 +87,7 @@ Results (exit 0, 6, 7, and after `apply`) use its Verb Results rule; a typed `ap
 - Any HA write this skill does not cover: STOP, invoke `ha-nova:fallback` first; never probe unfamiliar write endpoints.
 
 - No one-time code needed for ordinary service calls.
-- Unlocking or opening a lock, disarming an alarm panel, and opening a garage door, gate, or entry-door cover take the code — also when a scene, script, or automation run reaches one. Locking, closing, and arming stay ordinary.
+- Unlocking or opening a lock, disarming an alarm panel, and opening a garage door, gate, or entry-door cover take the code — also when a scene, script, or automation run reaches one. Locking, closing, and arming stay ordinary; the CLI's tier wins.
 - Never include a `code` field in a payload; never ask for, accept, repeat, or store a PIN in chat. Never auto-retry a security action.
 - `homeassistant.restart`/`stop` and App/host control (`hassio.*`) take the one-time code; `siren.turn_on`/`toggle` preview.
 - Drafts follow `../ha-nova/smallest-solution.md`: the complete requested outcome in the simplest safe design.

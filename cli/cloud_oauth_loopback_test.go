@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -303,5 +304,22 @@ func TestOAuthRedirectURIRejectsEmptyQueryMarker(t *testing.T) {
 		"http://127.0.0.1:1234/ha-nova",
 	) {
 		t.Fatal("accepted a non-exact callback URI")
+	}
+}
+
+// rc2 lane D4: the sign-in and Link callback listens on loopback only, so it
+// never raises a Windows Firewall prompt or accepts LAN connections.
+func TestOAuthLoopbackCallbackBindsLoopbackOnly(t *testing.T) {
+	flow := NewOAuthLoopbackFlow()
+	var network, address string
+	flow.Listen = func(n, a string) (net.Listener, error) {
+		network, address = n, a
+		return net.Listen(n, a)
+	}
+	stop := errors.New("stop after bind")
+	flow.BeforeBrowser = func(context.Context, OAuthLoopbackPreparation) error { return stop }
+	_, err := flow.Authorize(context.Background(), "https://unit.ui.nabu.casa", func(context.Context, string) error { return nil })
+	if !errors.Is(err, stop) || network != "tcp4" || address != "127.0.0.1:0" {
+		t.Fatalf("bind = %s %s (err %v), want tcp4 127.0.0.1:0", network, address, err)
 	}
 }

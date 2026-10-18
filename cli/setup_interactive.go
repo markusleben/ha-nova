@@ -1037,7 +1037,9 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 				continue
 			}
 			if err != nil {
-				printHumanErr("%s", err)
+				if !isSetupFailureReported(err) {
+					printHumanErr("%s", err)
+				}
 				return 1
 			}
 			token = pairedToken

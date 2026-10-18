@@ -191,3 +191,36 @@ func TestSelectDefaultHAHostWithFeedbackShowsSpinnerAfterDebounceForSlowTTYDisco
 		t.Fatalf("missing discovery result:\n%s", rendered)
 	}
 }
+
+// rc2 lane D4: the mDNS search is the only non-loopback listener; the first
+// Windows run explains the firewall prompt it raises, later runs stay quiet.
+func TestSetupDiscoveryExplainsWindowsFirewallPromptOnFirstRun(t *testing.T) {
+	originalDiscover, originalOS := discoverReachableHAHostsForSetup, setupDiscoveryPlatformOS
+	t.Cleanup(func() { discoverReachableHAHostsForSetup, setupDiscoveryPlatformOS = originalDiscover, originalOS })
+	discoverReachableHAHostsForSetup = func(runtimeConfig) ([]setupDiscoveryCandidate, string) { return nil, "" }
+	originalWindow := windowAvailable
+	t.Cleanup(func() { windowAvailable = originalWindow })
+
+	for _, tc := range []struct {
+		os   string
+		cfg  runtimeConfig
+		want bool
+	}{
+		{"windows", runtimeConfig{}, true},
+		{"windows", runtimeConfig{HAURL: "http://192.168.1.5:8123"}, false},
+		{"darwin", runtimeConfig{}, false},
+		{"windows-ssh", runtimeConfig{}, false},
+	} {
+		desktop := tc.os != "windows-ssh" // SSH runs in session 0: no window, no prompt
+		windowAvailable = func() bool { return desktop }
+		if !desktop {
+			tc.os = "windows"
+		}
+		setupDiscoveryPlatformOS = tc.os
+		output := &strings.Builder{}
+		runSetupDiscoveryWithFeedback(output, tc.cfg)
+		if got := strings.Contains(output.String(), `Windows may now ask whether "ha-nova" may use your network`); got != tc.want {
+			t.Fatalf("%s %+v: firewall note shown=%v, want %v:\n%s", tc.os, tc.cfg, got, tc.want, output.String())
+		}
+	}
+}

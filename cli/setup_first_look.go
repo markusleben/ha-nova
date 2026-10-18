@@ -39,10 +39,10 @@ var setupFirstLookRead = func(paths runtimePaths) (setupFirstLook, error) {
 }
 
 // codeCoverClasses: covers that open a way in; opening one always needs
-// HA NOVA's one-time code (accessCapable in tier_rules.go).
+// the user's own confirmation (accessCapable in tier_rules.go).
 var codeCoverClasses = map[string]bool{"garage": true, "gate": true, "door": true}
 
-// codeSeed: something HA NOVA opens only after its one-time code — a lock
+// codeSeed: something HA NOVA opens only after the user confirms — a lock
 // without its own keypad code (those are handed to the Home Assistant UI,
 // directRefusal), else a garage door, gate, or door cover.
 func (x *homeIndex) codeSeed() (firstSeed, bool) {
@@ -227,7 +227,8 @@ func firstLookPrompts(seeds map[string]firstSeed) []string {
 	return prompts
 }
 
-// firstLookSafetyLine states the code step; it never invites a real unlock.
+// firstLookSafetyLine states the confirmation step without naming a channel
+// (window, phone, form, or chat code all apply); it never invites a real unlock.
 func firstLookSafetyLine(lock *firstSeed) string {
 	if lock != nil {
 		if name := seedName(*lock); name != "" {
@@ -235,8 +236,8 @@ func firstLookSafetyLine(lock *firstSeed) string {
 			if inDomain(lock.EntityID, "lock") {
 				verb = "unlock"
 			}
-			return fmt.Sprintf("Ask to %s %s and HA NOVA first shows you a one-time code; nothing happens until you type it back.", verb, name)
+			return fmt.Sprintf("Ask to %s %s and HA NOVA first asks you to confirm it yourself; a plain yes in chat isn't enough, and nothing happens until you do.", verb, name)
 		}
 	}
-	return "HA NOVA never unlocks a lock or opens a gate or garage door until you type back a one-time code it shows you."
+	return "HA NOVA never unlocks a lock or opens a gate or garage door until you confirm it yourself; a plain yes in chat isn't enough."
 }

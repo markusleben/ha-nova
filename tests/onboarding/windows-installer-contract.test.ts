@@ -51,7 +51,7 @@ describe("install.ps1 contract", () => {
   it("downloads the Windows bundle and validates bundle.json natively", () => {
     expect(content).toContain("ha-nova-installer-bundle-windows-amd64.zip");
     expect(content).toContain("Windows amd64 bundle only");
-    expect(content).toContain("x64 emulation");
+    expect(content).toContain("-win-x64.zip");
     expect(content).toContain("Expand-Archive");
     expect(content).toContain("bundle.json");
     expect(content).toContain(".sha256");
@@ -296,7 +296,7 @@ if (($script:methods -join ",") -ne "Invoke-WebRequest,HttpClient") {
     );
     expect(content).toContain("Next step: ha-nova setup");
     expect(content).toContain(
-      "Setup will ask for the six-digit pairing code shown in NOVA Home Base.",
+      "Setup will ask you to sign in to Home Assistant as the owner, or to type a six-digit code from the NOVA page.",
     );
     expect(content).not.toContain("ha-nova.cmd");
   });

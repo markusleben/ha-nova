@@ -22,7 +22,7 @@ func TestRenderSetupIntroExplainsProjectAndBrowserBehavior(t *testing.T) {
 		"You'll need:",
 		"NOVA App already installed",
 		"Home Assistant Owner",
-		"one-time six-digit code",
+		"you sign in to Home Assistant as the owner, or type a one-time six-digit code",
 	} {
 		if !strings.Contains(rendered, want) {
 			t.Fatalf("intro missing %q:\n%s", want, rendered)

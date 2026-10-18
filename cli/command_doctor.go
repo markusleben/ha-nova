@@ -128,7 +128,9 @@ func runDoctor(paths runtimePaths, args []string) int {
 		// credential (re-pairing cannot store anything in broken storage).
 		if _, exists, credErr := readDeviceCredential(); credErr != nil {
 			printHumanErr("This device is paired, but its device credential could not be read from secure storage: %s", credErr)
-			if hint := setupSecureStorageRecoveryHint(credErr); hint != "" {
+			if secureStorageSessionProblem(credErr) {
+				printHumanWarn("%s. Next step: %s, then run 'ha-nova doctor' there.", secureStorageSessionReason, secureStorageSessionNextStep())
+			} else if hint := setupSecureStorageRecoveryHint(credErr); hint != "" {
 				printHumanWarn("%s", hint)
 			} else {
 				printHumanWarn("Unlock or repair secure storage on this machine, then run 'ha-nova doctor' again.")

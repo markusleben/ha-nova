@@ -16,7 +16,7 @@ func renderSetupIntro(out io.Writer) {
 		"- ask whether this computer should connect locally or through Home Assistant Link (formerly Home Assistant Cloud)",
 		"- for local setup: find Home Assistant and install the NOVA App",
 		"- for Home Assistant Link only: connect to an existing NOVA App through your Home Assistant Link remote URL",
-		"- pair this computer with a one-time six-digit code from the NOVA page (each device gets its own connection you can revoke anytime)",
+		"- pair this computer: you sign in to Home Assistant as the owner, or type a one-time six-digit code from the NOVA page (each device gets its own connection you can revoke anytime)",
 		`- verify the connection and teach your AI assistant the Home Assistant commands (the "skills")`,
 	)
 	renderSetupParagraph(out,

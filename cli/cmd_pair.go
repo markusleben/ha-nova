@@ -274,6 +274,9 @@ func runPairCommand(paths runtimePaths, args []string) int {
 	})
 	if guardErr != nil {
 		printErr("Pairing cannot start: %s", guardErr)
+		if secureStorageSessionProblem(guardErr) {
+			printErr("%s. Next step: %s, then run this command there.", secureStorageSessionReason, secureStorageSessionNextStep())
+		}
 		return 1
 	}
 	// Storage mutation only AFTER every selection/bootstrap guard above: a pair
@@ -320,6 +323,9 @@ func runPairCommand(paths runtimePaths, args []string) int {
 	})
 	if probeErr != nil {
 		printErr("This system cannot store the device credential yet: %s", probeErr)
+		if secureStorageSessionProblem(probeErr) {
+			printErr("%s. Next step: %s, then run this command there.", secureStorageSessionReason, secureStorageSessionNextStep())
+		}
 		printErr("Nothing was paired — no code was used.")
 		return 1
 	}

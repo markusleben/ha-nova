@@ -459,7 +459,7 @@ run_setup() {
 
   if [[ "${HA_NOVA_NO_SETUP:-0}" == "1" ]]; then
     note "Next step: ha-nova setup"
-    note "Setup will ask for the six-digit pairing code shown in NOVA Home Base."
+    note "Setup will ask you to sign in to Home Assistant as the owner, or to type a six-digit code from the NOVA page."
     note "Need help later? Run: ha-nova doctor"
     return 0
   fi
@@ -472,7 +472,7 @@ run_setup() {
 
   warn "No interactive terminal detected; setup was not started automatically."
   note "Next step: ha-nova setup"
-  note "Setup will ask for the six-digit pairing code shown in NOVA Home Base."
+  note "Setup will ask you to sign in to Home Assistant as the owner, or to type a six-digit code from the NOVA page."
   note "Need help later? Run: ha-nova doctor"
 }
 
