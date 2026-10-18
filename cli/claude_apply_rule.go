@@ -3,15 +3,14 @@ package main
 import (
 	"bufio"
 	"bytes"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
-	"regexp"
 	"slices"
 	"strings"
+	"unicode/utf8"
 )
 
 // claudeApplyRule lets Claude Code run `ha-nova apply --plan <id>` without
@@ -23,9 +22,42 @@ import (
 // user's settings file can hold it, and only after the user says yes.
 const claudeApplyRule = "Bash(ha-nova apply --plan *)"
 
-const claudeApplyRuleManual = "In Claude Code, run /permissions and add this allow rule: " + claudeApplyRule
+// claudeReadRule lets Claude Code read HA NOVA's own skill files, which the
+// plugin loads in place from claude-marketplace — outside every project, so
+// each session otherwise asks "Read outside the working directories" (auto
+// mode) or before every file (default mode). Read-only and only that folder;
+// "" when its path holds a character that would widen the pattern.
+func claudeReadRule(paths runtimePaths) string {
+	root, err := filepath.Abs(claudeMarketplaceBaseRoot(paths))
+	if err != nil {
+		return ""
+	}
+	return claudeReadRuleFor(filepath.ToSlash(root))
+}
 
-var claudeApplyRuleJSON = []byte(`"` + claudeApplyRule + `"`)
+// claudeReadRuleFor writes an absolute slash path in Claude Code's own rule
+// form: /x → //x, C:/x → //c/x.
+func claudeReadRuleFor(root string) string {
+	if !utf8.ValidString(root) || strings.ContainsFunc(root, func(r rune) bool { return r < 0x20 || r == 0x7f }) ||
+		strings.ContainsAny(root, "*?[]{}()!#\\") || strings.HasPrefix(root, "//") { // a pattern character, or a network path
+		return ""
+	}
+	if len(root) > 2 && root[1] == ':' && root[2] == '/' && ('a' <= root[0]|0x20 && root[0]|0x20 <= 'z') {
+		root = "/" + strings.ToLower(root[:1]) + root[2:]
+	}
+	return "Read(/" + root + "/**)"
+}
+
+func claudeRules(paths runtimePaths) []string {
+	if read := claudeReadRule(paths); read != "" {
+		return []string{claudeApplyRule, read}
+	}
+	return []string{claudeApplyRule}
+}
+
+func claudeRulesManual(rules []string) string {
+	return "In Claude Code, run /permissions and add these allow rules: " + strings.Join(rules, ", ")
+}
 
 func claudeUserSettingsPath(home string) string {
 	path := filepath.Join(claudeConfigRoot(home), "settings.json")
@@ -35,30 +67,48 @@ func claudeUserSettingsPath(home string) string {
 	return path
 }
 
-// offerClaudeApplyRule is setup's optional Claude Code step: quiet when the
-// rule is there, writes only after "Add rule", and never fails setup.
-func offerClaudeApplyRule(reader *bufio.Reader, out io.Writer, paths runtimePaths) {
+// offerClaudeRules is setup's optional Claude Code step: quiet when the rules
+// are there, writes only after "Add rules", and never fails setup. It runs
+// before the final banner, which clears the screen, so it returns its outcome
+// line for the caller to print after the banner ("" when quiet).
+func offerClaudeRules(reader *bufio.Reader, out io.Writer, paths runtimePaths) string {
 	path := claudeUserSettingsPath(paths.Home)
-	present, err := claudeApplyRulePresent(path)
-	if present {
-		return
+	rules := claudeRules(paths)
+	missing, err := claudeRulesMissing(path, rules)
+	if err == nil && len(missing) == 0 {
+		return ""
+	}
+	if recorded := claudeRulesRecordFile(loadStateOrDefault(paths)); recorded != "" && !sameFile(recorded, path) {
+		// One record per install: never orphan the rules in the other file.
+		return fmt.Sprintf("Claude Code: HA NOVA's rules are in %s; it left %s unchanged.", recorded, path)
+	}
+	if err != nil {
+		return fmt.Sprintf("Claude Code: HA NOVA can't safely edit %s, so it left it unchanged. %s", path, claudeRulesManual(rules))
 	}
 	fmt.Fprintln(out)
-	if err != nil {
-		fmt.Fprintf(out, "  HA NOVA can't safely edit %s, so it left it unchanged.\n", path)
-		fmt.Fprintln(out, "  To let Claude Code open HA NOVA's confirmation window: "+claudeApplyRuleManual)
-		return
+	if len(rules) > 1 {
+		fmt.Fprintln(out, "  Let Claude Code work with HA NOVA without extra questions?")
+	} else {
+		fmt.Fprintln(out, "  Let Claude Code open HA NOVA's confirmation window?")
 	}
-	fmt.Fprintln(out, "  Let Claude Code open HA NOVA's confirmation window?")
-	fmt.Fprintln(out, "  This adds one rule to your Claude Code settings: "+claudeApplyRule)
-	fmt.Fprintln(out, "  You still confirm every unlock or delete yourself. Claude Code also stops")
-	fmt.Fprintln(out, "  asking before other HA NOVA changes you already approved in chat.")
+	fmt.Fprintln(out, "  This adds to your Claude Code settings:")
+	for _, rule := range missing {
+		why := "so Claude Code can open HA NOVA's confirmation window"
+		if rule != claudeApplyRule {
+			why = "so Claude Code reads HA NOVA's own instructions without asking"
+		}
+		fmt.Fprintf(out, "    %s — %s\n", rule, why)
+	}
+	if slices.Contains(missing, claudeApplyRule) {
+		fmt.Fprintln(out, "  You still confirm every unlock or delete yourself. Claude Code also stops")
+		fmt.Fprintln(out, "  asking before other HA NOVA changes you already approved in chat.")
+	}
 	fmt.Fprintln(out, "  File: "+path)
 	spec := setupMenuSpec{
 		Prompt:       "Use ↑/↓ or j/k, Enter to select",
 		DefaultValue: "add",
 		Options: []setupMenuOption{
-			{Value: "add", Label: "Add rule (recommended)"},
+			{Value: "add", Label: "Add rules (recommended)"},
 			{Value: "skip", Label: "Skip for now"},
 		},
 	}
@@ -66,19 +116,19 @@ func offerClaudeApplyRule(reader *bufio.Reader, out io.Writer, paths runtimePath
 	defer clearSetupNextPromptSkipsStaleBlankInput()
 	answer, err := promptSetupMenu(reader, out, spec, func() (string, error) {
 		// Without the menu, Enter skips: only a typed "add" consents.
-		answer, err := promptLineWithOptions(reader, out, "Type 'add' to add the rule, or press Enter to skip", "", false)
+		answer, err := promptLineWithOptions(reader, out, "Type 'add' to add the rules, or press Enter to skip", "", false)
 		if err == nil && strings.EqualFold(strings.TrimSpace(answer), "add") {
 			return "add", nil
 		}
 		return "skip", nil
 	})
 	if err != nil || answer != "add" {
-		fmt.Fprintln(out, "  Skipped. To add it later, run ha-nova setup again.")
-		return
+		return "Claude Code rules skipped. To add them later, run ha-nova setup again."
 	}
 	// Under the lock and only while HA NOVA is installed (an uninstall in
-	// another terminal removes state.json), so the rule and its record land
-	// together.
+	// another terminal removes state.json), so the rules and their record
+	// land together.
+	var added []string
 	var unrecorded error
 	err = withClientMutationLock(paths, func() error {
 		state, err := loadState(paths)
@@ -88,73 +138,138 @@ func offerClaudeApplyRule(reader *bufio.Reader, out io.Writer, paths runtimePath
 		if err != nil {
 			return err
 		}
-		added, err := changeClaudeApplyRule(path, true)
-		if err != nil || !added {
+		if recorded := claudeRulesRecordFile(state); recorded != "" && !sameFile(recorded, path) { // another setup recorded meanwhile
+			return fmt.Errorf("HA NOVA's rules are recorded in %s", recorded)
+		}
+		var created string
+		added, created, err = changeClaudeRules(path, missing, true, "")
+		if err != nil || len(added) == 0 {
 			return err
 		}
-		state.ClaudeApplyRuleFile = path
+		state.ClaudeRules = recordedClaudeRules(state)
+		for _, rule := range added {
+			if !slices.Contains(state.ClaudeRules, rule) {
+				state.ClaudeRules = append(state.ClaudeRules, rule)
+			}
+		}
+		state.ClaudeRulesFile, state.ClaudeApplyRuleFile = path, ""
+		if created != "" {
+			state.ClaudeAllowCreated = created
+		}
 		unrecorded = saveState(paths, state)
 		return nil
 	})
 	switch {
 	case err != nil:
-		fmt.Fprintf(out, "  Nothing was written (%s). %s\n", err, claudeApplyRuleManual)
-		return
+		return fmt.Sprintf("Claude Code rules: nothing was written (%s). %s", err, claudeRulesManual(missing))
+	case len(added) == 0:
+		return ""
 	case unrecorded != nil:
-		fmt.Fprintf(out, "  Added, but HA NOVA couldn't note it (%s): uninstall will leave it in place.\n", unrecorded)
-		return
+		return fmt.Sprintf("Claude Code rules added, but HA NOVA couldn't note them (%s): uninstall will leave them in place.", unrecorded)
 	}
-	fmt.Fprintln(out, "  Added. Claude Code can now open HA NOVA's confirmation window.")
+	return "Added to your Claude Code settings: " + strings.Join(added, ", ") + claudeNoReadRuleNote(rules)
 }
 
-// claudeApplyRuleHint is doctor's line while the rule is missing ("" once
-// it is there).
-func claudeApplyRuleHint(home string) string {
-	const why = "Optional: if Claude Code's auto mode blocks HA NOVA's confirmation window, "
-	switch present, err := claudeApplyRulePresent(claudeUserSettingsPath(home)); {
-	case err != nil:
-		return why + "add the rule yourself. " + claudeApplyRuleManual
-	case present:
+// claudeNoReadRuleNote: without a read rule, Claude Code keeps asking before
+// reading HA NOVA's files; say so instead of promising otherwise.
+func claudeNoReadRuleNote(rules []string) string {
+	if len(rules) > 1 {
 		return ""
 	}
-	return why + "run `ha-nova setup` and choose “Add rule”. " + claudeApplyRuleManual
+	return ". Claude Code may still ask before reading HA NOVA's files: their folder's path can't be written as a safe rule."
 }
 
-// removeClaudeApplyRuleForUninstall removes the rule only from the file setup
-// recorded writing it to; a rule the user added themselves is never recorded.
-func removeClaudeApplyRuleForUninstall(state installState, report *uninstallReport) {
-	if state.ClaudeApplyRuleFile == "" {
+// claudeRulesRecordFile is the settings file setup recorded adding rules to.
+func claudeRulesRecordFile(state installState) string {
+	if state.ClaudeRulesFile != "" {
+		return state.ClaudeRulesFile
+	}
+	return state.ClaudeApplyRuleFile
+}
+
+// recordedClaudeRules: the rules setup added; a release-candidate record
+// (claude_apply_rule_file) is the apply rule only.
+func recordedClaudeRules(state installState) []string {
+	switch {
+	case state.ClaudeRulesFile != "":
+		return state.ClaudeRules
+	case state.ClaudeApplyRuleFile != "":
+		return []string{claudeApplyRule}
+	}
+	return nil
+}
+
+func sameFile(a, b string) bool {
+	if a == b {
+		return true
+	}
+	ia, errA := os.Stat(a)
+	ib, errB := os.Stat(b)
+	return errA == nil && errB == nil && os.SameFile(ia, ib)
+}
+
+// claudeRulesHint is doctor's line while a rule is missing ("" once all
+// are there).
+func claudeRulesHint(paths runtimePaths) string {
+	const why = "Optional: if Claude Code asks before reading HA NOVA's files, or its auto mode blocks HA NOVA's confirmation window, "
+	rules := claudeRules(paths)
+	switch missing, err := claudeRulesMissing(claudeUserSettingsPath(paths.Home), rules); {
+	case err != nil:
+		return why + "add the rules yourself. " + claudeRulesManual(rules)
+	case len(missing) == 0 && len(rules) > 1:
+		return ""
+	case len(missing) == 0:
+		return strings.TrimPrefix(claudeNoReadRuleNote(rules), ". ")
+	default:
+		return why + "run `ha-nova setup` and choose “Add rules”. " + claudeRulesManual(missing)
+	}
+}
+
+// removeClaudeRulesForUninstall removes only the rules setup recorded adding,
+// from the file it recorded; a rule the user added themselves is never
+// recorded. permissions.allow (or permissions) goes too once empty, but only
+// when setup created it.
+func removeClaudeRulesForUninstall(state installState, report *uninstallReport) {
+	file, rules := claudeRulesRecordFile(state), recordedClaudeRules(state)
+	if file == "" || len(rules) == 0 {
 		return
 	}
-	removed, err := changeClaudeApplyRule(state.ClaudeApplyRuleFile, false)
-	switch {
-	case err != nil:
-		report.addNote(fmt.Sprintf("Could not remove the Claude Code rule %s from %s (%s); remove it in /permissions.", claudeApplyRule, state.ClaudeApplyRuleFile, err))
-	case removed:
-		report.addRemoved("Claude Code rule " + claudeApplyRule)
+	prune := ""
+	if state.ClaudeRulesFile != "" {
+		prune = state.ClaudeAllowCreated
+	}
+	removed, _, err := changeClaudeRules(file, rules, false, prune)
+	if err != nil {
+		report.addNote(fmt.Sprintf("Could not remove the Claude Code rules %s from %s (%s); remove them in /permissions.", strings.Join(rules, ", "), file, err))
+		return
+	}
+	for _, rule := range removed {
+		report.addRemoved("Claude Code rule " + rule)
 	}
 }
 
-func claudeApplyRulePresent(path string) (bool, error) {
+// claudeRulesMissing returns the rules the settings file lacks.
+func claudeRulesMissing(path string, rules []string) ([]string, error) {
 	data, err := os.ReadFile(path)
 	if errors.Is(err, os.ErrNotExist) {
-		return false, nil
+		return rules, nil
 	}
 	if err != nil {
-		return false, err
+		return nil, err
 	}
-	_, changed, err := editClaudeAllow(data, true)
-	return err == nil && !changed, err
+	_, missing, _, err := editClaudeAllow(data, rules, true, "")
+	return missing, err
 }
 
-// changeClaudeApplyRule adds or removes the rule in place: through a
-// symlink, keeping the file's mode, atomically, and only if nothing else
-// wrote the file in between.
-func changeClaudeApplyRule(path string, add bool) (bool, error) {
+// changeClaudeRules adds or removes the rules in place: through a symlink,
+// keeping the file's mode, atomically, and only if nothing else wrote the
+// file in between. It returns the rules it changed and, on add, which key it
+// created ("permissions", "allow", or "").
+func changeClaudeRules(path string, rules []string, add bool, prune string) ([]string, string, error) {
 	if info, err := os.Lstat(path); err == nil && info.Mode()&os.ModeSymlink != 0 {
 		target, err := filepath.EvalSymlinks(path)
 		if err != nil { // a dangling dotfiles link: never replace it with a file
-			return false, fmt.Errorf("%s is a link HA NOVA can't follow", path)
+			return nil, "", fmt.Errorf("%s is a link HA NOVA can't follow", path)
 		}
 		path = target
 	}
@@ -163,149 +278,28 @@ func changeClaudeApplyRule(path string, add bool) (bool, error) {
 	mode := os.FileMode(0o644)
 	switch {
 	case missing && !add:
-		return false, nil
+		return nil, "", nil
 	case err != nil && !missing:
-		return false, err
+		return nil, "", err
 	case !missing:
 		info, err := os.Stat(path)
 		if err != nil {
-			return false, err
+			return nil, "", err
 		}
 		mode = info.Mode().Perm()
 	}
-	after, changed, err := editClaudeAllow(before, add)
-	if err != nil || !changed {
-		return false, err
+	after, changed, created, err := editClaudeAllow(before, rules, add, prune)
+	if err != nil || len(changed) == 0 {
+		return nil, "", err
 	}
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
-		return false, err
+		return nil, "", err
 	}
 	// ponytail: compare-then-rename leaves a tiny window for a concurrent
 	// Claude Code write; Claude Code honors no lock HA NOVA could take.
 	now, err := os.ReadFile(path)
 	if missing != errors.Is(err, os.ErrNotExist) || (!missing && (err != nil || !bytes.Equal(now, before))) {
-		return false, errors.New("the settings file changed while HA NOVA was reading it")
+		return nil, "", errors.New("the settings file changed while HA NOVA was reading it")
 	}
-	return true, writeFileAtomic(path, after, mode)
-}
-
-var errClaudeSettingsShape = errors.New("the settings file is not valid JSON in the shape Claude Code uses")
-
-var jsonIndentPattern = regexp.MustCompile(`\n([ \t]+)\S`)
-
-// editClaudeAllow adds (once) or removes (one byte-identical copy of) the
-// rule in permissions.allow. Key order, every other key, deny and ask rules,
-// and every string's bytes stay; whitespace is re-indented with the file's
-// own indent.
-func editClaudeAllow(data []byte, add bool) ([]byte, bool, error) {
-	if len(bytes.TrimSpace(data)) == 0 {
-		data = []byte("{}\n")
-	}
-	data, err := strictJSONBytes(data, "Claude Code settings")
-	if err != nil {
-		return nil, false, errClaudeSettingsShape
-	}
-	root, err := parseOrderedJSONObject(data)
-	if err != nil {
-		return nil, false, err
-	}
-	perms := &orderedJSONObject{vals: map[string]json.RawMessage{}}
-	if raw, ok := root.vals["permissions"]; ok {
-		if perms, err = parseOrderedJSONObject(raw); err != nil {
-			return nil, false, err
-		}
-	}
-	var allow []json.RawMessage
-	if raw, ok := perms.vals["allow"]; ok {
-		if json.Unmarshal(raw, &allow) != nil || allow == nil {
-			return nil, false, errClaudeSettingsShape
-		}
-	}
-	at := slices.IndexFunc(allow, func(r json.RawMessage) bool { return bytes.Equal(r, claudeApplyRuleJSON) })
-	switch {
-	case add == (at >= 0):
-		return data, false, nil
-	case add:
-		allow = append(allow, claudeApplyRuleJSON)
-	default:
-		allow = slices.Delete(allow, at, at+1)
-	}
-	list := []byte("[")
-	for i, r := range allow {
-		if i > 0 {
-			list = append(list, ',')
-		}
-		list = append(list, r...)
-	}
-	perms.set("allow", append(list, ']'))
-	root.set("permissions", perms.encode())
-	indent := "  "
-	if m := jsonIndentPattern.FindSubmatch(data); m != nil {
-		indent = string(m[1])
-	}
-	var compact, out bytes.Buffer
-	if err := json.Compact(&compact, root.encode()); err != nil {
-		return nil, false, err
-	}
-	if err := json.Indent(&out, compact.Bytes(), "", indent); err != nil {
-		return nil, false, err
-	}
-	return append(out.Bytes(), '\n'), true, nil
-}
-
-// orderedJSONObject keeps a JSON object's key order and raw values.
-type orderedJSONObject struct {
-	keys []string
-	vals map[string]json.RawMessage
-}
-
-func parseOrderedJSONObject(data []byte) (*orderedJSONObject, error) {
-	dec := json.NewDecoder(bytes.NewReader(data))
-	if tok, err := dec.Token(); err != nil || tok != json.Delim('{') {
-		return nil, errClaudeSettingsShape
-	}
-	o := &orderedJSONObject{vals: map[string]json.RawMessage{}}
-	for dec.More() {
-		tok, err := dec.Token()
-		key, isKey := tok.(string)
-		var raw json.RawMessage
-		if err != nil || !isKey || dec.Decode(&raw) != nil {
-			return nil, errClaudeSettingsShape
-		}
-		if _, dup := o.vals[key]; dup { // which one Claude Code reads is not ours to guess
-			return nil, errClaudeSettingsShape
-		}
-		o.keys, o.vals[key] = append(o.keys, key), raw
-	}
-	if _, err := dec.Token(); err != nil {
-		return nil, errClaudeSettingsShape
-	}
-	if _, err := dec.Token(); err != io.EOF {
-		return nil, errClaudeSettingsShape
-	}
-	return o, nil
-}
-
-func (o *orderedJSONObject) set(key string, raw []byte) {
-	if _, ok := o.vals[key]; !ok {
-		o.keys = append(o.keys, key)
-	}
-	o.vals[key] = raw
-}
-
-func (o *orderedJSONObject) encode() []byte {
-	var b bytes.Buffer
-	enc := json.NewEncoder(&b)
-	enc.SetEscapeHTML(false)
-	b.WriteByte('{')
-	for i, key := range o.keys {
-		if i > 0 {
-			b.WriteByte(',')
-		}
-		_ = enc.Encode(key) // a string always encodes; Encode's newline is JSON whitespace
-		b.WriteByte(':')
-		b.Write(o.vals[key])
-	}
-	b.WriteByte('}')
-	return b.Bytes()
+	return changed, created, writeFileAtomic(path, after, mode)
 }

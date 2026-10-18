@@ -290,6 +290,7 @@ func noticeHints(envelope map[string]any, told map[string]bool) string {
 var mcpNoticeHints = map[string]string{
 	"relay_outdated": "After answering, tell the user once: the NOVA Relay App needs an update (Home Assistant → Settings → Apps → NOVA Relay); a standalone Relay needs its new container image pulled.",
 	"update":         "After answering, tell the user once: a newer HA NOVA is available (see notices); they update it in a terminal as the notice says, then start a new session.",
+	"draft":          "Before any preview: a draft notice names a trigger that may never fire; add the named in-between state to from: and plan again.",
 }
 
 // mcpFlagArgs: the CLI flags a verb's next or message names, as the MCP

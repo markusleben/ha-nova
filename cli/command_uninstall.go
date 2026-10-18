@@ -661,7 +661,7 @@ func finalizeLocalUninstallWithProgressUnlocked(
 	if err := removeInstalledClientsWithReport(paths, state, report); err != nil {
 		return fmt.Errorf("failed to remove client integrations: %w", err)
 	}
-	removeClaudeApplyRuleForUninstall(state, report)
+	removeClaudeRulesForUninstall(state, report)
 	if err := removeClaudeProjectMemoryForUninstall(paths.Home, report); err != nil {
 		report.addNote("Could not inspect Claude project memory: " + err.Error())
 	}

@@ -286,6 +286,10 @@ func TestRunUninstallYesShowsPreflightAndLeavesSharedApp(t *testing.T) {
 		t.Fatalf("writeRelayAuthToken() error: %v", err)
 	}
 
+	tokenLabel := uninstallTokenLineLabel(paths) // read before the purge removes the config it names
+	if !strings.Contains(tokenLabel, "ha-nova.relay-auth-token") {
+		t.Fatalf("legacy-token install label = %q", tokenLabel)
+	}
 	exitCode, output := captureCommandOutput(t, func() int {
 		return runUninstall(paths, []string{"--yes", "--purge"})
 	})
@@ -299,7 +303,7 @@ func TestRunUninstallYesShowsPreflightAndLeavesSharedApp(t *testing.T) {
 		"Managed local state and cache",
 		"Full purge also removes:",
 		"Home Assistant connection config",
-		uninstallTokenLineLabel(paths),
+		tokenLabel,
 		// --yes never asked "last computer?", so the shared App is left.
 		sharedAppLeftNote,
 	} {
@@ -878,5 +882,46 @@ func TestPurgePreservesConfigForExternalTokenFile(t *testing.T) {
 	}
 	if keyringDeleted {
 		t.Fatal("keyring token was deleted after external token policy blocked")
+	}
+}
+
+// The purge line names what the user finds in secure storage: the device
+// credential per paired profile, the legacy token only where it is in use.
+func TestUninstallTokenLabelNamesStoredCredentials(t *testing.T) {
+	store := map[string]string{"darwin": "Keychain", "windows": "Credential Manager"}[runtime.GOOS]
+	if store == "" {
+		store = "Secure storage"
+	}
+	for _, tc := range []struct{ config, want string }{
+		{"", store + " entry (ha-nova.device-credential)"},
+		{`{"schema_version":2,"default_server":"default","servers":{
+			"default":{"ha_url":"http://192.0.2.5:8123","relay_base_url":"http://192.0.2.5:8791","relay_secure_base_url":"https://192.0.2.5:8792"},
+			"second":{"ha_url":"http://192.0.2.6:8123","relay_base_url":"http://192.0.2.6:8791","relay_secure_base_url":"https://192.0.2.6:8792"}}}`,
+			store + " entries (ha-nova.device-credential, ha-nova.device-credential.second)"},
+		{`{"ha_url":"http://192.0.2.5:8123","relay_base_url":"http://192.0.2.5:8791"}`, store + " entry (ha-nova.relay-auth-token)"},
+	} {
+		dir := t.TempDir()
+		paths := runtimePaths{ConfigDir: dir, ConfigFile: filepath.Join(dir, "config.json")}
+		if tc.config != "" {
+			if err := os.WriteFile(paths.ConfigFile, []byte(tc.config), 0o600); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if got := uninstallTokenLineLabel(paths); got != tc.want {
+			t.Errorf("label = %q, want %q", got, tc.want)
+		}
+	}
+	// A headless install keeps them in files. Every home variable points at
+	// a temp dir, so the marker never lands in a real secrets folder.
+	home := t.TempDir()
+	for _, key := range []string{"HOME", "USERPROFILE", "APPDATA", "LOCALAPPDATA"} {
+		t.Setenv(key, home)
+	}
+	if err := writeDeviceFileBackendMarker(); err != nil {
+		t.Fatal(err)
+	}
+	dir, _ := deviceSecretFileDir()
+	if got := uninstallTokenLineLabel(runtimePaths{ConfigFile: filepath.Join(t.TempDir(), "config.json")}); got != "Credential files in "+dir+" (ha-nova.device-credential)" {
+		t.Errorf("file-backed label = %q", got)
 	}
 }

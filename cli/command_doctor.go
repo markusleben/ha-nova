@@ -348,7 +348,7 @@ func runDoctor(paths runtimePaths, args []string) int {
 				if client.ID != "claude" {
 					break
 				}
-				if hint := claudeApplyRuleHint(paths.Home); hint != "" {
+				if hint := claudeRulesHint(paths); hint != "" {
 					doctorInfo("%s", hint)
 				}
 			case !client.RuntimeDetected:

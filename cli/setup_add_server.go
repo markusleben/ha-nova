@@ -42,12 +42,7 @@ func maybeOfferAddServerForCompletedSetup(
 		return false, 0
 	}
 	fmt.Fprintln(out)
-	add, err := promptWizardYesNoFromReader(
-		reader,
-		out,
-		"Add another Home Assistant server?",
-		false,
-	)
+	add, err := promptWizardYesNoMenu(reader, out, "Add another Home Assistant server?", "Yes, add another server", "No", false)
 	if errors.Is(err, errSetupExit) || errors.Is(err, errSetupBack) {
 		return false, 0
 	}
