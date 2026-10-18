@@ -22,7 +22,7 @@ Read and follow `../ha-nova/session-bootstrap.md`. An unreachable Relay answers 
 - Resolve: `ha-nova find "<phrase>"`, `ha-nova get <entity_id> [--config]`.
 - Blueprints (read-only): `ha-nova relay ws --data-file <payload-file>` with `{"type":"blueprint/list","domain":"automation"}`, then `{"type":"blueprint/substitute","domain":"automation","path":"<path>","input":{...}}`.
 - An export in `/config` (file access on): `ha-nova relay files --data-file <payload-file>` with `{"action":"read_file","path":"<path>"}`.
-- Write: `ha-nova plan write --domain automation|script --create --file <draft.json>` (update: `--id <config_id>`), `ha-nova plan call automation.turn_off <entity_id> --set stop_actions=false` (a running delay still finishes), `ha-nova apply --plan <id> [--confirm <code>]` — `../write/SKILL.md` Phase 2-4 rules.
+- Write: `ha-nova plan write --domain automation|script --create --file <draft.json>` (update: `--id <config_id>`), `ha-nova plan call automation.turn_off <entity_id> --set stop_actions=false` (a running delay still finishes), `ha-nova apply [--confirm <code>] --plan <id>` — `../write/SKILL.md` Phase 2-4 rules.
 - Soak evidence: `ha-nova trace list <entity_id> --json` (last runs only), each target's `ha-nova history <target> --since 7d --logbook` (7-day slices, `--until`; recorder retention).
 
 ## Flow

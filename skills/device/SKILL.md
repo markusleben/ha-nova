@@ -23,7 +23,7 @@ Read and follow `../ha-nova/session-bootstrap.md`. An unreachable Relay answers 
 
 - Scan (read-only): `ha-nova get <entity_id> --references` covers the entity's whole device. `result.references`: `device`, `entities[]` (mapping hints: `platform`, `translation_key`, `original_name`, `device_class`, `unit`, `state`, `registry_id`), `notify_service`, `hits[]` (`family`, `id`, `config_id`, `managed`, `needle`, `paths`, `template`), `scanned`, `not_scanned[]`, `not_covered[]`; `result.related` is search/related. An entity that no longer exists is scanned by its id (`resolved[0].by` = `absent`).
 - Resolve: `ha-nova find "<phrase>"`, `ha-nova get <entity_id> --config`; registry reads (`config/entity_registry/get`, `config/device_registry/list`) per `../organize/SKILL.md`.
-- Re-point: `ha-nova plan write --domain automation|script --id <config_id> --file <draft.json>`, then `ha-nova apply --plan <id> [--confirm <code>]` (`../write/SKILL.md` Phase 2-3 rules).
+- Re-point: `ha-nova plan write --domain automation|script --id <config_id> --file <draft.json>`, then `ha-nova apply [--confirm <code>] --plan <id>` (`../write/SKILL.md` Phase 2-3 rules).
 - Takeover: `ha-nova relay ws --data-file <payload-file>` with `{"type":"config/entity_registry/update","entity_id":"<new id>","new_entity_id":"<old id>"}`.
 
 ## Hit Routing

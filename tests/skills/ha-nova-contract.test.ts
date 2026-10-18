@@ -765,7 +765,7 @@ describe("ha-nova contract", () => {
     expect(write).toContain("`ha-nova get <entity_id> --config`");
     expect(write).toContain("`ha-nova plan write --domain automation|script [--id <config_id> | --create] --file <draft.json>`");
     expect(write).toContain("`ha-nova plan delete <entity_id>`");
-    expect(write).toContain("`ha-nova apply --plan <id> [--confirm <code>] [--no-snapshot]`");
+    expect(write).toContain("`ha-nova apply [--confirm <code>] --plan <id> [--no-snapshot]`");
     expect(write).toContain("this skill sends no raw `ha-nova relay` config write");
     expect(write).not.toContain("{RELAY_BASE_URL}");
     expect(write).not.toContain("macos-onboarding.sh");

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"slices"
 	"strings"
 )
 
@@ -77,6 +78,9 @@ func maybeHandleInteractiveSetupCurrentState(reader *bufio.Reader, out io.Writer
 		if err := completeSetupLifecycle(paths, lifecycleMarker...); err != nil {
 			printHumanErr("cannot finalize setup lifecycle: %s", err)
 			return true, 1
+		}
+		if !serviceMode && slices.Contains(loadStateOrDefault(paths).InstalledClients, "claude") && isInteractiveTTY() && writerSupportsTTYForSetup(out) {
+			offerClaudeApplyRule(reader, out, paths) // optional; never fails setup
 		}
 		// Same suppression as the done banner below: after a ran add flow
 		// its own closing lines are the message — never bury a cancelled or
@@ -1257,6 +1261,9 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 			}
 			if pairedThisRun && !cloudSetupPaused && !serviceMode && isInteractiveTTY() && writerSupportsTTYForSetup(os.Stdout) {
 				offerPhoneLink(reader, os.Stdout, paths) // optional; never fails setup
+			}
+			if !serviceMode && slices.Contains(selectedClients, "claude") && isInteractiveTTY() && writerSupportsTTYForSetup(os.Stdout) {
+				offerClaudeApplyRule(reader, os.Stdout, paths) // optional; never fails setup
 			}
 			// The read-only first look after a pairing in this run
 			// (docs/work/2026-10-16-ha-sign-in-pairing-spec.md, "First look").

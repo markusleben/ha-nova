@@ -345,6 +345,12 @@ func runDoctor(paths runtimePaths, args []string) int {
 			switch {
 			case client.Ready:
 				doctorInfo("%s ready now", client.Label)
+				if client.ID != "claude" {
+					break
+				}
+				if hint := claudeApplyRuleHint(paths.Home); hint != "" {
+					doctorInfo("%s", hint)
+				}
 			case !client.RuntimeDetected:
 				printHumanWarn("%s configured, but client runtime not detected now", client.Label)
 				printHumanWarn("%s", doctorClientRepairHint(client, installSource))
