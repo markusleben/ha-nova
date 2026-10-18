@@ -106,7 +106,9 @@ func sayTypedAsk(code, goal string) string {
 const sayWindowAsk = "A confirmation window opens on this computer — confirm there."
 
 // sayPhoneAsk closes a phone plan's `say`: the code is never shown.
-const sayPhoneAsk = "HA NOVA sends a confirmation to your phone — tap Confirm there."
+func sayPhoneAsk(button string) string {
+	return "HA NOVA sends a notification to your phone: expand it and tap “" + button + "” there, only if you asked for this."
+}
 
 // sayFormAsk replaces sayTypedAsk where the client shows a confirmation
 // form: the code is never in a tool result there (mcp_confirm.go).

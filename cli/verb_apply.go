@@ -85,6 +85,13 @@ func runApplyCommand(paths runtimePaths, args []string) int {
 	if !asked {
 		env, exit, asked = confirmByPhone(paths, opts, *id, *noSnapshot)
 	}
+	if done := phoneApplied; done != nil { // the phone hears how it ended, even after a panic (unclear)
+		phoneApplied = nil
+		if !asked {
+			exit, env.Status = verbExitUnknown, ""
+		}
+		defer func() { done(env, exit) }()
+	}
 	if !asked {
 		env, exit = applyPlan(paths, opts, *id, *code, *noSnapshot)
 	}

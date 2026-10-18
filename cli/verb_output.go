@@ -62,6 +62,7 @@ type verbEnvelope struct {
 	Error        *verbError      `json:"error,omitempty"`
 	Notices      []verbNotice    `json:"notices,omitempty"`
 	exit         int             // success exit code; 0 unless a verb sets it (plan: 3)
+	ask          [3]string       // a typed plan's phone question: verb, object, reason (sayAsk)
 }
 
 type verbTarget struct {

@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"regexp"
+	"slices"
 	"strings"
 	"unicode"
 )
@@ -32,6 +33,41 @@ var sayVerbs = map[string]string{
 	"turn_on": "Turn on", "turn_off": "Turn off", "open_cover": "Open", "close_cover": "Close", "stop_cover": "Stop",
 	"set_cover_position": "Set the position of", "alarm_disarm": "Disarm", "alarm_trigger": "Set off", "press": "Press",
 	"trigger": "Run", "set_value": "Set", "select_option": "Set",
+}
+
+// sayAsk: a typed plan's phone question — the goal's verb and object, and
+// the first reason it needs a confirmation that the title doesn't already
+// say (an automation that also unlocks, a device sibling, an unseen effect),
+// all of them.
+// Said: the one target's own action ("This unlocks a door"), and then also
+// that HA NOVA can't see what that target does; never a reason via another item.
+func sayAsk(e *tierEngine, env *verbEnvelope, plan storedPlan, subject string) [3]string {
+	verb, object := sayGoal(e, env, plan, subject)
+	domain, _ := splitID(plan.Action.Service)
+	// phrased: the title already says this effect — only "Unlock"/"Open" a
+	// lock and "Disarm" the alarm; a wiping button or a garage cover keeps its line.
+	own := func(r tierReason) (mine, phrased bool) {
+		phrase, _, ok := sayActionPhrase(e, env, r)
+		target, _ := splitID(r.EntityID)
+		mine = r.Via == "" && slices.Equal(plan.Action.EntityIDs, []string{r.EntityID}) && phoneButton(verb) != "Confirm"
+		return mine, ok && domain == target && (r.Code == reasonAccessLock || r.Code == reasonAccessAlarm) && strings.HasPrefix(phrase.verb, strings.ToLower(verb))
+	}
+	named := slices.ContainsFunc(env.Reasons, func(r tierReason) bool { mine, phrased := own(r); return mine && phrased })
+	var why []string // every distinct risk the title doesn't say
+	for _, r := range env.Reasons {
+		text, typed := sayReason(e, env, plan, r)
+		mine, phrased := own(r)
+		if typed && text != "" && !(mine && (phrased || named && sayUnseenCodes[r.Code])) && !slices.Contains(why, text) {
+			why = append(why, text)
+		}
+	}
+	return [3]string{verb, object, strings.Join(why, ". ")}
+}
+
+// sayGoalText: sayGoal as one phrase, "Unlock “Front Door”".
+func sayGoalText(e *tierEngine, env *verbEnvelope, plan storedPlan, subject string) string {
+	verb, object := sayGoal(e, env, plan, subject)
+	return verb + " " + object
 }
 
 func sayVerb(name string) string {

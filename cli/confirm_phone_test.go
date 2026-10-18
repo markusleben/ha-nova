@@ -37,9 +37,9 @@ func usePhones(t *testing.T, targets ...string) *fakePhones {
 	for _, s := range targets {
 		p.setup.targets = append(p.setup.targets, phoneTarget{Service: s, Name: s})
 	}
-	saved := []any{windowAvailable, phoneDiscover, phoneNotify, phoneCollect, phoneSettle, windowMinWait, windowWait}
+	saved := []any{windowAvailable, phoneDiscover, phoneNotify, phoneCollect, phoneSettle, windowMinWait, windowWait, phoneTellSpan}
 	windowAvailable = func() bool { return false }
-	phoneSettle, windowMinWait, windowWait = 10*time.Millisecond, time.Second, 2*time.Second
+	phoneSettle, windowMinWait, windowWait, phoneTellSpan = 10*time.Millisecond, time.Second, 2*time.Second, time.Second
 	phoneDiscover = func(*relaySession) (phoneSetup, phoneStatus) { return p.setup, p.status }
 	phoneNotify = func(_ *relaySession, service string, body map[string]any) error {
 		p.mu.Lock()
@@ -81,7 +81,7 @@ func usePhones(t *testing.T, targets ...string) *fakePhones {
 		windowAvailable, phoneDiscover = saved[0].(func() bool), saved[1].(func(*relaySession) (phoneSetup, phoneStatus))
 		phoneNotify = saved[2].(func(*relaySession, string, map[string]any) error)
 		phoneCollect = saved[3].(func(context.Context, *relaySession, time.Duration) ([]phoneEvent, error))
-		phoneSettle, windowMinWait, windowWait = saved[4].(time.Duration), saved[5].(time.Duration), saved[6].(time.Duration)
+		phoneSettle, windowMinWait, windowWait, phoneTellSpan = saved[4].(time.Duration), saved[5].(time.Duration), saved[6].(time.Duration), saved[7].(time.Duration)
 	})
 	return p
 }
@@ -123,12 +123,12 @@ func TestJudgePhoneEvent(t *testing.T) {
 	}
 }
 
-func TestPhonePlanConfirmsOnTheLinkedPhoneAndClearsIt(t *testing.T) {
+func TestPhonePlanConfirmsOnTheLinkedPhoneAndReplacesIt(t *testing.T) {
 	h := newWriteHarness(t, newFakeHA())
 	p := usePhones(t, "mobile_app_iphone")
 	env := h.plan("lock.unlock", "lock.front")
 	plan := env.Plan
-	if plan.Channel != channelPhone || plan.Code != "" || !strings.HasSuffix(env.Say, sayPhoneAsk) || strings.Contains(env.Say, "one-time code") ||
+	if plan.Channel != channelPhone || plan.Code != "" || !strings.HasSuffix(env.Say, sayPhoneAsk("Unlock")) || strings.Contains(env.Say, "one-time code") ||
 		!strings.Contains(env.NextStep, "a notification on their phone") || !strings.Contains(env.NextStep, "Never ask for a code") {
 		t.Fatalf("phone plan: %+v say %q next %q", plan, env.Say, env.NextStep)
 	}
@@ -141,18 +141,21 @@ func TestPhonePlanConfirmsOnTheLinkedPhoneAndClearsIt(t *testing.T) {
 	if exit != 0 || applied.Status != "verified" || len(h.posts()) != 1 {
 		t.Fatalf("confirm: exit %d %+v posts %d", exit, applied.Error, len(h.posts()))
 	}
-	if !strings.Contains(stderr, fmt.Sprintf(phoneSentText, "mobile_app_iphone", "Confirm")) {
+	if !strings.Contains(stderr, fmt.Sprintf(phoneSentText, "mobile_app_iphone", "Unlock")) {
 		t.Fatalf("stderr %q", stderr)
 	}
-	// The linked phone got it once and was cleared afterwards; nothing else was sent.
-	if strings.Join(p.services, ",") != "mobile_app_iphone,mobile_app_iphone" || p.sent[1]["message"] != "clear_notification" {
+	// The linked phone got it once, then the verified result in its place (same tag, no buttons).
+	result, _ := p.sent[1]["data"].(map[string]any)
+	if strings.Join(p.services, ",") != "mobile_app_iphone,mobile_app_iphone" || p.sent[1]["title"] != "Done: Unlock “lock.front”" ||
+		result["actions"] != nil || result["tag"] != p.sent[0]["data"].(map[string]any)["tag"] {
 		t.Fatalf("notify calls %v %v", p.services, p.sent)
 	}
 	data := p.sent[0]["data"].(map[string]any)
 	confirm := data["actions"].([]any)[0].(map[string]any)
-	if confirm["authenticationRequired"] != true || confirm["destructive"] != true || confirm["title"] != "Confirm" || p.sent[0]["title"] != phoneTitle+"Confirm" ||
+	// A short question, the computer that asked, and the hint last.
+	if _, auth := confirm["authenticationRequired"]; auth || confirm["destructive"] != true || confirm["title"] != "Unlock" || p.sent[0]["title"] != "Unlock “lock.front”?" ||
 		!strings.HasPrefix(data["tag"].(string), "ha-nova-"+plan.ID+"-") || p.sent[1]["data"].(map[string]any)["tag"] != data["tag"] ||
-		!strings.Contains(p.sent[0]["message"].(string), "Unlock “lock.front”") {
+		p.sent[0]["message"] != "Requested by “"+phoneHost()+"”. "+phoneHint || data["push"].(map[string]any)["interruption-level"] != "time-sensitive" {
 		t.Fatalf("payload %+v", p.sent[0])
 	}
 	// The ids exist only in the notification: never in output or a plan file.
@@ -167,13 +170,14 @@ func TestPhoneForgedOrMissingAnswersSendNothing(t *testing.T) {
 	cases := map[string]struct {
 		answer func(ok, no string) []phoneEvent
 		code   string
+		result string // the phone's result title
 	}{
-		"wrong user":    {func(ok, _ string) []phoneEvent { return []phoneEvent{tap(ok, "someone-else", "REMOTE")} }, "CONFIRM_REJECTED"},
-		"relay user":    {func(ok, _ string) []phoneEvent { return []phoneEvent{tap(ok, "relay-id", "REMOTE")} }, "CONFIRM_REJECTED"},
-		"fired locally": {func(ok, _ string) []phoneEvent { return []phoneEvent{tap(ok, "owner-id", "LOCAL")} }, "CONFIRM_REJECTED"},
-		"wrong nonce":   {func(string, string) []phoneEvent { return []phoneEvent{tap("HANOVA_OK_guess", "owner-id", "REMOTE")} }, "CONFIRM_CANCELLED"},
-		"cancel":        {func(_, no string) []phoneEvent { return []phoneEvent{tap(no, "owner-id", "REMOTE")} }, "CONFIRM_DECLINED"},
-		"no answer":     {nil, "CONFIRM_CANCELLED"},
+		"wrong user":    {func(ok, _ string) []phoneEvent { return []phoneEvent{tap(ok, "someone-else", "REMOTE")} }, "CONFIRM_REJECTED", "Not confirmed"},
+		"relay user":    {func(ok, _ string) []phoneEvent { return []phoneEvent{tap(ok, "relay-id", "REMOTE")} }, "CONFIRM_REJECTED", "Not confirmed"},
+		"fired locally": {func(ok, _ string) []phoneEvent { return []phoneEvent{tap(ok, "owner-id", "LOCAL")} }, "CONFIRM_REJECTED", "Not confirmed"},
+		"wrong nonce":   {func(string, string) []phoneEvent { return []phoneEvent{tap("HANOVA_OK_guess", "owner-id", "REMOTE")} }, "CONFIRM_CANCELLED", "Not confirmed"},
+		"cancel":        {func(_, no string) []phoneEvent { return []phoneEvent{tap(no, "owner-id", "REMOTE")} }, "CONFIRM_DECLINED", "Cancelled"},
+		"no answer":     {nil, "CONFIRM_CANCELLED", "Not confirmed"},
 	}
 	for name, c := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -185,8 +189,9 @@ func TestPhoneForgedOrMissingAnswersSendNothing(t *testing.T) {
 			if exit != 4 || env.Error == nil || env.Error.Code != c.code || len(h.posts()) != 0 || len(h.planFiles()) != 1 {
 				t.Fatalf("exit %d %+v posts %d plans %d", exit, env.Error, len(h.posts()), len(h.planFiles()))
 			}
-			if last := p.sent[len(p.sent)-1]; last["message"] != "clear_notification" {
-				t.Fatalf("not cleared: %+v", last)
+			if last := p.sent[len(p.sent)-1]; last["title"] != c.result+": Unlock “lock.front”" || !strings.HasSuffix(last["message"].(string), "Nothing changed.") ||
+				last["data"].(map[string]any)["actions"] != nil {
+				t.Fatalf("no result on the phone: %+v", last)
 			}
 		})
 	}
@@ -242,7 +247,7 @@ func TestWindowThatCannotOpenFallsBackToThePhone(t *testing.T) {
 	}
 	exit, env := h.run(runApplyCommand, "--plan", plan.ID)
 	if exit != 3 || env.Plan == nil || env.Plan.Channel != channelPhone || env.Plan.Code != "" || len(h.posts()) != 0 ||
-		!strings.HasSuffix(env.Say, sayPhoneAsk) || !strings.Contains(env.NextStep, "a notification on their phone") {
+		!strings.HasSuffix(env.Say, sayPhoneAsk("Unlock")) || !strings.Contains(env.NextStep, "a notification on their phone") {
 		t.Fatalf("fallback: exit %d %+v say %q next %q", exit, env.Plan, env.Say, env.NextStep)
 	}
 }
