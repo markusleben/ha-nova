@@ -86,7 +86,11 @@ func offerClaudeRules(reader *bufio.Reader, out io.Writer, paths runtimePaths) s
 		return fmt.Sprintf("Claude Code: HA NOVA can't safely edit %s, so it left it unchanged. %s", path, claudeRulesManual(rules))
 	}
 	fmt.Fprintln(out)
-	fmt.Fprintln(out, "  Let Claude Code work with HA NOVA without extra questions?")
+	if len(rules) > 1 {
+		fmt.Fprintln(out, "  Let Claude Code work with HA NOVA without extra questions?")
+	} else {
+		fmt.Fprintln(out, "  Let Claude Code open HA NOVA's confirmation window?")
+	}
 	fmt.Fprintln(out, "  This adds to your Claude Code settings:")
 	for _, rule := range missing {
 		why := "so Claude Code can open HA NOVA's confirmation window"
@@ -134,6 +138,9 @@ func offerClaudeRules(reader *bufio.Reader, out io.Writer, paths runtimePaths) s
 		if err != nil {
 			return err
 		}
+		if recorded := claudeRulesRecordFile(state); recorded != "" && !sameFile(recorded, path) { // another setup recorded meanwhile
+			return fmt.Errorf("HA NOVA's rules are recorded in %s", recorded)
+		}
 		var created string
 		added, created, err = changeClaudeRules(path, missing, true, "")
 		if err != nil || len(added) == 0 {
@@ -160,7 +167,16 @@ func offerClaudeRules(reader *bufio.Reader, out io.Writer, paths runtimePaths) s
 	case unrecorded != nil:
 		return fmt.Sprintf("Claude Code rules added, but HA NOVA couldn't note them (%s): uninstall will leave them in place.", unrecorded)
 	}
-	return "Added to your Claude Code settings: " + strings.Join(added, ", ")
+	return "Added to your Claude Code settings: " + strings.Join(added, ", ") + claudeNoReadRuleNote(rules)
+}
+
+// claudeNoReadRuleNote: without a read rule, Claude Code keeps asking before
+// reading HA NOVA's files; say so instead of promising otherwise.
+func claudeNoReadRuleNote(rules []string) string {
+	if len(rules) > 1 {
+		return ""
+	}
+	return ". Claude Code may still ask before reading HA NOVA's files: their folder's path can't be written as a safe rule."
 }
 
 // claudeRulesRecordFile is the settings file setup recorded adding rules to.
@@ -200,8 +216,10 @@ func claudeRulesHint(paths runtimePaths) string {
 	switch missing, err := claudeRulesMissing(claudeUserSettingsPath(paths.Home), rules); {
 	case err != nil:
 		return why + "add the rules yourself. " + claudeRulesManual(rules)
-	case len(missing) == 0:
+	case len(missing) == 0 && len(rules) > 1:
 		return ""
+	case len(missing) == 0:
+		return strings.TrimPrefix(claudeNoReadRuleNote(rules), ". ")
 	default:
 		return why + "run `ha-nova setup` and choose “Add rules”. " + claudeRulesManual(missing)
 	}

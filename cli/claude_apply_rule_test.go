@@ -384,3 +384,21 @@ func TestClaudeApplyRuleLeavesChatCodeFormOutside(t *testing.T) {
 		t.Fatalf("rule prefix %q", prefix)
 	}
 }
+
+// A config path that can't be a safe read rule offers the apply rule alone
+// and says Claude Code may still ask before reading HA NOVA's files.
+func TestClaudeRulesWithoutASafeReadRule(t *testing.T) {
+	paths, _ := claudeRuleTestPaths(t)
+	paths.ConfigDir = filepath.Join(paths.Home, "ha nova (work)")
+	if rules := claudeRules(paths); len(rules) != 1 {
+		t.Fatalf("rules = %q", rules)
+	}
+	out := offerAnswer(t, paths, "add\n")
+	if !strings.Contains(out, "open HA NOVA's confirmation window?") || strings.Contains(out, "without extra questions") ||
+		!strings.Contains(out, "may still ask before reading HA NOVA's files") {
+		t.Fatalf("offer:\n%s", out)
+	}
+	if hint := claudeRulesHint(paths); !strings.Contains(hint, "may still ask") {
+		t.Fatalf("hint = %q", hint)
+	}
+}

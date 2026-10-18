@@ -10,23 +10,22 @@ import (
 // transitionalSteps: changes that Home Assistant entities usually make
 // through an in-between state (a lock reports unlocking before unlocked), so a
 // state trigger `from:` the start `to:` the end may never match. Only pairs
-// with a real in-between state: lock open → unlocked, alarm → disarmed, and
-// triggered → anything happen directly and stay unflagged.
+// whose in-between state comes from that start alone, so adding it to
+// `from:` keeps the transition: → open (opening also starts from unlocked)
+// and armed → triggered (pending follows every armed mode) stay unflagged,
+// as do direct changes (lock open → unlocked, alarm → disarmed).
 var transitionalSteps = map[string][]struct{ from, to []string }{
-	"lock":  {{[]string{"locked"}, []string{"unlocked", "open"}}, {[]string{"unlocked"}, []string{"locked", "open"}}},
+	"lock":  {{[]string{"locked"}, []string{"unlocked"}}, {[]string{"unlocked"}, []string{"locked"}}},
 	"cover": {{[]string{"open"}, []string{"closed"}}, {[]string{"closed"}, []string{"open"}}},
 	"valve": {{[]string{"open"}, []string{"closed"}}, {[]string{"closed"}, []string{"open"}}},
 	"alarm_control_panel": {
 		{[]string{"disarmed"}, []string{"armed_home", "armed_away", "armed_night", "armed_vacation", "armed_custom_bypass"}},
-		{[]string{"armed_home", "armed_away", "armed_night", "armed_vacation", "armed_custom_bypass"}, []string{"triggered"}},
 	},
 }
 
 // inBetween names the state an entity reports between from and to.
 func inBetween(domain, _, to string) string {
 	switch {
-	case domain == "alarm_control_panel" && to == "triggered":
-		return "pending"
 	case domain == "alarm_control_panel":
 		return "arming"
 	case to == "unlocked":
