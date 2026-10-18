@@ -303,18 +303,31 @@ func TestSkillUpdateNudgeNoticeCarriesHighlightsFromCacheOnly(t *testing.T) {
 	}
 }
 
-func TestSkillUpdateNudgeNoticeReturnToStableFromRC(t *testing.T) {
+// RC testers must be moved to the final release: the stable release of the
+// same core (or anything newer) is a normal update notice.
+func TestSkillUpdateNudgeNoticeOffersFinalReleaseToRC(t *testing.T) {
 	paths, _ := nudgeTestEnv(t, "0.2.0-rc1")
 	writeFreshReleaseCache(t, paths, "0.2.0")
 
 	notice := skillUpdateNudgeNotice(paths, false)
-	if notice.empty() {
-		t.Fatal("rc build with stable release: expected a return-to-stable notice")
+	if notice.empty() || notice.kind != humanNoticeKindUpdateAvailable {
+		t.Fatalf("rc build with its final release: expected an update notice, got %+v", notice)
 	}
-	if !strings.Contains(notice.message, "return to stable") {
-		t.Fatalf("message missing return-to-stable lead: %q", notice.message)
+	if !strings.Contains(notice.message, "HA NOVA update available: v0.2.0-rc1 -> v0.2.0") {
+		t.Fatalf("message missing update lead or versions: %q", notice.message)
 	}
-	if !strings.Contains(notice.message, "v0.2.0-rc1 -> v0.2.0") {
-		t.Fatalf("message missing versions: %q", notice.message)
+}
+
+// An RC newer than the latest stable (0.26.0-rc3 vs 0.25.1) never nags relay
+// traffic or typed-verb notices to go back.
+func TestSkillUpdateNudgeNoticeSilentForRCAheadOfStable(t *testing.T) {
+	paths, _ := nudgeTestEnv(t, "0.26.0-rc3")
+	writeFreshReleaseCache(t, paths, "0.25.1")
+
+	if notice := skillUpdateNudgeNotice(paths, false); !notice.empty() {
+		t.Fatalf("rc ahead of stable: expected no notice, got %q", notice.message)
+	}
+	if notice := skillUpdateNudgeNotice(paths, true); !notice.empty() {
+		t.Fatalf("rc ahead of stable (throttled path): expected no notice, got %q", notice.message)
 	}
 }

@@ -16,7 +16,7 @@ import (
 	"testing"
 )
 
-func TestBuildUpdateCheckResultOffersStableUpgradeFromRC(t *testing.T) {
+func TestBuildUpdateCheckResultOffersFinalReleaseToRC(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 
@@ -30,16 +30,17 @@ func TestBuildUpdateCheckResultOffersStableUpgradeFromRC(t *testing.T) {
 	if err := os.WriteFile(paths.VersionFile, []byte(`{"skill_version":"0.4.0-rc1","min_relay_version":"0.1.0"}`), 0o644); err != nil {
 		t.Fatalf("write version file: %v", err)
 	}
-	if err := writeJSONFile(paths.UpdateCacheFile, releaseInfo{Version: "0.3.1", HTMLURL: "https://example.invalid/releases/v0.3.1"}, 0o644); err != nil {
-		t.Fatalf("write cache: %v", err)
-	}
-
-	result := buildUpdateCheckResult(paths)
-	if result.Status != "update_available" {
-		t.Fatalf("result.Status = %q, want update_available", result.Status)
-	}
-	if !strings.Contains(result.Message, "Return to stable: v0.4.0-rc1 -> v0.3.1 | Run: ha-nova update") {
-		t.Fatalf("expected stable return guidance, got %q", result.Message)
+	for _, latest := range []string{"0.4.0", "0.4.1", "0.5.0"} {
+		if err := writeJSONFile(paths.UpdateCacheFile, releaseInfo{Version: latest, HTMLURL: "https://example.invalid/releases/v" + latest}, 0o644); err != nil {
+			t.Fatalf("write cache: %v", err)
+		}
+		result := buildUpdateCheckResult(paths)
+		if result.Status != "update_available" || !result.UpdateAvailable {
+			t.Fatalf("latest %s: result = %q/%v, want update_available/true", latest, result.Status, result.UpdateAvailable)
+		}
+		if want := "Update available: v0.4.0-rc1 -> v" + latest + " | Run: ha-nova update"; result.Message != want {
+			t.Fatalf("latest %s: message = %q, want %q", latest, result.Message, want)
+		}
 	}
 }
 
