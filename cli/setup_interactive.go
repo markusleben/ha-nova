@@ -812,7 +812,7 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 			detectRelayOnInstall = false
 			if !skipInstall {
 				relaySkipNote = ""
-				renderSetupStep(os.Stdout, steps.RelayInstall, steps.Total, "Install NOVA Relay in Home Assistant")
+				renderSetupStep(os.Stdout, steps.RelayInstall, steps.Total, "Install the NOVA App")
 				err := runRelayInstallSteps(reader, os.Stdout, cfg.HAURL)
 				if err == errSetupBack {
 					stage = setupStageHost
@@ -950,7 +950,7 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 					if err := copyToClipboardForSetup(token); err == nil {
 						renderSetupSuccessLine(os.Stdout, "Copied to clipboard.")
 					}
-					renderSetupIndentedBlock(os.Stdout, "Next, on the NOVA Relay page:", "    ",
+					renderSetupIndentedBlock(os.Stdout, "Next, on the NOVA App page:", "    ",
 						`1. Open the "Configuration" tab`,
 						`2. Paste the token into the "Relay Auth Token" field ("relay_auth_token")`,
 						"3. Click Save",
@@ -970,7 +970,7 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 						return 1
 					}
 					openAnnouncedBrowserURL(os.Stdout, haRelayAppPageURL(cfg.HAURL))
-					_, err = promptWizardLineFromReader(reader, os.Stdout, "Press Enter after you saved the Relay Auth Token and restarted NOVA Relay", "")
+					_, err = promptWizardLineFromReader(reader, os.Stdout, "Press Enter after you saved the Relay Auth Token and restarted the NOVA App", "")
 					if err == errSetupBack {
 						continue
 					}
@@ -993,7 +993,7 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 
 		case setupStagePairing:
 			steps := buildSetupPairingWizardSteps()
-			renderSetupStep(os.Stdout, steps.Pairing, steps.Total, "Pair this device")
+			renderSetupStep(os.Stdout, steps.Pairing, steps.Total, "Connect this computer")
 			if relaySkipNote != "" {
 				renderSetupSuccessLine(os.Stdout, "%s", relaySkipNote)
 				relaySkipNote = ""
@@ -1065,7 +1065,7 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 				renderDeviceVerifyIntro(os.Stdout)
 				if !verifyDeviceHealth(cfg) {
 					renderSetupErrorLine(os.Stdout, "Paired, but the secure device endpoint did not answer yet. The App may still be starting.")
-					if _, retryErr := promptWizardLineFromReader(reader, os.Stdout, "Press Enter to retry, or type 'back' to pair again", ""); retryErr != nil {
+					if retryErr := promptSetupDeviceVerifyRetry(reader, os.Stdout); retryErr != nil {
 						if retryErr == errSetupBack {
 							// Do exactly what the prompt advertises.
 							pairingBackStage = setupStageVerify

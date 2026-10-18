@@ -66,5 +66,5 @@ func persistDeviceSetupStateUnlocked(paths runtimePaths, cfg runtimeConfig, stat
 
 // renderDeviceVerifyIntro keeps the wizard copy honest about what was verified.
 func renderDeviceVerifyIntro(out io.Writer) {
-	renderSetupParagraphTight(out, "Checking the secure device connection to NOVA Relay.")
+	renderSetupParagraphTight(out, "Checking the secure connection to the NOVA App.")
 }

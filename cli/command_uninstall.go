@@ -150,7 +150,7 @@ func runUninstall(paths runtimePaths, args []string) int {
 
 	renderUninstallPreflight(os.Stdout, paths, source)
 	if !*yes && !recoveryMode && isInteractiveTTY() {
-		selectedMode, proceed, err := promptUninstallMode(mode)
+		selectedMode, proceed, err := promptUninstallMode(os.Stdout, mode)
 		if err != nil {
 			printHumanErr("%s", err)
 			return 1
@@ -469,25 +469,6 @@ func uninstallModeFromFlag(purge bool) uninstallMode {
 		return uninstallModePurge
 	}
 	return uninstallModeStandard
-}
-
-func promptUninstallMode(defaultMode uninstallMode) (uninstallMode, bool, error) {
-	defaultValue := "1"
-	if defaultMode == uninstallModePurge {
-		defaultValue = "2"
-	}
-	answer, err := promptLine("Choose uninstall mode: 1) Standard remove  2) Full purge  3) Cancel", defaultValue)
-	if err != nil {
-		return uninstallModeStandard, false, err
-	}
-	switch strings.TrimSpace(strings.ToLower(answer)) {
-	case "", "1", "standard", "standard remove":
-		return uninstallModeStandard, true, nil
-	case "2", "purge", "full", "full purge":
-		return uninstallModePurge, true, nil
-	default:
-		return uninstallModeStandard, false, nil
-	}
 }
 
 func finalizeLocalUninstall(paths runtimePaths, state installState, report *uninstallReport, mode uninstallMode, teardownCompleted bool) error {

@@ -50,28 +50,24 @@ func runHASignInPairingStep(
 		return false, "", nil
 	}
 	renderSetupParagraph(out,
-		"Sign in with Home Assistant to connect this computer. Your browser opens the Home Assistant login: sign in with the owner's username and password.",
-		"Home Assistant warns \"You're about to give http://127.0.0.1:…/ha-nova access\": that is HA NOVA on this computer.",
-		"This computer gets its own connection, which you can remove in NOVA at any time.",
+		"Your browser opens Home Assistant: sign in as the owner.",
+		"(Home Assistant asks to give “http://127.0.0.1:…” access: that's this computer.)",
+		"Each computer gets its own connection; remove it in NOVA anytime.",
 	)
-	label := "Press Enter to sign in, or type 'code' to use a six-digit code from NOVA"
+	again := false
 	for {
-		answer, err := promptWizardLineFromReader(reader, out, label, "")
+		answer, err := promptHASignInChoice(reader, out, again)
 		if err != nil {
 			return false, "", err
 		}
-		switch normalized := strings.ToLower(strings.TrimSpace(answer)); normalized {
-		case "", "y", "yes":
+		switch answer {
+		case "signin":
 		case "code":
 			return false, "", nil
 		case "manual":
 			return false, "", errSetupRelayTokenStep
-		default:
-			if code, err := normalizeRelayPairingCode(answer); err == nil {
-				return false, code, nil
-			}
-			renderSetupErrorLine(out, "Press Enter to sign in, or type 'code'.")
-			continue
+		default: // six digits typed at the fallback prompt
+			return false, answer, nil
 		}
 		paired, retry, err := signInAndPair(out, paths, cfg, origin.String(), lifecycleMarker...)
 		if paired || err != nil {
@@ -81,8 +77,46 @@ func runHASignInPairingStep(
 			renderSetupParagraph(out, "Use a six-digit code from NOVA instead.")
 			return false, "", nil
 		}
+		again = true
+	}
+}
+
+// promptHASignInChoice returns "signin", "code", "manual", or six digits
+// typed at the fallback prompt. The menu has no title: the step title
+// above already names the question.
+func promptHASignInChoice(reader *bufio.Reader, out io.Writer, again bool) (string, error) {
+	spec := setupMenuSpec{
+		Prompt:       "Use ↑/↓ or j/k, Enter to select, Esc to go back, Ctrl+C to exit",
+		AllowBack:    true,
+		DefaultValue: "signin",
+		Options: []setupMenuOption{
+			{Value: "signin", Label: "Sign in with Home Assistant"},
+			{Value: "code", Label: "Use a six-digit code instead"},
+		},
+	}
+	label := "Press Enter to sign in, or type 'code' to use a six-digit code from NOVA"
+	if again {
+		spec.Options[0].Label = "Sign in again"
 		label = "Press Enter to sign in again, or type 'code' to use a six-digit code from NOVA"
 	}
+	return promptSetupMenu(reader, out, spec, func() (string, error) {
+		for {
+			answer, err := promptWizardLineFromReader(reader, out, label, "")
+			if err != nil {
+				return "", err
+			}
+			switch normalized := strings.ToLower(strings.TrimSpace(answer)); normalized {
+			case "", "y", "yes":
+				return "signin", nil
+			case "code", "manual":
+				return normalized, nil
+			}
+			if code, err := normalizeRelayPairingCode(answer); err == nil {
+				return code, nil
+			}
+			renderSetupErrorLine(out, "Press Enter to sign in, or type 'code'.")
+		}
+	})
 }
 
 func signInAndPair(
@@ -139,7 +173,7 @@ func signInAndPair(
 		renderSetupErrorLine(out, "The relay's secure identity did not match. Try again; if it repeats, someone may be intercepting the connection.")
 		return false, false, pairErr
 	default:
-		renderSetupErrorLine(out, "Could not finish connecting this computer. Make sure the NOVA Relay App is running, then run ha-nova setup again.")
+		renderSetupErrorLine(out, "Could not finish connecting this computer. Make sure the NOVA App is running, then run ha-nova setup again.")
 		return false, false, pairErr
 	}
 }
@@ -170,11 +204,11 @@ func haSignInFallbackLine(err error, user HACurrentUser) string {
 		}
 		return fmt.Sprintf("Signed in as %s, who is not the Home Assistant owner. Only the owner can connect a computer.", terminalSafeName(user.Name))
 	case errors.Is(err, errSignInAppMissing):
-		return "Home Assistant did not find a running NOVA Relay App, so sign-in cannot connect this computer."
+		return "Home Assistant did not find a running NOVA App, so sign-in cannot connect this computer."
 	case errors.Is(err, errSignInRelayUnsupported):
-		return "Your NOVA Relay App does not support sign-in yet. Update it in Home Assistant when convenient."
+		return "Your NOVA App does not support sign-in yet. Update it in Home Assistant when convenient."
 	case errors.Is(err, errSignInRelayNotReady):
-		return "NOVA Relay is not ready to connect computers yet. Open NOVA in Home Assistant for details, then run ha-nova setup again."
+		return "The NOVA App is not ready to connect computers yet. Open NOVA in Home Assistant for details, then run ha-nova setup again."
 	case errors.As(err, &pairing):
 		return "Connecting through Home Assistant did not finish."
 	case errors.As(err, &certificate), errors.As(err, &authority):

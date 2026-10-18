@@ -236,8 +236,8 @@ func firstLookSafetyLine(lock *firstSeed) string {
 			if inDomain(lock.EntityID, "lock") {
 				verb = "unlock"
 			}
-			return fmt.Sprintf("Ask to %s %s and HA NOVA first asks you to confirm it yourself; a plain yes in chat isn't enough, and nothing happens until you do.", verb, name)
+			return fmt.Sprintf("Ask to %s %s: HA NOVA waits for your own confirmation; a plain yes in chat isn't enough.", verb, name)
 		}
 	}
-	return "HA NOVA never unlocks a lock or opens a gate or garage door until you confirm it yourself; a plain yes in chat isn't enough."
+	return "Unlocking a lock or opening a gate or garage door waits for your own confirmation; a plain yes in chat isn't enough."
 }

@@ -87,23 +87,21 @@ func skillUpdateNudgeNotice(paths runtimePaths, throttled bool) humanNotice {
 	if err != nil {
 		return humanNotice{}
 	}
-	returnToStable := isStableTargetFromRC(current, cached.Version)
-	if cmp >= 0 && !returnToStable {
+	// An RC newer than the latest stable stays silent: the tester opted in, so
+	// returning to stable is check-update's job, never relay traffic's. The
+	// final release of that RC (or anything newer) compares higher and nudges.
+	if cmp >= 0 {
 		return humanNotice{}
 	}
 	if throttled && !passesNudgeThrottle(paths, updateNudgeMarkerName, updateNudgeInterval) {
 		return humanNotice{}
 	}
 
-	lead := "HA NOVA update available"
-	if returnToStable {
-		lead = "HA NOVA return to stable"
-	}
 	source := detectInstallSource(paths, loadStateOrDefault(paths))
 	return humanNotice{
 		level:   humanNoticeWarning,
 		kind:    humanNoticeKindUpdateAvailable,
-		message: skillUpdateNudgeMessage(lead, current, cached.Version, source, cached.ReleaseHighlights, cached.HTMLURL),
+		message: skillUpdateNudgeMessage("HA NOVA update available", current, cached.Version, source, cached.ReleaseHighlights, cached.HTMLURL),
 	}
 }
 

@@ -218,7 +218,7 @@ func TestLinkPhoneByTapOnTheChosenPhoneOnly(t *testing.T) {
 func TestLinkPhoneWithoutTerminalOnlyLists(t *testing.T) {
 	h, p, _ := familyLink(t)
 	exit, out := runLink(t, h, "", phoneLinkRun{})
-	if exit != 0 || !strings.Contains(out, "1) Anna’s Pixel (Anna)") || !strings.Contains(out, "Family iPad (Markus)") || !strings.Contains(out, "Markus’s iPhone (Markus)") || !strings.Contains(out, "Only Home Assistant administrators' phones") ||
+	if exit != 0 || !strings.Contains(out, "1) Anna’s Pixel (Anna)") || !strings.Contains(out, "Family iPad (Markus)") || !strings.Contains(out, "Markus’s iPhone (Markus)") || !strings.Contains(out, "Only administrators' phones are listed") ||
 		strings.Contains(out, "Kid") || !strings.Contains(out, "Nothing was sent") || len(p.sent) != 0 || linked(t, h) != nil {
 		t.Fatalf("exit %d out %q sent %v", exit, out, p.services)
 	}

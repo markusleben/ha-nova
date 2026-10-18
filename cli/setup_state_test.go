@@ -23,7 +23,7 @@ func TestRenderSetupStatusSummaryShowsAllSignals(t *testing.T) {
 	rendered := output.String()
 	for _, want := range []string{
 		"Checking current setup...",
-		"Relay reachable",
+		"NOVA App reachable",
 		"Authentication valid",
 		"WebSocket not connected",
 		"Skills installed",
@@ -89,7 +89,7 @@ func TestRenderSetupStatusSummaryShowsAuthFailureWhenTokenExistsButRelayFails(t 
 	renderSetupStatusSummary(output, state)
 
 	rendered := output.String()
-	if !strings.Contains(rendered, "Relay not reachable") {
+	if !strings.Contains(rendered, "NOVA App not reachable") {
 		t.Fatalf("expected relay failure in summary:\n%s", rendered)
 	}
 	if !strings.Contains(rendered, "Authentication failed") {

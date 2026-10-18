@@ -18,6 +18,7 @@ type setupMenuOption struct {
 	Label          string
 	Disabled       bool
 	DisabledReason string
+	Detail         string // muted second line, e.g. what the choice means
 }
 
 type setupMenuSpec struct {
@@ -26,6 +27,7 @@ type setupMenuSpec struct {
 	Options      []setupMenuOption
 	DefaultValue string
 	AllowBack    bool
+	Note         string // muted line under the options
 }
 
 type setupMenuRunner interface {
@@ -187,8 +189,10 @@ func setupMenuFitsWidth(width int, spec setupMenuSpec) bool {
 
 func setupMenuBlockWidth(spec setupMenuSpec) int {
 	maxWidth := len("  " + spec.Title)
-	if promptWidth := len("  " + spec.Prompt); promptWidth > maxWidth {
-		maxWidth = promptWidth
+	for _, line := range []string{spec.Prompt, spec.Note} {
+		if width := len("  " + line); width > maxWidth {
+			maxWidth = width
+		}
 	}
 	for _, option := range spec.Options {
 		prefix := "    "
@@ -203,6 +207,9 @@ func setupMenuBlockWidth(spec setupMenuSpec) int {
 				maxWidth = width
 			}
 		}
+		if width := len("      " + option.Detail); option.Detail != "" && width > maxWidth {
+			maxWidth = width
+		}
 	}
 	return maxWidth
 }
@@ -211,10 +218,11 @@ func renderSetupMenuBlock(out io.Writer, session uiSession, spec setupMenuSpec, 
 	lines := 0
 	writeSetupMenuLine(out, "")
 	lines++
-	writeSetupMenuLine(out, "  "+session.style("strong", spec.Title))
-	lines++
-	writeSetupMenuLine(out, "")
-	lines++
+	if spec.Title != "" {
+		writeSetupMenuLine(out, "  "+session.style("strong", spec.Title))
+		writeSetupMenuLine(out, "")
+		lines += 2
+	}
 	for idx, option := range spec.Options {
 		prefix := "    "
 		if idx == selected {
@@ -232,9 +240,17 @@ func renderSetupMenuBlock(out io.Writer, session uiSession, spec setupMenuSpec, 
 			writeSetupMenuLine(out, "      "+session.style("muted", "not available: "+option.DisabledReason))
 			lines++
 		}
+		if option.Detail != "" {
+			writeSetupMenuLine(out, "      "+session.style("muted", option.Detail))
+			lines++
+		}
 	}
 	writeSetupMenuLine(out, "")
 	lines++
+	if spec.Note != "" {
+		writeSetupMenuLine(out, "  "+session.style("muted", spec.Note))
+		lines++
+	}
 	writeSetupMenuLine(out, "  "+session.style("muted", spec.Prompt))
 	lines++
 	return lines
@@ -272,9 +288,17 @@ func moveSetupMenuIndex(options []setupMenuOption, current, delta int) int {
 	return current
 }
 
+// menuEscapeWait: how long a byte after Esc counts as part of an escape
+// sequence (terminals send a sequence in one write) rather than a new key.
+const menuEscapeWait = 50 * time.Millisecond
+
 func readSetupMenuKey() (string, error) {
+	return readSetupMenuKeyFrom(os.Stdin)
+}
+
+func readSetupMenuKeyFrom(in *os.File) (string, error) {
 	var buf [3]byte
-	n, err := os.Stdin.Read(buf[:1])
+	n, err := in.Read(buf[:1])
 	if err != nil {
 		return "", err
 	}
@@ -291,14 +315,17 @@ func readSetupMenuKey() (string, error) {
 	case 'k':
 		return "up", nil
 	case 27:
-		n, err := os.Stdin.Read(buf[1:2])
-		if err != nil {
+		if !menuInputPending(in, menuEscapeWait) {
+			return "back", nil // a lone Esc
+		}
+		if _, err := in.Read(buf[1:2]); err != nil {
 			return "back", nil
 		}
-		if n == 0 || buf[1] != '[' {
+		// CSI (ESC [) and, in application cursor mode, SS3 (ESC O).
+		if buf[1] != '[' && buf[1] != 'O' {
 			return "back", nil
 		}
-		if _, err := os.Stdin.Read(buf[2:3]); err != nil {
+		if _, err := in.Read(buf[2:3]); err != nil {
 			return "", err
 		}
 		switch buf[2] {

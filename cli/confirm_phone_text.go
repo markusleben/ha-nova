@@ -158,7 +158,7 @@ func (h phoneHome) missingLine(prev phoneEntry, why phoneWhy) string {
 	case whyDemoted:
 		return "Linked now: " + name + ", but " + person + " is no longer a Home Assistant administrator, so it can't confirm. You can link an administrator's phone, or ask the owner to make " + person + " an administrator again."
 	case whyRelayUser:
-		return "Linked now: " + name + ", but HA NOVA's Relay now signs in to Home Assistant as " + person + ", so a tap there can't be told apart from HA NOVA itself. You can link another person's phone."
+		return "Linked now: " + name + ", but the NOVA App now signs in to Home Assistant as " + person + ", so a tap there can't be told apart from HA NOVA itself. You can link another person's phone."
 	case whyShared:
 		return "Linked now: " + name + ". " + phoneSharedLine(strings.Trim(name, "“”"))
 	case whyUnreachable:
