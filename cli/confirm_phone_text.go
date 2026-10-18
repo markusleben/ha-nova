@@ -86,9 +86,11 @@ func phoneCut(text string, limit int, end string) string {
 	return cut + "…"
 }
 
-// phonePayload: Confirm needs an unlocked phone (Face ID, fingerprint, or
-// passcode; iOS, Android 12+) and is styled destructive (iOS); the
-// notification expires with the wait (Android timeout, iOS apns-expiration).
+// phonePayload: Confirm is styled destructive (iOS) and needs no device
+// unlock — an Apple Watch never fires an authenticationRequired action, and
+// the watch must be able to confirm (maintainer decision). So whoever holds
+// the linked phone can answer the one open request; the ids die with the
+// wait (Android timeout, iOS apns-expiration).
 // A pending action is time-sensitive (iOS shows it through Focus); linking
 // and its changes are asked while the person is at the computer: active.
 func phonePayload(ask phoneAsk, tag, ok, no string, deadline time.Time) map[string]any {
@@ -100,7 +102,7 @@ func phonePayload(ask phoneAsk, tag, ok, no string, deadline time.Time) map[stri
 	return map[string]any{"title": ask.title, "message": ask.body, "data": map[string]any{
 		"tag": tag,
 		"actions": []any{
-			map[string]any{"action": ok, "title": ask.button, "destructive": true, "authenticationRequired": true},
+			map[string]any{"action": ok, "title": ask.button, "destructive": true},
 			map[string]any{"action": no, "title": "Cancel"},
 		},
 		"push":         map[string]any{"interruption-level": level},

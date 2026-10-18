@@ -151,7 +151,7 @@ func TestPhonePlanConfirmsOnTheLinkedPhoneAndClearsIt(t *testing.T) {
 	data := p.sent[0]["data"].(map[string]any)
 	confirm := data["actions"].([]any)[0].(map[string]any)
 	// A short question, the computer that asked, and the hint last.
-	if confirm["authenticationRequired"] != true || confirm["destructive"] != true || confirm["title"] != "Unlock" || p.sent[0]["title"] != "Unlock “lock.front”?" ||
+	if _, auth := confirm["authenticationRequired"]; auth || confirm["destructive"] != true || confirm["title"] != "Unlock" || p.sent[0]["title"] != "Unlock “lock.front”?" ||
 		!strings.HasPrefix(data["tag"].(string), "ha-nova-"+plan.ID+"-") || p.sent[1]["data"].(map[string]any)["tag"] != data["tag"] ||
 		p.sent[0]["message"] != "Requested by “"+phoneHost()+"”. "+phoneHint || data["push"].(map[string]any)["interruption-level"] != "time-sensitive" {
 		t.Fatalf("payload %+v", p.sent[0])
