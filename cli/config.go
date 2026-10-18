@@ -20,7 +20,8 @@ type runtimeConfig struct {
 	// Stable, non-secret identifier for this OS-user installation. All AI clients
 	// on the same machine share one device credential keyed by this id; the relay
 	// records it so re-pairing replaces the same install's credential. Install-
-	// wide: server profiles share it (see config_profiles.go).
+	// wide: server profiles share it (see config_profiles.go), but each profile
+	// pairs under its own derived id (pairingClientInstallID).
 	ClientInstallID string `json:"client_install_id,omitempty"`
 	// Secure device endpoint learned from pairing: the pinned TLS base URL and the
 	// exact SHA-256 SPKI pin. Functional device calls go here; a pin change forces

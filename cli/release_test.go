@@ -453,7 +453,7 @@ func TestBuildUpdateCheckResultLegacyWindowsGuidanceSurvivesDigest(t *testing.T)
 	}
 }
 
-func TestRunCheckUpdateJSONOffersStableReturnFromRC(t *testing.T) {
+func TestRunCheckUpdateJSONReportsRCAheadOfStableAsUpToDate(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 
@@ -481,10 +481,10 @@ func TestRunCheckUpdateJSONOffersStableReturnFromRC(t *testing.T) {
 	if err := json.Unmarshal([]byte(output), &result); err != nil {
 		t.Fatalf("json.Unmarshal output error: %v\noutput=%s", err, output)
 	}
-	if result.Status != "update_available" {
-		t.Fatalf("result.Status = %q, want update_available", result.Status)
+	if result.Status != "up_to_date" || result.UpdateAvailable {
+		t.Fatalf("result = %q/%v, want up_to_date/false", result.Status, result.UpdateAvailable)
 	}
-	if result.Message != "Return to stable: v0.4.0-rc1 -> v0.3.1 | Run: ha-nova update" {
+	if result.Message != "Up to date: v0.4.0-rc1 (prerelease, newer than stable v0.3.1) | To return to stable: Run: ha-nova update" {
 		t.Fatalf("unexpected JSON stable return guidance: %q", result.Message)
 	}
 }
@@ -545,18 +545,26 @@ func TestRunCheckUpdateTextModeOffersStableReturnFromRC(t *testing.T) {
 	if err := os.WriteFile(paths.VersionFile, []byte(`{"skill_version":"0.4.0-rc1","min_relay_version":"0.1.0"}`), 0o644); err != nil {
 		t.Fatalf("write version file: %v", err)
 	}
-	if err := writeJSONFile(paths.UpdateCacheFile, releaseInfo{Version: "0.3.1", HTMLURL: "https://example.invalid/releases/v0.3.1"}, 0o644); err != nil {
+	if err := writeJSONFile(paths.UpdateCacheFile, releaseInfo{
+		Version:           "0.3.1",
+		HTMLURL:           "https://example.invalid/releases/v0.3.1",
+		ReleaseHighlights: []releaseHighlight{{Kind: "feature", Text: "Stale stable highlight"}},
+	}, 0o644); err != nil {
 		t.Fatalf("write cache: %v", err)
 	}
 
-	output := captureStderr(t, func() {
+	output := captureStdout(t, func() {
 		if exitCode := runCheckUpdate(paths, nil); exitCode != 0 {
 			t.Fatalf("runCheckUpdate() exit = %d, want 0", exitCode)
 		}
 	})
 
-	if !strings.Contains(output, "Return to stable: v0.4.0-rc1 -> v0.3.1 | Run: ha-nova update") {
+	// Explicit check: one line on the way back, no stale stable highlights.
+	if !strings.Contains(output, "Up to date: v0.4.0-rc1 (prerelease, newer than stable v0.3.1) | To return to stable: Run: ha-nova update") {
 		t.Fatalf("expected text stable return guidance, got %q", output)
+	}
+	if strings.Contains(output, "Stale stable highlight") || strings.Contains(output, "example.invalid") {
+		t.Fatalf("return-to-stable line must not carry highlights or release URL, got %q", output)
 	}
 }
 

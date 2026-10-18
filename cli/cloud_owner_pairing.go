@@ -14,6 +14,17 @@ func provisionRemoteCloudDeviceWithOwnerCode(
 	expectedRelayInstanceID string,
 	appURL string,
 ) (*cloudProvisionedCredential, error) {
+	installID, err := pairingClientInstallID(
+		request.Config.ClientInstallID,
+		activeServerProfile(),
+	)
+	if err != nil {
+		return nil, newCloudError(
+			CloudErrInvalidInput,
+			"prepare owner pairing",
+			err,
+		)
+	}
 	retryReason := ""
 	for {
 		code, err := request.PairingCode(cloudRemotePairingPrompt{
@@ -47,7 +58,7 @@ func provisionRemoteCloudDeviceWithOwnerCode(
 				Name:            hostLabel(),
 				Platform:        defaultPairingClientInfo().platform,
 				Client:          defaultPairingClientInfo().client,
-				ClientInstallID: request.Config.ClientInstallID,
+				ClientInstallID: installID,
 			},
 			expectedRelayInstanceID,
 		)
