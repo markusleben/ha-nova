@@ -117,7 +117,7 @@ The line updates in place and ends with `✓ Done: this computer is connected to
   3. Starting the NOVA App;
   4. Connecting this computer;
   5. Teaching Claude Code and Codex CLI.
-- Then [Continue]. Soft failures stay on this step with one line and one button:
+- When every row is ✓, the page moves on to step 3 by itself (§16 D9). Soft failures stay on this step with one line and one button:
   - not owner: "Signed in as Anna, who isn't the owner. Only the owner can connect a computer." [Sign in as the owner] · "Use a code";
   - not admin: "Anna can't install Apps. Ask the owner to sign in here." [Sign in as the owner];
   - Container/Core: "This Home Assistant has no Apps. Follow the container guide." [Open the guide];
@@ -128,11 +128,11 @@ The line updates in place and ends with `✓ Done: this computer is connected to
 - Lead: "Unlocks and deletes always wait for you. Your AI assistant never sees a code."
 - Rows:
   - "Confirm on this computer": "A small window asks before anything risky runs." Tag: On.
-  - "Confirm on your phone": "iPhone Markus, and its Apple Watch. Both ask; the first answer counts." Switch, off by default. Switching it on sends one link notification ("Tap 'Link' there.").
+  - "Confirm on your phone": "iPhone Markus, and its Apple Watch. Both ask; the first answer counts." Switch, off by default. Switching it on sends one link notification ("Tap 'Link' there."). Several eligible phones: the row first lists them to pick one, as `confirm-phone` does today (§16 D10). None: "No phone with the Home Assistant app found", and no switch.
   - "Let Claude Code show the window": "Adds one rule to Claude Code so its auto mode doesn't block the confirmation window." Switch, **preselected**; written on [Finish setup] with #738's writer; uninstall removes it.
   - *Addition* (§16 D3), only when HA Link remote access is active: "Use HA NOVA in Claude and ChatGPT, on any phone." Switch, off by default; turning it on runs §11.6.
 - Button: [Finish setup].
-- Fine print: "Turning on your phone sends one notification to iPhone Markus. Tap 'Link' there."
+- Fine print: "Turning on your phone sends one notification to that phone. Tap 'Link' there."
 
 **Step 4: "Here's your home, at a glance."** (eyebrow "All set")
 - Stats row: rooms · devices · lights · locks · automations.
@@ -209,7 +209,7 @@ The page follows `../ha-nova-site/DESIGN.md` ("The Legible Cosmos"), so setup fe
 | AI clients | client registry runtime detection | none found → download links. All found are configured (`--client` stays for scripts) |
 | Local vs Link | local address reachable → local; a Link address not reachable locally → Link only | step 3 Link and chat-app rows, only when Link remote is active |
 | Desktop vs headless | TTY, `SSH_*`, `DISPLAY`/`WAYLAND_DISPLAY`, Windows session 0 | never; `--no-browser` overrides |
-| Phone and Watch | admins' Companion apps (`discoverPhone`) | the link is a switch |
+| Phone and Watch | admins' Companion apps (`discoverPhone`) | several eligible phones (pick list); the link is a switch |
 | Formatting | browser locale | never; text is English in 0.27 |
 
 ## 6. Security model of the local page
@@ -237,12 +237,13 @@ Sign-in session scope:
 - A typed client with an allowlist, never a passthrough:
   - `auth/current_user`;
   - `supervisor/api`:
-    - `GET /addons/<slug>/info`;
-    - `GET|POST /store/repositories`;
-    - `POST /store/addons/<slug>/install` (background);
-    - `POST /addons/<slug>/update|start|options`;
+    - `GET /addons/<slug>/info`, `GET /store/addons/<slug>`;
+    - `GET|POST /store/repositories`, `POST /store/reload`;
+    - `POST /store/addons/<slug>/install|update` (background);
+    - `POST /addons/<slug>/start`;
     - `GET /jobs/<id>`;
     - `POST /ingress/session`;
+  - through that ingress session, only the App's owner actions: arm, chat apps on, and the owner's chat-app phone link (§11.4, §11.6);
   - `cloud/status`;
   - the phone lookup reads.
 - Repository trust:
@@ -306,6 +307,7 @@ Known limits:
   - Every action builds a plan with today's verbs: `plan write` for automations; for rooms, a grouped change set of area creates and entity/device area updates.
   - The page shows exactly that plan's preview.
   - [Save] posts the plan ID; `apply` re-checks drift, writes once, and verifies by read-back.
+  - A rooms plan is several writes. `apply` records each item's previous area before writing it. If a write fails, it rolls the earlier writes back from that record (deleting areas it created) and reports "Nothing was saved". If a rollback write fails too, the result names exactly what stayed changed.
   - Only preview-tier plans qualify. A plan that would need a typed confirmation is never offered on the page.
 - **Undo.**
   - Automations get the normal snapshot and revert.
@@ -337,7 +339,7 @@ Known limits:
   - `ha-nova uninstall` asks one arrow-menu question: "Remove HA NOVA from this computer? Your Home Assistant stays as it is. › Remove / Cancel".
   - Removing revokes this device and removes the skills, client config, and Claude rule.
   - Only for the last paired device (and with chat apps off): "Also remove the NOVA App from Home Assistant?" → Keep it (default) / Remove it.
-  - "Remove it" opens the page in sign-in mode and removes the App, its repository, and the `ha_nova` integration via Supervisor (owner only).
+  - "Remove it" opens the page in sign-in mode and removes the App and its repository via Supervisor (owner only). Chat apps are off by then, so the integration's entry and files are already gone (§11.6).
   - Over SSH it prints today's manual steps.
 
 ## 10. Skills language pass (Sonnet run on rc3, 2026-10-18)
@@ -367,7 +369,7 @@ Anti-tool-catalog: the bridge only carries the skills and the existing typed ver
 ```
 Claude (web, desktop, iOS/Android) · ChatGPT
   → https://<id>.ui.nabu.casa/api/ha_nova/mcp         the integration's own HTTP view (Streamable HTTP) + HA OAuth
-  → integration ha_nova (custom_components)           pure pass-through: request body to the bridge, adds secret + HA user ID, response back verbatim
+  → integration ha_nova (custom_components)           pure pass-through of the HTTP exchange (§11.3), adds secret + HA user ID
   → NOVA App: `ha-nova serve` (same Go binary as CLI)  skills, typed verbs, tier engine, plan store, phone channel
   → NOVA Relay over loopback (internal device credential) → Home Assistant
 ```
@@ -394,22 +396,30 @@ Why this shape:
 
 - **Connector sign-in** is HA's own OAuth on the Link address: PKCE plus a client-ID metadata document, which needs HA 2026.10 or newer (verified in the spike, §13 B0).
 - **Off by default.** The owner turns on "Chat apps" on the NOVA page or in step 3, and picks the allowed HA users (default: the owner only). The bridge re-checks the user on every call, as the owner check does today.
+- **Everything the bridge stores belongs to one HA user:** plans (`ha_plan`, `ha_call`), pending phone asks, and phone links carry the ID of the user who created them. `ha_apply` and every `waiting_for_phone` re-call act only on a plan of the calling user; another user's plan ID answers as unknown.
 - **Revocation:** NOVA page → Chat apps → turn off, or remove a user; the effect is immediate. The token itself is revoked in HA → Profile → Security, and the NOVA page links there.
 - **Honest limits:**
   - access is per HA user, not per device;
   - the chat-app vendor stores an HA token without scopes, as with any HA-based connector.
 - **Integration ↔ App:**
-  - Supervisor discovery passes host, port, and a 256-bit secret;
-  - the integration's `hassio` config flow stores them;
+  - the App publishes a Supervisor discovery message (`POST /discovery`, service `ha_nova`, config: host, port, secret). `discovery: [ha_nova]` in `config.yaml` only permits it. The App keeps the returned UUID in `/data`;
+  - host is the App's stable Supervisor hostname, never an IP. The 256-bit secret is generated once and kept in `/data`. App restarts and updates reuse both; on start the App re-posts only when its stored UUID is no longer listed. The secret changes only by turning chat apps off and on;
+  - the integration's `hassio` config flow stores them with the App slug as unique ID, so a changed message updates that entry and never adds a second;
   - the bridge port is internal to the Supervisor network and never mapped to the host;
   - the user ID passed by the integration is trusted only with that secret.
+- **Proxy contract.** The integration forwards the whole Streamable HTTP exchange, not just the body:
+  - the method, and the body streamed both ways (JSON or SSE);
+  - request headers `Content-Type`, `Accept`, `Last-Event-ID`, and every `Mcp-*` header (protocol version, session, routing). It drops `Authorization`, cookies, and any client-sent user header, then adds the secret and the HA user it authenticated;
+  - back: the status, `Content-Type`, and every `Mcp-*` header.
+
+  The bridge, not the integration, validates them. It is stateless in 0.27: POST only, 405 for GET and DELETE.
 
 ### 11.4 Confirmations (same tiers as the CLI)
 
 - **No window:** the bridge runs on a server.
 - **Phone.** The linked phone of *that* HA user asks, using the same Companion flow, result notification, and Watch support as §7.4.
-  - Phone links for chat apps live in the App's `/data`.
-  - The user links from the NOVA page or from step 3 (one link serves both paths).
+  - Two stores, no sync. The bridge reads only the chat-app links in the App's `/data`, keyed by HA user. A computer reads only its own link in its `config.json`, as in 0.26.
+  - Users link a phone for chat apps on the NOVA page (same pick list and link tap as step 3). When step 3 turns on chat apps right after linking a phone, the CLI also stores that link as the owner's chat-app link (an owner action over the ingress session), so the owner taps once. Later changes affect only their own side; the NOVA page shows which phone chat apps use.
   - `ha_apply` waits up to 45 s inside the call. If no answer has come, it returns `status: waiting_for_phone`, and the model calls `ha_apply` again. That call is idempotent and sends no new notification.
 - **No phone linked → chat code, explained as low protection:**
   - The code appears in the result with fixed text (0.27 has no form path for chat apps): "The AI can see this code too, so it protects less than a tap on your phone. Type it yourself to confirm. Link your phone in NOVA for real protection."
@@ -428,14 +438,18 @@ ChatGPT works the same way on the web only; its mobile app is not claimed, since
 ### 11.6 Turning it on (step 3 row or NOVA page)
 
 1. The owner turns on "Use HA NOVA in Claude and ChatGPT". This requires an active Link remote and HA 2026.10+.
-2. The CLI, still holding the owner's sign-in, sets the App option `chat_apps: true` via Supervisor `/addons/<slug>/options`.
+2. Both entry points call the same owner-only App action: the NOVA page directly, the CLI through its owner ingress session (§6). The switch state lives in `/data`, not in a Supervisor App option, so the running App acts at once, without an App restart, and never rewrites the App's other options.
 3. The App writes `custom_components/ha_nova` into `/config`. It needs no new permission: `homeassistant_config` is already mapped for `/files`. It writes only that directory, and a test pins this.
-4. The App announces discovery (`discovery: [ha_nova]` in the App's `config.yaml`). Home Assistant needs one restart to load a new custom integration (B0: it caches the custom integration list for the process lifetime). The CLI restarts HA with the owner's sign-in; the App gets no new permission. The consent line reads: "Home Assistant restarts once (about a minute)." **This is the only restart in 0.27, and only on this opt-in path.**
-5. HA reads pending discoveries at startup, so the integration config flow completes by itself after the restart, and `/api/ha_nova/mcp` goes live. No MCP server entry is created or changed.
-6. The page shows the connector address in a copy bar plus [Show me how]: 3 steps for Claude ("Settings → Connectors → Add custom connector → paste → sign in to Home Assistant") and 3 for ChatGPT.
+4. The App publishes its discovery message (§11.3).
+5. Home Assistant needs one restart to load a new custom integration (B0: it caches the custom integration list for the process lifetime). The App restarts it through the HA API access it already has (`homeassistant.restart`, which checks the configuration first). The App gets no new permission, and the CLI makes no restart call. The consent line on the switch reads: "Home Assistant restarts once (about a minute)." **This is the only restart in 0.27, and only on this opt-in path.** The setup page waits for HA to return before step 4.
+6. HA reads pending discoveries at startup, so the integration config flow completes by itself after the restart, and `/api/ha_nova/mcp` goes live. No MCP server entry is created or changed.
+7. The page shows the connector address in a copy bar plus [Show me how]: 3 steps for Claude ("Settings → Connectors → Add custom connector → paste → sign in to Home Assistant") and 3 for ChatGPT.
+
+Every point is idempotent. A failure shows one plain line and [Try again], which runs the whole action again.
 
 Lifecycle rules:
-- **Turning it off:** the App deletes its discovery message, and HA then removes the config entry. Deleting only the entry is not enough: HA re-discovers a removed `hassio` entry.
+- **Turning it off:** the App deletes its discovery message (stored UUID), HA then removes the config entry, and the App deletes `custom_components/ha_nova`. The loaded code stays inert until HA's next restart; no restart is asked for. Deleting only the entry is not enough: HA re-discovers a removed `hassio` entry.
+- **Removing the App in HA while chat apps are on:** Supervisor drops the discovery message, so the entry goes, but the directory stays. Known limit; the NOVA page and docs say to turn chat apps off first.
 - **Integration code changes also need a restart.** The integration is therefore a version-stable proxy: tools, instructions, and schemas come from the bridge at runtime, so App updates almost never touch the integration, and the bridge tolerates an older integration.
 
 ### 11.7 Assist/voice
@@ -452,22 +466,25 @@ Unit/contract (CI):
   - headers present;
   - hostile HA names render inert;
   - a hostile-origin server tries fetch, a form, and an iframe, and all fail.
-- **Engine:** table tests over App missing/old/running × owner/admin/user × 0/1/several HAs and clients.
+- **Engine:** table tests over App missing/old/running × owner/admin/user × 0/1/several HAs, clients, and phones.
 - **Supervisor client:** allowlist, repository-source mismatch, job failure, timeout.
 - **§7.4 race suite.**
 - **§7.5:**
   - template golden tests;
   - save-by-plan-ID only;
   - drift refusal;
-  - the rooms undo record.
+  - the rooms undo record, and rollback after an injected failure at each write.
 - **Relay:** armed Link slot → user-bound device; local unchanged; non-owner arm → 403.
 - **Bridge:**
   - tool parity with `ha-nova mcp`;
   - user allowlist re-check;
   - chat-code policy and its switch;
   - the `waiting_for_phone` re-call is idempotent;
-  - integration proxy-only contract;
-  - discovery secret required;
+  - another user's plan ID is refused on `ha_apply` and on the re-call;
+  - integration proxy-only contract; method, status, `Mcp-*` headers, and an SSE body pass both ways; client auth and user headers are dropped;
+  - discovery secret required; the message is published and its UUID kept; App restart and App update keep the connector working without re-enabling;
+  - enable from the NOVA page and from step 3, each without an App restart, other App options untouched; a failure at each point, then [Try again];
+  - turning off removes the message, the entry, and the directory;
   - the App writes only `custom_components/ha_nova`.
 - **i18n catalog checks (§4.2); skills contracts (§10).**
 
@@ -502,9 +519,9 @@ Production LOC estimates exclude tests and assets. HR = high-risk, RB = release-
 | A8 | `feat(setup)`: step 4: stats, insights, rooms and automation templates, save by plan ID, rooms undo record | ~450 | HR |
 | A9 | `feat(uninstall)`: one question; last-device App removal | ~250 | HR |
 | A10 | `feat(setup)`: `ha-nova try` | ~150 | behavior |
-| B1 | `feat(mcp)`: `ha-nova serve` (Streamable HTTP on an internal port, secret auth, server-side plan store, phone-only/chat-code policy, `waiting_for_phone`) | ~450 | HR |
-| B2 | `feat(app)`: the App runs the bridge (binary + skills in the image, internal device credential, `/data` phone links, NOVA page "Chat apps") | ~400 | HR, RB |
-| B3 | `feat(integration)`: `custom_components/ha_nova` (discovery flow, `/api/ha_nova/mcp` pass-through view) + App delivery + Python CI | ~250 | HR, RB |
+| B1 | `feat(mcp)`: `ha-nova serve` (Streamable HTTP on an internal port, secret auth, server-side plan store bound to the HA user, phone-only/chat-code policy, `waiting_for_phone`) | ~450 | HR |
+| B2 | `feat(app)`: the App runs the bridge (binary + skills in the image, internal device credential, `/data` state: switch, secret, discovery UUID, phone links; owner action on/off with discovery and the HA restart; NOVA page "Chat apps") | ~400 | HR, RB |
+| B3 | `feat(integration)`: `custom_components/ha_nova` (discovery flow, `/api/ha_nova/mcp` pass-through view per §11.3) + App delivery + Python CI | ~250 | HR, RB |
 | B4 | `feat(setup)`: step 3 chat-app row + enable flow; docs: connect Claude/ChatGPT, use from the phone (also Remote Control/Codex) | ~150 + docs | behavior |
 | R | Release prep: README "Get started", site sync (incl. tokens), flow video | docs | release-prep |
 
@@ -542,7 +559,7 @@ Sum: about 3.4k new production lines in A and about 1.25k in B. B roughly adds 3
 
 | # | Risk | Mitigation |
 |---|---|---|
-| R1 | **Integration delivery:** a new custom integration needs an HA restart (confirmed in B0), integration code updates need one too, and App-written code under `custom_components` is a new trust surface | opt-in only, explicit restart consent, write scope pinned by a test; version-stable proxy so App updates rarely touch it; fallback is a HACS/marketplace listing |
+| R1 | **Integration delivery:** a new custom integration needs an HA restart (confirmed in B0), integration code updates need one too, and App-written code under `custom_components` is a new trust surface | opt-in only, explicit restart consent, write scope pinned by a test, turning off removes the directory; version-stable proxy so App updates rarely touch it; fallback is a HACS/marketplace listing |
 | R2 | **Connector reliability** (OAuth against HA via Link is a known flaky class); ChatGPT custom-connector writes are documented for the web only and reported as disabled on mobile | maintainer test on the throwaway test HA with the Link trial; claim only what the lanes pass; copy says "ChatGPT on the web" |
 | R3 | **Weaker human gate in chat apps:** no window, and Claude shows no forms, so the chat code is visible to the model | phone first; chat code explained as low protection, owner can switch it off; the read-only switch |
 | R4 | **Token scope:** the vendor holds an HA token without scopes; revocation is per user, not per device | off by default, per-user allowlist, NOVA page revoke + HA token link; stated plainly in docs and `safety.md` |
@@ -570,6 +587,8 @@ Deviations between spec and prototype (D) and open questions (Q). The recommende
 - **D6** The prototype's fine print "Nothing in your home changed during setup." **A** "Nothing in your home changed unless you saved it."
 - **D7** Prototype step 3 says "Your AI assistant never sees a code". This is true on the computer path; in chat apps without a phone it is not (§11.4). **A** keep it on the page; the bridge rows say it plainly.
 - **D8** Prototype stars are 38 random twinkling dots; the site uses fixed layers. **A** use the site's layers.
+- **D9** The prototype's step 2 ends with [Continue]. **A** move on by itself when every row is ✓, which keeps the App-present path at 4 actions (§14).
+- **D10** The prototype names one phone. **A** a pick list when several are eligible (§4 step 3).
 - **Q1** Insight scope at launch.
   - **A** battery, unavailable, can't run, no room (all deterministic);
   - B also "never ran in 30 days".
