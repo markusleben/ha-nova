@@ -86,7 +86,7 @@ release:
 
     ## New Features
 
-    - **Sign in with Home Assistant to pair.** Setup opens your Home Assistant login: sign in as the owner and this computer connects by itself. Over SSH or as another user, the six-digit code from NOVA still works.
+    - **Sign in with Home Assistant to pair.** Setup opens your Home Assistant login: sign in as the owner and this computer connects by itself. As another user, or over SSH on Linux, the six-digit code from NOVA still works.
     - **Confirm in a window or on your phone.** A click on your computer or a tap on your linked phone (Companion app) confirms unlocks and automation, script, or dashboard deletes, so your AI assistant never sees a code.
     - **Easier setup.** One link opens the NOVA Relay App page and adds the repository, a running App is skipped, and setup ends with a first look at your home and prompts with your own names.
     - **Know your home with exact numbers.** Ask "what do I have?", "where is this sensor used?", or "review my whole setup": HA NOVA counts rooms, devices, automations, and low batteries itself.
@@ -107,6 +107,8 @@ release:
     - **Headless Linux works end to end.** `ha-nova uninstall --purge` works without an unlocked keyring, and Codex CLI and OpenCode can use `ha-nova setup --service <client>` on headless machines and over SSH.
     - **fish shell support.** The installer puts `ha-nova` on your PATH in fish too, and uninstall removes every PATH entry it added.
     - **Windows update and uninstall need no admin rights.** No admin prompt, no helper files left in `%TEMP%`, and a failed update launch removes its download.
+    - **Windows setup explains its firewall prompt.** On a first setup, HA NOVA says the Windows Firewall question comes from its search for Home Assistant. Cancel is fine: setup continues, or you type the address.
+    - **A clear next step over SSH.** On Windows and macOS, setup, `ha-nova pair`, and `ha-nova doctor` say to use a normal terminal on that computer's desktop; a local-only install no longer blames Link.
 
     Stable install commands are release-pinned for this tag.
 
@@ -121,7 +123,7 @@ release:
     irm https://raw.githubusercontent.com/markusleben/ha-nova/{{ .Tag }}/install.ps1 | iex
     ```
 
-    Windows currently ships an `amd64` bundle only. On Windows ARM64, use x64 emulation.
+    Windows currently ships an `amd64` bundle only. On Windows 11 on ARM, install from the x64 PowerShell; the installer lists the steps.
     Windows uses a single supported install path: `install.ps1`.
     Do not download and run the raw `ha-nova-installer-bundle-*.tar.gz` / `.zip` assets directly; those are installer payloads, not the supported end-user path.
 
