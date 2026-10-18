@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 )
 
 // The MCP tools are thin argv adapters over the CLI verbs: the same parsing,
@@ -170,6 +171,7 @@ func (srv *mcpServer) callTool(req rpcRequest) (map[string]any, *rpcError) {
 		// Channel and form answer come from this server only: the CLI detects
 		// the channel (confirm_window.go), a form only where no window opens.
 		planChannel, humanAnswer, windowWait, formsShown = "", answered, mcpWindowWait, req.forms
+		phoneTellSpan = 2 * time.Second // the server stays up, so a phone result still lands; the call stays under 60 s
 		defer func() {
 			planChannel, humanAnswer, windowWait, formsShown, phoneApplied = "", "", cliWindowWait, false, nil
 		}()

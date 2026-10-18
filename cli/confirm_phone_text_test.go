@@ -119,8 +119,8 @@ func TestPhoneApplyResult(t *testing.T) {
 		{verbEnvelope{}, verbExitRefused, "Not done: X"},
 	}
 	for _, c := range cases {
-		if title, _ := phoneApplyResult("X", c.env, c.exit); title != c.title {
-			t.Errorf("%+v %d: %q, want %q", c.env, c.exit, title, c.title)
+		if prefix, _ := phoneApplyResult(c.env, c.exit); prefix+": X" != c.title {
+			t.Errorf("%+v %d: %q, want %q", c.env, c.exit, prefix, c.title)
 		}
 	}
 }
@@ -151,5 +151,22 @@ func TestPhonePlanKeepsADirectRiskTheTitleDoesNotSay(t *testing.T) {
 	if exit, _ := h.run(runApplyCommand, "--plan", plan.ID); plan.Channel != channelPhone || exit != 4 || len(p.sent) == 0 ||
 		!strings.Contains(p.sent[0]["message"].(string), "wipe") {
 		t.Fatalf("plan %+v exit %d sent %v", plan, exit, p.sent)
+	}
+}
+
+// The result keeps the count; a name can't fake "and N more"; dismissing verbs are Confirm.
+func TestPhoneResultTitleAndButtons(t *testing.T) {
+	name := "“" + strings.Repeat("Front Door Lock", 3) + "”"
+	if got := phoneResultTitle("Unclear", [3]string{"Unlock", name + ", " + name + ", " + name + " and 4 more"}); got != "Unclear: Unlock "+name+" and 6 more" {
+		t.Errorf("result title %q", got)
+	}
+	long := "“" + strings.Repeat("x", 58) + "”"
+	if got := phoneTitle("Set the position of", long+" and “B and -1 more”"); !strings.HasSuffix(got, "” and 1 more?") {
+		t.Errorf("a name steered the count: %q", got)
+	}
+	for _, verb := range []string{"Close", "Stop", "Cancel"} {
+		if phoneButton(verb) != "Confirm" {
+			t.Errorf("button %q", verb)
+		}
 	}
 }

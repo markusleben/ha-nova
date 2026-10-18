@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -25,7 +26,7 @@ const (
 	phoneHint       = "Expand to answer."
 	phoneSentText   = "Sent to “%s”. Expand the notification and tap “%s”, only if you started this."
 	phoneTitleLimit = 80  // runes: one lock-screen line
-	phoneWhyLimit   = 140 // runes: the reason line
+	phoneWhyLimit   = 300 // runes: the reasons (an expanded notification shows them all)
 )
 
 func phoneLinkAsk() phoneAsk {
@@ -46,7 +47,11 @@ func phoneChangeAsk(newPhone string) phoneAsk {
 func phonePlanAsk(goal [3]string, noSnapshot bool) phoneAsk {
 	body := phoneRequested()
 	if goal[2] != "" {
-		body = phoneCut(goal[2], phoneWhyLimit) + ". " + body
+		why := goal[2]
+		if len([]rune(why)) > phoneWhyLimit {
+			why = phoneCut(why, phoneWhyLimit-25) + " (more on the computer)"
+		}
+		body = why + ". " + body
 	}
 	if noSnapshot {
 		body = "Can't be undone. " + body
@@ -55,9 +60,10 @@ func phonePlanAsk(goal [3]string, noSnapshot bool) phoneAsk {
 }
 
 // phoneButton: the goal's verb ("Unlock", "Turn on"); a longer one such as
-// "Set the position of", or one that reads like the other button, is Confirm.
+// "Set the position of", or one that reads like dismissing (Cancel, Close,
+// Stop), is Confirm.
 func phoneButton(verb string) string {
-	if verb == "" || strings.Count(verb, " ") > 1 || strings.EqualFold(verb, "Cancel") {
+	if verb == "" || strings.Count(verb, " ") > 1 || slices.ContainsFunc([]string{"Cancel", "Close", "Stop", "Dismiss"}, func(v string) bool { return strings.EqualFold(v, verb) }) {
 		return "Confirm"
 	}
 	return verb
@@ -74,8 +80,8 @@ func phoneTitle(verb, object string) string {
 		return title
 	}
 	total, rest := strings.Count(object, "“"), 0
-	if i := strings.LastIndex(object, " and "); i > 0 {
-		if _, err := fmt.Sscanf(object[i:], " and %d more", &rest); err == nil {
+	if i := strings.LastIndex(object, " and "); i > 0 && !strings.HasSuffix(object, "”") { // sayList's own count, never a name
+		if _, err := fmt.Sscanf(object[i:], " and %d more", &rest); err == nil && rest > 0 {
 			total += rest
 		}
 	}
@@ -204,24 +210,29 @@ func phoneNothing(answer phoneAnswer) (string, string) {
 	return "Not confirmed", "No answer reached Home Assistant. Nothing changed."
 }
 
-// phoneApplyResult: how a confirmed plan ended, for the phone. "Done" only
-// for a verified result.
-func phoneApplyResult(what string, env verbEnvelope, exit int) (string, string) {
+// phoneApplyResult: how a confirmed plan ended, for the phone (a title
+// prefix and the line). "Done" only for a verified result.
+func phoneApplyResult(env verbEnvelope, exit int) (string, string) {
 	code := ""
 	if env.Error != nil {
 		code = env.Error.Code
 	}
 	switch {
 	case exit == verbExitOK && env.Status == "verified":
-		return "Done: " + what, "Home Assistant confirms it."
+		return "Done", "Home Assistant confirms it."
 	case exit == verbExitOK:
-		return "Sent: " + what, "Home Assistant took it; HA NOVA can't confirm the result yet."
+		return "Sent", "Home Assistant took it; HA NOVA can't confirm the result yet."
 	case exit == verbExitUnverified && env.Status == "failed":
-		return "Didn't work: " + what, "Check Home Assistant."
+		return "Didn't work", "Check Home Assistant."
 	case exit == verbExitUnverified:
-		return "Check: " + what, "Sent, but HA NOVA couldn't verify it. Check Home Assistant."
+		return "Check", "Sent, but HA NOVA couldn't verify it. Check Home Assistant."
 	case exit == verbExitUnknown || code == "PLAN_CLAIMED" || code == "PLAN_NOT_FOUND":
-		return "Unclear: " + what, "It may have run. Check Home Assistant."
+		return "Unclear", "It may have run. Check Home Assistant."
 	}
-	return "Not done: " + what, "Nothing changed; the computer says why."
+	return "Not done", "Nothing changed; the computer says why."
+}
+
+// phoneResultTitle: "Done: Unlock “A” and 6 more", counted like the ask.
+func phoneResultTitle(prefix string, goal [3]string) string {
+	return strings.TrimSuffix(phoneTitle(prefix+": "+goal[0], goal[1]), "?")
 }

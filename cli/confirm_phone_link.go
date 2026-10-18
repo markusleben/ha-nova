@@ -265,7 +265,7 @@ func allowPhoneChange(s *relaySession, out io.Writer, home phoneHome, links map[
 				reply.say("Approved", "HA NOVA turns off confirmations on this phone; the computer shows the result.")
 				return true
 			case still:
-				reply.say("Approved", "“"+newPhone+"” must confirm next; the computer shows the result.")
+				reply.say("Approved", sayText(newPhone, true)+" must confirm next; the computer shows the result.")
 				return true
 			case unread:
 				fmt.Fprintf(out, "  Nothing changed: HA NOVA couldn't re-check “%s” in Home Assistant after the tap. Run this again.\n", old)
@@ -274,7 +274,14 @@ func allowPhoneChange(s *relaySession, out io.Writer, home phoneHome, links map[
 			}
 			return false
 		}
-		fmt.Fprintf(out, "  Nothing changed: it was not confirmed on “%s” in time, or the notification could not be sent. If that phone is lost, remove it in Home Assistant (Settings → Devices & services → Mobile App), then run this again.\n", old)
+		switch answer {
+		case phoneDeclined:
+			fmt.Fprintf(out, "  Nothing changed: it was cancelled on “%s”.\n", old)
+		case phoneRejected:
+			fmt.Fprintf(out, "  Nothing changed: the tap came from a phone signed in to Home Assistant as someone other than the person who linked “%s”.\n", old)
+		default:
+			fmt.Fprintf(out, "  Nothing changed: it was not confirmed on “%s” in time, or the notification could not be sent. If that phone is lost, remove it in Home Assistant (Settings → Devices & services → Mobile App), then run this again.\n", old)
+		}
 		return false
 	case status == phoneMissing && !current.why.replaceable():
 		return false // missingLine said why and what to do

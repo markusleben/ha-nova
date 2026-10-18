@@ -37,7 +37,8 @@ var sayVerbs = map[string]string{
 
 // sayAsk: a typed plan's phone question — the goal's verb and object, and
 // the first reason it needs a confirmation that the title doesn't already
-// say (an automation that also unlocks, a device sibling, an unseen effect).
+// say (an automation that also unlocks, a device sibling, an unseen effect),
+// all of them.
 // Said: the one target's own action ("This unlocks a door"), and then also
 // that HA NOVA can't see what that target does; never a reason via another item.
 func sayAsk(e *tierEngine, env *verbEnvelope, plan storedPlan, subject string) [3]string {
@@ -52,14 +53,15 @@ func sayAsk(e *tierEngine, env *verbEnvelope, plan storedPlan, subject string) [
 		return mine, ok && domain == target && (r.Code == reasonAccessLock || r.Code == reasonAccessAlarm) && strings.HasPrefix(phrase.verb, strings.ToLower(verb))
 	}
 	named := slices.ContainsFunc(env.Reasons, func(r tierReason) bool { mine, phrased := own(r); return mine && phrased })
+	var why []string // every distinct risk the title doesn't say
 	for _, r := range env.Reasons {
 		text, typed := sayReason(e, env, plan, r)
 		mine, phrased := own(r)
-		if typed && text != "" && !(mine && (phrased || named && sayUnseenCodes[r.Code])) {
-			return [3]string{verb, object, text}
+		if typed && text != "" && !(mine && (phrased || named && sayUnseenCodes[r.Code])) && !slices.Contains(why, text) {
+			why = append(why, text)
 		}
 	}
-	return [3]string{verb, object, ""}
+	return [3]string{verb, object, strings.Join(why, ". ")}
 }
 
 // sayGoalText: sayGoal as one phrase, "Unlock “Front Door”".
