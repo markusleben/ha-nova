@@ -911,8 +911,12 @@ func TestUninstallTokenLabelNamesStoredCredentials(t *testing.T) {
 			t.Errorf("label = %q, want %q", got, tc.want)
 		}
 	}
-	// A headless install keeps them in files.
-	t.Setenv("HOME", t.TempDir())
+	// A headless install keeps them in files. Every home variable points at
+	// a temp dir, so the marker never lands in a real secrets folder.
+	home := t.TempDir()
+	for _, key := range []string{"HOME", "USERPROFILE", "APPDATA", "LOCALAPPDATA"} {
+		t.Setenv(key, home)
+	}
 	if err := writeDeviceFileBackendMarker(); err != nil {
 		t.Fatal(err)
 	}

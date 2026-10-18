@@ -72,7 +72,7 @@ func TestClaudeApplyRuleMergesIntoExistingSettings(t *testing.T) {
 	paths, settings := claudeRuleTestPaths(t)
 	writeClaudeSettings(t, settings, existingClaudeSettings)
 	read := claudeReadRule(paths)
-	if read != "Read(/"+filepath.ToSlash(filepath.Join(paths.ConfigDir, "claude-marketplace"))+"/**)" {
+	if read != claudeReadRuleFor(filepath.ToSlash(filepath.Join(paths.ConfigDir, "claude-marketplace"))) || !strings.HasPrefix(read, "Read(//") {
 		t.Fatalf("read rule = %q", read)
 	}
 
@@ -113,8 +113,8 @@ func TestClaudeApplyRuleMergesIntoExistingSettings(t *testing.T) {
 		t.Fatalf("mode = %v, want the file's own 0600", info.Mode().Perm())
 	}
 	state := loadStateOrDefault(paths)
-	if state.ClaudeApplyRuleFile != settings || strings.Join(state.ClaudeRules, "|") != claudeApplyRule+"|"+read || state.ClaudeAllowCreated != "" {
-		t.Fatalf("state records %q %q %q", state.ClaudeApplyRuleFile, state.ClaudeRules, state.ClaudeAllowCreated)
+	if state.ClaudeRulesFile != settings || state.ClaudeApplyRuleFile != "" || strings.Join(state.ClaudeRules, "|") != claudeApplyRule+"|"+read || state.ClaudeAllowCreated != "" {
+		t.Fatalf("state records %q %q %q %q", state.ClaudeRulesFile, state.ClaudeApplyRuleFile, state.ClaudeRules, state.ClaudeAllowCreated)
 	}
 }
 
@@ -125,6 +125,9 @@ func TestClaudeReadRuleUsesClaudeCodesPathForm(t *testing.T) {
 		"C:/Users/Max (Work)/AppData/Local/ha-nova/claude-marketplace": "",
 		"/home/a*b/.config/ha-nova/claude-marketplace":                 "",
 		"//server/share/ha-nova/claude-marketplace":                    "",
+		"/home/a\nb/.config/ha-nova/claude-marketplace":                "",
+		"/home/a\xffb/.config/ha-nova/claude-marketplace":              "",
+		"/:x/ha-nova/claude-marketplace":                               "Read(//:x/ha-nova/claude-marketplace/**)",
 	} {
 		if got := claudeReadRuleFor(root); got != want {
 			t.Errorf("%s: %q, want %q", root, got, want)
@@ -146,8 +149,33 @@ func TestClaudeRulesAddOnlyTheMissingOne(t *testing.T) {
 	if strings.Contains(out, "ha-nova apply --plan *) —") || strings.Contains(out, "You still confirm") || !strings.Contains(out, "NOTE: Added to your Claude Code settings: ") {
 		t.Fatalf("offer output:\n%s", out)
 	}
-	if got := loadStateOrDefault(paths).ClaudeRules; strings.Join(got, "|") != claudeApplyRule+"|"+claudeReadRule(paths) {
-		t.Fatalf("recorded %q", got)
+	if got := loadStateOrDefault(paths); strings.Join(got.ClaudeRules, "|") != claudeApplyRule+"|"+claudeReadRule(paths) || got.ClaudeRulesFile != settings || got.ClaudeApplyRuleFile != "" {
+		t.Fatalf("recorded %+v", got)
+	}
+	// The user removes the apply rule; setup adds it back without a second record.
+	writeClaudeSettings(t, settings, `{"permissions":{"allow":["`+claudeReadRule(paths)+`"]}}`)
+	if out := offerAnswer(t, paths, "add\n"); !strings.Contains(out, "NOTE: Added to your Claude Code settings: "+claudeApplyRule) {
+		t.Fatalf("re-add:\n%s", out)
+	}
+	if got := loadStateOrDefault(paths).ClaudeRules; len(got) != 2 {
+		t.Fatalf("recorded twice: %q", got)
+	}
+}
+
+// Rules recorded for one settings file are never orphaned by a setup run
+// that sees another (a different CLAUDE_CONFIG_DIR).
+func TestClaudeRulesStayWithTheRecordedFile(t *testing.T) {
+	paths, settings := claudeRuleTestPaths(t)
+	state := loadStateOrDefault(paths)
+	state.ClaudeRulesFile, state.ClaudeRules = filepath.Join(paths.Home, "other", "settings.json"), []string{claudeApplyRule}
+	if err := saveState(paths, state); err != nil {
+		t.Fatal(err)
+	}
+	if out := offerAnswer(t, paths, "add\n"); !strings.Contains(out, "NOTE: Claude Code: HA NOVA's rules are in ") || strings.Contains(out, "Add rules") {
+		t.Fatalf("offer:\n%s", out)
+	}
+	if _, err := os.Stat(settings); !os.IsNotExist(err) {
+		t.Fatalf("wrote the second file: %v", err)
 	}
 }
 
@@ -185,7 +213,7 @@ func TestClaudeApplyRuleNeedsConsent(t *testing.T) {
 		if got := readClaudeSettings(t, settings); got != existingClaudeSettings {
 			t.Fatalf("input %q wrote the settings:\n%s", input, got)
 		}
-		if st := loadStateOrDefault(paths); st.ClaudeApplyRuleFile != "" || st.ClaudeRules != nil {
+		if st := loadStateOrDefault(paths); st.ClaudeRulesFile != "" || st.ClaudeRules != nil {
 			t.Fatalf("input %q recorded a rule", input)
 		}
 	}

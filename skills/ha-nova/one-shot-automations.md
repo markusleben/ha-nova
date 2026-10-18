@@ -28,9 +28,8 @@ triggers:
     to: "finished"           # fires when the entity returns from `unavailable`
                              # or is re-added at restart, which announces a
                              # finished load that never ran and burns the
-                             # one-shot. lock/cover/valve/alarm: `not_from:
-                             # [unavailable, unknown]` instead; they pass
-                             # `unlocking`/`opening`/`arming` before `to:`
+                             # one-shot. lock/cover/valve/alarm report an
+                             # in-between state: `from: [locked, unlocking]`
 actions:
   - action: automation.turn_off
     target:

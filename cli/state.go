@@ -25,11 +25,13 @@ type installState struct {
 	ClientInstallModes     map[string]string `json:"client_install_modes"`
 	PathManaged            bool              `json:"path_managed"`
 	PathTarget             string            `json:"path_target"`
-	// ClaudeApplyRuleFile is the Claude Code settings file setup added
-	// ClaudeRules to, with the user's consent (empty ClaudeRules: the apply
-	// rule only); uninstall removes them there. ClaudeAllowCreated is the key
-	// setup created for them ("permissions" or "allow"), removed once empty.
+	// ClaudeApplyRuleFile is where a 0.26.0 release candidate added
+	// claudeApplyRule (that rule only). ClaudeRulesFile is where setup added
+	// ClaudeRules with the user's consent, and ClaudeAllowCreated the key it
+	// created for them ("permissions" or "allow"), removed again once empty.
+	// A separate key, so an older binary never reads these rules as its own.
 	ClaudeApplyRuleFile string   `json:"claude_apply_rule_file,omitempty"`
+	ClaudeRulesFile     string   `json:"claude_rules_file,omitempty"`
 	ClaudeRules         []string `json:"claude_rules,omitempty"`
 	ClaudeAllowCreated  string   `json:"claude_allow_created,omitempty"`
 }

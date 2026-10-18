@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"unicode/utf8"
 )
 
 // claudeApplyRule lets Claude Code run `ha-nova apply --plan <id>` without
@@ -37,10 +38,11 @@ func claudeReadRule(paths runtimePaths) string {
 // claudeReadRuleFor writes an absolute slash path in Claude Code's own rule
 // form: /x → //x, C:/x → //c/x.
 func claudeReadRuleFor(root string) string {
-	if strings.ContainsAny(root, "*?[]{}()!#\\") || strings.HasPrefix(root, "//") { // a pattern character, or a network path
+	if !utf8.ValidString(root) || strings.ContainsFunc(root, func(r rune) bool { return r < 0x20 || r == 0x7f }) ||
+		strings.ContainsAny(root, "*?[]{}()!#\\") || strings.HasPrefix(root, "//") { // a pattern character, or a network path
 		return ""
 	}
-	if len(root) > 1 && root[1] == ':' {
+	if len(root) > 2 && root[1] == ':' && root[2] == '/' && ('a' <= root[0]|0x20 && root[0]|0x20 <= 'z') {
 		root = "/" + strings.ToLower(root[:1]) + root[2:]
 	}
 	return "Read(/" + root + "/**)"
@@ -76,8 +78,12 @@ func offerClaudeRules(reader *bufio.Reader, out io.Writer, paths runtimePaths) s
 	if err == nil && len(missing) == 0 {
 		return ""
 	}
+	if recorded := claudeRulesRecordFile(loadStateOrDefault(paths)); recorded != "" && !sameFile(recorded, path) {
+		// One record per install: never orphan the rules in the other file.
+		return fmt.Sprintf("Claude Code: HA NOVA's rules are in %s; it left %s unchanged.", recorded, path)
+	}
 	if err != nil {
-		return fmt.Sprintf("HA NOVA can't safely edit %s, so it left it unchanged. %s", path, claudeRulesManual(rules))
+		return fmt.Sprintf("Claude Code: HA NOVA can't safely edit %s, so it left it unchanged. %s", path, claudeRulesManual(rules))
 	}
 	fmt.Fprintln(out)
 	fmt.Fprintln(out, "  Let Claude Code work with HA NOVA without extra questions?")
@@ -118,6 +124,7 @@ func offerClaudeRules(reader *bufio.Reader, out io.Writer, paths runtimePaths) s
 	// Under the lock and only while HA NOVA is installed (an uninstall in
 	// another terminal removes state.json), so the rules and their record
 	// land together.
+	var added []string
 	var unrecorded error
 	err = withClientMutationLock(paths, func() error {
 		state, err := loadState(paths)
@@ -127,17 +134,18 @@ func offerClaudeRules(reader *bufio.Reader, out io.Writer, paths runtimePaths) s
 		if err != nil {
 			return err
 		}
-		added, created, err := changeClaudeRules(path, missing, true, "")
+		var created string
+		added, created, err = changeClaudeRules(path, missing, true, "")
 		if err != nil || len(added) == 0 {
 			return err
 		}
-		if state.ClaudeApplyRuleFile != path { // a record for another file is not this file's
-			state.ClaudeRules, state.ClaudeAllowCreated = nil, ""
-		} else if len(state.ClaudeRules) == 0 { // recorded before claude_rules existed: the apply rule
-			state.ClaudeRules = []string{claudeApplyRule}
+		state.ClaudeRules = recordedClaudeRules(state)
+		for _, rule := range added {
+			if !slices.Contains(state.ClaudeRules, rule) {
+				state.ClaudeRules = append(state.ClaudeRules, rule)
+			}
 		}
-		state.ClaudeApplyRuleFile = path
-		state.ClaudeRules = append(state.ClaudeRules, added...)
+		state.ClaudeRulesFile, state.ClaudeApplyRuleFile = path, ""
 		if created != "" {
 			state.ClaudeAllowCreated = created
 		}
@@ -147,10 +155,41 @@ func offerClaudeRules(reader *bufio.Reader, out io.Writer, paths runtimePaths) s
 	switch {
 	case err != nil:
 		return fmt.Sprintf("Claude Code rules: nothing was written (%s). %s", err, claudeRulesManual(missing))
+	case len(added) == 0:
+		return ""
 	case unrecorded != nil:
 		return fmt.Sprintf("Claude Code rules added, but HA NOVA couldn't note them (%s): uninstall will leave them in place.", unrecorded)
 	}
-	return "Added to your Claude Code settings: " + strings.Join(missing, ", ")
+	return "Added to your Claude Code settings: " + strings.Join(added, ", ")
+}
+
+// claudeRulesRecordFile is the settings file setup recorded adding rules to.
+func claudeRulesRecordFile(state installState) string {
+	if state.ClaudeRulesFile != "" {
+		return state.ClaudeRulesFile
+	}
+	return state.ClaudeApplyRuleFile
+}
+
+// recordedClaudeRules: the rules setup added; a release-candidate record
+// (claude_apply_rule_file) is the apply rule only.
+func recordedClaudeRules(state installState) []string {
+	switch {
+	case state.ClaudeRulesFile != "":
+		return state.ClaudeRules
+	case state.ClaudeApplyRuleFile != "":
+		return []string{claudeApplyRule}
+	}
+	return nil
+}
+
+func sameFile(a, b string) bool {
+	if a == b {
+		return true
+	}
+	ia, errA := os.Stat(a)
+	ib, errB := os.Stat(b)
+	return errA == nil && errB == nil && os.SameFile(ia, ib)
 }
 
 // claudeRulesHint is doctor's line while a rule is missing ("" once all
@@ -173,16 +212,17 @@ func claudeRulesHint(paths runtimePaths) string {
 // recorded. permissions.allow (or permissions) goes too once empty, but only
 // when setup created it.
 func removeClaudeRulesForUninstall(state installState, report *uninstallReport) {
-	if state.ClaudeApplyRuleFile == "" {
+	file, rules := claudeRulesRecordFile(state), recordedClaudeRules(state)
+	if file == "" || len(rules) == 0 {
 		return
 	}
-	rules := state.ClaudeRules
-	if len(rules) == 0 { // recorded before claude_rules existed: the apply rule
-		rules = []string{claudeApplyRule}
+	prune := ""
+	if state.ClaudeRulesFile != "" {
+		prune = state.ClaudeAllowCreated
 	}
-	removed, _, err := changeClaudeRules(state.ClaudeApplyRuleFile, rules, false, state.ClaudeAllowCreated)
+	removed, _, err := changeClaudeRules(file, rules, false, prune)
 	if err != nil {
-		report.addNote(fmt.Sprintf("Could not remove the Claude Code rules %s from %s (%s); remove them in /permissions.", strings.Join(rules, ", "), state.ClaudeApplyRuleFile, err))
+		report.addNote(fmt.Sprintf("Could not remove the Claude Code rules %s from %s (%s); remove them in /permissions.", strings.Join(rules, ", "), file, err))
 		return
 	}
 	for _, rule := range removed {

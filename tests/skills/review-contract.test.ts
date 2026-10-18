@@ -203,12 +203,12 @@ describe("review contract", () => {
     expect(architectureDoc).toContain("`R-18` is same-mapping only");
   });
 
-  it("flags state triggers that skip a transitional state (R-31, rc4 lane)", () => {
+  it("flags state triggers that skip an in-between state (R-31, rc4 lane)", () => {
     // `from: locked, to: unlocked` never fired: the lock reports `unlocking` first.
-    expect(reviewChecks).toContain("R-31 [HIGH]: State trigger skipping a transitional state");
-    expect(reviewChecks).toContain("Fix: `to:` alone");
-    expect(writeSkill).toContain("A `draft` notice: fix the draft (`../review/checks.md` R-31) and plan again.");
-    expect(readFileSync("skills/migrate/source-mappings.md", "utf8")).toContain("becomes `to: B` without `from: A`");
+    expect(reviewChecks).toContain("R-31 [MEDIUM → HIGH]: State trigger skipping an in-between state");
+    expect(reviewChecks).toContain("Fix: add it to `from:` (`from: [locked, unlocking]`)");
+    expect(writeSkill).toContain("A `draft` notice: add the in-between state it names to `from:` (`../review/checks.md` R-31) and plan again.");
+    expect(readFileSync("skills/migrate/source-mappings.md", "utf8")).toContain("adds it to `from:` (`from: [locked, unlocking]`)");
   });
 
   it("documents the issue-274 semantic and timing checks (R-26..R-28)", () => {
