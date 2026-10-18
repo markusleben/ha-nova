@@ -48,7 +48,7 @@ say that results may have changed since the previous report.
 A result from `ha-nova call` or `ha-nova apply` is at most three lines:
 
 1. what ran — the service in plain words plus the resolved names (and the area when it disambiguates);
-2. the outcome in the result vocabulary — verified, accepted (sent, effect not observable), unverified, failed, or "may have run, unknown" — with any per-entity discrepancy in plain words ("still locked after 10s");
+2. the outcome in the result vocabulary — verified, accepted (sent, effect not observable), unverified, failed, or "may have run, unknown" — with any per-entity discrepancy ("still locked after 10s"); `no_change`: only `say`;
 3. notices (`notices[]`), only when present and not yet surfaced this session (session bootstrap callouts).
 
 No card, no options block, no raw JSON.

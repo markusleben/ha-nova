@@ -220,6 +220,8 @@ func phoneApplyResult(env verbEnvelope, exit int) (string, string) {
 	switch {
 	case exit == verbExitOK && env.Status == "verified":
 		return "Done", "Home Assistant confirms it."
+	case exit == verbExitOK && env.Status == "no_change":
+		return "Already done", "It was already that way; nothing was sent."
 	case exit == verbExitOK:
 		return "Sent", "Home Assistant took it; HA NOVA can't confirm the result yet."
 	case exit == verbExitUnverified && env.Status == "failed":
