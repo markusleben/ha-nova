@@ -7,6 +7,7 @@ Reference for `../migrate/SKILL.md`. Read only the section of the source at hand
 - **Re-trigger while waiting** decides `mode`: ignored → `mode: single` + `max_exceeded: silent`; timer restarts → `mode: restart`; each event runs its own copy → `mode: parallel` (or `queued` when order matters).
 - "Off N minutes after X" is two different rules: N minutes after X *started* (a fixed `delay`) or N minutes after X *ended* (`wait_for_trigger` with `for:`, or a trigger `for:`). Never swap one for the other.
 - A state trigger with `to:` also fires from `unavailable`/`unknown`; add `from:` or `not_from:` only when the source excluded those.
+- A `lock`, `cover`, `valve`, or `alarm_control_panel` passes a transitional state (`unlocking`, `opening`, `arming`), so a source "from A to B" becomes `to: B` without `from: A`.
 - A state trigger with neither `from:` nor `to:` also fires on attribute changes; `to: ~` limits it to state changes.
 - Running delays end at a Home Assistant restart. A timer helper with `restore: true` survives one — use it only where the source survived restarts too.
 - Variables stored by the source (flow/global context, Logic variables, Private Boolean, hub or global vars) become helpers: `input_boolean`, `input_number`, `input_text`, `input_select`, `input_datetime`.

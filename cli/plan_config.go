@@ -337,6 +337,9 @@ func computeConfigPlan(paths runtimePaths, s *relaySession, env *verbEnvelope, r
 		action.Body = req.Draft
 		e.raise(tierPreview, tierReason{Code: map[string]string{"write": reasonConfigWrite, "revert": reasonConfigRevert, "restore": reasonConfigRestore}[req.Op], Via: req.Domain + "." + req.ConfigID})
 		e.classifyDraft(req.Domain, req.ConfigID, req.Draft)
+		if req.Op == "write" && req.Domain == "automation" {
+			env.Notices = append(env.Notices, draftTriggerNotices(req.Draft)...)
+		}
 		before := current
 		if before == nil {
 			before = json.RawMessage(`{}`)

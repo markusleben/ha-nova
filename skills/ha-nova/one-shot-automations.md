@@ -28,7 +28,9 @@ triggers:
     to: "finished"           # fires when the entity returns from `unavailable`
                              # or is re-added at restart, which announces a
                              # finished load that never ran and burns the
-                             # one-shot
+                             # one-shot. lock/cover/valve/alarm: `not_from:
+                             # [unavailable, unknown]` instead; they pass
+                             # `unlocking`/`opening`/`arming` before `to:`
 actions:
   - action: automation.turn_off
     target:
@@ -264,11 +266,8 @@ pattern exists to prevent. Give it an expiry the main trigger cannot skip:
 triggers:
   - trigger: state
     entity_id: sensor.washing_machine_state
-    from: "running"          # NEVER `to:` alone — a to-only state trigger also
-    to: "finished"           # fires when the entity returns from `unavailable`
-                             # or is re-added at restart, which announces a
-                             # finished load that never ran and burns the
-                             # one-shot
+    from: "running"          # from + to: see the first example
+    to: "finished"
     id: fired
   - trigger: time
     at: "23:59:00"

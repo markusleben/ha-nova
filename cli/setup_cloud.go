@@ -199,10 +199,10 @@ func maybeOfferCloudForCompletedSetup(
 		"Your Home Assistant authorization for HA NOVA stays in this computer's native secure storage.",
 	)
 	fmt.Fprintln(out)
-	prompt := "Add Home Assistant Link fallback now?"
+	prompt, yesLabel := "Add Home Assistant Link fallback now?", "Yes, add Home Assistant Link"
 	defaultYes := false
 	if resuming {
-		prompt = "Resume Home Assistant Link setup now?"
+		prompt, yesLabel = "Resume Home Assistant Link setup now?", "Yes, resume"
 		defaultYes = true
 	}
 	configSnapshot, hadConfig, err := readOptionalFile(paths.ConfigFile)
@@ -210,12 +210,7 @@ func maybeOfferCloudForCompletedSetup(
 		renderCloudFailure(out, paths, err)
 		return cfg, true, 1
 	}
-	enable, err := promptWizardYesNoFromReader(
-		reader,
-		out,
-		prompt,
-		defaultYes,
-	)
+	enable, err := promptWizardYesNoMenu(reader, out, prompt, yesLabel, "Not now", defaultYes)
 	switch {
 	case errors.Is(err, errSetupExit), errors.Is(err, errSetupBack):
 		if resuming {

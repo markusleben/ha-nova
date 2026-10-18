@@ -26,8 +26,12 @@ type installState struct {
 	PathManaged            bool              `json:"path_managed"`
 	PathTarget             string            `json:"path_target"`
 	// ClaudeApplyRuleFile is the Claude Code settings file setup added
-	// claudeApplyRule to, with the user's consent; uninstall removes it there.
-	ClaudeApplyRuleFile string `json:"claude_apply_rule_file,omitempty"`
+	// ClaudeRules to, with the user's consent (empty ClaudeRules: the apply
+	// rule only); uninstall removes them there. ClaudeAllowCreated is the key
+	// setup created for them ("permissions" or "allow"), removed once empty.
+	ClaudeApplyRuleFile string   `json:"claude_apply_rule_file,omitempty"`
+	ClaudeRules         []string `json:"claude_rules,omitempty"`
+	ClaudeAllowCreated  string   `json:"claude_allow_created,omitempty"`
 }
 
 func loadState(paths runtimePaths) (installState, error) {

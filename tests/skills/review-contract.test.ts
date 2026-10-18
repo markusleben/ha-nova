@@ -165,8 +165,8 @@ describe("review contract", () => {
     expect(reviewChecks).toContain("R-16 [HIGH]");
     expect(reviewChecks).toContain("Templated event name");
     expect(reviewChecks).toContain("`event_type:` does not evaluate templates");
-    expect(reviewChecks).toContain("R-01..R-30");
-    expect(architectureDoc).toContain("R-01..R-30");
+    expect(reviewChecks).toContain("R-01..R-31");
+    expect(architectureDoc).toContain("R-01..R-31");
     expect(templateGuidelines).toContain("Event trigger names must be literal strings");
     expect(templateGuidelines).toContain("do not template `event_type:`");
   });
@@ -201,6 +201,14 @@ describe("review contract", () => {
     expect(templateGuidelines).toContain("self-contained template with internal `{% set %}`");
     expect(templateGuidelines).toContain("ordered `variables` actions");
     expect(architectureDoc).toContain("`R-18` is same-mapping only");
+  });
+
+  it("flags state triggers that skip a transitional state (R-31, rc4 lane)", () => {
+    // `from: locked, to: unlocked` never fired: the lock reports `unlocking` first.
+    expect(reviewChecks).toContain("R-31 [HIGH]: State trigger skipping a transitional state");
+    expect(reviewChecks).toContain("Fix: `to:` alone");
+    expect(writeSkill).toContain("A `draft` notice: fix the draft (`../review/checks.md` R-31) and plan again.");
+    expect(readFileSync("skills/migrate/source-mappings.md", "utf8")).toContain("becomes `to: B` without `from: A`");
   });
 
   it("documents the issue-274 semantic and timing checks (R-26..R-28)", () => {
