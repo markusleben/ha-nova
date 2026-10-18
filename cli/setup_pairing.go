@@ -231,8 +231,7 @@ func runSetupPairingFlow(reader *bufio.Reader, out io.Writer, paths runtimePaths
 		)
 	})
 	if guardErr != nil {
-		renderSetupSecureStorageFailure(out, "Local pairing cannot start", guardErr)
-		return "", guardErr
+		return "", renderSetupSecureStorageFailure(out, "Local pairing cannot start", guardErr)
 	}
 	// Storage first: never send the user to fetch a one-time code that a broken
 	// credential backend would burn. Headless systems switch to the private-file
@@ -253,8 +252,8 @@ func runSetupPairingFlow(reader *bufio.Reader, out io.Writer, paths runtimePaths
 		return err
 	})
 	if probeErr != nil {
-		renderSetupSecureStorageFailure(out, "This system cannot store the device credential yet", probeErr)
-		return "", fmt.Errorf("device credential storage unavailable: %w", probeErr)
+		return "", fmt.Errorf("device credential storage unavailable: %w",
+			renderSetupSecureStorageFailure(out, "This system cannot store the device credential yet", probeErr))
 	}
 	if probe.note != "" {
 		renderSetupParagraph(out, probe.note)
@@ -288,8 +287,7 @@ func runSetupPairingFlow(reader *bufio.Reader, out io.Writer, paths runtimePaths
 
 	if secure {
 		if err := prepareSecurePairingClientInstallID(paths, cfg, lifecycleMarker...); err != nil {
-			renderSetupSecureStorageFailure(out, "Could not prepare this device before pairing", err)
-			return "", err
+			return "", renderSetupSecureStorageFailure(out, "Could not prepare this device before pairing", err)
 		}
 	}
 
@@ -379,8 +377,7 @@ func runSetupPairingFlow(reader *bufio.Reader, out io.Writer, paths runtimePaths
 					renderSetupErrorLine(out, "Too many attempts. Wait at least %d seconds, then use the current code.", rateLimit.retryAfterSeconds)
 					continue
 				}
-				renderSetupSecureStorageFailure(out, "Could not pair", perr)
-				return "", perr
+				return "", renderSetupSecureStorageFailure(out, "Could not pair", perr)
 			}
 		}
 
@@ -407,8 +404,7 @@ func runSetupPairingFlow(reader *bufio.Reader, out io.Writer, paths runtimePaths
 				renderSetupErrorLine(out, "Too many pairing attempts. Wait at least %d seconds, then use the current NOVA code.", rateLimit.retryAfterSeconds)
 				continue
 			}
-			renderSetupSecureStorageFailure(out, "Could not pair with NOVA Relay", err)
-			return "", err
+			return "", renderSetupSecureStorageFailure(out, "Could not pair with NOVA Relay", err)
 		}
 	}
 }

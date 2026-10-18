@@ -293,7 +293,7 @@ func relayAuthTokenProblemMessage(err error) string {
 		return "relay auth token missing; run: ha-nova setup"
 	}
 	if isWindowsNetworkLogonSessionError(err) {
-		return "secure storage isn't available in this Windows session (for example over SSH); open a normal terminal on this computer's desktop and run: ha-nova setup"
+		return "secure storage isn't available in this Windows session (for example over SSH); sign in to the desktop of the computer HA NOVA is installed on, open a normal terminal there, and run: ha-nova setup"
 	}
 	if isDesktopKeyringSessionUnavailableError(err) {
 		return "secure storage unavailable in this Linux session; run HA NOVA from a terminal inside the Linux desktop session on this machine, and then run: ha-nova setup"
@@ -411,7 +411,7 @@ func relayAuthTokenSetupReadError(err error) error {
 
 func relayAuthTokenSetupOperationError(action string, err error) error {
 	if isWindowsNetworkLogonSessionError(err) {
-		return fmt.Errorf("cannot %s: secure storage isn't available in this Windows session (for example over SSH). Open a normal terminal on this computer's desktop and rerun `ha-nova setup`", action)
+		return fmt.Errorf("cannot %s: secure storage isn't available in this Windows session (for example over SSH). Sign in to the desktop of the computer HA NOVA is installed on, open a normal terminal there, and rerun `ha-nova setup`", action)
 	}
 	if isDesktopKeyringSessionUnavailableError(err) {
 		return fmt.Errorf("cannot %s: secure storage unavailable in this Linux session. Run HA NOVA from a terminal inside the Linux desktop session on this machine, and rerun `ha-nova setup`", action)

@@ -67,7 +67,7 @@ Start-Setup -BinaryPath "never-run.exe"
     );
     expect(result.output).toContain("Next step: ha-nova setup");
     expect(result.output).toContain(
-      "Setup will ask for the six-digit pairing code shown in NOVA Home Base.",
+      "Setup will ask you to sign in to Home Assistant as the owner, or to type a six-digit code from the NOVA page.",
     );
   });
 

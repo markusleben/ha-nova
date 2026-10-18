@@ -296,7 +296,7 @@ if (($script:methods -join ",") -ne "Invoke-WebRequest,HttpClient") {
     );
     expect(content).toContain("Next step: ha-nova setup");
     expect(content).toContain(
-      "Setup will ask for the six-digit pairing code shown in NOVA Home Base.",
+      "Setup will ask you to sign in to Home Assistant as the owner, or to type a six-digit code from the NOVA page.",
     );
     expect(content).not.toContain("ha-nova.cmd");
   });

@@ -203,7 +203,9 @@ func runAddServerStages(
 			return cancelKeepingPartialProfile()
 		}
 		if pairErr != nil {
-			printHumanErr("%s", pairErr)
+			if !isSetupFailureReported(pairErr) {
+				printHumanErr("%s", pairErr)
+			}
 			return failKeepingPartialProfile()
 		}
 		// A nil return would mean a legacy token exchange, which the

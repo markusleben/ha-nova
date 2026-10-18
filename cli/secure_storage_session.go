@@ -3,6 +3,8 @@ package main
 import (
 	"errors"
 	"io"
+	"os"
+	"runtime"
 	"strings"
 	"syscall"
 )
@@ -37,41 +39,80 @@ func isSecureStorageUnavailableError(err error) bool {
 		IsCloudErrorCode(err, CloudErrSecretUIForbidden)
 }
 
-const secureStorageSessionReason = "HA NOVA can't use this computer's secure storage from this terminal (for example over SSH)"
-const secureStorageSessionNextStep = "open a normal terminal on this computer's desktop (not over SSH, not as administrator)"
+const secureStorageSessionReason = "HA NOVA can't reach secure storage from this terminal (for example over SSH, or as administrator)"
+
+// secureStorageSessionPlatformOS: the desktop-terminal fix holds on Windows
+// (Credential Manager needs an interactive logon) and macOS (the login
+// keychain); Linux keeps its own keyring guidance (a keyring nobody unlocks
+// needs setup --service, not a desktop).
+var secureStorageSessionPlatformOS = runtime.GOOS
+
+// secureStorageSessionNextStep names the machine: over SSH "this computer"
+// reads as the one the user sits at.
+func secureStorageSessionNextStep() string {
+	where := "the computer HA NOVA is installed on"
+	if host, err := os.Hostname(); err == nil && strings.TrimSpace(host) != "" {
+		where += " (" + strings.TrimSpace(host) + ")"
+	}
+	return "sign in to the desktop of " + where + " and open a normal terminal there (not as administrator)"
+}
 
 // secureStorageSessionProblem reports whether err is a secure-storage failure
 // in a session that is not a normal desktop terminal (SSH, administrator,
 // WSL, Windows session 0). Then the one fix is a desktop terminal.
 func secureStorageSessionProblem(err error) bool {
-	return isSecureStorageUnavailableError(err) && !nativeSecretPromptBaseContextAvailable()
+	return (secureStorageSessionPlatformOS == "windows" || secureStorageSessionPlatformOS == "darwin") &&
+		isSecureStorageUnavailableError(err) && !nativeSecretPromptBaseContextAvailable()
 }
 
-// renderSetupSecureStorageFailure prints a setup failure; a secure-storage
-// failure outside a desktop terminal gets the plain next step, with the raw
-// error kept as a detail line.
-func renderSetupSecureStorageFailure(out io.Writer, prefix string, err error) {
+// secureStorageReportedError: setup already printed this failure with its
+// next step; the caller must not print the raw error again as the last line.
+type secureStorageReportedError struct{ cause error }
+
+func (e *secureStorageReportedError) Error() string { return e.cause.Error() }
+func (e *secureStorageReportedError) Unwrap() error { return e.cause }
+
+// isSetupFailureReported: printed already by renderSetupSecureStorageFailure.
+func isSetupFailureReported(err error) bool {
+	var reported *secureStorageReportedError
+	return errors.As(err, &reported)
+}
+
+// renderSetupSecureStorageFailure prints a setup failure and returns the
+// error to hand back; a secure-storage failure outside a desktop terminal
+// gets the plain next step, the raw error kept as a detail line, and comes
+// back marked as reported.
+func renderSetupSecureStorageFailure(out io.Writer, prefix string, err error) error {
 	if !secureStorageSessionProblem(err) {
 		renderSetupErrorLine(out, "%s: %s", prefix, err)
-		return
+		return err
 	}
 	renderSetupErrorLine(out, "%s.", secureStorageSessionReason)
 	renderSetupParagraphTight(out,
-		"Next step: "+secureStorageSessionNextStep+" and run: ha-nova setup",
+		"Next step: "+secureStorageSessionNextStep()+", then run: ha-nova setup",
 		"Details: "+prefix+": "+err.Error(),
 	)
+	return &secureStorageReportedError{cause: err}
 }
 
-// localRelayCredentialError carries a secure-storage failure of the local
-// leg (the device credential read). It is never a Home Assistant Link
-// problem, even though the shared worker reports it with a CloudError code.
+// localRelayCredentialError carries a CloudError of the local leg (the
+// device credential read). It is never a Home Assistant Link problem, even
+// though the shared secure-storage worker reports it with a CloudError code.
 type localRelayCredentialError struct{ cause error }
 
 func (e *localRelayCredentialError) Error() string {
-	if secureStorageSessionProblem(e.cause) {
-		return secureStorageSessionReason + "; " + secureStorageSessionNextStep + " and run it there (details: " + e.cause.Error() + ")"
+	code := "unknown"
+	var cloudErr *CloudError
+	if errors.As(e.cause, &cloudErr) {
+		code = string(cloudErr.Code)
 	}
-	return "cannot read this computer's saved HA NOVA credential: " + e.cause.Error()
+	if secureStorageSessionProblem(e.cause) {
+		return secureStorageSessionReason + "; " + secureStorageSessionNextStep() + ", start your AI assistant from that terminal, and try again (" + code + ")"
+	}
+	if isSecureStorageUnavailableError(e.cause) || IsCloudErrorCode(e.cause, CloudErrSecretPromptCanceled) {
+		return "cannot read this computer's saved HA NOVA credential (" + code + "); unlock this computer's keychain or keyring (sign in to its desktop) and try again, or run: ha-nova doctor"
+	}
+	return "cannot read this computer's saved HA NOVA credential (" + code + "); run: ha-nova doctor"
 }
 
 func (e *localRelayCredentialError) Unwrap() error { return e.cause }

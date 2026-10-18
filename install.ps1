@@ -298,14 +298,15 @@ function Get-PlatformArch {
     Fail ("This PowerShell is the ARM version, and HA NOVA ships a Windows amd64 bundle only. Windows 11 on ARM runs it from the x64 PowerShell, which needs no install:" +
       "`n       1. Download the file ending in -win-x64.zip from https://github.com/PowerShell/PowerShell/releases/latest" +
       "`n       2. Right-click it, choose 'Extract All', then open the extracted folder." +
-      "`n       3. Double-click pwsh.exe and paste the HA NOVA install command into that window.")
+      "`n       3. Double-click pwsh.exe and paste the HA NOVA install command into that window." +
+      "`n       You need it only for the install; ha-nova then works in any PowerShell. On ARM, HA NOVA needs Windows 11.")
   }
 
   if ($arch -eq "x86") {
     Fail "HA NOVA requires a 64-bit PowerShell process. Open 64-bit PowerShell or Windows Terminal, then rerun the installer."
   }
 
-  Fail "Unsupported Windows architecture '$arch'. Use 64-bit PowerShell on Windows amd64, or x64 emulation on Windows ARM64."
+  Fail "Unsupported Windows architecture '$arch'. Use 64-bit PowerShell on Windows amd64, or the x64 PowerShell on Windows 11 ARM64."
 }
 
 function Get-ExpectedInstallVersion {
@@ -949,7 +950,7 @@ function Start-Setup {
   if ($env:HA_NOVA_NO_SETUP -eq "1") {
     Write-Info "Installed HA NOVA without setup."
     Write-Note "Next step: ha-nova setup"
-    Write-Note "Setup will ask for the six-digit pairing code shown in NOVA Home Base."
+    Write-Note "Setup will ask you to sign in to Home Assistant as the owner, or to type a six-digit code from the NOVA page."
     Write-Note "Need help later? Run: ha-nova doctor"
     return
   }
@@ -957,7 +958,7 @@ function Start-Setup {
   if (-not (Test-InteractiveSession)) {
     Write-Warn "No interactive terminal detected; setup was not started automatically."
     Write-Note "Next step: ha-nova setup"
-    Write-Note "Setup will ask for the six-digit pairing code shown in NOVA Home Base."
+    Write-Note "Setup will ask you to sign in to Home Assistant as the owner, or to type a six-digit code from the NOVA page."
     Write-Note "Need help later? Run: ha-nova doctor"
     return
   }

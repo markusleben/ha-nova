@@ -198,6 +198,7 @@ func TestSetupDiscoveryExplainsWindowsFirewallPromptOnFirstRun(t *testing.T) {
 	originalDiscover, originalOS := discoverReachableHAHostsForSetup, setupDiscoveryPlatformOS
 	t.Cleanup(func() { discoverReachableHAHostsForSetup, setupDiscoveryPlatformOS = originalDiscover, originalOS })
 	discoverReachableHAHostsForSetup = func(runtimeConfig) ([]setupDiscoveryCandidate, string) { return nil, "" }
+	installSafeNativePromptContext(t)
 
 	for _, tc := range []struct {
 		os   string
@@ -207,7 +208,12 @@ func TestSetupDiscoveryExplainsWindowsFirewallPromptOnFirstRun(t *testing.T) {
 		{"windows", runtimeConfig{}, true},
 		{"windows", runtimeConfig{HAURL: "http://192.168.1.5:8123"}, false},
 		{"darwin", runtimeConfig{}, false},
+		{"windows-ssh", runtimeConfig{}, false},
 	} {
+		if tc.os == "windows-ssh" {
+			tc.os = "windows"
+			t.Setenv("SSH_CONNECTION", "10.0.0.2 50000 10.0.0.3 22")
+		}
 		setupDiscoveryPlatformOS = tc.os
 		output := &strings.Builder{}
 		runSetupDiscoveryWithFeedback(output, tc.cfg)

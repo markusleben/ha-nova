@@ -181,7 +181,7 @@ describe("install.sh contract", () => {
     expect(content).toContain('run_setup "${BIN_LINK}"');
     expect(content).toContain("Next step: ha-nova setup");
     expect(content).toContain(
-      "Setup will ask for the six-digit pairing code shown in NOVA Home Base.",
+      "Setup will ask you to sign in to Home Assistant as the owner, or to type a six-digit code from the NOVA page.",
     );
     expect(content).toContain("Need help later? Run: ha-nova doctor");
   });
@@ -196,7 +196,7 @@ describe("install.sh contract", () => {
     );
     expect(output).toContain("Next step: ha-nova setup");
     expect(output).toContain(
-      "Setup will ask for the six-digit pairing code shown in NOVA Home Base.",
+      "Setup will ask you to sign in to Home Assistant as the owner, or to type a six-digit code from the NOVA page.",
     );
   });
 
