@@ -188,34 +188,6 @@ esac
     expect(json.additional_context).toContain("Release notes: https://example.test/releases/v99.0.0");
   });
 
-  it.each([
-    ["0.25.1", false],
-    ["0.26.0", true],
-    ["0.27.0", true],
-  ])("RC 0.26.0-rc3 with cached latest %s: update notice %s", (latest, expected) => {
-    const root = pluginCopy(readFileSync("skills/ha-nova/index.md", "utf8"));
-    writeFileSync(join(root, "version.json"), JSON.stringify({ skill_version: "0.26.0-rc3", min_relay_version: "0.1.0" }));
-    const home = makeTempDir("ha-nova-hook-home-");
-    mkdirSync(join(home, ".cache", "ha-nova"), { recursive: true });
-    writeFileSync(
-      join(home, ".cache", "ha-nova", "latest-release.json"),
-      JSON.stringify({ version: latest, release_highlights: [{ kind: "feature", text: "Stale stable note" }] }),
-    );
-    const binDir = makeTempDir("ha-nova-hook-bin-");
-    writeFileSync(join(binDir, "ha-nova"), '#!/usr/bin/env bash\ncase "$1" in version) echo "0.26.0-rc3" ;; relay) exit 1 ;; *) exit 0 ;; esac\n', { mode: 0o755 });
-
-    const result = spawnSync("bash", [join(root, "hooks", "session-start")], {
-      encoding: "utf8",
-      timeout: 15000,
-      env: { ...process.env, HOME: home, PATH: `${binDir}:${process.env.PATH ?? ""}` },
-    });
-
-    expect(result.status, result.stderr).toBe(0);
-    const context = JSON.parse(result.stdout.trim()).additional_context as string;
-    expect(context.includes(`UPDATE AVAILABLE: v0.26.0-rc3 -> v${latest}`)).toBe(expected);
-    expect(context.includes("Stale stable note")).toBe(expected);
-  });
-
   it("keeps the SessionStart refresh throttle within the CLI freshness floor", () => {
     // The hook's spawn throttle must stay <= the CLI's release-cache TTL, or a
     // newly published release stays hidden from the session banner until the

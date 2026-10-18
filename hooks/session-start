@@ -104,18 +104,7 @@ if [[ -f "$version_file" ]]; then
     # Read cached latest version (stale is OK — show it now, refresh in background)
     cached_json=$(cat "$update_cache_file" 2>/dev/null || true)
     latest_skill_version=$(extract_json_string "version" "$cached_json")
-    # An RC (X.Y.Z-rcN) is older than its final X.Y.Z: compare the core and
-    # offer the stable release once it reaches that core. An RC ahead of the
-    # latest stable stays silent; its tester opted in.
-    skill_update_available=""
-    if [[ -n "$latest_skill_version" && "$latest_skill_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-      if [[ "${SKILL_VERSION:-}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-        semver_lt "$SKILL_VERSION" "$latest_skill_version" && skill_update_available="1"
-      elif [[ "${SKILL_VERSION:-}" =~ ^([0-9]+\.[0-9]+\.[0-9]+)-rc[1-9][0-9]*$ ]]; then
-        semver_lt "$latest_skill_version" "${BASH_REMATCH[1]}" || skill_update_available="1"
-      fi
-    fi
-    if [[ -n "$skill_update_available" ]]; then
+    if [[ -n "$latest_skill_version" && "$latest_skill_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ && -n "$SKILL_VERSION" ]] && semver_lt "$SKILL_VERSION" "$latest_skill_version"; then
       if command -v ha-nova >/dev/null 2>&1; then
         # A locally dev-synced build (`ha-nova version` reports "local DEV build")
         # must not be nudged to update — that would overwrite the dev tree. The
