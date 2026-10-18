@@ -31,19 +31,18 @@ $ curl -fsSL https://raw.githubusercontent.com/markusleben/ha-nova/main/install.
   ...installs, then starts the wizard...
 
   Which AI client do you use?           > Claude Code (detected)      [Enter]
-  How should this computer connect?     > 1) Local only (recommended)  [Enter]
+  How should this computer connect?     > Local only (recommended)     [Enter]
   Found Home Assistant at homeassistant.local                          [Enter]
-  ✓ NOVA Relay is already running in Home Assistant. Skipping the install step.
 
-  ● ● ○ ○  Step 2 of 4 - Pair this device
+  ● ● ○ ○  Step 2 of 4 – Connect this computer
+  ✓ NOVA App is running
 
-  Sign in with Home Assistant to connect this computer. Your browser opens
-  the Home Assistant login: sign in with the owner's username and password.
-  Home Assistant warns "You're about to give http://127.0.0.1:…/ha-nova
-  access": that is HA NOVA on this computer. This computer gets its own
-  connection, which you can remove in NOVA at any time.
+  Your browser opens Home Assistant: sign in as the owner.
+  (Home Assistant asks to give “http://127.0.0.1:…” access: that's this computer.)
+  Each computer gets its own connection; remove it in NOVA anytime.
 
-  Press Enter to sign in, or type 'code' to use a six-digit code from NOVA:  [Enter]
+  › Sign in with Home Assistant                                        [Enter]
+    Use a six-digit code instead
   Opening Home Assistant in your browser...
   If no browser opened, open this link on this computer: http://homeassistant.local:8123/auth/authorize?…
 
@@ -55,9 +54,9 @@ $ curl -fsSL https://raw.githubusercontent.com/markusleben/ha-nova/main/install.
   ⠋ Checking your sign-in with Home Assistant...
   ✓ Signed in to Home Assistant as Markus (owner)
   ⠋ Connecting this computer...
-  ✓ This computer is connected to NOVA Relay
-  ● ● ● ○  Step 3 of 4 - Verifying connection     ✓
-  ● ● ● ●  Step 4 of 4 - Installing HA NOVA skills ✓
+  ✓ This computer is connected
+  ● ● ● ○  Step 3 of 4 – Verifying connection     ✓
+  ● ● ● ●  Step 4 of 4 – Installing HA NOVA skills ✓
   [completion banner with the first look, see "First look" below]
   ✓ HA NOVA is ready. Start a new Claude Code session and ask about your home.
 ```
@@ -216,7 +215,8 @@ plain message and the typed code (which an owner provides).
 
 Every row prints one line and stays in the same step; address, client, and
 install progress are kept. Retryable rows (canceled, stopped, timed out, wrong
-account, no answer) ask "Press Enter to sign in again, or type 'code' …"; all
+account, no answer) offer the menu again ("Sign in again" / "Use a six-digit
+code instead"; without a terminal: "Press Enter to sign in again, or type 'code' …"); all
 others continue with today's code prompt (`promptToOpenNOVAForPairing`) after
 "Use a six-digit code from NOVA instead."
 

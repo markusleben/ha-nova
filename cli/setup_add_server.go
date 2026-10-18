@@ -222,7 +222,7 @@ func runAddServerStages(
 	renderPairedButUnverified := func() {
 		renderSetupParagraph(out,
 			fmt.Sprintf("The server %q is paired; only the verification could not reach it yet.", name),
-			"Make sure the NOVA Relay App is running, then check with:",
+			"Make sure the NOVA App is running, then check with:",
 			fmt.Sprintf("  ha-nova doctor --server %s", name),
 		)
 	}

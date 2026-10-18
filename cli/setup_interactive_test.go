@@ -86,12 +86,12 @@ func TestInteractiveSetupFreshInstallShowsWizardAndInstallsAntigravitySkills(t *
 		"4) Google Antigravity",
 		"5) Hermes Agent",
 		"Discovering Home Assistant on your network...",
-		"Next, install the NOVA Relay App in your Home Assistant.",
-		"On the NOVA Relay page:",
+		"Your browser opens the NOVA App in Home Assistant (listed as “NOVA Relay”).",
+		`In the browser: sign in and click "Add" if asked, then Install, then Start.`,
 		"NOVA keeps client and Home Assistant access separate",
 		"Standalone Container/Core relays keep HA_LLAT in the server environment; the CLI never asks for it.",
 		`Paste the token into the "Relay Auth Token" field`,
-		"Press Enter after you saved the Relay Auth Token and restarted NOVA Relay",
+		"Press Enter after you saved the Relay Auth Token and restarted the NOVA App",
 		"Setting up HA NOVA for Google Antigravity...",
 		"Setup complete!",
 	} {
@@ -100,9 +100,9 @@ func TestInteractiveSetupFreshInstallShowsWizardAndInstallsAntigravitySkills(t *
 		}
 	}
 	if !strings.Contains(output, "Found Home Assistant at ") &&
-		!strings.Contains(output, "Found Home Assistant via the network name ") &&
-		!strings.Contains(output, "No confirmed Home Assistant found automatically; enter the Home Assistant address manually") &&
-		!strings.Contains(output, "No confirmed Home Assistant found automatically; using your saved address as a starting point:") {
+		!strings.Contains(output, "Found Home Assistant as ") &&
+		!strings.Contains(output, "No Home Assistant found automatically; enter its address.") &&
+		!strings.Contains(output, "No Home Assistant found automatically; starting from your saved address") {
 		t.Fatalf("wizard output missing discovery result:\n%s", output)
 	}
 	discoveryIdx := strings.Index(output, "Discovering Home Assistant on your network...")
@@ -1687,8 +1687,8 @@ func TestInteractiveSetupWSDegradedMentionsUpstreamAuthCause(t *testing.T) {
 	output := stdout + stderr
 	for _, want := range []string{
 		"Home Assistant WebSocket is not connected yet",
-		"NOVA Relay's upstream Home Assistant access was rejected.",
-		"App install: update or restart NOVA Relay. Standalone Container/Core: replace HA_LLAT in the server environment.",
+		"Home Assistant rejected the NOVA App's access.",
+		"Update or restart the NOVA App (standalone container: replace HA_LLAT in its environment).",
 	} {
 		if !strings.Contains(output, want) {
 			t.Fatalf("expected upstream-auth guidance %q in output:\n%s", want, output)
@@ -2419,7 +2419,7 @@ func TestInteractiveSetupFreshHostChangeRoutesBackThroughInstallStepsNotStraight
 	for _, want := range []string{
 		"Change Home Assistant address",
 		"could not be used. Enter a new one.",
-		"Install NOVA Relay in Home Assistant",
+		"Install the NOVA App",
 		"Setup complete!",
 	} {
 		if !strings.Contains(output, want) {
@@ -2518,7 +2518,7 @@ func TestInteractiveSetupFlaggedFreshHostChangeReenablesInstallSteps(t *testing.
 	output := stdout + stderr
 	for _, want := range []string{
 		"Change Home Assistant address",
-		"Install NOVA Relay in Home Assistant",
+		"Install the NOVA App",
 	} {
 		if !strings.Contains(output, want) {
 			t.Fatalf("output missing %q:\n%s", want, output)
@@ -2597,7 +2597,7 @@ func TestInteractiveSetupPastedTokenFreshHostChangeRoutesThroughInstallSteps(t *
 	output := stdout + stderr
 	for _, want := range []string{
 		"Change Home Assistant address",
-		"Install NOVA Relay in Home Assistant",
+		"Install the NOVA App",
 		"Setup complete!",
 	} {
 		if !strings.Contains(output, want) {
@@ -2667,7 +2667,7 @@ func TestInteractiveSetupConnectionRepairMenuOffersFullInstallSteps(t *testing.T
 	output := stdout + stderr
 	for _, want := range []string{
 		"Run the app install steps for this address",
-		"Install NOVA Relay in Home Assistant",
+		"Install the NOVA App",
 		"Keep saved token",
 	} {
 		if !strings.Contains(output, want) {

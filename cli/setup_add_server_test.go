@@ -526,8 +526,8 @@ func TestAddServerFlowSkipsInstallWhenRelayAlreadyRuns(t *testing.T) {
 		t.Fatalf("probed relay %q, want the new server's relay", probedRelay)
 	}
 	if !strings.Contains(output, `Server "cabin" is paired and verified`) ||
-		!strings.Contains(output, "NOVA Relay is already running in Home Assistant. Skipping the install step.") ||
-		strings.Contains(output, "Press Enter when the app is running") {
+		!strings.Contains(output, "NOVA App is running") ||
+		strings.Contains(output, "Press Enter when the App is running") {
 		t.Fatalf("expected pairing without install steps:\n%s", output)
 	}
 }

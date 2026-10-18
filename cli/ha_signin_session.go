@@ -31,7 +31,7 @@ var haSignInStepTimeout = 30 * time.Second
 var (
 	errSignInBrowser    = errors.New("browser sign-in did not complete")
 	errSignInStopped    = errors.New("sign-in stopped")
-	errSignInAppMissing = errors.New("Home Assistant did not find a running NOVA Relay App")
+	errSignInAppMissing = errors.New("Home Assistant did not find a running NOVA App")
 )
 
 // Test seams.

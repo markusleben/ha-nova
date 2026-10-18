@@ -277,10 +277,10 @@ func runSetupPairingFlow(reader *bufio.Reader, out io.Writer, paths runtimePaths
 		case supported:
 			secure = true // a transient first probe recovered — v1 is available now
 		case reachable:
-			renderSetupErrorLine(out, "This NOVA Relay is too old for secure device pairing, and this system has no key store for the legacy shared token. Update the NOVA Relay App to enable secure pairing.")
+			renderSetupErrorLine(out, "This NOVA App is too old for secure device pairing, and this system has no key store for the legacy shared token. Update the NOVA App to enable secure pairing.")
 			return "", fmt.Errorf("relay predates secure pairing and no store is available for the legacy token")
 		default:
-			renderSetupErrorLine(out, "Could not reach NOVA Relay to check secure pairing support. Make sure the NOVA Relay app is running, then run setup again.")
+			renderSetupErrorLine(out, "Could not reach the NOVA App to check secure pairing support. Make sure it is running, then run setup again.")
 			return "", fmt.Errorf("relay not reachable to determine secure pairing support")
 		}
 	}
@@ -295,7 +295,7 @@ func runSetupPairingFlow(reader *bufio.Reader, out io.Writer, paths runtimePaths
 	if secure && haSignInOffered(out, *cfg) {
 		paired, code, err := runHASignInPairingStep(reader, out, paths, cfg, lifecycleMarker...)
 		if paired {
-			renderSetupSuccessLine(out, "This computer is connected to NOVA Relay")
+			renderSetupSuccessLine(out, "This computer is connected")
 			return "", errSetupDevicePaired
 		}
 		if err != nil {
@@ -350,7 +350,7 @@ func runSetupPairingFlow(reader *bufio.Reader, out io.Writer, paths runtimePaths
 			}
 			switch {
 			case perr == nil:
-				renderSetupSuccessLine(out, "This device is paired securely with NOVA Relay")
+				renderSetupSuccessLine(out, "This computer is connected")
 				return "", errSetupDevicePaired
 			case errors.Is(perr, errPairingCodeRejected):
 				renderSetupErrorLine(out, "That code was not accepted. Click \"Connect a device\" in NOVA for a fresh code.")
@@ -367,7 +367,7 @@ func runSetupPairingFlow(reader *bufio.Reader, out io.Writer, paths runtimePaths
 				// box without one, fail now (same guard as up front) rather than
 				// consuming another code that could never be persisted.
 				if legacyTokenStoreUnavailable {
-					renderSetupErrorLine(out, "This NOVA Relay is too old for secure device pairing, and this system has no key store for the legacy shared token. Update the NOVA Relay App to enable secure pairing.")
+					renderSetupErrorLine(out, "This NOVA App is too old for secure device pairing, and this system has no key store for the legacy shared token. Update the NOVA App to enable secure pairing.")
 					return "", fmt.Errorf("relay predates secure pairing mid-flow and no store is available for the legacy token")
 				}
 				secure = false // relay changed under us; fall through to legacy
@@ -392,19 +392,19 @@ func runSetupPairingFlow(reader *bufio.Reader, out io.Writer, paths runtimePaths
 		})
 		switch {
 		case err == nil:
-			renderSetupSuccessLine(out, "This device is paired with NOVA Relay")
+			renderSetupSuccessLine(out, "This computer is connected")
 			return token, nil
 		case errors.Is(err, errRelayPairingRejected):
 			renderSetupErrorLine(out, "That code was not accepted. Refresh NOVA and enter the current code.")
 		case errors.Is(err, errRelayPairingUnsupported):
-			renderSetupErrorLine(out, "This NOVA Relay version does not support pairing yet. Update the App, or type 'manual' to use an explicit relay token.")
+			renderSetupErrorLine(out, "This NOVA App version does not support pairing yet. Update the App, or type 'manual' to use an explicit relay token.")
 		default:
 			var rateLimit *relayPairingRateLimitError
 			if errors.As(err, &rateLimit) {
 				renderSetupErrorLine(out, "Too many pairing attempts. Wait at least %d seconds, then use the current NOVA code.", rateLimit.retryAfterSeconds)
 				continue
 			}
-			return "", renderSetupSecureStorageFailure(out, "Could not pair with NOVA Relay", err)
+			return "", renderSetupSecureStorageFailure(out, "Could not pair with the NOVA App", err)
 		}
 	}
 }

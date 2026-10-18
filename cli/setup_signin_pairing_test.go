@@ -363,13 +363,13 @@ func TestHASignInFallbackLinesStayPlain(t *testing.T) {
 		"Sign-in stopped.":                        errors.Join(errSignInStopped, newCloudError(CloudErrTimeout, "wait", nil)),
 		"No sign-in arrived within five minutes.": errors.Join(errSignInBrowser, newCloudError(CloudErrTimeout, "wait", nil)),
 		"Signed in as Alex, who is not the Home Assistant owner. Only the owner can connect a computer.": errSignInNotOwner,
-		"did not find a running NOVA Relay App":                                                          errors.Join(errSignInAppMissing, newCloudError(CloudErrHAProtocol, "x", nil)),
-		"Your NOVA Relay App does not support sign-in yet":                                               &haSignInPairingError{err: errSignInRelayUnsupported},
-		"NOVA Relay is not ready to connect computers yet":                                               &haSignInPairingError{err: errSignInRelayNotReady},
-		"Connecting through Home Assistant did not finish.":                                              &haSignInPairingError{err: newCloudError(CloudErrPairingRejected, "x", nil)},
-		"answered from a different address":                                                              newCloudError(CloudErrRedirectRejected, "x", nil),
-		"Home Assistant did not answer.":                                                                 newCloudError(CloudErrNetwork, "x", nil),
-		"Could not finish the sign-in with Home Assistant.":                                              newCloudError(CloudErrHAProtocol, "x", nil),
+		"did not find a running NOVA App":                    errors.Join(errSignInAppMissing, newCloudError(CloudErrHAProtocol, "x", nil)),
+		"Your NOVA App does not support sign-in yet":         &haSignInPairingError{err: errSignInRelayUnsupported},
+		"The NOVA App is not ready to connect computers yet": &haSignInPairingError{err: errSignInRelayNotReady},
+		"Connecting through Home Assistant did not finish.":  &haSignInPairingError{err: newCloudError(CloudErrPairingRejected, "x", nil)},
+		"answered from a different address":                  newCloudError(CloudErrRedirectRejected, "x", nil),
+		"Home Assistant did not answer.":                     newCloudError(CloudErrNetwork, "x", nil),
+		"Could not finish the sign-in with Home Assistant.":  newCloudError(CloudErrHAProtocol, "x", nil),
 	}
 	for want, err := range cases {
 		if got := haSignInFallbackLine(err, user); !strings.Contains(got, want) {

@@ -68,7 +68,7 @@ func TestInteractiveSetupReachesPairingWhenLegacyKeyringUnavailable(t *testing.T
 	if strings.Contains(output, "save relay token") {
 		t.Fatalf("wizard surfaced the fatal legacy-token save error instead of pairing:\n%s", output)
 	}
-	for _, want := range []string{"file-backed storage", "Pair this device"} {
+	for _, want := range []string{"file-backed storage", "Connect this computer"} {
 		if !strings.Contains(output, want) {
 			t.Fatalf("wizard output missing %q (did not reach the pairing path):\n%s", want, output)
 		}
@@ -339,7 +339,7 @@ func TestInteractiveSetupPairsStoresTokenAndVerifiesHealthAndWS(t *testing.T) {
 		t.Fatalf("interactiveSetup() exit = %d, want 0\nstdout:\n%s\nstderr:\n%s", exitCode, stdout, stderr)
 	}
 	output := stdout + stderr
-	for _, want := range []string{"Pair this device", "This device is paired", "Relay /ws ping succeeded", "Setup complete!"} {
+	for _, want := range []string{"Connect this computer", "This computer is connected", "NOVA App reachable", "Setup complete!"} {
 		if !strings.Contains(output, want) {
 			t.Fatalf("wizard output missing %q:\n%s", want, output)
 		}
@@ -540,7 +540,7 @@ func TestInteractiveSetupPairedDeviceReRunVerifiesWithoutNewCode(t *testing.T) {
 		saved.RoutePolicy != routePolicyAutomatic {
 		t.Fatalf("saved Cloud config = %+v, err = %v", saved.Cloud, err)
 	}
-	for _, forbidden := range []string{"Six-digit code", "Relay not reachable", "No auth token found"} {
+	for _, forbidden := range []string{"Six-digit code", "NOVA App not reachable", "No auth token found"} {
 		if strings.Contains(output, forbidden) {
 			t.Fatalf("paired re-run must not show %q:\n%s", forbidden, output)
 		}
@@ -619,7 +619,7 @@ func TestInteractiveSetupDeviceVerifyRetryPromptHonorsBackAndExit(t *testing.T) 
 	if exitCode != 0 {
 		t.Fatalf("back at retry prompt: exit = %d, want 0 (cancelled in pairing)\n%s", exitCode, output)
 	}
-	if !strings.Contains(output, "Pair this device") {
+	if !strings.Contains(output, "Connect this computer") {
 		t.Fatalf("'back' must route to the pairing stage:\n%s", output)
 	}
 }

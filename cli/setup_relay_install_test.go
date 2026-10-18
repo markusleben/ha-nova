@@ -99,7 +99,7 @@ func TestDetectInstalledRelayOnlyTrustsTheDerivedAddress(t *testing.T) {
 	probed := stubInstalledRelayProbe(t, true, "")
 	derived := applySelectedSetupHost(runtimeConfig{}, "192.168.1.5", "http://192.168.1.5:8123", "")
 	if running, note := detectInstalledRelay(&strings.Builder{}, runtimePaths{}, derived, ""); !running ||
-		note != "NOVA Relay is already running in Home Assistant. Skipping the install step." {
+		note != "NOVA App is running" {
 		t.Fatalf("derived address: running=%v note=%q", running, note)
 	}
 	if len(*probed) != 1 || (*probed)[0] != "http://192.168.1.5:8791" {
@@ -132,7 +132,7 @@ func TestDetectInstalledRelayHintsUpdateBelowMinimum(t *testing.T) {
 	for version, wantHint := range map[string]bool{"0.8.0": true, "0.9.1": false, "1.0.0": false, "": false} {
 		stubInstalledRelayProbe(t, true, version)
 		_, note := detectInstalledRelay(&strings.Builder{}, paths, cfg, "")
-		if got := strings.Contains(note, "needs v0.9.1 or newer: update NOVA Relay"); got != wantHint {
+		if got := strings.Contains(note, "update to v0.9.1 or newer after setup"); got != wantHint {
 			t.Fatalf("relay %q: update hint = %v, want %v (note %q)", version, got, wantHint, note)
 		}
 	}
@@ -196,12 +196,12 @@ func TestInteractiveSetupSkipsInstallWhenRelayAlreadyRuns(t *testing.T) {
 	}
 	// The note must sit under the pairing step header: every stage starts
 	// with a screen clear, so anything printed before it is lost on a TTY.
-	header := strings.LastIndex(output, "Pair this device")
-	note := strings.Index(output, "NOVA Relay is already running in Home Assistant. Skipping the install step.")
+	header := strings.LastIndex(output, "Connect this computer")
+	note := strings.Index(output, "NOVA App is running")
 	if header < 0 || note < header || !strings.Contains(output, "Six-digit code") {
 		t.Fatalf("skip note must follow the pairing header (header=%d note=%d):\n%s", header, note, output)
 	}
-	for _, unwanted := range []string{"Install NOVA Relay in Home Assistant", "Next, install the NOVA Relay App", "Press Enter when the app is running"} {
+	for _, unwanted := range []string{"Install the NOVA App", "Your browser opens the NOVA App", "Press Enter when the App is running"} {
 		if strings.Contains(output, unwanted) {
 			t.Fatalf("install steps shown although the relay runs (%q):\n%s", unwanted, output)
 		}
@@ -215,8 +215,8 @@ func TestInteractiveSetupShowsOneInstallLinkWhenRelayIsMissing(t *testing.T) {
 	if exitCode != 0 {
 		t.Fatalf("exit = %d\n%s", exitCode, output)
 	}
-	if len(*probed) != 1 || strings.Contains(output, "already running in Home Assistant") ||
-		!strings.Contains(output, "Next, install the NOVA Relay App") ||
+	if len(*probed) != 1 || strings.Contains(output, "NOVA App is running") ||
+		!strings.Contains(output, "Your browser opens the NOVA App") ||
 		!strings.Contains(output, haInstallRelayAppURL(haURL)) ||
 		strings.Contains(output, "supervisor_add_addon_repository") {
 		t.Fatalf("expected the install steps with the one App link:\n%s", output)
@@ -230,7 +230,7 @@ func TestInteractiveSetupNeverSkipsInstallForExplicitRelayURL(t *testing.T) {
 	if exitCode != 0 {
 		t.Fatalf("exit = %d\n%s", exitCode, output)
 	}
-	if len(*probed) != 0 || !strings.Contains(output, "Next, install the NOVA Relay App") {
+	if len(*probed) != 0 || !strings.Contains(output, "Your browser opens the NOVA App") {
 		t.Fatalf("an explicit relay URL must show the install steps (probed %v):\n%s", *probed, output)
 	}
 }
@@ -247,7 +247,7 @@ func TestInteractiveSetupBackFromPairingAfterSkipReturnsToAddress(t *testing.T) 
 	if got := strings.Count(output, "Discovering Home Assistant on your network"); got != 2 {
 		t.Fatalf("back must return to the address step, discovery ran %d times:\n%s", got, output)
 	}
-	if strings.Contains(output, "Next, install the NOVA Relay App") {
+	if strings.Contains(output, "Your browser opens the NOVA App") {
 		t.Fatalf("back must not land on install steps that were never shown:\n%s", output)
 	}
 }

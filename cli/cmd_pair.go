@@ -364,7 +364,7 @@ func runPairCommand(paths runtimePaths, args []string) int {
 		case errors.Is(err, errPairingInactive):
 			printErr("No active code. Open NOVA in the sidebar and click \"Connect a device\" first.")
 		case errors.Is(err, errRelayNotV1):
-			printErr("This relay does not support secure pairing yet. Update the NOVA Relay App.")
+			printErr("This relay does not support secure pairing yet. Update the NOVA App.")
 		case errors.Is(err, errPinMismatch):
 			printErr("The relay's secure identity did not match its fingerprint. Try pairing again; if it repeats, someone may be intercepting the connection.")
 		default:

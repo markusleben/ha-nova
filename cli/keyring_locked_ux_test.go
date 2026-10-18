@@ -171,7 +171,7 @@ func TestInteractiveServiceSetupReachesPairingWithLockedKeyring(t *testing.T) {
 	if strings.Contains(output, "cannot store the device credential") {
 		t.Fatalf("service setup surfaced the locked-keyring storage error:\n%s", output)
 	}
-	if !strings.Contains(output, "Pair this device") {
+	if !strings.Contains(output, "Connect this computer") {
 		t.Fatalf("service setup did not reach the pairing stage:\n%s", output)
 	}
 }
