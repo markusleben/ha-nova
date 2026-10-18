@@ -4,12 +4,14 @@ import (
 	"bufio"
 	"fmt"
 	"io"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
 )
 
 var discoverReachableHAHostsForSetup = discoverReachableHAHosts
+var setupDiscoveryPlatformOS = runtime.GOOS
 
 type setupDiscoveryResult struct {
 	candidates []setupDiscoveryCandidate
@@ -34,6 +36,15 @@ func selectDefaultHAHostWithFeedback(reader *bufio.Reader, out io.Writer, cfg ru
 }
 
 func runSetupDiscoveryWithFeedback(out io.Writer, cfg runtimeConfig) setupDiscoveryResult {
+	// The mDNS search listens on UDP 5353 on every interface (it must: the
+	// answers come from the LAN), so the first run on Windows raises a
+	// firewall prompt. Every other listener is loopback-only.
+	if input, _ := preferredConfiguredHAInput(cfg); input == "" && setupDiscoveryPlatformOS == "windows" {
+		renderSetupParagraph(out,
+			`Windows may now ask whether "ha-nova" may use your network (publisher unknown: HA NOVA isn't code-signed yet).`,
+			"That's this search for Home Assistant. Either answer is fine; if nothing is found, you type the address.",
+		)
+	}
 	if !resolveSetupUISession(out).animatesSpinner() {
 		fmt.Fprintln(out)
 		fmt.Fprintf(out, "  Discovering Home Assistant on your network... (up to %ds)\n", int((setupDiscoveryOverallTimeout+time.Second-1)/time.Second))

@@ -51,7 +51,7 @@ describe("install.ps1 contract", () => {
   it("downloads the Windows bundle and validates bundle.json natively", () => {
     expect(content).toContain("ha-nova-installer-bundle-windows-amd64.zip");
     expect(content).toContain("Windows amd64 bundle only");
-    expect(content).toContain("x64 emulation");
+    expect(content).toContain("-win-x64.zip");
     expect(content).toContain("Expand-Archive");
     expect(content).toContain("bundle.json");
     expect(content).toContain(".sha256");

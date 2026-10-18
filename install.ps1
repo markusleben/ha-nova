@@ -294,7 +294,11 @@ function Get-PlatformArch {
   }
 
   if ($arch -eq "ARM64") {
-    Fail "HA NOVA currently ships a Windows amd64 bundle only. On Windows ARM64, use x64 emulation."
+    # Verified on Windows 11 ARM64: the x64 PowerShell ZIP runs under emulation and passes this check.
+    Fail ("This PowerShell is the ARM version, and HA NOVA ships a Windows amd64 bundle only. Windows 11 on ARM runs it from the x64 PowerShell, which needs no install:" +
+      "`n       1. Download the file ending in -win-x64.zip from https://github.com/PowerShell/PowerShell/releases/latest" +
+      "`n       2. Right-click it, choose 'Extract All', then open the extracted folder." +
+      "`n       3. Double-click pwsh.exe and paste the HA NOVA install command into that window.")
   }
 
   if ($arch -eq "x86") {

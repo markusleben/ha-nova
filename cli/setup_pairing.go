@@ -231,11 +231,7 @@ func runSetupPairingFlow(reader *bufio.Reader, out io.Writer, paths runtimePaths
 		)
 	})
 	if guardErr != nil {
-		renderSetupErrorLine(
-			out,
-			"Local pairing cannot start: %s",
-			guardErr,
-		)
+		renderSetupSecureStorageFailure(out, "Local pairing cannot start", guardErr)
 		return "", guardErr
 	}
 	// Storage first: never send the user to fetch a one-time code that a broken
@@ -257,7 +253,7 @@ func runSetupPairingFlow(reader *bufio.Reader, out io.Writer, paths runtimePaths
 		return err
 	})
 	if probeErr != nil {
-		renderSetupErrorLine(out, "This system cannot store the device credential yet: %s", probeErr)
+		renderSetupSecureStorageFailure(out, "This system cannot store the device credential yet", probeErr)
 		return "", fmt.Errorf("device credential storage unavailable: %w", probeErr)
 	}
 	if probe.note != "" {
@@ -292,7 +288,7 @@ func runSetupPairingFlow(reader *bufio.Reader, out io.Writer, paths runtimePaths
 
 	if secure {
 		if err := prepareSecurePairingClientInstallID(paths, cfg, lifecycleMarker...); err != nil {
-			renderSetupErrorLine(out, "Could not prepare this device before pairing: %s", err)
+			renderSetupSecureStorageFailure(out, "Could not prepare this device before pairing", err)
 			return "", err
 		}
 	}
@@ -383,7 +379,7 @@ func runSetupPairingFlow(reader *bufio.Reader, out io.Writer, paths runtimePaths
 					renderSetupErrorLine(out, "Too many attempts. Wait at least %d seconds, then use the current code.", rateLimit.retryAfterSeconds)
 					continue
 				}
-				renderSetupErrorLine(out, "Could not pair: %s", perr)
+				renderSetupSecureStorageFailure(out, "Could not pair", perr)
 				return "", perr
 			}
 		}
@@ -411,7 +407,7 @@ func runSetupPairingFlow(reader *bufio.Reader, out io.Writer, paths runtimePaths
 				renderSetupErrorLine(out, "Too many pairing attempts. Wait at least %d seconds, then use the current NOVA code.", rateLimit.retryAfterSeconds)
 				continue
 			}
-			renderSetupErrorLine(out, "Could not pair with NOVA Relay: %s", err)
+			renderSetupSecureStorageFailure(out, "Could not pair with NOVA Relay", err)
 			return "", err
 		}
 	}

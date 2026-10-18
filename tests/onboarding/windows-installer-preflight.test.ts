@@ -181,7 +181,7 @@ Invoke-WindowsInstallerPreflight
     expect(result.output).not.toContain("Architecture check must not run");
   });
 
-  it("fails a native ARM64 process with the x64-emulation recovery", () => {
+  it("fails a native ARM64 process with concrete x64 PowerShell steps", () => {
     if (!hasPowerShell()) return;
     const result = runPreflightProbe(`${supportedRuntime}
 $env:PROCESSOR_ARCHITECTURE = "ARM64"
@@ -189,7 +189,9 @@ Invoke-WindowsInstallerPreflight
 `);
     expect(result.status).not.toBe(0);
     expect(result.output).toContain("Windows amd64 bundle only");
-    expect(result.output).toContain("use x64 emulation");
+    expect(result.output).toContain("-win-x64.zip");
+    expect(result.output).toContain("https://github.com/PowerShell/PowerShell/releases/latest");
+    expect(result.output).toContain("Double-click pwsh.exe");
   });
 
   it("fails a 32-bit process with a 64-bit PowerShell recovery", () => {

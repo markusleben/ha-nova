@@ -50,7 +50,7 @@ func TestRelayAuthTokenProblemMessageDifferentiatesMissingAndUnavailable(t *test
 	}
 	// Windows network logon sessions (issue #213): the raw Credential
 	// Manager text must classify with local-session guidance.
-	if got := relayAuthTokenProblemMessage(errors.New("cannot save relay token: A specified logon session does not exist. It may already have been terminated.")); got != "secure storage unavailable in this Windows session (network logon, for example SSH); run HA NOVA from a local interactive session (console or RDP) on this machine, and then run: ha-nova setup" {
+	if got := relayAuthTokenProblemMessage(errors.New("cannot save relay token: A specified logon session does not exist. It may already have been terminated.")); got != "secure storage isn't available in this Windows session (for example over SSH); open a normal terminal on this computer's desktop and run: ha-nova setup" {
 		t.Fatalf("windows-network-logon message = %q", got)
 	}
 	if got := relayAuthTokenProblemMessage(errors.New("exec: \"dbus-launch\": executable file not found in $PATH")); got != "secure storage unavailable in this Linux session; run HA NOVA from a terminal inside the Linux desktop session on this machine, and then run: ha-nova setup" {
@@ -106,7 +106,7 @@ func TestRelayAuthTokenSetupSaveErrorExplainsWindowsNetworkLogonSession(t *testi
 	// Issue #213: Credential Manager writes fail in network logon sessions
 	// (PowerShell over OpenSSH) with this raw OS text.
 	err := relayAuthTokenSetupSaveError(errors.New("A specified logon session does not exist. It may already have been terminated."))
-	want := "cannot save relay token: secure storage unavailable in this Windows session (network logon, for example SSH). Run HA NOVA from a local interactive session (console or RDP) on this machine, and rerun `ha-nova setup`"
+	want := "cannot save relay token: secure storage isn't available in this Windows session (for example over SSH). Open a normal terminal on this computer's desktop and rerun `ha-nova setup`"
 	if err == nil || err.Error() != want {
 		t.Fatalf("relayAuthTokenSetupSaveError() = %v, want %q", err, want)
 	}
