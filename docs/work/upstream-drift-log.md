@@ -311,3 +311,61 @@ stopped.
 - Note — Shelly multi-channel and ESPHome sub-devices link with
   `via_device_id`, not `parent_device_id`; the sibling check does not follow
   hub links (every Z-Wave/Zigbee node links to its controller).
+
+## 2026-10-17 — pre-release screen (v0.26.0-rc2 cycle): HA 2026.10.2 + developer blog + HACS
+
+- Window screened: Core 2026.10.2 (2026-10-16); 2026.10 release post
+  re-read (backward-incompatible list unchanged since the 2026-10-15 entry;
+  patch sections 2026.10.1/2026.10.2); developer-blog posts after 2026-10-12
+  through 2026-10-16, plus 2026-10-10 (listed now, missing from the
+  2026-10-15 entry); HACS releases after 2.0.5.
+- HIT (P2) — 2026.10.2 #186165 "Allow a list of states for state
+  conditions with a duration" partly reverts #174083: `for` + a state list
+  validates again (the entity must stay in one of the listed states for the
+  whole duration; switching between listed states restarts it). `for` +
+  `attribute` and `for` + a state from another entity stay rejected.
+  `skills/ha-nova/automation-patterns.md:133` still forbids the list case
+  for all of 2026.10. Fix: narrow the line to attribute/other-entity and
+  note the list case fails on 2026.10.0–2026.10.1 only.
+- CLEAN — 2026.10.2 #186558 (removing a user revokes its refresh tokens and
+  closes its WebSocket connections): `config/auth/delete` request/response
+  unchanged; admin skill's preview flow holds.
+- CLEAN — 2026.10.2 #186398 guards owner accounts and existing credentials in
+  `config/auth_provider/homeassistant/create`; no skill or
+  `cli/relay_raw_allow.go` entry pins that command (`config/auth/create`
+  stays credential-free).
+- CLEAN — 2026.10.2 MQTT device triggers/tags firing twice after reload
+  (#185998), Alexa re-link handling on cloud entity registry updates
+  (#185894; no cloud domain or WS type change), frontend 20260930.4, and the
+  remaining integration fixes/dependency bumps: no pinned WS/REST contract
+  change. Cloud → Link rename stays UI-only (handled in #722).
+- CLEAN — `cli/relay_raw_allow.go`: no listed WS type renamed or removed in
+  2026.10.2 (2026.10.1 ZHA change is the reconfigure subscription, not
+  `zha/devices`).
+- CLEAN — dev-blog 2026-10-10 "Update entities can customize update
+  availability" (Core 2026.11): new `has_update` entity property; no wire
+  change. `skills/updates/SKILL.md` already reads pending from
+  `state: "on"`, never from comparing versions.
+- CLEAN — dev-blog 2026-10-13 "DeviceInfo is now a dataclass" (Core 2026.11):
+  Python integration API only; `via_device` removal 2027.8, other legacy
+  `DeviceInfo` keys 2027.9; WS `config/device_registry/*` not described as
+  changed.
+- CLEAN — dev-blog 2026-10-16 "A new home for every contributor": developer
+  docs, design and data portals merge into contributors.home-assistant.io;
+  old URLs redirect (developers.home-assistant.io/blog/ → 301). No skill links
+  the old domains (grep-clean); future screens use the new blog URL.
+- CLEAN — no HACS release after 2.0.5.
+- Sources: github.com/home-assistant/core/releases/tag/2026.10.2;
+  github.com/home-assistant/core/pull/186165;
+  github.com/home-assistant/core/pull/186398;
+  github.com/home-assistant/core/pull/186558;
+  github.com/home-assistant/core/pull/185894;
+  home-assistant.io/blog/2026/10/07/release-202610/;
+  contributors.home-assistant.io/blog/2026/10/10/update-entity-update-availability/;
+  contributors.home-assistant.io/blog/2026/10/13/device-info-class/;
+  contributors.home-assistant.io/blog/2026/10/16/a-new-home-for-every-contributor/;
+  github.com/hacs/integration/releases.
+- Next window starts AFTER HA 2026.10.2 + dev-blog 2026-10-16 + HACS 2.0.5;
+  watch the 2026.11 items (`temperature_unit`, in-place `entity_id` renames,
+  `has_update`, `DeviceInfo` dataclass), the deferred lawn-mower `idle`
+  bucket, and the legacy device-registry removal command for 2027.9.

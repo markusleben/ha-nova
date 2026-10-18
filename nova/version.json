@@ -1,6 +1,6 @@
 {
   "skill_version": "0.26.0",
-  "min_relay_version": "0.9.1",
+  "min_relay_version": "0.10.0",
   "cloud_remote_enabled": true,
   "cloud_remote_platforms": [
     "darwin",
