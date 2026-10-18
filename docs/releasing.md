@@ -212,10 +212,11 @@ dedicated Windows test machine keeps one standing, pre-authorized `smoke`
 profile (#584) that is exempt from `cloud remove`; every other profile is
 throwaway. From 0.26.0 (not rc1-rc3) every profile except `default` pairs
 under its own device identity, so a throwaway `smoke-…` profile no longer
-disconnects `default` or `smoke` on the same Relay. Still unsafe: a profile
-last paired by an older binary keeps the `default` identity, and pairing either
-one replaces the other. Re-pair `smoke` once with a fixed binary before the
-first throwaway run.
+disconnects `default` or `smoke` on the same Relay. Still unsafe until `smoke`
+is paired again by a fixed binary: pairing `default`, or any profile with an
+older binary, drops `smoke`. Pairing `smoke` again means `cloud remove --server
+smoke` plus `cloud add` (a maintainer step). A throwaway run that fails before
+`cloud remove` leaves its device listed; revoke it on the NOVA page.
 
 ## 7. Release Channels and Post-Publish Verification
 

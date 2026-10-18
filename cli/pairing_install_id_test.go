@@ -37,7 +37,7 @@ func TestPairingClientInstallIDIsPerProfile(t *testing.T) {
 	if err != nil || !validIdentifier(longest, 128) {
 		t.Fatalf("longest profile name: %q, %v", longest, err)
 	}
-	if _, err := pairingClientInstallID(strings.Repeat("i", 128), "cabin"); !errors.Is(err, errInvalidClientInstallID) {
+	if _, err := pairingClientInstallID(strings.Repeat("i", 128), "cabin"); err == nil || errors.Is(err, errInvalidClientInstallID) {
 		t.Fatalf("over-long derived id must fail loud, got %v", err)
 	}
 	if _, err := pairingClientInstallID(install, "Bad Name"); err == nil {
@@ -98,8 +98,10 @@ func TestLinkOwnerPairingSendsProfileScopedInstallID(t *testing.T) {
 	}
 }
 
-// Real Relay registry: pairing a second profile against the same Relay must not
-// drop the first profile's device. Runs in the pairing-e2e workflow.
+// Real Relay registry: a profile paired by an older binary (plain install id)
+// re-pairs without leaving its old device active, and pairing `default`
+// afterwards keeps the second profile connected. Runs in the pairing-e2e
+// workflow.
 func TestSecondProfilePairingKeepsFirstDeviceEndToEnd(t *testing.T) {
 	harness := os.Getenv("HA_NOVA_PAIR_E2E_HARNESS")
 	if harness == "" {
@@ -140,12 +142,47 @@ func TestSecondProfilePairingKeepsFirstDeviceEndToEnd(t *testing.T) {
 	}
 	readInfo(&info)
 	bootstrapURL := fmt.Sprintf("http://127.0.0.1:%d", info.BootstrapPort)
+	nextCode := func() string {
+		t.Helper()
+		if _, err := io.WriteString(stdin, "next\n"); err != nil {
+			t.Fatal(err)
+		}
+		var next struct {
+			Code string `json:"code"`
+		}
+		readInfo(&next)
+		return next.Code
+	}
+	const install = "inst-e2e"
+	functional := func(cfg runtimeConfig, credential string) int {
+		t.Helper()
+		return securedFunctional(t, cfg.RelaySecureBaseURL, cfg.RelaySpkiPin, credential)
+	}
 
-	pair := func(profile, code string) (runtimeConfig, string) {
+	// An older binary paired `cabin` under the plain install id.
+	setActiveServerProfile("cabin")
+	legacy, err := pairDeviceV1(nil, bootstrapURL, info.Code, deviceMetadata{
+		Name: "legacy", Platform: "darwin", Client: "cli", ClientInstallID: install,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	legacyCfg := runtimeConfig{
+		ClientInstallID:    install,
+		RelaySecureBaseURL: fmt.Sprintf("https://127.0.0.1:%d", legacy.SecurePort),
+		RelaySpkiPin:       legacy.SpkiPin,
+	}
+	if err := activateDeviceV1(legacyCfg.RelaySecureBaseURL, legacy.SpkiPin, legacy.Credential); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeDeviceCredential(legacy.Credential); err != nil {
+		t.Fatal(err)
+	}
+
+	pair := func(profile string, cfg runtimeConfig) (runtimeConfig, string) {
 		t.Helper()
 		setActiveServerProfile(profile)
-		cfg := runtimeConfig{ClientInstallID: "inst-e2e"}
-		if _, err := runSecurePairing(bootstrapURL, code, &cfg,
+		if _, err := runSecurePairing(bootstrapURL, nextCode(), &cfg,
 			func(*runtimeConfig) error { return nil }, defaultPairingClientInfo()); err != nil {
 			t.Fatalf("pair %s: %v", profile, err)
 		}
@@ -155,21 +192,56 @@ func TestSecondProfilePairingKeepsFirstDeviceEndToEnd(t *testing.T) {
 		}
 		return cfg, credential
 	}
-	defaultCfg, defaultCredential := pair(defaultServerProfileName, info.Code)
+	cabinCfg, cabinCredential := pair("cabin", legacyCfg)
+	if code := functional(legacyCfg, legacy.Credential); code != http.StatusUnauthorized {
+		t.Fatalf("legacy cabin device still active after re-pair: %d", code)
+	}
+	defaultCfg, defaultCredential := pair(defaultServerProfileName, runtimeConfig{ClientInstallID: install})
 
-	if _, err := io.WriteString(stdin, "next\n"); err != nil {
-		t.Fatal(err)
+	if code := functional(cabinCfg, cabinCredential); code != http.StatusOK {
+		t.Fatalf("cabin lost its device when default paired: %d", code)
 	}
-	var next struct {
-		Code string `json:"code"`
+	if code := functional(defaultCfg, defaultCredential); code != http.StatusOK {
+		t.Fatalf("default functional: %d", code)
 	}
-	readInfo(&next)
-	cabinCfg, cabinCredential := pair("cabin", next.Code)
+}
 
-	if code := securedFunctional(t, defaultCfg.RelaySecureBaseURL, defaultCfg.RelaySpkiPin, defaultCredential); code != http.StatusOK {
-		t.Fatalf("default profile lost its device after the second pairing: %d", code)
+func TestRepairRetiresPreviousDeviceOnlyOnSameRelay(t *testing.T) {
+	t.Setenv("HA_NOVA_ALLOW_INSECURE_TEST_KEYRING", "1")
+	resetServerProfileSelection(t)
+	old, replacement := validCredential(21), validCredential(22)
+	newID := parseDeviceCredential(replacement).deviceID
+
+	var revoked []string
+	previousRevoke := revokeSelfDeviceV1ForPairing
+	revokeSelfDeviceV1ForPairing = func(base, pin, credential string) error {
+		revoked = append(revoked, base+"|"+pin+"|"+credential)
+		return nil
 	}
-	if code := securedFunctional(t, cabinCfg.RelaySecureBaseURL, cabinCfg.RelaySpkiPin, cabinCredential); code != http.StatusOK {
-		t.Fatalf("second profile functional: %d", code)
+	t.Cleanup(func() { revokeSelfDeviceV1ForPairing = previousRevoke })
+
+	cfg := runtimeConfig{RelaySecureBaseURL: "https://ha:8792", RelaySpkiPin: "PIN"}
+	for _, tc := range []struct {
+		name, profile, newPin, newID string
+		want                         int
+	}{
+		{"named profile, same Relay", "cabin", "PIN", newID, 1},
+		{"other Relay", "cabin", "OTHER", newID, 0},
+		{"same device", "cabin", "PIN", parseDeviceCredential(old).deviceID, 0},
+		{"default relies on Relay replacement", defaultServerProfileName, "PIN", newID, 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv("HA_NOVA_TEST_SECRET_DIR", t.TempDir())
+			revoked = nil
+			setActiveServerProfile(tc.profile)
+			if err := writeDeviceCredential(old); err != nil {
+				t.Fatal(err)
+			}
+			readPreviousLocalDevice(cfg, SecretStoreForbidUI).retireOnSameRelay(tc.newID, tc.newPin)
+			if len(revoked) != tc.want ||
+				(tc.want == 1 && revoked[0] != "https://ha:8792|PIN|"+old) {
+				t.Fatalf("revoked = %q, want %d call(s)", revoked, tc.want)
+			}
+		})
 	}
 }

@@ -2,6 +2,9 @@ package main
 
 import "context"
 
+// runSecurePairing pairs against the relay's bootstrap URL using the one-time
+// code, then activates and promotes. It persists the secure endpoint + pin via
+// saveCfg. Returns the device id on success.
 func runSecurePairing(
 	bootstrapURL, code string,
 	cfg *runtimeConfig,

@@ -132,7 +132,10 @@ func pairingClientInstallID(installID, profile string) (string, error) {
 	}
 	id := installID + "-" + profile
 	if !validIdentifier(id, 128) {
-		return "", fmt.Errorf("%w: too long for server profile %q", errInvalidClientInstallID, profile)
+		return "", fmt.Errorf(
+			"server profile %q cannot pair: its name is too long for this computer's install id; add the server under a shorter name",
+			profile,
+		)
 	}
 	return id, nil
 }

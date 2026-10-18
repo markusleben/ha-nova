@@ -40,9 +40,6 @@ func defaultPairingClientInfo() pairingClientInfo {
 	return pairingClientInfo{name: hostLabel(), platform: runtime.GOOS, client: "cli"}
 }
 
-// runSecurePairing pairs against the relay's bootstrap URL using the one-time
-// code, then activates and promotes. It persists the secure endpoint + pin via
-// saveCfg. Returns the device id on success.
 // Test seams so the pairing orchestration can be exercised without a live relay.
 var pairDeviceV1ForPairing = pairDeviceV1
 var activateDeviceV1ForPairing = activateDeviceV1
@@ -84,13 +81,11 @@ func runSecurePairingWithProvisioner(
 	if err != nil {
 		return "", fmt.Errorf("cannot store a device credential on this system (the code was not used): %w", err)
 	}
-	installID, err := getOrCreateClientInstallID(cfg, saveCfg)
-	if err == nil {
-		installID, err = pairingClientInstallID(installID, activeServerProfile())
-	}
+	installID, err := profilePairingInstallID(cfg, saveCfg)
 	if err != nil {
 		return "", fmt.Errorf("could not establish an install id: %w", err)
 	}
+	previous := readPreviousLocalDevice(*cfg, pairingUI)
 
 	prov, err := provision(deviceMetadata{
 		Name:            info.name,
@@ -150,6 +145,7 @@ func runSecurePairingWithProvisioner(
 	if err := activateDeviceV1ForPairing(secureBase, prov.SpkiPin, prov.Credential); err != nil {
 		return "", fmt.Errorf("could not activate the new device: %w", err)
 	}
+	previous.retireOnSameRelay(prov.DeviceID, prov.SpkiPin)
 
 	// Save the live endpoint BEFORE promoting the credential (which deletes the
 	// pending slot), and keep the pending endpoint until after promotion. A crash
