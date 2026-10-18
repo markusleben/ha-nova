@@ -313,7 +313,7 @@ func launchWindowsUninstall(
 			err,
 		)
 	}
-	tempHelper, err := stageWindowsHelperCopy(paths, windowsUninstallHelperPrefix)
+	tempHelper, err := stageWindowsHelperCopy(paths, windowsUninstallHelperPrefix, "")
 	if err != nil {
 		_ = os.Remove(tempHelper)
 		return failWindowsUninstallStatus(paths, status, "bundle_runtime_cleanup", err)

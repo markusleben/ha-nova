@@ -52,13 +52,22 @@ func TestSweepStaleWindowsHelpersRemovesOldLeftoversOnly(t *testing.T) {
 		t.Fatal(err)
 	}
 	stale = append(stale, stageDir)
+	// This run's own staged bundle survives however old it is.
+	ownStage := filepath.Join(tmp, "ha-nova-stage-own")
+	if err := os.MkdirAll(filepath.Join(ownStage, "ha-nova"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chtimes(ownStage, old, old); err != nil {
+		t.Fatal(err)
+	}
 	kept := []string{
 		write("ha-nova-helper-3.exe", time.Now()), // another run's fresh copy
 		write("ha-nova-helper-4.txt", old),
 		write("other-updater-5.exe", old),
+		ownStage,
 	}
 
-	sweepStaleWindowsHelpers()
+	sweepStaleWindowsHelpers(filepath.Join(ownStage, "ha-nova"))
 
 	for _, path := range stale {
 		if _, err := os.Stat(path); !os.IsNotExist(err) {

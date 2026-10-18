@@ -317,7 +317,7 @@ func buildWindowsReplaceCommand(paths runtimePaths, tempHelper, stageRoot string
 }
 
 func launchWindowsReplace(paths runtimePaths, stageRoot string, lifecycleMarker []byte) error {
-	tempHelper, err := stageWindowsHelperCopy(paths, windowsUpdateHelperPrefix)
+	tempHelper, err := stageWindowsHelperCopy(paths, windowsUpdateHelperPrefix, stageRoot)
 	if err != nil {
 		_ = os.Remove(tempHelper)
 		cleanupStagedBundle(stageRoot)

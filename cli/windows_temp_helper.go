@@ -25,9 +25,10 @@ const (
 var legacyWindowsHelperPrefixes = []string{"ha-nova-updater-", "ha-nova-uninstall-"}
 
 // stageWindowsHelperCopy copies the installed CLI to %TEMP%\<prefix><pid>.exe
-// after sweeping what earlier runs left there.
-func stageWindowsHelperCopy(paths runtimePaths, prefix string) (string, error) {
-	sweepStaleWindowsHelpers()
+// after sweeping what earlier runs left there. keepStageRoot is this run's own
+// staged bundle (may be ""): its age says nothing about being abandoned.
+func stageWindowsHelperCopy(paths runtimePaths, prefix, keepStageRoot string) (string, error) {
+	sweepStaleWindowsHelpers(keepStageRoot)
 	helper := filepath.Join(os.TempDir(), prefix+strconv.Itoa(os.Getpid())+".exe")
 	return helper, copyFile(filepath.Join(paths.InstallRoot, publicBinaryName()), helper)
 }
@@ -36,14 +37,18 @@ func stageWindowsHelperCopy(paths runtimePaths, prefix string) (string, error) {
 // earlier update or uninstall left in %TEMP% (best effort). Windows keeps a
 // running helper's image locked, and the age floor spares a copy another
 // process has just made but not started yet.
-func sweepStaleWindowsHelpers() {
+func sweepStaleWindowsHelpers(keepStageRoot string) {
 	dir := os.TempDir()
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return
 	}
+	keep := ""
+	if keepStageRoot != "" {
+		keep = filepath.Base(filepath.Dir(keepStageRoot))
+	}
 	for _, entry := range entries {
-		if !isWindowsHelperLeftover(entry) {
+		if !isWindowsHelperLeftover(entry) || entry.Name() == keep {
 			continue
 		}
 		info, err := entry.Info()
