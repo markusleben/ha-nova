@@ -89,7 +89,10 @@ func TestPurgeSecureStorageSessionErrorOnlyForUnreachableSessions(t *testing.T) 
 
 // The checks the detached Windows helper would fail on run in the terminal.
 func TestValidatePurgeBeforeWindowsHandoffReportsHelperFailures(t *testing.T) {
-	withDeviceStorageTestHome(t)
+	home := withDeviceStorageTestHome(t)
+	// No relay token stored; keeps the read off a real Secret Service on Linux CI.
+	t.Setenv("HA_NOVA_ALLOW_INSECURE_TEST_KEYRING", "1")
+	t.Setenv("HA_NOVA_TEST_KEYRING_FILE", home+"/no-relay-token")
 	paths, err := detectPaths()
 	if err != nil {
 		t.Fatal(err)
