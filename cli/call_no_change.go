@@ -1,18 +1,52 @@
 package main
 
-import "strings"
+import (
+	"errors"
+	"strings"
+)
 
 // noChangeServices: the actions `call` may skip when every target already
-// reads as their end state. Each one is the access direction, where a stale
+// reads as their end state — full effective services, so a custom
+// integration's own "unlock" never qualifies. Each one is the access direction, where a stale
 // state costs the user one more step (next_step: plan call, which never
 // skips), never security; the securing direction (lock, close, arm,
 // turn_off) and anything without a fixed end state (toggle, scripts,
 // buttons, lock.open) always runs. turn_on only where Home Assistant owns the
 // state itself: a light or switch "on" can be a hardware group with members
 // off, or a securing switch (guard mode, child lock).
-var noChangeServices = map[string]bool{"unlock": true, "open_cover": true, "alarm_disarm": true}
+var noChangeServices = map[string]bool{"lock.unlock": true, "cover.open_cover": true, "alarm_control_panel.alarm_disarm": true,
+	"input_boolean.turn_on": true, "automation.turn_on": true}
 
-var noChangeTurnOn = map[string]bool{"input_boolean": true, "automation": true}
+// noChangeCall is the call path's no-op check: before a plan is stored, and
+// also when only the confirmation channel (an unreachable phone) or Home
+// Assistant's own code (CODE_REQUIRED) stands in the way — nothing would be
+// sent, so neither is needed. true: env is the no_change result.
+func noChangeCall(e *tierEngine, env *verbEnvelope, req planCallRequest, err error) bool {
+	var failure *verbFailure
+	errors.As(err, &failure)
+	probe := *env
+	switch {
+	case e == nil:
+		return false
+	case err == nil && env.Action != nil && e.level != tierOrdinary:
+	case failure != nil && failure.code == "CONFIRM_UNAVAILABLE" && env.Action != nil:
+	case failure != nil && failure.code == "REFUSED" && len(env.Reasons) == 1 && env.Reasons[0].Code == reasonCodeRequired:
+		ids := []string{}
+		for _, t := range env.Resolved {
+			ids = append(ids, t.EntityID)
+		}
+		probe.Action = &planAction{Service: req.Service, EntityIDs: ids, Data: req.Data}
+		probe.Deltas = planDeltas(req.Service, ids, req.Data, e.states)
+	default:
+		return false
+	}
+	if !alreadyDone(e, &probe, *probe.Action) {
+		return false
+	}
+	markNoChange(e, &probe, *probe.Action)
+	*env = probe
+	return true
+}
 
 // alreadyDone: every frozen target of the call already reads, fresh from
 // Home Assistant in this session, as the state the action ends in, so there
@@ -23,18 +57,17 @@ var noChangeTurnOn = map[string]bool{"input_boolean": true, "automation": true}
 // call_service listener (it reacts to the call itself, not to a state
 // change) keeps the normal path.
 func alreadyDone(e *tierEngine, env *verbEnvelope, action planAction) bool {
-	serviceDomain, _ := splitID(action.Service)
+	listeners := e.liveEvents()["call_service"] // first: a failed read clears e.complete
 	if len(action.EntityIDs) == 0 || len(action.Data) > 0 || action.Response || !e.complete || len(e.skipped) > 0 ||
-		e.liveEvents()["call_service"] > callServiceListenerBaseline {
+		listeners > callServiceListenerBaseline {
 		return false
 	}
 	for _, id := range action.EntityIDs {
 		domain, _ := splitID(id)
-		_, name := splitID(effectiveService(action.Service, domain))
+		effective := effectiveService(action.Service, domain)
 		st := e.states[id]
 		// assumed_state: Home Assistant only guesses it (RF, optimistic templates), so the device may differ.
-		if st == nil || !(noChangeServices[name] || name == "turn_on" && noChangeTurnOn[domain]) || st.attr("assumed_state") == true ||
-			(serviceDomain != domain && serviceDomain != "homeassistant") {
+		if st == nil || !noChangeServices[effective] || !strings.HasPrefix(effective, domain+".") || st.attr("assumed_state") == true {
 			return false
 		}
 		if position, set := st.Attributes["current_position"]; domain == "cover" && set && position != 100.0 { // "open" covers 1–99 % too
@@ -73,7 +106,6 @@ func markNoChange(e *tierEngine, env *verbEnvelope, action planAction) {
 	}
 	*env = verbEnvelope{SchemaVersion: env.SchemaVersion, Verb: env.Verb, Server: env.Server, Status: "no_change",
 		Resolved: env.Resolved, Deltas: env.Deltas,
-		Say: sayList(names) + is + " already " + after + "; nothing to do.",
-		NextStep: "Relay `say` only. If the user says it is not so (Home Assistant can miss a manual change), run ha-nova plan call " +
-			action.Service + " " + strings.Join(action.EntityIDs, " ") + ", show its preview, and apply only after their confirmation."}
+		Say:      sayList(names) + is + " already " + after + "; nothing to do.",
+		NextStep: "Relay `say` only. If the user says it is not so (Home Assistant can miss a manual change), run the same request with ha-nova plan call instead of call (same targets, --area, --device, or --match), show its preview, and apply only after their confirmation."}
 }

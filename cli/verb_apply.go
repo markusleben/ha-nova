@@ -54,12 +54,7 @@ var reauthSettle = 2 * time.Second
 func runCallCommand(paths runtimePaths, args []string) int {
 	return runCallVerb(paths, "call", "call", callHelp, args, func(s *relaySession, env *verbEnvelope, req planCallRequest) error {
 		e, plan, err := computeCallPlan(s, env, req)
-		// Nothing to confirm (call_no_change.go) — checked before an error too:
-		// an unreachable confirmation phone must not block a call that sends nothing.
-		var failure *verbFailure
-		unavailable := errors.As(err, &failure) && failure.code == "CONFIRM_UNAVAILABLE"
-		if e != nil && env.Action != nil && e.level != tierOrdinary && (err == nil || unavailable) && alreadyDone(e, env, *env.Action) {
-			markNoChange(e, env, *env.Action)
+		if noChangeCall(e, env, req, err) { // nothing to confirm or send (call_no_change.go)
 			return nil
 		}
 		if err != nil {

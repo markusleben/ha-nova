@@ -38,7 +38,7 @@ func TestCallPartlyAtTargetPlansEveryTarget(t *testing.T) {
 	f.states["lock.front"]["state"] = "unlocked"
 	exit, env = h.run(runCallCommand, "lock.unlock", "lock.front", "lock.back")
 	if exit != 0 || env.Status != "no_change" || env.Say != "“lock.front” and “Back Door” are already unlocked; nothing to do." ||
-		!strings.Contains(env.NextStep, "ha-nova plan call lock.unlock lock.front lock.back") {
+		!strings.Contains(env.NextStep, "same request with ha-nova plan call instead of call") {
 		t.Fatalf("all unlocked: exit %d env %+v", exit, env)
 	}
 	// The way out when Home Assistant missed a manual change: plan call never skips.
@@ -125,6 +125,7 @@ func TestAlreadyDoneOnlyForSafeKnownEndStates(t *testing.T) {
 		{"unread state", "lock.unlock", map[string]*entityState{"lock.a": nil}, nil, false},
 		{"unlocking in progress", "lock.unlock", map[string]*entityState{"lock.a": st("unlocking", nil)}, nil, false},
 		{"assumed state (RF, optimistic)", "lock.unlock", map[string]*entityState{"lock.a": st("unlocked", map[string]any{"assumed_state": true})}, nil, false},
+		{"a custom integration's own unlock", "foo.unlock", map[string]*entityState{"foo.a": st("unlocked", nil)}, nil, false},
 		{"one of two", "lock.unlock", map[string]*entityState{"lock.a": st("unlocked", nil), "lock.b": st("locked", nil)}, nil, false},
 	}
 	for _, c := range cases {
@@ -207,5 +208,23 @@ func TestWindowConfirmedThenAlreadyDone(t *testing.T) {
 	}
 	if title, line := phoneApplyResult(verbEnvelope{Status: "no_change"}, verbExitOK); title != "Already done" || !strings.Contains(line, "nothing was sent") {
 		t.Fatalf("phone: %q %q", title, line)
+	}
+}
+
+// A keypad lock or an alarm that needs a code: Home Assistant's code is
+// refused for a real call, but when it is already so nothing needs one.
+func TestNoChangeBeforeCodeRequired(t *testing.T) {
+	f := newFakeHA()
+	f.ent("lock.keypad", "zwave_js", "unlocked", map[string]any{"code_format": "^\\d{4}$", "friendly_name": "Keypad"})
+	h := newWriteHarness(t, f)
+	if exit, env := h.run(runCallCommand, "lock.unlock", "lock.keypad"); exit != 0 || env.Status != "no_change" || env.Say != "“Keypad” is already unlocked; nothing to do." {
+		t.Fatalf("exit %d env %+v", exit, env)
+	}
+	f.states["lock.keypad"]["state"] = "locked"
+	if exit, env := h.run(runCallCommand, "lock.unlock", "lock.keypad"); exit != 4 || env.Tier != "refused" {
+		t.Fatalf("locked: exit %d env %+v", exit, env)
+	}
+	if len(h.posts()) != 0 {
+		t.Fatalf("posts %d", len(h.posts()))
 	}
 }
