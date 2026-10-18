@@ -430,7 +430,7 @@ func TestRenderSetupStepFallsBackToPlainModeForNonTTY(t *testing.T) {
 	rendered := output.String()
 	for _, want := range []string{
 		"[2/4]",
-		"Step 2 of 4 - Set up secure access",
+		"Step 2 of 4 – Set up secure access",
 		"Set up secure access",
 	} {
 		if !strings.Contains(rendered, want) {
@@ -529,4 +529,8 @@ func TestPromptSetupTokenChoiceRepromptsOnInvalidInput(t *testing.T) {
 	if strings.Contains(output.String(), "✗") {
 		t.Fatalf("expected plain-safe invalid-choice marker in output:\n%s", output.String())
 	}
+}
+
+func promptSetupClient(in io.Reader, out io.Writer, choices []setupClientChoice, defaultClient string) (string, error) {
+	return promptSetupClientFromReader(bufio.NewReader(in), out, choices, defaultClient)
 }

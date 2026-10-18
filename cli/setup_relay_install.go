@@ -68,7 +68,7 @@ func detectInstalledRelay(out io.Writer, paths runtimePaths, cfg runtimeConfig, 
 		return false, ""
 	}
 	result, _ := runSetupCountdownSpinnerWithResult(out,
-		"Checking whether NOVA Relay is already running...",
+		"Checking for the NOVA App...",
 		installedRelayProbeTimeout,
 		setupDiscoveryMinimumVisibleDuration,
 		func() (installedRelayResult, error) {
@@ -79,9 +79,9 @@ func detectInstalledRelay(out io.Writer, paths runtimePaths, cfg runtimeConfig, 
 	if !result.running {
 		return false, ""
 	}
-	note := "NOVA Relay is already running in Home Assistant. Skipping the install step."
+	note := "NOVA App is running"
 	if minimum := relayVersionBelowMinimum(paths, result.version); minimum != "" {
-		note += fmt.Sprintf(" It runs v%s; this HA NOVA needs v%s or newer: update NOVA Relay in Home Assistant (Settings > Apps > NOVA Relay) after pairing.", result.version, minimum)
+		note += fmt.Sprintf(" (v%s; update to v%s or newer after setup: Settings > Apps > NOVA Relay)", result.version, minimum)
 	}
 	return true, note
 }
@@ -107,17 +107,13 @@ func relayVersionBelowMinimum(paths runtimePaths, relayVersion string) string {
 // prompt's errSetupBack/errSetupExit unchanged for the caller's navigation.
 func runRelayInstallSteps(reader *bufio.Reader, out io.Writer, haURL string) error {
 	link := haInstallRelayAppURL(haURL)
-	renderSetupParagraph(out, "Next, install the NOVA Relay App in your Home Assistant.")
+	renderSetupParagraph(out, "Your browser opens the NOVA App in Home Assistant (listed as “NOVA Relay”).")
 	renderSetupLink(out, "This will open:", link)
 	if _, err := promptWizardLineFromReader(reader, out, "Press Enter to open your browser", ""); err != nil {
 		return err
 	}
 	openAnnouncedBrowserURL(out, link)
-	renderSetupParagraphTight(out, `In the browser: log in to Home Assistant if asked. When it asks to add the app repository, click "Add".`)
-	renderSetupIndentedBlock(out, "On the NOVA Relay page:", "    ",
-		"1. Click Install and wait for it to finish",
-		"2. Click Start",
-	)
-	_, err := promptWizardLineFromReader(reader, out, "Press Enter when the app is running", "")
+	renderSetupParagraphTight(out, `In the browser: sign in and click "Add" if asked, then Install, then Start.`)
+	_, err := promptWizardLineFromReader(reader, out, "Press Enter when the App is running", "")
 	return err
 }

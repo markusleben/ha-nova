@@ -15,10 +15,6 @@ const (
 	setupIssueCloudAccess      = "cloud_access"
 )
 
-func promptSetupClient(in io.Reader, out io.Writer, choices []setupClientChoice, defaultClient string) (string, error) {
-	return promptSetupClientFromReader(bufio.NewReader(in), out, choices, defaultClient)
-}
-
 func promptSetupClientFromReader(reader *bufio.Reader, out io.Writer, choices []setupClientChoice, defaultClient string) (string, error) {
 	if len(choices) == 0 {
 		return "", fmt.Errorf("no setup clients available")
@@ -119,7 +115,7 @@ func clearSetupScreen(out io.Writer) {
 
 func renderSetupStep(out io.Writer, step, total int, title string) {
 	session := resolveSetupUISession(out)
-	stepLabel := fmt.Sprintf("Step %d of %d - %s", step, total, title)
+	stepLabel := fmt.Sprintf("Step %d of %d – %s", step, total, title)
 	if session.plain() {
 		fmt.Fprintln(out)
 		fmt.Fprintf(out, "  [%d/%d] %s\n", step, total, stepLabel)
@@ -138,7 +134,7 @@ func renderSetupStep(out io.Writer, step, total int, title string) {
 		}
 	}
 	fmt.Fprintln(out)
-	fmt.Fprintf(out, "  %s  %s\n", session.style("accent", bar.String()), session.style("strong", fmt.Sprintf("Step %d of %d - %s", step, total, title)))
+	fmt.Fprintf(out, "  %s  %s\n", session.style("accent", bar.String()), session.style("strong", stepLabel))
 }
 
 func renderSetupStatusSummary(out io.Writer, state setupState) {
@@ -146,9 +142,9 @@ func renderSetupStatusSummary(out io.Writer, state setupState) {
 	fmt.Fprintln(out)
 	fmt.Fprintf(out, "  %s\n", session.style("strong", "Checking current setup..."))
 	if state.RelayOK {
-		fmt.Fprintf(out, "  %s Relay reachable\n", session.style("success", session.successMarker()))
+		fmt.Fprintf(out, "  %s NOVA App reachable\n", session.style("success", session.successMarker()))
 	} else {
-		fmt.Fprintf(out, "  %s Relay not reachable\n", session.style("error", session.errorMarker()))
+		fmt.Fprintf(out, "  %s NOVA App not reachable\n", session.style("error", session.errorMarker()))
 	}
 	if state.RelayOK {
 		fmt.Fprintf(out, "  %s Authentication valid\n", session.style("success", session.successMarker()))
@@ -175,16 +171,15 @@ func renderSetupDiscoveryResult(out io.Writer, host, via string, discovered bool
 	if discovered && via != "" {
 		fmt.Fprintf(out, "  %s Found Home Assistant at %s (discovered via %s)\n", session.style("success", session.successMarker()), host, via)
 	} else if discovered && isLocalDiscoveryHost(host) {
-		fmt.Fprintf(out, "  %s Found Home Assistant via the network name %s\n", session.style("warning", session.warningMarker()), host)
-		fmt.Fprintln(out, "    Heads-up: this name can stop working (especially on Windows).")
-		fmt.Fprintln(out, "    If you know the IP address, enter it below instead — you can find it in your")
-		fmt.Fprintln(out, "    router, or in Home Assistant under Settings > System > Network.")
+		fmt.Fprintf(out, "  %s Found Home Assistant as %s\n", session.style("warning", session.warningMarker()), host)
+		fmt.Fprintln(out, "    .local names can stop working (especially on Windows); its IP address is safer: type it below.")
+		fmt.Fprintln(out, "    Find it in Home Assistant: Settings > System > Network.")
 	} else if discovered {
 		fmt.Fprintf(out, "  %s Found Home Assistant at %s\n", session.style("success", session.successMarker()), host)
 	} else if strings.TrimSpace(host) != "" {
-		fmt.Fprintf(out, "  %s No confirmed Home Assistant found automatically; using your saved address as a starting point: %s\n", session.style("warning", session.warningMarker()), host)
+		fmt.Fprintf(out, "  %s No Home Assistant found automatically; starting from your saved address %s\n", session.style("warning", session.warningMarker()), host)
 	} else {
-		fmt.Fprintf(out, "  %s No confirmed Home Assistant found automatically; enter the Home Assistant address manually\n", session.style("warning", session.warningMarker()))
+		fmt.Fprintf(out, "  %s No Home Assistant found automatically; enter its address.\n", session.style("warning", session.warningMarker()))
 	}
 }
 
@@ -258,7 +253,7 @@ func renderSetupIncompleteBanner(out io.Writer, issue string) {
 	fmt.Fprintln(out)
 	switch issue {
 	case setupIssueWSDegraded:
-		fmt.Fprintln(out, "  NOVA Relay is reachable, but Home Assistant WebSocket is not connected yet.")
+		fmt.Fprintln(out, "  The NOVA App is reachable, but its Home Assistant connection is not up yet.")
 		fmt.Fprintln(out, "  Open Home Assistant > Settings > Apps > NOVA Relay (older Home Assistant: Settings > Add-ons), verify the app settings, and restart the App.")
 	case setupIssueRelayUnreachable:
 		fmt.Fprintln(out, "  HA NOVA saved your local setup, but the relay could not be verified yet.")

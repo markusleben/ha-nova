@@ -17,14 +17,14 @@ func promptToOpenNOVAForPairing(
 	}
 	if appTarget.Direct {
 		renderSetupParagraph(out,
-			"Open NOVA in the Home Assistant sidebar and click \"Connect a device\" to get a six-digit code.",
-			"If NOVA is not in the sidebar, the link below opens its Web UI directly.",
-			"If your Home Assistant version does not support the direct link, use the NOVA sidebar item or choose \"Open Web UI\" on the NOVA App page.",
+			"In NOVA (Home Assistant sidebar), click \"Connect a device\" for a one-time six-digit code.",
+			"Each computer gets its own connection; remove it in NOVA anytime.",
 		)
 	} else {
 		renderSetupParagraph(out,
-			"Open NOVA in the Home Assistant sidebar and click \"Connect a device\" to get a six-digit code.",
-			"This development build cannot safely identify which local NOVA App panel belongs to the selected Relay. The link below opens Home Assistant; select the correct NOVA App from the sidebar.",
+			"In NOVA (Home Assistant sidebar), click \"Connect a device\" for a one-time six-digit code.",
+			"Each computer gets its own connection; remove it in NOVA anytime.",
+			"Development build: the link opens Home Assistant; pick the right NOVA App in the sidebar.",
 		)
 	}
 	renderSetupLink(out, "This will open:", appTarget.URL)
