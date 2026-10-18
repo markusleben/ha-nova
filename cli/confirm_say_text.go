@@ -34,6 +34,12 @@ var sayVerbs = map[string]string{
 	"trigger": "Run", "set_value": "Set", "select_option": "Set",
 }
 
+// sayGoalText: sayGoal as one phrase, "Unlock “Front Door”".
+func sayGoalText(e *tierEngine, env *verbEnvelope, plan storedPlan, subject string) string {
+	verb, object := sayGoal(e, env, plan, subject)
+	return verb + " " + object
+}
+
 func sayVerb(name string) string {
 	if v := sayVerbs[name]; v != "" {
 		return v

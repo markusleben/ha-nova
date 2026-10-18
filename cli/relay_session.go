@@ -241,7 +241,10 @@ func (s *relaySession) send(endpoint string, body []byte) (json.RawMessage, erro
 // sendWithin is send with a caller-chosen per-request bound (verification
 // reads must not outlast their window).
 func (s *relaySession) sendWithin(endpoint string, body []byte, timeout time.Duration) (json.RawMessage, error) {
-	return s.sendIn(s.ctx, endpoint, body, timeout)
+	s.mu.Lock() // renewBudget may swap it
+	ctx := s.ctx
+	s.mu.Unlock()
+	return s.sendIn(ctx, endpoint, body, timeout)
 }
 
 // sendIn is sendWithin under parent instead of the session budget (the

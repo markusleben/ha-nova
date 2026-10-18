@@ -141,7 +141,7 @@ func TestPhonePlanConfirmsOnTheLinkedPhoneAndClearsIt(t *testing.T) {
 	if exit != 0 || applied.Status != "verified" || len(h.posts()) != 1 {
 		t.Fatalf("confirm: exit %d %+v posts %d", exit, applied.Error, len(h.posts()))
 	}
-	if !strings.Contains(stderr, fmt.Sprintf(phoneSentText, "mobile_app_iphone", "Confirm")) {
+	if !strings.Contains(stderr, fmt.Sprintf(phoneSentText, "mobile_app_iphone", "Unlock")) {
 		t.Fatalf("stderr %q", stderr)
 	}
 	// The linked phone got it once and was cleared afterwards; nothing else was sent.
@@ -150,9 +150,10 @@ func TestPhonePlanConfirmsOnTheLinkedPhoneAndClearsIt(t *testing.T) {
 	}
 	data := p.sent[0]["data"].(map[string]any)
 	confirm := data["actions"].([]any)[0].(map[string]any)
-	if confirm["authenticationRequired"] != true || confirm["destructive"] != true || confirm["title"] != "Confirm" || p.sent[0]["title"] != phoneTitle+"Confirm" ||
+	// A short question, the computer that asked, and the hint last.
+	if confirm["authenticationRequired"] != true || confirm["destructive"] != true || confirm["title"] != "Unlock" || p.sent[0]["title"] != "Unlock “lock.front”?" ||
 		!strings.HasPrefix(data["tag"].(string), "ha-nova-"+plan.ID+"-") || p.sent[1]["data"].(map[string]any)["tag"] != data["tag"] ||
-		!strings.Contains(p.sent[0]["message"].(string), "Unlock “lock.front”") {
+		p.sent[0]["message"] != "Requested by “"+phoneHost()+"”. "+phoneHint || data["push"].(map[string]any)["interruption-level"] != "time-sensitive" {
 		t.Fatalf("payload %+v", p.sent[0])
 	}
 	// The ids exist only in the notification: never in output or a plan file.

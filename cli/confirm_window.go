@@ -123,7 +123,7 @@ func runConfirmWindowSetting(paths runtimePaths, args []string) int {
 // apply runs and reports whatever kept the window closed (drift, expiry, a
 // refusal); asked=true: env is the result and nothing was sent.
 func confirmByWindow(paths runtimePaths, opts verbOptions, id string, noSnapshot bool) (env verbEnvelope, exit int, asked bool) {
-	plan, fresh, s, idHex, wait, ok := humanPlan(paths, opts, id, noSnapshot, channelWindow)
+	plan, fresh, s, idHex, wait, _, ok := humanPlan(paths, opts, id, noSnapshot, channelWindow)
 	if !ok {
 		return env, 0, false
 	}
@@ -169,6 +169,8 @@ func askWindow(message string, wait time.Duration) windowAnswer {
 // plan replaces the window plan; its `say` carries the code and its limit.
 func windowFallback(paths runtimePaths, s *relaySession, plan storedPlan, noSnapshot bool) (verbEnvelope, int, bool) {
 	env := verbEnvelope{SchemaVersion: 1, Verb: "apply", Status: "ok", Server: s.server}
+	// A window that failed late: its wait is not read time.
+	s.renewBudget()
 	channel := detectAfterWindow(s) // the phone, else a form, else chat
 	switch channel {
 	case channelPhoneMissing:
