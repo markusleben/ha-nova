@@ -1,9 +1,11 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -20,8 +22,8 @@ type phoneAsk struct {
 }
 
 const (
-	phoneHint       = "Hold or expand to answer."
-	phoneSentText   = "Sent to “%s”. Hold or expand the notification and tap “%s”, only if you started this."
+	phoneHint       = "Expand to answer."
+	phoneSentText   = "Sent to “%s”. Expand the notification and tap “%s”, only if you started this."
 	phoneTitleLimit = 80  // runes: one lock-screen line
 	phoneWhyLimit   = 140 // runes: the reason line
 )
@@ -122,4 +124,82 @@ func phoneHost() string {
 		return terminalSafeName(host)
 	}
 	return "this computer"
+}
+
+// missingLine: why the linked phone can't be asked now, and what to do.
+func (h phoneHome) missingLine(prev phoneEntry, why phoneWhy) string {
+	name, person := "the linked phone", "its user"
+	if prev.link != nil {
+		name = "“" + terminalSafeName(prev.link.Name) + "”"
+		if u := h.users[prev.link.UserID]; u.Name != "" {
+			person = terminalSafeName(u.Name)
+		}
+	}
+	switch why {
+	case whyRemoved:
+		return "Linked now: " + name + ", which is no longer in Home Assistant. You can link another phone."
+	case whyDemoted:
+		return "Linked now: " + name + ", but " + person + " is no longer a Home Assistant administrator, so it can't confirm. You can link an administrator's phone, or ask the owner to make " + person + " an administrator again."
+	case whyRelayUser:
+		return "Linked now: " + name + ", but HA NOVA's Relay now signs in to Home Assistant as " + person + ", so a tap there can't be told apart from HA NOVA itself. You can link another person's phone."
+	case whyShared:
+		return "Linked now: " + name + ". " + phoneSharedLine(strings.Trim(name, "“”"))
+	case whyUnreachable:
+		return "Linked now: " + name + ", which can't get notifications now (its Home Assistant app is signed out, or its entry is disabled). Sign in to the app on it again. If that phone is lost or replaced, remove it in Home Assistant (Settings → Devices & services → Mobile App), then run this again."
+	}
+	return phoneReadFailed
+}
+
+func phoneSharedLine(name string) string {
+	return fmt.Sprintf("Two devices in Home Assistant are called “%s”: remove the old one or rename one in its Home Assistant app, then try again.", terminalSafeName(name))
+}
+
+// phoneReply closes an ask on the phone: the result replaces the
+// notification (same tag, so it replaces instead of stacking), with no
+// buttons and no ids, so a tap on a watch or a locked phone gets an answer.
+// Only the first say counts; the zero value (nothing was sent) says nothing.
+type phoneReply struct {
+	once *sync.Once
+	tell func(title, body string)
+}
+
+func (r phoneReply) say(title, body string) {
+	if r.once != nil {
+		r.once.Do(func() { r.tell(title, body) })
+	}
+}
+
+// phoneResultPayload: a passive-looking result (active, so a watch shows
+// it), gone on Android after ten minutes.
+func phoneResultPayload(title, body, tag string) map[string]any {
+	return map[string]any{"title": title, "message": body, "data": map[string]any{
+		"tag": tag, "push": map[string]any{"interruption-level": "active"}, "channel": "HA NOVA", "timeout": 600,
+	}}
+}
+
+// phoneNothing: the result of an ask that changed nothing (a title
+// prefix and the line).
+func phoneNothing(answer phoneAnswer) (string, string) {
+	switch answer {
+	case phoneDeclined:
+		return "Cancelled", "Nothing changed."
+	case phoneRejected:
+		return "Not confirmed", "The tap came from another Home Assistant user. Nothing changed."
+	case phoneConfirmed:
+		return "Not done", "Your tap arrived, but HA NOVA stopped. Nothing changed; the computer says why."
+	}
+	return "Not confirmed", "No answer reached Home Assistant. Nothing changed."
+}
+
+// phoneApplyResult: how a confirmed plan ended, for the phone.
+func phoneApplyResult(what string, exit int) (string, string) {
+	switch exit {
+	case verbExitOK:
+		return "Done: " + what, "Home Assistant confirms it."
+	case verbExitUnverified:
+		return "Check: " + what, "Sent, but HA NOVA couldn't verify it. Check Home Assistant."
+	case verbExitUnknown:
+		return "Unclear: " + what, "It may have run. Check Home Assistant."
+	}
+	return "Not done: " + what, "Nothing changed; the computer says why."
 }

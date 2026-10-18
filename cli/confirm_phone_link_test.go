@@ -181,7 +181,7 @@ func TestLinkPhoneByTapOnTheChosenPhoneOnly(t *testing.T) {
 	}
 	if strings.Join(p.services, ",") != "mobile_app_annas_pixel,mobile_app_annas_pixel" || p.sent[0]["title"] != "Link this phone to HA NOVA?" ||
 		p.sent[0]["message"] != "For confirmations from “"+phoneHost()+"”. "+phoneHint || p.sent[0]["data"].(map[string]any)["push"].(map[string]any)["interruption-level"] != "active" ||
-		p.sent[0]["data"].(map[string]any)["actions"].([]any)[0].(map[string]any)["authenticationRequired"] != true {
+		p.sent[0]["data"].(map[string]any)["actions"].([]any)[0].(map[string]any)["authenticationRequired"] != true || p.sent[1]["title"] != "Linked to HA NOVA" {
 		t.Fatalf("notified %v %v", p.services, p.sent)
 	}
 	if l := linked(t, h); l == nil || l.DeviceID != "dev-anna" || l.UserID != "anna-id" || l.Service != "mobile_app_annas_pixel" || l.Name != "Anna’s Pixel" {
@@ -266,7 +266,7 @@ func TestRelinkAndUnlinkNeedTheOldPhone(t *testing.T) {
 	seedLink(t, h, &phoneLink{Service: "mobile_app_annas_pixel", DeviceID: "dev-anna", UserID: "anna-id", Name: "Anna’s Pixel"})
 	p.tapBy = tapFrom("mobile_app_annas_pixel", "anna-id", false)
 	if exit, out := runLink(t, h, "", phoneLinkRun{pick: "Markus’s iPhone"}); exit != 1 || !strings.Contains(out, "First confirm on the phone linked now, “Anna’s Pixel”") ||
-		linked(t, h).DeviceID != "dev-anna" || strings.Contains(strings.Join(p.services, ","), "markus") {
+		linked(t, h).DeviceID != "dev-anna" || strings.Contains(strings.Join(p.services, ","), "markus") || p.sent[len(p.sent)-1]["title"] != "Cancelled" {
 		t.Fatalf("old phone cancelled: %d %q %v", exit, out, p.services)
 	}
 	if exit, _ := runUnlink(t, h); exit != 1 || linked(t, h) == nil {
@@ -278,8 +278,9 @@ func TestRelinkAndUnlinkNeedTheOldPhone(t *testing.T) {
 		return []phoneEvent{tap(ok, user, "REMOTE")}
 	}
 	if exit, out := runLink(t, h, "", phoneLinkRun{pick: "Markus’s iPhone"}); exit != 0 || linked(t, h).DeviceID != "dev-markus" || linked(t, h).UserID != "owner-id" ||
-		strings.Join(p.services, ",") != "mobile_app_annas_pixel,mobile_app_annas_pixel,mobile_app_markuss_iphone,mobile_app_markuss_iphone" {
-		t.Fatalf("relink: %d %q %v", exit, out, p.services)
+		strings.Join(p.services, ",") != "mobile_app_annas_pixel,mobile_app_annas_pixel,mobile_app_markuss_iphone,mobile_app_markuss_iphone" ||
+		p.sent[1]["title"] != "Approved" || p.sent[3]["title"] != "Linked to HA NOVA" {
+		t.Fatalf("relink: %d %q %v", exit, out, p.sent)
 	}
 	if exit, _ := runUnlink(t, h); exit != 0 || linked(t, h) != nil {
 		t.Fatalf("unlink confirmed on the phone: %d", exit)

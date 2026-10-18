@@ -107,7 +107,7 @@ const sayWindowAsk = "A confirmation window opens on this computer — confirm t
 
 // sayPhoneAsk closes a phone plan's `say`: the code is never shown.
 func sayPhoneAsk(button string) string {
-	return "HA NOVA sends a notification to your phone: hold or expand it and tap “" + button + "” there, only if you asked for this."
+	return "HA NOVA sends a notification to your phone: expand it and tap “" + button + "” there, only if you asked for this."
 }
 
 // sayFormAsk replaces sayTypedAsk where the client shows a confirmation

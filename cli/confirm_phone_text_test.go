@@ -82,3 +82,17 @@ func TestPhonePlanReasonWithSeveralTargets(t *testing.T) {
 		t.Fatalf("plan confirm needs an unlock: %v", confirm)
 	}
 }
+
+// One unregistered lock: the title says it; "can't see what it does" stays off the phone.
+func TestPhonePlanSkipsTheTargetsOwnReason(t *testing.T) {
+	f := newFakeHA()
+	f.ent("lock.yaml", "", "locked", map[string]any{"friendly_name": "Front Door"}) // no registry row
+	h := newWriteHarness(t, f)
+	p := usePhones(t, "mobile_app_iphone")
+	plan := h.plan("lock.unlock", "lock.yaml").Plan
+	p.answer = func(_, no string) []phoneEvent { return []phoneEvent{tap(no, "owner-id", "REMOTE")} }
+	if exit, _ := h.run(runApplyCommand, "--plan", plan.ID); exit != 4 || len(p.sent) == 0 ||
+		p.sent[0]["title"] != "Unlock “Front Door”?" || p.sent[0]["message"] != "Requested by “"+phoneHost()+"”. "+phoneHint {
+		t.Fatalf("exit %d sent %v", exit, p.sent)
+	}
+}

@@ -88,6 +88,10 @@ func runApplyCommand(paths runtimePaths, args []string) int {
 	if !asked {
 		env, exit = applyPlan(paths, opts, *id, *code, *noSnapshot)
 	}
+	if phoneApplied != nil {
+		phoneApplied(exit)
+		phoneApplied = nil
+	}
 	defer func() { humanAnswer = "" }()
 	if !printVerbEnvelope(env) {
 		return verbExitError

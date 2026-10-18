@@ -43,9 +43,12 @@ func sayAsk(e *tierEngine, env *verbEnvelope, plan storedPlan, subject string) [
 	for _, r := range env.Reasons {
 		text, typed := sayReason(e, env, plan, r)
 		_, _, phrased := sayActionPhrase(e, env, r)
+		// Said: the one target's own action (or that HA NOVA can't see what it
+		// does) — the title names it; never a reason through another item.
 		domain, _ := splitID(plan.Action.Service)
 		target, _ := splitID(r.EntityID)
-		said := r.Via == "" && phrased && slices.Equal(plan.Action.EntityIDs, []string{r.EntityID}) && domain == target && phoneButton(verb) != "Confirm"
+		own := r.Via == "" && slices.Equal(plan.Action.EntityIDs, []string{r.EntityID}) && phoneButton(verb) != "Confirm"
+		said := own && (phrased && domain == target || sayUnseenCodes[r.Code])
 		if typed && text != "" && !said {
 			return [3]string{verb, object, text}
 		}

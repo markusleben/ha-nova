@@ -144,8 +144,10 @@ func TestPhonePlanConfirmsOnTheLinkedPhoneAndClearsIt(t *testing.T) {
 	if !strings.Contains(stderr, fmt.Sprintf(phoneSentText, "mobile_app_iphone", "Unlock")) {
 		t.Fatalf("stderr %q", stderr)
 	}
-	// The linked phone got it once and was cleared afterwards; nothing else was sent.
-	if strings.Join(p.services, ",") != "mobile_app_iphone,mobile_app_iphone" || p.sent[1]["message"] != "clear_notification" {
+	// The linked phone got it once, then the verified result in its place (same tag, no buttons).
+	result, _ := p.sent[1]["data"].(map[string]any)
+	if strings.Join(p.services, ",") != "mobile_app_iphone,mobile_app_iphone" || p.sent[1]["title"] != "Done: Unlock “lock.front”" ||
+		result["actions"] != nil || result["tag"] != p.sent[0]["data"].(map[string]any)["tag"] {
 		t.Fatalf("notify calls %v %v", p.services, p.sent)
 	}
 	data := p.sent[0]["data"].(map[string]any)
@@ -168,13 +170,14 @@ func TestPhoneForgedOrMissingAnswersSendNothing(t *testing.T) {
 	cases := map[string]struct {
 		answer func(ok, no string) []phoneEvent
 		code   string
+		result string // the phone's result title
 	}{
-		"wrong user":    {func(ok, _ string) []phoneEvent { return []phoneEvent{tap(ok, "someone-else", "REMOTE")} }, "CONFIRM_REJECTED"},
-		"relay user":    {func(ok, _ string) []phoneEvent { return []phoneEvent{tap(ok, "relay-id", "REMOTE")} }, "CONFIRM_REJECTED"},
-		"fired locally": {func(ok, _ string) []phoneEvent { return []phoneEvent{tap(ok, "owner-id", "LOCAL")} }, "CONFIRM_REJECTED"},
-		"wrong nonce":   {func(string, string) []phoneEvent { return []phoneEvent{tap("HANOVA_OK_guess", "owner-id", "REMOTE")} }, "CONFIRM_CANCELLED"},
-		"cancel":        {func(_, no string) []phoneEvent { return []phoneEvent{tap(no, "owner-id", "REMOTE")} }, "CONFIRM_DECLINED"},
-		"no answer":     {nil, "CONFIRM_CANCELLED"},
+		"wrong user":    {func(ok, _ string) []phoneEvent { return []phoneEvent{tap(ok, "someone-else", "REMOTE")} }, "CONFIRM_REJECTED", "Not confirmed"},
+		"relay user":    {func(ok, _ string) []phoneEvent { return []phoneEvent{tap(ok, "relay-id", "REMOTE")} }, "CONFIRM_REJECTED", "Not confirmed"},
+		"fired locally": {func(ok, _ string) []phoneEvent { return []phoneEvent{tap(ok, "owner-id", "LOCAL")} }, "CONFIRM_REJECTED", "Not confirmed"},
+		"wrong nonce":   {func(string, string) []phoneEvent { return []phoneEvent{tap("HANOVA_OK_guess", "owner-id", "REMOTE")} }, "CONFIRM_CANCELLED", "Not confirmed"},
+		"cancel":        {func(_, no string) []phoneEvent { return []phoneEvent{tap(no, "owner-id", "REMOTE")} }, "CONFIRM_DECLINED", "Cancelled"},
+		"no answer":     {nil, "CONFIRM_CANCELLED", "Not confirmed"},
 	}
 	for name, c := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -186,8 +189,9 @@ func TestPhoneForgedOrMissingAnswersSendNothing(t *testing.T) {
 			if exit != 4 || env.Error == nil || env.Error.Code != c.code || len(h.posts()) != 0 || len(h.planFiles()) != 1 {
 				t.Fatalf("exit %d %+v posts %d plans %d", exit, env.Error, len(h.posts()), len(h.planFiles()))
 			}
-			if last := p.sent[len(p.sent)-1]; last["message"] != "clear_notification" {
-				t.Fatalf("not cleared: %+v", last)
+			if last := p.sent[len(p.sent)-1]; last["title"] != c.result+": Unlock “lock.front”" || !strings.HasSuffix(last["message"].(string), "Nothing changed.") ||
+				last["data"].(map[string]any)["actions"] != nil {
+				t.Fatalf("no result on the phone: %+v", last)
 			}
 		})
 	}
