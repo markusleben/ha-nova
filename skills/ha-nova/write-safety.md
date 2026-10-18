@@ -182,8 +182,8 @@ the physical action succeeds.
 Wording rules for the result and the collapsed no-findings line:
 
 - Never a bare "verified"/"works now". Name the proven scope instead — the
-  localized equivalent of: "Saved and checked: it is stored, Home Assistant
-  loaded it, and it is active. Runtime behavior was not exercised."
+  localized equivalent of: "Saved and checked: it is stored and Home
+  Assistant loaded it. Runtime behavior was not exercised."
 - Where a real run is meaningful, offer it as an explicit optional step: a
   manual trigger via `ha-nova:service-call` (its own preview + confirmation —
   it may actuate real devices; never run it unrequested). For automations and
@@ -269,7 +269,7 @@ back each. Automation/script updates (reverts included) are checkpointed by
 After reporting the update, offer a localized affordance that names the point-in-time
 rollback option in the same breath — never a bare "undo":
 
-> you can undo this any time, just say so; for an older state, restore a suitable Home Assistant Backup.
+> to undo this change, just say so; for an older state, restore a suitable Home Assistant Backup.
 
 Execution lives in `../ha-nova/update-revert.md`; load it whenever the user
 asks to revert, undo, or restore a verified update (any of those intents — not

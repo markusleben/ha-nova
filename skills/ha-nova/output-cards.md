@@ -59,8 +59,8 @@ Destructive batch previews and results render the Batch Cards defined in
 
 ```
 ✅ Saved: automation "Morning routine"
-Checked: stored, loaded by Home Assistant, active. Runtime behavior was not exercised.
-You can undo this any time — just say so.
+Checked: stored and loaded by Home Assistant. Runtime behavior was not exercised.
+To undo this change, just say so.
 ```
 
 **Test Plan Card** (test offer after create/update — feasibility logic, option
