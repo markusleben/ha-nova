@@ -17,8 +17,9 @@ describe("ha cross-skill integration", () => {
     expect(writeSkill).toContain("full-replacement merge (base=current, overlay=user changes)");
     expect(writeSkill).toContain("delete=one-time code — the plan's CLI-minted `plan.code`");
     expect(writeSkill).toContain("Changes slot");
-    expect(writeSkill).toContain("show yaml");
-    expect(writeSkill).toContain("cancel");
+    // The full config is opt-in ("only when asked"), never a `show yaml` token.
+    expect(writeSkill).toContain("the full config only when asked");
+    expect(writeSkill).not.toContain("show yaml");
     // PR6: no agent dispatch any more — the CLI is the single write path.
     expect(writeSkill).not.toContain("agent dispatch");
   });
@@ -139,16 +140,16 @@ describe("ha cross-skill integration", () => {
     expect(outputRules).toContain("same label and in the same order");
     expect(outputRules).toContain("omit that slot instead of printing an empty placeholder");
     expect(outputRules).toContain("nothing has been saved yet before showing the options");
-    expect(outputRules).toContain("literal `apply`, `show yaml`, and `cancel`");
+    expect(outputRules).toContain("Close every create/update preview with one natural question");
     expect(outputRules).toContain("Keep delete previews structured in this order");
     expect(outputRules).toContain("Delete previews must say nothing has been deleted yet");
-    expect(outputRules).toContain("never render `apply`, `show yaml`, `cancel`, or a selectable menu");
+    expect(outputRules).toContain("never a save question or a selectable menu for destructive confirmation");
     expect(outputRules).toContain("Internal task, card, or payload labels (`Automation Payload`");
     expect(outputRules).toContain("Automation Payload");
     expect(outputRules).toContain("Apply And Verify");
     expect(writeSafety).toContain("Save-status slot: explicitly say that nothing has been saved yet");
     expect(writeSafety).toContain("historical slot name, not a required literal Markdown heading");
-    expect(writeSafety).toContain("<localized options label>:");
+    expect(writeSafety).toContain("<localized question: save it? I can also show the details.>");
   });
 
   it("keeps create cleanup honest without implying backup-only rollback", () => {

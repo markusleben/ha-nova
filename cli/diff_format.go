@@ -220,7 +220,7 @@ func compactJSON(v interface{}) string {
 // maxCellBytes caps one table cell's raw content. 80 keeps ordinary
 // one-sentence notification copy whole while two value columns still fit a
 // terminal line; longer values truncate with `…` — the full text is always one
-// `show yaml` away, and write-safety obliges the summary to name what a
+// request away, and write-safety obliges the summary to name what a
 // truncated value changed.
 const maxCellBytes = 80
 

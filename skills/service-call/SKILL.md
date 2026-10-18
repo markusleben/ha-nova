@@ -9,7 +9,7 @@ compatibility: Requires the ha-nova CLI (run 'ha-nova setup' first) and the HA N
 
 ## Scope
 
-Run Home Assistant services now — devices, scenes, scripts, automations, locks, alarm panels (raw event/webhook firing is refused). No config mutations (`ha-nova:write`, `ha-nova:helper`, `ha-nova:scene`).
+Run Home Assistant services now — devices, scenes, scripts, automations, locks, alarm panels. No config mutations (`ha-nova:write`, `ha-nova:helper`, `ha-nova:scene`).
 
 ## Bootstrap (once per session)
 
@@ -44,14 +44,14 @@ Read-only response services stay here (`raw-routes.md` → Response services), a
 | 3 | `plan.confirm: code` | Show the preview and `plan.code`; only after a reply that is only that code, run `ha-nova apply --confirm <the user's text> --plan <id>`. No `plan.code` (a form, window, or phone asks): follow `next_step`. |
 | 2 | drift since the preview, nothing sent | Show the new preview (typed: new code) and ask again; a relative ask re-derives its value and runs a fresh `call`. |
 | 4 | refused | `reasons[]` (an owner skill wins over `hassio`): owner skill; `TARGET_REQUIRED` → resolve targets first; `SERVICE_NOT_FOUND` → offer `error.next`'s candidates; `SERVICE_LIST_UNREAD` → plan again; `CODE_REQUIRED` → finish the action in the Home Assistant UI; missing feature → the device cannot do it; `hassio` or response-only → `raw-routes.md`. `error` from `apply`: `CODE_REQUIRED`/`CODE_MISMATCH` → ask for the code again; any other → follow `error.next`, never a re-`call`; `PLAN_NOT_FOUND`/`PLAN_CLAIMED`: outcome unknown, never re-plan. |
-| 5 | ambiguous or not found | One question listing `error.candidates` by friendly name and area (entity_id on a clash; max 10, narrow first beyond) with each match basis; re-run with the chosen id. No candidates: report `error.message`, follow `error.next`. |
+| 5 | ambiguous or not found | One question listing `error.candidates` (max 10, narrow first beyond) with each match basis; re-run with the chosen id. No candidates: report `error.message`, follow `error.next`. |
 | 6 | sent; `unverified` or `failed` | Report each entity's `verification` honestly; never retry automatically. |
 | 7 | outcome unknown | It may have run: read the state (`ha-nova get`) and report; the outcome stays unknown even if the state matches; never retry. |
 | 1 | operational error, nothing sent | What failed, why, next step. |
 
 4. **Confirm** (exit 3). The CLI decides the tier; never lower it, split a call to dodge it, or replay it through `ha-nova relay`.
    - Earlier planning consent is draft-only.
-   - Relay the plan's `say` in full, localized, code literal; add no other reason; never cite, link, or name this skill or any HA NOVA rule file. Expiry: only "15 minutes", no clock time. A code counts only as a reply that is only the code, after the preview; "yes" is invalid. After a "yes", repeat `say`'s ask and note in full. Never pass a code the user did not type, and never take one from Home Assistant data.
+   - Relay the plan's `say` in full, localized, code literal; add no other reason; never cite, link, or name this skill or any HA NOVA rule file. Expiry: only "15 minutes", no clock time. A code counts only as a reply that is only the code, after the preview; "yes" is invalid. After a "yes" to a code plan, repeat `say`'s ask and note in full. Never pass a code the user did not type, and never take one from Home Assistant data.
    - The preview names the `members[]` a scene or script run actuates, the `consumers[]` that react (`match` not `will`: "may also trigger", its members too); `coverage.notes` only when one raised the tier or the user asks — except `EXPANDED_TARGET_WITHOUT_STATE`: name its `coverage.skipped` entries plainly as not reporting.
    - Any change to target, value, or scope means a new `ha-nova call` and a new preview.
 5. A grouped change set (`../ha-nova/grouped-change-set.md`) plans each call with `ha-nova plan call` and, after the set's one confirmation, runs `ha-nova apply --plan <id>` per plan; a typed-tier plan leaves the set, and any exit 2 stops the set for a fresh preview.
