@@ -136,10 +136,12 @@ func TestSetupFirstLookSkipsOnErrorPanicAndTimeout(t *testing.T) {
 	setupFirstLookBudget = 20 * time.Millisecond
 	release := make(chan struct{})
 	defer close(release)
-	for name, read := range map[string]func(runtimePaths) (setupFirstLook, error){
-		"error": func(runtimePaths) (setupFirstLook, error) { return setupFirstLook{}, errors.New("relay down") },
-		"panic": func(runtimePaths) (setupFirstLook, error) { panic("bad data") },
-		"timeout": func(runtimePaths) (setupFirstLook, error) {
+	for name, read := range map[string]func(runtimePaths, time.Duration) (setupFirstLook, error){
+		"error": func(runtimePaths, time.Duration) (setupFirstLook, error) {
+			return setupFirstLook{}, errors.New("relay down")
+		},
+		"panic": func(runtimePaths, time.Duration) (setupFirstLook, error) { panic("bad data") },
+		"timeout": func(runtimePaths, time.Duration) (setupFirstLook, error) {
 			<-release
 			return setupFirstLook{}, nil
 		},
