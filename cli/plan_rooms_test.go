@@ -133,9 +133,12 @@ func TestPlanRoomsPreviewsAndSavesOnlyOnApply(t *testing.T) {
 		t.Errorf("second apply: exit %d %+v", exit, again.Error)
 	}
 
-	// undo: plan revert picks the rooms record and plans the way back
-	exit, undo := h.run(runPlanCommand, "revert")
-	if exit != 3 || undo.Tier != "preview" || !strings.Contains(undo.Say, "no room ← ") {
+	// "undo the last update" never undoes setup's rooms; the record id does
+	if exit, plain := h.run(runPlanCommand, "revert"); exit != 4 || plain.Error.Code != "REVERT_UNSUPPORTED" || !strings.Contains(plain.Error.Message, applied.Undo.TargetID) {
+		t.Fatalf("plain revert: exit %d %+v", exit, plain.Error)
+	}
+	exit, undo := h.run(runPlanCommand, "revert", "--target", applied.Undo.TargetID)
+	if exit != 3 || undo.Tier != "preview" || !strings.Contains(undo.Say, "Put 3 devices back in their previous rooms: no room ← ") {
 		t.Fatalf("revert plan: exit %d %+v %+v", exit, undo, undo.Error)
 	}
 	if exit, back := h.run(runApplyCommand, "--plan", undo.Plan.ID); exit != 0 || back.Status != "verified" {
@@ -147,15 +150,23 @@ func TestPlanRoomsPreviewsAndSavesOnlyOnApply(t *testing.T) {
 	}
 }
 
-// A rename or a room change after the preview is drift: nothing is written.
+// A rename, a room change (own or inherited), or a gone area after the
+// preview: nothing is written.
 func TestPlanRoomsDriftSendsNothing(t *testing.T) {
-	for name, change := range map[string]func(r *roomsFake){
-		"moved":   func(r *roomsFake) { r.setArea("d_radio", "bedroom") },
-		"renamed": func(r *roomsFake) { r.f.devices[1]["name_by_user"] = "Radio" },
-		"area gone": func(r *roomsFake) {
+	for name, c := range map[string]struct {
+		change func(r *roomsFake)
+		code   string
+	}{
+		"moved":   {func(r *roomsFake) { r.setArea("d_radio", "bedroom") }, "ROOMS_CHANGED"},
+		"renamed": {func(r *roomsFake) { r.f.devices[1]["name_by_user"] = "Radio" }, "PLAN_DRIFT"},
+		"parent moved": {func(r *roomsFake) {
+			r.f.devices[1]["parent_device_id"] = "d_placed" // now inherits the bedroom
+		}, "PLAN_DRIFT"},
+		"area gone": {func(r *roomsFake) {
 			r.f.areas = slices.DeleteFunc(r.f.areas, func(a map[string]any) bool { return a["area_id"] == "guest" })
-		},
+		}, "AREA_NOT_FOUND"},
 	} {
+		change := c.change
 		t.Run(name, func(t *testing.T) {
 			h := newRoomsHarness(t, newRoomsFake())
 			env := h.planRooms()
@@ -163,7 +174,7 @@ func TestPlanRoomsDriftSendsNothing(t *testing.T) {
 			change(h.r)
 			h.r.mu.Unlock()
 			exit, applied := h.run(runApplyCommand, "--plan", env.Plan.ID)
-			if exit == 0 || applied.Error == nil || len(h.r.areaWrites()) != 0 {
+			if exit == 0 || applied.Error == nil || applied.Error.Code != c.code || len(h.r.areaWrites()) != 0 {
 				t.Fatalf("exit %d %+v writes %v", exit, applied.Error, h.r.areaWrites())
 			}
 		})
@@ -232,8 +243,11 @@ func TestPlanRoomsNamesWhatStayedWhenRollbackFails(t *testing.T) {
 	if err != nil || compact(snap.BeforeConfig) != `{"d_guest":""}` || compact(snap.ExpectedAfter) != `{"d_guest":"guest"}` {
 		t.Fatalf("undo record %s %s %v", snap.BeforeConfig, snap.ExpectedAfter, err)
 	}
+	if !strings.Contains(applied.Error.Next, "plan revert --target "+snap.TargetID) {
+		t.Errorf("next %q", applied.Error.Next)
+	}
 	r.fail = nil
-	exit, undo := h.run(runPlanCommand, "revert")
+	exit, undo := h.run(runPlanCommand, "revert", "--target", snap.TargetID)
 	if exit != 3 {
 		t.Fatalf("revert: %d %+v", exit, undo.Error)
 	}
@@ -307,4 +321,65 @@ func TestPlanTemplateNeverStoresATypedPlan(t *testing.T) {
 	if exit != 4 || env.Error == nil || env.Error.Code != "TEMPLATE_NOT_OFFERED" || env.Plan != nil || len(h.planFiles()) != 0 {
 		t.Fatalf("exit %d %+v plan %+v files %v", exit, env.Error, env.Plan, h.planFiles())
 	}
+}
+
+// A rollback whose answer never came but which landed: the read-back finds
+// every device on its old room, so "nothing was saved" is true and said.
+func TestPlanRoomsReadsBackAnUnansweredRollback(t *testing.T) {
+	r := newRoomsFake()
+	r.fail = func(n int, _, _ string) (any, bool) {
+		switch n {
+		case 3:
+			return fakeRelayFailure{"UPSTREAM_WS_COMMAND_ERROR", "refused"}, false
+		case 4: // the rollback of write 2 lands, its answer is lost
+			return fakeRelayFailure{"UPSTREAM_TIMEOUT", "timed out"}, true
+		}
+		return nil, false
+	}
+	h := newRoomsHarness(t, r)
+	env := h.planRooms()
+	exit, applied := h.run(runApplyCommand, "--plan", env.Plan.ID)
+	if exit != verbExitUnverified || applied.Error.Code != "ROOMS_NOT_SAVED" || applied.Undo != nil {
+		t.Fatalf("exit %d %+v", exit, applied.Error)
+	}
+	h.assertAreas(roomsOriginal)
+}
+
+// A partly failed undo keeps the record complete for every device not yet
+// back: no device loses its way back.
+func TestPlanRoomsFailedUndoKeepsTheRestOfTheRecord(t *testing.T) {
+	r := newRoomsFake()
+	h := newRoomsHarness(t, r)
+	env := h.planRooms()
+	_, applied := h.run(runApplyCommand, "--plan", env.Plan.ID)
+	record := applied.Undo.TargetID
+	_, undo := h.run(runPlanCommand, "revert", "--target", record)
+	r.mu.Lock()
+	r.writes = nil // undo writes: d_guest, d_kitchen (fails), then rollback of d_guest (fails)
+	r.fail = func(n int, _, _ string) (any, bool) {
+		if n >= 2 {
+			return fakeRelayFailure{"UPSTREAM_WS_COMMAND_ERROR", "refused"}, false
+		}
+		return nil, false
+	}
+	r.mu.Unlock()
+	exit, failed := h.run(runApplyCommand, "--plan", undo.Plan.ID)
+	if exit != verbExitUnverified || failed.Error.Code != "ROOMS_PARTIAL" || !strings.Contains(failed.Error.Message, "“Guest Bedroom Lamp” → no room") {
+		t.Fatalf("exit %d %+v", exit, failed.Error)
+	}
+	h.assertAreas(map[string]string{"d_guest": "", "d_kitchen": "kitchen", "d_radio": "kitchen"})
+	snap, err := selectServerUndoSnapshot(h.paths, "", record, "")
+	var after map[string]string
+	_ = json.Unmarshal(snap.ExpectedAfter, &after)
+	if err != nil || len(after) != 2 || after["d_kitchen"] != "kitchen" || after["d_radio"] != "kitchen" {
+		t.Fatalf("record %s %v", snap.ExpectedAfter, err)
+	}
+	r.mu.Lock()
+	r.fail = nil
+	r.mu.Unlock()
+	_, again := h.run(runPlanCommand, "revert", "--target", record)
+	if exit, _ := h.run(runApplyCommand, "--plan", again.Plan.ID); exit != 0 {
+		t.Fatalf("second undo %d", exit)
+	}
+	h.assertAreas(roomsOriginal)
 }

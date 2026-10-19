@@ -163,7 +163,7 @@ func runPlanConfig(paths runtimePaths, op string, args []string) int {
 		return verbUsageError("plan", err)
 	}
 	return runReadVerb(paths, "plan", opts, func(s *relaySession, env *verbEnvelope) error {
-		if req.Op == "revert" { // a rooms record reverts as a rooms plan (plan_rooms.go)
+		if req.Op == "revert" && req.ConfigID != "" { // a named rooms record reverts as a rooms plan (plan_rooms.go)
 			if snap, err := selectServerUndoSnapshot(paths, s.server, req.ConfigID, req.Domain); err == nil && snap.Op == "rooms" {
 				return planRoomsUndo(paths, s, env, snap)
 			}
@@ -280,6 +280,9 @@ func computeConfigPlan(paths runtimePaths, s *relaySession, env *verbEnvelope, r
 		var err error
 		if snap, err = selectServerUndoSnapshot(paths, s.server, req.ConfigID, req.Domain); err != nil {
 			return fail(refused("NO_UNDO_SNAPSHOT", err.Error()))
+		}
+		if snap.Op == "rooms" { // only by name: "undo the last update" never undoes setup's rooms
+			return fail(refused("REVERT_UNSUPPORTED", fmt.Sprintf("the newest checkpoint is a room change from setup (%s); revert it with --target %s, or pass --target <config_id> for an automation/script/dashboard", snap.Name, snap.TargetID)))
 		}
 		if snap.Op != "update" || (snap.Domain != "automation" && snap.Domain != "script" && snap.Domain != "dashboard") {
 			// Helper checkpoints share the stack; their revert is ha-nova:helper's

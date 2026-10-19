@@ -2,6 +2,7 @@ package main
 
 import (
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 	"unicode"
@@ -60,17 +61,24 @@ func (x *homeIndex) insights(phone *phoneTarget, offered func(templateMatch) boo
 		"lights": x.countDomain("light"), "locks": x.countDomain("lock"), "automations": auto["total"].(int)}}
 
 	_, batteries := x.batteries()
+	private := x.privateDevices()
 	var low []mapRow
 	for _, b := range batteries {
-		if b.Low && b.Kind == "device" {
+		if b.Low && b.Kind == "device" && !private[x.entityDevice[b.EntityID]] {
 			low = append(low, b)
 		}
 	}
 	reminder, canRemind := x.matchTemplate(templateBatteryReminder, phone)
-	canRemind = canRemind && offered(reminder)
 	if len(low) > 0 {
 		in := homeInsight{Kind: "battery_low", EntityID: low[0].EntityID, Name: low[0].Name, Area: low[0].Area, Value: low[0].Level, Count: len(low)}
-		if canRemind {
+		// Offered only when it covers the battery shown and that one is still
+		// above the threshold: a numeric_state trigger fires on crossing it.
+		level, err := strconv.ParseFloat(strings.TrimSuffix(low[0].Level, "%"), 64)
+		covered := false
+		for _, u := range reminder.Uses {
+			covered = covered || u.EntityID == low[0].EntityID
+		}
+		if canRemind && covered && err == nil && level >= reminderBelow && offered(reminder) {
 			in.Action = templateBatteryReminder
 		}
 		r.Insights = append(r.Insights, in)
@@ -102,7 +110,7 @@ func (x *homeIndex) insights(phone *phoneTarget, offered func(templateMatch) boo
 	automationInsight("automation_never_ran", "never_triggered")
 
 	for _, id := range automationTemplates {
-		if id == templateBatteryReminder && len(low) > 0 { // the battery row offers it already
+		if id == templateBatteryReminder && len(low) > 0 { // the battery row's own action, or not useful now
 			continue
 		}
 		if m, ok := x.matchTemplate(id, phone); ok && offered(m) {
@@ -259,8 +267,10 @@ func suggestRoom(name string, areas []foldedArea) (foldedArea, string, bool) {
 	}
 	var spans []span
 	for _, a := range areas {
-		if start := wordIndex(words, a.words); start >= 0 {
-			spans = append(spans, span{a, start, start + len(a.words)})
+		for start := range words {
+			if len(a.words) > 0 && start+len(a.words) <= len(words) && equalWords(words[start:start+len(a.words)], a.words) {
+				spans = append(spans, span{a, start, start + len(a.words)})
+			}
 		}
 	}
 	var direct []span
@@ -275,10 +285,12 @@ func suggestRoom(name string, areas []foldedArea) (foldedArea, string, bool) {
 			direct = append(direct, s)
 		}
 	}
-	if len(direct) > 1 {
-		return foldedArea{}, "", false
+	for _, d := range direct[min(1, len(direct)):] {
+		if d.area.id != direct[0].area.id { // two separate rooms named
+			return foldedArea{}, "", false
+		}
 	}
-	if len(direct) == 1 {
+	if len(direct) > 0 {
 		for kind := range kinds {
 			if !direct[0].area.kinds[kind] {
 				return foldedArea{}, "", false
@@ -301,16 +313,6 @@ func suggestRoom(name string, areas []foldedArea) (foldedArea, string, bool) {
 		return match[0], "medium", true
 	}
 	return foldedArea{}, "", false
-}
-
-// wordIndex: where needle starts as consecutive whole words in words, or -1.
-func wordIndex(words, needle []string) int {
-	for i := 0; len(needle) > 0 && i+len(needle) <= len(words); i++ {
-		if equalWords(words[i:i+len(needle)], needle) {
-			return i
-		}
-	}
-	return -1
 }
 
 func equalWords(a, b []string) bool {

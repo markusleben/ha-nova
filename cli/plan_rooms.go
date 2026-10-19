@@ -23,7 +23,6 @@ import (
 const planRoomsUsage = "ha-nova plan rooms"
 
 const (
-	reasonAreaAssign  = "AREA_ASSIGN"
 	roomsUndoDomain   = "device_area"
 	deviceAreaRequest = "config/device_registry/update"
 )
@@ -39,10 +38,11 @@ type roomsItem struct {
 }
 
 // roomsRequest is what apply recomputes a rooms plan from. Record is the
-// undo record's target_id (an undo keeps its record's).
+// undo record's target_id; Undo marks the way back of that record.
 type roomsRequest struct {
 	Items  []roomsItem `json:"items"`
 	Record string      `json:"record"`
+	Undo   bool        `json:"undo,omitempty"`
 }
 
 func (r roomsRequest) validate() error {
@@ -77,7 +77,7 @@ func runPlanRooms(paths runtimePaths, args []string) int {
 	var opts verbOptions
 	fs := flag.NewFlagSet("plan rooms", flag.ContinueOnError)
 	addVerbFlags(fs, &opts)
-	positional, err := parseVerbArgs(fs, &opts, args, planRoomsUsage+"\n\nRead-only: plans the confident room suggestions of ha-nova map --insights (up to 25 devices, existing rooms only); \"ha-nova apply\" saves them all or none. Undo: ha-nova plan revert.")
+	positional, err := parseVerbArgs(fs, &opts, args, planRoomsUsage+"\n\nRead-only: plans the confident room suggestions of ha-nova map --insights (up to 25 devices, existing rooms only); \"ha-nova apply\" saves them all or none. Undo: ha-nova plan revert --target <the result's undo.target_id>.")
 	if err == nil && len(positional) != 0 {
 		err = errors.New("Usage: " + planRoomsUsage)
 	}
@@ -125,7 +125,10 @@ func planRoomsUndo(paths runtimePaths, s *relaySession, env *verbEnvelope, snap 
 	if json.Unmarshal(snap.BeforeConfig, &before) != nil || json.Unmarshal(snap.ExpectedAfter, &after) != nil {
 		return refused("NO_UNDO_SNAPSHOT", "the rooms undo record cannot be read")
 	}
-	req := roomsRequest{Record: snap.TargetID}
+	if snap.Domain != roomsUndoDomain || !roomsRecordPattern.MatchString(snap.TargetID) {
+		return refused("NO_UNDO_SNAPSHOT", "the rooms undo record is not one HA NOVA saved")
+	}
+	req := roomsRequest{Record: snap.TargetID, Undo: true}
 	for device, to := range before {
 		req.Items = append(req.Items, roomsItem{DeviceID: device, From: after[device], To: to})
 	}
@@ -137,8 +140,9 @@ func planRoomsUndo(paths runtimePaths, s *relaySession, env *verbEnvelope, snap 
 }
 
 type roomsRegistry struct {
-	areas   map[string]string
-	devices map[string]struct{ area, name, disabled string }
+	areas     map[string]string
+	devices   map[string]struct{ area, name, disabled string }
+	effective map[string]string // own area, else the nearest parent's
 }
 
 // readRoomsRegistry reads the area and device registries; fresh bypasses
@@ -154,6 +158,7 @@ func readRoomsRegistry(s *relaySession, fresh bool) (roomsRegistry, error) {
 		Name       string `json:"name"`
 		NameByUser string `json:"name_by_user"`
 		DisabledBy string `json:"disabled_by"`
+		Parent     string `json:"parent_device_id"`
 	}
 	r := roomsRegistry{areas: map[string]string{}, devices: map[string]struct{ area, name, disabled string }{}}
 	for _, read := range []struct {
@@ -178,9 +183,12 @@ func readRoomsRegistry(s *relaySession, fresh bool) (roomsRegistry, error) {
 	for _, a := range areas {
 		r.areas[a.AreaID] = a.Name
 	}
+	own, parent := map[string]string{}, map[string]string{}
 	for _, d := range devices {
 		r.devices[d.ID] = struct{ area, name, disabled string }{d.AreaID, firstNonEmpty(d.NameByUser, d.Name, d.ID), d.DisabledBy}
+		own[d.ID], parent[d.ID] = d.AreaID, d.Parent
 	}
+	r.effective = effectiveDeviceAreas(own, parent)
 	return r, nil
 }
 
@@ -195,33 +203,42 @@ func computeRoomsPlan(s *relaySession, env *verbEnvelope, req roomsRequest) (*ti
 	if err != nil {
 		return nil, storedPlan{}, err
 	}
-	names, areaNames := map[string]string{}, map[string]string{}
+	names, areaNames, effective := map[string]string{}, map[string]string{}, map[string]string{}
 	result := roomsResult{}
 	for _, it := range req.Items {
 		d, ok := reg.devices[it.DeviceID]
 		switch {
 		case !ok || d.disabled != "":
-			return nil, storedPlan{}, &verbFailure{exit: verbExitNotFound, code: "DEVICE_NOT_FOUND", message: "device " + it.DeviceID + " is gone or disabled; nothing was planned", next: replan}
+			return nil, storedPlan{}, &verbFailure{exit: verbExitNotFound, code: "DEVICE_NOT_FOUND", message: "device " + it.DeviceID + " is gone or disabled; nothing was planned", next: roomsAgain(req)}
 		case d.area != it.From:
 			return nil, storedPlan{}, &verbFailure{exit: verbExitDrift, status: "drift", code: "ROOMS_CHANGED",
-				message: sayText(d.name, true) + " is in a different room than the plan expects; nothing was sent", next: "Read the rooms again and plan again."}
+				message: sayText(d.name, true) + " is in a different room than the plan expects; nothing was sent", next: roomsAgain(req)}
 		case it.To != "" && reg.areas[it.To] == "":
-			return nil, storedPlan{}, refused("AREA_NOT_FOUND", "the room "+it.To+" no longer exists")
+			return nil, storedPlan{}, refusedWith("AREA_NOT_FOUND", "a room in this plan no longer exists", roomsAgain(req))
 		}
 		names[it.DeviceID], areaNames[it.From], areaNames[it.To] = d.name, reg.areas[it.From], reg.areas[it.To]
+		effective[it.DeviceID] = reg.effective[it.DeviceID] // a parent moved since the preview is drift too
 		result.Changes = append(result.Changes, roomsChange{DeviceID: it.DeviceID, Name: d.name, FromID: it.From, From: reg.areas[it.From], AreaID: it.To, Area: reg.areas[it.To]})
 	}
 	e := newTierEngine(s)
 	e.raise(tierPreview, tierReason{Code: reasonAreaAssign, Via: roomsUndoDomain})
-	plan := storedPlan{Kind: "rooms", RoomsRequest: &req, Basis: map[string]any{"names": names, "areas": areaNames}}
+	plan := storedPlan{Kind: "rooms", RoomsRequest: &req, Basis: map[string]any{"names": names, "areas": areaNames, "effective": effective}}
 	plan, err = sealPlan(e, env, plan, req)
 	env.Result = result
-	env.Say = roomsSay(result.Changes) + " Nothing is saved until you choose “Save rooms”. Save them?"
+	env.Say = roomsSay(result.Changes, req.Undo) + " Nothing changes until you say so. Save these rooms?"
 	return e, plan, err
 }
 
+// roomsAgain: what to do when a device changed since the preview.
+func roomsAgain(req roomsRequest) string {
+	if req.Undo {
+		return "Nothing was reverted: a device changed since. Tell the user; they can move devices in Home Assistant's own device settings."
+	}
+	return "Nothing was sent. Plan again with ha-nova plan rooms, show its preview, and get confirmation again."
+}
+
 // roomsSay: Kitchen ← “A” and “B”; Bedroom ← “C”; no room ← “D”.
-func roomsSay(changes []roomsChange) string {
+func roomsSay(changes []roomsChange, undo bool) string {
 	var order []string
 	by := map[string][]string{}
 	for _, c := range changes {
@@ -238,6 +255,9 @@ func roomsSay(changes []roomsChange) string {
 	for _, room := range order {
 		parts = append(parts, room+" ← "+sayList(by[room]))
 	}
+	if undo {
+		return fmt.Sprintf("Put %s back in their previous rooms: %s.", plural(len(changes), "device"), strings.Join(parts, "; "))
+	}
 	return fmt.Sprintf("Put %s in rooms: %s.", plural(len(changes), "device"), strings.Join(parts, "; "))
 }
 
@@ -252,9 +272,8 @@ func deviceAreaWrite(s *relaySession, device, area string) error {
 
 // executeRooms writes the items in order. A failed write rolls back every
 // earlier one (and the failed one when its outcome is unknown), newest
-// first, to its recorded From. The result says "nothing was saved" only
-// when every rollback succeeded; otherwise it names what stayed changed
-// and saves an undo record for exactly those devices.
+// first, to its recorded From; then a fresh read decides what the result
+// says (failRooms).
 func executeRooms(paths runtimePaths, s *relaySession, env *verbEnvelope, req roomsRequest, changes []roomsChange) (err error) {
 	sent := false
 	defer afterSend(&sent, env, &err)
@@ -267,10 +286,14 @@ func executeRooms(paths runtimePaths, s *relaySession, env *verbEnvelope, req ro
 			if errors.As(werr, &unknown) {
 				done = i + 1
 			}
-			return rollbackRooms(paths, s, env, req, changes, done, werr)
+			for j := done - 1; j >= 0; j-- {
+				_ = deviceAreaWrite(s, req.Items[j].DeviceID, req.Items[j].From) // failRooms reads what stuck
+			}
+			return failRooms(paths, s, env, req, changes, i+1, werr)
 		}
 	}
-	saveRoomsRecord(paths, s, env, req, req.Items, changes)
+	saveRoomsRecord(paths, s, env, req, req.Items)
+	s.renewBudget() // 25 writes may outlast the budget the loop started with
 	reg, rerr := readRoomsRegistry(s, true)
 	env.Status, env.exit = "verified", verbExitOK
 	for _, it := range req.Items {
@@ -282,39 +305,69 @@ func executeRooms(paths runtimePaths, s *relaySession, env *verbEnvelope, req ro
 	return nil
 }
 
-func rollbackRooms(paths runtimePaths, s *relaySession, env *verbEnvelope, req roomsRequest, changes []roomsChange, done int, cause error) error {
-	var stayed []roomsItem
-	unknown := false
-	for i := done - 1; i >= 0; i-- {
-		it := req.Items[i]
-		if err := deviceAreaWrite(s, it.DeviceID, it.From); err != nil {
-			stayed = append(stayed, it)
-			var outcome *relayOutcomeUnknownError
-			unknown = unknown || errors.As(err, &outcome)
+// failRooms reads the registry back after a rollback. "Nothing was saved"
+// only when the read shows every attempted device on its From; otherwise
+// the result names each device still changed (every attempted one when the
+// read fails: possibly changed, exit 7) and the undo record holds what is
+// still to undo.
+func failRooms(paths runtimePaths, s *relaySession, env *verbEnvelope, req roomsRequest, changes []roomsChange, attempted int, cause error) error {
+	s.renewBudget()
+	reg, rerr := readRoomsRegistry(s, true)
+	var moved []roomsItem
+	for _, it := range req.Items[:attempted] {
+		if rerr != nil || reg.devices[it.DeviceID].area != it.From {
+			moved = append(moved, it)
 		}
 	}
-	if len(stayed) == 0 {
+	if len(moved) == 0 {
 		return &verbFailure{exit: verbExitUnverified, status: "failed", code: "ROOMS_NOT_SAVED",
-			message: "a room change failed (" + cause.Error() + "); every earlier change was undone, so nothing was saved", next: "Nothing changed. Plan again if the user still wants it."}
+			message: "a room change failed (" + cause.Error() + "); every earlier change was undone, so nothing was saved",
+			next:    "Nothing changed. Tell the user; plan again only if they still want it."}
 	}
-	saveRoomsRecord(paths, s, env, req, stayed, changes)
-	var named []string
-	for _, it := range stayed {
-		for _, c := range changes {
-			if c.DeviceID == it.DeviceID {
-				named = append(named, sayText(c.Name, true)+" → "+cmp.Or(sayText(c.Area, false), "no room"))
+	// A rooms change: undo puts the moved devices back. A failed undo: the
+	// record keeps every device not yet back where it was, so the original
+	// way back stays complete.
+	record := moved
+	if req.Undo {
+		record = nil
+		for _, it := range req.Items {
+			if rerr != nil || reg.devices[it.DeviceID].area != it.To {
+				record = append(record, roomsItem{DeviceID: it.DeviceID, From: it.To, To: it.From})
 			}
 		}
 	}
-	var failed *relayOutcomeUnknownError
-	env.OutcomeUnknown = unknown || errors.As(cause, &failed)
-	return &verbFailure{exit: verbExitUnverified, status: "unverified", code: "ROOMS_PARTIAL",
-		message: "a room change failed (" + cause.Error() + ") and undoing the earlier ones failed too; still changed (or possibly, if Home Assistant didn't answer): " + strings.Join(named, ", "),
-		next:    "Tell the user exactly which devices stayed in their new room. ha-nova plan revert puts them back."}
+	if len(record) > 0 {
+		saveRoomsRecord(paths, s, env, req, record)
+	}
+	var named []string
+	for _, it := range moved {
+		area := it.To
+		if rerr == nil {
+			area = reg.devices[it.DeviceID].area
+		}
+		for _, c := range changes {
+			if c.DeviceID == it.DeviceID {
+				named = append(named, sayText(c.Name, true)+" → "+cmp.Or(sayText(reg.areas[area], false), sayText(c.Area, false), "no room"))
+			}
+		}
+	}
+	failure := &verbFailure{exit: verbExitUnverified, status: "unverified", code: "ROOMS_PARTIAL",
+		message: "a room change failed (" + cause.Error() + ") and putting the others back did not fully work; changed now: " + strings.Join(named, ", "),
+		next:    "Tell the user exactly which devices changed room. They can move them back in Home Assistant's own device settings."}
+	if rerr != nil {
+		env.OutcomeUnknown = true
+		failure.exit = verbExitUnknown
+		failure.message = "a room change failed (" + cause.Error() + ") and the rooms could not be read back; possibly changed: " + strings.Join(named, ", ")
+	}
+	if env.Undo != nil {
+		failure.next = "Tell the user exactly which devices changed room. To put them back: ha-nova plan revert --target " + req.Record + " (a new preview), or move them in Home Assistant."
+	}
+	return failure
 }
 
-// saveRoomsRecord puts items on the undo stack: before = From, after = To.
-func saveRoomsRecord(paths runtimePaths, s *relaySession, env *verbEnvelope, req roomsRequest, items []roomsItem, changes []roomsChange) {
+// saveRoomsRecord puts items on the undo stack under the plan's record id:
+// before = From, after = To.
+func saveRoomsRecord(paths runtimePaths, s *relaySession, env *verbEnvelope, req roomsRequest, items []roomsItem) {
 	before, after := map[string]string{}, map[string]string{}
 	for _, it := range items {
 		before[it.DeviceID], after[it.DeviceID] = it.From, it.To

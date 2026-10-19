@@ -84,13 +84,9 @@ func (x *homeIndex) templateLights() []string {
 	return lights
 }
 
-// Words that name the kind of device, not where it is: never a name match.
-var genericNameWords = map[string]bool{"light": true, "lights": true, "lamp": true, "licht": true, "lampe": true, "door": true, "tur": true,
-	"lock": true, "schloss": true, "sensor": true, "contact": true, "kontakt": true, "the": true, "der": true, "die": true, "das": true}
-
-// pairLight: the first light in the trigger's area, else the first light
-// whose name shares a place word with the trigger's ("Front Door" and
-// "Front Porch"); "" when neither.
+// pairLight: the first light in the trigger's own area, else "". Names are
+// never matched: friendly names carry brand words (IKEA, Hue) that would
+// pair a door with a lamp in another room.
 func (x *homeIndex) pairLight(trigger string, lights []string) string {
 	if area := x.entityArea[trigger]; area != "" {
 		for _, l := range lights {
@@ -99,29 +95,18 @@ func (x *homeIndex) pairLight(trigger string, lights []string) string {
 			}
 		}
 	}
-	words := map[string]bool{}
-	for _, w := range foldWords(x.name(trigger)) {
-		if len(w) >= 3 && !genericNameWords[w] {
-			words[w] = true
-		}
-	}
-	for _, l := range lights {
-		for _, w := range foldWords(x.name(l)) {
-			if words[w] {
-				return l
-			}
-		}
-	}
 	return ""
 }
 
 // doorLight: a lock that is unlocked, or a door that opens, after dark
-// turns on a light next to it. State triggers name from: so a return from
+// turns on a light in the same area. A car's lock or door (a device with a
+// tracker) is never a trigger. State triggers name from: so a return from
 // unavailable never fires, and a lock's unlocking step is in from: (#743).
 func (x *homeIndex) doorLight() (templateMatch, bool) {
 	var locks, doors []string
+	private := x.privateDevices()
 	for _, id := range x.enabled {
-		if !x.templateEntity(id) {
+		if !x.templateEntity(id) || private[x.entityDevice[id]] {
 			continue
 		}
 		switch class := x.state[id].deviceClass(); {
@@ -155,12 +140,13 @@ func (x *homeIndex) doorLight() (templateMatch, bool) {
 }
 
 // lightsOff: when nobody has been home for 10 minutes (zone.home counts the
-// persons in it), turn the lights off. Needs a person and a numeric
-// zone.home; neither is ever listed.
+// persons in it), turn the lights off. Needs a person whose location is
+// known (one stuck at unknown keeps zone.home at 0, so it never fires) and
+// a numeric zone.home; neither is ever listed.
 func (x *homeIndex) lightsOff() (templateMatch, bool) {
 	home, persons := x.state["zone.home"], 0
 	for _, id := range x.enabled {
-		if inDomain(id, "person") && x.state[id] != nil {
+		if st := x.state[id]; inDomain(id, "person") && st != nil && st.State != "unknown" && st.State != "unavailable" {
 			persons++
 		}
 	}
@@ -189,8 +175,9 @@ func (x *homeIndex) batteryReminder(phone *phoneTarget) (templateMatch, bool) {
 	_, rows := x.batteries()
 	m := templateMatch{Template: templateBatteryReminder}
 	var batteries []string
+	private := x.privateDevices()
 	for _, row := range rows {
-		if row.Kind == "device" && strings.HasSuffix(row.Level, "%") {
+		if row.Kind == "device" && strings.HasSuffix(row.Level, "%") && !private[x.entityDevice[row.EntityID]] {
 			batteries = append(batteries, row.EntityID)
 			m.Uses = append(m.Uses, templateUse{Role: "battery", EntityID: row.EntityID, Name: row.Name})
 		}

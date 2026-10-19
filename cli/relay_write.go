@@ -14,7 +14,7 @@ import (
 // is sent exactly once, never retried, never through the read path (read()
 // refuses it, I1), and must pass checkWriteRequest — service calls, the
 // automation/script config endpoints, the dashboard save/create/delete WS
-// commands, and a config-snapshot save.
+// commands, one device's area (rooms plans), and a config-snapshot save.
 
 var relayWriteTimeout = 30 * time.Second
 

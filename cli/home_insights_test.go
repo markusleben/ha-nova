@@ -161,26 +161,27 @@ func TestSuggestRoomRules(t *testing.T) {
 		areas = append(areas, foldedArea{id: n, name: n, words: w, kinds: roomKinds(w)})
 	}
 	for name, want := range map[string]string{
-		"Küche Licht":          "Küche/high",
-		"KÜCHENRADIO":          "Küche/medium",
-		"Kitchen Speaker":      "Küche/medium",
-		"Living Room Lamp":     "Living Room/high",
-		"Wohnzimmerlampe":      "Living Room/medium",
-		"Lounge spot":          "Living Room/medium",
-		"Bad Spiegel":          "Bad/high",
-		"Badezimmer Heizung":   "Bad/medium",
-		"Guest Bedroom Lamp":   "Guest Bedroom/high",
-		"Bedroom Lamp":         "Bedroom/high",
-		"Home Office Printer":  "Home Office/high",
-		"Office Printer":       "Office/high",
-		"Kitchen Bedroom Link": "",           // two rooms named: no guess
-		"Badge reader":         "",           // "bad" only as a whole word
-		"Schlafzimmer Licht":   "",           // two bedroom-kind rooms: no guess
-		"Hue color lamp 1":     "",           // nothing
-		"Livingcolors":         "",           // an English word never matches inside another
-		"Officejet Pro":        "",           // same
-		"Flur Licht":           "",           // no hall area
-		"Kitchen and Küche":    "Küche/high", // both name the one kitchen
+		"Küche Licht":                     "Küche/high",
+		"KÜCHENRADIO":                     "Küche/medium",
+		"Kitchen Speaker":                 "Küche/medium",
+		"Living Room Lamp":                "Living Room/high",
+		"Wohnzimmerlampe":                 "Living Room/medium",
+		"Lounge spot":                     "Living Room/medium",
+		"Bad Spiegel":                     "Bad/high",
+		"Badezimmer Heizung":              "Bad/medium",
+		"Guest Bedroom Lamp":              "Guest Bedroom/high",
+		"Bedroom Lamp":                    "Bedroom/high",
+		"Home Office Printer":             "Home Office/high",
+		"Office Printer":                  "Office/high",
+		"Kitchen Bedroom Link":            "",           // two rooms named: no guess
+		"Badge reader":                    "",           // "bad" only as a whole word
+		"Schlafzimmer Licht":              "",           // two bedroom-kind rooms: no guess
+		"Hue color lamp 1":                "",           // nothing
+		"Livingcolors":                    "",           // an English word never matches inside another
+		"Officejet Pro":                   "",           // same
+		"Flur Licht":                      "",           // no hall area
+		"Kitchen and Küche":               "Küche/high", // both name the one kitchen
+		"Guest Bedroom to Bedroom Switch": "",           // every occurrence counts
 	} {
 		area, confidence, ok := suggestRoom(name, areas)
 		got := ""
@@ -293,9 +294,9 @@ func TestTemplatesNoMatch(t *testing.T) {
 	if _, ok := indexFixture(t, f).matchTemplate(templateDoorLight, nil); ok {
 		t.Error("door light without a pair")
 	}
-	// a shared place word pairs them
+	// names never pair (brand words: "IKEA … Sensor" and "IKEA … bulb")
 	f.states = append(f.states, st("light.front_porch", "off", map[string]any{"friendly_name": "Front Porch"}))
-	if m, ok := indexFixture(t, f).matchTemplate(templateDoorLight, nil); !ok || m.Uses[1].EntityID != "light.front_porch" {
+	if m, ok := indexFixture(t, f).matchTemplate(templateDoorLight, nil); ok {
 		t.Errorf("name pair %+v", m)
 	}
 	// away: no person, or more lights than one plan should name
@@ -332,5 +333,51 @@ func TestInsightsOfferOnlyPreviewTemplates(t *testing.T) {
 		if exit != 0 || (r.Automation != nil) == typed || (!typed && r.Automation.Template != templateDoorLight) {
 			t.Errorf("typed %v: exit %d automation %+v", typed, exit, r.Automation)
 		}
+	}
+}
+
+// A device with a tracker (a car, a tag) is private everywhere: its battery
+// is never named and its lock is never a trigger.
+func TestPrivateDevicesNeverInBatteriesOrTriggers(t *testing.T) {
+	f := wowHome()
+	f.entities = append(f.entities, ent("sensor.tag_battery", "d_tracker", "zha", "e_zha", map[string]any{"entity_category": "diagnostic"}),
+		ent("lock.car", "d_tracker", "tesla", "e_zha", map[string]any{"area_id": "hall"}))
+	f.states = append(f.states, st("sensor.tag_battery", "4", map[string]any{"device_class": "battery", "friendly_name": "Kitchen Tag battery"}),
+		st("lock.car", "locked", map[string]any{"friendly_name": "Model Y"}))
+	x := indexFixture(t, f)
+	phone := &phoneTarget{Service: "mobile_app_pixel", Name: "Pixel"}
+	r := x.insights(phone, offerAll)
+	m, _ := x.matchTemplate(templateBatteryReminder, phone)
+	raw, _ := json.Marshal([]any{r, m})
+	for _, leak := range []string{"tag_battery", "Kitchen Tag", "lock.car", "Model Y"} {
+		if strings.Contains(string(raw), leak) {
+			t.Errorf("names %q: %s", leak, raw)
+		}
+	}
+	if r.Insights[0].EntityID != "sensor.door_battery" || r.Automation.Uses[0].EntityID != "lock.front_door" {
+		t.Errorf("battery %+v automation %+v", r.Insights[0], r.Automation)
+	}
+}
+
+// "Remind me" only where it can fire: the shown battery is covered and
+// still above 10% (numeric_state fires on crossing). A person stuck at
+// unknown never moves zone.home, so no away template.
+func TestTemplatesOnlyWhereTheyCanFire(t *testing.T) {
+	f := wowHome()
+	for i, s := range f.states {
+		switch s["entity_id"] {
+		case "sensor.door_battery":
+			f.states[i] = st("sensor.door_battery", "7", map[string]any{"device_class": "battery", "friendly_name": "Front Door battery"})
+		case "person.someone":
+			f.states[i] = st("person.someone", "unknown", nil)
+		}
+	}
+	x := indexFixture(t, f)
+	r := x.insights(&phoneTarget{Service: "mobile_app_pixel", Name: "Pixel"}, offerAll)
+	if r.Insights[0].Kind != "battery_low" || r.Insights[0].Action != "" {
+		t.Errorf("battery %+v", r.Insights[0])
+	}
+	if _, ok := x.matchTemplate(templateLightsOff, nil); ok {
+		t.Error("away with only an unknown person")
 	}
 }
