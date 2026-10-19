@@ -114,7 +114,7 @@ func TestSecondProfilePairingKeepsFirstDeviceEndToEnd(t *testing.T) {
 	t.Setenv("HA_NOVA_TEST_SECRET_DIR", t.TempDir())
 	resetServerProfileSelection(t)
 
-	cmd := exec.Command("node", harness)
+	cmd := exec.Command("node", harness, t.TempDir())
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
 		t.Fatal(err)
@@ -127,7 +127,7 @@ func TestSecondProfilePairingKeepsFirstDeviceEndToEnd(t *testing.T) {
 	if err := cmd.Start(); err != nil {
 		t.Fatal(err)
 	}
-	defer func() { _ = cmd.Process.Kill() }()
+	defer func() { _ = cmd.Process.Kill(); _ = cmd.Wait() }() // exit before t.TempDir cleanup
 	lines := bufio.NewReader(stdout)
 	readInfo := func(into any) {
 		t.Helper()

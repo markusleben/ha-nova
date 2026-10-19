@@ -29,7 +29,7 @@ func TestSignInArmedPairingEndToEnd(t *testing.T) {
 	}
 	t.Setenv("HA_NOVA_TEST_SECRET_DIR", t.TempDir())
 
-	cmd := exec.Command("node", harness)
+	cmd := exec.Command("node", harness, t.TempDir())
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		t.Fatal(err)
@@ -38,7 +38,7 @@ func TestSignInArmedPairingEndToEnd(t *testing.T) {
 	if err := cmd.Start(); err != nil {
 		t.Fatal(err)
 	}
-	defer func() { _ = cmd.Process.Kill() }()
+	defer func() { _ = cmd.Process.Kill(); _ = cmd.Wait() }() // exit before t.TempDir cleanup
 	var info struct {
 		BootstrapPort  int    `json:"bootstrapPort"`
 		IngressPort    int    `json:"ingressPort"`
