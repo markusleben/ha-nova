@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"strings"
 	"time"
 )
 
@@ -83,8 +82,8 @@ func runChatAppsCommand(paths runtimePaths, args []string) int {
 		origin = cfg.Cloud.Current.Origin
 	}
 	url := ""
-	if origin != "" {
-		url = strings.TrimRight(origin, "/") + chatAppsConnectorPath
+	if base := chatAppsBase(origin, ha.externalURL); base != "" {
+		url = base + chatAppsConnectorPath
 	}
 	switch action {
 	case "status":
@@ -96,7 +95,7 @@ func runChatAppsCommand(paths runtimePaths, args []string) int {
 		if url != "" {
 			printChatAppsHowTo(out, url)
 		} else {
-			fmt.Fprintln(out, "  HA NOVA couldn't find a Home Assistant Link address with remote access from this computer, so Claude and ChatGPT may not reach your home right now.")
+			fmt.Fprintf(out, "  %s\n", setupT("setup.chat.on_noaddress"))
 		}
 		return 0
 	}
@@ -105,7 +104,7 @@ func runChatAppsCommand(paths runtimePaths, args []string) int {
 		printHumanErr("%s", setupT("setup.chat.problem_old"))
 		return 1
 	case url == "":
-		printHumanErr("Chat apps reach your home through Home Assistant Link. Turn on its remote access in Home Assistant first, then run this again.")
+		printHumanErr("%s", setupT("setup.chat.need_address_cli"))
 		return 1
 	case !chatAppsSignInOK(out, cfg):
 		printHumanErr("Turning chat apps on needs a sign-in in a browser on this computer. Use NOVA in Home Assistant instead: open NOVA in the sidebar, then Chat apps.")

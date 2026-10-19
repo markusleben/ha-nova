@@ -179,6 +179,9 @@ func TestServeRefusesWithoutSecretAndAllowedUser(t *testing.T) {
 			t.Errorf("%s: HTTP %d %q, want %d", name, status, body, c.want)
 		}
 	}
+	if _, body := s.raw(http.MethodPost, s.as(userB), list); !strings.Contains(body, `"id":1,`) || !strings.Contains(body, "Sign in with an account the owner allowed.") {
+		t.Errorf("an allowed list names no owner: %s", body)
+	}
 	for _, method := range []string{http.MethodGet, http.MethodDelete} {
 		if status, _ := s.raw(method, s.as(userA), ""); status != http.StatusMethodNotAllowed {
 			t.Errorf("%s: %d", method, status)
@@ -210,8 +213,22 @@ func TestServeDefaultsToTheOwnerAndFailsClosed(t *testing.T) {
 	if status, _ := s.raw(http.MethodPost, s.as(userA), list); status != http.StatusOK {
 		t.Fatalf("owner: %d", status)
 	}
-	if status, _ := s.raw(http.MethodPost, s.as(userB), list); status != http.StatusForbidden {
-		t.Fatalf("not the owner: %d", status)
+	// A signed-in user who isn't the owner gets words a chat app can show,
+	// as a JSON-RPC error with the request's own id.
+	for request, id := range map[string]any{list: float64(1), `{"jsonrpc":"2.0","id":"a-1","method":"initialize"}`: "a-1", `{"jsonrpc":"2.0","id":{"x":1},"method":"initialize"}`: nil, `[{"id":2}]`: nil, `{`: nil} {
+		status, body := s.raw(http.MethodPost, s.as(userB), request)
+		var msg struct {
+			JSONRPC string `json:"jsonrpc"`
+			ID      any    `json:"id"`
+			Error   struct {
+				Code    int    `json:"code"`
+				Message string `json:"message"`
+			} `json:"error"`
+		}
+		if status != http.StatusForbidden || json.Unmarshal([]byte(body), &msg) != nil || msg.JSONRPC != "2.0" || msg.ID != id || msg.Error.Code != -32001 ||
+			msg.Error.Message != "Only the Home Assistant owner can use HA NOVA in chat apps. Sign in as the owner." {
+			t.Fatalf("not the owner, %s: HTTP %d %s", request, status, body)
+		}
 	}
 	for _, bad := range []string{`{`, `{"allowed_user":["` + userA + `"]}`, `{"read_only":"yes"}`, `{}{"read_only":true}`} {
 		if err := os.WriteFile(filepath.Join(s.data, "chat-apps.json"), []byte(bad), 0o600); err != nil {

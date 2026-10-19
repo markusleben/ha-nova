@@ -222,7 +222,7 @@
   };
   // Steps 3 and 4 (steps.js).
   const announce = (text) => { statusEl.textContent = text; };
-  Object.assign(screens, window.novaSteps({ t, el, row, head, button, format, render, post, accepts, announce, state: () => state }));
+  Object.assign(screens, window.novaSteps({ t, el, row, head, button, link, format, render, post, accepts, announce, state: () => state }));
   for (const [screen, [eyebrow, title, lead, amber]] of Object.entries(endScreens)) {
     screens[screen] = () => head(t(eyebrow), t(title), t(lead), amber);
   }

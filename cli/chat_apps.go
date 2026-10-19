@@ -104,8 +104,9 @@ var chatAppsCall = func(ctx context.Context, client *CloudIngressClient, body ma
 
 // chatAppsHA is what this computer's Relay reads from Home Assistant.
 type chatAppsHA struct {
-	version string
-	loaded  bool // the ha_nova integration's entry is loaded: the connector answers
+	version     string
+	loaded      bool   // the ha_nova integration's entry is loaded: the connector answers
+	externalURL string // Home Assistant's own external URL (Settings → System → Network)
 }
 
 // chatAppsReadHA reads Home Assistant's version and the integration's entry
@@ -121,7 +122,8 @@ var chatAppsReadHA = func(paths runtimePaths) (chatAppsHA, error) {
 		return chatAppsHA{}, err
 	}
 	var config struct {
-		Version string `json:"version"`
+		Version     string `json:"version"`
+		ExternalURL string `json:"external_url"`
 	}
 	if status != http.StatusOK || json.Unmarshal(body, &config) != nil {
 		return chatAppsHA{}, fmt.Errorf("Home Assistant /api/config answered %d", status)
@@ -132,7 +134,7 @@ var chatAppsReadHA = func(paths runtimePaths) (chatAppsHA, error) {
 	if err := s.wsDecode(map[string]any{"type": "config_entries/get", "domain": "ha_nova"}, &entries, "config entries"); err != nil {
 		return chatAppsHA{}, err
 	}
-	ha := chatAppsHA{version: config.Version}
+	ha := chatAppsHA{version: config.Version, externalURL: config.ExternalURL}
 	for _, entry := range entries {
 		ha.loaded = ha.loaded || entry.State == "loaded"
 	}
@@ -152,11 +154,11 @@ func chatAppsHAVersionOK(version string) bool {
 }
 
 // chatAppsOffer is what decides whether chat apps can be turned on here: the
-// App has them, Home Assistant Link remote access answers, and Home Assistant
-// is new enough. ok=false: say nothing.
+// App has them and Home Assistant is new enough (ok=false: say nothing), and
+// Home Assistant has an address on the internet (url "": one plain line).
 type chatAppsOffer struct {
 	state  chatAppsState
-	url    string // the connector address
+	url    string // the connector address; "": no internet address (chatAppsBase)
 	loaded bool   // Home Assistant runs the integration: the address answers
 }
 
@@ -174,11 +176,11 @@ func readChatAppsOffer(client *CloudIngressClient, paths runtimePaths, linkOrigi
 	if err != nil || !chatAppsHAVersionOK(ha.version) {
 		return chatAppsOffer{}, false
 	}
-	origin := strings.TrimRight(linkOrigin(), "/")
-	if origin == "" {
-		return chatAppsOffer{}, false
+	offer := chatAppsOffer{state: state, loaded: ha.loaded}
+	if base := chatAppsBase(linkOrigin(), ha.externalURL); base != "" {
+		offer.url = base + chatAppsConnectorPath
 	}
-	return chatAppsOffer{state: state, url: origin + chatAppsConnectorPath, loaded: ha.loaded}, true
+	return offer, true
 }
 
 // handOverOwnerPhone gives the App the owner's phone linked on this computer
@@ -342,22 +344,6 @@ func chatAppsProblem(err error) setupMsg {
 		return setupText("setup.chat.problem_unknown")
 	}
 	return setupText("setup.chat.problem_failed")
-}
-
-// printChatAppsHowTo: the connector address and the three steps per app.
-func printChatAppsHowTo(out io.Writer, url string) {
-	renderSetupParagraph(out, setupT("setup.chat.on"))
-	fmt.Fprintf(out, "    %s\n\n", url)
-	steps := func(title string, lines ...string) {
-		fmt.Fprintf(out, "  %s\n", title)
-		for i, line := range lines {
-			fmt.Fprintf(out, "    %d. %s\n", i+1, line)
-		}
-		fmt.Fprintln(out)
-	}
-	steps(setupT("setup.chat.claude_title"), setupT("setup.chat.claude_1"), setupT("setup.chat.claude_2"), setupT("setup.chat.claude_3"))
-	steps(setupT("setup.chat.chatgpt_title"), setupT("setup.chat.chatgpt_1"), setupT("setup.chat.chatgpt_2"), setupT("setup.chat.chatgpt_3"))
-	renderSetupParagraph(out, setupT("setup.chat.off_hint"))
 }
 
 // askChatAppsConsent is the terminal's question (setup's text path and

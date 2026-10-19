@@ -17,7 +17,7 @@ import (
 // Home Assistant to return before step 4). A failure keeps the switch, with
 // one line; trying again runs the whole action again.
 func (f *setupFlow) pageChatOn(c *setupPageChat, offer *chatAppsOffer, show func()) {
-	c.State, c.Problem, c.URL = "run", nil, ""
+	c.State, c.Problem, c.URL, c.ClaudeLink = "run", nil, "", ""
 	c.Rows = []setupPageRow{{ID: "chat_on", State: "run", Msg: setupPageText("setup.chat.row_on")}}
 	show()
 	set := func(id, state string) {
@@ -59,7 +59,7 @@ func (f *setupFlow) pageChatOn(c *setupPageChat, offer *chatAppsOffer, show func
 		}
 		return
 	}
-	c.State, c.URL = "on", offer.url
+	c.State, c.URL, c.ClaudeLink = "on", offer.url, claudeConnectorLink(offer.url)
 	offer.state.Enabled = true
 	if result.phoneStored {
 		name := phone.Name
@@ -76,7 +76,13 @@ func (f *setupFlow) pageChatOn(c *setupPageChat, offer *chatAppsOffer, show func
 		}
 		c.Problem = setupPageText("setup.chat.problem_slow")
 	}
-	f.pageNotes = append(f.pageNotes, setupPageText("setup.page.home.note_chat", "url", offer.url))
+	f.pageChatNote(offer.url)
+}
+
+// pageChatNote: step 4 repeats the connector address, with Add to Claude.
+func (f *setupFlow) pageChatNote(url string) {
+	f.pageNotes = append(f.pageNotes, setupPageText("setup.page.home.note_chat", "url", url))
+	f.pageChatLink = claudeConnectorLink(url)
 }
 
 // pageChatPhone follows a phone linked on step 3 after the chat row was

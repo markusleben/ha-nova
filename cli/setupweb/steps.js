@@ -5,7 +5,7 @@
 'use strict';
 
 window.novaSteps = (h) => {
-  const { t, el, row, head, button, render } = h;
+  const { t, el, row, head, button, link, render } = h;
   const say = (msg) => (msg ? t(msg.key, msg.args || {}) : '');
   // Switches and open details live here until "Finish setup" sends them.
   const local = { rule: true, link: false, others: false, drafts: {}, chatAsk: false, chatSeen: '', how: false };
@@ -83,6 +83,14 @@ window.novaSteps = (h) => {
   // with the restart; only "Turn on and restart" posts, and that click is
   // the consent. Then the restart and Home Assistant loading it, then the
   // connector address to copy and how to add it.
+  // Add to Claude: the CLI builds the link (claudeConnectorLink); only one
+  // to claude.ai becomes a button, next to the host it adds.
+  const addClaude = (href, kind, id) => {
+    if (!/^https:\/\/claude\.ai\//.test(href || '')) return null;
+    let host = '';
+    try { host = decodeURIComponent((/[?&]connectorUrl=([^&]*)/.exec(href) || ['', ''])[1]).replace(/^https:\/\/([^/]+).*$/, '$1'); } catch (_) { /* no host line */ }
+    return [link(t('setup.chat.add_claude'), href, kind, id), host ? el('span', { class: 'fine' }, t('setup.chat.adds', { host })) : null];
+  };
   const copy = (text) => (navigator.clipboard ? navigator.clipboard.writeText(text) : Promise.reject(new Error('no clipboard')))
     .then(() => toast(t('setup.chat.copied')), () => toast(t('setup.chat.copy_failed')));
   const howTo = () => {
@@ -114,6 +122,7 @@ window.novaSteps = (h) => {
     switch (chat.state) {
       case 'on':
         return refocus(line(guard('✓'), key, t('setup.chat.on'), [chat.problem ? progress : null,
+          el('div', { class: 'actions addclaude' }, addClaude(chat.claude_link, 'primary btn-small', 'chat-claude')),
           el('div', { class: 'copybar' }, el('code', { id: 'chat-url' }, chat.url),
             el('button', { id: 'b-chat-copy', class: 'btn btn-ghost btn-small', type: 'button', onclick: () => copy(chat.url) }, t('setup.chat.copy'))),
           problem(chat.problem), howTo(), el('p', { class: 'fine' }, t('setup.chat.off_hint'))], tagOn()));
@@ -122,6 +131,8 @@ window.novaSteps = (h) => {
           el('div', {}, el('div', { class: 'k' }, key), el('div', { class: 'v', role: 'status' }, t('setup.chat.wait')), progress), el('span'));
       case 'expired':
         return line(guard('·'), key, t('setup.chat.value'), problem(chat.problem));
+      case 'noaddress':
+        return line(guard('·'), key, chat.problem ? say(chat.problem) : t('setup.chat.need_address'));
       default: {
         const ask = local.chatAsk && h.accepts('chat');
         const consent = ask ? el('div', { class: 'consent', id: 'chat-consent' },
@@ -344,6 +355,7 @@ window.novaSteps = (h) => {
     const hm = h.state().home || {};
     const out = [...head(t('setup.page.home.eyebrow'), t('setup.page.home.title'), null)];
     for (const note of hm.notes || []) out.push(el('p', { class: 'note' }, say(note)));
+    if (hm.chat_link) out.push(el('div', { class: 'actions addclaude' }, addClaude(hm.chat_link, 'ghost btn-small', 'chat-claude-4')));
     if (hm.loading) out.push(el('ul', { class: 'rows' }, row('run', t('setup.page.home.loading'))));
     if (hm.failed) out.push(el('p', { class: 'problem' }, t('setup.page.home.failed')));
     if (hm.stats) out.push(stats(hm));

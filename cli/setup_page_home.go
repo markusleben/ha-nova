@@ -23,10 +23,11 @@ type setupPageHome struct {
 	Stats      map[string]int               `json:"stats,omitempty"`
 	Insights   []homeInsight                `json:"insights,omitempty"` // the first 3
 	Automation *templateMatch               `json:"automation,omitempty"`
-	Previews   map[string]*setupPagePreview `json:"previews,omitempty"` // by slot: rooms, reminder, automation
-	Notes      []*setupPageMsg              `json:"notes,omitempty"`    // what step 3 did
-	Claude     bool                         `json:"claude,omitempty"`   // offer "Open Claude Code"
-	Opened     string                       `json:"opened,omitempty"`   // terminal (Claude Code opened), manual (type it yourself)
+	Previews   map[string]*setupPagePreview `json:"previews,omitempty"`  // by slot: rooms, reminder, automation
+	Notes      []*setupPageMsg              `json:"notes,omitempty"`     // what step 3 did
+	ChatLink   string                       `json:"chat_link,omitempty"` // Add to Claude, once chat apps are on
+	Claude     bool                         `json:"claude,omitempty"`    // offer "Open Claude Code"
+	Opened     string                       `json:"opened,omitempty"`    // terminal (Claude Code opened), manual (type it yourself)
 }
 
 // setupPagePreview is one plan on the page: loading, preview (PlanID can be
@@ -54,7 +55,7 @@ var setupPageOpenClaude = openClaudeTerminal
 // pageHome shows step 4 until Done, Ctrl+C, or setupPageIdle without a click.
 func (f *setupFlow) pageHome() {
 	p := f.page
-	home := &setupPageHome{Loading: true, Notes: f.pageNotes, Previews: map[string]*setupPagePreview{},
+	home := &setupPageHome{Loading: true, Notes: f.pageNotes, ChatLink: f.pageChatLink, Previews: map[string]*setupPagePreview{},
 		Claude: slices.Contains(f.selectedClients, "claude")}
 	show := func() {
 		view := *home

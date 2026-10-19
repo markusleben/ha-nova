@@ -22,6 +22,7 @@ import {
   createPairV2StartHandler,
 } from "../http/handlers/pair-v2.js";
 import { createRouter, type RouteHandler } from "../http/router.js";
+import { readConnectorUrl } from "./chat-connector.js";
 import { createCsrfStore } from "../security/csrf.js";
 import type { HaAuthUser } from "../security/owner-check.js";
 import type { IngressListenerDeps } from "./ingress-listener.js";
@@ -266,7 +267,9 @@ function registerOwnerRoutes(
     relayVersion: deps.relayVersion,
     now: deps.now,
     logger: deps.logger,
-    ...(deps.chatApps !== undefined ? { chatApps: deps.chatApps } : {}),
+    ...(deps.chatApps !== undefined
+      ? { chatApps: deps.chatApps, connectorUrl: () => readConnectorUrl((type) => deps.wsClient.sendMessage({ type })) }
+      : {}),
   };
   const page = createNovaPageHandler(novaDeps);
   const action = createNovaActionHandler(novaDeps);

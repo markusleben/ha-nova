@@ -1,4 +1,5 @@
 import type { ChatAppsStatus } from "../../runtime/chat-apps.js";
+import { claudeConnectorLink } from "../../runtime/chat-connector.js";
 import type { CsrfStore } from "../../security/csrf.js";
 import type { DeviceRecord } from "../../security/device-registry.js";
 
@@ -59,6 +60,7 @@ export interface PageModel {
   errorCode: string | null;
   confirm: ConfirmTarget | null;
   chatApps: ChatAppsStatus | null; // null: the feature is off in this App
+  chatConnectorUrl: string | null; // null: neither Link remote access nor a public HTTPS address
   chatRestarting: boolean;
 }
 
@@ -203,6 +205,8 @@ export function renderPage(m: PageModel): string {
   .linkbtn { display: inline-block; font-weight: 500; padding: .5rem 1.1rem; border-radius: 10px;
     border: 1px solid var(--border); color: var(--text); text-decoration: none; }
   .linkbtn.danger { color: var(--danger); }
+  .linkbtn.primary { background: var(--primary); color: var(--on-primary); border-color: var(--primary); }
+  .address { font-family: ui-monospace, monospace; font-size: .85rem; overflow-wrap: anywhere; user-select: all; -webkit-user-select: all; cursor: pointer; }
   .badge { display: inline-block; font-size: .7rem; text-transform: uppercase; letter-spacing: .04em;
     border: 1px solid var(--primary); color: var(--primary); border-radius: 6px;
     padding: 0 .35rem; margin-left: .45rem; vertical-align: middle; }
@@ -231,7 +235,7 @@ ${renderChatApps(m, formOpen, csrfField)}${legacySection}<footer>Signed in as ${
 </body></html>`;
 }
 
-// "Chat apps": Claude and ChatGPT through Home Assistant Link (spec §11.6).
+// "Chat apps": Claude and ChatGPT through Home Assistant Link or a public HTTPS address (spec §11.6).
 // Turning on is consent to the one Home Assistant restart named on the button.
 function renderChatApps(m: PageModel, formOpen: string, csrfField: (action: NovaAction) => string): string {
   const c = m.chatApps;
@@ -252,7 +256,13 @@ function renderChatApps(m: PageModel, formOpen: string, csrfField: (action: Nova
     const phone = c.ownerPhone === null
       ? c.chatCodes ? "no phone linked: changes that need your OK show a code in the chat" : "no phone linked: changes that need your OK are refused"
       : `your phone ${escapeHtml(c.ownerPhone)} asks you`;
-    body = `<p>On. In Claude or ChatGPT, add a connector with your Home Assistant Link address followed by <code>/api/ha_nova/mcp</code>, then sign in to Home Assistant.</p>
+    const url = m.chatConnectorUrl;
+    body = `${url === null
+      ? `<p>On, but HA NOVA can't find an address Claude and ChatGPT can reach. Turn on remote access in Home Assistant Link, or set your own public HTTPS address (valid certificate) as the external URL under Settings → System → Network, then reload this page.</p>`
+      : `<p>On. Add HA NOVA to Claude in one click, or add this address as a connector in ChatGPT. Then sign in to Home Assistant as its owner.</p>
+<p><a class="linkbtn primary" href="${escapeAttr(claudeConnectorLink(url))}" target="_blank" rel="noopener noreferrer">Add to Claude</a> <span class="muted meta">Adds ${escapeHtml(new URL(url).host)}</span></p>
+<p class="address">${escapeHtml(url)}</p>
+<p class="muted meta">ChatGPT on the web: open chatgpt.com/plugins → + → Add custom MCP server, paste the address under Connection, pick OAuth, tick “I understand and want to continue”, then Create as a plugin. Sign in as the owner, then type @HA NOVA in a chat.</p>`}
 <p class="muted">Who can use it: ${who}. Confirmations: ${phone}.</p>
 ${m.chatRestarting ? `<p class="ok">Home Assistant is restarting (about a minute). Reload this page afterwards.</p>` : ""}
 <ul>${toggle("Chat apps can only read", c.readOnly, "chat_read_only")}${toggle("Codes in the chat", c.chatCodes, "chat_codes")}</ul>
@@ -260,7 +270,7 @@ ${m.chatRestarting ? `<p class="ok">Home Assistant is restarting (about a minute
 ${button("chat_apps_off", "Turn off chat apps", "", "secondary")}`;
   } else {
     body = `${c.unfinished ? `<p class="error">Turning chat apps off did not finish.</p>${button("chat_apps_off", "Try again", "", "secondary")}` : ""}
-<p class="muted">Use HA NOVA in Claude and ChatGPT, also on your phone, through Home Assistant Link. Only you can use it.</p>
+<p class="muted">Use HA NOVA in Claude and ChatGPT, also on your phone, through Home Assistant Link or your own public HTTPS address (with a valid certificate). Only you can use it.</p>
 <p class="muted">Home Assistant restarts once (about a minute).</p>${button("chat_apps_on", "Turn on chat apps")}`;
   }
   return `<section><h2>Chat apps</h2>${body}</section>

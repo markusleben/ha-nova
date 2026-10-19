@@ -53,6 +53,7 @@ export interface NovaPageDeps {
   now: () => number;
   logger?: RelayLogger;
   chatApps?: ChatApps; // only with HA_NOVA_CHAT_APPS=1
+  connectorUrl?: () => Promise<string | null>; // null: Link remote access isn't ready
 }
 
 function setHeaders(response: ServerResponse): void {
@@ -90,6 +91,9 @@ export function createNovaPageHandler(deps: NovaPageDeps): RouteHandler {
     } catch (error) {
       deps.logger?.error("Chat-app files are unreadable", { error: error instanceof Error ? error.message : String(error) });
     }
+    const chatConnectorUrl = chatApps?.enabled // unknown: the page words it without the address
+      ? await deps.connectorUrl?.().catch((error: unknown) => (deps.logger?.warn("connector address unavailable", { error: String(error) }), null)) ?? null
+      : null;
     const html = renderPage({
       ownerName: owner.name,
       csrf: deps.csrf,
@@ -108,6 +112,7 @@ export function createNovaPageHandler(deps: NovaPageDeps): RouteHandler {
       errorCode: query.get("err"),
       confirm: parseConfirm(query),
       chatApps,
+      chatConnectorUrl,
       chatRestarting: query.get("chat") === "restarting",
     });
     setHeaders(response);
@@ -265,3 +270,4 @@ function singleHeader(request: IncomingMessage, name: string): string | null {
   const value = request.headers[name];
   return typeof value === "string" ? value : null;
 }
+
