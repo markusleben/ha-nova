@@ -13,8 +13,13 @@ describe("hosted demo privacy", () => {
     expect(writer).toMatch(/^\s*roll_keep_for 96h$/m);
   });
 
-  it("hands Home Assistant only the truncated client IPv4", () => {
-    expect(caddy).toMatch(/reverse_proxy homeassistant:8123 \{[^}]*header_up X-Forwarded-For \{masked_client_ip\}/);
+  it("hands Home Assistant and the relay only the truncated client IPv4", () => {
+    const site = caddy.slice(caddy.indexOf("{$DEMO_DOMAIN} {"), caddy.indexOf("http://:18123"));
+    const proxies = site.match(/reverse_proxy \S+ \{[^}]*/g) ?? [];
+    expect(site.split("reverse_proxy ").length - 1).toBe(2);
+    expect(proxies).toHaveLength(2);
+    // [^}]* stops at the placeholder's closing brace.
+    for (const proxy of proxies) expect(proxy).toContain("header_up X-Forwarded-For {masked_client_ip");
     const map = caddy.match(/map \{client_ip\} \{masked_client_ip\} \{\s*~(\S+) "([^"]+)"\s*default 192\.0\.2\.0\s*\}/);
     expect(map).not.toBeNull();
     const pattern = new RegExp(map![1]!);
@@ -26,7 +31,7 @@ describe("hosted demo privacy", () => {
   });
 
   it("drops visitor requests from Caddy's own log and sends no referrer", () => {
-    expect(caddy).toMatch(/log default \{\s*format filter \{\s*wrap json\s*request delete\s*\}/);
+    expect(caddy).toMatch(/log default \{\s*format filter \{\s*wrap json\s*request delete\s*error regexp \S+ \[ip\]\s*\}/);
     expect(caddy).toContain('Referrer-Policy "no-referrer"');
   });
 

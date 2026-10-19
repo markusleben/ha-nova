@@ -34,6 +34,15 @@ main() {
   # Hidden before anything can fail: no exit below may leave last hour's
   # house exposed (gate_failed also takes it down).
   rm -f "$PUBLIC/ready"
+  # Access-log backstop (privacy policy: at most 7 days). Caddy rolls and
+  # deletes only while it runs; here any file whose first (oldest) entry is
+  # over 6 days old goes, whatever Caddy missed.
+  local f ts
+  for f in "$STATE"/logs/access*; do
+    [[ -f "$f" ]] || continue
+    ts="$( (zcat -f -- "$f" 2> /dev/null || true) | head -n 1 | grep -o '"ts":[0-9]*' | head -n 1 | cut -d: -f2 || true)"
+    if [[ -n "$ts" ]] && ((ts < $(date +%s) - 6 * 86400)); then rm -f -- "$f"; fi
+  done
 
   TESTBED_HA_IMAGE="${candidate:-$(cat "$STATE/ha-image" 2> /dev/null || true)}"
   [[ "$TESTBED_HA_IMAGE" =~ ^ghcr\.io/home-assistant/home-assistant@sha256:[0-9a-f]{64}$ ]] \
