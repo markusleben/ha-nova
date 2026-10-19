@@ -20,6 +20,8 @@ var (
 	errSignInNotOwner         = errors.New("signed-in Home Assistant user is not the owner")
 	errSignInRelayUnsupported = errors.New("NOVA Relay App does not support sign-in pairing")
 	errSignInRelayNotReady    = errors.New("NOVA Relay secure port is not ready")
+	// The Relay couldn't ask Home Assistant who the owner is (it fails closed).
+	errSignInOwnerCheckSlow = errors.New("NOVA Relay could not check the owner with Home Assistant")
 )
 
 // The relay re-reads its secure port mapping on demand; one short retry
@@ -139,6 +141,10 @@ func armSignInPairing(
 	case response.StatusCode == http.StatusServiceUnavailable && response.ReachedRelay &&
 		relayPairingErrorCode(raw) == "PAIRING_UNAVAILABLE":
 		return signInArmResponse{}, errSignInRelayNotReady
+	case response.StatusCode == http.StatusServiceUnavailable && response.ReachedRelay &&
+		relayPairingErrorCode(raw) == "OWNER_CHECK_UNAVAILABLE":
+		return signInArmResponse{}, &CloudError{Code: CloudErrHAProtocol, Op: "arm sign-in pairing",
+			StatusCode: response.StatusCode, Retryable: true, cause: errSignInOwnerCheckSlow}
 	default:
 		return signInArmResponse{}, newCloudHTTPError(
 			CloudErrHAProtocol,

@@ -662,6 +662,7 @@ func finalizeLocalUninstallWithProgressUnlocked(
 	if err := removeClaudeProjectMemoryForUninstall(paths.Home, report); err != nil {
 		report.addNote("Could not inspect Claude project memory: " + err.Error())
 	}
+	removeClaudeFolder(paths.Home, report)
 	if beforeStep != nil {
 		if err := beforeStep("path_cleanup"); err != nil {
 			return fmt.Errorf("failed before path_cleanup: %w", err)

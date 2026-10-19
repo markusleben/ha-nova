@@ -131,6 +131,26 @@ describe("setup page step 1", () => {
     expect(p.screen.querySelector("h1")!.textContent).toBe(p.catalog["setup.page.found.title_typed"]);
     expect(p.screen.textContent).not.toContain(p.catalog["setup.page.found.lead"]);
   });
+
+  it("asks for the address while its field is open (lane F6)", async () => {
+    const p = page({ ...found, typed: true });
+    await p.settle();
+    p.find("b-change")!.dispatch("click");
+    expect(p.screen.querySelector("h1")!.textContent).toBe(p.catalog["setup.page.found.title_ask"]);
+    expect(p.screen.textContent).toContain(p.catalog["setup.page.found.lead_change"]);
+  });
+});
+
+describe("setup page step 3", () => {
+  it("keeps the phone row when the phones couldn't be read, with Check again (lane F4)", async () => {
+    const p = page({ screen: "control", accepts: ["finish", "recheck"], control: { window: true, phone: "unread", rule: "offer", rule_count: 2 } });
+    await p.settle();
+    expect(p.screen.textContent).toContain(p.catalog["setup.page.control.phone_unread"]);
+    p.find("b-phone-recheck")!.dispatch("click");
+    await p.settle();
+    expect(p.posts).toEqual([{ action: "recheck", value: "" }]);
+    expect(p.screen.textContent).toContain("Adds 2 rules to Claude Code");
+  });
 });
 
 describe("setup page step 4", () => {

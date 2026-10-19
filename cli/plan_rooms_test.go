@@ -143,7 +143,7 @@ func TestPlanRoomsPreviewsAndSavesOnlyOnApply(t *testing.T) {
 		t.Fatalf("plain revert: exit %d %+v", exit, plain.Error)
 	}
 	exit, undo := h.run(runPlanCommand, "revert", "--target", applied.Undo.TargetID)
-	if exit != 3 || undo.Tier != "preview" || !strings.Contains(undo.Say, "Put 3 devices back in their previous rooms: no room ← ") {
+	if exit != 3 || undo.Tier != "preview" || !strings.Contains(undo.Say, "Put 3 devices back where they were: no room ← ") {
 		t.Fatalf("revert plan: exit %d %+v %+v", exit, undo, undo.Error)
 	}
 	if exit, back := h.run(runApplyCommand, "--plan", undo.Plan.ID); exit != 0 || back.Status != "verified" {

@@ -25,8 +25,10 @@ import (
 const haSignInTimeout = 5 * time.Minute
 
 // Bounds everything after the browser returns, so an unresponsive Home
-// Assistant still reaches the fallback and the deferred revocation.
-var haSignInStepTimeout = 30 * time.Second
+// Assistant still reaches the fallback and the deferred revocation. A busy
+// Home Assistant answers each request in 15–30 s (0.27 lane F1), and the
+// steps here are up to three requests in a row.
+var haSignInStepTimeout = 2 * time.Minute
 
 var (
 	errSignInBrowser    = errors.New("browser sign-in did not complete")

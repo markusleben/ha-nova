@@ -6,8 +6,10 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"io/fs"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"slices"
 	"strings"
@@ -77,9 +79,15 @@ var setupPageVerb = func(args ...string) (setupVerbEnvelope, int, error) {
 	return env, exit, nil
 }
 
+// claudeFolderName: "Open Claude Code" starts Claude Code in this folder
+// in the home folder. Claude Code asks once whether to trust a folder; for
+// the home folder itself it asks on every start, and trusting it would
+// cover every file there (0.27 lane F5). Uninstall removes it while empty.
+const claudeFolderName = "HA NOVA"
+
 // openClaudeTerminal: step 4's "Open Claude Code" (spec §16 D5 A). A
 // browser can't start a terminal, so the CLI opens the platform's terminal
-// running `claude` in the home folder. An error leaves the page's copyable
+// running `claude` in claudeFolderName. An error leaves the page's copyable
 // hint instead.
 func openClaudeTerminal() error {
 	if _, err := exec.LookPath("claude"); err != nil {
@@ -89,13 +97,18 @@ func openClaudeTerminal() error {
 	if err != nil {
 		return err
 	}
+	dir := filepath.Join(home, claudeFolderName)
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return err
+	}
 	var cmd *exec.Cmd
 	switch runtime.GOOS {
 	case "darwin":
 		// Run, not Start: a denied Automation prompt fails here, and the
 		// page then shows its hint.
-		run := exec.Command("osascript", "-e", `tell application "Terminal" to do script "cd ~ && claude"`, "-e", `tell application "Terminal" to activate`)
-		run.Dir = home
+		quoted := strings.NewReplacer(`\`, `\\`, `"`, `\"`).Replace(dir) // an AppleScript string
+		run := exec.Command("osascript", "-e", `tell application "Terminal" to do script "cd " & quoted form of "`+quoted+`" & " && claude"`, "-e", `tell application "Terminal" to activate`)
+		run.Dir = dir
 		return run.Run()
 	case "windows":
 		// The folder comes from Dir: cmd and wt would parse a path's & or ;.
@@ -115,10 +128,22 @@ func openClaudeTerminal() error {
 	if cmd == nil {
 		return errors.New("no terminal to open")
 	}
-	cmd.Dir = home
+	cmd.Dir = dir
 	if err := cmd.Start(); err != nil {
 		return err
 	}
 	go func() { _ = cmd.Wait() }()
 	return nil
+}
+
+// removeClaudeFolder: uninstall removes claudeFolderName only while it is
+// an empty folder; anything put there stays.
+func removeClaudeFolder(home string, report *uninstallReport) {
+	dir := filepath.Join(home, claudeFolderName)
+	if info, err := os.Lstat(dir); home == "" || err != nil || info.Mode().Type() != fs.ModeDir { // no link, no junction
+		return
+	}
+	if os.Remove(dir) == nil {
+		report.addRemoved(dir)
+	}
 }

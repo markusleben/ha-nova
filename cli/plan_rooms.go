@@ -140,7 +140,7 @@ func planRoomsUndo(paths runtimePaths, s *relaySession, env *verbEnvelope, snap 
 		req.Items = append(req.Items, roomsItem{DeviceID: device, From: after[device], To: to})
 	}
 	if len(req.Items) == 0 {
-		return refusedWith("NOTHING_TO_UNDO", "every device of this room change is already back in its previous room", "Tell the user nothing needs undoing.")
+		return refusedWith("NOTHING_TO_UNDO", "every device of this room change is already back where it was", "Tell the user nothing needs undoing.")
 	}
 	sort.Slice(req.Items, func(i, j int) bool { return req.Items[i].DeviceID < req.Items[j].DeviceID })
 	if err := req.validate(); err != nil {
@@ -272,7 +272,7 @@ func roomsSay(changes []roomsChange, undo bool) string {
 		parts = append(parts, room+" ← "+sayList(by[room]))
 	}
 	if undo {
-		return fmt.Sprintf("Put %s back in their previous rooms: %s.", plural(len(changes), "device"), strings.Join(parts, "; "))
+		return fmt.Sprintf("Put %s back where they were: %s.", plural(len(changes), "device"), strings.Join(parts, "; "))
 	}
 	return fmt.Sprintf("Put %s in rooms: %s.", plural(len(changes), "device"), strings.Join(parts, "; "))
 }
@@ -396,11 +396,11 @@ func failRooms(paths runtimePaths, s *relaySession, env *verbEnvelope, req rooms
 	}
 	switch {
 	case req.Undo && env.Undo != nil:
-		failure.message = "a room change failed (" + cause.Error() + "); back in their previous room now: " + strings.Join(named, ", ") + "; the others were not undone"
+		failure.message = "a room change failed (" + cause.Error() + "); back where they were now: " + strings.Join(named, ", ") + "; the others were not undone"
 		failure.next = "Tell the user which devices are back and that the others were not undone. To finish: ha-nova plan revert --target " + req.Record + " (a new preview)."
 	case req.Undo:
-		failure.message = "a room change failed (" + cause.Error() + "); back in their previous room now: " + strings.Join(named, ", ")
-		failure.next = "Tell the user which devices are back in their previous room."
+		failure.message = "a room change failed (" + cause.Error() + "); back where they were now: " + strings.Join(named, ", ")
+		failure.next = "Tell the user which devices are back where they were."
 	case env.Undo != nil:
 		failure.next = "Tell the user exactly which devices changed room. To put them back: ha-nova plan revert --target " + req.Record + " (a new preview), or move them in Home Assistant."
 	}

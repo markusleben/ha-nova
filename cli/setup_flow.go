@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 )
 
 // setupFlow is the interactive setup engine: ordered steps that decide what
@@ -45,7 +46,11 @@ type setupFlow struct {
 	// pageProblem: why the page's sign-in didn't connect this computer;
 	// step 2 shows it.
 	pageProblem *setupPageMsg
-	pageTyped   bool // the user typed Home Assistant's address on the page
+	// pageRetry: the owner's sign-in a pairing that didn't finish leaves
+	// for step 2's Try again; any other click drops it.
+	pageRetry      *haSignInSession
+	pageRetryUntil time.Time
+	pageTyped      bool // the user typed Home Assistant's address on the page
 	// pageControlled: step 3 runs on the page; pageQuit: setup ended there
 	// (Ctrl+C or idle); pageNotes: what step 3 did, for step 4, and
 	// pageChatLink its Add to Claude link; pageGeneration: the install

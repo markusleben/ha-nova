@@ -48,7 +48,7 @@ func TestArmSignInPairingClassifiesRefusals(t *testing.T) {
 		"not owner":    {status: http.StatusForbidden, reached: true, body: `{"ok":false,"error":{"code":"OWNER_REQUIRED","message":"x"}}`, want: errSignInNotOwner},
 		"browser":      {status: http.StatusForbidden, reached: true, body: `{"ok":false,"error":{"code":"MACHINE_REQUEST_REQUIRED","message":"x"}}`, code: CloudErrHAProtocol},
 		"unavailable":  {status: http.StatusServiceUnavailable, reached: true, body: `{"ok":false,"error":{"code":"PAIRING_UNAVAILABLE","message":"x"}}`, want: errSignInRelayNotReady},
-		"owner check":  {status: http.StatusServiceUnavailable, reached: true, body: `{"ok":false,"error":{"code":"OWNER_CHECK_UNAVAILABLE","message":"x"}}`, code: CloudErrHAProtocol},
+		"owner check":  {status: http.StatusServiceUnavailable, reached: true, body: `{"ok":false,"error":{"code":"OWNER_CHECK_UNAVAILABLE","message":"x"}}`, want: errSignInOwnerCheckSlow, code: CloudErrHAProtocol},
 		"extra field":  {status: http.StatusOK, reached: true, body: `{"ok":true,"data":{"pairing_secret":"` + secret + `","expires_in_s":120,"relay_instance_id":"relay-1","code":"123456"}}`, code: CloudErrHAProtocol},
 		"short secret": {status: http.StatusOK, reached: true, body: `{"ok":true,"data":{"pairing_secret":"123456","expires_in_s":120,"relay_instance_id":"relay-1"}}`, code: CloudErrHAProtocol},
 		"not relay":    {status: http.StatusOK, reached: false, body: `{"ok":true,"data":{}}`, code: CloudErrHAProtocol},

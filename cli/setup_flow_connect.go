@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"strings"
+	"time"
 )
 
 func (f *setupFlow) stepClient() setupStepResult {
@@ -237,6 +238,7 @@ func (f *setupFlow) stepPairing() setupStepResult {
 		forceDeviceCredentialFileMode()
 	}
 	pairedToken, err := runSetupPairingFlow(f.ui.termIn(), f.ui.termOut(), f.paths, &f.cfg, f.legacyTokenStoreUnavailable, f.lifecycleMarker...)
+	var onPage *setupPagePairingError
 	switch {
 	case err == errSetupBack:
 		return setupGoTo(f.pairingBackStep)
@@ -248,9 +250,10 @@ func (f *setupFlow) stepPairing() setupStepResult {
 		return setupGoTo(setupStepToken)
 	case err == errSetupExit:
 		return f.cancelled()
-	case err == errSetupPairingOnPage:
+	case errors.As(err, &onPage):
 		f.page.failRunningRows()
-		f.pageProblem = setupPageText("setup.page.problem.pairing")
+		f.pageProblem, f.pageRetry = pagePairingProblem(onPage)
+		f.pageRetryUntil = time.Now().Add(setupPageRetryFor)
 		return setupGoTo(setupStepHost)
 	case err == errSetupDevicePaired:
 		// Secure v1 pairing already stored the device credential and the
