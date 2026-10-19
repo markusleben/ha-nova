@@ -92,7 +92,7 @@ func TestLaunchWindowsUninstallRemovesHelperCopyWhenLaunchFails(t *testing.T) {
 		InstallRoot:         root,
 		UninstallStatusFile: filepath.Join(root, "uninstall-status.json"),
 	}
-	if err := launchWindowsUninstall(paths, uninstallModeStandard, false, nil, false); err == nil {
+	if err := launchWindowsUninstall(paths, uninstallModeStandard, false, nil); err == nil {
 		t.Fatal("launch of a non-executable helper unexpectedly succeeded")
 	}
 	helper := filepath.Join(os.TempDir(), windowsUninstallHelperPrefix+strconv.Itoa(os.Getpid())+".exe")

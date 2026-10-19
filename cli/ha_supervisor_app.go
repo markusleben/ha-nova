@@ -63,6 +63,9 @@ type novaAppSupervisor struct {
 	ws       haWSCaller
 	repoSlug string
 	appSlug  string
+	// removal: uninstall only (uninstall_app_removal.go); the install calls
+	// are then refused, and without it the removal calls are.
+	removal bool
 	// phase, when set, hears each change as it starts: "add", "install",
 	// "update", "start" (the setup page's progress rows).
 	phase func(name string)
@@ -91,22 +94,30 @@ var (
 // allowed is the complete list of Supervisor calls this flow may make.
 func (s novaAppSupervisor) allowed(method, endpoint string, data map[string]any) bool {
 	switch method + " " + endpoint {
-	case "get /store/repositories", "get /addons/" + s.appSlug + "/info", "get /store/addons/" + s.appSlug,
-		"post /addons/" + s.appSlug + "/start", "post /store/reload":
+	case "get /store/repositories", "get /addons/" + s.appSlug + "/info":
 		return data == nil
+	case "post /addons/" + s.appSlug + "/uninstall", "delete /store/repositories/" + s.repoSlug:
+		// No remove_config: the App's own config folder, if any, stays.
+		return s.removal && data == nil
+	case "get /store/addons/" + s.appSlug, "post /addons/" + s.appSlug + "/start", "post /store/reload":
+		return !s.removal && data == nil
 	case "post /store/repositories":
-		return len(data) == 1 && data["repository"] == haNovaRepositoryURL
+		return !s.removal && len(data) == 1 && data["repository"] == haNovaRepositoryURL
 	case "post /store/addons/" + s.appSlug + "/install", "post /store/addons/" + s.appSlug + "/update":
-		return len(data) == 1 && data["background"] == true
+		return !s.removal && len(data) == 1 && data["background"] == true
 	}
 	id, isJob := strings.CutPrefix(endpoint, "/jobs/")
-	return method == "get" && data == nil && isJob && supervisorJobIDPattern.MatchString(id)
+	return !s.removal && method == "get" && data == nil && isJob && supervisorJobIDPattern.MatchString(id)
 }
 
 func (s novaAppSupervisor) call(ctx context.Context, method, endpoint string, data map[string]any, timeout time.Duration, result any) error {
 	if !s.allowed(method, endpoint, data) {
+		line := "HA NOVA stopped: the next step was not part of installing its App."
+		if s.removal {
+			line = "HA NOVA stopped: the next step was not part of removing its App."
+		}
 		return &novaAppInstallError{
-			line:  "HA NOVA stopped: the next step was not part of installing its App.",
+			line:  line,
 			cause: fmt.Errorf("%w: %s %s", errAppInstallRefusedCall, method, endpoint),
 		}
 	}
@@ -138,9 +149,16 @@ func (s novaAppSupervisor) info(ctx context.Context) (supervisorAppInfo, error) 
 	if info.Slug != s.appSlug || info.Repository != s.repoSlug || info.Name != haNovaAppName ||
 		(info.Version != "" && !supervisorVersionPattern.MatchString(info.Version)) ||
 		(info.VersionLatest != "" && !supervisorVersionPattern.MatchString(info.VersionLatest)) {
-		return info, &novaAppInstallError{line: "Home Assistant lists a NOVA App that doesn't match the official one. Nothing was installed.", cause: errAppInstallSourceMismatch}
+		return info, &novaAppInstallError{line: "Home Assistant lists a NOVA App that doesn't match the official one. " + s.nothingChanged(), cause: errAppInstallSourceMismatch}
 	}
 	return info, nil
+}
+
+func (s novaAppSupervisor) nothingChanged() string {
+	if s.removal {
+		return "Nothing was removed."
+	}
+	return "Nothing was installed."
 }
 
 // sourceListed reports whether Home Assistant lists the official repository
@@ -161,7 +179,7 @@ func (s novaAppSupervisor) sourceListed(ctx context.Context) (bool, error) {
 			return true, nil
 		}
 		if repository.Slug == s.repoSlug || normalize(repository.Source) == normalize(haNovaRepositoryURL) {
-			return false, &novaAppInstallError{line: "Home Assistant lists a different NOVA source. Nothing was installed.", cause: errAppInstallSourceMismatch}
+			return false, &novaAppInstallError{line: "Home Assistant lists a different NOVA source. " + s.nothingChanged(), cause: errAppInstallSourceMismatch}
 		}
 	}
 	return false, nil

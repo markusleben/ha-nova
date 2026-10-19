@@ -32,7 +32,7 @@ func prepareUninstallBeforeGuidedTeardown(
 		}
 		if mode != uninstallModePurge && len(profiles) > 0 {
 			return fmt.Errorf(
-				"device credential retirement is pending for server %q; run `%s` to finish it before uninstalling, or choose Full purge",
+				"device credential retirement is pending for server %q; run `%s` to finish it before uninstalling, or choose Remove",
 				profiles[0],
 				deviceRetirementSetupCommand(profiles[0]),
 			)

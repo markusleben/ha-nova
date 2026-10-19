@@ -9,16 +9,9 @@ import (
 )
 
 type uninstallPreflight struct {
-	relayStillRunning bool
-	// lastComputerConfirmed: the user answered that no other computer uses
-	// HA NOVA with this Home Assistant. Only then may the notes list the App
-	// removal; every other path (HA unreachable, --yes, non-interactive,
-	// recovery, "other computers still use it") leaves the shared App alone.
-	lastComputerConfirmed bool
-	tokenUnavailable      string
-	haURL                 string
-	relayToken            string
-	config                runtimeConfig
+	tokenUnavailable string
+	haURL            string
+	config           runtimeConfig
 }
 
 // uninstallRelayRemovalEvidence records only Relay removals that guided
@@ -62,12 +55,12 @@ func (evidence uninstallRelayRemovalEvidence) matches(
 func renderUninstallPreflight(out io.Writer, paths runtimePaths, source string) {
 	session := resolveStatusUISession(out)
 	renderSimpleHeader(out, session, "HA NOVA Uninstall")
-	fmt.Fprintf(out, "  %s\n", session.style("strong", "Standard remove:"))
+	fmt.Fprintf(out, "  %s\n", session.style("strong", "Removes from this computer:"))
 	fmt.Fprintf(out, "    %s Skills from installed AI clients\n", session.bullet())
 	fmt.Fprintf(out, "    %s %s\n", session.bullet(), uninstallRuntimeLineLabel(paths, source))
 	fmt.Fprintf(out, "    %s Managed local state and cache\n", session.bullet())
 	fmt.Fprintln(out)
-	fmt.Fprintf(out, "  %s\n", session.style("strong", "Full purge also removes:"))
+	fmt.Fprintf(out, "  %s\n", session.style("strong", "Also removed unless this computer stays connected:"))
 	fmt.Fprintf(out, "    %s Home Assistant connection config\n", session.bullet())
 	if label := uninstallTokenLineLabel(paths); label != "" {
 		fmt.Fprintf(out, "    %s %s\n", session.bullet(), label)
@@ -165,7 +158,7 @@ func uninstallForeignTokenFileWarning(paths runtimePaths) string {
 	if path == "" || managed {
 		return ""
 	}
-	return fmt.Sprintf("The relay token file is not HA NOVA's managed token file (%s). Full purge will stop: first remove the `relay_token_file` line from %s.", path, paths.ConfigFile)
+	return fmt.Sprintf("The relay token file is not HA NOVA's managed token file (%s). A full removal will stop: first remove the `relay_token_file` line from %s.", path, paths.ConfigFile)
 }
 
 func uninstallWindowsBundleNote() string {
@@ -173,9 +166,8 @@ func uninstallWindowsBundleNote() string {
 }
 
 // collectUninstallPreflight reads the raw default profile (not loadConfig:
-// partial setups must still yield the HA URL for the server-side checklist,
-// and uninstall is install-wide, so no runtime selection applies) and probes
-// whether the relay still answers.
+// partial setups must still yield the HA URL for the notes, and uninstall is
+// install-wide, so no runtime selection applies).
 func collectUninstallPreflight(paths runtimePaths) uninstallPreflight {
 	preflight := uninstallPreflight{}
 
@@ -185,33 +177,11 @@ func collectUninstallPreflight(paths runtimePaths) uninstallPreflight {
 	}
 	preflight.config = cfg
 	preflight.haURL = strings.TrimSpace(cfg.HAURL)
-	if strings.TrimSpace(cfg.RelaySecureBaseURL) != "" &&
-		strings.TrimSpace(cfg.RelaySpkiPin) != "" &&
-		defaultUninstallDeviceCredentialExists() &&
-		verifyDefaultUninstallDeviceHealth(cfg) {
-		preflight.relayStillRunning = true
-	}
 	if cfg.RelayBaseURL == "" {
 		return preflight
 	}
-
-	token, err := readRelayAuthToken()
-	if err != nil {
-		if !isMissingRelayAuthTokenError(err) {
-			preflight.tokenUnavailable = relayAuthTokenProblemMessage(err)
-		}
-		return preflight
-	}
-	if token == "" {
-		return preflight
-	}
-	preflight.relayToken = token
-
-	if !preflight.relayStillRunning {
-		_, err = fetchRelayHealth(cfg.RelayBaseURL, token)
-	}
-	if err == nil {
-		preflight.relayStillRunning = true
+	if _, err := readRelayAuthToken(); err != nil && !isMissingRelayAuthTokenError(err) {
+		preflight.tokenUnavailable = relayAuthTokenProblemMessage(err)
 	}
 	return preflight
 }
@@ -232,42 +202,15 @@ func printUninstallPreflightNotes(out io.Writer, preflight uninstallPreflight) {
 	}
 }
 
-// preflightNoteLines returns the full server-side cleanup checklist only after
-// the user confirmed this is the last computer; otherwise one plain note that
-// the shared App was left as it is (removing it disconnects every paired
-// computer, and the CLI cannot see which ones still use it).
-// The CLI cannot remove the app, the repository, or the LLAT itself, and a
-// currently unreachable relay is no evidence the server side is gone — the
-// old reachability-gated single note left users with a running app and a
-// valid token they were never told about.
-const sharedAppLeftNote = "The NOVA Relay App in Home Assistant was left as it is. Remove it there later only if no other computer uses HA NOVA: removing it disconnects every paired computer."
-
+// preflightNoteLines: uninstall removes the shared App only through the menu
+// choice, after the Relay said this is its last computer. Otherwise the App
+// stays, and the note says where to remove it and what that costs.
 func preflightNoteLines(preflight uninstallPreflight) []string {
-	if !preflight.lastComputerConfirmed {
-		notes := []string{sharedAppLeftNote}
-		if preflight.tokenUnavailable != "" {
-			notes = append(notes, preflight.tokenUnavailable)
-		}
-		return notes
-	}
-	lead := "Server side (if still installed, finish these to fully remove HA NOVA):"
-	if preflight.relayStillRunning {
-		lead = "The NOVA Relay is still running. To fully remove HA NOVA:"
-	}
-	notes := []string{lead}
+	note := "The NOVA App in Home Assistant stays. Remove it there only if no other computer uses HA NOVA: removing it disconnects every paired computer."
 	if preflight.haURL != "" {
-		notes = append(notes,
-			"1. Remove the NOVA Relay: uninstall the app at "+haRelayAppPageURL(preflight.haURL)+", or stop and remove the container of a standalone relay",
-			"2. App installs: remove the repository: "+haAppStoreURL(preflight.haURL)+" > three-dot menu > Repositories > remove "+haNovaRepositoryURL,
-			"3. Standalone or legacy installs: revoke the \"NOVA\" access token: "+haProfileSecurityURL(preflight.haURL),
-		)
-	} else {
-		notes = append(notes,
-			"1. Remove the NOVA Relay: Settings > Apps > NOVA Relay > Uninstall (older Home Assistant: Settings > Add-ons), or stop and remove the container of a standalone relay",
-			"2. App installs: remove the repository: Settings > Apps > App Store > three-dot menu > Repositories > remove "+haNovaRepositoryURL,
-			"3. Standalone or legacy installs: revoke the \"NOVA\" access token: Profile > Security > Long-lived access tokens",
-		)
+		note += " Its page: " + haRelayAppPageURL(preflight.haURL)
 	}
+	notes := []string{note}
 	if preflight.tokenUnavailable != "" {
 		notes = append(notes, preflight.tokenUnavailable)
 	}

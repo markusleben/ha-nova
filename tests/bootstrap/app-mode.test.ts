@@ -1,11 +1,12 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { createServer, type Server } from "node:http";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import {
   buildAppMode,
+  chatAppFilesPresent,
   type AppModeInput,
   type AppModeRuntime,
 } from "../../nova/src/runtime/app-mode.js";
@@ -407,3 +408,17 @@ async function generatePairingCode(
     new URLSearchParams({ csrf: match[1], action: "generate_code" }),
   );
 }
+
+describe("chatAppFilesPresent", () => {
+  it("reports the integration directory, and unknown without a config mount", () => {
+    const root = mkdtempSync(join(tmpdir(), "ha-nova-chatapp-"));
+    try {
+      expect(chatAppFilesPresent("")).toBeNull();
+      expect(chatAppFilesPresent(root)).toBe(false);
+      mkdirSync(join(root, "custom_components", "ha_nova"), { recursive: true });
+      expect(chatAppFilesPresent(root)).toBe(true);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+});

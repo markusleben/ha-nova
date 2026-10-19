@@ -1,8 +1,6 @@
 package main
 
 import (
-	"bufio"
-	"bytes"
 	"os"
 	"strings"
 	"testing"
@@ -37,35 +35,9 @@ func TestRetirementRevokesBeforeTemporaryPostRemovalOutage(
 		t.Fatalf("checkpoint remains: exists=%v err=%v", exists, err)
 	}
 
+	// The App removal then succeeds while the retired Relay identity is gone.
 	preflight := collectUninstallPreflight(paths)
-	preflight.haURL = "http://ha.local:8123"
-	preflight.relayToken = "legacy-token"
-	recorder := &teardownRecorder{relayGone: true}
-	var output bytes.Buffer
-	outcome, err := maybeOfferGuidedTeardown(
-		bufio.NewReader(strings.NewReader("y\ny\n\n\n\n\n\n\n")),
-		&output,
-		preflight,
-		recorder.deps(),
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if outcome != teardownCompleted {
-		t.Fatalf("teardown outcome=%v output=%s", outcome, output.String())
-	}
-	if recorder.healthProbes != 1 ||
-		!strings.Contains(output.String(), "Relay no longer answers") {
-		t.Fatalf(
-			"temporary post-removal outage was not exercised: probes=%d output=%s",
-			recorder.healthProbes,
-			output.String(),
-		)
-	}
-	evidence := uninstallRelayRemovalEvidenceFromPreflight(
-		preflight,
-		outcome == teardownCompleted,
-	)
+	evidence := uninstallRelayRemovalEvidenceFromPreflight(preflight, true)
 	if evidence.matches(
 		defaultServerProfileName,
 		previous.RelayInstanceID,
@@ -79,7 +51,7 @@ func TestRetirementRevokesBeforeTemporaryPostRemovalOutage(
 		t.Fatal(err)
 	}
 	if revokeCalls != 1 {
-		t.Fatalf("retirement was retried after walkthrough: %d", revokeCalls)
+		t.Fatalf("retirement was retried after App removal: %d", revokeCalls)
 	}
 }
 

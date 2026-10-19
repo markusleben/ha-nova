@@ -14,17 +14,19 @@ import (
 // fakeSupervisor is Home Assistant's WebSocket with the hassio component and
 // a Supervisor that holds at most the NOVA App. It records every call.
 type fakeSupervisor struct {
-	t           *testing.T
-	noHassio    bool
-	repos       []map[string]string
-	info        map[string]any // the App as /addons/<slug>/info returns it
-	jobErr      string         // the install/update job fails with this message
-	jobNever    bool           // the job never finishes
-	startFails  bool
-	addFails    bool
-	targetBuild bool   // the update target would need a local build
-	reloadTo    string // a store reload makes this version available
-	calls       []string
+	t               *testing.T
+	noHassio        bool
+	repos           []map[string]string
+	info            map[string]any // the App as /addons/<slug>/info returns it
+	jobErr          string         // the install/update job fails with this message
+	jobNever        bool           // the job never finishes
+	startFails      bool
+	addFails        bool
+	uninstallFails  bool // the App uninstall fails and the App stays
+	deleteRepoFails bool
+	targetBuild     bool   // the update target would need a local build
+	reloadTo        string // a store reload makes this version available
+	calls           []string
 }
 
 const fakeJobID = "0123456789abcdef0123456789abcdef"
@@ -114,6 +116,18 @@ func (f *fakeSupervisor) Call(ctx context.Context, commandType string, fields ma
 		if f.reloadTo != "" {
 			f.info["version_latest"], f.info["update_available"] = f.reloadTo, true
 		}
+		return nil
+	case "post /addons/" + slug + "/uninstall":
+		if f.uninstallFails {
+			return fail
+		}
+		f.info["version"], f.info["state"] = nil, "unknown"
+		return nil
+	case "delete /store/repositories/2368fcfa":
+		if f.deleteRepoFails {
+			return fail
+		}
+		f.repos = nil
 		return nil
 	case "post /addons/" + slug + "/start":
 		if f.startFails {

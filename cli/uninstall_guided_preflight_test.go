@@ -101,7 +101,7 @@ func TestGuidedPreflightBlocksStandardRetirementBeforeRevoke(t *testing.T) {
 		paths,
 		uninstallModeStandard,
 	)
-	if err == nil || !strings.Contains(err.Error(), "choose Full purge") {
+	if err == nil || !strings.Contains(err.Error(), "choose Remove") {
 		t.Fatalf("standard preflight error = %v", err)
 	}
 	if revokeCalls != 0 {
