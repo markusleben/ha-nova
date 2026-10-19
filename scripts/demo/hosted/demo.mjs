@@ -177,7 +177,7 @@ const banner = (version) => [
   "Everything you change is wiped every hour at :00 UTC.",
   "Next reset in {{ ((as_timestamp(states('sensor.demo_next_reset'), as_timestamp(now())) - as_timestamp(now())) / 60) | round(0, 'ceil') | int }} min.",
   `Running Home Assistant ${version}.`,
-  "[About this demo](/start) · [Report abuse](/abuse)",
+  "[About this demo](/start) · [Report abuse](/abuse) · [Impressum](https://hanova.app/impressum.html) · [Datenschutz](https://hanova.app/datenschutz.html)",
 ].join(" ");
 const TILE_DOMAINS = ["light", "switch", "cover", "lock", "climate", "fan", "media_player", "vacuum", "humidifier",
   "water_heater", "sensor", "binary_sensor", "button", "input_boolean", "input_number", "input_select",
@@ -292,7 +292,7 @@ async function guard() {
       type: "config/auth_provider/homeassistant/admin_change_password",
       user_id: ids[DEMO_USER], password: DEMO_PASSWORD,
     });
-    // Notices other visitors would see: failed logins (they show visitor IPs)
+    // Notices other visitors would see: failed logins (visitor IPs, truncated by Caddy)
     // and anything carrying a link (phishing the next visitor).
     for (const n of await ha.call({ type: "persistent_notification/get" })) {
       if (n.notification_id === "http-login" || /\/\/|\]\s*[(\[]|\]:|href|www\./i.test(`${n.title ?? ""} ${n.message ?? ""}`)) {
