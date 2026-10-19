@@ -74,7 +74,7 @@ release:
     - **Update the NOVA Relay App too.** Chat apps, Link sign-in without a code, and App removal on uninstall need NOVA Relay 0.11.0: update it in Settings > Apps, or let setup do it (Container/Core: pull the image).
     - **Chat apps need Home Assistant 2026.10 or newer** (HA OS or Supervised) and an address Claude and ChatGPT can reach: Home Assistant Link, or your own public HTTPS address with a valid certificate.
     - **Setup opens in your browser.** On a desktop, `ha-nova setup` shows a setup page. Over SSH, with `--no-browser`, or when you run setup again, it asks in the terminal as before.
-    - **The Claude Code rule is preselected.** On the setup page, "You stay in control" adds it unless you switch it off: Claude Code then opens the confirmation window without asking. You still confirm every unlock or delete.
+    - **Claude Code rules are preselected.** On the setup page they are on unless you switch them off: Claude Code reads HA NOVA's files and runs changes you approved without asking. You still confirm every unlock or delete.
     - **`ha-nova uninstall` asks one question.** "Remove" now also removes this computer's pairing; choose "Remove, but keep the pairing" to reinstall later. `--yes` keeps the pairing unless you add `--purge`.
     - **Windows, coming from 0.25.x: update with the install command once.** `ha-nova update` from 0.25.x asks for admin rights or fails; run the Windows install command below. After that, no admin prompt.
 
@@ -93,7 +93,7 @@ release:
     - **Linux: `ha-nova` works in every new terminal.** The installer also adds it to `~/.bashrc`, and a locked keyring gets one plain next step instead of a connection error.
     - **A confirmation window closes with its command.** Stopping the command (Ctrl+C, a closed terminal) closes its window, so a late Confirm never lands in a window nobody reads.
     - **Setup asks before it uses a Home Assistant it found,** also when it found exactly one by IP address. After a pairing was removed on the NOVA page, setup goes straight to pairing again.
-    - **Setup without an AI app still connects this computer,** then names the AI apps to install and says to run `ha-nova setup` again.
+    - **Setup in the terminal without an AI app still connects this computer,** then names the AI apps to install and says to run `ha-nova setup` again.
 
     Stable install commands are release-pinned for this tag.
 
