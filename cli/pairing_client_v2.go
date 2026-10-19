@@ -43,6 +43,15 @@ func pairDeviceV2(
 	if err != nil {
 		return nil, err
 	}
+	return decodeCloudProvisionedCredential(plaintext, expectedRelayInstanceID)
+}
+
+// decodeCloudProvisionedCredential reads the user-bound Cloud device from a
+// pair-v2 finish response; a local device (with a pin) fails the strict decode.
+func decodeCloudProvisionedCredential(
+	plaintext []byte,
+	expectedRelayInstanceID string,
+) (*cloudProvisionedCredential, error) {
 	var provisioned cloudProvisionedCredential
 	if err := decodeStrictJSON(plaintext, &provisioned); err != nil {
 		return nil, newCloudError(CloudErrHAProtocol, "decode Cloud pairing credential", err)

@@ -152,18 +152,27 @@ function registerPairingV2Routes(
     machine("none"),
     createPairV2InfoHandler(pairV2),
   );
+  const arm = {
+    ...pairV2,
+    fetchAuthUsers,
+    logger: deps.logger,
+    registryCorrupt: deps.registryCorrupt,
+  };
   registerIngressRoute(
     router,
     policies,
     "POST",
     "/pair/v2/arm",
     machine("json"),
-    createPairV2ArmHandler({
-      ...pairV2,
-      fetchAuthUsers,
-      logger: deps.logger,
-      registryCorrupt: deps.registryCorrupt,
-    }),
+    createPairV2ArmHandler({ ...arm, device: "local" }),
+  );
+  registerIngressRoute(
+    router,
+    policies,
+    "POST",
+    "/pair/v2/arm/link",
+    machine("json"),
+    createPairV2ArmHandler({ ...arm, device: "link" }),
   );
   registerIngressRoute(
     router,

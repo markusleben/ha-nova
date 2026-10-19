@@ -29,8 +29,10 @@ export function createPairV2InfoHandler(deps: PairV2Deps): RouteHandler {
 // session arms a one-time secret that only this user's /pair/v2/start accepts.
 // Machine-only: browsers always send Sec-Fetch-Site, and requiring JSON forces
 // a CORS preflight, so no web page can arm a pairing for a signed-in owner.
+// POST /pair/v2/arm/link (Home Assistant Link): same checks; the slot pairs a
+// Cloud device bound to the owner. Older Apps answer its path with 404.
 export function createPairV2ArmHandler(
-  deps: PairV2Deps & OwnerCheckDeps & { registryCorrupt: () => boolean },
+  deps: PairV2Deps & OwnerCheckDeps & { registryCorrupt: () => boolean; device: "local" | "link" },
 ): RouteHandler {
   return async ({ request }) => {
     if (request.headers["sec-fetch-site"] !== undefined) {
@@ -55,7 +57,7 @@ export function createPairV2ArmHandler(
         : new HttpError(403, "OWNER_REQUIRED", owner.message);
     }
     // Same gate as the NOVA page: no secret while pairing cannot finish.
-    const armed = deps.registryCorrupt() ? null : deps.manager.arm(owner.userId);
+    const armed = deps.registryCorrupt() ? null : deps.manager.arm(owner.userId, deps.device);
     if (armed === null) {
       throw new HttpError(
         503,
@@ -63,6 +65,11 @@ export function createPairV2ArmHandler(
         "Pairing is unavailable; open NOVA in Home Assistant for details",
       );
     }
+    // Audit without the secret.
+    deps.logger?.info?.("Pairing armed through Home Assistant sign-in", {
+      via: deps.device,
+      user_id: owner.userId,
+    });
     return {
       pairing_secret: armed.secret,
       expires_in_s: PAIR_ARM_TTL_MS / 1_000,

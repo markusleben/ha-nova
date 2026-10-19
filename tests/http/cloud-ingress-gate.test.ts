@@ -51,6 +51,12 @@ const MACHINE_ROUTES = [
   },
   {
     method: "POST",
+    path: "/pair/v2/arm/link",
+    disabledStatus: 503,
+    enabledStatus: 503,
+  },
+  {
+    method: "POST",
     path: "/pair/v2/start",
     disabledStatus: 400,
     enabledStatus: 400,

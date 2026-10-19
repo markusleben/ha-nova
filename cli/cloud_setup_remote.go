@@ -20,6 +20,7 @@ type cloudRemoteSetupCoordinator interface {
 }
 
 var pairDeviceV2ForCloudSetup = pairDeviceV2
+var pairDeviceV2LinkOwnerForCloudSetup = pairDeviceV2LinkOwner
 var discoverCloudFromLocalRelayForRemoteSetup = discoverCloudFromLocalRelay
 var establishRemoteCloudDeviceForSetup = establishRemoteCloudDevice
 

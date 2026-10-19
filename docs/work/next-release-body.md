@@ -16,3 +16,8 @@ the number.
   App only when you say this is the last computer" no longer applies).
 - The NOVA App answers `GET /auth/device/peers` to paired devices; uninstall
   offers the App removal only with an App that has it.
+- Home Assistant Link setup: when you sign in as the owner, this computer
+  connects without the six-digit code from a second session. Other users
+  still get the code. Needs the NOVA App from this release; an older App asks
+  for the code as before. Release prep: update the Cloud Remote paragraph in
+  README.md ("Remote-first pairing uses a separate private Owner session").

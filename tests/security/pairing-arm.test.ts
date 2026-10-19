@@ -290,3 +290,125 @@ describe("armed sign-in pairing slot", () => {
     });
   });
 });
+
+// Home Assistant Link sign-in (docs/work/2026-10-18-onboarding-0.27-spec.md §7.2).
+describe("Link-armed sign-in pairing slot", () => {
+  it("needs Cloud remote but not a secure port", () => {
+    expect(manager({ cloudPairing: false }).arm("owner-1", "link")).toBeNull();
+    expect(
+      manager({ secureEndpoint: () => null }).arm("owner-1", "link"),
+    ).not.toBeNull();
+  });
+
+  it("pairs the arming owner a user-bound Cloud device, exactly once, with an audit line", () => {
+    const logged: Array<[string, Record<string, unknown> | undefined]> = [];
+    const mgr = manager({
+      secureEndpoint: () => null,
+      logger: {
+        info: (message, context) => logged.push([message, context]),
+        warn: () => {},
+        error: () => {},
+      },
+    });
+    const { secret } = mgr.arm("owner-1", "link")!;
+    expect(mgr.getStatus()).toEqual({
+      phase: "armed",
+      expiresAtMs: clock + PAIR_ARM_TTL_MS,
+    });
+
+    const paired = pairCloud(mgr, secret, "owner-1");
+    expect(paired.finished?.ok).toBe(true);
+    expect(Object.keys(paired.response!).sort()).toEqual([
+      "credential",
+      "device_id",
+      "relay_instance_id",
+    ]);
+    const [pending] = registry.list();
+    expect(pending).toMatchObject({
+      state: "pending",
+      cloudUserId: "owner-1",
+      cloudRelayInstanceId: RELAY_ID,
+    });
+    expect(logged).toEqual([
+      [
+        "Device paired through Home Assistant sign-in",
+        { via: "link", device_id: pending!.deviceId, user_id: "owner-1" },
+      ],
+    ]);
+    expect(JSON.stringify(logged)).not.toContain(secret);
+    expect(JSON.stringify(logged)).not.toContain(
+      String(paired.response!.credential),
+    );
+
+    // Replay: the consumed secret starts nothing.
+    expect(pairCloud(mgr, secret, "owner-1").started).toEqual({
+      ok: false,
+      reason: "inactive",
+    });
+    expect(registry.list()).toHaveLength(1);
+  });
+
+  it("refuses another ingress user and the LAN port", () => {
+    const mgr = manager();
+    const { secret } = mgr.arm("owner-1", "link")!;
+    expect(pairCloud(mgr, secret, "admin-1").started).toEqual({
+      ok: false,
+      reason: "inactive",
+    });
+    const login = opaque.client.startLogin({ password: secret });
+    expect(mgr.start(login.startLoginRequest, "192.168.1.50")).toEqual({
+      ok: false,
+      reason: "inactive",
+    });
+    expect(pairCloud(mgr, secret, "owner-1").finished?.ok).toBe(true);
+  });
+
+  it("expires after two minutes", () => {
+    const mgr = manager();
+    const { secret } = mgr.arm("owner-1", "link")!;
+    clock += PAIR_ARM_TTL_MS;
+    expect(pairCloud(mgr, secret, "owner-1").started).toEqual({
+      ok: false,
+      reason: "inactive",
+    });
+    expect(registry.list()).toHaveLength(0);
+  });
+
+  it("is withdrawn when the owner cancels on the NOVA page", () => {
+    const mgr = manager();
+    const { secret } = mgr.arm("owner-1", "link")!;
+    mgr.cancel();
+    expect(pairCloud(mgr, secret, "owner-1").started).toEqual({
+      ok: false,
+      reason: "inactive",
+    });
+  });
+
+  it("activates only for the arming owner on this Relay", () => {
+    const mgr = manager();
+    const { secret } = mgr.arm("owner-1", "link")!;
+    const paired = pairCloud(mgr, secret, "owner-1");
+    const credential = parseCredential(String(paired.response!.credential))!;
+    const digest = digestSecret(credential.secret);
+    // Never as a local device over pinned TLS.
+    expect(registry.activatePending(credential.deviceId, digest, clock)).toBeNull();
+    expect(
+      registry.activatePendingForCloud(
+        credential.deviceId,
+        digest,
+        "admin-1",
+        RELAY_ID,
+        clock,
+      ).ok,
+    ).toBe(false);
+    expect(
+      registry.activatePendingForCloud(
+        credential.deviceId,
+        digest,
+        "owner-1",
+        RELAY_ID,
+        clock,
+      ),
+    ).toMatchObject({ ok: true, record: { state: "active" } });
+  });
+});

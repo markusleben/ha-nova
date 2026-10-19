@@ -47,6 +47,7 @@ let users: () => Promise<HaAuthUser[]>;
 let peer: string;
 let corrupt: boolean;
 let servers: Server[];
+let logged: string[];
 
 beforeAll(async () => {
   await opaqueReady();
@@ -65,6 +66,7 @@ beforeEach(() => {
   peer = "172.30.32.2";
   corrupt = false;
   servers = [];
+  logged = [];
 });
 
 afterEach(async () => {
@@ -192,12 +194,126 @@ describe("POST /pair/v2/arm", () => {
   });
 });
 
+describe("POST /pair/v2/arm/link", () => {
+  const link = (base: string, userId: string, headers: Record<string, string> = {}) =>
+    arm(base, userId, headers, "/pair/v2/arm/link");
+
+  it("pairs the owner a user-bound Cloud device without a secure port", async () => {
+    pairing = createPairingV1Manager({
+      registry,
+      secureEndpoint: () => null,
+      cloudPairing: true,
+      now: () => 1_000_000,
+    });
+    const base = await start();
+    const armed = await link(base, "owner-1");
+    expect(armed.status).toBe(200);
+    expect(armed.headers.get("cache-control")).toBe("no-store");
+    const { data } = (await armed.json()) as {
+      data: { pairing_secret: string; expires_in_s: number; relay_instance_id: string };
+    };
+    expect(Object.keys(data).sort()).toEqual([
+      "expires_in_s",
+      "pairing_secret",
+      "relay_instance_id",
+    ]);
+    expect(data.expires_in_s).toBe(120);
+
+    const provisioned = await pairThroughIngress(base, data.pairing_secret);
+    expect(Object.keys(provisioned).sort()).toEqual([
+      "credential",
+      "device_id",
+      "relay_instance_id",
+    ]);
+    expect(registry.list()[0]).toMatchObject({
+      state: "pending",
+      cloudUserId: "owner-1",
+      cloudRelayInstanceId: RELAY_ID,
+    });
+
+    // Another user cannot activate it; the owner can.
+    const activate = (userId: string) =>
+      fetch(`${base}/cloud/v1/device/activate`, {
+        method: "POST",
+        headers: {
+          "x-ingress-path": "/api/hassio_ingress/session",
+          "x-remote-user-id": userId,
+          "content-type": "application/json",
+          authorization: `Bearer ${String(provisioned.credential)}`,
+        },
+        body: JSON.stringify({ relay_instance_id: RELAY_ID }),
+      });
+    expect((await activate("admin-1")).status).toBe(401);
+    expect((await activate("owner-1")).status).toBe(200);
+
+    expect(logged.join("\n")).toContain('Pairing armed through Home Assistant sign-in {"via":"link","user_id":"owner-1"}');
+    expect(logged.join("\n")).not.toContain(data.pairing_secret);
+    expect(logged.join("\n")).not.toContain(String(provisioned.credential));
+  });
+
+  it("refuses a non-owner and arms nothing", async () => {
+    const base = await start();
+    await expectError(link(base, "admin-1"), 403, "OWNER_REQUIRED");
+    users = async () => {
+      throw new Error("Supervisor unavailable");
+    };
+    await expectError(link(base, "owner-1"), 503, "OWNER_CHECK_UNAVAILABLE");
+    expect(pairing.getStatus().phase).toBe("inactive");
+    expect(logged).toEqual([]);
+  });
+
+  it("is machine-only, JSON-only, and ingress-only", async () => {
+    const base = await start();
+    await expectError(
+      link(base, "owner-1", { "sec-fetch-site": "same-origin" }),
+      403,
+      "MACHINE_REQUEST_REQUIRED",
+    );
+    await expectError(
+      link(base, "owner-1", { "content-type": "text/plain" }),
+      415,
+      "UNSUPPORTED_MEDIA_TYPE",
+    );
+    peer = "172.30.32.9";
+    await expectError(link(base, "owner-1"), 403, "INGRESS_REQUIRED");
+    expect(pairing.getStatus().phase).toBe("inactive");
+  });
+
+  it("is unavailable without Cloud remote", async () => {
+    pairing = createPairingV1Manager({
+      registry,
+      secureEndpoint: () => ({ spkiPin: "local-pin", securePort: 8792 }),
+      now: () => 1_000_000,
+    });
+    const base = await start(false);
+    await expectError(link(base, "owner-1"), 503, "PAIRING_UNAVAILABLE");
+  });
+
+  it("refuses another user's start and a replay of the consumed secret", async () => {
+    const base = await start();
+    const armed = await link(base, "owner-1");
+    const { data } = (await armed.json()) as { data: { pairing_secret: string } };
+    const login = opaque.client.startLogin({ password: data.pairing_secret });
+    const foreign = await call(base, "POST", "/pair/v2/start", "admin-1", {
+      ke1: login.startLoginRequest,
+    });
+    expect(foreign.status).toBe(400);
+    await pairThroughIngress(base, data.pairing_secret);
+    const replay = await call(base, "POST", "/pair/v2/start", "owner-1", {
+      ke1: opaque.client.startLogin({ password: data.pairing_secret }).startLoginRequest,
+    });
+    expect(replay.status).toBe(400);
+    expect(registry.list()).toHaveLength(1);
+  });
+});
+
 async function pairThroughIngress(
   base: string,
   secret: string,
+  userId = "owner-1",
 ): Promise<Record<string, unknown>> {
   const login = opaque.client.startLogin({ password: secret });
-  const started = await call(base, "POST", "/pair/v2/start", "owner-1", {
+  const started = await call(base, "POST", "/pair/v2/start", userId, {
     ke1: login.startLoginRequest,
   });
   expect(started.status).toBe(200);
@@ -216,7 +332,7 @@ async function pairThroughIngress(
     Buffer.from(finishedClient.sessionKey, "base64url"),
     handshake,
   );
-  const finished = await call(base, "POST", "/pair/v2/finish", "owner-1", {
+  const finished = await call(base, "POST", "/pair/v2/finish", userId, {
     handshake_id: data.handshake_id,
     ke3: finishedClient.finishLoginRequest,
     metadata: seal(
@@ -253,8 +369,9 @@ function arm(
   base: string,
   userId: string,
   headers: Record<string, string> = {},
+  path = "/pair/v2/arm",
 ): Promise<Response> {
-  return fetch(`${base}/pair/v2/arm`, {
+  return fetch(`${base}${path}`, {
     method: "POST",
     headers: {
       "x-ingress-path": "/api/hassio_ingress/session",
@@ -342,6 +459,10 @@ function deps(cloudRemoteEnabled: boolean): IngressListenerDeps {
     registryCorrupt: () => corrupt,
     resetRegistry: () => {},
     now: () => 1_000_000,
-    logger: { warn: () => {}, error: () => {} },
+    logger: {
+      info: (message, context) => logged.push(`${message} ${JSON.stringify(context)}`),
+      warn: () => {},
+      error: () => {},
+    },
   };
 }

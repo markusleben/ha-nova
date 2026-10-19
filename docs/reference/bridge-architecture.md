@@ -305,6 +305,13 @@ two minutes, is never shown on the NOVA page, and only the arming user's
 active. It yields an unbound local device that activates over pinned TLS
 exactly like a typed code; `GET /pair/v1/info` reports `sign_in: true` when
 the route is served (`docs/work/2026-10-16-ha-sign-in-pairing-spec.md`).
+`POST /pair/v2/arm/link` is the Home Assistant Link variant: the same owner
+check and request rules, it needs Cloud remote instead of the secure port, and
+its slot pairs the same user-bound Cloud device as the owner code (activated
+over ingress by that user only). When the Link sign-in user is the owner, the
+CLI pairs through it without a code; an App without the route answers 404 and
+the CLI asks for the owner code (`docs/work/2026-10-18-onboarding-0.27-spec.md`
+§7.2). Arming and pairing each log one audit line without the secret.
 
 **Upstream (Relay -> HA):**
 The Home Assistant App prefers its process-local `SUPERVISOR_TOKEN` and sends it
