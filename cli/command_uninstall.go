@@ -123,9 +123,9 @@ func runUninstall(paths runtimePaths, args []string) int {
 	recoveryMode := false
 	recoveredTeardown := false
 	var recoveredRemovedRelays uninstallRelayRemovalEvidence
-	// Without the menu, refuse before any recovery output; with it, the user
-	// may still keep this computer connected, which needs no credentials.
-	purgeChecked := *yes || !uninstallInteractive()
+	// Without the menu, or when --purge asked for it, refuse before any
+	// recovery output; otherwise the menu offers keeping the pairing instead.
+	purgeChecked := *yes || *purge || !uninstallInteractive()
 	if purgeChecked && purgeRefusedOutsideDesktop(paths, mode, *yes) {
 		return 1
 	}

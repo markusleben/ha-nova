@@ -188,7 +188,7 @@ func TestRemoveNOVAAppFailsClosed(t *testing.T) {
 		{"not the owner", errSignInNotOwner, []func() (devicePeers, error){alone}, nil, "Only the owner can remove the NOVA App.", false},
 		{"another device meanwhile", nil, []func() (devicePeers, error){func() (devicePeers, error) { return peersOf(1, false, false), nil }}, nil, "Another computer uses the NOVA App now.", false},
 		{"Relay unreachable on the re-check", nil, []func() (devicePeers, error){func() (devicePeers, error) { return devicePeers{}, errors.New("down") }}, nil, "couldn't check whether other computers", false},
-		{"chat apps meanwhile", nil, []func() (devicePeers, error){func() (devicePeers, error) { return peersOf(0, false, true), nil }}, nil, appRemovalChatAppsLine, false},
+		{"chat apps meanwhile", nil, []func() (devicePeers, error){func() (devicePeers, error) { return peersOf(0, false, true), nil }}, nil, "Chat apps are on now", false},
 		{"lookalike source", nil, []func() (devicePeers, error){alone}, func(f *fakeSupervisor) {
 			f.repos = []map[string]string{{"slug": "2368fcfa", "source": "https://github.com/evil/ha-nova"}}
 		}, "Home Assistant lists a different NOVA source. Nothing was removed.", false},

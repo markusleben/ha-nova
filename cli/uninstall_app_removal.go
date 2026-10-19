@@ -190,7 +190,7 @@ func removeNOVAAppForUninstall(out io.Writer, cfg runtimeConfig) bool {
 		case err != nil:
 			return &novaAppInstallError{line: "HA NOVA couldn't check whether other computers use the NOVA App. Nothing was removed.", cause: err}
 		case peers.chatApps():
-			return &novaAppInstallError{line: appRemovalChatAppsLine}
+			return &novaAppInstallError{line: "Chat apps are on now, so the NOVA App stays. Turn them off in NOVA, then try again."}
 		case !peers.alone():
 			return &novaAppInstallError{line: "Another computer uses the NOVA App now. Nothing was removed."}
 		}
@@ -260,6 +260,8 @@ func (s novaAppSupervisor) remove(ctx context.Context, out io.Writer, securePort
 	switch {
 	case storeErr != nil || store.Slug != s.appSlug || store.Installed == nil: // no answer is no proof
 		return &novaAppInstallError{line: "Home Assistant didn't confirm that the NOVA App was removed. Check Settings → Apps: if NOVA Relay is gone, run ha-nova uninstall and pick “Remove”.", cause: errors.Join(callErr, storeErr)}
+	case *store.Installed && errors.Is(callErr, context.Canceled):
+		return &novaAppInstallError{line: "Stopped. Home Assistant may still be removing the NOVA App; check Settings → Apps.", cause: callErr}
 	case *store.Installed:
 		return &novaAppInstallError{line: "Home Assistant couldn't remove the NOVA App; it is still installed.", cause: callErr}
 	}

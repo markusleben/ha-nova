@@ -44,6 +44,9 @@ func promptUninstallChoice(out io.Writer, defaultMode uninstallMode, offer unins
 		if offer.note != "" {
 			fmt.Fprintf(out, "  %s\n", offer.note)
 		}
+		if purgeBlocked != "" {
+			fmt.Fprintf(out, "  Remove: not available here (%s).\n", purgeBlocked)
+		}
 		return promptUninstallModeFromLine(spec.DefaultValue, offerApp, purgeBlocked == "")
 	})
 	switch {
