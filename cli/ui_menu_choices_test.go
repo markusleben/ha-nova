@@ -57,11 +57,15 @@ func TestNumberedChoicePromptsOnlyRunAsArrowMenuFallback(t *testing.T) {
 	// Not prompts: listPhones prints the list for `confirm-phone list` and
 	// after a mistyped name, where a number is a command-line argument.
 	delete(numbered, "listPhones")
-	for _, want := range []string{"promptSetupClientFromReader", "promptSetupConnectionModeFromReader", "promptUninstallModeFromLine"} {
+	for _, want := range []string{"renderSetupChoiceList", "promptSetupConnectionModeFromReader", "promptUninstallModeFromLine"} {
 		if !numbered[want] {
 			t.Fatalf("guard lost track of %s; numbered=%v", want, numbered)
 		}
 	}
+	// renderSetupChoiceList only lists (also for the no-client notice); the
+	// prompt that asks for a number is the generic catalog fallback.
+	delete(numbered, "renderSetupChoiceList")
+	numbered["promptSetupChoiceByNumber"] = true
 	for _, file := range parsed {
 		for _, decl := range file.Decls {
 			fn, ok := decl.(*ast.FuncDecl)

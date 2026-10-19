@@ -213,9 +213,6 @@ func TestBuildSetupClientChoicesShowsAvailableClientsBeforeDisabledOnes(t *testi
 	if choices[5].Value != "all" {
 		t.Fatalf("expected all choice to stay last, got %+v", choices)
 	}
-	if choices[5].Number != "6" {
-		t.Fatalf("expected all-choice numbering to be recomputed, got %q", choices[5].Number)
-	}
 }
 
 func TestResolveSetupClientsForAllReturnsOnlyAvailableClients(t *testing.T) {

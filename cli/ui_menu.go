@@ -38,50 +38,6 @@ var interactiveSetupMenuRunner setupMenuRunner = terminalSetupMenuRunner{}
 
 type terminalSetupMenuRunner struct{}
 
-func promptSetupClientInteractive(reader *bufio.Reader, out io.Writer, choices []setupClientChoice, defaultClient string) (string, error) {
-	spec := setupMenuSpec{
-		Title:        "Which AI client do you use?",
-		Prompt:       "Use ↑/↓ or j/k, Enter to select, Ctrl+C to exit",
-		DefaultValue: defaultClient,
-	}
-	for _, choice := range choices {
-		spec.Options = append(spec.Options, setupMenuOption{
-			Value:          choice.Value,
-			Label:          choice.Label,
-			Disabled:       choice.Disabled,
-			DisabledReason: choice.DisabledReason,
-		})
-	}
-	return promptSetupMenu(reader, out, spec, func() (string, error) {
-		return promptSetupClientFromReader(reader, out, choices, defaultClient)
-	})
-}
-
-func promptSetupTokenChoiceInteractive(reader *bufio.Reader, out io.Writer, hasExistingLocal bool) (string, error) {
-	spec := setupMenuSpec{
-		Title:        "Choose how to set up the Relay Auth Token:",
-		Prompt:       "Use ↑/↓ or j/k, Enter to select, Esc to go back, Ctrl+C to exit",
-		AllowBack:    true,
-		DefaultValue: "generate",
-	}
-	if hasExistingLocal {
-		spec.Options = []setupMenuOption{
-			{Value: "keep", Label: "Keep saved token"},
-			{Value: "paste", Label: "Paste existing token from another device / Home Assistant"},
-			{Value: "generate", Label: "Generate a new token"},
-		}
-		spec.DefaultValue = "keep"
-	} else {
-		spec.Options = []setupMenuOption{
-			{Value: "paste", Label: "Paste existing token from another device / Home Assistant"},
-			{Value: "generate", Label: "Generate a new token"},
-		}
-	}
-	return promptSetupMenu(reader, out, spec, func() (string, error) {
-		return promptSetupTokenChoiceFromReader(reader, out, hasExistingLocal)
-	})
-}
-
 func promptSetupRepairActionInteractive(reader *bufio.Reader, out io.Writer, mode setupRepairMode, credentialRepair setupCredentialRepairMode) (setupRepairAction, error) {
 	choices, defaultChoice := setupRepairChoices(mode, credentialRepair)
 	spec := setupMenuSpec{

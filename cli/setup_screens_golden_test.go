@@ -68,9 +68,9 @@ func TestSetupGoldenScreens(t *testing.T) {
 			renderSetupCancelledNote(out)
 
 			choices := []setupClientChoice{
-				{Number: "1", Value: "claude", Label: "Claude Code"},
-				{Number: "2", Value: "codex", Label: "Codex CLI", Disabled: true, DisabledReason: "install Codex CLI first"},
-				{Number: "3", Value: "all", Label: "All available clients"},
+				{Value: "claude", Label: "Claude Code"},
+				{Value: "codex", Label: "Codex CLI", Disabled: true, DisabledReason: "install Codex CLI first"},
+				{Value: "all", Label: "All available clients"},
 			}
 			section("client menu: invalid, disabled, back, pick")
 			answer, err := promptSetupClientInteractive(goldenReader("9\n2\nback\n"), out, choices, "claude")
@@ -84,8 +84,8 @@ func TestSetupGoldenScreens(t *testing.T) {
 			out.WriteString("\n→ " + answer + " " + errString(err) + "\n")
 			section("client menu: nothing available")
 			answer, err = promptSetupClientInteractive(goldenReader("\n"), out, []setupClientChoice{
-				{Number: "1", Value: "codex", Label: "Codex CLI", Disabled: true, DisabledReason: "install Codex CLI first"},
-				{Number: "2", Value: "all", Label: "All available clients", Disabled: true, DisabledReason: "install a supported AI client first"},
+				{Value: "codex", Label: "Codex CLI", Disabled: true, DisabledReason: "install Codex CLI first"},
+				{Value: "all", Label: "All available clients", Disabled: true, DisabledReason: "install a supported AI client first"},
 			}, "claude")
 			out.WriteString("\n→ " + answer + " " + errString(err) + "\n")
 			section("token menu: fresh")

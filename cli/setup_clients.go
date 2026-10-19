@@ -3,7 +3,6 @@ package main
 import "fmt"
 
 type setupClientChoice struct {
-	Number         string
 	Value          string
 	Label          string
 	Disabled       bool
@@ -37,25 +36,16 @@ func buildSetupClientChoices(paths runtimePaths, state installState) ([]setupCli
 	}
 
 	choices := append(append([]setupClientChoice{}, availableChoices...), disabledChoices...)
-	for index := range choices {
-		choices[index].Number = indexNumber(index + 1)
-	}
-
 	allChoice := setupClientChoice{
-		Number:   indexNumber(len(choices) + 1),
 		Value:    "all",
-		Label:    "All available clients",
+		Label:    setupT("setup.clients.all"),
 		Resolved: append([]string{}, available...),
 	}
 	if len(available) == 0 {
 		allChoice.Disabled = true
-		allChoice.DisabledReason = "install a supported AI client first"
+		allChoice.DisabledReason = setupT("setup.clients.all_unavailable")
 	}
 	return append(choices, allChoice), nil
-}
-
-func indexNumber(value int) string {
-	return fmt.Sprintf("%d", value)
 }
 
 func resolveSetupClients(paths runtimePaths, target string) ([]string, []string, error) {
