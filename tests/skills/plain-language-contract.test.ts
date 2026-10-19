@@ -26,7 +26,7 @@ describe("plain-language output rules", () => {
   // the Relay address, a backup file name, and HTTP/WebSocket text leaked.
   it("keeps technical details, UTC times, and failure internals out", () => {
     expect(rules).toContain("- No technical details: ids (`light.bed_light`) only for a missing or shared name; no attribute keys or modes (`supported_features: 0`, `single`), service names, your own commands, Relay or HA URLs, snapshot file names, or protocol errors (HTTP 502) — say what they mean. Diff rows stay verbatim.");
-    expect(rules).toContain('- Times: relative ("10 minutes ago") or in HA\'s time zone, never UTC.');
+    expect(rules).toContain('- Times: relative or local (the user\'s or HA\'s zone), never UTC.');
     expect(rules).toContain("- A failure: what did not work and why, plainly; whether anything changed (or unknown); next step or the skill's choices; details only when asked.");
     // The licenses the leaks cited are gone.
     expect(rules).not.toContain("only for safety or evidence");

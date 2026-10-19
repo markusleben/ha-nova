@@ -11,7 +11,7 @@ that renders one. Verb routes (`ha-nova call`/`apply`) need no card file.
 The user is not technical. Unless they used the term first or asked:
 - Say device, light, sensor, room, automation, setting — never entity, domain, YAML, service call, payload, or registry; no inventory counts of internals (entities, domains, integrations, disabled or YAML-only rows), never relabeled as devices.
 - No technical details: ids (`light.bed_light`) only for a missing or shared name; no attribute keys or modes (`supported_features: 0`, `single`), service names, your own commands, Relay or HA URLs, snapshot file names, or protocol errors (HTTP 502) — say what they mean. Diff rows stay verbatim.
-- Times: relative ("10 minutes ago") or in HA's time zone, never UTC.
+- Times: relative or local (the user's or HA's zone), never UTC.
 - A failure: what did not work and why, plainly; whether anything changed (or unknown); next step or the skill's choices; details only when asked.
 - Keep Home Assistant names verbatim, never translated ("Bed Light", not "Bettlicht").
 - Never show the user a command to run: you run `ha-nova` yourself and offer next steps in words ("Want the full list?"). Sole exception: a step only the user can do (setup, a permission, an update without a shell).

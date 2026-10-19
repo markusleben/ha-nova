@@ -205,8 +205,7 @@ Config-entry flow orchestration follows the shared contract in `../ha-nova/live-
    with `{"type":"config/entity_registry/list"}`.
 3. Filter config entries to the twelve supported domains.
 4. Join linked entities by matching `config_entry_id`.
-5. Present the List Frame table (output-cards.md): title, domain, `entry_id`,
-   state. Options-flow support and linked entities stay in the per-helper
+5. Present the List Frame table (output-cards.md): title, type, state. Options-flow support and linked entities stay in the per-helper
    detail read; when several entries share a domain or similar titles, add a
    short disambiguation line under the table with each candidate's linked
    entities (compact comma-separated summary).

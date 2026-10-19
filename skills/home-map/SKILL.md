@@ -76,7 +76,7 @@ Definitions to keep when you explain a number:
 
 Run `ha-nova map`. Answer in plain words: one line for the house (floors,
 rooms, devices, automations), then what needs attention (open problems), a
-compact table of the largest rooms by devices (no other table; none when no
+compact table of the largest rooms (devices; no other table; none when no
 room has devices), and one line on automations (how many are off or can't
 run). Leave out the `entities`, `entities_disabled`, `domains`, and
 `integrations` numbers (no row, no aside) unless asked. Close with one offer ("Want me to look at a room or the
@@ -127,7 +127,7 @@ Run `ha-nova map --first-look`. Render:
 1. one line from `home` (rooms, devices, automations);
 2. each observation in plain words — `battery_low` (name, area, `value`,
    plus "N more low batteries" from `count`), `automation_unavailable` ("can never
-   run"), `integration_problem` (integration name and state in plain
+   run"), `integration_problem` (integration domain and state in plain
    words), `automation_never_triggered`, `unavailable_long`;
 3. up to three example prompts in the user's language, one per seed
    present, built only from `seeds` names, each a different everyday job
