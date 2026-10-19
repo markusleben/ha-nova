@@ -139,6 +139,16 @@ func (s *serveHarness) userPlans(user string) []string {
 	return files
 }
 
+// likeUnknown: another user's plan answers exactly as a plan id nobody
+// made (no existence hint).
+func (s *serveHarness) likeUnknown(user, id string, env map[string]any) bool {
+	s.t.Helper()
+	const unknown = "p_0000000000ff"
+	want := s.tool(user, "ha_apply", map[string]any{"plan_id": unknown})
+	got, _ := json.Marshal(env)
+	return envCode(env) == "PLAN_NOT_FOUND" && strings.ReplaceAll(string(got), id, unknown) == string(mustJSON(want))
+}
+
 func envCode(env map[string]any) string {
 	errInfo, _ := env["error"].(map[string]any)
 	code, _ := errInfo["code"].(string)
@@ -169,8 +179,10 @@ func TestServeRefusesWithoutSecretAndAllowedUser(t *testing.T) {
 			t.Errorf("%s: HTTP %d %q, want %d", name, status, body, c.want)
 		}
 	}
-	if status, _ := s.raw(http.MethodGet, s.as(userA), ""); status != http.StatusMethodNotAllowed {
-		t.Errorf("GET: %d", status)
+	for _, method := range []string{http.MethodGet, http.MethodDelete} {
+		if status, _ := s.raw(method, s.as(userA), ""); status != http.StatusMethodNotAllowed {
+			t.Errorf("%s: %d", method, status)
+		}
 	}
 	if len(s.log.all()) != 0 {
 		t.Fatalf("a refused request reached the Relay: %d calls", len(s.log.all()))
@@ -281,7 +293,7 @@ func TestServePlansAreBoundToTheirUser(t *testing.T) {
 	if plan["channel"] != channelChat || len(code) != 4 || !strings.HasSuffix(env["say"].(string), chatCodeNote) || strings.Contains(env["say"].(string), sayChatNote) {
 		t.Fatalf("chat plan: %v", env)
 	}
-	if other := s.tool(userB, "ha_apply", map[string]any{"plan_id": plan["id"], "confirm_code": code}); envCode(other) != "PLAN_NOT_FOUND" {
+	if other := s.tool(userB, "ha_apply", map[string]any{"plan_id": plan["id"], "confirm_code": code}); !s.likeUnknown(userB, plan["id"].(string), other) {
 		t.Fatalf("other user: %v", other)
 	}
 	if len(s.posts()) != 0 {

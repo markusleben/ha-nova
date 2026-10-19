@@ -110,8 +110,8 @@ func TestServeTwoUsersConcurrently(t *testing.T) {
 	for e := range errs {
 		t.Error("read during A's ask:", e)
 	}
-	if env := s.tool(userB, "ha_apply", map[string]any{"plan_id": id}); envCode(env) != "PLAN_NOT_FOUND" {
-		t.Fatalf("B applies A's plan: %v", env)
+	if env := s.tool(userB, "ha_apply", map[string]any{"plan_id": id}); !s.likeUnknown(userB, id, env) || p.sentCount() != 1 {
+		t.Fatalf("B re-calls A's waiting plan: %v", env)
 	}
 	env := s.tool(userB, "ha_plan", map[string]any{"kind": "call", "service": "lock.unlock", "entity_ids": []string{"lock.front"}})
 	if errInfo, _ := env["error"].(map[string]any); envCode(env) != "CONFIRM_UNAVAILABLE" || errInfo["next"] != chatPhoneMissing {
@@ -135,21 +135,21 @@ func TestServePhoneLinksArePerUser(t *testing.T) {
 	if links, ok := linksForCall(runtimePaths{}); !ok || len(links) != 0 {
 		t.Fatalf("missing store: %v %v", links, ok)
 	}
-	store, _ := json.Marshal(map[string]map[string]phoneLink{"owner-id": {
+	store, _ := json.Marshal(map[string]phoneLink{
 		userA: {Service: "mobile_app_a", DeviceID: "dev-a", UserID: userA, Name: "A"},
-		userB: {Service: "mobile_app_b", DeviceID: "dev-b", UserID: userB, Name: "B"}}})
+		userB: {Service: "mobile_app_b", DeviceID: "dev-b", UserID: userB, Name: "B"}})
 	if err := os.WriteFile(file, store, 0o600); err != nil {
 		t.Fatal(err)
 	}
 	links, ok := linksForCall(runtimePaths{})
-	if !ok || len(links) != 1 || links["owner-id"].link.DeviceID != "dev-a" {
+	if !ok || len(links) != 1 || linkFor(links, "any-owner").link.DeviceID != "dev-a" {
 		t.Fatalf("A's links: %v", links)
 	}
 	chatCall.user = "cccccccccccccccccccccccccccccccc"
 	if links, ok := linksForCall(runtimePaths{}); !ok || len(links) != 0 {
 		t.Fatalf("unlinked user: %v", links)
 	}
-	if err := os.WriteFile(file, []byte(`{"owner-id":`), 0o600); err != nil {
+	if err := os.WriteFile(file, []byte(`{"`+userA+`":`), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	if _, ok := linksForCall(runtimePaths{}); ok {

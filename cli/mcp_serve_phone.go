@@ -26,7 +26,7 @@ import (
 type chatPolicy struct {
 	user     string // the HA user id the integration vouched for (secret-authenticated)
 	key      string // its hash: the user's data directory and log label
-	links    string // the bridge's phone links: {owner id: {HA user id: phoneLink}}
+	links    string // the bridge's phone links: {HA user id: phoneLink}, its only store
 	codes    bool   // chat codes allowed (owner switch)
 	readOnly bool   // chat apps can only read (owner switch)
 	bridge   *chatBridge
@@ -87,8 +87,9 @@ func discoverConfirmer(s *relaySession) (phoneSetup, phoneStatus) {
 	return setup, status
 }
 
-// linksForCall: the CLI's links (config.json), or in a chat app this user's
-// link from the bridge's store, keyed like config.json by the HA owner.
+// linksForCall: the CLI's links (config.json, keyed by the HA owner), or in
+// a chat app only this user's link from the bridge's own store (one Home
+// Assistant, keyed by HA user), under chatOwner; never config.json.
 // Missing file: none; unreadable: unknown (ok=false), never "none".
 func linksForCall(paths runtimePaths) (map[string]phoneEntry, bool) {
 	if chatCall == nil {
@@ -98,20 +99,29 @@ func linksForCall(paths runtimePaths) (map[string]phoneEntry, bool) {
 	if errors.Is(err, os.ErrNotExist) {
 		return map[string]phoneEntry{}, true
 	}
-	var byOwner map[string]map[string]*phoneLink
-	if err != nil || json.Unmarshal(raw, &byOwner) != nil {
+	var byUser map[string]*phoneLink
+	if err != nil || json.Unmarshal(raw, &byUser) != nil {
 		return nil, false
 	}
 	links := map[string]phoneEntry{}
-	for owner, users := range byOwner {
-		if link, present := users[chatCall.user]; present {
-			if link == nil { // null: an unusable link (refused), never "no phone"
-				link = &phoneLink{}
-			}
-			links[owner] = phoneEntry{link: link}
+	if link, present := byUser[chatCall.user]; present {
+		if link == nil { // null: an unusable link (refused), never "no phone"
+			link = &phoneLink{}
 		}
+		links[chatOwner] = phoneEntry{link: link}
 	}
 	return links, true
+}
+
+// chatOwner keys the bridge's one link in place of the HA owner's id.
+const chatOwner = "chat-app-user"
+
+// linkFor: the link entry for this home's owner (in a chat app, the user's).
+func linkFor(links map[string]phoneEntry, owner string) phoneEntry {
+	if chatCall != nil {
+		return links[chatOwner]
+	}
+	return links[owner]
 }
 
 // chatRefusal: the owner's read-only switch refuses every change, plans

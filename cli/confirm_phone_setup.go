@@ -129,7 +129,7 @@ func lookupPhones(s *relaySession, links map[string]phoneEntry) (phoneHome, erro
 		return home, errors.New("Home Assistant's owner or the Relay's user could not be read")
 	}
 	device := ""
-	if link := links[home.owner].link; link != nil {
+	if link := linkFor(links, home.owner).link; link != nil {
 		device = link.DeviceID
 	}
 	var devices []struct {
@@ -260,6 +260,9 @@ func (h phoneHome) status(links map[string]phoneEntry, err error) (phoneSetup, p
 		return phoneSetup{why: whyRead}, phoneMissing // a link exists on this computer; whether it is this home's can't be checked
 	}
 	entry, ok := links[h.owner]
+	if chatCall != nil {
+		entry, ok = links[chatOwner]
+	}
 	switch {
 	case !ok:
 		return phoneSetup{owner: h.owner, relayUser: h.relay}, phoneNone
