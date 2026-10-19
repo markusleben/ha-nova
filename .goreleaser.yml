@@ -89,8 +89,8 @@ release:
 
     - **Sign in with Home Assistant to pair.** Setup opens your Home Assistant login: sign in as the owner and this computer connects by itself. As another user, or over SSH on Linux, the six-digit code from NOVA still works.
     - **Confirm in a window or on your phone.** A click on your computer or a tap on your linked phone (Companion app) confirms unlocks and automation, script, or dashboard deletes, so your AI assistant never sees a code.
-    - **Easier setup.** One link opens the NOVA Relay App page and adds the repository, a running App is skipped, and setup ends with a first look at your home and prompts with your own names.
-    - **Know your home with exact numbers.** Ask "what do I have?", "where is this sensor used?", or "review my whole setup": HA NOVA counts rooms, devices, automations, and low batteries itself.
+    - **Easier setup.** On HA OS and Supervised, one owner sign-in installs or updates and starts the NOVA Relay App and connects this computer; the App page stays as a fallback. Setup ends with a first look at your home.
+    - **Know your home with exact numbers.** Ask "what do I have?", "where is this sensor used?" (down to the dashboard card), or "review my whole setup": HA NOVA counts rooms, devices, automations, and low batteries itself.
     - **Replace a device or a phone.** Automations, scripts, scenes, dashboards, helpers, energy sources, and notifications move to the new device in one reviewed plan; if it takes over the old entity ids, history continues.
     - **Build whole dashboards.** Views and cards, with your installed custom cards. Every change is previewed, a copy is saved first, and "undo that" restores it. "Check my dashboards" finds broken cards.
     - **Move rules to Home Assistant.** Node-RED, Homey, SmartThings, Hubitat, or openHAB rules and old YAML become native automations; the old rule stays disabled, not deleted, until the new one checks out.
@@ -112,6 +112,7 @@ release:
     - **Two profiles for one Home Assistant stay connected.** A second HA NOVA profile for the same Home Assistant no longer disconnects the first. Already disconnected? Pair it again; the other may need one more pairing.
     - **A clear next step when secure storage is out of reach.** Over SSH or as admin on Windows and macOS, setup, `pair`, `doctor`, and `uninstall --purge` point to a desktop terminal; local installs don't blame Link.
     - **Lock, cover, and alarm automations fire.** A trigger “from locked to unlocked” can miss the “unlocking” step in between and never run. HA NOVA now includes that step and flags such triggers.
+    - **Plain answers, and the AI waits after a preview.** Answers use plain words and your Home Assistant names as written. After a preview, HA NOVA tells the AI to stop and apply it only after your reply.
     - **Nothing to confirm when it's already done.** When Home Assistant already shows a door unlocked or a garage open, HA NOVA usually just says so instead of asking for a confirmation; nothing is sent.
 
     Stable install commands are release-pinned for this tag.
