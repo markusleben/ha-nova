@@ -10,6 +10,9 @@ import (
 type cloudRemotePairingPrompt struct {
 	AppURL      string
 	RetryReason string
+	// Set when the owner signed in but the NOVA App is too old to pair
+	// without a code; the owner needs no second session.
+	OwnerNote string
 }
 
 type cloudRemotePairingCodeProvider func(
@@ -40,6 +43,11 @@ func promptRemoteOwnerPairingCode(
 			"New six-digit code from the Owner session",
 			"",
 		)
+	}
+	if prompt.OwnerNote != "" {
+		renderSetupWarningLine(out, "%s", prompt.OwnerNote)
+		renderSetupParagraph(out, "In Home Assistant, open NOVA from the sidebar and choose “Connect a device”.")
+		return promptWizardLineFromReader(reader, out, "Six-digit code from NOVA", "")
 	}
 	renderSetupParagraph(
 		out,

@@ -48,10 +48,10 @@ func pairDeviceV2Armed(
 	client *CloudIngressClient,
 	metadata deviceMetadata,
 ) (*provisionedCredential, error) {
-	armed, err := armSignInPairing(ctx, client)
+	armed, err := armSignInPairing(ctx, client, CloudEndpointPairArm)
 	if errors.Is(err, errSignInRelayNotReady) {
 		time.Sleep(signInArmRetryDelay)
-		armed, err = armSignInPairing(ctx, client)
+		armed, err = armSignInPairing(ctx, client, CloudEndpointPairArm)
 	}
 	if err != nil {
 		return nil, err
@@ -85,14 +85,41 @@ func pairDeviceV2Armed(
 	}, nil
 }
 
+// pairDeviceV2LinkOwner pairs over Home Assistant Link without a code when the
+// Link sign-in user is the owner (docs/work/2026-10-18-onboarding-0.27-spec.md
+// §7.2): the Relay re-checks ownership with Home Assistant, arms a one-time
+// secret for this ingress user, and answers with the same user-bound Cloud
+// device as the owner code; the caller activates it over ingress as before.
+// An App without /pair/v2/arm/link answers 404: errSignInRelayUnsupported.
+func pairDeviceV2LinkOwner(
+	ctx context.Context,
+	client *CloudIngressClient,
+	metadata deviceMetadata,
+	expectedRelayInstanceID string,
+) (*cloudProvisionedCredential, error) {
+	armed, err := armSignInPairing(ctx, client, CloudEndpointPairArmLink)
+	if err != nil {
+		return nil, &pairingBeforeFinishError{err: err}
+	}
+	if armed.RelayInstanceID != expectedRelayInstanceID {
+		return nil, newCloudError(CloudErrRelayInstance, "verify Link pairing instance", nil)
+	}
+	plaintext, err := pairV2Exchange(ctx, client, armed.PairingSecret, metadata, expectedRelayInstanceID)
+	if err != nil {
+		return nil, err
+	}
+	return decodeCloudProvisionedCredential(plaintext, expectedRelayInstanceID)
+}
+
 func armSignInPairing(
 	ctx context.Context,
 	client *CloudIngressClient,
+	endpoint CloudIngressEndpoint,
 ) (signInArmResponse, error) {
 	if client == nil {
 		return signInArmResponse{}, newCloudError(CloudErrInvalidInput, "arm sign-in pairing", nil)
 	}
-	response, err := client.Do(ctx, CloudEndpointPairArm, "", []byte("{}"))
+	response, err := client.Do(ctx, endpoint, "", []byte("{}"))
 	if err != nil {
 		return signInArmResponse{}, err
 	}

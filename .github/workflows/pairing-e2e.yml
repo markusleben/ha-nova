@@ -6,7 +6,9 @@ name: Pairing E2E
 #   pair -> device credential refused over plain HTTP (403) -> activate over
 #   pinned TLS -> functional call (200) -> revoke-self -> functional (401);
 #   Home Assistant sign-in: arm through the real ingress listener -> armed
-#   pair-v2 -> pinned-TLS activation -> functional call (200).
+#   pair-v2 -> pinned-TLS activation -> functional call (200); Home Assistant
+#   Link owner: arm /pair/v2/arm/link -> pair-v2 -> ingress activation ->
+#   functional call through ingress (200).
 # Hermetic and fast (no Docker, no network), so it runs as a normal PR check —
 # unlike the disposable-HA e2e, which is scheduled evidence.
 
@@ -62,4 +64,4 @@ jobs:
         working-directory: cli
         env:
           HA_NOVA_PAIR_E2E_HARNESS: ${{ github.workspace }}/scripts/e2e/pairing-harness.mjs
-        run: go test -count=1 -run 'TestPairingClientV1EndToEnd|TestRunSecurePairingEndToEnd|TestSecondProfilePairingKeepsFirstDeviceEndToEnd|TestSignInArmedPairingEndToEnd' -v ./...
+        run: go test -count=1 -run 'TestPairingClientV1EndToEnd|TestRunSecurePairingEndToEnd|TestSecondProfilePairingKeepsFirstDeviceEndToEnd|TestSignInArmedPairingEndToEnd|TestLinkOwnerPairingEndToEnd' -v ./...

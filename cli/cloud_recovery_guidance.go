@@ -136,7 +136,7 @@ func handlePausedCloudOwnerPairing(
 	if cfg.Cloud.State == cloudStateCloudVerified && cfg.Cloud.Pending != nil {
 		fmt.Fprintln(
 			out,
-			"  Home Assistant Link setup is paused. OAuth authorization is saved; Owner device pairing is still pending.",
+			"  Home Assistant Link setup is paused. OAuth authorization is saved; connecting this computer is still pending.",
 		)
 	} else {
 		fmt.Fprintf(

@@ -114,14 +114,16 @@ export function createPairingV1Manager(deps: PairingV1Deps): PairingV1Manager {
       return { code, expiresAtMs: openSlot(code, PAIR_CODE_TTL_MS) };
     },
 
-    arm(userId) {
+    arm(userId, device = "local") {
       // Home Assistant sign-in arms a 256-bit secret for exactly this ingress
       // user instead of a six-digit code (docs/work/2026-10-16-ha-sign-in-pairing-spec.md).
-      if (deps.secureEndpoint() === null) {
+      // A "link" slot pairs the owner code's user-bound Cloud device instead.
+      const link = device === "link";
+      if (link ? deps.cloudPairing !== true : deps.secureEndpoint() === null) {
         return null;
       }
       const secret = randomBytes(ARM_SECRET_BYTES).toString("base64url");
-      return { secret, expiresAtMs: openSlot(secret, PAIR_ARM_TTL_MS, userId) };
+      return { secret, expiresAtMs: openSlot(secret, PAIR_ARM_TTL_MS, userId, link) };
     },
 
     cancel() {
@@ -135,8 +137,8 @@ export function createPairingV1Manager(deps: PairingV1Deps): PairingV1Manager {
     },
 
     startCloud(ke1, userId) {
-      // Without Cloud remote only an armed sign-in slot pairs over ingress.
-      if (deps.cloudPairing !== true && active?.armedFor === undefined) {
+      // Without Cloud remote only a local sign-in slot pairs over ingress.
+      if (deps.cloudPairing !== true && !armedLocal(active)) {
         return { ok: false, reason: "invalid" };
       }
       return startHandshake(ke1, cloudPeer(userId), "cloud");
@@ -167,11 +169,11 @@ export function createPairingV1Manager(deps: PairingV1Deps): PairingV1Manager {
         encryptedMetadataB64,
         cloudPeer(userId),
         "cloud",
-        (armed) => {
-          if (!armed) {
+        (localDevice) => {
+          if (!localDevice) {
             return { relay_instance_id: relayInstanceId };
           }
-          // Sign-in pairing yields a local device, so it needs the pin.
+          // Local sign-in pairing yields a local device, so it needs the pin.
           const local = localEndpointFields();
           return local === null
             ? null
@@ -182,7 +184,7 @@ export function createPairingV1Manager(deps: PairingV1Deps): PairingV1Manager {
     },
   };
 
-  function openSlot(code: string, ttlMs: number, armedFor?: string): number {
+  function openSlot(code: string, ttlMs: number, armedFor?: string, link = false): number {
     const generation = ++generationCounter;
     const userIdentifier = `gen-${generation}-${randomBytes(8).toString("base64url")}`;
     active = {
@@ -192,6 +194,7 @@ export function createPairingV1Manager(deps: PairingV1Deps): PairingV1Manager {
       registration: registerCode(code, userIdentifier),
       expiresAtMs: now() + ttlMs,
       ...(armedFor === undefined ? {} : { armedFor }),
+      ...(link ? { armedLink: true as const } : {}),
     };
     handshakes.clear();
     phase = "active";
@@ -257,7 +260,7 @@ export function createPairingV1Manager(deps: PairingV1Deps): PairingV1Manager {
     encryptedMetadataB64: string,
     peer: string,
     mode: "local" | "cloud",
-    responseFields: (armed: boolean) => Record<string, unknown> | null,
+    responseFields: (localDevice: boolean) => Record<string, unknown> | null,
     cloudBinding: { userId: string; relayInstanceId: string } | undefined,
   ): FinishResult {
     const contextKey = pairingContext(
@@ -312,17 +315,19 @@ export function createPairingV1Manager(deps: PairingV1Deps): PairingV1Manager {
       return { ok: false, reason: "invalid" };
     }
 
-    // A sign-in pairing creates an unbound local device that activates over
-    // pinned TLS, exactly like a typed code.
-    const armed = active.armedFor !== undefined;
-    if (mode === "cloud" && !armed && deps.cloudPairing !== true) {
+    // Local sign-in: an unbound local device for pinned TLS, like a typed code;
+    // Link sign-in: the owner code's user-bound Cloud device (cloud-only start).
+    const local = armedLocal(active);
+    if (mode === "cloud" && !local && deps.cloudPairing !== true) {
       return { ok: false, reason: "invalid" };
     }
-    const extraResponse = responseFields(armed);
+    const extraResponse = responseFields(local);
     if (extraResponse === null) {
       return { ok: false, reason: "invalid" };
     }
-    const binding = armed ? undefined : cloudBinding;
+    const binding = local ? undefined : cloudBinding;
+    const armedFor = active.armedFor;
+    const via = active.armedLink === true ? "link" : "local";
 
     const cred = generateCredential();
     const t = now();
@@ -384,6 +389,10 @@ export function createPairingV1Manager(deps: PairingV1Deps): PairingV1Manager {
     handshakes.clear();
     phase = "consumed";
     consumedAtMs = t;
+    if (armedFor !== undefined) {
+      const audit = { via, device_id: cred.deviceId, user_id: armedFor };
+      deps.logger?.info?.("Device paired through Home Assistant sign-in", audit);
+    }
     return { ok: true, responseB64: ciphertextB64 };
   }
 
@@ -402,6 +411,11 @@ export function createPairingV1Manager(deps: PairingV1Deps): PairingV1Manager {
     }
     throw new Error("pairing code generator repeated the previous code");
   }
+}
+
+// A slot armed by local Home Assistant sign-in (yields a pinned local device).
+function armedLocal(slot: ActiveCode | null): boolean {
+  return slot?.armedFor !== undefined && slot.armedLink !== true;
 }
 
 function cloudPeer(userId: string): string {

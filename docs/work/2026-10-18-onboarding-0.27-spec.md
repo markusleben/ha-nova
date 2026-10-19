@@ -273,11 +273,12 @@ Known limits:
 - The text path gets the same automation whenever a local browser sign-in is possible.
 
 **7.2 Link owner pairing without a code.**
-- When the Link OAuth user `is_owner`, the CLI arms through the Link ingress session and pairs without a code.
-- Today `finishCloud` turns an armed slot into a *local* device with a pin (`pairing-v1.ts`). A **relay change** is needed: `arm {"device":"link"}` yields the same user-bound device as the owner-code path.
-- The change raises `min_relay_version`.
+- When the Link OAuth user `is_owner` (HA's `auth/current_user` over Link), the CLI arms through the Link ingress session and pairs without a code.
+- **Relay (built, A4):** `POST /pair/v2/arm/link` runs the same owner check as `/pair/v2/arm` (fresh `config/auth/list`, never client-claimed), needs Cloud remote instead of the secure port, and arms a 256-bit, two-minute, single-use slot for that ingress user only. Its finish yields the same user-bound Cloud device as the owner code (no pin), activated over ingress by that user only. The owner's "Cancel" on the NOVA page withdraws it; the device is revoked like any other. A finished sign-in pairing logs one line (`via`, `user_id`, `device_id`; never the secret).
+- **Feature detection, no version floor:** an own path instead of a body flag, because older Apps ignore the body and would arm a local slot. An older App answers 404 and the CLI asks for the owner code as before; `min_relay_version` stays. Needs the App release that ships this route.
+- Fallback to the owner code on any failure before the finish request (404, `OWNER_REQUIRED`, `PAIRING_UNAVAILABLE`, owner check unavailable, rate limit, network) and on the Relay's own finish refusal; an unknown finish outcome, a different Relay, or a user stop ends setup instead.
 - Non-owners keep the owner code.
-- It needs the rc3 shared-`client_install_id` fix first.
+- Built on the #733 per-profile `client_install_id`.
 
 **7.3 Clients.** All detected clients are configured and named on step 1. No client → download links and [Check again]. Claude Desktop-only users are accepted.
 

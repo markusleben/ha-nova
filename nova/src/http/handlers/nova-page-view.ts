@@ -117,8 +117,8 @@ export function renderPage(m: PageModel): string {
          <p class="muted waiting">Waiting for the device… this page updates on its own once it connects.</p>
          ${formOpen}${csrfField("cancel_code")}<button class="secondary" type="submit">Cancel</button></form>`
       : m.pairing.phase === "armed"
-        ? `<p class="muted waiting">A computer is connecting through Home Assistant sign-in… this page updates on its own once it connects.</p>
-         ${formOpen}${csrfField("cancel_code")}<button class="secondary" type="submit">Cancel</button></form>`
+        ? `<p class="muted waiting">A computer is connecting through Home Assistant sign-in… this page updates on its own once it connects. If your computer asks for a code instead, click “Connect a device”.</p>
+         ${formOpen}${csrfField("generate_code")}<button type="submit">Connect a device</button></form>${formOpen}${csrfField("cancel_code")}<button class="secondary" type="submit">Cancel</button></form>`
       : `<p class="muted">Generate a one-time code, then enter it on your computer when NOVA asks. Each device gets its own secure connection.</p>
          ${formOpen}${csrfField("generate_code")}<button type="submit">Connect a device</button></form>${
           m.pairing.phase === "consumed" ? `<p class="ok">✓ A device was just connected.</p>` : ""

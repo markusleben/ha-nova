@@ -90,7 +90,7 @@ func TestHASignInAgainstThrowawayHomeAssistant(t *testing.T) {
 		}
 		// The relay refuses on its own too: arm through a real ingress session
 		// of the same non-owner, skipping the CLI's friendly pre-check.
-		if _, err := armSignInPairing(context.Background(), nonOwnerIngress(t, haURL)); !errors.Is(err, errSignInNotOwner) {
+		if _, err := armSignInPairing(context.Background(), nonOwnerIngress(t, haURL), CloudEndpointPairArm); !errors.Is(err, errSignInNotOwner) {
 			t.Fatalf("relay armed pairing for a non-owner: %v", err)
 		}
 		return

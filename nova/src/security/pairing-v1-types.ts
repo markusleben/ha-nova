@@ -64,6 +64,8 @@ export interface ActiveCode {
   // Set when the owner armed the slot through Home Assistant sign-in: only this
   // ingress user may use it, and the NOVA page never shows the secret.
   armedFor?: string;
+  // Armed through Home Assistant Link sign-in: pairs a user-bound Cloud device.
+  armedLink?: true;
 }
 
 export interface Handshake {
@@ -77,8 +79,8 @@ export interface Handshake {
 export interface PairingV1Manager {
   getStatus(): PairingV1Status;
   generateCode(): { code: string; expiresAtMs: number };
-  // Null when no secure endpoint exists or ingress pairing is off.
-  arm(userId: string): { secret: string; expiresAtMs: number } | null;
+  // Null without a secure endpoint ("local") or Cloud remote ("link").
+  arm(userId: string, device?: "local" | "link"): { secret: string; expiresAtMs: number } | null;
   cancel(): void;
   start(ke1: string, peer: string): StartResult;
   finish(
