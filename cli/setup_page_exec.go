@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"runtime"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 )
@@ -31,8 +32,16 @@ type setupVerbEnvelope struct {
 
 // pageVerb runs one typed verb for the server setup just connected (the
 // child's own selection could differ): HA_NOVA_SERVER or default_server.
+// A failure leaves one line in the terminal, which the page points to.
 func pageVerb(args ...string) (setupVerbEnvelope, int, error) {
-	return setupPageVerb(append(slices.Clone(args), "--server", activeServerProfile())...)
+	env, exit, err := setupPageVerb(append(slices.Clone(args), "--server", activeServerProfile())...)
+	switch {
+	case err != nil:
+		printHumanErr("ha-nova %s: %s", strings.Join(args, " "), err)
+	case env.Error != nil:
+		printHumanErr("ha-nova %s: %s (%s)", strings.Join(args, " "), env.Error.Message, env.Error.Code)
+	}
+	return env, exit, err
 }
 
 // setupPageVerb runs one typed verb as its own process, so its JSON never
