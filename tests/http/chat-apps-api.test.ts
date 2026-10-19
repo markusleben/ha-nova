@@ -7,7 +7,8 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import type { SupervisorClient } from "../../nova/src/ha/supervisor-client.js";
 import { createNovaActionHandler, createNovaPageHandler, type NovaPageDeps } from "../../nova/src/http/handlers/nova-page.js";
-import { ChatAppsError, chatConnectorUrl, claudeConnectorLink, type ChatApps, type ChatAppsStatus } from "../../nova/src/runtime/chat-apps.js";
+import { ChatAppsError, type ChatApps, type ChatAppsStatus } from "../../nova/src/runtime/chat-apps.js";
+import { chatConnectorUrl, claudeConnectorLink, readConnectorUrl } from "../../nova/src/runtime/chat-connector.js";
 import { createIngressListener, type IngressListenerDeps } from "../../nova/src/runtime/ingress-listener.js";
 import { createCsrfStore } from "../../nova/src/security/csrf.js";
 import { generateCredential } from "../../nova/src/security/device-credential.js";
@@ -293,11 +294,13 @@ describe("NOVA page: Chat apps", () => {
 });
 
 describe("chat-app connector address", () => {
-  const ready = { logged_in: true, remote_connected: true, remote_domain: "ABC123.ui.nabu.casa.", prefs: { remote_enabled: true } };
+  const ready = { logged_in: true, active_subscription: true, remote_connected: true, remote_domain: "ABC123.ui.nabu.casa.", remote_certificate_status: "ready",
+    remote_certificate: { common_name: "*.ui.nabu.casa", alternative_names: ["abc123.ui.nabu.casa"] }, prefs: { remote_enabled: true } };
   const noLink = { ...ready, remote_connected: false };
   it("is Home Assistant Link's address while its remote access is on", () => {
     expect(chatConnectorUrl(ready, { external_url: "https://home.example.com" })).toBe("https://abc123.ui.nabu.casa/api/ha_nova/mcp");
-    for (const change of [{ logged_in: false }, { remote_connected: false }, { prefs: { remote_enabled: false } }, { remote_domain: "" },
+    for (const change of [{ logged_in: false }, { remote_connected: false }, { active_subscription: false }, { remote_certificate_status: "loading" },
+      { remote_certificate: { common_name: "other.ui.nabu.casa", alternative_names: [] } }, { remote_certificate: null }, { prefs: { remote_enabled: false } }, { remote_domain: "" },
       { remote_domain: "evil.com/x?y" }, { remote_domain: 'a.b"><script>' }, { remote_domain: "localhost" }, { remote_domain: 7 }]) {
       expect(chatConnectorUrl({ ...ready, ...change }, null)).toBeNull();
     }
@@ -311,6 +314,18 @@ describe("chat-app connector address", () => {
     }
     expect(chatConnectorUrl(noLink, {})).toBeNull();
     expect(chatConnectorUrl(null, { external_url: "https://home.example.com" })).toBe("https://home.example.com/api/ha_nova/mcp");
+  });
+  it("reads Link first and asks for the external URL only without it", async () => {
+    const asked: string[] = [];
+    const send = (answers: Record<string, unknown>) => async (type: string) => {
+      asked.push(type);
+      if (answers[type] instanceof Error) throw answers[type];
+      return answers[type];
+    };
+    expect(await readConnectorUrl(send({ "cloud/status": ready, get_config: new Error("ws down") }))).toBe("https://abc123.ui.nabu.casa/api/ha_nova/mcp");
+    expect(asked).toEqual(["cloud/status"]);
+    expect(await readConnectorUrl(send({ "cloud/status": new Error("unknown command"), get_config: { external_url: "https://home.example.com" } }))).toBe("https://home.example.com/api/ha_nova/mcp");
+    await expect(readConnectorUrl(send({ "cloud/status": noLink, get_config: new Error("ws down") }))).rejects.toThrow("ws down");
   });
   it("links to claude.ai only, with the address percent-encoded", () => {
     const link = new URL(claudeConnectorLink("https://x.ui.nabu.casa/a b?c=1&modal=evil#f"));

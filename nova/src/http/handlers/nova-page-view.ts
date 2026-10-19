@@ -1,4 +1,5 @@
-import { claudeConnectorLink, type ChatAppsStatus } from "../../runtime/chat-apps.js";
+import type { ChatAppsStatus } from "../../runtime/chat-apps.js";
+import { claudeConnectorLink } from "../../runtime/chat-connector.js";
 import type { CsrfStore } from "../../security/csrf.js";
 import type { DeviceRecord } from "../../security/device-registry.js";
 

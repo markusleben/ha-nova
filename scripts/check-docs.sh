@@ -56,7 +56,7 @@ echo ""
 # credential, Supervisor discovery, the custom_components/ha_nova writer, and
 # the `ha-nova serve` child, dormant behind HA_NOVA_CHAT_APPS, with its review fixes: about 10225;
 # and to 10300 for the NOVA page's connector address and "Add to Claude" link
-# (read from cloud/status; claude.ai only, the address only): about 10280.
+# (read from cloud/status, else get_config; claude.ai only, the address only): about 10295.
 # Further unreviewed Relay growth still fails.
 # Growth here is security surface, and it is reviewed as such. The README's own
 # number is updated in the release-prep PR — README describes the STABLE
