@@ -295,17 +295,17 @@ func relayAuthTokenProblemMessage(err error) string {
 	if isWindowsNetworkLogonSessionError(err) {
 		return "secure storage isn't available in this Windows session (for example over SSH); sign in to the desktop of the computer HA NOVA is installed on, open a normal terminal there, and run: ha-nova setup"
 	}
-	if isDesktopKeyringSessionUnavailableError(err) {
-		return "secure storage unavailable in this Linux session; run HA NOVA from a terminal inside the Linux desktop session on this machine, and then run: ha-nova setup"
+	if isDesktopKeyringSessionUnavailableError(err) || isSessionBusUnreachableText(err) {
+		return keyringMessage(keyringSessionMessage, err, errDesktopKeyringSessionUnavailable)
 	}
-	if isDesktopKeyringUnavailableError(err) {
-		return "secure storage unavailable on this Linux machine; start a Secret Service provider (for example GNOME Keyring or KWallet Secrets) and then run: ha-nova setup"
+	if isDesktopKeyringUnavailableError(err) || isSecretServiceExitedText(err) {
+		return keyringMessage(keyringMissingMessage, err, errDesktopKeyringUnavailable)
 	}
 	if isDesktopKeyringInitializationRequiredError(err) {
-		return "secure storage is present but not initialized on this Linux machine; initialize the default keyring and then run: ha-nova setup"
+		return keyringMessage(keyringNotSetUpMessage, err, errDesktopKeyringInitializationRequired)
 	}
 	if isDesktopKeyringLockedError(err) {
-		return "secure storage is present but locked on this Linux machine; unlock the default keyring and then run: ha-nova setup — or, if no one ever unlocks a desktop session on this machine, run: ha-nova setup --service <client>"
+		return keyringMessage(keyringLockedMessage, err, errDesktopKeyringLocked)
 	}
 	if isDesktopKeyringSetupRequiredError(err) {
 		return "secure storage is present but not ready on this Linux machine; rerun `ha-nova setup` interactively to finish local secure storage setup"
@@ -314,6 +314,65 @@ func relayAuthTokenProblemMessage(err error) string {
 		return fmt.Sprintf("service token file is not usable: %s", err)
 	}
 	return fmt.Sprintf("relay auth token unavailable: %s", err)
+}
+
+// Plain Linux keyring texts for every command that reads the saved
+// credential (lane D7/D8). A command never opens the unlock prompt itself:
+// only setup does (relay_transport_select.go). Callers that know the AI
+// app add the headless way out (setup --service <its id>).
+const (
+	keyringLockedMessage   = "This computer's keyring is locked. Unlock it (log in to the desktop, or open Passwords and Keys) and try again."
+	keyringSessionMessage  = "HA NOVA can't reach this computer's keyring from this terminal (for example over SSH). Open a terminal on this computer's desktop and try again."
+	keyringMissingMessage  = "This computer's keyring isn't running. Log out of the desktop and back in, then try again. If it still fails, install GNOME Keyring (or KDE Wallet) and run: ha-nova setup"
+	keyringNotSetUpMessage = "This computer's keyring isn't set up yet. Run: ha-nova setup (it offers to create it)."
+)
+
+// keyringMessage keeps a raw system error as a detail line under the plain
+// text; HA NOVA's own classified errors need none.
+func keyringMessage(message string, err, kind error) string {
+	if errors.Is(err, kind) {
+		return message
+	}
+	return message + "\nDetails: " + err.Error()
+}
+
+// isSessionBusUnreachableText / isSecretServiceExitedText: raw godbus texts
+// (session bus socket gone; the Secret Service failed to start). They only
+// pick the message and the command's error code; setup's storage decisions
+// keep failing closed on them.
+func isSessionBusUnreachableText(err error) bool {
+	return err != nil && strings.Contains(strings.ToLower(err.Error()), "dial unix")
+}
+
+func isSecretServiceExitedText(err error) bool {
+	if err == nil {
+		return false
+	}
+	message := strings.ToLower(err.Error())
+	return strings.Contains(message, "org.freedesktop.secrets") && strings.Contains(message, "exited with status")
+}
+
+// secureStorageErrorCode is a command's error code for a saved credential
+// this computer's secure storage can't hand out; "" for anything else.
+func secureStorageErrorCode(err error) string {
+	switch {
+	case err == nil || isMissingRelayAuthTokenError(err):
+		return ""
+	case isDesktopKeyringLockedError(err) || IsCloudErrorCode(err, CloudErrSecretStoreLocked):
+		return "SECURE_STORAGE_LOCKED"
+	case isLinuxKeyringError(err), isSecureStorageUnavailableError(err),
+		IsCloudErrorCode(err, CloudErrSecretPromptCanceled):
+		return "SECURE_STORAGE_UNAVAILABLE"
+	}
+	return ""
+}
+
+// isLinuxKeyringError: any Linux keyring state relayAuthTokenProblemMessage
+// words plainly (locked, not set up, not running, out of reach).
+func isLinuxKeyringError(err error) bool {
+	return isDesktopKeyringSessionUnavailableError(err) || isSessionBusUnreachableText(err) ||
+		isDesktopKeyringUnavailableError(err) || isSecretServiceExitedText(err) ||
+		isDesktopKeyringSetupRequiredError(err)
 }
 
 func isDesktopKeyringUnavailableError(err error) bool {
@@ -370,6 +429,7 @@ func isDesktopKeyringLockedError(err error) bool {
 	message := strings.ToLower(err.Error())
 	return strings.Contains(message, "default secret service collection is locked") ||
 		strings.Contains(message, "secure storage is present but locked on this linux machine") ||
+		strings.Contains(message, "this computer's keyring is locked") ||
 		strings.Contains(message, "local secure storage is still locked on this linux machine") ||
 		strings.Contains(message, "password was invalid")
 }
@@ -427,6 +487,9 @@ func relayAuthTokenSetupOperationError(action string, err error) error {
 	}
 	if isDesktopKeyringSetupRequiredError(err) {
 		return fmt.Errorf("cannot %s: secure storage is present but not ready on this Linux machine. Rerun `ha-nova setup` interactively to finish local secure storage setup", action)
+	}
+	if isSessionBusUnreachableText(err) || isSecretServiceExitedText(err) {
+		return errors.New(relayAuthTokenProblemMessage(err))
 	}
 	return fmt.Errorf("cannot %s: %s", action, err)
 }

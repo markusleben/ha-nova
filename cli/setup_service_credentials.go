@@ -150,17 +150,19 @@ func shouldOfferServiceCredentials(tokenStorageErr error) bool {
 	return false
 }
 
-func promptSetupServiceCredentialsInteractive(reader *bufio.Reader, out io.Writer, serviceCredentials clientRegistryServiceCredentials, clientLabel string) (bool, error) {
-	label := serviceCredentials.Label
-	if label == "" {
-		label = "Service / gateway mode"
-	}
+// offerServiceCredentialsQuestion: only where the keyring can't be unlocked
+// from here (SSH, no desktop). A desktop terminal gets the unlock offer
+// instead, never this question (lane D4).
+func offerServiceCredentialsQuestion(tokenStorageErr error) bool {
+	return shouldOfferServiceCredentials(tokenStorageErr) && !setupSecureStorageRecoveryAvailableNow(tokenStorageErr)
+}
+
+func promptSetupServiceCredentialsInteractive(reader *bufio.Reader, out io.Writer, clientLabel string) (bool, error) {
 	renderSetupParagraph(out,
-		fmt.Sprintf("%s is available for %s.", label, clientLabel),
-		serviceCredentials.Help,
+		"HA NOVA can't use this computer's keyring from here (for example over SSH, or when no one is logged in to the desktop).",
+		fmt.Sprintf("It can keep its key for %s in a protected file instead. Choose this if %s runs while no one is logged in to this computer's desktop.", clientLabel, clientLabel),
 	)
-	renderSetupParagraphTight(out, "Choose yes for SSH, systemd, headless, or gateway sessions. Choose no for a normal desktop terminal with an unlocked keyring.")
-	return promptYesNoFromReader(reader, out, "Use service/gateway token file instead of desktop keyring?", false)
+	return promptYesNoFromReader(reader, out, "Keep the key in a protected file instead?", false)
 }
 
 func doctorServiceCredentialRecoveryHint(paths runtimePaths, state installState, err error) string {

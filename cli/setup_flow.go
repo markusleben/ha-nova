@@ -71,6 +71,7 @@ type setupFlow struct {
 	selectedClients     []string
 	skippedClients      []string
 	promptedClient      bool
+	noClient            bool // no AI app here yet: pair anyway, finish says what to install (lane D1)
 	connectionMode      setupConnectionMode
 	connectionModeAsked bool
 	overrideApplied     bool

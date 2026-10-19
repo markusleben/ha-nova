@@ -238,6 +238,12 @@ func nextStep(envelope map[string]any) string {
 		return fmt.Sprintf("Show this preview and wait for the user's own confirmation; only then call ha_apply with plan_id %v.", plan["id"]) + say
 	case errInfo != nil && errInfo["code"] == "RELAY_ERROR" && chatCall != nil:
 		return chatRelayNext
+	case errInfo != nil && (errInfo["code"] == "SECURE_STORAGE_LOCKED" || errInfo["code"] == "SECURE_STORAGE_UNAVAILABLE"):
+		if chatCall != nil {
+			return chatRelayNext
+		}
+		next, _ := errInfo["next"].(string) // the message names the fix; not a Relay problem
+		return next
 	case errInfo != nil && errInfo["code"] == "RELAY_ERROR":
 		return "If this computer is not paired or its credential store is locked, ask the user to run `ha-nova setup` in a terminal."
 	}

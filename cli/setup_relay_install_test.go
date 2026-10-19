@@ -165,7 +165,7 @@ func newSetupDetectionHA(t *testing.T) string {
 // runSetupDetectionWizard drives a fresh computer: no saved address, the
 // instance comes from discovery, so the wizard walks host -> install ->
 // pairing like every extra computer does. The first input answers the
-// headless service-mode question.
+// headless service-mode question, the second keeps the found address.
 func runSetupDetectionWizard(t *testing.T, haURL, relayURLFlag string, inputs ...string) (int, string) {
 	t.Helper()
 	paths, err := detectPaths()
@@ -173,7 +173,7 @@ func runSetupDetectionWizard(t *testing.T, haURL, relayURLFlag string, inputs ..
 		t.Fatalf("detectPaths() error: %v", err)
 	}
 	exitCode := 0
-	stdout, stderr := captureInteractiveSetupIO(t, joinSetupInputs(append([]string{"n"}, inputs...)), func() int {
+	stdout, stderr := captureInteractiveSetupIO(t, joinSetupInputs(append([]string{"n", "1"}, inputs...)), func() int {
 		discoverReachableHAHostsForSetup = func(runtimeConfig) ([]setupDiscoveryCandidate, string) {
 			return []setupDiscoveryCandidate{{Host: normalizeHostInput(haURL), HAURL: haURL, Source: "mDNS: Home"}}, ""
 		}

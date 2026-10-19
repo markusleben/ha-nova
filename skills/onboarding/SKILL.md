@@ -31,7 +31,7 @@ If missing: `ha-nova setup`
    - connect error / status `000`: relay unreachable
    - `ha_ws_connected=false`: the reason can be passive or stale because health/REST reads do not open WS. Send WS `{"type":"ping"}`, then re-read health before diagnosing any `auth`, `network`, or `never_connected` value. Ping `ok: true` plus post-ping `ha_ws_connected: true` proves readiness. Otherwise classify the ping error and post-health reason: `auth` means upstream authentication was rejected (App: update/restart Relay; standalone: replace `HA_LLAT`); `network` means HA remains unreachable/restarting; `never_connected` alone never proves a bad `HA_URL` or network path. Older relays omit the reason — use the ping result or `ha-nova doctor`
    - `/ws` on an older Relay proves `LLAT is required`: update the App; only standalone Container/Core should repair `HA_LLAT`
-   - `desktop keyring locked` / `secure storage is present but locked` during setup or pairing: the machine has a Secret Service that never gets unlocked (headless VM, autologin box, systemd user service). Do not ask the user to unlock it on every boot — use the explicit file backend instead: `ha-nova setup --service <client>`, or `ha-nova pair --credential-store=file`
+   - `SECURE_STORAGE_LOCKED` / `SECURE_STORAGE_UNAVAILABLE` (older: `secure storage is present but locked`): pass on its message (it names the fix). No desktop, or a keyring nobody ever unlocks (headless VM, autologin box, systemd user service): no unlock on every boot — use the file backend: `ha-nova setup --service <client>`, or `ha-nova pair --credential-store=file`
 3. Return one concrete remediation step.
 
 ## Standard Remediation Commands

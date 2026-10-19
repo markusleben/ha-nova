@@ -38,6 +38,33 @@ func TestSelectDefaultHAHostWithFeedbackKeepsOverridePromptForSingleLocalResult(
 	}
 }
 
+// Lane D3: one Home Assistant found by IP is asked about, never taken
+// silently (a test HA, a neighbour's, or one over a VPN may answer).
+func TestSelectDefaultHAHostWithFeedbackConfirmsASingleFoundAddress(t *testing.T) {
+	originalDiscover := discoverReachableHAHostsForSetup
+	t.Cleanup(func() { discoverReachableHAHostsForSetup = originalDiscover })
+	discoverReachableHAHostsForSetup = func(runtimeConfig) ([]setupDiscoveryCandidate, string) {
+		return []setupDiscoveryCandidate{{Host: "10.85.1.2", HAURL: "http://10.85.1.2:8123", Source: "mDNS"}}, ""
+	}
+	for _, tc := range []struct {
+		input    string
+		selected bool
+		host     string
+	}{
+		{"\n", true, "10.85.1.2"}, // Enter keeps the found address
+		{"2\n", false, ""},        // "Enter a different address"
+	} {
+		output := &strings.Builder{}
+		candidate, selected, err := selectDefaultHAHostWithFeedback(bufio.NewReader(strings.NewReader(tc.input)), output, runtimeConfig{})
+		if err != nil || selected != tc.selected || candidate.Host != tc.host {
+			t.Fatalf("input %q: (%+v, %v, %v)", tc.input, candidate, selected, err)
+		}
+		if !strings.Contains(output.String(), "Choose your Home Assistant:") || !strings.Contains(output.String(), "1) 10.85.1.2 (mDNS)") {
+			t.Fatalf("input %q: no question asked:\n%s", tc.input, output.String())
+		}
+	}
+}
+
 func TestSelectDefaultHAHostWithFeedbackKeepsManualPathWhenNothingWasConfirmed(t *testing.T) {
 	originalDiscover := discoverReachableHAHostsForSetup
 	t.Cleanup(func() { discoverReachableHAHostsForSetup = originalDiscover })
@@ -134,7 +161,7 @@ func TestSelectDefaultHAHostWithFeedbackDoesNotDelayFastTTYDiscovery(t *testing.
 
 	output := &strings.Builder{}
 	start := time.Now()
-	candidate, selected, err := selectDefaultHAHostWithFeedback(bufio.NewReader(strings.NewReader("")), output, runtimeConfig{})
+	candidate, selected, err := selectDefaultHAHostWithFeedback(bufio.NewReader(strings.NewReader("1\n")), output, runtimeConfig{})
 	elapsed := time.Since(start)
 	if err != nil || !selected || candidate.Host != "192.168.1.123" {
 		t.Fatalf("selection = (%+v, %v), err = %v", candidate, selected, err)
@@ -176,7 +203,7 @@ func TestSelectDefaultHAHostWithFeedbackShowsSpinnerAfterDebounceForSlowTTYDisco
 	setupDiscoveryOverallTimeout = 2 * time.Second
 
 	output := &strings.Builder{}
-	candidate, selected, err := selectDefaultHAHostWithFeedback(bufio.NewReader(strings.NewReader("")), output, runtimeConfig{})
+	candidate, selected, err := selectDefaultHAHostWithFeedback(bufio.NewReader(strings.NewReader("1\n")), output, runtimeConfig{})
 	if err != nil || !selected || candidate.Host != "192.168.1.124" {
 		t.Fatalf("selection = (%+v, %v), err = %v", candidate, selected, err)
 	}

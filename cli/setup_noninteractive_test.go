@@ -392,7 +392,7 @@ func TestRunSetupNonInteractiveFailsOnLinuxKeyringPreflightBeforeWrite(t *testin
 	if !strings.Contains(output, "cannot save relay token: secure storage is present but not initialized on this Linux machine") {
 		t.Fatalf("expected actionable keyring preflight error:\n%s", output)
 	}
-	if !strings.Contains(output, "Recovery: run `ha-nova setup` interactively to set up local secure storage on this Linux machine.") {
+	if !strings.Contains(output, "Recovery: run `ha-nova setup` interactively to set up this computer's keyring.") {
 		t.Fatalf("expected interactive recovery hint:\n%s", output)
 	}
 	if _, err := os.Stat(paths.ConfigFile); !isNotExist(err) {
