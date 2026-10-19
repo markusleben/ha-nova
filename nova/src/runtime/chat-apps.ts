@@ -22,6 +22,23 @@ export const BRIDGE_PORT = 8794;
 const SERVICE = "ha_nova";
 const SECRET = /^[0-9a-f]{64}$/;
 
+// The connector address: Home Assistant Link's while its remote access is on
+// (cloud/status), else Home Assistant's external URL when it is public HTTPS
+// (get_config); null when neither. Never http://. Same rules as
+// cli/chat_apps.go chatAppsBase. Add to Claude is Claude's documented
+// install link: claude.ai only, the address only, never a token.
+export function chatConnectorUrl(status: unknown, config: unknown): string | null {
+  const s = status as { logged_in?: unknown; remote_connected?: unknown; remote_domain?: unknown; prefs?: { remote_enabled?: unknown } } | null;
+  const link = s?.logged_in === true && s.remote_connected === true && s.prefs?.remote_enabled === true && typeof s.remote_domain === "string";
+  const external = /^https:\/\/([^/?#@\s]+?)\/?$/i.exec(String((config as { external_url?: unknown } | null)?.external_url ?? ""));
+  const host = (link ? String(s.remote_domain) : external?.[1] ?? "").trim().toLowerCase().replace(/\.(?=$|:)/, "");
+  const name = /^([a-z0-9-]{1,63}(?:\.[a-z0-9-]{1,63})+)(:\d{1,5})?$/.exec(host)?.[1] ?? "";
+  const local = /\.(local|lan|home|internal|localdomain|localhost|home\.arpa)$|^[\d.]+$/.test(name) || (!link && name.endsWith(".nabu.casa"));
+  return name === "" || local ? null : `https://${host}/api/ha_nova/mcp`;
+}
+export const claudeConnectorLink = (url: string): string =>
+  `https://claude.ai/customize/connectors?modal=add-custom-connector&connectorName=HA%20NOVA&connectorUrl=${encodeURIComponent(url)}`;
+
 export class ChatAppsError extends Error {
   constructor(readonly status: number, readonly code: string, message: string) {
     super(message);

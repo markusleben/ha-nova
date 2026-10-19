@@ -182,6 +182,11 @@ func (b *chatBridge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	call, code, message := b.authorize(r)
+	if call == nil && code == http.StatusForbidden { // a signed-in user who may not: words a chat app can show
+		status = code
+		refuseRPC(w, r, code, message)
+		return
+	}
 	if call == nil {
 		refuse(code, message)
 		return
@@ -241,6 +246,25 @@ func (b *chatBridge) authorize(r *http.Request) (*chatPolicy, int, string) {
 	return b.policyFor(users[0])
 }
 
+// refuseRPC answers a refused request as a JSON-RPC error with the request's
+// own id, so a chat app can show message instead of a bare HTTP status.
+// Only after the secret and the user header passed (the request came
+// through the integration for a signed-in user).
+func refuseRPC(w http.ResponseWriter, r *http.Request, code int, message string) {
+	var request struct {
+		ID json.RawMessage `json:"id"`
+	}
+	body, _ := io.ReadAll(http.MaxBytesReader(w, r.Body, serveMaxBody))
+	id := json.RawMessage("null")
+	if json.Unmarshal(body, &request) == nil && len(request.ID) > 0 && (request.ID[0] == '"' || request.ID[0] == '-' || request.ID[0] >= '0' && request.ID[0] <= '9') {
+		id = request.ID // a JSON-RPC id is a string or a number
+	}
+	answer, _ := json.Marshal(map[string]any{"jsonrpc": "2.0", "id": id, "error": map[string]any{"code": -32001, "message": message}})
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(code)
+	_, _ = w.Write(answer)
+}
+
 // policyFor: the owner's current switches for user, or why they may not
 // use chat apps. Read on every request, and again before a phone tap
 // applies (mcp_serve_phone.go).
@@ -258,8 +282,12 @@ func (b *chatBridge) policyFor(user string) (*chatPolicy, int, string) {
 		}
 		allowed = &[]string{owner}
 	}
-	if !slices.Contains(*allowed, user) {
-		return nil, http.StatusForbidden, "This Home Assistant user may not use HA NOVA in chat apps. The owner can allow it on the HA NOVA page."
+	switch {
+	case slices.Contains(*allowed, user):
+	case settings.AllowedUsers == nil:
+		return nil, http.StatusForbidden, "Only the Home Assistant owner can use HA NOVA in chat apps. Sign in as the owner."
+	default:
+		return nil, http.StatusForbidden, "This Home Assistant user can't use HA NOVA in chat apps. Sign in with an account the owner allowed."
 	}
 	sum := sha256.Sum256([]byte("ha-nova/chat-user/v1\x00" + user))
 	return &chatPolicy{user: user, key: hex.EncodeToString(sum[:16]), links: filepath.Join(b.dataDir, "phone-links.json"), codes: settings.ChatCodes == nil || *settings.ChatCodes,

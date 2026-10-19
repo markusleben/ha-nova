@@ -34,11 +34,12 @@ type setupPageControl struct {
 // answers, and Home Assistant is 2026.10 or newer. The page shows the restart
 // consent before it posts "chat"; the click on it is that consent.
 type setupPageChat struct {
-	State   string         `json:"state"`           // offer, run, on, expired (the owner session ran out)
-	Rows    []setupPageRow `json:"rows,omitempty"`  // while run (and after): on, restart, ready
-	URL     string         `json:"url,omitempty"`   // the connector address, once on
-	Phone   string         `json:"phone,omitempty"` // the phone that confirms for chat apps; "": a code in the chat
-	Problem *setupPageMsg  `json:"problem,omitempty"`
+	State      string         `json:"state"`                 // offer, run, on, expired (the owner session ran out), noaddress (no Link, no public HTTPS address)
+	Rows       []setupPageRow `json:"rows,omitempty"`        // while run (and after): on, restart, ready
+	URL        string         `json:"url,omitempty"`         // the connector address, once on
+	ClaudeLink string         `json:"claude_link,omitempty"` // Add to Claude (claudeConnectorLink), once on
+	Phone      string         `json:"phone,omitempty"`       // the phone that confirms for chat apps; "": a code in the chat
+	Problem    *setupPageMsg  `json:"problem,omitempty"`
 }
 
 type setupPagePhone struct {
@@ -98,15 +99,17 @@ func (f *setupFlow) pageControl() int {
 		chat, chatOK = readChatAppsOffer(setupOwnerIngress, f.paths, linkOrigin)
 	}
 	switch {
+	case chatOK && chat.url == "": // no internet address for Home Assistant: one plain line
+		ctl.Chat = &setupPageChat{State: "noaddress"}
 	case chatOK && chat.state.Enabled:
-		ctl.Chat = &setupPageChat{State: "on", URL: chat.url}
+		ctl.Chat = &setupPageChat{State: "on", URL: chat.url, ClaudeLink: claudeConnectorLink(chat.url)}
 		if !chat.loaded { // on, but a restart never came: the address doesn't answer yet
 			ctl.Chat.Problem = setupPageText("setup.chat.problem_slow")
 		}
 		if err := handOverOwnerPhone(setupOwnerIngress, f.paths, setupSignedInUser, &chat.state); err != nil {
 			ctl.Chat.Problem = setupPageText("setup.chat.problem_phone")
 		}
-		f.pageNotes = append(f.pageNotes, setupPageText("setup.page.home.note_chat", "url", chat.url))
+		f.pageChatNote(chat.url)
 	case chatOK:
 		ctl.Chat = &setupPageChat{State: "offer", Phone: chatAppsPhoneName(f.paths, setupSignedInUser, chat.state)}
 	}

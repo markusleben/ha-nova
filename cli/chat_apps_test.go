@@ -126,7 +126,10 @@ func TestSetupPageChatRowOnlyWhenItCanWork(t *testing.T) {
 		"already on":      {app: chatAppsState{Available: true, Enabled: true}, ha: chatHAReady, link: chatTestLink, want: "on"},
 		"dormant App":     {get: errChatAppsUnsupported, ha: chatHAReady, link: chatTestLink},
 		"App without":     {app: chatAppsState{Available: false}, ha: chatHAReady, link: chatTestLink},
-		"no Link":         {app: available, ha: chatHAReady},
+		"no address":      {app: available, ha: chatHAReady, want: "noaddress"},
+		"on, no address":  {app: chatAppsState{Available: true, Enabled: true}, ha: chatHAReady, want: "noaddress"},
+		"own HTTPS":       {app: available, ha: chatHARead{ha: chatAppsHA{version: "2026.10.2", externalURL: "https://home.example.com"}}, want: "offer"},
+		"own http only":   {app: available, ha: chatHARead{ha: chatAppsHA{version: "2026.10.2", externalURL: "http://home.example.com"}}, want: "noaddress"},
 		"old HA":          {app: available, ha: chatHARead{ha: chatAppsHA{version: "2026.9.4"}}, link: chatTestLink},
 		"HA unreadable":   {app: available, ha: chatHARead{err: errSetupExit}, link: chatTestLink},
 		"no sign-in here": {app: available, ha: chatHAReady, link: chatTestLink, alone: true},
@@ -149,15 +152,18 @@ func TestSetupPageChatRowOnlyWhenItCanWork(t *testing.T) {
 			if got != test.want || slices.Contains(s.Accepts, "chat") != (test.want == "offer") {
 				t.Fatalf("chat row %q accepts %v, want %q", got, s.Accepts, test.want)
 			}
-			if test.want == "on" && s.Control.Chat.URL != chatTestLink+"/api/ha_nova/mcp" {
-				t.Fatalf("connector %q", s.Control.Chat.URL)
+			if c := s.Control.Chat; test.want == "on" && (c.URL != chatTestLink+"/api/ha_nova/mcp" || c.ClaudeLink != claudeConnectorLink(c.URL)) {
+				t.Fatalf("connector %q, Add to Claude %q", c.URL, c.ClaudeLink)
+			}
+			if (test.want == "offer" || test.want == "noaddress") && (s.Control.Chat.ClaudeLink != "" || s.Control.Chat.URL != "") {
+				t.Fatalf("Add to Claude before chat apps are on: %q", s.Control.Chat.ClaudeLink)
 			}
 			p.click("finish", "")
 			<-done
 			if len(app.posted()) != 0 {
 				t.Fatalf("step 3 changed chat apps without a click: %v", app.posted())
 			}
-			if notes := p.flow.pageNotes; test.want == "on" && (len(notes) != 1 || notes[0].Key != "setup.page.home.note_chat") {
+			if notes := p.flow.pageNotes; test.want == "on" && (len(notes) != 1 || notes[0].Key != "setup.page.home.note_chat" || p.flow.pageChatLink == "") {
 				t.Fatalf("step 4 loses the address: %+v", notes)
 			}
 		})
@@ -206,13 +212,13 @@ func TestSetupPageChatTurnsOnThroughTheRestart(t *testing.T) {
 	ha.next <- chatHARead{ha: chatAppsHA{version: "2026.10.2", loaded: true}}
 	s = p.waitFor("on", accepting("finish"))
 	c := s.Control.Chat
-	if c.State != "on" || c.URL != chatTestLink+"/api/ha_nova/mcp" || c.Problem != nil || rows(s) != "chat_on=ok,chat_restart=ok,chat_ready=ok" || slices.Contains(s.Accepts, "chat") {
+	if c.State != "on" || c.URL != chatTestLink+"/api/ha_nova/mcp" || c.ClaudeLink != claudeConnectorLink(c.URL) || c.Problem != nil || rows(s) != "chat_on=ok,chat_restart=ok,chat_ready=ok" || slices.Contains(s.Accepts, "chat") {
 		t.Fatalf("after the restart: %+v accepts %v", c, s.Accepts)
 	}
 	p.click("finish", "")
 	<-done
-	if n := p.flow.pageNotes; len(n) != 1 || n[0].Key != "setup.page.home.note_chat" || n[0].Args["url"] != c.URL {
-		t.Fatalf("notes %+v", n)
+	if n := p.flow.pageNotes; len(n) != 1 || n[0].Key != "setup.page.home.note_chat" || n[0].Args["url"] != c.URL || p.flow.pageChatLink != c.ClaudeLink {
+		t.Fatalf("notes %+v, step 4 link %q", n, p.flow.pageChatLink)
 	}
 }
 
@@ -272,6 +278,29 @@ func TestSetupPageChatFailures(t *testing.T) {
 		p.click("finish", "")
 		<-done
 	})
+}
+
+// Add to Claude goes to claude.ai's "Add custom connector" and carries the
+// connector address only, percent-encoded, whatever it holds.
+func TestClaudeConnectorLink(t *testing.T) {
+	for _, connector := range []string{
+		"https://abc123.ui.nabu.casa/api/ha_nova/mcp",
+		"https://home.example.com/a b/ä?x=1&connectorName=evil&modal=x#frag+%2F",
+	} {
+		link := claudeConnectorLink(connector)
+		parsed, err := url.Parse(link)
+		if err != nil || parsed.Scheme != "https" || parsed.Host != "claude.ai" || parsed.Path != "/customize/connectors" || parsed.Fragment != "" {
+			t.Fatalf("%q: not claude.ai's connector page: %q (%v)", connector, link, err)
+		}
+		query, err := url.ParseQuery(parsed.RawQuery)
+		want := url.Values{"modal": {"add-custom-connector"}, "connectorName": {"HA NOVA"}, "connectorUrl": {connector}}
+		if err != nil || !reflect.DeepEqual(query, want) {
+			t.Fatalf("%q: query %v (%v), want %v", connector, query, err, want)
+		}
+		if strings.Contains(parsed.RawQuery, "+") || !strings.Contains(link, "connectorName=HA%20NOVA&connectorUrl=https%3A%2F%2F") {
+			t.Fatalf("not percent-encoded as Claude documents it: %q", link)
+		}
+	}
 }
 
 // The owner's phone linked on this computer becomes chat apps' phone too,
@@ -402,6 +431,51 @@ func TestChatAppsHAVersion(t *testing.T) {
 
 // Setup's text path asks once, at step 3's place, default "Not now"; only a
 // typed yes turns them on, and the address follows the outcome.
+// Without Link or a public HTTPS address the terminal asks nothing and says
+// what's missing, in one line.
+func TestSetupTextPathNamesAMissingAddress(t *testing.T) {
+	app := &fakeChatApp{state: chatAppsState{Available: true}}
+	useChatApps(t, app, &fakeChatHA{first: chatHARead{ha: chatAppsHA{version: "2026.10.2", externalURL: "http://192.168.1.5:8123"}}}, "")
+	var out strings.Builder
+	f := &setupFlow{paths: chatPaths(t), ui: setupTextUI{reader: bufio.NewReader(strings.NewReader("yes\n")), out: &out}}
+	if url, note := f.offerChatApps(); url != "" || note != setupT("setup.chat.need_address") || len(app.posted()) != 0 || strings.Contains(out.String(), "restarts once") {
+		t.Fatalf("url %q note %q posted %v\n%s", url, note, app.posted(), out.String())
+	}
+}
+
+// Link's address while its remote access is on, else Home Assistant's own
+// external URL only when it is public HTTPS: never http://, a LAN address,
+// or a Link address whose remote access is off.
+func TestChatAppsBase(t *testing.T) {
+	if got := chatAppsBase(chatTestLink+"/", "https://home.example.com"); got != chatTestLink {
+		t.Fatalf("Link first: %q", got)
+	}
+	for external, want := range map[string]string{
+		"https://home.example.com":        "https://home.example.com",
+		" https://My.DuckDNS.org:8123/ ":  "https://my.duckdns.org:8123",
+		"https://home.example.com.":       "https://home.example.com",
+		"http://home.example.com":         "",
+		"https://192.168.1.5:8123":        "",
+		"https://8.8.8.8":                 "",
+		"https://[fd00::1]:8123":          "",
+		"https://homeassistant.local":     "",
+		"https://homeassistant:8123":      "",
+		"https://ha.home.arpa":            "",
+		"https://ha.lan":                  "",
+		"https://home.example.com/sub":    "",
+		"https://user@home.example.com":   "",
+		"https://home.example.com/?x=1":   "",
+		"https://-bad-.example.com":       "",
+		"https://abc123.ui.nabu.casa":     "", // a Link address counts only with remote access on
+		"https://abc123.ui.nabu.casa:443": "",
+		"":                                "",
+	} {
+		if got := chatAppsBase("", external); got != want {
+			t.Errorf("%q: %q, want %q", external, got, want)
+		}
+	}
+}
+
 func TestSetupTextPathAsksChatAppsOnce(t *testing.T) {
 	for _, answer := range []string{"\n", "yes\n"} {
 		app := &fakeChatApp{state: chatAppsState{Available: true}}
@@ -453,7 +527,14 @@ func TestChatAppsCommand(t *testing.T) {
 
 	t.Run("status", func(t *testing.T) {
 		paths, signIns := setup(t, &fakeChatApp{}, loaded, chatTestLink, "")
-		if exit, out := run(paths, "status"); exit != 0 || !strings.Contains(out, chatTestLink+"/api/ha_nova/mcp") || *signIns != 0 {
+		connector := chatTestLink + "/api/ha_nova/mcp"
+		if exit, out := run(paths, "status"); exit != 0 || !strings.Contains(out, connector) || !strings.Contains(out, claudeConnectorLink(connector)) || *signIns != 0 {
+			t.Fatalf("status: %d %q", exit, out)
+		}
+	})
+	t.Run("status with Home Assistant's own HTTPS address", func(t *testing.T) {
+		paths, _ := setup(t, &fakeChatApp{}, chatHARead{ha: chatAppsHA{version: "2026.10.2", loaded: true, externalURL: "https://home.example.com"}}, "", "")
+		if exit, out := run(paths, "status"); exit != 0 || !strings.Contains(out, claudeConnectorLink("https://home.example.com/api/ha_nova/mcp")) {
 			t.Fatalf("status: %d %q", exit, out)
 		}
 	})

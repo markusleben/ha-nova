@@ -7,7 +7,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
 	"regexp"
@@ -104,8 +106,9 @@ var chatAppsCall = func(ctx context.Context, client *CloudIngressClient, body ma
 
 // chatAppsHA is what this computer's Relay reads from Home Assistant.
 type chatAppsHA struct {
-	version string
-	loaded  bool // the ha_nova integration's entry is loaded: the connector answers
+	version     string
+	loaded      bool   // the ha_nova integration's entry is loaded: the connector answers
+	externalURL string // Home Assistant's own external URL (Settings → System → Network)
 }
 
 // chatAppsReadHA reads Home Assistant's version and the integration's entry
@@ -121,7 +124,8 @@ var chatAppsReadHA = func(paths runtimePaths) (chatAppsHA, error) {
 		return chatAppsHA{}, err
 	}
 	var config struct {
-		Version string `json:"version"`
+		Version     string `json:"version"`
+		ExternalURL string `json:"external_url"`
 	}
 	if status != http.StatusOK || json.Unmarshal(body, &config) != nil {
 		return chatAppsHA{}, fmt.Errorf("Home Assistant /api/config answered %d", status)
@@ -132,7 +136,7 @@ var chatAppsReadHA = func(paths runtimePaths) (chatAppsHA, error) {
 	if err := s.wsDecode(map[string]any{"type": "config_entries/get", "domain": "ha_nova"}, &entries, "config entries"); err != nil {
 		return chatAppsHA{}, err
 	}
-	ha := chatAppsHA{version: config.Version}
+	ha := chatAppsHA{version: config.Version, externalURL: config.ExternalURL}
 	for _, entry := range entries {
 		ha.loaded = ha.loaded || entry.State == "loaded"
 	}
@@ -152,13 +156,53 @@ func chatAppsHAVersionOK(version string) bool {
 }
 
 // chatAppsOffer is what decides whether chat apps can be turned on here: the
-// App has them, Home Assistant Link remote access answers, and Home Assistant
-// is new enough. ok=false: say nothing.
+// App has them and Home Assistant is new enough (ok=false: say nothing), and
+// Home Assistant has an address on the internet (url "": one plain line).
 type chatAppsOffer struct {
 	state  chatAppsState
-	url    string // the connector address
+	url    string // the connector address; "": no internet address (chatAppsBase)
 	loaded bool   // Home Assistant runs the integration: the address answers
 }
+
+// chatAppsBase is the address Claude and ChatGPT reach this home at: Home
+// Assistant Link's while its remote access is on, else Home Assistant's own
+// external URL when it is public HTTPS; "" when neither. Never http://:
+// claude.ai and ChatGPT need HTTPS with a valid certificate.
+func chatAppsBase(linkOrigin, externalURL string) string {
+	if origin := strings.TrimRight(linkOrigin, "/"); origin != "" {
+		return origin
+	}
+	if origin := publicHTTPSOrigin(externalURL); !strings.HasSuffix(origin, ".nabu.casa") && !strings.Contains(origin, ".nabu.casa:") {
+		return origin // a Link address there counts only with remote access on (above)
+	}
+	return ""
+}
+
+// publicHTTPSOrigin: raw's https origin when it names a host on the
+// internet, else "". ponytail: IP literals and local-only names (no dot,
+// .local, .lan, ...) are refused outright; a public IP with a valid
+// certificate is rare enough to leave out.
+func publicHTTPSOrigin(raw string) string {
+	u, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil || u.Scheme != "https" || u.User != nil || u.Opaque != "" || u.RawQuery != "" || u.Fragment != "" || (u.Path != "" && u.Path != "/") {
+		return ""
+	}
+	host := strings.ToLower(strings.TrimSuffix(u.Hostname(), "."))
+	if net.ParseIP(host) != nil || !publicHostname.MatchString(host) {
+		return ""
+	}
+	for _, local := range []string{".local", ".lan", ".home", ".internal", ".localdomain", ".localhost", ".home.arpa"} {
+		if strings.HasSuffix(host, local) {
+			return ""
+		}
+	}
+	if port := u.Port(); port != "" {
+		return "https://" + net.JoinHostPort(host, port)
+	}
+	return "https://" + host
+}
+
+var publicHostname = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)+$`)
 
 func readChatAppsOffer(client *CloudIngressClient, paths runtimePaths, linkOrigin func() string) (chatAppsOffer, bool) {
 	if client == nil {
@@ -174,11 +218,21 @@ func readChatAppsOffer(client *CloudIngressClient, paths runtimePaths, linkOrigi
 	if err != nil || !chatAppsHAVersionOK(ha.version) {
 		return chatAppsOffer{}, false
 	}
-	origin := strings.TrimRight(linkOrigin(), "/")
-	if origin == "" {
-		return chatAppsOffer{}, false
+	offer := chatAppsOffer{state: state, loaded: ha.loaded}
+	if base := chatAppsBase(linkOrigin(), ha.externalURL); base != "" {
+		offer.url = base + chatAppsConnectorPath
 	}
-	return chatAppsOffer{state: state, url: origin + chatAppsConnectorPath, loaded: ha.loaded}, true
+	return offer, true
+}
+
+// claudeConnectorLink opens Claude's "Add custom connector" with the name
+// and this home's connector address filled in (Claude's documented install
+// link: https://claude.com/docs/connectors/building/directory-vs-custom).
+// It always goes to claude.ai and carries the address only, never a token;
+// Claude shows the values and asks before it adds anything.
+func claudeConnectorLink(connectorURL string) string {
+	encode := func(s string) string { return strings.ReplaceAll(url.QueryEscape(s), "+", "%20") }
+	return "https://claude.ai/customize/connectors?modal=add-custom-connector&connectorName=" + encode("HA NOVA") + "&connectorUrl=" + encode(connectorURL)
 }
 
 // handOverOwnerPhone gives the App the owner's phone linked on this computer
@@ -344,7 +398,8 @@ func chatAppsProblem(err error) setupMsg {
 	return setupText("setup.chat.problem_failed")
 }
 
-// printChatAppsHowTo: the connector address and the three steps per app.
+// printChatAppsHowTo: the connector address, the Add to Claude link, and
+// the three steps per app.
 func printChatAppsHowTo(out io.Writer, url string) {
 	renderSetupParagraph(out, setupT("setup.chat.on"))
 	fmt.Fprintf(out, "    %s\n\n", url)
@@ -355,6 +410,7 @@ func printChatAppsHowTo(out io.Writer, url string) {
 		}
 		fmt.Fprintln(out)
 	}
+	fmt.Fprintf(out, "  %s\n    %s\n\n", setupT("setup.chat.add_claude_cli"), claudeConnectorLink(url))
 	steps(setupT("setup.chat.claude_title"), setupT("setup.chat.claude_1"), setupT("setup.chat.claude_2"), setupT("setup.chat.claude_3"))
 	steps(setupT("setup.chat.chatgpt_title"), setupT("setup.chat.chatgpt_1"), setupT("setup.chat.chatgpt_2"), setupT("setup.chat.chatgpt_3"))
 	renderSetupParagraph(out, setupT("setup.chat.off_hint"))

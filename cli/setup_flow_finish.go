@@ -296,6 +296,8 @@ func (f *setupFlow) offerChatApps() (url, note string) {
 	switch {
 	case !ok:
 		return "", ""
+	case offer.url == "":
+		return "", setupT("setup.chat.need_address")
 	case offer.state.Enabled:
 		note := ""
 		if !offer.loaded { // on, but a restart never came

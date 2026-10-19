@@ -156,3 +156,42 @@ describe("setup page step 4", () => {
     expect(p.screen.textContent).toContain(p.catalog["setup.page.home.no_room_none"]);
   });
 });
+
+describe("setup page: Add to Claude", () => {
+  const url = "https://abc123.ui.nabu.casa/api/ha_nova/mcp";
+  const link = "https://claude.ai/customize/connectors?modal=add-custom-connector&connectorName=HA%20NOVA&connectorUrl=https%3A%2F%2Fabc123.ui.nabu.casa%2Fapi%2Fha_nova%2Fmcp";
+  const control = (chat: object) => ({ screen: "control", accepts: ["finish"], control: { window: true, phone: "none", chat } });
+
+  it("opens Claude's prefilled dialog in a new tab once chat apps are on, next to the address to copy", async () => {
+    const p = page(control({ state: "on", url, claude_link: link }));
+    await p.settle();
+    const button = p.find("l-chat-claude")!;
+    expect(button.attributes).toMatchObject({ href: link, target: "_blank", rel: "noopener noreferrer" });
+    expect(button.textContent).toBe(p.catalog["setup.chat.add_claude"]);
+    expect(p.find("chat-url")!.textContent).toBe(url);
+    expect(p.find("b-chat-copy")).toBeTruthy();
+  });
+
+  it("never makes a button of a link that doesn't go to claude.ai", async () => {
+    for (const claude_link of ["https://claude.ai.evil.com/x", "javascript:alert(1)", ""]) {
+      const p = page(control({ state: "on", url, claude_link }));
+      await p.settle();
+      expect(p.find("l-chat-claude")).toBeUndefined();
+      expect(p.find("b-chat-copy")).toBeTruthy();
+    }
+  });
+
+  it("says in one line what's missing without Link or a public HTTPS address", async () => {
+    const p = page(control({ state: "noaddress" }));
+    await p.settle();
+    expect(p.screen.textContent).toContain(p.catalog["setup.chat.need_address"]);
+    expect(p.find("b-chat-switch")).toBeUndefined();
+    expect(p.find("l-chat-claude")).toBeUndefined();
+  });
+
+  it("repeats it on step 4", async () => {
+    const p = page({ screen: "home", accepts: ["done"], home: { notes: [{ key: "setup.page.home.note_chat", args: { url } }], chat_link: link } });
+    await p.settle();
+    expect(p.find("l-chat-claude-4")!.attributes.href).toBe(link);
+  });
+});

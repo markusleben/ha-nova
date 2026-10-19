@@ -186,6 +186,8 @@ h2 { font-size: .8125rem; font-weight: 600; letter-spacing: .08em; text-transfor
 .rows.sub li { padding: 6px 0; border-bottom: 0; grid-template-columns: 22px 1fr; font-size: .95rem; }
 .rows.sub li > :nth-child(3) { display: none; }
 .rows.sub .k { font-weight: 400; color: var(--ink-soft); }
+.addclaude { margin-top: 10px; }
+.note + .addclaude { margin: -6px 0 16px; }
 .copybar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 10px; }
 .copybar code { flex: 1 1 16rem; min-width: 0; font: 600 .875rem var(--mono); color: var(--ink); background: var(--panel); border: 1px solid var(--hairline); border-radius: 10px; padding: .55rem .8rem; overflow-wrap: anywhere; user-select: all; }
 .how { margin-top: 10px; font-size: .95rem; color: var(--ink-soft); }

@@ -47,11 +47,13 @@ type setupFlow struct {
 	pageProblem *setupPageMsg
 	pageTyped   bool // the user typed Home Assistant's address on the page
 	// pageControlled: step 3 runs on the page; pageQuit: setup ended there
-	// (Ctrl+C or idle); pageNotes: what step 3 did, for step 4;
-	// pageGeneration: the install generation setup completed with.
+	// (Ctrl+C or idle); pageNotes: what step 3 did, for step 4, and
+	// pageChatLink its Add to Claude link; pageGeneration: the install
+	// generation setup completed with.
 	pageControlled bool
 	pageQuit       bool
 	pageNotes      []*setupPageMsg
+	pageChatLink   string
 	pageGeneration []byte
 
 	// inputs

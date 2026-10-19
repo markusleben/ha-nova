@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import type { SupervisorClient } from "../../nova/src/ha/supervisor-client.js";
 import { createNovaActionHandler, createNovaPageHandler, type NovaPageDeps } from "../../nova/src/http/handlers/nova-page.js";
-import { ChatAppsError, type ChatApps, type ChatAppsStatus } from "../../nova/src/runtime/chat-apps.js";
+import { ChatAppsError, chatConnectorUrl, claudeConnectorLink, type ChatApps, type ChatAppsStatus } from "../../nova/src/runtime/chat-apps.js";
 import { createIngressListener, type IngressListenerDeps } from "../../nova/src/runtime/ingress-listener.js";
 import { createCsrfStore } from "../../nova/src/security/csrf.js";
 import { generateCredential } from "../../nova/src/security/device-credential.js";
@@ -269,5 +269,64 @@ describe("NOVA page: Chat apps", () => {
     expect(page.body).not.toContain("Bridge");
     const armed = await run(createNovaPageHandler(pageDeps(fakeChatApps())), request("owner-1", `/?confirm=revoke_device&device=${encodeURIComponent(bridgeId!)}`));
     expect(armed.body).not.toContain("Confirm revoke");
+  });
+
+  it("shows Add to Claude with this home's address once on, and the plain wording when Link can't name it", async () => {
+    const on = { ...fakeChatApps(), status: () => ({ ...status, enabled: true }) };
+    const url = "https://abc123.ui.nabu.casa/api/ha_nova/mcp";
+    const page = await run(createNovaPageHandler({ ...pageDeps(on), connectorUrl: async () => url }), request("owner-1"));
+    const href = /<a class="linkbtn primary" href="([^"]+)" target="_blank" rel="noopener noreferrer">Add to Claude<\/a>/.exec(page.body)?.[1];
+    expect(href).toBe("https://claude.ai/customize/connectors?modal=add-custom-connector&amp;connectorName=HA%20NOVA&amp;connectorUrl=https%3A%2F%2Fabc123.ui.nabu.casa%2Fapi%2Fha_nova%2Fmcp");
+    expect(page.body).toContain(`<p class="address">${url}</p>`);
+    for (const connectorUrl of [async () => null, async () => { throw new Error("ws down"); }]) {
+      const plain = await run(createNovaPageHandler({ ...pageDeps(on), connectorUrl }), request("owner-1"));
+      expect(plain.statusCode).toBe(200);
+      expect(plain.body).toContain("followed by <code>/api/ha_nova/mcp</code>");
+      expect(plain.body).not.toContain("claude.ai");
+    }
+    let asked = 0;
+    const off = await run(createNovaPageHandler({ ...pageDeps(fakeChatApps()), connectorUrl: async () => (asked++, url) }), request("owner-1"));
+    expect(off.body).not.toContain("Add to Claude");
+    expect(asked).toBe(0); // off: Home Assistant isn't asked
+  });
+});
+
+describe("chat-app connector address", () => {
+  const ready = { logged_in: true, remote_connected: true, remote_domain: "ABC123.ui.nabu.casa.", prefs: { remote_enabled: true } };
+  const noLink = { ...ready, remote_connected: false };
+  it("is Home Assistant Link's address while its remote access is on", () => {
+    expect(chatConnectorUrl(ready, { external_url: "https://home.example.com" })).toBe("https://abc123.ui.nabu.casa/api/ha_nova/mcp");
+    for (const change of [{ logged_in: false }, { remote_connected: false }, { prefs: { remote_enabled: false } }, { remote_domain: "" },
+      { remote_domain: "evil.com/x?y" }, { remote_domain: 'a.b"><script>' }, { remote_domain: "localhost" }, { remote_domain: 7 }]) {
+      expect(chatConnectorUrl({ ...ready, ...change }, null)).toBeNull();
+    }
+    expect(chatConnectorUrl(null, null)).toBeNull();
+  });
+  it("else Home Assistant's external URL, only when it is public HTTPS", () => {
+    for (const [external, want] of [
+      ["https://home.example.com", "https://home.example.com/api/ha_nova/mcp"],
+      ["https://My.DuckDNS.org:8123/", "https://my.duckdns.org:8123/api/ha_nova/mcp"],
+      ["http://home.example.com", null],
+      ["https://192.168.1.5:8123", null],
+      ["https://8.8.8.8", null],
+      ["https://[fd00::1]", null],
+      ["https://homeassistant.local:8123", null],
+      ["https://homeassistant:8123", null],
+      ["https://ha.home.arpa", null],
+      ["https://home.example.com/sub", null],
+      ["https://user@home.example.com", null],
+      ["https://home.example.com?x=1", null],
+      ["https://abc123.ui.nabu.casa", null], // a Link address counts only with remote access on
+      [undefined, null],
+    ] as const) {
+      expect(chatConnectorUrl(noLink, { external_url: external }), String(external)).toBe(want);
+    }
+    expect(chatConnectorUrl(null, { external_url: "https://home.example.com" })).toBe("https://home.example.com/api/ha_nova/mcp");
+  });
+  it("links to claude.ai only, with the address percent-encoded", () => {
+    const link = new URL(claudeConnectorLink("https://x.ui.nabu.casa/a b?c=1&modal=evil#f"));
+    expect(link.origin + link.pathname).toBe("https://claude.ai/customize/connectors");
+    expect([...link.searchParams]).toEqual([["modal", "add-custom-connector"], ["connectorName", "HA NOVA"], ["connectorUrl", "https://x.ui.nabu.casa/a b?c=1&modal=evil#f"]]);
+    expect(link.hash).toBe("");
   });
 });
