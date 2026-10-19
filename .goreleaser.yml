@@ -74,7 +74,7 @@ release:
     - **Update the NOVA Relay App too.** This release needs Relay 0.10.0: update it under Settings > Apps > NOVA Relay (Container/Core: pull the new image). Until then HA NOVA warns that the Relay is outdated.
     - **Confirm outside the chat.** Unlocks, gates, garages, alarm disarms, restarts, and automation, script, or dashboard deletes open a confirmation window or ask your linked phone. Other deletes take a four-digit code.
     - **Window and phone settings.** `ha-nova setup confirm-window off` turns the window off. `ha-nova setup confirm-phone` links one phone; once linked, an action it can't reach is refused instead of falling back to chat.
-    - **Claude Code auto mode.** Run `ha-nova setup` once and choose “Add rule” so Claude Code can open the confirmation window. You still confirm every unlock or delete yourself.
+    - **Claude Code without extra questions.** Run `ha-nova setup` once and choose “Add rules”: Claude Code opens the confirmation window and reads HA NOVA's own files without asking. You still confirm every unlock or delete.
     - **Some low-level changes are refused.** Firing custom events or webhooks, Z-Wave/Zigbee/Alarmo settings, and custom HACS repositories: use the HA UI. For an event, HA NOVA offers to run the automation itself.
     - **Home Assistant Link.** Home Assistant Cloud is becoming Home Assistant Link, and HA NOVA says Link now. Commands stay `ha-nova cloud …`; until the rename reaches your HA, it is under Settings > Home Assistant Cloud.
     - **No re-pairing needed.** Paired computers keep their connection. Still on the old shared access? It works in this release and the next: re-pair once with `ha-nova pair`, then revoke it on the NOVA page.
@@ -111,6 +111,7 @@ release:
     - **Windows setup explains its firewall prompt.** HA NOVA says the Windows Firewall question on a first setup comes from its search for Home Assistant. Cancel is fine: setup goes on, and you can type the address.
     - **Two profiles for one Home Assistant stay connected.** A second HA NOVA profile for the same Home Assistant no longer disconnects the first. Already disconnected? Pair it again; the other may need one more pairing.
     - **A clear next step when secure storage is out of reach.** Over SSH or as admin on Windows and macOS, setup, `pair`, `doctor`, and `uninstall --purge` point to a desktop terminal; local installs don't blame Link.
+    - **Lock, cover, and alarm automations fire.** A trigger “from locked to unlocked” can miss the “unlocking” step in between and never run. HA NOVA now includes that step and flags such triggers.
     - **Nothing to confirm when it's already done.** When Home Assistant already shows a door unlocked or a garage open, HA NOVA usually just says so instead of asking for a confirmation; nothing is sent.
 
     Stable install commands are release-pinned for this tag.

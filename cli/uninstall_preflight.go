@@ -123,14 +123,41 @@ func uninstallTokenLineLabel(paths runtimePaths) string {
 		}
 		return "Relay token file (" + path + ")"
 	}
-	switch runtime.GOOS {
-	case "darwin":
-		return "Keychain entry (ha-nova.relay-auth-token)"
-	case "windows":
-		return "Credential Manager token (ha-nova.relay-auth-token)"
-	default:
-		return "secure storage token (ha-nova.relay-auth-token)"
+	names := uninstallCredentialNames(paths)
+	if dir, err := deviceSecretFileDir(); err == nil && deviceFileBackendMarkerExists() { // headless: files, not the keyring
+		return "Credential files in " + dir + " (" + strings.Join(names, ", ") + ")"
 	}
+	store := map[string]string{"darwin": "Keychain", "windows": "Credential Manager"}[runtime.GOOS]
+	if store == "" {
+		store = "Secure storage"
+	}
+	if len(names) == 1 {
+		return store + " entry (" + names[0] + ")"
+	}
+	return store + " entries (" + strings.Join(names, ", ") + ")"
+}
+
+// uninstallCredentialNames names the entries the user finds in secure
+// storage: each paired server profile's device credential, and the shared
+// legacy token where the default profile still connects with it.
+func uninstallCredentialNames(paths runtimePaths) []string {
+	doc, err := loadConfigDocument(paths.ConfigFile)
+	if err != nil {
+		return []string{deviceCredentialService}
+	}
+	var names []string
+	for _, name := range doc.profileNames() {
+		cfg, ok := doc.flatProfile(name)
+		if ok && name == defaultServerProfileName && cfg.RelaySecureBaseURL == "" && cfg.RelayBaseURL != "" {
+			names = append(names, keyringServiceName)
+			continue
+		}
+		names = append(names, deviceCredentialServiceForProfile(name))
+	}
+	if len(names) == 0 {
+		return []string{deviceCredentialService}
+	}
+	return names
 }
 
 func uninstallForeignTokenFileWarning(paths runtimePaths) string {

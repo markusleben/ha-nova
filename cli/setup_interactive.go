@@ -79,9 +79,12 @@ func maybeHandleInteractiveSetupCurrentState(reader *bufio.Reader, out io.Writer
 			printHumanErr("cannot finalize setup lifecycle: %s", err)
 			return true, 1
 		}
-		// After the banner, which clears the screen: its answer stays readable.
+		// Asked before the banner; the banner clears the screen, so the
+		// outcome line prints after it.
 		if !serviceMode && slices.Contains(loadStateOrDefault(paths).InstalledClients, "claude") && isInteractiveTTY() && writerSupportsTTYForSetup(out) {
-			defer offerClaudeApplyRule(reader, out, paths) // optional; never fails setup
+			if note := offerClaudeRules(reader, out, paths); note != "" { // optional; never fails setup
+				defer fmt.Fprintln(out, "  "+note)
+			}
 		}
 		// Same suppression as the done banner below: after a ran add flow
 		// its own closing lines are the message — never bury a cancelled or
@@ -1267,9 +1270,12 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 			if pairedThisRun && !cloudSetupPaused && !serviceMode && isInteractiveTTY() && writerSupportsTTYForSetup(os.Stdout) {
 				offerPhoneLink(reader, os.Stdout, paths) // optional; never fails setup
 			}
-			// After the banner, which clears the screen: its answer stays readable.
+			// Asked before the banner; the banner clears the screen, so the
+			// outcome line prints after it.
 			if !serviceMode && slices.Contains(selectedClients, "claude") && isInteractiveTTY() && writerSupportsTTYForSetup(os.Stdout) {
-				defer offerClaudeApplyRule(reader, os.Stdout, paths) // optional; never fails setup
+				if note := offerClaudeRules(reader, os.Stdout, paths); note != "" { // optional; never fails setup
+					defer fmt.Fprintln(os.Stdout, "  "+note)
+				}
 			}
 			// The read-only first look after a pairing in this run
 			// (docs/work/2026-10-16-ha-sign-in-pairing-spec.md, "First look").
