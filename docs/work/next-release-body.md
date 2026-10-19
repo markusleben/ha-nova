@@ -40,3 +40,17 @@ the number.
   it timed out.
 - Setup's status no longer lists "app installation" as done while the NOVA
   App isn't reachable.
+- A confirmation window closes when the CLI that opened it is stopped
+  (SIGTERM, Ctrl+C, a closed terminal; on Linux also a killed CLI), so a
+  late Confirm never lands in a window nobody reads.
+- Setup page: "Change" → "Connect" on step 1 shows the sign-in again
+  without a reload; a typed address no longer reads "We found your home";
+  after saving rooms, "N devices aren't in a room" counts down, and Undo
+  reads "Back to no room: …".
+- Setup after a pairing was removed on the NOVA page says so in one line
+  and goes straight to pairing again, instead of "The App may still be
+  starting".
+- Setup in the terminal no longer preselects linking your phone: Enter
+  skips, as on the setup page; nothing is sent without an explicit yes.
+- While the setup page runs, the terminal uses the same styling as the
+  rest of setup; `ha-nova try` names the AI apps that have HA NOVA.

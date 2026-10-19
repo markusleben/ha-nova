@@ -490,7 +490,7 @@ func TestInteractiveSetupPairedDeviceReRunVerifiesWithoutNewCode(t *testing.T) {
 		return secureServer.URL, httpClient, credential, true, nil
 	}
 	originalVerify := verifyDeviceHealth
-	verifyDeviceHealth = func(runtimeConfig) bool { return true }
+	verifyDeviceHealth = func(runtimeConfig) deviceHealth { return deviceOK }
 	defer func() {
 		relayFunctionalTransportForDoctor = originalTransport
 		verifyDeviceHealth = originalVerify
@@ -590,7 +590,7 @@ func TestInteractiveSetupDeviceVerifyRetryPromptHonorsBackAndExit(t *testing.T) 
 		return "https://192.168.1.5:18792", httpClient, credential, true, nil
 	}
 	originalVerify := verifyDeviceHealth
-	verifyDeviceHealth = func(runtimeConfig) bool { return false }
+	verifyDeviceHealth = func(runtimeConfig) deviceHealth { return deviceDown }
 	defer func() {
 		relayFunctionalTransportForDoctor = originalTransport
 		verifyDeviceHealth = originalVerify
@@ -621,6 +621,19 @@ func TestInteractiveSetupDeviceVerifyRetryPromptHonorsBackAndExit(t *testing.T) 
 	}
 	if !strings.Contains(output, "Connect this computer") {
 		t.Fatalf("'back' must route to the pairing stage:\n%s", output)
+	}
+
+	// Lane E3: a pairing removed on the NOVA page goes straight to pairing,
+	// with one plain line instead of "the App may still be starting".
+	verifyDeviceHealth = func(runtimeConfig) deviceHealth { return deviceRevoked }
+	stdout, stderr = captureInteractiveSetupIO(t, "exit\n", func() int {
+		exitCode = interactiveSetup(paths, cfg, loadStateOrDefault(paths), "codex", "", "", "", "", false)
+		return exitCode
+	})
+	output = stdout + stderr
+	if exitCode != 0 || !strings.Contains(output, setupT("setup.verify.device_revoked")) || !strings.Contains(output, "Connect this computer") ||
+		strings.Contains(output, "may still be starting") || strings.Contains(output, "Retry now") {
+		t.Fatalf("revoked: exit = %d\n%s", exitCode, output)
 	}
 }
 
@@ -685,7 +698,7 @@ func TestInteractiveSetupManualEscapeFromPairingVerifiesTheToken(t *testing.T) {
 	}
 	// The pairing is dead: device verify always fails.
 	originalVerify := verifyDeviceHealth
-	verifyDeviceHealth = func(runtimeConfig) bool { return false }
+	verifyDeviceHealth = func(runtimeConfig) deviceHealth { return deviceDown }
 	defer func() {
 		relayFunctionalTransportForDoctor = originalTransport
 		verifyDeviceHealth = originalVerify
@@ -777,7 +790,7 @@ func TestInteractiveSetupManualEscapeRetiresTheDeadPairing(t *testing.T) {
 		return "https://192.168.1.5:18792", httpClient, credential, true, nil
 	}
 	originalVerify := verifyDeviceHealth
-	verifyDeviceHealth = func(runtimeConfig) bool { return false }
+	verifyDeviceHealth = func(runtimeConfig) deviceHealth { return deviceDown }
 	defer func() {
 		relayFunctionalTransportForDoctor = originalTransport
 		verifyDeviceHealth = originalVerify

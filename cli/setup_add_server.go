@@ -225,7 +225,7 @@ func runAddServerStages(
 			fmt.Sprintf("  ha-nova doctor --server %s", name),
 		)
 	}
-	if !verifyDeviceHealth(cfg) {
+	if verifyDeviceHealth(cfg) != deviceOK {
 		renderSetupErrorLine(out, "Paired, but the secure device endpoint did not answer yet. The App may still be starting.")
 		if _, err := promptWizardLineFromReader(reader, out, "Press Enter to retry once", ""); err != nil {
 			if err == errSetupBack || err == errSetupExit {
@@ -237,7 +237,7 @@ func runAddServerStages(
 			renderPairedButUnverified()
 			return 1
 		}
-		if !verifyDeviceHealth(cfg) {
+		if verifyDeviceHealth(cfg) != deviceOK {
 			printHumanErr("the secure device endpoint for %q did not answer", name)
 			renderPairedButUnverified()
 			return 1

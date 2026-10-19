@@ -208,14 +208,14 @@ window.novaSteps = (h) => {
     return lines.map((text) => el('div', {}, text));
   };
   // Devices grouped by the room they end up in.
-  const roomLines = (changes) => {
+  const roomLines = (changes, key = 'setup.page.home.rooms_line') => {
     const groups = new Map();
     for (const c of changes || []) {
       const area = c.area || t('setup.page.home.no_area');
       if (!groups.has(area)) groups.set(area, []);
       groups.get(area).push(c.name);
     }
-    return [...groups].map(([area, devices]) => el('div', {}, t('setup.page.home.rooms_line', { area, devices })));
+    return [...groups].map(([area, devices]) => el('div', {}, t(key, { area, devices })));
   };
   const saveLabels = { rooms: 'setup.page.home.save_rooms', reminder: 'setup.page.home.save_reminder', automation: 'setup.page.home.save_automation' };
 
@@ -237,7 +237,7 @@ window.novaSteps = (h) => {
       if (pv.state === 'preview') parts.push(el('div', { class: 'add' }, t('setup.page.home.template_note', { button: t(saveLabels[slot]) })), save(saveLabels[slot]));
       if (ok) parts.push(el('div', { class: 'add' }, t('setup.page.home.template_saved')));
     } else if (pv.kind === 'undo') {
-      parts.push(el('div', {}, t('setup.page.home.undo_lead')), ...roomLines(pv.changes));
+      parts.push(el('div', {}, t('setup.page.home.undo_lead')), ...roomLines(pv.changes, 'setup.page.home.undo_line'));
       if (pv.state === 'preview') parts.push(el('div', { class: 'add' }, t('setup.page.home.undo_note')), save('setup.page.home.undo_save'));
       if (ok) parts.push(el('div', { class: 'add' }, t('setup.page.home.undone')));
     } else if (pv.kind === 'rooms') {
@@ -284,7 +284,7 @@ window.novaSteps = (h) => {
           if (it.action === 'battery_reminder') [slot, label] = ['reminder', 'setup.page.home.remind'];
           break;
         case 'no_room':
-          title = t('setup.page.home.no_room', args);
+          title = t(it.count === 0 ? 'setup.page.home.no_room_none' : 'setup.page.home.no_room', args);
           more = t('setup.page.home.no_room_more');
           if (it.action === 'rooms') [slot, label] = ['rooms', 'setup.page.home.suggest'];
           break;

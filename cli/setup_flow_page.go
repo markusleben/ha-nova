@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"runtime"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -137,7 +138,7 @@ func (f *setupFlow) stepPage() setupStepResult {
 		app := f.pageApp()
 		p.update(func(v *setupPageState) {
 			v.Screen, v.HA, v.Candidates, v.App, v.AppVersion, v.Primary = screen, terminalSafeName(f.cfg.HAHost), found, app.state, terminalSafeName(app.version), app.primary
-			v.Clients, v.Problem, v.Fix, v.Links, v.AskHA = setupClientNames(f.selectedClients), problem, fix, links, askHA
+			v.Clients, v.Problem, v.Fix, v.Links, v.AskHA, v.Typed = setupClientNames(f.selectedClients), problem, fix, links, askHA, f.pageTyped
 			if screen == "found" {
 				v.Rows = nil
 			}
@@ -169,6 +170,7 @@ func (f *setupFlow) stepPage() setupStepResult {
 				continue
 			}
 			f.cfg = applySelectedSetupHost(f.cfg, host, haURL, f.relayURLFlag)
+			f.pageTyped = !slices.ContainsFunc(found, func(c setupPageCandidate) bool { return c.URL == action.Value })
 			found = nil
 		case "terminal":
 			p.handover()

@@ -26,6 +26,7 @@ type humanVote struct {
 	phone  bool
 	window windowAnswer
 	answer phoneAnswer
+	ended  os.Signal // the process is being stopped: the window closed
 }
 
 // decisive: Confirm or Cancel (on the phone also a tap from someone else,
@@ -35,7 +36,7 @@ func (v humanVote) decisive() bool {
 	if v.phone {
 		return v.answer == phoneConfirmed || v.answer == phoneDeclined || v.answer == phoneRejected
 	}
-	return v.window == windowConfirmed || v.window == windowCancelled
+	return v.ended != nil || v.window == windowConfirmed || v.window == windowCancelled
 }
 
 // confirmBoth asks in the window (text) and on a's phone, and returns like
@@ -45,19 +46,23 @@ func confirmBoth(a *phoneAsking, text string) (verbEnvelope, int, bool) {
 	ctx, cancel := context.WithDeadline(context.Background(), a.deadline)
 	defer cancel()
 	votes := make(chan humanVote, 2) // the first vote received decides: the claim
-	go func() { votes <- humanVote{window: askWindow(ctx, text, time.Until(a.deadline))} }()
+	go func() {
+		answer, ended := askWindowUntilSignal(ctx, text, time.Until(a.deadline))
+		votes <- humanVote{window: answer, ended: ended}
+	}()
 	go func() {
 		a.answer, a.reply = askPhone(ctx, a.s, a.setup, "ha-nova-"+a.plan.ID, a.ask, time.Until(a.deadline), os.Stderr)
 		votes <- humanVote{phone: true, answer: a.answer}
 	}()
 	var first humanVote
+	var ended os.Signal // the process is being stopped: it ends after the phone hears it
 	decided, windowIn, phoneIn, window := false, false, false, windowNoAnswer
 	for !decided && !(windowIn && phoneIn) {
 		v := <-votes
 		if v.phone {
 			phoneIn = true
 		} else {
-			windowIn, window = true, v.window
+			windowIn, window, ended = true, v.window, v.ended
 		}
 		first, decided = v, v.decisive()
 		if v.phone && v.answer == phoneFailed && !windowIn { // the window still asks: say why the phone is quiet
@@ -66,13 +71,19 @@ func confirmBoth(a *phoneAsking, text string) (verbEnvelope, int, bool) {
 	}
 	cancel()                    // withdraw the other: the window closes, the phone stops listening
 	for !windowIn || !phoneIn { // both end promptly once cancelled; a late answer is dropped here
-		if (<-votes).phone {
+		if v := <-votes; v.phone {
 			phoneIn = true
 		} else {
-			windowIn = true
+			windowIn, ended = true, v.ended // a stop still wins over a phone's Confirm
 		}
 	}
 	s, reply, goal := a.s, a.reply, a.goal
+	if ended != nil { // stopped: the phone hears it, then the process ends (lane E2)
+		reply.say(phoneResultTitle("Cancelled", goal), "Stopped on the computer. Nothing changed.")
+		s.close()
+		endBySignal(ended)
+		return windowStopped(s, "cancelled", "CONFIRM_CANCELLED", "HA NOVA was stopped while the confirmation window was open", "Tell the user nothing changed.")
+	}
 	tell := func(prefix, line string) {
 		phoneApplied = func(verbEnvelope, int) { reply.say(phoneResultTitle(prefix, goal), line); s.close() }
 	}

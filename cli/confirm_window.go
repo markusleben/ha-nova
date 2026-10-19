@@ -5,8 +5,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/signal"
 	"path/filepath"
+	"runtime"
 	"strings"
+	"syscall"
 	"time"
 )
 
@@ -171,18 +174,70 @@ func confirmByWindow(paths runtimePaths, opts verbOptions, id string, noSnapshot
 // host that shows a running command's output shows it; one that failed at
 // once never claims it opened).
 // A cancelled parent withdraws the window (it closes; confirm_both.go).
+// A signal that ends this process closes the window first, then ends the
+// process as the signal would (lane E2): a window left behind takes a
+// Confirm nothing reads.
 func askWindow(parent context.Context, message string, wait time.Duration) windowAnswer {
+	answer, ended := askWindowUntilSignal(parent, message, wait)
+	endBySignal(ended)
+	return answer
+}
+
+// askWindowUntilSignal is askWindow without the ending: on SIGTERM, SIGINT,
+// or SIGHUP (one not ignored since start, as under nohup) it withdraws the
+// window and returns the signal, so the caller can tidy up (confirm_both.go
+// tells the phone) before endBySignal. SIGKILL can't be caught: on Linux
+// the window gets Pdeathsig (confirm_window_linux.go); Windows' box lives
+// in this process. macOS: an osascript window outlives a SIGKILL until its
+// own timeout.
+func askWindowUntilSignal(parent context.Context, message string, wait time.Duration) (windowAnswer, os.Signal) {
 	ctx, cancel := context.WithTimeout(parent, wait+5*time.Second)
 	defer cancel()
+	signals := make(chan os.Signal, 1)
+	for _, sig := range []os.Signal{syscall.SIGTERM, syscall.SIGINT, syscall.SIGHUP} {
+		if runtime.GOOS != "windows" && !signal.Ignored(sig) {
+			signal.Notify(signals, sig)
+		}
+	}
+	defer signal.Stop(signals)
 	done := make(chan windowAnswer, 1)
 	go func() { done <- windowRunner(ctx, message, wait) }()
-	select {
-	case answer := <-done:
-		return answer
-	case <-time.After(time.Second):
-		fmt.Fprintln(os.Stderr, map[bool]string{false: windowOpened, true: windowOpenedBoth}[strings.Contains(message, windowBoth)])
+	opened := time.After(time.Second)
+	for {
+		select {
+		case answer := <-done:
+			select { // one that arrived with the answer still wins: nothing is sent
+			case ended := <-signals:
+				return windowNoAnswer, ended
+			default:
+				return answer, nil
+			}
+		case <-opened:
+			if ctx.Err() == nil {
+				fmt.Fprintln(os.Stderr, map[bool]string{false: windowOpened, true: windowOpenedBoth}[strings.Contains(message, windowBoth)])
+			}
+		case ended := <-signals:
+			cancel() // the window closes; a stuck one doesn't hold the ending up
+			select {
+			case <-done:
+			case <-time.After(3 * time.Second):
+			}
+			return windowNoAnswer, ended
+		}
 	}
-	return <-done
+}
+
+// endBySignal ends the process by the signal that stopped a window, as it
+// would have without the window (exit 128+n), after one plain line.
+func endBySignal(ended os.Signal) {
+	if ended == nil {
+		return
+	}
+	fmt.Fprintln(os.Stderr, "HA NOVA was stopped; the confirmation window closed and nothing was sent.")
+	if self, err := os.FindProcess(os.Getpid()); err == nil {
+		_ = self.Signal(ended)
+		time.Sleep(time.Second) // the signal may land on another thread: let it end the process first
+	}
 }
 
 // windowFallback: the window could not open (a sandbox, no desktop), so

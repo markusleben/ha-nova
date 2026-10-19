@@ -52,6 +52,9 @@ func resolveSetupUISession(out io.Writer) uiSession {
 	if !uiInputSupportsTTY() {
 		return uiSession{mode: uiModePlain}
 	}
+	if transcript, ok := out.(setupTranscriptWriter); ok { // styled at most: never enhanced
+		return resolveUISession(transcript.Writer, writerSupportsTTYForSetup, false)
+	}
 	return resolveUISession(out, writerSupportsTTYForSetup, true)
 }
 
@@ -97,11 +100,11 @@ func (u uiSession) enhanced() bool {
 }
 
 func (u uiSession) clearsScreen() bool {
-	return !u.plain()
+	return u.enhanced()
 }
 
 func (u uiSession) animatesSpinner() bool {
-	return !u.plain()
+	return u.enhanced()
 }
 
 func (u uiSession) successMarker() string {
