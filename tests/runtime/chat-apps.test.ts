@@ -213,8 +213,12 @@ describe("chat apps: turning on and off", () => {
     postStatus = 403; // e.g. config.yaml without discovery: [ha_nova]
     const apps = chatApps();
     await expect(apps.turnOn(true)).rejects.toThrow(/403/);
-    expect(apps.status(OWNER)).toMatchObject({ enabled: false });
+    expect(apps.status(OWNER)).toMatchObject({ enabled: false, unfinished: false });
     expect(spawned[0]!.child.killed).toBe("SIGTERM");
+    // Nothing is left that the owner could no longer see or remove.
+    expect(existsSync(join(root, "config", "custom_components", "ha_nova"))).toBe(false);
+    expect(existsSync(data("secret"))).toBe(false);
+    expect(registry.list()).toHaveLength(0);
     postStatus = 200;
     expect(await apps.turnOn(true)).toEqual({ restart: true });
     expect(apps.status(OWNER).enabled).toBe(true);
@@ -237,6 +241,40 @@ describe("chat apps: turning on and off", () => {
     expect(existsSync(data("secret"))).toBe(false);
     expect(discovery.size).toBe(0);
     expect(apps.status(OWNER)).toMatchObject({ enabled: false, unfinished: true });
+  });
+
+  it("revokes the bridge even when its files are damaged or gone", async () => {
+    const apps = chatApps();
+    await apps.turnOn(true);
+    writeFileSync(data("state.json"), "{broken");
+    rmSync(data("relay.json"));
+    await expect(apps.turnOff()).rejects.toThrow();
+    expect(registry.list()).toHaveLength(0);
+  });
+
+  it("cancels a restart that has not been sent when chat apps turn off", async () => {
+    const apps = chatApps();
+    await apps.turnOn(true);
+    vi.useFakeTimers();
+    apps.restartSoon();
+    await apps.turnOff();
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(coreCalls).not.toContain("POST /api/services/homeassistant/restart");
+  });
+
+  it("retries a bridge that could not start on boot", async () => {
+    await chatApps().turnOn(true);
+    for (const d of registry.list()) registry.revoke(d.deviceId); // forces a re-mint
+    let fail = true;
+    const flakyRegistry: DeviceRegistry = { ...registry, createPending: (record, now) => {
+      if (fail) throw new Error("disk full");
+      registry.createPending(record, now);
+    } };
+    const flaky = chatApps({ registry: flakyRegistry });
+    await flaky.boot();
+    expect(spawned).toHaveLength(1);
+    fail = false;
+    await vi.waitFor(() => expect(spawned).toHaveLength(2));
   });
 
   it("keeps an unfinished turn-off visible and finishes it on retry", async () => {

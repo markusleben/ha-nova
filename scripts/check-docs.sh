@@ -50,21 +50,21 @@ echo ""
 # fail-fast upstream parsing, serialized snapshot quota): about 9300 lines;
 # and to 9500 for Home Assistant sign-in pairing (the owner-checked,
 # machine-only ingress arm route, the armed one-time slot, and its capability
-# flag on GET /pair/v1/info): about 9450 lines; and to 10200 for chat apps
+# flag on GET /pair/v1/info): about 9450 lines; and to 10250 for chat apps
 # (spec 2026-10-18 §11, PR train B2): the owner-only on/off action (NOVA page
 # and machine-only ingress API), the bridge secret, the internal device
 # credential, Supervisor discovery, the custom_components/ha_nova writer, and
-# the `ha-nova serve` child, dormant behind HA_NOVA_CHAT_APPS: about 10190.
+# the `ha-nova serve` child, dormant behind HA_NOVA_CHAT_APPS, with its review fixes: about 10225.
 # Further unreviewed Relay growth still fails.
 # Growth here is security surface, and it is reviewed as such. The README's own
 # number is updated in the release-prep PR — README describes the STABLE
 # release, not main.
 echo "[1] Relay LOC (must stay readable in one sitting)"
 ACTUAL_LOC=$(find "$REPO_ROOT/nova/src" -name '*.ts' -exec cat {} + | wc -l | tr -d ' ')
-if (( ACTUAL_LOC >= 1000 && ACTUAL_LOC <= 10200 )); then
-  pass "src/ = ${ACTUAL_LOC} LOC (within 1000–10200 range)"
+if (( ACTUAL_LOC >= 1000 && ACTUAL_LOC <= 10250 )); then
+  pass "src/ = ${ACTUAL_LOC} LOC (within 1000–10250 range)"
 else
-  fail "src/ = ${ACTUAL_LOC} LOC — outside the 1000–10200 range. Justify real Relay growth in active architecture docs; update README only in a release-prep PR."
+  fail "src/ = ${ACTUAL_LOC} LOC — outside the 1000–10250 range. Justify real Relay growth in active architecture docs; update README only in a release-prep PR."
 fi
 
 # ── 2. Skill count ──

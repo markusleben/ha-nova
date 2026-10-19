@@ -233,6 +233,12 @@ describe("NOVA page: Chat apps", () => {
     expect(page.body).not.toContain('value="chat_apps_on"');
   });
 
+  it("refuses a switch form without on or off", async () => {
+    const action = await run(createNovaActionHandler(pageDeps(fakeChatApps())), request("owner-1"), { action: "chat_read_only", csrf: csrf.issue("owner-1", "chat_read_only", 1_000), value: "maybe" });
+    expect(action.headers.location).toBe("/api/hassio_ingress/tok/?err=chat");
+    expect(calls).toEqual([]);
+  });
+
   it("names a configuration error plainly", async () => {
     turnOnResult = async () => {
       throw new ChatAppsError(409, "HA_CONFIG_INVALID", "x");

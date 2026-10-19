@@ -206,10 +206,10 @@ async function applyAction(deps: NovaPageDeps, action: NovaAction, form: Record<
       await chat.turnOff();
       return false;
     case "chat_read_only":
-      chat.setSwitches({ readOnly: form.value === "on" });
+      chat.setSwitches({ readOnly: onOff(form.value) });
       return false;
     case "chat_codes":
-      chat.setSwitches({ chatCodes: form.value === "on" });
+      chat.setSwitches({ chatCodes: onOff(form.value) });
       return false;
     case "generate_code":
       deps.pairing.generateCode();
@@ -235,6 +235,13 @@ async function applyAction(deps: NovaPageDeps, action: NovaAction, form: Record<
       deps.resetRegistry?.();
       return false;
   }
+}
+
+function onOff(value: unknown): boolean {
+  if (value !== "on" && value !== "off") {
+    throw new Error("a switch needs on or off");
+  }
+  return value === "on";
 }
 
 // One plain line per refusal the owner can act on (nova-page-view.ts).
