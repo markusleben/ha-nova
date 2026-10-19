@@ -324,8 +324,10 @@
 
   Which AI client do you use?
 
-    2) Codex CLI
+    1) Codex CLI
        not available: install Codex CLI first
+    2) All available clients
+       not available: install a supported AI client first
 
   No supported AI client is ready on this machine yet.
   Install one supported client first, then rerun: ha-nova setup

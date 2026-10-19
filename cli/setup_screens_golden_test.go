@@ -83,7 +83,10 @@ func TestSetupGoldenScreens(t *testing.T) {
 			answer, err = promptSetupClientInteractive(goldenReader("exit\n"), out, choices, "claude")
 			out.WriteString("\n→ " + answer + " " + errString(err) + "\n")
 			section("client menu: nothing available")
-			answer, err = promptSetupClientInteractive(goldenReader("\n"), out, []setupClientChoice{choices[1]}, "claude")
+			answer, err = promptSetupClientInteractive(goldenReader("\n"), out, []setupClientChoice{
+				{Number: "1", Value: "codex", Label: "Codex CLI", Disabled: true, DisabledReason: "install Codex CLI first"},
+				{Number: "2", Value: "all", Label: "All available clients", Disabled: true, DisabledReason: "install a supported AI client first"},
+			}, "claude")
 			out.WriteString("\n→ " + answer + " " + errString(err) + "\n")
 			section("token menu: fresh")
 			answer, err = promptSetupTokenChoiceInteractive(goldenReader("x\n\n"), out, false)
