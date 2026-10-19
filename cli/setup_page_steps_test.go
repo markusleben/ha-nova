@@ -548,7 +548,8 @@ func TestSetupPageStepActionsAreGuarded(t *testing.T) {
 		if code := page.post(body, nil); code != http.StatusConflict {
 			t.Errorf("%s while nothing waits = %d", action, code)
 		}
-		go func() { _, _ = page.ui.wait(action) }()
+		waited := make(chan struct{})
+		go func() { _, _ = page.ui.wait(action); close(waited) }()
 		page.waitFor(action, accepting(action))
 		for name, header := range map[string]map[string]string{
 			"foreign origin": {"Origin": "http://evil.example"},
@@ -565,6 +566,7 @@ func TestSetupPageStepActionsAreGuarded(t *testing.T) {
 			t.Errorf("%s with an oversized value = %d", action, code)
 		}
 		page.click(action, "x")
+		<-waited // no wait outlives the test (it reads setupPageIdle)
 		if code := page.post(body, nil); code != http.StatusConflict {
 			t.Errorf("%s twice = %d", action, code)
 		}
