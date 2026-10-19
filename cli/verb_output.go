@@ -201,6 +201,11 @@ func setVerbError(env *verbEnvelope, err error) int {
 
 func verbNotices(paths runtimePaths, relayVersion string) []verbNotice {
 	var notices []verbNotice
+	if activeServerIsDemo() {
+		notices = append(notices, verbNotice{Kind: "demo", Text: demoNoticeText})
+	} else if demoProfileOn(paths) {
+		notices = append(notices, verbNotice{Kind: "home", Text: "This is the user's own home, not the demo house; the demo house needs HA_NOVA_SERVER=demo."})
+	}
 	if n := checkRelayVersionValue(paths, relayVersion); !n.empty() {
 		notices = append(notices, verbNotice{Kind: "relay_outdated", Text: n.message})
 	}

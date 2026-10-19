@@ -53,7 +53,7 @@ no auto-revert — point to HA Backups.
 
 ## Honesty
 
-- The store holds the last 5 updated targets; older entries are gone, and a
+- The store holds the last 5 updated targets per server; older entries are gone, and a
   re-update of a target replaces that target's snapshot (one step back per
   target, never two).
 - An automation/script revert restores the checkpoint's bytes exactly; a

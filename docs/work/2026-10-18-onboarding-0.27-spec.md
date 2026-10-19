@@ -346,12 +346,16 @@ Known limits:
 
 ## 8. Demo path (`ha-nova try`)
 
-- `ha-nova try` (alias `setup --demo`) and step 1's "Look around the demo house" connect to `demo.hanova.app`:
-  - the relay token comes from `connect.json`;
-  - the profile is `demo`, never `default`.
+- `ha-nova try` (A10) and step 1's "Look around the demo house" connect to `demo.hanova.app`:
+  - the relay token comes from `connect.json` (public, shared, no pairing); its `relay_url` must share the origin of `connect.json`, and the relay must answer `/health` before anything is saved;
+  - the profile `demo` lives in `demo.json` beside `config.json`, never in it: it cannot become the default, and only `HA_NOVA_SERVER=demo` or `--server demo` selects it;
+  - `setup`, `pair`, and `cloud` refuse a demo selection; new server profiles can't be named `demo` (an existing one keeps working, and `try` then refuses);
+  - `try --stop` and `uninstall` remove `demo.json`; `try` adds the skills only when no AI app has them yet;
+  - undo checkpoints saved on the demo are tagged `demo`, and the demo never reverts to an untagged one.
+- On the demo, typed verbs carry a `demo` notice and no Relay update notices; an unreachable or resetting demo is one plain line. With only the demo connected, an unselected verb says how to select it. One session-bootstrap line names `--server demo`, and the Claude Code session hook says when the demo is connected.
 - Step 4 reads "A shared demo house. It resets every hour; never type real names or passwords."
 - The demo profile gets no phone link and no Claude rule offer.
-- Blocker: demo open item 1 (URL with a path).
+- Not done: the `setup --demo` alias (one command is enough) and step 1's link (page work, A6).
 
 ## 9. Migration from the current wizard
 

@@ -51,6 +51,30 @@ describe("S-6: session-start hook", () => {
     return root;
   };
 
+  it("names the demo house and drops the Relay warning when only the demo is connected", () => {
+    const home = makeTempDir("ha-nova-hook-demo-");
+    const bin = makeTempDir("ha-nova-hook-bin-");
+    mkdirSync(join(home, ".config", "ha-nova"), { recursive: true });
+    writeFileSync(join(home, ".config", "ha-nova", "demo.json"), "{}");
+    writeFileSync(join(bin, "ha-nova"), "#!/usr/bin/env bash\nexit 1\n", { mode: 0o755 });
+    const run = () =>
+      JSON.parse(
+        spawnSync("bash", ["hooks/session-start"], {
+          cwd: REPO_ROOT,
+          encoding: "utf8",
+          timeout: 15000,
+          env: { PATH: `${bin}:/usr/bin:/bin`, HOME: home },
+        }).stdout.trim(),
+      ).additional_context as string;
+    let context = run();
+    expect(context).toContain("The demo house is connected (ha-nova try)");
+    expect(context).not.toContain("Relay unreachable");
+    writeFileSync(join(home, ".config", "ha-nova", "config.json"), "{}");
+    context = run();
+    expect(context).toContain("The demo house is connected (ha-nova try)");
+    expect(context).toContain("Relay unreachable"); // a real home's Relay still gets its warning
+  });
+
   it("fails loud when the index is missing", () => {
     const root = pluginCopy(null);
     const result = spawnSync("bash", [join(root, "hooks", "session-start")], { encoding: "utf8", timeout: 15000 });

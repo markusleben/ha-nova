@@ -295,6 +295,9 @@ func (h phoneHome) status(links map[string]phoneEntry, err error) (phoneSetup, p
 
 // discoverPhone: the linked phone, read only when this computer has a link.
 func discoverPhone(s *relaySession) (phoneSetup, phoneStatus) {
+	if activeServerIsDemo() {
+		return phoneSetup{}, phoneNone // links belong to real homes
+	}
 	links, readable := linksForCall(s.paths)
 	if !readable {
 		return phoneSetup{why: whyRead}, phoneMissing

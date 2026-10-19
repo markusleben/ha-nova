@@ -42,7 +42,15 @@ func confirmationSay(e *tierEngine, env *verbEnvelope, plan storedPlan, subject 
 	default:
 		parts = append(parts, "Reply yes to go ahead.")
 	}
-	return strings.Join(parts, " ")
+	return demoPrefix(strings.Join(parts, " "))
+}
+
+// demoPrefix names the demo house in every confirmation it asks for.
+func demoPrefix(text string) string {
+	if activeServerIsDemo() && text != "" {
+		return "In the demo house: " + text
+	}
+	return text
 }
 
 const sayCopyNote = "A copy is saved first, so it can be restored."
@@ -60,7 +68,7 @@ func confirmationPrompt(e *tierEngine, env *verbEnvelope, plan storedPlan, subje
 	if plan.ConfigAction != nil {
 		what = env.ask[0] + " " + env.ask[1] + ". " + what
 	}
-	return strings.Join(append([]string{what}, sayReasons(e, env, plan)...), " ")
+	return demoPrefix(strings.Join(append([]string{what}, sayReasons(e, env, plan)...), " "))
 }
 
 // sayGoal: "Unlock" “Front Door”, "Delete" the automation “Night” — the
