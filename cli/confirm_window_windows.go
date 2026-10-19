@@ -21,8 +21,21 @@ var (
 	getUserObjectInfo    = user32.NewProc("GetUserObjectInformationW")
 	processIDToSessionID = kernel32.NewProc("ProcessIdToSessionId")
 	getCurrentThreadID   = kernel32.NewProc("GetCurrentThreadId")
-	postThreadMessage    = user32.NewProc("PostThreadMessageW")
-	peekMessage          = user32.NewProc("PeekMessageW")
+	enumThreadWindows    = user32.NewProc("EnumThreadWindows")
+	getClassName         = user32.NewProc("GetClassNameW")
+	postMessage          = user32.NewProc("PostMessageW")
+	// closeBox posts WM_CLOSE (Cancel's effect on an OK/Cancel box) to each
+	// dialog window (class #32770) of the thread it is enumerated for: only
+	// our message box lives there. One callback for the process (Go keeps
+	// a fixed number).
+	closeBox = syscall.NewCallback(func(hwnd, _ uintptr) uintptr {
+		var class [16]uint16
+		if n, _, _ := getClassName.Call(hwnd, uintptr(unsafe.Pointer(&class[0])), uintptr(len(class))); n > 0 && syscall.UTF16ToString(class[:n]) == "#32770" {
+			const wmClose = 0x10
+			_, _, _ = postMessage.Call(hwnd, wmClose, 0, 0)
+		}
+		return 1 // go on
+	})
 )
 
 // nativeWindowAvailable: an interactive session (not session 0, where SSH
@@ -55,13 +68,9 @@ func nativeWindow(ctx context.Context, message string, wait time.Duration) windo
 	done, thread, release := make(chan uintptr, 1), make(chan uintptr, 1), make(chan struct{})
 	defer close(release)
 	go func() {
-		// Never unlocked: the thread ends with this goroutine, and with it a
-		// WM_QUIT the box's modal loop re-posts after withdrawing. It lives
-		// until nativeWindow returns, so a WM_QUIT never reaches a reused id.
+		// One OS thread for the box, alive until nativeWindow returns, so the
+		// withdrawal below never enumerates a reused thread id.
 		runtime.LockOSThread()
-		var msg [6]uint64 // MSG (48 bytes, 8-aligned)
-		const pmNoRemove = 0
-		_, _, _ = peekMessage.Call(uintptr(unsafe.Pointer(&msg[0])), 0, 0, 0, pmNoRemove) // creates the queue a post needs
 		id, _, _ := getCurrentThreadID.Call()
 		thread <- id
 		r, _, _ := messageBoxTimeout.Call(0, uintptr(unsafe.Pointer(text)), uintptr(unsafe.Pointer(title)), style, 0, uintptr(max(wait.Milliseconds(), 1000)))
@@ -70,12 +79,19 @@ func nativeWindow(ctx context.Context, message string, wait time.Duration) windo
 	}()
 	select {
 	case <-ctx.Done():
-		// Withdraw it: WM_QUIT ends a message box's modal loop (queued before
-		// the box exists, it ends it at once). Its answer is never read; if
-		// the post fails, the box stays until its own timeout, and its text
-		// says a later answer changes nothing.
-		const wmQuit = 0x12
-		_, _, _ = postThreadMessage.Call(<-thread, wmQuit, 0, 0)
+		// Withdraw it by its window handle, retried while the box may not
+		// exist yet; its answer is never read. A box that won't close within
+		// two seconds stays until its own timeout, and its text says a later
+		// answer changes nothing.
+		id := <-thread
+		for give := time.Now().Add(2 * time.Second); time.Now().Before(give); {
+			_, _, _ = enumThreadWindows.Call(id, closeBox, 0)
+			select {
+			case <-done:
+				return windowNoAnswer
+			case <-time.After(50 * time.Millisecond):
+			}
+		}
 		return windowNoAnswer
 	case r := <-done:
 		switch r {

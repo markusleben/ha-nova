@@ -277,9 +277,9 @@ Known limits:
 **7.4 Window and phone in parallel (decided; built in A7, `cli/confirm_both.go`).** With a window available and a phone linked and reachable, a typed window plan asks on both at once.
 1. **One plan, first answer wins.** Both show the same plan. The first decisive answer (Confirm *or* Cancel; on the phone also a tap from another user, which stops it) wins inside the apply process; apply then takes the plan's atomic claim as always (`cli/verb_apply.go`), so one plan applies at most once.
 2. **Withdraw the other at once.**
-   - The window closes: macOS kills `osascript` and Linux kills `zenity` (each owns its dialog); Windows posts `WM_QUIT` to the box's thread, which ends a message box's modal loop.
+   - The window closes: macOS kills `osascript` and Linux kills `zenity` (each owns its dialog); Windows posts `WM_CLOSE` to the message box (the `#32770` dialog on its own locked thread, found with `EnumThreadWindows`), retried for up to 2 s while the box may not exist yet.
    - The phone stops listening (its action ids die with the ask), and the result replaces its notification by the same tag, without buttons (also on the Watch). The replacement comes once apply has finished, so the buttons show for those seconds; a tap then counts nowhere.
-   - A late answer changes nothing: no one reads it. A window that can't be closed (a failed `WM_QUIT` post) stays until its own timeout; its text says "The first answer counts; a later one changes nothing."
+   - A late answer changes nothing: no one reads it. A window that can't be closed stays until its own timeout; its text says "The first answer counts; a later one changes nothing."
 3. **One deadline** for both: the window's wait (90 s in the CLI, 40 s in `ha-nova mcp`). On expiry both are withdrawn and nothing is sent; the plan stays for a new try.
 4. **Reachability.**
    - Notify fails → the window alone continues.
