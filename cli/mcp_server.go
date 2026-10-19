@@ -300,7 +300,7 @@ func (srv *mcpServer) runVerb(name, answered string, forms bool, run func() int)
 	}
 	phoneTellSpan = 2 * time.Second // the server stays up, so a phone result still lands; the call stays under 60 s
 	defer func() {
-		planChannel, humanAnswer, windowWait, formsShown, phoneApplied, chatCall = "", "", cliWindowWait, false, nil, nil
+		planChannel, humanAnswer, humanWhere, windowWait, formsShown, phoneApplied, chatCall = "", "", "", cliWindowWait, false, nil, nil
 	}()
 	traceRelayVersion.Store("")
 	out, errOut, exit := captureVerb(run)

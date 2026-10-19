@@ -24,6 +24,9 @@ func confirmationSay(e *tierEngine, env *verbEnvelope, plan storedPlan, subject 
 		parts = append(parts, sayCopyNote)
 	}
 	switch {
+	case plan.Confirm == "code" && plan.Channel == channelWindow && phoneLinkedHere(e.s.paths):
+		verb, _ := sayGoal(e, env, plan, subject)
+		parts = append(parts, sayWindowPhoneAsk(phoneButton(verb)))
 	case plan.Confirm == "code" && plan.Channel == channelWindow:
 		parts = append(parts, sayWindowAsk)
 	case plan.Confirm == "code" && plan.Channel == channelPhone:

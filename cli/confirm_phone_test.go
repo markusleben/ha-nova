@@ -236,19 +236,20 @@ func planDirText(t *testing.T, h *writeHarness) string {
 	return all.String()
 }
 
-// A window that can't open moves the plan to the phone, not to a code.
-func TestWindowThatCannotOpenFallsBackToThePhone(t *testing.T) {
+// A window that can't open while the linked phone asks too: the phone
+// alone decides, never a code (confirm_both_test.go has the races).
+func TestWindowThatCannotOpenLeavesItToThePhone(t *testing.T) {
 	h := newWriteHarness(t, newFakeHA())
-	usePhones(t, "mobile_app_iphone")
+	p := usePhones(t, "mobile_app_iphone")
 	useWindow(t, windowFailed)
 	plan := h.plan("lock.unlock", "lock.front").Plan
 	if plan.Channel != channelWindow {
 		t.Fatalf("plan %+v", plan)
 	}
+	p.answer = func(ok, _ string) []phoneEvent { return []phoneEvent{tap(ok, "owner-id", "REMOTE")} }
 	exit, env := h.run(runApplyCommand, "--plan", plan.ID)
-	if exit != 3 || env.Plan == nil || env.Plan.Channel != channelPhone || env.Plan.Code != "" || len(h.posts()) != 0 ||
-		!strings.HasSuffix(env.Say, sayPhoneAsk("Unlock")) || !strings.Contains(env.NextStep, "a notification on their phone") {
-		t.Fatalf("fallback: exit %d %+v say %q next %q", exit, env.Plan, env.Say, env.NextStep)
+	if exit != 0 || env.Status != "verified" || env.Plan.Channel != channelPhone || env.Plan.Code != "" || len(h.posts()) != 1 {
+		t.Fatalf("exit %d %+v %+v", exit, env.Plan, env.Error)
 	}
 }
 
