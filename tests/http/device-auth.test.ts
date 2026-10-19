@@ -90,7 +90,7 @@ describe("device-auth handlers", () => {
 });
 
 describe("device peers handler", () => {
-  const peers = (chatAppFiles: boolean | null = false) => createDevicePeersHandler({ registry, chatAppFiles: () => chatAppFiles });
+  const peers = (chatAppFiles: boolean | null = false, pairingOpen = false) => createDevicePeersHandler({ registry, pairingOpen: () => pairingOpen, chatAppFiles: () => chatAppFiles });
   const asDevice = (deviceId: string): RouteContext => ({ ...ctx(undefined), principal: { kind: "device", deviceId } });
   const activeDevice = (installId: string) => {
     const c = pendingCredential(installId);
@@ -100,9 +100,9 @@ describe("device peers handler", () => {
 
   it("counts every other device record, pending included", () => {
     const self = activeDevice("self");
-    expect(peers()(asDevice(self.deviceId))).toEqual({ other_devices: 0, legacy_access: false, chat_app_files: false });
+    expect(peers()(asDevice(self.deviceId))).toEqual({ other_devices: 0, pairing_open: false, legacy_access: false, chat_app_files: false });
     pendingCredential("other-pending");
-    expect(peers(null)(asDevice(self.deviceId))).toEqual({ other_devices: 1, legacy_access: false, chat_app_files: null });
+    expect(peers(null, true)(asDevice(self.deviceId))).toEqual({ other_devices: 1, pairing_open: true, legacy_access: false, chat_app_files: null });
     activeDevice("other-active");
     expect((peers(true)(asDevice(self.deviceId)) as { other_devices: number }).other_devices).toBe(2);
   });

@@ -144,7 +144,7 @@ describe("pairing listeners wiring", () => {
     // Peers: only this device; the test deps can't check chat-app files.
     const peers = await deviceReq("/auth/device/peers", credential, "GET");
     expect(peers.status).toBe(200);
-    expect(peers.json.data).toEqual({ other_devices: 0, legacy_access: false, chat_app_files: null });
+    expect(peers.json.data).toEqual({ other_devices: 0, pairing_open: false, legacy_access: false, chat_app_files: null });
 
     // Revoke, then functional is unauthorized.
     expect((await deviceReq("/auth/device/revoke-self", credential)).status).toBe(200);

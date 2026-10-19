@@ -28,15 +28,18 @@ const appRemovalChatAppsLine = "To remove the NOVA App too: Cancel, turn off cha
 // counts as unknown.
 type devicePeers struct {
 	OtherDevices *int  `json:"other_devices"`
+	PairingOpen  *bool `json:"pairing_open"` // a code or sign-in pairing is under way
 	LegacyAccess *bool `json:"legacy_access"`
 	ChatAppFiles *bool `json:"chat_app_files"`
 }
 
 func (p devicePeers) chatApps() bool { return p.ChatAppFiles != nil && *p.ChatAppFiles }
 
-// noOtherAccess: no other device and no legacy shared access, both known.
+// noOtherAccess: no other device, no pairing under way, and no legacy shared
+// access, all known.
 func (p devicePeers) noOtherAccess() bool {
-	return p.OtherDevices != nil && *p.OtherDevices == 0 && p.LegacyAccess != nil && !*p.LegacyAccess
+	return p.OtherDevices != nil && *p.OtherDevices == 0 && p.PairingOpen != nil && !*p.PairingOpen &&
+		p.LegacyAccess != nil && !*p.LegacyAccess
 }
 
 // alone: every answer is known and nothing else uses the App.
@@ -147,6 +150,11 @@ func uninstallAppRemovalOffer(out io.Writer, paths runtimePaths) uninstallAppOff
 		!appRemovalSignInPossible(out, cfg) {
 		return uninstallAppOffer{}
 	}
+	// Link cleanup runs before the removal and can retire this computer's
+	// credential, which the re-check inside the sign-in needs.
+	if cloudTargets, err := collectCloudPurgeTargets(paths.ConfigFile); err != nil || len(cloudTargets) > 0 {
+		return uninstallAppOffer{}
+	}
 	peers, err := runSetupSpinnerWithResult(out, "Checking whether other computers use the NOVA App...", setupSpinnerDebounce, func() (devicePeers, error) {
 		return fetchDevicePeersForUninstall(cfg)
 	})
@@ -166,10 +174,6 @@ func uninstallAppRemovalOffer(out io.Writer, paths runtimePaths) uninstallAppOff
 // so a rerun can still ask the Relay.
 func removeNOVAAppForUninstall(out io.Writer, cfg runtimeConfig) bool {
 	stays := "HA NOVA is still on this computer. Run ha-nova uninstall again; pick “Remove” there to leave the NOVA App in Home Assistant."
-	if cfg.Cloud != nil {
-		// prepareUninstallBeforeGuidedTeardown already ran.
-		stays += " Its Home Assistant Link access may already be removed."
-	}
 	origin, err := resolveHASignInOriginForSetup(context.Background(), cfg.HAURL)
 	if err != nil {
 		renderSetupWarningLine(out, "%s", haSignInFallbackLine(err, HACurrentUser{}))

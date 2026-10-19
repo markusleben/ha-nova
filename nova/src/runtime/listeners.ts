@@ -95,7 +95,7 @@ export function createDeviceListener(deps: PairingListenerDeps): RequestListener
   registerFunctional(router, deps.functional);
   router.register("POST", "/auth/device/activate", createDeviceActivateHandler({ registry: deps.registry, now: deps.now }));
   router.register("POST", "/auth/device/revoke-self", createDeviceRevokeSelfHandler({ registry: deps.registry, now: deps.now }));
-  router.register("GET", "/auth/device/peers", createDevicePeersHandler({ registry: deps.registry, chatAppFiles: deps.chatAppFiles ?? (() => null) }));
+  router.register("GET", "/auth/device/peers", createDevicePeersHandler({ registry: deps.registry, pairingOpen: () => !["inactive", "consumed"].includes(deps.pairingManager.getStatus().phase), chatAppFiles: deps.chatAppFiles ?? (() => null) }));
 
   const functionalAuth = functionalAuthorize(deps, "secure");
   return createRequestListener({

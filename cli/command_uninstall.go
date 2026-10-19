@@ -11,8 +11,9 @@ import (
 	"time"
 )
 
-// uninstallInteractive: a person answers the menu (a test seam).
-var uninstallInteractive = isInteractiveTTY
+// uninstallInteractive: a person sees and answers the menu (a test seam).
+// A redirected stdout would hide the question behind its default.
+var uninstallInteractive = func() bool { return isInteractiveTTY() && stdoutIsInteractiveTTY() }
 
 type uninstallMode string
 
@@ -174,15 +175,6 @@ func runUninstall(paths runtimePaths, args []string) int {
 		return 1
 	}
 
-	if guidedSession {
-		if err := prepareUninstallBeforeGuidedTeardown(
-			paths,
-			mode,
-		); err != nil {
-			printHumanErr("%s", err)
-			return 1
-		}
-	}
 	preflight := collectUninstallPreflight(paths)
 	if channelChecksUseWindowsPlatform() && source == installSourceLegacyWindowsPackage {
 		printUninstallPreflightNotes(os.Stdout, preflight)
@@ -193,6 +185,16 @@ func runUninstall(paths runtimePaths, args []string) int {
 		return 1
 	}
 
+	if guidedSession {
+		if err := prepareUninstallBeforeGuidedTeardown(
+			paths,
+			mode,
+		); err != nil {
+			printHumanErr("%s", err)
+			return 1
+		}
+		preflight = collectUninstallPreflight(paths)
+	}
 	teardown := teardownNotOffered
 	if removeApp {
 		if !removeNOVAAppForUninstall(os.Stdout, appOffer.cfg) {

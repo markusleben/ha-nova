@@ -16,7 +16,8 @@ import (
 )
 
 func peersOf(others int, legacy bool, chatApps bool) devicePeers {
-	return devicePeers{OtherDevices: &others, LegacyAccess: &legacy, ChatAppFiles: &chatApps}
+	pairing := false
+	return devicePeers{OtherDevices: &others, PairingOpen: &pairing, LegacyAccess: &legacy, ChatAppFiles: &chatApps}
 }
 
 // stubAppRemoval stubs the Relay answers (one per call, the last repeats),
@@ -90,6 +91,11 @@ func TestUninstallAppRemovalOfferedOnlyForTheLastDevice(t *testing.T) {
 		{"last device", func() (devicePeers, error) { return peersOf(0, false, false), nil }, true, false},
 		{"another device", func() (devicePeers, error) { return peersOf(1, false, false), nil }, false, false},
 		{"legacy access", func() (devicePeers, error) { return peersOf(0, true, false), nil }, false, false},
+		{"pairing under way", func() (devicePeers, error) {
+			p, open := peersOf(0, false, false), true
+			p.PairingOpen = &open
+			return p, nil
+		}, false, false},
 		{"chat apps", func() (devicePeers, error) { return peersOf(0, false, true), nil }, false, true},
 		{"chat apps and another device", func() (devicePeers, error) { return peersOf(1, false, true), nil }, false, false},
 		{"unknown chat apps", func() (devicePeers, error) {
@@ -252,7 +258,7 @@ func TestNOVAAppSupervisorKeepsInstallAndRemovalApart(t *testing.T) {
 }
 
 func TestReadDevicePeersParsesTheRelayAnswer(t *testing.T) {
-	answer := `{"ok":true,"data":{"other_devices":0,"legacy_access":false,"chat_app_files":null}}`
+	answer := `{"ok":true,"data":{"other_devices":0,"pairing_open":false,"legacy_access":false,"chat_app_files":null}}`
 	status := http.StatusOK
 	relay := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet || r.URL.Path != "/auth/device/peers" || r.Header.Get("Authorization") != "Bearer cred" {
