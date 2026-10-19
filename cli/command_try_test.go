@@ -118,6 +118,9 @@ func TestTryLeavesRealHomeUntouched(t *testing.T) {
 	if err != nil || activeServerProfile() != defaultServerProfileName || activeServerIsDemo() || cfg.demoToken != "" {
 		t.Fatalf("default must stay the real home: %+v %v", cfg, err)
 	}
+	if got := verbNotices(paths, ""); len(got) == 0 || got[0].Kind != "home" {
+		t.Fatalf("home verbs must say they are not the demo while it is connected: %+v", got)
+	}
 
 	if exit, out := runTry(t, paths, "--stop"); exit != 0 || !strings.Contains(out, "Demo house disconnected") {
 		t.Fatalf("stop exit=%d out=%s", exit, out)
@@ -243,5 +246,73 @@ func TestDemoNeverRevertsToAnUntaggedHomeSnapshot(t *testing.T) {
 	setActiveDemoProfile()
 	if _, err := selectServerUndoSnapshot(paths, demoProfileName, "kitchen", "automation"); err == nil {
 		t.Fatal("the demo house must not pick an untagged record")
+	}
+}
+
+func TestDemoCheckpointsNeverEvictTheHomes(t *testing.T) {
+	paths := tryTestPaths(t, "")
+	save := func(server, target string) {
+		r := `{"op":"update","domain":"automation","target_id":"` + target + `","server":"` + server + `","before_config":{"a":1},"expected_after":{"a":2}}`
+		if _, err := saveUndoSnapshotBytes(paths, []byte(r)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	save(defaultServerProfileName, "home")
+	for i := 0; i < undoSnapshotStackLimit+2; i++ {
+		save(demoProfileName, "d"+string(rune('a'+i)))
+	}
+	if _, err := selectServerUndoSnapshot(paths, defaultServerProfileName, "home", "automation"); err != nil {
+		t.Fatalf("demo saves evicted the home's checkpoint: %v", err)
+	}
+	stack, _ := loadUndoSnapshotStack(paths)
+	if len(stack.Snapshots) != undoSnapshotStackLimit+1 {
+		t.Fatalf("want %d demo + 1 home records, got %d", undoSnapshotStackLimit, len(stack.Snapshots))
+	}
+}
+
+func TestTryRefusesARelayThatIsNotHealthy(t *testing.T) {
+	var srv *httptest.Server
+	srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/connect.json" {
+			_, _ = w.Write([]byte(`{"relay_url":"` + srv.URL + `/relay","relay_token":"t"}`))
+			return
+		}
+		_, _ = w.Write([]byte(`<html>landing page</html>`)) // HTTP 200, but no Relay
+	}))
+	t.Cleanup(srv.Close)
+	prev := demoConnectURL
+	demoConnectURL = srv.URL + "/connect.json"
+	t.Cleanup(func() { demoConnectURL = prev })
+	paths := tryTestPaths(t, "")
+	if exit, out := runTry(t, paths); exit != 1 || !strings.Contains(out, demoUnreachableText) {
+		t.Fatalf("exit=%d out=%s", exit, out)
+	}
+	if _, err := os.Stat(demoProfilePath(paths)); !os.IsNotExist(err) {
+		t.Fatalf("nothing may be saved: %v", err)
+	}
+}
+
+func TestTryAfterUninstallKeepingTheHomeAsksForSetup(t *testing.T) {
+	fakeDemo(t, "")
+	paths := tryTestPaths(t, testV2TwoProfileConfig)
+	if err := markInstallLifecycleStopped(paths); err != nil {
+		t.Fatal(err)
+	}
+	if exit, out := runTry(t, paths); exit != 1 || !strings.Contains(out, "Run ha-nova setup first") {
+		t.Fatalf("exit=%d out=%s", exit, out)
+	}
+	if _, err := os.Stat(demoProfilePath(paths)); !os.IsNotExist(err) {
+		t.Fatalf("nothing may be saved: %v", err)
+	}
+}
+
+func TestDemoResetIsOnePlainLine(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusServiceUnavailable)
+		_, _ = w.Write([]byte(`{"error":"demo_resetting"}`))
+	}))
+	t.Cleanup(srv.Close)
+	if _, err := demoHTTPClient().Get(srv.URL); err == nil || !strings.Contains(err.Error(), demoUnreachableText) {
+		t.Fatalf("503 must read as the demo reset: %v", err)
 	}
 }

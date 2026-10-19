@@ -400,6 +400,9 @@ func runRelayProxy(paths runtimePaths, endpoint string, args []string) int {
 		printErr("%s", err)
 		return 1
 	}
+	if activeServerIsDemo() {
+		fmt.Fprintln(os.Stderr, "[ha-nova] "+demoNoticeText)
+	}
 
 	var via relayVia
 	if opts.ViaSet {
@@ -706,6 +709,9 @@ func runHealth(paths runtimePaths, args []string) int {
 	if err != nil {
 		printErr("%s", err)
 		return 1
+	}
+	if activeServerIsDemo() {
+		fmt.Fprintln(os.Stderr, "[ha-nova] "+demoNoticeText)
 	}
 
 	var via relayVia

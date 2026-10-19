@@ -18,7 +18,7 @@ Cited ../<x>/<file> paths are relative to the citing file.
 3. Later status arrives in typed verbs' `notices[]` (`update`,
    `relay_outdated`, `demo`) and `[ha-nova]` relay lines — never a substitute
    for step 1. Never repeat a notice already surfaced in this session.
-   `--server demo`: the shared demo house, never the user's home.
+   `HA_NOVA_SERVER=demo`: the shared demo house, never the user's home.
 
 ## HA NOVA Update Callout
 

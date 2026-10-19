@@ -1,6 +1,7 @@
 package main
 
 import (
+	"cmp"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -123,13 +124,20 @@ func saveUndoSnapshotBytes(paths runtimePaths, data []byte) (snapshotSaveReceipt
 		}
 		kept = append(kept, existing)
 	}
+	// The cap counts per server, so one house (e.g. the demo) never evicts
+	// another's checkpoints.
 	var evicted []snapshotListingEntry
-	if len(kept) > undoSnapshotStackLimit {
-		for _, dropped := range kept[undoSnapshotStackLimit:] {
-			evicted = append(evicted, snapshotListing(dropped))
+	perServer := map[string]int{}
+	capped := kept[:0]
+	for _, existing := range kept {
+		server := cmp.Or(existing.Server, defaultServerProfileName) // untagged: single-home records
+		if perServer[server]++; perServer[server] > undoSnapshotStackLimit {
+			evicted = append(evicted, snapshotListing(existing))
+			continue
 		}
-		kept = kept[:undoSnapshotStackLimit]
+		capped = append(capped, existing)
 	}
+	kept = capped
 	stack = undoSnapshotStack{SchemaVersion: undoSnapshotStackSchemaVersion, Snapshots: kept}
 	if err := writeJSONFile(undoSnapshotStackPath(paths), stack, 0o600); err != nil {
 		return snapshotSaveReceipt{}, fmt.Errorf("cannot write snapshot: %s", err)

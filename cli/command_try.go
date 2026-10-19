@@ -111,7 +111,7 @@ func runTryCommand(paths runtimePaths, args []string) int {
 		return stopDemo(paths)
 	}
 	if realDemoProfileExists(paths) {
-		printHumanErr("One of your servers is already called %q. Rename it first, e.g.: ha-nova server rename demo home2", demoProfileName)
+		printHumanErr("One of your servers is already called %q, so the demo house can't be added on this computer. If that server can be renamed, rename it first: ha-nova server rename demo home2", demoProfileName)
 		return 1
 	}
 	// An uninstall during the fetch must win: nothing is saved after it.
@@ -121,24 +121,44 @@ func runTryCommand(paths runtimePaths, args []string) int {
 		printHumanErr("cannot inspect the HA NOVA install: %s", err)
 		return 1
 	}
+	if _, err := os.Stat(paths.ConfigFile); uninstalled != nil && err == nil {
+		// Reactivating this install would also bring back the home it kept.
+		printHumanErr("HA NOVA was uninstalled here, but your home's settings were kept. Run ha-nova setup first, then ha-nova try.")
+		return 1
+	}
 	demo, err := fetchDemoProfile()
 	if err != nil {
 		printHumanErr("%s", err)
 		return 1
 	}
 	data, _ := json.MarshalIndent(demo, "", "  ")
-	err = ensureSetupLifecycleCurrent(paths, generation, uninstalled)
+	appFound := true
+	err = os.MkdirAll(paths.ConfigDir, 0o700)
 	if err == nil {
-		err = os.MkdirAll(paths.ConfigDir, 0o700)
-	}
-	if err == nil {
-		err = writeFileAtomic(demoProfilePath(paths), append(data, '\n'), 0o600)
+		// Under the lock uninstall holds: an uninstall during the fetch wins,
+		// and a reinstall after an uninstall is active again afterwards.
+		err = withClientMutationLockWaiting(paths, func() error {
+			if err := ensureSetupLifecycleCurrent(paths, generation, uninstalled); err != nil {
+				return err
+			}
+			if err := writeFileAtomic(demoProfilePath(paths), append(data, '\n'), 0o600); err != nil {
+				return err
+			}
+			var err error
+			if appFound, err = installClientsForDemo(paths); err != nil {
+				return err
+			}
+			if uninstalled == nil {
+				return nil // never rotate the generation under a running setup or update
+			}
+			return completeSetupLifecycleUnlocked(paths, generation, uninstalled)
+		})
 	}
 	if err != nil {
 		printHumanErr("cannot save the demo house connection: %s", err)
 		return 1
 	}
-	if !installClientsForDemo(paths, generation, uninstalled) {
+	if !appFound {
 		fmt.Fprint(os.Stdout, `
 Demo house connected, but no AI app was found on this computer.
 Install Claude Code or Codex, then run: ha-nova try
@@ -194,7 +214,11 @@ func fetchDemoProfile() (demoProfile, error) {
 		demo.HAURL = origin.Scheme + "://" + origin.Host
 	}
 	demo.RelayURL = strings.TrimRight(demo.RelayURL, "/")
-	if status, _, err := demoGET(ctx, demo.RelayURL+"/health", demo.RelayToken); err != nil || status != http.StatusOK {
+	var health struct {
+		OK bool `json:"ok"`
+	}
+	if status, body, err := demoGET(ctx, demo.RelayURL+"/health", demo.RelayToken); err != nil || status != http.StatusOK ||
+		json.Unmarshal(body, &health) != nil || !health.OK {
 		return demoProfile{}, unreachable
 	}
 	return demo, nil
@@ -217,26 +241,54 @@ func demoGET(ctx context.Context, target, token string) (int, []byte, error) {
 	return resp.StatusCode, body, err
 }
 
-// demoHTTPClient: system TLS trust, no redirects, a fresh transport per use
-// (relay health applies its own timeouts to it).
+// demoHTTPClient: system TLS trust, no redirects, a fresh transport per use.
+// A 503 is the demo's edge during the hourly reset: every caller sees it as
+// "can't be reached", the one plain line.
 func demoHTTPClient() *http.Client {
-	return newRelayHTTPClient(defaultRelayConnectTimeoutSeconds, defaultRelayMaxTimeSeconds)
+	client := newRelayHTTPClient(defaultRelayConnectTimeoutSeconds, defaultRelayMaxTimeSeconds)
+	client.Transport = demoTransport{client.Transport}
+	return client
+}
+
+type demoTransport struct{ http.RoundTripper }
+
+func (t demoTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	resp, err := t.RoundTripper.RoundTrip(req)
+	if err == nil && resp.StatusCode == http.StatusServiceUnavailable {
+		resp.Body.Close()
+		return nil, errors.New(demoUnreachableText)
+	}
+	return resp, err
+}
+
+// withClientMutationLockWaiting: the session-start hook's background repair
+// may hold the lock for a moment.
+func withClientMutationLockWaiting(paths runtimePaths, mutate func() error) error {
+	release, ok := acquireAutoRepairLockUntil(paths, time.Now().Add(15*time.Second))
+	if !ok {
+		return errors.New("another HA NOVA update is running; try again in a minute")
+	}
+	defer release()
+	return mutate()
 }
 
 // installClientsForDemo adds the skills to the AI apps on this computer when
 // none has them yet; a computer already set up keeps its clients untouched.
-// false: no AI app was found.
-func installClientsForDemo(paths runtimePaths, lifecycle ...[]byte) bool {
+// The caller holds the client mutation lock. false: no AI app was found.
+func installClientsForDemo(paths runtimePaths) (bool, error) {
 	state, err := loadStateOrDefaultChecked(paths)
-	if err != nil || len(state.InstalledClients) > 0 {
-		return true
+	if err != nil {
+		return true, fmt.Errorf("cannot read the HA NOVA state: %w", err)
+	}
+	if len(state.InstalledClients) > 0 {
+		return true, nil
 	}
 	clients, _, err := resolveSetupClients(paths, "all")
 	if err != nil || len(clients) == 0 {
-		return false
+		return false, nil
 	}
-	if err := installClientsAndSaveState(paths, &state, clients, saveState, lifecycle...); err != nil {
+	if err := installClientsAndSaveStateUnlocked(paths, &state, clients, saveState); err != nil {
 		printHumanWarn("HA NOVA could not be added to your AI app: %s. Fix that, then run: ha-nova try", err)
 	}
-	return true
+	return true, nil
 }
