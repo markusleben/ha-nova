@@ -99,7 +99,7 @@ func TestDetectInstalledRelayOnlyTrustsTheDerivedAddress(t *testing.T) {
 	probed := stubInstalledRelayProbe(t, true, "")
 	derived := applySelectedSetupHost(runtimeConfig{}, "192.168.1.5", "http://192.168.1.5:8123", "")
 	if running, note := detectInstalledRelay(&strings.Builder{}, runtimePaths{}, derived, ""); !running ||
-		note != "NOVA App is running" {
+		note.plain() != "NOVA App is running" {
 		t.Fatalf("derived address: running=%v note=%q", running, note)
 	}
 	if len(*probed) != 1 || (*probed)[0] != "http://192.168.1.5:8791" {
@@ -132,7 +132,7 @@ func TestDetectInstalledRelayHintsUpdateBelowMinimum(t *testing.T) {
 	for version, wantHint := range map[string]bool{"0.8.0": true, "0.9.1": false, "1.0.0": false, "": false} {
 		stubInstalledRelayProbe(t, true, version)
 		_, note := detectInstalledRelay(&strings.Builder{}, paths, cfg, "")
-		if got := strings.Contains(note, "update to v0.9.1 or newer after setup"); got != wantHint {
+		if got := strings.Contains(note.plain(), "update to v0.9.1 or newer after setup"); got != wantHint {
 			t.Fatalf("relay %q: update hint = %v, want %v (note %q)", version, got, wantHint, note)
 		}
 	}

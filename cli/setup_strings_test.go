@@ -55,7 +55,7 @@ func scanSetupCatalogCalls(t *testing.T) []setupCatalogCall {
 			return true
 		})
 		ast.Inspect(file, func(n ast.Node) bool {
-			if lit, ok := n.(*ast.CompositeLit); ok && name != "setup_strings.go" {
+			if lit, ok := n.(*ast.CompositeLit); ok && name != "setup_strings.go" && len(lit.Elts) > 0 { // setupMsg{} = no message
 				if typ, ok := lit.Type.(*ast.Ident); ok && typ.Name == "setupMsg" {
 					t.Errorf("%s: build setupMsg with setupText or setupData", fset.Position(lit.Pos()))
 				}
@@ -238,7 +238,7 @@ func TestSetupRenderersHoldNoUserFacingLiterals(t *testing.T) {
 	// Input keywords and product names (proper nouns are data).
 	allowed := map[string]bool{"back": true, "exit": true, "Claude Code": true, "Codex CLI": true, "OpenCode": true, "Google Antigravity": true, "Hermes Agent": true}
 	words := regexp.MustCompile(`[A-Za-z]{2,} [A-Za-z]{2,}|^[A-Z][a-z]`)
-	for _, name := range []string{"setup_choice.go", "setup_ui.go", "setup_intro.go", "setup_layout.go", "setup_clients.go"} {
+	for _, name := range []string{"setup_choice.go", "setup_ui.go", "setup_intro.go", "setup_layout.go", "setup_clients.go", "setup_flow.go", "setup_flow_text.go", "setup_flow_start.go", "setup_flow_credentials.go", "setup_flow_connect.go", "setup_flow_token.go", "setup_flow_finish.go"} {
 		fset := token.NewFileSet()
 		file, err := parser.ParseFile(fset, name, nil, 0)
 		if err != nil {

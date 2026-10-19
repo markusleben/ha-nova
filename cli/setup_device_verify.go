@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -62,9 +61,4 @@ func persistDeviceSetupStateUnlocked(paths runtimePaths, cfg runtimeConfig, stat
 		return err
 	}
 	return saveState(paths, *state)
-}
-
-// renderDeviceVerifyIntro keeps the wizard copy honest about what was verified.
-func renderDeviceVerifyIntro(out io.Writer) {
-	renderSetupParagraphTight(out, "Checking the secure connection to the NOVA App.")
 }

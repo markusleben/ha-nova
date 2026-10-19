@@ -171,11 +171,11 @@ func runAddServerStages(
 
 	// Another computer may already have installed the App on this instance.
 	if installed, note := detectInstalledRelay(out, paths, cfg, ""); installed {
-		renderSetupSuccessLine(out, "%s", note)
+		renderSetupSuccessLine(out, "%s", note.plain())
 	} else {
 		note, err := runRelayInstallSteps(reader, out, paths, cfg, true)
-		if note != "" {
-			renderSetupWarningLine(out, "%s", note)
+		if !note.empty() {
+			renderSetupWarningLine(out, "%s", note.plain())
 		}
 		if err != nil {
 			if err == errSetupBack || err == errSetupExit {

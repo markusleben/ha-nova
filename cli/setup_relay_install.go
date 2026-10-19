@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
-	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -61,11 +60,11 @@ type installedRelayResult struct {
 // returns the note to show under the pairing step. Only the relay address
 // derived from that Home Assistant proves it: a --relay-url or a kept custom
 // address may point at another machine, so those always show the steps.
-func detectInstalledRelay(out io.Writer, paths runtimePaths, cfg runtimeConfig, relayURLFlag string) (bool, string) {
+func detectInstalledRelay(out io.Writer, paths runtimePaths, cfg runtimeConfig, relayURLFlag string) (bool, setupMsg) {
 	derived := strings.TrimRight(deriveRelayURLFromHA(cfg.HAURL, cfg.HAHost), "/")
 	if strings.TrimSpace(relayURLFlag) != "" || derived == "" ||
 		strings.TrimRight(strings.TrimSpace(cfg.RelayBaseURL), "/") != derived {
-		return false, ""
+		return false, setupMsg{}
 	}
 	result, _ := runSetupCountdownSpinnerWithResult(out,
 		"Checking for the NOVA App...",
@@ -77,12 +76,12 @@ func detectInstalledRelay(out io.Writer, paths runtimePaths, cfg runtimeConfig, 
 		},
 	)
 	if !result.running {
-		return false, ""
+		return false, setupMsg{}
 	}
-	note := "NOVA App is running"
+	note := setupText("setup.app.running")
 	if minimum := relayVersionBelowMinimum(paths, result.version); minimum != "" {
 		if haAppInstallOffered(out, cfg) {
-			return false, "" // the App step offers "Sign in and update NOVA"
+			return false, setupMsg{} // the App step offers "Sign in and update NOVA"
 		}
 		note = outdatedRelayNote(result.version, minimum)
 	}
@@ -105,8 +104,8 @@ func relayVersionBelowMinimum(paths runtimePaths, relayVersion string) string {
 	return v.MinRelayVersion
 }
 
-func outdatedRelayNote(version, minimum string) string {
-	return fmt.Sprintf("NOVA App is running (v%s; update to v%s or newer after setup: Settings > Apps > NOVA Relay)", version, minimum)
+func outdatedRelayNote(version, minimum string) setupMsg {
+	return setupText("setup.app.running_outdated", "version", version, "minimum", minimum)
 }
 
 // runRelayInstallSteps first offers "Sign in and install NOVA" (or "Sign in
@@ -116,7 +115,7 @@ func outdatedRelayNote(version, minimum string) string {
 // clicks, and waits until the user says the App runs. note is the
 // outdated-App reminder for the pairing step. It returns the prompt's
 // errSetupBack/errSetupExit unchanged for the caller's navigation.
-func runRelayInstallSteps(reader *bufio.Reader, out io.Writer, paths runtimePaths, cfg runtimeConfig, pairNext bool) (note string, err error) {
+func runRelayInstallSteps(reader *bufio.Reader, out io.Writer, paths runtimePaths, cfg runtimeConfig, pairNext bool) (note setupMsg, err error) {
 	if pairNext && haAppInstallOffered(out, cfg) {
 		running, version := probeInstalledRelayForSetup(cfg.RelayBaseURL)
 		minimum := ""
@@ -126,7 +125,7 @@ func runRelayInstallSteps(reader *bufio.Reader, out io.Writer, paths runtimePath
 		if !running || minimum != "" { // a running, current App needs nothing
 			result, err := runSignInAppInstall(reader, out, cfg, minimum != "", version, minimum)
 			if err != nil || result == appInstallDone {
-				return "", err
+				return setupMsg{}, err
 			}
 			if result == appInstallContinue {
 				if minimum != "" {
@@ -140,10 +139,10 @@ func runRelayInstallSteps(reader *bufio.Reader, out io.Writer, paths runtimePath
 	renderSetupParagraph(out, "Your browser opens the NOVA App in Home Assistant (listed as “NOVA Relay”).")
 	renderSetupLink(out, "This will open:", link)
 	if _, err := promptWizardLineFromReader(reader, out, "Press Enter to open your browser", ""); err != nil {
-		return "", err
+		return setupMsg{}, err
 	}
 	openAnnouncedBrowserURL(out, link)
 	renderSetupParagraphTight(out, `In the browser: sign in and click "Add" if asked, then Install, then Start.`)
 	_, err = promptWizardLineFromReader(reader, out, "Press Enter when the App is running", "")
-	return "", err
+	return setupMsg{}, err
 }

@@ -78,5 +78,76 @@
   "setup.incomplete.link": "Local access and skills are ready, but the selected Home Assistant Link connection is not.",
   "setup.incomplete.link_fix": "Re-run setup to resume Home Assistant Link authorization; local access remains available.",
   "setup.incomplete.generic": "HA NOVA saved your local setup, but the system is not fully ready yet.",
-  "setup.incomplete.rerun": "Then run \"ha-nova setup\" again — it continues where you left off."
+  "setup.incomplete.rerun": "Then run \"ha-nova setup\" again — it continues where you left off.",
+
+  "setup.resumed_pairing": "Resumed the interrupted pairing — this device is connected.",
+
+  "setup.prompt.continue": "Press Enter to continue setup",
+  "setup.prompt.open_browser": "Press Enter to open your browser",
+
+  "setup.link.will_open": "This will open:",
+  "setup.link.unavailable_build": "Home Assistant Link access is unavailable because this build or platform has Cloud setup disabled.",
+
+  "setup.status.already_done": "Already done: {steps}",
+
+  "setup.step.install_app": "Install the NOVA App",
+  "setup.step.token": "Set up Relay Auth Token",
+  "setup.step.connect": "Connect this computer",
+  "setup.step.verify": "Verifying connection",
+  "setup.step.skills": "Installing HA NOVA skills",
+
+  "setup.service.credential_moved": "Moved this install's device credential into protected service file storage.",
+
+  "setup.storage.file_backed": "No OS keyring is reachable here — this device will pair with secure file-backed storage instead of a shared token.",
+  "setup.storage.warn_session_unavailable": "secure storage unavailable in this Linux session; run HA NOVA from a terminal inside the Linux desktop session on this machine so local secure storage is available",
+  "setup.storage.warn_unavailable": "secure storage unavailable on this Linux machine; start a Secret Service provider (for example GNOME Keyring or KWallet Secrets) before finishing setup",
+  "setup.storage.warn_not_initialized": "secure storage is present but not initialized on this Linux machine; finish local secure storage setup before finishing setup",
+  "setup.storage.warn_locked": "secure storage is present but locked on this Linux machine; unlock the default keyring before finishing setup",
+  "setup.storage.warn_not_ready": "secure storage is present but not ready on this Linux machine; finish local secure storage setup before finishing setup",
+
+  "setup.host.saved_unusable": "The saved address {url} could not be used. Enter a new one.",
+  "setup.host.keep_relay": "Keeping your saved relay address: {url}",
+
+  "setup.token.separate_access": "NOVA keeps client and Home Assistant access separate:",
+  "setup.token.separate_relay": "a) This Relay token protects the connection from this computer",
+  "setup.token.separate_app": "b) The Home Assistant App receives its upstream access automatically",
+  "setup.token.standalone": "Standalone Container/Core relays keep HA_LLAT in the server environment; the CLI never asks for it.",
+  "setup.token.using_flag": "Using the Relay Auth Token you already provided.",
+  "setup.token.using_saved": "Using saved relay token: {hint}",
+  "setup.token.found_saved": "Existing relay token found: {hint}",
+  "setup.token.paste_prompt": "Paste Relay Auth Token",
+  "setup.token.none_entered": "No token entered.",
+  "setup.token.generated": "Here is your relay token (generated automatically):",
+  "setup.token.copied": "Copied to clipboard.",
+  "setup.token.next_on_app_page": "Next, on the NOVA App page:",
+  "setup.token.app_step_tab": "1. Open the \"Configuration\" tab",
+  "setup.token.app_step_paste": "2. Paste the token into the \"Relay Auth Token\" field (\"relay_auth_token\")",
+  "setup.token.app_step_save": "3. Click Save",
+  "setup.token.app_step_restart": "4. Restart the App so it picks up the new token",
+  "setup.token.wait_saved": "Press Enter after you saved the Relay Auth Token and restarted the NOVA App",
+  "setup.token.reuse_note": "If this token already works on another device, the next verification step should succeed without any new Home Assistant changes.",
+
+  "setup.verify.using_address": "Using Home Assistant address: {url}",
+  "setup.verify.device_not_answering": "Paired, but the secure device endpoint did not answer yet. The App may still be starting.",
+  "setup.verify.device_ok": "Secure connection verified",
+  "setup.verify.adding_link": "Local access is ready. Now connecting Home Assistant Link for away-from-home access.",
+  "setup.verify.link_ok": "Home Assistant Link access verified",
+
+  "setup.skills.will_install": "Will install: {clients}",
+  "setup.skills.skipping": "Skipping until installed: {clients}",
+  "setup.skills.installing": "Setting up HA NOVA for {client}...",
+
+  "setup.error.inspect_retirement": "cannot inspect interrupted device credential retirement: {error}",
+  "setup.error.finish_retirement": "cannot finish the interrupted device credential retirement: {error}",
+  "setup.error.service_needs_client": "service credentials require a specific client; use: ha-nova setup --service <client>",
+  "setup.error.service_move_credential": "cannot move the device credential into service file storage: {error}",
+  "setup.error.profile_identity": "cannot prepare the server profile identity: {error}",
+  "setup.error.save_config": "cannot save config: {error}",
+  "setup.error.finalize_lifecycle": "cannot finalize setup lifecycle: {error}",
+  "setup.error.generate_token": "cannot generate relay token: {error}",
+  "setup.error.install_clients": "client installation failed: {error}",
+
+  "setup.app.running": "NOVA App is running",
+  "setup.app.running_outdated": "NOVA App is running (v{version}; update to v{minimum} or newer after setup: Settings > Apps > NOVA Relay)",
+  "setup.verify.device_checking": "Checking the secure connection to the NOVA App."
 }
