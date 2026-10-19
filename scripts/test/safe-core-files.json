@@ -15,6 +15,7 @@
   "tests/bootstrap/startup.test.ts",
   "tests/config/app-options.test.ts",
   "tests/config/hosted-demo-icon.test.ts",
+  "tests/config/hosted-demo-privacy.test.ts",
   "tests/e2e/codex-skill-bulk-live-validator.test.ts",
   "tests/e2e/codex-skill-live-contract.test.ts",
   "tests/e2e/codex-skill-promoted-live-contract.test.ts",

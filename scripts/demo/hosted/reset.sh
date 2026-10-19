@@ -36,12 +36,17 @@ main() {
   rm -f "$PUBLIC/ready"
   # Access-log backstop (privacy policy: at most 7 days). Caddy rolls and
   # deletes only while it runs; here any file whose first (oldest) entry is
-  # over 6 days old goes, whatever Caddy missed.
+  # over 6 days old goes, whatever Caddy missed. Unreadable first entry
+  # (corrupt, cut off): the file's mtime instead. The open access.log is
+  # emptied, not unlinked, so Caddy's next writes stay readable.
   local f ts
   for f in "$STATE"/logs/access*; do
-    [[ -f "$f" ]] || continue
+    [[ -f "$f" && -s "$f" ]] || continue
     ts="$( (zcat -f -- "$f" 2> /dev/null || true) | head -n 1 | grep -o '"ts":[0-9]*' | head -n 1 | cut -d: -f2 || true)"
-    if [[ -n "$ts" ]] && ((ts < $(date +%s) - 6 * 86400)); then rm -f -- "$f"; fi
+    [[ -n "$ts" ]] || ts="$(stat -c %Y -- "$f")"
+    if ((ts < $(date +%s) - 6 * 86400)); then
+      if [[ "$f" == */access.log ]]; then : > "$f"; else rm -f -- "$f"; fi
+    fi
   done
 
   TESTBED_HA_IMAGE="${candidate:-$(cat "$STATE/ha-image" 2> /dev/null || true)}"
