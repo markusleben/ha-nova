@@ -60,8 +60,8 @@ func (x *homeIndex) codeSeed() (firstSeed, bool) {
 
 // loadSetupFirstLook returns nil when the first look is not available. A
 // read that outlives the backstop is abandoned; setup exits right after.
-// The read gets its hook and budget as copies, so an abandoned read never
-// touches package state after this returns.
+// The hook and budget are copied before the goroutine starts, so resetting
+// them never races an abandoned read (the real read still loads config).
 func loadSetupFirstLook(out io.Writer, paths runtimePaths) *setupFirstLook {
 	read, budget := setupFirstLookRead, setupFirstLookBudget
 	done := make(chan *setupFirstLook, 1)
