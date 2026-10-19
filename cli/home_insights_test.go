@@ -384,3 +384,26 @@ func TestTemplatesOnlyWhereTheyCanFire(t *testing.T) {
 		t.Error("away with only an unknown person")
 	}
 }
+
+// Codex review of #751: one person without a location blocks the away
+// template; a battery row without the action leaves the reminder to
+// "Made for your home".
+func TestAwayNeedsEveryPersonAndReminderFallsBack(t *testing.T) {
+	f := wowHome()
+	f.states = append(f.states, st("person.other", "unknown", nil))
+	if _, ok := indexFixture(t, f).matchTemplate(templateLightsOff, nil); ok {
+		t.Error("away while a person's location is unknown")
+	}
+	for i, s := range f.states {
+		switch s["entity_id"] {
+		case "sensor.door_battery": // shown, but already below 10%: the row gets no action
+			f.states[i] = st("sensor.door_battery", "7", map[string]any{"device_class": "battery", "friendly_name": "Front Door battery"})
+		case "lock.front_door": // no door-light pair
+			f.states[i] = st("lock.front_door", "unavailable", nil)
+		}
+	}
+	r := indexFixture(t, f).insights(&phoneTarget{Service: "mobile_app_pixel", Name: "Pixel"}, offerAll)
+	if r.Insights[0].Action != "" || r.Automation == nil || r.Automation.Template != templateBatteryReminder {
+		t.Errorf("battery %+v automation %+v", r.Insights[0], r.Automation)
+	}
+}

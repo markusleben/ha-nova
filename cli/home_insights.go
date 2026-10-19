@@ -110,7 +110,7 @@ func (x *homeIndex) insights(phone *phoneTarget, offered func(templateMatch) boo
 	automationInsight("automation_never_ran", "never_triggered")
 
 	for _, id := range automationTemplates {
-		if id == templateBatteryReminder && len(low) > 0 { // the battery row's own action, or not useful now
+		if id == templateBatteryReminder && len(r.Insights) > 0 && r.Insights[0].Action == templateBatteryReminder { // the row offers it
 			continue
 		}
 		if m, ok := x.matchTemplate(id, phone); ok && offered(m) {

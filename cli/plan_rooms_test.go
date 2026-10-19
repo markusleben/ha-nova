@@ -414,3 +414,53 @@ func TestPlanRoomsWithoutReadBackKeepsKnownOutcomes(t *testing.T) {
 		t.Fatalf("record %s %v", snap.ExpectedAfter, err)
 	}
 }
+
+// Codex review of #751: a device whose parent gained a room since is shown
+// landing in that room when its undo clears its own area.
+func TestPlanRoomsUndoShowsTheInheritedRoom(t *testing.T) {
+	r := newRoomsFake()
+	h := newRoomsHarness(t, r)
+	env := h.planRooms()
+	_, applied := h.run(runApplyCommand, "--plan", env.Plan.ID)
+	r.mu.Lock()
+	r.f.devices[1]["parent_device_id"] = "d_placed" // d_radio's new parent is in the bedroom
+	r.mu.Unlock()
+	_, undo := h.run(runPlanCommand, "revert", "--target", applied.Undo.TargetID)
+	for _, c := range decodeInto[roomsResult](t, undo.Result).Changes {
+		if c.DeviceID == "d_radio" && (c.AreaID != "bedroom" || c.Area != "Bedroom") {
+			t.Errorf("d_radio lands %+v", c)
+		}
+	}
+	if !strings.Contains(undo.Say, "Bedroom ← “Küchenradio”") {
+		t.Errorf("say %q", undo.Say)
+	}
+}
+
+// Codex review of #751: without a read-back, a device whose undo landed and
+// whose rollback Home Assistant refused stays out of the record.
+func TestPlanRoomsBlindFailedUndoKeepsKnownOutcomes(t *testing.T) {
+	r := newRoomsFake()
+	h := newRoomsHarness(t, r)
+	env := h.planRooms()
+	_, applied := h.run(runApplyCommand, "--plan", env.Plan.ID)
+	record := applied.Undo.TargetID
+	_, undo := h.run(runPlanCommand, "revert", "--target", record)
+	r.mu.Lock()
+	r.writes, r.blind = nil, true
+	r.fail = func(n int, _, _ string) (any, bool) { // d_guest undone; d_kitchen refused; d_guest's rollback refused
+		if n >= 2 {
+			return fakeRelayFailure{"UPSTREAM_WS_COMMAND_ERROR", "refused"}, false
+		}
+		return nil, false
+	}
+	r.mu.Unlock()
+	if exit, failed := h.run(runApplyCommand, "--plan", undo.Plan.ID); exit != verbExitUnknown || failed.Error.Code != "ROOMS_PARTIAL" {
+		t.Fatalf("exit %d %+v", exit, failed.Error)
+	}
+	snap, _ := selectServerUndoSnapshot(h.paths, "", record, "")
+	var after map[string]string
+	_ = json.Unmarshal(snap.ExpectedAfter, &after)
+	if _, kept := after["d_guest"]; kept || after["d_kitchen"] != "kitchen" || after["d_radio"] != "kitchen" {
+		t.Fatalf("record %s", snap.ExpectedAfter)
+	}
+}

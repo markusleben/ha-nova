@@ -143,6 +143,7 @@ type roomsRegistry struct {
 	areas     map[string]string
 	devices   map[string]struct{ area, name, disabled string }
 	effective map[string]string // own area, else the nearest parent's
+	parent    map[string]string
 }
 
 // readRoomsRegistry reads the area and device registries; fresh bypasses
@@ -188,7 +189,7 @@ func readRoomsRegistry(s *relaySession, fresh bool) (roomsRegistry, error) {
 		r.devices[d.ID] = struct{ area, name, disabled string }{d.AreaID, firstNonEmpty(d.NameByUser, d.Name, d.ID), d.DisabledBy}
 		own[d.ID], parent[d.ID] = d.AreaID, d.Parent
 	}
-	r.effective = effectiveDeviceAreas(own, parent)
+	r.effective, r.parent = effectiveDeviceAreas(own, parent), parent
 	return r, nil
 }
 
@@ -216,9 +217,14 @@ func computeRoomsPlan(s *relaySession, env *verbEnvelope, req roomsRequest) (*ti
 		case it.To != "" && reg.areas[it.To] == "":
 			return nil, storedPlan{}, refusedWith("AREA_NOT_FOUND", "a room in this plan no longer exists", roomsAgain(req))
 		}
-		names[it.DeviceID], areaNames[it.From], areaNames[it.To] = d.name, reg.areas[it.From], reg.areas[it.To]
-		effective[it.DeviceID] = reg.effective[it.DeviceID] // a parent moved since the preview is drift too
-		result.Changes = append(result.Changes, roomsChange{DeviceID: it.DeviceID, Name: d.name, FromID: it.From, From: reg.areas[it.From], AreaID: it.To, Area: reg.areas[it.To]})
+		// Where it ends up: no own area means its parent's room, if any.
+		lands := it.To
+		if lands == "" {
+			lands = reg.effective[reg.parent[it.DeviceID]]
+		}
+		names[it.DeviceID], areaNames[it.From], areaNames[lands] = d.name, reg.areas[it.From], reg.areas[lands]
+		effective[it.DeviceID] = reg.effective[it.DeviceID] + ">" + lands // a parent moved since the preview is drift too
+		result.Changes = append(result.Changes, roomsChange{DeviceID: it.DeviceID, Name: d.name, FromID: it.From, From: reg.areas[it.From], AreaID: lands, Area: reg.areas[lands]})
 	}
 	e := newTierEngine(s)
 	e.raise(tierPreview, tierReason{Code: reasonAreaAssign, Via: roomsUndoDomain})
@@ -283,7 +289,7 @@ func executeRooms(paths runtimePaths, s *relaySession, env *verbEnvelope, req ro
 		if werr := deviceAreaWrite(s, it.DeviceID, it.To); werr != nil {
 			// back: devices known to be on their From (a rejected write, a
 			// rollback Home Assistant confirmed); failRooms reads the rest.
-			back := map[string]bool{}
+			back, stuck := map[string]bool{}, map[string]bool{} // stuck: a rollback Home Assistant refused
 			var unknown *relayOutcomeUnknownError
 			done := i
 			if errors.As(werr, &unknown) {
@@ -292,9 +298,12 @@ func executeRooms(paths runtimePaths, s *relaySession, env *verbEnvelope, req ro
 				back[it.DeviceID] = true
 			}
 			for j := done - 1; j >= 0; j-- {
-				back[req.Items[j].DeviceID] = deviceAreaWrite(s, req.Items[j].DeviceID, req.Items[j].From) == nil
+				rerr := deviceAreaWrite(s, req.Items[j].DeviceID, req.Items[j].From)
+				var lost *relayOutcomeUnknownError
+				back[req.Items[j].DeviceID] = rerr == nil
+				stuck[req.Items[j].DeviceID] = rerr != nil && !errors.As(rerr, &lost) && j < i // its own write landed
 			}
-			return failRooms(paths, s, env, req, changes, i+1, back, werr)
+			return failRooms(paths, s, env, req, changes, i+1, back, stuck, werr)
 		}
 	}
 	saveRoomsRecord(paths, s, env, req, req.Items)
@@ -315,7 +324,7 @@ func executeRooms(paths runtimePaths, s *relaySession, env *verbEnvelope, req ro
 // the result names each device still changed (when the read fails: every
 // attempted one not known to be back, possibly changed, exit 7) and the
 // undo record holds what is still to undo.
-func failRooms(paths runtimePaths, s *relaySession, env *verbEnvelope, req roomsRequest, changes []roomsChange, attempted int, back map[string]bool, cause error) error {
+func failRooms(paths runtimePaths, s *relaySession, env *verbEnvelope, req roomsRequest, changes []roomsChange, attempted int, back, stuck map[string]bool, cause error) error {
 	s.renewBudget()
 	reg, rerr := readRoomsRegistry(s, true)
 	onFrom := func(it roomsItem) bool {
@@ -343,7 +352,11 @@ func failRooms(paths runtimePaths, s *relaySession, env *verbEnvelope, req rooms
 	if req.Undo {
 		record = nil
 		for i, it := range req.Items {
-			if i >= attempted || onFrom(it) || rerr != nil || reg.devices[it.DeviceID].area != it.To {
+			atTo := reg.devices[it.DeviceID].area == it.To
+			if rerr != nil {
+				atTo = stuck[it.DeviceID]
+			}
+			if i >= attempted || onFrom(it) || !atTo {
 				record = append(record, roomsItem{DeviceID: it.DeviceID, From: it.To, To: it.From})
 			}
 		}

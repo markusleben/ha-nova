@@ -141,13 +141,16 @@ func (x *homeIndex) doorLight() (templateMatch, bool) {
 }
 
 // lightsOff: when nobody has been home for 10 minutes (zone.home counts the
-// persons in it), turn the lights off. Needs a person whose location is
-// known (one stuck at unknown keeps zone.home at 0, so it never fires) and
-// a numeric zone.home; neither is ever listed.
+// persons in it), turn the lights off. Needs persons whose locations are
+// all known (one without a location is never counted, so the lights would
+// go off while they are home) and a numeric zone.home; neither is listed.
 func (x *homeIndex) lightsOff() (templateMatch, bool) {
 	home, persons := x.state["zone.home"], 0
 	for _, id := range x.enabled {
-		if st := x.state[id]; inDomain(id, "person") && st != nil && st.State != "unknown" && st.State != "unavailable" {
+		if st := x.state[id]; inDomain(id, "person") && st != nil {
+			if st.State == "unknown" || st.State == "unavailable" {
+				return templateMatch{}, false
+			}
 			persons++
 		}
 	}
