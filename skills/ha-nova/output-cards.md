@@ -40,7 +40,7 @@ Pre-write check: no concerns.
 Save it? I can also show the details.
 ```
 
-Title line: emoji + localized preview label + item type + name. Then one to three plain sentences on what the change DOES. They must cover every collection the diff touches — each added, removed, replaced, or modified entry described by its effect, never only by count or type name; grouped entries may share a sentence, and coverage beats the three-sentence guideline. The changes block: in diff-backed skills you author only the localized header row and the literal separator — the data rows are pasted verbatim from the CLI (`ha-nova plan write` / `ha-nova diff`), never invented and never re-aligned (mechanics: `../ha-nova/write-safety.md`); skills without a CLI diff author one short planned-change row or line per changed field; file-editing skills show the changed section as a snippet instead of a table. Existing per-skill slots map into the card: identity slots (name/mode/target) fold into the title line, `Planned change` is the changes block, `Save status` is the ⚠️ line, `Options` or the one-time-code prompt closes the card. Runtime actions close with the plan's `say` (an explicit not-executed-yet line and the ask).
+Title line: emoji + localized preview label + item type + name. Then one to three plain sentences on what the change DOES. They must cover every collection the diff touches — each added, removed, replaced, or modified entry described by its effect, never only by count or type name; grouped entries may share a sentence, and coverage beats the three-sentence guideline. The changes block: in diff-backed skills you author only the localized header row and the literal separator — the data rows are pasted verbatim from the CLI (`ha-nova plan write` / `ha-nova diff`), never invented and never re-aligned (mechanics: `../ha-nova/write-safety.md`); skills without a CLI diff author one short planned-change row or line per changed field; file-editing skills show the changed section as a snippet instead of a table. Existing per-skill slots map into the card: identity slots (name/target) fold into the title line, `Planned change` is the changes block, `Save status` is the ⚠️ line, `Options` or the one-time-code prompt closes the card. Runtime actions close with the plan's `say` (an explicit not-executed-yet line and the ask).
 
 **Delete Card** (destructive — never a menu; the one-time-code prompt is always the last line):
 
@@ -114,8 +114,8 @@ Next step: add the dryer plug to the Energy dashboard for per-cycle tracking.
 
 Diagnosis specialization (diagnose, review trace analysis): the lead is the
 root cause (or ranked hypotheses); the body is the evidence chain — trace step,
-log lines, state sequence, each tied to its source and timestamp; `Next step`
-is the recommended fix plus the owning-skill handoff.
+log lines, state sequence, each tied to its source and time; `Next step`
+is the recommended fix (the handoff stays internal).
 
 Skills with their own ordered slot lists (health, history, calendar, energy,
 backup, updates, maintenance, todo, scene) keep those slots — they are Report

@@ -149,17 +149,15 @@ After reading a config, present (the bold labels below are semantic slots — lo
 
 ```
 **{Automation|Script}: {alias}**
-- **ID:** {id}
-- **Entities:** {list all entity_ids used in triggers, conditions, and actions}
 - **Triggers:** {short description of each trigger}
 - **Conditions:** {short description or "none"}
 - **Actions:** {short description of each action, grouped by trigger if applicable}
-- **Mode:** {single|restart|queued|parallel}
+- **Mode:** {only if not `single`, in plain words}
 ```
 
 Explain mode: lead with the behavior narrative; offer the YAML instead of dumping it unless the user also asked for it.
 
-Otherwise show the full YAML config:
+The full YAML only when the user asks for the config or YAML:
 
 ```yaml
 alias: ...
@@ -212,7 +210,7 @@ Manual relay path:
    ha-nova relay jq --file <result-file> empty
    ```
    Read the file with your native file-reading tool.
-4. Summarize timestamp, trigger, conditions, actions, and result.
+4. Summarize when it ran, trigger, conditions, actions, and result.
 5. Treat trace config as historical; compare current config separately.
 6. If traces do not cover the relevant period, optionally check `last_changed` via `/api/states/{entity_id}`.
 7. Before presenting conclusions, verify `item_id` in trace data matches the target's `unique_id`. see `../ha-nova/SKILL.md` → Claim-Evidence Binding.

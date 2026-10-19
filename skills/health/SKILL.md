@@ -177,7 +177,7 @@ pair `🔴`/`🟠`/`🟡` with a plain-language title or status ("act", "check",
   never from an entity name. Render the four classes separately;
   do not imply a battery replacement unless the entity is clearly a device battery — never recommend replacement for a phone/watch; never call vehicle SOC 0% a Home Assistant failure without connection context.
 - **System and coverage stay compact and honest.** System health: failed object-shaped `update` events first, then max 3 object-shaped `initial.data` highlights; ignore scalars and `finish`. System: HA version/mode,
-  loaded component count, explicit system-health failures, storage/DB signals
+  explicit system-health failures, storage/DB signals
   (neutral unless a documented threshold or trend supports an assessment); do
   not expose the installation/location name. Coverage sits near the end:
   each source available/limited/unavailable plus exact registry join

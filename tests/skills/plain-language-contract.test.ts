@@ -22,6 +22,23 @@ describe("plain-language output rules", () => {
     expect(rules).toContain("Say each fact once per answer.");
   });
 
+  // F2 (0.27 regression lane, Sonnet DE): ids, attributes, mode, UTC times,
+  // the Relay address, a backup file name, and HTTP/WebSocket text leaked.
+  it("keeps technical details, UTC times, and failure internals out", () => {
+    expect(rules).toContain("- No technical details: ids (`light.bed_light`) only for a missing or shared name; no attribute keys or modes (`supported_features: 0`, `single`), service names, your own commands, Relay or HA URLs, snapshot file names, or protocol errors (HTTP 502) — say what they mean. Diff rows stay verbatim.");
+    expect(rules).toContain('- Times: relative ("10 minutes ago") or in HA\'s time zone, never UTC.');
+    expect(rules).toContain("- A failure: what did not work and why, plainly; whether anything changed (or unknown); next step or the skill's choices; details only when asked.");
+    // The licenses the leaks cited are gone.
+    expect(rules).not.toContain("only for safety or evidence");
+    expect(rules).not.toContain("identifiers literal when they are evidence");
+    expect(flat(readFileSync("skills/ha-nova/write-safety.md", "utf8"))).not.toContain("name/alias and `entity_id`");
+    expect(readFileSync("skills/ha-nova/output-cards.md", "utf8")).not.toContain("name/mode/target");
+    expect(flat(readFileSync("skills/write/SKILL.md", "utf8"))).toContain("mode only if not `single`; ids and the full config only when asked.");
+    expect(flat(readFileSync("skills/home-map/SKILL.md", "utf8"))).toContain(
+      "Leave out the `entities`, `entities_disabled`, `domains`, and `integrations` numbers (no row, no aside) unless asked.",
+    );
+  });
+
   it("never hands the user a command except the setup step", () => {
     // "ask user to run: `x`", "have the user run `x`", "the user runs `x`".
     const userRuns = /\b(?:user|them)(?: to)? runs?:? `([^`]+)`/g;

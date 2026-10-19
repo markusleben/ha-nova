@@ -150,7 +150,7 @@ While `truncated` is true the list proves neither absence nor uniqueness — nar
 2. Preview with stable localized slots (see `../ha-nova/write-safety.md` → Output hygiene — no raw internal id):
    - name
    - type
-   - entity_id
+   - entity_id only when the name is missing or shared
 3. One-time code (strict: only the exact code accepted; see context skill → Safety Baseline).
 4. Capture the auto config snapshot of the current list item first (`../ha-nova/config-snapshots.md`; on capture failure follow its capture-failure stop). Say in the result that a recreate from it mints a new entity_id.
 5. Execute:
@@ -248,12 +248,10 @@ If multiple matches remain, present max 5 candidates and ask one blocking questi
 7. Present:
 
 ```text
-**Helper: {title}** (config-entry `{domain}`)
-- **Entry ID:** {entry_id}
+**Helper: {title}** ({type})
 - **Config-entry state:** {state}
 - **Linked entities:** {linked_entities summary}
 - **Supports options-flow editing:** {yes/no}
-- **Current flow step:** {step_id or "metadata-only fallback"}
 - **Current editable fields:** {field summary from the current options step when available}
 ```
 
@@ -448,9 +446,6 @@ After reading a helper config, present:
 
 ```text
 **Helper: {name}** ({type})
-- **Entity ID:** {entity_id}
-- **Unique ID:** {id}
-- **Icon:** {icon}
 - {type-specific fields}
 ```
 
@@ -466,12 +461,10 @@ For list operations, render the List Frame (output-cards.md):
 After reading a helper config, present:
 
 ```text
-**Helper: {title}** (config-entry `{domain}`)
-- **Entry ID:** {entry_id}
+**Helper: {title}** ({type})
 - **Config-entry state:** {state}
 - **Linked entities:** {linked_entities}
 - **Supports options-flow editing:** {yes/no}
-- **Current flow step:** {step_id or "metadata-only fallback"}
 - **Current editable fields:** {field summary from the current options step when available}
 ```
 

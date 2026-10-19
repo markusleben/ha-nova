@@ -25,7 +25,7 @@ for. Never surface internal bookkeeping in that user-facing write text:
 
 - no internal check codes (S/R/P/M/F/H, R-18, …);
 - no raw numeric config-id / `target_id` — it is an internal handle; identify the
-  item by its name/alias and `entity_id`, not by its number;
+  item by its name/alias, not by its number;
 - no `bp_status`, "best-practice snapshot", "baseline", or cache wording.
 
 Best-practice freshness (`bp_status`) is an **internal gate input only**:

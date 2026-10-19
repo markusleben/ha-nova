@@ -96,7 +96,7 @@ the user just decides informed.
 
 ## Restore (always through the family's own write path)
 
-1. `list` → resolve the snapshot (ask when ambiguous; show age + name).
+1. `list` → resolve the snapshot (ask when ambiguous; show age + the item's name).
 2. `load` → treat `data` as the restore draft.
 3. Diff against the LIVE state (`ha-nova diff` where the family supports it),
    preview, and confirm — a restore is a normal write, never a blind put.

@@ -394,7 +394,7 @@ Exception: if a maintainer-provided release-validation or machine-check prompt e
 For resolved automation/script/helper targets `== 1`, keep this 8-section output in the same order every time (scene/dashboard targets omit skipped sections per Target Resolution):
 
 **Section 1 — Review target:**
-- domain (automation / script / helper) and target entity_id
+- item type (automation / script / helper) and name
 
 **Section 2 — Findings:**
 - numbered list or "no issues found"
@@ -413,7 +413,7 @@ For resolved automation/script/helper targets `== 1`, keep this 8-section output
 
 **Section 4 — Conflicts:**
 - numbered conflicts or localized equivalent of "No conflicts found."
-- each: entity_id, what this automation does vs what the other does, risk description
+- each: the other item's name, what this automation does vs what the other does, risk description
 - 🔴 = real conflict, 🟠 = potential, 🟡 = info (safe pattern)
 
 **Section 5 — Questions to consider:**

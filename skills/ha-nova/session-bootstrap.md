@@ -24,7 +24,7 @@ Cited ../<x>/<file> paths are relative to the citing file.
 
 After the requested result, surface an available HA NOVA update exactly once
 per session as a separate localized callout: installed → latest version, up to three supplied highlight lines, the supplied release URL, and
-an offer to run `ha-nova update`. Never update without
+an offer to update. Never update without
 consent. After a successful `ha-nova update`, tell the
 user to start a new AI-client session.
 
@@ -35,7 +35,7 @@ server profile as a separate localized callout:
 
 - NOVA Relay App: name the supplied installed and available
   versions, say the Relay restarts, and ask whether to prepare the guided
-  update. A yes only invokes `ha-nova:updates`; that skill must
+  update. A yes only invokes `ha-nova:updates`, which must
   show its App-update preview and obtain
   confirmation before installing with a partial backup.
 - A standalone Container/Core Relay gets no guided install: point to the
