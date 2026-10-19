@@ -20,8 +20,8 @@ type setupFirstLook struct {
 	Lock *firstSeed
 }
 
-var setupFirstLookRead = func(paths runtimePaths) (setupFirstLook, error) {
-	s, err := newRelaySessionWithin(paths, verbOptions{}, setupFirstLookBudget)
+var setupFirstLookRead = func(paths runtimePaths, budget time.Duration) (setupFirstLook, error) {
+	s, err := newRelaySessionWithin(paths, verbOptions{}, budget)
 	if err != nil {
 		return setupFirstLook{}, err
 	}
@@ -60,7 +60,10 @@ func (x *homeIndex) codeSeed() (firstSeed, bool) {
 
 // loadSetupFirstLook returns nil when the first look is not available. A
 // read that outlives the backstop is abandoned; setup exits right after.
+// The hook and budget are copied before the goroutine starts, so resetting
+// them never races an abandoned read (the real read still loads config).
 func loadSetupFirstLook(out io.Writer, paths runtimePaths) *setupFirstLook {
+	read, budget := setupFirstLookRead, setupFirstLookBudget
 	done := make(chan *setupFirstLook, 1)
 	go func() {
 		defer func() {
@@ -68,7 +71,7 @@ func loadSetupFirstLook(out io.Writer, paths runtimePaths) *setupFirstLook {
 				done <- nil
 			}
 		}()
-		look, err := setupFirstLookRead(paths)
+		look, err := read(paths, budget)
 		if err != nil {
 			done <- nil
 			return
@@ -81,7 +84,7 @@ func loadSetupFirstLook(out io.Writer, paths runtimePaths) *setupFirstLook {
 		select {
 		case look := <-done:
 			return look, nil
-		case <-time.After(setupFirstLookBudget + time.Second):
+		case <-time.After(budget + time.Second):
 			return nil, nil
 		}
 	}

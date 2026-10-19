@@ -147,6 +147,12 @@ jobs:
           GOOS=linux GOARCH=amd64 go build -o /dev/null .
           GOOS=linux GOARCH=arm64 go build -o /dev/null .
 
+      # Setup and the confirm lanes (window, phone, both) run work in
+      # goroutines with timeouts; the full package under -race takes ~5 min,
+      # this slice ~2 min.
+      - name: Race detector (setup and confirm)
+        run: cd cli && go test -race -count=1 -run 'Setup|Confirm|Phone|Window|BothAsk|LegacyPin|SlowDiscovery' .
+
   macos-native-secret-boundary:
     name: macos-native-secret-boundary
     needs: test-inventory
