@@ -1,16 +1,27 @@
 """ha_nova: discovery-only setup and the /api/ha_nova/mcp pass-through."""
 
 import asyncio
+from datetime import timedelta
 import logging
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, MagicMock, patch
+import uuid as uuidlib
+
+from aiohasupervisor import SupervisorError
+from aiohasupervisor.models import Discovery
+import aiohttp
 
 from aiohttp import web
 from aiohttp.test_utils import TestServer
 import pytest
 
+from homeassistant.components.hassio import discovery as hassio_discovery
+from homeassistant.components.http.auth import async_sign_path
 from homeassistant.config_entries import SOURCE_HASSIO, ConfigEntryState
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
 from homeassistant.helpers.service_info.hassio import HassioServiceInfo
+from homeassistant.setup import async_setup_component
 
 DOMAIN = "ha_nova"
 URL = "/api/ha_nova/mcp"
@@ -145,7 +156,7 @@ async def test_post_passes_through_with_the_secret_and_the_authenticated_user(
     client = await hass_client()
     body = b'{"jsonrpc":"2.0","id":1,"method":"tools/list"}' + b" " * 300_000
     response = await client.post(
-        URL + "?authSig=x&q=1",
+        URL + "?q=1&token=x",
         data=body,
         headers={
             "Content-Type": "application/json",
@@ -211,9 +222,11 @@ async def test_a_stream_passes_chunk_by_chunk(hass: HomeAssistant, bridge: Bridg
     client = await hass_client()
     response = await client.post(URL, data=b"{}")
     assert response.headers["Content-Type"] == "text/event-stream"
-    first = await asyncio.wait_for(response.content.readuntil(b"\n\n"), 5)
-    assert first == b"data: one\n\n"
-    release.set()
+    try:
+        first = await asyncio.wait_for(response.content.readuntil(b"\n\n"), 5)
+        assert first == b"data: one\n\n"
+    finally:
+        release.set()
     assert await response.content.read() == b"data: two\n\n"
 
 
@@ -249,8 +262,6 @@ async def test_a_stopped_bridge_is_a_readable_502(hass: HomeAssistant, bridge: B
 async def test_a_silent_bridge_is_a_readable_504(
     hass: HomeAssistant, bridge: Bridge, hass_client, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    import aiohttp  # noqa: PLC0415
-
     from custom_components import ha_nova  # noqa: PLC0415
 
     monkeypatch.setattr(ha_nova, "_TIMEOUT", aiohttp.ClientTimeout(total=None, sock_read=0.2))
@@ -279,3 +290,81 @@ async def test_unload_and_remove(hass: HomeAssistant, bridge: Bridge, hass_clien
     assert hass.config_entries.async_entries(DOMAIN) == []
     assert (await client.post(URL, data=b"{}")).status == 404
     assert bridge.seen == []
+
+
+async def test_a_notification_gets_the_bridges_empty_202(hass: HomeAssistant, bridge: Bridge, hass_client) -> None:
+    async def accepted(request: web.Request) -> web.StreamResponse:
+        return web.Response(status=202)
+
+    bridge.answer = accepted
+    client = await hass_client()
+    response = await client.post(URL, data=b'{"jsonrpc":"2.0","method":"notifications/initialized"}')
+    assert (response.status, await response.read()) == (202, b"")
+
+
+async def test_a_cut_stream_is_a_broken_transfer(hass: HomeAssistant, bridge: Bridge, hass_client) -> None:
+    async def dies(request: web.Request) -> web.StreamResponse:
+        response = web.StreamResponse(headers={"Content-Type": "text/event-stream"})
+        await response.prepare(request)
+        await response.write(b"data: one\n\n")
+        request.transport.abort()
+        return response
+
+    bridge.answer = dies
+    client = await hass_client()
+    response = await client.post(URL, data=b"{}")
+    with pytest.raises(aiohttp.ClientPayloadError):
+        await response.read()
+
+
+async def test_home_assistants_own_users_are_refused(
+    hass: HomeAssistant, bridge: Bridge, hass_client, hass_supervisor_access_token: str
+) -> None:
+    client = await hass_client(hass_supervisor_access_token)
+    response = await client.post(URL, data=b"{}")
+    assert response.status == 403
+    assert bridge.seen == []
+
+
+async def test_a_signed_path_is_no_chat_app_sign_in(
+    hass: HomeAssistant, bridge: Bridge, hass_client_no_auth, hass_access_token: str
+) -> None:
+    token = hass.auth.async_validate_access_token(hass_access_token)
+    signed = async_sign_path(hass, URL, timedelta(minutes=1), refresh_token_id=token.id)
+    client = await hass_client_no_auth()
+    response = await client.get(signed)
+    assert response.status == 401
+    assert bridge.seen == []
+
+
+async def test_home_assistants_discovery_adds_rediscovers_and_removes_the_entry(hass: HomeAssistant) -> None:
+    """Drives components/hassio/discovery.py itself; only Supervisor is mocked."""
+    await async_setup_component(hass, "http", {})
+    message = Discovery(
+        addon=SLUG,
+        service=DOMAIN,
+        uuid=uuidlib.UUID(UUID),
+        config={"host": "a0d7b954-ha-nova-relay", "port": 8794, "secret": SECRET},
+    )
+    supervisor = MagicMock()
+    supervisor.addons.addon_info = AsyncMock(return_value=SimpleNamespace(name="HA NOVA"))
+    supervisor.discovery.get = AsyncMock(return_value=message)
+    with patch.object(hassio_discovery, "get_supervisor_client", return_value=supervisor):
+        hassio_discovery.async_setup_discovery_view(hass)
+        view = hassio_discovery.HassIODiscovery(hass)
+
+        await view.async_process_new(message)
+        await hass.async_block_till_done()
+        [entry] = hass.config_entries.async_entries(DOMAIN)
+        assert (entry.unique_id, entry.data["host"]) == (UUID, "a0d7b954-ha-nova-relay")
+
+        # Removing only the entry: Home Assistant re-discovers the message.
+        await hass.config_entries.async_remove(entry.entry_id)
+        await hass.async_block_till_done()
+        [entry] = hass.config_entries.async_entries(DOMAIN)
+
+        # The App deletes the message (chat apps off): the entry goes for good.
+        supervisor.discovery.get = AsyncMock(side_effect=SupervisorError())
+        await view.async_process_del({"service": DOMAIN, "uuid": UUID})
+        await hass.async_block_till_done()
+        assert hass.config_entries.async_entries(DOMAIN) == []

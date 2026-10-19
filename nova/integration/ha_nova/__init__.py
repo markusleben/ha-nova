@@ -15,7 +15,7 @@ from aiohttp import web
 from homeassistant.components.http import KEY_HASS_USER, HomeAssistantView
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.helpers.aiohttp_client import async_create_clientsession
 from homeassistant.helpers.typing import ConfigType
 
 from .config_flow import DOMAIN
@@ -33,7 +33,10 @@ _TIMEOUT = aiohttp.ClientTimeout(total=None, sock_connect=10, sock_read=150)
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     """Register the view once; it answers only while an entry is loaded."""
-    hass.http.register_view(HaNovaView(hass))
+    # Own session without a cookie jar: nothing from one user's exchange
+    # (a Set-Cookie) may ride along on another user's request.
+    session = async_create_clientsession(hass, cookie_jar=aiohttp.DummyCookieJar())
+    hass.http.register_view(HaNovaView(hass, session))
     return True
 
 
@@ -59,9 +62,10 @@ class HaNovaView(HomeAssistantView):
     name = "api:ha_nova:mcp"
     requires_auth = True
 
-    def __init__(self, hass: HomeAssistant) -> None:
+    def __init__(self, hass: HomeAssistant, session: aiohttp.ClientSession) -> None:
         """Keep hass for the entry lookup."""
         self.hass = hass
+        self.session = session
 
     async def post(self, request: web.Request) -> web.StreamResponse:
         """Pass a JSON-RPC message on."""
@@ -81,8 +85,16 @@ class HaNovaView(HomeAssistantView):
             return self.json_message("Not found", HTTPStatus.NOT_FOUND)
         bridge = entries[0].data
         user = request.get(KEY_HASS_USER)
-        if user is None:
+        # A signed path (authSig) is a link anyone holding it can open: no
+        # chat-app sign-in. Users Home Assistant made for itself (Supervisor,
+        # content) are nobody's chat app.
+        if user is None or "authSig" in request.query:
             return self.json_message("Unauthorized", HTTPStatus.UNAUTHORIZED)
+        if user.system_generated:
+            return self.json_message(
+                "This Home Assistant user can't use HA NOVA in chat apps.",
+                HTTPStatus.FORBIDDEN,
+            )
 
         headers = [
             (name, value)
@@ -92,15 +104,19 @@ class HaNovaView(HomeAssistantView):
         headers.append(("Authorization", f"Bearer {bridge['secret']}"))
         headers.append(("X-HA-User-Id", user.id))
 
-        session = async_get_clientsession(self.hass)
         try:
-            upstream = await session.request(
+            upstream = await self.session.request(
                 request.method,
                 f"http://{bridge['host']}:{bridge['port']}/mcp",
                 headers=headers,
                 data=request.content if request.body_exists else None,
                 allow_redirects=False,
                 timeout=_TIMEOUT,
+            )
+        except aiohttp.ConnectionTimeoutError:
+            return self.json_message(
+                "HA NOVA is not reachable. Check that the NOVA App is running.",
+                HTTPStatus.BAD_GATEWAY,
             )
         except TimeoutError:
             return self.json_message(
@@ -138,6 +154,9 @@ class HaNovaView(HomeAssistantView):
                     await response.write(chunk)
                 await response.write_eof()
             except (TimeoutError, aiohttp.ClientError, ConnectionResetError) as err:
-                # Headers are sent; all that is left is to end the stream.
+                # The status is sent: cut the connection, so the client sees
+                # a broken transfer, never a short answer that looks whole.
                 _LOGGER.debug("HA NOVA stream ended early: %s", type(err).__name__)
+                if request.transport is not None:
+                    request.transport.abort()
             return response

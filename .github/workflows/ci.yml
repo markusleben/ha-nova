@@ -101,9 +101,18 @@ jobs:
   ci-gate:
     name: ci-gate
     needs: [test-inventory, ha-integration]
+    # A skipped required check counts as passed: always run, and fail here
+    # when a needed job did not succeed.
+    if: ${{ always() }}
     runs-on: ubuntu-latest
 
     steps:
+      - name: Require the needed jobs
+        if: ${{ needs.test-inventory.result != 'success' || needs.ha-integration.result != 'success' }}
+        run: |
+          echo "::error::test-inventory=${{ needs.test-inventory.result }} ha-integration=${{ needs.ha-integration.result }}"
+          exit 1
+
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

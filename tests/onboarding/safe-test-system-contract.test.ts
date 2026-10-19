@@ -265,6 +265,14 @@ describe("safe test system contract", () => {
 
     // ci-gate (the required check) also waits for the ha_nova integration tests.
     expect(ci.jobs["ci-gate"]?.needs).toEqual(["test-inventory", "ha-integration"]);
+    // A skipped required check counts as passed: ci-gate always runs and fails
+    // first thing unless both needed jobs succeeded.
+    expect(ci.jobs["ci-gate"]?.if).toBe("${{ always() }}");
+    expect(ciGateSteps[0]).toMatchObject({
+      name: "Require the needed jobs",
+      if: "${{ needs.test-inventory.result != 'success' || needs.ha-integration.result != 'success' }}",
+    });
+    expect(ciGateSteps[0]?.run).toContain("exit 1");
     expect(ci.jobs["ha-integration"]?.if).toBeUndefined();
     expect(ci.jobs["ha-integration"]?.["continue-on-error"]).toBeUndefined();
     for (const job of [
