@@ -25,7 +25,8 @@ func (f *setupFlow) stepClient() setupStepResult {
 }
 
 func (f *setupFlow) stepSecureStorageRecovery() setupStepResult {
-	result, err := runSetupSecureStorageRecoveryFlow(f.ui.reader, f.ui.out, f.tokenStoragePreflightErr, &f.secureStorageRecovery, setupSecureStorageRecoveryInitialAttempt)
+	f.textOnly()
+	result, err := runSetupSecureStorageRecoveryFlow(f.ui.termIn(), f.ui.termOut(), f.tokenStoragePreflightErr, &f.secureStorageRecovery, setupSecureStorageRecoveryInitialAttempt)
 	if err == errSetupBack {
 		if f.promptedClient {
 			return setupGoTo(setupStepClient)
@@ -89,9 +90,9 @@ func (f *setupFlow) stepHost() setupStepResult {
 		// discovery window re-confirming it or offer it back as the
 		// press-Enter default.
 		f.ui.show(setupView{Blocks: []setupBlock{setupParagraph(setupText("setup.host.saved_unusable", "url", f.cfg.HAURL))}})
-		host, haURL, err = promptValidHAHostFromReader(f.ui.reader, f.ui.out, "")
+		host, haURL, err = promptValidHAHostFromReader(f.ui.termIn(), f.ui.termOut(), "")
 	} else {
-		candidate, selected, discoveryErr := selectDefaultHAHostWithFeedback(f.ui.reader, f.ui.out, f.cfg)
+		candidate, selected, discoveryErr := selectDefaultHAHostWithFeedback(f.ui.termIn(), f.ui.termOut(), f.cfg)
 		switch {
 		case discoveryErr != nil:
 			err = discoveryErr
@@ -99,7 +100,7 @@ func (f *setupFlow) stepHost() setupStepResult {
 			host = candidate.Host
 			haURL = candidate.HAURL
 		default:
-			host, haURL, err = promptValidHAHostFromReader(f.ui.reader, f.ui.out, candidate.Host)
+			host, haURL, err = promptValidHAHostFromReader(f.ui.termIn(), f.ui.termOut(), candidate.Host)
 		}
 	}
 	if err == errSetupBack {
@@ -167,13 +168,13 @@ func (f *setupFlow) stepRelayInstall() setupStepResult {
 	}
 	skipInstall := false
 	if f.detectRelayOnInstall && pairAfterInstall {
-		skipInstall, f.relaySkipNote = detectInstalledRelay(f.ui.out, f.paths, f.cfg, f.relayURLFlag)
+		skipInstall, f.relaySkipNote = detectInstalledRelay(f.ui.termOut(), f.paths, f.cfg, f.relayURLFlag)
 	}
 	f.detectRelayOnInstall = false
 	if !skipInstall {
 		f.relaySkipNote = setupMsg{}
 		f.ui.show(setupView{Progress: &setupProgress{Step: steps.RelayInstall, Total: steps.Total, Title: setupText("setup.step.install_app")}})
-		note, err := runRelayInstallSteps(f.ui.reader, f.ui.out, f.paths, f.cfg, pairAfterInstall)
+		note, err := runRelayInstallSteps(f.ui.termIn(), f.ui.termOut(), f.paths, f.cfg, pairAfterInstall)
 		f.relaySkipNote = note
 		if err == errSetupBack {
 			return setupGoTo(setupStepHost)
@@ -222,7 +223,7 @@ func (f *setupFlow) stepPairing() setupStepResult {
 		// stay untouched.
 		forceDeviceCredentialFileMode()
 	}
-	pairedToken, err := runSetupPairingFlow(f.ui.reader, f.ui.out, f.paths, &f.cfg, f.legacyTokenStoreUnavailable, f.lifecycleMarker...)
+	pairedToken, err := runSetupPairingFlow(f.ui.termIn(), f.ui.termOut(), f.paths, &f.cfg, f.legacyTokenStoreUnavailable, f.lifecycleMarker...)
 	switch {
 	case err == errSetupBack:
 		return setupGoTo(f.pairingBackStep)
@@ -234,6 +235,10 @@ func (f *setupFlow) stepPairing() setupStepResult {
 		return setupGoTo(setupStepToken)
 	case err == errSetupExit:
 		return f.cancelled()
+	case err == errSetupPairingOnPage:
+		f.page.failRunningRows()
+		f.pageProblem = setupPageText("setup.page.problem.pairing")
+		return setupGoTo(setupStepHost)
 	case err == errSetupDevicePaired:
 		// Secure v1 pairing already stored the device credential and the
 		// secure endpoint in the config; there is no relay token to keep,

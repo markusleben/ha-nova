@@ -116,7 +116,8 @@ func outdatedRelayNote(version, minimum string) setupMsg {
 // outdated-App reminder for the pairing step. It returns the prompt's
 // errSetupBack/errSetupExit unchanged for the caller's navigation.
 func runRelayInstallSteps(reader *bufio.Reader, out io.Writer, paths runtimePaths, cfg runtimeConfig, pairNext bool) (note setupMsg, err error) {
-	if pairNext && haAppInstallOffered(out, cfg) {
+	// After the page's "Use a six-digit code" the sign-in isn't offered again.
+	if pairNext && !setupPairWithCode && haAppInstallOffered(out, cfg) {
 		running, version := probeInstalledRelayForSetup(cfg.RelayBaseURL)
 		minimum := ""
 		if running {

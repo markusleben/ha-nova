@@ -33,11 +33,14 @@ var (
 // machine), and this build installs the official App (developer builds run a
 // local App).
 func defaultHAAppInstallOffered(out io.Writer, cfg runtimeConfig) bool {
+	return haAppInstallTargetsThisHA(cfg) && haSignInPossible(out, cfg)
+}
+
+func haAppInstallTargetsThisHA(cfg runtimeConfig) bool {
 	derived := strings.TrimRight(deriveRelayURLFromHA(cfg.HAURL, cfg.HAHost), "/")
 	slug, err := selectedCloudNOVAAppSlug()
 	return err == nil && slug == HAOfficialNOVAAppSlug && derived != "" &&
-		strings.TrimRight(strings.TrimSpace(cfg.RelayBaseURL), "/") == derived &&
-		haSignInPossible(out, cfg)
+		strings.TrimRight(strings.TrimSpace(cfg.RelayBaseURL), "/") == derived
 }
 
 type appInstallResult int

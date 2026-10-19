@@ -75,6 +75,11 @@ func openBrowser(url string) error {
 	case "windows":
 		return exec.Command("rundll32", "url.dll,FileProtocolHandler", url).Start()
 	default:
+		if os.Getenv("WSL_DISTRO_NAME") != "" { // WSL: the browser runs on Windows
+			if wslview, err := exec.LookPath("wslview"); err == nil {
+				return exec.Command(wslview, url).Start()
+			}
+		}
 		return exec.Command("xdg-open", url).Start()
 	}
 }

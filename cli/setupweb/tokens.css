@@ -1,0 +1,16 @@
+/* Copied verbatim from ha-nova-site styles.css :root at commit 0a0c1d9 (spec §4.1).
+   Keep in sync with the site (spec §4.1); change the site first. */
+
+:root {
+  --bg-0: #0A0E1A;
+  --bg-1: #0D1525;
+  --bg-2: #0A1628;
+  --ink: #E8EDF2;
+  --ink-soft: #B8CCE0;
+  --cyan: #18BCF2;
+  --amber: #FFB347;
+  --hairline: rgba(184, 204, 224, 0.16);
+  --panel: rgba(13, 21, 37, 0.6);
+  --measure: 62ch;
+  --ease-rise: cubic-bezier(0.16, 1, 0.3, 1);
+}

@@ -127,7 +127,7 @@ func promptSetupClientInteractive(reader *bufio.Reader, out io.Writer, choices [
 
 // chooseSetupClient asks for the AI client; with none available it lists
 // them, says what to install, and returns errSetupClientPrerequisite.
-func chooseSetupClient(ui setupTextUI, choices []setupClientChoice, defaultClient string) (string, error) {
+func chooseSetupClient(ui setupUI, choices []setupClientChoice, defaultClient string) (string, error) {
 	if len(choices) == 0 {
 		return "", errors.New(setupT("setup.clients.none_registered"))
 	}

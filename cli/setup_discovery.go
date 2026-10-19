@@ -29,6 +29,10 @@ const setupDiscoveryMaxCandidateCount = 12
 
 var setupDiscoveryMaxProbeTimeout = 3 * time.Second
 
+// setupDiscoveryWithoutMDNS: the setup page on Windows skips the mDNS search
+// and asks the system resolver for homeassistant.local (spec §4.3).
+var setupDiscoveryWithoutMDNS bool
+
 type setupDiscoveryCandidate struct {
 	Host   string
 	HAURL  string
@@ -210,6 +214,10 @@ func collectDiscoveryProbes(cfg runtimeConfig) []setupDiscoveryProbe {
 	appendUnique(setupDiscoveryProbe{Host: cfg.HAHost, Source: "saved Home Assistant address"})
 	appendUnique(setupDiscoveryProbe{Host: cfg.HAURL, Source: "saved Home Assistant address"})
 	appendUnique(setupDiscoveryProbe{Host: normalizeHostInput(cfg.RelayBaseURL), Source: "saved Relay address"})
+	if setupDiscoveryWithoutMDNS {
+		appendUnique(setupDiscoveryProbe{Host: "homeassistant.local", Source: "Home Assistant's default name"})
+		return candidates
+	}
 	for _, discovered := range discoverHAViaMDNSForDiscovery() {
 		// Pass the whole probe through — flattening to (Host, Source) would
 		// drop the advertised-.local Via the add-server filter relies on.
