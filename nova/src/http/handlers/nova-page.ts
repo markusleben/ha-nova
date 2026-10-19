@@ -168,7 +168,7 @@ export function createNovaActionHandler(deps: NovaPageDeps): RouteHandler {
           action,
           error: error instanceof Error ? error.message : String(error),
         });
-        errCode = CHAT_ACTIONS.has(action as NovaAction) ? (error instanceof ChatAppsError && error.code === "HA_CONFIG_INVALID" ? "chat_config" : "chat") : "1";
+        errCode = CHAT_ACTIONS.has(action as NovaAction) ? chatErrorCode(error) : "1";
       }
     }
 
@@ -235,6 +235,12 @@ async function applyAction(deps: NovaPageDeps, action: NovaAction, form: Record<
       deps.resetRegistry?.();
       return false;
   }
+}
+
+// One plain line per refusal the owner can act on (nova-page-view.ts).
+function chatErrorCode(error: unknown): string {
+  const code = error instanceof ChatAppsError ? error.code : "";
+  return code === "HA_CONFIG_INVALID" ? "chat_config" : code === "HA_TOO_OLD" ? "chat_old" : code.startsWith("CONFIG_") ? "chat_folder" : "chat";
 }
 
 async function safeUpdate(deps: NovaPageDeps): Promise<UpdateStatus> {

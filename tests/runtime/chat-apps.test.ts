@@ -30,8 +30,10 @@ let supervisor: Server;
 let base: string;
 let discovery: Map<string, Record<string, unknown>>;
 let deleteStatus: number;
+let postStatus: number;
 let components: string[];
 let configValid: boolean;
+let haVersion: string;
 let coreCalls: string[];
 let spawned: { args: string[]; env: NodeJS.ProcessEnv; child: FakeChild }[];
 
@@ -49,8 +51,10 @@ beforeEach(async () => {
   registry = openDeviceRegistry(join(root, "data"));
   discovery = new Map();
   deleteStatus = 200;
+  postStatus = 200;
   components = ["http"];
   configValid = true;
+  haVersion = "2026.10.1";
   coreCalls = [];
   spawned = [];
   supervisor = createServer((request, response) => {
@@ -64,6 +68,7 @@ beforeEach(async () => {
       if (request.headers.authorization !== "Bearer sup-token") return reply(401, {});
       if (request.method === "GET" && request.url === "/addons/self/info") return reply(200, { version: "0.11.0", hostname: "abcd1234-ha-nova-relay" });
       if (request.method === "POST" && request.url === "/discovery") {
+        if (postStatus !== 200) return reply(postStatus, {});
         discovery.set(UUID, JSON.parse(body) as Record<string, unknown>); // one message per App and service
         return reply(200, { uuid: UUID });
       }
@@ -98,7 +103,7 @@ function chatApps(overrides: Partial<ChatAppsDeps> = {}): ChatApps {
     core: {
       request: async (input: CoreProxyRequest) => {
         coreCalls.push(`${input.method} ${input.path}`);
-        if (input.path === "/api/config") return { status: 200, body: { components } };
+        if (input.path === "/api/config") return { status: 200, body: { components, version: haVersion } };
         if (input.path === "/api/config/core/check_config") return { status: 200, body: { result: configValid ? "valid" : "invalid" } };
         return { status: 200, body: [] };
       },
@@ -204,6 +209,36 @@ describe("chat apps: turning on and off", () => {
     expect(spawned.every((s) => s.child.killed === "SIGTERM")).toBe(true);
   });
 
+  it("stays off after a failed turn-on, so [Try again] turns on again", async () => {
+    postStatus = 403; // e.g. config.yaml without discovery: [ha_nova]
+    const apps = chatApps();
+    await expect(apps.turnOn(true)).rejects.toThrow(/403/);
+    expect(apps.status(OWNER)).toMatchObject({ enabled: false });
+    expect(spawned[0]!.child.killed).toBe("SIGTERM");
+    postStatus = 200;
+    expect(await apps.turnOn(true)).toEqual({ restart: true });
+    expect(apps.status(OWNER).enabled).toBe(true);
+  });
+
+  it("refuses Home Assistant before 2026.10 before it changes anything", async () => {
+    haVersion = "2026.9.3";
+    await expect(chatApps().turnOn(true)).rejects.toMatchObject({ code: "HA_TOO_OLD" });
+    expect(existsSync(data())).toBe(false);
+  });
+
+  it("revokes the bridge first, even when the folder can't be removed", async () => {
+    const apps = chatApps();
+    await apps.turnOn(true);
+    const bridgeId = apps.bridgeDeviceId();
+    rmSync(join(root, "config", "custom_components"), { recursive: true });
+    writeFileSync(join(root, "config", "custom_components"), "not a folder");
+    await expect(apps.turnOff()).rejects.toMatchObject({ code: "CONFIG_UNSAFE" });
+    expect(registry.list().some((d) => d.deviceId === bridgeId)).toBe(false);
+    expect(existsSync(data("secret"))).toBe(false);
+    expect(discovery.size).toBe(0);
+    expect(apps.status(OWNER)).toMatchObject({ enabled: false, unfinished: true });
+  });
+
   it("keeps an unfinished turn-off visible and finishes it on retry", async () => {
     const apps = chatApps();
     await apps.turnOn(true);
@@ -257,6 +292,24 @@ describe("chat apps: across App restarts", () => {
     await restarted.turnOff();
     await restarted.turnOn(true);
     expect(secretOf()).not.toBe(secret); // only off and on changes it
+  });
+
+  it("never lets a boot resume undo a turn-off, and survives a damaged state file", async () => {
+    await chatApps().turnOn(true);
+    const restarted = chatApps();
+    await Promise.all([restarted.boot(), restarted.turnOff()]);
+    expect(restarted.status(OWNER)).toMatchObject({ enabled: false, unfinished: false });
+    expect(discovery.size).toBe(0);
+    writeFileSync(data("state.json"), "{broken");
+    await expect(chatApps().boot()).resolves.toBeUndefined();
+  });
+
+  it("rewrites the pin for a new TLS identity and keeps the credential", async () => {
+    await chatApps().turnOn(true);
+    const before = JSON.parse(readFileSync(data("relay.json"), "utf8")) as Record<string, string>;
+    await chatApps({ spkiPin: "q".repeat(43) }).boot();
+    const after = JSON.parse(readFileSync(data("relay.json"), "utf8")) as Record<string, string>;
+    expect(after).toEqual({ ...before, spki_pin: "q".repeat(43) });
   });
 
   it("does nothing on boot while off", async () => {

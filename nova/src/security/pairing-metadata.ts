@@ -1,4 +1,7 @@
 export const MAX_METADATA_BYTES = 4 * 1024;
+// The NOVA App mints its chat-app bridge credential under this id; pairing
+// refuses it, so no device can replace or be replaced by the bridge.
+export const BRIDGE_INSTALL_ID = "nova-app-chat-bridge";
 
 export interface DeviceMetadata {
   name: string;
@@ -31,7 +34,8 @@ export function decodePairingMetadata(
     name === null ||
     platform === null ||
     client === null ||
-    clientInstallId === null
+    clientInstallId === null ||
+    clientInstallId === BRIDGE_INSTALL_ID
   ) {
     return null;
   }

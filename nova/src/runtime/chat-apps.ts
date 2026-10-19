@@ -7,6 +7,7 @@ import type { SupervisorClient } from "../ha/supervisor-client.js";
 import type { RelayLogger } from "../http/server.js";
 import { digestSecret, generateCredential, parseCredential } from "../security/device-credential.js";
 import type { DeviceRegistry } from "../security/device-registry.js";
+import { BRIDGE_INSTALL_ID } from "../security/pairing-metadata.js"; // re-minting replaces the old record
 import { readPrivateFileSync, writeFileAtomicSync } from "../storage/atomic-file.js";
 import type { CoreProxyRequest, CoreProxyResponse } from "../types/api.js";
 
@@ -19,7 +20,6 @@ import type { CoreProxyRequest, CoreProxyResponse } from "../types/api.js";
 
 export const BRIDGE_PORT = 8794;
 const SERVICE = "ha_nova";
-const BRIDGE_INSTALL_ID = "nova-app-chat-bridge"; // re-minting replaces the old record
 const SECRET = /^[0-9a-f]{64}$/;
 
 export class ChatAppsError extends Error {
@@ -85,6 +85,7 @@ export function createChatApps(deps: ChatAppsDeps): ChatApps {
   let child: ChildProcess | null = null;
   let wanted = false;
   let respawn: NodeJS.Timeout | undefined;
+  let failures = 0;
   // On and off never interleave (the NOVA page and the CLI may both ask).
   let queue: Promise<unknown> = Promise.resolve();
   const serial = <T>(task: () => Promise<T>): Promise<T> => {
@@ -125,9 +126,13 @@ export function createChatApps(deps: ChatAppsDeps): ChatApps {
     return parseCredential(relay?.credential)?.deviceId ?? null;
   };
   const ensureCredential = (): void => {
-    const relay = readJson<{ credential?: string } | null>(file("relay.json"), null);
+    const relay = readJson<{ credential?: string; relay_url?: string; spki_pin?: string } | null>(file("relay.json"), null);
+    const url = `https://127.0.0.1:${deps.securePort}`;
     const current = parseCredential(relay?.credential);
     if (current && deps.registry.resolveDeviceSecret(current.deviceId, digestSecret(current.secret), deps.now())) {
+      if (relay?.relay_url !== url || relay.spki_pin !== deps.spkiPin) { // a new TLS identity keeps the credential
+        writeJson(file("relay.json"), { relay_url: url, spki_pin: deps.spkiPin, credential: relay?.credential });
+      }
       return;
     }
     const minted = generateCredential();
@@ -135,7 +140,7 @@ export function createChatApps(deps: ChatAppsDeps): ChatApps {
     const record = { deviceId, secretDigest, clientInstallId: BRIDGE_INSTALL_ID, name: "Chat apps", platform: "NOVA App", client: "ha-nova serve" };
     deps.registry.createPending({ ...record, createdAtMs: deps.now() }, deps.now());
     deps.registry.activate(minted.deviceId, deps.now());
-    writeJson(file("relay.json"), { relay_url: `https://127.0.0.1:${deps.securePort}`, spki_pin: deps.spkiPin, credential: minted.credential });
+    writeJson(file("relay.json"), { relay_url: url, spki_pin: deps.spkiPin, credential: minted.credential });
   };
 
   const startChild = (): void => {
@@ -155,6 +160,7 @@ export function createChatApps(deps: ChatAppsDeps): ChatApps {
       { stdio: ["ignore", "inherit", "inherit"], env: { PATH: process.env.PATH ?? "/usr/bin:/bin", HOME: file("home"), HA_NOVA_NO_BROWSER: "1", ...(process.env.TZ ? { TZ: process.env.TZ } : {}) } },
     );
     child = proc;
+    const started = Date.now();
     let ended = false;
     const end = (why: string): void => {
       if (ended) {
@@ -164,25 +170,36 @@ export function createChatApps(deps: ChatAppsDeps): ChatApps {
       if (child === proc) {
         child = null;
       }
+      failures = Date.now() - started > 60_000 ? 1 : failures + 1;
       if (wanted) {
         deps.logger.warn("Chat-app bridge stopped; restarting it", { why });
-        respawn = setTimeout(() => {
-          try {
-            startChild();
-          } catch (error) {
-            deps.logger.error("Chat-app bridge could not start", { error: String((error as Error).message) });
-          }
-        }, deps.respawnMs ?? 5_000);
+        startLater();
       }
     };
     proc.once("error", (error) => end(error.message));
     proc.once("exit", (code, signal) => end(`exit ${code ?? signal}`));
   };
+  // Restarts back off from 5 s to 5 min while serve keeps failing.
+  const startLater = (): void => {
+    clearTimeout(respawn);
+    respawn = setTimeout(() => {
+      try {
+        startChild();
+      } catch (error) {
+        failures += 1;
+        deps.logger.error("Chat-app bridge could not start", { error: String((error as Error).message) });
+        startLater();
+      }
+    }, Math.min((deps.respawnMs ?? 5_000) * 2 ** Math.max(0, failures - 1), 300_000));
+  };
   const stopChild = (): void => {
     wanted = false;
     clearTimeout(respawn);
-    child?.kill("SIGTERM");
+    const proc = child;
     child = null;
+    proc?.kill("SIGTERM");
+    // serve finishes running calls for up to 5 s; a hung one must not keep the port.
+    setTimeout(() => proc?.exitCode === null && proc.signalCode === null && proc.kill("SIGKILL"), 7_000).unref();
   };
 
   // custom_components/ha_nova is the ONLY path written in /config: the parent
@@ -268,6 +285,10 @@ export function createChatApps(deps: ChatAppsDeps): ChatApps {
       if (!Array.isArray(components?.components)) {
         throw new Error("Home Assistant /api/config has no component list");
       }
+      const [year = 0, month = 0] = String((components as { version?: unknown }).version ?? "").split(".").map(Number);
+      if (year * 100 + month < 202610) {
+        throw new ChatAppsError(409, "HA_TOO_OLD", "Chat apps need Home Assistant 2026.10 or newer. Update Home Assistant first.");
+      }
       const restart = !components.components.includes(SERVICE);
       if (restart && !allowRestart) {
         throw new ChatAppsError(409, "RESTART_CONSENT_REQUIRED", "Home Assistant restarts once (about a minute). Ask the owner first.");
@@ -275,30 +296,40 @@ export function createChatApps(deps: ChatAppsDeps): ChatApps {
       if (restart && ((await core("POST", "/api/config/core/check_config")) as { result?: unknown })?.result !== "valid") {
         throw new ChatAppsError(409, "HA_CONFIG_INVALID", "Home Assistant's configuration has an error, so it can't restart. Fix it in Home Assistant, then try again.");
       }
+      const wasOn = load().enabled;
       ensureSecret();
       const parent = customComponents(true)!;
       removeIntegration();
       copyTree(deps.integrationSource, join(parent, "ha_nova"));
+      try {
+        startChild();
+        await publish();
+      } catch (error) {
+        if (!wasOn) {
+          stopChild(); // stays off: the owner's [Try again] is turning on again
+        }
+        throw error;
+      }
       save({ ...load(), enabled: true });
-      startChild();
-      await publish();
       return { restart };
     }),
 
     turnOff: () => serial(async () => {
-      stopChild(); // immediate: no chat request is served from here on
+      // Immediate: serve stops and its credential is revoked before any slower
+      // cleanup, so even a request still finishing can no longer reach the Relay.
+      stopChild();
       const state = load();
       save({ ...state, enabled: false });
-      if (state.discovery_uuid !== undefined) {
-        await deps.supervisor.deleteDiscovery(state.discovery_uuid);
-      }
-      removeIntegration();
       const deviceId = bridgeDeviceId();
       if (deviceId !== null) {
         deps.registry.revoke(deviceId);
       }
       rmSync(file("relay.json"), { force: true });
-      rmSync(file("secret"), { force: true });
+      if (state.discovery_uuid !== undefined) {
+        await deps.supervisor.deleteDiscovery(state.discovery_uuid);
+      }
+      rmSync(file("secret"), { force: true }); // after the message that carries it
+      removeIntegration();
       save({ enabled: false });
     }),
 
@@ -333,32 +364,29 @@ export function createChatApps(deps: ChatAppsDeps): ChatApps {
       }, 1_000);
     },
 
-    async boot() {
-      if (!load().enabled) {
-        return;
-      }
-      if (!available()) {
-        deps.logger.error("Chat apps are on, but this App version has no bridge; turn them off on the NOVA page");
-        return;
-      }
+    // Never fatal: a damaged chat-app file must not take the Relay down.
+    boot: () => serial(async () => {
       try {
+        if (!load().enabled) {
+          return;
+        }
+        if (!available()) {
+          deps.logger.error("Chat apps are on, but this App version has no bridge; turn them off on the NOVA page");
+          return;
+        }
         startChild();
         await publish(); // Supervisor keeps one message per App and service: a repeat is a no-op
       } catch (error) {
         deps.logger.error("Chat apps could not resume", { error: String((error as Error).message) });
       }
-    },
+    }),
 
     // After a registry reset: the (re)start mints a fresh credential.
     restartBridge() {
       if (child !== null) {
         child.kill("SIGTERM");
       } else if (wanted) {
-        try {
-          startChild();
-        } catch (error) {
-          deps.logger.error("Chat-app bridge could not start", { error: String((error as Error).message) });
-        }
+        startLater();
       }
     },
 

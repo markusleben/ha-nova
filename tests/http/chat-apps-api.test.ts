@@ -159,15 +159,15 @@ describe("chat-app action API", () => {
     turnOnResult = async () => {
       throw new ChatAppsError(409, "RESTART_CONSENT_REQUIRED", "Home Assistant restarts once (about a minute). Ask the owner first.");
     };
-    await expectError(state(base, "owner-1", { enabled: true }), 409, "RESTART_CONSENT_REQUIRED");
-    expect(calls).toEqual(["on:false"]);
+    await expectError(state(base, "owner-1", { enabled: true, read_only: true }), 409, "RESTART_CONSENT_REQUIRED");
+    expect(calls).toEqual(["on:false"]); // nothing else changed
     calls = [];
     const ok = await state(base, "owner-1", { read_only: true, chat_codes: false, owner_phone: { service: "mobile_app_pixel", device_id: "d".repeat(32), name: "Pixel" } });
     expect(ok.status).toBe(200);
     expect(calls).toEqual(['switches:{"readOnly":true,"chatCodes":false}', `phone:owner-1:{"service":"mobile_app_pixel","device_id":"${"d".repeat(32)}","name":"Pixel"}`]);
     calls = [];
     await state(base, "owner-1", { enabled: false, owner_phone: null });
-    expect(calls).toEqual(["phone:owner-1:null", "off"]);
+    expect(calls).toEqual(["off", "phone:owner-1:null"]);
   });
 });
 
@@ -223,6 +223,14 @@ describe("NOVA page: Chat apps", () => {
     const forged = await run(createNovaActionHandler(pageDeps(fakeChatApps())), request("owner-1"), { action: "chat_apps_off", csrf: csrf.issue("owner-1", "chat_apps_on", 1_000) });
     expect(forged.statusCode).toBe(403);
     expect(calls).toEqual([]);
+  });
+
+  it("offers only the way off when this App version can't run chat apps that are on", async () => {
+    const stale = { ...fakeChatApps(), status: () => ({ ...status, available: false, enabled: true }) };
+    const page = await run(createNovaPageHandler(pageDeps(stale)), request("owner-1"));
+    expect(page.body).toContain("can't run chat apps");
+    expect(page.body).toContain('value="chat_apps_off"');
+    expect(page.body).not.toContain('value="chat_apps_on"');
   });
 
   it("names a configuration error plainly", async () => {

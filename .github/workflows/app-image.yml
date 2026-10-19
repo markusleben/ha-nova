@@ -175,6 +175,10 @@ jobs:
             # The bridge binary runs on this arch and carries this tree's version.
             want="$(sed -n 's/.*"skill_version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' version.json | head -1)"
             got="$(docker run --rm --platform "$(app_arch_platform "$arch")" --entrypoint /opt/ha-nova/ha-nova "$ref" version)"
+            # QEMU runs any arch, so check the ELF machine field itself.
+            elf="$(docker run --rm --platform "$(app_arch_platform "$arch")" --entrypoint /bin/sh "$ref" -c 'od -An -tx1 -j18 -N2 /opt/ha-nova/ha-nova' | tr -d ' \n')"
+            case "$arch" in amd64) want_elf=3e00 ;; aarch64) want_elf=b700 ;; esac
+            [[ "$elf" == "$want_elf" ]] || { echo "::error::${ref}: bridge binary is ELF machine ${elf}, want ${want_elf}"; exit 1; }
             docker run --rm --platform "$(app_arch_platform "$arch")" --entrypoint /bin/sh "$ref" \
               -c 'test -f /opt/ha-nova/bundle.json && test -f /opt/ha-nova/skills/ha-nova/SKILL.md' \
               || { echo "::error::${ref}: the bridge's skills or bundle.json are missing"; exit 1; }

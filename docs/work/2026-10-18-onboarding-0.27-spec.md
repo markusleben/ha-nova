@@ -436,7 +436,7 @@ Why this shape:
   - the chat-app vendor stores an HA token without scopes, as with any HA-based connector.
 - **Integration ↔ App:**
   - the App publishes a Supervisor discovery message (`POST /discovery`, service `ha_nova`, config: host, port, secret). `discovery: [ha_nova]` in `config.yaml` only permits it. The App keeps the returned UUID in `/data`;
-  - host is the App's stable Supervisor hostname, never an IP. The 256-bit secret is generated once and kept in `/data`. App restarts and updates reuse both; on start the App re-posts only when its stored UUID is no longer listed. The secret changes only by turning chat apps off and on;
+  - host is the App's stable Supervisor hostname, never an IP. The 256-bit secret is generated once and kept in `/data`. App restarts and updates reuse both; on start the App re-posts its message (Supervisor keeps one per App and service, so an unchanged one is a no-op; an App can't list messages). The secret changes only by turning chat apps off and on;
   - the integration's `hassio` config flow stores them with the App slug as unique ID, so a changed message updates that entry and never adds a second;
   - the bridge port is internal to the Supervisor network and never mapped to the host;
   - the user ID passed by the integration is trusted only with that secret.
@@ -553,7 +553,7 @@ Production LOC estimates exclude tests and assets. HR = high-risk, RB = release-
 | A9 | `feat(uninstall)`: one question; last-device App removal | ~250 | HR |
 | A10 | `feat(setup)`: `ha-nova try` | ~150 | behavior |
 | B1 | `feat(mcp)`: `ha-nova serve` (Streamable HTTP on an internal port, secret auth, server-side plan store bound to the HA user, phone-only/chat-code policy, `waiting_for_phone`) | ~450 | HR |
-| B2 | `feat(app)`: the App runs the bridge (binary + skills in the image, internal device credential, `/data` state: switch, secret, discovery UUID, phone links; owner action on/off with discovery and the HA restart; NOVA page "Chat apps") | ~400 | HR, RB. Lands dormant (`HA_NOVA_CHAT_APPS` off, no `config.yaml` change); apply in the App release bump: `discovery: [ha_nova]` in `config.yaml`, `ENV HA_NOVA_CHAT_APPS=1` in `nova/Dockerfile` (contract doc, "App side") |
+| B2 | `feat(app)`: the App runs the bridge (binary + skills in the image, internal device credential, `/data` state: switch, secret, discovery UUID, phone links; owner action on/off with discovery and the HA restart; NOVA page "Chat apps") | ~400 | HR, RB. Lands dormant (`HA_NOVA_CHAT_APPS` off, no `config.yaml` change); apply in the App release bump: `discovery: [ha_nova]` in `config.yaml`, `ARG HA_NOVA_CHAT_APPS=1` in `nova/Dockerfile` (contract doc, "App side") |
 | B3 | `feat(integration)`: `custom_components/ha_nova` (discovery flow, `/api/ha_nova/mcp` pass-through view per §11.3) + App delivery + Python CI | ~250 | HR, RB |
 | B4 | `feat(setup)`: step 3 chat-app row + enable flow; docs: connect Claude/ChatGPT, use from the phone (also Remote Control/Codex) | ~150 + docs | behavior |
 | R | Release prep: README "Get started", site sync (incl. tokens), flow video | docs | release-prep |

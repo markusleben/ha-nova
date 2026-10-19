@@ -56,17 +56,18 @@ export function createChatAppsPostHandler(deps: ChatAppsApiDeps): RouteHandler {
     const ownerId = await owner(request, deps);
     const input = parse(body);
     try {
-      if (input.readOnly !== undefined || input.chatCodes !== undefined) {
-        deps.chatApps.setSwitches({ ...(input.readOnly !== undefined ? { readOnly: input.readOnly } : {}), ...(input.chatCodes !== undefined ? { chatCodes: input.chatCodes } : {}) });
-      }
-      if (input.ownerPhone !== undefined) {
-        deps.chatApps.setOwnerPhone(ownerId, input.ownerPhone);
-      }
+      // On/off first: a refusal (consent, configuration) changes nothing else.
       let restart = false;
       if (input.enabled === true) {
         restart = (await deps.chatApps.turnOn(input.allowRestart)).restart;
       } else if (input.enabled === false) {
         await deps.chatApps.turnOff();
+      }
+      if (input.readOnly !== undefined || input.chatCodes !== undefined) {
+        deps.chatApps.setSwitches({ ...(input.readOnly !== undefined ? { readOnly: input.readOnly } : {}), ...(input.chatCodes !== undefined ? { chatCodes: input.chatCodes } : {}) });
+      }
+      if (input.ownerPhone !== undefined) {
+        deps.chatApps.setOwnerPhone(ownerId, input.ownerPhone);
       }
       const answer = view(deps, ownerId, restart);
       if (restart) {

@@ -54,7 +54,7 @@ echo ""
 # (spec 2026-10-18 §11, PR train B2): the owner-only on/off action (NOVA page
 # and machine-only ingress API), the bridge secret, the internal device
 # credential, Supervisor discovery, the custom_components/ha_nova writer, and
-# the `ha-nova serve` child, dormant behind HA_NOVA_CHAT_APPS: about 10100.
+# the `ha-nova serve` child, dormant behind HA_NOVA_CHAT_APPS: about 10190.
 # Further unreviewed Relay growth still fails.
 # Growth here is security surface, and it is reviewed as such. The README's own
 # number is updated in the release-prep PR — README describes the STABLE

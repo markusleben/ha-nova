@@ -229,6 +229,14 @@ export async function buildAppMode(
     now: input.now,
     logger: input.logger,
     chatAppFiles: () => chatAppFilesPresent(input.fileAccess.configRoot),
+    // Unreadable: counted as another device, so uninstall keeps the App.
+    bridgeDevice: () => {
+      try {
+        return chatApps?.bridgeDeviceId() ?? null;
+      } catch {
+        return null;
+      }
+    },
   };
 
   const bootstrap = createHttpServer_(createBootstrapListener(listenerDeps));

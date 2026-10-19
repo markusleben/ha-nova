@@ -145,5 +145,6 @@
   "tests/skills/write-delete-safety-contract.test.ts",
   "tests/storage/atomic-file.test.ts",
   "tests/storage/relay-instance.test.ts",
-  "tests/runtime/chat-apps.test.ts"
+  "tests/runtime/chat-apps.test.ts",
+  "tests/security/pairing-metadata-reserved.test.ts"
 ]

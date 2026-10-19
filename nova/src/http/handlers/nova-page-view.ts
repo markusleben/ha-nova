@@ -99,6 +99,10 @@ export function renderPage(m: PageModel): string {
         ? `<section class="error"><h2>That did not work</h2><p>The action could not be completed. If you were connecting a device, the relay's secure port may be unavailable — check the App is running, then try again.</p></section>`
         : m.errorCode === "chat_config"
           ? `<section class="error"><h2>Chat apps are not on</h2><p>Home Assistant's configuration has an error, so it can't restart. Fix it in Home Assistant, then try again.</p></section>`
+          : m.errorCode === "chat_old"
+            ? `<section class="error"><h2>Chat apps are not on</h2><p>Chat apps need Home Assistant 2026.10 or newer. Update Home Assistant first, then try again.</p></section>`
+          : m.errorCode === "chat_folder"
+            ? `<section class="error"><h2>Chat apps: that did not work</h2><p>HA NOVA can't use the custom_components folder in Home Assistant's configuration. Check that it is a normal folder, then try again.</p></section>`
           : m.errorCode === "chat"
             ? `<section class="error"><h2>Chat apps: that did not work</h2><p>Try again in a moment. If it keeps failing, the NOVA App log says why.</p></section>`
             : "";
@@ -239,8 +243,10 @@ function renderChatApps(m: PageModel, formOpen: string, csrfField: (action: Nova
   const toggle = (label: string, on: boolean, action: ChatAction): string =>
     `<li><span>${label}: <strong>${on ? "on" : "off"}</strong></span>${button(action, on ? "Turn off" : "Turn on", on ? "off" : "on", "secondary")}</li>`;
   let body: string;
-  if (!c.available) {
+  if (!c.available && !c.enabled && !c.unfinished) {
     body = `<p class="muted">Using HA NOVA in Claude and ChatGPT needs a newer NOVA App.</p>`;
+  } else if (!c.available) { // e.g. after going back to an older App: offer only the way off
+    body = `<p>This NOVA App version can't run chat apps. Turn them off, so Home Assistant stops looking for them.</p>${button("chat_apps_off", "Turn off chat apps", "", "secondary")}`;
   } else if (c.enabled) {
     const who = c.allowedUsers === null ? "only you" : `${c.allowedUsers.length} Home Assistant user${c.allowedUsers.length === 1 ? "" : "s"}`;
     const phone = c.ownerPhone === null
