@@ -11,6 +11,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 )
 
 // Steps 3 and 4 of the setup page against the fake Home Assistants: what
@@ -549,5 +550,56 @@ func TestSetupPageStepActionsAreGuarded(t *testing.T) {
 		if code := page.post(body, nil); code != http.StatusConflict {
 			t.Errorf("%s twice = %d", action, code)
 		}
+	}
+}
+
+// No Home Assistant found: step 1 offers the demo house (`ha-nova try`);
+// a failure stays on step 1 with one line.
+func TestSetupPageOffersTheDemoHouse(t *testing.T) {
+	for _, works := range []bool{false, true} {
+		withClientRuntimeAvailability(t, map[string]bool{"codex": true})
+		setupGoldenHome(t)
+		stubSetupPageHome(t, "http://192.0.2.10:8123", false)
+		discoverReachableHAHostsForSetup = func(runtimeConfig) ([]setupDiscoveryCandidate, string) { return nil, "" }
+		tries := 0
+		previous := setupPageTry
+		setupPageTry = func(runtimePaths) int {
+			tries++
+			if works {
+				return 0
+			}
+			return 1
+		}
+		previousIdle := setupPageIdle
+		setupPageIdle = time.Second
+		page, stdout, done := startSetupPageFlow(t, "")
+		page.waitFor("the address question", accepting("demo"))
+		page.click("demo", "")
+		if works {
+			if code := setupPageExit(t, done, stdout); code != 0 || page.ui.snapshot().Screen != "demo" || tries != 1 {
+				t.Fatalf("exit %d screen %s tries %d", code, page.ui.snapshot().Screen, tries)
+			}
+		} else {
+			back := page.waitFor("the demo problem", func(s setupPageState) bool { return s.Problem != nil })
+			if back.Problem.Key != "setup.page.problem.demo" || !back.AskHA || tries != 1 {
+				t.Fatalf("back = %+v", back)
+			}
+			setupPageExit(t, done, stdout)
+		}
+		setupPageTry, setupPageIdle = previous, previousIdle
+	}
+}
+
+// `setup --demo` is `ha-nova try`; with other options it refuses.
+func TestSetupDemoAliasRunsTry(t *testing.T) {
+	fakeDemo(t, "")
+	paths := tryTestPaths(t, "")
+	if exit := runSetup(paths, []string{"--demo", "--no-browser"}); exit != 1 {
+		t.Fatalf("--demo with another option: exit %d", exit)
+	}
+	exit := 0
+	out := captureStdout(t, func() { exit = runSetup(paths, []string{"--demo"}) })
+	if _, err := os.Stat(demoProfilePath(paths)); exit != 0 || err != nil || !strings.Contains(out, "Demo house connected") {
+		t.Fatalf("exit %d demo.json %v out %s", exit, err, out)
 	}
 }

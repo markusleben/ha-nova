@@ -37,12 +37,20 @@ func runSetup(paths runtimePaths, args []string) int {
 	nonInteractive := fs.Bool("non-interactive", false, "Disable prompts")
 	serviceMode := fs.Bool("service", false, "Use a service-safe relay token file instead of desktop secure storage")
 	noBrowser := fs.Bool("no-browser", false, "Set up in the terminal instead of the browser page")
+	demo := fs.Bool("demo", false, "Connect the shared demo house instead (same as ha-nova try)")
 	if err := fs.Parse(normalizeSetupArgs(args)); err != nil {
-		if helpRequested(err, fs, "ha-nova setup [client] [--server <name>] [--service] [--no-browser] [--non-interactive] [--host <host>] [--ha-url <url>] [--relay-url <url>] [--relay-token <token>]") {
+		if helpRequested(err, fs, "ha-nova setup [client] [--server <name>] [--service] [--no-browser] [--demo] [--non-interactive] [--host <host>] [--ha-url <url>] [--relay-url <url>] [--relay-token <token>]") {
 			return 0
 		}
 		printHumanErr("%s", err)
 		return 1
+	}
+	if *demo {
+		if fs.NFlag() != 1 || fs.NArg() != 0 {
+			printHumanErr("ha-nova setup --demo takes no other options")
+			return 1
+		}
+		return runTryCommand(paths, nil)
 	}
 	setupNoBrowser = *noBrowser
 	serverSet := false

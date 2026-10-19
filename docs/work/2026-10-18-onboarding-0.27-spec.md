@@ -144,6 +144,12 @@ The line updates in place and ends with `✓ Done: this computer is connected to
 - Primary: [Open Claude Code] (§16 D5).
 - Fine print: "Tap a phrase to copy it." The prototype's "Nothing in your home changed during setup." becomes "Nothing in your home changed unless you saved it." (§16 D6).
 
+**Steps 3–4 as built (A6b):**
+- Step 3's phone row links the first phone with one notification: the click on the page is the consent at this computer (the window's part in `ha-nova setup confirm-phone`), the tap on that phone links it. A phone linked before shows as on; a link that can't be asked now stays with `confirm-phone`.
+- The Link row is the Home Assistant Link fallback (D2), shown only while Link remote access answers; its sign-in opens in a tab of its own. The chat-app row is B4.
+- Step 4 runs the §7.6 verbs as child processes. A save posts the plan id the page shows; the CLI saves only a plan this run stored for that preview, once. Rooms undo is a preview of its own, then a click. Done, Ctrl+C, or 30 min idle closes setup.
+- No Home Assistant found: step 1 offers "Look around the demo house" (`ha-nova try`; `setup --demo` is the alias).
+
 **Re-run on a working install** ("HA NOVA is connected"):
 - ✓ rows from doctor's checks;
 - [Done] · "Connect a different Home Assistant" · "Fix something" (only when a check fails).

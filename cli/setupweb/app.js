@@ -14,7 +14,7 @@
   const screenEl = document.getElementById('screen');
   const dotsEl = document.getElementById('dots');
   const statusEl = document.getElementById('status');
-  const finalScreens = ['done', 'closed', 'incomplete', 'finished', 'failed', 'stopped', 'idle', 'lost', 'elsewhere'];
+  const finalScreens = ['done', 'closed', 'demo', 'incomplete', 'finished', 'failed', 'stopped', 'idle', 'lost', 'elsewhere'];
   const steps = { looking: 1, found: 1, noclient: 1, connect: 2, control: 3, home: 4, done: 4, closed: 4, incomplete: 4 };
   const downloads = {
     claude_desktop: 'https://claude.com/download',
@@ -176,6 +176,9 @@
           t('setup.page.found.fine_access', { client: `${location.origin}/ha-nova` })];
       } else if (!asking && state.app) {
         fine = [t('setup.page.found.fine_terminal')];
+      }
+      if (!haKnown && !several) {
+        fine.push(el('button', { id: 'b-demo', class: 'linkish', type: 'button', onclick: () => post('demo'), ...(accepts('demo') ? {} : { disabled: '' }) }, t('setup.page.found.demo')));
       }
       let lead = haKnown ? 'setup.page.found.lead' : 'setup.page.found.lead_ask';
       if (several) lead = 'setup.page.found.lead_several';

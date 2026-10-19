@@ -150,7 +150,7 @@ h1:focus { outline: none; }
 .switch[disabled] { opacity: .55; cursor: default; }
 .switch:focus-visible, .chip:focus-visible, .linkish:focus-visible, summary:focus-visible { outline: 2px solid var(--cyan); outline-offset: 3px; }
 .linkish { font: 600 .875rem var(--font); background: none; border: none; color: var(--cyan); cursor: pointer; padding: 0; margin-top: 6px; }
-.rows .problem { margin: 8px 0 0; font-size: .95rem; }
+.rows .problem { margin: 8px 0 0; font: 400 .95rem/1.5 var(--font); }
 .note { border-left: 2px solid var(--amber); padding: 2px 0 2px 14px; color: var(--ink-soft); font-size: .95rem; margin: 0 0 16px; }
 h2 { font-size: .8125rem; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-soft); margin: 0 0 6px; }
 .stat { display: grid; grid-template-columns: repeat(auto-fit, minmax(104px, 1fr)); gap: 12px; margin: 8px 0 32px; padding: 0; list-style: none; }

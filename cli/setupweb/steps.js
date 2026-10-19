@@ -237,18 +237,23 @@ window.novaSteps = (h) => {
     }));
   };
 
-  const prompts = (hm) => {
-    const phrases = [t('setup.page.home.prompt_on'), t('setup.page.home.prompt_kitchen'),
-      (hm.stats && hm.stats.locks) ? t('setup.page.home.prompt_unlock') : t('setup.page.home.prompt_lights')];
-    return el('div', { class: 'chips' }, phrases.map((text, i) => el('button', {
-      id: `b-chip-${i}`, class: 'chip', type: 'button',
-      onclick: () => {
-        const copied = t(hm.claude ? 'setup.page.home.copied_claude' : 'setup.page.home.copied');
-        (navigator.clipboard ? navigator.clipboard.writeText(text) : Promise.reject(new Error('no clipboard')))
-          .then(() => toast(copied), () => toast(t('setup.page.home.copy_failed', { text })));
-      },
-    }, `“${text}”`)));
-  };
+  // Copyable phrases: a tap copies one.
+  const chips = (phrases, claude) => el('div', { class: 'chips' }, phrases.map((text, i) => el('button', {
+    id: `b-chip-${i}`, class: 'chip', type: 'button',
+    onclick: () => {
+      const copied = t(claude ? 'setup.page.home.copied_claude' : 'setup.page.home.copied');
+      (navigator.clipboard ? navigator.clipboard.writeText(text) : Promise.reject(new Error('no clipboard')))
+        .then(() => toast(copied), () => toast(t('setup.page.home.copy_failed', { text })));
+    },
+  }, `“${text}”`)));
+  const prompts = (hm) => chips([t('setup.page.home.prompt_on'), t('setup.page.home.prompt_kitchen'),
+    (hm.stats && hm.stats.locks) ? t('setup.page.home.prompt_unlock') : t('setup.page.home.prompt_lights')], hm.claude);
+
+  // `ha-nova try` from step 1: the shared demo house is connected.
+  const demo = () => [...head(t('setup.page.demo.eyebrow'), t('setup.page.demo.title'), t('setup.page.demo.lead')),
+    chips([t('setup.page.demo.prompt_lights'), t('setup.page.demo.prompt_kitchen'), t('setup.page.demo.prompt_review')],
+      (h.state().clients || []).includes('Claude Code')),
+    el('p', { class: 'fine' }, t('setup.page.demo.fine'))];
 
   const home = () => {
     const hm = h.state().home || {};
@@ -276,5 +281,5 @@ window.novaSteps = (h) => {
     return out;
   };
 
-  return { control, home };
+  return { control, home, demo };
 };
