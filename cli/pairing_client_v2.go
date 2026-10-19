@@ -300,8 +300,11 @@ func cloudPairingCallEncoded(
 			}
 		}
 		legacy := pairingStatusError(response.StatusCode, raw, response.RetryAfter)
+		// Only the Relay's own answer is a definitive refusal; a proxy's 4xx
+		// proves nothing about the pairing, so callers never re-pair on it.
 		code := CloudErrHAProtocol
 		switch {
+		case !response.ReachedRelay:
 		case response.StatusCode == http.StatusUnauthorized:
 			code = CloudErrPairingRejected
 		case response.StatusCode == http.StatusBadRequest || response.StatusCode == http.StatusConflict:

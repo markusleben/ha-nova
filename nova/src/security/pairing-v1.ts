@@ -385,6 +385,11 @@ export function createPairingV1Manager(deps: PairingV1Deps): PairingV1Manager {
       return { ok: false, reason: "invalid" };
     }
 
+    // Consume: retire the active code and all other in-flight handshakes.
+    active = null;
+    handshakes.clear();
+    phase = "consumed";
+    consumedAtMs = t;
     if (armedFor !== undefined) {
       // Audit: who paired which device through sign-in; never the secret.
       deps.logger?.info?.("Device paired through Home Assistant sign-in", {
@@ -393,11 +398,6 @@ export function createPairingV1Manager(deps: PairingV1Deps): PairingV1Manager {
         user_id: armedFor,
       });
     }
-    // Consume: retire the active code and all other in-flight handshakes.
-    active = null;
-    handshakes.clear();
-    phase = "consumed";
-    consumedAtMs = t;
     return { ok: true, responseB64: ciphertextB64 };
   }
 

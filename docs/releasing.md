@@ -187,6 +187,7 @@ first support or after a change touching their path:
 - [ ] `keyrings`: real happy path and fail-closed no-UI on each enabled OS (adapter changes: affected OS)
 - [ ] `domains_mfa`: one real canonical Nabu Casa OAuth flow
 - [ ] `roles`: one real standard non-administrator binding
+- [ ] `owner_no_code`: one real owner OAuth `cloud add` pairs with no code (Link owner pairing changes)
 - [ ] `lifecycle`: `cloud add` → App restart/reinstall → CLI uninstall/reinstall → purge revokes the device
 - [ ] `routing`: one real automatic fallback; `redirects_non_disclosure`: no credential in config, argv, logs, diagnostics, or AI-visible output
 - [ ] `signing_and_update_matrix`: real install/update after installer, updater, signing, or native-authorization changes

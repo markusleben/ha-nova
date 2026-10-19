@@ -412,3 +412,22 @@ describe("Link-armed sign-in pairing slot", () => {
     ).toMatchObject({ ok: true, record: { state: "active" } });
   });
 });
+
+it("consumes the Link slot even when the audit logger throws", () => {
+  const mgr = manager({
+    logger: {
+      info: () => {
+        throw new Error("log sink down");
+      },
+      warn: () => {},
+      error: () => {},
+    },
+  });
+  const { secret } = mgr.arm("owner-1", "link")!;
+  expect(() => pairCloud(mgr, secret, "owner-1")).toThrow("log sink down");
+  expect(mgr.getStatus().phase).toBe("consumed");
+  expect(pairCloud(mgr, secret, "owner-1").started).toEqual({
+    ok: false,
+    reason: "inactive",
+  });
+});

@@ -8,6 +8,7 @@ import (
 const (
 	invalidOwnerPairingCodeMessage  = "That code is not six digits."
 	rejectedOwnerPairingCodeMessage = "That code expired or was rejected."
+	olderAppOwnerPairingNote        = "Your NOVA App still needs a code. Update the NOVA App in Home Assistant to connect without one."
 )
 
 func provisionRemoteCloudDeviceWithOwnerCode(
@@ -36,6 +37,7 @@ func provisionRemoteCloudDeviceWithOwnerCode(
 	}
 	// The Link sign-in user is the owner (auth/current_user over Link; the
 	// Relay re-checks with Home Assistant before arming): no code needed.
+	ownerNote := ""
 	if session.User.IsOwner {
 		provisioned, err := pairDeviceV2LinkOwnerForCloudSetup(
 			ctx,
@@ -46,12 +48,16 @@ func provisionRemoteCloudDeviceWithOwnerCode(
 		if err == nil || !linkOwnerPairingNeedsCode(err) {
 			return provisioned, err
 		}
+		if errors.Is(err, errSignInRelayUnsupported) {
+			ownerNote = olderAppOwnerPairingNote
+		}
 	}
 	retryReason := ""
 	for {
 		code, err := request.PairingCode(cloudRemotePairingPrompt{
 			AppURL:      appURL,
 			RetryReason: retryReason,
+			OwnerNote:   ownerNote,
 		})
 		if err != nil {
 			return nil, err

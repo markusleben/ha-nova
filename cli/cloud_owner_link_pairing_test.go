@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"errors"
 	"io"
@@ -47,8 +48,19 @@ func provisionLinkOwnerForTest(
 	prompts *int,
 ) (*cloudProvisionedCredential, error) {
 	t.Helper()
-	request := cloudSetupRemoteTestRequest(t, func(cloudRemotePairingPrompt) (string, error) {
+	return provisionLinkOwnerWithPrompt(t, session, func(cloudRemotePairingPrompt) {
 		*prompts++
+	})
+}
+
+func provisionLinkOwnerWithPrompt(
+	t *testing.T,
+	session cloudVerifiedSession,
+	seen func(cloudRemotePairingPrompt),
+) (*cloudProvisionedCredential, error) {
+	t.Helper()
+	request := cloudSetupRemoteTestRequest(t, func(prompt cloudRemotePairingPrompt) (string, error) {
+		seen(prompt)
 		return "123456", nil
 	})
 	return provisionRemoteCloudDeviceWithOwnerCode(
@@ -108,7 +120,12 @@ func TestLinkNonOwnerKeepsTheOwnerCode(t *testing.T) {
 	session := linkOwnerTestSession()
 	session.User.IsOwner = false
 	prompts := 0
-	if _, err := provisionLinkOwnerForTest(t, session, &prompts); err != nil {
+	if _, err := provisionLinkOwnerWithPrompt(t, session, func(prompt cloudRemotePairingPrompt) {
+		prompts++
+		if prompt.OwnerNote != "" {
+			t.Fatalf("non-owner prompt carries an owner note %q", prompt.OwnerNote)
+		}
+	}); err != nil {
 		t.Fatal(err)
 	}
 	if *linkCalls != 0 || prompts != 1 {
@@ -135,7 +152,16 @@ func TestLinkOwnerFallsBackToTheCodeOnDefinitiveRefusals(t *testing.T) {
 				return nil, refusal
 			})
 			prompts := 0
-			if _, err := provisionLinkOwnerForTest(t, linkOwnerTestSession(), &prompts); err != nil {
+			wantNote := ""
+			if errors.Is(refusal, errSignInRelayUnsupported) {
+				wantNote = olderAppOwnerPairingNote
+			}
+			if _, err := provisionLinkOwnerWithPrompt(t, linkOwnerTestSession(), func(prompt cloudRemotePairingPrompt) {
+				prompts++
+				if prompt.OwnerNote != wantNote {
+					t.Fatalf("owner note = %q, want %q", prompt.OwnerNote, wantNote)
+				}
+			}); err != nil {
 				t.Fatal(err)
 			}
 			if *linkCalls != 1 || prompts != 1 || codePairs != 1 {
@@ -198,5 +224,42 @@ func TestPairDeviceV2LinkOwnerDetectsOlderAppAndOtherRelay(t *testing.T) {
 		meta, "relay-1")
 	if !IsCloudErrorCode(err, CloudErrRelayInstance) || linkOwnerPairingNeedsCode(err) {
 		t.Fatalf("other Relay: %v", err)
+	}
+}
+
+// An owner on an older App needs no second session: one note, one step.
+func TestOlderAppOwnerPromptSkipsTheSecondSession(t *testing.T) {
+	var output strings.Builder
+	code, err := promptRemoteOwnerPairingCode(
+		bufio.NewReader(strings.NewReader("123456\n")),
+		&output,
+		cloudRemotePairingPrompt{AppURL: "https://unit.ui.nabu.casa/app", OwnerNote: olderAppOwnerPairingNote},
+	)
+	if err != nil || code != "123456" {
+		t.Fatalf("code=%q err=%v", code, err)
+	}
+	if !strings.Contains(output.String(), olderAppOwnerPairingNote) ||
+		!strings.Contains(output.String(), "Connect a device") ||
+		strings.Contains(output.String(), "separate private") {
+		t.Fatalf("older-App owner prompt: %s", output.String())
+	}
+}
+
+// A proxy's 4xx is not the Relay refusing the pairing, so no caller re-pairs on it.
+func TestCloudPairingRefusalNeedsTheRelaysOwnAnswer(t *testing.T) {
+	for _, reached := range []bool{true, false} {
+		client := newProtocolTestCloudIngressClient(t, roundTripFunc(func(*http.Request) (*http.Response, error) {
+			header := http.Header{}
+			if reached {
+				header.Set(relayVersionHeader, "0.27.0")
+			}
+			return &http.Response{StatusCode: http.StatusBadRequest, Header: header,
+				Body: io.NopCloser(strings.NewReader(`{"ok":false,"error":{"code":"VALIDATION_ERROR"}}`))}, nil
+		}))
+		var out struct{}
+		err := cloudPairingCall(context.Background(), client, CloudEndpointPairStart, map[string]any{"ke1": "x"}, &out)
+		if IsCloudErrorCode(err, CloudErrPairingInactive) != reached || linkOwnerPairingNeedsCode(err) != reached {
+			t.Fatalf("reached=%v err=%v", reached, err)
+		}
 	}
 }
