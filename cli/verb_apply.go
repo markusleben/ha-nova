@@ -44,6 +44,9 @@ Config plans (plan write/delete/revert) save the config once, reload, and
 verify the read-back; an update lands on the undo stack, and a delete (and
 every dashboard save) takes a config snapshot first (--no-snapshot only
 after that snapshot failed and the user chose to proceed without one).
+Rooms plans (plan rooms, or plan revert of a rooms record) set each device's
+area once; when one write fails, the earlier ones are put back, and the
+result names anything that could not be.
 Exit: 0 verified/accepted, 2 drift, 4 refused/missing/expired/wrong code,
 5 target gone, 6 unverified/failed, 7 outcome unknown (verify; never retry).`
 
@@ -175,8 +178,9 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string, noSnapshot
 		(plan.Channel == channelChat || plan.Channel == channelForm || humanChannel(plan.Channel) || plan.SchemaVersion < planSchemaVersion)
 	isCall := valid && plan.Kind == "call" && config == nil && request.validate() == nil
 	isConfig := valid && config != nil && config.Op == plan.Kind && config.ConfigID != "" && config.validate() == nil
+	isRooms := valid && plan.Kind == "rooms" && config == nil && plan.RoomsRequest != nil && plan.RoomsRequest.validate() == nil
 	switch {
-	case !isCall && !isConfig:
+	case !isCall && !isConfig && !isRooms:
 		return fail(refused("PLAN_INVALID", "plan "+id+" cannot be read or is not a valid plan"))
 	case isCall && staticRefusal(request) != nil:
 		return fail(refuse(&env, *staticRefusal(request)))
@@ -221,9 +225,12 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string, noSnapshot
 	var e *tierEngine
 	var fresh storedPlan
 	var ctx configContext
-	if isCall {
+	switch {
+	case isCall:
 		e, fresh, err = computeCallPlan(s, &env, request)
-	} else {
+	case isRooms:
+		e, fresh, err = computeRoomsPlan(s, &env, *plan.RoomsRequest)
+	default:
 		e, fresh, ctx, err = computeConfigPlan(paths, s, &env, *config)
 	}
 	// release hands the claimed plan back after a failure before anything
@@ -316,6 +323,13 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string, noSnapshot
 		wantCode = "" // never shown, not even once used
 	}
 	env.Plan = &verbPlan{ID: plan.ID, Hash: fresh.Hash, ExpiresAt: plan.ExpiresAt, Confirm: fresh.Confirm, Code: wantCode}
+	if isRooms {
+		previewed, _ := env.Result.(roomsResult)
+		if err := executeRooms(paths, s, &env, *fresh.RoomsRequest, previewed.Changes); err != nil {
+			return fail(err)
+		}
+		return env, env.exit
+	}
 	if isConfig {
 		err := executeConfig(paths, s, &env, *fresh.ConfigAction, ctx, noSnapshot)
 		if errors.Is(err, errSnapshotFailed) {

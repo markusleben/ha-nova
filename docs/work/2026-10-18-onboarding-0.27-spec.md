@@ -308,6 +308,42 @@ Known limits:
 - **Honesty.** A page-saved automation skips the AI's 40+ rule review: templates are pre-reviewed instead. The row says "Saved and checked" only after the read-back.
 - **No actuation from setup:** no blink, no scene test, no service calls.
 
+**7.6 Step 4 data contract (A8, built).** The page calls these in-process (or as commands) and renders HA-sourced text with `textContent` only.
+- **Read:** `ha-nova map --insights` (`(*homeIndex).insights` in `cli/home_insights.go`). `result`:
+  ```json
+  {"stats":{"rooms":9,"devices":42,"lights":18,"locks":2,"automations":40},
+   "insights":[
+    {"kind":"battery_low","entity_id":"sensor.x","name":"Outside Temperature battery","area":"Garden","value":"12%","count":3,"action":"battery_reminder"},
+    {"kind":"no_room","count":60,"action":"rooms","suggestions":[{"device_id":"d1","name":"Kitchen Lights","area_id":"kitchen","area":"Kitchen","confidence":"high"}]},
+    {"kind":"automation_unavailable","entity_id":"automation.x","name":"X","count":1},
+    {"kind":"device_offline","device_id":"d2","name":"Garden Sensor","area":"Garden","value":"3d","count":2},
+    {"kind":"automation_never_ran","entity_id":"automation.y","name":"Y","count":4}],
+   "automation":{"template":"door_light_after_dark","uses":[{"role":"trigger","entity_id":"lock.front_door","name":"Front Door"},{"role":"light","entity_id":"light.hall","name":"Hall Light"}]}}
+  ```
+  - Insights in this fixed order, each only when present; the page shows the first 3:
+    1. `battery_low`: device batteries (`entity_category: diagnostic`; never phones or private devices) below 20 %, lowest first;
+    2. `no_room`: devices without any area (`count` includes all, `suggestions` up to 25);
+    3. `automation_unavailable`: automations that can't load;
+    4. `device_offline`: devices whose every entity has been `unavailable` ≥ 24 h (`value` = the youngest such age; `last_changed` restarts with Home Assistant, so a restart in the last day hides them);
+    5. `automation_never_ran`: enabled automations with no recorded run.
+  - Room suggestions use existing areas only: `high` = the area's own name is in the device name (a longer matching name wins: "Guest Bedroom" over "Bedroom"); `medium` = one room word (kitchen/Küche, bedroom/Schlafzimmer, living/Wohnzimmer, bath/Bad, …; German compounds by stem) that exactly one area has. Two rooms named, or a room word of another kind beside the match, suggests nothing.
+  - Never named: persons, trackers, zones, phones (`mobile_app` devices), and any device carrying a presence entity (a car, a tag): not in batteries, suggestions, offline rows, or as a template trigger or light. The away template counts persons and reads `zone.home`; `uses` lists neither. The one exception is the battery reminder's own target: `uses` names the phone linked for confirmations (`role: phone`).
+  - `action` and `automation.template` name the plan command; absent = no preview action. The battery row's `action` is set only when the reminder covers that battery and it is still at or above 10 % (the trigger fires on crossing). `automation` is the first match of `door_light_after_dark`, `lights_off_when_away`, `battery_reminder` (the last only when the battery row doesn't carry it as its action) whose plan computes as preview tier; a template whose plan would need a code (or can't be classified) is never offered, in either place.
+- **Preview:** `ha-nova plan rooms` or `ha-nova plan template <id>`. Both store a preview plan (exit 3) and return the normal plan envelope: `plan.id`, `tier: preview`, `say`.
+  - Rooms: `result.changes[]` = `{device_id, name, from_area_id, from_area, area_id, area}` (area fields omitted for "no room"; `area_id` is where the device ends up, so an undo that clears its own area shows its parent's room), at most 25, recomputed by the CLI (the page never sends pairs). `say` is neutral ("… Save these rooms?"); the page shows its own button.
+  - Template: `result` = `{template, uses}`, plus `config.body` (the exact draft saved) and `diff`.
+  - Refusals (exit 4, no plan): `NO_ROOM_SUGGESTIONS`, `TEMPLATE_NO_MATCH`, `TEMPLATE_NOT_OFFERED` (its plan would be typed).
+- **Save:** `ha-nova apply --plan <id>`, the normal path.
+  - Template: `status: verified` after the read-back.
+  - Rooms: `verified` with `result.changes` and `undo` (`undo.target_id` is the rooms record; `undo.evicted` names older checkpoints it pushed off the 5-slot stack, which the page shows). After a failed write the CLI puts the earlier ones back and reads the rooms again: `ROOMS_NOT_SAVED` (exit 6) only when that read (or, if it fails, each write's known outcome) shows nothing changed; `ROOMS_PARTIAL` (exit 6, or 7 when the read fails: "possibly changed") names each device changed now, and the undo record holds what is still to undo.
+  - Drift (rename, own or inherited room change, area gone) sends nothing. Its envelope carries no `result.changes`, so the page runs `plan rooms` again and never saves the drift's plan id unseen.
+- **Undo:** `ha-nova plan revert --target <undo.target_id>` plans the way back, then apply. A plain `plan revert` never picks a rooms record ("undo the last update" stays with automations); it answers `REVERT_UNSUPPORTED` whose `next` names the record and says to ask the user first. Devices already back are left out of an undo (`NOTHING_TO_UNDO` when none is left).
+- **Templates** (golden bodies in `cli/home_insights_test.go`):
+  - `door_light_after_dark`: a lock `from: [locked, unlocking]` `to: unlocked`, or a door/garage-door contact `from: off` `to: on`; only between sunset and sunrise; turns on a light in the same area (names never pair: brand words would);
+  - `lights_off_when_away`: `zone.home` below 1 for 10 min turns off every light (1–30 lights; needs persons whose locations are all known);
+  - `battery_reminder`: any device battery level below 10 % notifies the phone linked for confirmations.
+- **Deviations from §7.5:** templates pair by area only, never by name; rooms go into existing areas only (no area creates, so the undo record is one area per device); the reminder threshold is 10 %, not D4's 5 %; Q1 ships A plus "never ran" without a 30-day window; motion + light is not a template yet.
+
 ## 8. Demo path (`ha-nova try`)
 
 - `ha-nova try` (alias `setup --demo`) and step 1's "Look around the demo house" connect to `demo.hanova.app`:
@@ -509,7 +545,7 @@ Production LOC estimates exclude tests and assets. HR = high-risk, RB = release-
 | A5 | `refactor(setup)`: `setupFlow` engine, text renderer, arrow menus, string catalog | ~500 moved, ~200 new | behavior |
 | A6 | `feat(setup)`: local page: server, security, steps 1–2, hanova.app tokens | ~450 Go + ~40 KB assets | HR |
 | A7 | `feat(confirm)`: window and phone in parallel, result notification; step 3 | ~350 | HR |
-| A8 | `feat(setup)`: step 4: stats, insights, rooms and automation templates, save by plan ID, rooms undo record | ~450 | HR |
+| A8 | `feat(setup)`: step 4 data (§7.6): stats, insights, rooms and automation templates, save by plan ID, rooms undo record; the page's step-4 rendering joins A6 | ~450 | HR |
 | A9 | `feat(uninstall)`: one question; last-device App removal | ~250 | HR |
 | A10 | `feat(setup)`: `ha-nova try` | ~150 | behavior |
 | B1 | `feat(mcp)`: `ha-nova serve` (Streamable HTTP on an internal port, secret auth, server-side plan store bound to the HA user, phone-only/chat-code policy, `waiting_for_phone`) | ~450 | HR |
