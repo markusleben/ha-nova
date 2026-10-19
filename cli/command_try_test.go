@@ -332,4 +332,25 @@ func TestTryNamesTheConfiguredAIApp(t *testing.T) {
 	if exit != 0 || !strings.Contains(out, "Open OpenCode in a new chat") || strings.Contains(out, "Claude Code") {
 		t.Fatalf("try exit=%d out=%s", exit, out)
 	}
+	// The whole text is pinned: each prompt's premise is checked against the
+	// seeded house (bed light references, kitchen lights on, the entrance
+	// door asks first), so a change here needs that check again.
+	want := `
+Demo house connected. It is a shared demo home, not yours: it resets every hour.
+Never type real names or passwords there. Your own home is not touched.
+
+Open OpenCode in a new chat. Say these, one at a time:
+  1. "In the demo house, where is the bed light used?"
+  2. "In the demo house, turn off the kitchen lights."
+  3. "In the demo house, unlock the entrance door."   It asks you first.
+  4. "In the demo house, lock the entrance door every night at 10 pm."
+  5. "Undo that."
+You can ask in any language.
+
+Done?            ha-nova try --stop
+Your own home?   ha-nova setup
+`
+	if out != want {
+		t.Fatalf("try output changed:\n%s", out)
+	}
 }

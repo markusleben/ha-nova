@@ -187,7 +187,8 @@ const TILE_DOMAINS = ["light", "switch", "cover", "lock", "climate", "fan", "med
 // "lovelace" panel without a dashboard entry to the new Home panel) with one
 // sections view by area and one by domain, every view carrying the banner,
 // set as the system-wide default ("core".default_panel, what Settings >
-// Dashboards > "Set as default" writes).
+// Dashboards > "Set as default" writes). `ha-nova try` asks where the bed
+// light is used: keep it on this dashboard (cli/command_try.go).
 async function saveDashboard(ha) {
   const [config, states, entities, devices, areas, dashboards] = await Promise.all([
     ha.call({ type: "get_config" }),

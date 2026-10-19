@@ -31,6 +31,21 @@ const (
 	demoNoticeText      = "This is the demo house: a shared HA NOVA demo home, not the user's own. It resets every hour; never type real names or passwords."
 )
 
+// demoTryPrompts: a short tour of the demo house. Each prompt names the
+// demo house (selection is per command, and a real home may be connected
+// too); "Undo that." follows a create, which the delete flow undoes. Each
+// one works on the seeded house (scripts/e2e/testbed/ seed.mjs + config, the
+// dashboard from scripts/demo/hosted/demo.mjs): the bed light is in an
+// automation, a script, a scene, and the dashboard; the kitchen lights start
+// on; unlocking "Entrance Door Lock" (alias Haustür) asks first.
+const demoTryPrompts = `  1. "In the demo house, where is the bed light used?"
+  2. "In the demo house, turn off the kitchen lights."
+  3. "In the demo house, unlock the entrance door."   It asks you first.
+  4. "In the demo house, lock the entrance door every night at 10 pm."
+  5. "Undo that."
+You can ask in any language.
+`
+
 type demoProfile struct {
 	HAURL      string `json:"ha_url"`
 	RelayURL   string `json:"relay_url"`
@@ -169,14 +184,11 @@ Install Claude Code or Codex, then run: ha-nova try
 Demo house connected. It is a shared demo home, not yours: it resets every hour.
 Never type real names or passwords there. Your own home is not touched.
 
-Open %s in a new chat and try:
-  "In the demo house, which lights are on?"
-  "In the demo house, turn off the kitchen lights."
-  "In the demo house, check the automations for problems."
-
+Open %s in a new chat. Say these, one at a time:
+%s
 Done?            ha-nova try --stop
 Your own home?   ha-nova setup
-`, map[bool]string{true: setupClientLabels(apps), false: "your AI app (" + setupClientLabels(apps) + ")"}[len(apps) == 1])
+`, map[bool]string{true: setupClientLabels(apps), false: "your AI app (" + setupClientLabels(apps) + ")"}[len(apps) == 1], demoTryPrompts)
 	return 0
 }
 
