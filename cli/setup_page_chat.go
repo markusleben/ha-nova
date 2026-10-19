@@ -6,7 +6,6 @@ import (
 	"os"
 	"os/signal"
 	"slices"
-	"time"
 )
 
 // Step 3's chat-app row on the setup page (setupPageChat in
@@ -61,6 +60,7 @@ func (f *setupFlow) pageChatOn(c *setupPageChat, offer *chatAppsOffer, show func
 		return
 	}
 	c.State, c.URL = "on", offer.url
+	offer.state.Enabled = true
 	if result.phoneStored {
 		name := phone.Name
 		offer.state.OwnerPhone = &name
@@ -86,17 +86,12 @@ func (f *setupFlow) pageChatPhone(c *setupPageChat, offer *chatAppsOffer) {
 	if c == nil {
 		return
 	}
-	phone := ownerChatPhone(f.paths, setupSignedInUser, offer.state)
-	if c.State == "on" && phone != nil {
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-		_, err := chatAppsCall(ctx, setupOwnerIngress, map[string]any{"owner_phone": phone})
-		cancel()
-		if err != nil {
+	if c.State == "on" {
+		offer.state.Enabled = true
+		if err := handOverOwnerPhone(setupOwnerIngress, f.paths, setupSignedInUser, &offer.state); err != nil {
 			fmt.Fprintf(f.ui.termOut(), "  %s\n", setupT("setup.chat.error", "error", err))
-			return
+			c.Problem = setupPageText("setup.chat.problem_phone")
 		}
-		name := phone.Name
-		offer.state.OwnerPhone = &name
 	}
 	c.Phone = chatAppsPhoneName(f.paths, setupSignedInUser, offer.state)
 }

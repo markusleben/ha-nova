@@ -157,6 +157,9 @@ func TestSetupPageChatRowOnlyWhenItCanWork(t *testing.T) {
 			if len(app.posted()) != 0 {
 				t.Fatalf("step 3 changed chat apps without a click: %v", app.posted())
 			}
+			if notes := p.flow.pageNotes; test.want == "on" && (len(notes) != 1 || notes[0].Key != "setup.page.home.note_chat") {
+				t.Fatalf("step 4 loses the address: %+v", notes)
+			}
 		})
 	}
 }
@@ -510,6 +513,19 @@ func TestChatAppsCommand(t *testing.T) {
 			t.Fatalf("a failed off: exit %d", exit)
 		}
 	})
+	t.Run("flags after the action; status needs only the Relay", func(t *testing.T) {
+		paths := chatPaths(t)
+		if err := saveConfig(paths, runtimeConfig{RelayBaseURL: "http://homeassistant.local:8791"}); err != nil {
+			t.Fatal(err)
+		}
+		useChatApps(t, &fakeChatApp{}, &fakeChatHA{first: loaded}, chatTestLink)
+		if exit, out := run(paths, "status", "--server", activeServerProfile()); exit != 0 || !strings.Contains(out, "chat apps are on") {
+			t.Fatalf("status --server: %d %q", exit, out)
+		}
+		if exit, _ := run(paths, "on", "--server", activeServerProfile(), "extra"); exit != 1 {
+			t.Fatalf("a stray argument: exit %d", exit)
+		}
+	})
 	t.Run("usage", func(t *testing.T) {
 		paths, _ := setup(t, &fakeChatApp{}, loaded, chatTestLink, "")
 		if exit, _ := run(paths, "maybe"); exit != 1 {
@@ -524,11 +540,16 @@ func TestChatAppsLostAnswer(t *testing.T) {
 	lost := newCloudError(CloudErrNetwork, "send Cloud ingress request", nil)
 	for _, test := range []struct {
 		name   string
+		setErr error
 		getErr error
 		want   string
-	}{{"App says on", nil, ""}, {"unknown", lost, "setup.chat.problem_unknown"}} {
+	}{
+		{"App says on", lost, nil, ""},
+		{"unknown", lost, lost, "setup.chat.problem_unknown"},
+		{"5xx, App says on", &chatAppsRefused{status: 500, code: "INTERNAL"}, nil, ""},
+	} {
 		t.Run(test.name, func(t *testing.T) {
-			app := &fakeChatApp{state: chatAppsState{Available: true}, setErr: lost, getErr: test.getErr}
+			app := &fakeChatApp{state: chatAppsState{Available: true}, setErr: test.setErr, getErr: test.getErr}
 			useChatApps(t, app, &fakeChatHA{first: chatHARead{ha: chatAppsHA{version: "2026.10.2", loaded: true}}}, chatTestLink)
 			chatAppsCall = func(previous func(context.Context, *CloudIngressClient, map[string]any) (chatAppsState, error)) func(context.Context, *CloudIngressClient, map[string]any) (chatAppsState, error) {
 				return func(ctx context.Context, c *CloudIngressClient, body map[string]any) (chatAppsState, error) {
@@ -573,5 +594,25 @@ func TestSetupPageChatTakesALaterPhone(t *testing.T) {
 	f.pageChatPhone(offerRow, &chatAppsOffer{state: chatAppsState{Available: true}})
 	if len(app.posted()) != 1 || offerRow.Phone != "Markus’ iPhone" {
 		t.Fatalf("off: posted %v phone %q", app.posted(), offerRow.Phone)
+	}
+}
+
+// Already on when setup's text path reaches the question: no question, but
+// the owner's phone linked just before goes to the App.
+func TestSetupTextPathHandsOverThePhoneWhenOn(t *testing.T) {
+	app := &fakeChatApp{state: chatAppsState{Available: true, Enabled: true}}
+	useChatApps(t, app, &fakeChatHA{first: chatHARead{ha: chatAppsHA{version: "2026.10.2", loaded: true}}}, chatTestLink)
+	paths := writeTestConfigFile(t, `{"schema_version":1,"confirm_phone":{"owner-id":{"service":"mobile_app_markus_iphone","device_id":"0123456789abcdef0123456789abcdef","user_id":"owner-id","name":"Markus’ iPhone"}}}`)
+	var out strings.Builder
+	f := &setupFlow{paths: paths, ui: setupTextUI{reader: bufio.NewReader(strings.NewReader("")), out: &out}}
+	url, note := f.offerChatApps()
+	if url != chatTestLink+"/api/ha_nova/mcp" || note != "" || len(app.posted()) != 1 || app.posted()[0]["owner_phone"] == nil {
+		t.Fatalf("url %q note %q posted %v", url, note, app.posted())
+	}
+	app.mu.Lock()
+	app.state.OwnerPhone, app.phoneErr = nil, errSetupExit
+	app.mu.Unlock()
+	if _, note := f.offerChatApps(); note != setupT("setup.chat.problem_phone") {
+		t.Fatalf("a refused phone said %q", note)
 	}
 }

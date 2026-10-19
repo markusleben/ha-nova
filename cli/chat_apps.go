@@ -181,6 +181,24 @@ func readChatAppsOffer(client *CloudIngressClient, paths runtimePaths, linkOrigi
 	return chatAppsOffer{state: state, url: origin + chatAppsConnectorPath, loaded: ha.loaded}, true
 }
 
+// handOverOwnerPhone gives the App the owner's phone linked on this computer
+// while chat apps are on and the App has none yet (spec §11.4: the owner taps
+// once). The state's phone is updated when it took it; err when it didn't.
+func handOverOwnerPhone(client *CloudIngressClient, paths runtimePaths, owner string, state *chatAppsState) error {
+	phone := ownerChatPhone(paths, owner, *state)
+	if phone == nil || !state.Enabled {
+		return nil
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	if _, err := chatAppsCall(ctx, client, map[string]any{"owner_phone": phone}); err != nil {
+		return err
+	}
+	name := phone.Name
+	state.OwnerPhone = &name
+	return nil
+}
+
 // chatAppsPhoneName names the phone that will confirm for chat apps: the
 // App's own, else the owner's link on this computer that goes along; ""
 // means a code in the chat.
@@ -227,7 +245,8 @@ func turnOnChatApps(ctx context.Context, client *CloudIngressClient, paths runti
 	}
 	state, err := call(map[string]any{"enabled": true, "allow_restart": true}, 2*time.Minute)
 	var refused *chatAppsRefused
-	if err != nil && !errors.As(err, &refused) && !IsCloudErrorCode(err, CloudErrOuterSessionExpired) && ctx.Err() == nil {
+	clearRefusal := errors.As(err, &refused) && refused.status < http.StatusInternalServerError
+	if err != nil && !clearRefusal && !IsCloudErrorCode(err, CloudErrOuterSessionExpired) && ctx.Err() == nil {
 		// The answer was lost (network, timeout, 5xx): the App may have
 		// turned them on and Home Assistant may be restarting. Ask again.
 		again, againErr := call(nil, 30*time.Second)

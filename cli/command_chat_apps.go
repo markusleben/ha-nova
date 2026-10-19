@@ -42,12 +42,11 @@ func runChatAppsCommand(paths runtimePaths, args []string) int {
 		return 1
 	}
 	action := "status"
-	switch fs.NArg() {
-	case 0:
-	case 1:
-		action = fs.Arg(0)
-	default:
-		action = ""
+	if rest := fs.Args(); len(rest) > 0 { // flags may also follow the action
+		action = rest[0]
+		if err := fs.Parse(rest[1:]); err != nil || fs.NArg() > 0 {
+			action = ""
+		}
 	}
 	if action != "on" && action != "off" && action != "status" {
 		printHumanErr("Usage: ha-nova chat-apps [on|off|status]")
@@ -61,7 +60,7 @@ func runChatAppsCommand(paths runtimePaths, args []string) int {
 		printHumanErr("%s", err)
 		return 1
 	}
-	if cfg.RelayBaseURL == "" || cfg.HAURL == "" {
+	if cfg.RelayBaseURL == "" || (cfg.HAURL == "" && action != "status") { // status needs only the Relay
 		printHumanErr("HA NOVA isn't connected to Home Assistant on this computer yet. Run ha-nova setup first.")
 		return 1
 	}
@@ -126,12 +125,8 @@ func runChatAppsCommand(paths runtimePaths, args []string) int {
 		return 1
 	}
 	if state.Enabled && ha.loaded { // on already; the owner's phone may still be missing there
-		if phone := ownerChatPhone(paths, session.user.ID, state); phone != nil {
-			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-			if _, err := chatAppsCall(ctx, session.ingress, map[string]any{"owner_phone": phone}); err != nil {
-				renderSetupWarningLine(out, "%s", setupT("setup.chat.problem_phone"))
-			}
-			cancel()
+		if err := handOverOwnerPhone(session.ingress, paths, session.user.ID, &state); err != nil {
+			renderSetupWarningLine(out, "%s", setupT("setup.chat.problem_phone"))
 		}
 		printChatAppsHowTo(out, url)
 		return 0

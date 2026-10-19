@@ -103,6 +103,10 @@ func (f *setupFlow) pageControl() int {
 		if !chat.loaded { // on, but a restart never came: the address doesn't answer yet
 			ctl.Chat.Problem = setupPageText("setup.chat.problem_slow")
 		}
+		if err := handOverOwnerPhone(setupOwnerIngress, f.paths, setupSignedInUser, &chat.state); err != nil {
+			ctl.Chat.Problem = setupPageText("setup.chat.problem_phone")
+		}
+		f.pageNotes = append(f.pageNotes, setupPageText("setup.page.home.note_chat", "url", chat.url))
 	case chatOK:
 		ctl.Chat = &setupPageChat{State: "offer", Phone: chatAppsPhoneName(f.paths, setupSignedInUser, chat.state)}
 	}

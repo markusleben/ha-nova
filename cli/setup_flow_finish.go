@@ -276,10 +276,15 @@ func (f *setupFlow) offerChatApps() (url, note string) {
 	switch {
 	case !ok:
 		return "", ""
-	case offer.state.Enabled && !offer.loaded: // on, but a restart never came
-		return offer.url, setupT("setup.chat.problem_slow")
 	case offer.state.Enabled:
-		return offer.url, ""
+		note := ""
+		if !offer.loaded { // on, but a restart never came
+			note = setupT("setup.chat.problem_slow")
+		}
+		if err := handOverOwnerPhone(setupOwnerIngress, f.paths, setupSignedInUser, &offer.state); err != nil {
+			note = setupT("setup.chat.problem_phone") // the phone linked just before
+		}
+		return offer.url, note
 	case !askChatAppsConsent(f.ui.termIn(), f.ui.termOut(), true, chatAppsPhoneName(f.paths, setupSignedInUser, offer.state)):
 		return "", setupT("setup.chat.skipped")
 	}
