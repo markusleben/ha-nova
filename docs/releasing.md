@@ -146,8 +146,10 @@ install/update fails. Spec: `docs/work/2026-10-15-app-prebuilt-images-spec.md`.
 - The chat-app bridge inside the image (`ha-nova serve` + skills) is staged
   from the same tree (`scripts/release/stage-app-bridge.sh`, version =
   `skill_version`), so an App bump comes with or after the final
-  `skill_version`, and a later bridge or integration fix needs an App patch
-  version.
+  `skill_version`, and a later bridge fix needs an App patch version. An
+  App patch alone does not ship a `nova/integration/` fix: only turning chat
+  apps on copies the integration, and HA loads a new copy only after a
+  restart. Build that update path before the first integration fix.
 
 ### Chat-app lanes
 
