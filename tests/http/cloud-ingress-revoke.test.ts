@@ -245,11 +245,14 @@ function deps(cloudRemoteEnabled: boolean): IngressListenerDeps {
       versionLatest: RELAY_VERSION,
       updateAvailable: false,
       ingressPanel: true,
+      hostname: "",
       network: {},
     }),
     getMappedHostPort: async () => null,
     setOptions: async () => {},
     setIngressPanel: async () => {},
+    sendDiscovery: async () => "",
+    deleteDiscovery: async () => {},
   };
   const wsClient = {
     sendMessage: async () => [],

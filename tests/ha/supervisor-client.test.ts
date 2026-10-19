@@ -144,4 +144,29 @@ describe("supervisor-client", () => {
       /403/,
     );
   });
+  it("publishes and deletes the chat-app discovery message", async () => {
+    const uuid = "0123456789abcdef0123456789abcdef";
+    const seen: { url: string; method: string; body: unknown }[] = [];
+    let deleteStatus = 200;
+    mockFetch((url, init) => {
+      seen.push({ url, method: init?.method ?? "GET", body: init?.body ? JSON.parse(init.body as string) : null });
+      return init?.method === "DELETE" ? { status: deleteStatus } : { body: { data: { uuid } } };
+    });
+    const client = createSupervisorClient("tok");
+    expect(await client.sendDiscovery("ha_nova", { host: "h", port: 8794, secret: "s" })).toBe(uuid);
+    await client.deleteDiscovery(uuid);
+    deleteStatus = 404; // already gone counts as deleted
+    await client.deleteDiscovery(uuid);
+    expect(seen.map((s) => `${s.method} ${s.url}`)).toEqual([
+      "POST http://supervisor/discovery",
+      `DELETE http://supervisor/discovery/${uuid}`,
+      `DELETE http://supervisor/discovery/${uuid}`,
+    ]);
+    expect(seen[0]!.body).toEqual({ service: "ha_nova", config: { host: "h", port: 8794, secret: "s" } });
+    deleteStatus = 403;
+    await expect(client.deleteDiscovery(uuid)).rejects.toThrow(/403/);
+    await expect(client.deleteDiscovery("../addons/self")).rejects.toThrow("invalid discovery uuid");
+    mockFetch(() => ({ body: { data: { uuid: "../x" } } }));
+    await expect(client.sendDiscovery("ha_nova", {})).rejects.toThrow("unexpected supervisor response shape");
+  });
 });

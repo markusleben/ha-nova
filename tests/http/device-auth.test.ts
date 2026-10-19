@@ -107,6 +107,13 @@ describe("device peers handler", () => {
     expect((peers(true)(asDevice(self.deviceId)) as { other_devices: number }).other_devices).toBe(2);
   });
 
+  it("leaves the chat-app bridge's own device to chat_app_files", () => {
+    const self = activeDevice("self");
+    const bridge = activeDevice("bridge");
+    const withBridge = createDevicePeersHandler({ registry, pairingOpen: () => false, chatAppFiles: () => true, bridgeDevice: () => bridge.deviceId });
+    expect(withBridge(asDevice(self.deviceId))).toMatchObject({ other_devices: 0, chat_app_files: true });
+  });
+
   it("refuses legacy and missing principals (403)", () => {
     expect(status(() => peers()({ ...ctx(undefined), principal: { kind: "legacy" } }))).toBe(403);
     expect(status(() => peers()(ctx(undefined)))).toBe(403);

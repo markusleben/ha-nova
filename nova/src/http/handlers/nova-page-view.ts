@@ -1,3 +1,4 @@
+import type { ChatAppsStatus } from "../../runtime/chat-apps.js";
 import type { CsrfStore } from "../../security/csrf.js";
 import type { DeviceRecord } from "../../security/device-registry.js";
 
@@ -5,7 +6,8 @@ import type { DeviceRecord } from "../../security/device-registry.js";
 // the armed confirm section, and formatting helpers. The HTTP/action/CSRF
 // handling lives in nova-page.ts; this module never touches the request.
 
-export type NovaAction = "generate_code" | "cancel_code" | "revoke_device" | "revoke_legacy" | "reset_registry";
+export type NovaAction = "generate_code" | "cancel_code" | "revoke_device" | "revoke_legacy" | "reset_registry" | ChatAction;
+export type ChatAction = "chat_apps_on" | "chat_apps_off" | "chat_read_only" | "chat_codes";
 
 export interface ConnectionStatus {
   haConnected: boolean;
@@ -56,6 +58,8 @@ export interface PageModel {
   ingressPath: string;
   errorCode: string | null;
   confirm: ConfirmTarget | null;
+  chatApps: ChatAppsStatus | null; // null: the feature is off in this App
+  chatRestarting: boolean;
 }
 
 export function renderPage(m: PageModel): string {
@@ -93,7 +97,15 @@ export function renderPage(m: PageModel): string {
       ? `<section class="error"><h2>Reset not confirmed</h2><p>The registry was NOT reset: the confirmation text did not match. Type RESET exactly to confirm.</p></section>`
       : m.errorCode === "1"
         ? `<section class="error"><h2>That did not work</h2><p>The action could not be completed. If you were connecting a device, the relay's secure port may be unavailable — check the App is running, then try again.</p></section>`
-        : "";
+        : m.errorCode === "chat_config"
+          ? `<section class="error"><h2>Chat apps are not on</h2><p>Home Assistant's configuration has an error, so it can't restart. Fix it in Home Assistant, then try again.</p></section>`
+          : m.errorCode === "chat_old"
+            ? `<section class="error"><h2>Chat apps are not on</h2><p>Chat apps need Home Assistant 2026.10 or newer. Update Home Assistant first, then try again.</p></section>`
+          : m.errorCode === "chat_folder"
+            ? `<section class="error"><h2>Chat apps: that did not work</h2><p>HA NOVA can't use the custom_components folder in Home Assistant's configuration. Check that it is a normal folder, then try again.</p></section>`
+          : m.errorCode === "chat"
+            ? `<section class="error"><h2>Chat apps: that did not work</h2><p>Try again in a moment. If it keeps failing, the NOVA App log says why.</p></section>`
+            : "";
 
   const confirmSection = renderConfirmSection(m, formOpen, csrfField, base);
 
@@ -214,9 +226,45 @@ ${errorSection}${confirmSection}<section><h2>Home Assistant</h2><p>${m.connectio
 ${recoverySection}<section><h2>Update</h2><p>${updateLine}</p></section>
 <section><h2>Pairing</h2>${pairingSection}</section>
 <section><h2>Devices</h2>${deviceRows}</section>
-${legacySection}<footer>Signed in as ${escapeHtml(m.ownerName)} · Relay ${escapeHtml(m.relayVersion)}</footer>
+${renderChatApps(m, formOpen, csrfField)}${legacySection}<footer>Signed in as ${escapeHtml(m.ownerName)} · Relay ${escapeHtml(m.relayVersion)}</footer>
 </main>
 </body></html>`;
+}
+
+// "Chat apps": Claude and ChatGPT through Home Assistant Link (spec §11.6).
+// Turning on is consent to the one Home Assistant restart named on the button.
+function renderChatApps(m: PageModel, formOpen: string, csrfField: (action: NovaAction) => string): string {
+  const c = m.chatApps;
+  if (c === null) {
+    return "";
+  }
+  const button = (action: ChatAction, label: string, value = "", style = ""): string =>
+    `${formOpen}${csrfField(action)}${value ? `<input type="hidden" name="value" value="${value}">` : ""}<button${style ? ` class="${style}"` : ""} type="submit">${label}</button></form>`;
+  const toggle = (label: string, on: boolean, action: ChatAction): string =>
+    `<li><span>${label}: <strong>${on ? "on" : "off"}</strong></span>${button(action, on ? "Turn off" : "Turn on", on ? "off" : "on", "secondary")}</li>`;
+  let body: string;
+  if (!c.available && !c.enabled && !c.unfinished) {
+    body = `<p class="muted">Using HA NOVA in Claude and ChatGPT needs a newer NOVA App.</p>`;
+  } else if (!c.available) { // e.g. after going back to an older App: offer only the way off
+    body = `<p>This NOVA App version can't run chat apps. Turn them off, so Home Assistant stops looking for them.</p>${button("chat_apps_off", "Turn off chat apps", "", "secondary")}`;
+  } else if (c.enabled) {
+    const who = c.allowedUsers === null ? "only you" : `${c.allowedUsers.length} Home Assistant user${c.allowedUsers.length === 1 ? "" : "s"}`;
+    const phone = c.ownerPhone === null
+      ? c.chatCodes ? "no phone linked: changes that need your OK show a code in the chat" : "no phone linked: changes that need your OK are refused"
+      : `your phone ${escapeHtml(c.ownerPhone)} asks you`;
+    body = `<p>On. In Claude or ChatGPT, add a connector with your Home Assistant Link address followed by <code>/api/ha_nova/mcp</code>, then sign in to Home Assistant.</p>
+<p class="muted">Who can use it: ${who}. Confirmations: ${phone}.</p>
+${m.chatRestarting ? `<p class="ok">Home Assistant is restarting (about a minute). Reload this page afterwards.</p>` : ""}
+<ul>${toggle("Chat apps can only read", c.readOnly, "chat_read_only")}${toggle("Codes in the chat", c.chatCodes, "chat_codes")}</ul>
+<p class="muted meta">To sign a chat app out, remove its token in Home Assistant under Profile → Security. Turn chat apps off before you remove the NOVA App.</p>
+${button("chat_apps_off", "Turn off chat apps", "", "secondary")}`;
+  } else {
+    body = `${c.unfinished ? `<p class="error">Turning chat apps off did not finish.</p>${button("chat_apps_off", "Try again", "", "secondary")}` : ""}
+<p class="muted">Use HA NOVA in Claude and ChatGPT, also on your phone, through Home Assistant Link. Only you can use it.</p>
+<p class="muted">Home Assistant restarts once (about a minute).</p>${button("chat_apps_on", "Turn on chat apps")}`;
+  }
+  return `<section><h2>Chat apps</h2>${body}</section>
+`;
 }
 
 // Renders the armed confirm step for a destructive action. This render is the

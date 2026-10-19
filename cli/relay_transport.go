@@ -84,6 +84,9 @@ func relayFunctionalTransport(cfg runtimeConfig) (baseURL string, client *http.C
 		// as device mode: a non-legacy credential with its own client.
 		return cfg.RelayBaseURL, demoHTTPClient(), cfg.demoToken, true, nil
 	}
+	if cfg.bridgeCredential != "" { // the NOVA App's bridge: its internal device, pinned TLS
+		return cfg.RelaySecureBaseURL, spkiPinnedClient(cfg.RelaySpkiPin), cfg.bridgeCredential, true, nil
+	}
 	if cfg.RelaySecureBaseURL != "" && cfg.RelaySpkiPin != "" {
 		cred, ok, credErr := readDeviceCredential()
 		if credErr != nil {

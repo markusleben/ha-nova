@@ -35,6 +35,7 @@ export interface PairingListenerDeps {
   logger?: RelayLogger;
   // Chat-app integration files in Home Assistant's config; null: unknown.
   chatAppFiles?: () => boolean | null;
+  bridgeDevice?: () => string | null; // the chat-app bridge's internal device
 }
 
 const PAIR_INFO = "GET /pair/v1/info";
@@ -95,7 +96,7 @@ export function createDeviceListener(deps: PairingListenerDeps): RequestListener
   registerFunctional(router, deps.functional);
   router.register("POST", "/auth/device/activate", createDeviceActivateHandler({ registry: deps.registry, now: deps.now }));
   router.register("POST", "/auth/device/revoke-self", createDeviceRevokeSelfHandler({ registry: deps.registry, now: deps.now }));
-  router.register("GET", "/auth/device/peers", createDevicePeersHandler({ registry: deps.registry, pairingOpen: () => !["inactive", "consumed"].includes(deps.pairingManager.getStatus().phase), chatAppFiles: deps.chatAppFiles ?? (() => null) }));
+  router.register("GET", "/auth/device/peers", createDevicePeersHandler({ registry: deps.registry, pairingOpen: () => !["inactive", "consumed"].includes(deps.pairingManager.getStatus().phase), chatAppFiles: deps.chatAppFiles ?? (() => null), ...(deps.bridgeDevice ? { bridgeDevice: deps.bridgeDevice } : {}) }));
 
   const functionalAuth = functionalAuthorize(deps, "secure");
   return createRequestListener({
