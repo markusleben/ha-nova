@@ -24,7 +24,10 @@ import (
 var setupPageIdle = 30 * time.Minute
 
 // The actions the page may post; the engine accepts a subset at a time.
-var setupPageActions = []string{"signin", "address", "terminal", "recheck", "stop"}
+var setupPageActions = []string{"signin", "address", "terminal", "recheck", "stop",
+	"phone", "finish", // step 3 (setup_page_control.go)
+	"preview", "save", "undo", "claude", "done", // step 4 (setup_page_home.go)
+}
 
 type setupPageMsg struct {
 	Key  string         `json:"key"`
@@ -49,7 +52,7 @@ type setupPageRow struct {
 }
 
 type setupPageState struct {
-	Screen     string               `json:"screen"` // looking, found, connect, noclient, terminal, done, incomplete, failed, stopped
+	Screen     string               `json:"screen"` // looking, found, connect, noclient, control, home, terminal, done, closed, incomplete, failed, stopped
 	HA         string               `json:"ha,omitempty"`
 	Candidates []setupPageCandidate `json:"candidates,omitempty"`
 	Clients    []string             `json:"clients,omitempty"` // product names
@@ -62,6 +65,8 @@ type setupPageState struct {
 	Links      map[string]string    `json:"links,omitempty"`
 	AskHA      bool                 `json:"ask_ha,omitempty"` // step 1 opens the address field
 	SignInURL  string               `json:"signin_url,omitempty"`
+	Control    *setupPageControl    `json:"control,omitempty"` // step 3
+	Home       *setupPageHome       `json:"home,omitempty"`    // step 4
 	Accepts    []string             `json:"accepts"`
 }
 
@@ -90,7 +95,6 @@ type setupWebUI struct {
 	stopAsked  bool
 	handedOver bool
 	idled      bool // setup ended because nobody clicked for setupPageIdle
-	realOut    bool // the terminal shows its own output again (finish offers)
 }
 
 // setupPlainWriter is not an *os.File, so the transcript stays plain: no
@@ -373,17 +377,8 @@ func (ui *setupWebUI) termIn() *bufio.Reader { return ui.stdin }
 func (ui *setupWebUI) termOut() io.Writer {
 	ui.mu.Lock()
 	defer ui.mu.Unlock()
-	if ui.handedOver || ui.realOut {
+	if ui.handedOver {
 		return ui.text.out
 	}
 	return ui.log
-}
-
-// finishInTerminal: the offers after step 2 (Link, phone, Claude Code rule)
-// print and ask in the terminal itself. The page switches to "continue in
-// the terminal" only when one of them reads an answer.
-func (ui *setupWebUI) finishInTerminal() {
-	ui.mu.Lock()
-	defer ui.mu.Unlock()
-	ui.realOut = true
 }

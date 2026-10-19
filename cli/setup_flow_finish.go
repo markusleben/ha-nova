@@ -152,11 +152,6 @@ func (f *setupFlow) stepSkills() setupStepResult {
 		f.ui.outcome(setupOutcome{Kind: setupOutcomeIncomplete, Issue: setupIssueSkillsInstall})
 		return setupDone(1)
 	}
-	if f.page != nil {
-		// The page ends with step 2 for now: the Link, phone, and Claude
-		// Code offers ask in the terminal (spec §13 A7 moves them to step 3).
-		f.page.finishInTerminal()
-	}
 	exit := 0
 	if f.cloudSetupPaused {
 		f.ui.outcome(setupOutcome{Kind: setupOutcomeLinkPaused})
@@ -164,7 +159,10 @@ func (f *setupFlow) stepSkills() setupStepResult {
 		f.ui.outcome(setupOutcome{Kind: setupOutcomeIncomplete, Issue: setupIssueCloudAccess})
 		exit = 1
 	}
-	if exit == 0 && !f.connectionModeAsked && !f.serviceMode {
+	if exit == 0 && f.page != nil && !f.page.inTerminal() {
+		// The page asks step 3 itself: phone, Claude Code rule, Link.
+		exit = f.pageControl()
+	} else if exit == 0 && !f.connectionModeAsked && !f.serviceMode {
 		armSetupNextPromptSkipsStaleBlankInput()
 		var cloudAttempted bool
 		var cloudCode int
@@ -198,6 +196,9 @@ func (f *setupFlow) stepSkills() setupStepResult {
 // outcome. The offers come first: the outcome clears the screen, so the
 // Claude rule's note prints after it.
 func (f *setupFlow) finish() setupStepResult {
+	if f.pageControlled {
+		return f.pageFinish()
+	}
 	interactive := !f.serviceMode && f.ui.interactive()
 	if f.pairedThisRun && !f.cloudSetupPaused && interactive {
 		offerPhoneLink(f.ui.termIn(), f.ui.termOut(), f.paths)

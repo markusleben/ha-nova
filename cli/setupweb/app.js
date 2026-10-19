@@ -14,8 +14,8 @@
   const screenEl = document.getElementById('screen');
   const dotsEl = document.getElementById('dots');
   const statusEl = document.getElementById('status');
-  const finalScreens = ['done', 'incomplete', 'finished', 'failed', 'stopped', 'idle', 'lost', 'elsewhere'];
-  const steps = { looking: 1, found: 1, noclient: 1, connect: 2, done: 4, incomplete: 4 };
+  const finalScreens = ['done', 'closed', 'incomplete', 'finished', 'failed', 'stopped', 'idle', 'lost', 'elsewhere'];
+  const steps = { looking: 1, found: 1, noclient: 1, connect: 2, control: 3, home: 4, done: 4, closed: 4, incomplete: 4 };
   const downloads = {
     claude_desktop: 'https://claude.com/download',
     claude_code: 'https://claude.com/claude-code',
@@ -27,6 +27,7 @@
     terminal: ['setup.page.terminal.eyebrow', 'setup.page.terminal.title', 'setup.page.terminal.lead'],
     incomplete: ['setup.page.incomplete.eyebrow', 'setup.page.incomplete.title', 'setup.page.incomplete.lead', true],
     finished: ['setup.page.finished.eyebrow', 'setup.page.finished.title', 'setup.page.done.fine'],
+    closed: ['setup.page.closed.eyebrow', 'setup.page.closed.title', 'setup.page.closed.lead'],
     failed: ['setup.page.failed.eyebrow', 'setup.page.failed.title', 'setup.page.failed.lead', true],
     stopped: ['setup.page.stopped.eyebrow', 'setup.page.stopped.title', 'setup.page.stopped.lead', true],
     idle: ['setup.page.idle.eyebrow', 'setup.page.idle.title', 'setup.page.idle.lead', true],
@@ -211,6 +212,8 @@
     done: () => [...head(t('setup.page.done.eyebrow'), t('setup.page.done.title'), t('setup.page.done.lead', { clients: state.clients || [] })),
       el('p', { class: 'fine' }, t('setup.page.done.fine'))],
   };
+  // Steps 3 and 4 (steps.js).
+  Object.assign(screens, window.novaSteps({ t, el, row, head, button, format, render, post, accepts, state: () => state }));
   for (const [screen, [eyebrow, title, lead, amber]] of Object.entries(endScreens)) {
     screens[screen] = () => head(t(eyebrow), t(title), t(lead), amber);
   }

@@ -141,8 +141,41 @@ h1:focus { outline: none; }
 .fine + .fine { margin-top: 4px; }
 .code { font: 600 .9375rem var(--mono); background: var(--panel); border: 1px solid var(--hairline); border-radius: 10px; padding: .9rem 1.1rem; margin: 0 0 28px; overflow-x: auto; white-space: nowrap; }
 
+/* Steps 3 and 4. */
+.ic.guard { color: var(--abyss); background: var(--amber); }
+.switch { flex: none; width: 46px; height: 26px; border-radius: 999px; border: 1px solid var(--hairline); background: rgba(184, 204, 224, .12); position: relative; cursor: pointer; padding: 0; }
+.switch::after { content: ""; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%; background: var(--ink-soft); transition: transform .2s; }
+.switch[aria-checked="true"] { background: var(--cyan); border-color: var(--cyan); }
+.switch[aria-checked="true"]::after { transform: translateX(20px); background: var(--abyss); }
+.switch[disabled] { opacity: .55; cursor: default; }
+.switch:focus-visible, .chip:focus-visible, .linkish:focus-visible, summary:focus-visible { outline: 2px solid var(--cyan); outline-offset: 3px; }
+.linkish { font: 600 .875rem var(--font); background: none; border: none; color: var(--cyan); cursor: pointer; padding: 0; margin-top: 6px; }
+.rows .problem { margin: 8px 0 0; font-size: .95rem; }
+.note { border-left: 2px solid var(--amber); padding: 2px 0 2px 14px; color: var(--ink-soft); font-size: .95rem; margin: 0 0 16px; }
+h2 { font-size: .8125rem; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-soft); margin: 0 0 6px; }
+.stat { display: grid; grid-template-columns: repeat(auto-fit, minmax(104px, 1fr)); gap: 12px; margin: 8px 0 32px; padding: 0; list-style: none; }
+.stat li { display: grid; justify-items: start; gap: 6px; padding: 14px 14px 12px; border: 1px solid var(--hairline); border-radius: 10px; font-size: .9rem; color: var(--ink-soft); }
+.stat svg { width: 30px; height: 30px; fill: none; stroke: var(--cyan); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; filter: drop-shadow(0 0 4px rgba(24, 188, 242, .45)); }
+.stat li.guard svg { stroke: var(--amber); filter: drop-shadow(0 0 4px rgba(255, 179, 71, .45)); }
+.stat li.muted svg { stroke: var(--ink-soft); filter: none; opacity: .7; }
+.stat b { font-size: 1.6rem; line-height: 1; color: var(--ink); font-variant-numeric: tabular-nums; }
+.stat .hint { font-size: .78rem; color: var(--cyan); }
+.rows li.pvrow { border-top: 0; padding-top: 0; }
+.preview { font: .85rem/1.6 var(--mono); color: var(--ink-soft); background: var(--panel); border: 1px solid var(--hairline); border-radius: 10px; padding: 12px 14px; overflow-wrap: anywhere; }
+.preview .add { color: var(--ok); }
+.preview .btn { margin-top: 10px; margin-right: 8px; font-family: var(--font); }
+.preview .busy { margin-bottom: 6px; }
+.preview details { margin: 8px 0; }
+.preview summary { cursor: pointer; color: var(--cyan); font-family: var(--font); }
+.preview pre { margin: 8px 0 0; white-space: pre-wrap; font: .8rem/1.5 var(--mono); color: var(--ink); }
+.chips { display: flex; flex-wrap: wrap; gap: 10px; margin: 0 0 32px; }
+.chip { font: 500 .95rem var(--font); color: var(--ink); background: transparent; border: 1px solid rgba(24, 188, 242, .45); border-radius: 999px; padding: .45rem 1rem; cursor: pointer; text-align: left; }
+.chip:hover { border-color: var(--cyan); }
+.toast { position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); max-width: calc(100% - 32px); background: var(--bg-1); border: 1px solid var(--hairline); padding: 10px 18px; border-radius: 999px; font-size: .9rem; z-index: 5; }
+
 @media (max-width: 720px) {
   .actions .btn { width: 100%; }
+  .preview .btn { width: auto; }
 }
 @media (max-width: 480px) {
   .rows li { grid-template-columns: 24px 1fr; }
@@ -150,5 +183,5 @@ h1:focus { outline: none; }
 }
 @media (prefers-reduced-motion: reduce) {
   html::before, html::after, body::before, body::after, main.enter > *, .ic.run { animation: none; }
-  .btn { transition: none; }
+  .btn, .switch::after { transition: none; }
 }
