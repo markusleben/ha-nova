@@ -58,7 +58,7 @@ func renderSetupLink(out io.Writer, label, target string) {
 }
 
 func renderSetupCancelledNote(out io.Writer) {
-	renderSetupParagraph(out, "Setup cancelled.")
+	renderSetupParagraph(out, setupT("setup.cancelled"))
 }
 
 func renderSetupStatusLine(out io.Writer, role, format string, args ...interface{}) {

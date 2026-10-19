@@ -8,12 +8,12 @@ import "io"
 // runs skip it.
 func renderSetupIntro(out io.Writer) {
 	renderSetupParagraph(out,
-		"Welcome! HA NOVA lets your AI assistant run your Home Assistant.",
+		setupT("setup.intro.welcome"),
 	)
 	renderSetupParagraph(out,
-		"Steps: pick your AI client, find Home Assistant, add the NOVA App, connect this computer, install the skills.",
-		"When a browser page opens, finish there and come back here.",
-		"You need the Home Assistant owner's account.",
-		"Home Assistant Link only: the NOVA App must already be installed.",
+		setupT("setup.intro.steps"),
+		setupT("setup.intro.browser"),
+		setupT("setup.intro.owner"),
+		setupT("setup.intro.link_only"),
 	)
 }

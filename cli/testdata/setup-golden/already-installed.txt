@@ -1,0 +1,30 @@
+exit 0
+--- stdout
+
+  HA NOVA Setup
+  -------------
+
+  HA NOVA Setup
+  -------------
+
+  Checking current setup...
+  [ok] NOVA App reachable
+  [ok] Authentication valid
+  [ok] WebSocket connected
+  [ok] Skills installed
+
+  Home Assistant Link remote access (Beta) is available only from an interactive desktop session.
+  Your working local connection was not changed.
+
+  HA NOVA Setup
+  -------------
+
+  [ok] Everything is already set up!
+
+  This device still connects with the shared legacy token.
+  Switch to its own revocable credential: run 'ha-nova pair' and
+  enter a fresh code from the NOVA page ("Connect a device").
+
+  Run 'ha-nova doctor' for full diagnostics.
+
+--- stderr

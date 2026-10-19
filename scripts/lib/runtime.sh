@@ -126,7 +126,7 @@ repo_dev_binary_needs_rebuild() {
     fi
   done < <(
     find "${REPO_ROOT}/cli" -type f \
-      \( -name '*.go' -o -name 'go.mod' -o -name 'go.sum' \) \
+      \( -name '*.go' -o -name 'go.mod' -o -name 'go.sum' -o -path '*/setupweb/*' \) \
       -print0
   )
 

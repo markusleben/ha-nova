@@ -11,12 +11,12 @@ import (
 
 func testSetupClientChoices() []setupClientChoice {
 	return []setupClientChoice{
-		{Number: "1", Value: "claude", Label: "Claude Code", Resolved: []string{"claude"}},
-		{Number: "2", Value: "codex", Label: "Codex CLI", Resolved: []string{"codex"}},
-		{Number: "3", Value: "opencode", Label: "OpenCode", Resolved: []string{"opencode"}},
-		{Number: "4", Value: "antigravity", Label: "Google Antigravity", Resolved: []string{"antigravity"}},
-		{Number: "5", Value: "hermes", Label: "Hermes Agent", Resolved: []string{"hermes"}},
-		{Number: "6", Value: "all", Label: "All available clients", Resolved: []string{"claude", "codex", "opencode", "antigravity", "hermes"}},
+		{Value: "claude", Label: "Claude Code", Resolved: []string{"claude"}},
+		{Value: "codex", Label: "Codex CLI", Resolved: []string{"codex"}},
+		{Value: "opencode", Label: "OpenCode", Resolved: []string{"opencode"}},
+		{Value: "antigravity", Label: "Google Antigravity", Resolved: []string{"antigravity"}},
+		{Value: "hermes", Label: "Hermes Agent", Resolved: []string{"hermes"}},
+		{Value: "all", Label: "All available clients", Resolved: []string{"claude", "codex", "opencode", "antigravity", "hermes"}},
 	}
 }
 
@@ -148,9 +148,9 @@ func TestPromptSetupClientSupportsWizardExit(t *testing.T) {
 	reader := bufio.NewReader(strings.NewReader("exit\n"))
 	output := &bytes.Buffer{}
 
-	_, err := promptSetupClientFromReader(reader, output, testSetupClientChoices(), "claude")
+	_, err := promptSetupClientInteractive(reader, output, testSetupClientChoices(), "claude")
 	if err != errSetupExit {
-		t.Fatalf("promptSetupClientFromReader() error = %v, want %v", err, errSetupExit)
+		t.Fatalf("promptSetupClientInteractive() error = %v, want %v", err, errSetupExit)
 	}
 }
 
@@ -158,9 +158,9 @@ func TestPromptSetupClientSupportsWizardBack(t *testing.T) {
 	reader := bufio.NewReader(strings.NewReader("back\n"))
 	output := &bytes.Buffer{}
 
-	_, err := promptSetupClientFromReader(reader, output, testSetupClientChoices(), "claude")
+	_, err := promptSetupClientInteractive(reader, output, testSetupClientChoices(), "claude")
 	if err != errSetupBack {
-		t.Fatalf("promptSetupClientFromReader() error = %v, want %v", err, errSetupBack)
+		t.Fatalf("promptSetupClientInteractive() error = %v, want %v", err, errSetupBack)
 	}
 }
 
@@ -169,9 +169,9 @@ func TestPromptReadersCanBeReusedAcrossSequentialSetupQuestions(t *testing.T) {
 	reader := bufio.NewReader(input)
 	output := &bytes.Buffer{}
 
-	client, err := promptSetupClientFromReader(reader, output, testSetupClientChoices(), "claude")
+	client, err := promptSetupClientInteractive(reader, output, testSetupClientChoices(), "claude")
 	if err != nil {
-		t.Fatalf("promptSetupClientFromReader() error: %v", err)
+		t.Fatalf("promptSetupClientInteractive() error: %v", err)
 	}
 	if client != "antigravity" {
 		t.Fatalf("client = %q, want antigravity", client)
@@ -516,12 +516,12 @@ func TestPromptSetupTokenChoiceRepromptsOnInvalidInput(t *testing.T) {
 	reader := bufio.NewReader(strings.NewReader("banana\n2\n"))
 	output := &bytes.Buffer{}
 
-	got, err := promptSetupTokenChoiceFromReader(reader, output, false)
+	got, err := promptSetupTokenChoiceInteractive(reader, output, false)
 	if err != nil {
-		t.Fatalf("promptSetupTokenChoiceFromReader() error: %v", err)
+		t.Fatalf("promptSetupTokenChoiceInteractive() error: %v", err)
 	}
 	if got != "generate" {
-		t.Fatalf("promptSetupTokenChoiceFromReader() = %q, want %q", got, "generate")
+		t.Fatalf("promptSetupTokenChoiceInteractive() = %q, want %q", got, "generate")
 	}
 	if !strings.Contains(output.String(), "Invalid choice") {
 		t.Fatalf("expected invalid-choice guidance in output:\n%s", output.String())
@@ -532,5 +532,5 @@ func TestPromptSetupTokenChoiceRepromptsOnInvalidInput(t *testing.T) {
 }
 
 func promptSetupClient(in io.Reader, out io.Writer, choices []setupClientChoice, defaultClient string) (string, error) {
-	return promptSetupClientFromReader(bufio.NewReader(in), out, choices, defaultClient)
+	return promptSetupClientInteractive(bufio.NewReader(in), out, choices, defaultClient)
 }

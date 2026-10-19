@@ -1,0 +1,69 @@
+exit 0
+--- stdout
+
+  HA NOVA Setup
+  -------------
+
+  HA NOVA Setup
+  -------------
+
+  Checking current setup...
+  [!!] NOVA App not reachable
+  [!!] No auth token found
+  [!!] WebSocket not connected
+  [!!] Skills not installed
+
+  Already done: app installation
+
+  HA NOVA Setup
+  -------------
+
+  [2/4] Step 2 of 4 – Connect this computer
+
+  In NOVA (Home Assistant sidebar), click "Connect a device" for a one-time six-digit code.
+  Each computer gets its own connection; remove it in NOVA anytime.
+
+  This will open:
+      <ha-url>/app/local_ha_nova_test
+
+  Press Enter to open NOVA:   Opening in your browser...
+
+  Six-digit code from NOVA (or type 'manual'):   [!!] pairing code must contain exactly six digits
+
+  Six-digit code from NOVA (or type 'manual'):   [!!] pairing code must contain exactly six digits
+
+  Six-digit code from NOVA (or type 'manual'):   [!!] pairing code must contain exactly six digits
+
+  Six-digit code from NOVA (or type 'manual'):   [ok] This computer is connected
+
+  HA NOVA Setup
+  -------------
+
+  [3/4] Step 3 of 4 – Verifying connection
+  [ok] Home Assistant reachable
+  [ok] NOVA App reachable
+  [ok] Connected to Home Assistant
+
+  HA NOVA Setup
+  -------------
+
+  [4/4] Step 4 of 4 – Installing HA NOVA skills
+  Setting up HA NOVA for Codex CLI...
+  Home Assistant Link remote access (Beta) is available only from an interactive desktop session.
+  Your working local connection was not changed.
+
+  HA NOVA Setup
+  -------------
+
+  [ok] Setup complete!
+
+  Installed for: Codex CLI
+
+  Open Codex CLI and try asking:
+
+    "Turn off the living room light"
+    "List my automations"
+
+  Need help? Run: ha-nova doctor
+
+--- stderr
