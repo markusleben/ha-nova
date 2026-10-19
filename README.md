@@ -28,8 +28,8 @@
 
 ## ✦ Three steps to connect
 
-1. **Run the installer** — one command; the wizard finds your Home Assistant and opens the NOVA Relay App page for you: click "Add", then Install and Start. Already running for another computer? The wizard skips this step.
-2. **Sign in with Home Assistant** — the wizard opens your Home Assistant login in the browser. Sign in as the owner, and this computer connects by itself.
+1. **Run the installer** — one command; the wizard finds your Home Assistant.
+2. **Sign in with Home Assistant** — the wizard opens your Home Assistant login in the browser. Sign in as the owner: the wizard installs and starts the NOVA Relay App for you if needed, and this computer connects by itself.
 3. **Get a first look** — setup ends with your home in one line, up to two things worth a look (a low battery, an automation that can't run), and example prompts with your own room and device names.
 
 No browser here, or signed in as another Home Assistant user? Pair with a one-time code instead: the Home Assistant owner clicks **"Connect a device"** on the NOVA page in the sidebar, and you type the six-digit code. Over SSH this works reliably on Linux only: on Windows and macOS, run setup in a terminal on that computer's own desktop, because over SSH HA NOVA usually can't save its credential.
@@ -62,7 +62,7 @@ Say what you want. HA NOVA figures out the rest.
 | *"Move all kitchen devices to the Kitchen area"* | Reassigns entities and devices — shows what will change first |
 | *"Turn off the kitchen light"* | Turns it off right away and checks that it really is off — whole rooms, scenes, and riskier actions show a preview first |
 | *"Unlock the front door"* | Shows exactly what will happen, then waits for you: Confirm in a window on your computer, a tap on your linked phone, or a one-time code |
-| *"What do I have, and where is this sensor used?"* | Counts rooms, devices, automations, and integrations itself and lists the automations, scripts, scenes, and groups that use a sensor — exact numbers, never a guess |
+| *"What do I have, and where is this sensor used?"* | Counts rooms, devices, automations, and integrations itself and lists the automations, scripts, scenes, groups, helpers, and dashboard cards that use a sensor — exact numbers, never a guess |
 | *"My door sensor died, I paired a new one"* | Moves automations, scripts, scenes, dashboards, helpers, and energy sources to the new device in one reviewed plan |
 | *"Turn this Node-RED flow into an automation"* | Lists what the rule does, maps each device to a real entity, builds a native automation, and keeps the old rule disabled, not deleted |
 | *"Check my ESPHome config for the garage sensor"* | Explains the device file in plain words and flags removed keys, pins that can't do what the file asks, and passwords written into it |
@@ -116,7 +116,7 @@ curl -fsSL https://raw.githubusercontent.com/markusleben/ha-nova/main/install.sh
 irm https://raw.githubusercontent.com/markusleben/ha-nova/main/install.ps1 | iex
 ```
 
-The installer selects the latest stable release. Run the command for your OS; the wizard discovers your Home Assistant, opens the NOVA Relay App page with the repository added on the way (click "Add", then Install and Start; skipped when the App already runs), and configures your AI clients. To pair, it opens your Home Assistant login: sign in as the owner, and this computer connects by itself. As another Home Assistant user, over SSH on Linux, or when sign-in doesn't work out, it asks for the code instead — the owner opens **NOVA** in the sidebar (or "Open Web UI" on the app page) and clicks **"Connect a device"**, and you type the six-digit code. On Windows and macOS, run setup in a terminal on the computer's own desktop, not over SSH. After pairing, setup offers to link your phone for confirmations (signed in to the Home Assistant app as an administrator), and it ends with a first look at your home.
+The installer selects the latest stable release. Run the command for your OS; the wizard discovers your Home Assistant and configures your AI clients. On HA OS and Supervised it offers to install the NOVA Relay App for you: choose "Sign in and install NOVA", sign in as the owner in the browser, and it installs and starts the App and connects this computer with that one sign-in (an outdated App is updated the same way; nothing to do when the App already runs). Rather do it yourself, or no browser sign-in here (for example over SSH)? The wizard takes you to the App page instead, with the repository added on the way: click "Add", then Install and Start. Otherwise, to pair, it opens your Home Assistant login: sign in as the owner, and this computer connects by itself. As another Home Assistant user, over SSH on Linux, or when sign-in doesn't work out, it asks for the code instead — the owner opens **NOVA** in the sidebar (or "Open Web UI" on the app page) and clicks **"Connect a device"**, and you type the six-digit code. On Windows and macOS, run setup in a terminal on the computer's own desktop, not over SSH. After pairing, setup offers to link your phone for confirmations (signed in to the Home Assistant app as an administrator), and it ends with a first look at your home.
 
 > **Want to look first?** The [demo house](https://hanova.app/demo/) is a simulated Home Assistant with no real devices, to look around before you connect your own. Everyone shares one login and it resets every hour, so never enter real names, passwords, or tokens there.
 
