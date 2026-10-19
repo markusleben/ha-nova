@@ -42,6 +42,19 @@ export function createDeviceRevokeSelfHandler(deps: DeviceAuthDeps): RouteHandle
   };
 }
 
+// GET /auth/device/peers — whether uninstall may remove the App: other device
+// records (pending included), an open pairing window, legacy shared access, and
+// chat-app files (null: unknown). Paired devices learn nothing new.
+export function createDevicePeersHandler(deps: { registry: DeviceRegistry; pairingOpen: () => boolean; chatAppFiles: () => boolean | null }): RouteHandler {
+  return ({ principal }: RouteContext) => {
+    if (principal?.kind !== "device") {
+      throw new HttpError(403, "DEVICE_REQUIRED", "Only a paired device can read this");
+    }
+    const others = deps.registry.list().filter((d) => d.deviceId !== principal.deviceId);
+    return { other_devices: others.length, pairing_open: deps.pairingOpen(), legacy_access: deps.registry.hasLegacy(), chat_app_files: deps.chatAppFiles() };
+  };
+}
+
 function presentedCredential(request: RouteContext["request"]): { deviceId: string; secret: string } {
   const token = bearerToken(request.headers.authorization);
   const cred = token !== null ? parseCredential(token) : null;

@@ -298,21 +298,21 @@ func TestRunUninstallYesShowsPreflightAndLeavesSharedApp(t *testing.T) {
 	}
 	for _, want := range []string{
 		"HA NOVA Uninstall",
-		"Standard remove:",
+		"Removes from this computer:",
 		uninstallRuntimeLineLabel(paths, installSourceBundle),
 		"Managed local state and cache",
-		"Full purge also removes:",
+		"Also removed:",
 		"Home Assistant connection config",
 		tokenLabel,
-		// --yes never asked "last computer?", so the shared App is left.
-		sharedAppLeftNote,
+		// --yes never offers the App removal; this standalone Relay stays.
+		"The NOVA Relay stays. Remove it only if no other computer uses HA NOVA",
 	} {
 		if !strings.Contains(output, want) {
 			t.Fatalf("expected uninstall output %q:\n%s", want, output)
 		}
 	}
-	if strings.Contains(output, "uninstall the app at") || strings.Contains(output, "remove the repository") {
-		t.Fatalf("--yes must not send the user to remove the shared App:\n%s", output)
+	if strings.Contains(output, "Removed the NOVA App") {
+		t.Fatalf("--yes must never remove the shared App:\n%s", output)
 	}
 }
 

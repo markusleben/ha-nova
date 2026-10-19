@@ -3,60 +3,91 @@ package main
 import (
 	"bufio"
 	"errors"
+	"fmt"
 	"io"
+	"slices"
+	"strconv"
 	"strings"
 )
 
-// promptUninstallMode: proceed=false means cancel (the Cancel choice or
-// Ctrl+C in the menu).
-func promptUninstallMode(out io.Writer, defaultMode uninstallMode) (uninstallMode, bool, error) {
+type uninstallChoice struct {
+	mode      uninstallMode
+	removeApp bool
+}
+
+// promptUninstallChoice is uninstall's one question. "app" is listed only when
+// offer.offered; "Remove" is disabled with purgeBlocked as its reason when a
+// full removal can't run here. proceed=false means cancel (Cancel or Ctrl+C).
+func promptUninstallChoice(out io.Writer, defaultMode uninstallMode, offer uninstallAppOffer, purgeBlocked string) (uninstallChoice, bool, error) {
+	options := []setupMenuOption{{Value: "purge", Label: "Remove", Detail: "Skills, settings, and this computer's pairing. The NOVA App stays.",
+		Disabled: purgeBlocked != "", DisabledReason: purgeBlocked}}
+	if offer.offered && purgeBlocked == "" {
+		options = append(options, setupMenuOption{Value: "app", Label: "Remove, and remove the NOVA App too",
+			Detail: "No other computer uses it. You sign in as the Home Assistant owner."})
+	}
+	options = append(options,
+		setupMenuOption{Value: "standard", Label: "Remove, but keep the pairing for a reinstall"},
+		setupMenuOption{Value: "cancel", Label: "Cancel"},
+	)
 	spec := setupMenuSpec{
-		Title:  "Choose uninstall mode:",
-		Prompt: "Use ↑/↓ or j/k, Enter to select, Ctrl+C to cancel",
-		Options: []setupMenuOption{
-			{Value: "standard", Label: "Standard remove"},
-			{Value: "purge", Label: "Full purge"},
-			{Value: "cancel", Label: "Cancel"},
-		},
-		DefaultValue: "standard",
+		Title:        "Remove HA NOVA from this computer?",
+		Prompt:       "Use ↑/↓ or j/k, Enter to select, Ctrl+C to cancel",
+		Options:      options,
+		DefaultValue: string(defaultMode),
+		Note:         offer.note,
 	}
-	if defaultMode == uninstallModePurge {
-		spec.DefaultValue = "purge"
+	if purgeBlocked != "" {
+		spec.DefaultValue = string(uninstallModeStandard)
 	}
+	offerApp := offer.offered && purgeBlocked == ""
 	answer, err := promptSetupMenu(nil, out, spec, func() (string, error) {
-		return promptUninstallModeFromLine(spec.DefaultValue)
+		if offer.note != "" {
+			fmt.Fprintf(out, "  %s\n", offer.note)
+		}
+		if purgeBlocked != "" {
+			fmt.Fprintf(out, "  Remove: not available here (%s).\n", purgeBlocked)
+		}
+		return promptUninstallModeFromLine(spec.DefaultValue, offerApp, purgeBlocked == "")
 	})
 	switch {
 	case errors.Is(err, errSetupExit):
-		return uninstallModeStandard, false, nil
+		return uninstallChoice{}, false, nil
 	case err != nil:
-		return uninstallModeStandard, false, err
+		return uninstallChoice{}, false, err
+	case answer == "purge" && purgeBlocked == "":
+		return uninstallChoice{mode: uninstallModePurge}, true, nil
+	case answer == "app" && offerApp:
+		return uninstallChoice{mode: uninstallModePurge, removeApp: true}, true, nil
 	case answer == "standard":
-		return uninstallModeStandard, true, nil
-	case answer == "purge":
-		return uninstallModePurge, true, nil
+		return uninstallChoice{mode: uninstallModeStandard}, true, nil
 	default:
-		return uninstallModeStandard, false, nil
+		return uninstallChoice{}, false, nil
 	}
 }
 
-func promptUninstallModeFromLine(defaultValue string) (string, error) {
-	number := "1"
-	if defaultValue == "purge" {
-		number = "2"
+// promptUninstallModeFromLine is the menu without arrow keys.
+func promptUninstallModeFromLine(defaultValue string, offerApp, purgeAllowed bool) (string, error) {
+	var values, labels []string
+	add := func(value, label string) {
+		values = append(values, value)
+		labels = append(labels, fmt.Sprintf("%d) %s", len(values), label))
 	}
-	answer, err := promptLine("Choose uninstall mode: 1) Standard remove  2) Full purge  3) Cancel", number)
+	if purgeAllowed {
+		add("purge", "Remove")
+	}
+	if offerApp {
+		add("app", "Remove, and remove the NOVA App too")
+	}
+	add("standard", "Remove, but keep the pairing")
+	add("cancel", "Cancel")
+	answer, err := promptLine("Remove HA NOVA from this computer? "+strings.Join(labels, "  "), strconv.Itoa(max(slices.Index(values, defaultValue), 0)+1))
 	if err != nil {
 		return "", err
 	}
-	switch strings.TrimSpace(strings.ToLower(answer)) {
-	case "", "1", "standard", "standard remove":
-		return "standard", nil
-	case "2", "purge", "full", "full purge":
-		return "purge", nil
-	default:
-		return "cancel", nil
+	if number, err := strconv.Atoi(strings.TrimSpace(answer)); err == nil && number >= 1 && number <= len(values) {
+		return values[number-1], nil
 	}
+	return "cancel", nil
 }
 
 // promptSetupDeviceVerifyRetry: nil retries; errSetupBack pairs again.

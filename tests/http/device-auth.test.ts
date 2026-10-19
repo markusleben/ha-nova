@@ -4,7 +4,7 @@ import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { createDeviceActivateHandler, createDeviceRevokeSelfHandler } from "../../nova/src/http/handlers/device-auth.js";
+import { createDeviceActivateHandler, createDevicePeersHandler, createDeviceRevokeSelfHandler } from "../../nova/src/http/handlers/device-auth.js";
 import { HttpError } from "../../nova/src/http/errors.js";
 import type { RouteContext } from "../../nova/src/http/router.js";
 import { generateCredential } from "../../nova/src/security/device-credential.js";
@@ -30,10 +30,10 @@ function ctx(token: string | undefined): RouteContext {
   };
 }
 
-function pendingCredential() {
+function pendingCredential(clientInstallId = "i") {
   const c = generateCredential();
   registry.createPending(
-    { deviceId: c.deviceId, secretDigest: c.secretDigest, clientInstallId: "i", name: "n", platform: "p", client: "c", createdAtMs: 1 },
+    { deviceId: c.deviceId, secretDigest: c.secretDigest, clientInstallId, name: "n", platform: "p", client: "c", createdAtMs: 1 },
     now()
   );
   return c;
@@ -86,5 +86,29 @@ describe("device-auth handlers", () => {
   it("rejects missing or malformed bearer (401)", () => {
     expect(status(() => activate()(ctx(undefined)))).toBe(401);
     expect(status(() => activate()(ctx("not-a-credential")))).toBe(401);
+  });
+});
+
+describe("device peers handler", () => {
+  const peers = (chatAppFiles: boolean | null = false, pairingOpen = false) => createDevicePeersHandler({ registry, pairingOpen: () => pairingOpen, chatAppFiles: () => chatAppFiles });
+  const asDevice = (deviceId: string): RouteContext => ({ ...ctx(undefined), principal: { kind: "device", deviceId } });
+  const activeDevice = (installId: string) => {
+    const c = pendingCredential(installId);
+    createDeviceActivateHandler({ registry, now })(ctx(c.credential));
+    return c;
+  };
+
+  it("counts every other device record, pending included", () => {
+    const self = activeDevice("self");
+    expect(peers()(asDevice(self.deviceId))).toEqual({ other_devices: 0, pairing_open: false, legacy_access: false, chat_app_files: false });
+    pendingCredential("other-pending");
+    expect(peers(null, true)(asDevice(self.deviceId))).toEqual({ other_devices: 1, pairing_open: true, legacy_access: false, chat_app_files: null });
+    activeDevice("other-active");
+    expect((peers(true)(asDevice(self.deviceId)) as { other_devices: number }).other_devices).toBe(2);
+  });
+
+  it("refuses legacy and missing principals (403)", () => {
+    expect(status(() => peers()({ ...ctx(undefined), principal: { kind: "legacy" } }))).toBe(403);
+    expect(status(() => peers()(ctx(undefined)))).toBe(403);
   });
 });

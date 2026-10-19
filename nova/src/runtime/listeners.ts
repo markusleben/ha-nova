@@ -2,7 +2,7 @@ import type { IncomingMessage, RequestListener } from "node:http";
 
 import { createRequestListener, DEFAULT_MAX_JSON_BODY_BYTES, type AuthOutcome, type RelayLogger } from "../http/server.js";
 import { createRouter, type RouteHandler, type Router } from "../http/router.js";
-import { createDeviceActivateHandler, createDeviceRevokeSelfHandler } from "../http/handlers/device-auth.js";
+import { createDeviceActivateHandler, createDevicePeersHandler, createDeviceRevokeSelfHandler } from "../http/handlers/device-auth.js";
 import { createPairV1FinishHandler, createPairV1InfoHandler, createPairV1StartHandler } from "../http/handlers/pair-v1.js";
 import type { DeviceRegistry } from "../security/device-registry.js";
 import type { PairingV1Manager } from "../security/pairing-v1.js";
@@ -33,6 +33,8 @@ export interface PairingListenerDeps {
   relayVersion: string;
   now: () => number;
   logger?: RelayLogger;
+  // Chat-app integration files in Home Assistant's config; null: unknown.
+  chatAppFiles?: () => boolean | null;
 }
 
 const PAIR_INFO = "GET /pair/v1/info";
@@ -93,6 +95,7 @@ export function createDeviceListener(deps: PairingListenerDeps): RequestListener
   registerFunctional(router, deps.functional);
   router.register("POST", "/auth/device/activate", createDeviceActivateHandler({ registry: deps.registry, now: deps.now }));
   router.register("POST", "/auth/device/revoke-self", createDeviceRevokeSelfHandler({ registry: deps.registry, now: deps.now }));
+  router.register("GET", "/auth/device/peers", createDevicePeersHandler({ registry: deps.registry, pairingOpen: () => !["inactive", "consumed"].includes(deps.pairingManager.getStatus().phase), chatAppFiles: deps.chatAppFiles ?? (() => null) }));
 
   const functionalAuth = functionalAuthorize(deps, "secure");
   return createRequestListener({

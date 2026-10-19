@@ -159,10 +159,10 @@ func TestEveryChoicePromptUsesArrowMenuOnTTY(t *testing.T) {
 			}
 			return err
 		}},
-		{"uninstall mode", "purge", func(_ *bufio.Reader, out io.Writer) error {
-			mode, proceed, err := promptUninstallMode(out, uninstallModeStandard)
-			if mode != uninstallModePurge || !proceed {
-				t.Errorf("uninstall mode = %q proceed=%v", mode, proceed)
+		{"uninstall choice", "app", func(_ *bufio.Reader, out io.Writer) error {
+			choice, proceed, err := promptUninstallChoice(out, uninstallModePurge, uninstallAppOffer{offered: true}, "")
+			if choice != (uninstallChoice{mode: uninstallModePurge, removeApp: true}) || !proceed {
+				t.Errorf("uninstall choice = %+v proceed=%v", choice, proceed)
 			}
 			return err
 		}},

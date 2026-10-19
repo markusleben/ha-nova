@@ -1,6 +1,7 @@
 import { createServer as createHttpServer_, type Server } from "node:http";
 import { createServer as createHttpsServer } from "node:https";
-import { dirname } from "node:path";
+import { lstatSync } from "node:fs";
+import { dirname, join } from "node:path";
 
 import type { FileAccessConfig } from "../config/file-access.js";
 import { createBackupsHandler } from "../http/handlers/backups.js";
@@ -206,6 +207,7 @@ export async function buildAppMode(
     relayVersion: input.relayVersion,
     now: input.now,
     logger: input.logger,
+    chatAppFiles: () => chatAppFilesPresent(input.fileAccess.configRoot),
   };
 
   const bootstrap = createHttpServer_(createBootstrapListener(listenerDeps));
@@ -380,4 +382,15 @@ async function listen(server: Server, port: number): Promise<void> {
     server.listen(port, "0.0.0.0", () => resolve());
     server.on("error", reject);
   });
+}
+
+// Whether the chat-app integration directory exists in Home Assistant's config
+// (existence only); null without a mounted config or when lstat fails.
+export function chatAppFilesPresent(configRoot: string): boolean | null {
+  const exists = (...path: string[]) => lstatSync(join(configRoot, ...path), { throwIfNoEntry: false }) !== undefined;
+  try {
+    return configRoot === "" || !exists("configuration.yaml") ? null : exists("custom_components", "ha_nova");
+  } catch {
+    return null;
+  }
 }

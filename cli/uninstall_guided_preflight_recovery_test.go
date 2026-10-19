@@ -39,7 +39,7 @@ func TestGuidedPreflightRejectsMissingCloudDeviceBeforeHomeAssistantRemoval(
 	)
 	if err == nil ||
 		!strings.Contains(err.Error(), "current Cloud device credential") ||
-		!strings.Contains(err.Error(), "before Home Assistant removal") {
+		!strings.Contains(err.Error(), "before removing HA NOVA") {
 		t.Fatalf("missing Cloud device preflight error = %v", err)
 	}
 }
@@ -114,7 +114,7 @@ func TestGuidedPreflightRejectsConflictingMigrationCleanupBeforeRemoval(
 	)
 	if err == nil ||
 		!strings.Contains(err.Error(), "differs from its file copy") ||
-		!strings.Contains(err.Error(), "before Home Assistant removal") {
+		!strings.Contains(err.Error(), "before removing HA NOVA") {
 		t.Fatalf("migration conflict preflight error = %v", err)
 	}
 	if _, exists, readErr := readKeyringDeviceCredentialCleanup(); readErr != nil ||
