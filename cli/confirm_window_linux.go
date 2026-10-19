@@ -45,7 +45,6 @@ func nativeWindow(ctx context.Context, message string, wait time.Duration) windo
 	defer runtime.UnlockOSThread()
 	cmd := exec.CommandContext(ctx, linuxDialog, args...)
 	cmd.SysProcAttr = dialogAttr()
-	cmd.WaitDelay = 2 * time.Second // a helper holding stderr open never holds the answer up
 	cmd.Env = []string{}
 	for _, key := range linuxDialogEnv {
 		if value, set := os.LookupEnv(key); set {

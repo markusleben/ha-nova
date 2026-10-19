@@ -50,8 +50,7 @@ func nativeWindow(ctx context.Context, message string, wait time.Duration) windo
 		args = append(args, "-e", line)
 	}
 	cmd := exec.CommandContext(ctx, "/usr/bin/osascript", append(args, message, strconv.Itoa(int(wait.Seconds())))...)
-	cmd.Env = []string{}            // nothing from the caller's environment reaches the window
-	cmd.WaitDelay = 2 * time.Second // a helper holding stderr open never holds the answer up
+	cmd.Env = []string{} // nothing from the caller's environment reaches the window
 	var stderr strings.Builder
 	cmd.Stderr = &stderr
 	out, err := cmd.Output()
