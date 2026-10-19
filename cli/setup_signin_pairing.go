@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"time"
 	"unicode"
 )
 
@@ -25,6 +26,13 @@ var (
 	signInPairForSetup            = runSecurePairingWithProvisioner
 	haSignInOffered               = defaultHASignInOffered
 )
+
+// The pairing exchange after the sign-in: arming gets a step's bound
+// (haSignInStepTimeout), then info, start, and finish may take as long as the
+// Relay keeps the armed slot (PAIR_ARM_TTL_MS, 2 min; pairDeviceV2Armed).
+// This caps both. A busy Home Assistant answers each request in 15–30 s
+// (0.27 lane F1).
+var haSignInPairTimeout = 2 * time.Minute
 
 // haSignInPairingError marks a failure inside the ingress pairing exchange,
 // which falls back to the code; failures of the shared local tail do not.
@@ -133,22 +141,21 @@ func signInAndPair(
 		return false, haSignInRetryable(err), nil
 	}
 	renderSetupSuccessLine(out, "Signed in to Home Assistant as %s (owner)", haSignInUserName(session.user))
-	return pairWithHASignInSession(out, paths, cfg, session, lifecycleMarker...)
+	paired, soft, err := pairWithHASignInSession(out, paths, cfg, session, lifecycleMarker...)
+	return paired, errors.Is(soft, errSignInNotOwner), err
 }
 
 // pairWithHASignInSession connects this computer through the owner's ingress
-// session, from sign-in or from "Sign in and install NOVA".
+// session, from sign-in or from "Sign in and install NOVA". soft is a failure
+// of the ingress exchange, already said in one line; the caller decides
+// what comes next.
 func pairWithHASignInSession(
 	out io.Writer,
 	paths runtimePaths,
 	cfg *runtimeConfig,
 	session haSignInSession,
 	lifecycleMarker ...[]byte,
-) (paired bool, retry bool, err error) {
-	// The ingress pairing exchange gets the same bound as the other steps
-	// after the browser returns.
-	ctx, cancel := context.WithTimeout(context.Background(), haSignInStepTimeout)
-	defer cancel()
+) (paired bool, soft error, err error) {
 	_, pairErr := runSetupSpinnerWithResult(out, "Connecting this computer...", setupSpinnerDebounce, func() (struct{}, error) {
 		var pairErr error
 		lockErr := withSetupLifecycleGuard(paths, lifecycleMarker, func() error {
@@ -159,6 +166,9 @@ func pairWithHASignInSession(
 				return saveSetupConfigIfCurrent(paths, *c, lifecycleMarker)
 			}
 			provision := func(meta deviceMetadata) (*provisionedCredential, error) {
+				// From here, not from before the lock: the budget is the exchange's.
+				ctx, cancel := context.WithTimeout(context.Background(), haSignInStepTimeout+haSignInPairTimeout)
+				defer cancel()
 				provisioned, err := pairDeviceV2ArmedForSetup(ctx, session.ingress, meta)
 				if err != nil {
 					return nil, &haSignInPairingError{err: err}
@@ -173,22 +183,29 @@ func pairWithHASignInSession(
 		}
 		return struct{}{}, pairErr
 	})
-	var soft *haSignInPairingError
+	var exchange *haSignInPairingError
 	switch {
 	case pairErr == nil:
 		setupSignedInUser = session.user.ID // the phone step proposes this user's phone
 		setupOwnerIngress = session.ingress // chat apps (step 3) use the owner's session
-		return true, false, nil
-	case errors.As(pairErr, &soft):
+		return true, nil, nil
+	case errors.As(pairErr, &exchange):
 		renderSetupWarningLine(out, "%s", haSignInFallbackLine(pairErr, session.user))
-		return false, errors.Is(pairErr, errSignInNotOwner), nil
+		return false, pairErr, nil
 	case errors.Is(pairErr, errPinMismatch):
 		renderSetupErrorLine(out, "The relay's secure identity did not match. Try again; if it repeats, someone may be intercepting the connection.")
-		return false, false, pairErr
+		return false, nil, pairErr
 	default:
 		renderSetupErrorLine(out, "Could not finish connecting this computer. Make sure the NOVA App is running, then run ha-nova setup again.")
-		return false, false, pairErr
+		return false, nil, pairErr
 	}
+}
+
+// haSignInSlow: Home Assistant, or the Relay's owner check through it, did
+// not answer in time. The same sign-in can try again.
+func haSignInSlow(err error) bool {
+	return errors.Is(err, context.DeadlineExceeded) || errors.Is(err, errSignInOwnerCheckSlow) ||
+		IsCloudErrorCode(err, CloudErrTimeout) || IsCloudErrorCode(err, CloudErrNetwork)
 }
 
 // Retrying the sign-in can help when the user stopped, waited too long,
@@ -216,12 +233,16 @@ func haSignInFallbackLine(err error, user HACurrentUser) string {
 			return "The account you signed in with is not the Home Assistant owner. Only the owner can connect a computer."
 		}
 		return fmt.Sprintf("Signed in as %s, who is not the Home Assistant owner. Only the owner can connect a computer.", terminalSafeName(user.Name))
+	case errors.Is(err, errSignInAppMissing) && haSignInSlow(err):
+		return "Could not finish the sign-in: Home Assistant answered too slowly."
 	case errors.Is(err, errSignInAppMissing):
 		return "Home Assistant did not find a running NOVA App, so sign-in cannot connect this computer."
 	case errors.Is(err, errSignInRelayUnsupported):
 		return "Your NOVA App does not support sign-in yet. Update it in Home Assistant when convenient."
 	case errors.Is(err, errSignInRelayNotReady):
 		return "The NOVA App is not ready to connect computers yet. Open NOVA in Home Assistant for details, then run ha-nova setup again."
+	case errors.As(err, &pairing) && haSignInSlow(err):
+		return "Home Assistant answered too slowly, so connecting this computer did not finish."
 	case errors.As(err, &pairing):
 		return "Connecting through Home Assistant did not finish."
 	case errors.As(err, &certificate), errors.As(err, &authority):

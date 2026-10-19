@@ -293,10 +293,15 @@ func runSetupPairingFlow(reader *bufio.Reader, out io.Writer, paths runtimePaths
 		}
 	}
 
+	// The page's sign-in can't pair without secure pairing: step 2 says the
+	// App isn't ready, instead of a code prompt the page never hands over.
+	if !secure && installed != nil && installed.fromPage {
+		return "", &setupPagePairingError{cause: &pairingBeforeFinishError{err: errSignInRelayNotReady}, session: *installed}
+	}
 	// "Sign in and install NOVA" already holds the owner's ingress session:
 	// pair with it instead of a second sign-in.
 	if secure && installed != nil {
-		paired, _, err := pairWithHASignInSession(out, paths, cfg, *installed, lifecycleMarker...)
+		paired, soft, err := pairWithHASignInSession(out, paths, cfg, *installed, lifecycleMarker...)
 		if paired {
 			renderSetupSuccessLine(out, "This computer is connected")
 			return "", errSetupDevicePaired
@@ -305,7 +310,7 @@ func runSetupPairingFlow(reader *bufio.Reader, out io.Writer, paths runtimePaths
 			return "", err
 		}
 		if installed.fromPage {
-			return "", errSetupPairingOnPage
+			return "", &setupPagePairingError{cause: soft, session: *installed}
 		}
 	}
 

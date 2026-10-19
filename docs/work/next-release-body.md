@@ -47,6 +47,13 @@ the number.
   without a reload; a typed address no longer reads "We found your home";
   after saving rooms, "N devices aren't in a room" counts down, and Undo
   reads "Back to no room: …".
+- Setup page with a busy Home Assistant: connecting this computer waits up
+  to two minutes instead of 30 seconds, says when Home Assistant answered
+  too slowly, and "Try again" keeps your sign-in instead of asking for
+  your Home Assistant password again. Step 2 says "already running" for an
+  App that ran before; step 3 keeps the phone row with "Check again" when
+  the phones can't be read; "Open Claude Code" starts in a "HA NOVA"
+  folder, not your whole home folder.
 - Setup after a pairing was removed on the NOVA page says so in one line
   and goes straight to pairing again, instead of "The App may still be
   starting".

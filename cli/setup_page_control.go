@@ -18,15 +18,17 @@ import (
 type setupPageControl struct {
 	Window bool `json:"window"` // the confirmation window can open here
 	// Phone: pick (Phones can be linked), waiting (for the tap on
-	// PhoneName), linked, none (no phone found), unavailable (not now).
+	// PhoneName), linked, none (no phone found), unread (the phones
+	// couldn't be read; Check again), unavailable (not now: no row).
 	Phone        string           `json:"phone"`
 	Phones       []setupPagePhone `json:"phones,omitempty"`
 	Proposed     bool             `json:"proposed,omitempty"` // Phones[0] is the signed-in user's own phone
 	PhoneName    string           `json:"phone_name,omitempty"`
 	PhoneProblem *setupPageMsg    `json:"phone_problem,omitempty"`
-	Rule         string           `json:"rule,omitempty"` // offer, on (already there); "" no row
-	Link         string           `json:"link,omitempty"` // offer, run; "" no row
-	Chat         *setupPageChat   `json:"chat,omitempty"` // nil: no row (chat_apps.go)
+	Rule         string           `json:"rule,omitempty"`       // offer, on (already there); "" no row
+	RuleCount    int              `json:"rule_count,omitempty"` // the rules it adds (offer) or has (on)
+	Link         string           `json:"link,omitempty"`       // offer, run; "" no row
+	Chat         *setupPageChat   `json:"chat,omitempty"`       // nil: no row (chat_apps.go)
 }
 
 // setupPageChat is the "Use HA NOVA in Claude and ChatGPT" row (spec
@@ -77,9 +79,9 @@ func (f *setupFlow) pageControl() int {
 		rulePath, rules, missing, note = claudeRulesPending(f.paths)
 		switch {
 		case len(missing) > 0:
-			ctl.Rule = "offer"
+			ctl.Rule, ctl.RuleCount = "offer", len(missing)
 		case note == "":
-			ctl.Rule = "on"
+			ctl.Rule, ctl.RuleCount = "on", len(rules)
 		default:
 			fmt.Fprintln(out, "  "+note)
 		}
@@ -132,8 +134,11 @@ func (f *setupFlow) pageControl() int {
 	for {
 		show()
 		accepts := []string{"finish"}
-		if ctl.Phone == "pick" {
+		switch ctl.Phone {
+		case "pick":
 			accepts = append(accepts, "phone")
+		case "unread":
+			accepts = append(accepts, "recheck")
 		}
 		if ctl.Chat != nil && ctl.Chat.State == "offer" {
 			accepts = append(accepts, "chat")
@@ -144,6 +149,8 @@ func (f *setupFlow) pageControl() int {
 			return 0
 		}
 		switch action.Action {
+		case "recheck": // its buttons stay disabled while it reads
+			f.pagePhones(&ctl)
 		case "phone":
 			if i := slices.IndexFunc(ctl.Phones, func(ph setupPagePhone) bool { return ph.ID == action.Value }); i >= 0 {
 				ctl.Phone, ctl.PhoneName, ctl.PhoneProblem = "waiting", ctl.Phones[i].Name, nil
@@ -170,9 +177,9 @@ func (f *setupFlow) pageControl() int {
 				if line != "" {
 					fmt.Fprintln(out, "  "+line)
 				}
-				note := setupPageText("setup.page.home.note_rule")
+				note := setupPageText("setup.page.home.note_rule", "count", len(missing))
 				if !added {
-					note = setupPageText("setup.page.home.note_rule_failed")
+					note = setupPageText("setup.page.home.note_rule_failed", "count", len(missing))
 				}
 				f.pageNotes = append(f.pageNotes, note)
 			}
@@ -215,6 +222,10 @@ func (f *setupFlow) pagePhones(ctl *setupPageControl) {
 	}
 	home, links, ok := f.pageReadPhones()
 	if !ok {
+		ctl.Phone = "unread" // a busy Home Assistant: the row says so and offers Check again
+		return
+	}
+	if home.relay == home.owner {
 		return
 	}
 	current, status := home.status(links, nil)
@@ -243,8 +254,9 @@ func (f *setupFlow) pagePhones(ctl *setupPageControl) {
 }
 
 // pageReadPhones reads the phones through the paired Relay; ok=false when
-// they can't be read, or the Relay signs in as the owner (a tap couldn't be
-// told apart from HA NOVA itself).
+// they can't be read. A Relay that signs in as the owner (home.relay ==
+// home.owner) can't link a phone: a tap couldn't be told apart from HA NOVA
+// itself.
 func (f *setupFlow) pageReadPhones() (phoneHome, map[string]phoneEntry, bool) {
 	s, err := newRelaySession(f.paths, verbOptions{})
 	if err != nil {
@@ -253,7 +265,7 @@ func (f *setupFlow) pageReadPhones() (phoneHome, map[string]phoneEntry, bool) {
 	defer s.close()
 	links, readable := phoneLinks(f.paths)
 	home, err := lookupPhones(s, links)
-	return home, links, readable && err == nil && home.relay != home.owner
+	return home, links, readable && err == nil
 }
 
 // pageLinkPhone sends the link question to the phone picked on the page.

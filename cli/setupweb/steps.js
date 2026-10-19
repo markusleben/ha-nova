@@ -62,6 +62,9 @@ window.novaSteps = (h) => {
           el('div', {}, el('div', { class: 'k' }, key), el('div', { class: 'v', role: 'status' }, t('setup.page.control.phone_waiting', { phone: c.phone_name }))), spinner());
       case 'none':
         return line(guard('·'), key, t('setup.page.control.phone_none'));
+      case 'unread': // the button is disabled while it reads again
+        return line(guard('·'), key, t('setup.page.control.phone_unread'), null,
+          button(t('setup.page.button.recheck'), 'recheck', 'ghost btn-small', '', 'phone-recheck'));
       case 'pick': {
         if (phones.length === 1 || (c.proposed && !local.others)) {
           const other = phones.length > 1
@@ -75,7 +78,7 @@ window.novaSteps = (h) => {
         return line(guard('◎'), key, t('setup.page.control.phone_pick'), [problem(c.phone_problem), pick]);
       }
       default:
-        return null; // can't be linked now: no row (confirm-phone settles it later)
+        return null; // can't be linked here: no row (confirm-phone settles it later)
     }
   };
 
@@ -161,10 +164,10 @@ window.novaSteps = (h) => {
     const busy = !h.accepts('finish');
     if (c.rule === 'offer') {
       const label = t('setup.page.control.rule_key');
-      rows.push(line(guard('⚙'), label, t('setup.page.control.rule_value'), null,
+      rows.push(line(guard('⚙'), label, t('setup.page.control.rule_value', { count: c.rule_count }), null,
         toggle('b-rule', label, local.rule, () => { local.rule = !local.rule; render(true); }, busy), 'b-rule-v'));
     } else if (c.rule === 'on') {
-      rows.push(line(guard('⚙'), t('setup.page.control.rule_key'), t('setup.page.control.rule_on'), null, tagOn()));
+      rows.push(line(guard('⚙'), t('setup.page.control.rule_key'), t('setup.page.control.rule_on', { count: c.rule_count }), null, tagOn()));
     }
     if (c.link === 'offer') {
       const label = t('setup.page.control.link_key');

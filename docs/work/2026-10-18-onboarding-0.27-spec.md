@@ -240,7 +240,7 @@ Threats: other sites in the browser (CSRF), DNS rebinding, other OS users, click
 
 Sign-in session scope:
 - HA tokens stay in the CLI process, and the refresh token is revoked at the end, as today.
-- The flow now spans the App install, so budgets are per phase: install ≤ 10 min, other steps 30 s each.
+- The flow now spans the App install, so budgets are per phase: install ≤ 10 min, arming ≤ 2 min and the rest of the pairing exchange within the Relay's armed slot (2 min from its answer), the sign-in steps after the browser returns ≤ 2 min each (a busy Home Assistant answers each request in 15–30 s). A timeout after Home Assistant answered says it answered too slowly and keeps the address. A pairing that failed before its finish request keeps the owner's ingress session in memory for 10 minutes after that failure, and step 2's [Try again] reuses it while the App offers sign-in (Try again reads the App again first; while it doesn't, step 2 stays as it is). After a finish request (it may have left a pending device, which expires after 15 minutes), a not-owner answer, or a session Home Assistant ended, [Try again] asks for the owner's sign-in again.
 - A typed client with an allowlist, never a passthrough:
   - `auth/current_user`;
   - `supervisor/api`:
@@ -624,7 +624,7 @@ Deviations between spec and prototype (D) and open questions (Q). The recommende
   - **A** a one-shot reminder automation on the linked phone when the level drops below 5 %, previewed and saved on click;
   - B drop it for a copyable prompt.
 - **D5** "Open Claude Code" can't open a terminal from a browser.
-  - **A** the CLI opens the platform terminal running `claude` in the user's home (macOS Terminal, Windows Terminal/PowerShell, Linux `x-terminal-emulator`) and falls back to the copy hint;
+  - **A** the CLI opens the platform terminal running `claude` in a folder `HA NOVA` in the user's home (macOS Terminal, Windows Terminal/PowerShell, Linux `x-terminal-emulator`) and falls back to the copy hint. Not the home folder itself: Claude Code asks its trust question there on every start, and trusting it covers every file. The page says to answer “Yes, I trust this folder”; uninstall removes the folder only if setup created it and it is still empty; a link or junction in its place is refused;
   - B "Open Claude Desktop" when present, otherwise the copy hint only.
 - **D6** The prototype's fine print "Nothing in your home changed during setup." **A** "Nothing in your home changed unless you saved it."
 - **D7** Prototype step 3 says "Your AI assistant never sees a code". This is true on the computer path; in chat apps without a phone it is not (§11.4). **A** keep it on the page; the bridge rows say it plainly.

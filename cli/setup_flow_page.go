@@ -114,6 +114,10 @@ func (f *setupFlow) runWithPage(page *setupWebUI) int {
 
 var setupPageLinger = 15 * time.Second
 
+// setupPageRetryFor: step 2's Try again reuses the owner's sign-in this
+// long; Home Assistant ends an unused ingress session after about 15 min.
+var setupPageRetryFor = 10 * time.Minute
+
 func (f *setupFlow) stepPage() setupStepResult {
 	p := f.page
 	var candidates []setupDiscoveryCandidate
@@ -144,7 +148,7 @@ func (f *setupFlow) stepPage() setupStepResult {
 			}
 		})
 		accepts := []string{"address", "terminal"}
-		if app.primary != "" {
+		if app.primary != "" || fix == "retry" { // Try again also checks the App again
 			accepts = append(accepts, "signin")
 		}
 		if f.cfg.HAURL == "" { // no Home Assistant found: the demo house (spec §8)
@@ -154,7 +158,10 @@ func (f *setupFlow) stepPage() setupStepResult {
 		if err != nil {
 			return f.cancelled()
 		}
+		shownProblem, shownScreen, shownFix, shownLinks, shownAskHA := problem, screen, fix, links, askHA
 		problem, screen, fix, links, askHA = nil, "found", "", map[string]string{}, false
+		kept := f.pageRetry
+		f.pageRetry = nil
 		switch action.Action {
 		case "demo":
 			if setupPageTry(f.paths) == 0 {
@@ -183,6 +190,30 @@ func (f *setupFlow) stepPage() setupStepResult {
 			f.detectRelayOnInstall = true
 			return setupGoTo(setupStepRelayInstall)
 		case "signin":
+			if app.primary == "" {
+				app = f.pageApp() // Try again reads the App again
+			}
+			if app.primary == "" { // still no sign-in from the page: the same step 2
+				problem, screen, fix, links, askHA = shownProblem, shownScreen, shownFix, shownLinks, shownAskHA
+				f.pageRetry = kept
+				continue
+			}
+			// Try again after a pairing that didn't finish: the sign-in still
+			// holds. An App to install, update, or wait for gets the whole
+			// sign-in again.
+			if retry := kept; retry != nil && app.primary == "signin" && time.Now().Before(f.pageRetryUntil) {
+				p.update(func(v *setupPageState) {
+					v.Screen, v.Problem, v.Fix, v.Links = "connect", nil, "", nil
+					for i := range v.Rows {
+						if v.Rows[i].State == "fail" {
+							v.Rows[i].State = "todo"
+						}
+					}
+				})
+				setupInstalledSignIn = retry
+				f.pairingFlow, f.pairingBackStep = true, setupStepRelayInstall
+				return setupGoTo(setupStepPairing)
+			}
 			failure, interrupted := f.pageSignIn(app)
 			if interrupted {
 				return f.cancelled()
@@ -335,23 +366,32 @@ func (f *setupFlow) pageSignIn(app setupPageApp) (*setupPageFailure, bool) {
 			return nil
 		}
 		supervisor := newNOVAAppSupervisor(socket)
+		// The rows say what Home Assistant did: an App found running (the
+		// check before the sign-in can miss it) is neither added nor started.
+		added, started := setupPageText("setup.page.row.app_there"), setupPageText("setup.page.row.app_running")
 		supervisor.phase = func(name string) {
-			if name == "start" {
-				p.setRow("app_add", "ok", nil)
-				p.setRow("app_start", "run", nil)
-				return
+			switch name {
+			case "start":
+				started = nil
+				p.setRow("app_add", "ok", added)
+				p.setRow("app_start", "run", setupPageText("setup.page.row.app_start"))
+			case "update":
+				added = setupPageText("setup.page.row.app_update")
+				p.setRow("app_add", "run", added)
+			default:
+				added = nil
+				p.setRow("app_add", "run", nil)
 			}
-			p.setRow("app_add", "run", nil)
 		}
 		if err := supervisor.ensure(ctx, out, &state, app.primary == "update", app.minimum); err != nil {
 			return err
 		}
-		p.setRow("app_add", "ok", nil)
-		p.setRow("app_start", "run", nil)
+		p.setRow("app_add", "ok", added)
+		p.setRow("app_start", "run", started) // already running: it only waits to get ready
 		if err := waitForNOVAAppSignIn(ctx, out, socket, f.cfg.RelayBaseURL); err != nil {
 			return err
 		}
-		p.setRow("app_start", "ok", nil)
+		p.setRow("app_start", "ok", started)
 		return nil
 	}
 	session, err := openHASignInInTabForSetup(ctx, out, origin.String(), prepare, p)
@@ -367,10 +407,45 @@ func (f *setupFlow) pageSignIn(app setupPageApp) (*setupPageFailure, bool) {
 		return nil, true // Ctrl+C in the terminal
 	}
 	failure := pageSignInFailure(err, session.user, f.cfg.HAURL)
+	var installErr *novaAppInstallError
+	if !errors.Is(err, errSignInBrowser) && !errors.Is(err, errSignInStopped) && !errors.As(err, &installErr) && !errors.Is(err, errSignInNotOwner) &&
+		(IsCloudErrorCode(err, CloudErrTimeout) || errors.Is(err, context.DeadlineExceeded)) {
+		// Home Assistant answered the sign-in, then too slowly: its address is fine.
+		failure.problem, failure.address = setupPageText("setup.page.problem.slow"), false
+	}
 	if state.sourceListed || state.installed {
 		failure.links["app"] = haInstallRelayAppURL(f.cfg.HAURL)
 	}
 	return failure, false
+}
+
+// pagePairingProblem: why the pairing after the page's sign-in didn't
+// finish, and the sign-in Try again reuses. The owner's ingress session
+// stays in this process only. Only a failure before the finish request
+// keeps it: a finish may have left a pending device on the Relay (unusable,
+// it expires after 15 minutes), so the next try asks for the owner's
+// sign-in again. A not-owner answer or a session Home Assistant ended
+// needs one too.
+func pagePairingProblem(failure *setupPagePairingError) (*setupPageMsg, *haSignInSession) {
+	cause, reuse := failure.cause, &failure.session
+	var before *pairingBeforeFinishError
+	if !errors.As(cause, &before) || errors.Is(cause, errSignInNotOwner) || IsCloudErrorCode(cause, CloudErrOuterSessionExpired) {
+		reuse = nil
+	}
+	switch {
+	case IsCloudErrorCode(cause, CloudErrOutcomeUnknown), errors.Is(cause, errPairingOutcomeUnknown):
+		return setupPageText("setup.page.problem.pairing_unknown"), nil
+	case IsCloudErrorCode(cause, CloudErrOuterSessionExpired):
+		return setupPageText("setup.page.problem.signin_expired"), nil
+	case haSignInSlow(cause) && reuse == nil:
+		return setupPageText("setup.page.problem.slow"), nil
+	case haSignInSlow(cause):
+		return setupPageText("setup.page.problem.pairing_slow"), reuse
+	case errors.Is(cause, errSignInRelayNotReady), errors.Is(cause, errSignInRelayUnsupported),
+		IsCloudErrorCode(cause, CloudErrIngressUnavailable):
+		return setupPageText("setup.page.problem.app_not_ready"), reuse
+	}
+	return setupPageText("setup.page.problem.pairing"), reuse
 }
 
 // pageSignInFailure: one plain line and the next step (spec §4, step 2).

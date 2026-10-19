@@ -29,6 +29,7 @@ type fakeSignInHA struct {
 	owner       bool
 	noSuper     bool
 	silentWS    bool
+	slowIngress time.Duration // every ingress answer takes this long (a busy Home Assistant)
 	onSession   func()
 	extra       func(data []byte) (string, bool) // more WebSocket commands
 	mu          sync.Mutex
@@ -60,6 +61,11 @@ func newFakeSignInHA(t *testing.T) *fakeSignInHA {
 		ha.mu.Unlock()
 		if err != nil || cookie.Value != strings.Repeat("b", 128) {
 			http.Error(w, "no session", http.StatusUnauthorized)
+			return
+		}
+		select {
+		case <-time.After(ha.slowIngress):
+		case <-r.Context().Done():
 			return
 		}
 		w.Header().Set(relayVersionHeader, "0.9.2")

@@ -20,6 +20,8 @@ var (
 	errSignInNotOwner         = errors.New("signed-in Home Assistant user is not the owner")
 	errSignInRelayUnsupported = errors.New("NOVA Relay App does not support sign-in pairing")
 	errSignInRelayNotReady    = errors.New("NOVA Relay secure port is not ready")
+	// The Relay couldn't ask Home Assistant who the owner is (it fails closed).
+	errSignInOwnerCheckSlow = errors.New("NOVA Relay could not check the owner with Home Assistant")
 )
 
 // The relay re-reads its secure port mapping on demand; one short retry
@@ -48,14 +50,17 @@ func pairDeviceV2Armed(
 	client *CloudIngressClient,
 	metadata deviceMetadata,
 ) (*provisionedCredential, error) {
-	armed, err := armSignInPairing(ctx, client, CloudEndpointPairArm)
+	armed, err := armSignInPairingWithin(ctx, client)
 	if errors.Is(err, errSignInRelayNotReady) {
 		time.Sleep(signInArmRetryDelay)
-		armed, err = armSignInPairing(ctx, client, CloudEndpointPairArm)
+		armed, err = armSignInPairingWithin(ctx, client)
 	}
 	if err != nil {
-		return nil, err
+		return nil, &pairingBeforeFinishError{err: err}
 	}
+	// The Relay keeps the armed slot this long from its answer.
+	ctx, cancel := context.WithTimeout(ctx, time.Duration(armed.ExpiresInS)*time.Second)
+	defer cancel()
 	plaintext, err := pairV2Exchange(
 		ctx,
 		client,
@@ -83,6 +88,13 @@ func pairDeviceV2Armed(
 		SpkiPin:    provisioned.SpkiPin,
 		SecurePort: provisioned.SecurePort,
 	}, nil
+}
+
+// armSignInPairingWithin arms with a step's own time bound.
+func armSignInPairingWithin(ctx context.Context, client *CloudIngressClient) (signInArmResponse, error) {
+	ctx, cancel := context.WithTimeout(ctx, haSignInStepTimeout)
+	defer cancel()
+	return armSignInPairing(ctx, client, CloudEndpointPairArm)
 }
 
 // pairDeviceV2LinkOwner pairs over Home Assistant Link without a code when the
@@ -139,6 +151,10 @@ func armSignInPairing(
 	case response.StatusCode == http.StatusServiceUnavailable && response.ReachedRelay &&
 		relayPairingErrorCode(raw) == "PAIRING_UNAVAILABLE":
 		return signInArmResponse{}, errSignInRelayNotReady
+	case response.StatusCode == http.StatusServiceUnavailable && response.ReachedRelay &&
+		relayPairingErrorCode(raw) == "OWNER_CHECK_UNAVAILABLE":
+		return signInArmResponse{}, &CloudError{Code: CloudErrHAProtocol, Op: "arm sign-in pairing",
+			StatusCode: response.StatusCode, Retryable: true, cause: errSignInOwnerCheckSlow}
 	default:
 		return signInArmResponse{}, newCloudHTTPError(
 			CloudErrHAProtocol,

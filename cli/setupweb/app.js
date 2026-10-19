@@ -186,6 +186,7 @@
       }
       let [title, lead] = haKnown ? ['setup.page.found.title', 'setup.page.found.lead'] : ['setup.page.found.title_ask', 'setup.page.found.lead_ask'];
       if (haKnown && state.typed) [title, lead] = ['setup.page.found.title_typed', 'setup.page.found.lead_typed'];
+      if (haKnown && asking) [title, lead] = ['setup.page.found.title_ask', 'setup.page.found.lead_change']; // the address field is open
       if (several) lead = 'setup.page.found.lead_several';
       return [...head(t('setup.page.found.eyebrow'), t(title), t(lead)),
         problemLine(),

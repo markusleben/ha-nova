@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"path/filepath"
 	"reflect"
 	"slices"
 	"strings"
@@ -360,7 +361,7 @@ func TestSetupPageOpensClaudeCode(t *testing.T) {
 	previous := setupPageOpenClaude
 	t.Cleanup(func() { setupPageOpenClaude = previous })
 	for _, opens := range []bool{true, false} {
-		setupPageOpenClaude = func() error {
+		setupPageOpenClaude = func(runtimePaths) error {
 			if opens {
 				return nil
 			}
@@ -386,6 +387,61 @@ func TestSetupPageOpensClaudeCode(t *testing.T) {
 	p.waitFor("step 4", accepting("done"))
 	p.click("done", "")
 	<-done
+}
+
+// "Open Claude Code" starts in its own folder (lane F5): never through a
+// link (it could lead back to the home folder); uninstall removes only the
+// folder setup created, and only while it is empty.
+func TestClaudeFolderIsPlainAndOnlySetupsOwnGoes(t *testing.T) {
+	paths, _ := claudeRuleTestPaths(t)
+	dir := filepath.Join(paths.Home, claudeFolderName)
+	report := &uninstallReport{}
+	// The user's own empty folder: used, never recorded, never removed.
+	if err := os.Mkdir(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := claudeFolder(paths); err != nil || got != dir || loadStateOrDefault(paths).ClaudeFolder != "" {
+		t.Fatalf("own folder: %q %v %+v", got, err, loadStateOrDefault(paths))
+	}
+	removeClaudeFolder(paths.Home, loadStateOrDefault(paths), report)
+	if _, err := os.Stat(dir); err != nil || len(report.removed) != 0 {
+		t.Fatalf("the user's folder went: %v", err)
+	}
+	// A link in its place is refused.
+	if err := os.Remove(dir); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(paths.Home, dir); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := claudeFolder(paths); err == nil {
+		t.Fatal("a link to the home folder was used")
+	}
+	if err := os.Remove(dir); err != nil {
+		t.Fatal(err)
+	}
+	// Created by setup: recorded; stays while it holds a file, goes once empty.
+	if got, err := claudeFolder(paths); err != nil || got != dir || loadStateOrDefault(paths).ClaudeFolder != dir {
+		t.Fatalf("created: %q %v %+v", got, err, loadStateOrDefault(paths))
+	}
+	if err := os.WriteFile(filepath.Join(dir, "notes.txt"), []byte("mine"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	removeClaudeFolder(paths.Home, loadStateOrDefault(paths), report)
+	if _, err := os.Stat(filepath.Join(dir, "notes.txt")); err != nil || len(report.removed) != 0 {
+		t.Fatalf("a folder with a file went: %v %v", err, report.removed)
+	}
+	if err := os.Remove(filepath.Join(dir, "notes.txt")); err != nil {
+		t.Fatal(err)
+	}
+	removeClaudeFolder(t.TempDir(), loadStateOrDefault(paths), report) // a state.json from another home
+	if _, err := os.Stat(dir); err != nil {
+		t.Fatalf("a recorded folder outside this home went: %v", err)
+	}
+	removeClaudeFolder(paths.Home, loadStateOrDefault(paths), report)
+	if _, err := os.Stat(dir); !os.IsNotExist(err) || len(report.removed) != 1 {
+		t.Fatalf("the empty folder stayed: %v %v", err, report.removed)
+	}
 }
 
 // Step 3's phone row: the signed-in user's phone first; one notification to
@@ -430,6 +486,32 @@ func TestSetupPageLinksThePhoneWithOneTap(t *testing.T) {
 	}
 }
 
+// The phones can't be read (a busy Home Assistant, lane F4): the row says
+// so instead of vanishing, and Check again reads them once more.
+func TestSetupPagePhoneReadFailsThenChecksAgain(t *testing.T) {
+	h, phones, home := familyLink(t)
+	h.f.mu.Lock()
+	home.usersOK = false
+	h.f.mu.Unlock()
+	p := newPageStepsTest(t, h.paths, "codex")
+	p.flow.pairedThisRun = true
+	done := p.runControl()
+	ctl := p.waitFor("step 3", accepting("recheck")).Control
+	if ctl.Phone != "unread" || len(ctl.Phones) != 0 {
+		t.Fatalf("control = %+v", ctl)
+	}
+	h.f.mu.Lock()
+	home.usersOK = true
+	h.f.mu.Unlock()
+	p.click("recheck", "")
+	ctl = p.waitFor("the phones", accepting("phone")).Control
+	if ctl.Phone != "pick" || len(ctl.Phones) != 3 || len(phones.sent) != 0 {
+		t.Fatalf("control = %+v sent %v", ctl, phones.services)
+	}
+	p.click("finish", "")
+	<-done
+}
+
 // No tap in time: one line, nothing linked, and the row can try again.
 func TestSetupPagePhoneLinkTimesOut(t *testing.T) {
 	h, phones, _ := familyLink(t)
@@ -461,7 +543,7 @@ func TestSetupPageClaudeRuleOnlyOnFinish(t *testing.T) {
 		p := newPageStepsTest(t, paths, "claude")
 		done := p.runControl()
 		ctl := p.waitFor("step 3", accepting("finish")).Control
-		if ctl.Rule != "offer" || ctl.Phone != "unavailable" {
+		if ctl.Rule != "offer" || ctl.RuleCount != len(claudeRules(paths)) || ctl.RuleCount < 2 || ctl.Phone != "unavailable" {
 			t.Fatalf("control = %+v", ctl)
 		}
 		if _, err := os.Stat(settings); !os.IsNotExist(err) {
@@ -489,7 +571,7 @@ func TestSetupPageClaudeRuleOnlyOnFinish(t *testing.T) {
 		if !strings.Contains(readClaudeSettings(t, settings), claudeApplyRule) || state.ClaudeRulesFile != settings || !slices.Contains(state.ClaudeRules, claudeApplyRule) {
 			t.Fatalf("rule not written or not recorded: %s %+v", readClaudeSettings(t, settings), state)
 		}
-		if len(p.flow.pageNotes) != 1 || p.flow.pageNotes[0].Key != "setup.page.home.note_rule" {
+		if len(p.flow.pageNotes) != 1 || p.flow.pageNotes[0].Key != "setup.page.home.note_rule" || p.flow.pageNotes[0].Args["count"] != ctl.RuleCount {
 			t.Fatalf("notes %+v", p.flow.pageNotes)
 		}
 	}
