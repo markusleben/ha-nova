@@ -197,8 +197,9 @@ plain message and the typed code (which an owner provides).
   client that ignores proxy settings (like the relay client); redirects are
   never followed; HTTPS uses the system trust store (no "trust anyway"). The
   steps after the browser returns are bounded to 2 minutes each (a busy
-  Home Assistant answers each request in 15–30 s); the pairing exchange
-  after them to 2 minutes, as long as the armed slot lives.
+  Home Assistant answers each request in 15–30 s); arming as one such step,
+  and the rest of the pairing exchange to the armed slot's life (2 minutes
+  from the Relay's answer).
 - No PKCE: the client and callback share one loopback origin, which Home
   Assistant accepts without PKCE on every supported version; Home Assistant
   2026.10 rejects a `code_verifier` whose authorize request carried no challenge.

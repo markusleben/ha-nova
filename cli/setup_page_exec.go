@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"io/fs"
 	"os"
@@ -82,23 +83,46 @@ var setupPageVerb = func(args ...string) (setupVerbEnvelope, int, error) {
 // claudeFolderName: "Open Claude Code" starts Claude Code in this folder
 // in the home folder. Claude Code asks once whether to trust a folder; for
 // the home folder itself it asks on every start, and trusting it would
-// cover every file there (0.27 lane F5). Uninstall removes it while empty.
+// cover every file there (0.27 lane F5).
 const claudeFolderName = "HA NOVA"
+
+// claudeFolder returns the folder Claude Code starts in, a real folder (no
+// link or junction that could lead back to the home folder). One it
+// creates is recorded, so uninstall removes only that one.
+func claudeFolder(paths runtimePaths) (string, error) {
+	if paths.Home == "" {
+		return "", errors.New("no home folder")
+	}
+	dir := filepath.Join(paths.Home, claudeFolderName)
+	if _, err := os.Lstat(dir); errors.Is(err, fs.ErrNotExist) {
+		if err := os.Mkdir(dir, 0o700); err != nil {
+			return "", err
+		}
+		_ = withClientMutationLockWaiting(paths, func() error { // unrecorded: uninstall leaves it
+			state, err := loadState(paths)
+			if err != nil {
+				return err
+			}
+			state.ClaudeFolder = dir
+			return saveState(paths, state)
+		})
+	}
+	if info, err := os.Lstat(dir); err != nil || info.Mode().Type() != fs.ModeDir {
+		return "", fmt.Errorf("%s is not a plain folder", dir)
+	}
+	return dir, nil
+}
 
 // openClaudeTerminal: step 4's "Open Claude Code" (spec §16 D5 A). A
 // browser can't start a terminal, so the CLI opens the platform's terminal
-// running `claude` in claudeFolderName. An error leaves the page's copyable
+// running `claude` in claudeFolder. An error leaves the page's copyable
 // hint instead.
-func openClaudeTerminal() error {
-	if _, err := exec.LookPath("claude"); err != nil {
-		return err
-	}
-	home, err := os.UserHomeDir()
+func openClaudeTerminal(paths runtimePaths) error {
+	dir, err := claudeFolder(paths) // first: the manual hint names it too
 	if err != nil {
 		return err
 	}
-	dir := filepath.Join(home, claudeFolderName)
-	if err := os.MkdirAll(dir, 0o700); err != nil {
+	if _, err := exec.LookPath("claude"); err != nil {
 		return err
 	}
 	var cmd *exec.Cmd
@@ -136,11 +160,12 @@ func openClaudeTerminal() error {
 	return nil
 }
 
-// removeClaudeFolder: uninstall removes claudeFolderName only while it is
-// an empty folder; anything put there stays.
-func removeClaudeFolder(home string, report *uninstallReport) {
-	dir := filepath.Join(home, claudeFolderName)
-	if info, err := os.Lstat(dir); home == "" || err != nil || info.Mode().Type() != fs.ModeDir { // no link, no junction
+// removeClaudeFolder: uninstall removes the folder setup created, only
+// while it is still an empty plain folder; anything put there stays.
+func removeClaudeFolder(home string, state installState, report *uninstallReport) {
+	dir := state.ClaudeFolder
+	if info, err := os.Lstat(dir); dir == "" || dir != filepath.Join(home, claudeFolderName) ||
+		err != nil || info.Mode().Type() != fs.ModeDir {
 		return
 	}
 	if os.Remove(dir) == nil {

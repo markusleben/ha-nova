@@ -34,6 +34,9 @@ type installState struct {
 	ClaudeRulesFile     string   `json:"claude_rules_file,omitempty"`
 	ClaudeRules         []string `json:"claude_rules,omitempty"`
 	ClaudeAllowCreated  string   `json:"claude_allow_created,omitempty"`
+	// ClaudeFolder: the folder "Open Claude Code" created (claudeFolder);
+	// uninstall removes it while empty.
+	ClaudeFolder string `json:"claude_folder,omitempty"`
 }
 
 func loadState(paths runtimePaths) (installState, error) {

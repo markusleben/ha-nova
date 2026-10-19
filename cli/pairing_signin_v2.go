@@ -50,14 +50,17 @@ func pairDeviceV2Armed(
 	client *CloudIngressClient,
 	metadata deviceMetadata,
 ) (*provisionedCredential, error) {
-	armed, err := armSignInPairing(ctx, client, CloudEndpointPairArm)
+	armed, err := armSignInPairingWithin(ctx, client)
 	if errors.Is(err, errSignInRelayNotReady) {
 		time.Sleep(signInArmRetryDelay)
-		armed, err = armSignInPairing(ctx, client, CloudEndpointPairArm)
+		armed, err = armSignInPairingWithin(ctx, client)
 	}
 	if err != nil {
-		return nil, err
+		return nil, &pairingBeforeFinishError{err: err}
 	}
+	// The Relay keeps the armed slot this long from its answer.
+	ctx, cancel := context.WithTimeout(ctx, time.Duration(armed.ExpiresInS)*time.Second)
+	defer cancel()
 	plaintext, err := pairV2Exchange(
 		ctx,
 		client,
@@ -85,6 +88,13 @@ func pairDeviceV2Armed(
 		SpkiPin:    provisioned.SpkiPin,
 		SecurePort: provisioned.SecurePort,
 	}, nil
+}
+
+// armSignInPairingWithin arms with a step's own time bound.
+func armSignInPairingWithin(ctx context.Context, client *CloudIngressClient) (signInArmResponse, error) {
+	ctx, cancel := context.WithTimeout(ctx, haSignInStepTimeout)
+	defer cancel()
+	return armSignInPairing(ctx, client, CloudEndpointPairArm)
 }
 
 // pairDeviceV2LinkOwner pairs over Home Assistant Link without a code when the

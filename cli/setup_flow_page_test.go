@@ -320,10 +320,15 @@ func TestSetupPageSignInFailuresSayWhatNext(t *testing.T) {
 	})
 	t.Run("too slow after the sign-in", func(t *testing.T) { // lane F1: not the address field
 		flow, _ := pageSignInFlow(t)
-		stubPageSignIn(t, newFakeSupervisor(t), HACurrentUser{Name: "Markus", IsOwner: true}, newCloudError(CloudErrTimeout, "x", context.DeadlineExceeded))
-		failure, _ := flow.pageSignIn(setupPageApp{state: "running", primary: "signin"})
-		if failure == nil || failure.problem.Key != "setup.page.problem.slow" || failure.address || failure.fix != "retry" {
-			t.Fatalf("failure = %+v", failure)
+		for _, err := range []error{
+			newCloudError(CloudErrTimeout, "x", context.DeadlineExceeded),
+			errors.Join(errSignInAppMissing, newCloudError(CloudErrTimeout, "read the App", context.DeadlineExceeded)),
+		} {
+			stubPageSignIn(t, newFakeSupervisor(t), HACurrentUser{Name: "Markus", IsOwner: true}, err)
+			failure, _ := flow.pageSignIn(setupPageApp{state: "running", primary: "signin"})
+			if failure == nil || failure.problem.Key != "setup.page.problem.slow" || failure.address || failure.fix != "retry" {
+				t.Fatalf("%v: failure = %+v", err, failure)
+			}
 		}
 	})
 	t.Run("no Apps", func(t *testing.T) {
@@ -494,6 +499,10 @@ func TestSetupPagePairingFailureReturnsToThePage(t *testing.T) {
 		!slices.Contains(back.Accepts, "signin") || page.ui.inTerminal() || setupInstalledSignIn != nil {
 		t.Fatalf("back = %+v inTerminal=%v", back, page.ui.inTerminal())
 	}
+	// Not proven to fail before the finish request: Try again signs in again.
+	page.click("signin", "")
+	page.waitFor("a new sign-in", func(s setupPageState) bool { return s.SignInURL != "" })
+	page.click("stop", "")
 	setupPageExit(t, done, stdout)
 }
 
@@ -510,9 +519,10 @@ func TestSetupPagePairingWithASlowHomeAssistant(t *testing.T) {
 	t.Cleanup(func() {
 		haSignInStepTimeout, haSignInPairTimeout, pairDeviceV2ArmedForSetup = previousStep, previousPair, previousArmed
 	})
-	// Scaled: the old 30 s bound, the pairing's own budget, and 15–30 s
-	// per answer. The first try needs ten answers, the second three.
-	haSignInStepTimeout, haSignInPairTimeout = 100*time.Millisecond, 400*time.Millisecond
+	// Scaled: the old 30 s bound, the exchange's own budget (arm + slot),
+	// and 15–30 s per answer. The first try needs ten answers, the second
+	// three.
+	haSignInStepTimeout, haSignInPairTimeout = 100*time.Millisecond, 300*time.Millisecond
 	attempts := 0
 	pairDeviceV2ArmedForSetup = func(ctx context.Context, ingress *CloudIngressClient, _ deviceMetadata) (*provisionedCredential, error) {
 		attempts++
@@ -523,7 +533,7 @@ func TestSetupPagePairingWithASlowHomeAssistant(t *testing.T) {
 		for range calls {
 			var info cloudPairingV2Info
 			if err := cloudPairingCall(ctx, ingress, CloudEndpointPairInfo, nil, &info); err != nil {
-				return nil, err
+				return nil, &pairingBeforeFinishError{err: err}
 			}
 		}
 		return &provisionedCredential{}, nil
@@ -568,22 +578,26 @@ func TestSetupPagePairingWithASlowHomeAssistant(t *testing.T) {
 	}
 }
 
-// Try again reuses the sign-in only while it can: not after a not-owner
-// answer, a session Home Assistant ended, or an unknown finish outcome.
+// Try again reuses the sign-in only for a failure before the finish request
+// (a finish may have left a pending device), never after a not-owner answer
+// or a session Home Assistant ended.
 func TestSetupPagePairingProblemSaysWhyAndWhenToSignInAgain(t *testing.T) {
+	before := func(err error) error { return &haSignInPairingError{err: &pairingBeforeFinishError{err: err}} }
 	for name, test := range map[string]struct {
 		cause error
 		key   string
 		reuse bool
 	}{
-		"slow":          {&haSignInPairingError{err: newCloudError(CloudErrTimeout, "x", context.DeadlineExceeded)}, "setup.page.problem.pairing_slow", true},
-		"owner check":   {&haSignInPairingError{err: &CloudError{Code: CloudErrHAProtocol, cause: errSignInOwnerCheckSlow}}, "setup.page.problem.pairing_slow", true},
-		"not ready":     {&haSignInPairingError{err: errSignInRelayNotReady}, "setup.page.problem.app_not_ready", true},
-		"not owner":     {&haSignInPairingError{err: errSignInNotOwner}, "setup.page.problem.pairing", false},
-		"expired":       {&haSignInPairingError{err: newCloudError(CloudErrOuterSessionExpired, "x", nil)}, "setup.page.problem.signin_expired", false},
-		"unknown":       {&haSignInPairingError{err: newCloudError(CloudErrOutcomeUnknown, "x", context.DeadlineExceeded)}, "setup.page.problem.pairing_unknown", false},
-		"unknown later": {&haSignInPairingError{err: fmt.Errorf("%w; a later finish response was: %v", errPairingOutcomeUnknown, errors.New("401"))}, "setup.page.problem.pairing_unknown", false},
-		"App stopped":   {&haSignInPairingError{err: newCloudError(CloudErrIngressUnavailable, "x", nil)}, "setup.page.problem.app_not_ready", true},
+		"slow":           {before(newCloudError(CloudErrTimeout, "x", context.DeadlineExceeded)), "setup.page.problem.pairing_slow", true},
+		"owner check":    {before(&CloudError{Code: CloudErrHAProtocol, cause: errSignInOwnerCheckSlow}), "setup.page.problem.pairing_slow", true},
+		"not ready":      {before(errSignInRelayNotReady), "setup.page.problem.app_not_ready", true},
+		"App stopped":    {before(newCloudError(CloudErrIngressUnavailable, "x", nil)), "setup.page.problem.app_not_ready", true},
+		"not owner":      {before(errSignInNotOwner), "setup.page.problem.pairing", false},
+		"expired":        {before(newCloudError(CloudErrOuterSessionExpired, "x", nil)), "setup.page.problem.signin_expired", false},
+		"unknown":        {&haSignInPairingError{err: newCloudError(CloudErrOutcomeUnknown, "x", context.DeadlineExceeded)}, "setup.page.problem.pairing_unknown", false},
+		"unknown later":  {&haSignInPairingError{err: fmt.Errorf("%w; a later finish response was: %v", errPairingOutcomeUnknown, errors.New("401"))}, "setup.page.problem.pairing_unknown", false},
+		"after finish":   {&haSignInPairingError{err: newCloudError(CloudErrRelayInstance, "validate sign-in pairing credential", nil)}, "setup.page.problem.pairing", false},
+		"slow at finish": {&haSignInPairingError{err: newCloudError(CloudErrTimeout, "x", context.DeadlineExceeded)}, "setup.page.problem.slow", false},
 	} {
 		problem, reuse := pagePairingProblem(&setupPagePairingError{cause: test.cause})
 		if problem.Key != test.key || (reuse != nil) != test.reuse {
@@ -592,35 +606,59 @@ func TestSetupPagePairingProblemSaysWhyAndWhenToSignInAgain(t *testing.T) {
 	}
 }
 
-// After a pairing that didn't finish, an App that no longer offers sign-in
-// gets no Try again (it would go to a code prompt the page never shows).
-func TestSetupPagePairingRetryOnlyWhileTheAppOffersSignIn(t *testing.T) {
-	withClientRuntimeAvailability(t, map[string]bool{"codex": true})
-	setupGoldenHome(t)
-	ha := newFakeSignInHA(t)
-	stubSetupPageHome(t, ha.server.URL, true)
-	var advertises atomic.Bool
-	advertises.Store(true)
-	relayAdvertisesSignInForSetup = func(string) bool { return advertises.Load() }
-	signInPairForSetup = func(string, pairingProvisioner, *runtimeConfig, func(*runtimeConfig) error, pairingClientInfo, SecretStoreUIPolicy) (string, error) {
-		advertises.Store(false) // the App restarts meanwhile
-		return "", &haSignInPairingError{err: newCloudError(CloudErrTimeout, "x", context.DeadlineExceeded)}
+// After a pairing that didn't finish, an App that no longer offers sign-in:
+// Try again stays and reads the App again (never a code prompt the page
+// doesn't show); once sign-in is back, it reuses the sign-in. With the
+// reuse window over, it signs in again.
+func TestSetupPagePairingRetryChecksTheAppAgain(t *testing.T) {
+	for _, expired := range []bool{false, true} {
+		withClientRuntimeAvailability(t, map[string]bool{"codex": true})
+		setupGoldenHome(t)
+		ha := newFakeSignInHA(t)
+		stubSetupPageHome(t, ha.server.URL, true)
+		var advertises atomic.Bool
+		advertises.Store(true)
+		relayAdvertisesSignInForSetup = func(string) bool { return advertises.Load() }
+		var tries atomic.Int32
+		signInPairForSetup = func(string, pairingProvisioner, *runtimeConfig, func(*runtimeConfig) error, pairingClientInfo, SecretStoreUIPolicy) (string, error) {
+			if tries.Add(1) > 1 {
+				return "device-1", nil
+			}
+			advertises.Store(false) // the App restarts meanwhile
+			return "", &haSignInPairingError{err: &pairingBeforeFinishError{err: newCloudError(CloudErrTimeout, "x", context.DeadlineExceeded)}}
+		}
+		previousIdle, previousRetry := setupPageIdle, setupPageRetryFor
+		setupPageIdle = 2 * time.Second
+		if expired {
+			setupPageRetryFor = 0
+		}
+		page, stdout, done := startSetupPageFlow(t, "")
+		page.waitFor("the found screen", accepting("signin"))
+		page.click("signin", "")
+		waiting := page.waitFor("the sign-in URL", func(s setupPageState) bool { return s.SignInURL != "" })
+		authorize, _ := url.Parse(waiting.SignInURL)
+		page.do(http.MethodGet, oauthLoopbackCallbackPath+"?"+signedInQuery(authorize.Query().Get("state")), "", nil)
+		back := page.waitFor("the pairing problem", func(s setupPageState) bool { return s.Problem != nil && len(s.Accepts) > 0 })
+		if back.Problem.Key != "setup.page.problem.pairing_slow" || back.Fix != "retry" || back.Primary != "" ||
+			!slices.Contains(back.Accepts, "signin") || page.ui.inTerminal() {
+			t.Fatalf("back = %+v", back)
+		}
+		page.click("signin", "") // the App still doesn't offer sign-in: same step 2
+		again := page.waitFor("step 2 again", func(s setupPageState) bool { return slices.Contains(s.Accepts, "signin") })
+		if again.Problem == nil || again.Problem.Key != "setup.page.problem.pairing_slow" || again.SignInURL != "" || tries.Load() != 1 {
+			t.Fatalf("again = %+v tries=%d", again, tries.Load())
+		}
+		advertises.Store(true)
+		page.click("signin", "")
+		if expired {
+			page.waitFor("a new sign-in", func(s setupPageState) bool { return s.SignInURL != "" })
+			page.click("stop", "")
+		} else if control := page.waitFor("step 3", accepting("finish")); control.SignInURL != "" || tries.Load() != 2 {
+			t.Fatalf("control = %+v tries=%d", control, tries.Load())
+		}
+		setupPageExit(t, done, stdout)
+		setupPageIdle, setupPageRetryFor = previousIdle, previousRetry
 	}
-	previousIdle := setupPageIdle
-	setupPageIdle = 2 * time.Second
-	t.Cleanup(func() { setupPageIdle = previousIdle })
-	page, stdout, done := startSetupPageFlow(t, "")
-	page.waitFor("the found screen", accepting("signin"))
-	page.click("signin", "")
-	waiting := page.waitFor("the sign-in URL", func(s setupPageState) bool { return s.SignInURL != "" })
-	authorize, _ := url.Parse(waiting.SignInURL)
-	page.do(http.MethodGet, oauthLoopbackCallbackPath+"?"+signedInQuery(authorize.Query().Get("state")), "", nil)
-	back := page.waitFor("the pairing problem", func(s setupPageState) bool { return s.Problem != nil && len(s.Accepts) > 0 })
-	if back.Problem.Key != "setup.page.problem.pairing_slow" || back.Fix != "" || slices.Contains(back.Accepts, "signin") ||
-		!slices.Contains(back.Accepts, "terminal") || page.ui.inTerminal() {
-		t.Fatalf("back = %+v", back)
-	}
-	setupPageExit(t, done, stdout)
 }
 
 // The browser opens a private file, not the token URL: other users can read

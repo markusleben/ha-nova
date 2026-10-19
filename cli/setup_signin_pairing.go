@@ -27,10 +27,11 @@ var (
 	haSignInOffered               = defaultHASignInOffered
 )
 
-// The pairing exchange after the sign-in (arm, info, start, finish through
-// ingress) may take as long as the Relay keeps the armed slot
-// (PAIR_ARM_TTL_MS, 2 min); past it the exchange can't finish anyway. A busy
-// Home Assistant answers each request in 15–30 s (0.27 lane F1).
+// The pairing exchange after the sign-in: arming gets a step's bound
+// (haSignInStepTimeout), then info, start, and finish may take as long as the
+// Relay keeps the armed slot (PAIR_ARM_TTL_MS, 2 min; pairDeviceV2Armed).
+// This caps both. A busy Home Assistant answers each request in 15–30 s
+// (0.27 lane F1).
 var haSignInPairTimeout = 2 * time.Minute
 
 // haSignInPairingError marks a failure inside the ingress pairing exchange,
@@ -155,8 +156,6 @@ func pairWithHASignInSession(
 	session haSignInSession,
 	lifecycleMarker ...[]byte,
 ) (paired bool, soft error, err error) {
-	ctx, cancel := context.WithTimeout(context.Background(), haSignInPairTimeout)
-	defer cancel()
 	_, pairErr := runSetupSpinnerWithResult(out, "Connecting this computer...", setupSpinnerDebounce, func() (struct{}, error) {
 		var pairErr error
 		lockErr := withSetupLifecycleGuard(paths, lifecycleMarker, func() error {
@@ -167,6 +166,9 @@ func pairWithHASignInSession(
 				return saveSetupConfigIfCurrent(paths, *c, lifecycleMarker)
 			}
 			provision := func(meta deviceMetadata) (*provisionedCredential, error) {
+				// From here, not from before the lock: the budget is the exchange's.
+				ctx, cancel := context.WithTimeout(context.Background(), haSignInStepTimeout+haSignInPairTimeout)
+				defer cancel()
 				provisioned, err := pairDeviceV2ArmedForSetup(ctx, session.ingress, meta)
 				if err != nil {
 					return nil, &haSignInPairingError{err: err}
@@ -231,6 +233,8 @@ func haSignInFallbackLine(err error, user HACurrentUser) string {
 			return "The account you signed in with is not the Home Assistant owner. Only the owner can connect a computer."
 		}
 		return fmt.Sprintf("Signed in as %s, who is not the Home Assistant owner. Only the owner can connect a computer.", terminalSafeName(user.Name))
+	case errors.Is(err, errSignInAppMissing) && haSignInSlow(err):
+		return "Could not finish the sign-in: Home Assistant answered too slowly."
 	case errors.Is(err, errSignInAppMissing):
 		return "Home Assistant did not find a running NOVA App, so sign-in cannot connect this computer."
 	case errors.Is(err, errSignInRelayUnsupported):

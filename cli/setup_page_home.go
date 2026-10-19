@@ -111,7 +111,7 @@ func (f *setupFlow) pageHome() {
 			}
 		case "claude":
 			home.Opened = "manual"
-			if setupPageOpenClaude() == nil {
+			if setupPageOpenClaude(f.paths) == nil {
 				home.Opened = "terminal"
 			}
 		}

@@ -149,7 +149,7 @@ func (f *setupFlow) pageControl() int {
 			return 0
 		}
 		switch action.Action {
-		case "recheck": // the page shows it reading meanwhile
+		case "recheck": // its buttons stay disabled while it reads
 			f.pagePhones(&ctl)
 		case "phone":
 			if i := slices.IndexFunc(ctl.Phones, func(ph setupPagePhone) bool { return ph.ID == action.Value }); i >= 0 {

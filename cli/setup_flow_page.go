@@ -140,9 +140,6 @@ func (f *setupFlow) stepPage() setupStepResult {
 	links := map[string]string{}
 	for {
 		app := f.pageApp()
-		if app.primary == "" {
-			fix = "" // no sign-in from the page now: no Try again button that can't be clicked
-		}
 		p.update(func(v *setupPageState) {
 			v.Screen, v.HA, v.Candidates, v.App, v.AppVersion, v.Primary = screen, terminalSafeName(f.cfg.HAHost), found, app.state, terminalSafeName(app.version), app.primary
 			v.Clients, v.Problem, v.Fix, v.Links, v.AskHA, v.Typed = setupClientNames(f.selectedClients), problem, fix, links, askHA, f.pageTyped
@@ -151,7 +148,7 @@ func (f *setupFlow) stepPage() setupStepResult {
 			}
 		})
 		accepts := []string{"address", "terminal"}
-		if app.primary != "" {
+		if app.primary != "" || fix == "retry" { // Try again also checks the App again
 			accepts = append(accepts, "signin")
 		}
 		if f.cfg.HAURL == "" { // no Home Assistant found: the demo house (spec §8)
@@ -161,11 +158,9 @@ func (f *setupFlow) stepPage() setupStepResult {
 		if err != nil {
 			return f.cancelled()
 		}
+		shownProblem, shownScreen, shownFix, shownLinks, shownAskHA := problem, screen, fix, links, askHA
 		problem, screen, fix, links, askHA = nil, "found", "", map[string]string{}, false
-		retry := f.pageRetry
-		if time.Now().After(f.pageRetryUntil) || app.primary != "signin" {
-			retry = nil // an App to install, update, or wait for gets the whole sign-in again
-		}
+		kept := f.pageRetry
 		f.pageRetry = nil
 		switch action.Action {
 		case "demo":
@@ -195,7 +190,18 @@ func (f *setupFlow) stepPage() setupStepResult {
 			f.detectRelayOnInstall = true
 			return setupGoTo(setupStepRelayInstall)
 		case "signin":
-			if retry != nil { // Try again after a pairing that didn't finish: the sign-in still holds
+			if app.primary == "" {
+				app = f.pageApp() // Try again reads the App again
+			}
+			if app.primary == "" { // still no sign-in from the page: the same step 2
+				problem, screen, fix, links, askHA = shownProblem, shownScreen, shownFix, shownLinks, shownAskHA
+				f.pageRetry = kept
+				continue
+			}
+			// Try again after a pairing that didn't finish: the sign-in still
+			// holds. An App to install, update, or wait for gets the whole
+			// sign-in again.
+			if retry := kept; retry != nil && app.primary == "signin" && time.Now().Before(f.pageRetryUntil) {
 				p.update(func(v *setupPageState) {
 					v.Screen, v.Problem, v.Fix, v.Links = "connect", nil, "", nil
 					for i := range v.Rows {
@@ -401,7 +407,8 @@ func (f *setupFlow) pageSignIn(app setupPageApp) (*setupPageFailure, bool) {
 		return nil, true // Ctrl+C in the terminal
 	}
 	failure := pageSignInFailure(err, session.user, f.cfg.HAURL)
-	if failure.address && !errors.Is(err, errSignInBrowser) &&
+	var installErr *novaAppInstallError
+	if !errors.Is(err, errSignInBrowser) && !errors.Is(err, errSignInStopped) && !errors.As(err, &installErr) && !errors.Is(err, errSignInNotOwner) &&
 		(IsCloudErrorCode(err, CloudErrTimeout) || errors.Is(err, context.DeadlineExceeded)) {
 		// Home Assistant answered the sign-in, then too slowly: its address is fine.
 		failure.problem, failure.address = setupPageText("setup.page.problem.slow"), false
@@ -414,14 +421,15 @@ func (f *setupFlow) pageSignIn(app setupPageApp) (*setupPageFailure, bool) {
 
 // pagePairingProblem: why the pairing after the page's sign-in didn't
 // finish, and the sign-in Try again reuses. The owner's ingress session
-// stays in this process only; a not-owner answer or a session Home
-// Assistant ended needs a new sign-in.
+// stays in this process only. Only a failure before the finish request
+// keeps it: a finish may have left a pending device on the Relay (unusable,
+// it expires after 15 minutes), so the next try asks for the owner's
+// sign-in again. A not-owner answer or a session Home Assistant ended
+// needs one too.
 func pagePairingProblem(failure *setupPagePairingError) (*setupPageMsg, *haSignInSession) {
 	cause, reuse := failure.cause, &failure.session
-	// An unknown finish outcome may have left a device on the Relay: never
-	// re-pair at one click then.
-	if errors.Is(cause, errSignInNotOwner) || IsCloudErrorCode(cause, CloudErrOuterSessionExpired) ||
-		IsCloudErrorCode(cause, CloudErrOutcomeUnknown) || errors.Is(cause, errPairingOutcomeUnknown) {
+	var before *pairingBeforeFinishError
+	if !errors.As(cause, &before) || errors.Is(cause, errSignInNotOwner) || IsCloudErrorCode(cause, CloudErrOuterSessionExpired) {
 		reuse = nil
 	}
 	switch {
@@ -429,6 +437,8 @@ func pagePairingProblem(failure *setupPagePairingError) (*setupPageMsg, *haSignI
 		return setupPageText("setup.page.problem.pairing_unknown"), nil
 	case IsCloudErrorCode(cause, CloudErrOuterSessionExpired):
 		return setupPageText("setup.page.problem.signin_expired"), nil
+	case haSignInSlow(cause) && reuse == nil:
+		return setupPageText("setup.page.problem.slow"), nil
 	case haSignInSlow(cause):
 		return setupPageText("setup.page.problem.pairing_slow"), reuse
 	case errors.Is(cause, errSignInRelayNotReady), errors.Is(cause, errSignInRelayUnsupported),

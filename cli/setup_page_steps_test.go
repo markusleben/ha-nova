@@ -361,7 +361,7 @@ func TestSetupPageOpensClaudeCode(t *testing.T) {
 	previous := setupPageOpenClaude
 	t.Cleanup(func() { setupPageOpenClaude = previous })
 	for _, opens := range []bool{true, false} {
-		setupPageOpenClaude = func() error {
+		setupPageOpenClaude = func(runtimePaths) error {
 			if opens {
 				return nil
 			}
@@ -389,36 +389,58 @@ func TestSetupPageOpensClaudeCode(t *testing.T) {
 	<-done
 }
 
-// "Open Claude Code" starts in its own folder (lane F5); uninstall removes
-// it only while it is an empty folder.
-func TestClaudeFolderLeavesOnlyWhenEmpty(t *testing.T) {
-	home := t.TempDir()
-	dir := filepath.Join(home, claudeFolderName)
+// "Open Claude Code" starts in its own folder (lane F5): never through a
+// link (it could lead back to the home folder); uninstall removes only the
+// folder setup created, and only while it is empty.
+func TestClaudeFolderIsPlainAndOnlySetupsOwnGoes(t *testing.T) {
+	paths, _ := claudeRuleTestPaths(t)
+	dir := filepath.Join(paths.Home, claudeFolderName)
 	report := &uninstallReport{}
-	removeClaudeFolder(home, report) // none yet
+	// The user's own empty folder: used, never recorded, never removed.
 	if err := os.Mkdir(dir, 0o700); err != nil {
 		t.Fatal(err)
+	}
+	if got, err := claudeFolder(paths); err != nil || got != dir || loadStateOrDefault(paths).ClaudeFolder != "" {
+		t.Fatalf("own folder: %q %v %+v", got, err, loadStateOrDefault(paths))
+	}
+	removeClaudeFolder(paths.Home, loadStateOrDefault(paths), report)
+	if _, err := os.Stat(dir); err != nil || len(report.removed) != 0 {
+		t.Fatalf("the user's folder went: %v", err)
+	}
+	// A link in its place is refused.
+	if err := os.Remove(dir); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(paths.Home, dir); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := claudeFolder(paths); err == nil {
+		t.Fatal("a link to the home folder was used")
+	}
+	if err := os.Remove(dir); err != nil {
+		t.Fatal(err)
+	}
+	// Created by setup: recorded; stays while it holds a file, goes once empty.
+	if got, err := claudeFolder(paths); err != nil || got != dir || loadStateOrDefault(paths).ClaudeFolder != dir {
+		t.Fatalf("created: %q %v %+v", got, err, loadStateOrDefault(paths))
 	}
 	if err := os.WriteFile(filepath.Join(dir, "notes.txt"), []byte("mine"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	removeClaudeFolder(home, report)
+	removeClaudeFolder(paths.Home, loadStateOrDefault(paths), report)
 	if _, err := os.Stat(filepath.Join(dir, "notes.txt")); err != nil || len(report.removed) != 0 {
 		t.Fatalf("a folder with a file went: %v %v", err, report.removed)
 	}
 	if err := os.Remove(filepath.Join(dir, "notes.txt")); err != nil {
 		t.Fatal(err)
 	}
-	removeClaudeFolder(home, report)
+	removeClaudeFolder(t.TempDir(), loadStateOrDefault(paths), report) // a state.json from another home
+	if _, err := os.Stat(dir); err != nil {
+		t.Fatalf("a recorded folder outside this home went: %v", err)
+	}
+	removeClaudeFolder(paths.Home, loadStateOrDefault(paths), report)
 	if _, err := os.Stat(dir); !os.IsNotExist(err) || len(report.removed) != 1 {
 		t.Fatalf("the empty folder stayed: %v %v", err, report.removed)
-	}
-	if err := os.WriteFile(dir, []byte("a file of that name"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	removeClaudeFolder(home, report)
-	if _, err := os.Stat(dir); err != nil {
-		t.Fatalf("a file of that name went: %v", err)
 	}
 }
 
