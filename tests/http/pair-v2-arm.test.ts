@@ -98,6 +98,8 @@ describe("POST /pair/v2/arm", () => {
     const page = await (await call(base, "GET", "/", "owner-1")).text();
     expect(page).not.toContain(data.pairing_secret);
     expect(page).toContain("connecting through Home Assistant sign-in");
+    // A CLI that fell back to the code can still get one while the slot is armed.
+    expect(page).toContain('value="generate_code"');
 
     const provisioned = await pairThroughIngress(base, data.pairing_secret);
     expect(provisioned).toMatchObject({
