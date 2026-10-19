@@ -36,7 +36,7 @@ WS response body: `.data` (`../ha-nova/relay-api.md` → Standard Envelope).
 `{"type":"backup/info"}` → report from `.data`:
 - `backups` (count, newest `date`, sizes via `agents`), `state` (`idle` or in progress). Distinguish full backups (`homeassistant_included`) from partial App backups and automatic (`with_automatic_settings`) from manual; when the newest backup is partial, also report the newest FULL backup
 - `last_completed_automatic_backup`, `next_automatic_backup` — say plainly when automatic backups are NOT configured (`next` is null)
-- surface `agent_errors` when non-empty (a failing backup location is silent data-loss risk)
+- non-empty `agent_errors`: name each failing location as `backup/agents/info` names it (a failing backup location is silent data-loss risk)
 
 ### Create
 1. Read Status first; if `state` is not `idle`, a backup is already running — poll instead of starting another.
@@ -46,7 +46,7 @@ WS response body: `.data` (`../ha-nova/relay-api.md` → Standard Envelope).
    - discover the local agent via `{"type":"backup/agents/info"}`: Supervised installs register `hassio.local`, Core installs `backup.local` — never hardcode
    - add `"include_all_addons":true` ONLY for `hassio.local` (Core rejects App options)
    - if `backup/config/info` shows an encryption password configured, pass it as `password`; never invent one
-5. Both generate commands return when the job is INITIATED, not when it finishes. Poll `backup/info` every ~10 s until `state` returns to `idle` and a new backup appears in `backups`; then check the new backup's `failed_agent_ids`, `failed_addons`, and `failed_folders`: if any is non-empty, report partial success — the backup exists but is missing those locations, Apps, or folders — never plain success. Otherwise report name, date, size, and locations. If still running after ~5 minutes, say the backup continues in the background and how to check later.
+5. Both generate commands return when the job is INITIATED, not when it finishes. Poll `backup/info` every ~10 s until `state` returns to `idle` and a new backup appears in `backups`; then check the new backup's `failed_agent_ids`, `failed_addons`, and `failed_folders`: if any is non-empty, report partial success — the backup exists but is missing those locations, Apps, or folders — never plain success. Otherwise report name, date, size, and locations by name (`backup/agents/info`). If still running after ~5 minutes, say the backup continues in the background and how to check later.
 6. If Status afterwards shows the attempt failed (`last_action_event`/no new backup), report the failure — never claim success from initiation alone.
 
 ### Safety backup before risky changes

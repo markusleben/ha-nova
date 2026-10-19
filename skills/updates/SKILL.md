@@ -53,7 +53,7 @@ Never call a bitmask-backed service (install/version/backup/release-notes) the m
 - Apps; integrations (HACS components); device firmware (everything else)
 Group deterministically: `platform: hacs` = integrations; `platform: hassio` splits by `unique_id` — `home_assistant_{core,os,supervisor}_version_latest` = HA stack, `<addon_slug>_version_latest` = App; everything else = device firmware/other. Never guess from names.
 NOVA Relay requires exactly `platform: hassio` plus `unique_id: 2368fcfa_ha_nova_relay_version_latest`; names insufficient.
-Per pending item: name, `installed_version` → `latest_version`, `auto_update`, `skipped_version`. Fleets: counts per group + pending list only — never dump 200 firmware rows.
+Per pending item: name, installed → new version, auto-update or skip. Fleets: counts per group + pending list — never dump 200 firmware rows.
 
 ### Release notes
 Bit 16 set: WS `{"type":"update/release_notes","entity_id":"update.<id>"}` → markdown in `.data`; summarize, never dump. Without bit 16, do not call it (it fails with `not_supported`) — use the entity's `release_summary`/`release_url` instead; when both are empty, say no notes are available.
@@ -82,7 +82,7 @@ Bit 16 set: WS `{"type":"update/release_notes","entity_id":"update.<id>"}` → m
 ## Error Handling
 
 - `not_supported` on release notes: expected without bit 16 — use `release_url`.
-- Install rejected: report HA's error, no blind retry — a running update (`in_progress`) blocks a second install.
+- Install rejected: say plainly why, no blind retry — a running update (`in_progress`) blocks a second install.
 - Upstream permission denial on install/skip/clear_skipped — REST envelope `.ok == true` with `.data.status` 401, or `502 / UPSTREAM_WS_COMMAND_ERROR` carrying HA's `unauthorized`: the upstream user is not an administrator (HA 2026.9 admin-only actions). The App runs as the Supervisor system user and is not affected; on a standalone container the `HA_LLAT` must belong to an administrator — fix it, never retry. A top-level `401 / UNAUTHORIZED` (`.ok == false`) is the Relay's own client authentication, not this case (`../ha-nova/relay-api.md` → Error Handling).
 - Entity vanished mid-poll: re-read once; NOVA Relay uses the health-poll window above.
 - Full relay error taxonomy: `../ha-nova/relay-api.md` → Error Handling.

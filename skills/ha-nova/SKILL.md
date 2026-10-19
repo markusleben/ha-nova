@@ -219,20 +219,7 @@ Rules:
 
 ## Response Format
 
-Render domain-specific summaries:
-- automations / scripts / helpers: use the structured summary + YAML / payload format below
-- dashboards / organize / history: use the compact domain-specific output format defined by that skill
-
-For automations / scripts / helpers:
-1. `Automation` or `Script` (name + ID)
-2. `Entities` (all entity_ids in triggers/conditions/actions)
-3. Domain-specific fields:
-   - **Automation:** `Triggers`, `Conditions`, `Actions` (short descriptions)
-   - **Script:** `Fields` (input parameters, if present), `Sequence` (short description of steps)
-   - **Helper:** `name` (type + entity_id), type-specific fields (min/max, options, duration, etc.)
-4. `Mode` (single/restart/queued/parallel) — automations/scripts only
-5. full YAML config block (or WS payload for helpers)
-6. `Next step` (for writes: confirmation; for reads: done)
+Automation, script, and helper summaries: the name, then what starts it, its conditions, and what it does in short sentences (scripts: inputs and steps; helpers: type and settings), then the next step (a write: its confirmation). Ids and the full YAML config only when asked; mode only when not `single`, in plain words. Dashboards, organize, history: that skill's own format.
 
 Keep orchestration details internal on normal success paths.
 
