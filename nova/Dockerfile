@@ -21,6 +21,9 @@ RUN chmod a+x /run.sh
 # (scripts/release/stage-app-bridge.sh). A local Supervisor build copies only
 # the placeholder, so chat apps stay unavailable there.
 COPY bridge /opt/ha-nova
+# The ha_nova Home Assistant integration (chat apps): the App copies it into
+# /config/custom_components/ha_nova when the owner turns chat apps on.
+COPY integration/ha_nova /app/integration/ha_nova
 # Chat apps stay off until the App release that ships the integration (B3)
 # sets this to 1; a dev or E2E build can opt in with --build-arg.
 ARG HA_NOVA_CHAT_APPS=0

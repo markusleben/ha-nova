@@ -445,7 +445,7 @@ Why this shape:
 - **Integration ↔ App:**
   - the App publishes a Supervisor discovery message (`POST /discovery`, service `ha_nova`, config: host, port, secret). `discovery: [ha_nova]` in `config.yaml` only permits it. The App keeps the returned UUID in `/data`;
   - host is the App's stable Supervisor hostname, never an IP. The 256-bit secret is generated once and kept in `/data`. App restarts and updates reuse both; on start the App re-posts its message (Supervisor keeps one per App and service, so an unchanged one is a no-op; an App can't list messages). The secret changes only by turning chat apps off and on;
-  - the integration's `hassio` config flow stores them with the App slug as unique ID, so a changed message updates that entry and never adds a second;
+  - the integration's `hassio` config flow stores them with the message's uuid as unique ID (Home Assistant removes a `hassio` entry only by that uuid when the message is deleted). A changed message updates that entry; a new message from the same App replaces it; there is never a second;
   - the bridge port is internal to the Supervisor network and never mapped to the host;
   - the user ID passed by the integration is trusted only with that secret.
 - **Proxy contract.** The integration forwards the whole Streamable HTTP exchange, not just the body:
@@ -537,6 +537,7 @@ Real-device lanes (the ones that found real bugs on 2026-10-18):
 | HAOS users owner, admin, `tester2` | step 2 branches, code fallback | agent |
 | Win11 ARM64 VM, admin desktop + standard user over SSH | page flow (Edge), no firewall prompt; text path; uninstall (N1) | agent |
 | Separate macOS user/VM; Linux desktop container lane + SSH; WSL2 | page flow (Safari, Chrome, Firefox), keychains, `--no-browser` | agent |
+| Throwaway HAOS VM, dev App with chat apps on (required before the 0.27 tag) | real Supervisor discovery: turn on → `ha_nova` entry appears after the restart; turn off (deletes the message) → the entry goes, matched by the message's uuid, not the App slug (B2's open question); off and on again → one entry with the new secret; App update and restart → same entry, connector still works | agent |
 | HA Link test account on the HAOS VM | owner without code; **bridge**: enable flow, restart, claude.ai web + iOS/Android app, ChatGPT web/mobile, revoke | maintainer (Cloud checklist) |
 | iPhone + Watch, Android emulator | step 3 link, §7.4 race both ways, result notifications, §11.5 script | maintainer |
 | Claude Code auto mode, Sonnet + Haiku | rule preselected → unlock via window, no block; §10 scenarios | agent on the test bed |
@@ -569,7 +570,7 @@ Production LOC estimates exclude tests and assets. HR = high-risk, RB = release-
 Order:
 - **Parallel starts:** A1, A2, A3, and B0. A4 waits for the `client_install_id` fix.
 - **Setup chain:** A5 → A6 → A7/A8 → A9.
-- **Bridge:** B0 said go with changes, so B1–B3 may start. B2 needs B1, and B4 needs A7 and B3. B3 runs the real Supervisor discovery on the throwaway HAOS VM.
+- **Bridge:** B0 said go with changes, so B1–B3 may start. B2 needs B1, and B4 needs A7 and B3. B3 drives Home Assistant's own `hassio` discovery code in pytest (Supervisor mocked); the real Supervisor run is a release lane (§12).
 - **If the remaining maintainer test fails on R9 and the own-view metadata fix doesn't help:** the bridge moves to 0.28, and 0.27 ships phone use through Remote Control/Codex (B4 docs only).
 - **Review:** every HR PR gets the security, UX, and sibling-sweep reviewers before opening.
 

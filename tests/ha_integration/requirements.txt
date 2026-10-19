@@ -1,0 +1,2 @@
+# Home Assistant 2026.10.1, the version of the Docker test bed.
+pytest-homeassistant-custom-component==0.13.372

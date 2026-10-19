@@ -514,6 +514,15 @@ scp -i "$HA_SSH_KEY" \
   -r "${PROJECT_ROOT}/nova/bridge/." \
   "${SSH_USER}@${HA_HOST}:${REMOTE_ADDON_DIR}/bridge/"
 
+# nova/Dockerfile copies the ha_nova integration (chat apps) into the image.
+remote "rm -rf ${REMOTE_ADDON_DIR}/integration && mkdir -p ${REMOTE_ADDON_DIR}/integration"
+scp -i "$HA_SSH_KEY" \
+  -o StrictHostKeyChecking=accept-new \
+  -o BatchMode=yes \
+  -P "$SSH_PORT" \
+  -r "${PROJECT_ROOT}/nova/integration/." \
+  "${SSH_USER}@${HA_HOST}:${REMOTE_ADDON_DIR}/integration/"
+
 # ── Reload + reinstall if needed ──
 
 log "Reload app store metadata"
