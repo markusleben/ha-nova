@@ -53,7 +53,7 @@ describe("release notes contract", () => {
     // Chat apps are named as such; the MCP adapter itself stays unadvertised.
     expect(stableNotes).not.toMatch(/mcp/i);
     expect(stableNotes).not.toContain("Cloud Remote is back on Windows and Linux");
-    expect(readme).toContain("only unambiguous everyday actions run right away");
+    expect(readme).toContain("only clear everyday actions run right away");
     expect(readme).toContain("Each automation or script delete is confirmed on its own");
     expect(readme).toContain("the AI can see it too, so it only counts when you type it yourself");
     expect(readme).toContain("ha-nova setup confirm-window off");
