@@ -14,8 +14,8 @@
   const screenEl = document.getElementById('screen');
   const dotsEl = document.getElementById('dots');
   const statusEl = document.getElementById('status');
-  const finalScreens = ['done', 'incomplete', 'finished', 'failed', 'stopped', 'idle', 'lost', 'elsewhere'];
-  const steps = { looking: 1, found: 1, noclient: 1, connect: 2, done: 4, incomplete: 4 };
+  const finalScreens = ['done', 'closed', 'skipped', 'demo', 'incomplete', 'finished', 'failed', 'stopped', 'idle', 'lost', 'elsewhere'];
+  const steps = { looking: 1, found: 1, noclient: 1, connect: 2, control: 3, home: 4, done: 4, closed: 4, skipped: 3, incomplete: 4 };
   const downloads = {
     claude_desktop: 'https://claude.com/download',
     claude_code: 'https://claude.com/claude-code',
@@ -27,6 +27,8 @@
     terminal: ['setup.page.terminal.eyebrow', 'setup.page.terminal.title', 'setup.page.terminal.lead'],
     incomplete: ['setup.page.incomplete.eyebrow', 'setup.page.incomplete.title', 'setup.page.incomplete.lead', true],
     finished: ['setup.page.finished.eyebrow', 'setup.page.finished.title', 'setup.page.done.fine'],
+    closed: ['setup.page.closed.eyebrow', 'setup.page.closed.title', 'setup.page.closed.lead'],
+    skipped: ['setup.page.skipped.eyebrow', 'setup.page.skipped.title', 'setup.page.skipped.lead'],
     failed: ['setup.page.failed.eyebrow', 'setup.page.failed.title', 'setup.page.failed.lead', true],
     stopped: ['setup.page.stopped.eyebrow', 'setup.page.stopped.title', 'setup.page.stopped.lead', true],
     idle: ['setup.page.idle.eyebrow', 'setup.page.idle.title', 'setup.page.idle.lead', true],
@@ -176,6 +178,9 @@
       } else if (!asking && state.app) {
         fine = [t('setup.page.found.fine_terminal')];
       }
+      if (!haKnown) {
+        fine.push(el('button', { id: 'b-demo', class: 'linkish', type: 'button', onclick: () => post('demo'), ...(accepts('demo') ? {} : { disabled: '' }) }, t('setup.page.found.demo')));
+      }
       let lead = haKnown ? 'setup.page.found.lead' : 'setup.page.found.lead_ask';
       if (several) lead = 'setup.page.found.lead_several';
       return [...head(t('setup.page.found.eyebrow'), t(haKnown ? 'setup.page.found.title' : 'setup.page.found.title_ask'), t(lead)),
@@ -211,6 +216,9 @@
     done: () => [...head(t('setup.page.done.eyebrow'), t('setup.page.done.title'), t('setup.page.done.lead', { clients: state.clients || [] })),
       el('p', { class: 'fine' }, t('setup.page.done.fine'))],
   };
+  // Steps 3 and 4 (steps.js).
+  const announce = (text) => { statusEl.textContent = text; };
+  Object.assign(screens, window.novaSteps({ t, el, row, head, button, format, render, post, accepts, announce, state: () => state }));
   for (const [screen, [eyebrow, title, lead, amber]] of Object.entries(endScreens)) {
     screens[screen] = () => head(t(eyebrow), t(title), t(lead), amber);
   }
@@ -240,7 +248,12 @@
       statusEl.textContent = title ? title.textContent : '';
       if (title) title.focus({ preventScroll: true });
     } else if (focused) {
-      focus(focused);
+      if (document.getElementById(focused)) focus(focused);
+      else {
+        // The clicked control is gone: focus what replaced it (steps.js).
+        const next = [...screenEl.querySelectorAll('[data-focus-after]')].find((node) => node.dataset.focusAfter.split(' ').includes(focused));
+        if (next) next.focus({ preventScroll: true });
+      }
     }
   }
 

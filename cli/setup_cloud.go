@@ -81,6 +81,22 @@ func maybeOfferCloudForCompletedSetup(
 	serviceMode bool,
 	lifecycleMarker ...[]byte,
 ) (runtimeConfig, bool, int) {
+	ask := func(prompt, yesLabel string, defaultYes bool) (bool, error) {
+		return promptWizardYesNoMenu(reader, out, prompt, yesLabel, "Not now", defaultYes)
+	}
+	return offerCloudForCompletedSetup(ask, out, paths, cfg, serviceMode, lifecycleMarker...)
+}
+
+// offerCloudForCompletedSetup is the Link offer with its question asked by
+// ask: the terminal menu, or the setup page's answer (setup_page_control.go).
+func offerCloudForCompletedSetup(
+	ask func(prompt, yesLabel string, defaultYes bool) (bool, error),
+	out io.Writer,
+	paths runtimePaths,
+	cfg runtimeConfig,
+	serviceMode bool,
+	lifecycleMarker ...[]byte,
+) (runtimeConfig, bool, int) {
 	if problem := cloudRecoveryHoldProblem(cfg); problem != nil {
 		renderCloudRecoveryGuidance(out, cfg, problem)
 		return cfg, true, 1
@@ -210,7 +226,7 @@ func maybeOfferCloudForCompletedSetup(
 		renderCloudFailure(out, paths, err)
 		return cfg, true, 1
 	}
-	enable, err := promptWizardYesNoMenu(reader, out, prompt, yesLabel, "Not now", defaultYes)
+	enable, err := ask(prompt, yesLabel, defaultYes)
 	switch {
 	case errors.Is(err, errSetupExit), errors.Is(err, errSetupBack):
 		if resuming {

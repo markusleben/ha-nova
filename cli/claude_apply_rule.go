@@ -72,18 +72,9 @@ func claudeUserSettingsPath(home string) string {
 // before the final banner, which clears the screen, so it returns its outcome
 // line for the caller to print after the banner ("" when quiet).
 func offerClaudeRules(reader *bufio.Reader, out io.Writer, paths runtimePaths) string {
-	path := claudeUserSettingsPath(paths.Home)
-	rules := claudeRules(paths)
-	missing, err := claudeRulesMissing(path, rules)
-	if err == nil && len(missing) == 0 {
-		return ""
-	}
-	if recorded := claudeRulesRecordFile(loadStateOrDefault(paths)); recorded != "" && !sameFile(recorded, path) {
-		// One record per install: never orphan the rules in the other file.
-		return fmt.Sprintf("Claude Code: HA NOVA's rules are in %s; it left %s unchanged.", recorded, path)
-	}
-	if err != nil {
-		return fmt.Sprintf("Claude Code: HA NOVA can't safely edit %s, so it left it unchanged. %s", path, claudeRulesManual(rules))
+	path, rules, missing, note := claudeRulesPending(paths)
+	if len(missing) == 0 {
+		return note
 	}
 	fmt.Fprintln(out)
 	if len(rules) > 1 {
@@ -125,12 +116,39 @@ func offerClaudeRules(reader *bufio.Reader, out io.Writer, paths runtimePaths) s
 	if err != nil || answer != "add" {
 		return "Claude Code rules skipped. To add them later, run ha-nova setup again."
 	}
+	line, _ := addClaudeRules(paths, path, rules, missing)
+	return line
+}
+
+// claudeRulesPending: the rules setup may offer to add to path. No missing
+// rules: nothing to offer, and note says why ("" when they are all there).
+func claudeRulesPending(paths runtimePaths) (path string, rules, missing []string, note string) {
+	path = claudeUserSettingsPath(paths.Home)
+	rules = claudeRules(paths)
+	missing, err := claudeRulesMissing(path, rules)
+	if err == nil && len(missing) == 0 {
+		return path, rules, nil, ""
+	}
+	if recorded := claudeRulesRecordFile(loadStateOrDefault(paths)); recorded != "" && !sameFile(recorded, path) {
+		// One record per install: never orphan the rules in the other file.
+		return path, rules, nil, fmt.Sprintf("Claude Code: HA NOVA's rules are in %s; it left %s unchanged.", recorded, path)
+	}
+	if err != nil {
+		return path, rules, nil, fmt.Sprintf("Claude Code: HA NOVA can't safely edit %s, so it left it unchanged. %s", path, claudeRulesManual(rules))
+	}
+	return path, rules, missing, ""
+}
+
+// addClaudeRules writes the missing rules after the user said yes and
+// records them for uninstall; it returns the outcome line and whether the
+// rules are in the file now.
+func addClaudeRules(paths runtimePaths, path string, rules, missing []string) (string, bool) {
 	// Under the lock and only while HA NOVA is installed (an uninstall in
 	// another terminal removes state.json), so the rules and their record
 	// land together.
 	var added []string
 	var unrecorded error
-	err = withClientMutationLock(paths, func() error {
+	err := withClientMutationLock(paths, func() error {
 		state, err := loadState(paths)
 		if errors.Is(err, os.ErrNotExist) {
 			return errors.New("HA NOVA was uninstalled meanwhile")
@@ -161,13 +179,13 @@ func offerClaudeRules(reader *bufio.Reader, out io.Writer, paths runtimePaths) s
 	})
 	switch {
 	case err != nil:
-		return fmt.Sprintf("Claude Code rules: nothing was written (%s). %s", err, claudeRulesManual(missing))
+		return fmt.Sprintf("Claude Code rules: nothing was written (%s). %s", err, claudeRulesManual(missing)), false
 	case len(added) == 0:
-		return ""
+		return "", true
 	case unrecorded != nil:
-		return fmt.Sprintf("Claude Code rules added, but HA NOVA couldn't note them (%s): uninstall will leave them in place.", unrecorded)
+		return fmt.Sprintf("Claude Code rules added, but HA NOVA couldn't note them (%s): uninstall will leave them in place.", unrecorded), true
 	}
-	return "Added to your Claude Code settings: " + strings.Join(added, ", ") + claudeNoReadRuleNote(rules)
+	return "Added to your Claude Code settings: " + strings.Join(added, ", ") + claudeNoReadRuleNote(rules), true
 }
 
 // claudeNoReadRuleNote: without a read rule, Claude Code keeps asking before
