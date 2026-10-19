@@ -177,7 +177,7 @@ const banner = (version) => [
   "Everything you change is wiped every hour at :00 UTC.",
   "Next reset in {{ ((as_timestamp(states('sensor.demo_next_reset'), as_timestamp(now())) - as_timestamp(now())) / 60) | round(0, 'ceil') | int }} min.",
   `Running Home Assistant ${version}.`,
-  "[About this demo](/start) · [Report abuse](/abuse) · [Impressum](https://hanova.app/impressum.html) · [Datenschutz](https://hanova.app/datenschutz.html)",
+  "[About this demo](/start) · [Report abuse](/abuse) · [Privacy](https://hanova.app/privacy.html)",
 ].join(" ");
 const TILE_DOMAINS = ["light", "switch", "cover", "lock", "climate", "fan", "media_player", "vacuum", "humidifier",
   "water_heater", "sensor", "binary_sensor", "button", "input_boolean", "input_number", "input_select",

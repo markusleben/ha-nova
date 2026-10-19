@@ -2,8 +2,9 @@ import { readFileSync } from "node:fs";
 
 import { describe, expect, it } from "vitest";
 
-// What the privacy policy (hanova.app/datenschutz.html) says about the hosted
-// demo, pinned in its Caddyfile (docs/reference/hosted-demo.md, Logs / privacy).
+// What the privacy policy (hanova.app/privacy.html) says about the hosted
+// demo, pinned in its Caddyfile and reset.sh (docs/reference/hosted-demo.md,
+// Logs / privacy).
 const caddy = readFileSync("scripts/demo/hosted/Caddyfile", "utf8");
 
 describe("hosted demo privacy", () => {
@@ -11,6 +12,11 @@ describe("hosted demo privacy", () => {
     const writer = caddy.match(/output file \/logs\/access\.log \{([^}]*)\}/)?.[1] ?? "";
     expect(writer).toMatch(/^\s*roll_at 00:00$/m);
     expect(writer).toMatch(/^\s*roll_keep_for 96h$/m);
+  });
+
+  it("backstops a missed roll at 5 days, a day under the published 6", () => {
+    const reset = readFileSync("scripts/demo/hosted/reset.sh", "utf8");
+    expect(reset).toContain("if ((ts < $(date +%s) - 5 * 86400)); then");
   });
 
   it("hands Home Assistant and the relay only the truncated client IPv4", () => {
@@ -35,12 +41,10 @@ describe("hosted demo privacy", () => {
     expect(caddy).toContain('Referrer-Policy "no-referrer"');
   });
 
-  it("links the legal pages from the restarting page, /abuse, and the banner", () => {
+  it("links the privacy page from the restarting page, /abuse, and the banner", () => {
     const banner = readFileSync("scripts/demo/hosted/demo.mjs", "utf8");
-    for (const page of ["impressum", "datenschutz"]) {
-      const url = `https://hanova.app/${page}.html`;
-      expect(caddy.split(url).length - 1).toBe(2);
-      expect(banner).toContain(`(${url})`);
-    }
+    const url = "https://hanova.app/privacy.html";
+    expect(caddy.split(url).length - 1).toBe(2);
+    expect(banner).toContain(`(${url})`);
   });
 });
