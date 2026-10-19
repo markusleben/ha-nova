@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -50,6 +51,17 @@ func TestNumberedChoicePromptsOnlyRunAsArrowMenuFallback(t *testing.T) {
 				if lit, ok := n.(*ast.BasicLit); ok && lit.Kind == token.STRING && numberedChoiceMarker.MatchString(lit.Value) {
 					numbered[fn.Name.Name] = true
 				}
+				// The copy may live in the setup string catalog.
+				if call, ok := n.(*ast.CallExpr); ok && len(call.Args) > 0 {
+					if ident, ok := call.Fun.(*ast.Ident); ok && (ident.Name == "setupT" || ident.Name == "setupText") {
+						if lit, ok := call.Args[0].(*ast.BasicLit); ok {
+							key, _ := strconv.Unquote(lit.Value)
+							if numberedChoiceMarker.MatchString(setupCatalog[key].Text) {
+								numbered[fn.Name.Name] = true
+							}
+						}
+					}
+				}
 				return true
 			})
 		}
@@ -57,15 +69,14 @@ func TestNumberedChoicePromptsOnlyRunAsArrowMenuFallback(t *testing.T) {
 	// Not prompts: listPhones prints the list for `confirm-phone list` and
 	// after a mistyped name, where a number is a command-line argument.
 	delete(numbered, "listPhones")
-	for _, want := range []string{"renderSetupChoiceList", "promptSetupConnectionModeFromReader", "promptUninstallModeFromLine"} {
+	for _, want := range []string{"renderSetupChoiceList", "promptSetupChoiceByNumber", "promptSetupConnectionModeFromReader", "promptUninstallModeFromLine"} {
 		if !numbered[want] {
 			t.Fatalf("guard lost track of %s; numbered=%v", want, numbered)
 		}
 	}
-	// renderSetupChoiceList only lists (also for the no-client notice); the
-	// prompt that asks for a number is the generic catalog fallback.
+	// Not a prompt either: renderSetupChoiceList only lists the choices (the
+	// numbered fallback and the no-client notice).
 	delete(numbered, "renderSetupChoiceList")
-	numbered["promptSetupChoiceByNumber"] = true
 	for _, file := range parsed {
 		for _, decl := range file.Decls {
 			fn, ok := decl.(*ast.FuncDecl)

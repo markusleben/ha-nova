@@ -150,11 +150,8 @@ func renderSetupAlreadyDoneBanner(out io.Writer, legacyToken bool) {
 		// The upgrade path must not dead-end here (issue #419): a working
 		// legacy-token install passes every completeness check, so this screen
 		// is exactly where the pairing switch has to be offered.
-		renderSetupIndentedLines(out, "  ",
-			setupT("setup.done.legacy_token"),
-			setupT("setup.done.legacy_switch"),
-			setupT("setup.done.legacy_code"),
-		)
+		renderSetupIndentedLines(out, "  ", setupT("setup.done.legacy_token"))
+		renderSetupIndentedLines(out, "  ", strings.Split(setupT("setup.done.legacy_switch"), "\n")...)
 		fmt.Fprintln(out)
 	}
 	fmt.Fprintf(out, "  %s\n", setupT("setup.done.doctor"))

@@ -159,7 +159,7 @@ func setupMenuBlockWidth(spec setupMenuSpec) int {
 			maxWidth = width
 		}
 		if option.Disabled && option.DisabledReason != "" {
-			if width := len("      not available: " + option.DisabledReason); width > maxWidth {
+			if width := len("      " + setupT("setup.menu.not_available", "reason", option.DisabledReason)); width > maxWidth {
 				maxWidth = width
 			}
 		}
@@ -193,7 +193,7 @@ func renderSetupMenuBlock(out io.Writer, session uiSession, spec setupMenuSpec, 
 		writeSetupMenuLine(out, prefix+label)
 		lines++
 		if option.Disabled && option.DisabledReason != "" {
-			writeSetupMenuLine(out, "      "+session.style("muted", "not available: "+option.DisabledReason))
+			writeSetupMenuLine(out, "      "+session.style("muted", setupT("setup.menu.not_available", "reason", option.DisabledReason)))
 			lines++
 		}
 		if option.Detail != "" {

@@ -18,32 +18,41 @@ import (
 var setupStringsEN []byte
 
 type setupEntry struct {
-	Text  string // a plain entry
-	One   string // plural entries: CLDR "one" and "other"
-	Other string
+	Text   string            // a plain entry
+	Plural map[string]string // CLDR plural category -> text; "other" is required
 }
 
 func (e *setupEntry) UnmarshalJSON(data []byte) error {
 	if bytes.HasPrefix(bytes.TrimSpace(data), []byte(`"`)) {
 		return json.Unmarshal(data, &e.Text)
 	}
-	var forms struct {
-		One   *string `json:"one"`
-		Other *string `json:"other"`
-	}
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&forms); err != nil {
+	if err := json.Unmarshal(data, &e.Plural); err != nil {
 		return err
 	}
-	if forms.One == nil || forms.Other == nil {
-		return fmt.Errorf("plural entry needs both \"one\" and \"other\"")
+	for category := range e.Plural {
+		if !setupPluralCategories[category] {
+			return fmt.Errorf("unknown CLDR plural category %q", category)
+		}
 	}
-	e.One, e.Other = *forms.One, *forms.Other
+	if e.Plural["other"] == "" {
+		return fmt.Errorf("plural entry needs \"other\"")
+	}
 	return nil
 }
 
-func (e setupEntry) plural() bool { return e.Other != "" }
+var setupPluralCategories = map[string]bool{"zero": true, "one": true, "two": true, "few": true, "many": true, "other": true}
+
+func (e setupEntry) plural() bool { return e.Plural != nil }
+
+// pluralForm picks the English (CLDR "en") form. ponytail: English rule
+// only; a second language adds its rule here (or the page's
+// Intl.PluralRules picks it).
+func (e setupEntry) pluralForm(count int) string {
+	if text, ok := e.Plural["one"]; ok && count == 1 {
+		return text
+	}
+	return e.Plural["other"]
+}
 
 var setupCatalog = mustParseSetupCatalog(setupStringsEN)
 
@@ -59,9 +68,17 @@ func mustParseSetupCatalog(data []byte) map[string]setupEntry {
 
 // setupMsg is a catalog key plus its placeholder values, as name/value
 // pairs. A renderer resolves it: the terminal now, the setup page later.
+// A message without a key is data shown verbatim (setupData).
 type setupMsg struct {
 	Key  string
 	Args []any
+	Data string
+}
+
+// setupData wraps data that is shown as is: names, addresses, tokens. Never
+// copy: copy is a catalog key (setup_strings_test.go rejects literals here).
+func setupData(text string) setupMsg {
+	return setupMsg{Data: text}
 }
 
 // setupStrong marks a placeholder value the terminal shows in bold.
@@ -85,6 +102,9 @@ func (m setupMsg) plain() string {
 // "count" is a programming error and panics (the catalog test keeps the
 // call sites honest).
 func (m setupMsg) render(value func(any) string) string {
+	if m.Key == "" {
+		return m.Data
+	}
 	entry, ok := setupCatalog[m.Key]
 	if !ok {
 		panic("setup string catalog: unknown key " + m.Key)
@@ -106,10 +126,7 @@ func (m setupMsg) render(value func(any) string) string {
 		if !ok {
 			panic("setup string catalog: plural " + m.Key + " needs an int count")
 		}
-		text = entry.Other
-		if count == 1 {
-			text = entry.One
-		}
+		text = entry.pluralForm(count)
 	}
 	used := map[string]bool{"count": entry.plural()}
 	out := setupPlaceholderPattern.ReplaceAllStringFunc(text, func(match string) string {

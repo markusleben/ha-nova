@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/token"
@@ -37,7 +38,33 @@ func scanSetupCatalogCalls(t *testing.T) []setupCatalogCall {
 		if err != nil {
 			t.Fatal(err)
 		}
+		// Idents of the catalog funcs that are direct callees or their own
+		// declaration; any other use is a function value that hides keys.
+		allowed := map[*ast.Ident]bool{}
+		for _, decl := range file.Decls {
+			if fn, ok := decl.(*ast.FuncDecl); ok {
+				allowed[fn.Name] = true
+			}
+		}
 		ast.Inspect(file, func(n ast.Node) bool {
+			if call, ok := n.(*ast.CallExpr); ok {
+				if ident, ok := call.Fun.(*ast.Ident); ok {
+					allowed[ident] = true
+				}
+			}
+			return true
+		})
+		ast.Inspect(file, func(n ast.Node) bool {
+			if lit, ok := n.(*ast.CompositeLit); ok && name != "setup_strings.go" {
+				if typ, ok := lit.Type.(*ast.Ident); ok && typ.Name == "setupMsg" {
+					t.Errorf("%s: build setupMsg with setupText or setupData", fset.Position(lit.Pos()))
+				}
+			}
+			if ident, ok := n.(*ast.Ident); ok && !allowed[ident] {
+				if _, isCatalogFunc := setupCatalogFuncs[ident.Name]; isCatalogFunc {
+					t.Errorf("%s: use %s only as a direct call", fset.Position(ident.Pos()), ident.Name)
+				}
+			}
 			call, ok := n.(*ast.CallExpr)
 			if !ok {
 				return true
@@ -45,6 +72,11 @@ func scanSetupCatalogCalls(t *testing.T) []setupCatalogCall {
 			ident, ok := call.Fun.(*ast.Ident)
 			if !ok {
 				return true
+			}
+			if ident.Name == "setupData" && len(call.Args) == 1 {
+				if lit, ok := call.Args[0].(*ast.BasicLit); ok && lit.Kind == token.STRING {
+					t.Errorf("%s: setupData(%s) is copy; give it a catalog key", fset.Position(call.Pos()), lit.Value)
+				}
 			}
 			keyIndex, ok := setupCatalogFuncs[ident.Name]
 			if !ok {
@@ -82,9 +114,17 @@ func scanSetupCatalogCalls(t *testing.T) []setupCatalogCall {
 	return calls
 }
 
+func setupEntryTexts(entry setupEntry) []string {
+	texts := []string{entry.Text}
+	for _, text := range entry.Plural {
+		texts = append(texts, text)
+	}
+	return texts
+}
+
 func setupEntryPlaceholders(entry setupEntry) []string {
 	var names []string
-	for _, text := range []string{entry.Text, entry.One, entry.Other} {
+	for _, text := range setupEntryTexts(entry) {
 		for _, match := range setupPlaceholderPattern.FindAllStringSubmatch(text, -1) {
 			if !slices.Contains(names, match[1]) {
 				names = append(names, match[1])
@@ -133,7 +173,7 @@ func TestSetupCatalogEntriesAreWellFormed(t *testing.T) {
 		if !keyPattern.MatchString(key) {
 			t.Errorf("key %q does not match %s", key, keyPattern)
 		}
-		for _, text := range []string{entry.Text, entry.One, entry.Other} {
+		for _, text := range setupEntryTexts(entry) {
 			if stray.MatchString(setupPlaceholderPattern.ReplaceAllString(text, "")) {
 				t.Errorf("%q has a malformed placeholder: %q", key, text)
 			}
@@ -178,7 +218,10 @@ func TestSetupMsgFormatsPlaceholdersAndPlurals(t *testing.T) {
 			call()
 		}()
 	}
-	for _, bad := range []string{`{"setup.x": {"one": "a"}}`, `{"setup.x": {"one": "a", "other": "b", "few": "c"}}`} {
+	if _, err := setupCatalogFromJSON(`{"setup.x": {"one": "a", "few": "b", "other": "c"}}`); err != nil {
+		t.Fatalf("CLDR categories rejected: %v", err)
+	}
+	for _, bad := range []string{`{"setup.x": {"one": "a"}}`, `{"setup.x": {"one": "a", "other": "b", "several": "c"}}`} {
 		func() {
 			defer func() {
 				if recover() == nil {
@@ -192,9 +235,10 @@ func TestSetupMsgFormatsPlaceholdersAndPlurals(t *testing.T) {
 
 // Renderer files hold no user-facing copy: it lives in the catalog.
 func TestSetupRenderersHoldNoUserFacingLiterals(t *testing.T) {
-	allowed := map[string]bool{"back": true, "exit": true}
+	// Input keywords and product names (proper nouns are data).
+	allowed := map[string]bool{"back": true, "exit": true, "Claude Code": true, "Codex CLI": true, "OpenCode": true, "Google Antigravity": true, "Hermes Agent": true}
 	words := regexp.MustCompile(`[A-Za-z]{2,} [A-Za-z]{2,}|^[A-Z][a-z]`)
-	for _, name := range []string{"setup_choice.go"} {
+	for _, name := range []string{"setup_choice.go", "setup_ui.go", "setup_intro.go", "setup_layout.go", "setup_clients.go"} {
 		fset := token.NewFileSet()
 		file, err := parser.ParseFile(fset, name, nil, 0)
 		if err != nil {
@@ -217,4 +261,13 @@ func TestSetupRenderersHoldNoUserFacingLiterals(t *testing.T) {
 			return true
 		})
 	}
+}
+
+func setupCatalogFromJSON(data string) (catalog map[string]setupEntry, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("%v", r)
+		}
+	}()
+	return mustParseSetupCatalog([]byte(data)), nil
 }

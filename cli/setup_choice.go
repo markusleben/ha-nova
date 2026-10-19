@@ -16,7 +16,7 @@ type setupChoice struct {
 	Value    string
 	Label    setupMsg
 	Disabled bool
-	Reason   string // why a disabled choice is unavailable (data, not copy)
+	Reason   string // why a disabled choice is unavailable; still English from the client status (not yet catalog keys)
 }
 
 type setupAsk struct {
@@ -129,7 +129,7 @@ func promptSetupClientInteractive(reader *bufio.Reader, out io.Writer, choices [
 	for _, choice := range choices {
 		ask.Choices = append(ask.Choices, setupChoice{
 			Value:    choice.Value,
-			Label:    setupText("setup.clients.label", "client", choice.Label),
+			Label:    setupData(choice.Label), // a product name, or the "all" choice already resolved from the catalog
 			Disabled: choice.Disabled,
 			Reason:   choice.DisabledReason,
 		})

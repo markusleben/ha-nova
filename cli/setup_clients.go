@@ -1,6 +1,6 @@
 package main
 
-import "fmt"
+import "errors"
 
 type setupClientChoice struct {
 	Value          string
@@ -71,7 +71,7 @@ func resolveSetupClientsWithChoices(choices []setupClientChoice, target string) 
 			continue
 		}
 		if choice.Disabled {
-			return nil, nil, fmt.Errorf("%s is not available yet: %s", choice.Label, choice.DisabledReason)
+			return nil, nil, errors.New(setupT("setup.menu.choice_unavailable", "choice", choice.Label, "reason", choice.DisabledReason))
 		}
 		if choice.Value == "all" {
 			skipped := []string{}
@@ -85,5 +85,5 @@ func resolveSetupClientsWithChoices(choices []setupClientChoice, target string) 
 		}
 		return append([]string{}, choice.Resolved...), nil, nil
 	}
-	return nil, nil, fmt.Errorf("unsupported client: %s", target)
+	return nil, nil, errors.New(setupT("setup.clients.unsupported", "client", target))
 }
