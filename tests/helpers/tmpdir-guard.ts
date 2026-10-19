@@ -34,11 +34,19 @@ export default function setup(): () => void {
   const base = tmpdir();
   for (const name of readdirSync(base)) {
     const pid = new RegExp(`^${PREFIX}(\\d+)-`).exec(name)?.[1];
-    if (pid !== undefined && !pidAlive(Number(pid))) removeDir(join(base, name));
+    if (pid === undefined || pidAlive(Number(pid))) continue;
+    try {
+      removeDir(join(base, name));
+    } catch {
+      // Another run swept it first; a stale root must not block this run.
+    }
   }
 
   const root = mkdtempSync(join(base, `${PREFIX}${process.pid}-`));
+  // TEMP/TMP: os.tmpdir() reads those on Windows.
   process.env.TMPDIR = root;
+  process.env.TEMP = root;
+  process.env.TMP = root;
 
   return () => {
     const left = readdirSync(root);
