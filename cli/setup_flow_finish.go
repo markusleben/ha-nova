@@ -160,8 +160,9 @@ func (f *setupFlow) stepSkills() setupStepResult {
 		exit = 1
 	}
 	if exit == 0 && f.page != nil && !f.page.inTerminal() {
-		// The page asks step 3 itself: phone, Claude Code rule, Link.
-		exit = f.pageControl()
+		// The page asks step 3 itself (phone, Claude Code rule, Link) once
+		// setup is complete, like the terminal's offers in finish.
+		f.pageControlled = true
 	} else if exit == 0 && !f.connectionModeAsked && !f.serviceMode {
 		armSetupNextPromptSkipsStaleBlankInput()
 		var cloudAttempted bool

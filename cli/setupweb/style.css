@@ -160,7 +160,10 @@ h2 { font-size: .8125rem; font-weight: 600; letter-spacing: .08em; text-transfor
 .stat li.muted svg { stroke: var(--ink-soft); filter: none; opacity: .7; }
 .stat b { font-size: 1.6rem; line-height: 1; color: var(--ink); font-variant-numeric: tabular-nums; }
 .stat .hint { font-size: .78rem; color: var(--cyan); }
+.rows.tall li { align-items: start; }
+.rows.tall li > .ic { margin-top: 2px; }
 .rows li.pvrow { border-top: 0; padding-top: 0; }
+.preview:focus, .rows li:focus { outline: none; }
 .preview { font: .85rem/1.6 var(--mono); color: var(--ink-soft); background: var(--panel); border: 1px solid var(--hairline); border-radius: 10px; padding: 12px 14px; overflow-wrap: anywhere; }
 .preview .add { color: var(--ok); }
 .preview .btn { margin-top: 10px; margin-right: 8px; font-family: var(--font); }

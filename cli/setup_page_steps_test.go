@@ -83,6 +83,12 @@ func usePageVerbs(t *testing.T, paths runtimePaths, override func(args []string)
 	previous := setupPageVerb
 	t.Cleanup(func() { setupPageVerb = previous })
 	setupPageVerb = func(args ...string) (setupVerbEnvelope, int, error) {
+		// Every verb names the server setup connected.
+		if n := len(args); n < 3 || args[n-2] != "--server" || args[n-1] != activeServerProfile() {
+			t.Errorf("verb without the setup's server: %q", args)
+		} else {
+			args = args[:n-2]
+		}
 		v.mu.Lock()
 		v.calls = append(v.calls, strings.Join(args, " "))
 		v.mu.Unlock()
@@ -92,7 +98,7 @@ func usePageVerbs(t *testing.T, paths runtimePaths, override func(args []string)
 		}
 		if !done {
 			commands := map[string]func(runtimePaths, []string) int{"map": runMapCommand, "plan": runPlanCommand, "apply": runApplyCommand}
-			out = captureStdout(t, func() { exit = commands[args[0]](paths, args[1:]) })
+			out = captureStdout(t, func() { exit = commands[args[0]](paths, append(args[1:], "--server", activeServerProfile())) })
 		}
 		var env setupVerbEnvelope
 		if err := json.Unmarshal([]byte(out), &env); err != nil {
@@ -184,7 +190,7 @@ func TestSetupPageTemplatePreviewEqualsSave(t *testing.T) {
 	h := newWriteHarness(t, f)
 	usePageVerbs(t, h.paths, func(args []string) (string, int, bool) {
 		if args[0] == "map" { // this fake answers the plan reads, not every map read
-			return `{"schema_version":1,"status":"ok","result":{"stats":{"rooms":1,"devices":2,"lights":1,"locks":1,"automations":0},"insights":[],
+			return `{"schema_version":1,"server":"default","status":"ok","result":{"stats":{"rooms":1,"devices":2,"lights":1,"locks":1,"automations":0},"insights":[],
 				"automation":{"template":"door_light_after_dark","uses":[{"role":"trigger","entity_id":"lock.front","name":"Front‮Door"},{"role":"light","entity_id":"light.hall","name":"Hall"}]}}}`, 0, true
 		}
 		return "", 0, false
@@ -225,24 +231,24 @@ func TestSetupPageTemplatePreviewEqualsSave(t *testing.T) {
 // offered.
 func TestSetupPageRefusalsAndDrift(t *testing.T) {
 	plan := func(id, tier string) string {
-		return `{"schema_version":1,"status":"ok","tier":"` + tier + `","plan":{"id":"` + id + `","confirm":"natural"},
+		return `{"schema_version":1,"server":"default","status":"ok","tier":"` + tier + `","plan":{"id":"` + id + `","confirm":"natural"},
 			"result":{"changes":[{"device_id":"d1","name":"Lamp","area_id":"kitchen","area":"Kitchen"}]}}`
 	}
 	refusal := func(code string) string {
-		return `{"schema_version":1,"status":"error","error":{"code":"` + code + `","message":"x"}}`
+		return `{"schema_version":1,"server":"default","status":"error","error":{"code":"` + code + `","message":"x"}}`
 	}
 	answers := map[string][]struct {
 		out  string
 		exit int
 	}{
-		"map --insights": {{`{"schema_version":1,"status":"ok","result":{"stats":{"rooms":1},"insights":[
+		"map --insights": {{`{"schema_version":1,"server":"default","status":"ok","result":{"stats":{"rooms":1},"insights":[
 			{"kind":"battery_low","name":"Door battery","value":"12%","count":1,"action":"battery_reminder"},
 			{"kind":"no_room","count":3,"action":"rooms"}],"automation":{"template":"lights_off_when_away","uses":[]}}}`, 0}},
 		"plan template battery_reminder":     {{refusal("TEMPLATE_NO_MATCH"), 4}},
 		"plan template lights_off_when_away": {{plan("p_typed", "confirm"), 3}},
 		"plan rooms":                         {{refusal("NO_ROOM_SUGGESTIONS"), 4}, {plan("p_1", "preview"), 3}, {plan("p_2", "preview"), 3}, {plan("p_3", "preview"), 3}},
-		"apply --plan p_2":                   {{`{"schema_version":1,"status":"drift"}`, 2}},
-		"apply --plan p_3":                   {{`{"schema_version":1,"status":"unverified","undo":{"target_id":"rooms-0123456789ab"},"error":{"code":"ROOMS_PARTIAL","message":"x"}}`, 6}},
+		"apply --plan p_2":                   {{`{"schema_version":1,"server":"default","status":"drift"}`, 2}},
+		"apply --plan p_3":                   {{`{"schema_version":1,"server":"default","status":"unverified","undo":{"target_id":"rooms-0123456789ab"},"error":{"code":"ROOMS_PARTIAL","message":"x"}}`, 6}},
 	}
 	var mu sync.Mutex
 	verbs := usePageVerbs(t, runtimePaths{}, func(args []string) (string, int, bool) {
@@ -307,8 +313,9 @@ func TestSetupPageHomeWithoutInsights(t *testing.T) {
 		out    string
 		failed bool
 	}{
-		{`{"schema_version":1,"status":"ok","result":{"stats":{"rooms":0,"devices":3,"lights":0,"locks":0,"automations":0},"insights":[]}}`, false},
-		{`{"schema_version":1,"status":"error","error":{"code":"RELAY_ERROR","message":"down"}}`, true},
+		{`{"schema_version":1,"server":"default","status":"ok","result":{"stats":{"rooms":0,"devices":3,"lights":0,"locks":0,"automations":0},"insights":[]}}`, false},
+		{`{"schema_version":1,"server":"default","status":"error","error":{"code":"RELAY_ERROR","message":"down"}}`, true},
+		{`{"schema_version":1,"server":"cabin","status":"ok","result":{"stats":{"rooms":2},"insights":[]}}`, true}, // another home answered
 	} {
 		usePageVerbs(t, runtimePaths{}, func([]string) (string, int, bool) { return test.out, 0, true })
 		p := newPageStepsTest(t, runtimePaths{})
@@ -331,7 +338,7 @@ func TestSetupPageHomeWithoutInsights(t *testing.T) {
 // page stays on step 4.
 func TestSetupPageOpensClaudeCode(t *testing.T) {
 	usePageVerbs(t, runtimePaths{}, func([]string) (string, int, bool) {
-		return `{"schema_version":1,"status":"ok","result":{"stats":{}}}`, 0, true
+		return `{"schema_version":1,"server":"default","status":"ok","result":{"stats":{}}}`, 0, true
 	})
 	previous := setupPageOpenClaude
 	t.Cleanup(func() { setupPageOpenClaude = previous })
@@ -501,6 +508,7 @@ func TestSetupPageLinkRowOnlyWhenRemoteIsActive(t *testing.T) {
 		coordinator := successfulCloudCoordinatorForTest()
 		installCloudSetupTestSeams(t, coordinator, true, true)
 		previous := setupPageLinkActive
+		t.Cleanup(func() { setupPageLinkActive = previous })
 		setupPageLinkActive = func(runtimeConfig) bool { return test.active }
 		p := newPageStepsTest(t, paths, "codex")
 		p.flow.cfg = cfg
@@ -516,7 +524,6 @@ func TestSetupPageLinkRowOnlyWhenRemoteIsActive(t *testing.T) {
 		if test.adds == 1 && (!p.flow.cfg.Cloud.ready() || len(p.flow.pageNotes) != 1 || p.flow.pageNotes[0].Key != "setup.page.home.note_link") {
 			t.Fatalf("after Link: cloud %+v notes %+v", p.flow.cfg.Cloud, p.flow.pageNotes)
 		}
-		setupPageLinkActive = previous
 	}
 }
 
@@ -597,9 +604,75 @@ func TestSetupDemoAliasRunsTry(t *testing.T) {
 	if exit := runSetup(paths, []string{"--demo", "--no-browser"}); exit != 1 {
 		t.Fatalf("--demo with another option: exit %d", exit)
 	}
+	t.Setenv(serverSelectionEnvVar, demoProfileName) // the demo guard lets the alias through
 	exit := 0
-	out := captureStdout(t, func() { exit = runSetup(paths, []string{"--demo"}) })
+	out := captureStdout(t, func() { exit = dispatch(paths, "ha-nova", []string{"setup", "--demo"}) })
 	if _, err := os.Stat(demoProfilePath(paths)); exit != 0 || err != nil || !strings.Contains(out, "Demo house connected") {
 		t.Fatalf("exit %d demo.json %v out %s", exit, err, out)
 	}
+}
+
+// A save whose outcome is unclear is never offered again (it could save
+// twice); a read-back mismatch never shows a ✓; a failed undo keeps the
+// way back.
+func TestSetupPageUnclearSavesAndUndoThatFails(t *testing.T) {
+	env := func(body string) string { return `{"schema_version":1,"server":"default",` + body + `}` }
+	changes := `"result":{"changes":[{"device_id":"d1","name":"Lamp","area_id":"kitchen","area":"Kitchen"}]}`
+	answers := map[string][]struct {
+		out  string
+		exit int
+	}{
+		"map --insights": {{env(`"status":"ok","result":{"stats":{"rooms":1},"insights":[{"kind":"no_room","count":1,"action":"rooms"}],
+			"automation":{"template":"lights_off_when_away","uses":[{"role":"light","entity_id":"light.a","name":"A"}]}}`), 0}},
+		"plan template lights_off_when_away": {{env(`"status":"ok","tier":"preview","plan":{"id":"p_a","confirm":"natural"},
+			"config":{"op":"write","domain":"automation","config_id":"1","path":"x","body":{"alias":"Lights off"}},"result":{"template":"lights_off_when_away","uses":[]}`), 3}},
+		"apply --plan p_a": {{env(`"status":"unverified","error":{"code":"CONFIG_ERROR","message":"x"}`), 6}},
+		"plan rooms":       {{env(`"status":"ok","tier":"preview","plan":{"id":"p_r","confirm":"natural"},` + changes), 3}},
+		"apply --plan p_r": {{env(`"status":"unverified","undo":{"target_id":"rooms-0123456789ab"},` + changes), 6}},
+		"plan revert --target rooms-0123456789ab": {{env(`"status":"error","error":{"code":"RELAY_ERROR","message":"x"}`), 1},
+			{env(`"status":"ok","tier":"preview","plan":{"id":"p_u","confirm":"natural"},` + changes), 3}},
+		"apply --plan p_u": {{env(`"status":"unverified","error":{"code":"ROOMS_PARTIAL","message":"x"}`), 6}},
+	}
+	var mu sync.Mutex
+	usePageVerbs(t, runtimePaths{}, func(args []string) (string, int, bool) {
+		mu.Lock()
+		defer mu.Unlock()
+		key := strings.Join(args, " ")
+		queue := answers[key]
+		if len(queue) == 0 {
+			t.Errorf("unexpected verb %q", key)
+			return env(`"status":"error","error":{"code":"NOPE","message":"x"}`), 1, true
+		}
+		answers[key] = queue[1:]
+		return queue[0].out, queue[0].exit, true
+	})
+	p := newPageStepsTest(t, runtimePaths{})
+	done := p.runHome()
+	p.waitFor("step 4", accepting("preview"))
+
+	p.click("preview", "automation")
+	p.click("save", p.preview("automation", "preview").PlanID)
+	if pv := p.preview("automation", "problem"); pv.Problem.Key != "setup.page.home.problem.unknown" || pv.Retry {
+		t.Fatalf("an unclear save can be tried again: %+v", pv)
+	}
+	p.click("preview", "rooms")
+	p.click("save", p.preview("rooms", "preview").PlanID)
+	if pv := p.preview("rooms", "unverified"); pv.Problem.Key != "setup.page.home.problem.unverified" || !pv.Undo {
+		t.Fatalf("unverified = %+v", pv)
+	}
+	p.click("undo", "rooms")
+	if pv := p.preview("rooms", "problem"); !pv.Undo || pv.Retry {
+		t.Fatalf("a failed undo preview lost the way back: %+v", pv)
+	}
+	p.click("undo", "rooms")
+	undo := p.preview("rooms", "preview")
+	if undo.Kind != "undo" || undo.PlanID != "p_u" {
+		t.Fatalf("undo = %+v", undo)
+	}
+	p.click("save", "p_u")
+	if pv := p.preview("rooms", "problem"); pv.Problem.Key != "setup.page.home.problem.rooms_partial" || !pv.Undo {
+		t.Fatalf("a partial undo lost the way back: %+v", pv)
+	}
+	p.click("done", "")
+	<-done
 }

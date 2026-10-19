@@ -11,8 +11,9 @@ window.novaSteps = (h) => {
   const local = { rule: true, link: false, others: false, drafts: {} };
 
   const toast = (text) => {
-    const node = el('div', { class: 'toast', role: 'status' }, text);
+    const node = el('div', { class: 'toast', role: 'status' });
     document.body.append(node);
+    setTimeout(() => { node.textContent = text; }, 50); // filled after insertion, so it is announced
     setTimeout(() => node.remove(), 2600);
   };
 
@@ -38,10 +39,14 @@ window.novaSteps = (h) => {
 
   const guard = (glyph) => el('span', { class: 'ic guard', 'aria-hidden': 'true' }, glyph);
   const spinner = () => el('span', { class: 'ic run amber', 'aria-hidden': 'true' });
-  const line = (glyph, key, value, below, side) =>
-    el('li', {}, glyph, el('div', {}, el('div', { class: 'k' }, key), value ? el('div', { class: 'v' }, value) : null, below), side || el('span'));
+  // A row; vid names its value line for a switch's aria-describedby.
+  const line = (glyph, key, value, below, side, vid) =>
+    el('li', {}, glyph, el('div', {}, el('div', { class: 'k' }, key), value ? el('div', { class: 'v', ...(vid ? { id: vid } : {}) }, value) : null, below), side || el('span'));
   const toggle = (id, label, on, onclick, disabled) =>
-    el('button', { id, class: 'switch', type: 'button', role: 'switch', 'aria-checked': String(on), 'aria-label': label, onclick, ...(disabled ? { disabled: '' } : {}) });
+    el('button', { id, class: 'switch', type: 'button', role: 'switch', 'aria-checked': String(on), 'aria-label': label, 'aria-describedby': `${id}-v`, onclick, ...(disabled ? { disabled: '' } : {}) });
+  // Where focus goes when the clicked control is gone after a re-render
+  // (app.js reads data-focus-after).
+  const focusAfter = (ids) => ({ tabindex: '-1', 'data-focus-after': ids.join(' ') });
   const tagOn = () => el('span', { class: 'tag amber' }, t('setup.page.control.on'));
   const problem = (msg) => (msg ? el('p', { class: 'problem', role: 'alert' }, say(msg)) : null);
 
@@ -53,7 +58,8 @@ window.novaSteps = (h) => {
       case 'linked':
         return line(guard('✓'), key, t('setup.page.control.phone_value', { phone: c.phone_name }), null, tagOn());
       case 'waiting':
-        return line(guard('◎'), key, t('setup.page.control.phone_waiting', { phone: c.phone_name }), null, spinner());
+        return el('li', focusAfter(['b-phone-0', ...phones.map((p, i) => `b-phone-${i}`)]), guard('◎'),
+          el('div', {}, el('div', { class: 'k' }, key), el('div', { class: 'v', role: 'status' }, t('setup.page.control.phone_waiting', { phone: c.phone_name }))), spinner());
       case 'none':
         return line(guard('·'), key, t('setup.page.control.phone_none'));
       case 'pick': {
@@ -61,15 +67,15 @@ window.novaSteps = (h) => {
           const other = phones.length > 1
             ? el('button', { id: 'b-phone-other', class: 'linkish', type: 'button', onclick: () => { local.others = true; render(true); } }, t('setup.page.control.phone_other'))
             : null;
-          return line(guard('◎'), key, t('setup.page.control.phone_value', { phone: phones[0].name }), [problem(c.phone_problem), other],
-            toggle('b-phone-0', key, false, () => h.post('phone', phones[0].id), !h.accepts('phone')));
+          return line(guard('◎'), key, t('setup.page.control.phone_offer', { phone: phones[0].name, person: phones[0].person }), [problem(c.phone_problem), other],
+            toggle('b-phone-0', key, false, () => h.post('phone', phones[0].id), !h.accepts('phone')), 'b-phone-0-v');
         }
         const pick = el('div', { class: 'pick' }, phones.map((p, i) =>
           button(t('setup.page.control.phone_choice', { phone: p.name, person: p.person }), 'phone', 'ghost btn-small', p.id, `phone-${i}`)));
         return line(guard('◎'), key, t('setup.page.control.phone_pick'), [problem(c.phone_problem), pick]);
       }
       default:
-        return line(guard('·'), key, t('setup.page.control.phone_unavailable'));
+        return null; // can't be linked now: no row (confirm-phone settles it later)
     }
   };
 
@@ -84,14 +90,14 @@ window.novaSteps = (h) => {
     if (c.rule === 'offer') {
       const label = t('setup.page.control.rule_key');
       rows.push(line(guard('⚙'), label, t('setup.page.control.rule_value'), null,
-        toggle('b-rule', label, local.rule, () => { local.rule = !local.rule; render(true); }, busy)));
+        toggle('b-rule', label, local.rule, () => { local.rule = !local.rule; render(true); }, busy), 'b-rule-v'));
     } else if (c.rule === 'on') {
       rows.push(line(guard('⚙'), t('setup.page.control.rule_key'), t('setup.page.control.rule_on'), null, tagOn()));
     }
     if (c.link === 'offer') {
       const label = t('setup.page.control.link_key');
       rows.push(line(guard('⇄'), label, t('setup.page.control.link_value'), null,
-        toggle('b-link', label, local.link, () => { local.link = !local.link; render(true); }, busy)));
+        toggle('b-link', label, local.link, () => { local.link = !local.link; render(true); }, busy), 'b-link-v'));
     } else if (c.link === 'run') {
       rows.push(line(guard('⇄'), t('setup.page.control.link_key'), t('setup.page.control.link_run'), null, spinner()));
     }
@@ -99,7 +105,7 @@ window.novaSteps = (h) => {
     if (c.rule === 'offer' && local.rule) choices.push('rule');
     if (c.link === 'offer' && local.link) choices.push('link');
     return [...head(t('setup.page.control.eyebrow'), t('setup.page.control.title'), t('setup.page.control.lead'), true),
-      el('ul', { class: 'rows' }, rows),
+      el('ul', { class: 'rows tall' }, rows),
       el('div', { class: 'actions' }, button(t('setup.page.control.finish'), 'finish', 'primary', choices.join(','))),
       c.phone === 'pick' ? el('p', { class: 'fine' }, t('setup.page.control.fine')) : null];
   };
@@ -155,6 +161,7 @@ window.novaSteps = (h) => {
     const save = (key) => button(t(key), 'save', 'primary btn-small', pv.plan_id, `save-${slot}`);
     if (pv.state === 'loading' || pv.state === 'saving') parts.push(el('div', { class: 'busy' }, spinner()));
     if (pv.notice) parts.push(el('div', { class: 'add' }, say(pv.notice)));
+    const ok = pv.state === 'saved'; // unverified: saved, but no ✓
     if (pv.kind === 'template') {
       parts.push(...summary(pv));
       if (pv.draft) {
@@ -164,25 +171,39 @@ window.novaSteps = (h) => {
         parts.push(details);
       }
       if (pv.state === 'preview') parts.push(el('div', { class: 'add' }, t('setup.page.home.template_note', { button: t(saveLabels[slot]) })), save(saveLabels[slot]));
-      if (pv.state === 'saved') parts.push(el('div', { class: 'add' }, t('setup.page.home.template_saved')));
+      if (ok) parts.push(el('div', { class: 'add' }, t('setup.page.home.template_saved')));
     } else if (pv.kind === 'undo') {
       parts.push(el('div', {}, t('setup.page.home.undo_lead')), ...roomLines(pv.changes));
       if (pv.state === 'preview') parts.push(el('div', { class: 'add' }, t('setup.page.home.undo_note')), save('setup.page.home.undo_save'));
-      if (pv.state === 'saved') parts.push(el('div', { class: 'add' }, t('setup.page.home.undone')));
+      if (ok) parts.push(el('div', { class: 'add' }, t('setup.page.home.undone')));
     } else if (pv.kind === 'rooms') {
-      if (pv.state === 'saved') parts.push(el('div', { class: 'add' }, t('setup.page.home.rooms_saved')));
+      if (ok) parts.push(el('div', { class: 'add' }, t('setup.page.home.rooms_saved')));
       parts.push(...roomLines(pv.changes));
       if (pv.state === 'preview') parts.push(el('div', { class: 'add' }, t('setup.page.home.rooms_note')), save('setup.page.home.save_rooms'));
     }
     if (pv.problem) parts.push(problem(pv.problem));
     if (pv.evicted && pv.evicted.length) parts.push(el('div', {}, t('setup.page.home.evicted', { names: pv.evicted })));
-    if (pv.undo) parts.push(button(t('setup.page.home.undo'), 'undo', 'ghost btn-small', slot, `undo-${slot}`));
-    return el('li', { class: 'pvrow' }, el('span'), el('div', { class: 'preview' }, parts), el('span'));
+    if (pv.undo && pv.state !== 'loading' && pv.state !== 'saving') parts.push(button(t('setup.page.home.undo'), 'undo', 'ghost btn-small', slot, `undo-${slot}`));
+    return el('li', { class: 'pvrow' }, el('span'),
+      el('div', { class: 'preview', id: `pv-panel-${slot}`, ...focusAfter([`b-pv-${slot}`, `b-save-${slot}`, `b-undo-${slot}`]) }, parts), el('span'));
+  };
+
+  // Results and problems are said once, in the page's live region.
+  const announced = {};
+  const announce = (hm) => {
+    for (const [slot, pv] of Object.entries(hm.previews || {})) {
+      const key = `${pv.state} ${pv.kind || ''} ${pv.problem ? pv.problem.key : ''}`;
+      if (announced[slot] === key) continue;
+      announced[slot] = key;
+      const words = { saved: { template: 'setup.page.home.template_saved', undo: 'setup.page.home.undone', rooms: 'setup.page.home.rooms_saved' } }[pv.state];
+      const text = pv.problem ? say(pv.problem) : (words && words[pv.kind] ? t(words[pv.kind]) : '');
+      if (text) h.announce(text);
+    }
   };
 
   // The action that opens a preview; again after a problem.
   const previewButton = (slot, label, pv) =>
-    (!pv || (pv.state === 'problem' && !pv.undo) ? button(t(label), 'preview', 'ghost btn-small', slot, `pv-${slot}`) : null);
+    (!pv || (pv.state === 'problem' && pv.retry) ? button(t(label), 'preview', 'ghost btn-small', slot, `pv-${slot}`) : null);
 
   const insightRows = (hm) => {
     const rows = [];
@@ -245,7 +266,7 @@ window.novaSteps = (h) => {
       (navigator.clipboard ? navigator.clipboard.writeText(text) : Promise.reject(new Error('no clipboard')))
         .then(() => toast(copied), () => toast(t('setup.page.home.copy_failed', { text })));
     },
-  }, `“${text}”`)));
+  }, t('setup.page.home.chip', { text }))));
   const prompts = (hm) => chips([t('setup.page.home.prompt_on'), t('setup.page.home.prompt_kitchen'),
     (hm.stats && hm.stats.locks) ? t('setup.page.home.prompt_unlock') : t('setup.page.home.prompt_lights')], hm.claude);
 
@@ -263,11 +284,11 @@ window.novaSteps = (h) => {
     if (hm.failed) out.push(el('p', { class: 'problem' }, t('setup.page.home.failed')));
     if (hm.stats) out.push(stats(hm));
     const insights = insightRows(hm);
-    if (insights.length) out.push(el('h2', {}, t('setup.page.home.worth')), el('ul', { class: 'rows' }, insights));
+    if (insights.length) out.push(el('h2', {}, t('setup.page.home.worth')), el('ul', { class: 'rows tall' }, insights));
     if (hm.automation) {
       const pv = (hm.previews || {}).automation;
       const uses = (hm.automation.uses || []).filter((u) => u.role !== 'phone').map((u) => u.name);
-      out.push(el('h2', {}, t('setup.page.home.made')), el('ul', { class: 'rows' },
+      out.push(el('h2', {}, t('setup.page.home.made')), el('ul', { class: 'rows tall' },
         line(el('span', { class: 'ic ok', 'aria-hidden': 'true' }, '✦'), templateTitle(hm.automation), t('setup.page.home.uses', { names: uses }), null,
           previewButton('automation', 'setup.page.home.preview', pv)),
         previewBlock('automation', pv)));
@@ -278,6 +299,7 @@ window.novaSteps = (h) => {
       button(t('setup.page.home.done'), 'done', hm.claude ? 'ghost' : 'primary')));
     if (hm.opened) out.push(el('p', { class: 'fine', role: 'status' }, t(hm.opened === 'terminal' ? 'setup.page.home.opened' : 'setup.page.home.manual')));
     out.push(el('p', { class: 'fine' }, t('setup.page.home.fine')));
+    announce(hm);
     return out;
   };
 

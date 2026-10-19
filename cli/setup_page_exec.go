@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
+	"slices"
 	"testing"
 	"time"
 )
@@ -18,6 +19,7 @@ import (
 
 // setupVerbEnvelope: the parts of a typed verb's envelope the page uses.
 type setupVerbEnvelope struct {
+	Server string               `json:"server"`
 	Status string               `json:"status"`
 	Tier   string               `json:"tier"`
 	Plan   *verbPlan            `json:"plan"`
@@ -25,6 +27,12 @@ type setupVerbEnvelope struct {
 	Undo   *snapshotSaveReceipt `json:"undo"`
 	Result json.RawMessage      `json:"result"`
 	Error  *verbError           `json:"error"`
+}
+
+// pageVerb runs one typed verb for the server setup just connected (the
+// child's own selection could differ): HA_NOVA_SERVER or default_server.
+func pageVerb(args ...string) (setupVerbEnvelope, int, error) {
+	return setupPageVerb(append(slices.Clone(args), "--server", activeServerProfile())...)
 }
 
 // setupPageVerb runs one typed verb as its own process, so its JSON never
@@ -37,11 +45,13 @@ var setupPageVerb = func(args ...string) (setupVerbEnvelope, int, error) {
 	if err != nil {
 		return setupVerbEnvelope{}, 0, err
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	// Generous: killing an apply mid-save would skip its own rollback.
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, exe, args...)
 	var out bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &out, io.Discard
+	ownSignalGroup(cmd)
 	err = cmd.Run()
 	exit := 0
 	var exitErr *exec.ExitError
@@ -73,12 +83,17 @@ func openClaudeTerminal() error {
 	var cmd *exec.Cmd
 	switch runtime.GOOS {
 	case "darwin":
-		cmd = exec.Command("osascript", "-e", `tell application "Terminal" to do script "cd ~ && claude"`, "-e", `tell application "Terminal" to activate`)
+		// Run, not Start: a denied Automation prompt fails here, and the
+		// page then shows its hint.
+		run := exec.Command("osascript", "-e", `tell application "Terminal" to do script "cd ~ && claude"`, "-e", `tell application "Terminal" to activate`)
+		run.Dir = home
+		return run.Run()
 	case "windows":
+		// The folder comes from Dir: cmd and wt would parse a path's & or ;.
 		if _, err := exec.LookPath("wt.exe"); err == nil {
-			cmd = exec.Command("wt.exe", "-d", home, "cmd", "/k", "claude")
+			cmd = exec.Command("wt.exe", "-d", ".", "cmd", "/k", "claude")
 		} else {
-			cmd = exec.Command("cmd", "/c", "start", "", "/D", home, "cmd", "/k", "claude")
+			cmd = exec.Command("cmd", "/c", "start", "", "cmd", "/k", "claude")
 		}
 	default:
 		for _, term := range [][]string{{"x-terminal-emulator", "-e"}, {"gnome-terminal", "--"}, {"konsole", "-e"}, {"xterm", "-e"}} {

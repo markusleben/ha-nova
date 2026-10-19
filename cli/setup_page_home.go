@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"cmp"
 	"encoding/json"
 	"fmt"
 	"slices"
@@ -31,7 +30,8 @@ type setupPageHome struct {
 }
 
 // setupPagePreview is one plan on the page: loading, preview (PlanID can be
-// saved), saved, or problem.
+// saved), saving, saved, unverified (saved, but the read-back didn't
+// match), or problem.
 type setupPagePreview struct {
 	State    string        `json:"state"`
 	Kind     string        `json:"kind,omitempty"` // rooms, undo, template
@@ -42,9 +42,10 @@ type setupPagePreview struct {
 	Draft    string        `json:"draft,omitempty"` // the exact automation the save stores
 	Problem  *setupPageMsg `json:"problem,omitempty"`
 	Notice   *setupPageMsg `json:"notice,omitempty"`
+	Retry    bool          `json:"retry,omitempty"`   // a new preview may help
 	Undo     bool          `json:"undo,omitempty"`    // "Undo" can be planned
 	Evicted  []string      `json:"evicted,omitempty"` // older checkpoints the save pushed off
-	undoID   string        // the rooms undo record; never leaves the CLI
+	undoID   string        // the rooms undo record, until an undo is verified; never leaves the CLI
 }
 
 // Test seam: opens a terminal running Claude Code (setup_page_terminal.go).
@@ -94,17 +95,10 @@ func (f *setupFlow) pageHome() {
 				}
 			}
 		case "undo":
-			if pv := home.Previews[action.Value]; pv != nil && pv.undoID != "" {
-				undoID := pv.undoID
-				pv.State, pv.Undo, pv.undoID = "loading", false, ""
+			if pv := home.Previews[action.Value]; pv != nil && pv.Undo && pv.undoID != "" {
+				pv.State = "loading"
 				show()
-				next := pagePreview("plan", "revert", "--target", undoID)
-				if next.State == "preview" {
-					next.Kind = "undo"
-				} else if next.Problem == nil {
-					next.Problem = setupPageText("setup.page.home.problem.generic")
-				}
-				home.Previews[action.Value] = next
+				home.Previews[action.Value] = pageUndoPreview(pv.undoID, pv.Changes)
 			}
 		case "claude":
 			home.Opened = "manual"
@@ -119,9 +113,9 @@ func (f *setupFlow) pageHome() {
 // home.
 func (f *setupFlow) pageLoadHome(home *setupPageHome) {
 	home.Loading = false
-	env, exit, err := setupPageVerb("map", "--insights")
+	env, exit, err := pageVerb("map", "--insights")
 	var result insightsResult
-	if err != nil || exit != 0 || json.Unmarshal(env.Result, &result) != nil || result.Stats == nil {
+	if err != nil || exit != 0 || env.Server != activeServerProfile() || json.Unmarshal(env.Result, &result) != nil || result.Stats == nil {
 		home.Failed = true
 		return
 	}
@@ -158,14 +152,14 @@ func (home *setupPageHome) previewArgs(slot string) []string {
 // pagePreview stores a preview plan and turns its envelope into what the
 // page shows. Only a preview-tier plan is ever offered.
 func pagePreview(args ...string) *setupPagePreview {
-	env, exit, err := setupPageVerb(args...)
-	pv := &setupPagePreview{State: "problem"}
+	env, exit, err := pageVerb(args...)
+	pv := &setupPagePreview{State: "problem", Retry: true}
 	switch {
-	case err != nil:
+	case err != nil || env.Server != activeServerProfile():
 		pv.Problem = setupPageText("setup.page.home.problem.generic")
 		return pv
 	case env.Error != nil:
-		pv.Problem = pageRefusal(env.Error.Code)
+		pv.Problem, pv.Retry = pageRefusal(env.Error.Code)
 		return pv
 	case exit != verbExitConfirmation || env.Plan == nil || env.Tier != "preview" || env.Plan.Confirm != "natural":
 		pv.Problem = setupPageText("setup.page.home.problem.generic")
@@ -175,7 +169,7 @@ func pagePreview(args ...string) *setupPagePreview {
 	if env.Config != nil { // a template: an automation create
 		var m templateMatch
 		if json.Unmarshal(env.Result, &m) != nil || len(env.Config.Body) == 0 {
-			return &setupPagePreview{State: "problem", Problem: setupPageText("setup.page.home.problem.generic")}
+			return &setupPagePreview{State: "problem", Retry: true, Problem: setupPageText("setup.page.home.problem.generic")}
 		}
 		pv.Kind, pv.Template, pv.Uses, pv.Draft = "template", m.Template, safeTemplateUses(m.Uses), pageDraft(env.Config.Body)
 		return pv
@@ -188,31 +182,63 @@ func pagePreview(args ...string) *setupPagePreview {
 	return pv
 }
 
+// pageUndoPreview plans the way back of a saved rooms change. The record
+// stays with the slot until an undo is verified, so a failed one can be
+// tried again.
+func pageUndoPreview(undoID string, changes []roomsChange) *setupPagePreview {
+	next := pagePreview("plan", "revert", "--target", undoID)
+	switch {
+	case next.State == "preview" && next.Kind == "rooms":
+		next.Kind = "undo"
+	case next.State == "preview": // not a rooms record: never offered here
+		next = &setupPagePreview{State: "problem", Problem: setupPageText("setup.page.home.problem.generic")}
+	}
+	next.undoID = undoID
+	if next.State == "problem" {
+		next.Kind, next.Changes, next.Retry = "rooms", changes, false
+		next.Undo = next.Problem.Key != "setup.page.home.problem.nothing_to_undo"
+	}
+	return next
+}
+
 // pageSave applies the shown plan by its id, the normal apply path.
 func (f *setupFlow) pageSave(slot string, shown *setupPagePreview, home *setupPageHome) *setupPagePreview {
-	env, exit, err := setupPageVerb("apply", "--plan", shown.PlanID)
-	pv := &setupPagePreview{State: "problem", Kind: shown.Kind, Changes: shown.Changes, Template: shown.Template, Uses: shown.Uses}
+	env, exit, err := pageVerb("apply", "--plan", shown.PlanID)
+	pv := &setupPagePreview{State: "problem", Kind: shown.Kind, Changes: shown.Changes, Template: shown.Template, Uses: shown.Uses, Draft: shown.Draft}
 	if env.Undo != nil && env.Undo.TargetID != "" && shown.Kind == "rooms" {
 		pv.undoID, pv.Undo = env.Undo.TargetID, true
 		for _, gone := range env.Undo.Evicted {
-			pv.Evicted = append(pv.Evicted, terminalSafeName(cmp.Or(gone.Name, gone.TargetID)))
+			if name := terminalSafeName(gone.Name); name != "" {
+				pv.Evicted = append(pv.Evicted, name)
+			}
 		}
 	}
+	if shown.Kind == "undo" { // the way back is still open until it is verified
+		pv.undoID, pv.Undo = shown.undoID, true
+	}
 	switch {
-	case err != nil:
-		pv.Problem = setupPageText("setup.page.home.problem.unknown")
+	case err != nil, exit == verbExitUnknown:
+		pv.Problem = setupPageText("setup.page.home.problem.unknown") // never offered again: it may have run
 	case exit == verbExitOK && env.Status == "verified":
 		pv.State = "saved"
 		var rooms roomsResult
 		if shown.Kind != "template" && json.Unmarshal(env.Result, &rooms) == nil && len(rooms.Changes) > 0 {
 			pv.Changes = safeRoomsChanges(rooms.Changes)
 		}
+		if shown.Kind == "undo" {
+			pv.Undo, pv.undoID = false, ""
+		}
 	case env.Status == "drift":
 		// The home changed since the preview: show the new one; the old
 		// plan is never saved unseen.
-		again := &setupPagePreview{State: "problem"}
-		if args := home.previewArgs(slot); shown.Kind != "undo" && args != nil {
+		var again *setupPagePreview
+		switch args := home.previewArgs(slot); {
+		case shown.Kind == "undo":
+			again = pageUndoPreview(shown.undoID, shown.Changes)
+		case args != nil:
 			again = pagePreview(args...)
+		default:
+			again = &setupPagePreview{State: "problem"}
 		}
 		if again.State == "preview" {
 			again.Notice = setupPageText("setup.page.home.drift")
@@ -220,36 +246,46 @@ func (f *setupFlow) pageSave(slot string, shown *setupPagePreview, home *setupPa
 			again.Problem = setupPageText("setup.page.home.problem.drift")
 		}
 		return again
-	case exit == verbExitUnknown:
-		pv.Problem = setupPageText("setup.page.home.problem.unknown")
+	case env.Error != nil && env.Error.Code != "ROOMS_PARTIAL" &&
+		(env.Error.Code == "PLAN_CLAIMED" || exit == verbExitUnverified && env.Status != "failed"):
+		pv.Problem = setupPageText("setup.page.home.problem.unknown") // Home Assistant may have saved it
+	case env.Error != nil && env.Error.Code == "ROOMS_PARTIAL" && !pv.Undo:
+		pv.Problem = setupPageText("setup.page.home.problem.rooms_partial_no_undo")
 	case env.Error != nil:
-		pv.Problem = pageRefusal(env.Error.Code)
+		pv.Problem, pv.Retry = pageRefusal(env.Error.Code)
+		if shown.Kind == "undo" || pv.Undo {
+			pv.Retry = false // the way back comes first
+		}
+		if env.Error.Code == "NOTHING_TO_UNDO" {
+			pv.Undo, pv.undoID = false, ""
+		}
 	default: // saved, but the read-back didn't match
-		pv.State, pv.Problem = "saved", setupPageText("setup.page.home.problem.unverified")
-	}
-	if shown.Kind == "undo" {
-		pv.Undo, pv.undoID, pv.Evicted = false, "", nil // an undo of an undo is a new suggestion
+		pv.State, pv.Problem = "unverified", setupPageText("setup.page.home.problem.unverified")
+		if shown.Kind == "undo" {
+			pv.Undo, pv.undoID = false, ""
+		}
 	}
 	return pv
 }
 
-// pageRefusal: one plain line per refusal code (spec §7.6).
-func pageRefusal(code string) *setupPageMsg {
+// pageRefusal: one plain line per refusal code (spec §7.6), and whether a
+// new preview may help.
+func pageRefusal(code string) (*setupPageMsg, bool) {
 	switch code {
 	case "NO_ROOM_SUGGESTIONS":
-		return setupPageText("setup.page.home.problem.no_rooms")
+		return setupPageText("setup.page.home.problem.no_rooms"), false
 	case "TEMPLATE_NO_MATCH", "TEMPLATE_NOT_OFFERED":
-		return setupPageText("setup.page.home.problem.not_offered")
+		return setupPageText("setup.page.home.problem.not_offered"), false
 	case "ROOMS_NOT_SAVED":
-		return setupPageText("setup.page.home.problem.rooms_not_saved")
+		return setupPageText("setup.page.home.problem.rooms_not_saved"), true
 	case "ROOMS_PARTIAL":
-		return setupPageText("setup.page.home.problem.rooms_partial")
+		return setupPageText("setup.page.home.problem.rooms_partial"), false
 	case "NOTHING_TO_UNDO":
-		return setupPageText("setup.page.home.problem.nothing_to_undo")
+		return setupPageText("setup.page.home.problem.nothing_to_undo"), false
 	case "PLAN_EXPIRED", "PLAN_NOT_FOUND", "PLAN_CLAIMED", "PLAN_INVALIDATED":
-		return setupPageText("setup.page.home.problem.expired")
+		return setupPageText("setup.page.home.problem.expired"), true
 	}
-	return setupPageText("setup.page.home.problem.generic")
+	return setupPageText("setup.page.home.problem.generic"), true
 }
 
 func safeRoomsChanges(changes []roomsChange) []roomsChange {
