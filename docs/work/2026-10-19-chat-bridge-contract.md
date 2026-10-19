@@ -65,7 +65,7 @@ Code: `nova/src/runtime/chat-apps.ts`, `nova/src/http/handlers/chat-apps.ts`, `c
 
 Supervisor stores read `nova/config.yaml` from `main`, so these land only with the version bump that publishes the image containing B2 and B3:
 - `nova/config.yaml`: `discovery: [ha_nova]` (without it Supervisor refuses `POST /discovery` with 403), and the `map:` comment ("only USES it when file_access is set") now also names chat apps. No new option, port, or map entry.
-- `nova/Dockerfile`: `ARG HA_NOVA_CHAT_APPS=1`, and the B3 integration copied to `/app/integration/ha_nova`.
+- `nova/Dockerfile`: `ARG HA_NOVA_CHAT_APPS=1` (the B3 integration is already copied to `/app/integration/ha_nova`).
 - The bump comes with or after the final `skill_version`: `app-image.yml` stages the bridge (CLI + skills) from that same tree (`scripts/release/stage-app-bridge.sh`).
 - Docs: `nova/DOCS.md` and `nova/CHANGELOG.md` (chat apps, turn them off before removing the App), `docs/reference/safety.md` (the token-scope limit, spec §15 R4), `docs/releasing.md` lanes (on, off, App update, rollback, registry reset).
 
@@ -76,4 +76,23 @@ Supervisor stores read `nova/config.yaml` from `main`, so these land only with t
 - The page names the connector path, not the full Link address, and shows "On" before Home Assistant has restarted; both are B4.
 - A discovery message Supervisor accepted while its answer was lost (timeout) has no stored uuid, so turning off can't delete it; it names a stopped bridge and a deleted secret. A discovery re-post that fails at start-up is retried only at the next App start.
 - A device that paired with the install id `nova-app-chat-bridge` before pairing refused it would be treated as the bridge (the CLI never sends that id).
-- Whether deleting the discovery message removes the config entry depends on the entry's unique ID: B3 verifies on the test HAOS VM (spec §11.6 says the App slug; Home Assistant's discovery removal may match the uuid).
+
+## Integration (B3)
+
+Code: `nova/integration/ha_nova/` (copied into the image at `/app/integration/ha_nova`, then by the App into `/config/custom_components/ha_nova`). Tests: `tests/ha_integration/` (pytest against the pinned Home Assistant), CI job `ha-integration` (`ci-gate` needs it). `scripts/check-docs.sh` [5b] fails it on any logic beyond discovery, the proxy, and the user hand-off.
+
+- **Entry:** only from the `hassio` discovery flow, no user step. Data: `host`, `port`, `secret`, and the App `slug`; a malformed message (host not a hostname, port not 1–65535, secret not 64 hex) creates nothing. Unique ID: the message's uuid, because Home Assistant's discovery removal deletes only the `hassio` entry with that uuid (`components/hassio/discovery.py`). A changed message (same uuid) updates the entry and reloads it. A new message from the same App slug (Home Assistant missed the old one's removal) replaces the entry's uuid and data. A message from another App slug is refused while an entry exists. Deleting only the entry is undone by Home Assistant's re-discovery; the App deletes the message instead (B2).
+- **View** `/api/ha_nova/mcp`, `requires_auth = True`: Home Assistant's own check (access token, OAuth through Home Assistant Link; signed paths only for GET). Unauthenticated requests get Home Assistant's `401` with `resource_metadata` and never reach the bridge. Registered once; while no entry is loaded it answers `404`.
+- **Forwarded:** `POST`, `GET`, and `DELETE` to `http://<host>:<port>/mcp` (the 0.27 bridge answers `405` with `Allow: POST` for the last two); other methods get Home Assistant's `405`. The query string is never forwarded. The body streams both ways, never read, parsed, or logged.
+- **Request headers:** only `Content-Type`, `Accept`, `Last-Event-ID`, and `Mcp-*` pass; everything else, including the client's `Authorization`, `Cookie`, and any `X-HA-User-Id`, is dropped. Then exactly one `Authorization: Bearer <secret>` and one `X-HA-User-Id: <the authenticated Home Assistant user's id>`.
+- **Response:** the bridge's status, `Content-Type`, `Allow`, and `Mcp-*` headers; nothing else (no `Set-Cookie`). Exceptions, each with a JSON `{"message"}`: the bridge's `401` (wrong secret) becomes `502` "chat-app connection is out of date" (a `401` would send the chat app back to Home Assistant's sign-in); bridge unreachable `502`; no answer for 150 s (`sock_read`, above `--confirm-wait`'s 2 min maximum) `504`. A stream cut after the status was sent just ends.
+- **Never logged:** the secret and bodies (debug lines name only the error class).
+- **Version-stable:** the App writes the integration on turn-on only and never refreshes it on an App update, because new integration code needs a Home Assistant restart. A later change to it needs an App update that re-copies it and asks for that restart (not built in 0.27); the bridge must keep working with this version.
+
+### Known limits (B3)
+
+- **R9 (open):** Home Assistant's protected-resource metadata names only the origin. If the maintainer's claude.ai test (spec §13 B0) shows that claude.ai needs the full path, the fallback (an own `401` with an own metadata document whose `resource` is the full `/api/ha_nova/mcp` URL) means a view with `requires_auth = False` that checks Home Assistant's authentication itself: a separate reviewed PR before the release, not built here.
+- A timeout or a refused secret answers with plain HTTP errors, not JSON-RPC errors (the integration never reads the request id).
+- Any App whose `config.yaml` lists `discovery: [ha_nova]` can announce the bridge while no entry exists; App code is trusted, as for every Supervisor discovery.
+- Discovery against a real Supervisor (HAOS VM) is not yet run: the test bed replays Home Assistant's own discovery calls. The release lanes (on, off, App update) cover it.
+

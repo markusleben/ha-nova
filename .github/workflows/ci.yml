@@ -73,9 +73,34 @@ jobs:
       - name: Verify test inventory registration
         run: npm run test:safe -- tests/onboarding/safe-test-system-contract.test.ts
 
+  # The ha_nova Home Assistant integration (nova/integration/ha_nova) against
+  # the Home Assistant version pinned in tests/ha_integration/requirements.txt.
+  # ci-gate needs it, so the required check covers it.
+  ha-integration:
+    name: ha-integration
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.14"
+          cache: pip
+          cache-dependency-path: tests/ha_integration/requirements.txt
+
+      - name: Install
+        run: pip install -r tests/ha_integration/requirements.txt
+
+      - name: Test
+        working-directory: tests/ha_integration
+        run: python -m pytest -q
+
   ci-gate:
     name: ci-gate
-    needs: test-inventory
+    needs: [test-inventory, ha-integration]
     runs-on: ubuntu-latest
 
     steps:

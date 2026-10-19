@@ -145,6 +145,29 @@ if [[ -f "$REPO_ROOT/nova/src/http/handlers/files.ts" ]]; then
   fi
 fi
 
+# ── 5b. The ha_nova integration stays a pure pass-through ──
+# Spec §11.1: discovery, the proxy, and the user hand-off only. Its code
+# changes need a Home Assistant restart, so tools, schemas, and checks live in
+# the bridge (`ha-nova serve`), never here.
+echo "[5b] ha_nova integration: discovery + authenticated pass-through only"
+INTEG="$REPO_ROOT/nova/integration/ha_nova"
+INTEG_FILES=$(cd "$INTEG" && find . -type f ! -path '*/__pycache__/*' | sort | tr '\n' ' ')
+if [[ "$INTEG_FILES" != "./__init__.py ./config_flow.py ./manifest.json " ]]; then
+  fail "nova/integration/ha_nova holds unexpected files ($INTEG_FILES) — only __init__.py, config_flow.py, manifest.json."
+fi
+INTEG_LOC=$(cat "$INTEG"/*.py | wc -l | tr -d ' ')
+INTEG_LOGIC=$(count_matches -E "hass\.services|hass\.states|helpers\.llm|import llm|async_register_api|async_forward_entry_setups|entity_registry|device_registry|async_track_|json\.loads|request\.(json|read|text|post)\(|\.json\(\)" "$INTEG" --include='*.py')
+if (( INTEG_LOC > 220 || INTEG_LOGIC != 0 )) \
+   || ! grep -q '"requirements": \[\]' "$INTEG/manifest.json" \
+   || ! grep -q '"dependencies": \["http"\]' "$INTEG/manifest.json" \
+   || ! grep -q '^    requires_auth = True$' "$INTEG/__init__.py" \
+   || grep -q 'requires_auth = False' "$INTEG/__init__.py" \
+   || ! grep -q '("X-HA-User-Id", user.id)' "$INTEG/__init__.py"; then
+  fail "ha_nova integration grew logic (${INTEG_LOC} Python lines, ${INTEG_LOGIC} logic hits) or lost requires_auth / the authenticated user header — it must stay a pure pass-through."
+else
+  pass "ha_nova integration is a pure pass-through (${INTEG_LOC} Python lines)"
+fi
+
 # ── 6. Internal links ──
 echo "[6] Internal links resolve"
 for linked_file in CONTRIBUTING.md LICENSE; do

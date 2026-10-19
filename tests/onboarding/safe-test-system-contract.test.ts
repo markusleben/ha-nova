@@ -229,7 +229,7 @@ describe("safe test system contract", () => {
   const ci = parse(readFileSync(".github/workflows/ci.yml", "utf8")) as {
     jobs: Record<string, {
       if?: string;
-      needs?: string;
+      needs?: string | string[];
       "continue-on-error"?: boolean;
       steps?: Array<{ if?: string; name?: string; run?: string; "continue-on-error"?: boolean }>;
     }>;
@@ -263,8 +263,11 @@ describe("safe test system contract", () => {
     );
     expect(ciGateSteps.find((step) => step.name === "Install")?.run).toBe("npm ci");
 
+    // ci-gate (the required check) also waits for the ha_nova integration tests.
+    expect(ci.jobs["ci-gate"]?.needs).toEqual(["test-inventory", "ha-integration"]);
+    expect(ci.jobs["ha-integration"]?.if).toBeUndefined();
+    expect(ci.jobs["ha-integration"]?.["continue-on-error"]).toBeUndefined();
     for (const job of [
-      "ci-gate",
       "go-build",
       "macos-native-secret-boundary",
       "windows-native-secret-boundary",

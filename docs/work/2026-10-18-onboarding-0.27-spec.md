@@ -444,7 +444,7 @@ Why this shape:
 - **Integration ↔ App:**
   - the App publishes a Supervisor discovery message (`POST /discovery`, service `ha_nova`, config: host, port, secret). `discovery: [ha_nova]` in `config.yaml` only permits it. The App keeps the returned UUID in `/data`;
   - host is the App's stable Supervisor hostname, never an IP. The 256-bit secret is generated once and kept in `/data`. App restarts and updates reuse both; on start the App re-posts its message (Supervisor keeps one per App and service, so an unchanged one is a no-op; an App can't list messages). The secret changes only by turning chat apps off and on;
-  - the integration's `hassio` config flow stores them with the App slug as unique ID, so a changed message updates that entry and never adds a second;
+  - the integration's `hassio` config flow stores them with the message's uuid as unique ID (Home Assistant removes a `hassio` entry only by that uuid when the message is deleted). A changed message updates that entry; a new message from the same App replaces it; there is never a second;
   - the bridge port is internal to the Supervisor network and never mapped to the host;
   - the user ID passed by the integration is trusted only with that secret.
 - **Proxy contract.** The integration forwards the whole Streamable HTTP exchange, not just the body:
