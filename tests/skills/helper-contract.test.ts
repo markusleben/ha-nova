@@ -179,7 +179,8 @@ describe("helper contract", () => {
       expect(skillDoc).toContain("| Title | Type | State |");
       // Ambiguous entries still get their linked-entity context for selection.
       expect(skillDoc).toContain("add a\n   short disambiguation line");
-      expect(skillDoc).toContain("Current flow step:");
+      // F2: the flow step id is internal; it is no longer a read slot.
+      expect(skillDoc).not.toContain("Current flow step:");
       expect(skillDoc).toContain("Current editable fields:");
       expect(skillDoc).toContain("mark its value as unavailable instead of guessing");
       expect(skillDoc).toContain("Config-entry state:");

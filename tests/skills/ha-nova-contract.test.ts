@@ -301,16 +301,15 @@ describe("ha-nova contract", () => {
     expect(context).toContain("source of truth");
   });
 
-  it("defines structured summary + YAML response format", () => {
+  it("defines a plain summary response format, YAML only on request", () => {
     const context = readFileSync("skills/ha-nova/SKILL.md", "utf8");
 
+    // F2 (0.27 regression lane): the old slot list (ID, entity_ids, mode,
+    // full YAML) leaked `light.bed_light` and "mode: single" into previews.
     expect(context).toContain("Response Format");
-    expect(context).toContain("Automation` or `Script");
-    expect(context).toContain("Entities");
-    expect(context).toContain("Triggers");
-    expect(context).toContain("Actions");
-    expect(context).toContain("full YAML config");
-    expect(context).toContain("Next step");
+    expect(context).toContain("Automation, script, and helper summaries: the name, then what starts it");
+    expect(context).toContain("Ids and the full YAML config only when asked; mode only when not `single`, in plain words.");
+    expect(context).not.toContain("all entity_ids in triggers");
   });
 
   it("documents the review confidence split in the shared output rules", () => {
@@ -336,9 +335,9 @@ describe("ha-nova contract", () => {
       "debugging help, brainstorming, and casual Q&A",
     );
     expect(outputRules).toContain("Summarize long inventories by counts");
-    expect(outputRules).toContain(
-      "If raw automation IDs, helper IDs, config IDs, or entity IDs",
-    );
+    // F2: "show IDs for safety or evidence" licensed `light.bed_light` in a
+    // create preview; ids now appear only for a missing or shared name.
+    expect(outputRules).toContain("No technical details: ids (`light.bed_light`) only for a missing or shared name");
     // Standalone/bulk keep their full shape; post-write omits empty sections (less noise).
     expect(outputRules).toContain(
       "Standalone and bulk review keep their full shape",

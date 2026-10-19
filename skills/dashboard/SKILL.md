@@ -79,7 +79,6 @@ For list/read/sweep:
 
 For create/update/delete:
 - `Dashboard`
-- `Mode`
 - `Planned change`
 - `Save status` / `Delete status` before confirmation
 - `Options` / one-time-code prompt

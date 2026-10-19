@@ -51,7 +51,7 @@ Syntax-only modernization (`../migrate/source-mappings.md` → Legacy YAML) keep
 
 ## Output Format
 
-Apply `../ha-nova/output-rules.md`. The plan is one Report (`../ha-nova/output-cards.md`) per rule: behaviour list, `source → entity_id` lines, design and why, differences, not-migrated parts. Writes keep their owning flows' Preview Card and Result Card; a check-in lists each line's verdict and evidence time.
+Apply `../ha-nova/output-rules.md`. The plan is one Report (`../ha-nova/output-cards.md`) per rule: behaviour list, `source → name` lines, design and why, differences, not-migrated parts. Writes keep their owning flows' Preview Card and Result Card; a check-in lists each line's verdict and evidence time.
 
 ## Safety
 

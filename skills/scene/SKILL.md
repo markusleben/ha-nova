@@ -106,7 +106,7 @@ Persistence routing per `../ha-nova/best-practices.md` → Persistence Model: a 
 - A scene entity's state is the timestamp of its last activation; `unknown` means "never activated" — not an error.
 - Config GET 404 on a `homeassistant`-platform scene: the scene was deleted outside this session — re-list instead of retrying.
 - Registry get miss on a live scene entity: a YAML scene without an `id:` — not API-editable; point to `scenes.yaml`.
-- POST/DELETE failures: show HA's error, stop; do not retry blind. If every scene config call fails, `scenes.yaml` may be missing from the config includes — point to HA docs.
+- POST/DELETE failures: say plainly why, stop; do not retry blind. If every scene config call fails, `scenes.yaml` may be missing from the config includes — point to HA docs.
 - Full relay error taxonomy: `../ha-nova/relay-api.md` → Error Handling.
 
 ## Output Format
@@ -114,7 +114,6 @@ Persistence routing per `../ha-nova/best-practices.md` → Persistence Model: a 
 Apply `../ha-nova/output-rules.md` to all user-facing output. Write previews, delete confirmations, and results render as the Cards defined there (`../ha-nova/output-cards.md`).
 
 - `Scene`
-- `Mode`
 - `Planned change`
 - `Save status` / `Delete status` before confirmation
 - `Options` / one-time-code prompt

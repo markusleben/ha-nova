@@ -52,8 +52,8 @@ If missing: `ha-nova setup`
 Apply `../ha-nova/output-rules.md` to all user-facing output.
 
 Return a short diagnostic report:
-1. **Status** — one-line result (e.g., "Relay reachable", "Auth token mismatch")
-2. **Details** — error code or relevant diagnostic output (only on failure)
+1. **Status** — one-line result (e.g., "Relay reachable", "Home Assistant rejected the sign-in")
+2. **Cause** — in plain words; codes and raw output only when asked (only on failure)
 3. **Next step** — one concrete step in words; a command only when the user must run it (setup, pairing) (only on failure)
 
 On success, keep the response to the status line only. Do not dump raw relay output.

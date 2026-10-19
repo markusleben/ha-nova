@@ -132,7 +132,7 @@ that this stops on delete — a bare count plus manifest path is not a preview:
 🗑️  Delete: 8 automations (reviewed cleanup workset)
 All eight are light schedules that stop running when deleted.
 Manifest: <path the user can open> — 8 / 20 (cap)
-Impact: no consumers found for 7; "Morning routine" is referenced by script.wakeup (will break).
+Impact: no consumers found for 7; "Morning routine" is referenced by script "Wake up" (will break).
 Recovery: YAML export written; no automatic rollback after delete.
 Runs one by one — stops at the first error.
 ⚠️  Nothing deleted yet.

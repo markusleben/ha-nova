@@ -239,8 +239,7 @@ the count looks high.)
     `attributes.current > 0`. `script` in `on` does mean running.
 
 Answer count-first ("2 windows open: kitchen, bathroom"), then the names, in the List
-Frame. This is a summary, not the banned domain dump: `output-rules.md` asks
-for counts, groups and a few examples exactly here. A follow-up "and which are
+Frame. This is a summary, not the banned domain dump. A follow-up "and which are
 closed?" is a fresh read, not a cached list.
 
 ## Matching Rules
@@ -249,7 +248,7 @@ closed?" is a fresh read, not a cached list.
 - exact `entity_id` match wins
 - keyword match on entity_id + name second; rank whole-word and name matches above bare substring hits
 
-If ambiguity remains: present top candidates (max 10) and state the match basis for each (name, entity_id, alias, or area) — the user must see WHY a candidate matched; then ask one selection question.
+If ambiguity remains: present top candidates (max 10) and state the match basis for each (name, alias, area; the id only if it alone matched) — the user must see WHY a candidate matched; then ask one selection question.
 
 ## Output Format
 
