@@ -54,8 +54,9 @@ var (
 )
 
 type haSignInSession struct {
-	ingress *CloudIngressClient
-	user    HACurrentUser
+	ingress  *CloudIngressClient
+	user     HACurrentUser
+	fromPage bool // signed in on the setup page: a failed pairing returns there
 }
 
 // parseLocalHAOrigin accepts the saved Home Assistant URL only as a plain
@@ -198,6 +199,25 @@ func openHASignInIngressWith(
 	haURL string,
 	prepare haSignInPrepare,
 ) (haSignInSession, error) {
+	return openHASignInIngressIn(ctx, out, haURL, prepare, nil)
+}
+
+// haSignInTab is the setup page's tab: it navigates to Home Assistant
+// itself and its server takes the redirect back, so no second tab opens.
+type haSignInTab interface {
+	oauthCallbackTab
+	navigate(target string)
+}
+
+// openHASignInIngressIn signs in in the setup page's tab when tab is set,
+// else in a browser tab of its own.
+func openHASignInIngressIn(
+	ctx context.Context,
+	out io.Writer,
+	haURL string,
+	prepare haSignInPrepare,
+	tab haSignInTab,
+) (haSignInSession, error) {
 	origin, err := parseLocalHAOrigin(haURL)
 	if err != nil {
 		return haSignInSession{}, err
@@ -205,6 +225,17 @@ func openHASignInIngressWith(
 	ctx, stop := haSignInInterrupt(ctx)
 	defer stop()
 	flow := haSignInOAuthFlow()
+	open := func(_ context.Context, target string) error {
+		openHASignInBrowser(out, target)
+		return nil
+	}
+	if tab != nil {
+		flow.Tab = tab
+		open = func(_ context.Context, target string) error {
+			tab.navigate(target)
+			return nil
+		}
+	}
 	waiting := "Waiting for you to sign in, Ctrl+C to use a code instead"
 	if prepare != nil {
 		waiting = "Waiting for you to sign in, Ctrl+C to stop"
@@ -215,10 +246,7 @@ func openHASignInIngressWith(
 		flow.Timeout,
 		500*time.Millisecond,
 		func() (OAuthAuthorizationCode, error) {
-			return flow.AuthorizeOrigin(ctx, origin, func(_ context.Context, target string) error {
-				openHASignInBrowser(out, target)
-				return nil
-			})
+			return flow.AuthorizeOrigin(ctx, origin, open)
 		},
 	)
 	armSetupNextPromptSkipsStaleBlankInput()

@@ -58,7 +58,8 @@ func (f *setupFlow) prepareCredentials() setupStepResult {
 			return f.failErr(serviceErr)
 		}
 		if hasServiceCredentials && shouldOfferServiceCredentials(f.tokenStoragePreflightErr) {
-			useServiceCredentials, err := promptSetupServiceCredentialsInteractive(f.ui.reader, f.ui.out, serviceCredentials, serviceClientID)
+			f.textOnly()
+			useServiceCredentials, err := promptSetupServiceCredentialsInteractive(f.ui.termIn(), f.ui.termOut(), serviceCredentials, serviceClientID)
 			if err == errSetupExit {
 				return f.cancelled()
 			}
@@ -109,7 +110,7 @@ func (f *setupFlow) prepareCredentials() setupStepResult {
 			!(len(f.lifecycleMarker) > 1 && len(f.lifecycleMarker[1]) > 0) {
 			currentLifecycleMarker = nil
 		}
-		if handled, code := maybeHandleInteractiveSetupCurrentState(f.ui.reader, f.ui.out, f.paths, f.cfg, f.current, f.overrideApplied, f.serviceMode, currentLifecycleMarker...); handled {
+		if handled, code := maybeHandleInteractiveSetupCurrentState(f.ui.termIn(), f.ui.termOut(), f.paths, f.cfg, f.current, f.overrideApplied, f.serviceMode, currentLifecycleMarker...); handled {
 			return setupDone(code)
 		}
 	}

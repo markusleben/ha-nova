@@ -220,11 +220,11 @@ Threats: other sites in the browser (CSRF), DNS rebinding, other OS users, click
 |---|---|
 | Bind | `tcp4 127.0.0.1:0` only; never `0.0.0.0` or `localhost` |
 | Host check | `Host` must equal `127.0.0.1:<port>` exactly, else 421 |
-| Launch token | 256-bit, `/s/<token>`, **single use**: the first GET sets the session cookie and 303s to `/`. Reuse shows "This setup page is already open in another tab." |
-| Session cookie | `HttpOnly`, `SameSite=Lax`, host-only, `Path=/`. Lax is required so the cookie returns on HA's top-level redirect. That redirect mutates nothing and is checked by the OAuth `state` |
+| Launch token | 256-bit, `/s/<token>`, **single use**: the first GET sets the session cookie and moves on to `/`. Reuse shows "This setup page is already open in another tab." On Linux, where other users can read command lines, the browser opens a private 0600 launcher file instead of the URL |
+| Session cookie | `HttpOnly`, `SameSite=Strict`, host-only, `Path=/`. HA's cross-site redirect to `/oauth/callback` carries no cookie and needs none: the OAuth `state` checks it, and it answers with a page that moves on to `/` itself, so that hop is same-site and carries the cookie |
 | Mutations | `POST /api/action` only; JSON content type; `Origin` exactly `http://127.0.0.1:<port>`; `Sec-Fetch-Site` absent or `same-origin`; session cookie; allowlisted action names with typed arguments |
 | OAuth callback | existing `validateOAuthCallback` (exact state, single use); HA tokens never reach the page |
-| Headers | CSP `default-src 'self'; script-src 'self'; style-src 'self'; frame-ancestors 'none'; form-action 'self'; base-uri 'none'`; `X-Frame-Options: DENY`; `no-referrer`; `no-store`; `nosniff`; embedded assets only, no inline script |
+| Headers | CSP `default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'self'; frame-ancestors 'none'; form-action 'self'; base-uri 'none'`; `X-Frame-Options: DENY`; `no-referrer`; `no-store`; `nosniff`; embedded assets only, no inline script |
 | HA-sourced text | `textContent` only; control and format characters stripped (`terminalSafeName`) |
 | Secrets | none on the page; a typed six-digit code goes to the CLI once and is never echoed |
 | Writes from the page (step 4) | only by plan ID: the page posts `save {plan_id}`, never a body. The CLI built the plan, showed exactly that preview, and applies it through the normal `apply` path (§7.5) |

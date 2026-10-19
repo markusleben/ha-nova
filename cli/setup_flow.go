@@ -40,7 +40,11 @@ var setupGoOn = setupStepResult{}
 func setupDone(code int) setupStepResult { return setupStepResult{done: true, code: code} }
 
 type setupFlow struct {
-	ui setupTextUI
+	ui   setupUI
+	page *setupWebUI // the setup page renders; nil in the terminal
+	// pageProblem: why the page's sign-in didn't connect this computer;
+	// step 2 shows it.
+	pageProblem *setupPageMsg
 
 	// inputs
 	paths           runtimePaths
@@ -104,7 +108,6 @@ type setupFlow struct {
 
 func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState, target string, hostFlag, haURLFlag, relayURLFlag, relayTokenFlag string, serviceMode bool, lifecycleMarker ...[]byte) int {
 	flow := &setupFlow{
-		ui:              setupTextUI{reader: bufio.NewReader(os.Stdin), out: os.Stdout},
 		paths:           paths,
 		cfg:             cfg,
 		state:           state,
@@ -119,6 +122,10 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 		connectionMode:  setupConnectionLocal,
 		pairingBackStep: setupStepRelayInstall,
 	}
+	if flow.usesSetupPage() {
+		return flow.runOnPage()
+	}
+	flow.ui = setupTextUI{reader: bufio.NewReader(os.Stdin), out: os.Stdout}
 	return flow.run()
 }
 
@@ -153,6 +160,9 @@ func (f *setupFlow) runStep(step setupStepID) setupStepResult {
 	case setupStepSecureStorageRecovery:
 		return f.stepSecureStorageRecovery()
 	case setupStepHost:
+		if f.page != nil && !f.page.inTerminal() {
+			return f.stepPage()
+		}
 		return f.stepHost()
 	case setupStepRelayInstall:
 		return f.stepRelayInstall()
@@ -213,6 +223,14 @@ func (f *setupFlow) wizardSteps() setupWizardSteps {
 		return buildSetupPairingWizardSteps()
 	}
 	return buildSetupWizardSteps()
+}
+
+// textOnly: the next step exists only in the terminal (recovery states,
+// spec §2), so the setup page hands over first. A no-op in the terminal.
+func (f *setupFlow) textOnly() {
+	if f.page != nil {
+		f.page.handover()
+	}
 }
 
 // cancelled ends setup the way Ctrl+C or "exit" does.
