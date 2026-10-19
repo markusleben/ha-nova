@@ -218,6 +218,9 @@ func (f *setupFlow) stepRelayInstall() setupStepResult {
 }
 
 func (f *setupFlow) stepPairing() setupStepResult {
+	// Only a sign-in pairing in this attempt sets them again: a code pairing
+	// after a sign-in to another home must not reuse that home's session.
+	setupSignedInUser, setupOwnerIngress = "", nil
 	steps := buildSetupPairingWizardSteps()
 	view := setupView{Progress: &setupProgress{Step: steps.Pairing, Total: steps.Total, Title: setupText("setup.step.connect")}}
 	if !f.relaySkipNote.empty() {

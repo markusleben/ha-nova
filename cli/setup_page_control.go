@@ -26,6 +26,19 @@ type setupPageControl struct {
 	PhoneProblem *setupPageMsg    `json:"phone_problem,omitempty"`
 	Rule         string           `json:"rule,omitempty"` // offer, on (already there); "" no row
 	Link         string           `json:"link,omitempty"` // offer, run; "" no row
+	Chat         *setupPageChat   `json:"chat,omitempty"` // nil: no row (chat_apps.go)
+}
+
+// setupPageChat is the "Use HA NOVA in Claude and ChatGPT" row (spec
+// §11.6). It shows only when the App has chat apps, Link remote access
+// answers, and Home Assistant is 2026.10 or newer. The page shows the restart
+// consent before it posts "chat"; the click on it is that consent.
+type setupPageChat struct {
+	State   string         `json:"state"`           // offer, run, on, expired (the owner session ran out)
+	Rows    []setupPageRow `json:"rows,omitempty"`  // while run (and after): on, restart, ready
+	URL     string         `json:"url,omitempty"`   // the connector address, once on
+	Phone   string         `json:"phone,omitempty"` // the phone that confirms for chat apps; "": a code in the chat
+	Problem *setupPageMsg  `json:"problem,omitempty"`
 }
 
 type setupPagePhone struct {
@@ -34,12 +47,16 @@ type setupPagePhone struct {
 	Person string `json:"person"`
 }
 
-// Test seam: Home Assistant Link remote access is on for this home.
-var setupPageLinkActive = func(cfg runtimeConfig) bool {
+// Test seam: the Home Assistant Link address while its remote access is on
+// for this home, else "".
+var setupLinkRemoteOrigin = func(cfg runtimeConfig) string {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
-	_, err := discoverCloudFromLocalRelay(ctx, cfg)
-	return err == nil
+	found, err := discoverCloudFromLocalRelay(ctx, cfg)
+	if err != nil {
+		return ""
+	}
+	return found.Origin.InputOrigin // the address Home Assistant's cloud/status names
 }
 
 // pageControl shows step 3 until "Finish setup", then does what its
@@ -65,12 +82,38 @@ func (f *setupFlow) pageControl() int {
 			fmt.Fprintln(out, "  "+note)
 		}
 	}
-	if f.pageLinkOffered() {
+	origin, originRead := "", false
+	linkOrigin := func() string { // read once, only when a row needs it
+		if !originRead {
+			origin, originRead = setupLinkRemoteOrigin(f.cfg), true
+		}
+		return origin
+	}
+	if f.pageLinkOffered() && linkOrigin() != "" {
 		ctl.Link = "offer"
+	}
+	var chat chatAppsOffer
+	chatOK := false
+	if f.pairedThisRun && !f.cloudSetupPaused { // as the phone row: right after this run's sign-in pairing
+		chat, chatOK = readChatAppsOffer(setupOwnerIngress, f.paths, linkOrigin)
+	}
+	switch {
+	case chatOK && chat.state.Enabled:
+		ctl.Chat = &setupPageChat{State: "on", URL: chat.url}
+		if !chat.loaded { // on, but a restart never came: the address doesn't answer yet
+			ctl.Chat.Problem = setupPageText("setup.chat.problem_slow")
+		}
+	case chatOK:
+		ctl.Chat = &setupPageChat{State: "offer", Phone: chatAppsPhoneName(f.paths, setupSignedInUser, chat.state)}
 	}
 	show := func() {
 		view := ctl
 		view.Phones = slices.Clone(ctl.Phones)
+		if ctl.Chat != nil { // pageChatOn keeps changing its own copy
+			row := *ctl.Chat
+			row.Rows = slices.Clone(row.Rows)
+			view.Chat = &row
+		}
 		p.update(func(v *setupPageState) {
 			v.Screen, v.Control, v.Problem, v.Fix, v.Links = "control", &view, nil, "", nil
 		})
@@ -80,6 +123,9 @@ func (f *setupFlow) pageControl() int {
 		accepts := []string{"finish"}
 		if ctl.Phone == "pick" {
 			accepts = append(accepts, "phone")
+		}
+		if ctl.Chat != nil && ctl.Chat.State == "offer" {
+			accepts = append(accepts, "chat")
 		}
 		action, err := p.wait(accepts...)
 		if err != nil {
@@ -92,6 +138,16 @@ func (f *setupFlow) pageControl() int {
 				ctl.Phone, ctl.PhoneName, ctl.PhoneProblem = "waiting", ctl.Phones[i].Name, nil
 				show()
 				f.pageLinkPhone(&ctl, action.Value)
+				if ctl.Phone == "linked" {
+					f.pageChatPhone(ctl.Chat, &chat)
+				}
+			}
+		case "chat":
+			if action.Value == "on" {
+				f.pageChatOn(ctl.Chat, &chat, show)
+				if f.pageQuit {
+					return 0 // Ctrl+C while it ran: setup is done, without the extras
+				}
 			}
 		case "finish":
 			rule, link, ok := pageFinishChoices(action.Value)
@@ -230,17 +286,15 @@ func pagePhoneProblem(result phoneLinkResult, phone string) *setupPageMsg {
 }
 
 // pageLinkOffered: Home Assistant Link can be added now, as the terminal's
-// offer would, and its remote access is on for this home.
+// offer would (pageControl also needs its remote access on for this home).
 func (f *setupFlow) pageLinkOffered() bool {
 	coordinator := cloudCoordinatorForSetup
 	if f.serviceMode || f.cfg.Cloud != nil || coordinator == nil || !coordinator.Available() ||
 		cloudRecoveryHoldProblem(f.cfg) != nil || !cloudSetupPromptEligible(f.page.text.out) {
 		return false
 	}
-	if ready, err := reusableLocalDeviceForCloudSetup(f.cfg); err != nil || !ready {
-		return false
-	}
-	return setupPageLinkActive(f.cfg)
+	ready, err := reusableLocalDeviceForCloudSetup(f.cfg)
+	return err == nil && ready
 }
 
 // pageAddLink runs the terminal's Link offer, answered yes on the page,

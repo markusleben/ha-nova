@@ -26,6 +26,8 @@ const (
 	CloudEndpointCore           CloudIngressEndpoint = "core"
 	CloudEndpointFiles          CloudIngressEndpoint = "files"
 	CloudEndpointBackups        CloudIngressEndpoint = "backups"
+	CloudEndpointChatApps       CloudIngressEndpoint = "chat_apps"
+	CloudEndpointChatAppsSet    CloudIngressEndpoint = "chat_apps_set"
 )
 
 const (
@@ -38,6 +40,7 @@ const (
 	CloudPathPairArmLink    = "/pair/v2/arm/link"
 	CloudPathPairStart      = "/pair/v2/start"
 	CloudPathPairFinish     = "/pair/v2/finish"
+	CloudPathChatApps       = "/chat-apps/v1/state" // the owner's chat-app switch (chat_apps.go)
 )
 
 const (
@@ -68,6 +71,8 @@ var cloudIngressEndpointContracts = map[CloudIngressEndpoint]cloudIngressEndpoin
 	CloudEndpointCore:           {method: http.MethodPost, path: "/core", deviceBearer: true},
 	CloudEndpointFiles:          {method: http.MethodPost, path: "/files", deviceBearer: true},
 	CloudEndpointBackups:        {method: http.MethodPost, path: "/backups", deviceBearer: true},
+	CloudEndpointChatApps:       {method: http.MethodGet, path: CloudPathChatApps},
+	CloudEndpointChatAppsSet:    {method: http.MethodPost, path: CloudPathChatApps},
 }
 
 type CloudIngressClient struct {

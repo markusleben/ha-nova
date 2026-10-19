@@ -68,15 +68,30 @@ Supervisor stores read `nova/config.yaml` from `main`, so these land only with t
 - `nova/Dockerfile`: `ARG HA_NOVA_CHAT_APPS=1` (the B3 integration is already copied to `/app/integration/ha_nova`).
 - The bump comes with or after the final `skill_version`: `app-image.yml` stages the bridge (CLI + skills) from that same tree (`scripts/release/stage-app-bridge.sh`).
 - Gates before the bump: R9 (below) answered by the maintainer's claude.ai test, and the real-Supervisor discovery lane (spec §12) green.
-- Docs: `nova/DOCS.md` and `nova/CHANGELOG.md` (chat apps, turn them off before removing the App), `docs/reference/safety.md` (the token-scope limit, spec §15 R4), `docs/releasing.md` lanes (on, off, App update, rollback, registry reset).
+- Docs: `nova/DOCS.md` and `nova/CHANGELOG.md` (chat apps, turn them off before removing the App; link `docs/reference/chat-apps.md`), `docs/reference/safety.md` (the token-scope limit, spec §15 R4), `docs/releasing.md` lanes (on, off, App update, rollback, registry reset); drop the "Status" line of `docs/reference/chat-apps.md`.
+- CLI (B4): add `ha-nova chat-apps [on|off|status]` to `printUsage` and drop it from the "unadvertised" check in `cli/help_test.go`.
+- README (release prep, maintainer's call): the B4 PR body lists the proposed sentences.
 
 ### Known limits (B2)
 
 - Removing the App, or going back to an App without chat apps, while they are on leaves the discovery message (until Supervisor drops it) and the folder; an App version with the code but without the bridge offers only [Turn off].
 - A request already running when chat apps turn off may finish within serve's 5 s shutdown, but its Relay credential is revoked at once.
-- The page names the connector path, not the full Link address, and shows "On" before Home Assistant has restarted; both are B4.
+- The NOVA page names the connector path, not the full Link address, and shows "On" before Home Assistant has restarted (setup's step 3 and the CLI show the full address and wait for the restart, B4).
 - A discovery message Supervisor accepted while its answer was lost (timeout) has no stored uuid, so turning off can't delete it; it names a stopped bridge and a deleted secret. A discovery re-post that fails at start-up is retried only at the next App start.
 - A device that paired with the install id `nova-app-chat-bridge` before pairing refused it would be treated as the bridge (the CLI never sends that id).
+
+## Setup and CLI (B4)
+
+Code: `cli/chat_apps.go`, `cli/command_chat_apps.go`, the step 3 row in `cli/setup_page_control.go` and `cli/setupweb/steps.js`. User doc: `docs/reference/chat-apps.md`.
+
+- **Owner session:** the ingress session of this run's owner sign-in (memory only, `setupOwnerIngress`), the same one that armed the pairing; cleared when a pairing attempt starts, so only a sign-in pairing in that attempt sets it. The row also needs a pairing in this run (as the phone row). It calls `GET`/`POST /chat-apps/v1/state` (`CloudEndpointChatApps*`), never with a device credential. A six-digit-code pairing has no owner session: no row, no question (the NOVA page or `ha-nova chat-apps on` instead).
+- **When the row shows (feature detection, no version floor):** the `GET` answers `available: true` (a dormant App answers 404: nothing shows), Home Assistant is 2026.10 or newer (`/api/config` through this computer's Relay), and Link remote access answers (its address is the connector's origin). Already on: the row shows the address.
+- **Consent:** the switch only opens the consent ("… Home Assistant restarts once (about a minute)."); "Turn on and restart Home Assistant" posts the page action `chat` with value `on` (A6 action rules), and only that sends `enabled: true, allow_restart: true`. The text path asks the same in one arrow menu, default "Not now"; without the menu only a typed `yes` consents. `ha-nova chat-apps on` checks Home Assistant and Link, signs the owner in, then asks (the consent names the phone that will confirm, or says a code shows in the chat). Finish is disabled while the page's consent is open.
+- **Owner phone:** a phone linked on this computer by the owner's own tap goes to the App as `owner_phone` in its own request after the turn-on (also when step 3 links it after chat apps are on), unless the App has one already (spec §11.4).
+- **Ready:** step 3 waits until the `ha_nova` config entry is `loaded` (`config_entries/get` through the Relay), showing the restart (Home Assistant stops answering, then answers again); 5 min at most, then one line (restart Home Assistant yourself) and the address anyway. Step 4's notes repeat the address.
+- **Failures:** a lost answer (network, timeout, 5xx) is re-read with `GET`: when the App says on, the wait continues. One plain line per App refusal (`HA_TOO_OLD`, `HA_CONFIG_INVALID`, `CONFIG_*`, other), the switch stays and [Turn on] runs the whole action again; an expired ingress session (Supervisor ends it 15 min after its last use) points to the NOVA page.
+- **Off:** the NOVA page, or `ha-nova chat-apps off` (owner sign-in, `enabled: false`). Step 3 offers no off.
+- **`ha-nova chat-apps status`:** no sign-in; "on" means the `ha_nova` entry is loaded.
 
 ## Integration (B3)
 

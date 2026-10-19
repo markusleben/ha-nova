@@ -240,6 +240,10 @@ func (f *setupFlow) finish() setupStepResult {
 	if interactive && slices.Contains(f.selectedClients, "claude") {
 		ruleNote = offerClaudeRules(f.ui.termIn(), f.ui.termOut(), f.paths)
 	}
+	chatURL, chatNote := "", ""
+	if interactive && f.pairedThisRun && !f.cloudSetupPaused && setupOwnerIngress != nil {
+		chatURL, chatNote = f.offerChatApps()
+	}
 	// The read-only first look after a pairing in this run
 	// (docs/work/2026-10-16-ha-sign-in-pairing-spec.md, "First look").
 	var look *setupFirstLook
@@ -254,5 +258,34 @@ func (f *setupFlow) finish() setupStepResult {
 	if ruleNote != "" {
 		f.ui.note(ruleNote)
 	}
+	if chatNote != "" { // after the outcome, which clears the screen
+		f.ui.note(chatNote)
+	}
+	if chatURL != "" {
+		printChatAppsHowTo(f.ui.termOut(), chatURL)
+	}
 	return setupDone(0)
+}
+
+// offerChatApps is step 3's chat-app row in the terminal: one question, only
+// when the row would show, default "Not now". Returns the connector address
+// once they are on, and a line about how it went; both print after the
+// outcome, which clears the screen.
+func (f *setupFlow) offerChatApps() (url, note string) {
+	offer, ok := readChatAppsOffer(setupOwnerIngress, f.paths, func() string { return setupLinkRemoteOrigin(f.cfg) })
+	switch {
+	case !ok:
+		return "", ""
+	case offer.state.Enabled && !offer.loaded: // on, but a restart never came
+		return offer.url, setupT("setup.chat.problem_slow")
+	case offer.state.Enabled:
+		return offer.url, ""
+	case !askChatAppsConsent(f.ui.termIn(), f.ui.termOut(), true, chatAppsPhoneName(f.paths, setupSignedInUser, offer.state)):
+		return "", setupT("setup.chat.skipped")
+	}
+	note, on := turnOnChatAppsInTerminal(f.ui.termOut(), f.paths, setupOwnerIngress, offer, setupSignedInUser)
+	if !on {
+		return "", note
+	}
+	return offer.url, note
 }
