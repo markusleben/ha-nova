@@ -112,7 +112,7 @@ release:
     - **Two profiles for one Home Assistant stay connected.** A second HA NOVA profile for the same Home Assistant no longer disconnects the first. Already disconnected? Pair it again; the other may need one more pairing.
     - **A clear next step when secure storage is out of reach.** Over SSH or as admin on Windows and macOS, setup, `pair`, `doctor`, and `uninstall --purge` point to a desktop terminal; local installs don't blame Link.
     - **Lock, cover, and alarm automations fire.** A trigger “from locked to unlocked” can miss the “unlocking” step in between and never run. HA NOVA now includes that step and flags such triggers.
-    - **Plain answers, and previews wait for you.** Answers use plain words and your Home Assistant names as written. After a preview, HA NOVA tells the AI to stop and save only after your reply.
+    - **Plain answers, and the AI waits after a preview.** Answers use plain words and your Home Assistant names as written. After a preview, HA NOVA tells the AI to stop and apply it only after your reply.
     - **Nothing to confirm when it's already done.** When Home Assistant already shows a door unlocked or a garage open, HA NOVA usually just says so instead of asking for a confirmation; nothing is sent.
 
     Stable install commands are release-pinned for this tag.
