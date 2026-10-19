@@ -274,30 +274,22 @@ Known limits:
 
 **7.3 Clients.** All detected clients are configured and named on step 1. No client → download links and [Check again]. Claude Desktop-only users are accepted.
 
-**7.4 Window and phone in parallel (decided).** With a window available and a phone linked, a typed plan asks on both at once.
-1. **One plan, one claim.** Both prompts show the same summary, bound to the plan hash and nonce. The first answer, Confirm *or* Cancel, takes the plan's existing atomic claim (`cli/plan_store.go`). A Cancel that arrives first declines.
-2. **Withdraw the loser.**
-   - The window closes programmatically.
-   - The phone notification is cleared by its tag (`clear_notification`), which also clears the Watch.
-   - A late answer is a no-op: a late tap gets "Already answered on the computer", and the window is already gone.
-3. **One deadline** for both (today's phone budget, about 90 s). On expiry both are withdrawn and the plan is declined; nothing is sent.
+**7.4 Window and phone in parallel (decided; built in A7, `cli/confirm_both.go`).** With a window available and a phone linked and reachable, a typed window plan asks on both at once.
+1. **One plan, first answer wins.** Both show the same plan. The first decisive answer (Confirm *or* Cancel; on the phone also a tap from another user, which stops it) wins inside the apply process; apply then takes the plan's atomic claim as always (`cli/verb_apply.go`), so one plan applies at most once.
+2. **Withdraw the other at once.**
+   - The window closes: macOS kills `osascript` and Linux kills `zenity` (each owns its dialog); Windows posts `WM_QUIT` to the box's thread, which ends a message box's modal loop.
+   - The phone stops listening (its action ids die with the ask), and the result replaces its notification by the same tag, without buttons (also on the Watch).
+   - A late answer changes nothing: no one reads it. A window that can't be closed (a failed `WM_QUIT` post) stays until its own timeout; its text says "The first answer counts; a later one changes nothing."
+3. **One deadline** for both: the window's wait (90 s in the CLI, 40 s in `ha-nova mcp`). On expiry both are withdrawn and nothing is sent; the plan stays for a new try.
 4. **Reachability.**
    - Notify fails → the window alone continues.
-   - No window → the phone alone, as today.
-   - Neither → refused, as today.
-   - Never the chat code once a phone is linked on the computer path. The bridge policy is in §11.4.
-5. **Result notification** (replaces the same tag whenever the phone was asked):
-   - "Front Door unlocked ✓ (confirmed on the computer)" or "… (confirmed on this phone)";
-   - "Not confirmed. Nothing happened.";
-   - "Couldn't finish: Front Door is still locked."
-
-   JSON records `channel: window|phone`.
-6. **Tests:**
-   - both confirm at the same instant: exactly one apply;
-   - Confirm on one channel and Cancel on the other: the claim order decides, and the notification says which;
-   - notify failure;
-   - the OS closes the window;
-   - expiry during the claim.
+   - Linked phone unreachable at apply → the window alone, and the terminal says why the phone stays quiet.
+   - Window can't open → the phone alone decides, in the same apply.
+   - Neither → refused (`CONFIRM_UNAVAILABLE`), never a chat code.
+   - No window (or windows off) → the phone alone, as before; no phone → the window alone. `ha-nova serve` never shows a window (§11.4).
+5. **Result notification** (whenever the phone was asked): "Done: Unlock “Front Door”" with "Approved on the computer." or "Approved on this phone." before the result line; "Cancelled on the computer. Nothing changed."; on expiry "Not confirmed … Nothing changed." Apply's JSON reports where it was confirmed as `plan.channel` (`window` or `phone`), and the terminal says it too.
+6. **Settings changes never race.** `confirm-window off` is confirmed in the window alone; `confirm-phone` link, move, and off keep their own rules (`allowPhoneChange`): the linked phone alone while it can answer, else the window. A race would let the weaker channel approve the change that removes the stronger one (on Windows and X11 a same-user process can click the window), so those stay single-channel.
+7. **Tests** (`cli/confirm_both_test.go`): each side first with the other answering late (Confirm/Cancel both ways, and a window that can't be closed), simultaneous answers (at most one apply, outcome matches the winner), window can't open, the OS closes the window, notify failure, both out, phone unreachable, expiry.
 
 **7.5 Step 4 insights and the tailored automation** (decided: the prototype's insights plus the made-for-your-home automation).
 - **Built by the CLI, deterministic, no AI:**

@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"os"
+	"runtime"
 	"syscall"
 	"time"
 	"unsafe"
@@ -20,6 +21,7 @@ var (
 	getUserObjectInfo    = user32.NewProc("GetUserObjectInformationW")
 	processIDToSessionID = kernel32.NewProc("ProcessIdToSessionId")
 	getCurrentThreadID   = kernel32.NewProc("GetCurrentThreadId")
+	postThreadMessage    = user32.NewProc("PostThreadMessageW")
 )
 
 // nativeWindowAvailable: an interactive session (not session 0, where SSH
@@ -49,13 +51,24 @@ func nativeWindow(ctx context.Context, message string, wait time.Duration) windo
 	}
 	// OK/Cancel, warning icon, Cancel the default, in front of other windows.
 	const style = 0x1 | 0x30 | 0x100 | 0x10000 | 0x40000
-	done := make(chan uintptr, 1)
+	done, thread := make(chan uintptr, 1), make(chan uintptr, 1)
 	go func() {
+		// Never unlocked: the thread ends with this goroutine, and with it a
+		// WM_QUIT the box's modal loop re-posts after withdrawing.
+		runtime.LockOSThread()
+		id, _, _ := getCurrentThreadID.Call()
+		thread <- id
 		r, _, _ := messageBoxTimeout.Call(0, uintptr(unsafe.Pointer(text)), uintptr(unsafe.Pointer(title)), style, 0, uintptr(wait.Milliseconds()))
 		done <- r
 	}()
 	select {
 	case <-ctx.Done():
+		// Withdraw it: WM_QUIT ends a message box's modal loop (sent before
+		// the box exists, it ends it at once). Its answer is never read; if
+		// the post fails, the box stays until its own timeout, and its text
+		// says a later answer changes nothing.
+		const wmQuit = 0x12
+		_, _, _ = postThreadMessage.Call(<-thread, wmQuit, 0, 0)
 		return windowNoAnswer
 	case r := <-done:
 		switch r {

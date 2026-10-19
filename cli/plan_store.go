@@ -38,7 +38,7 @@ type verbPlan struct {
 	ExpiresAt string `json:"expires_at"`
 	Confirm   string `json:"confirm"`
 	Code      string `json:"code,omitempty"`
-	Channel   string `json:"channel,omitempty"` // typed plans: where the human confirms (chat, form, window)
+	Channel   string `json:"channel,omitempty"` // typed plans: where the human confirms (chat, form, window, phone); after apply: where they did (window, phone)
 }
 
 type planDelta struct {

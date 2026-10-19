@@ -82,10 +82,13 @@ func humanChannel(channel string) bool { return channel == channelWindow || chan
 // for the verb it runs; empty means the CLI detects it (detectChannel).
 // humanAnswer is the code the CLI derives in process once the human
 // confirmed in a form or window, for the apply it runs. Neither has a flag
-// or an environment variable.
+// or an environment variable. humanWhere: the channel that answered (window
+// or phone; both ask for a window plan when a phone is linked), which apply
+// reports as plan.channel.
 var (
 	planChannel string
 	humanAnswer string
+	humanWhere  string
 )
 
 // sayChatNote closes a chat plan's ask: the honest limit of fallback E.
@@ -119,7 +122,11 @@ func sayTypedAsk(code, goal string) string {
 }
 
 // sayWindowAsk closes a window plan's `say`: the code is never shown.
-const sayWindowAsk = "A confirmation window opens on this computer — confirm there."
+// sayWindowPhoneAsk: a phone is linked here, so it asks too (confirm_both.go).
+const (
+	sayWindowAsk      = "A confirmation window opens on this computer — confirm there."
+	sayWindowPhoneAsk = "A confirmation window opens on this computer and your linked phone gets a notification — answer on either; the first answer counts."
+)
 
 // sayPhoneAsk closes a phone plan's `say`: the code is never shown.
 func sayPhoneAsk(button string) string {

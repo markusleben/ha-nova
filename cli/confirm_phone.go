@@ -110,8 +110,9 @@ func phoneNonce(kind string) (string, error) {
 // askPhone sends the notification to the setup's phone (the linked one, or
 // the one being linked) and waits for a decisive answer. The caller closes
 // it with reply.say (the result replaces it); every caller defers one. The
-// ids are never printed, logged, or stored.
-func askPhone(s *relaySession, setup phoneSetup, tag string, ask phoneAsk, wait time.Duration, notice io.Writer) (answer phoneAnswer, reply phoneReply) {
+// ids are never printed, logged, or stored, and die with ctx: a cancelled
+// parent stops listening, so a later tap counts nowhere.
+func askPhone(parent context.Context, s *relaySession, setup phoneSetup, tag string, ask phoneAsk, wait time.Duration, notice io.Writer) (answer phoneAnswer, reply phoneReply) {
 	ok, errOK := phoneNonce("OK")
 	no, errNo := phoneNonce("NO")
 	attempt, errTag := phoneNonce("T")
@@ -125,7 +126,7 @@ func askPhone(s *relaySession, setup phoneSetup, tag string, ask phoneAsk, wait 
 	// A fresh tag per attempt: a late result of an earlier attempt can't replace this one.
 	tag += "-" + attempt[len(attempt)-8:]
 	collect, notify := phoneCollect, phoneNotify // the lanes may outlive this call
-	ctx, cancel := context.WithTimeout(context.Background(), wait)
+	ctx, cancel := context.WithTimeout(parent, wait)
 	defer cancel()
 	events, failed := make(chan phoneEvent, 16), make(chan error, 4)
 	lane := func(delay time.Duration) {
@@ -316,6 +317,7 @@ type phoneAsking struct {
 	deadline time.Time
 	answer   phoneAnswer
 	reply    phoneReply
+	note     string // before the result line where the window asked too: "Approved on this phone. "
 }
 
 // startPhoneAsk checks a phone plan before its ask. nil: nothing to ask
@@ -344,7 +346,7 @@ func startPhoneAsk(paths runtimePaths, opts verbOptions, id string, noSnapshot b
 // wait sends the notification and waits for the answer; notice hears the
 // "sent to" line (nil: nobody).
 func (a *phoneAsking) wait(notice io.Writer) {
-	a.answer, a.reply = askPhone(a.s, a.setup, "ha-nova-"+a.plan.ID, a.ask, time.Until(a.deadline), notice)
+	a.answer, a.reply = askPhone(context.Background(), a.s, a.setup, "ha-nova-"+a.plan.ID, a.ask, time.Until(a.deadline), notice)
 }
 
 // refuse: the tap came, but the bridge's policy changed meanwhile; the
@@ -377,10 +379,10 @@ func (a *phoneAsking) finish() (env verbEnvelope, exit int, asked bool) {
 		case !still:
 			return windowStopped(s, "refused", "CONFIRM_UNAVAILABLE", "the phone that confirmed is no longer the linked phone, or its user is no longer an administrator", phoneMissingStep())
 		}
-		humanAnswer = confirmCode(s.transport.Credential, a.idHex, channelPhone, a.plan.ExpiresAt)
+		humanAnswer, humanWhere = confirmCode(s.transport.Credential, a.idHex, a.plan.Channel, a.plan.ExpiresAt), channelPhone
 		handed, phoneApplied = true, func(env verbEnvelope, exit int) {
 			prefix, line := phoneApplyResult(env, exit)
-			reply.say(phoneResultTitle(prefix, a.goal), line)
+			reply.say(phoneResultTitle(prefix, a.goal), a.note+line)
 			s.close()
 		}
 		return env, 0, false

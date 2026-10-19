@@ -118,7 +118,7 @@ func finishApply(paths runtimePaths, req applyRequest, env verbEnvelope, exit in
 	if !asked {
 		env, exit = applyPlan(paths, req.opts, req.id, req.code, req.noSnapshot)
 	}
-	defer func() { humanAnswer = "" }()
+	defer func() { humanAnswer, humanWhere = "", "" }()
 	if !printVerbEnvelope(env) {
 		return verbExitError
 	}
@@ -310,7 +310,7 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string, noSnapshot
 	if humanChannel(plan.Channel) {
 		wantCode = "" // never shown, not even once used
 	}
-	env.Plan = &verbPlan{ID: plan.ID, Hash: fresh.Hash, ExpiresAt: plan.ExpiresAt, Confirm: fresh.Confirm, Code: wantCode}
+	env.Plan = &verbPlan{ID: plan.ID, Hash: fresh.Hash, ExpiresAt: plan.ExpiresAt, Confirm: fresh.Confirm, Code: wantCode, Channel: humanWhere}
 	if isConfig {
 		err := executeConfig(paths, s, &env, *fresh.ConfigAction, ctx, noSnapshot)
 		if errors.Is(err, errSnapshotFailed) {
