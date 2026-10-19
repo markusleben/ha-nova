@@ -274,9 +274,9 @@ Known limits:
 
 **7.2 Link owner pairing without a code.**
 - When the Link OAuth user `is_owner` (HA's `auth/current_user` over Link), the CLI arms through the Link ingress session and pairs without a code.
-- **Relay (built, A4):** `POST /pair/v2/arm/link` runs the same owner check as `/pair/v2/arm` (fresh `config/auth/list`, never client-claimed), needs Cloud remote instead of the secure port, and arms a 256-bit, two-minute, single-use slot for that ingress user only. Its finish yields the same user-bound Cloud device as the owner code (no pin), activated over ingress by that user only. The owner's "Cancel" on the NOVA page withdraws it; the device is revoked like any other. Arm and pairing each log one line (`via`, `user_id`, `device_id`; never the secret).
+- **Relay (built, A4):** `POST /pair/v2/arm/link` runs the same owner check as `/pair/v2/arm` (fresh `config/auth/list`, never client-claimed), needs Cloud remote instead of the secure port, and arms a 256-bit, two-minute, single-use slot for that ingress user only. Its finish yields the same user-bound Cloud device as the owner code (no pin), activated over ingress by that user only. The owner's "Cancel" on the NOVA page withdraws it; the device is revoked like any other. A finished sign-in pairing logs one line (`via`, `user_id`, `device_id`; never the secret).
 - **Feature detection, no version floor:** an own path instead of a body flag, because older Apps ignore the body and would arm a local slot. An older App answers 404 and the CLI asks for the owner code as before; `min_relay_version` stays. Needs the App release that ships this route.
-- Fallback to the owner code on any definitive refusal before a device exists (404, `OWNER_REQUIRED`, `PAIRING_UNAVAILABLE`, slot replaced or rejected); ambiguous failures stop instead.
+- Fallback to the owner code on any failure before the finish request (404, `OWNER_REQUIRED`, `PAIRING_UNAVAILABLE`, owner check unavailable, rate limit, network) and on the Relay's own finish refusal; an unknown finish outcome, a different Relay, or a user stop ends setup instead.
 - Non-owners keep the owner code.
 - Built on the #733 per-profile `client_install_id`.
 

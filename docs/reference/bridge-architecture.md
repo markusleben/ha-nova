@@ -311,7 +311,8 @@ its slot pairs the same user-bound Cloud device as the owner code (activated
 over ingress by that user only). When the Link sign-in user is the owner, the
 CLI pairs through it without a code; an App without the route answers 404 and
 the CLI asks for the owner code (`docs/work/2026-10-18-onboarding-0.27-spec.md`
-§7.2). Arming and pairing each log one audit line without the secret.
+§7.2). A sign-in pairing logs one audit line (`via`, `user_id`,
+`device_id`) without the secret.
 
 **Upstream (Relay -> HA):**
 The Home Assistant App prefers its process-local `SUPERVISOR_TOKEN` and sends it

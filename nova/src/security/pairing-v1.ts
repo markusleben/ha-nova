@@ -315,9 +315,8 @@ export function createPairingV1Manager(deps: PairingV1Deps): PairingV1Manager {
       return { ok: false, reason: "invalid" };
     }
 
-    // A local sign-in pairing creates an unbound local device that activates
-    // over pinned TLS, exactly like a typed code; a Link one, the owner code's
-    // user-bound Cloud device (its handshake is cloud-only, see startCloud).
+    // Local sign-in: an unbound local device for pinned TLS, like a typed code;
+    // Link sign-in: the owner code's user-bound Cloud device (cloud-only start).
     const local = armedLocal(active);
     if (mode === "cloud" && !local && deps.cloudPairing !== true) {
       return { ok: false, reason: "invalid" };
@@ -391,12 +390,8 @@ export function createPairingV1Manager(deps: PairingV1Deps): PairingV1Manager {
     phase = "consumed";
     consumedAtMs = t;
     if (armedFor !== undefined) {
-      // Audit: who paired which device through sign-in; never the secret.
-      deps.logger?.info?.("Device paired through Home Assistant sign-in", {
-        via,
-        device_id: cred.deviceId,
-        user_id: armedFor,
-      });
+      const audit = { via, device_id: cred.deviceId, user_id: armedFor };
+      deps.logger?.info?.("Device paired through Home Assistant sign-in", audit);
     }
     return { ok: true, responseB64: ciphertextB64 };
   }

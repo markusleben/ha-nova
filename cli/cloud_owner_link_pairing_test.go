@@ -135,9 +135,9 @@ func TestLinkNonOwnerKeepsTheOwnerCode(t *testing.T) {
 
 func TestLinkOwnerFallsBackToTheCodeOnDefinitiveRefusals(t *testing.T) {
 	for name, refusal := range map[string]error{
-		"older App without the route": errSignInRelayUnsupported,
-		"Relay says not the owner":    errSignInNotOwner,
-		"pairing unavailable":         errSignInRelayNotReady,
+		"older App without the route": &pairingBeforeFinishError{err: errSignInRelayUnsupported},
+		"Relay says not the owner":    &pairingBeforeFinishError{err: errSignInNotOwner},
+		"pairing unavailable":         &pairingBeforeFinishError{err: errSignInRelayNotReady},
 		"slot replaced by a code":     newCloudError(CloudErrPairingInactive, "perform Cloud pairing", nil),
 		"secret rejected":             newCloudError(CloudErrPairingRejected, "perform Cloud pairing", nil),
 	} {
@@ -171,11 +171,35 @@ func TestLinkOwnerFallsBackToTheCodeOnDefinitiveRefusals(t *testing.T) {
 	}
 }
 
+func TestLinkOwnerFallsBackOnAnyFailureBeforeFinish(t *testing.T) {
+	for name, failure := range map[string]error{
+		"owner check unavailable": newCloudHTTPError(CloudErrHAProtocol, "arm sign-in pairing", http.StatusServiceUnavailable, true),
+		"start rate-limited":      newCloudError(CloudErrPairingRateLimited, "perform Cloud pairing", nil),
+		"network before finish":   newCloudError(CloudErrNetwork, "perform Cloud pairing", nil),
+	} {
+		t.Run(name, func(t *testing.T) {
+			installOwnerPairingStorageHooks(t)
+			installOwnerPairingRelayHook(t, func(string) (*cloudProvisionedCredential, error) {
+				return ownerPairingTestCredential(), nil
+			})
+			installLinkOwnerPairingHook(t, func(deviceMetadata) (*cloudProvisionedCredential, error) {
+				return nil, &pairingBeforeFinishError{err: failure}
+			})
+			prompts := 0
+			if _, err := provisionLinkOwnerForTest(t, linkOwnerTestSession(), &prompts); err != nil || prompts != 1 {
+				t.Fatalf("prompts=%d err=%v", prompts, err)
+			}
+		})
+	}
+}
+
 func TestLinkOwnerStopsOnAmbiguousOrIdentityFailures(t *testing.T) {
 	for name, failure := range map[string]error{
-		"outcome unknown": newCloudError(CloudErrOutcomeUnknown, "finish Cloud pairing", nil),
-		"network":         newCloudError(CloudErrNetwork, "perform Cloud pairing", nil),
-		"other Relay":     newCloudError(CloudErrRelayInstance, "verify Link pairing instance", nil),
+		"outcome unknown":     newCloudError(CloudErrOutcomeUnknown, "finish Cloud pairing", nil),
+		"network at finish":   newCloudError(CloudErrNetwork, "perform Cloud pairing", nil),
+		"proxy 4xx at finish": newCloudHTTPError(CloudErrHAProtocol, "perform Cloud pairing", http.StatusBadRequest, false),
+		"other Relay":         &pairingBeforeFinishError{err: newCloudError(CloudErrRelayInstance, "verify Cloud pairing instance", nil)},
+		"stopped by the user": &pairingBeforeFinishError{err: context.Canceled},
 	} {
 		t.Run(name, func(t *testing.T) {
 			installOwnerPairingStorageHooks(t)
@@ -187,7 +211,8 @@ func TestLinkOwnerStopsOnAmbiguousOrIdentityFailures(t *testing.T) {
 				return nil, failure
 			})
 			prompts := 0
-			if _, err := provisionLinkOwnerForTest(t, linkOwnerTestSession(), &prompts); !errors.Is(err, failure) {
+			_, err := provisionLinkOwnerForTest(t, linkOwnerTestSession(), &prompts)
+			if err == nil || err.Error() != failure.Error() {
 				t.Fatalf("err = %v", err)
 			}
 			if prompts != 0 {
@@ -216,6 +241,12 @@ func TestPairDeviceV2LinkOwnerDetectsOlderAppAndOtherRelay(t *testing.T) {
 		linkClient(http.StatusNotFound, `{"ok":false,"error":{"code":"NOT_FOUND"}}`), meta, "relay-1")
 	if !errors.Is(err, errSignInRelayUnsupported) || !linkOwnerPairingNeedsCode(err) {
 		t.Fatalf("older App: %v", err)
+	}
+
+	_, err = pairDeviceV2LinkOwner(context.Background(),
+		linkClient(http.StatusServiceUnavailable, `{"ok":false,"error":{"code":"OWNER_CHECK_UNAVAILABLE"}}`), meta, "relay-1")
+	if err == nil || !linkOwnerPairingNeedsCode(err) {
+		t.Fatalf("owner check unavailable: %v", err)
 	}
 
 	secret := strings.Repeat("s", 43)
@@ -261,5 +292,35 @@ func TestCloudPairingRefusalNeedsTheRelaysOwnAnswer(t *testing.T) {
 		if IsCloudErrorCode(err, CloudErrPairingInactive) != reached || linkOwnerPairingNeedsCode(err) != reached {
 			t.Fatalf("reached=%v err=%v", reached, err)
 		}
+	}
+}
+
+// Through the device step setup runs after OAuth: an owner session pairs,
+// activates over ingress, and never sees a code prompt.
+func TestLinkOwnerDeviceStepActivatesWithoutPrompt(t *testing.T) {
+	t.Setenv("HA_NOVA_TEST_SECRET_DIR", t.TempDir())
+	resetServerProfileSelection(t)
+	installOwnerPairingStorageHooks(t)
+	credential := validCredential(161)
+	deviceID := deviceIDOf(credential)
+	installLinkOwnerPairingHook(t, func(deviceMetadata) (*cloudProvisionedCredential, error) {
+		return &cloudProvisionedCredential{Credential: credential, DeviceID: deviceID, RelayInstanceID: "relay-recovery"}, nil
+	})
+	ingress := newProtocolTestCloudIngressClient(t, roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		if !strings.HasSuffix(request.URL.Path, CloudPathDeviceActivate) {
+			t.Fatalf("unexpected Cloud path %q", request.URL.Path)
+		}
+		return cloudSetupRemoteTestResponse(http.StatusOK,
+			`{"ok":true,"data":{"device_id":"`+deviceID+`","activated":true,"bound":true,"changed":true}}`), nil
+	}))
+	session := linkOwnerTestSession()
+	session.Ingress = ingress
+	request := cloudSetupRemoteTestRequest(t, func(cloudRemotePairingPrompt) (string, error) {
+		t.Fatal("the owner was asked for a code")
+		return "", nil
+	})
+	got, err := establishRemoteCloudDevice(context.Background(), session, request, "relay-recovery")
+	if err != nil || got != credential {
+		t.Fatalf("credential=%q err=%v", got, err)
 	}
 }

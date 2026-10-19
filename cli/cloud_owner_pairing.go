@@ -97,14 +97,17 @@ func provisionRemoteCloudDeviceWithOwnerCode(
 	}
 }
 
-// linkOwnerPairingNeedsCode: the Relay definitively refused the no-code path
-// before any device existed, so the owner code is the safe way on. An older
-// App (no /pair/v2/arm/link), a Relay-side owner refusal, an unavailable slot,
-// or a slot the NOVA page replaced meanwhile. Ambiguous failures stop instead.
+// linkOwnerPairingNeedsCode: the no-code path failed where no device can exist,
+// so the owner code is the safe way on: any failure before the finish request
+// (older App, owner refusal, busy or unavailable Relay, network), or the
+// Relay's own refusal of the finish. A finish with an unknown outcome, a
+// different Relay, or a stop by the user ends setup instead.
 func linkOwnerPairingNeedsCode(err error) bool {
-	return errors.Is(err, errSignInRelayUnsupported) ||
-		errors.Is(err, errSignInNotOwner) ||
-		errors.Is(err, errSignInRelayNotReady) ||
+	var beforeFinish *pairingBeforeFinishError
+	if errors.Is(err, context.Canceled) || IsCloudErrorCode(err, CloudErrRelayInstance) {
+		return false
+	}
+	return errors.As(err, &beforeFinish) ||
 		IsCloudErrorCode(err, CloudErrPairingInactive) ||
 		IsCloudErrorCode(err, CloudErrPairingRejected)
 }

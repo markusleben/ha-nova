@@ -99,7 +99,7 @@ func pairDeviceV2LinkOwner(
 ) (*cloudProvisionedCredential, error) {
 	armed, err := armSignInPairing(ctx, client, CloudEndpointPairArmLink)
 	if err != nil {
-		return nil, err
+		return nil, &pairingBeforeFinishError{err: err}
 	}
 	if armed.RelayInstanceID != expectedRelayInstanceID {
 		return nil, newCloudError(CloudErrRelayInstance, "verify Link pairing instance", nil)

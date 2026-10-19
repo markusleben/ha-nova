@@ -73,7 +73,14 @@ func pairV2Exchange(
 	password string,
 	metadata deviceMetadata,
 	expectedRelayInstanceID string,
-) ([]byte, error) {
+) (_ []byte, err error) {
+	// Nothing before the finish request can create a device on the Relay.
+	finishing := false
+	defer func() {
+		if err != nil && !finishing {
+			err = &pairingBeforeFinishError{err: err}
+		}
+	}()
 	if client == nil || password == "" ||
 		!validIdentifier(expectedRelayInstanceID, 256) ||
 		!validCloudPairingMetadata(metadata) {
@@ -159,6 +166,7 @@ func pairV2Exchange(
 	var finish struct {
 		Response string `json:"response"`
 	}
+	finishing = true
 	if err := cloudPairingFinishCall(
 		ctx,
 		client,
@@ -181,6 +189,13 @@ func pairV2Exchange(
 	}
 	return plaintext, nil
 }
+
+// pairingBeforeFinishError marks a pair-v2 failure before the finish request:
+// the Relay created no device.
+type pairingBeforeFinishError struct{ err error }
+
+func (e *pairingBeforeFinishError) Error() string { return e.err.Error() }
+func (e *pairingBeforeFinishError) Unwrap() error { return e.err }
 
 func cloudPairingCall(
 	ctx context.Context,

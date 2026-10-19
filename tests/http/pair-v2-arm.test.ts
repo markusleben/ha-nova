@@ -204,6 +204,7 @@ describe("POST /pair/v2/arm/link", () => {
       secureEndpoint: () => null,
       cloudPairing: true,
       now: () => 1_000_000,
+      logger: deps(true).logger,
     });
     const base = await start();
     const armed = await link(base, "owner-1");
@@ -246,7 +247,9 @@ describe("POST /pair/v2/arm/link", () => {
     expect((await activate("admin-1")).status).toBe(401);
     expect((await activate("owner-1")).status).toBe(200);
 
-    expect(logged.join("\n")).toContain('Pairing armed through Home Assistant sign-in {"via":"link","user_id":"owner-1"}');
+    expect(logged.join("\n")).toContain(
+      `Device paired through Home Assistant sign-in {"via":"link","device_id":"${String(provisioned.device_id)}","user_id":"owner-1"}`,
+    );
     expect(logged.join("\n")).not.toContain(data.pairing_secret);
     expect(logged.join("\n")).not.toContain(String(provisioned.credential));
   });
