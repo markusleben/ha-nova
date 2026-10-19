@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/hero-banner.png" alt="HA NOVA — a four-point star, and the line: ask your AI, every change checked" width="100%">
+  <img src="assets/hero-banner.png" alt="HA NOVA — a four-point star, and the line: talk to your home, every change checked" width="100%">
 </p>
 
 <p align="center">
@@ -12,12 +12,12 @@
   <b><a href="https://hanova.app/">hanova.app</a></b> · the 5-minute tour · <b><a href="https://hanova.app/demo/">the demo house</a></b> · look around before you connect your own
 </p>
 
-<h2 align="center">Ask your AI. Every change checked.</h2>
+<h2 align="center">Talk to your home. Every change checked.</h2>
 
 <p align="center">
-  HA NOVA makes your AI a careful Home Assistant expert.<br>
-  It shows you each change first and checks that it worked. Small, clear actions, like turning off a light, run right away.<br>
-  Locks, gates, the alarm, and deletes wait for you: a click on your computer, a tap on your linked phone, or a one-time code.
+  Connect your AI to Home Assistant. Simple things run right away. Other changes show a preview. Locks, alarms, and deletes wait for you to confirm.<br>
+  You confirm with a click in a window on your computer, or a tap on your linked phone.<br>
+  <sub>No screen and no phone? Then you type a one-time code.</sub>
 </p>
 
 <p align="center">
