@@ -1,0 +1,367 @@
+import { spawn as spawnChild, type ChildProcess } from "node:child_process";
+import { randomBytes } from "node:crypto";
+import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+
+import type { SupervisorClient } from "../ha/supervisor-client.js";
+import type { RelayLogger } from "../http/server.js";
+import { digestSecret, generateCredential, parseCredential } from "../security/device-credential.js";
+import type { DeviceRegistry } from "../security/device-registry.js";
+import { readPrivateFileSync, writeFileAtomicSync } from "../storage/atomic-file.js";
+import type { CoreProxyRequest, CoreProxyResponse } from "../types/api.js";
+
+// Chat apps (spec docs/work/2026-10-18-onboarding-0.27-spec.md §11; contract
+// docs/work/2026-10-19-chat-bridge-contract.md, "App side"): the owner's
+// switch, the bridge secret, the internal device credential, the Supervisor
+// discovery message, the integration in /config/custom_components/ha_nova,
+// and the `ha-nova serve` child. Built only when HA_NOVA_CHAT_APPS=1.
+// Everything lives in /data/chat-apps; the bridge's own --data-dir is bridge/.
+
+export const BRIDGE_PORT = 8794;
+const SERVICE = "ha_nova";
+const BRIDGE_INSTALL_ID = "nova-app-chat-bridge"; // re-minting replaces the old record
+const SECRET = /^[0-9a-f]{64}$/;
+
+export class ChatAppsError extends Error {
+  constructor(readonly status: number, readonly code: string, message: string) {
+    super(message);
+  }
+}
+
+export interface PhoneLinkInput {
+  service: string;
+  device_id: string;
+  name: string;
+}
+
+export interface ChatAppsStatus {
+  available: boolean;
+  enabled: boolean;
+  unfinished: boolean; // off, but the discovery message is still published
+  readOnly: boolean;
+  chatCodes: boolean;
+  allowedUsers: string[] | null; // null: the owner only
+  ownerPhone: string | null; // the owner's linked phone's name
+}
+
+export interface ChatApps {
+  status(ownerId: string): ChatAppsStatus;
+  turnOn(allowRestart: boolean): Promise<{ restart: boolean }>;
+  turnOff(): Promise<void>;
+  setSwitches(change: { readOnly?: boolean; chatCodes?: boolean }): void;
+  setOwnerPhone(ownerId: string, link: PhoneLinkInput | null): void;
+  restartSoon(): void;
+  boot(): Promise<void>;
+  restartBridge(): void;
+  bridgeDeviceId(): string | null;
+}
+
+export interface ChatAppsDeps {
+  dataDir: string; // /data
+  configRoot: string; // the mounted HA config, "" when none
+  binary: string; // the ha-nova CLI in the image
+  integrationSource: string; // the integration folder in the image (PR B3)
+  securePort: number;
+  spkiPin: string;
+  registry: DeviceRegistry;
+  supervisor: SupervisorClient;
+  core: { request(input: CoreProxyRequest): Promise<CoreProxyResponse> };
+  now: () => number;
+  logger: RelayLogger;
+  spawn?: typeof spawnChild;
+  respawnMs?: number;
+}
+
+interface State {
+  enabled: boolean;
+  discovery_uuid?: string;
+}
+
+export function createChatApps(deps: ChatAppsDeps): ChatApps {
+  const dir = join(deps.dataDir, "chat-apps");
+  const file = (name: string): string => join(dir, name);
+  const bridgeDir = file("bridge");
+  const spawn = deps.spawn ?? spawnChild;
+  let child: ChildProcess | null = null;
+  let wanted = false;
+  let respawn: NodeJS.Timeout | undefined;
+  // On and off never interleave (the NOVA page and the CLI may both ask).
+  let queue: Promise<unknown> = Promise.resolve();
+  const serial = <T>(task: () => Promise<T>): Promise<T> => {
+    const run = queue.then(task, task);
+    queue = run.catch(() => {});
+    return run;
+  };
+
+  const readJson = <T>(path: string, fallback: T): T => {
+    const raw = readPrivateFileSync(path, 256 * 1024);
+    return raw === null ? fallback : (JSON.parse(raw.toString("utf8")) as T);
+  };
+  const writeJson = (path: string, value: unknown): void => writeFileAtomicSync(path, `${JSON.stringify(value)}\n`);
+  const load = (): State => readJson<State>(file("state.json"), { enabled: false });
+  const save = (state: State): void => writeJson(file("state.json"), state);
+  const settings = (): { allowed_users?: string[]; read_only?: boolean; chat_codes?: boolean } =>
+    readJson(join(bridgeDir, "chat-apps.json"), {});
+  const available = (): boolean =>
+    existsSync(deps.binary) && existsSync(join(deps.integrationSource, "manifest.json"));
+
+  // The 256-bit secret the integration sends: made once, kept across restarts
+  // and updates; only turning chat apps off deletes it.
+  const ensureSecret = (): string => {
+    const current = readPrivateFileSync(file("secret"), 128)?.toString("utf8") ?? "";
+    if (SECRET.test(current)) {
+      return current;
+    }
+    const secret = randomBytes(32).toString("hex");
+    writeFileAtomicSync(file("secret"), secret);
+    return secret;
+  };
+
+  // The internal device credential: an ordinary device record in the Relay's
+  // own registry, minted here instead of by pairing (no code: the Relay and the
+  // bridge share this container), reused while it still resolves.
+  const bridgeDeviceId = (): string | null => {
+    const relay = readJson<{ credential?: string } | null>(file("relay.json"), null);
+    return parseCredential(relay?.credential)?.deviceId ?? null;
+  };
+  const ensureCredential = (): void => {
+    const relay = readJson<{ credential?: string } | null>(file("relay.json"), null);
+    const current = parseCredential(relay?.credential);
+    if (current && deps.registry.resolveDeviceSecret(current.deviceId, digestSecret(current.secret), deps.now())) {
+      return;
+    }
+    const minted = generateCredential();
+    const { deviceId, secretDigest } = minted;
+    const record = { deviceId, secretDigest, clientInstallId: BRIDGE_INSTALL_ID, name: "Chat apps", platform: "NOVA App", client: "ha-nova serve" };
+    deps.registry.createPending({ ...record, createdAtMs: deps.now() }, deps.now());
+    deps.registry.activate(minted.deviceId, deps.now());
+    writeJson(file("relay.json"), { relay_url: `https://127.0.0.1:${deps.securePort}`, spki_pin: deps.spkiPin, credential: minted.credential });
+  };
+
+  const startChild = (): void => {
+    wanted = true;
+    if (child !== null) {
+      return;
+    }
+    clearTimeout(respawn);
+    ensureCredential();
+    mkdirSync(file("home"), { recursive: true, mode: 0o700 });
+    // A minimal environment: the App's Supervisor and Home Assistant tokens
+    // never reach the bridge; it talks to Home Assistant only through the Relay.
+    const proc = spawn(
+      deps.binary,
+      ["serve", "--listen", `0.0.0.0:${BRIDGE_PORT}`, "--data-dir", bridgeDir,
+        "--secret-file", file("secret"), "--relay-file", file("relay.json")],
+      { stdio: ["ignore", "inherit", "inherit"], env: { PATH: process.env.PATH ?? "/usr/bin:/bin", HOME: file("home"), HA_NOVA_NO_BROWSER: "1", ...(process.env.TZ ? { TZ: process.env.TZ } : {}) } },
+    );
+    child = proc;
+    let ended = false;
+    const end = (why: string): void => {
+      if (ended) {
+        return;
+      }
+      ended = true;
+      if (child === proc) {
+        child = null;
+      }
+      if (wanted) {
+        deps.logger.warn("Chat-app bridge stopped; restarting it", { why });
+        respawn = setTimeout(() => {
+          try {
+            startChild();
+          } catch (error) {
+            deps.logger.error("Chat-app bridge could not start", { error: String((error as Error).message) });
+          }
+        }, deps.respawnMs ?? 5_000);
+      }
+    };
+    proc.once("error", (error) => end(error.message));
+    proc.once("exit", (code, signal) => end(`exit ${code ?? signal}`));
+  };
+  const stopChild = (): void => {
+    wanted = false;
+    clearTimeout(respawn);
+    child?.kill("SIGTERM");
+    child = null;
+  };
+
+  // custom_components/ha_nova is the ONLY path written in /config: the parent
+  // must be a real directory (never a symlink), the old folder is removed (a
+  // symlink there is unlinked, never followed), and every file is created
+  // exclusively inside the fresh folder.
+  const customComponents = (create: boolean): string | null => {
+    if (deps.configRoot === "" || !existsSync(join(deps.configRoot, "configuration.yaml"))) {
+      if (!create) {
+        return null;
+      }
+      throw new ChatAppsError(503, "CONFIG_UNAVAILABLE", "Home Assistant's configuration folder is not available to the App.");
+    }
+    const parent = join(deps.configRoot, "custom_components");
+    const st = lstatSync(parent, { throwIfNoEntry: false });
+    if (st === undefined && create) {
+      mkdirSync(parent, { mode: 0o755 });
+    } else if (st === undefined) {
+      return null;
+    } else if (!st.isDirectory()) {
+      throw new ChatAppsError(409, "CONFIG_UNSAFE", "custom_components in Home Assistant's configuration is not a plain folder.");
+    }
+    return parent;
+  };
+  const removeIntegration = (): void => {
+    const parent = customComponents(false);
+    if (parent !== null) {
+      rmSync(join(parent, "ha_nova"), { recursive: true, force: true });
+    }
+  };
+  const copyTree = (from: string, to: string): void => {
+    mkdirSync(to, { mode: 0o755 });
+    for (const entry of readdirSync(from, { withFileTypes: true })) {
+      if (entry.isDirectory()) {
+        copyTree(join(from, entry.name), join(to, entry.name));
+      } else if (entry.isFile()) {
+        writeFileSync(join(to, entry.name), readFileSync(join(from, entry.name)), { mode: 0o644, flag: "wx" });
+      }
+    }
+  };
+
+  const core = async (method: "GET" | "POST", path: string): Promise<unknown> => {
+    const response = await deps.core.request({ method, path, ...(method === "POST" ? { body: {} } : {}) });
+    if (response.status !== 200) {
+      throw new Error(`Home Assistant ${path} answered ${response.status}`);
+    }
+    return response.body;
+  };
+
+  const publish = async (): Promise<void> => {
+    const { hostname } = await deps.supervisor.getSelfInfo();
+    if (hostname === "") {
+      throw new Error("Supervisor reported no App hostname");
+    }
+    const uuid = await deps.supervisor.sendDiscovery(SERVICE, { host: hostname, port: BRIDGE_PORT, secret: ensureSecret() });
+    save({ ...load(), discovery_uuid: uuid });
+  };
+
+  return {
+    status(ownerId) {
+      const state = load();
+      const current = settings();
+      const name = readJson<Record<string, { name?: unknown } | null>>(join(bridgeDir, "phone-links.json"), {})[ownerId]?.name;
+      return {
+        available: available(),
+        enabled: state.enabled,
+        unfinished: !state.enabled && state.discovery_uuid !== undefined,
+        readOnly: current.read_only === true,
+        chatCodes: current.chat_codes !== false,
+        allowedUsers: current.allowed_users ?? null,
+        ownerPhone: typeof name === "string" ? name : null,
+      };
+    },
+
+    // Every step is idempotent: a failure leaves a state that the same action
+    // ([Try again]) completes. The restart itself is restartSoon(), after the
+    // caller answered: Home Assistant serves the ingress connection.
+    turnOn: (allowRestart) => serial(async () => {
+      if (!available()) {
+        throw new ChatAppsError(503, "CHAT_APPS_UNAVAILABLE", "Chat apps are not available in this NOVA App version.");
+      }
+      const components = (await core("GET", "/api/config")) as { components?: unknown };
+      if (!Array.isArray(components?.components)) {
+        throw new Error("Home Assistant /api/config has no component list");
+      }
+      const restart = !components.components.includes(SERVICE);
+      if (restart && !allowRestart) {
+        throw new ChatAppsError(409, "RESTART_CONSENT_REQUIRED", "Home Assistant restarts once (about a minute). Ask the owner first.");
+      }
+      if (restart && ((await core("POST", "/api/config/core/check_config")) as { result?: unknown })?.result !== "valid") {
+        throw new ChatAppsError(409, "HA_CONFIG_INVALID", "Home Assistant's configuration has an error, so it can't restart. Fix it in Home Assistant, then try again.");
+      }
+      ensureSecret();
+      const parent = customComponents(true)!;
+      removeIntegration();
+      copyTree(deps.integrationSource, join(parent, "ha_nova"));
+      save({ ...load(), enabled: true });
+      startChild();
+      await publish();
+      return { restart };
+    }),
+
+    turnOff: () => serial(async () => {
+      stopChild(); // immediate: no chat request is served from here on
+      const state = load();
+      save({ ...state, enabled: false });
+      if (state.discovery_uuid !== undefined) {
+        await deps.supervisor.deleteDiscovery(state.discovery_uuid);
+      }
+      removeIntegration();
+      const deviceId = bridgeDeviceId();
+      if (deviceId !== null) {
+        deps.registry.revoke(deviceId);
+      }
+      rmSync(file("relay.json"), { force: true });
+      rmSync(file("secret"), { force: true });
+      save({ enabled: false });
+    }),
+
+    setSwitches(change) {
+      const next = { ...settings(), ...(change.readOnly !== undefined ? { read_only: change.readOnly } : {}), ...(change.chatCodes !== undefined ? { chat_codes: change.chatCodes } : {}) };
+      writeJson(join(bridgeDir, "chat-apps.json"), next);
+    },
+
+    setOwnerPhone(ownerId, link) {
+      const links = readJson<Record<string, unknown>>(join(bridgeDir, "phone-links.json"), {});
+      if (link === null) {
+        delete links[ownerId];
+      } else {
+        links[ownerId] = { service: link.service, device_id: link.device_id, user_id: ownerId, name: link.name };
+      }
+      writeJson(join(bridgeDir, "phone-links.json"), links);
+    },
+
+    // homeassistant.restart checks the configuration again before it stops.
+    // The call itself is cut when Home Assistant goes down, so only an answer
+    // from Home Assistant that refuses counts as a failure (logged: the owner's
+    // request was answered already).
+    restartSoon() {
+      const refused = (response: CoreProxyResponse): void => {
+        if (response.status >= 400 && response.status <= 500) {
+          deps.logger.error("Home Assistant refused the restart for chat apps", { status: response.status });
+        }
+      };
+      setTimeout(() => {
+        deps.core.request({ method: "POST", path: "/api/services/homeassistant/restart", body: {} })
+          .then(refused, () => deps.logger.info?.("Home Assistant is restarting for chat apps"));
+      }, 1_000);
+    },
+
+    async boot() {
+      if (!load().enabled) {
+        return;
+      }
+      if (!available()) {
+        deps.logger.error("Chat apps are on, but this App version has no bridge; turn them off on the NOVA page");
+        return;
+      }
+      try {
+        startChild();
+        await publish(); // Supervisor keeps one message per App and service: a repeat is a no-op
+      } catch (error) {
+        deps.logger.error("Chat apps could not resume", { error: String((error as Error).message) });
+      }
+    },
+
+    // After a registry reset: the (re)start mints a fresh credential.
+    restartBridge() {
+      if (child !== null) {
+        child.kill("SIGTERM");
+      } else if (wanted) {
+        try {
+          startChild();
+        } catch (error) {
+          deps.logger.error("Chat-app bridge could not start", { error: String((error as Error).message) });
+        }
+      }
+    },
+
+    bridgeDeviceId,
+  };
+}

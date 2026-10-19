@@ -10,6 +10,7 @@ import {
   type RelayLogger,
 } from "../http/server.js";
 import type { DeviceRegistry } from "../security/device-registry.js";
+import type { ChatApps } from "./chat-apps.js";
 import { resolveIngressIdentity } from "../security/ingress-identity.js";
 import type { PairingV1Manager } from "../security/pairing-v1.js";
 import { resolveCloudPrincipal } from "../security/principal.js";
@@ -36,6 +37,7 @@ export interface IngressListenerDeps {
   now: () => number;
   logger: RelayLogger;
   iconPath?: string;
+  chatApps?: ChatApps; // only with HA_NOVA_CHAT_APPS=1
 }
 
 export function createIngressListener(

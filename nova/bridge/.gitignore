@@ -1,0 +1,4 @@
+# Staged per arch by scripts/release/stage-app-bridge.sh for the App image
+# (ha-nova CLI + skills); never committed.
+*
+!.gitignore

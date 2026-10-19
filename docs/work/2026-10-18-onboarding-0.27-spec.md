@@ -553,7 +553,7 @@ Production LOC estimates exclude tests and assets. HR = high-risk, RB = release-
 | A9 | `feat(uninstall)`: one question; last-device App removal | ~250 | HR |
 | A10 | `feat(setup)`: `ha-nova try` | ~150 | behavior |
 | B1 | `feat(mcp)`: `ha-nova serve` (Streamable HTTP on an internal port, secret auth, server-side plan store bound to the HA user, phone-only/chat-code policy, `waiting_for_phone`) | ~450 | HR |
-| B2 | `feat(app)`: the App runs the bridge (binary + skills in the image, internal device credential, `/data` state: switch, secret, discovery UUID, phone links; owner action on/off with discovery and the HA restart; NOVA page "Chat apps") | ~400 | HR, RB |
+| B2 | `feat(app)`: the App runs the bridge (binary + skills in the image, internal device credential, `/data` state: switch, secret, discovery UUID, phone links; owner action on/off with discovery and the HA restart; NOVA page "Chat apps") | ~400 | HR, RB. Lands dormant (`HA_NOVA_CHAT_APPS` off, no `config.yaml` change); apply in the App release bump: `discovery: [ha_nova]` in `config.yaml`, `ENV HA_NOVA_CHAT_APPS=1` in `nova/Dockerfile` (contract doc, "App side") |
 | B3 | `feat(integration)`: `custom_components/ha_nova` (discovery flow, `/api/ha_nova/mcp` pass-through view per §11.3) + App delivery + Python CI | ~250 | HR, RB |
 | B4 | `feat(setup)`: step 3 chat-app row + enable flow; docs: connect Claude/ChatGPT, use from the phone (also Remote Control/Codex) | ~150 + docs | behavior |
 | R | Release prep: README "Get started", site sync (incl. tokens), flow video | docs | release-prep |

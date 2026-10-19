@@ -39,6 +39,9 @@ type runtimeConfig struct {
 	// The demo house's public relay token (`ha-nova try`); set only on the
 	// config loaded from demo.json, never saved to config.json.
 	demoToken string
+	// The NOVA App's internal device credential (`ha-nova serve
+	// --relay-file`); never saved to config.json.
+	bridgeCredential string
 }
 
 type config = runtimeConfig
@@ -48,6 +51,9 @@ type config = runtimeConfig
 // direct config readers stay profile-agnostic. An unknown selection fails loud
 // with the list of known profiles.
 func loadRuntimeConfig(pathArgs ...runtimePaths) (runtimeConfig, error) {
+	if bridgeRelay != nil {
+		return *bridgeRelay, nil
+	}
 	paths, err := resolveRuntimePaths(pathArgs...)
 	if err != nil {
 		return runtimeConfig{}, err

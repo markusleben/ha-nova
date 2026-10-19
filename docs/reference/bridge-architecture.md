@@ -374,7 +374,7 @@ in sync; Relay and product versions must not be substituted for each other.
 - REST client uses native `fetch()` (no axios at runtime)
 - WS orchestration uses `home-assistant-js-websocket`
 - `ws` supplies the authenticated Node WebSocket transport; REST stays on native `fetch()`
-- Current scope is contract-capped at 3,900 TypeScript source lines
+- Current scope is contract-capped at 10,200 TypeScript source lines (`scripts/check-docs.sh` [1] lists each reviewed raise)
 
 ## Standard Envelope
 
@@ -391,6 +391,17 @@ All responses follow the same JSON envelope (defined in `types/api.ts`):
 HTTP status is 200 for success. Error status codes include 400 (validation),
 401 (auth), 404 (route not found), 413 (body cap), 429 (pairing rate limit),
 502 (upstream failure), and 500 (internal).
+
+## Chat apps (App mode, dormant until the 0.27 App release)
+
+The App, not the Relay pipeline, runs the chat-app bridge: `ha-nova serve`
+(the CLI's own tools and tiers) as a child process on internal port 8794,
+which reaches the Relay like any paired device, with an internal device
+credential the App mints in its own registry. The App also holds the owner's
+switch, the bridge secret, the Supervisor discovery message, and the only
+file it writes in Home Assistant's configuration,
+`custom_components/ha_nova`. No Relay route gains logic. Contract:
+`docs/work/2026-10-19-chat-bridge-contract.md` ("App side").
 
 ## What the Relay does NOT do
 

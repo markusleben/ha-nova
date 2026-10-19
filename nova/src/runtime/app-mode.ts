@@ -24,6 +24,7 @@ import { createFileResponseStore } from "../security/pairing-response-store.js";
 import { createPairingV1Manager } from "../security/pairing-v1.js";
 import { loadOrCreateTlsIdentity } from "../security/tls-identity.js";
 import { loadOrCreateRelayInstanceId } from "../storage/relay-instance.js";
+import { createChatApps, type ChatApps } from "./chat-apps.js";
 import { createIngressListener } from "./ingress-listener.js";
 import { clearLegacyOptions, importLegacyToken } from "./legacy-migration.js";
 import { ensureSidebarPanel } from "./sidebar-panel.js";
@@ -115,10 +116,12 @@ export async function buildAppMode(
     // the plaintext file and option.
     active.markLegacyMigrated();
     registryCorrupt = false;
+    chatApps?.restartBridge(); // its credential went with the old registry
     input.logger.info?.(
       "Device registry reset by the owner; device pairing re-enabled",
     );
   };
+  let chatApps: ChatApps | undefined;
 
   const tls = await loadOrCreateTlsIdentity(dataDir);
 
@@ -199,6 +202,24 @@ export async function buildAppMode(
   // Prime the port at startup; a failure here recovers via the lazy retry above.
   await ensureSecurePort();
 
+  // Chat apps stay dormant until the App release that ships the integration
+  // (PR train B3) sets HA_NOVA_CHAT_APPS=1 in the image.
+  if (process.env.HA_NOVA_CHAT_APPS === "1") {
+    chatApps = createChatApps({
+      dataDir,
+      configRoot: input.fileAccess.configRoot,
+      binary: "/opt/ha-nova/ha-nova",
+      integrationSource: "/app/integration/ha_nova",
+      securePort: SECURE_PORT,
+      spkiPin: tls.spkiPin,
+      registry,
+      supervisor,
+      core: input.coreClient,
+      now: input.now,
+      logger: input.logger,
+    });
+  }
+
   const functional = buildFunctionalHandlers(input, relayInstanceId);
   const listenerDeps = {
     registry,
@@ -230,6 +251,7 @@ export async function buildAppMode(
       now: input.now,
       logger: input.logger,
       ...(input.iconPath !== undefined ? { iconPath: input.iconPath } : {}),
+      ...(chatApps !== undefined ? { chatApps } : {}),
     }),
   );
   // These servers bypass createHttpServer, so apply the same stalled-client
@@ -254,6 +276,7 @@ export async function buildAppMode(
         ingress: INGRESS_PORT,
         registry_corrupt: registryCorrupt,
       });
+      await chatApps?.boot(); // the bridge reaches the secure listener just started
     },
   };
 }

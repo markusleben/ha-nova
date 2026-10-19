@@ -504,6 +504,16 @@ if [[ -d "$SRC_DIR" ]]; then
     "${SSH_USER}@${HA_HOST}:${REMOTE_ADDON_DIR}/src/"
 fi
 
+# nova/Dockerfile copies bridge/: the placeholder, or a bridge staged with
+# scripts/release/stage-app-bridge.sh <arch> nova/bridge before the deploy.
+remote "rm -rf ${REMOTE_ADDON_DIR}/bridge && mkdir -p ${REMOTE_ADDON_DIR}/bridge"
+scp -i "$HA_SSH_KEY" \
+  -o StrictHostKeyChecking=accept-new \
+  -o BatchMode=yes \
+  -P "$SSH_PORT" \
+  -r "${PROJECT_ROOT}/nova/bridge/." \
+  "${SSH_USER}@${HA_HOST}:${REMOTE_ADDON_DIR}/bridge/"
+
 # ── Reload + reinstall if needed ──
 
 log "Reload app store metadata"
