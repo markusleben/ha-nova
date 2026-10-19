@@ -1,0 +1,258 @@
+<title>NOVA Setup Prototype</title>
+<style>
+/* Layout: one centered column on the night sky; each step is a hairline-ruled protocol, one primary action at the bottom. */
+:root {
+  color-scheme: dark;
+  --night-top: #0A0E1A;
+  --night-deep: #0A1628;
+  --ink: #E8EDF2;
+  --slate: #B8CCE0;
+  --cyan: #18BCF2;
+  --cyan-bright: #4FCDF6;
+  --amber: #FFB347;
+  --hairline: rgba(184, 204, 224, 0.16);
+  --panel: rgba(13, 21, 37, 0.6);
+  --abyss: #05121D;
+  --ok: #5BD69A;
+  --font: -apple-system, "Helvetica Neue", "Segoe UI", Roboto, sans-serif;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+html, body { min-height: 100%; }
+body {
+  background: linear-gradient(180deg, var(--night-top) 0%, var(--night-deep) 100%);
+  background-attachment: fixed;
+  color: var(--ink);
+  font: 400 1.0625rem/1.65 var(--font);
+  padding-inline: 16px;
+}
+.stars { position: fixed; inset: 0; pointer-events: none; z-index: 0; }
+.stars i { position: absolute; width: 2px; height: 2px; border-radius: 50%; background: rgba(255,255,255,.28); animation: tw 6s ease-in-out infinite; }
+@keyframes tw { 50% { opacity: .35; } }
+.wrap { position: relative; z-index: 1; max-width: 640px; margin: 0 auto; padding-block: 40px 64px; }
+.top { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.brand { display: flex; align-items: center; gap: 12px; }
+.brand svg { width: 34px; height: 34px; }
+.word { font-weight: 600; letter-spacing: .34em; font-size: .95rem; }
+.dots { display: flex; gap: 8px; align-items: center; font-size: .8125rem; color: var(--slate); letter-spacing: .08em; }
+.dots b { width: 8px; height: 8px; border-radius: 50%; border: 1px solid var(--slate); display: inline-block; }
+.dots b.on { background: var(--cyan); border-color: var(--cyan); }
+.eyebrow { margin: 48px 0 8px; font-size: .8125rem; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--cyan); }
+h1 { margin: 0 0 12px; font-size: clamp(1.75rem, 1.2rem + 2.4vw, 2.6rem); line-height: 1.15; letter-spacing: -.02em; text-wrap: balance; }
+.lead { margin: 0 0 28px; color: var(--slate); font-size: 1.125rem; max-width: 34em; }
+.rows { list-style: none; margin: 0 0 32px; padding: 0; border-top: 1px solid var(--hairline); }
+.rows li { display: grid; grid-template-columns: 28px 1fr auto; gap: 14px; align-items: center; padding: 16px 0; border-bottom: 1px solid var(--hairline); }
+.rows li > div { min-width: 0; }
+.rows .k { font-weight: 600; }
+.rows .v { color: var(--slate); font-size: .95rem; overflow-wrap: anywhere; }
+.ic { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-size: 13px; font-weight: 700; }
+.ic.ok { color: var(--abyss); background: var(--ok); }
+.ic.todo { border: 1.5px solid var(--slate); color: var(--slate); }
+.ic.guard { color: var(--abyss); background: var(--amber); }
+.ic.spin { border: 2px solid var(--hairline); border-top-color: var(--cyan); animation: sp .9s linear infinite; }
+@keyframes sp { to { transform: rotate(360deg); } }
+.tag { font-size: .75rem; font-weight: 600; letter-spacing: .06em; padding: 3px 10px; border-radius: 999px; border: 1px solid var(--hairline); color: var(--slate); white-space: nowrap; }
+.tag.amber { color: var(--amber); border-color: rgba(255,179,71,.4); }
+.tag.cyan { color: var(--cyan); border-color: rgba(24,188,242,.4); }
+.actions { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+.btn { font: 600 1rem var(--font); border-radius: 999px; padding: .85rem 1.9rem; cursor: pointer; border: 1px solid transparent; }
+.btn-primary { background: var(--cyan); color: var(--abyss); }
+.btn-primary:hover { background: var(--cyan-bright); }
+.btn-ghost { background: transparent; color: var(--ink); border-color: var(--hairline); }
+.btn-ghost:hover { border-color: var(--slate); }
+.btn-small { padding: .45rem 1rem; font-size: .875rem; }
+.btn:focus-visible, .switch:focus-visible, .chip:focus-visible { outline: 2px solid var(--cyan-bright); outline-offset: 3px; }
+.fine { margin: 14px 0 0; font-size: .875rem; color: var(--slate); }
+.code { font: 600 .9375rem var(--mono); background: var(--panel); border: 1px solid var(--hairline); border-radius: 10px; padding: .9rem 1.1rem; overflow-x: auto; white-space: nowrap; }
+.term { margin: 0 0 28px; }
+.term .line { color: var(--slate); font: .9rem/1.8 var(--mono); }
+.term .line b { color: var(--cyan); font-weight: 600; }
+.switch { width: 46px; height: 26px; border-radius: 999px; border: 1px solid var(--hairline); background: rgba(184,204,224,.12); position: relative; cursor: pointer; padding: 0; }
+.switch::after { content: ""; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%; background: var(--slate); transition: transform .2s; }
+.switch[aria-checked="true"] { background: var(--cyan); border-color: var(--cyan); }
+.switch[aria-checked="true"]::after { transform: translateX(20px); background: var(--abyss); }
+.stat { display: grid; grid-template-columns: repeat(auto-fit, minmax(104px, 1fr)); gap: 12px; margin: 0 0 32px; padding: 0; list-style: none; }
+.stat li { display: grid; justify-items: start; gap: 6px; padding: 14px 14px 12px; border: 1px solid var(--hairline); border-radius: 10px; font-size: .9rem; color: var(--slate); }
+.stat svg { width: 30px; height: 30px; fill: none; stroke: var(--cyan); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; filter: drop-shadow(0 0 4px rgba(24,188,242,.45)); }
+.stat li.guard svg { stroke: var(--amber); filter: drop-shadow(0 0 4px rgba(255,179,71,.45)); }
+.stat li.muted svg { stroke: var(--slate); filter: none; opacity: .7; }
+.stat b { font-size: 1.6rem; line-height: 1; color: var(--ink); font-variant-numeric: tabular-nums; }
+.stat .hint { font-size: .78rem; color: var(--cyan); }
+h2 { font-size: .8125rem; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--slate); margin: 0 0 6px; }
+.preview { display: none; margin-top: 10px; font: .85rem/1.6 var(--mono); color: var(--slate); background: var(--panel); border: 1px solid var(--hairline); border-radius: 10px; padding: 12px 14px; }
+.preview.open { display: block; }
+.preview .add { color: var(--ok); }
+.chips { display: flex; flex-wrap: wrap; gap: 10px; margin: 0 0 32px; }
+.chip { font: 500 .95rem var(--font); color: var(--ink); background: transparent; border: 1px solid rgba(24,188,242,.45); border-radius: 999px; padding: .45rem 1rem; cursor: pointer; }
+.chip:hover { border-color: var(--cyan); }
+.toast { position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--panel); border: 1px solid var(--hairline); padding: 10px 18px; border-radius: 999px; font-size: .9rem; z-index: 5; }
+.note { border-left: 2px solid var(--amber); padding: 2px 0 2px 14px; color: var(--slate); font-size: .95rem; margin: 0 0 28px; }
+.proto { margin-top: 56px; padding-top: 16px; border-top: 1px dashed var(--hairline); font-size: .8125rem; color: var(--slate); display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; }
+.proto button { font: 600 .8125rem var(--font); background: none; border: none; color: var(--cyan); cursor: pointer; padding: 0; }
+@media (max-width: 480px) { .rows li { grid-template-columns: 24px 1fr; } .rows li > :last-child:not(:nth-child(2)) { grid-column: 2; justify-self: start; } }
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+</style>
+
+<div class="stars" aria-hidden="true" id="stars"></div>
+<div class="wrap">
+  <div class="top">
+    <div class="brand">
+      <svg viewBox="0 0 120 120" aria-hidden="true"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#18BCF2"/><stop offset="1" stop-color="#FFB347"/></linearGradient></defs><g transform="translate(60 60)"><path d="M0,-50 C6,-14 14,-6 50,0 C14,6 6,14 0,50 C-6,14 -14,6 -50,0 C-14,-6 -6,-14 0,-50 Z" fill="url(#g)" opacity=".9"/><circle r="12" fill="#FFF3DF"/></g></svg>
+      <span class="word">HA&nbsp;NOVA</span>
+    </div>
+    <div class="dots" aria-label="Progress" id="dots"></div>
+  </div>
+  <main id="screen" aria-live="polite"></main>
+  <div class="proto">Prototype · example data, nothing is real
+    <button id="restart">Start over</button>
+    <button id="ssh">Show the SSH / no-browser path</button>
+  </div>
+</div>
+
+<script>
+(() => {
+  const stars = document.getElementById('stars');
+  for (let i = 0; i < 38; i++) {
+    const s = document.createElement('i');
+    s.style.left = Math.random() * 100 + '%';
+    s.style.top = Math.random() * 100 + '%';
+    s.style.animationDelay = (Math.random() * 6).toFixed(1) + 's';
+    stars.appendChild(s);
+  }
+  const $ = (h) => { const t = document.createElement('template'); t.innerHTML = h.trim(); return t.content; };
+  const screen = document.getElementById('screen');
+  const dotsEl = document.getElementById('dots');
+  const state = { rule: true, phone: false, saved: false };
+  const toast = (msg) => { const t = document.createElement('div'); t.className = 'toast'; t.textContent = msg; document.body.appendChild(t); setTimeout(() => t.remove(), 2400); };
+  const dots = (n) => { dotsEl.innerHTML = [1,2,3,4].map(i => `<b class="${i <= n ? 'on' : ''}"></b>`).join('') + `<span>&nbsp;Step ${n} of 4</span>`; };
+
+  const steps = {
+    terminal() {
+      dots(0); dotsEl.innerHTML = '<span>Before setup</span>';
+      return `
+      <p class="eyebrow">The only terminal step</p>
+      <h1>Paste one line. Everything else happens here.</h1>
+      <p class="lead">This is what the user runs. The terminal then shows a single progress line and opens this page.</p>
+      <div class="term">
+        <div class="code">irm https://hanova.app/install.ps1 | iex</div>
+        <p class="line">HA NOVA 0.27 installed · <b>Opening setup in your browser…</b></p>
+      </div>
+      <div class="actions"><button class="btn btn-primary" data-go="found">Open setup</button></div>`;
+    },
+    found() {
+      dots(1);
+      return `
+      <p class="eyebrow">Welcome</p>
+      <h1>We found your home.</h1>
+      <p class="lead">HA NOVA looked around. Here's what it found. No questions so far.</p>
+      <ul class="rows">
+        <li><span class="ic ok">✓</span><div><div class="k">Home Assistant</div><div class="v">homeassistant.local · version 2026.10</div></div><button class="btn btn-ghost btn-small" data-toast="Here the user could type a different address.">Change</button></li>
+        <li><span class="ic ok">✓</span><div><div class="k">Your AI assistant</div><div class="v">Claude Code · also found Codex CLI</div></div><span class="tag cyan">Both set up</span></li>
+        <li><span class="ic todo">·</span><div><div class="k">NOVA App</div><div class="v">Not installed in Home Assistant yet</div></div><span class="tag">Next step</span></li>
+      </ul>
+      <div class="actions">
+        <button class="btn btn-primary" data-go="install">Sign in and install NOVA</button>
+        <button class="btn btn-ghost" data-toast="Code path: the owner opens NOVA in Home Assistant and gets a six-digit code.">Use a six-digit code</button>
+      </div>
+      <p class="fine">You sign in on your own Home Assistant page as the owner. HA NOVA then installs only its own App.</p>`;
+    },
+    install() {
+      dots(2);
+      setTimeout(runInstall, 300);
+      return `
+      <p class="eyebrow">Connecting</p>
+      <h1>Setting up NOVA in your Home Assistant.</h1>
+      <p class="lead">This takes about a minute. You can watch, or get a coffee.</p>
+      <ul class="rows" id="prog">
+        ${['Signed in as Markus (owner)', 'Adding the NOVA App', 'Starting the NOVA App', 'Connecting this computer', 'Teaching Claude Code and Codex CLI']
+          .map((t, i) => `<li data-i="${i}"><span class="ic todo">·</span><div><div class="k">${t}</div></div><span></span></li>`).join('')}
+      </ul>
+      <div class="actions" id="next" hidden><button class="btn btn-primary" data-go="confirm">Continue</button></div>`;
+    },
+    confirm() {
+      dots(3);
+      return `
+      <p class="eyebrow">Your safety net</p>
+      <h1>You stay in control.</h1>
+      <p class="lead">Unlocks and deletes always wait for you. Your AI assistant never sees a code.</p>
+      <ul class="rows">
+        <li><span class="ic guard">✓</span><div><div class="k">Confirm on this computer</div><div class="v">A small window asks before anything risky runs.</div></div><span class="tag amber">On</span></li>
+        <li><span class="ic guard">◎</span><div><div class="k">Confirm on your phone</div><div class="v">iPhone Markus, and its Apple Watch. Both ask; the first answer counts.</div></div><button class="switch" role="switch" aria-checked="${state.phone}" id="sw-phone" aria-label="Confirm on your phone"></button></li>
+        <li><span class="ic guard">⚙</span><div><div class="k">Let Claude Code show the window</div><div class="v">Adds one rule to Claude Code so its auto mode doesn't block the confirmation window.</div></div><button class="switch" role="switch" aria-checked="${state.rule}" id="sw-rule" aria-label="Let Claude Code show the window"></button></li>
+      </ul>
+      <div class="actions"><button class="btn btn-primary" data-go="wow">Finish setup</button></div>
+      <p class="fine">Turning on your phone sends one notification to iPhone Markus. Tap “Link” there.</p>`;
+    },
+    wow() {
+      dots(4);
+      return `
+      <p class="eyebrow">All set</p>
+      <h1>Here's your home, at a glance.</h1>
+      <ul class="stat">
+        <li><svg viewBox="0 0 32 32" aria-hidden="true"><path d="M5 15 16 6l11 9"/><path d="M8 13v13h16V13"/><path d="M14 26v-7h4v7"/></svg><b>4</b>rooms</li>
+        <li><svg viewBox="0 0 32 32" aria-hidden="true"><rect x="9" y="9" width="14" height="14" rx="3"/><path d="M13 9V5M19 9V5M13 27v-4M19 27v-4M9 13H5M9 19H5M27 13h-4M27 19h-4"/></svg><b>67</b>devices</li>
+        <li><svg viewBox="0 0 32 32" aria-hidden="true"><path d="M11 18a7 7 0 1 1 10 0c-1.3 1.2-2 2.6-2 4h-6c0-1.4-.7-2.8-2-4z"/><path d="M13 26h6"/></svg><b>6</b>lights</li>
+        <li class="guard"><svg viewBox="0 0 32 32" aria-hidden="true"><rect x="8" y="14" width="16" height="12" rx="2"/><path d="M11 14v-3a5 5 0 0 1 10 0v3"/><path d="M16 19v3"/></svg><b>4</b>locks</li>
+        <li class="muted"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="M17 4 8 18h7l-1 10 9-14h-7z"/></svg><b>0</b>automations<span class="hint">Let's make one ↓</span></li>
+      </ul>
+      <h2>Worth a look</h2>
+      <ul class="rows">
+        <li><span class="ic todo">!</span><div><div class="k">Outside Temperature battery is at 12%</div><div class="v">It will stop reporting in a few weeks.</div></div><button class="btn btn-ghost btn-small" data-toast="Saved: Claude reminds you when it drops below 5%.">Remind me</button></li>
+        <li><span class="ic todo">!</span><div><div class="k">60 devices aren't in a room</div><div class="v">Rooms make “turn off the kitchen” work.</div></div><button class="btn btn-ghost btn-small" data-toggle="pv-rooms">Suggest rooms</button></li>
+        <li class="pvrow" id="pv-rooms" hidden><span></span><div class="preview open">Kitchen ← Kitchen Lights, Kitchen Window<br>Bedroom ← Bed Light, Bedroom Blinds<br>Living Room ← Living Room RGBWW Lights, Ecobee<br><span class="add">Nothing is saved until you choose “Save rooms”.</span></div><span></span></li>
+      </ul>
+      <h2>Made for your home</h2>
+      <ul class="rows">
+        <li><span class="ic ok">✦</span><div><div class="k">Light on when the front door is unlocked after dark</div><div class="v">Uses Front Door and Bed Light. Preview only.</div></div><button class="btn btn-ghost btn-small" data-toggle="pv-auto">Preview</button></li>
+        <li id="pv-auto" hidden><span></span><div class="preview open">When: Front Door changes to unlocked<br>Only: after sunset<br>Do: turn on Bed Light<br><span class="add">${state.saved ? 'Saved ✓' : '<button class="btn btn-primary btn-small" id="save-auto">Save automation</button>'}</span></div><span></span></li>
+      </ul>
+      <h2>Now ask your assistant</h2>
+      <div class="chips">
+        <button class="chip" data-copy="What's on right now?">“What's on right now?”</button>
+        <button class="chip" data-copy="Turn off everything in the kitchen">“Turn off everything in the kitchen”</button>
+        <button class="chip" data-copy="Unlock the front door">“Unlock the front door”</button>
+      </div>
+      <div class="actions"><button class="btn btn-primary" data-toast="Here the page closes and Claude Code opens.">Open Claude Code</button></div>
+      <p class="fine">Tap a phrase to copy it. Nothing in your home changed during setup.</p>`;
+    },
+    ssh() {
+      dots(0); dotsEl.innerHTML = '<span>No browser</span>';
+      return `
+      <p class="eyebrow">Over SSH or without a screen</p>
+      <h1>Same steps, in the terminal.</h1>
+      <p class="lead">When no browser can open, setup falls back to a short text path with the same choices as arrow menus.</p>
+      <div class="term"><div class="code">ha-nova setup --no-browser</div>
+        <p class="line">✓ Home Assistant found · ✓ Claude Code found<br>› <b>Use a six-digit code from NOVA</b><br>&nbsp;&nbsp;Skip for now</p></div>
+      <p class="note">On Windows and macOS the saved login needs the desktop. Over SSH, setup says this in one line and stops before changing anything.</p>
+      <div class="actions"><button class="btn btn-ghost" data-go="terminal">Back to the browser path</button></div>`;
+    }
+  };
+
+  function runInstall() {
+    const items = [...document.querySelectorAll('#prog li')];
+    items.forEach((li, i) => setTimeout(() => {
+      const ic = li.querySelector('.ic');
+      ic.className = 'ic spin'; ic.textContent = '';
+      setTimeout(() => { ic.className = 'ic ok'; ic.textContent = '✓'; if (i === items.length - 1) document.getElementById('next').hidden = false; }, 650);
+    }, i * 800));
+  }
+
+  function show(name) {
+    screen.replaceChildren($(steps[name]()));
+    window.scrollTo({ top: 0, behavior: 'instant' in window ? 'instant' : 'auto' });
+  }
+
+  document.addEventListener('click', (e) => {
+    const t = e.target.closest('button'); if (!t) return;
+    if (t.dataset.go) show(t.dataset.go);
+    if (t.dataset.toast) toast(t.dataset.toast);
+    if (t.dataset.toggle) { const r = document.getElementById(t.dataset.toggle); r.hidden = !r.hidden; }
+    if (t.id === 'sw-phone') { state.phone = !state.phone; t.setAttribute('aria-checked', state.phone); if (state.phone) toast('Sent to iPhone Markus. Tap “Link” there.'); }
+    if (t.id === 'sw-rule') { state.rule = !state.rule; t.setAttribute('aria-checked', state.rule); }
+    if (t.id === 'save-auto') { state.saved = true; t.parentElement.textContent = 'Saved ✓'; toast('Automation saved and checked.'); }
+    if (t.dataset.copy) { const txt = t.dataset.copy; (navigator.clipboard?.writeText(txt) ?? Promise.reject()).then(() => toast('Copied. Paste it into Claude Code.')).catch(() => toast('Say: ' + txt)); }
+    if (t.id === 'restart') { state.phone = false; state.saved = false; show('terminal'); }
+    if (t.id === 'ssh') show('ssh');
+  });
+  show('terminal');
+})();
+</script>
