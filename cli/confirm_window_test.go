@@ -46,7 +46,7 @@ func useWindow(t *testing.T, answers ...windowAnswer) *fakeWindow {
 
 func TestWindowPlanConfirmsInTheWindow(t *testing.T) {
 	h := newWriteHarness(t, newFakeHA())
-	w := useWindow(t, windowCancelled, windowNoAnswer, windowConfirmed)
+	w := useWindow(t, windowCancelled, windowNoAnswer, windowClosed, windowConfirmed)
 	env := h.plan("lock.unlock", "lock.front")
 	plan := env.Plan
 	if plan.Channel != channelWindow || plan.Code != "" || !strings.HasSuffix(env.Say, sayWindowAsk) ||
@@ -62,6 +62,11 @@ func TestWindowPlanConfirmsInTheWindow(t *testing.T) {
 	}
 	if exit, env := h.run(runApplyCommand, "--plan", plan.ID); exit != 4 || env.Error.Code != "CONFIRM_CANCELLED" || !strings.Contains(env.Error.Next, plan.ID) {
 		t.Fatalf("no answer: exit %d %+v", exit, env.Error)
+	}
+	// Closed from outside (lane D9): said as closed, not as a timeout.
+	if exit, env := h.run(runApplyCommand, "--plan", plan.ID); exit != 4 || env.Error.Code != "CONFIRM_CANCELLED" ||
+		env.Error.Message != "the confirmation window was closed; nothing was sent" {
+		t.Fatalf("closed: exit %d %+v", exit, env.Error)
 	}
 	if len(h.posts()) != 0 {
 		t.Fatalf("sent %d requests without a confirmation", len(h.posts()))

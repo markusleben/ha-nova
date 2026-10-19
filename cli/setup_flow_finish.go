@@ -127,6 +127,10 @@ func (f *setupFlow) verifyDevice() setupStepResult {
 // offer, the phone and Claude Code rule offers, the first look, and the
 // outcome.
 func (f *setupFlow) stepSkills() setupStepResult {
+	if f.noClient { // nothing to teach yet; finish says what to install
+		finalizeServiceTokenFileMigration(f.formerServiceTokenFile, f.token)
+		return f.afterSkills()
+	}
 	steps := f.wizardSteps()
 	view := setupView{Progress: &setupProgress{Step: steps.Skills, Total: steps.Total, Title: setupText("setup.step.skills")}}
 	if f.target == "all" && len(f.selectedClients) > 0 {
@@ -152,6 +156,11 @@ func (f *setupFlow) stepSkills() setupStepResult {
 		f.ui.outcome(setupOutcome{Kind: setupOutcomeIncomplete, Issue: setupIssueSkillsInstall})
 		return setupDone(1)
 	}
+	return f.afterSkills()
+}
+
+// afterSkills: the Link offer, the lifecycle close, and finish.
+func (f *setupFlow) afterSkills() setupStepResult {
 	exit := 0
 	onPage := f.page != nil && !f.page.inTerminal()
 	if f.cloudSetupPaused && onPage {
@@ -215,6 +224,17 @@ func (f *setupFlow) finish() setupStepResult {
 	interactive := !f.serviceMode && f.ui.interactive()
 	if f.pairedThisRun && !f.cloudSetupPaused && interactive {
 		offerPhoneLink(f.ui.termIn(), f.ui.termOut(), f.paths)
+	}
+	if f.noClient { // connected, but no AI app to try it in yet (lane D1)
+		labels, err := setupInstallableClientLabels(f.paths)
+		if err != nil {
+			return f.failErr(err)
+		}
+		f.ui.show(setupView{Blocks: []setupBlock{
+			setupSuccess(setupText("setup.done.connected_no_client")),
+			setupParagraph(setupText("setup.clients.none_after_pairing", "clients", strings.Join(labels, ", "))),
+		}})
+		return setupDone(0)
 	}
 	ruleNote := ""
 	if interactive && slices.Contains(f.selectedClients, "claude") {

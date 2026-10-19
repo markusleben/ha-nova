@@ -329,8 +329,7 @@
     2) All available clients
        not available: install a supported AI client first
 
-  No supported AI client is ready on this machine yet.
-  Install one supported client first, then rerun: ha-nova setup
+  No AI app found on this computer yet.
 
 →  setup client prerequisite
 

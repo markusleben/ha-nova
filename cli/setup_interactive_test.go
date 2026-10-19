@@ -155,21 +155,46 @@ func TestInteractiveSetupFreshInstallShowsWizardAndInstallsAntigravitySkills(t *
 	}
 }
 
-func TestInteractiveSetupWithoutAvailableClientReturnsGuidance(t *testing.T) {
+// Lane D1: no AI app installed yet still connects this computer, then
+// names the apps to install and the one command that adds HA NOVA to it.
+func TestInteractiveSetupWithoutAvailableClientConnectsAndSaysWhatToInstall(t *testing.T) {
+	withClientRuntimeAvailability(t, map[string]bool{})
+
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("HA_NOVA_NO_BROWSER", "1")
+	t.Setenv("HA_NOVA_ALLOW_INSECURE_TEST_KEYRING", "1")
+	t.Setenv("HA_NOVA_TEST_KEYRING_FILE", filepath.Join(home, ".config", "ha-nova", ".test-relay-auth-token"))
 	t.Setenv("HA_NOVA_DEV_ROOT", repoRootForSetupTest(t))
-	withClientRuntimeAvailability(t, map[string]bool{})
+
+	haServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("ok"))
+	}))
+	defer haServer.Close()
+	relayServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/health" {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"status":"ok","data":{"ha_ws_connected":true}}`))
+	}))
+	defer relayServer.Close()
 
 	paths, err := detectPaths()
 	if err != nil {
 		t.Fatalf("detectPaths() error: %v", err)
 	}
-
+	input := joinSetupInputs(
+		[]string{haServer.URL}, // no client question: nothing to choose
+		setupWizardRelayInstallPrompts(),
+		setupWizardGenerateRelayTokenPrompts(),
+	)
 	exitCode := 1
-	stdout, stderr := captureInteractiveSetupIO(t, "", func() int {
+	stdout, stderr := captureInteractiveSetupIO(t, input, func() int {
 		clientRuntimeDetectedForStatus = func(string) bool { return false }
-		exitCode = interactiveSetup(paths, runtimeConfig{}, loadStateOrDefault(paths), "", "", "", "", "", false)
+		exitCode = interactiveSetup(paths, runtimeConfig{}, loadStateOrDefault(paths), "", "", "", relayServer.URL, "", false)
 		return exitCode
 	})
 	if exitCode != 0 {
@@ -178,15 +203,23 @@ func TestInteractiveSetupWithoutAvailableClientReturnsGuidance(t *testing.T) {
 
 	output := stdout + stderr
 	for _, want := range []string{
-		"No supported AI client is ready on this machine yet.",
-		"Install one supported client first, then rerun: ha-nova setup",
+		"No AI app found on this computer yet.",
+		"Setup connects this computer to Home Assistant now",
+		"This computer is connected to Home Assistant.",
+		"One step left: install one of these AI apps: Claude Code, Codex CLI, OpenCode",
+		"Then run: ha-nova setup (it adds HA NOVA to that app).",
 	} {
 		if !strings.Contains(output, want) {
-			t.Fatalf("missing-client guidance missing %q:\n%s", want, output)
+			t.Fatalf("missing-client flow missing %q:\n%s", want, output)
 		}
 	}
-	if strings.Contains(output, "[ha-nova] ERROR") {
-		t.Fatalf("missing-client guidance must not render as an error:\n%s", output)
+	if strings.Contains(output, "[ha-nova] ERROR") || strings.Contains(output, "Setting up HA NOVA for") ||
+		strings.Contains(output, "Setup complete!") || strings.Contains(output, "try asking") {
+		t.Fatalf("no client: no error and no skills step:\n%s", output)
+	}
+	saved, err := loadRuntimeConfig(paths)
+	if err != nil || saved.HAURL != haServer.URL {
+		t.Fatalf("this computer was not connected: %+v (%v)", saved, err)
 	}
 }
 
@@ -316,9 +349,9 @@ func TestInteractiveSetupOffersServiceCredentialsForHermesWhenKeyringLocked(t *t
 
 	output := stdout + stderr
 	for _, want := range []string{
-		"Service / gateway mode is available for Hermes Agent.",
-		"Choose yes for SSH, systemd, headless, or gateway sessions. Choose no for a normal desktop terminal with an unlocked keyring.",
-		"Use service/gateway token file instead of desktop keyring?",
+		"HA NOVA can't use this computer's keyring from here",
+		"It can keep its key for Hermes Agent in a protected file instead.",
+		"Keep the key in a protected file instead?",
 		"Setting up HA NOVA for Hermes Agent...",
 		"Setup complete!",
 	} {
@@ -632,16 +665,16 @@ func TestInteractiveSetupRecoversSecureStorageBeforeHostStep(t *testing.T) {
 	}
 
 	output := stdout + stderr
-	if !strings.Contains(output, "Local secure storage needs setup") {
+	if !strings.Contains(output, "This computer's keyring isn't set up yet") {
 		t.Fatalf("expected dedicated secure storage recovery page:\n%s", output)
 	}
-	if !strings.Contains(output, "trusted desktop prompt") {
+	if !strings.Contains(output, "A system window opens") {
 		t.Fatalf("expected native secure-storage prompt guidance:\n%s", output)
 	}
-	if !strings.Contains(output, "HA NOVA never reads it in the terminal") {
+	if !strings.Contains(output, "HA NOVA never sees it") {
 		t.Fatalf("expected explicit no-terminal-password guidance:\n%s", output)
 	}
-	if !strings.Contains(output, "Open the system secure-storage setup now") {
+	if !strings.Contains(output, "Open the window to set up the keyring now") {
 		t.Fatalf("expected recovery action prompt:\n%s", output)
 	}
 	if !strings.Contains(output, "Home Assistant address") {

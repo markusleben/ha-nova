@@ -109,7 +109,16 @@ func (f *setupFlow) chooseClientAndMode() setupStepResult {
 				continue // nothing to go back to yet
 			}
 			if selectErr == errSetupClientPrerequisite {
-				return setupDone(0)
+				if remoteOnlyCloudSetup(f.cfg) && !f.explicitLocalSetup {
+					f.ui.show(setupView{Blocks: []setupBlock{setupParagraph(setupText("setup.clients.install_first_link"))}})
+					return setupDone(0) // a Link-only setup needs its client first
+				}
+				f.ui.show(setupView{Blocks: []setupBlock{setupParagraph(setupText("setup.clients.install_first"))}})
+				f.noClient, f.connectionMode = true, setupConnectionLocal
+				if hybridCloudSetupPending(f.cfg) {
+					f.connectionMode = setupConnectionHybrid
+				}
+				return setupGoOn
 			}
 			if selectErr == errSetupExit {
 				return f.cancelled()

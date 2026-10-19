@@ -53,7 +53,12 @@ func nativeWindow(ctx context.Context, message string, wait time.Duration) windo
 	case err != nil:
 		code = exitErr.ExitCode()
 	}
-	failure := strings.ToLower(stderr.String())
+	return zenityAnswer(code, stderr.String())
+}
+
+// zenityAnswer maps zenity's exit code (-1: ended by a signal) and stderr.
+func zenityAnswer(code int, stderr string) windowAnswer {
+	failure := strings.ToLower(stderr)
 	switch {
 	case code == 0:
 		return windowConfirmed
@@ -61,6 +66,8 @@ func nativeWindow(ctx context.Context, message string, wait time.Duration) windo
 		return windowFailed
 	case code == 1: // Cancel or close
 		return windowCancelled
+	case code == -1: // ended by a signal: closed from outside
+		return windowClosed
 	}
-	return windowNoAnswer // zenity 5 = timeout; a signal or anything else: no answer
+	return windowNoAnswer // zenity 5 = timeout; anything else: no answer
 }

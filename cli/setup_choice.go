@@ -142,10 +142,26 @@ func chooseSetupClient(ui setupUI, choices []setupClientChoice, defaultClient st
 	}
 	if !hasAvailableSetupClientChoice(choices) {
 		ui.listChoices(ask)
-		ui.show(setupView{Blocks: []setupBlock{setupParagraph(setupText("setup.clients.none_ready"), setupText("setup.clients.install_first"))}})
+		ui.show(setupView{Blocks: []setupBlock{setupParagraph(setupText("setup.clients.none_ready"))}})
 		return "", errSetupClientPrerequisite
 	}
 	return ui.choose(ask)
+}
+
+// setupInstallableClientLabels names every AI app setup supports on this
+// operating system.
+func setupInstallableClientLabels(paths runtimePaths) ([]string, error) {
+	clients, err := loadClientRegistry(paths)
+	if err != nil {
+		return nil, err
+	}
+	var labels []string
+	for _, client := range clients {
+		if clientSupportedOnCurrentOS(client) {
+			labels = append(labels, client.Label)
+		}
+	}
+	return labels, nil
 }
 
 func promptSetupTokenChoiceInteractive(reader *bufio.Reader, out io.Writer, hasExistingLocal bool) (string, error) {

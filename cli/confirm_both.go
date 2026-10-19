@@ -105,10 +105,18 @@ func confirmBoth(a *phoneAsking, text string) (verbEnvelope, int, bool) {
 	}
 	tell(phoneNothing(a.answer))
 	if phoneOut {
-		return windowStopped(s, "cancelled", "CONFIRM_CANCELLED", "the confirmation window got no answer in time, and the phone couldn't be asked",
+		why := "the confirmation window got no answer in time"
+		if window == windowClosed {
+			why = "the confirmation window was closed"
+		}
+		return windowStopped(s, "cancelled", "CONFIRM_CANCELLED", why+", and the phone couldn't be asked",
 			fmt.Sprintf("Tell the user nothing changed. Run ha-nova apply --plan %s again (the window opens again) only after they say they still want it; never ask them for a code.", a.id)+phoneQuietNext)
 	}
-	return windowStopped(s, "cancelled", "CONFIRM_CANCELLED", "neither the confirmation window nor the phone got an answer in time",
+	why := "neither the confirmation window nor the phone got an answer in time"
+	if window == windowClosed {
+		why = "the confirmation window was closed, and the phone got no answer in time"
+	}
+	return windowStopped(s, "cancelled", "CONFIRM_CANCELLED", why,
 		fmt.Sprintf("Tell the user nothing changed: neither the window on this computer nor their phone was answered in time (on the phone, expand the notification and tap “%s”; a plain tap only opens the app). Run ha-nova apply --plan %s again (the window opens and a new notification goes to their phone) only after they say they still want it; never ask them for a code. If neither arrived, they can make this change in Home Assistant itself.", a.ask.button, a.id))
 }
 

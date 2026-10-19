@@ -104,6 +104,10 @@ func newRelaySessionWithin(paths runtimePaths, opts verbOptions, budget time.Dur
 	transport, err := selectRelayTransport(ctx, cfg, via, opts.viaSet)
 	if err != nil {
 		cancel()
+		if code := secureStorageErrorCode(err); code != "" { // lane D7: not a Relay problem
+			return nil, &verbFailure{exit: verbExitError, code: code, message: relayTransportErrorMessage(err), cause: err,
+				next: "Nothing was sent. Tell the user the message in plain words (it names the fix); try again only after they say it is fixed."}
+		}
 		return nil, errors.New(relayTransportErrorMessage(err))
 	}
 	return &relaySession{

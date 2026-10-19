@@ -65,10 +65,10 @@ describe("linux keyring contract", () => {
   });
 
   it("delegates recovery credentials exclusively to a trusted provider prompt", () => {
-    expect(recovery).toContain(
-      "Your Secret Service provider opens its own trusted desktop prompt",
-    );
-    expect(recovery).toContain("HA NOVA never reads it in the terminal.");
+    // The password goes only into the system's own window (plain wording,
+    // Linux lane D7).
+    expect(recovery).toContain("A system window opens to unlock it.");
+    expect(recovery).toContain("Type your password only in that window; HA NOVA never sees it.");
     expect(recovery).not.toContain("Passwords did not match.");
     expect(recovery).not.toContain("ReadPassword");
     expect(recoveryLinux).toContain(

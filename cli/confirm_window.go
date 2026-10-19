@@ -23,6 +23,7 @@ const (
 	windowConfirmed                     // the human pressed Confirm (OK on Windows)
 	windowCancelled                     // the human pressed Cancel
 	windowFailed                        // it could not open at all: fallback E
+	windowClosed                        // closed from outside (killed) before an answer: nothing is sent
 )
 
 const (
@@ -159,6 +160,8 @@ func confirmByWindow(paths runtimePaths, opts verbOptions, id string, noSnapshot
 			"Tell the user nothing changed. Apply this plan again only if they ask for it.")
 	case windowFailed:
 		return windowFallback(paths, s, plan, noSnapshot)
+	case windowClosed:
+		return windowStopped(s, "cancelled", "CONFIRM_CANCELLED", "the confirmation window was closed", again)
 	}
 	return windowStopped(s, "cancelled", "CONFIRM_CANCELLED", "the confirmation window got no answer in time", again)
 }

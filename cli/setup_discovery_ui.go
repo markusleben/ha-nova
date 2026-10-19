@@ -27,8 +27,12 @@ func selectDefaultHAHostWithFeedback(reader *bufio.Reader, out io.Writer, cfg ru
 	case 1:
 		candidate := result.candidates[0]
 		renderSetupDiscoveryResult(out, candidate.Host, candidate.Via, true)
-		needsAddressConfirmation := isLocalDiscoveryHost(candidate.Host)
-		return candidate, !needsAddressConfirmation, nil
+		if isLocalDiscoveryHost(candidate.Host) { // asked as an editable address (renderSetupDiscoveryResult says why)
+			return candidate, false, nil
+		}
+		// Never taken unasked: another Home Assistant on the network (a
+		// test one, a neighbour's) may be the one that answered (lane D3).
+		return promptSetupDiscoveryCandidateInteractive(reader, out, result.candidates)
 	default:
 		fmt.Fprintf(out, "  Found %d reachable Home Assistant instances. Choose the one to set up.\n", len(result.candidates))
 		return promptSetupDiscoveryCandidateInteractive(reader, out, result.candidates)

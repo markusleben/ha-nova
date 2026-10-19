@@ -77,8 +77,7 @@ func TestPromptSetupClientGuidesMissingClientPrerequisite(t *testing.T) {
 
 	rendered := output.String()
 	for _, want := range []string{
-		"No supported AI client is ready on this machine yet.",
-		"Install one supported client first, then rerun: ha-nova setup",
+		"No AI app found on this computer yet.",
 	} {
 		if !strings.Contains(rendered, want) {
 			t.Fatalf("prompt output missing %q:\n%s", want, rendered)

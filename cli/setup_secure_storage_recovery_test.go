@@ -144,7 +144,7 @@ func TestRunSetupSecureStorageRecoveryFlowRecomputesPlanAfterRetryableKeyringErr
 	if len(actions) != 2 || actions[0] != platformSecureStorageRecoveryInitialize || actions[1] != platformSecureStorageRecoveryUnlock {
 		t.Fatalf("expected initialize then unlock actions, got %v", actions)
 	}
-	if !strings.Contains(out.String(), "Local secure storage is locked") {
+	if !strings.Contains(out.String(), "This computer's keyring is locked") {
 		t.Fatalf("expected retry to show the recomputed unlock copy, got:\n%s", out.String())
 	}
 }
@@ -268,7 +268,7 @@ func TestRunSetupSecureStorageRecoveryFlowUsesOnlyNativePrompt(t *testing.T) {
 	if result != setupSecureStorageRecoveryRecovered {
 		t.Fatalf("expected recovered result, got %q", result)
 	}
-	if !strings.Contains(out.String(), "HA NOVA never reads it in the terminal") {
+	if !strings.Contains(out.String(), "HA NOVA never sees it") {
 		t.Fatalf("expected native-prompt guidance, got:\n%s", out.String())
 	}
 	if strings.Contains(strings.ToLower(out.String()), "keyring password:") {
@@ -360,7 +360,7 @@ func TestInteractiveSetupRecoveryBackDoesNotBypassGate(t *testing.T) {
 	}
 
 	output := stdout + stderr
-	if strings.Count(output, "Local secure storage needs setup") != 2 {
+	if strings.Count(output, "This computer's keyring isn't set up yet") != 2 {
 		t.Fatalf("expected recovery page twice after backing out once:\n%s", output)
 	}
 	if recoveryCalls != 1 {
@@ -450,7 +450,7 @@ func TestInteractiveSetupRecoversWhenSavedTokenReadNeedsRecovery(t *testing.T) {
 	}
 
 	output := stdout + stderr
-	recoveryIdx := strings.Index(output, "Local secure storage is locked")
+	recoveryIdx := strings.Index(output, "This computer's keyring is locked")
 	hostIdx := strings.Index(output, "Home Assistant address")
 	if recoveryIdx == -1 || hostIdx == -1 || recoveryIdx > hostIdx {
 		t.Fatalf("expected saved-token recovery before host prompt:\n%s", output)
@@ -595,8 +595,8 @@ func TestInteractiveSetupDeclinedReadRecoveryMentionsSavedTokenAccess(t *testing
 	}
 
 	output := stdout + stderr
-	if !strings.Contains(output, "cannot access saved relay token") {
-		t.Fatalf("expected saved-token access wording when recovery is declined:\n%s", output)
+	if !strings.Contains(output, "This computer's keyring is still locked, so setup stopped. Nothing was changed.") {
+		t.Fatalf("expected the plain locked-keyring wording when recovery is declined (lane D7):\n%s", output)
 	}
 }
 
@@ -685,7 +685,7 @@ func TestInteractiveSetupRetriesSaveTimeRecoveryInline(t *testing.T) {
 	}
 
 	output := stdout + stderr
-	if !strings.Contains(output, "Verifying connection") || !strings.Contains(output, "Local secure storage is locked") {
+	if !strings.Contains(output, "Verifying connection") || !strings.Contains(output, "This computer's keyring is locked") {
 		t.Fatalf("expected verify stage followed by inline recovery:\n%s", output)
 	}
 	if recoveryCalls != 1 {
@@ -781,10 +781,10 @@ func TestInteractiveSetupRetriesSaveTimeInitializationRecoveryInline(t *testing.
 	}
 
 	output := stdout + stderr
-	if !strings.Contains(output, "Verifying connection") || !strings.Contains(output, "Local secure storage needs setup") {
+	if !strings.Contains(output, "Verifying connection") || !strings.Contains(output, "This computer's keyring isn't set up yet") {
 		t.Fatalf("expected verify stage followed by inline initialization recovery:\n%s", output)
 	}
-	if !strings.Contains(output, "Open the system secure-storage setup now") {
+	if !strings.Contains(output, "Open the window to set up the keyring now") {
 		t.Fatalf("expected initialization recovery prompt:\n%s", output)
 	}
 	if !strings.Contains(output, "Setup complete!") {
@@ -795,5 +795,41 @@ func TestInteractiveSetupRetriesSaveTimeInitializationRecoveryInline(t *testing.
 	}
 	if writeCalls != 2 {
 		t.Fatalf("expected one failed save plus one retry, got %d writes", writeCalls)
+	}
+}
+
+// Lane D4: a desktop terminal with a locked keyring gets the unlock offer,
+// not the protected-file question; without a desktop the question stays.
+func TestServiceCredentialsQuestionOnlyWhereNoUnlockOfferRuns(t *testing.T) {
+	originalPlatform := platformSecureStorageRecoveryInteractiveAvailableForSetup
+	originalSupport := detectPlatformSecureStorageRecoverySupportForSetup
+	originalAction := inferPlatformSecureStorageRecoveryActionForSetup
+	originalTTY := writerSupportsTTYForSetup
+	originalInputTTY := uiInputSupportsTTY
+	t.Cleanup(func() {
+		platformSecureStorageRecoveryInteractiveAvailableForSetup = originalPlatform
+		detectPlatformSecureStorageRecoverySupportForSetup = originalSupport
+		inferPlatformSecureStorageRecoveryActionForSetup = originalAction
+		writerSupportsTTYForSetup = originalTTY
+		uiInputSupportsTTY = originalInputTTY
+	})
+	uiInputSupportsTTY = func() bool { return true }
+	writerSupportsTTYForSetup = func(io.Writer) bool { return true }
+	detectPlatformSecureStorageRecoverySupportForSetup = func() (bool, error) { return true, nil }
+	inferPlatformSecureStorageRecoveryActionForSetup = func(error) (platformSecureStorageRecoveryAction, error) {
+		return platformSecureStorageRecoveryUnlock, nil
+	}
+	locked := desktopKeyringLockedError("default Secret Service collection is locked")
+
+	platformSecureStorageRecoveryInteractiveAvailableForSetup = func() bool { return true }
+	if offerServiceCredentialsQuestion(locked) {
+		t.Fatal("desktop terminal: the unlock offer comes instead of the question")
+	}
+	platformSecureStorageRecoveryInteractiveAvailableForSetup = func() bool { return false }
+	if !offerServiceCredentialsQuestion(locked) {
+		t.Fatal("no desktop: the protected-file question must stay")
+	}
+	if offerServiceCredentialsQuestion(nil) {
+		t.Fatal("a usable keyring never asks")
 	}
 }
