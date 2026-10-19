@@ -79,6 +79,10 @@ func (f *setupFlow) pageHome() {
 		}
 		switch action.Action {
 		case "preview":
+			// Never again after a save or an unclear outcome (it may have run).
+			if pv := home.Previews[action.Value]; pv != nil && (pv.State != "problem" || !pv.Retry) && pv.State != "preview" {
+				continue
+			}
 			if args := home.previewArgs(action.Value); args != nil {
 				home.Previews[action.Value] = &setupPagePreview{State: "loading"}
 				show()

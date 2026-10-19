@@ -43,12 +43,12 @@ var setupPageLinkActive = func(cfg runtimeConfig) bool {
 }
 
 // pageControl shows step 3 until "Finish setup", then does what its
-// switches say. It runs once setup is complete, as the terminal's offers
-// do, and returns the exit code a failed Link setup leaves. Its terminal
-// lines go to pageLog: the outcome banner clears the screen first.
+// switches say. It runs once setup is complete, after the outcome banner,
+// as the terminal's offers do, and returns the exit code a failed Link
+// setup leaves.
 func (f *setupFlow) pageControl() int {
 	p := f.page
-	out := &f.pageLog
+	out := f.ui.termOut()
 	ctl := setupPageControl{Window: windowAvailable() && !windowOff(f.paths)}
 	f.pagePhones(&ctl)
 	var rulePath string
@@ -203,7 +203,7 @@ func (f *setupFlow) pageLinkPhone(ctl *setupPageControl, deviceID string) {
 		all := home.eligible("")
 		i := slices.IndexFunc(all, func(t phoneTarget) bool { return t.DeviceID == deviceID })
 		if readable && err == nil && home.relay != home.owner && status == phoneNone && i >= 0 {
-			result = sendPhoneLink(s, &f.pageLog, home, links, links[home.owner], all[i], windowWait)
+			result = sendPhoneLink(s, f.ui.termOut(), home, links, links[home.owner], all[i], windowWait)
 		}
 		s.close()
 	}
@@ -244,34 +244,59 @@ func (f *setupFlow) pageLinkOffered() bool {
 }
 
 // pageAddLink runs the terminal's Link offer, answered yes on the page,
-// after setup completed (as `ha-nova cloud add` would). Its sign-in opens
-// in a browser tab of its own. A failure keeps the exit code the terminal
+// after setup completed. Like `ha-nova cloud add` it starts from the saved
+// config, and it holds the generation and config setup completed with: an
+// uninstall or another change meanwhile fails closed. Its sign-in opens in
+// a browser tab of its own. A failure keeps the exit code the terminal
 // gives it, but step 4 still shows: the local connection works.
 func (f *setupFlow) pageAddLink() int {
+	failed := func(code int) int {
+		f.pageNotes = append(f.pageNotes, setupPageText("setup.page.home.note_link_failed"))
+		return code
+	}
+	var markers [][]byte
+	if f.pageGeneration != nil {
+		uninstall, errU := readUninstallMarker(f.paths)
+		snapshot, errS := readSetupConfigSnapshot(f.paths)
+		if errU != nil || errS != nil {
+			return failed(1)
+		}
+		markers = [][]byte{f.pageGeneration, uninstall, snapshot}
+		if err := ensureSetupLifecycleCurrent(f.paths, markers...); err != nil {
+			printHumanErr("%s", err)
+			return failed(1)
+		}
+	}
+	saved, err := loadConfig(f.paths)
+	if err != nil {
+		printHumanErr("%s", err)
+		return failed(1)
+	}
 	yes := func(string, string, bool) (bool, error) { return true, nil }
-	cfg, attempted, code := offerCloudForCompletedSetup(yes, f.page.text.out, f.paths, f.cfg, false)
+	cfg, attempted, code := offerCloudForCompletedSetup(yes, f.page.text.out, f.paths, saved, false, markers...)
 	f.cfg = cfg
 	switch {
 	case attempted && code != 0:
-		f.pageNotes = append(f.pageNotes, setupPageText("setup.page.home.note_link_failed"))
-		return code
+		return failed(code)
 	case attempted && f.cfg.Cloud.ready():
 		f.pageNotes = append(f.pageNotes, setupPageText("setup.page.home.note_link"))
 	}
 	return 0
 }
 
-// pageFinish ends a page run: step 3, the terminal's banner (step 4
-// replaces its first look) with step 3's lines after it, then step 4 until
-// Done.
+// pageFinish ends a page run: the terminal's banner (step 4 replaces its
+// first look; it clears the screen, so it comes first), step 3, then step
+// 4 until Done.
 func (f *setupFlow) pageFinish() setupStepResult {
-	exit := f.pageControl()
 	kind := setupOutcomeComplete
-	if f.cfg.Cloud.ready() && f.cfg.RoutePolicy == routePolicyAutomatic {
+	switch {
+	case f.cloudSetupPaused:
+		kind = setupOutcomeLinkPaused
+	case f.cfg.Cloud.ready() && f.cfg.RoutePolicy == routePolicyAutomatic:
 		kind = setupOutcomeLinkReady
 	}
 	f.page.text.outcome(setupOutcome{Kind: kind, Clients: f.selectedClients})
-	fmt.Fprint(f.page.text.out, f.pageLog.String())
+	exit := f.pageControl()
 	if f.pageQuit {
 		f.page.end("skipped") // connected, but step 3's choices weren't applied
 		return setupDone(exit)

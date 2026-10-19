@@ -246,7 +246,7 @@ func TestSetupPageRefusalsAndDrift(t *testing.T) {
 			{"kind":"no_room","count":3,"action":"rooms"}],"automation":{"template":"lights_off_when_away","uses":[]}}}`, 0}},
 		"plan template battery_reminder":     {{refusal("TEMPLATE_NO_MATCH"), 4}},
 		"plan template lights_off_when_away": {{plan("p_typed", "confirm"), 3}},
-		"plan rooms":                         {{refusal("NO_ROOM_SUGGESTIONS"), 4}, {plan("p_1", "preview"), 3}, {plan("p_2", "preview"), 3}, {plan("p_3", "preview"), 3}},
+		"plan rooms":                         {{plan("p_1", "preview"), 3}, {plan("p_2", "preview"), 3}, {plan("p_3", "preview"), 3}},
 		"apply --plan p_2":                   {{`{"schema_version":1,"server":"default","status":"drift"}`, 2}},
 		"apply --plan p_3":                   {{`{"schema_version":1,"server":"default","status":"unverified","undo":{"target_id":"rooms-0123456789ab"},"error":{"code":"ROOMS_PARTIAL","message":"x"}}`, 6}},
 	}
@@ -277,11 +277,15 @@ func TestSetupPageRefusalsAndDrift(t *testing.T) {
 		t.Fatalf("a typed plan was offered: %+v", typed)
 	}
 	p.click("save", "p_typed")
-	p.click("preview", "rooms")
-	if pv := p.preview("rooms", "problem"); pv.Problem.Key != "setup.page.home.problem.no_rooms" {
-		t.Fatalf("rooms = %+v", pv)
+	p.click("preview", "reminder") // a refusal that can't change: never planned again
+	p.waitFor("the page again", accepting("preview"))
+	if n := verbs.count("plan template battery_reminder"); n != 1 {
+		t.Fatalf("planned the refused reminder %d times", n)
 	}
-	p.click("preview", "rooms") // again after the problem
+	if msg, retry := pageRefusal("NO_ROOM_SUGGESTIONS"); msg.Key != "setup.page.home.problem.no_rooms" || retry {
+		t.Fatalf("no rooms = %+v %v", msg, retry)
+	}
+	p.click("preview", "rooms")
 	first := p.preview("rooms", "preview")
 	p.click("preview", "rooms") // a new preview replaces p_1
 	second := p.preview("rooms", "preview")
@@ -492,10 +496,11 @@ func TestSetupPageClaudeRuleOnlyOnFinish(t *testing.T) {
 // only with its switch on.
 func TestSetupPageLinkRowOnlyWhenRemoteIsActive(t *testing.T) {
 	for _, test := range []struct {
-		active bool
-		finish string
-		adds   int
-	}{{false, "link", 0}, {true, "", 0}, {true, "link", 1}} {
+		active      bool
+		finish      string
+		adds        int
+		uninstalled bool // the install generation rotated while step 3 waited
+	}{{false, "link", 0, false}, {true, "", 0, false}, {true, "link", 1, false}, {true, "link", 0, true}} {
 		resetServerProfileSelection(t)
 		paths := writeTestConfigFile(t, `{"schema_version":1}`)
 		if err := saveConfig(paths, completedLocalCloudTestConfig()); err != nil {
@@ -512,14 +517,20 @@ func TestSetupPageLinkRowOnlyWhenRemoteIsActive(t *testing.T) {
 		setupPageLinkActive = func(runtimeConfig) bool { return test.active }
 		p := newPageStepsTest(t, paths, "codex")
 		p.flow.cfg = cfg
+		if test.uninstalled {
+			p.flow.pageGeneration = []byte("the generation setup completed with")
+		}
 		done := p.runControl()
 		ctl := p.waitFor("step 3", accepting("finish")).Control
 		if want := map[bool]string{true: "offer", false: ""}[test.active]; ctl.Link != want {
 			t.Fatalf("active=%v: link row %q", test.active, ctl.Link)
 		}
 		p.click("finish", test.finish)
-		if code := <-done; code != 0 || coordinator.addCalls != test.adds {
+		if code := <-done; (code != 0) != test.uninstalled || coordinator.addCalls != test.adds {
 			t.Fatalf("%+v: exit %d adds %d", test, code, coordinator.addCalls)
+		}
+		if test.uninstalled && (len(p.flow.pageNotes) != 1 || p.flow.pageNotes[0].Key != "setup.page.home.note_link_failed") {
+			t.Fatalf("a superseded setup added Link or said nothing: %+v", p.flow.pageNotes)
 		}
 		if test.adds == 1 && (!p.flow.cfg.Cloud.ready() || len(p.flow.pageNotes) != 1 || p.flow.pageNotes[0].Key != "setup.page.home.note_link") {
 			t.Fatalf("after Link: cloud %+v notes %+v", p.flow.cfg.Cloud, p.flow.pageNotes)

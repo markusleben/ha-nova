@@ -65,7 +65,7 @@ func dispatch(paths runtimePaths, argv0 string, args []string) int {
 
 	switch args[0] {
 	case "setup", "pair", "cloud", "doctor":
-		if demoSelected(paths, args[1:]) && !(len(args) == 2 && args[1] == "--demo") { // setup --demo is ha-nova try
+		if demoSelected(paths, args[1:]) && !(args[0] == "setup" && len(args) == 2 && args[1] == "--demo") { // setup --demo is ha-nova try
 			printHumanErr("This command is for your own home, not the demo house (ha-nova try connects the demo, ha-nova try --stop removes it). Run it without HA_NOVA_SERVER=demo or --server demo.")
 			return 1
 		}

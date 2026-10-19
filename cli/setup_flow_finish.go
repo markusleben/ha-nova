@@ -153,13 +153,16 @@ func (f *setupFlow) stepSkills() setupStepResult {
 		return setupDone(1)
 	}
 	exit := 0
-	if f.cloudSetupPaused {
+	onPage := f.page != nil && !f.page.inTerminal()
+	if f.cloudSetupPaused && onPage {
+		f.pageControlled = true // pageFinish shows the paused outcome; the page goes on to step 3
+	} else if f.cloudSetupPaused {
 		f.ui.outcome(setupOutcome{Kind: setupOutcomeLinkPaused})
 	} else if f.cloudSetupIncomplete {
 		f.ui.outcome(setupOutcome{Kind: setupOutcomeIncomplete, Issue: setupIssueCloudAccess})
 		exit = 1
 	}
-	if exit == 0 && f.page != nil && !f.page.inTerminal() {
+	if exit == 0 && onPage {
 		// The page asks step 3 itself (phone, Claude Code rule, Link) once
 		// setup is complete, like the terminal's offers in finish.
 		f.pageControlled = true
@@ -186,6 +189,15 @@ func (f *setupFlow) stepSkills() setupStepResult {
 	}
 	if err := completeSetupLifecycle(f.paths, f.lifecycleMarker...); err != nil {
 		return f.fail(setupText("setup.error.finalize_lifecycle", "error", err))
+	}
+	if f.pageControlled && len(f.lifecycleMarker) > 0 {
+		// The generation setup completed with: an uninstall during step 3
+		// rotates it, and the page's Link add then fails closed.
+		generation, err := readInstallLifecycleGeneration(f.paths)
+		if err != nil {
+			return f.failErr(err)
+		}
+		f.pageGeneration = generation
 	}
 	if exit != 0 {
 		return setupDone(exit)

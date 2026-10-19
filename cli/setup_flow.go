@@ -46,12 +46,12 @@ type setupFlow struct {
 	// step 2 shows it.
 	pageProblem *setupPageMsg
 	// pageControlled: step 3 runs on the page; pageQuit: setup ended there
-	// (Ctrl+C or idle); pageNotes: what step 3 did, for step 4; pageLog:
-	// step 3's terminal lines, printed after the outcome banner.
+	// (Ctrl+C or idle); pageNotes: what step 3 did, for step 4;
+	// pageGeneration: the install generation setup completed with.
 	pageControlled bool
 	pageQuit       bool
 	pageNotes      []*setupPageMsg
-	pageLog        strings.Builder
+	pageGeneration []byte
 
 	// inputs
 	paths           runtimePaths
