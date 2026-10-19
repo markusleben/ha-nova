@@ -69,7 +69,7 @@ func stubSetupPageHome(t *testing.T, haURL string, appRunning bool) *int {
 	t.Cleanup(func() {
 		discoverReachableHAHostsForSetup, probeInstalledRelayForSetup, relayAdvertisesSignInForSetup = previousDiscover, previousProbe, previousAdvertises
 		resolveHASignInOriginForSetup, probePairingV1ForSetup, signInPairForSetup, verifyDeviceHealth, setupPageLinger = previousOrigin, previousPairing, previousPair, previousVerify, previousLinger
-		setupInstalledSignIn, setupOwnerIngress = nil, nil
+		setupInstalledSignIn, setupOwnerIngress, setupSignedInUser = nil, nil, ""
 	})
 	discoverReachableHAHostsForSetup = func(runtimeConfig) ([]setupDiscoveryCandidate, string) {
 		return []setupDiscoveryCandidate{{Host: normalizeHostInput(haURL), HAURL: haURL}}, ""

@@ -191,6 +191,14 @@ func handOverOwnerPhone(client *CloudIngressClient, paths runtimePaths, owner st
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
+	fresh, err := chatAppsCall(ctx, client, nil) // the NOVA page may have set one meanwhile
+	if err != nil {
+		return err
+	}
+	if fresh.OwnerPhone != nil {
+		state.OwnerPhone = fresh.OwnerPhone
+		return nil
+	}
 	if _, err := chatAppsCall(ctx, client, map[string]any{"owner_phone": phone}); err != nil {
 		return err
 	}
@@ -237,7 +245,7 @@ func ownerChatPhone(paths runtimePaths, owner string, state chatAppsState) *chat
 // goes to the App in a request of its own (ingress runs through Home
 // Assistant, so not while it restarts). ready=false: the App turned them on,
 // but Home Assistant hasn't loaded them in time. ctx stops the wait.
-func turnOnChatApps(ctx context.Context, client *CloudIngressClient, paths runtimePaths, phone *chatAppsPhone, progress func(string)) (chatAppsTurnOn, error) {
+func turnOnChatApps(ctx context.Context, client *CloudIngressClient, paths runtimePaths, before chatAppsState, phone *chatAppsPhone, progress func(string)) (chatAppsTurnOn, error) {
 	call := func(body map[string]any, timeout time.Duration) (chatAppsState, error) {
 		callCtx, cancel := context.WithTimeout(ctx, timeout)
 		defer cancel()
@@ -245,8 +253,16 @@ func turnOnChatApps(ctx context.Context, client *CloudIngressClient, paths runti
 	}
 	state, err := call(map[string]any{"enabled": true, "allow_restart": true}, 2*time.Minute)
 	var refused *chatAppsRefused
-	clearRefusal := errors.As(err, &refused) && refused.status < http.StatusInternalServerError
-	if err != nil && !clearRefusal && !IsCloudErrorCode(err, CloudErrOuterSessionExpired) && ctx.Err() == nil {
+	// Answers that come before the App changes anything.
+	clearRefusal := errors.Is(err, errChatAppsUnsupported) ||
+		errors.As(err, &refused) && (refused.status < http.StatusInternalServerError || refused.code == "OWNER_CHECK_UNAVAILABLE")
+	switch {
+	case err == nil, clearRefusal, IsCloudErrorCode(err, CloudErrOuterSessionExpired):
+	case ctx.Err() != nil || before.Enabled:
+		// Stopped while asking, or on before: a re-read can't tell what this
+		// request did.
+		err = errChatAppsUnknown
+	default:
 		// The answer was lost (network, timeout, 5xx): the App may have
 		// turned them on and Home Assistant may be restarting. Ask again.
 		again, againErr := call(nil, 30*time.Second)
@@ -263,18 +279,18 @@ func turnOnChatApps(ctx context.Context, client *CloudIngressClient, paths runti
 	if err != nil {
 		return chatAppsTurnOn{}, err
 	}
+	result := chatAppsTurnOn{on: true}
 	progress("on")
 	if state.Restarting {
 		progress("restart")
 	}
-	var result chatAppsTurnOn
-	down := false
+	down, restarted := false, !state.Restarting // a restart to come: an entry loaded before it proves nothing
 	for deadline := time.Now().Add(chatAppsReadyWait); !result.ready && time.Now().Before(deadline); {
 		ha, err := chatAppsReadHA(paths)
 		switch {
 		case err != nil:
-			down = true
-		case ha.loaded:
+			down, restarted = true, true
+		case ha.loaded && restarted:
 			progress("ready")
 			result.ready = true
 			continue
@@ -283,12 +299,17 @@ func turnOnChatApps(ctx context.Context, client *CloudIngressClient, paths runti
 			progress("back")
 		}
 		select {
-		case <-ctx.Done():
-			return result, ctx.Err()
+		case <-ctx.Done(): // on, not loaded yet; the phone stays to hand over
+			result.phoneFailed = phone != nil && state.OwnerPhone == nil
+			return result, nil
 		case <-time.After(chatAppsPollEvery):
 		}
 	}
-	if phone != nil {
+	switch {
+	case phone == nil || state.OwnerPhone != nil: // never over one the App got meanwhile
+	case !result.ready:
+		result.phoneFailed = true // Home Assistant isn't back: running chat-apps on again hands it over
+	default:
 		_, err := call(map[string]any{"owner_phone": phone}, 30*time.Second)
 		result.phoneStored = err == nil
 		result.phoneFailed = err != nil
@@ -297,6 +318,7 @@ func turnOnChatApps(ctx context.Context, client *CloudIngressClient, paths runti
 }
 
 type chatAppsTurnOn struct {
+	on          bool // the App said on (also when stopped while waiting)
 	ready       bool
 	phoneStored bool // the owner's phone now confirms for chat apps
 	phoneFailed bool // it should have, but the App didn't take it
@@ -371,7 +393,7 @@ func askChatAppsConsent(reader *bufio.Reader, out io.Writer, setupOffer bool, ph
 func turnOnChatAppsInTerminal(out io.Writer, paths runtimePaths, client *CloudIngressClient, offer chatAppsOffer, owner string) (note string, ok bool) {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
-	result, err := turnOnChatApps(ctx, client, paths, ownerChatPhone(paths, owner, offer.state), func(event string) {
+	result, err := turnOnChatApps(ctx, client, paths, offer.state, ownerChatPhone(paths, owner, offer.state), func(event string) {
 		switch event {
 		case "on":
 			renderSetupSuccessLine(out, "%s", setupT("setup.chat.row_on"))

@@ -234,6 +234,9 @@ func (f *setupFlow) finish() setupStepResult {
 			setupSuccess(setupText("setup.done.connected_no_client")),
 			setupParagraph(setupText("setup.clients.none_after_pairing", "clients", strings.Join(labels, ", "))),
 		}})
+		if interactive && f.pairedThisRun && !f.cloudSetupPaused && setupOwnerIngress != nil {
+			f.printChatApps(f.offerChatApps()) // Claude and ChatGPT on the web need no AI app here
+		}
 		return setupDone(0)
 	}
 	ruleNote := ""
@@ -258,13 +261,17 @@ func (f *setupFlow) finish() setupStepResult {
 	if ruleNote != "" {
 		f.ui.note(ruleNote)
 	}
-	if chatNote != "" { // after the outcome, which clears the screen
-		f.ui.note(chatNote)
-	}
-	if chatURL != "" {
-		printChatAppsHowTo(f.ui.termOut(), chatURL)
-	}
+	f.printChatApps(chatURL, chatNote) // after the outcome, which clears the screen
 	return setupDone(0)
+}
+
+func (f *setupFlow) printChatApps(url, note string) {
+	if note != "" {
+		f.ui.note(note)
+	}
+	if url != "" {
+		printChatAppsHowTo(f.ui.termOut(), url)
+	}
 }
 
 // offerChatApps is step 3's chat-app row in the terminal: one question, only

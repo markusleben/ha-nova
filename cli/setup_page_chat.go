@@ -30,7 +30,7 @@ func (f *setupFlow) pageChatOn(c *setupPageChat, offer *chatAppsOffer, show func
 	phone := ownerChatPhone(f.paths, setupSignedInUser, offer.state)
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt) // Ctrl+C: as in step 3's wait
 	defer stop()
-	result, err := turnOnChatApps(ctx, setupOwnerIngress, f.paths, phone, func(event string) {
+	result, err := turnOnChatApps(ctx, setupOwnerIngress, f.paths, offer.state, phone, func(event string) {
 		switch event {
 		case "on":
 			set("chat_on", "ok")

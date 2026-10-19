@@ -306,7 +306,7 @@ func TestChatAppsSendsTheOwnersPhoneOnly(t *testing.T) {
 	app := &fakeChatApp{state: chatAppsState{Available: true}}
 	useChatApps(t, app, &fakeChatHA{first: chatHARead{ha: chatAppsHA{version: "2026.10.2", loaded: true}}}, chatTestLink)
 	paths := writeTestConfigFile(t, link("owner-id"))
-	if result, err := turnOnChatApps(context.Background(), setupOwnerIngress, paths, ownerChatPhone(paths, "owner-id", app.state), func(string) {}); !result.ready || !result.phoneStored || err != nil {
+	if result, err := turnOnChatApps(context.Background(), setupOwnerIngress, paths, chatAppsState{}, ownerChatPhone(paths, "owner-id", app.state), func(string) {}); !result.ready || !result.phoneStored || err != nil {
 		t.Fatalf("turn on: %+v %v", result, err)
 	}
 	// The phone goes in its own request once Home Assistant is back.
@@ -315,7 +315,7 @@ func TestChatAppsSendsTheOwnersPhoneOnly(t *testing.T) {
 	}
 	// The App didn't take it: on, and one line says the phone is missing.
 	app.phoneErr = errSetupExit
-	if result, err := turnOnChatApps(context.Background(), setupOwnerIngress, paths, phone, func(string) {}); !result.ready || result.phoneStored || !result.phoneFailed || err != nil {
+	if result, err := turnOnChatApps(context.Background(), setupOwnerIngress, paths, chatAppsState{}, phone, func(string) {}); !result.ready || result.phoneStored || !result.phoneFailed || err != nil {
 		t.Fatalf("phone refused: %+v %v", result, err)
 	}
 }
@@ -531,6 +531,9 @@ func TestChatAppsCommand(t *testing.T) {
 		if exit, _ := run(paths, "maybe"); exit != 1 {
 			t.Fatalf("unknown action: exit %d", exit)
 		}
+		if exit, out := run(paths, "on", "--help"); exit != 0 || !strings.Contains(out, "Usage: ha-nova chat-apps") {
+			t.Fatalf("on --help: exit %d %q", exit, out)
+		}
 	})
 }
 
@@ -562,7 +565,7 @@ func TestChatAppsLostAnswer(t *testing.T) {
 					return state, err
 				}
 			}(chatAppsCall)
-			result, err := turnOnChatApps(context.Background(), setupOwnerIngress, chatPaths(t), nil, func(string) {})
+			result, err := turnOnChatApps(context.Background(), setupOwnerIngress, chatPaths(t), chatAppsState{}, nil, func(string) {})
 			if test.want == "" && (err != nil || !result.ready) {
 				t.Fatalf("reconciled: %+v %v", result, err)
 			}
@@ -614,5 +617,30 @@ func TestSetupTextPathHandsOverThePhoneWhenOn(t *testing.T) {
 	app.mu.Unlock()
 	if _, note := f.offerChatApps(); note != setupT("setup.chat.problem_phone") {
 		t.Fatalf("a refused phone said %q", note)
+	}
+}
+
+// A restart to come: an entry Home Assistant still holds from before is not
+// "ready"; only one loaded after Home Assistant was down is.
+func TestChatAppsReadyOnlyAfterTheRestart(t *testing.T) {
+	app := &fakeChatApp{state: chatAppsState{Available: true}, restart: true}
+	loaded := chatHARead{ha: chatAppsHA{version: "2026.10.2", loaded: true}}
+	ha := &fakeChatHA{first: loaded, next: make(chan chatHARead)} // first: still loaded from before
+	useChatApps(t, app, ha, chatTestLink)
+	done := make(chan chatAppsTurnOn)
+	var events []string
+	var mu sync.Mutex
+	go func() {
+		result, _ := turnOnChatApps(context.Background(), setupOwnerIngress, chatPaths(t), chatAppsState{}, nil, func(e string) { mu.Lock(); events = append(events, e); mu.Unlock() })
+		done <- result
+	}()
+	ha.next <- loaded // before the restart: not ready
+	ha.next <- chatHARead{err: errSetupExit}
+	ha.next <- loaded
+	result := <-done
+	mu.Lock()
+	defer mu.Unlock()
+	if !result.ready || strings.Join(events, ",") != "on,restart,ready" {
+		t.Fatalf("result %+v events %v", result, events)
 	}
 }

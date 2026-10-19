@@ -29,13 +29,15 @@ var (
 	chatAppsStdin    io.Reader = os.Stdin
 )
 
+const chatAppsUsage = "ha-nova chat-apps [on|off|status] [--server <name>]\n\n" +
+	"Turns HA NOVA in Claude and ChatGPT on or off (Home Assistant owner only), or shows whether it is on."
+
 func runChatAppsCommand(paths runtimePaths, args []string) int {
 	fs := flag.NewFlagSet("chat-apps", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 	server := fs.String("server", "", "server profile name (multi-server installs)")
 	if err := fs.Parse(args); err != nil {
-		if helpRequested(err, fs, "ha-nova chat-apps [on|off|status] [--server <name>]\n\n"+
-			"Turns HA NOVA in Claude and ChatGPT on or off (Home Assistant owner only), or shows whether it is on.") {
+		if helpRequested(err, fs, chatAppsUsage) {
 			return 0
 		}
 		printHumanErr("%s", err)
@@ -45,11 +47,14 @@ func runChatAppsCommand(paths runtimePaths, args []string) int {
 	if rest := fs.Args(); len(rest) > 0 { // flags may also follow the action
 		action = rest[0]
 		if err := fs.Parse(rest[1:]); err != nil || fs.NArg() > 0 {
+			if helpRequested(err, fs, chatAppsUsage) {
+				return 0
+			}
 			action = ""
 		}
 	}
 	if action != "on" && action != "off" && action != "status" {
-		printHumanErr("Usage: ha-nova chat-apps [on|off|status]")
+		printHumanErr("Usage: ha-nova chat-apps [on|off|status] [--server <name>]")
 		return 1
 	}
 	if *server != "" {
@@ -74,7 +79,7 @@ func runChatAppsCommand(paths runtimePaths, args []string) int {
 		return 1
 	}
 	origin := setupLinkRemoteOrigin(cfg)
-	if origin == "" && cfg.Cloud.ready() { // away from home the local check can't run: the saved Link address
+	if origin == "" && cfg.Cloud.ready() && !chatAppsAtHome(cfg) { // away from home the local check can't run: the saved Link address
 		origin = cfg.Cloud.Current.Origin
 	}
 	url := ""
@@ -145,6 +150,15 @@ func runChatAppsCommand(paths runtimePaths, args []string) int {
 	}
 	printChatAppsHowTo(out, url)
 	return 0
+}
+
+// chatAppsAtHome: this computer reaches the Relay locally, so the local Link
+// check above is the answer (remote access is off), not a guess.
+var chatAppsAtHome = func(cfg runtimeConfig) bool {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	transport, err := resolveRelayTransport(ctx, resolveLocalRelayTransportForCLI, cfg)
+	return err == nil && transport.Via == relayViaLocal
 }
 
 // chatAppsOwnerSession signs the owner in (browser) for the App's owner
