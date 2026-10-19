@@ -94,12 +94,12 @@ var (
 // allowed is the complete list of Supervisor calls this flow may make.
 func (s novaAppSupervisor) allowed(method, endpoint string, data map[string]any) bool {
 	switch method + " " + endpoint {
-	case "get /store/repositories", "get /addons/" + s.appSlug + "/info":
+	case "get /store/repositories", "get /addons/" + s.appSlug + "/info", "get /store/addons/" + s.appSlug:
 		return data == nil
 	case "post /addons/" + s.appSlug + "/uninstall", "delete /store/repositories/" + s.repoSlug:
 		// No remove_config: the App's own config folder, if any, stays.
 		return s.removal && data == nil
-	case "get /store/addons/" + s.appSlug, "post /addons/" + s.appSlug + "/start", "post /store/reload":
+	case "post /addons/" + s.appSlug + "/start", "post /store/reload":
 		return !s.removal && data == nil
 	case "post /store/repositories":
 		return !s.removal && len(data) == 1 && data["repository"] == haNovaRepositoryURL
@@ -138,7 +138,13 @@ type supervisorAppInfo struct {
 	UpdateAvailable bool   `json:"update_available"`
 	Build           bool   `json:"build"`
 	Available       bool   `json:"available"`
+	Installed       *bool  `json:"installed"` // store entries only
+	// Network maps container ports to host ports ("8792/tcp": 8792; null
+	// when disabled).
+	Network map[string]*int `json:"network"`
 }
+
+const novaAppSecurePortKey = "8792/tcp" // nova/config.yaml ports
 
 // info reads the App and checks it is the one from the pinned source.
 func (s novaAppSupervisor) info(ctx context.Context) (supervisorAppInfo, error) {

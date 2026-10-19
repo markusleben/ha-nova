@@ -52,15 +52,24 @@ func (evidence uninstallRelayRemovalEvidence) matches(
 		expectedRelayInstanceID == strings.TrimSpace(relayInstanceID)
 }
 
-func renderUninstallPreflight(out io.Writer, paths runtimePaths, source string) {
+// renderUninstallPreflight previews the removal. Without the menu (--yes, no
+// terminal) the mode is already fixed, so the second list says what happens.
+func renderUninstallPreflight(out io.Writer, paths runtimePaths, source string, menu bool, mode uninstallMode) {
 	session := resolveStatusUISession(out)
+	second := "Also removed unless you keep the pairing:"
+	switch {
+	case !menu && mode == uninstallModePurge:
+		second = "Also removed:"
+	case !menu:
+		second = "Kept for a reinstall:"
+	}
 	renderSimpleHeader(out, session, "HA NOVA Uninstall")
 	fmt.Fprintf(out, "  %s\n", session.style("strong", "Removes from this computer:"))
 	fmt.Fprintf(out, "    %s Skills from installed AI clients\n", session.bullet())
 	fmt.Fprintf(out, "    %s %s\n", session.bullet(), uninstallRuntimeLineLabel(paths, source))
 	fmt.Fprintf(out, "    %s Managed local state and cache\n", session.bullet())
 	fmt.Fprintln(out)
-	fmt.Fprintf(out, "  %s\n", session.style("strong", "Also removed unless this computer stays connected:"))
+	fmt.Fprintf(out, "  %s\n", session.style("strong", second))
 	fmt.Fprintf(out, "    %s Home Assistant connection config\n", session.bullet())
 	if label := uninstallTokenLineLabel(paths); label != "" {
 		fmt.Fprintf(out, "    %s %s\n", session.bullet(), label)
@@ -204,13 +213,19 @@ func printUninstallPreflightNotes(out io.Writer, preflight uninstallPreflight) {
 
 // preflightNoteLines: uninstall removes the shared App only through the menu
 // choice, after the Relay said this is its last computer. Otherwise the App
-// stays, and the note says where to remove it and what that costs.
+// (or a standalone Relay) stays, and the notes say how to remove it by hand.
 func preflightNoteLines(preflight uninstallPreflight) []string {
-	note := "The NOVA App in Home Assistant stays. Remove it there only if no other computer uses HA NOVA: removing it disconnects every paired computer."
-	if preflight.haURL != "" {
-		note += " Its page: " + haRelayAppPageURL(preflight.haURL)
+	derived := deriveRelayURLFromHA(preflight.haURL, preflight.config.HAHost)
+	var notes []string
+	if preflight.haURL != "" && derived != "" &&
+		strings.TrimRight(strings.TrimSpace(preflight.config.RelayBaseURL), "/") == derived {
+		notes = []string{
+			"The NOVA App in Home Assistant stays. Remove it only if no other computer uses HA NOVA: that disconnects every paired computer. Its page: " + haRelayAppPageURL(preflight.haURL),
+			"After removing it, also remove its source: Settings → Apps → App Store → ⋮ → Repositories → " + haNovaRepositoryURL,
+		}
+	} else {
+		notes = []string{"The NOVA Relay stays. Remove it only if no other computer uses HA NOVA, together with any \"NOVA\" access token in your Home Assistant profile (Security tab)."}
 	}
-	notes := []string{note}
 	if preflight.tokenUnavailable != "" {
 		notes = append(notes, preflight.tokenUnavailable)
 	}

@@ -117,7 +117,7 @@ func TestGuidedPreflightRejectsInvalidRetirementBeforeTeardown(t *testing.T) {
 				uninstallModePurge,
 			)
 			if err == nil ||
-				!strings.Contains(err.Error(), "before Home Assistant removal") {
+				!strings.Contains(err.Error(), "before removing HA NOVA") {
 				t.Fatalf("invalid checkpoint preflight error = %v", err)
 			}
 			if uninstallRelayRemovalEvidenceFromPreflight(

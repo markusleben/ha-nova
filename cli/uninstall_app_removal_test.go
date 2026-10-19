@@ -20,28 +20,23 @@ func peersOf(others int, legacy bool, chatApps bool) devicePeers {
 }
 
 // stubAppRemoval stubs the Relay answers (one per call, the last repeats),
-// the desktop and purge checks, and the browser sign-in, which runs prepare
-// against f like the real one (nil f: the sign-in fails with signInErr).
+// the official-App and desktop checks, and the browser sign-in, which runs
+// prepare against f like the real one (signInErr: the sign-in fails first).
 func stubAppRemoval(t *testing.T, f *fakeSupervisor, signInErr error, answers ...func() (devicePeers, error)) (fetches, signIns *int) {
 	t.Helper()
 	fetches, signIns = new(int), new(int)
-	previous := []any{fetchDevicePeersForUninstall, appRemovalSignInPossible, appRemovalPurgeBlocked, openHASignInForAppRemoval, resolveHASignInOriginForSetup, appRemovalTargetsThisHA}
+	previousFetch, previousPossible, previousOpen, previousResolve, previousTargets :=
+		fetchDevicePeersForUninstall, appRemovalSignInPossible, openHASignInForAppRemoval, resolveHASignInOriginForSetup, appRemovalTargetsThisHA
 	t.Cleanup(func() {
-		fetchDevicePeersForUninstall = previous[0].(func(runtimeConfig) (devicePeers, error))
-		appRemovalSignInPossible = previous[1].(func(io.Writer, runtimeConfig) bool)
-		appRemovalPurgeBlocked = previous[2].(func(runtimePaths) bool)
-		openHASignInForAppRemoval = previous[3].(func(context.Context, io.Writer, string, haSignInPrepare) (haSignInSession, error))
-		resolveHASignInOriginForSetup = previous[4].(func(context.Context, string) (*url.URL, error))
-		appRemovalTargetsThisHA = previous[5].(func(runtimeConfig) bool)
+		fetchDevicePeersForUninstall, appRemovalSignInPossible, openHASignInForAppRemoval, resolveHASignInOriginForSetup, appRemovalTargetsThisHA =
+			previousFetch, previousPossible, previousOpen, previousResolve, previousTargets
 	})
 	appRemovalTargetsThisHA = func(runtimeConfig) bool { return true }
 	fetchDevicePeersForUninstall = func(runtimeConfig) (devicePeers, error) {
 		*fetches++
-		answer := answers[min(*fetches, len(answers))-1]
-		return answer()
+		return answers[min(*fetches, len(answers))-1]()
 	}
 	appRemovalSignInPossible = func(io.Writer, runtimeConfig) bool { return true }
-	appRemovalPurgeBlocked = func(runtimePaths) bool { return false }
 	resolveHASignInOriginForSetup = func(context.Context, string) (*url.URL, error) {
 		return &url.URL{Scheme: "http", Host: "ha.local:8123"}, nil
 	}
@@ -67,6 +62,8 @@ func appRemovalPaths(t *testing.T, cfg runtimeConfig) runtimePaths {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	t.Setenv("HA_NOVA_CONFIG_DIR", filepath.Join(home, ".config", "ha-nova"))
+	t.Setenv("HA_NOVA_ALLOW_INSECURE_TEST_KEYRING", "1")
+	t.Setenv("HA_NOVA_TEST_KEYRING_FILE", filepath.Join(home, ".config", "ha-nova", ".test-relay-auth-token"))
 	paths, err := detectPaths()
 	if err != nil {
 		t.Fatal(err)
@@ -77,7 +74,10 @@ func appRemovalPaths(t *testing.T, cfg runtimeConfig) runtimePaths {
 	return paths
 }
 
-var appPathConfig = runtimeConfig{HAURL: "http://ha.local:8123", RelayBaseURL: "http://ha.local:8791"}
+var appPathConfig = runtimeConfig{
+	HAURL: "http://ha.local:8123", RelayBaseURL: "http://ha.local:8791",
+	RelaySecureBaseURL: "https://ha.local:8792", RelaySpkiPin: "pin",
+}
 
 func TestUninstallAppRemovalOfferedOnlyForTheLastDevice(t *testing.T) {
 	unknown := errors.New("route not found")
@@ -91,9 +91,15 @@ func TestUninstallAppRemovalOfferedOnlyForTheLastDevice(t *testing.T) {
 		{"another device", func() (devicePeers, error) { return peersOf(1, false, false), nil }, false, false},
 		{"legacy access", func() (devicePeers, error) { return peersOf(0, true, false), nil }, false, false},
 		{"chat apps", func() (devicePeers, error) { return peersOf(0, false, true), nil }, false, true},
+		{"chat apps and another device", func() (devicePeers, error) { return peersOf(1, false, true), nil }, false, false},
 		{"unknown chat apps", func() (devicePeers, error) {
 			p := peersOf(0, false, false)
 			p.ChatAppFiles = nil
+			return p, nil
+		}, false, false},
+		{"unknown device count", func() (devicePeers, error) {
+			p := peersOf(0, false, false)
+			p.OtherDevices = nil
 			return p, nil
 		}, false, false},
 		{"older Relay", func() (devicePeers, error) { return devicePeers{}, unknown }, false, false},
@@ -109,6 +115,10 @@ func TestUninstallAppRemovalOfferedOnlyForTheLastDevice(t *testing.T) {
 }
 
 func TestUninstallAppRemovalNotOfferedWithoutItsPreconditions(t *testing.T) {
+	otherHost := appPathConfig
+	otherHost.RelaySecureBaseURL = "https://other.local:8792"
+	unpinned := appPathConfig
+	unpinned.RelaySpkiPin = ""
 	for _, tc := range []struct {
 		name  string
 		cfg   runtimeConfig
@@ -116,7 +126,8 @@ func TestUninstallAppRemovalNotOfferedWithoutItsPreconditions(t *testing.T) {
 	}{
 		{"not the official App on this Home Assistant", appPathConfig, func() { appRemovalTargetsThisHA = func(runtimeConfig) bool { return false } }},
 		{"no desktop sign-in", appPathConfig, func() { appRemovalSignInPossible = func(io.Writer, runtimeConfig) bool { return false } }},
-		{"purge can't finish here", appPathConfig, func() { appRemovalPurgeBlocked = func(runtimePaths) bool { return true } }},
+		{"paired Relay on another host", otherHost, func() {}},
+		{"no pinned pairing", unpinned, func() {}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			fetches, _ := stubAppRemoval(t, nil, nil, func() (devicePeers, error) { return peersOf(0, false, false), nil })
@@ -138,7 +149,7 @@ func TestRemoveNOVAAppRemovesOnlyTheAppAndItsSource(t *testing.T) {
 	}
 	slug := HAOfficialNOVAAppSlug
 	want := []string{"get_config", "get /store/repositories", "get /addons/" + slug + "/info", "post /addons/" + slug + "/uninstall",
-		"get /addons/" + slug + "/info", "delete /store/repositories/2368fcfa", "get /store/repositories"}
+		"get /store/addons/" + slug, "delete /store/repositories/2368fcfa", "get /store/repositories"}
 	if !slices.Equal(f.calls, want) || *fetches != 1 {
 		t.Fatalf("calls = %v, Relay asked %d times", f.calls, *fetches)
 	}
@@ -183,6 +194,11 @@ func TestRemoveNOVAAppFailsClosed(t *testing.T) {
 		}, "Home Assistant lists a different NOVA source. Nothing was removed.", false},
 		{"App not installed", nil, []func() (devicePeers, error){alone}, func(f *fakeSupervisor) { f.info["version"] = nil }, "doesn't list the NOVA App as installed", false},
 		{"no Supervisor", nil, []func() (devicePeers, error){alone}, func(f *fakeSupervisor) { f.noHassio = true }, "no Apps", false},
+		{"another Relay answered", nil, []func() (devicePeers, error){alone}, func(f *fakeSupervisor) {
+			f.info["network"] = map[string]any{"8792/tcp": 18792}
+		}, "isn't the one this computer is connected to", false},
+		{"store answer without installed", nil, []func() (devicePeers, error){alone}, func(f *fakeSupervisor) { f.storeOmitsInstalled = true },
+			"didn't confirm that the NOVA App was removed", true},
 		{"Supervisor refuses", nil, []func() (devicePeers, error){alone}, func(f *fakeSupervisor) { f.uninstallFails = true }, "couldn't remove the NOVA App; it is still installed", true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -196,7 +212,7 @@ func TestRemoveNOVAAppFailsClosed(t *testing.T) {
 			if removeNOVAAppForUninstall(&out, appPathConfig) {
 				t.Fatalf("removal claimed success:\n%s", out.String())
 			}
-			if !strings.Contains(out.String(), tc.line) || !strings.Contains(out.String(), "HA NOVA stays on this computer") {
+			if !strings.Contains(out.String(), tc.line) || !strings.Contains(out.String(), "HA NOVA is still on this computer") {
 				t.Fatalf("missing %q:\n%s", tc.line, out.String())
 			}
 			if got := slices.Contains(f.calls, "post /addons/"+slug+"/uninstall"); got != tc.uninstall {
@@ -219,6 +235,7 @@ func TestNOVAAppSupervisorKeepsInstallAndRemovalApart(t *testing.T) {
 		{"post", "/store/reload", ""},
 		{"post", "/store/repositories", "data"},
 		{"post", "/addons/" + slug + "/uninstall", "data"}, // no remove_config
+		{"get", "/store/addons/" + slug, "data"},
 		{"post", "/addons/2368fcfa_other/uninstall", ""},
 		{"delete", "/store/repositories/abcdef12", ""},
 		{"get", "/jobs/" + fakeJobID, ""},
@@ -256,16 +273,124 @@ func TestReadDevicePeersParsesTheRelayAnswer(t *testing.T) {
 	}
 }
 
+// pairedForAppRemoval adds this computer's device credential and records
+// revocations, which fail like a removed App's closed port.
+func pairedForAppRemoval(t *testing.T) *int {
+	t.Helper()
+	service := deviceCredentialServiceForProfile(defaultServerProfileName)
+	if err := secretSet(service, testProfileCredentialB); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = secretDelete(service) })
+	revokes := new(int)
+	previous := revokeSelfDeviceV1ForUninstall
+	revokeSelfDeviceV1ForUninstall = func(string, string, string) error {
+		*revokes++
+		return errors.New("connection refused")
+	}
+	t.Cleanup(func() { revokeSelfDeviceV1ForUninstall = previous })
+	return revokes
+}
+
 // --yes never asks the Relay or signs in, even where the App could be removed.
 func TestRunUninstallYesNeverRemovesTheApp(t *testing.T) {
 	for _, args := range [][]string{{"--yes"}, {"--yes", "--purge"}} {
 		paths := appRemovalPaths(t, appPathConfig)
-		t.Setenv("HA_NOVA_ALLOW_INSECURE_TEST_KEYRING", "1")
-		t.Setenv("HA_NOVA_TEST_KEYRING_FILE", filepath.Join(paths.ConfigDir, ".test-relay-auth-token"))
+		pairedForAppRemoval(t)
 		fetches, signIns := stubAppRemoval(t, newFakeSupervisor(t), nil, func() (devicePeers, error) { return peersOf(0, false, false), nil })
 		exitCode, output := captureCommandOutput(t, func() int { return runUninstall(paths, args) })
 		if exitCode != 0 || *fetches != 0 || *signIns != 0 || !strings.Contains(output, "The NOVA App in Home Assistant stays.") {
 			t.Fatalf("args %v: exit=%d fetches=%d sign-ins=%d\n%s", args, exitCode, *fetches, *signIns, output)
 		}
+	}
+}
+
+type recordingUninstallMenu struct {
+	answer string
+	spec   setupMenuSpec
+}
+
+func (r *recordingUninstallMenu) Run(_ io.Writer, spec setupMenuSpec) (string, error) {
+	r.spec = spec
+	return r.answer, nil
+}
+
+// stubUninstallMenu makes runUninstall interactive with an arrow menu that
+// answers answer.
+func stubUninstallMenu(t *testing.T, answer string) *recordingUninstallMenu {
+	t.Helper()
+	previousInteractive, previousEnv, previousTTY, previousInput, previousANSI, previousRunner :=
+		uninstallInteractive, uiEnvLookup, writerSupportsTTYForSetup, uiInputSupportsTTY, uiOutputSupportsANSI, interactiveSetupMenuRunner
+	t.Cleanup(func() {
+		uninstallInteractive, uiEnvLookup, writerSupportsTTYForSetup, uiInputSupportsTTY, uiOutputSupportsANSI, interactiveSetupMenuRunner =
+			previousInteractive, previousEnv, previousTTY, previousInput, previousANSI, previousRunner
+	})
+	menu := &recordingUninstallMenu{answer: answer}
+	uninstallInteractive = func() bool { return true }
+	uiEnvLookup = func(string) string { return "" }
+	writerSupportsTTYForSetup = func(io.Writer) bool { return true }
+	uiInputSupportsTTY = func() bool { return true }
+	uiOutputSupportsANSI = func(io.Writer) bool { return true }
+	interactiveSetupMenuRunner = menu
+	return menu
+}
+
+// The whole interactive path: one menu, the App removal, then the local
+// purge, whose failed revoke against the gone App says so plainly.
+func TestRunUninstallRemovesTheAppThenThisComputer(t *testing.T) {
+	paths := appRemovalPaths(t, appPathConfig)
+	revokes := pairedForAppRemoval(t)
+	f := newFakeSupervisor(t)
+	f.installedApp("0.10.0", "started", "")
+	stubAppRemoval(t, f, nil, func() (devicePeers, error) { return peersOf(0, false, false), nil })
+	menu := stubUninstallMenu(t, "app")
+	exitCode, output := captureCommandOutput(t, func() int { return runUninstall(paths, nil) })
+	if exitCode != 0 || menu.spec.DefaultValue != "purge" || len(menu.spec.Options) != 4 || menu.spec.Options[1].Value != "app" {
+		t.Fatalf("exit=%d spec=%+v\n%s", exitCode, menu.spec, output)
+	}
+	if !slices.Contains(f.calls, "post /addons/"+HAOfficialNOVAAppSlug+"/uninstall") || *revokes != 1 || fileExists(paths.ConfigFile) {
+		t.Fatalf("calls=%v revokes=%d config kept=%v\n%s", f.calls, *revokes, fileExists(paths.ConfigFile), output)
+	}
+	for _, want := range []string{"Removed the NOVA App from Home Assistant.", "If the NOVA App is still installed"} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("missing %q:\n%s", want, output)
+		}
+	}
+	if strings.Contains(output, "The NOVA App in Home Assistant stays") {
+		t.Fatalf("claims the removed App stays:\n%s", output)
+	}
+}
+
+// A failed App removal stops before anything on this computer is removed.
+func TestRunUninstallKeepsThisComputerWhenTheAppStays(t *testing.T) {
+	paths := appRemovalPaths(t, appPathConfig)
+	revokes := pairedForAppRemoval(t)
+	f := newFakeSupervisor(t)
+	f.installedApp("0.10.0", "started", "")
+	f.uninstallFails = true
+	stubAppRemoval(t, f, nil, func() (devicePeers, error) { return peersOf(0, false, false), nil })
+	stubUninstallMenu(t, "app")
+	exitCode, output := captureCommandOutput(t, func() int { return runUninstall(paths, nil) })
+	if exitCode != 1 || *revokes != 0 || !fileExists(paths.ConfigFile) || !strings.Contains(output, "HA NOVA is still on this computer") {
+		t.Fatalf("exit=%d revokes=%d config kept=%v\n%s", exitCode, *revokes, fileExists(paths.ConfigFile), output)
+	}
+}
+
+// Where a full removal can't run, "Remove" is disabled, the default keeps the
+// pairing, and the Relay is not even asked about the App.
+func TestRunUninstallMenuWhenAFullRemovalCantRun(t *testing.T) {
+	paths := appRemovalPaths(t, appPathConfig)
+	pairedForAppRemoval(t)
+	cfg := appPathConfig
+	cfg.RelayTokenFile = filepath.Join(t.TempDir(), "foreign-token")
+	if err := saveConfig(paths, cfg); err != nil {
+		t.Fatal(err)
+	}
+	fetches, _ := stubAppRemoval(t, newFakeSupervisor(t), nil, func() (devicePeers, error) { return peersOf(0, false, false), nil })
+	menu := stubUninstallMenu(t, "cancel")
+	exitCode, output := captureCommandOutput(t, func() int { return runUninstall(paths, nil) })
+	if exitCode != 0 || *fetches != 0 || menu.spec.DefaultValue != "standard" || !menu.spec.Options[0].Disabled ||
+		len(menu.spec.Options) != 3 || !strings.Contains(output, "Uninstall cancelled") {
+		t.Fatalf("exit=%d fetches=%d spec=%+v\n%s", exitCode, *fetches, menu.spec, output)
 	}
 }

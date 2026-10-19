@@ -149,7 +149,7 @@ func TestGuidedPurgeCloudDeviceFailureStopsBeforeHomeAssistantRemoval(
 		uninstallModePurge,
 	)
 	if err == nil ||
-		!strings.Contains(err.Error(), "before Home Assistant removal") {
+		!strings.Contains(err.Error(), "before removing HA NOVA") {
 		t.Fatalf("pre-guided Cloud device error = %v", err)
 	}
 	if _, exists, readErr := readCredentialSlot(

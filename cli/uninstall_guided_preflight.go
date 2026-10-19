@@ -26,7 +26,7 @@ func prepareUninstallBeforeGuidedTeardown(
 		profiles, err := deviceCredentialRetirementCheckpointProfiles(paths)
 		if err != nil {
 			return fmt.Errorf(
-				"cannot validate uninstall before Home Assistant removal: %w",
+				"cannot validate uninstall before removing HA NOVA: %w",
 				err,
 			)
 		}
@@ -41,25 +41,25 @@ func prepareUninstallBeforeGuidedTeardown(
 			return nil
 		}
 		if err := validatePurgeServiceTokenFile(paths); err != nil {
-			return fmt.Errorf("cannot validate relay token cleanup before Home Assistant removal: %w", err)
+			return fmt.Errorf("cannot validate relay token cleanup before removing HA NOVA: %w", err)
 		}
 		if _, err := resumeKeyringDeviceCredentialCleanup(); err != nil {
 			return relayAuthTokenSetupOperationError(
-				"finish device credential storage recovery before Home Assistant removal",
+				"finish device credential storage recovery before removing HA NOVA",
 				err,
 			)
 		}
 		cloudTargets, err := collectCloudPurgeTargets(paths.ConfigFile)
 		if err != nil {
 			return fmt.Errorf(
-				"cannot validate Home Assistant Link cleanup before Home Assistant removal: %w",
+				"cannot validate Home Assistant Link cleanup before removing HA NOVA: %w",
 				err,
 			)
 		}
 		deviceTargets, err := collectProfilePurgeTargets(paths)
 		if err != nil {
 			return fmt.Errorf(
-				"cannot validate device cleanup before Home Assistant removal: %w",
+				"cannot validate device cleanup before removing HA NOVA: %w",
 				err,
 			)
 		}
@@ -82,7 +82,7 @@ func prepareUninstallBeforeGuidedTeardown(
 		targets, err := collectDeviceCredentialRetirementPurgeTargets(paths)
 		if err != nil {
 			return fmt.Errorf(
-				"cannot validate pending device retirement before Home Assistant removal: %w",
+				"cannot validate pending device retirement before removing HA NOVA: %w",
 				err,
 			)
 		}
@@ -93,7 +93,7 @@ func prepareUninstallBeforeGuidedTeardown(
 		)
 		if err != nil {
 			return fmt.Errorf(
-				"cannot finish pending device retirement before Home Assistant removal: %w",
+				"cannot finish pending device retirement before removing HA NOVA: %w",
 				err,
 			)
 		}
@@ -102,7 +102,7 @@ func prepareUninstallBeforeGuidedTeardown(
 			cloudTargets,
 		); err != nil {
 			return fmt.Errorf(
-				"cannot finish Cloud device cleanup before Home Assistant removal: %w",
+				"cannot finish Cloud device cleanup before removing HA NOVA: %w",
 				err,
 			)
 		}
@@ -121,7 +121,7 @@ func validateUninstallSecureStorageBeforeGuidedTeardown(
 		store, err := newCloudSecretStoreForCLI(target.profileID)
 		if err != nil {
 			return fmt.Errorf(
-				"cannot inspect Home Assistant Link credentials for server %q before Home Assistant removal: %w",
+				"cannot inspect Home Assistant Link credentials for server %q before removing HA NOVA: %w",
 				target.profileName,
 				cloudProblemForError(err),
 			)
@@ -132,7 +132,7 @@ func validateUninstallSecureStorageBeforeGuidedTeardown(
 			store,
 		); err != nil {
 			return fmt.Errorf(
-				"cannot inspect Home Assistant Link credentials for server %q before Home Assistant removal: %w",
+				"cannot inspect Home Assistant Link credentials for server %q before removing HA NOVA: %w",
 				target.profileName,
 				cloudProblemForError(
 					cloudAuthorizationCleanupErrorWithRecoveryCommand(
@@ -148,7 +148,7 @@ func validateUninstallSecureStorageBeforeGuidedTeardown(
 			target.profileName,
 		); err != nil {
 			return fmt.Errorf(
-				"cannot validate Home Assistant Link device cleanup for server %q before Home Assistant removal: %w",
+				"cannot validate Home Assistant Link device cleanup for server %q before removing HA NOVA: %w",
 				target.profileName,
 				cloudProblemForError(err),
 			)
@@ -161,7 +161,7 @@ func validateUninstallSecureStorageBeforeGuidedTeardown(
 	if _, err := readRelayAuthToken(); err != nil &&
 		!isMissingRelayAuthTokenError(err) {
 		return fmt.Errorf(
-			"cannot inspect legacy relay authorization before Home Assistant removal: %s",
+			"cannot inspect legacy relay authorization before removing HA NOVA: %s",
 			relayAuthTokenProblemMessage(err),
 		)
 	}

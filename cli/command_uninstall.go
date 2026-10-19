@@ -11,6 +11,9 @@ import (
 	"time"
 )
 
+// uninstallInteractive: a person answers the menu (a test seam).
+var uninstallInteractive = isInteractiveTTY
+
 type uninstallMode string
 
 const (
@@ -100,7 +103,7 @@ func runInternalUninstall(_ runtimePaths, args []string) int {
 func runUninstall(paths runtimePaths, args []string) int {
 	fs := flag.NewFlagSet("uninstall", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
-	yes := fs.Bool("yes", false, "skip confirmation prompts (prints the Home Assistant cleanup checklist instead)")
+	yes := fs.Bool("yes", false, "no questions; keeps this computer's pairing unless --purge, and never removes the NOVA App")
 	purge := fs.Bool("purge", false, "also remove config, state, and the relay auth token (retains small opaque safety markers)")
 	if err := fs.Parse(args); err != nil {
 		if helpRequested(err, fs, "ha-nova uninstall [--yes] [--purge]") {
@@ -122,7 +125,7 @@ func runUninstall(paths runtimePaths, args []string) int {
 	var recoveredRemovedRelays uninstallRelayRemovalEvidence
 	// Without the menu, refuse before any recovery output; with it, the user
 	// may still keep this computer connected, which needs no credentials.
-	purgeChecked := *yes || !isInteractiveTTY()
+	purgeChecked := *yes || !uninstallInteractive()
 	if purgeChecked && purgeRefusedOutsideDesktop(paths, mode, *yes) {
 		return 1
 	}
@@ -145,17 +148,17 @@ func runUninstall(paths runtimePaths, args []string) int {
 		}
 	}
 
-	renderUninstallPreflight(os.Stdout, paths, source)
-	guidedSession := !*yes && !recoveryMode && isInteractiveTTY()
+	guidedSession := !*yes && !recoveryMode && uninstallInteractive()
+	renderUninstallPreflight(os.Stdout, paths, source, guidedSession, mode)
 	var appOffer uninstallAppOffer
 	removeApp := false
 	if guidedSession {
-		if !*purge && !appRemovalPurgeBlocked(paths) {
-			// "Remove" is the default where this session can finish it.
-			mode = uninstallModePurge
+		purgeBlocked := uninstallPurgeBlocked(paths)
+		mode = uninstallModePurge // "Remove" is the default; the menu moves off it when blocked
+		if purgeBlocked == "" {
+			appOffer = uninstallAppRemovalOffer(os.Stdout, paths)
 		}
-		appOffer = uninstallAppRemovalOffer(os.Stdout, paths)
-		choice, proceed, err := promptUninstallChoice(os.Stdout, mode, appOffer)
+		choice, proceed, err := promptUninstallChoice(os.Stdout, mode, appOffer, purgeBlocked)
 		if err != nil {
 			printHumanErr("%s", err)
 			return 1

@@ -7,7 +7,9 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -20,7 +22,7 @@ import (
 // Supervisor allow-list (ha_supervisor_app.go); every other App and Home
 // Assistant's own data stay. Any doubt keeps the App.
 
-const appRemovalChatAppsLine = "The NOVA App stays: chat apps are on. Turn them off in NOVA to remove the App too."
+const appRemovalChatAppsLine = "To remove the NOVA App too: Cancel, turn off chat apps in NOVA, try again."
 
 // devicePeers is the Relay's GET /auth/device/peers answer; a missing field
 // counts as unknown.
@@ -32,11 +34,14 @@ type devicePeers struct {
 
 func (p devicePeers) chatApps() bool { return p.ChatAppFiles != nil && *p.ChatAppFiles }
 
+// noOtherAccess: no other device and no legacy shared access, both known.
+func (p devicePeers) noOtherAccess() bool {
+	return p.OtherDevices != nil && *p.OtherDevices == 0 && p.LegacyAccess != nil && !*p.LegacyAccess
+}
+
 // alone: every answer is known and nothing else uses the App.
 func (p devicePeers) alone() bool {
-	return p.OtherDevices != nil && *p.OtherDevices == 0 &&
-		p.LegacyAccess != nil && !*p.LegacyAccess &&
-		p.ChatAppFiles != nil && !*p.ChatAppFiles
+	return p.noOtherAccess() && p.ChatAppFiles != nil && !*p.ChatAppFiles
 }
 
 // Test seams.
@@ -44,7 +49,6 @@ var (
 	fetchDevicePeersForUninstall = fetchDevicePeers
 	appRemovalTargetsThisHA      = haAppInstallTargetsThisHA
 	appRemovalSignInPossible     = haSignInPossible
-	appRemovalPurgeBlocked       = func(paths runtimePaths) bool { return purgeSecureStorageSessionError(paths) != nil }
 	openHASignInForAppRemoval    = openHASignInIngressWith
 )
 
@@ -55,7 +59,7 @@ func fetchDevicePeers(cfg runtimeConfig) (devicePeers, error) {
 	original := activeServerProfile()
 	setActiveServerProfile(defaultServerProfileName)
 	defer setActiveServerProfile(original)
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	selected, err := selectRelayTransport(ctx, cfg, relayViaLocal, true)
 	if err != nil {
@@ -95,6 +99,38 @@ func readDevicePeers(ctx context.Context, client *http.Client, baseURL, credenti
 	return envelope.Data, nil
 }
 
+// uninstallPurgeBlocked names why a full removal would stop in this session
+// ("" when it can run): no desktop secure storage, or settings the purge
+// refuses (a foreign relay token file, unreadable profiles).
+func uninstallPurgeBlocked(paths runtimePaths) string {
+	if purgeSecureStorageSessionError(paths) != nil {
+		return "needs this computer's own desktop session"
+	}
+	_, _, release, err := pinnedPurgeTargets(paths)
+	if err != nil {
+		return "HA NOVA's saved settings need a fix first"
+	}
+	release()
+	return ""
+}
+
+// appRemovalSecurePort is the pinned Relay's port when it runs on this Home
+// Assistant's host, else 0. The App's own port mapping must match it, so the
+// Relay that answered is the App that gets removed.
+func appRemovalSecurePort(cfg runtimeConfig) int {
+	secure, err := url.Parse(strings.TrimSpace(cfg.RelaySecureBaseURL))
+	ha, haErr := url.Parse(strings.TrimSpace(cfg.HAURL))
+	if err != nil || haErr != nil || strings.TrimSpace(cfg.RelaySpkiPin) == "" ||
+		secure.Hostname() == "" || !strings.EqualFold(secure.Hostname(), ha.Hostname()) {
+		return 0
+	}
+	port, err := strconv.Atoi(secure.Port())
+	if err != nil || port < 1 || port > 65535 {
+		return 0
+	}
+	return port
+}
+
 type uninstallAppOffer struct {
 	offered bool
 	note    string // one line when the App stays for a reason the owner can change
@@ -102,16 +138,20 @@ type uninstallAppOffer struct {
 }
 
 // uninstallAppRemovalOffer decides before the menu whether removing the App is
-// a choice: the official App on this Home Assistant, a desktop sign-in, a
-// purge this session can finish, and a Relay that says this is its last device.
+// a choice: the official App on this Home Assistant, a desktop sign-in, and a
+// Relay that says this is its last device. The caller asks only when a purge
+// can run in this session.
 func uninstallAppRemovalOffer(out io.Writer, paths runtimePaths) uninstallAppOffer {
 	cfg, err := loadRawDefaultProfileConfig(paths.ConfigFile)
-	if err != nil || !appRemovalTargetsThisHA(cfg) || !appRemovalSignInPossible(out, cfg) || appRemovalPurgeBlocked(paths) {
+	if err != nil || !appRemovalTargetsThisHA(cfg) || appRemovalSecurePort(cfg) == 0 ||
+		!appRemovalSignInPossible(out, cfg) {
 		return uninstallAppOffer{}
 	}
-	peers, err := fetchDevicePeersForUninstall(cfg)
+	peers, err := runSetupSpinnerWithResult(out, "Checking whether other computers use the NOVA App...", setupSpinnerDebounce, func() (devicePeers, error) {
+		return fetchDevicePeersForUninstall(cfg)
+	})
 	switch {
-	case err != nil:
+	case err != nil || !peers.noOtherAccess():
 		return uninstallAppOffer{}
 	case peers.chatApps():
 		return uninstallAppOffer{note: appRemovalChatAppsLine}
@@ -122,10 +162,14 @@ func uninstallAppRemovalOffer(out io.Writer, paths runtimePaths) uninstallAppOff
 }
 
 // removeNOVAAppForUninstall signs the owner in and removes the App. On false
-// it has printed what Home Assistant holds; HA NOVA then stays on this
-// computer, so a rerun can still ask the Relay.
+// it has printed what Home Assistant holds and stops before the local removal,
+// so a rerun can still ask the Relay.
 func removeNOVAAppForUninstall(out io.Writer, cfg runtimeConfig) bool {
-	stays := "HA NOVA stays on this computer. Run ha-nova uninstall again, or choose Remove to keep the NOVA App."
+	stays := "HA NOVA is still on this computer. Run ha-nova uninstall again; pick “Remove” there to leave the NOVA App in Home Assistant."
+	if cfg.Cloud != nil {
+		// prepareUninstallBeforeGuidedTeardown already ran.
+		stays += " Its Home Assistant Link access may already be removed."
+	}
 	origin, err := resolveHASignInOriginForSetup(context.Background(), cfg.HAURL)
 	if err != nil {
 		renderSetupWarningLine(out, "%s", haSignInFallbackLine(err, HACurrentUser{}))
@@ -152,7 +196,7 @@ func removeNOVAAppForUninstall(out io.Writer, cfg runtimeConfig) bool {
 		}
 		supervisor := newNOVAAppSupervisor(socket)
 		supervisor.removal = true
-		return supervisor.remove(ctx, out, &removed)
+		return supervisor.remove(ctx, out, appRemovalSecurePort(cfg), &removed)
 	}
 	// After prepare the sign-in looks for the App's ingress and fails: the App
 	// is gone by then, so only removed counts.
@@ -176,8 +220,9 @@ func removeNOVAAppForUninstall(out io.Writer, cfg runtimeConfig) bool {
 }
 
 // remove uninstalls the official App, without remove_config, then its source.
-// removed turns true only once Home Assistant reports the App gone.
-func (s novaAppSupervisor) remove(ctx context.Context, out io.Writer, removed *bool) error {
+// The App must map the secure port this computer is paired on. removed turns
+// true only once Home Assistant's store lists the App as not installed.
+func (s novaAppSupervisor) remove(ctx context.Context, out io.Writer, securePort int, removed *bool) error {
 	var config struct {
 		Components []string `json:"components"`
 	}
@@ -198,14 +243,24 @@ func (s novaAppSupervisor) remove(ctx context.Context, out io.Writer, removed *b
 	if info.Version == "" {
 		return &novaAppInstallError{line: "Home Assistant doesn't list the NOVA App as installed. Nothing was removed."}
 	}
+	if mapped := info.Network[novaAppSecurePortKey]; mapped == nil || *mapped != securePort || securePort == 0 {
+		return &novaAppInstallError{line: "The NOVA App in Home Assistant isn't the one this computer is connected to. Nothing was removed."}
+	}
+	if err := ctx.Err(); err != nil { // stopped before anything changed
+		return errors.Join(errSignInStopped, err)
+	}
 	_, callErr := runSetupSpinnerWithResult(out, "Removing the NOVA App from Home Assistant...", setupSpinnerDebounce, func() (struct{}, error) {
 		return struct{}{}, s.call(ctx, "post", "/addons/"+s.appSlug+"/uninstall", nil, 5*time.Minute, nil)
 	})
-	after, infoErr := s.info(ctx)
+	// Supervisor keeps going after a Ctrl+C, so the check gets its own time.
+	checkCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
+	defer cancel()
+	var store supervisorAppInfo
+	storeErr := s.call(checkCtx, "get", "/store/addons/"+s.appSlug, nil, 10*time.Second, &store)
 	switch {
-	case infoErr != nil:
-		return &novaAppInstallError{line: "Home Assistant didn't confirm that the NOVA App was removed; it may still be removing it.", cause: errors.Join(callErr, infoErr)}
-	case after.Version != "":
+	case storeErr != nil || store.Slug != s.appSlug || store.Installed == nil: // no answer is no proof
+		return &novaAppInstallError{line: "Home Assistant didn't confirm that the NOVA App was removed. Check Settings → Apps: if NOVA Relay is gone, run ha-nova uninstall and pick “Remove”.", cause: errors.Join(callErr, storeErr)}
+	case *store.Installed:
 		return &novaAppInstallError{line: "Home Assistant couldn't remove the NOVA App; it is still installed.", cause: callErr}
 	}
 	*removed = true
@@ -213,8 +268,8 @@ func (s novaAppSupervisor) remove(ctx context.Context, out io.Writer, removed *b
 	if !listed {
 		return nil
 	}
-	deleteErr := s.call(ctx, "delete", "/store/repositories/"+s.repoSlug, nil, time.Minute, nil)
-	still, listErr := s.sourceListed(ctx)
+	deleteErr := s.call(checkCtx, "delete", "/store/repositories/"+s.repoSlug, nil, time.Minute, nil)
+	still, listErr := s.sourceListed(checkCtx)
 	if deleteErr == nil && listErr == nil && !still {
 		renderSetupSuccessLine(out, "NOVA App source removed from Home Assistant")
 		return nil

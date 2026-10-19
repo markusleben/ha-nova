@@ -385,10 +385,11 @@ async function listen(server: Server, port: number): Promise<void> {
 }
 
 // Whether the chat-app integration directory exists in Home Assistant's config
-// (only its existence is read); null when no config is mounted or lstat fails.
+// (existence only); null without a mounted config or when lstat fails.
 export function chatAppFilesPresent(configRoot: string): boolean | null {
+  const exists = (...path: string[]) => lstatSync(join(configRoot, ...path), { throwIfNoEntry: false }) !== undefined;
   try {
-    return configRoot === "" ? null : lstatSync(join(configRoot, "custom_components", "ha_nova"), { throwIfNoEntry: false }) !== undefined;
+    return configRoot === "" || !exists("configuration.yaml") ? null : exists("custom_components", "ha_nova");
   } catch {
     return null;
   }

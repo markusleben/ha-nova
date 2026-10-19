@@ -279,13 +279,16 @@ A healthy response looks like:
 removes its local Cloud secret and metadata. It leaves the Home Assistant Link
 subscription and local NOVA pairing unchanged.
 
-A standard `ha-nova uninstall` keeps Home Assistant connection config, device
-pairing, and Cloud authorization for reinstall. `ha-nova uninstall --purge`
-revokes and verifies every configured Cloud authorization before removing
-local secrets and config. If safe revocation cannot be completed, purge stops
-before destructive local cleanup. Either way, `ha-nova uninstall` leaves this
-App installed unless you confirm this is the last computer using HA NOVA,
-because removing the App disconnects every paired computer.
+`ha-nova uninstall` asks one question. "Remove" revokes and verifies every
+configured Cloud authorization and this computer's pairing before removing
+local secrets and config; if safe revocation cannot be completed, it stops
+before destructive local cleanup. "Remove, but keep the pairing" keeps the Home
+Assistant connection config, device pairing, and Cloud authorization for a
+reinstall (also what `ha-nova uninstall --yes` does; add `--purge` for a full
+removal). This App stays installed unless the menu offers "Remove, and remove
+the NOVA App too": only when this App answers that no other device, no legacy
+shared access, and no chat-app files use it, and only after the Home Assistant
+owner signs in. Removing the App disconnects every paired computer.
 
 ## Cloud Beta Availability
 

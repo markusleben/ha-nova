@@ -14,19 +14,20 @@ import (
 // fakeSupervisor is Home Assistant's WebSocket with the hassio component and
 // a Supervisor that holds at most the NOVA App. It records every call.
 type fakeSupervisor struct {
-	t               *testing.T
-	noHassio        bool
-	repos           []map[string]string
-	info            map[string]any // the App as /addons/<slug>/info returns it
-	jobErr          string         // the install/update job fails with this message
-	jobNever        bool           // the job never finishes
-	startFails      bool
-	addFails        bool
-	uninstallFails  bool // the App uninstall fails and the App stays
-	deleteRepoFails bool
-	targetBuild     bool   // the update target would need a local build
-	reloadTo        string // a store reload makes this version available
-	calls           []string
+	t                   *testing.T
+	noHassio            bool
+	repos               []map[string]string
+	info                map[string]any // the App as /addons/<slug>/info returns it
+	jobErr              string         // the install/update job fails with this message
+	jobNever            bool           // the job never finishes
+	startFails          bool
+	addFails            bool
+	uninstallFails      bool // the App uninstall fails and the App stays
+	deleteRepoFails     bool
+	storeOmitsInstalled bool
+	targetBuild         bool   // the update target would need a local build
+	reloadTo            string // a store reload makes this version available
+	calls               []string
 }
 
 const fakeJobID = "0123456789abcdef0123456789abcdef"
@@ -36,6 +37,7 @@ func newFakeSupervisor(t *testing.T) *fakeSupervisor {
 		"name": haNovaAppName, "slug": HAOfficialNOVAAppSlug, "repository": "2368fcfa",
 		"state": "unknown", "version": nil, "version_latest": "0.10.0",
 		"update_available": false, "build": false, "available": true,
+		"network": map[string]any{"8791/tcp": 8791, "8792/tcp": 8792, "8793/tcp": nil},
 	}}
 }
 
@@ -111,6 +113,10 @@ func (f *fakeSupervisor) Call(ctx context.Context, commandType string, fields ma
 			target[key] = value
 		}
 		target["build"] = f.targetBuild
+		target["installed"] = f.info["version"] != nil
+		if f.storeOmitsInstalled {
+			delete(target, "installed")
+		}
 		return reply(target)
 	case "post /store/reload":
 		if f.reloadTo != "" {

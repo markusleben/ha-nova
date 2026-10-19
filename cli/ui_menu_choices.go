@@ -16,14 +16,17 @@ type uninstallChoice struct {
 }
 
 // promptUninstallChoice is uninstall's one question. "app" is listed only when
-// offer.offered; proceed=false means cancel (the Cancel choice or Ctrl+C).
-func promptUninstallChoice(out io.Writer, defaultMode uninstallMode, offer uninstallAppOffer) (uninstallChoice, bool, error) {
-	options := []setupMenuOption{{Value: "purge", Label: "Remove", Detail: "Skills, settings, and this computer's connection. Your Home Assistant stays as it is."}}
-	if offer.offered {
-		options = append(options, setupMenuOption{Value: "app", Label: "Remove, and remove the NOVA App from Home Assistant", Detail: "This is the last computer using it. You sign in as the owner."})
+// offer.offered; "Remove" is disabled with purgeBlocked as its reason when a
+// full removal can't run here. proceed=false means cancel (Cancel or Ctrl+C).
+func promptUninstallChoice(out io.Writer, defaultMode uninstallMode, offer uninstallAppOffer, purgeBlocked string) (uninstallChoice, bool, error) {
+	options := []setupMenuOption{{Value: "purge", Label: "Remove", Detail: "Skills, settings, and this computer's pairing. The NOVA App stays.",
+		Disabled: purgeBlocked != "", DisabledReason: purgeBlocked}}
+	if offer.offered && purgeBlocked == "" {
+		options = append(options, setupMenuOption{Value: "app", Label: "Remove, and remove the NOVA App too",
+			Detail: "No other computer uses it. You sign in as the Home Assistant owner."})
 	}
 	options = append(options,
-		setupMenuOption{Value: "standard", Label: "Remove, but keep this computer connected", Detail: "For a reinstall later."},
+		setupMenuOption{Value: "standard", Label: "Remove, but keep the pairing for a reinstall"},
 		setupMenuOption{Value: "cancel", Label: "Cancel"},
 	)
 	spec := setupMenuSpec{
@@ -33,20 +36,24 @@ func promptUninstallChoice(out io.Writer, defaultMode uninstallMode, offer unins
 		DefaultValue: string(defaultMode),
 		Note:         offer.note,
 	}
+	if purgeBlocked != "" {
+		spec.DefaultValue = string(uninstallModeStandard)
+	}
+	offerApp := offer.offered && purgeBlocked == ""
 	answer, err := promptSetupMenu(nil, out, spec, func() (string, error) {
 		if offer.note != "" {
 			fmt.Fprintf(out, "  %s\n", offer.note)
 		}
-		return promptUninstallModeFromLine(spec.DefaultValue, offer.offered)
+		return promptUninstallModeFromLine(spec.DefaultValue, offerApp, purgeBlocked == "")
 	})
 	switch {
 	case errors.Is(err, errSetupExit):
 		return uninstallChoice{}, false, nil
 	case err != nil:
 		return uninstallChoice{}, false, err
-	case answer == "purge":
+	case answer == "purge" && purgeBlocked == "":
 		return uninstallChoice{mode: uninstallModePurge}, true, nil
-	case answer == "app" && offer.offered:
+	case answer == "app" && offerApp:
 		return uninstallChoice{mode: uninstallModePurge, removeApp: true}, true, nil
 	case answer == "standard":
 		return uninstallChoice{mode: uninstallModeStandard}, true, nil
@@ -56,14 +63,21 @@ func promptUninstallChoice(out io.Writer, defaultMode uninstallMode, offer unins
 }
 
 // promptUninstallModeFromLine is the menu without arrow keys.
-func promptUninstallModeFromLine(defaultValue string, offerApp bool) (string, error) {
-	values := []string{"purge", "standard", "cancel"}
-	label := "Remove HA NOVA from this computer? 1) Remove  2) Remove, but keep this computer connected  3) Cancel"
-	if offerApp {
-		values = []string{"purge", "app", "standard", "cancel"}
-		label = "Remove HA NOVA from this computer? 1) Remove  2) Remove, and remove the NOVA App from Home Assistant  3) Remove, but keep this computer connected  4) Cancel"
+func promptUninstallModeFromLine(defaultValue string, offerApp, purgeAllowed bool) (string, error) {
+	var values, labels []string
+	add := func(value, label string) {
+		values = append(values, value)
+		labels = append(labels, fmt.Sprintf("%d) %s", len(values), label))
 	}
-	answer, err := promptLine(label, strconv.Itoa(slices.Index(values, defaultValue)+1))
+	if purgeAllowed {
+		add("purge", "Remove")
+	}
+	if offerApp {
+		add("app", "Remove, and remove the NOVA App too")
+	}
+	add("standard", "Remove, but keep the pairing")
+	add("cancel", "Cancel")
+	answer, err := promptLine("Remove HA NOVA from this computer? "+strings.Join(labels, "  "), strconv.Itoa(max(slices.Index(values, defaultValue), 0)+1))
 	if err != nil {
 		return "", err
 	}

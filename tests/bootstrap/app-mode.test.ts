@@ -414,6 +414,8 @@ describe("chatAppFilesPresent", () => {
     const root = mkdtempSync(join(tmpdir(), "ha-nova-chatapp-"));
     try {
       expect(chatAppFilesPresent("")).toBeNull();
+      expect(chatAppFilesPresent(root)).toBeNull(); // not a Home Assistant config
+      writeFileSync(join(root, "configuration.yaml"), "");
       expect(chatAppFilesPresent(root)).toBe(false);
       mkdirSync(join(root, "custom_components", "ha_nova"), { recursive: true });
       expect(chatAppFilesPresent(root)).toBe(true);
