@@ -66,12 +66,28 @@ func TestMain(m *testing.M) {
 	// secret dir short-circuits the probe and every device-slot read/write into
 	// per-file storage. Tests that exercise the real selection logic clear this
 	// env and stub the canaries instead (device_credential_storage_test.go).
-	testSecretDirRoot := ""
-	if os.Getenv("HA_NOVA_TEST_SECRET_DIR") == "" {
-		if secretDir, err := os.MkdirTemp("", "ha-nova-test-secrets"); err == nil {
-			os.Setenv("HA_NOVA_TEST_SECRET_DIR", secretDir)
-			testSecretDirRoot = secretDir
+	//
+	// Temp dirs live under one root per `go test` run. Helper processes re-exec
+	// this test binary (os.Args[0]), so they run TestMain too, and most of them
+	// exit or are killed before any cleanup. They inherit the root through the
+	// env and nest their dirs in it; only the process that created the root
+	// removes it.
+	testRoot := os.Getenv("HA_NOVA_GO_TEST_ROOT")
+	ownsTestRoot := testRoot == ""
+	if ownsTestRoot {
+		root, err := os.MkdirTemp("", "ha-nova-go-test-")
+		if err != nil {
+			panic(err)
 		}
+		testRoot = root
+		os.Setenv("HA_NOVA_GO_TEST_ROOT", root)
+	}
+	if os.Getenv("HA_NOVA_TEST_SECRET_DIR") == "" {
+		secretDir, err := os.MkdirTemp(testRoot, "secrets-")
+		if err != nil {
+			panic(err) // without it, tests would reach the real keychain
+		}
+		os.Setenv("HA_NOVA_TEST_SECRET_DIR", secretDir)
 	}
 	os.Unsetenv("CLAUDE_CONFIG_DIR")
 	// Uninstall sweeps $XDG_CONFIG_HOME/fish/conf.d; keep it off the real one.
@@ -98,19 +114,18 @@ func TestMain(m *testing.M) {
 	lookupDNSSDForDiscovery = func(context.Context, string, dnssd.AddFunc, dnssd.RmvFunc) error {
 		return nil
 	}
-	stubDir, err := os.MkdirTemp("", "claude-stub")
-	if err == nil {
-		script := "#!/usr/bin/env bash\necho \"Error: not found\" >&2\nexit 1\n"
-		if writeErr := os.WriteFile(filepath.Join(stubDir, "claude"), []byte(script), 0o755); writeErr == nil {
-			os.Setenv("PATH", stubDir+string(os.PathListSeparator)+os.Getenv("PATH"))
-		}
+	stubDir, err := os.MkdirTemp(testRoot, "claude-stub-")
+	if err != nil {
+		panic(err)
 	}
+	script := "#!/usr/bin/env bash\necho \"Error: not found\" >&2\nexit 1\n"
+	if err := os.WriteFile(filepath.Join(stubDir, "claude"), []byte(script), 0o755); err != nil {
+		panic(err)
+	}
+	os.Setenv("PATH", stubDir+string(os.PathListSeparator)+os.Getenv("PATH"))
 	code := m.Run()
-	if stubDir != "" {
-		os.RemoveAll(stubDir)
-	}
-	if testSecretDirRoot != "" {
-		os.RemoveAll(testSecretDirRoot)
+	if ownsTestRoot {
+		os.RemoveAll(testRoot)
 	}
 	os.Exit(code)
 }

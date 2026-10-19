@@ -1,9 +1,11 @@
 import { existsSync, readFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
+import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
 import { createMockHome, REPO_ROOT } from "./_helpers.js";
+import { makeTempDir } from "../helpers/temp-dir.js";
 
 describe("relay cli contract", () => {
   it("Go relay binary source exists", () => {
@@ -23,7 +25,7 @@ describe("relay cli contract", () => {
   });
 
   it("guides the user to setup when JSON config is missing", () => {
-    const cliBinary = "/tmp/ha-nova";
+    const cliBinary = join(makeTempDir("ha-nova-relay-cli-"), "ha-nova");
     const build = spawnSync("go", ["build", "-o", cliBinary, "."], {
       cwd: `${REPO_ROOT}/cli`,
       encoding: "utf8",

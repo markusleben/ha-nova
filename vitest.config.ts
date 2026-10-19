@@ -10,6 +10,7 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["tests/**/*.test.ts"],
+    globalSetup: ["tests/helpers/tmpdir-guard.ts"],
     testTimeout: 30000
   }
 });
