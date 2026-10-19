@@ -284,6 +284,10 @@ func promptNewServerProfileName(
 			renderSetupErrorLine(out, "A server named %q already exists. Choose a different name.", name)
 			continue
 		}
+		if name == demoProfileName {
+			renderSetupErrorLine(out, "%s", errDemoNameReserved)
+			continue
+		}
 		return name, nil
 	}
 }

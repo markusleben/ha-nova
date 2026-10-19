@@ -126,6 +126,9 @@ func discoverInTime(s *relaySession, wait time.Duration) (setup phoneSetup, stat
 // Assistant: a local read for a window plan's `say`; apply asks the phone
 // only where discovery finds it ready).
 func phoneLinkedHere(paths runtimePaths) bool {
+	if activeServerIsDemo() {
+		return false // a link belongs to a real home; the demo house never has one
+	}
 	links, _ := phoneLinks(paths)
 	for _, entry := range links {
 		if entry.link != nil && entry.link.Service != "" {

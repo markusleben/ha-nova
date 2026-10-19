@@ -64,6 +64,15 @@ func dispatch(paths runtimePaths, argv0 string, args []string) int {
 	}
 
 	switch args[0] {
+	case "setup", "pair", "cloud", "doctor":
+		if demoSelected(paths, args[1:]) {
+			printHumanErr("This command is for your own home, not the demo house (ha-nova try connects the demo, ha-nova try --stop removes it). Run it without HA_NOVA_SERVER=demo or --server demo.")
+			return 1
+		}
+	}
+	switch args[0] {
+	case "try":
+		return runTryCommand(paths, args[1:])
 	case "setup":
 		if len(args) > 1 && args[1] == "confirm-window" {
 			return runConfirmWindowSetting(paths, args[2:])
@@ -219,6 +228,7 @@ func printUsage() {
 	fmt.Fprintln(os.Stdout, "Usage:")
 	fmt.Fprintln(os.Stdout, "  ha-nova setup [client]")
 	fmt.Fprintln(os.Stdout, "  ha-nova setup --service [client]")
+	fmt.Fprintln(os.Stdout, "  ha-nova try [--stop]   (the shared demo house; no Home Assistant needed)")
 	fmt.Fprintln(os.Stdout, "  ha-nova pair [--relay-url http://<ha-host>:8791] [--code NNNNNN] [--credential-store=file]")
 	fmt.Fprintln(os.Stdout, "  ha-nova server <list|default|rename|remove|route>")
 	fmt.Fprintln(os.Stdout, "  ha-nova cloud <add|status|unlock|reconnect|remove>")

@@ -400,6 +400,9 @@ func runRelayProxy(paths runtimePaths, endpoint string, args []string) int {
 		printErr("%s", err)
 		return 1
 	}
+	if activeServerIsDemo() {
+		fmt.Fprintln(os.Stderr, "[ha-nova] "+demoNoticeText)
+	}
 
 	var via relayVia
 	if opts.ViaSet {
@@ -707,6 +710,9 @@ func runHealth(paths runtimePaths, args []string) int {
 		printErr("%s", err)
 		return 1
 	}
+	if activeServerIsDemo() {
+		fmt.Fprintln(os.Stderr, "[ha-nova] "+demoNoticeText)
+	}
 
 	var via relayVia
 	if healthOpts.ViaSet {
@@ -858,6 +864,9 @@ func readAllLimited(r io.Reader, maxBytes int64) ([]byte, error) {
 }
 
 func relayConnectErrorMessage(baseURL string, err error) string {
+	if activeServerIsDemo() {
+		return demoUnreachableText
+	}
 	return fmt.Sprintf(
 		"cannot reach the NOVA Relay at %s: %s\nCheck that the NOVA Relay App is running in Home Assistant, then run: ha-nova doctor",
 		strings.TrimRight(baseURL, "/"), err,

@@ -280,6 +280,9 @@ func relayFloorNotice(paths runtimePaths) humanNotice {
 // token at all), the legacy token otherwise. false means "no usable auth" —
 // the notices stay silent, matching their best-effort contract.
 func relayNoticeTransport(cfg config) (string, *http.Client, string, bool) {
+	if cfg.demoToken != "" {
+		return "", nil, "", false // the demo house's Relay is not the user's to update
+	}
 	if base, client, credential, device, err := relayFunctionalTransportForDoctor(cfg); err == nil && device {
 		return base, client, credential, true
 	}
@@ -414,7 +417,7 @@ func relayAvailableUpdateNoticeFromCandidate(candidate relayUpdateCandidate) hum
 // or the relay's version response header on /ws and /core) against
 // min_relay_version.
 func checkRelayVersionValue(paths runtimePaths, relayVersion string) humanNotice {
-	if strings.TrimSpace(relayVersion) == "" {
+	if strings.TrimSpace(relayVersion) == "" || activeServerIsDemo() { // the demo's Relay is not the user's to update
 		return humanNotice{}
 	}
 
