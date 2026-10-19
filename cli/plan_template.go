@@ -76,8 +76,9 @@ func (x *homeIndex) templateEntity(id string) bool {
 
 func (x *homeIndex) templateLights() []string {
 	var lights []string
+	private := x.privateDevices()
 	for _, id := range x.enabled { // sorted
-		if inDomain(id, "light") && x.templateEntity(id) {
+		if inDomain(id, "light") && x.templateEntity(id) && !private[x.entityDevice[id]] {
 			lights = append(lights, id)
 		}
 	}

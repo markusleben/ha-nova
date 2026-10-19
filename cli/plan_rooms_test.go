@@ -18,6 +18,8 @@ type roomsFake struct {
 	f      mapFixture
 	writes []string // "device=area" in order
 	fail   func(n int, device, area string) (any, bool)
+	// blind: the device registry can't be read once a write was sent
+	blind bool
 }
 
 func newRoomsFake() *roomsFake { return &roomsFake{f: wowHome()} }
@@ -58,6 +60,9 @@ func (r *roomsFake) reply(req *http.Request, endpoint string, p map[string]any) 
 		}
 		r.setArea(device, area)
 		return map[string]any{"id": device, "area_id": area}
+	}
+	if r.blind && len(r.writes) > 0 && p["type"] == "config/device_registry/list" {
+		return fakeRelayFailure{"UPSTREAM_ERROR", "boom"}
 	}
 	return r.f.reply(req, endpoint, p)
 }
@@ -382,4 +387,30 @@ func TestPlanRoomsFailedUndoKeepsTheRestOfTheRecord(t *testing.T) {
 		t.Fatalf("second undo %d", exit)
 	}
 	h.assertAreas(roomsOriginal)
+}
+
+// No read-back after a failed save: only devices not known to be back are
+// named (possibly changed, exit 7), and the undo record holds just those.
+func TestPlanRoomsWithoutReadBackKeepsKnownOutcomes(t *testing.T) {
+	r := newRoomsFake()
+	r.blind = true
+	r.fail = func(n int, device, _ string) (any, bool) {
+		if n == 3 || (n > 3 && device == "d_guest") {
+			return fakeRelayFailure{"UPSTREAM_WS_COMMAND_ERROR", "refused"}, false
+		}
+		return nil, false
+	}
+	h := newRoomsHarness(t, r)
+	env := h.planRooms()
+	exit, applied := h.run(runApplyCommand, "--plan", env.Plan.ID)
+	if exit != verbExitUnknown || applied.Error.Code != "ROOMS_PARTIAL" || !applied.OutcomeUnknown ||
+		!strings.Contains(applied.Error.Message, "possibly changed: “Guest Bedroom Lamp”") || strings.Contains(applied.Error.Message, "Küchenradio") {
+		t.Fatalf("exit %d %+v", exit, applied.Error)
+	}
+	snap, err := selectServerUndoSnapshot(h.paths, "", "", "")
+	var after map[string]string
+	_ = json.Unmarshal(snap.ExpectedAfter, &after)
+	if err != nil || len(after) != 1 || after["d_guest"] != "guest" {
+		t.Fatalf("record %s %v", snap.ExpectedAfter, err)
+	}
 }

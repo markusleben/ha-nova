@@ -281,15 +281,20 @@ func executeRooms(paths runtimePaths, s *relaySession, env *verbEnvelope, req ro
 	for i, it := range req.Items {
 		sent = true
 		if werr := deviceAreaWrite(s, it.DeviceID, it.To); werr != nil {
+			// back: devices known to be on their From (a rejected write, a
+			// rollback Home Assistant confirmed); failRooms reads the rest.
+			back := map[string]bool{}
 			var unknown *relayOutcomeUnknownError
 			done := i
 			if errors.As(werr, &unknown) {
 				done = i + 1
+			} else {
+				back[it.DeviceID] = true
 			}
 			for j := done - 1; j >= 0; j-- {
-				_ = deviceAreaWrite(s, req.Items[j].DeviceID, req.Items[j].From) // failRooms reads what stuck
+				back[req.Items[j].DeviceID] = deviceAreaWrite(s, req.Items[j].DeviceID, req.Items[j].From) == nil
 			}
-			return failRooms(paths, s, env, req, changes, i+1, werr)
+			return failRooms(paths, s, env, req, changes, i+1, back, werr)
 		}
 	}
 	saveRoomsRecord(paths, s, env, req, req.Items)
@@ -297,7 +302,7 @@ func executeRooms(paths runtimePaths, s *relaySession, env *verbEnvelope, req ro
 	reg, rerr := readRoomsRegistry(s, true)
 	env.Status, env.exit = "verified", verbExitOK
 	for _, it := range req.Items {
-		if rerr != nil || reg.devices[it.DeviceID].area != it.To {
+		if d, seen := reg.devices[it.DeviceID]; rerr != nil || !seen || d.area != it.To {
 			env.Status, env.exit = "unverified", verbExitUnverified
 		}
 	}
@@ -307,15 +312,22 @@ func executeRooms(paths runtimePaths, s *relaySession, env *verbEnvelope, req ro
 
 // failRooms reads the registry back after a rollback. "Nothing was saved"
 // only when the read shows every attempted device on its From; otherwise
-// the result names each device still changed (every attempted one when the
-// read fails: possibly changed, exit 7) and the undo record holds what is
-// still to undo.
-func failRooms(paths runtimePaths, s *relaySession, env *verbEnvelope, req roomsRequest, changes []roomsChange, attempted int, cause error) error {
+// the result names each device still changed (when the read fails: every
+// attempted one not known to be back, possibly changed, exit 7) and the
+// undo record holds what is still to undo.
+func failRooms(paths runtimePaths, s *relaySession, env *verbEnvelope, req roomsRequest, changes []roomsChange, attempted int, back map[string]bool, cause error) error {
 	s.renewBudget()
 	reg, rerr := readRoomsRegistry(s, true)
+	onFrom := func(it roomsItem) bool {
+		if rerr != nil {
+			return back[it.DeviceID]
+		}
+		d, seen := reg.devices[it.DeviceID]
+		return seen && d.area == it.From
+	}
 	var moved []roomsItem
 	for _, it := range req.Items[:attempted] {
-		if rerr != nil || reg.devices[it.DeviceID].area != it.From {
+		if !onFrom(it) {
 			moved = append(moved, it)
 		}
 	}
@@ -330,8 +342,8 @@ func failRooms(paths runtimePaths, s *relaySession, env *verbEnvelope, req rooms
 	record := moved
 	if req.Undo {
 		record = nil
-		for _, it := range req.Items {
-			if rerr != nil || reg.devices[it.DeviceID].area != it.To {
+		for i, it := range req.Items {
+			if i >= attempted || onFrom(it) || rerr != nil || reg.devices[it.DeviceID].area != it.To {
 				record = append(record, roomsItem{DeviceID: it.DeviceID, From: it.To, To: it.From})
 			}
 		}

@@ -341,15 +341,18 @@ func TestInsightsOfferOnlyPreviewTemplates(t *testing.T) {
 func TestPrivateDevicesNeverInBatteriesOrTriggers(t *testing.T) {
 	f := wowHome()
 	f.entities = append(f.entities, ent("sensor.tag_battery", "d_tracker", "zha", "e_zha", map[string]any{"entity_category": "diagnostic"}),
-		ent("lock.car", "d_tracker", "tesla", "e_zha", map[string]any{"area_id": "hall"}))
+		ent("lock.car", "d_tracker", "tesla", "e_zha", map[string]any{"area_id": "hall"}),
+		ent("light.car_cabin", "d_tracker", "tesla", "e_zha", map[string]any{"area_id": "hall"}))
 	f.states = append(f.states, st("sensor.tag_battery", "4", map[string]any{"device_class": "battery", "friendly_name": "Kitchen Tag battery"}),
-		st("lock.car", "locked", map[string]any{"friendly_name": "Model Y"}))
+		st("lock.car", "locked", map[string]any{"friendly_name": "Model Y"}), st("light.car_cabin", "off", map[string]any{"friendly_name": "Cabin"}))
 	x := indexFixture(t, f)
 	phone := &phoneTarget{Service: "mobile_app_pixel", Name: "Pixel"}
 	r := x.insights(phone, offerAll)
 	m, _ := x.matchTemplate(templateBatteryReminder, phone)
 	raw, _ := json.Marshal([]any{r, m})
-	for _, leak := range []string{"tag_battery", "Kitchen Tag", "lock.car", "Model Y"} {
+	away, _ := x.matchTemplate(templateLightsOff, nil)
+	raw, _ = json.Marshal([]any{r, m, away})
+	for _, leak := range []string{"tag_battery", "Kitchen Tag", "lock.car", "Model Y", "car_cabin", "Cabin"} {
 		if strings.Contains(string(raw), leak) {
 			t.Errorf("names %q: %s", leak, raw)
 		}
