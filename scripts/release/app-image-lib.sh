@@ -46,13 +46,14 @@ app_arch_platform() {
 }
 
 # Fingerprint of everything the App image is built from, including the
-# chat-app bridge staged from cli/ and skills/. Squash merges keep file
-# contents, so a PR head and its merge commit share the fingerprint.
+# chat-app bridge staged from cli/ and skills/ and the ha_nova integration.
+# Squash merges keep file contents, so a PR head and its merge commit share
+# the fingerprint.
 app_image_inputs() { # <git-rev>
   git -C "$APP_IMAGE_ROOT" ls-tree -r "$1" -- \
     nova/Dockerfile nova/build.yaml nova/run nova/package.json \
     nova/package-lock.json nova/tsconfig.json nova/version.json nova/src \
-    nova/bridge cli skills version.json scripts/release/stage-app-bridge.sh \
+    nova/bridge nova/integration cli skills version.json scripts/release/stage-app-bridge.sh \
     | git -C "$APP_IMAGE_ROOT" hash-object --stdin
 }
 
