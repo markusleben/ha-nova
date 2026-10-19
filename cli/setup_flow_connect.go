@@ -3,7 +3,7 @@ package main
 import "strings"
 
 func (f *setupFlow) stepClient() setupStepResult {
-	answer, err := promptSetupClientInteractive(f.ui.reader, f.ui.out, f.choices, f.target)
+	answer, err := chooseSetupClient(f.ui, f.choices, f.target)
 	if err == errSetupBack {
 		return setupGoTo(setupStepClient)
 	}
@@ -171,7 +171,7 @@ func (f *setupFlow) stepRelayInstall() setupStepResult {
 	}
 	f.detectRelayOnInstall = false
 	if !skipInstall {
-		f.relaySkipNote = ""
+		f.relaySkipNote = setupMsg{}
 		f.ui.show(setupView{Progress: &setupProgress{Step: steps.RelayInstall, Total: steps.Total, Title: setupText("setup.step.install_app")}})
 		note, err := runRelayInstallSteps(f.ui.reader, f.ui.out, f.paths, f.cfg, pairAfterInstall)
 		f.relaySkipNote = note
@@ -193,7 +193,7 @@ func (f *setupFlow) stepRelayInstall() setupStepResult {
 		// An earlier pairing already gave this device its own
 		// credential: verify it against the (re)installed relay
 		// first — a failed verify still routes back to pairing.
-		f.relaySkipNote = ""
+		f.relaySkipNote = setupMsg{}
 		f.devicePaired = true
 		return setupGoTo(setupStepVerify)
 	}
@@ -209,9 +209,9 @@ func (f *setupFlow) stepRelayInstall() setupStepResult {
 func (f *setupFlow) stepPairing() setupStepResult {
 	steps := buildSetupPairingWizardSteps()
 	view := setupView{Progress: &setupProgress{Step: steps.Pairing, Total: steps.Total, Title: setupText("setup.step.connect")}}
-	if f.relaySkipNote != "" {
-		view.Blocks = append(view.Blocks, setupSuccess(setupData(f.relaySkipNote)))
-		f.relaySkipNote = ""
+	if !f.relaySkipNote.empty() {
+		view.Blocks = append(view.Blocks, setupSuccess(f.relaySkipNote))
+		f.relaySkipNote = setupMsg{}
 	}
 	f.ui.show(view)
 	if f.serviceMode {

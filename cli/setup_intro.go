@@ -7,13 +7,17 @@ import "io"
 // target/flags, no saved Home Assistant address); resumes and flag-driven
 // runs skip it.
 func renderSetupIntro(out io.Writer) {
-	renderSetupParagraph(out,
-		setupT("setup.intro.welcome"),
-	)
-	renderSetupParagraph(out,
-		setupT("setup.intro.steps"),
-		setupT("setup.intro.browser"),
-		setupT("setup.intro.owner"),
-		setupT("setup.intro.link_only"),
-	)
+	setupTextUI{out: out}.show(setupIntroView())
+}
+
+func setupIntroView() setupView {
+	return setupView{Blocks: []setupBlock{
+		setupParagraph(setupText("setup.intro.welcome")),
+		setupParagraph(
+			setupText("setup.intro.steps"),
+			setupText("setup.intro.browser"),
+			setupText("setup.intro.owner"),
+			setupText("setup.intro.link_only"),
+		),
+	}}
 }

@@ -145,5 +145,9 @@
   "setup.error.save_config": "cannot save config: {error}",
   "setup.error.finalize_lifecycle": "cannot finalize setup lifecycle: {error}",
   "setup.error.generate_token": "cannot generate relay token: {error}",
-  "setup.error.install_clients": "client installation failed: {error}"
+  "setup.error.install_clients": "client installation failed: {error}",
+
+  "setup.app.running": "NOVA App is running",
+  "setup.app.running_outdated": "NOVA App is running (v{version}; update to v{minimum} or newer after setup: Settings > Apps > NOVA Relay)",
+  "setup.verify.device_checking": "Checking the secure connection to the NOVA App."
 }

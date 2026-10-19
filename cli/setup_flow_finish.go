@@ -75,7 +75,8 @@ func (f *setupFlow) stepVerify() setupStepResult {
 // verifyDevice checks a paired device's secure endpoint, saves the setup,
 // and adds Home Assistant Link for a hybrid setup.
 func (f *setupFlow) verifyDevice() setupStepResult {
-	renderDeviceVerifyIntro(f.ui.out)
+	// Honest about what is verified: the secure device endpoint.
+	f.ui.show(setupView{Blocks: []setupBlock{setupTight(setupText("setup.verify.device_checking"))}})
 	if !verifyDeviceHealth(f.cfg) {
 		f.ui.show(setupView{Blocks: []setupBlock{setupErrorBlock(setupText("setup.verify.device_not_answering"))}})
 		if retryErr := promptSetupDeviceVerifyRetry(f.ui.reader, f.ui.out); retryErr != nil {
@@ -151,13 +152,11 @@ func (f *setupFlow) stepSkills() setupStepResult {
 		return setupDone(1)
 	}
 	exit := 0
-	if f.cloudSetupIncomplete || f.cloudSetupPaused {
-		exit = renderSetupCompletionOutcomeWithCloudPause(
-			f.ui.out,
-			f.selectedClients,
-			f.cloudSetupIncomplete,
-			f.cloudSetupPaused,
-		)
+	if f.cloudSetupPaused {
+		f.ui.outcome(setupOutcome{Kind: setupOutcomeLinkPaused})
+	} else if f.cloudSetupIncomplete {
+		f.ui.outcome(setupOutcome{Kind: setupOutcomeIncomplete, Issue: setupIssueCloudAccess})
+		exit = 1
 	}
 	if exit == 0 && !f.connectionModeAsked && !f.serviceMode {
 		armSetupNextPromptSkipsStaleBlankInput()
@@ -193,7 +192,7 @@ func (f *setupFlow) stepSkills() setupStepResult {
 // outcome. The offers come first: the outcome clears the screen, so the
 // Claude rule's note prints after it.
 func (f *setupFlow) finish() setupStepResult {
-	interactive := !f.serviceMode && isInteractiveTTY() && writerSupportsTTYForSetup(f.ui.out)
+	interactive := !f.serviceMode && f.ui.interactive()
 	if f.pairedThisRun && !f.cloudSetupPaused && interactive {
 		offerPhoneLink(f.ui.reader, f.ui.out, f.paths)
 	}

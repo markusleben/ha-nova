@@ -12,7 +12,7 @@ func (f *setupFlow) start() setupStepResult {
 		strings.TrimSpace(f.relayURLFlag) == "" && strings.TrimSpace(f.relayTokenFlag) == "" {
 		// Flag-driven runs are not fully interactive first runs even before
 		// the overrides are applied to cfg below — skip the intro for them.
-		renderSetupIntro(f.ui.out)
+		f.ui.show(setupIntroView())
 	}
 	namedRetirementOnly := false
 	retirementPending := false
@@ -99,11 +99,10 @@ func (f *setupFlow) chooseClientAndMode() setupStepResult {
 	clientsResolved := false
 	for {
 		if f.target == "" {
-			answer, selectErr := promptSetupClientForWizard(
-				f.ui.reader,
-				f.ui.out,
-				f.choices,
-			)
+			answer, selectErr := chooseSetupClient(f.ui, f.choices, "claude")
+			if selectErr == errSetupBack {
+				continue // nothing to go back to yet
+			}
 			if selectErr == errSetupClientPrerequisite {
 				return setupDone(0)
 			}
@@ -155,7 +154,7 @@ func (f *setupFlow) chooseClientAndMode() setupStepResult {
 			f.relayTokenFlag,
 			f.serviceMode,
 		) {
-			return setupStepResult{}
+			return setupGoOn
 		}
 		f.connectionModeAsked = true
 		mode, err := promptSetupConnectionMode(f.ui.reader, f.ui.out)
@@ -174,7 +173,7 @@ func (f *setupFlow) chooseClientAndMode() setupStepResult {
 			return f.failErr(err)
 		}
 		if f.connectionMode != setupConnectionCloud {
-			return setupStepResult{}
+			return setupGoOn
 		}
 		exit, back := runInteractiveCloudOnlySetupForWizard(
 			f.ui.reader,

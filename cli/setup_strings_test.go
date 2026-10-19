@@ -55,7 +55,7 @@ func scanSetupCatalogCalls(t *testing.T) []setupCatalogCall {
 			return true
 		})
 		ast.Inspect(file, func(n ast.Node) bool {
-			if lit, ok := n.(*ast.CompositeLit); ok && name != "setup_strings.go" {
+			if lit, ok := n.(*ast.CompositeLit); ok && name != "setup_strings.go" && len(lit.Elts) > 0 { // setupMsg{} = no message
 				if typ, ok := lit.Type.(*ast.Ident); ok && typ.Name == "setupMsg" {
 					t.Errorf("%s: build setupMsg with setupText or setupData", fset.Position(lit.Pos()))
 				}

@@ -6,7 +6,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
-	"os"
 	"slices"
 )
 
@@ -104,7 +103,7 @@ func maybeHandleInteractiveSetupCurrentState(reader *bufio.Reader, out io.Writer
 	if writerSupportsTTYForSetup(out) {
 		_, err := promptWizardLineFromReader(reader, out, setupT("setup.prompt.continue"), "")
 		if err == errSetupExit {
-			renderSetupCancelledNote(os.Stdout)
+			renderSetupCancelledNote(out)
 			return true, 0
 		}
 		if err != nil && err != errSetupBack {
@@ -156,24 +155,6 @@ func maskSecretHint(value string) string {
 		return "***"
 	}
 	return "***" + value[len(value)-4:]
-}
-
-func renderSetupCompletionOutcomeWithCloudPause(
-	out io.Writer,
-	selectedClients []string,
-	cloudSetupIncomplete bool,
-	cloudSetupPaused bool,
-) int {
-	if cloudSetupPaused {
-		renderSetupCloudPausedOutcome(out)
-		return 0
-	}
-	if cloudSetupIncomplete {
-		renderSetupIncompleteBanner(out, setupIssueCloudAccess)
-		return 1
-	}
-	renderSetupCompleteBanner(out, selectedClients, nil)
-	return 0
 }
 
 func persistInteractiveSetupStateWithRecovery(reader *bufio.Reader, out io.Writer, paths runtimePaths, cfg runtimeConfig, state *installState, previousToken string, hadPreviousToken bool, token string, recovery *setupSecureStorageRecoveryState, lifecycleMarker ...[]byte) error {

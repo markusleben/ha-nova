@@ -93,6 +93,8 @@ func setupT(key string, kv ...any) string {
 	return setupMsg{Key: key, Args: kv}.plain()
 }
 
+func (m setupMsg) empty() bool { return m.Key == "" && m.Data == "" }
+
 func (m setupMsg) plain() string {
 	return m.render(func(v any) string { return fmt.Sprint(v) })
 }

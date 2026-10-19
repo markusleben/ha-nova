@@ -62,7 +62,7 @@ func (f *setupFlow) askToken() (result setupStepResult, again bool) {
 		f.ui.show(setupView{Blocks: []setupBlock{setupTight(setupText("setup.token.found_saved", "hint", maskSecretHint(f.existingToken)))}})
 	}
 
-	choice, err := promptSetupTokenChoiceInteractive(f.ui.reader, f.ui.out, f.existingToken != "")
+	choice, err := f.ui.choose(setupTokenAsk(f.existingToken != ""))
 	if err == errSetupBack {
 		if f.pairingFlow {
 			return setupGoTo(setupStepPairing), true
@@ -123,7 +123,7 @@ func (f *setupFlow) askToken() (result setupStepResult, again bool) {
 		} else if err != nil {
 			return f.inputFailed(err), true
 		}
-		openAnnouncedBrowserURL(f.ui.out, appPage)
+		f.ui.openURL(appPage)
 		if _, err := f.ui.input(setupText("setup.token.wait_saved")); err == errSetupBack {
 			return setupGoTo(setupStepToken), true
 		} else if err != nil {

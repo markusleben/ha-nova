@@ -19,6 +19,26 @@ func renderSetupCompletionOutcome(
 	)
 }
 
+// renderSetupCompletionOutcomeWithCloudPause: the end screens the setup
+// engine shows for a paused or incomplete Home Assistant Link step.
+func renderSetupCompletionOutcomeWithCloudPause(
+	out io.Writer,
+	selectedClients []string,
+	cloudSetupIncomplete bool,
+	cloudSetupPaused bool,
+) int {
+	if cloudSetupPaused {
+		renderSetupCloudPausedOutcome(out)
+		return 0
+	}
+	if cloudSetupIncomplete {
+		renderSetupIncompleteBanner(out, setupIssueCloudAccess)
+		return 1
+	}
+	renderSetupCompleteBanner(out, selectedClients, nil)
+	return 0
+}
+
 func preflightRemoteCloudDeviceState(
 	expectedRelayInstanceID string,
 ) error {

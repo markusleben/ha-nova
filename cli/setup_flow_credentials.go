@@ -135,10 +135,10 @@ func (f *setupFlow) checkTokenStorage() setupStepResult {
 		} else if err != nil && !isMissingRelayAuthTokenError(err) {
 			printRelayTokenStorageSetupWarning(err)
 		}
-		return setupStepResult{}
+		return setupGoOn
 	}
 	if setupSecureStorageRecoveryAvailableNow(f.tokenStoragePreflightErr) {
-		return setupStepResult{}
+		return setupGoOn
 	}
 	// A missing OS keyring is only fatal when a relay TOKEN must actually be
 	// stored. The default onboarding path is secure device pairing, which
@@ -169,7 +169,7 @@ func (f *setupFlow) checkTokenStorage() setupStepResult {
 		// The legacy /pair token store is unavailable, so the pairing step
 		// must not fall back to it.
 		f.legacyTokenStoreUnavailable = true
-		return setupStepResult{}
+		return setupGoOn
 	}
 	return f.failErr(relayAuthTokenSetupSaveError(f.tokenStoragePreflightErr))
 }

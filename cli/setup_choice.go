@@ -122,6 +122,12 @@ func renderSetupChoiceList(out io.Writer, ask setupAsk) {
 }
 
 func promptSetupClientInteractive(reader *bufio.Reader, out io.Writer, choices []setupClientChoice, defaultClient string) (string, error) {
+	return chooseSetupClient(setupTextUI{reader: reader, out: out}, choices, defaultClient)
+}
+
+// chooseSetupClient asks for the AI client; with none available it lists
+// them, says what to install, and returns errSetupClientPrerequisite.
+func chooseSetupClient(ui setupTextUI, choices []setupClientChoice, defaultClient string) (string, error) {
 	if len(choices) == 0 {
 		return "", errors.New(setupT("setup.clients.none_registered"))
 	}
@@ -135,14 +141,18 @@ func promptSetupClientInteractive(reader *bufio.Reader, out io.Writer, choices [
 		})
 	}
 	if !hasAvailableSetupClientChoice(choices) {
-		renderSetupChoiceList(out, ask)
-		renderSetupParagraph(out, setupT("setup.clients.none_ready"), setupT("setup.clients.install_first"))
+		ui.listChoices(ask)
+		ui.show(setupView{Blocks: []setupBlock{setupParagraph(setupText("setup.clients.none_ready"), setupText("setup.clients.install_first"))}})
 		return "", errSetupClientPrerequisite
 	}
-	return promptSetupChoice(reader, out, ask)
+	return ui.choose(ask)
 }
 
 func promptSetupTokenChoiceInteractive(reader *bufio.Reader, out io.Writer, hasExistingLocal bool) (string, error) {
+	return promptSetupChoice(reader, out, setupTokenAsk(hasExistingLocal))
+}
+
+func setupTokenAsk(hasExistingLocal bool) setupAsk {
 	ask := setupAsk{Title: setupText("setup.token.question"), AllowBack: true, Default: "generate"}
 	if hasExistingLocal {
 		ask.Choices = append(ask.Choices, setupChoice{Value: "keep", Label: setupText("setup.token.keep")})
@@ -152,5 +162,5 @@ func promptSetupTokenChoiceInteractive(reader *bufio.Reader, out io.Writer, hasE
 		setupChoice{Value: "paste", Label: setupText("setup.token.paste")},
 		setupChoice{Value: "generate", Label: setupText("setup.token.generate")},
 	)
-	return promptSetupChoice(reader, out, ask)
+	return ask
 }

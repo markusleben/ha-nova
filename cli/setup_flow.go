@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"fmt"
 	"os"
 	"strings"
 )
@@ -32,7 +33,11 @@ type setupStepResult struct {
 }
 
 func setupGoTo(next setupStepID) setupStepResult { return setupStepResult{next: next} }
-func setupDone(code int) setupStepResult         { return setupStepResult{done: true, code: code} }
+
+// setupGoOn: a setup phase finished without ending setup.
+var setupGoOn = setupStepResult{}
+
+func setupDone(code int) setupStepResult { return setupStepResult{done: true, code: code} }
 
 type setupFlow struct {
 	ui setupTextUI
@@ -90,7 +95,7 @@ type setupFlow struct {
 	detectRelayOnInstall bool
 	// Shown under the pairing step header: the step header clears the
 	// screen, so a note printed in the install step would vanish.
-	relaySkipNote        string
+	relaySkipNote        setupMsg
 	cloudSetupIncomplete bool
 	cloudSetupPaused     bool
 
@@ -157,9 +162,10 @@ func (f *setupFlow) runStep(step setupStepID) setupStepResult {
 		return f.stepPairing()
 	case setupStepVerify:
 		return f.stepVerify()
-	default:
+	case setupStepSkills:
 		return f.stepSkills()
 	}
+	panic(fmt.Sprintf("setup flow: unknown step %d", step))
 }
 
 // Service installs pair by default too: secure pairing no longer depends on

@@ -71,6 +71,7 @@ const (
 	setupOutcomeLinkReady                           // local plus Home Assistant Link fallback
 	setupOutcomeAlreadyDone                         // nothing to do
 	setupOutcomeIncomplete                          // saved, but not ready
+	setupOutcomeLinkPaused                          // local ready, Home Assistant Link waits for the owner
 )
 
 type setupOutcome struct {
@@ -131,6 +132,21 @@ func (ui setupTextUI) choose(ask setupAsk) (string, error) {
 	return promptSetupChoice(ui.reader, ui.out, ask)
 }
 
+// listChoices shows the choices without asking (nothing to pick).
+func (ui setupTextUI) listChoices(ask setupAsk) {
+	renderSetupChoiceList(ui.out, ask)
+}
+
+// openURL opens a link the view just announced.
+func (ui setupTextUI) openURL(url string) {
+	openAnnouncedBrowserURL(ui.out, url)
+}
+
+// interactive: a person can answer optional offers here.
+func (ui setupTextUI) interactive() bool {
+	return isInteractiveTTY() && writerSupportsTTYForSetup(ui.out)
+}
+
 // input asks for one line; errSetupBack and errSetupExit come back typed.
 func (ui setupTextUI) input(label setupMsg) (string, error) {
 	return promptWizardLineFromReader(ui.reader, ui.out, label.plain(), "")
@@ -149,6 +165,8 @@ func (ui setupTextUI) outcome(o setupOutcome) {
 		renderSetupAlreadyDoneBanner(ui.out, o.LegacyToken)
 	case setupOutcomeIncomplete:
 		renderSetupIncompleteBanner(ui.out, o.Issue)
+	case setupOutcomeLinkPaused:
+		renderSetupCloudPausedOutcome(ui.out)
 	default:
 		renderSetupCompleteBanner(ui.out, o.Clients, o.Look)
 	}
@@ -169,10 +187,6 @@ func (ui setupTextUI) fail(msg setupMsg) {
 
 func (ui setupTextUI) failErr(err error) {
 	printHumanErr("%s", err)
-}
-
-func (ui setupTextUI) warn(msg setupMsg) {
-	printHumanWarn("%s", msg.plain())
 }
 
 func (ui setupTextUI) info(msg setupMsg) {
