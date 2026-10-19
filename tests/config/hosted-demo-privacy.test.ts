@@ -15,8 +15,11 @@ describe("hosted demo privacy", () => {
 
   it("hands Home Assistant only the truncated client IPv4", () => {
     expect(caddy).toMatch(/reverse_proxy homeassistant:8123 \{[^}]*header_up X-Forwarded-For \{masked_client_ip\}/);
-    const [, pattern, replacement] = caddy.match(/map \{client_ip\} \{masked_client_ip\} \{\s*~(\S+) "([^"]+)"\s*default 192\.0\.2\.0\s*\}/) ?? [];
-    const mask = (ip: string) => (new RegExp(pattern).test(ip) ? ip.replace(new RegExp(pattern), replacement.replace("${1}", "$1")) : "192.0.2.0");
+    const map = caddy.match(/map \{client_ip\} \{masked_client_ip\} \{\s*~(\S+) "([^"]+)"\s*default 192\.0\.2\.0\s*\}/);
+    expect(map).not.toBeNull();
+    const pattern = new RegExp(map![1]!);
+    const replacement = map![2]!.replace("${1}", "$1");
+    const mask = (ip: string) => (pattern.test(ip) ? ip.replace(pattern, replacement) : "192.0.2.0");
     expect(mask("203.0.113.77")).toBe("203.0.113.0");
     expect(mask("10.89.240.130")).toBe("10.89.240.0");
     expect(mask("2001:db8::1")).toBe("192.0.2.0");
