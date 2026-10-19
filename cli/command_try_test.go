@@ -316,3 +316,20 @@ func TestDemoResetIsOnePlainLine(t *testing.T) {
 		t.Fatalf("503 must read as the demo reset: %v", err)
 	}
 }
+
+// Lane E7: the text names the AI apps that have HA NOVA, not a guess.
+func TestTryNamesTheConfiguredAIApp(t *testing.T) {
+	fakeDemo(t, "")
+	withClientRuntimeAvailability(t, map[string]bool{"opencode": true})
+	paths := tryTestPaths(t, "")
+	paths.StateFile = filepath.Join(paths.ConfigDir, "state.json")
+	state := defaultInstallState()
+	state.InstalledClients = []string{"opencode"}
+	if err := saveState(paths, state); err != nil {
+		t.Fatal(err)
+	}
+	exit, out := runTry(t, paths)
+	if exit != 0 || !strings.Contains(out, "Open OpenCode in a new chat") || strings.Contains(out, "Claude Code") {
+		t.Fatalf("try exit=%d out=%s", exit, out)
+	}
+}

@@ -132,7 +132,7 @@ func runTryCommand(paths runtimePaths, args []string) int {
 		return 1
 	}
 	data, _ := json.MarshalIndent(demo, "", "  ")
-	appFound := true
+	var apps []string // the AI apps that have HA NOVA now
 	err = os.MkdirAll(paths.ConfigDir, 0o700)
 	if err == nil {
 		// Under the lock uninstall holds: an uninstall during the fetch wins,
@@ -145,7 +145,7 @@ func runTryCommand(paths runtimePaths, args []string) int {
 				return err
 			}
 			var err error
-			if appFound, err = installClientsForDemo(paths); err != nil {
+			if apps, err = installClientsForDemo(paths); err != nil {
 				return err
 			}
 			if uninstalled == nil {
@@ -158,25 +158,25 @@ func runTryCommand(paths runtimePaths, args []string) int {
 		printHumanErr("cannot save the demo house connection: %s", err)
 		return 1
 	}
-	if !appFound {
+	if len(apps) == 0 {
 		fmt.Fprint(os.Stdout, `
 Demo house connected, but no AI app was found on this computer.
 Install Claude Code or Codex, then run: ha-nova try
 `)
 		return 0
 	}
-	fmt.Fprint(os.Stdout, `
+	fmt.Fprintf(os.Stdout, `
 Demo house connected. It is a shared demo home, not yours: it resets every hour.
 Never type real names or passwords there. Your own home is not touched.
 
-Open your AI app (Claude Code, Codex, ...) in a new chat and try:
+Open %s in a new chat and try:
   "In the demo house, which lights are on?"
   "In the demo house, turn off the kitchen lights."
   "In the demo house, check the automations for problems."
 
 Done?            ha-nova try --stop
 Your own home?   ha-nova setup
-`)
+`, map[bool]string{true: setupClientLabels(apps), false: "your AI app (" + setupClientLabels(apps) + ")"}[len(apps) == 1])
 	return 0
 }
 
@@ -274,21 +274,28 @@ func withClientMutationLockWaiting(paths runtimePaths, mutate func() error) erro
 
 // installClientsForDemo adds the skills to the AI apps on this computer when
 // none has them yet; a computer already set up keeps its clients untouched.
-// The caller holds the client mutation lock. false: no AI app was found.
-func installClientsForDemo(paths runtimePaths) (bool, error) {
+// The caller holds the client mutation lock. It returns the AI apps that
+// have HA NOVA (or should: an install that failed warns); none: no AI app.
+func installClientsForDemo(paths runtimePaths) ([]string, error) {
 	state, err := loadStateOrDefaultChecked(paths)
 	if err != nil {
-		return true, fmt.Errorf("cannot read the HA NOVA state: %w", err)
+		return nil, fmt.Errorf("cannot read the HA NOVA state: %w", err)
 	}
 	if len(state.InstalledClients) > 0 {
-		return true, nil
+		var here []string // only apps still on this computer are named
+		for _, client := range state.InstalledClients {
+			if clientRuntimeDetectedForStatus(client) {
+				here = append(here, client)
+			}
+		}
+		return here, nil
 	}
 	clients, _, err := resolveSetupClients(paths, "all")
 	if err != nil || len(clients) == 0 {
-		return false, nil
+		return nil, nil
 	}
 	if err := installClientsAndSaveStateUnlocked(paths, &state, clients, saveState); err != nil {
 		printHumanWarn("HA NOVA could not be added to your AI app: %s. Fix that, then run: ha-nova try", err)
 	}
-	return true, nil
+	return clients, nil
 }

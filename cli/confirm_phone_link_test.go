@@ -169,13 +169,17 @@ func linked(t *testing.T, h *writeHarness) *phoneLink {
 	return links["owner-id"].link
 }
 
-// The signed-in user's only phone is proposed; Enter sends ONE notification,
+// The signed-in user's only phone is proposed; Enter skips (lane E4: no
+// notification without an explicit yes); "yes" sends ONE notification,
 // to that phone only, and the tap there links it. Later confirmations go to
 // that phone only, and count only from its user — not even the owner's.
 func TestLinkPhoneByTapOnTheChosenPhoneOnly(t *testing.T) {
 	h, p, _ := familyLink(t)
 	p.tapBy = tapFrom("mobile_app_annas_pixel", "anna-id", true)
-	exit, out := runLink(t, h, "\n", phoneLinkRun{interactive: true, signedIn: "anna-id", offer: true})
+	if exit, out := runLink(t, h, "\n", phoneLinkRun{interactive: true, signedIn: "anna-id", offer: true}); exit != 0 || len(p.sent) != 0 || linked(t, h) != nil {
+		t.Fatalf("Enter linked or notified: exit %d sent %v out %q", exit, p.sent, out)
+	}
+	exit, out := runLink(t, h, "yes\n", phoneLinkRun{interactive: true, signedIn: "anna-id", offer: true})
 	if exit != 0 || !strings.Contains(out, "Use “Anna’s Pixel” (Anna) for HA NOVA confirmations?") || !strings.Contains(out, "Only this phone gets HA NOVA confirmations") {
 		t.Fatalf("exit %d out %q", exit, out)
 	}

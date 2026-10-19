@@ -58,6 +58,7 @@ func (f *setupFlow) pageHome() {
 		Claude: slices.Contains(f.selectedClients, "claude")}
 	show := func() {
 		view := *home
+		view.Insights = slices.Clone(home.Insights) // the published view never changes under the page
 		view.Previews = map[string]*setupPagePreview{}
 		for slot, pv := range home.Previews {
 			copied := *pv
@@ -95,6 +96,9 @@ func (f *setupFlow) pageHome() {
 					pv.State = "saving"
 					show()
 					home.Previews[slot] = f.pageSave(slot, pv, home)
+					if done := home.Previews[slot]; slot == "rooms" && done.mayHaveWritten() {
+						home.recountNoRoom()
+					}
 					break
 				}
 			}
@@ -151,6 +155,37 @@ func (home *setupPageHome) previewArgs(slot string) []string {
 		return []string{"plan", "template", home.Automation.Template}
 	}
 	return nil
+}
+
+// recountNoRoom keeps "N devices aren't in a room" true after a rooms
+// save or undo (whatever it wrote, also partly; a moved hub moves its
+// devices too): the count is read again. A failed read keeps the old one.
+func (home *setupPageHome) recountNoRoom() {
+	env, exit, err := pageVerb("map", "--insights")
+	var result insightsResult
+	if err != nil || exit != 0 || env.Server != activeServerProfile() || json.Unmarshal(env.Result, &result) != nil || result.Stats == nil {
+		return
+	}
+	count := 0
+	for _, in := range result.Insights {
+		if in.Kind == "no_room" {
+			count = in.Count
+		}
+	}
+	for i := range home.Insights {
+		if home.Insights[i].Kind == "no_room" {
+			home.Insights[i].Count = count
+		}
+	}
+}
+
+// mayHaveWritten: a save's outcome that may have changed the home.
+func (pv *setupPagePreview) mayHaveWritten() bool {
+	if pv.State == "saved" || pv.State == "unverified" {
+		return true
+	}
+	return pv.Problem != nil && slices.Contains([]string{"setup.page.home.problem.unknown", "setup.page.home.problem.rooms_partial",
+		"setup.page.home.problem.rooms_partial_no_undo"}, pv.Problem.Key)
 }
 
 // pagePreview stores a preview plan and turns its envelope into what the

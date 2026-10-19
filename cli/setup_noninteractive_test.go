@@ -811,7 +811,7 @@ func TestRunSetupNonInteractivePairedInstallHonorsDeviceCredential(t *testing.T)
 	}
 
 	origVerify := verifyDeviceHealth
-	verifyDeviceHealth = func(runtimeConfig) bool { return false }
+	verifyDeviceHealth = func(runtimeConfig) deviceHealth { return deviceDown }
 	defer func() { verifyDeviceHealth = origVerify }()
 
 	_, output := captureCommandOutput(t, func() int {
@@ -847,7 +847,7 @@ func TestCompleteNonInteractivePairedSetupSucceeds(t *testing.T) {
 	}
 	originalVerify := verifyDeviceHealth
 	originalTransport := relayFunctionalTransportForDoctor
-	verifyDeviceHealth = func(runtimeConfig) bool { return true }
+	verifyDeviceHealth = func(runtimeConfig) deviceHealth { return deviceOK }
 	relayFunctionalTransportForDoctor = func(runtimeConfig) (string, *http.Client, string, bool, error) {
 		return health.URL, health.Client(), "test-device-credential", true, nil
 	}
@@ -887,7 +887,7 @@ func TestRunSetupNonInteractivePairedInstallHonorsDeviceCredentialWithoutKeyring
 		return desktopKeyringSessionUnavailableError("no session bus in this shell")
 	}
 	origVerify := verifyDeviceHealth
-	verifyDeviceHealth = func(runtimeConfig) bool { return false }
+	verifyDeviceHealth = func(runtimeConfig) deviceHealth { return deviceDown }
 	t.Cleanup(func() {
 		relayAuthTokenSetupPreflightForSetup = origPreflight
 		verifyDeviceHealth = origVerify

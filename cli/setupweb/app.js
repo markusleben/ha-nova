@@ -42,6 +42,7 @@
   let lastStep = 0;
   let draft = '';
   let editing = false;
+  let sentAddress = false;
   let posting = false;
   let failures = 0;
   let timer = 0;
@@ -87,12 +88,14 @@
     posting = true;
     render(true);
     try {
-      await fetch('/api/action', {
+      const response = await fetch('/api/action', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'same-origin',
         body: JSON.stringify(value === undefined ? { action } : { action, value }),
       });
+      // A taken address ends "Change" once setup has checked it (poll).
+      if (action === 'address' && response.ok) sentAddress = editing;
     } catch (_) { /* the next poll shows where setup stands */ }
     posting = false;
     schedule(0);
@@ -181,9 +184,10 @@
       if (!haKnown) {
         fine.push(el('button', { id: 'b-demo', class: 'linkish', type: 'button', onclick: () => post('demo'), ...(accepts('demo') ? {} : { disabled: '' }) }, t('setup.page.found.demo')));
       }
-      let lead = haKnown ? 'setup.page.found.lead' : 'setup.page.found.lead_ask';
+      let [title, lead] = haKnown ? ['setup.page.found.title', 'setup.page.found.lead'] : ['setup.page.found.title_ask', 'setup.page.found.lead_ask'];
+      if (haKnown && state.typed) [title, lead] = ['setup.page.found.title_typed', 'setup.page.found.lead_typed'];
       if (several) lead = 'setup.page.found.lead_several';
-      return [...head(t('setup.page.found.eyebrow'), t(haKnown ? 'setup.page.found.title' : 'setup.page.found.title_ask'), t(lead)),
+      return [...head(t('setup.page.found.eyebrow'), t(title), t(lead)),
         problemLine(),
         el('ul', { class: 'rows' }, haRow, clientRow, appRow),
         actions,
@@ -280,6 +284,7 @@
   }
 
   async function poll() {
+    const sent = sentAddress; // a poll begun before the address went out shows the old state
     let response;
     try {
       response = await fetch('/api/state', { cache: 'no-store', credentials: 'same-origin' });
@@ -303,7 +308,9 @@
     }
     failures = 0;
     state = await response.json();
-    if (state.screen !== 'found') editing = false;
+    // Setup checks a sent address, then waits for a click again: the field
+    // closes (a wrong one comes back with ask_ha).
+    if (state.screen !== 'found' || (sent && sentAddress && (state.accepts || []).length)) editing = sentAddress = false;
     render();
     followSignIn();
     if (!finalScreens.includes(state.screen)) schedule(800);

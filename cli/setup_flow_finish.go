@@ -77,7 +77,16 @@ func (f *setupFlow) stepVerify() setupStepResult {
 func (f *setupFlow) verifyDevice() setupStepResult {
 	// Honest about what is verified: the secure device endpoint.
 	f.ui.show(setupView{Blocks: []setupBlock{setupTight(setupText("setup.verify.device_checking"))}})
-	if !verifyDeviceHealth(f.cfg) {
+	revoked := func() setupStepResult { // removed on the NOVA page: no App to wait for (lane E3)
+		f.ui.show(setupView{Blocks: []setupBlock{setupErrorBlock(setupText("setup.verify.device_revoked"))}})
+		f.pairingBackStep = setupStepHost // back: a different address, not this check again
+		return setupGoTo(setupStepPairing)
+	}
+	health := verifyDeviceHealth(f.cfg)
+	if health == deviceRevoked {
+		return revoked()
+	}
+	if health != deviceOK {
 		f.ui.show(setupView{Blocks: []setupBlock{setupErrorBlock(setupText("setup.verify.device_not_answering"))}})
 		f.textOnly()
 		if retryErr := promptSetupDeviceVerifyRetry(f.ui.termIn(), f.ui.termOut()); retryErr != nil {
@@ -88,7 +97,11 @@ func (f *setupFlow) verifyDevice() setupStepResult {
 			}
 			return f.inputFailed(retryErr)
 		}
-		if !verifyDeviceHealth(f.cfg) {
+		switch verifyDeviceHealth(f.cfg) {
+		case deviceOK:
+		case deviceRevoked:
+			return revoked()
+		default:
 			f.pairingBackStep = setupStepVerify
 			return setupGoTo(setupStepPairing)
 		}

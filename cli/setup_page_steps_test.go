@@ -154,11 +154,16 @@ func TestSetupPageRoomsPreviewSaveAndUndo(t *testing.T) {
 		t.Fatalf("a forged id was applied: %v", verbs.calls)
 	}
 
+	noRoom := home.Insights[1].Count
 	p.click("save", pv.PlanID)
 	saved := p.preview("rooms", "saved")
 	h.assertAreas(map[string]string{"d_guest": "guest", "d_kitchen": "kitchen", "d_radio": "kitchen"})
 	if !saved.Undo || saved.Problem != nil || len(saved.Changes) != 3 || saved.PlanID != "" {
 		t.Fatalf("saved = %+v", saved)
+	}
+	// Lane E6: the count follows the save, and the undo.
+	if n := p.waitFor("the count", accepting("save")).Home.Insights[1].Count; n != noRoom-3 {
+		t.Fatalf("no room after the save: %d, want %d", n, noRoom-3)
 	}
 	p.click("save", pv.PlanID) // the same id again
 	p.waitFor("the page again", accepting("save"))
@@ -175,6 +180,9 @@ func TestSetupPageRoomsPreviewSaveAndUndo(t *testing.T) {
 	p.click("save", undo.PlanID)
 	if back := p.preview("rooms", "saved"); back.Kind != "undo" || back.Undo {
 		t.Fatalf("undone = %+v", back)
+	}
+	if n := p.waitFor("the count", accepting("save")).Home.Insights[1].Count; n != noRoom {
+		t.Fatalf("no room after the undo: %d, want %d", n, noRoom)
 	}
 	h.assertAreas(roomsOriginal)
 	p.click("done", "")
@@ -243,7 +251,9 @@ func TestSetupPageRefusalsAndDrift(t *testing.T) {
 	}{
 		"map --insights": {{`{"schema_version":1,"server":"default","status":"ok","result":{"stats":{"rooms":1},"insights":[
 			{"kind":"battery_low","name":"Door battery","value":"12%","count":1,"action":"battery_reminder"},
-			{"kind":"no_room","count":3,"action":"rooms"}],"automation":{"template":"lights_off_when_away","uses":[]}}}`, 0}},
+			{"kind":"no_room","count":3,"action":"rooms"}],"automation":{"template":"lights_off_when_away","uses":[]}}}`, 0},
+			// read again after the partial save (lane E6)
+			{`{"schema_version":1,"server":"default","status":"ok","result":{"stats":{"rooms":1},"insights":[{"kind":"no_room","count":2,"action":"rooms"}]}}`, 0}},
 		"plan template battery_reminder":     {{refusal("TEMPLATE_NO_MATCH"), 4}},
 		"plan template lights_off_when_away": {{plan("p_typed", "confirm"), 3}},
 		"plan rooms":                         {{plan("p_1", "preview"), 3}, {plan("p_2", "preview"), 3}, {plan("p_3", "preview"), 3}},
@@ -303,6 +313,9 @@ func TestSetupPageRefusalsAndDrift(t *testing.T) {
 	partial := p.preview("rooms", "problem")
 	if partial.Problem.Key != "setup.page.home.problem.rooms_partial" || !partial.Undo {
 		t.Fatalf("partial = %+v", partial)
+	}
+	if n := p.waitFor("the count", accepting("save")).Home.Insights[1].Count; n != 2 { // read again: some moved
+		t.Fatalf("no room after a partial save: %d", n)
 	}
 	if verbs.count("apply --plan p_1") != 0 || verbs.count("apply --plan p_typed") != 0 || verbs.count("apply") != 2 {
 		t.Fatalf("applied %v", verbs.calls)
@@ -636,7 +649,9 @@ func TestSetupPageUnclearSavesAndUndoThatFails(t *testing.T) {
 		exit int
 	}{
 		"map --insights": {{env(`"status":"ok","result":{"stats":{"rooms":1},"insights":[{"kind":"no_room","count":1,"action":"rooms"}],
-			"automation":{"template":"lights_off_when_away","uses":[{"role":"light","entity_id":"light.a","name":"A"}]}}`), 0}},
+			"automation":{"template":"lights_off_when_away","uses":[{"role":"light","entity_id":"light.a","name":"A"}]}}`), 0},
+			{env(`"status":"ok","result":{"stats":{"rooms":1},"insights":[]}`), 0},     // after the unverified save: in a room now
+			{env(`"status":"error","error":{"code":"RELAY_ERROR","message":"x"}`), 1}}, // after the partial undo: the count stays
 		"plan template lights_off_when_away": {{env(`"status":"ok","tier":"preview","plan":{"id":"p_a","confirm":"natural"},
 			"config":{"op":"write","domain":"automation","config_id":"1","path":"x","body":{"alias":"Lights off"}},"result":{"template":"lights_off_when_away","uses":[]}`), 3}},
 		"apply --plan p_a": {{env(`"status":"unverified","error":{"code":"CONFIG_ERROR","message":"x"}`), 6}},

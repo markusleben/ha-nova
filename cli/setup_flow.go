@@ -45,6 +45,7 @@ type setupFlow struct {
 	// pageProblem: why the page's sign-in didn't connect this computer;
 	// step 2 shows it.
 	pageProblem *setupPageMsg
+	pageTyped   bool // the user typed Home Assistant's address on the page
 	// pageControlled: step 3 runs on the page; pageQuit: setup ended there
 	// (Ctrl+C or idle); pageNotes: what step 3 did, for step 4;
 	// pageGeneration: the install generation setup completed with.
