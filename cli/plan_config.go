@@ -282,7 +282,8 @@ func computeConfigPlan(paths runtimePaths, s *relaySession, env *verbEnvelope, r
 			return fail(refused("NO_UNDO_SNAPSHOT", err.Error()))
 		}
 		if snap.Op == "rooms" { // only by name: "undo the last update" never undoes setup's rooms
-			return fail(refused("REVERT_UNSUPPORTED", fmt.Sprintf("the newest checkpoint is a room change from setup (%s); revert it with --target %s, or pass --target <config_id> for an automation/script/dashboard", snap.Name, snap.TargetID)))
+			return fail(refusedWith("REVERT_UNSUPPORTED", fmt.Sprintf("the newest checkpoint is a room change from setup (%s), not an automation, script, or dashboard update", snap.Name),
+				fmt.Sprintf("Ask the user which change they mean. Setup's room change: ha-nova plan revert --target %s, only if they mean that. Otherwise pass --target <config_id> of the automation, script, or dashboard.", snap.TargetID)))
 		}
 		if snap.Op != "update" || (snap.Domain != "automation" && snap.Domain != "script" && snap.Domain != "dashboard") {
 			// Helper checkpoints share the stack; their revert is ha-nova:helper's

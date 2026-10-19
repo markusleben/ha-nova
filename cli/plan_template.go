@@ -260,12 +260,12 @@ func runPlanTemplate(paths runtimePaths, args []string) int {
 			return refusedWith("TEMPLATE_NO_MATCH", "this home has nothing the "+id+" template fits now", "Don't offer it; nothing to save.")
 		}
 		e, plan, err := templatePlan(paths, s, env, m)
+		if e != nil && e.level != tierPreview { // only preview plans are offered (spec §7.5); this one is never stored
+			env.Plan, env.Tier, env.Reasons, env.Config, env.Diff, env.Coverage = nil, "", nil, nil, nil, nil
+			return refusedWith("TEMPLATE_NOT_OFFERED", "this suggestion would need the user's own confirmation code, so it is not offered", "Don't offer it; nothing to save.")
+		}
 		if err != nil {
 			return err
-		}
-		if e.level != tierPreview { // only preview plans are offered (spec §7.5); this one is never stored
-			env.Plan = nil
-			return refusedWith("TEMPLATE_NOT_OFFERED", "this suggestion would need the user's own confirmation code, so it is not offered", "Don't offer it; nothing to save.")
 		}
 		env.Result = m
 		return savePlan(paths, plan, s.transport.Credential)

@@ -128,9 +128,19 @@ func planRoomsUndo(paths runtimePaths, s *relaySession, env *verbEnvelope, snap 
 	if snap.Domain != roomsUndoDomain || !roomsRecordPattern.MatchString(snap.TargetID) {
 		return refused("NO_UNDO_SNAPSHOT", "the rooms undo record is not one HA NOVA saved")
 	}
+	reg, err := readRoomsRegistry(s, false)
+	if err != nil {
+		return err
+	}
 	req := roomsRequest{Record: snap.TargetID, Undo: true}
 	for device, to := range before {
+		if d, seen := reg.devices[device]; seen && d.area == to {
+			continue // already back (a late write, or moved by hand): nothing to undo
+		}
 		req.Items = append(req.Items, roomsItem{DeviceID: device, From: after[device], To: to})
+	}
+	if len(req.Items) == 0 {
+		return refusedWith("NOTHING_TO_UNDO", "every device of this room change is already back in its previous room", "Tell the user nothing needs undoing.")
 	}
 	sort.Slice(req.Items, func(i, j int) bool { return req.Items[i].DeviceID < req.Items[j].DeviceID })
 	if err := req.validate(); err != nil {
@@ -384,7 +394,14 @@ func failRooms(paths runtimePaths, s *relaySession, env *verbEnvelope, req rooms
 		failure.exit = verbExitUnknown
 		failure.message = "a room change failed (" + cause.Error() + ") and the rooms could not be read back; possibly changed: " + strings.Join(named, ", ")
 	}
-	if env.Undo != nil {
+	switch {
+	case req.Undo && env.Undo != nil:
+		failure.message = "a room change failed (" + cause.Error() + "); back in their previous room now: " + strings.Join(named, ", ") + "; the others were not undone"
+		failure.next = "Tell the user which devices are back and that the others were not undone. To finish: ha-nova plan revert --target " + req.Record + " (a new preview)."
+	case req.Undo:
+		failure.message = "a room change failed (" + cause.Error() + "); back in their previous room now: " + strings.Join(named, ", ")
+		failure.next = "Tell the user which devices are back in their previous room."
+	case env.Undo != nil:
 		failure.next = "Tell the user exactly which devices changed room. To put them back: ha-nova plan revert --target " + req.Record + " (a new preview), or move them in Home Assistant."
 	}
 	return failure

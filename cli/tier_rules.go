@@ -71,7 +71,7 @@ const (
 	reasonConfigRevert         = "CONFIG_REVERT"
 	reasonConfigRestore        = "CONFIG_RESTORE"
 	reasonConfigDelete         = "CONFIG_DELETE"
-	reasonAreaAssign           = "AREA_ASSIGN" // plan rooms (plan_rooms.go)
+	reasonAreaAssign           = "AREA_ASSIGN"
 	reasonManager              = "CONSUMER_MANAGER_PRESENT"
 	reasonScanFailed           = "SCAN_FAILED"
 	reasonLimitCut             = "LIMIT_CUT"

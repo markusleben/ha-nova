@@ -139,7 +139,7 @@ func TestPlanRoomsPreviewsAndSavesOnlyOnApply(t *testing.T) {
 	}
 
 	// "undo the last update" never undoes setup's rooms; the record id does
-	if exit, plain := h.run(runPlanCommand, "revert"); exit != 4 || plain.Error.Code != "REVERT_UNSUPPORTED" || !strings.Contains(plain.Error.Message, applied.Undo.TargetID) {
+	if exit, plain := h.run(runPlanCommand, "revert"); exit != 4 || plain.Error.Code != "REVERT_UNSUPPORTED" || !strings.Contains(plain.Error.Next, applied.Undo.TargetID) {
 		t.Fatalf("plain revert: exit %d %+v", exit, plain.Error)
 	}
 	exit, undo := h.run(runPlanCommand, "revert", "--target", applied.Undo.TargetID)
@@ -462,5 +462,29 @@ func TestPlanRoomsBlindFailedUndoKeepsKnownOutcomes(t *testing.T) {
 	_ = json.Unmarshal(snap.ExpectedAfter, &after)
 	if _, kept := after["d_guest"]; kept || after["d_kitchen"] != "kitchen" || after["d_radio"] != "kitchen" {
 		t.Fatalf("record %s", snap.ExpectedAfter)
+	}
+}
+
+// A device already back in its previous room is left out of the undo, so
+// one stray device never blocks the rest.
+func TestPlanRoomsUndoSkipsDevicesAlreadyBack(t *testing.T) {
+	r := newRoomsFake()
+	h := newRoomsHarness(t, r)
+	env := h.planRooms()
+	_, applied := h.run(runApplyCommand, "--plan", env.Plan.ID)
+	r.mu.Lock()
+	r.setArea("d_radio", nil)
+	r.mu.Unlock()
+	exit, undo := h.run(runPlanCommand, "revert", "--target", applied.Undo.TargetID)
+	if exit != 3 || len(decodeInto[roomsResult](t, undo.Result).Changes) != 2 {
+		t.Fatalf("exit %d %+v %s", exit, undo.Error, undo.Result)
+	}
+	if exit, _ := h.run(runApplyCommand, "--plan", undo.Plan.ID); exit != 0 {
+		t.Fatalf("apply %d", exit)
+	}
+	h.assertAreas(roomsOriginal)
+	if exit, none := h.run(runPlanCommand, "revert", "--target", applied.Undo.TargetID); exit != 3 {
+		// the saved inverse record now redoes the change: a new preview, never a write
+		t.Fatalf("redo plan: exit %d %+v", exit, none.Error)
 	}
 }
