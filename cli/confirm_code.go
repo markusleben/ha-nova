@@ -56,7 +56,23 @@ const (
 	// channelPhoneUnlinked is never stored: #719's pin, no phone chosen yet,
 	// so the plan is refused until one is linked, never downgraded.
 	channelPhoneUnlinked = "phone-unlinked"
+	// channelChatOff is never stored: ha-nova serve, no phone linked for
+	// this user, and the owner turned chat codes off (mcp_serve_phone.go).
+	channelChatOff = "chat-off"
 )
+
+// channelRefusal: a channel no plan may be stored with, and why.
+func channelRefusal(channel string) *verbFailure {
+	switch channel {
+	case channelPhoneMissing:
+		return refusedWith("CONFIRM_UNAVAILABLE", phoneMissingWhy, phoneMissingStep())
+	case channelPhoneUnlinked:
+		return refusedWith("CONFIRM_UNAVAILABLE", phoneUnlinkedWhy, phoneUnlinkedNext)
+	case channelChatOff:
+		return refusedWith("CONFIRM_UNAVAILABLE", chatCodesOffWhy, chatCodesOffNext)
+	}
+	return nil
+}
 
 // humanChannel: the human answers in a window or on a phone; the plan's
 // code never leaves this process.

@@ -168,7 +168,7 @@ func linkPhone(s *relaySession, reader *bufio.Reader, out io.Writer, run phoneLi
 	}
 	ask := phoneSetup{owner: home.owner, relayUser: home.relay, confirmer: chosen.UserID, targets: []phoneTarget{chosen}}
 	retry := " Run ha-nova setup confirm-phone again to retry."
-	answer, reply := askPhone(s, ask, "ha-nova-link", phoneLinkAsk(), linkWait)
+	answer, reply := askPhone(s, ask, "ha-nova-link", phoneLinkAsk(), linkWait, os.Stderr)
 	defer func() { // only the first say counts: "Linked" below wins
 		_, line := phoneNothing(answer)
 		reply.say("Not linked", line)
@@ -253,7 +253,7 @@ func allowPhoneChange(s *relaySession, out io.Writer, home phoneHome, links map[
 	case status == phoneReady:
 		old := terminalSafeName(current.targets[0].Name)
 		fmt.Fprintf(out, "  First confirm on the phone linked now, “%s”.\n", old)
-		answer, reply := askPhone(s, current, "ha-nova-setting", phoneChangeAsk(newPhone), wait)
+		answer, reply := askPhone(s, current, "ha-nova-setting", phoneChangeAsk(newPhone), wait, os.Stderr)
 		defer func() {
 			prefix, line := phoneNothing(answer)
 			reply.say(prefix, line)

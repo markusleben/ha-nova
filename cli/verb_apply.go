@@ -72,23 +72,42 @@ func runCallCommand(paths runtimePaths, args []string) int {
 }
 
 func runApplyCommand(paths runtimePaths, args []string) int {
-	var opts verbOptions
+	req, exit, ok := parseApplyArgs(args)
+	if !ok {
+		return exit
+	}
+	env, exit, asked := confirmByWindow(paths, req.opts, req.id, req.noSnapshot)
+	if !asked {
+		env, exit, asked = confirmByPhone(paths, req.opts, req.id, req.noSnapshot)
+	}
+	return finishApply(paths, req, env, exit, asked)
+}
+
+type applyRequest struct {
+	opts       verbOptions
+	id, code   string
+	noSnapshot bool
+}
+
+func parseApplyArgs(args []string) (req applyRequest, exit int, ok bool) {
 	fs := flag.NewFlagSet("apply", flag.ContinueOnError)
-	addVerbFlags(fs, &opts)
-	id := fs.String("plan", "", "plan id from plan/call (p_ + 12 hex)")
-	code := fs.String("confirm", "", "the one-time code from HA NOVA, exactly as the user typed it (typed plans only)")
-	noSnapshot := fs.Bool("no-snapshot", false, "delete plans: proceed without the pre-delete config snapshot (only after the user chose that)")
-	positional, err := parseVerbArgs(fs, &opts, args, applyHelp)
-	if err == nil && (len(positional) != 0 || !planIDPattern.MatchString(*id)) {
+	addVerbFlags(fs, &req.opts)
+	fs.StringVar(&req.id, "plan", "", "plan id from plan/call (p_ + 12 hex)")
+	fs.StringVar(&req.code, "confirm", "", "the one-time code from HA NOVA, exactly as the user typed it (typed plans only)")
+	fs.BoolVar(&req.noSnapshot, "no-snapshot", false, "delete plans: proceed without the pre-delete config snapshot (only after the user chose that)")
+	positional, err := parseVerbArgs(fs, &req.opts, args, applyHelp)
+	if err == nil && (len(positional) != 0 || !planIDPattern.MatchString(req.id)) {
 		err = errors.New("Usage: " + applyUsage)
 	}
 	if err != nil {
-		return verbUsageError("apply", err)
+		return req, verbUsageError("apply", err), false
 	}
-	env, exit, asked := confirmByWindow(paths, opts, *id, *noSnapshot)
-	if !asked {
-		env, exit, asked = confirmByPhone(paths, opts, *id, *noSnapshot)
-	}
+	return req, 0, true
+}
+
+// finishApply applies unless a window or phone already answered (asked),
+// prints, and then tells the phone how it ended.
+func finishApply(paths runtimePaths, req applyRequest, env verbEnvelope, exit int, asked bool) int {
 	if done := phoneApplied; done != nil { // the phone hears how it ended, even after a panic (unclear)
 		phoneApplied = nil
 		if !asked {
@@ -97,64 +116,13 @@ func runApplyCommand(paths runtimePaths, args []string) int {
 		defer func() { done(env, exit) }()
 	}
 	if !asked {
-		env, exit = applyPlan(paths, opts, *id, *code, *noSnapshot)
+		env, exit = applyPlan(paths, req.opts, req.id, req.code, req.noSnapshot)
 	}
 	defer func() { humanAnswer = "" }()
 	if !printVerbEnvelope(env) {
 		return verbExitError
 	}
 	return exit
-}
-
-func refused(code, message string) *verbFailure {
-	next, known := refusalNext[code]
-	if !known {
-		next = replan
-	}
-	return refusedWith(code, message, next)
-}
-
-func refusedWith(code, message, next string) *verbFailure {
-	return &verbFailure{exit: verbExitRefused, code: code, message: message + "; nothing was sent", next: next}
-}
-
-// A re-plan always shows its new preview and asks again: no plan is ever
-// applied without a fresh confirmation.
-const replan = "Plan again (ha-nova plan call|write|delete|revert), show its preview, and get confirmation again."
-
-// A used or claimed plan: the claim precedes recompute and send, so the
-// winner may still be sending — an immediate read proves nothing.
-const mayHaveRun = "Another apply holds or used this plan — its outcome is unknown. Do not plan or apply again; tell the user it may have run and let them check."
-
-// refusalNext is the one next step per refusal code; anything not listed
-// is a plan that must be made again.
-var refusalNext = map[string]string{
-	"PLAN_NOT_FOUND":          mayHaveRun,
-	"PLAN_CLAIMED":            mayHaveRun,
-	"PLAN_EXPIRED":            "Plan again, show the new preview, and get confirmation again.",
-	"PLAN_INVALIDATED":        "Stop and tell the user; plan again only on their explicit request, show the new preview, and get confirmation again.",
-	"SERVER_MISMATCH":         "Apply it with the plan's own server (--server), or plan again for this one.",
-	"UNRESOLVED_TARGET":       "Name the entities explicitly, or check the area or device, then plan again.",
-	"NO_SNAPSHOT_NOT_OFFERED": "Apply without --no-snapshot: the config snapshot is taken first.",
-	"CODE_REQUIRED":           "Ask the user to type only the four digits of the one-time code from HA NOVA shown with the plan, then pass exactly what they typed with --confirm, written before --plan.",
-	"CODE_MISMATCH":           "Ask the user to type only the four digits of the one-time code from HA NOVA again, as shown with the plan.",
-	"CONFIRM_IN_FORM":         "Apply it in the app where it was planned (its confirmation form asks the user), or plan it again here and show the new preview.",
-	"NO_UNDO_SNAPSHOT":        "Only the last verified update of an automation, script, or dashboard can be reverted; there is nothing to revert.",
-	"REVERT_UNSUPPORTED":      "To undo an automation, script, or dashboard: plan revert --target <config_id> (for a dashboard, its url_path). The newest checkpoint belongs to a helper: revert that through ha-nova:helper.",
-	"CONFIG_ID_UNSUPPORTED":   "Pass the config_id from `ha-nova get <entity_id> --config`, not the entity_id; a YAML item is edited through ha-nova:yaml-config.",
-	"CONFIG_NOT_UI_MANAGED":   "It is defined in YAML or a package: edit it there through ha-nova:yaml-config.",
-}
-
-// configIDInUseNext: a collision usually means an earlier create already
-// landed (a retry after a timeout); otherwise a script's key is its name, so
-// another one is the user's choice — never an overwrite without them
-// meaning it.
-func configIDInUseNext(domain string) string {
-	const earlier = "It may be the item an earlier apply created — read it first (`ha-nova find \"<alias>\"`); if it is, it exists: do not create another. "
-	if domain == "script" {
-		return earlier + "Otherwise ask the user for another name, then plan again with --id <new> --create; update the existing script only if they mean to replace it."
-	}
-	return earlier + "Otherwise plan again without --id (a new id is minted); update the existing automation only if the user means to replace it."
 }
 
 // applyPlan runs the spec §2.1 apply order: claim (I8), expiry, server,

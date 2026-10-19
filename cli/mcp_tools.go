@@ -9,7 +9,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"time"
 )
 
 // The MCP tools are thin argv adapters over the CLI verbs: the same parsing,
@@ -146,6 +145,9 @@ func (srv *mcpServer) callTool(req rpcRequest) (map[string]any, *rpcError) {
 		if err := checkArguments(tool.schema, params.Arguments); err != nil {
 			return invalidArguments(tool.name, err), nil
 		}
+		if refusal := srv.chatRefusal(tool); refusal != nil { // ha-nova serve: the owner's read-only switch
+			return refusal, nil
+		}
 		if tool.name == mcpSkillTool.name { // offline: no verb, no lock
 			return srv.callSkill(params.Arguments), nil
 		}
@@ -161,26 +163,10 @@ func (srv *mcpServer) callTool(req rpcRequest) (map[string]any, *rpcError) {
 		if err != nil {
 			return invalidArguments(tool.name, err), nil
 		}
-		mcpVerbLock.Lock()
-		defer mcpVerbLock.Unlock()
-		// Verbs set process-wide server selection (apply selects the plan's
-		// server); every call starts from the pin and leaves nothing behind.
-		override, active := serverSelectionOverride, activeServerProfile()
-		defer func() { setServerSelectionOverride(override); setActiveServerProfile(active) }()
-		setServerSelectionOverride(srv.pin)
-		// Channel and form answer come from this server only: the CLI detects
-		// the channel (confirm_window.go), a form only where no window opens.
-		planChannel, humanAnswer, windowWait, formsShown = "", answered, mcpWindowWait, req.forms
-		phoneTellSpan = 2 * time.Second // the server stays up, so a phone result still lands; the call stays under 60 s
-		defer func() {
-			planChannel, humanAnswer, windowWait, formsShown, phoneApplied = "", "", cliWindowWait, false, nil
-		}()
-		traceRelayVersion.Store("")
-		out, errOut, exit := captureVerb(func() int { return tool.run(srv.paths, pinServer(tool.name, argv, srv.pin)) })
-		if tool.name == "ha_trace" { // trace prints its own object: add the verbs' notices
-			out = withNotices(out, verbNotices(srv.paths, traceRelayVersion.Load().(string)), activeServerProfile())
+		if waited := srv.chatApply(tool.name, params.Arguments, argv); waited != nil { // ha-nova serve: a phone plan
+			return waited, nil
 		}
-		return toolResult(tool.name, out, errOut, exit, srv.told, req.forms), nil
+		return srv.runVerb(tool.name, answered, req.forms, func() int { return tool.run(srv.paths, pinServer(tool.name, argv, srv.pin)) }), nil
 	}
 	return nil, &rpcError{Code: rpcInvalidParams, Message: "unknown tool: " + params.Name}
 }

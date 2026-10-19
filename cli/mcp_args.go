@@ -236,6 +236,8 @@ func nextStep(envelope map[string]any) string {
 		return fmt.Sprintf("Show this preview. When the user has asked for this change and your workflow has reached this step (a skill's order comes first), call ha_apply with plan_id %v and no confirm_code: %s asks them. Never ask for a code in chat.", plan["id"], where) + say
 	case pending && plan != nil:
 		return fmt.Sprintf("Show this preview and wait for the user's own confirmation; only then call ha_apply with plan_id %v.", plan["id"]) + say
+	case errInfo != nil && errInfo["code"] == "RELAY_ERROR" && chatCall != nil:
+		return chatRelayNext
 	case errInfo != nil && errInfo["code"] == "RELAY_ERROR":
 		return "If this computer is not paired or its credential store is locked, ask the user to run `ha-nova setup` in a terminal."
 	}
