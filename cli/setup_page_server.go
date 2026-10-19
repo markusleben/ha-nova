@@ -61,6 +61,9 @@ type setupPageServer struct {
 	token  string // launch token: the first GET turns it into the session
 	used   atomic.Bool
 	opened atomic.Bool // the page read its state at least once
+	// shownEnd closes once the page read an end screen.
+	shownEnd     chan struct{}
+	shownEndOnce sync.Once
 
 	mu       sync.Mutex
 	session  string
@@ -91,7 +94,7 @@ func startSetupPageServer(ui *setupWebUI) (*setupPageServer, error) {
 		listener.Close()
 		return nil, errors.New("setup page: not bound to 127.0.0.1")
 	}
-	s := &setupPageServer{ui: ui, port: strconv.Itoa(addr.Port), token: token}
+	s := &setupPageServer{ui: ui, port: strconv.Itoa(addr.Port), token: token, shownEnd: make(chan struct{})}
 	ui.server = s
 	s.server = &http.Server{
 		Handler:           s,
@@ -277,8 +280,20 @@ func (s *setupPageServer) state(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.opened.Store(true)
+	state := s.ui.snapshot()
 	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(s.ui.snapshot())
+	if json.NewEncoder(w).Encode(state) == nil && setupPageEnded(state.Screen) {
+		s.shownEndOnce.Do(func() { close(s.shownEnd) })
+	}
+}
+
+// setupPageEnded: screens after which setup no longer runs.
+func setupPageEnded(screen string) bool {
+	switch screen {
+	case "done", "incomplete", "finished", "failed", "stopped", "idle":
+		return true
+	}
+	return false
 }
 
 // action takes every state change: JSON only (a form or a no-CORS fetch can't

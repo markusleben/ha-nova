@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"os"
 	"runtime"
-	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -92,7 +91,7 @@ func (f *setupFlow) runWithPage(page *setupWebUI) int {
 	defer page.server.close()
 	f.ui, f.page, f.target = page, page, "all" // the page sets up every AI assistant it finds (spec §7.3)
 	code := f.run()
-	if screen := page.snapshot().Screen; !slices.Contains([]string{"done", "incomplete", "stopped", "idle", "failed"}, screen) {
+	if !setupPageEnded(page.snapshot().Screen) {
 		// Ended without an outcome (a terminal step finished it).
 		end := "failed"
 		if code == 0 {
@@ -101,12 +100,17 @@ func (f *setupFlow) runWithPage(page *setupWebUI) int {
 		page.end(end)
 	}
 	if page.server.opened.Load() {
-		time.Sleep(setupPageLinger) // the page polls once more and shows the end
+		// Until the open page has shown how setup ended (a background tab
+		// polls slowly), bounded.
+		select {
+		case <-page.server.shownEnd:
+		case <-time.After(setupPageLinger):
+		}
 	}
 	return code
 }
 
-var setupPageLinger = 3 * time.Second
+var setupPageLinger = 15 * time.Second
 
 func (f *setupFlow) stepPage() setupStepResult {
 	p := f.page
