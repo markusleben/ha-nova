@@ -143,6 +143,39 @@ install/update fails. Spec: `docs/work/2026-10-15-app-prebuilt-images-spec.md`.
   `E2E_IMAGE_SOURCE=ghcr bash scripts/e2e/supervisor-app/run.sh` once public.
 - Rollback: the next version without `image:` builds locally again; never
   retag or delete a published version.
+- The chat-app bridge inside the image (`ha-nova serve` + skills) is staged
+  from the same tree (`scripts/release/stage-app-bridge.sh`, version =
+  `skill_version`), so an App bump comes with or after the final
+  `skill_version`, and a later bridge or integration fix needs an App patch
+  version.
+
+### Chat-app lanes
+
+Throwaway HAOS VM only (never a real home), results in the App bump PR.
+Supervisor reads `main`, so an App version is live for every user the moment
+its PR merges: run these BEFORE the merge, on the PR's published image (VM
+repository `https://github.com/markusleben/ha-nova#<app-bump-branch>`); a
+failure found after the merge needs the next patch version. Required for the
+first chat-app release and after a change to the bridge, `nova/integration/`,
+`nova/src/runtime/chat-apps.ts`, or the discovery path:
+
+- [ ] `on`: NOVA page "Turn on chat apps" → consent → one restart → the
+      `ha_nova` entry is loaded; the connector answers `401` unauthenticated
+      and MCP `initialize` for the owner, also over Link
+- [ ] `off`: "Turn off chat apps" → discovery message deleted, the entry goes
+      (matched by uuid), `custom_components/ha_nova` removed, the bridge's
+      device record revoked; off and on again → one entry, new secret
+- [ ] `app_update`: update from the previous App version while on → same
+      entry, connector still works without turning on again
+- [ ] `rollback`: an App build with the chat code but no staged bridge (the
+      local-build rollback path) while on offers only [Turn off], and that
+      finishes the cleanup
+- [ ] `registry_reset`: NOVA page registry reset while on → chat apps work
+      again, at the latest after an App restart (the bridge re-mints its
+      credential before it starts)
+- [ ] `clients` (maintainer, Cloud checklist): claude.ai web + phone app and
+      ChatGPT web connect over Link, an unlock asks the linked phone (or a
+      chat code), and turning off breaks both connectors
 
 ## 6. Home Assistant Link (formerly Home Assistant Cloud)
 

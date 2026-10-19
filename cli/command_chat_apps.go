@@ -16,8 +16,7 @@ import (
 // off sign the owner in to Home Assistant in the browser and call the NOVA
 // App's owner-only action, as setup's step 3 does; on asks the restart
 // consent on the same screen first. status reads Home Assistant through
-// this computer's Relay, without a sign-in. Not listed in the usage until
-// the App release that turns chat apps on.
+// this computer's Relay, without a sign-in.
 
 // Test seams.
 var (

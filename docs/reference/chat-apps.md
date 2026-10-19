@@ -1,7 +1,5 @@
 # Use HA NOVA in Claude and ChatGPT
 
-Status: active. Chat apps come with the NOVA App release that includes them; with an older NOVA App, the switch below doesn't show.
-
 With chat apps on, you can ask about your home and change it from Claude or ChatGPT, also on your phone, with no computer running. They reach your home through Home Assistant Link or your Home Assistant's own public HTTPS address, and the same rules decide what needs your OK as with HA NOVA on a computer (see below).
 
 ## What you need

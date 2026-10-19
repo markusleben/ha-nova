@@ -4,6 +4,19 @@ All notable changes to this project are documented in this file.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic Versioning](https://semver.org/).
 
+## [Relay 0.11.0] - 2026-10-19
+
+### Added
+- Use HA NOVA in Claude and ChatGPT, also on your phone, with no computer running. On the NOVA page, open Chat apps and choose "Turn on chat apps" (or turn them on during `ha-nova setup`). Home Assistant restarts once. Then add HA NOVA in Claude (there is an "Add to Claude" button) or in ChatGPT on the web, and sign in to Home Assistant as the owner. Needs Home Assistant 2026.10 or newer and Home Assistant Link or your own public HTTPS address. Off by default; only the owner can turn it on and use it. Guide: [Use HA NOVA in Claude and ChatGPT](https://github.com/markusleben/ha-nova/blob/main/docs/reference/chat-apps.md). (#756, #758, #760, #762)
+- On the NOVA page you can also let chat apps only read, or turn off codes in the chat so risky changes need your phone. (#756)
+- Setting up Home Assistant Link as the owner connects a computer with that one sign-in, without the six-digit code. Other users still get the code. (#757)
+- When you uninstall HA NOVA from the last computer that uses this App, `ha-nova uninstall` can remove the App too, after the owner signs in. The App now tells a computer whether other devices still use it. (#754)
+
+### Upgrade notes
+- **Turn chat apps off before you remove this App or restore an older version** (NOVA page → Chat apps → "Turn off chat apps"). Turning them off removes the part HA NOVA added to Home Assistant (`custom_components/ha_nova`) and signs out its own access.
+- Computers that are already connected stay connected; no re-pairing.
+- Computers on the matching HA NOVA release ask you to update this App; computers on an older release keep working with it.
+
 ## [Relay 0.10.0] - 2026-10-17
 
 ### Added

@@ -42,10 +42,8 @@ describe("release notes contract", () => {
   it("keeps v0.27.0 release-facing wording aligned to the shipped stack", () => {
     const relayVersion = /^version:\s*"([^"]+)"\s*$/m.exec(readFileSync("nova/config.yaml", "utf8"))?.[1] ?? "";
     const notedApp = /need NOVA Relay (\d+\.\d+\.\d+)/.exec(stableNotes ?? "")?.[1] ?? "";
-    const notedAtLeastApp = notedApp.localeCompare(relayVersion, "en", { numeric: true });
-    // The notes name the App release that turns chat apps on; the App bump makes them equal.
-    expect(notedApp, "notes name the NOVA Relay version chat apps need").toMatch(/^\d+\.\d+\.\d+$/);
-    expect(notedAtLeastApp, `notes NOVA Relay ${notedApp} must be >= nova/config.yaml ${relayVersion}`).toBeGreaterThanOrEqual(0);
+    // The notes name the App release that turns chat apps on: the shipped App.
+    expect(notedApp, "notes name the shipped NOVA Relay version").toBe(relayVersion);
     expect(stableNotes).toMatch(/## What To Watch\s+- \*\*Update the NOVA Relay App too\.\*\*/);
     expect(stableNotes).toContain("Home Assistant 2026.10 or newer");
     expect(stableNotes).toContain("your own public HTTPS address");
