@@ -4,10 +4,17 @@ All notable changes to this project are documented in this file.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [Relay 0.10.0] - 2026-10-17
 
-Recent changes are tracked in [GitHub releases](https://github.com/markusleben/ha-nova/releases)
-and merged PRs. This changelog will be updated with the next tagged relay version.
+### Added
+- Connect a computer by signing in with Home Assistant: the HA NOVA setup on that computer opens your Home Assistant login, you sign in as the owner, and the computer is connected without typing a code. The six-digit code from the NOVA page keeps working as before. Requires the matching HA NOVA release on the computer; older versions keep using the code. (#701)
+- While a computer is connecting this way, the NOVA page shows "A computer is connecting through Home Assistant sign-in…" with a Cancel button. (#701)
+
+### Changed
+- Home Assistant Cloud is now called Home Assistant Link on the NOVA page and in the documentation, following Nabu Casa's rename. Nothing to change on your side. (#722)
+
+### Upgrade notes
+- Computers that are already connected stay connected; no re-pairing.
 
 ## [Relay 0.9.1] - 2026-10-15
 

@@ -23,7 +23,7 @@ func TestRenderSetupStatusSummaryShowsAllSignals(t *testing.T) {
 	rendered := output.String()
 	for _, want := range []string{
 		"Checking current setup...",
-		"Relay reachable",
+		"NOVA App reachable",
 		"Authentication valid",
 		"WebSocket not connected",
 		"Skills installed",
@@ -63,7 +63,7 @@ func TestSetupStateSkipSummaryListsCompletedPhases(t *testing.T) {
 
 	summary := state.SkipSummary()
 	for _, want := range []string{
-		"app installation",
+		"Home Assistant address",
 		"authentication",
 		"connection check",
 		"skill installation",
@@ -74,6 +74,15 @@ func TestSetupStateSkipSummaryListsCompletedPhases(t *testing.T) {
 	}
 	if strings.Contains(summary, "Home Assistant connection") {
 		t.Fatalf("skip summary should not include the Home Assistant connection when WS is not ready: %s", summary)
+	}
+}
+
+// Lane D5: a saved address with the App unreachable must not read as a done
+// App installation next to "NOVA App not reachable".
+func TestSetupStateSkipSummaryNeverClaimsTheAppForASavedAddress(t *testing.T) {
+	summary := setupState{ConfigOK: true}.SkipSummary()
+	if summary != "Home Assistant address" {
+		t.Fatalf("summary = %q, want only the saved address", summary)
 	}
 }
 
@@ -89,7 +98,7 @@ func TestRenderSetupStatusSummaryShowsAuthFailureWhenTokenExistsButRelayFails(t 
 	renderSetupStatusSummary(output, state)
 
 	rendered := output.String()
-	if !strings.Contains(rendered, "Relay not reachable") {
+	if !strings.Contains(rendered, "NOVA App not reachable") {
 		t.Fatalf("expected relay failure in summary:\n%s", rendered)
 	}
 	if !strings.Contains(rendered, "Authentication failed") {

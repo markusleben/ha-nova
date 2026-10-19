@@ -5,6 +5,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 )
@@ -114,10 +115,12 @@ func (srv *mcpServer) readResource(raw json.RawMessage, modern bool) (map[string
 	if !modern { // the legacy revisions name this error -32002
 		notFound.Code = rpcLegacyNotFound
 	}
-	if !prefixed || !containsText(referenceFiles(srv.paths), rel) {
+	listed := referenceFiles(srv.paths)
+	at := slices.Index(listed, rel)
+	if !prefixed || at < 0 {
 		return nil, notFound
 	}
-	body, err := os.ReadFile(filepath.Join(skillsRoot(srv.paths), filepath.FromSlash(rel)))
+	body, err := os.ReadFile(filepath.Join(skillsRoot(srv.paths), filepath.FromSlash(listed[at]))) // the listed path, never the request's
 	if err != nil {
 		return nil, notFound
 	}

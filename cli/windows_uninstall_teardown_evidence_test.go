@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -118,6 +119,7 @@ func TestWindowsUninstallTeardownEvidenceMatchesOnlyExactRelay(
 func TestLaunchWindowsUninstallPersistsEvidenceBeforeHelperStarts(
 	t *testing.T,
 ) {
+	isolateTempDir(t)
 	root := t.TempDir()
 	paths := runtimePaths{
 		InstallRoot: filepath.Join(root, "missing-install-root"),
@@ -134,7 +136,6 @@ func TestLaunchWindowsUninstallPersistsEvidenceBeforeHelperStarts(
 		uninstallRelayRemovalEvidence{
 			defaultServerProfileName: "relay-guided",
 		},
-		false,
 	)
 	if err == nil {
 		t.Fatal("launch unexpectedly succeeded without a helper binary")
@@ -180,19 +181,16 @@ func TestWindowsUninstallHelperRejectsUnboundRelayEvidence(t *testing.T) {
 	}
 }
 
-func TestWindowsUninstallHelperArgsCarryLastComputerConfirmed(t *testing.T) {
-	has := func(args []string) bool {
-		for _, arg := range args {
-			if arg == "--last-computer-confirmed" {
-				return true
-			}
-		}
-		return false
+// After the App removal the helper gets the purge, the completed teardown,
+// and the exact Relay identity; without it, none of them.
+func TestWindowsUninstallHelperArgsCarryAppRemoval(t *testing.T) {
+	removed := strings.Join(windowsUninstallHelperArgs("h.exe", uninstallModePurge, true,
+		uninstallRelayRemovalEvidence{defaultServerProfileName: "relay-1"}), " ")
+	if !strings.Contains(removed, "--purge --teardown-done --teardown-relay-instance-id relay-1") {
+		t.Fatalf("helper args = %s", removed)
 	}
-	if !has(windowsUninstallHelperArgs("h.exe", uninstallModeStandard, false, nil, true)) {
-		t.Fatal("helper args lost the last-computer answer")
-	}
-	if has(windowsUninstallHelperArgs("h.exe", uninstallModeStandard, false, nil, false)) {
-		t.Fatal("helper args claim a last-computer answer the user never gave")
+	kept := strings.Join(windowsUninstallHelperArgs("h.exe", uninstallModeStandard, false, nil), " ")
+	if strings.Contains(kept, "--purge") || strings.Contains(kept, "--teardown") {
+		t.Fatalf("helper args = %s", kept)
 	}
 }

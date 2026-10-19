@@ -43,6 +43,7 @@
   "tests/http/health.test.ts",
   "tests/http/home.test.ts",
   "tests/http/nova-page.test.ts",
+  "tests/http/chat-apps-api.test.ts",
   "tests/http/pair-v2-arm.test.ts",
   "tests/http/pair.test.ts",
   "tests/http/pairing-listeners.test.ts",
@@ -70,6 +71,7 @@
   "tests/security/tls-identity.test.ts",
   "tests/security/token-resolver.test.ts",
   "tests/skills/backup-contract.test.ts",
+  "tests/skills/plain-language-contract.test.ts",
   "tests/skills/batch-safety-contract.test.ts",
   "tests/skills/agent-scenario-regressions-contract.test.ts",
   "tests/skills/best-practice-patterns-contract.test.ts",
@@ -142,5 +144,8 @@
   "tests/skills/work-ledger-contract.test.ts",
   "tests/skills/write-delete-safety-contract.test.ts",
   "tests/storage/atomic-file.test.ts",
-  "tests/storage/relay-instance.test.ts"
+  "tests/storage/relay-instance.test.ts",
+  "tests/onboarding/setup-page-script.test.ts",
+  "tests/runtime/chat-apps.test.ts",
+  "tests/security/pairing-metadata-reserved.test.ts"
 ]

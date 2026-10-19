@@ -31,7 +31,7 @@ var haSignInStepTimeout = 30 * time.Second
 var (
 	errSignInBrowser    = errors.New("browser sign-in did not complete")
 	errSignInStopped    = errors.New("sign-in stopped")
-	errSignInAppMissing = errors.New("Home Assistant did not find a running NOVA Relay App")
+	errSignInAppMissing = errors.New("Home Assistant did not find a running NOVA App")
 )
 
 // Test seams.
@@ -54,8 +54,9 @@ var (
 )
 
 type haSignInSession struct {
-	ingress *CloudIngressClient
-	user    HACurrentUser
+	ingress  *CloudIngressClient
+	user     HACurrentUser
+	fromPage bool // signed in on the setup page: a failed pairing returns there
 }
 
 // parseLocalHAOrigin accepts the saved Home Assistant URL only as a plain
@@ -79,6 +80,12 @@ func parseLocalHAOrigin(raw string) (*url.URL, error) {
 // The loopback callback needs a browser on this computer, and the relay must
 // serve sign-in, so nobody signs in for nothing.
 func defaultHASignInOffered(out io.Writer, cfg runtimeConfig) bool {
+	return haSignInPossible(out, cfg) && relayAdvertisesSignIn(cfg.RelayBaseURL)
+}
+
+// haSignInPossible: a person at this computer's desktop can finish a browser
+// sign-in against the saved local Home Assistant address.
+func haSignInPossible(out io.Writer, cfg runtimeConfig) bool {
 	if !uiInputSupportsTTY() || !writerSupportsTTY(out) {
 		return false
 	}
@@ -91,10 +98,8 @@ func defaultHASignInOffered(out io.Writer, cfg runtimeConfig) bool {
 		os.Getenv("WAYLAND_DISPLAY") == "" && os.Getenv("WSL_DISTRO_NAME") == "" {
 		return false
 	}
-	if _, err := parseLocalHAOrigin(cfg.HAURL); err != nil {
-		return false
-	}
-	return relayAdvertisesSignIn(cfg.RelayBaseURL)
+	_, err := parseLocalHAOrigin(cfg.HAURL)
+	return err == nil
 }
 
 // relayAdvertisesSignIn reads sign_in from the GET /pair/v1/info capability
@@ -179,10 +184,39 @@ func probeHAAuthProviders(ctx context.Context, origin *url.URL) (*url.URL, error
 	return nil, nil
 }
 
-func openHASignInIngress(
+// haSignInPrepare runs while the owner's sign-in is still open, after the
+// owner check and before the ingress session; setup uses it to install the
+// NOVA App (ha_supervisor_app.go). It gets its own time budget.
+type haSignInPrepare func(ctx context.Context, socket haWSCaller, user HACurrentUser) error
+
+func openHASignInIngress(ctx context.Context, out io.Writer, haURL string) (haSignInSession, error) {
+	return openHASignInIngressWith(ctx, out, haURL, nil)
+}
+
+func openHASignInIngressWith(
 	ctx context.Context,
 	out io.Writer,
 	haURL string,
+	prepare haSignInPrepare,
+) (haSignInSession, error) {
+	return openHASignInIngressIn(ctx, out, haURL, prepare, nil)
+}
+
+// haSignInTab is the setup page's tab: it navigates to Home Assistant
+// itself and its server takes the redirect back, so no second tab opens.
+type haSignInTab interface {
+	oauthCallbackTab
+	navigate(target string)
+}
+
+// openHASignInIngressIn signs in in the setup page's tab when tab is set,
+// else in a browser tab of its own.
+func openHASignInIngressIn(
+	ctx context.Context,
+	out io.Writer,
+	haURL string,
+	prepare haSignInPrepare,
+	tab haSignInTab,
 ) (haSignInSession, error) {
 	origin, err := parseLocalHAOrigin(haURL)
 	if err != nil {
@@ -191,16 +225,28 @@ func openHASignInIngress(
 	ctx, stop := haSignInInterrupt(ctx)
 	defer stop()
 	flow := haSignInOAuthFlow()
+	open := func(_ context.Context, target string) error {
+		openHASignInBrowser(out, target)
+		return nil
+	}
+	if tab != nil {
+		flow.Tab = tab
+		open = func(_ context.Context, target string) error {
+			tab.navigate(target)
+			return nil
+		}
+	}
+	waiting := "Waiting for you to sign in, Ctrl+C to use a code instead"
+	if prepare != nil {
+		waiting = "Waiting for you to sign in, Ctrl+C to stop"
+	}
 	authorization, err := runSetupCountdownSpinnerWithResult(
 		out,
-		"Waiting for you to sign in, Ctrl+C to use a code instead",
+		waiting,
 		flow.Timeout,
 		500*time.Millisecond,
 		func() (OAuthAuthorizationCode, error) {
-			return flow.AuthorizeOrigin(ctx, origin, func(_ context.Context, target string) error {
-				openHASignInBrowser(out, target)
-				return nil
-			})
+			return flow.AuthorizeOrigin(ctx, origin, open)
 		},
 	)
 	armSetupNextPromptSkipsStaleBlankInput()
@@ -210,8 +256,15 @@ func openHASignInIngress(
 		}
 		return haSignInSession{}, errors.Join(errSignInBrowser, err)
 	}
-	result, err := runSetupSpinnerWithResult(out, "Checking your sign-in with Home Assistant...", setupSpinnerDebounce,
-		func() (haSignInResult, error) { return finishHASignIn(ctx, origin, authorization) })
+	finish := func() (haSignInResult, error) { return finishHASignIn(ctx, origin, authorization, prepare) }
+	var result haSignInResult
+	if prepare == nil {
+		result, err = runSetupSpinnerWithResult(out, "Checking your sign-in with Home Assistant...", setupSpinnerDebounce, finish)
+	} else {
+		// prepare shows its own progress; a spinner around it would garble it.
+		fmt.Fprintln(out, "  Checking your sign-in with Home Assistant...")
+		result, err = finish()
+	}
 	if result.sessionMayRemain {
 		renderSetupWarningLine(out,
 			"Home Assistant may still list this sign-in (%s). You can remove it under Profile → Security → Refresh tokens: %s",
@@ -233,6 +286,7 @@ func finishHASignIn(
 	parent context.Context,
 	origin *url.URL,
 	authorization OAuthAuthorizationCode,
+	prepare haSignInPrepare,
 ) (result haSignInResult, err error) {
 	ctx, cancel := context.WithTimeout(parent, haSignInStepTimeout)
 	defer cancel()
@@ -265,6 +319,17 @@ func finishHASignIn(
 	result.session.user = user
 	if !user.IsOwner {
 		return result, errSignInNotOwner
+	}
+	if prepare != nil {
+		prepareCtx, cancelPrepare := context.WithTimeout(parent, haAppInstallTimeout)
+		err := prepare(prepareCtx, socket, user)
+		cancelPrepare()
+		if err != nil {
+			return result, err
+		}
+		var cancelAfter context.CancelFunc
+		ctx, cancelAfter = context.WithTimeout(parent, haSignInStepTimeout)
+		defer cancelAfter()
 	}
 	app, err := socket.NOVAAppInfo(ctx)
 	if err != nil {

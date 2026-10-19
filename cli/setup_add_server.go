@@ -42,12 +42,7 @@ func maybeOfferAddServerForCompletedSetup(
 		return false, 0
 	}
 	fmt.Fprintln(out)
-	add, err := promptWizardYesNoFromReader(
-		reader,
-		out,
-		"Add another Home Assistant server?",
-		false,
-	)
+	add, err := promptWizardYesNoMenu(reader, out, "Add another Home Assistant server?", "Yes, add another server", "No", false)
 	if errors.Is(err, errSetupExit) || errors.Is(err, errSetupBack) {
 		return false, 0
 	}
@@ -176,9 +171,13 @@ func runAddServerStages(
 
 	// Another computer may already have installed the App on this instance.
 	if installed, note := detectInstalledRelay(out, paths, cfg, ""); installed {
-		renderSetupSuccessLine(out, "%s", note)
+		renderSetupSuccessLine(out, "%s", note.plain())
 	} else {
-		if err := runRelayInstallSteps(reader, out, cfg.HAURL); err != nil {
+		note, err := runRelayInstallSteps(reader, out, paths, cfg, true)
+		if !note.empty() {
+			renderSetupWarningLine(out, "%s", note.plain())
+		}
+		if err != nil {
 			if err == errSetupBack || err == errSetupExit {
 				return cancelKeepingPartialProfile()
 			}
@@ -203,7 +202,9 @@ func runAddServerStages(
 			return cancelKeepingPartialProfile()
 		}
 		if pairErr != nil {
-			printHumanErr("%s", pairErr)
+			if !isSetupFailureReported(pairErr) {
+				printHumanErr("%s", pairErr)
+			}
 			return failKeepingPartialProfile()
 		}
 		// A nil return would mean a legacy token exchange, which the
@@ -220,11 +221,11 @@ func runAddServerStages(
 	renderPairedButUnverified := func() {
 		renderSetupParagraph(out,
 			fmt.Sprintf("The server %q is paired; only the verification could not reach it yet.", name),
-			"Make sure the NOVA Relay App is running, then check with:",
+			"Make sure the NOVA App is running, then check with:",
 			fmt.Sprintf("  ha-nova doctor --server %s", name),
 		)
 	}
-	if !verifyDeviceHealth(cfg) {
+	if verifyDeviceHealth(cfg) != deviceOK {
 		renderSetupErrorLine(out, "Paired, but the secure device endpoint did not answer yet. The App may still be starting.")
 		if _, err := promptWizardLineFromReader(reader, out, "Press Enter to retry once", ""); err != nil {
 			if err == errSetupBack || err == errSetupExit {
@@ -236,7 +237,7 @@ func runAddServerStages(
 			renderPairedButUnverified()
 			return 1
 		}
-		if !verifyDeviceHealth(cfg) {
+		if verifyDeviceHealth(cfg) != deviceOK {
 			printHumanErr("the secure device endpoint for %q did not answer", name)
 			renderPairedButUnverified()
 			return 1
@@ -281,6 +282,10 @@ func promptNewServerProfileName(
 		}
 		if existing[name] {
 			renderSetupErrorLine(out, "A server named %q already exists. Choose a different name.", name)
+			continue
+		}
+		if name == demoProfileName {
+			renderSetupErrorLine(out, "%s", errDemoNameReserved)
 			continue
 		}
 		return name, nil

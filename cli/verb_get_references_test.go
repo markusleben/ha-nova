@@ -117,6 +117,8 @@ func refHome(t *testing.T, extra func(endpoint string, payload map[string]any) (
 						"variables":  map[string]any{"owner": "device_tracker.pixel_7"}}}
 				}
 				return fakeRelayFailure{"UPSTREAM_WS_COMMAND_ERROR", "home_assistant_error: Failed to load blueprint"}
+			case "lovelace/dashboards/list": // the default stays unlisted
+				return []any{}
 			case "get_panels":
 				return map[string]any{
 					"lovelace":       map[string]any{"component_name": "lovelace", "url_path": "lovelace", "config": map[string]any{"mode": "storage"}},

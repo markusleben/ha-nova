@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"os"
 	"regexp"
 	"strings"
@@ -219,8 +220,12 @@ func TestConfirmationSayDelete(t *testing.T) {
 		t.Fatalf("unread member say %q", unread.Say)
 	}
 	_, natural := h.run(runPlanCommand, "write", "--domain", "automation", "--file", draftFile(t, map[string]any{"alias": "Hall", "actions": []any{step("light.turn_on", "light.hall")}}))
-	if natural.Say != "Nothing is saved yet. Options: apply · show yaml · cancel" {
+	if natural.Say != "Nothing is saved yet. Save it? I can also show the details." {
 		t.Fatalf("natural create say %q", natural.Say)
+	}
+	// The request is not the approval: a preview plan tells the agent to wait.
+	if !strings.Contains(natural.NextStep, "end your turn; run ha-nova apply --plan "+natural.Plan.ID+" only after the user's own reply approves it") {
+		t.Fatalf("natural create next_step %q", natural.NextStep)
 	}
 }
 
@@ -239,7 +244,7 @@ func TestConfirmationSayCoversEveryPlanReason(t *testing.T) {
 	env := &verbEnvelope{Action: &planAction{Service: "light.turn_on"}}
 	for _, row := range rows {
 		text, typed := sayReason(e, env, storedPlan{}, tierReason{Code: row[1], EntityID: "light.x"})
-		if strings.HasPrefix(row[1], "CONFIG_WRITE") || row[1] == reasonConfigRevert || row[1] == reasonConfigRestore {
+		if strings.HasPrefix(row[1], "CONFIG_WRITE") || row[1] == reasonConfigRevert || row[1] == reasonConfigRestore || row[1] == reasonAreaAssign {
 			continue // the what line says it; no extra clause
 		}
 		if text == "" || text == "HA NOVA can't fully check this" || typed != (row[2] == "typed") {
@@ -365,5 +370,14 @@ func TestConfirmationSayDeviceSibling(t *testing.T) {
 	env = &verbEnvelope{Action: &planAction{Service: "switch.turn_on"}}
 	if got, _ := sayReason(e, env, storedPlan{}, tierReason{Code: reasonDeviceAccessSibling, EntityID: "switch.relay", Detail: "lock.door"}); got != "“Gate relay” is on the same device as “Door” (a lock): switching it on may unlock it" {
 		t.Errorf("direct: %q", got)
+	}
+}
+
+// A plan that failed to store leaves no preview to show or plan to apply.
+func TestVerbErrorClearsPlanGuidance(t *testing.T) {
+	env := &verbEnvelope{Say: "Nothing is saved yet.", NextStep: "Show the preview ending with `say` and end your turn."}
+	setVerbError(env, errors.New("disk full"))
+	if env.Say != "" || env.NextStep != "" {
+		t.Fatalf("say %q next_step %q", env.Say, env.NextStep)
 	}
 }

@@ -1,6 +1,7 @@
 import { createServer as createHttpServer_, type Server } from "node:http";
 import { createServer as createHttpsServer } from "node:https";
-import { dirname } from "node:path";
+import { lstatSync } from "node:fs";
+import { dirname, join } from "node:path";
 
 import type { FileAccessConfig } from "../config/file-access.js";
 import { createBackupsHandler } from "../http/handlers/backups.js";
@@ -23,6 +24,7 @@ import { createFileResponseStore } from "../security/pairing-response-store.js";
 import { createPairingV1Manager } from "../security/pairing-v1.js";
 import { loadOrCreateTlsIdentity } from "../security/tls-identity.js";
 import { loadOrCreateRelayInstanceId } from "../storage/relay-instance.js";
+import { createChatApps, type ChatApps } from "./chat-apps.js";
 import { createIngressListener } from "./ingress-listener.js";
 import { clearLegacyOptions, importLegacyToken } from "./legacy-migration.js";
 import { ensureSidebarPanel } from "./sidebar-panel.js";
@@ -114,10 +116,12 @@ export async function buildAppMode(
     // the plaintext file and option.
     active.markLegacyMigrated();
     registryCorrupt = false;
+    chatApps?.restartBridge(); // its credential went with the old registry
     input.logger.info?.(
       "Device registry reset by the owner; device pairing re-enabled",
     );
   };
+  let chatApps: ChatApps | undefined;
 
   const tls = await loadOrCreateTlsIdentity(dataDir);
 
@@ -198,6 +202,24 @@ export async function buildAppMode(
   // Prime the port at startup; a failure here recovers via the lazy retry above.
   await ensureSecurePort();
 
+  // Chat apps stay dormant until the App release that ships the integration
+  // (PR train B3) sets HA_NOVA_CHAT_APPS=1 in the image.
+  if (process.env.HA_NOVA_CHAT_APPS === "1") {
+    chatApps = createChatApps({
+      dataDir,
+      configRoot: input.fileAccess.configRoot,
+      binary: "/opt/ha-nova/ha-nova",
+      integrationSource: "/app/integration/ha_nova",
+      securePort: SECURE_PORT,
+      spkiPin: tls.spkiPin,
+      registry,
+      supervisor,
+      core: input.coreClient,
+      now: input.now,
+      logger: input.logger,
+    });
+  }
+
   const functional = buildFunctionalHandlers(input, relayInstanceId);
   const listenerDeps = {
     registry,
@@ -206,6 +228,15 @@ export async function buildAppMode(
     relayVersion: input.relayVersion,
     now: input.now,
     logger: input.logger,
+    chatAppFiles: () => chatAppFilesPresent(input.fileAccess.configRoot),
+    // Unreadable: counted as another device, so uninstall keeps the App.
+    bridgeDevice: () => {
+      try {
+        return chatApps?.bridgeDeviceId() ?? null;
+      } catch {
+        return null;
+      }
+    },
   };
 
   const bootstrap = createHttpServer_(createBootstrapListener(listenerDeps));
@@ -228,6 +259,7 @@ export async function buildAppMode(
       now: input.now,
       logger: input.logger,
       ...(input.iconPath !== undefined ? { iconPath: input.iconPath } : {}),
+      ...(chatApps !== undefined ? { chatApps } : {}),
     }),
   );
   // These servers bypass createHttpServer, so apply the same stalled-client
@@ -252,6 +284,7 @@ export async function buildAppMode(
         ingress: INGRESS_PORT,
         registry_corrupt: registryCorrupt,
       });
+      await chatApps?.boot(); // the bridge reaches the secure listener just started
     },
   };
 }
@@ -380,4 +413,15 @@ async function listen(server: Server, port: number): Promise<void> {
     server.listen(port, "0.0.0.0", () => resolve());
     server.on("error", reject);
   });
+}
+
+// Whether the chat-app integration directory exists in Home Assistant's config
+// (existence only); null without a mounted config or when lstat fails.
+export function chatAppFilesPresent(configRoot: string): boolean | null {
+  const exists = (...path: string[]) => lstatSync(join(configRoot, ...path), { throwIfNoEntry: false }) !== undefined;
+  try {
+    return configRoot === "" || !exists("configuration.yaml") ? null : exists("custom_components", "ha_nova");
+  } catch {
+    return null;
+  }
 }

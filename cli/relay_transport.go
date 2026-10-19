@@ -35,6 +35,12 @@ func localRelayAuthRepairMessage(
 	profile string,
 	relayURL string,
 ) string {
+	if activeServerIsDemo() {
+		if status == http.StatusForbidden {
+			return "The demo house doesn't allow this; it is a shared demo with some features turned off."
+		}
+		return "The demo house's access changed. Run: ha-nova try"
+	}
 	action := "rejected"
 	if status == http.StatusForbidden {
 		action = "denied"
@@ -73,6 +79,14 @@ func relayURLSafeForCopyPaste(value string) bool {
 // both present; this is the passwordless default after pairing. Legacy keeps
 // existing installs and non-interactive/service setups working unchanged.
 func relayFunctionalTransport(cfg runtimeConfig) (baseURL string, client *http.Client, token string, deviceMode bool, err error) {
+	if cfg.demoToken != "" {
+		// The demo house: its public token, only to its own relay URL. Reported
+		// as device mode: a non-legacy credential with its own client.
+		return cfg.RelayBaseURL, demoHTTPClient(), cfg.demoToken, true, nil
+	}
+	if cfg.bridgeCredential != "" { // the NOVA App's bridge: its internal device, pinned TLS
+		return cfg.RelaySecureBaseURL, spkiPinnedClient(cfg.RelaySpkiPin), cfg.bridgeCredential, true, nil
+	}
 	if cfg.RelaySecureBaseURL != "" && cfg.RelaySpkiPin != "" {
 		cred, ok, credErr := readDeviceCredential()
 		if credErr != nil {

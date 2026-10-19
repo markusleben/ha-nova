@@ -1,6 +1,7 @@
 package main
 
 import (
+	"cmp"
 	"fmt"
 	"strings"
 	"unicode"
@@ -23,21 +24,33 @@ func confirmationSay(e *tierEngine, env *verbEnvelope, plan storedPlan, subject 
 		parts = append(parts, sayCopyNote)
 	}
 	switch {
+	case plan.Confirm == "code" && plan.Channel == channelWindow && phoneLinkedHere(e.s.paths):
+		verb, _ := sayGoal(e, env, plan, subject)
+		parts = append(parts, sayWindowPhoneAsk(phoneButton(verb)))
 	case plan.Confirm == "code" && plan.Channel == channelWindow:
 		parts = append(parts, sayWindowAsk)
 	case plan.Confirm == "code" && plan.Channel == channelPhone:
-		parts = append(parts, sayPhoneAsk)
+		verb, _ := sayGoal(e, env, plan, subject)
+		parts = append(parts, sayPhoneAsk(phoneButton(verb)))
 	case plan.Confirm == "code":
-		parts = append(parts, sayTypedAsk(plan.code, lowerFirst(sayGoal(e, env, plan, subject))))
+		parts = append(parts, sayTypedAsk(plan.code, lowerFirst(sayGoalText(e, env, plan, subject))))
 		if plan.Channel == channelChat {
-			parts = append(parts, sayChatNote)
+			parts = append(parts, chatNote())
 		}
-	case plan.ConfigAction != nil: // the write card's literal options line
-		parts = append(parts, "Options: apply · show yaml · cancel")
+	case plan.ConfigAction != nil: // the write card's save question
+		parts = append(parts, "Save it? I can also show the details.")
 	default:
 		parts = append(parts, "Reply yes to go ahead.")
 	}
-	return strings.Join(parts, " ")
+	return demoPrefix(strings.Join(parts, " "))
+}
+
+// demoPrefix names the demo house in every confirmation it asks for.
+func demoPrefix(text string) string {
+	if activeServerIsDemo() && text != "" {
+		return "In the demo house: " + text
+	}
+	return text
 }
 
 const sayCopyNote = "A copy is saved first, so it can be restored."
@@ -50,24 +63,19 @@ func confirmationPrompt(e *tierEngine, env *verbEnvelope, plan storedPlan, subje
 	if plan.Confirm != "code" || plan.ConfigAction == nil && frozeNothing(plan.Request, plan.Action) {
 		return ""
 	}
+	env.ask = sayAsk(e, env, plan, subject) // a phone plan's question
 	what := sayWhat(e, env, plan, subject)
 	if plan.ConfigAction != nil {
-		what = sayGoal(e, env, plan, subject) + ". " + what
+		what = env.ask[0] + " " + env.ask[1] + ". " + what
 	}
-	return strings.Join(append([]string{what}, sayReasons(e, env, plan)...), " ")
+	return demoPrefix(strings.Join(append([]string{what}, sayReasons(e, env, plan)...), " "))
 }
 
-// sayGoal: "Unlock “Front Door”", "Delete the automation “Night”" — the
+// sayGoal: "Unlock" “Front Door”, "Delete" the automation “Night” — the
 // plan's action and objects only. subject names a config item.
-func sayGoal(e *tierEngine, env *verbEnvelope, plan storedPlan, subject string) string {
+func sayGoal(e *tierEngine, env *verbEnvelope, plan storedPlan, subject string) (verb, object string) {
 	if action := plan.ConfigAction; action != nil {
-		name := sayText(subject, true)
-		if name == "" {
-			name = sayText(action.EntityID, true)
-		}
-		if name == "" {
-			name = sayText(action.Domain+"."+action.ConfigID, true)
-		}
+		name := cmp.Or(sayText(subject, true), sayText(action.EntityID, true), sayText(action.Domain+"."+action.ConfigID, true))
 		verb := map[string]string{"delete": "Delete", "revert": "Revert", "restore": "Restore"}[action.Op]
 		switch {
 		case verb != "":
@@ -76,7 +84,7 @@ func sayGoal(e *tierEngine, env *verbEnvelope, plan storedPlan, subject string) 
 		default:
 			verb = "Change"
 		}
-		return verb + " the " + action.Domain + " " + name
+		return verb, "the " + action.Domain + " " + name
 	}
 	service := plan.Action.Service
 	domain, verb := splitID(service)
@@ -86,15 +94,15 @@ func sayGoal(e *tierEngine, env *verbEnvelope, plan storedPlan, subject string) 
 	}
 	switch {
 	case domain == "script" && !scriptEntityServices[verb]:
-		return "Run the script " + sayText(e.sayName(env, service), true)
+		return "Run", "the script " + sayText(e.sayName(env, service), true)
 	case len(names) == 0 && domain == "homeassistant":
-		return sayVerb(verb) + " Home Assistant"
+		return sayVerb(verb), "Home Assistant"
 	case len(names) == 0:
-		return "Run " + sayText(service, true)
+		return "Run", sayText(service, true)
 	case service == "script.turn_on":
-		return "Run the script " + sayList(names)
+		return "Run", "the script " + sayList(names)
 	}
-	return sayVerb(verb) + " " + sayList(names)
+	return sayVerb(verb), sayList(names)
 }
 
 // sayReasons: one sentence per distinct reason; a typed plan's first one
@@ -162,7 +170,7 @@ func sayWhat(e *tierEngine, env *verbEnvelope, plan storedPlan, subject string) 
 	}
 	domain, verb := splitID(plan.Action.Service)
 	targets := plan.Action.EntityIDs
-	line := sayGoal(e, env, plan, "")
+	line := sayGoalText(e, env, plan, "")
 	if len(targets) != 1 || domain == "script" && !scriptEntityServices[verb] {
 		return line + sayData(plan.Action.Data) + ". Nothing has run yet."
 	}
@@ -287,7 +295,7 @@ func sayReason(e *tierEngine, env *verbEnvelope, plan storedPlan, r tierReason) 
 		return "This runs an integration's own service, which HA NOVA can't fully check", false
 	case reasonServiceNotFound:
 		return "A step calls " + sayText(r.Detail, true) + ", which Home Assistant doesn't have: that step will fail when it runs", false
-	case reasonConfigWrite, reasonConfigRevert, reasonConfigRestore:
+	case reasonConfigWrite, reasonConfigRevert, reasonConfigRestore, reasonAreaAssign:
 		return "", false
 	}
 	return "HA NOVA can't fully check this", r.Code != "" // a code without a sentence never reads as harmless

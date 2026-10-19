@@ -398,7 +398,7 @@ func TestRunDoctorShowsInteractiveRecoveryHintForRecoverableLinuxSecureStorage(t
 	if exitCode == 0 {
 		t.Fatalf("expected doctor to fail when secure storage needs recovery:\n%s", output)
 	}
-	if !strings.Contains(output, "Recovery: run `ha-nova setup` interactively to unlock local secure storage on this Linux machine.") {
+	if !strings.Contains(output, "Recovery: run `ha-nova setup` interactively to unlock this computer's keyring.") {
 		t.Fatalf("expected interactive recovery hint:\n%s", output)
 	}
 }

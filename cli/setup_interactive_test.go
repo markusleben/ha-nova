@@ -86,12 +86,12 @@ func TestInteractiveSetupFreshInstallShowsWizardAndInstallsAntigravitySkills(t *
 		"4) Google Antigravity",
 		"5) Hermes Agent",
 		"Discovering Home Assistant on your network...",
-		"Next, install the NOVA Relay App in your Home Assistant.",
-		"On the NOVA Relay page:",
+		"Your browser opens the NOVA App in Home Assistant (listed as “NOVA Relay”).",
+		`In the browser: sign in and click "Add" if asked, then Install, then Start.`,
 		"NOVA keeps client and Home Assistant access separate",
 		"Standalone Container/Core relays keep HA_LLAT in the server environment; the CLI never asks for it.",
 		`Paste the token into the "Relay Auth Token" field`,
-		"Press Enter after you saved the Relay Auth Token and restarted NOVA Relay",
+		"Press Enter after you saved the Relay Auth Token and restarted the NOVA App",
 		"Setting up HA NOVA for Google Antigravity...",
 		"Setup complete!",
 	} {
@@ -100,9 +100,9 @@ func TestInteractiveSetupFreshInstallShowsWizardAndInstallsAntigravitySkills(t *
 		}
 	}
 	if !strings.Contains(output, "Found Home Assistant at ") &&
-		!strings.Contains(output, "Found Home Assistant via the network name ") &&
-		!strings.Contains(output, "No confirmed Home Assistant found automatically; enter the Home Assistant address manually") &&
-		!strings.Contains(output, "No confirmed Home Assistant found automatically; using your saved address as a starting point:") {
+		!strings.Contains(output, "Found Home Assistant as ") &&
+		!strings.Contains(output, "No Home Assistant found automatically; enter its address.") &&
+		!strings.Contains(output, "No Home Assistant found automatically; starting from your saved address") {
 		t.Fatalf("wizard output missing discovery result:\n%s", output)
 	}
 	discoveryIdx := strings.Index(output, "Discovering Home Assistant on your network...")
@@ -155,21 +155,46 @@ func TestInteractiveSetupFreshInstallShowsWizardAndInstallsAntigravitySkills(t *
 	}
 }
 
-func TestInteractiveSetupWithoutAvailableClientReturnsGuidance(t *testing.T) {
+// Lane D1: no AI app installed yet still connects this computer, then
+// names the apps to install and the one command that adds HA NOVA to it.
+func TestInteractiveSetupWithoutAvailableClientConnectsAndSaysWhatToInstall(t *testing.T) {
+	withClientRuntimeAvailability(t, map[string]bool{})
+
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("HA_NOVA_NO_BROWSER", "1")
+	t.Setenv("HA_NOVA_ALLOW_INSECURE_TEST_KEYRING", "1")
+	t.Setenv("HA_NOVA_TEST_KEYRING_FILE", filepath.Join(home, ".config", "ha-nova", ".test-relay-auth-token"))
 	t.Setenv("HA_NOVA_DEV_ROOT", repoRootForSetupTest(t))
-	withClientRuntimeAvailability(t, map[string]bool{})
+
+	haServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("ok"))
+	}))
+	defer haServer.Close()
+	relayServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/health" {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"status":"ok","data":{"ha_ws_connected":true}}`))
+	}))
+	defer relayServer.Close()
 
 	paths, err := detectPaths()
 	if err != nil {
 		t.Fatalf("detectPaths() error: %v", err)
 	}
-
+	input := joinSetupInputs(
+		[]string{haServer.URL}, // no client question: nothing to choose
+		setupWizardRelayInstallPrompts(),
+		setupWizardGenerateRelayTokenPrompts(),
+	)
 	exitCode := 1
-	stdout, stderr := captureInteractiveSetupIO(t, "", func() int {
+	stdout, stderr := captureInteractiveSetupIO(t, input, func() int {
 		clientRuntimeDetectedForStatus = func(string) bool { return false }
-		exitCode = interactiveSetup(paths, runtimeConfig{}, loadStateOrDefault(paths), "", "", "", "", "", false)
+		exitCode = interactiveSetup(paths, runtimeConfig{}, loadStateOrDefault(paths), "", "", "", relayServer.URL, "", false)
 		return exitCode
 	})
 	if exitCode != 0 {
@@ -178,15 +203,23 @@ func TestInteractiveSetupWithoutAvailableClientReturnsGuidance(t *testing.T) {
 
 	output := stdout + stderr
 	for _, want := range []string{
-		"No supported AI client is ready on this machine yet.",
-		"Install one supported client first, then rerun: ha-nova setup",
+		"No AI app found on this computer yet.",
+		"Setup connects this computer to Home Assistant now",
+		"This computer is connected to Home Assistant.",
+		"One step left: install one of these AI apps: Claude Code, Codex CLI, OpenCode",
+		"Then run: ha-nova setup (it adds HA NOVA to that app).",
 	} {
 		if !strings.Contains(output, want) {
-			t.Fatalf("missing-client guidance missing %q:\n%s", want, output)
+			t.Fatalf("missing-client flow missing %q:\n%s", want, output)
 		}
 	}
-	if strings.Contains(output, "[ha-nova] ERROR") {
-		t.Fatalf("missing-client guidance must not render as an error:\n%s", output)
+	if strings.Contains(output, "[ha-nova] ERROR") || strings.Contains(output, "Setting up HA NOVA for") ||
+		strings.Contains(output, "Setup complete!") || strings.Contains(output, "try asking") {
+		t.Fatalf("no client: no error and no skills step:\n%s", output)
+	}
+	saved, err := loadRuntimeConfig(paths)
+	if err != nil || saved.HAURL != haServer.URL {
+		t.Fatalf("this computer was not connected: %+v (%v)", saved, err)
 	}
 }
 
@@ -316,9 +349,9 @@ func TestInteractiveSetupOffersServiceCredentialsForHermesWhenKeyringLocked(t *t
 
 	output := stdout + stderr
 	for _, want := range []string{
-		"Service / gateway mode is available for Hermes Agent.",
-		"Choose yes for SSH, systemd, headless, or gateway sessions. Choose no for a normal desktop terminal with an unlocked keyring.",
-		"Use service/gateway token file instead of desktop keyring?",
+		"HA NOVA can't use this computer's keyring from here",
+		"It can keep its key for Hermes Agent in a protected file instead.",
+		"Keep the key in a protected file instead?",
 		"Setting up HA NOVA for Hermes Agent...",
 		"Setup complete!",
 	} {
@@ -632,16 +665,16 @@ func TestInteractiveSetupRecoversSecureStorageBeforeHostStep(t *testing.T) {
 	}
 
 	output := stdout + stderr
-	if !strings.Contains(output, "Local secure storage needs setup") {
+	if !strings.Contains(output, "This computer's keyring isn't set up yet") {
 		t.Fatalf("expected dedicated secure storage recovery page:\n%s", output)
 	}
-	if !strings.Contains(output, "trusted desktop prompt") {
+	if !strings.Contains(output, "A system window opens") {
 		t.Fatalf("expected native secure-storage prompt guidance:\n%s", output)
 	}
-	if !strings.Contains(output, "HA NOVA never reads it in the terminal") {
+	if !strings.Contains(output, "HA NOVA never sees it") {
 		t.Fatalf("expected explicit no-terminal-password guidance:\n%s", output)
 	}
-	if !strings.Contains(output, "Open the system secure-storage setup now") {
+	if !strings.Contains(output, "Open the window to set up the keyring now") {
 		t.Fatalf("expected recovery action prompt:\n%s", output)
 	}
 	if !strings.Contains(output, "Home Assistant address") {
@@ -1687,8 +1720,8 @@ func TestInteractiveSetupWSDegradedMentionsUpstreamAuthCause(t *testing.T) {
 	output := stdout + stderr
 	for _, want := range []string{
 		"Home Assistant WebSocket is not connected yet",
-		"NOVA Relay's upstream Home Assistant access was rejected.",
-		"App install: update or restart NOVA Relay. Standalone Container/Core: replace HA_LLAT in the server environment.",
+		"Home Assistant rejected the NOVA App's access.",
+		"Update or restart the NOVA App (standalone container: replace HA_LLAT in its environment).",
 	} {
 		if !strings.Contains(output, want) {
 			t.Fatalf("expected upstream-auth guidance %q in output:\n%s", want, output)
@@ -2419,7 +2452,7 @@ func TestInteractiveSetupFreshHostChangeRoutesBackThroughInstallStepsNotStraight
 	for _, want := range []string{
 		"Change Home Assistant address",
 		"could not be used. Enter a new one.",
-		"Install NOVA Relay in Home Assistant",
+		"Install the NOVA App",
 		"Setup complete!",
 	} {
 		if !strings.Contains(output, want) {
@@ -2518,7 +2551,7 @@ func TestInteractiveSetupFlaggedFreshHostChangeReenablesInstallSteps(t *testing.
 	output := stdout + stderr
 	for _, want := range []string{
 		"Change Home Assistant address",
-		"Install NOVA Relay in Home Assistant",
+		"Install the NOVA App",
 	} {
 		if !strings.Contains(output, want) {
 			t.Fatalf("output missing %q:\n%s", want, output)
@@ -2597,7 +2630,7 @@ func TestInteractiveSetupPastedTokenFreshHostChangeRoutesThroughInstallSteps(t *
 	output := stdout + stderr
 	for _, want := range []string{
 		"Change Home Assistant address",
-		"Install NOVA Relay in Home Assistant",
+		"Install the NOVA App",
 		"Setup complete!",
 	} {
 		if !strings.Contains(output, want) {
@@ -2667,7 +2700,7 @@ func TestInteractiveSetupConnectionRepairMenuOffersFullInstallSteps(t *testing.T
 	output := stdout + stderr
 	for _, want := range []string{
 		"Run the app install steps for this address",
-		"Install NOVA Relay in Home Assistant",
+		"Install the NOVA App",
 		"Keep saved token",
 	} {
 		if !strings.Contains(output, want) {

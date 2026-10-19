@@ -169,17 +169,23 @@ func linked(t *testing.T, h *writeHarness) *phoneLink {
 	return links["owner-id"].link
 }
 
-// The signed-in user's only phone is proposed; Enter sends ONE notification,
+// The signed-in user's only phone is proposed; Enter skips (lane E4: no
+// notification without an explicit yes); "yes" sends ONE notification,
 // to that phone only, and the tap there links it. Later confirmations go to
 // that phone only, and count only from its user — not even the owner's.
 func TestLinkPhoneByTapOnTheChosenPhoneOnly(t *testing.T) {
 	h, p, _ := familyLink(t)
 	p.tapBy = tapFrom("mobile_app_annas_pixel", "anna-id", true)
-	exit, out := runLink(t, h, "\n", phoneLinkRun{interactive: true, signedIn: "anna-id", offer: true})
+	if exit, out := runLink(t, h, "\n", phoneLinkRun{interactive: true, signedIn: "anna-id", offer: true}); exit != 0 || len(p.sent) != 0 || linked(t, h) != nil {
+		t.Fatalf("Enter linked or notified: exit %d sent %v out %q", exit, p.sent, out)
+	}
+	exit, out := runLink(t, h, "yes\n", phoneLinkRun{interactive: true, signedIn: "anna-id", offer: true})
 	if exit != 0 || !strings.Contains(out, "Use “Anna’s Pixel” (Anna) for HA NOVA confirmations?") || !strings.Contains(out, "Only this phone gets HA NOVA confirmations") {
 		t.Fatalf("exit %d out %q", exit, out)
 	}
-	if strings.Join(p.services, ",") != "mobile_app_annas_pixel,mobile_app_annas_pixel" || p.sent[0]["title"] != phoneTitle+phoneLinkButton {
+	if strings.Join(p.services, ",") != "mobile_app_annas_pixel,mobile_app_annas_pixel" || p.sent[0]["title"] != "Link this phone to HA NOVA?" ||
+		p.sent[0]["message"] != "For confirmations from “"+phoneHost()+"”. "+phoneHint || p.sent[0]["data"].(map[string]any)["push"].(map[string]any)["interruption-level"] != "active" ||
+		p.sent[0]["data"].(map[string]any)["actions"].([]any)[0].(map[string]any)["authenticationRequired"] != true || p.sent[1]["title"] != "Linked to HA NOVA" {
 		t.Fatalf("notified %v %v", p.services, p.sent)
 	}
 	if l := linked(t, h); l == nil || l.DeviceID != "dev-anna" || l.UserID != "anna-id" || l.Service != "mobile_app_annas_pixel" || l.Name != "Anna’s Pixel" {
@@ -216,7 +222,7 @@ func TestLinkPhoneByTapOnTheChosenPhoneOnly(t *testing.T) {
 func TestLinkPhoneWithoutTerminalOnlyLists(t *testing.T) {
 	h, p, _ := familyLink(t)
 	exit, out := runLink(t, h, "", phoneLinkRun{})
-	if exit != 0 || !strings.Contains(out, "1) Anna’s Pixel (Anna)") || !strings.Contains(out, "Family iPad (Markus)") || !strings.Contains(out, "Markus’s iPhone (Markus)") || !strings.Contains(out, "Only Home Assistant administrators' phones") ||
+	if exit != 0 || !strings.Contains(out, "1) Anna’s Pixel (Anna)") || !strings.Contains(out, "Family iPad (Markus)") || !strings.Contains(out, "Markus’s iPhone (Markus)") || !strings.Contains(out, "Only administrators' phones are listed") ||
 		strings.Contains(out, "Kid") || !strings.Contains(out, "Nothing was sent") || len(p.sent) != 0 || linked(t, h) != nil {
 		t.Fatalf("exit %d out %q sent %v", exit, out, p.services)
 	}
@@ -264,7 +270,7 @@ func TestRelinkAndUnlinkNeedTheOldPhone(t *testing.T) {
 	seedLink(t, h, &phoneLink{Service: "mobile_app_annas_pixel", DeviceID: "dev-anna", UserID: "anna-id", Name: "Anna’s Pixel"})
 	p.tapBy = tapFrom("mobile_app_annas_pixel", "anna-id", false)
 	if exit, out := runLink(t, h, "", phoneLinkRun{pick: "Markus’s iPhone"}); exit != 1 || !strings.Contains(out, "First confirm on the phone linked now, “Anna’s Pixel”") ||
-		linked(t, h).DeviceID != "dev-anna" || strings.Contains(strings.Join(p.services, ","), "markus") {
+		linked(t, h).DeviceID != "dev-anna" || strings.Contains(strings.Join(p.services, ","), "markus") || p.sent[len(p.sent)-1]["title"] != "Cancelled" {
 		t.Fatalf("old phone cancelled: %d %q %v", exit, out, p.services)
 	}
 	if exit, _ := runUnlink(t, h); exit != 1 || linked(t, h) == nil {
@@ -276,8 +282,9 @@ func TestRelinkAndUnlinkNeedTheOldPhone(t *testing.T) {
 		return []phoneEvent{tap(ok, user, "REMOTE")}
 	}
 	if exit, out := runLink(t, h, "", phoneLinkRun{pick: "Markus’s iPhone"}); exit != 0 || linked(t, h).DeviceID != "dev-markus" || linked(t, h).UserID != "owner-id" ||
-		strings.Join(p.services, ",") != "mobile_app_annas_pixel,mobile_app_annas_pixel,mobile_app_markuss_iphone,mobile_app_markuss_iphone" {
-		t.Fatalf("relink: %d %q %v", exit, out, p.services)
+		strings.Join(p.services, ",") != "mobile_app_annas_pixel,mobile_app_annas_pixel,mobile_app_markuss_iphone,mobile_app_markuss_iphone" ||
+		p.sent[1]["title"] != "Approved" || p.sent[3]["title"] != "Linked to HA NOVA" {
+		t.Fatalf("relink: %d %q %v", exit, out, p.sent)
 	}
 	if exit, _ := runUnlink(t, h); exit != 0 || linked(t, h) != nil {
 		t.Fatalf("unlink confirmed on the phone: %d", exit)

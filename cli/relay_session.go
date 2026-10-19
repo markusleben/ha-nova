@@ -104,6 +104,10 @@ func newRelaySessionWithin(paths runtimePaths, opts verbOptions, budget time.Dur
 	transport, err := selectRelayTransport(ctx, cfg, via, opts.viaSet)
 	if err != nil {
 		cancel()
+		if code := secureStorageErrorCode(err); code != "" { // lane D7: not a Relay problem
+			return nil, &verbFailure{exit: verbExitError, code: code, message: relayTransportErrorMessage(err), cause: err,
+				next: "Nothing was sent. Tell the user the message in plain words (it names the fix); try again only after they say it is fixed."}
+		}
 		return nil, errors.New(relayTransportErrorMessage(err))
 	}
 	return &relaySession{
@@ -241,7 +245,10 @@ func (s *relaySession) send(endpoint string, body []byte) (json.RawMessage, erro
 // sendWithin is send with a caller-chosen per-request bound (verification
 // reads must not outlast their window).
 func (s *relaySession) sendWithin(endpoint string, body []byte, timeout time.Duration) (json.RawMessage, error) {
-	return s.sendIn(s.ctx, endpoint, body, timeout)
+	s.mu.Lock() // renewBudget may swap it
+	ctx := s.ctx
+	s.mu.Unlock()
+	return s.sendIn(ctx, endpoint, body, timeout)
 }
 
 // sendIn is sendWithin under parent instead of the session budget (the

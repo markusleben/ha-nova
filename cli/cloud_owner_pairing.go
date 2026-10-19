@@ -1,10 +1,14 @@
 package main
 
-import "context"
+import (
+	"context"
+	"errors"
+)
 
 const (
 	invalidOwnerPairingCodeMessage  = "That code is not six digits."
 	rejectedOwnerPairingCodeMessage = "That code expired or was rejected."
+	olderAppOwnerPairingNote        = "Your NOVA App still needs a code. Update the NOVA App in Home Assistant to connect without one."
 )
 
 func provisionRemoteCloudDeviceWithOwnerCode(
@@ -14,11 +18,46 @@ func provisionRemoteCloudDeviceWithOwnerCode(
 	expectedRelayInstanceID string,
 	appURL string,
 ) (*cloudProvisionedCredential, error) {
+	installID, err := pairingClientInstallID(
+		request.Config.ClientInstallID,
+		activeServerProfile(),
+	)
+	if err != nil {
+		return nil, newCloudError(
+			CloudErrInvalidInput,
+			"prepare owner pairing",
+			err,
+		)
+	}
+	metadata := deviceMetadata{
+		Name:            hostLabel(),
+		Platform:        defaultPairingClientInfo().platform,
+		Client:          defaultPairingClientInfo().client,
+		ClientInstallID: installID,
+	}
+	// The Link sign-in user is the owner (auth/current_user over Link; the
+	// Relay re-checks with Home Assistant before arming): no code needed.
+	ownerNote := ""
+	if session.User.IsOwner {
+		provisioned, err := pairDeviceV2LinkOwnerForCloudSetup(
+			ctx,
+			session.Ingress,
+			metadata,
+			expectedRelayInstanceID,
+		)
+		if err == nil || !linkOwnerPairingNeedsCode(err) {
+			return provisioned, err
+		}
+		if errors.Is(err, errSignInRelayUnsupported) {
+			ownerNote = olderAppOwnerPairingNote
+		}
+	}
 	retryReason := ""
 	for {
 		code, err := request.PairingCode(cloudRemotePairingPrompt{
 			AppURL:      appURL,
 			RetryReason: retryReason,
+			OwnerNote:   ownerNote,
 		})
 		if err != nil {
 			return nil, err
@@ -43,12 +82,7 @@ func provisionRemoteCloudDeviceWithOwnerCode(
 			ctx,
 			session.Ingress,
 			code,
-			deviceMetadata{
-				Name:            hostLabel(),
-				Platform:        defaultPairingClientInfo().platform,
-				Client:          defaultPairingClientInfo().client,
-				ClientInstallID: request.Config.ClientInstallID,
-			},
+			metadata,
 			expectedRelayInstanceID,
 		)
 		if err == nil {
@@ -61,4 +95,19 @@ func provisionRemoteCloudDeviceWithOwnerCode(
 		}
 		return nil, err
 	}
+}
+
+// linkOwnerPairingNeedsCode: the no-code path failed where no device can exist,
+// so the owner code is the safe way on: any failure before the finish request
+// (older App, owner refusal, busy or unavailable Relay, network), or the
+// Relay's own refusal of the finish. A finish with an unknown outcome, a
+// different Relay, or a stop by the user ends setup instead.
+func linkOwnerPairingNeedsCode(err error) bool {
+	var beforeFinish *pairingBeforeFinishError
+	if errors.Is(err, context.Canceled) || IsCloudErrorCode(err, CloudErrRelayInstance) {
+		return false
+	}
+	return errors.As(err, &beforeFinish) ||
+		IsCloudErrorCode(err, CloudErrPairingInactive) ||
+		IsCloudErrorCode(err, CloudErrPairingRejected)
 }

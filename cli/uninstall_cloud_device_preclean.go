@@ -55,7 +55,7 @@ func prepareCloudDeviceRevocationsBeforeGuidedTeardown(
 			target,
 		); err != nil {
 			return cloudPurgeFailure(paths, *target, fmt.Errorf(
-				"revoke Cloud device for server %q before Home Assistant removal: %w",
+				"revoke Cloud device for server %q before removing HA NOVA: %w",
 				target.profileName,
 				err,
 			))

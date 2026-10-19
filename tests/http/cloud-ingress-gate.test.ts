@@ -51,6 +51,12 @@ const MACHINE_ROUTES = [
   },
   {
     method: "POST",
+    path: "/pair/v2/arm/link",
+    disabledStatus: 503,
+    enabledStatus: 503,
+  },
+  {
+    method: "POST",
     path: "/pair/v2/start",
     disabledStatus: 400,
     enabledStatus: 400,
@@ -154,11 +160,14 @@ function deps(cloudRemoteEnabled: boolean): IngressListenerDeps {
       versionLatest: RELAY_VERSION,
       updateAvailable: false,
       ingressPanel: true,
+      hostname: "",
       network: {},
     }),
     getMappedHostPort: async () => null,
     setOptions: async () => {},
     setIngressPanel: async () => {},
+    sendDiscovery: async () => "",
+    deleteDiscovery: async () => {},
   };
   const wsClient: IngressListenerDeps["wsClient"] = {
     sendMessage: async <T>() =>

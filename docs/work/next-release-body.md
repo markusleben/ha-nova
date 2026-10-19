@@ -5,113 +5,52 @@ Status: active
 Version-free by design; the release-prep PR renames this file once it picks
 the number.
 
-## New Features
+## Features
 
-- A room or device command that reaches exactly one matching device ("turn
-  off the kitchen lights" with one light there) now runs right away and is
-  verified, exactly like naming that device. Rooms with several matching
-  devices and groups still show a preview first.
-- **Faster setup on extra computers:** when the NOVA Relay App already runs on
-  your Home Assistant, setup skips the install steps and goes straight to
-  pairing this computer.
-- **Sign in with Home Assistant to pair:** setup opens your Home Assistant
-  login in the browser. Sign in as the owner, and setup connects this computer
-  by itself, with its own connection that you can remove in NOVA at any time.
-  Over SSH, with an older NOVA Relay App, or when sign-in does not work out
-  (for example another Home Assistant user), setup uses the one-time six-digit
-  code from NOVA as before.
-- **One install link:** setup opens the NOVA Relay App page directly and adds
-  the repository on the way — click "Add", then Install and Start.
-- **A first look right after pairing:** setup ends with your home in one
-  line, up to two things worth a look (a low battery, an automation that
-  can't run), and example prompts that use your own room and device names.
-- **Know your home with exact numbers:** ask "what do I have?", "where is
-  this sensor used?", or "review my whole setup" — rooms, devices,
-  automations, integrations, unavailable entities, and low batteries are
-  counted by HA NOVA itself, so the AI never guesses a number or a name.
-- **Undo a deleted automation or script:** "undo that" right after a delete
-  restores it from the copy saved before the delete, under its original
-  id, with the usual preview. It never replaces an item that exists.
+- `ha-nova uninstall` asks one question: Remove (this computer's skills,
+  settings, and pairing), Remove but keep the pairing for a reinstall, or
+  Cancel. On the last computer using the NOVA App, it also offers to remove
+  the App from Home Assistant after the owner signs in. `--yes` keeps the
+  pairing unless `--purge`, and never removes the App. Release prep: update
+  the `ha-nova uninstall` row in README.md ("guides removing the NOVA Relay
+  App only when you say this is the last computer" no longer applies).
+- The NOVA App answers `GET /auth/device/peers` to paired devices; uninstall
+  offers the App removal only with an App that has it.
+- Home Assistant Link setup: when you sign in as the owner, this computer
+  connects without the six-digit code from a second session. Other users
+  still get the code. Needs the NOVA App from this release; an older App asks
+  for the code as before. Release prep: update the Cloud Remote paragraph in
+  README.md ("Remote-first pairing uses a separate private Owner session").
 
-- **Replace a device or a phone:** "my door sensor died, I paired a new
-  one" or "I have a new phone" moves automations, scripts, scenes,
-  dashboards, helpers, energy sources, notifications, and presence to the new
-  device in one reviewed plan. When the old device is gone for good, the new
-  one takes over its entity ids, so history and statistics continue.
-- **Build whole dashboards:** ask for a dashboard or a view and HA NOVA
-  builds it, reorders or removes views, and uses custom cards you have
-  installed. The preview lists every view and card that changes; a copy is
-  saved before each save, and "undo that" restores the previous version.
-  "Check my dashboards" lists cards that point at missing entities or at
-  custom cards that are not installed.
-- **Move your rules to Home Assistant:** paste a Node-RED, Homey,
-  SmartThings, Hubitat, or openHAB rule, or point at old automation YAML, and
-  HA NOVA turns it into a native automation. It first lists what the rule
-  does, maps each device to a real Home Assistant entity (or asks), and names
-  anything it cannot translate. The old rule stays disabled, not deleted,
-  until the new one has been checked against that list.
-- **ESPHome device configs:** ask what a device in `/config/esphome/` does,
-  or to check it, and HA NOVA explains it in plain words and flags keys that
-  newer ESPHome releases removed, pins that cannot do what the file asks, and
-  passwords written into the file. With file access turned on, edits show the
-  changed part first and save a copy. Passwords and keys are never shown. Installing on the device stays
-  in the ESPHome App; afterwards HA NOVA checks that the device's entities
-  came back.
+## Fixes
 
-## What To Watch
-
-- **Home Assistant Link:** Nabu Casa is renaming Home Assistant Cloud to
-  Home Assistant Link (same subscription, same features). HA NOVA's setup
-  and messages now say Home Assistant Link. Commands stay the same
-  (`ha-nova cloud …`), and until the rename reaches your Home Assistant, the
-  setting is still under Settings > Home Assistant Cloud.
-- **Shorter one-time codes:** unlocking a door, opening a gate or garage,
-  disarming the alarm, and deletes now ask for a four-digit one-time code from
-  HA NOVA ("Type 4821 to unlock “Front Door”") instead of a long
-  `confirm:…` code. A plain "yes" still can't confirm, and a code works only
-  for its own plan. A plan shown before the update has to be made again.
-- **Confirm on your computer, not in chat:** where your computer can show
-  one, these actions now open a confirmation window — click Confirm there, or
-  Cancel. This also replaces the confirmation form in apps that show one; the
-  form stays where no window can open. Your AI assistant never sees a code. It still can click the window
-  if you allow it to control your screen (computer use, or apps you granted
-  Accessibility), and on Windows and some Linux desktops other programs can
-  too. To turn the window off: `ha-nova setup
-  confirm-window off` (you confirm that in the window).
-- **Or confirm on your phone:** over SSH, without a desktop, or where the
-  window can't open, HA NOVA sends Confirm and Cancel to the one phone you
-  linked (Companion app): hold or expand the notification and press Confirm
-  (the phone asks for Face ID, fingerprint, or passcode). Setup offers to link
-  your phone right after you sign in with Home Assistant, or run
-  `ha-nova setup confirm-phone`: pick your phone, then tap "Yes, link" on it.
-  Only the linked phone ever gets HA NOVA confirmations, nobody else's in your
-  home, and only its Home Assistant user (an administrator) counts. Not with a
-  standalone NOVA Relay that runs on the owner's own token. Without a linked
-  phone, HA NOVA shows the one-time code in chat as before and says that the
-  assistant can see it too.
-
-### What To Watch (phone confirmation)
-
-- Once a phone is linked, an unlock or delete is refused (nothing changes)
-  when HA NOVA can't reach that phone, instead of falling back to a code in
-  chat. Changing or unlinking it (`ha-nova setup confirm-phone off`) is
-  confirmed on that phone. Lost it? Remove it in Home Assistant (Settings →
-  Devices & services → Mobile App), then link the new one.
-
-- `ha-nova uninstall` no longer guides removal of the NOVA Relay App by
-  default. It first asks whether this is the last computer using HA NOVA,
-  because removing the App disconnects every paired computer.
-- Pressing a button, turning on a switch, or opening a cover on a device
-  that also has a lock, alarm, or access cover now needs a one-time code. Configuration
-  and diagnostic buttons there (ping, identify, restart) work as before.
-- HA NOVA now only makes the low-level changes it has a checked rule for.
-  Settings changes through an integration's own interface (Z-Wave, Zigbee,
-  Alarmo, and others) are pointed to the Home Assistant UI instead, so none
-  of them can open a lock or disarm an alarm without the one-time code.
-
-## Bug Fixes
-
-- Room and device commands now skip hidden entities and configuration or
-  diagnostic entities, as Home Assistant's own room targeting does; when that
-  leaves nothing, the answer names the skipped entities. A device command
-  also reaches the device's child devices, as Home Assistant does.
+- Linux: after install, `ha-nova` works in every new terminal right away
+  (the PATH line now also goes to `~/.bashrc`), and the installer says how
+  to use it in the current terminal. "Need help later?" prints once.
+- Setup asks before it uses a Home Assistant it found on the network, also
+  when it found exactly one by IP address.
+- Setup in the terminal without an AI app installed still connects this
+  computer, then names the AI apps to install and says to run
+  `ha-nova setup` again. (The setup page keeps its "Check again" step.)
+- A locked or unreachable Linux keyring gets one plain next step, with the
+  system's own error as a detail line, and AI apps get a clear "keyring"
+  answer instead of a connection error. A desktop terminal is no longer
+  asked the service-mode question; it gets the unlock offer.
+- A confirmation window closed from outside says it was closed, not that
+  it timed out.
+- Setup's status no longer lists "app installation" as done while the NOVA
+  App isn't reachable.
+- A confirmation window closes when the CLI that opened it is stopped
+  (SIGTERM, Ctrl+C, a closed terminal; on Linux also a killed CLI), so a
+  late Confirm never lands in a window nobody reads.
+- Setup page: "Change" → "Connect" on step 1 shows the sign-in again
+  without a reload; a typed address no longer reads "We found your home";
+  after saving rooms, "N devices aren't in a room" counts down, and Undo
+  reads "Back to no room: …".
+- Setup after a pairing was removed on the NOVA page says so in one line
+  and goes straight to pairing again, instead of "The App may still be
+  starting".
+- Setup in the terminal no longer preselects linking your phone: Enter
+  skips, as on the setup page; nothing is sent without an explicit yes.
+- While the setup page runs, the terminal uses the same styling as the
+  rest of setup; `ha-nova try` names the AI apps that have HA NOVA.

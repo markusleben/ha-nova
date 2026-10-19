@@ -200,7 +200,7 @@ describe("post-write test-offer contract", () => {
     expect(testRun).toContain("at most 3 options plus `skip`");
     expect(testRun).toContain("Session de-escalation");
     // Card stays inside the fixed emoji vocabulary (📝 = preview).
-    expect(testRun).toContain("📝 Test: automation.morning_lights");
+    expect(testRun).toContain('📝 Test: automation "Morning lights"');
     expect(writeSkill).toContain("de-escalate to a single line");
     expect(writeSkill).toContain("Skip this phase for deletes");
   });

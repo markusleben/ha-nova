@@ -129,7 +129,7 @@ func lookupPhones(s *relaySession, links map[string]phoneEntry) (phoneHome, erro
 		return home, errors.New("Home Assistant's owner or the Relay's user could not be read")
 	}
 	device := ""
-	if link := links[home.owner].link; link != nil {
+	if link := linkFor(links, home.owner).link; link != nil {
 		device = link.DeviceID
 	}
 	var devices []struct {
@@ -260,6 +260,9 @@ func (h phoneHome) status(links map[string]phoneEntry, err error) (phoneSetup, p
 		return phoneSetup{why: whyRead}, phoneMissing // a link exists on this computer; whether it is this home's can't be checked
 	}
 	entry, ok := links[h.owner]
+	if chatCall != nil {
+		entry, ok = links[chatOwner]
+	}
 	switch {
 	case !ok:
 		return phoneSetup{owner: h.owner, relayUser: h.relay}, phoneNone
@@ -292,7 +295,10 @@ func (h phoneHome) status(links map[string]phoneEntry, err error) (phoneSetup, p
 
 // discoverPhone: the linked phone, read only when this computer has a link.
 func discoverPhone(s *relaySession) (phoneSetup, phoneStatus) {
-	links, readable := phoneLinks(s.paths)
+	if activeServerIsDemo() {
+		return phoneSetup{}, phoneNone // links belong to real homes
+	}
+	links, readable := linksForCall(s.paths)
 	if !readable {
 		return phoneSetup{why: whyRead}, phoneMissing
 	}
@@ -374,14 +380,6 @@ func setPhoneLink(paths runtimePaths, owner string, prev phoneEntry, link *phone
 	return writeJSONFileIfUnchanged(paths.ConfigFile, top, 0o600, doc.source)
 }
 
-// phoneStillLinked re-reads the link after a tap: unlinked, replaced, or its
-// user demoted while the notification was open, the tap no longer counts.
-func phoneStillLinked(s *relaySession, setup phoneSetup) bool {
-	again, status := phoneDiscover(s)
-	return status == phoneReady && again.confirmer == setup.confirmer && len(setup.targets) == 1 &&
-		again.targets[0].DeviceID == setup.targets[0].DeviceID
-}
-
 func samePhoneEntry(a, b phoneEntry) bool {
 	return a.legacy == b.legacy && (a.link == nil) == (b.link == nil) && (a.link == nil || *a.link == *b.link)
 }
@@ -391,7 +389,7 @@ func samePhoneEntry(a, b phoneEntry) bool {
 // refuses (channelPhoneMissing), so breaking its setup in Home Assistant
 // can't move a plan to a channel the model can answer.
 func detectAfterWindow(s *relaySession) string {
-	switch _, status := phoneDiscover(s); status {
+	switch _, status := discoverConfirmer(s); status {
 	case phoneReady:
 		return channelPhone
 	case phoneMissing:
@@ -399,8 +397,5 @@ func detectAfterWindow(s *relaySession) string {
 	case phoneLegacy:
 		return channelPhoneUnlinked
 	}
-	if formsShown {
-		return channelForm
-	}
-	return channelChat
+	return codeChannel()
 }

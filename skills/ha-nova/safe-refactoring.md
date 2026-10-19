@@ -28,10 +28,8 @@ Parse the response for `automation`, `script`, and `scene` entries in the relate
   - automation.morning_routine ("Morning Routine") — action: turns on this light
   - script.welcome_home ("Welcome Home") — action: sets brightness
 
-  Deleting it will break these configs. Options:
-  1. Update the consumers first, then delete
-  2. Disable instead of delete (reversible)
-  3. Cancel
+  Deleting it will break these configs. Should I update them first,
+  disable it instead (reversible), or leave everything as it is?
   ```
 
 ### Step 3: Disable vs Delete

@@ -17,7 +17,34 @@ const (
 
 var verifyCloudDeviceHealthForSetup = verifyCloudDeviceHealth
 
+const setupConnectionLinkNote = "Link = Nabu Casa remote access, formerly Home Assistant Cloud."
+
+// promptSetupConnectionMode asks with the arrow menu; without one it falls
+// back to the numbered prompt.
 func promptSetupConnectionMode(
+	reader *bufio.Reader,
+	out io.Writer,
+) (setupConnectionMode, error) {
+	spec := setupMenuSpec{
+		Title:        "How should this computer connect to Home Assistant?",
+		Prompt:       "Use ↑/↓ or j/k, Enter to select, Esc to go back, Ctrl+C to exit",
+		AllowBack:    true,
+		DefaultValue: string(setupConnectionLocal),
+		Note:         setupConnectionLinkNote,
+		Options: []setupMenuOption{
+			{Value: string(setupConnectionLocal), Label: "Local only (recommended)", Detail: "No subscription needed."},
+			{Value: string(setupConnectionHybrid), Label: "Local + Home Assistant Link", Detail: "Fast at home; remote access when away."},
+			{Value: string(setupConnectionCloud), Label: "Home Assistant Link only", Detail: "For a computer outside your home network."},
+		},
+	}
+	answer, err := promptSetupMenu(reader, out, spec, func() (string, error) {
+		mode, err := promptSetupConnectionModeFromReader(reader, out)
+		return string(mode), err
+	})
+	return setupConnectionMode(answer), err
+}
+
+func promptSetupConnectionModeFromReader(
 	reader *bufio.Reader,
 	out io.Writer,
 ) (setupConnectionMode, error) {
@@ -32,7 +59,7 @@ func promptSetupConnectionMode(
 		fmt.Fprintln(out, "    3) Home Assistant Link only")
 		fmt.Fprintln(out, "       For a computer that is not on the Home Assistant network.")
 		fmt.Fprintln(out)
-		fmt.Fprintln(out, "  Home Assistant Link is Nabu Casa's remote access service, formerly Home Assistant Cloud.")
+		fmt.Fprintln(out, "  "+setupConnectionLinkNote)
 		fmt.Fprintln(out)
 		fmt.Fprint(out, "  Enter [1-3] (default 1, or type 'back'/'exit'): ")
 		line, err := reader.ReadString('\n')

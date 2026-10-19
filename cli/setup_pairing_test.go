@@ -68,7 +68,7 @@ func TestInteractiveSetupReachesPairingWhenLegacyKeyringUnavailable(t *testing.T
 	if strings.Contains(output, "save relay token") {
 		t.Fatalf("wizard surfaced the fatal legacy-token save error instead of pairing:\n%s", output)
 	}
-	for _, want := range []string{"file-backed storage", "Pair this device"} {
+	for _, want := range []string{"file-backed storage", "Connect this computer"} {
 		if !strings.Contains(output, want) {
 			t.Fatalf("wizard output missing %q (did not reach the pairing path):\n%s", want, output)
 		}
@@ -339,7 +339,7 @@ func TestInteractiveSetupPairsStoresTokenAndVerifiesHealthAndWS(t *testing.T) {
 		t.Fatalf("interactiveSetup() exit = %d, want 0\nstdout:\n%s\nstderr:\n%s", exitCode, stdout, stderr)
 	}
 	output := stdout + stderr
-	for _, want := range []string{"Pair this device", "This device is paired", "Relay /ws ping succeeded", "Setup complete!"} {
+	for _, want := range []string{"Connect this computer", "This computer is connected", "NOVA App reachable", "Setup complete!"} {
 		if !strings.Contains(output, want) {
 			t.Fatalf("wizard output missing %q:\n%s", want, output)
 		}
@@ -490,7 +490,7 @@ func TestInteractiveSetupPairedDeviceReRunVerifiesWithoutNewCode(t *testing.T) {
 		return secureServer.URL, httpClient, credential, true, nil
 	}
 	originalVerify := verifyDeviceHealth
-	verifyDeviceHealth = func(runtimeConfig) bool { return true }
+	verifyDeviceHealth = func(runtimeConfig) deviceHealth { return deviceOK }
 	defer func() {
 		relayFunctionalTransportForDoctor = originalTransport
 		verifyDeviceHealth = originalVerify
@@ -540,7 +540,7 @@ func TestInteractiveSetupPairedDeviceReRunVerifiesWithoutNewCode(t *testing.T) {
 		saved.RoutePolicy != routePolicyAutomatic {
 		t.Fatalf("saved Cloud config = %+v, err = %v", saved.Cloud, err)
 	}
-	for _, forbidden := range []string{"Six-digit code", "Relay not reachable", "No auth token found"} {
+	for _, forbidden := range []string{"Six-digit code", "NOVA App not reachable", "No auth token found"} {
 		if strings.Contains(output, forbidden) {
 			t.Fatalf("paired re-run must not show %q:\n%s", forbidden, output)
 		}
@@ -590,7 +590,7 @@ func TestInteractiveSetupDeviceVerifyRetryPromptHonorsBackAndExit(t *testing.T) 
 		return "https://192.168.1.5:18792", httpClient, credential, true, nil
 	}
 	originalVerify := verifyDeviceHealth
-	verifyDeviceHealth = func(runtimeConfig) bool { return false }
+	verifyDeviceHealth = func(runtimeConfig) deviceHealth { return deviceDown }
 	defer func() {
 		relayFunctionalTransportForDoctor = originalTransport
 		verifyDeviceHealth = originalVerify
@@ -619,8 +619,33 @@ func TestInteractiveSetupDeviceVerifyRetryPromptHonorsBackAndExit(t *testing.T) 
 	if exitCode != 0 {
 		t.Fatalf("back at retry prompt: exit = %d, want 0 (cancelled in pairing)\n%s", exitCode, output)
 	}
-	if !strings.Contains(output, "Pair this device") {
+	if !strings.Contains(output, "Connect this computer") {
 		t.Fatalf("'back' must route to the pairing stage:\n%s", output)
+	}
+
+	// Lane E3: a pairing removed on the NOVA page goes straight to pairing,
+	// with one plain line instead of "the App may still be starting".
+	verifyDeviceHealth = func(runtimeConfig) deviceHealth { return deviceRevoked }
+	stdout, stderr = captureInteractiveSetupIO(t, "exit\n", func() int {
+		exitCode = interactiveSetup(paths, cfg, loadStateOrDefault(paths), "codex", "", "", "", "", false)
+		return exitCode
+	})
+	output = stdout + stderr
+	if exitCode != 0 || !strings.Contains(output, setupT("setup.verify.device_revoked")) || !strings.Contains(output, "Connect this computer") ||
+		strings.Contains(output, "may still be starting") || strings.Contains(output, "Retry now") {
+		t.Fatalf("revoked: exit = %d\n%s", exitCode, output)
+	}
+
+	// Revoked while the retry prompt was open: the same line and route.
+	answers := []deviceHealth{deviceDown, deviceRevoked}
+	verifyDeviceHealth = func(runtimeConfig) deviceHealth { h := answers[0]; answers = answers[1:]; return h }
+	stdout, stderr = captureInteractiveSetupIO(t, "\nexit\n", func() int {
+		exitCode = interactiveSetup(paths, cfg, loadStateOrDefault(paths), "codex", "", "", "", "", false)
+		return exitCode
+	})
+	output = stdout + stderr
+	if exitCode != 0 || !strings.Contains(output, setupT("setup.verify.device_revoked")) || !strings.Contains(output, "Connect this computer") {
+		t.Fatalf("revoked on retry: exit = %d\n%s", exitCode, output)
 	}
 }
 
@@ -685,7 +710,7 @@ func TestInteractiveSetupManualEscapeFromPairingVerifiesTheToken(t *testing.T) {
 	}
 	// The pairing is dead: device verify always fails.
 	originalVerify := verifyDeviceHealth
-	verifyDeviceHealth = func(runtimeConfig) bool { return false }
+	verifyDeviceHealth = func(runtimeConfig) deviceHealth { return deviceDown }
 	defer func() {
 		relayFunctionalTransportForDoctor = originalTransport
 		verifyDeviceHealth = originalVerify
@@ -777,7 +802,7 @@ func TestInteractiveSetupManualEscapeRetiresTheDeadPairing(t *testing.T) {
 		return "https://192.168.1.5:18792", httpClient, credential, true, nil
 	}
 	originalVerify := verifyDeviceHealth
-	verifyDeviceHealth = func(runtimeConfig) bool { return false }
+	verifyDeviceHealth = func(runtimeConfig) deviceHealth { return deviceDown }
 	defer func() {
 		relayFunctionalTransportForDoctor = originalTransport
 		verifyDeviceHealth = originalVerify

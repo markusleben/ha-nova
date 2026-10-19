@@ -38,7 +38,7 @@ type verbPlan struct {
 	ExpiresAt string `json:"expires_at"`
 	Confirm   string `json:"confirm"`
 	Code      string `json:"code,omitempty"`
-	Channel   string `json:"channel,omitempty"` // typed plans: where the human confirms (chat, form, window)
+	Channel   string `json:"channel,omitempty"` // typed plans: where the human confirms (chat, form, window, phone); after apply: where they did (window, phone)
 }
 
 type planDelta struct {
@@ -72,6 +72,7 @@ type storedPlan struct {
 	Action         planAction      `json:"action"`
 	ConfigRequest  *configRequest  `json:"config_request,omitempty"` // kinds write/delete/revert/restore
 	ConfigAction   *configAction   `json:"config_action,omitempty"`
+	RoomsRequest   *roomsRequest   `json:"rooms_request,omitempty"` // kind rooms (plan_rooms.go)
 	Reasons        []tierReason    `json:"reasons"`
 	Basis          map[string]any  `json:"basis"`
 }
@@ -149,19 +150,23 @@ func sealPlan(e *tierEngine, env *verbEnvelope, plan storedPlan, action any) (st
 		if plan.Channel == "" {
 			plan.Channel = detectChannel(e.s)
 		}
-		switch plan.Channel {
-		case channelPhoneMissing:
-			return storedPlan{}, refusedWith("CONFIRM_UNAVAILABLE", phoneMissingWhy, phoneMissingNext)
-		case channelPhoneUnlinked:
-			return storedPlan{}, refusedWith("CONFIRM_UNAVAILABLE", phoneUnlinkedWhy, phoneUnlinkedNext)
+		if refusal := channelRefusal(plan.Channel); refusal != nil {
+			return storedPlan{}, refusal
 		}
 		if !humanChannel(plan.Channel) { // a window or phone plan's code never leaves this process
 			plan.code = confirmCode(e.s.transport.Credential, idHex, plan.Channel, plan.ExpiresAt)
 		}
 		shownChannel = plan.Channel
 	}
-	if where := map[string]string{channelWindow: "a confirmation window on their computer", channelPhone: "a notification on their phone"}[shownChannel]; where != "" {
+	where := map[string]string{channelWindow: "a confirmation window on their computer", channelPhone: "a notification on their phone"}[shownChannel]
+	if shownChannel == channelWindow && phoneLinkedHere(e.s.paths) {
+		where = "a confirmation window on their computer and a notification on their linked phone (the first answer counts)"
+	}
+	if where != "" {
 		env.NextStep = fmt.Sprintf("Show `say`. When the user has asked for this change and your workflow has reached this step (a skill's order comes first), run ha-nova apply --plan %s without --confirm and wait for its result (give the command up to 2 minutes): %s asks them. Never ask for a code in chat.", plan.ID, where)
+	}
+	if e.level == tierPreview { // the request is not the approval: an agent once saved in the same turn
+		env.NextStep = fmt.Sprintf("Show the preview ending with `say` and end your turn; run ha-nova apply --plan %s only after the user's own reply approves it.", plan.ID)
 	}
 	if plan.Channel == "" { // no code, so where it would be typed does not matter
 		plan.Channel = channelChat

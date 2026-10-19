@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"runtime"
 	"strings"
+	"testing"
 )
 
 func isInteractiveTTY() bool {
@@ -57,8 +58,12 @@ func printErr(format string, args ...interface{}) {
 	fmt.Fprintf(os.Stderr, "[ha-nova] ERROR: "+format+"\n", args...)
 }
 
+// openBrowser is the only browser launcher (setup, sign-in, Link OAuth,
+// uninstall pages all reach it through openBrowserForSetup). Under go test it
+// never launches anything: tests must not open pages on the developer's
+// machine; a test that needs an opener injects its own.
 func openBrowser(url string) error {
-	if os.Getenv("HA_NOVA_NO_BROWSER") == "1" {
+	if testing.Testing() || os.Getenv("HA_NOVA_NO_BROWSER") == "1" {
 		return nil
 	}
 	if !isInteractiveTTY() {
@@ -70,12 +75,19 @@ func openBrowser(url string) error {
 	case "windows":
 		return exec.Command("rundll32", "url.dll,FileProtocolHandler", url).Start()
 	default:
+		if os.Getenv("WSL_DISTRO_NAME") != "" { // WSL: the browser runs on Windows
+			if wslview, err := exec.LookPath("wslview"); err == nil {
+				return exec.Command(wslview, url).Start()
+			}
+		}
 		return exec.Command("xdg-open", url).Start()
 	}
 }
 
+// copyToClipboard: like openBrowser, never under go test (a test token must
+// not land in the developer's clipboard).
 func copyToClipboard(value string) error {
-	if os.Getenv("HA_NOVA_NO_BROWSER") == "1" {
+	if testing.Testing() || os.Getenv("HA_NOVA_NO_BROWSER") == "1" {
 		return fmt.Errorf("clipboard disabled")
 	}
 	if !isInteractiveTTY() {

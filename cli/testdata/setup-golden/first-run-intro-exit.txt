@@ -1,0 +1,25 @@
+exit 0
+--- stdout
+
+  HA NOVA Setup
+  -------------
+
+  Welcome! HA NOVA lets your AI assistant run your Home Assistant.
+
+  Steps: pick your AI client, find Home Assistant, add the NOVA App, connect this computer, install the skills.
+  When a browser page opens, finish there and come back here.
+  You need the Home Assistant owner's account.
+  Home Assistant Link only: the NOVA App must already be installed.
+
+  Which AI client do you use?
+
+    1) Claude Code
+    2) Codex CLI
+    3) OpenCode
+    4) Google Antigravity
+    5) Hermes Agent
+    6) All available clients
+
+  Enter [1-6] (default 1, or type 'exit'): 
+  Setup cancelled.
+--- stderr

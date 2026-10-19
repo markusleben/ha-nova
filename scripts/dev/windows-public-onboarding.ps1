@@ -286,7 +286,7 @@ $installerLog = @($transcript, $result.InstallerOutput) -join [Environment]::New
 
 $setupAutoStarted = (
   $installerLog -match "Press Enter to continue setup" -or
-  $installerLog -match "Install NOVA Relay in Home Assistant" -or
+  $installerLog -match "Install the NOVA App" -or
   $installerLog -match "Set up Relay Auth Token" -or
   $installerLog -match "Setup complete!" -or
   $installerLog -match "Setup cancelled"

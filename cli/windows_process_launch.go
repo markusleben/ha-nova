@@ -11,7 +11,6 @@ type windowsProcessLaunchProfile struct {
 	attachOutput          bool
 	createNewProcessGroup bool
 	createNoWindow        bool
-	detached              bool
 	hideWindow            bool
 	inheritHandles        bool
 }
@@ -32,10 +31,13 @@ func windowsDetachedHelperLaunchProfile() windowsProcessLaunchProfile {
 	}
 }
 
+// No DETACHED_PROCESS: powershell.exe started without any console never ran
+// the cleanup loop (Win11 VM, rc2 lane A D10), so helper copies leaked in
+// %TEMP%. CREATE_NO_WINDOW gives it a hidden console of its own instead, which
+// still outlives the parent.
 func windowsBackgroundCleanupLaunchProfile() windowsProcessLaunchProfile {
 	return windowsProcessLaunchProfile{
 		createNoWindow: true,
-		detached:       true,
 		hideWindow:     true,
 		inheritHandles: false,
 	}
@@ -59,7 +61,7 @@ func buildWindowsDetachedHelperCommand(helperPath string, statusPath string, sta
 
 func buildWindowsDetachedHelperCommandWithEnv(helperPath string, statusPath string, statusTicks int64, extraEnv []string, args ...string) *exec.Cmd {
 	command := fmt.Sprintf(
-		`$statusPath = '%s'; $statusTicks = %d; $baselineTicks = $statusTicks; if (Test-Path -LiteralPath $statusPath) { $baselineTicks = (Get-Item -LiteralPath $statusPath -ErrorAction Stop).LastWriteTimeUtc.Ticks }; %s$deadline = [DateTime]::UtcNow.AddSeconds(5); $p = Start-Process -FilePath '%s' -ArgumentList @(%s) -WindowStyle Hidden -PassThru -ErrorAction Stop; if ($null -eq $p) { throw 'failed to start detached helper' }; while ([DateTime]::UtcNow -lt $deadline) { if (Test-Path -LiteralPath $statusPath) { if ($baselineTicks -lt 0) { exit 0 }; $item = Get-Item -LiteralPath $statusPath -ErrorAction Stop; if ($item.LastWriteTimeUtc.Ticks -gt $baselineTicks) { exit 0 } }; $p.Refresh(); if ($p.HasExited) { throw 'detached helper exited before signaling readiness' }; Start-Sleep -Milliseconds 100 }; throw 'detached helper did not signal readiness'`,
+		`$statusPath = '%s'; $statusTicks = %d; $baselineTicks = $statusTicks; if (Test-Path -LiteralPath $statusPath) { $baselineTicks = (Get-Item -LiteralPath $statusPath -ErrorAction Stop).LastWriteTimeUtc.Ticks }; %s$p = Start-Process -FilePath '%s' -ArgumentList @(%s) -WindowStyle Hidden -PassThru -ErrorAction Stop; if ($null -eq $p) { throw 'failed to start detached helper' }; $deadline = [DateTime]::UtcNow.AddSeconds(5); while ([DateTime]::UtcNow -lt $deadline) { if (Test-Path -LiteralPath $statusPath) { if ($baselineTicks -lt 0) { exit 0 }; $item = Get-Item -LiteralPath $statusPath -ErrorAction Stop; if ($item.LastWriteTimeUtc.Ticks -gt $baselineTicks) { exit 0 } }; $p.Refresh(); if ($p.HasExited) { throw 'detached helper exited before signaling readiness' }; Start-Sleep -Milliseconds 100 }; throw 'detached helper did not signal readiness'`,
 		quotePowerShellSingleString(statusPath),
 		statusTicks,
 		joinPowerShellEnvAssignments(extraEnv),

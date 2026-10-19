@@ -1,14 +1,17 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
+	"maps"
 	"slices"
 	"sort"
-	"time"
+	"strings"
 )
 
 // --entity: where-used from search/related (entity, plus its device for
-// device triggers/actions) and group membership from states.
+// device triggers/actions), group membership and helper sources from
+// states, and the dashboard cards that name it.
 
 type usedList struct {
 	Total int      `json:"total"`
@@ -26,14 +29,30 @@ type whereUsedResult struct {
 	Scripts     usedList `json:"scripts"`
 	Scenes      usedList `json:"scenes"`
 	Groups      usedList `json:"groups"`
-	NotChecked  []string `json:"not_checked"`
+	Helpers     usedList `json:"helpers"`
+	Dashboards  struct {
+		Total int            `json:"total"`
+		Shown int            `json:"shown"`
+		Rows  []dashboardUse `json:"rows"`
+	} `json:"dashboards"`
+	NotChecked []string `json:"not_checked"`
 }
 
-// whereUsedNotChecked: what search/related cannot see, so an empty list is
-// never read as "used nowhere".
+// dashboardUse: one card (or badge) that names the entity; Card is empty
+// for the view's own settings, View too for the dashboard's.
+type dashboardUse struct {
+	Dashboard string `json:"dashboard"`
+	URLPath   string `json:"url_path"`
+	View      string `json:"view,omitempty"`
+	Card      string `json:"card,omitempty"`
+}
+
 const whereUsedMaxSiblings = 30
 
-var whereUsedNotChecked = []string{"dashboards", "templates", "helper and integration options", "disabled or unloadable automations and scripts", "area, floor, and label targets"}
+// whereUsedNotChecked: what this read cannot see, so an empty list is never
+// read as "used nowhere".
+
+var whereUsedNotChecked = []string{"templates", "helpers that hide their source", "integration options", "disabled or unloadable automations and scripts", "area, floor, and label targets"}
 
 func (x *homeIndex) whereUsed(s *relaySession, id string, limit int) (whereUsedResult, error) {
 	if x.state[id] == nil && !x.registered[id] {
@@ -89,7 +108,17 @@ func (x *homeIndex) whereUsed(s *relaySession, id string, limit int) (whereUsedR
 	for _, request := range requests {
 		reads = append(reads, func() { _, _ = s.ws(request) })
 	}
+	var boards []lovelaceBoard
+	var boardGaps []refGap
+	var boardsErr error
+	reads = append(reads, func() { boards, boardGaps, boardsErr = readLovelacePanels(s) })
 	prefetch(reads)
+	switch {
+	case boardsErr != nil:
+		notChecked = append([]string{"dashboards"}, notChecked...)
+	case len(boardGaps) > 0:
+		notChecked = append([]string{plural(len(boardGaps), "dashboard") + " (could not be read)"}, notChecked...)
+	}
 	results := make([]map[string][]string, len(requests))
 	for i, request := range requests {
 		if err := s.wsDecode(request, &results[i], "search/related for "+fmt.Sprint(request["item_id"])); err != nil {
@@ -131,7 +160,7 @@ func (x *homeIndex) whereUsed(s *relaySession, id string, limit int) (whereUsedR
 		if key == "group" { // a group state lists its members
 			for _, st := range x.h.states {
 				members, _ := st.Attributes.Members.([]any)
-				if st.isGroup() && !seen[st.EntityID] && slices.Contains(members, any(id)) {
+				if x.realGroup(st.EntityID) && !seen[st.EntityID] && slices.Contains(members, any(id)) {
 					seen[st.EntityID] = true
 					rows = append(rows, mapRow{EntityID: st.EntityID, Name: x.name(st.EntityID)})
 				}
@@ -141,148 +170,136 @@ func (x *homeIndex) whereUsed(s *relaySession, id string, limit int) (whereUsedR
 		return usedList{Total: len(rows), Shown: min(len(rows), limit), Rows: rows[:min(len(rows), limit)]}
 	}
 	r.Automations, r.Scripts, r.Scenes, r.Groups = list("automation"), list("script"), list("scene"), list("group")
+	helpers, hidden, err := x.attributeUsers(s, id)
+	if err != nil {
+		return whereUsedResult{}, err
+	}
+	if hidden > 0 {
+		r.NotChecked = append(r.NotChecked, plural(hidden, "unavailable helper")+" (source hidden)")
+	}
+	r.Helpers = usedList{Total: len(helpers), Shown: min(len(helpers), limit), Rows: helpers[:min(len(helpers), limit)]}
+	uses := dashboardUses(boards, id)
+	r.Dashboards.Total, r.Dashboards.Shown, r.Dashboards.Rows = len(uses), min(len(uses), limit), uses[:min(len(uses), limit)]
 	return r, nil
 }
 
-// --first-look: the onboarding contract (home-map spec §4).
-
-type firstLookResult struct {
-	Home         map[string]int       `json:"home"`
-	Observations []firstLookFinding   `json:"observations"`
-	Seeds        map[string]firstSeed `json:"seeds"`
+// realGroup: a group entity, not a source helper (min/max) that lists its
+// sources the same way.
+func (x *homeIndex) realGroup(id string) bool {
+	st, platform := x.state[id], x.platform[id]
+	return st != nil && st.isGroup() && (platform == "group" || !sourceHelperPlatforms[platform])
 }
 
-type firstLookFinding struct {
-	Kind     string `json:"kind"`
-	EntityID string `json:"entity_id,omitempty"`
-	Name     string `json:"name,omitempty"`
-	Area     string `json:"area,omitempty"`
-	Value    string `json:"value,omitempty"`
-	Domain   string `json:"domain,omitempty"`
-	State    string `json:"state,omitempty"`
-	Count    int    `json:"count"`
-}
-
-type firstSeed struct {
-	AreaID   string `json:"area_id,omitempty"`
-	EntityID string `json:"entity_id,omitempty"`
-	Name     string `json:"name"`
-	Area     string `json:"area,omitempty"`
-}
-
-func (x *homeIndex) firstLook() firstLookResult {
-	counts := x.counts()
-	auto, autoRows := x.automations()
-	rows, problems, _, _ := x.integrations()
-	r := firstLookResult{Home: map[string]int{"floors": counts["floors"], "areas": counts["areas"], "devices": counts["devices"],
-		"entities": counts["entities"], "automations": auto["total"].(int), "scripts": x.configCounts("script")["total"],
-		"scenes": x.configCounts("scene")["total"], "integrations": len(rows)}, Observations: []firstLookFinding{}, Seeds: map[string]firstSeed{}}
-
-	var found []firstLookFinding
-	_, batteries := x.batteries()
-	var low []mapRow
-	for _, b := range batteries {
-		if b.Low && b.Kind == "device" {
-			low = append(low, b)
+// attributeUsers: other entities whose state attributes name id (a utility
+// meter's, min/max's, or threshold's source); automations, scripts, scenes,
+// and groups are listed on their own; presence never appears in map output.
+// hidden counts source helpers that are unavailable: Home Assistant drops
+// their attributes. /api/states is memoized.
+func (x *homeIndex) attributeUsers(s *relaySession, id string) ([]mapRow, int, error) {
+	_, body, err := s.coreGET("/api/states")
+	var states []refState
+	if err == nil {
+		err = json.Unmarshal(body, &states)
+	}
+	if err != nil {
+		return nil, 0, fmt.Errorf("cannot parse /api/states: %w", err)
+	}
+	match := &refScanner{needles: []string{id}}
+	rows, hidden := []mapRow{}, 0
+	for _, st := range states {
+		domain, _ := splitID(st.EntityID)
+		if st.EntityID == id || domain == "automation" || domain == "script" || domain == "scene" || presenceDomains[domain] || x.realGroup(st.EntityID) {
+			continue
+		}
+		if st.State == "unavailable" && sourceHelperPlatforms[x.platform[st.EntityID]] {
+			hidden++
+			continue
+		}
+		if len(match.find(st.Attributes)) > 0 {
+			rows = append(rows, mapRow{EntityID: st.EntityID, Name: x.name(st.EntityID)})
 		}
 	}
-	if len(low) > 0 {
-		found = append(found, firstLookFinding{Kind: "battery_low", EntityID: low[0].EntityID, Name: low[0].Name, Area: low[0].Area, Value: low[0].Level, Count: len(low)})
+	sort.Slice(rows, func(i, j int) bool { return rows[i].EntityID < rows[j].EntityID })
+	return rows, hidden, nil
+}
+
+// dashboardUses: every card, badge, or header card that names id as a whole
+// id anywhere inside (entities rows, nested stacks, conditions, templates);
+// each nested match names the path down to its innermost card.
+func dashboardUses(boards []lovelaceBoard, id string) []dashboardUse {
+	match := &refScanner{needles: []string{id}}
+	mentions := func(v any) bool { return len(match.find(v)) > 0 }
+	summary := func(card any) string { // presence never appears in map output
+		if entity, _ := asMap(card)["entity"].(string); presenceDomains[strings.SplitN(entity, ".", 2)[0]] {
+			kind, _ := asMap(card)["type"].(string)
+			return kind
+		}
+		return cardSummary(card)
 	}
-	addAutomation := func(kind string) {
-		var hit []mapRow
-		for _, row := range autoRows {
-			if row.Issue == kind {
-				hit = append(hit, row)
+	var trails func(card any) []string
+	trails = func(card any) []string {
+		m, out := asMap(card), []string{}
+		if m == nil || mentions(without(m, "cards", "card")) { // the card's own settings (entities, conditions, templates)
+			out = append(out, summary(card))
+		}
+		for _, child := range append(asList(m["cards"]), m["card"]) {
+			if child != nil && mentions(child) {
+				for _, t := range trails(child) {
+					out = append(out, summary(card)+" › "+t)
+				}
 			}
 		}
-		if len(hit) > 0 {
-			found = append(found, firstLookFinding{Kind: "automation_" + kind, EntityID: hit[0].EntityID, Name: hit[0].Name, Count: len(hit)})
-		}
+		return out
 	}
-	addAutomation("unavailable")
-	if len(problems) > 0 {
-		n := 0
-		for _, p := range problems {
-			n += p.Entries
-		}
-		found = append(found, firstLookFinding{Kind: "integration_problem", Domain: problems[0].Domain, State: problems[0].State, Count: n})
-	}
-	addAutomation("never_triggered")
-	unavail, unavailRows := x.unavailable()
-	if n := unavail["at_least_7d"].(int); n > 0 {
-		oldest := unavailRows[0] // longest age first
-		found = append(found, firstLookFinding{Kind: "unavailable_long", EntityID: oldest.EntityID, Name: oldest.Name, Area: oldest.Area, Value: oldest.Age, Count: n})
-	}
-	r.Observations = append(r.Observations, found[:min(len(found), 2)]...)
-	x.seeds(r.Seeds)
-	return r
-}
-
-// seedArea: the area with most entities (ties by name), if any has one.
-func (x *homeIndex) seedArea() (firstSeed, bool) {
-	areas := x.areaRows(false)
-	byEntities(areas)
-	if len(areas) > 0 && areas[0].Entities > 0 {
-		return firstSeed{AreaID: areas[0].AreaID, Name: areas[0].Name}, true
-	}
-	return firstSeed{}, false
-}
-
-// pickSeed: the first usable match in area top, else the first anywhere.
-func (x *homeIndex) pickSeed(top string, match func(id string, st *mapState) bool) (firstSeed, bool) {
-	best := ""
-	for _, id := range x.enabled { // sorted: the first hit is stable
-		st := x.state[id]
-		if st == nil || st.State == "unavailable" || x.hidden[id] || x.category[id] != "" || !match(id, st) {
+	uses := []dashboardUse{}
+	for _, b := range boards {
+		cfg := asMap(b.Config)
+		if !mentions(cfg) {
 			continue
 		}
-		if x.entityArea[id] == top && top != "" {
-			best = id
-			break
+		if mentions(without(cfg, "views")) { // the dashboard's own settings
+			uses = append(uses, dashboardUse{Dashboard: b.Title, URLPath: b.URLPath})
 		}
-		if best == "" {
-			best = id
+		for i, v := range dashboardViews(cfg) {
+			if !mentions(v) {
+				continue
+			}
+			view, _ := v["title"].(string)
+			if path, _ := v["path"].(string); view == "" && path != "" {
+				view = "/" + path
+			} else if view == "" {
+				view = fmt.Sprintf("view %d", i+1)
+			}
+			own := []any{without(v, "cards", "sections", "badges", "header"), without(asMap(v["header"]), "card")}
+			for _, section := range asList(v["sections"]) {
+				own = append(own, without(asMap(section), "cards"))
+			}
+			if mentions(own) { // the view's own settings (visibility, a section's visibility, background)
+				uses = append(uses, dashboardUse{Dashboard: b.Title, URLPath: b.URLPath, View: view})
+			}
+			for _, c := range viewContainers(v) {
+				for _, item := range c.items {
+					if !mentions(item) {
+						continue
+					}
+					for _, card := range trails(item) {
+						if c.label == "badges" || c.label == "header" {
+							card = strings.TrimSuffix(c.label, "s") + ": " + card
+						}
+						uses = append(uses, dashboardUse{Dashboard: b.Title, URLPath: b.URLPath, View: view, Card: card})
+					}
+				}
+			}
 		}
 	}
-	if best == "" {
-		return firstSeed{}, false
-	}
-	return firstSeed{EntityID: best, Name: x.name(best), Area: x.area(best)}, true
+	return uses
 }
 
-// seeds: real names for example prompts; persons, trackers, and zones never.
-func (x *homeIndex) seeds(out map[string]firstSeed) {
-	area, ok := x.seedArea()
-	if ok {
-		out["area"] = area
+// without copies m minus keys.
+func without(m map[string]any, keys ...string) map[string]any {
+	out := maps.Clone(m)
+	for _, k := range keys {
+		delete(out, k)
 	}
-	pick := func(key string, match func(id string, st *mapState) bool) {
-		if seed, ok := x.pickSeed(area.AreaID, match); ok {
-			out[key] = seed
-		}
-	}
-	pick("light", func(id string, st *mapState) bool { return inDomain(id, "light") && !st.isGroup() })
-	pick("climate", func(id string, _ *mapState) bool { return inDomain(id, "climate") })
-	if _, ok := out["climate"]; !ok {
-		pick("climate", func(id string, st *mapState) bool {
-			return inDomain(id, "sensor") && st.deviceClass() == "temperature" && x.platform[id] != "mobile_app"
-		})
-	}
-	// Only covers that need no code (a garage door or gate is never an
-	// everyday example: closing one runs at once).
-	pick("cover", func(id string, st *mapState) bool {
-		return inDomain(id, "cover") && !st.isGroup() && nonAccessCoverClasses[st.deviceClass()]
-	})
-	var last time.Time
-	for _, id := range x.enabled {
-		st := x.state[id]
-		if !inDomain(id, "automation") || st == nil || st.State != "on" || st.Attributes.LastTriggered == nil {
-			continue
-		}
-		if at, err := time.Parse(time.RFC3339Nano, *st.Attributes.LastTriggered); err == nil && at.After(last) {
-			last = at
-			out["automation"] = firstSeed{EntityID: id, Name: x.name(id)}
-		}
-	}
+	return out
 }

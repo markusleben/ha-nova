@@ -36,7 +36,8 @@ From there you can:
 - check for App updates,
 - **connect a device**: click *Connect a device* to show a one-time six-digit
   code, then enter it on your computer when `ha-nova setup` asks. The code works
-  once and expires in 10 minutes,
+  once and expires in 10 minutes. When setup pairs through your Home Assistant
+  sign-in instead, the page shows that a computer is connecting, with Cancel,
 - see connected devices and **revoke** any one of them instantly.
 
 The page is owner-only and only reachable through Home Assistant's ingress — a
@@ -137,8 +138,12 @@ required to open the NOVA console and generate or revoke pairing codes.
 The setup wizard handles Relay configuration and skill installation. Local
 setup automatically uses one reachable Home Assistant instance, shows a
 source-labeled pick list when it finds several, and keeps manual address entry
-when discovery finds none. Its normal App flow asks only for the six-digit code
-from the NOVA page, then pairs securely: the device receives its own credential
+when discovery finds none. If this App already runs (for another computer),
+setup skips the install step. Its normal App flow opens your Home Assistant login:
+sign in as the owner and this computer pairs by itself. Over SSH, with another
+Home Assistant user, or when sign-in does not work out, it asks for the
+six-digit code from the NOVA page instead (the owner generates it there). Either way it pairs securely: the
+device receives its own credential
 (kept in the client's OS credential store — or in a private file for
 `--service` installs, explicit `ha-nova pair --credential-store=file` opt-ins,
 and headless systems without a keyring) and talks to the Relay over pinned TLS.
@@ -274,11 +279,16 @@ A healthy response looks like:
 removes its local Cloud secret and metadata. It leaves the Home Assistant Link
 subscription and local NOVA pairing unchanged.
 
-A standard `ha-nova uninstall` keeps Home Assistant connection config, device
-pairing, and Cloud authorization for reinstall. `ha-nova uninstall --purge`
-revokes and verifies every configured Cloud authorization before removing
-local secrets and config. If safe revocation cannot be completed, purge stops
-before destructive local cleanup.
+`ha-nova uninstall` asks one question. "Remove" revokes and verifies every
+configured Cloud authorization and this computer's pairing before removing
+local secrets and config; if safe revocation cannot be completed, it stops
+before destructive local cleanup. "Remove, but keep the pairing" keeps the Home
+Assistant connection config, device pairing, and Cloud authorization for a
+reinstall (also what `ha-nova uninstall --yes` does; add `--purge` for a full
+removal). This App stays installed unless the menu offers "Remove, and remove
+the NOVA App too": only when this App answers that no other device, no legacy
+shared access, and no chat-app files use it, and only after the Home Assistant
+owner signs in. Removing the App disconnects every paired computer.
 
 ## Cloud Beta Availability
 

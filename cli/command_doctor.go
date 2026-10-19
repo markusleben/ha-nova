@@ -126,9 +126,17 @@ func runDoctor(paths runtimePaths, args []string) int {
 		// leftover legacy token: report the device problem so the user re-pairs.
 		// The direct slot read distinguishes unreadable storage from an absent
 		// credential (re-pairing cannot store anything in broken storage).
-		if _, exists, credErr := readDeviceCredential(); credErr != nil {
+		if _, exists, credErr := readDeviceCredential(); credErr != nil && isLinuxKeyringError(credErr) {
+			printHumanErr("This device is paired, but HA NOVA can't read its key. %s", relayAuthTokenProblemMessage(credErr))
+			if hint := doctorServiceCredentialRecoveryHint(paths, state, credErr); hint != "" {
+				printHumanWarn("%s", hint)
+			}
+			return 1
+		} else if credErr != nil {
 			printHumanErr("This device is paired, but its device credential could not be read from secure storage: %s", credErr)
-			if hint := setupSecureStorageRecoveryHint(credErr); hint != "" {
+			if secureStorageSessionProblem(credErr) {
+				printHumanWarn("%s. Next step: %s, then run 'ha-nova doctor' there.", secureStorageSessionReason, secureStorageSessionNextStep())
+			} else if hint := setupSecureStorageRecoveryHint(credErr); hint != "" {
 				printHumanWarn("%s", hint)
 			} else {
 				printHumanWarn("Unlock or repair secure storage on this machine, then run 'ha-nova doctor' again.")
@@ -343,6 +351,12 @@ func runDoctor(paths runtimePaths, args []string) int {
 			switch {
 			case client.Ready:
 				doctorInfo("%s ready now", client.Label)
+				if client.ID != "claude" {
+					break
+				}
+				if hint := claudeRulesHint(paths); hint != "" {
+					doctorInfo("%s", hint)
+				}
 			case !client.RuntimeDetected:
 				printHumanWarn("%s configured, but client runtime not detected now", client.Label)
 				printHumanWarn("%s", doctorClientRepairHint(client, installSource))

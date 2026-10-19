@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bufio"
 	"fmt"
 	"io"
 	"strings"
@@ -15,86 +14,6 @@ const (
 	setupIssueCloudAccess      = "cloud_access"
 )
 
-func promptSetupClient(in io.Reader, out io.Writer, choices []setupClientChoice, defaultClient string) (string, error) {
-	return promptSetupClientFromReader(bufio.NewReader(in), out, choices, defaultClient)
-}
-
-func promptSetupClientFromReader(reader *bufio.Reader, out io.Writer, choices []setupClientChoice, defaultClient string) (string, error) {
-	if len(choices) == 0 {
-		return "", fmt.Errorf("no setup clients available")
-	}
-	if !hasAvailableSetupClientChoice(choices) {
-		fmt.Fprintln(out)
-		fmt.Fprintln(out, "  Which AI client do you use?")
-		fmt.Fprintln(out)
-		for _, choice := range choices {
-			fmt.Fprintf(out, "    %s) %s\n", choice.Number, choice.Label)
-			if choice.Disabled && choice.DisabledReason != "" {
-				fmt.Fprintf(out, "       not available: %s\n", choice.DisabledReason)
-			}
-		}
-		fmt.Fprintln(out)
-		fmt.Fprintln(out, "  No supported AI client is ready on this machine yet.")
-		fmt.Fprintln(out, "  Install one supported client first, then rerun: ha-nova setup")
-		return "", errSetupClientPrerequisite
-	}
-	defaultChoice := firstAvailableSetupClientChoice(choices)
-	for _, choice := range choices {
-		if choice.Value == defaultClient && !choice.Disabled {
-			defaultChoice = choice
-			break
-		}
-	}
-
-	for {
-		fmt.Fprintln(out)
-		fmt.Fprintln(out, "  Which AI client do you use?")
-		fmt.Fprintln(out)
-		for _, choice := range choices {
-			fmt.Fprintf(out, "    %s) %s\n", choice.Number, choice.Label)
-			if choice.Disabled && choice.DisabledReason != "" {
-				fmt.Fprintf(out, "       not available: %s\n", choice.DisabledReason)
-			}
-		}
-		fmt.Fprintln(out)
-		fmt.Fprintf(out, "  Enter [1-%d] (default %s, or type 'exit'): ", len(choices), defaultChoice.Number)
-
-		line, err := reader.ReadString('\n')
-		if err != nil {
-			return "", err
-		}
-		line = strings.ToLower(strings.TrimSpace(line))
-		switch line {
-		case "":
-			return defaultChoice.Value, nil
-		case "back":
-			return "", errSetupBack
-		case "exit":
-			return "", errSetupExit
-		}
-
-		for _, choice := range choices {
-			if line == choice.Number || line == choice.Value {
-				if choice.Disabled {
-					renderSetupErrorLine(out, "%s is not available yet: %s", choice.Label, choice.DisabledReason)
-					break
-				}
-				return choice.Value, nil
-			}
-		}
-		renderSetupErrorLine(out, "Invalid choice. Please enter one of the listed options.")
-	}
-}
-
-func firstAvailableSetupClientChoice(choices []setupClientChoice) setupClientChoice {
-	for _, choice := range choices {
-		if !choice.Disabled {
-			return choice
-		}
-	}
-	return choices[0]
-}
-
 func hasAvailableSetupClientChoice(choices []setupClientChoice) bool {
 	for _, choice := range choices {
 		if !choice.Disabled {
@@ -107,7 +26,7 @@ func hasAvailableSetupClientChoice(choices []setupClientChoice) bool {
 func renderSetupHeader(out io.Writer) {
 	session := resolveSetupUISession(out)
 	clearSetupScreen(out)
-	renderSimpleHeader(out, session, "HA NOVA Setup")
+	renderSimpleHeader(out, session, setupT("setup.header"))
 }
 
 func clearSetupScreen(out io.Writer) {
@@ -119,7 +38,7 @@ func clearSetupScreen(out io.Writer) {
 
 func renderSetupStep(out io.Writer, step, total int, title string) {
 	session := resolveSetupUISession(out)
-	stepLabel := fmt.Sprintf("Step %d of %d - %s", step, total, title)
+	stepLabel := setupT("setup.progress", "step", step, "total", total, "title", title)
 	if session.plain() {
 		fmt.Fprintln(out)
 		fmt.Fprintf(out, "  [%d/%d] %s\n", step, total, stepLabel)
@@ -138,53 +57,60 @@ func renderSetupStep(out io.Writer, step, total int, title string) {
 		}
 	}
 	fmt.Fprintln(out)
-	fmt.Fprintf(out, "  %s  %s\n", session.style("accent", bar.String()), session.style("strong", fmt.Sprintf("Step %d of %d - %s", step, total, title)))
+	fmt.Fprintf(out, "  %s  %s\n", session.style("accent", bar.String()), session.style("strong", stepLabel))
 }
 
 func renderSetupStatusSummary(out io.Writer, state setupState) {
 	session := resolveSetupUISession(out)
-	fmt.Fprintln(out)
-	fmt.Fprintf(out, "  %s\n", session.style("strong", "Checking current setup..."))
-	if state.RelayOK {
-		fmt.Fprintf(out, "  %s Relay reachable\n", session.style("success", session.successMarker()))
-	} else {
-		fmt.Fprintf(out, "  %s Relay not reachable\n", session.style("error", session.errorMarker()))
+	check := func(ok bool, text string) {
+		role, marker := "error", session.errorMarker()
+		if ok {
+			role, marker = "success", session.successMarker()
+		}
+		fmt.Fprintf(out, "  %s %s\n", session.style(role, marker), text)
 	}
+	fmt.Fprintln(out)
+	fmt.Fprintf(out, "  %s\n", session.style("strong", setupT("setup.status.checking")))
 	if state.RelayOK {
-		fmt.Fprintf(out, "  %s Authentication valid\n", session.style("success", session.successMarker()))
-	} else if state.TokenOK {
-		fmt.Fprintf(out, "  %s Authentication failed\n", session.style("error", session.errorMarker()))
+		check(true, setupT("setup.status.app_reachable"))
+		check(true, setupT("setup.status.auth_valid"))
 	} else {
-		fmt.Fprintf(out, "  %s No auth token found\n", session.style("error", session.errorMarker()))
+		check(false, setupT("setup.status.app_unreachable"))
+		if state.TokenOK {
+			check(false, setupT("setup.status.auth_failed"))
+		} else {
+			check(false, setupT("setup.status.no_token"))
+		}
 	}
 	if state.WSOK {
-		fmt.Fprintf(out, "  %s WebSocket connected\n", session.style("success", session.successMarker()))
+		check(true, setupT("setup.status.ws_connected"))
 	} else {
-		fmt.Fprintf(out, "  %s WebSocket not connected\n", session.style("error", session.errorMarker()))
+		check(false, setupT("setup.status.ws_disconnected"))
 	}
 	if state.SkillsOK {
-		fmt.Fprintf(out, "  %s Skills installed\n", session.style("success", session.successMarker()))
+		check(true, setupT("setup.status.skills_installed"))
 	} else {
-		fmt.Fprintf(out, "  %s Skills not installed\n", session.style("error", session.errorMarker()))
+		check(false, setupT("setup.status.skills_missing"))
 	}
 	fmt.Fprintln(out)
 }
 
 func renderSetupDiscoveryResult(out io.Writer, host, via string, discovered bool) {
 	session := resolveSetupUISession(out)
+	success := session.style("success", session.successMarker())
+	warning := session.style("warning", session.warningMarker())
 	if discovered && via != "" {
-		fmt.Fprintf(out, "  %s Found Home Assistant at %s (discovered via %s)\n", session.style("success", session.successMarker()), host, via)
+		fmt.Fprintf(out, "  %s %s\n", success, setupT("setup.discovery.found_via", "host", host, "via", via))
 	} else if discovered && isLocalDiscoveryHost(host) {
-		fmt.Fprintf(out, "  %s Found Home Assistant via the network name %s\n", session.style("warning", session.warningMarker()), host)
-		fmt.Fprintln(out, "    Heads-up: this name can stop working (especially on Windows).")
-		fmt.Fprintln(out, "    If you know the IP address, enter it below instead — you can find it in your")
-		fmt.Fprintln(out, "    router, or in Home Assistant under Settings > System > Network.")
+		fmt.Fprintf(out, "  %s %s\n", warning, setupT("setup.discovery.found_local", "host", host))
+		fmt.Fprintf(out, "    %s\n", setupT("setup.discovery.local_name_fragile"))
+		fmt.Fprintf(out, "    %s\n", setupT("setup.discovery.find_ip"))
 	} else if discovered {
-		fmt.Fprintf(out, "  %s Found Home Assistant at %s\n", session.style("success", session.successMarker()), host)
+		fmt.Fprintf(out, "  %s %s\n", success, setupT("setup.discovery.found", "host", host))
 	} else if strings.TrimSpace(host) != "" {
-		fmt.Fprintf(out, "  %s No confirmed Home Assistant found automatically; using your saved address as a starting point: %s\n", session.style("warning", session.warningMarker()), host)
+		fmt.Fprintf(out, "  %s %s\n", warning, setupT("setup.discovery.none_saved", "host", host))
 	} else {
-		fmt.Fprintf(out, "  %s No confirmed Home Assistant found automatically; enter the Home Assistant address manually\n", session.style("warning", session.warningMarker()))
+		fmt.Fprintf(out, "  %s %s\n", warning, setupT("setup.discovery.none"))
 	}
 }
 
@@ -194,23 +120,23 @@ func renderSetupCompleteBanner(out io.Writer, clients []string, look *setupFirst
 	session := resolveSetupUISession(out)
 	renderSetupHeader(out)
 	fmt.Fprintln(out)
-	fmt.Fprintf(out, "  %s Setup complete!\n", session.style("success", session.successMarker()))
+	fmt.Fprintf(out, "  %s %s\n", session.style("success", session.successMarker()), setupT("setup.done.complete"))
 	fmt.Fprintln(out)
 	if labels := setupClientLabels(clients); labels != "" {
-		fmt.Fprintf(out, "  Installed for: %s\n", session.style("strong", labels))
+		fmt.Fprintf(out, "  %s\n", setupStyled(session, "setup.done.installed_for", "clients", setupStrong(labels)))
 		fmt.Fprintln(out)
 	}
-	promptHeader := fmt.Sprintf("Open %s and try asking:", session.style("strong", setupClientLabelsForPrompt(clients)))
+	promptHeader := setupStyled(session, "setup.done.try_asking_in", "client", setupStrong(setupClientLabelsForPrompt(clients)))
 	if look != nil {
 		renderSetupFirstLook(out, look, promptHeader)
 	} else {
 		fmt.Fprintf(out, "  %s\n", promptHeader)
 		fmt.Fprintln(out)
-		fmt.Fprintln(out, `    "Turn off the living room light"`)
-		fmt.Fprintln(out, `    "List my automations"`)
+		fmt.Fprintf(out, "    \"%s\"\n", setupT("setup.done.example_light"))
+		fmt.Fprintf(out, "    \"%s\"\n", setupT("setup.done.example_automations"))
 		fmt.Fprintln(out)
 	}
-	fmt.Fprintln(out, "  Need help? Run: ha-nova doctor")
+	fmt.Fprintf(out, "  %s\n", setupT("setup.done.need_help"))
 	fmt.Fprintln(out)
 }
 
@@ -218,18 +144,17 @@ func renderSetupAlreadyDoneBanner(out io.Writer, legacyToken bool) {
 	session := resolveSetupUISession(out)
 	renderSetupHeader(out)
 	fmt.Fprintln(out)
-	fmt.Fprintf(out, "  %s Everything is already set up!\n", session.style("success", session.successMarker()))
+	fmt.Fprintf(out, "  %s %s\n", session.style("success", session.successMarker()), setupT("setup.done.already"))
 	fmt.Fprintln(out)
 	if legacyToken {
 		// The upgrade path must not dead-end here (issue #419): a working
 		// legacy-token install passes every completeness check, so this screen
 		// is exactly where the pairing switch has to be offered.
-		fmt.Fprintln(out, "  This device still connects with the shared legacy token.")
-		fmt.Fprintln(out, "  Switch to its own revocable credential: run 'ha-nova pair' and")
-		fmt.Fprintln(out, "  enter a fresh code from the NOVA page (\"Connect a device\").")
+		renderSetupIndentedLines(out, "  ", setupT("setup.done.legacy_token"))
+		renderSetupIndentedLines(out, "  ", strings.Split(setupT("setup.done.legacy_switch"), "\n")...)
 		fmt.Fprintln(out)
 	}
-	fmt.Fprintln(out, "  Run 'ha-nova doctor' for full diagnostics.")
+	fmt.Fprintf(out, "  %s\n", setupT("setup.done.doctor"))
 	fmt.Fprintln(out)
 }
 
@@ -237,45 +162,45 @@ func renderSetupCloudFallbackReadyBanner(out io.Writer, look *setupFirstLook) {
 	session := resolveSetupUISession(out)
 	renderSetupHeader(out)
 	fmt.Fprintln(out)
-	fmt.Fprintf(out, "  %s Setup complete!\n", session.style("success", session.successMarker()))
+	fmt.Fprintf(out, "  %s %s\n", session.style("success", session.successMarker()), setupT("setup.done.complete"))
 	fmt.Fprintln(out)
-	fmt.Fprintln(out, "  Connections:")
-	fmt.Fprintln(out, "    Local:          Ready — preferred")
-	fmt.Fprintln(out, "    Away from home: Ready — Home Assistant Link")
-	fmt.Fprintln(out, "    Routing:        Automatic — Home Assistant Link is used only when local access is unavailable")
+	fmt.Fprintf(out, "  %s\n", setupT("setup.done.connections"))
+	renderSetupIndentedLines(out, "    ",
+		setupT("setup.done.connection_local"),
+		setupT("setup.done.connection_away"),
+		setupT("setup.done.connection_routing"),
+	)
 	fmt.Fprintln(out)
 	if look != nil {
-		renderSetupFirstLook(out, look, "Try asking:")
+		renderSetupFirstLook(out, look, setupT("setup.done.try_asking"))
 	}
-	fmt.Fprintln(out, "  Run 'ha-nova doctor' for full diagnostics.")
+	fmt.Fprintf(out, "  %s\n", setupT("setup.done.doctor"))
 	fmt.Fprintln(out)
 }
 
 func renderSetupIncompleteBanner(out io.Writer, issue string) {
 	session := resolveSetupUISession(out)
 	fmt.Fprintln(out)
-	fmt.Fprintf(out, "  %s Setup incomplete\n", session.style("error", session.errorMarker()))
+	fmt.Fprintf(out, "  %s %s\n", session.style("error", session.errorMarker()), setupT("setup.incomplete.title"))
 	fmt.Fprintln(out)
+	var lines []string
 	switch issue {
 	case setupIssueWSDegraded:
-		fmt.Fprintln(out, "  NOVA Relay is reachable, but Home Assistant WebSocket is not connected yet.")
-		fmt.Fprintln(out, "  Open Home Assistant > Settings > Apps > NOVA Relay (older Home Assistant: Settings > Add-ons), verify the app settings, and restart the App.")
+		lines = []string{setupT("setup.incomplete.ws_degraded"), setupT("setup.incomplete.ws_degraded_fix")}
 	case setupIssueRelayUnreachable:
-		fmt.Fprintln(out, "  HA NOVA saved your local setup, but the relay could not be verified yet.")
-		fmt.Fprintln(out, "  Open Home Assistant > Settings > Apps > NOVA Relay (older Home Assistant: Settings > Add-ons) and start the app.")
+		lines = []string{setupT("setup.incomplete.relay_unreachable"), setupT("setup.incomplete.relay_unreachable_fix")}
 	case setupIssueSkillsInstall:
-		fmt.Fprintln(out, "  The Home Assistant connection is configured, but local skill installation still needs another run.")
-		fmt.Fprintln(out, "  Re-run setup or install the HA NOVA skills again for your client.")
+		lines = []string{setupT("setup.incomplete.skills"), setupT("setup.incomplete.skills_fix")}
 	case setupIssueCloudAccess:
-		fmt.Fprintln(out, "  Local access and skills are ready, but the selected Home Assistant Link connection is not.")
-		fmt.Fprintln(out, "  Re-run setup to resume Home Assistant Link authorization; local access remains available.")
+		lines = []string{setupT("setup.incomplete.link"), setupT("setup.incomplete.link_fix")}
 	default:
-		fmt.Fprintln(out, "  HA NOVA saved your local setup, but the system is not fully ready yet.")
+		lines = []string{setupT("setup.incomplete.generic")}
 	}
 	if issue != setupIssueSkillsInstall &&
 		issue != setupIssueCloudAccess {
-		fmt.Fprintln(out, `  Then run "ha-nova setup" again — it continues where you left off.`)
+		lines = append(lines, setupT("setup.incomplete.rerun"))
 	}
+	renderSetupIndentedLines(out, "  ", lines...)
 	fmt.Fprintln(out)
 }
 
@@ -292,9 +217,9 @@ func setupClientLabel(client string) string {
 	case "hermes":
 		return "Hermes Agent"
 	case "all":
-		return "your available AI assistants"
+		return setupT("setup.clients.all_available")
 	default:
-		return "your AI assistant"
+		return setupT("setup.clients.your_assistant")
 	}
 }
 
@@ -311,10 +236,10 @@ func setupClientLabels(clients []string) string {
 
 func setupClientLabelsForPrompt(clients []string) string {
 	if len(clients) == 0 {
-		return "your AI assistant"
+		return setupT("setup.clients.your_assistant")
 	}
 	if len(clients) == 1 {
 		return setupClientLabel(clients[0])
 	}
-	return "your installed AI assistants"
+	return setupT("setup.clients.your_installed")
 }

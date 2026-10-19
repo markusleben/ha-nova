@@ -27,8 +27,8 @@ func TestDarwinWindowAnswers(t *testing.T) {
 		{"", exited("1"), false, false, windowFailed},   // did not compile (sandbox, -2740)
 		{"", exited("1"), false, true, windowNoAnswer},  // interrupted after reaching the window
 		{"", errors.New("exec: no such file"), false, false, windowFailed},
-		{"button Confirm", nil, true, true, windowNoAnswer},                                   // our own deadline ended it
-		{"", exec.Command("/bin/sh", "-c", "kill -9 $$").Run(), false, false, windowNoAnswer}, // killed
+		{"button Confirm", nil, true, true, windowNoAnswer},                                 // our own deadline ended it
+		{"", exec.Command("/bin/sh", "-c", "kill -9 $$").Run(), false, false, windowClosed}, // killed from outside (lane D9)
 		{"button Cancel", nil, false, true, windowNoAnswer},
 		{"button Confirm extra", nil, false, true, windowNoAnswer},
 	} {
@@ -39,18 +39,28 @@ func TestDarwinWindowAnswers(t *testing.T) {
 }
 
 // TestRealWindow opens the real window for two seconds and lets it time out
-// (HA_NOVA_REAL_WINDOW=timeout), or expects it to fail inside a sandbox
-// (HA_NOVA_REAL_WINDOW=failed). Manual check only; never in CI.
+// (HA_NOVA_REAL_WINDOW=timeout), withdraws it after one second as when the
+// phone answered first (withdrawn: it must close at once), or expects it to
+// fail inside a sandbox (failed). Manual check only; never in CI.
 func TestRealWindow(t *testing.T) {
-	want := map[string]windowAnswer{"timeout": windowNoAnswer, "failed": windowFailed}
-	expected, set := want[os.Getenv("HA_NOVA_REAL_WINDOW")]
+	mode := os.Getenv("HA_NOVA_REAL_WINDOW")
+	want := map[string]windowAnswer{"timeout": windowNoAnswer, "withdrawn": windowNoAnswer, "failed": windowFailed}
+	expected, set := want[mode]
 	if !set {
-		t.Skip("manual: HA_NOVA_REAL_WINDOW=timeout|failed")
+		t.Skip("manual: HA_NOVA_REAL_WINDOW=timeout|withdrawn|failed")
 	}
 	t.Logf("available: %v", nativeWindowAvailable())
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	limit, wait := 10*time.Second, 2*time.Second
+	if mode == "withdrawn" {
+		limit, wait = time.Second, 30*time.Second
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), limit)
 	defer cancel()
-	if got := nativeWindow(ctx, "HA NOVA test — nothing happens. Unlock “Front Door”?\n\n"+windowAsked, 2*time.Second); got != expected {
-		t.Fatalf("real window: %v, want %v", got, expected)
+	start := time.Now()
+	if got := nativeWindow(ctx, "HA NOVA test — nothing happens. Unlock “Front Door”?\n\n"+windowAsked, wait); got != expected || time.Since(start) > limit+2*time.Second {
+		t.Fatalf("real window: %v after %v, want %v", got, time.Since(start), expected)
+	}
+	if out, _ := exec.Command("/usr/bin/pgrep", "-x", "osascript").Output(); mode == "withdrawn" && len(out) > 0 {
+		t.Logf("an osascript still runs (maybe not ours): %s", out)
 	}
 }

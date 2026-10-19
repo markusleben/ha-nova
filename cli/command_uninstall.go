@@ -1,17 +1,19 @@
 package main
 
 import (
-	"bufio"
 	"flag"
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
 	"time"
 )
+
+// uninstallInteractive: a person sees and answers the menu (a test seam).
+// A redirected stdout would hide the question behind its default.
+var uninstallInteractive = func() bool { return isInteractiveTTY() && stdoutIsInteractiveTTY() }
 
 type uninstallMode string
 
@@ -27,7 +29,6 @@ func runInternalUninstall(_ runtimePaths, args []string) int {
 	selfPath := fs.String("self-path", "", "temp helper path")
 	purge := fs.Bool("purge", false, "remove config and token")
 	teardownDone := fs.Bool("teardown-done", false, "server-side teardown already completed by the parent")
-	lastComputerConfirmed := fs.Bool("last-computer-confirmed", false, "the user confirmed no other computer uses the shared App")
 	teardownRelayInstanceID := fs.String(
 		"teardown-relay-instance-id",
 		"",
@@ -72,7 +73,6 @@ func runInternalUninstall(_ runtimePaths, args []string) int {
 	defer stopHeartbeat()
 	waitForParentReleaseForUninstall(*parentPID)
 	preflight := collectUninstallPreflight(paths)
-	preflight.lastComputerConfirmed = *lastComputerConfirmed
 	report := &uninstallReport{}
 	if err := finalizeWindowsUninstall(
 		paths,
@@ -104,7 +104,7 @@ func runInternalUninstall(_ runtimePaths, args []string) int {
 func runUninstall(paths runtimePaths, args []string) int {
 	fs := flag.NewFlagSet("uninstall", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
-	yes := fs.Bool("yes", false, "skip confirmation prompts (prints the Home Assistant cleanup checklist instead)")
+	yes := fs.Bool("yes", false, "no questions; keeps this computer's pairing unless --purge, and never removes the NOVA App")
 	purge := fs.Bool("purge", false, "also remove config, state, and the relay auth token (retains small opaque safety markers)")
 	if err := fs.Parse(args); err != nil {
 		if helpRequested(err, fs, "ha-nova uninstall [--yes] [--purge]") {
@@ -124,6 +124,12 @@ func runUninstall(paths runtimePaths, args []string) int {
 	recoveryMode := false
 	recoveredTeardown := false
 	var recoveredRemovedRelays uninstallRelayRemovalEvidence
+	// Without the menu, or when --purge asked for it, refuse before any
+	// recovery output; otherwise the menu offers keeping the pairing instead.
+	purgeChecked := *yes || *purge || !uninstallInteractive()
+	if purgeChecked && purgeRefusedOutsideDesktop(paths, mode, *yes) {
+		return 1
+	}
 	if recovery := inspectWindowsUninstallStatus(paths); recovery.Kind != windowsUninstallStatusKindNone {
 		if exitCode := handleWindowsUninstallRecovery(recovery, mode); exitCode != 0 {
 			return exitCode
@@ -143,9 +149,17 @@ func runUninstall(paths runtimePaths, args []string) int {
 		}
 	}
 
-	renderUninstallPreflight(os.Stdout, paths, source)
-	if !*yes && !recoveryMode && isInteractiveTTY() {
-		selectedMode, proceed, err := promptUninstallMode(mode)
+	guidedSession := !*yes && !recoveryMode && uninstallInteractive()
+	renderUninstallPreflight(os.Stdout, paths, source, guidedSession, mode)
+	var appOffer uninstallAppOffer
+	removeApp := false
+	if guidedSession {
+		purgeBlocked := uninstallPurgeBlocked(paths)
+		mode = uninstallModePurge // "Remove" is the default; the menu moves off it when blocked
+		if purgeBlocked == "" {
+			appOffer = uninstallAppRemovalOffer(os.Stdout, paths)
+		}
+		choice, proceed, err := promptUninstallChoice(os.Stdout, mode, appOffer, purgeBlocked)
 		if err != nil {
 			printHumanErr("%s", err)
 			return 1
@@ -154,10 +168,23 @@ func runUninstall(paths runtimePaths, args []string) int {
 			printHumanInfo("Uninstall cancelled")
 			return 0
 		}
-		mode = selectedMode
+		mode, removeApp = choice.mode, choice.removeApp
 	}
 
-	guidedSession := !*yes && !recoveryMode && isInteractiveTTY()
+	if !purgeChecked && purgeRefusedOutsideDesktop(paths, mode, *yes) {
+		return 1
+	}
+
+	preflight := collectUninstallPreflight(paths)
+	if channelChecksUseWindowsPlatform() && source == installSourceLegacyWindowsPackage {
+		printUninstallPreflightNotes(os.Stdout, preflight)
+		printHumanErr("Legacy private/test Windows package installs are no longer supported for in-place `ha-nova uninstall`.")
+		printHumanWarn("Remove the old HA NOVA app in Installed Apps / App Installer.")
+		printHumanWarn("Then reinstall with the supported Windows path:")
+		printHumanWarn("  irm https://raw.githubusercontent.com/markusleben/ha-nova/main/install.ps1 | iex")
+		return 1
+	}
+
 	if guidedSession {
 		if err := prepareUninstallBeforeGuidedTeardown(
 			paths,
@@ -166,24 +193,14 @@ func runUninstall(paths runtimePaths, args []string) int {
 			printHumanErr("%s", err)
 			return 1
 		}
+		preflight = collectUninstallPreflight(paths)
 	}
-	preflight := collectUninstallPreflight(paths)
 	teardown := teardownNotOffered
-	if guidedSession {
-		outcome, err := maybeOfferGuidedTeardown(bufio.NewReader(os.Stdin), os.Stdout, preflight, defaultTeardownDeps())
-		if err != nil {
-			printHumanErr("%s", err)
+	if removeApp {
+		if !removeNOVAAppForUninstall(os.Stdout, appOffer.cfg) {
 			return 1
 		}
-		if outcome == teardownCancelled {
-			printHumanInfo("The remaining uninstall was cancelled. Any recovery cleanup or Home Assistant steps already completed remain in effect.")
-			return 0
-		}
-		teardown = outcome
-		if teardown == teardownCompleted {
-			preflight.relayStillRunning = false
-		}
-		preflight.lastComputerConfirmed = teardownConfirmedLastComputer(teardown)
+		teardown = teardownCompleted
 	}
 	if runtime.GOOS == "windows" && source == installSourceBundle {
 		teardownDone := teardown == teardownCompleted
@@ -195,6 +212,9 @@ func runUninstall(paths runtimePaths, args []string) int {
 			teardownDone = recoveredTeardown
 			removedRelays = recoveredRemovedRelays
 		}
+		if !purgeReadyForWindowsHandoff(paths, mode, teardown, *yes) {
+			return 1
+		}
 		if teardownDone {
 			printTeardownCompletedNotes(os.Stdout, mode)
 		} else {
@@ -205,7 +225,6 @@ func runUninstall(paths runtimePaths, args []string) int {
 			mode,
 			teardownDone,
 			removedRelays,
-			preflight.lastComputerConfirmed,
 		); err != nil {
 			printHumanErr("cannot finish Windows uninstall: %s", err)
 			return 1
@@ -214,15 +233,6 @@ func runUninstall(paths runtimePaths, args []string) int {
 		printHumanInfo("It is safe to close this terminal now.")
 		return 0
 	}
-	if channelChecksUseWindowsPlatform() && source == installSourceLegacyWindowsPackage {
-		printUninstallPreflightNotes(os.Stdout, preflight)
-		printHumanErr("Legacy private/test Windows package installs are no longer supported for in-place `ha-nova uninstall`.")
-		printHumanWarn("Remove the old HA NOVA app in Installed Apps / App Installer.")
-		printHumanWarn("Then reinstall with the supported Windows path:")
-		printHumanWarn("  irm https://raw.githubusercontent.com/markusleben/ha-nova/main/install.ps1 | iex")
-		return 1
-	}
-
 	report := &uninstallReport{}
 	configDirExisted := fileExists(paths.ConfigDir)
 	cleanupConfigDir := false
@@ -293,7 +303,6 @@ func launchWindowsUninstall(
 	mode uninstallMode,
 	teardownDone bool,
 	removedRelays uninstallRelayRemovalEvidence,
-	lastComputerConfirmed bool,
 ) error {
 	if _, err := windowsUninstallRelayRemovalRefFromEvidence(
 		teardownDone,
@@ -314,17 +323,13 @@ func launchWindowsUninstall(
 			err,
 		)
 	}
-	tempHelper := filepath.Join(os.TempDir(), "ha-nova-uninstall-"+strconv.Itoa(os.Getpid())+".exe")
-	if err := copyFile(filepath.Join(paths.InstallRoot, publicBinaryName()), tempHelper); err != nil {
-		return failWindowsUninstallStatus(
-			paths,
-			status,
-			"bundle_runtime_cleanup",
-			err,
-		)
+	tempHelper, err := stageWindowsHelperCopy(paths, windowsUninstallHelperPrefix, "")
+	if err != nil {
+		_ = os.Remove(tempHelper)
+		return failWindowsUninstallStatus(paths, status, "bundle_runtime_cleanup", err)
 	}
 	statusTicks := windowsUninstallStatusMarkerTicks(paths.UninstallStatusFile)
-	args := windowsUninstallHelperArgs(tempHelper, mode, teardownDone, removedRelays, lastComputerConfirmed)
+	args := windowsUninstallHelperArgs(tempHelper, mode, teardownDone, removedRelays)
 	if err := launchWindowsDetachedHelperWithEnv(
 		tempHelper,
 		paths.UninstallStatusFile,
@@ -332,6 +337,8 @@ func launchWindowsUninstall(
 		helperInstallRootEnv(paths.InstallRoot),
 		args...,
 	); err != nil {
+		// Declined or failed start: nobody runs the copy, so it must not leak.
+		_ = os.Remove(tempHelper)
 		return failWindowsUninstallStatus(
 			paths,
 			status,
@@ -459,25 +466,6 @@ func uninstallModeFromFlag(purge bool) uninstallMode {
 		return uninstallModePurge
 	}
 	return uninstallModeStandard
-}
-
-func promptUninstallMode(defaultMode uninstallMode) (uninstallMode, bool, error) {
-	defaultValue := "1"
-	if defaultMode == uninstallModePurge {
-		defaultValue = "2"
-	}
-	answer, err := promptLine("Choose uninstall mode: 1) Standard remove  2) Full purge  3) Cancel", defaultValue)
-	if err != nil {
-		return uninstallModeStandard, false, err
-	}
-	switch strings.TrimSpace(strings.ToLower(answer)) {
-	case "", "1", "standard", "standard remove":
-		return uninstallModeStandard, true, nil
-	case "2", "purge", "full", "full purge":
-		return uninstallModePurge, true, nil
-	default:
-		return uninstallModeStandard, false, nil
-	}
 }
 
 func finalizeLocalUninstall(paths runtimePaths, state installState, report *uninstallReport, mode uninstallMode, teardownCompleted bool) error {
@@ -670,6 +658,7 @@ func finalizeLocalUninstallWithProgressUnlocked(
 	if err := removeInstalledClientsWithReport(paths, state, report); err != nil {
 		return fmt.Errorf("failed to remove client integrations: %w", err)
 	}
+	removeClaudeRulesForUninstall(state, report)
 	if err := removeClaudeProjectMemoryForUninstall(paths.Home, report); err != nil {
 		report.addNote("Could not inspect Claude project memory: " + err.Error())
 	}
@@ -832,7 +821,6 @@ func windowsUninstallHelperArgs(
 	mode uninstallMode,
 	teardownDone bool,
 	removedRelays uninstallRelayRemovalEvidence,
-	lastComputerConfirmed bool,
 ) []string {
 	args := []string{"internal-uninstall", "--parent-pid", strconv.Itoa(os.Getpid()), "--self-path", tempHelper}
 	if mode == uninstallModePurge {
@@ -840,11 +828,6 @@ func windowsUninstallHelperArgs(
 	}
 	if teardownDone {
 		args = append(args, "--teardown-done")
-	}
-	if lastComputerConfirmed {
-		// The helper prints its own final notes; only this answer lets them
-		// list the shared App's removal.
-		args = append(args, "--last-computer-confirmed")
 	}
 	if relayInstanceID, exists := removedRelays[defaultServerProfileName]; exists && strings.TrimSpace(relayInstanceID) != "" {
 		args = append(

@@ -181,28 +181,26 @@ func secureStorageRecoveryPlanForAction(action platformSecureStorageRecoveryActi
 	case platformSecureStorageRecoveryInitialize:
 		return platformSecureStorageRecoveryPlan{
 			action: platformSecureStorageRecoveryInitialize,
-			title:  "Local secure storage needs setup",
+			title:  "This computer's keyring isn't set up yet",
 			paragraphs: []string{
-				"HA NOVA needs local secure storage before it can save the Relay Auth Token on this Linux machine.",
-				"Your Secret Service provider opens its own trusted desktop prompt to create the default collection.",
-				"Enter any requested secure-storage password only in that system prompt. HA NOVA never reads it in the terminal.",
+				"HA NOVA keeps its key in this computer's keyring, and the keyring isn't set up yet.",
+				"A system window opens to create it. Type a password only in that window; HA NOVA never sees it.",
 			},
-			prompt:         "Open the system secure-storage setup now",
-			successMessage: "Local secure storage is ready.",
-			hint:           "set up local secure storage on this Linux machine",
+			prompt:         "Open the window to set up the keyring now",
+			successMessage: "The keyring is ready.",
+			hint:           "set up this computer's keyring",
 		}
 	default:
 		return platformSecureStorageRecoveryPlan{
 			action: platformSecureStorageRecoveryUnlock,
-			title:  "Local secure storage is locked",
+			title:  "This computer's keyring is locked",
 			paragraphs: []string{
-				"HA NOVA needs local secure storage before it can save the Relay Auth Token on this Linux machine.",
-				"Your Secret Service provider opens its own trusted desktop prompt to unlock the default collection.",
-				"Enter any requested secure-storage password only in that system prompt. HA NOVA never reads it in the terminal.",
+				"HA NOVA keeps its key in this computer's keyring, and the keyring is locked right now.",
+				"A system window opens to unlock it. Type your password only in that window; HA NOVA never sees it.",
 			},
-			prompt:         "Open the system secure-storage unlock now",
-			successMessage: "Local secure storage is ready.",
-			hint:           "unlock local secure storage on this Linux machine",
+			prompt:         "Open the window to unlock the keyring now",
+			successMessage: "The keyring is unlocked.",
+			hint:           "unlock this computer's keyring",
 		}
 	}
 }

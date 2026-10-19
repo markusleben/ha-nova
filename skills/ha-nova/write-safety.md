@@ -138,7 +138,7 @@ should learn one shape and always recognize it:
    CLI diff rows, verbatim.
 3. Pre-write-check/impact slot: one or two short lines.
 4. Save-status slot: explicitly say that nothing has been saved yet (the ⚠️ line).
-5. Options slot: explicit choices with literal `apply`, `show yaml`, and `cancel`.
+5. Options slot: one natural question — save it, show the details, or leave it.
 
 This is the Preview Card of `../ha-nova/output-cards.md` → Cards; the
 Result Card and Delete Card there frame the post-write and delete sides.
@@ -150,13 +150,9 @@ the diff already states what changes. Keep it scannable.
 
 A non-technical user reads the Changes slot, not raw YAML. So:
 
-- **update**: lead with the Changes slot; always close with the same localized
-  Options block.
-- **create**: show a compact human summary of the new item, the pre-write check,
-  a not-saved-yet line, and the same Options block.
-
-Present the confirm/apply choice as a selectable menu where the client offers
-one, else a numbered list (context skill → Interactive Choices).
+- **update**: lead with the Changes slot; close with the save question.
+- **create**: a compact human summary, the pre-write check, a not-saved-yet
+  line, and the save question (a selectable menu where the client offers one).
 
 Shape (the table rows are exactly what the CLI produced this turn — never
 invent, shorten, pre-fill, or copy these from an example). The labels below are
@@ -172,7 +168,7 @@ semantic placeholders; localize them before showing the user:
 
 <pre-write check / impact line>
 ⚠️  <localized: nothing saved yet>
-<localized options label>: apply · show yaml · cancel
+<localized question: save it? I can also show the details.>
 ```
 
 ## Verification Honesty (post-write wording)
@@ -186,8 +182,8 @@ the physical action succeeds.
 Wording rules for the result and the collapsed no-findings line:
 
 - Never a bare "verified"/"works now". Name the proven scope instead — the
-  localized equivalent of: "Saved and checked: config persisted, reload OK,
-  entity live. Runtime behavior was not exercised."
+  localized equivalent of: "Saved and checked: it is stored and Home
+  Assistant loaded it. Runtime behavior was not exercised."
 - Where a real run is meaningful, offer it as an explicit optional step: a
   manual trigger via `ha-nova:service-call` (its own preview + confirmation —
   it may actuate real devices; never run it unrequested). For automations and
@@ -273,7 +269,7 @@ back each. Automation/script updates (reverts included) are checkpointed by
 After reporting the update, offer a localized affordance that names the point-in-time
 rollback option in the same breath — never a bare "undo":
 
-> reply `revert` to undo this update; for point-in-time rollback, restore a suitable existing Home Assistant Backup.
+> to undo this change, just say so; for an older state, restore a suitable Home Assistant Backup.
 
 Execution lives in `../ha-nova/update-revert.md`; load it whenever the user
 asks to revert, undo, or restore a verified update (any of those intents — not

@@ -22,7 +22,7 @@ import (
 const (
 	planWriteUsage  = "ha-nova plan write --domain automation|script [--id <config_id>] [--create] --file <draft.json>\n       ha-nova plan write --domain dashboard --id <url_path> [--create --title <title> [--icon <mdi:icon>]] --file <config.json>"
 	planDeleteUsage = "ha-nova plan delete <automation.x|script.x> | --domain dashboard --id <url_path>"
-	planRevertUsage = "ha-nova plan revert [--target <config_id|url_path>] [--domain automation|script|dashboard]"
+	planRevertUsage = "ha-nova plan revert [--target <config_id|url_path|rooms record>] [--domain automation|script|dashboard|device_area]"
 )
 
 // Config ids per domain: automation ids as the UI and YAML use them; script
@@ -163,6 +163,11 @@ func runPlanConfig(paths runtimePaths, op string, args []string) int {
 		return verbUsageError("plan", err)
 	}
 	return runReadVerb(paths, "plan", opts, func(s *relaySession, env *verbEnvelope) error {
+		if req.Op == "revert" && req.ConfigID != "" { // a named rooms record reverts as a rooms plan (plan_rooms.go)
+			if snap, err := selectServerUndoSnapshot(paths, s.server, req.ConfigID, req.Domain); err == nil && snap.Op == "rooms" {
+				return planRoomsUndo(paths, s, env, snap)
+			}
+		}
 		if req.Op == "restore" {
 			if err := req.loadRestoreSnapshot(s); err != nil {
 				return err
@@ -276,6 +281,10 @@ func computeConfigPlan(paths runtimePaths, s *relaySession, env *verbEnvelope, r
 		if snap, err = selectServerUndoSnapshot(paths, s.server, req.ConfigID, req.Domain); err != nil {
 			return fail(refused("NO_UNDO_SNAPSHOT", err.Error()))
 		}
+		if snap.Op == "rooms" { // only by name: "undo the last update" never undoes setup's rooms
+			return fail(refusedWith("REVERT_UNSUPPORTED", fmt.Sprintf("the newest checkpoint is a room change from setup (%s), not an automation, script, or dashboard update", snap.Name),
+				fmt.Sprintf("Ask the user which change they mean. Setup's room change: ha-nova plan revert --target %s, only if they mean that. Otherwise pass --target <config_id> of the automation, script, or dashboard.", snap.TargetID)))
+		}
 		if snap.Op != "update" || (snap.Domain != "automation" && snap.Domain != "script" && snap.Domain != "dashboard") {
 			// Helper checkpoints share the stack; their revert is ha-nova:helper's
 			// manual path (update-revert.md), never this verb.
@@ -337,6 +346,9 @@ func computeConfigPlan(paths runtimePaths, s *relaySession, env *verbEnvelope, r
 		action.Body = req.Draft
 		e.raise(tierPreview, tierReason{Code: map[string]string{"write": reasonConfigWrite, "revert": reasonConfigRevert, "restore": reasonConfigRestore}[req.Op], Via: req.Domain + "." + req.ConfigID})
 		e.classifyDraft(req.Domain, req.ConfigID, req.Draft)
+		if env.Verb == "plan" && req.Op == "write" && req.Domain == "automation" { // apply re-plans: the plan said it already
+			env.Notices = append(env.Notices, draftTriggerNotices(req.Draft, current)...)
+		}
 		before := current
 		if before == nil {
 			before = json.RawMessage(`{}`)

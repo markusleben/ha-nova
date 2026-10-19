@@ -13,7 +13,7 @@ compatibility: Requires the ha-nova CLI (run 'ha-nova setup' first) and the HA N
 Read-only understanding of the whole home through `ha-nova map`, which
 computes every count, so you never count by hand:
 - inventory with exact counts
-- where-used for one entity (automations, scripts, scenes, groups)
+- where-used for one entity (automations, scripts, scenes, groups, helpers, dashboards)
 - one ranked "review my whole setup" report
 - a plain-language document of how the home is built and why
 - the first look right after pairing
@@ -74,19 +74,19 @@ Definitions to keep when you explain a number:
 
 ### What do I have / show me my home
 
-Run `ha-nova map`. Answer with: one line for the house (floors, areas,
-devices, entities, automations), a compact table of the largest areas
-(devices, entities), one line each for automations (with how many are off,
-unavailable, never ran), helpers, integrations (count plus the largest), and
-one line of open problems with counts. Offer the matching `--section` for
-anything capped.
+Run `ha-nova map`. Answer in plain words: one line for the house (floors,
+rooms, devices, automations), then what needs attention (open problems), a
+compact table of the largest rooms (devices), and one line on automations
+(how many are off or can't run). No entity, domain, or integration counts
+unless asked. Close with one offer ("Want me to look at a room or the
+problems?").
 
 ### Where is X used
 
-Resolve the entity, then `ha-nova map --entity <id>`. List automations,
-scripts, scenes, and groups by name; mark `via: device` rows as "through
-its device". Always name the `not_checked` surfaces: an empty result means "nothing found in
-automations, scripts, scenes, or groups", never "unused" or "safe to delete".
+Resolve the entity, then `ha-nova map --entity <id>`. List every hit by
+name (dashboards: dashboard › view › card); mark `via: device` rows
+as "through its device". Always name the `not_checked` surfaces in one line: an
+empty result means "nothing found where checked", never "unused" or "safe to delete".
 Deletes and renames go to the owning skill.
 
 ### Review my whole setup
@@ -137,11 +137,8 @@ the first look without comment.
 ## Output Format
 
 Apply `../ha-nova/output-rules.md`. Lead with the answer in one or two
-lines, then at most one compact table. Name things by friendly name and
-area; show an `entity_id` only as evidence or when names collide. Every
-capped list states total, shown, and how to see the rest (the matching
-`--section`, phrased as words the user can say). No raw JSON, no field names
-such as `never_triggered`.
+lines, then at most one compact table. A capped list follows Progressive Detail; you run the matching
+`--section` when asked. No raw JSON, no field names such as `never_triggered`.
 
 ## Safety
 

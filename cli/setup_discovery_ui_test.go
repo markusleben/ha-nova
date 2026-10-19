@@ -29,11 +29,38 @@ func TestSelectDefaultHAHostWithFeedbackKeepsOverridePromptForSingleLocalResult(
 	}
 	for _, want := range []string{
 		"Discovering Home Assistant on your network...",
-		"Found Home Assistant via the network name ha-box.local",
-		"this name can stop working",
+		"Found Home Assistant as ha-box.local",
+		".local names can stop working",
 	} {
 		if !strings.Contains(output.String(), want) {
 			t.Fatalf("discovery output missing %q:\n%s", want, output.String())
+		}
+	}
+}
+
+// Lane D3: one Home Assistant found by IP is asked about, never taken
+// silently (a test HA, a neighbour's, or one over a VPN may answer).
+func TestSelectDefaultHAHostWithFeedbackConfirmsASingleFoundAddress(t *testing.T) {
+	originalDiscover := discoverReachableHAHostsForSetup
+	t.Cleanup(func() { discoverReachableHAHostsForSetup = originalDiscover })
+	discoverReachableHAHostsForSetup = func(runtimeConfig) ([]setupDiscoveryCandidate, string) {
+		return []setupDiscoveryCandidate{{Host: "10.85.1.2", HAURL: "http://10.85.1.2:8123", Source: "mDNS"}}, ""
+	}
+	for _, tc := range []struct {
+		input    string
+		selected bool
+		host     string
+	}{
+		{"\n", true, "10.85.1.2"}, // Enter keeps the found address
+		{"2\n", false, ""},        // "Enter a different address"
+	} {
+		output := &strings.Builder{}
+		candidate, selected, err := selectDefaultHAHostWithFeedback(bufio.NewReader(strings.NewReader(tc.input)), output, runtimeConfig{})
+		if err != nil || selected != tc.selected || candidate.Host != tc.host {
+			t.Fatalf("input %q: (%+v, %v, %v)", tc.input, candidate, selected, err)
+		}
+		if !strings.Contains(output.String(), "Choose your Home Assistant:") || !strings.Contains(output.String(), "1) 10.85.1.2 (mDNS)") {
+			t.Fatalf("input %q: no question asked:\n%s", tc.input, output.String())
 		}
 	}
 }
@@ -53,7 +80,7 @@ func TestSelectDefaultHAHostWithFeedbackKeepsManualPathWhenNothingWasConfirmed(t
 	if selected || candidate.Host != "saved-ha.local" {
 		t.Fatalf("selection = (%+v, %v), want saved manual default", candidate, selected)
 	}
-	if !strings.Contains(output.String(), "using your saved address as a starting point: saved-ha.local") {
+	if !strings.Contains(output.String(), "starting from your saved address saved-ha.local") {
 		t.Fatalf("missing manual entry guidance:\n%s", output.String())
 	}
 }
@@ -134,7 +161,7 @@ func TestSelectDefaultHAHostWithFeedbackDoesNotDelayFastTTYDiscovery(t *testing.
 
 	output := &strings.Builder{}
 	start := time.Now()
-	candidate, selected, err := selectDefaultHAHostWithFeedback(bufio.NewReader(strings.NewReader("")), output, runtimeConfig{})
+	candidate, selected, err := selectDefaultHAHostWithFeedback(bufio.NewReader(strings.NewReader("1\n")), output, runtimeConfig{})
 	elapsed := time.Since(start)
 	if err != nil || !selected || candidate.Host != "192.168.1.123" {
 		t.Fatalf("selection = (%+v, %v), err = %v", candidate, selected, err)
@@ -176,7 +203,7 @@ func TestSelectDefaultHAHostWithFeedbackShowsSpinnerAfterDebounceForSlowTTYDisco
 	setupDiscoveryOverallTimeout = 2 * time.Second
 
 	output := &strings.Builder{}
-	candidate, selected, err := selectDefaultHAHostWithFeedback(bufio.NewReader(strings.NewReader("")), output, runtimeConfig{})
+	candidate, selected, err := selectDefaultHAHostWithFeedback(bufio.NewReader(strings.NewReader("1\n")), output, runtimeConfig{})
 	if err != nil || !selected || candidate.Host != "192.168.1.124" {
 		t.Fatalf("selection = (%+v, %v), err = %v", candidate, selected, err)
 	}
@@ -189,5 +216,38 @@ func TestSelectDefaultHAHostWithFeedbackShowsSpinnerAfterDebounceForSlowTTYDisco
 	}
 	if !strings.Contains(rendered, "Found Home Assistant at 192.168.1.124") {
 		t.Fatalf("missing discovery result:\n%s", rendered)
+	}
+}
+
+// rc2 lane D4: the mDNS search is the only non-loopback listener; the first
+// Windows run explains the firewall prompt it raises, later runs stay quiet.
+func TestSetupDiscoveryExplainsWindowsFirewallPromptOnFirstRun(t *testing.T) {
+	originalDiscover, originalOS := discoverReachableHAHostsForSetup, setupDiscoveryPlatformOS
+	t.Cleanup(func() { discoverReachableHAHostsForSetup, setupDiscoveryPlatformOS = originalDiscover, originalOS })
+	discoverReachableHAHostsForSetup = func(runtimeConfig) ([]setupDiscoveryCandidate, string) { return nil, "" }
+	originalWindow := windowAvailable
+	t.Cleanup(func() { windowAvailable = originalWindow })
+
+	for _, tc := range []struct {
+		os   string
+		cfg  runtimeConfig
+		want bool
+	}{
+		{"windows", runtimeConfig{}, true},
+		{"windows", runtimeConfig{HAURL: "http://192.168.1.5:8123"}, false},
+		{"darwin", runtimeConfig{}, false},
+		{"windows-ssh", runtimeConfig{}, false},
+	} {
+		desktop := tc.os != "windows-ssh" // SSH runs in session 0: no window, no prompt
+		windowAvailable = func() bool { return desktop }
+		if !desktop {
+			tc.os = "windows"
+		}
+		setupDiscoveryPlatformOS = tc.os
+		output := &strings.Builder{}
+		runSetupDiscoveryWithFeedback(output, tc.cfg)
+		if got := strings.Contains(output.String(), `Windows may now ask whether "ha-nova" may use your network`); got != tc.want {
+			t.Fatalf("%s %+v: firewall note shown=%v, want %v:\n%s", tc.os, tc.cfg, got, tc.want, output.String())
+		}
 	}
 }

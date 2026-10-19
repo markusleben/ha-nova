@@ -148,7 +148,7 @@ Current mapping:
    (`plan delete`, `plan revert`): the plan carries the CLI `diff`, the tier,
    and its reasons (a draft that would unlock a door is typed; a delete is
    always typed and lists its consumers). Lead the preview with the verbatim
-   diff; full YAML only on `show yaml`. Pre-preview wording authorizes draft
+   diff; full YAML only when asked. Pre-preview wording authorizes draft
    and preview only; a changed draft needs a new plan.
 3. Apply + Verify — `ha-nova apply --plan <id>` re-plans (exit 2 on drift),
    takes the pre-delete config snapshot, sends the body byte-exactly once,
@@ -389,7 +389,7 @@ Alarm/lock rules:
 ## Review Architecture
 
 `ha-nova:review` is a self-contained read-only reviewer:
-- Config quality: safety (S-01..S-03), reliability (R-01..R-30), performance (P-01..P-05), style (M-01..M-05; M-04 retired, moved to R-20), script-specific (F-01..F-09), helper-specific (H-01..H-15), scene (SC-01..SC-07), dashboard (D-01..D-07), cross-item (HX-01..HX-05), YAML sensors (TS-01..TS-07)
+- Config quality: safety (S-01..S-03), reliability (R-01..R-31), performance (P-01..P-05), style (M-01..M-05; M-04 retired, moved to R-20), script-specific (F-01..F-09), helper-specific (H-01..H-15), scene (SC-01..SC-07), dashboard (D-01..D-07), cross-item (HX-01..HX-05), YAML sensors (TS-01..TS-07)
 - `R-25` is pasted-YAML only (legacy template platform syntax, removed in HA 2026.6); `M-05` is a modernize advisory for pre-2024.10 automation keys
 - Collision scan: `search/related` on top 3 target entities
 - Conflict analysis: 3-step test (polarity → temporal → guard conditions)
@@ -510,7 +510,7 @@ Rules: never invent a `media_content_id`; volume jumps and announcements are dis
 
 ## YAML Config Architecture
 
-`ha-nova:yaml-config` owns configuration that has no API, through the relay's opt-in file access. The current release enforces Relay >= 0.9.1:
+`ha-nova:yaml-config` owns configuration that has no API, through the relay's opt-in file access (probed once, not version-gated):
 - read -> File-Change Preview (effect sentences + the changed section only, never a unified diff) -> confirm -> `write_file` (automatic `.bak`) -> `POST /api/config/core/check_config` -> targeted reload -> verify the entity in `/api/states`
 - an invalid `check_config` restores the `.bak` BEFORE reporting, and never reloads
 - whole-file replacement: never write a file that was not read first

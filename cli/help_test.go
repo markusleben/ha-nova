@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -26,6 +27,7 @@ func TestSubcommandHelpFlagPrintsUsageAndFlags(t *testing.T) {
 		wantFlag  string
 	}{
 		{"update", func() int { return runUpdate(paths, []string{"--help"}) }, "Usage: ha-nova update", "-force"},
+		{"try", func() int { return runTryCommand(paths, []string{"--help"}) }, "Usage: ha-nova try", "-stop"},
 		{"doctor", func() int { return runDoctor(paths, []string{"--help"}) }, "Usage: ha-nova doctor", "-auto-repair"},
 		{"check-update", func() int { return runCheckUpdate(paths, []string{"--help"}) }, "Usage: ha-nova check-update", "-json"},
 		{"uninstall", func() int { return runUninstall(paths, []string{"--help"}) }, "Usage: ha-nova uninstall", "-purge"},
@@ -51,6 +53,8 @@ func TestSubcommandHelpFlagPrintsUsageAndFlags(t *testing.T) {
 		{"relay core", func() int { return runRelayCommand(paths, []string{"core", "--help"}) }, "Usage: ha-nova relay core", "-body-file"},
 		{"relay ws", func() int { return runRelayCommand(paths, []string{"ws", "--help"}) }, "Usage: ha-nova relay ws", "-data-file"},
 		{"mcp", func() int { return runMCPCommand(paths, []string{"--help"}) }, "EXPERIMENTAL — not supported yet", "-server"},
+		{"serve", func() int { return runServeCommand(paths, []string{"--help"}) }, "EXPERIMENTAL — not supported yet", "-secret-file"},
+		{"chat-apps", func() int { return runChatAppsCommand(paths, []string{"--help"}) }, "Usage: ha-nova chat-apps [on|off|status]", "Claude and ChatGPT"},
 		{"relay version", func() int { return runRelayCommand(paths, []string{"version", "--help"}) }, "Usage: ha-nova relay version", "No flags"},
 		{"version (root)", func() int { return dispatch(paths, "ha-nova", []string{"version", "--help"}) }, "Usage: ha-nova version", "No flags"},
 		{"trace (parent)", func() int { return runTraceCommand(paths, []string{"--help"}) }, "Usage: ha-nova trace <latest|list|get>", "trace <subcommand> --help"},
@@ -201,7 +205,8 @@ func TestGlobalUsageMentionsPerCommandHelp(t *testing.T) {
 		}
 	}
 	// The MCP adapter is experimental and unadvertised: callable, not listed.
-	if strings.Contains(out, "ha-nova mcp") {
-		t.Fatalf("global usage lists the experimental mcp command:\n%s", out)
+	// chat-apps joins the usage with the App release that turns chat apps on.
+	if strings.Contains(out, "ha-nova mcp") || regexp.MustCompile(`ha-nova serve\b`).MatchString(out) || strings.Contains(out, "chat-apps") {
+		t.Fatalf("global usage lists the experimental mcp command or chat-apps (before the App release):\n%s", out)
 	}
 }

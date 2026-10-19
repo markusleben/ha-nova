@@ -36,13 +36,23 @@ func runSetup(paths runtimePaths, args []string) int {
 	server := fs.String("server", "", "server profile name")
 	nonInteractive := fs.Bool("non-interactive", false, "Disable prompts")
 	serviceMode := fs.Bool("service", false, "Use a service-safe relay token file instead of desktop secure storage")
+	noBrowser := fs.Bool("no-browser", false, "Set up in the terminal instead of the browser page")
+	demo := fs.Bool("demo", false, "Connect the shared demo house instead (same as ha-nova try)")
 	if err := fs.Parse(normalizeSetupArgs(args)); err != nil {
-		if helpRequested(err, fs, "ha-nova setup [client] [--server <name>] [--service] [--non-interactive] [--host <host>] [--ha-url <url>] [--relay-url <url>] [--relay-token <token>]") {
+		if helpRequested(err, fs, "ha-nova setup [client] [--server <name>] [--service] [--no-browser] [--demo] [--non-interactive] [--host <host>] [--ha-url <url>] [--relay-url <url>] [--relay-token <token>]") {
 			return 0
 		}
 		printHumanErr("%s", err)
 		return 1
 	}
+	if *demo {
+		if fs.NFlag() != 1 || fs.NArg() != 0 {
+			printHumanErr("ha-nova setup --demo takes no other options")
+			return 1
+		}
+		return runTryCommand(paths, nil)
+	}
+	setupNoBrowser = *noBrowser
 	serverSet := false
 	fs.Visit(func(field *flag.Flag) {
 		if field.Name == "server" {
@@ -644,7 +654,7 @@ func runSetup(paths runtimePaths, args []string) int {
 // persists config/state via the device path (stamping the version), then installs
 // clients — instead of failing with "missing relay auth token".
 func completeNonInteractivePairedSetup(paths runtimePaths, cfg runtimeConfig, state installState, selectedClients []string, lifecycleMarker ...[]byte) int {
-	if !verifyDeviceHealth(cfg) {
+	if verifyDeviceHealth(cfg) != deviceOK {
 		printHumanErr("This device is paired, but the secure connection could not be verified. Run 'ha-nova doctor', or re-pair with 'ha-nova setup' interactively.")
 		return 1
 	}

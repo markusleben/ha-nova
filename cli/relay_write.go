@@ -14,7 +14,7 @@ import (
 // is sent exactly once, never retried, never through the read path (read()
 // refuses it, I1), and must pass checkWriteRequest — service calls, the
 // automation/script config endpoints, the dashboard save/create/delete WS
-// commands, and a config-snapshot save.
+// commands, one device's area (rooms plans), and a config-snapshot save.
 
 var relayWriteTimeout = 30 * time.Second
 
@@ -41,6 +41,8 @@ func checkWriteRequest(endpoint string, payload map[string]any) error {
 		snapshotNamePattern.MatchString(fmt.Sprint(payload["name"])):
 		return nil
 	case endpoint == "ws" && dashboardWrite(payload):
+		return nil
+	case endpoint == "ws" && deviceAreaUpdate(payload):
 		return nil
 	}
 	return fmt.Errorf("refused a write outside the typed-verb allowlist (%s %s %s); nothing was sent", endpoint, method, path)
@@ -76,6 +78,15 @@ func dashboardWrite(payload map[string]any) bool {
 		}
 	}
 	return required != nil && known == len(payload)
+}
+
+// deviceAreaUpdate: one device's area and nothing else of the device
+// (rooms plans); area_id null takes the device out of its area.
+func deviceAreaUpdate(payload map[string]any) bool {
+	device, _ := payload["device_id"].(string)
+	area, isText := payload["area_id"].(string)
+	_, hasArea := payload["area_id"]
+	return payload["type"] == deviceAreaRequest && len(payload) == 3 && device != "" && hasArea && (payload["area_id"] == nil || isText && area != "")
 }
 
 // serviceResult is Home Assistant's own answer to a core write.

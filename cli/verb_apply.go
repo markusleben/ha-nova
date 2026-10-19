@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 )
@@ -22,7 +23,7 @@ after the user confirms the preview (or types the one-time code).
 Exit: 0 verified/accepted, 3 needs confirmation, 4 refused, 5 ambiguous or
 not found, 6 unverified/failed, 7 outcome unknown (verify; never retry).`
 
-const applyUsage = "ha-nova apply --plan <id> [--confirm <code>]"
+const applyUsage = "ha-nova apply [--confirm <code>] --plan <id>"
 
 const applyHelp = applyUsage + `
 
@@ -34,13 +35,18 @@ typed plan needs --confirm with the four-digit one-time code the user typed
 (spaces ignored; three wrong codes discard the plan; that counter guards
 against slips, not tampering). A typed plan with "channel": "window" takes
 no code: apply opens a confirmation window on this computer and waits for
-the user (up to 90 s); if it can't open, apply returns a new plan. One with
-"channel": "phone" sends Confirm/Cancel to the phone linked to HA NOVA
-(Companion app) and waits the same way.
+the user (up to 90 s); where a phone is linked, the phone asks at the same
+time and the first answer counts; if the window can't open, the phone alone
+decides, else apply returns a new plan. One with "channel": "phone" sends
+Confirm/Cancel to the phone linked to HA NOVA (Companion app) and waits the
+same way. After apply, "plan.channel" says where the user confirmed.
 Config plans (plan write/delete/revert) save the config once, reload, and
 verify the read-back; an update lands on the undo stack, and a delete (and
 every dashboard save) takes a config snapshot first (--no-snapshot only
 after that snapshot failed and the user chose to proceed without one).
+Rooms plans (plan rooms, or plan revert of a rooms record) set each device's
+area once; when one write fails, the earlier ones are put back, and the
+result names anything that could not be.
 Exit: 0 verified/accepted, 2 drift, 4 refused/missing/expired/wrong code,
 5 target gone, 6 unverified/failed, 7 outcome unknown (verify; never retry).`
 
@@ -53,6 +59,9 @@ var reauthSettle = 2 * time.Second
 func runCallCommand(paths runtimePaths, args []string) int {
 	return runCallVerb(paths, "call", "call", callHelp, args, func(s *relaySession, env *verbEnvelope, req planCallRequest) error {
 		e, plan, err := computeCallPlan(s, env, req)
+		if noChangeCall(e, env, req, err) { // nothing to confirm or send (call_no_change.go)
+			return nil
+		}
 		if err != nil {
 			return err
 		}
@@ -68,82 +77,60 @@ func runCallCommand(paths runtimePaths, args []string) int {
 }
 
 func runApplyCommand(paths runtimePaths, args []string) int {
-	var opts verbOptions
+	req, exit, ok := parseApplyArgs(args)
+	if !ok {
+		return exit
+	}
+	env, exit, asked := confirmByWindow(paths, req.opts, req.id, req.noSnapshot)
+	if !asked {
+		env, exit, asked = confirmByPhone(paths, req.opts, req.id, req.noSnapshot)
+	}
+	return finishApply(paths, req, env, exit, asked)
+}
+
+type applyRequest struct {
+	opts       verbOptions
+	id, code   string
+	noSnapshot bool
+}
+
+func parseApplyArgs(args []string) (req applyRequest, exit int, ok bool) {
 	fs := flag.NewFlagSet("apply", flag.ContinueOnError)
-	addVerbFlags(fs, &opts)
-	id := fs.String("plan", "", "plan id from plan/call (p_ + 12 hex)")
-	code := fs.String("confirm", "", "the one-time code from HA NOVA, exactly as the user typed it (typed plans only)")
-	noSnapshot := fs.Bool("no-snapshot", false, "delete plans: proceed without the pre-delete config snapshot (only after the user chose that)")
-	positional, err := parseVerbArgs(fs, &opts, args, applyHelp)
-	if err == nil && (len(positional) != 0 || !planIDPattern.MatchString(*id)) {
+	addVerbFlags(fs, &req.opts)
+	fs.StringVar(&req.id, "plan", "", "plan id from plan/call (p_ + 12 hex)")
+	fs.StringVar(&req.code, "confirm", "", "the one-time code from HA NOVA, exactly as the user typed it (typed plans only)")
+	fs.BoolVar(&req.noSnapshot, "no-snapshot", false, "delete plans: proceed without the pre-delete config snapshot (only after the user chose that)")
+	positional, err := parseVerbArgs(fs, &req.opts, args, applyHelp)
+	if err == nil && (len(positional) != 0 || !planIDPattern.MatchString(req.id)) {
 		err = errors.New("Usage: " + applyUsage)
 	}
 	if err != nil {
-		return verbUsageError("apply", err)
+		return req, verbUsageError("apply", err), false
 	}
-	env, exit, asked := confirmByWindow(paths, opts, *id, *noSnapshot)
+	return req, 0, true
+}
+
+// finishApply applies unless a window or phone already answered (asked),
+// prints, and then tells the phone how it ended.
+func finishApply(paths runtimePaths, req applyRequest, env verbEnvelope, exit int, asked bool) int {
+	if done := phoneApplied; done != nil { // the phone hears how it ended, even after a panic (unclear)
+		phoneApplied = nil
+		if !asked {
+			exit, env.Status = verbExitUnknown, ""
+		}
+		defer func() { done(env, exit) }()
+	}
 	if !asked {
-		env, exit, asked = confirmByPhone(paths, opts, *id, *noSnapshot)
+		env, exit = applyPlan(paths, req.opts, req.id, req.code, req.noSnapshot)
+		if humanWhere != "" && env.Plan != nil && env.Status != "drift" && env.Status != "needs_confirmation" {
+			env.Plan.Channel = humanWhere // where the human confirmed; a drift's plan stays a new ask
+		}
 	}
-	if !asked {
-		env, exit = applyPlan(paths, opts, *id, *code, *noSnapshot)
-	}
-	defer func() { humanAnswer = "" }()
+	defer func() { humanAnswer, humanWhere = "", "" }()
 	if !printVerbEnvelope(env) {
 		return verbExitError
 	}
 	return exit
-}
-
-func refused(code, message string) *verbFailure {
-	next, known := refusalNext[code]
-	if !known {
-		next = replan
-	}
-	return refusedWith(code, message, next)
-}
-
-func refusedWith(code, message, next string) *verbFailure {
-	return &verbFailure{exit: verbExitRefused, code: code, message: message + "; nothing was sent", next: next}
-}
-
-// A re-plan always shows its new preview and asks again: no plan is ever
-// applied without a fresh confirmation.
-const replan = "Plan again (ha-nova plan call|write|delete|revert), show its preview, and get confirmation again."
-
-// A used or claimed plan: the claim precedes recompute and send, so the
-// winner may still be sending — an immediate read proves nothing.
-const mayHaveRun = "Another apply holds or used this plan — its outcome is unknown. Do not plan or apply again; tell the user it may have run and let them check."
-
-// refusalNext is the one next step per refusal code; anything not listed
-// is a plan that must be made again.
-var refusalNext = map[string]string{
-	"PLAN_NOT_FOUND":          mayHaveRun,
-	"PLAN_CLAIMED":            mayHaveRun,
-	"PLAN_EXPIRED":            "Plan again, show the new preview, and get confirmation again.",
-	"PLAN_INVALIDATED":        "Stop and tell the user; plan again only on their explicit request, show the new preview, and get confirmation again.",
-	"SERVER_MISMATCH":         "Apply it with the plan's own server (--server), or plan again for this one.",
-	"UNRESOLVED_TARGET":       "Name the entities explicitly, or check the area or device, then plan again.",
-	"NO_SNAPSHOT_NOT_OFFERED": "Apply without --no-snapshot: the config snapshot is taken first.",
-	"CODE_REQUIRED":           "Ask the user to type only the four digits of the one-time code from HA NOVA shown with the plan, then pass exactly what they typed with --confirm.",
-	"CODE_MISMATCH":           "Ask the user to type only the four digits of the one-time code from HA NOVA again, as shown with the plan.",
-	"CONFIRM_IN_FORM":         "Apply it in the app where it was planned (its confirmation form asks the user), or plan it again here and show the new preview.",
-	"NO_UNDO_SNAPSHOT":        "Only the last verified update of an automation, script, or dashboard can be reverted; there is nothing to revert.",
-	"REVERT_UNSUPPORTED":      "To undo an automation, script, or dashboard: plan revert --target <config_id> (for a dashboard, its url_path). The newest checkpoint belongs to a helper: revert that through ha-nova:helper.",
-	"CONFIG_ID_UNSUPPORTED":   "Pass the config_id from `ha-nova get <entity_id> --config`, not the entity_id; a YAML item is edited through ha-nova:yaml-config.",
-	"CONFIG_NOT_UI_MANAGED":   "It is defined in YAML or a package: edit it there through ha-nova:yaml-config.",
-}
-
-// configIDInUseNext: a collision usually means an earlier create already
-// landed (a retry after a timeout); otherwise a script's key is its name, so
-// another one is the user's choice — never an overwrite without them
-// meaning it.
-func configIDInUseNext(domain string) string {
-	const earlier = "It may be the item an earlier apply created — read it first (`ha-nova find \"<alias>\"`); if it is, it exists: do not create another. "
-	if domain == "script" {
-		return earlier + "Otherwise ask the user for another name, then plan again with --id <new> --create; update the existing script only if they mean to replace it."
-	}
-	return earlier + "Otherwise plan again without --id (a new id is minted); update the existing automation only if the user means to replace it."
 }
 
 // applyPlan runs the spec §2.1 apply order: claim (I8), expiry, server,
@@ -191,13 +178,14 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string, noSnapshot
 		(plan.Channel == channelChat || plan.Channel == channelForm || humanChannel(plan.Channel) || plan.SchemaVersion < planSchemaVersion)
 	isCall := valid && plan.Kind == "call" && config == nil && request.validate() == nil
 	isConfig := valid && config != nil && config.Op == plan.Kind && config.ConfigID != "" && config.validate() == nil
+	isRooms := valid && plan.Kind == "rooms" && config == nil && plan.RoomsRequest != nil && plan.RoomsRequest.validate() == nil
 	switch {
-	case !isCall && !isConfig:
+	case !isCall && !isConfig && !isRooms:
 		return fail(refused("PLAN_INVALID", "plan "+id+" cannot be read or is not a valid plan"))
 	case isCall && staticRefusal(request) != nil:
 		return fail(refuse(&env, *staticRefusal(request)))
 	case !verbNow().Before(expires):
-		return fail(refused("PLAN_EXPIRED", "plan "+id+" expired at "+plan.ExpiresAt))
+		return fail(refused("PLAN_EXPIRED", "plan "+id+" expired "+sayAgo(verbNow().Sub(expires))))
 	case expires.After(verbNow().Add(planTTL + time.Minute)):
 		// The plan file is user-writable; a far-future expiry would turn the
 		// 4-digit code into an unbounded online brute force. No plan is ever
@@ -237,9 +225,12 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string, noSnapshot
 	var e *tierEngine
 	var fresh storedPlan
 	var ctx configContext
-	if isCall {
+	switch {
+	case isCall:
 		e, fresh, err = computeCallPlan(s, &env, request)
-	} else {
+	case isRooms:
+		e, fresh, err = computeRoomsPlan(s, &env, *plan.RoomsRequest)
+	default:
 		e, fresh, ctx, err = computeConfigPlan(paths, s, &env, *config)
 	}
 	// release hands the claimed plan back after a failure before anything
@@ -261,6 +252,12 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string, noSnapshot
 		return fail(err)
 	}
 	if fresh.Hash != plan.Hash {
+		// It got there meanwhile: nothing to send or re-confirm — only for the
+		// very targets the user confirmed (a changed area is a new preview).
+		if isCall && slices.Equal(fresh.Action.EntityIDs, plan.Action.EntityIDs) && alreadyDone(e, &env, fresh.Action) {
+			markNoChange(e, &env, fresh.Action)
+			return env, verbExitOK
+		}
 		if fresh.Prompt != "" { // a confirmation form shows it without the preview (mcp_confirm.go)
 			fresh.Prompt = "Something changed since the last preview. " + fresh.Prompt
 		}
@@ -326,6 +323,13 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string, noSnapshot
 		wantCode = "" // never shown, not even once used
 	}
 	env.Plan = &verbPlan{ID: plan.ID, Hash: fresh.Hash, ExpiresAt: plan.ExpiresAt, Confirm: fresh.Confirm, Code: wantCode}
+	if isRooms {
+		previewed, _ := env.Result.(roomsResult)
+		if err := executeRooms(paths, s, &env, *fresh.RoomsRequest, previewed.Changes); err != nil {
+			return fail(err)
+		}
+		return env, env.exit
+	}
 	if isConfig {
 		err := executeConfig(paths, s, &env, *fresh.ConfigAction, ctx, noSnapshot)
 		if errors.Is(err, errSnapshotFailed) {

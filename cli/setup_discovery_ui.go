@@ -4,12 +4,14 @@ import (
 	"bufio"
 	"fmt"
 	"io"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
 )
 
 var discoverReachableHAHostsForSetup = discoverReachableHAHosts
+var setupDiscoveryPlatformOS = runtime.GOOS
 
 type setupDiscoveryResult struct {
 	candidates []setupDiscoveryCandidate
@@ -25,8 +27,12 @@ func selectDefaultHAHostWithFeedback(reader *bufio.Reader, out io.Writer, cfg ru
 	case 1:
 		candidate := result.candidates[0]
 		renderSetupDiscoveryResult(out, candidate.Host, candidate.Via, true)
-		needsAddressConfirmation := isLocalDiscoveryHost(candidate.Host)
-		return candidate, !needsAddressConfirmation, nil
+		if isLocalDiscoveryHost(candidate.Host) { // asked as an editable address (renderSetupDiscoveryResult says why)
+			return candidate, false, nil
+		}
+		// Never taken unasked: another Home Assistant on the network (a
+		// test one, a neighbour's) may be the one that answered (lane D3).
+		return promptSetupDiscoveryCandidateInteractive(reader, out, result.candidates)
 	default:
 		fmt.Fprintf(out, "  Found %d reachable Home Assistant instances. Choose the one to set up.\n", len(result.candidates))
 		return promptSetupDiscoveryCandidateInteractive(reader, out, result.candidates)
@@ -34,6 +40,18 @@ func selectDefaultHAHostWithFeedback(reader *bufio.Reader, out io.Writer, cfg ru
 }
 
 func runSetupDiscoveryWithFeedback(out io.Writer, cfg runtimeConfig) setupDiscoveryResult {
+	// The mDNS search listens on UDP 5353 on every interface (it must: the
+	// answers come from the LAN), so the first run on Windows raises a
+	// firewall prompt. Every other listener is loopback-only.
+	// Shown on a first run in a desktop session only (over SSH, session 0,
+	// no prompt can show); an elevated desktop terminal still gets it.
+	if input, _ := preferredConfiguredHAInput(cfg); input == "" && setupDiscoveryPlatformOS == "windows" &&
+		windowAvailable() {
+		renderSetupParagraph(out,
+			`Windows may now ask whether "ha-nova" may use your network (publisher unknown: HA NOVA isn't code-signed yet).`,
+			"That's this search for Home Assistant. You can choose Cancel: setup continues, and if nothing is found you type the address.",
+		)
+	}
 	if !resolveSetupUISession(out).animatesSpinner() {
 		fmt.Fprintln(out)
 		fmt.Fprintf(out, "  Discovering Home Assistant on your network... (up to %ds)\n", int((setupDiscoveryOverallTimeout+time.Second-1)/time.Second))

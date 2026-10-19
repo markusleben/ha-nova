@@ -170,8 +170,8 @@ actions: ...
 For list operations, render the List Frame (output-cards.md) with these columns:
 
 ```
-| Entity ID | Name | Area |
-|-----------|------|------|
+| Name | Area |
+|------|------|
 ```
 
 Never show raw JSON to the user.

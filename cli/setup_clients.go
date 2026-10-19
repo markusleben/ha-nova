@@ -1,9 +1,8 @@
 package main
 
-import "fmt"
+import "errors"
 
 type setupClientChoice struct {
-	Number         string
 	Value          string
 	Label          string
 	Disabled       bool
@@ -37,25 +36,16 @@ func buildSetupClientChoices(paths runtimePaths, state installState) ([]setupCli
 	}
 
 	choices := append(append([]setupClientChoice{}, availableChoices...), disabledChoices...)
-	for index := range choices {
-		choices[index].Number = indexNumber(index + 1)
-	}
-
 	allChoice := setupClientChoice{
-		Number:   indexNumber(len(choices) + 1),
 		Value:    "all",
-		Label:    "All available clients",
+		Label:    setupT("setup.clients.all"),
 		Resolved: append([]string{}, available...),
 	}
 	if len(available) == 0 {
 		allChoice.Disabled = true
-		allChoice.DisabledReason = "install a supported AI client first"
+		allChoice.DisabledReason = setupT("setup.clients.all_unavailable")
 	}
 	return append(choices, allChoice), nil
-}
-
-func indexNumber(value int) string {
-	return fmt.Sprintf("%d", value)
 }
 
 func resolveSetupClients(paths runtimePaths, target string) ([]string, []string, error) {
@@ -81,7 +71,7 @@ func resolveSetupClientsWithChoices(choices []setupClientChoice, target string) 
 			continue
 		}
 		if choice.Disabled {
-			return nil, nil, fmt.Errorf("%s is not available yet: %s", choice.Label, choice.DisabledReason)
+			return nil, nil, errors.New(setupT("setup.menu.choice_unavailable", "choice", choice.Label, "reason", choice.DisabledReason))
 		}
 		if choice.Value == "all" {
 			skipped := []string{}
@@ -95,5 +85,5 @@ func resolveSetupClientsWithChoices(choices []setupClientChoice, target string) 
 		}
 		return append([]string{}, choice.Resolved...), nil, nil
 	}
-	return nil, nil, fmt.Errorf("unsupported client: %s", target)
+	return nil, nil, errors.New(setupT("setup.clients.unsupported", "client", target))
 }

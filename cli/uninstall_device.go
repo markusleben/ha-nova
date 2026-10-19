@@ -179,7 +179,7 @@ func purgeProfileDeviceCredentialWithReport(
 			} else if !relayExpectedGone {
 				pendingOutcome = serverRemovalCleanupFailed
 				report.addNote(fmt.Sprintf(
-					"Could not reach the relay to revoke the interrupted pending device pairing (device id %s). Remove it on the NOVA page in Home Assistant.",
+					"Could not reach the relay to revoke the interrupted pending device pairing (device id %s). If the NOVA App is still installed, remove the device on its NOVA page in Home Assistant.",
 					deviceCredentialID(pending.Credential),
 				))
 			}
@@ -353,7 +353,7 @@ func purgeProfileDeviceCredentialWithReport(
 	case relayExpectedGone:
 		// The App (and its device registry) is already gone; nothing to revoke.
 	case secureBaseURL != "":
-		report.addNote(fmt.Sprintf("Could not reach the relay to revoke this device's pairing (device id %s). Remove it on the NOVA page in Home Assistant.", deviceCredentialID(credential)))
+		report.addNote(fmt.Sprintf("Could not reach the relay to revoke this device's pairing (device id %s). If the NOVA App is still installed, remove the device on its NOVA page in Home Assistant.", deviceCredentialID(credential)))
 	}
 	return removeDeviceFileStorageResidueForProfile(target.name)
 }

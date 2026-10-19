@@ -56,7 +56,23 @@ const (
 	// channelPhoneUnlinked is never stored: #719's pin, no phone chosen yet,
 	// so the plan is refused until one is linked, never downgraded.
 	channelPhoneUnlinked = "phone-unlinked"
+	// channelChatOff is never stored: ha-nova serve, no phone linked for
+	// this user, and the owner turned chat codes off (mcp_serve_phone.go).
+	channelChatOff = "chat-off"
 )
+
+// channelRefusal: a channel no plan may be stored with, and why.
+func channelRefusal(channel string) *verbFailure {
+	switch channel {
+	case channelPhoneMissing:
+		return refusedWith("CONFIRM_UNAVAILABLE", phoneMissingWhy, phoneMissingStep())
+	case channelPhoneUnlinked:
+		return refusedWith("CONFIRM_UNAVAILABLE", phoneUnlinkedWhy, phoneUnlinkedNext)
+	case channelChatOff:
+		return refusedWith("CONFIRM_UNAVAILABLE", chatCodesOffWhy, chatCodesOffNext)
+	}
+	return nil
+}
 
 // humanChannel: the human answers in a window or on a phone; the plan's
 // code never leaves this process.
@@ -66,10 +82,13 @@ func humanChannel(channel string) bool { return channel == channelWindow || chan
 // for the verb it runs; empty means the CLI detects it (detectChannel).
 // humanAnswer is the code the CLI derives in process once the human
 // confirmed in a form or window, for the apply it runs. Neither has a flag
-// or an environment variable.
+// or an environment variable. humanWhere: the channel that answered (window
+// or phone; both ask for a window plan when a phone is linked), which apply
+// reports as plan.channel.
 var (
 	planChannel string
 	humanAnswer string
+	humanWhere  string
 )
 
 // sayChatNote closes a chat plan's ask: the honest limit of fallback E.
@@ -105,8 +124,15 @@ func sayTypedAsk(code, goal string) string {
 // sayWindowAsk closes a window plan's `say`: the code is never shown.
 const sayWindowAsk = "A confirmation window opens on this computer — confirm there."
 
+// sayWindowPhoneAsk: a phone is linked here, so it asks too (confirm_both.go).
+func sayWindowPhoneAsk(button string) string {
+	return "A confirmation window opens on this computer, and your linked phone gets a notification (expand it and tap “" + button + "”). Answer on either, only if you asked for this; the first answer counts."
+}
+
 // sayPhoneAsk closes a phone plan's `say`: the code is never shown.
-const sayPhoneAsk = "HA NOVA sends a confirmation to your phone — tap Confirm there."
+func sayPhoneAsk(button string) string {
+	return "HA NOVA sends a notification to your phone: expand it and tap “" + button + "” there, only if you asked for this."
+}
 
 // sayFormAsk replaces sayTypedAsk where the client shows a confirmation
 // form: the code is never in a tool result there (mcp_confirm.go).

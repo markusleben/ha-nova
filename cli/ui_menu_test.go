@@ -184,3 +184,36 @@ func TestSetupMenuFitsWidthRejectsWrappedLayout(t *testing.T) {
 		t.Fatal("expected oversized menu to report false for width fit check")
 	}
 }
+
+func TestPromptWizardYesNoMenu(t *testing.T) {
+	originalEnv, originalTTY, originalInput, originalANSI, originalRunner := uiEnvLookup, writerSupportsTTYForSetup, uiInputSupportsTTY, uiOutputSupportsANSI, interactiveSetupMenuRunner
+	t.Cleanup(func() {
+		uiEnvLookup, writerSupportsTTYForSetup, uiInputSupportsTTY, uiOutputSupportsANSI, interactiveSetupMenuRunner = originalEnv, originalTTY, originalInput, originalANSI, originalRunner
+	})
+	uiEnvLookup = func(string) string { return "" }
+	writerSupportsTTYForSetup = func(io.Writer) bool { return true }
+	uiInputSupportsTTY = func() bool { return true }
+	uiOutputSupportsANSI = func(io.Writer) bool { return true }
+	ask := func(input string) (bool, error) {
+		return promptWizardYesNoMenu(bufio.NewReader(strings.NewReader(input)), &bytes.Buffer{}, "Add another Home Assistant server?", "Yes", "No", false)
+	}
+
+	for answer, want := range map[string]bool{"yes": true, "no": false} {
+		interactiveSetupMenuRunner = &stubSetupMenuRunner{answer: answer}
+		if got, err := ask(""); got != want || err != nil {
+			t.Fatalf("menu %q: %v, %v", answer, got, err)
+		}
+	}
+	interactiveSetupMenuRunner = &stubSetupMenuRunner{err: errSetupBack}
+	if got, err := ask(""); got || !errors.Is(err, errSetupBack) {
+		t.Fatalf("Esc: %v, %v", got, err)
+	}
+	// Without the menu, the [y/N] line still answers.
+	interactiveSetupMenuRunner = &stubSetupMenuRunner{err: errSetupMenuUnavailable}
+	if got, err := ask("y\n"); !got || err != nil {
+		t.Fatalf("fallback y: %v, %v", got, err)
+	}
+	if got, err := ask("\n"); got || err != nil {
+		t.Fatalf("fallback default: %v, %v", got, err)
+	}
+}

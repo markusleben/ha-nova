@@ -41,6 +41,16 @@ type OAuthLoopbackFlow struct {
 	Random        io.Reader
 	Timeout       time.Duration
 	BeforeBrowser OAuthLoopbackPrepareHook
+	// Tab, when set, takes the callback on the setup page's own loopback
+	// server instead of a listener of its own, so Home Assistant's
+	// redirect returns into the page's tab.
+	Tab oauthCallbackTab
+}
+
+type oauthCallbackTab interface {
+	callbackHost() string                                // 127.0.0.1:<port> of the page server
+	routeCallback(callback http.Handler) (stop func())   // serves oauthLoopbackCallbackPath until stop
+	callbackDone(w http.ResponseWriter, r *http.Request) // answers the browser after a valid callback
 }
 
 func NewOAuthLoopbackFlow() *OAuthLoopbackFlow {
@@ -82,17 +92,23 @@ func (f *OAuthLoopbackFlow) AuthorizeOrigin(
 	authorizationCtx, cancelAuthorization := context.WithTimeout(ctx, timeout)
 	defer cancelAuthorization()
 
-	listener, err := f.Listen("tcp4", "127.0.0.1:0")
-	if err != nil {
-		return OAuthAuthorizationCode{}, newCloudError(CloudErrNetwork, "bind OAuth callback", err)
+	var listener net.Listener
+	var host string
+	if f.Tab != nil {
+		host = f.Tab.callbackHost()
+	} else {
+		var err error
+		listener, err = f.Listen("tcp4", "127.0.0.1:0")
+		if err != nil {
+			return OAuthAuthorizationCode{}, newCloudError(CloudErrNetwork, "bind OAuth callback", err)
+		}
+		defer listener.Close()
+		tcpAddr, ok := listener.Addr().(*net.TCPAddr)
+		if !ok || !tcpAddr.IP.Equal(net.ParseIP("127.0.0.1")) || tcpAddr.Port < 1 {
+			return OAuthAuthorizationCode{}, newCloudError(CloudErrOAuthProtocol, "bind OAuth callback", nil)
+		}
+		host = net.JoinHostPort("127.0.0.1", strconv.Itoa(tcpAddr.Port))
 	}
-	defer listener.Close()
-	tcpAddr, ok := listener.Addr().(*net.TCPAddr)
-	if !ok || !tcpAddr.IP.Equal(net.ParseIP("127.0.0.1")) || tcpAddr.Port < 1 {
-		return OAuthAuthorizationCode{}, newCloudError(CloudErrOAuthProtocol, "bind OAuth callback", nil)
-	}
-
-	host := net.JoinHostPort("127.0.0.1", strconv.Itoa(tcpAddr.Port))
 	clientID := "http://" + host + oauthLoopbackClientPath
 	redirectURI := "http://" + host + oauthLoopbackCallbackPath
 	if err := ValidateOAuthLoopbackClientID(clientID); err != nil {
@@ -139,6 +155,10 @@ func (f *OAuthLoopbackFlow) AuthorizeOrigin(
 				return
 			}
 			resultCh <- result
+			if f.Tab != nil {
+				f.Tab.callbackDone(w, r) // the page shows how the sign-in ended
+				return
+			}
 			if result.err != nil {
 				http.Error(w, "Sign-in did not finish. Go back to the terminal to continue.", http.StatusBadRequest)
 				return
@@ -147,21 +167,27 @@ func (f *OAuthLoopbackFlow) AuthorizeOrigin(
 			_, _ = io.WriteString(w, "<!doctype html><html><head><meta charset=\"utf-8\"><title>HA NOVA</title></head><body><p>Done. You can close this tab and go back to the terminal.</p></body></html>")
 		}
 	})
-	server := &http.Server{
-		Handler:           handler,
-		ReadTimeout:       5 * time.Second,
-		ReadHeaderTimeout: 5 * time.Second,
-		WriteTimeout:      5 * time.Second,
-		IdleTimeout:       5 * time.Second,
-		MaxHeaderBytes:    oauthLoopbackMaxHeader,
-		ErrorLog:          log.New(io.Discard, "", 0),
-	}
+	var server *http.Server // nil on the setup page: its server routes the callback
 	serveErrCh := make(chan error, 1)
-	go func() {
-		if err := server.Serve(listener); err != nil && err != http.ErrServerClosed {
-			serveErrCh <- err
+	if f.Tab != nil {
+		stop := f.Tab.routeCallback(handler)
+		defer stop()
+	} else {
+		server = &http.Server{
+			Handler:           handler,
+			ReadTimeout:       5 * time.Second,
+			ReadHeaderTimeout: 5 * time.Second,
+			WriteTimeout:      5 * time.Second,
+			IdleTimeout:       5 * time.Second,
+			MaxHeaderBytes:    oauthLoopbackMaxHeader,
+			ErrorLog:          log.New(io.Discard, "", 0),
 		}
-	}()
+		go func() {
+			if err := server.Serve(listener); err != nil && err != http.ErrServerClosed {
+				serveErrCh <- err
+			}
+		}()
+	}
 	if err := authorizationCtx.Err(); err != nil {
 		shutdownOAuthCallbackServer(server)
 		return OAuthAuthorizationCode{}, newCloudError(
@@ -314,6 +340,9 @@ func setOAuthCallbackHeaders(header http.Header) {
 }
 
 func shutdownOAuthCallbackServer(server *http.Server) {
+	if server == nil {
+		return
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 	_ = server.Shutdown(ctx)

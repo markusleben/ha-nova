@@ -97,6 +97,12 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
+      # The chat-app bridge (ha-nova CLI) is cross-compiled per arch from this
+      # tree and staged into nova/bridge (scripts/release/stage-app-bridge.sh).
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: "1.26.5"
+          cache: false
       - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
       - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
@@ -129,6 +135,7 @@ jobs:
           build() { # <--load|--push>
             local arch base
             while read -r arch base; do
+              bash scripts/release/stage-app-bridge.sh "$arch" nova/bridge
               docker buildx build --platform "$(app_arch_platform "$arch")" \
                 --build-arg "BUILD_FROM=${pinned[$arch]}" \
                 --build-arg "BUILD_ARCH=${arch}" \
@@ -165,6 +172,18 @@ jobs:
             done
             [[ "$code" == 401 ]] || { docker logs "$cid" || true; docker rm -f "$cid" >/dev/null; echo "::error::${ref} did not start (last /health: ${code:-none})"; exit 1; }
             docker rm -f "$cid" >/dev/null
+            # The bridge binary runs on this arch and carries this tree's version.
+            want="$(sed -n 's/.*"skill_version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' version.json | head -1)"
+            got="$(docker run --rm --platform "$(app_arch_platform "$arch")" --entrypoint /opt/ha-nova/ha-nova "$ref" version)"
+            # QEMU runs any arch, so check the ELF machine field itself.
+            elf="$(docker run --rm --platform "$(app_arch_platform "$arch")" --entrypoint /bin/sh "$ref" -c 'od -An -tx1 -j18 -N2 /opt/ha-nova/ha-nova' | tr -d ' \n')"
+            case "$arch" in amd64) want_elf=3e00 ;; aarch64) want_elf=b700 ;; esac
+            [[ "$elf" == "$want_elf" ]] || { echo "::error::${ref}: bridge binary is ELF machine ${elf}, want ${want_elf}"; exit 1; }
+            docker run --rm --platform "$(app_arch_platform "$arch")" --entrypoint /bin/sh "$ref" \
+              -c 'test -f /opt/ha-nova/bundle.json && test -f /opt/ha-nova/skills/ha-nova/SKILL.md' \
+              || { echo "::error::${ref}: the bridge's skills or bundle.json are missing"; exit 1; }
+            [[ "$got" == *"$want"* ]] \
+              || { echo "::error::${ref}: bridge says '${got}', want ${want}"; exit 1; }
             echo "smoke ok: ${ref}"
           done < <(app_build_from)
 

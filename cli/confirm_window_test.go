@@ -46,7 +46,7 @@ func useWindow(t *testing.T, answers ...windowAnswer) *fakeWindow {
 
 func TestWindowPlanConfirmsInTheWindow(t *testing.T) {
 	h := newWriteHarness(t, newFakeHA())
-	w := useWindow(t, windowCancelled, windowNoAnswer, windowConfirmed)
+	w := useWindow(t, windowCancelled, windowNoAnswer, windowClosed, windowConfirmed)
 	env := h.plan("lock.unlock", "lock.front")
 	plan := env.Plan
 	if plan.Channel != channelWindow || plan.Code != "" || !strings.HasSuffix(env.Say, sayWindowAsk) ||
@@ -62,6 +62,11 @@ func TestWindowPlanConfirmsInTheWindow(t *testing.T) {
 	}
 	if exit, env := h.run(runApplyCommand, "--plan", plan.ID); exit != 4 || env.Error.Code != "CONFIRM_CANCELLED" || !strings.Contains(env.Error.Next, plan.ID) {
 		t.Fatalf("no answer: exit %d %+v", exit, env.Error)
+	}
+	// Closed from outside (lane D9): said as closed, not as a timeout.
+	if exit, env := h.run(runApplyCommand, "--plan", plan.ID); exit != 4 || env.Error.Code != "CONFIRM_CANCELLED" ||
+		env.Error.Message != "the confirmation window was closed; nothing was sent" {
+		t.Fatalf("closed: exit %d %+v", exit, env.Error)
 	}
 	if len(h.posts()) != 0 {
 		t.Fatalf("sent %d requests without a confirmation", len(h.posts()))
@@ -94,7 +99,7 @@ func TestWindowCannotBeSkipped(t *testing.T) {
 		t.Fatalf("an edited plan opened a window: %q", w.messages)
 	}
 	plan = h.plan("lock.unlock", "lock.front").Plan
-	w.before = func() { h.f.states["lock.front"]["state"] = "unlocked" } // drift while the window is open
+	w.before = func() { h.f.states["lock.front"]["state"] = "jammed" } // drift while the window is open (unlocked: no_change)
 	if exit, env := h.run(runApplyCommand, "--plan", plan.ID); exit != 2 || env.Status != "drift" || len(h.posts()) != 0 {
 		t.Fatalf("drift during the window: exit %d %+v", exit, env)
 	}
@@ -126,7 +131,7 @@ func TestWindowOpenFailureFallsBackToChat(t *testing.T) {
 	exit, env := h.run(runApplyCommand, "--plan", old.ID)
 	if exit != 3 || env.Status != "needs_confirmation" || env.Plan == nil || env.Plan.Code == "" || env.Plan.Channel != channelChat ||
 		!strings.HasPrefix(env.Say, "The confirmation window couldn't open on this computer. ") || !strings.HasSuffix(env.Say, sayChatNote) ||
-		!strings.Contains(env.Say, "Type "+env.Plan.Code+" to unlock") || !strings.Contains(env.NextStep, "--plan "+env.Plan.ID+" --confirm") || len(h.posts()) != 0 {
+		!strings.Contains(env.Say, "Type "+env.Plan.Code+" to unlock") || !strings.Contains(env.NextStep, "apply --confirm <the user's text> --plan "+env.Plan.ID) || len(h.posts()) != 0 {
 		t.Fatalf("fallback: exit %d %+v", exit, env)
 	}
 	if exit, env := h.run(runApplyCommand, "--plan", old.ID); exit != 4 || env.Error.Code != "PLAN_NOT_FOUND" {

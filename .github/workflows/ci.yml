@@ -73,12 +73,46 @@ jobs:
       - name: Verify test inventory registration
         run: npm run test:safe -- tests/onboarding/safe-test-system-contract.test.ts
 
+  # The ha_nova Home Assistant integration (nova/integration/ha_nova) against
+  # the Home Assistant version pinned in tests/ha_integration/requirements.txt.
+  # ci-gate needs it, so the required check covers it.
+  ha-integration:
+    name: ha-integration
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.14"
+          cache: pip
+          cache-dependency-path: tests/ha_integration/requirements.txt
+
+      - name: Install
+        run: pip install -r tests/ha_integration/requirements.txt
+
+      - name: Test
+        working-directory: tests/ha_integration
+        run: python -m pytest -q
+
   ci-gate:
     name: ci-gate
-    needs: test-inventory
+    needs: [test-inventory, ha-integration]
+    # A skipped required check counts as passed: always run, and fail here
+    # when a needed job did not succeed.
+    if: ${{ always() }}
     runs-on: ubuntu-latest
 
     steps:
+      - name: Require the needed jobs
+        if: ${{ needs.test-inventory.result != 'success' || needs.ha-integration.result != 'success' }}
+        run: |
+          echo "::error::test-inventory=${{ needs.test-inventory.result }} ha-integration=${{ needs.ha-integration.result }}"
+          exit 1
+
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -146,6 +180,12 @@ jobs:
           GOOS=windows GOARCH=amd64 go build -o /dev/null .
           GOOS=linux GOARCH=amd64 go build -o /dev/null .
           GOOS=linux GOARCH=arm64 go build -o /dev/null .
+
+      # Setup and the confirm lanes (window, phone, both) run work in
+      # goroutines with timeouts; the full package under -race takes ~5 min,
+      # this slice ~2 min.
+      - name: Race detector (setup and confirm)
+        run: cd cli && go test -race -count=1 -run 'Setup|Confirm|Phone|Window|BothAsk|LegacyPin|SlowDiscovery' .
 
   macos-native-secret-boundary:
     name: macos-native-secret-boundary

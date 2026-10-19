@@ -22,8 +22,7 @@ Status: active
    protocol) shows the install steps as before. Only the relay address derived
    from the chosen Home Assistant is probed: `--relay-url` or a kept custom
    relay address always shows the steps. On a skip, the pairing step shows
-   "NOVA Relay is already running in Home Assistant. Skipping the install
-   step." plus an update hint when `relay_version` is below
+   "NOVA App is running" plus an update hint when `relay_version` is below
    `min_relay_version`; back from pairing returns to the address step. The
    repair menu's full guidance always shows the steps.
 2. **One install link.** The wizard opens

@@ -7,6 +7,10 @@ import {
   createCloudInfoHandler,
 } from "../http/handlers/cloud.js";
 import {
+  createChatAppsGetHandler,
+  createChatAppsPostHandler,
+} from "../http/handlers/chat-apps.js";
+import {
   createNovaActionHandler,
   createNovaPageHandler,
   type NovaPageDeps,
@@ -52,6 +56,11 @@ export function createIngressRoutes(deps: IngressListenerDeps): {
     return result as HaAuthUser[];
   };
   registerOwnerRoutes(router, policies, deps, fetchAuthUsers);
+  if (deps.chatApps !== undefined) {
+    const chat = { fetchAuthUsers, logger: deps.logger, chatApps: deps.chatApps };
+    registerIngressRoute(router, policies, "GET", "/chat-apps/v1/state", machine("none"), createChatAppsGetHandler(chat));
+    registerIngressRoute(router, policies, "POST", "/chat-apps/v1/state", machine("json"), createChatAppsPostHandler(chat));
+  }
   registerCloudCleanupRoutes(router, policies, deps);
   // Sign-in pairing yields local devices, so pair v2 serves it with or without
   // Cloud remote; typed-code pair v2 stays a Cloud feature (pairing manager).
@@ -143,18 +152,27 @@ function registerPairingV2Routes(
     machine("none"),
     createPairV2InfoHandler(pairV2),
   );
+  const arm = {
+    ...pairV2,
+    fetchAuthUsers,
+    logger: deps.logger,
+    registryCorrupt: deps.registryCorrupt,
+  };
   registerIngressRoute(
     router,
     policies,
     "POST",
     "/pair/v2/arm",
     machine("json"),
-    createPairV2ArmHandler({
-      ...pairV2,
-      fetchAuthUsers,
-      logger: deps.logger,
-      registryCorrupt: deps.registryCorrupt,
-    }),
+    createPairV2ArmHandler({ ...arm, device: "local" }),
+  );
+  registerIngressRoute(
+    router,
+    policies,
+    "POST",
+    "/pair/v2/arm/link",
+    machine("json"),
+    createPairV2ArmHandler({ ...arm, device: "link" }),
   );
   registerIngressRoute(
     router,
@@ -248,6 +266,7 @@ function registerOwnerRoutes(
     relayVersion: deps.relayVersion,
     now: deps.now,
     logger: deps.logger,
+    ...(deps.chatApps !== undefined ? { chatApps: deps.chatApps } : {}),
   };
   const page = createNovaPageHandler(novaDeps);
   const action = createNovaActionHandler(novaDeps);

@@ -40,9 +40,6 @@ func defaultPairingClientInfo() pairingClientInfo {
 	return pairingClientInfo{name: hostLabel(), platform: runtime.GOOS, client: "cli"}
 }
 
-// runSecurePairing pairs against the relay's bootstrap URL using the one-time
-// code, then activates and promotes. It persists the secure endpoint + pin via
-// saveCfg. Returns the device id on success.
 // Test seams so the pairing orchestration can be exercised without a live relay.
 var pairDeviceV1ForPairing = pairDeviceV1
 var activateDeviceV1ForPairing = activateDeviceV1
@@ -84,10 +81,11 @@ func runSecurePairingWithProvisioner(
 	if err != nil {
 		return "", fmt.Errorf("cannot store a device credential on this system (the code was not used): %w", err)
 	}
-	installID, err := getOrCreateClientInstallID(cfg, saveCfg)
+	installID, err := profilePairingInstallID(cfg, saveCfg)
 	if err != nil {
 		return "", fmt.Errorf("could not establish an install id: %w", err)
 	}
+	previous := readPreviousLocalDevice(*cfg, pairingUI)
 
 	prov, err := provision(deviceMetadata{
 		Name:            info.name,
@@ -174,6 +172,7 @@ func runSecurePairingWithProvisioner(
 	if err != nil {
 		return "", fmt.Errorf("activated but could not finalize the credential: %w", err)
 	}
+	previous.retireOnSameRelay(secureBase, prov.Credential, prov.SpkiPin)
 	// Credential + live endpoint are now durable and working; clearing the stale
 	// pending endpoint is best-effort (resume ignores it — the pending credential
 	// is gone — so a failed clear leaves only an inert value).
@@ -344,12 +343,12 @@ func resumePendingActivationWithPolicy(
 			return false, kerr
 		}
 	}
+	previous := readPreviousLocalDevice(*cfg, ui) // before promotion overwrites it
 	if err := activateDeviceV1ForPairing(base, pin, pending); err != nil {
 		return false, err
 	}
-	// Same ordering as runSecurePairing: save the live endpoint before promoting
-	// the credential, keep the pending endpoint until afterwards, so a crash
-	// mid-way stays resumable.
+	// Same ordering as runSecurePairing: live endpoint saved before promotion,
+	// pending endpoint kept until afterwards, so a crash stays resumable.
 	cfg.RelaySecureBaseURL = base
 	cfg.RelaySpkiPin = pin
 	// The resumed local pairing proves the endpoint and pin, but not the
@@ -379,6 +378,7 @@ func resumePendingActivationWithPolicy(
 			return false, err
 		}
 	}
+	previous.retireOnSameRelay(base, pending, pin)
 	cfg.PendingSecureBaseURL = ""
 	cfg.PendingSpkiPin = ""
 	_ = saveCfg(cfg)

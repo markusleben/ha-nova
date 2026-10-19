@@ -1,0 +1,13 @@
+exit 0
+--- output
+[ha-nova] Saved HA NOVA configuration
+  [ok] Home Assistant reachable
+  [ok] NOVA App reachable
+  [ok] Connected to Home Assistant
+[ha-nova] Config present: <home>/.config/ha-nova/config.json
+[ha-nova] Relay auth token present in secure storage
+[ha-nova] Home Assistant reachable: <ha-url>
+[ha-nova] Relay health reachable: <relay-url>/health
+[ha-nova] Connected to Home Assistant
+[ha-nova] Google Antigravity ready now
+[ha-nova] Doctor checks passed

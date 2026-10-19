@@ -17,6 +17,8 @@ export interface SelfInfo {
   updateAvailable: boolean;
   // Whether the App's ingress sidebar entry is currently enabled.
   ingressPanel: boolean;
+  // The App's stable hostname on the Supervisor network ("" when absent).
+  hostname: string;
   // Container port ("8792/tcp") -> mapped host port, or null when unmapped.
   network: Record<string, number | null>;
 }
@@ -34,13 +36,19 @@ export interface SupervisorClient {
   // `options` on the same Supervisor endpoint, so this must not be merged into
   // setOptions payloads.
   setIngressPanel(enabled: boolean): Promise<void>;
+  // Supervisor discovery (chat apps): publish or update this App's message for
+  // a service and return its uuid; Supervisor keeps one message per App and
+  // service, so a repeat returns the same uuid. Delete: a message that is
+  // already gone counts as deleted.
+  sendDiscovery(service: string, config: Record<string, unknown>): Promise<string>;
+  deleteDiscovery(uuid: string): Promise<void>;
 }
 
 export function createSupervisorClient(
   token: string,
   base: string = SUPERVISOR_BASE,
 ): SupervisorClient {
-  async function request(path: string, init?: RequestInit): Promise<unknown> {
+  async function request(path: string, init?: RequestInit, missingOk = false): Promise<unknown> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
     try {
@@ -52,6 +60,9 @@ export function createSupervisorClient(
         signal: controller.signal,
       });
       const text = await response.text();
+      if (missingOk && response.status === 404) {
+        return null;
+      }
       if (!response.ok) {
         throw new Error(
           `supervisor ${path} returned ${response.status}: ${text.slice(0, 120)}`,
@@ -76,6 +87,7 @@ export function createSupervisorClient(
         typeof data.version_latest === "string" ? data.version_latest : null,
       updateAvailable: data.update_available === true,
       ingressPanel: data.ingress_panel === true,
+      hostname: asString(data.hostname, ""),
       // Lenient here: the sidebar and update card never read the port map
       // and must not break on a malformed entry; the strict parse lives at
       // the one consumer that does (getMappedHostPort).
@@ -103,6 +115,25 @@ export function createSupervisorClient(
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ ingress_panel: enabled }),
       });
+    },
+    async sendDiscovery(service, config) {
+      const uuid = dataOf(
+        await request("/discovery", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ service, config }),
+        }),
+      ).uuid;
+      if (typeof uuid !== "string" || !/^[0-9a-f]{32}$/.test(uuid)) {
+        throw new Error("unexpected supervisor response shape");
+      }
+      return uuid;
+    },
+    async deleteDiscovery(uuid) {
+      if (!/^[0-9a-f]{32}$/.test(uuid)) {
+        throw new Error("invalid discovery uuid");
+      }
+      await request(`/discovery/${uuid}`, { method: "DELETE" }, true);
     },
   };
 }

@@ -5,8 +5,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/signal"
 	"path/filepath"
+	"runtime"
 	"strings"
+	"syscall"
 	"time"
 )
 
@@ -23,15 +26,18 @@ const (
 	windowConfirmed                     // the human pressed Confirm (OK on Windows)
 	windowCancelled                     // the human pressed Cancel
 	windowFailed                        // it could not open at all: fallback E
+	windowClosed                        // closed from outside (killed) before an answer: nothing is sent
 )
 
 const (
 	// A late Confirm still re-plans, sends, and verifies within the host's limit.
-	cliWindowWait = 90 * time.Second // under Claude Code's 120 s default command timeout
-	mcpWindowWait = 40 * time.Second // under the common 60 s MCP tool-call timeout
-	windowOpened  = "A confirmation window opened on this computer — confirm there."
-	windowAsked   = "Requested by your AI assistant. Go ahead only if you want this."
-	windowSetting = "confirm_window" // config.json top level; "off" = codes in chat
+	cliWindowWait    = 90 * time.Second // under Claude Code's 120 s default command timeout
+	mcpWindowWait    = 40 * time.Second // under the common 60 s MCP tool-call timeout
+	windowOpened     = "A confirmation window opened on this computer — confirm there."
+	windowOpenedBoth = "A confirmation window opened on this computer — confirm there or on your phone."
+	windowAsked      = "Requested by your AI assistant. Go ahead only if you want this."
+	windowBoth       = "Your linked phone asks too. The first answer counts; a later one changes nothing."
+	windowSetting    = "confirm_window" // config.json top level; "off" = codes in chat
 )
 
 var (
@@ -50,7 +56,7 @@ var (
 // ha-nova mcp itself and answer its own form, but can't click an OS window
 // or tap a phone.
 func detectChannel(s *relaySession) string {
-	if !windowOff(s.paths) && windowAvailable() {
+	if chatCall == nil && !windowOff(s.paths) && windowAvailable() { // ha-nova serve runs on a server: never a window
 		return channelWindow
 	}
 	return detectAfterWindow(s)
@@ -90,7 +96,7 @@ func runConfirmWindowSetting(paths runtimePaths, args []string) int {
 			printHumanInfo("No confirmation window can open here, so HA NOVA already asks on your linked phone, in your app's form, or with a one-time code in chat. Nothing changed.")
 			return 0
 		}
-		switch askWindow("Turn off confirmation windows? HA NOVA then asks on your linked phone, else in your app's confirmation form, or shows a one-time code in chat that your AI assistant can see too.", cliWindowWait) {
+		switch askWindow(context.Background(), "Turn off confirmation windows? HA NOVA then asks on your linked phone, else in your app's confirmation form, or shows a one-time code in chat that your AI assistant can see too.", cliWindowWait) {
 		case windowConfirmed:
 		case windowFailed:
 			printHumanInfo("The confirmation window couldn't open here, so HA NOVA asks on your linked phone, in your app's form, or with a one-time code in chat anyway. Nothing changed.")
@@ -123,24 +129,42 @@ func runConfirmWindowSetting(paths runtimePaths, args []string) int {
 // apply runs and reports whatever kept the window closed (drift, expiry, a
 // refusal); asked=true: env is the result and nothing was sent.
 func confirmByWindow(paths runtimePaths, opts verbOptions, id string, noSnapshot bool) (env verbEnvelope, exit int, asked bool) {
-	plan, fresh, s, idHex, wait, ok := humanPlan(paths, opts, id, noSnapshot, channelWindow)
+	if chatCall != nil { // ha-nova serve never shows a window (it makes no window plans)
+		return env, 0, false
+	}
+	plan, fresh, s, idHex, wait, goal, ok := humanPlan(paths, opts, id, noSnapshot, channelWindow)
 	if !ok {
 		return env, 0, false
 	}
-	defer s.close()
-	if wait < windowMinWait {
+	setup, status, deadline, inTime := discoverInTime(s, wait)
+	if !inTime {
+		defer s.close()
 		return windowStopped(s, "refused", "PLAN_EXPIRED", "plan "+id+" expires before a confirmation window could get an answer", replan)
 	}
 	again := fmt.Sprintf("Tell the user nothing changed. Run ha-nova apply --plan %s again (the window opens again) only after they say they still want it; never ask them for a code. If they saw no window, they can make this change in Home Assistant itself, or turn the windows off in a terminal: ha-nova setup confirm-window off.", id)
-	switch askWindow(confirmText(fresh, noSnapshot)+"\n\n"+windowAsked, wait) {
+	text := confirmText(fresh, noSnapshot) + "\n\n"
+	switch status {
+	case phoneReady: // the linked phone asks too (confirm_both.go)
+		a := &phoneAsking{id: id, plan: plan, s: s, idHex: idHex, goal: goal, setup: setup, ask: phonePlanAsk(goal, noSnapshot), deadline: deadline}
+		return confirmBoth(a, text+windowBoth+"\n"+windowAsked)
+	case phoneMissing, phoneNone, phoneLegacy: // the window still asks; a user waiting at the phone learns why it stays quiet
+		if status == phoneMissing || phoneLinkedHere(paths) {
+			fmt.Fprintln(os.Stderr, phoneQuietText)
+			again += phoneQuietNext
+		}
+	}
+	defer s.close()
+	switch askWindow(context.Background(), text+windowAsked, time.Until(deadline)) {
 	case windowConfirmed:
-		humanAnswer = confirmCode(s.transport.Credential, idHex, channelWindow, plan.ExpiresAt)
+		humanAnswer, humanWhere = confirmCode(s.transport.Credential, idHex, channelWindow, plan.ExpiresAt), channelWindow
 		return env, 0, false
 	case windowCancelled:
 		return windowStopped(s, "declined", "CONFIRM_DECLINED", "the confirmation window was cancelled",
 			"Tell the user nothing changed. Apply this plan again only if they ask for it.")
 	case windowFailed:
 		return windowFallback(paths, s, plan, noSnapshot)
+	case windowClosed:
+		return windowStopped(s, "cancelled", "CONFIRM_CANCELLED", "the confirmation window was closed", again)
 	}
 	return windowStopped(s, "cancelled", "CONFIRM_CANCELLED", "the confirmation window got no answer in time", again)
 }
@@ -149,18 +173,72 @@ func confirmByWindow(paths runtimePaths, opts verbOptions, id string, noSnapshot
 // backs the window's. Once it has stayed up a second, stderr says so (a
 // host that shows a running command's output shows it; one that failed at
 // once never claims it opened).
-func askWindow(message string, wait time.Duration) windowAnswer {
-	ctx, cancel := context.WithTimeout(context.Background(), wait+5*time.Second)
+// A cancelled parent withdraws the window (it closes; confirm_both.go).
+// A signal that ends this process closes the window first, then ends the
+// process as the signal would (lane E2): a window left behind takes a
+// Confirm nothing reads.
+func askWindow(parent context.Context, message string, wait time.Duration) windowAnswer {
+	answer, ended := askWindowUntilSignal(parent, message, wait)
+	endBySignal(ended)
+	return answer
+}
+
+// askWindowUntilSignal is askWindow without the ending: on SIGTERM, SIGINT,
+// or SIGHUP (one not ignored since start, as under nohup) it withdraws the
+// window and returns the signal, so the caller can tidy up (confirm_both.go
+// tells the phone) before endBySignal. SIGKILL can't be caught: on Linux
+// the window gets Pdeathsig (confirm_window_linux.go); Windows' box lives
+// in this process. macOS: an osascript window outlives a SIGKILL until its
+// own timeout.
+func askWindowUntilSignal(parent context.Context, message string, wait time.Duration) (windowAnswer, os.Signal) {
+	ctx, cancel := context.WithTimeout(parent, wait+5*time.Second)
 	defer cancel()
+	signals := make(chan os.Signal, 1)
+	for _, sig := range []os.Signal{syscall.SIGTERM, syscall.SIGINT, syscall.SIGHUP} {
+		if runtime.GOOS != "windows" && !signal.Ignored(sig) {
+			signal.Notify(signals, sig)
+		}
+	}
 	done := make(chan windowAnswer, 1)
 	go func() { done <- windowRunner(ctx, message, wait) }()
-	select {
-	case answer := <-done:
-		return answer
-	case <-time.After(time.Second):
-		fmt.Fprintln(os.Stderr, windowOpened)
+	opened := time.After(time.Second)
+	for {
+		select {
+		case answer := <-done:
+			signal.Stop(signals) // from here a signal acts as usual; one queued before still wins
+			select {
+			case ended := <-signals:
+				return windowNoAnswer, ended
+			default:
+				return answer, nil
+			}
+		case <-opened:
+			if ctx.Err() == nil {
+				fmt.Fprintln(os.Stderr, map[bool]string{false: windowOpened, true: windowOpenedBoth}[strings.Contains(message, windowBoth)])
+			}
+		case ended := <-signals:
+			cancel() // the window closes; a stuck one doesn't hold the ending up
+			select {
+			case <-done:
+			case <-time.After(3 * time.Second):
+			}
+			signal.Stop(signals)
+			return windowNoAnswer, ended
+		}
 	}
-	return <-done
+}
+
+// endBySignal ends the process by the signal that stopped a window, as it
+// would have without the window (exit 128+n), after one plain line.
+func endBySignal(ended os.Signal) {
+	if ended == nil {
+		return
+	}
+	fmt.Fprintln(os.Stderr, "HA NOVA was stopped; the confirmation window closed and nothing was sent.")
+	if self, err := os.FindProcess(os.Getpid()); err == nil {
+		_ = self.Signal(ended)
+		time.Sleep(time.Second) // the signal may land on another thread: let it end the process first
+	}
 }
 
 // windowFallback: the window could not open (a sandbox, no desktop), so
@@ -169,10 +247,12 @@ func askWindow(message string, wait time.Duration) windowAnswer {
 // plan replaces the window plan; its `say` carries the code and its limit.
 func windowFallback(paths runtimePaths, s *relaySession, plan storedPlan, noSnapshot bool) (verbEnvelope, int, bool) {
 	env := verbEnvelope{SchemaVersion: 1, Verb: "apply", Status: "ok", Server: s.server}
+	// A window that failed late: its wait is not read time.
+	s.renewBudget()
 	channel := detectAfterWindow(s) // the phone, else a form, else chat
 	switch channel {
 	case channelPhoneMissing:
-		return windowStopped(s, "refused", "CONFIRM_UNAVAILABLE", "the confirmation window couldn't open, and HA NOVA can't reach the linked phone either", phoneMissingNext)
+		return windowStopped(s, "refused", "CONFIRM_UNAVAILABLE", "the confirmation window couldn't open, and HA NOVA can't reach the linked phone either", phoneMissingStep())
 	case channelPhoneUnlinked:
 		return windowStopped(s, "refused", "CONFIRM_UNAVAILABLE", "the confirmation window couldn't open, and "+phoneUnlinkedWhy, phoneUnlinkedNext)
 	}
@@ -204,7 +284,7 @@ func windowFallback(paths runtimePaths, s *relaySession, plan storedPlan, noSnap
 		}
 		return env, env.exit, true
 	}
-	env.NextStep = fmt.Sprintf("The window couldn't open, so this is a new plan with a one-time code: show `say`; only after a reply that is only that code, run ha-nova apply --plan %s --confirm <the user's text>%s.", env.Plan.ID, flag)
+	env.NextStep = fmt.Sprintf("The window couldn't open, so this is a new plan with a one-time code: show `say`; only after a reply that is only that code, run ha-nova apply --confirm <the user's text> --plan %s%s.", env.Plan.ID, flag)
 	return env, env.exit, true
 }
 
@@ -233,4 +313,38 @@ func windowStopped(s *relaySession, status, code, message, next string) (verbEnv
 	env := verbEnvelope{SchemaVersion: 1, Verb: "apply", Server: s.server}
 	exit := setVerbError(&env, &verbFailure{exit: verbExitRefused, status: status, code: code, message: message + "; nothing was sent", next: next})
 	return env, exit, true
+}
+
+// humanPlan reads a typed plan of channel and re-plans it like apply, for
+// a window or phone ask (goal: the phone's verb and object). ok=false:
+// apply runs and reports whatever is wrong (drift, expiry, a refusal); s is
+// open only when ok.
+func humanPlan(paths runtimePaths, opts verbOptions, id string, noSnapshot bool, channel string) (plan, fresh storedPlan, s *relaySession, idHex string, wait time.Duration, goal [3]string, ok bool) {
+	if humanAnswer != "" || !planIDPattern.MatchString(id) { // a form already answered
+		return
+	}
+	plan, err := readPlanFile(filepath.Join(planDir(paths), id+".json"))
+	expires, timeErr := time.Parse(time.RFC3339, plan.ExpiresAt)
+	if err != nil || timeErr != nil || plan.ID != id || plan.Tier != tierTyped.String() || plan.Channel != channel ||
+		plan.SchemaVersion != planSchemaVersion || !verbNow().Before(expires) || expires.After(verbNow().Add(planTTL+time.Minute)) ||
+		opts.serverSet && opts.server != plan.Server ||
+		noSnapshot && !plan.SnapshotFailed {
+		return
+	}
+	opts.server, opts.serverSet = plan.Server, true
+	if s, err = newRelaySession(paths, opts); err != nil {
+		return plan, fresh, nil, "", 0, goal, false
+	}
+	if !planSealed(plan, s.transport.Credential) { // an edited plan file: no ask, and apply refuses it
+		s.close()
+		return plan, fresh, nil, "", 0, goal, false
+	}
+	env := verbEnvelope{}
+	fresh, ok = replanStored(paths, s, &env, plan, channel)
+	idHex = planIdentity(strings.TrimPrefix(plan.Hash, "sha256:"), plan.Nonce)
+	if !ok || fresh.Hash != plan.Hash || fresh.Tier != plan.Tier || plan.ID != "p_"+idHex[:12] || fresh.Prompt == "" {
+		s.close()
+		return plan, fresh, nil, "", 0, goal, false
+	}
+	return plan, fresh, s, idHex, min(windowWait, expires.Sub(verbNow())), env.ask, true
 }

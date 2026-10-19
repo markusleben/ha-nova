@@ -54,10 +54,9 @@ ledger.
 3. Intermediate previews carry NO options block and no repeated menu — the
    cards end with their save-status line (`⚠️  Nothing saved yet.`). A
    skill's "end the turn" waits for the last one.
-4. After the last preview, exactly ONE final action block closes the group with
-   the canonical keywords `apply · show yaml · cancel` (`show yaml` re-renders
-   any operation's full payload on request; then the final block is shown
-   again).
+4. After the last preview, exactly ONE final question closes the group (save
+   all, show details, or leave it); details re-render any operation's full
+   payload on request, then the final question is asked again.
 5. Confirmation is the ordinary natural-language apply, bound to the exact
    displayed set (operations, order, payloads). Any change to any operation,
    its payload, or the order expires the confirmation; re-preview the changed
@@ -107,9 +106,9 @@ Cards render unchanged minus the options line; the group closes with:
 📝 Group: rename "Morning" scene set (3 operations, 2 families)
 1. scene "Morning bright" — rename + new transition
 2. script "Morning start" — points at the renamed scene
-3. helper input_boolean.morning_guard — new friendly name
+3. helper "Morning guard" — new name
 ⚠️  Nothing saved yet — one confirmation applies all 3 in this order, one by one.
-Options: apply · show yaml · cancel
+Save all 3? I can also show the details.
 ```
 
 The Result Card reports the ledger:
@@ -117,7 +116,7 @@ The Result Card reports the ledger:
 ```
 ✅ Applied: 3 of 3 operations
 Ledger: 3 applied · 0 skipped · 0 failed.
-Ran one by one — not atomic; revert stays per operation (`revert`, snapshots).
+Ran one by one — not atomic; anything to undo goes one change at a time, where that change can be undone.
 ```
 
 On partial completion the ✅ line names the applied subset and the ledger shows

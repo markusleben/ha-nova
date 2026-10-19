@@ -74,6 +74,10 @@ func (e *localRelayPreflightError) Unwrap() error {
 
 var resolveLocalRelayTransportForCLI relayTransportResolver = func(_ context.Context, cfg runtimeConfig) (relayTransportSelection, error) {
 	base, client, credential, device, err := relayFunctionalTransportForDoctor(cfg)
+	var cloudErr *CloudError
+	if errors.As(err, &cloudErr) { // the device credential read: local, never Link
+		err = &localRelayCredentialError{cause: err}
+	}
 	return relayTransportSelection{
 		BaseURL: base, Client: client, Credential: credential, DeviceMode: device, Via: relayViaLocal,
 	}, err
@@ -160,6 +164,10 @@ func resolveRelayTransport(
 }
 
 func relayTransportErrorMessage(err error) string {
+	var localCredential *localRelayCredentialError
+	if errors.As(err, &localCredential) {
+		return localCredential.Error()
+	}
 	var localPreflight *localRelayPreflightError
 	if errors.As(err, &localPreflight) {
 		return localPreflight.Error()

@@ -50,10 +50,10 @@ async function postBoot(path: string, body: unknown, auth?: string) {
 // https to the self-signed device listener (pin already proven elsewhere; here
 // we only assert routing/auth). Trust the self-signed leaf as its own CA and
 // skip only the hostname check, rather than disabling verification outright.
-function deviceReq(path: string, auth: string): Promise<{ status: number; json: any }> {
+function deviceReq(path: string, auth: string, method = "POST"): Promise<{ status: number; json: any }> {
   return new Promise((resolve, reject) => {
     const req = httpsRequest(
-      { host: "127.0.0.1", port: devicePort, path, method: "POST", ca: tls.certPem, checkServerIdentity: () => undefined, headers: { authorization: `Bearer ${auth}` } },
+      { host: "127.0.0.1", port: devicePort, path, method, ca: tls.certPem, checkServerIdentity: () => undefined, headers: { authorization: `Bearer ${auth}` } },
       (res) => {
         let b = "";
         res.on("data", (c) => (b += c));
@@ -141,10 +141,15 @@ describe("pairing listeners wiring", () => {
     // Activate + functional over the device (TLS) listener.
     expect((await deviceReq("/auth/device/activate", credential)).status).toBe(200);
     expect((await deviceReq("/core", credential)).status).toBe(200);
+    // Peers: only this device; the test deps can't check chat-app files.
+    const peers = await deviceReq("/auth/device/peers", credential, "GET");
+    expect(peers.status).toBe(200);
+    expect(peers.json.data).toEqual({ other_devices: 0, pairing_open: false, legacy_access: false, chat_app_files: null });
 
     // Revoke, then functional is unauthorized.
     expect((await deviceReq("/auth/device/revoke-self", credential)).status).toBe(200);
     expect((await deviceReq("/core", credential)).status).toBe(401);
+    expect((await deviceReq("/auth/device/peers", credential, "GET")).status).toBe(401);
   });
 
   it("rejects an unknown credential on the device listener (401)", async () => {

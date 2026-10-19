@@ -152,6 +152,49 @@ describe("install.sh contract", () => {
     );
     expect(statSync(join(fishHome, ".config", "ha-nova", "path-target")).mode & 0o777).toBe(0o600);
 
+    const { XDG_CONFIG_HOME: _xdgHint, ...isolatedEnv } = process.env;
+    // bash: the login file AND ~/.bashrc (new Linux desktop terminals are
+    // non-login shells), once each even when the installer runs again.
+    const bashHome = await pathFor("/bin/bash");
+    await runInstallerFunctions("ensure_bin_dir_on_path", {
+      ...isolatedEnv,
+      HOME: bashHome,
+      SHELL: "/bin/bash",
+    });
+    for (const file of [".profile", ".bashrc"]) {
+      const text = readFileSync(join(bashHome, file), "utf8");
+      expect(text.split("# Added by HA NOVA").length - 1).toBe(1);
+      expect(text).toContain('export PATH="$HOME/.local/bin:$PATH"');
+    }
+    expect(readFileSync(join(bashHome, ".config", "ha-nova", "path-target"), "utf8")).toBe(
+      `${join(bashHome, ".profile")}\n`,
+    );
+
+    // The hint for this terminal names the shell's own syntax, only when
+    // ~/.local/bin was not on PATH yet.
+    const hint = (shell: string, path: string) =>
+      runInstallerFunctions("ensure_bin_dir_on_path >/dev/null; print_path_hint", {
+        ...isolatedEnv,
+        HOME: makeTempDir("ha-nova-installer-hint-"),
+        SHELL: shell,
+        PATH: path,
+      });
+    expect(await hint("/bin/bash", "/usr/bin:/bin")).toContain(
+      'open a new terminal or run: export PATH="$HOME/.local/bin:$PATH"',
+    );
+    expect(await hint("/usr/bin/fish", "/usr/bin:/bin")).toContain(
+      "open a new terminal or run: set -gx PATH $HOME/.local/bin $PATH",
+    );
+    const onPath = makeTempDir("ha-nova-installer-hint-");
+    expect(
+      await runInstallerFunctions("ensure_bin_dir_on_path >/dev/null; print_path_hint", {
+        ...isolatedEnv,
+        HOME: onPath,
+        SHELL: "/bin/bash",
+        PATH: `${join(onPath, ".local", "bin")}:/usr/bin:/bin`,
+      }),
+    ).not.toContain("open a new terminal");
+
     const shHome = await pathFor("/bin/sh");
     expect(readFileSync(join(shHome, ".profile"), "utf8")).toContain(
       'export PATH="$HOME/.local/bin:$PATH"',
@@ -181,7 +224,7 @@ describe("install.sh contract", () => {
     expect(content).toContain('run_setup "${BIN_LINK}"');
     expect(content).toContain("Next step: ha-nova setup");
     expect(content).toContain(
-      "Setup will ask for the six-digit pairing code shown in NOVA Home Base.",
+      "Setup will ask you to sign in to Home Assistant as the owner, or to type a six-digit code from the NOVA page.",
     );
     expect(content).toContain("Need help later? Run: ha-nova doctor");
   });
@@ -196,8 +239,18 @@ describe("install.sh contract", () => {
     );
     expect(output).toContain("Next step: ha-nova setup");
     expect(output).toContain(
-      "Setup will ask for the six-digit pairing code shown in NOVA Home Base.",
+      "Setup will ask you to sign in to Home Assistant as the owner, or to type a six-digit code from the NOVA page.",
     );
+    // Once per path (lane D10): main() no longer prints it as well.
+    expect(output.split("Need help later? Run: ha-nova doctor").length - 1).toBe(1);
+    const noSetup = await runInstallerFunctions('run_setup "/bin/false"', {
+      ...process.env,
+      HA_NOVA_NO_SETUP: "1",
+    });
+    expect(noSetup.indexOf("Next step: ha-nova setup")).toBeLessThan(noSetup.indexOf("Need help later"));
+    expect(noSetup.split("Need help later? Run: ha-nova doctor").length - 1).toBe(1);
+    const main = content.slice(content.indexOf("main() {"));
+    expect(main).not.toContain("Need help later");
   });
 
   it("uses resilient curl downloads with checksum-first verification", () => {

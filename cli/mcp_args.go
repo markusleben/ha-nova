@@ -236,6 +236,14 @@ func nextStep(envelope map[string]any) string {
 		return fmt.Sprintf("Show this preview. When the user has asked for this change and your workflow has reached this step (a skill's order comes first), call ha_apply with plan_id %v and no confirm_code: %s asks them. Never ask for a code in chat.", plan["id"], where) + say
 	case pending && plan != nil:
 		return fmt.Sprintf("Show this preview and wait for the user's own confirmation; only then call ha_apply with plan_id %v.", plan["id"]) + say
+	case errInfo != nil && errInfo["code"] == "RELAY_ERROR" && chatCall != nil:
+		return chatRelayNext
+	case errInfo != nil && (errInfo["code"] == "SECURE_STORAGE_LOCKED" || errInfo["code"] == "SECURE_STORAGE_UNAVAILABLE"):
+		if chatCall != nil {
+			return chatRelayNext
+		}
+		next, _ := errInfo["next"].(string) // the message names the fix; not a Relay problem
+		return next
 	case errInfo != nil && errInfo["code"] == "RELAY_ERROR":
 		return "If this computer is not paired or its credential store is locked, ask the user to run `ha-nova setup` in a terminal."
 	}
@@ -290,6 +298,7 @@ func noticeHints(envelope map[string]any, told map[string]bool) string {
 var mcpNoticeHints = map[string]string{
 	"relay_outdated": "After answering, tell the user once: the NOVA Relay App needs an update (Home Assistant → Settings → Apps → NOVA Relay); a standalone Relay needs its new container image pulled.",
 	"update":         "After answering, tell the user once: a newer HA NOVA is available (see notices); they update it in a terminal as the notice says, then start a new session.",
+	"draft":          "Before any preview: a draft notice names a trigger that may never fire; add the named in-between state to from: and plan again.",
 }
 
 // mcpFlagArgs: the CLI flags a verb's next or message names, as the MCP

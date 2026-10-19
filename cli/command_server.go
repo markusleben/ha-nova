@@ -245,6 +245,10 @@ func runServerRename(paths runtimePaths, args []string) int {
 		printHumanErr("%v", err)
 		return 1
 	}
+	if newName == demoProfileName {
+		printHumanErr("%v", errDemoNameReserved)
+		return 1
+	}
 	if doc.hasProfile(newName) {
 		printHumanErr("server profile %q already exists; pick another name or remove it first: ha-nova server remove %s", newName, newName)
 		return 1

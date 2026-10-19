@@ -72,7 +72,7 @@ describe("service call contract", () => {
     it("executes through ha-nova call/apply, never a raw relay write", () => {
       expect(skillDoc).toContain("Entity service calls run only through the typed verbs");
       expect(skillDoc).toContain("`ha-nova call <domain.service>");
-      expect(skillDoc).toContain("`ha-nova apply --plan <id> [--confirm <code>]`");
+      expect(skillDoc).toContain("`ha-nova apply [--confirm <code>] --plan <id>`");
       expect(skillDoc).toContain("exactly one `POST /api/services/{domain}/{service}`");
       expect(skillDoc).toContain("`/api/states/{entity_id}`");
       expect(skillDoc).toContain("never lower it, split a call to dodge it, or replay it through `ha-nova relay`");

@@ -22,8 +22,8 @@ func (s setupState) IsComplete() bool {
 
 func (s setupState) SkipSummary() string {
 	parts := []string{}
-	if s.ConfigOK {
-		parts = append(parts, "app installation")
+	if s.ConfigOK { // the saved address; the App itself is RelayOK
+		parts = append(parts, "Home Assistant address")
 	}
 	if s.TokenOK {
 		parts = append(parts, "authentication")

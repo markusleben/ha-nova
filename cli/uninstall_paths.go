@@ -148,6 +148,7 @@ func managedConfigArtifactPaths(paths runtimePaths, purge bool) []string {
 		filepath.Join(paths.ConfigDir, "claude-marketplace"),
 		filepath.Join(paths.ConfigDir, "undo-snapshot.json"),
 		filepath.Join(paths.ConfigDir, "undo-snapshots.json"),
+		demoProfilePath(paths),
 	}
 	if purge {
 		pathsList = append(pathsList, paths.ConfigFile)
@@ -164,6 +165,7 @@ func managedCacheArtifactPaths(paths runtimePaths) []string {
 		filepath.Join(paths.CacheDir, "automation-bp-snapshot.json"),
 		filepath.Join(paths.CacheDir, sessionBootstrapVerifiedMarker),
 		filepath.Join(paths.CacheDir, sessionBootstrapRepairPendingFile),
+		planDir(paths), // pending confirmations: short-lived, worthless after uninstall
 	}
 }
 

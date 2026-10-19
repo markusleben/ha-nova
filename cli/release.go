@@ -173,19 +173,20 @@ func buildUpdateCheckResultWithClient(paths runtimePaths, client *http.Client) u
 		result.Message = fmt.Sprintf("could not compare versions (%s)", err)
 		return result
 	}
-	if cmp >= 0 && !isStableTargetFromRC(current, release.Version) {
+	updateGuidance := updateGuidanceForInstallSource(result.InstallSource)
+	if cmp >= 0 {
 		result.Status = "up_to_date"
 		result.Message = fmt.Sprintf("Up to date: v%s", current)
+		// An RC ahead of the latest stable is current for its tester; the way
+		// back is one info line (silent under --quiet), never an update notice.
+		if isStableTargetFromRC(current, release.Version) {
+			result.Message = fmt.Sprintf("Up to date: v%s (prerelease, newer than stable v%s) | To return to stable: %s", current, release.Version, updateGuidance)
+		}
 		return result
 	}
 
 	result.Status = "update_available"
 	result.UpdateAvailable = true
-	updateGuidance := updateGuidanceForInstallSource(result.InstallSource)
-	if isStableTargetFromRC(current, release.Version) {
-		result.Message = fmt.Sprintf("Return to stable: v%s -> v%s | %s", current, release.Version, updateGuidance)
-		return result
-	}
 	result.Message = fmt.Sprintf("Update available: v%s -> v%s | %s", current, release.Version, updateGuidance)
 	return result
 }

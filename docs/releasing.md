@@ -187,6 +187,7 @@ first support or after a change touching their path:
 - [ ] `keyrings`: real happy path and fail-closed no-UI on each enabled OS (adapter changes: affected OS)
 - [ ] `domains_mfa`: one real canonical Nabu Casa OAuth flow
 - [ ] `roles`: one real standard non-administrator binding
+- [ ] `owner_no_code`: one real owner OAuth `cloud add` pairs with no code (Link owner pairing changes)
 - [ ] `lifecycle`: `cloud add` → App restart/reinstall → CLI uninstall/reinstall → purge revokes the device
 - [ ] `routing`: one real automatic fallback; `redirects_non_disclosure`: no credential in config, argv, logs, diagnostics, or AI-visible output
 - [ ] `signing_and_update_matrix`: real install/update after installer, updater, signing, or native-authorization changes
@@ -210,7 +211,13 @@ HOME="${SMOKE_HOME}" "${BIN}" cloud remove --server "${SERVER_NAME}" --yes
 On Windows the install root resolves from the executable directory. The
 dedicated Windows test machine keeps one standing, pre-authorized `smoke`
 profile (#584) that is exempt from `cloud remove`; every other profile is
-throwaway.
+throwaway. From 0.26.0 (not rc1-rc3) every profile except `default` pairs
+under its own device identity, so a throwaway `smoke-…` profile no longer
+disconnects `default` or `smoke` on the same Relay. Still unsafe until `smoke`
+is paired again by a fixed binary: pairing `default`, or any profile with an
+older binary, drops `smoke`. Pairing `smoke` again means `cloud remove --server
+smoke` plus `cloud add` (a maintainer step). A throwaway run that fails before
+`cloud remove` leaves its device listed; revoke it on the NOVA page.
 
 ## 7. Release Channels and Post-Publish Verification
 

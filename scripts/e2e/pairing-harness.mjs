@@ -17,8 +17,6 @@
 // the real code on both sides. Requires `npm run build` first.
 import { createServer as createHttpServer, request as httpRequest } from "node:http";
 import { createServer as createHttpsServer } from "node:https";
-import { mkdtempSync } from "node:fs";
-import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -31,7 +29,13 @@ const { openDeviceRegistry } = await import(join(dist, "security", "device-regis
 const { createPairingV1Manager } = await import(join(dist, "security", "pairing-v1.js"));
 const { loadOrCreateTlsIdentity } = await import(join(dist, "security", "tls-identity.js"));
 
-const dataDir = mkdtempSync(join(tmpdir(), "nova-pair-harness-"));
+// The caller owns the data dir (Go passes t.TempDir()): the test SIGKILLs this
+// process, so a dir made here could never be removed.
+const dataDir = process.argv[2];
+if (!dataDir) {
+  process.stderr.write("usage: node pairing-harness.mjs <data-dir>\n");
+  process.exit(2);
+}
 const registry = openDeviceRegistry(dataDir);
 const tls = await loadOrCreateTlsIdentity(dataDir);
 
@@ -124,4 +128,10 @@ if (!code) {
 }
 
 process.stdout.write(`${JSON.stringify({ bootstrapPort, securePort, code, ingressPort, ingressRoot, ingressSession })}\n`);
+// Each stdin line asks for a fresh one-time code, printed as {"code"} on its own
+// line, so one Relay can pair several devices (second-profile e2e).
+process.stdin.on("data", () => {
+  pairing.generateCode();
+  process.stdout.write(`${JSON.stringify({ code: pairing.getStatus().code })}\n`);
+});
 // Keep running until the test kills us; the open servers hold the event loop.

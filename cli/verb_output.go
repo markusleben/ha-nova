@@ -33,8 +33,8 @@ type verbEnvelope struct {
 	// Say: the plain confirmation text of a plan that needs one (CLI-built
 	// from tier, reasons, and names; skills relay it).
 	Say string `json:"say,omitempty"`
-	// NextStep: the agent's next step where it is not the usual one (a
-	// window plan: apply without a code; its fallback: a new code plan).
+	// NextStep: the agent's next step (a preview plan: wait for the user's
+	// reply; a window plan: apply without a code; its fallback: a new code plan).
 	NextStep     string         `json:"next_step,omitempty"`
 	Action       *planAction    `json:"action,omitempty"`
 	Resolved     []verbTarget   `json:"resolved,omitempty"`
@@ -62,6 +62,7 @@ type verbEnvelope struct {
 	Error        *verbError      `json:"error,omitempty"`
 	Notices      []verbNotice    `json:"notices,omitempty"`
 	exit         int             // success exit code; 0 unless a verb sets it (plan: 3)
+	ask          [3]string       // a typed plan's phone question: verb, object, reason (sayAsk)
 }
 
 type verbTarget struct {
@@ -192,7 +193,7 @@ func setVerbError(env *verbEnvelope, err error) int {
 		env.Status = failure.status
 	}
 	if env.Status != "drift" { // only a drift result carries a stored plan to confirm
-		env.Say = ""
+		env.Say, env.NextStep = "", "" // a plan that failed to store has nothing to show or apply
 	}
 	env.Error = &verbError{Code: failure.code, Message: failure.message, Candidates: failure.candidates, Next: failure.next}
 	return failure.exit
@@ -200,6 +201,11 @@ func setVerbError(env *verbEnvelope, err error) int {
 
 func verbNotices(paths runtimePaths, relayVersion string) []verbNotice {
 	var notices []verbNotice
+	if activeServerIsDemo() {
+		notices = append(notices, verbNotice{Kind: "demo", Text: demoNoticeText})
+	} else if demoProfileOn(paths) {
+		notices = append(notices, verbNotice{Kind: "home", Text: "This is the user's own home, not the demo house; the demo house needs HA_NOVA_SERVER=demo."})
+	}
 	if n := checkRelayVersionValue(paths, relayVersion); !n.empty() {
 		notices = append(notices, verbNotice{Kind: "relay_outdated", Text: n.message})
 	}
@@ -219,4 +225,55 @@ func printVerbEnvelope(env verbEnvelope) bool {
 		return false
 	}
 	return true
+}
+
+func refused(code, message string) *verbFailure {
+	next, known := refusalNext[code]
+	if !known {
+		next = replan
+	}
+	return refusedWith(code, message, next)
+}
+
+func refusedWith(code, message, next string) *verbFailure {
+	return &verbFailure{exit: verbExitRefused, code: code, message: message + "; nothing was sent", next: next}
+}
+
+// A re-plan always shows its new preview and asks again: no plan is ever
+// applied without a fresh confirmation.
+const replan = "Plan again (ha-nova plan call|write|delete|revert), show its preview, and get confirmation again."
+
+// A used or claimed plan: the claim precedes recompute and send, so the
+// winner may still be sending — an immediate read proves nothing.
+const mayHaveRun = "Another apply holds or used this plan — its outcome is unknown. Do not plan or apply again; tell the user it may have run and let them check."
+
+// refusalNext is the one next step per refusal code; anything not listed
+// is a plan that must be made again.
+var refusalNext = map[string]string{
+	"PLAN_NOT_FOUND":          mayHaveRun,
+	"PLAN_CLAIMED":            mayHaveRun,
+	"PLAN_EXPIRED":            "Plan again, show the new preview, and get confirmation again.",
+	"PLAN_INVALIDATED":        "Stop and tell the user; plan again only on their explicit request, show the new preview, and get confirmation again.",
+	"SERVER_MISMATCH":         "Apply it with the plan's own server (--server), or plan again for this one.",
+	"UNRESOLVED_TARGET":       "Name the entities explicitly, or check the area or device, then plan again.",
+	"NO_SNAPSHOT_NOT_OFFERED": "Apply without --no-snapshot: the config snapshot is taken first.",
+	"CODE_REQUIRED":           "Ask the user to type only the four digits of the one-time code from HA NOVA shown with the plan, then pass exactly what they typed with --confirm, written before --plan.",
+	"CODE_MISMATCH":           "Ask the user to type only the four digits of the one-time code from HA NOVA again, as shown with the plan.",
+	"CONFIRM_IN_FORM":         "Apply it in the app where it was planned (its confirmation form asks the user), or plan it again here and show the new preview.",
+	"NO_UNDO_SNAPSHOT":        "Only the last verified update of an automation, script, or dashboard can be reverted; there is nothing to revert.",
+	"REVERT_UNSUPPORTED":      "To undo an automation, script, or dashboard: plan revert --target <config_id> (for a dashboard, its url_path). The newest checkpoint belongs to a helper: revert that through ha-nova:helper.",
+	"CONFIG_ID_UNSUPPORTED":   "Pass the config_id from `ha-nova get <entity_id> --config`, not the entity_id; a YAML item is edited through ha-nova:yaml-config.",
+	"CONFIG_NOT_UI_MANAGED":   "It is defined in YAML or a package: edit it there through ha-nova:yaml-config.",
+}
+
+// configIDInUseNext: a collision usually means an earlier create already
+// landed (a retry after a timeout); otherwise a script's key is its name, so
+// another one is the user's choice — never an overwrite without them
+// meaning it.
+func configIDInUseNext(domain string) string {
+	const earlier = "It may be the item an earlier apply created — read it first (`ha-nova find \"<alias>\"`); if it is, it exists: do not create another. "
+	if domain == "script" {
+		return earlier + "Otherwise ask the user for another name, then plan again with --id <new> --create; update the existing script only if they mean to replace it."
+	}
+	return earlier + "Otherwise plan again without --id (a new id is minted); update the existing automation only if the user means to replace it."
 }

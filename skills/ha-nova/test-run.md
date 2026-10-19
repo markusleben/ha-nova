@@ -238,8 +238,8 @@ localized at runtime):
   end state, and the restore plan (including whether actuated devices are
   returned to their pre-test state).
 - After the effect class, options lead with what the user will experience in
-  plain words; the technical binding (service, payload, `skip_condition`)
-  stays on the card but never opens the line.
+  plain words; no service names or payloads, and an ID only when a name
+  is missing or collides.
 - On a bare-number reply, restate the chosen effect in the next response
   before executing ("Actions only — running the hallway light sequence
   now"); never start what a bare number selected without naming it.
@@ -257,16 +257,14 @@ localized at runtime):
 Example card (labels localized at runtime):
 
 ```
-📝 Test: automation.morning_lights (saved — runtime not exercised yet)
-Right now: presence + time conditions are met — a run would go through.
+📝 Test: automation "Morning lights" (saved — not run yet)
+Right now: someone is home and it is morning — a run would go through.
 1 (recommended) — Real test: walk past the hall motion sensor and the
-   hallway light comes on at 40% (full trigger path; also reacts:
-   automation.hall_night_alert).
+   hallway light comes on at 40% ("Hall night alert" also reacts).
 2 — Actions only: the hallway light comes on at 40% exactly as the
-   automation would do it, without the motion trigger (automation.trigger,
-   skip_condition: false).
+   automation would do it, without the motion trigger.
 3 — Logic check: I show how each condition evaluates right now; nothing
    switches.
-skip — test later (I can check the trace after the next real run)
+skip — test later (I can check it after the next real run)
 After a run I read the trace, verify the light, and switch it back off.
 ```

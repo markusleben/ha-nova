@@ -128,7 +128,7 @@ func runPairCommand(paths runtimePaths, args []string) int {
 		return 1
 	}
 	if installLifecycleStopped(paths) {
-		printErr("HA NOVA was uninstalled; run `ha-nova setup` before pairing.")
+		printErr("HA NOVA is not set up on this computer yet; run: ha-nova setup")
 		return 1
 	}
 
@@ -274,6 +274,9 @@ func runPairCommand(paths runtimePaths, args []string) int {
 	})
 	if guardErr != nil {
 		printErr("Pairing cannot start: %s", guardErr)
+		if secureStorageSessionProblem(guardErr) {
+			printErr("%s. Next step: %s, then run this command there.", secureStorageSessionReason, secureStorageSessionNextStep())
+		}
 		return 1
 	}
 	// Storage mutation only AFTER every selection/bootstrap guard above: a pair
@@ -320,6 +323,9 @@ func runPairCommand(paths runtimePaths, args []string) int {
 	})
 	if probeErr != nil {
 		printErr("This system cannot store the device credential yet: %s", probeErr)
+		if secureStorageSessionProblem(probeErr) {
+			printErr("%s. Next step: %s, then run this command there.", secureStorageSessionReason, secureStorageSessionNextStep())
+		}
 		printErr("Nothing was paired — no code was used.")
 		return 1
 	}
@@ -358,7 +364,7 @@ func runPairCommand(paths runtimePaths, args []string) int {
 		case errors.Is(err, errPairingInactive):
 			printErr("No active code. Open NOVA in the sidebar and click \"Connect a device\" first.")
 		case errors.Is(err, errRelayNotV1):
-			printErr("This relay does not support secure pairing yet. Update the NOVA Relay App.")
+			printErr("This relay does not support secure pairing yet. Update the NOVA App.")
 		case errors.Is(err, errPinMismatch):
 			printErr("The relay's secure identity did not match its fingerprint. Try pairing again; if it repeats, someone may be intercepting the connection.")
 		default:

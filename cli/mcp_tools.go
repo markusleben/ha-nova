@@ -67,7 +67,7 @@ var mcpTools = []mcpTool{mcpSkillTool,
 		argv: func(a map[string]json.RawMessage, _ *mcpTempFiles) ([]string, error) {
 			return flagsThen(a, []string{"logbook"}, []string{"since", "until"}, "entity_id")
 		}, run: runHistoryCommand},
-	{name: "ha_map", title: "Map the home", description: "Exact, computed home facts — never count by hand: areas/floors with device and entity counts, automations/scripts/scenes/helpers, integrations, unavailable entities, low batteries. section gives one full list; entity gives where-used (automations, scripts, scenes, groups; not_checked names what was not searched); first_look gives the onboarding summary.", readOnly: true, idempotent: true,
+	{name: "ha_map", title: "Map the home", description: "Exact, computed home facts — never count by hand: areas/floors with device and entity counts, automations/scripts/scenes/helpers, integrations, unavailable entities, low batteries. section gives one full list; entity gives where-used (automations, scripts, scenes, groups, helpers, dashboard cards; not_checked names what was not searched); first_look gives the onboarding summary.", readOnly: true, idempotent: true,
 		schema: object(nil, map[string]any{"section": map[string]any{"type": "string", "enum": []string{"areas", "integrations", "automations", "unavailable", "batteries"}},
 			"entity": prop("string", "exact entity_id: where it is used"), "first_look": prop("boolean", "the onboarding first look"),
 			"limit": prop("integer", "1-200 rows for section or entity")}),
@@ -91,9 +91,9 @@ var mcpTools = []mcpTool{mcpSkillTool,
 			"draft":     prop("object", "write: the full config (key order is kept)"),
 			"entity_id": prop("string", "delete: automation.x or script.x")})),
 		argv: planArgv, run: runPlanCommand},
-	{name: "ha_call", title: "Control a device", description: "Call a service. Ordinary calls run now and are verified; anything else returns needs_confirmation with a plan for ha_apply. A call that timed out or returned no result is outcome unknown: read with ha_get; never call again. coverage.notes are informational: mention one only when it raised the tier or the user asks — except EXPANDED_TARGET_WITHOUT_STATE: always tell the user in plain words which coverage.skipped entries with that code were skipped (not reporting).",
+	{name: "ha_call", title: "Control a device", description: "Call a service. Ordinary calls run now and are verified; no_change: already so, nothing sent (relay say); anything else returns needs_confirmation with a plan for ha_apply. A call that timed out or returned no result is outcome unknown: read with ha_get; never call again. coverage.notes are informational: mention one only when it raised the tier or the user asks — except EXPANDED_TARGET_WITHOUT_STATE: always tell the user in plain words which coverage.skipped entries with that code were skipped (not reporting).",
 		schema: object([]string{"service"}, callProperties), argv: callArgv, run: runCallCommand},
-	{name: "ha_apply", title: "Apply a confirmed plan", description: "Execute a stored plan once: a preview plan after the user agreed to its preview; a plan with a one-time code from HA NOVA only with the code the user typed for it — or, where a result has no code (a confirmation window on their computer, a notification on their phone, or a form in their app asks them), without confirm_code (a passed code is ignored). A call that timed out or returned no result is outcome unknown: read with ha_get; never call again.",
+	{name: "ha_apply", title: "Apply a confirmed plan", description: "Execute a stored plan once: a preview plan after the user agreed to its preview; a plan with a one-time code from HA NOVA only with the code the user typed for it — or, where a result has no code (a confirmation window on their computer, a notification on their phone, or a form in their app asks them), without confirm_code (a passed code is ignored). no_change: already so, nothing sent (relay say). A call that timed out or returned no result is outcome unknown: read with ha_get; never call again.",
 		destructive: true,
 		schema: object([]string{"plan_id"}, map[string]any{"plan_id": prop("string", "p_ + 12 hex"),
 			"confirm_code": prop("string", "the four-digit one-time code exactly as the user typed it in chat (ignored where a window, phone, or form asks)"), "no_snapshot": prop("boolean", "deletes only, after a failed snapshot and the user's choice")}),
@@ -145,6 +145,9 @@ func (srv *mcpServer) callTool(req rpcRequest) (map[string]any, *rpcError) {
 		if err := checkArguments(tool.schema, params.Arguments); err != nil {
 			return invalidArguments(tool.name, err), nil
 		}
+		if refusal := srv.chatRefusal(tool); refusal != nil { // ha-nova serve: the owner's read-only switch
+			return refusal, nil
+		}
 		if tool.name == mcpSkillTool.name { // offline: no verb, no lock
 			return srv.callSkill(params.Arguments), nil
 		}
@@ -160,23 +163,10 @@ func (srv *mcpServer) callTool(req rpcRequest) (map[string]any, *rpcError) {
 		if err != nil {
 			return invalidArguments(tool.name, err), nil
 		}
-		mcpVerbLock.Lock()
-		defer mcpVerbLock.Unlock()
-		// Verbs set process-wide server selection (apply selects the plan's
-		// server); every call starts from the pin and leaves nothing behind.
-		override, active := serverSelectionOverride, activeServerProfile()
-		defer func() { setServerSelectionOverride(override); setActiveServerProfile(active) }()
-		setServerSelectionOverride(srv.pin)
-		// Channel and form answer come from this server only: the CLI detects
-		// the channel (confirm_window.go), a form only where no window opens.
-		planChannel, humanAnswer, windowWait, formsShown = "", answered, mcpWindowWait, req.forms
-		defer func() { planChannel, humanAnswer, windowWait, formsShown = "", "", cliWindowWait, false }()
-		traceRelayVersion.Store("")
-		out, errOut, exit := captureVerb(func() int { return tool.run(srv.paths, pinServer(tool.name, argv, srv.pin)) })
-		if tool.name == "ha_trace" { // trace prints its own object: add the verbs' notices
-			out = withNotices(out, verbNotices(srv.paths, traceRelayVersion.Load().(string)), activeServerProfile())
+		if waited := srv.chatApply(tool.name, params.Arguments, argv); waited != nil { // ha-nova serve: a phone plan
+			return waited, nil
 		}
-		return toolResult(tool.name, out, errOut, exit, srv.told, req.forms), nil
+		return srv.runVerb(tool.name, answered, req.forms, func() int { return tool.run(srv.paths, pinServer(tool.name, argv, srv.pin)) }), nil
 	}
 	return nil, &rpcError{Code: rpcInvalidParams, Message: "unknown tool: " + params.Name}
 }

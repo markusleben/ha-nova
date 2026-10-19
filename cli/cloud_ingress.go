@@ -18,6 +18,7 @@ const (
 	CloudEndpointDeviceRevoke   CloudIngressEndpoint = "device_revoke"
 	CloudEndpointPairInfo       CloudIngressEndpoint = "pair_info"
 	CloudEndpointPairArm        CloudIngressEndpoint = "pair_arm"
+	CloudEndpointPairArmLink    CloudIngressEndpoint = "pair_arm_link"
 	CloudEndpointPairStart      CloudIngressEndpoint = "pair_start"
 	CloudEndpointPairFinish     CloudIngressEndpoint = "pair_finish"
 	CloudEndpointHealth         CloudIngressEndpoint = "health"
@@ -25,6 +26,8 @@ const (
 	CloudEndpointCore           CloudIngressEndpoint = "core"
 	CloudEndpointFiles          CloudIngressEndpoint = "files"
 	CloudEndpointBackups        CloudIngressEndpoint = "backups"
+	CloudEndpointChatApps       CloudIngressEndpoint = "chat_apps"
+	CloudEndpointChatAppsSet    CloudIngressEndpoint = "chat_apps_set"
 )
 
 const (
@@ -34,8 +37,10 @@ const (
 	CloudPathDeviceRevoke   = "/cloud/v1/device/revoke-self"
 	CloudPathPairInfo       = "/pair/v2/info"
 	CloudPathPairArm        = "/pair/v2/arm"
+	CloudPathPairArmLink    = "/pair/v2/arm/link"
 	CloudPathPairStart      = "/pair/v2/start"
 	CloudPathPairFinish     = "/pair/v2/finish"
+	CloudPathChatApps       = "/chat-apps/v1/state" // the owner's chat-app switch (chat_apps.go)
 )
 
 const (
@@ -58,6 +63,7 @@ var cloudIngressEndpointContracts = map[CloudIngressEndpoint]cloudIngressEndpoin
 	CloudEndpointDeviceRevoke:   {method: http.MethodPost, path: CloudPathDeviceRevoke, deviceBearer: true},
 	CloudEndpointPairInfo:       {method: http.MethodGet, path: CloudPathPairInfo},
 	CloudEndpointPairArm:        {method: http.MethodPost, path: CloudPathPairArm},
+	CloudEndpointPairArmLink:    {method: http.MethodPost, path: CloudPathPairArmLink},
 	CloudEndpointPairStart:      {method: http.MethodPost, path: CloudPathPairStart},
 	CloudEndpointPairFinish:     {method: http.MethodPost, path: CloudPathPairFinish},
 	CloudEndpointHealth:         {method: http.MethodGet, path: "/health", deviceBearer: true},
@@ -65,6 +71,8 @@ var cloudIngressEndpointContracts = map[CloudIngressEndpoint]cloudIngressEndpoin
 	CloudEndpointCore:           {method: http.MethodPost, path: "/core", deviceBearer: true},
 	CloudEndpointFiles:          {method: http.MethodPost, path: "/files", deviceBearer: true},
 	CloudEndpointBackups:        {method: http.MethodPost, path: "/backups", deviceBearer: true},
+	CloudEndpointChatApps:       {method: http.MethodGet, path: CloudPathChatApps},
+	CloudEndpointChatAppsSet:    {method: http.MethodPost, path: CloudPathChatApps},
 }
 
 type CloudIngressClient struct {

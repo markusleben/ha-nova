@@ -333,10 +333,8 @@ with the release's merge commit (`docs/releasing.md`).
 
 ## Open items and questions
 
-1. CLI (spec only, not implemented, not mentioned on the public page):
-   `ha-nova setup <client> --demo` that fetches `connect.json`, accepts a
-   relay URL with a path, skips pairing, and warns that the house resets
-   hourly.
+1. CLI: done as `ha-nova try` in 0.27 (`docs/work/2026-10-18-onboarding-0.27-spec.md`
+   §8); the public page names it only once that release ships.
 2. Abuse contact to publish (`--abuse-contact`): a mail address or a URL?
 3. Rate limiting: accept none, or a custom Caddy build (`caddy-ratelimit`)
    or CloudFront + WAF (cost)?

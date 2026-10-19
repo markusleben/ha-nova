@@ -81,7 +81,7 @@ func TestVerifySetupConnectionReuseTokenUpstreamAuthIssueOffersRepairActions(t *
 		"This device's Relay Auth Token worked.",
 		"Only the Relay's upstream Home Assistant authentication still needs attention.",
 		"Open Security page (standalone LLAT only)",
-		"Open NOVA Relay settings",
+		"Open NOVA App settings",
 		"Retry now",
 	} {
 		if !strings.Contains(output.String(), want) {
@@ -289,10 +289,10 @@ func TestVerifySetupConnectionReuseTokenRelayUnreachableKeepsRepairCopyTruthful(
 	if issue != setupIssueRelayUnreachable {
 		t.Fatalf("expected relay unreachable issue, got %q", issue)
 	}
-	if strings.Contains(output.String(), "Home Assistant and NOVA Relay are reachable.") {
+	if strings.Contains(output.String(), "Home Assistant and the NOVA App are reachable.") {
 		t.Fatalf("did not expect reachable fallback copy in output:\n%s", output.String())
 	}
-	if !strings.Contains(output.String(), "Home Assistant or NOVA Relay is still unreachable from this device.") {
+	if !strings.Contains(output.String(), "Home Assistant or the NOVA App is still unreachable from this computer.") {
 		t.Fatalf("expected truthful connection repair copy in output:\n%s", output.String())
 	}
 }
@@ -330,10 +330,10 @@ func TestVerifySetupConnectionReuseTokenAmbiguousIssueUsesFallbackRepairPage(t *
 		t.Fatalf("expected ws degraded issue, got %q", issue)
 	}
 	for _, want := range []string{
-		"Home Assistant and NOVA Relay are reachable.",
+		"Home Assistant and the NOVA App are reachable.",
 		"Setup still needs one more app-side fix before this device can finish connecting.",
 		"Open Home Assistant Security page",
-		"Open NOVA Relay settings",
+		"Open NOVA App settings",
 	} {
 		if !strings.Contains(output.String(), want) {
 			t.Fatalf("expected ambiguous repair guidance %q in output:\n%s", want, output.String())

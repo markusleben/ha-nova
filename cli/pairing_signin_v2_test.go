@@ -29,7 +29,7 @@ func armTestClient(t *testing.T, status int, reachedRelay bool, body string) *Cl
 func TestArmSignInPairingDecodesTheStrictResponse(t *testing.T) {
 	secret := strings.Repeat("s", 43)
 	armed, err := armSignInPairing(context.Background(), armTestClient(t, http.StatusOK, true,
-		`{"ok":true,"data":{"pairing_secret":"`+secret+`","expires_in_s":120,"relay_instance_id":"relay-1"}}`))
+		`{"ok":true,"data":{"pairing_secret":"`+secret+`","expires_in_s":120,"relay_instance_id":"relay-1"}}`), CloudEndpointPairArm)
 	if err != nil || armed.PairingSecret != secret || armed.RelayInstanceID != "relay-1" {
 		t.Fatalf("armed = %+v, %v", armed, err)
 	}
@@ -54,7 +54,7 @@ func TestArmSignInPairingClassifiesRefusals(t *testing.T) {
 		"not relay":    {status: http.StatusOK, reached: false, body: `{"ok":true,"data":{}}`, code: CloudErrHAProtocol},
 	} {
 		t.Run(name, func(t *testing.T) {
-			_, err := armSignInPairing(context.Background(), armTestClient(t, test.status, test.reached, test.body))
+			_, err := armSignInPairing(context.Background(), armTestClient(t, test.status, test.reached, test.body), CloudEndpointPairArm)
 			if test.want != nil && !errors.Is(err, test.want) {
 				t.Fatalf("err = %v, want %v", err, test.want)
 			}

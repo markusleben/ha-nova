@@ -46,7 +46,7 @@ func TestSetupFirstLookRendersRealNames(t *testing.T) {
     "How warm is it in Living room?"
     "Why did the automation 'Morning' run last time?"
 
-  Ask to unlock Front door and HA NOVA first shows you a one-time code; nothing happens until you type it back.
+  Ask to unlock Front door: HA NOVA waits for your own confirmation; a plain yes in chat isn't enough.
 
 `
 	if got != want {
@@ -57,7 +57,7 @@ func TestSetupFirstLookRendersRealNames(t *testing.T) {
 func TestSetupFirstLookWithoutSeedsOrObservationsNamesNothing(t *testing.T) {
 	got := renderLook(lookOf(firstLookResult{Home: map[string]int{"devices": 3}, Observations: []firstLookFinding{}, Seeds: map[string]firstSeed{}}, nil))
 	for _, want := range []string{"Your home: 3 devices.", `"What's in my home?"`, `"List my automations"`,
-		"HA NOVA never unlocks a lock or opens a gate or garage door until you type back a one-time code it shows you."} {
+		"Unlocking a lock or opening a gate or garage door waits for your own confirmation; a plain yes in chat isn't enough."} {
 		if !strings.Contains(got, want) {
 			t.Errorf("missing %q:\n%s", want, got)
 		}
@@ -77,7 +77,7 @@ func TestSetupFirstLookSomeSeedsAndCodeCover(t *testing.T) {
 		"light": {EntityID: "light.unnamed", Name: "light.unnamed"},
 	}}, &firstSeed{EntityID: "cover.garage", Name: "Garage door"}))
 	for _, want := range []string{`"Make Hall thermostat a bit warmer"`, `"Close Office blind"`,
-		"Ask to open Garage door and HA NOVA first shows you a one-time code; nothing happens until you type it back."} {
+		"Ask to open Garage door: HA NOVA waits for your own confirmation; a plain yes in chat isn't enough."} {
 		if !strings.Contains(got, want) {
 			t.Errorf("missing %q:\n%s", want, got)
 		}
@@ -136,10 +136,12 @@ func TestSetupFirstLookSkipsOnErrorPanicAndTimeout(t *testing.T) {
 	setupFirstLookBudget = 20 * time.Millisecond
 	release := make(chan struct{})
 	defer close(release)
-	for name, read := range map[string]func(runtimePaths) (setupFirstLook, error){
-		"error": func(runtimePaths) (setupFirstLook, error) { return setupFirstLook{}, errors.New("relay down") },
-		"panic": func(runtimePaths) (setupFirstLook, error) { panic("bad data") },
-		"timeout": func(runtimePaths) (setupFirstLook, error) {
+	for name, read := range map[string]func(runtimePaths, time.Duration) (setupFirstLook, error){
+		"error": func(runtimePaths, time.Duration) (setupFirstLook, error) {
+			return setupFirstLook{}, errors.New("relay down")
+		},
+		"panic": func(runtimePaths, time.Duration) (setupFirstLook, error) { panic("bad data") },
+		"timeout": func(runtimePaths, time.Duration) (setupFirstLook, error) {
 			<-release
 			return setupFirstLook{}, nil
 		},
@@ -213,7 +215,7 @@ func TestSetupFirstLookReadsTheHomeReadOnly(t *testing.T) {
 		"cover.garage": {"friendly_name": "Garage door", "device_class": "garage"},
 	})))
 	for _, want := range []string{"Your home: 4 rooms, 6 devices, 6 automations.", "Low battery: Remote battery (Bedroom) is low (and 2 more).",
-		`"Turn on Kitchen light"`, "Ask to unlock Front door and HA NOVA first shows you a one-time code"} {
+		`"Turn on Kitchen light"`, "Ask to unlock Front door: HA NOVA waits for your own confirmation"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("missing %q:\n%s", want, got)
 		}

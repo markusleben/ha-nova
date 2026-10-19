@@ -43,6 +43,15 @@ func pairDeviceV2(
 	if err != nil {
 		return nil, err
 	}
+	return decodeCloudProvisionedCredential(plaintext, expectedRelayInstanceID)
+}
+
+// decodeCloudProvisionedCredential reads the user-bound Cloud device from a
+// pair-v2 finish response; a local device (with a pin) fails the strict decode.
+func decodeCloudProvisionedCredential(
+	plaintext []byte,
+	expectedRelayInstanceID string,
+) (*cloudProvisionedCredential, error) {
 	var provisioned cloudProvisionedCredential
 	if err := decodeStrictJSON(plaintext, &provisioned); err != nil {
 		return nil, newCloudError(CloudErrHAProtocol, "decode Cloud pairing credential", err)
@@ -64,7 +73,14 @@ func pairV2Exchange(
 	password string,
 	metadata deviceMetadata,
 	expectedRelayInstanceID string,
-) ([]byte, error) {
+) (_ []byte, err error) {
+	// Nothing before the finish request can create a device on the Relay.
+	finishing := false
+	defer func() {
+		if err != nil && !finishing {
+			err = &pairingBeforeFinishError{err: err}
+		}
+	}()
 	if client == nil || password == "" ||
 		!validIdentifier(expectedRelayInstanceID, 256) ||
 		!validCloudPairingMetadata(metadata) {
@@ -150,6 +166,7 @@ func pairV2Exchange(
 	var finish struct {
 		Response string `json:"response"`
 	}
+	finishing = true
 	if err := cloudPairingFinishCall(
 		ctx,
 		client,
@@ -172,6 +189,13 @@ func pairV2Exchange(
 	}
 	return plaintext, nil
 }
+
+// pairingBeforeFinishError marks a pair-v2 failure before the finish request:
+// the Relay created no device.
+type pairingBeforeFinishError struct{ err error }
+
+func (e *pairingBeforeFinishError) Error() string { return e.err.Error() }
+func (e *pairingBeforeFinishError) Unwrap() error { return e.err }
 
 func cloudPairingCall(
 	ctx context.Context,
@@ -291,8 +315,11 @@ func cloudPairingCallEncoded(
 			}
 		}
 		legacy := pairingStatusError(response.StatusCode, raw, response.RetryAfter)
+		// Only the Relay's own answer is a definitive refusal; a proxy's 4xx
+		// proves nothing about the pairing, so callers never re-pair on it.
 		code := CloudErrHAProtocol
 		switch {
+		case !response.ReachedRelay:
 		case response.StatusCode == http.StatusUnauthorized:
 			code = CloudErrPairingRejected
 		case response.StatusCode == http.StatusBadRequest || response.StatusCode == http.StatusConflict:

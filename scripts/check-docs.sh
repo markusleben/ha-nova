@@ -50,17 +50,21 @@ echo ""
 # fail-fast upstream parsing, serialized snapshot quota): about 9300 lines;
 # and to 9500 for Home Assistant sign-in pairing (the owner-checked,
 # machine-only ingress arm route, the armed one-time slot, and its capability
-# flag on GET /pair/v1/info): about 9450 lines.
+# flag on GET /pair/v1/info): about 9450 lines; and to 10250 for chat apps
+# (spec 2026-10-18 §11, PR train B2): the owner-only on/off action (NOVA page
+# and machine-only ingress API), the bridge secret, the internal device
+# credential, Supervisor discovery, the custom_components/ha_nova writer, and
+# the `ha-nova serve` child, dormant behind HA_NOVA_CHAT_APPS, with its review fixes: about 10225.
 # Further unreviewed Relay growth still fails.
 # Growth here is security surface, and it is reviewed as such. The README's own
 # number is updated in the release-prep PR — README describes the STABLE
 # release, not main.
 echo "[1] Relay LOC (must stay readable in one sitting)"
 ACTUAL_LOC=$(find "$REPO_ROOT/nova/src" -name '*.ts' -exec cat {} + | wc -l | tr -d ' ')
-if (( ACTUAL_LOC >= 1000 && ACTUAL_LOC <= 9500 )); then
-  pass "src/ = ${ACTUAL_LOC} LOC (within 1000–9500 range)"
+if (( ACTUAL_LOC >= 1000 && ACTUAL_LOC <= 10250 )); then
+  pass "src/ = ${ACTUAL_LOC} LOC (within 1000–10250 range)"
 else
-  fail "src/ = ${ACTUAL_LOC} LOC — outside the 1000–9500 range. Justify real Relay growth in active architecture docs; update README only in a release-prep PR."
+  fail "src/ = ${ACTUAL_LOC} LOC — outside the 1000–10250 range. Justify real Relay growth in active architecture docs; update README only in a release-prep PR."
 fi
 
 # ── 2. Skill count ──
@@ -139,6 +143,32 @@ if [[ -f "$REPO_ROOT/nova/src/http/handlers/files.ts" ]]; then
   else
     fail "File access must default to OFF and refuse with FILE_ACCESS_DISABLED — the gate is the guarantee."
   fi
+fi
+
+# ── 5b. The ha_nova integration stays a pure pass-through ──
+# Spec §11.1: discovery, the proxy, and the user hand-off only. Its code
+# changes need a Home Assistant restart, so tools, schemas, and checks live in
+# the bridge (`ha-nova serve`), never here.
+echo "[5b] ha_nova integration: discovery + authenticated pass-through only"
+INTEG="$REPO_ROOT/nova/integration/ha_nova"
+# No __pycache__ either: the image and the App copy this folder as it is.
+INTEG_FILES=$(cd "$INTEG" && find . -mindepth 1 | LC_ALL=C sort | tr '\n' ' ')
+if [[ "$INTEG_FILES" != "./__init__.py ./config_flow.py ./manifest.json " ]]; then
+  fail "nova/integration/ha_nova holds unexpected files ($INTEG_FILES) — only __init__.py, config_flow.py, manifest.json."
+fi
+INTEG_LOC=$(cat "$INTEG"/*.py | wc -l | tr -d ' ')
+INTEG_LOGIC=$(count_matches -E "hass\.services|hass\.states|helpers\.llm|import llm|async_register_api|async_forward_entry_setups|entity_registry|device_registry|async_track_|json\.loads|request\.(json|read|text|post)\(|\.json\(\)" "$INTEG" --include='*.py')
+if (( INTEG_LOC > 230 || INTEG_LOGIC != 0 )) \
+   || ! grep -q '"requirements": \[\]' "$INTEG/manifest.json" \
+   || ! grep -q '"dependencies": \["http"\]' "$INTEG/manifest.json" \
+   || [[ "$(grep -c 'requires_auth' "$INTEG/__init__.py")" != 1 ]] \
+   || ! grep -q '^    requires_auth = True$' "$INTEG/__init__.py" \
+   || [[ "$(grep -c 'register_view(' "$INTEG/__init__.py")" != 1 ]] \
+   || [[ "$(grep -c 'request.get(KEY_HASS_USER)' "$INTEG/__init__.py")" != 1 ]] \
+   || ! grep -q '("X-HA-User-Id", user.id)' "$INTEG/__init__.py"; then
+  fail "ha_nova integration grew logic (${INTEG_LOC} Python lines, ${INTEG_LOGIC} logic hits) or lost requires_auth / the authenticated user header — it must stay a pure pass-through."
+else
+  pass "ha_nova integration is a pure pass-through (${INTEG_LOC} Python lines)"
 fi
 
 # ── 6. Internal links ──

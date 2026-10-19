@@ -1,6 +1,7 @@
 package main
 
 import (
+	"cmp"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -101,6 +102,9 @@ func saveUndoSnapshotBytes(paths runtimePaths, data []byte) (snapshotSaveReceipt
 		return snapshotSaveReceipt{}, err
 	}
 	snap.SchemaVersion = undoSnapshotSchemaVersion
+	if name, _ := requestedServerSelection(); snap.Server == "" && name == demoProfileName && demoProfileOn(paths) && !realDemoProfileExists(paths) {
+		snap.Server = demoProfileName // never an untagged record a real home could revert to
+	}
 	// The CLI clock is the single source of the stamp; a caller-supplied
 	// saved_at is overwritten, never trusted.
 	snap.SavedAt = snapshotNow().UTC().Format(time.RFC3339)
@@ -120,13 +124,20 @@ func saveUndoSnapshotBytes(paths runtimePaths, data []byte) (snapshotSaveReceipt
 		}
 		kept = append(kept, existing)
 	}
+	// The cap counts per server, so one house (e.g. the demo) never evicts
+	// another's checkpoints.
 	var evicted []snapshotListingEntry
-	if len(kept) > undoSnapshotStackLimit {
-		for _, dropped := range kept[undoSnapshotStackLimit:] {
-			evicted = append(evicted, snapshotListing(dropped))
+	perServer := map[string]int{}
+	capped := kept[:0]
+	for _, existing := range kept {
+		server := cmp.Or(existing.Server, defaultServerProfileName) // untagged: single-home records
+		if perServer[server]++; perServer[server] > undoSnapshotStackLimit {
+			evicted = append(evicted, snapshotListing(existing))
+			continue
 		}
-		kept = kept[:undoSnapshotStackLimit]
+		capped = append(capped, existing)
 	}
+	kept = capped
 	stack = undoSnapshotStack{SchemaVersion: undoSnapshotStackSchemaVersion, Snapshots: kept}
 	if err := writeJSONFile(undoSnapshotStackPath(paths), stack, 0o600); err != nil {
 		return snapshotSaveReceipt{}, fmt.Errorf("cannot write snapshot: %s", err)
@@ -214,10 +225,13 @@ func selectServerUndoSnapshot(paths runtimePaths, server, target, domain string)
 	if server != "" {
 		// This server's records plus untagged legacy ones; newest first, so
 		// the first record per domain+target is the one a revert means.
+		// The demo house takes only its own records: an untagged one may be
+		// the user's home, and the demo is shared.
+		untagged := !(server == demoProfileName && activeServerIsDemo())
 		var mine []undoSnapshot
 		seen := map[string]bool{}
 		for _, snap := range stack.Snapshots {
-			if key := snap.Domain + "\x00" + snap.TargetID; (snap.Server == "" || snap.Server == server) && !seen[key] {
+			if key := snap.Domain + "\x00" + snap.TargetID; (untagged && snap.Server == "" || snap.Server == server) && !seen[key] {
 				seen[key] = true
 				mine = append(mine, snap)
 			}

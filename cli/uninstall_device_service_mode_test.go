@@ -201,7 +201,7 @@ func TestPurgeRefusesForeignTokenFileBeforeAnyCleanup(t *testing.T) {
 	if label := uninstallTokenLineLabel(paths); label != "" {
 		t.Fatalf("a foreign token file must not be listed as removed: %q", label)
 	}
-	if warning := uninstallForeignTokenFileWarning(paths); !strings.Contains(warning, "Full purge will stop") ||
+	if warning := uninstallForeignTokenFileWarning(paths); !strings.Contains(warning, "A full removal will stop") ||
 		!strings.Contains(warning, paths.ConfigFile) {
 		t.Fatalf("warning = %q", warning)
 	}
