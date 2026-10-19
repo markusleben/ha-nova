@@ -122,11 +122,12 @@ func sayTypedAsk(code, goal string) string {
 }
 
 // sayWindowAsk closes a window plan's `say`: the code is never shown.
+const sayWindowAsk = "A confirmation window opens on this computer — confirm there."
+
 // sayWindowPhoneAsk: a phone is linked here, so it asks too (confirm_both.go).
-const (
-	sayWindowAsk      = "A confirmation window opens on this computer — confirm there."
-	sayWindowPhoneAsk = "A confirmation window opens on this computer and your linked phone gets a notification — answer on either; the first answer counts."
-)
+func sayWindowPhoneAsk(button string) string {
+	return "A confirmation window opens on this computer, and your linked phone gets a notification (expand it and tap “" + button + "”). Answer on either, only if you asked for this; the first answer counts."
+}
 
 // sayPhoneAsk closes a phone plan's `say`: the code is never shown.
 func sayPhoneAsk(button string) string {

@@ -211,13 +211,28 @@ func TestBothAskOneSideOut(t *testing.T) {
 			t.Fatalf("exit %d %+v %+v", exit, env.Plan, env.Error)
 		}
 	})
+	t.Run("notify fails, the window gets no answer: said", func(t *testing.T) {
+		h := newWriteHarness(t, newFakeHA())
+		usePhones(t, "mobile_app_iphone")
+		phoneNotify = func(*relaySession, string, map[string]any) error { return fmt.Errorf("HTTP 500") }
+		useRaceWindow(t, windowConfirmed, make(chan struct{}), false)
+		plan := h.plan("lock.unlock", "lock.front").Plan
+		var exit int
+		var env verbTestEnvelope
+		stderr := captureStderr(t, func() { exit, env = h.run(runApplyCommand, "--plan", plan.ID) })
+		if exit != 4 || env.Error.Code != "CONFIRM_CANCELLED" || !strings.Contains(env.Error.Message, "the phone couldn't be asked") ||
+			!strings.Contains(env.Error.Next, "confirm-phone list") || !strings.Contains(stderr, phoneQuietText) || len(h.posts()) != 0 {
+			t.Fatalf("exit %d %+v stderr %q", exit, env.Error, stderr)
+		}
+	})
 	t.Run("neither can ask: refused", func(t *testing.T) {
 		h := newWriteHarness(t, newFakeHA())
 		p := usePhones(t, "mobile_app_iphone")
 		p.probeErr = fmt.Errorf("UPSTREAM_WS_TIMEOUT")
 		useRaceWindow(t, windowFailed, opened(), false)
 		plan := h.plan("lock.unlock", "lock.front").Plan
-		if exit, env := h.run(runApplyCommand, "--plan", plan.ID); exit != 4 || env.Error.Code != "CONFIRM_UNAVAILABLE" || len(h.posts()) != 0 || env.Plan != nil {
+		if exit, env := h.run(runApplyCommand, "--plan", plan.ID); exit != 4 || env.Error.Code != "CONFIRM_UNAVAILABLE" || len(h.posts()) != 0 || env.Plan != nil ||
+			!strings.Contains(env.Error.Message, "window couldn't open") {
 			t.Fatalf("exit %d %+v %+v", exit, env.Plan, env.Error)
 		}
 	})
@@ -243,7 +258,8 @@ func TestBothAskExpireTogether(t *testing.T) {
 	w := useRaceWindow(t, windowConfirmed, make(chan struct{}), false)
 	plan := h.plan("lock.unlock", "lock.front").Plan
 	exit, env := h.run(runApplyCommand, "--plan", plan.ID)
-	if exit != 4 || env.Error.Code != "CONFIRM_CANCELLED" || !strings.Contains(env.Error.Message, "neither") || len(h.posts()) != 0 || len(h.planFiles()) != 1 || !w.wasClosed() {
+	if exit != 4 || env.Error.Code != "CONFIRM_CANCELLED" || !strings.Contains(env.Error.Message, "neither") || len(h.posts()) != 0 || len(h.planFiles()) != 1 || !w.wasClosed() ||
+		!strings.Contains(env.Error.Next, "a new notification goes to their phone") || !strings.Contains(env.Error.Next, "tap “Unlock”") {
 		t.Fatalf("exit %d %+v posts %d closed %v", exit, env.Error, len(h.posts()), w.wasClosed())
 	}
 	if last := p.last(); last["title"] != "Not confirmed: Unlock “lock.front”" || last["data"].(map[string]any)["actions"] != nil {
@@ -261,7 +277,49 @@ func TestWindowPlanSayNamesTheLinkedPhone(t *testing.T) {
 	if err := setPhoneLink(h.paths, "owner-id", phoneEntry{}, &phoneLink{Service: "mobile_app_iphone", DeviceID: "d1", UserID: "owner-id", Name: "iPhone"}); err != nil {
 		t.Fatal(err)
 	}
-	if say := h.plan("lock.unlock", "lock.front").Say; !strings.HasSuffix(say, sayWindowPhoneAsk) {
-		t.Fatalf("phone linked: %q", say)
+	if env := h.plan("lock.unlock", "lock.front"); !strings.HasSuffix(env.Say, sayWindowPhoneAsk("Unlock")) || !strings.Contains(env.NextStep, "and a notification on their linked phone") {
+		t.Fatalf("phone linked: %q next %q", env.Say, env.NextStep)
+	}
+}
+
+// A window that can't open where discovery found no phone, but finds it at
+// the fallback: the plan moves to the phone (windowFallback), never a code.
+func TestWindowFallbackFindsThePhoneLate(t *testing.T) {
+	h := newWriteHarness(t, newFakeHA())
+	p := usePhones(t, "mobile_app_iphone")
+	useWindow(t, windowFailed)
+	plan := h.plan("lock.unlock", "lock.front").Plan
+	calls := 0
+	phoneDiscover = func(*relaySession) (phoneSetup, phoneStatus) {
+		if calls++; calls == 1 {
+			return phoneSetup{}, phoneNone
+		}
+		return p.setup, phoneReady
+	}
+	exit, env := h.run(runApplyCommand, "--plan", plan.ID)
+	if exit != 3 || env.Plan == nil || env.Plan.Channel != channelPhone || env.Plan.Code != "" || len(h.posts()) != 0 ||
+		!strings.HasSuffix(env.Say, sayPhoneAsk("Unlock")) || !strings.Contains(env.NextStep, "a notification on their phone") {
+		t.Fatalf("fallback: exit %d %+v say %q next %q", exit, env.Plan, env.Say, env.NextStep)
+	}
+}
+
+// A slow phone lookup that leaves too little time asks no one.
+func TestSlowDiscoveryLeavesNoTimeAsksNoOne(t *testing.T) {
+	for _, window := range []bool{true, false} {
+		h := newWriteHarness(t, newFakeHA())
+		p := usePhones(t, "mobile_app_iphone")
+		var w *raceWindow
+		if window {
+			w = useRaceWindow(t, windowConfirmed, opened(), false)
+		}
+		plan := h.plan("lock.unlock", "lock.front").Plan
+		phoneDiscover = func(*relaySession) (phoneSetup, phoneStatus) {
+			time.Sleep(1500 * time.Millisecond)
+			return p.setup, phoneReady
+		}
+		exit, env := h.run(runApplyCommand, "--plan", plan.ID)
+		if exit != 4 || env.Error.Code != "PLAN_EXPIRED" || len(p.sent) != 0 || len(h.posts()) != 0 || w != nil && len(w.messages) != 0 {
+			t.Fatalf("window %v: exit %d %+v sent %d", window, exit, env.Error, len(p.sent))
+		}
 	}
 }

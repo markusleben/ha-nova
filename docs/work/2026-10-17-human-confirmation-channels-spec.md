@@ -19,6 +19,7 @@ A typed plan's channel is set when the plan is made and is part of its code's MA
 
 - Why the window comes first (decision 2026-10-17, coordinator, logged in `docs/choices.md`): a model with a shell can start `ha-nova mcp` itself, declare forms, and answer its own form (the code is in the form's message); it cannot answer an OS window without computer use or accessibility rights. The approved order was C before A; it was flipped in this PR before merge.
 - A window that can't open falls back to the linked phone (§7), else to the form in a forms session, else to chat.
+- Since 0.27 (`docs/work/2026-10-18-onboarding-0.27-spec.md` §7.4, `cli/confirm_both.go`): where a window can open and a reachable phone is linked, both ask at once and the first answer counts; a window that can't open then leaves it to the phone in the same apply.
 - A window plan is never confirmed in a form (`formPlan` skips it): applied inside `ha-nova mcp`, it opens its window too.
 - A form or window plan never takes a code from argv: `apply --confirm` is ignored for it (`CONFIRM_IN_WINDOW`, `CONFIRM_IN_FORM`; no attempt is used). Its code never leaves the process: not in the envelope, `say`, the plan file, or the apply result.
 - MCP without forms (Claude Desktop, `--no-forms`, a client that declares no elicitation) now detects like the CLI, so leaving out the capability or adding `--no-forms` no longer yields a code the model sees where a window can open.
@@ -78,7 +79,7 @@ Inputs: the channels report §2 B and §3 B (sniff and forge paths reproduced on
 
 ### 7.1 Order: window → phone → form → chat (decision 2026-10-17, logged in `docs/choices.md`)
 
-The phone comes before the form: a model with a shell can start `ha-nova mcp` itself, declare forms, and answer its own form (the code is in the form's message); it can't tap a phone. It comes after the window because the window needs no phone, no push round trip, and no Companion app, and is equally out of a same-user model's reach on macOS. A window that can't open moves the plan to the phone where one is found (`windowFallback`), else to the form or chat as before.
+The phone comes before the form: a model with a shell can start `ha-nova mcp` itself, declare forms, and answer its own form (the code is in the form's message); it can't tap a phone. It comes after the window because the window needs no phone, no push round trip, and no Companion app, and is equally out of a same-user model's reach on macOS. A window that can't open moves the plan to the phone where one is found (`windowFallback`), else to the form or chat as before. Since 0.27 a reachable linked phone asks together with the window (0.27 spec §7.4), so `windowFallback` reaches the phone only when it was not found before the window opened.
 
 ### 7.2 Who confirms, and where (revised 2026-10-17: the linked phone)
 

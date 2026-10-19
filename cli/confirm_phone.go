@@ -332,11 +332,10 @@ func startPhoneAsk(paths runtimePaths, opts verbOptions, id string, noSnapshot b
 		env, exit, asked := windowStopped(s, "refused", code, message, next)
 		return nil, env, exit, asked
 	}
-	deadline := time.Now().Add(wait) // discovery counts against the wait
-	if wait < windowMinWait {
+	setup, status, deadline, inTime := discoverInTime(s, wait)
+	if !inTime {
 		return stop("PLAN_EXPIRED", "plan "+id+" expires before the phone could get an answer", replan)
 	}
-	setup, status := discoverConfirmer(s)
 	if status != phoneReady {
 		return stop("CONFIRM_UNAVAILABLE", phoneMissingWhy, phoneMissingStep())
 	}

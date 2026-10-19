@@ -22,6 +22,7 @@ var (
 	processIDToSessionID = kernel32.NewProc("ProcessIdToSessionId")
 	getCurrentThreadID   = kernel32.NewProc("GetCurrentThreadId")
 	postThreadMessage    = user32.NewProc("PostThreadMessageW")
+	peekMessage          = user32.NewProc("PeekMessageW")
 )
 
 // nativeWindowAvailable: an interactive session (not session 0, where SSH
@@ -51,19 +52,25 @@ func nativeWindow(ctx context.Context, message string, wait time.Duration) windo
 	}
 	// OK/Cancel, warning icon, Cancel the default, in front of other windows.
 	const style = 0x1 | 0x30 | 0x100 | 0x10000 | 0x40000
-	done, thread := make(chan uintptr, 1), make(chan uintptr, 1)
+	done, thread, release := make(chan uintptr, 1), make(chan uintptr, 1), make(chan struct{})
+	defer close(release)
 	go func() {
 		// Never unlocked: the thread ends with this goroutine, and with it a
-		// WM_QUIT the box's modal loop re-posts after withdrawing.
+		// WM_QUIT the box's modal loop re-posts after withdrawing. It lives
+		// until nativeWindow returns, so a WM_QUIT never reaches a reused id.
 		runtime.LockOSThread()
+		var msg [6]uint64 // MSG (48 bytes, 8-aligned)
+		const pmNoRemove = 0
+		_, _, _ = peekMessage.Call(uintptr(unsafe.Pointer(&msg[0])), 0, 0, 0, pmNoRemove) // creates the queue a post needs
 		id, _, _ := getCurrentThreadID.Call()
 		thread <- id
-		r, _, _ := messageBoxTimeout.Call(0, uintptr(unsafe.Pointer(text)), uintptr(unsafe.Pointer(title)), style, 0, uintptr(wait.Milliseconds()))
+		r, _, _ := messageBoxTimeout.Call(0, uintptr(unsafe.Pointer(text)), uintptr(unsafe.Pointer(title)), style, 0, uintptr(max(wait.Milliseconds(), 1000)))
 		done <- r
+		<-release
 	}()
 	select {
 	case <-ctx.Done():
-		// Withdraw it: WM_QUIT ends a message box's modal loop (sent before
+		// Withdraw it: WM_QUIT ends a message box's modal loop (queued before
 		// the box exists, it ends it at once). Its answer is never read; if
 		// the post fails, the box stays until its own timeout, and its text
 		// says a later answer changes nothing.

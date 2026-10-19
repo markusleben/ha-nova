@@ -27,12 +27,13 @@ const (
 
 const (
 	// A late Confirm still re-plans, sends, and verifies within the host's limit.
-	cliWindowWait = 90 * time.Second // under Claude Code's 120 s default command timeout
-	mcpWindowWait = 40 * time.Second // under the common 60 s MCP tool-call timeout
-	windowOpened  = "A confirmation window opened on this computer — confirm there."
-	windowAsked   = "Requested by your AI assistant. Go ahead only if you want this."
-	windowBoth    = "Your linked phone asks too. The first answer counts; a later one changes nothing."
-	windowSetting = "confirm_window" // config.json top level; "off" = codes in chat
+	cliWindowWait    = 90 * time.Second // under Claude Code's 120 s default command timeout
+	mcpWindowWait    = 40 * time.Second // under the common 60 s MCP tool-call timeout
+	windowOpened     = "A confirmation window opened on this computer — confirm there."
+	windowOpenedBoth = "A confirmation window opened on this computer — confirm there or on your phone."
+	windowAsked      = "Requested by your AI assistant. Go ahead only if you want this."
+	windowBoth       = "Your linked phone asks too. The first answer counts; a later one changes nothing."
+	windowSetting    = "confirm_window" // config.json top level; "off" = codes in chat
 )
 
 var (
@@ -124,24 +125,29 @@ func runConfirmWindowSetting(paths runtimePaths, args []string) int {
 // apply runs and reports whatever kept the window closed (drift, expiry, a
 // refusal); asked=true: env is the result and nothing was sent.
 func confirmByWindow(paths runtimePaths, opts verbOptions, id string, noSnapshot bool) (env verbEnvelope, exit int, asked bool) {
+	if chatCall != nil { // ha-nova serve never shows a window (it makes no window plans)
+		return env, 0, false
+	}
 	plan, fresh, s, idHex, wait, goal, ok := humanPlan(paths, opts, id, noSnapshot, channelWindow)
 	if !ok {
 		return env, 0, false
 	}
-	if wait < windowMinWait {
+	setup, status, deadline, inTime := discoverInTime(s, wait)
+	if !inTime {
 		defer s.close()
 		return windowStopped(s, "refused", "PLAN_EXPIRED", "plan "+id+" expires before a confirmation window could get an answer", replan)
 	}
 	again := fmt.Sprintf("Tell the user nothing changed. Run ha-nova apply --plan %s again (the window opens again) only after they say they still want it; never ask them for a code. If they saw no window, they can make this change in Home Assistant itself, or turn the windows off in a terminal: ha-nova setup confirm-window off.", id)
 	text := confirmText(fresh, noSnapshot) + "\n\n"
-	deadline := time.Now().Add(wait) // discovery counts against the wait
-	switch setup, status := discoverConfirmer(s); status {
+	switch status {
 	case phoneReady: // the linked phone asks too (confirm_both.go)
 		a := &phoneAsking{id: id, plan: plan, s: s, idHex: idHex, goal: goal, setup: setup, ask: phonePlanAsk(goal, noSnapshot), deadline: deadline}
-		return confirmBoth(a, text+windowBoth+"\n"+windowAsked, again)
-	case phoneMissing: // the window still asks; the user learns why the phone stays quiet
-		fmt.Fprintln(os.Stderr, phoneQuietText)
-		again += " Their linked phone couldn't be asked; `ha-nova setup confirm-phone list` (it sends nothing) says why."
+		return confirmBoth(a, text+windowBoth+"\n"+windowAsked)
+	case phoneMissing, phoneNone, phoneLegacy: // the window still asks; a user waiting at the phone learns why it stays quiet
+		if status == phoneMissing || phoneLinkedHere(paths) {
+			fmt.Fprintln(os.Stderr, phoneQuietText)
+			again += phoneQuietNext
+		}
 	}
 	defer s.close()
 	switch askWindow(context.Background(), text+windowAsked, time.Until(deadline)) {
@@ -171,7 +177,7 @@ func askWindow(parent context.Context, message string, wait time.Duration) windo
 	case answer := <-done:
 		return answer
 	case <-time.After(time.Second):
-		fmt.Fprintln(os.Stderr, windowOpened)
+		fmt.Fprintln(os.Stderr, map[bool]string{false: windowOpened, true: windowOpenedBoth}[strings.Contains(message, windowBoth)])
 	}
 	return <-done
 }

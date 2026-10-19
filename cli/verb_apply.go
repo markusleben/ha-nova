@@ -35,9 +35,11 @@ typed plan needs --confirm with the four-digit one-time code the user typed
 (spaces ignored; three wrong codes discard the plan; that counter guards
 against slips, not tampering). A typed plan with "channel": "window" takes
 no code: apply opens a confirmation window on this computer and waits for
-the user (up to 90 s); if it can't open, apply returns a new plan. One with
-"channel": "phone" sends Confirm/Cancel to the phone linked to HA NOVA
-(Companion app) and waits the same way.
+the user (up to 90 s); where a phone is linked, the phone asks at the same
+time and the first answer counts; if the window can't open, the phone alone
+decides, else apply returns a new plan. One with "channel": "phone" sends
+Confirm/Cancel to the phone linked to HA NOVA (Companion app) and waits the
+same way. After apply, "plan.channel" says where the user confirmed.
 Config plans (plan write/delete/revert) save the config once, reload, and
 verify the read-back; an update lands on the undo stack, and a delete (and
 every dashboard save) takes a config snapshot first (--no-snapshot only
@@ -117,6 +119,9 @@ func finishApply(paths runtimePaths, req applyRequest, env verbEnvelope, exit in
 	}
 	if !asked {
 		env, exit = applyPlan(paths, req.opts, req.id, req.code, req.noSnapshot)
+		if humanWhere != "" && env.Plan != nil && env.Status != "drift" && env.Status != "needs_confirmation" {
+			env.Plan.Channel = humanWhere // where the human confirmed; a drift's plan stays a new ask
+		}
 	}
 	defer func() { humanAnswer, humanWhere = "", "" }()
 	if !printVerbEnvelope(env) {
@@ -310,7 +315,7 @@ func applyPlan(paths runtimePaths, opts verbOptions, id, code string, noSnapshot
 	if humanChannel(plan.Channel) {
 		wantCode = "" // never shown, not even once used
 	}
-	env.Plan = &verbPlan{ID: plan.ID, Hash: fresh.Hash, ExpiresAt: plan.ExpiresAt, Confirm: fresh.Confirm, Code: wantCode, Channel: humanWhere}
+	env.Plan = &verbPlan{ID: plan.ID, Hash: fresh.Hash, ExpiresAt: plan.ExpiresAt, Confirm: fresh.Confirm, Code: wantCode}
 	if isConfig {
 		err := executeConfig(paths, s, &env, *fresh.ConfigAction, ctx, noSnapshot)
 		if errors.Is(err, errSnapshotFailed) {
