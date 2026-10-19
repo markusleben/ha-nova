@@ -24,19 +24,21 @@ type setupCatalogCall struct {
 var setupCatalogFuncs = map[string]int{"setupT": 0, "setupText": 0, "setupStyled": 1, "setupPageText": 0}
 
 // setupPageScriptKeys are the catalog keys the setup page words itself
-// (setupweb/app.js): string literals only, so every key is visible here.
+// (setupweb/*.js): string literals only, so every key is visible here.
 func setupPageScriptKeys(t *testing.T) []string {
 	t.Helper()
-	script, err := os.ReadFile(filepath.Join("setupweb", "app.js"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if regexp.MustCompile("`setup\\.").Match(script) {
-		t.Fatal("setupweb/app.js builds a catalog key at runtime; use a literal key")
-	}
 	var keys []string
-	for _, match := range regexp.MustCompile(`'(setup\.[a-z0-9_.]+)'`).FindAllSubmatch(script, -1) {
-		keys = append(keys, string(match[1]))
+	for _, name := range []string{"app.js", "steps.js"} {
+		script, err := os.ReadFile(filepath.Join("setupweb", name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if regexp.MustCompile("`setup\\.").Match(script) {
+			t.Fatalf("setupweb/%s builds a catalog key at runtime; use a literal key", name)
+		}
+		for _, match := range regexp.MustCompile(`'(setup\.[a-z0-9_.]+)'`).FindAllSubmatch(script, -1) {
+			keys = append(keys, string(match[1]))
+		}
 	}
 	return keys
 }
@@ -181,7 +183,7 @@ func TestSetupCatalogKeysAndPlaceholdersMatchTheCode(t *testing.T) {
 	for _, key := range setupPageScriptKeys(t) {
 		used[key] = true
 		if _, ok := setupCatalog[key]; !ok {
-			t.Errorf("setupweb/app.js: unknown setup string key %q", key)
+			t.Errorf("setupweb: unknown setup string key %q", key)
 		}
 	}
 	for key := range setupCatalog {
@@ -263,7 +265,7 @@ func TestSetupRenderersHoldNoUserFacingLiterals(t *testing.T) {
 	// Input keywords and product names (proper nouns are data).
 	allowed := map[string]bool{"back": true, "exit": true, "Claude Code": true, "Codex CLI": true, "OpenCode": true, "Google Antigravity": true, "Hermes Agent": true}
 	words := regexp.MustCompile(`[A-Za-z]{2,} [A-Za-z]{2,}|^[A-Z][a-z]`)
-	for _, name := range []string{"setup_choice.go", "setup_ui.go", "setup_intro.go", "setup_layout.go", "setup_clients.go", "setup_flow.go", "setup_flow_text.go", "setup_flow_start.go", "setup_flow_credentials.go", "setup_flow_connect.go", "setup_flow_token.go", "setup_flow_finish.go", "setup_flow_page.go", "setup_page_ui.go"} {
+	for _, name := range []string{"setup_choice.go", "setup_ui.go", "setup_intro.go", "setup_layout.go", "setup_clients.go", "setup_flow.go", "setup_flow_text.go", "setup_flow_start.go", "setup_flow_credentials.go", "setup_flow_connect.go", "setup_flow_token.go", "setup_flow_finish.go", "setup_flow_page.go", "setup_page_ui.go", "setup_page_control.go", "setup_page_home.go"} {
 		fset := token.NewFileSet()
 		file, err := parser.ParseFile(fset, name, nil, 0)
 		if err != nil {

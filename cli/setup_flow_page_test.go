@@ -151,20 +151,36 @@ func TestSetupPageSignsInInTheSameTabAndConnects(t *testing.T) {
 		t.Fatalf("a replayed callback was taken: %q", target)
 	}
 
+	// Step 3: no phone to read, no Claude Code, no Link here; then step 4.
+	control := page.waitFor("step 3", accepting("finish"))
+	if control.Screen != "control" || control.Control == nil || control.Control.Phone != "unavailable" ||
+		control.Control.Rule != "" || control.Control.Link != "" || !control.Control.Window != !windowAvailable() {
+		t.Fatalf("step 3 = %+v %+v", control, control.Control)
+	}
+	connected := control
+	page.click("finish", "")
+	home := page.waitFor("step 4", accepting("done"))
+	if home.Screen != "home" || home.Home == nil || !home.Home.Failed || slices.Contains(home.Accepts, "claude") {
+		t.Fatalf("step 4 = %+v %+v", home, home.Home)
+	}
+	page.click("done", "")
 	code := setupPageExit(t, done, stdout) // setupPageLinger is 0: the server is gone now
 	end := page.ui.snapshot()
-	if code != 0 || end.Screen != "done" {
+	if code != 0 || end.Screen != "closed" {
 		t.Fatalf("exit %d, screen %s\n%s", code, end.Screen, stdout)
 	}
 	rows := map[string]string{}
-	for _, row := range end.Rows {
+	for _, row := range connected.Rows {
 		rows[row.ID] = row.State
 	}
 	if want := map[string]string{"signed_in": "ok", "connect": "ok", "teach": "ok"}; !mapsEqual(rows, want) {
 		t.Fatalf("rows = %v, want %v", rows, want)
 	}
-	if end.Rows[0].Msg.Key != "setup.page.row.signed_in" || end.Rows[0].Msg.Args["name"] != "Markus" {
-		t.Fatalf("signed-in row = %+v", end.Rows[0].Msg)
+	if connected.Rows[0].Msg.Key != "setup.page.row.signed_in" || connected.Rows[0].Msg.Args["name"] != "Markus" {
+		t.Fatalf("signed-in row = %+v", connected.Rows[0].Msg)
+	}
+	if !strings.Contains(stdout.String(), setupT("setup.page.terminal.home")) {
+		t.Fatalf("terminal never pointed to the page's step 4:\n%s", stdout)
 	}
 	ha.mu.Lock()
 	revoked := ha.revoked

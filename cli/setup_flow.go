@@ -45,6 +45,13 @@ type setupFlow struct {
 	// pageProblem: why the page's sign-in didn't connect this computer;
 	// step 2 shows it.
 	pageProblem *setupPageMsg
+	// pageControlled: step 3 runs on the page; pageQuit: setup ended there
+	// (Ctrl+C or idle); pageNotes: what step 3 did, for step 4;
+	// pageGeneration: the install generation setup completed with.
+	pageControlled bool
+	pageQuit       bool
+	pageNotes      []*setupPageMsg
+	pageGeneration []byte
 
 	// inputs
 	paths           runtimePaths

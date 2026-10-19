@@ -167,45 +167,68 @@ func linkPhone(s *relaySession, reader *bufio.Reader, out io.Writer, run phoneLi
 		fmt.Fprintln(out, "  Nothing linked: time ran out before the new phone could be asked. Run ha-nova setup confirm-phone again.")
 		return 1
 	}
+	if result := sendPhoneLink(s, out, home, links, prev, chosen, linkWait); result != phoneLinked {
+		return 1
+	}
+	return 0
+}
+
+// phoneLinkResult: how a link question to a chosen phone ended.
+type phoneLinkResult int
+
+const (
+	phoneLinked       phoneLinkResult = iota
+	phoneLinkUnread                   // the re-check after the tap failed
+	phoneLinkChanged                  // the phone or its user changed meanwhile
+	phoneLinkRejected                 // the tap came from another user
+	phoneLinkDeclined                 // cancelled on the phone
+	phoneLinkFailed                   // the notification couldn't be sent or heard
+	phoneLinkTimeout                  // no tap in time
+	phoneLinkNotSaved                 // config.json couldn't take the link
+)
+
+// sendPhoneLink sends the link question to chosen alone, waits for its
+// tap, re-checks the phone, and stores the link while this home's entry is
+// still prev. It prints what happened to out, in the terminal's words,
+// before the phone gets the result.
+func sendPhoneLink(s *relaySession, out io.Writer, home phoneHome, links map[string]phoneEntry, prev phoneEntry, chosen phoneTarget, wait time.Duration) phoneLinkResult {
+	name := terminalSafeName(chosen.Name)
 	ask := phoneSetup{owner: home.owner, relayUser: home.relay, confirmer: chosen.UserID, targets: []phoneTarget{chosen}}
 	retry := " Run ha-nova setup confirm-phone again to retry."
-	answer, reply := askPhone(context.Background(), s, ask, "ha-nova-link", phoneLinkAsk(), linkWait, os.Stderr)
+	answer, reply := askPhone(context.Background(), s, ask, "ha-nova-link", phoneLinkAsk(), wait, os.Stderr)
 	defer func() { // only the first say counts: "Linked" below wins
 		_, line := phoneNothing(answer)
 		reply.say("Not linked", line)
 	}()
+	say := func(result phoneLinkResult, line string) phoneLinkResult {
+		fmt.Fprintln(out, "  "+line)
+		return result
+	}
 	switch answer {
 	case phoneConfirmed:
 		again, err := lookupPhones(s, links)
 		if err != nil {
-			fmt.Fprintf(out, "  Nothing linked: HA NOVA couldn't re-check “%s” in Home Assistant after the tap.%s\n", name, retry)
-			return 1
+			return say(phoneLinkUnread, fmt.Sprintf("Nothing linked: HA NOVA couldn't re-check “%s” in Home Assistant after the tap.%s", name, retry))
 		}
 		if !slices.ContainsFunc(again.eligible(""), func(t phoneTarget) bool { return t.DeviceID == chosen.DeviceID && t.UserID == chosen.UserID }) {
-			fmt.Fprintln(out, "  Nothing linked: the phone or its Home Assistant user changed while HA NOVA was asking."+retry)
-			return 1
+			return say(phoneLinkChanged, "Nothing linked: the phone or its Home Assistant user changed while HA NOVA was asking."+retry)
 		}
 	case phoneRejected:
-		fmt.Fprintf(out, "  Nothing linked: the tap came from a phone signed in to Home Assistant as someone other than %s. Link a phone signed in with your own account.\n", terminalSafeName(chosen.Person))
-		return 1
+		return say(phoneLinkRejected, fmt.Sprintf("Nothing linked: the tap came from a phone signed in to Home Assistant as someone other than %s. Link a phone signed in with your own account.", terminalSafeName(chosen.Person)))
 	case phoneDeclined:
-		fmt.Fprintln(out, "  Nothing linked: it was cancelled on the phone."+retry)
-		return 1
+		return say(phoneLinkDeclined, "Nothing linked: it was cancelled on the phone."+retry)
 	case phoneFailed:
-		fmt.Fprintln(out, "  Nothing linked: HA NOVA couldn't send the notification, or couldn't listen for the tap through the NOVA App. Check that the phone's Home Assistant app is signed in and can reach Home Assistant."+retry)
-		return 1
+		return say(phoneLinkFailed, "Nothing linked: HA NOVA couldn't send the notification, or couldn't listen for the tap through the NOVA App. Check that the phone's Home Assistant app is signed in and can reach Home Assistant."+retry)
 	default:
-		fmt.Fprintln(out, "  Nothing linked: “"+phoneLinkButton+"” was not tapped in time (expand the notification to see it)."+retry)
-		return 1
+		return say(phoneLinkTimeout, "Nothing linked: “"+phoneLinkButton+"” was not tapped in time (expand the notification to see it)."+retry)
 	}
 	link := &phoneLink{Service: chosen.Service, DeviceID: chosen.DeviceID, UserID: chosen.UserID, Name: terminalSafeName(chosen.Name)}
 	if err := setPhoneLink(s.paths, home.owner, prev, link); err != nil {
-		fmt.Fprintf(out, "  Nothing linked: %s.\n", err)
-		return 1
+		return say(phoneLinkNotSaved, fmt.Sprintf("Nothing linked: %s.", err))
 	}
-	fmt.Fprintf(out, "  Linked “%s”. Only this phone gets HA NOVA confirmations from “%s”.\n", name, phoneHost())
+	say(phoneLinked, fmt.Sprintf("Linked “%s”. Only this phone gets HA NOVA confirmations from “%s”.", name, phoneHost()))
 	reply.say("Linked to HA NOVA", "Confirmations from “"+phoneHost()+"” come to this phone.")
-	return 0
+	return phoneLinked
 }
 
 // unlinkPhone: a downgrade (the next channel is the form or chat), so it is

@@ -22,6 +22,7 @@ import (
 
 // Test seams.
 var (
+	setupPageTry              = func(paths runtimePaths) int { return runTryCommand(paths, nil) }
 	openHASignInInTabForSetup = openHASignInIngressIn
 	setupPageAvailable        = defaultSetupPageAvailable
 )
@@ -145,12 +146,22 @@ func (f *setupFlow) stepPage() setupStepResult {
 		if app.primary != "" {
 			accepts = append(accepts, "signin")
 		}
+		if f.cfg.HAURL == "" { // no Home Assistant found: the demo house (spec §8)
+			accepts = append(accepts, "demo")
+		}
 		action, err := p.wait(accepts...)
 		if err != nil {
 			return f.cancelled()
 		}
 		problem, screen, fix, links, askHA = nil, "found", "", map[string]string{}, false
 		switch action.Action {
+		case "demo":
+			if setupPageTry(f.paths) == 0 {
+				p.end("demo")
+				return setupDone(0)
+			}
+			problem, askHA = setupPageText("setup.page.problem.demo"), true
+			continue
 		case "address":
 			host, haURL, ok := pageResolveAddress(action.Value)
 			if !ok {

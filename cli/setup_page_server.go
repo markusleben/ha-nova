@@ -48,6 +48,7 @@ const (
 // Served from setupweb; anything else is 404.
 var setupPageAssets = map[string]string{
 	"app.js":          "text/javascript; charset=utf-8",
+	"steps.js":        "text/javascript; charset=utf-8",
 	"style.css":       "text/css; charset=utf-8",
 	"tokens.css":      "text/css; charset=utf-8",
 	"logo.svg":        "image/svg+xml",
@@ -290,7 +291,7 @@ func (s *setupPageServer) state(w http.ResponseWriter, r *http.Request) {
 // setupPageEnded: screens after which setup no longer runs.
 func setupPageEnded(screen string) bool {
 	switch screen {
-	case "done", "incomplete", "finished", "failed", "stopped", "idle":
+	case "done", "closed", "skipped", "demo", "incomplete", "finished", "failed", "stopped", "idle":
 		return true
 	}
 	return false

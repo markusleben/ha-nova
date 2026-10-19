@@ -152,19 +152,21 @@ func (f *setupFlow) stepSkills() setupStepResult {
 		f.ui.outcome(setupOutcome{Kind: setupOutcomeIncomplete, Issue: setupIssueSkillsInstall})
 		return setupDone(1)
 	}
-	if f.page != nil {
-		// The page ends with step 2 for now: the Link, phone, and Claude
-		// Code offers ask in the terminal (spec §13 A7 moves them to step 3).
-		f.page.finishInTerminal()
-	}
 	exit := 0
-	if f.cloudSetupPaused {
+	onPage := f.page != nil && !f.page.inTerminal()
+	if f.cloudSetupPaused && onPage {
+		f.pageControlled = true // pageFinish shows the paused outcome; the page goes on to step 3
+	} else if f.cloudSetupPaused {
 		f.ui.outcome(setupOutcome{Kind: setupOutcomeLinkPaused})
 	} else if f.cloudSetupIncomplete {
 		f.ui.outcome(setupOutcome{Kind: setupOutcomeIncomplete, Issue: setupIssueCloudAccess})
 		exit = 1
 	}
-	if exit == 0 && !f.connectionModeAsked && !f.serviceMode {
+	if exit == 0 && onPage {
+		// The page asks step 3 itself (phone, Claude Code rule, Link) once
+		// setup is complete, like the terminal's offers in finish.
+		f.pageControlled = true
+	} else if exit == 0 && !f.connectionModeAsked && !f.serviceMode {
 		armSetupNextPromptSkipsStaleBlankInput()
 		var cloudAttempted bool
 		var cloudCode int
@@ -188,6 +190,15 @@ func (f *setupFlow) stepSkills() setupStepResult {
 	if err := completeSetupLifecycle(f.paths, f.lifecycleMarker...); err != nil {
 		return f.fail(setupText("setup.error.finalize_lifecycle", "error", err))
 	}
+	if f.pageControlled && len(f.lifecycleMarker) > 0 {
+		// The generation setup completed with: an uninstall during step 3
+		// rotates it, and the page's Link add then fails closed.
+		generation, err := readInstallLifecycleGeneration(f.paths)
+		if err != nil {
+			return f.failErr(err)
+		}
+		f.pageGeneration = generation
+	}
 	if exit != 0 {
 		return setupDone(exit)
 	}
@@ -198,6 +209,9 @@ func (f *setupFlow) stepSkills() setupStepResult {
 // outcome. The offers come first: the outcome clears the screen, so the
 // Claude rule's note prints after it.
 func (f *setupFlow) finish() setupStepResult {
+	if f.pageControlled {
+		return f.pageFinish()
+	}
 	interactive := !f.serviceMode && f.ui.interactive()
 	if f.pairedThisRun && !f.cloudSetupPaused && interactive {
 		offerPhoneLink(f.ui.termIn(), f.ui.termOut(), f.paths)
