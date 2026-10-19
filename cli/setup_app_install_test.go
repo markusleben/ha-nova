@@ -303,3 +303,23 @@ func TestSignInInstallStepRunsInsideTheSignInAndStillRevokes(t *testing.T) {
 		t.Fatalf("err=%v ingress=%v revoked=%v", err, session.ingress, failing.revoked)
 	}
 }
+
+// After the setup page's "Use a six-digit code", the App step shows the
+// manual steps instead of offering the sign-in again.
+func TestRelayInstallStepsRespectTheCodeChoiceFromThePage(t *testing.T) {
+	previousOffered := haAppInstallOffered
+	t.Cleanup(func() { haAppInstallOffered = previousOffered; setupPairWithCode = false })
+	haAppInstallOffered = func(io.Writer, runtimeConfig) bool { return true }
+	stubInstalledRelayProbe(t, false, "")
+	calls := stubAppInstallSignIn(t, newFakeSupervisor(t))
+	previousOpen := openBrowserForSetup
+	openBrowserForSetup = func(string) error { return nil }
+	t.Cleanup(func() { openBrowserForSetup = previousOpen })
+	setupPairWithCode = true
+	var out bytes.Buffer
+	cfg := runtimeConfig{HAURL: "http://ha.local:8123", RelayBaseURL: "http://ha.local:8791"}
+	if _, err := runRelayInstallSteps(bufio.NewReader(strings.NewReader("\n\n")), &out, runtimePaths{}, cfg, true); err != nil ||
+		*calls != 0 || strings.Contains(out.String(), "Sign in and install") || !strings.Contains(out.String(), "Your browser opens the NOVA App") {
+		t.Fatalf("err=%v sign-ins=%d\n%s", err, *calls, out.String())
+	}
+}

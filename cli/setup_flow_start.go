@@ -50,8 +50,8 @@ func (f *setupFlow) start() setupStepResult {
 	var cloudRecoveryCode int
 	f.cfg, cloudRecoveryHandled, cloudRecoveryCode =
 		handleInteractiveCloudRecoveryBeforeClients(
-			f.ui.reader,
-			f.ui.out,
+			f.ui.termIn(),
+			f.ui.termOut(),
 			f.paths,
 			f.cfg,
 			f.serviceMode,
@@ -96,6 +96,11 @@ func (f *setupFlow) start() setupStepResult {
 // chooseClientAndMode asks for the AI client (unless a target was given)
 // and, on an unconstrained fresh setup, how this computer connects.
 func (f *setupFlow) chooseClientAndMode() setupStepResult {
+	if f.page != nil {
+		if result := f.pageWaitForClient(); result.done {
+			return result
+		}
+	}
 	clientsResolved := false
 	for {
 		if f.target == "" {
@@ -130,8 +135,8 @@ func (f *setupFlow) chooseClientAndMode() setupStepResult {
 
 		if remoteOnlyCloudSetup(f.cfg) && !f.explicitLocalSetup {
 			return setupDone(resumeInteractiveCloudOnlySetup(
-				f.ui.reader,
-				f.ui.out,
+				f.ui.termIn(),
+				f.ui.termOut(),
 				f.paths,
 				f.cfg,
 				&f.state,
@@ -146,7 +151,7 @@ func (f *setupFlow) chooseClientAndMode() setupStepResult {
 		if hybridCloudSetupPending(f.cfg) {
 			f.connectionMode = setupConnectionHybrid
 		}
-		if !shouldOfferSetupConnectionMode(
+		if f.page != nil || !shouldOfferSetupConnectionMode(
 			f.cfg,
 			f.hostFlag,
 			f.haURLFlag,
@@ -157,7 +162,7 @@ func (f *setupFlow) chooseClientAndMode() setupStepResult {
 			return setupGoOn
 		}
 		f.connectionModeAsked = true
-		mode, err := promptSetupConnectionMode(f.ui.reader, f.ui.out)
+		mode, err := promptSetupConnectionMode(f.ui.termIn(), f.ui.termOut())
 		f.connectionMode = mode
 		if err == errSetupBack {
 			f.target = ""
@@ -176,8 +181,8 @@ func (f *setupFlow) chooseClientAndMode() setupStepResult {
 			return setupGoOn
 		}
 		exit, back := runInteractiveCloudOnlySetupForWizard(
-			f.ui.reader,
-			f.ui.out,
+			f.ui.termIn(),
+			f.ui.termOut(),
 			f.paths,
 			f.cfg,
 			&f.state,

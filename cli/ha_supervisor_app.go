@@ -63,6 +63,15 @@ type novaAppSupervisor struct {
 	ws       haWSCaller
 	repoSlug string
 	appSlug  string
+	// phase, when set, hears each change as it starts: "add", "install",
+	// "update", "start" (the setup page's progress rows).
+	phase func(name string)
+}
+
+func (s novaAppSupervisor) report(name string) {
+	if s.phase != nil {
+		s.phase(name)
+	}
 }
 
 // Supervisor names a repository by the first 8 hex digits of the SHA-1 of its
@@ -177,6 +186,7 @@ func (s novaAppSupervisor) ensure(ctx context.Context, out io.Writer, state *nov
 	}
 	if !listed {
 		state.busy = "adding the NOVA App source"
+		s.report("add")
 		_, err := runSetupSpinnerWithResult(out, "Adding the NOVA App source to Home Assistant...", setupSpinnerDebounce, func() (struct{}, error) {
 			return struct{}{}, s.call(ctx, "post", "/store/repositories", map[string]any{"repository": haNovaRepositoryURL}, 2*time.Minute, nil)
 		})
@@ -218,6 +228,7 @@ func (s novaAppSupervisor) ensure(ctx context.Context, out io.Writer, state *nov
 			// A local build would take long and run code no image check saw.
 			return &novaAppInstallError{line: "Home Assistant would have to build the NOVA App on this system instead of downloading it. Nothing was installed."}
 		}
+		s.report("install")
 		if err := s.job(ctx, out, state, "install", "installing the NOVA App",
 			"Installing the NOVA App (download, can take a few minutes)..."); err != nil {
 			return err
@@ -234,6 +245,7 @@ func (s novaAppSupervisor) ensure(ctx context.Context, out io.Writer, state *nov
 			target.Build || !target.Available || !supervisorVersionPattern.MatchString(target.VersionLatest) {
 			return &novaAppInstallError{line: "Home Assistant can't download the NOVA App update for this system. Nothing was updated."}
 		}
+		s.report("update")
 		if err := s.job(ctx, out, state, "update", "updating the NOVA App",
 			fmt.Sprintf("Updating the NOVA App to v%s...", target.VersionLatest)); err != nil {
 			return err
@@ -255,6 +267,7 @@ func (s novaAppSupervisor) ensure(ctx context.Context, out io.Writer, state *nov
 		return nil
 	}
 	state.busy = "starting the NOVA App"
+	s.report("start")
 	_, err = runSetupCountdownSpinnerWithResult(out, "Starting the NOVA App...", 3*time.Minute, setupSpinnerDebounce, func() (struct{}, error) {
 		return struct{}{}, s.call(ctx, "post", "/addons/"+s.appSlug+"/start", nil, 3*time.Minute, nil)
 	})

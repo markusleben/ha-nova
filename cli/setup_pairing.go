@@ -304,10 +304,15 @@ func runSetupPairingFlow(reader *bufio.Reader, out io.Writer, paths runtimePaths
 		if err != nil {
 			return "", err
 		}
+		if installed.fromPage {
+			return "", errSetupPairingOnPage
+		}
 	}
 
 	typedCode := ""
-	if secure && haSignInOffered(out, *cfg) {
+	codeChosen := setupPairWithCode
+	setupPairWithCode = false
+	if secure && !codeChosen && haSignInOffered(out, *cfg) {
 		paired, code, err := runHASignInPairingStep(reader, out, paths, cfg, lifecycleMarker...)
 		if paired {
 			renderSetupSuccessLine(out, "This computer is connected")

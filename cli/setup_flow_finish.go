@@ -25,7 +25,7 @@ func (f *setupFlow) stepVerify() setupStepResult {
 			credentialRepair = setupCredentialRepairPairing
 		}
 	}
-	issue, ok, err := verifySetupConnection(f.ui.reader, f.ui.out, f.cfg, f.token, f.verifyFirstReuseFlow, credentialRepair, f.pairingCredentialReceived)
+	issue, ok, err := verifySetupConnection(f.ui.termIn(), f.ui.termOut(), f.cfg, f.token, f.verifyFirstReuseFlow, credentialRepair, f.pairingCredentialReceived)
 	switch {
 	case err == errSetupBack:
 		if f.pairingFlow {
@@ -56,7 +56,7 @@ func (f *setupFlow) stepVerify() setupStepResult {
 		return f.inputFailed(err)
 	}
 	if !ok {
-		if err := persistInteractiveSetupStateWithRecovery(f.ui.reader, f.ui.out, f.paths, f.cfg, &f.state, f.savedTokenBeforeSetup, f.hadSavedTokenBeforeSetup, f.token, &f.secureStorageRecovery, f.lifecycleMarker...); err != nil {
+		if err := persistInteractiveSetupStateWithRecovery(f.ui.termIn(), f.ui.termOut(), f.paths, f.cfg, &f.state, f.savedTokenBeforeSetup, f.hadSavedTokenBeforeSetup, f.token, &f.secureStorageRecovery, f.lifecycleMarker...); err != nil {
 			return f.failErr(err)
 		}
 		f.ui.outcome(setupOutcome{Kind: setupOutcomeIncomplete, Issue: issue})
@@ -66,7 +66,7 @@ func (f *setupFlow) stepVerify() setupStepResult {
 	// pairing (this branch is legacy-only; the device branch continues
 	// to the skills above) would win transport resolution on the next run
 	// and wedge the install on a dead pairing — retire it for good.
-	if err := persistInteractiveSetupStateWithRecoveryMode(f.ui.reader, f.ui.out, f.paths, f.cfg, &f.state, f.savedTokenBeforeSetup, f.hadSavedTokenBeforeSetup, f.token, &f.secureStorageRecovery, true, f.lifecycleMarker...); err != nil {
+	if err := persistInteractiveSetupStateWithRecoveryMode(f.ui.termIn(), f.ui.termOut(), f.paths, f.cfg, &f.state, f.savedTokenBeforeSetup, f.hadSavedTokenBeforeSetup, f.token, &f.secureStorageRecovery, true, f.lifecycleMarker...); err != nil {
 		return f.failErr(err)
 	}
 	return setupGoTo(setupStepSkills)
@@ -79,7 +79,8 @@ func (f *setupFlow) verifyDevice() setupStepResult {
 	f.ui.show(setupView{Blocks: []setupBlock{setupTight(setupText("setup.verify.device_checking"))}})
 	if !verifyDeviceHealth(f.cfg) {
 		f.ui.show(setupView{Blocks: []setupBlock{setupErrorBlock(setupText("setup.verify.device_not_answering"))}})
-		if retryErr := promptSetupDeviceVerifyRetry(f.ui.reader, f.ui.out); retryErr != nil {
+		f.textOnly()
+		if retryErr := promptSetupDeviceVerifyRetry(f.ui.termIn(), f.ui.termOut()); retryErr != nil {
 			if retryErr == errSetupBack {
 				// Do exactly what the prompt advertises.
 				f.pairingBackStep = setupStepVerify
@@ -106,14 +107,14 @@ func (f *setupFlow) verifyDevice() setupStepResult {
 		f.cfg = cfg
 		if err != nil {
 			if handlePausedCloudOwnerPairing(
-				f.ui.out,
+				f.ui.termOut(),
 				f.paths,
 				err,
 			) {
 				f.cloudSetupPaused = true
 				return setupGoTo(setupStepSkills)
 			}
-			renderCloudFailure(f.ui.out, f.paths, err)
+			renderCloudFailure(f.ui.termOut(), f.paths, err)
 			f.cloudSetupIncomplete = true
 			return setupGoTo(setupStepSkills)
 		}
@@ -151,6 +152,11 @@ func (f *setupFlow) stepSkills() setupStepResult {
 		f.ui.outcome(setupOutcome{Kind: setupOutcomeIncomplete, Issue: setupIssueSkillsInstall})
 		return setupDone(1)
 	}
+	if f.page != nil {
+		// The page ends with step 2 for now: the Link, phone, and Claude
+		// Code offers ask in the terminal (spec §13 A7 moves them to step 3).
+		f.page.finishInTerminal()
+	}
 	exit := 0
 	if f.cloudSetupPaused {
 		f.ui.outcome(setupOutcome{Kind: setupOutcomeLinkPaused})
@@ -163,8 +169,8 @@ func (f *setupFlow) stepSkills() setupStepResult {
 		var cloudAttempted bool
 		var cloudCode int
 		f.cfg, cloudAttempted, cloudCode = maybeOfferCloudForCompletedSetup(
-			f.ui.reader,
-			f.ui.out,
+			f.ui.termIn(),
+			f.ui.termOut(),
 			f.paths,
 			f.cfg,
 			false,
@@ -194,17 +200,17 @@ func (f *setupFlow) stepSkills() setupStepResult {
 func (f *setupFlow) finish() setupStepResult {
 	interactive := !f.serviceMode && f.ui.interactive()
 	if f.pairedThisRun && !f.cloudSetupPaused && interactive {
-		offerPhoneLink(f.ui.reader, f.ui.out, f.paths)
+		offerPhoneLink(f.ui.termIn(), f.ui.termOut(), f.paths)
 	}
 	ruleNote := ""
 	if interactive && slices.Contains(f.selectedClients, "claude") {
-		ruleNote = offerClaudeRules(f.ui.reader, f.ui.out, f.paths)
+		ruleNote = offerClaudeRules(f.ui.termIn(), f.ui.termOut(), f.paths)
 	}
 	// The read-only first look after a pairing in this run
 	// (docs/work/2026-10-16-ha-sign-in-pairing-spec.md, "First look").
 	var look *setupFirstLook
 	if f.pairedThisRun && !f.cloudSetupPaused {
-		look = loadSetupFirstLook(f.ui.out, f.paths)
+		look = loadSetupFirstLook(f.ui.termOut(), f.paths)
 	}
 	if f.cfg.Cloud.ready() && f.cfg.RoutePolicy == routePolicyAutomatic {
 		f.ui.outcome(setupOutcome{Kind: setupOutcomeLinkReady, Look: look})

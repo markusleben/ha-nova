@@ -82,11 +82,39 @@ type setupOutcome struct {
 	Issue       string
 }
 
+// setupUI is what the setup engine asks of a renderer: the terminal
+// (setupTextUI) or the local setup page (setupWebUI, setup_page_ui.go).
+type setupUI interface {
+	header()
+	show(view setupView)
+	choose(ask setupAsk) (string, error)
+	listChoices(ask setupAsk)
+	openURL(url string)
+	interactive() bool
+	input(label setupMsg) (string, error)
+	working(label setupMsg, task func() error) error
+	outcome(o setupOutcome)
+	note(line string)
+	cancelled()
+	fail(msg setupMsg)
+	failErr(err error)
+	info(msg setupMsg)
+	// termIn and termOut serve the steps that stay text-only (recovery
+	// edge states, spec §2). On the setup page, reading termIn hands
+	// setup over to the terminal.
+	termIn() *bufio.Reader
+	termOut() io.Writer
+}
+
 // setupTextUI renders setup views in the terminal.
 type setupTextUI struct {
 	reader *bufio.Reader
 	out    io.Writer
 }
+
+func (ui setupTextUI) termIn() *bufio.Reader { return ui.reader }
+
+func (ui setupTextUI) termOut() io.Writer { return ui.out }
 
 func (ui setupTextUI) header() {
 	renderSetupHeader(ui.out)
