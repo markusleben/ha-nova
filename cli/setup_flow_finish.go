@@ -234,11 +234,18 @@ func (f *setupFlow) finish() setupStepResult {
 			setupSuccess(setupText("setup.done.connected_no_client")),
 			setupParagraph(setupText("setup.clients.none_after_pairing", "clients", strings.Join(labels, ", "))),
 		}})
+		if interactive && f.pairedThisRun && !f.cloudSetupPaused && setupOwnerIngress != nil {
+			f.printChatApps(f.offerChatApps()) // Claude and ChatGPT on the web need no AI app here
+		}
 		return setupDone(0)
 	}
 	ruleNote := ""
 	if interactive && slices.Contains(f.selectedClients, "claude") {
 		ruleNote = offerClaudeRules(f.ui.termIn(), f.ui.termOut(), f.paths)
+	}
+	chatURL, chatNote := "", ""
+	if interactive && f.pairedThisRun && !f.cloudSetupPaused && setupOwnerIngress != nil {
+		chatURL, chatNote = f.offerChatApps()
 	}
 	// The read-only first look after a pairing in this run
 	// (docs/work/2026-10-16-ha-sign-in-pairing-spec.md, "First look").
@@ -254,5 +261,43 @@ func (f *setupFlow) finish() setupStepResult {
 	if ruleNote != "" {
 		f.ui.note(ruleNote)
 	}
+	f.printChatApps(chatURL, chatNote) // after the outcome, which clears the screen
 	return setupDone(0)
+}
+
+func (f *setupFlow) printChatApps(url, note string) {
+	if note != "" {
+		f.ui.note(note)
+	}
+	if url != "" {
+		printChatAppsHowTo(f.ui.termOut(), url)
+	}
+}
+
+// offerChatApps is step 3's chat-app row in the terminal: one question, only
+// when the row would show, default "Not now". Returns the connector address
+// once they are on, and a line about how it went; both print after the
+// outcome, which clears the screen.
+func (f *setupFlow) offerChatApps() (url, note string) {
+	offer, ok := readChatAppsOffer(setupOwnerIngress, f.paths, func() string { return setupLinkRemoteOrigin(f.cfg) })
+	switch {
+	case !ok:
+		return "", ""
+	case offer.state.Enabled:
+		note := ""
+		if !offer.loaded { // on, but a restart never came
+			note = setupT("setup.chat.problem_slow")
+		}
+		if err := handOverOwnerPhone(setupOwnerIngress, f.paths, setupSignedInUser, &offer.state); err != nil {
+			note = setupT("setup.chat.problem_phone") // the phone linked just before
+		}
+		return offer.url, note
+	case !askChatAppsConsent(f.ui.termIn(), f.ui.termOut(), true, chatAppsPhoneName(f.paths, setupSignedInUser, offer.state)):
+		return "", setupT("setup.chat.skipped")
+	}
+	note, on := turnOnChatAppsInTerminal(f.ui.termOut(), f.paths, setupOwnerIngress, offer, setupSignedInUser)
+	if !on {
+		return "", note
+	}
+	return offer.url, note
 }

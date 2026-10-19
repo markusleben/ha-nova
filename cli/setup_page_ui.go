@@ -25,7 +25,7 @@ var setupPageIdle = 30 * time.Minute
 
 // The actions the page may post; the engine accepts a subset at a time.
 var setupPageActions = []string{"signin", "address", "terminal", "recheck", "stop", "demo",
-	"phone", "finish", // step 3 (setup_page_control.go)
+	"phone", "chat", "finish", // step 3 (setup_page_control.go)
 	"preview", "save", "undo", "claude", "done", // step 4 (setup_page_home.go)
 }
 

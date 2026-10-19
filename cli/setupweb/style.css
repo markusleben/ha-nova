@@ -176,6 +176,23 @@ h2 { font-size: .8125rem; font-weight: 600; letter-spacing: .08em; text-transfor
 .chip:hover { border-color: var(--cyan); }
 .toast { position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); max-width: calc(100% - 32px); background: var(--bg-1); border: 1px solid var(--hairline); padding: 10px 18px; border-radius: 999px; font-size: .9rem; z-index: 5; }
 
+/* Chat apps: the consent under its switch, the restart progress, the
+   connector address to copy. */
+.consent { margin-top: 10px; padding: 12px 14px; border: 1px solid rgba(255, 179, 71, .4); border-radius: 10px; }
+.consent p { margin: 0 0 8px; font-size: .95rem; color: var(--ink-soft); }
+.consent .restart { color: var(--amber); font-weight: 600; }
+.consent .actions { gap: 8px; }
+.rows.sub { margin: 8px 0 0; border-top: 0; }
+.rows.sub li { padding: 6px 0; border-bottom: 0; grid-template-columns: 22px 1fr; font-size: .95rem; }
+.rows.sub li > :nth-child(3) { display: none; }
+.rows.sub .k { font-weight: 400; color: var(--ink-soft); }
+.copybar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 10px; }
+.copybar code { flex: 1 1 16rem; min-width: 0; font: 600 .875rem var(--mono); color: var(--ink); background: var(--panel); border: 1px solid var(--hairline); border-radius: 10px; padding: .55rem .8rem; overflow-wrap: anywhere; user-select: all; }
+.how { margin-top: 10px; font-size: .95rem; color: var(--ink-soft); }
+.how summary { cursor: pointer; color: var(--cyan); font-weight: 600; }
+.how .k { margin-top: 10px; color: var(--ink); }
+.how ol { margin: 4px 0 0; padding-left: 1.4rem; }
+
 @media (max-width: 720px) {
   .actions .btn { width: 100%; }
   .preview .btn { width: auto; }

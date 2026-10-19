@@ -512,9 +512,9 @@ func TestSetupPageLinkRowOnlyWhenRemoteIsActive(t *testing.T) {
 		}
 		coordinator := successfulCloudCoordinatorForTest()
 		installCloudSetupTestSeams(t, coordinator, true, true)
-		previous := setupPageLinkActive
-		t.Cleanup(func() { setupPageLinkActive = previous })
-		setupPageLinkActive = func(runtimeConfig) bool { return test.active }
+		previous := setupLinkRemoteOrigin
+		t.Cleanup(func() { setupLinkRemoteOrigin = previous })
+		setupLinkRemoteOrigin = func(runtimeConfig) string { return map[bool]string{true: "https://abc.ui.nabu.casa"}[test.active] }
 		p := newPageStepsTest(t, paths, "codex")
 		p.flow.cfg = cfg
 		if test.uninstalled {
@@ -543,7 +543,7 @@ func TestSetupPageLinkRowOnlyWhenRemoteIsActive(t *testing.T) {
 func TestSetupPageStepActionsAreGuarded(t *testing.T) {
 	page := startSetupPageTest(t)
 	page.launch()
-	for _, action := range []string{"phone", "finish", "preview", "save", "undo", "claude", "done"} {
+	for _, action := range []string{"phone", "chat", "finish", "preview", "save", "undo", "claude", "done"} {
 		body := `{"action":"` + action + `","value":"x"}`
 		if code := page.post(body, nil); code != http.StatusConflict {
 			t.Errorf("%s while nothing waits = %d", action, code)

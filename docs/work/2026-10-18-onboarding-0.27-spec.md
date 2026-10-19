@@ -147,7 +147,7 @@ The line updates in place and ends with `✓ Done: this computer is connected to
 **Steps 3–4 as built (A6b):**
 - Step 3's phone row links the first phone with one notification: the click on the page is the consent at this computer (the window's part in `ha-nova setup confirm-phone`), the tap on that phone links it. A phone linked before shows as on; a link that can't be asked now stays with `confirm-phone`.
 - Step 3 runs once setup is complete (as the terminal's offers do), so its writes never race setup's own config checks. Ctrl+C or idle there shows "connected, choices not applied".
-- The Link row is the Home Assistant Link fallback (D2), shown only while Link remote access answers; its sign-in opens in a tab of its own. A Link failure keeps the terminal's exit code, but step 4 still shows with one line. The chat-app row is B4.
+- The Link row is the Home Assistant Link fallback (D2), shown only while Link remote access answers; its sign-in opens in a tab of its own. A Link failure keeps the terminal's exit code, but step 4 still shows with one line. The chat-app row (B4) is in the contract doc, "Setup and CLI (B4)".
 - Step 4 runs the §7.6 verbs as child processes for the server setup connected (`--server`), in their own signal group (Ctrl+C never stops a save halfway). A save posts the plan id the page shows; the CLI saves only a plan this run stored for that preview, once. An unclear outcome is never offered again; a read-back mismatch shows no ✓. Rooms undo is a preview of its own, then a click, and stays offered until an undo is verified. Done, Ctrl+C, or 30 min idle closes setup.
 - No Home Assistant found: step 1 offers "Look around the demo house" (`ha-nova try`; `setup --demo` is the alias).
 
@@ -250,7 +250,7 @@ Sign-in session scope:
     - `POST /addons/<slug>/start`;
     - `GET /jobs/<id>`;
     - `POST /ingress/session`;
-  - through that ingress session, only the App's owner actions: arm, chat apps on, and the owner's chat-app phone link (§11.4, §11.6);
+  - through that ingress session, only the App's owner actions: arm, chat apps on and off, and the owner's chat-app phone link (§11.4, §11.6);
   - `cloud/status`;
   - the phone lookup reads.
 - Repository trust:
