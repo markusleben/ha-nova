@@ -1,5 +1,5 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -278,10 +278,11 @@ describe("NOVA page: Chat apps", () => {
     const href = /<a class="linkbtn primary" href="([^"]+)" target="_blank" rel="noopener noreferrer">Add to Claude<\/a>/.exec(page.body)?.[1];
     expect(href).toBe("https://claude.ai/customize/connectors?modal=add-custom-connector&amp;connectorName=HA%20NOVA&amp;connectorUrl=https%3A%2F%2Fabc123.ui.nabu.casa%2Fapi%2Fha_nova%2Fmcp");
     expect(page.body).toContain(`<p class="address">${url}</p>`);
+    expect(page.body).toContain("Adds abc123.ui.nabu.casa</span>");
     for (const connectorUrl of [async () => null, async () => { throw new Error("ws down"); }]) {
       const plain = await run(createNovaPageHandler({ ...pageDeps(on), connectorUrl }), request("owner-1"));
       expect(plain.statusCode).toBe(200);
-      expect(plain.body).toContain("followed by <code>/api/ha_nova/mcp</code>");
+      expect(plain.body).toContain("can't find an address Claude and ChatGPT can reach");
       expect(plain.body).not.toContain("claude.ai");
     }
     let asked = 0;
@@ -302,25 +303,13 @@ describe("chat-app connector address", () => {
     }
     expect(chatConnectorUrl(null, null)).toBeNull();
   });
-  it("else Home Assistant's external URL, only when it is public HTTPS", () => {
-    for (const [external, want] of [
-      ["https://home.example.com", "https://home.example.com/api/ha_nova/mcp"],
-      ["https://My.DuckDNS.org:8123/", "https://my.duckdns.org:8123/api/ha_nova/mcp"],
-      ["http://home.example.com", null],
-      ["https://192.168.1.5:8123", null],
-      ["https://8.8.8.8", null],
-      ["https://[fd00::1]", null],
-      ["https://homeassistant.local:8123", null],
-      ["https://homeassistant:8123", null],
-      ["https://ha.home.arpa", null],
-      ["https://home.example.com/sub", null],
-      ["https://user@home.example.com", null],
-      ["https://home.example.com?x=1", null],
-      ["https://abc123.ui.nabu.casa", null], // a Link address counts only with remote access on
-      [undefined, null],
-    ] as const) {
-      expect(chatConnectorUrl(noLink, { external_url: external }), String(external)).toBe(want);
+  it("else Home Assistant's external URL, only when it is public HTTPS (vectors shared with the CLI)", () => {
+    const { vectors } = JSON.parse(readFileSync(join(__dirname, "../fixtures/chat-connector-base.json"), "utf8")) as { vectors: [string, string | null][] };
+    expect(vectors.length).toBeGreaterThan(10);
+    for (const [external, want] of vectors) {
+      expect(chatConnectorUrl(noLink, { external_url: external }), external).toBe(want === null ? null : `${want}/api/ha_nova/mcp`);
     }
+    expect(chatConnectorUrl(noLink, {})).toBeNull();
     expect(chatConnectorUrl(null, { external_url: "https://home.example.com" })).toBe("https://home.example.com/api/ha_nova/mcp");
   });
   it("links to claude.ai only, with the address percent-encoded", () => {

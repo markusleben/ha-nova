@@ -9,7 +9,7 @@ With chat apps on, you can ask about your home and change it from Claude or Chat
 - Home Assistant OS (or Supervised) 2026.10 or newer, with the NOVA App.
 - A way for Claude and ChatGPT to reach your Home Assistant over the internet, one of:
   - **Home Assistant Link** with remote access turned on.
-  - **Your own public HTTPS address**, for example from DuckDNS, your own reverse proxy, or a Cloudflare tunnel, set as the external URL in Home Assistant (Settings → System → Network). It must have a valid certificate (for example from Let's Encrypt): Claude and ChatGPT refuse self-signed certificates, and they never use plain `http://`.
+  - **Your own public HTTPS address**, for example from DuckDNS, your own reverse proxy, or a Cloudflare tunnel, set as the external URL in Home Assistant (Settings → System → Network). A Tailscale address (`.ts.net`) or a local one isn't offered. It must have a valid certificate (for example from Let's Encrypt): Claude and ChatGPT refuse self-signed certificates, and they never use plain `http://`.
 
   No subscription needed if your Home Assistant already has a public HTTPS address; Home Assistant Link is the easiest way. When both are there, HA NOVA uses Home Assistant Link.
 - You are the owner of your Home Assistant. Only the owner can turn chat apps on and use them. When Claude or ChatGPT asks you to sign in to Home Assistant, sign in as the owner, not as another Home Assistant user.
@@ -28,10 +28,10 @@ Home Assistant restarts once, which takes about a minute. Setup waits for it and
 
 This works in Claude on the web, in the desktop app, and in the phone apps. Menu names in German are in brackets.
 
-1. Choose "Add to Claude". Claude opens "Add custom connector" ("Benutzerdefinierten Konnektor hinzufügen") with the name HA NOVA and your address filled in, and says the values came from a link.
+1. On the setup page or in NOVA in Home Assistant, choose "Add to Claude" (next to it: the address it adds). Claude opens "Add custom connector" ("Benutzerdefinierten Konnektor hinzufügen") with the name HA NOVA and your address filled in, and says the values came from a link.
    Without the button: in Claude on the web or desktop, open Settings → Connectors, choose "Add custom connector", name it HA NOVA, and paste the address.
 2. If Claude asks how to sign in, choose "Sign in now" ("Jetzt anmelden") and "Use Claude's published identity" ("Claudes veröffentlichte Identität verwenden"). Then choose "Add".
-3. Choose "Connect" and sign in to Home Assistant as its owner. The Claude phone app then uses it too.
+3. Sign in to Home Assistant as its owner when Claude opens the sign-in (if it doesn't, choose "Connect"). The Claude phone app then uses it too.
 
 ## Connect ChatGPT (on the web)
 
@@ -70,11 +70,11 @@ Turn chat apps off before you remove the NOVA App.
 - **ChatGPT says the OAuth callback data is missing** ("OAuth-Callback-Daten fehlen"): connect once more. This comes from ChatGPT's sign-in window, and a second try usually works.
 - **Claude only says the connection was rejected, or ChatGPT can't connect:** you probably signed in to Home Assistant as another user. Only the owner can use HA NOVA in chat apps. Remove the connector, add it again, and sign in as the owner.
 - **Claude or ChatGPT can't reach your own HTTPS address:** open the address in a browser on your phone with Wi-Fi off. It must open without a certificate warning. A self-signed certificate or a port your router doesn't forward doesn't work.
-- **The address answers "401" after you turned chat apps off:** that's expected until Home Assistant restarts next time. The address stays known to Home Assistant until then, but it doesn't reach HA NOVA anymore.
+- **After you turned chat apps off, Claude or ChatGPT can't connect:** that's expected. Remove HA NOVA there. Opening the address may answer "401" until Home Assistant's next restart; it no longer reaches HA NOVA.
 
 ## Good to know
 
-- ChatGPT works on the web only. Its phone app can't make changes through custom connectors.
+- ChatGPT works on the web only. Its phone app can't make changes through plugins you add yourself.
 - A code in the chat protects less than your phone (see above).
 - Access belongs to your Home Assistant account, not to a device: anyone who can use your Claude or ChatGPT account can reach your home through it. Remove the token in Home Assistant (above) if you lose control of that account.
 - Some changes, like helpers, dashboards, and files, still need HA NOVA on a computer. The assistant tells you when that is the case.

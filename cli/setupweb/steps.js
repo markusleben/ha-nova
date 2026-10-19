@@ -84,8 +84,13 @@ window.novaSteps = (h) => {
   // the consent. Then the restart and Home Assistant loading it, then the
   // connector address to copy and how to add it.
   // Add to Claude: the CLI builds the link (claudeConnectorLink); only one
-  // to claude.ai becomes a button.
-  const addClaude = (href, kind, id) => (/^https:\/\/claude\.ai\//.test(href || '') ? link(t('setup.chat.add_claude'), href, kind, id) : null);
+  // to claude.ai becomes a button, next to the host it adds.
+  const addClaude = (href, kind, id) => {
+    if (!/^https:\/\/claude\.ai\//.test(href || '')) return null;
+    let host = '';
+    try { host = decodeURIComponent((/[?&]connectorUrl=([^&]*)/.exec(href) || ['', ''])[1]).replace(/^https:\/\/([^/]+).*$/, '$1'); } catch (_) { /* no host line */ }
+    return [link(t('setup.chat.add_claude'), href, kind, id), host ? el('span', { class: 'fine' }, t('setup.chat.adds', { host })) : null];
+  };
   const copy = (text) => (navigator.clipboard ? navigator.clipboard.writeText(text) : Promise.reject(new Error('no clipboard')))
     .then(() => toast(t('setup.chat.copied')), () => toast(t('setup.chat.copy_failed')));
   const howTo = () => {
@@ -127,7 +132,7 @@ window.novaSteps = (h) => {
       case 'expired':
         return line(guard('·'), key, t('setup.chat.value'), problem(chat.problem));
       case 'noaddress':
-        return line(guard('·'), key, t('setup.chat.need_address'));
+        return line(guard('·'), key, chat.problem ? say(chat.problem) : t('setup.chat.need_address'));
       default: {
         const ask = local.chatAsk && h.accepts('chat');
         const consent = ask ? el('div', { class: 'consent', id: 'chat-consent' },

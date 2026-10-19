@@ -95,7 +95,7 @@ func runChatAppsCommand(paths runtimePaths, args []string) int {
 		if url != "" {
 			printChatAppsHowTo(out, url)
 		} else {
-			fmt.Fprintln(out, "  HA NOVA couldn't find Home Assistant Link with remote access or a public HTTPS address for Home Assistant, so Claude and ChatGPT may not reach your home right now.")
+			fmt.Fprintf(out, "  %s\n", setupT("setup.chat.on_noaddress"))
 		}
 		return 0
 	}

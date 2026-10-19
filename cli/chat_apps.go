@@ -179,30 +179,35 @@ func chatAppsBase(linkOrigin, externalURL string) string {
 }
 
 // publicHTTPSOrigin: raw's https origin when it names a host on the
-// internet, else "". ponytail: IP literals and local-only names (no dot,
-// .local, .lan, ...) are refused outright; a public IP with a valid
-// certificate is rare enough to leave out.
+// internet, else "". ponytail: IP literals (any form: the last label must
+// start with a letter) and local-only names (no dot, .local, .lan, .ts.net,
+// ...) are refused outright; a public IP with a valid certificate is rare
+// enough to leave out. Same rules as nova/src/runtime/chat-apps.ts
+// (shared vectors: tests/fixtures/chat-connector-base.json).
 func publicHTTPSOrigin(raw string) string {
 	u, err := url.Parse(strings.TrimSpace(raw))
-	if err != nil || u.Scheme != "https" || u.User != nil || u.Opaque != "" || u.RawQuery != "" || u.Fragment != "" || (u.Path != "" && u.Path != "/") {
+	if err != nil || u.Scheme != "https" || u.User != nil || u.Opaque != "" || u.RawQuery != "" || u.Fragment != "" || (u.Path != "" && u.Path != "/") || strings.HasSuffix(u.Host, ":") {
 		return ""
 	}
 	host := strings.ToLower(strings.TrimSuffix(u.Hostname(), "."))
 	if net.ParseIP(host) != nil || !publicHostname.MatchString(host) {
 		return ""
 	}
-	for _, local := range []string{".local", ".lan", ".home", ".internal", ".localdomain", ".localhost", ".home.arpa"} {
+	for _, local := range []string{".local", ".lan", ".home", ".internal", ".localdomain", ".localhost", ".home.arpa", ".ts.net"} {
 		if strings.HasSuffix(host, local) {
 			return ""
 		}
 	}
 	if port := u.Port(); port != "" {
+		if n, err := strconv.Atoi(port); err != nil || n < 1 || n > 65535 || port[0] == '0' {
+			return ""
+		}
 		return "https://" + net.JoinHostPort(host, port)
 	}
 	return "https://" + host
 }
 
-var publicHostname = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)+$`)
+var publicHostname = regexp.MustCompile(`^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]([a-z0-9-]{0,61}[a-z0-9])?$`)
 
 func readChatAppsOffer(client *CloudIngressClient, paths runtimePaths, linkOrigin func() string) (chatAppsOffer, bool) {
 	if client == nil {

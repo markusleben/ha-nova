@@ -296,6 +296,8 @@ func (f *setupFlow) offerChatApps() (url, note string) {
 	switch {
 	case !ok:
 		return "", ""
+	case offer.url == "" && offer.state.Enabled:
+		return "", setupT("setup.chat.on_noaddress")
 	case offer.url == "":
 		return "", setupT("setup.chat.need_address")
 	case offer.state.Enabled:

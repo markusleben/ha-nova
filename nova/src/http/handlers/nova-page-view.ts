@@ -59,7 +59,7 @@ export interface PageModel {
   errorCode: string | null;
   confirm: ConfirmTarget | null;
   chatApps: ChatAppsStatus | null; // null: the feature is off in this App
-  chatConnectorUrl: string | null; // null: Home Assistant Link isn't ready to name it
+  chatConnectorUrl: string | null; // null: neither Link remote access nor a public HTTPS address
   chatRestarting: boolean;
 }
 
@@ -234,7 +234,7 @@ ${renderChatApps(m, formOpen, csrfField)}${legacySection}<footer>Signed in as ${
 </body></html>`;
 }
 
-// "Chat apps": Claude and ChatGPT through Home Assistant Link (spec §11.6).
+// "Chat apps": Claude and ChatGPT through Home Assistant Link or a public HTTPS address (spec §11.6).
 // Turning on is consent to the one Home Assistant restart named on the button.
 function renderChatApps(m: PageModel, formOpen: string, csrfField: (action: NovaAction) => string): string {
   const c = m.chatApps;
@@ -257,11 +257,11 @@ function renderChatApps(m: PageModel, formOpen: string, csrfField: (action: Nova
       : `your phone ${escapeHtml(c.ownerPhone)} asks you`;
     const url = m.chatConnectorUrl;
     body = `${url === null
-      ? `<p>On. In Claude or ChatGPT, add a connector with your Home Assistant's public HTTPS address (Home Assistant Link or your own) followed by <code>/api/ha_nova/mcp</code>, then sign in to Home Assistant as its owner. HA NOVA can't see such an address right now.</p>`
+      ? `<p>On, but HA NOVA can't find an address Claude and ChatGPT can reach. Turn on remote access in Home Assistant Link, or set your own public HTTPS address (valid certificate) as the external URL under Settings → System → Network, then reload this page.</p>`
       : `<p>On. Add HA NOVA to Claude in one click, or add this address as a connector in ChatGPT. Then sign in to Home Assistant as its owner.</p>
-<p><a class="linkbtn primary" href="${escapeAttr(claudeConnectorLink(url))}" target="_blank" rel="noopener noreferrer">Add to Claude</a></p>
+<p><a class="linkbtn primary" href="${escapeAttr(claudeConnectorLink(url))}" target="_blank" rel="noopener noreferrer">Add to Claude</a> <span class="muted meta">Adds ${escapeHtml(new URL(url).host)}</span></p>
 <p class="address">${escapeHtml(url)}</p>
-<p class="muted meta">ChatGPT on the web: Plugins → + → Add custom MCP server, paste the address under Connection, pick OAuth, then Create as a plugin. Type @HA NOVA in a chat to use it.</p>`}
+<p class="muted meta">ChatGPT on the web: open chatgpt.com/plugins → + → Add custom MCP server, paste the address under Connection, pick OAuth, tick “I understand and want to continue”, then Create as a plugin. Sign in as the owner, then type @HA NOVA in a chat.</p>`}
 <p class="muted">Who can use it: ${who}. Confirmations: ${phone}.</p>
 ${m.chatRestarting ? `<p class="ok">Home Assistant is restarting (about a minute). Reload this page afterwards.</p>` : ""}
 <ul>${toggle("Chat apps can only read", c.readOnly, "chat_read_only")}${toggle("Codes in the chat", c.chatCodes, "chat_codes")}</ul>

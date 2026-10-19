@@ -169,6 +169,7 @@ describe("setup page: Add to Claude", () => {
     expect(button.attributes).toMatchObject({ href: link, target: "_blank", rel: "noopener noreferrer" });
     expect(button.textContent).toBe(p.catalog["setup.chat.add_claude"]);
     expect(p.find("chat-url")!.textContent).toBe(url);
+    expect(p.screen.textContent).toContain("Adds abc123.ui.nabu.casa");
     expect(p.find("b-chat-copy")).toBeTruthy();
   });
 
@@ -187,6 +188,13 @@ describe("setup page: Add to Claude", () => {
     expect(p.screen.textContent).toContain(p.catalog["setup.chat.need_address"]);
     expect(p.find("b-chat-switch")).toBeUndefined();
     expect(p.find("l-chat-claude")).toBeUndefined();
+  });
+
+  it("says chat apps are on when the address is missing now", async () => {
+    const p = page(control({ state: "noaddress", problem: { key: "setup.chat.on_noaddress" } }));
+    await p.settle();
+    expect(p.screen.textContent).toContain(p.catalog["setup.chat.on_noaddress"]);
+    expect(p.screen.textContent).not.toContain(p.catalog["setup.chat.need_address"]);
   });
 
   it("repeats it on step 4", async () => {

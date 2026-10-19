@@ -3,10 +3,13 @@ package main
 import (
 	"bufio"
 	"context"
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
+	"path/filepath"
 	"reflect"
 	"slices"
 	"strings"
@@ -157,6 +160,9 @@ func TestSetupPageChatRowOnlyWhenItCanWork(t *testing.T) {
 			}
 			if (test.want == "offer" || test.want == "noaddress") && (s.Control.Chat.ClaudeLink != "" || s.Control.Chat.URL != "") {
 				t.Fatalf("Add to Claude before chat apps are on: %q", s.Control.Chat.ClaudeLink)
+			}
+			if c := s.Control.Chat; test.want == "noaddress" && (c.Problem != nil) != test.app.Enabled {
+				t.Fatalf("no address, on=%v: problem %+v", test.app.Enabled, c.Problem)
 			}
 			p.click("finish", "")
 			<-done
@@ -450,26 +456,18 @@ func TestChatAppsBase(t *testing.T) {
 	if got := chatAppsBase(chatTestLink+"/", "https://home.example.com"); got != chatTestLink {
 		t.Fatalf("Link first: %q", got)
 	}
-	for external, want := range map[string]string{
-		"https://home.example.com":        "https://home.example.com",
-		" https://My.DuckDNS.org:8123/ ":  "https://my.duckdns.org:8123",
-		"https://home.example.com.":       "https://home.example.com",
-		"http://home.example.com":         "",
-		"https://192.168.1.5:8123":        "",
-		"https://8.8.8.8":                 "",
-		"https://[fd00::1]:8123":          "",
-		"https://homeassistant.local":     "",
-		"https://homeassistant:8123":      "",
-		"https://ha.home.arpa":            "",
-		"https://ha.lan":                  "",
-		"https://home.example.com/sub":    "",
-		"https://user@home.example.com":   "",
-		"https://home.example.com/?x=1":   "",
-		"https://-bad-.example.com":       "",
-		"https://abc123.ui.nabu.casa":     "", // a Link address counts only with remote access on
-		"https://abc123.ui.nabu.casa:443": "",
-		"":                                "",
-	} {
+	raw, err := os.ReadFile(filepath.Join("..", "tests", "fixtures", "chat-connector-base.json"))
+	var fixture struct {
+		Vectors [][2]*string `json:"vectors"`
+	}
+	if err != nil || json.Unmarshal(raw, &fixture) != nil || len(fixture.Vectors) == 0 {
+		t.Fatalf("shared vectors: %v", err)
+	}
+	for _, v := range fixture.Vectors {
+		external, want := *v[0], ""
+		if v[1] != nil {
+			want = *v[1]
+		}
 		if got := chatAppsBase("", external); got != want {
 			t.Errorf("%q: %q, want %q", external, got, want)
 		}
