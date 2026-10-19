@@ -282,7 +282,13 @@ func installClientsForDemo(paths runtimePaths) ([]string, error) {
 		return nil, fmt.Errorf("cannot read the HA NOVA state: %w", err)
 	}
 	if len(state.InstalledClients) > 0 {
-		return state.InstalledClients, nil
+		var here []string // only apps still on this computer are named
+		for _, client := range state.InstalledClients {
+			if clientRuntimeDetectedForStatus(client) {
+				here = append(here, client)
+			}
+		}
+		return here, nil
 	}
 	clients, _, err := resolveSetupClients(paths, "all")
 	if err != nil || len(clients) == 0 {

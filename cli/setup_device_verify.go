@@ -26,6 +26,9 @@ var verifyDeviceHealth = func(cfg runtimeConfig) deviceHealth {
 	)
 	defer cancel()
 	selected, err := selectRelayTransport(ctx, cfg, "", false)
+	if IsCloudErrorCode(err, CloudErrUnauthorized) || IsCloudErrorCode(err, CloudErrForbidden) { // the automatic route's preflight
+		return deviceRevoked
+	}
 	if err != nil || !selected.DeviceMode {
 		return deviceDown
 	}

@@ -635,6 +635,18 @@ func TestInteractiveSetupDeviceVerifyRetryPromptHonorsBackAndExit(t *testing.T) 
 		strings.Contains(output, "may still be starting") || strings.Contains(output, "Retry now") {
 		t.Fatalf("revoked: exit = %d\n%s", exitCode, output)
 	}
+
+	// Revoked while the retry prompt was open: the same line and route.
+	answers := []deviceHealth{deviceDown, deviceRevoked}
+	verifyDeviceHealth = func(runtimeConfig) deviceHealth { h := answers[0]; answers = answers[1:]; return h }
+	stdout, stderr = captureInteractiveSetupIO(t, "\nexit\n", func() int {
+		exitCode = interactiveSetup(paths, cfg, loadStateOrDefault(paths), "codex", "", "", "", "", false)
+		return exitCode
+	})
+	output = stdout + stderr
+	if exitCode != 0 || !strings.Contains(output, setupT("setup.verify.device_revoked")) || !strings.Contains(output, "Connect this computer") {
+		t.Fatalf("revoked on retry: exit = %d\n%s", exitCode, output)
+	}
 }
 
 // F3 regression: escaping pairing via 'manual' clears the device-verify route —

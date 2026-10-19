@@ -199,14 +199,14 @@ func askWindowUntilSignal(parent context.Context, message string, wait time.Dura
 			signal.Notify(signals, sig)
 		}
 	}
-	defer signal.Stop(signals)
 	done := make(chan windowAnswer, 1)
 	go func() { done <- windowRunner(ctx, message, wait) }()
 	opened := time.After(time.Second)
 	for {
 		select {
 		case answer := <-done:
-			select { // one that arrived with the answer still wins: nothing is sent
+			signal.Stop(signals) // from here a signal acts as usual; one queued before still wins
+			select {
 			case ended := <-signals:
 				return windowNoAnswer, ended
 			default:
@@ -222,6 +222,7 @@ func askWindowUntilSignal(parent context.Context, message string, wait time.Dura
 			case <-done:
 			case <-time.After(3 * time.Second):
 			}
+			signal.Stop(signals)
 			return windowNoAnswer, ended
 		}
 	}

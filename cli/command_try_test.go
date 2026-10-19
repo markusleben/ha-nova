@@ -320,6 +320,7 @@ func TestDemoResetIsOnePlainLine(t *testing.T) {
 // Lane E7: the text names the AI apps that have HA NOVA, not a guess.
 func TestTryNamesTheConfiguredAIApp(t *testing.T) {
 	fakeDemo(t, "")
+	withClientRuntimeAvailability(t, map[string]bool{"opencode": true})
 	paths := tryTestPaths(t, "")
 	paths.StateFile = filepath.Join(paths.ConfigDir, "state.json")
 	state := defaultInstallState()
