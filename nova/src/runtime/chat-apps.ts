@@ -335,7 +335,7 @@ export function createChatApps(deps: ChatAppsDeps): ChatApps {
         throw new Error("Home Assistant /api/config has no component list");
       }
       const [year = 0, month = 0] = String((components as { version?: unknown }).version ?? "").split(".").map(Number);
-      if (year * 100 + month < 202610) {
+      if (!(year * 100 + month >= 202610)) { // an unreadable version (NaN) refuses too
         throw new ChatAppsError(409, "HA_TOO_OLD", "Chat apps need Home Assistant 2026.10 or newer. Update Home Assistant first.");
       }
       const restart = !components.components.includes(SERVICE);

@@ -272,6 +272,12 @@ describe("chat apps: turning on and off", () => {
     expect(existsSync(data())).toBe(false);
   });
 
+  it("refuses an unreadable Home Assistant version", async () => {
+    haVersion = "dev";
+    await expect(chatApps().turnOn(true)).rejects.toMatchObject({ code: "HA_TOO_OLD" });
+    expect(existsSync(data())).toBe(false);
+  });
+
   it("revokes the bridge first, even when the folder can't be removed", async () => {
     const apps = chatApps();
     await apps.turnOn(true);

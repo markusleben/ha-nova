@@ -165,8 +165,12 @@ first chat-app release and after a change to the bridge, `nova/integration/`,
 - [ ] `off`: "Turn off chat apps" → discovery message deleted, the entry goes
       (matched by uuid), `custom_components/ha_nova` removed, the bridge's
       device record revoked; off and on again → one entry, new secret
-- [ ] `app_update`: update from the previous App version while on → same
-      entry, connector still works without turning on again
+- [ ] `upgrade_off`: update from the previous App version without turning
+      chat apps on → no `custom_components/ha_nova`, no discovery message, no
+      `ha_nova` entry, no restart; paired computers keep working
+- [ ] `app_update`: update from the previous chat-app App version while on →
+      same entry, connector still works without turning on again (n/a for
+      the first chat-app release: the previous App has no chat apps)
 - [ ] `rollback`: an App build with the chat code but no staged bridge (the
       local-build rollback path) while on offers only [Turn off], and that
       finishes the cleanup

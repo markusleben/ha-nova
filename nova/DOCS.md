@@ -207,8 +207,10 @@ and ChatGPT (web) without a computer running. They are off by default.
   then need the phone) or let chat apps only read.
 - **Turn off:** NOVA page → Chat apps → "Turn off chat apps". It takes effect
   at once, without a restart: the bridge stops, its own access is signed out,
-  and `custom_components/ha_nova` is removed. To also sign Claude or ChatGPT
-  out, remove their refresh tokens in your Home Assistant profile (Security).
+  and `custom_components/ha_nova` is removed. Claude or ChatGPT hold a Home
+  Assistant sign-in for your account that works for all of Home Assistant, not
+  only HA NOVA, and turning chat apps off doesn't end it: to sign them out,
+  remove their refresh tokens in your Home Assistant profile (Security).
 - **Turn chat apps off before you remove this App or restore an older version.**
 
 Access belongs to the Home Assistant account that signed in, not to a device:
