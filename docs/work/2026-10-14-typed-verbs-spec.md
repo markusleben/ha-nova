@@ -218,6 +218,7 @@ Reason codes (`cli/tier_rules.go`; `TestTierReasonCodesAreDocumented` pins each 
 | `CONFIG_REVERT` | preview | `plan revert` of the last verified update (PR5 notes) |
 | `CONFIG_RESTORE` | preview | `plan restore` of a deleted automation/script from its pre-delete snapshot; typed when the config's actions reach a typed action (PR5 notes) |
 | `CONFIG_DELETE` | typed | `plan delete`, always (PR5 notes) |
+| `AREA_ASSIGN` | preview | `plan rooms` (devices into existing areas) and the `plan revert` of its undo record; the write allowlist takes exactly `config/device_registry/update` with `device_id` and `area_id` (onboarding 0.27 spec §7.6) |
 | `TARGET_REQUIRED` | refused | a service whose `/api/services` entry takes a `target`, called without one, would act on every entity of its domain (PR3 notes) |
 | `SERVICE_NOT_FOUND` | refused | `plan call`/`call`/`apply`: a service `/api/services` does not list, refused before targets or tier, with up to 3 real candidates in `next`; in a `plan write` draft step: a preview reason, the save is not blocked (PR3 notes) |
 | `SERVICE_LIST_UNREAD` | refused | `/api/services` could not be read, so no service is proven to exist (fail closed; PR3 notes); a draft step then reads `SCAN_FAILED` |

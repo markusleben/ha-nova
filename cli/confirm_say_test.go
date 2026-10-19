@@ -244,7 +244,7 @@ func TestConfirmationSayCoversEveryPlanReason(t *testing.T) {
 	env := &verbEnvelope{Action: &planAction{Service: "light.turn_on"}}
 	for _, row := range rows {
 		text, typed := sayReason(e, env, storedPlan{}, tierReason{Code: row[1], EntityID: "light.x"})
-		if strings.HasPrefix(row[1], "CONFIG_WRITE") || row[1] == reasonConfigRevert || row[1] == reasonConfigRestore {
+		if strings.HasPrefix(row[1], "CONFIG_WRITE") || row[1] == reasonConfigRevert || row[1] == reasonConfigRestore || row[1] == reasonAreaAssign {
 			continue // the what line says it; no extra clause
 		}
 		if text == "" || text == "HA NOVA can't fully check this" || typed != (row[2] == "typed") {

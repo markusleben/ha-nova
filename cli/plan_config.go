@@ -22,7 +22,7 @@ import (
 const (
 	planWriteUsage  = "ha-nova plan write --domain automation|script [--id <config_id>] [--create] --file <draft.json>\n       ha-nova plan write --domain dashboard --id <url_path> [--create --title <title> [--icon <mdi:icon>]] --file <config.json>"
 	planDeleteUsage = "ha-nova plan delete <automation.x|script.x> | --domain dashboard --id <url_path>"
-	planRevertUsage = "ha-nova plan revert [--target <config_id|url_path>] [--domain automation|script|dashboard]"
+	planRevertUsage = "ha-nova plan revert [--target <config_id|url_path|rooms record>] [--domain automation|script|dashboard|device_area]"
 )
 
 // Config ids per domain: automation ids as the UI and YAML use them; script
@@ -163,6 +163,11 @@ func runPlanConfig(paths runtimePaths, op string, args []string) int {
 		return verbUsageError("plan", err)
 	}
 	return runReadVerb(paths, "plan", opts, func(s *relaySession, env *verbEnvelope) error {
+		if req.Op == "revert" { // a rooms record reverts as a rooms plan (plan_rooms.go)
+			if snap, err := selectServerUndoSnapshot(paths, s.server, req.ConfigID, req.Domain); err == nil && snap.Op == "rooms" {
+				return planRoomsUndo(paths, s, env, snap)
+			}
+		}
 		if req.Op == "restore" {
 			if err := req.loadRestoreSnapshot(s); err != nil {
 				return err

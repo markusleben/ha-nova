@@ -14,7 +14,7 @@ import (
 // ha-nova map: exact, CLI-computed home facts (home-map spec
 // docs/work/2026-10-16-home-map-spec.md). Read-only; the model never counts.
 
-const mapUsage = "ha-nova map [--section areas|integrations|automations|unavailable|batteries] [--entity <entity_id>] [--first-look] [--limit N]"
+const mapUsage = "ha-nova map [--section areas|integrations|automations|unavailable|batteries] [--entity <entity_id>] [--first-look | --insights] [--limit N]"
 
 var mapSections = map[string]bool{"areas": true, "integrations": true, "automations": true, "unavailable": true, "batteries": true}
 
@@ -25,10 +25,11 @@ func runMapCommand(paths runtimePaths, args []string) int {
 	section := fs.String("section", "", "full list of one part: areas, integrations, automations, unavailable, batteries")
 	entity := fs.String("entity", "", "where-used of one entity_id (automations, scripts, scenes, groups, helpers, dashboards)")
 	firstLook := fs.Bool("first-look", false, "the onboarding first look: one-line counts, up to 2 observations, prompt seeds")
+	insights := fs.Bool("insights", false, "setup step 4: stats, ranked insights with room suggestions, and one automation made for this home")
 	limit := fs.Int("limit", 0, "rows per list for --section (default 50) and --entity (default 20), 1-200; totals stay exact")
 	positional, err := parseVerbArgs(fs, &opts, args, mapUsage)
 	modes := 0
-	for _, on := range []bool{*section != "", *entity != "", *firstLook} {
+	for _, on := range []bool{*section != "", *entity != "", *firstLook, *insights} {
 		if on {
 			modes++
 		}
@@ -40,7 +41,7 @@ func runMapCommand(paths runtimePaths, args []string) int {
 	case len(positional) > 0:
 		err = errors.New("Usage: " + mapUsage)
 	case modes > 1:
-		err = errors.New("use only one of --section, --entity, --first-look")
+		err = errors.New("use only one of --section, --entity, --first-look, --insights")
 	case *section != "" && !mapSections[*section]:
 		err = fmt.Errorf("unknown --section %q (areas, integrations, automations, unavailable, batteries)", *section)
 	case *entity != "" && !entityIDPattern.MatchString(*entity):
@@ -62,6 +63,8 @@ func runMapCommand(paths runtimePaths, args []string) int {
 		switch {
 		case *firstLook:
 			env.Result = idx.firstLook()
+		case *insights:
+			env.Result = idx.insights(linkedPhone(s), templateOffered(paths, s))
 		case *section != "":
 			env.Result = idx.section(*section, limitOr(*limit, 50))
 		case *entity != "":
