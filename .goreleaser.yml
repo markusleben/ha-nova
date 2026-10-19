@@ -77,6 +77,7 @@ release:
     - **Claude Code rules are preselected.** On the setup page they are on unless you switch them off: Claude Code reads HA NOVA's files and runs changes you approved without asking. You still confirm every unlock or delete.
     - **`ha-nova uninstall` asks one question.** "Remove" now also removes this computer's pairing; choose "Remove, but keep the pairing" to reinstall later. `--yes` keeps the pairing unless you add `--purge`.
     - **Windows, coming from 0.25.x: update with the install command once.** `ha-nova update` from 0.25.x asks for admin rights or fails; run the Windows install command below. After that, no admin prompt.
+    - **Last release with the old shared access.** Still on it? Re-pair once with `ha-nova pair`, then revoke it on the NOVA page. The next release no longer accepts it.
 
     ## New Features
 
