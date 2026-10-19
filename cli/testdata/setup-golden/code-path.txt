@@ -13,7 +13,7 @@ exit 0
   [!!] WebSocket not connected
   [!!] Skills not installed
 
-  Already done: app installation
+  Already done: Home Assistant address
 
   HA NOVA Setup
   -------------

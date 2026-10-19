@@ -654,7 +654,7 @@ func runSetup(paths runtimePaths, args []string) int {
 // persists config/state via the device path (stamping the version), then installs
 // clients — instead of failing with "missing relay auth token".
 func completeNonInteractivePairedSetup(paths runtimePaths, cfg runtimeConfig, state installState, selectedClients []string, lifecycleMarker ...[]byte) int {
-	if !verifyDeviceHealth(cfg) {
+	if verifyDeviceHealth(cfg) != deviceOK {
 		printHumanErr("This device is paired, but the secure connection could not be verified. Run 'ha-nova doctor', or re-pair with 'ha-nova setup' interactively.")
 		return 1
 	}

@@ -8,7 +8,7 @@ window.novaSteps = (h) => {
   const { t, el, row, head, button, render } = h;
   const say = (msg) => (msg ? t(msg.key, msg.args || {}) : '');
   // Switches and open details live here until "Finish setup" sends them.
-  const local = { rule: true, link: false, others: false, drafts: {} };
+  const local = { rule: true, link: false, others: false, drafts: {}, chatAsk: false, chatSeen: '', how: false };
 
   const toast = (text) => {
     const node = el('div', { class: 'toast', role: 'status' });
@@ -79,6 +79,65 @@ window.novaSteps = (h) => {
     }
   };
 
+  // Chat apps (spec §11.6): the switch first shows what turning on means,
+  // with the restart; only "Turn on and restart" posts, and that click is
+  // the consent. Then the restart and Home Assistant loading it, then the
+  // connector address to copy and how to add it.
+  const copy = (text) => (navigator.clipboard ? navigator.clipboard.writeText(text) : Promise.reject(new Error('no clipboard')))
+    .then(() => toast(t('setup.chat.copied')), () => toast(t('setup.chat.copy_failed')));
+  const howTo = () => {
+    const steps = (title, keys) => [el('div', { class: 'k' }, t(title)), el('ol', {}, keys.map((key) => el('li', {}, t(key))))];
+    const details = el('details', { class: 'how' }, el('summary', { id: 'b-chat-how' }, t('setup.chat.how')),
+      steps('setup.chat.claude_title', ['setup.chat.claude_1', 'setup.chat.claude_2', 'setup.chat.claude_3']),
+      steps('setup.chat.chatgpt_title', ['setup.chat.chatgpt_1', 'setup.chat.chatgpt_2', 'setup.chat.chatgpt_3']));
+    details.open = local.how;
+    details.addEventListener('toggle', () => { local.how = details.open; });
+    return details;
+  };
+  // The row after the run ends takes the focus the run row had.
+  const refocus = (node) => {
+    node.setAttribute('tabindex', '-1');
+    node.dataset.focusAfter = 'chat-run b-chat-on';
+    return node;
+  };
+  const focusId = (id) => { const node = document.getElementById(id); if (node) node.focus(); };
+  const chatRow = (c) => {
+    const chat = c.chat;
+    if (!chat) return null;
+    const key = t('setup.chat.key');
+    if (chat.state !== local.chatSeen) {
+      local.chatSeen = chat.state;
+      if (chat.state === 'on') h.announce(t('setup.chat.on'));
+    }
+    const progress = (chat.rows || []).length
+      ? el('ul', { class: 'rows sub' }, chat.rows.map((r) => row(r.state, say(r.msg), null, null, true))) : null;
+    switch (chat.state) {
+      case 'on':
+        return refocus(line(guard('✓'), key, t('setup.chat.on'), [chat.problem ? progress : null,
+          el('div', { class: 'copybar' }, el('code', { id: 'chat-url' }, chat.url),
+            el('button', { id: 'b-chat-copy', class: 'btn btn-ghost btn-small', type: 'button', onclick: () => copy(chat.url) }, t('setup.chat.copy'))),
+          problem(chat.problem), howTo(), el('p', { class: 'fine' }, t('setup.chat.off_hint'))], tagOn()));
+      case 'run':
+        return el('li', { id: 'chat-run', ...focusAfter(['b-chat-on', 'b-chat-switch']) }, guard('◎'),
+          el('div', {}, el('div', { class: 'k' }, key), el('div', { class: 'v', role: 'status' }, t('setup.chat.wait')), progress), el('span'));
+      case 'expired':
+        return line(guard('·'), key, t('setup.chat.value'), problem(chat.problem));
+      default: {
+        const ask = local.chatAsk && h.accepts('chat');
+        const consent = ask ? el('div', { class: 'consent', id: 'chat-consent' },
+          el('p', {}, chat.phone ? t('setup.chat.consent_phone', { phone: chat.phone }) : t('setup.chat.consent_code')),
+          el('p', { class: 'restart' }, t('setup.chat.restart')),
+          el('div', { class: 'actions' },
+            button(t('setup.chat.turn_on'), 'chat', 'primary btn-small', 'on', 'chat-on'),
+            el('button', { id: 'b-chat-cancel', class: 'btn btn-ghost btn-small', type: 'button', onclick: () => { local.chatAsk = false; render(true); focusId('b-chat-switch'); } }, t('setup.chat.not_now')))) : null;
+        const sw = toggle('b-chat-switch', key, ask, () => { local.chatAsk = !local.chatAsk; render(true); }, !h.accepts('chat'));
+        sw.setAttribute('aria-expanded', String(ask));
+        sw.setAttribute('aria-controls', 'chat-consent');
+        return refocus(line(guard('◎'), key, t('setup.chat.value'), [problem(chat.problem), consent], sw, 'b-chat-switch-v'));
+      }
+    }
+  };
+
   const control = () => {
     const c = h.state().control || {};
     const rows = [
@@ -86,6 +145,8 @@ window.novaSteps = (h) => {
         t(c.window ? 'setup.page.control.window_value' : 'setup.page.control.window_off'), null, c.window ? tagOn() : null),
       phoneRow(c),
     ];
+    // An open chat consent is a question: Finish waits for its answer.
+    const asking = local.chatAsk && c.chat && c.chat.state === 'offer';
     const busy = !h.accepts('finish');
     if (c.rule === 'offer') {
       const label = t('setup.page.control.rule_key');
@@ -101,12 +162,15 @@ window.novaSteps = (h) => {
     } else if (c.link === 'run') {
       rows.push(line(guard('⇄'), t('setup.page.control.link_key'), t('setup.page.control.link_run'), null, spinner()));
     }
+    rows.push(chatRow(c));
     const choices = [];
     if (c.rule === 'offer' && local.rule) choices.push('rule');
     if (c.link === 'offer' && local.link) choices.push('link');
     return [...head(t('setup.page.control.eyebrow'), t('setup.page.control.title'), t('setup.page.control.lead'), true),
       el('ul', { class: 'rows tall' }, rows),
-      el('div', { class: 'actions' }, button(t('setup.page.control.finish'), 'finish', 'primary', choices.join(','))),
+      el('div', { class: 'actions' }, asking
+        ? el('button', { id: 'b-finish', class: 'btn btn-primary', type: 'button', disabled: '' }, t('setup.page.control.finish'))
+        : button(t('setup.page.control.finish'), 'finish', 'primary', choices.join(','))),
       c.phone === 'pick' ? el('p', { class: 'fine' }, t('setup.page.control.fine')) : null];
   };
 
@@ -144,14 +208,14 @@ window.novaSteps = (h) => {
     return lines.map((text) => el('div', {}, text));
   };
   // Devices grouped by the room they end up in.
-  const roomLines = (changes) => {
+  const roomLines = (changes, key = 'setup.page.home.rooms_line') => {
     const groups = new Map();
     for (const c of changes || []) {
       const area = c.area || t('setup.page.home.no_area');
       if (!groups.has(area)) groups.set(area, []);
       groups.get(area).push(c.name);
     }
-    return [...groups].map(([area, devices]) => el('div', {}, t('setup.page.home.rooms_line', { area, devices })));
+    return [...groups].map(([area, devices]) => el('div', {}, t(key, { area, devices })));
   };
   const saveLabels = { rooms: 'setup.page.home.save_rooms', reminder: 'setup.page.home.save_reminder', automation: 'setup.page.home.save_automation' };
 
@@ -173,7 +237,7 @@ window.novaSteps = (h) => {
       if (pv.state === 'preview') parts.push(el('div', { class: 'add' }, t('setup.page.home.template_note', { button: t(saveLabels[slot]) })), save(saveLabels[slot]));
       if (ok) parts.push(el('div', { class: 'add' }, t('setup.page.home.template_saved')));
     } else if (pv.kind === 'undo') {
-      parts.push(el('div', {}, t('setup.page.home.undo_lead')), ...roomLines(pv.changes));
+      parts.push(el('div', {}, t('setup.page.home.undo_lead')), ...roomLines(pv.changes, 'setup.page.home.undo_line'));
       if (pv.state === 'preview') parts.push(el('div', { class: 'add' }, t('setup.page.home.undo_note')), save('setup.page.home.undo_save'));
       if (ok) parts.push(el('div', { class: 'add' }, t('setup.page.home.undone')));
     } else if (pv.kind === 'rooms') {
@@ -220,7 +284,7 @@ window.novaSteps = (h) => {
           if (it.action === 'battery_reminder') [slot, label] = ['reminder', 'setup.page.home.remind'];
           break;
         case 'no_room':
-          title = t('setup.page.home.no_room', args);
+          title = t(it.count === 0 ? 'setup.page.home.no_room_none' : 'setup.page.home.no_room', args);
           more = t('setup.page.home.no_room_more');
           if (it.action === 'rooms') [slot, label] = ['rooms', 'setup.page.home.suggest'];
           break;

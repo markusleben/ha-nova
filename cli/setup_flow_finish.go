@@ -77,7 +77,16 @@ func (f *setupFlow) stepVerify() setupStepResult {
 func (f *setupFlow) verifyDevice() setupStepResult {
 	// Honest about what is verified: the secure device endpoint.
 	f.ui.show(setupView{Blocks: []setupBlock{setupTight(setupText("setup.verify.device_checking"))}})
-	if !verifyDeviceHealth(f.cfg) {
+	revoked := func() setupStepResult { // removed on the NOVA page: no App to wait for (lane E3)
+		f.ui.show(setupView{Blocks: []setupBlock{setupErrorBlock(setupText("setup.verify.device_revoked"))}})
+		f.pairingBackStep = setupStepHost // back: a different address, not this check again
+		return setupGoTo(setupStepPairing)
+	}
+	health := verifyDeviceHealth(f.cfg)
+	if health == deviceRevoked {
+		return revoked()
+	}
+	if health != deviceOK {
 		f.ui.show(setupView{Blocks: []setupBlock{setupErrorBlock(setupText("setup.verify.device_not_answering"))}})
 		f.textOnly()
 		if retryErr := promptSetupDeviceVerifyRetry(f.ui.termIn(), f.ui.termOut()); retryErr != nil {
@@ -88,7 +97,11 @@ func (f *setupFlow) verifyDevice() setupStepResult {
 			}
 			return f.inputFailed(retryErr)
 		}
-		if !verifyDeviceHealth(f.cfg) {
+		switch verifyDeviceHealth(f.cfg) {
+		case deviceOK:
+		case deviceRevoked:
+			return revoked()
+		default:
 			f.pairingBackStep = setupStepVerify
 			return setupGoTo(setupStepPairing)
 		}
@@ -127,6 +140,10 @@ func (f *setupFlow) verifyDevice() setupStepResult {
 // offer, the phone and Claude Code rule offers, the first look, and the
 // outcome.
 func (f *setupFlow) stepSkills() setupStepResult {
+	if f.noClient { // nothing to teach yet; finish says what to install
+		finalizeServiceTokenFileMigration(f.formerServiceTokenFile, f.token)
+		return f.afterSkills()
+	}
 	steps := f.wizardSteps()
 	view := setupView{Progress: &setupProgress{Step: steps.Skills, Total: steps.Total, Title: setupText("setup.step.skills")}}
 	if f.target == "all" && len(f.selectedClients) > 0 {
@@ -152,6 +169,11 @@ func (f *setupFlow) stepSkills() setupStepResult {
 		f.ui.outcome(setupOutcome{Kind: setupOutcomeIncomplete, Issue: setupIssueSkillsInstall})
 		return setupDone(1)
 	}
+	return f.afterSkills()
+}
+
+// afterSkills: the Link offer, the lifecycle close, and finish.
+func (f *setupFlow) afterSkills() setupStepResult {
 	exit := 0
 	onPage := f.page != nil && !f.page.inTerminal()
 	if f.cloudSetupPaused && onPage {
@@ -216,9 +238,27 @@ func (f *setupFlow) finish() setupStepResult {
 	if f.pairedThisRun && !f.cloudSetupPaused && interactive {
 		offerPhoneLink(f.ui.termIn(), f.ui.termOut(), f.paths)
 	}
+	if f.noClient { // connected, but no AI app to try it in yet (lane D1)
+		labels, err := setupInstallableClientLabels(f.paths)
+		if err != nil {
+			return f.failErr(err)
+		}
+		f.ui.show(setupView{Blocks: []setupBlock{
+			setupSuccess(setupText("setup.done.connected_no_client")),
+			setupParagraph(setupText("setup.clients.none_after_pairing", "clients", strings.Join(labels, ", "))),
+		}})
+		if interactive && f.pairedThisRun && !f.cloudSetupPaused && setupOwnerIngress != nil {
+			f.printChatApps(f.offerChatApps()) // Claude and ChatGPT on the web need no AI app here
+		}
+		return setupDone(0)
+	}
 	ruleNote := ""
 	if interactive && slices.Contains(f.selectedClients, "claude") {
 		ruleNote = offerClaudeRules(f.ui.termIn(), f.ui.termOut(), f.paths)
+	}
+	chatURL, chatNote := "", ""
+	if interactive && f.pairedThisRun && !f.cloudSetupPaused && setupOwnerIngress != nil {
+		chatURL, chatNote = f.offerChatApps()
 	}
 	// The read-only first look after a pairing in this run
 	// (docs/work/2026-10-16-ha-sign-in-pairing-spec.md, "First look").
@@ -234,5 +274,43 @@ func (f *setupFlow) finish() setupStepResult {
 	if ruleNote != "" {
 		f.ui.note(ruleNote)
 	}
+	f.printChatApps(chatURL, chatNote) // after the outcome, which clears the screen
 	return setupDone(0)
+}
+
+func (f *setupFlow) printChatApps(url, note string) {
+	if note != "" {
+		f.ui.note(note)
+	}
+	if url != "" {
+		printChatAppsHowTo(f.ui.termOut(), url)
+	}
+}
+
+// offerChatApps is step 3's chat-app row in the terminal: one question, only
+// when the row would show, default "Not now". Returns the connector address
+// once they are on, and a line about how it went; both print after the
+// outcome, which clears the screen.
+func (f *setupFlow) offerChatApps() (url, note string) {
+	offer, ok := readChatAppsOffer(setupOwnerIngress, f.paths, func() string { return setupLinkRemoteOrigin(f.cfg) })
+	switch {
+	case !ok:
+		return "", ""
+	case offer.state.Enabled:
+		note := ""
+		if !offer.loaded { // on, but a restart never came
+			note = setupT("setup.chat.problem_slow")
+		}
+		if err := handOverOwnerPhone(setupOwnerIngress, f.paths, setupSignedInUser, &offer.state); err != nil {
+			note = setupT("setup.chat.problem_phone") // the phone linked just before
+		}
+		return offer.url, note
+	case !askChatAppsConsent(f.ui.termIn(), f.ui.termOut(), true, chatAppsPhoneName(f.paths, setupSignedInUser, offer.state)):
+		return "", setupT("setup.chat.skipped")
+	}
+	note, on := turnOnChatAppsInTerminal(f.ui.termOut(), f.paths, setupOwnerIngress, offer, setupSignedInUser)
+	if !on {
+		return "", note
+	}
+	return offer.url, note
 }

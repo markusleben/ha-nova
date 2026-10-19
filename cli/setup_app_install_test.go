@@ -234,7 +234,7 @@ func TestPairingUsesTheInstallSignInOnce(t *testing.T) {
 	previousProbe, previousOpen, previousPair := probePairingV1ForSetup, openHASignInIngressForSetup, signInPairForSetup
 	t.Cleanup(func() {
 		probePairingV1ForSetup, openHASignInIngressForSetup, signInPairForSetup = previousProbe, previousOpen, previousPair
-		setupInstalledSignIn = nil
+		setupInstalledSignIn, setupOwnerIngress, setupSignedInUser = nil, nil, ""
 	})
 	probePairingV1ForSetup = func(string) bool { return true }
 	openHASignInIngressForSetup = func(context.Context, io.Writer, string) (haSignInSession, error) {

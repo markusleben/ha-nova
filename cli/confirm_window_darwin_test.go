@@ -27,8 +27,8 @@ func TestDarwinWindowAnswers(t *testing.T) {
 		{"", exited("1"), false, false, windowFailed},   // did not compile (sandbox, -2740)
 		{"", exited("1"), false, true, windowNoAnswer},  // interrupted after reaching the window
 		{"", errors.New("exec: no such file"), false, false, windowFailed},
-		{"button Confirm", nil, true, true, windowNoAnswer},                                   // our own deadline ended it
-		{"", exec.Command("/bin/sh", "-c", "kill -9 $$").Run(), false, false, windowNoAnswer}, // killed
+		{"button Confirm", nil, true, true, windowNoAnswer},                                 // our own deadline ended it
+		{"", exec.Command("/bin/sh", "-c", "kill -9 $$").Run(), false, false, windowClosed}, // killed from outside (lane D9)
 		{"button Cancel", nil, false, true, windowNoAnswer},
 		{"button Confirm extra", nil, false, true, windowNoAnswer},
 	} {

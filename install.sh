@@ -13,6 +13,7 @@ LEGACY_UNINSTALL_URL="https://raw.githubusercontent.com/markusleben/ha-nova/main
 CONFIG_DIR="${HOME}/.config/ha-nova"
 PATH_BLOCK_HEADER="# Added by HA NOVA"
 PATH_RC_FILE=""
+PATH_WAS_MISSING=0
 TMP_DIR=""
 CURL_RETRY_ALL="__unset__"
 PLAIN_UI="0"
@@ -239,16 +240,27 @@ ensure_bin_dir_on_path() {
   rc_file="$(detect_shell_rc)"
   PATH_RC_FILE="${rc_file}"
 
-  mkdir -p "${BIN_DIR}" "$(dirname "${rc_file}")"
-  touch "${rc_file}"
+  mkdir -p "${BIN_DIR}"
   # `ha-nova uninstall` strips the block from exactly this file first.
   (umask 077; mkdir -p "${CONFIG_DIR}" && printf '%s\n' "${rc_file}" > "${CONFIG_DIR}/path-target")
 
   case ":${PATH}:" in
     *":${BIN_DIR}:"*) ;;
-    *) export PATH="${BIN_DIR}:${PATH}" ;;
+    *) PATH_WAS_MISSING=1; export PATH="${BIN_DIR}:${PATH}" ;;
   esac
 
+  add_path_block "${rc_file}"
+  # New terminals on Linux desktops run interactive non-login bash, which
+  # reads ~/.bashrc and not the login file; uninstall's sweep covers it.
+  if [[ "$(basename "${SHELL:-sh}")" == "bash" && "${rc_file}" != "${HOME}/.bashrc" ]]; then
+    add_path_block "${HOME}/.bashrc"
+  fi
+}
+
+add_path_block() {
+  local rc_file="$1"
+  mkdir -p "$(dirname "${rc_file}")"
+  touch "${rc_file}"
   if grep -Fqx "${PATH_BLOCK_HEADER}" "${rc_file}" 2>/dev/null; then
     info "${BIN_DIR} already configured in ${rc_file}"
     return 0
@@ -267,6 +279,17 @@ export PATH="$HOME/.local/bin:$PATH"
 EOF
   fi
   info "Added ${BIN_DIR} to PATH in ${rc_file}"
+}
+
+# This terminal started before the PATH line existed: say how to use
+# ha-nova here without opening a new one.
+print_path_hint() {
+  [[ "${PATH_WAS_MISSING}" == "1" ]] || return 0
+  if [[ "${PATH_RC_FILE}" == *.fish ]]; then
+    note "To use ha-nova in this terminal, open a new terminal or run: set -gx PATH \$HOME/.local/bin \$PATH"
+  else
+    note "To use ha-nova in this terminal, open a new terminal or run: export PATH=\"\$HOME/.local/bin:\$PATH\""
+  fi
 }
 
 normalize_version_tag() {
@@ -467,7 +490,7 @@ run_setup() {
   if has_interactive_tty; then
     info "Starting ha-nova setup"
     "${runtime_bin}" setup < /dev/tty
-    return 0
+    return
   fi
 
   warn "No interactive terminal detected; setup was not started automatically."
@@ -510,8 +533,11 @@ main() {
   ensure_bin_dir_on_path
   info "Installed HA NOVA ${installed_tag}"
   echo ""
-  note "Need help later? Run: ha-nova doctor"
-  run_setup "${BIN_LINK}"
+  # Setup's own last screen says "Need help? Run: ha-nova doctor".
+  local setup_status=0
+  run_setup "${BIN_LINK}" || setup_status=$?
+  print_path_hint
+  return "${setup_status}"
 }
 
 # Test-only export guard: behavior tests source the installer functions

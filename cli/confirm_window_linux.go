@@ -5,8 +5,10 @@ import (
 	"errors"
 	"os"
 	"os/exec"
+	"runtime"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 )
 
@@ -19,6 +21,10 @@ import (
 const linuxDialog = "/usr/bin/zenity"
 
 var linuxDialogEnv = []string{"DISPLAY", "WAYLAND_DISPLAY", "XAUTHORITY", "XDG_RUNTIME_DIR", "DBUS_SESSION_BUS_ADDRESS", "HOME", "LANG", "LC_ALL"}
+
+func dialogAttr() *syscall.SysProcAttr {
+	return &syscall.SysProcAttr{Pdeathsig: syscall.SIGKILL}
+}
 
 func executable(path string) bool {
 	info, err := os.Stat(path)
@@ -33,7 +39,12 @@ func nativeWindowAvailable() bool {
 func nativeWindow(ctx context.Context, message string, wait time.Duration) windowAnswer {
 	args := []string{"--question", "--title=HA NOVA", "--text=" + message, "--ok-label=Confirm", "--cancel-label=Cancel",
 		"--default-cancel", "--no-markup", "--timeout=" + strconv.Itoa(int(wait.Seconds()))}
+	// The window dies with this process, even a SIGKILLed one (lane E2).
+	// Pdeathsig follows the OS thread that started zenity, so hold it.
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
 	cmd := exec.CommandContext(ctx, linuxDialog, args...)
+	cmd.SysProcAttr = dialogAttr()
 	cmd.Env = []string{}
 	for _, key := range linuxDialogEnv {
 		if value, set := os.LookupEnv(key); set {
@@ -53,7 +64,12 @@ func nativeWindow(ctx context.Context, message string, wait time.Duration) windo
 	case err != nil:
 		code = exitErr.ExitCode()
 	}
-	failure := strings.ToLower(stderr.String())
+	return zenityAnswer(code, stderr.String())
+}
+
+// zenityAnswer maps zenity's exit code (-1: ended by a signal) and stderr.
+func zenityAnswer(code int, stderr string) windowAnswer {
+	failure := strings.ToLower(stderr)
 	switch {
 	case code == 0:
 		return windowConfirmed
@@ -61,6 +77,8 @@ func nativeWindow(ctx context.Context, message string, wait time.Duration) windo
 		return windowFailed
 	case code == 1: // Cancel or close
 		return windowCancelled
+	case code == -1: // ended by a signal: closed from outside
+		return windowClosed
 	}
-	return windowNoAnswer // zenity 5 = timeout; a signal or anything else: no answer
+	return windowNoAnswer // zenity 5 = timeout; anything else: no answer
 }

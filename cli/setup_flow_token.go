@@ -9,6 +9,7 @@ func (f *setupFlow) stepToken() setupStepResult {
 	// verify must judge the token, never a leftover device pairing.
 	f.devicePaired = false
 	f.pairedThisRun = false
+	setupSignedInUser, setupOwnerIngress = "", nil
 	f.current = detectSetupStateWithToken(f.paths, f.cfg, f.state, f.target, f.savedTokenBeforeSetup, f.hadSavedTokenBeforeSetup)
 	f.existingToken = ""
 	if f.relayTokenFlag == "" && f.hadSavedTokenBeforeSetup {

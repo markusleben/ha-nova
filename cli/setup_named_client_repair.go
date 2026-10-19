@@ -21,7 +21,7 @@ func completeNamedProfileClientRepair(
 		printHumanErr("%s", err)
 		return 1
 	}
-	if !verifyDeviceHealth(cfg) {
+	if verifyDeviceHealth(cfg) != deviceOK {
 		printHumanErr(
 			"The selected server profile's existing secure connection could not be verified. No other server credential was used. Run 'ha-nova doctor' for the exact repair command.",
 		)

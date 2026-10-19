@@ -78,6 +78,8 @@ func darwinAnswer(out string, err error, ended, showing bool) windowAnswer {
 		return windowCancelled
 	case err == nil && out == "error -1713":
 		return windowFailed
+	case exitErr != nil && exitErr.ExitCode() == -1: // ended by a signal: closed from outside
+		return windowClosed
 	}
 	return windowNoAnswer
 }

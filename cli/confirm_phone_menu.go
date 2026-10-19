@@ -10,7 +10,8 @@ import (
 
 // choosePhone: the signed-in user's only phone is proposed; otherwise every
 // administrator's phone is a choice (arrow menu, numbered without a TTY).
-// ok=false: skipped. Skip stays the default, as Enter skipped before.
+// ok=false: skipped. Skip is the default everywhere: Enter never links a
+// phone (that sends a notification).
 func choosePhone(reader *bufio.Reader, out io.Writer, home phoneHome, signedIn string) (phoneTarget, bool) {
 	all := home.eligible("")
 	if own := home.eligible(signedIn); signedIn != "" && len(own) == 1 {
@@ -66,15 +67,15 @@ func promptOwnPhone(reader *bufio.Reader, out io.Writer, own phoneTarget) string
 			{Value: "other", Label: "Choose another phone"},
 			{Value: "skip", Label: "Skip for now"},
 		},
-		DefaultValue: "use",
+		DefaultValue: "skip", // linking sends a notification: only on an explicit yes, as on the setup page
 	}
 	answer, err := promptSetupMenu(reader, out, spec, func() (string, error) {
-		label := fmt.Sprintf("Use “%s” (%s) for HA NOVA confirmations? Press Enter, type 'other' for another phone, or 'skip'", name, person)
+		label := fmt.Sprintf("Use “%s” (%s) for HA NOVA confirmations? Type 'yes' to use it, 'other' for another phone, or press Enter to skip", name, person)
 		answer, err := promptLineWithOptions(reader, out, label, "", false)
 		switch answer = strings.ToLower(strings.TrimSpace(answer)); {
 		case err != nil:
 			return "skip", nil
-		case answer == "" || answer == "y" || answer == "yes":
+		case answer == "y" || answer == "yes" || answer == "use":
 			return "use", nil
 		case answer == "other":
 			return "other", nil

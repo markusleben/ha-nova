@@ -177,6 +177,7 @@ func pairWithHASignInSession(
 	switch {
 	case pairErr == nil:
 		setupSignedInUser = session.user.ID // the phone step proposes this user's phone
+		setupOwnerIngress = session.ingress // chat apps (step 3) use the owner's session
 		return true, false, nil
 	case errors.As(pairErr, &soft):
 		renderSetupWarningLine(out, "%s", haSignInFallbackLine(pairErr, session.user))

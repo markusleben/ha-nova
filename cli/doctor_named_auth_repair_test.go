@@ -167,8 +167,8 @@ func TestNamedClientRepairSkipsPendingActivationMutation(
 		return true, nil
 	}
 	previousVerify := verifyDeviceHealth
-	verifyDeviceHealth = func(runtimeConfig) bool {
-		return true
+	verifyDeviceHealth = func(runtimeConfig) deviceHealth {
+		return deviceOK
 	}
 	t.Cleanup(func() {
 		resumePendingActivationAfterRetirementCheck = previousResume

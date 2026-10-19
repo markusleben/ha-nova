@@ -1,6 +1,9 @@
 package main
 
-import "strings"
+import (
+	"errors"
+	"strings"
+)
 
 func (f *setupFlow) stepClient() setupStepResult {
 	answer, err := chooseSetupClient(f.ui, f.choices, f.target)
@@ -40,6 +43,13 @@ func (f *setupFlow) stepSecureStorageRecovery() setupStepResult {
 		return f.failErr(err)
 	}
 	if result != setupSecureStorageRecoveryRecovered {
+		if isDesktopKeyringLockedError(f.tokenStoragePreflightErr) { // lane D7: say what happened, not a save error
+			message := setupT("setup.storage.still_locked")
+			if _, _, ok, err := selectedClientsServiceCredentialHint(f.paths, f.selectedClients); err == nil && ok && len(f.selectedClients) == 1 {
+				message += " " + setupT("setup.storage.still_locked_service", "client", f.selectedClients[0])
+			}
+			return f.failErr(errors.New(message))
+		}
 		if f.tokenStorageRecoveryReadBlocked {
 			return f.failErr(relayAuthTokenSetupReadError(f.tokenStoragePreflightErr))
 		}
@@ -208,6 +218,9 @@ func (f *setupFlow) stepRelayInstall() setupStepResult {
 }
 
 func (f *setupFlow) stepPairing() setupStepResult {
+	// Only a sign-in pairing in this attempt sets them again: a code pairing
+	// after a sign-in to another home must not reuse that home's session.
+	setupSignedInUser, setupOwnerIngress = "", nil
 	steps := buildSetupPairingWizardSteps()
 	view := setupView{Progress: &setupProgress{Step: steps.Pairing, Total: steps.Total, Title: setupText("setup.step.connect")}}
 	if !f.relaySkipNote.empty() {

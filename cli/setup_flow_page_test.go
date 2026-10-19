@@ -69,7 +69,7 @@ func stubSetupPageHome(t *testing.T, haURL string, appRunning bool) *int {
 	t.Cleanup(func() {
 		discoverReachableHAHostsForSetup, probeInstalledRelayForSetup, relayAdvertisesSignInForSetup = previousDiscover, previousProbe, previousAdvertises
 		resolveHASignInOriginForSetup, probePairingV1ForSetup, signInPairForSetup, verifyDeviceHealth, setupPageLinger = previousOrigin, previousPairing, previousPair, previousVerify, previousLinger
-		setupInstalledSignIn = nil
+		setupInstalledSignIn, setupOwnerIngress, setupSignedInUser = nil, nil, ""
 	})
 	discoverReachableHAHostsForSetup = func(runtimeConfig) ([]setupDiscoveryCandidate, string) {
 		return []setupDiscoveryCandidate{{Host: normalizeHostInput(haURL), HAURL: haURL}}, ""
@@ -83,7 +83,7 @@ func stubSetupPageHome(t *testing.T, haURL string, appRunning bool) *int {
 		pairs++
 		return "device-1", nil
 	}
-	verifyDeviceHealth = func(runtimeConfig) bool { return true }
+	verifyDeviceHealth = func(runtimeConfig) deviceHealth { return deviceOK }
 	setupPageLinger = 0
 	return &pairs
 }
@@ -397,7 +397,7 @@ func TestSetupPageChecksATypedAddress(t *testing.T) {
 	}
 	page.click("address", "192.0.2.10")
 	found := page.waitFor("the address", func(s setupPageState) bool { return s.HA == "192.0.2.10" && s.Problem == nil && len(s.Accepts) > 0 })
-	if found.App != "missing" {
+	if found.App != "missing" || !found.Typed { // lane E5: step 1 says the address was typed
 		t.Fatalf("found = %+v", found)
 	}
 	setupPageExit(t, done, stdout)

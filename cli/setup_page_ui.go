@@ -18,14 +18,14 @@ import (
 // names; the page words and formats them (setupweb/app.js, spec §4.2). What
 // the page does not cover hands over to the terminal: the first read from
 // termIn switches the page to "continue in the terminal", and the rest of the
-// run renders there. Until then the terminal gets a plain transcript.
+// run renders there. Until then the terminal gets a transcript.
 
 // Ends setup when the page waits this long for a click.
 var setupPageIdle = 30 * time.Minute
 
 // The actions the page may post; the engine accepts a subset at a time.
 var setupPageActions = []string{"signin", "address", "terminal", "recheck", "stop", "demo",
-	"phone", "finish", // step 3 (setup_page_control.go)
+	"phone", "chat", "finish", // step 3 (setup_page_control.go)
 	"preview", "save", "undo", "claude", "done", // step 4 (setup_page_home.go)
 }
 
@@ -64,6 +64,7 @@ type setupPageState struct {
 	Fix        string               `json:"fix,omitempty"` // retry, owner
 	Links      map[string]string    `json:"links,omitempty"`
 	AskHA      bool                 `json:"ask_ha,omitempty"` // step 1 opens the address field
+	Typed      bool                 `json:"typed,omitempty"`  // the user typed HA's address: step 1 says so
 	SignInURL  string               `json:"signin_url,omitempty"`
 	Control    *setupPageControl    `json:"control,omitempty"` // step 3
 	Home       *setupPageHome       `json:"home,omitempty"`    // step 4
@@ -86,7 +87,7 @@ type setupWebUI struct {
 	server *setupPageServer
 	stdin  *bufio.Reader // the terminal's one reader; reading it hands over
 	text   setupTextUI   // the terminal, after the hand-over
-	log    io.Writer     // the plain transcript before it
+	log    io.Writer     // the transcript before it
 
 	mu         sync.Mutex
 	view       setupPageState
@@ -97,9 +98,10 @@ type setupWebUI struct {
 	idled      bool // setup ended because nobody clicked for setupPageIdle
 }
 
-// setupPlainWriter is not an *os.File, so the transcript stays plain: no
-// spinners, no arrow menus, no screen clears.
-type setupPlainWriter struct{ io.Writer }
+// setupTranscriptWriter: the terminal while the page runs. It looks like the
+// rest of setup there (styled on a terminal, plain otherwise, lane E7), but
+// never animates, clears the screen, or shows an arrow menu (ui_mode.go).
+type setupTranscriptWriter struct{ io.Writer }
 
 type setupHandoverReader struct {
 	ui *setupWebUI
@@ -113,7 +115,7 @@ func (h setupHandoverReader) Read(p []byte) (int, error) {
 
 func newSetupWebUI(stdin io.Reader, stdout io.Writer) *setupWebUI {
 	ui := &setupWebUI{
-		log:     setupPlainWriter{stdout},
+		log:     setupTranscriptWriter{stdout},
 		actions: make(chan setupPageAction, 1),
 		view:    setupPageState{Screen: "looking"},
 	}

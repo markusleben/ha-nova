@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"io"
 	"os"
+	"strings"
 	"testing"
 )
 
@@ -98,5 +99,24 @@ func TestResolveSetupUISessionFallsBackToPlainWhenInputIsNotInteractive(t *testi
 	session := resolveSetupUISession(os.Stdout)
 	if !session.plain() {
 		t.Fatalf("expected plain session when setup input is not interactive, got %s", session.mode)
+	}
+}
+
+// Lane E7: while the setup page runs, the terminal looks like the rest of
+// setup (styled), but never spins, clears, or shows an arrow menu.
+func TestSetupTranscriptIsStyledButNeverEnhanced(t *testing.T) {
+	savedInput, savedTTY, savedANSI, savedEnv := uiInputSupportsTTY, writerSupportsTTYForSetup, uiOutputSupportsANSI, uiEnvLookup
+	t.Cleanup(func() {
+		uiInputSupportsTTY, writerSupportsTTYForSetup, uiOutputSupportsANSI, uiEnvLookup = savedInput, savedTTY, savedANSI, savedEnv
+	})
+	uiInputSupportsTTY = func() bool { return true }
+	writerSupportsTTYForSetup = func(io.Writer) bool { return true }
+	uiOutputSupportsANSI = func(io.Writer) bool { return true }
+	uiEnvLookup = func(string) string { return "" }
+	var out strings.Builder
+	terminal, transcript := resolveSetupUISession(&out), resolveSetupUISession(setupTranscriptWriter{&out})
+	if !terminal.enhanced() || transcript.plain() || transcript.enhanced() || transcript.clearsScreen() || transcript.animatesSpinner() ||
+		transcript.successMarker() != terminal.successMarker() {
+		t.Fatalf("terminal %+v, transcript %+v", terminal, transcript)
 	}
 }

@@ -45,42 +45,64 @@ func TestRelayAuthTokenProblemMessageDifferentiatesMissingAndUnavailable(t *test
 	if got := relayAuthTokenProblemMessage(missingRelayAuthTokenError("ha-nova.relay-auth-token")); got != "relay auth token missing; run: ha-nova setup" {
 		t.Fatalf("missing-token message = %q", got)
 	}
-	if got := relayAuthTokenProblemMessage(errors.New("dbus: couldn't determine address of session bus")); got != "secure storage unavailable in this Linux session; run HA NOVA from a terminal inside the Linux desktop session on this machine, and then run: ha-nova setup" {
-		t.Fatalf("secret-service-session-unavailable message = %q", got)
-	}
 	// Windows network logon sessions (issue #213): the raw Credential
 	// Manager text must classify with local-session guidance.
 	if got := relayAuthTokenProblemMessage(errors.New("cannot save relay token: A specified logon session does not exist. It may already have been terminated.")); got != "secure storage isn't available in this Windows session (for example over SSH); sign in to the desktop of the computer HA NOVA is installed on, open a normal terminal there, and run: ha-nova setup" {
 		t.Fatalf("windows-network-logon message = %q", got)
 	}
-	if got := relayAuthTokenProblemMessage(errors.New("exec: \"dbus-launch\": executable file not found in $PATH")); got != "secure storage unavailable in this Linux session; run HA NOVA from a terminal inside the Linux desktop session on this machine, and then run: ha-nova setup" {
-		t.Fatalf("secret-service-dbus-launch-missing message = %q", got)
-	}
-	if got := relayAuthTokenProblemMessage(errors.New("The name org.freedesktop.secrets was not provided by any .service files")); got != "secure storage unavailable on this Linux machine; start a Secret Service provider (for example GNOME Keyring or KWallet Secrets) and then run: ha-nova setup" {
-		t.Fatalf("secret-service-unavailable message = %q", got)
-	}
-	if got := relayAuthTokenProblemMessage(errors.New("Secret Service preflight timed out")); got != "secure storage unavailable on this Linux machine; start a Secret Service provider (for example GNOME Keyring or KWallet Secrets) and then run: ha-nova setup" {
-		t.Fatalf("secret-service-timeout message = %q", got)
-	}
-	if got := relayAuthTokenProblemMessage(errors.New("org.freedesktop.DBus.Error.ServiceUnknown: The name org.freedesktop.secrets was not provided by any .service files")); got != "secure storage unavailable on this Linux machine; start a Secret Service provider (for example GNOME Keyring or KWallet Secrets) and then run: ha-nova setup" {
-		t.Fatalf("secret-service-serviceunknown message = %q", got)
-	}
-	lockedWant := "secure storage is present but locked on this Linux machine; unlock the default keyring and then run: ha-nova setup — or, if no one ever unlocks a desktop session on this machine, run: ha-nova setup --service <client>"
-	if got := relayAuthTokenProblemMessage(desktopKeyringLockedError("default Secret Service collection is locked")); got != lockedWant {
-		t.Fatalf("secret-service-locked message = %q", got)
-	}
-	initWant := "secure storage is present but not initialized on this Linux machine; initialize the default keyring and then run: ha-nova setup"
-	if got := relayAuthTokenProblemMessage(errors.New("Object does not exist at path \"/org/freedesktop/secrets/collection/login\"")); got != initWant {
-		t.Fatalf("secret-service-login-missing message = %q", got)
-	}
-	if got := relayAuthTokenProblemMessage(errors.New("no such secret collection")); got != initWant {
-		t.Fatalf("secret-service-no-collection message = %q", got)
-	}
-	if got := relayAuthTokenProblemMessage(errors.New("no default Secret Service collection configured")); got != initWant {
-		t.Fatalf("secret-service-no-default message = %q", got)
+	// Linux (lane D7/D8): one plain next step; a raw system error stays as
+	// a detail line, HA NOVA's own classified errors need none.
+	for _, tc := range []struct {
+		err  error
+		want string
+	}{
+		{errors.New("dbus: couldn't determine address of session bus"), keyringSessionMessage},
+		{errors.New("exec: \"dbus-launch\": executable file not found in $PATH"), keyringSessionMessage},
+		{errors.New("dial unix /nonexistent: connect: no such file or directory"), keyringSessionMessage},
+		{desktopKeyringSessionUnavailableError("no session"), keyringSessionMessage},
+		{errors.New("The name org.freedesktop.secrets was not provided by any .service files"), keyringMissingMessage},
+		{errors.New("Secret Service preflight timed out"), keyringMissingMessage},
+		{errors.New("org.freedesktop.DBus.Error.ServiceUnknown: The name org.freedesktop.secrets was not provided by any .service files"), keyringMissingMessage},
+		{errors.New("Process org.freedesktop.secrets exited with status 1"), keyringMissingMessage},
+		{desktopKeyringLockedError("default Secret Service collection is locked"), keyringLockedMessage},
+		{errors.New("Object does not exist at path \"/org/freedesktop/secrets/collection/login\""), keyringNotSetUpMessage},
+		{errors.New("no such secret collection"), keyringNotSetUpMessage},
+		{errors.New("no default Secret Service collection configured"), keyringNotSetUpMessage},
+	} {
+		got := relayAuthTokenProblemMessage(tc.err)
+		want := tc.want
+		var kind interface{ Unwrap() error }
+		if !errors.As(tc.err, &kind) {
+			want += "\nDetails: " + tc.err.Error()
+		}
+		if got != want {
+			t.Errorf("message(%q) = %q, want %q", tc.err, got, want)
+		}
 	}
 	if got := relayAuthTokenProblemMessage(errors.New("keychain locked")); got != "relay auth token unavailable: keychain locked" {
 		t.Fatalf("unavailable-token message = %q", got)
+	}
+}
+
+// Lane D7: a command reading the saved credential reports secure storage
+// with its own code, never RELAY_ERROR, and never for a missing pairing.
+func TestSecureStorageErrorCode(t *testing.T) {
+	for _, tc := range []struct {
+		err  error
+		want string
+	}{
+		{desktopKeyringLockedError("default Secret Service collection is locked"), "SECURE_STORAGE_LOCKED"},
+		{&CloudError{Code: CloudErrSecretStoreLocked}, "SECURE_STORAGE_LOCKED"},
+		{errors.New("dial unix /nonexistent: connect: no such file or directory"), "SECURE_STORAGE_UNAVAILABLE"},
+		{errors.New("Process org.freedesktop.secrets exited with status 1"), "SECURE_STORAGE_UNAVAILABLE"},
+		{errors.New("no default Secret Service collection configured"), "SECURE_STORAGE_UNAVAILABLE"},
+		{missingRelayAuthTokenError("ha-nova.relay-auth-token"), ""},
+		{errors.New("connection refused"), ""},
+		{nil, ""},
+	} {
+		if got := secureStorageErrorCode(tc.err); got != tc.want {
+			t.Errorf("code(%v) = %q, want %q", tc.err, got, tc.want)
+		}
 	}
 }
 

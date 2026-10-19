@@ -53,13 +53,13 @@ func (f *setupFlow) prepareCredentials() setupStepResult {
 	// offer the mid-flow switch for a specific target, mirroring the
 	// explicit `--service all` rejection above.
 	if !f.serviceMode && f.target != "all" {
-		serviceCredentials, serviceClientID, hasServiceCredentials, serviceErr := selectedClientsServiceCredentialHint(f.paths, f.selectedClients)
+		_, serviceClientID, hasServiceCredentials, serviceErr := selectedClientsServiceCredentialHint(f.paths, f.selectedClients)
 		if serviceErr != nil {
 			return f.failErr(serviceErr)
 		}
-		if hasServiceCredentials && shouldOfferServiceCredentials(f.tokenStoragePreflightErr) {
+		if hasServiceCredentials && offerServiceCredentialsQuestion(f.tokenStoragePreflightErr) {
 			f.textOnly()
-			useServiceCredentials, err := promptSetupServiceCredentialsInteractive(f.ui.termIn(), f.ui.termOut(), serviceCredentials, serviceClientID)
+			useServiceCredentials, err := promptSetupServiceCredentialsInteractive(f.ui.termIn(), f.ui.termOut(), serviceClientID)
 			if err == errSetupExit {
 				return f.cancelled()
 			}

@@ -157,7 +157,7 @@ func TestAddServerFlowCreatesNamedProfileAndKeepsDefaultIntact(t *testing.T) {
 	t.Cleanup(func() { securePairForSetup = originalPair })
 
 	originalVerify := verifyDeviceHealth
-	verifyDeviceHealth = func(runtimeConfig) bool { return true }
+	verifyDeviceHealth = func(runtimeConfig) deviceHealth { return deviceOK }
 	t.Cleanup(func() { verifyDeviceHealth = originalVerify })
 
 	docBefore, err := loadConfigDocument(paths.ConfigFile)
@@ -509,7 +509,7 @@ func TestAddServerFlowSkipsInstallWhenRelayAlreadyRuns(t *testing.T) {
 	}
 	t.Cleanup(func() { securePairForSetup = originalPair })
 	originalVerify := verifyDeviceHealth
-	verifyDeviceHealth = func(runtimeConfig) bool { return true }
+	verifyDeviceHealth = func(runtimeConfig) deviceHealth { return deviceOK }
 	t.Cleanup(func() { verifyDeviceHealth = originalVerify })
 
 	// y (offer) → cabin (name) → 1 (discovery pick) → Enter (open NOVA) →
