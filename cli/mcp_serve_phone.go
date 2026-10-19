@@ -12,7 +12,8 @@ import (
 	"time"
 )
 
-// Confirmations for chat apps (ha-nova serve; spec 2026-10-18 §11.4): no
+// Confirmations for chat apps (ha-nova serve; docs/work/2026-10-19-chat-
+// bridge-contract.md): no
 // window and no form. A typed plan asks the linked phone of the chat app's
 // own Home Assistant user; with none linked, a chat code with a fixed
 // low-protection note, unless the owner turned chat codes off. ha_apply
@@ -24,6 +25,7 @@ import (
 // mcpVerbLock); nil everywhere else.
 type chatPolicy struct {
 	user     string // the HA user id the integration vouched for (secret-authenticated)
+	key      string // its hash: the user's data directory and log label
 	links    string // the bridge's phone links: {owner id: {HA user id: phoneLink}}
 	codes    bool   // chat codes allowed (owner switch)
 	readOnly bool   // chat apps can only read (owner switch)
@@ -158,9 +160,6 @@ func (srv *mcpServer) chatApply(name string, args map[string]json.RawMessage, ar
 	b, key := c.bridge, fmt.Sprintf("%s/%s/%t", c.user, id, noSnapshot)
 	b.mu.Lock()
 	job := b.jobs[key]
-	if job != nil && err == nil && !job.ended.IsZero() && time.Since(job.ended) > b.wait+5*time.Second {
-		job = nil // nothing ran (the plan is still open) and nobody came back in time: a new request
-	}
 	if job == nil {
 		if err != nil || plan.Channel != channelPhone {
 			b.mu.Unlock()

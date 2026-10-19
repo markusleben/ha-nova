@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"crypto/subtle"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -25,7 +26,8 @@ import (
 	"time"
 )
 
-// `ha-nova serve`: the chat-app bridge (spec 2026-10-18 §11). The same
+// `ha-nova serve`: the chat-app bridge (docs/work/2026-10-19-chat-bridge-
+// contract.md). The same
 // tools, instructions, skills, and verbs as `ha-nova mcp`, over MCP
 // Streamable HTTP (stateless: one JSON-RPC message per POST, one JSON
 // answer; no SSE, no elicitation). Only the Home Assistant integration
@@ -179,7 +181,7 @@ func (b *chatBridge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		refuse(code, message)
 		return
 	}
-	user = call.user
+	user = call.key
 	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, serveMaxBody))
 	if err != nil {
 		refuse(http.StatusRequestEntityTooLarge, "request body too large or unreadable")
@@ -187,7 +189,7 @@ func (b *chatBridge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	method = rpcLabel(body)
 	userPaths := b.paths
-	userPaths.CacheDir = filepath.Join(b.dataDir, "users", call.user) // plans are bound to their user
+	userPaths.CacheDir = filepath.Join(b.dataDir, "users", call.key) // plans are bound to their user
 	if err := os.MkdirAll(userPaths.CacheDir, 0o700); err != nil {
 		refuse(http.StatusInternalServerError, "cannot prepare this user's data")
 		return
@@ -254,7 +256,8 @@ func (b *chatBridge) policyFor(user string) (*chatPolicy, int, string) {
 	if !slices.Contains(*allowed, user) {
 		return nil, http.StatusForbidden, "This Home Assistant user may not use HA NOVA in chat apps. The owner can allow it on the HA NOVA page."
 	}
-	return &chatPolicy{user: user, links: filepath.Join(b.dataDir, "phone-links.json"), codes: settings.ChatCodes == nil || *settings.ChatCodes,
+	sum := sha256.Sum256([]byte("ha-nova/chat-user/v1\x00" + user))
+	return &chatPolicy{user: user, key: hex.EncodeToString(sum[:16]), links: filepath.Join(b.dataDir, "phone-links.json"), codes: settings.ChatCodes == nil || *settings.ChatCodes,
 		readOnly: settings.ReadOnly, bridge: b}, 0, ""
 }
 

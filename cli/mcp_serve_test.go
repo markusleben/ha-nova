@@ -134,7 +134,8 @@ func (s *serveHarness) tool(user, name string, args map[string]any) map[string]a
 }
 
 func (s *serveHarness) userPlans(user string) []string {
-	files, _ := filepath.Glob(filepath.Join(s.data, "users", user, "plans", "p_*"))
+	call, _, _ := s.b.policyFor(user)
+	files, _ := filepath.Glob(filepath.Join(s.data, "users", call.key, "plans", "p_*"))
 	return files
 }
 
