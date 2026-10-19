@@ -201,6 +201,9 @@ func setVerbError(env *verbEnvelope, err error) int {
 
 func verbNotices(paths runtimePaths, relayVersion string) []verbNotice {
 	var notices []verbNotice
+	if activeServerIsDemo() {
+		notices = append(notices, verbNotice{Kind: "demo", Text: demoNoticeText})
+	}
 	if n := checkRelayVersionValue(paths, relayVersion); !n.empty() {
 		notices = append(notices, verbNotice{Kind: "relay_outdated", Text: n.message})
 	}

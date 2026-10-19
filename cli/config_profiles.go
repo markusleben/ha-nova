@@ -260,8 +260,15 @@ func saveTargetProfileName(doc *configDocument) (string, error) {
 	if err := validateServerProfileName(name); err != nil {
 		return "", err
 	}
+	if name == demoProfileName && !doc.hasProfile(name) {
+		return "", errDemoNameReserved
+	}
 	return name, nil
 }
+
+// "demo" names the demo house (`ha-nova try`); a home saved under it could be
+// mistaken for the demo. Profiles already called "demo" keep working.
+var errDemoNameReserved = errors.New(`the server name "demo" is reserved for the demo house (ha-nova try); pick another name`)
 
 // withProfile builds the on-disk v3 document with cfg stored in the named
 // profile. The first v3 save adds local-only profile identities to every v1/v2

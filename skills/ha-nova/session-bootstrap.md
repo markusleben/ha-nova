@@ -14,11 +14,11 @@ Cited ../<x>/<file> paths are relative to the citing file.
    bare `ha-nova relay health` preflight is done; a skill reading its output
    still runs it.
 2. Run one check for every server profile in this session, with its
-   `HA_NOVA_SERVER=<name>`. A check counts even when empty or failed;
-   continue either way; empty output stays silent.
+   `HA_NOVA_SERVER=<name>`; empty or failed counts, and empty stays silent.
 3. Later status arrives in typed verbs' `notices[]` (`update`,
-   `relay_outdated`) and `[ha-nova]` relay lines — never a substitute for
-   step 1. Never repeat a notice already surfaced in this session.
+   `relay_outdated`, `demo`) and `[ha-nova]` relay lines — never a substitute
+   for step 1. Never repeat a notice already surfaced in this session.
+   `--server demo`: the shared demo house, never the user's home.
 
 ## HA NOVA Update Callout
 
@@ -33,8 +33,8 @@ user to start a new AI-client session.
 After the requested result, surface a Relay warning exactly once per selected
 server profile as a separate localized callout:
 
-- Home Assistant NOVA Relay App: name the supplied installed and available
-  versions, say that the Relay restarts, and ask whether to prepare the guided
+- NOVA Relay App: name the supplied installed and available
+  versions, say the Relay restarts, and ask whether to prepare the guided
   update. A yes only invokes `ha-nova:updates`; that skill must
   show its App-update preview and obtain
   confirmation before installing with a partial backup.

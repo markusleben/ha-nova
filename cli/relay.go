@@ -858,6 +858,9 @@ func readAllLimited(r io.Reader, maxBytes int64) ([]byte, error) {
 }
 
 func relayConnectErrorMessage(baseURL string, err error) string {
+	if activeServerIsDemo() {
+		return demoUnreachableText
+	}
 	return fmt.Sprintf(
 		"cannot reach the NOVA Relay at %s: %s\nCheck that the NOVA Relay App is running in Home Assistant, then run: ha-nova doctor",
 		strings.TrimRight(baseURL, "/"), err,

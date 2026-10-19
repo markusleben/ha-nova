@@ -27,6 +27,7 @@ func TestSubcommandHelpFlagPrintsUsageAndFlags(t *testing.T) {
 		wantFlag  string
 	}{
 		{"update", func() int { return runUpdate(paths, []string{"--help"}) }, "Usage: ha-nova update", "-force"},
+		{"try", func() int { return runTryCommand(paths, []string{"--help"}) }, "Usage: ha-nova try", "-stop"},
 		{"doctor", func() int { return runDoctor(paths, []string{"--help"}) }, "Usage: ha-nova doctor", "-auto-repair"},
 		{"check-update", func() int { return runCheckUpdate(paths, []string{"--help"}) }, "Usage: ha-nova check-update", "-json"},
 		{"uninstall", func() int { return runUninstall(paths, []string{"--help"}) }, "Usage: ha-nova uninstall", "-purge"},

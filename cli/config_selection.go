@@ -33,13 +33,25 @@ var serverSelectionOverride = ""
 // profile, so every pre-profile code path keeps today's slot names.
 var activeServerProfileName = defaultServerProfileName
 
+// activeDemo: the selected profile is the demo house from demo.json (`ha-nova
+// try`), not a real server that happens to be called "demo".
+var activeDemo = false
+
 func activeServerProfile() string { return activeServerProfileName }
+
+func activeServerIsDemo() bool { return activeDemo }
 
 func setActiveServerProfile(name string) {
 	if strings.TrimSpace(name) == "" {
 		name = defaultServerProfileName
 	}
 	activeServerProfileName = name
+	activeDemo = false
+}
+
+func setActiveDemoProfile() {
+	activeServerProfileName = demoProfileName
+	activeDemo = true
 }
 
 func setServerSelectionOverride(name string) { serverSelectionOverride = name }
