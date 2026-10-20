@@ -275,7 +275,7 @@ func TestDashboardRejectedSaveIsFailedWithoutCheckpointAndSnapshotFailureSavesNo
 	_, env := h.run(runPlanCommand, "write", "--domain", "dashboard", "--id", "home-main", "--base", homeBase(), "--file", draftFile(t, editedHome()))
 	exit, applied := h.run(runApplyCommand, "--plan", env.Plan.ID)
 	if exit != 6 || applied.Status != "failed" || applied.Error.Code != "CONFIG_REJECTED" || applied.Undo != nil ||
-		len(applied.Verification) != 1 || applied.Verification[0].Observed != "read-back differs" {
+		len(applied.Verification) != 1 || applied.Verification[0].Observed != "read-back differs" || !strings.Contains(applied.Verification[0].Note, readBackDiffers+"| ") {
 		t.Fatalf("rejected: exit %d env %+v", exit, applied)
 	}
 	f.lovelace.rejectAll, f.snapshotErr = false, true

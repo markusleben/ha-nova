@@ -281,6 +281,15 @@ func TestMCPNoticeHintsOncePerSessionAndServer(t *testing.T) {
 	if s := toolResult("ha_plan", pending, "", verbExitConfirmation, told, false)["structuredContent"].(map[string]any)["next_step"].(string); !strings.HasPrefix(s, "Show this preview") || !strings.Contains(s, "newer HA NOVA") {
 		t.Fatalf("the hint joins the existing next_step: %q", s)
 	}
+	told = map[string]bool{}
+	differs := `{"schema_version":1,"verb":"apply","status":"unverified","next_step":"Show say.","notices":[{"kind":"update","text":"HA NOVA update available"}]}`
+	if s := toolResult("ha_apply", differs, "", verbExitUnverified, told, false)["structuredContent"].(map[string]any)["next_step"].(string); !strings.HasPrefix(s, "Show say.") || !strings.Contains(s, "newer HA NOVA") {
+		t.Fatalf("a hint must not replace the verb's own next_step: %q", s)
+	}
+	same := `{"schema_version":1,"verb":"call","status":"no_change","next_step":"run it with ha-nova plan call instead of call"}`
+	if s := toolResult("ha_call", same, "", 0, told, false)["structuredContent"].(map[string]any)["next_step"].(string); strings.Contains(s, "ha-nova plan") || !strings.Contains(s, "ha_plan") {
+		t.Fatalf("the verb's own next_step must name tools, not CLI commands: %q", s)
+	}
 }
 
 // ha_trace prints its own object over a transport of its own: a trace-only
