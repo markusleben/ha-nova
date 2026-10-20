@@ -33,7 +33,7 @@
 2. **Sign in with Home Assistant.** Sign in as the owner. If needed, setup installs and starts the NOVA Relay App for you. Then this computer connects by itself.
 3. **Choose your safety net, then look around.** The confirmation window on this computer is on. Your phone is one switch. The Claude Code rules are on unless you turn them off: they let Claude Code read HA NOVA's files and make changes you already approved, without asking again. You still confirm every unlock or delete. Then you see your home at a glance: things worth a look (like a low battery or devices without a room) and an automation made for your home, to preview and save. Nothing in your home changes unless you save it.
 
-Over SSH, with `--no-browser`, or when you run setup again, setup asks in the terminal instead. No browser here, or signed in as another Home Assistant user? Then setup shows the NOVA Relay App page (click "Add", then Install and Start; skipped when the App already runs). You pair with a one-time code: the Home Assistant owner clicks **"Connect a device"** on the NOVA page in the sidebar, and you type the six-digit code. Over SSH, this works well on Linux only. On Windows and macOS, run setup in a terminal on that computer's own screen: over SSH, HA NOVA usually can't save its key.
+Over SSH or with `--no-browser`, setup asks in the terminal instead. No browser here, or signed in as another Home Assistant user? Then setup shows the NOVA Relay App page (click "Add", then Install and Start; skipped when the App already runs). You pair with a one-time code: the Home Assistant owner clicks **"Connect a device"** on the NOVA page in the sidebar, and you type the six-digit code. Over SSH, this works well on Linux only. On Windows and macOS, run setup in a terminal on that computer's own screen: over SSH, HA NOVA usually can't save its key.
 
 <p align="center">
   <img src="assets/pairing-flow.png" alt="Pairing with a code: run the installer, click Connect a device on the NOVA page, type the six-digit code">
@@ -132,7 +132,7 @@ The installer selects the latest stable release. Run the command for your system
 
 **On a desktop**, setup goes on in your browser. The page shows the Home Assistant it found, or asks for its address. It also shows the AI apps on this computer and sets them up for you. On HA OS and Supervised, choose "Sign in and install NOVA" and sign in as the owner. Setup then installs and starts the NOVA Relay App and connects this computer, all with that one sign-in. An old App is updated the same way. If an up-to-date App already runs, there is nothing to do. Then choose how you confirm risky changes, and see your home at a glance.
 
-**In the terminal.** Over SSH, with `ha-nova setup --no-browser`, or when you run setup again, setup asks in the terminal instead.
+**In the terminal.** Over SSH or with `ha-nova setup --no-browser`, setup asks in the terminal instead.
 
 - Want to install the App yourself, or no browser sign-in here (for example over SSH)? Setup takes you to the App page and adds the repository for you. Click "Add", then Install and Start.
 - After that, or when the App already runs, setup opens your Home Assistant login. Sign in as the owner, and this computer connects by itself.
@@ -218,7 +218,7 @@ Once setup is done, try: *"Show me all my automations."*
 |:--------|:-------------|
 | `ha-nova check-update` | Check for a newer version |
 | `ha-nova update` | Update to the latest release |
-| `ha-nova setup` | Run setup again, in the terminal. The first run opens a page in your browser; `--no-browser` keeps it in the terminal |
+| `ha-nova setup` | Opens the setup page: what is set up, and your switches. `--no-browser` keeps it in the terminal |
 | `ha-nova try` | Connect your AI app to the shared demo house; `--stop` removes it |
 | `ha-nova chat-apps on` | Turn on HA NOVA in Claude and ChatGPT (owner sign-in; Home Assistant restarts once). `status` shows the address, `off` turns them off |
 | `ha-nova pair` | Pair this computer again with a new six-digit code |
