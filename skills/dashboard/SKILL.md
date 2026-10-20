@@ -100,7 +100,7 @@ Never dump the full dashboard config unasked.
 - Any HA write this skill does not cover: STOP, invoke `ha-nova:fallback` first; never probe unfamiliar write endpoints.
 
 - No guessed `url_path` or `dashboard_id` values.
-- Dashboard and resource delete uses the one-time code only, even for items created earlier in the same session. Removing views or cards inside a save is previewed (natural confirmation) because every save is recoverable: `ha-nova apply` takes an auto config snapshot first, and `revert` undoes the last verified save. Dashboard deletes restore partially from their snapshot; resources recover via Home Assistant Backups.
+- Dashboard and resource delete keeps its full confirmation, even for items created earlier in the same session. Removing views or cards inside a save is previewed (natural confirmation) because every save is recoverable: `ha-nova apply` takes an auto config snapshot first, and `revert` undoes the last verified save. Dashboard deletes restore partially from their snapshot; resources recover via Home Assistant Backups.
 - A broad re-layout instead of a targeted edit: say so before writing.
 
 ## Guardrails

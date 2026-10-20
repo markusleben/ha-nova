@@ -72,23 +72,21 @@ func resolveUISession(out io.Writer, outputTTY func(io.Writer) bool, allowEnhanc
 		mode = uiModeEnhanced
 	}
 
+	// NO_COLOR (no-color.org) turns off color only: the arrow menu and the
+	// markers stay.
 	return uiSession{
 		mode:  mode,
-		color: true,
+		color: uiEnvLookup("NO_COLOR") == "",
 	}
 }
 
+// uiPlainRequested: HA_NOVA_PLAIN_UI=1, or TERM=dumb (a terminal that can't
+// move the cursor, so the menu couldn't redraw): numbered prompts.
 func uiPlainRequested() bool {
 	if strings.TrimSpace(uiEnvLookup("HA_NOVA_PLAIN_UI")) == "1" {
 		return true
 	}
-	if uiEnvLookup("NO_COLOR") != "" {
-		return true
-	}
-	if strings.EqualFold(strings.TrimSpace(uiEnvLookup("TERM")), "dumb") {
-		return true
-	}
-	return false
+	return strings.EqualFold(strings.TrimSpace(uiEnvLookup("TERM")), "dumb")
 }
 
 func (u uiSession) plain() bool {

@@ -51,11 +51,7 @@ func verifySetupConnection(reader *bufio.Reader, out io.Writer, cfg runtimeConfi
 				return issue, false, nil
 			}
 		}
-		retryLabel := "Retry WebSocket check?"
-		if issue == setupIssueRelayUnreachable {
-			retryLabel = "Retry connection check?"
-		}
-		retry, retryErr := promptWizardYesNoFromReader(reader, out, retryLabel, true)
+		retry, retryErr := promptWizardYesNoMenu(reader, out, "Check the connection again?", "Yes, check again", "No, stop for now", true)
 		if retryErr != nil {
 			return "", false, retryErr
 		}

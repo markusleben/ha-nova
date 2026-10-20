@@ -17,8 +17,9 @@ import (
 	"testing"
 )
 
-// numberedChoiceMarker matches the copy of a numbered single-choice prompt.
-var numberedChoiceMarker = regexp.MustCompile(`Enter \[|Type the number|[1-9]\) |%[ds]\) %s`)
+// numberedChoiceMarker matches the copy of a numbered single-choice prompt
+// or a [y/N] line.
+var numberedChoiceMarker = regexp.MustCompile(`Enter \[|Type the number|[1-9]\) |%[ds]\) %s|y/N|Y/n`)
 
 // A numbered choice prompt may only run as the fallback of the arrow menu:
 // every call to a function that prints one sits in a closure passed to
@@ -70,7 +71,7 @@ func TestNumberedChoicePromptsOnlyRunAsArrowMenuFallback(t *testing.T) {
 	// Not prompts: listPhones prints the list for `confirm-phone list` and
 	// after a mistyped name, where a number is a command-line argument.
 	delete(numbered, "listPhones")
-	for _, want := range []string{"renderSetupChoiceList", "promptSetupChoiceByNumber", "promptSetupConnectionModeFromReader", "promptUninstallModeFromLine"} {
+	for _, want := range []string{"renderSetupChoiceList", "promptSetupChoiceByNumber", "promptSetupConnectionModeFromReader", "promptUninstallModeFromLine", "promptYesNoWithOptions"} {
 		if !numbered[want] {
 			t.Fatalf("guard lost track of %s; numbered=%v", want, numbered)
 		}
@@ -176,6 +177,19 @@ func TestEveryChoicePromptUsesArrowMenuOnTTY(t *testing.T) {
 		{"device verify retry", "back", func(r *bufio.Reader, out io.Writer) error {
 			if err := promptSetupDeviceVerifyRetry(r, out); err != errSetupBack {
 				t.Errorf("verify retry = %v, want errSetupBack", err)
+			}
+			return nil
+		}},
+		{"no address entered", "no", func(r *bufio.Reader, out io.Writer) error {
+			_, _, err := promptValidHAHostFromReader(bufio.NewReader(strings.NewReader("\n")), out, "")
+			if err == nil || !strings.Contains(err.Error(), "needs a Home Assistant address") {
+				t.Errorf("no address = %v", err)
+			}
+			return nil
+		}},
+		{"protected file", "yes", func(r *bufio.Reader, out io.Writer) error {
+			if yes, err := promptSetupServiceCredentialsInteractive(r, out, "Claude Code"); !yes || err != nil {
+				t.Errorf("protected file = %v %v", yes, err)
 			}
 			return nil
 		}},
@@ -321,5 +335,81 @@ func TestUninstallChoiceDefaultsToCancelWhenRemoveIsBlocked(t *testing.T) {
 	if _, _, err := promptUninstallChoice(&out, uninstallModePurge, uninstallAppOffer{}, "the keyring is locked"); err != nil ||
 		len(runner.specs) != 1 || runner.specs[0].DefaultValue != "cancel" {
 		t.Fatalf("menu specs = %+v err=%v", runner.specs, err)
+	}
+}
+
+// Yes/no questions keep their safe default in the arrow menu and in the
+// [y/N] line without a terminal; Esc goes back only in the wizard.
+func TestYesNoMenuKeepsTheDefault(t *testing.T) {
+	originalEnv, originalTTY, originalInput, originalANSI, originalRunner := uiEnvLookup, writerSupportsTTYForSetup, uiInputSupportsTTY, uiOutputSupportsANSI, interactiveSetupMenuRunner
+	t.Cleanup(func() {
+		uiEnvLookup, writerSupportsTTYForSetup, uiInputSupportsTTY, uiOutputSupportsANSI, interactiveSetupMenuRunner = originalEnv, originalTTY, originalInput, originalANSI, originalRunner
+	})
+	uiEnvLookup = func(string) string { return "" }
+	writerSupportsTTYForSetup = func(io.Writer) bool { return true }
+	uiOutputSupportsANSI = func(io.Writer) bool { return true }
+	for _, defaultYes := range []bool{false, true} {
+		for _, wizard := range []bool{false, true} {
+			uiInputSupportsTTY = func() bool { return true }
+			runner := &recordingSetupMenuRunner{answer: "no"}
+			interactiveSetupMenuRunner = runner
+			var out bytes.Buffer
+			if _, err := promptYesNoMenuWith(bufio.NewReader(strings.NewReader("")), &out, "Go?", "Yes", "No", defaultYes, wizard); err != nil {
+				t.Fatal(err)
+			}
+			spec := runner.specs[0]
+			if spec.DefaultValue != map[bool]string{true: "yes", false: "no"}[defaultYes] || spec.AllowBack != wizard ||
+				strings.Contains(spec.Prompt, "Esc") != wizard {
+				t.Fatalf("default %v wizard %v: %+v", defaultYes, wizard, spec)
+			}
+
+			uiInputSupportsTTY = func() bool { return false }
+			out.Reset()
+			yes, err := promptYesNoMenuWith(bufio.NewReader(strings.NewReader("\n")), &out, "Go?", "Yes", "No", defaultYes, wizard)
+			if err != nil || yes != defaultYes || !strings.Contains(out.String(), map[bool]string{true: "[Y/n]", false: "[y/N]"}[defaultYes]) {
+				t.Fatalf("line: default %v wizard %v: yes=%v err=%v %q", defaultYes, wizard, yes, err, out.String())
+			}
+		}
+	}
+}
+
+// NO_COLOR turns off color, not the arrow menu; TERM=dumb (no cursor moves)
+// and HA_NOVA_PLAIN_UI=1 keep the numbered prompts.
+func TestNoColorKeepsTheArrowMenu(t *testing.T) {
+	originalEnv, originalTTY, originalInput, originalANSI := uiEnvLookup, writerSupportsTTYForSetup, uiInputSupportsTTY, uiOutputSupportsANSI
+	t.Cleanup(func() {
+		uiEnvLookup, writerSupportsTTYForSetup, uiInputSupportsTTY, uiOutputSupportsANSI = originalEnv, originalTTY, originalInput, originalANSI
+	})
+	writerSupportsTTYForSetup = func(io.Writer) bool { return true }
+	uiInputSupportsTTY = func() bool { return true }
+	uiOutputSupportsANSI = func(io.Writer) bool { return true }
+	for _, test := range []struct {
+		env   map[string]string
+		mode  uiMode
+		color bool
+	}{
+		{map[string]string{}, uiModeEnhanced, true},
+		{map[string]string{"NO_COLOR": "1"}, uiModeEnhanced, false},
+		{map[string]string{"TERM": "dumb"}, uiModePlain, false},
+		{map[string]string{"HA_NOVA_PLAIN_UI": "1"}, uiModePlain, false},
+	} {
+		uiEnvLookup = func(key string) string { return test.env[key] }
+		session := resolveSetupUISession(&bytes.Buffer{})
+		if session.mode != test.mode || session.color != test.color || (test.env["NO_COLOR"] != "" && session.style("accent", "x") != "x") {
+			t.Fatalf("%v: %+v", test.env, session)
+		}
+	}
+}
+
+// y and n pick that option in a yes/no menu (Enter confirms), as the [y/N]
+// line did; menus without yes/no options ignore them.
+func TestSetupMenuLetterPicksYesOrNo(t *testing.T) {
+	yesNo := []setupMenuOption{{Value: "yes"}, {Value: "no"}}
+	if setupMenuOptionIndex(yesNo, "no") != 1 || setupMenuOptionIndex(yesNo, "yes") != 0 {
+		t.Fatal("y/n don't pick their option")
+	}
+	if setupMenuOptionIndex([]setupMenuOption{{Value: "purge"}, {Value: "cancel"}}, "no") != -1 ||
+		setupMenuOptionIndex([]setupMenuOption{{Value: "no", Disabled: true}}, "no") != -1 {
+		t.Fatal("a letter picked an option it doesn't name")
 	}
 }

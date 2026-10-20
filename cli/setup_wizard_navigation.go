@@ -31,7 +31,3 @@ func promptWizardLineFromReader(reader *bufio.Reader, out io.Writer, label, defa
 	fmt.Fprintln(out)
 	return promptLineWithOptions(reader, out, label, defaultValue, true)
 }
-
-func promptWizardYesNoFromReader(reader *bufio.Reader, out io.Writer, label string, defaultYes bool) (bool, error) {
-	return promptYesNoWithOptions(reader, out, label, defaultYes, true)
-}

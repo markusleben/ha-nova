@@ -134,10 +134,6 @@ func saveSetupConfigWithLifecycleUnlocked(
 	return refreshSetupConfigSnapshot(paths, lifecycleMarker)
 }
 
-func promptYesNoFromReader(reader *bufio.Reader, out io.Writer, label string, defaultYes bool) (bool, error) {
-	return promptYesNoWithOptions(reader, out, label, defaultYes, false)
-}
-
 func promptLineFromReader(reader *bufio.Reader, out io.Writer, label, defaultValue string) (string, error) {
 	return promptLineWithOptions(reader, out, label, defaultValue, false)
 }

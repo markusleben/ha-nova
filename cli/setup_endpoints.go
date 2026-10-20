@@ -103,7 +103,7 @@ func promptValidHAHostFromReader(reader *bufio.Reader, out io.Writer, defaultHos
 		host := normalizeHostInput(input)
 		if host == "" {
 			renderSetupErrorLine(out, "No address entered.")
-			retry, err := promptWizardYesNoFromReader(reader, out, "Try again?", true)
+			retry, err := promptWizardYesNoMenu(reader, out, "Try again?", "Yes, type the address", "No, stop", true)
 			if err != nil {
 				return "", "", err
 			}
@@ -128,7 +128,7 @@ func promptValidHAHostFromReader(reader *bufio.Reader, out io.Writer, defaultHos
 		if resolveSetupUISession(out).animatesSpinner() {
 			armSetupNextPromptSkipsStaleBlankInput()
 		}
-		retry, retryErr := promptWizardYesNoFromReader(reader, out, "Try a different address?", true)
+		retry, retryErr := promptWizardYesNoMenu(reader, out, "Try a different address?", "Yes, type another address", "No", true)
 		if retryErr != nil {
 			return "", "", retryErr
 		}
@@ -136,7 +136,7 @@ func promptValidHAHostFromReader(reader *bufio.Reader, out io.Writer, defaultHos
 			currentDefault = input
 			continue
 		}
-		cont, contErr := promptWizardYesNoFromReader(reader, out, "Continue anyway (connection will be verified later)?", false)
+		cont, contErr := promptWizardYesNoMenu(reader, out, "Setup checks the address again later. Keep it anyway?", "Yes, keep it", "No, stop", false)
 		if contErr != nil {
 			return "", "", contErr
 		}

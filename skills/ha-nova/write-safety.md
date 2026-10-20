@@ -252,8 +252,8 @@ verification retained, one resource family per manifest.
 ## Update-Revert (durable, identity-preserving)
 
 Scope: **update only**. A create is undone by deleting the new item through the
-normal HA NOVA delete flow; that delete still requires a delete preview, one-time
-code, and absence verification, even when the item was created earlier in the same session.
+normal HA NOVA delete flow; that delete requires a delete preview, its
+confirmation, and absence verification, even when the item was created earlier in the same session.
 Do not call this `revert`, and do not imply that manual deletion or a full Home Assistant Backup restore is the only cleanup path.
 A delete has no HA NOVA `revert`; a snapshot-covered delete restores from its
 auto config snapshot (`../ha-nova/config-snapshots.md`) — that is the

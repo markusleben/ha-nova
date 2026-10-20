@@ -114,21 +114,33 @@ func promptSetupDeviceVerifyRetry(reader *bufio.Reader, out io.Writer) error {
 	return err
 }
 
-// promptWizardYesNoMenu asks a wizard yes/no question with the arrow menu;
-// without one it falls back to the [y/N] line.
+// promptWizardYesNoMenu asks a wizard yes/no question with the arrow menu
+// (Esc goes back); without one it falls back to the [y/N] line.
 func promptWizardYesNoMenu(reader *bufio.Reader, out io.Writer, title, yesLabel, noLabel string, defaultYes bool) (bool, error) {
+	return promptYesNoMenuWith(reader, out, title, yesLabel, noLabel, defaultYes, true)
+}
+
+// promptYesNoMenu is the same question outside the wizard: no Esc, Ctrl+C
+// cancels (errSetupExit).
+func promptYesNoMenu(reader *bufio.Reader, out io.Writer, title, yesLabel, noLabel string, defaultYes bool) (bool, error) {
+	return promptYesNoMenuWith(reader, out, title, yesLabel, noLabel, defaultYes, false)
+}
+
+func promptYesNoMenuWith(reader *bufio.Reader, out io.Writer, title, yesLabel, noLabel string, defaultYes, wizard bool) (bool, error) {
 	spec := setupMenuSpec{
 		Title:        title,
-		Prompt:       "Use ↑/↓ or j/k, Enter to select, Esc to go back, Ctrl+C to exit",
-		AllowBack:    true,
+		Prompt:       "Use ↑/↓ or j/k, Enter to select, Ctrl+C to cancel",
 		DefaultValue: "no",
 		Options:      []setupMenuOption{{Value: "yes", Label: yesLabel}, {Value: "no", Label: noLabel}},
+	}
+	if wizard {
+		spec.Prompt, spec.AllowBack = "Use ↑/↓ or j/k, Enter to select, Esc to go back, Ctrl+C to exit", true
 	}
 	if defaultYes {
 		spec.DefaultValue = "yes"
 	}
 	answer, err := promptSetupMenu(reader, out, spec, func() (string, error) {
-		yes, err := promptWizardYesNoFromReader(reader, out, title, defaultYes)
+		yes, err := promptYesNoWithOptions(reader, out, title, defaultYes, wizard)
 		if yes {
 			return "yes", err
 		}

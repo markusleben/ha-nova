@@ -173,7 +173,7 @@ describe("chat apps: turning on and off", () => {
     expect(secretOf()).toMatch(/^[0-9a-f]{64}$/);
     expect(statSync(data("secret")).mode & 0o777).toBe(0o600);
     expect(discovery.get(UUID)).toEqual({ service: "ha_nova", config: { host: "abcd1234-ha-nova-relay", port: 8794, secret: secretOf() } });
-    expect(JSON.parse(readFileSync(data("state.json"), "utf8"))).toEqual({ enabled: true, discovery_uuid: UUID });
+    expect(JSON.parse(readFileSync(data("state.json"), "utf8"))).toEqual({ enabled: true, discovery_uuid: UUID, made_custom_components: true });
 
     // serve: internal port, the bridge's own files, and none of the App's tokens.
     expect(spawned).toHaveLength(1);
@@ -209,7 +209,7 @@ describe("chat apps: turning on and off", () => {
     expect(spawned[0]!.child.killed).toBe("SIGTERM");
     expect(discovery.size).toBe(0);
     expect(existsSync(join(root, "config", "custom_components", "ha_nova"))).toBe(false);
-    expect(existsSync(join(root, "config", "custom_components"))).toBe(true);
+    expect(existsSync(join(root, "config", "custom_components"))).toBe(false); // the App made it, and it is empty
     expect(registry.list().some((d) => d.deviceId === bridgeId)).toBe(false);
     expect(existsSync(data("secret"))).toBe(false);
     expect(existsSync(data("relay.json"))).toBe(false);
@@ -217,6 +217,29 @@ describe("chat apps: turning on and off", () => {
     await new Promise((resolve) => setTimeout(resolve, 20));
     expect(spawned).toHaveLength(1); // not respawned once off
     await apps.turnOff(); // idempotent, also with the message already gone
+  });
+
+  it("keeps a custom_components folder it didn't make, or one with anything else in it", async () => {
+    mkdirSync(join(root, "config", "custom_components"));
+    let apps = chatApps();
+    await apps.turnOn(true);
+    expect(JSON.parse(readFileSync(data("state.json"), "utf8")).made_custom_components).toBeUndefined();
+    await apps.turnOff();
+    expect(tree(join(root, "config", "custom_components"))).toEqual([]); // empty, but the owner's
+
+    rmSync(join(root, "config", "custom_components"), { recursive: true });
+    apps = chatApps();
+    await apps.turnOn(true);
+    mkdirSync(join(root, "config", "custom_components", "hacs")); // installed later
+    await apps.turnOff();
+    expect(tree(join(root, "config", "custom_components"))).toEqual(["hacs"]);
+    expect(apps.status(OWNER)).toMatchObject({ enabled: false, unfinished: false });
+  });
+
+  it("removes the empty folder it made after a failed turn-on too", async () => {
+    postStatus = 403;
+    await expect(chatApps().turnOn(true)).rejects.toThrow(/403/);
+    expect(existsSync(join(root, "config", "custom_components"))).toBe(false);
   });
 
   it("never interleaves turning on and off", async () => {

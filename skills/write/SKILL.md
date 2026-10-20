@@ -93,7 +93,7 @@ Not via `ha-nova:review`.
 2. Checks: verified → skip what Phase 2 covered, re-run R-18 on the read-back; a differing read-back → full checks per `../review/checks.md` → Application. **Dedup**: findings the user saw in 3b MUST NOT repeat (by check type) — except R-18 still matching the persisted config: report it again as a persisted runtime risk with the reorder fix. Do not auto-trigger or auto-read traces outside an accepted Phase 5 test plan. `R-19` follows normal dedup. Actions referencing helpers: always H-01..H-11.
 3. Collision scan: `ha-nova get <entity_id> --related` on the written item (3c fail-closed rule); read max 3 related configs.
 4. Output (localized; `../ha-nova/output-cards.md` → Findings, Empty States): **Findings** real issues only; **Collision check** only when related items exist (a failed scan is "consumer check inconclusive", not empty); **Advisory** only when non-empty. Omit any section with nothing to report — never print an empty "none" bucket; nothing at all → collapse to one scope-honest confirmation line (write-safety → Verification Honesty). Never emit `Questions to consider`, `Suggestions`, or `Instant help` post-write; never repeat an item across **Findings** and **Advisory**. Sole exception: the one-line Replication Line after a verified create (`output-cards.md`).
-5. Update-Revert: an update (a revert too) lands on the undo stack automatically — reflect the save receipt in the result — the `undo` receipt (`replaced`: only this newest update stays revertible; evicted targets are no longer revertible) and offer `revert` (write-safety → Update-Revert). Creates → cleanup via normal HA NOVA delete flow with preview, one-time code, and absence verification. Deletes → offer `restore` (one plan + apply), else Home Assistant Backups.
+5. Update-Revert: an update (a revert too) lands on the undo stack automatically — reflect the save receipt in the result — the `undo` receipt (`replaced`: only this newest update stays revertible; evicted targets are no longer revertible) and offer `revert` (write-safety → Update-Revert). Creates → cleanup via normal HA NOVA delete flow (preview, its confirmation, absence verification); never promise a code. Deletes → offer `restore` (one plan + apply), else Home Assistant Backups.
 
 ### Phase 5: Test Offer (create/update only)
 
@@ -115,7 +115,7 @@ Previews, delete prompts, results, and the test offer render as the Cards in `..
 - Home Assistant is reached exclusively through the `ha-nova` CLI.
 - Any HA write this skill does not cover: STOP, invoke `ha-nova:fallback` first; never probe unfamiliar write endpoints.
 
-- Destructive cleanup still requires the one-time code, even for items created earlier in the same session.
+- Destructive cleanup keeps the delete's full confirmation, even for items created earlier in the same session.
 - No third-party MCP server, no direct HA API, no raw `ha-nova relay` config write.
 
 ## Guardrails
