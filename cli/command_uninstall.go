@@ -105,7 +105,7 @@ func runUninstall(paths runtimePaths, args []string) int {
 	fs := flag.NewFlagSet("uninstall", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 	yes := fs.Bool("yes", false, "no questions; keeps this computer's pairing unless --purge, and never removes the NOVA App")
-	purge := fs.Bool("purge", false, "also remove config, state, and the relay auth token (retains small opaque safety markers)")
+	purge := fs.Bool("purge", false, "also remove settings and this computer's pairing (leaves a few tiny marker files)")
 	if err := fs.Parse(args); err != nil {
 		if helpRequested(err, fs, "ha-nova uninstall [--yes] [--purge]") {
 			return 0

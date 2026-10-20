@@ -11,6 +11,7 @@ worktrees/
 # Go build artifacts
 cli/relay
 cli/cli
+cli/*.exe
 
 # Agent work artifacts
 docs/breadcrumbs.md

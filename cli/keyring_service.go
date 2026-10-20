@@ -317,9 +317,9 @@ func relayAuthTokenProblemMessage(err error) string {
 }
 
 // Plain Linux keyring texts for every command that reads the saved
-// credential (lane D7/D8). A command never opens the unlock prompt itself:
-// only setup does (relay_transport_select.go). Callers that know the AI
-// app add the headless way out (setup --service <its id>).
+// credential (lane D7/D8). Only setup and a full uninstall open the unlock
+// prompt (uninstall_purge_session.go); every other command just says so.
+// Callers that know the AI app add the headless way out (setup --service).
 const (
 	keyringLockedMessage   = "This computer's keyring is locked. Unlock it (log in to the desktop, or open Passwords and Keys) and try again."
 	keyringSessionMessage  = "HA NOVA can't reach this computer's keyring from this terminal (for example over SSH). Open a terminal on this computer's desktop and try again."

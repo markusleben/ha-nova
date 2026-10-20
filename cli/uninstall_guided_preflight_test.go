@@ -241,7 +241,7 @@ func TestGuidedPreflightPreservesExactLockedKeyringError(t *testing.T) {
 	)
 	if err == nil || !strings.Contains(err.Error(), locked.Error()) {
 		if err == nil ||
-			!strings.Contains(err.Error(), "Unlock the default keyring") {
+			!strings.Contains(err.Error(), "This computer's keyring is locked") {
 			t.Fatalf("locked-keyring preflight error = %v", err)
 		}
 	}
@@ -286,7 +286,7 @@ func TestGuidedPreflightRejectsOrdinaryDeviceKeyringLock(t *testing.T) {
 		uninstallModePurge,
 	)
 	if err == nil ||
-		!strings.Contains(err.Error(), "Unlock the default keyring") {
+		!strings.Contains(err.Error(), "This computer's keyring is locked") {
 		t.Fatalf("ordinary device keyring preflight error = %v", err)
 	}
 }

@@ -1,8 +1,10 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"fmt"
+	"os"
 )
 
 // purgeRelayTokenRead is a test seam for the native relay token read.
@@ -42,6 +44,13 @@ func purgeSecureStorageSessionError(paths runtimePaths) error {
 		nativeSecretPromptBaseContextAvailable() {
 		return nil
 	}
+	return purgeSecureStorageReadError(paths, secureStorageSessionProblem)
+}
+
+// purgeSecureStorageReadError returns the first error, for which problem
+// holds, from the secure-storage reads a full purge needs; nil when the
+// targets can't be collected (the purge reports that itself).
+func purgeSecureStorageReadError(paths runtimePaths, problem func(error) bool) error {
 	targets, cloudTargets, release, err := pinnedPurgeTargets(paths)
 	if err != nil {
 		return nil
@@ -52,7 +61,7 @@ func purgeSecureStorageSessionError(paths runtimePaths) error {
 			deviceCredentialPendingServiceForProfile(target.name),
 			deviceCredentialServiceForProfile(target.name),
 		} {
-			if _, err := secretGet(service); secureStorageSessionProblem(err) {
+			if _, err := secretGet(service); problem(err) {
 				return err
 			}
 		}
@@ -61,7 +70,7 @@ func purgeSecureStorageSessionError(paths runtimePaths) error {
 	// Read what the purge itself must read there: the relay token (from its
 	// file when one is configured; a keyring copy is then best-effort) and
 	// each Link authorization.
-	if _, err := purgeRelayTokenRead(); secureStorageSessionProblem(err) {
+	if _, err := purgeRelayTokenRead(); problem(err) {
 		return err
 	}
 	for _, target := range cloudTargets {
@@ -71,7 +80,7 @@ func purgeSecureStorageSessionError(paths runtimePaths) error {
 			_, _, err = store.LoadCurrent(ctx, SecretStoreForbidUI)
 			cancel()
 		}
-		if secureStorageSessionProblem(err) {
+		if problem(err) {
 			return err
 		}
 	}
@@ -87,12 +96,61 @@ func purgeRefusedOutsideDesktop(paths runtimePaths, mode uninstallMode, yes bool
 	}
 	err := purgeSecureStorageSessionError(paths)
 	if err == nil {
-		return false
+		return purgeRefusedForLockedKeyring(paths, yes)
 	}
 	printHumanErr("%s, so a full purge can't check this computer's saved HA NOVA credentials. This run changed nothing.", secureStorageSessionReason)
 	printHumanWarn("Next step: %s, then run: %s", secureStorageSessionNextStep(), purgeRerunCommand(yes))
 	printHumanWarn("Details: %s", err)
 	return true
+}
+
+// purgeKeyringLockedError returns the first read a full purge needs that a
+// locked Linux keyring refuses. GDM autologin leaves the keyring locked after
+// every boot (0.27 lane G4). nil when the purge reads only files.
+func purgeKeyringLockedError(paths runtimePaths) error {
+	if secureStorageSessionPlatformOS != "linux" {
+		return nil
+	}
+	return purgeSecureStorageReadError(paths, func(err error) bool {
+		return isDesktopKeyringLockedError(err) || IsCloudErrorCode(err, CloudErrSecretStoreLocked)
+	})
+}
+
+// purgeRefusedForLockedKeyring: a full purge must read every saved key before
+// it revokes or removes anything. A locked keyring gets setup's unlock window
+// (the desktop's own dialog; HA NOVA never sees the password) when this
+// terminal can show it. Otherwise, or when it stays locked, the run stops
+// before any change and names one next step.
+func purgeRefusedForLockedKeyring(paths runtimePaths, yes bool) bool {
+	if purgeKeyringLockedError(paths) == nil {
+		return false
+	}
+	trigger := desktopKeyringLockedError("a full removal reads this computer's keyring")
+	if !yes && uninstallInteractive() && setupSecureStorageRecoveryAvailableNow(trigger) {
+		var state setupSecureStorageRecoveryState
+		result, err := runSetupSecureStorageRecoveryFlow(
+			bufio.NewReader(os.Stdin), os.Stdout, trigger, &state,
+			setupSecureStorageRecoveryInitialAttempt,
+		)
+		if err == nil && result == setupSecureStorageRecoveryRecovered &&
+			purgeKeyringLockedError(paths) == nil {
+			return false
+		}
+	}
+	printHumanErr("This computer's keyring is locked, so HA NOVA can't remove its saved key. Nothing was changed.")
+	printHumanWarn("Next step: unlock the keyring (log in to the desktop, or open Passwords and Keys), then run: %s", purgeRerunCommand(yes))
+	return true
+}
+
+// keyringRemovalError words a Linux keyring failure while HA NOVA removes
+// its own keys (uninstall, server remove) with the plain text get and doctor
+// print, not setup's "rerun ha-nova setup" (0.27 lane G4). A keyring that
+// isn't set up keeps setup's text: setup is its fix.
+func keyringRemovalError(action string, err error) error {
+	if !isLinuxKeyringError(err) || isDesktopKeyringInitializationRequiredError(err) {
+		return relayAuthTokenSetupOperationError(action, err)
+	}
+	return fmt.Errorf("cannot %s: %s", action, relayAuthTokenProblemMessage(err))
 }
 
 func purgeRerunCommand(yes bool) string {

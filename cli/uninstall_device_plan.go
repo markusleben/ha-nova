@@ -233,7 +233,7 @@ func inspectProfilePurgeSlotState(
 		}
 	case err == errSecretNotFound:
 	default:
-		return profilePurgeSlotState{}, relayAuthTokenSetupOperationError(
+		return profilePurgeSlotState{}, keyringRemovalError(
 			fmt.Sprintf(
 				"inspect pending device credential for server %q",
 				target.name,
@@ -249,7 +249,7 @@ func inspectProfilePurgeSlotState(
 		state.currentExists = true
 	case err == errSecretNotFound:
 	default:
-		return profilePurgeSlotState{}, relayAuthTokenSetupOperationError(
+		return profilePurgeSlotState{}, keyringRemovalError(
 			fmt.Sprintf(
 				"inspect device credential for server %q",
 				target.name,

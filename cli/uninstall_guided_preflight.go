@@ -44,7 +44,7 @@ func prepareUninstallBeforeGuidedTeardown(
 			return fmt.Errorf("cannot validate relay token cleanup before removing HA NOVA: %w", err)
 		}
 		if _, err := resumeKeyringDeviceCredentialCleanup(); err != nil {
-			return relayAuthTokenSetupOperationError(
+			return keyringRemovalError(
 				"finish device credential storage recovery before removing HA NOVA",
 				err,
 			)
