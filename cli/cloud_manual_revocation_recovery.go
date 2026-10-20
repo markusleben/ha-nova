@@ -65,9 +65,8 @@ func cloudAuthorizationCleanupErrorWithRecoveryCommand(
 // inspect …:"). A joined failure (a safety hold that could not be saved)
 // stays; the problem's own cause does not.
 func cloudAuthorizationStopText(err error) (string, bool) {
-	var problem *cloudProblem
-	if !errors.Is(err, errCloudAuthorizationCleanupUnverifiable) ||
-		!errors.As(err, &problem) {
+	problem := cloudAuthorizationStopProblem(err)
+	if problem == nil {
 		return "", false
 	}
 	copy := *problem
@@ -92,6 +91,26 @@ func cloudAuthorizationStopText(err error) (string, bool) {
 	}
 	other(err)
 	return strings.Join(lines, "\n"), true
+}
+
+// cloudAuthorizationStopProblem finds the problem that carries the
+// cannot-verify stop, not just the first problem in the chain.
+func cloudAuthorizationStopProblem(err error) *cloudProblem {
+	if !errors.Is(err, errCloudAuthorizationCleanupUnverifiable) {
+		return nil
+	}
+	if problem, ok := err.(*cloudProblem); ok {
+		return problem
+	}
+	if joined, ok := err.(interface{ Unwrap() []error }); ok {
+		for _, part := range joined.Unwrap() {
+			if problem := cloudAuthorizationStopProblem(part); problem != nil {
+				return problem
+			}
+		}
+		return nil
+	}
+	return cloudAuthorizationStopProblem(errors.Unwrap(err))
 }
 
 // cloudAuthorizationRecoverySteps are the steps that make the recovery

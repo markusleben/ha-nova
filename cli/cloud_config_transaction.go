@@ -38,15 +38,21 @@ func newCloudSetupRequest(
 				cfg.Cloud.State,
 			)
 		}
+		previous := cfg.Cloud.Pending
 		cfg.Cloud.Pending = &metadata
-		return save(*cfg)
+		if err := save(*cfg); err != nil {
+			cfg.Cloud.Pending = previous
+			return err
+		}
+		return nil
 	}
 	// The browser step's metadata. Pending means "a code exchange may have
 	// run", so it is saved only right before the exchange, with the lock held
 	// again and config.json unchanged since the pause. A sign-in left in the
 	// browser therefore leaves no Pending and nothing to revoke, for every
-	// version that reads the config. A Pending entry that already exists
-	// (left by an older version) stays the record of truth.
+	// version that reads the config. With a Pending entry already there (an
+	// older version, or an exchange that may have run) the sign-in is saved at
+	// once, as before, and cleanup keeps its full check.
 	var signIn *cloudConnectionMetadata
 	request := cloudSetupRequest{
 		ProfileName:            activeServerProfile(),
@@ -69,6 +75,11 @@ func newCloudSetupRequest(
 		},
 		StartSignInCodeExchange: func() error {
 			if signIn == nil {
+				// PersistPendingSignIn saved it at once; never exchange
+				// without a saved Pending.
+				if cfg.Cloud == nil || cfg.Cloud.Pending == nil {
+					return errors.New("the sign-in was not saved before the code exchange")
+				}
 				return nil
 			}
 			metadata := *signIn

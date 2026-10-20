@@ -68,7 +68,7 @@ func TestUnprovenSignInStopIsPlain(t *testing.T) {
 		"Home Assistant Link: Your sign-in on this computer didn't finish. HA NOVA can't tell if Home Assistant saved it, so it stopped.",
 		"Next, in Home Assistant:",
 		`1. As the owner, open NOVA. If this computer is listed with a "cloud" tag, click Revoke next to it.`,
-		`2. Each person who uses HA NOVA: open Profile > Security, and under "Refresh tokens", delete "` + cfg.Cloud.Pending.OAuthClientID + `".`,
+		`2. Each person who uses HA NOVA: open Profile > Security, and under "Refresh tokens", delete every entry that ends in "/ha-nova". This also signs out HA NOVA on your other computers.`,
 		"3. Run: ha-nova cloud remove --server default --yes --confirm-remote-access-revoked default",
 		"4. Then run ha-nova uninstall again.",
 		"(code cloud_authorization; next: inspect_security)",
@@ -353,5 +353,46 @@ func TestCloudStopNamesOneSignInOnlyWhenItIsTheOnlyOne(t *testing.T) {
 	plan.hasRetiring = true
 	if got := plan.onlyLinkClient(cfg); got != "" {
 		t.Fatalf("two grants named one client %q", got)
+	}
+}
+
+// A Pending entry without its credential may have replaced the address of an
+// earlier exchange, so it never names one sign-in.
+func TestCloudStopNeverNamesUnstoredPendingClient(t *testing.T) {
+	cfg, _ := cloudCleanupTestConfig(t, cloudStateAuthorizing)
+	if got := (cloudAuthorizationCleanupPlan{}).onlyLinkClient(cfg); got != "" {
+		t.Fatalf("unstored pending named %q", got)
+	}
+}
+
+func TestCloudStopTextFindsTheStopProblem(t *testing.T) {
+	other := &cloudProblem{Code: cloudProblemUnavailable, Remediation: cloudRemediationVerifyState, Detail: "relay busy"}
+	stop := cloudAuthorizationCleanupErrorWithRecoveryCommand(
+		unverifiableCloudAuthorizationCleanup(nil),
+		defaultServerProfileName,
+	)
+	text, ok := cloudAuthorizationStopText(errors.Join(other, errorsWrap("inspect", stop)))
+	if !ok || !strings.Contains(text, "1. As the owner") || !strings.Contains(text, "relay busy") {
+		t.Fatalf("text:\n%s", text)
+	}
+}
+
+func TestCodeExchangeNeedsSavedPending(t *testing.T) {
+	cfg := runtimeConfig{Cloud: &cloudLifecycleMetadata{State: cloudStateAuthorizing}}
+	request := newCloudSetupRequest(&cfg, func(runtimeConfig) error { return nil })
+	if err := request.StartSignInCodeExchange(); err == nil {
+		t.Fatal("code exchange allowed with no saved sign-in")
+	}
+}
+
+func TestFailedPendingSaveLeavesNoPendingInMemory(t *testing.T) {
+	cfg := runtimeConfig{Cloud: &cloudLifecycleMetadata{State: cloudStateAuthorizing}}
+	_, metadata := cloudCleanupTestConfig(t, cloudStateAuthorizing)
+	request := newCloudSetupRequest(&cfg, func(runtimeConfig) error { return errors.New("disk full") })
+	if err := request.PersistPendingSignIn(metadata); err != nil {
+		t.Fatal(err)
+	}
+	if err := request.StartSignInCodeExchange(); err == nil || cfg.Cloud.Pending != nil {
+		t.Fatalf("err=%v pending=%+v", err, cfg.Cloud.Pending)
 	}
 }

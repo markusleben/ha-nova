@@ -102,8 +102,13 @@ func (plan cloudAuthorizationCleanupPlan) explainCloudAuthorizationStop(
 }
 
 // onlyLinkClient is the one sign-in address every configured and stored
-// grant uses, or "" when there may be more than one to delete.
+// grant uses, or "" when there may be more than one to delete. A Pending
+// entry with no stored credential may have replaced the address of an
+// exchange that ran before a crash, so it never names one.
 func (plan cloudAuthorizationCleanupPlan) onlyLinkClient(cfg runtimeConfig) string {
+	if cfg.Cloud.Pending != nil && !plan.storesGeneration(cfg.Cloud.Pending.CredentialGeneration) {
+		return ""
+	}
 	var clients []string
 	for _, metadata := range []*cloudConnectionMetadata{cfg.Cloud.Pending, cfg.Cloud.Current} {
 		if metadata != nil {
@@ -122,6 +127,15 @@ func (plan cloudAuthorizationCleanupPlan) onlyLinkClient(cfg runtimeConfig) stri
 		}
 	}
 	return clients[0]
+}
+
+func (plan cloudAuthorizationCleanupPlan) storesGeneration(generation string) bool {
+	for _, envelope := range plan.envelopes() {
+		if envelope.Generation == generation {
+			return true
+		}
+	}
+	return false
 }
 
 // unfinishedSignIn: a Link sign-in that never reached the code exchange.
