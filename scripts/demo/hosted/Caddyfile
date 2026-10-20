@@ -82,10 +82,12 @@
 		Permissions-Policy "camera=(), microphone=(), geolocation=()"
 		# Visitors are admins: they can add dashboard resources, iframe
 		# dashboards, and markdown with images. Only this origin may serve
-		# scripts, frames, and connections, so nobody's browser is pointed
-		# elsewhere. Images: this origin plus Home Assistant's public brand
-		# icon CDN (@brand below), nothing else.
-		Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://brands.home-assistant.io; media-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' data: blob:; worker-src 'self' blob:; frame-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+		# scripts and frames, so nobody's browser is pointed elsewhere.
+		# Images and connections: this origin plus Home Assistant's public
+		# brand icon CDN (@brand below), nothing else. connect-src needs it
+		# because HA's service worker fetch()es /api/brands/ images and
+		# follows the 302 under its own CSP (this header on /sw-modern.js).
+		Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://brands.home-assistant.io; media-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' data: blob: https://brands.home-assistant.io; worker-src 'self' blob:; frame-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
 		-Server
 	}
 

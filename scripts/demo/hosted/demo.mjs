@@ -182,6 +182,17 @@ const banner = (version) => [
 const TILE_DOMAINS = ["light", "switch", "cover", "lock", "climate", "fan", "media_player", "vacuum", "humidifier",
   "water_heater", "sensor", "binary_sensor", "button", "input_boolean", "input_number", "input_select",
   "input_text", "input_button", "timer", "counter", "scene", "script", "automation", "camera"];
+// Off the dashboard, still in the house for agents: demo platform entities
+// that do nothing on a tap, on purpose (HA's demo integration shows feature
+// edge cases: a lock that jams, vacuums without controls, players that only
+// browse or search), and demo.yaml's automations, so no tap switches one off.
+const OFF_DASHBOARD = ["lock.poorly_installed_door", "vacuum.demo_vacuum_3_third_floor",
+  "vacuum.demo_vacuum_4_fourth_floor", "media_player.browse", "media_player.search"];
+// demo.yaml's automations by id (their entity ids follow their names).
+const DEMO_AUTOMATIONS = ["demo_reset_warning", "demo_simulated_devices", "demo_relock_entrance_door"];
+const demoAutomationRows = (rows, ids = DEMO_AUTOMATIONS) =>
+  ids.map((id) => rows.find((e) => e.platform === "automation" && e.unique_id === id)).filter(Boolean);
+const demoAutomations = async (ha, ids) => demoAutomationRows(await ha.call({ type: "config/entity_registry/list" }), ids);
 
 // The default dashboard: a storage dashboard (HA 2026.10 sends a default
 // "lovelace" panel without a dashboard entry to the new Home panel) with one
@@ -205,7 +216,8 @@ async function saveDashboard(ha) {
     });
   }
   const header = { card: { type: "markdown", text_only: true, content: banner(config.version) } };
-  const live = new Set(states.map((s) => s.entity_id));
+  const hidden = [...OFF_DASHBOARD, ...demoAutomationRows(entities).map((e) => e.entity_id)];
+  const live = new Set(states.map((s) => s.entity_id).filter((id) => !hidden.includes(id)));
   const deviceArea = Object.fromEntries(devices.map((d) => [d.id, d.area_id]));
   const shown = entities.filter((e) => live.has(e.entity_id) && !e.disabled_by && !e.hidden_by && !e.entity_category
     && TILE_DOMAINS.includes(e.entity_id.split(".")[0]));
@@ -251,11 +263,58 @@ async function nameAppDevice(ha) {
   }
 }
 
+// Onboarding adds a "Map" dashboard. The house has no egress, so its map
+// tiles (/api/map_tiles/, proxied from OpenStreetMap) never load: an empty
+// map and 503s. Not worth a third party in visitors' browsers; the panel goes.
+async function dropMapDashboard(ha) {
+  const map = (await ha.call({ type: "lovelace/dashboards/list" })).find((d) => d.url_path === "map");
+  if (map) await ha.call({ type: "lovelace/dashboards/delete", dashboard_id: map.id });
+}
+
+// Calls the service until the entity shows the state (a command can be lost
+// while nothing listens yet), up to `seconds`.
+async function roundTrip(ha, domain, name, entityId, want, seconds = 30) {
+  const deadline = Date.now() + seconds * 1000;
+  for (;;) {
+    try {
+      await ha.call(service(domain, name, { entity_id: entityId }));
+    } catch (err) {
+      if (Date.now() > deadline) throw err;
+    }
+    for (let i = 0; i < 4; i++) {
+      await new Promise((r) => setTimeout(r, 500));
+      if ((await ha.call({ type: "get_states" })).find((x) => x.entity_id === entityId)?.state === want) return;
+    }
+    if (Date.now() > deadline) throw new Error(`${entityId} did not become ${want} within ${seconds} s`);
+  }
+}
+
+// demo.yaml's MQTT trigger could not attach at boot (seed.mjs adds the
+// broker entry later), and a reload skips unchanged automations: off and on.
+// HA's MQTT client then still holds new subscriptions back for up to a
+// minute after a reset: wait for a real answer (75 + 15 s, inside reset.sh's
+// 120) before the house is exposed. No answer only warns: the house works
+// without it, and smoke (update-ha.sh) gates new HA releases on it.
+async function armSimulatedDevices(ha) {
+  const [row] = await demoAutomations(ha, ["demo_simulated_devices"]);
+  if (!row) throw new Error("automation demo_simulated_devices (config/packages/demo.yaml) is missing");
+  await ha.call(service("automation", "turn_off", { entity_id: row.entity_id }));
+  await ha.call(service("automation", "turn_on", { entity_id: row.entity_id }));
+  try {
+    await roundTrip(ha, "lock", "unlock", "lock.entrance_door", "unlocked", 75);
+    await roundTrip(ha, "lock", "lock", "lock.entrance_door", "locked", 15);
+  } catch (err) {
+    console.error(`demo.mjs dashboard: warning: simulated devices do not answer yet: ${err.message}`);
+  }
+}
+
 // After the house is seeded (reset.sh): seed.mjs waited for the demo entities.
 async function dashboard() {
   await withHa(async (ha) => {
     await saveDashboard(ha);
     await nameAppDevice(ha);
+    await dropMapDashboard(ha);
+    await armSimulatedDevices(ha);
   });
 }
 
@@ -300,6 +359,13 @@ async function guard() {
         await ha.call(service("persistent_notification", "dismiss", { notification_id: n.notification_id }));
       }
     }
+    // demo.yaml's automations, if a visitor turned them off.
+    const states = await ha.call({ type: "get_states" });
+    for (const row of await demoAutomations(ha)) {
+      if (states.find((x) => x.entity_id === row.entity_id)?.state === "off") {
+        await ha.call(service("automation", "turn_on", { entity_id: row.entity_id }));
+      }
+    }
     // The banner dashboard and the system-wide default panel.
     const lovelace = await ha.call({ type: "lovelace/config", url_path: DASHBOARD }).catch(() => null);
     if (!lovelace?.views?.length || !lovelace.views.every((v) => v.header?.card?.content?.includes(BANNER_MARK))) {
@@ -327,14 +393,11 @@ async function smoke() {
     if (Number.isNaN(Date.parse(states.find((s) => s.entity_id === "sensor.demo_next_reset").state))) {
       throw new Error("sensor.demo_next_reset is not a timestamp");
     }
-    await ha.call(service("light", "turn_on", { entity_id: "light.bed_light" }));
-    for (let i = 0; ; i++) {
-      const s = (await ha.call({ type: "get_states" })).find((x) => x.entity_id === "light.bed_light");
-      if (s.state === "on") break;
-      if (i === 10) throw new Error("light.bed_light did not turn on");
-      await new Promise((r) => setTimeout(r, 500));
-    }
-    await ha.call(service("light", "turn_off", { entity_id: "light.bed_light" }));
+    await roundTrip(ha, "light", "turn_on", "light.bed_light", "on");
+    await roundTrip(ha, "light", "turn_off", "light.bed_light", "off");
+    // An MQTT device reports back (demo.yaml).
+    await roundTrip(ha, "lock", "unlock", "lock.entrance_door", "unlocked");
+    await roundTrip(ha, "lock", "lock", "lock.entrance_door", "locked");
     console.log(config.version);
   });
   await guard();

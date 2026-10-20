@@ -41,6 +41,22 @@ describe("hosted demo privacy", () => {
     expect(caddy).toContain('Referrer-Policy "no-referrer"');
   });
 
+  it("lets browsers reach no third party but the brand icon CDN, for images and the service worker", () => {
+    const csp = caddy.match(/Content-Security-Policy "([^"]+)"/)?.[1] ?? "";
+    expect(caddy.split("Content-Security-Policy").length - 1).toBe(1);
+    const directives = Object.fromEntries(csp.split("; ").map((d) => [d.split(" ")[0], d.split(" ").slice(1).join(" ")]));
+    expect(directives["img-src"]).toBe("'self' data: blob: https://brands.home-assistant.io");
+    expect(directives["connect-src"]).toBe("'self' data: blob: https://brands.home-assistant.io");
+    // The privacy page names only that CDN: no other origin anywhere in the policy.
+    expect(csp.match(/https?:\/\/[^\s;]+/g)?.every((o) => o === "https://brands.home-assistant.io")).toBe(true);
+  });
+
+  it("lets Home Assistant's broker clients write only the simulated devices' topics", () => {
+    const acl = readFileSync("scripts/demo/hosted/mosquitto.acl", "utf8");
+    const writes = acl.split("\n").filter((l) => l.startsWith("topic write ")).map((l) => l.slice(12));
+    expect(writes).toEqual(["testbed/+/set", "testbed/+/state", "testbed/plug/factory_reset", "testbed/router/restart"]);
+  });
+
   it("links the privacy page from the restarting page, /abuse, and the banner", () => {
     const banner = readFileSync("scripts/demo/hosted/demo.mjs", "utf8");
     const url = "https://hanova.app/privacy.html";
