@@ -14,6 +14,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic
 
 ### Upgrade notes
 - **Turn chat apps off before you remove this App or restore an older version** (NOVA page → Chat apps → "Turn off chat apps"). Turning them off removes the part HA NOVA added to Home Assistant (`custom_components/ha_nova`) and signs out its own access.
+- Went back to an older App with chat apps still on? Update this App again, then run `ha-nova chat-apps off`. The App also cleans up what is left in Home Assistant when it starts; if the NOVA page says chat apps are not fully off, choose "Finish turning off". (#776)
 - Computers that are already connected stay connected; no re-pairing.
 - Computers on the matching HA NOVA release ask you to update this App; computers on an older release keep working with it.
 

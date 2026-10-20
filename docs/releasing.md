@@ -155,9 +155,13 @@ install/update fails. Spec: `docs/work/2026-10-15-app-prebuilt-images-spec.md`.
 
 Throwaway HAOS VM only (never a real home), results in the App bump PR.
 Supervisor reads `main`, so an App version is live for every user the moment
-its PR merges: run these BEFORE the merge, on the PR's published image (VM
-repository `https://github.com/markusleben/ha-nova#<app-bump-branch>`); a
-failure found after the merge needs the next patch version. Required for the
+its PR merges: run these BEFORE the merge, on the PR's published image. On
+the VM, switch the official repository's checkout inside the Supervisor to the
+PR branch, then reload the store:
+`docker exec hassio_supervisor sh -c 'cd /data/apps/git/2368fcfa && git fetch --depth 1 origin +refs/heads/<branch>:refs/remotes/origin/<branch> && git checkout -B <branch> origin/<branch>'`,
+then `store/reload`. Don't add a `…#<branch>` repository: that is a second App
+with the same ports, invisible to the CLI's slug checks. A failure found after
+the merge needs the next patch version. Required for the
 first chat-app release and after a change to the bridge, `nova/integration/`,
 `nova/src/runtime/chat-apps.ts`, or the discovery path:
 
