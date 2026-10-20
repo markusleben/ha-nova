@@ -235,3 +235,49 @@ func TestSetupPageRerunHandsASharedTokenInstallToTheTerminal(t *testing.T) {
 		t.Fatalf("exit %d inTerminal=%v\n%s", code, page.ui.inTerminal(), stdout)
 	}
 }
+
+// An uninstall while the page waited: "Set up … too" installs nothing, and
+// the end screen says so (exit 1).
+func TestSetupPageRerunNewAIAssistantAfterAnUninstallFailsClosed(t *testing.T) {
+	paths, cfg, state, marker := setupCompletedInstallFixture(t)
+	withClientRuntimeAvailability(t, map[string]bool{"claude": true, "codex": true})
+	codexAttachedForReal(t)
+	stubRerunApp(t, true, chatAppsHA{}, errors.New("no chat apps"))
+	page, stdout, done := startSetupPageFlowWith(t, "", rerunFlow(paths, cfg, state, marker))
+	page.waitFor("the re-run screen", accepting("clients"))
+	if err := rotateInstallLifecycleGeneration(paths); err != nil { // what an uninstall does
+		t.Fatal(err)
+	}
+	page.click("clients", "")
+	code := setupPageExit(t, done, stdout)
+	end := page.ui.snapshot()
+	if code != 1 || end.Screen != "saved" || end.Home == nil || len(end.Home.Notes) != 1 || end.Home.Notes[0].Key != "setup.page.home.note_clients_failed" {
+		t.Fatalf("exit %d screen %s home %+v\n%s", code, end.Screen, end.Home, stdout)
+	}
+	if slices.Contains(loadStateOrDefault(paths).InstalledClients, "codex") {
+		t.Fatal("set up Codex CLI after an uninstall")
+	}
+}
+
+// No AI assistant set up before (lane D1: connected first, AI app later):
+// the one found now is set up, as on a first run.
+func TestSetupPageRerunSetsUpTheFirstAIAssistant(t *testing.T) {
+	paths, cfg, state, marker := setupCompletedInstallFixture(t)
+	withClientRuntimeAvailability(t, map[string]bool{"codex": true})
+	codexAttachedForReal(t)
+	t.Setenv("HA_NOVA_DEV_ROOT", repoRootForSetupTest(t))
+	ha := setupGoldenHAServer(t)
+	cfg.HAHost, cfg.HAURL = normalizeHostInput(ha.URL), ha.URL
+	state.InstalledClients = nil
+	if err := saveState(paths, state); err != nil {
+		t.Fatal(err)
+	}
+	stubRerunApp(t, true, chatAppsHA{}, errors.New("no chat apps"))
+	page, stdout, done := startSetupPageFlowWith(t, "", rerunFlow(paths, cfg, state, marker))
+	rerun := page.waitFor("the re-run screen", accepting("finish"))
+	if rerun.Screen != "rerun" || rowStates(rerun.Rows)["clients"] != "ok" || !slices.Contains(loadStateOrDefault(paths).InstalledClients, "codex") {
+		t.Fatalf("re-run = %+v\n%s", rerun, stdout)
+	}
+	page.click("finish", "")
+	setupPageExit(t, done, stdout)
+}

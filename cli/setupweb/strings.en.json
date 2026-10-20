@@ -321,6 +321,7 @@
   "setup.page.rerun.clients_ok": "Set up in {clients}",
   "setup.page.rerun.clients_fail": "Not ready in {clients}",
   "setup.page.rerun.add_clients": "Set up {clients} too",
+  "setup.page.home.note_clients_failed": "HA NOVA couldn't be set up in {clients}. The terminal says why.",
   "setup.page.rerun.repair_title": "Updating HA NOVA.",
   "setup.page.rerun.problem_app": "HA NOVA can't reach the NOVA App. Is this computer at home? Check that Home Assistant and the NOVA App run, then check again. Or choose Fix it to change the address or sign in again.",
   "setup.page.rerun.fix": "Fix it",

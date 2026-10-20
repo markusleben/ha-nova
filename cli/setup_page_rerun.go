@@ -24,7 +24,10 @@ func (f *setupFlow) pageRerun(marker [][]byte) (setupStepResult, bool) {
 		return setupGoOn, false
 	}
 	f.pageRerunning = true
-	if before := slices.DeleteFunc(slices.Clone(f.selectedClients), func(c string) bool { return !slices.Contains(f.state.InstalledClients, c) }); len(before) > 0 {
+	// None of them here (none set up yet, or all removed): every one found,
+	// as on a first run.
+	before := slices.DeleteFunc(slices.Clone(f.selectedClients), func(c string) bool { return !slices.Contains(f.state.InstalledClients, c) })
+	if len(before) > 0 {
 		f.pageNewClients = slices.DeleteFunc(slices.Clone(f.selectedClients), func(c string) bool { return slices.Contains(before, c) })
 		f.selectedClients = before
 	}
@@ -32,8 +35,8 @@ func (f *setupFlow) pageRerun(marker [][]byte) (setupStepResult, bool) {
 		notReady := f.pageClientsNotReady()
 		f.current.SkillsOK = len(notReady) == 0
 		c := f.current
-		// Only skills set up before and now out of date: refreshed without a question.
-		refresh := !slices.ContainsFunc(notReady, func(client string) bool { return !slices.Contains(f.state.InstalledClients, client) })
+		// Skills set up before and now out of date: refreshed without a question.
+		refresh := len(before) == 0 || !slices.ContainsFunc(notReady, func(client string) bool { return !slices.Contains(f.state.InstalledClients, client) })
 		if c.ConfigOK && c.TokenOK && c.RelayOK && c.WSOK && refresh {
 			f.pageRerunOK = true
 			if c.SkillsOK {
@@ -61,9 +64,13 @@ func (f *setupFlow) pageRerun(marker [][]byte) (setupStepResult, bool) {
 			f.current = detectSetupStateForAssessment(f.paths, f.cfg, f.state, f.target, f.savedTokenBeforeSetup, f.hadSavedTokenBeforeSetup)
 			continue
 		}
+		if appDown { // another address, or the sign-in that installs or starts the App: step 1
+			f.pageRepairing()
+			return setupGoTo(setupStepHost), true
+		}
 		next := f.routeKnownAddress(setupStepHost)
-		if next == setupStepPairing || appDown { // not paired, or no App at this address: step 1, as on a first run
-			f.pageRepairing("")
+		if next == setupStepPairing { // not paired: the page signs in, as on a first run
+			f.pageRepairing()
 			return setupGoTo(setupStepHost), true
 		}
 		f.pageRepairing("connect", "teach")
@@ -160,8 +167,9 @@ func (f *setupFlow) pageRerunAddClients() int {
 			return installClientsAndSaveStateUnlocked(f.paths, &f.state, adding, saveState, markers...)
 		})
 	})
-	if err != nil {
-		f.ui.fail(setupText("setup.error.install_clients", "error", err))
+	if err != nil { // the re-run's end screen says so; the terminal says why
+		printHumanErr("%s", setupT("setup.error.install_clients", "error", err))
+		f.pageNotes = append(f.pageNotes, setupPageText("setup.page.home.note_clients_failed", "clients", setupClientNames(adding)))
 		return 1
 	}
 	return f.pageControl()
@@ -204,8 +212,8 @@ func (f *setupFlow) pageAddServer() int {
 }
 
 // pageLifecycleMarkers: the generation setup completed with, and the
-// uninstall marker and config as they are now; an error when an uninstall
-// or another setup changed them since. nil without a generation.
+// uninstall marker and config as they are now; an error when the
+// generation changed since (an uninstall rotates it). nil without one.
 func (f *setupFlow) pageLifecycleMarkers() ([][]byte, error) {
 	if f.pageGeneration == nil {
 		return nil, nil
