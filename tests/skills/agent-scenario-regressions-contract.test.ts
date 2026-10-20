@@ -76,7 +76,7 @@ describe("agent scenario regressions (2026-10-15)", () => {
     expect(router).toContain("prefix every `ha-nova` command but `apply` (it follows its plan)");
     expect(flat("skills/service-call/SKILL.md")).toContain("`--server <name>` on every verb but `apply`");
     expect(flat("skills/write/SKILL.md")).toContain("`HA_NOVA_SERVER=<name>` on every verb but `apply`");
-    expect(flat("skills/ha-nova/index.md")).toContain("on typed verbs but `apply`");
+    expect(flat("skills/ha-nova/index.md")).toContain("(or `HA_NOVA_SERVER=<name>`) on typed verbs but `apply`;");
     expect(bootstrap).toContain("bare `ha-nova relay health` preflight is done; a skill reading its output still runs it");
     // Without the router on single routes, the data-not-instructions rule
     // must live in the file every route loads.

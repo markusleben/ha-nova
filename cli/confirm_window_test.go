@@ -45,13 +45,15 @@ func useWindow(t *testing.T, answers ...windowAnswer) *fakeWindow {
 }
 
 func TestWindowPlanConfirmsInTheWindow(t *testing.T) {
+	resetServerProfileSelection(t) // no selection: the next step adds no server note
 	h := newWriteHarness(t, newFakeHA())
 	w := useWindow(t, windowCancelled, windowNoAnswer, windowClosed, windowConfirmed)
 	env := h.plan("lock.unlock", "lock.front")
 	plan := env.Plan
 	if plan.Channel != channelWindow || plan.Code != "" || !strings.HasSuffix(env.Say, sayWindowAsk) ||
 		strings.Contains(env.Say, "one-time code") || strings.Contains(env.Say, sayChatNote) ||
-		!strings.Contains(env.NextStep, "apply --plan "+plan.ID+" without --confirm") || !strings.Contains(env.NextStep, "Never ask for a code") {
+		!strings.Contains(env.NextStep, "apply --plan "+plan.ID+" without --confirm") || !strings.Contains(env.NextStep, "Never ask for a code") ||
+		strings.Contains(env.NextStep, "HA_NOVA_SERVER") {
 		t.Fatalf("window plan: %+v say %q", plan, env.Say)
 	}
 	code := storedCode(t, h, plan.ID)
@@ -62,7 +64,7 @@ func TestWindowPlanConfirmsInTheWindow(t *testing.T) {
 	}
 	// A timeout gives a plain next step, never "turn the windows off" (0.27 recheck lane).
 	if exit, env := h.run(runApplyCommand, "--plan", plan.ID); exit != 4 || env.Error.Code != "CONFIRM_CANCELLED" || !strings.Contains(env.Error.Next, plan.ID) ||
-		!strings.Contains(env.Error.Next, "ask again when they are at the computer") || strings.Contains(env.Error.Next, "confirm-window off") {
+		!strings.Contains(env.Error.Next, "the window closed without an answer, nothing changed, and they can ask again") || strings.Contains(env.Error.Next, "confirm-window off") {
 		t.Fatalf("no answer: exit %d %+v", exit, env.Error)
 	}
 	// Closed from outside (lane D9): said as closed, not as a timeout.
@@ -232,5 +234,18 @@ func TestConfirmWindowSetting(t *testing.T) {
 	}
 	if exit := runConfirmWindowSetting(h.paths, []string{"maybe"}); exit != 1 {
 		t.Fatalf("bad value: exit %d", exit)
+	}
+}
+
+// 0.27 recheck lane: with a server selected, the next step says to run apply
+// bare, so Claude Code's `ha-nova apply --plan *` allow rule still matches.
+func TestWindowPlanWithASelectedServerSaysApplyBare(t *testing.T) {
+	resetServerProfileSelection(t)
+	h := newWriteHarness(t, newFakeHA())
+	useWindow(t)
+	t.Setenv(serverSelectionEnvVar, defaultServerProfileName)
+	env := h.plan("lock.unlock", "lock.front")
+	if env.Plan == nil || !strings.Contains(env.NextStep, "no HA_NOVA_SERVER= or --server (apply follows its plan's server)") {
+		t.Fatalf("next step must say apply runs bare: %q (%+v)", env.NextStep, env.Error)
 	}
 }
