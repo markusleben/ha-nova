@@ -45,7 +45,7 @@ If missing: `ha-nova setup`
 - pairing on a machine whose desktop keyring is never unlocked (headless VM, agent box):
   - `ha-nova setup --service <client>` — or standalone: `ha-nova pair --credential-store=file`
 - connecting a second Home Assistant server:
-  - rerun `ha-nova setup` — the completed-setup screen offers "Add another Home Assistant server" (per-call selection stays `HA_NOVA_SERVER=<name>`)
+  - rerun `ha-nova setup` — the completed-setup screen offers "Add another Home Assistant server" (pick it per call with `--server <name>`)
 
 ## Output Format
 

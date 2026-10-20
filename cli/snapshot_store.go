@@ -94,6 +94,12 @@ func undoSnapshotStackPath(paths runtimePaths) string {
 }
 
 func saveUndoSnapshotBytes(paths runtimePaths, data []byte) (snapshotSaveReceipt, error) {
+	return saveUndoSnapshotForServer(paths, data, "")
+}
+
+// saveUndoSnapshotForServer: a non-empty server (snapshot save --server)
+// tags an untagged record and refuses one tagged for another server.
+func saveUndoSnapshotForServer(paths runtimePaths, data []byte, server string) (snapshotSaveReceipt, error) {
 	var snap undoSnapshot
 	if err := unmarshalStrictJSON(data, "snapshot payload", &snap); err != nil {
 		return snapshotSaveReceipt{}, err
@@ -101,6 +107,10 @@ func saveUndoSnapshotBytes(paths runtimePaths, data []byte) (snapshotSaveReceipt
 	if err := validateUndoSnapshot(snap); err != nil {
 		return snapshotSaveReceipt{}, err
 	}
+	if server != "" && snap.Server != "" && snap.Server != server {
+		return snapshotSaveReceipt{}, fmt.Errorf("the record is for server %q, not %q; no snapshot was written", snap.Server, server)
+	}
+	snap.Server = cmp.Or(snap.Server, server)
 	snap.SchemaVersion = undoSnapshotSchemaVersion
 	if name, _ := requestedServerSelection(); snap.Server == "" && name == demoProfileName && demoProfileOn(paths) && !realDemoProfileExists(paths) {
 		snap.Server = demoProfileName // never an untagged record a real home could revert to

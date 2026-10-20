@@ -251,7 +251,7 @@ func runAddServerStages(
 	}
 	renderSetupSuccessLine(out, "Server %q is paired and verified", name)
 	renderSetupParagraph(out,
-		fmt.Sprintf("Use it per call with HA_NOVA_SERVER=%s (AI clients) or --server %s (CLI).", name, name),
+		fmt.Sprintf("Use it per call with --server %s.", name),
 		fmt.Sprintf("The default server is unchanged; switch it with: ha-nova server default %s", name),
 	)
 	return 0

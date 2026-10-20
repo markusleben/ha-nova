@@ -188,7 +188,7 @@ func TestAddServerFlowCreatesNamedProfileAndKeepsDefaultIntact(t *testing.T) {
 	if !strings.Contains(output, `Server "cabin" is paired and verified`) {
 		t.Fatalf("expected add-server success line:\n%s", output)
 	}
-	if !strings.Contains(output, "HA_NOVA_SERVER=cabin") {
+	if !strings.Contains(output, "Use it per call with --server cabin.") {
 		t.Fatalf("expected selection hint for the new profile:\n%s", output)
 	}
 

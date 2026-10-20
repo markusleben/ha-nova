@@ -7,11 +7,16 @@ import (
 	"testing"
 )
 
-func TestDoctorNamedProfileAuthFailureUsesPairCommand(
-	t *testing.T,
-) {
+// Both selections: the --server flag the skills teach, and the env var
+// older setups still use.
+func TestDoctorNamedProfileAuthFailureUsesPairCommand(t *testing.T) {
+	t.Run("flag", func(t *testing.T) { doctorNamedProfileAuthFailure(t, "", "--server", "cabin") })
+	t.Run("env", func(t *testing.T) { doctorNamedProfileAuthFailure(t, "cabin") })
+}
+
+func doctorNamedProfileAuthFailure(t *testing.T, env string, flags ...string) {
 	paths := setupServerCommandTest(t, testV2TwoProfileConfig)
-	t.Setenv("HA_NOVA_SERVER", "cabin")
+	t.Setenv("HA_NOVA_SERVER", env)
 	relay := httptest.NewServer(
 		http.HandlerFunc(func(
 			writer http.ResponseWriter,
@@ -28,7 +33,7 @@ func TestDoctorNamedProfileAuthFailureUsesPairCommand(
 		validCredential(225),
 	)
 	exit, output := captureCommandOutput(t, func() int {
-		return runDoctor(paths, []string{"--quiet"})
+		return runDoctor(paths, append([]string{"--quiet"}, flags...))
 	})
 	want := `ha-nova pair --server cabin --relay-url "http://cabin:8791"`
 	if exit != 1 || !strings.Contains(output, want) {

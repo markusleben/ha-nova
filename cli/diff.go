@@ -27,6 +27,7 @@ func runDiffCommand(_ runtimePaths, args []string) int {
 	fs.StringVar(&beforePath, "before", "", "path to the current/before config JSON")
 	fs.StringVar(&afterPath, "after", "", "path to the proposed/after config JSON")
 	fs.StringVar(&outPath, "out", "", "optional path to write the rendered diff")
+	fs.String("server", "", "accepted and ignored: diff compares two local files")
 	if err := fs.Parse(args); err != nil {
 		if helpRequested(err, fs, "ha-nova diff --before <file> --after <file> [--out <file>]") {
 			return 0
