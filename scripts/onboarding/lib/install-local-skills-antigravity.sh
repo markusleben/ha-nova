@@ -31,14 +31,14 @@ install_antigravity_flat() {
   if [[ -d "${context_dir}" ]]; then
     rm -rf "${context_dir}"
   fi
-  copy_flat_skill_markdown "ha-nova" "${context_dir}"
+  copy_skill_markdown "ha-nova" "${context_dir}" "ha-nova:ha-nova-"
   log "[antigravity] Installed: ha-nova/SKILL.md (context skill)"
 
   for sub in "${FLAT_SUB_SKILLS[@]}"; do
     local dest_name="ha-nova-${sub}"
     local dest_dir="${user_skills_dir}/${dest_name}"
     if [[ -f "${SOURCE_SKILLS_DIR}/${sub}/SKILL.md" ]]; then
-      copy_flat_skill_markdown "${sub}" "${dest_dir}"
+      copy_skill_markdown "${sub}" "${dest_dir}" "ha-nova:ha-nova-"
       log "[antigravity] Installed: ${dest_name}/SKILL.md"
     fi
   done
