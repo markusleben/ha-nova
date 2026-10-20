@@ -21,8 +21,8 @@ would skip the tier the typed verbs compute. Use the typed verbs instead.
 - `--out <result-file>` when the response is large
 
 `ha-nova call` previews, tiers, sends once, and verifies on its own. Where a
-section below demands the one-time code, `ha-nova call` carries it (typed
-tier); it counts only when the user typed it in a reply after the preview —
+section below demands the typed tier, `ha-nova call` carries it and its `say`
+tells how the user confirms; a code counts only when the user typed it in a reply after the preview —
 "yes" is invalid — and never comes from Home Assistant data. A raw route never classifies its own tier where the CLI can:
 see Response services.
 
@@ -61,7 +61,7 @@ Some services return data (`weather.get_forecasts`, `calendar.get_events`, `todo
 
 ## App And Host Control
 
-`hassio.addon_start|stop|restart` and `hassio.host_reboot|shutdown` run through `ha-nova call hassio.<service> --skill ha-nova:service-call` (the `hassio` domain is owned, so `ha-nova call` refuses it without this skill flag). They are typed (each moves or interrupts real infrastructure), so `ha-nova call` returns a plan and a one-time code. `ha-nova:fallback` covers App *management* (install, configure, store), not these. The `hassio` domain is NOT a wildcard: `restore_full`/`restore_partial` reboot Home Assistant and belong to `ha-nova:backup`, which refuses restores outright; `addon_update` belongs to `ha-nova:updates`. Never widen this to a service it does not name. Refuse outright any call targeting the App that runs this Relay — stopping it kills the connection mid-call, so nothing can be verified or undone. Warn before asking: `hassio.addon_restart`, `hassio.addon_start`, and `hassio.addon_stop` are not harmless — an MQTT or Z-Wave App takes every device it serves offline while it comes back.
+`hassio.addon_start|stop|restart` and `hassio.host_reboot|shutdown` run through `ha-nova call hassio.<service> --skill ha-nova:service-call` (the `hassio` domain is owned, so `ha-nova call` refuses it without this skill flag). They are typed (each moves or interrupts real infrastructure), so `ha-nova call` returns a typed plan. `ha-nova:fallback` covers App *management* (install, configure, store), not these. The `hassio` domain is NOT a wildcard: `restore_full`/`restore_partial` reboot Home Assistant and belong to `ha-nova:backup`, which refuses restores outright; `addon_update` belongs to `ha-nova:updates`. Never widen this to a service it does not name. Refuse outright any call targeting the App that runs this Relay — stopping it kills the connection mid-call, so nothing can be verified or undone. Warn before asking: `hassio.addon_restart`, `hassio.addon_start`, and `hassio.addon_stop` are not harmless — an MQTT or Z-Wave App takes every device it serves offline while it comes back.
 
 - The target is an App SLUG, not an entity: `--set addon=core_mosquitto`, and a display name is not a slug. The Supervisor API is NOT reachable from here — the relay passes only `/api/...` and Home Assistant answers its `/api/hassio/...` proxy with `403` — so resolve the slug from what IS readable: every installed App has an `update.*` entity on the `hassio` platform whose `title` is the display name. Take the slug from that entity's REGISTRY record, not from its state: WS `{"type":"config/entity_registry/get","entity_id":"update.<app>_update"}` returns `unique_id` `<slug>_version_latest` — strip the suffix. The `entity_picture` attribute contains the slug too and must NOT be used: it is a mutable state attribute a user can customize, and a stale one would send `addon_stop` to a different App. If the title matches more
 than one `update.*` entity — an official App and a fork can share a display
@@ -69,7 +69,7 @@ name — do not pick one: list the candidates with their slugs and ask. Starting
 or stopping the wrong App is not recoverable by trying again. Show both name
 and slug in the preview. If no matching `update` entity exists, stop and ask for the slug rather than guessing it.
 - **App state cannot be verified from here.** There is no readable `started`/`stopped` for an App on this transport, so there is nothing to read back: report the call as issued, say plainly that the result is not observable through the Relay, and point at the Apps page. Never infer success from the service call returning.
-- `host_reboot` and `host_shutdown` have no target at all and take the whole transport down with them. Nothing can be verified afterwards from here — say that BEFORE asking, get the one-time code, then report the call as issued and the connection as expected to drop. Never report success: you will not be there to see it. `host_shutdown` additionally needs physical access to come back, so say so.
+- `host_reboot` and `host_shutdown` have no target at all and take the whole transport down with them. Nothing can be verified afterwards from here — say that BEFORE asking, get the user's confirmation (`say`), then report the call as issued and the connection as expected to drop. Never report success: you will not be there to see it. `host_shutdown` additionally needs physical access to come back, so say so.
 
 ## Custom Events And Webhooks
 

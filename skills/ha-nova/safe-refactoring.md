@@ -44,7 +44,7 @@ ha-nova relay ws --data-file <payload-file>
 ha-nova relay ws --data-file <payload-file>
 ```
 
-Only proceed with permanent deletion after the one-time code (see write skill → Phase 2).
+Only proceed with permanent deletion after the delete's typed confirmation (see write skill → Phase 2).
 
 ## Entity Rename Workflow
 

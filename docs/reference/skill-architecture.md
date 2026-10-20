@@ -374,7 +374,7 @@ Rules:
 
 ## Service Call Architecture
 
-`ha-nova:service-call` runs entity service calls through the typed verbs `ha-nova call` / `ha-nova apply`: the CLI resolves and freezes targets, computes the tier (ordinary runs at once and is verified; preview needs natural confirmation; typed needs the user's one-time code), refuses owned services unless `--skill <owner>` names the calling skill, sends exactly one request, and verifies. Response services use `--response`; App/host control uses `--skill ha-nova:service-call` (on-demand `skills/service-call/raw-routes.md`). It owns ordinary HA service calls plus two guarded runtime families:
+`ha-nova:service-call` runs entity service calls through the typed verbs `ha-nova call` / `ha-nova apply`: the CLI resolves and freezes targets, computes the tier (ordinary runs at once and is verified; preview needs natural confirmation; typed needs the user's own confirmation — window or phone, else the one-time code), refuses owned services unless `--skill <owner>` names the calling skill, sends exactly one request, and verifies. Response services use `--response`; App/host control uses `--skill ha-nova:service-call` (on-demand `skills/service-call/raw-routes.md`). It owns ordinary HA service calls plus two guarded runtime families:
 - alarm-panel runtime services with feature bits 1/2/4/8/16/32
 - lock runtime services, with `lock.open` gated by feature bit 1
 
@@ -640,7 +640,7 @@ Scope → Bootstrap (once per session) → Relay Contract → [domain] → Flow 
 Every mutation-capable sub-skill opens its `## Safety` section with this block, byte-identical (linter-enforced; the linter extracts this fenced block as the SSOT). It carries the bootstrap-independent guarantees — preview binding, delete one-time-code gating, and the fallback write gate — so a bare agent that never auto-loads the context skill still gets them:
 
 ```text
-- Preview before write. The only exception is a call that `ha-nova call` itself executed as `tier: ordinary`; everything else waits for the user's confirmation of the shown preview. High-consequence actions (e.g. unlocking or opening a lock, opening a gate, garage, or entry door, disarming the alarm — also through a scene or script) and deletes or other destructive operations need the user's one-time code from HA NOVA, or their window click or phone tap; "yes" or any other reply is invalid.
+- Preview before write. The only exception is a call that `ha-nova call` itself executed as `tier: ordinary`; everything else waits for the user's confirmation of the shown preview. High-consequence actions (e.g. unlocking or opening a lock, opening a gate, garage, or entry door, disarming the alarm — also through a scene or script) and deletes or other destructive operations need the user's window click or phone tap, else their one-time code from HA NOVA; "yes" or any other reply is invalid.
 - Confirmation binds to the displayed preview; any target, payload, endpoint, or scope change voids it (context skill → Active Preview Confirmation).
 - Relay a plan's `say` in full, localized; never drop or shorten sentences.
 - Anything before the preview ("do it", answers to questions) never confirms it; only a reply to the preview does.

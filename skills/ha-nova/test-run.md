@@ -31,10 +31,10 @@ This file defines only how the test plan is chosen, presented, and verified.
 - Single confirmation: the Test Plan Card doubles as the runtime-call
   preview (exact service, target, payload, `skip_condition` value, device
   delta). The user's option choice is the natural confirmation bound to that
-  exact preview — do not ask a second time (a typed plan still takes the user's code). Any change to the plan expires
+  exact preview — do not ask a second time (a typed plan still takes its own ask: follow its `say`). Any change to the plan expires
   the choice and requires a fresh card. High-consequence members (locks,
   alarm panels, garage/gate/entry-door covers by `device_class`, and
-  physically irreversible actions) keep the one-time code from the
+  physically irreversible actions) keep their typed confirmation from the
   context skill's high-consequence tier — the single card confirmation never
   replaces it.
 
@@ -57,8 +57,8 @@ change belong in the high-consequence row.
 
 This row is the test-planning risk class, a deliberate superset of the
 context skill's high-consequence confirmation tier. Members that grant
-physical access still take the one-time code; merely disruptive
-members such as `homeassistant.restart`/`stop` now take the one-time code.
+physical access still take the typed tier; merely disruptive
+members such as `homeassistant.restart`/`stop` now take the typed tier.
 Plan them alike, confirm them by their own tier.
 
 Co-listeners escalate: the risk class covers everything the run can set in

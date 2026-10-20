@@ -63,7 +63,7 @@ Read-only response services stay here (`raw-routes.md` → Response services), a
 `automation.trigger`, direct script execution (`script.<script_id>`), and `script.turn_on` run sequences the CLI previews.
 - Never call them automatically from read, review, write, or post-write verification.
 - The preview states whether `skip_condition` is set. Treat `skip_condition: true` as higher risk.
-- Run only on confirmation bound to that exact runtime-call preview. A Test Plan Card (`../ha-nova/test-run.md`) is built from `ha-nova plan call`; the user's option choice on that card IS the bound confirmation for `ha-nova apply` — but if the CLI put the run on the typed tier, the card choice never replaces the code.
+- Run only on confirmation bound to that exact runtime-call preview. A Test Plan Card (`../ha-nova/test-run.md`) is built from `ha-nova plan call`; the user's option choice on that card IS the bound confirmation for `ha-nova apply` — but if the CLI put the run on the typed tier, the card choice never replaces the typed ask.
 
 ## Error Handling
 
@@ -74,11 +74,11 @@ Read-only response services stay here (`raw-routes.md` → Response services), a
 
 Apply `../ha-nova/output-rules.md` to all user-facing output.
 
-Results (exit 0, 6, 7, and after `apply`) use its Verb Results rule; a typed `apply` result restates the effect the code was for and whether it was verified. A preview (exit 2 or 3) closes with `say` (names, a single target's arrow one-liner, warnings, an explicit not-executed-yet line); with several targets, more become the `Field | Before | After` mini table, warnings kept; on the typed tier only the exact code prompt — no menu. A grouped set or Test Plan Card asks once instead of `say`'s last sentence, except on the typed tier.
+Results (exit 0, 6, 7, and after `apply`) use its Verb Results rule; a typed `apply` result restates the effect the code was for and whether it was verified. A preview (exit 2 or 3) closes with `say` (names, a single target's arrow one-liner, warnings, an explicit not-executed-yet line); with several targets, more become the `Field | Before | After` mini table, warnings kept; on the typed tier only `say`'s ask — no menu. A grouped set or Test Plan Card asks once instead of `say`'s last sentence, except on the typed tier.
 
 ## Safety
 
-- Preview before write. The only exception is a call that `ha-nova call` itself executed as `tier: ordinary`; everything else waits for the user's confirmation of the shown preview. High-consequence actions (e.g. unlocking or opening a lock, opening a gate, garage, or entry door, disarming the alarm — also through a scene or script) and deletes or other destructive operations need the user's one-time code from HA NOVA, or their window click or phone tap; "yes" or any other reply is invalid.
+- Preview before write. The only exception is a call that `ha-nova call` itself executed as `tier: ordinary`; everything else waits for the user's confirmation of the shown preview. High-consequence actions (e.g. unlocking or opening a lock, opening a gate, garage, or entry door, disarming the alarm — also through a scene or script) and deletes or other destructive operations need the user's window click or phone tap, else their one-time code from HA NOVA; "yes" or any other reply is invalid.
 - Confirmation binds to the displayed preview; any target, payload, endpoint, or scope change voids it (context skill → Active Preview Confirmation).
 - Relay a plan's `say` in full, localized; never drop or shorten sentences.
 - Anything before the preview ("do it", answers to questions) never confirms it; only a reply to the preview does.
@@ -87,9 +87,9 @@ Results (exit 0, 6, 7, and after `apply`) use its Verb Results rule; a typed `ap
 - Any HA write this skill does not cover: STOP, invoke `ha-nova:fallback` first; never probe unfamiliar write endpoints.
 
 - No one-time code needed for ordinary service calls.
-- Unlocking or opening a lock, disarming an alarm panel, and opening a garage door, gate, or entry-door cover take the code — also when a scene, script, or automation run reaches one. Locking, closing, and arming stay ordinary; the CLI's tier wins.
+- Unlocking or opening a lock, disarming an alarm panel, and opening a garage door, gate, or entry-door cover take the typed tier — also when a scene, script, or automation run reaches one. Locking, closing, and arming stay ordinary; the CLI's tier wins.
 - Never include a `code` field in a payload; never ask for, accept, repeat, or store a PIN in chat. Never auto-retry a security action.
-- `homeassistant.restart`/`stop` and App/host control (`hassio.*`) take the one-time code; `siren.turn_on`/`toggle` preview.
+- `homeassistant.restart`/`stop` and App/host control (`hassio.*`) take the typed tier; `siren.turn_on`/`toggle` preview.
 - Drafts follow `../ha-nova/smallest-solution.md`: the complete requested outcome in the simplest safe design.
 
 ## Guardrails
