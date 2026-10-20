@@ -324,7 +324,7 @@ func loadCloudManagementConfig(paths runtimePaths) (runtimeConfig, error) {
 
 func printCloudCommandProblem(err error) *cloudProblem {
 	problem := cloudProblemForCommandError(err)
-	printHumanErr("%s", problem)
+	printHumanErr("%s", problem.humanText())
 	if problem.Remediation == cloudRemediationUnlockStorage {
 		printHumanInfo(
 			"From a local, non-elevated graphical desktop terminal, run: %s",

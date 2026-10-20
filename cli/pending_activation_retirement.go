@@ -78,7 +78,7 @@ func resumeSetupPendingActivationWithGuard(
 func printPendingActivationResumeError(err error) {
 	printHumanErr(
 		"cannot resume the interrupted device activation: %s",
-		err,
+		keyringErrorText(err),
 	)
 	if hint := setupSecureStorageRecoveryHint(err); hint != "" {
 		printHumanWarn("%s", hint)

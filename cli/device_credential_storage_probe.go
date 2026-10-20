@@ -64,7 +64,7 @@ func probeDeviceCredentialStorageWithCanary(
 		errors.Is(keyringErr, errDesktopKeyringUnavailable) {
 		if profile := activeServerProfile(); profile != defaultServerProfileName &&
 			!deviceFileBackendMarkerExists() {
-			return deviceStorageProbe{}, fmt.Errorf("no desktop keyring reachable here (%v), and this install has not switched to file storage; pairing profile %q would hide the default profile's keyring credential. Re-run with --credential-store=file to switch this install explicitly, or pair from the desktop session", keyringErr, profile)
+			return deviceStorageProbe{}, fmt.Errorf("HA NOVA can't reach this computer's keyring from here, and pairing server %q would hide the key of your first server. Run: ha-nova pair --server %s --credential-store=file to switch this install to private files, or pair from a terminal on this computer's desktop", profile, profile)
 		}
 		if fileErr := deviceStorageFileCanary(); fileErr != nil {
 			return deviceStorageProbe{}, fmt.Errorf("no desktop keyring (%v) and the file fallback failed: %w", keyringErr, fileErr)

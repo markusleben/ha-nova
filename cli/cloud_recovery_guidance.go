@@ -279,7 +279,7 @@ func renderCloudFailure(
 	err error,
 ) *cloudProblem {
 	problem := cloudProblemForCommandError(err)
-	printHumanErr("%s", problem)
+	printHumanErr("%s", problem.humanText())
 	renderDurableCloudRecoveryGuidance(out, paths, problem)
 	return problem
 }

@@ -367,6 +367,29 @@ func secureStorageErrorCode(err error) string {
 	return ""
 }
 
+// plainKeyringProblem is the plain text for a Linux keyring state (locked,
+// not set up, not running, out of reach); "" for anything else. Commands that
+// hit the keyring print it instead of the raw system error.
+func plainKeyringProblem(err error) string {
+	if isLinuxKeyringError(err) {
+		return relayAuthTokenProblemMessage(err)
+	}
+	// The Link store's own unlock refusal carries no keyring error.
+	if secureStorageSessionPlatformOS == "linux" && IsCloudErrorCode(err, CloudErrSecretStoreLocked) {
+		return keyringLockedMessage
+	}
+	return ""
+}
+
+// keyringErrorText is err for a person: the plain keyring text when it is a
+// Linux keyring state, else err as is.
+func keyringErrorText(err error) string {
+	if text := plainKeyringProblem(err); text != "" {
+		return text
+	}
+	return err.Error()
+}
+
 // isLinuxKeyringError: any Linux keyring state relayAuthTokenProblemMessage
 // words plainly (locked, not set up, not running, out of reach).
 func isLinuxKeyringError(err error) bool {
