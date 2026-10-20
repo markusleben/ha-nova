@@ -24,6 +24,7 @@ type profilePurgeTarget struct {
 	processedCurrentID   string
 	processedPendingID   string
 	removalCheckpointed  bool
+	removalSlotsVerified bool // the checkpoint passed its own validation
 	cloudProfile         bool
 	currentSlotPresent   bool
 	pendingSlotPresent   bool
@@ -131,6 +132,8 @@ func profilePurgeTargetFromConfig(
 	if cfg.Cloud == nil || cfg.Cloud.DeviceRevocationCompleted == nil {
 		if cfg.ServerRemoval != nil {
 			target.removalCheckpointed = true
+			target.removalSlotsVerified =
+				validateServerRemovalCheckpoint(name, cfg) == nil
 			target.currentSlotPresent =
 				cfg.ServerRemoval.CurrentSlotPresent
 			target.pendingSlotPresent =
@@ -163,6 +166,8 @@ func profilePurgeTargetFromConfig(
 		cfg.Cloud.DeviceRevocationCompleted.PendingDeviceID
 	if cfg.ServerRemoval != nil {
 		target.removalCheckpointed = true
+		target.removalSlotsVerified =
+			validateServerRemovalCheckpoint(name, cfg) == nil
 		target.currentSlotPresent =
 			cfg.ServerRemoval.CurrentSlotPresent
 		target.pendingSlotPresent =
@@ -216,9 +221,9 @@ type profilePurgeSlotState struct {
 	pendingExists       bool
 	pendingLocal        bool
 	pendingEndpointLive bool
-	// keyringMayHoldKey: a file-storage install whose OS keyring still has
-	// (or can't rule out) a slot that looks empty in files.
-	keyringMayHoldKey bool
+	// keyMayExistElsewhere: a slot that looks empty may still be held by
+	// the store this install doesn't read (or that can't be ruled out).
+	keyMayExistElsewhere bool
 }
 
 func inspectProfilePurgeSlotState(
@@ -265,18 +270,22 @@ func inspectProfilePurgeSlotState(
 	state.pendingEndpointLive =
 		target.pendingSecureBaseURL != "" &&
 			target.pendingSpkiPin != ""
-	if deviceSecretFileBacked() {
-		probe := func(service string, recorded, exists bool) bool {
-			if !recorded || exists {
-				return false
-			}
-			_, found, err := readKeyringDeviceSecret(service)
-			return found || err != nil
+	// A slot empty in the selected store may sit in the other one: the
+	// keyring behind a file-storage install, or an unmarked file a headless
+	// pairing left (pairing_flow.go). Then it is not "lost".
+	probe := func(service string, recorded, exists bool) bool {
+		if !recorded || exists {
+			return false
 		}
-		state.keyringMayHoldKey =
-			probe(currentService, target.secureBaseURL != "" || target.spkiPin != "", state.currentExists) ||
-				probe(pendingService, target.pendingSecureBaseURL != "" || target.pendingSpkiPin != "", state.pendingExists)
+		if !deviceSecretFileBacked() {
+			return deviceSecretFileExists(service)
+		}
+		_, found, err := readKeyringDeviceSecret(service)
+		return found || err != nil
 	}
+	state.keyMayExistElsewhere =
+		probe(currentService, target.secureBaseURL != "" || target.spkiPin != "", state.currentExists) ||
+			probe(pendingService, target.pendingSecureBaseURL != "" || target.pendingSpkiPin != "", state.pendingExists)
 	return state, nil
 }
 
@@ -317,11 +326,12 @@ func validateRequiredProfilePurgeSlots(
 		)
 	}
 	key := lostDeviceKeyOf(target, state)
-	if key.lost() && acceptedLostDeviceKeys[target.name] != key {
+	askable := !target.cloudProfile && !state.keyMayExistElsewhere
+	if key.lost() && (!askable || acceptedLostDeviceKeys[target.name] != key) {
 		return &lostDeviceKeyError{
 			profile: target.name,
 			key:     key,
-			askable: !target.cloudProfile && !state.keyringMayHoldKey,
+			askable: askable,
 		}
 	}
 	return nil

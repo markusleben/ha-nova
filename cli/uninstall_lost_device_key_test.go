@@ -167,13 +167,19 @@ func TestWindowsRecoveryAsksAboutALostKey(t *testing.T) {
 	t.Cleanup(func() { acceptedLostDeviceKeys = nil })
 	acceptedLostDeviceKeys = findLostDeviceKeys(paths)
 	args := strings.Join(windowsUninstallHelperArgs("h.exe", uninstallModePurge, false, nil), " ")
-	if !strings.HasSuffix(args, "--accept-lost-keys default") {
+	value := lostDeviceKeyArg(acceptedLostDeviceKeys)
+	if !strings.HasSuffix(args, "--accept-lost-keys "+value) || !strings.HasPrefix(value, "default=") {
 		t.Fatalf("helper args = %s", args)
 	}
 	acceptedLostDeviceKeys = nil
-	acceptLostDeviceKeysInHelper(paths, "default,cabin")
+	acceptLostDeviceKeysInHelper(paths, value+",cabin=x")
 	if len(acceptedLostDeviceKeys) != 1 || !acceptedLostDeviceKeys[defaultServerProfileName].current {
 		t.Fatalf("helper accepted %+v", acceptedLostDeviceKeys)
+	}
+	acceptedLostDeviceKeys = nil
+	acceptLostDeviceKeysInHelper(paths, "default=0000") // a key the owner didn't see
+	if len(acceptedLostDeviceKeys) != 0 {
+		t.Fatalf("helper accepted a changed key: %+v", acceptedLostDeviceKeys)
 	}
 }
 
@@ -192,9 +198,15 @@ func TestLostDeviceKeyFinishKeepsOtherStops(t *testing.T) {
 	}
 	local := link
 	local.cloudProfile = false
-	err = validateRequiredProfilePurgeSlots(local, profilePurgeSlotState{keyringMayHoldKey: true})
+	err = validateRequiredProfilePurgeSlots(local, profilePurgeSlotState{keyMayExistElsewhere: true})
 	if _, ok := lostDeviceKeyErrorText(err); ok || err == nil {
-		t.Fatalf("keyring may hold the key: %v", err)
+		t.Fatalf("other store may hold the key: %v", err)
+	}
+	// A yes never covers a key that stopped being askable.
+	acceptedLostDeviceKeys = map[string]lostDeviceKey{"cabin": lostDeviceKeyOf(local, profilePurgeSlotState{})}
+	t.Cleanup(func() { acceptedLostDeviceKeys = nil })
+	if validateRequiredProfilePurgeSlots(local, profilePurgeSlotState{keyMayExistElsewhere: true}) == nil {
+		t.Fatal("accepted key skipped the other-store stop")
 	}
 }
 
@@ -205,4 +217,25 @@ func readTestFile(t *testing.T, path string) string {
 		t.Fatal(err)
 	}
 	return string(data)
+}
+
+// A headless pairing interrupted after activation leaves its pending key in
+// an unmarked file: that key is not "gone", so there is no finish for it.
+func TestUnmarkedPendingFileIsNotALostKey(t *testing.T) {
+	paths, _ := lostKeyFixture(t)
+	cfg := appPathConfig
+	cfg.PendingSecureBaseURL, cfg.PendingSpkiPin = "https://ha.local:8792", "pin"
+	if err := saveConfig(paths, cfg); err != nil {
+		t.Fatal(err)
+	}
+	pending := deviceCredentialPendingServiceForProfile(defaultServerProfileName)
+	if err := deviceSecretFileSet(pending, validCredential(182)); err != nil {
+		t.Fatal(err)
+	}
+	if deviceSecretFileBacked() {
+		t.Fatal("fixture must stay keyring-backed")
+	}
+	if lost := findLostDeviceKeys(paths); len(lost) != 0 {
+		t.Fatalf("unmarked pending file counted as lost: %+v", lost)
+	}
 }

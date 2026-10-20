@@ -382,7 +382,7 @@ func TestServerRemoveLostKeyResumesFromCheckpoint(t *testing.T) {
 		return runServerRemove(paths, []string{"cabin"})
 	})
 	doc, err := loadConfigDocument(paths.ConfigFile)
-	if exit != 0 || err != nil || doc.hasProfile("cabin") {
+	if exit != 0 || err != nil || doc.hasProfile("cabin") || !strings.Contains(output, "click Revoke next to it") {
 		t.Fatalf("resume exit=%d err=%v output=%s", exit, err, output)
 	}
 }

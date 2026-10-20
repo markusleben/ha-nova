@@ -367,7 +367,12 @@ func uninstallErrorText(err error) string {
 	// resetPurgeStorageProofAfterError may join a second failure: keep it.
 	if joined, ok := err.(interface{ Unwrap() []error }); ok {
 		for _, other := range joined.Unwrap() {
-			if !errors.As(other, new(*keyringRemovalProblem)) && !errors.As(other, new(*lostDeviceKeyError)) {
+			// Skip only the failure already shown above.
+			shown := errors.As(other, new(*lostDeviceKeyError))
+			if !plain {
+				shown = errors.As(other, new(*keyringRemovalProblem))
+			}
+			if !shown {
 				text += "\n" + other.Error()
 			}
 		}

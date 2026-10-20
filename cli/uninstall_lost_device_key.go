@@ -1,6 +1,8 @@
 package main
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -45,12 +47,12 @@ func lostDeviceKeyOf(
 			target.pendingSpkiPin != "") &&
 			!state.pendingExists &&
 			target.revokedPendingID == "" &&
-			!(target.removalCheckpointed && !target.pendingSlotPresent),
+			!(target.removalSlotsVerified && !target.pendingSlotPresent && !state.keyMayExistElsewhere),
 		current: (target.secureBaseURL != "" || target.spkiPin != "") &&
 			!state.currentExists &&
 			target.revokedCurrentID == "" &&
 			!interruptedFirstPromotion &&
-			!(target.removalCheckpointed && !target.currentSlotPresent),
+			!(target.removalSlotsVerified && !target.currentSlotPresent && !state.keyMayExistElsewhere),
 		secureBaseURL:        target.secureBaseURL,
 		spkiPin:              target.spkiPin,
 		pendingSecureBaseURL: target.pendingSecureBaseURL,
@@ -62,7 +64,7 @@ type lostDeviceKeyError struct {
 	profile string
 	key     lostDeviceKey
 	// askable: a yes may finish. Not for a Link profile (its own recovery) or
-	// when the OS keyring may still hold the key on a file-storage install.
+	// when the other store may still hold the key.
 	askable bool
 }
 
@@ -163,30 +165,45 @@ func confirmLostDeviceKeyPurge(out io.Writer, paths runtimePaths, mode uninstall
 	return false, 0
 }
 
+// fingerprint names exactly what the owner said yes to, for the helper.
+func (k lostDeviceKey) fingerprint() string {
+	sum := sha256.Sum256([]byte(fmt.Sprintf("%+v", k)))
+	return hex.EncodeToString(sum[:8])
+}
+
 // acceptLostDeviceKeysInHelper re-finds the lost keys in the Windows helper
-// and accepts those of the servers the parent's owner said yes to.
-func acceptLostDeviceKeysInHelper(paths runtimePaths, names string) {
-	if names == "" {
+// and accepts only those still exactly as the parent's owner saw them.
+func acceptLostDeviceKeysInHelper(paths runtimePaths, value string) {
+	if value == "" {
 		return
 	}
 	lost := findLostDeviceKeys(paths)
 	accepted := map[string]lostDeviceKey{}
-	for _, name := range strings.Split(names, ",") {
-		if key, ok := lost[name]; ok {
+	for _, pair := range strings.Split(value, ",") {
+		name, fingerprint, _ := strings.Cut(pair, "=")
+		if key, ok := lost[name]; ok && key.fingerprint() == fingerprint {
 			accepted[name] = key
 		}
 	}
 	acceptedLostDeviceKeys = accepted
 }
 
-// lostDeviceKeyNames is the --accept-lost-keys value ("" for none).
-func lostDeviceKeyNames(keys map[string]lostDeviceKey) string {
+// lostDeviceKeyArg is the --accept-lost-keys value: name=fingerprint pairs.
+func lostDeviceKeyArg(keys map[string]lostDeviceKey) string {
+	pairs := make([]string, 0, len(keys))
+	for _, name := range lostDeviceKeyNames(keys) {
+		pairs = append(pairs, name+"="+keys[name].fingerprint())
+	}
+	return strings.Join(pairs, ",")
+}
+
+func lostDeviceKeyNames(keys map[string]lostDeviceKey) []string {
 	names := make([]string, 0, len(keys))
 	for name := range keys {
 		names = append(names, name)
 	}
 	sort.Strings(names)
-	return strings.Join(names, ",")
+	return names
 }
 
 // lostDeviceKeyServerNames names the servers when it isn't just the default.
@@ -194,7 +211,7 @@ func lostDeviceKeyServerNames(lost map[string]lostDeviceKey) string {
 	if _, only := lost[defaultServerProfileName]; only && len(lost) == 1 {
 		return ""
 	}
-	return strings.ReplaceAll(lostDeviceKeyNames(lost), ",", ", ")
+	return strings.Join(lostDeviceKeyNames(lost), ", ")
 }
 
 // serverRemoveLostKey is the lost key a typed `server remove` confirmation
@@ -214,4 +231,19 @@ func serverRemoveLostKey(doc *configDocument, name string) (lostDeviceKey, bool)
 		return lost.key, true
 	}
 	return lostDeviceKey{}, false
+}
+
+// serverRemovalLeftLostKey: the removal checkpoint recorded a paired slot as
+// already gone, so the device may still be listed on the NOVA page (shown
+// again when an interrupted removal resumes).
+func serverRemovalLeftLostKey(name string, cfg runtimeConfig) bool {
+	target, err := profilePurgeTargetFromConfig(name, cfg)
+	if err != nil || !target.removalSlotsVerified {
+		return false
+	}
+	promotion := target.pendingSlotPresent &&
+		target.pendingSecureBaseURL == target.secureBaseURL &&
+		target.pendingSpkiPin == target.spkiPin
+	return !target.currentSlotPresent && target.secureBaseURL != "" && target.revokedCurrentID == "" && !promotion ||
+		!target.pendingSlotPresent && target.pendingSecureBaseURL != "" && target.revokedPendingID == ""
 }

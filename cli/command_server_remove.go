@@ -56,11 +56,15 @@ func runServerRemove(paths runtimePaths, args []string) int {
 		if !currentOK {
 			return 1
 		}
-		return completeServerRemovalUnlocked(
+		exitCode := completeServerRemovalUnlocked(
 			paths,
 			currentDoc,
 			name,
 		)
+		if exitCode == 0 && serverRemovalLeftLostKey(name, cfg) {
+			printHumanInfo("%s", lostDeviceKeyHandStep())
+		}
+		return exitCode
 	}
 	retirementPending, retirementErr :=
 		deviceCredentialRetirementCheckpointExistsForProfile(paths, name)

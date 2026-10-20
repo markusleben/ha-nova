@@ -858,8 +858,8 @@ func windowsUninstallHelperArgs(
 			strings.TrimSpace(relayInstanceID),
 		)
 	}
-	if names := lostDeviceKeyNames(acceptedLostDeviceKeys); names != "" {
-		args = append(args, "--accept-lost-keys", names)
+	if value := lostDeviceKeyArg(acceptedLostDeviceKeys); value != "" {
+		args = append(args, "--accept-lost-keys", value)
 	}
 	return args
 }
