@@ -142,21 +142,36 @@ func blueprintInputSteps(blueprint map[string]any) map[string]any {
 	return out
 }
 
-// actionList: an input that holds steps (an action selector's value): a
-// list of objects that each name a service. Any other input is data and
-// keeps its keys, so a changed key there still differs.
+// actionList: an input that holds steps (an action selector's value): one
+// step object, or a non-empty list whose items are all step objects. Any
+// other input is data and keeps its keys, so a changed key there still differs.
 func actionList(v any) bool {
+	if step, isMap := v.(map[string]any); isMap {
+		return isStep(step)
+	}
 	steps, isList := v.([]any)
 	for _, step := range steps {
-		m, isMap := step.(map[string]any)
-		_, service := m["service"]
-		_, action := m["action"]
-		if !isMap || (!service && !action) {
+		if m, isMap := step.(map[string]any); !isMap || !isStep(m) {
 			return false
 		}
 	}
 	return isList && len(steps) > 0
 }
+
+func isStep(m map[string]any) bool {
+	for key := range m {
+		if stepKeys[key] {
+			return true
+		}
+	}
+	return false
+}
+
+// stepKeys: the keys that make an object a script step for Home Assistant.
+var stepKeys = map[string]bool{"service": true, "action": true, "delay": true, "choose": true, "if": true, "repeat": true,
+	"parallel": true, "sequence": true, "wait_template": true, "wait_for_trigger": true, "event": true, "scene": true,
+	"stop": true, "variables": true, "condition": true, "device_id": true, "and": true, "or": true, "not": true,
+	"set_conversation_response": true}
 
 var stepLists = map[string]bool{"triggers": true, "conditions": true, "actions": true, "sequence": true}
 

@@ -47,8 +47,11 @@ func TestConfigChangesReadsHomeAssistantsSavedForm(t *testing.T) {
 			`{"use_blueprint":{"path":"me/bp.yaml","input":{"on_motion":[{"action":"light.turn_on","target":{"entity_id":"light.k"}}],"delay":5}}}`, true},
 		{"blueprint input other target", `{"use_blueprint":{"path":"me/bp.yaml","input":{"on_motion":[{"service":"light.turn_on","target":{"entity_id":"light.k"}}]}}}`,
 			`{"use_blueprint":{"path":"me/bp.yaml","input":{"on_motion":[{"action":"light.turn_on","target":{"entity_id":"light.x"}}]}}}`, false},
-		{"blueprint data input keeps its keys", `{"use_blueprint":{"path":"me/bp.yaml","input":{"settings":{"service":"x"}}}}`, `{"use_blueprint":{"path":"me/bp.yaml","input":{"settings":{"action":"x"}}}}`, false},
-		{"blueprint mixed list input keeps its keys", `{"use_blueprint":{"path":"me/bp.yaml","input":{"rows":[{"service":"x"},{"name":"y"}]}}}`, `{"use_blueprint":{"path":"me/bp.yaml","input":{"rows":[{"action":"x"},{"name":"y"}]}}}`, false},
+		{"blueprint data input keeps its keys", `{"use_blueprint":{"path":"me/bp.yaml","input":{"opts":{"settings":{"service":"x"}}}}}`, `{"use_blueprint":{"path":"me/bp.yaml","input":{"opts":{"settings":{"action":"x"}}}}}`, false},
+		{"blueprint data list input keeps its keys", `{"use_blueprint":{"path":"me/bp.yaml","input":{"rows":[{"service":"x"},{"name":"y"}]}}}`, `{"use_blueprint":{"path":"me/bp.yaml","input":{"rows":[{"action":"x"},{"name":"y"}]}}}`, false},
+		{"blueprint mixed step list", `{"use_blueprint":{"path":"me/bp.yaml","input":{"acts":[{"delay":5},{"service":"light.turn_on"}]}}}`, `{"use_blueprint":{"path":"me/bp.yaml","input":{"acts":[{"delay":5},{"action":"light.turn_on"}]}}}`, true},
+		{"blueprint single step", `{"use_blueprint":{"path":"me/bp.yaml","input":{"acts":{"service":"light.turn_on"}}}}`, `{"use_blueprint":{"path":"me/bp.yaml","input":{"acts":{"action":"light.turn_on"}}}}`, true},
+		{"blueprint nested steps", `{"use_blueprint":{"path":"me/bp.yaml","input":{"acts":[{"choose":[{"conditions":[],"sequence":[{"service":"light.turn_on"}]}]}]}}}`, `{"use_blueprint":{"path":"me/bp.yaml","input":{"acts":[{"choose":[{"conditions":[],"sequence":[{"action":"light.turn_on"}]}]}]}}}`, true},
 		{"blueprint input name is not a step", `{"use_blueprint":{"path":"me/bp.yaml","input":{"service":"a"}}}`, `{"use_blueprint":{"path":"me/bp.yaml","input":{"action":"a"}}}`, false},
 		{"top-level key outside steps", `{"fields":{"service":{"selector":{"text":{}}}}}`, `{"fields":{"action":{"selector":{"text":{}}}}}`, false},
 	} {
