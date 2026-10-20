@@ -273,7 +273,7 @@ func runPairCommand(paths runtimePaths, args []string) int {
 		)
 	})
 	if guardErr != nil {
-		printErr("Pairing cannot start: %s", guardErr)
+		printErr("Pairing cannot start: %s", keyringErrorText(guardErr))
 		if secureStorageSessionProblem(guardErr) {
 			printErr("%s. Next step: %s, then run this command there.", secureStorageSessionReason, secureStorageSessionNextStep())
 		}
@@ -296,7 +296,7 @@ func runPairCommand(paths runtimePaths, args []string) int {
 			return err
 		})
 		if migrateErr != nil {
-			printErr("cannot move the device credential into private file storage: %s", migrateErr)
+			printErr("cannot move the device credential into private file storage: %s", keyringErrorText(migrateErr))
 			printErr("Nothing was paired — no code was used.")
 			return 1
 		}
@@ -322,7 +322,19 @@ func runPairCommand(paths runtimePaths, args []string) int {
 		return err
 	})
 	if probeErr != nil {
-		printErr("This system cannot store the device credential yet: %s", probeErr)
+		if text := plainKeyringProblem(probeErr); text != "" {
+			printErr("This computer can't store the device key yet. %s", text)
+			fileCommand := "ha-nova pair"
+			if serverNameSet {
+				fileCommand += " --server " + serverName
+			}
+			if relayURLSet {
+				fileCommand += " --relay-url " + bootstrapURL
+			}
+			printErr("No one unlocks this computer's desktop (a VM or server)? Run: %s --credential-store=file", fileCommand)
+		} else {
+			printErr("This computer can't store the device key yet: %s", probeErr)
+		}
 		if secureStorageSessionProblem(probeErr) {
 			printErr("%s. Next step: %s, then run this command there.", secureStorageSessionReason, secureStorageSessionNextStep())
 		}
@@ -368,7 +380,7 @@ func runPairCommand(paths runtimePaths, args []string) int {
 		case errors.Is(err, errPinMismatch):
 			printErr("The relay's secure identity did not match its fingerprint. Try pairing again; if it repeats, someone may be intercepting the connection.")
 		default:
-			printErr("Pairing failed: %s", err)
+			printErr("Pairing failed: %s", keyringErrorText(err))
 		}
 		return 1
 	}

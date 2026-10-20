@@ -341,15 +341,23 @@ func keyringMessage(message string, err, kind error) string {
 // pick the message and the command's error code; setup's storage decisions
 // keep failing closed on them.
 func isSessionBusUnreachableText(err error) bool {
-	return err != nil && strings.Contains(strings.ToLower(err.Error()), "dial unix")
+	return strings.Contains(errorChainText(err), "dial unix")
 }
 
 func isSecretServiceExitedText(err error) bool {
-	if err == nil {
-		return false
-	}
-	message := strings.ToLower(err.Error())
+	message := errorChainText(err)
 	return strings.Contains(message, "org.freedesktop.secrets") && strings.Contains(message, "exited with status")
+}
+
+// errorChainText is every message in err's chain, lower case: a CloudError
+// prints only its code and hides the godbus text of its cause.
+func errorChainText(err error) string {
+	var text strings.Builder
+	for ; err != nil; err = errors.Unwrap(err) {
+		text.WriteString(strings.ToLower(err.Error()))
+		text.WriteString("\n")
+	}
+	return text.String()
 }
 
 // secureStorageErrorCode is a command's error code for a saved credential
@@ -367,6 +375,31 @@ func secureStorageErrorCode(err error) string {
 	return ""
 }
 
+// plainKeyringProblem is the plain text for a Linux keyring state (locked,
+// not set up, not running, out of reach); "" for anything else. Commands that
+// hit the keyring print it instead of the raw system error.
+func plainKeyringProblem(err error) string {
+	if isLinuxKeyringError(err) {
+		return relayAuthTokenProblemMessage(err)
+	}
+	// The Link store's own refusals carry no keyring error. UI-forbidden is
+	// locked or not set up: ask the keyring itself (read-only).
+	if secureStorageSessionPlatformOS == "linux" && (IsCloudErrorCode(err, CloudErrSecretStoreLocked) ||
+		IsCloudErrorCode(err, CloudErrSecretUIForbidden) && isDesktopKeyringLockedError(deviceCredentialPreflight())) {
+		return keyringLockedMessage
+	}
+	return ""
+}
+
+// keyringErrorText is err for a person: the plain keyring text when it is a
+// Linux keyring state, else err as is.
+func keyringErrorText(err error) string {
+	if text := plainKeyringProblem(err); text != "" {
+		return text
+	}
+	return err.Error()
+}
+
 // isLinuxKeyringError: any Linux keyring state relayAuthTokenProblemMessage
 // words plainly (locked, not set up, not running, out of reach).
 func isLinuxKeyringError(err error) bool {
@@ -382,7 +415,7 @@ func isDesktopKeyringUnavailableError(err error) bool {
 	if errors.Is(err, errDesktopKeyringUnavailable) {
 		return true
 	}
-	message := strings.ToLower(err.Error())
+	message := errorChainText(err) // a CloudError hides its cause text
 	return (strings.Contains(message, "org.freedesktop.secrets") &&
 		(strings.Contains(message, "not provided") || strings.Contains(message, "serviceunknown"))) ||
 		strings.Contains(message, "secret service preflight timed out")
@@ -395,7 +428,7 @@ func isDesktopKeyringSessionUnavailableError(err error) bool {
 	if errors.Is(err, errDesktopKeyringSessionUnavailable) {
 		return true
 	}
-	message := strings.ToLower(err.Error())
+	message := errorChainText(err) // a CloudError hides its cause text
 	return strings.Contains(message, "couldn't determine address of session bus") ||
 		(strings.Contains(message, "dbus-launch") && strings.Contains(message, "not found"))
 }

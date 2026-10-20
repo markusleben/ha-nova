@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 )
 
 // purgeRelayTokenRead is a test seam for the native relay token read.
@@ -80,7 +81,9 @@ func purgeSecureStorageReadError(paths runtimePaths, problem func(error) bool) e
 	// Read what the purge itself must read there: the relay token (from its
 	// file when one is configured; a keyring copy is then best-effort) and
 	// each Link authorization.
-	if _, err := purgeRelayTokenRead(); problem(err) {
+	// The purge skips a relay token whose keyring isn't running
+	// (applyUninstallTokenPolicy), so this check does too.
+	if _, err := purgeRelayTokenRead(); !isDesktopKeyringUnavailableError(err) && problem(err) {
 		return err
 	}
 	for _, target := range cloudTargets {
@@ -107,7 +110,9 @@ func purgeRefusedOutsideDesktop(paths runtimePaths, mode uninstallMode, yes bool
 	}
 	err := purgeSecureStorageSessionError(paths)
 	if err == nil {
-		return purgeRefusedForLockedKeyring(paths, yes, rerun)
+		return purgeRefusedForUnreachableKeyring(paths, rerun) ||
+			purgeRefusedForLockedKeyring(paths, yes, rerun) ||
+			purgeRefusedForUnreadableRelayToken(paths, rerun)
 	}
 	printHumanErr("%s, so a full purge can't check this computer's saved HA NOVA credentials. This run changed nothing.", secureStorageSessionReason)
 	printHumanWarn("Next step: %s, then run: %s", secureStorageSessionNextStep(), rerun)
@@ -132,6 +137,87 @@ func purgeKeyringLockedError(paths runtimePaths) error {
 		return !isDesktopKeyringInitializationRequiredError(err) &&
 			(isDesktopKeyringLockedError(err) || IsCloudErrorCode(err, CloudErrSecretStoreLocked))
 	})
+}
+
+// isLinuxKeyringOutOfReach: no session bus (SSH, a console login) or no
+// Secret Service on it. Locked and not-set-up keyrings have their own paths.
+func isLinuxKeyringOutOfReach(err error) bool {
+	return isDesktopKeyringSessionUnavailableError(err) || isSessionBusUnreachableText(err) ||
+		isDesktopKeyringUnavailableError(err) || isSecretServiceExitedText(err)
+}
+
+// purgeKeyringOutOfReachError returns the first read a full purge needs that
+// fails because this terminal can't reach the Linux keyring. Without this
+// check the purge removed part of HA NOVA and then failed there.
+func purgeKeyringOutOfReachError(paths runtimePaths) error {
+	if secureStorageSessionPlatformOS != "linux" {
+		return nil
+	}
+	return purgeSecureStorageReadError(paths, isLinuxKeyringOutOfReach)
+}
+
+// keyringOutOfReachFromHere: the fix is a terminal on the desktop (SSH, sudo,
+// no session bus), not restarting a keyring that isn't running.
+func keyringOutOfReachFromHere(err error) bool {
+	return !nativeSecretPromptBaseContextAvailable() ||
+		isDesktopKeyringSessionUnavailableError(err) || isSessionBusUnreachableText(err)
+}
+
+// purgeRefusedForUnreachableKeyring: a full purge must read every saved key
+// before it revokes or removes anything; from here it can't, so the run stops
+// before any change and names one next step.
+func purgeRefusedForUnreachableKeyring(paths runtimePaths, rerun string) bool {
+	err := purgeKeyringOutOfReachError(paths)
+	if err == nil {
+		return false
+	}
+	resetLinkStorageProofForEarlyStop(paths, err)
+	if keyringOutOfReachFromHere(err) {
+		printHumanErr("HA NOVA can't reach this computer's keyring from this terminal (for example over SSH), so it can't remove its saved key. Nothing was changed.")
+		printHumanWarn("Next step: %s. Then run: %s", secureStorageSessionNextStep(), rerun)
+		return true
+	}
+	printHumanErr("This computer's keyring isn't running, so HA NOVA can't remove its saved key. Nothing was changed.")
+	printHumanWarn("Next step: log out of the desktop and back in. Then run: %s", rerun)
+	return true
+}
+
+// purgeRefusedForUnreadableRelayToken: the purge reads the legacy relay token
+// late, after it removed client integrations and PATH. On Linux any read
+// error it won't skip (applyUninstallTokenPolicy) stops the run up front
+// instead, like the guided preflight does.
+func purgeRefusedForUnreadableRelayToken(paths runtimePaths, rerun string) bool {
+	if secureStorageSessionPlatformOS != "linux" {
+		return false
+	}
+	// A configured token file is removed, not read; a keyring copy is then
+	// best-effort.
+	if _, configured, _ := relayAuthTokenFilePathFromConfig(); configured {
+		return false
+	}
+	_, err := purgeRelayTokenRead()
+	if err == nil || isMissingRelayAuthTokenError(err) || isDesktopKeyringUnavailableError(err) {
+		return false
+	}
+	resetLinkStorageProofForEarlyStop(paths, err)
+	printHumanErr("HA NOVA can't read its saved key in this computer's keyring, so it can't remove it. Nothing was changed.")
+	if plain := plainKeyringProblem(err); plain != "" {
+		printHumanWarn("Next step: %s Then run: %s", strings.TrimSuffix(plain, " Then try again."), rerun)
+		return true
+	}
+	printHumanWarn("Details: %s", err)
+	printHumanWarn("Then run: %s", rerun)
+	return true
+}
+
+// resetLinkStorageProofForEarlyStop keeps the relock contract of a purge
+// that fails later: the next Link step must be unlock, not cleanup.
+func resetLinkStorageProofForEarlyStop(paths runtimePaths, cause error) {
+	if err := withClientMutationLock(paths, func() error {
+		return resetVerifiedCloudStorageAfterPurgeRelock(paths, cause)
+	}); err != nil {
+		printHumanWarn("Could not reset the Home Assistant Link storage check: %s", err)
+	}
 }
 
 var keyringUnlockTrigger = desktopKeyringLockedError("a full removal reads this computer's keyring")
@@ -179,13 +265,7 @@ func purgeRefusedForLockedKeyring(paths runtimePaths, yes bool, rerun string) bo
 	if lockedErr == nil {
 		return false
 	}
-	// Same relock contract as a purge that fails later: the next Link step
-	// must be unlock, not cleanup.
-	if err := withClientMutationLock(paths, func() error {
-		return resetVerifiedCloudStorageAfterPurgeRelock(paths, lockedErr)
-	}); err != nil {
-		printHumanWarn("Could not reset the Home Assistant Link storage check: %s", err)
-	}
+	resetLinkStorageProofForEarlyStop(paths, lockedErr)
 	switch {
 	case yes && keyringUnlockWindowPossible(false):
 		printHumanErr("This computer's keyring is locked, so HA NOVA can't remove its saved key. Nothing was changed.")

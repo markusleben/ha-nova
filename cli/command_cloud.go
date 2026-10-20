@@ -324,8 +324,12 @@ func loadCloudManagementConfig(paths runtimePaths) (runtimeConfig, error) {
 
 func printCloudCommandProblem(err error) *cloudProblem {
 	problem := cloudProblemForCommandError(err)
-	printHumanErr("%s", problem)
-	if problem.Remediation == cloudRemediationUnlockStorage {
+	printHumanErr("%s", problem.humanText())
+	switch {
+	case !cloudProblemNeedsStorageUnlock(problem):
+	case plainKeyringProblem(problem.Cause) != "":
+		printHumanInfo("Next step: in a terminal on this computer's desktop, run: %s", cloudUnlockCommand())
+	default:
 		printHumanInfo(
 			"From a local, non-elevated graphical desktop terminal, run: %s",
 			cloudUnlockCommand(),

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 )
 
 func renderDurableCloudRecoveryGuidance(
@@ -270,7 +271,15 @@ func renderCloudRecoveryGuidance(
 
 func cloudProblemNeedsStorageUnlock(problem *cloudProblem) bool {
 	return problem != nil &&
-		problem.Remediation == cloudRemediationUnlockStorage
+		problem.Remediation == cloudRemediationUnlockStorage &&
+		!cloudUnlockCannotHelp(problem.Cause)
+}
+
+// cloudUnlockCannotHelp: cloud unlock can't start or create a keyring; the
+// plain keyring text already says what can.
+func cloudUnlockCannotHelp(cause error) bool {
+	plain := plainKeyringProblem(cause)
+	return strings.HasPrefix(plain, keyringMissingMessage) || strings.HasPrefix(plain, keyringNotSetUpMessage)
 }
 
 func renderCloudFailure(
@@ -279,7 +288,7 @@ func renderCloudFailure(
 	err error,
 ) *cloudProblem {
 	problem := cloudProblemForCommandError(err)
-	printHumanErr("%s", problem)
+	printHumanErr("%s", problem.humanText())
 	renderDurableCloudRecoveryGuidance(out, paths, problem)
 	return problem
 }

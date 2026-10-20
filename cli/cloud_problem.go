@@ -58,6 +58,18 @@ func (p *cloudProblem) Error() string {
 	return fmt.Sprintf("Home Assistant Link failed (code %s; next: %s)", p.Code, p.Remediation)
 }
 
+// humanText is what a person reads: a Linux keyring problem gets the plain
+// keyring text get and doctor print instead of the detail; the code and next
+// step ids stay for agents and support.
+func (p *cloudProblem) humanText() string {
+	if p != nil && p.Code == cloudProblemSecureStorage && p.Remediation == cloudRemediationUnlockStorage {
+		if text := plainKeyringProblem(p.Cause); text != "" {
+			return fmt.Sprintf("Home Assistant Link: %s (code %s; next: %s)", text, p.Code, p.Remediation)
+		}
+	}
+	return p.Error()
+}
+
 func (p *cloudProblem) Unwrap() error {
 	if p == nil {
 		return nil
