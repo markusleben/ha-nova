@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -321,6 +323,8 @@ func (s *relaySession) sendIn(parent context.Context, endpoint string, body []by
 // sendTransportError words a failure that got no HTTP response at all.
 func sendTransportError(s *relaySession, endpoint string, err error) error {
 	switch {
+	case errors.Is(err, context.DeadlineExceeded) && s.transport.Via != relayViaCloud: // no answer in time: same plain say
+		return relayUnreachableError(fmt.Sprintf("Relay %s read timed out (%s per request, %s overall); nothing was changed", endpoint, relaySessionRequestTimeout, relaySessionOverallTimeout))
 	case errors.Is(err, context.DeadlineExceeded):
 		return fmt.Errorf("Relay %s read timed out (%s per request, %s overall); nothing was changed", endpoint, relaySessionRequestTimeout, relaySessionOverallTimeout)
 	case s.transport.Via == relayViaCloud:
@@ -329,8 +333,30 @@ func sendTransportError(s *relaySession, endpoint string, err error) error {
 		// hint would point at a fake host.
 		return cloudProblemForError(err)
 	}
-	return errors.New(relayConnectErrorMessage(s.transport.BaseURL, err))
+	if relayIdentityFailure(err) { // not "is the App running": the Relay's identity needs checking
+		return errors.New(relayConnectErrorMessage(s.transport.BaseURL, err))
+	}
+	return relayUnreachableError(relayConnectErrorMessage(s.transport.BaseURL, err))
 }
+
+// relayIdentityFailure: something answered, but not as the pinned TLS Relay
+// (a changed pin, an untrusted certificate, or plain HTTP on a TLS endpoint).
+func relayIdentityFailure(err error) bool {
+	var verify *tls.CertificateVerificationError
+	var authority x509.UnknownAuthorityError
+	var host x509.HostnameError
+	var record tls.RecordHeaderError
+	return errors.Is(err, errPinMismatch) || errors.As(err, &verify) || errors.As(err, &authority) || errors.As(err, &host) || errors.As(err, &record)
+}
+
+// relayUnreachableError: no HTTP answer from a local Relay. Its message keeps
+// the address and the doctor hint for diagnosis; a verb envelope adds the
+// plain relayUnreachableSay for the user (F2: agents pasted both).
+type relayUnreachableError string
+
+func (e relayUnreachableError) Error() string { return string(e) }
+
+const relayUnreachableSay = "HA NOVA can't reach the NOVA Relay App in Home Assistant right now. Check in Home Assistant (Settings → Apps) that it is running, then ask me to try again."
 
 // unreachableError is the transport failure of an invocation in which the
 // Relay never answered: an operational error (exit 1), not partial data.

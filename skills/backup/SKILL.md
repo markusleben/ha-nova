@@ -73,7 +73,7 @@ Other skills name HA Backups as the recovery path (see `../ha-nova/recovery-cove
 
 ## Output Format
 
-Apply `../ha-nova/output-rules.md` to all output. Write previews, delete confirmations, and results render as the Cards defined there (`../ha-nova/output-cards.md`).
+Apply `../ha-nova/output-rules.md`: plain words, HA names verbatim; unless asked or names clash, no ids, "entity", modes, Relay/HA URLs, snapshots, raw JSON. Previews, deletes, and results use the Cards defined there (`../ha-nova/output-cards.md`).
 
 - `Backups` / `Status`
 - `Planned change`
@@ -82,7 +82,7 @@ Apply `../ha-nova/output-rules.md` to all output. Write previews, delete confirm
 - `Verification`
 - `Next step`
 
-Use stable localized slot labels in this order; omit empty slots. Status renders the Report shape; backup lists render the List Frame (output-cards.md). Dates are ISO timestamps with offsets — convert to the user's local time; sizes human-readable — never raw JSON.
+Use stable localized slot labels in this order; omit empty slots. Status renders the Report shape; backup lists render the List Frame (output-cards.md). ISO dates in the user's local time; sizes human-readable.
 
 ## Safety
 
@@ -94,7 +94,7 @@ Use stable localized slot labels in this order; omit empty slots. Status renders
 - Home Assistant is reached exclusively through the `ha-nova` CLI.
 - Any HA write this skill does not cover: STOP, invoke `ha-nova:fallback` first; never probe unfamiliar write endpoints.
 
-- Drafts follow `../ha-nova/smallest-solution.md`: the complete requested outcome in the simplest safe design, nothing for hypothetical future needs.
+- Drafts follow `../ha-nova/smallest-solution.md`: the complete requested outcome in the simplest safe design, nothing speculative.
 
 - Create uses natural confirmation; delete uses the one-time code only.
 - Restore is never executed here — it reboots the system; always route to the HA UI.

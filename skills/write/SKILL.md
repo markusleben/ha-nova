@@ -47,12 +47,12 @@ Input-device remaps: run the capability preflight per `../ha-nova/input-capabili
 
 A one-shot intent ("just today", "tell me when the laundry finishes") takes the self-disabling pattern in `../ha-nova/one-shot-automations.md` and skips unsolicited improvement offers — the Suggestion Block AND the Phase 5 test offer (a real-run test would undo the duration). A recovery, watchdog, self-healing, or retry intent reads `../ha-nova/recovery-workflows.md` before drafting; the preview names the attempt bound — and the persistent-fault path only where the intent promises watchdog/self-healing continuity: an explicitly one-shot recovery keeps an attempt bound of one.
 
-Every draft follows `../ha-nova/smallest-solution.md`: the complete explicit outcome in the simplest safe design, native primitives when equally safe and clearer.
+Every draft follows `../ha-nova/smallest-solution.md`: the complete outcome, simplest safe design.
 
 ### Phase 1: Resolve
 
 1. Bare "undo the last update": straight to `plan revert`; undo a delete: run its result's `restore` verbatim. update/delete/named revert: `ha-nova find` (exact `entity_id` wins; `--include-disabled` for a disabled item), then `ha-nova get <entity_id> --config` for the current config and `config_id` — `managed: yaml` or `CONFIG_NOT_FOUND` there means a YAML/package item: `ha-nova:yaml-config`, never `plan write`/`plan delete`. Ambiguity or no match: ask one blocking question for the exact entity. No second ambiguity question. Correct invalid premises.
-2. Resolve every entity the draft uses with `ha-nova find`/`get`; never guess an id.
+2. Resolve every entity the draft uses with `ha-nova find`/`get`.
 3. Automations: `bp_status` per `../ha-nova/best-practices.md` → BP Cache Policy (scripts and deletes: `n/a`).
 4. Suggestion candidates per `../ha-nova/smallest-solution.md` → Write Suggestion Candidates.
 
@@ -101,9 +101,9 @@ After the review output, build a Test Plan Card per `../ha-nova/test-run.md`: on
 
 ## Output Format
 
-Apply `../ha-nova/output-rules.md`.
+Apply `../ha-nova/output-rules.md`: plain words, HA names verbatim; unless asked or names clash, no ids, "entity", modes, Relay/HA URLs, snapshots, raw JSON.
 
-Previews, delete prompts, results, and the test offer render as the Cards in `../ha-nova/output-cards.md` (Test Plan Card mechanics: `../ha-nova/test-run.md`). A create summary names the item and its devices, then what starts it, its conditions, and what it does (scripts: inputs and steps) in short sentences; mode only if not `single`; ids and the full config only when asked.
+Previews, delete prompts, results, and the test offer render as the Cards in `../ha-nova/output-cards.md` (Test Plan Card mechanics: `../ha-nova/test-run.md`). A create summary (or a deleted item's restore) names the item and its devices, then what starts it, its conditions, and what it does (scripts: inputs and steps), briefly; mode only if not `single`, in plain words; ids and the full config only when asked.
 
 ## Safety
 
@@ -117,7 +117,6 @@ Previews, delete prompts, results, and the test offer render as the Cards in `..
 
 - Destructive cleanup still requires the one-time code, even for items created earlier in the same session.
 - No third-party MCP server, no direct HA API, no raw `ha-nova relay` config write.
-- Every write MUST end with the Post-Write Review slot.
 
 ## Guardrails
 

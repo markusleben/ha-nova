@@ -22,7 +22,7 @@ Line, a Session Recap, findings, or review output. The core rules still apply.
 
 ## Cards (Write-Flow Visual System)
 
-Write and action flows render one of four cards — the same shape every time, so users recognize them at a glance. Labels localize at runtime; emoji, entity IDs, state values, and CLI diff rows do not. Fixed emoji vocabulary: 📝 preview (write previews and the test-plan offer), 🗑️ delete preview, ✅ result, ⚠️ save status, 💡 suggestion, plus the 🔴🟠🟡 severity markers — nothing else decorative, never color. Cards frame writes and runtime actions only; review and read output keep their own sections. Emoji that end in a variation selector (🗑️, ⚠️) take two spaces before the following text (terminals draw them double-width); the other card emoji keep one space.
+Write and action flows render one of four cards — the same shape every time, so users recognize them at a glance. Labels localize at runtime; emoji, state values, and CLI diff rows do not. Fixed emoji vocabulary: 📝 preview (write previews and the test-plan offer), 🗑️ delete preview, ✅ result, ⚠️ save status, 💡 suggestion, plus the 🔴🟠🟡 severity markers — nothing else decorative, never color. Cards frame writes and runtime actions only; review and read output keep their own sections. Emoji that end in a variation selector (🗑️, ⚠️) take two spaces before the following text (terminals draw them double-width); the other card emoji keep one space.
 
 **Preview Card** (create/update — values illustrative, labels localized at runtime):
 
@@ -33,7 +33,6 @@ The three light actions now only run when someone is home.
 | Field | Before | After |
 |---|---|---|
 | Condition 1 | — | condition state |
-| Mode | single | restart |
 
 Pre-write check: no concerns.
 ⚠️  Nothing saved yet.
@@ -179,7 +178,7 @@ mutation, never merged into the shell draft).
 ```
 💡 Suggestions for "Morning routine":
 1. Presence condition — runs only when someone is home · avoids empty-house runs
-2. Restart mode — re-trigger restarts the timer · prevents overlapping runs
+2. Start over on re-trigger — restarts the timer · prevents overlapping runs
 Accept numbers (e.g. "1 and 2"), or "skip".
 ```
 
