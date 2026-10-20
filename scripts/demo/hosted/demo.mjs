@@ -34,6 +34,8 @@ const DASHBOARD = "demo-house"; // storage dashboard; the system-wide default pa
 const SMOKE_ENTITIES = ["light.bed_light", "lock.entrance_door", "cover.testbed_garage", "switch.smart_plug",
   "sensor.testbed_temperature", "button.router_restart", "light.template_desk_lamp", "input_boolean.guest_mode",
   "automation.a_guest_mode_unlocks_entrance_door", "script.leave_home", "scene.movie_night", "sensor.demo_next_reset"];
+// https://<demo domain>: configuration.yaml's external_url (guard.sh, update-ha.sh).
+const EXTERNAL_URL = process.env.DEMO_EXTERNAL_URL;
 const HANDSHAKE_MS = 15_000;
 const CALL_MS = 30_000; // per command: a stalled HA must not hang the guard
 // User ids of this build (the test bed's .state is wiped every reset). The
@@ -347,6 +349,13 @@ async function guard() {
       return;
     }
 
+    // Add to Claude: HA names its OAuth metadata only for this origin, and
+    // Settings > Network can change it (config/core/update has no YAML lock).
+    if (!/^https?:\/\/[a-z0-9.:-]+$/.test(EXTERNAL_URL ?? "")) throw new Error("DEMO_EXTERNAL_URL is not set");
+    const core = await ha.call({ type: "get_config" });
+    if (core.external_url !== EXTERNAL_URL || core.internal_url) {
+      await ha.call({ type: "config/core/update", external_url: EXTERNAL_URL, internal_url: null });
+    }
     // The public password.
     await ha.call({
       type: "config/auth_provider/homeassistant/admin_change_password",

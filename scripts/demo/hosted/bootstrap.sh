@@ -263,7 +263,7 @@ After=docker.service
 [Service]
 Type=oneshot
 ExecStart=/bin/bash /opt/ha-nova/scripts/demo/hosted/guard.sh
-TimeoutStartSec=50s
+TimeoutStartSec=110s
 UNIT
 cat > /etc/systemd/system/ha-nova-demo-guard.timer << 'UNIT'
 [Unit]

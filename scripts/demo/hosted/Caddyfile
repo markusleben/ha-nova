@@ -33,6 +33,13 @@
 	respond `{"error":"demo_resetting"}` 503
 }
 
+# Add to Claude (/api/ha_nova/mcp): a JSON-RPC error, so the chat can say why.
+(resetting_rpc) {
+	header Content-Type "application/json"
+	header Retry-After "60"
+	respond `{"jsonrpc":"2.0","id":null,"error":{"code":-32001,"message":"The demo house is resetting (every hour at :00 UTC). Try again in a few minutes. Claude may then ask to connect again: log in with demo / demo."}}` 503
+}
+
 {$DEMO_DOMAIN} {
 	# Access log: client IPs truncated (/24, /48), no headers, no auth query
 	# parameters. For abuse handling only. A new file at 00:00 UTC every day
@@ -160,12 +167,12 @@
 				header_up X-Forwarded-For {masked_client_ip}
 			}
 		}
-		# Add to Claude: chat apps get JSON, never the restarting page (a
-		# chat shows "demo_resetting"; the integration's own JSON errors pass).
-		# Sign-in (/auth/*, /.well-known/oauth-*) is Home Assistant's, below.
+		# Add to Claude: chat apps get JSON-RPC, never the restarting page; the
+		# integration's own JSON errors pass. Sign-in (/auth/*,
+		# /.well-known/oauth-*) is Home Assistant's, below.
 		handle /api/ha_nova/mcp {
 			handle @notready {
-				import resetting_json
+				import resetting_rpc
 			}
 			reverse_proxy homeassistant:8123 {
 				header_up X-Forwarded-For {masked_client_ip}
@@ -202,9 +209,12 @@
 
 	# Transport errors: the upstream container does not exist or refuses.
 	handle_errors 502 503 504 {
-		@json expression {http.request.orig_uri.path}.startsWith("/relay/") || {http.request.orig_uri.path} == "/api/ha_nova/mcp"
-		handle @json {
+		@relay expression {http.request.orig_uri.path}.startsWith("/relay/")
+		handle @relay {
 			import resetting_json
+		}
+		handle /api/ha_nova/mcp {
+			import resetting_rpc
 		}
 		handle {
 			import restarting_html

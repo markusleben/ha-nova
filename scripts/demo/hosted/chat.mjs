@@ -77,18 +77,23 @@ const mcp = (base, token, method, params = {}) => http(`${base}/api/ha_nova/mcp`
   body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
 });
 
+// A definite break (exit 3: guard.sh resets at once), not a slow answer.
+class Broken extends Error {}
+
 // The minute check: the entry is loaded, and the owner's own token reaches
 // the bridge only to be refused (Home Assistant -> integration -> bridge
 // works, and the allow list holds). Mints no token.
 async function check([haUrl, ownerToken]) {
   const base = haUrl.replace(/\/$/, "");
   const entries = await http(`${base}/api/config/config_entries/entry?domain=ha_nova`, { headers: { authorization: `Bearer ${ownerToken}` } });
-  if (entries.status !== 200 || entries.body?.length !== 1 || entries.body[0].state !== "loaded") {
-    throw new Error(`ha_nova entry not loaded: ${entries.status} ${entries.text.slice(0, 200)}`);
+  if (entries.status !== 200) throw new Error(`config entries: ${entries.status}`);
+  if (entries.body?.length !== 1 || entries.body[0].state !== "loaded") {
+    throw new Broken(`ha_nova entry missing or not loaded: ${entries.text.slice(0, 200)}`);
   }
   const owner = await mcp(base, ownerToken, "tools/list");
+  if (owner.status === 200) throw new Broken("the bridge let the owner in");
   if (owner.status !== 403 || owner.body?.error?.code !== -32001) {
-    throw new Error(`the owner was not refused by the bridge: ${owner.status} ${owner.text.slice(0, 200)}`);
+    throw new Error(`the bridge did not refuse the owner as expected: ${owner.status} ${owner.text.slice(0, 200)}`);
   }
 }
 
@@ -136,6 +141,6 @@ Promise.resolve(commands[cmd](args)).then(
   () => process.exit(0),
   (err) => {
     console.error(`chat.mjs ${cmd}: ${err.message}`);
-    process.exit(1);
+    process.exit(err instanceof Broken ? 3 : 1);
   },
 );
