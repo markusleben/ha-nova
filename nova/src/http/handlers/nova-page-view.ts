@@ -262,16 +262,16 @@ function renderChatApps(m: PageModel, formOpen: string, csrfField: (action: Nova
       : `<p>On. Add HA NOVA to Claude in one click, or add this address as a connector in ChatGPT. Then sign in to Home Assistant as its owner.</p>
 <p><a class="linkbtn primary" href="${escapeAttr(claudeConnectorLink(url))}" target="_blank" rel="noopener noreferrer">Add to Claude</a> <span class="muted meta">Adds ${escapeHtml(new URL(url).host)}</span></p>
 <p class="address">${escapeHtml(url)}</p>
-<p class="muted meta">ChatGPT on the web: open chatgpt.com/plugins → + → Add custom MCP server, paste the address under Connection, pick OAuth, tick “I understand and want to continue”, then Create as a plugin. Sign in as the owner, then type @HA NOVA in a chat.</p>`}
+<p class="muted meta">ChatGPT on the web: open chatgpt.com/plugins → + → Add custom MCP server, paste the address under Connection, pick OAuth, tick “I understand and want to continue”, then Create as a plugin. Sign in as the owner. If ChatGPT then says the OAuth callback data is missing, choose Connect on the plugin again. Then type @HA NOVA in a chat. Name already taken? Find your old HA NOVA under your own plugins. If it has this address, choose Install; if not, use another name.</p>`}
 <p class="muted">Who can use it: ${who}. Confirmations: ${phone}.</p>
-${m.chatRestarting ? `<p class="ok">Home Assistant is restarting (about a minute). Reload this page afterwards.</p>` : ""}
+${m.chatRestarting ? `<p class="ok">Home Assistant is restarting (usually under a minute). Reload this page afterwards.</p>` : ""}
 <ul>${toggle("Chat apps can only read", c.readOnly, "chat_read_only")}${toggle("Codes in the chat", c.chatCodes, "chat_codes")}</ul>
 <p class="muted meta">To sign a chat app out, remove its token in Home Assistant under Profile → Security. Turn chat apps off before you remove the NOVA App or go back to an older version.</p>
 ${button("chat_apps_off", "Turn off chat apps", "", "secondary")}`;
   } else {
     body = `${c.unfinished ? `<p class="error">Chat apps are not fully off: parts are still in Home Assistant.</p>${button("chat_apps_off", "Finish turning off", "", "secondary")}` : ""}
 <p class="muted">Use HA NOVA in Claude and ChatGPT, also on your phone, through Home Assistant Link or your own public HTTPS address (with a valid certificate). Only you can use it.</p>
-<p class="muted">Home Assistant restarts once if needed (about a minute).</p>${button("chat_apps_on", "Turn on chat apps")}`;
+<p class="muted">Home Assistant restarts once if needed, always the first time (usually under a minute, longer on small devices).</p>${button("chat_apps_on", "Turn on chat apps")}`;
   }
   return `<section><h2>Chat apps</h2>${body}</section>
 `;

@@ -264,7 +264,7 @@ func ownerChatPhone(paths runtimePaths, owner string, state chatAppsState) *chat
 }
 
 // turnOnChatApps asks the App to turn chat apps on. allowRestart: the caller
-// showed "Home Assistant restarts once (about a minute)." and got the click,
+// showed the setup.chat.restart line and got the click,
 // the restart consent; without it the App refuses a restart that has become
 // needed meanwhile (RESTART_CONSENT_REQUIRED). It then waits until Home Assistant runs
 // the integration; progress hears "on", "restart" (when Home Assistant
