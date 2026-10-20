@@ -1,5 +1,5 @@
 name: NOVA Relay
-version: "0.10.0"
+version: "0.11.0"
 image: "ghcr.io/markusleben/{arch}-ha-nova-relay"
 slug: ha_nova_relay
 description: Thin Home Assistant relay for WS proxy and skill workflows
@@ -33,10 +33,15 @@ hassio_role: default
 panel_icon: mdi:star-four-points
 panel_title: NOVA
 panel_admin: true
+# Chat apps: the App announces its bridge to the ha_nova integration through
+# Supervisor discovery (POST /discovery answers 403 without this line).
+discovery:
+  - ha_nova
 
 # Read-write access to the Home Assistant configuration directory. The relay
-# only USES it when the file_access option is set (default: off), so mapping it
-# here does not grant anything by itself.
+# only USES it when the file_access option is set (default: off), or, for chat
+# apps, to write custom_components/ha_nova when the owner turns them on (and
+# remove it when turned off); mapping it here grants nothing by itself.
 map:
   # The mount path is pinned explicitly: the shorthand form mounts at a
   # type-derived default that differs across Supervisor versions, and the relay

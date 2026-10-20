@@ -117,7 +117,7 @@ func dispatch(paths runtimePaths, argv0 string, args []string) int {
 		return runMCPCommand(paths, args[1:])
 	case "serve":
 		return runServeCommand(paths, args[1:])
-	case "chat-apps": // not in the usage until the App release that turns chat apps on
+	case "chat-apps":
 		return runChatAppsCommand(paths, args[1:])
 	case "trace":
 		return runTraceCommand(paths, args[1:])
@@ -234,6 +234,7 @@ func printUsage() {
 	fmt.Fprintln(os.Stdout, "  ha-nova pair [--relay-url http://<ha-host>:8791] [--code NNNNNN] [--credential-store=file]")
 	fmt.Fprintln(os.Stdout, "  ha-nova server <list|default|rename|remove|route>")
 	fmt.Fprintln(os.Stdout, "  ha-nova cloud <add|status|unlock|reconnect|remove>")
+	fmt.Fprintln(os.Stdout, "  ha-nova chat-apps [on|off|status]   (HA NOVA in Claude and ChatGPT)")
 	fmt.Fprintln(os.Stdout, "  ha-nova doctor [--auto-repair] [--quiet] [--server <name>]")
 	fmt.Fprintln(os.Stdout, "  ha-nova check-update [--quiet] [--json] [--server <name>]")
 	fmt.Fprintln(os.Stdout, "  ha-nova status --json")

@@ -1,7 +1,5 @@
 # Use HA NOVA in Claude and ChatGPT
 
-Status: active. Chat apps come with the NOVA App release that includes them; with an older NOVA App, the switch below doesn't show.
-
 With chat apps on, you can ask about your home and change it from Claude or ChatGPT, also on your phone, with no computer running. They reach your home through Home Assistant Link or your Home Assistant's own public HTTPS address, and the same rules decide what needs your OK as with HA NOVA on a computer (see below).
 
 ## What you need
@@ -74,7 +72,7 @@ Menu names in Claude and ChatGPT change now and then; look for "connector", "plu
 
 Open NOVA in Home Assistant, then Chat apps, then "Turn off chat apps". Or run `ha-nova chat-apps off` on your computer. It takes effect at once; Home Assistant doesn't restart. HA NOVA stops the chat-app connection, signs its own access out, and removes the parts it added to Home Assistant. It finds them in Home Assistant itself, so this also works after a backup restore. Your choices on the NOVA page (phone, codes, read only) stay for the next time.
 
-To also sign Claude or ChatGPT out of Home Assistant, open your Home Assistant profile, then Security, and remove their entries under refresh tokens.
+Claude or ChatGPT hold a Home Assistant sign-in for your account that works for all of Home Assistant, not only HA NOVA, and turning chat apps off doesn't end it. To sign them out of Home Assistant, open your Home Assistant profile, then Security, and remove their entries under refresh tokens.
 
 Turn chat apps off before you remove the NOVA App or go back to an older version.
 

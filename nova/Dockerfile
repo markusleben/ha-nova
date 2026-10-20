@@ -24,9 +24,9 @@ COPY bridge /opt/ha-nova
 # The ha_nova Home Assistant integration (chat apps): the App copies it into
 # /config/custom_components/ha_nova when the owner turns chat apps on.
 COPY integration/ha_nova /app/integration/ha_nova
-# Chat apps stay off until the App release that ships the integration (B3)
-# sets this to 1; a dev or E2E build can opt in with --build-arg.
-ARG HA_NOVA_CHAT_APPS=0
+# Chat apps are available (the owner still turns them on); a local Supervisor
+# build without a staged bridge reports them unavailable.
+ARG HA_NOVA_CHAT_APPS=1
 ENV HA_NOVA_CHAT_APPS=$HA_NOVA_CHAT_APPS
 
 CMD ["/run.sh"]

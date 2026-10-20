@@ -8,6 +8,8 @@ It provides secure, authenticated access to Home Assistant's APIs and extends th
 ```
 Local: AI Client → NOVA Relay (this App) → Home Assistant APIs
 Cloud: AI Client → Home Assistant Link → Supervisor Ingress → NOVA Relay → Home Assistant APIs
+Chat apps: Claude / ChatGPT → Home Assistant (Link or your own HTTPS address)
+           → ha_nova integration → chat-app bridge (this App) → NOVA Relay → Home Assistant APIs
 ```
 
 Your AI client (Claude Code, Claude Desktop, Codex, OpenCode, Google Antigravity, Hermes Agent) connects
@@ -38,7 +40,9 @@ From there you can:
   code, then enter it on your computer when `ha-nova setup` asks. The code works
   once and expires in 10 minutes. When setup pairs through your Home Assistant
   sign-in instead, the page shows that a computer is connecting, with Cancel,
-- see connected devices and **revoke** any one of them instantly.
+- see connected devices and **revoke** any one of them instantly,
+- turn **chat apps** (HA NOVA in Claude and ChatGPT) on or off, let them only
+  read, or turn off codes in the chat (see [Chat apps](#chat-apps-claude-and-chatgpt)).
 
 The page is owner-only and only reachable through Home Assistant's ingress — a
 direct network request cannot open it.
@@ -80,6 +84,7 @@ normally never call these directly — the CLI and the NOVA page do it for you.
 | GET | `/health` | Relay health check (version, uptime, WS status) |
 | GET/POST | `/pair/v1/*` | Secure device pairing (OPAQUE) — code as credential |
 | POST | `/auth/device/*` | Device credential activate / revoke (TLS only) |
+| GET | `/auth/device/peers` | Whether other devices, an open pairing, legacy access, or chat-app files still use this App (TLS only; for `ha-nova uninstall`) |
 | POST | `/ws` | WebSocket proxy — forwards commands to HA's WS API |
 | POST | `/core` | REST API proxy — forwards requests to HA's Core REST API (`/api/...`) |
 | POST | `/files` | Opt-in, contained configuration-file operations |
@@ -95,6 +100,7 @@ The Cloud Beta adds a separate Supervisor-ingress-only machine surface:
 | GET/POST | `/pair/v2/*` | OPAQUE remote-first pairing through Ingress |
 | POST | `/cloud/v1/device/activate` | Atomically activate and user-bind a pending remote device |
 | GET | `/health` | The same bounded health route through Ingress |
+| GET/POST | `/chat-apps/v1/state` | Read or change the chat-app switch (owner only, through Ingress) |
 | POST | `/ws`, `/core`, `/files`, `/backups` | The same bounded functional routes through Ingress |
 
 These routes are not exposed as a new public Relay port. Every machine request
@@ -129,7 +135,8 @@ offers:
 - **Local + Home Assistant Link** — pair locally once, then explicitly add
   secure remote access with the same device credential.
 - **Home Assistant Link only** — authorize remotely, then pair through
-  Supervisor Ingress with a six-digit code from the owner-only NOVA page.
+  Supervisor Ingress: signed in as the owner, with no code; as another user,
+  with a six-digit code from the owner-only NOVA page.
 
 A standard Home Assistant user is recommended for everyday Cloud calls; owner
 or admin rights are not required for the machine routes. An owner is still
@@ -178,6 +185,40 @@ Only a verified canonical `https://*.ui.nabu.casa` origin receives credentials.
 A custom domain may be used for discovery only after its DNS CNAME resolution
 ends at that canonical origin and one publicly trusted TLS certificate covers
 both names.
+
+## Chat apps (Claude and ChatGPT)
+
+With chat apps on, you can use HA NOVA from Claude (web, desktop, phone apps)
+and ChatGPT (web) without a computer running. They are off by default.
+
+- **Needs:** Home Assistant 2026.10 or newer, and an address Claude and ChatGPT
+  can reach: Home Assistant Link with remote access on, or your own public
+  HTTPS address with a valid certificate set as Home Assistant's external URL.
+- **Turn on:** NOVA page → Chat apps → "Turn on chat apps" (or during
+  `ha-nova setup`, or `ha-nova chat-apps on`). Only the owner can turn them
+  on. The App adds a small Home Assistant integration
+  (`custom_components/ha_nova`), announces itself to it, and Home Assistant
+  restarts once (about a minute).
+- **Connect:** add the address the NOVA page shows in Claude ("Add to Claude")
+  or ChatGPT, then sign in to Home Assistant as the owner.
+- **Confirmations:** the same rules as on a computer. Risky changes wait for a
+  tap on the owner's linked phone or, without one, a code in the chat; the AI
+  can see that code too. You can turn off codes in the chat (risky changes
+  then need the phone) or let chat apps only read.
+- **Turn off:** NOVA page → Chat apps → "Turn off chat apps". It takes effect
+  at once, without a restart: the bridge stops, its own access is signed out,
+  and `custom_components/ha_nova` is removed. Claude or ChatGPT hold a Home
+  Assistant sign-in for your account that works for all of Home Assistant, not
+  only HA NOVA, and turning chat apps off doesn't end it: to sign them out,
+  remove their refresh tokens in your Home Assistant profile (Security).
+- **Turn chat apps off before you remove this App or restore an older version.**
+  Forgot? Update this App again, then run `ha-nova chat-apps off`, or choose
+  "Finish turning off" on the NOVA page.
+
+Access belongs to the Home Assistant account that signed in, not to a device:
+anyone who can use that Claude or ChatGPT account can reach your home through
+it. Step by step and troubleshooting:
+[Use HA NOVA in Claude and ChatGPT](https://github.com/markusleben/ha-nova/blob/main/docs/reference/chat-apps.md).
 
 ## Checking Status
 
@@ -288,7 +329,8 @@ reinstall (also what `ha-nova uninstall --yes` does; add `--purge` for a full
 removal). This App stays installed unless the menu offers "Remove, and remove
 the NOVA App too": only when this App answers that no other device, no legacy
 shared access, and no chat-app files use it, and only after the Home Assistant
-owner signs in. Removing the App disconnects every paired computer.
+owner signs in. Removing the App disconnects every paired computer. Turn chat
+apps off on the NOVA page before you remove the App.
 
 ## Cloud Beta Availability
 

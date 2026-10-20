@@ -4,6 +4,23 @@ All notable changes to this project are documented in this file.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic Versioning](https://semver.org/).
 
+## [Relay 0.11.0] - 2026-10-20
+
+### Added
+- Use HA NOVA in Claude and ChatGPT, also on your phone, with no computer running. On the NOVA page, open Chat apps and choose "Turn on chat apps" (or turn them on during `ha-nova setup`). Home Assistant restarts once. Then add HA NOVA in Claude (there is an "Add to Claude" button) or in ChatGPT on the web, and sign in to Home Assistant as the owner. Needs Home Assistant 2026.10 or newer and Home Assistant Link or your own public HTTPS address. Off by default; only the owner can turn it on and use it. Guide: [Use HA NOVA in Claude and ChatGPT](https://github.com/markusleben/ha-nova/blob/main/docs/reference/chat-apps.md). (#756, #758, #760, #762)
+- On the NOVA page you can also let chat apps only read, or turn off codes in the chat so risky changes need your phone. (#756)
+- In Claude, HA NOVA's tools have plain names, and Claude can stop asking before every step: set the read-only tools and "Control a device" to "Always allow", and keep "Run a confirmed change" on "Needs approval". Answers use your names as in Home Assistant, with no ids. Guide: [Stop Claude from asking before every step](https://github.com/markusleben/ha-nova/blob/main/docs/reference/chat-apps.md#stop-claude-from-asking-before-every-step). (#784)
+- Setting up Home Assistant Link as the owner connects a computer with that one sign-in, without the six-digit code. Other users still get the code. (#757)
+- When you uninstall HA NOVA from the last computer that uses this App, `ha-nova uninstall` can remove the App too, after the owner signs in. The App now tells a computer whether other devices still use it. (#754)
+
+### Upgrade notes
+- **Turn chat apps off before you remove this App or restore an older version** (NOVA page → Chat apps → "Turn off chat apps"). Turning them off removes the part HA NOVA added to Home Assistant (`custom_components/ha_nova`) and signs out its own access.
+- Went back to an older App with chat apps still on? Update this App again, then run `ha-nova chat-apps off`. The App also cleans up what is left in Home Assistant when it starts; if the NOVA page says chat apps are not fully off, choose "Finish turning off". (#776)
+- Turning chat apps off also removes an empty `custom_components` folder if this App made it. (#793)
+- Chat apps help on the NOVA page: if ChatGPT says the OAuth callback data is missing right after you create the plugin, choose Connect on it again. (#792)
+- Computers that are already connected stay connected; no re-pairing.
+- Computers on the matching HA NOVA release ask you to update this App; computers on an older release keep working with it.
+
 ## [Relay 0.10.0] - 2026-10-17
 
 ### Added

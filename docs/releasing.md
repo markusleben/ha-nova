@@ -143,6 +143,52 @@ install/update fails. Spec: `docs/work/2026-10-15-app-prebuilt-images-spec.md`.
   `E2E_IMAGE_SOURCE=ghcr bash scripts/e2e/supervisor-app/run.sh` once public.
 - Rollback: the next version without `image:` builds locally again; never
   retag or delete a published version.
+- The chat-app bridge inside the image (`ha-nova serve` + skills) is staged
+  from the same tree (`scripts/release/stage-app-bridge.sh`, version =
+  `skill_version`), so an App bump comes with or after the final
+  `skill_version`, and a later bridge fix needs an App patch version. An
+  App patch alone does not ship a `nova/integration/` fix: only turning chat
+  apps on copies the integration, and HA loads a new copy only after a
+  restart. Build that update path before the first integration fix.
+
+### Chat-app lanes
+
+Throwaway HAOS VM only (never a real home), results in the App bump PR.
+Supervisor reads `main`, so an App version is live for every user the moment
+its PR merges: run these BEFORE the merge, on the PR's published image. On
+the VM, switch the official repository's checkout inside the Supervisor to the
+PR branch:
+`docker exec hassio_supervisor sh -c 'cd /data/apps/git/2368fcfa && git fetch --depth 1 origin +refs/heads/<branch>:refs/remotes/origin/<branch> && git checkout -B <branch> origin/<branch>'`,
+then `store/reload`. A reload that finds no git change keeps the cached
+metadata: if the App page doesn't offer the PR's version, restart the
+Supervisor (`ha supervisor restart`) and check the offered version before the
+lanes. Don't add a `…#<branch>` repository: that is a second App
+with the same ports, invisible to the CLI's slug checks. A failure found after
+the merge needs the next patch version. Required for the
+first chat-app release and after a change to the bridge, `nova/integration/`,
+`nova/src/runtime/chat-apps.ts`, or the discovery path:
+
+- [ ] `on`: NOVA page "Turn on chat apps" → consent → one restart → the
+      `ha_nova` entry is loaded; the connector answers `401` unauthenticated
+      and MCP `initialize` for the owner, also over Link
+- [ ] `off`: "Turn off chat apps" → discovery message deleted, the entry goes
+      (matched by uuid), `custom_components/ha_nova` removed, the bridge's
+      device record revoked; off and on again → one entry, new secret
+- [ ] `upgrade_off`: update from the previous App version without turning
+      chat apps on → no `custom_components/ha_nova`, no discovery message, no
+      `ha_nova` entry, no restart; paired computers keep working
+- [ ] `app_update`: update from the previous chat-app App version while on →
+      same entry, connector still works without turning on again (n/a for
+      the first chat-app release: the previous App has no chat apps)
+- [ ] `rollback`: an App build with the chat code but no staged bridge (the
+      local-build rollback path) while on offers only [Turn off], and that
+      finishes the cleanup
+- [ ] `registry_reset`: NOVA page registry reset while on → chat apps work
+      again, at the latest after an App restart (the bridge re-mints its
+      credential before it starts)
+- [ ] `clients` (maintainer, Cloud checklist): claude.ai web + phone app and
+      ChatGPT web connect over Link, an unlock asks the linked phone (or a
+      chat code), and turning off breaks both connectors
 
 ## 6. Home Assistant Link (formerly Home Assistant Cloud)
 

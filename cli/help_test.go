@@ -198,6 +198,7 @@ func TestGlobalUsageMentionsPerCommandHelp(t *testing.T) {
 		"ha-nova update [--version <tag>] [--force]",
 		"ha-nova doctor [--auto-repair] [--quiet] [--server <name>]",
 		"ha-nova pair", // the passwordless pair command must be discoverable
+		"ha-nova chat-apps [on|off|status]",
 		"Run 'ha-nova <command> --help' to see every flag of a command.",
 	} {
 		if !strings.Contains(out, want) {
@@ -205,8 +206,7 @@ func TestGlobalUsageMentionsPerCommandHelp(t *testing.T) {
 		}
 	}
 	// The MCP adapter is experimental and unadvertised: callable, not listed.
-	// chat-apps joins the usage with the App release that turns chat apps on.
-	if strings.Contains(out, "ha-nova mcp") || regexp.MustCompile(`ha-nova serve\b`).MatchString(out) || strings.Contains(out, "chat-apps") {
-		t.Fatalf("global usage lists the experimental mcp command or chat-apps (before the App release):\n%s", out)
+	if strings.Contains(out, "ha-nova mcp") || regexp.MustCompile(`ha-nova serve\b`).MatchString(out) {
+		t.Fatalf("global usage lists the experimental mcp command:\n%s", out)
 	}
 }

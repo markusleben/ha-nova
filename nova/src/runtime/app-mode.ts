@@ -201,8 +201,7 @@ export async function buildAppMode(
   // Prime the port at startup; a failure here recovers via the lazy retry above.
   await ensureSecurePort();
 
-  // Chat apps stay dormant until the App release that ships the integration
-  // (PR train B3) sets HA_NOVA_CHAT_APPS=1 in the image.
+  // Chat apps exist only in images built with HA_NOVA_CHAT_APPS=1 (nova/Dockerfile).
   if (process.env.HA_NOVA_CHAT_APPS === "1") {
     chatApps = createChatApps({
       dataDir,

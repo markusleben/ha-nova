@@ -400,7 +400,7 @@ HTTP status is 200 for success. Error status codes include 400 (validation),
 401 (auth), 404 (route not found), 413 (body cap), 429 (pairing rate limit),
 502 (upstream failure), and 500 (internal).
 
-## Chat apps (App mode, dormant until the 0.27 App release)
+## Chat apps (App mode)
 
 The App, not the Relay pipeline, runs the chat-app bridge: `ha-nova serve`
 (the CLI's own tools and tiers) as a child process on internal port 8794,
