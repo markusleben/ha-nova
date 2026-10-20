@@ -49,7 +49,7 @@ func removeManagedConfigArtifactsWithSnapshot(
 		if err := markInstallLifecycleStopped(paths); err != nil {
 			return fmt.Errorf("cannot stop install lifecycle: %w", err)
 		}
-		report.addNote("Left a few tiny marker files so an old HA NOVA window can't bring it back. They hold nothing about you and are never sent. The next setup removes them.")
+		report.addNote("Left a few tiny marker files so HA NOVA still running in an open AI app can't come back. They hold nothing about you and are never sent. The next setup removes them.")
 	}
 	for _, path := range managedConfigArtifactPaths(paths, purge) {
 		if purge && path == paths.ConfigFile && verifyConfigSnapshot {

@@ -127,7 +127,8 @@ func runUninstall(paths runtimePaths, args []string) int {
 	// Without the menu, or when --purge asked for it, refuse before any
 	// recovery output; otherwise the menu offers keeping the pairing instead.
 	purgeChecked := *yes || *purge || !uninstallInteractive()
-	if purgeChecked && purgeRefusedOutsideDesktop(paths, mode, *yes) {
+	rerun := uninstallRerunCommand(*yes, *purge)
+	if purgeChecked && purgeRefusedOutsideDesktop(paths, mode, *yes, rerun) {
 		return 1
 	}
 	if recovery := inspectWindowsUninstallStatus(paths); recovery.Kind != windowsUninstallStatusKindNone {
@@ -154,6 +155,8 @@ func runUninstall(paths runtimePaths, args []string) int {
 	var appOffer uninstallAppOffer
 	removeApp := false
 	if guidedSession {
+		// Unlock first: the App offer asks the Relay with this computer's key.
+		offerKeyringUnlockForPurge(paths)
 		purgeBlocked := uninstallPurgeBlocked(paths)
 		mode = uninstallModePurge // "Remove" is the default; the menu moves off it when blocked
 		if purgeBlocked == "" {
@@ -171,7 +174,7 @@ func runUninstall(paths runtimePaths, args []string) int {
 		mode, removeApp = choice.mode, choice.removeApp
 	}
 
-	if !purgeChecked && purgeRefusedOutsideDesktop(paths, mode, *yes) {
+	if !purgeChecked && purgeRefusedOutsideDesktop(paths, mode, *yes, rerun) {
 		return 1
 	}
 
@@ -190,7 +193,7 @@ func runUninstall(paths runtimePaths, args []string) int {
 			paths,
 			mode,
 		); err != nil {
-			printHumanErr("%s", err)
+			printHumanErr("%s", uninstallErrorText(err))
 			return 1
 		}
 		preflight = collectUninstallPreflight(paths)
@@ -212,7 +215,7 @@ func runUninstall(paths runtimePaths, args []string) int {
 			teardownDone = recoveredTeardown
 			removedRelays = recoveredRemovedRelays
 		}
-		if !purgeReadyForWindowsHandoff(paths, mode, teardown, *yes) {
+		if !purgeReadyForWindowsHandoff(paths, mode, teardown, rerun) {
 			return 1
 		}
 		if teardownDone {
@@ -268,7 +271,7 @@ func runUninstall(paths runtimePaths, args []string) int {
 		removedRelays,
 	); err != nil {
 		releaseMutation()
-		printHumanErr("%s", err)
+		printHumanErr("%s", uninstallErrorText(err))
 		return 1
 	}
 	if source == installSourceBundle {

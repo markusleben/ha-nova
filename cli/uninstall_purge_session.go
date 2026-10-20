@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	"os"
 )
@@ -89,17 +90,18 @@ func purgeSecureStorageReadError(paths runtimePaths, problem func(error) bool) e
 
 // purgeRefusedOutsideDesktop: the purge can't prove the device credential is
 // gone from here, so it stops before changing anything and names the one fix.
-// A purge that failed earlier for this reason clears the same way.
-func purgeRefusedOutsideDesktop(paths runtimePaths, mode uninstallMode, yes bool) bool {
+// A purge that failed earlier for this reason clears the same way. rerun is
+// the command that repeats this run.
+func purgeRefusedOutsideDesktop(paths runtimePaths, mode uninstallMode, yes bool, rerun string) bool {
 	if mode != uninstallModePurge {
 		return false
 	}
 	err := purgeSecureStorageSessionError(paths)
 	if err == nil {
-		return purgeRefusedForLockedKeyring(paths, yes)
+		return purgeRefusedForLockedKeyring(paths, yes, rerun)
 	}
 	printHumanErr("%s, so a full purge can't check this computer's saved HA NOVA credentials. This run changed nothing.", secureStorageSessionReason)
-	printHumanWarn("Next step: %s, then run: %s", secureStorageSessionNextStep(), purgeRerunCommand(yes))
+	printHumanWarn("Next step: %s, then run: %s", secureStorageSessionNextStep(), rerun)
 	printHumanWarn("Details: %s", err)
 	return true
 }
@@ -112,64 +114,122 @@ func purgeKeyringLockedError(paths runtimePaths) error {
 		return nil
 	}
 	return purgeSecureStorageReadError(paths, func(err error) bool {
-		return isDesktopKeyringLockedError(err) || IsCloudErrorCode(err, CloudErrSecretStoreLocked)
+		// The Link store reports a keyring that isn't set up as locked too.
+		return !isDesktopKeyringInitializationRequiredError(err) &&
+			(isDesktopKeyringLockedError(err) || IsCloudErrorCode(err, CloudErrSecretStoreLocked))
 	})
 }
 
+var keyringUnlockTrigger = desktopKeyringLockedError("a full removal reads this computer's keyring")
+
+// keyringUnlockWindowPossible: this terminal can show setup's unlock window
+// (a desktop terminal, and not --yes, which asks nothing).
+func keyringUnlockWindowPossible(yes bool) bool {
+	return !yes && uninstallInteractive() && setupSecureStorageRecoveryAvailableNow(keyringUnlockTrigger)
+}
+
+// offerKeyringUnlockForPurge opens setup's unlock window (the desktop's own
+// dialog; HA NOVA never sees the password) when a full purge would hit a
+// locked keyring and this terminal can show it. It reports whether the
+// window unlocked something. The guided menu calls it first, so the Relay
+// can still be asked whether the App may go too.
+func offerKeyringUnlockForPurge(paths runtimePaths) bool {
+	if purgeKeyringLockedError(paths) == nil || !keyringUnlockWindowPossible(false) {
+		return false
+	}
+	state := setupSecureStorageRecoveryState{unlockOnly: true}
+	result, err := runSetupSecureStorageRecoveryFlow(
+		bufio.NewReader(os.Stdin), os.Stdout, keyringUnlockTrigger, &state,
+		setupSecureStorageRecoveryInitialAttempt,
+	)
+	return err == nil && result == setupSecureStorageRecoveryRecovered
+}
+
+const keyringUnlockByHandStep = `on this computer's desktop, open Passwords and Keys and unlock "Login" with your login password`
+
 // purgeRefusedForLockedKeyring: a full purge must read every saved key before
-// it revokes or removes anything. A locked keyring gets setup's unlock window
-// (the desktop's own dialog; HA NOVA never sees the password) when this
-// terminal can show it. Otherwise, or when it stays locked, the run stops
+// it revokes or removes anything. A locked keyring gets the unlock window when
+// this terminal can show it. Otherwise, or when it stays locked, the run stops
 // before any change and names one next step.
-func purgeRefusedForLockedKeyring(paths runtimePaths, yes bool) bool {
+func purgeRefusedForLockedKeyring(paths runtimePaths, yes bool, rerun string) bool {
 	if purgeKeyringLockedError(paths) == nil {
 		return false
 	}
-	trigger := desktopKeyringLockedError("a full removal reads this computer's keyring")
-	if !yes && uninstallInteractive() && setupSecureStorageRecoveryAvailableNow(trigger) {
-		var state setupSecureStorageRecoveryState
-		result, err := runSetupSecureStorageRecoveryFlow(
-			bufio.NewReader(os.Stdin), os.Stdout, trigger, &state,
-			setupSecureStorageRecoveryInitialAttempt,
-		)
-		if err == nil && result == setupSecureStorageRecoveryRecovered &&
-			purgeKeyringLockedError(paths) == nil {
-			return false
-		}
+	possible := keyringUnlockWindowPossible(yes)
+	opened := possible && offerKeyringUnlockForPurge(paths)
+	if opened && purgeKeyringLockedError(paths) == nil {
+		return false
 	}
-	printHumanErr("This computer's keyring is locked, so HA NOVA can't remove its saved key. Nothing was changed.")
-	printHumanWarn("Next step: unlock the keyring (log in to the desktop, or open Passwords and Keys), then run: %s", purgeRerunCommand(yes))
+	switch {
+	case opened:
+		printHumanErr("The keyring opened, but HA NOVA's key is still locked. Nothing was changed.")
+		printHumanWarn("Next step: %s. Then run: %s", keyringUnlockByHandStep, rerun)
+	case possible:
+		printHumanErr("This computer's keyring is locked, so HA NOVA can't remove its saved key. Nothing was changed.")
+		printHumanWarn("Next step: run %s again, answer Y, and type your login password in the window that opens.", rerun)
+	default:
+		printHumanErr("This computer's keyring is locked, so HA NOVA can't remove its saved key. Nothing was changed.")
+		printHumanWarn("Next step: %s. Then run: %s", keyringUnlockByHandStep, rerun)
+	}
 	return true
 }
 
-// keyringRemovalError words a Linux keyring failure while HA NOVA removes
-// its own keys (uninstall, server remove) with the plain text get and doctor
-// print, not setup's "rerun ha-nova setup" (0.27 lane G4). A keyring that
-// isn't set up keeps setup's text: setup is its fix.
+// keyringRemovalProblem is a Linux keyring failure while HA NOVA removes its
+// own keys (uninstall, server remove): the plain keyring text get and doctor
+// print, not setup's "rerun ha-nova setup" (0.27 lane G4). It keeps the cause
+// for error classification; action stays in the details only.
+type keyringRemovalProblem struct {
+	action string
+	cause  error
+}
+
+func (e *keyringRemovalProblem) Error() string {
+	return "HA NOVA can't remove its saved key. " + relayAuthTokenProblemMessage(e.cause)
+}
+
+func (e *keyringRemovalProblem) Unwrap() error { return e.cause }
+
+// keyringRemovalError: a keyring that isn't set up keeps setup's text, since
+// setup is its fix; anything that isn't a Linux keyring state too.
 func keyringRemovalError(action string, err error) error {
 	if !isLinuxKeyringError(err) || isDesktopKeyringInitializationRequiredError(err) {
 		return relayAuthTokenSetupOperationError(action, err)
 	}
-	return fmt.Errorf("cannot %s: %s", action, relayAuthTokenProblemMessage(err))
+	return &keyringRemovalProblem{action: action, cause: err}
 }
 
-func purgeRerunCommand(yes bool) string {
-	if yes {
-		return "ha-nova uninstall --yes --purge"
+// uninstallErrorText prints a keyring removal problem on its own: the steps
+// that wrap it ("failed to validate device credential cleanup: …") mean
+// nothing to the user.
+func uninstallErrorText(err error) string {
+	var keyring *keyringRemovalProblem
+	if errors.As(err, &keyring) {
+		return keyring.Error()
 	}
-	return "ha-nova uninstall --purge"
+	return err.Error()
+}
+
+// uninstallRerunCommand is the command that repeats this uninstall run.
+func uninstallRerunCommand(yes, purge bool) string {
+	switch {
+	case yes:
+		return "ha-nova uninstall --yes --purge"
+	case purge:
+		return "ha-nova uninstall --purge"
+	}
+	return "ha-nova uninstall"
 }
 
 // purgeReadyForWindowsHandoff reports the helper's own checks here first. A
 // guided teardown that just ran keeps the old path: its evidence must reach
 // the recovery status even if the helper then fails.
-func purgeReadyForWindowsHandoff(paths runtimePaths, mode uninstallMode, teardown teardownOutcome, yes bool) bool {
+func purgeReadyForWindowsHandoff(paths runtimePaths, mode uninstallMode, teardown teardownOutcome, rerun string) bool {
 	if mode != uninstallModePurge || teardown == teardownCompleted {
 		return true
 	}
 	if err := validatePurgeBeforeWindowsHandoff(paths); err != nil {
 		printHumanErr("The full purge can't start: %s", err)
-		printHumanWarn("The uninstall stopped before the background step. Fix the problem above, then run: %s", purgeRerunCommand(yes))
+		printHumanWarn("The uninstall stopped before the background step. Fix the problem above, then run: %s", rerun)
 		return false
 	}
 	return true

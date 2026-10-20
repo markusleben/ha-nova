@@ -199,7 +199,7 @@ func TestServerRemovePreflightsSecureStorageBeforeConfirmation(t *testing.T) {
 	before, _ := os.ReadFile(paths.ConfigFile)
 
 	exit, out := captureCommandOutput(t, func() int { return runServerCommand(paths, []string{"remove", "cabin"}) })
-	if exit != 1 || !strings.Contains(out, "secure storage is not reachable") {
+	if exit != 1 || !strings.Contains(out, "can't reach this computer's keyring") || !strings.Contains(out, "Nothing was removed.") {
 		t.Fatalf("exit = %d, output:\n%s", exit, out)
 	}
 	after, _ := os.ReadFile(paths.ConfigFile)
@@ -257,7 +257,7 @@ func TestServerRemoveHeadlessRetainsMarkerlessPendingFileAndConfig(t *testing.T)
 	if exit != 1 {
 		t.Fatalf("headless remove exit = %d, want 1\n%s", exit, out)
 	}
-	if !strings.Contains(out, "nothing was removed") {
+	if !strings.Contains(strings.ToLower(out), "nothing was removed") {
 		t.Fatalf("headless remove must stop before confirmation:\n%s", out)
 	}
 	if _, err := os.Lstat(pendingPath); err != nil {

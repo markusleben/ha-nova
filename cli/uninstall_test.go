@@ -302,10 +302,10 @@ func TestRunUninstallYesShowsPreflightAndLeavesSharedApp(t *testing.T) {
 		uninstallRuntimeLineLabel(paths, installSourceBundle),
 		"HA NOVA's own files on this computer",
 		"Also removed:",
-		"Your Home Assistant's address and settings",
+		"HA NOVA's saved Home Assistant address",
 		tokenLabel,
 		// --yes never offers the App removal; this standalone Relay stays.
-		"The NOVA Relay stays. Remove it only if no other computer uses HA NOVA",
+		"The NOVA Relay stays. If no other computer uses HA NOVA, remove it",
 	} {
 		if !strings.Contains(output, want) {
 			t.Fatalf("expected uninstall output %q:\n%s", want, output)
@@ -318,7 +318,7 @@ func TestRunUninstallYesShowsPreflightAndLeavesSharedApp(t *testing.T) {
 
 func TestUninstallWindowsBundleNoteMentionsWait(t *testing.T) {
 	got := uninstallWindowsBundleNote()
-	if !strings.Contains(got, "Please wait a moment") {
+	if !strings.Contains(got, "wait a moment before you reinstall") {
 		t.Fatalf("expected Windows bundle note to mention wait guidance, got %q", got)
 	}
 }

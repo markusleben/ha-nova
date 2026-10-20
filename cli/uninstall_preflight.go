@@ -70,7 +70,7 @@ func renderUninstallPreflight(out io.Writer, paths runtimePaths, source string, 
 	fmt.Fprintf(out, "    %s HA NOVA's own files on this computer\n", session.bullet())
 	fmt.Fprintln(out)
 	fmt.Fprintf(out, "  %s\n", session.style("strong", second))
-	fmt.Fprintf(out, "    %s Your Home Assistant's address and settings\n", session.bullet())
+	fmt.Fprintf(out, "    %s HA NOVA's saved Home Assistant address\n", session.bullet())
 	if label := uninstallTokenLineLabel(paths); label != "" {
 		fmt.Fprintf(out, "    %s %s\n", session.bullet(), label)
 	}
@@ -92,7 +92,7 @@ func uninstallRuntimeLineLabel(paths runtimePaths, source string) string {
 	case installSourceBundle:
 		return "The ha-nova program"
 	default:
-		return "HA NOVA's links in your AI apps"
+		return "HA NOVA's connection in your AI apps"
 	}
 }
 
@@ -171,7 +171,7 @@ func uninstallForeignTokenFileWarning(paths runtimePaths) string {
 }
 
 func uninstallWindowsBundleNote() string {
-	return "On Windows the last step finishes in the background, a few seconds after this. Please wait a moment."
+	return "On Windows the last step finishes in the background a few seconds after this. You can close this window; wait a moment before you reinstall."
 }
 
 // collectUninstallPreflight reads the raw default profile (not loadConfig:
@@ -189,7 +189,8 @@ func collectUninstallPreflight(paths runtimePaths) uninstallPreflight {
 	if cfg.RelayBaseURL == "" {
 		return preflight
 	}
-	if _, err := readRelayAuthToken(); err != nil && !isMissingRelayAuthTokenError(err) {
+	// A locked keyring stops a full removal first; a kept pairing just stays.
+	if _, err := readRelayAuthToken(); err != nil && !isMissingRelayAuthTokenError(err) && !isDesktopKeyringLockedError(err) {
 		preflight.tokenUnavailable = relayAuthTokenProblemMessage(err)
 	}
 	return preflight
@@ -221,10 +222,10 @@ func preflightNoteLines(preflight uninstallPreflight) []string {
 		strings.TrimRight(strings.TrimSpace(preflight.config.RelayBaseURL), "/") == derived {
 		notes = []string{
 			"The NOVA App in Home Assistant stays. Other computers may use it: removing it disconnects every paired computer. To remove it anyway, open: " + haRelayAppPageURL(preflight.haURL),
-			"Then remove its source too: Settings → Apps → App Store → ⋮ → Repositories → " + haNovaRepositoryURL,
+			"Then remove where it came from: Settings → Apps → App Store → ⋮ → Repositories → " + haNovaRepositoryURL,
 		}
 	} else {
-		notes = []string{"The NOVA Relay stays. Remove it only if no other computer uses HA NOVA, together with any \"NOVA\" access token in your Home Assistant profile (Security tab)."}
+		notes = []string{"The NOVA Relay stays. If no other computer uses HA NOVA, remove it, and delete any \"NOVA\" token in your Home Assistant profile (Security tab)."}
 	}
 	if preflight.tokenUnavailable != "" {
 		notes = append(notes, preflight.tokenUnavailable)

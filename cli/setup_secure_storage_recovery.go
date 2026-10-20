@@ -36,6 +36,7 @@ const (
 type setupSecureStorageRecoveryState struct {
 	initialAttempted   bool
 	saveRetryAttempted bool
+	unlockOnly         bool // uninstall: never offer to create a keyring
 }
 
 var errLocalSecureStoragePromptCanceled = errors.New("local secure storage prompt canceled")
@@ -121,6 +122,9 @@ func runSetupSecureStorageRecoveryFlow(reader *bufio.Reader, out io.Writer, trig
 			return "", err
 		}
 
+		if state.unlockOnly && plan.action != platformSecureStorageRecoveryUnlock {
+			return "", recoveryErr
+		}
 		renderSetupSecureStorageRecoveryPage(out, plan)
 		unlockNow, err := promptWizardYesNoFromReader(reader, out, plan.prompt, true)
 		if err != nil {
@@ -146,7 +150,14 @@ func runSetupSecureStorageRecoveryFlow(reader *bufio.Reader, out io.Writer, trig
 			recoveryErr = runErr
 		}
 
-		renderSetupErrorLine(out, "%s", runErr)
+		switch {
+		case isDesktopKeyringLockedError(runErr):
+			renderSetupErrorLine(out, "The keyring is still locked. Try again, or answer n to stop.")
+		case isDesktopKeyringInitializationRequiredError(runErr):
+			renderSetupErrorLine(out, "The keyring still isn't set up. Try again, or answer n to stop.")
+		default:
+			renderSetupErrorLine(out, "%s", runErr)
+		}
 	}
 }
 
@@ -196,7 +207,7 @@ func secureStorageRecoveryPlanForAction(action platformSecureStorageRecoveryActi
 			title:  "This computer's keyring is locked",
 			paragraphs: []string{
 				"HA NOVA keeps its key in this computer's keyring, and the keyring is locked right now.",
-				"A system window opens to unlock it. Type your password only in that window; HA NOVA never sees it.",
+				"A system window opens to unlock it. Type your login password only in that window; HA NOVA never sees it.",
 			},
 			prompt:         "Open the window to unlock the keyring now",
 			successMessage: "The keyring is unlocked.",
