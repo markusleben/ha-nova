@@ -41,8 +41,10 @@ export interface SupervisorClient {
   // service, so a repeat returns the same uuid. Delete: a message that is
   // already gone counts as deleted.
   sendDiscovery(service: string, config: Record<string, unknown>): Promise<string>;
-  deleteDiscovery(uuid: string): Promise<void>;
+  deleteDiscovery(uuid: string): Promise<boolean>; // false: no such message (already gone)
 }
+
+const MISSING = Symbol("missing"); // a 404 the caller allowed
 
 export function createSupervisorClient(
   token: string,
@@ -61,7 +63,7 @@ export function createSupervisorClient(
       });
       const text = await response.text();
       if (missingOk && response.status === 404) {
-        return null;
+        return MISSING;
       }
       if (!response.ok) {
         throw new Error(
@@ -133,7 +135,7 @@ export function createSupervisorClient(
       if (!/^[0-9a-f]{32}$/.test(uuid)) {
         throw new Error("invalid discovery uuid");
       }
-      await request(`/discovery/${uuid}`, { method: "DELETE" }, true);
+      return (await request(`/discovery/${uuid}`, { method: "DELETE" }, true)) !== MISSING;
     },
   };
 }

@@ -22,7 +22,7 @@ import (
 // Test seams.
 var (
 	chatAppsSignIn = func(out io.Writer, haURL string) (haSignInSession, error) {
-		return openHASignInIngress(context.Background(), out, haURL)
+		return openHASignInIngressNoCode(context.Background(), out, haURL) // chat apps have no code to fall back to
 	}
 	chatAppsSignInOK           = haSignInPossible
 	chatAppsStdin    io.Reader = os.Stdin
@@ -70,7 +70,7 @@ func runChatAppsCommand(paths runtimePaths, args []string) int {
 	}
 	out := os.Stdout
 	if action == "off" { // also when Home Assistant can't be read
-		return chatAppsOff(out, cfg)
+		return chatAppsOff(out, paths, cfg)
 	}
 	ha, err := chatAppsReadHA(paths)
 	if err != nil {
@@ -87,15 +87,15 @@ func runChatAppsCommand(paths runtimePaths, args []string) int {
 	}
 	switch action {
 	case "status":
-		if !ha.loaded {
+		switch {
+		case ha.leftover():
+			fmt.Fprintf(out, "  %s\n", chatAppsLeftoverLine)
+		case !ha.loaded:
 			fmt.Fprintln(out, "  Chat apps are off, or Home Assistant hasn't restarted for them yet. To turn them on: ha-nova chat-apps on")
-			return 0
-		}
-		fmt.Fprintln(out, "  HA NOVA runs in Home Assistant for chat apps (chat apps are on).")
-		if url != "" {
+		case url != "":
 			printChatAppsHowTo(out, url)
-		} else {
-			fmt.Fprintf(out, "  %s\n", setupT("setup.chat.on_noaddress"))
+		default:
+			renderSetupParagraph(out, setupT("setup.chat.on_noaddress"), setupT("setup.chat.off_hint"))
 		}
 		return 0
 	}
@@ -136,11 +136,11 @@ func runChatAppsCommand(paths runtimePaths, args []string) int {
 		return 0
 	}
 	// The consent after the sign-in: it names the phone that will confirm.
-	if !askChatAppsConsent(bufio.NewReader(chatAppsStdin), out, false, chatAppsPhoneName(paths, session.user.ID, state)) {
+	if !askChatAppsConsent(bufio.NewReader(chatAppsStdin), out, false, !ha.running, chatAppsPhoneName(paths, session.user.ID, state)) {
 		renderSetupParagraph(out, setupT("setup.chat.skipped"))
 		return 0
 	}
-	note, on := turnOnChatAppsInTerminal(out, paths, session.ingress, chatAppsOffer{state: state, url: url}, session.user.ID)
+	note, on := turnOnChatAppsInTerminal(out, paths, session.ingress, chatAppsOffer{state: state, url: url, restart: !ha.running}, session.user.ID)
 	if note != "" {
 		renderSetupWarningLine(out, "%s", note)
 	}
@@ -176,7 +176,7 @@ func chatAppsOwnerSession(out io.Writer, cfg runtimeConfig) (haSignInSession, bo
 	return session, true
 }
 
-func chatAppsOff(out io.Writer, cfg runtimeConfig) int {
+func chatAppsOff(out io.Writer, paths runtimePaths, cfg runtimeConfig) int {
 	if !chatAppsSignInOK(out, cfg) {
 		printHumanErr("Turning chat apps off needs a sign-in in a browser on this computer. Use NOVA in Home Assistant instead: open NOVA in the sidebar, then Chat apps, then Turn off chat apps.")
 		return 1
@@ -188,12 +188,25 @@ func chatAppsOff(out io.Writer, cfg runtimeConfig) int {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 	_, err := chatAppsCall(ctx, session.ingress, map[string]any{"enabled": false})
+	// What Home Assistant holds decides, not only the App's answer: after
+	// going back to an older App, Home Assistant may still have chat apps.
+	ha, readErr := chatAppsReadHA(paths)
+	held := readErr == nil && (ha.loaded || ha.present)
 	switch {
+	case errors.Is(err, errChatAppsUnsupported) && readErr != nil:
+		printHumanErr("This NOVA App has no chat apps. HA NOVA couldn't reach Home Assistant to check for leftovers. Make sure Home Assistant is running, then run this again.")
+		return 1
+	case errors.Is(err, errChatAppsUnsupported) && held:
+		printHumanErr("%s", chatAppsLeftoverLine)
+		return 1
 	case errors.Is(err, errChatAppsUnsupported):
 		fmt.Fprintln(out, "  This NOVA App has no chat apps, so there is nothing to turn off.")
 		return 0
 	case err != nil:
 		printHumanErr("Turning chat apps off didn't finish (%s). Run this again, or use NOVA in Home Assistant: Chat apps, then Turn off chat apps.", err)
+		return 1
+	case held:
+		printHumanErr("Home Assistant still has HA NOVA for chat apps. Run ha-nova chat-apps off again.")
 		return 1
 	}
 	renderSetupSuccessLine(out, "Chat apps are off. Claude and ChatGPT can't reach your home through HA NOVA anymore.")

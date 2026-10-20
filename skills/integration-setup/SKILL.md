@@ -142,9 +142,9 @@ matching reauth flow:
 
 ## Output Format
 
-Apply `../ha-nova/output-rules.md` to all user-facing output.
+Apply `../ha-nova/output-rules.md`: plain words, HA names verbatim; unless asked or names clash, no ids, "entity", modes, Relay/HA URLs, snapshots, raw JSON.
 
-Use the Preview Card for flow start, menu selection, each non-secret form submit, and every entry reload (credential-recovery reload included). The menu choice block is its bound confirmation. Results name the integration, operation, config-entry state, and the exact verification scope. UI handoffs state what remains and never display secret fields or values.
+Use the Preview Card for flow start, menu selection, each non-secret form submit, and every entry reload (credential-recovery reload included). The menu choice block is its bound confirmation. Results name the integration, operation, config-entry state, and exact verification scope. UI handoffs state what remains and never display secret fields or values.
 
 ## Safety
 
@@ -156,7 +156,7 @@ Use the Preview Card for flow start, menu selection, each non-secret form submit
 - Home Assistant is reached exclusively through the `ha-nova` CLI.
 - Any HA write this skill does not cover: STOP, invoke `ha-nova:fallback` first; never probe unfamiliar write endpoints.
 
-- Drafts follow `../ha-nova/smallest-solution.md`: the complete requested outcome in the simplest safe design, nothing for hypothetical future needs.
+- Drafts follow `../ha-nova/smallest-solution.md`: the complete requested outcome in the simplest safe design, nothing speculative.
 
 - Declared exception to the core delete rule above: canceling an unfinished flow created by this skill — add, options, or reconfigure — including cleanup before a required credential, external/OAuth, or progress UI restart, deletes only ephemeral flow state; an explicit `cancel` or the UI-restart branch is sufficient, and this exception never applies to a config entry.
 - Never request, echo, persist, or submit credentials from chat; finish credential-bearing steps in the Home Assistant UI.

@@ -45,7 +45,7 @@ Never send `lovelace/config/save`, `lovelace/dashboards/create`, or `lovelace/da
 
 ## Flow
 
-Drafts follow `../ha-nova/smallest-solution.md`: the complete requested outcome in the simplest safe design, nothing for hypothetical future needs.
+Drafts follow `../ha-nova/smallest-solution.md`: the complete requested outcome in the simplest safe design, nothing speculative.
 
 1. Resolve: `ha-nova get --dashboards`; match `url_path` or title; ask one blocking question only if more than one still matches. `mode: empty` = no stored config yet (a new shell, or the auto-generated default).
 2. Inspect (existing only; a new one drafts from `{}` or a strategy): `ha-nova get --dashboard <url_path> --config`; save `config` to a client-private scratch file as the draft basis and keep its `config_digest` for `--base`. jq filters null-guard absent keys: `(.views // [])[]`, never bare `.views[]`; same for `.cards`, `.sections`, `.badges`.
@@ -69,7 +69,7 @@ Drafts follow `../ha-nova/smallest-solution.md`: the complete requested outcome 
 
 ## Output Format
 
-Apply `../ha-nova/output-rules.md` to all user-facing output. Write previews, delete confirmations, and results render as the Cards defined there (`../ha-nova/output-cards.md`).
+Apply `../ha-nova/output-rules.md`: plain words, HA names verbatim; unless asked or names clash, no ids, "entity", modes, Relay/HA URLs, snapshots, raw JSON. Previews, deletes, and results use the Cards defined there (`../ha-nova/output-cards.md`).
 
 For list/read/sweep:
 - `Dashboard`

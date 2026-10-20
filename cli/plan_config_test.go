@@ -120,7 +120,7 @@ func (h *writeHarness) writes() []string {
 func TestPlanWriteCreateIsPreviewAndApplyVerifies(t *testing.T) {
 	h := newWriteHarness(t, newFakeHA())
 	exit, env := h.run(runPlanCommand, "write", "--domain", "automation", "--file", draftFile(t, hallDraft("light.turn_on")))
-	if exit != 3 || env.Tier != "preview" || env.Reasons[0].Code != reasonConfigWrite || len(env.Diff) == 0 || env.Config == nil || env.Config.Op != "write" {
+	if exit != 3 || env.Tier != "preview" || env.Reasons[0].Code != reasonConfigWrite || len(env.Diff) != 0 || env.Config == nil || env.Config.Op != "write" {
 		t.Fatalf("plan: exit %d env %+v", exit, env)
 	}
 	exit, applied := h.run(runApplyCommand, "--plan", env.Plan.ID)

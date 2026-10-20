@@ -132,12 +132,21 @@ async def test_another_app_cannot_take_over(hass: HomeAssistant) -> None:
         {"host": "nova", "port": 0, "secret": SECRET},
         {"host": "nova", "port": 8794, "secret": "short"},
         {"host": "nova", "port": 8794},
+        {"addon": "NOVA Relay"},  # the App's cleanup message (chat-apps-ha.ts), as Home Assistant passes it on
     ],
 )
 async def test_a_malformed_message_creates_nothing(hass: HomeAssistant, config: dict) -> None:
     result = await discover(hass, HassioServiceInfo(config=config, name="HA NOVA", slug=SLUG, uuid=UUID))
     assert result == result | {"type": FlowResultType.ABORT, "reason": "invalid_discovery_info"}
     assert hass.config_entries.async_entries(DOMAIN) == []
+
+
+async def test_the_cleanup_message_leaves_the_entry_alone(hass: HomeAssistant) -> None:
+    await discover(hass, info(8794))
+    result = await discover(hass, HassioServiceInfo(config={"addon": "NOVA Relay"}, name="HA NOVA", slug=SLUG, uuid=UUID))
+    assert result == result | {"type": FlowResultType.ABORT, "reason": "invalid_discovery_info"}
+    [entry] = hass.config_entries.async_entries(DOMAIN)
+    assert (entry.unique_id, entry.data["port"]) == (UUID, 8794)
 
 
 async def test_no_token_gets_home_assistants_401(hass: HomeAssistant, bridge: Bridge, hass_client_no_auth) -> None:

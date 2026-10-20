@@ -266,12 +266,12 @@ function renderChatApps(m: PageModel, formOpen: string, csrfField: (action: Nova
 <p class="muted">Who can use it: ${who}. Confirmations: ${phone}.</p>
 ${m.chatRestarting ? `<p class="ok">Home Assistant is restarting (about a minute). Reload this page afterwards.</p>` : ""}
 <ul>${toggle("Chat apps can only read", c.readOnly, "chat_read_only")}${toggle("Codes in the chat", c.chatCodes, "chat_codes")}</ul>
-<p class="muted meta">To sign a chat app out, remove its token in Home Assistant under Profile → Security. Turn chat apps off before you remove the NOVA App.</p>
+<p class="muted meta">To sign a chat app out, remove its token in Home Assistant under Profile → Security. Turn chat apps off before you remove the NOVA App or go back to an older version.</p>
 ${button("chat_apps_off", "Turn off chat apps", "", "secondary")}`;
   } else {
-    body = `${c.unfinished ? `<p class="error">Turning chat apps off did not finish.</p>${button("chat_apps_off", "Try again", "", "secondary")}` : ""}
+    body = `${c.unfinished ? `<p class="error">Chat apps are not fully off: parts are still in Home Assistant.</p>${button("chat_apps_off", "Finish turning off", "", "secondary")}` : ""}
 <p class="muted">Use HA NOVA in Claude and ChatGPT, also on your phone, through Home Assistant Link or your own public HTTPS address (with a valid certificate). Only you can use it.</p>
-<p class="muted">Home Assistant restarts once (about a minute).</p>${button("chat_apps_on", "Turn on chat apps")}`;
+<p class="muted">Home Assistant restarts once if needed (about a minute).</p>${button("chat_apps_on", "Turn on chat apps")}`;
   }
   return `<section><h2>Chat apps</h2>${body}</section>
 `;

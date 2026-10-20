@@ -342,7 +342,8 @@ func stubUninstallMenu(t *testing.T, answer string) *recordingUninstallMenu {
 }
 
 // The whole interactive path: one menu, the App removal, then the local
-// purge, whose failed revoke against the gone App says so plainly.
+// purge. Its revoke against the gone App still runs, but no hint about a
+// NOVA page that went with the App, and the removal is said once (lane S4).
 func TestRunUninstallRemovesTheAppThenThisComputer(t *testing.T) {
 	paths := appRemovalPaths(t, appPathConfig)
 	revokes := pairedForAppRemoval(t)
@@ -357,10 +358,9 @@ func TestRunUninstallRemovesTheAppThenThisComputer(t *testing.T) {
 	if !slices.Contains(f.calls, "post /addons/"+HAOfficialNOVAAppSlug+"/uninstall") || *revokes != 1 || fileExists(paths.ConfigFile) {
 		t.Fatalf("calls=%v revokes=%d config kept=%v\n%s", f.calls, *revokes, fileExists(paths.ConfigFile), output)
 	}
-	for _, want := range []string{"Removed the NOVA App from Home Assistant.", "If the NOVA App is still installed"} {
-		if !strings.Contains(output, want) {
-			t.Fatalf("missing %q:\n%s", want, output)
-		}
+	if strings.Count(output, "NOVA App removed from Home Assistant") != 1 || strings.Contains(output, "Removed the NOVA App") ||
+		strings.Contains(output, "If the NOVA App is still installed") {
+		t.Fatalf("removal said twice, or a moot NOVA-page hint:\n%s", output)
 	}
 	if strings.Contains(output, "The NOVA App in Home Assistant stays") {
 		t.Fatalf("claims the removed App stays:\n%s", output)

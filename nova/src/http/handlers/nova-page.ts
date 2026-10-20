@@ -205,7 +205,7 @@ async function applyAction(deps: NovaPageDeps, action: NovaAction, form: Record<
   const chat = deps.chatApps!;
   switch (action) {
     case "chat_apps_on":
-      // The button carries the consent line "Home Assistant restarts once".
+      // The button carries the consent line "Home Assistant restarts once if needed".
       return (await chat.turnOn(true)).restart;
     case "chat_apps_off":
       await chat.turnOff();

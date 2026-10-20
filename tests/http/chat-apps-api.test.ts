@@ -207,7 +207,7 @@ describe("NOVA page: Chat apps", () => {
 
   it("turns on with the restart named on the button, then restarts after the redirect", async () => {
     const page = await run(createNovaPageHandler(pageDeps(fakeChatApps())), request("owner-1"));
-    expect(page.body).toContain("Home Assistant restarts once (about a minute).");
+    expect(page.body).toContain("Home Assistant restarts once if needed (about a minute).");
     const token = /name="csrf" value="([^"]+)"><input type="hidden" name="action" value="chat_apps_on">/.exec(page.body)?.[1];
     expect(token).toBeDefined();
     const action = await run(createNovaActionHandler(pageDeps(fakeChatApps())), request("owner-1"), { action: "chat_apps_on", csrf: token });
@@ -232,6 +232,13 @@ describe("NOVA page: Chat apps", () => {
     expect(page.body).toContain("can't run chat apps");
     expect(page.body).toContain('value="chat_apps_off"');
     expect(page.body).not.toContain('value="chat_apps_on"');
+  });
+
+  it("offers to finish turning off when parts are still in Home Assistant", async () => {
+    const leftover = { ...fakeChatApps(), status: () => ({ ...status, unfinished: true }) };
+    const page = await run(createNovaPageHandler(pageDeps(leftover)), request("owner-1"));
+    expect(page.body).toContain("Chat apps are not fully off: parts are still in Home Assistant.");
+    expect(page.body).toMatch(/value="chat_apps_off"><button class="secondary" type="submit">Finish turning off</);
   });
 
   it("refuses a switch form without on or off", async () => {

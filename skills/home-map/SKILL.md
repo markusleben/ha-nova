@@ -50,7 +50,7 @@ A failed read fails the whole map (exit 1): say so, never estimate.
 ## Flow
 
 Every number you state comes from a map result of this session; after any
-write in this conversation, read it again. Never add, subtract, or count rows
+write, read it again. Never add, subtract, or count rows
 yourself — the fields are the totals.
 
 Definitions to keep when you explain a number:
@@ -74,7 +74,7 @@ Definitions to keep when you explain a number:
 
 ### What do I have / show me my home
 
-Run `ha-nova map`. Answer in plain words: one line for the house (floors,
+Run `ha-nova map`; then one line for the house (floors,
 rooms, devices, automations), then what needs attention (open problems), a
 compact table of the largest rooms (devices; no other table; none when no
 room has devices), and one line on automations (how many are off or can't
@@ -88,7 +88,7 @@ Resolve the entity, then `ha-nova map --entity <id>`. List every hit by
 name (dashboards: dashboard › view › card); mark `via: device` rows
 as "through its device". Always name the `not_checked` surfaces in one line: an
 empty result means "nothing found where checked", never "unused" or "safe to delete".
-Deletes and renames go to the owning skill.
+Deletes and renames: the owning skill.
 
 ### Review my whole setup
 
@@ -98,7 +98,7 @@ Deletes and renames go to the owning skill.
    device batteries → enabled automations that never ran → devices without
    an area.
 3. One row per finding: what, how many, an example only where the map
-   gives one, and who fixes it (in plain words).
+   gives one, and who fixes it.
 4. Close with the deeper checks the map does not run, as next steps:
    repairs and system health, automation quality, orphan and statistics
    cleanup, pending updates.
@@ -137,9 +137,9 @@ the first look without comment.
 
 ## Output Format
 
-Apply `../ha-nova/output-rules.md`. Lead with the answer in one or two
-lines, then at most one compact table. A capped list follows Progressive Detail; you run the matching
-`--section` when asked. No raw JSON, no field names such as `never_triggered`.
+Apply `../ha-nova/output-rules.md`: plain words, HA names verbatim; unless asked or names clash, no ids, "entity", modes, Relay/HA URLs, snapshots, raw JSON. Lead with the answer in one or two
+lines, then at most one table. A capped list follows Progressive Detail; run the matching
+`--section` when asked. No field names such as `never_triggered`.
 
 ## Safety
 

@@ -6,13 +6,14 @@ import (
 )
 
 func TestTeardownCompletedNoteLinesByMode(t *testing.T) {
+	// The removal itself said "NOVA App removed from Home Assistant" as it
+	// happened: the notes never repeat it (lane S4).
 	standard := teardownCompletedNoteLines(uninstallModeStandard)
-	if len(standard) != 2 || !strings.Contains(standard[1], "--purge") {
+	if len(standard) != 1 || !strings.Contains(standard[0], "--purge") {
 		t.Fatalf("standard mode must hint at the kept config: %#v", standard)
 	}
-	purge := teardownCompletedNoteLines(uninstallModePurge)
-	if len(purge) != 1 || purge[0] != "Removed the NOVA App from Home Assistant." {
-		t.Fatalf("purge mode needs no kept-config hint: %#v", purge)
+	if purge := teardownCompletedNoteLines(uninstallModePurge); len(purge) != 0 {
+		t.Fatalf("purge mode needs no note: %#v", purge)
 	}
 }
 

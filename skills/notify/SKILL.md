@@ -43,7 +43,7 @@ Home Assistant has TWO notification surfaces, and picking the wrong one silently
 Discovery:
 1. Services: `GET /api/services`, filter the `notify` domain — the `mobile_app_*` entries are the per-device legacy targets.
 2. Entities: WS `{"type":"config/entity_registry/list_for_display"}`, filter `ei` starting with `notify.`.
-3. Report the real, resolved targets — never guess a device name.
+3. Report the resolved targets; never guess a device name.
 
 **Decision rule:** plain message to a known target → notify entity (`notify.send_message`). Any mobile-app extra (buttons, tag, sticky, channel, url, image) → the legacy `notify.mobile_app_<device>` service, because the entity platform does not carry the `data` payload for those. This rule instantiates the canonical contract's capability discovery for today's platform reality — the discovery rule wins if the platforms diverge.
 
@@ -108,16 +108,16 @@ flow.
 ## Error Handling
 
 Full relay/upstream error taxonomy: `../ha-nova/relay-api.md` -> Error Handling. Notify specifics:
-- `404/NOT_FOUND` on `notify.mobile_app_<device>`: the device name is wrong or the companion app is not registered — re-discover, never guess.
+- `404/NOT_FOUND` on `notify.mobile_app_<device>`: the device name is wrong or the companion app is not registered; re-discover, never guess.
 - A service call returning 200 says nothing about delivery: the phone may be offline, or Android may hold the message while dozing (`priority: high` in `data` affects that).
 - `notify.send_message` rejects mobile-app `data` extras — that is the entity-platform limit, not a payload bug: switch to the legacy service.
 - An accepted send with silently ignored extras usually means the keys sat in the wrong place (Android keys under `push`, or iOS keys at top level) — re-check the platform split before blaming the device.
 
 ## Output Format
 
-Apply `../ha-nova/output-rules.md` to all user-facing output. Write previews, delete confirmations, and results render as the Cards defined there (`../ha-nova/output-cards.md`).
+Apply `../ha-nova/output-rules.md`: plain words, HA names verbatim; unless asked or names clash, no ids, "entity", modes, Relay/HA URLs, snapshots, raw JSON. Previews, deletes, and results use the Cards defined there (`../ha-nova/output-cards.md`).
 
-Render the Report shape (output-cards.md): the resolved target, the sent title/message, and any extras used. Report acceptance honestly (accepted by Home Assistant, not confirmed on the device). Discovery renders the List Frame, grouped by surface (entities vs mobile-app services).
+Report shape (output-cards.md): resolved target, sent title/message, extras used. Report acceptance honestly (accepted by Home Assistant, not confirmed on the device). Discovery: the List Frame by surface (notify targets vs mobile-app services).
 
 ## Safety
 
