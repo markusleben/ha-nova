@@ -57,7 +57,7 @@ Being honest about this is the point of the page:
 - **Media, notifications, MQTT, and voice** have dedicated skills with real domain rules — feature-bit gating before a media call, the iOS/Android payload split for notifications, retained-vs-live distinction when listening to MQTT, utterance testing that says plainly it executes what it understands.
 - **Root-cause diagnosis** as a workflow (traces → logs → bounded history → template probe), not just raw log access.
 - **The safety model above**, enforced structurally rather than configured per tool.
-- **Process isolation by design** — the AI-facing surface never runs inside Home Assistant's own process.
+- **Process isolation by design** — the AI-facing surface never runs inside Home Assistant's own process (chat apps add only a small integration there that forwards requests to the NOVA Relay App).
 - **Runs on every Home Assistant install** — App for HA OS/Supervised, container for Container/Core — from one codebase.
 
 ## Which should you use?

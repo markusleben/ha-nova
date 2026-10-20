@@ -299,7 +299,7 @@
   "setup.page.control.phone_rejected": "The tap on {phone} came from another Home Assistant account. Link a phone signed in with your own.",
   "setup.page.control.phone_unreachable": "HA NOVA couldn't reach {phone}. Check that its Home Assistant app is signed in, then try again.",
   "setup.page.control.rule_key": "Let Claude Code show the window",
-  "setup.page.control.rule_value": {"one": "Adds one rule to Claude Code so its auto mode doesn't block the confirmation window.", "other": "Adds {count} rules to Claude Code: its auto mode then shows the confirmation window and reads HA NOVA's skills without asking."},
+  "setup.page.control.rule_value": {"one": "Adds one rule to Claude Code so its auto mode doesn't block the confirmation window. You still confirm every unlock or delete.", "other": "Adds {count} rules to Claude Code. It can then read HA NOVA's own files and start changes you approved without asking, so the confirmation window can open. You still confirm every unlock or delete."},
   "setup.page.control.rule_on": {"one": "Claude Code already has this rule.", "other": "Claude Code already has these rules."},
   "setup.page.control.link_key": "Use HA NOVA away from home",
   "setup.page.control.link_value": "Adds Home Assistant Link as a fallback when this computer can't reach Home Assistant at home.",

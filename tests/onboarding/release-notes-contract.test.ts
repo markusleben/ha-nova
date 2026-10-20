@@ -39,17 +39,20 @@ describe("release notes contract", () => {
     expect(goreleaser).not.toContain("winget");
   });
 
-  it("keeps v0.26.0 release-facing wording aligned to the shipped stack", () => {
-    const relayVersion = /^version:\s*"([^"]+)"\s*$/m.exec(readFileSync("nova/config.yaml", "utf8"))?.[1];
-    expect(stableNotes).toContain(`This release needs Relay ${relayVersion}`);
+  it("keeps v0.27.0 release-facing wording aligned to the shipped stack", () => {
+    const relayVersion = /^version:\s*"([^"]+)"\s*$/m.exec(readFileSync("nova/config.yaml", "utf8"))?.[1] ?? "";
+    const notedApp = /need NOVA Relay (\d+\.\d+\.\d+)/.exec(stableNotes ?? "")?.[1] ?? "";
+    const notedAtLeastApp = notedApp.localeCompare(relayVersion, "en", { numeric: true });
+    // The notes name the App release that turns chat apps on; the App bump makes them equal.
+    expect(notedApp, "notes name the NOVA Relay version chat apps need").toMatch(/^\d+\.\d+\.\d+$/);
+    expect(notedAtLeastApp, `notes NOVA Relay ${notedApp} must be >= nova/config.yaml ${relayVersion}`).toBeGreaterThanOrEqual(0);
     expect(stableNotes).toMatch(/## What To Watch\s+- \*\*Update the NOVA Relay App too\.\*\*/);
-    expect(stableNotes).toContain("Unambiguous everyday actions run right away");
-    expect(stableNotes).toContain("one confirmation per item");
-    expect(stableNotes).toContain("`ha-nova setup confirm-window off`");
-    expect(stableNotes).toContain("`ha-nova setup confirm-phone`");
-    expect(stableNotes).toContain("has to be made again");
-    expect(stableNotes).toContain("Home Assistant Cloud is becoming Home Assistant Link");
-    // The MCP adapter ships experimental and unadvertised until it carries the skills.
+    expect(stableNotes).toContain("Home Assistant 2026.10 or newer");
+    expect(stableNotes).toContain("your own public HTTPS address");
+    expect(stableNotes).toContain("`--no-browser`");
+    expect(stableNotes).toContain("`ha-nova try --stop`");
+    expect(stableNotes).toContain("keep the pairing");
+    // Chat apps are named as such; the MCP adapter itself stays unadvertised.
     expect(stableNotes).not.toMatch(/mcp/i);
     expect(stableNotes).not.toContain("Cloud Remote is back on Windows and Linux");
     expect(readme).toContain("only unambiguous everyday actions run right away");
