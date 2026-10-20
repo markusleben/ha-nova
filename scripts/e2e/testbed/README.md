@@ -105,7 +105,7 @@ Pinned images (reproducible by default, override per run):
 
 | Image | Pin | Override |
 | --- | --- | --- |
-| Home Assistant | `homeassistant/home-assistant:2026.10.1` | `TESTBED_HA_IMAGE=… npm run testbed:up` |
+| Home Assistant | `homeassistant/home-assistant:2026.10.2` | `TESTBED_HA_IMAGE=… npm run testbed:up` |
 | Mosquitto | `eclipse-mosquitto:2.0.22` | `TESTBED_MQTT_IMAGE=…` |
 | Relay | built from `nova/Dockerfile.standalone` at this checkout | — |
 

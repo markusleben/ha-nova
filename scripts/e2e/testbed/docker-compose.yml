@@ -5,7 +5,7 @@ name: ha-nova-testbed
 
 services:
   homeassistant:
-    image: "${TESTBED_HA_IMAGE:-homeassistant/home-assistant:2026.10.1}"
+    image: "${TESTBED_HA_IMAGE:-homeassistant/home-assistant:2026.10.2}"
     container_name: ha-nova-testbed-ha
     # Runtime copy of ./config (up.sh copies it; HA writes .storage as root).
     volumes:
