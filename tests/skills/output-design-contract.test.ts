@@ -215,7 +215,7 @@ describe("output design system (Cards)", () => {
     expect(outputRules).toContain("| Post-write test offer | Test Plan Card |");
     // Runtime actions never downgrade the high-consequence typed gate.
     expect(outputRules).toContain(
-      "high-consequence actions escalate to the one-time code",
+      "high-consequence actions escalate to the typed tier",
     );
     // Restore flows are covered explicitly, not by convention.
     const configSnapshots = readFileSync("skills/ha-nova/config-snapshots.md", "utf8");

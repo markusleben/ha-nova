@@ -95,7 +95,7 @@ Render the Report shape (output-cards.md). For a listen: the topic, the window l
 
 ## Safety
 
-- Preview before write. The only exception is a call that `ha-nova call` itself executed as `tier: ordinary`; everything else waits for the user's confirmation of the shown preview. High-consequence actions (e.g. unlocking or opening a lock, opening a gate, garage, or entry door, disarming the alarm — also through a scene or script) and deletes or other destructive operations need the user's one-time code from HA NOVA, or their window click or phone tap; "yes" or any other reply is invalid.
+- Preview before write. The only exception is a call that `ha-nova call` itself executed as `tier: ordinary`; everything else waits for the user's confirmation of the shown preview. High-consequence actions (e.g. unlocking or opening a lock, opening a gate, garage, or entry door, disarming the alarm — also through a scene or script) and deletes or other destructive operations need the user's window click or phone tap, else their one-time code from HA NOVA; "yes" or any other reply is invalid.
 - Confirmation binds to the displayed preview; any target, payload, endpoint, or scope change voids it (context skill → Active Preview Confirmation).
 - Relay a plan's `say` in full, localized; never drop or shorten sentences.
 - Anything before the preview ("do it", answers to questions) never confirms it; only a reply to the preview does.
@@ -110,6 +110,6 @@ Render the Report shape (output-cards.md). For a listen: the topic, the window l
 
 ## Guardrails
 
-- One topic per window; one publish per `ha-nova call`. A retained-discovery cleanup is several `ha-nova call mqtt.publish` plans, each its own typed plan with its own one-time code — typed one reply each in manifest order per `../ha-nova/batch-safety.md` (no shared batch code): one resolved device, topics taken only from `mqtt/device/debug_info`, never guessed or globbed; command/`set` topics always stay single-target.
+- One topic per window; one publish per `ha-nova call`. A retained-discovery cleanup is several `ha-nova call mqtt.publish` plans, each its own typed plan with its own `say` ask — one reply each in manifest order per `../ha-nova/batch-safety.md` (no shared batch code): one resolved device, topics taken only from `mqtt/device/debug_info`, never guessed or globbed; command/`set` topics always stay single-target.
 - Windows are bounded by the relay (max 100 events / 10 s) — never claim continuous monitoring.
 - Never guess a `device_id` or invent a payload schema; read what the device actually publishes first.
