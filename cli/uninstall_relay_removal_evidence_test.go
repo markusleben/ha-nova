@@ -34,6 +34,22 @@ func TestUninstallRelayRemovalEvidenceRequiresExactProfileAndRelay(t *testing.T)
 	}
 }
 
+// This run's own App removal counts for a locally paired default profile,
+// which has no Relay identity; never for another profile or another Relay.
+func TestInProcessRemovalEvidenceCoversALocalPairing(t *testing.T) {
+	local := uninstallRelayRemovalEvidenceInProcess(uninstallPreflight{}, true)
+	if !local.matches(defaultServerProfileName, "") || local.matches(defaultServerProfileName, "relay-other") || local.matches("cabin", "") {
+		t.Fatalf("local evidence %v", local)
+	}
+	exact := uninstallRelayRemovalEvidenceInProcess(uninstallPreflight{config: runtimeConfig{RelayInstanceID: "relay-default"}}, true)
+	if !exact.matches(defaultServerProfileName, "relay-default") || exact.matches(defaultServerProfileName, "") {
+		t.Fatalf("exact evidence %v", exact)
+	}
+	if uninstallRelayRemovalEvidenceInProcess(uninstallPreflight{}, false) != nil {
+		t.Fatal("evidence without a completed removal")
+	}
+}
+
 func TestGuidedTeardownNeverSuppressesCloudDeviceRevocation(t *testing.T) {
 	resetServerProfileSelection(t)
 	t.Setenv("HA_NOVA_TEST_SECRET_DIR", t.TempDir())

@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/signal"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -102,12 +103,32 @@ var chatAppsCall = func(ctx context.Context, client *CloudIngressClient, body ma
 	return envelope.Data, nil
 }
 
+// chatAppsMinAppVersion is the first NOVA App with chat apps. An older one
+// can't serve what Home Assistant still holds after going back (lane R1).
+const chatAppsMinAppVersion = "0.11.0"
+
 // chatAppsHA is what this computer's Relay reads from Home Assistant.
 type chatAppsHA struct {
 	version     string
 	loaded      bool   // the ha_nova integration's entry is loaded: the connector answers
+	present     bool   // Home Assistant holds a ha_nova entry, loaded or not
+	running     bool   // Home Assistant runs the integration: turning on needs no restart
 	externalURL string // Home Assistant's own external URL (Settings → System → Network)
+	appVersion  string // the NOVA App's version from the Relay's answers, "" when unknown
 }
+
+// leftover: Home Assistant holds chat apps, but the NOVA App is older than
+// chat apps, so nothing answers behind them.
+func (ha chatAppsHA) leftover() bool {
+	base, _, _ := strings.Cut(ha.appVersion, "-") // an rc of the first chat-app App counts as that App
+	if !ha.loaded && !ha.present || base == "" {
+		return false
+	}
+	cmp, err := compareReleaseVersions(base, chatAppsMinAppVersion)
+	return err == nil && cmp < 0
+}
+
+const chatAppsLeftoverLine = "Chat apps are left over from a newer NOVA App. This one can't run them. To clean up: update the NOVA App in Home Assistant, then run ha-nova chat-apps off"
 
 // chatAppsReadHA reads Home Assistant's version and the integration's entry
 // through this computer's Relay (read-only verbs).
@@ -122,8 +143,9 @@ var chatAppsReadHA = func(paths runtimePaths) (chatAppsHA, error) {
 		return chatAppsHA{}, err
 	}
 	var config struct {
-		Version     string `json:"version"`
-		ExternalURL string `json:"external_url"`
+		Version     string   `json:"version"`
+		ExternalURL string   `json:"external_url"`
+		Components  []string `json:"components"`
 	}
 	if status != http.StatusOK || json.Unmarshal(body, &config) != nil {
 		return chatAppsHA{}, fmt.Errorf("Home Assistant /api/config answered %d", status)
@@ -134,7 +156,8 @@ var chatAppsReadHA = func(paths runtimePaths) (chatAppsHA, error) {
 	if err := s.wsDecode(map[string]any{"type": "config_entries/get", "domain": "ha_nova"}, &entries, "config entries"); err != nil {
 		return chatAppsHA{}, err
 	}
-	ha := chatAppsHA{version: config.Version, externalURL: config.ExternalURL}
+	ha := chatAppsHA{version: config.Version, externalURL: config.ExternalURL, present: len(entries) > 0,
+		running: slices.Contains(config.Components, "ha_nova"), appVersion: s.version()}
 	for _, entry := range entries {
 		ha.loaded = ha.loaded || entry.State == "loaded"
 	}
@@ -157,9 +180,10 @@ func chatAppsHAVersionOK(version string) bool {
 // App has them and Home Assistant is new enough (ok=false: say nothing), and
 // Home Assistant has an address on the internet (url "": one plain line).
 type chatAppsOffer struct {
-	state  chatAppsState
-	url    string // the connector address; "": no internet address (chatAppsBase)
-	loaded bool   // Home Assistant runs the integration: the address answers
+	state   chatAppsState
+	url     string // the connector address; "": no internet address (chatAppsBase)
+	loaded  bool   // Home Assistant runs the integration: the address answers
+	restart bool   // turning on restarts Home Assistant (it doesn't run the integration yet)
 }
 
 func readChatAppsOffer(client *CloudIngressClient, paths runtimePaths, linkOrigin func() string) (chatAppsOffer, bool) {
@@ -176,7 +200,7 @@ func readChatAppsOffer(client *CloudIngressClient, paths runtimePaths, linkOrigi
 	if err != nil || !chatAppsHAVersionOK(ha.version) {
 		return chatAppsOffer{}, false
 	}
-	offer := chatAppsOffer{state: state, loaded: ha.loaded}
+	offer := chatAppsOffer{state: state, loaded: ha.loaded, restart: !ha.running}
 	if base := chatAppsBase(linkOrigin(), ha.externalURL); base != "" {
 		offer.url = base + chatAppsConnectorPath
 	}
@@ -239,21 +263,22 @@ func ownerChatPhone(paths runtimePaths, owner string, state chatAppsState) *chat
 	return &chatAppsPhone{Service: l.Service, DeviceID: l.DeviceID, Name: name}
 }
 
-// turnOnChatApps asks the App to turn chat apps on. The caller showed "Home
-// Assistant restarts once (about a minute)." and got the click: that is the
-// restart consent (allow_restart). It then waits until Home Assistant runs
+// turnOnChatApps asks the App to turn chat apps on. allowRestart: the caller
+// showed "Home Assistant restarts once (about a minute)." and got the click,
+// the restart consent; without it the App refuses a restart that has become
+// needed meanwhile (RESTART_CONSENT_REQUIRED). It then waits until Home Assistant runs
 // the integration; progress hears "on", "restart" (when Home Assistant
 // restarts), "back" (it answers again), and "ready". Then the owner's phone
 // goes to the App in a request of its own (ingress runs through Home
 // Assistant, so not while it restarts). ready=false: the App turned them on,
 // but Home Assistant hasn't loaded them in time. ctx stops the wait.
-func turnOnChatApps(ctx context.Context, client *CloudIngressClient, paths runtimePaths, before chatAppsState, phone *chatAppsPhone, progress func(string)) (chatAppsTurnOn, error) {
+func turnOnChatApps(ctx context.Context, client *CloudIngressClient, paths runtimePaths, before chatAppsState, allowRestart bool, phone *chatAppsPhone, progress func(string)) (chatAppsTurnOn, error) {
 	call := func(body map[string]any, timeout time.Duration) (chatAppsState, error) {
 		callCtx, cancel := context.WithTimeout(ctx, timeout)
 		defer cancel()
 		return chatAppsCall(callCtx, client, body)
 	}
-	state, err := call(map[string]any{"enabled": true, "allow_restart": true}, 2*time.Minute)
+	state, err := call(map[string]any{"enabled": true, "allow_restart": allowRestart}, 2*time.Minute)
 	var refused *chatAppsRefused
 	// Answers that come before the App changes anything.
 	clearRefusal := errors.Is(err, errChatAppsUnsupported) ||
@@ -332,6 +357,8 @@ func chatAppsProblem(err error) setupMsg {
 	switch {
 	case IsCloudErrorCode(err, CloudErrOuterSessionExpired):
 		return setupText("setup.chat.problem_expired")
+	case errors.As(err, &refused) && refused.code == "RESTART_CONSENT_REQUIRED":
+		return setupText("setup.chat.problem_restart")
 	case errors.As(err, &refused) && refused.code == "HA_TOO_OLD":
 		return setupText("setup.chat.problem_old")
 	case errors.As(err, &refused) && refused.code == "HA_CONFIG_INVALID":
@@ -347,15 +374,21 @@ func chatAppsProblem(err error) setupMsg {
 }
 
 // askChatAppsConsent is the terminal's question (setup's text path and
-// `ha-nova chat-apps on`): what it does and the restart on one screen, then
-// an arrow menu. setupOffer is setup's question, whose default is "Not now".
-func askChatAppsConsent(reader *bufio.Reader, out io.Writer, setupOffer bool, phone string) bool {
+// `ha-nova chat-apps on`): what it does and, when restart is set, the
+// restart on one screen, then an arrow menu. setupOffer is setup's
+// question, whose default is "Not now".
+func askChatAppsConsent(reader *bufio.Reader, out io.Writer, setupOffer, restart bool, phone string) bool {
 	consent := setupT("setup.chat.consent_code")
 	if phone != "" {
 		consent = setupT("setup.chat.consent_phone", "phone", phone)
 	}
-	renderSetupParagraph(out, setupT("setup.chat.key"), setupT("setup.chat.value"), consent, setupT("setup.chat.restart"))
-	options := []setupMenuOption{{Value: "on", Label: setupT("setup.chat.turn_on")}, {Value: "skip", Label: setupT("setup.chat.not_now")}}
+	lines, turnOn, typed := []string{setupT("setup.chat.key"), setupT("setup.chat.value"), consent}, setupT("setup.chat.turn_on_now"), "Type 'yes' to turn chat apps on, or press Enter to skip"
+	if restart {
+		lines, turnOn = append(lines, setupT("setup.chat.restart")), setupT("setup.chat.turn_on")
+		typed = "Type 'yes' to turn chat apps on (Home Assistant restarts once), or press Enter to skip"
+	}
+	renderSetupParagraph(out, lines...)
+	options := []setupMenuOption{{Value: "on", Label: turnOn}, {Value: "skip", Label: setupT("setup.chat.not_now")}}
 	choice := "on"
 	if setupOffer {
 		options[0], options[1] = options[1], options[0]
@@ -365,7 +398,7 @@ func askChatAppsConsent(reader *bufio.Reader, out io.Writer, setupOffer bool, ph
 	defer clearSetupNextPromptSkipsStaleBlankInput()
 	answer, err := promptSetupMenu(reader, out, setupMenuSpec{Prompt: "Use ↑/↓ or j/k, Enter to select", DefaultValue: choice, Options: options}, func() (string, error) {
 		// Without the menu only a typed "yes" consents.
-		answer, err := promptLineWithOptions(reader, out, "Type 'yes' to turn chat apps on (Home Assistant restarts once), or press Enter to skip", "", false)
+		answer, err := promptLineWithOptions(reader, out, typed, "", false)
 		if err == nil && strings.EqualFold(strings.TrimSpace(answer), "yes") {
 			return "on", nil
 		}
@@ -379,7 +412,7 @@ func askChatAppsConsent(reader *bufio.Reader, out io.Writer, setupOffer bool, ph
 func turnOnChatAppsInTerminal(out io.Writer, paths runtimePaths, client *CloudIngressClient, offer chatAppsOffer, owner string) (note string, ok bool) {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
-	result, err := turnOnChatApps(ctx, client, paths, offer.state, ownerChatPhone(paths, owner, offer.state), func(event string) {
+	result, err := turnOnChatApps(ctx, client, paths, offer.state, offer.restart, ownerChatPhone(paths, owner, offer.state), func(event string) {
 		switch event {
 		case "on":
 			renderSetupSuccessLine(out, "%s", setupT("setup.chat.row_on"))

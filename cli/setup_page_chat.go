@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/signal"
@@ -30,7 +31,7 @@ func (f *setupFlow) pageChatOn(c *setupPageChat, offer *chatAppsOffer, show func
 	phone := ownerChatPhone(f.paths, setupSignedInUser, offer.state)
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt) // Ctrl+C: as in step 3's wait
 	defer stop()
-	result, err := turnOnChatApps(ctx, setupOwnerIngress, f.paths, offer.state, phone, func(event string) {
+	result, err := turnOnChatApps(ctx, setupOwnerIngress, f.paths, offer.state, offer.restart, phone, func(event string) {
 		switch event {
 		case "on":
 			set("chat_on", "ok")
@@ -54,6 +55,10 @@ func (f *setupFlow) pageChatOn(c *setupPageChat, offer *chatAppsOffer, show func
 	if err != nil {
 		fmt.Fprintf(f.ui.termOut(), "  %s\n", setupT("setup.chat.error", "error", err))
 		c.State, c.Rows, c.Problem = "offer", nil, &setupPageMsg{Key: chatAppsProblem(err).Key}
+		var refused *chatAppsRefused
+		if errors.As(err, &refused) && refused.code == "RESTART_CONSENT_REQUIRED" { // a restart is needed now: ask with it
+			offer.restart, c.NoRestart = true, false
+		}
 		if IsCloudErrorCode(err, CloudErrOuterSessionExpired) {
 			c.State = "expired" // a retry can't work: the NOVA page can
 		}

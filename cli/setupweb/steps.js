@@ -131,7 +131,7 @@ window.novaSteps = (h) => {
           problem(chat.problem), howTo(), el('p', { class: 'fine' }, t('setup.chat.off_hint'))], tagOn()));
       case 'run':
         return el('li', { id: 'chat-run', ...focusAfter(['b-chat-on', 'b-chat-switch']) }, guard('◎'),
-          el('div', {}, el('div', { class: 'k' }, key), el('div', { class: 'v', role: 'status' }, t('setup.chat.wait')), progress), el('span'));
+          el('div', {}, el('div', { class: 'k' }, key), el('div', { class: 'v', role: 'status' }, t(chat.no_restart ? 'setup.chat.wait_now' : 'setup.chat.wait')), progress), el('span'));
       case 'expired':
         return line(guard('·'), key, t('setup.chat.value'), problem(chat.problem));
       case 'noaddress':
@@ -140,9 +140,9 @@ window.novaSteps = (h) => {
         const ask = local.chatAsk && h.accepts('chat');
         const consent = ask ? el('div', { class: 'consent', id: 'chat-consent' },
           el('p', {}, chat.phone ? t('setup.chat.consent_phone', { phone: chat.phone }) : t('setup.chat.consent_code')),
-          el('p', { class: 'restart' }, t('setup.chat.restart')),
+          chat.no_restart ? null : el('p', { class: 'restart' }, t('setup.chat.restart')),
           el('div', { class: 'actions' },
-            button(t('setup.chat.turn_on'), 'chat', 'primary btn-small', 'on', 'chat-on'),
+            button(t(chat.no_restart ? 'setup.chat.turn_on_now' : 'setup.chat.turn_on'), 'chat', 'primary btn-small', 'on', 'chat-on'),
             el('button', { id: 'b-chat-cancel', class: 'btn btn-ghost btn-small', type: 'button', onclick: () => { local.chatAsk = false; render(true); focusId('b-chat-switch'); } }, t('setup.chat.not_now')))) : null;
         const sw = toggle('b-chat-switch', key, ask, () => { local.chatAsk = !local.chatAsk; render(true); }, !h.accepts('chat'));
         sw.setAttribute('aria-expanded', String(ask));

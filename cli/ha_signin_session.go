@@ -204,6 +204,12 @@ func openHASignInIngressWith(
 	return openHASignInIngressIn(ctx, out, haURL, prepare, nil)
 }
 
+// openHASignInIngressNoCode is a sign-in with no code to fall back to:
+// Ctrl+C only stops it.
+func openHASignInIngressNoCode(ctx context.Context, out io.Writer, haURL string) (haSignInSession, error) {
+	return openHASignIn(ctx, out, haURL, nil, nil, haSignInWaitStop)
+}
+
 // haSignInTab is the setup page's tab: it navigates to Home Assistant
 // itself and its server takes the redirect back, so no second tab opens.
 type haSignInTab interface {
@@ -219,6 +225,23 @@ func openHASignInIngressIn(
 	haURL string,
 	prepare haSignInPrepare,
 	tab haSignInTab,
+) (haSignInSession, error) {
+	waiting := "Waiting for you to sign in, Ctrl+C to use a code instead"
+	if prepare != nil {
+		waiting = haSignInWaitStop
+	}
+	return openHASignIn(ctx, out, haURL, prepare, tab, waiting)
+}
+
+const haSignInWaitStop = "Waiting for you to sign in, Ctrl+C to stop"
+
+func openHASignIn(
+	ctx context.Context,
+	out io.Writer,
+	haURL string,
+	prepare haSignInPrepare,
+	tab haSignInTab,
+	waiting string,
 ) (haSignInSession, error) {
 	origin, err := parseLocalHAOrigin(haURL)
 	if err != nil {
@@ -237,10 +260,6 @@ func openHASignInIngressIn(
 			tab.navigate(target)
 			return nil
 		}
-	}
-	waiting := "Waiting for you to sign in, Ctrl+C to use a code instead"
-	if prepare != nil {
-		waiting = "Waiting for you to sign in, Ctrl+C to stop"
 	}
 	authorization, err := runSetupCountdownSpinnerWithResult(
 		out,

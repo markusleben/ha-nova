@@ -42,6 +42,7 @@ type setupPageChat struct {
 	URL        string         `json:"url,omitempty"`         // the connector address, once on
 	ClaudeLink string         `json:"claude_link,omitempty"` // Add to Claude (claudeConnectorLink), once on
 	Phone      string         `json:"phone,omitempty"`       // the phone that confirms for chat apps; "": a code in the chat
+	NoRestart  bool           `json:"no_restart,omitempty"`  // Home Assistant runs the integration already: turning on doesn't restart it
 	Problem    *setupPageMsg  `json:"problem,omitempty"`
 }
 
@@ -117,7 +118,7 @@ func (f *setupFlow) pageControl() int {
 		}
 		f.pageChatNote(chat.url)
 	case chatOK:
-		ctl.Chat = &setupPageChat{State: "offer", Phone: chatAppsPhoneName(f.paths, setupSignedInUser, chat.state)}
+		ctl.Chat = &setupPageChat{State: "offer", NoRestart: !chat.restart, Phone: chatAppsPhoneName(f.paths, setupSignedInUser, chat.state)}
 	}
 	show := func() {
 		view := ctl
