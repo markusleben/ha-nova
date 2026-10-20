@@ -965,15 +965,15 @@ func TestRunUninstallPrintsPlainSummaryGolden(t *testing.T) {
 	const golden = `  Removed:
     - The ha-nova program
     - HA NOVA's own files on this computer
-    - HA NOVA's settings
-    - This computer's pairing and key
+    - HA NOVA's saved Home Assistant address
+    - This computer's HA NOVA key
   Stays:
     - The NOVA App in Home Assistant. Other computers may still use it.
       If none do, remove it in Home Assistant: Settings → Apps → NOVA Relay → Uninstall.
 
 [ha-nova] HA NOVA removed from this computer.
 `
-	_, summary, found := strings.Cut(output, "Your Home Assistant Link sign-in, if you use it\n\n\n")
+	_, summary, found := strings.Cut(output, "Your Home Assistant Link sign-in, if you use it\n\n")
 	if !found || summary != golden {
 		t.Fatalf("summary = %q\nwant %q\nfull output:\n%s", summary, golden, output)
 	}

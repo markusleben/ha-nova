@@ -29,7 +29,7 @@ func TestPreflightStaysKeepTheSharedApp(t *testing.T) {
 		len(app.problems) != 1 || app.problems[0] != "token problem" {
 		t.Fatalf("App stays = %#v", app)
 	}
-	standalone := preflightStays(uninstallPreflight{haURL: "http://ha.local:8123", config: runtimeConfig{RelayBaseURL: "http://nas.local:8791"}})
+	standalone := preflightStays(uninstallPreflight{configured: true, haURL: "http://ha.local:8123", config: runtimeConfig{RelayBaseURL: "http://nas.local:8791"}})
 	if standalone.kept != "The NOVA Relay. Other computers may still use it." || strings.Contains(standalone.next, "http") || len(standalone.details) != 0 {
 		t.Fatalf("standalone stays = %#v", standalone)
 	}

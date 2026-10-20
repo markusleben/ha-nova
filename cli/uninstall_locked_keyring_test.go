@@ -164,7 +164,7 @@ func TestPurgeWithLockedKeyringStopsWhenItStaysLocked(t *testing.T) {
 		wantWindows           int
 	}{
 		"declined": {stdin: "n\n", wantWindows: 0,
-			want:     "Next step: run ha-nova uninstall again, answer Y, and type your keyring password (usually your login password) in the window that opens.",
+			want:     "Next step: run ha-nova uninstall again, pick Yes, and type your keyring password (usually your login password) in the window that opens.",
 			unwanted: "The keyring opened"},
 		"still locked": {stdin: "\nn\n", wantWindows: 1,
 			want:     "The keyring opened, but HA NOVA's key is still locked. Nothing was changed.",
@@ -247,12 +247,12 @@ func TestGuidedUninstallUnlocksBeforeTheMenu(t *testing.T) {
 	paths, locked := lockedKeyringPurgeFixture(t)
 	opened := stubKeyringUnlockWindow(t, true, "\n", func() { *locked = false })
 	var unlocked bool
-	captureCommandOutput(t, func() int { unlocked = offerKeyringUnlockForPurge(paths); return 0 })
+	captureCommandOutput(t, func() int { unlocked, _ = offerKeyringUnlockForPurge(paths); return 0 })
 	if !unlocked || *opened != 1 || *locked {
 		t.Fatalf("unlocked = %v, windows = %d", unlocked, *opened)
 	}
 	// Unlocked already: no second window.
-	captureCommandOutput(t, func() int { unlocked = offerKeyringUnlockForPurge(paths); return 0 })
+	captureCommandOutput(t, func() int { unlocked, _ = offerKeyringUnlockForPurge(paths); return 0 })
 	if unlocked || *opened != 1 {
 		t.Fatalf("second offer: unlocked = %v, windows = %d", unlocked, *opened)
 	}
@@ -327,7 +327,7 @@ func TestPurgeYesWithLockedKeyringNamesTheWindowRun(t *testing.T) {
 		return runUninstall(paths, []string{"--yes", "--purge"})
 	})
 	if exitCode != 1 || *opened != 0 ||
-		!strings.Contains(output, "Next step: run ha-nova uninstall --purge (without --yes) and answer Y.") {
+		!strings.Contains(output, "Next step: run ha-nova uninstall --purge (without --yes) and pick Yes.") {
 		t.Fatalf("exit = %d, windows = %d\n%s", exitCode, *opened, output)
 	}
 	requireNothingRemoved(t, paths, locked)
@@ -356,11 +356,12 @@ func TestGuidedUninstallUnlocksBeforeTheAppOffer(t *testing.T) {
 				return peersOf(0, false, false), nil
 			})
 			menu := stubUninstallMenu(t, "cancel")
+			menu.unlock = map[string]string{"\n": "yes", "n\n": "no"}[tc.stdin]
 			opened := stubKeyringUnlockWindow(t, true, tc.stdin, func() { *locked = false })
 			exitCode, output := captureCommandOutput(t, func() int { return runUninstall(paths, nil) })
 			hasApp := slices.ContainsFunc(menu.spec.Options, func(o setupMenuOption) bool { return o.Value == "app" })
 			if exitCode != 0 || *opened != tc.wantWindows || hasApp != tc.wantApp ||
-				menu.spec.Options[0].Disabled == tc.wantApp || menu.spec.DefaultValue != tc.wantDefault {
+				menu.spec.Options[0].Disabled == tc.wantApp || menu.spec.DefaultValue != tc.wantDefault || menu.asked != 1 {
 				t.Fatalf("exit=%d windows=%d spec=%+v\n%s", exitCode, *opened, menu.spec, output)
 			}
 			if !tc.wantApp && !strings.Contains(menu.spec.Options[0].DisabledReason, "keyring is locked") {
@@ -431,4 +432,26 @@ func TestPurgeLockedKeyringGateSeesMigrationCleanupSlots(t *testing.T) {
 	if err := purgeKeyringLockedError(paths); err == nil {
 		t.Fatal("locked migration-cleanup slot not found")
 	}
+}
+
+// Ctrl+C at the keyring question ends the uninstall: no menu, no change.
+func TestGuidedUninstallCtrlCAtTheUnlockQuestionCancels(t *testing.T) {
+	paths, locked := lockedKeyringPurgeFixture(t)
+	menu := stubUninstallMenu(t, "purge")
+	stubKeyringUnlockWindow(t, true, "", func() { *locked = false })
+	interactiveSetupMenuRunner = exitingUnlockMenu{menu}
+	exitCode, output := captureCommandOutput(t, func() int { return runUninstall(paths, nil) })
+	if exitCode != 0 || menu.spec.Title != "" || !strings.Contains(output, "Uninstall cancelled") || strings.Contains(output, "didn't work") {
+		t.Fatalf("exit=%d spec=%+v\n%s", exitCode, menu.spec, output)
+	}
+	requireNothingRemoved(t, paths, locked)
+}
+
+type exitingUnlockMenu struct{ *recordingUninstallMenu }
+
+func (m exitingUnlockMenu) Run(out io.Writer, spec setupMenuSpec) (string, error) {
+	if strings.HasPrefix(spec.Title, "Open the window to unlock") {
+		return "", errSetupExit
+	}
+	return m.recordingUninstallMenu.Run(out, spec)
 }

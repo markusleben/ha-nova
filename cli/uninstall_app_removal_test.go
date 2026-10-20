@@ -314,9 +314,15 @@ func TestRunUninstallYesNeverRemovesTheApp(t *testing.T) {
 type recordingUninstallMenu struct {
 	answer string
 	spec   setupMenuSpec
+	unlock string // the keyring window question's answer ("yes"/"no")
+	asked  int    // how often that question came
 }
 
 func (r *recordingUninstallMenu) Run(_ io.Writer, spec setupMenuSpec) (string, error) {
+	if strings.HasPrefix(spec.Title, "Open the window to unlock") {
+		r.asked++
+		return r.unlock, nil
+	}
 	r.spec = spec
 	return r.answer, nil
 }
@@ -362,8 +368,8 @@ func TestRunUninstallRemovesTheAppThenThisComputer(t *testing.T) {
 		strings.Contains(output, "If the NOVA App is still installed") {
 		t.Fatalf("removal said twice, or a moot NOVA-page hint:\n%s", output)
 	}
-	if strings.Contains(output, "The NOVA App in Home Assistant stays") {
-		t.Fatalf("claims the removed App stays:\n%s", output)
+	if strings.Contains(output, "Stays:") || !strings.Contains(output, "  Removed:\n    - The NOVA App in Home Assistant\n") {
+		t.Fatalf("the summary must list the removed App, and not as staying:\n%s", output)
 	}
 }
 

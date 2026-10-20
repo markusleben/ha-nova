@@ -9,6 +9,7 @@ import (
 )
 
 type uninstallPreflight struct {
+	configured       bool // a config file exists, readable or not
 	tokenUnavailable string
 	haURL            string
 	config           runtimeConfig
@@ -91,14 +92,15 @@ func renderUninstallPreflight(out io.Writer, paths runtimePaths, source string, 
 		fmt.Fprintf(out, "    %s %s\n", session.bullet(), label)
 	}
 	fmt.Fprintf(out, "    %s Your Home Assistant Link sign-in, if you use it\n", session.bullet())
-	fmt.Fprintln(out)
+	// No closing blank line: the menu and the summary start with one.
 	if warning := uninstallForeignTokenFileWarning(paths); warning != "" {
+		fmt.Fprintln(out)
 		renderSetupParagraphTight(out, session.style("warning", warning))
 	}
 	if runtime.GOOS == "windows" && source == installSourceBundle {
+		fmt.Fprintln(out)
 		renderSetupParagraphTight(out, session.style("muted", uninstallWindowsBundleNote()))
 	}
-	fmt.Fprintln(out)
 }
 
 func uninstallRuntimeLineLabel(paths runtimePaths, source string) string {
@@ -194,7 +196,7 @@ func uninstallWindowsBundleNote() string {
 // partial setups must still yield the HA URL for the notes, and uninstall is
 // install-wide, so no runtime selection applies).
 func collectUninstallPreflight(paths runtimePaths) uninstallPreflight {
-	preflight := uninstallPreflight{}
+	preflight := uninstallPreflight{configured: fileExists(paths.ConfigFile)}
 
 	cfg, err := loadRawDefaultProfileConfig(paths.ConfigFile)
 	if err != nil {
@@ -239,18 +241,14 @@ func applyUninstallPreflightNotes(report *uninstallReport, preflight uninstallPr
 
 // printUninstallPreflightNotes: the same, before the Windows hand-off.
 func printUninstallPreflightNotes(out io.Writer, preflight uninstallPreflight, verbose bool) {
-	session := resolveStatusUISession(out)
-	stays := preflightStays(preflight)
-	var lines []string
-	if stays.kept != "" {
-		lines = []string{"Stays: " + stays.kept, stays.next}
-	}
+	report := &uninstallReport{verbose: verbose}
+	applyUninstallPreflightNotes(report, preflight)
+	fmt.Fprintln(out)
 	if verbose {
-		lines = append(lines, stays.details...)
+		report.printDetails()
 	}
-	for _, line := range append(lines, stays.problems...) {
-		fmt.Fprintf(out, "  %s %s\n", session.style("warning", session.warningMarker()), line)
-	}
+	report.printStays(out)
+	report.printNotes()
 }
 
 // preflightStays: uninstall removes the shared App only through the menu
@@ -269,7 +267,7 @@ func preflightStays(preflight uninstallPreflight) uninstallStays {
 				"Then remove where it came from: Settings → Apps → App Store → three-dot menu (top right) → Repositories → " + haNovaRepositoryURL,
 			},
 		}
-	} else if strings.TrimSpace(preflight.config.RelayBaseURL) != "" { // never paired: no Relay to name
+	} else if preflight.configured { // never set up: no Relay to name
 		stays = uninstallStays{
 			kept: "The NOVA Relay. Other computers may still use it.",
 			next: "If none do, remove it, and delete any \"NOVA\" token in your Home Assistant profile (Security tab).",

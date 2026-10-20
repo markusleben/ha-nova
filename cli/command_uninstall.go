@@ -155,7 +155,10 @@ func runUninstall(paths runtimePaths, args []string) int {
 	removeApp := false
 	if guidedSession {
 		// Unlock first: the App offer asks the Relay with this computer's key.
-		offerKeyringUnlockForPurge(paths)
+		if _, stop := offerKeyringUnlockForPurge(paths); stop {
+			printHumanInfo("Uninstall cancelled")
+			return 0
+		}
 		purgeBlocked := uninstallPurgeBlocked(paths)
 		mode = uninstallModePurge // "Remove" is the default; the menu moves off it when blocked
 		if purgeBlocked == "" {
@@ -288,6 +291,7 @@ func runUninstall(paths runtimePaths, args []string) int {
 	}
 
 	if teardown == teardownCompleted {
+		report.addRemovedIn(uninstallAreaApp, "NOVA App in Home Assistant")
 		for _, note := range teardownCompletedNoteLines(mode) {
 			report.addDetail(note)
 		}

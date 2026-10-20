@@ -93,11 +93,15 @@ func (terminalSetupMenuRunner) Run(out io.Writer, spec setupMenuSpec) (string, e
 	if index < 0 {
 		return "", errSetupMenuUnavailable
 	}
-	staleBlankDeadline := beginSetupStaleBlankInputWindow()
-	width, _, err := term.GetSize(int(stdout.Fd()))
+	width, height, err := term.GetSize(int(stdout.Fd()))
 	if err != nil {
-		width = 0 // unknown: no wrapping
+		width, height = 0, 0 // unknown: no wrapping
 	}
+	// The redraw moves the cursor up over the whole menu: it must fit.
+	if (width > 0 && width < 20) || (height > 0 && renderSetupMenuBlock(io.Discard, session, spec, index, width) >= height) {
+		return "", errSetupMenuUnavailable
+	}
+	staleBlankDeadline := beginSetupStaleBlankInputWindow()
 
 	lines := renderSetupMenuBlock(out, session, spec, index, width)
 	for {
@@ -136,7 +140,7 @@ func (terminalSetupMenuRunner) Run(out io.Writer, spec setupMenuSpec) (string, e
 func renderSetupMenuBlock(out io.Writer, session uiSession, spec setupMenuSpec, selected, width int) int {
 	lines := 0
 	write := func(lead, hang, text, style string) {
-		for idx, part := range wrapSetupMenuText(text, width-1-utf8.RuneCountInString(hang)) {
+		for idx, part := range wrapSetupMenuText(text, width-1-setupMenuTextWidth(hang)) {
 			if idx > 0 {
 				lead = hang
 			}
@@ -176,33 +180,64 @@ func renderSetupMenuBlock(out io.Writer, session uiSession, spec setupMenuSpec, 
 	return lines
 }
 
-// wrapSetupMenuText splits text into lines of at most room runes, at spaces
-// where it can; a word longer than room (a URL) is cut. A line that fits, or
-// room < 1, stays as it is.
+// wrapSetupMenuText splits text into lines of at most room columns, at
+// spaces where it can; a word longer than room (a URL) is cut. A line that
+// fits, or room < 1, stays as it is.
 func wrapSetupMenuText(text string, room int) []string {
-	if room < 1 || utf8.RuneCountInString(text) <= room {
+	if room < 1 || setupMenuTextWidth(text) <= room {
 		return []string{text}
 	}
 	var lines []string
 	line := ""
 	for _, word := range strings.Fields(text) {
-		for utf8.RuneCountInString(word) > room {
+		for setupMenuTextWidth(word) > room {
 			if line != "" {
 				lines, line = append(lines, line), ""
 			}
-			cut := string([]rune(word)[:room])
-			lines, word = append(lines, cut), strings.TrimPrefix(word, cut)
+			cut, used := 0, 0
+			for i, r := range word {
+				if used+setupMenuRuneWidth(r) > room {
+					break
+				}
+				cut, used = i+utf8.RuneLen(r), used+setupMenuRuneWidth(r)
+			}
+			if cut == 0 { // a wide letter wider than room: one per line
+				_, cut = utf8.DecodeRuneInString(word)
+			}
+			lines, word = append(lines, word[:cut]), word[cut:]
 		}
 		switch {
 		case line == "":
 			line = word
-		case utf8.RuneCountInString(line)+1+utf8.RuneCountInString(word) > room:
+		case setupMenuTextWidth(line)+1+setupMenuTextWidth(word) > room:
 			lines, line = append(lines, line), word
 		default:
 			line += " " + word
 		}
 	}
 	return append(lines, line)
+}
+
+// setupMenuTextWidth is text's width in terminal columns.
+func setupMenuTextWidth(text string) int {
+	width := 0
+	for _, r := range text {
+		width += setupMenuRuneWidth(r)
+	}
+	return width
+}
+
+// setupMenuRuneWidth: East Asian wide letters and emoji take two columns
+// (names come from the user's own phones); everything else one.
+// ponytail: main wide blocks only, a full width table if menus show more.
+func setupMenuRuneWidth(r rune) int {
+	switch {
+	case r >= 0x1100 && r <= 0x115F, r >= 0x2E80 && r <= 0xA4CF, r >= 0xAC00 && r <= 0xD7A3,
+		r >= 0xF900 && r <= 0xFAFF, r >= 0xFE30 && r <= 0xFE4F, r >= 0xFF00 && r <= 0xFF60,
+		r >= 0xFFE0 && r <= 0xFFE6, r >= 0x1F300 && r <= 0x1FAFF, r >= 0x20000 && r <= 0x3FFFD:
+		return 2
+	}
+	return 1
 }
 
 func writeSetupMenuLine(out io.Writer, line string) {

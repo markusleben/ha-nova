@@ -189,6 +189,13 @@ func TestRenderSetupMenuBlockWrapsLongLinesToTheTerminal(t *testing.T) {
 			t.Fatalf("missing %q:\n%s", want, out.String())
 		}
 	}
+	// Wide letters (a phone's name) take two columns each.
+	wide := wrapSetupMenuText("電話 "+strings.Repeat("電", 30), 20)
+	for _, line := range wide {
+		if setupMenuTextWidth(line) > 20 {
+			t.Fatalf("wide line is %d columns: %q", setupMenuTextWidth(line), wide)
+		}
+	}
 	if flat := renderSetupMenuBlock(io.Discard, uiSession{}, spec, 1, 0); flat >= rows {
 		t.Fatalf("unknown width must not wrap: %d rows vs %d", flat, rows)
 	}

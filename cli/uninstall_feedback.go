@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -23,25 +24,28 @@ const (
 	uninstallAreaSettings
 	uninstallAreaPairing
 	uninstallAreaLink
+	uninstallAreaApp
 )
 
-// uninstallAreaLines: the summary's order and words, as in the preview.
+// uninstallAreaLines: the summary's order and words, the same as the
+// preview's (renderUninstallPreflight).
 var uninstallAreaLines = []struct {
 	area uninstallArea
 	line string
 }{
+	{uninstallAreaApp, "The NOVA App in Home Assistant"},
 	{uninstallAreaSkills, "HA NOVA's skills in your AI apps"},
 	{uninstallAreaProgram, "The ha-nova program"},
 	{uninstallAreaFiles, "HA NOVA's own files on this computer"},
-	{uninstallAreaSettings, "HA NOVA's settings"},
-	{uninstallAreaPairing, "This computer's pairing and key"},
+	{uninstallAreaSettings, "HA NOVA's saved Home Assistant address"},
+	{uninstallAreaPairing, "This computer's HA NOVA key"},
 	{uninstallAreaLink, "Your Home Assistant Link sign-in"},
 }
 
-// What "keep the pairing" keeps, in the summary's words.
+// What "keep the pairing" keeps, in the preview's words.
 const (
-	uninstallKeptPairing     = "This computer's pairing and settings, for a reinstall"
-	uninstallKeptPairingLink = "This computer's pairing, settings, and Home Assistant Link sign-in, for a reinstall"
+	uninstallKeptPairing     = "HA NOVA's saved Home Assistant address and this computer's key, for a reinstall"
+	uninstallKeptPairingLink = "HA NOVA's saved Home Assistant address, this computer's key, and your Link sign-in, for a reinstall"
 )
 
 // uninstallReport collects what a removal did. The summary names areas, not
@@ -114,19 +118,17 @@ func (r *uninstallReport) print() bool {
 		return false
 	}
 	if r.verbose {
+		fmt.Fprintln(os.Stdout)
 		r.printDetails()
-	} else {
-		r.printNotes()
 	}
 	if len(r.removed) == 0 && len(r.kept) == 0 {
+		r.printNotes()
 		printHumanInfo("Nothing to remove — HA NOVA was not installed.")
 		return false
 	}
 	out := os.Stdout
 	session := resolveStatusUISession(out)
-	if len(r.notes) > 0 || r.verbose { // the preview already ends in a blank line
-		fmt.Fprintln(out)
-	}
+	fmt.Fprintln(out)
 	if len(r.removed) > 0 {
 		fmt.Fprintf(out, "  %s\n", session.style("strong", "Removed:"))
 	}
@@ -135,22 +137,29 @@ func (r *uninstallReport) print() bool {
 			fmt.Fprintf(out, "    %s %s\n", session.bullet(), area.line)
 		}
 	}
-	if len(r.kept) > 0 {
-		fmt.Fprintf(out, "  %s\n", session.style("strong", "Stays:"))
-		for _, kept := range r.kept {
-			fmt.Fprintf(out, "    %s %s\n", session.bullet(), kept[0])
-			if kept[1] != "" {
-				fmt.Fprintf(out, "      %s\n", kept[1])
-			}
-		}
-	}
+	r.printStays(out)
 	fmt.Fprintln(out)
+	r.printNotes()
 	if len(r.removed) == 0 {
 		printHumanInfo("Nothing else to remove.")
 		return false
 	}
 	printHumanInfo("HA NOVA removed from this computer.")
 	return true
+}
+
+func (r *uninstallReport) printStays(out io.Writer) {
+	if len(r.kept) == 0 {
+		return
+	}
+	session := resolveStatusUISession(out)
+	fmt.Fprintf(out, "  %s\n", session.style("strong", "Stays:"))
+	for _, kept := range r.kept {
+		fmt.Fprintf(out, "    %s %s\n", session.bullet(), kept[0])
+		if kept[1] != "" {
+			fmt.Fprintf(out, "      %s\n", kept[1])
+		}
+	}
 }
 
 // printDetails prints every removed item and note as is (server remove,
@@ -165,7 +174,9 @@ func (r *uninstallReport) printDetails() {
 	for _, detail := range r.details {
 		printHumanInfo("%s", detail)
 	}
-	r.printNotes()
+	if !r.verbose { // --verbose prints the notes after the summary
+		r.printNotes()
+	}
 }
 
 func (r *uninstallReport) printNotes() {

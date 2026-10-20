@@ -309,7 +309,7 @@ func TestUninstallChoiceDefaultsToCancelWhenRemoveIsBlocked(t *testing.T) {
 		_, proceed, err = promptUninstallChoice(&out, uninstallModePurge, uninstallAppOffer{}, "the keyring is locked")
 		return 0
 	})
-	if err != nil || proceed || !strings.Contains(stdout, "1) Remove, but keep the pairing  2) Cancel [2]") {
+	if err != nil || proceed || !strings.Contains(stdout, "1) Remove, but keep the pairing for a reinstall  2) Cancel [2]") {
 		t.Fatalf("proceed=%v err=%v\n%s%s", proceed, err, out.String(), stdout)
 	}
 

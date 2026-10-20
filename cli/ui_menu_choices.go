@@ -81,7 +81,7 @@ func promptUninstallModeFromLine(defaultValue string, offerApp, purgeAllowed boo
 	if offerApp {
 		add("app", "Remove, and remove the NOVA App too")
 	}
-	add("standard", "Remove, but keep the pairing")
+	add("standard", "Remove, but keep the pairing for a reinstall")
 	add("cancel", "Cancel")
 	answer, err := promptLine("Remove HA NOVA from this computer? "+strings.Join(labels, "  "), strconv.Itoa(max(slices.Index(values, defaultValue), 0)+1))
 	if err != nil {

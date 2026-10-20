@@ -126,7 +126,7 @@ func runSetupSecureStorageRecoveryFlow(reader *bufio.Reader, out io.Writer, trig
 			return "", recoveryErr
 		}
 		renderSetupSecureStorageRecoveryPage(out, plan)
-		unlockNow, err := promptWizardYesNoFromReader(reader, out, plan.prompt, true)
+		unlockNow, err := promptWizardYesNoMenu(reader, out, plan.prompt, "Yes, open the window", "Not now", true)
 		if err != nil {
 			return "", err
 		}
@@ -152,9 +152,9 @@ func runSetupSecureStorageRecoveryFlow(reader *bufio.Reader, out io.Writer, trig
 
 		switch {
 		case isDesktopKeyringLockedError(runErr):
-			renderSetupErrorLine(out, "The keyring is still locked. Try again, or answer n to stop.")
+			renderSetupErrorLine(out, "The keyring is still locked. Try again, or pick Not now to stop.")
 		case isDesktopKeyringInitializationRequiredError(runErr):
-			renderSetupErrorLine(out, "The keyring still isn't set up. Try again, or answer n to stop.")
+			renderSetupErrorLine(out, "The keyring still isn't set up. Try again, or pick Not now to stop.")
 		default:
 			renderSetupErrorLine(out, "%s", runErr)
 		}
@@ -197,7 +197,7 @@ func secureStorageRecoveryPlanForAction(action platformSecureStorageRecoveryActi
 				"HA NOVA keeps its key in this computer's keyring, and the keyring isn't set up yet.",
 				"A system window opens to create it. Type a password only in that window; HA NOVA never sees it.",
 			},
-			prompt:         "Open the window to set up the keyring now",
+			prompt:         "Open the window to set up the keyring now?",
 			successMessage: "The keyring is ready.",
 			hint:           "set up this computer's keyring",
 		}
@@ -209,7 +209,7 @@ func secureStorageRecoveryPlanForAction(action platformSecureStorageRecoveryActi
 				"HA NOVA keeps its key in this computer's keyring, and the keyring is locked right now.",
 				"A system window opens to unlock it. Type your keyring password (usually your login password) only in that window; HA NOVA never sees it.",
 			},
-			prompt:         "Open the window to unlock the keyring now",
+			prompt:         "Open the window to unlock the keyring now?",
 			successMessage: "The keyring is unlocked.",
 			hint:           "unlock this computer's keyring",
 		}
