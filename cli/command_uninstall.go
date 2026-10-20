@@ -190,7 +190,11 @@ func runUninstall(paths runtimePaths, args []string) int {
 		return 1
 	}
 
+	lostKeyForgotten, exitCode := false, -1
 	if guidedSession {
+		if lostKeyForgotten, exitCode = confirmLostDeviceKeyPurge(os.Stdout, paths, mode); exitCode >= 0 {
+			return exitCode
+		}
 		if err := prepareUninstallBeforeGuidedTeardown(
 			paths,
 			mode,
@@ -297,6 +301,9 @@ func runUninstall(paths runtimePaths, args []string) int {
 		}
 	} else {
 		applyUninstallPreflightNotes(report, preflight)
+	}
+	if lostKeyForgotten {
+		report.addNote(lostDeviceKeyHandStep)
 	}
 	report.print()
 	return 0

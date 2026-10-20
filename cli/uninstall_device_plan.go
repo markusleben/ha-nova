@@ -24,6 +24,7 @@ type profilePurgeTarget struct {
 	processedCurrentID   string
 	processedPendingID   string
 	removalCheckpointed  bool
+	cloudProfile         bool
 	currentSlotPresent   bool
 	pendingSlotPresent   bool
 	checkpointProcessed  func(
@@ -125,6 +126,7 @@ func profilePurgeTargetFromConfig(
 		spkiPin:              strings.TrimSpace(cfg.RelaySpkiPin),
 		pendingSecureBaseURL: strings.TrimSpace(cfg.PendingSecureBaseURL),
 		pendingSpkiPin:       strings.TrimSpace(cfg.PendingSpkiPin),
+		cloudProfile:         cfg.Cloud != nil,
 	}
 	if cfg.Cloud == nil || cfg.Cloud.DeviceRevocationCompleted == nil {
 		if cfg.ServerRemoval != nil {
@@ -299,18 +301,26 @@ func validateRequiredProfilePurgeSlots(
 			target.name,
 		)
 	}
+	lost := lostDeviceKeySlotsOf(target, state)
+	if lost.pending || lost.current {
+		return &lostDeviceKeyError{
+			profile: target.name,
+			slots:   lost,
+			cloud:   target.cloudProfile,
+		}
+	}
+	return nil
+}
+
+// lostDeviceKeySlotsOf: the config names a Relay pairing whose key is not in
+// this computer's storage, and nothing proves it was revoked.
+func lostDeviceKeySlotsOf(
+	target profilePurgeTarget,
+	state profilePurgeSlotState,
+) lostDeviceKeySlots {
 	pendingEndpointRecorded :=
 		target.pendingSecureBaseURL != "" ||
 			target.pendingSpkiPin != ""
-	if pendingEndpointRecorded &&
-		!state.pendingExists &&
-		target.revokedPendingID == "" {
-		return fmt.Errorf(
-			"pending device endpoint for server %q indicates a possibly activated pairing, but its pending credential is missing; refusing cleanup because that relay pairing cannot be authenticated for revocation",
-			target.name,
-		)
-	}
-
 	currentEndpointRecorded :=
 		target.secureBaseURL != "" ||
 			target.spkiPin != ""
@@ -320,16 +330,15 @@ func validateRequiredProfilePurgeSlots(
 			state.pendingEndpointLive &&
 			target.secureBaseURL == target.pendingSecureBaseURL &&
 			target.spkiPin == target.pendingSpkiPin
-	if currentEndpointRecorded &&
-		!state.currentExists &&
-		target.revokedCurrentID == "" &&
-		!interruptedFirstPromotion {
-		return fmt.Errorf(
-			"device endpoint for server %q indicates an active pairing, but its current credential is missing; refusing cleanup because that relay pairing cannot be authenticated for revocation",
-			target.name,
-		)
+	return lostDeviceKeySlots{
+		pending: pendingEndpointRecorded &&
+			!state.pendingExists &&
+			target.revokedPendingID == "",
+		current: currentEndpointRecorded &&
+			!state.currentExists &&
+			target.revokedCurrentID == "" &&
+			!interruptedFirstPromotion,
 	}
-	return nil
 }
 
 func validateProfilePurgeEndpointCompleteness(
