@@ -36,7 +36,7 @@ operations and for relays whose `/backups` answers 404.
 | `updates` | preview + entity re-read verify | no (updates not downgradable) | HA Backups (offered pre-install for core/OS) |
 | `energy` | change preview + read-back & validate verify | no (corrective save) | config snapshot (auto before entry-removing saves, whole-doc restore); HA Backups |
 | `maintenance` | grouped preview + re-validate verify | spike adjust only (inverse call); clears/purges/removals irreversible | HA Backups (offered pre-bulk) |
-| `organize` | field preview | no (registry deletes irreversible) | config snapshot (auto before rename/disable, in-place field write-back); registry deletes: HA Backups |
+| `organize` | field preview | no (registry deletes irreversible) | config snapshot (auto before rename/disable/unit change, in-place field write-back); registry deletes: HA Backups |
 | `service-call` | state-delta preview | no (runtime action, not config) | re-run corrective service call |
 | `admin` (persons/zones/tags/users) | field preview | no (deletes irreversible; user credentials/tokens unrecoverable) | recreate from previewed fields (tags keep their physical `tag_id`; other recreates mint new ids); HA Backups |
 | `assist` (pipelines/exposure) | change preview | no | re-toggle exposure / resend prior pipeline fields; deleted pipelines recreate with a new id |

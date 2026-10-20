@@ -1,6 +1,6 @@
 ---
 name: entity-discovery
-description: Use when searching or resolving Home Assistant entities by name, room, or domain through HA NOVA Relay, and live state snapshots across a domain — what is open, on, running, locked, who is home.
+description: Use when searching or resolving Home Assistant entities by name, room, or domain through HA NOVA Relay, and live state snapshots across a domain — what is open, on, running, locked, who is home, averages and totals right now.
 license: MIT
 compatibility: Requires the ha-nova CLI (run 'ha-nova setup' first) and the HA NOVA Relay in Home Assistant (App, or standalone container on Container/Core).
 ---
@@ -17,7 +17,7 @@ Use for:
 - resolving likely targets before writes
 
 Read-only behavior.
-- No `POST`, `PUT`, `PATCH`, or `DELETE` relay writes.
+- No `POST`, `PUT`, `PATCH`, or `DELETE` relay writes; a `POST /api/template` render is a read.
 - If the user moves from discovery to mutation, stop after resolution and hand off to the write-capable skill.
 
 ## Bootstrap (once per session)
@@ -149,6 +149,7 @@ This contract is generic — never hard-coded to a brand, to cameras, or to rest
 "is everything closed?", "who is home?", "what is running right now?" — these ask
 about STATE across many entities, not about finding one. They are reads and
 belong here; `ha-nova:health` answers what is broken, not what is on.
+An average, total, or highest value right now: `computed-answers.md` (one template render, read-only).
 
 By domain and state: `ha-nova find --domain light --state on` (rows carry the current
 `state`); a second `find` with `--state unavailable` (and
@@ -259,7 +260,6 @@ Render the Step 4 shortlist as the List Frame (output-cards.md). Never dump raw 
 - Read-only skill: never issue mutating relay or service calls.
 - For write intent, hand off to the owning skill; unfamiliar writes go through `ha-nova:fallback` first.
 
-- Read-only — this skill never modifies Home Assistant state or config.
 - No `POST`, `PUT`, `PATCH`, or `DELETE` relay writes.
 - All communication with Home Assistant goes through `ha-nova relay` exclusively.
 

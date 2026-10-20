@@ -15,7 +15,7 @@ Organization and registry metadata only:
 - floors: list/create/update/delete
 - labels: list/create/update/delete
 - categories: list/create/update/delete
-- entity metadata updates: rename, move to area, assign/clear/add/remove labels, assign/remove categories, disable AND re-enable, hide, aliases
+- entity metadata updates: rename, move to area, assign/clear/add/remove labels, assign/remove categories, disable AND re-enable, hide, aliases, icon, "Show as", display precision, unit
 - entity category assignment/removal per scope
 - device metadata updates: rename, move to area, assign/clear/add/remove labels, disable
 
@@ -65,7 +65,7 @@ Use `search/related` when a delete needs a quick impact preview on linked items.
    - preview the exact fields that will change
    - confirm this exact preview before executing
    - rich metadata owned here:
-     - area: `name`, `floor_id`, `icon`, `picture`, `aliases`
+     - area: `name`, `floor_id`, `icon`, `picture`, `aliases`, `labels`, temperature/humidity sensor
      - floor: `name`, `level`, `icon`, `aliases`
      - label: `name`, `color`, `icon`, `description`
      - category: `name`, `icon`, exact `scope`
@@ -73,7 +73,7 @@ Use `search/related` when a delete needs a quick impact preview on linked items.
    - category assignment uses `categories: {"<scope>":"<category_id>"}`
    - category removal for one scope uses `categories: {"<scope>": null}`
    - do not send `categories: {}` when the goal is to clear one existing scoped category
-   - label updates on entities/devices may be:
+   - label updates on entities/devices/areas may be:
      - replace all labels
      - add labels
      - remove labels
@@ -99,12 +99,13 @@ When a metadata update targets a SET selected by prefix, domain, area, or label 
 ## Entity / Device Update Fields
 
 Use only exposed metadata fields:
-- entity: `name`, `new_entity_id`, `area_id`, `labels`, `categories`, `disabled_by`, `hidden_by`, `aliases`
+- entity: `name`, `new_entity_id`, `area_id`, `labels`, `categories`, `disabled_by`, `hidden_by`, `aliases`, `icon`, `device_class`, `options`
+- `icon`, `device_class`, `options`, and area labels or sensors: read `display-fields.md` first
 - device: `name_by_user`, `area_id`, `labels`, `disabled_by`
 
 Do not guess unsupported fields.
 
-Re-ENABLING a registry-disabled item depends on WHO disabled it (`disabled_by`): `"user"` or `"integration"` (disabled by default) → the write `{"disabled_by": null}` on the entity record; `"device"` → the entity follows its parent — re-enable the DEVICE record (`{"disabled_by": null}` on the device registry entry, same preview/consumer rules as a device-level disable), never the entity alone; `"config_entry"` (the integration itself is disabled) → not writable from any HA NOVA skill (entry enable/disable is External in the capability map): say so and point at **Settings > Devices & services**. The user-case write is — the operation `ha-nova:entity-discovery`'s sibling-capability handoff arrives with. It is lower-risk than disabling (nothing loses state), still previewed and confirmed; after the write read the response: `require_restart: true` → the entity appears only after a restart; `reload_delay: <seconds>` → it appears by itself after ~that delay; never actuate the freshly enabled entity from this skill.
+Re-ENABLING a registry-disabled item depends on WHO disabled it (`disabled_by`): `"user"` or `"integration"` (disabled by default) → the write `{"disabled_by": null}` on the entity record; `"device"` → the entity follows its parent — re-enable the DEVICE record (`{"disabled_by": null}` on the device registry entry, same preview/consumer rules as a device-level disable), never the entity alone; `"config_entry"` (the integration itself is disabled) → not writable from any HA NOVA skill (entry enable/disable is External in the capability map): say so and point at **Settings > Devices & services**. It is lower-risk than disabling (nothing loses state), still previewed and confirmed; after the write read the response: `require_restart: true` → the entity appears only after a restart; `reload_delay: <seconds>` → it appears by itself after ~that delay; never actuate the freshly enabled entity from this skill.
 
 `new_entity_id` and `disabled_by` are NOT low-risk metadata: a rename breaks every automation, scene, script, dashboard, and template that references the old id, and disabling removes the entity from the state machine with the same effect on consumers. Before either, run WS `search/related` on the entity — for a DEVICE-level `disabled_by`, expand the device to its entities first (entity registry by `device_id`) and run `search/related` per entity, because the device relation itself does not collect the child entities' consumers — and name the union of consumers in the preview — and say plainly that it covers automations, scripts, groups, persons, and scenes only: template references and dashboards (storage AND YAML mode) are NOT indexed and cannot be ruled out this way (`ha-nova get <entity_id> --references` also reads templates and dashboards). After a rename, offer to update the found consumers through their owning skills. Before either write, capture the auto config snapshot of the record actually being mutated — the entity's registry fields for a rename/entity disable, the DEVICE registry record for a device-level `disabled_by` (category `metadata`, `../ha-nova/config-snapshots.md`; on capture failure follow its capture-failure stop). For a RENAME, store the target `new_entity_id` alongside the old record — after the write the live record sits under the new id, so restore addresses it there and renames it back; restore is otherwise an in-place field write-back on the same record.
 
@@ -139,7 +140,7 @@ Metadata reads render the Report shape; registry inventories render the List Fra
 - `search/related` verdicts fail closed: verify `ok=true` and `data` is an object before projecting family keys (`../ha-nova/relay-api.md` → Parsing rule); a failed or unexecuted scan is inconclusive — never a no-consumer result.
 
 - Delete uses the one-time code only, even for cleanup of items created earlier in the same session.
-- Registry deletes (areas, floors, labels, categories) are irreversible and a recreate mints a new id — inbound references stay broken. Offer a safety backup via `ha-nova:backup` before them (never for metadata edits).
+- Registry deletes are irreversible (areas, floors, labels, categories), have no `revert`, and a recreate mints a new id — inbound references stay broken. Before confirming one, say so plainly, offer a safety backup via `ha-nova:backup` (never for metadata edits), and name Home Assistant Backups (Settings > System > Backups) as the recovery path.
 - Entity removal goes to `ha-nova:maintenance` (dead registry entries only; offer disable for live entities). Config-entry detachment goes to `ha-nova:fallback`.
 
 ## Guardrails
@@ -149,4 +150,3 @@ Metadata reads render the Report shape; registry inventories render the List Fra
 - Metadata updates only; no destructive registry admin beyond area/floor/label/category delete.
 - Verify the changed field values, not just the WS success response.
 - If a delete impact preview is incomplete, say so explicitly before asking for confirmation.
-- Registry deletes are irreversible and have no `revert`. Before confirming a delete, say so plainly and point to Home Assistant Backups (Settings > System > Backups) as the recovery path.
