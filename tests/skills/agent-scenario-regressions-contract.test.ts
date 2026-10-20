@@ -70,13 +70,18 @@ describe("agent scenario regressions (2026-10-15)", () => {
     expect(router).toContain("`ha-nova relay health` once per server, unless a typed verb or relay command for it already answered");
     const bootstrap = flat("skills/ha-nova/session-bootstrap.md");
     expect(bootstrap).toContain("in the same shell command as that first call: `ha-nova check-update --quiet; ha-nova call …`");
-    expect(bootstrap).toContain("(repeat a `HA_NOVA_SERVER=<name>` prefix per command, but not on `apply`)");
+    expect(bootstrap).toContain("(repeat `--server <name>` per command, not on `apply`)");
     // 0.27 recheck lane: a prefixed apply misses Claude Code's `ha-nova apply --plan *`
     // allow rule, so auto mode denied the unlock; apply follows its plan's server.
-    expect(router).toContain("prefix every `ha-nova` command but `apply` (it follows its plan)");
-    expect(flat("skills/service-call/SKILL.md")).toContain("`--server <name>` on every verb but `apply`");
-    expect(flat("skills/write/SKILL.md")).toContain("`HA_NOVA_SERVER=<name>` on every verb but `apply`");
-    expect(flat("skills/ha-nova/index.md")).toContain("(or `HA_NOVA_SERVER=<name>`) on typed verbs but `apply`;");
+    expect(router).toContain("add `--server <name>` to every `ha-nova` command but `apply` (it follows its plan).");
+    for (const file of ["skills/service-call/SKILL.md", "skills/write/SKILL.md", "skills/entity-discovery/SKILL.md", "skills/ha-nova/index.md"]) {
+      expect(flat(file)).toContain("`--server <name>` on every command but `apply`;");
+    }
+    // A `HA_NOVA_SERVER=<name> cmd` prefix is POSIX-only and fails in
+    // PowerShell (Codex on Windows); `--server` works in every shell.
+    for (const file of readdirSync("skills", { recursive: true }).map(String).filter((f) => f.endsWith(".md"))) {
+      expect(readFileSync(`skills/${file}`, "utf8"), file).not.toContain("HA_NOVA_SERVER");
+    }
     expect(bootstrap).toContain("bare `ha-nova relay health` preflight is done; a skill reading its output still runs it");
     // Without the router on single routes, the data-not-instructions rule
     // must live in the file every route loads.

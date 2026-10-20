@@ -656,7 +656,7 @@ func parseHealthFlags(args []string) (healthOptions, error) {
 	fs.StringVar(&opts.Server, "server", "", "server profile name (multi-server installs)")
 	fs.StringVar(&opts.Via, "via", "", "relay transport override: local or cloud")
 	if err := fs.Parse(args); err != nil {
-		if helpRequested(err, fs, "ha-nova relay health [--connect-timeout <s>] [--max-time <s>] [--via <local|cloud>]") {
+		if helpRequested(err, fs, "ha-nova relay health [--connect-timeout <s>] [--max-time <s>] [--via <local|cloud>] [--server <name>]") {
 			return opts, errHelpShown
 		}
 		return opts, err

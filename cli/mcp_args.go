@@ -17,7 +17,7 @@ import (
 // become a CLI flag; data and drafts travel as 0600 temp files with their
 // bytes (and key order) intact.
 
-var runIDPattern = regexp.MustCompile(`^[A-Za-z0-9_.:-]{1,128}$`)
+var runIDPattern = regexp.MustCompile(`^[A-Za-z0-9_][A-Za-z0-9_.:-]{0,127}$`) // never a flag
 
 var mcpConfigReadPattern = regexp.MustCompile(`^/api/config/(automation|script|scene)/config/[A-Za-z0-9_-]+$`)
 

@@ -39,18 +39,27 @@ func runSnapshotSave(paths runtimePaths, args []string) int {
 	var dataFile string
 	var dataFileSet bool
 	fs.StringVar(&dataFile, "data-file", "", "path to the JSON record (defaults to stdin)")
+	server := fs.String("server", "", "server profile name (multi-server installs)")
 	if err := fs.Parse(args); err != nil {
-		if helpRequested(err, fs, "ha-nova snapshot save [--data-file <file>]") {
+		if helpRequested(err, fs, "ha-nova snapshot save [--data-file <file>] [--server <name>]") {
 			return 0
 		}
 		printErr("%s", err)
 		return 1
 	}
+	serverSet := false
 	fs.Visit(func(f *flag.Flag) {
-		if f.Name == "data-file" {
-			dataFileSet = true
-		}
+		dataFileSet = dataFileSet || f.Name == "data-file"
+		serverSet = serverSet || f.Name == "server"
 	})
+	selected := ""
+	if serverSet { // the server must exist; it tags the record
+		var err error
+		if selected, err = snapshotServer(paths, fs, *server); err != nil {
+			printErr("%s; no snapshot was written", err)
+			return 1
+		}
+	}
 	if fs.NArg() != 0 {
 		printErr("snapshot save takes no positional arguments; use --data-file <file> or pipe the record on stdin")
 		return 1
@@ -81,7 +90,7 @@ func runSnapshotSave(paths runtimePaths, args []string) int {
 			return 1
 		}
 	}
-	receipt, err := saveUndoSnapshotBytes(paths, data)
+	receipt, err := saveUndoSnapshotForServer(paths, data, selected)
 	if err != nil {
 		printErr("%s", err)
 		return 1
@@ -264,11 +273,8 @@ func runSnapshotVerify(paths runtimePaths, args []string) int {
 func snapshotServer(paths runtimePaths, fs *flag.FlagSet, server string) (string, error) {
 	serverSet := false
 	fs.Visit(func(f *flag.Flag) { serverSet = serverSet || f.Name == "server" })
-	if serverSet {
-		if strings.TrimSpace(server) == "" {
-			return "", fmt.Errorf("--server requires a non-empty profile name")
-		}
-		setServerSelectionOverride(server)
+	if err := selectServerFlag(fs, server); err != nil {
+		return "", err
 	}
 	if _, err := loadConfig(paths); err != nil {
 		if serverSet {

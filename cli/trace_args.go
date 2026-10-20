@@ -24,7 +24,7 @@ func parseTraceGetArgs(args []string) (string, string, bool, error) {
 			continue
 		}
 		if arg == "--help" || arg == "-h" {
-			_ = helpRequested(flag.ErrHelp, fs, "ha-nova trace get <automation.entity_id|script.entity_id> <run_id> [--json]")
+			_ = helpRequested(flag.ErrHelp, fs, "ha-nova trace get <automation.entity_id|script.entity_id> <run_id> [--json] [--server <name>]")
 			return "", "", false, errHelpShown
 		}
 		if strings.HasPrefix(arg, "-") {
@@ -33,7 +33,7 @@ func parseTraceGetArgs(args []string) (string, string, bool, error) {
 		positional = append(positional, arg)
 	}
 	if len(positional) != 2 {
-		return "", "", false, fmt.Errorf("Usage: ha-nova trace get <automation.entity_id|script.entity_id> <run_id> [--json]")
+		return "", "", false, fmt.Errorf("Usage: ha-nova trace get <automation.entity_id|script.entity_id> <run_id> [--json] [--server <name>]")
 	}
 	return strings.TrimSpace(positional[0]), strings.TrimSpace(positional[1]), *jsonOut, nil
 }
@@ -51,7 +51,7 @@ func parseTraceEntityArgs(command string, args []string) (string, bool, error) {
 			continue
 		}
 		if arg == "--help" || arg == "-h" {
-			_ = helpRequested(flag.ErrHelp, fs, fmt.Sprintf("ha-nova %s <automation.entity_id|script.entity_id> [--json]", command))
+			_ = helpRequested(flag.ErrHelp, fs, fmt.Sprintf("ha-nova %s <automation.entity_id|script.entity_id> [--json] [--server <name>]", command))
 			return "", false, errHelpShown
 		}
 		if strings.HasPrefix(arg, "-") {
@@ -60,7 +60,7 @@ func parseTraceEntityArgs(command string, args []string) (string, bool, error) {
 		positional = append(positional, arg)
 	}
 	if len(positional) != 1 {
-		return "", false, fmt.Errorf("Usage: ha-nova %s <automation.entity_id|script.entity_id> [--json]", command)
+		return "", false, fmt.Errorf("Usage: ha-nova %s <automation.entity_id|script.entity_id> [--json] [--server <name>]", command)
 	}
 	return strings.TrimSpace(positional[0]), *jsonOut, nil
 }
