@@ -15,14 +15,14 @@ const (
 )
 
 // teardownCompletedNoteLines replaces the shared-App note once the App is
-// gone. Standard mode keeps the connection config on purpose, so it gets the
-// pointing-at-nothing hint (a Windows recovery can carry that mode).
+// gone (the removal said so as it happened). Standard mode keeps the
+// connection config on purpose, so it gets the pointing-at-nothing hint (a
+// Windows recovery can carry that mode).
 func teardownCompletedNoteLines(mode uninstallMode) []string {
-	notes := []string{"Removed the NOVA App from Home Assistant."}
-	if mode != uninstallModePurge {
-		notes = append(notes, "The kept connection config now points at nothing. Run 'ha-nova uninstall --purge' to clear it, or keep it for a reinstall.")
+	if mode == uninstallModePurge {
+		return nil
 	}
-	return notes
+	return []string{"The kept connection config now points at nothing. Run 'ha-nova uninstall --purge' to clear it, or keep it for a reinstall."}
 }
 
 func printTeardownCompletedNotes(out io.Writer, mode uninstallMode) {

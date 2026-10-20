@@ -309,7 +309,7 @@ func (f *setupFlow) offerChatApps() (url, note string) {
 			note = setupT("setup.chat.problem_phone") // the phone linked just before
 		}
 		return offer.url, note
-	case !askChatAppsConsent(f.ui.termIn(), f.ui.termOut(), true, chatAppsPhoneName(f.paths, setupSignedInUser, offer.state)):
+	case !askChatAppsConsent(f.ui.termIn(), f.ui.termOut(), true, offer.restart, chatAppsPhoneName(f.paths, setupSignedInUser, offer.state)):
 		return "", setupT("setup.chat.skipped")
 	}
 	note, on := turnOnChatAppsInTerminal(f.ui.termOut(), f.paths, setupOwnerIngress, offer, setupSignedInUser)

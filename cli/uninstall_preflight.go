@@ -42,14 +42,30 @@ func uninstallRelayRemovalEvidenceForDefault(
 	}
 }
 
+// uninstallRelayRemovalEvidenceInProcess is the evidence of an App removal
+// this same run made and checked (uninstall_app_removal.go: the App mapped
+// this computer's pinned port, and Home Assistant listed it as removed).
+// A locally paired default profile has no Relay identity, so "" counts here,
+// and matches only a profile without one. The Windows helper path keeps the
+// stricter uninstallRelayRemovalEvidenceFromPreflight.
+func uninstallRelayRemovalEvidenceInProcess(
+	preflight uninstallPreflight,
+	teardownCompleted bool,
+) uninstallRelayRemovalEvidence {
+	if !teardownCompleted {
+		return nil
+	}
+	return uninstallRelayRemovalEvidence{
+		defaultServerProfileName: strings.TrimSpace(preflight.config.RelayInstanceID),
+	}
+}
+
 func (evidence uninstallRelayRemovalEvidence) matches(
 	profileName string,
 	relayInstanceID string,
 ) bool {
 	expectedRelayInstanceID, exists := evidence[profileName]
-	return exists &&
-		strings.TrimSpace(relayInstanceID) != "" &&
-		expectedRelayInstanceID == strings.TrimSpace(relayInstanceID)
+	return exists && expectedRelayInstanceID == strings.TrimSpace(relayInstanceID)
 }
 
 // renderUninstallPreflight previews the removal. Without the menu (--yes, no

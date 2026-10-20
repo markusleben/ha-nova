@@ -255,7 +255,7 @@ func runUninstall(paths runtimePaths, args []string) int {
 		return 1
 	}
 	state = loadStateOrDefault(paths)
-	removedRelays := uninstallRelayRemovalEvidenceFromPreflight(
+	removedRelays := uninstallRelayRemovalEvidenceInProcess(
 		preflight,
 		teardown == teardownCompleted,
 	)

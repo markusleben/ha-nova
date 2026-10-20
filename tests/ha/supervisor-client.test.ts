@@ -154,9 +154,9 @@ describe("supervisor-client", () => {
     });
     const client = createSupervisorClient("tok");
     expect(await client.sendDiscovery("ha_nova", { host: "h", port: 8794, secret: "s" })).toBe(uuid);
-    await client.deleteDiscovery(uuid);
-    deleteStatus = 404; // already gone counts as deleted
-    await client.deleteDiscovery(uuid);
+    expect(await client.deleteDiscovery(uuid)).toBe(true);
+    deleteStatus = 404; // already gone: no error, and the caller learns it
+    expect(await client.deleteDiscovery(uuid)).toBe(false);
     expect(seen.map((s) => `${s.method} ${s.url}`)).toEqual([
       "POST http://supervisor/discovery",
       `DELETE http://supervisor/discovery/${uuid}`,

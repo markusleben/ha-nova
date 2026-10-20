@@ -1,6 +1,6 @@
 import { spawn as spawnChild, type ChildProcess } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 
 import type { SupervisorClient } from "../ha/supervisor-client.js";
@@ -10,6 +10,7 @@ import type { DeviceRegistry } from "../security/device-registry.js";
 import { BRIDGE_INSTALL_ID } from "../security/pairing-metadata.js"; // re-minting replaces the old record
 import { readPrivateFileSync, writeFileAtomicSync } from "../storage/atomic-file.js";
 import type { CoreProxyRequest, CoreProxyResponse } from "../types/api.js";
+import { ChatAppsError, chatAppFilesPresent, clearChatAppsInHA, installIntegration, removeIntegration, SERVICE } from "./chat-apps-ha.js";
 
 // Chat apps (spec docs/work/2026-10-18-onboarding-0.27-spec.md §11; contract
 // docs/work/2026-10-19-chat-bridge-contract.md, "App side"): the owner's
@@ -19,14 +20,9 @@ import type { CoreProxyRequest, CoreProxyResponse } from "../types/api.js";
 // Everything lives in /data/chat-apps; the bridge's own --data-dir is bridge/.
 
 export const BRIDGE_PORT = 8794;
-const SERVICE = "ha_nova";
 const SECRET = /^[0-9a-f]{64}$/;
 
-export class ChatAppsError extends Error {
-  constructor(readonly status: number, readonly code: string, message: string) {
-    super(message);
-  }
-}
+export { ChatAppsError, chatAppFilesPresent };
 
 export interface PhoneLinkInput {
   service: string;
@@ -37,7 +33,7 @@ export interface PhoneLinkInput {
 export interface ChatAppsStatus {
   available: boolean;
   enabled: boolean;
-  unfinished: boolean; // off, but the discovery message is still published
+  unfinished: boolean; // off, but the discovery message or the integration folder is still there
   readOnly: boolean;
   chatCodes: boolean;
   allowedUsers: string[] | null; // null: the owner only
@@ -229,51 +225,10 @@ export function createChatApps(deps: ChatAppsDeps): ChatApps {
     if (unreadable !== null) {
       throw unreadable;
     }
-    if (state.discovery_uuid !== undefined) {
-      await deps.supervisor.deleteDiscovery(state.discovery_uuid);
-    }
+    await clearChatAppsInHA(deps, state.discovery_uuid);
     rmSync(file("secret"), { force: true });
-    removeIntegration();
+    removeIntegration(deps.configRoot);
     save({ enabled: false });
-  };
-
-  // custom_components/ha_nova is the ONLY path written in /config: the parent
-  // must be a real directory (never a symlink), the old folder is removed (a
-  // symlink there is unlinked, never followed), and every file is created
-  // exclusively inside the fresh folder.
-  const customComponents = (create: boolean): string | null => {
-    if (deps.configRoot === "" || !existsSync(join(deps.configRoot, "configuration.yaml"))) {
-      if (!create) {
-        return null;
-      }
-      throw new ChatAppsError(503, "CONFIG_UNAVAILABLE", "Home Assistant's configuration folder is not available to the App.");
-    }
-    const parent = join(deps.configRoot, "custom_components");
-    const st = lstatSync(parent, { throwIfNoEntry: false });
-    if (st === undefined && create) {
-      mkdirSync(parent, { mode: 0o755 });
-    } else if (st === undefined) {
-      return null;
-    } else if (!st.isDirectory()) {
-      throw new ChatAppsError(409, "CONFIG_UNSAFE", "custom_components in Home Assistant's configuration is not a plain folder.");
-    }
-    return parent;
-  };
-  const removeIntegration = (): void => {
-    const parent = customComponents(false);
-    if (parent !== null) {
-      rmSync(join(parent, "ha_nova"), { recursive: true, force: true });
-    }
-  };
-  const copyTree = (from: string, to: string): void => {
-    mkdirSync(to, { mode: 0o755 });
-    for (const entry of readdirSync(from, { withFileTypes: true })) {
-      if (entry.isDirectory()) {
-        copyTree(join(from, entry.name), join(to, entry.name));
-      } else if (entry.isFile()) {
-        writeFileSync(join(to, entry.name), readFileSync(join(from, entry.name)), { mode: 0o644, flag: "wx" });
-      }
-    }
   };
 
   const core = async (method: "GET" | "POST", path: string): Promise<unknown> => {
@@ -301,7 +256,7 @@ export function createChatApps(deps: ChatAppsDeps): ChatApps {
       return {
         available: available(),
         enabled: state.enabled,
-        unfinished: !state.enabled && state.discovery_uuid !== undefined,
+        unfinished: !state.enabled && (state.discovery_uuid !== undefined || chatAppFilesPresent(deps.configRoot) === true),
         readOnly: current.read_only === true,
         chatCodes: current.chat_codes !== false,
         allowedUsers: current.allowed_users ?? null,
@@ -331,13 +286,15 @@ export function createChatApps(deps: ChatAppsDeps): ChatApps {
       if (restart && ((await core("POST", "/api/config/core/check_config")) as { result?: unknown })?.result !== "valid") {
         throw new ChatAppsError(409, "HA_CONFIG_INVALID", "Home Assistant's configuration has an error, so it can't restart. Fix it in Home Assistant, then try again.");
       }
-      const wasOn = load().enabled;
+      const before = load();
+      const wasOn = before.enabled;
+      if (!wasOn) {
+        await clearChatAppsInHA(deps, before.discovery_uuid); // left over from an older App or a restore: start clean
+      }
       failures = 0;
       try {
         ensureSecret();
-        const parent = customComponents(true)!;
-        removeIntegration();
-        copyTree(deps.integrationSource, join(parent, "ha_nova"));
+        installIntegration(deps.configRoot, deps.integrationSource);
         startChild();
         await publish();
         save({ ...load(), enabled: true });
@@ -393,7 +350,11 @@ export function createChatApps(deps: ChatAppsDeps): ChatApps {
     // Never fatal: a damaged chat-app file must not take the Relay down.
     boot: () => serial(async () => {
       try {
-        if (!load().enabled) {
+        const state = load();
+        if (!state.enabled) {
+          if (state.discovery_uuid !== undefined || chatAppFilesPresent(deps.configRoot) === true) {
+            await off(); // an unfinished turn-off, or a backup restore that rewound /data
+          }
           return;
         }
         if (!available()) {
@@ -403,7 +364,7 @@ export function createChatApps(deps: ChatAppsDeps): ChatApps {
         startChild();
         await publish(); // Supervisor keeps one message per App and service: a repeat is a no-op
       } catch (error) {
-        deps.logger.error("Chat apps could not resume", { error: String((error as Error).message) });
+        deps.logger.error("Chat apps could not resume or finish turning off", { error: String((error as Error).message) });
         if (wanted && child === null) {
           startLater(); // e.g. the credential could not be minted yet
         }

@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/signal"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -102,12 +103,31 @@ var chatAppsCall = func(ctx context.Context, client *CloudIngressClient, body ma
 	return envelope.Data, nil
 }
 
+// chatAppsMinAppVersion is the first NOVA App with chat apps. An older one
+// can't serve what Home Assistant still holds after going back (lane R1).
+const chatAppsMinAppVersion = "0.11.0"
+
 // chatAppsHA is what this computer's Relay reads from Home Assistant.
 type chatAppsHA struct {
 	version     string
 	loaded      bool   // the ha_nova integration's entry is loaded: the connector answers
+	present     bool   // Home Assistant holds a ha_nova entry, loaded or not
+	running     bool   // Home Assistant runs the integration: turning on needs no restart
 	externalURL string // Home Assistant's own external URL (Settings → System → Network)
+	appVersion  string // the NOVA App's version from the Relay's answers, "" when unknown
 }
+
+// leftover: Home Assistant holds chat apps, but the NOVA App is older than
+// chat apps, so nothing answers behind them.
+func (ha chatAppsHA) leftover() bool {
+	if !ha.loaded && !ha.present || ha.appVersion == "" {
+		return false
+	}
+	cmp, err := compareReleaseVersions(ha.appVersion, chatAppsMinAppVersion)
+	return err == nil && cmp < 0
+}
+
+const chatAppsLeftoverLine = "Chat apps are left over from a newer NOVA App. This one can't run them. To clean up: update the NOVA App in Home Assistant, then run ha-nova chat-apps off"
 
 // chatAppsReadHA reads Home Assistant's version and the integration's entry
 // through this computer's Relay (read-only verbs).
@@ -122,8 +142,9 @@ var chatAppsReadHA = func(paths runtimePaths) (chatAppsHA, error) {
 		return chatAppsHA{}, err
 	}
 	var config struct {
-		Version     string `json:"version"`
-		ExternalURL string `json:"external_url"`
+		Version     string   `json:"version"`
+		ExternalURL string   `json:"external_url"`
+		Components  []string `json:"components"`
 	}
 	if status != http.StatusOK || json.Unmarshal(body, &config) != nil {
 		return chatAppsHA{}, fmt.Errorf("Home Assistant /api/config answered %d", status)
@@ -134,7 +155,8 @@ var chatAppsReadHA = func(paths runtimePaths) (chatAppsHA, error) {
 	if err := s.wsDecode(map[string]any{"type": "config_entries/get", "domain": "ha_nova"}, &entries, "config entries"); err != nil {
 		return chatAppsHA{}, err
 	}
-	ha := chatAppsHA{version: config.Version, externalURL: config.ExternalURL}
+	ha := chatAppsHA{version: config.Version, externalURL: config.ExternalURL, present: len(entries) > 0,
+		running: slices.Contains(config.Components, "ha_nova"), appVersion: s.version()}
 	for _, entry := range entries {
 		ha.loaded = ha.loaded || entry.State == "loaded"
 	}
@@ -157,9 +179,10 @@ func chatAppsHAVersionOK(version string) bool {
 // App has them and Home Assistant is new enough (ok=false: say nothing), and
 // Home Assistant has an address on the internet (url "": one plain line).
 type chatAppsOffer struct {
-	state  chatAppsState
-	url    string // the connector address; "": no internet address (chatAppsBase)
-	loaded bool   // Home Assistant runs the integration: the address answers
+	state   chatAppsState
+	url     string // the connector address; "": no internet address (chatAppsBase)
+	loaded  bool   // Home Assistant runs the integration: the address answers
+	restart bool   // turning on restarts Home Assistant (it doesn't run the integration yet)
 }
 
 func readChatAppsOffer(client *CloudIngressClient, paths runtimePaths, linkOrigin func() string) (chatAppsOffer, bool) {
@@ -176,7 +199,7 @@ func readChatAppsOffer(client *CloudIngressClient, paths runtimePaths, linkOrigi
 	if err != nil || !chatAppsHAVersionOK(ha.version) {
 		return chatAppsOffer{}, false
 	}
-	offer := chatAppsOffer{state: state, loaded: ha.loaded}
+	offer := chatAppsOffer{state: state, loaded: ha.loaded, restart: !ha.running}
 	if base := chatAppsBase(linkOrigin(), ha.externalURL); base != "" {
 		offer.url = base + chatAppsConnectorPath
 	}
@@ -347,15 +370,21 @@ func chatAppsProblem(err error) setupMsg {
 }
 
 // askChatAppsConsent is the terminal's question (setup's text path and
-// `ha-nova chat-apps on`): what it does and the restart on one screen, then
-// an arrow menu. setupOffer is setup's question, whose default is "Not now".
-func askChatAppsConsent(reader *bufio.Reader, out io.Writer, setupOffer bool, phone string) bool {
+// `ha-nova chat-apps on`): what it does and, when restart is set, the
+// restart on one screen, then an arrow menu. setupOffer is setup's
+// question, whose default is "Not now".
+func askChatAppsConsent(reader *bufio.Reader, out io.Writer, setupOffer, restart bool, phone string) bool {
 	consent := setupT("setup.chat.consent_code")
 	if phone != "" {
 		consent = setupT("setup.chat.consent_phone", "phone", phone)
 	}
-	renderSetupParagraph(out, setupT("setup.chat.key"), setupT("setup.chat.value"), consent, setupT("setup.chat.restart"))
-	options := []setupMenuOption{{Value: "on", Label: setupT("setup.chat.turn_on")}, {Value: "skip", Label: setupT("setup.chat.not_now")}}
+	lines, turnOn, typed := []string{setupT("setup.chat.key"), setupT("setup.chat.value"), consent}, setupT("setup.chat.turn_on_now"), "Type 'yes' to turn chat apps on, or press Enter to skip"
+	if restart {
+		lines, turnOn = append(lines, setupT("setup.chat.restart")), setupT("setup.chat.turn_on")
+		typed = "Type 'yes' to turn chat apps on (Home Assistant restarts once), or press Enter to skip"
+	}
+	renderSetupParagraph(out, lines...)
+	options := []setupMenuOption{{Value: "on", Label: turnOn}, {Value: "skip", Label: setupT("setup.chat.not_now")}}
 	choice := "on"
 	if setupOffer {
 		options[0], options[1] = options[1], options[0]
@@ -365,7 +394,7 @@ func askChatAppsConsent(reader *bufio.Reader, out io.Writer, setupOffer bool, ph
 	defer clearSetupNextPromptSkipsStaleBlankInput()
 	answer, err := promptSetupMenu(reader, out, setupMenuSpec{Prompt: "Use ↑/↓ or j/k, Enter to select", DefaultValue: choice, Options: options}, func() (string, error) {
 		// Without the menu only a typed "yes" consents.
-		answer, err := promptLineWithOptions(reader, out, "Type 'yes' to turn chat apps on (Home Assistant restarts once), or press Enter to skip", "", false)
+		answer, err := promptLineWithOptions(reader, out, typed, "", false)
 		if err == nil && strings.EqualFold(strings.TrimSpace(answer), "yes") {
 			return "on", nil
 		}

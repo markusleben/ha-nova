@@ -140,9 +140,9 @@ window.novaSteps = (h) => {
         const ask = local.chatAsk && h.accepts('chat');
         const consent = ask ? el('div', { class: 'consent', id: 'chat-consent' },
           el('p', {}, chat.phone ? t('setup.chat.consent_phone', { phone: chat.phone }) : t('setup.chat.consent_code')),
-          el('p', { class: 'restart' }, t('setup.chat.restart')),
+          chat.no_restart ? null : el('p', { class: 'restart' }, t('setup.chat.restart')),
           el('div', { class: 'actions' },
-            button(t('setup.chat.turn_on'), 'chat', 'primary btn-small', 'on', 'chat-on'),
+            button(t(chat.no_restart ? 'setup.chat.turn_on_now' : 'setup.chat.turn_on'), 'chat', 'primary btn-small', 'on', 'chat-on'),
             el('button', { id: 'b-chat-cancel', class: 'btn btn-ghost btn-small', type: 'button', onclick: () => { local.chatAsk = false; render(true); focusId('b-chat-switch'); } }, t('setup.chat.not_now')))) : null;
         const sw = toggle('b-chat-switch', key, ask, () => { local.chatAsk = !local.chatAsk; render(true); }, !h.accepts('chat'));
         sw.setAttribute('aria-expanded', String(ask));

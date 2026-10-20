@@ -35,6 +35,9 @@ let components: string[];
 let configValid: boolean;
 let haVersion: string;
 let coreCalls: string[];
+let entries: { id: string; uuid: string }[]; // Home Assistant's ha_nova config entries
+let entriesStatus: number;
+let entriesMade: number;
 let spawned: { args: string[]; env: NodeJS.ProcessEnv; child: FakeChild }[];
 
 beforeEach(async () => {
@@ -56,6 +59,9 @@ beforeEach(async () => {
   configValid = true;
   haVersion = "2026.10.1";
   coreCalls = [];
+  entries = [];
+  entriesStatus = 200;
+  entriesMade = 0;
   spawned = [];
   supervisor = createServer((request, response) => {
     let body = "";
@@ -69,12 +75,16 @@ beforeEach(async () => {
       if (request.method === "GET" && request.url === "/addons/self/info") return reply(200, { version: "0.11.0", hostname: "abcd1234-ha-nova-relay" });
       if (request.method === "POST" && request.url === "/discovery") {
         if (postStatus !== 200) return reply(postStatus, {});
-        discovery.set(UUID, JSON.parse(body) as Record<string, unknown>); // one message per App and service
+        const message = JSON.parse(body) as { config: { secret?: unknown } };
+        discovery.set(UUID, message); // one message per App and service
+        // Home Assistant sets up an entry from a valid config (the integration refuses one without a secret).
+        if (typeof message.config.secret === "string" && !entries.some((e) => e.uuid === UUID)) entries.push({ id: `E${++entriesMade}`, uuid: UUID });
         return reply(200, { uuid: UUID });
       }
       if (request.method === "DELETE" && request.url === `/discovery/${UUID}`) {
-        discovery.delete(UUID);
-        return reply(deleteStatus, {});
+        const existed = discovery.delete(UUID);
+        if (deleteStatus === 200 && existed) entries = entries.filter((e) => e.uuid !== UUID); // Home Assistant drops the entry made from it
+        return reply(deleteStatus === 200 && !existed ? 404 : deleteStatus, {});
       }
       reply(404, {});
     });
@@ -105,6 +115,13 @@ function chatApps(overrides: Partial<ChatAppsDeps> = {}): ChatApps {
         coreCalls.push(`${input.method} ${input.path}`);
         if (input.path === "/api/config") return { status: 200, body: { components, version: haVersion } };
         if (input.path === "/api/config/core/check_config") return { status: 200, body: { result: configValid ? "valid" : "invalid" } };
+        if (input.path === "/api/config/config_entries/entry?domain=ha_nova") return { status: entriesStatus, body: entries.map((e) => ({ entry_id: e.id, domain: "ha_nova" })) };
+        const entry = /^\/api\/config\/config_entries\/entry\/(\w+)$/.exec(input.path)?.[1];
+        if (input.method === "DELETE" && entry !== undefined) {
+          const found = entries.some((e) => e.id === entry);
+          entries = entries.filter((e) => e.id !== entry);
+          return { status: found ? 200 : 404, body: {} };
+        }
         return { status: 200, body: [] };
       },
     },
@@ -354,6 +371,70 @@ describe("chat apps: across App restarts", () => {
     await chatApps().boot();
     expect(spawned).toHaveLength(0);
     expect(discovery.size).toBe(0);
+  });
+});
+
+// Lane R1: a Supervisor backup restore rewinds /data (state, secret, saved
+// message id) but not what Home Assistant and the Supervisor hold.
+describe("chat apps: leftovers after a restore rewound /data", () => {
+  const folder = () => join(root, "config", "custom_components", "ha_nova");
+  async function onThenRewound(): Promise<void> {
+    await chatApps().turnOn(true);
+    expect(entries).toEqual([{ id: "E1", uuid: UUID }]);
+    rmSync(data(), { recursive: true }); // the App's /data from before chat apps were on
+  }
+
+  it("shows the leftovers as not fully off, and off removes the message, every entry, and the folder", async () => {
+    await onThenRewound();
+    entries.push({ id: "E9", uuid: "f".repeat(32) }); // an older entry Home Assistant kept
+    const apps = chatApps();
+    expect(apps.status(OWNER)).toMatchObject({ enabled: false, unfinished: true });
+    await apps.turnOff();
+    expect(discovery.size).toBe(0);
+    expect(entries).toEqual([]);
+    expect(existsSync(folder())).toBe(false);
+    expect(apps.status(OWNER)).toMatchObject({ enabled: false, unfinished: false });
+    expect(coreCalls).toContain("DELETE /api/config/config_entries/entry/E9");
+  });
+
+  it("finishes the cleanup on its own when the App starts again", async () => {
+    await onThenRewound();
+    await chatApps().boot();
+    expect(discovery.size).toBe(0);
+    expect(entries).toEqual([]);
+    expect(existsSync(folder())).toBe(false);
+    expect(spawned).toHaveLength(1); // nothing started
+  });
+
+  it("starts clean when turned on again instead: one entry, from a new message", async () => {
+    components = ["http", "ha_nova"]; // Home Assistant still runs the old integration
+    await onThenRewound();
+    entries.push({ id: "E9", uuid: "f".repeat(32) });
+    expect(await chatApps().turnOn(false)).toEqual({ restart: false });
+    expect(entries.map((e) => e.uuid)).toEqual([UUID]);
+    expect(entries[0]!.id).not.toBe("E1");
+    expect((discovery.get(UUID)?.config as { secret: string }).secret).toBe(secretOf());
+  });
+
+  it("stays not fully off when Home Assistant can't be read, and a retry finishes", async () => {
+    await onThenRewound();
+    entriesStatus = 502;
+    const apps = chatApps();
+    await expect(apps.turnOff()).rejects.toThrow(/502/);
+    await expect(apps.boot()).resolves.toBeUndefined(); // logged, never fatal
+    expect(apps.status(OWNER)).toMatchObject({ enabled: false, unfinished: true });
+    entriesStatus = 200;
+    await apps.turnOff();
+    expect(entries).toEqual([]);
+    expect(apps.status(OWNER)).toMatchObject({ enabled: false, unfinished: false });
+  });
+
+  it("never asks the Supervisor or Home Assistant to change anything when nothing is left", async () => {
+    const apps = chatApps();
+    await apps.boot();
+    await apps.turnOff();
+    expect(discovery.size).toBe(0);
+    expect(coreCalls.filter((c) => !c.startsWith("GET "))).toEqual([]);
   });
 });
 

@@ -252,7 +252,7 @@ function deps(cloudRemoteEnabled: boolean): IngressListenerDeps {
     setOptions: async () => {},
     setIngressPanel: async () => {},
     sendDiscovery: async () => "",
-    deleteDiscovery: async () => {},
+    deleteDiscovery: async () => true,
   };
   const wsClient = {
     sendMessage: async () => [],

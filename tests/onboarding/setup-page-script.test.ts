@@ -217,6 +217,17 @@ describe("setup page: Add to Claude", () => {
     expect(p.screen.textContent).not.toContain(p.catalog["setup.chat.need_address"]);
   });
 
+  it("promises the restart only when one comes (lane S2)", async () => {
+    for (const no_restart of [false, true]) {
+      const p = page({ screen: "control", accepts: ["finish", "chat"], control: { window: true, phone: "none", chat: { state: "offer", no_restart } } });
+      await p.settle();
+      p.find("b-chat-switch")!.dispatch("click");
+      await p.settle();
+      expect(p.screen.textContent.includes(p.catalog["setup.chat.restart"]!)).toBe(!no_restart);
+      expect(p.find("b-chat-on")!.textContent).toBe(p.catalog[no_restart ? "setup.chat.turn_on_now" : "setup.chat.turn_on"]);
+    }
+  });
+
   it("repeats it on step 4", async () => {
     const p = page({ screen: "home", accepts: ["done"], home: { notes: [{ key: "setup.page.home.note_chat", args: { url } }], chat_link: link } });
     await p.settle();

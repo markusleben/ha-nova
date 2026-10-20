@@ -6,10 +6,10 @@ import { join } from "node:path";
 
 import {
   buildAppMode,
-  chatAppFilesPresent,
   type AppModeInput,
   type AppModeRuntime,
 } from "../../nova/src/runtime/app-mode.js";
+import { chatAppFilesPresent } from "../../nova/src/runtime/chat-apps.js";
 import { registerCode } from "../../nova/src/security/opaque-server.js";
 
 // This file deliberately does NOT call opaqueReady() itself: the OPAQUE WASM must

@@ -566,3 +566,19 @@ func TestRelayAdvertisesSignInOnlyWithTheCapabilityFlag(t *testing.T) {
 		t.Error("an unreachable relay must not advertise sign-in")
 	}
 }
+
+// Chat apps have no code to fall back to: their sign-in never offers one
+// (lane S3); setup's pairing sign-in still does.
+func TestHASignInWaitLineOffersACodeOnlyForPairing(t *testing.T) {
+	for _, test := range []struct {
+		open func(context.Context, io.Writer, string) (haSignInSession, error)
+		want string
+	}{{openHASignInIngress, "Ctrl+C to use a code instead"}, {openHASignInIngressNoCode, "Ctrl+C to stop"}} {
+		ha := newFakeSignInHA(t)
+		useFakeBrowser(t, ha, signedInQuery)
+		var out bytes.Buffer
+		if _, err := test.open(context.Background(), &out, ha.server.URL); err != nil || !strings.Contains(out.String(), test.want) {
+			t.Fatalf("want %q: %v\n%s", test.want, err, out.String())
+		}
+	}
+}
