@@ -23,10 +23,15 @@ func runDoctor(paths runtimePaths, args []string) int {
 	fs.SetOutput(io.Discard)
 	autoRepair := fs.Bool("auto-repair", false, "silently reattach drifted clients before reporting")
 	quiet := fs.Bool("quiet", false, "suppress info lines; only print warnings, errors, and repair actions")
+	server := fs.String("server", "", "server profile name (multi-server installs)")
 	if err := fs.Parse(args); err != nil {
-		if helpRequested(err, fs, "ha-nova doctor [--auto-repair] [--quiet]") {
+		if helpRequested(err, fs, "ha-nova doctor [--auto-repair] [--quiet] [--server <name>]") {
 			return 0
 		}
+		printHumanErr("%s", err)
+		return 1
+	}
+	if err := selectServerFlag(fs, *server); err != nil {
 		printHumanErr("%s", err)
 		return 1
 	}
@@ -75,7 +80,7 @@ func runDoctor(paths runtimePaths, args []string) int {
 		return 1
 	}
 	// Multi-server installs: name the checked profile so per-server doctor runs
-	// (HA_NOVA_SERVER=<name> ha-nova doctor) are unambiguous.
+	// (ha-nova doctor --server <name>) are unambiguous.
 	if profileName, profileCount := selectedServerProfileStatus(paths); profileCount > 1 || profileName != defaultServerProfileName {
 		doctorInfo("Server profile: %s", profileName)
 	}
@@ -432,10 +437,15 @@ func runCheckUpdate(paths runtimePaths, args []string) int {
 	fs.SetOutput(io.Discard)
 	quiet := fs.Bool("quiet", false, "print only when an update is available; stay silent when current")
 	jsonOutput := fs.Bool("json", false, "machine-readable result on stdout")
+	server := fs.String("server", "", "server profile whose Relay is checked (multi-server installs)")
 	if err := fs.Parse(args); err != nil {
-		if helpRequested(err, fs, "ha-nova check-update [--quiet] [--json]") {
+		if helpRequested(err, fs, "ha-nova check-update [--quiet] [--json] [--server <name>]") {
 			return 0
 		}
+		printHumanErr("%s", err)
+		return 1
+	}
+	if err := selectServerFlag(fs, *server); err != nil {
 		printHumanErr("%s", err)
 		return 1
 	}

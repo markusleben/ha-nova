@@ -52,7 +52,7 @@ match basis (`by`: `name`, `alias`, or `state` for unregistered).
 
 - **If the match does not resolve a suitable target** — no results, or only matches the user rejects or that plainly are not what they meant — re-run ONCE with `--aliases` (aliases searched even when a name matched): an alias is exactly where a household keeps the name it actually says. Only then try synonyms, alternative terms, or shorter words, one `find` each. When a resolved entity had no matching alias and the user's word was clearly their habitual name, offer once to store it as an alias via `ha-nova:organize`.
 - `--include-disabled` when a disabled entity may be the target (it reads the full registry).
-- Multi-server: `--server <name>` or `HA_NOVA_SERVER=<name>` on every verb but `apply`; name a non-default server once per response.
+- Multi-server: `--server <name>` on every command but `apply`, `diff`, `relay jq`; name a non-default server once per response.
 - A room, area, or device request handed to `ha-nova:service-call` travels as its `area_id`/`device_id` (`--area`/`--device`), never as a list of entity ids you expanded.
 - **Fail closed on truncation:** while `returned` is below `total` the result proves neither absence nor uniqueness — narrow (`--domain`, `--area`, more words) until `total` fits before concluding either; report total/shown/omitted with the rows.
 

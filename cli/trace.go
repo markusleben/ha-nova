@@ -58,12 +58,17 @@ type traceListEntry struct {
 }
 
 func runTraceCommand(paths runtimePaths, args []string) int {
+	args, err := takeServerArg(args)
+	if err != nil {
+		printErr("%s", err)
+		return 1
+	}
 	if len(args) == 0 {
-		printErr("Usage: ha-nova trace <latest|list|get> <automation.entity_id|script.entity_id> [run_id] [--json]")
+		printErr("Usage: ha-nova trace <latest|list|get> <automation.entity_id|script.entity_id> [run_id] [--json] [--server <name>]")
 		return 1
 	}
 	if args[0] == "--help" || args[0] == "-h" || args[0] == "help" {
-		fmt.Println("Usage: ha-nova trace <latest|list|get> <automation.entity_id|script.entity_id> [run_id] [--json]")
+		fmt.Println("Usage: ha-nova trace <latest|list|get> <automation.entity_id|script.entity_id> [run_id] [--json] [--server <name>]")
 		fmt.Println("Run 'ha-nova trace <subcommand> --help' to see that subcommand's flags.")
 		return 0
 	}

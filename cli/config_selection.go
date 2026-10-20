@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"flag"
 	"fmt"
 	"os"
 	"regexp"
@@ -55,6 +56,44 @@ func setActiveDemoProfile() {
 }
 
 func setServerSelectionOverride(name string) { serverSelectionOverride = name }
+
+var errEmptyServerFlag = errors.New("--server requires a non-empty profile name")
+
+// selectServerFlag applies a parsed --server flag of a FlagSet command.
+func selectServerFlag(fs *flag.FlagSet, server string) error {
+	set := false
+	fs.Visit(func(f *flag.Flag) { set = set || f.Name == "server" })
+	if !set {
+		return nil
+	}
+	if strings.TrimSpace(server) == "" {
+		return errEmptyServerFlag
+	}
+	setServerSelectionOverride(server)
+	return nil
+}
+
+// takeServerArg does the same for hand-parsed commands (trace): it removes
+// --server <name> / --server=<name> from args and selects that profile.
+func takeServerArg(args []string) ([]string, error) {
+	var rest []string
+	for i := 0; i < len(args); i++ {
+		name, value, inline := strings.Cut(args[i], "=")
+		if name != "--server" && name != "-server" {
+			rest = append(rest, args[i])
+			continue
+		}
+		if !inline && i+1 < len(args) {
+			i++
+			value = args[i]
+		}
+		if strings.TrimSpace(value) == "" {
+			return nil, errEmptyServerFlag
+		}
+		setServerSelectionOverride(value)
+	}
+	return rest, nil
+}
 
 func serverSelectionFromEnv() string { return strings.TrimSpace(os.Getenv(serverSelectionEnvVar)) }
 

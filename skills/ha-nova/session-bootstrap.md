@@ -9,15 +9,15 @@ Cited ../<x>/<file> paths are relative to the citing file.
    first Home Assistant or HA NOVA task, and before any relay command or typed
    verb, run `ha-nova check-update --quiet` in the same shell command
    as that first call: `ha-nova check-update --quiet; ha-nova call …` (repeat
-   a `HA_NOVA_SERVER=<name>` prefix per command, but not on `apply`). Once a typed verb or relay command for that server answered, a
+   `--server <name>` per command, not on `apply`). Once a typed verb or relay command for that server answered, a
    bare `ha-nova relay health` preflight is done; a skill reading its output
    still runs it.
 2. Run one check for every server profile in this session, with its
-   `HA_NOVA_SERVER=<name>`; empty or failed counts, and empty stays silent.
+   `--server <name>`; empty or failed counts, and empty stays silent.
 3. Later status arrives in typed verbs' `notices[]` (`update`,
    `relay_outdated`, `demo`) and `[ha-nova]` relay lines — never a substitute
    for step 1. Never repeat a notice already surfaced in this session.
-   `HA_NOVA_SERVER=demo`: the shared demo house, never the user's home.
+   `--server demo`: the shared demo house, never the user's home.
 
 ## HA NOVA Update Callout
 
