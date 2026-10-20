@@ -93,7 +93,6 @@ func confirmBoth(a *phoneAsking, text string) (verbEnvelope, int, bool) {
 		if first.answer != phoneRejected && window != windowFailed {
 			fmt.Fprintln(os.Stderr, "Answered on the phone; the window on this computer is withdrawn.")
 		}
-		a.note = "Approved on this phone. "
 		return a.finish()
 	case decided && first.window == windowConfirmed:
 		fmt.Fprintln(os.Stderr, map[bool]string{false: "Confirmed in the window on this computer; the phone's notification is withdrawn.", true: "Confirmed in the window on this computer."}[phoneOut])

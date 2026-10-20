@@ -317,7 +317,6 @@ type phoneAsking struct {
 	deadline time.Time
 	answer   phoneAnswer
 	reply    phoneReply
-	note     string // before the result line where the window asked too: "Approved on this phone. "
 }
 
 // startPhoneAsk checks a phone plan before its ask. nil: nothing to ask
@@ -381,7 +380,7 @@ func (a *phoneAsking) finish() (env verbEnvelope, exit int, asked bool) {
 		humanAnswer, humanWhere = confirmCode(s.transport.Credential, a.idHex, a.plan.Channel, a.plan.ExpiresAt), channelPhone
 		handed, phoneApplied = true, func(env verbEnvelope, exit int) {
 			prefix, line := phoneApplyResult(env, exit)
-			reply.say(phoneResultTitle(prefix, a.goal), a.note+line)
+			reply.say(phoneResultTitle(prefix, a.goal), line)
 			s.close()
 		}
 		return env, 0, false

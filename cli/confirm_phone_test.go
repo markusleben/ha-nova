@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 	"testing"
@@ -27,6 +28,8 @@ type fakePhones struct {
 	probeErr error // the Relay can't subscribe
 }
 
+var phoneNamesDevice = regexp.MustCompile(`(?i)\bthis (phone|device|watch)\b|\bhere\b`)
+
 func usePhones(t *testing.T, targets ...string) *fakePhones {
 	t.Helper()
 	p := &fakePhones{events: make(chan phoneEvent, 8),
@@ -45,6 +48,9 @@ func usePhones(t *testing.T, targets ...string) *fakePhones {
 		p.mu.Lock()
 		defer p.mu.Unlock()
 		p.sent, p.services = append(p.sent, body), append(p.services, service)
+		if text := fmt.Sprint(body["title"], " ", body["message"]); phoneNamesDevice.MatchString(text) { // a watch shows it too
+			t.Errorf("notification names the device it shows on: %q", text)
+		}
 		data, _ := body["data"].(map[string]any)
 		actions, _ := data["actions"].([]any)
 		if len(actions) == 2 && p.tapBy != nil {
