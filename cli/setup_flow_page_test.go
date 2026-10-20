@@ -392,7 +392,7 @@ func TestSetupPageHandsOverToTheTerminal(t *testing.T) {
 	page.click("terminal", "")
 	code := setupPageExit(t, done, stdout)
 	end := page.ui.snapshot()
-	if code != 0 || end.Screen != "stopped" || !page.ui.inTerminal() || !strings.Contains(stdout.String(), "one-time six-digit code") {
+	if code != 0 || end.Screen != "stopped" || end.Handover != "code" || !page.ui.inTerminal() || !strings.Contains(stdout.String(), "one-time six-digit code") {
 		t.Fatalf("exit %d screen %s inTerminal=%v\n%s", code, end.Screen, page.ui.inTerminal(), stdout)
 	}
 }

@@ -216,6 +216,9 @@ func haSignInRetryable(err error) bool {
 		IsCloudErrorCode(err, CloudErrNetwork) || IsCloudErrorCode(err, CloudErrTimeout)
 }
 
+// haOwnerHint: who the owner is, for a family member who signed in.
+const haOwnerHint = "The owner is the first account made when Home Assistant was set up; ask that person to sign in."
+
 func haSignInFallbackLine(err error, user HACurrentUser) string {
 	var certificate *tls.CertificateVerificationError
 	var authority x509.UnknownAuthorityError
@@ -230,9 +233,9 @@ func haSignInFallbackLine(err error, user HACurrentUser) string {
 		return "No sign-in arrived within five minutes."
 	case errors.Is(err, errSignInNotOwner):
 		if terminalSafeName(user.Name) == "" {
-			return "The account you signed in with is not the Home Assistant owner. Only the owner can connect a computer."
+			return "The account you signed in with is not the Home Assistant owner. Only the owner can connect a computer. " + haOwnerHint
 		}
-		return fmt.Sprintf("Signed in as %s, who is not the Home Assistant owner. Only the owner can connect a computer.", terminalSafeName(user.Name))
+		return fmt.Sprintf("Signed in as %s, who is not the Home Assistant owner. Only the owner can connect a computer. %s", terminalSafeName(user.Name), haOwnerHint)
 	case errors.Is(err, errSignInAppMissing) && haSignInSlow(err):
 		return "Could not finish the sign-in: Home Assistant answered too slowly."
 	case errors.Is(err, errSignInAppMissing):

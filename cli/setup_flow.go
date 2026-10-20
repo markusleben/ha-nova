@@ -250,10 +250,11 @@ func (f *setupFlow) wizardSteps() setupWizardSteps {
 }
 
 // textOnly: the next step exists only in the terminal (recovery states,
-// spec §2), so the setup page hands over first. A no-op in the terminal.
-func (f *setupFlow) textOnly() {
+// spec §2), so the setup page hands over first, saying why (reason: see
+// setupPageState.Handover). A no-op in the terminal.
+func (f *setupFlow) textOnly(reason string) {
 	if f.page != nil {
-		f.page.handover()
+		f.page.handoverFor(reason)
 	}
 }
 

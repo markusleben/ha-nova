@@ -24,7 +24,7 @@ import (
 var setupPageIdle = 30 * time.Minute
 
 // The actions the page may post; the engine accepts a subset at a time.
-var setupPageActions = []string{"signin", "address", "terminal", "recheck", "stop", "demo", "fix", "server", "clients",
+var setupPageActions = []string{"signin", "address", "terminal", "recheck", "web", "stop", "demo", "fix", "server", "clients",
 	"phone", "chat", "finish", // step 3 (setup_page_control.go)
 	"preview", "save", "undo", "claude", "done", // step 4 (setup_page_home.go)
 }
@@ -69,6 +69,8 @@ type setupPageState struct {
 	Control    *setupPageControl    `json:"control,omitempty"`     // step 3
 	Home       *setupPageHome       `json:"home,omitempty"`        // step 4
 	NewClients []string             `json:"new_clients,omitempty"` // a re-run: AI assistants found since, to set up with a click
+	Web        bool                 `json:"web,omitempty"`         // no AI app here: Claude or ChatGPT in the browser (chat apps)
+	Handover   string               `json:"handover,omitempty"`    // why the terminal: code, keyring_locked, keyring_setup; "": a question there
 	Accepts    []string             `json:"accepts"`
 }
 
@@ -143,14 +145,18 @@ func (ui *setupWebUI) snapshot() setupPageState {
 }
 
 // handover: from now on setup continues in the terminal.
-func (ui *setupWebUI) handover() {
+func (ui *setupWebUI) handover() { ui.handoverFor("") }
+
+// handoverFor: the hand-over, and why (setupPageState.Handover), so the
+// page says what waits in the terminal.
+func (ui *setupWebUI) handoverFor(reason string) {
 	ui.mu.Lock()
 	defer ui.mu.Unlock()
 	if ui.handedOver {
 		return
 	}
 	ui.handedOver = true
-	ui.view.Screen, ui.view.Accepts, ui.view.SignInURL = "terminal", nil, ""
+	ui.view.Screen, ui.view.Accepts, ui.view.SignInURL, ui.view.Handover = "terminal", nil, "", reason
 }
 
 func (ui *setupWebUI) inTerminal() bool {

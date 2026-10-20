@@ -92,7 +92,7 @@ func (f *setupFlow) verifyDevice() setupStepResult {
 	}
 	if health != deviceOK {
 		f.ui.show(setupView{Blocks: []setupBlock{setupErrorBlock(setupText("setup.verify.device_not_answering"))}})
-		f.textOnly()
+		f.textOnly("")
 		if retryErr := promptSetupDeviceVerifyRetry(f.ui.termIn(), f.ui.termOut()); retryErr != nil {
 			if retryErr == errSetupBack {
 				// Do exactly what the prompt advertises.

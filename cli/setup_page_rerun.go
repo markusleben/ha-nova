@@ -136,6 +136,9 @@ func (f *setupFlow) pageRerunRows() (rows []setupPageRow, problem *setupPageMsg)
 		computer.State, computer.Msg = "fail", setupPageText("setup.page.rerun.computer_fail")
 	}
 	clients := setupPageRow{ID: "clients", State: "ok", Msg: setupPageText("setup.page.rerun.clients_ok", "clients", setupClientNames(f.selectedClients))}
+	if len(f.selectedClients) == 0 { // Claude or ChatGPT in the browser
+		clients.Msg = setupPageText("setup.page.clients.web")
+	}
 	if notReady := f.pageClientsNotReady(); len(notReady) > 0 {
 		clients.State, clients.Msg = "fail", setupPageText("setup.page.rerun.clients_fail", "clients", setupClientNames(notReady))
 	}
@@ -263,7 +266,11 @@ func (f *setupFlow) pageFinish() setupStepResult {
 	case f.cfg.Cloud.ready() && f.cfg.RoutePolicy == routePolicyAutomatic:
 		kind = setupOutcomeLinkReady
 	}
-	f.page.text.outcome(setupOutcome{Kind: kind, Clients: f.selectedClients, LegacyToken: f.pageRerunOK && f.cfg.RelaySecureBaseURL == "" && f.cfg.RelayBaseURL != ""})
+	if f.noClient && kind == setupOutcomeComplete { // Claude or ChatGPT in the browser: as the terminal's no-app finish
+		f.page.text.show(setupView{Blocks: []setupBlock{setupSuccess(setupText("setup.done.connected_no_client"))}})
+	} else {
+		f.page.text.outcome(setupOutcome{Kind: kind, Clients: f.selectedClients, LegacyToken: f.pageRerunOK && f.cfg.RelaySecureBaseURL == "" && f.cfg.RelayBaseURL != ""})
+	}
 	if f.pageRerunOK { // the banner cleared the page's address
 		fmt.Fprintf(f.page.text.out, "  %s\n", setupT("setup.page.terminal.rerun"))
 	}

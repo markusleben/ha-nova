@@ -142,20 +142,87 @@ describe("setup page step 1", () => {
   });
 });
 
+describe("setup page: no AI app on this computer", () => {
+  it("goes on with Claude or ChatGPT in the browser, and keeps the downloads", async () => {
+    const p = page({ screen: "noclient", accepts: ["recheck", "web"] });
+    await p.settle();
+    expect(p.screen.textContent).toContain(p.catalog["setup.page.noclient.lead"]);
+    expect(p.find("b-web")!.className).toContain("btn-primary");
+    expect(p.find("b-recheck")!.className).toContain("btn-ghost");
+    expect(p.find("l-desktop")!.className).toContain("btn-ghost");
+    p.find("b-web")!.dispatch("click");
+    await p.settle();
+    expect(p.posts).toEqual([{ action: "web" }]);
+  });
+
+  it("names the browser as the AI assistant on step 1, with nothing to set up here", async () => {
+    const p = page({ ...found, clients: undefined, web: true });
+    await p.settle();
+    expect(p.screen.textContent).toContain(p.catalog["setup.page.clients.web"]);
+    expect(p.screen.textContent).not.toMatch(/get set up|Gets set up/);
+  });
+
+  it("shows chat apps first on step 3, with the question open; only its button turns them on", async () => {
+    const p = page({ screen: "control", web: true, accepts: ["finish", "chat"], control: { window: true, phone: "none", link: "offer", chat: { state: "offer", ask: true } } });
+    await p.settle();
+    const rows = p.screen.all().find((n) => n.className === "rows tall")!.children;
+    expect(rows[0].textContent).toContain(p.catalog["setup.chat.key"]);
+    expect(p.find("b-chat-on")).toBeTruthy();
+    expect(p.find("b-finish")!.attributes.disabled).toBe("");
+    expect(p.posts).toEqual([]);
+    p.find("b-chat-cancel")!.dispatch("click");
+    expect(p.find("b-chat-ask")).toBeTruthy();
+    expect(p.find("b-finish")!.attributes.disabled).toBeUndefined();
+  });
+});
+
+describe("setup page hand-over to the terminal", () => {
+  it("says why the terminal waits", async () => {
+    for (const [handover, key] of [["code", "lead_code"], ["keyring_locked", "lead_keyring_locked"], ["keyring_setup", "lead_keyring_setup"], [undefined, "lead"]]) {
+      const p = page({ screen: "terminal", accepts: [], handover });
+      await p.settle();
+      expect(p.screen.textContent).toContain(p.catalog[`setup.page.terminal.${key}`]);
+    }
+    const p = page({ screen: "terminal", accepts: [], handover: "keyring_locked" });
+    await p.settle();
+    expect(p.screen.textContent).toContain("password store is locked");
+    expect(p.screen.textContent).not.toContain("keyring");
+  });
+});
+
 describe("setup page sign-in", () => {
   // Home Assistant sends the sign-in back to 127.0.0.1 on this computer, so
   // the page never offers its link for another device; the code is that way.
   const url = "http://10.0.2.2:8123/auth/authorize?state=x";
   const signingIn = { screen: "connect", signin_url: url, rows: [{ id: "signed_in", state: "run" }], accepts: [] };
 
-  it("points to the six-digit code on step 1, next to the sign-in", async () => {
-    const p = page(found);
+  it("says who signs in, and puts the six-digit code in a text link that says it goes on in the terminal", async () => {
+    for (const state of [found, { ...found, app: "missing", primary: "install" }]) {
+      const p = page(state);
+      await p.settle();
+      expect(p.screen.textContent).toContain(p.catalog["setup.page.found.owner"]);
+      expect(p.catalog["setup.page.found.owner"]).toContain("first account made when Home Assistant was set up");
+      const code = p.find("b-terminal")!;
+      expect(code.className).toBe("linkish");
+      expect(code.textContent).toBe(p.catalog["setup.page.button.code"]);
+      expect(code.textContent).toContain("(continues in the terminal)");
+      code.dispatch("click");
+      await p.settle();
+      expect(p.posts).toEqual([{ action: "terminal" }]);
+    }
+  });
+
+  it("never offers the code to someone who isn't the owner, since it needs the owner too", async () => {
+    const notOwner = { screen: "connect", rows: [{ id: "signed_in", state: "ok" }], fix: "owner", links: {}, accepts: ["address", "terminal", "signin"],
+      problem: { key: "setup.page.problem.not_owner", args: { name: "Anna" } } };
+    const p = page(notOwner);
     await p.settle();
-    expect(p.screen.textContent).toContain(p.catalog["setup.page.found.fine_elsewhere"]);
-    expect(p.catalog["setup.page.found.fine_elsewhere"]).toContain(`“${p.catalog["setup.page.button.code"]}”`);
-    const installing = page({ ...found, app: "missing", primary: "install" });
-    await installing.settle();
-    expect(installing.screen.textContent).not.toContain(installing.catalog["setup.page.found.fine_elsewhere"]);
+    expect(p.screen.textContent).toContain("Anna isn't the owner of this Home Assistant. Ask the person who set up Home Assistant to sign in here.");
+    expect(p.find("b-signin")!.textContent).toBe(p.catalog["setup.page.button.owner"]);
+    expect(p.find("b-terminal")).toBeUndefined();
+    const other = page({ ...notOwner, fix: "retry", problem: { key: "setup.page.problem.timeout" } });
+    await other.settle();
+    expect(other.find("b-terminal")!.className).toBe("linkish");
   });
 
   it("points to Stop and the code while it waits, with no copy of the sign-in link", async () => {
@@ -163,7 +230,7 @@ describe("setup page sign-in", () => {
     await p.settle();
     const line = p.catalog["setup.page.signin.elsewhere"];
     expect(p.screen.textContent).toContain(line);
-    expect(line).toContain(`“${p.catalog["setup.page.signin.stop"]}”, then “${p.catalog["setup.page.button.code"]}”`);
+    expect(line).toContain(`“${p.catalog["setup.page.signin.stop"]}”, then use a six-digit code`);
     expect(p.screen.textContent).not.toMatch(/copy/i);
     expect(p.screen.textContent).not.toContain(url);
     expect(p.screen.all().filter((n) => Object.values(n.attributes).includes(url)).map((n) => n.id)).toEqual(["l-signin"]);
@@ -186,6 +253,56 @@ describe("setup page step 3", () => {
     await p.settle();
     expect(p.posts).toEqual([{ action: "recheck", value: "" }]);
     expect(p.screen.textContent).toContain("Adds 2 rules to Claude Code");
+  });
+});
+
+describe("setup page step 3: buttons act now, switches wait for the button", () => {
+  const phones = [{ id: "d1", name: "iPhone Ben", person: "Ben" }, { id: "d2", name: "Pixel Lisa", person: "Lisa" }];
+
+  it("sends the phone's notification with a button, never a switch", async () => {
+    const p = page({ screen: "control", accepts: ["finish", "phone"], control: { window: true, phone: "pick", phones: phones.slice(0, 1), rule: "offer", rule_count: 3 } });
+    await p.settle();
+    expect(p.screen.textContent).toContain(p.catalog["setup.page.control.lead"]);
+    expect(p.catalog["setup.page.control.lead"]).not.toContain("never sees a code");
+    const use = p.find("b-phone-0")!;
+    expect(use.tag).toBe("button");
+    expect(use.attributes.role).toBeUndefined();
+    expect(use.textContent).toBe(p.catalog["setup.page.control.phone_use"]);
+    expect(p.find("b-rule")!.attributes.role).toBe("switch");
+    expect(p.screen.textContent).toContain("Added when you click Continue.");
+    p.find("b-rule")!.dispatch("click");
+    expect(p.screen.textContent).not.toContain("Added when you click Continue.");
+    use.dispatch("click");
+    await p.settle();
+    expect(p.posts).toEqual([{ action: "phone", value: "d1" }]);
+  });
+
+  it("moves to another phone from a linked one; the linked phone says OK first", async () => {
+    const linked = { screen: "rerun", rows: [], accepts: ["finish", "phone"], control: { window: true, phone: "linked", phone_name: "iPhone Anna", phones } };
+    const moving = { ...linked, accepts: [], control: { ...linked.control, phone: "moving", old_phone: "iPhone Anna", phone_name: "Pixel Lisa" } };
+    const p = page(linked, moving);
+    await p.settle();
+    expect(p.screen.textContent).toContain(p.catalog["setup.page.rerun.lead"]);
+    expect(p.catalog["setup.page.rerun.lead"]).toContain("Turn on what you need, then click Done.");
+    p.find("b-phone-move")!.dispatch("click");
+    expect(p.screen.textContent).toContain("“iPhone Anna” asks you first to OK the move.");
+    p.find("b-phone-move-cancel")!.dispatch("click");
+    expect(p.find("b-phone-1")).toBeUndefined();
+    p.find("b-phone-move")!.dispatch("click");
+    p.find("b-phone-1")!.dispatch("click");
+    await p.settle();
+    expect(p.posts).toEqual([{ action: "phone", value: "d2" }]);
+    expect(p.screen.textContent).toContain("Tap “Move” on iPhone Anna first. Then tap “Allow” on Pixel Lisa.");
+    const refused = page({ ...linked, control: { ...linked.control, phone_problem: { key: "setup.page.control.move_refused", args: { phone: "iPhone Anna" } } } });
+    await refused.settle();
+    expect(refused.screen.textContent).toContain("The move wasn't approved on iPhone Anna, so nothing changed.");
+  });
+
+  it("shows a linked phone as On when there is no other phone", async () => {
+    const p = page({ screen: "control", accepts: ["finish"], control: { window: true, phone: "linked", phone_name: "iPhone Anna" } });
+    await p.settle();
+    expect(p.find("b-phone-move")).toBeUndefined();
+    expect(p.screen.textContent).toContain(p.catalog["setup.page.control.on"]);
   });
 });
 
@@ -267,7 +384,8 @@ describe("setup page: Add to Claude", () => {
     for (const no_restart of [false, true]) {
       const p = page({ screen: "control", accepts: ["finish", "chat"], control: { window: true, phone: "none", chat: { state: "offer", no_restart } } });
       await p.settle();
-      p.find("b-chat-switch")!.dispatch("click");
+      expect(p.find("b-chat-ask")!.attributes.role).toBeUndefined(); // a button: it opens the question
+      p.find("b-chat-ask")!.dispatch("click");
       await p.settle();
       expect(p.screen.textContent.includes(p.catalog["setup.chat.restart"]!)).toBe(!no_restart);
       expect(p.find("b-chat-on")!.textContent).toBe(p.catalog[no_restart ? "setup.chat.turn_on_now" : "setup.chat.turn_on"]);
@@ -374,9 +492,9 @@ describe("setup page re-run (G1)", () => {
   it("says a switch's sign-in waits for the button", async () => {
     const first = page({ screen: "control", accepts: ["finish"], control: { window: true, phone: "none", link: "offer" } });
     await first.settle();
-    expect(first.find("b-finish")!.textContent).toBe("Finish setup");
+    expect(first.find("b-finish")!.textContent).toBe("Continue");
     first.find("b-link")!.dispatch("click");
-    expect(first.screen.textContent).toContain("You sign in to Home Assistant when you click Finish setup.");
+    expect(first.screen.textContent).toContain("You sign in to Home Assistant when you click Continue.");
     expect(first.find("b-finish")!.textContent).toBe(first.catalog["setup.page.control.finish_signin"]);
     const again = page({ ...working, control: { ...working.control, link: "offer" } });
     await again.settle();

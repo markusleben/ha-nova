@@ -109,7 +109,7 @@ func runSignInAppInstall(reader *bufio.Reader, out io.Writer, cfg runtimeConfig,
 		case errors.Is(err, errSignInStopped) && state != (novaAppState{}):
 			renderSetupWarningLine(out, "Stopped.")
 		case errors.Is(err, errSignInNotOwner):
-			renderSetupWarningLine(out, "Signed in as %s, who is not the Home Assistant owner. Only the owner can install the NOVA App.", haSignInUserName(session.user))
+			renderSetupWarningLine(out, "Signed in as %s, who is not the Home Assistant owner. Only the owner can install the NOVA App. %s", haSignInUserName(session.user), haOwnerHint)
 		default:
 			renderSetupWarningLine(out, "%s", haSignInFallbackLine(err, session.user))
 		}

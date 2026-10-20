@@ -185,10 +185,14 @@ func (f *setupFlow) stepPage() setupStepResult {
 			f.pageTyped = !slices.ContainsFunc(found, func(c setupPageCandidate) bool { return c.URL == action.Value })
 			found = nil
 		case "terminal":
-			p.handover()
 			// "Use a six-digit code": the terminal asks for the code, not
 			// for a sign-in again.
 			setupPairWithCode = app.primary != ""
+			if setupPairWithCode {
+				p.handoverFor("code")
+			} else {
+				p.handover()
+			}
 			if f.cfg.HAURL == "" {
 				return setupGoTo(setupStepHost)
 			}
@@ -248,12 +252,21 @@ func (f *setupFlow) pageDiscover() []setupDiscoveryCandidate {
 }
 
 // pageWaitForClient waits until an AI assistant is installed (spec §4,
-// step 2: "No AI app found on this computer").
+// step 2: "No AI app found on this computer"), or the user picks Claude or
+// ChatGPT in the browser: then setup goes on as the terminal's no-app path
+// (noClient: this computer pairs, no skills), and step 3 shows chat apps
+// first.
 func (f *setupFlow) pageWaitForClient() setupStepResult {
 	for !hasAvailableSetupClientChoice(f.choices) {
 		f.page.update(func(v *setupPageState) { v.Screen = "noclient" })
-		if _, err := f.page.wait("recheck"); err != nil {
+		action, err := f.page.wait("recheck", "web")
+		if err != nil {
 			return f.cancelled()
+		}
+		if action.Action == "web" {
+			f.noClient = true
+			f.page.update(func(v *setupPageState) { v.Web = true })
+			return setupGoOn
 		}
 		choices, err := buildSetupClientChoices(f.paths, f.state)
 		if err != nil {
@@ -339,9 +352,10 @@ func (f *setupFlow) pageSignIn(app setupPageApp) (*setupPageFailure, bool) {
 			setupPageRow{ID: "app_add", State: "todo", Msg: add},
 			setupPageRow{ID: "app_start", State: "todo", Msg: setupPageText("setup.page.row.app_start")})
 	}
-	rows = append(rows,
-		setupPageRow{ID: "connect", State: "todo", Msg: setupPageText("setup.page.row.connect")},
-		setupPageRow{ID: "teach", State: "todo", Msg: setupPageText("setup.page.row.teach", "clients", setupClientNames(f.selectedClients))})
+	rows = append(rows, setupPageRow{ID: "connect", State: "todo", Msg: setupPageText("setup.page.row.connect")})
+	if !f.noClient { // Claude or ChatGPT in the browser: nothing to teach here
+		rows = append(rows, setupPageRow{ID: "teach", State: "todo", Msg: setupPageText("setup.page.row.teach", "clients", setupClientNames(f.selectedClients))})
+	}
 	p.update(func(v *setupPageState) {
 		v.Screen, v.Rows, v.Problem, v.Fix, v.Links, v.Accepts = "connect", rows, nil, "", nil, nil
 	})

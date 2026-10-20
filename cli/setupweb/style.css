@@ -139,6 +139,9 @@ h1:focus { outline: none; }
 .problem { border-left: 2px solid var(--amber); padding: 2px 0 2px 14px; color: var(--ink); margin: 0 0 24px; overflow-wrap: anywhere; }
 .fine { margin: 14px 0 0; font-size: .875rem; color: var(--ink-soft); }
 .fine + .fine { margin-top: 4px; }
+.owner { margin: -12px 0 16px; color: var(--ink); }
+.fine .linkish { margin-top: 0; text-align: left; }
+.linkish[disabled] { opacity: .55; cursor: default; }
 .code { font: 600 .9375rem var(--mono); background: var(--panel); border: 1px solid var(--hairline); border-radius: 10px; padding: .9rem 1.1rem; margin: 0 0 28px; overflow-x: auto; white-space: nowrap; }
 
 /* Steps 3 and 4. */
