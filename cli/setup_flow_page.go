@@ -152,7 +152,13 @@ func (f *setupFlow) stepPage() setupStepResult {
 				v.Rows = nil
 			}
 		})
-		accepts := []string{"address", "terminal"}
+		accepts := []string{"address"}
+		// Claude or ChatGPT in the browser: no six-digit code (chat apps need
+		// the owner's sign-in here), so the terminal only when the page can't
+		// sign in at all, never past pageWebCheck's verdict.
+		if !f.noClient || app.primary == "" && fix != "web" && fix != "web_never" {
+			accepts = append(accepts, "terminal")
+		}
 		if app.primary != "" || fix == "retry" || fix == "web" { // Try again (and check again) also checks the App again
 			accepts = append(accepts, "signin")
 		}

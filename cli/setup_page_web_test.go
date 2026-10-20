@@ -112,7 +112,7 @@ func TestSetupPageBrowserPathSaysWhatIsMissingBeforePairing(t *testing.T) {
 		t.Helper()
 		got := page.waitFor("the missing address", accepting("local"))
 		if got.Screen != "connect" || got.Fix != "web" || got.Problem == nil || got.Problem.Key != "setup.chat.need_address_web" ||
-			got.Links["chat"] != chatAppsGuideURL || !slices.Contains(got.Accepts, "signin") || *pairs != 0 {
+			got.Links["chat"] != chatAppsGuideURL || !slices.Contains(got.Accepts, "signin") || slices.Contains(got.Accepts, "terminal") || *pairs != 0 {
 			t.Fatalf("not ready = %+v, pairs %d", got, *pairs)
 		}
 	}
@@ -135,7 +135,7 @@ func TestSetupPageBrowserPathSaysWhatIsMissingBeforePairing(t *testing.T) {
 	}
 	page.click("web", "")
 	found := page.waitFor("the found screen again", accepting("signin"))
-	if !found.Web || found.Fix != "" {
+	if !found.Web || found.Fix != "" || slices.Contains(found.Accepts, "terminal") { // no code past the check
 		t.Fatalf("found = %+v", found)
 	}
 	external.Store("https://home.example.com")
