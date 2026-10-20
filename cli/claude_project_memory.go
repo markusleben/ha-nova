@@ -75,7 +75,7 @@ func noteClaudeProjectMemoryFile(path string, report *uninstallReport) error {
 	if !containsClaudeProjectMemoryMarker(string(data)) {
 		return nil
 	}
-	report.addNote("Claude project memory may still mention HA NOVA: " + path + " (review /memory if Claude still references removed skills)")
+	noteClaudeProjectMemory(path, report)
 	return nil
 }
 
@@ -92,8 +92,13 @@ func noteClaudeProjectMemoryIndex(path string, report *uninstallReport) error {
 	if !containsClaudeProjectMemoryMarker(content) {
 		return nil
 	}
-	report.addNote("Claude project memory may still mention HA NOVA: " + path + " (review /memory if Claude still references removed skills)")
+	noteClaudeProjectMemory(path, report)
 	return nil
+}
+
+func noteClaudeProjectMemory(path string, report *uninstallReport) {
+	report.addNote("Claude may still remember HA NOVA. To clear that, run /memory in Claude Code.")
+	report.addDetail("Claude project memory may still mention HA NOVA: " + path + " (review /memory if Claude still references removed skills)")
 }
 
 func containsClaudeProjectMemoryMarker(content string) bool {

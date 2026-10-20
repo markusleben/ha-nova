@@ -49,9 +49,13 @@ func removeManagedConfigArtifactsWithSnapshot(
 		if err := markInstallLifecycleStopped(paths); err != nil {
 			return fmt.Errorf("cannot stop install lifecycle: %w", err)
 		}
-		report.addNote("Left a few tiny marker files so HA NOVA still running in an open AI app can't come back. They hold nothing about you and are never sent. The next setup removes them.")
+		report.addDetail("Left a few tiny marker files so HA NOVA still running in an open AI app can't come back. They hold nothing about you and are never sent. The next setup removes them.")
 	}
 	for _, path := range managedConfigArtifactPaths(paths, purge) {
+		report.setArea(uninstallAreaFiles)
+		if path == paths.ConfigFile {
+			report.setArea(uninstallAreaSettings)
+		}
 		if purge && path == paths.ConfigFile && verifyConfigSnapshot {
 			if err := removeConfigAtSnapshot(
 				path,
@@ -125,6 +129,7 @@ func installLifecycleEvidence(paths runtimePaths) bool {
 }
 
 func removeManagedCacheArtifacts(paths runtimePaths, report *uninstallReport) error {
+	report.setArea(uninstallAreaFiles)
 	for _, path := range managedCacheArtifactPaths(paths) {
 		if err := removePathWithReport(path, report); err != nil && !isNotExist(err) {
 			return err
@@ -189,6 +194,6 @@ func removeDirIfEmptyWithReport(path string, report *uninstallReport) error {
 		}
 		return err
 	}
-	report.addRemoved(path)
+	report.addRemovedIn(uninstallAreaFiles, path)
 	return nil
 }

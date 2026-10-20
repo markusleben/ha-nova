@@ -47,7 +47,7 @@ func TestPurgeDeviceCredentialRevokesAndRemovesBothSlots(t *testing.T) {
 	if _, ok, _ := readPendingDeviceCredential(); ok {
 		t.Fatal("pending device credential must be removed")
 	}
-	output := strings.Join(report.notes, "\n")
+	output := strings.Join(report.details, "\n")
 	if !strings.Contains(output, "Revoked this device's pairing on the relay.") {
 		t.Fatalf("expected revoke note, got: %q", output)
 	}
@@ -102,7 +102,7 @@ func TestPurgeRevokesActivatedLocalPendingCredentialBeforeDeletion(
 			readErr,
 		)
 	}
-	if notes := strings.Join(report.notes, "\n"); !strings.Contains(
+	if notes := strings.Join(report.details, "\n"); !strings.Contains(
 		notes,
 		"Revoked the interrupted pending device pairing",
 	) {

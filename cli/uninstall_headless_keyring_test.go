@@ -112,7 +112,7 @@ func TestFilePurgeKeepsStopWhenRelayTokenIsInUse(t *testing.T) {
 func TestKeepPairingUninstallWithLockedKeyringNamesThePairing(t *testing.T) {
 	paths, _ := lockedKeyringPurgeFixture(t)
 	stubKeyringUnlockWindow(t, false, "", func() {})
-	exitCode, output := captureCommandOutput(t, func() int { return runUninstall(paths, []string{"--yes"}) })
+	exitCode, output := captureCommandOutput(t, func() int { return runUninstall(paths, []string{"--yes", "--verbose"}) })
 	if exitCode != 0 {
 		t.Fatalf("exit = %d\n%s", exitCode, output)
 	}

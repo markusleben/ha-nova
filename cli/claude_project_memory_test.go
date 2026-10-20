@@ -39,7 +39,7 @@ func TestRunUninstallWarnsAboutClaudeProjectMemoryArtifacts(t *testing.T) {
 	}
 
 	exitCode, output := captureCommandOutput(t, func() int {
-		return runUninstall(paths, []string{"--yes"})
+		return runUninstall(paths, []string{"--yes", "--verbose"})
 	})
 	if exitCode != 0 {
 		t.Fatalf("runUninstall() exit = %d\n%s", exitCode, output)
@@ -84,7 +84,7 @@ func TestRunUninstallKeepsMixedClaudeProjectMemoryAndWarns(t *testing.T) {
 	}
 
 	exitCode, output := captureCommandOutput(t, func() int {
-		return runUninstall(paths, []string{"--yes"})
+		return runUninstall(paths, []string{"--yes", "--verbose"})
 	})
 	if exitCode != 0 {
 		t.Fatalf("runUninstall() exit = %d\n%s", exitCode, output)
@@ -135,7 +135,7 @@ func TestRunUninstallContinuesWhenClaudeProjectMemoryCleanupFails(t *testing.T) 
 	}
 
 	exitCode, output := captureCommandOutput(t, func() int {
-		return runUninstall(paths, []string{"--yes"})
+		return runUninstall(paths, []string{"--yes", "--verbose"})
 	})
 	if exitCode != 0 {
 		t.Fatalf("runUninstall() exit = %d\n%s", exitCode, output)

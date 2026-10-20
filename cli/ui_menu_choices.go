@@ -17,7 +17,8 @@ type uninstallChoice struct {
 
 // promptUninstallChoice is uninstall's one question. "app" is listed only when
 // offer.offered; "Remove" is disabled with purgeBlocked as its reason when a
-// full removal can't run here. proceed=false means cancel (Cancel or Ctrl+C).
+// full removal can't run here, and Cancel is then the default. proceed=false
+// means cancel (Cancel or Ctrl+C).
 func promptUninstallChoice(out io.Writer, defaultMode uninstallMode, offer uninstallAppOffer, purgeBlocked string) (uninstallChoice, bool, error) {
 	options := []setupMenuOption{{Value: "purge", Label: "Remove", Detail: "Skills, settings, and this computer's pairing. The NOVA App stays.",
 		Disabled: purgeBlocked != "", DisabledReason: purgeBlocked}}
@@ -37,7 +38,9 @@ func promptUninstallChoice(out io.Writer, defaultMode uninstallMode, offer unins
 		Note:         offer.note,
 	}
 	if purgeBlocked != "" {
-		spec.DefaultValue = string(uninstallModeStandard)
+		// The user's choice can't run (or they just said no to the keyring
+		// window): Enter must change nothing.
+		spec.DefaultValue = "cancel"
 	}
 	offerApp := offer.offered && purgeBlocked == ""
 	answer, err := promptSetupMenu(nil, out, spec, func() (string, error) {
@@ -78,7 +81,7 @@ func promptUninstallModeFromLine(defaultValue string, offerApp, purgeAllowed boo
 	if offerApp {
 		add("app", "Remove, and remove the NOVA App too")
 	}
-	add("standard", "Remove, but keep the pairing")
+	add("standard", "Remove, but keep the pairing for a reinstall")
 	add("cancel", "Cancel")
 	answer, err := promptLine("Remove HA NOVA from this computer? "+strings.Join(labels, "  "), strconv.Itoa(max(slices.Index(values, defaultValue), 0)+1))
 	if err != nil {

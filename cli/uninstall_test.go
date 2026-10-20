@@ -93,7 +93,7 @@ func TestRunUninstallReportsConcreteRemovalsAndTokenPolicy(t *testing.T) {
 	}
 
 	exitCode, output := captureCommandOutput(t, func() int {
-		return runUninstall(paths, []string{"--yes", "--purge"})
+		return runUninstall(paths, []string{"--yes", "--purge", "--verbose"})
 	})
 	if exitCode != 0 {
 		t.Fatalf("runUninstall() exit = %d\n%s", exitCode, output)
@@ -305,7 +305,7 @@ func TestRunUninstallYesShowsPreflightAndLeavesSharedApp(t *testing.T) {
 		"HA NOVA's saved Home Assistant address",
 		tokenLabel,
 		// --yes never offers the App removal; this standalone Relay stays.
-		"The NOVA Relay stays. If no other computer uses HA NOVA, remove it",
+		"The NOVA Relay. Other computers may still use it.",
 	} {
 		if !strings.Contains(output, want) {
 			t.Fatalf("expected uninstall output %q:\n%s", want, output)
@@ -323,10 +323,10 @@ func TestUninstallWindowsBundleNoteMentionsWait(t *testing.T) {
 	}
 }
 
-func TestPreflightNoteLinesIncludeSecureStoreWarningWhenTokenLookupFails(t *testing.T) {
-	notes := preflightNoteLines(uninstallPreflight{tokenUnavailable: "relay auth token unavailable: keychain locked"})
-	if len(notes) == 0 || notes[len(notes)-1] != "relay auth token unavailable: keychain locked" {
-		t.Fatalf("expected the secure-store warning as the last preflight note: %#v", notes)
+func TestPreflightStaysIncludeSecureStoreWarningWhenTokenLookupFails(t *testing.T) {
+	stays := preflightStays(uninstallPreflight{tokenUnavailable: "relay auth token unavailable: keychain locked"})
+	if len(stays.problems) != 1 || stays.problems[0] != "relay auth token unavailable: keychain locked" {
+		t.Fatalf("expected the secure-store warning as a problem: %#v", stays)
 	}
 }
 
@@ -591,7 +591,7 @@ func TestRunUninstallSkipsHeadlessLinuxSecretServiceDeleteFailureAfterRuntimeRem
 	if !strings.Contains(output, "Relay auth token cleanup skipped after runtime removal") {
 		t.Fatalf("expected token cleanup skip note in output:\n%s", output)
 	}
-	if !strings.Contains(output, "Done. Removed") || !strings.Contains(output, "HA NOVA removed") {
+	if !strings.Contains(output, "HA NOVA removed from this computer.") {
 		t.Fatalf("expected success summary after cleanup skip:\n%s", output)
 	}
 }
@@ -703,7 +703,7 @@ func TestRunUninstallStandardRemoveKeepsConfigAndTokenForReinstall(t *testing.T)
 	}
 
 	exitCode, output := captureCommandOutput(t, func() int {
-		return runUninstall(paths, []string{"--yes"})
+		return runUninstall(paths, []string{"--yes", "--verbose"})
 	})
 	if exitCode != 0 {
 		t.Fatalf("runUninstall() exit = %d\n%s", exitCode, output)
@@ -720,7 +720,8 @@ func TestRunUninstallStandardRemoveKeepsConfigAndTokenForReinstall(t *testing.T)
 	if token, err := readRelayAuthToken(); err != nil || token != "test-relay-token" {
 		t.Fatalf("expected relay token to survive standard uninstall, got token=%q err=%v", token, err)
 	}
-	if !strings.Contains(output, "Kept Home Assistant connection config and stored relay token") {
+	if !strings.Contains(output, "Kept Home Assistant connection config and stored relay token") ||
+		!strings.Contains(output, "    - "+uninstallKeptPairing+"\n") {
 		t.Fatalf("expected standard uninstall retention note:\n%s", output)
 	}
 }
@@ -922,5 +923,63 @@ func TestUninstallTokenLabelNamesStoredCredentials(t *testing.T) {
 	}
 	if got := uninstallTokenLineLabel(runtimePaths{ConfigFile: filepath.Join(t.TempDir(), "config.json")}); got != "This computer's HA NOVA key (in files)" {
 		t.Errorf("file-backed label = %q", got)
+	}
+}
+
+// The closing summary is a few plain lines: what went, what stays, one next
+// step. Paths and URLs print only with --verbose (0.27 recheck G3).
+func TestRunUninstallPrintsPlainSummaryGolden(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("HA_NOVA_ALLOW_INSECURE_TEST_KEYRING", "1")
+	t.Setenv("HA_NOVA_TEST_KEYRING_FILE", filepath.Join(home, ".config", "ha-nova", ".test-relay-auth-token"))
+	paths, err := detectPaths()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, dir := range []string{paths.InstallRoot, filepath.Dir(paths.UpdateCacheFile), filepath.Dir(paths.PublicBinary)} {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for path, body := range map[string]string{
+		filepath.Join(paths.InstallRoot, publicBinaryName()): "binary",
+		paths.UpdateCacheFile:                                "{}",
+		paths.PublicBinary:                                   "shim",
+	} {
+		if err := os.WriteFile(path, []byte(body), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := saveConfig(paths, runtimeConfig{HAURL: "http://192.0.2.5:8123", RelayBaseURL: "http://192.0.2.5:8791"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeRelayAuthToken("test-relay-token"); err != nil {
+		t.Fatal(err)
+	}
+
+	exitCode, output := captureCommandOutput(t, func() int { return runUninstall(paths, []string{"--yes", "--purge"}) })
+	if exitCode != 0 {
+		t.Fatalf("exit = %d\n%s", exitCode, output)
+	}
+	const golden = `  Removed:
+    - The ha-nova program
+    - HA NOVA's own files on this computer
+    - HA NOVA's saved Home Assistant address
+    - This computer's HA NOVA key
+  Stays:
+    - The NOVA App in Home Assistant. Other computers may still use it.
+      If none do, remove it in Home Assistant: Settings → Apps → NOVA Relay → Uninstall.
+
+[ha-nova] HA NOVA removed from this computer.
+`
+	_, summary, found := strings.Cut(output, "Your Home Assistant Link sign-in, if you use it\n\n")
+	if !found || summary != golden {
+		t.Fatalf("summary = %q\nwant %q\nfull output:\n%s", summary, golden, output)
+	}
+	for _, leak := range []string{home, "http", "Removed: ", "marker files"} {
+		if strings.Contains(summary, leak) {
+			t.Fatalf("summary leaks %q without --verbose:\n%s", leak, summary)
+		}
 	}
 }

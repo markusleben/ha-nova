@@ -7,6 +7,7 @@ import (
 	"io"
 	"strings"
 	"testing"
+	"unicode/utf8"
 )
 
 type stubSetupMenuRunner struct {
@@ -124,7 +125,7 @@ func TestRenderSetupMenuBlockUsesCRLFForRawTerminalLayout(t *testing.T) {
 			{Value: "claude", Label: "Claude Code"},
 			{Value: "antigravity", Label: "Google Antigravity"},
 		},
-	}, 0)
+	}, 0, 0)
 
 	if lines == 0 {
 		t.Fatal("expected rendered menu lines")
@@ -148,7 +149,7 @@ func TestRenderSetupMenuBlockUsesCompactLayoutAndSecondLineDisabledReason(t *tes
 			{Value: "claude", Label: "Claude Code"},
 			{Value: "codex", Label: "Codex CLI", Disabled: true, DisabledReason: "install Codex CLI first"},
 		},
-	}, 0)
+	}, 0, 0)
 
 	rendered := output.String()
 	if !strings.Contains(rendered, "Which AI client do you use?") || !strings.Contains(rendered, "\r\n\r\n  ") {
@@ -159,29 +160,44 @@ func TestRenderSetupMenuBlockUsesCompactLayoutAndSecondLineDisabledReason(t *tes
 	}
 }
 
-func TestSetupMenuBlockWidthAccountsForDisabledReasonAndPrompt(t *testing.T) {
-	width := setupMenuBlockWidth(setupMenuSpec{
-		Title:  "Which AI client do you use?",
-		Prompt: "Use ↑/↓ or j/k, Enter to select, Esc to go back, Ctrl+C to exit",
+// A long line wraps at word breaks inside the terminal width, and the row
+// count covers every wrapped row, so the redraw clears exactly the menu.
+// (0.27 recheck: a long reason pushed the arrow menu to the numbered prompt.)
+func TestRenderSetupMenuBlockWrapsLongLinesToTheTerminal(t *testing.T) {
+	spec := setupMenuSpec{
+		Title:  "Remove HA NOVA from this computer?",
+		Prompt: "Use ↑/↓ or j/k, Enter to select, Ctrl+C to cancel",
 		Options: []setupMenuOption{
-			{Value: "claude", Label: "Claude Code"},
-			{Value: "codex", Label: "Codex CLI", Disabled: true, DisabledReason: "install Codex CLI first"},
+			{Value: "purge", Label: "Remove", Disabled: true, DisabledReason: "the keyring is locked; unlock it, then run ha-nova uninstall again"},
+			{Value: "cancel", Label: "Cancel"},
 		},
-	})
-	if width < len("      not available: install Codex CLI first") {
-		t.Fatalf("expected width to include disabled reason, got %d", width)
+		Note: "https://example.invalid/" + strings.Repeat("x", 100),
 	}
-}
-
-func TestSetupMenuFitsWidthRejectsWrappedLayout(t *testing.T) {
-	if setupMenuFitsWidth(40, setupMenuSpec{
-		Title:  strings.Repeat("X", 200),
-		Prompt: "prompt",
-		Options: []setupMenuOption{
-			{Value: "claude", Label: "Claude Code"},
-		},
-	}) {
-		t.Fatal("expected oversized menu to report false for width fit check")
+	var out bytes.Buffer
+	rows := renderSetupMenuBlock(&out, uiSession{}, spec, 1, 40)
+	lines := strings.Split(strings.TrimSuffix(out.String(), "\r\n"), "\r\n")
+	if rows != len(lines) {
+		t.Fatalf("rows = %d, printed %d:\n%s", rows, len(lines), out.String())
+	}
+	for _, line := range lines {
+		if n := utf8.RuneCountInString(line); n >= 40 {
+			t.Fatalf("line is %d columns at width 40: %q", n, line)
+		}
+	}
+	for _, want := range []string{"      not available: the keyring is", "      ha-nova uninstall again", "  › Cancel"} {
+		if !strings.Contains(out.String(), want+"\r\n") {
+			t.Fatalf("missing %q:\n%s", want, out.String())
+		}
+	}
+	// Wide letters (a phone's name) take two columns each.
+	wide := wrapSetupMenuText("電話 "+strings.Repeat("電", 30), 20)
+	for _, line := range wide {
+		if setupMenuTextWidth(line) > 20 {
+			t.Fatalf("wide line is %d columns: %q", setupMenuTextWidth(line), wide)
+		}
+	}
+	if flat := renderSetupMenuBlock(io.Discard, uiSession{}, spec, 1, 0); flat >= rows {
+		t.Fatalf("unknown width must not wrap: %d rows vs %d", flat, rows)
 	}
 }
 

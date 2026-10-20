@@ -9,6 +9,7 @@ import (
 )
 
 type uninstallPreflight struct {
+	configured       bool // a config file exists, readable or not
 	tokenUnavailable string
 	haURL            string
 	config           runtimeConfig
@@ -91,14 +92,15 @@ func renderUninstallPreflight(out io.Writer, paths runtimePaths, source string, 
 		fmt.Fprintf(out, "    %s %s\n", session.bullet(), label)
 	}
 	fmt.Fprintf(out, "    %s Your Home Assistant Link sign-in, if you use it\n", session.bullet())
-	fmt.Fprintln(out)
+	// No closing blank line: the menu and the summary start with one.
 	if warning := uninstallForeignTokenFileWarning(paths); warning != "" {
+		fmt.Fprintln(out)
 		renderSetupParagraphTight(out, session.style("warning", warning))
 	}
 	if runtime.GOOS == "windows" && source == installSourceBundle {
+		fmt.Fprintln(out)
 		renderSetupParagraphTight(out, session.style("muted", uninstallWindowsBundleNote()))
 	}
-	fmt.Fprintln(out)
 }
 
 func uninstallRuntimeLineLabel(paths runtimePaths, source string) string {
@@ -194,7 +196,7 @@ func uninstallWindowsBundleNote() string {
 // partial setups must still yield the HA URL for the notes, and uninstall is
 // install-wide, so no runtime selection applies).
 func collectUninstallPreflight(paths runtimePaths) uninstallPreflight {
-	preflight := uninstallPreflight{}
+	preflight := uninstallPreflight{configured: fileExists(paths.ConfigFile)}
 
 	cfg, err := loadRawDefaultProfileConfig(paths.ConfigFile)
 	if err != nil {
@@ -214,39 +216,65 @@ func collectUninstallPreflight(paths runtimePaths) uninstallPreflight {
 	return preflight
 }
 
+// uninstallStays is what stays in Home Assistant after this computer's
+// removal: one plain line, one next step, the exact links for --verbose, and
+// any problem (always shown).
+type uninstallStays struct {
+	kept, next string
+	details    []string
+	problems   []string
+}
+
 func applyUninstallPreflightNotes(report *uninstallReport, preflight uninstallPreflight) {
 	if report == nil {
 		return
 	}
-	for _, note := range preflightNoteLines(preflight) {
-		report.addNote(note)
+	stays := preflightStays(preflight)
+	report.addKept(stays.kept, stays.next)
+	for _, detail := range stays.details {
+		report.addDetail(detail)
+	}
+	for _, problem := range stays.problems {
+		report.addNote(problem)
 	}
 }
 
-func printUninstallPreflightNotes(out io.Writer, preflight uninstallPreflight) {
-	session := resolveStatusUISession(out)
-	for _, note := range preflightNoteLines(preflight) {
-		fmt.Fprintf(out, "  %s %s\n", session.style("warning", session.warningMarker()), note)
+// printUninstallPreflightNotes: the same, before the Windows hand-off.
+func printUninstallPreflightNotes(out io.Writer, preflight uninstallPreflight, verbose bool) {
+	report := &uninstallReport{verbose: verbose}
+	applyUninstallPreflightNotes(report, preflight)
+	fmt.Fprintln(out)
+	if verbose {
+		report.printDetails()
 	}
+	report.printStays(out)
+	report.printNotes()
 }
 
-// preflightNoteLines: uninstall removes the shared App only through the menu
+// preflightStays: uninstall removes the shared App only through the menu
 // choice, after the Relay said this is its last computer. Otherwise the App
-// (or a standalone Relay) stays, and the notes say how to remove it by hand.
-func preflightNoteLines(preflight uninstallPreflight) []string {
+// (or a standalone Relay) stays, and the next step says how to remove it.
+func preflightStays(preflight uninstallPreflight) uninstallStays {
 	derived := deriveRelayURLFromHA(preflight.haURL, preflight.config.HAHost)
-	var notes []string
+	var stays uninstallStays
 	if preflight.haURL != "" && derived != "" &&
 		strings.TrimRight(strings.TrimSpace(preflight.config.RelayBaseURL), "/") == derived {
-		notes = []string{
-			"The NOVA App in Home Assistant stays. Other computers may use it: removing it disconnects every paired computer. To remove it anyway, open: " + haRelayAppPageURL(preflight.haURL),
-			"Then remove where it came from: Settings → Apps → App Store → ⋮ → Repositories → " + haNovaRepositoryURL,
+		stays = uninstallStays{
+			kept: "The NOVA App in Home Assistant. Other computers may still use it.",
+			next: "If none do, remove it in Home Assistant: Settings → Apps → NOVA Relay → Uninstall.",
+			details: []string{
+				"To remove the NOVA App, open: " + haRelayAppPageURL(preflight.haURL),
+				"Then remove where it came from: Settings → Apps → App Store → three-dot menu (top right) → Repositories → " + haNovaRepositoryURL,
+			},
 		}
-	} else {
-		notes = []string{"The NOVA Relay stays. If no other computer uses HA NOVA, remove it, and delete any \"NOVA\" token in your Home Assistant profile (Security tab)."}
+	} else if preflight.configured { // never set up: no Relay to name
+		stays = uninstallStays{
+			kept: "The NOVA Relay. Other computers may still use it.",
+			next: "If none do, remove it, and delete any \"NOVA\" token in your Home Assistant profile (Security tab).",
+		}
 	}
 	if preflight.tokenUnavailable != "" {
-		notes = append(notes, preflight.tokenUnavailable)
+		stays.problems = append(stays.problems, preflight.tokenUnavailable)
 	}
-	return notes
+	return stays
 }

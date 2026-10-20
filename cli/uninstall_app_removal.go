@@ -289,6 +289,6 @@ func (s novaAppSupervisor) remove(ctx context.Context, out io.Writer, securePort
 		renderSetupSuccessLine(out, "NOVA App source removed from Home Assistant")
 		return nil
 	}
-	renderSetupWarningLine(out, "Home Assistant still lists the NOVA App source. Remove it in Settings → Apps → App Store → ⋮ → Repositories: %s", haNovaRepositoryURL)
+	renderSetupWarningLine(out, "Home Assistant still lists the NOVA App source. Remove it in Settings → Apps → App Store → three-dot menu (top right) → Repositories: %s", haNovaRepositoryURL)
 	return nil
 }

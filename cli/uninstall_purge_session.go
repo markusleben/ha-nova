@@ -257,21 +257,27 @@ func keyringUnlockWindowPossible(yes bool) bool {
 // offerKeyringUnlockForPurge opens setup's unlock window (the desktop's own
 // dialog; HA NOVA never sees the password) when a full purge would hit a
 // locked keyring and this terminal can show it. It reports whether the
-// window unlocked something. The guided menu calls it first, so the Relay
-// can still be asked whether the App may go too.
-func offerKeyringUnlockForPurge(paths runtimePaths) bool {
+// window unlocked something, and stop=true when the user pressed Ctrl+C
+// (Esc is "Not now"). The guided menu calls it first, so the Relay can still
+// be asked whether the App may go too.
+func offerKeyringUnlockForPurge(paths runtimePaths) (unlocked, stop bool) {
 	if purgeKeyringLockedError(paths) == nil || !keyringUnlockWindowPossible(false) {
-		return false
+		return false, false
 	}
 	state := setupSecureStorageRecoveryState{unlockOnly: true}
 	result, err := runSetupSecureStorageRecoveryFlow(
 		bufio.NewReader(os.Stdin), os.Stdout, keyringUnlockTrigger, &state,
 		setupSecureStorageRecoveryInitialAttempt,
 	)
-	if err != nil {
+	switch {
+	case errors.Is(err, errSetupExit):
+		return false, true
+	case errors.Is(err, errSetupBack):
+		return false, false
+	case err != nil:
 		printHumanWarn("The keyring window didn't work: %s", keyringErrorText(err))
 	}
-	return err == nil && result == setupSecureStorageRecoveryRecovered
+	return err == nil && result == setupSecureStorageRecoveryRecovered, false
 }
 
 // keyringUnlockByHandStep works on GNOME and KDE, and with any keyring name.
@@ -286,22 +292,31 @@ func purgeRefusedForLockedKeyring(paths runtimePaths, yes bool, rerun string) bo
 		return false
 	}
 	possible := keyringUnlockWindowPossible(yes)
-	opened := possible && offerKeyringUnlockForPurge(paths)
+	opened, stop := false, false
+	if possible {
+		opened, stop = offerKeyringUnlockForPurge(paths)
+	}
 	lockedErr := purgeKeyringLockedError(paths)
-	if lockedErr == nil {
+	if lockedErr == nil && !stop {
 		return false
 	}
-	resetLinkStorageProofForEarlyStop(paths, lockedErr)
+	if lockedErr != nil {
+		resetLinkStorageProofForEarlyStop(paths, lockedErr)
+	}
+	if stop { // Ctrl+C: stop even if the keyring opened some other way
+		printHumanInfo("Uninstall cancelled. Nothing was changed.")
+		return true
+	}
 	switch {
 	case yes && keyringUnlockWindowPossible(false):
 		printHumanErr("This computer's keyring is locked, so HA NOVA can't remove its saved key. Nothing was changed.")
-		printHumanWarn("Next step: run ha-nova uninstall --purge (without --yes) and answer Y. A window opens to unlock the keyring.")
+		printHumanWarn("Next step: run ha-nova uninstall --purge (without --yes) and pick Yes. A window opens to unlock the keyring.")
 	case opened:
 		printHumanErr("The keyring opened, but HA NOVA's key is still locked. Nothing was changed.")
 		printHumanWarn("Next step: %s. Then run: %s", keyringUnlockByHandStep, rerun)
 	case possible:
 		printHumanErr("This computer's keyring is locked, so HA NOVA can't remove its saved key. Nothing was changed.")
-		printHumanWarn("Next step: run %s again, answer Y, and type your keyring password (usually your login password) in the window that opens.", rerun)
+		printHumanWarn("Next step: run %s again, pick Yes, and type your keyring password (usually your login password) in the window that opens.", rerun)
 	default:
 		printHumanErr("This computer's keyring is locked, so HA NOVA can't remove its saved key. Nothing was changed.")
 		printHumanWarn("Next step: %s. Then run: %s", keyringUnlockByHandStep, rerun)
