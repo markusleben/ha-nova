@@ -40,7 +40,13 @@ func (f *setupFlow) pageRerun(marker [][]byte) (setupStepResult, bool) {
 		if c.ConfigOK && c.TokenOK && c.RelayOK && c.WSOK && refresh {
 			f.pageRerunOK = true
 			if c.SkillsOK {
-				f.lifecycleMarker = marker // as the terminal's status screen
+				if len(marker) == 0 && len(f.lifecycleMarker) > 0 {
+					// Completes without its markers, as the terminal's status
+					// screen; later writes hold the generation setup started
+					// with, so an uninstall at any point fails them closed.
+					f.pageGeneration = f.lifecycleMarker[0]
+				}
+				f.lifecycleMarker = marker
 				return f.afterSkills(), true
 			}
 			f.pageRepairing("teach")

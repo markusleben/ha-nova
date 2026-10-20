@@ -216,11 +216,9 @@ func (f *setupFlow) afterSkills() setupStepResult {
 	if err := completeSetupLifecycle(f.paths, f.lifecycleMarker...); err != nil {
 		return f.fail(setupText("setup.error.finalize_lifecycle", "error", err))
 	}
-	if f.pageControlled && (len(f.lifecycleMarker) > 0 || f.pageRerunOK) {
+	if f.pageControlled && len(f.lifecycleMarker) > 0 {
 		// The generation setup completed with: an uninstall during step 3
-		// rotates it, and the page's Link add then fails closed. A working
-		// re-run completes without its markers (as in the terminal), so it
-		// reads the generation as it stands.
+		// rotates it, and the page's Link add then fails closed.
 		generation, err := readInstallLifecycleGeneration(f.paths)
 		if err != nil {
 			return f.failErr(err)

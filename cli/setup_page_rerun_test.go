@@ -162,7 +162,6 @@ func TestSetupPageRerunRefreshesTheSkillsWithoutAsking(t *testing.T) {
 	ha := setupGoldenHAServer(t) // the token path checks Home Assistant itself
 	cfg.HAHost, cfg.HAURL = normalizeHostInput(ha.URL), ha.URL
 	page, stdout, done := startSetupPageFlowWith(t, "", rerunFlow(paths, cfg, state, marker))
-	page.waitFor("the skills refresh", func(s setupPageState) bool { return s.Screen == "repair" })
 	rerun := page.waitFor("the re-run screen", accepting("finish"))
 	if rerun.Screen != "rerun" || rowStates(rerun.Rows)["clients"] != "ok" || !strings.Contains(stdout.String(), "Installing") {
 		t.Fatalf("re-run = %+v\n%s", rerun, stdout)
@@ -239,7 +238,18 @@ func TestSetupPageRerunHandsASharedTokenInstallToTheTerminal(t *testing.T) {
 // An uninstall while the page waited: "Set up … too" installs nothing, and
 // the end screen says so (exit 1).
 func TestSetupPageRerunNewAIAssistantAfterAnUninstallFailsClosed(t *testing.T) {
+	for _, started := range []string{"after an uninstall marker", "plain"} {
+		t.Run(started, func(t *testing.T) { rerunAfterUninstallFailsClosed(t, started == "plain") })
+	}
+}
+
+// plain: no uninstall marker at the start, so the re-run completes without
+// its markers and holds the generation it started with (Codex review).
+func rerunAfterUninstallFailsClosed(t *testing.T, plain bool) {
 	paths, cfg, state, marker := setupCompletedInstallFixture(t)
+	if plain {
+		marker = marker[:1]
+	}
 	withClientRuntimeAvailability(t, map[string]bool{"claude": true, "codex": true})
 	codexAttachedForReal(t)
 	stubRerunApp(t, true, chatAppsHA{}, errors.New("no chat apps"))

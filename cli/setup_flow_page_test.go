@@ -472,6 +472,9 @@ func TestSetupPageOnlyForAPlainSetup(t *testing.T) {
 		"host flag":    func(f *setupFlow) { f.hostFlag = "ha.local" },
 		"relay token":  func(f *setupFlow) { f.relayTokenFlag = "x" },
 		"Link only":    func(f *setupFlow) { f.cfg.Cloud = &cloudLifecycleMetadata{} },
+		"custom Relay": func(f *setupFlow) {
+			f.cfg = runtimeConfig{HAHost: "ha.local", HAURL: "http://ha.local:8123", RelayBaseURL: "http://proxy.lan:9000"}
+		},
 		"Link not ready": func(f *setupFlow) {
 			f.cfg = runtimeConfig{HAHost: "ha.local", HAURL: "http://ha.local:8123", Cloud: &cloudLifecycleMetadata{}}
 		},
