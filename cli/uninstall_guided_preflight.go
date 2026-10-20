@@ -158,10 +158,9 @@ func validateUninstallSecureStorageBeforeGuidedTeardown(
 	if err := validateProfilePurgeTargets(deviceTargets); err != nil {
 		return err
 	}
-	// Same tolerance as the purge (applyUninstallTokenPolicy): a relay token
-	// whose keyring isn't running is skipped with a note.
+	// Same tolerance as the purge (purgeSkipsRelayTokenError).
 	if _, err := readRelayAuthToken(); err != nil &&
-		!isMissingRelayAuthTokenError(err) && !isDesktopKeyringUnavailableError(err) {
+		!isMissingRelayAuthTokenError(err) && !purgeSkipsRelayTokenError(err) {
 		return fmt.Errorf(
 			"cannot inspect legacy relay authorization before removing HA NOVA: %s",
 			relayAuthTokenProblemMessage(err),

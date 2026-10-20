@@ -493,7 +493,7 @@ func TestApplyUninstallTokenPolicySkipsHeadlessLinuxSecretServiceReadFailure(t *
 	if len(report.removed) != 0 {
 		t.Fatalf("did not expect removals to be reported: %+v", report.removed)
 	}
-	if len(report.notes) != 1 || !strings.Contains(report.notes[0], "secure storage is unavailable") {
+	if len(report.notes) != 1 || !strings.Contains(report.notes[0], "couldn't check this computer's keyring") {
 		t.Fatalf("expected secure-storage note, got %+v", report.notes)
 	}
 }

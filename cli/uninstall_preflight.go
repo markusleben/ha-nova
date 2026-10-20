@@ -206,7 +206,9 @@ func collectUninstallPreflight(paths runtimePaths) uninstallPreflight {
 		return preflight
 	}
 	// A locked keyring stops a full removal first; a kept pairing just stays.
-	if _, err := readRelayAuthToken(); err != nil && !isMissingRelayAuthTokenError(err) && !isDesktopKeyringLockedError(err) {
+	// A token the purge skips gets the purge's own note.
+	if _, err := purgeRelayTokenRead(); err != nil && !isMissingRelayAuthTokenError(err) &&
+		!isDesktopKeyringLockedError(err) && !purgeSkipsRelayTokenError(err) {
 		preflight.tokenUnavailable = relayAuthTokenProblemMessage(err)
 	}
 	return preflight
