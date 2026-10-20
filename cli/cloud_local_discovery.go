@@ -74,22 +74,32 @@ func discoverCloudFromLocalRelay(ctx context.Context, cfg runtimeConfig) (cloudL
 	); err != nil {
 		return cloudLocalDiscovery{}, err
 	}
-	domain := strings.ToLower(strings.TrimSuffix(strings.TrimSpace(status.RemoteDomain), "."))
-	origin, err := ResolveCanonicalNabuOrigin(ctx, "https://"+domain, nil)
+	origin, err := cloudLinkOrigin(ctx, status)
 	if err != nil {
-		return cloudLocalDiscovery{}, newCloudError(
-			CloudErrCloudNotReady,
-			"discover Home Assistant Link origin",
-			err,
-		)
-	}
-	if err := status.ValidateForOrigin(origin); err != nil {
 		return cloudLocalDiscovery{}, err
 	}
 	return cloudLocalDiscovery{
 		Origin:          origin,
 		RelayInstanceID: health.RelayInstanceID,
 	}, nil
+}
+
+// cloudLinkOrigin: Home Assistant Link's address from its cloud/status,
+// while remote access is on and ready.
+func cloudLinkOrigin(ctx context.Context, status HACloudStatus) (CloudOrigin, error) {
+	domain := strings.ToLower(strings.TrimSuffix(strings.TrimSpace(status.RemoteDomain), "."))
+	origin, err := ResolveCanonicalNabuOrigin(ctx, "https://"+domain, nil)
+	if err != nil {
+		return CloudOrigin{}, newCloudError(
+			CloudErrCloudNotReady,
+			"discover Home Assistant Link origin",
+			err,
+		)
+	}
+	if err := status.ValidateForOrigin(origin); err != nil {
+		return CloudOrigin{}, err
+	}
+	return origin, nil
 }
 
 func callLocalRelayJSON(

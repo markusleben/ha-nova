@@ -155,6 +155,47 @@ describe("setup page: no AI app on this computer", () => {
     expect(p.posts).toEqual([{ action: "web" }]);
   });
 
+  it("says under the browser button what it needs, with What's this? to the chat-apps guide", async () => {
+    const guide = "https://github.com/markusleben/ha-nova/blob/main/docs/reference/chat-apps.md";
+    const p = page({ screen: "noclient", accepts: ["recheck", "web"], links: { chat: guide } });
+    await p.settle();
+    const needs = p.find("web-needs")!;
+    expect(needs.textContent).toContain("For this, Home Assistant must be reachable from the internet: Home Assistant Link or your own HTTPS address.");
+    const help = p.find("l-chat-help")!;
+    expect([help.textContent, help.attributes.href, help.attributes.target]).toEqual(["What's this?", guide, "_blank"]);
+    const kids = p.screen.children;
+    expect(kids.indexOf(needs)).toBe(kids.findIndex((n) => n.all().includes(p.find("b-web")!)) + 1); // right under the button
+    const bare = page({ screen: "noclient", accepts: ["recheck", "web"] });
+    await bare.settle();
+    expect(bare.find("l-chat-help")).toBeUndefined(); // no link without the CLI's
+  });
+
+  it("says before pairing what chat apps miss, with check again or this computer instead", async () => {
+    const guide = "https://github.com/markusleben/ha-nova/blob/main/docs/reference/chat-apps.md";
+    for (const [key, fix] of [["setup.chat.need_address_web", "web"], ["setup.chat.problem_old", "web"], ["setup.chat.problem_no_apps", "web_never"]] as const) {
+      const p = page({ screen: "connect", web: true, rows: [{ id: "signed_in", state: "ok" }, { id: "connect", state: "todo" }], fix,
+        links: { chat: guide }, accepts: ["address", "terminal", "signin", "local"], problem: { key } });
+      await p.settle();
+      expect(p.screen.textContent).toContain(p.catalog[key]);
+      expect(p.screen.textContent).not.toContain("open NOVA");
+      if (fix === "web") {
+        expect(p.find("b-signin")!.textContent).toBe("Set it up, then check again");
+        expect(p.find("b-signin")!.className).toContain("btn-primary");
+        expect(p.screen.textContent).toContain(p.catalog["setup.page.connect.web_signin"]);
+        expect(p.find("b-local")!.className).toContain("btn-ghost");
+      } else { // nothing to set up here: only this computer instead
+        expect(p.find("b-signin")).toBeUndefined();
+        expect(p.find("b-local")!.className).toContain("btn-primary");
+      }
+      expect(p.find("b-local")!.textContent).toBe("Use HA NOVA on this computer instead");
+      expect(p.find("l-chat-help")!.attributes.href).toBe(guide);
+      expect(p.find("b-terminal")).toBeUndefined();
+      p.find("b-local")!.dispatch("click");
+      await p.settle();
+      expect(p.posts).toEqual([{ action: "local" }]);
+    }
+  });
+
   it("names the browser as the AI assistant on step 1, with nothing to set up here and no code", async () => {
     const p = page({ ...found, clients: undefined, web: true });
     await p.settle();
