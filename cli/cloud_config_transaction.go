@@ -17,10 +17,7 @@ func newCloudSetupRequest(
 		}
 		return rejectCloudSetupDuringDeviceRevocation(*cfg)
 	}
-	persistPending := func(
-		metadata cloudConnectionMetadata,
-		awaitingBrowser bool,
-	) error {
+	persistPending := func(metadata cloudConnectionMetadata) error {
 		if err := guardDeviceRevocation(); err != nil {
 			return err
 		}
@@ -41,38 +38,42 @@ func newCloudSetupRequest(
 				cfg.Cloud.State,
 			)
 		}
-		// Only a sign-in that starts from nothing, or one already proven
-		// unexchanged, may carry the proof. A pending entry without it may
-		// come from an older binary that exchanged its code.
-		var marker *cloudConnectionMetadata
-		if awaitingBrowser &&
-			cfg.Cloud.State == cloudStateAuthorizing &&
-			(cfg.Cloud.Pending == nil || cfg.Cloud.unfinishedSignIn()) {
-			value := metadata
-			marker = &value
-		}
-		cfg.Cloud.SignInAwaitingBrowser = marker
 		cfg.Cloud.Pending = &metadata
 		return save(*cfg)
 	}
+	// The browser step's metadata. Pending means "a code exchange may have
+	// run", so it is saved only right before the exchange, with the lock held
+	// again and config.json unchanged since the pause. A sign-in left in the
+	// browser therefore leaves no Pending and nothing to revoke, for every
+	// version that reads the config. A Pending entry that already exists
+	// (left by an older version) stays the record of truth.
+	var signIn *cloudConnectionMetadata
 	request := cloudSetupRequest{
-		ProfileName: activeServerProfile(),
-		Config:      *cfg,
-		PersistPendingMetadata: func(metadata cloudConnectionMetadata) error {
-			return persistPending(metadata, false)
-		},
+		ProfileName:            activeServerProfile(),
+		Config:                 *cfg,
+		PersistPendingMetadata: persistPending,
 		PersistPendingSignIn: func(metadata cloudConnectionMetadata) error {
-			return persistPending(metadata, true)
-		},
-		StartSignInCodeExchange: func() error {
+			if cfg.Cloud == nil || cfg.Cloud.Pending != nil ||
+				cfg.Cloud.State != cloudStateAuthorizing {
+				signIn = nil
+				return persistPending(metadata)
+			}
 			if err := guardDeviceRevocation(); err != nil {
 				return err
 			}
-			if cfg.Cloud == nil || cfg.Cloud.SignInAwaitingBrowser == nil {
+			if err := validateCloudConnectionMetadata(metadata); err != nil {
+				return fmt.Errorf("invalid pending Cloud metadata: %w", err)
+			}
+			signIn = &metadata
+			return nil
+		},
+		StartSignInCodeExchange: func() error {
+			if signIn == nil {
 				return nil
 			}
-			cfg.Cloud.SignInAwaitingBrowser = nil
-			return save(*cfg)
+			metadata := *signIn
+			signIn = nil
+			return persistPending(metadata)
 		},
 		ClearPendingAuthorization: func(generation string) error {
 			if err := guardDeviceRevocation(); err != nil {
@@ -98,12 +99,9 @@ func newCloudSetupRequest(
 				)
 			}
 			pending := cfg.Cloud.Pending
-			marker := cfg.Cloud.SignInAwaitingBrowser
 			cfg.Cloud.Pending = nil
-			cfg.Cloud.SignInAwaitingBrowser = nil
 			if err := save(*cfg); err != nil {
 				cfg.Cloud.Pending = pending
-				cfg.Cloud.SignInAwaitingBrowser = marker
 				return err
 			}
 			return nil

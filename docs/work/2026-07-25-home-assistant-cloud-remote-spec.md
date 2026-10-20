@@ -151,12 +151,16 @@ The local callback listener:
 The callback does not use PKCE unless Home Assistant documents and supports it
 for this client type.
 
-Immediately before the browser opens, the CLI persists the non-secret pending
-OAuth metadata, snapshots the full config generation, and releases the global
-client-mutation lock. After the callback it reacquires the lock and requires an
-exact config match before exchanging the authorization code. Any intervening
-profile, sibling, or default-selection change discards the unexchanged code and
-stops the flow.
+Immediately before the browser opens, the CLI snapshots the full config
+generation and releases the global client-mutation lock. After the callback it
+reacquires the lock and requires an exact config match, then persists the
+non-secret pending OAuth metadata, and only then exchanges the authorization
+code. Any intervening profile, sibling, or default-selection change discards
+the unexchanged code and stops the flow. `cloud.pending` therefore means "a
+code exchange may have run": a sign-in left in the browser leaves no pending
+metadata and nothing to revoke, so purge and `cloud remove` drop it. Pending
+metadata written by an older version (which saved it before the browser) keeps
+the full check.
 
 After token exchange the CLI verifies:
 
@@ -426,9 +430,11 @@ identity before client installation is retried.
 
 If a potentially issued authorization no longer has consistent native
 credentials, automatic cleanup fails closed. Recovery first requires a Home
-Assistant Owner to revoke this computer under NOVA Devices and revoke HA NOVA
-sessions for every user. Only then may the user run the exact profile-bound
-command printed by the CLI:
+Assistant Owner to revoke this computer's `cloud` entry on the NOVA page, and
+every HA NOVA user to delete the matching refresh token under Profile >
+Security (the CLI names the exact client address when the profile knows only
+one). Only then may the user run the exact profile-bound command printed by
+the CLI:
 
 ```
 ha-nova cloud remove --server <name> --yes \

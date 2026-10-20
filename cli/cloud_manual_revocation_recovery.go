@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -48,7 +49,7 @@ func cloudAuthorizationCleanupErrorWithRecoveryCommand(
 	problem := cloudProblemForError(err)
 	copy := *problem
 	if errors.Is(err, errCloudAuthorizationCleanupUnverifiable) {
-		copy.Detail += "\n" + cloudAuthorizationRecoveryStep(profileName)
+		copy.Detail += "\n" + cloudAuthorizationRecoverySteps(profileName, problem.linkClient)
 	} else {
 		copy.Detail += fmt.Sprintf(
 			"; after both remote revocations are complete, run: %s",
@@ -59,40 +60,58 @@ func cloudAuthorizationCleanupErrorWithRecoveryCommand(
 	return &copy
 }
 
-// cloudAuthorizationStopText is a Link stop as plain text plus its one next
-// step: the steps that wrap it ("failed to revoke …: inspect …:") only hide
-// that step. A joined failure (a safety hold that could not be saved) stays.
+// cloudAuthorizationStopText is a Link stop for `ha-nova uninstall`: plain
+// text and its steps, without the wrapping steps ("failed to revoke …:
+// inspect …:"). A joined failure (a safety hold that could not be saved)
+// stays; the problem's own cause does not.
 func cloudAuthorizationStopText(err error) (string, bool) {
 	var problem *cloudProblem
 	if !errors.Is(err, errCloudAuthorizationCleanupUnverifiable) ||
 		!errors.As(err, &problem) {
 		return "", false
 	}
-	text := problem.humanText()
-	for e := err; e != nil; e = errors.Unwrap(e) {
-		joined, ok := e.(interface{ Unwrap() []error })
-		if !ok {
-			continue
-		}
-		for _, other := range joined.Unwrap() {
-			if !errors.Is(other, errCloudAuthorizationCleanupUnverifiable) {
-				text += "\n" + other.Error()
+	copy := *problem
+	copy.Detail += "\n4. Then run ha-nova uninstall again."
+	lines := []string{copy.humanText()}
+	var other func(error)
+	other = func(e error) {
+		for ; e != nil && e != error(problem); e = errors.Unwrap(e) {
+			joined, ok := e.(interface{ Unwrap() []error })
+			if !ok {
+				continue
 			}
+			for _, part := range joined.Unwrap() {
+				if errors.Is(part, errCloudAuthorizationCleanupUnverifiable) {
+					other(part)
+				} else {
+					lines = append(lines, part.Error())
+				}
+			}
+			return
 		}
 	}
-	return text, true
+	other(err)
+	return strings.Join(lines, "\n"), true
 }
 
-// cloudAuthorizationRecoveryStep is the one next step. Home Assistant lists a
-// HA NOVA sign-in under Profile > Security by its client address, which ends
-// in oauthLoopbackClientPath.
-func cloudAuthorizationRecoveryStep(profileName string) string {
+// cloudAuthorizationRecoverySteps are the steps that make the recovery
+// command safe. Home Assistant lists a HA NOVA sign-in under Profile >
+// Security > Refresh tokens by its address (127.0.0.1, a random port, and
+// oauthLoopbackClientPath).
+func cloudAuthorizationRecoverySteps(profileName, client string) string {
+	remove := fmt.Sprintf("delete %q", client)
+	if client == "" {
+		remove = fmt.Sprintf(
+			"delete every entry that ends in %q. This also signs out HA NOVA on your other computers",
+			oauthLoopbackClientPath,
+		)
+	}
 	return fmt.Sprintf(
-		"Next: in Home Assistant, click Revoke next to this computer on the "+
-			"NOVA page. Then, for each person who uses HA NOVA, open "+
-			"Profile > Security and delete every sign-in that ends in %q. "+
-			"Then run: %s",
-		oauthLoopbackClientPath,
+		"Next, in Home Assistant:\n"+
+			"1. As the owner, open NOVA. If this computer is listed with a \"cloud\" tag, click Revoke next to it.\n"+
+			"2. Each person who uses HA NOVA: open Profile > Security, and under \"Refresh tokens\", %s.\n"+
+			"3. Run: %s",
+		remove,
 		manualRemoteAccessRecoveryCommand(profileName),
 	)
 }

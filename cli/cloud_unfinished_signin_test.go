@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"errors"
-	"os"
 	"strings"
 	"testing"
 	"time"
@@ -11,9 +10,8 @@ import (
 
 func unfinishedSignInTestConfig(t *testing.T) runtimeConfig {
 	t.Helper()
-	cfg, metadata := cloudCleanupTestConfig(t, cloudStateAuthorizing)
-	marker := metadata
-	cfg.Cloud.SignInAwaitingBrowser = &marker
+	cfg, _ := cloudCleanupTestConfig(t, cloudStateAuthorizing)
+	cfg.Cloud.Pending = nil
 	return cfg
 }
 
@@ -30,79 +28,65 @@ func TestUnfinishedSignInNeedsNoRevoke(t *testing.T) {
 	}
 }
 
-// Every trace that the code may have been exchanged voids the proof.
-func TestUnfinishedSignInProofFailsClosed(t *testing.T) {
-	for name, mutate := range map[string]func(*runtimeConfig){
-		"no marker (older version)": func(cfg *runtimeConfig) {
-			cfg.Cloud.SignInAwaitingBrowser = nil
-		},
-		"marker from another attempt": func(cfg *runtimeConfig) {
-			marker := *cfg.Cloud.SignInAwaitingBrowser
-			marker.OAuthClientID = "http://127.0.0.1:43999/ha-nova"
-			cfg.Cloud.SignInAwaitingBrowser = &marker
-		},
-		"past the code exchange": func(cfg *runtimeConfig) {
-			cfg.Cloud.State = cloudStateTokenStored
-		},
-		"recovery hold": func(cfg *runtimeConfig) {
-			cfg.Cloud.RecoveryHold = &cloudRecoveryHold{
-				Code:        cloudProblemAuthorization,
-				Remediation: cloudRemediationSecurityStop,
-			}
-		},
-		"device activation started": func(cfg *runtimeConfig) {
-			cfg.Cloud.DeviceActivationStarted = true
-		},
-	} {
-		t.Run(name, func(t *testing.T) {
-			cfg := unfinishedSignInTestConfig(t)
-			mutate(&cfg)
-			store := productionCloudTestStore(t, newMemoryOAuthSecretBackend())
+// Pending means an exchange may have run: it still needs its credential,
+// whoever wrote it (an older version included).
+func TestPendingWithoutCredentialStillStops(t *testing.T) {
+	cfg, _ := cloudCleanupTestConfig(t, cloudStateAuthorizing)
+	store := productionCloudTestStore(t, newMemoryOAuthSecretBackend())
 
-			plan, err := inspectCloudAuthorizationCleanup(context.Background(), cfg, store)
-			if !errors.Is(err, errCloudAuthorizationCleanupUnverifiable) {
-				t.Fatalf("inspect error = %v", err)
-			}
-			if plan.unfinishedSignIn {
-				t.Fatal("unproven sign-in treated as unfinished")
-			}
-		})
+	plan, err := inspectCloudAuthorizationCleanup(context.Background(), cfg, store)
+	if !errors.Is(err, errCloudAuthorizationCleanupUnverifiable) || plan.unfinishedSignIn {
+		t.Fatalf("plan = %+v err = %v", plan, err)
 	}
 }
 
-// A stored credential of the pending generation contradicts the marker: it is
-// revoked like any other.
+// A stored credential is revoked even with no Pending entry.
 func TestUnfinishedSignInMarkerNeverHidesStoredCredential(t *testing.T) {
 	cfg := unfinishedSignInTestConfig(t)
 	store := productionCloudTestStore(t, newMemoryOAuthSecretBackend())
 	envelope := productionCloudTestEnvelope()
-	envelope.Generation = cfg.Cloud.Pending.CredentialGeneration
+	envelope.Generation = "0123456789abcdef0123456789abcdef"
 	if _, err := store.CreatePending(context.Background(), envelope, SecretStoreForbidUI); err != nil {
 		t.Fatal(err)
 	}
 
 	plan, err := inspectCloudAuthorizationCleanup(context.Background(), cfg, store)
-	if plan.unfinishedSignIn || (err == nil && !plan.hasPending) {
+	if err != nil || !plan.hasPending {
 		t.Fatalf("plan = %+v err = %v", plan, err)
 	}
 }
 
 func TestUnprovenSignInStopIsPlain(t *testing.T) {
-	cfg := unfinishedSignInTestConfig(t)
-	cfg.Cloud.SignInAwaitingBrowser = nil
+	cfg, _ := cloudCleanupTestConfig(t, cloudStateAuthorizing)
 	store := productionCloudTestStore(t, newMemoryOAuthSecretBackend())
 	_, err := inspectCloudAuthorizationCleanup(context.Background(), cfg, store)
 	err = cloudAuthorizationCleanupErrorWithRecoveryCommand(err, defaultServerProfileName)
 	wrapped := errors.Join(err, errors.New("persist Cloud recovery safety hold: disk full"))
 
 	text := uninstallErrorText(errorsWrap("failed to revoke Home Assistant Link authorization", wrapped))
-	lines := strings.Split(text, "\n")
-	want := []string{
-		"Home Assistant Link: Your Home Assistant Link sign-in on this computer didn't finish, and HA NOVA can't tell if Home Assistant saved it, so it stopped. (code cloud_authorization; next: inspect_security)",
-		`Next: in Home Assistant, click Revoke next to this computer on the NOVA page. Then, for each person who uses HA NOVA, open Profile > Security and delete every sign-in that ends in "/ha-nova". Then run: ha-nova cloud remove --server default --yes --confirm-remote-access-revoked default`,
+	want := strings.Join([]string{
+		"Home Assistant Link: Your sign-in on this computer didn't finish. HA NOVA can't tell if Home Assistant saved it, so it stopped.",
+		"Next, in Home Assistant:",
+		`1. As the owner, open NOVA. If this computer is listed with a "cloud" tag, click Revoke next to it.`,
+		`2. Each person who uses HA NOVA: open Profile > Security, and under "Refresh tokens", delete "` + cfg.Cloud.Pending.OAuthClientID + `".`,
+		"3. Run: ha-nova cloud remove --server default --yes --confirm-remote-access-revoked default",
+		"4. Then run ha-nova uninstall again.",
+		"(code cloud_authorization; next: inspect_security)",
 		"persist Cloud recovery safety hold: disk full",
+	}, "\n")
+	if text != want {
+		t.Fatalf("text:\n%s", text)
 	}
-	if strings.Join(lines, "\n") != strings.Join(want, "\n") {
+}
+
+// The problem's own cause (a binding error) is support detail, not a step.
+func TestCloudStopTextOmitsInnerCause(t *testing.T) {
+	err := cloudAuthorizationCleanupErrorWithRecoveryCommand(
+		unverifiableCloudAuthorizationCleanup(errors.New("resume Cloud authorization: IDENTITY_MISMATCH")),
+		defaultServerProfileName,
+	)
+	text := uninstallErrorText(errorsWrap("inspect Cloud credentials", err))
+	if strings.Contains(text, "IDENTITY_MISMATCH") || !strings.Contains(text, `ends in "/ha-nova"`) {
 		t.Fatalf("text:\n%s", text)
 	}
 }
@@ -119,7 +103,7 @@ type wrappedTestError struct {
 func (e *wrappedTestError) Error() string { return e.prefix + ": " + e.err.Error() }
 func (e *wrappedTestError) Unwrap() error { return e.err }
 
-func TestSignInMarkerOnlyForFreshOrProvenSignIn(t *testing.T) {
+func TestSignInWritesPendingOnlyAtCodeExchange(t *testing.T) {
 	paths := writeTestConfigFile(t, `{"schema_version":1}`)
 	cfg := completedLocalCloudTestConfig()
 	cfg.ProfileID = "profile-marker"
@@ -129,50 +113,41 @@ func TestSignInMarkerOnlyForFreshOrProvenSignIn(t *testing.T) {
 	}
 	save := func(value runtimeConfig) error { return saveConfig(paths, value) }
 	_, metadata := cloudCleanupTestConfig(t, cloudStateAuthorizing)
-	reload := func() runtimeConfig {
+	reload := func() *cloudLifecycleMetadata {
 		t.Helper()
 		loaded, err := loadSelectedRuntimeConfigUnchecked(paths)
 		if err != nil {
 			t.Fatal(err)
 		}
-		return loaded
+		return loaded.Cloud
 	}
 
 	request := newCloudSetupRequest(&cfg, save)
 	if err := request.PersistPendingSignIn(metadata); err != nil {
 		t.Fatal(err)
 	}
-	if !reload().Cloud.unfinishedSignIn() {
-		t.Fatal("fresh sign-in did not save its proof")
-	}
-	// A retry with a new loopback client keeps the proof.
-	metadata.OAuthClientID = "http://127.0.0.1:43999/ha-nova"
-	if err := request.PersistPendingSignIn(metadata); err != nil {
-		t.Fatal(err)
-	}
-	if !reload().Cloud.unfinishedSignIn() {
-		t.Fatal("retried sign-in lost its proof")
+	if lifecycle := reload(); lifecycle.Pending != nil || !lifecycle.unfinishedSignIn() {
+		t.Fatalf("browser step wrote %+v", lifecycle)
 	}
 	if err := request.StartSignInCodeExchange(); err != nil {
 		t.Fatal(err)
 	}
-	data, err := os.ReadFile(paths.ConfigFile)
-	if err != nil {
-		t.Fatal(err)
+	if lifecycle := reload(); lifecycle.Pending == nil || *lifecycle.Pending != metadata {
+		t.Fatalf("exchange step wrote %+v", lifecycle)
 	}
-	if strings.Contains(string(data), "sign_in_awaiting_browser") {
-		t.Fatalf("proof survived the code exchange:\n%s", data)
-	}
-	// Once the exchange started, a new browser attempt can't prove anything.
+	// A Pending entry stays the record of truth on a new browser attempt.
 	if err := request.PersistPendingSignIn(metadata); err != nil {
 		t.Fatal(err)
 	}
-	if reload().Cloud.SignInAwaitingBrowser != nil {
-		t.Fatal("sign-in after an exchange got a proof")
+	if err := request.StartSignInCodeExchange(); err != nil {
+		t.Fatal(err)
+	}
+	if lifecycle := reload(); lifecycle.Pending == nil || *lifecycle.Pending != metadata {
+		t.Fatalf("retry after an exchange wrote %+v", lifecycle)
 	}
 }
 
-func TestOAuthSignInDropsProofBeforeCodeExchange(t *testing.T) {
+func TestOAuthSignInSavesPendingBeforeCodeExchange(t *testing.T) {
 	resetServerProfileSelection(t)
 	paths := setupServerCommandTest(t, `{"schema_version":1}`)
 	cfg := completedLocalCloudTestConfig()
@@ -220,8 +195,8 @@ func TestOAuthSignInDropsProofBeforeCodeExchange(t *testing.T) {
 		OAuthAuthorizationCode,
 	) (HAOAuthToken, error) {
 		exchangeCalled = true
-		if onDisk().SignInAwaitingBrowser != nil {
-			t.Fatal("code exchange ran while the config still proves no exchange")
+		if lifecycle := onDisk(); lifecycle.Pending == nil {
+			t.Fatalf("code exchange ran before Pending was saved: %+v", lifecycle)
 		}
 		return HAOAuthToken{}, errors.New("stop after the check")
 	}
@@ -263,19 +238,7 @@ func TestPurgeRemovesUnfinishedSignInWithoutRevoke(t *testing.T) {
 				"profile_id":"profile-unfinished",
 				"route_policy":"cloud",
 				"cloud":{
-					"state":"authorizing",
-					"pending":{
-						"origin":"https://unit.ui.nabu.casa",
-						"canonical_origin":"https://unit.ui.nabu.casa",
-						"oauth_client_id":"http://127.0.0.1:43123/ha-nova",
-						"credential_generation":"0123456789abcdef0123456789abcdef"
-					},
-					"sign_in_awaiting_browser":{
-						"origin":"https://unit.ui.nabu.casa",
-						"canonical_origin":"https://unit.ui.nabu.casa",
-						"oauth_client_id":"http://127.0.0.1:43123/ha-nova",
-						"credential_generation":"0123456789abcdef0123456789abcdef"
-					}
+					"state":"authorizing"
 				}
 			}
 		}
@@ -334,15 +297,8 @@ func TestCloudRemoveDropsUnfinishedSignIn(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	metadata := *cfg.Cloud.Current
-	metadata.HAUserID = ""
-	marker := metadata
 	cfg.RoutePolicy = routePolicyLocal
-	cfg.Cloud = &cloudLifecycleMetadata{
-		State:                 cloudStateAuthorizing,
-		Pending:               &metadata,
-		SignInAwaitingBrowser: &marker,
-	}
+	cfg.Cloud = &cloudLifecycleMetadata{State: cloudStateAuthorizing}
 	if err := saveConfig(paths, cfg); err != nil {
 		t.Fatal(err)
 	}
@@ -364,5 +320,21 @@ func TestCloudRemoveDropsUnfinishedSignIn(t *testing.T) {
 	}
 	if after.Cloud != nil {
 		t.Fatalf("unfinished sign-in left Link state: %+v", after.Cloud)
+	}
+}
+
+func TestCloudStopTextKeepsNestedJoinedFailures(t *testing.T) {
+	stop := cloudAuthorizationCleanupErrorWithRecoveryCommand(
+		unverifiableCloudAuthorizationCleanup(nil),
+		defaultServerProfileName,
+	)
+	err := errors.Join(
+		errors.Join(stop, errors.New("persist Cloud recovery safety hold: disk full")),
+		errors.New("reset storage proof: busy"),
+	)
+	text, ok := cloudAuthorizationStopText(err)
+	if !ok || !strings.Contains(text, "disk full") || !strings.Contains(text, "busy") ||
+		strings.Count(text, "Next, in Home Assistant:") != 1 {
+		t.Fatalf("text:\n%s", text)
 	}
 }

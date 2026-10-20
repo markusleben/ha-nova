@@ -47,6 +47,7 @@ type cloudProblem struct {
 	Remediation cloudRemediation
 	Detail      string
 	Cause       error
+	linkClient  string // the Link sign-in's address, when a stop knows it
 }
 
 func (p *cloudProblem) Error() string {
@@ -54,14 +55,12 @@ func (p *cloudProblem) Error() string {
 		return ""
 	}
 	if p.Detail != "" {
-		// A second line is the next step: keep the codes on the first so a
-		// command at the end can be copied as is.
-		first, next, multiline := strings.Cut(p.Detail, "\n")
-		text := fmt.Sprintf("Home Assistant Link: %s (code %s; next: %s)", first, p.Code, p.Remediation)
-		if multiline {
-			text += "\n" + next
+		// Later lines are next steps: the codes go last, on their own line,
+		// so a command can be copied as is.
+		if strings.Contains(p.Detail, "\n") {
+			return fmt.Sprintf("Home Assistant Link: %s\n(code %s; next: %s)", p.Detail, p.Code, p.Remediation)
 		}
-		return text
+		return fmt.Sprintf("Home Assistant Link: %s (code %s; next: %s)", p.Detail, p.Code, p.Remediation)
 	}
 	return fmt.Sprintf("Home Assistant Link failed (code %s; next: %s)", p.Code, p.Remediation)
 }

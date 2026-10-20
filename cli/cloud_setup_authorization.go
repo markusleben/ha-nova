@@ -270,7 +270,7 @@ func authorizeOrRefreshCloud(
 	if err != nil {
 		return "", OAuthSecretEnvelope{}, err
 	}
-	// Lock held, config unchanged: drop the proof before a token can exist.
+	// Lock held, config unchanged: save Pending before a token can exist.
 	if err := request.StartSignInCodeExchange(); err != nil {
 		return "", OAuthSecretEnvelope{}, fmt.Errorf("save sign-in progress; the authorization code was not exchanged: %w", err)
 	}

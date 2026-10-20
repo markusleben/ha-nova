@@ -387,9 +387,6 @@ func runCloudRemoveCommand(paths runtimePaths, args []string) int {
 		printHumanInfo("Cloud configuration was kept unless revocation had already been verified.")
 		return 1
 	}
-	if unfinishedSignInOnly {
-		printHumanInfo("%s", unfinishedSignInRemovedText)
-	}
 	if nextCommand, needsRecovery, recoveryErr :=
 		invalidInstallIdentityRecoveryCommand(
 			paths,
@@ -406,10 +403,14 @@ func runCloudRemoveCommand(paths runtimePaths, args []string) int {
 		}
 		return 0
 	}
+	removed := "Home Assistant Link access was removed."
+	if unfinishedSignInOnly {
+		removed = unfinishedSignInRemovedText
+	}
 	if updated.RelaySecureBaseURL != "" && updated.RelaySpkiPin != "" {
-		printHumanInfo("Home Assistant Link access was removed. Local access remains ready.")
+		printHumanInfo("%s Local access remains ready.", removed)
 	} else {
-		printHumanInfo("Home Assistant Link access was removed. This profile now needs a local pairing before it can be used.")
+		printHumanInfo("%s This profile now needs a local pairing before it can be used.", removed)
 	}
 	return 0
 }

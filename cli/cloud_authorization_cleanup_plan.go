@@ -7,7 +7,7 @@ import (
 )
 
 // unfinishedSignInRemovedText is what purge and `cloud remove` say after they
-// drop a proven unfinished sign-in.
+// drop a Link sign-in that never reached the code exchange.
 const unfinishedSignInRemovedText = "Removed a Home Assistant Link sign-in " +
 	"that never finished. Nothing was signed in, so there was nothing to sign out."
 
@@ -27,9 +27,7 @@ type cloudAuthorizationCleanupPlan struct {
 	retiring               OAuthSecretEnvelope
 	hasRetiring            bool
 	revocationCheckpointed bool
-	// unfinishedSignIn: Pending is a proven never-exchanged sign-in with no
-	// stored credential, so it has nothing to revoke.
-	unfinishedSignIn bool
+	unfinishedSignIn       bool // for the plain "removed" line only
 }
 
 func inspectCloudAuthorizationCleanup(
@@ -71,68 +69,54 @@ func inspectCloudAuthorizationCleanup(
 		plan.revocationCheckpointed = true
 		return plan, nil
 	}
-	plan.unfinishedSignIn = plan.pendingSignInUnfinished(cfg)
+	plan.unfinishedSignIn = cfg.Cloud.unfinishedSignIn()
 	if err := plan.validateConfiguredGrants(cfg); err != nil {
-		return plan, plan.explainUnprovenSignIn(cfg, err)
+		return plan, plan.explainCloudAuthorizationStop(cfg, err)
 	}
 	return plan, nil
 }
 
-// explainUnprovenSignIn names the common case in the stop: a sign-in that
-// never stored a credential but carries no proof that its code was never
-// exchanged (for example one started by an older version).
-func (plan cloudAuthorizationCleanupPlan) explainUnprovenSignIn(
+// explainCloudAuthorizationStop names the sign-in to delete in Home
+// Assistant, and the common case: a sign-in with no stored credential whose
+// code may still have been exchanged (for example one an older version
+// started).
+func (plan cloudAuthorizationCleanupPlan) explainCloudAuthorizationStop(
 	cfg runtimeConfig,
 	err error,
 ) error {
 	var problem *cloudProblem
 	if cfg.Cloud == nil ||
 		!errors.Is(err, errCloudAuthorizationCleanupUnverifiable) ||
-		!errors.As(err, &problem) ||
-		cfg.Cloud.State != cloudStateAuthorizing ||
-		cfg.Cloud.Current != nil ||
-		plan.hasAuthorization() {
+		!errors.As(err, &problem) {
 		return err
 	}
 	copy := *problem
-	copy.Detail = "Your Home Assistant Link sign-in on this computer didn't " +
-		"finish, and HA NOVA can't tell if Home Assistant saved it, so it stopped."
+	// Name one sign-in only when it is the only one this profile knows.
+	switch {
+	case cfg.Cloud.Pending != nil && cfg.Cloud.Current == nil:
+		copy.linkClient = cfg.Cloud.Pending.OAuthClientID
+	case cfg.Cloud.Current != nil && cfg.Cloud.Pending == nil:
+		copy.linkClient = cfg.Cloud.Current.OAuthClientID
+	}
+	if cfg.Cloud.State == cloudStateAuthorizing &&
+		cfg.Cloud.Current == nil &&
+		!plan.hasAuthorization() {
+		copy.Detail = "Your sign-in on this computer didn't finish. HA NOVA " +
+			"can't tell if Home Assistant saved it, so it stopped."
+	}
 	return &copy
 }
 
-// unfinishedSignIn proves the pending Link sign-in never reached the code
-// exchange. Home Assistant creates a refresh token only at that exchange, so
-// the pending slot holds nothing to revoke. Any other trace of progress, and
-// any marker that no longer matches Pending exactly (an older binary that
-// kept the field but started a new attempt), voids the proof.
+// unfinishedSignIn: a Link sign-in that never reached the code exchange.
+// Home Assistant creates a token only at that exchange, and setup saves
+// Pending right before it, so there is nothing to revoke. Only the plain
+// "removed" line uses this; the checks below stay the same.
 func (m *cloudLifecycleMetadata) unfinishedSignIn() bool {
 	return m != nil &&
 		m.State == cloudStateAuthorizing &&
-		m.Pending != nil &&
-		m.SignInAwaitingBrowser != nil &&
-		*m.SignInAwaitingBrowser == *m.Pending &&
-		validateCloudConnectionMetadata(*m.Pending) == nil &&
-		m.RecoveryHold == nil &&
-		!m.DeviceActivationStarted &&
-		m.DeviceActivationDeviceID == "" &&
-		m.DeviceRevocationCompleted == nil &&
-		m.AuthorizationRevocationCompleted == nil
-}
-
-// pendingSignInUnfinished needs both the config proof and a store with no
-// credential of that generation; either alone could hide a live token.
-func (plan cloudAuthorizationCleanupPlan) pendingSignInUnfinished(
-	cfg runtimeConfig,
-) bool {
-	if !cfg.Cloud.unfinishedSignIn() {
-		return false
-	}
-	for _, envelope := range plan.envelopes() {
-		if envelope.Generation == cfg.Cloud.Pending.CredentialGeneration {
-			return false
-		}
-	}
-	return true
+		m.Pending == nil &&
+		m.Current == nil &&
+		!m.cleanupPending()
 }
 
 func (plan cloudAuthorizationCleanupPlan) hasAuthorization() bool {
@@ -162,7 +146,7 @@ func (plan cloudAuthorizationCleanupPlan) validateConfiguredGrants(
 		cfg.Cloud.Current == nil {
 		return unverifiableCloudAuthorizationCleanup(nil)
 	}
-	if cfg.Cloud.Pending != nil && !plan.unfinishedSignIn {
+	if cfg.Cloud.Pending != nil {
 		if err := plan.requireMetadataMatch(
 			cfg,
 			*cfg.Cloud.Pending,
