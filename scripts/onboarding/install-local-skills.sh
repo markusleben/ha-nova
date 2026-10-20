@@ -36,153 +36,48 @@ for _skill_dir in "${SOURCE_SKILLS_DIR}"/*/SKILL.md; do
 done
 unset _skill_dir _skill_name
 
-flat_installed_skill_name() {
+# Rewrites one skill .md for a flat (Antigravity) or namespaced (Hermes) copy:
+# same-skill companion refs become local, other repo refs absolute, the
+# frontmatter name and "ha-nova:<sub-skill>" refs get the installed prefix.
+# One perl per file: per-file subshells and bash string rewrites made installs slow.
+rewrite_skill_markdown() {
   local skill_name="$1"
-  if [[ -z "${skill_name}" || "${skill_name}" == "ha-nova" ]]; then
-    printf 'ha-nova'
-    return
-  fi
-  printf 'ha-nova-%s' "${skill_name}"
+  local src="$2"
+  local dest="$3"
+  local sub_skill_ref="$4"
+
+  HA_NOVA_ROOT="${REPO_ROOT}" SKILL_NAME="${skill_name}" SUB_SKILL_REF="${sub_skill_ref}" \
+    SUB_SKILLS="${FLAT_SUB_SKILLS[*]}" perl -MFile::Glob=bsd_glob -0pe '
+    my $skill = $ENV{SKILL_NAME};
+    my $dir = "$ENV{HA_NOVA_ROOT}/skills/$skill";
+    s/\n+\z//;
+    for my $companion (map { s{.*/}{}r } bsd_glob("$dir/*.md")) {
+      next if $companion eq "SKILL.md";
+      s{\Q`skills/$skill/$companion`\E}{`$companion`}g;
+      # ../ha-nova/session-bootstrap.md stays: the bootstrap repair layout marker
+      s{\Q`../$skill/$companion`\E}{`$companion`}g unless "$skill/$companion" eq "ha-nova/session-bootstrap.md";
+    }
+    s{`docs/reference/([^`]+)`}{`$ENV{HA_NOVA_ROOT}/docs/reference/$1`}g;
+    s{`(?:skills|\.\.)/(?!ha-nova/session-bootstrap\.md`)([^`]+)`}{`$ENV{HA_NOVA_ROOT}/skills/$1`}g;
+    s/^name:\s*\Q$skill\E$/name: ha-nova-$skill/m if $skill ne "ha-nova";
+    my $subs = join "|", map { quotemeta } split / /, $ENV{SUB_SKILLS};
+    s/ha-nova:(?=$subs)/$ENV{SUB_SKILL_REF}/g if length $subs;
+  ' "${src}" > "${dest}"
 }
 
-rewrite_flat_markdown() {
-  local skill_name="$1"
-  local source_dir="$2"
-  local src="$3"
-  local dest="$4"
-  local content
-  local installed_skill_name
-
-  installed_skill_name="$(flat_installed_skill_name "${skill_name}")"
-  content="$(cat "${src}")"
-
-  for companion in "${source_dir}"/*.md; do
-    local companion_name
-    companion_name="$(basename "${companion}")"
-    [[ "${companion_name}" == "SKILL.md" ]] && continue
-    local same_skill_ref same_skill_rel same_skill_local
-    printf -v same_skill_ref '`skills/%s/%s`' "${skill_name}" "${companion_name}"
-    printf -v same_skill_rel '`../%s/%s`' "${skill_name}" "${companion_name}"
-    printf -v same_skill_local '`%s`' "${companion_name}"
-    content="${content//${same_skill_ref}/${same_skill_local}}"
-    # ../ha-nova/session-bootstrap.md stays: the bootstrap repair's layout marker
-    [[ "${same_skill_rel}" == '`../ha-nova/session-bootstrap.md`' ]] || content="${content//${same_skill_rel}/${same_skill_local}}"
-  done
-
-  content="$(
-    printf '%s' "${content}" | HA_NOVA_ROOT="${REPO_ROOT}" perl -0pe '
-      s{`docs/reference/([^`]+)`}{sprintf("`%s/docs/reference/%s`", $ENV{HA_NOVA_ROOT}, $1)}ge;
-      s{`(?:skills|\.\.)/(?!ha-nova/session-bootstrap\.md`)([^`]+)`}{sprintf("`%s/skills/%s`", $ENV{HA_NOVA_ROOT}, $1)}ge;
-    '
-  )"
-
-  for flat_sub_skill in "${FLAT_SUB_SKILLS[@]}"; do
-    content="${content//ha-nova:${flat_sub_skill}/ha-nova:ha-nova-${flat_sub_skill}}"
-  done
-
-  if [[ "${skill_name}" != "ha-nova" ]]; then
-    content="$(
-      printf '%s' "${content}" | SKILL_NAME="${skill_name}" INSTALLED_SKILL_NAME="${installed_skill_name}" perl -0pe '
-        s/^name:\s*\Q$ENV{SKILL_NAME}\E$/name: $ENV{INSTALLED_SKILL_NAME}/m;
-      '
-    )"
-  fi
-
-  printf '%s' "${content}" > "${dest}"
-}
-
-copy_flat_skill_markdown() {
+# copy_skill_markdown <skill> <dest_dir> <sub_skill_ref>
+copy_skill_markdown() {
   local skill_name="$1"
   local source_dir="${SOURCE_SKILLS_DIR}/${skill_name}"
   local dest_dir="$2"
+  local sub_skill_ref="$3"
+  local companion
 
   mkdir -p "${dest_dir}"
   find "${dest_dir}" -maxdepth 1 -type f -name '*.md' -exec rm -f {} +
 
-  if [[ -f "${source_dir}/SKILL.md" ]]; then
-    rewrite_flat_markdown "${skill_name}" "${source_dir}" "${source_dir}/SKILL.md" "${dest_dir}/SKILL.md"
-  fi
-
   for companion in "${source_dir}"/*.md; do
-    local companion_name
-    companion_name="$(basename "${companion}")"
-    [[ "${companion_name}" == "SKILL.md" ]] && continue
-    rewrite_flat_markdown "${skill_name}" "${source_dir}" "${companion}" "${dest_dir}/${companion_name}"
-  done
-}
-
-hermes_installed_skill_name() {
-  local skill_name="$1"
-  if [[ -z "${skill_name}" || "${skill_name}" == "ha-nova" ]]; then
-    printf 'ha-nova'
-    return
-  fi
-  printf 'ha-nova-%s' "${skill_name}"
-}
-
-rewrite_hermes_markdown() {
-  local skill_name="$1"
-  local source_dir="$2"
-  local src="$3"
-  local dest="$4"
-  local content
-  local installed_skill_name
-
-  installed_skill_name="$(hermes_installed_skill_name "${skill_name}")"
-  content="$(cat "${src}")"
-
-  for companion in "${source_dir}"/*.md; do
-    local companion_name
-    companion_name="$(basename "${companion}")"
-    [[ "${companion_name}" == "SKILL.md" ]] && continue
-    local same_skill_ref same_skill_rel same_skill_local
-    printf -v same_skill_ref '`skills/%s/%s`' "${skill_name}" "${companion_name}"
-    printf -v same_skill_rel '`../%s/%s`' "${skill_name}" "${companion_name}"
-    printf -v same_skill_local '`%s`' "${companion_name}"
-    content="${content//${same_skill_ref}/${same_skill_local}}"
-    # ../ha-nova/session-bootstrap.md stays: the bootstrap repair's layout marker
-    [[ "${same_skill_rel}" == '`../ha-nova/session-bootstrap.md`' ]] || content="${content//${same_skill_rel}/${same_skill_local}}"
-  done
-
-  content="$(
-    printf '%s' "${content}" | HA_NOVA_ROOT="${REPO_ROOT}" perl -0pe '
-      s{`docs/reference/([^`]+)`}{sprintf("`%s/docs/reference/%s`", $ENV{HA_NOVA_ROOT}, $1)}ge;
-      s{`(?:skills|\.\.)/(?!ha-nova/session-bootstrap\.md`)([^`]+)`}{sprintf("`%s/skills/%s`", $ENV{HA_NOVA_ROOT}, $1)}ge;
-    '
-  )"
-
-  for sub_skill in "${FLAT_SUB_SKILLS[@]}"; do
-    content="${content//ha-nova:${sub_skill}/ha-nova-${sub_skill}}"
-  done
-
-  if [[ "${skill_name}" != "ha-nova" ]]; then
-    content="$(
-      printf '%s' "${content}" | SKILL_NAME="${skill_name}" INSTALLED_SKILL_NAME="${installed_skill_name}" perl -0pe '
-        s/^name:\s*\Q$ENV{SKILL_NAME}\E$/name: $ENV{INSTALLED_SKILL_NAME}/m;
-      '
-    )"
-  fi
-
-  printf '%s' "${content}" > "${dest}"
-}
-
-copy_hermes_skill_markdown() {
-  local skill_name="$1"
-  local source_dir="${SOURCE_SKILLS_DIR}/${skill_name}"
-  local dest_dir="$2"
-
-  mkdir -p "${dest_dir}"
-  find "${dest_dir}" -maxdepth 1 -type f -name '*.md' -exec rm -f {} +
-
-  if [[ -f "${source_dir}/SKILL.md" ]]; then
-    rewrite_hermes_markdown "${skill_name}" "${source_dir}" "${source_dir}/SKILL.md" "${dest_dir}/SKILL.md"
-  fi
-
-  for companion in "${source_dir}"/*.md; do
-    local companion_name
-    companion_name="$(basename "${companion}")"
-    [[ "${companion_name}" == "SKILL.md" ]] && continue
-    rewrite_hermes_markdown "${skill_name}" "${source_dir}" "${companion}" "${dest_dir}/${companion_name}"
+    rewrite_skill_markdown "${skill_name}" "${companion}" "${dest_dir}/${companion##*/}" "${sub_skill_ref}"
   done
 }
 
@@ -195,9 +90,9 @@ install_hermes_tree() {
   rm -rf "${target_root}"
   mkdir -p "${target_root}"
 
-  copy_hermes_skill_markdown "ha-nova" "${target_root}/ha-nova"
+  copy_skill_markdown "ha-nova" "${target_root}/ha-nova" "ha-nova-"
   for skill_name in "${FLAT_SUB_SKILLS[@]}"; do
-    copy_hermes_skill_markdown "${skill_name}" "${target_root}/$(hermes_installed_skill_name "${skill_name}")"
+    copy_skill_markdown "${skill_name}" "${target_root}/ha-nova-${skill_name}" "ha-nova-"
   done
 
   log "[hermes] Copied namespaced skill tree: ${target_root}"

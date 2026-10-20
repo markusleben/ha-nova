@@ -5,6 +5,7 @@ import { constants, readFileSync, statSync, writeFileSync } from "node:fs";
 
 import { describe, expect, it } from "vitest";
 
+import { hasPowerShell, pwshEnv } from "../helpers/pwsh.js";
 import { makeTempDir } from "../helpers/temp-dir.js";
 
 describe("install.ps1 contract", () => {
@@ -116,11 +117,7 @@ describe("install.ps1 contract", () => {
   });
 
   it("retries a hash-mismatched primary download with the next transport", async () => {
-    try {
-      execFileSync("pwsh", ["-NoProfile", "-Command", "exit 0"], { stdio: "ignore" });
-    } catch {
-      return;
-    }
+    if (!hasPowerShell()) return;
 
     const payload = Buffer.from("verified fallback payload", "utf8");
     const expectedHash = createHash("sha256").update(payload).digest("hex");
@@ -171,7 +168,7 @@ if (($script:methods -join ",") -ne "Invoke-WebRequest,HttpClient") {
     execFileSync(
       "pwsh",
       ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", probe],
-      { stdio: "pipe" },
+      { stdio: "pipe", env: pwshEnv },
     );
   });
 
