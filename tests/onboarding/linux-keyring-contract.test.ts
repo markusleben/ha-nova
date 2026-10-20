@@ -68,7 +68,7 @@ describe("linux keyring contract", () => {
     // The password goes only into the system's own window (plain wording,
     // Linux lane D7).
     expect(recovery).toContain("A system window opens to unlock it.");
-    expect(recovery).toContain("Type your password only in that window; HA NOVA never sees it.");
+    expect(recovery).toContain("Type your login password only in that window; HA NOVA never sees it.");
     expect(recovery).not.toContain("Passwords did not match.");
     expect(recovery).not.toContain("ReadPassword");
     expect(recoveryLinux).toContain(
