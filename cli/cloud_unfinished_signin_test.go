@@ -338,3 +338,20 @@ func TestCloudStopTextKeepsNestedJoinedFailures(t *testing.T) {
 		t.Fatalf("text:\n%s", text)
 	}
 }
+
+// A stored grant with another address (a retiring one after a reconnect)
+// must not be left out of the steps.
+func TestCloudStopNamesOneSignInOnlyWhenItIsTheOnlyOne(t *testing.T) {
+	cfg, metadata := cloudCleanupTestConfig(t, cloudStateRetiringPrevious)
+	cfg.Cloud.Current, cfg.Cloud.Pending = &metadata, nil
+	plan := cloudAuthorizationCleanupPlan{}
+	if got := plan.onlyLinkClient(cfg); got != metadata.OAuthClientID {
+		t.Fatalf("single grant client = %q", got)
+	}
+	plan.retiring = productionCloudTestEnvelope()
+	plan.retiring.ClientID = "http://127.0.0.1:40001/ha-nova"
+	plan.hasRetiring = true
+	if got := plan.onlyLinkClient(cfg); got != "" {
+		t.Fatalf("two grants named one client %q", got)
+	}
+}

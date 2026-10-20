@@ -91,13 +91,7 @@ func (plan cloudAuthorizationCleanupPlan) explainCloudAuthorizationStop(
 		return err
 	}
 	copy := *problem
-	// Name one sign-in only when it is the only one this profile knows.
-	switch {
-	case cfg.Cloud.Pending != nil && cfg.Cloud.Current == nil:
-		copy.linkClient = cfg.Cloud.Pending.OAuthClientID
-	case cfg.Cloud.Current != nil && cfg.Cloud.Pending == nil:
-		copy.linkClient = cfg.Cloud.Current.OAuthClientID
-	}
+	copy.linkClient = plan.onlyLinkClient(cfg)
 	if cfg.Cloud.State == cloudStateAuthorizing &&
 		cfg.Cloud.Current == nil &&
 		!plan.hasAuthorization() {
@@ -105,6 +99,29 @@ func (plan cloudAuthorizationCleanupPlan) explainCloudAuthorizationStop(
 			"can't tell if Home Assistant saved it, so it stopped."
 	}
 	return &copy
+}
+
+// onlyLinkClient is the one sign-in address every configured and stored
+// grant uses, or "" when there may be more than one to delete.
+func (plan cloudAuthorizationCleanupPlan) onlyLinkClient(cfg runtimeConfig) string {
+	var clients []string
+	for _, metadata := range []*cloudConnectionMetadata{cfg.Cloud.Pending, cfg.Cloud.Current} {
+		if metadata != nil {
+			clients = append(clients, metadata.OAuthClientID)
+		}
+	}
+	for _, envelope := range plan.envelopes() {
+		clients = append(clients, envelope.ClientID)
+	}
+	if len(clients) == 0 {
+		return ""
+	}
+	for _, client := range clients[1:] {
+		if client != clients[0] {
+			return ""
+		}
+	}
+	return clients[0]
 }
 
 // unfinishedSignIn: a Link sign-in that never reached the code exchange.
