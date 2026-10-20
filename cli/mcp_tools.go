@@ -47,13 +47,13 @@ var callProperties = map[string]any{
 }
 
 var mcpTools = []mcpTool{mcpSkillTool,
-	{name: "ha_find", title: "Find entities", description: "Find entities by phrase (case-, accent-, alias-aware) and/or by domain, area, or current state — e.g. which lights are on: domain light, state on. With state, rows marked group: true count their members again — report them separately; entities in state unavailable are a separate could-not-tell bucket (ask again with state unavailable and with state unknown).", readOnly: true, idempotent: true,
+	{name: "ha_find", title: "Find devices", description: "Find entities by phrase (case-, accent-, alias-aware) and/or by domain, area, or current state — e.g. which lights are on: domain light, state on. With state, rows marked group: true count their members again — report them separately; entities in state unavailable are a separate could-not-tell bucket (ask again with state unavailable and with state unknown). " + mcpAnswerRules, readOnly: true, idempotent: true,
 		schema: object(nil, map[string]any{"phrase": prop("string", "words to match (optional with domain, area, or state)"), "domain": prop("string", "only this domain"),
 			"area": prop("string", "only this area_id"), "state": prop("string", "only entities currently in this state, e.g. on"),
 			"limit": prop("integer", "1-200 rows (default 20)"), "include_disabled": prop("boolean", "include disabled entities"),
 			"aliases": prop("boolean", "also match aliases when names already match (after a rejected name match)")}),
 		argv: findArgv, run: runFindCommand},
-	{name: "ha_get", title: "Read an entity", description: "Read one entity's state, optionally its stored config and relations. managed: yaml means the config is defined in YAML or a package: never edit or delete it through ha_plan; it is changed in those files.", readOnly: true, idempotent: true,
+	{name: "ha_get", title: "Read a device", description: "Read one entity's state, optionally its stored config and relations. managed: yaml means the config is defined in YAML or a package: never edit or delete it through ha_plan; it is changed in those files.", readOnly: true, idempotent: true,
 		schema: object([]string{"entity_id"}, map[string]any{"entity_id": prop("string", "exact entity_id"),
 			"config": prop("boolean", "also read the stored automation/script/scene config"), "related": prop("boolean", "also read search/related"),
 			"references": prop("boolean", "also scan automations, scripts, dashboards, energy, and state attributes for the entity, its device, and the device's other entities (includes related)")}),
@@ -67,16 +67,16 @@ var mcpTools = []mcpTool{mcpSkillTool,
 		argv: func(a map[string]json.RawMessage, _ *mcpTempFiles) ([]string, error) {
 			return flagsThen(a, []string{"logbook"}, []string{"since", "until"}, "entity_id")
 		}, run: runHistoryCommand},
-	{name: "ha_map", title: "Map the home", description: "Exact, computed home facts — never count by hand: areas/floors with device and entity counts, automations/scripts/scenes/helpers, integrations, unavailable entities, low batteries. section gives one full list; entity gives where-used (automations, scripts, scenes, groups, helpers, dashboard cards; not_checked names what was not searched); first_look gives the onboarding summary.", readOnly: true, idempotent: true,
+	{name: "ha_map", title: "Map the home", description: "Exact, computed home facts — never count by hand: areas/floors with device and entity counts, automations/scripts/scenes/helpers, integrations, unavailable entities, low batteries. section gives one full list; entity gives where-used (automations, scripts, scenes, groups, helpers, dashboard cards; not_checked names what was not searched); first_look gives the onboarding summary. " + mcpAnswerRules, readOnly: true, idempotent: true,
 		schema: object(nil, map[string]any{"section": map[string]any{"type": "string", "enum": []string{"areas", "integrations", "automations", "unavailable", "batteries"}},
 			"entity": prop("string", "exact entity_id: where it is used"), "first_look": prop("boolean", "the onboarding first look"),
 			"limit": prop("integer", "1-200 rows for section or entity")}),
 		argv: mapArgv, run: runMapCommand},
-	{name: "ha_trace", title: "Read automation traces", description: "Latest trace, trace list, or one trace of an automation or script.", readOnly: true, idempotent: true,
+	{name: "ha_trace", title: "Read automation runs", description: "Latest trace, trace list, or one trace of an automation or script.", readOnly: true, idempotent: true,
 		schema: object([]string{"action", "entity_id"}, map[string]any{"action": map[string]any{"type": "string", "enum": []string{"latest", "list", "get"}},
 			"entity_id": prop("string", "automation.x or script.x"), "run_id": prop("string", "for action get")}),
 		argv: traceArgvChecked, run: runTraceCommand},
-	{name: "ha_read", title: "Raw read", description: "A raw read-only Home Assistant request: core GET /api/... or a WS message from the read allowlist.", readOnly: true, idempotent: true,
+	{name: "ha_read", title: "Advanced read", description: "A raw read-only Home Assistant request: core GET /api/... or a WS message from the read allowlist.", readOnly: true, idempotent: true,
 		schema: object([]string{"endpoint"}, map[string]any{"endpoint": map[string]any{"type": "string", "enum": []string{"core", "ws"}},
 			"path": prop("string", "core: /api/... path (GET only)"), "payload": prop("object", "ws: the message, e.g. {\"type\":\"search/related\",...}")}),
 		argv: readArgv, run: runMCPRead},
@@ -93,9 +93,9 @@ var mcpTools = []mcpTool{mcpSkillTool,
 		argv: planArgv, run: runPlanCommand},
 	{name: "ha_call", title: "Control a device", description: "Call a service. Ordinary calls run now and are verified; no_change: already so, nothing sent (relay say); anything else returns needs_confirmation with a plan for ha_apply. A call that timed out or returned no result is outcome unknown: read with ha_get; never call again. coverage.notes are informational: mention one only when it raised the tier or the user asks — except EXPANDED_TARGET_WITHOUT_STATE: always tell the user in plain words which coverage.skipped entries with that code were skipped (not reporting).",
 		schema: object([]string{"service"}, callProperties), argv: callArgv, run: runCallCommand},
-	{name: "ha_apply", title: "Apply a confirmed plan", description: "Execute a stored plan once: a preview plan after the user agreed to its preview; a plan with a one-time code from HA NOVA only with the code the user typed for it — or, where a result has no code (a confirmation window on their computer, a notification on their phone, or a form in their app asks them), without confirm_code (a passed code is ignored). no_change: already so, nothing sent (relay say). A call that timed out or returned no result is outcome unknown: read with ha_get; never call again.",
+	{name: "ha_apply", title: "Run a confirmed change", description: "Run a change the user confirmed, once: a preview plan after the user agreed to its preview; a plan with a one-time code from HA NOVA only with the code the user typed for it — or, where a result has no code (a confirmation window on their computer, a notification on their phone, or a form in their app asks them), without confirm_code (a passed code is ignored). no_change: already so, nothing sent (relay say). A call that timed out or returned no result is outcome unknown: read with ha_get; never call again.",
 		destructive: true,
-		schema: object([]string{"plan_id"}, map[string]any{"plan_id": prop("string", "p_ + 12 hex"),
+		schema: object([]string{"plan_id"}, map[string]any{"plan_id": prop("string", "the plan_id from the preview (p_ + 12 hex)"),
 			"confirm_code": prop("string", "the four-digit one-time code exactly as the user typed it in chat (ignored where a window, phone, or form asks)"), "no_snapshot": prop("boolean", "deletes only, after a failed snapshot and the user's choice")}),
 		argv: applyArgv, run: runApplyCommand},
 }
@@ -209,11 +209,10 @@ func withNotices(out string, notices []verbNotice, server string) string {
 	return string(b)
 }
 
-// toolResult: the envelope as text and as structuredContent — the same
-// object, so a client that reads only one of them still gets the guidance
-// (next_step). isError for failures, not for needs_confirmation. told
-// (nil = no memory) keeps each update notice's hint to once per session.
-// forms: the client shows confirmation forms, so no code is shown.
+// toolResult: the envelope as text and as structuredContent — the same object, so
+// a client that reads only one still gets the guidance (next_step, say). isError for
+// failures, not needs_confirmation. told (nil = no memory) keeps each update
+// notice's hint to once per session. forms: the client shows forms, so no code.
 func toolResult(name, out, errOut string, exit int, told map[string]bool, forms bool) map[string]any {
 	var envelope map[string]any
 	// A verb envelope carries schema_version; anything else (trace prints
@@ -241,6 +240,7 @@ func toolResult(name, out, errOut string, exit int, told map[string]bool, forms 
 	if step := strings.TrimSpace(next + " " + noticeHints(envelope, told)); step != "" {
 		envelope["next_step"] = step
 	}
+	addOutcomeSay(envelope) // and answer_rule (mcp_plain.go)
 	text, _ := json.Marshal(envelope)
 	return map[string]any{"content": []map[string]any{{"type": "text", "text": string(text)}}, "structuredContent": envelope,
 		"isError": exit != 0 && exit != verbExitConfirmation}
