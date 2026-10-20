@@ -97,7 +97,7 @@ func runGuidedRelayUpdate(paths runtimePaths, cfg config, token string, in *bufi
 		candidate.LatestVersion,
 		candidate.EntityID,
 	)
-	yes, err := promptWizardYesNoFromReader(in, out, "Install the latest available NOVA Relay update now?", true)
+	yes, err := promptYesNoMenu(in, out, "Install the latest available NOVA Relay update now?", "Yes, update now", "Not now", true)
 	if err != nil || !yes {
 		return false
 	}

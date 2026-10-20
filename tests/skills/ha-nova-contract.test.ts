@@ -173,7 +173,7 @@ describe("ha-nova contract", () => {
       "Never probe a different dashboard's config to infer the target's mode or structure",
     );
     expect(dashboard).toContain(
-      "Dashboard and resource delete uses the one-time code only",
+      "Dashboard and resource delete keeps its full confirmation",
     );
     expect(dashboard).toContain(
       "Removing views or cards inside a save is previewed (natural confirmation) because every save is recoverable",

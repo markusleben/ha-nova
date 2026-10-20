@@ -117,15 +117,21 @@ type chatAppsHA struct {
 	appVersion  string // the NOVA App's version from the Relay's answers, "" when unknown
 }
 
-// leftover: Home Assistant holds chat apps, but the NOVA App is older than
-// chat apps, so nothing answers behind them.
-func (ha chatAppsHA) leftover() bool {
+// appTooOld: the NOVA App is known, and older than chat apps. No sign-in
+// can change that, so the commands say it before asking for one.
+func (ha chatAppsHA) appTooOld() bool {
 	base, _, _ := strings.Cut(ha.appVersion, "-") // an rc of the first chat-app App counts as that App
-	if !ha.loaded && !ha.present || base == "" {
+	if base == "" {
 		return false
 	}
 	cmp, err := compareReleaseVersions(base, chatAppsMinAppVersion)
 	return err == nil && cmp < 0
+}
+
+// leftover: Home Assistant holds chat apps, but the NOVA App is older than
+// chat apps, so nothing answers behind them.
+func (ha chatAppsHA) leftover() bool {
+	return (ha.loaded || ha.present) && ha.appTooOld()
 }
 
 const chatAppsLeftoverLine = "Chat apps are left over from a newer NOVA App. This one can't run them. To clean up: update the NOVA App in Home Assistant, then run ha-nova chat-apps off"

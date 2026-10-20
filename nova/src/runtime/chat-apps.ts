@@ -11,7 +11,7 @@ import type { DeviceRegistry } from "../security/device-registry.js";
 import { BRIDGE_INSTALL_ID } from "../security/pairing-metadata.js"; // re-minting replaces the old record
 import { readPrivateFileSync, writeFileAtomicSync } from "../storage/atomic-file.js";
 import type { CoreProxyRequest, CoreProxyResponse } from "../types/api.js";
-import { ChatAppsError, chatAppFilesPresent, clearChatAppsInHA, installIntegration, integrationOwner, removeIntegration, SERVICE } from "./chat-apps-ha.js";
+import { ChatAppsError, chatAppFilesPresent, clearChatAppsInHA, customComponentsMissing, installIntegration, integrationOwner, removeEmptyCustomComponents, removeIntegration, SERVICE } from "./chat-apps-ha.js";
 
 // Chat apps (spec docs/work/2026-10-18-onboarding-0.27-spec.md §11; contract
 // docs/work/2026-10-19-chat-bridge-contract.md, "App side"): the owner's
@@ -73,6 +73,7 @@ export interface ChatAppsDeps {
 interface State {
   enabled: boolean;
   discovery_uuid?: string;
+  made_custom_components?: true; // this App made /config/custom_components: turning off removes it when empty
 }
 
 export function createChatApps(deps: ChatAppsDeps): ChatApps {
@@ -242,6 +243,13 @@ export function createChatApps(deps: ChatAppsDeps): ChatApps {
     if (ours) await clearChatAppsInHA(deps, state.discovery_uuid, lookup && chatAppFilesPresent(deps.configRoot) === true);
     rmSync(file("secret"), { force: true });
     if (ours) removeIntegration(deps.configRoot);
+    if (ours && state.made_custom_components === true) {
+      try {
+        removeEmptyCustomComponents(deps.configRoot);
+      } catch (error) { // an empty folder left is harmless; it must not stop turning off
+        deps.logger.warn("Chat apps: could not remove the empty custom_components folder", { error: String((error as Error).message) });
+      }
+    }
     save({ enabled: false });
   };
 
@@ -345,6 +353,9 @@ export function createChatApps(deps: ChatAppsDeps): ChatApps {
       failures = 0;
       try {
         ensureSecret();
+        if (customComponentsMissing(deps.configRoot)) {
+          save({ ...load(), made_custom_components: true }); // before the folder exists: a failed turn-on cleans it up too
+        }
         installIntegration(deps.configRoot, deps.integrationSource, owner);
         startChild();
         await publish();

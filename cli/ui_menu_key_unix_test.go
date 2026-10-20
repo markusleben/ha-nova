@@ -23,6 +23,8 @@ func TestReadSetupMenuKeyEscapeSequences(t *testing.T) {
 		"j":      "down",
 		"\x1bx":  "back",
 		"k":      "up",
+		"y":      "yes",
+		"N":      "no",
 	} {
 		reader, writer, err := os.Pipe()
 		if err != nil {

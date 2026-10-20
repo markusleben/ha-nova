@@ -44,6 +44,7 @@
   let editing = false;
   let sentAddress = false;
   let posting = false;
+  let checking = false; // Check again was clicked: "Checking…" until setup waits for a click again
   let failures = 0;
   let timer = 0;
 
@@ -86,6 +87,10 @@
   const post = async (action, value) => {
     if (posting) return;
     posting = true;
+    if (action === 'recheck') {
+      checking = true;
+      statusEl.textContent = t('setup.page.button.checking');
+    }
     render(true);
     try {
       const response = await fetch('/api/action', {
@@ -104,7 +109,8 @@
   const accepts = (action) => state.accepts.includes(action) && !posting;
   // Buttons carry stable ids, so focus survives a re-render.
   const button = (label, action, kind = 'primary', value, id = action) =>
-    el('button', { id: `b-${id}`, class: `btn btn-${kind}`, type: 'button', onclick: () => post(action, value), ...(accepts(action) ? {} : { disabled: '' }) }, label);
+    el('button', { id: `b-${id}`, class: `btn btn-${kind}`, type: 'button', onclick: () => post(action, value), ...(accepts(action) ? {} : { disabled: '' }) },
+      action === 'recheck' && checking && !accepts(action) ? t('setup.page.button.checking') : label);
   const link = (label, href, kind, id) =>
     safeURL(href) ? el('a', { id: `l-${id}`, class: `btn btn-${kind}`, href, target: '_blank', rel: 'noopener noreferrer' }, label) : null;
   const icon = (status, amber) => {
@@ -244,7 +250,7 @@
   };
 
   function render(force) {
-    const key = JSON.stringify(state) + posting + editing;
+    const key = JSON.stringify(state) + posting + editing + checking;
     if (!force && key === shown) return;
     shown = key;
     const focused = document.activeElement && document.activeElement.id;
@@ -292,6 +298,7 @@
 
   async function poll() {
     const sent = sentAddress; // a poll begun before the address went out shows the old state
+    const rechecked = checking && !posting; // likewise for Check again
     let response;
     try {
       response = await fetch('/api/state', { cache: 'no-store', credentials: 'same-origin' });
@@ -315,6 +322,7 @@
     }
     failures = 0;
     state = await response.json();
+    if (rechecked && ((state.accepts || []).length || state.screen !== lastScreen)) checking = false;
     // Setup checks a sent address, then waits for a click again: the field
     // closes (a wrong one comes back with ask_ha).
     if (state.screen !== 'found' || (sent && sentAddress && (state.accepts || []).length)) editing = sentAddress = false;

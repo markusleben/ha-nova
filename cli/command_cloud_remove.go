@@ -73,10 +73,12 @@ func runCloudRemoveCommand(paths runtimePaths, args []string) int {
 				"The local NOVA device pairing and Home Assistant Link subscription stay unchanged.",
 			)
 		}
-		confirmed, promptErr := promptWizardYesNoFromReader(
+		confirmed, promptErr := promptYesNoMenu(
 			bufio.NewReader(os.Stdin),
 			os.Stdout,
-			"Remove Home Assistant Link access",
+			"Remove Home Assistant Link access?",
+			"Yes, remove it",
+			"No, keep it",
 			false,
 		)
 		if promptErr != nil || !confirmed {

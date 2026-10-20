@@ -162,7 +162,7 @@ func promptSetupServiceCredentialsInteractive(reader *bufio.Reader, out io.Write
 		"HA NOVA can't use this computer's keyring from here (for example over SSH, or when no one is logged in to the desktop).",
 		fmt.Sprintf("It can keep its key for %s in a protected file instead. Choose this if %s runs while no one is logged in to this computer's desktop.", clientLabel, clientLabel),
 	)
-	return promptYesNoFromReader(reader, out, "Keep the key in a protected file instead?", false)
+	return promptYesNoMenu(reader, out, "Keep the key in a protected file instead?", "Yes, use a protected file", "No", false)
 }
 
 func doctorServiceCredentialRecoveryHint(paths runtimePaths, state installState, err error) string {

@@ -29,6 +29,8 @@ var (
 	chatAppsStdin    io.Reader = os.Stdin
 )
 
+const chatAppsAppTooOldLine = "Your NOVA App can't run chat apps yet. Update it in Home Assistant, then run this again."
+
 const chatAppsElsewhereLine = "Can't sign in on this computer? Press Ctrl+C. Then do it in Home Assistant on any device: open NOVA in the sidebar, then Chat apps."
 
 const chatAppsUsage = "ha-nova chat-apps [on|off|status] [--server <name>]\n\n" +
@@ -93,8 +95,12 @@ func runChatAppsCommand(paths runtimePaths, args []string) int {
 		switch {
 		case ha.leftover():
 			fmt.Fprintf(out, "  %s\n", chatAppsLeftoverLine)
-		case !ha.loaded:
-			fmt.Fprintln(out, "  Chat apps are off, or Home Assistant hasn't restarted for them yet. To turn them on: ha-nova chat-apps on")
+		case ha.appTooOld():
+			fmt.Fprintln(out, "  Your NOVA App can't run chat apps yet. To use them, update it in Home Assistant.")
+		case ha.present && !ha.loaded: // Home Assistant holds them, but doesn't run them (yet)
+			fmt.Fprintln(out, "  Home Assistant hasn't started chat apps yet. Wait a minute, then check again. If it stays like this, open NOVA in Home Assistant, then Chat apps, and do what it says there.")
+		case !ha.loaded: // off, or on with Home Assistant's restart still to come: either way they don't run, and `on` finishes both
+			fmt.Fprintln(out, "  Chat apps aren't running in Home Assistant. To turn them on: ha-nova chat-apps on")
 		case url != "":
 			printChatAppsHowTo(out, url)
 		default:
@@ -105,6 +111,9 @@ func runChatAppsCommand(paths runtimePaths, args []string) int {
 	switch {
 	case !chatAppsHAVersionOK(ha.version):
 		printHumanErr("%s", setupT("setup.chat.problem_old"))
+		return 1
+	case ha.appTooOld():
+		printHumanErr("%s", chatAppsAppTooOldLine)
 		return 1
 	case url == "":
 		printHumanErr("%s", setupT("setup.chat.need_address_cli"))
@@ -124,7 +133,7 @@ func runChatAppsCommand(paths runtimePaths, args []string) int {
 		err = errChatAppsUnsupported
 	}
 	if errors.Is(err, errChatAppsUnsupported) {
-		printHumanErr("Your NOVA App can't run chat apps yet. Update it in Home Assistant, then run this again.")
+		printHumanErr("%s", chatAppsAppTooOldLine)
 		return 1
 	}
 	if err != nil {
@@ -180,6 +189,16 @@ func chatAppsOwnerSession(out io.Writer, cfg runtimeConfig) (haSignInSession, bo
 }
 
 func chatAppsOff(out io.Writer, paths runtimePaths, cfg runtimeConfig) int {
+	// An App without chat apps: say so before any sign-in (status knows it
+	// too). Home Assistant unreadable: the sign-in path below decides.
+	if ha, err := chatAppsReadHA(paths); err == nil && ha.appTooOld() {
+		if ha.leftover() {
+			printHumanErr("%s", chatAppsLeftoverLine)
+			return 1
+		}
+		fmt.Fprintln(out, "  This NOVA App has no chat apps, so there is nothing to turn off.")
+		return 0
+	}
 	if !chatAppsSignInOK(out, cfg) {
 		printHumanErr("Turning chat apps off needs a sign-in in a browser on this computer. Use NOVA in Home Assistant instead: open NOVA in the sidebar, then Chat apps, then Turn off chat apps.")
 		return 1

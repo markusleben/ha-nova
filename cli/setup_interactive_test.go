@@ -2065,7 +2065,7 @@ func TestInteractiveSetupContinueAnywayPersistsExplicitURL(t *testing.T) {
 	}
 
 	output := stdout + stderr
-	if !strings.Contains(output, "Continue anyway (connection will be verified later)?") {
+	if !strings.Contains(output, "Setup checks the address again later. Keep it anyway?") {
 		t.Fatalf("expected continue-anyway path in output:\n%s", output)
 	}
 	for _, want := range []string{
@@ -2076,7 +2076,7 @@ func TestInteractiveSetupContinueAnywayPersistsExplicitURL(t *testing.T) {
 			t.Fatalf("expected connection repair menu with %q in output:\n%s", want, output)
 		}
 	}
-	if strings.Contains(output, "Retry WebSocket check?") {
+	if strings.Contains(output, "Check the connection again?") {
 		t.Fatalf("did not expect WebSocket retry prompt for relay-unreachable path:\n%s", output)
 	}
 	if !strings.Contains(output, "relay could not be verified yet") {

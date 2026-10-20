@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -127,21 +128,35 @@ func TestSetupPageRerunWhileTheAppDoesNotAnswer(t *testing.T) {
 	dead.Close()
 	cfg.RelayBaseURL = dead.URL
 	stubRerunApp(t, false, chatAppsHA{}, errors.New("unreachable"))
-	previousIdle := setupPageIdle
+	previousIdle, previousProbe := setupPageIdle, probeHTTPForSetup
 	setupPageIdle = 2 * time.Second
-	t.Cleanup(func() { setupPageIdle = previousIdle })
+	t.Cleanup(func() { setupPageIdle, probeHTTPForSetup = previousIdle, previousProbe })
+	var haDown atomic.Bool
+	haDown.Store(true)
+	probeHTTPForSetup = func(string) error {
+		if haDown.Load() {
+			return errors.New("no answer")
+		}
+		return nil
+	}
 	page, stdout, done := startSetupPageFlowWith(t, "", rerunFlow(paths, cfg, state, marker))
 
 	broken := page.waitFor("the re-run screen", accepting("recheck"))
 	if broken.Screen != "rerun_fix" || broken.Control != nil || !slices.Contains(broken.Accepts, "fix") ||
-		broken.Problem == nil || broken.Problem.Key != "setup.page.rerun.problem_app" || broken.Links["app"] != haInstallRelayAppURL(cfg.HAURL) {
+		broken.Problem == nil || broken.Problem.Key != "setup.page.rerun.problem_app" || broken.Links["app"] != "" {
 		t.Fatalf("broken = %+v", broken)
 	}
-	if states := rowStates(broken.Rows); states["app"] != "fail" || states["computer"] != "fail" || states["ha"] != "todo" {
+	if states := rowStates(broken.Rows); states["app"] != "fail" || states["computer"] != "fail" || states["ha"] != "fail" {
 		t.Fatalf("rows = %+v", broken.Rows)
 	}
+	// Home Assistant answers, only the App doesn't (A7): no "Is this computer at home?".
+	haDown.Store(false)
 	page.click("recheck", "")
-	page.waitFor("the re-run screen again", accepting("recheck"))
+	appOnly := page.waitFor("the re-run screen again", accepting("recheck"))
+	if appOnly.Problem == nil || appOnly.Problem.Key != "setup.page.rerun.problem_app_only" || rowStates(appOnly.Rows)["ha"] != "ok" ||
+		appOnly.Links["app"] != haInstallRelayAppURL(cfg.HAURL) {
+		t.Fatalf("app only = %+v %+v", appOnly.Problem, appOnly.Rows)
+	}
 	if code := setupPageExit(t, done, stdout); code != 0 || page.ui.snapshot().Screen != "idle" {
 		t.Fatalf("exit %d screen %s\n%s", code, page.ui.snapshot().Screen, stdout)
 	}

@@ -114,6 +114,10 @@ func (terminalSetupMenuRunner) Run(out io.Writer, spec setupMenuSpec) (string, e
 			index = moveSetupMenuIndex(spec.Options, index, -1)
 		case "down":
 			index = moveSetupMenuIndex(spec.Options, index, 1)
+		case "yes", "no": // y/n, as the [y/N] line had: picks that option, Enter confirms
+			if idx := setupMenuOptionIndex(spec.Options, key); idx >= 0 {
+				index = idx
+			}
 		case "enter":
 			if setupInputIsStaleBlank(staleBlankDeadline, true) {
 				continue
@@ -245,13 +249,21 @@ func writeSetupMenuLine(out io.Writer, line string) {
 }
 
 func defaultMenuIndex(options []setupMenuOption, defaultValue string) int {
-	for idx, option := range options {
-		if option.Value == defaultValue && !option.Disabled {
-			return idx
-		}
+	if idx := setupMenuOptionIndex(options, defaultValue); idx >= 0 {
+		return idx
 	}
 	for idx, option := range options {
 		if !option.Disabled {
+			return idx
+		}
+	}
+	return -1
+}
+
+// setupMenuOptionIndex: the enabled option with this value, else -1.
+func setupMenuOptionIndex(options []setupMenuOption, value string) int {
+	for idx, option := range options {
+		if option.Value == value && !option.Disabled {
 			return idx
 		}
 	}
@@ -298,6 +310,10 @@ func readSetupMenuKeyFrom(in *os.File) (string, error) {
 		return "down", nil
 	case 'k':
 		return "up", nil
+	case 'y', 'Y':
+		return "yes", nil
+	case 'n', 'N':
+		return "no", nil
 	case 27:
 		if !menuInputPending(in, menuEscapeWait) {
 			return "back", nil // a lone Esc

@@ -625,6 +625,44 @@ func TestChatAppsCommand(t *testing.T) {
 			}
 		}
 	})
+	// C6: an App without chat apps (0.10.0) is known from the Relay: off
+	// and on say so before any sign-in.
+	t.Run("an older App needs no sign-in to hear it can't", func(t *testing.T) {
+		for _, test := range []struct {
+			action string
+			ha     chatAppsHA
+			exit   int
+			want   string
+		}{
+			{"off", chatAppsHA{version: "2026.10.2", appVersion: "0.10.0"}, 0, "nothing to turn off"},
+			{"off", chatAppsHA{version: "2026.10.2", appVersion: "0.10.0", present: true}, 1, "update the NOVA App"},
+			{"on", chatAppsHA{version: "2026.10.2", appVersion: "0.10.0"}, 1, chatAppsAppTooOldLine},
+		} {
+			app := &fakeChatApp{state: chatAppsState{Available: true}}
+			paths, signIns := setup(t, app, chatHARead{ha: test.ha}, chatTestLink, "yes\n")
+			exit, out := captureCommandOutput(t, func() int { return runChatAppsCommand(paths, []string{test.action}) })
+			if exit != test.exit || *signIns != 0 || len(app.posted()) != 0 || !strings.Contains(out, test.want) {
+				t.Fatalf("%s %+v: exit %d sign-ins %d posted %v\n%s", test.action, test.ha, exit, *signIns, app.posted(), out)
+			}
+		}
+	})
+	// C7: plainly off says off; "hasn't started" only while Home Assistant
+	// holds the entry without running it.
+	t.Run("status says off when it is off", func(t *testing.T) {
+		for _, test := range []struct {
+			ha   chatAppsHA
+			want string
+		}{
+			{chatAppsHA{version: "2026.10.2", appVersion: "0.11.0"}, "Chat apps aren't running in Home Assistant. To turn them on: ha-nova chat-apps on"},
+			{chatAppsHA{version: "2026.10.2", appVersion: "0.11.0", present: true}, "hasn't started chat apps yet"},
+			{chatAppsHA{version: "2026.10.2", appVersion: "0.10.0"}, "Your NOVA App can't run chat apps yet."},
+		} {
+			paths, _ := setup(t, &fakeChatApp{}, chatHARead{ha: test.ha}, chatTestLink, "")
+			if exit, out := run(paths, "status"); exit != 0 || !strings.Contains(out, test.want) || strings.Contains(out, "or Home Assistant hasn't restarted") {
+				t.Fatalf("%+v: %d %q", test.ha, exit, out)
+			}
+		}
+	})
 	t.Run("on promises a restart only when one comes", func(t *testing.T) {
 		for _, running := range []bool{false, true} {
 			app := &fakeChatApp{state: chatAppsState{Available: true}}

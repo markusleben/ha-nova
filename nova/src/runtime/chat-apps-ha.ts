@@ -1,4 +1,4 @@
-import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, rmdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 import type { SupervisorClient } from "../ha/supervisor-client.js";
@@ -55,6 +55,27 @@ export function removeIntegration(configRoot: string): void {
   if (parent !== null) {
     rmSync(join(parent, SERVICE), { recursive: true, force: true });
   }
+}
+
+// Removes custom_components only while it is empty; the caller calls it only
+// for a folder this App made (chat-apps.ts remembers that in /data).
+export function removeEmptyCustomComponents(configRoot: string): void {
+  const parent = customComponents(configRoot, false);
+  try {
+    if (parent !== null) {
+      rmdirSync(parent); // never recursive: fails on a folder that isn't empty
+    }
+  } catch (error) {
+    if (!["ENOTEMPTY", "EEXIST", "ENOENT"].includes((error as NodeJS.ErrnoException).code ?? "")) {
+      throw error;
+    }
+  }
+}
+
+// Whether installIntegration would make custom_components (it isn't there).
+export function customComponentsMissing(configRoot: string): boolean {
+  return configRoot !== "" && existsSync(join(configRoot, "configuration.yaml")) &&
+    lstatSync(join(configRoot, "custom_components"), { throwIfNoEntry: false }) === undefined;
 }
 
 // The folder carries the App that wrote it (its hostname): a second NOVA

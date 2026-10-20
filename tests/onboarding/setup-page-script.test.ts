@@ -349,6 +349,24 @@ describe("setup page re-run (G1)", () => {
     expect(down.screen.textContent).toContain(down.catalog["setup.page.rerun.problem_app"]);
   });
 
+  it("says Checking… after Check again until setup waits for a click again (A7)", async () => {
+    const down = { screen: "rerun_fix", rows, accepts: ["recheck", "fix"], problem: { key: "setup.page.rerun.problem_app_only" } };
+    const p = page(down, ...Array(8).fill({ ...down, accepts: [] }), down); // setup checks, then waits again
+    await p.settle(1);
+    expect(p.find("b-recheck")!.textContent).toBe(p.catalog["setup.page.button.recheck"]);
+    p.find("b-recheck")!.dispatch("click");
+    await p.settle(3);
+    expect(p.find("b-recheck")!.textContent).toBe(p.catalog["setup.page.button.checking"]);
+    expect(p.find("b-recheck")!.attributes.disabled).toBe("");
+    await p.settle();
+    expect(p.find("b-recheck")!.textContent).toBe(p.catalog["setup.page.button.recheck"]);
+    expect(p.find("b-recheck")!.attributes.disabled).toBeUndefined();
+    // Home Assistant answers: no "Is this computer at home?" (that's for Home Assistant down).
+    expect(p.screen.textContent).toContain(p.catalog["setup.page.rerun.problem_app_only"]);
+    expect(p.catalog["setup.page.rerun.problem_app_only"]).not.toContain("at home");
+    expect(p.catalog["setup.page.rerun.problem_app"]).toContain("Is this computer at home?");
+  });
+
   it("ends with what Done changed", async () => {
     const p = page({ screen: "saved", accepts: [], home: { notes: [{ key: "setup.page.home.note_rule", args: { count: 2 } }] } });
     await p.settle();

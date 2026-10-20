@@ -52,11 +52,13 @@ func (f *setupFlow) pageRerun(marker [][]byte) (setupStepResult, bool) {
 			f.pageRepairing("teach")
 			return setupGoTo(f.routeKnownAddress(setupStepHost)), true
 		}
-		rows, appDown := f.pageRerunRows()
+		rows, problem := f.pageRerunRows()
+		appDown := problem != nil
 		accepts, links := []string{"fix"}, map[string]string{}
-		var problem *setupPageMsg
 		if appDown {
-			accepts, problem = []string{"recheck", "fix"}, setupPageText("setup.page.rerun.problem_app")
+			accepts = []string{"recheck", "fix"}
+		}
+		if appDown && problem.Key == "setup.page.rerun.problem_app_only" { // the App page opens only while Home Assistant answers
 			links["app"] = haInstallRelayAppURL(f.cfg.HAURL)
 		}
 		f.page.update(func(v *setupPageState) {
@@ -110,8 +112,9 @@ func (f *setupFlow) pageClientsNotReady() []string {
 }
 
 // pageRerunRows: what is set up, from the same checks as the terminal's
-// status screen. appDown: the NOVA App doesn't answer at all.
-func (f *setupFlow) pageRerunRows() (rows []setupPageRow, appDown bool) {
+// status screen. problem: the NOVA App doesn't answer at all (nil: it does);
+// "Is this computer at home?" only when Home Assistant doesn't answer either.
+func (f *setupFlow) pageRerunRows() (rows []setupPageRow, problem *setupPageMsg) {
 	c := f.current
 	app := f.pageApp()
 	appRow := setupPageRow{ID: "app", State: "ok", Msg: setupPageText("setup.page.app.running")}
@@ -122,11 +125,11 @@ func (f *setupFlow) pageRerunRows() (rows []setupPageRow, appDown bool) {
 		appRow.Msg = setupPageText("setup.page.app.running_version", "version", terminalSafeName(app.version))
 	case app.state == "running" || c.RelayOK:
 	default:
-		appRow.State, appRow.Msg, appDown = "fail", setupPageText("setup.page.rerun.app_down"), true
+		appRow.State, appRow.Msg, problem = "fail", setupPageText("setup.page.rerun.app_down"), setupPageText("setup.page.rerun.problem_app_only")
 	}
 	ha := setupPageRow{ID: "ha", State: "ok", Msg: setupPageText("setup.page.rerun.ha", "host", terminalSafeName(f.cfg.HAHost))}
-	if appDown { // Home Assistant itself may be what doesn't answer
-		ha.State = "todo"
+	if problem != nil && probeHTTPForSetup(f.cfg.HAURL) != nil { // Home Assistant itself doesn't answer
+		ha.State, problem = "fail", setupPageText("setup.page.rerun.problem_app")
 	}
 	computer := setupPageRow{ID: "computer", State: "ok", Msg: setupPageText("setup.page.rerun.computer_ok")}
 	if !(c.TokenOK && c.RelayOK && c.WSOK) {
@@ -136,7 +139,7 @@ func (f *setupFlow) pageRerunRows() (rows []setupPageRow, appDown bool) {
 	if notReady := f.pageClientsNotReady(); len(notReady) > 0 {
 		clients.State, clients.Msg = "fail", setupPageText("setup.page.rerun.clients_fail", "clients", setupClientNames(notReady))
 	}
-	return []setupPageRow{ha, appRow, computer, clients}, appDown
+	return []setupPageRow{ha, appRow, computer, clients}, problem
 }
 
 // pageRerunControl puts the status rows above step 3's on a working re-run
