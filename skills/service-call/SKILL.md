@@ -1,6 +1,6 @@
 ---
 name: service-call
-description: Use when the user wants to control something in Home Assistant right now — turn lights, switches, covers, climate, vacuums, or any device on, off, up, down, open, or closed; run a scene, script, or automation; call any service by name; operate alarm panels and locks — through HA NOVA Relay.
+description: Use when the user wants to control something in Home Assistant right now — turn lights, switches, covers, climate, vacuums, or any device on, off, up, down, open, or closed; run a scene, script, or automation; call any service by name; operate alarm panels and locks — through HA NOVA Relay, also in the demo house (`--server demo`).
 license: MIT
 compatibility: Requires the ha-nova CLI (run 'ha-nova setup' first) and the HA NOVA Relay in Home Assistant (App, or standalone container on Container/Core).
 ---
@@ -23,11 +23,11 @@ Entity service calls run only through the typed verbs:
 - `ha-nova plan call …`: read-only "what would happen" answer, never executes.
 - Look up: `ha-nova find ["<phrase>"] [--domain <d>] [--area <area_id>] [--state <s>]`.
 
-`--set` values are JSON-typed; `--data-file` takes a JSON object for nested data. The CLI sends exactly one `POST /api/services/{domain}/{service}` and verifies via `/api/states/{entity_id}`. Raw `ha-nova relay core|ws` stays for the routes in `../service-call/raw-routes.md` only.
+`--set` values are JSON-typed; `--data-file` takes a JSON object for nested data. The CLI sends exactly one `POST /api/services/{domain}/{service}` and verifies via `/api/states/{entity_id}`. Raw `ha-nova relay core|ws`: only the routes in `../service-call/raw-routes.md`.
 
 ## Owning-Skill Deferrals (Critical)
 
-"Call any service" never overrides a stricter owning skill. A call bounded by a duration ("for 30 minutes") whose service has NO duration field goes to `ha-nova:write` (the turn-off needs an automation); `timer.start`/`timer.change` and `siren.turn_on` with their own `duration` stay here. The CLI refuses every other owned service (exit 4, `OWNED_SERVICE`) and names the owner: STOP and continue there. Full table: `raw-routes.md`.
+"Call any service" never overrides a stricter owning skill. A call bounded by a duration ("for 30 minutes") whose service has NO duration field goes to `ha-nova:write`; `timer.start`/`timer.change` and `siren.turn_on` with their own `duration` stay here. The CLI refuses every other owned service (exit 4, `OWNED_SERVICE`) and names the owner: STOP and continue there. Full table: `raw-routes.md`.
 
 Read-only response services stay here (`raw-routes.md` → Response services), as do `scene.turn_on`/`scene.apply` (`ha-nova:scene` owns scene CRUD, not activation), `automation.trigger`, and `script.*`.
 

@@ -1,6 +1,6 @@
 ---
 name: ha-nova
-description: Use for reviews and multi-step or multi-target Home Assistant work through HA NOVA (App + Relay), or when no other HA NOVA skill fits. Single device actions, lookups, and single automation/script changes need only their own skill.
+description: Use for reviews and multi-step or multi-target Home Assistant work through HA NOVA (App + Relay; the demo house via `--server demo`), or when no other HA NOVA skill fits. Single device actions, lookups, and single automation/script changes need only their own skill. If you can run ha-nova in a shell, use it, never a "HA NOVA…" connector.
 license: MIT
 compatibility: Requires the ha-nova CLI (run 'ha-nova setup' first) and the HA NOVA Relay in Home Assistant (App, or standalone container on Container/Core).
 ---
@@ -14,15 +14,13 @@ Sub-skills are discovered independently by their descriptions. `index.md` (besid
 Operate Home Assistant through HA NOVA with a minimal user-facing flow:
 - App + Relay first
 - preview before write, except the CLI fast path (`tier: ordinary`): unambiguous everyday actions run immediately and are verified afterwards
-- one blocking question only when required
 - compact result output
 - when scope exceeds one target, scale manually with the same rules and report the exact audited subset
 
 ## Session Bootstrap
 
 Before the first HA task in a session, read and follow
-`../ha-nova/session-bootstrap.md`; it owns the update checks for every HA NOVA
-skill.
+`../ha-nova/session-bootstrap.md`; it owns every skill's update checks.
 
 ## Runtime Prerequisite
 
@@ -58,7 +56,7 @@ Rules:
 - Prefer `ha-nova relay jq --file <result-file> length` for simple counts and `--jq-file <filter-file>` for non-trivial follow-up transforms.
 - On Windows PowerShell, never chain commands with `&&` or `||`; run separate shell commands instead.
 - Never call external `jq`; use relay-native `--jq` / `--jq-file` or `ha-nova relay jq`.
-- When a filter contains `select`, `test`, `startswith`, or more than one pipeline stage, default to `--jq-file` even if inline quoting might work.
+- When a filter contains `select`, `test`, `startswith`, or more than one pipeline stage, default to `--jq-file`.
 - Use native file-writing and file-reading tools for temp files. Do not teach `cat`, heredocs, Python, or Node as the primary JSON path.
 - Use client-private scratch storage outside the project workspace for relay payload/result files; never allocate scratch directories or files from visible shell commands.
 - Scratch files are internal. Do not create them under the repo working tree, and do not mention scratch paths, payload files, filter files, or "edited files" in user-facing output unless the user asks for debugging details.
