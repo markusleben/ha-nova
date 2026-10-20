@@ -30,10 +30,10 @@
 ## ✦ Three steps to connect
 
 1. **Run the installer.** Copy one command. Setup opens a page in your browser and finds your Home Assistant and your AI apps.
-2. **Sign in with Home Assistant.** Sign in as the owner. If needed, setup installs and starts the NOVA Relay App for you. Then this computer connects by itself.
-3. **Choose your safety net, then look around.** The confirmation window on this computer is on. Your phone is one switch. The Claude Code rules are on unless you turn them off: they let Claude Code read HA NOVA's files and make changes you already approved, without asking again. You still confirm every unlock or delete. Then you see your home at a glance: things worth a look (like a low battery or devices without a room) and an automation made for your home, to preview and save. Nothing in your home changes unless you save it.
+2. **Sign in with Home Assistant.** Sign in as the owner: the first account made when Home Assistant was set up. If needed, setup installs and starts the NOVA Relay App for you. Then this computer connects by itself.
+3. **Choose your safety net, then look around.** The confirmation window on this computer is on. To add your phone, click **Use this phone**. On a re-run, **Use another phone** moves it to a new phone once the old phone OKs it. The Claude Code rules are on unless you turn them off: they let Claude Code read HA NOVA's files and make changes you already approved, without asking again. You still confirm every unlock or delete. Then you see your home at a glance: things worth a look (like a low battery or devices without a room) and an automation made for your home, to preview and save. Nothing in your home changes unless you save it.
 
-Over SSH or with `--no-browser`, setup asks in the terminal instead. No browser here, or signed in as another Home Assistant user? Then setup shows the NOVA Relay App page (click "Add", then Install and Start; skipped when the App already runs). You pair with a one-time code: the Home Assistant owner clicks **"Connect a device"** on the NOVA page in the sidebar, and you type the six-digit code. Over SSH, this works well on Linux only. On Windows and macOS, run setup in a terminal on that computer's own screen: over SSH, HA NOVA usually can't save its key.
+Signed in, but not as the owner? The page asks the owner to sign in here. If the owner can't come to this computer, they make a six-digit code in NOVA in Home Assistant, and you type it in. Over SSH or with `--no-browser`, setup asks in the terminal instead. No browser here? Then setup shows the NOVA Relay App page (click "Add", then Install and Start; skipped when the App already runs). You pair with a one-time code: the Home Assistant owner clicks **"Connect a device"** on the NOVA page in the sidebar, and you type the six-digit code. Over SSH, this works well on Linux only. On Windows and macOS, run setup in a terminal on that computer's own screen: over SSH, HA NOVA usually can't save its key.
 
 <p align="center">
   <img src="assets/pairing-flow.png" alt="Pairing with a code: run the installer, click Connect a device on the NOVA page, type the six-digit code">
@@ -85,7 +85,7 @@ We built this because we didn't trust AI with our own setup either.
 3. **You approve it.** Unlocking a door, opening a gate or garage door, turning off the alarm, restarting Home Assistant, and deletes need a real confirmation, not just "yes" in the chat.
    - **On your computer**, a window opens where it can. Click Confirm (OK on Windows) or Cancel. Your AI never sees a code.
    - **With a linked phone**, the phone asks at the same time. The first answer counts, and the phone shows the result. On a computer without a screen (for example a Linux server), the one phone you linked asks. This needs the Home Assistant Companion app. It doesn't work with a standalone relay that runs on your own token.
-   - **About the phone:** you can answer on the phone or its Apple Watch without unlocking it. So whoever holds your phone can answer while a request is open (up to 90 seconds), but only for that one action. To link, move, or turn off phone confirmation, you need the unlocked phone. Once a phone is linked, an action it can't reach is refused. It is never moved to the chat.
+   - **About the phone:** you can answer on the phone or its Apple Watch without unlocking it. So whoever holds your phone can answer while a request is open (up to 90 seconds), but only for that one action. To link, move, or turn off phone confirmation, you need the unlocked phone. You can also move it to a new phone on the setup page. Once a phone is linked, an action it can't reach is refused. It is never moved to the chat.
    - **With neither**, you get a four-digit one-time code, in the chat or in your AI app's own form where it shows one. But the AI can see it too, so it only counts when you type it yourself.
    - **Deletes:** automation, script, and dashboard deletes use the same window or phone. Other deletes (helpers, scenes, areas, and the like) take a four-digit code in the chat. Each automation or script delete is confirmed on its own. Other batch deletes you checked take one confirmation for the exact list of items.
    - **Screen control:** anything you let control your screen can click that window too. That means computer use, apps you gave Accessibility access, and on Windows and some Linux desktops, other programs. To turn the window off, run `ha-nova setup confirm-window off`.
@@ -132,6 +132,10 @@ The installer selects the latest stable release. Run the command for your system
 
 **On a desktop**, setup goes on in your browser. The page shows the Home Assistant it found, or asks for its address. It also shows the AI apps on this computer and sets them up for you. On HA OS and Supervised, choose "Sign in and install NOVA" and sign in as the owner. Setup then installs and starts the NOVA Relay App and connects this computer, all with that one sign-in. An old App is updated the same way. If an up-to-date App already runs, there is nothing to do. Then choose how you confirm risky changes, and see your home at a glance.
 
+**I use Claude or ChatGPT in the browser.** No AI app on this computer? Choose this on the setup page. The owner signs in, and this computer connects. Then chat apps come first, so you can use HA NOVA in Claude or ChatGPT.
+
+**Not the owner?** The page asks the owner to sign in. If the owner can't come to this computer, they make a six-digit code in NOVA in Home Assistant ("Connect a device"). Can't sign in on this computer at all? Choose "Use a six-digit code instead". The owner can make it on any device.
+
 **In the terminal.** Over SSH or with `ha-nova setup --no-browser`, setup asks in the terminal instead.
 
 - Want to install the App yourself, or no browser sign-in here (for example over SSH)? Setup takes you to the App page and adds the repository for you. Click "Add", then Install and Start.
@@ -139,7 +143,7 @@ The installer selects the latest stable release. Run the command for your system
 - Signed in as another Home Assistant user, over SSH on Linux, or the sign-in didn't work? Then setup asks for a code. The owner opens **NOVA** in the sidebar (or "Open Web UI" on the App page) and clicks **"Connect a device"**. You type the six-digit code.
 - On Windows and macOS, run setup in a terminal on the computer's own screen, not over SSH.
 
-After pairing, setup offers to link your phone for confirmations. The phone must be signed in to the Home Assistant app as an administrator. Setup ends with a first look at your home.
+After pairing, setup offers to link your phone for confirmations: tap "Allow" on it. The phone must be signed in to the Home Assistant app as an administrator. Setup ends with a first look at your home.
 
 > **Want to look first?** The [demo house](https://hanova.app/demo/) is a pretend Home Assistant with no real devices. Look around before you connect your own. `ha-nova try` connects your AI app to it (the setup page offers it when it finds no Home Assistant), and `ha-nova try --stop` removes it. Everyone shares one login, and it resets every hour. So never enter real names, passwords, or tokens there.
 
@@ -147,7 +151,7 @@ After pairing, setup offers to link your phone for confirmations. The phone must
 
 With chat apps on, you can ask about your home and change it from Claude (web, desktop, and phone apps) or ChatGPT (web). No computer needs to run.
 
-**Turn them on** in setup's "You stay in control" step, or later on the NOVA page in the Home Assistant sidebar (Chat apps). Home Assistant restarts once. Then choose "Add to Claude", or paste the address setup shows into ChatGPT. Sign in to Home Assistant as the owner.
+**Turn them on** in setup's "You stay in control" step with **Turn on…** (chat apps come first there when you use Claude or ChatGPT in the browser), or later on the NOVA page in the Home Assistant sidebar (Chat apps). Home Assistant restarts once. Then choose "Add to Claude", or paste the address setup shows into ChatGPT. Sign in to Home Assistant as the owner.
 
 **You need:**
 
@@ -226,7 +230,7 @@ Once setup is done, try: *"Show me all my automations."*
 | `ha-nova pair` | Pair this computer again with a new six-digit code |
 | `ha-nova doctor` | Find connection and setup problems |
 | `ha-nova setup confirm-window off` | Turn the confirmation window off (you confirm that in the window). `on` turns it back on |
-| `ha-nova setup confirm-phone` | Link one phone for confirmations (pick it, then tap "Link" on it). `off` unlinks it, and you confirm that on the phone |
+| `ha-nova setup confirm-phone` | Link one phone for confirmations (pick it, then tap "Allow" on it; picking another phone moves it, once the old phone OKs it). `off` unlinks it, and you confirm that on the phone |
 | `ha-nova uninstall` | Asks one question: remove HA NOVA from this computer (skills, settings, and its pairing), remove it but keep the pairing for a reinstall, or cancel. On the last computer that uses the NOVA Relay App, it can remove the App too, after the owner signs in (this needs an up-to-date NOVA Relay App). `--yes` keeps the pairing |
 | `ha-nova uninstall --purge` | Remove the program, settings, and saved logins. A few tiny local marker files stay, so an old process can't bring the install back |
 
