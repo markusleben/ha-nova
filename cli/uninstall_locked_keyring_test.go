@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -146,7 +147,7 @@ func TestPurgeWithLockedKeyringOpensTheUnlockWindow(t *testing.T) {
 	}
 	for _, want := range []string{
 		"This computer's keyring is locked",
-		"Type your login password only in that window; HA NOVA never sees it.",
+		"Type your keyring password (usually your login password) only in that window; HA NOVA never sees it.",
 		"Open the window to unlock the keyring now",
 		"The keyring is unlocked.",
 	} {
@@ -163,7 +164,7 @@ func TestPurgeWithLockedKeyringStopsWhenItStaysLocked(t *testing.T) {
 		wantWindows           int
 	}{
 		"declined": {stdin: "n\n", wantWindows: 0,
-			want:     "Next step: run ha-nova uninstall again, answer Y, and type your login password in the window that opens.",
+			want:     "Next step: run ha-nova uninstall again, answer Y, and type your keyring password (usually your login password) in the window that opens.",
 			unwanted: "The keyring opened"},
 		"still locked": {stdin: "\nn\n", wantWindows: 1,
 			want:     "The keyring opened, but HA NOVA's key is still locked. Nothing was changed.",
@@ -225,6 +226,19 @@ func TestPurgeLockedKeyringGateScope(t *testing.T) {
 	}
 	if err := purgeKeyringLockedError(paths); err == nil {
 		t.Fatal("locked Link store not found")
+	}
+	// UI-forbidden: the keyring itself says whether it is locked.
+	purgeRelayTokenRead = func() (string, error) {
+		return "", newCloudError(CloudErrSecretUIForbidden, "access OAuth secret store", nil)
+	}
+	if err := purgeKeyringLockedError(paths); err == nil {
+		t.Fatal("UI-forbidden read on a locked keyring not found")
+	}
+	deviceCredentialPreflight = func() error {
+		return desktopKeyringInitializationRequiredError("no default Secret Service collection configured")
+	}
+	if err := purgeKeyringLockedError(paths); err != nil {
+		t.Fatalf("UI-forbidden read on a keyring that isn't set up: %v", err)
 	}
 }
 
@@ -391,5 +405,28 @@ func TestPurgeLockedKeyringStopResetsLinkStorageProof(t *testing.T) {
 	saved, err := loadRawDefaultProfileConfig(paths.ConfigFile)
 	if err != nil || saved.Cloud == nil || saved.Cloud.RecoveryHold == nil || saved.Cloud.RecoveryHold.StorageVerified {
 		t.Fatalf("storage proof kept: %+v (err %v)", saved.Cloud, err)
+	}
+}
+
+// An interrupted keyring-to-file move leaves keyring copies the purge reads
+// from the keyring: a locked keyring there gets the unlock window too.
+func TestPurgeLockedKeyringGateSeesMigrationCleanupSlots(t *testing.T) {
+	paths, _ := lockedKeyringPurgeFixture(t)
+	deviceCredentialFileModeForced = true // the pairing itself now lives in a file
+	if err := purgeKeyringLockedError(paths); err != nil {
+		t.Fatalf("no checkpoint, no keyring read: %v", err)
+	}
+	cleanupPath, err := keyringDeviceCredentialCleanupPath()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Dir(cleanupPath), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeKeyringDeviceCredentialCleanup([]string{deviceCredentialService}); err != nil {
+		t.Fatal(err)
+	}
+	if err := purgeKeyringLockedError(paths); err == nil {
+		t.Fatal("locked migration-cleanup slot not found")
 	}
 }

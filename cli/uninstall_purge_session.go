@@ -67,6 +67,15 @@ func purgeSecureStorageReadError(paths runtimePaths, problem func(error) bool) e
 			}
 		}
 	}
+	// An interrupted keyring-to-file move still has keyring copies to check
+	// (resumeKeyringDeviceCredentialCleanup reads them from the keyring).
+	if cleanup, exists, err := readKeyringDeviceCredentialCleanup(); err == nil && exists {
+		for _, service := range cleanup.Services {
+			if _, _, err := readKeyringDeviceSecret(service); problem(err) {
+				return err
+			}
+		}
+	}
 	// A file-backed device credential proves nothing about the native store.
 	// Read what the purge itself must read there: the relay token (from its
 	// file when one is configured; a keyring copy is then best-effort) and
@@ -114,7 +123,12 @@ func purgeKeyringLockedError(paths runtimePaths) error {
 		return nil
 	}
 	return purgeSecureStorageReadError(paths, func(err error) bool {
-		// The Link store reports a keyring that isn't set up as locked too.
+		// The Link store reports a keyring that isn't set up as locked too,
+		// and a locked one it may not prompt for as UI-forbidden: ask the
+		// keyring itself (read-only) which it is.
+		if IsCloudErrorCode(err, CloudErrSecretUIForbidden) {
+			return isDesktopKeyringLockedError(deviceCredentialPreflight())
+		}
 		return !isDesktopKeyringInitializationRequiredError(err) &&
 			(isDesktopKeyringLockedError(err) || IsCloudErrorCode(err, CloudErrSecretStoreLocked))
 	})
@@ -181,7 +195,7 @@ func purgeRefusedForLockedKeyring(paths runtimePaths, yes bool, rerun string) bo
 		printHumanWarn("Next step: %s. Then run: %s", keyringUnlockByHandStep, rerun)
 	case possible:
 		printHumanErr("This computer's keyring is locked, so HA NOVA can't remove its saved key. Nothing was changed.")
-		printHumanWarn("Next step: run %s again, answer Y, and type your login password in the window that opens.", rerun)
+		printHumanWarn("Next step: run %s again, answer Y, and type your keyring password (usually your login password) in the window that opens.", rerun)
 	default:
 		printHumanErr("This computer's keyring is locked, so HA NOVA can't remove its saved key. Nothing was changed.")
 		printHumanWarn("Next step: %s. Then run: %s", keyringUnlockByHandStep, rerun)

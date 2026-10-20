@@ -207,7 +207,7 @@ func secureStorageRecoveryPlanForAction(action platformSecureStorageRecoveryActi
 			title:  "This computer's keyring is locked",
 			paragraphs: []string{
 				"HA NOVA keeps its key in this computer's keyring, and the keyring is locked right now.",
-				"A system window opens to unlock it. Type your login password only in that window; HA NOVA never sees it.",
+				"A system window opens to unlock it. Type your keyring password (usually your login password) only in that window; HA NOVA never sees it.",
 			},
 			prompt:         "Open the window to unlock the keyring now",
 			successMessage: "The keyring is unlocked.",
