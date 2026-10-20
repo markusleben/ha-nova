@@ -28,6 +28,15 @@ describe("description-level routing (#518)", () => {
     }
   });
 
+  // Claude Code also lists claude.ai connectors such as "HA NOVA demo"; only
+  // the descriptions steer demo-house work to the CLI (`--server demo`).
+  it("routes the demo house to the CLI, not a chat connector", () => {
+    expect(description("service-call")).toContain("demo house (`--server demo`)");
+    const router = description("ha-nova");
+    expect(router).toContain("the demo house via `--server demo`");
+    expect(router).toContain('If you can run ha-nova in a shell, use it, never a "HA NOVA…" connector.');
+  });
+
   it("puts the one-off vs automation split into the notify description", () => {
     const d = description("notify");
     expect(d).toContain("notification NOW —");

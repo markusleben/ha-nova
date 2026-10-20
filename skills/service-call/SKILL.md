@@ -1,6 +1,6 @@
 ---
 name: service-call
-description: Use when the user wants to control something in Home Assistant right now — turn lights, switches, covers, climate, vacuums, or any device on, off, up, down, open, or closed; run a scene, script, or automation; call any service by name; operate alarm panels and locks — through HA NOVA Relay, also in the demo house.
+description: Use when the user wants to control something in Home Assistant right now — turn lights, switches, covers, climate, vacuums, or any device on, off, up, down, open, or closed; run a scene, script, or automation; call any service by name; operate alarm panels and locks — through HA NOVA Relay, also in the demo house (`--server demo`).
 license: MIT
 compatibility: Requires the ha-nova CLI (run 'ha-nova setup' first) and the HA NOVA Relay in Home Assistant (App, or standalone container on Container/Core).
 ---
@@ -23,7 +23,7 @@ Entity service calls run only through the typed verbs:
 - `ha-nova plan call …`: read-only "what would happen" answer, never executes.
 - Look up: `ha-nova find ["<phrase>"] [--domain <d>] [--area <area_id>] [--state <s>]`.
 
-`--set` values are JSON-typed; `--data-file` takes a JSON object for nested data. The CLI sends exactly one `POST /api/services/{domain}/{service}` and verifies via `/api/states/{entity_id}`. Raw `ha-nova relay core|ws` stays for the routes in `../service-call/raw-routes.md` only.
+`--set` values are JSON-typed; `--data-file` takes a JSON object for nested data. The CLI sends exactly one `POST /api/services/{domain}/{service}` and verifies via `/api/states/{entity_id}`. Raw `ha-nova relay core|ws`: only the routes in `../service-call/raw-routes.md`.
 
 ## Owning-Skill Deferrals (Critical)
 
