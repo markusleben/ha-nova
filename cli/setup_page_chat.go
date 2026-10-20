@@ -106,3 +106,66 @@ func (f *setupFlow) pageChatPhone(c *setupPageChat, offer *chatAppsOffer) {
 	}
 	c.Phone = chatAppsPhoneName(f.paths, setupSignedInUser, offer.state)
 }
+
+// pageChatRow is step 3's row from a read through the owner's session:
+// no internet address (one plain line), on (the address and Add to Claude),
+// or the switch with its consent.
+func (f *setupFlow) pageChatRow(chat *chatAppsOffer) *setupPageChat {
+	switch {
+	case chat.url == "":
+		row := &setupPageChat{State: "noaddress"}
+		if chat.state.Enabled {
+			row.Problem = setupPageText("setup.chat.on_noaddress")
+		}
+		return row
+	case chat.state.Enabled:
+		row := &setupPageChat{State: "on", URL: chat.url, ClaudeLink: claudeConnectorLink(chat.url)}
+		if !chat.loaded { // on, but a restart never came: the address doesn't answer yet
+			row.Problem = setupPageText("setup.chat.problem_slow")
+		}
+		if err := handOverOwnerPhone(setupOwnerIngress, f.paths, setupSignedInUser, &chat.state); err != nil {
+			row.Problem = setupPageText("setup.chat.problem_phone")
+		}
+		f.pageChatNote(chat.url)
+		return row
+	}
+	return &setupPageChat{State: "offer", NoRestart: !chat.restart, Phone: chatAppsPhoneName(f.paths, setupSignedInUser, chat.state)}
+}
+
+// pageRerunChatOn: Done with the chat-app switch turned on, on a re-run
+// (no owner sign-in yet). As `ha-nova chat-apps on`: the owner signs in in a
+// browser tab of its own, then the row asks the consent, as step 3 does,
+// naming the phone and the restart from the fresh read. Nothing turns on
+// before that click.
+func (f *setupFlow) pageRerunChatOn(c *setupPageChat, offer *chatAppsOffer, linkOrigin func() string, show func()) {
+	c.State, c.Problem, c.URL, c.ClaudeLink = "signin", nil, "", ""
+	show()
+	out := f.page.text.out // the sign-in's link, as the Link offer's
+	ok := chatAppsSignInOK(out, f.cfg)
+	if ok {
+		var session haSignInSession
+		if session, ok = chatAppsOwnerSession(out, f.cfg); ok {
+			setupOwnerIngress, setupSignedInUser = session.ingress, session.user.ID
+			*offer, ok = readChatAppsOffer(setupOwnerIngress, f.paths, linkOrigin)
+		}
+	}
+	if !ok {
+		c.State, c.Problem = "page_off", setupPageText("setup.chat.problem_signin")
+		return
+	}
+	*c = *f.pageChatRow(offer)
+	c.Ask = c.State == "offer"
+}
+
+// pageRerunChatOff: Done with the chat-app switch turned off, on a re-run:
+// `ha-nova chat-apps off` itself (the owner's sign-in, then the check of
+// what Home Assistant still holds); the end screen says how it went.
+func (f *setupFlow) pageRerunChatOff(c *setupPageChat, show func()) {
+	c.State, c.Problem, c.URL, c.ClaudeLink = "signin", nil, "", ""
+	show()
+	note := setupPageText("setup.page.home.note_chat_off")
+	if chatAppsOff(f.page.text.out, f.paths, f.cfg) != 0 {
+		note = setupPageText("setup.page.home.note_chat_off_failed")
+	}
+	f.pageNotes = append(f.pageNotes, note)
+}

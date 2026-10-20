@@ -184,10 +184,12 @@ func (f *setupFlow) pageRerunAddClients() int {
 	return f.pageControl()
 }
 
-// pageRerunChat: a re-run has no owner sign-in, so the chat-app row says
-// where they are switched: NOVA in Home Assistant. Only for an App with
-// chat apps and a Home Assistant new enough for them; nil: no row.
-func (f *setupFlow) pageRerunChat() *setupPageChat {
+// pageRerunChat: a re-run has no owner sign-in, so the chat-app row is a
+// switch that Done applies (pageRerunChatOn, pageRerunChatOff). While on it
+// shows the connector address and Add to Claude, read without a sign-in,
+// as `ha-nova chat-apps status`. Only for an App with chat apps and a Home
+// Assistant new enough for them; nil: no row.
+func (f *setupFlow) pageRerunChat(linkOrigin func() string) *setupPageChat {
 	ha, err := chatAppsReadHA(f.paths)
 	base, _, _ := strings.Cut(ha.appVersion, "-") // an rc of the first chat-app App counts as that App
 	if err != nil || base == "" || !chatAppsHAVersionOK(ha.version) {
@@ -196,13 +198,21 @@ func (f *setupFlow) pageRerunChat() *setupPageChat {
 	if cmp, err := compareReleaseVersions(base, chatAppsMinAppVersion); err != nil || cmp < 0 {
 		return nil
 	}
-	target, err := haNOVAAppPanelURL(f.cfg.HAURL)
-	if err != nil {
-		return nil
+	url := ""
+	if origin := chatAppsBase(linkOrigin(), ha.externalURL); origin != "" {
+		url = origin + chatAppsConnectorPath
 	}
-	chat := &setupPageChat{State: "page_off", Page: target.URL}
-	if ha.present { // Home Assistant holds the chat-app integration only while they are on
-		chat.State = "page_on"
+	switch {
+	case !ha.present && url == "": // off, and nothing could reach them: what's missing
+		return &setupPageChat{State: "noaddress"}
+	case !ha.present: // Home Assistant holds the chat-app integration only while they are on
+		return &setupPageChat{State: "page_off"}
+	case url == "":
+		return &setupPageChat{State: "page_on", Problem: setupPageText("setup.chat.on_noaddress")}
+	}
+	chat := &setupPageChat{State: "page_on", URL: url, ClaudeLink: claudeConnectorLink(url)}
+	if !ha.loaded {
+		chat.Problem = setupPageText("setup.chat.problem_slow")
 	}
 	return chat
 }
