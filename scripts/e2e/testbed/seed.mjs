@@ -92,6 +92,9 @@ const LABELS = [
   { name: "Security", color: "red", icon: "mdi:shield-lock" },
   { name: "Lighting", color: "amber", icon: "mdi:lightbulb" },
 ];
+// `ha-nova try` names the bed light, kitchen lights, and entrance door
+// (cli/command_try.go, demoTryPrompts): keep them when changing the house
+// (and the bed light on the hosted dashboard, scripts/demo/hosted/demo.mjs).
 // Device areas, addressed by one entity on the device.
 const DEVICE_AREAS = {
   "light.kitchen_lights": "Küche",

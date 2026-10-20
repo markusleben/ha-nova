@@ -60,4 +60,6 @@ the number.
 - Setup in the terminal no longer preselects linking your phone: Enter
   skips, as on the setup page; nothing is sent without an explicit yes.
 - While the setup page runs, the terminal uses the same styling as the
-  rest of setup; `ha-nova try` names the AI apps that have HA NOVA.
+  rest of setup; `ha-nova try` names the AI apps that have HA NOVA and
+  ends with five things to say: a look-up, a switch, an unlock that asks
+  first, a new automation, and undo.

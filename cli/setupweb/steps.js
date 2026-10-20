@@ -350,7 +350,7 @@ window.novaSteps = (h) => {
 
   // `ha-nova try` from step 1: the shared demo house is connected.
   const demo = () => [...head(t('setup.page.demo.eyebrow'), t('setup.page.demo.title'), t('setup.page.demo.lead')),
-    chips([t('setup.page.demo.prompt_lights'), t('setup.page.demo.prompt_kitchen'), t('setup.page.demo.prompt_review')],
+    chips([t('setup.page.demo.prompt_used'), t('setup.page.demo.prompt_kitchen'), t('setup.page.demo.prompt_unlock')],
       (h.state().clients || []).includes('Claude Code')),
     el('p', { class: 'fine' }, t('setup.page.demo.fine'))];
 
