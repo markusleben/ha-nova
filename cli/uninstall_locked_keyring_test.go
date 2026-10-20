@@ -455,3 +455,16 @@ func (m exitingUnlockMenu) Run(out io.Writer, spec setupMenuSpec) (string, error
 	}
 	return m.recordingUninstallMenu.Run(out, spec)
 }
+
+// `--purge` asks the keyring question before the menu: Ctrl+C there stops too.
+func TestPurgeCtrlCAtTheUnlockQuestionStops(t *testing.T) {
+	paths, locked := lockedKeyringPurgeFixture(t)
+	menu := stubUninstallMenu(t, "purge")
+	stubKeyringUnlockWindow(t, true, "", func() { *locked = false })
+	interactiveSetupMenuRunner = exitingUnlockMenu{menu}
+	exitCode, output := captureCommandOutput(t, func() int { return runUninstall(paths, []string{"--purge"}) })
+	if exitCode != 1 || menu.spec.Title != "" || !strings.Contains(output, "Uninstall cancelled. Nothing was changed.") {
+		t.Fatalf("exit=%d spec=%+v\n%s", exitCode, menu.spec, output)
+	}
+	requireNothingRemoved(t, paths, locked)
+}

@@ -152,9 +152,9 @@ func runSetupSecureStorageRecoveryFlow(reader *bufio.Reader, out io.Writer, trig
 
 		switch {
 		case isDesktopKeyringLockedError(runErr):
-			renderSetupErrorLine(out, "The keyring is still locked. Try again, or pick Not now to stop.")
+			renderSetupErrorLine(out, "The keyring is still locked. Try again, or say no to stop.")
 		case isDesktopKeyringInitializationRequiredError(runErr):
-			renderSetupErrorLine(out, "The keyring still isn't set up. Try again, or pick Not now to stop.")
+			renderSetupErrorLine(out, "The keyring still isn't set up. Try again, or say no to stop.")
 		default:
 			renderSetupErrorLine(out, "%s", runErr)
 		}

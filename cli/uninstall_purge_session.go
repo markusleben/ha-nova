@@ -292,15 +292,21 @@ func purgeRefusedForLockedKeyring(paths runtimePaths, yes bool, rerun string) bo
 		return false
 	}
 	possible := keyringUnlockWindowPossible(yes)
-	opened := false
+	opened, stop := false, false
 	if possible {
-		opened, _ = offerKeyringUnlockForPurge(paths) // Ctrl+C: stops below, nothing changed
+		opened, stop = offerKeyringUnlockForPurge(paths)
 	}
 	lockedErr := purgeKeyringLockedError(paths)
-	if lockedErr == nil {
+	if lockedErr == nil && !stop {
 		return false
 	}
-	resetLinkStorageProofForEarlyStop(paths, lockedErr)
+	if lockedErr != nil {
+		resetLinkStorageProofForEarlyStop(paths, lockedErr)
+	}
+	if stop { // Ctrl+C: stop even if the keyring opened some other way
+		printHumanInfo("Uninstall cancelled. Nothing was changed.")
+		return true
+	}
 	switch {
 	case yes && keyringUnlockWindowPossible(false):
 		printHumanErr("This computer's keyring is locked, so HA NOVA can't remove its saved key. Nothing was changed.")
