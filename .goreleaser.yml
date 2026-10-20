@@ -100,6 +100,8 @@ release:
     - **A confirmation window closes with its command.** If you stop the command (Ctrl+C, or a closed terminal), its window closes too. So a late Confirm never lands in a window nobody reads.
     - **Setup asks before it uses a Home Assistant it found,** also when it found just one by IP address. After a pairing was removed on the NOVA page, setup goes straight to pairing again.
     - **Setup in the terminal without an AI app still connects this computer.** Then it names the AI apps to install and says to run `ha-nova setup` again.
+    - **A correct save no longer says it didn't pass the check.** Home Assistant stores some steps in a newer form. HA NOVA now reads them the same way, so your AI app no longer reports a false problem.
+    - **Works with AI apps that use PowerShell on Windows.** With the demo house or more than one Home Assistant, your AI app now picks the right one there too.
 
     Stable install commands are release-pinned for this tag.
 
