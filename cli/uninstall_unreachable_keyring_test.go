@@ -133,6 +133,11 @@ func TestPurgeUnreachableKeyringGateScope(t *testing.T) {
 		t.Fatalf("the purge skips a relay token whose keyring isn't running: %v", err)
 	}
 	purgeRelayTokenRead = func() (string, error) { return "", relayAuthTokenReadError("ha-nova", sshNoSessionBus) }
+	if err := purgeKeyringOutOfReachError(paths); err != nil {
+		t.Fatalf("a file-backed (headless) install skips a relay token out of reach: %v", err)
+	}
+	deviceCredentialFileModeForced = false
+	deviceCredentialPreflight = func() error { return nil }
 	if err := purgeKeyringOutOfReachError(paths); err == nil {
 		t.Fatal("relay token out of reach not found")
 	}

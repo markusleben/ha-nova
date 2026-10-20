@@ -367,11 +367,19 @@ func deviceCredentialID(credential string) string {
 
 // deviceCredentialExistsForUninstall reports whether this install holds an
 // activated device credential in ANY server profile (standard uninstall keeps
-// them and says so).
-func deviceCredentialExistsForUninstall() bool {
+// them and says so). A slot a Linux keyring won't hand out (locked) counts
+// when that server's config is set up for pairing.
+func deviceCredentialExistsForUninstall(configFile string) bool {
+	doc, docErr := loadConfigDocument(configFile)
 	for _, profile := range credentialProfileNames() {
-		if _, ok, err := readCredentialSlot(deviceCredentialServiceForProfile(profile)); err == nil && ok {
+		_, ok, err := readCredentialSlot(deviceCredentialServiceForProfile(profile))
+		if ok {
 			return true
+		}
+		if isLinuxKeyringError(err) && docErr == nil {
+			if cfg, found := doc.flatProfile(profile); found && cfg.RelaySecureBaseURL != "" {
+				return true
+			}
 		}
 	}
 	return false

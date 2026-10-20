@@ -79,8 +79,8 @@ func applyUninstallTokenPolicy(report *uninstallReport) error {
 			if isMissingRelayAuthTokenError(err) {
 				return nil
 			}
-			if isDesktopKeyringUnavailableError(err) {
-				report.addNote("Relay auth token cleanup skipped: system secure storage is unavailable on this machine.")
+			if purgeSkipsRelayTokenError(err) {
+				report.addNote(fmt.Sprintf("HA NOVA couldn't check this computer's keyring for its old relay key from here. If this computer has a desktop, open Passwords and Keys there and delete the '%s' entry.", relayAuthTokenServiceName()))
 				return nil
 			}
 			return err

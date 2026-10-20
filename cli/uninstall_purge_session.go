@@ -81,9 +81,9 @@ func purgeSecureStorageReadError(paths runtimePaths, problem func(error) bool) e
 	// Read what the purge itself must read there: the relay token (from its
 	// file when one is configured; a keyring copy is then best-effort) and
 	// each Link authorization.
-	// The purge skips a relay token whose keyring isn't running
-	// (applyUninstallTokenPolicy), so this check does too.
-	if _, err := purgeRelayTokenRead(); !isDesktopKeyringUnavailableError(err) && problem(err) {
+	// The purge skips a relay token it can't reach
+	// (purgeSkipsRelayTokenError), so this check does too.
+	if _, err := purgeRelayTokenRead(); !purgeSkipsRelayTokenError(err) && problem(err) {
 		return err
 	}
 	for _, target := range cloudTargets {
@@ -146,6 +146,32 @@ func isLinuxKeyringOutOfReach(err error) bool {
 		isDesktopKeyringUnavailableError(err) || isSecretServiceExitedText(err)
 }
 
+// purgeSkipsRelayTokenError: the purge skips the legacy relay token, with a
+// note, when its keyring isn't running. On a file-backed install whose default
+// server doesn't connect with it, it also skips a keyring this terminal can't
+// reach (a headless server has no desktop to sign in to) or that isn't set up
+// (it holds nothing). A locked one keeps its unlock step: it may still hold a
+// device key from before the switch to files.
+func purgeSkipsRelayTokenError(err error) bool {
+	return isDesktopKeyringUnavailableError(err) ||
+		(isLinuxKeyringOutOfReach(err) || isDesktopKeyringInitializationRequiredError(err)) &&
+			deviceSecretFileBacked() && !relayTokenConnectsDefaultServer()
+}
+
+// relayTokenConnectsDefaultServer: the default server isn't paired and its
+// relay takes the legacy token. A config that can't be read counts too.
+func relayTokenConnectsDefaultServer() bool {
+	paths, err := detectPaths()
+	if err != nil {
+		return true
+	}
+	cfg, err := loadRawDefaultProfileConfig(paths.ConfigFile)
+	if errors.Is(err, os.ErrNotExist) {
+		return false
+	}
+	return err != nil || cfg.RelaySecureBaseURL == "" && cfg.RelayBaseURL != ""
+}
+
 // purgeKeyringOutOfReachError returns the first read a full purge needs that
 // fails because this terminal can't reach the Linux keyring. Without this
 // check the purge removed part of HA NOVA and then failed there.
@@ -196,7 +222,7 @@ func purgeRefusedForUnreadableRelayToken(paths runtimePaths, rerun string) bool 
 		return false
 	}
 	_, err := purgeRelayTokenRead()
-	if err == nil || isMissingRelayAuthTokenError(err) || isDesktopKeyringUnavailableError(err) {
+	if err == nil || isMissingRelayAuthTokenError(err) || purgeSkipsRelayTokenError(err) {
 		return false
 	}
 	resetLinkStorageProofForEarlyStop(paths, err)
@@ -243,7 +269,7 @@ func offerKeyringUnlockForPurge(paths runtimePaths) bool {
 		setupSecureStorageRecoveryInitialAttempt,
 	)
 	if err != nil {
-		printHumanWarn("The keyring window didn't work: %s", err)
+		printHumanWarn("The keyring window didn't work: %s", keyringErrorText(err))
 	}
 	return err == nil && result == setupSecureStorageRecoveryRecovered
 }

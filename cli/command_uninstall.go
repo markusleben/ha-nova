@@ -747,11 +747,11 @@ func finalizeLocalUninstallWithProgressUnlocked(
 			return fmt.Errorf("failed to remove managed config directory: %w", err)
 		}
 	} else if cloudConfigurationExistsForUninstall(paths.ConfigFile) &&
-		deviceCredentialExistsForUninstall() {
+		deviceCredentialExistsForUninstall(paths.ConfigFile) {
 		report.addNote("Kept Home Assistant connection config, this device's pairing, and its Cloud authorization. Use 'ha-nova uninstall --purge' to remove and revoke them too.")
 	} else if cloudConfigurationExistsForUninstall(paths.ConfigFile) {
 		report.addNote("Kept Home Assistant connection config and its Cloud authorization. Use 'ha-nova uninstall --purge' to remove and revoke them too.")
-	} else if deviceCredentialExistsForUninstall() {
+	} else if deviceCredentialExistsForUninstall(paths.ConfigFile) {
 		report.addNote("Kept Home Assistant connection config and this device's pairing. Use 'ha-nova uninstall --purge' to remove and revoke them too.")
 	} else if fileExists(paths.ConfigFile) || relayAuthTokenExistsForUninstall() {
 		report.addNote("Kept Home Assistant connection config and stored relay token. Use 'ha-nova uninstall --purge' to remove them too.")
