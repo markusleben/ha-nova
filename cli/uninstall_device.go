@@ -92,11 +92,11 @@ func purgeProfileDeviceCredentialWithReport(
 	relayExpectedGone bool,
 ) error {
 	if _, err := resumeKeyringDeviceCredentialCleanup(); err != nil {
-		return fmt.Errorf(
-			"finish device credential migration cleanup before purging server %q: %w",
-			target.name,
-			err,
-		)
+		action := fmt.Sprintf("finish device credential migration cleanup before purging server %q", target.name)
+		if isLinuxKeyringError(err) && !isDesktopKeyringInitializationRequiredError(err) {
+			return keyringRemovalError(action, err)
+		}
+		return fmt.Errorf("%s: %w", action, err)
 	}
 	slotState, err := inspectProfilePurgeSlotState(target)
 	if err != nil {

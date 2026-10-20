@@ -109,6 +109,9 @@ func uninstallPurgeBlocked(paths runtimePaths) string {
 	if purgeSecureStorageSessionError(paths) != nil {
 		return "needs this computer's own desktop session"
 	}
+	if purgeKeyringLockedError(paths) != nil {
+		return "the keyring is locked; unlock it, then run ha-nova uninstall again"
+	}
 	_, _, release, err := pinnedPurgeTargets(paths)
 	if err != nil {
 		return "HA NOVA's saved settings need a fix first"

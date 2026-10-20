@@ -30,7 +30,7 @@ func TestUninstallTokenLabelNamesServiceTokenFile(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	want := "Relay token file (" + defaultRelayAuthTokenFile(paths) + ")"
+	want := "HA NOVA's key file"
 	if got := uninstallTokenLineLabel(paths); got != want {
 		t.Fatalf("label = %q, want %q", got, want)
 	}
@@ -287,7 +287,7 @@ func TestRunUninstallYesShowsPreflightAndLeavesSharedApp(t *testing.T) {
 	}
 
 	tokenLabel := uninstallTokenLineLabel(paths) // read before the purge removes the config it names
-	if !strings.Contains(tokenLabel, "ha-nova.relay-auth-token") {
+	if !strings.HasPrefix(tokenLabel, "This computer's HA NOVA key (in ") {
 		t.Fatalf("legacy-token install label = %q", tokenLabel)
 	}
 	exitCode, output := captureCommandOutput(t, func() int {
@@ -300,12 +300,12 @@ func TestRunUninstallYesShowsPreflightAndLeavesSharedApp(t *testing.T) {
 		"HA NOVA Uninstall",
 		"Removes from this computer:",
 		uninstallRuntimeLineLabel(paths, installSourceBundle),
-		"Managed local state and cache",
+		"HA NOVA's own files on this computer",
 		"Also removed:",
-		"Home Assistant connection config",
+		"HA NOVA's saved Home Assistant address",
 		tokenLabel,
 		// --yes never offers the App removal; this standalone Relay stays.
-		"The NOVA Relay stays. Remove it only if no other computer uses HA NOVA",
+		"The NOVA Relay stays. If no other computer uses HA NOVA, remove it",
 	} {
 		if !strings.Contains(output, want) {
 			t.Fatalf("expected uninstall output %q:\n%s", want, output)
@@ -318,7 +318,7 @@ func TestRunUninstallYesShowsPreflightAndLeavesSharedApp(t *testing.T) {
 
 func TestUninstallWindowsBundleNoteMentionsWait(t *testing.T) {
 	got := uninstallWindowsBundleNote()
-	if !strings.Contains(got, "Please wait a moment") {
+	if !strings.Contains(got, "wait a moment before you reinstall") {
 		t.Fatalf("expected Windows bundle note to mention wait guidance, got %q", got)
 	}
 }
@@ -888,17 +888,17 @@ func TestPurgePreservesConfigForExternalTokenFile(t *testing.T) {
 // The purge line names what the user finds in secure storage: the device
 // credential per paired profile, the legacy token only where it is in use.
 func TestUninstallTokenLabelNamesStoredCredentials(t *testing.T) {
-	store := map[string]string{"darwin": "Keychain", "windows": "Credential Manager"}[runtime.GOOS]
+	store := map[string]string{"darwin": "the Keychain", "windows": "Credential Manager"}[runtime.GOOS]
 	if store == "" {
-		store = "Secure storage"
+		store = "the keyring"
 	}
 	for _, tc := range []struct{ config, want string }{
-		{"", store + " entry (ha-nova.device-credential)"},
+		{"", "This computer's HA NOVA key (in " + store + ")"},
 		{`{"schema_version":2,"default_server":"default","servers":{
 			"default":{"ha_url":"http://192.0.2.5:8123","relay_base_url":"http://192.0.2.5:8791","relay_secure_base_url":"https://192.0.2.5:8792"},
 			"second":{"ha_url":"http://192.0.2.6:8123","relay_base_url":"http://192.0.2.6:8791","relay_secure_base_url":"https://192.0.2.6:8792"}}}`,
-			store + " entries (ha-nova.device-credential, ha-nova.device-credential.second)"},
-		{`{"ha_url":"http://192.0.2.5:8123","relay_base_url":"http://192.0.2.5:8791"}`, store + " entry (ha-nova.relay-auth-token)"},
+			"This computer's 2 HA NOVA keys (in " + store + ")"},
+		{`{"ha_url":"http://192.0.2.5:8123","relay_base_url":"http://192.0.2.5:8791"}`, "This computer's HA NOVA key (in " + store + ")"},
 	} {
 		dir := t.TempDir()
 		paths := runtimePaths{ConfigDir: dir, ConfigFile: filepath.Join(dir, "config.json")}
@@ -920,8 +920,7 @@ func TestUninstallTokenLabelNamesStoredCredentials(t *testing.T) {
 	if err := writeDeviceFileBackendMarker(); err != nil {
 		t.Fatal(err)
 	}
-	dir, _ := deviceSecretFileDir()
-	if got := uninstallTokenLineLabel(runtimePaths{ConfigFile: filepath.Join(t.TempDir(), "config.json")}); got != "Credential files in "+dir+" (ha-nova.device-credential)" {
+	if got := uninstallTokenLineLabel(runtimePaths{ConfigFile: filepath.Join(t.TempDir(), "config.json")}); got != "This computer's HA NOVA key (in files)" {
 		t.Errorf("file-backed label = %q", got)
 	}
 }

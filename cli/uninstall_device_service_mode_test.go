@@ -174,7 +174,7 @@ func TestGuidedPurgePreflightRoutesLikePurge(t *testing.T) {
 		RelaySpkiPin:       "sha256/pin",
 	}, true)
 	if err := prepareUninstallBeforeGuidedTeardown(paired, uninstallModePurge); err == nil ||
-		!strings.Contains(err.Error(), "device credential") {
+		!strings.Contains(err.Error(), "can't remove its saved key") {
 		t.Fatalf("guided preflight error = %v, want fail-closed device credential error", err)
 	}
 }
