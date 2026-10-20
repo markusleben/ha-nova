@@ -17,13 +17,16 @@ LOCK=/run/ha-nova-demo.lock
 # Set while the public gate was skipped (nothing served over TLS); guard.sh
 # starts a reset, and with it the gate, as soon as TLS is served.
 PENDING="$STATE/public-gate-pending"
-# The relay image: built once per ref by bootstrap.sh from a digest-pinned
-# Node base, never pulled or rebuilt by a reset, labelled so prunes keep it.
+# The relay and chat-bridge images: built once per ref by bootstrap.sh from
+# digest-pinned bases (Go only for the bridge's build stage), never pulled or
+# rebuilt by a reset, labelled so prunes keep them.
 NODE_IMAGE=node:22.23.3-alpine3.24@sha256:0a7108bf6c7bf5de370ffb1a3ed6be93d405b43ff159f681a8d18c0e2bc2e402
+GO_IMAGE=golang:1.26.5@sha256:705e964a93a2fd2e75c7d59bb7d781b57e30f12293ffde5175c69229e18fb678
 CADDY_IMAGE=caddy:2.11.4@sha256:0c994536bddb66445885237f1a5dcc1916bccea922661c76b4e9fc24061f9b52
 KEEP_LABEL=ha-nova-demo.keep=1
 
-relay_image() { echo "ha-nova-demo/relay:${1:0:12}"; } # <ref>
+relay_image() { echo "ha-nova-demo/relay:${1:0:12}"; }   # <ref>
+bridge_image() { echo "ha-nova-demo/bridge:${1:0:12}"; } # <ref>
 
 # relay_roundtrip <base> <token>: /core GET /api/ and /ws get_states work, and
 # /health then reports a live Home Assistant connection.
@@ -46,7 +49,7 @@ relay_roundtrip() {
     if (problems.length) { console.error(`relay: ${problems.join(", ")}`); process.exit(1); }' "$core" "$ws" "$health"
 }
 
-# egress_gate: Home Assistant and the relay can neither resolve external
+# egress_gate: Home Assistant, the relay, and the chat bridge can neither resolve external
 # names (Linux dockerd forwards them from internal networks; the compose DNS
 # sink must stop that) nor reach an external address; service names resolve.
 # Probes run in parallel, 4 s each; a probe that times out has failed to get
@@ -58,7 +61,9 @@ egress_gate() {
   probe docker exec ha-nova-testbed-ha getent hosts example.com & pids+=($!); i=$((i + 1))
   probe docker exec ha-nova-testbed-ha curl -s -m 3 -o /dev/null http://1.1.1.1 & pids+=($!); i=$((i + 1))
   probe docker exec ha-nova-testbed-relay node -e 'require("dns").lookup("example.com",e=>process.exit(e?1:0))' & pids+=($!); i=$((i + 1))
-  probe docker exec ha-nova-testbed-relay node -e 'fetch("http://1.1.1.1").then(()=>process.exit(0),()=>process.exit(1))' & pids+=($!)
+  probe docker exec ha-nova-testbed-relay node -e 'fetch("http://1.1.1.1").then(()=>process.exit(0),()=>process.exit(1))' & pids+=($!); i=$((i + 1))
+  probe docker exec ha-nova-testbed-bridge node -e 'require("dns").lookup("example.com",e=>process.exit(e?1:0))' & pids+=($!); i=$((i + 1))
+  probe docker exec ha-nova-testbed-bridge node -e 'fetch("http://1.1.1.1").then(()=>process.exit(0),()=>process.exit(1))' & pids+=($!)
   wait "${pids[@]}" || true
   if compgen -G "$dir/escaped.*" > /dev/null; then
     echo "egress gate: got out with: $(cat "$dir"/escaped.*)" >&2
@@ -75,10 +80,13 @@ egress_gate() {
     echo "egress gate: the curl probe does not work inside Home Assistant" >&2
     failed=1
   fi
-  if ! timeout 4 docker exec ha-nova-testbed-relay node -e 'fetch("http://homeassistant:8123/manifest.json").then(r=>process.exit(r.ok?0:1),()=>process.exit(1))'; then
-    echo "egress gate: the fetch/DNS probe does not work inside the relay" >&2
-    failed=1
-  fi
+  local c
+  for c in relay bridge; do
+    if ! timeout 4 docker exec "ha-nova-testbed-$c" node -e 'fetch("http://homeassistant:8123/manifest.json").then(r=>process.exit(r.ok?0:1),()=>process.exit(1))'; then
+      echo "egress gate: the fetch/DNS probe does not work inside the $c" >&2
+      failed=1
+    fi
+  done
   return "$failed"
 }
 
@@ -135,6 +143,17 @@ public_gate() {
   curl "${url[@]}" -o /dev/null -H "Authorization: Bearer $token" "https://$domain/relay/health" || { echo "public gate: relay" >&2; return 1; }
   curl "${url[@]}" -o /dev/null "https://$domain/auth/authorize?response_type=code&client_id=https://$domain/&redirect_uri=https://$domain/" \
     || { echo "public gate: login page" >&2; return 1; }
+  # Add to Claude: the connector answers 401 pointing at this origin's
+  # resource metadata, which names this origin as its sign-in, whose metadata
+  # offers what Claude's published identity (CIMD) needs.
+  curl --resolve "$domain:443:127.0.0.1" -s -m 15 -o /dev/null -D - -X POST "https://$domain/api/ha_nova/mcp" | tr -d '\r' \
+    | grep -ci "^www-authenticate: Bearer resource_metadata=\"https://$domain/.well-known/oauth-protected-resource\"$" > /dev/null \
+    || { echo "public gate: /api/ha_nova/mcp does not ask for sign-in with this origin's resource metadata" >&2; return 1; }
+  { curl "${url[@]}" "https://$domain/.well-known/oauth-protected-resource" && echo && curl "${url[@]}" "https://$domain/.well-known/oauth-authorization-server"; } \
+    | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const [r,a]=s.trim().split("\n").map(JSON.parse),o=process.argv[1];
+        process.exit(r.resource===o&&r.authorization_servers?.[0]===o&&a.authorization_endpoint===o+"/auth/authorize"&&a.token_endpoint===o+"/auth/token"
+          &&a.client_id_metadata_document_supported===true&&a.token_endpoint_auth_methods_supported?.includes("none")&&a.code_challenge_methods_supported?.includes("S256")?0:1)})' "https://$domain" \
+    || { echo "public gate: OAuth metadata is not what Claude's sign-in needs" >&2; return 1; }
   # Every @blocked pattern of the Caddyfile, read from it (read -a: no globbing).
   read -ra pats <<< "$(sed -n 's/^[[:space:]]*@blocked path //p' "$HOSTED/Caddyfile")"
   ((${#pats[@]} > 0)) || { echo "public gate: no @blocked patterns in the Caddyfile" >&2; return 1; }

@@ -1,0 +1,23 @@
+# Hosted demo: the chat-app bridge (`ha-nova serve`) with its skills, built
+# from this ref the way the NOVA App image stages it
+# (scripts/release/stage-app-bridge.sh). bootstrap.sh builds it once per ref
+# with the repo root as context and digest-pinned bases (host-lib.sh);
+# resets never build or pull it. Context filter: Dockerfile.bridge.dockerignore.
+ARG GO_IMAGE
+ARG NODE_IMAGE
+
+FROM ${GO_IMAGE} AS build
+ARG TARGETARCH
+WORKDIR /src
+COPY cli ./cli
+COPY skills ./skills
+COPY version.json ./version.json
+COPY scripts/release/stage-app-bridge.sh ./scripts/release/stage-app-bridge.sh
+# One package at a time: the demo host has 1 GB of RAM (plus 1 GB swap).
+RUN mkdir /out && GOFLAGS=-p=1 bash scripts/release/stage-app-bridge.sh "$([ "$TARGETARCH" = arm64 ] && echo aarch64 || echo amd64)" /out
+
+# The relay's Node base: no new runtime pin, and the egress gate's node probes work here too.
+FROM ${NODE_IMAGE}
+COPY --from=build /out /opt/ha-nova
+USER node
+ENTRYPOINT ["/opt/ha-nova/ha-nova"]

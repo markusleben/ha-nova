@@ -13,6 +13,10 @@ homeassistant:
   time_zone: Europe/Berlin
   currency: EUR
   country: DE
+  # https://<demo domain> (reset.sh via the compose overlay). Home Assistant
+  # names its OAuth metadata (Add to Claude) only for requests to this host;
+  # set here, visitors cannot change it.
+  external_url: !env_var DEMO_EXTERNAL_URL
   packages: !include_dir_named packages
 
 frontend:

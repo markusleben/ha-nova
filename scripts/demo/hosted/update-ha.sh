@@ -48,13 +48,15 @@ persist() {
 
 # Old images would fill the disk over months (and the guard resets at 80 %).
 # Prune only while Home Assistant runs the good digest: an image in use is
-# never pruned, and the relay image carries the keep label.
+# never pruned, and the relay and chat bridge images carry the keep label.
+# Build cache (the bridge's Go build) goes too.
 prune() {
   local good running
   good="$(cat "$STATE/ha-image" 2> /dev/null || true)"
   running="$(docker inspect ha-nova-testbed-ha --format '{{.Config.Image}}' 2> /dev/null || true)"
   if [[ -n "$good" && "$running" == "$good" ]]; then
     docker image prune -af --filter until=48h --filter "label!=$KEEP_LABEL" > /dev/null || true
+    docker builder prune -af --filter until=48h > /dev/null || true
   else
     log "skipping image prune: Home Assistant is not running the good digest"
   fi
@@ -70,6 +72,7 @@ gates() {
   got="$(timeout 120 node "$HOSTED/demo.mjs" smoke "$HA" "$(cat "$TB/.state/ha-llat")")" || return 1
   [[ "$got" == "$version" ]] || { log "smoke reports $got, expected $version"; return 1; }
   relay_roundtrip "$HA/relay" "$(cat "$STATE/relay-token")" || return 1
+  timeout 10 node "$HOSTED/chat.mjs" check "$HA" "$(cat "$TB/.state/ha-llat")" "https://$DEMO_DOMAIN" || return 1
   public_gate "$DEMO_DOMAIN" "$(cat "$STATE/relay-token")" || rc=$?
   ((rc != 2)) || log "the public gate cannot run yet (nothing served over TLS): candidates wait for TLS"
   return "$rc"

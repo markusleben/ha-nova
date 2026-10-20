@@ -11,11 +11,12 @@ set -euo pipefail
 # shellcheck source=/dev/null
 . /etc/ha-nova-demo.env
 RELAY_STRIKES=/run/ha-nova-demo-relay-strikes
+CHAT_STRIKES=/run/ha-nova-demo-chat-strikes
 
 reset() {
   echo "guard: $1; starting a full reset" >&2
   logger -p user.warning -t ha-nova-demo-guard "$1; full reset"
-  rm -f "$RELAY_STRIKES"
+  rm -f "$RELAY_STRIKES" "$CHAT_STRIKES"
   systemctl start --no-block ha-nova-demo-reset.service
   exit 0
 }
@@ -34,6 +35,19 @@ swap="$(free | awk '/^Swap:/ { print ($2 > 0) ? int($3 * 100 / $2) : 0 }')"
 # something is: run the gate through a reset.
 if [[ -e "$PENDING" ]] && tls_served "$DEMO_DOMAIN"; then reset "TLS for $DEMO_DOMAIN is up, public gate pending"; fi
 timeout 30 node "$HOSTED/demo.mjs" guard "$HA" "$(cat "$TB/.state/ha-llat")" || reset "house check failed"
+# Add to Claude (repairs external_url): a deleted or disabled ha_nova entry,
+# or a bridge that lets the owner in (exit 3), resets at once; no answer (a
+# slow HA, the bridge restarting) after 3 minutes in a row.
+rc=0
+timeout 10 node "$HOSTED/chat.mjs" check "$HA" "$(cat "$TB/.state/ha-llat")" "https://$DEMO_DOMAIN" || rc=$?
+((rc != 3)) || reset "chat-app path broken"
+if ((rc == 0)); then
+  rm -f "$CHAT_STRIKES"
+else
+  strikes=$(($(cat "$CHAT_STRIKES" 2> /dev/null || echo 0) + 1))
+  echo "$strikes" > "$CHAT_STRIKES"
+  ((strikes < 3)) || reset "chat-app path unhealthy for $strikes minutes"
+fi
 
 # The relay: a revoked HA token (auth) resets at once; anything else
 # (network, never connected, a failed round trip) after 3 minutes in a row.

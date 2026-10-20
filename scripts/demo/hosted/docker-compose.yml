@@ -3,7 +3,7 @@
 #
 # - Every visitor is a Home Assistant ADMIN, so the containers, not HA's
 #   permissions, are the boundary.
-# - All three services sit only on ha-nova-demo-house: an external
+# - All four services sit only on ha-nova-demo-house: an external
 #   `internal: true` network (bootstrap.sh) with no route out. Caddy
 #   (edge.yml, its own project) is the only container with egress and the
 #   only one publishing ports. Ports from the test bed compose are reset.
@@ -30,7 +30,7 @@ x-hardening: &hardening
     options: { max-size: "10m", max-file: "3" }
 
 # Empty, read-only directories over every place an admin could drop code or
-# files that HA executes or serves: custom_components, python_scripts, www
+# files that HA executes or serves: python_scripts, www
 # (/local, served unauthenticated), backups (upload + restore =
 # config replacement), image/tts (uploads, cache), /media (media uploads).
 # www and /media are also HA's only allowlist_external_dirs, so file-writing
@@ -49,6 +49,10 @@ services:
     # tree; it executes from /run, hence the exec tmpfs.
     cap_add: [CHOWN, DAC_OVERRIDE, FOWNER, SETGID, SETUID]
     tmpfs: ["/run:exec", "/tmp:size=64m"]
+    # The public origin (reset.sh): Home Assistant names it in its OAuth
+    # metadata only for requests to that host (configuration.yaml external_url).
+    environment:
+      DEMO_EXTERNAL_URL: "${DEMO_EXTERNAL_URL:?DEMO_EXTERNAL_URL is required (reset.sh)}"
     cpus: 1.5
     mem_limit: 640m
     memswap_limit: 1g
@@ -61,7 +65,9 @@ services:
       - ./.state/config/packages:/config/packages:ro
       # Never grows: system_log.write and debug logging go nowhere.
       - /dev/null:/config/home-assistant.log
-      - { <<: *sealed, target: /config/custom_components }
+      # The only custom integration: ha_nova (chat apps, Add to Claude), from
+      # this ref and read-only; its entry is seeded by reset.sh.
+      - ../../../nova/integration:/config/custom_components:ro
       - { <<: *sealed, target: /config/python_scripts }
       - { <<: *sealed, target: /config/www }
       - { <<: *sealed, target: /config/backups }
@@ -100,5 +106,32 @@ services:
       SNAPSHOT_DIR: /data/ha_nova_snapshots
     tmpfs: ["/data:size=8m,mode=1777"]
     cpus: 0.25
+    mem_limit: 128m
+    pids_limit: 64
+
+  # The chat-app bridge behind Home Assistant's /api/ha_nova/mcp (Add to
+  # Claude, docs/work/2026-10-20-demo-add-to-claude-spec.md). Only HA reaches
+  # it; it reaches HA only through the relay, with the public relay token. Its
+  # files (reset.sh, .state/bridge): the secret the integration sends, the
+  # demo profile, and chat-apps.json, which lets only the demo user in.
+  bridge:
+    <<: *hardening
+    # Built once per ref by bootstrap.sh (Dockerfile.bridge); a reset never
+    # builds or pulls it.
+    image: "${DEMO_BRIDGE_IMAGE:?DEMO_BRIDGE_IMAGE is required (reset.sh)}"
+    container_name: ha-nova-testbed-bridge
+    pull_policy: never
+    user: "1000:1000"
+    networks: [house]
+    environment:
+      HOME: /data/home
+      TZ: UTC
+      HA_NOVA_NO_BROWSER: "1"
+    # 120 requests a minute for the demo user, which every visitor shares.
+    command: [serve, --listen, "0.0.0.0:8794", --data-dir, /data/bridge, --secret-file, /data/secret, --server, demo, --rate-limit, "120"]
+    tmpfs: ["/tmp:size=8m"]
+    volumes:
+      - ./.state/bridge:/data
+    cpus: 0.5
     mem_limit: 128m
     pids_limit: 64
