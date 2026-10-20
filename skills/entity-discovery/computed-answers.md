@@ -44,8 +44,8 @@ count by hand. Values over time belong to `ha-nova:history`.
    A group sensor is left out (its members are counted on their own, and
    some may sit elsewhere); name it if it would have answered the question.
    A helper that already computes the answer (a min/max or group helper the
-   user names, or the only one for that place) goes in `keep` instead, and
-   the answer comes from it alone.
+   user names, or the only one for that place) goes in `keep` and is
+   the only id in `ids`: the answer comes from it alone.
 3. **Check before answering.** No inputs: say nothing of that kind reports
    there, and name the kind you looked for. More than one unit in `inputs`
    (°C and °F, W and kW): do not combine them; say so. "Which room is
