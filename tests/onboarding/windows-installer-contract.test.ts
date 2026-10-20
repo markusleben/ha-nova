@@ -161,15 +161,18 @@ if (-not $actual.Contains("verified fallback payload")) {
 if (($script:methods -join ",") -ne "Invoke-WebRequest,HttpClient") {
   throw "unexpected download method sequence: $($script:methods -join ',')"
 }
+Write-Output "PROBE_OK"
 `,
       "utf8",
     );
 
-    execFileSync(
+    // The marker proves the script ran: a pwsh that dies at startup can still exit 0.
+    const output = execFileSync(
       "pwsh",
       ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", probe],
-      { stdio: "pipe", env: pwshEnv },
+      { encoding: "utf8", env: pwshEnv },
     );
+    expect(output).toContain("PROBE_OK");
   });
 
   it("stays PowerShell-native without winget or Git Bash assumptions", () => {
