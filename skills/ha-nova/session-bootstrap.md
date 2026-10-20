@@ -8,9 +8,8 @@ Cited ../<x>/<file> paths are relative to the citing file.
 1. Before the selected server profile's
    first Home Assistant or HA NOVA task, and before any relay command or typed
    verb, run `ha-nova check-update --quiet` in the same shell command
-   as that first call: `ha-nova check-update --quiet; ha-nova call …` (a
-   `HA_NOVA_SERVER=<name>` prefix covers only the command it precedes: repeat
-   it). Once a typed verb or relay command for that server answered, a
+   as that first call: `ha-nova check-update --quiet; ha-nova call …` (repeat
+   a `HA_NOVA_SERVER=<name>` prefix per command, but not on `apply`). Once a typed verb or relay command for that server answered, a
    bare `ha-nova relay health` preflight is done; a skill reading its output
    still runs it.
 2. Run one check for every server profile in this session, with its

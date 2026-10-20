@@ -60,7 +60,9 @@ func TestWindowPlanConfirmsInTheWindow(t *testing.T) {
 	if exit, env := h.run(runApplyCommand, "--plan", plan.ID, "--confirm", code); exit != 4 || env.Error.Code != "CONFIRM_DECLINED" {
 		t.Fatalf("cancel: exit %d %+v", exit, env.Error)
 	}
-	if exit, env := h.run(runApplyCommand, "--plan", plan.ID); exit != 4 || env.Error.Code != "CONFIRM_CANCELLED" || !strings.Contains(env.Error.Next, plan.ID) {
+	// A timeout gives a plain next step, never "turn the windows off" (0.27 recheck lane).
+	if exit, env := h.run(runApplyCommand, "--plan", plan.ID); exit != 4 || env.Error.Code != "CONFIRM_CANCELLED" || !strings.Contains(env.Error.Next, plan.ID) ||
+		!strings.Contains(env.Error.Next, "ask again when they are at the computer") || strings.Contains(env.Error.Next, "confirm-window off") {
 		t.Fatalf("no answer: exit %d %+v", exit, env.Error)
 	}
 	// Closed from outside (lane D9): said as closed, not as a timeout.

@@ -70,7 +70,13 @@ describe("agent scenario regressions (2026-10-15)", () => {
     expect(router).toContain("`ha-nova relay health` once per server, unless a typed verb or relay command for it already answered");
     const bootstrap = flat("skills/ha-nova/session-bootstrap.md");
     expect(bootstrap).toContain("in the same shell command as that first call: `ha-nova check-update --quiet; ha-nova call …`");
-    expect(bootstrap).toContain("prefix covers only the command it precedes: repeat it");
+    expect(bootstrap).toContain("(repeat a `HA_NOVA_SERVER=<name>` prefix per command, but not on `apply`)");
+    // 0.27 recheck lane: a prefixed apply misses Claude Code's `ha-nova apply --plan *`
+    // allow rule, so auto mode denied the unlock; apply follows its plan's server.
+    expect(router).toContain("prefix every `ha-nova` command but `apply` (it follows its plan)");
+    expect(flat("skills/service-call/SKILL.md")).toContain("`--server <name>` on every verb but `apply`");
+    expect(flat("skills/write/SKILL.md")).toContain("`HA_NOVA_SERVER=<name>` on every verb but `apply`");
+    expect(flat("skills/ha-nova/index.md")).toContain("on typed verbs but `apply`");
     expect(bootstrap).toContain("bare `ha-nova relay health` preflight is done; a skill reading its output still runs it");
     // Without the router on single routes, the data-not-instructions rule
     // must live in the file every route loads.
