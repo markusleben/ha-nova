@@ -86,14 +86,16 @@ release:
     - **Use HA NOVA in Claude, also on your phone, and in ChatGPT.** Turn on chat apps in setup or on the NOVA page. Then add HA NOVA to Claude in one click, or paste its address into ChatGPT on the web. No computer needed.
     - **Window and phone ask together.** A confirmation asks in the window on your computer and on your linked phone at once. The first answer counts, and the phone shows what happened.
     - **Your home at a glance.** Setup ends with your home in numbers, things worth a look, and an automation made for your home to preview and save. Nothing in your home changes unless you save it.
-    - **Try it without Home Assistant.** `ha-nova try` connects your AI app to a shared demo house that resets every hour. `ha-nova try --stop` removes it.
+    - **Try it without Home Assistant.** `ha-nova try` connects your AI app to a shared demo house that resets every hour, then gives you five things to say. `ha-nova try --stop` removes it.
     - **Link sign-in without a code.** Set up Home Assistant Link as the owner, and this computer connects with that one sign-in. Other users still get the six-digit code.
     - **Uninstall in one step.** On the last computer that uses the NOVA Relay App, `ha-nova uninstall` can remove the App from Home Assistant too, after the owner signs in.
 
     ## Bug Fixes
 
     - **Setup waits for a slow Home Assistant.** Connecting this computer no longer gives up after 30 seconds. The page says what went wrong, and Try again often needs no new sign-in.
-    - **Plainer answers.** HA NOVA usually leaves out ids, technical settings, and raw error text, and gives times in your home's time zone, not UTC. Ask, and it shows the details.
+    - **Plainer answers.** HA NOVA usually leaves out ids, technical settings, raw error text, and addresses, and gives times in your home's time zone, not UTC. If the NOVA Relay App doesn't answer, it says where to look.
+    - **Your AI app says who asks.** Before an unlock or a delete, it says a window or your phone will ask you. It asks for a code only when neither can.
+    - **Linux: uninstall unlocks a locked keyring.** `ha-nova uninstall` opens the system window to unlock it first. HA NOVA never sees your password. Over SSH, it stops before any change and says what to do.
     - **Linux: `ha-nova` works in every new terminal.** The installer also adds it to `~/.bashrc`. A locked keyring now gets one plain next step instead of a connection error.
     - **A confirmation window closes with its command.** If you stop the command (Ctrl+C, or a closed terminal), its window closes too. So a late Confirm never lands in a window nobody reads.
     - **Setup asks before it uses a Home Assistant it found,** also when it found just one by IP address. After a pairing was removed on the NOVA page, setup goes straight to pairing again.
