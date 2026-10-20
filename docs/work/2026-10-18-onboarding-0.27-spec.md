@@ -155,6 +155,12 @@ The line updates in place and ends with `✓ Done: this computer is connected to
 - ✓ rows from doctor's checks;
 - [Done] · "Connect a different Home Assistant" · "Fix something" (only when a check fails).
 
+**Re-run as built (G1):** a plain `ha-nova setup` on a desktop with a saved address opens the page too (`cli/setup_page_rerun.go`).
+- Working: one screen "HA NOVA is connected." with rows Home Assistant · NOVA App · This computer · Your AI assistant, then step 3's rows (window, phone, Claude Code rule off by default, Link on/offer, chat apps as a link to NOVA in Home Assistant, since a re-run has no owner sign-in). [Done] applies the switches and ends setup. "Add another Home Assistant server" continues in the terminal.
+- Only the skills out of date (after an update): refreshed without a question, then the same screen.
+- Anything else: "Something needs a fix." with [Fix it], which runs the usual steps on the page; a computer removed on the NOVA page lands on step 1 to sign in again. While the NOVA App doesn't answer: [Check again] and the App page, no Fix it.
+- Not built: "Connect a different Home Assistant". Link-only setups, flags, `--service`, named profiles, SSH, and `--no-browser` keep the terminal.
+
 ### 4.1 Look and feel: the hanova.app system
 
 The page follows `../ha-nova-site/DESIGN.md` ("The Legible Cosmos"), so setup feels like the site the user came from. The prototype already does.

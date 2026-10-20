@@ -1,5 +1,5 @@
 // HA NOVA setup page, steps 3 ("You stay in control") and 4 ("Here's your
-// home, at a glance"). app.js hands in its helpers; the CLI sends data only,
+// home, at a glance"), and a re-run's screen. app.js hands in its helpers; the CLI sends data only,
 // and every text goes in as textContent. A save posts the id of the plan the
 // page shows; the CLI saves only a plan it stored for that preview.
 'use strict';
@@ -8,7 +8,7 @@ window.novaSteps = (h) => {
   const { t, el, row, head, button, link, render } = h;
   const say = (msg) => (msg ? t(msg.key, msg.args || {}) : '');
   // Switches and open details live here until "Finish setup" sends them.
-  const local = { rule: true, link: false, others: false, drafts: {}, chatAsk: false, chatSeen: '', how: false };
+  const local = { rule: undefined, link: false, others: false, drafts: {}, chatAsk: false, chatSeen: '', how: false };
 
   const toast = (text) => {
     const node = el('div', { class: 'toast', role: 'status' });
@@ -134,6 +134,10 @@ window.novaSteps = (h) => {
           el('div', {}, el('div', { class: 'k' }, key), el('div', { class: 'v', role: 'status' }, t(chat.no_restart ? 'setup.chat.wait_now' : 'setup.chat.wait')), progress), el('span'));
       case 'expired':
         return line(guard('·'), key, t('setup.chat.value'), problem(chat.problem));
+      case 'page_on': // a re-run: switched in NOVA in Home Assistant
+      case 'page_off':
+        return line(guard(chat.state === 'page_on' ? '✓' : '·'), key, t(chat.state === 'page_on' ? 'setup.chat.page_on' : 'setup.chat.page_off'), null,
+          link(t('setup.chat.open_nova'), chat.page, 'ghost btn-small', 'chat-nova'));
       case 'noaddress':
         return line(guard('·'), key, chat.problem ? say(chat.problem) : t('setup.chat.need_address'));
       default: {
@@ -152,8 +156,11 @@ window.novaSteps = (h) => {
     }
   };
 
-  const control = () => {
+  // status: a re-run's rows of what is set up, above these; Done applies the
+  // switches, and the Claude Code rule starts off (first run: on).
+  const control = (status) => {
     const c = h.state().control || {};
+    if (local.rule === undefined) local.rule = !status;
     const rows = [
       line(guard(c.window ? '✓' : '·'), t('setup.page.control.window_key'),
         t(c.window ? 'setup.page.control.window_value' : 'setup.page.control.window_off'), null, c.window ? tagOn() : null),
@@ -175,18 +182,43 @@ window.novaSteps = (h) => {
         toggle('b-link', label, local.link, () => { local.link = !local.link; render(true); }, busy), 'b-link-v'));
     } else if (c.link === 'run') {
       rows.push(line(guard('⇄'), t('setup.page.control.link_key'), t('setup.page.control.link_run'), null, spinner()));
+    } else if (c.link === 'on') {
+      rows.push(line(guard('✓'), t('setup.page.control.link_key'), t('setup.page.control.link_on'), null, tagOn()));
     }
     rows.push(chatRow(c));
     const choices = [];
     if (c.rule === 'offer' && local.rule) choices.push('rule');
     if (c.link === 'offer' && local.link) choices.push('link');
-    return [...head(t('setup.page.control.eyebrow'), t('setup.page.control.title'), t('setup.page.control.lead'), true),
+    const finish = t(status ? 'setup.page.rerun.done' : 'setup.page.control.finish');
+    return [...(status ? [...head(t('setup.page.rerun.eyebrow'), t('setup.page.rerun.title'), t('setup.page.rerun.lead')), status]
+      : head(t('setup.page.control.eyebrow'), t('setup.page.control.title'), t('setup.page.control.lead'), true)),
       el('ul', { class: 'rows tall' }, rows),
       el('div', { class: 'actions' }, asking
-        ? el('button', { id: 'b-finish', class: 'btn btn-primary', type: 'button', disabled: '' }, t('setup.page.control.finish'))
-        : button(t('setup.page.control.finish'), 'finish', 'primary', choices.join(','))),
-      c.phone === 'pick' ? el('p', { class: 'fine' }, t('setup.page.control.fine')) : null];
+        ? el('button', { id: 'b-finish', class: 'btn btn-primary', type: 'button', disabled: '' }, finish)
+        : button(finish, 'finish', 'primary', choices.join(','))),
+      c.phone === 'pick' ? el('p', { class: 'fine' }, t('setup.page.control.fine')) : null,
+      status && h.state().accepts.includes('server') ? el('p', { class: 'fine' }, el('button', { id: 'b-server', class: 'linkish', type: 'button', onclick: () => h.post('server') }, t('setup.page.rerun.add_server'))) : null];
   };
+
+  // A re-run (spec §4): what is set up. All fine: step 3's rows on the same
+  // screen. Else Fix it, or Check again while the NOVA App doesn't answer.
+  const statusKeys = { ha: 'setup.page.ha.key', app: 'setup.page.app.key', computer: 'setup.page.rerun.computer_key', clients: 'setup.page.clients.key' };
+  const rerun = () => {
+    const s = h.state();
+    const links = s.links || {};
+    // An App that needs an update: its page, next to its row.
+    const side = (r) => (s.control && r.id === 'app' ? { side: link(t('setup.page.link.app'), links.app, 'ghost btn-small', 'app') } : null);
+    const status = el('ul', { class: 'rows' }, (s.rows || []).map((r) => row(r.state, t(statusKeys[r.id]), say(r.msg), side(r))));
+    if (s.control) return control(status);
+    return [...head(t('setup.page.rerun.eyebrow'), t('setup.page.rerun.title_fix'), t('setup.page.rerun.lead_fix'), true),
+      problem(s.problem), status,
+      el('div', { class: 'actions' },
+        s.problem ? button(t('setup.page.button.recheck'), 'recheck') : button(t('setup.page.rerun.fix'), 'fix'),
+        link(t('setup.page.link.app'), links.app, 'ghost', 'app'))];
+  };
+  // How a re-run ended: what Done changed.
+  const saved = () => [...head(t('setup.page.saved.eyebrow'), t('setup.page.saved.title'), t('setup.page.saved.lead')),
+    ...((h.state().home || {}).notes || []).map((note) => el('p', { class: 'note' }, say(note)))];
 
   // Step 4.
   const named = (uses, role) => (uses || []).filter((u) => u.role === role).map((u) => u.name);
@@ -382,5 +414,5 @@ window.novaSteps = (h) => {
     return out;
   };
 
-  return { control, home, demo };
+  return { control: () => control(), home, demo, rerun, saved };
 };

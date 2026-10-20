@@ -57,14 +57,14 @@ func defaultSetupPageAvailable() bool {
 	return false
 }
 
-// usesSetupPage: the page covers a plain first run. Re-runs, repairs, flags,
-// service installs, named profiles, and saved Home Assistant Link state keep
-// the text wizard.
+// usesSetupPage: a plain `ha-nova setup` at the desktop, a first run or a
+// re-run (setup_page_rerun.go). Flags, service installs, named profiles, and
+// a setup that reaches Home Assistant only through Link keep the text wizard.
 func (f *setupFlow) usesSetupPage() bool {
 	return f.target == "" && !f.serviceMode &&
 		f.hostFlag == "" && f.haURLFlag == "" && f.relayURLFlag == "" && f.relayTokenFlag == "" &&
-		f.cfg.HAHost == "" && f.cfg.HAURL == "" && f.cfg.RelayBaseURL == "" && f.cfg.RelaySecureBaseURL == "" &&
-		f.cfg.Cloud == nil && activeServerProfile() == defaultServerProfileName && setupPageAvailable()
+		(f.cfg.Cloud == nil || (!remoteOnlyCloudSetup(f.cfg) && cloudRemoteFeatureAvailable())) &&
+		activeServerProfile() == defaultServerProfileName && setupPageAvailable()
 }
 
 // runOnPage serves the page, opens it, and runs the engine with it. Without a
@@ -136,6 +136,8 @@ func (f *setupFlow) stepPage() setupStepResult {
 	problem, screen, fix, askHA := f.pageProblem, "found", "", false
 	if problem != nil {
 		screen, fix, f.pageProblem = "connect", "retry", nil
+	} else if f.pageRemoved {
+		problem, f.pageRemoved = setupPageText("setup.page.problem.removed"), false
 	}
 	links := map[string]string{}
 	for {
@@ -257,14 +259,6 @@ func (f *setupFlow) pageWaitForClient() setupStepResult {
 		f.choices = choices
 	}
 	return setupGoOn
-}
-
-func setupClientNames(clients []string) []string {
-	names := make([]string, len(clients))
-	for i, client := range clients {
-		names[i] = setupClientLabel(client)
-	}
-	return names
 }
 
 func pageResolveAddress(input string) (string, string, bool) {

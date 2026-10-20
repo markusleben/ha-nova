@@ -60,6 +60,12 @@ type setupFlow struct {
 	pageNotes      []*setupPageMsg
 	pageChatLink   string
 	pageGeneration []byte
+	// pageRerunning: setup ran on this computer before (setup_page_rerun.go);
+	// pageRerunOK: it works, so the re-run screen with Done ends setup;
+	// pageRemoved: this computer was removed on the NOVA page, step 1 says so.
+	pageRerunning bool
+	pageRerunOK   bool
+	pageRemoved   bool
 
 	// inputs
 	paths           runtimePaths

@@ -14,7 +14,7 @@
   const screenEl = document.getElementById('screen');
   const dotsEl = document.getElementById('dots');
   const statusEl = document.getElementById('status');
-  const finalScreens = ['done', 'closed', 'skipped', 'demo', 'incomplete', 'finished', 'failed', 'stopped', 'idle', 'lost', 'elsewhere'];
+  const finalScreens = ['done', 'closed', 'saved', 'skipped', 'demo', 'incomplete', 'finished', 'failed', 'stopped', 'idle', 'lost', 'elsewhere'];
   const steps = { looking: 1, found: 1, noclient: 1, connect: 2, control: 3, home: 4, done: 4, closed: 4, skipped: 3, incomplete: 4 };
   const downloads = {
     claude_desktop: 'https://claude.com/download',

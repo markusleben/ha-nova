@@ -237,3 +237,73 @@ describe("setup page: Add to Claude", () => {
     expect(p.find("l-chat-claude-4")!.attributes.href).toBe(link);
   });
 });
+
+describe("setup page re-run (G1)", () => {
+  const rows = [
+    { id: "ha", state: "ok", msg: { key: "setup.page.rerun.ha", args: { host: "homeassistant.local" } } },
+    { id: "app", state: "ok", msg: { key: "setup.page.app.running_version", args: { version: "0.11.0" } } },
+    { id: "computer", state: "ok", msg: { key: "setup.page.rerun.computer_ok" } },
+    { id: "clients", state: "ok", msg: { key: "setup.page.rerun.clients_ok", args: { clients: ["Claude Code"] } } },
+  ];
+  const working = {
+    screen: "rerun", rows, accepts: ["finish", "server"],
+    control: { window: true, phone: "linked", phone_name: "iPhone", rule: "offer", rule_count: 2, link: "on", chat: { state: "page_off", page: "http://homeassistant.local:8123/app/x" } },
+  };
+
+  it("shows what is set up with the switches, and Done changes nothing unless one is switched", async () => {
+    const p = page(working);
+    await p.settle();
+    expect(p.screen.querySelector("h1")!.textContent).toBe(p.catalog["setup.page.rerun.title"]);
+    expect(p.screen.textContent).toContain("homeassistant.local");
+    expect(p.screen.textContent).toContain("Set up in Claude Code");
+    expect(p.screen.textContent).toContain(p.catalog["setup.page.control.link_on"]);
+    expect(p.find("l-chat-nova")!.attributes.href).toBe("http://homeassistant.local:8123/app/x");
+    expect(p.find("b-rule")!.attributes["aria-checked"]).toBe("false");
+    expect(p.find("b-finish")!.textContent).toBe(p.catalog["setup.page.rerun.done"]);
+    p.find("b-finish")!.dispatch("click");
+    await p.settle();
+    expect(p.posts).toEqual([{ action: "finish", value: "" }]);
+  });
+
+  it("changes one thing in two clicks", async () => {
+    const p = page(working);
+    await p.settle();
+    p.find("b-rule")!.dispatch("click");
+    p.find("b-finish")!.dispatch("click");
+    await p.settle();
+    expect(p.posts).toEqual([{ action: "finish", value: "rule" }]);
+  });
+
+  it("offers another Home Assistant server", async () => {
+    const p = page(working);
+    await p.settle();
+    p.find("b-server")!.dispatch("click");
+    await p.settle();
+    expect(p.posts).toEqual([{ action: "server" }]);
+  });
+
+  it("asks Fix it when something doesn't work, and Check again while the App doesn't answer", async () => {
+    const broken = { screen: "rerun", rows: [...rows.slice(0, 3), { ...rows[3], state: "fail", msg: { key: "setup.page.rerun.clients_fail", args: { clients: ["Claude Code"] } } }], accepts: ["fix"] };
+    const p = page(broken);
+    await p.settle();
+    expect(p.screen.querySelector("h1")!.textContent).toBe(p.catalog["setup.page.rerun.title_fix"]);
+    expect(p.find("b-finish")).toBeUndefined();
+    p.find("b-fix")!.dispatch("click");
+    await p.settle();
+    expect(p.posts).toEqual([{ action: "fix" }]);
+
+    const down = page({ ...broken, accepts: ["recheck"], problem: { key: "setup.page.rerun.problem_app" }, links: { app: "http://homeassistant.local:8123/_my_redirect/supervisor_addon?addon=x" } });
+    await down.settle();
+    expect(down.find("b-fix")).toBeUndefined();
+    expect(down.find("b-recheck")).toBeTruthy();
+    expect(down.find("l-app")).toBeTruthy();
+    expect(down.screen.textContent).toContain(down.catalog["setup.page.rerun.problem_app"]);
+  });
+
+  it("ends with what Done changed", async () => {
+    const p = page({ screen: "saved", accepts: [], home: { notes: [{ key: "setup.page.home.note_rule", args: { count: 2 } }] } });
+    await p.settle();
+    expect(p.screen.querySelector("h1")!.textContent).toBe(p.catalog["setup.page.saved.title"]);
+    expect(p.screen.textContent).toContain("Claude Code got its 2 rules");
+  });
+});

@@ -243,7 +243,7 @@ func claudeRulesHint(paths runtimePaths) string {
 	case len(missing) == 0:
 		return strings.TrimSpace(claudeNoReadRuleNote(rules))
 	default:
-		return why + "run `ha-nova setup` and choose “Add rules”. " + claudeRulesManual(missing)
+		return why + "run `ha-nova setup` and accept its rules. " + claudeRulesManual(missing)
 	}
 }
 

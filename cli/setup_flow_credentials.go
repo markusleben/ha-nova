@@ -104,12 +104,13 @@ func (f *setupFlow) prepareCredentials() setupStepResult {
 	}
 
 	f.current = detectSetupStateForAssessment(f.paths, f.cfg, f.state, f.target, f.savedTokenBeforeSetup, f.hadSavedTokenBeforeSetup)
-	if f.tokenStoragePreflightErr == nil {
-		currentLifecycleMarker := f.lifecycleMarker
-		if !f.setupChanged && !f.overrideApplied &&
-			!(len(f.lifecycleMarker) > 1 && len(f.lifecycleMarker[1]) > 0) {
-			currentLifecycleMarker = nil
-		}
+	currentLifecycleMarker := f.lifecycleMarker
+	if !f.setupChanged && !f.overrideApplied &&
+		!(len(f.lifecycleMarker) > 1 && len(f.lifecycleMarker[1]) > 0) {
+		currentLifecycleMarker = nil
+	}
+	onPageRerun := f.page != nil && !f.page.inTerminal() && strings.TrimSpace(f.cfg.HAHost) != "" && strings.TrimSpace(f.cfg.HAURL) != ""
+	if f.tokenStoragePreflightErr == nil && !onPageRerun {
 		if handled, code := maybeHandleInteractiveSetupCurrentState(f.ui.termIn(), f.ui.termOut(), f.paths, f.cfg, f.current, f.overrideApplied, f.serviceMode, currentLifecycleMarker...); handled {
 			return setupDone(code)
 		}
@@ -119,6 +120,9 @@ func (f *setupFlow) prepareCredentials() setupStepResult {
 	_, _, _, f.deviceAlreadyPaired, _ = relayFunctionalTransportForDoctor(f.cfg)
 	if f.tokenStoragePreflightErr != nil {
 		return setupGoTo(setupStepSecureStorageRecovery)
+	}
+	if result, handled := f.pageRerun(currentLifecycleMarker); handled {
+		return result
 	}
 	return setupGoTo(f.routeKnownAddress(setupStepHost))
 }

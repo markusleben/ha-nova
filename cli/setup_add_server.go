@@ -53,6 +53,14 @@ func maybeOfferAddServerForCompletedSetup(
 	if !add {
 		return false, 0
 	}
+	// attempted=true from here on — the flow's own closing output (success,
+	// cancel note, or partial-profile guidance) replaces the done banner.
+	return true, startAddServerFlow(reader, out, paths, lifecycleMarker...)
+}
+
+// startAddServerFlow runs the add flow after a yes (here, or on the setup
+// page's re-run screen).
+func startAddServerFlow(reader *bufio.Reader, out io.Writer, paths runtimePaths, lifecycleMarker ...[]byte) int {
 	// The completed re-run path deliberately drops its lifecycle markers
 	// before this screen — but the add flow's saves still need uninstall
 	// protection AND the config-snapshot CAS, so capture the full
@@ -61,7 +69,7 @@ func maybeOfferAddServerForCompletedSetup(
 		configSnapshot, snapshotErr := readSetupConfigSnapshot(paths)
 		if snapshotErr != nil {
 			printHumanErr("cannot inspect server configuration: %s", snapshotErr)
-			return true, 1
+			return 1
 		}
 		lifecycleMarker = [][]byte{
 			captureInstallLifecycleGeneration(paths),
@@ -69,9 +77,7 @@ func maybeOfferAddServerForCompletedSetup(
 			configSnapshot,
 		}
 	}
-	// attempted=true from here on — the flow's own closing output (success,
-	// cancel note, or partial-profile guidance) replaces the done banner.
-	return true, runAddServerFlow(reader, out, paths, lifecycleMarker...)
+	return runAddServerFlow(reader, out, paths, lifecycleMarker...)
 }
 
 func runAddServerFlow(

@@ -291,7 +291,7 @@ func (s *setupPageServer) state(w http.ResponseWriter, r *http.Request) {
 // setupPageEnded: screens after which setup no longer runs.
 func setupPageEnded(screen string) bool {
 	switch screen {
-	case "done", "closed", "skipped", "demo", "incomplete", "finished", "failed", "stopped", "idle":
+	case "done", "closed", "saved", "skipped", "demo", "incomplete", "finished", "failed", "stopped", "idle":
 		return true
 	}
 	return false

@@ -79,6 +79,10 @@ func (f *setupFlow) verifyDevice() setupStepResult {
 	f.ui.show(setupView{Blocks: []setupBlock{setupTight(setupText("setup.verify.device_checking"))}})
 	revoked := func() setupStepResult { // removed on the NOVA page: no App to wait for (lane E3)
 		f.ui.show(setupView{Blocks: []setupBlock{setupErrorBlock(setupText("setup.verify.device_revoked"))}})
+		if f.page != nil && !f.page.inTerminal() { // the page's step 1 signs in again and says why
+			f.devicePaired, f.deviceAlreadyPaired, f.pageRemoved = false, false, true
+			return setupGoTo(setupStepHost)
+		}
 		f.pairingBackStep = setupStepHost // back: a different address, not this check again
 		return setupGoTo(setupStepPairing)
 	}
