@@ -114,7 +114,6 @@ func movePhones(home phoneHome, current phoneSetup) []setupPagePhone {
 func (f *setupFlow) pageMovePhone(ctl *setupPageControl, deviceID string) bool {
 	old, name := ctl.OldPhone, ctl.PhoneName
 	asked, allowed, result := false, false, phoneLinkUnread
-	var others []setupPagePhone
 	if s, err := newRelaySession(f.paths, verbOptions{}); err == nil {
 		out := f.ui.termOut()
 		links, readable := phoneLinks(f.paths)
@@ -128,13 +127,15 @@ func (f *setupFlow) pageMovePhone(ctl *setupPageControl, deviceID string) bool {
 			allowed = allowPhoneChange(s, out, home, links, fmt.Sprintf("Link “%s” to confirm HA NOVA actions from “%s”?", name, phoneHost()), name, false, windowWait)
 			if allowed {
 				result = sendPhoneLink(s, out, home, links, links[home.owner], all[i], windowWait)
-				others = movePhones(home, phoneSetup{targets: []phoneTarget{all[i]}})
 			}
 		}
 		s.close()
 	}
 	if result == phoneLinked {
-		ctl.Phone, ctl.PhoneName, ctl.OldPhone, ctl.Phones = "linked", name, "", others
+		f.pagePhones(ctl) // the new phone, its watch, and where it can move now
+		if ctl.Phone != "linked" {
+			ctl.Phone, ctl.PhoneName, ctl.Phones = "linked", name, nil
+		}
 		return true
 	}
 	ctl.Phone, ctl.PhoneName, ctl.OldPhone = "linked", old, ""

@@ -155,18 +155,20 @@ describe("setup page: no AI app on this computer", () => {
     expect(p.posts).toEqual([{ action: "web" }]);
   });
 
-  it("names the browser as the AI assistant on step 1, with nothing to set up here", async () => {
+  it("names the browser as the AI assistant on step 1, with nothing to set up here and no code", async () => {
     const p = page({ ...found, clients: undefined, web: true });
     await p.settle();
     expect(p.screen.textContent).toContain(p.catalog["setup.page.clients.web"]);
     expect(p.screen.textContent).not.toMatch(/get set up|Gets set up/);
+    expect(p.find("b-terminal")).toBeUndefined(); // chat apps need the owner's sign-in here
   });
 
   it("shows chat apps first on step 3, with the question open; only its button turns them on", async () => {
-    const p = page({ screen: "control", web: true, accepts: ["finish", "chat"], control: { window: true, phone: "none", link: "offer", chat: { state: "offer", ask: true } } });
+    const p = page({ screen: "control", web: true, accepts: ["finish", "chat"], control: { window: true, phone: "none", chat: { state: "offer", ask: true } } });
     await p.settle();
+    expect(p.screen.textContent).not.toContain(p.catalog["setup.page.control.window_key"]); // never asks for the browser
     const rows = p.screen.all().find((n) => n.className === "rows tall")!.children;
-    expect(rows[0].textContent).toContain(p.catalog["setup.chat.key"]);
+    expect(rows[0]!.textContent).toContain(p.catalog["setup.chat.key"]);
     expect(p.find("b-chat-on")).toBeTruthy();
     expect(p.find("b-finish")!.attributes.disabled).toBe("");
     expect(p.posts).toEqual([]);
@@ -212,17 +214,19 @@ describe("setup page sign-in", () => {
     }
   });
 
-  it("never offers the code to someone who isn't the owner, since it needs the owner too", async () => {
+  it("tells someone who isn't the owner who to ask, and how the owner can help from another device", async () => {
     const notOwner = { screen: "connect", rows: [{ id: "signed_in", state: "ok" }], fix: "owner", links: {}, accepts: ["address", "terminal", "signin"],
       problem: { key: "setup.page.problem.not_owner", args: { name: "Anna" } } };
     const p = page(notOwner);
     await p.settle();
     expect(p.screen.textContent).toContain("Anna isn't the owner of this Home Assistant. Ask the person who set up Home Assistant to sign in here.");
     expect(p.find("b-signin")!.textContent).toBe(p.catalog["setup.page.button.owner"]);
-    expect(p.find("b-terminal")).toBeUndefined();
+    expect(p.screen.textContent).toContain(p.catalog["setup.page.found.owner_away"]);
+    expect(p.find("b-terminal")!.className).toBe("linkish");
     const other = page({ ...notOwner, fix: "retry", problem: { key: "setup.page.problem.timeout" } });
     await other.settle();
     expect(other.find("b-terminal")!.className).toBe("linkish");
+    expect(other.screen.textContent).not.toContain(other.catalog["setup.page.found.owner_away"]);
   });
 
   it("points to Stop and the code while it waits, with no copy of the sign-in link", async () => {
@@ -295,7 +299,7 @@ describe("setup page step 3: buttons act now, switches wait for the button", () 
     expect(p.screen.textContent).toContain("Tap “Move” on iPhone Anna first. Then tap “Allow” on Pixel Lisa.");
     const refused = page({ ...linked, control: { ...linked.control, phone_problem: { key: "setup.page.control.move_refused", args: { phone: "iPhone Anna" } } } });
     await refused.settle();
-    expect(refused.screen.textContent).toContain("The move wasn't approved on iPhone Anna, so nothing changed.");
+    expect(refused.screen.textContent).toContain("Nothing changed. iPhone Anna didn't OK the move. Lost that phone?");
   });
 
   it("shows a linked phone as On when there is no other phone", async () => {
@@ -369,6 +373,7 @@ describe("setup page: Add to Claude", () => {
     const p = page(control({ state: "noaddress" }));
     await p.settle();
     expect(p.screen.textContent).toContain(p.catalog["setup.chat.need_address"]);
+    expect(p.find("b-chat-ask")).toBeUndefined();
     expect(p.find("b-chat-switch")).toBeUndefined();
     expect(p.find("l-chat-claude")).toBeUndefined();
   });

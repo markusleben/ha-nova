@@ -55,7 +55,11 @@ var setupPageOpenClaude = openClaudeTerminal
 // pageHome shows step 4 until Done, Ctrl+C, or setupPageIdle without a click.
 func (f *setupFlow) pageHome() {
 	p := f.page
-	home := &setupPageHome{Loading: true, Notes: f.pageNotes, ChatLink: f.pageChatLink, Previews: map[string]*setupPagePreview{},
+	notes := f.pageNotes
+	if f.noClient && f.pageChatLink == "" { // Claude or ChatGPT in the browser, but chat apps aren't on
+		notes = append(slices.Clone(notes), setupPageText("setup.page.home.note_web_off"))
+	}
+	home := &setupPageHome{Loading: true, Notes: notes, ChatLink: f.pageChatLink, Previews: map[string]*setupPagePreview{},
 		Claude: slices.Contains(f.selectedClients, "claude")}
 	show := func() {
 		view := *home

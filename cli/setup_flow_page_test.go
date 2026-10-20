@@ -611,6 +611,7 @@ func TestSetupPagePairingProblemSaysWhyAndWhenToSignInAgain(t *testing.T) {
 		"owner check":    {before(&CloudError{Code: CloudErrHAProtocol, cause: errSignInOwnerCheckSlow}), "setup.page.problem.pairing_slow", true},
 		"not ready":      {before(errSignInRelayNotReady), "setup.page.problem.app_not_ready", true},
 		"App stopped":    {before(newCloudError(CloudErrIngressUnavailable, "x", nil)), "setup.page.problem.app_not_ready", true},
+		"App too old":    {before(errSignInRelayUnsupported), "setup.page.problem.app_old", true},
 		"not owner":      {before(errSignInNotOwner), "setup.page.problem.pairing", false},
 		"expired":        {before(newCloudError(CloudErrOuterSessionExpired, "x", nil)), "setup.page.problem.signin_expired", false},
 		"unknown":        {&haSignInPairingError{err: newCloudError(CloudErrOutcomeUnknown, "x", context.DeadlineExceeded)}, "setup.page.problem.pairing_unknown", false},

@@ -202,8 +202,9 @@ window.novaSteps = (h) => {
   // switches.
   const control = (status) => {
     const c = h.state().control || {};
+    // Claude or ChatGPT in the browser: the window on this computer never asks for them.
     const rows = [
-      line(guard(c.window ? '✓' : '·'), t('setup.page.control.window_key'),
+      h.state().web ? null : line(guard(c.window ? '✓' : '·'), t('setup.page.control.window_key'),
         t(c.window ? 'setup.page.control.window_value' : 'setup.page.control.window_off'), null, c.window ? tagOn() : null),
       phoneRow(c),
     ];

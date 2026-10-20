@@ -180,7 +180,7 @@ func (f *setupFlow) pageControl() int {
 				ctl.Phone, ctl.OldPhone, ctl.PhoneName, ctl.PhoneProblem = "moving", ctl.PhoneName, ctl.Phones[i].Name, nil
 				show()
 				if f.pageMovePhone(&ctl, action.Value) {
-					f.pageChatPhone(ctl.Chat, &chat)
+					f.pageChatMoved(ctl.Chat, &chat)
 				}
 			default:
 				ctl.Phone, ctl.PhoneName, ctl.PhoneProblem = "waiting", ctl.Phones[i].Name, nil
@@ -267,7 +267,7 @@ func pageFinishChoices(value string) (pageFinish, bool) {
 // offer would (pageControl also needs its remote access on for this home).
 func (f *setupFlow) pageLinkOffered() bool {
 	coordinator := cloudCoordinatorForSetup
-	if f.serviceMode || f.cfg.Cloud != nil || coordinator == nil || !coordinator.Available() ||
+	if f.serviceMode || f.noClient || f.cfg.Cloud != nil || coordinator == nil || !coordinator.Available() || // Link here is for this computer's AI app
 		cloudRecoveryHoldProblem(f.cfg) != nil || !cloudSetupPromptEligible(f.page.text.out) {
 		return false
 	}

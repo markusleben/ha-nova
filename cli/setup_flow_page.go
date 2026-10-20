@@ -258,10 +258,16 @@ func (f *setupFlow) pageDiscover() []setupDiscoveryCandidate {
 // first.
 func (f *setupFlow) pageWaitForClient() setupStepResult {
 	for !hasAvailableSetupClientChoice(f.choices) {
-		f.page.update(func(v *setupPageState) { v.Screen = "noclient" })
-		action, err := f.page.wait("recheck", "web")
-		if err != nil {
-			return f.cancelled()
+		// A re-run with no AI app here goes on as the browser path, as the
+		// terminal's no-app path does: the re-run screen says so.
+		rerun := strings.TrimSpace(f.cfg.HAHost) != "" && strings.TrimSpace(f.cfg.HAURL) != ""
+		action := setupPageAction{Action: "web"}
+		if !rerun {
+			f.page.update(func(v *setupPageState) { v.Screen = "noclient" })
+			var err error
+			if action, err = f.page.wait("recheck", "web"); err != nil {
+				return f.cancelled()
+			}
 		}
 		if action.Action == "web" {
 			f.noClient = true
@@ -452,8 +458,9 @@ func pagePairingProblem(failure *setupPagePairingError) (*setupPageMsg, *haSignI
 		return setupPageText("setup.page.problem.slow"), nil
 	case haSignInSlow(cause):
 		return setupPageText("setup.page.problem.pairing_slow"), reuse
-	case errors.Is(cause, errSignInRelayNotReady), errors.Is(cause, errSignInRelayUnsupported),
-		IsCloudErrorCode(cause, CloudErrIngressUnavailable):
+	case errors.Is(cause, errSignInRelayUnsupported):
+		return setupPageText("setup.page.problem.app_old"), reuse
+	case errors.Is(cause, errSignInRelayNotReady), IsCloudErrorCode(cause, CloudErrIngressUnavailable):
 		return setupPageText("setup.page.problem.app_not_ready"), reuse
 	}
 	return setupPageText("setup.page.problem.pairing"), reuse
@@ -485,7 +492,9 @@ func pageSignInFailure(err error, user HACurrentUser, haURL string) *setupPageFa
 		failure.problem = setupPageText("setup.page.problem.timeout")
 	case errors.Is(err, errSignInBrowser):
 		failure.problem = setupPageText("setup.page.problem.canceled")
-	case errors.Is(err, errSignInAppMissing), errors.Is(err, errSignInRelayNotReady), errors.Is(err, errSignInRelayUnsupported):
+	case errors.Is(err, errSignInRelayUnsupported):
+		failure.problem = setupPageText("setup.page.problem.app_old")
+	case errors.Is(err, errSignInAppMissing), errors.Is(err, errSignInRelayNotReady):
 		failure.problem = setupPageText("setup.page.problem.app_not_ready")
 	case errors.As(err, &certificate), errors.As(err, &authority):
 		failure.problem, failure.address = setupPageText("setup.page.problem.certificate"), true

@@ -113,6 +113,19 @@ func (f *setupFlow) pageChatPhone(c *setupPageChat, offer *chatAppsOffer) {
 	c.Phone = chatAppsPhoneName(f.paths, setupSignedInUser, offer.state)
 }
 
+// pageChatMoved: after "Use another phone". Chat apps that are on keep the
+// phone the App holds for them (the move is this computer's); the row says
+// where to change it. Still off: the consent names the phone now linked.
+func (f *setupFlow) pageChatMoved(c *setupPageChat, offer *chatAppsOffer) {
+	switch {
+	case c == nil:
+	case c.State == "on" || c.State == "page_on":
+		c.Problem = setupPageText("setup.chat.phone_kept")
+	default:
+		c.Phone = chatAppsPhoneName(f.paths, setupSignedInUser, offer.state)
+	}
+}
+
 // pageChatRow is step 3's row from a read through the owner's session:
 // no internet address (one plain line), on (the address and Add to Claude),
 // or the switch with its consent.

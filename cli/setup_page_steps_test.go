@@ -535,8 +535,8 @@ func TestSetupPagePhoneLinkTimesOut(t *testing.T) {
 	<-done
 }
 
-// The Claude Code rule: preselected on the page, written only by "Finish
-// setup" with the switch on, and recorded for uninstall as in #743.
+// The Claude Code rule: preselected on the page, written only by "Continue"
+// with the switch on, and recorded for uninstall as in #743.
 func TestSetupPageClaudeRuleOnlyOnFinish(t *testing.T) {
 	for _, on := range []bool{true, false} {
 		paths, settings := claudeRuleTestPaths(t)
@@ -547,7 +547,7 @@ func TestSetupPageClaudeRuleOnlyOnFinish(t *testing.T) {
 			t.Fatalf("control = %+v", ctl)
 		}
 		if _, err := os.Stat(settings); !os.IsNotExist(err) {
-			t.Fatalf("step 3 wrote the settings before Finish: %v", err)
+			t.Fatalf("step 3 wrote the settings before Continue: %v", err)
 		}
 		p.click("finish", "rule,rm") // never sent by the page: ignored
 		p.waitFor("finish again", accepting("finish"))

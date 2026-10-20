@@ -9,15 +9,15 @@ import (
 	"testing"
 )
 
-// The setup page's user stories (docs/internal/2026-10-20-setup-page-user-stories.md):
-// Claude or ChatGPT in the browser, a new phone on a re-run, and why the
-// terminal waits.
+// The setup page's user stories (the 2026-10-20 review): Claude or ChatGPT
+// in the browser, a new phone on a re-run, and why the terminal waits.
 
 // No AI app on this computer: "I use Claude or ChatGPT in the browser" goes
 // on as the terminal's no-app path. One sign-in pairs this computer, nothing
 // is taught, and the page ends with step 4.
 func TestSetupPageGoesOnForClaudeOrChatGPTInTheBrowser(t *testing.T) {
 	withClientRuntimeAvailability(t, map[string]bool{})
+	t.Cleanup(clearSetupNextPromptSkipsStaleBlankInput) // the sign-in arms it; no terminal prompt follows here
 	setupGoldenHome(t)
 	ha := newFakeSignInHA(t)
 	pairs := stubSetupPageHome(t, ha.server.URL, true)
@@ -62,6 +62,29 @@ func TestSetupPageGoesOnForClaudeOrChatGPTInTheBrowser(t *testing.T) {
 	if installed := loadStateOrDefault(paths).InstalledClients; len(installed) != 0 {
 		t.Fatalf("installed into %v", installed)
 	}
+}
+
+// A re-run with no AI app here goes on as the browser path, without the
+// "No AI app" screen.
+func TestSetupPageRerunWithoutAnAIAppSkipsTheQuestion(t *testing.T) {
+	page := startSetupPageTest(t)
+	page.launch()
+	flow := &setupFlow{page: page.ui, ui: page.ui, cfg: applySelectedSetupHost(runtimeConfig{}, "ha.local", "http://ha.local:8123", "")}
+	if result := flow.pageWaitForClient(); result.done || !flow.noClient || !page.ui.snapshot().Web || page.ui.snapshot().Screen == "noclient" {
+		t.Fatalf("result %+v noClient=%v state %+v", result, flow.noClient, page.ui.snapshot())
+	}
+}
+
+// After a move, chat apps that are on keep their own phone, and say so;
+// still off, the question names the phone linked now.
+func TestSetupPageChatAfterAPhoneMove(t *testing.T) {
+	f := &setupFlow{}
+	on := &setupPageChat{State: "page_on"}
+	f.pageChatMoved(on, &chatAppsOffer{})
+	if on.Problem == nil || on.Problem.Key != "setup.chat.phone_kept" {
+		t.Fatalf("on: %+v", on)
+	}
+	f.pageChatMoved(nil, &chatAppsOffer{}) // no row
 }
 
 // The browser user gets step 3's chat-app question open; nothing turns on

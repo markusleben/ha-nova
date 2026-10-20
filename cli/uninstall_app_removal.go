@@ -224,7 +224,7 @@ func removeNOVAAppForUninstall(out io.Writer, cfg runtimeConfig) bool {
 	case errors.Is(err, errAppInstallNoSupervisor):
 		renderSetupWarningLine(out, "This Home Assistant has no Apps, so there is no NOVA App to remove.")
 	case errors.Is(err, errSignInNotOwner):
-		renderSetupWarningLine(out, "Signed in as %s, who is not the Home Assistant owner. Only the owner can remove the NOVA App.", haSignInUserName(session.user))
+		renderSetupWarningLine(out, "Signed in as %s, who is not the Home Assistant owner. Only the owner can remove the NOVA App. %s", haSignInUserName(session.user), haOwnerHint)
 	default:
 		renderSetupWarningLine(out, "%s", haSignInFallbackLine(err, session.user))
 	}

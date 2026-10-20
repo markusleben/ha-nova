@@ -198,7 +198,8 @@
         fine = [primary === 'signin' ? null : t('setup.page.found.fine_install'),
           t('setup.page.found.fine_access', { client: `${location.origin}/ha-nova` })];
         // No "copy the sign-in link": its answer only comes back to this computer.
-        fine.push(codeLink());
+        // Claude or ChatGPT in the browser: no code, chat apps need the owner's sign-in here.
+        if (!state.web) fine.push(codeLink());
       } else if (!asking && state.app) {
         fine = [t('setup.page.found.fine_terminal')];
       }
@@ -236,8 +237,9 @@
           fixLabels[state.fix] ? button(t(fixLabels[state.fix]), 'signin') : null,
           link(t('setup.page.link.guide'), links.guide, fixLabels[state.fix] ? 'ghost' : 'primary', 'guide'),
           link(t('setup.page.link.app'), links.app, 'ghost', 'app')),
-          // Not for a non-owner: the code needs the owner too.
-          state.fix === 'owner' ? null : codeLink());
+          // Not owner: the owner can still make a code on any device.
+          state.fix === 'owner' && !state.web ? el('p', { class: 'fine' }, t('setup.page.found.owner_away')) : null,
+          state.web ? null : codeLink());
       }
       return [...head(t('setup.page.connect.eyebrow'), t('setup.page.connect.title'), t(installs ? 'setup.page.connect.lead' : 'setup.page.connect.lead_signin'), true),
         problemLine(), el('ul', { class: 'rows' }, items), ...actions];
