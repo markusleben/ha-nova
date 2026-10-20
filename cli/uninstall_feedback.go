@@ -46,6 +46,7 @@ var uninstallAreaLines = []struct {
 const (
 	uninstallKeptPairing     = "HA NOVA's saved Home Assistant address and this computer's key, for a reinstall"
 	uninstallKeptPairingLink = "HA NOVA's saved Home Assistant address, this computer's key, and your Link sign-in, for a reinstall"
+	uninstallKeptLink        = "HA NOVA's saved Home Assistant address and your Link sign-in, for a reinstall"
 )
 
 // uninstallReport collects what a removal did. The summary names areas, not
@@ -193,7 +194,7 @@ func reportKeptPairing(paths runtimePaths, report *uninstallReport) {
 		report.addKept(uninstallKeptPairingLink, "")
 		report.addDetail("Kept Home Assistant connection config, this device's pairing, and its Cloud authorization. Use 'ha-nova uninstall --purge' to remove and revoke them too.")
 	} else if cloudConfigurationExistsForUninstall(paths.ConfigFile) {
-		report.addKept(uninstallKeptPairingLink, "")
+		report.addKept(uninstallKeptLink, "")
 		report.addDetail("Kept Home Assistant connection config and its Cloud authorization. Use 'ha-nova uninstall --purge' to remove and revoke them too.")
 	} else if deviceCredentialExistsForUninstall(paths.ConfigFile) {
 		report.addKept(uninstallKeptPairing, "")

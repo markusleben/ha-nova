@@ -37,3 +37,14 @@ func TestPreflightStaysKeepTheSharedApp(t *testing.T) {
 		t.Fatalf("never paired: nothing stays, got %#v", never)
 	}
 }
+
+// A Cloud device key is this computer's key, never a Link sign-in, whatever
+// phase removes it; a Link sign-in counts only when its authorization went.
+func TestCloudDeviceRemovalIsFiledAsThisComputersKey(t *testing.T) {
+	report := &uninstallReport{}
+	report.setArea(uninstallAreaLink)
+	reportCloudDeviceRevocation(report, "default", false, true)
+	if !report.areas[uninstallAreaPairing] || report.areas[uninstallAreaLink] {
+		t.Fatalf("areas = %v", report.areas)
+	}
+}

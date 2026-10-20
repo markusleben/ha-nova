@@ -157,7 +157,7 @@ func executeCloudPurgePlans(
 		}
 		if execution.authorizationPlan.hasAuthorization() &&
 			report != nil {
-			report.addRemoved(fmt.Sprintf(
+			report.addRemovedIn(uninstallAreaLink, fmt.Sprintf(
 				"Home Assistant Link authorization (server %q)",
 				execution.target.profileName,
 			))

@@ -603,7 +603,7 @@ func finalizeLocalUninstallWithProgressUnlocked(
 				return fmt.Errorf("failed before token_cleanup: %w", err)
 			}
 		}
-		report.setArea(uninstallAreaLink)
+		report.setArea(uninstallAreaPairing) // a Link sign-in is filed by name
 		if err := purgeCloudAuthorizationsForUninstall(
 			paths,
 			report,
@@ -677,7 +677,7 @@ func finalizeLocalUninstallWithProgressUnlocked(
 			return fmt.Errorf("failed before path_cleanup: %w", err)
 		}
 	}
-	report.setArea(uninstallAreaProgram)
+	report.setArea(uninstallAreaFiles) // a dev install keeps its program
 	pathRemoval, pathErr := removeManagedPathWithReport(paths, state, report)
 	if pathErr != nil {
 		return fmt.Errorf("failed to remove managed PATH entry: %w", pathErr)

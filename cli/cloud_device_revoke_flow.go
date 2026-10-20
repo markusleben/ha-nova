@@ -297,7 +297,7 @@ func reportCloudDeviceRevocation(
 	revokedRemotely bool,
 ) {
 	if report != nil {
-		report.addRemoved(cloudDeviceCredentialLabel(
+		report.addRemovedIn(uninstallAreaPairing, cloudDeviceCredentialLabel(
 			profileName,
 			remoteOnly,
 		))
