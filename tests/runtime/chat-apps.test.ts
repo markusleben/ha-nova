@@ -459,8 +459,18 @@ describe("chat apps: leftovers after a restore rewound /data", () => {
     const apps = chatApps();
     expect(apps.status(OWNER)).toMatchObject({ enabled: false, unfinished: false });
     await apps.boot();
+    await apps.turnOff(); // also when asked: this App has nothing there
     expect(entries).toHaveLength(1);
+    expect(discovery.size).toBe(1);
     expect(existsSync(folder())).toBe(true);
+  });
+
+  it("finds the message by its folder before Home Assistant made an entry from it", async () => {
+    await onThenRewound();
+    entries = []; // e.g. the owner just removed it, or Home Assistant hasn't set it up yet
+    await chatApps().turnOff();
+    expect(discovery.size).toBe(0);
+    expect(existsSync(folder())).toBe(false);
   });
 
   it("never asks the Supervisor or Home Assistant to change anything when nothing is left", async () => {

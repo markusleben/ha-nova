@@ -11,7 +11,7 @@ import type { DeviceRegistry } from "../security/device-registry.js";
 import { BRIDGE_INSTALL_ID } from "../security/pairing-metadata.js"; // re-minting replaces the old record
 import { readPrivateFileSync, writeFileAtomicSync } from "../storage/atomic-file.js";
 import type { CoreProxyRequest, CoreProxyResponse } from "../types/api.js";
-import { ChatAppsError, chatAppFilesPresent, clearChatAppsInHA, installIntegration, integrationIsOurs, removeIntegration, SERVICE } from "./chat-apps-ha.js";
+import { ChatAppsError, chatAppFilesPresent, clearChatAppsInHA, installIntegration, integrationOwner, removeIntegration, SERVICE } from "./chat-apps-ha.js";
 
 // Chat apps (spec docs/work/2026-10-18-onboarding-0.27-spec.md §11; contract
 // docs/work/2026-10-19-chat-bridge-contract.md, "App side"): the owner's
@@ -84,7 +84,7 @@ export function createChatApps(deps: ChatAppsDeps): ChatApps {
   // Off, but something this App made is still there: an unfinished turn-off,
   // or a backup restore that rewound /data (lane R1).
   const leftover = (state: State): boolean =>
-    state.discovery_uuid !== undefined || bridgeDeviceId() !== null || integrationIsOurs(deps.configRoot, owner);
+    state.discovery_uuid !== undefined || bridgeDeviceId() !== null || integrationOwner(deps.configRoot) === owner;
   let child: ChildProcess | null = null;
   let wanted = false;
   let respawn: NodeJS.Timeout | undefined;
@@ -212,13 +212,18 @@ export function createChatApps(deps: ChatAppsDeps): ChatApps {
   // before any file can fail (so a request still finishing can no longer
   // reach the Relay); the state says off before the revoke can fail (so a
   // start-up never resumes); the secret goes after the message that carries it.
-  const off = async (): Promise<void> => {
+  // lookup=false: a failed turn-on's cleanup (the folder is its own, not a
+  // sign of an older message).
+  const off = async (lookup = true): Promise<void> => {
+    const mine = (state: State): boolean => state.discovery_uuid !== undefined || bridgeDeviceId() !== null;
     stopChild();
     clearTimeout(restartTimer);
     let state: State = { enabled: false };
     let unreadable: unknown = null;
+    let hadMine = false;
     try {
       state = load();
+      hadMine = mine(state);
       save({ ...state, enabled: false });
     } catch (error) {
       unreadable = error;
@@ -232,9 +237,11 @@ export function createChatApps(deps: ChatAppsDeps): ChatApps {
     if (unreadable !== null) {
       throw unreadable;
     }
-    await clearChatAppsInHA(deps, state.discovery_uuid);
+    const markedBy = integrationOwner(deps.configRoot);
+    const ours = hadMine || markedBy === null || markedBy === owner; // never another NOVA App's chat apps
+    if (ours) await clearChatAppsInHA(deps, state.discovery_uuid, lookup && chatAppFilesPresent(deps.configRoot) === true);
     rmSync(file("secret"), { force: true });
-    removeIntegration(deps.configRoot);
+    if (ours) removeIntegration(deps.configRoot);
     save({ enabled: false });
   };
 
@@ -333,7 +340,7 @@ export function createChatApps(deps: ChatAppsDeps): ChatApps {
       const before = load();
       const wasOn = before.enabled;
       if (!wasOn) {
-        await clearChatAppsInHA(deps, before.discovery_uuid); // left over from an older App or a restore: start clean
+        await clearChatAppsInHA(deps, before.discovery_uuid, chatAppFilesPresent(deps.configRoot) === true); // left over from an older App or a restore: start clean
       }
       failures = 0;
       try {
@@ -345,7 +352,7 @@ export function createChatApps(deps: ChatAppsDeps): ChatApps {
       } catch (error) {
         if (!wasOn) {
           // Leave nothing behind: off is what the page shows, and [Turn on] the retry.
-          await off().catch((cleanup: unknown) => deps.logger.error("Chat apps: cleanup after a failed turn-on failed", { error: String((cleanup as Error).message) }));
+          await off(false).catch((cleanup: unknown) => deps.logger.error("Chat apps: cleanup after a failed turn-on failed", { error: String((cleanup as Error).message) }));
         } else if (child === null && wanted) {
           startLater();
         }

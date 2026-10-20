@@ -68,12 +68,12 @@ export function installIntegration(configRoot: string, source: string, owner: st
   writeFileSync(join(parent, SERVICE, OWNER_FILE), owner, { mode: 0o644, flag: "wx" });
 }
 
-// Whether the integration folder is the one this App wrote.
-export function integrationIsOurs(configRoot: string, owner: string): boolean {
+// The App that wrote the integration folder; null without a mark.
+export function integrationOwner(configRoot: string): string | null {
   try {
-    return configRoot !== "" && readFileSync(join(configRoot, "custom_components", SERVICE, OWNER_FILE), "utf8") === owner;
+    return configRoot === "" ? null : readFileSync(join(configRoot, "custom_components", SERVICE, OWNER_FILE), "utf8");
   } catch {
-    return false;
+    return null;
   }
 }
 
@@ -96,15 +96,16 @@ export interface ClearDeps {
 
 // Removes the discovery message and every ha_nova entry, found in Home
 // Assistant and the Supervisor, never only through /data: a backup restore
-// rewinds /data, not them. saved is the message id /data remembers. The
+// rewinds /data, not them. saved is the message id /data remembers; lookup:
+// the caller has other evidence of a leftover message (its folder). The
 // message goes first, so Home Assistant can't set up an entry from it again.
 // The integration folder stays for the caller (it goes last).
-export async function clearChatAppsInHA(deps: ClearDeps, saved: string | undefined): Promise<void> {
+export async function clearChatAppsInHA(deps: ClearDeps, saved: string | undefined, lookup: boolean): Promise<void> {
   const entries = await haEntries(deps);
   const dropped = saved !== undefined && (await deps.supervisor.deleteDiscovery(saved));
-  if (!dropped && entries.length > 0) {
-    // An entry, but no message /data knows: the Supervisor keeps one message
-    // per App and service, so sending one names the message this App left.
+  if (!dropped && (entries.length > 0 || lookup)) {
+    // No message /data knows: the Supervisor keeps one message per App and
+    // service, so sending one names the message this App left.
     // The integration refuses the empty config: Home Assistant sets up
     // nothing from it.
     await deps.supervisor.deleteDiscovery(await deps.supervisor.sendDiscovery(SERVICE, {}));
