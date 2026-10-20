@@ -1,0 +1,7 @@
+*
+!cli
+!skills
+!version.json
+!scripts/release/stage-app-bridge.sh
+cli/**/*_test.go
+cli/testdata

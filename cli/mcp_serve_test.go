@@ -343,6 +343,42 @@ func TestServeChatCodesOff(t *testing.T) {
 	}
 }
 
+// --rate-limit: n requests per minute per HA user, then a JSON-RPC 429 that
+// never reaches the Relay; another user has a window of their own.
+func TestServeRateLimit(t *testing.T) {
+	s := newServe(t, newFakeHA(), `{"allowed_users":["`+userA+`","`+userB+`"]}`)
+	s.b.limiter.limit = 2
+	list := `{"jsonrpc":"2.0","id":7,"method":"tools/list"}`
+	for i := 0; i < 2; i++ {
+		if status, _ := s.raw(http.MethodPost, s.as(userA), list); status != http.StatusOK {
+			t.Fatalf("request %d: %d", i+1, status)
+		}
+	}
+	status, body := s.raw(http.MethodPost, s.as(userA), list)
+	if status != http.StatusTooManyRequests || !strings.Contains(body, `"id":7,`) || !strings.Contains(body, "Wait a minute") {
+		t.Fatalf("over the limit: HTTP %d %s", status, body)
+	}
+	if status, _ := s.raw(http.MethodPost, s.as(userB), list); status != http.StatusOK {
+		t.Fatalf("another user: %d", status)
+	}
+	s.b.limiter.mu.Lock()
+	w := s.b.limiter.hits[s.userKey(userA)]
+	w.start = w.start.Add(-time.Minute)
+	s.b.limiter.hits[s.userKey(userA)] = w
+	s.b.limiter.mu.Unlock()
+	if status, _ := s.raw(http.MethodPost, s.as(userA), list); status != http.StatusOK {
+		t.Fatalf("next minute: %d", status)
+	}
+	if !strings.Contains(s.logs.String(), "http=429") {
+		t.Fatalf("log: %s", s.logs.String())
+	}
+}
+
+func (s *serveHarness) userKey(user string) string {
+	call, _, _ := s.b.policyFor(user)
+	return call.key
+}
+
 // The command refuses to start without an explicit address, a data
 // directory, and a 256-bit secret.
 func TestServeCommandNeedsExplicitConfig(t *testing.T) {
@@ -360,6 +396,7 @@ func TestServeCommandNeedsExplicitConfig(t *testing.T) {
 		"short secret":  {"--listen", "127.0.0.1:0", "--data-dir", data, "--secret-file", short},
 		"missing file":  {"--listen", "127.0.0.1:0", "--data-dir", data, "--secret-file", filepath.Join(dir, "none")},
 		"wait too long": {"--listen", "127.0.0.1:0", "--data-dir", data, "--secret-file", good, "--confirm-wait", "5m"},
+		"negative rate": {"--listen", "127.0.0.1:0", "--data-dir", data, "--secret-file", good, "--rate-limit", "-1"},
 	} {
 		if exit := runServeCommand(runtimePaths{}, args); exit != 1 {
 			t.Errorf("%s: exit %d", name, exit)

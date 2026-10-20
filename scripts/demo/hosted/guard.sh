@@ -34,6 +34,8 @@ swap="$(free | awk '/^Swap:/ { print ($2 > 0) ? int($3 * 100 / $2) : 0 }')"
 # something is: run the gate through a reset.
 if [[ -e "$PENDING" ]] && tls_served "$DEMO_DOMAIN"; then reset "TLS for $DEMO_DOMAIN is up, public gate pending"; fi
 timeout 30 node "$HOSTED/demo.mjs" guard "$HA" "$(cat "$TB/.state/ha-llat")" || reset "house check failed"
+# Add to Claude: a visitor can delete or disable the ha_nova entry in Settings.
+timeout 15 node "$HOSTED/chat.mjs" check "$HA" "$(cat "$TB/.state/ha-llat")" || reset "chat-app path check failed"
 
 # The relay: a revoked HA token (auth) resets at once; anything else
 # (network, never connected, a failed round trip) after 3 minutes in a row.

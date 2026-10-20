@@ -9,8 +9,9 @@
 #   reset.sh --candidate <ref>      a verified candidate (update-ha.sh only)
 #
 # lock -> hide the house (drop /srv/ready) -> down -> restore the clone ->
-# up -> relay (stable public token, fresh HA token) -> egress, DNS, listener,
-# relay gates -> dashboard -> connect.json + /srv/ready -> public gate.
+# seed the chat-app entry -> up -> relay (stable public token, fresh HA
+# token) + chat bridge -> egress, DNS, listener, relay, chat gates ->
+# dashboard -> connect.json + /srv/ready -> public gate.
 set -euo pipefail
 
 # Everything runs inside main: the checkout may rewrite this very file, and
@@ -56,8 +57,12 @@ main() {
   DEMO_RELAY_IMAGE="$(relay_image "$DEMO_REF")"
   docker image inspect "$DEMO_RELAY_IMAGE" > /dev/null 2>&1 \
     || gate_failed "relay image $DEMO_RELAY_IMAGE missing; re-run bootstrap.sh"
+  DEMO_BRIDGE_IMAGE="$(bridge_image "$DEMO_REF")"
+  docker image inspect "$DEMO_BRIDGE_IMAGE" > /dev/null 2>&1 \
+    || gate_failed "chat bridge image $DEMO_BRIDGE_IMAGE missing; re-run bootstrap.sh"
+  DEMO_EXTERNAL_URL="https://$DEMO_DOMAIN"
   # down.sh wipes .state with this image: in use by Caddy, so never pruned.
-  export TESTBED_OVERLAY="$HOSTED" TESTBED_HA_IMAGE DEMO_RELAY_IMAGE DEMO_DOMAIN ABUSE_CONTACT TESTBED_WIPE_IMAGE="$CADDY_IMAGE"
+  export TESTBED_OVERLAY="$HOSTED" TESTBED_HA_IMAGE DEMO_RELAY_IMAGE DEMO_BRIDGE_IMAGE DEMO_EXTERNAL_URL DEMO_DOMAIN ABUSE_CONTACT TESTBED_WIPE_IMAGE="$CADDY_IMAGE"
 
   RELAY_AUTH_TOKEN="" HA_LLAT="" timeout 300 bash "$TB/down.sh"
   git -C "$REPO" checkout -q --force --detach "$DEMO_REF"
@@ -70,6 +75,14 @@ main() {
     echo "reset.sh: $DEMO_DOMAIN points here, no certificate yet; restarting Caddy to retry ACME (docker logs ha-nova-demo-caddy)"
     docker restart ha-nova-demo-caddy > /dev/null
   fi
+
+  # Add to Claude: the ha_nova entry (bridge address, a fresh secret) is in
+  # Home Assistant's store before its first boot, as the NOVA App's discovery
+  # would leave it; up.sh copies config/ over (git clean removes it again).
+  local bridge_secret
+  bridge_secret="$(openssl rand -hex 32)"
+  mkdir -p "$HOSTED/config/.storage"
+  (umask 077 && node "$HOSTED/chat.mjs" entry "$bridge_secret" > "$HOSTED/config/.storage/core.config_entries")
 
   # Fresh owner password per reset; the owner is local-only (demo.mjs setup)
   # and only host tooling uses it, through its long-lived token.
@@ -84,13 +97,22 @@ main() {
   local token_file="$STATE/relay-token" relay_token
   [[ -s "$token_file" ]] || (umask 077 && openssl rand -hex 32 > "$token_file")
   relay_token="$(cat "$token_file")"
+  # The chat bridge's files: only the demo user of this build may use it.
+  node "$HOSTED/chat.mjs" files "$TB/.state/bridge" "$bridge_secret" "$relay_token" "$DEMO_EXTERNAL_URL" \
+    || gate_failed "chat bridge files"
+  chown -R 1000:1000 "$TB/.state/bridge"
   RELAY_AUTH_TOKEN="$relay_token" HA_LLAT="$(timeout 120 node "$HOSTED/demo.mjs" token "$HA" "$owner_llat")" \
-    timeout 300 docker compose -f "$TB/docker-compose.yml" -f "$HOSTED/docker-compose.yml" up -d relay >&2
+    timeout 300 docker compose -f "$TB/docker-compose.yml" -f "$HOSTED/docker-compose.yml" up -d relay bridge >&2
 
   local i
   for i in $(seq 1 30); do
     relay_roundtrip "$HA/relay" "$relay_token" 2> /dev/null && break
     [[ "$i" == 30 ]] && gate_failed "relay round trip: $(relay_roundtrip "$HA/relay" "$relay_token" 2>&1)"
+    sleep 2
+  done
+  for i in $(seq 1 10); do
+    timeout 45 node "$HOSTED/chat.mjs" gate "$HA" "$owner_llat" 2> "$STATE/gate.err" && break
+    [[ "$i" == 10 ]] && gate_failed "chat gate: $(cat "$STATE/gate.err")"
     sleep 2
   done
   egress_gate 2> "$STATE/gate.err" || gate_failed "$(cat "$STATE/gate.err")"

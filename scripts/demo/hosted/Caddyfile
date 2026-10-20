@@ -160,6 +160,17 @@
 				header_up X-Forwarded-For {masked_client_ip}
 			}
 		}
+		# Add to Claude: chat apps get JSON, never the restarting page (a
+		# chat shows "demo_resetting"; the integration's own JSON errors pass).
+		# Sign-in (/auth/*, /.well-known/oauth-*) is Home Assistant's, below.
+		handle /api/ha_nova/mcp {
+			handle @notready {
+				import resetting_json
+			}
+			reverse_proxy homeassistant:8123 {
+				header_up X-Forwarded-For {masked_client_ip}
+			}
+		}
 		handle {
 			handle @notready {
 				import restarting_html
@@ -191,8 +202,8 @@
 
 	# Transport errors: the upstream container does not exist or refuses.
 	handle_errors 502 503 504 {
-		@relay expression {http.request.orig_uri.path}.startsWith("/relay/")
-		handle @relay {
+		@json expression {http.request.orig_uri.path}.startsWith("/relay/") || {http.request.orig_uri.path} == "/api/ha_nova/mcp"
+		handle @json {
 			import resetting_json
 		}
 		handle {

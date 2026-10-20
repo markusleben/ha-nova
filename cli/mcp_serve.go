@@ -34,7 +34,7 @@ import (
 // calls it: it adds the bridge secret and the HA user it authenticated.
 // Plans, phone links, and the owner's switches live in --data-dir.
 
-const serveUsage = "ha-nova serve --listen <host:port> --data-dir <dir> --secret-file <file> [--confirm-wait 25s] [--server <name> | --relay-file <file>]"
+const serveUsage = "ha-nova serve --listen <host:port> --data-dir <dir> --secret-file <file> [--confirm-wait 25s] [--rate-limit <n>] [--server <name> | --relay-file <file>]"
 
 const (
 	serveUserHeader = "X-Ha-User-Id"
@@ -53,6 +53,7 @@ type chatBridge struct {
 	secret  [32]byte // sha256 of the shared secret
 	pin     string
 	wait    time.Duration // how long one ha_apply waits for a tap
+	limiter rateLimiter   // --rate-limit (mcp_serve_limit.go)
 	log     *log.Logger
 
 	mu      sync.Mutex
@@ -67,6 +68,7 @@ func runServeCommand(paths runtimePaths, args []string) int {
 	var opts verbOptions
 	var listen, dataDir, secretFile, relayFile string
 	wait := 25 * time.Second
+	limit := 0
 	fs := flag.NewFlagSet("serve", flag.ContinueOnError)
 	fs.StringVar(&opts.server, "server", "", "server profile name (or HA_NOVA_SERVER)")
 	fs.StringVar(&listen, "listen", "", "address to listen on, host:port (required; the NOVA App uses an internal port)")
@@ -74,6 +76,7 @@ func runServeCommand(paths runtimePaths, args []string) int {
 	fs.StringVar(&secretFile, "secret-file", "", "file holding the 64-hex-character secret the integration sends (required)")
 	fs.StringVar(&relayFile, "relay-file", "", "the NOVA App's internal Relay credential file, in place of a paired server profile")
 	fs.DurationVar(&wait, "confirm-wait", wait, "how long one ha_apply waits for a phone tap before it answers waiting_for_phone (1s-2m)")
+	fs.IntVar(&limit, "rate-limit", 0, "requests per minute per Home Assistant user, then 429 until the minute is over (0: no limit)")
 	positional, err := parseVerbArgs(fs, &opts, args, serveUsage+"\n\nEXPERIMENTAL — not supported yet; the interface may change.\nServes the HA NOVA tools over MCP Streamable HTTP for chat apps, behind the Home Assistant integration.")
 	if errors.Is(err, errHelpShown) {
 		return 0
@@ -87,6 +90,8 @@ func runServeCommand(paths runtimePaths, args []string) int {
 		err = errors.New("--listen needs an explicit host:port, e.g. 127.0.0.1:8765")
 	case wait < time.Second || wait > 2*time.Minute:
 		err = errors.New("--confirm-wait must be between 1s and 2m")
+	case limit < 0:
+		err = errors.New("--rate-limit must be 0 (no limit) or more")
 	case relayFile != "" && opts.serverSet:
 		err = errors.New("--relay-file and --server exclude each other")
 	case relayFile != "":
@@ -100,6 +105,7 @@ func runServeCommand(paths runtimePaths, args []string) int {
 		printErr("%s", err)
 		return 1
 	}
+	b.limiter.limit = limit
 	if opts.serverSet {
 		setServerSelectionOverride(opts.server)
 		b.pin = opts.server
@@ -192,6 +198,11 @@ func (b *chatBridge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	user = call.key
+	if !b.limiter.allow(call.key) {
+		status = http.StatusTooManyRequests
+		refuseRPC(w, r, status, "Too many requests to HA NOVA right now. Wait a minute, then try again.")
+		return
+	}
 	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, serveMaxBody))
 	if err != nil {
 		refuse(http.StatusRequestEntityTooLarge, "request body too large or unreadable")
