@@ -33,6 +33,12 @@ func runUpdate(paths runtimePaths, args []string) int {
 		printHumanErr("%s", err)
 		return 1
 	}
+	if *server != "" { // a mistyped server fails before anything is installed
+		if _, err := loadConfig(paths); err != nil {
+			printHumanErr("%s; nothing was updated", err)
+			return 1
+		}
+	}
 	updateLifecycleMarker, err := readInstallLifecycleGeneration(paths)
 	if err != nil {
 		printHumanErr("cannot inspect install lifecycle: %s", err)

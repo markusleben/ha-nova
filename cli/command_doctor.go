@@ -449,15 +449,9 @@ func runCheckUpdate(paths runtimePaths, args []string) int {
 		printHumanErr("%s", err)
 		return 1
 	}
-	if *server != "" { // a mistyped server must not count as checked
-		if _, err := loadConfig(paths); err != nil {
-			printHumanErr("%s", err)
-			return 1
-		}
-	}
 
 	result := buildUpdateCheckResult(paths)
-	if *jsonOutput {
+	if *jsonOutput { // the CLI/skills result only: no server involved
 		enc := json.NewEncoder(os.Stdout)
 		enc.SetIndent("", "  ")
 		if err := enc.Encode(result); err != nil {
@@ -465,6 +459,12 @@ func runCheckUpdate(paths runtimePaths, args []string) int {
 			return 1
 		}
 		return updateCheckExitCode(result)
+	}
+	if *server != "" { // a mistyped server must not count as checked
+		if _, err := loadConfig(paths); err != nil {
+			printHumanErr("%s", err)
+			return 1
+		}
 	}
 
 	// Human/quiet path only (the `--json` branch above stays machine-clean): every

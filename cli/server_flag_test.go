@@ -118,6 +118,12 @@ func TestServerFlagOnANamedServer(t *testing.T) {
 	if exit, out := run("check-update", "--quiet", "--server", "cabn"); exit == 0 || !strings.Contains(out, "unknown server profile") {
 		t.Fatalf("a mistyped server must not count as checked: exit=%d out=%s", exit, out)
 	}
+	if _, out := run("check-update", "--json", "--server", "cabn"); !strings.Contains(out, `"current_version"`) {
+		t.Fatalf("--json stays machine-readable (it checks no server): %s", out)
+	}
+	if exit, out := run("update", "--server", "cabn"); exit == 0 || !strings.Contains(out, "nothing was updated") {
+		t.Fatalf("update to a mistyped server must stop first: exit=%d out=%s", exit, out)
+	}
 	record := filepath.Join(t.TempDir(), "record.json")
 	write := func(server string) {
 		body := `{"op":"update","domain":"input_boolean","target_id":"guest",` + server + `"before_config":{"name":"a"},"expected_after":{"name":"b"}}`
