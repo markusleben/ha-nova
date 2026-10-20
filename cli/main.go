@@ -237,7 +237,7 @@ func printUsage() {
 	fmt.Fprintln(os.Stdout, "  ha-nova doctor [--auto-repair] [--quiet] [--server <name>]")
 	fmt.Fprintln(os.Stdout, "  ha-nova check-update [--quiet] [--json] [--server <name>]")
 	fmt.Fprintln(os.Stdout, "  ha-nova status --json")
-	fmt.Fprintln(os.Stdout, "  ha-nova update [--version <tag>] [--force]")
+	fmt.Fprintln(os.Stdout, "  ha-nova update [--version <tag>] [--force] [--server <name>]")
 	fmt.Fprintln(os.Stdout, "  ha-nova uninstall [--yes] [--purge]")
 	fmt.Fprintln(os.Stdout, "  ha-nova relay <health|ws|core|files|backups|jq|version>")
 	fmt.Fprintln(os.Stdout, "  "+findUsage)

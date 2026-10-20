@@ -149,7 +149,7 @@ func TestMCPRunIDIsNeverAFlag(t *testing.T) {
 }
 
 // "--server on every command but apply": the server-independent commands
-// the skills name (update, diff, relay jq) accept it and ignore it.
+// the skills name (diff, relay jq) accept it and ignore it.
 func TestLocalCommandsAcceptServer(t *testing.T) {
 	resetServerProfileSelection(t)
 	t.Setenv("HOME", t.TempDir())
@@ -163,7 +163,7 @@ func TestLocalCommandsAcceptServer(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, args := range [][]string{
-		{"update", "--server", "cabin", "--help"},
+		{"update", "--server", "cabin", "--help"}, // update itself honors it (Relay App check)
 		{"diff", "--before", file, "--after", file, "--server", "cabin"},
 		{"relay", "jq", "--file", file, ".a", "--server", "cabin"},
 		{"relay", "jq", "--server=cabin", "--file", file, ".a"},
@@ -175,5 +175,16 @@ func TestLocalCommandsAcceptServer(t *testing.T) {
 		if exit != 0 {
 			t.Errorf("%v: exit=%d out=%s", args, exit, out)
 		}
+	}
+}
+
+// update checks the selected server's Relay App afterwards; on Windows the
+// background helper finishes the update, so it gets the selection too.
+func TestUpdateHandsTheServerToTheWindowsHelper(t *testing.T) {
+	resetServerProfileSelection(t)
+	setServerSelectionOverride("cabin")
+	cmd := buildWindowsReplaceCommand(runtimePaths{InstallRoot: t.TempDir()}, `C:\Temp\h.exe`, `C:\Temp\stage`, []byte("m"))
+	if got := cmd.Env[len(cmd.Env)-1]; got != "HA_NOVA_SERVER=cabin" {
+		t.Fatalf("helper env ends with %q", got)
 	}
 }

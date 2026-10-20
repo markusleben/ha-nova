@@ -21,11 +21,15 @@ func runUpdate(paths runtimePaths, args []string) int {
 	fs.SetOutput(io.Discard)
 	versionFlag := fs.String("version", "", "install exactly this release tag (e.g. v0.14.1); default is the latest stable")
 	forceFlag := fs.Bool("force", false, "proceed even from a local dev build (restores the release over the dev tree)")
-	fs.String("server", "", "accepted and ignored: an update is for the whole install, not one server")
+	server := fs.String("server", "", "server profile whose Relay App update is checked afterwards (multi-server installs)")
 	if err := fs.Parse(args); err != nil {
-		if helpRequested(err, fs, "ha-nova update [--version <tag>] [--force]") {
+		if helpRequested(err, fs, "ha-nova update [--version <tag>] [--force] [--server <name>]") {
 			return 0
 		}
+		printHumanErr("%s", err)
+		return 1
+	}
+	if err := selectServerFlag(fs, *server); err != nil {
 		printHumanErr("%s", err)
 		return 1
 	}
@@ -256,7 +260,11 @@ func runInternalReplace(paths runtimePaths, args []string) int {
 	// interactive path instead.
 	if notice := relayUpdateNotice(paths); !notice.empty() {
 		printHumanNotice(notice)
-		printHumanInfo("Run `ha-nova doctor` in a terminal to be offered the guided relay update.")
+		doctor := "ha-nova doctor"
+		if name, _ := requestedServerSelection(); name != "" {
+			doctor += " --server " + name
+		}
+		printHumanInfo("Run `%s` in a terminal to be offered the guided relay update.", doctor)
 	}
 	printPostUpdateSessionInstruction(syncResult)
 	return 0
@@ -314,6 +322,9 @@ func buildWindowsReplaceCommand(paths runtimePaths, tempHelper, stageRoot string
 		"--self-path", tempHelper,
 	)
 	cmd.Env = append(os.Environ(), helperInstallRootEnv(paths.InstallRoot)...)
+	if serverSelectionOverride != "" { // the helper checks this server's Relay App too
+		cmd.Env = append(cmd.Env, serverSelectionEnvVar+"="+serverSelectionOverride)
+	}
 	return cmd
 }
 
