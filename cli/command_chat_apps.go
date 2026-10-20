@@ -22,11 +22,14 @@ import (
 // Test seams.
 var (
 	chatAppsSignIn = func(out io.Writer, haURL string) (haSignInSession, error) {
-		return openHASignInIngressNoCode(context.Background(), out, haURL) // chat apps have no code to fall back to
+		// No code to fall back to, but NOVA in Home Assistant works on any device.
+		return openHASignInIngressNoCode(context.Background(), out, haURL, chatAppsElsewhereLine)
 	}
 	chatAppsSignInOK           = haSignInPossible
 	chatAppsStdin    io.Reader = os.Stdin
 )
+
+const chatAppsElsewhereLine = "Can't sign in on this computer? Press Ctrl+C. Then do it in Home Assistant on any device: open NOVA in the sidebar, then Chat apps."
 
 const chatAppsUsage = "ha-nova chat-apps [on|off|status] [--server <name>]\n\n" +
 	"Turns HA NOVA in Claude and ChatGPT on or off (Home Assistant owner only), or shows whether it is on."

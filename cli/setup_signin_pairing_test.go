@@ -568,17 +568,34 @@ func TestRelayAdvertisesSignInOnlyWithTheCapabilityFlag(t *testing.T) {
 }
 
 // Chat apps have no code to fall back to: their sign-in never offers one
-// (lane S3); setup's pairing sign-in still does.
+// (lane S3) and points to NOVA in Home Assistant on any device instead;
+// setup's pairing sign-in still offers the code.
 func TestHASignInWaitLineOffersACodeOnlyForPairing(t *testing.T) {
+	chatApps := func(_ context.Context, out io.Writer, haURL string) (haSignInSession, error) {
+		return chatAppsSignIn(out, haURL)
+	}
 	for _, test := range []struct {
-		open func(context.Context, io.Writer, string) (haSignInSession, error)
-		want string
-	}{{openHASignInIngress, "Ctrl+C to use a code instead"}, {openHASignInIngressNoCode, "Ctrl+C to stop"}} {
+		open      func(context.Context, io.Writer, string) (haSignInSession, error)
+		want      string
+		elsewhere bool
+	}{{openHASignInIngress, "Ctrl+C to use a code instead", false}, {chatApps, "Ctrl+C to stop", true}} {
 		ha := newFakeSignInHA(t)
 		useFakeBrowser(t, ha, signedInQuery)
 		var out bytes.Buffer
-		if _, err := test.open(context.Background(), &out, ha.server.URL); err != nil || !strings.Contains(out.String(), test.want) {
+		if _, err := test.open(context.Background(), &out, ha.server.URL); err != nil || !strings.Contains(out.String(), test.want) ||
+			strings.Contains(out.String(), chatAppsElsewhereLine) != test.elsewhere {
 			t.Fatalf("want %q: %v\n%s", test.want, err, out.String())
 		}
+	}
+}
+
+// Home Assistant sends the sign-in back to 127.0.0.1 here, so the printed
+// link is for this computer only, never for another device.
+func TestHASignInLinkIsForThisComputer(t *testing.T) {
+	var out bytes.Buffer
+	openHASignInBrowser(&out, "http://homeassistant.local/auth/authorize?state=x", "")
+	if text := out.String(); !strings.Contains(text, "open this link on this computer:") ||
+		!strings.Contains(text, "http://homeassistant.local/auth/authorize?state=x") || strings.Contains(text, "another device") {
+		t.Fatalf("link text: %q", text)
 	}
 }
