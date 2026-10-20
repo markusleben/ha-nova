@@ -50,8 +50,14 @@ func (p *setupPageTest) waitFor(what string, ready func(setupPageState) bool) se
 	}
 }
 
+// click clicks like the browser: only once the page offers the action again
+// (a click is taken once; the engine's next wait offers it again). "stop" is
+// never in Accepts.
 func (p *setupPageTest) click(action, value string) {
 	p.t.Helper()
+	if action != "stop" {
+		p.waitFor(action, accepting(action))
+	}
 	body, _ := json.Marshal(setupPageAction{Action: action, Value: value})
 	if code := p.post(string(body), nil); code != http.StatusNoContent {
 		p.t.Fatalf("click %s = %d", action, code)
@@ -491,7 +497,7 @@ func TestSetupPagePairingFailureReturnsToThePage(t *testing.T) {
 	waiting := page.waitFor("the sign-in URL", func(s setupPageState) bool { return s.SignInURL != "" })
 	authorize, _ := url.Parse(waiting.SignInURL)
 	page.do(http.MethodGet, oauthLoopbackCallbackPath+"?"+signedInQuery(authorize.Query().Get("state")), "", nil)
-	back := page.waitFor("the pairing problem", func(s setupPageState) bool { return s.Problem != nil })
+	back := page.waitFor("the pairing problem", func(s setupPageState) bool { return s.Problem != nil && len(s.Accepts) > 0 })
 	if got := pageRows(back); strings.Contains(got, "=run") {
 		t.Fatalf("rows still running after the failure: %s", got)
 	}
