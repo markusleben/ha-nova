@@ -128,6 +128,7 @@ function chatApps(overrides: Partial<ChatAppsDeps> = {}): ChatApps {
     now: () => 1_000_000,
     logger: { info: () => {}, warn: () => {}, error: () => {} },
     respawnMs: 5,
+    owner: "this-app",
     spawn: ((_cmd: string, args: string[], options: { env: NodeJS.ProcessEnv }) => {
       const child = new EventEmitter() as FakeChild;
       child.kill = (signal) => {
@@ -165,7 +166,8 @@ describe("chat apps: turning on and off", () => {
     const apps = chatApps();
     expect(await apps.turnOn(true)).toEqual({ restart: true });
     const added = tree(join(root, "config")).filter((p) => !before.includes(p));
-    expect(added).toEqual(["custom_components", "custom_components/ha_nova", "custom_components/ha_nova/__init__.py", "custom_components/ha_nova/manifest.json", "custom_components/ha_nova/translations", "custom_components/ha_nova/translations/en.json"]);
+    expect(added).toEqual(["custom_components", "custom_components/ha_nova", "custom_components/ha_nova/.nova_app", "custom_components/ha_nova/__init__.py", "custom_components/ha_nova/manifest.json", "custom_components/ha_nova/translations", "custom_components/ha_nova/translations/en.json"]);
+    expect(readFileSync(join(root, "config", "custom_components", "ha_nova", ".nova_app"), "utf8")).toBe("this-app"); // whose folder it is
     expect(readFileSync(join(root, "config", "secrets.yaml"), "utf8")).toBe("x: y\n");
 
     expect(secretOf()).toMatch(/^[0-9a-f]{64}$/);
@@ -427,6 +429,38 @@ describe("chat apps: leftovers after a restore rewound /data", () => {
     await apps.turnOff();
     expect(entries).toEqual([]);
     expect(apps.status(OWNER)).toMatchObject({ enabled: false, unfinished: false });
+  });
+
+  it("keeps retrying at start until Home Assistant answers (the App starts before it)", async () => {
+    await onThenRewound();
+    entriesStatus = 502;
+    await chatApps().boot();
+    expect(entries).toHaveLength(1);
+    entriesStatus = 200;
+    await vi.waitFor(() => expect(entries).toEqual([]));
+    expect(existsSync(folder())).toBe(false);
+  });
+
+  it("turns off at start when /data says on but Home Assistant has no HA NOVA folder", async () => {
+    await chatApps().turnOn(true);
+    rmSync(folder(), { recursive: true });
+    const apps = chatApps();
+    await apps.boot();
+    expect(apps.status(OWNER)).toMatchObject({ enabled: false, unfinished: false });
+    expect(registry.list()).toHaveLength(0); // the bridge credential is revoked
+    expect(discovery.size).toBe(0);
+    expect(spawned).toHaveLength(1); // serve not started again
+  });
+
+  it("never takes another NOVA App's folder for its own leftover", async () => {
+    await chatApps({ owner: "other-app" }).turnOn(true);
+    for (const d of registry.list()) registry.revoke(d.deviceId); // the other App's registry is its own
+    rmSync(data(), { recursive: true });
+    const apps = chatApps();
+    expect(apps.status(OWNER)).toMatchObject({ enabled: false, unfinished: false });
+    await apps.boot();
+    expect(entries).toHaveLength(1);
+    expect(existsSync(folder())).toBe(true);
   });
 
   it("never asks the Supervisor or Home Assistant to change anything when nothing is left", async () => {

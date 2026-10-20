@@ -120,10 +120,11 @@ type chatAppsHA struct {
 // leftover: Home Assistant holds chat apps, but the NOVA App is older than
 // chat apps, so nothing answers behind them.
 func (ha chatAppsHA) leftover() bool {
-	if !ha.loaded && !ha.present || ha.appVersion == "" {
+	base, _, _ := strings.Cut(ha.appVersion, "-") // an rc of the first chat-app App counts as that App
+	if !ha.loaded && !ha.present || base == "" {
 		return false
 	}
-	cmp, err := compareReleaseVersions(ha.appVersion, chatAppsMinAppVersion)
+	cmp, err := compareReleaseVersions(base, chatAppsMinAppVersion)
 	return err == nil && cmp < 0
 }
 
@@ -262,21 +263,22 @@ func ownerChatPhone(paths runtimePaths, owner string, state chatAppsState) *chat
 	return &chatAppsPhone{Service: l.Service, DeviceID: l.DeviceID, Name: name}
 }
 
-// turnOnChatApps asks the App to turn chat apps on. The caller showed "Home
-// Assistant restarts once (about a minute)." and got the click: that is the
-// restart consent (allow_restart). It then waits until Home Assistant runs
+// turnOnChatApps asks the App to turn chat apps on. allowRestart: the caller
+// showed "Home Assistant restarts once (about a minute)." and got the click,
+// the restart consent; without it the App refuses a restart that has become
+// needed meanwhile (RESTART_CONSENT_REQUIRED). It then waits until Home Assistant runs
 // the integration; progress hears "on", "restart" (when Home Assistant
 // restarts), "back" (it answers again), and "ready". Then the owner's phone
 // goes to the App in a request of its own (ingress runs through Home
 // Assistant, so not while it restarts). ready=false: the App turned them on,
 // but Home Assistant hasn't loaded them in time. ctx stops the wait.
-func turnOnChatApps(ctx context.Context, client *CloudIngressClient, paths runtimePaths, before chatAppsState, phone *chatAppsPhone, progress func(string)) (chatAppsTurnOn, error) {
+func turnOnChatApps(ctx context.Context, client *CloudIngressClient, paths runtimePaths, before chatAppsState, allowRestart bool, phone *chatAppsPhone, progress func(string)) (chatAppsTurnOn, error) {
 	call := func(body map[string]any, timeout time.Duration) (chatAppsState, error) {
 		callCtx, cancel := context.WithTimeout(ctx, timeout)
 		defer cancel()
 		return chatAppsCall(callCtx, client, body)
 	}
-	state, err := call(map[string]any{"enabled": true, "allow_restart": true}, 2*time.Minute)
+	state, err := call(map[string]any{"enabled": true, "allow_restart": allowRestart}, 2*time.Minute)
 	var refused *chatAppsRefused
 	// Answers that come before the App changes anything.
 	clearRefusal := errors.Is(err, errChatAppsUnsupported) ||
@@ -355,6 +357,8 @@ func chatAppsProblem(err error) setupMsg {
 	switch {
 	case IsCloudErrorCode(err, CloudErrOuterSessionExpired):
 		return setupText("setup.chat.problem_expired")
+	case errors.As(err, &refused) && refused.code == "RESTART_CONSENT_REQUIRED":
+		return setupText("setup.chat.problem_restart")
 	case errors.As(err, &refused) && refused.code == "HA_TOO_OLD":
 		return setupText("setup.chat.problem_old")
 	case errors.As(err, &refused) && refused.code == "HA_CONFIG_INVALID":
@@ -408,7 +412,7 @@ func askChatAppsConsent(reader *bufio.Reader, out io.Writer, setupOffer, restart
 func turnOnChatAppsInTerminal(out io.Writer, paths runtimePaths, client *CloudIngressClient, offer chatAppsOffer, owner string) (note string, ok bool) {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
-	result, err := turnOnChatApps(ctx, client, paths, offer.state, ownerChatPhone(paths, owner, offer.state), func(event string) {
+	result, err := turnOnChatApps(ctx, client, paths, offer.state, offer.restart, ownerChatPhone(paths, owner, offer.state), func(event string) {
 		switch event {
 		case "on":
 			renderSetupSuccessLine(out, "%s", setupT("setup.chat.row_on"))

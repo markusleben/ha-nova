@@ -140,7 +140,7 @@ func runChatAppsCommand(paths runtimePaths, args []string) int {
 		renderSetupParagraph(out, setupT("setup.chat.skipped"))
 		return 0
 	}
-	note, on := turnOnChatAppsInTerminal(out, paths, session.ingress, chatAppsOffer{state: state, url: url}, session.user.ID)
+	note, on := turnOnChatAppsInTerminal(out, paths, session.ingress, chatAppsOffer{state: state, url: url, restart: !ha.running}, session.user.ID)
 	if note != "" {
 		renderSetupWarningLine(out, "%s", note)
 	}
@@ -194,7 +194,7 @@ func chatAppsOff(out io.Writer, paths runtimePaths, cfg runtimeConfig) int {
 	held := readErr == nil && (ha.loaded || ha.present)
 	switch {
 	case errors.Is(err, errChatAppsUnsupported) && readErr != nil:
-		printHumanErr("This NOVA App has no chat apps. HA NOVA couldn't check whether Home Assistant still has some (%s). Run this again.", readErr)
+		printHumanErr("This NOVA App has no chat apps. HA NOVA couldn't reach Home Assistant to check for leftovers. Make sure Home Assistant is running, then run this again.")
 		return 1
 	case errors.Is(err, errChatAppsUnsupported) && held:
 		printHumanErr("%s", chatAppsLeftoverLine)

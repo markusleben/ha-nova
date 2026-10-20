@@ -57,10 +57,24 @@ export function removeIntegration(configRoot: string): void {
   }
 }
 
-export function installIntegration(configRoot: string, source: string): void {
+// The folder carries the App that wrote it (its hostname): a second NOVA
+// App on the same Home Assistant never takes it for its own leftover.
+const OWNER_FILE = ".nova_app";
+
+export function installIntegration(configRoot: string, source: string, owner: string): void {
   const parent = customComponents(configRoot, true)!;
   removeIntegration(configRoot);
   copyTree(source, join(parent, SERVICE));
+  writeFileSync(join(parent, SERVICE, OWNER_FILE), owner, { mode: 0o644, flag: "wx" });
+}
+
+// Whether the integration folder is the one this App wrote.
+export function integrationIsOurs(configRoot: string, owner: string): boolean {
+  try {
+    return configRoot !== "" && readFileSync(join(configRoot, "custom_components", SERVICE, OWNER_FILE), "utf8") === owner;
+  } catch {
+    return false;
+  }
 }
 
 function copyTree(from: string, to: string): void {
@@ -100,6 +114,9 @@ export async function clearChatAppsInHA(deps: ClearDeps, saved: string | undefin
     if (response.status !== 200 && response.status !== 404) { // 404: Home Assistant removed it with the message
       throw new Error(`Home Assistant answered ${response.status} when removing the ha_nova entry`);
     }
+  }
+  if ((await haEntries(deps)).length > 0) { // e.g. set up meanwhile from a message still on its way
+    throw new Error("Home Assistant still has a ha_nova entry");
   }
 }
 

@@ -441,6 +441,7 @@
   "setup.chat.chatgpt_3": "Sign in to Home Assistant as its owner. Then type @HA NOVA in a chat. If ChatGPT says the OAuth callback data is missing (German: “OAuth-Callback-Daten fehlen”), connect once more.",
   "setup.chat.off_hint": "To turn chat apps off later, run ha-nova chat-apps off, or open NOVA in Home Assistant.",
   "setup.chat.problem_expired": "Your Home Assistant sign-in has run out. Turn chat apps on in NOVA in the Home Assistant sidebar instead.",
+  "setup.chat.problem_restart": "Home Assistant now needs one restart for chat apps. Try again: you'll be asked first.",
   "setup.chat.problem_old": "Chat apps need Home Assistant 2026.10 or newer. Update Home Assistant first.",
   "setup.chat.problem_config": "Home Assistant's configuration has an error, so it can't restart. Fix it in Home Assistant, then try again.",
   "setup.chat.problem_folder": "HA NOVA can't use the custom_components folder in Home Assistant's configuration. Check that it's a normal folder, then try again.",
@@ -449,6 +450,7 @@
   "setup.page.home.note_chat": "Chat apps are on. Your connector address: {url}. Sign in to Home Assistant as its owner when Claude or ChatGPT asks.",
   "setup.chat.error": "Chat apps: {error}",
   "setup.chat.wait": "Wait here while Home Assistant restarts, then finish setup.",
+  "setup.chat.wait_now": "Wait here a moment, then finish setup.",
   "setup.chat.problem_unknown": "HA NOVA couldn't tell whether chat apps turned on. In a minute, open NOVA in Home Assistant and check Chat apps.",
   "setup.chat.problem_app": "This NOVA App can't turn chat apps on here. Update or restart it in Home Assistant, then try again.",
   "setup.chat.problem_phone": "Chat apps are on, but your phone wasn't added for them, so changes that need your OK show a code in the chat. To add it, run ha-nova chat-apps on in a terminal."

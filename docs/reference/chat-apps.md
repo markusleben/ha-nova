@@ -19,7 +19,7 @@ With chat apps on, you can ask about your home and change it from Claude or Chat
 
 You can turn it on in either place:
 
-- **During setup:** on "You stay in control", switch on "Use HA NOVA in Claude and ChatGPT". The page explains what happens; click "Turn on and restart Home Assistant".
+- **During setup:** on "You stay in control", switch on "Use HA NOVA in Claude and ChatGPT". The page explains what happens; click "Turn on and restart Home Assistant" (just "Turn on" when Home Assistant needs no restart).
 - **Later:** open NOVA in the Home Assistant sidebar, then Chat apps, then "Turn on chat apps".
 
 Home Assistant restarts once, which takes about a minute (not when it already runs HA NOVA from an earlier time). Setup waits for it and then shows an "Add to Claude" button and your connector address: your Home Assistant Link address (or your own HTTPS address) followed by `/api/ha_nova/mcp`, for example `https://abc123.ui.nabu.casa/api/ha_nova/mcp` or `https://home.example.com/api/ha_nova/mcp`. Without either address, setup says so in one line instead of the switch. NOVA in Home Assistant and `ha-nova chat-apps status` show both too.
@@ -67,7 +67,9 @@ Turn chat apps off before you remove the NOVA App or go back to an older version
 
 ### If you went back to an older NOVA App with chat apps on
 
-An older NOVA App without chat apps can't remove them, so Home Assistant keeps them, and Claude and ChatGPT get an error. `ha-nova chat-apps status` says they are left over. To clean up: update the NOVA App in Home Assistant again, then run `ha-nova chat-apps off` (or use "Finish turning off" on the NOVA page). The updated App also cleans up by itself when it starts. Removing HA NOVA in Home Assistant's integrations doesn't help: Home Assistant adds it back until the App removes it.
+An older NOVA App without chat apps can't remove them, so Home Assistant keeps them, and Claude and ChatGPT get an error. `ha-nova chat-apps status` says they are left over. To clean up: update the NOVA App in Home Assistant again, then run `ha-nova chat-apps off`. The updated App also cleans up by itself when it starts; if NOVA in Home Assistant still says chat apps are not fully off, choose "Finish turning off" there. Removing HA NOVA in Home Assistant's integrations doesn't help: Home Assistant adds it back until the App removes it.
+
+To stay on the older App: removing the NOVA App clears them too, but then every computer must connect again.
 
 ## If something doesn't work
 

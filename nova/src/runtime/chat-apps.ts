@@ -1,5 +1,6 @@
 import { spawn as spawnChild, type ChildProcess } from "node:child_process";
 import { randomBytes } from "node:crypto";
+import { hostname } from "node:os";
 import { existsSync, mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 
@@ -10,7 +11,7 @@ import type { DeviceRegistry } from "../security/device-registry.js";
 import { BRIDGE_INSTALL_ID } from "../security/pairing-metadata.js"; // re-minting replaces the old record
 import { readPrivateFileSync, writeFileAtomicSync } from "../storage/atomic-file.js";
 import type { CoreProxyRequest, CoreProxyResponse } from "../types/api.js";
-import { ChatAppsError, chatAppFilesPresent, clearChatAppsInHA, installIntegration, removeIntegration, SERVICE } from "./chat-apps-ha.js";
+import { ChatAppsError, chatAppFilesPresent, clearChatAppsInHA, installIntegration, integrationIsOurs, removeIntegration, SERVICE } from "./chat-apps-ha.js";
 
 // Chat apps (spec docs/work/2026-10-18-onboarding-0.27-spec.md §11; contract
 // docs/work/2026-10-19-chat-bridge-contract.md, "App side"): the owner's
@@ -66,6 +67,7 @@ export interface ChatAppsDeps {
   logger: RelayLogger;
   spawn?: typeof spawnChild;
   respawnMs?: number;
+  owner?: string; // marks the integration folder as this App's; default: the container's hostname
 }
 
 interface State {
@@ -78,6 +80,11 @@ export function createChatApps(deps: ChatAppsDeps): ChatApps {
   const file = (name: string): string => join(dir, name);
   const bridgeDir = file("bridge");
   const spawn = deps.spawn ?? spawnChild;
+  const owner = deps.owner ?? hostname();
+  // Off, but something this App made is still there: an unfinished turn-off,
+  // or a backup restore that rewound /data (lane R1).
+  const leftover = (state: State): boolean =>
+    state.discovery_uuid !== undefined || bridgeDeviceId() !== null || integrationIsOurs(deps.configRoot, owner);
   let child: ChildProcess | null = null;
   let wanted = false;
   let respawn: NodeJS.Timeout | undefined;
@@ -248,6 +255,43 @@ export function createChatApps(deps: ChatAppsDeps): ChatApps {
     save({ ...load(), discovery_uuid: uuid });
   };
 
+  // Never fatal: a damaged chat-app file must not take the Relay down.
+  // Off with leftovers, or on without the integration folder (a restore
+  // rewound one side): finish turning off, retried while Home Assistant
+  // can't answer yet (the App starts before it).
+  let cleanupRetry: NodeJS.Timeout | undefined;
+  const boot = (): Promise<void> => serial(async () => {
+    clearTimeout(cleanupRetry);
+    let cleaning = false;
+    try {
+      const state = load();
+      if (!state.enabled || chatAppFilesPresent(deps.configRoot) === false) {
+        cleaning = !state.enabled ? leftover(state) : true;
+        if (state.enabled) {
+          deps.logger.warn("Chat apps were on, but Home Assistant has no HA NOVA folder; turning them off");
+        }
+        if (cleaning) {
+          await off();
+        }
+        return;
+      }
+      if (!available()) {
+        deps.logger.error("Chat apps are on, but this App version has no bridge; turn them off on the NOVA page");
+        return;
+      }
+      startChild();
+      await publish(); // Supervisor keeps one message per App and service: a repeat is a no-op
+    } catch (error) {
+      deps.logger.error(cleaning ? "Chat apps could not finish turning off" : "Chat apps could not resume", { error: String((error as Error).message) });
+      if (cleaning) {
+        cleanupRetry = setTimeout(() => void boot(), (deps.respawnMs ?? 5_000) * 12);
+        cleanupRetry.unref?.();
+      } else if (wanted && child === null) {
+        startLater(); // e.g. the credential could not be minted yet
+      }
+    }
+  });
+
   return {
     status(ownerId) {
       const state = load();
@@ -256,7 +300,7 @@ export function createChatApps(deps: ChatAppsDeps): ChatApps {
       return {
         available: available(),
         enabled: state.enabled,
-        unfinished: !state.enabled && (state.discovery_uuid !== undefined || chatAppFilesPresent(deps.configRoot) === true),
+        unfinished: !state.enabled && leftover(state),
         readOnly: current.read_only === true,
         chatCodes: current.chat_codes !== false,
         allowedUsers: current.allowed_users ?? null,
@@ -294,7 +338,7 @@ export function createChatApps(deps: ChatAppsDeps): ChatApps {
       failures = 0;
       try {
         ensureSecret();
-        installIntegration(deps.configRoot, deps.integrationSource);
+        installIntegration(deps.configRoot, deps.integrationSource, owner);
         startChild();
         await publish();
         save({ ...load(), enabled: true });
@@ -347,29 +391,7 @@ export function createChatApps(deps: ChatAppsDeps): ChatApps {
       }, 1_000);
     },
 
-    // Never fatal: a damaged chat-app file must not take the Relay down.
-    boot: () => serial(async () => {
-      try {
-        const state = load();
-        if (!state.enabled) {
-          if (state.discovery_uuid !== undefined || chatAppFilesPresent(deps.configRoot) === true) {
-            await off(); // an unfinished turn-off, or a backup restore that rewound /data
-          }
-          return;
-        }
-        if (!available()) {
-          deps.logger.error("Chat apps are on, but this App version has no bridge; turn them off on the NOVA page");
-          return;
-        }
-        startChild();
-        await publish(); // Supervisor keeps one message per App and service: a repeat is a no-op
-      } catch (error) {
-        deps.logger.error("Chat apps could not resume or finish turning off", { error: String((error as Error).message) });
-        if (wanted && child === null) {
-          startLater(); // e.g. the credential could not be minted yet
-        }
-      }
-    }),
+    boot,
 
     // After a registry reset: the (re)start mints a fresh credential.
     restartBridge() {

@@ -57,20 +57,21 @@ echo ""
 # the `ha-nova serve` child, dormant behind HA_NOVA_CHAT_APPS, with its review fixes: about 10225;
 # and to 10300 for the NOVA page's connector address and "Add to Claude" link
 # (read from cloud/status, else get_config; claude.ai only, the address only): about 10295;
-# and to 10370 for the chat-app cleanup after a backup restore (0.27 lane R1):
-# off, boot, and turn-on find the discovery message and every ha_nova entry in
-# Home Assistant instead of /data, plus the split into chat-apps-ha.ts that
-# keeps chat-apps.ts under its size: about 10365.
+# and to 10410 for the chat-app cleanup after a backup restore (0.27 lane R1):
+# off, boot (retried until Home Assistant answers), and turn-on find the
+# discovery message and every ha_nova entry in Home Assistant instead of
+# /data, the integration folder's owner mark, and the split into
+# chat-apps-ha.ts that keeps chat-apps.ts under its size: about 10400.
 # Further unreviewed Relay growth still fails.
 # Growth here is security surface, and it is reviewed as such. The README's own
 # number is updated in the release-prep PR — README describes the STABLE
 # release, not main.
 echo "[1] Relay LOC (must stay readable in one sitting)"
 ACTUAL_LOC=$(find "$REPO_ROOT/nova/src" -name '*.ts' -exec cat {} + | wc -l | tr -d ' ')
-if (( ACTUAL_LOC >= 1000 && ACTUAL_LOC <= 10370 )); then
-  pass "src/ = ${ACTUAL_LOC} LOC (within 1000–10370 range)"
+if (( ACTUAL_LOC >= 1000 && ACTUAL_LOC <= 10410 )); then
+  pass "src/ = ${ACTUAL_LOC} LOC (within 1000–10410 range)"
 else
-  fail "src/ = ${ACTUAL_LOC} LOC — outside the 1000–10370 range. Justify real Relay growth in active architecture docs; update README only in a release-prep PR."
+  fail "src/ = ${ACTUAL_LOC} LOC — outside the 1000–10410 range. Justify real Relay growth in active architecture docs; update README only in a release-prep PR."
 fi
 
 # ── 2. Skill count ──

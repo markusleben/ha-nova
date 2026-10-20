@@ -225,6 +225,9 @@ describe("setup page: Add to Claude", () => {
       await p.settle();
       expect(p.screen.textContent.includes(p.catalog["setup.chat.restart"]!)).toBe(!no_restart);
       expect(p.find("b-chat-on")!.textContent).toBe(p.catalog[no_restart ? "setup.chat.turn_on_now" : "setup.chat.turn_on"]);
+      const running = page({ screen: "control", accepts: ["finish"], control: { window: true, phone: "none", chat: { state: "run", no_restart } } });
+      await running.settle();
+      expect(running.screen.textContent).toContain(running.catalog[no_restart ? "setup.chat.wait_now" : "setup.chat.wait"]);
     }
   });
 
