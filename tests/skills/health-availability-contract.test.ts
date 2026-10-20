@@ -31,7 +31,7 @@ describe("health availability source contract", () => {
       "Availability classification alone never changes overall",
       "`Aggregate`: counts and groups only.",
       "`Private` (default): the safely renderable display name — deliberately nothing more per row",
-      "Add the exact `entity_id` only when the row has no safe name, two shown rows share a name, or the user asks for IDs; hidden IDs still drive every sort.",
+      "Add the exact `entity_id` only when the row has no safe name (a hidden or missing name counts), two rows shown in the same reply share a name (ignoring case), or the user asks for IDs; hidden IDs still drive every sort.",
       "Deterministic internal sorting happens before localization",
       "then any config-entry attention/failure state from Availability Analysis",
       "Render unrecognized config-entry state strings as a localized generic unknown state",

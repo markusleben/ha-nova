@@ -161,7 +161,7 @@ If the target config is not already in the thread context, resolve it yourself:
 If config is already in the thread context (e.g., user pasted YAML):
 - If entity_id is known for an automation or script: skip Target Resolution entirely, go straight to Config Quality Review (Step 1). But still read the primary controlled entity's state (step 7 above) for Quick-Fix detection when the current review set contains exactly one target — this step is independent of Target Resolution.
 - If the target already in context is a config-entry helper metadata item: skip Target Resolution entirely and go straight to the config-entry helper review lane in Step 1. Do not attempt primary-controlled-entity state reads or Quick-Fix detection from that path.
-- If entity_id is unknown: run Target Resolution search (above) to find entity_id. If not found, proceed with Config Quality Review only. Note in output: "Collision scan skipped — no entity_id available."
+- If entity_id is unknown: run Target Resolution search (above) to find entity_id. If not found, proceed with Config Quality Review only. Note in output: "Collision check skipped — item not found."
 
 Do NOT invoke `ha-nova:entity-discovery` or `ha-nova:read` as separate skills — handle everything within this review flow.
 

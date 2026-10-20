@@ -48,8 +48,8 @@ Default: `Explained + Private`.
   `availability-analysis.md` → Privacy modes. When identities are hidden, say
   why and how to request private detail. A follow-up such as "show all
   entities in MQTT" requests that group's full detail in the ACTIVE privacy
-  mode — a detail follow-up never switches modes; switching to private
-  identities takes an explicit request naming the mode.
+  mode — a detail or ID follow-up never switches modes; private identities
+  take an explicit request naming the mode.
 
 ## Relay Contract
 
