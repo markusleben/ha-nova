@@ -73,7 +73,7 @@ release:
 
     - **Update the NOVA Relay App too.** Chat apps, Link sign-in without a code, and App removal on uninstall need NOVA Relay 0.11.0. Update it in Settings > Apps, or let setup do it (Container/Core: pull the new image).
     - **Chat apps need Home Assistant 2026.10 or newer** on HA OS or Supervised. They also need an address Claude and ChatGPT can reach: Home Assistant Link, or your own public HTTPS address with a valid certificate.
-    - **Setup opens in your browser.** On a desktop, `ha-nova setup` shows a setup page. Over SSH, with `--no-browser`, or when you run setup again, it asks in the terminal as before.
+    - **Setup opens in your browser.** On a desktop, `ha-nova setup` shows a setup page. Run it again and the page shows what is set up, so you can change it. Over SSH or with `--no-browser`, it asks in the terminal as before.
     - **Claude Code rules are on by default.** Claude Code then reads HA NOVA's files and runs changes you approved without asking. You still confirm every unlock or delete. Turn them off before you finish setup.
     - **Claude Code starts in a new “HA NOVA” folder.** When setup opens Claude Code, it starts in that folder in your home folder. When Claude Code asks, choose “Yes, I trust this folder”.
     - **`ha-nova uninstall` asks one question.** “Remove” now also removes this computer's pairing. Choose “Remove, but keep the pairing” to reinstall later. `--yes` keeps the pairing unless you add `--purge`.
@@ -93,9 +93,9 @@ release:
     ## Bug Fixes
 
     - **Setup waits for a slow Home Assistant.** Connecting this computer no longer gives up after 30 seconds. The page says what went wrong, and Try again often needs no new sign-in.
-    - **Plainer answers.** HA NOVA usually leaves out ids, technical settings, raw error text, and addresses, and gives times in your home's time zone, not UTC. If the NOVA Relay App doesn't answer, it says where to look.
+    - **Plainer answers.** Usually no ids, technical settings, raw errors, or addresses. Times use your home's time zone. Names stay exactly as in Home Assistant. If the NOVA Relay App doesn't answer, it says where to look.
     - **Your AI app says who asks.** Before an unlock, it says a window or your phone will ask you. It asks for a code only when neither can.
-    - **Linux: uninstall unlocks a locked keyring.** `ha-nova uninstall` opens the system window to unlock it first. HA NOVA never sees your password. Over SSH, it stops before any change and says what to do.
+    - **Linux: uninstall unlocks a locked keyring.** It opens the system window. HA NOVA never sees your password. If it can't reach the keyring, it stops before any change. A server with no desktop still finishes over SSH.
     - **Linux: `ha-nova` works in every new terminal.** The installer also adds it to `~/.bashrc`. A locked keyring now gets one plain next step instead of a connection error.
     - **A confirmation window closes with its command.** If you stop the command (Ctrl+C, or a closed terminal), its window closes too. So a late Confirm never lands in a window nobody reads.
     - **Setup asks before it uses a Home Assistant it found,** also when it found just one by IP address. After a pairing was removed on the NOVA page, setup goes straight to pairing again.
