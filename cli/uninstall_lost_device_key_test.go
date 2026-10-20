@@ -65,7 +65,7 @@ func TestGuidedUninstallFinishesWhenTheDeviceKeyIsLost(t *testing.T) {
 	if fileExists(paths.ConfigFile) {
 		t.Fatalf("config.json survived the finish:\n%s", output)
 	}
-	for _, want := range []string{lostDeviceKeyText, lostDeviceKeyHandStep} {
+	for _, want := range []string{lostDeviceKeyText, "click Revoke next to it"} {
 		if !strings.Contains(output, want) {
 			t.Fatalf("output missing %q:\n%s", want, output)
 		}
@@ -101,7 +101,7 @@ func TestYesPurgeWithLostDeviceKeyNamesOneNextStep(t *testing.T) {
 	if exitCode != 1 || *revokes != 0 {
 		t.Fatalf("exit=%d revokes=%d\n%s", exitCode, *revokes, output)
 	}
-	want := lostDeviceKeyText + " Next step: run ha-nova uninstall (without --yes) and pick Remove."
+	want := lostDeviceKeyText + " Next step: in a terminal on this computer, run ha-nova uninstall --purge and choose to finish removing."
 	if !strings.Contains(output, want) || strings.Contains(output, "refusing cleanup") {
 		t.Fatalf("output:\n%s", output)
 	}
@@ -110,26 +110,75 @@ func TestYesPurgeWithLostDeviceKeyNamesOneNextStep(t *testing.T) {
 	}
 }
 
-// The yes forgets only a key that is still lost: one that came back keeps
-// its endpoint, so the purge still revokes it.
-func TestForgetLostDeviceKeysSkipsAKeyThatCameBack(t *testing.T) {
+// A yes skips only the key it saw: one that comes back is still revoked, and
+// a purge that stops leaves config.json as it was (no fallback transport).
+func TestAcceptedLostKeyNeverWeakensTheRest(t *testing.T) {
 	paths, _ := lostKeyFixture(t)
-	lost, ok := findLostDeviceKeys(paths)
-	if !ok || lost[defaultServerProfileName] != (lostDeviceKeySlots{current: true}) {
-		t.Fatalf("lost=%v ok=%v", lost, ok)
+	t.Cleanup(func() { acceptedLostDeviceKeys = nil })
+	acceptedLostDeviceKeys = findLostDeviceKeys(paths)
+	if acceptedLostDeviceKeys[defaultServerProfileName] != (lostDeviceKey{current: true, secureBaseURL: "https://ha.local:8792", spkiPin: "pin"}) {
+		t.Fatalf("lost = %+v", acceptedLostDeviceKeys)
 	}
-	pairedForAppRemoval(t)
-	if err := forgetLostDeviceKeys(paths, lost); err != nil {
+	revokes := pairedForAppRemoval(t)
+	if err := finalizeLocalUninstallWithProgressUnlocked(paths, installState{}, &uninstallReport{}, uninstallModePurge, nil, nil); err != nil {
 		t.Fatal(err)
 	}
-	cfg, err := loadRawDefaultProfileConfig(paths.ConfigFile)
-	if err != nil || cfg.RelaySecureBaseURL == "" || cfg.RelaySpkiPin == "" {
-		t.Fatalf("endpoint of a present key was dropped: %+v err=%v", cfg, err)
+	if *revokes != 1 {
+		t.Fatalf("key that came back was not revoked: %d", *revokes)
+	}
+
+	paths, _ = lostKeyFixture(t)
+	cfg := appPathConfig
+	cfg.PendingSecureBaseURL = "https://ha.local:8792" // incomplete: stops the purge
+	if err := saveConfig(paths, cfg); err != nil {
+		t.Fatal(err)
+	}
+	if err := writePendingDeviceCredential(validCredential(181)); err != nil {
+		t.Fatal(err)
+	}
+	before := readTestFile(t, paths.ConfigFile)
+	stubLostKeyMenu(t, "finish")
+	exitCode, output := captureCommandOutput(t, func() int { return runUninstall(paths, nil) })
+	if exitCode != 1 || !strings.Contains(output, "incomplete") {
+		t.Fatalf("exit=%d\n%s", exitCode, output)
+	}
+	if after := readTestFile(t, paths.ConfigFile); after != before {
+		t.Fatalf("failed purge changed config:\n%s\n---\n%s", before, after)
 	}
 }
 
-// Keys that appeared after a removal checkpoint, and Link profiles, keep the
-// old stop: no question offered.
+// An interrupted Windows purge reruns as recovery (no menu): it asks too,
+// and the helper gets the yes for exactly the servers asked about.
+func TestWindowsRecoveryAsksAboutALostKey(t *testing.T) {
+	paths, _ := lostKeyFixture(t)
+	enableWindowsUninstallStatusChecks(t)
+	status, err := beginWindowsUninstallStatus(paths, uninstallModePurge, installSourceBundle)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = failWindowsUninstallStatus(paths, status, "token_cleanup", errors.New("interrupted"))
+	menu := stubLostKeyMenu(t, "finish")
+	exitCode, output := captureCommandOutput(t, func() int { return runUninstall(paths, []string{"--purge"}) })
+	if menu.asked != 1 || exitCode != 0 {
+		t.Fatalf("exit=%d asked=%d\n%s", exitCode, menu.asked, output)
+	}
+
+	paths, _ = lostKeyFixture(t)
+	t.Cleanup(func() { acceptedLostDeviceKeys = nil })
+	acceptedLostDeviceKeys = findLostDeviceKeys(paths)
+	args := strings.Join(windowsUninstallHelperArgs("h.exe", uninstallModePurge, false, nil), " ")
+	if !strings.HasSuffix(args, "--accept-lost-keys default") {
+		t.Fatalf("helper args = %s", args)
+	}
+	acceptedLostDeviceKeys = nil
+	acceptLostDeviceKeysInHelper(paths, "default,cabin")
+	if len(acceptedLostDeviceKeys) != 1 || !acceptedLostDeviceKeys[defaultServerProfileName].current {
+		t.Fatalf("helper accepted %+v", acceptedLostDeviceKeys)
+	}
+}
+
+// No yes for a key that appeared after a removal checkpoint, a Link profile,
+// or a file-storage install whose keyring may still hold the key.
 func TestLostDeviceKeyFinishKeepsOtherStops(t *testing.T) {
 	appeared := profilePurgeTarget{name: "cabin", removalCheckpointed: true}
 	err := validateRequiredProfilePurgeSlots(appeared, profilePurgeSlotState{currentExists: true})
@@ -140,6 +189,12 @@ func TestLostDeviceKeyFinishKeepsOtherStops(t *testing.T) {
 	err = validateRequiredProfilePurgeSlots(link, profilePurgeSlotState{})
 	if _, ok := lostDeviceKeyErrorText(err); ok || !strings.Contains(err.Error(), "current credential is missing") {
 		t.Fatalf("Link profile: %v", err)
+	}
+	local := link
+	local.cloudProfile = false
+	err = validateRequiredProfilePurgeSlots(local, profilePurgeSlotState{keyringMayHoldKey: true})
+	if _, ok := lostDeviceKeyErrorText(err); ok || err == nil {
+		t.Fatalf("keyring may hold the key: %v", err)
 	}
 }
 

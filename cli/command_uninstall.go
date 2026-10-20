@@ -34,6 +34,7 @@ func runInternalUninstall(_ runtimePaths, args []string) int {
 		"",
 		"exact Relay identity removed by guided teardown",
 	)
+	acceptLostKeys := fs.String("accept-lost-keys", "", "servers whose lost device key the owner agreed to leave")
 	if err := fs.Parse(args); err != nil {
 		printHumanErr("%s", err)
 		return 1
@@ -72,6 +73,7 @@ func runInternalUninstall(_ runtimePaths, args []string) int {
 	stopHeartbeat := startWindowsUninstallHeartbeat(paths, status)
 	defer stopHeartbeat()
 	waitForParentReleaseForUninstall(*parentPID)
+	acceptLostDeviceKeysInHelper(paths, *acceptLostKeys)
 	preflight := collectUninstallPreflight(paths)
 	report := &uninstallReport{}
 	if err := finalizeWindowsUninstall(
@@ -100,6 +102,7 @@ func runInternalUninstall(_ runtimePaths, args []string) int {
 }
 
 func runUninstall(paths runtimePaths, args []string) int {
+	defer func() { acceptedLostDeviceKeys = nil }() // a yes holds for this run only
 	fs := flag.NewFlagSet("uninstall", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 	yes := fs.Bool("yes", false, "no questions; keeps this computer's pairing unless --purge, and never removes the NOVA App")
@@ -190,11 +193,14 @@ func runUninstall(paths runtimePaths, args []string) int {
 		return 1
 	}
 
-	lostKeyForgotten, exitCode := false, -1
-	if guidedSession {
-		if lostKeyForgotten, exitCode = confirmLostDeviceKeyPurge(os.Stdout, paths, mode); exitCode >= 0 {
+	// Windows recovery asks too: it has no menu, but must not loop.
+	lostKeyAccepted, exitCode := false, -1
+	if guidedSession || recoveryMode && !*yes && uninstallInteractive() {
+		if lostKeyAccepted, exitCode = confirmLostDeviceKeyPurge(os.Stdout, paths, mode); exitCode >= 0 {
 			return exitCode
 		}
+	}
+	if guidedSession {
 		if err := prepareUninstallBeforeGuidedTeardown(
 			paths,
 			mode,
@@ -228,6 +234,9 @@ func runUninstall(paths runtimePaths, args []string) int {
 			printTeardownCompletedNotes(os.Stdout, mode)
 		} else {
 			printUninstallPreflightNotes(os.Stdout, preflight, *verbose)
+		}
+		if lostKeyAccepted {
+			printHumanInfo("%s", lostDeviceKeyHandStep())
 		}
 		if err := launchWindowsUninstall(
 			paths,
@@ -302,8 +311,8 @@ func runUninstall(paths runtimePaths, args []string) int {
 	} else {
 		applyUninstallPreflightNotes(report, preflight)
 	}
-	if lostKeyForgotten {
-		report.addNote(lostDeviceKeyHandStep)
+	if lostKeyAccepted {
+		report.addNote(lostDeviceKeyHandStep())
 	}
 	report.print()
 	return 0
@@ -848,6 +857,9 @@ func windowsUninstallHelperArgs(
 			"--teardown-relay-instance-id",
 			strings.TrimSpace(relayInstanceID),
 		)
+	}
+	if names := lostDeviceKeyNames(acceptedLostDeviceKeys); names != "" {
+		args = append(args, "--accept-lost-keys", names)
 	}
 	return args
 }

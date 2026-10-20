@@ -355,18 +355,19 @@ func uninstallErrorText(err error) string {
 	if text, ok := cloudAuthorizationStopText(err); ok {
 		return text
 	}
-	if text, ok := lostDeviceKeyErrorText(err); ok {
-		return text
-	}
+	text, plain := lostDeviceKeyErrorText(err)
 	var keyring *keyringRemovalProblem
-	if !errors.As(err, &keyring) {
+	switch {
+	case plain:
+	case errors.As(err, &keyring):
+		text = keyring.Error()
+	default:
 		return err.Error()
 	}
-	text := keyring.Error()
 	// resetPurgeStorageProofAfterError may join a second failure: keep it.
 	if joined, ok := err.(interface{ Unwrap() []error }); ok {
 		for _, other := range joined.Unwrap() {
-			if !errors.As(other, new(*keyringRemovalProblem)) {
+			if !errors.As(other, new(*keyringRemovalProblem)) && !errors.As(other, new(*lostDeviceKeyError)) {
 				text += "\n" + other.Error()
 			}
 		}

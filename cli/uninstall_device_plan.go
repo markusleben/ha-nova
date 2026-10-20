@@ -216,6 +216,9 @@ type profilePurgeSlotState struct {
 	pendingExists       bool
 	pendingLocal        bool
 	pendingEndpointLive bool
+	// keyringMayHoldKey: a file-storage install whose OS keyring still has
+	// (or can't rule out) a slot that looks empty in files.
+	keyringMayHoldKey bool
 }
 
 func inspectProfilePurgeSlotState(
@@ -262,6 +265,18 @@ func inspectProfilePurgeSlotState(
 	state.pendingEndpointLive =
 		target.pendingSecureBaseURL != "" &&
 			target.pendingSpkiPin != ""
+	if deviceSecretFileBacked() {
+		probe := func(service string, recorded, exists bool) bool {
+			if !recorded || exists {
+				return false
+			}
+			_, found, err := readKeyringDeviceSecret(service)
+			return found || err != nil
+		}
+		state.keyringMayHoldKey =
+			probe(currentService, target.secureBaseURL != "" || target.spkiPin != "", state.currentExists) ||
+				probe(pendingService, target.pendingSecureBaseURL != "" || target.pendingSpkiPin != "", state.pendingExists)
+	}
 	return state, nil
 }
 
@@ -301,44 +316,15 @@ func validateRequiredProfilePurgeSlots(
 			target.name,
 		)
 	}
-	lost := lostDeviceKeySlotsOf(target, state)
-	if lost.pending || lost.current {
+	key := lostDeviceKeyOf(target, state)
+	if key.lost() && acceptedLostDeviceKeys[target.name] != key {
 		return &lostDeviceKeyError{
 			profile: target.name,
-			slots:   lost,
-			cloud:   target.cloudProfile,
+			key:     key,
+			askable: !target.cloudProfile && !state.keyringMayHoldKey,
 		}
 	}
 	return nil
-}
-
-// lostDeviceKeySlotsOf: the config names a Relay pairing whose key is not in
-// this computer's storage, and nothing proves it was revoked.
-func lostDeviceKeySlotsOf(
-	target profilePurgeTarget,
-	state profilePurgeSlotState,
-) lostDeviceKeySlots {
-	pendingEndpointRecorded :=
-		target.pendingSecureBaseURL != "" ||
-			target.pendingSpkiPin != ""
-	currentEndpointRecorded :=
-		target.secureBaseURL != "" ||
-			target.spkiPin != ""
-	interruptedFirstPromotion :=
-		state.pendingExists &&
-			state.pendingLocal &&
-			state.pendingEndpointLive &&
-			target.secureBaseURL == target.pendingSecureBaseURL &&
-			target.spkiPin == target.pendingSpkiPin
-	return lostDeviceKeySlots{
-		pending: pendingEndpointRecorded &&
-			!state.pendingExists &&
-			target.revokedPendingID == "",
-		current: currentEndpointRecorded &&
-			!state.currentExists &&
-			target.revokedCurrentID == "" &&
-			!interruptedFirstPromotion,
-	}
 }
 
 func validateProfilePurgeEndpointCompleteness(

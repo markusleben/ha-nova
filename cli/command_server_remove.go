@@ -15,6 +15,7 @@ var (
 )
 
 func runServerRemove(paths runtimePaths, args []string) int {
+	defer func() { acceptedLostDeviceKeys = nil }() // a yes holds for this run only
 	if serverSubcommandHelp(args, "ha-nova server remove <name>",
 		"Revokes the profile's device pairing on ITS relay (best-effort), deletes",
 		"its stored credentials, and removes the profile from config.json.",
@@ -172,7 +173,13 @@ func runServerRemove(paths runtimePaths, args []string) int {
 		return 1
 	}
 
-	printHumanInfo("Removing server profile %q: its device pairing will be revoked on that relay and its stored credentials deleted. The Relay App on that Home Assistant instance stays installed.", name)
+	lostKey, keyLost := serverRemoveLostKey(doc, name)
+	if keyLost {
+		printHumanWarn("This computer's HA NOVA key for %q is gone, so HA NOVA can't sign this computer out of that Home Assistant.", name)
+		printHumanInfo("Removing server profile %q: its settings are deleted. The Relay App on that Home Assistant instance stays installed.", name)
+	} else {
+		printHumanInfo("Removing server profile %q: its device pairing will be revoked on that relay and its stored credentials deleted. The Relay App on that Home Assistant instance stays installed.", name)
+	}
 	typed, err := readServerRemoveConfirmationForCommand(name)
 	if err != nil {
 		printHumanErr("cannot read the confirmation from stdin (%v). Run this command interactively and type the profile name %q to confirm.", err, name)
@@ -243,6 +250,9 @@ func runServerRemove(paths runtimePaths, args []string) int {
 		printHumanErr("secure storage changed while awaiting confirmation; nothing was removed")
 		return 1
 	}
+	if keyLost { // the typed name agreed to leave exactly this key
+		acceptedLostDeviceKeys = map[string]lostDeviceKey{name: lostKey}
+	}
 	cfg, _ := doc.flatProfile(name)
 	preflightTarget, preflightErr :=
 		profilePurgeTargetFromConfig(name, cfg)
@@ -312,11 +322,15 @@ func runServerRemove(paths runtimePaths, args []string) int {
 	if !checkpointedOK {
 		return 1
 	}
-	return completeServerRemovalUnlocked(
+	exitCode := completeServerRemovalUnlocked(
 		paths,
 		checkpointedDoc,
 		name,
 	)
+	if exitCode == 0 && keyLost {
+		printHumanInfo("%s", lostDeviceKeyHandStep())
+	}
+	return exitCode
 }
 
 func serverProfileContainsCloudState(doc *configDocument, name string) (bool, error) {

@@ -8,21 +8,66 @@ import (
 	"strings"
 )
 
-type lostDeviceKeySlots struct{ current, pending bool }
+// lostDeviceKey: a server's config still names its Relay pairing (the
+// endpoints the owner was shown), but this computer's storage no longer holds
+// the key for it (a reset keyring, a copied config). HA NOVA can't sign this
+// computer out of Home Assistant then.
+type lostDeviceKey struct {
+	current, pending                     bool
+	secureBaseURL, spkiPin               string
+	pendingSecureBaseURL, pendingSpkiPin string
+}
 
-// lostDeviceKeyError: a server's config still names its Relay pairing, but
-// the key that pairing needs is gone from this computer (a reset keyring, a
-// copied config). HA NOVA can't sign this computer out of Home Assistant
-// then, so a full purge stops until the owner says yes in the guided
-// uninstall (confirmLostDeviceKeyPurge).
+func (k lostDeviceKey) lost() bool { return k.current || k.pending }
+
+// acceptedLostDeviceKeys is this run's yes to finishing without signing out
+// (guided uninstall). The purge skips exactly these lost keys and stops on
+// anything else. Nothing is written: a rerun asks again, and a key that comes
+// back is revoked as usual. The Windows helper gets the yes as
+// --accept-lost-keys.
+var acceptedLostDeviceKeys map[string]lostDeviceKey
+
+// lostDeviceKeyOf: the config names the slot's endpoint, the slot is empty,
+// and nothing proves it was revoked or was already absent when a server
+// removal was checkpointed (that removal was confirmed with the slot gone).
+func lostDeviceKeyOf(
+	target profilePurgeTarget,
+	state profilePurgeSlotState,
+) lostDeviceKey {
+	interruptedFirstPromotion :=
+		state.pendingExists &&
+			state.pendingLocal &&
+			state.pendingEndpointLive &&
+			target.secureBaseURL == target.pendingSecureBaseURL &&
+			target.spkiPin == target.pendingSpkiPin
+	return lostDeviceKey{
+		pending: (target.pendingSecureBaseURL != "" ||
+			target.pendingSpkiPin != "") &&
+			!state.pendingExists &&
+			target.revokedPendingID == "" &&
+			!(target.removalCheckpointed && !target.pendingSlotPresent),
+		current: (target.secureBaseURL != "" || target.spkiPin != "") &&
+			!state.currentExists &&
+			target.revokedCurrentID == "" &&
+			!interruptedFirstPromotion &&
+			!(target.removalCheckpointed && !target.currentSlotPresent),
+		secureBaseURL:        target.secureBaseURL,
+		spkiPin:              target.spkiPin,
+		pendingSecureBaseURL: target.pendingSecureBaseURL,
+		pendingSpkiPin:       target.pendingSpkiPin,
+	}
+}
+
 type lostDeviceKeyError struct {
 	profile string
-	slots   lostDeviceKeySlots
-	cloud   bool // a Link profile keeps its own recovery; no guided finish
+	key     lostDeviceKey
+	// askable: a yes may finish. Not for a Link profile (its own recovery) or
+	// when the OS keyring may still hold the key on a file-storage install.
+	askable bool
 }
 
 func (e *lostDeviceKeyError) Error() string {
-	if e.slots.pending {
+	if e.key.pending {
 		return fmt.Sprintf(
 			"pending device endpoint for server %q indicates a possibly activated pairing, but its pending credential is missing; refusing cleanup because that relay pairing cannot be authenticated for revocation",
 			e.profile,
@@ -34,60 +79,54 @@ func (e *lostDeviceKeyError) Error() string {
 	)
 }
 
-const (
-	lostDeviceKeyText     = "This computer's HA NOVA key is gone, so HA NOVA can't sign this computer out of Home Assistant."
-	lostDeviceKeyHandStep = "In Home Assistant, open the NOVA page and revoke this computer."
-)
+const lostDeviceKeyText = "This computer's HA NOVA key is gone, so HA NOVA can't sign this computer out of Home Assistant."
+
+func lostDeviceKeyHandStep() string {
+	return fmt.Sprintf("If “%s” is still listed on the NOVA page in Home Assistant, click Revoke next to it.", hostLabel())
+}
 
 // lostDeviceKeyErrorText is the plain stop for runs that can't ask (--yes,
 // no terminal): one next step, the run that asks.
 func lostDeviceKeyErrorText(err error) (string, bool) {
 	var lost *lostDeviceKeyError
-	if !errors.As(err, &lost) || lost.cloud {
+	if !errors.As(err, &lost) || !lost.askable {
 		return "", false
 	}
-	return lostDeviceKeyText + " Next step: run ha-nova uninstall (without --yes) and pick Remove.", true
+	return lostDeviceKeyText + " Next step: in a terminal on this computer, run ha-nova uninstall --purge and choose to finish removing.", true
 }
 
-// findLostDeviceKeys maps each server whose key is lost to its lost slots.
-// ok=false when any server fails a check for another reason or is a Link
-// profile: the purge then stops with that reason, as before.
-func findLostDeviceKeys(paths runtimePaths) (map[string]lostDeviceKeySlots, bool) {
+// findLostDeviceKeys maps each server whose lost key a yes may skip. Other
+// stops are left to the purge, which reports them.
+func findLostDeviceKeys(paths runtimePaths) map[string]lostDeviceKey {
 	// Pinned: the same storage the purge reads, never a wrong one.
 	targets, _, release, err := pinnedPurgeTargets(paths)
 	if err != nil {
-		return nil, false
+		return nil
 	}
 	defer release()
-	found := map[string]lostDeviceKeySlots{}
+	found := map[string]lostDeviceKey{}
 	for _, target := range targets {
 		state, err := inspectProfilePurgeSlotState(target)
 		if err != nil {
-			return nil, false
+			continue
 		}
-		err = validateRequiredProfilePurgeSlots(target, state)
 		var lost *lostDeviceKeyError
-		switch {
-		case err == nil:
-		case errors.As(err, &lost) && !lost.cloud:
-			found[target.name] = lost.slots
-		default:
-			return nil, false
+		if err := validateRequiredProfilePurgeSlots(target, state); errors.As(err, &lost) && lost.askable {
+			found[target.name] = lost.key
 		}
 	}
-	return found, true
+	return found
 }
 
-// confirmLostDeviceKeyPurge asks before a guided full removal goes on without
-// signing this computer out. After a yes the lost pairing is forgotten in
-// config.json (forgotten=true), so the purge, and a Windows helper or a
-// retry, removes the rest as usual. exitCode >= 0 ends the run (cancel, error).
-func confirmLostDeviceKeyPurge(out io.Writer, paths runtimePaths, mode uninstallMode) (forgotten bool, exitCode int) {
+// confirmLostDeviceKeyPurge asks before a full removal goes on without
+// signing this computer out. accepted: the owner said yes (the purge then
+// skips those keys). exitCode >= 0 ends the run (cancel, error).
+func confirmLostDeviceKeyPurge(out io.Writer, paths runtimePaths, mode uninstallMode) (accepted bool, exitCode int) {
 	if mode != uninstallModePurge {
 		return false, -1
 	}
-	lost, ok := findLostDeviceKeys(paths)
-	if !ok || len(lost) == 0 {
+	lost := findLostDeviceKeys(paths)
+	if len(lost) == 0 {
 		return false, -1
 	}
 	fmt.Fprintln(out)
@@ -95,7 +134,7 @@ func confirmLostDeviceKeyPurge(out io.Writer, paths runtimePaths, mode uninstall
 	if names := lostDeviceKeyServerNames(lost); names != "" {
 		fmt.Fprintf(out, "  Servers: %s.\n", names)
 	}
-	fmt.Fprintf(out, "  %s\n", lostDeviceKeyHandStep)
+	fmt.Fprintf(out, "  %s\n", lostDeviceKeyHandStep())
 	spec := setupMenuSpec{
 		Title:        "Finish removing HA NOVA from this computer?",
 		Prompt:       "Use ↑/↓ or j/k, Enter to select, Ctrl+C to cancel",
@@ -112,68 +151,67 @@ func confirmLostDeviceKeyPurge(out io.Writer, paths runtimePaths, mode uninstall
 		}
 		return "cancel", err
 	})
-	if err == nil && answer == "finish" {
-		err = forgetLostDeviceKeys(paths, lost)
-		if err == nil {
-			return true, -1
-		}
-	}
-	if err != nil && !errors.Is(err, errSetupExit) {
+	switch {
+	case err != nil && !errors.Is(err, errSetupExit):
 		printHumanErr("%s", err)
 		return false, 1
+	case err == nil && answer == "finish":
+		acceptedLostDeviceKeys = lost
+		return true, -1
 	}
 	printHumanInfo("Uninstall cancelled")
 	return false, 0
 }
 
-// lostDeviceKeyServerNames names the servers when it isn't just the default.
-func lostDeviceKeyServerNames(lost map[string]lostDeviceKeySlots) string {
-	if _, only := lost[defaultServerProfileName]; only && len(lost) == 1 {
-		return ""
+// acceptLostDeviceKeysInHelper re-finds the lost keys in the Windows helper
+// and accepts those of the servers the parent's owner said yes to.
+func acceptLostDeviceKeysInHelper(paths runtimePaths, names string) {
+	if names == "" {
+		return
 	}
-	names := make([]string, 0, len(lost))
-	for name := range lost {
+	lost := findLostDeviceKeys(paths)
+	accepted := map[string]lostDeviceKey{}
+	for _, name := range strings.Split(names, ",") {
+		if key, ok := lost[name]; ok {
+			accepted[name] = key
+		}
+	}
+	acceptedLostDeviceKeys = accepted
+}
+
+// lostDeviceKeyNames is the --accept-lost-keys value ("" for none).
+func lostDeviceKeyNames(keys map[string]lostDeviceKey) string {
+	names := make([]string, 0, len(keys))
+	for name := range keys {
 		names = append(names, name)
 	}
 	sort.Strings(names)
-	return strings.Join(names, ", ")
+	return strings.Join(names, ",")
 }
 
-// forgetLostDeviceKeys drops the endpoints of the lost slots the owner agreed
-// to, under the client lock and only while they are still lost exactly so:
-// a key that came back keeps its revoke.
-func forgetLostDeviceKeys(paths runtimePaths, agreed map[string]lostDeviceKeySlots) error {
-	return withClientMutationLock(paths, func() error {
-		lost, ok := findLostDeviceKeys(paths)
-		if !ok {
-			return nil // the purge stops with the reason
-		}
-		for name, slots := range lost {
-			if agreed[name] != slots {
-				continue
-			}
-			doc, err := loadConfigDocument(paths.ConfigFile)
-			if err != nil {
-				return err
-			}
-			cfg, found := doc.flatProfile(name)
-			if !found {
-				return fmt.Errorf("cannot read server %q in config.json", name)
-			}
-			if slots.current {
-				cfg.RelaySecureBaseURL, cfg.RelaySpkiPin = "", ""
-			}
-			if slots.pending {
-				cfg.PendingSecureBaseURL, cfg.PendingSpkiPin = "", ""
-			}
-			top, err := doc.withProfile(name, cfg)
-			if err != nil {
-				return err
-			}
-			if err := writeJSONFileIfUnchanged(paths.ConfigFile, top, 0o600, doc.source); err != nil {
-				return fmt.Errorf("forget the lost pairing of server %q: %w", name, err)
-			}
-		}
-		return nil
-	})
+// lostDeviceKeyServerNames names the servers when it isn't just the default.
+func lostDeviceKeyServerNames(lost map[string]lostDeviceKey) string {
+	if _, only := lost[defaultServerProfileName]; only && len(lost) == 1 {
+		return ""
+	}
+	return strings.ReplaceAll(lostDeviceKeyNames(lost), ",", ", ")
+}
+
+// serverRemoveLostKey is the lost key a typed `server remove` confirmation
+// may leave behind; the command says so before it asks.
+func serverRemoveLostKey(doc *configDocument, name string) (lostDeviceKey, bool) {
+	cfg, _ := doc.flatProfile(name)
+	target, err := profilePurgeTargetFromConfig(name, cfg)
+	if err != nil {
+		return lostDeviceKey{}, false
+	}
+	state, err := inspectProfilePurgeSlotState(target)
+	if err != nil {
+		return lostDeviceKey{}, false
+	}
+	var lost *lostDeviceKeyError
+	if errors.As(validateRequiredProfilePurgeSlots(target, state), &lost) && lost.askable {
+		return lost.key, true
+	}
+	return lostDeviceKey{}, false
 }

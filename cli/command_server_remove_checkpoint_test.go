@@ -3,7 +3,6 @@ package main
 import (
 	"encoding/json"
 	"errors"
-	"os"
 	"strings"
 	"testing"
 )
@@ -312,14 +311,13 @@ func TestServerRemoveCheckpointRejectsProfileGenerationChange(
 	}
 }
 
-func TestServerRemoveMissingCredentialDoesNotCreateCheckpoint(
+// A lost key (keyring reset): the command says so before the typed name,
+// then removes the profile without a revoke and names the NOVA page step.
+func TestServerRemoveLostKeyFinishesAfterTypedName(
 	t *testing.T,
 ) {
 	paths := setupServerCommandTest(t, testV2TwoProfileConfig)
-	before, err := os.ReadFile(paths.ConfigFile)
-	if err != nil {
-		t.Fatal(err)
-	}
+	revokedAt := stubServerRevoke(t)
 	previousConfirmation :=
 		readServerRemoveConfirmationForCommand
 	readServerRemoveConfirmationForCommand = func(
@@ -334,16 +332,58 @@ func TestServerRemoveMissingCredentialDoesNotCreateCheckpoint(
 	exit, output := captureCommandOutput(t, func() int {
 		return runServerRemove(paths, []string{"cabin"})
 	})
-	if exit != 1 ||
-		!strings.Contains(output, "credential is missing") {
-		t.Fatalf("remove exit=%d output=%s", exit, output)
+	if exit != 0 || len(*revokedAt) != 0 {
+		t.Fatalf("remove exit=%d revokes=%v output=%s", exit, *revokedAt, output)
 	}
-	after, err := os.ReadFile(paths.ConfigFile)
+	for _, want := range []string{
+		`This computer's HA NOVA key for "cabin" is gone`,
+		"click Revoke next to it",
+	} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("output missing %q:\n%s", want, output)
+		}
+	}
+	if strings.Contains(output, "refusing cleanup") {
+		t.Fatalf("technical refusal shown:\n%s", output)
+	}
+	doc, err := loadConfigDocument(paths.ConfigFile)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if string(after) != string(before) {
-		t.Fatal("missing credential created a removal checkpoint")
+	if doc.hasProfile("cabin") || !doc.hasProfile(defaultServerProfileName) {
+		t.Fatalf("profiles after removal: %v", doc.profileNames())
+	}
+}
+
+// The checkpoint records the key as already gone, so a later run (no yes in
+// memory) still finishes the removal.
+func TestServerRemoveLostKeyResumesFromCheckpoint(t *testing.T) {
+	paths := setupServerCommandTest(t, testV2TwoProfileConfig)
+	previousConfirmation, previousHook :=
+		readServerRemoveConfirmationForCommand, serverRemovalPhaseHook
+	t.Cleanup(func() {
+		readServerRemoveConfirmationForCommand, serverRemovalPhaseHook =
+			previousConfirmation, previousHook
+	})
+	readServerRemoveConfirmationForCommand = func(string) (string, error) { return "cabin", nil }
+	serverRemovalPhaseHook = func(phase string) error {
+		if phase == "checkpoint-persisted" {
+			return errors.New("simulated crash")
+		}
+		return nil
+	}
+	if exit, output := captureCommandOutput(t, func() int {
+		return runServerRemove(paths, []string{"cabin"})
+	}); exit != 1 {
+		t.Fatalf("crash run exit=%d output=%s", exit, output)
+	}
+	serverRemovalPhaseHook = previousHook
+	exit, output := captureCommandOutput(t, func() int {
+		return runServerRemove(paths, []string{"cabin"})
+	})
+	doc, err := loadConfigDocument(paths.ConfigFile)
+	if exit != 0 || err != nil || doc.hasProfile("cabin") {
+		t.Fatalf("resume exit=%d err=%v output=%s", exit, err, output)
 	}
 }
 
