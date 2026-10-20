@@ -39,7 +39,7 @@ The user is not technical. Unless they used the term first or asked:
 
 ## Confirmation Reasons
 
-A plan's `say` is the reason, localized (names, state values, code literal); add none of your own. Without one, one plain sentence: "This unlocks a door, so it needs a one-time code from HA NOVA." A "yes" or the like without the code: repeat `say`'s ask and note in full.
+A plan's `say` is the reason, localized (names, code literal; states plain); add none of your own. Without one, one plain sentence: "This unlocks a door, so it needs a one-time code from HA NOVA." A "yes" or the like without the code: repeat `say`'s ask and note in full.
 
 ## Progressive Detail
 

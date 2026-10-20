@@ -34,11 +34,7 @@ func addOutcomeSay(envelope map[string]any) {
 		id, _ := row["entity_id"].(string)
 		outcome, _ := row["outcome"].(string)
 		observed, _ := row["observed"].(string)
-		state, _, _ := strings.Cut(observed, ", ")
-		key := outcome
-		if outcome == "verified" || outcome == "failed" {
-			key += "\x00" + sayText(strings.ReplaceAll(state, "_", " "), false)
-		}
+		key := outcome + "\x00" + plainStates[observed] // observed is "state, field=value…": a comma names no plain state
 		if _, seen := groups[key]; !seen {
 			order, groups[key] = append(order, key), nil
 		}
@@ -54,15 +50,21 @@ func addOutcomeSay(envelope map[string]any) {
 		if n := unnamed[key]; n > 0 {
 			who = append(who, map[bool]string{true: "1 device", false: fmt.Sprint(n, " devices")}[n == 1])
 		}
-		subject := sayList(who)
-		is := map[bool]string{true: " are", false: " is"}[len(who) > 1 || unnamed[key] > 1]
+		many := len(who) > 1 || unnamed[key] > 1
+		subject, is, it := sayList(who), map[bool]string{true: " are", false: " is"}[many], map[bool]string{true: "they", false: "it"}[many]
 		outcome, state, _ := strings.Cut(key, "\x00")
-		switch outcome {
-		case "verified":
+		switch {
+		case outcome == "verified" && state != "":
 			parts = append(parts, subject+is+" "+state+" now.")
-		case "failed":
-			parts = append(parts, subject+" did not change as asked; it shows "+state+".")
-		case "accepted":
+		case outcome == "verified":
+			parts = append(parts, subject+" changed as asked.")
+		case outcome == "failed" && state != "":
+			parts = append(parts, subject+" did not change as asked; "+it+map[bool]string{true: " show ", false: " shows "}[many]+state+".")
+		case outcome == "failed":
+			parts = append(parts, subject+" did not change as asked.")
+		case outcome == "accepted" && state != "":
+			parts = append(parts, "Sent to "+subject+"; "+it+map[bool]string{true: " are", false: " is"}[many]+" still "+state+".")
+		case outcome == "accepted":
 			parts = append(parts, "Sent to "+subject+".")
 		default:
 			parts = append(parts, "Sent to "+subject+", but the change does not show yet.")
@@ -71,13 +73,23 @@ func addOutcomeSay(envelope map[string]any) {
 	envelope["say"] = strings.Join(parts, " ")
 }
 
+// plainStates: the end states a say may name, in plain words; any other
+// state (free text, select options, attribute changes) is "changed as asked".
+var plainStates = map[string]string{"on": "on", "off": "off", "locked": "locked", "unlocked": "unlocked", "open": "open", "closed": "closed",
+	"jammed": "jammed", "disarmed": "disarmed", "triggered": "triggered", "armed_away": "armed away", "armed_home": "armed home",
+	"armed_night": "armed night", "armed_vacation": "armed vacation", "armed_custom_bypass": "armed custom bypass",
+	"opening": "opening", "closing": "closing", "locking": "locking", "unlocking": "unlocking", "arming": "arming", "disarming": "disarming", "pending": "pending"}
+
 // findTruncated: a find that returned fewer rows than matched.
 func findTruncated(envelope map[string]any) string {
 	result, _ := envelope["result"].(map[string]any)
 	shown, _ := result["returned"].(float64)
 	total, _ := result["total"].(float64)
-	if envelope["verb"] != "find" || shown >= total {
+	switch {
+	case envelope["verb"] != "find" || shown >= total:
 		return ""
+	case shown >= 200: // the limit's ceiling: asking again shows the same rows
+		return fmt.Sprintf("Showing %v of %v matches: narrow it by domain, area, or state; say only what is shown.", shown, total)
 	}
 	return fmt.Sprintf("Showing %v of %v matches: call ha_find again with limit %v before you say what is or is not there.", shown, total, min(total, 200))
 }

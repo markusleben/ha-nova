@@ -35,14 +35,14 @@ This works in Claude on the web, in the desktop app, and in the phone apps. Menu
 
 ## Stop Claude from asking before every step
 
-At first, Claude asks before each HA NOVA step: "Allow once" or "Always allow" ("Einmal erlauben" / "Immer erlauben"). To stop that, it takes two clicks:
+At first, Claude asks before each HA NOVA step: "Allow once" or "Always allow" ("Einmal erlauben" / "Immer erlauben"). To ask less:
 
 1. In Claude, open Settings → Connectors and choose HA NOVA.
-2. You see two groups: read-only tools ("Schreibgeschützte Tools") and write/delete tools ("Schreib-/Lösch-Tools"). Set both to "Always allow" ("Immer erlauben").
+2. You see two groups: read-only tools ("Schreibgeschützte Tools") and write/delete tools ("Schreib-/Lösch-Tools"). Set the read-only tools to "Always allow" ("Immer erlauben").
+3. Under write/delete tools, set "Control a device" to "Always allow" too. Lights and other everyday things then run right away, the same as HA NOVA on a computer.
+4. Leave "Run a confirmed change" on "Needs approval" ("Genehmigung erforderlich"), unless your phone is linked (see "What your phone confirms"). Without a linked phone, the AI can see the code in the chat, so Claude's own question is the extra check before a door unlocks.
 
-HA NOVA still asks you itself before it unlocks a door, opens a garage door or gate, turns off an alarm, or deletes something (see "What your phone confirms"). Everyday things like a light run right away, the same as HA NOVA on a computer.
-
-More careful: set only the read-only tools to "Always allow". Then Claude still asks before each change.
+With a linked phone, you can set the whole write/delete group to "Always allow": your phone still asks before HA NOVA unlocks a door, opens a garage door or gate, turns off an alarm, or deletes something.
 
 Claude may ask again after an HA NOVA update, or now and then in a new chat. That comes from Claude: choose "Always allow" again.
 
