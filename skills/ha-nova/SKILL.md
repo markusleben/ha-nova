@@ -1,6 +1,6 @@
 ---
 name: ha-nova
-description: Use for reviews and multi-step or multi-target Home Assistant work through HA NOVA (App + Relay), or when no other HA NOVA skill fits. Single device actions, lookups, and single automation/script changes need only their own skill.
+description: Use for reviews and multi-step or multi-target Home Assistant work through HA NOVA (App + Relay), or when no other HA NOVA skill fits. Single device actions, lookups, and single automation/script changes need only their own skill. Also the demo house. Where the ha-nova command exists, use it, never a "HA NOVA…" chat connector.
 license: MIT
 compatibility: Requires the ha-nova CLI (run 'ha-nova setup' first) and the HA NOVA Relay in Home Assistant (App, or standalone container on Container/Core).
 ---
@@ -14,15 +14,13 @@ Sub-skills are discovered independently by their descriptions. `index.md` (besid
 Operate Home Assistant through HA NOVA with a minimal user-facing flow:
 - App + Relay first
 - preview before write, except the CLI fast path (`tier: ordinary`): unambiguous everyday actions run immediately and are verified afterwards
-- one blocking question only when required
 - compact result output
 - when scope exceeds one target, scale manually with the same rules and report the exact audited subset
 
 ## Session Bootstrap
 
 Before the first HA task in a session, read and follow
-`../ha-nova/session-bootstrap.md`; it owns the update checks for every HA NOVA
-skill.
+`../ha-nova/session-bootstrap.md`; it owns every skill's update checks.
 
 ## Runtime Prerequisite
 
