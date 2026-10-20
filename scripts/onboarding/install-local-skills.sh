@@ -47,12 +47,12 @@ rewrite_skill_markdown() {
   local sub_skill_ref="$4"
 
   HA_NOVA_ROOT="${REPO_ROOT}" SKILL_NAME="${skill_name}" SUB_SKILL_REF="${sub_skill_ref}" \
-    SUB_SKILLS="${FLAT_SUB_SKILLS[*]}" perl -MFile::Glob=bsd_glob -0pe '
+    SUB_SKILLS="${FLAT_SUB_SKILLS[*]}" perl -0pe '
     my $skill = $ENV{SKILL_NAME};
     my $dir = "$ENV{HA_NOVA_ROOT}/skills/$skill";
     s/\n+\z//;
-    for my $companion (map { s{.*/}{}r } bsd_glob("$dir/*.md")) {
-      next if $companion eq "SKILL.md";
+    opendir(my $dh, $dir) or die "cannot read $dir: $!";
+    for my $companion (sort grep { /\.md\z/ && !/^\./ && $_ ne "SKILL.md" } readdir $dh) {
       s{\Q`skills/$skill/$companion`\E}{`$companion`}g;
       # ../ha-nova/session-bootstrap.md stays: the bootstrap repair layout marker
       s{\Q`../$skill/$companion`\E}{`$companion`}g unless "$skill/$companion" eq "ha-nova/session-bootstrap.md";
@@ -62,7 +62,7 @@ rewrite_skill_markdown() {
     s/^name:\s*\Q$skill\E$/name: ha-nova-$skill/m if $skill ne "ha-nova";
     my $subs = join "|", map { quotemeta } split / /, $ENV{SUB_SKILLS};
     s/ha-nova:(?=$subs)/$ENV{SUB_SKILL_REF}/g if length $subs;
-  ' "${src}" > "${dest}"
+  ' < "${src}" > "${dest}"
 }
 
 # copy_skill_markdown <skill> <dest_dir> <sub_skill_ref>
