@@ -121,9 +121,8 @@ window.novaSteps = (h) => {
   };
   const focusId = (id) => { const node = document.getElementById(id); if (node) node.focus(); };
   // Once on: Add to Claude (never a second primary next to Finish), then how.
-  const onParts = (chat, ...beforeHow) => [
+  const onParts = (chat) => [
     el('div', { class: 'actions addclaude' }, addClaude(chat.claude_link, 'ghost btn-small', 'chat-claude')),
-    ...beforeHow,
     howTo('claude', 'setup.chat.claude_title', ['setup.chat.claude_1', 'setup.chat.claude_2', 'setup.chat.claude_3']),
     howTo('chatgpt', 'setup.chat.chatgpt_title', ['setup.chat.chatgpt_1', 'setup.chat.chatgpt_2', 'setup.chat.chatgpt_3'],
       el('div', { class: 'copybar' }, el('code', { id: 'chat-url' }, chat.url),
@@ -143,8 +142,8 @@ window.novaSteps = (h) => {
       ? el('ul', { class: 'rows sub' }, chat.rows.map((r) => row(r.state, say(r.msg), null, null, true))) : null;
     switch (chat.state) {
       case 'on':
-        return refocus(line(guard('✓'), key, t('setup.chat.on_next'), [chat.problem ? progress : null,
-          ...onParts(chat, problem(chat.problem)), el('p', { class: 'fine' }, t('setup.chat.off_hint_page'))], tagOn()));
+        return refocus(line(guard('✓'), key, t(chat.problem ? 'setup.chat.page_on_short' : 'setup.chat.on_next'), [chat.problem ? progress : null,
+          problem(chat.problem), ...onParts(chat), el('p', { class: 'fine' }, t('setup.chat.off_hint_page'))], tagOn()));
       case 'run':
         return el('li', { id: 'chat-run', ...focusAfter(['b-chat-on', 'b-chat-switch']) }, guard('◎'),
           el('div', {}, el('div', { class: 'k' }, key), el('div', { class: 'v', role: 'status' }, t(chat.no_restart ? 'setup.chat.wait_now' : 'setup.chat.wait')), progress), el('span'));
