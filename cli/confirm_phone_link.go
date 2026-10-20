@@ -137,7 +137,7 @@ func linkPhone(s *relaySession, reader *bufio.Reader, out io.Writer, run phoneLi
 	case run.listOnly:
 		fmt.Fprintln(out, "  Which phone should confirm HA NOVA actions? "+phoneListHeader)
 		listPhones(out, all, home.shared)
-		fmt.Fprintln(out, "  Nothing was sent. To link one: tell the user to watch that phone for “Link this phone to HA NOVA?” and to expand it and tap “Link”, then run ha-nova setup confirm-phone \"<phone name>\" (it waits up to 90 seconds).")
+		fmt.Fprintln(out, "  Nothing was sent. To link one: tell the user to watch that phone for “"+phoneLinkTitle+"” and to expand it and tap “Link”, then run ha-nova setup confirm-phone \"<phone name>\" (it waits up to 90 seconds).")
 		return 0
 	default:
 		if chosen, ok = choosePhone(reader, out, home, run.signedIn); !ok {
@@ -226,8 +226,8 @@ func sendPhoneLink(s *relaySession, out io.Writer, home phoneHome, links map[str
 	if err := setPhoneLink(s.paths, home.owner, prev, link); err != nil {
 		return say(phoneLinkNotSaved, fmt.Sprintf("Nothing linked: %s.", err))
 	}
-	say(phoneLinked, fmt.Sprintf("Linked “%s”. Only this phone gets HA NOVA confirmations from “%s”.", name, phoneHost()))
-	reply.say("Linked to HA NOVA", "Confirmations from “"+phoneHost()+"” come to this phone.")
+	say(phoneLinked, fmt.Sprintf("Linked “%s”. Only “%s” gets HA NOVA confirmations from “%s”.", name, name, phoneHost()))
+	reply.say("Linked to HA NOVA", "Confirmations from “"+phoneHost()+"” now come to you.")
 	return phoneLinked
 }
 
@@ -253,7 +253,7 @@ func unlinkPhone(s *relaySession, out io.Writer) int {
 	case phoneMissing:
 		fmt.Fprintln(out, "  "+home.missingLine(prev, current.why))
 	}
-	if !allowPhoneChange(s, out, home, links, "Stop confirming HA NOVA actions on this phone? HA NOVA then asks in a window, in your AI app's form, or with a one-time code in chat that your AI assistant can see too.", "", true, windowWait) {
+	if !allowPhoneChange(s, out, home, links, "Stop confirming HA NOVA actions on your linked phone? HA NOVA then asks in a window, in your AI app's form, or with a one-time code in chat that your AI assistant can see too.", "", true, windowWait) {
 		return 1
 	}
 	if err := setPhoneLink(s.paths, home.owner, prev, nil); err != nil {
@@ -286,7 +286,7 @@ func allowPhoneChange(s *relaySession, out io.Writer, home phoneHome, links map[
 			still, unread := phoneStillLinked(s, current)
 			switch {
 			case still && unlink:
-				reply.say("Approved", "HA NOVA turns off confirmations on this phone; the computer shows the result.")
+				reply.say("Approved", "Confirmations from “"+phoneHost()+"” stop coming to you; the computer shows the result.")
 				return true
 			case still:
 				reply.say("Approved", sayText(newPhone, true)+" must confirm next; the computer shows the result.")

@@ -11,6 +11,7 @@ import (
 )
 
 // The phone's notification (Companion app): a short question as the title,
+// never naming the device it shows on (a watch shows it too),
 // one line naming the computer that asked, and the hint last — a plain tap
 // only opens the app; the buttons show when it is expanded (a long-press on
 // iOS; on Android a long-press opens settings). Everything else (what it means, "only if you started this")
@@ -24,20 +25,21 @@ type phoneAsk struct {
 
 const (
 	phoneHint       = "Expand to answer."
+	phoneLinkTitle  = "Use this for HA NOVA confirmations?"
 	phoneSentText   = "Sent to “%s”. Expand the notification and tap “%s”, only if you started this."
 	phoneTitleLimit = 80  // runes: one lock-screen line
 	phoneWhyLimit   = 300 // runes: the reasons (an expanded notification shows them all)
 )
 
 func phoneLinkAsk() phoneAsk {
-	return phoneAsk{title: "Link this phone to HA NOVA?", body: "For confirmations from “" + phoneHost() + "”. " + phoneHint, button: phoneLinkButton, unlock: true}
+	return phoneAsk{title: phoneLinkTitle, body: phoneRequested(), button: phoneLinkButton, unlock: true}
 }
 
 // phoneChangeAsk goes to the phone linked now: stop (newPhone "") or move
 // HA NOVA's confirmations to newPhone. Stopping says what it gives up.
 func phoneChangeAsk(newPhone string) phoneAsk {
 	if newPhone == "" {
-		return phoneAsk{title: "Stop HA NOVA confirmations here?", body: "After this, HA NOVA may ask in chat, where your AI assistant can answer. " + phoneRequested(), button: "Stop", unlock: true}
+		return phoneAsk{title: "Stop getting HA NOVA confirmations?", body: "After this, HA NOVA may ask in chat, where your AI assistant can answer. " + phoneRequested(), button: "Stop", unlock: true}
 	}
 	return phoneAsk{title: phoneTitle("Move HA NOVA confirmations to", sayText(newPhone, true)), body: phoneRequested(), button: "Move", unlock: true}
 }
@@ -145,7 +147,7 @@ func phoneHost() string {
 	if host, err := os.Hostname(); err == nil && terminalSafeName(host) != "" {
 		return terminalSafeName(host)
 	}
-	return "this computer"
+	return "your computer" // it shows on the phone too, where "this" is the phone
 }
 
 // missingLine: why the linked phone can't be asked now, and what to do.
@@ -210,7 +212,7 @@ func phoneNothing(answer phoneAnswer) (string, string) {
 	case phoneConfirmed:
 		return "Not done", "Your tap arrived, but HA NOVA stopped. Nothing changed; the computer says why."
 	case phoneFailed:
-		return "Not asked", "HA NOVA couldn't ask here. Nothing changed."
+		return "Not asked", "HA NOVA couldn't ask. Nothing changed."
 	}
 	return "Not confirmed", "No answer reached Home Assistant. Nothing changed."
 }
@@ -262,5 +264,5 @@ const (
 	// #719's pin: no phone chosen yet. The agent may run the listing itself;
 	// only a tap on the chosen phone links it.
 	phoneUnlinkedWhy  = "HA NOVA now confirms on one phone the user chooses, and none is chosen on this computer yet"
-	phoneUnlinkedNext = "Tell the user nothing changed: HA NOVA now asks on one phone they choose. With a shell: run ha-nova setup confirm-phone list (it sends nothing), ask which phone is theirs, tell them to watch it for “Link this phone to HA NOVA?” and tap “Link”, then run ha-nova setup confirm-phone \"<that phone's name>\" (it waits up to 90 seconds) and plan again. Without a shell, they run ha-nova setup confirm-phone in a terminal. Never ask them for a code."
+	phoneUnlinkedNext = "Tell the user nothing changed: HA NOVA now asks on one phone they choose. With a shell: run ha-nova setup confirm-phone list (it sends nothing), ask which phone is theirs, tell them to watch it for “" + phoneLinkTitle + "” and tap “Link”, then run ha-nova setup confirm-phone \"<that phone's name>\" (it waits up to 90 seconds) and plan again. Without a shell, they run ha-nova setup confirm-phone in a terminal. Never ask them for a code."
 )
