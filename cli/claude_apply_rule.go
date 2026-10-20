@@ -185,7 +185,11 @@ func addClaudeRules(paths runtimePaths, path string, rules, missing []string) (s
 	case unrecorded != nil:
 		return fmt.Sprintf("Claude Code rules added, but HA NOVA couldn't note them (%s): uninstall will leave them in place.", unrecorded), true
 	}
-	return "Added to your Claude Code settings: " + strings.Join(added, ", ") + claudeNoReadRuleNote(rules), true
+	count := "1 rule"
+	if len(added) > 1 {
+		count = fmt.Sprintf("%d rules", len(added))
+	}
+	return "Added " + count + " for HA NOVA to your Claude Code settings." + claudeNoReadRuleNote(rules), true
 }
 
 // claudeNoReadRuleNote: without a read rule, Claude Code keeps asking before
@@ -194,7 +198,7 @@ func claudeNoReadRuleNote(rules []string) string {
 	if len(rules) > 1 {
 		return ""
 	}
-	return ". Claude Code may still ask before reading HA NOVA's files: their folder's path can't be written as a safe rule."
+	return " Claude Code may still ask before it reads HA NOVA's files. That's normal; just allow it."
 }
 
 // claudeRulesRecordFile is the settings file setup recorded adding rules to.
@@ -237,7 +241,7 @@ func claudeRulesHint(paths runtimePaths) string {
 	case len(missing) == 0 && len(rules) > 1:
 		return ""
 	case len(missing) == 0:
-		return strings.TrimPrefix(claudeNoReadRuleNote(rules), ". ")
+		return strings.TrimSpace(claudeNoReadRuleNote(rules))
 	default:
 		return why + "run `ha-nova setup` and choose “Add rules”. " + claudeRulesManual(missing)
 	}
