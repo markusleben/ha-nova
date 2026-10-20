@@ -1,6 +1,8 @@
 package main
 
 import (
+	"context"
+	"crypto/tls"
 	"errors"
 	"net/url"
 	"testing"
@@ -15,8 +17,14 @@ func TestSendTransportErrorSeparatesIdentityFromReachability(t *testing.T) {
 	if err := sendTransportError(s, "/core", refused); !errors.As(err, &unreachable) {
 		t.Fatalf("refused: %T %v, want relayUnreachableError", err, err)
 	}
-	pin := &url.Error{Op: "Post", URL: "https://relay.test:8792/core", Err: errPinMismatch}
-	if err := sendTransportError(s, "/core", pin); errors.As(err, &unreachable) {
-		t.Fatalf("pin mismatch became relayUnreachableError: %v", err)
+	timeout := &url.Error{Op: "Post", URL: "https://relay.test:8792/core", Err: context.DeadlineExceeded}
+	if err := sendTransportError(s, "/core", timeout); !errors.As(err, &unreachable) {
+		t.Fatalf("timeout: %T %v, want relayUnreachableError", err, err)
+	}
+	for name, cause := range map[string]error{"pin mismatch": errPinMismatch, "plain HTTP": tls.RecordHeaderError{Msg: "first record does not look like a TLS handshake"}} {
+		err := sendTransportError(s, "/core", &url.Error{Op: "Post", URL: "https://relay.test:8792/core", Err: cause})
+		if errors.As(err, &unreachable) {
+			t.Fatalf("%s became relayUnreachableError: %v", name, err)
+		}
 	}
 }

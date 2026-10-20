@@ -323,6 +323,8 @@ func (s *relaySession) sendIn(parent context.Context, endpoint string, body []by
 // sendTransportError words a failure that got no HTTP response at all.
 func sendTransportError(s *relaySession, endpoint string, err error) error {
 	switch {
+	case errors.Is(err, context.DeadlineExceeded) && s.transport.Via != relayViaCloud: // no answer in time: same plain say
+		return relayUnreachableError(fmt.Sprintf("Relay %s read timed out (%s per request, %s overall); nothing was changed", endpoint, relaySessionRequestTimeout, relaySessionOverallTimeout))
 	case errors.Is(err, context.DeadlineExceeded):
 		return fmt.Errorf("Relay %s read timed out (%s per request, %s overall); nothing was changed", endpoint, relaySessionRequestTimeout, relaySessionOverallTimeout)
 	case s.transport.Via == relayViaCloud:
@@ -337,13 +339,14 @@ func sendTransportError(s *relaySession, endpoint string, err error) error {
 	return relayUnreachableError(relayConnectErrorMessage(s.transport.BaseURL, err))
 }
 
-// relayIdentityFailure: the Relay answered, but its TLS identity failed (a
-// changed pin or an untrusted certificate).
+// relayIdentityFailure: something answered, but not as the pinned TLS Relay
+// (a changed pin, an untrusted certificate, or plain HTTP on a TLS endpoint).
 func relayIdentityFailure(err error) bool {
 	var verify *tls.CertificateVerificationError
 	var authority x509.UnknownAuthorityError
 	var host x509.HostnameError
-	return errors.Is(err, errPinMismatch) || errors.As(err, &verify) || errors.As(err, &authority) || errors.As(err, &host)
+	var record tls.RecordHeaderError
+	return errors.Is(err, errPinMismatch) || errors.As(err, &verify) || errors.As(err, &authority) || errors.As(err, &host) || errors.As(err, &record)
 }
 
 // relayUnreachableError: no HTTP answer from a local Relay. Its message keeps

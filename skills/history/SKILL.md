@@ -89,7 +89,7 @@ Statistics semantics (`recorder/statistics_during_period`) — check which keys 
 
 ## Output Format
 
-Apply `../ha-nova/output-rules.md`: plain words, HA names verbatim; unless asked, no ids, "entity", modes, Relay/HA URLs, snapshot files, raw JSON.
+Apply `../ha-nova/output-rules.md`: plain words, HA names verbatim; unless asked or names clash, no ids, "entity", modes, Relay/HA URLs, snapshots, raw JSON.
 
 - `Target`
 - `Window`

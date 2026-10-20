@@ -101,9 +101,9 @@ After the review output, build a Test Plan Card per `../ha-nova/test-run.md`: on
 
 ## Output Format
 
-Apply `../ha-nova/output-rules.md`: plain words, HA names verbatim; unless asked, no ids, "entity", modes, Relay/HA URLs, snapshot files, raw JSON.
+Apply `../ha-nova/output-rules.md`: plain words, HA names verbatim; unless asked or names clash, no ids, "entity", modes, Relay/HA URLs, snapshots, raw JSON.
 
-Previews, delete prompts, results, and the test offer render as the Cards in `../ha-nova/output-cards.md` (Test Plan Card mechanics: `../ha-nova/test-run.md`). A create summary (or a deleted item's restore) names the item and its devices, then what starts it, its conditions, and what it does (scripts: inputs and steps) in short sentences; mode only if not `single`, in plain words; ids and the full config only when asked.
+Previews, delete prompts, results, and the test offer render as the Cards in `../ha-nova/output-cards.md` (Test Plan Card mechanics: `../ha-nova/test-run.md`). A create summary (or a deleted item's restore) names the item and its devices, then what starts it, its conditions, and what it does (scripts: inputs and steps), briefly; mode only if not `single`, in plain words; ids and the full config only when asked.
 
 ## Safety
 

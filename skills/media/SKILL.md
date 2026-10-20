@@ -89,9 +89,9 @@ Full relay/upstream error taxonomy: `../ha-nova/relay-api.md` -> Error Handling.
 
 ## Output Format
 
-Apply `../ha-nova/output-rules.md`: plain words, HA names verbatim; unless asked, no ids, "entity", modes, Relay/HA URLs, snapshot files, raw JSON. Previews, deletes, and results use the Cards defined there (`../ha-nova/output-cards.md`).
+Apply `../ha-nova/output-rules.md`: plain words, HA names verbatim; unless asked or names clash, no ids, "entity", modes, Relay/HA URLs, snapshots, raw JSON. Previews, deletes, and results use the Cards defined there (`../ha-nova/output-cards.md`).
 
-Render the Report shape (output-cards.md): what is playing where — player, state, current media, volume, source, and group members when relevant. Browse results render the List Frame (title + type), never the raw tree.
+Render the Report shape (output-cards.md): what is playing where — player, state, current media, volume, source, and group members when relevant. Browse results render the List Frame (title + type).
 
 ## Safety
 

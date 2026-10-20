@@ -137,8 +137,8 @@ the first look without comment.
 
 ## Output Format
 
-Apply `../ha-nova/output-rules.md`: plain words, HA names verbatim; unless asked, no ids, "entity", modes, Relay/HA URLs, snapshot files, raw JSON. Lead with the answer in one or two
-lines, then at most one compact table. A capped list follows Progressive Detail; you run the matching
+Apply `../ha-nova/output-rules.md`: plain words, HA names verbatim; unless asked or names clash, no ids, "entity", modes, Relay/HA URLs, snapshots, raw JSON. Lead with the answer in one or two
+lines, then at most one table. A capped list follows Progressive Detail; run the matching
 `--section` when asked. No field names such as `never_triggered`.
 
 ## Safety

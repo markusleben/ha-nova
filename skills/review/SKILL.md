@@ -383,7 +383,7 @@ Rules:
 
 ## Output Format
 
-Apply `../ha-nova/output-rules.md`: plain words, HA names verbatim; unless asked, no ids, "entity", modes, Relay/HA URLs, snapshot files, raw JSON.
+Apply `../ha-nova/output-rules.md`: plain words, HA names verbatim; unless asked or names clash, no ids, "entity", modes, Relay/HA URLs, snapshots, raw JSON.
 
 Review output is sectioned, not card-framed; only a Section 8 quick-fix proposal renders as the service-call Preview Card (output-cards.md → Cards) when it proposes a call.
 

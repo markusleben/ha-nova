@@ -69,7 +69,7 @@ Drafts follow `../ha-nova/smallest-solution.md`: the complete requested outcome 
 
 ## Output Format
 
-Apply `../ha-nova/output-rules.md`: plain words, HA names verbatim; unless asked, no ids, "entity", modes, Relay/HA URLs, snapshot files, raw JSON. Previews, deletes, and results use the Cards defined there (`../ha-nova/output-cards.md`).
+Apply `../ha-nova/output-rules.md`: plain words, HA names verbatim; unless asked or names clash, no ids, "entity", modes, Relay/HA URLs, snapshots, raw JSON. Previews, deletes, and results use the Cards defined there (`../ha-nova/output-cards.md`).
 
 For list/read/sweep:
 - `Dashboard`

@@ -102,7 +102,7 @@ Other providers configure lists in their own integration — point there instead
 
 ## Output Format
 
-Apply `../ha-nova/output-rules.md`: plain words, HA names verbatim; unless asked, no ids, "entity", modes, Relay/HA URLs, snapshot files, raw JSON. Previews, deletes, and results use the Cards defined there (`../ha-nova/output-cards.md`).
+Apply `../ha-nova/output-rules.md`: plain words, HA names verbatim; unless asked or names clash, no ids, "entity", modes, Relay/HA URLs, snapshots, raw JSON. Previews, deletes, and results use the Cards defined there (`../ha-nova/output-cards.md`).
 
 - `List`
 - `Items` / `Planned change`
@@ -111,7 +111,7 @@ Apply `../ha-nova/output-rules.md`: plain words, HA names verbatim; unless asked
 - `Verification`
 - `Next step`
 
-Use stable localized slot labels in this order; omit empty slots. Item lists render the List Frame (output-cards.md) — never raw JSON.
+Use stable localized slot labels in this order; omit empty slots. Item lists: the List Frame (output-cards.md), never raw JSON.
 
 ## Safety
 

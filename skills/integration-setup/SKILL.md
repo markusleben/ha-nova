@@ -142,9 +142,9 @@ matching reauth flow:
 
 ## Output Format
 
-Apply `../ha-nova/output-rules.md`: plain words, HA names verbatim; unless asked, no ids, "entity", modes, Relay/HA URLs, snapshot files, raw JSON.
+Apply `../ha-nova/output-rules.md`: plain words, HA names verbatim; unless asked or names clash, no ids, "entity", modes, Relay/HA URLs, snapshots, raw JSON.
 
-Use the Preview Card for flow start, menu selection, each non-secret form submit, and every entry reload (credential-recovery reload included). The menu choice block is its bound confirmation. Results name the integration, operation, config-entry state, and the exact verification scope. UI handoffs state what remains and never display secret fields or values.
+Use the Preview Card for flow start, menu selection, each non-secret form submit, and every entry reload (credential-recovery reload included). The menu choice block is its bound confirmation. Results name the integration, operation, config-entry state, and exact verification scope. UI handoffs state what remains and never display secret fields or values.
 
 ## Safety
 

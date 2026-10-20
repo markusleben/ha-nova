@@ -33,7 +33,7 @@ Read `../esphome/esphome-checks.md` first. Drafts follow `../ha-nova/smallest-so
 1. **Find the file**: a top-level `*.yaml` in `/config/esphome/`. Never read `secrets.yaml` (the relay refuses it) or anything under `.esphome/` (build output can hold compiled-in credentials); `*.bak` is never a candidate (Undo reads it). Two candidates: ask. A new device: the dashboard's New Device wizard creates the file and its key; edit it here afterwards.
 2. **Read everything the device uses**: resolve `substitutions` and read each local `!include` and `packages:` file. A remote package (`github://…`, `url:`) is named as not read; its keys are unknown, never assumed.
 3. **Explain**: chip, framework, network, Home Assistant link (`api`), updates (`ota`), then each component: its pin and what it does in Home Assistant. Lambdas: their effect.
-4. **Check** with the checks file: each finding gets severity, the line, the fix, and its source. Nothing outside that file is asserted from memory: read the component's esphome.io page, or say the dashboard's Validate decides.
+4. **Check** with the checks file: each finding gets severity, line, fix, and source. Nothing outside that file is asserted from memory: read the component's esphome.io page, or say the dashboard's Validate decides.
 5. **Edit** (one file per operation), the yaml-config file path:
    1. `../yaml-config/SKILL.md` → Flow step 1 (read before write).
    2. Build the change. Write only keys the checks file or the component's esphome.io page shows; never invent options or C++ calls. Never write a mask: credential lines the user did not ask to change stay byte-identical to the step-1 read.
@@ -51,7 +51,7 @@ File errors as in `../yaml-config/SKILL.md` → Error Handling. `FILE_PATH_DENIE
 
 ## Output Format
 
-Apply `../ha-nova/output-rules.md`: plain words, HA names verbatim; unless asked, no ids, "entity", modes, Relay/HA URLs, snapshot files, raw JSON. Explain and check: one Report (`../ha-nova/output-cards.md`), findings by severity with their source. Edits: the File-Change Preview; then a Result Card naming the `.bak`, the snapshot (a new file has neither — say so), and the exact Hand-Off steps.
+Apply `../ha-nova/output-rules.md`: plain words, HA names verbatim; unless asked or names clash, no ids, "entity", modes, Relay/HA URLs, snapshots, raw JSON. Explain and check: one Report (`../ha-nova/output-cards.md`), findings by severity with their source. Edits: the File-Change Preview; then a Result Card naming the `.bak`, the snapshot (a new file has neither — say so), and the exact Hand-Off steps.
 
 ## Safety
 

@@ -62,7 +62,7 @@ If the user keeps asking for the same InfluxDB series, the better answer is a Ho
 
 ## Output Format
 
-Apply `../ha-nova/output-rules.md`: plain words, HA names verbatim; unless asked, no ids, "entity", modes, Relay/HA URLs, snapshot files, raw JSON.
+Apply `../ha-nova/output-rules.md`: plain words, HA names verbatim; unless asked or names clash, no ids, "entity", modes, Relay/HA URLs, snapshots, raw JSON.
 
 Render the Report shape (output-cards.md). Name the source explicitly (InfluxDB, queried directly — not Home Assistant), the time range, and the query in short form; answer the question, do not paste raw rows.
 

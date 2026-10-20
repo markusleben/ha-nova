@@ -103,9 +103,9 @@ Full relay/upstream error taxonomy: `../ha-nova/relay-api.md` -> Error Handling.
 
 ## Output Format
 
-Apply `../ha-nova/output-rules.md`: plain words, HA names verbatim; unless asked, no ids, "entity", modes, Relay/HA URLs, snapshot files, raw JSON.
+Apply `../ha-nova/output-rules.md`: plain words, HA names verbatim; unless asked or names clash, no ids, "entity", modes, Relay/HA URLs, snapshots, raw JSON.
 
-Previews: the File-Change Preview above; results: the Result Card. Report which item appeared and its state; if none did, say so and offer the restore.
+Previews: the File-Change Preview; results: the Result Card. Report which item appeared and its state; if none did, say so, offer the restore.
 
 ## Safety
 

@@ -45,14 +45,14 @@ describe("plain-language output rules", () => {
   // body the Skill tool loads is sure to be in context, so the core rides on
   // each skill's pointer line.
   it("carries the core rule in every skill's own output pointer", () => {
-    const core = 'Apply `../ha-nova/output-rules.md`: plain words, HA names verbatim; unless asked, no ids, "entity", modes, Relay/HA URLs, snapshot files, raw JSON.';
+    const core = 'Apply `../ha-nova/output-rules.md`: plain words, HA names verbatim; unless asked or names clash, no ids, "entity", modes, Relay/HA URLs, snapshots, raw JSON.';
     for (const file of skillFiles.filter((f) => /^skills\/[^/]+\/SKILL\.md$/.test(f))) {
       if (file === "skills/health/SKILL.md") continue;
       const text = flat(readFileSync(file, "utf8"));
       expect(text, file).toContain(file === "skills/ha-nova/SKILL.md" ? core.slice(core.indexOf(": ") + 2, -1) : core);
     }
     // health keeps literal entity ids (privacy-mode rows) and names its report modes.
-    expect(flat(readFileSync("skills/health/SKILL.md", "utf8"))).toContain('plain words, HA names verbatim; unless asked, no "entity", Relay/HA URLs, snapshot files, raw JSON.');
+    expect(flat(readFileSync("skills/health/SKILL.md", "utf8"))).toContain('plain words, HA names verbatim; unless asked, no "entity", Relay/HA URLs, snapshots, raw JSON.');
     // Card and restore templates model no ids or modes.
     const cards = readFileSync("skills/ha-nova/output-cards.md", "utf8");
     expect(cards).not.toContain("entity IDs, state values");

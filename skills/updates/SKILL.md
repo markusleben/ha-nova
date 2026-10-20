@@ -89,7 +89,7 @@ Bit 16 set: WS `{"type":"update/release_notes","entity_id":"update.<id>"}` → m
 
 ## Output Format
 
-Apply `../ha-nova/output-rules.md`: plain words, HA names verbatim; unless asked, no ids, "entity", modes, Relay/HA URLs, snapshot files, raw JSON. Previews, deletes, and results use the Cards defined there (`../ha-nova/output-cards.md`).
+Apply `../ha-nova/output-rules.md`: plain words, HA names verbatim; unless asked or names clash, no ids, "entity", modes, Relay/HA URLs, snapshots, raw JSON. Previews, deletes, and results use the Cards defined there (`../ha-nova/output-cards.md`).
 
 - `Updates` / `Status`
 - `Planned change`
@@ -97,7 +97,7 @@ Apply `../ha-nova/output-rules.md`: plain words, HA names verbatim; unless asked
 - `Verification`
 - `Next step`
 
-Use stable localized slot labels in this order; omit empty slots. The overview renders the Report shape; pending lists render the List Frame.
+Use stable localized slot labels in this order; omit empty slots. The overview: the Report shape; pending lists: the List Frame.
 
 ## Safety
 

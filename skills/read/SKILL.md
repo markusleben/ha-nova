@@ -143,7 +143,7 @@ If id is ambiguous, ask one clarifying question. Never use raw `get_states`.
 
 ## Output Format
 
-Apply `../ha-nova/output-rules.md`: plain words, HA names verbatim; unless asked, no ids, "entity", modes, Relay/HA URLs, snapshot files, raw JSON.
+Apply `../ha-nova/output-rules.md`: plain words, HA names verbatim; unless asked or names clash, no ids, "entity", modes, Relay/HA URLs, snapshots, raw JSON.
 
 After reading a config, present (the bold labels below are semantic slots — localize them at runtime per output-rules.md, never print them as literal English headings):
 

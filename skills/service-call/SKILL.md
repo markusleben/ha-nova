@@ -27,7 +27,7 @@ Entity service calls run only through the typed verbs:
 
 ## Owning-Skill Deferrals (Critical)
 
-"Call any service" never overrides a stricter owning skill. A call bounded by a duration ("for 30 minutes") whose service has NO duration field goes to `ha-nova:write` (the turn-off needs an automation); `timer.start`/`timer.change` and `siren.turn_on` with their own `duration` stay here. The CLI refuses every other owned service (exit 4, `OWNED_SERVICE`) and names the owner: STOP and continue there. Full table: `raw-routes.md` → Owning-Skill Deferrals.
+"Call any service" never overrides a stricter owning skill. A call bounded by a duration ("for 30 minutes") whose service has NO duration field goes to `ha-nova:write` (the turn-off needs an automation); `timer.start`/`timer.change` and `siren.turn_on` with their own `duration` stay here. The CLI refuses every other owned service (exit 4, `OWNED_SERVICE`) and names the owner: STOP and continue there. Full table: `raw-routes.md`.
 
 Read-only response services stay here (`raw-routes.md` → Response services), as do `scene.turn_on`/`scene.apply` (`ha-nova:scene` owns scene CRUD, not activation), `automation.trigger`, and `script.*`.
 
@@ -44,7 +44,7 @@ Read-only response services stay here (`raw-routes.md` → Response services), a
 | 3 | `plan.confirm: code` | Show the preview and `plan.code`; only after a reply that is only that code, run `ha-nova apply --confirm <the user's text> --plan <id>`. No `plan.code` (a form, window, or phone asks): follow `next_step`. |
 | 2 | drift since the preview, nothing sent | Show the new preview (typed: new code) and ask again; a relative ask re-derives its value and runs a fresh `call`. |
 | 4 | refused | `reasons[]` (an owner skill wins over `hassio`): owner skill; `TARGET_REQUIRED` → resolve targets first; `SERVICE_NOT_FOUND` → offer `error.next`'s candidates; `SERVICE_LIST_UNREAD` → plan again; `CODE_REQUIRED` → finish the action in the Home Assistant UI; missing feature → the device cannot do it; `hassio` or response-only → `raw-routes.md`. `error` from `apply`: `CODE_REQUIRED`/`CODE_MISMATCH` → ask for the code again; any other → follow `error.next`, never a re-`call`; `PLAN_NOT_FOUND`/`PLAN_CLAIMED`: outcome unknown, never re-plan. |
-| 5 | ambiguous or not found | One question listing `error.candidates` (max 10, else narrow) with each match basis; re-run with the chosen id. No candidates: say nothing matched; follow `error.next`. |
+| 5 | ambiguous or not found | One question listing `error.candidates` (max 10, else narrow) with each match basis; re-run with the choice. No candidates: say nothing matched; follow `error.next`. |
 | 6 | sent; `unverified` or `failed` | Report each entity's `verification` honestly; never retry automatically. |
 | 7 | outcome unknown | It may have run: read the state (`ha-nova get`) and report; the outcome stays unknown even if the state matches; never retry. |
 | 1 | operational error, nothing sent | What failed, why, next step. |
@@ -72,7 +72,7 @@ Read-only response services stay here (`raw-routes.md` → Response services), a
 
 ## Output Format
 
-Apply `../ha-nova/output-rules.md`: plain words, HA names verbatim; unless asked, no ids, "entity", modes, Relay/HA URLs, snapshot files, raw JSON.
+Apply `../ha-nova/output-rules.md`: plain words, HA names verbatim; unless asked or names clash, no ids, "entity", modes, Relay/HA URLs, snapshots, raw JSON.
 
 Results (exit 0, 6, 7, and after `apply`) use its Verb Results rule; a typed `apply` result restates the effect the code was for and whether it was verified. A preview (exit 2 or 3) closes with `say` (names, a single target's arrow one-liner, warnings, an explicit not-executed-yet line); with several targets, more become the `Field | Before | After` mini table, warnings kept; on the typed tier only `say`'s ask — no menu. A grouped set or Test Plan Card asks once instead of `say`'s last sentence, except on the typed tier.
 

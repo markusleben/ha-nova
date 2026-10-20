@@ -250,7 +250,7 @@ If ambiguity remains: present top candidates (max 10) and state the match basis 
 
 ## Output Format
 
-Apply `../ha-nova/output-rules.md`: plain words, HA names verbatim; unless asked, no ids, "entity", modes, Relay/HA URLs, snapshot files, raw JSON.
+Apply `../ha-nova/output-rules.md`: plain words, HA names verbatim; unless asked or names clash, no ids, "entity", modes, Relay/HA URLs, snapshots, raw JSON.
 
 Render the Step 4 shortlist as the List Frame (output-cards.md). Never dump raw states.
 

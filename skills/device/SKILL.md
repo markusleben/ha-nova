@@ -86,7 +86,7 @@ Partial failure: each group stops at the first failure and reports its ledger; n
 
 ## Output Format
 
-Apply `../ha-nova/output-rules.md`: plain words, HA names verbatim; unless asked, no ids, "entity", modes, Relay/HA URLs, snapshot files, raw JSON. The plan is a Report (`../ha-nova/output-cards.md`); the mapping reads `old → new` per line, holders by alias or title, paths only on request. Writes keep their owning flows' Preview and Result Cards; a group closes per `../ha-nova/grouped-change-set.md`.
+Apply `../ha-nova/output-rules.md`: plain words, HA names verbatim; unless asked or names clash, no ids, "entity", modes, Relay/HA URLs, snapshots, raw JSON. The plan is a Report (`../ha-nova/output-cards.md`); the mapping reads `old → new` per line, holders by alias or title, paths only on request. Writes keep their owning flows' Preview and Result Cards; a group closes per `../ha-nova/grouped-change-set.md`.
 
 ## Safety
 

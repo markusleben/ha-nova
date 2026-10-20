@@ -46,7 +46,7 @@ File-based relay requests only:
 
 Diagnostics redaction is integration-controlled, so downloads are potentially sensitive and NEVER hit bare stdout — save with `--out`, extract only relevant fields via `relay jq` before quoting.
 
-Recency honesty: `error_log` and `system_log/list` only cover the time since the last Core restart. For older incidents use logbook/history windows, and say that live logs no longer reach back that far.
+Recency honesty: `error_log` and `system_log/list` only cover the time since the last Core restart. For older incidents use logbook/history windows, and say live logs no longer reach that far.
 
 ### Reading the error log
 
@@ -87,7 +87,7 @@ Full relay/upstream error taxonomy: `../ha-nova/relay-api.md` -> Error Handling.
 
 ## Output Format
 
-Apply `../ha-nova/output-rules.md`: plain words, HA names verbatim; unless asked, no ids, "entity", modes, Relay/HA URLs, snapshot files, raw JSON. Previews, deletes, and results use the Cards defined there (`../ha-nova/output-cards.md`).
+Apply `../ha-nova/output-rules.md`: plain words, HA names verbatim; unless asked or names clash, no ids, "entity", modes, Relay/HA URLs, snapshots, raw JSON. Previews, deletes, and results use the Cards defined there (`../ha-nova/output-cards.md`).
 
 Render the Report shape, Diagnosis specialization (output-cards.md → Report Shape): root cause first, then the evidence chain and the recommended fix (the handoff stays internal). Quote logs sparingly.
 

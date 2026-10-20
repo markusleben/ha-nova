@@ -260,7 +260,7 @@ the operation, the observed state, and the next safe step.
 
 ## Output Format
 
-Apply `../ha-nova/output-rules.md`: plain words, HA names verbatim; unless asked, no ids, "entity", modes, Relay/HA URLs, snapshot files, raw JSON. List Frame
+Apply `../ha-nova/output-rules.md`: plain words, HA names verbatim; unless asked or names clash, no ids, "entity", modes, Relay/HA URLs, snapshots, raw JSON. List Frame
 for inventories (counts first, Progressive Detail follow-ups), Preview/Delete
 /Result Cards for mutations (both in `../ha-nova/output-cards.md`), no raw JSON. Keep repository `full_name`,
 versions, categories, and HA state values literal; localize everything else

@@ -226,7 +226,7 @@ Keep orchestration details internal on normal success paths.
 
 ## Output Rules (Critical)
 
-Read `../ha-nova/output-rules.md` once per session, before the first user-facing response, and apply it to every response (core: plain words, HA names verbatim; unless asked, no ids, "entity", modes, Relay/HA URLs, snapshot files, raw JSON); re-read it only when a response needs a Card or shape not yet rendered this session, or after the conversation has been compacted or summarised.
+Read `../ha-nova/output-rules.md` once per session, before the first user-facing response, and apply it to every response (core: plain words, HA names verbatim; unless asked or names clash, no ids, "entity", modes, Relay/HA URLs, snapshots, raw JSON); re-read it only when a response needs a Card or shape not yet rendered this session, or after the conversation was compacted.
 This shared file is the source of truth for localization, internal-code hiding, technical-noise limits, and verb results; Card, report, and list shapes, severity markers, empty-state handling, and the review confidence split live in its on-demand part `../ha-nova/output-cards.md`.
 
 ## Skill Dispatch (Critical)
