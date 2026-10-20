@@ -49,15 +49,16 @@ automation:
           retain: true
 
   # `ha-nova try` has visitors unlock this door: the next visitor finds it
-  # locked again, not open until the hourly reset.
+  # locked again, not open until the hourly reset. 10 minutes leaves room
+  # for a timed unlock someone tries.
   - id: demo_relock_entrance_door
     alias: "Demo: relock the entrance door"
-    description: Locks the entrance door 2 minutes after it was unlocked. Demo only.
+    description: Locks the entrance door 10 minutes after it was unlocked. Demo only.
     triggers:
       - trigger: state
         entity_id: lock.entrance_door
         to: unlocked
-        for: { minutes: 2 }
+        for: { minutes: 10 }
     actions:
       - action: lock.lock
         target: { entity_id: lock.entrance_door }

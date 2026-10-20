@@ -185,10 +185,14 @@ const TILE_DOMAINS = ["light", "switch", "cover", "lock", "climate", "fan", "med
 // Off the dashboard, still in the house for agents: demo platform entities
 // that do nothing on a tap, on purpose (HA's demo integration shows feature
 // edge cases: a lock that jams, vacuums without controls, players that only
-// browse or search), and demo.yaml's machinery, so no tap switches it off.
+// browse or search), and demo.yaml's automations, so no tap switches one off.
 const OFF_DASHBOARD = ["lock.poorly_installed_door", "vacuum.demo_vacuum_3_third_floor",
-  "vacuum.demo_vacuum_4_fourth_floor", "media_player.browse", "media_player.search",
-  "automation.demo_simulated_devices_report_back", "automation.demo_relock_the_entrance_door"];
+  "vacuum.demo_vacuum_4_fourth_floor", "media_player.browse", "media_player.search"];
+// demo.yaml's automations by id (their entity ids follow their names).
+const DEMO_AUTOMATIONS = ["demo_reset_warning", "demo_simulated_devices", "demo_relock_entrance_door"];
+const demoAutomationRows = (rows, ids = DEMO_AUTOMATIONS) =>
+  ids.map((id) => rows.find((e) => e.platform === "automation" && e.unique_id === id)).filter(Boolean);
+const demoAutomations = async (ha, ids) => demoAutomationRows(await ha.call({ type: "config/entity_registry/list" }), ids);
 
 // The default dashboard: a storage dashboard (HA 2026.10 sends a default
 // "lovelace" panel without a dashboard entry to the new Home panel) with one
@@ -212,7 +216,8 @@ async function saveDashboard(ha) {
     });
   }
   const header = { card: { type: "markdown", text_only: true, content: banner(config.version) } };
-  const live = new Set(states.map((s) => s.entity_id).filter((id) => !OFF_DASHBOARD.includes(id)));
+  const hidden = [...OFF_DASHBOARD, ...demoAutomationRows(entities).map((e) => e.entity_id)];
+  const live = new Set(states.map((s) => s.entity_id).filter((id) => !hidden.includes(id)));
   const deviceArea = Object.fromEntries(devices.map((d) => [d.id, d.area_id]));
   const shown = entities.filter((e) => live.has(e.entity_id) && !e.disabled_by && !e.hidden_by && !e.entity_category
     && TILE_DOMAINS.includes(e.entity_id.split(".")[0]));
@@ -271,7 +276,11 @@ async function dropMapDashboard(ha) {
 async function roundTrip(ha, domain, name, entityId, want, seconds = 30) {
   const deadline = Date.now() + seconds * 1000;
   for (;;) {
-    await ha.call(service(domain, name, { entity_id: entityId }));
+    try {
+      await ha.call(service(domain, name, { entity_id: entityId }));
+    } catch (err) {
+      if (Date.now() > deadline) throw err;
+    }
     for (let i = 0; i < 4; i++) {
       await new Promise((r) => setTimeout(r, 500));
       if ((await ha.call({ type: "get_states" })).find((x) => x.entity_id === entityId)?.state === want) return;
@@ -283,16 +292,20 @@ async function roundTrip(ha, domain, name, entityId, want, seconds = 30) {
 // demo.yaml's MQTT trigger could not attach at boot (seed.mjs adds the
 // broker entry later), and a reload skips unchanged automations: off and on.
 // HA's MQTT client then still holds new subscriptions back for up to a
-// minute after a reset: wait for a real answer (90 s, inside reset.sh's 120)
-// before the house is exposed.
+// minute after a reset: wait for a real answer (75 + 15 s, inside reset.sh's
+// 120) before the house is exposed. No answer only warns: the house works
+// without it, and smoke (update-ha.sh) gates new HA releases on it.
 async function armSimulatedDevices(ha) {
-  const row = (await ha.call({ type: "config/entity_registry/list" }))
-    .find((e) => e.platform === "automation" && e.unique_id === "demo_simulated_devices");
+  const [row] = await demoAutomations(ha, ["demo_simulated_devices"]);
   if (!row) throw new Error("automation demo_simulated_devices (config/packages/demo.yaml) is missing");
   await ha.call(service("automation", "turn_off", { entity_id: row.entity_id }));
   await ha.call(service("automation", "turn_on", { entity_id: row.entity_id }));
-  await roundTrip(ha, "lock", "unlock", "lock.entrance_door", "unlocked", 90);
-  await roundTrip(ha, "lock", "lock", "lock.entrance_door", "locked");
+  try {
+    await roundTrip(ha, "lock", "unlock", "lock.entrance_door", "unlocked", 75);
+    await roundTrip(ha, "lock", "lock", "lock.entrance_door", "locked", 15);
+  } catch (err) {
+    console.error(`demo.mjs dashboard: warning: simulated devices do not answer yet: ${err.message}`);
+  }
 }
 
 // After the house is seeded (reset.sh): seed.mjs waited for the demo entities.
@@ -344,6 +357,13 @@ async function guard() {
     for (const n of await ha.call({ type: "persistent_notification/get" })) {
       if (n.notification_id === "http-login" || /\/\/|\]\s*[(\[]|\]:|href|www\./i.test(`${n.title ?? ""} ${n.message ?? ""}`)) {
         await ha.call(service("persistent_notification", "dismiss", { notification_id: n.notification_id }));
+      }
+    }
+    // demo.yaml's automations, if a visitor turned them off.
+    const states = await ha.call({ type: "get_states" });
+    for (const row of await demoAutomations(ha)) {
+      if (states.find((x) => x.entity_id === row.entity_id)?.state === "off") {
+        await ha.call(service("automation", "turn_on", { entity_id: row.entity_id }));
       }
     }
     // The banner dashboard and the system-wide default panel.

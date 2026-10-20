@@ -96,7 +96,10 @@ main() {
   egress_gate 2> "$STATE/gate.err" || gate_failed "$(cat "$STATE/gate.err")"
   listener_gate 2> "$STATE/gate.err" || gate_failed "$(cat "$STATE/gate.err")"
 
-  timeout 120 node "$HOSTED/demo.mjs" dashboard "$HA" "$owner_llat"
+  timeout 120 node "$HOSTED/demo.mjs" dashboard "$HA" "$owner_llat" 2> "$STATE/gate.err" \
+    || gate_failed "demo.mjs dashboard: $(cat "$STATE/gate.err")"
+  # A warning (the simulated devices did not answer) is no reason to stay down.
+  if [[ -s "$STATE/gate.err" ]]; then logger -p user.warning -t ha-nova-demo-reset "$(cat "$STATE/gate.err")"; fi
   local version tmp="$PUBLIC/.connect.json.tmp"
   version="$(curl -sf -m 10 -H "Authorization: Bearer $owner_llat" "$HA/api/config" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>console.log(JSON.parse(s).version))')"
   printf '{"ha_url":"https://%s","ha_version":"%s","relay_url":"https://%s/relay","relay_token":"%s","login":{"username":"demo","password":"demo"},"next_reset":"%s","abuse":"https://%s/abuse"}\n' \
