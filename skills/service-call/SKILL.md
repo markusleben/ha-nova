@@ -23,7 +23,7 @@ Entity service calls run only through the typed verbs:
 - `ha-nova plan call …`: read-only "what would happen" answer, never executes.
 - Look up: `ha-nova find ["<phrase>"] [--domain <d>] [--area <area_id>] [--state <s>]`.
 
-`--set` values are JSON-typed (`brightness_pct=40` is a number); `--data-file` takes a JSON object for nested data. The CLI sends exactly one `POST /api/services/{domain}/{service}` and verifies via `/api/states/{entity_id}`. Raw `ha-nova relay core|ws` stays for the routes in `../service-call/raw-routes.md` only.
+`--set` values are JSON-typed; `--data-file` takes a JSON object for nested data. The CLI sends exactly one `POST /api/services/{domain}/{service}` and verifies via `/api/states/{entity_id}`. Raw `ha-nova relay core|ws` stays for the routes in `../service-call/raw-routes.md` only.
 
 ## Owning-Skill Deferrals (Critical)
 
@@ -33,18 +33,18 @@ Read-only response services stay here (`raw-routes.md` → Response services), a
 
 ## Flow
 
-1. **Target.** Entity services always need a target — never call one targetless (exit 4 `TARGET_REQUIRED`). An exact `entity_id` when known; otherwise `--match "<the entity phrase only>"` (every word must match). A room, area, or device phrase always uses `--area <area_id>`/`--device <device_id>` (they expand to concrete entities and preview unless exactly one entity of the service's domain remains) — never expand it into entity ids yourself; explicit ids (up to 10) are only for entities the USER named. A whole-domain request ("all lights off"): the ids from `ha-nova find --domain light --state on --limit 200` (narrow first if `returned` < `total`) → one `plan call` preview, no pre-question; none: say so. A room request: ask one clarifying question before using `area_id` only when the user names ONE device by a type ("the lamp in the kitchen") that several entities there match, then use the narrower confirmed target — no second blocking ambiguity question in the same turn. Direct `floor_id` and `label_id` selectors are unsupported — ask for an entity, area, or device instead. A capability the entity lacks (restart, identify, …): run `ha-nova:entity-discovery` → Device-sibling capability discovery before concluding the capability does not exist.
+1. **Target.** Entity services always need a target (exit 4 `TARGET_REQUIRED`). An exact `entity_id` when known; otherwise `--match "<the entity phrase only>"` (every word must match). A room, area, or device phrase always uses `--area <area_id>`/`--device <device_id>` (they expand to concrete entities and preview unless exactly one entity of the service's domain remains) — never expand it into entity ids yourself; explicit ids (up to 10) are only for entities the USER named. A whole-domain request ("all lights off"): the ids from `ha-nova find --domain light --state on --limit 200` (narrow first if `returned` < `total`) → one `plan call` preview, no pre-question; none: say so. A room request: ask one clarifying question before using `area_id` only when the user names ONE device by a type ("the lamp in the kitchen") that several entities there match, then use the narrower confirmed target — no second blocking ambiguity question in the same turn. Direct `floor_id` and `label_id` selectors are unsupported — ask for an entity, area, or device instead. A capability the entity lacks (restart, identify, …): run `ha-nova:entity-discovery` → Device-sibling capability discovery before concluding the capability does not exist.
 2. **Data.** When unsure of a field, its unit, or a feature bit, read the section for the domain you are calling in `../service-call/domain-fields.md`. `/api/services` gives field NAMES (list them via `raw-routes.md`); valid effect, mode, and preset values come from the target's own attributes (`ha-nova get <entity_id>`). Never carry a value over from another device; unsupported parameters are dropped silently rather than rejected. Relative asks ("a bit brighter") and any `input_number` value change: read `domain-fields.md` → Relative Asks And Helper Values first; a helper with threshold consumers goes through `ha-nova plan call`, never `call`.
 3. **Run** `ha-nova call …` once and act on its exit code:
 
 | Exit | Meaning | Do |
 |---|---|---|
-| 0 | `tier: ordinary` — sent once and checked | Report the result (Output Format). |
+| 0 | `tier: ordinary` — sent once and checked | Report the result. |
 | 3 | `plan.confirm: natural` | Show the preview; after the user confirms it, run `ha-nova apply --plan <id>` — apply IS the confirmation step. |
 | 3 | `plan.confirm: code` | Show the preview and `plan.code`; only after a reply that is only that code, run `ha-nova apply --confirm <the user's text> --plan <id>`. No `plan.code` (a form, window, or phone asks): follow `next_step`. |
 | 2 | drift since the preview, nothing sent | Show the new preview (typed: new code) and ask again; a relative ask re-derives its value and runs a fresh `call`. |
 | 4 | refused | `reasons[]` (an owner skill wins over `hassio`): owner skill; `TARGET_REQUIRED` → resolve targets first; `SERVICE_NOT_FOUND` → offer `error.next`'s candidates; `SERVICE_LIST_UNREAD` → plan again; `CODE_REQUIRED` → finish the action in the Home Assistant UI; missing feature → the device cannot do it; `hassio` or response-only → `raw-routes.md`. `error` from `apply`: `CODE_REQUIRED`/`CODE_MISMATCH` → ask for the code again; any other → follow `error.next`, never a re-`call`; `PLAN_NOT_FOUND`/`PLAN_CLAIMED`: outcome unknown, never re-plan. |
-| 5 | ambiguous or not found | One question listing `error.candidates` (max 10, narrow first beyond) with each match basis; re-run with the chosen id. No candidates: say nothing matched; follow `error.next`. |
+| 5 | ambiguous or not found | One question listing `error.candidates` (max 10, else narrow) with each match basis; re-run with the chosen id. No candidates: say nothing matched; follow `error.next`. |
 | 6 | sent; `unverified` or `failed` | Report each entity's `verification` honestly; never retry automatically. |
 | 7 | outcome unknown | It may have run: read the state (`ha-nova get`) and report; the outcome stays unknown even if the state matches; never retry. |
 | 1 | operational error, nothing sent | What failed, why, next step. |
@@ -72,7 +72,7 @@ Read-only response services stay here (`raw-routes.md` → Response services), a
 
 ## Output Format
 
-Apply `../ha-nova/output-rules.md` to all user-facing output.
+Apply `../ha-nova/output-rules.md`: plain words, HA names verbatim; unless asked, no ids, "entity", modes, Relay/HA URLs, snapshot files, raw JSON.
 
 Results (exit 0, 6, 7, and after `apply`) use its Verb Results rule; a typed `apply` result restates the effect the code was for and whether it was verified. A preview (exit 2 or 3) closes with `say` (names, a single target's arrow one-liner, warnings, an explicit not-executed-yet line); with several targets, more become the `Field | Before | After` mini table, warnings kept; on the typed tier only `say`'s ask — no menu. A grouped set or Test Plan Card asks once instead of `say`'s last sentence, except on the typed tier.
 

@@ -437,7 +437,7 @@ Report only what has substance (same rule as the write flow — see `../write/SK
 
 ## Output Format
 
-Apply `../ha-nova/output-rules.md` to all user-facing output. Write previews, delete prompts, and results render as the Cards defined there (`../ha-nova/output-cards.md`). The bold labels in both read templates below are semantic slots — localize them at runtime, never print them as literal English headings.
+Apply `../ha-nova/output-rules.md`: plain words, HA names verbatim; unless asked, no ids, "entity", modes, Relay/HA URLs, snapshot files, raw JSON. Write previews, delete prompts, and results render as the Cards defined there (`../ha-nova/output-cards.md`). The bold labels in both read templates below are semantic slots — localize them at runtime, never print them as literal English headings.
 
 ### Storage-based family
 

@@ -349,11 +349,17 @@ func computeConfigPlan(paths runtimePaths, s *relaySession, env *verbEnvelope, r
 		if env.Verb == "plan" && req.Op == "write" && req.Domain == "automation" { // apply re-plans: the plan said it already
 			env.Notices = append(env.Notices, draftTriggerNotices(req.Draft, current)...)
 		}
-		before := current
-		if before == nil {
-			before = json.RawMessage(`{}`)
+		// A create or restore has no before side: its rows would be the whole
+		// config as raw JSON, which agents pasted into a plain-language
+		// preview (F2). The preview summarizes it instead; config.body
+		// keeps the details.
+		if !req.Create {
+			before := current
+			if before == nil {
+				before = json.RawMessage(`{}`)
+			}
+			env.Diff, _ = configChanges(before, req.Draft)
 		}
-		env.Diff, _ = configChanges(before, req.Draft)
 		after, _ := configObjectFromBytes(req.Draft)
 		ctx.alias, _ = after["alias"].(string)
 	}

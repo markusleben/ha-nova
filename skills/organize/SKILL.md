@@ -90,7 +90,7 @@ Use `search/related` when a delete needs a quick impact preview on linked items.
    - area/floor/label/category: re-list and match by canonical id
    - entity/device: re-read the updated registry entry
    - category delete: also verify affected entity categories are cleared for that scope
-7. Report the final state in plain language.
+7. Report the final state.
 
 ## Bulk Target Resolution
 
@@ -110,7 +110,7 @@ Re-ENABLING a registry-disabled item depends on WHO disabled it (`disabled_by`):
 
 ## Output Format
 
-Apply `../ha-nova/output-rules.md` to all user-facing output. Write previews, delete confirmations, and results render as the Cards defined there (`../ha-nova/output-cards.md`).
+Apply `../ha-nova/output-rules.md`: plain words, HA names verbatim; unless asked, no ids, "entity", modes, Relay/HA URLs, snapshot files, raw JSON. Previews, deletes, and results use the Cards defined there (`../ha-nova/output-cards.md`).
 
 - `Target`
 - `Current metadata`
@@ -123,7 +123,7 @@ Apply `../ha-nova/output-rules.md` to all user-facing output. Write previews, de
 
 Use stable localized slot labels in this order for previews; omit empty slots, but do not invent ad-hoc headings.
 
-Metadata reads render the Report shape; registry inventories render the List Frame (output-cards.md). Default to a compact field summary, not raw registry JSON.
+Metadata reads render the Report shape; registry inventories render the List Frame (output-cards.md). Default to a compact field summary.
 
 ## Safety
 
@@ -135,7 +135,7 @@ Metadata reads render the Report shape; registry inventories render the List Fra
 - Home Assistant is reached exclusively through the `ha-nova` CLI.
 - Any HA write this skill does not cover: STOP, invoke `ha-nova:fallback` first; never probe unfamiliar write endpoints.
 
-- Drafts follow `../ha-nova/smallest-solution.md`: the complete requested outcome in the simplest safe design, nothing for hypothetical future needs.
+- Drafts follow `../ha-nova/smallest-solution.md`: the complete requested outcome in the simplest safe design, nothing speculative.
 - `search/related` verdicts fail closed: verify `ok=true` and `data` is an object before projecting family keys (`../ha-nova/relay-api.md` → Parsing rule); a failed or unexecuted scan is inconclusive — never a no-consumer result.
 
 - Delete uses the one-time code only, even for cleanup of items created earlier in the same session.

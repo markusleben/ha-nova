@@ -126,8 +126,6 @@ Automations rarely have reliable direct `area_id` data in the compact registry. 
    ha-nova relay ws --data-file <payload-file>
    ```
 
-This is more reliable than keyword search or assuming `.ai` is populated for room-based queries.
-
 ### Step 4: Return shortlist
 
 - `friendly_name` (verbatim), `state` (if fetched), short relevance reason; `entity_id` only for a missing or clashing name
@@ -252,9 +250,9 @@ If ambiguity remains: present top candidates (max 10) and state the match basis 
 
 ## Output Format
 
-Apply `../ha-nova/output-rules.md` to all user-facing output.
+Apply `../ha-nova/output-rules.md`: plain words, HA names verbatim; unless asked, no ids, "entity", modes, Relay/HA URLs, snapshot files, raw JSON.
 
-Render the Step 4 shortlist as the List Frame (output-cards.md). Never dump raw `get_states` output.
+Render the Step 4 shortlist as the List Frame (output-cards.md). Never dump raw states.
 
 ## Safety
 
@@ -269,5 +267,4 @@ Render the Step 4 shortlist as the List Frame (output-cards.md). Never dump raw 
 
 - never guess entity IDs
 - cap displayed shortlist rows at 20 only after exact matched-count computation for bulk inventory
-- no writes
 - no proactive doctor before real failure

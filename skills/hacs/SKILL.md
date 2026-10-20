@@ -260,7 +260,7 @@ the operation, the observed state, and the next safe step.
 
 ## Output Format
 
-Apply `../ha-nova/output-rules.md` to all user-facing output: List Frame
+Apply `../ha-nova/output-rules.md`: plain words, HA names verbatim; unless asked, no ids, "entity", modes, Relay/HA URLs, snapshot files, raw JSON. List Frame
 for inventories (counts first, Progressive Detail follow-ups), Preview/Delete
 /Result Cards for mutations (both in `../ha-nova/output-cards.md`), no raw JSON. Keep repository `full_name`,
 versions, categories, and HA state values literal; localize everything else
@@ -276,7 +276,7 @@ at runtime.
 - Home Assistant is reached exclusively through the `ha-nova` CLI.
 - Any HA write this skill does not cover: STOP, invoke `ha-nova:fallback` first; never probe unfamiliar write endpoints.
 
-- Drafts follow `../ha-nova/smallest-solution.md`: the complete requested outcome in the simplest safe design, nothing for hypothetical future needs.
+- Drafts follow `../ha-nova/smallest-solution.md`: the complete requested outcome in the simplest safe design, nothing speculative.
 
 - Confirmation tiers: natural confirmation for install/update/redownload;
   the one-time code for uninstall, registration removal, and

@@ -71,7 +71,7 @@ Write guards (schema details in the reference):
 
 ## Output Format
 
-Apply `../ha-nova/output-rules.md`. Write previews, delete confirmations, and results render as the Cards defined there (`../ha-nova/output-cards.md`).
+Apply `../ha-nova/output-rules.md`: plain words, HA names verbatim; unless asked, no ids, "entity", modes, Relay/HA URLs, snapshot files, raw JSON. Previews, deletes, and results use the Cards defined there (`../ha-nova/output-cards.md`).
 
 - `Energy` / `Status`
 - `Planned change`
@@ -91,7 +91,7 @@ Use stable localized slot labels in this order; omit empty slots. Analysis answe
 - Home Assistant is reached exclusively through the `ha-nova` CLI.
 - Any HA write this skill does not cover: STOP, invoke `ha-nova:fallback` first; never probe unfamiliar write endpoints.
 
-- Drafts follow `../ha-nova/smallest-solution.md`: the complete requested outcome in the simplest safe design, nothing for hypothetical future needs.
+- Drafts follow `../ha-nova/smallest-solution.md`: the complete requested outcome in the simplest safe design, nothing speculative.
 
 - Config writes: preview + confirmation per save (natural for single edits; one-time code for empty/wholesale-replace saves — step 5); verify by read-back + validate.
 - No update-revert — recovery after an entry-removing save is the `auto-prefs` config snapshot (restore = corrective `save_prefs` of the loaded document, `../ha-nova/config-snapshots.md`); otherwise a corrective save or HA Backups (see `../ha-nova/write-safety.md`).

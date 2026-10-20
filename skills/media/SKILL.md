@@ -89,7 +89,7 @@ Full relay/upstream error taxonomy: `../ha-nova/relay-api.md` -> Error Handling.
 
 ## Output Format
 
-Apply `../ha-nova/output-rules.md` to all user-facing output. Write previews, delete confirmations, and results render as the Cards defined there (`../ha-nova/output-cards.md`).
+Apply `../ha-nova/output-rules.md`: plain words, HA names verbatim; unless asked, no ids, "entity", modes, Relay/HA URLs, snapshot files, raw JSON. Previews, deletes, and results use the Cards defined there (`../ha-nova/output-cards.md`).
 
 Render the Report shape (output-cards.md): what is playing where — player, state, current media, volume, source, and group members when relevant. Browse results render the List Frame (title + type), never the raw tree.
 
@@ -103,7 +103,7 @@ Render the Report shape (output-cards.md): what is playing where — player, sta
 - Home Assistant is reached exclusively through the `ha-nova` CLI.
 - Any HA write this skill does not cover: STOP, invoke `ha-nova:fallback` first; never probe unfamiliar write endpoints.
 
-- Drafts follow `../ha-nova/smallest-solution.md`: the complete requested outcome in the simplest safe design, nothing for hypothetical future needs.
+- Drafts follow `../ha-nova/smallest-solution.md`: the complete requested outcome in the simplest safe design, nothing speculative.
 
 - Volume: preview the target level; treat a large jump (or anything above ~0.8) as disruptive and confirm explicitly — a loud announcement at night is a real-world side effect.
 - Announcements interrupt whatever is playing; say so before sending one.

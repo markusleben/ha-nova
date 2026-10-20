@@ -71,7 +71,7 @@ Per entity, label the timestamp source: LTS last-data bucket (reliable, years ba
 
 ## Output Format
 
-Apply `../ha-nova/output-rules.md`. Write previews, delete confirmations, and results render as the Cards defined there (`../ha-nova/output-cards.md`).
+Apply `../ha-nova/output-rules.md`: plain words, HA names verbatim; unless asked, no ids, "entity", modes, Relay/HA URLs, snapshot files, raw JSON. Previews, deletes, and results use the Cards defined there (`../ha-nova/output-cards.md`).
 
 - `Maintenance` / `Status`
 - `Planned change`
@@ -91,7 +91,7 @@ Use stable localized slot labels in this order; omit empty slots. Triage renders
 - Home Assistant is reached exclusively through the `ha-nova` CLI.
 - Any HA write this skill does not cover: STOP, invoke `ha-nova:fallback` first; never probe unfamiliar write endpoints.
 
-- Drafts follow `../ha-nova/smallest-solution.md`: the complete requested outcome in the simplest safe design, nothing for hypothetical future needs.
+- Drafts follow `../ha-nova/smallest-solution.md`: the complete requested outcome in the simplest safe design, nothing speculative.
 - `search/related` verdicts fail closed: verify `ok=true` and `data` is an object before projecting family keys (`../ha-nova/relay-api.md` → Parsing rule); a failed or unexecuted scan is inconclusive — never a no-consumer result. An inconclusive scan fails the ghost-entity removal gate: report only, never remove.
 
 - Every write: preview → confirmation → per-item verification. Clear/purge/registry remove take the one-time code; the reversible spike adjustment and unit relabel take payload-bound natural confirmation — offer the spike rollback.

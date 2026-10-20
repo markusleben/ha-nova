@@ -43,7 +43,7 @@ Home Assistant has TWO notification surfaces, and picking the wrong one silently
 Discovery:
 1. Services: `GET /api/services`, filter the `notify` domain — the `mobile_app_*` entries are the per-device legacy targets.
 2. Entities: WS `{"type":"config/entity_registry/list_for_display"}`, filter `ei` starting with `notify.`.
-3. Report the real, resolved targets — never guess a device name.
+3. Report the resolved targets — never guess a device name.
 
 **Decision rule:** plain message to a known target → notify entity (`notify.send_message`). Any mobile-app extra (buttons, tag, sticky, channel, url, image) → the legacy `notify.mobile_app_<device>` service, because the entity platform does not carry the `data` payload for those. This rule instantiates the canonical contract's capability discovery for today's platform reality — the discovery rule wins if the platforms diverge.
 
@@ -115,9 +115,9 @@ Full relay/upstream error taxonomy: `../ha-nova/relay-api.md` -> Error Handling.
 
 ## Output Format
 
-Apply `../ha-nova/output-rules.md` to all user-facing output. Write previews, delete confirmations, and results render as the Cards defined there (`../ha-nova/output-cards.md`).
+Apply `../ha-nova/output-rules.md`: plain words, HA names verbatim; unless asked, no ids, "entity", modes, Relay/HA URLs, snapshot files, raw JSON. Previews, deletes, and results use the Cards defined there (`../ha-nova/output-cards.md`).
 
-Render the Report shape (output-cards.md): the resolved target, the sent title/message, and any extras used. Report acceptance honestly (accepted by Home Assistant, not confirmed on the device). Discovery renders the List Frame, grouped by surface (entities vs mobile-app services).
+Report shape (output-cards.md): resolved target, sent title/message, extras used. Report acceptance honestly (accepted by Home Assistant, not confirmed on the device). Discovery renders the List Frame by surface (devices vs mobile-app services).
 
 ## Safety
 

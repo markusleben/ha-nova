@@ -206,7 +206,7 @@ pair `🔴`/`🟠`/`🟡` with a plain-language title or status ("act", "check",
 
 Apply `../ha-nova/output-rules.md` (including → Progressive Detail: every
 truncation carries total/shown/omitted counts and a precise request for the
-full set — never a bare "N more").
+full set — never a bare "N more"): plain words, HA names verbatim; unless asked, no "entity", Relay/HA URLs, snapshot files, raw JSON.
 
 These names are semantic output slots, not literal headings. Do not mix English labels with localized prose unless the label is a Home Assistant state/value.
 Deterministic internal sorting happens before localization; localize every

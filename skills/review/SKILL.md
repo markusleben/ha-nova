@@ -383,7 +383,7 @@ Rules:
 
 ## Output Format
 
-Apply `../ha-nova/output-rules.md` to all user-facing output.
+Apply `../ha-nova/output-rules.md`: plain words, HA names verbatim; unless asked, no ids, "entity", modes, Relay/HA URLs, snapshot files, raw JSON.
 
 Review output is sectioned, not card-framed; only a Section 8 quick-fix proposal renders as the service-call Preview Card (output-cards.md → Cards) when it proposes a call.
 
@@ -479,7 +479,7 @@ For resolved targets `> 1`, return exactly these 6 sections:
 - Home Assistant is reached exclusively through the `ha-nova` CLI.
 - Any HA write this skill does not cover: STOP, invoke `ha-nova:fallback` first; never probe unfamiliar write endpoints.
 
-- Drafts follow `../ha-nova/smallest-solution.md`: the complete requested outcome in the simplest safe design, nothing for hypothetical future needs.
+- Drafts follow `../ha-nova/smallest-solution.md`: the complete requested outcome in the simplest safe design, nothing speculative.
 
 - Read-only analysis: no config writes through the relay (see Scope for the single Quick-Fix exception).
 - The Quick-Fix service call requires confirmation bound to its exact preview; bulk mode disables it entirely.

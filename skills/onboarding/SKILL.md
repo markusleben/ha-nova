@@ -49,7 +49,7 @@ If missing: `ha-nova setup`
 
 ## Output Format
 
-Apply `../ha-nova/output-rules.md` to all user-facing output.
+Apply `../ha-nova/output-rules.md`: plain words, HA names verbatim; unless asked, no ids, "entity", modes, Relay/HA URLs, snapshot files, raw JSON.
 
 Return a short diagnostic report:
 1. **Status** — one-line result (e.g., "Relay reachable", "Home Assistant rejected the sign-in")

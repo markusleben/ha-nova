@@ -33,10 +33,31 @@ describe("plain-language output rules", () => {
     expect(rules).not.toContain("identifiers literal when they are evidence");
     expect(flat(readFileSync("skills/ha-nova/write-safety.md", "utf8"))).not.toContain("name/alias and `entity_id`");
     expect(readFileSync("skills/ha-nova/output-cards.md", "utf8")).not.toContain("name/mode/target");
-    expect(flat(readFileSync("skills/write/SKILL.md", "utf8"))).toContain("mode only if not `single`; ids and the full config only when asked.");
+    expect(flat(readFileSync("skills/write/SKILL.md", "utf8"))).toContain("mode only if not `single`, in plain words; ids and the full config only when asked.");
     expect(flat(readFileSync("skills/home-map/SKILL.md", "utf8"))).toContain(
       "Leave out the `entities`, `entities_disabled`, `domains`, and `integrations` numbers (no row, no aside) unless asked.",
     );
+  });
+
+  // F2 follow-up (2026-10-20 Windows run, Sonnet): 10 of 13 answers leaked.
+  // No transcript read output-rules.md (an "Apply" pointer at the end of each
+  // skill), and a test-bed replay read not even the bootstrap. Only the skill
+  // body the Skill tool loads is sure to be in context, so the core rides on
+  // each skill's pointer line.
+  it("carries the core rule in every skill's own output pointer", () => {
+    const core = 'Apply `../ha-nova/output-rules.md`: plain words, HA names verbatim; unless asked, no ids, "entity", modes, Relay/HA URLs, snapshot files, raw JSON.';
+    for (const file of skillFiles.filter((f) => /^skills\/[^/]+\/SKILL\.md$/.test(f))) {
+      if (file === "skills/health/SKILL.md") continue;
+      const text = flat(readFileSync(file, "utf8"));
+      expect(text, file).toContain(file === "skills/ha-nova/SKILL.md" ? core.slice(core.indexOf(": ") + 2, -1) : core);
+    }
+    // health keeps literal entity ids (privacy-mode rows) and names its report modes.
+    expect(flat(readFileSync("skills/health/SKILL.md", "utf8"))).toContain('plain words, HA names verbatim; unless asked, no "entity", Relay/HA URLs, snapshot files, raw JSON.');
+    // Card and restore templates model no ids or modes.
+    const cards = readFileSync("skills/ha-nova/output-cards.md", "utf8");
+    expect(cards).not.toContain("entity IDs, state values");
+    expect(cards).not.toContain("| Mode |");
+    expect(flat(readFileSync("skills/write/SKILL.md", "utf8"))).toContain("A create summary (or a deleted item's restore) names the item");
   });
 
   it("never hands the user a command except the setup step", () => {

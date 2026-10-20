@@ -43,7 +43,7 @@ Read `supported_features` before acting:
 | 8 | backup before update (App/core mechanism) |
 | 16 | release notes |
 
-Never call a bitmask-backed service (install/version/backup/release-notes) the mask does not allow — name the missing capability. Skip/unskip have no bits; their only gate is `auto_update` (see Skip).
+Never call a bitmask-backed service (install/version/backup/release-notes) the mask does not allow — name the missing capability. Skip/unskip have no bits; their only gate is `auto_update`.
 
 ## Flow
 
@@ -89,7 +89,7 @@ Bit 16 set: WS `{"type":"update/release_notes","entity_id":"update.<id>"}` → m
 
 ## Output Format
 
-Apply `../ha-nova/output-rules.md`. Write previews, delete confirmations, and results render as the Cards defined there (`../ha-nova/output-cards.md`).
+Apply `../ha-nova/output-rules.md`: plain words, HA names verbatim; unless asked, no ids, "entity", modes, Relay/HA URLs, snapshot files, raw JSON. Previews, deletes, and results use the Cards defined there (`../ha-nova/output-cards.md`).
 
 - `Updates` / `Status`
 - `Planned change`
@@ -97,7 +97,7 @@ Apply `../ha-nova/output-rules.md`. Write previews, delete confirmations, and re
 - `Verification`
 - `Next step`
 
-Use stable localized slot labels in this order; omit empty slots. The overview renders the Report shape; pending lists render the List Frame (group counts + capped pending list) — never raw JSON.
+Use stable localized slot labels in this order; omit empty slots. The overview renders the Report shape; pending lists render the List Frame.
 
 ## Safety
 
@@ -112,6 +112,6 @@ Use stable localized slot labels in this order; omit empty slots. The overview r
 - Drafts follow `../ha-nova/smallest-solution.md`: the complete requested outcome in the simplest safe design, nothing speculative.
 
 - Installs: natural confirmation per update after preview; batches need an explicitly confirmed plan.
-- Updates are effectively irreversible — for core/OS name the safety-backup offer before, not after.
+- Updates are irreversible — for core/OS name the safety-backup offer before, not after.
 - Never install anything the user did not ask about or confirm; `auto_update: true` items update themselves — say so instead of installing them unprompted; an explicit, confirmed user request may still install.
 - Verify by re-reading the entity.

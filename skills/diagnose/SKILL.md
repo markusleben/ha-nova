@@ -46,7 +46,7 @@ File-based relay requests only:
 
 Diagnostics redaction is integration-controlled, so downloads are potentially sensitive and NEVER hit bare stdout — save with `--out`, extract only relevant fields via `relay jq` before quoting.
 
-Recency honesty: `error_log` and `system_log/list` only cover the time since the last Core restart. For older incidents use logbook/history windows, and say explicitly that live logs no longer reach back that far.
+Recency honesty: `error_log` and `system_log/list` only cover the time since the last Core restart. For older incidents use logbook/history windows, and say that live logs no longer reach back that far.
 
 ### Reading the error log
 
@@ -87,9 +87,9 @@ Full relay/upstream error taxonomy: `../ha-nova/relay-api.md` -> Error Handling.
 
 ## Output Format
 
-Apply `../ha-nova/output-rules.md` to all user-facing output. Write previews, delete confirmations, and results render as the Cards defined there (`../ha-nova/output-cards.md`).
+Apply `../ha-nova/output-rules.md`: plain words, HA names verbatim; unless asked, no ids, "entity", modes, Relay/HA URLs, snapshot files, raw JSON. Previews, deletes, and results use the Cards defined there (`../ha-nova/output-cards.md`).
 
-Render the Report shape, Diagnosis specialization (output-cards.md → Report Shape): root cause first, then the evidence chain, then the recommended fix (the handoff stays internal). Quote log lines sparingly — never dump raw logs.
+Render the Report shape, Diagnosis specialization (output-cards.md → Report Shape): root cause first, then the evidence chain and the recommended fix (the handoff stays internal). Quote logs sparingly.
 
 ## Safety
 
@@ -101,7 +101,7 @@ Render the Report shape, Diagnosis specialization (output-cards.md → Report Sh
 - Home Assistant is reached exclusively through the `ha-nova` CLI.
 - Any HA write this skill does not cover: STOP, invoke `ha-nova:fallback` first; never probe unfamiliar write endpoints.
 
-- Drafts follow `../ha-nova/smallest-solution.md`: the complete requested outcome in the simplest safe design, nothing for hypothetical future needs.
+- Drafts follow `../ha-nova/smallest-solution.md`: the complete requested outcome in the simplest safe design, nothing speculative.
 
 - The debug escalation (`logger.set_level`) is this skill's single declared mutation: read the current level via `logger/log_info` first, preview + natural confirmation, and always schedule the restore of THAT recorded level (never a hard-coded default) in the same interaction.
 - Never "fix" anything from here — fixes hand off to the owning skill after the diagnosis.

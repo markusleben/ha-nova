@@ -51,7 +51,7 @@ It covers takeover renames, person and group hand-offs, and carrying an area or 
 
 ## Flow
 
-Drafts follow `../ha-nova/smallest-solution.md`: the complete requested outcome in the simplest safe design, nothing for hypothetical future needs.
+Drafts follow `../ha-nova/smallest-solution.md`: the complete requested outcome in the simplest safe design, nothing speculative.
 
 ### Swap
 
@@ -65,7 +65,7 @@ Drafts follow `../ha-nova/smallest-solution.md`: the complete requested outcome 
 5. **Execute** in this order (Re-point Group below):
    a. Device-level re-points — and on the rewrite path every re-point — before anything is removed: the new ids are known now, and a removed device's ids can never be scanned again.
    b. Takeover only: the user removes the old device in Home Assistant. Verify each mapped old id: `ha-nova get <old id>` exits 5 `NOT_FOUND`; a leftover row goes to `ha-nova:maintenance`.
-   c. Takeover renames, one registry update per pair on the NEW entity, per `../organize/SKILL.md` → Entity / Device Update Fields (metadata snapshot first); tier per Access Check, ordinary renames in one grouped change set. Carry the old entity's `area_id` and `labels` (area and label targets reach a device only through them) and, when the user wants, its `name`, `icon`, `aliases`. Both paths: the old device's area and labels go to the new device through `ha-nova:organize`.
+   c. Takeover renames, one registry update per pair on the NEW entity, per `../organize/SKILL.md` → Entity / Device Update Fields (metadata snapshot first); tier per Access Check, ordinary renames in one grouped change set. Carry the old entity's `area_id` and `labels` and, when the user wants, its `name`, `icon`, `aliases`. Both paths: the old device's area and labels go to the new device through `ha-nova:organize`.
    d. Takeover only, after the renames are verified: re-point every holder that names a NEW entity's own id (the new scan's hits) to its taken-over id; a holder that named both ids now names one entity twice — the user picks which reference stays.
    e. Hand-offs, one owning skill at a time (Hit Routing), each with exact holders, paths, and the mapping; their previews, snapshots, and tiers stay, raised by the Access Check where it applies. The Work Ledger carries the open families.
 6. **Verify**: re-scan the new device. Every holder of both scans shows the new needles or was dropped by the user's choice; on the rewrite path the old device's re-scan has no hits. Report applied, handed off, still open, and the coverage limits. A pure re-point needs no further review; a converted device trigger gets the write skill's Phase 4 review.
@@ -82,11 +82,11 @@ Partial failure: each group stops at the first failure and reports its ledger; n
 
 ### Retire
 
-`get <entity> --references` on the device, then `../ha-nova/safe-refactoring.md` → Pre-Delete Impact Check with these hits as the consumer list and the coverage limits named. Removing the device stays in the HA UI.
+`get <entity> --references` on the device, then `../ha-nova/safe-refactoring.md` → Pre-Delete Impact Check with these hits as the consumer list and the coverage limits named.
 
 ## Output Format
 
-Apply `../ha-nova/output-rules.md`. The plan is a Report (`../ha-nova/output-cards.md`); the mapping reads `old → new` per line, holders by alias or title, paths only on request. Writes keep their owning flows' Preview and Result Cards; a group closes per `../ha-nova/grouped-change-set.md`.
+Apply `../ha-nova/output-rules.md`: plain words, HA names verbatim; unless asked, no ids, "entity", modes, Relay/HA URLs, snapshot files, raw JSON. The plan is a Report (`../ha-nova/output-cards.md`); the mapping reads `old → new` per line, holders by alias or title, paths only on request. Writes keep their owning flows' Preview and Result Cards; a group closes per `../ha-nova/grouped-change-set.md`.
 
 ## Safety
 
