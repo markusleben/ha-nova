@@ -145,7 +145,8 @@ func offerKeyringUnlockForPurge(paths runtimePaths) bool {
 	return err == nil && result == setupSecureStorageRecoveryRecovered
 }
 
-const keyringUnlockByHandStep = `on this computer's desktop, open Passwords and Keys and unlock "Login" with your login password`
+// keyringUnlockByHandStep works on GNOME and KDE, and with any keyring name.
+const keyringUnlockByHandStep = "on this computer's desktop, open Passwords and Keys (or KDE Wallet) and unlock your login keyring, or log out and back in with your password"
 
 // purgeRefusedForLockedKeyring: a full purge must read every saved key before
 // it revokes or removes anything. A locked keyring gets the unlock window when
@@ -161,6 +162,9 @@ func purgeRefusedForLockedKeyring(paths runtimePaths, yes bool, rerun string) bo
 		return false
 	}
 	switch {
+	case yes && keyringUnlockWindowPossible(false):
+		printHumanErr("This computer's keyring is locked, so HA NOVA can't remove its saved key. Nothing was changed.")
+		printHumanWarn("Next step: run ha-nova uninstall --purge (without --yes) and answer Y. A window opens to unlock the keyring.")
 	case opened:
 		printHumanErr("The keyring opened, but HA NOVA's key is still locked. Nothing was changed.")
 		printHumanWarn("Next step: %s. Then run: %s", keyringUnlockByHandStep, rerun)
@@ -203,10 +207,19 @@ func keyringRemovalError(action string, err error) error {
 // nothing to the user.
 func uninstallErrorText(err error) string {
 	var keyring *keyringRemovalProblem
-	if errors.As(err, &keyring) {
-		return keyring.Error()
+	if !errors.As(err, &keyring) {
+		return err.Error()
 	}
-	return err.Error()
+	text := keyring.Error()
+	// resetPurgeStorageProofAfterError may join a second failure: keep it.
+	if joined, ok := err.(interface{ Unwrap() []error }); ok {
+		for _, other := range joined.Unwrap() {
+			if !errors.As(other, new(*keyringRemovalProblem)) {
+				text += "\n" + other.Error()
+			}
+		}
+	}
+	return text
 }
 
 // uninstallRerunCommand is the command that repeats this uninstall run.

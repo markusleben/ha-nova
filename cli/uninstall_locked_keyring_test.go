@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -115,7 +116,7 @@ func TestPurgeWithLockedKeyringStopsBeforeAnyChange(t *testing.T) {
 	}
 	for _, want := range []string{
 		"This computer's keyring is locked, so HA NOVA can't remove its saved key. Nothing was changed.",
-		`Next step: on this computer's desktop, open Passwords and Keys and unlock "Login" with your login password. Then run: ha-nova uninstall --yes --purge`,
+		"Next step: on this computer's desktop, open Passwords and Keys (or KDE Wallet) and unlock your login keyring, or log out and back in with your password. Then run: ha-nova uninstall --yes --purge",
 	} {
 		if !strings.Contains(output, want) {
 			t.Fatalf("output missing %q:\n%s", want, output)
@@ -267,6 +268,10 @@ func TestKeyringRemovalErrorIsPlain(t *testing.T) {
 	if got := uninstallErrorText(fmt.Errorf("failed to validate device credential cleanup: %w", locked)); got != locked.Error() {
 		t.Fatalf("printed = %q", got)
 	}
+	joined := errors.Join(fmt.Errorf("failed to validate: %w", locked), errors.New("reset Cloud secure-storage recovery proof: boom"))
+	if got := uninstallErrorText(joined); got != locked.Error()+"\nreset Cloud secure-storage recovery proof: boom" {
+		t.Fatalf("joined printed = %q", got)
+	}
 	session := keyringRemovalError("inspect device credential", desktopKeyringSessionUnavailableError("no session bus"))
 	if !strings.Contains(session.Error(), "Open a terminal on this computer's desktop") || strings.Contains(session.Error(), "ha-nova setup") {
 		t.Fatalf("session = %v", session)
@@ -297,5 +302,54 @@ func TestServerRemoveWithLockedKeyringIsPlain(t *testing.T) {
 		!strings.Contains(output, "This computer's keyring is locked. Open Passwords and Keys") ||
 		!strings.Contains(output, "Nothing was removed.") || strings.Contains(output, "Secret Service") {
 		t.Fatalf("exit=%d revoked=%v\n%s", exit, *revokedAt, output)
+	}
+}
+
+// --yes asks nothing; from a desktop terminal the step is to drop --yes.
+func TestPurgeYesWithLockedKeyringNamesTheWindowRun(t *testing.T) {
+	paths, locked := lockedKeyringPurgeFixture(t)
+	opened := stubKeyringUnlockWindow(t, true, "", func() { t.Fatal("--yes opened the window") })
+	exitCode, output := captureCommandOutput(t, func() int {
+		return runUninstall(paths, []string{"--yes", "--purge"})
+	})
+	if exitCode != 1 || *opened != 0 ||
+		!strings.Contains(output, "Next step: run ha-nova uninstall --purge (without --yes) and answer Y.") {
+		t.Fatalf("exit = %d, windows = %d\n%s", exitCode, *opened, output)
+	}
+	requireNothingRemoved(t, paths, locked)
+}
+
+// Guided uninstall unlocks before the menu, so the Relay can still be asked
+// whether the App may go too; a declined window disables Remove instead of
+// asking again after the menu.
+func TestGuidedUninstallUnlocksBeforeTheAppOffer(t *testing.T) {
+	for name, tc := range map[string]struct {
+		stdin       string
+		wantApp     bool
+		wantWindows int
+	}{
+		"unlocked": {stdin: "\n", wantApp: true, wantWindows: 1},
+		"declined": {stdin: "n\n", wantApp: false, wantWindows: 0},
+	} {
+		t.Run(name, func(t *testing.T) {
+			paths, locked := lockedKeyringPurgeFixture(t)
+			stubAppRemoval(t, newFakeSupervisor(t), nil, func() (devicePeers, error) {
+				if *locked {
+					return devicePeers{}, errors.New("keyring locked")
+				}
+				return peersOf(0, false, false), nil
+			})
+			menu := stubUninstallMenu(t, "cancel")
+			opened := stubKeyringUnlockWindow(t, true, tc.stdin, func() { *locked = false })
+			exitCode, output := captureCommandOutput(t, func() int { return runUninstall(paths, nil) })
+			hasApp := slices.ContainsFunc(menu.spec.Options, func(o setupMenuOption) bool { return o.Value == "app" })
+			if exitCode != 0 || *opened != tc.wantWindows || hasApp != tc.wantApp ||
+				menu.spec.Options[0].Disabled == tc.wantApp {
+				t.Fatalf("exit=%d windows=%d spec=%+v\n%s", exitCode, *opened, menu.spec, output)
+			}
+			if !tc.wantApp && !strings.Contains(menu.spec.Options[0].DisabledReason, "keyring is locked") {
+				t.Fatalf("reason = %q", menu.spec.Options[0].DisabledReason)
+			}
+		})
 	}
 }
