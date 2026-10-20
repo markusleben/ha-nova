@@ -267,8 +267,7 @@ func TestPurgeStopsUpFrontOnUnreadableRelayToken(t *testing.T) {
 	})
 	for _, want := range []string{
 		"HA NOVA can't read its saved key in this computer's keyring, so it can't remove it. Nothing was changed.",
-		"Next step: " + keyringNotSetUpMessage,
-		"Then run: ha-nova uninstall --yes --purge",
+		"Next step: " + keyringNotSetUpMessage + " Then run: ha-nova uninstall --yes --purge",
 	} {
 		if !refused || !strings.Contains(output, want) {
 			t.Fatalf("refused = %v, missing %q\n%s", refused, want, output)
@@ -283,7 +282,7 @@ func TestPurgeStopsUpFrontOnUnreadableRelayToken(t *testing.T) {
 	if err := saveConfig(paths, cfg); err != nil {
 		t.Fatal(err)
 	}
-	if purgeRefusedForUnreadableRelayToken("ha-nova uninstall --purge") {
+	if purgeRefusedForUnreadableRelayToken(paths, "ha-nova uninstall --purge") {
 		t.Fatal("token file install refused")
 	}
 }
@@ -311,6 +310,11 @@ func TestLinkKeyringErrorsArePlain(t *testing.T) {
 		Detail: "a secure-storage update may have completed", Cause: desktopKeyringLockedError("x")}
 	if unknown.humanText() != unknown.Error() {
 		t.Fatalf("verify-state problem rewritten: %q", unknown.humanText())
+	}
+	// Link recovery guidance offers cloud unlock only where it can help.
+	if cloudProblemNeedsStorageUnlock(cloudProblemForError(desktopKeyringUnavailableError("x"))) ||
+		!cloudProblemNeedsStorageUnlock(cloudProblemForError(desktopKeyringLockedError("x"))) {
+		t.Fatal("cloud unlock offered for a keyring that isn't running, or not for a locked one")
 	}
 	// cloud: one next step after the plain text.
 	for name, tc := range map[string]struct {
