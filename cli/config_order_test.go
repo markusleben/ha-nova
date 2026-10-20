@@ -47,6 +47,8 @@ func TestConfigChangesReadsHomeAssistantsSavedForm(t *testing.T) {
 			`{"use_blueprint":{"path":"me/bp.yaml","input":{"on_motion":[{"action":"light.turn_on","target":{"entity_id":"light.k"}}],"delay":5}}}`, true},
 		{"blueprint input other target", `{"use_blueprint":{"path":"me/bp.yaml","input":{"on_motion":[{"service":"light.turn_on","target":{"entity_id":"light.k"}}]}}}`,
 			`{"use_blueprint":{"path":"me/bp.yaml","input":{"on_motion":[{"action":"light.turn_on","target":{"entity_id":"light.x"}}]}}}`, false},
+		{"blueprint data input keeps its keys", `{"use_blueprint":{"path":"me/bp.yaml","input":{"settings":{"service":"x"}}}}`, `{"use_blueprint":{"path":"me/bp.yaml","input":{"settings":{"action":"x"}}}}`, false},
+		{"blueprint mixed list input keeps its keys", `{"use_blueprint":{"path":"me/bp.yaml","input":{"rows":[{"service":"x"},{"name":"y"}]}}}`, `{"use_blueprint":{"path":"me/bp.yaml","input":{"rows":[{"action":"x"},{"name":"y"}]}}}`, false},
 		{"blueprint input name is not a step", `{"use_blueprint":{"path":"me/bp.yaml","input":{"service":"a"}}}`, `{"use_blueprint":{"path":"me/bp.yaml","input":{"action":"a"}}}`, false},
 		{"top-level key outside steps", `{"fields":{"service":{"selector":{"text":{}}}}}`, `{"fields":{"action":{"selector":{"text":{}}}}}`, false},
 	} {

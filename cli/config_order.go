@@ -122,7 +122,9 @@ func canonicalSteps(key string, v any) any {
 }
 
 // blueprintInputSteps: HA validates the substituted blueprint, which holds
-// the same input objects, so steps passed as inputs are renamed too.
+// the same input objects, so steps passed as inputs are renamed too. Only
+// inputs that are step lists get the rename (the selector is not in the
+// config).
 func blueprintInputSteps(blueprint map[string]any) map[string]any {
 	inputs, isMap := blueprint["input"].(map[string]any)
 	if !isMap {
@@ -131,10 +133,29 @@ func blueprintInputSteps(blueprint map[string]any) map[string]any {
 	out := maps.Clone(blueprint)
 	renamed := make(map[string]any, len(inputs))
 	for name, value := range inputs { // input names are never renamed
-		renamed[name] = serviceAsAction(value)
+		if actionList(value) {
+			value = serviceAsAction(value)
+		}
+		renamed[name] = value
 	}
 	out["input"] = renamed
 	return out
+}
+
+// actionList: an input that holds steps (an action selector's value): a
+// list of objects that each name a service. Any other input is data and
+// keeps its keys, so a changed key there still differs.
+func actionList(v any) bool {
+	steps, isList := v.([]any)
+	for _, step := range steps {
+		m, isMap := step.(map[string]any)
+		_, service := m["service"]
+		_, action := m["action"]
+		if !isMap || (!service && !action) {
+			return false
+		}
+	}
+	return isList && len(steps) > 0
 }
 
 var stepLists = map[string]bool{"triggers": true, "conditions": true, "actions": true, "sequence": true}

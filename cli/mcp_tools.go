@@ -235,8 +235,8 @@ func toolResult(name, out, errOut string, exit int, told map[string]bool, forms 
 		}
 	}
 	next := nextStep(envelope)
-	if next == "" { // the verb's own next step, kept when a notice hint is appended
-		next, _ = envelope["next_step"].(string)
+	if own, _ := envelope["next_step"].(string); next == "" && own != "" { // the verb's own step, in tool terms
+		next = mcpNext(own)
 	}
 	if forms {
 		next = formsNext(envelope, next)
