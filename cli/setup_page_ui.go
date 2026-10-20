@@ -24,7 +24,7 @@ import (
 var setupPageIdle = 30 * time.Minute
 
 // The actions the page may post; the engine accepts a subset at a time.
-var setupPageActions = []string{"signin", "address", "terminal", "recheck", "stop", "demo",
+var setupPageActions = []string{"signin", "address", "terminal", "recheck", "stop", "demo", "fix", "server", "clients",
 	"phone", "chat", "finish", // step 3 (setup_page_control.go)
 	"preview", "save", "undo", "claude", "done", // step 4 (setup_page_home.go)
 }
@@ -66,8 +66,9 @@ type setupPageState struct {
 	AskHA      bool                 `json:"ask_ha,omitempty"` // step 1 opens the address field
 	Typed      bool                 `json:"typed,omitempty"`  // the user typed HA's address: step 1 says so
 	SignInURL  string               `json:"signin_url,omitempty"`
-	Control    *setupPageControl    `json:"control,omitempty"` // step 3
-	Home       *setupPageHome       `json:"home,omitempty"`    // step 4
+	Control    *setupPageControl    `json:"control,omitempty"`     // step 3
+	Home       *setupPageHome       `json:"home,omitempty"`        // step 4
+	NewClients []string             `json:"new_clients,omitempty"` // a re-run: AI assistants found since, to set up with a click
 	Accepts    []string             `json:"accepts"`
 }
 

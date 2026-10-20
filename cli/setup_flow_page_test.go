@@ -102,6 +102,11 @@ func startSetupPageFlow(t *testing.T, stdin string) (*setupPageTest, *bytes.Buff
 	if err != nil {
 		t.Fatal(err)
 	}
+	return startSetupPageFlowWith(t, stdin, &setupFlow{paths: paths, state: loadStateOrDefault(paths), connectionMode: setupConnectionLocal, pairingBackStep: setupStepRelayInstall})
+}
+
+func startSetupPageFlowWith(t *testing.T, stdin string, flow *setupFlow) (*setupPageTest, *bytes.Buffer, chan int) {
+	t.Helper()
 	var stdout bytes.Buffer
 	ui := newSetupWebUI(strings.NewReader(stdin), &stdout)
 	server, err := startSetupPageServer(ui)
@@ -109,7 +114,6 @@ func startSetupPageFlow(t *testing.T, stdin string) (*setupPageTest, *bytes.Buff
 		t.Fatal(err)
 	}
 	page := &setupPageTest{t: t, ui: ui, server: server, base: "http://127.0.0.1:" + server.port}
-	flow := &setupFlow{paths: paths, state: loadStateOrDefault(paths), connectionMode: setupConnectionLocal, pairingBackStep: setupStepRelayInstall}
 	done := make(chan int, 1)
 	go func() { done <- flow.runWithPage(ui) }()
 	page.launch()
@@ -443,9 +447,9 @@ func TestSetupPageChecksATypedAddress(t *testing.T) {
 	setupPageExit(t, done, stdout)
 }
 
-// The page is for a plain first run at a desktop; everything else keeps the
-// text wizard, and go test never gets the page.
-func TestSetupPageOnlyForAPlainFirstRun(t *testing.T) {
+// The page is for a plain `ha-nova setup` at a desktop, first run or re-run;
+// everything else keeps the text wizard, and go test never gets the page.
+func TestSetupPageOnlyForAPlainSetup(t *testing.T) {
 	if defaultSetupPageAvailable() {
 		t.Fatal("the page is available under go test")
 	}
@@ -457,14 +461,23 @@ func TestSetupPageOnlyForAPlainFirstRun(t *testing.T) {
 	if !fresh().usesSetupPage() {
 		t.Fatal("a fresh first run should use the page")
 	}
+	rerun := fresh()
+	rerun.cfg = runtimeConfig{HAHost: "ha.local", HAURL: "http://ha.local:8123", RelayBaseURL: "http://ha.local:8791"}
+	if !rerun.usesSetupPage() {
+		t.Fatal("a re-run on a saved setup should use the page (G1)")
+	}
 	for name, change := range map[string]func(*setupFlow){
-		"client named":  func(f *setupFlow) { f.target = "claude" },
-		"service":       func(f *setupFlow) { f.serviceMode = true },
-		"host flag":     func(f *setupFlow) { f.hostFlag = "ha.local" },
-		"relay token":   func(f *setupFlow) { f.relayTokenFlag = "x" },
-		"saved address": func(f *setupFlow) { f.cfg.HAURL = "http://ha.local:8123" },
-		"saved relay":   func(f *setupFlow) { f.cfg.RelayBaseURL = "http://ha.local:8791" },
-		"Link saved":    func(f *setupFlow) { f.cfg.Cloud = &cloudLifecycleMetadata{} },
+		"client named": func(f *setupFlow) { f.target = "claude" },
+		"service":      func(f *setupFlow) { f.serviceMode = true },
+		"host flag":    func(f *setupFlow) { f.hostFlag = "ha.local" },
+		"relay token":  func(f *setupFlow) { f.relayTokenFlag = "x" },
+		"Link only":    func(f *setupFlow) { f.cfg.Cloud = &cloudLifecycleMetadata{} },
+		"custom Relay": func(f *setupFlow) {
+			f.cfg = runtimeConfig{HAHost: "ha.local", HAURL: "http://ha.local:8123", RelayBaseURL: "http://proxy.lan:9000"}
+		},
+		"Link not ready": func(f *setupFlow) {
+			f.cfg = runtimeConfig{HAHost: "ha.local", HAURL: "http://ha.local:8123", Cloud: &cloudLifecycleMetadata{}}
+		},
 	} {
 		flow := fresh()
 		change(flow)

@@ -134,6 +134,10 @@ window.novaSteps = (h) => {
           el('div', {}, el('div', { class: 'k' }, key), el('div', { class: 'v', role: 'status' }, t(chat.no_restart ? 'setup.chat.wait_now' : 'setup.chat.wait')), progress), el('span'));
       case 'expired':
         return line(guard('·'), key, t('setup.chat.value'), problem(chat.problem));
+      case 'page_on': // a re-run: switched in NOVA in Home Assistant
+      case 'page_off':
+        return line(guard(chat.state === 'page_on' ? '✓' : '·'), key, t(chat.state === 'page_on' ? 'setup.chat.page_on' : 'setup.chat.page_off'), null,
+          link(t('setup.chat.open_nova'), chat.page, 'ghost btn-small', 'chat-nova'));
       case 'noaddress':
         return line(guard('·'), key, chat.problem ? say(chat.problem) : t('setup.chat.need_address'));
       default: {
@@ -152,7 +156,9 @@ window.novaSteps = (h) => {
     }
   };
 
-  const control = () => {
+  // status: a re-run's rows of what is set up, above these; Done applies the
+  // switches.
+  const control = (status) => {
     const c = h.state().control || {};
     const rows = [
       line(guard(c.window ? '✓' : '·'), t('setup.page.control.window_key'),
@@ -175,17 +181,22 @@ window.novaSteps = (h) => {
         toggle('b-link', label, local.link, () => { local.link = !local.link; render(true); }, busy), 'b-link-v'));
     } else if (c.link === 'run') {
       rows.push(line(guard('⇄'), t('setup.page.control.link_key'), t('setup.page.control.link_run'), null, spinner()));
+    } else if (c.link === 'on') {
+      rows.push(line(guard('✓'), t('setup.page.control.link_key'), t('setup.page.control.link_on'), null, tagOn()));
     }
     rows.push(chatRow(c));
     const choices = [];
     if (c.rule === 'offer' && local.rule) choices.push('rule');
     if (c.link === 'offer' && local.link) choices.push('link');
-    return [...head(t('setup.page.control.eyebrow'), t('setup.page.control.title'), t('setup.page.control.lead'), true),
+    const finish = t(status ? 'setup.page.rerun.done' : 'setup.page.control.finish');
+    return [...(status ? [...head(t('setup.page.rerun.eyebrow'), t('setup.page.rerun.title'), t('setup.page.rerun.lead')), status]
+      : head(t('setup.page.control.eyebrow'), t('setup.page.control.title'), t('setup.page.control.lead'), true)),
       el('ul', { class: 'rows tall' }, rows),
       el('div', { class: 'actions' }, asking
-        ? el('button', { id: 'b-finish', class: 'btn btn-primary', type: 'button', disabled: '' }, t('setup.page.control.finish'))
-        : button(t('setup.page.control.finish'), 'finish', 'primary', choices.join(','))),
-      c.phone === 'pick' ? el('p', { class: 'fine' }, t('setup.page.control.fine')) : null];
+        ? el('button', { id: 'b-finish', class: 'btn btn-primary', type: 'button', disabled: '' }, finish)
+        : button(finish, 'finish', 'primary', choices.join(','))),
+      c.phone === 'pick' ? el('p', { class: 'fine' }, t('setup.page.control.fine')) : null,
+      status && h.state().accepts.includes('server') ? el('p', { class: 'fine' }, el('button', { id: 'b-server', class: 'linkish', type: 'button', onclick: () => h.post('server') }, t('setup.page.rerun.add_server'))) : null];
   };
 
   // Step 4.
