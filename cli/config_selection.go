@@ -83,11 +83,11 @@ func takeServerArg(args []string) ([]string, error) {
 			rest = append(rest, args[i])
 			continue
 		}
-		if !inline && i+1 < len(args) {
+		if !inline && i+1 < len(args) && !strings.HasPrefix(args[i+1], "-") {
 			i++
 			value = args[i]
 		}
-		if strings.TrimSpace(value) == "" || strings.HasPrefix(value, "-") {
+		if strings.TrimSpace(value) == "" {
 			return nil, errEmptyServerFlag
 		}
 		setServerSelectionOverride(value)

@@ -147,3 +147,33 @@ func TestMCPRunIDIsNeverAFlag(t *testing.T) {
 		t.Fatal("run_id must not start with a dash")
 	}
 }
+
+// "--server on every command but apply": the server-independent commands
+// the skills name (update, diff, relay jq) accept it and ignore it.
+func TestLocalCommandsAcceptServer(t *testing.T) {
+	resetServerProfileSelection(t)
+	t.Setenv("HOME", t.TempDir())
+	paths, err := detectPaths()
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := t.TempDir()
+	file := filepath.Join(dir, "a.json")
+	if err := os.WriteFile(file, []byte(`{"a":1}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	for _, args := range [][]string{
+		{"update", "--server", "cabin", "--help"},
+		{"diff", "--before", file, "--after", file, "--server", "cabin"},
+		{"relay", "jq", "--file", file, ".a", "--server", "cabin"},
+		{"relay", "jq", "--server=cabin", "--file", file, ".a"},
+	} {
+		exit := 0
+		out := captureStdout(t, func() {
+			os.Stdout.WriteString(captureStderr(t, func() { exit = dispatch(paths, "ha-nova", args) }))
+		})
+		if exit != 0 {
+			t.Errorf("%v: exit=%d out=%s", args, exit, out)
+		}
+	}
+}

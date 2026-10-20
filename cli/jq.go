@@ -130,6 +130,11 @@ func applyJQFilter(filter string, input []byte, raw bool) (jqResult, error) {
 }
 
 func runJQ(args []string) int {
+	args, err := takeServerArg(args) // accepted and ignored: jq reads a local file
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return 1
+	}
 	if len(args) == 0 {
 		fmt.Fprintln(os.Stderr, "Usage: relay jq [-r] [-e] [-c] [--jq-file <filter-file>] '<filter>'")
 		return 1

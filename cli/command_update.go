@@ -21,6 +21,7 @@ func runUpdate(paths runtimePaths, args []string) int {
 	fs.SetOutput(io.Discard)
 	versionFlag := fs.String("version", "", "install exactly this release tag (e.g. v0.14.1); default is the latest stable")
 	forceFlag := fs.Bool("force", false, "proceed even from a local dev build (restores the release over the dev tree)")
+	fs.String("server", "", "accepted and ignored: an update is for the whole install, not one server")
 	if err := fs.Parse(args); err != nil {
 		if helpRequested(err, fs, "ha-nova update [--version <tag>] [--force]") {
 			return 0

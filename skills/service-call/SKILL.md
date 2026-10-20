@@ -13,7 +13,7 @@ Run Home Assistant services now — devices, scenes, scripts, automations, locks
 
 ## Bootstrap (once per session)
 
-Read and follow `../ha-nova/session-bootstrap.md`. No health probe; exit 1 `RELAY_ERROR` → `ha-nova setup` or `ha-nova:onboarding`. Multi-server: `--server <name>` on every Home Assistant command but `apply`; name non-default servers once per response.
+Read and follow `../ha-nova/session-bootstrap.md`. No health probe; exit 1 `RELAY_ERROR` → `ha-nova setup` or `ha-nova:onboarding`. Multi-server: `--server <name>` on every command but `apply`; name a non-default server once per response.
 
 ## Relay Contract
 
