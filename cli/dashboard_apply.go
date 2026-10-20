@@ -75,6 +75,9 @@ func executeDashboard(paths runtimePaths, s *relaySession, env *verbEnvelope, ac
 	if row.Outcome != "verified" {
 		env.exit = verbExitUnverified
 	}
+	if strings.HasPrefix(row.Note, readBackDiffers) {
+		sayReadBackDiffers(env)
+	}
 	return nil
 }
 
@@ -228,8 +231,10 @@ func verifyDashboard(s *relaySession, action configAction) (verifyRow, json.RawM
 	case err != nil:
 		row.Observed = "read-back failed"
 		return row, nil, false
-	case readback == nil || dashboardDiffers(action.Body, readback):
-		row.Observed, row.Note = "read-back differs", "the stored dashboard is not the planned one (changed by someone else, or adjusted by Home Assistant)"
+	case readback == nil:
+		row.Observed, row.Note = "read-back differs", "no stored dashboard config was found"
+	case dashboardDiffers(action.Body, readback):
+		row.Observed, row.Note = "read-back differs", readBackDiffers+"the stored dashboard is not the planned one"
 	default:
 		row.Observed, row.Outcome = "read-back equals the plan", "verified"
 	}

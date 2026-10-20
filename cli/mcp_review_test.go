@@ -281,6 +281,11 @@ func TestMCPNoticeHintsOncePerSessionAndServer(t *testing.T) {
 	if s := toolResult("ha_plan", pending, "", verbExitConfirmation, told, false)["structuredContent"].(map[string]any)["next_step"].(string); !strings.HasPrefix(s, "Show this preview") || !strings.Contains(s, "newer HA NOVA") {
 		t.Fatalf("the hint joins the existing next_step: %q", s)
 	}
+	told = map[string]bool{}
+	differs := `{"schema_version":1,"verb":"apply","status":"unverified","next_step":"Show say.","notices":[{"kind":"update","text":"HA NOVA update available"}]}`
+	if s := toolResult("ha_apply", differs, "", verbExitUnverified, told, false)["structuredContent"].(map[string]any)["next_step"].(string); !strings.HasPrefix(s, "Show say.") || !strings.Contains(s, "newer HA NOVA") {
+		t.Fatalf("a hint must not replace the verb's own next_step: %q", s)
+	}
 }
 
 // ha_trace prints its own object over a transport of its own: a trace-only

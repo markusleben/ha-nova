@@ -91,6 +91,9 @@ func executeConfig(paths runtimePaths, s *relaySession, env *verbEnvelope, actio
 	if row.Outcome != "verified" {
 		env.exit = verbExitUnverified
 	}
+	if strings.HasPrefix(row.Note, readBackDiffers) {
+		sayReadBackDiffers(env)
+	}
 	if update {
 		expected := readback
 		if expected == nil {
@@ -183,10 +186,13 @@ func verifyConfig(s *relaySession, action configAction, reloaded bool) (verifyRo
 	}
 	row.Observed = fmt.Sprintf("%d differences, reload ok: %v, entity: %q present: %s", len(differences), reloaded, entityID, present)
 	switch {
+	case len(differences) > 0:
+		row.Note = readBackDiffers + strings.Join(differences, " ")
+		if !reloaded {
+			row.Note += " (and the reload barrier failed)"
+		}
 	case !reloaded:
 		row.Note = "saved, but the reload barrier failed: whether the change is running is unknown"
-	case len(differences) > 0:
-		row.Note = "the read-back differs: " + strings.Join(differences, " ")
 	case disabled: // a registry-disabled item has no state to check
 		row.Outcome, row.Note = "verified", "disabled in the entity registry: saved, not running"
 	case st != nil && st.State == "unavailable": // Home Assistant could not load the config
@@ -195,6 +201,16 @@ func verifyConfig(s *relaySession, action configAction, reloaded bool) (verifyRo
 		row.Outcome = "verified"
 	}
 	return row, readback
+}
+
+const readBackDiffers = "the read-back differs: "
+
+// sayReadBackDiffers: what Home Assistant kept is not what the user
+// approved. Equivalent spellings never get here (configChanges), so this is
+// a real difference the agent must not explain away.
+func sayReadBackDiffers(env *verbEnvelope) {
+	env.Say = "It was saved, but Home Assistant kept something different from what you approved. Let's look at what changed before you count on it."
+	env.NextStep = "Show `say`, then what differs (verification[].note; each row: field | approved | saved) in plain words. It is a real difference: never call it harmless or say it works anyway. Read the saved version again and offer a new plan to fix it."
 }
 
 func coreGETFresh(s *relaySession, path string) (int, json.RawMessage, error) {

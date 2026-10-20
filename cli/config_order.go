@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"maps"
 	"sort"
 	"strconv"
 	"strings"
@@ -14,7 +15,8 @@ import (
 var orderSemanticKeys = map[string]bool{"variables": true, "trigger_variables": true, "fields": true}
 
 // orderedKeyLists maps the path of every object stored under an
-// order-semantic key to its keys in document order.
+// order-semantic key to its keys in document order. Paths use the canonical
+// step form, so `action: {…}` and `actions: [{…}]` are one path.
 func orderedKeyLists(raw []byte) map[string]string {
 	out := map[string]string{}
 	dec := json.NewDecoder(bytes.NewReader(raw))
@@ -27,11 +29,18 @@ func orderedKeyLists(raw []byte) map[string]string {
 		}
 		switch tok {
 		case json.Delim('{'):
+			if stepLists[strings.TrimPrefix(path, "/")] { // one step object is a one-item list (canonicalSteps)
+				path += "/0"
+			}
 			var keys []string
 			for dec.More() {
 				keyTok, err := dec.Token()
 				key, isString := keyTok.(string)
-				if err != nil || !isString || !walk(path+"/"+key, orderSemanticKeys[key]) {
+				child := path + "/" + key
+				if canon, aliased := diffPluralAlias[key]; aliased && path == "" {
+					child = "/" + canon // the same path as HA's saved plural key
+				}
+				if err != nil || !isString || !walk(child, orderSemanticKeys[key]) {
 					return false
 				}
 				keys = append(keys, key)
@@ -88,4 +97,74 @@ func configChanges(before, after []byte) ([]string, error) {
 		return nil, err
 	}
 	return append(renderConfigChanges(a, b), orderChanges(before, after)...), nil
+}
+
+// canonicalSteps compares a top-level step list as Home Assistant saves it.
+// One object is a one-item list (HA reads both alike; a singular
+// `trigger: {…}` is saved as `triggers: {…}`). HA's validator renames a
+// service step's `service` to `action` in the posted config itself, at any
+// depth, so a draft written with `service` reads back with `action`
+// (automations and scripts, checked against HA 2026.10).
+func canonicalSteps(key string, v any) any {
+	if blueprint, isMap := v.(map[string]any); isMap && key == "use_blueprint" {
+		return blueprintInputSteps(blueprint)
+	}
+	if !stepLists[key] {
+		return v
+	}
+	if obj, isObj := v.(map[string]any); isObj {
+		v = []any{obj}
+	}
+	if key == "actions" || key == "sequence" {
+		return serviceAsAction(v)
+	}
+	return v
+}
+
+// blueprintInputSteps: HA validates the substituted blueprint, which holds
+// the same input objects, so steps passed as inputs are renamed too.
+func blueprintInputSteps(blueprint map[string]any) map[string]any {
+	inputs, isMap := blueprint["input"].(map[string]any)
+	if !isMap {
+		return blueprint
+	}
+	out := maps.Clone(blueprint)
+	renamed := make(map[string]any, len(inputs))
+	for name, value := range inputs { // input names are never renamed
+		renamed[name] = serviceAsAction(value)
+	}
+	out["input"] = renamed
+	return out
+}
+
+var stepLists = map[string]bool{"triggers": true, "conditions": true, "actions": true, "sequence": true}
+
+// serviceAsAction walks the action tree like the tier walk (never into
+// conditions, triggers, payloads, or targets) and renames `service` to
+// `action` where only `service` is set. Both sides of a comparison get the
+// same rename, so a different service, target, or step still differs.
+func serviceAsAction(node any) any {
+	switch n := node.(type) {
+	case []any:
+		out := make([]any, len(n))
+		for i, child := range n {
+			out[i] = serviceAsAction(child)
+		}
+		return out
+	case map[string]any:
+		out := make(map[string]any, len(n))
+		for k, child := range n {
+			if !walkSkipKeys[k] {
+				child = serviceAsAction(child)
+			}
+			out[k] = child
+		}
+		_, both := out["action"]
+		if service, legacy := out["service"]; legacy && !both {
+			delete(out, "service")
+			out["action"] = service
+		}
+		return out
+	}
+	return node
 }
