@@ -89,6 +89,8 @@ release:
     - **Try it without Home Assistant.** `ha-nova try` connects your AI app to a shared demo house that resets every hour, then gives you five things to say. `ha-nova try --stop` removes it.
     - **Link sign-in without a code.** Set up Home Assistant Link as the owner, and this computer connects with that one sign-in. Other users still get the six-digit code.
     - **Uninstall in one step.** On the last computer that uses the NOVA Relay App, `ha-nova uninstall` can remove the App from Home Assistant too, after the owner signs in.
+    - **Use Claude or ChatGPT in the browser? Setup has a path for that.** No AI app on this computer? Choose “I use Claude or ChatGPT in the browser”. This computer connects, and chat apps come first.
+    - **Change your phone from the setup page.** Run setup again and choose “Use another phone” (it shows when another phone has the Home Assistant app). Tap “Move” on the old phone, then “Allow” on the new one.
 
     ## Bug Fixes
 
@@ -102,6 +104,9 @@ release:
     - **Setup in the terminal without an AI app still connects this computer.** Then it names the AI apps to install and says to run `ha-nova setup` again.
     - **A correct save no longer says it didn't pass the check.** Home Assistant stores some steps in a newer form. HA NOVA now reads them the same way, so your AI app no longer reports a false problem.
     - **Works with AI apps that use PowerShell on Windows.** With the demo house or more than one Home Assistant, your AI app now picks the right one there too.
+    - **Setup page is clearer.** It says who the owner is. Buttons act right away. Switches wait for “Continue” (“Done” on a re-run). Can't sign in on this computer? Use a six-digit code, made on any device.
+    - **Uninstall ends with a short summary:** what was removed, what stays, and one next step. Add `--verbose` to see file paths. A Link sign-in you start and don't finish no longer stops a full removal.
+    - **Plainer questions and notifications.** Every yes/no in the terminal is an arrow menu. Phone and watch notifications read right. To link a phone, you now tap “Allow” (was “Link”).
 
     Stable install commands are release-pinned for this tag.
 
