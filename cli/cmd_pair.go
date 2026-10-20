@@ -324,9 +324,16 @@ func runPairCommand(paths runtimePaths, args []string) int {
 	if probeErr != nil {
 		if text := plainKeyringProblem(probeErr); text != "" {
 			printErr("This computer can't store the device key yet. %s", text)
-			printErr("No one unlocks this computer's desktop (a VM or server)? Run: ha-nova pair --credential-store=file")
+			fileCommand := "ha-nova pair"
+			if serverNameSet {
+				fileCommand += " --server " + serverName
+			}
+			if relayURLSet {
+				fileCommand += " --relay-url " + bootstrapURL
+			}
+			printErr("No one unlocks this computer's desktop (a VM or server)? Run: %s --credential-store=file", fileCommand)
 		} else {
-			printErr("This system cannot store the device credential yet: %s", probeErr)
+			printErr("This computer can't store the device key yet: %s", probeErr)
 		}
 		if secureStorageSessionProblem(probeErr) {
 			printErr("%s. Next step: %s, then run this command there.", secureStorageSessionReason, secureStorageSessionNextStep())

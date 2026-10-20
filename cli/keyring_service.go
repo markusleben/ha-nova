@@ -341,15 +341,23 @@ func keyringMessage(message string, err, kind error) string {
 // pick the message and the command's error code; setup's storage decisions
 // keep failing closed on them.
 func isSessionBusUnreachableText(err error) bool {
-	return err != nil && strings.Contains(strings.ToLower(err.Error()), "dial unix")
+	return strings.Contains(errorChainText(err), "dial unix")
 }
 
 func isSecretServiceExitedText(err error) bool {
-	if err == nil {
-		return false
-	}
-	message := strings.ToLower(err.Error())
+	message := errorChainText(err)
 	return strings.Contains(message, "org.freedesktop.secrets") && strings.Contains(message, "exited with status")
+}
+
+// errorChainText is every message in err's chain, lower case: a CloudError
+// prints only its code and hides the godbus text of its cause.
+func errorChainText(err error) string {
+	var text strings.Builder
+	for ; err != nil; err = errors.Unwrap(err) {
+		text.WriteString(strings.ToLower(err.Error()))
+		text.WriteString("\n")
+	}
+	return text.String()
 }
 
 // secureStorageErrorCode is a command's error code for a saved credential
@@ -374,8 +382,10 @@ func plainKeyringProblem(err error) string {
 	if isLinuxKeyringError(err) {
 		return relayAuthTokenProblemMessage(err)
 	}
-	// The Link store's own unlock refusal carries no keyring error.
-	if secureStorageSessionPlatformOS == "linux" && IsCloudErrorCode(err, CloudErrSecretStoreLocked) {
+	// The Link store's own refusals carry no keyring error. UI-forbidden is
+	// locked or not set up: ask the keyring itself (read-only).
+	if secureStorageSessionPlatformOS == "linux" && (IsCloudErrorCode(err, CloudErrSecretStoreLocked) ||
+		IsCloudErrorCode(err, CloudErrSecretUIForbidden) && isDesktopKeyringLockedError(deviceCredentialPreflight())) {
 		return keyringLockedMessage
 	}
 	return ""

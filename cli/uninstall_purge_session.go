@@ -110,7 +110,8 @@ func purgeRefusedOutsideDesktop(paths runtimePaths, mode uninstallMode, yes bool
 	err := purgeSecureStorageSessionError(paths)
 	if err == nil {
 		return purgeRefusedForUnreachableKeyring(paths, rerun) ||
-			purgeRefusedForLockedKeyring(paths, yes, rerun)
+			purgeRefusedForLockedKeyring(paths, yes, rerun) ||
+			purgeRefusedForUnreadableRelayToken(rerun)
 	}
 	printHumanErr("%s, so a full purge can't check this computer's saved HA NOVA credentials. This run changed nothing.", secureStorageSessionReason)
 	printHumanWarn("Next step: %s, then run: %s", secureStorageSessionNextStep(), rerun)
@@ -177,6 +178,33 @@ func purgeRefusedForUnreachableKeyring(paths runtimePaths, rerun string) bool {
 	}
 	printHumanErr("This computer's keyring isn't running, so HA NOVA can't remove its saved key. Nothing was changed.")
 	printHumanWarn("Next step: log out of the desktop and back in. Then run: %s", rerun)
+	return true
+}
+
+// purgeRefusedForUnreadableRelayToken: the purge reads the legacy relay token
+// late, after it removed client integrations and PATH. On Linux any read
+// error it won't skip (applyUninstallTokenPolicy) stops the run up front
+// instead, like the guided preflight does.
+func purgeRefusedForUnreadableRelayToken(rerun string) bool {
+	if secureStorageSessionPlatformOS != "linux" {
+		return false
+	}
+	// A configured token file is removed, not read; a keyring copy is then
+	// best-effort.
+	if _, configured, _ := relayAuthTokenFilePathFromConfig(); configured {
+		return false
+	}
+	_, err := purgeRelayTokenRead()
+	if err == nil || isMissingRelayAuthTokenError(err) || isDesktopKeyringUnavailableError(err) {
+		return false
+	}
+	printHumanErr("HA NOVA can't read its saved key in this computer's keyring, so it can't remove it. Nothing was changed.")
+	if plain := plainKeyringProblem(err); plain != "" {
+		printHumanWarn("Next step: %s", plain)
+	} else {
+		printHumanWarn("Details: %s", err)
+	}
+	printHumanWarn("Then run: %s", rerun)
 	return true
 }
 

@@ -265,6 +265,9 @@ func TestRunUninstallDeviceRelockResetsAllCloudStorageProofs(
 		t,
 		fullPurgeEmptyCredentialConfig,
 	)
+	// No relay token stored; keeps the read off a real Secret Service.
+	t.Setenv("HA_NOVA_ALLOW_INSECURE_TEST_KEYRING", "1")
+	t.Setenv("HA_NOVA_TEST_KEYRING_FILE", filepath.Join(t.TempDir(), "no-relay-token"))
 	snapshot, err := loadCloudRecoverySnapshotUnchecked(paths)
 	if err != nil {
 		t.Fatal(err)

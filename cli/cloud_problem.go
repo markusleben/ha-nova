@@ -59,11 +59,12 @@ func (p *cloudProblem) Error() string {
 }
 
 // humanText is what a person reads: a Linux keyring problem gets the plain
-// keyring text get and doctor print, not the code and remediation id.
+// keyring text get and doctor print instead of the detail; the code and next
+// step ids stay for agents and support.
 func (p *cloudProblem) humanText() string {
-	if p != nil && p.Code == cloudProblemSecureStorage {
+	if p != nil && p.Code == cloudProblemSecureStorage && p.Remediation == cloudRemediationUnlockStorage {
 		if text := plainKeyringProblem(p.Cause); text != "" {
-			return "Home Assistant Link: " + text
+			return fmt.Sprintf("Home Assistant Link: %s (code %s; next: %s)", text, p.Code, p.Remediation)
 		}
 	}
 	return p.Error()

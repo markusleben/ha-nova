@@ -171,12 +171,8 @@ func TestKeyringErrorTextIsPlain(t *testing.T) {
 func TestCloudKeyringProblemIsPlain(t *testing.T) {
 	onSecureStoragePlatform(t, "linux")
 	problem := cloudProblemForError(newCloudError(CloudErrSecretStore, "access OAuth secret store", sshNoSessionBus))
-	if got := problem.humanText(); got != "Home Assistant Link: "+keyringSessionMessage {
+	if got := problem.humanText(); got != "Home Assistant Link: "+keyringSessionMessage+" (code cloud_secure_storage; next: unlock_secure_storage)" {
 		t.Fatalf("got %q", got)
-	}
-	// Machine output keeps its code.
-	if !strings.Contains(problem.Error(), "cloud_secure_storage") {
-		t.Fatalf("Error() = %q", problem.Error())
 	}
 	other := cloudProblemForError(newCloudError(CloudErrForbidden, "connect", nil))
 	if other.humanText() != other.Error() {
@@ -251,5 +247,101 @@ func TestPurgeUnreachableKeyringStopResetsLinkStorageProof(t *testing.T) {
 	saved, err := loadRawDefaultProfileConfig(paths.ConfigFile)
 	if err != nil || saved.Cloud == nil || saved.Cloud.RecoveryHold == nil || saved.Cloud.RecoveryHold.StorageVerified {
 		t.Fatalf("storage proof kept: %+v (err %v)", saved.Cloud, err)
+	}
+}
+
+// The purge reads a legacy relay token late, after client integrations and
+// PATH are gone: any read error it won't skip stops the run up front.
+func TestPurgeStopsUpFrontOnUnreadableRelayToken(t *testing.T) {
+	paths, _ := unreachableKeyringPurgeFixture(t, nil)
+	stubKeyringUnlockWindow(t, false, "", func() {})
+	original := purgeRelayTokenRead
+	t.Cleanup(func() { purgeRelayTokenRead = original })
+	purgeRelayTokenRead = func() (string, error) {
+		return "", relayAuthTokenReadError("ha-nova", desktopKeyringInitializationRequiredError("no default Secret Service collection configured"))
+	}
+	var refused bool
+	_, output := captureCommandOutput(t, func() int {
+		refused = purgeRefusedOutsideDesktop(paths, uninstallModePurge, true, "ha-nova uninstall --yes --purge")
+		return 0
+	})
+	for _, want := range []string{
+		"HA NOVA can't read its saved key in this computer's keyring, so it can't remove it. Nothing was changed.",
+		"Next step: " + keyringNotSetUpMessage,
+		"Then run: ha-nova uninstall --yes --purge",
+	} {
+		if !refused || !strings.Contains(output, want) {
+			t.Fatalf("refused = %v, missing %q\n%s", refused, want, output)
+		}
+	}
+	// A configured token file is removed, not read: no stop.
+	cfg, err := loadRawDefaultProfileConfig(paths.ConfigFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.RelayTokenFile = defaultRelayAuthTokenFile(paths)
+	if err := saveConfig(paths, cfg); err != nil {
+		t.Fatal(err)
+	}
+	if purgeRefusedForUnreadableRelayToken("ha-nova uninstall --purge") {
+		t.Fatal("token file install refused")
+	}
+}
+
+func TestLinkKeyringErrorsArePlain(t *testing.T) {
+	onSecureStoragePlatform(t, "linux")
+	busGone := newCloudError(CloudErrSecretStore, "access OAuth secret store",
+		errors.New("dial unix /run/user/1000/bus: connect: no such file or directory"))
+	if !isLinuxKeyringOutOfReach(busGone) || !strings.HasPrefix(keyringErrorText(busGone), keyringSessionMessage) {
+		t.Fatalf("godbus text inside a CloudError: %q", keyringErrorText(busGone))
+	}
+	original := deviceCredentialPreflight
+	t.Cleanup(func() { deviceCredentialPreflight = original })
+	deviceCredentialPreflight = func() error { return desktopKeyringLockedError("default Secret Service collection is locked") }
+	forbidden := newCloudError(CloudErrSecretUIForbidden, "access OAuth secret store", nil)
+	if got := keyringErrorText(forbidden); got != keyringLockedMessage {
+		t.Fatalf("UI-forbidden on a locked keyring: %q", got)
+	}
+	deviceCredentialPreflight = func() error { return nil }
+	if got := keyringErrorText(forbidden); got == keyringLockedMessage {
+		t.Fatal("UI-forbidden on an unlocked keyring read as locked")
+	}
+	// A write that may have landed keeps its safety text.
+	unknown := &cloudProblem{Code: cloudProblemSecureStorage, Remediation: cloudRemediationVerifyState,
+		Detail: "a secure-storage update may have completed", Cause: desktopKeyringLockedError("x")}
+	if unknown.humanText() != unknown.Error() {
+		t.Fatalf("verify-state problem rewritten: %q", unknown.humanText())
+	}
+	// cloud: one next step after the plain text.
+	for name, tc := range map[string]struct {
+		cause      error
+		want, none string
+	}{
+		"locked":      {desktopKeyringLockedError("x"), "Next step: in a terminal on this computer's desktop, run: ha-nova cloud unlock", "non-elevated"},
+		"not running": {desktopKeyringUnavailableError("x"), keyringMissingMessage, "cloud unlock"},
+	} {
+		_, output := captureCommandOutput(t, func() int {
+			printCloudCommandProblem(newCloudError(CloudErrSecretStore, "access OAuth secret store", tc.cause))
+			return 0
+		})
+		if !strings.Contains(output, tc.want) || strings.Contains(output, tc.none) {
+			t.Fatalf("%s:\n%s", name, output)
+		}
+	}
+}
+
+func TestPairFileHintKeepsTheServer(t *testing.T) {
+	withDeviceStorageTestHome(t)
+	resetKeyringDeviceSlots(t)
+	resetServerProfileSelection(t)
+	onSecureStoragePlatform(t, "linux")
+	stubStorageCanaries(t, desktopKeyringLockedError("default Secret Service collection is locked"))
+	dir := t.TempDir()
+	paths := runtimePaths{ConfigDir: dir, ConfigFile: filepath.Join(dir, "config.json")}
+	_, output := captureCommandOutput(t, func() int {
+		return runPairCommand(paths, []string{"--server", "cabin", "--relay-url", "http://192.0.2.9:8791", "--code", "123456"})
+	})
+	if !strings.Contains(output, "Run: ha-nova pair --server cabin --relay-url http://192.0.2.9:8791 --credential-store=file") {
+		t.Fatalf("output:\n%s", output)
 	}
 }

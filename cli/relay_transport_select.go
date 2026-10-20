@@ -174,11 +174,11 @@ func relayTransportErrorMessage(err error) string {
 	}
 	var problem *cloudProblem
 	if errors.As(err, &problem) {
-		return problem.Error()
+		return problem.humanText()
 	}
 	var cloudErr *CloudError
 	if errors.As(err, &cloudErr) {
-		return cloudProblemForError(err).Error()
+		return cloudProblemForError(err).humanText()
 	}
 	return relayAuthTokenProblemMessage(err)
 }

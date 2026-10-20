@@ -325,7 +325,14 @@ func loadCloudManagementConfig(paths runtimePaths) (runtimeConfig, error) {
 func printCloudCommandProblem(err error) *cloudProblem {
 	problem := cloudProblemForCommandError(err)
 	printHumanErr("%s", problem.humanText())
-	if problem.Remediation == cloudRemediationUnlockStorage {
+	plain := plainKeyringProblem(problem.Cause)
+	switch {
+	case problem.Remediation != cloudRemediationUnlockStorage:
+	case strings.HasPrefix(plain, keyringMissingMessage), strings.HasPrefix(plain, keyringNotSetUpMessage):
+		// cloud unlock can't start or create a keyring; the text above says what can.
+	case plain != "":
+		printHumanInfo("Next step: in a terminal on this computer's desktop, run: %s", cloudUnlockCommand())
+	default:
 		printHumanInfo(
 			"From a local, non-elevated graphical desktop terminal, run: %s",
 			cloudUnlockCommand(),
