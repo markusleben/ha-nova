@@ -7,10 +7,12 @@
 window.novaSteps = (h) => {
   const { t, el, row, head, button, link, render } = h;
   const say = (msg) => (msg ? t(msg.key, msg.args || {}) : '');
-  // Switches and open details live here until "Finish setup" sends them.
-  // chatFlip: a re-run's chat-app switch turned the other way (Done applies it).
-  const local = { rule: true, link: false, others: false, drafts: {}, chatAsk: false, chatFlip: false, chatSeen: '', how: {} };
+  // Switches and open details live here until "Continue" sends them.
+  // chatFlip: a re-run's chat-app switch turned the other way (Done applies
+  // it); moving: "Use another phone" shows the phones to pick from.
+  const local = { rule: true, link: false, others: false, moving: false, drafts: {}, chatAsk: false, chatFlip: false, chatSeen: '', how: {} };
 
+  const focusId = (id) => { const node = document.getElementById(id); if (node) node.focus(); };
   const toast = (text) => {
     const node = el('div', { class: 'toast', role: 'status' });
     document.body.append(node);
@@ -49,9 +51,10 @@ window.novaSteps = (h) => {
   // (app.js reads data-focus-after).
   const focusAfter = (ids) => ({ tabindex: '-1', 'data-focus-after': ids.join(' ') });
   const tagOn = () => el('span', { class: 'tag amber' }, t('setup.page.control.on'));
-  // A switch whose sign-in waits for Done (or Finish setup) says so under it.
+  // A switch applies on Done (or Continue) and says so under it. Buttons
+  // act at once: the phone's notification, the chat-app question.
   const finishLabel = () => t(h.state().screen === 'rerun' ? 'setup.page.rerun.done' : 'setup.page.control.finish');
-  const later = () => el('div', { class: 'v' }, t('setup.page.control.signin_later', { button: finishLabel() }));
+  const later = (key = 'setup.page.control.signin_later') => el('div', { class: 'v' }, t(key, { button: finishLabel() }));
   const flip = (name, said) => () => {
     local[name] = !local[name];
     render(true);
@@ -60,12 +63,28 @@ window.novaSteps = (h) => {
   const problem = (msg) => (msg ? el('p', { class: 'problem', role: 'alert' }, say(msg)) : null);
 
   // Step 3.
+  const pickPhones = (phones) => el('div', { class: 'pick' }, phones.map((p, i) =>
+    button(t('setup.page.control.phone_choice', { phone: p.name, person: p.person }), 'phone', 'ghost btn-small', p.id, `phone-${i}`)));
   const phoneRow = (c) => {
     const key = t('setup.page.control.phone_key');
     const phones = c.phones || [];
+    if (c.phone !== 'linked') local.moving = false;
     switch (c.phone) {
-      case 'linked':
-        return line(guard('✓'), key, t('setup.page.control.phone_value', { phone: c.phone_name }), null, tagOn());
+      case 'linked': {
+        // Use another phone: the phone linked now OKs the move (confirm-phone's rule).
+        const move = phones.length && h.accepts('phone');
+        const value = t('setup.page.control.phone_value', { phone: c.phone_name });
+        if (move && local.moving) {
+          return el('li', focusAfter(['b-phone-move']), guard('✓'), el('div', {}, el('div', { class: 'k' }, key), el('div', { class: 'v' }, value),
+            el('div', { class: 'v' }, t('setup.page.control.phone_move_pick', { phone: c.phone_name })), pickPhones(phones),
+            el('button', { id: 'b-phone-move-cancel', class: 'linkish', type: 'button', onclick: () => { local.moving = false; render(true); focusId('b-phone-move'); } }, t('setup.page.control.not_now'))), el('span'));
+        }
+        const side = move ? el('button', { id: 'b-phone-move', class: 'btn btn-ghost btn-small', type: 'button', onclick: () => { local.moving = true; render(true); focusId('b-phone-0'); } }, t('setup.page.control.phone_move')) : tagOn();
+        return line(guard('✓'), key, value, problem(c.phone_problem), side);
+      }
+      case 'moving':
+        return el('li', focusAfter(phones.map((p, i) => `b-phone-${i}`)), guard('◎'),
+          el('div', {}, el('div', { class: 'k' }, key), el('div', { class: 'v', role: 'status' }, t('setup.page.control.phone_moving', { old: c.old_phone, phone: c.phone_name }))), spinner());
       case 'waiting':
         return el('li', focusAfter(['b-phone-0', ...phones.map((p, i) => `b-phone-${i}`)]), guard('◎'),
           el('div', {}, el('div', { class: 'k' }, key), el('div', { class: 'v', role: 'status' }, t('setup.page.control.phone_waiting', { phone: c.phone_name }))), spinner());
@@ -79,12 +98,11 @@ window.novaSteps = (h) => {
           const other = phones.length > 1
             ? el('button', { id: 'b-phone-other', class: 'linkish', type: 'button', onclick: () => { local.others = true; render(true); } }, t('setup.page.control.phone_other'))
             : null;
+          // A button: the notification goes out on this click.
           return line(guard('◎'), key, t('setup.page.control.phone_offer', { phone: phones[0].name, person: phones[0].person }), [problem(c.phone_problem), other],
-            toggle('b-phone-0', key, false, () => h.post('phone', phones[0].id), !h.accepts('phone')), 'b-phone-0-v');
+            button(t('setup.page.control.phone_use'), 'phone', 'ghost btn-small', phones[0].id, 'phone-0'));
         }
-        const pick = el('div', { class: 'pick' }, phones.map((p, i) =>
-          button(t('setup.page.control.phone_choice', { phone: p.name, person: p.person }), 'phone', 'ghost btn-small', p.id, `phone-${i}`)));
-        return line(guard('◎'), key, t('setup.page.control.phone_pick'), [problem(c.phone_problem), pick]);
+        return line(guard('◎'), key, t('setup.page.control.phone_pick'), [problem(c.phone_problem), pickPhones(phones)]);
       }
       default:
         return null; // can't be linked here: no row (confirm-phone settles it later)
@@ -116,10 +134,9 @@ window.novaSteps = (h) => {
   // The row after the run ends takes the focus the run row had.
   const refocus = (node) => {
     node.setAttribute('tabindex', '-1');
-    node.dataset.focusAfter = 'chat-run b-chat-on';
+    node.dataset.focusAfter = 'chat-run b-chat-on b-chat-cancel';
     return node;
   };
-  const focusId = (id) => { const node = document.getElementById(id); if (node) node.focus(); };
   // Once on: Add to Claude (never a second primary next to Finish), then how.
   const onParts = (chat) => [
     el('div', { class: 'actions addclaude' }, addClaude(chat.claude_link, 'ghost btn-small', 'chat-claude')),
@@ -172,11 +189,11 @@ window.novaSteps = (h) => {
           chat.no_restart ? null : el('p', { class: 'restart' }, t('setup.chat.restart')),
           el('div', { class: 'actions' },
             button(t(chat.no_restart ? 'setup.chat.turn_on_now' : 'setup.chat.turn_on'), 'chat', 'primary btn-small', 'on', 'chat-on'),
-            el('button', { id: 'b-chat-cancel', class: 'btn btn-ghost btn-small', type: 'button', onclick: () => { local.chatAsk = false; render(true); focusId('b-chat-switch'); } }, t('setup.chat.not_now')))) : null;
-        const sw = toggle('b-chat-switch', key, ask, () => { local.chatAsk = !local.chatAsk; render(true); }, !h.accepts('chat'));
-        sw.setAttribute('aria-expanded', String(ask));
-        sw.setAttribute('aria-controls', 'chat-consent');
-        return refocus(line(guard('◎'), key, t('setup.chat.value'), [problem(chat.problem), consent], sw, 'b-chat-switch-v'));
+            el('button', { id: 'b-chat-cancel', class: 'btn btn-ghost btn-small', type: 'button', onclick: () => { local.chatAsk = false; render(true); focusId('b-chat-ask'); } }, t('setup.chat.not_now')))) : null;
+        // A button that opens the question; only its "Turn on" acts.
+        const open = ask ? null : el('button', { id: 'b-chat-ask', class: 'btn btn-ghost btn-small', type: 'button', 'aria-expanded': 'false', 'aria-controls': 'chat-consent',
+          onclick: () => { local.chatAsk = true; render(true); focusId('b-chat-on'); }, ...(h.accepts('chat') ? {} : { disabled: '' }) }, t('setup.chat.turn_on_ask'));
+        return refocus(line(guard('◎'), key, t('setup.chat.value'), [problem(chat.problem), consent], open));
       }
     }
   };
@@ -185,15 +202,16 @@ window.novaSteps = (h) => {
   // switches.
   const control = (status) => {
     const c = h.state().control || {};
+    // Claude or ChatGPT in the browser: the window on this computer never asks for them.
     const rows = [
-      line(guard(c.window ? '✓' : '·'), t('setup.page.control.window_key'),
+      h.state().web ? null : line(guard(c.window ? '✓' : '·'), t('setup.page.control.window_key'),
         t(c.window ? 'setup.page.control.window_value' : 'setup.page.control.window_off'), null, c.window ? tagOn() : null),
       phoneRow(c),
     ];
     const busy = !h.accepts('finish');
     if (c.rule === 'offer') {
       const label = t('setup.page.control.rule_key');
-      rows.push(line(guard('⚙'), label, t('setup.page.control.rule_value', { count: c.rule_count }), null,
+      rows.push(line(guard('⚙'), label, t('setup.page.control.rule_value', { count: c.rule_count }), local.rule ? later('setup.page.control.rule_later') : null,
         toggle('b-rule', label, local.rule, () => { local.rule = !local.rule; render(true); }, busy), 'b-rule-v'));
     } else if (c.rule === 'on') {
       rows.push(line(guard('⚙'), t('setup.page.control.rule_key'), t('setup.page.control.rule_on', { count: c.rule_count }), null, tagOn()));
@@ -207,7 +225,9 @@ window.novaSteps = (h) => {
     } else if (c.link === 'on') {
       rows.push(line(guard('✓'), t('setup.page.control.link_key'), t('setup.page.control.link_on'), null, tagOn()));
     }
-    rows.push(chatRow(c));
+    // Claude or ChatGPT in the browser: chat apps are what this user came for.
+    if (h.state().web) rows.unshift(chatRow(c));
+    else rows.push(chatRow(c));
     // An open chat consent is a question: Finish waits for its answer.
     const asking = local.chatAsk && c.chat && c.chat.state === 'offer';
     const choices = [];

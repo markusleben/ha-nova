@@ -11,17 +11,21 @@ import (
 // Step 3 of the setup page, "You stay in control"
 // (docs/work/2026-10-18-onboarding-0.27-spec.md §4): the confirmation window
 // is on; the phone row links one phone with one notification and a tap
-// there; the Claude Code rule switch is preselected and written only on
-// "Finish setup"; the Home Assistant Link row shows only while Link remote
+// there, and moves to another phone with the linked one's OK; the Claude
+// Code rule switch is preselected and written only on
+// "Continue"; the Home Assistant Link row shows only while Link remote
 // access is active. The terminal asks none of these on the page path.
 
 type setupPageControl struct {
 	Window bool `json:"window"` // the confirmation window can open here
 	// Phone: pick (Phones can be linked), waiting (for the tap on
-	// PhoneName), linked, none (no phone found), unread (the phones
-	// couldn't be read; Check again), unavailable (not now: no row).
+	// PhoneName), linked (Phones: the ones it can move to), moving (OldPhone
+	// OKs the move first, then PhoneName gets the link question), none (no
+	// phone found), unread (the phones couldn't be read; Check again),
+	// unavailable (not now: no row).
 	Phone        string           `json:"phone"`
 	Phones       []setupPagePhone `json:"phones,omitempty"`
+	OldPhone     string           `json:"old_phone,omitempty"`
 	Proposed     bool             `json:"proposed,omitempty"` // Phones[0] is the signed-in user's own phone
 	PhoneName    string           `json:"phone_name,omitempty"`
 	PhoneProblem *setupPageMsg    `json:"phone_problem,omitempty"`
@@ -66,7 +70,7 @@ var setupLinkRemoteOrigin = func(cfg runtimeConfig) string {
 	return found.Origin.InputOrigin // the address Home Assistant's cloud/status names
 }
 
-// pageControl shows step 3 until "Finish setup", then does what its
+// pageControl shows step 3 until "Continue", then does what its
 // switches say. It runs once setup is complete, after the outcome banner,
 // as the terminal's offers do, and returns the exit code a failed Link
 // setup leaves.
@@ -113,6 +117,9 @@ func (f *setupFlow) pageControl() int {
 	case f.pageRerunning:
 		ctl.Chat = f.pageRerunChat(chatOrigin)
 	}
+	if f.noClient && ctl.Chat != nil && ctl.Chat.State == "offer" {
+		ctl.Chat.Ask = true // Claude or ChatGPT in the browser: the consent opens; only its button turns them on
+	}
 	screen := "control"
 	if f.pageRerunOK { // the re-run screen: what is set up, then these rows
 		screen = "rerun"
@@ -136,10 +143,10 @@ func (f *setupFlow) pageControl() int {
 	for {
 		show()
 		accepts := []string{"finish"}
-		switch ctl.Phone {
-		case "pick":
+		switch {
+		case ctl.Phone == "pick", ctl.Phone == "linked" && len(ctl.Phones) > 0:
 			accepts = append(accepts, "phone")
-		case "unread":
+		case ctl.Phone == "unread":
 			accepts = append(accepts, "recheck")
 		}
 		if ctl.Chat != nil && ctl.Chat.State == "offer" {
@@ -166,7 +173,16 @@ func (f *setupFlow) pageControl() int {
 		case "clients":
 			return f.pageRerunAddClients()
 		case "phone":
-			if i := slices.IndexFunc(ctl.Phones, func(ph setupPagePhone) bool { return ph.ID == action.Value }); i >= 0 {
+			i := slices.IndexFunc(ctl.Phones, func(ph setupPagePhone) bool { return ph.ID == action.Value })
+			switch {
+			case i < 0:
+			case ctl.Phone == "linked": // Use another phone
+				ctl.Phone, ctl.OldPhone, ctl.PhoneName, ctl.PhoneProblem = "moving", ctl.PhoneName, ctl.Phones[i].Name, nil
+				show()
+				if f.pageMovePhone(&ctl, action.Value) {
+					f.pageChatMoved(ctl.Chat, &chat)
+				}
+			default:
 				ctl.Phone, ctl.PhoneName, ctl.PhoneProblem = "waiting", ctl.Phones[i].Name, nil
 				show()
 				f.pageLinkPhone(&ctl, action.Value)
@@ -186,6 +202,7 @@ func (f *setupFlow) pageControl() int {
 			if !ok {
 				continue // never sent by the page
 			}
+			f.pageChatOff = chatAppsOffOnPage(ctl.Chat)
 			if ctl.Chat != nil && choice.chatOn && ctl.Chat.State == "page_off" {
 				// The owner signs in, then the row asks as step 3 does; the
 				// next Done applies the other switches.
@@ -216,11 +233,11 @@ func (f *setupFlow) pageControl() int {
 	}
 }
 
-// pageFinish is what "Finish setup" (Done on a re-run) sends: the switches
+// pageFinish is what "Continue" (Done on a re-run) sends: the switches
 // it applies.
 type pageFinish struct{ rule, link, chatOn, chatOff bool }
 
-// pageFinishChoices reads "Finish setup"'s switches: any of "rule", "link",
+// pageFinishChoices reads "Continue"'s switches: any of "rule", "link",
 // "chat_on", "chat_off", comma-separated, each once; "" for none.
 func pageFinishChoices(value string) (pageFinish, bool) {
 	var choice pageFinish
@@ -247,107 +264,11 @@ func pageFinishChoices(value string) (pageFinish, bool) {
 	return choice, !(choice.chatOn && choice.chatOff)
 }
 
-// pagePhones fills the phone row from a read of this home's phones. A first
-// link only: a phone linked before shows as linked; one that can't be asked
-// now stays with `ha-nova setup confirm-phone`, which settles it safely.
-func (f *setupFlow) pagePhones(ctl *setupPageControl) {
-	ctl.Phone = "unavailable"
-	if !(f.pairedThisRun || f.pageRerunning) || f.cloudSetupPaused { // as in the terminal: right after a pairing, and on a re-run
-		return
-	}
-	home, links, ok := f.pageReadPhones()
-	if !ok {
-		ctl.Phone = "unread" // a busy Home Assistant: the row says so and offers Check again
-		return
-	}
-	if home.relay == home.owner {
-		return
-	}
-	current, status := home.status(links, nil)
-	switch status {
-	case phoneReady:
-		ctl.Phone, ctl.PhoneName = "linked", terminalSafeName(current.targets[0].Name)
-		return
-	case phoneNone:
-	default:
-		return
-	}
-	all := home.eligible("")
-	if len(all) == 0 {
-		ctl.Phone = "none"
-		return
-	}
-	if own := home.eligible(setupSignedInUser); setupSignedInUser != "" && len(own) == 1 {
-		rest := slices.DeleteFunc(slices.Clone(all), func(t phoneTarget) bool { return t.DeviceID == own[0].DeviceID })
-		all = append([]phoneTarget{own[0]}, rest...)
-		ctl.Proposed = true
-	}
-	ctl.Phone = "pick"
-	for _, t := range all {
-		ctl.Phones = append(ctl.Phones, setupPagePhone{ID: t.DeviceID, Name: terminalSafeName(t.Name), Person: terminalSafeName(t.Person)})
-	}
-}
-
-// pageReadPhones reads the phones through the paired Relay; ok=false when
-// they can't be read. A Relay that signs in as the owner (home.relay ==
-// home.owner) can't link a phone: a tap couldn't be told apart from HA NOVA
-// itself.
-func (f *setupFlow) pageReadPhones() (phoneHome, map[string]phoneEntry, bool) {
-	s, err := newRelaySession(f.paths, verbOptions{})
-	if err != nil {
-		return phoneHome{}, nil, false
-	}
-	defer s.close()
-	links, readable := phoneLinks(f.paths)
-	home, err := lookupPhones(s, links)
-	return home, links, readable && err == nil
-}
-
-// pageLinkPhone sends the link question to the phone picked on the page.
-// The click on the page is the consent at this computer (the window's part
-// in `ha-nova setup confirm-phone`); the tap on that phone, from its own
-// administrator, still links it. A fresh read first: the page may have
-// waited a while.
-func (f *setupFlow) pageLinkPhone(ctl *setupPageControl, deviceID string) {
-	result := phoneLinkUnread
-	if s, err := newRelaySession(f.paths, verbOptions{}); err == nil {
-		links, readable := phoneLinks(f.paths)
-		home, err := lookupPhones(s, links)
-		_, status := home.status(links, nil)
-		all := home.eligible("")
-		i := slices.IndexFunc(all, func(t phoneTarget) bool { return t.DeviceID == deviceID })
-		if readable && err == nil && home.relay != home.owner && status == phoneNone && i >= 0 {
-			result = sendPhoneLink(s, f.ui.termOut(), home, links, links[home.owner], all[i], windowWait)
-		}
-		s.close()
-	}
-	if result == phoneLinked {
-		ctl.Phone, ctl.Phones, ctl.Proposed = "linked", nil, false
-		return
-	}
-	ctl.Phone, ctl.PhoneProblem = "pick", pagePhoneProblem(result, ctl.PhoneName)
-}
-
-// pagePhoneProblem: one plain line for a link that didn't happen.
-func pagePhoneProblem(result phoneLinkResult, phone string) *setupPageMsg {
-	switch result {
-	case phoneLinkTimeout:
-		return setupPageText("setup.page.control.phone_timeout", "phone", phone)
-	case phoneLinkDeclined:
-		return setupPageText("setup.page.control.phone_declined", "phone", phone)
-	case phoneLinkRejected:
-		return setupPageText("setup.page.control.phone_rejected", "phone", phone)
-	case phoneLinkFailed:
-		return setupPageText("setup.page.control.phone_unreachable", "phone", phone)
-	}
-	return setupPageText("setup.page.control.phone_problem", "phone", phone)
-}
-
 // pageLinkOffered: Home Assistant Link can be added now, as the terminal's
 // offer would (pageControl also needs its remote access on for this home).
 func (f *setupFlow) pageLinkOffered() bool {
 	coordinator := cloudCoordinatorForSetup
-	if f.serviceMode || f.cfg.Cloud != nil || coordinator == nil || !coordinator.Available() ||
+	if f.serviceMode || f.noClient || f.cfg.Cloud != nil || coordinator == nil || !coordinator.Available() || // Link here is for this computer's AI app
 		cloudRecoveryHoldProblem(f.cfg) != nil || !cloudSetupPromptEligible(f.page.text.out) {
 		return false
 	}

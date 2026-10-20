@@ -59,6 +59,7 @@ type setupFlow struct {
 	pageQuit       bool
 	pageNotes      []*setupPageMsg
 	pageChatLink   string
+	pageChatOff    bool // step 3 ended with chat apps off: step 4 tells a browser user what's next
 	pageGeneration []byte
 	// pageRerunning: setup ran on this computer before (setup_page_rerun.go);
 	// pageRerunOK: it works, so the re-run screen with Done ends setup;
@@ -250,10 +251,11 @@ func (f *setupFlow) wizardSteps() setupWizardSteps {
 }
 
 // textOnly: the next step exists only in the terminal (recovery states,
-// spec §2), so the setup page hands over first. A no-op in the terminal.
-func (f *setupFlow) textOnly() {
+// spec §2), so the setup page hands over first, saying why (reason: see
+// setupPageState.Handover). A no-op in the terminal.
+func (f *setupFlow) textOnly(reason string) {
 	if f.page != nil {
-		f.page.handover()
+		f.page.handoverFor(reason)
 	}
 }
 

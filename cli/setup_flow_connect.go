@@ -29,7 +29,7 @@ func (f *setupFlow) stepClient() setupStepResult {
 }
 
 func (f *setupFlow) stepSecureStorageRecovery() setupStepResult {
-	f.textOnly()
+	f.textOnly(secureStorageHandover(f.tokenStoragePreflightErr))
 	result, err := runSetupSecureStorageRecoveryFlow(f.ui.termIn(), f.ui.termOut(), f.tokenStoragePreflightErr, &f.secureStorageRecovery, setupSecureStorageRecoveryInitialAttempt)
 	if err == errSetupBack {
 		if f.promptedClient {
@@ -279,4 +279,16 @@ func (f *setupFlow) stepPairing() setupStepResult {
 	f.manualCredentialFlow = false
 	f.verifyFirstReuseFlow = false
 	return setupGoTo(setupStepVerify)
+}
+
+// secureStorageHandover: why the setup page hands over for the keyring (see
+// setupPageState.Handover); "" for any other storage problem.
+func secureStorageHandover(err error) string {
+	switch inferBasicSetupSecureStorageRecoveryAction(err) {
+	case platformSecureStorageRecoveryUnlock:
+		return "keyring_locked"
+	case platformSecureStorageRecoveryInitialize:
+		return "keyring_setup"
+	}
+	return ""
 }

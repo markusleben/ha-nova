@@ -392,7 +392,7 @@ func TestSetupPageHandsOverToTheTerminal(t *testing.T) {
 	page.click("terminal", "")
 	code := setupPageExit(t, done, stdout)
 	end := page.ui.snapshot()
-	if code != 0 || end.Screen != "stopped" || !page.ui.inTerminal() || !strings.Contains(stdout.String(), "one-time six-digit code") {
+	if code != 0 || end.Screen != "stopped" || end.Handover != "code" || !page.ui.inTerminal() || !strings.Contains(stdout.String(), "one-time six-digit code") {
 		t.Fatalf("exit %d screen %s inTerminal=%v\n%s", code, end.Screen, page.ui.inTerminal(), stdout)
 	}
 }
@@ -611,6 +611,7 @@ func TestSetupPagePairingProblemSaysWhyAndWhenToSignInAgain(t *testing.T) {
 		"owner check":    {before(&CloudError{Code: CloudErrHAProtocol, cause: errSignInOwnerCheckSlow}), "setup.page.problem.pairing_slow", true},
 		"not ready":      {before(errSignInRelayNotReady), "setup.page.problem.app_not_ready", true},
 		"App stopped":    {before(newCloudError(CloudErrIngressUnavailable, "x", nil)), "setup.page.problem.app_not_ready", true},
+		"App too old":    {before(errSignInRelayUnsupported), "setup.page.problem.app_old", true},
 		"not owner":      {before(errSignInNotOwner), "setup.page.problem.pairing", false},
 		"expired":        {before(newCloudError(CloudErrOuterSessionExpired, "x", nil)), "setup.page.problem.signin_expired", false},
 		"unknown":        {&haSignInPairingError{err: newCloudError(CloudErrOutcomeUnknown, "x", context.DeadlineExceeded)}, "setup.page.problem.pairing_unknown", false},

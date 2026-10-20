@@ -58,7 +58,7 @@ func (f *setupFlow) prepareCredentials() setupStepResult {
 			return f.failErr(serviceErr)
 		}
 		if hasServiceCredentials && offerServiceCredentialsQuestion(f.tokenStoragePreflightErr) {
-			f.textOnly()
+			f.textOnly("")
 			useServiceCredentials, err := promptSetupServiceCredentialsInteractive(f.ui.termIn(), f.ui.termOut(), serviceClientID)
 			if err == errSetupExit {
 				return f.cancelled()

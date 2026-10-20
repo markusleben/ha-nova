@@ -24,7 +24,6 @@
   const fixLabels = { retry: 'setup.page.button.retry', owner: 'setup.page.button.owner' };
   const rowStatus = { ok: 'setup.page.status.ok', run: 'setup.page.status.run', fail: 'setup.page.status.fail', todo: 'setup.page.status.todo' };
   const endScreens = {
-    terminal: ['setup.page.terminal.eyebrow', 'setup.page.terminal.title', 'setup.page.terminal.lead'],
     incomplete: ['setup.page.incomplete.eyebrow', 'setup.page.incomplete.title', 'setup.page.incomplete.lead', true],
     finished: ['setup.page.finished.eyebrow', 'setup.page.finished.title', 'setup.page.done.fine'],
     closed: ['setup.page.closed.eyebrow', 'setup.page.closed.title', 'setup.page.closed.lead'],
@@ -145,16 +144,25 @@
   };
 
   const problemLine = () => (state.problem ? el('p', { class: 'problem', role: 'alert' }, say(state.problem)) : null);
+  // "Use a six-digit code": a text link, since it goes on in the terminal.
+  const codeLink = () => el('p', { class: 'fine' }, `${t('setup.page.found.fine_elsewhere')} `,
+    el('button', { id: 'b-terminal', class: 'linkish', type: 'button', onclick: () => post('terminal'), ...(accepts('terminal') ? {} : { disabled: '' }) }, t('setup.page.button.code')));
+  // Why the terminal (state.handover); a question there by default.
+  const terminalLeads = { code: 'setup.page.terminal.lead_code', keyring_locked: 'setup.page.terminal.lead_keyring_locked', keyring_setup: 'setup.page.terminal.lead_keyring_setup' };
 
   const screens = {
     looking: () => [...head(t('setup.page.looking.eyebrow'), t('setup.page.looking.title'), t('setup.page.looking.lead')),
       el('ul', { class: 'rows' }, row('run', t('setup.page.ha.key')))],
 
+    // Claude or ChatGPT in the browser goes on without an AI app here.
     noclient: () => [...head(t('setup.page.noclient.eyebrow'), t('setup.page.noclient.title'), t('setup.page.noclient.lead')),
       el('div', { class: 'actions' },
+        button(t('setup.page.noclient.web'), 'web'),
         link(t('setup.page.link.claude_desktop'), downloads.claude_desktop, 'ghost', 'desktop'),
         link(t('setup.page.link.claude_code'), downloads.claude_code, 'ghost', 'code'),
-        button(t('setup.page.button.recheck'), 'recheck'))],
+        button(t('setup.page.button.recheck'), 'recheck', 'ghost'))],
+
+    terminal: () => head(t('setup.page.terminal.eyebrow'), t('setup.page.terminal.title'), t(terminalLeads[state.handover] || 'setup.page.terminal.lead')),
 
     found: () => {
       const haKnown = Boolean(state.ha);
@@ -170,24 +178,28 @@
         haRow = row('todo', t(several ? 'setup.page.ha.several' : 'setup.page.ha.key'), null, { below: [pick, addressField()] });
       }
       const clients = state.clients || [];
-      const clientRow = row('ok', t('setup.page.clients.key'), format(clients), {
-        side: el('span', { class: 'tag cyan' }, t('setup.page.clients.tag', { count: clients.length })),
-      });
+      const clientRow = state.web ? row('ok', t('setup.page.clients.key'), t('setup.page.clients.web'))
+        : row('ok', t('setup.page.clients.key'), format(clients), {
+          side: el('span', { class: 'tag cyan' }, t('setup.page.clients.tag', { count: clients.length })),
+        });
       let appRow;
       if (!state.app || asking) appRow = row('todo', t('setup.page.app.key'), t('setup.page.app.unknown'));
       else if (state.app === 'running') appRow = row('ok', t('setup.page.app.key'), state.app_version ? t('setup.page.app.running_version', { version: state.app_version }) : t('setup.page.app.running'));
       else appRow = row('todo', t('setup.page.app.key'), t(state.app === 'old' ? 'setup.page.app.old' : 'setup.page.app.missing'), { side: el('span', { class: 'tag amber' }, t('setup.page.app.next')) });
 
       const primary = asking ? '' : state.primary;
+      // Who signs in, said above the button: a family member may not know.
+      const owner = primary ? el('p', { class: 'owner' }, t('setup.page.found.owner')) : null;
       const actions = el('div', { class: 'actions' },
-        primary ? button(t(primaryLabels[primary]), 'signin') : null,
-        button(t(primary ? 'setup.page.button.code' : 'setup.page.button.terminal'), 'terminal', primary || asking ? 'ghost' : 'primary'));
+        primary ? button(t(primaryLabels[primary]), 'signin')
+          : button(t('setup.page.button.terminal'), 'terminal', asking ? 'ghost' : 'primary'));
       let fine = [];
       if (primary) {
-        fine = [t(primary === 'signin' ? 'setup.page.found.fine_signin' : 'setup.page.found.fine_install'),
+        fine = [primary === 'signin' ? null : t('setup.page.found.fine_install'),
           t('setup.page.found.fine_access', { client: `${location.origin}/ha-nova` })];
         // No "copy the sign-in link": its answer only comes back to this computer.
-        if (primary === 'signin') fine.push(t('setup.page.found.fine_elsewhere'));
+        // Claude or ChatGPT in the browser: no code, chat apps need the owner's sign-in here.
+        if (!state.web) fine.push(codeLink());
       } else if (!asking && state.app) {
         fine = [t('setup.page.found.fine_terminal')];
       }
@@ -201,8 +213,9 @@
       return [...head(t('setup.page.found.eyebrow'), t(title), t(lead)),
         problemLine(),
         el('ul', { class: 'rows' }, haRow, clientRow, appRow),
+        owner,
         actions,
-        ...fine.map((line) => el('p', { class: 'fine' }, line))];
+        ...fine.filter(Boolean).map((line) => (typeof line === 'string' ? el('p', { class: 'fine' }, line) : line))];
     },
 
     connect: () => {
@@ -223,8 +236,10 @@
         actions.push(el('div', { class: 'actions' },
           fixLabels[state.fix] ? button(t(fixLabels[state.fix]), 'signin') : null,
           link(t('setup.page.link.guide'), links.guide, fixLabels[state.fix] ? 'ghost' : 'primary', 'guide'),
-          link(t('setup.page.link.app'), links.app, 'ghost', 'app'),
-          button(t('setup.page.button.code'), 'terminal', 'ghost')));
+          link(t('setup.page.link.app'), links.app, 'ghost', 'app')),
+          // Not owner: the owner can still make a code on any device.
+          state.fix === 'owner' && !state.web ? el('p', { class: 'fine' }, t('setup.page.found.owner_away')) : null,
+          state.web ? null : codeLink());
       }
       return [...head(t('setup.page.connect.eyebrow'), t('setup.page.connect.title'), t(installs ? 'setup.page.connect.lead' : 'setup.page.connect.lead_signin'), true),
         problemLine(), el('ul', { class: 'rows' }, items), ...actions];

@@ -100,6 +100,13 @@ func (f *setupFlow) chooseClientAndMode() setupStepResult {
 		if result := f.pageWaitForClient(); result.done {
 			return result
 		}
+		if f.noClient { // Claude or ChatGPT in the browser: as the terminal's no-app path below
+			f.connectionMode = setupConnectionLocal
+			if hybridCloudSetupPending(f.cfg) {
+				f.connectionMode = setupConnectionHybrid
+			}
+			return setupGoOn
+		}
 	}
 	clientsResolved := false
 	for {
