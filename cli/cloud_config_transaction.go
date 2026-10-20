@@ -17,31 +17,61 @@ func newCloudSetupRequest(
 		}
 		return rejectCloudSetupDuringDeviceRevocation(*cfg)
 	}
+	persistPending := func(
+		metadata cloudConnectionMetadata,
+		awaitingBrowser bool,
+	) error {
+		if err := guardDeviceRevocation(); err != nil {
+			return err
+		}
+		if err := validateCloudConnectionMetadata(metadata); err != nil {
+			return fmt.Errorf("invalid pending Cloud metadata: %w", err)
+		}
+		if cfg.Cloud == nil {
+			return errors.New("Cloud lifecycle is missing")
+		}
+		if cfg.Cloud.Pending != nil &&
+			cfg.Cloud.Pending.CredentialGeneration != metadata.CredentialGeneration {
+			return errors.New("a different pending Cloud credential already exists")
+		}
+		if cfg.Cloud.Pending == nil &&
+			cfg.Cloud.State != cloudStateAuthorizing {
+			return fmt.Errorf(
+				"cannot add pending Cloud metadata in lifecycle state %q",
+				cfg.Cloud.State,
+			)
+		}
+		// Only a sign-in that starts from nothing, or one already proven
+		// unexchanged, may carry the proof. A pending entry without it may
+		// come from an older binary that exchanged its code.
+		var marker *cloudConnectionMetadata
+		if awaitingBrowser &&
+			cfg.Cloud.State == cloudStateAuthorizing &&
+			(cfg.Cloud.Pending == nil || cfg.Cloud.unfinishedSignIn()) {
+			value := metadata
+			marker = &value
+		}
+		cfg.Cloud.SignInAwaitingBrowser = marker
+		cfg.Cloud.Pending = &metadata
+		return save(*cfg)
+	}
 	request := cloudSetupRequest{
 		ProfileName: activeServerProfile(),
 		Config:      *cfg,
 		PersistPendingMetadata: func(metadata cloudConnectionMetadata) error {
+			return persistPending(metadata, false)
+		},
+		PersistPendingSignIn: func(metadata cloudConnectionMetadata) error {
+			return persistPending(metadata, true)
+		},
+		StartSignInCodeExchange: func() error {
 			if err := guardDeviceRevocation(); err != nil {
 				return err
 			}
-			if err := validateCloudConnectionMetadata(metadata); err != nil {
-				return fmt.Errorf("invalid pending Cloud metadata: %w", err)
+			if cfg.Cloud == nil || cfg.Cloud.SignInAwaitingBrowser == nil {
+				return nil
 			}
-			if cfg.Cloud == nil {
-				return errors.New("Cloud lifecycle is missing")
-			}
-			if cfg.Cloud.Pending != nil &&
-				cfg.Cloud.Pending.CredentialGeneration != metadata.CredentialGeneration {
-				return errors.New("a different pending Cloud credential already exists")
-			}
-			if cfg.Cloud.Pending == nil &&
-				cfg.Cloud.State != cloudStateAuthorizing {
-				return fmt.Errorf(
-					"cannot add pending Cloud metadata in lifecycle state %q",
-					cfg.Cloud.State,
-				)
-			}
-			cfg.Cloud.Pending = &metadata
+			cfg.Cloud.SignInAwaitingBrowser = nil
 			return save(*cfg)
 		},
 		ClearPendingAuthorization: func(generation string) error {
@@ -68,9 +98,12 @@ func newCloudSetupRequest(
 				)
 			}
 			pending := cfg.Cloud.Pending
+			marker := cfg.Cloud.SignInAwaitingBrowser
 			cfg.Cloud.Pending = nil
+			cfg.Cloud.SignInAwaitingBrowser = nil
 			if err := save(*cfg); err != nil {
 				cfg.Cloud.Pending = pending
+				cfg.Cloud.SignInAwaitingBrowser = marker
 				return err
 			}
 			return nil

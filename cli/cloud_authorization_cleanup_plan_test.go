@@ -25,7 +25,7 @@ func TestCloudAuthorizationCleanupRejectsOutcomeUnknownWithoutNativeSlot(
 	var problem *cloudProblem
 	if !errors.As(err, &problem) ||
 		problem.Remediation != cloudRemediationSecurityStop ||
-		!strings.Contains(problem.Detail, "revoke HA NOVA sessions") {
+		!strings.Contains(problem.Detail, "can't tell if Home Assistant saved it") {
 		t.Fatalf("cleanup inspection error = %#v", err)
 	}
 	if metadata.CredentialGeneration == "" {

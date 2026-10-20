@@ -174,6 +174,7 @@ var cloudLifecycleFieldKeys = []string{
 	"device_revocation_completed",
 	"authorization_revocation_completed",
 	"recovery_hold",
+	"sign_in_awaiting_browser",
 }
 var cloudConnectionFieldKeys = []string{
 	"origin", "canonical_origin", "oauth_client_id", "credential_generation", "ha_user_id",

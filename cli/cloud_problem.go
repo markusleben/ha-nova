@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"strings"
 )
 
 type cloudProblemCode string
@@ -53,7 +54,14 @@ func (p *cloudProblem) Error() string {
 		return ""
 	}
 	if p.Detail != "" {
-		return fmt.Sprintf("Home Assistant Link: %s (code %s; next: %s)", p.Detail, p.Code, p.Remediation)
+		// A second line is the next step: keep the codes on the first so a
+		// command at the end can be copied as is.
+		first, next, multiline := strings.Cut(p.Detail, "\n")
+		text := fmt.Sprintf("Home Assistant Link: %s (code %s; next: %s)", first, p.Code, p.Remediation)
+		if multiline {
+			text += "\n" + next
+		}
+		return text
 	}
 	return fmt.Sprintf("Home Assistant Link failed (code %s; next: %s)", p.Code, p.Remediation)
 }

@@ -47,12 +47,54 @@ func cloudAuthorizationCleanupErrorWithRecoveryCommand(
 	}
 	problem := cloudProblemForError(err)
 	copy := *problem
-	copy.Detail += fmt.Sprintf(
-		"; after both remote revocations are complete, run: %s",
-		manualRemoteAccessRecoveryCommand(profileName),
-	)
+	if errors.Is(err, errCloudAuthorizationCleanupUnverifiable) {
+		copy.Detail += "\n" + cloudAuthorizationRecoveryStep(profileName)
+	} else {
+		copy.Detail += fmt.Sprintf(
+			"; after both remote revocations are complete, run: %s",
+			manualRemoteAccessRecoveryCommand(profileName),
+		)
+	}
 	copy.Cause = err
 	return &copy
+}
+
+// cloudAuthorizationStopText is a Link stop as plain text plus its one next
+// step: the steps that wrap it ("failed to revoke …: inspect …:") only hide
+// that step. A joined failure (a safety hold that could not be saved) stays.
+func cloudAuthorizationStopText(err error) (string, bool) {
+	var problem *cloudProblem
+	if !errors.Is(err, errCloudAuthorizationCleanupUnverifiable) ||
+		!errors.As(err, &problem) {
+		return "", false
+	}
+	text := problem.humanText()
+	for e := err; e != nil; e = errors.Unwrap(e) {
+		joined, ok := e.(interface{ Unwrap() []error })
+		if !ok {
+			continue
+		}
+		for _, other := range joined.Unwrap() {
+			if !errors.Is(other, errCloudAuthorizationCleanupUnverifiable) {
+				text += "\n" + other.Error()
+			}
+		}
+	}
+	return text, true
+}
+
+// cloudAuthorizationRecoveryStep is the one next step. Home Assistant lists a
+// HA NOVA sign-in under Profile > Security by its client address, which ends
+// in oauthLoopbackClientPath.
+func cloudAuthorizationRecoveryStep(profileName string) string {
+	return fmt.Sprintf(
+		"Next: in Home Assistant, click Revoke next to this computer on the "+
+			"NOVA page. Then, for each person who uses HA NOVA, open "+
+			"Profile > Security and delete every sign-in that ends in %q. "+
+			"Then run: %s",
+		oauthLoopbackClientPath,
+		manualRemoteAccessRecoveryCommand(profileName),
+	)
 }
 
 func manualRemoteAccessRecoveryAllowed(

@@ -90,6 +90,7 @@ func runCloudRemoveCommand(paths runtimePaths, args []string) int {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 	var updated runtimeConfig
+	unfinishedSignInOnly := false
 	var recoveryExpected cloudRecoveryCheckpointExpectation
 	var recoveryExpectedCaptured bool
 	err = withClientMutationLock(paths, func() (operationErr error) {
@@ -378,12 +379,16 @@ func runCloudRemoveCommand(paths runtimePaths, args []string) int {
 			return fmt.Errorf("save Cloud removal checkpoint: %w", err)
 		}
 		updated = current
+		unfinishedSignInOnly = authorizationPlan.unfinishedSignIn && !authorizationPlan.hasAuthorization()
 		return nil
 	})
 	if err != nil {
 		printCloudCommandProblem(err)
 		printHumanInfo("Cloud configuration was kept unless revocation had already been verified.")
 		return 1
+	}
+	if unfinishedSignInOnly {
+		printHumanInfo("%s", unfinishedSignInRemovedText)
 	}
 	if nextCommand, needsRecovery, recoveryErr :=
 		invalidInstallIdentityRecoveryCommand(

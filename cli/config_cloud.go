@@ -66,6 +66,8 @@ type cloudLifecycleMetadata struct {
 	DeviceRevocationCompleted        *cloudDeviceRevocationCheckpoint        `json:"device_revocation_completed,omitempty"`
 	AuthorizationRevocationCompleted *cloudAuthorizationRevocationCheckpoint `json:"authorization_revocation_completed,omitempty"`
 	RecoveryHold                     *cloudRecoveryHold                      `json:"recovery_hold,omitempty"`
+	// Repeats Pending until the sign-in's code exchange; see unfinishedSignIn.
+	SignInAwaitingBrowser *cloudConnectionMetadata `json:"sign_in_awaiting_browser,omitempty"`
 }
 
 type cloudDeviceRevocationCheckpoint struct {

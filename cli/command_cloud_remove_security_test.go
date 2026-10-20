@@ -101,7 +101,7 @@ func TestCloudRemoveKeepsOutcomeUnknownCheckpointWithoutNativeSlot(
 		return runCloudRemoveCommand(paths, []string{"--yes"})
 	})
 	if exit != 1 ||
-		!strings.Contains(output, "revoke HA NOVA sessions") {
+		!strings.Contains(output, "Profile > Security") {
 		t.Fatalf("cloud remove exit=%d output=%s", exit, output)
 	}
 	if revokeCalled {

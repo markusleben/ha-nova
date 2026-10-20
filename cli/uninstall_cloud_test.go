@@ -144,7 +144,7 @@ func TestCloudPurgeKeepsOutcomeUnknownCheckpointWithoutNativeSlot(
 	report := &uninstallReport{}
 	err = purgeCloudAuthorizationsForUninstall(paths, report)
 	if err == nil ||
-		!strings.Contains(err.Error(), "revoke HA NOVA sessions") ||
+		!strings.Contains(err.Error(), "Profile > Security") ||
 		!strings.Contains(
 			err.Error(),
 			manualRemoteAccessRecoveryCommand(defaultServerProfileName),

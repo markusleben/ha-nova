@@ -260,7 +260,7 @@ func validateKnownCloudRemovalShape(
 			return unknownCloudRemovalShape(name)
 		}
 	}
-	for _, slot := range []string{"current", "pending"} {
+	for _, slot := range []string{"current", "pending", "sign_in_awaiting_browser"} {
 		rawSlot, exists := lifecycle[slot]
 		if !exists ||
 			bytes.Equal(bytes.TrimSpace(rawSlot), []byte("null")) {
@@ -288,7 +288,8 @@ func knownCloudRemovalLifecycleField(field string) bool {
 		"device_activation_device_id",
 		"device_revocation_completed",
 		"authorization_revocation_completed",
-		"recovery_hold":
+		"recovery_hold",
+		"sign_in_awaiting_browser":
 		return true
 	default:
 		return false
