@@ -22,7 +22,7 @@ You can turn it on in either place:
 - **During setup:** on "You stay in control", switch on "Use HA NOVA in Claude and ChatGPT". The page explains what happens; click "Turn on and restart Home Assistant" (just "Turn on" when Home Assistant needs no restart).
 - **Later:** open NOVA in the Home Assistant sidebar, then Chat apps, then "Turn on chat apps".
 
-Home Assistant restarts once, which takes about a minute (not when it already runs HA NOVA from an earlier time). Setup waits for it and then shows an "Add to Claude" button and your connector address: your Home Assistant Link address (or your own HTTPS address) followed by `/api/ha_nova/mcp`, for example `https://abc123.ui.nabu.casa/api/ha_nova/mcp` or `https://home.example.com/api/ha_nova/mcp`. Without either address, setup says so in one line instead of the switch. NOVA in Home Assistant and `ha-nova chat-apps status` show both too.
+The first time, Home Assistant restarts once, because it loads new parts only when it starts. This usually takes under a minute, longer on small devices. Setup waits for the restart and then shows an "Add to Claude" button and your connector address: your Home Assistant Link address (or your own HTTPS address) followed by `/api/ha_nova/mcp`, for example `https://abc123.ui.nabu.casa/api/ha_nova/mcp` or `https://home.example.com/api/ha_nova/mcp`. Without either address, setup says so in one line instead of the switch. NOVA in Home Assistant and `ha-nova chat-apps status` show both too. Later, turning chat apps on restarts Home Assistant only when it isn't running HA NOVA, for example when you turned chat apps off and Home Assistant restarted since.
 
 ## Connect Claude
 
@@ -50,7 +50,9 @@ ChatGPT has no button that fills this in, so you paste the address. Menu names i
 
 1. In ChatGPT on the web, open Plugins (chatgpt.com/plugins), choose +, then "Add custom MCP server" ("Benutzerdefinierten MCP-Server hinzufügen").
 2. Name it HA NOVA and paste the address under "Connection" ("Verbindung"). Pick OAuth, tick "I understand and want to continue", then choose "Create as a plugin" ("Als Plugin erstellen").
-3. Sign in to Home Assistant as its owner. Then type `@HA NOVA` in a chat to use it.
+   ChatGPT says "A plugin with this name already exists"? You made one before. Open chatgpt.com/plugins, find HA NOVA under your own plugins, and choose Install. If it has another address, give the new one another name instead.
+3. Sign in to Home Assistant as its owner. Right after you create the plugin, ChatGPT may say the OAuth callback data is missing ("OAuth-Callback-Daten fehlen"). Choose Connect on the plugin again.
+4. Type `@HA NOVA` in a chat to use it.
 
 Menu names in Claude and ChatGPT change now and then; look for "connector", "plugin", or "MCP".
 
@@ -84,7 +86,9 @@ To stay on the older App: removing the NOVA App clears them too, but then every 
 
 ## If something doesn't work
 
-- **ChatGPT says the OAuth callback data is missing** ("OAuth-Callback-Daten fehlen"): connect once more. This comes from ChatGPT's sign-in window, and a second try usually works.
+- **ChatGPT says the OAuth callback data is missing** ("OAuth-Callback-Daten fehlen") right after you create the plugin: choose Connect on the plugin again. This is a known ChatGPT issue; the second try usually works.
+- **ChatGPT says "A plugin with this name already exists":** you made one before, and it may be hidden. Open chatgpt.com/plugins, find HA NOVA under your own plugins, and choose Install. If it has another address, give the new one another name instead.
+- **Claude says "This connector has no tools available"** ("Dieser Konnektor hat keine Tools verfügbar"): its sign-in is gone, for example after you restored Home Assistant from a backup. In Claude, open Settings → Connectors and choose HA NOVA. Choose Disconnect ("Trennen"), then Connect ("Verbinden"), and sign in again. Still no tools? Check in NOVA in Home Assistant that chat apps are on.
 - **Claude only says the connection was rejected, or ChatGPT can't connect:** you probably signed in to Home Assistant as another user. Only the owner can use HA NOVA in chat apps. Remove the connector, add it again, and sign in as the owner.
 - **Claude or ChatGPT can't reach your own HTTPS address:** open the address in a browser on your phone with Wi-Fi off. It must open without a certificate warning. A self-signed certificate or a port your router doesn't forward doesn't work.
 - **After you turned chat apps off, Claude or ChatGPT can't connect:** that's expected. Remove HA NOVA there. Opening the address may answer "401" until Home Assistant's next restart; it no longer reaches HA NOVA.

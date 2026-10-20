@@ -485,7 +485,7 @@ func TestSetupTextPathAsksChatAppsOnce(t *testing.T) {
 		if (url != "") != on || (len(app.posted()) == 1) != on {
 			t.Fatalf("answer %q: url %q posted %v\n%s", answer, url, app.posted(), out.String())
 		}
-		if !strings.Contains(out.String(), "Home Assistant restarts once (about a minute).") {
+		if !strings.Contains(out.String(), setupT("setup.chat.restart")) {
 			t.Fatalf("no restart consent on the question:\n%s", out.String())
 		}
 	}
