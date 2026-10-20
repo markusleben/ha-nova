@@ -55,13 +55,16 @@ person", "Show as: Door → Window".
 - **Labels**: `labels` is the full list. Read the area, then send the whole
   new list (replace, add, remove, or clear, like entity labels). Label ids
   come from `config/label_registry/list`; a missing label is created first,
-  in the same preview. Before ADDING a label, run WS `search/related`
-  (`item_type: "label"`) and name each automation or script that targets the
-  label: it will then also act on everything in this area.
+  in the same preview. For each label ADDED or REMOVED (compare the current
+  and the new list), run WS `search/related` (`item_type: "label"`) and name
+  each automation or script that targets it: an added label makes it also
+  act on everything in this area, a removed one makes it stop.
 - **Temperature / humidity sensor**: `temperature_entity_id` /
   `humidity_entity_id` take a `sensor` whose `device_class` is
   `temperature` / `humidity`; Home Assistant refuses anything else. List the
-  sensors in the area (`ha-nova find --domain sensor --area <area_id>`) and
-  keep those whose `device_class` matches (`ha-nova get <entity_id>`). One:
+  sensors in the area (`ha-nova find --domain sensor --area <area_id> --limit
+  200`; narrow until `returned` equals `total`, since a partial list can hide
+  a match) and keep those whose `device_class` matches (`ha-nova get
+  <entity_id>`). One:
   preview it. Several: list them by name and ask. None: say so and ask
   whether to use one from elsewhere. `null` clears it.

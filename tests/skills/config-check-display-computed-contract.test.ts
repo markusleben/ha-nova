@@ -28,6 +28,7 @@ describe("config check before a restart (service-call)", () => {
     // A failed check is never "valid", and the user decides; the tier stays.
     expect(routes).toContain("(never call it valid), then ask whether to go ahead anyway");
     expect(routes).toContain("a host reboot or shutdown it does not. The call keeps its tier.");
+    expect(routes).toContain("A script or automation run that contains `homeassistant.restart` or `reload_all`: say that step would fail");
   });
 });
 
@@ -48,7 +49,8 @@ describe("entity and area display fields (organize)", () => {
     expect(ref).toContain("not `cloud.*` (for example `disable_2fa`), `conversation`, `switch_as_x`, or `sensor.private`");
     expect(ref).toContain("every action that sets it (`number.set_value`");
     expect(ref).toContain("Restore: write the snapshot's `options.<domain>` object back with the same `options_domain`.");
-    expect(ref).toContain("Before ADDING a label, run WS `search/related`");
+    expect(ref).toContain("For each label ADDED or REMOVED (compare the current and the new list), run WS `search/related`");
+    expect(ref).toContain("narrow until `returned` equals `total`, since a partial list can hide a match");
     expect(ref).toContain("only for a `binary_sensor`");
     expect(ref).toContain("A cover's \"Show as\" is refused by the CLI");
     // A unit change rewrites the state value consumers compare against.
@@ -79,6 +81,12 @@ describe("computed answers (entity-discovery)", () => {
     expect(ref).toContain("s.attributes.get('unit_of_measurement')");
     expect(ref).toContain("(ns.ok | max(attribute=1)) if ns.ok else none");
     expect(ref).toContain("Leave out diagnostic sensors");
+    // `ec` is an index into entity_categories, not a diagnostic flag.
+    expect(ref).toContain("skip only rows where it maps to `diagnostic`");
+    expect(ref).toContain("s.entity_id not in keep");
+    // The grid sensor is not home use once solar or a battery exists.
+    expect(ref).toContain("The grid sensor alone is that only without solar or a battery");
+    expect(ref).toContain("carry each AREA's name");
     expect(ref).toContain("More than one unit in `inputs`");
     expect(ref).toContain("Every name in `unreadable` and `skip` is named");
   });
