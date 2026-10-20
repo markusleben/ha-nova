@@ -87,14 +87,12 @@ func runInternalUninstall(_ runtimePaths, args []string) int {
 	}
 	if *teardownDone {
 		for _, note := range teardownCompletedNoteLines(uninstallModeFromFlag(*purge)) {
-			report.addNote(note)
+			report.addDetail(note)
 		}
 	} else {
 		applyUninstallPreflightNotes(report, preflight)
 	}
-	if report.print() {
-		printHumanInfo("HA NOVA removed")
-	}
+	report.print()
 	if err := finishWindowsUninstallStatus(paths, status); err != nil {
 		printHumanWarn("could not clear Windows uninstall recovery state: %s", err)
 	}
@@ -106,8 +104,9 @@ func runUninstall(paths runtimePaths, args []string) int {
 	fs.SetOutput(io.Discard)
 	yes := fs.Bool("yes", false, "no questions; keeps this computer's pairing unless --purge, and never removes the NOVA App")
 	purge := fs.Bool("purge", false, "also remove settings and this computer's pairing (leaves a few tiny marker files)")
+	verbose := fs.Bool("verbose", false, "also list every removed file and step")
 	if err := fs.Parse(args); err != nil {
-		if helpRequested(err, fs, "ha-nova uninstall [--yes] [--purge]") {
+		if helpRequested(err, fs, "ha-nova uninstall [--yes] [--purge] [--verbose]") {
 			return 0
 		}
 		printHumanErr("%s", err)
@@ -180,7 +179,7 @@ func runUninstall(paths runtimePaths, args []string) int {
 
 	preflight := collectUninstallPreflight(paths)
 	if channelChecksUseWindowsPlatform() && source == installSourceLegacyWindowsPackage {
-		printUninstallPreflightNotes(os.Stdout, preflight)
+		printUninstallPreflightNotes(os.Stdout, preflight, *verbose)
 		printHumanErr("Legacy private/test Windows package installs are no longer supported for in-place `ha-nova uninstall`.")
 		printHumanWarn("Remove the old HA NOVA app in Installed Apps / App Installer.")
 		printHumanWarn("Then reinstall with the supported Windows path:")
@@ -221,7 +220,7 @@ func runUninstall(paths runtimePaths, args []string) int {
 		if teardownDone {
 			printTeardownCompletedNotes(os.Stdout, mode)
 		} else {
-			printUninstallPreflightNotes(os.Stdout, preflight)
+			printUninstallPreflightNotes(os.Stdout, preflight, *verbose)
 		}
 		if err := launchWindowsUninstall(
 			paths,
@@ -236,7 +235,7 @@ func runUninstall(paths runtimePaths, args []string) int {
 		printHumanInfo("It is safe to close this terminal now.")
 		return 0
 	}
-	report := &uninstallReport{}
+	report := &uninstallReport{verbose: *verbose}
 	configDirExisted := fileExists(paths.ConfigDir)
 	cleanupConfigDir := false
 	var configCleanupErr error
@@ -290,14 +289,12 @@ func runUninstall(paths runtimePaths, args []string) int {
 
 	if teardown == teardownCompleted {
 		for _, note := range teardownCompletedNoteLines(mode) {
-			report.addNote(note)
+			report.addDetail(note)
 		}
 	} else {
 		applyUninstallPreflightNotes(report, preflight)
 	}
-	if report.print() {
-		printHumanInfo("HA NOVA removed")
-	}
+	report.print()
 	return 0
 }
 
@@ -441,6 +438,7 @@ func finalizeWindowsUninstall(
 	); err != nil {
 		return failWindowsUninstallStatus(paths, status, normalizeUninstallFailureStep(err), err)
 	}
+	report.setArea(uninstallAreaProgram)
 	if err := removeLegacyWindowsPackageResidueForUninstall(paths, report); err != nil {
 		report.addNote("Could not remove older private/test Windows package residue: " + err.Error())
 	}
@@ -586,6 +584,7 @@ func finalizeLocalUninstallWithProgressUnlocked(
 			purgeTargets,
 			cloudTargets,
 		)
+		report.setArea(uninstallAreaPairing)
 		if err := settleDeviceCredentialRetirementsForPurge(
 			paths,
 			report,
@@ -600,6 +599,7 @@ func finalizeLocalUninstallWithProgressUnlocked(
 				return fmt.Errorf("failed before token_cleanup: %w", err)
 			}
 		}
+		report.setArea(uninstallAreaLink)
 		if err := purgeCloudAuthorizationsForUninstall(
 			paths,
 			report,
@@ -639,6 +639,7 @@ func finalizeLocalUninstallWithProgressUnlocked(
 		// Native-store deletion can have an ambiguous outcome. Keep config.json
 		// as the durable retry target until every profile's device slots have
 		// been confirmed absent.
+		report.setArea(uninstallAreaPairing)
 		if err := purgeAllDeviceCredentialsWithReport(
 			purgeTargets,
 			report,
@@ -658,6 +659,7 @@ func finalizeLocalUninstallWithProgressUnlocked(
 			return fmt.Errorf("failed before client_integrations: %w", err)
 		}
 	}
+	report.setArea(uninstallAreaSkills)
 	if err := removeInstalledClientsWithReport(paths, state, report); err != nil {
 		return fmt.Errorf("failed to remove client integrations: %w", err)
 	}
@@ -671,6 +673,7 @@ func finalizeLocalUninstallWithProgressUnlocked(
 			return fmt.Errorf("failed before path_cleanup: %w", err)
 		}
 	}
+	report.setArea(uninstallAreaProgram)
 	pathRemoval, pathErr := removeManagedPathWithReport(paths, state, report)
 	if pathErr != nil {
 		return fmt.Errorf("failed to remove managed PATH entry: %w", pathErr)
@@ -679,6 +682,7 @@ func finalizeLocalUninstallWithProgressUnlocked(
 		report.addRemoved(pathRemoval)
 	}
 	if mode == uninstallModePurge {
+		report.setArea(uninstallAreaPairing)
 		if err := applyFullPurgeRelayTokenPolicy(
 			paths,
 			relayTokenFile,
@@ -746,15 +750,8 @@ func finalizeLocalUninstallWithProgressUnlocked(
 		if err := removeDirIfEmptyWithReport(paths.ConfigDir, report); err != nil {
 			return fmt.Errorf("failed to remove managed config directory: %w", err)
 		}
-	} else if cloudConfigurationExistsForUninstall(paths.ConfigFile) &&
-		deviceCredentialExistsForUninstall(paths.ConfigFile) {
-		report.addNote("Kept Home Assistant connection config, this device's pairing, and its Cloud authorization. Use 'ha-nova uninstall --purge' to remove and revoke them too.")
-	} else if cloudConfigurationExistsForUninstall(paths.ConfigFile) {
-		report.addNote("Kept Home Assistant connection config and its Cloud authorization. Use 'ha-nova uninstall --purge' to remove and revoke them too.")
-	} else if deviceCredentialExistsForUninstall(paths.ConfigFile) {
-		report.addNote("Kept Home Assistant connection config and this device's pairing. Use 'ha-nova uninstall --purge' to remove and revoke them too.")
-	} else if fileExists(paths.ConfigFile) || relayAuthTokenExistsForUninstall() {
-		report.addNote("Kept Home Assistant connection config and stored relay token. Use 'ha-nova uninstall --purge' to remove them too.")
+	} else {
+		reportKeptPairing(paths, report)
 	}
 	return nil
 }
@@ -806,6 +803,7 @@ func normalizeUninstallFailureStep(err error) string {
 }
 
 func removeBundleRuntime(paths runtimePaths, report *uninstallReport) error {
+	report.setArea(uninstallAreaProgram)
 	if err := removePathWithReport(paths.InstallRoot, report); err != nil && !isNotExist(err) {
 		return fmt.Errorf("failed to remove %s: %w", paths.InstallRoot, err)
 	}

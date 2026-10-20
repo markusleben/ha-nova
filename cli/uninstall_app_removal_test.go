@@ -305,7 +305,7 @@ func TestRunUninstallYesNeverRemovesTheApp(t *testing.T) {
 		pairedForAppRemoval(t)
 		fetches, signIns := stubAppRemoval(t, newFakeSupervisor(t), nil, func() (devicePeers, error) { return peersOf(0, false, false), nil })
 		exitCode, output := captureCommandOutput(t, func() int { return runUninstall(paths, args) })
-		if exitCode != 0 || *fetches != 0 || *signIns != 0 || !strings.Contains(output, "The NOVA App in Home Assistant stays.") {
+		if exitCode != 0 || *fetches != 0 || *signIns != 0 || !strings.Contains(output, "The NOVA App in Home Assistant. Other computers may still use it.") {
 			t.Fatalf("args %v: exit=%d fetches=%d sign-ins=%d\n%s", args, exitCode, *fetches, *signIns, output)
 		}
 	}
@@ -382,8 +382,8 @@ func TestRunUninstallKeepsThisComputerWhenTheAppStays(t *testing.T) {
 	}
 }
 
-// Where a full removal can't run, "Remove" is disabled, the default keeps the
-// pairing, and the Relay is not even asked about the App.
+// Where a full removal can't run, "Remove" is disabled, Enter cancels (it
+// removes nothing), and the Relay is not even asked about the App.
 func TestRunUninstallMenuWhenAFullRemovalCantRun(t *testing.T) {
 	paths := appRemovalPaths(t, appPathConfig)
 	pairedForAppRemoval(t)
@@ -395,7 +395,7 @@ func TestRunUninstallMenuWhenAFullRemovalCantRun(t *testing.T) {
 	fetches, _ := stubAppRemoval(t, newFakeSupervisor(t), nil, func() (devicePeers, error) { return peersOf(0, false, false), nil })
 	menu := stubUninstallMenu(t, "cancel")
 	exitCode, output := captureCommandOutput(t, func() int { return runUninstall(paths, nil) })
-	if exitCode != 0 || *fetches != 0 || menu.spec.DefaultValue != "standard" || !menu.spec.Options[0].Disabled ||
+	if exitCode != 0 || *fetches != 0 || menu.spec.DefaultValue != "cancel" || !menu.spec.Options[0].Disabled ||
 		len(menu.spec.Options) != 3 || !strings.Contains(output, "Uninstall cancelled") {
 		t.Fatalf("exit=%d fetches=%d spec=%+v\n%s", exitCode, *fetches, menu.spec, output)
 	}

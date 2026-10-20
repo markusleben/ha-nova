@@ -341,9 +341,11 @@ func TestGuidedUninstallUnlocksBeforeTheAppOffer(t *testing.T) {
 		stdin       string
 		wantApp     bool
 		wantWindows int
+		wantDefault string
 	}{
-		"unlocked": {stdin: "\n", wantApp: true, wantWindows: 1},
-		"declined": {stdin: "n\n", wantApp: false, wantWindows: 0},
+		"unlocked": {stdin: "\n", wantApp: true, wantWindows: 1, wantDefault: "purge"},
+		// The user just said no: Enter in the menu must remove nothing.
+		"declined": {stdin: "n\n", wantApp: false, wantWindows: 0, wantDefault: "cancel"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			paths, locked := lockedKeyringPurgeFixture(t)
@@ -358,7 +360,7 @@ func TestGuidedUninstallUnlocksBeforeTheAppOffer(t *testing.T) {
 			exitCode, output := captureCommandOutput(t, func() int { return runUninstall(paths, nil) })
 			hasApp := slices.ContainsFunc(menu.spec.Options, func(o setupMenuOption) bool { return o.Value == "app" })
 			if exitCode != 0 || *opened != tc.wantWindows || hasApp != tc.wantApp ||
-				menu.spec.Options[0].Disabled == tc.wantApp {
+				menu.spec.Options[0].Disabled == tc.wantApp || menu.spec.DefaultValue != tc.wantDefault {
 				t.Fatalf("exit=%d windows=%d spec=%+v\n%s", exitCode, *opened, menu.spec, output)
 			}
 			if !tc.wantApp && !strings.Contains(menu.spec.Options[0].DisabledReason, "keyring is locked") {

@@ -173,7 +173,7 @@ func purgeProfileDeviceCredentialWithReport(
 				pending.Credential,
 			); err == nil {
 				pendingOutcome = serverRemovalCleanupRevoked
-				report.addNote(
+				report.addDetail(
 					"Revoked the interrupted pending device pairing on the relay.",
 				)
 			} else if !relayExpectedGone {
@@ -349,7 +349,7 @@ func purgeProfileDeviceCredentialWithReport(
 	report.addRemoved(slotLabel)
 	switch {
 	case revoked:
-		report.addNote("Revoked this device's pairing on the relay.")
+		report.addDetail("Revoked this device's pairing on the relay.")
 	case relayExpectedGone:
 		// The App (and its device registry) is already gone; nothing to revoke.
 	case secureBaseURL != "":

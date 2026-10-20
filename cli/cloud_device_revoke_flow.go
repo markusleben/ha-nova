@@ -302,7 +302,7 @@ func reportCloudDeviceRevocation(
 			remoteOnly,
 		))
 		if revokedRemotely {
-			report.addNote(fmt.Sprintf(
+			report.addDetail(fmt.Sprintf(
 				"Revoked the Cloud device pairing for server %q.",
 				profileName,
 			))

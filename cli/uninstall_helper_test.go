@@ -151,8 +151,9 @@ func TestFinalizeWindowsUninstallWarnsAboutClaudeProjectMemoryArtifacts(t *testi
 	if _, err := os.Stat(filepath.Join(projectMemoryDir, "MEMORY.md")); err != nil {
 		t.Fatalf("expected dedicated MEMORY.md to remain, got err=%v", err)
 	}
-	if !strings.Contains(strings.Join(report.notes, "\n"), "Claude project memory may still mention HA NOVA") {
-		t.Fatalf("expected report to mention Claude project memory warning: %+v", report.notes)
+	if !strings.Contains(strings.Join(report.details, "\n"), "Claude project memory may still mention HA NOVA") ||
+		len(report.notes) != 1 || report.notes[0] != "Claude may still remember HA NOVA. To clear that, run /memory in Claude Code." {
+		t.Fatalf("expected one plain note and the paths for --verbose: %+v %+v", report.notes, report.details)
 	}
 }
 

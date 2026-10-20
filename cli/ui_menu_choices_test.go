@@ -9,6 +9,7 @@ import (
 	"go/token"
 	"io"
 	"net/url"
+	"os"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -273,10 +274,52 @@ func TestWizardCopyPinsTheShortTerminalText(t *testing.T) {
 		mode.Options[0].Label != "Local only (recommended)" || mode.Options[0].Detail != "No subscription needed." {
 		t.Fatalf("connection mode menu = %+v", mode)
 	}
-	// Ratchet: the menus must fit an 80-column terminal, or they fall back.
+	// Ratchet: the wizard's menus fit an 80-column terminal without wrapping.
 	for _, spec := range runner.specs {
-		if width := setupMenuBlockWidth(spec); width >= 80 {
-			t.Fatalf("menu %q is %d columns wide", spec.Title, width)
+		if wrapped, flat := renderSetupMenuBlock(io.Discard, uiSession{}, spec, 0, 80), renderSetupMenuBlock(io.Discard, uiSession{}, spec, 0, 0); wrapped != flat {
+			t.Fatalf("menu %q wraps at 80 columns", spec.Title)
 		}
+	}
+}
+
+// Where "Remove" can't run (the user just declined the keyring window, or
+// there is no desktop), Enter cancels in the arrow menu and in the numbered
+// fallback (no TTY) alike; nothing is removed.
+func TestUninstallChoiceDefaultsToCancelWhenRemoveIsBlocked(t *testing.T) {
+	originalInput, originalRunner, originalStdin := uiInputSupportsTTY, interactiveSetupMenuRunner, os.Stdin
+	t.Cleanup(func() {
+		uiInputSupportsTTY, interactiveSetupMenuRunner, os.Stdin = originalInput, originalRunner, originalStdin
+	})
+	uiInputSupportsTTY = func() bool { return false }
+	in, err := os.CreateTemp(t.TempDir(), "stdin-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = in.Close() })
+	if _, err := in.WriteString("\n"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := in.Seek(0, 0); err != nil {
+		t.Fatal(err)
+	}
+	os.Stdin = in
+	var out bytes.Buffer
+	var proceed bool
+	_, stdout := captureCommandOutput(t, func() int {
+		_, proceed, err = promptUninstallChoice(&out, uninstallModePurge, uninstallAppOffer{}, "the keyring is locked")
+		return 0
+	})
+	if err != nil || proceed || !strings.Contains(stdout, "1) Remove, but keep the pairing  2) Cancel [2]") {
+		t.Fatalf("proceed=%v err=%v\n%s%s", proceed, err, out.String(), stdout)
+	}
+
+	runner := &recordingSetupMenuRunner{answer: "cancel"}
+	interactiveSetupMenuRunner = runner
+	uiInputSupportsTTY = func() bool { return true }
+	stubUninstallMenu(t, "cancel")
+	interactiveSetupMenuRunner = runner
+	if _, _, err := promptUninstallChoice(&out, uninstallModePurge, uninstallAppOffer{}, "the keyring is locked"); err != nil ||
+		len(runner.specs) != 1 || runner.specs[0].DefaultValue != "cancel" {
+		t.Fatalf("menu specs = %+v err=%v", runner.specs, err)
 	}
 }

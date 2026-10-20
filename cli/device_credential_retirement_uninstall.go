@@ -99,7 +99,7 @@ func executeDeviceCredentialRetirementPurgeTargets(
 			)
 		}
 		if report != nil {
-			report.addNote(fmt.Sprintf(
+			report.addDetail(fmt.Sprintf(
 				"Finished the pending device retirement for server %q.",
 				target.profile,
 			))

@@ -17,20 +17,23 @@ func TestTeardownCompletedNoteLinesByMode(t *testing.T) {
 	}
 }
 
-// Without the menu's App choice the shared App always stays, and the notes
-// say how to remove it by hand: the App and its source, or a standalone Relay.
-func TestPreflightNotesKeepTheSharedApp(t *testing.T) {
-	app := uninstallPreflight{haURL: "http://ha.local:8123", tokenUnavailable: "token problem",
-		config: runtimeConfig{RelayBaseURL: "http://ha.local:8791"}}
-	notes := preflightNoteLines(app)
-	if len(notes) != 3 || !strings.Contains(notes[0], "NOVA App in Home Assistant stays") ||
-		!strings.Contains(notes[0], "disconnects every paired computer") ||
-		!strings.Contains(notes[0], haRelayAppPageURL("http://ha.local:8123")) ||
-		!strings.Contains(notes[1], haNovaRepositoryURL) || notes[2] != "token problem" {
-		t.Fatalf("App notes = %#v", notes)
+// Without the menu's App choice the shared App always stays: one plain line
+// and next step, the exact links only for --verbose, or a standalone Relay.
+func TestPreflightStaysKeepTheSharedApp(t *testing.T) {
+	app := preflightStays(uninstallPreflight{haURL: "http://ha.local:8123", tokenUnavailable: "token problem",
+		config: runtimeConfig{RelayBaseURL: "http://ha.local:8791"}})
+	if app.kept != "The NOVA App in Home Assistant. Other computers may still use it." ||
+		app.next != "If none do, remove it in Home Assistant: Settings → Apps → NOVA Relay → Uninstall." ||
+		len(app.details) != 2 || !strings.Contains(app.details[0], haRelayAppPageURL("http://ha.local:8123")) ||
+		!strings.Contains(app.details[1], "three-dot menu (top right) → Repositories → "+haNovaRepositoryURL) ||
+		len(app.problems) != 1 || app.problems[0] != "token problem" {
+		t.Fatalf("App stays = %#v", app)
 	}
-	standalone := preflightNoteLines(uninstallPreflight{haURL: "http://ha.local:8123", config: runtimeConfig{RelayBaseURL: "http://nas.local:8791"}})
-	if len(standalone) != 1 || !strings.Contains(standalone[0], "The NOVA Relay stays") || strings.Contains(standalone[0], "http") {
-		t.Fatalf("standalone notes = %#v", standalone)
+	standalone := preflightStays(uninstallPreflight{haURL: "http://ha.local:8123", config: runtimeConfig{RelayBaseURL: "http://nas.local:8791"}})
+	if standalone.kept != "The NOVA Relay. Other computers may still use it." || strings.Contains(standalone.next, "http") || len(standalone.details) != 0 {
+		t.Fatalf("standalone stays = %#v", standalone)
+	}
+	if never := preflightStays(uninstallPreflight{}); never.kept != "" || never.next != "" {
+		t.Fatalf("never paired: nothing stays, got %#v", never)
 	}
 }

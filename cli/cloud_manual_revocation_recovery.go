@@ -149,7 +149,7 @@ func confirmRemoteAccessRevokedBeforeOAuth(
 		false,
 	)
 	if report != nil {
-		report.addNote(fmt.Sprintf(
+		report.addDetail(fmt.Sprintf(
 			"Recorded the Owner-confirmed remote revocation for server %q.",
 			profileName,
 		))

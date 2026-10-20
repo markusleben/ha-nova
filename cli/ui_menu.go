@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 	"time"
+	"unicode/utf8"
 
 	"golang.org/x/term"
 )
@@ -80,10 +82,6 @@ func (terminalSetupMenuRunner) Run(out io.Writer, spec setupMenuSpec) (string, e
 	if !ok || stdout != os.Stdout || !uiInputSupportsTTY() || !writerSupportsTTY(stdout) {
 		return "", errSetupMenuUnavailable
 	}
-	if !setupMenuFitsTerminalWidth(stdout, spec) {
-		return "", errSetupMenuUnavailable
-	}
-
 	state, err := term.MakeRaw(int(os.Stdin.Fd()))
 	if err != nil {
 		return "", errSetupMenuUnavailable
@@ -96,8 +94,12 @@ func (terminalSetupMenuRunner) Run(out io.Writer, spec setupMenuSpec) (string, e
 		return "", errSetupMenuUnavailable
 	}
 	staleBlankDeadline := beginSetupStaleBlankInputWindow()
+	width, _, err := term.GetSize(int(stdout.Fd()))
+	if err != nil {
+		width = 0 // unknown: no wrapping
+	}
 
-	lines := renderSetupMenuBlock(out, session, spec, index)
+	lines := renderSetupMenuBlock(out, session, spec, index, width)
 	for {
 		key, err := readSetupMenuKey()
 		if err != nil {
@@ -124,92 +126,83 @@ func (terminalSetupMenuRunner) Run(out io.Writer, spec setupMenuSpec) (string, e
 		}
 		staleBlankDeadline = time.Time{}
 		fmt.Fprintf(out, "\033[%dA\033[J", lines)
-		lines = renderSetupMenuBlock(out, session, spec, index)
+		lines = renderSetupMenuBlock(out, session, spec, index, width)
 	}
 }
 
-func setupMenuFitsTerminalWidth(stdout *os.File, spec setupMenuSpec) bool {
-	width, _, err := term.GetSize(int(stdout.Fd()))
-	if err != nil || width <= 0 {
-		return true
-	}
-	return setupMenuFitsWidth(width, spec)
-}
-
-func setupMenuFitsWidth(width int, spec setupMenuSpec) bool {
-	if width <= 0 {
-		return true
-	}
-	return setupMenuBlockWidth(spec) < width
-}
-
-func setupMenuBlockWidth(spec setupMenuSpec) int {
-	maxWidth := len("  " + spec.Title)
-	for _, line := range []string{spec.Prompt, spec.Note} {
-		if width := len("  " + line); width > maxWidth {
-			maxWidth = width
-		}
-	}
-	for _, option := range spec.Options {
-		prefix := "    "
-		if selectedWidth := len("  › " + option.Label); selectedWidth > maxWidth {
-			maxWidth = selectedWidth
-		}
-		if width := len(prefix + option.Label); width > maxWidth {
-			maxWidth = width
-		}
-		if option.Disabled && option.DisabledReason != "" {
-			if width := len("      " + setupT("setup.menu.not_available", "reason", option.DisabledReason)); width > maxWidth {
-				maxWidth = width
-			}
-		}
-		if width := len("      " + option.Detail); option.Detail != "" && width > maxWidth {
-			maxWidth = width
-		}
-	}
-	return maxWidth
-}
-
-func renderSetupMenuBlock(out io.Writer, session uiSession, spec setupMenuSpec, selected int) int {
+// renderSetupMenuBlock draws the menu and returns the rows it used. Long
+// lines wrap at word breaks to the terminal width (0: unknown, no wrapping),
+// so the redraw stays exact and no text forces the numbered fallback.
+func renderSetupMenuBlock(out io.Writer, session uiSession, spec setupMenuSpec, selected, width int) int {
 	lines := 0
+	write := func(lead, hang, text, style string) {
+		for idx, part := range wrapSetupMenuText(text, width-1-utf8.RuneCountInString(hang)) {
+			if idx > 0 {
+				lead = hang
+			}
+			writeSetupMenuLine(out, lead+session.style(style, part))
+			lines++
+		}
+	}
 	writeSetupMenuLine(out, "")
 	lines++
 	if spec.Title != "" {
-		writeSetupMenuLine(out, "  "+session.style("strong", spec.Title))
+		write("  ", "  ", spec.Title, "strong")
 		writeSetupMenuLine(out, "")
-		lines += 2
+		lines++
 	}
 	for idx, option := range spec.Options {
-		prefix := "    "
+		lead, style := "    ", ""
 		if idx == selected {
-			prefix = "  " + session.style("accent", "› ")
+			lead, style = "  "+session.style("accent", "› "), "strong"
 		}
-		label := option.Label
 		if option.Disabled {
-			label = session.style("muted", label)
-		} else if idx == selected {
-			label = session.style("strong", label)
+			style = "muted"
 		}
-		writeSetupMenuLine(out, prefix+label)
-		lines++
+		write(lead, "    ", option.Label, style)
 		if option.Disabled && option.DisabledReason != "" {
-			writeSetupMenuLine(out, "      "+session.style("muted", setupT("setup.menu.not_available", "reason", option.DisabledReason)))
-			lines++
+			write("      ", "      ", setupT("setup.menu.not_available", "reason", option.DisabledReason), "muted")
 		}
 		if option.Detail != "" {
-			writeSetupMenuLine(out, "      "+session.style("muted", option.Detail))
-			lines++
+			write("      ", "      ", option.Detail, "muted")
 		}
 	}
 	writeSetupMenuLine(out, "")
 	lines++
 	if spec.Note != "" {
-		writeSetupMenuLine(out, "  "+session.style("muted", spec.Note))
-		lines++
+		write("  ", "  ", spec.Note, "muted")
 	}
-	writeSetupMenuLine(out, "  "+session.style("muted", spec.Prompt))
-	lines++
+	write("  ", "  ", spec.Prompt, "muted")
 	return lines
+}
+
+// wrapSetupMenuText splits text into lines of at most room runes, at spaces
+// where it can; a word longer than room (a URL) is cut. A line that fits, or
+// room < 1, stays as it is.
+func wrapSetupMenuText(text string, room int) []string {
+	if room < 1 || utf8.RuneCountInString(text) <= room {
+		return []string{text}
+	}
+	var lines []string
+	line := ""
+	for _, word := range strings.Fields(text) {
+		for utf8.RuneCountInString(word) > room {
+			if line != "" {
+				lines, line = append(lines, line), ""
+			}
+			cut := string([]rune(word)[:room])
+			lines, word = append(lines, cut), strings.TrimPrefix(word, cut)
+		}
+		switch {
+		case line == "":
+			line = word
+		case utf8.RuneCountInString(line)+1+utf8.RuneCountInString(word) > room:
+			lines, line = append(lines, line), word
+		default:
+			line += " " + word
+		}
+	}
+	return append(lines, line)
 }
 
 func writeSetupMenuLine(out io.Writer, line string) {
