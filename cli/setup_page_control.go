@@ -37,8 +37,9 @@ type setupPageControl struct {
 // (chatAppsBase) it is one plain line. The page shows the restart
 // consent before it posts "chat"; the click on it is that consent.
 type setupPageChat struct {
-	State      string         `json:"state"`                 // offer, run, on, expired (the owner session ran out), noaddress (no Link, no public HTTPS address), page_on/page_off (a re-run: switched in NOVA in Home Assistant)
-	Page       string         `json:"page,omitempty"`        // NOVA in Home Assistant, on a re-run
+	State      string         `json:"state"`                 // offer, run, on, expired (the owner session ran out), noaddress (no Link, no public HTTPS address), page_on/page_off (a re-run: no owner sign-in yet, Done applies the switch), signin (Done's owner sign-in runs)
+	Ask        bool           `json:"ask,omitempty"`         // offer after Done's sign-in: the page opens the consent
+	Attempt    int            `json:"attempt,omitempty"`     // page_off: Done's sign-ins that failed, so the page resets its switch even when it never saw signin
 	Rows       []setupPageRow `json:"rows,omitempty"`        // while run (and after): on, restart, ready
 	URL        string         `json:"url,omitempty"`         // the connector address, once on
 	ClaudeLink string         `json:"claude_link,omitempty"` // Add to Claude (claudeConnectorLink), once on
@@ -100,30 +101,17 @@ func (f *setupFlow) pageControl() int {
 	} else if f.pageRerunning && f.cfg.Cloud.ready() && f.cfg.RoutePolicy == routePolicyAutomatic {
 		ctl.Link = "on" // the fallback this row offers; other routes stay with `ha-nova server route`
 	}
+	chatOrigin := func() string { return chatAppsLinkOrigin(f.cfg, linkOrigin()) } // as `ha-nova chat-apps`
 	var chat chatAppsOffer
 	chatOK := false
-	if f.pairedThisRun && !f.cloudSetupPaused { // as the phone row: right after this run's sign-in pairing
-		chat, chatOK = readChatAppsOffer(setupOwnerIngress, f.paths, linkOrigin)
+	if (f.pairedThisRun || f.pageRerunning) && !f.cloudSetupPaused { // as the phone row; nil without this run's owner sign-in
+		chat, chatOK = readChatAppsOffer(setupOwnerIngress, f.paths, chatOrigin)
 	}
 	switch {
-	case chatOK && chat.url == "": // no internet address for Home Assistant: one plain line
-		ctl.Chat = &setupPageChat{State: "noaddress"}
-		if chat.state.Enabled {
-			ctl.Chat.Problem = setupPageText("setup.chat.on_noaddress")
-		}
-	case chatOK && chat.state.Enabled:
-		ctl.Chat = &setupPageChat{State: "on", URL: chat.url, ClaudeLink: claudeConnectorLink(chat.url)}
-		if !chat.loaded { // on, but a restart never came: the address doesn't answer yet
-			ctl.Chat.Problem = setupPageText("setup.chat.problem_slow")
-		}
-		if err := handOverOwnerPhone(setupOwnerIngress, f.paths, setupSignedInUser, &chat.state); err != nil {
-			ctl.Chat.Problem = setupPageText("setup.chat.problem_phone")
-		}
-		f.pageChatNote(chat.url)
 	case chatOK:
-		ctl.Chat = &setupPageChat{State: "offer", NoRestart: !chat.restart, Phone: chatAppsPhoneName(f.paths, setupSignedInUser, chat.state)}
-	case f.pageRerunning && setupOwnerIngress == nil:
-		ctl.Chat = f.pageRerunChat()
+		ctl.Chat = f.pageChatRow(&chat)
+	case f.pageRerunning:
+		ctl.Chat = f.pageRerunChat(chatOrigin)
 	}
 	screen := "control"
 	if f.pageRerunOK { // the re-run screen: what is set up, then these rows
@@ -194,11 +182,20 @@ func (f *setupFlow) pageControl() int {
 				}
 			}
 		case "finish":
-			rule, link, ok := pageFinishChoices(action.Value)
+			choice, ok := pageFinishChoices(action.Value)
 			if !ok {
 				continue // never sent by the page
 			}
-			if rule && ctl.Rule == "offer" {
+			if ctl.Chat != nil && choice.chatOn && ctl.Chat.State == "page_off" {
+				// The owner signs in, then the row asks as step 3 does; the
+				// next Done applies the other switches.
+				f.pageRerunChatOn(ctl.Chat, &chat, chatOrigin, show)
+				continue
+			}
+			if ctl.Chat != nil && choice.chatOff && ctl.Chat.State == "page_on" {
+				f.pageRerunChatOff(ctl.Chat, show)
+			}
+			if choice.rule && ctl.Rule == "offer" {
 				line, added := addClaudeRules(f.paths, rulePath, rules, missing)
 				if line != "" {
 					fmt.Fprintln(out, "  "+line)
@@ -209,7 +206,7 @@ func (f *setupFlow) pageControl() int {
 				}
 				f.pageNotes = append(f.pageNotes, note)
 			}
-			if link && ctl.Link == "offer" {
+			if choice.link && ctl.Link == "offer" {
 				ctl.Link = "run"
 				show()
 				return f.pageAddLink()
@@ -219,23 +216,35 @@ func (f *setupFlow) pageControl() int {
 	}
 }
 
-// pageFinishChoices reads "Finish setup"'s switches: "rule", "link", both
-// ("rule,link"), or none ("").
-func pageFinishChoices(value string) (rule, link, ok bool) {
+// pageFinish is what "Finish setup" (Done on a re-run) sends: the switches
+// it applies.
+type pageFinish struct{ rule, link, chatOn, chatOff bool }
+
+// pageFinishChoices reads "Finish setup"'s switches: any of "rule", "link",
+// "chat_on", "chat_off", comma-separated, each once; "" for none.
+func pageFinishChoices(value string) (pageFinish, bool) {
+	var choice pageFinish
 	if value == "" {
-		return false, false, true
+		return choice, true
 	}
 	for _, part := range strings.Split(value, ",") {
-		switch {
-		case part == "rule" && !rule:
-			rule = true
-		case part == "link" && !link:
-			link = true
-		default:
-			return false, false, false
+		var flag *bool
+		switch part {
+		case "rule":
+			flag = &choice.rule
+		case "link":
+			flag = &choice.link
+		case "chat_on":
+			flag = &choice.chatOn
+		case "chat_off":
+			flag = &choice.chatOff
 		}
+		if flag == nil || *flag {
+			return pageFinish{}, false
+		}
+		*flag = true
 	}
-	return rule, link, true
+	return choice, !(choice.chatOn && choice.chatOff)
 }
 
 // pagePhones fills the phone row from a read of this home's phones. A first

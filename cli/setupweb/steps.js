@@ -8,7 +8,8 @@ window.novaSteps = (h) => {
   const { t, el, row, head, button, link, render } = h;
   const say = (msg) => (msg ? t(msg.key, msg.args || {}) : '');
   // Switches and open details live here until "Finish setup" sends them.
-  const local = { rule: true, link: false, others: false, drafts: {}, chatAsk: false, chatSeen: '', how: false };
+  // chatFlip: a re-run's chat-app switch turned the other way (Done applies it).
+  const local = { rule: true, link: false, others: false, drafts: {}, chatAsk: false, chatFlip: false, chatSeen: '', how: {} };
 
   const toast = (text) => {
     const node = el('div', { class: 'toast', role: 'status' });
@@ -48,6 +49,14 @@ window.novaSteps = (h) => {
   // (app.js reads data-focus-after).
   const focusAfter = (ids) => ({ tabindex: '-1', 'data-focus-after': ids.join(' ') });
   const tagOn = () => el('span', { class: 'tag amber' }, t('setup.page.control.on'));
+  // A switch whose sign-in waits for Done (or Finish setup) says so under it.
+  const finishLabel = () => t(h.state().screen === 'rerun' ? 'setup.page.rerun.done' : 'setup.page.control.finish');
+  const later = () => el('div', { class: 'v' }, t('setup.page.control.signin_later', { button: finishLabel() }));
+  const flip = (name, said) => () => {
+    local[name] = !local[name];
+    render(true);
+    if (local[name]) h.announce(said ? t(said) : t('setup.page.control.signin_later', { button: finishLabel() }));
+  };
   const problem = (msg) => (msg ? el('p', { class: 'problem', role: 'alert' }, say(msg)) : null);
 
   // Step 3.
@@ -96,13 +105,12 @@ window.novaSteps = (h) => {
   };
   const copy = (text) => (navigator.clipboard ? navigator.clipboard.writeText(text) : Promise.reject(new Error('no clipboard')))
     .then(() => toast(t('setup.chat.copied')), () => toast(t('setup.chat.copy_failed')));
-  const howTo = () => {
-    const steps = (title, keys) => [el('div', { class: 'k' }, t(title)), el('ol', {}, keys.map((key) => el('li', {}, t(key))))];
-    const details = el('details', { class: 'how' }, el('summary', { id: 'b-chat-how' }, t('setup.chat.how')),
-      steps('setup.chat.claude_title', ['setup.chat.claude_1', 'setup.chat.claude_2', 'setup.chat.claude_3']),
-      steps('setup.chat.chatgpt_title', ['setup.chat.chatgpt_1', 'setup.chat.chatgpt_2', 'setup.chat.chatgpt_3']));
-    details.open = local.how;
-    details.addEventListener('toggle', () => { local.how = details.open; });
+  // How to add it, one fold per app (closed); ChatGPT's holds the address to copy.
+  const howTo = (app, title, keys, ...first) => {
+    const details = el('details', { class: 'how' }, el('summary', { id: `b-chat-how-${app}` }, t(title)),
+      ...first, el('ol', {}, keys.map((key) => el('li', {}, t(key)))));
+    details.open = Boolean(local.how[app]);
+    details.addEventListener('toggle', () => { local.how[app] = details.open; });
     return details;
   };
   // The row after the run ends takes the focus the run row had.
@@ -112,32 +120,49 @@ window.novaSteps = (h) => {
     return node;
   };
   const focusId = (id) => { const node = document.getElementById(id); if (node) node.focus(); };
+  // Once on: Add to Claude (never a second primary next to Finish), then how.
+  const onParts = (chat) => [
+    el('div', { class: 'actions addclaude' }, addClaude(chat.claude_link, 'ghost btn-small', 'chat-claude')),
+    howTo('claude', 'setup.chat.claude_title', ['setup.chat.claude_1', 'setup.chat.claude_2', 'setup.chat.claude_3']),
+    howTo('chatgpt', 'setup.chat.chatgpt_title', ['setup.chat.chatgpt_1', 'setup.chat.chatgpt_2', 'setup.chat.chatgpt_3'],
+      el('div', { class: 'copybar' }, el('code', { id: 'chat-url' }, chat.url),
+        el('button', { id: 'b-chat-copy', class: 'btn btn-ghost btn-small', type: 'button', onclick: () => copy(chat.url) }, t('setup.chat.copy'))))];
   const chatRow = (c) => {
     const chat = c.chat;
     if (!chat) return null;
     const key = t('setup.chat.key');
-    if (chat.state !== local.chatSeen) {
-      local.chatSeen = chat.state;
+    const seen = `${chat.state} ${chat.attempt || 0}`; // a failed sign-in may come back before a poll saw it run
+    if (seen !== local.chatSeen) {
+      local.chatSeen = seen;
+      local.chatFlip = false;
+      if (chat.ask) local.chatAsk = true; // Done's sign-in is through: the consent, as on step 3
       if (chat.state === 'on') h.announce(t('setup.chat.on'));
     }
     const progress = (chat.rows || []).length
       ? el('ul', { class: 'rows sub' }, chat.rows.map((r) => row(r.state, say(r.msg), null, null, true))) : null;
     switch (chat.state) {
       case 'on':
-        return refocus(line(guard('✓'), key, t('setup.chat.on'), [chat.problem ? progress : null,
-          el('div', { class: 'actions addclaude' }, addClaude(chat.claude_link, 'primary btn-small', 'chat-claude')),
-          el('div', { class: 'copybar' }, el('code', { id: 'chat-url' }, chat.url),
-            el('button', { id: 'b-chat-copy', class: 'btn btn-ghost btn-small', type: 'button', onclick: () => copy(chat.url) }, t('setup.chat.copy'))),
-          problem(chat.problem), howTo(), el('p', { class: 'fine' }, t('setup.chat.off_hint'))], tagOn()));
+        return refocus(line(guard('✓'), key, t(chat.problem ? 'setup.chat.page_on_short' : 'setup.chat.on_next'), [chat.problem ? progress : null,
+          problem(chat.problem), ...onParts(chat), el('p', { class: 'fine' }, t('setup.chat.off_hint_page'))], tagOn()));
       case 'run':
         return el('li', { id: 'chat-run', ...focusAfter(['b-chat-on', 'b-chat-switch']) }, guard('◎'),
           el('div', {}, el('div', { class: 'k' }, key), el('div', { class: 'v', role: 'status' }, t(chat.no_restart ? 'setup.chat.wait_now' : 'setup.chat.wait')), progress), el('span'));
       case 'expired':
         return line(guard('·'), key, t('setup.chat.value'), problem(chat.problem));
-      case 'page_on': // a re-run: switched in NOVA in Home Assistant
-      case 'page_off':
-        return line(guard(chat.state === 'page_on' ? '✓' : '·'), key, t(chat.state === 'page_on' ? 'setup.chat.page_on' : 'setup.chat.page_off'), null,
-          link(t('setup.chat.open_nova'), chat.page, 'ghost btn-small', 'chat-nova'));
+      case 'page_on': // a re-run: no owner sign-in yet, so Done applies the switch
+      case 'page_off': {
+        const was = chat.state === 'page_on';
+        const on = was !== local.chatFlip;
+        const sw = toggle('b-chat-switch', key, on, flip('chatFlip', was ? 'setup.chat.off_later' : 'setup.chat.on_later'), !h.accepts('finish'));
+        if (local.chatFlip) { // what Done does: off, or the sign-in and then the question
+          return line(guard(on ? '✓' : '◎'), key, t(was ? 'setup.chat.off_later' : 'setup.chat.value'), was ? null : el('div', { class: 'v' }, t('setup.chat.on_later')), sw, 'b-chat-switch-v');
+        }
+        return line(guard(on ? '✓' : '◎'), key, t(was ? (chat.url && !chat.problem ? 'setup.chat.page_on' : 'setup.chat.page_on_short') : 'setup.chat.page_off'),
+          [problem(chat.problem), ...(was && chat.url ? onParts(chat) : [])], sw, 'b-chat-switch-v');
+      }
+      case 'signin':
+        return el('li', {}, guard('◎'),
+          el('div', {}, el('div', { class: 'k' }, key), el('div', { class: 'v', role: 'status' }, t('setup.chat.signin'))), spinner());
       case 'noaddress':
         return line(guard('·'), key, chat.problem ? say(chat.problem) : t('setup.chat.need_address'));
       default: {
@@ -165,8 +190,6 @@ window.novaSteps = (h) => {
         t(c.window ? 'setup.page.control.window_value' : 'setup.page.control.window_off'), null, c.window ? tagOn() : null),
       phoneRow(c),
     ];
-    // An open chat consent is a question: Finish waits for its answer.
-    const asking = local.chatAsk && c.chat && c.chat.state === 'offer';
     const busy = !h.accepts('finish');
     if (c.rule === 'offer') {
       const label = t('setup.page.control.rule_key');
@@ -177,24 +200,29 @@ window.novaSteps = (h) => {
     }
     if (c.link === 'offer') {
       const label = t('setup.page.control.link_key');
-      rows.push(line(guard('⇄'), label, t('setup.page.control.link_value'), null,
-        toggle('b-link', label, local.link, () => { local.link = !local.link; render(true); }, busy), 'b-link-v'));
+      rows.push(line(guard('⇄'), label, t('setup.page.control.link_value'), local.link ? later() : null,
+        toggle('b-link', label, local.link, flip('link'), busy), 'b-link-v'));
     } else if (c.link === 'run') {
       rows.push(line(guard('⇄'), t('setup.page.control.link_key'), t('setup.page.control.link_run'), null, spinner()));
     } else if (c.link === 'on') {
       rows.push(line(guard('✓'), t('setup.page.control.link_key'), t('setup.page.control.link_on'), null, tagOn()));
     }
     rows.push(chatRow(c));
+    // An open chat consent is a question: Finish waits for its answer.
+    const asking = local.chatAsk && c.chat && c.chat.state === 'offer';
     const choices = [];
     if (c.rule === 'offer' && local.rule) choices.push('rule');
     if (c.link === 'offer' && local.link) choices.push('link');
-    const finish = t(status ? 'setup.page.rerun.done' : 'setup.page.control.finish');
+    if (c.chat && local.chatFlip && (c.chat.state === 'page_on' || c.chat.state === 'page_off')) choices.push(c.chat.state === 'page_on' ? 'chat_off' : 'chat_on');
+    // A switch that signs in on the button says so on it too.
+    const finish = choices.some((choice) => choice !== 'rule') ? t(status ? 'setup.page.rerun.done_signin' : 'setup.page.control.finish_signin') : finishLabel();
     return [...(status ? [...head(t('setup.page.rerun.eyebrow'), t('setup.page.rerun.title'), t('setup.page.rerun.lead')), status]
       : head(t('setup.page.control.eyebrow'), t('setup.page.control.title'), t('setup.page.control.lead'), true)),
       el('ul', { class: 'rows tall' }, rows),
       el('div', { class: 'actions' }, asking
         ? el('button', { id: 'b-finish', class: 'btn btn-primary', type: 'button', disabled: '' }, finish)
         : button(finish, 'finish', 'primary', choices.join(','))),
+      asking ? el('p', { class: 'fine' }, t('setup.chat.answer_first')) : null,
       c.phone === 'pick' ? el('p', { class: 'fine' }, t('setup.page.control.fine')) : null,
       status && h.state().accepts.includes('server') ? el('p', { class: 'fine' }, el('button', { id: 'b-server', class: 'linkish', type: 'button', onclick: () => h.post('server') }, t('setup.page.rerun.add_server'))) : null];
   };

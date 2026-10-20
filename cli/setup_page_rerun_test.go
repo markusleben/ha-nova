@@ -82,7 +82,7 @@ func TestSetupPageRerunShowsWhatIsSetUpAndEndsOnDone(t *testing.T) {
 		t.Fatalf("rows = %+v %+v %+v", rerun.Rows[0].Msg, rerun.Rows[1].Msg, rerun.Rows[3].Msg)
 	}
 	ctl := rerun.Control
-	if ctl.Phone == "unavailable" || ctl.Rule != "offer" || ctl.Chat == nil || ctl.Chat.State != "page_on" || !strings.HasPrefix(ctl.Chat.Page, cfg.HAURL) {
+	if ctl.Phone == "unavailable" || ctl.Rule != "offer" || ctl.Chat == nil || ctl.Chat.State != "page_on" || ctl.Chat.Problem == nil || ctl.Chat.Problem.Key != "setup.chat.on_noaddress" {
 		t.Fatalf("control = %+v chat %+v", ctl, ctl.Chat)
 	}
 	settings := claudeUserSettingsPath(paths.Home)

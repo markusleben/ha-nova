@@ -81,12 +81,8 @@ func runChatAppsCommand(paths runtimePaths, args []string) int {
 		printHumanErr("HA NOVA couldn't read Home Assistant: %s", err)
 		return 1
 	}
-	origin := setupLinkRemoteOrigin(cfg)
-	if origin == "" && cfg.Cloud.ready() && !chatAppsAtHome(cfg) { // away from home the local check can't run: the saved Link address
-		origin = cfg.Cloud.Current.Origin
-	}
 	url := ""
-	if base := chatAppsBase(origin, ha.externalURL); base != "" {
+	if base := chatAppsBase(chatAppsLinkOrigin(cfg, setupLinkRemoteOrigin(cfg)), ha.externalURL); base != "" {
 		url = base + chatAppsConnectorPath
 	}
 	switch action {
@@ -160,6 +156,16 @@ func runChatAppsCommand(paths runtimePaths, args []string) int {
 	}
 	printChatAppsHowTo(out, url)
 	return 0
+}
+
+// chatAppsLinkOrigin is the Link address chat apps use: local, as read
+// at home (remote access on), else, away from home where that check can't
+// run, the saved Link address.
+func chatAppsLinkOrigin(cfg runtimeConfig, local string) string {
+	if local == "" && cfg.Cloud.ready() && !chatAppsAtHome(cfg) {
+		return cfg.Cloud.Current.Origin
+	}
+	return local
 }
 
 // chatAppsAtHome: this computer reaches the Relay locally, so the local Link
