@@ -32,9 +32,26 @@ func stubRerunApp(t *testing.T, running bool, chat chatAppsHA, chatErr error) {
 	setupPageLinger = 0
 }
 
+// rerunFlow: the fixture's install as one paired before (a secure address
+// saved); its shared token alone would keep the terminal.
 func rerunFlow(paths runtimePaths, cfg runtimeConfig, state installState, marker [][]byte) *setupFlow {
+	cfg.RelaySecureBaseURL = "https://127.0.0.1:9"
 	return &setupFlow{paths: paths, cfg: cfg, state: state, lifecycleMarker: marker,
 		connectionMode: setupConnectionLocal, pairingBackStep: setupStepRelayInstall}
+}
+
+// codexAttachedForReal: Claude Code as the fixture fakes it, Codex CLI from
+// the files setup installs.
+func codexAttachedForReal(t *testing.T) {
+	t.Helper()
+	previous := clientAttachmentPresentForStatus
+	t.Cleanup(func() { clientAttachmentPresentForStatus = previous })
+	clientAttachmentPresentForStatus = func(paths runtimePaths, state installState, client string) bool {
+		if client == "codex" {
+			return clientAttachmentPresent(paths, state, client)
+		}
+		return previous(paths, state, client)
+	}
 }
 
 func rowStates(rows []setupPageRow) map[string]string {
@@ -101,8 +118,9 @@ func TestSetupPageRerunAddsAnotherServerInTheTerminal(t *testing.T) {
 	}
 }
 
-// The NOVA App doesn't answer: the screen says so, offers Check again and
-// the App page, and no Fix it (nothing on this computer fixes it).
+// The NOVA App doesn't answer: the screen says so and offers Check again,
+// the App page, and Fix it (step 1: another address, or the sign-in that
+// installs or starts the App).
 func TestSetupPageRerunWhileTheAppDoesNotAnswer(t *testing.T) {
 	paths, cfg, state, marker := setupCompletedInstallFixture(t)
 	dead := httptest.NewServer(http.NotFoundHandler())
@@ -115,11 +133,11 @@ func TestSetupPageRerunWhileTheAppDoesNotAnswer(t *testing.T) {
 	page, stdout, done := startSetupPageFlowWith(t, "", rerunFlow(paths, cfg, state, marker))
 
 	broken := page.waitFor("the re-run screen", accepting("recheck"))
-	if broken.Screen != "rerun" || broken.Control != nil || slices.Contains(broken.Accepts, "fix") ||
-		broken.Problem == nil || broken.Problem.Key != "setup.page.rerun.problem_app" || broken.Links["app"] != haRelayAppPageURL(cfg.HAURL) {
+	if broken.Screen != "rerun_fix" || broken.Control != nil || !slices.Contains(broken.Accepts, "fix") ||
+		broken.Problem == nil || broken.Problem.Key != "setup.page.rerun.problem_app" || broken.Links["app"] != haInstallRelayAppURL(cfg.HAURL) {
 		t.Fatalf("broken = %+v", broken)
 	}
-	if states := rowStates(broken.Rows); states["app"] != "fail" || states["computer"] != "fail" || states["ha"] != "ok" {
+	if states := rowStates(broken.Rows); states["app"] != "fail" || states["computer"] != "fail" || states["ha"] != "todo" {
 		t.Fatalf("rows = %+v", broken.Rows)
 	}
 	page.click("recheck", "")
@@ -129,17 +147,22 @@ func TestSetupPageRerunWhileTheAppDoesNotAnswer(t *testing.T) {
 	}
 }
 
-// Only the skills are out of date (after an update, lane W3): setup
-// refreshes them without a question, then shows the re-run screen.
+// Only the skills set up before are out of date (after an update, lane
+// W3): setup refreshes them without a question, then shows the re-run screen.
 func TestSetupPageRerunRefreshesTheSkillsWithoutAsking(t *testing.T) {
 	paths, cfg, state, marker := setupCompletedInstallFixture(t)
-	withClientRuntimeAvailability(t, map[string]bool{"claude": false, "codex": true}) // Codex CLI, not set up yet
+	withClientRuntimeAvailability(t, map[string]bool{"claude": false, "codex": true})
+	codexAttachedForReal(t)
+	mergeStateClients(&state, []string{"codex"}) // set up before; its files are gone
+	if err := saveState(paths, state); err != nil {
+		t.Fatal(err)
+	}
 	stubRerunApp(t, true, chatAppsHA{}, errors.New("no chat apps"))
 	t.Setenv("HA_NOVA_DEV_ROOT", repoRootForSetupTest(t))
 	ha := setupGoldenHAServer(t) // the token path checks Home Assistant itself
 	cfg.HAHost, cfg.HAURL = normalizeHostInput(ha.URL), ha.URL
 	page, stdout, done := startSetupPageFlowWith(t, "", rerunFlow(paths, cfg, state, marker))
-	page.waitFor("the skills refresh", func(s setupPageState) bool { return s.Screen == "connect" })
+	page.waitFor("the skills refresh", func(s setupPageState) bool { return s.Screen == "repair" })
 	rerun := page.waitFor("the re-run screen", accepting("finish"))
 	if rerun.Screen != "rerun" || rowStates(rerun.Rows)["clients"] != "ok" || !strings.Contains(stdout.String(), "Installing") {
 		t.Fatalf("re-run = %+v\n%s", rerun, stdout)
@@ -166,5 +189,49 @@ func TestSetupPageRerunRemovedComputerSignsInAgain(t *testing.T) {
 	}
 	if ui.inTerminal() {
 		t.Fatal("a removed computer handed setup to the terminal")
+	}
+}
+
+// An AI assistant found since the last setup is offered with a button, never
+// set up without that click.
+func TestSetupPageRerunOffersANewAIAssistant(t *testing.T) {
+	paths, cfg, state, marker := setupCompletedInstallFixture(t)
+	withClientRuntimeAvailability(t, map[string]bool{"claude": true, "codex": true})
+	codexAttachedForReal(t)
+	t.Setenv("HA_NOVA_DEV_ROOT", repoRootForSetupTest(t))
+	stubRerunApp(t, true, chatAppsHA{}, errors.New("no chat apps"))
+	page, stdout, done := startSetupPageFlowWith(t, "", rerunFlow(paths, cfg, state, marker))
+	rerun := page.waitFor("the re-run screen", accepting("clients"))
+	if rerun.Screen != "rerun" || !slices.Equal(rerun.NewClients, []string{"Codex CLI"}) || rowStates(rerun.Rows)["clients"] != "ok" ||
+		!slices.Equal(rerun.Rows[3].Msg.Args["clients"].([]any), []any{"Claude Code"}) {
+		t.Fatalf("re-run = %+v", rerun)
+	}
+	if slices.Contains(loadStateOrDefault(paths).InstalledClients, "codex") {
+		t.Fatal("Codex CLI was set up before the click")
+	}
+	page.click("clients", "")
+	again := page.waitFor("the re-run screen again", func(s setupPageState) bool {
+		return s.Screen == "rerun" && len(s.NewClients) == 0 && slices.Contains(s.Accepts, "finish")
+	})
+	if !slices.Contains(loadStateOrDefault(paths).InstalledClients, "codex") || slices.Contains(again.Accepts, "clients") ||
+		!slices.Equal(again.Rows[3].Msg.Args["clients"].([]any), []any{"Claude Code", "Codex CLI"}) || rowStates(again.Rows)["clients"] != "ok" {
+		t.Fatalf("after the click: %+v state %+v", again, loadStateOrDefault(paths).InstalledClients)
+	}
+	page.click("finish", "")
+	if code := setupPageExit(t, done, stdout); code != 0 || page.ui.snapshot().Screen != "saved" {
+		t.Fatalf("exit %d screen %s\n%s", code, page.ui.snapshot().Screen, stdout)
+	}
+}
+
+// The shared-token install keeps the terminal: its switch to this
+// computer's own credential is a terminal step.
+func TestSetupPageRerunHandsASharedTokenInstallToTheTerminal(t *testing.T) {
+	paths, cfg, state, marker := setupCompletedInstallFixture(t)
+	stubRerunApp(t, true, chatAppsHA{}, errors.New("no chat apps"))
+	page, stdout, done := startSetupPageFlowWith(t, "", &setupFlow{paths: paths, cfg: cfg, state: state, lifecycleMarker: marker,
+		connectionMode: setupConnectionLocal, pairingBackStep: setupStepRelayInstall})
+	code := setupPageExit(t, done, stdout)
+	if code != 0 || !page.ui.inTerminal() || !strings.Contains(stdout.String(), "legacy token") {
+		t.Fatalf("exit %d inTerminal=%v\n%s", code, page.ui.inTerminal(), stdout)
 	}
 }

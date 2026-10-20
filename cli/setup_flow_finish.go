@@ -80,7 +80,7 @@ func (f *setupFlow) verifyDevice() setupStepResult {
 	revoked := func() setupStepResult { // removed on the NOVA page: no App to wait for (lane E3)
 		f.ui.show(setupView{Blocks: []setupBlock{setupErrorBlock(setupText("setup.verify.device_revoked"))}})
 		if f.page != nil && !f.page.inTerminal() { // the page's step 1 signs in again and says why
-			f.devicePaired, f.deviceAlreadyPaired, f.pageRemoved = false, false, true
+			f.devicePaired, f.deviceAlreadyPaired, f.pageRemoved, f.pageRerunOK = false, false, true, false
 			return setupGoTo(setupStepHost)
 		}
 		f.pairingBackStep = setupStepHost // back: a different address, not this check again
@@ -216,9 +216,11 @@ func (f *setupFlow) afterSkills() setupStepResult {
 	if err := completeSetupLifecycle(f.paths, f.lifecycleMarker...); err != nil {
 		return f.fail(setupText("setup.error.finalize_lifecycle", "error", err))
 	}
-	if f.pageControlled && len(f.lifecycleMarker) > 0 {
+	if f.pageControlled && (len(f.lifecycleMarker) > 0 || f.pageRerunOK) {
 		// The generation setup completed with: an uninstall during step 3
-		// rotates it, and the page's Link add then fails closed.
+		// rotates it, and the page's Link add then fails closed. A working
+		// re-run completes without its markers (as in the terminal), so it
+		// reads the generation as it stands.
 		generation, err := readInstallLifecycleGeneration(f.paths)
 		if err != nil {
 			return f.failErr(err)

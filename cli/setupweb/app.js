@@ -221,9 +221,11 @@
     done: () => [...head(t('setup.page.done.eyebrow'), t('setup.page.done.title'), t('setup.page.done.lead', { clients: state.clients || [] })),
       el('p', { class: 'fine' }, t('setup.page.done.fine'))],
   };
-  // Steps 3 and 4 (steps.js).
+  // Steps 3 and 4 (steps.js), and a re-run (rerun.js).
   const announce = (text) => { statusEl.textContent = text; };
-  Object.assign(screens, window.novaSteps({ t, el, row, head, button, link, format, render, post, accepts, announce, state: () => state }));
+  const helpers = { t, el, row, head, button, link, format, render, post, accepts, announce, state: () => state };
+  const later = window.novaSteps(helpers);
+  Object.assign(screens, later, window.novaRerun({ ...helpers, control: later.control }));
   for (const [screen, [eyebrow, title, lead, amber]] of Object.entries(endScreens)) {
     screens[screen] = () => head(t(eyebrow), t(title), t(lead), amber);
   }

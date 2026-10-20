@@ -2,17 +2,20 @@ package main
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 )
 
 // The setup page on a re-run (docs/work/2026-10-18-onboarding-0.27-spec.md
 // §4 "Re-run on a working install"): setup ran on this computer before.
 // A working setup shows what is set up, with step 3's rows on the same
-// screen; Done applies their switches and ends setup. Skills that only need
-// a refresh (after an update) are refreshed first, without a question. Any
-// other problem is shown with Fix it, which runs the usual steps on the
-// page (a computer removed on the NOVA page signs in again), or, while the
-// NOVA App doesn't answer, Check again. Nothing changes without a click.
+// screen; Done applies their switches and ends setup. The AI assistants set
+// up before are judged and, when only their skills are out of date (after
+// an update), refreshed without a question; one found since is offered
+// with a button. Anything else shows Fix it, which runs the usual steps on
+// the page (a computer removed on the NOVA page signs in again). While the
+// NOVA App doesn't answer: Check again, or Fix it on step 1, where the
+// address can change and the sign-in installs or starts the App.
 
 // pageRerun replaces the terminal's status screen on the page; on a first
 // run (no saved address) handled is false.
@@ -21,29 +24,34 @@ func (f *setupFlow) pageRerun(marker [][]byte) (setupStepResult, bool) {
 		return setupGoOn, false
 	}
 	f.pageRerunning = true
+	if before := slices.DeleteFunc(slices.Clone(f.selectedClients), func(c string) bool { return !slices.Contains(f.state.InstalledClients, c) }); len(before) > 0 {
+		f.pageNewClients = slices.DeleteFunc(slices.Clone(f.selectedClients), func(c string) bool { return slices.Contains(before, c) })
+		f.selectedClients = before
+	}
 	for {
+		notReady := f.pageClientsNotReady()
+		f.current.SkillsOK = len(notReady) == 0
 		c := f.current
-		if c.IsComplete() || (c.ConfigOK && c.TokenOK && c.RelayOK && c.WSOK) {
+		// Only skills set up before and now out of date: refreshed without a question.
+		refresh := !slices.ContainsFunc(notReady, func(client string) bool { return !slices.Contains(f.state.InstalledClients, client) })
+		if c.ConfigOK && c.TokenOK && c.RelayOK && c.WSOK && refresh {
 			f.pageRerunOK = true
-			if c.IsComplete() {
+			if c.SkillsOK {
 				f.lifecycleMarker = marker // as the terminal's status screen
 				return f.afterSkills(), true
 			}
-			// Only the skills are out of date: setup's own job, no question.
-			f.page.update(func(v *setupPageState) {
-				v.Screen, v.Rows = "connect", []setupPageRow{{ID: "teach", State: "run", Msg: setupPageText("setup.page.row.teach", "clients", setupClientNames(f.selectedClients))}}
-			})
+			f.pageRepairing("teach")
 			return setupGoTo(f.routeKnownAddress(setupStepHost)), true
 		}
 		rows, appDown := f.pageRerunRows()
 		accepts, links := []string{"fix"}, map[string]string{}
 		var problem *setupPageMsg
-		if appDown { // nothing on this computer fixes it
-			accepts, problem = []string{"recheck"}, setupPageText("setup.page.rerun.problem_app")
-			links["app"] = haRelayAppPageURL(f.cfg.HAURL)
+		if appDown {
+			accepts, problem = []string{"recheck", "fix"}, setupPageText("setup.page.rerun.problem_app")
+			links["app"] = haInstallRelayAppURL(f.cfg.HAURL)
 		}
 		f.page.update(func(v *setupPageState) {
-			v.Screen, v.Rows, v.Problem, v.Links, v.Control = "rerun", rows, problem, links, nil
+			v.Screen, v.Rows, v.Problem, v.Links, v.Control = "rerun_fix", rows, problem, links, nil
 		})
 		action, err := f.page.wait(accepts...)
 		if err != nil {
@@ -53,19 +61,39 @@ func (f *setupFlow) pageRerun(marker [][]byte) (setupStepResult, bool) {
 			f.current = detectSetupStateForAssessment(f.paths, f.cfg, f.state, f.target, f.savedTokenBeforeSetup, f.hadSavedTokenBeforeSetup)
 			continue
 		}
-		f.page.update(func(v *setupPageState) {
-			v.Screen, v.Problem, v.Links = "connect", nil, nil
-			v.Rows = []setupPageRow{
-				{ID: "connect", State: "run", Msg: setupPageText("setup.page.row.connect")},
-				{ID: "teach", State: "todo", Msg: setupPageText("setup.page.row.teach", "clients", setupClientNames(f.selectedClients))},
-			}
-		})
 		next := f.routeKnownAddress(setupStepHost)
-		if next == setupStepPairing { // not paired: the page signs in, as on a first run
-			next = setupStepHost
+		if next == setupStepPairing || appDown { // not paired, or no App at this address: step 1, as on a first run
+			f.pageRepairing("")
+			return setupGoTo(setupStepHost), true
 		}
+		f.pageRepairing("connect", "teach")
 		return setupGoTo(next), true
 	}
+}
+
+// pageRepairing shows the re-run's progress rows while the usual steps run
+// (they set the rows); none: the next screen is step 1.
+func (f *setupFlow) pageRepairing(rows ...string) {
+	msgs := map[string]*setupPageMsg{
+		"connect": setupPageText("setup.page.row.connect"),
+		"teach":   setupPageText("setup.page.row.teach", "clients", setupClientNames(f.selectedClients)),
+	}
+	f.page.update(func(v *setupPageState) {
+		v.Screen, v.Problem, v.Links, v.Rows = "repair", nil, nil, nil
+		for i, id := range rows {
+			state := "todo"
+			if i == 0 {
+				state = "run"
+			}
+			v.Rows = append(v.Rows, setupPageRow{ID: id, State: state, Msg: msgs[id]})
+		}
+	})
+}
+
+// pageClientsNotReady: the AI assistants this re-run judges whose HA NOVA
+// skills aren't in place.
+func (f *setupFlow) pageClientsNotReady() []string {
+	return slices.DeleteFunc(slices.Clone(f.selectedClients), func(client string) bool { return clientReadyNow(f.paths, f.state, client) })
 }
 
 // pageRerunRows: what is set up, from the same checks as the terminal's
@@ -83,23 +111,24 @@ func (f *setupFlow) pageRerunRows() (rows []setupPageRow, appDown bool) {
 	default:
 		appRow.State, appRow.Msg, appDown = "fail", setupPageText("setup.page.rerun.app_down"), true
 	}
+	ha := setupPageRow{ID: "ha", State: "ok", Msg: setupPageText("setup.page.rerun.ha", "host", terminalSafeName(f.cfg.HAHost))}
+	if appDown { // Home Assistant itself may be what doesn't answer
+		ha.State = "todo"
+	}
 	computer := setupPageRow{ID: "computer", State: "ok", Msg: setupPageText("setup.page.rerun.computer_ok")}
 	if !(c.TokenOK && c.RelayOK && c.WSOK) {
 		computer.State, computer.Msg = "fail", setupPageText("setup.page.rerun.computer_fail")
 	}
-	names := setupClientNames(f.selectedClients)
-	clients := setupPageRow{ID: "clients", State: "ok", Msg: setupPageText("setup.page.rerun.clients_ok", "clients", names)}
-	if !c.SkillsOK {
-		clients.State, clients.Msg = "fail", setupPageText("setup.page.rerun.clients_fail", "clients", names)
+	clients := setupPageRow{ID: "clients", State: "ok", Msg: setupPageText("setup.page.rerun.clients_ok", "clients", setupClientNames(f.selectedClients))}
+	if notReady := f.pageClientsNotReady(); len(notReady) > 0 {
+		clients.State, clients.Msg = "fail", setupPageText("setup.page.rerun.clients_fail", "clients", setupClientNames(notReady))
 	}
-	return []setupPageRow{
-		{ID: "ha", State: "ok", Msg: setupPageText("setup.page.rerun.ha", "host", terminalSafeName(f.cfg.HAHost))},
-		appRow, computer, clients,
-	}, appDown
+	return []setupPageRow{ha, appRow, computer, clients}, appDown
 }
 
 // pageRerunControl puts the status rows above step 3's on a working re-run
-// (setup got this far: the connection and the skills are in place).
+// (setup got this far: the connection and the skills are in place), and
+// the AI assistants found since, to set up with a click.
 func (f *setupFlow) pageRerunControl() {
 	f.current = setupState{ConfigOK: true, TokenOK: true, RelayOK: true, WSOK: true, SkillsOK: true}
 	rows, _ := f.pageRerunRows()
@@ -107,7 +136,35 @@ func (f *setupFlow) pageRerunControl() {
 	if rows[1].State != "ok" { // an App that needs an update
 		links["app"] = haRelayAppPageURL(f.cfg.HAURL)
 	}
-	f.page.update(func(v *setupPageState) { v.Rows, v.Links = rows, links })
+	f.page.update(func(v *setupPageState) {
+		v.Rows, v.Links, v.NewClients = rows, links, setupClientNames(f.pageNewClients)
+	})
+}
+
+// pageRerunAddClients sets up HA NOVA in the AI assistants found since the
+// last setup (the click on the page), then shows the re-run screen again.
+// It holds the generation setup completed with.
+func (f *setupFlow) pageRerunAddClients() int {
+	adding := f.pageNewClients
+	f.selectedClients, f.pageNewClients = append(f.selectedClients, adding...), nil
+	f.page.update(func(v *setupPageState) {
+		v.Screen, v.Control, v.NewClients = "repair", nil, nil
+		v.Rows = []setupPageRow{{ID: "teach", State: "run", Msg: setupPageText("setup.page.row.teach", "clients", setupClientNames(adding))}}
+	})
+	err := f.ui.working(setupText("setup.skills.installing", "client", setupClientLabel(f.target)), func() error {
+		markers, err := f.pageLifecycleMarkers()
+		if err != nil {
+			return err
+		}
+		return withClientMutationLock(f.paths, func() error {
+			return installClientsAndSaveStateUnlocked(f.paths, &f.state, adding, saveState, markers...)
+		})
+	})
+	if err != nil {
+		f.ui.fail(setupText("setup.error.install_clients", "error", err))
+		return 1
+	}
+	return f.pageControl()
 }
 
 // pageRerunChat: a re-run has no owner sign-in, so the chat-app row says
@@ -134,10 +191,35 @@ func (f *setupFlow) pageRerunChat() *setupPageChat {
 }
 
 // pageAddServer: "Add another Home Assistant server" on a working re-run
-// runs the terminal's add flow, as its completed-setup screen does.
+// runs the terminal's add flow, as its completed-setup screen does, held to
+// the generation setup completed with.
 func (f *setupFlow) pageAddServer() int {
 	f.page.handover()
-	return startAddServerFlow(f.page.termIn(), f.page.text.out, f.paths)
+	markers, err := f.pageLifecycleMarkers()
+	if err != nil {
+		printHumanErr("%s", err)
+		return 1
+	}
+	return startAddServerFlow(f.page.termIn(), f.page.text.out, f.paths, markers...)
+}
+
+// pageLifecycleMarkers: the generation setup completed with, and the
+// uninstall marker and config as they are now; an error when an uninstall
+// or another setup changed them since. nil without a generation.
+func (f *setupFlow) pageLifecycleMarkers() ([][]byte, error) {
+	if f.pageGeneration == nil {
+		return nil, nil
+	}
+	uninstall, err := readUninstallMarker(f.paths)
+	if err != nil {
+		return nil, err
+	}
+	snapshot, err := readSetupConfigSnapshot(f.paths)
+	if err != nil {
+		return nil, err
+	}
+	markers := [][]byte{f.pageGeneration, uninstall, snapshot}
+	return markers, ensureSetupLifecycleCurrent(f.paths, markers...)
 }
 
 // pageFinish ends a page run: the terminal's banner (step 4 replaces its
@@ -158,6 +240,10 @@ func (f *setupFlow) pageFinish() setupStepResult {
 		fmt.Fprintf(f.page.text.out, "  %s\n", setupT("setup.page.terminal.rerun"))
 	}
 	exit := f.pageControl()
+	if f.pageQuit && f.pageRerunOK {
+		f.page.end("saved") // nothing changed
+		return setupDone(exit)
+	}
 	if f.pageQuit {
 		f.page.end("skipped") // connected, but step 3's choices weren't applied
 		return setupDone(exit)

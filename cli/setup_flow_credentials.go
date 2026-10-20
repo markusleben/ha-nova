@@ -110,6 +110,12 @@ func (f *setupFlow) prepareCredentials() setupStepResult {
 		currentLifecycleMarker = nil
 	}
 	onPageRerun := f.page != nil && !f.page.inTerminal() && strings.TrimSpace(f.cfg.HAHost) != "" && strings.TrimSpace(f.cfg.HAURL) != ""
+	if onPageRerun && f.hadSavedTokenBeforeSetup && strings.TrimSpace(f.cfg.RelaySecureBaseURL) == "" {
+		// The shared-token install: its switch to this computer's own
+		// credential is the terminal's (`ha-nova pair`).
+		f.page.handover()
+		onPageRerun = false
+	}
 	if f.tokenStoragePreflightErr == nil && !onPageRerun {
 		if handled, code := maybeHandleInteractiveSetupCurrentState(f.ui.termIn(), f.ui.termOut(), f.paths, f.cfg, f.current, f.overrideApplied, f.serviceMode, currentLifecycleMarker...); handled {
 			return setupDone(code)

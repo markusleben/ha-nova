@@ -59,11 +59,12 @@ func defaultSetupPageAvailable() bool {
 
 // usesSetupPage: a plain `ha-nova setup` at the desktop, a first run or a
 // re-run (setup_page_rerun.go). Flags, service installs, named profiles, and
-// a setup that reaches Home Assistant only through Link keep the text wizard.
+// Link state that isn't ready, or Link only, keep the text wizard.
 func (f *setupFlow) usesSetupPage() bool {
 	return f.target == "" && !f.serviceMode &&
 		f.hostFlag == "" && f.haURLFlag == "" && f.relayURLFlag == "" && f.relayTokenFlag == "" &&
-		(f.cfg.Cloud == nil || (!remoteOnlyCloudSetup(f.cfg) && cloudRemoteFeatureAvailable())) &&
+		(f.cfg.Cloud == nil || (f.cfg.Cloud.ready() && !remoteOnlyCloudSetup(f.cfg) && !hybridCloudSetupPending(f.cfg) &&
+			cloudRecoveryHoldProblem(f.cfg) == nil && cloudRemoteFeatureAvailable())) &&
 		activeServerProfile() == defaultServerProfileName && setupPageAvailable()
 }
 

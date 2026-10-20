@@ -472,6 +472,9 @@ func TestSetupPageOnlyForAPlainSetup(t *testing.T) {
 		"host flag":    func(f *setupFlow) { f.hostFlag = "ha.local" },
 		"relay token":  func(f *setupFlow) { f.relayTokenFlag = "x" },
 		"Link only":    func(f *setupFlow) { f.cfg.Cloud = &cloudLifecycleMetadata{} },
+		"Link not ready": func(f *setupFlow) {
+			f.cfg = runtimeConfig{HAHost: "ha.local", HAURL: "http://ha.local:8123", Cloud: &cloudLifecycleMetadata{}}
+		},
 	} {
 		flow := fresh()
 		change(flow)

@@ -1,4 +1,4 @@
-// The setup page's script (cli/setupweb/app.js + steps.js) against a small
+// The setup page's script (cli/setupweb/app.js, steps.js, rerun.js) against a small
 // fake DOM: what a click shows next. The Go tests cover the CLI side.
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -74,6 +74,7 @@ function page(before: object, ...afterPost: object[]) {
     clearTimeout: () => undefined,
   };
   runInNewContext(read("steps.js"), context);
+  runInNewContext(read("rerun.js"), context);
   runInNewContext(read("app.js"), context);
   const settle = async (rounds = 20) => {
     for (let i = 0; i < rounds; i++) {
@@ -250,7 +251,7 @@ describe("setup page re-run (G1)", () => {
     control: { window: true, phone: "linked", phone_name: "iPhone", rule: "offer", rule_count: 2, link: "on", chat: { state: "page_off", page: "http://homeassistant.local:8123/app/x" } },
   };
 
-  it("shows what is set up with the switches, and Done changes nothing unless one is switched", async () => {
+  it("shows what is set up with the switches; Done adds the offered rules, as the terminal's default", async () => {
     const p = page(working);
     await p.settle();
     expect(p.screen.querySelector("h1")!.textContent).toBe(p.catalog["setup.page.rerun.title"]);
@@ -258,11 +259,11 @@ describe("setup page re-run (G1)", () => {
     expect(p.screen.textContent).toContain("Set up in Claude Code");
     expect(p.screen.textContent).toContain(p.catalog["setup.page.control.link_on"]);
     expect(p.find("l-chat-nova")!.attributes.href).toBe("http://homeassistant.local:8123/app/x");
-    expect(p.find("b-rule")!.attributes["aria-checked"]).toBe("false");
+    expect(p.find("b-rule")!.attributes["aria-checked"]).toBe("true");
     expect(p.find("b-finish")!.textContent).toBe(p.catalog["setup.page.rerun.done"]);
     p.find("b-finish")!.dispatch("click");
     await p.settle();
-    expect(p.posts).toEqual([{ action: "finish", value: "" }]);
+    expect(p.posts).toEqual([{ action: "finish", value: "rule" }]);
   });
 
   it("changes one thing in two clicks", async () => {
@@ -271,7 +272,20 @@ describe("setup page re-run (G1)", () => {
     p.find("b-rule")!.dispatch("click");
     p.find("b-finish")!.dispatch("click");
     await p.settle();
-    expect(p.posts).toEqual([{ action: "finish", value: "rule" }]);
+    expect(p.posts).toEqual([{ action: "finish", value: "" }]);
+  });
+
+  it("offers an AI assistant found since, with a button", async () => {
+    const p = page({ ...working, new_clients: ["Codex CLI"], accepts: ["finish", "clients"] });
+    await p.settle();
+    expect(p.find("b-clients")!.textContent).toBe("Set up Codex CLI too");
+    p.find("b-clients")!.dispatch("click");
+    await p.settle();
+    expect(p.posts).toEqual([{ action: "clients" }]);
+    const updating = page({ screen: "repair", accepts: [], rows: [{ id: "teach", state: "run", msg: { key: "setup.page.row.teach", args: { clients: ["Codex CLI"] } } }] });
+    await updating.settle();
+    expect(updating.screen.querySelector("h1")!.textContent).toBe(updating.catalog["setup.page.rerun.repair_title"]);
+    expect(updating.screen.textContent).toContain("Teaching Codex CLI");
   });
 
   it("offers another Home Assistant server", async () => {
@@ -283,7 +297,7 @@ describe("setup page re-run (G1)", () => {
   });
 
   it("asks Fix it when something doesn't work, and Check again while the App doesn't answer", async () => {
-    const broken = { screen: "rerun", rows: [...rows.slice(0, 3), { ...rows[3], state: "fail", msg: { key: "setup.page.rerun.clients_fail", args: { clients: ["Claude Code"] } } }], accepts: ["fix"] };
+    const broken = { screen: "rerun_fix", rows: [...rows.slice(0, 3), { ...rows[3], state: "fail", msg: { key: "setup.page.rerun.clients_fail", args: { clients: ["Claude Code"] } } }], accepts: ["fix"] };
     const p = page(broken);
     await p.settle();
     expect(p.screen.querySelector("h1")!.textContent).toBe(p.catalog["setup.page.rerun.title_fix"]);
@@ -292,10 +306,10 @@ describe("setup page re-run (G1)", () => {
     await p.settle();
     expect(p.posts).toEqual([{ action: "fix" }]);
 
-    const down = page({ ...broken, accepts: ["recheck"], problem: { key: "setup.page.rerun.problem_app" }, links: { app: "http://homeassistant.local:8123/_my_redirect/supervisor_addon?addon=x" } });
+    const down = page({ ...broken, accepts: ["recheck", "fix"], problem: { key: "setup.page.rerun.problem_app" }, links: { app: "http://homeassistant.local:8123/_my_redirect/supervisor_addon?addon=x" } });
     await down.settle();
-    expect(down.find("b-fix")).toBeUndefined();
-    expect(down.find("b-recheck")).toBeTruthy();
+    expect(down.find("b-fix")!.className).toContain("btn-ghost"); // another address, or the sign-in that starts the App
+    expect(down.find("b-recheck")!.className).toContain("btn-primary");
     expect(down.find("l-app")).toBeTruthy();
     expect(down.screen.textContent).toContain(down.catalog["setup.page.rerun.problem_app"]);
   });

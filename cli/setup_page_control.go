@@ -97,8 +97,8 @@ func (f *setupFlow) pageControl() int {
 	}
 	if f.pageLinkOffered() && linkOrigin() != "" {
 		ctl.Link = "offer"
-	} else if f.pageRerunning && f.cfg.Cloud.ready() {
-		ctl.Link = "on"
+	} else if f.pageRerunning && f.cfg.Cloud.ready() && f.cfg.RoutePolicy == routePolicyAutomatic {
+		ctl.Link = "on" // the fallback this row offers; other routes stay with `ha-nova server route`
 	}
 	var chat chatAppsOffer
 	chatOK := false
@@ -161,6 +161,9 @@ func (f *setupFlow) pageControl() int {
 			if name, _ := requestedServerSelection(); name == "" {
 				accepts = append(accepts, "server")
 			}
+			if len(f.pageNewClients) > 0 {
+				accepts = append(accepts, "clients")
+			}
 		}
 		action, err := p.wait(accepts...)
 		if err != nil {
@@ -172,6 +175,8 @@ func (f *setupFlow) pageControl() int {
 			f.pagePhones(&ctl)
 		case "server":
 			return f.pageAddServer()
+		case "clients":
+			return f.pageRerunAddClients()
 		case "phone":
 			if i := slices.IndexFunc(ctl.Phones, func(ph setupPagePhone) bool { return ph.ID == action.Value }); i >= 0 {
 				ctl.Phone, ctl.PhoneName, ctl.PhoneProblem = "waiting", ctl.Phones[i].Name, nil
@@ -352,18 +357,10 @@ func (f *setupFlow) pageAddLink() int {
 		f.pageNotes = append(f.pageNotes, setupPageText("setup.page.home.note_link_failed"))
 		return code
 	}
-	var markers [][]byte
-	if f.pageGeneration != nil {
-		uninstall, errU := readUninstallMarker(f.paths)
-		snapshot, errS := readSetupConfigSnapshot(f.paths)
-		if errU != nil || errS != nil {
-			return failed(1)
-		}
-		markers = [][]byte{f.pageGeneration, uninstall, snapshot}
-		if err := ensureSetupLifecycleCurrent(f.paths, markers...); err != nil {
-			printHumanErr("%s", err)
-			return failed(1)
-		}
+	markers, err := f.pageLifecycleMarkers()
+	if err != nil {
+		printHumanErr("%s", err)
+		return failed(1)
 	}
 	saved, err := loadConfig(f.paths)
 	if err != nil {
