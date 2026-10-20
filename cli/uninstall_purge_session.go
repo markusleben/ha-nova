@@ -142,6 +142,9 @@ func offerKeyringUnlockForPurge(paths runtimePaths) bool {
 		bufio.NewReader(os.Stdin), os.Stdout, keyringUnlockTrigger, &state,
 		setupSecureStorageRecoveryInitialAttempt,
 	)
+	if err != nil {
+		printHumanWarn("The keyring window didn't work: %s", err)
+	}
 	return err == nil && result == setupSecureStorageRecoveryRecovered
 }
 
@@ -158,8 +161,16 @@ func purgeRefusedForLockedKeyring(paths runtimePaths, yes bool, rerun string) bo
 	}
 	possible := keyringUnlockWindowPossible(yes)
 	opened := possible && offerKeyringUnlockForPurge(paths)
-	if opened && purgeKeyringLockedError(paths) == nil {
+	lockedErr := purgeKeyringLockedError(paths)
+	if lockedErr == nil {
 		return false
+	}
+	// Same relock contract as a purge that fails later: the next Link step
+	// must be unlock, not cleanup.
+	if err := withClientMutationLock(paths, func() error {
+		return resetVerifiedCloudStorageAfterPurgeRelock(paths, lockedErr)
+	}); err != nil {
+		printHumanWarn("Could not reset the Home Assistant Link storage check: %s", err)
 	}
 	switch {
 	case yes && keyringUnlockWindowPossible(false):

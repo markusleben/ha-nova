@@ -353,3 +353,43 @@ func TestGuidedUninstallUnlocksBeforeTheAppOffer(t *testing.T) {
 		})
 	}
 }
+
+// The early stop keeps the purge relock contract: a verified Link storage
+// hold is reset, so the next Link step is unlock, not cleanup.
+func TestPurgeLockedKeyringStopResetsLinkStorageProof(t *testing.T) {
+	paths, _ := lockedKeyringPurgeFixture(t)
+	stubKeyringUnlockWindow(t, false, "", func() {})
+	cfg, err := loadRawDefaultProfileConfig(paths.ConfigFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.Cloud = &cloudLifecycleMetadata{
+		State: cloudStateAuthorizing,
+		RecoveryHold: &cloudRecoveryHold{
+			Code:            cloudProblemSecureStorage,
+			Remediation:     cloudRemediationVerifyState,
+			StorageVerified: true,
+		},
+	}
+	if err := saveConfig(paths, cfg); err != nil {
+		t.Fatal(err)
+	}
+	store, err := NewOAuthSecretStore(newMemoryOAuthSecretBackend(), cfg.ProfileID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	previousStore := newCloudSecretStoreForCLI
+	newCloudSecretStoreForCLI = func(string) (OAuthSecretStore, error) { return store, nil }
+	t.Cleanup(func() { newCloudSecretStoreForCLI = previousStore })
+
+	exitCode, output := captureCommandOutput(t, func() int {
+		return runUninstall(paths, []string{"--yes", "--purge"})
+	})
+	if exitCode != 1 || !strings.Contains(output, "Nothing was changed.") {
+		t.Fatalf("exit = %d\n%s", exitCode, output)
+	}
+	saved, err := loadRawDefaultProfileConfig(paths.ConfigFile)
+	if err != nil || saved.Cloud == nil || saved.Cloud.RecoveryHold == nil || saved.Cloud.RecoveryHold.StorageVerified {
+		t.Fatalf("storage proof kept: %+v (err %v)", saved.Cloud, err)
+	}
+}
