@@ -92,7 +92,7 @@ write flow renders outside this system:
 | Grouped change set (non-destructive, one logical task) | Preview Cards without options → one final action block → Result Card (`../ha-nova/grouped-change-set.md`) |
 | Snapshot restore (`../ha-nova/config-snapshots.md`) | Preview Card → Result Card |
 | Post-write test offer | Test Plan Card |
-| Runtime action (service call, experimental write) | CLI fast path (`tier: ordinary`): no preview, the three-line verb result (`output-rules.md` → Verb Results). Otherwise a preview closing with the plan's `say` (high-consequence actions escalate to the one-time code — context skill → Confirmation Tiers) → Result Card (verb routes: the three-line verb result) |
+| Runtime action (service call, experimental write) | CLI fast path (`tier: ordinary`): no preview, the three-line verb result (`output-rules.md` → Verb Results). Otherwise a preview closing with the plan's `say` (high-consequence actions escalate to the typed tier — context skill → Confirmation Tiers) → Result Card (verb routes: the three-line verb result) |
 
 ## Report Shape (Read & Analysis Results)
 

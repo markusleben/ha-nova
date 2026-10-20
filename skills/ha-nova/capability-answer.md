@@ -68,10 +68,12 @@ lines:
 - Nothing is written without a preview you confirm first; confirmations bind
   to exactly what was shown (secret values stay masked and bind to the
   stored value behind the mask).
-- Deleting an automation, scene, helper, dashboard, or similar config needs
-  a four-digit one-time code from HA NOVA — a plain "yes" is never enough
-  there; the same kind of code gates high-consequence actions like unlocking doors or opening the
-  garage.
+- Deleting an automation, scene, helper, dashboard, or similar config, and
+  big actions like unlocking a door or opening the garage, need you to
+  confirm yourself — a plain "yes" in chat is never enough. Most of the time
+  a window opens on your computer (or your linked phone asks): confirm
+  there. Only when neither can ask, you type a four-digit one-time code from
+  HA NOVA.
 - Automation, script, dashboard-content, and storage-helper updates keep a revert path; deleted
   items in snapshot-covered families restore from automatic config snapshots.
 - Reads are bounded; pairing and authentication secrets never appear in

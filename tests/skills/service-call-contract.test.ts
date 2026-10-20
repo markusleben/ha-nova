@@ -226,7 +226,7 @@ describe("service call contract", () => {
 
     it("feature-gates lock.open and elevates access-granting actions", () => {
       expect(tierRules).toContain('name == "open" && features&1 == 0');
-      expect(skillDoc).toContain("Unlocking or opening a lock, disarming an alarm panel, and opening a garage door, gate, or entry-door cover take the code");
+      expect(skillDoc).toContain("Unlocking or opening a lock, disarming an alarm panel, and opening a garage door, gate, or entry-door cover take the typed tier");
       expect(skillDoc).toContain("Never auto-retry a security action.");
       expect(contextSkill).toContain("unlocking or opening locks");
       expect(fallbackSkill).toContain("| Alarm / lock runtime control | Covered | service-call |");

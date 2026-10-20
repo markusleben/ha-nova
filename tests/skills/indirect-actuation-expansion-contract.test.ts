@@ -64,7 +64,7 @@ describe("indirect actuation and tier classification (#513)", () => {
     it("binds the tier to the performed action, not the entity or the service", () => {
       // Entity-scoped wording would make LOCKING a door high-consequence.
       expect(skillDoc).toContain(
-        "take the code — also when a scene, script, or automation run reaches one. Locking, closing, and arming stay ordinary; the CLI's tier wins.",
+        "take the typed tier — also when a scene, script, or automation run reaches one. Locking, closing, and arming stay ordinary; the CLI's tier wins.",
       );
       expect(contextSkill).toContain("The tier follows the action that ends up performed");
       expect(contextSkill).toContain("Locking, closing, and arming stay ordinary");
