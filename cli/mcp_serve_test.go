@@ -360,6 +360,7 @@ func TestServeCommandNeedsExplicitConfig(t *testing.T) {
 		"short secret":  {"--listen", "127.0.0.1:0", "--data-dir", data, "--secret-file", short},
 		"missing file":  {"--listen", "127.0.0.1:0", "--data-dir", data, "--secret-file", filepath.Join(dir, "none")},
 		"wait too long": {"--listen", "127.0.0.1:0", "--data-dir", data, "--secret-file", good, "--confirm-wait", "5m"},
+		"negative rate": {"--listen", "127.0.0.1:0", "--data-dir", data, "--secret-file", good, "--rate-limit", "-1"},
 	} {
 		if exit := runServeCommand(runtimePaths{}, args); exit != 1 {
 			t.Errorf("%s: exit %d", name, exit)

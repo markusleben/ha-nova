@@ -10,11 +10,12 @@ Chat app → Home Assistant OAuth → integration view `/api/ha_nova/mcp` (pure 
 
 ## Command
 
-`ha-nova serve --listen <host:port> --data-dir <dir> --secret-file <file> [--confirm-wait 25s] [--server <name>]`
+`ha-nova serve --listen <host:port> --data-dir <dir> --secret-file <file> [--confirm-wait 25s] [--rate-limit <n>] [--server <name>]`
 
 - `--listen`: an explicit host is required (the App passes `0.0.0.0:<port>`, never mapped to the host).
 - `--secret-file`: exactly 64 lowercase hex characters (256 bits), mode `0600`. Read once at start.
 - `--confirm-wait`: 1 s to 2 min; how long one `ha_apply` waits for a phone tap.
+- `--rate-limit`: at most n requests per minute per Home Assistant user (fixed window), then `429` with a JSON-RPC error (code `-32001`, "Wait a minute"); `0` or absent: no limit (the App sets none). Used by the hosted demo (`docs/work/2026-10-20-demo-add-to-claude-spec.md`).
 
 ## HTTP
 

@@ -43,7 +43,7 @@ describe("agent scenario regressions (2026-10-15)", () => {
     const rules = flat("skills/ha-nova/output-rules.md");
     expect(rules).toContain("## Confirmation Reasons");
     // The CLI writes the reason (`say`); the agent relays it and adds none.
-    expect(rules).toContain("A plan's `say` is the reason, localized (names, state values, code literal); add none of your own.");
+    expect(rules).toContain("A plan's `say` is the reason, localized (names, code literal; states plain); add none of your own.");
     // Suite r101: agents shortened `say` and dropped the chat-code note
     // (4 of 18 runs); the Safety Core now carries "in full" to every skill.
     expect(readFileSync("docs/reference/skill-architecture.md", "utf8")).toContain(

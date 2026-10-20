@@ -19,11 +19,11 @@ describe("hosted demo privacy", () => {
     expect(reset).toContain("if ((ts < $(date +%s) - 5 * 86400)); then");
   });
 
-  it("hands Home Assistant and the relay only the truncated client IPv4", () => {
+  it("hands Home Assistant (also on the chat-app path) and the relay only the truncated client IPv4", () => {
     const site = caddy.slice(caddy.indexOf("{$DEMO_DOMAIN} {"), caddy.indexOf("http://:18123"));
     const proxies = site.match(/reverse_proxy \S+ \{[^}]*/g) ?? [];
-    expect(site.split("reverse_proxy ").length - 1).toBe(2);
-    expect(proxies).toHaveLength(2);
+    expect(site.split("reverse_proxy ").length - 1).toBe(3);
+    expect(proxies).toHaveLength(3);
     // [^}]* stops at the placeholder's closing brace.
     for (const proxy of proxies) expect(proxy).toContain("header_up X-Forwarded-For {masked_client_ip");
     const map = caddy.match(/map \{client_ip\} \{masked_client_ip\} \{\s*~(\S+) "([^"]+)"\s*default 192\.0\.2\.0\s*\}/);

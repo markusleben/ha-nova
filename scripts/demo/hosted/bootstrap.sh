@@ -194,7 +194,14 @@ if ! docker image inspect "$relay" > /dev/null 2>&1; then
     --build-arg "RELAY_VERSION=$(sed -nE 's/^version:[[:space:]]*"?([^"]+)"?/\1/p' /opt/ha-nova/nova/config.yaml | head -1)" \
     --label "$KEEP_LABEL" -t "$relay" /opt/ha-nova/nova > /dev/null
 fi
-# Only now: until this ref's relay image exists, resets keep the previous ref.
+step "chat bridge image for this ref (Add to Claude; Go build once, a few minutes on 1 GB)"
+bridge="$(bridge_image "$REF")"
+if ! docker image inspect "$bridge" > /dev/null 2>&1; then
+  docker build -q -f "$HERE/Dockerfile.bridge" \
+    --build-arg "GO_IMAGE=$GO_IMAGE" --build-arg "NODE_IMAGE=$NODE_IMAGE" \
+    --label "$KEEP_LABEL" -t "$bridge" /opt/ha-nova > /dev/null
+fi
+# Only now: until this ref's images exist, resets keep the previous ref.
 printf 'DEMO_DOMAIN=%s\nDEMO_REF=%s\nABUSE_CONTACT=%s\n' "$DOMAIN" "$REF" "$ABUSE" > /etc/ha-nova-demo.env
 chmod 0644 /etc/ha-nova-demo.env
 exec 9>&- # resets may run again (reset.sh below takes the lock itself)
@@ -256,7 +263,7 @@ After=docker.service
 [Service]
 Type=oneshot
 ExecStart=/bin/bash /opt/ha-nova/scripts/demo/hosted/guard.sh
-TimeoutStartSec=50s
+TimeoutStartSec=110s
 UNIT
 cat > /etc/systemd/system/ha-nova-demo-guard.timer << 'UNIT'
 [Unit]

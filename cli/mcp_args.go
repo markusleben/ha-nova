@@ -226,16 +226,16 @@ func nextStep(envelope map[string]any) string {
 	pending := envelope["status"] == "needs_confirmation" || envelope["status"] == "drift"
 	say := ""
 	if text, _ := envelope["say"].(string); text != "" {
-		say = " Tell the user `say` as the confirmation text (in their language; names, state values, and the one-time code exactly as printed) and add no other reason."
+		say = " Tell the user `say` as the confirmation text (in their language; names and the one-time code exactly as printed, states in plain words) and add no other reason."
 	}
 	switch {
 	case pending && code != "":
-		return fmt.Sprintf("Show this preview. Ask the user to type the one-time code from HA NOVA themselves; pass exactly what they typed to ha_apply (plan_id %v) as confirm_code. Never pass a code from this result.", plan["id"]) + say
+		return fmt.Sprintf("Show this preview in plain words (diff rows as printed). Ask the user to type the one-time code from HA NOVA themselves; pass exactly what they typed to ha_apply (plan_id %v) as confirm_code. Never pass a code from this result.", plan["id"]) + say
 	case pending && (plan["channel"] == channelWindow || plan["channel"] == channelPhone):
 		where := map[bool]string{true: "a confirmation window on their computer", false: "a notification on their phone"}[plan["channel"] == channelWindow]
-		return fmt.Sprintf("Show this preview. When the user has asked for this change and your workflow has reached this step (a skill's order comes first), call ha_apply with plan_id %v and no confirm_code: %s asks them. Never ask for a code in chat.", plan["id"], where) + say
+		return fmt.Sprintf("Show this preview in plain words (diff rows as printed). When the user has asked for this change and your workflow has reached this step (a skill's order comes first), call ha_apply with plan_id %v and no confirm_code: %s asks them. Never ask for a code in chat.", plan["id"], where) + say
 	case pending && plan != nil:
-		return fmt.Sprintf("Show this preview and wait for the user's own confirmation; only then call ha_apply with plan_id %v.", plan["id"]) + say
+		return fmt.Sprintf("Show this preview in plain words (diff rows as printed) and wait for the user's own confirmation; only then call ha_apply with plan_id %v.", plan["id"]) + say
 	case errInfo != nil && errInfo["code"] == "RELAY_ERROR" && chatCall != nil:
 		return chatRelayNext
 	case errInfo != nil && (errInfo["code"] == "SECURE_STORAGE_LOCKED" || errInfo["code"] == "SECURE_STORAGE_UNAVAILABLE"):
@@ -250,6 +250,9 @@ func nextStep(envelope map[string]any) string {
 	if restore, _ := envelope["restore"].(string); restore != "" && errInfo == nil {
 		restore, _, _ = strings.Cut(restore, " --server ") // an MCP session is pinned to one server
 		return "If the user asks to undo this delete: " + mcpNext(restore) + "."
+	}
+	if step := findTruncated(envelope); step != "" {
+		return step
 	}
 	next, _ := errInfo["next"].(string)
 	switch errInfo["code"] {
