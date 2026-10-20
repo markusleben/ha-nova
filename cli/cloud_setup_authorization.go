@@ -177,7 +177,9 @@ func authorizeOrRefreshCloud(
 		return "", OAuthSecretEnvelope{}, err
 	}
 	if request.PauseOAuthAuthorization == nil ||
-		request.ResumeOAuthAuthorization == nil {
+		request.ResumeOAuthAuthorization == nil ||
+		request.PersistPendingSignIn == nil ||
+		request.StartSignInCodeExchange == nil {
 		return "", OAuthSecretEnvelope{}, newCloudError(
 			CloudErrInvalidInput,
 			"prepare OAuth mutation-lock handoff",
@@ -211,7 +213,7 @@ func authorizeOrRefreshCloud(
 			OAuthClientID:        preparation.ClientID,
 			CredentialGeneration: generation,
 		}
-		if err := request.PersistPendingMetadata(metadata); err != nil {
+		if err := request.PersistPendingSignIn(metadata); err != nil {
 			return err
 		}
 		if previousHook != nil {
@@ -267,6 +269,10 @@ func authorizeOrRefreshCloud(
 	)
 	if err != nil {
 		return "", OAuthSecretEnvelope{}, err
+	}
+	// Lock held, config unchanged: save Pending before a token can exist.
+	if err := request.StartSignInCodeExchange(); err != nil {
+		return "", OAuthSecretEnvelope{}, fmt.Errorf("save sign-in progress; the authorization code was not exchanged: %w", err)
 	}
 	token, err := exchangeCloudAuthorizationCodeForSetup(
 		ctx,

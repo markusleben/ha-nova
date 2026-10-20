@@ -115,6 +115,11 @@ func runUpdate(paths runtimePaths, args []string) int {
 		}
 	}
 
+	if !explicitTarget {
+		for _, line := range backToStableNotice(currentVersion, targetVersion) {
+			printHumanInfo("%s", line)
+		}
+	}
 	stageRoot, err := stageBundle(paths, targetVersion)
 	if err != nil {
 		printHumanErr("update failed: %s", err)

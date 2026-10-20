@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"strings"
 )
 
 type cloudProblemCode string
@@ -46,6 +47,7 @@ type cloudProblem struct {
 	Remediation cloudRemediation
 	Detail      string
 	Cause       error
+	linkClient  string // the Link sign-in's address, when a stop knows it
 }
 
 func (p *cloudProblem) Error() string {
@@ -53,6 +55,11 @@ func (p *cloudProblem) Error() string {
 		return ""
 	}
 	if p.Detail != "" {
+		// Later lines are next steps: the codes go last, on their own line,
+		// so a command can be copied as is.
+		if strings.Contains(p.Detail, "\n") {
+			return fmt.Sprintf("Home Assistant Link: %s\n(code %s; next: %s)", p.Detail, p.Code, p.Remediation)
+		}
 		return fmt.Sprintf("Home Assistant Link: %s (code %s; next: %s)", p.Detail, p.Code, p.Remediation)
 	}
 	return fmt.Sprintf("Home Assistant Link failed (code %s; next: %s)", p.Code, p.Remediation)

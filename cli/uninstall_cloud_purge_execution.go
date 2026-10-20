@@ -161,6 +161,8 @@ func executeCloudPurgePlans(
 				"Home Assistant Link authorization (server %q)",
 				execution.target.profileName,
 			))
+		} else if execution.authorizationPlan.unfinishedSignIn {
+			report.addNote(unfinishedSignInRemovedText)
 		}
 	}
 	return nil

@@ -17,32 +17,74 @@ func newCloudSetupRequest(
 		}
 		return rejectCloudSetupDuringDeviceRevocation(*cfg)
 	}
+	persistPending := func(metadata cloudConnectionMetadata) error {
+		if err := guardDeviceRevocation(); err != nil {
+			return err
+		}
+		if err := validateCloudConnectionMetadata(metadata); err != nil {
+			return fmt.Errorf("invalid pending Cloud metadata: %w", err)
+		}
+		if cfg.Cloud == nil {
+			return errors.New("Cloud lifecycle is missing")
+		}
+		if cfg.Cloud.Pending != nil &&
+			cfg.Cloud.Pending.CredentialGeneration != metadata.CredentialGeneration {
+			return errors.New("a different pending Cloud credential already exists")
+		}
+		if cfg.Cloud.Pending == nil &&
+			cfg.Cloud.State != cloudStateAuthorizing {
+			return fmt.Errorf(
+				"cannot add pending Cloud metadata in lifecycle state %q",
+				cfg.Cloud.State,
+			)
+		}
+		previous := cfg.Cloud.Pending
+		cfg.Cloud.Pending = &metadata
+		if err := save(*cfg); err != nil {
+			cfg.Cloud.Pending = previous
+			return err
+		}
+		return nil
+	}
+	// The browser step's metadata. Pending means "a code exchange may have
+	// run", so it is saved only right before the exchange, with the lock held
+	// again and config.json unchanged since the pause. A sign-in left in the
+	// browser therefore leaves no Pending and nothing to revoke, for every
+	// version that reads the config. With a Pending entry already there (an
+	// older version, or an exchange that may have run) the sign-in is saved at
+	// once, as before, and cleanup keeps its full check.
+	var signIn *cloudConnectionMetadata
 	request := cloudSetupRequest{
-		ProfileName: activeServerProfile(),
-		Config:      *cfg,
-		PersistPendingMetadata: func(metadata cloudConnectionMetadata) error {
+		ProfileName:            activeServerProfile(),
+		Config:                 *cfg,
+		PersistPendingMetadata: persistPending,
+		PersistPendingSignIn: func(metadata cloudConnectionMetadata) error {
+			if cfg.Cloud == nil || cfg.Cloud.Pending != nil ||
+				cfg.Cloud.State != cloudStateAuthorizing {
+				signIn = nil
+				return persistPending(metadata)
+			}
 			if err := guardDeviceRevocation(); err != nil {
 				return err
 			}
 			if err := validateCloudConnectionMetadata(metadata); err != nil {
 				return fmt.Errorf("invalid pending Cloud metadata: %w", err)
 			}
-			if cfg.Cloud == nil {
-				return errors.New("Cloud lifecycle is missing")
+			signIn = &metadata
+			return nil
+		},
+		StartSignInCodeExchange: func() error {
+			if signIn == nil {
+				// PersistPendingSignIn saved it at once; never exchange
+				// without a saved Pending.
+				if cfg.Cloud == nil || cfg.Cloud.Pending == nil {
+					return errors.New("the sign-in was not saved before the code exchange")
+				}
+				return nil
 			}
-			if cfg.Cloud.Pending != nil &&
-				cfg.Cloud.Pending.CredentialGeneration != metadata.CredentialGeneration {
-				return errors.New("a different pending Cloud credential already exists")
-			}
-			if cfg.Cloud.Pending == nil &&
-				cfg.Cloud.State != cloudStateAuthorizing {
-				return fmt.Errorf(
-					"cannot add pending Cloud metadata in lifecycle state %q",
-					cfg.Cloud.State,
-				)
-			}
-			cfg.Cloud.Pending = &metadata
-			return save(*cfg)
+			metadata := *signIn
+			signIn = nil
+			return persistPending(metadata)
 		},
 		ClearPendingAuthorization: func(generation string) error {
 			if err := guardDeviceRevocation(); err != nil {

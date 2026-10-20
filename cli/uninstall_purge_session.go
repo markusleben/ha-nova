@@ -352,6 +352,9 @@ func keyringRemovalError(action string, err error) error {
 // that wrap it ("failed to validate device credential cleanup: …") mean
 // nothing to the user.
 func uninstallErrorText(err error) string {
+	if text, ok := cloudAuthorizationStopText(err); ok {
+		return text
+	}
 	var keyring *keyringRemovalProblem
 	if !errors.As(err, &keyring) {
 		return err.Error()
@@ -387,7 +390,7 @@ func purgeReadyForWindowsHandoff(paths runtimePaths, mode uninstallMode, teardow
 		return true
 	}
 	if err := validatePurgeBeforeWindowsHandoff(paths); err != nil {
-		printHumanErr("The full purge can't start: %s", err)
+		printHumanErr("The full purge can't start: %s", uninstallErrorText(err))
 		printHumanWarn("The uninstall stopped before the background step. Fix the problem above, then run: %s", rerun)
 		return false
 	}

@@ -243,3 +243,18 @@ func humanNoticeFromUpdateCheckResult(result updateCheckResult, quiet bool) huma
 func checkForUpdate(paths runtimePaths, quiet bool) humanNotice {
 	return humanNoticeFromUpdateCheckResult(buildUpdateCheckResult(paths), quiet)
 }
+
+// backToStableNotice: a plain `ha-nova update` on a test release installs the
+// older stable release (docs/releasing.md). Say so, and how to get back.
+func backToStableNotice(current, target string) []string {
+	if !isRCVersion(current) || isRCVersion(target) {
+		return nil
+	}
+	if cmp, err := compareReleaseVersions(current, target); err != nil || cmp <= 0 {
+		return nil
+	}
+	return []string{
+		fmt.Sprintf("You have the test release v%s. This goes back to the stable release v%s.", current, target),
+		fmt.Sprintf("To get the test release again later, run: ha-nova update --version v%s", current),
+	}
+}

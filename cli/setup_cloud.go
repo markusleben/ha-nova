@@ -14,6 +14,8 @@ type cloudSetupRequest struct {
 	ProfileName                string
 	Config                     runtimeConfig
 	PersistPendingMetadata     func(cloudConnectionMetadata) error
+	PersistPendingSignIn       func(cloudConnectionMetadata) error
+	StartSignInCodeExchange    func() error
 	ClearPendingAuthorization  func(string) error
 	AdvancePendingLifecycle    func(cloudLifecycleState) error
 	PauseOAuthAuthorization    func() error
