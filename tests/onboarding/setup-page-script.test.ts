@@ -229,6 +229,16 @@ describe("setup page: Add to Claude", () => {
     expect(p.find("b-chat-copy")).toBeTruthy();
   });
 
+  it("says what's next once on, with one primary button and no German menu names", async () => {
+    const p = page(control({ state: "on", url, claude_link: link }));
+    await p.settle();
+    expect(p.screen.textContent).toContain(p.catalog["setup.chat.on_next"]);
+    expect(p.find("l-chat-claude")!.className).toContain("btn-ghost");
+    expect(p.find("b-chat-how-claude")).toBeTruthy();
+    expect(p.find("b-chat-how-chatgpt")).toBeTruthy();
+    expect(p.screen.textContent).not.toMatch(/German|ha-nova chat-apps/);
+  });
+
   it("never makes a button of a link that doesn't go to claude.ai", async () => {
     for (const claude_link of ["https://claude.ai.evil.com/x", "javascript:alert(1)", ""]) {
       const p = page(control({ state: "on", url, claude_link }));
@@ -319,13 +329,13 @@ describe("setup page re-run (G1)", () => {
     await p.settle();
     expect(p.find("b-chat-switch")!.attributes["aria-checked"]).toBe("true");
     expect(p.find("l-chat-claude")!.attributes.href).toBe(claude_link);
-    expect(p.find("b-chat-how")).toBeTruthy();
+    expect(p.find("b-chat-how-claude")).toBeTruthy();
     expect(p.screen.textContent).not.toContain("open NOVA in Home Assistant, then Chat apps");
     expect(p.screen.textContent).not.toContain(later);
     p.find("b-chat-switch")!.dispatch("click");
     expect(p.find("b-chat-switch")!.attributes["aria-checked"]).toBe("false");
     expect(p.find("l-chat-claude")).toBeUndefined();
-    expect(p.screen.textContent).toContain(later);
+    expect(p.screen.textContent).toContain(p.catalog["setup.chat.off_later"]);
     p.find("b-finish")!.dispatch("click");
     await p.settle();
     expect(p.posts).toEqual([{ action: "finish", value: "rule,chat_off" }]);
@@ -338,7 +348,7 @@ describe("setup page re-run (G1)", () => {
     await p.settle();
     p.find("b-chat-switch")!.dispatch("click");
     expect(p.find("b-chat-switch")!.attributes["aria-checked"]).toBe("true");
-    expect(p.screen.textContent).toContain(later);
+    expect(p.screen.textContent).toContain(p.catalog["setup.chat.on_later"]);
     p.find("b-finish")!.dispatch("click");
     await p.settle(3);
     expect(p.posts).toEqual([{ action: "finish", value: "rule,chat_on" }]);
@@ -346,19 +356,34 @@ describe("setup page re-run (G1)", () => {
     await p.settle();
     expect(p.find("b-chat-on")).toBeTruthy(); // the consent, open
     expect(p.screen.textContent).toContain("iPhone");
-    expect(p.find("b-finish")!.attributes.disabled).toBe(""); // Done waits for its answer
+    expect(p.find("b-finish")!.attributes.disabled).toBe(""); // Done waits for its answer, and says why
+    expect(p.screen.textContent).toContain(p.catalog["setup.chat.answer_first"]);
+  });
+
+  it("shows a failed sign-in even when no poll saw it run (Codex review)", async () => {
+    const failed = { ...working, control: { ...working.control, chat: { state: "page_off", attempt: 1, problem: { key: "setup.chat.problem_signin" } } } };
+    const p = page(working, failed);
+    await p.settle();
+    p.find("b-chat-switch")!.dispatch("click");
+    p.find("b-finish")!.dispatch("click");
+    await p.settle();
+    expect(p.find("b-chat-switch")!.attributes["aria-checked"]).toBe("false");
+    expect(p.screen.textContent).toContain(p.catalog["setup.chat.problem_signin"]);
   });
 
   it("says a switch's sign-in waits for the button", async () => {
     const first = page({ screen: "control", accepts: ["finish"], control: { window: true, phone: "none", link: "offer" } });
     await first.settle();
+    expect(first.find("b-finish")!.textContent).toBe("Finish setup");
     first.find("b-link")!.dispatch("click");
     expect(first.screen.textContent).toContain("You sign in to Home Assistant when you click Finish setup.");
+    expect(first.find("b-finish")!.textContent).toBe(first.catalog["setup.page.control.finish_signin"]);
     const again = page({ ...working, control: { ...working.control, link: "offer" } });
     await again.settle();
     expect(again.screen.textContent).not.toContain(later);
     again.find("b-link")!.dispatch("click");
     expect(again.screen.textContent).toContain(later);
+    expect(again.find("b-finish")!.textContent).toBe(again.catalog["setup.page.rerun.done_signin"]);
   });
 
   it("offers an AI assistant found since, with a button", async () => {

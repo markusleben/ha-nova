@@ -101,7 +101,7 @@ func TestSetupPageRerunChatSignInFailsKeepsThemOff(t *testing.T) {
 	page.waitFor("the re-run screen", accepting("finish"))
 	page.click("finish", "chat_on")
 	back := page.waitFor("the re-run screen again", accepting("finish"))
-	if chat := back.Control.Chat; chat.State != "page_off" || chat.Problem == nil || chat.Problem.Key != "setup.chat.problem_signin" || *signIns != 1 || len(app.posted()) != 0 {
+	if chat := back.Control.Chat; chat.State != "page_off" || chat.Problem == nil || chat.Problem.Key != "setup.chat.problem_signin" || chat.Attempt != 1 || *signIns != 1 || len(app.posted()) != 0 {
 		t.Fatalf("chat row = %+v sign-ins %d posted %v", chat, *signIns, app.posted())
 	}
 	page.click("finish", "")
@@ -123,5 +123,15 @@ func TestPageFinishChoices(t *testing.T) {
 		if _, ok := pageFinishChoices(value); ok {
 			t.Errorf("%q was taken", value)
 		}
+	}
+}
+
+// The connector note shows once, also when the row is read again.
+func TestPageChatNoteOnce(t *testing.T) {
+	f := &setupFlow{}
+	f.pageChatNote("https://a.example/api/ha_nova/mcp")
+	f.pageChatNote("https://b.example/api/ha_nova/mcp")
+	if len(f.pageNotes) != 1 || f.pageNotes[0].Args["url"] != "https://b.example/api/ha_nova/mcp" {
+		t.Fatalf("notes = %+v", f.pageNotes)
 	}
 }

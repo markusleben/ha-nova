@@ -84,8 +84,10 @@ func (f *setupFlow) pageChatOn(c *setupPageChat, offer *chatAppsOffer, show func
 	f.pageChatNote(offer.url)
 }
 
-// pageChatNote: step 4 repeats the connector address, with Add to Claude.
+// pageChatNote: step 4 repeats the connector address, with Add to Claude;
+// once, also when the row is read again (a re-run's "Set up … too").
 func (f *setupFlow) pageChatNote(url string) {
+	f.pageNotes = slices.DeleteFunc(f.pageNotes, func(n *setupPageMsg) bool { return n.Key == "setup.page.home.note_chat" })
 	f.pageNotes = append(f.pageNotes, setupPageText("setup.page.home.note_chat", "url", url))
 	f.pageChatLink = claudeConnectorLink(url)
 }
@@ -95,6 +97,10 @@ func (f *setupFlow) pageChatNote(url string) {
 // it goes to the App as the owner's chat-app phone (the owner taps once).
 func (f *setupFlow) pageChatPhone(c *setupPageChat, offer *chatAppsOffer) {
 	if c == nil {
+		return
+	}
+	if c.State == "page_on" { // a re-run: no owner session to hand it over with
+		c.Problem = setupPageText("setup.chat.problem_phone")
 		return
 	}
 	if c.State == "on" {
@@ -141,16 +147,23 @@ func (f *setupFlow) pageRerunChatOn(c *setupPageChat, offer *chatAppsOffer, link
 	c.State, c.Problem, c.URL, c.ClaudeLink = "signin", nil, "", ""
 	show()
 	out := f.page.text.out // the sign-in's link, as the Link offer's
-	ok := chatAppsSignInOK(out, f.cfg)
-	if ok {
-		var session haSignInSession
-		if session, ok = chatAppsOwnerSession(out, f.cfg); ok {
-			setupOwnerIngress, setupSignedInUser = session.ingress, session.user.ID
-			*offer, ok = readChatAppsOffer(setupOwnerIngress, f.paths, linkOrigin)
-		}
+	failed := func(problem *setupPageMsg) {
+		c.State, c.Problem = "page_off", problem
+		c.Attempt++
 	}
+	if !chatAppsSignInOK(out, f.cfg) {
+		printHumanErr("Turning chat apps on needs a sign-in in a browser on this computer. Use NOVA in Home Assistant instead: open NOVA in the sidebar, then Chat apps.")
+		failed(setupPageText("setup.chat.problem_signin"))
+		return
+	}
+	session, ok := chatAppsOwnerSession(out, f.cfg)
 	if !ok {
-		c.State, c.Problem = "page_off", setupPageText("setup.chat.problem_signin")
+		failed(setupPageText("setup.chat.problem_signin"))
+		return
+	}
+	setupOwnerIngress, setupSignedInUser = session.ingress, session.user.ID
+	if *offer, ok = readChatAppsOffer(setupOwnerIngress, f.paths, linkOrigin); !ok {
+		failed(setupPageText("setup.chat.problem_app"))
 		return
 	}
 	*c = *f.pageChatRow(offer)
@@ -163,9 +176,10 @@ func (f *setupFlow) pageRerunChatOn(c *setupPageChat, offer *chatAppsOffer, link
 func (f *setupFlow) pageRerunChatOff(c *setupPageChat, show func()) {
 	c.State, c.Problem, c.URL, c.ClaudeLink = "signin", nil, "", ""
 	show()
+	c.State = "page_off"
 	note := setupPageText("setup.page.home.note_chat_off")
 	if chatAppsOff(f.page.text.out, f.paths, f.cfg) != 0 {
-		note = setupPageText("setup.page.home.note_chat_off_failed")
+		c.State, note = "page_on", setupPageText("setup.page.home.note_chat_off_failed")
 	}
 	f.pageNotes = append(f.pageNotes, note)
 }

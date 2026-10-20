@@ -222,6 +222,7 @@ func (f *setupFlow) pageRerunChat(linkOrigin func() string) *setupPageChat {
 // the generation setup completed with.
 func (f *setupFlow) pageAddServer() int {
 	f.page.handover()
+	setupOwnerIngress, setupSignedInUser = nil, "" // a chat-app sign-in here was for this home only
 	markers, err := f.pageLifecycleMarkers()
 	if err != nil {
 		printHumanErr("%s", err)

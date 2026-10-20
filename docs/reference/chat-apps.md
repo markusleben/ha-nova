@@ -18,7 +18,7 @@ With chat apps on, you can ask about your home and change it from Claude or Chat
 You can turn it on in either place:
 
 - **During setup:** on "You stay in control", switch on "Use HA NOVA in Claude and ChatGPT". The page explains what happens; click "Turn on and restart Home Assistant" (just "Turn on" when Home Assistant needs no restart).
-- **Later:** open NOVA in the Home Assistant sidebar, then Chat apps, then "Turn on chat apps".
+- **Later:** open NOVA in the Home Assistant sidebar, then Chat apps, then "Turn on chat apps". Or run `ha-nova setup` again and turn on the switch: when you click Done, you sign in to Home Assistant, then the page asks before it turns them on. Or run `ha-nova chat-apps on`.
 
 The first time, Home Assistant restarts once, because it loads new parts only when it starts. This usually takes under a minute, longer on small devices. Setup waits for the restart and then shows an "Add to Claude" button and your connector address: your Home Assistant Link address (or your own HTTPS address) followed by `/api/ha_nova/mcp`, for example `https://abc123.ui.nabu.casa/api/ha_nova/mcp` or `https://home.example.com/api/ha_nova/mcp`. Without either address, setup says so in one line instead of the switch. NOVA in Home Assistant and `ha-nova chat-apps status` show both too. Later, turning chat apps on restarts Home Assistant only when it isn't running HA NOVA, for example when you turned chat apps off and Home Assistant restarted since.
 
@@ -44,7 +44,7 @@ Claude may ask again after an HA NOVA update, or now and then in a new chat. Tha
 
 ## Connect ChatGPT (on the web)
 
-ChatGPT has no button that fills this in, so you paste the address. Menu names in German are in brackets.
+ChatGPT has no button that fills this in, so you paste the address. It worked with ChatGPT Pro in our test; your plan's rules apply. Menu names in German are in brackets.
 
 1. In ChatGPT on the web, open Plugins (chatgpt.com/plugins), choose +, then "Add custom MCP server" ("Benutzerdefinierten MCP-Server hinzufügen").
 2. Name it HA NOVA and paste the address under "Connection" ("Verbindung"). Pick OAuth, tick "I understand and want to continue", then choose "Create as a plugin" ("Als Plugin erstellen").
@@ -70,7 +70,7 @@ Menu names in Claude and ChatGPT change now and then; look for "connector", "plu
 
 ## Turn it off
 
-Open NOVA in Home Assistant, then Chat apps, then "Turn off chat apps". Or run `ha-nova chat-apps off` on your computer. It takes effect at once; Home Assistant doesn't restart. HA NOVA stops the chat-app connection, signs its own access out, and removes the parts it added to Home Assistant. It finds them in Home Assistant itself, so this also works after a backup restore. Your choices on the NOVA page (phone, codes, read only) stay for the next time.
+Open NOVA in Home Assistant, then Chat apps, then "Turn off chat apps". Or run `ha-nova chat-apps off` on your computer, or run `ha-nova setup` again, turn off the switch, and click Done (you sign in to Home Assistant then). It takes effect at once; Home Assistant doesn't restart. HA NOVA stops the chat-app connection, signs its own access out, and removes the parts it added to Home Assistant. It finds them in Home Assistant itself, so this also works after a backup restore. Your choices on the NOVA page (phone, codes, read only) stay for the next time.
 
 Claude or ChatGPT hold a Home Assistant sign-in for your account that works for all of Home Assistant, not only HA NOVA, and turning chat apps off doesn't end it. To sign them out of Home Assistant, open your Home Assistant profile, then Security, and remove their entries under refresh tokens.
 

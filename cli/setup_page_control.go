@@ -39,6 +39,7 @@ type setupPageControl struct {
 type setupPageChat struct {
 	State      string         `json:"state"`                 // offer, run, on, expired (the owner session ran out), noaddress (no Link, no public HTTPS address), page_on/page_off (a re-run: no owner sign-in yet, Done applies the switch), signin (Done's owner sign-in runs)
 	Ask        bool           `json:"ask,omitempty"`         // offer after Done's sign-in: the page opens the consent
+	Attempt    int            `json:"attempt,omitempty"`     // page_off: Done's sign-ins that failed, so the page resets its switch even when it never saw signin
 	Rows       []setupPageRow `json:"rows,omitempty"`        // while run (and after): on, restart, ready
 	URL        string         `json:"url,omitempty"`         // the connector address, once on
 	ClaudeLink string         `json:"claude_link,omitempty"` // Add to Claude (claudeConnectorLink), once on
@@ -100,16 +101,17 @@ func (f *setupFlow) pageControl() int {
 	} else if f.pageRerunning && f.cfg.Cloud.ready() && f.cfg.RoutePolicy == routePolicyAutomatic {
 		ctl.Link = "on" // the fallback this row offers; other routes stay with `ha-nova server route`
 	}
+	chatOrigin := func() string { return chatAppsLinkOrigin(f.cfg, linkOrigin()) } // as `ha-nova chat-apps`
 	var chat chatAppsOffer
 	chatOK := false
 	if (f.pairedThisRun || f.pageRerunning) && !f.cloudSetupPaused { // as the phone row; nil without this run's owner sign-in
-		chat, chatOK = readChatAppsOffer(setupOwnerIngress, f.paths, linkOrigin)
+		chat, chatOK = readChatAppsOffer(setupOwnerIngress, f.paths, chatOrigin)
 	}
 	switch {
 	case chatOK:
 		ctl.Chat = f.pageChatRow(&chat)
-	case f.pageRerunning && setupOwnerIngress == nil:
-		ctl.Chat = f.pageRerunChat(linkOrigin)
+	case f.pageRerunning:
+		ctl.Chat = f.pageRerunChat(chatOrigin)
 	}
 	screen := "control"
 	if f.pageRerunOK { // the re-run screen: what is set up, then these rows
@@ -187,7 +189,7 @@ func (f *setupFlow) pageControl() int {
 			if ctl.Chat != nil && choice.chatOn && ctl.Chat.State == "page_off" {
 				// The owner signs in, then the row asks as step 3 does; the
 				// next Done applies the other switches.
-				f.pageRerunChatOn(ctl.Chat, &chat, linkOrigin, show)
+				f.pageRerunChatOn(ctl.Chat, &chat, chatOrigin, show)
 				continue
 			}
 			if ctl.Chat != nil && choice.chatOff && ctl.Chat.State == "page_on" {
