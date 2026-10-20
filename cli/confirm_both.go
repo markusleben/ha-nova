@@ -121,7 +121,7 @@ func confirmBoth(a *phoneAsking, text string) (verbEnvelope, int, bool) {
 			why = "the confirmation window was closed"
 		}
 		return windowStopped(s, "cancelled", "CONFIRM_CANCELLED", why+", and the phone couldn't be asked",
-			fmt.Sprintf("Tell the user nothing changed. Run ha-nova apply --plan %s again (the window opens again) only after they say they still want it; never ask them for a code.", a.id)+phoneQuietNext)
+			fmt.Sprintf("Tell the user in plain words: the window closed without an answer, nothing changed, and they can ask again. Run ha-nova apply --plan %s again (the window opens again) only after they say they still want it; never ask them for a code.", a.id)+phoneQuietNext)
 	}
 	why := "neither the confirmation window nor the phone got an answer in time"
 	if window == windowClosed {

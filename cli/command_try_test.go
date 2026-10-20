@@ -354,3 +354,25 @@ Your own home?   ha-nova setup
 		t.Fatalf("try output changed:\n%s", out)
 	}
 }
+
+// 0.27 recheck lane: Claude Code's allow rule is `ha-nova apply --plan *`,
+// which a HA_NOVA_SERVER=demo prefix breaks, so the skills run apply bare.
+// That works only while apply takes its plan's server with no selection.
+func TestApplyTakesTheDemoPlansServerWithoutASelection(t *testing.T) {
+	fakeDemo(t, "")
+	paths := tryTestPaths(t, "")
+	paths.CacheDir = t.TempDir()
+	if exit, out := runTry(t, paths); exit != 0 {
+		t.Fatalf("try exit=%d out=%s", exit, out)
+	}
+	id := "p_0123456789ab"
+	if err := os.MkdirAll(planDir(paths), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := writePlanFile(filepath.Join(planDir(paths), id+".json"), storedPlan{ID: id, Server: demoProfileName}); err != nil {
+		t.Fatal(err)
+	}
+	if env, _ := applyPlan(paths, verbOptions{}, id, "", false); env.Server != demoProfileName {
+		t.Fatalf("apply without a selection must use the plan's demo server: %+v %+v", env, env.Error)
+	}
+}

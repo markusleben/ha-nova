@@ -275,7 +275,7 @@ describe("health and calendar skill contracts", () => {
       "best-effort join full entity/device registries and config entries",
     );
     expect(architecture).toContain("Explained budget of 50 entity-detail rows");
-    expect(architecture).toContain("exact entity IDs, friendly names, and sanitized config-entry titles are legitimate output");
+    expect(architecture).toContain("in `Private` mode friendly names and sanitized config-entry titles are legitimate output (exact entity IDs only for a missing or shared name, or on request)");
     expect(architecture).toContain("deprioritize noisy/stateless domains");
     expect(architecture).not.toContain("current-session error log");
     expect(architecture).toContain(

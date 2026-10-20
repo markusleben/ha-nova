@@ -71,11 +71,11 @@ export function isSafeHASlug(value: unknown): value is string {
 }
 
 // Display-name precedence lives with the caller; this only decides whether a
-// candidate name is safely renderable next to the exact entity ID: printable,
+// candidate name is safely renderable in place of the exact entity ID: printable,
 // single-line, bounded, adding information beyond the ID itself, and free of
 // the patterns the privacy contract forbids in every mode (URLs, hostnames,
 // IPs, Markdown delimiters, secret-like values). Fail closed — dropping a
-// name loses nothing, the exact ID is always shown.
+// name loses nothing, the exact ID takes its place.
 const FORBIDDEN_NAME_PATTERN = new RegExp(
   [
     String.raw`https?://`,
