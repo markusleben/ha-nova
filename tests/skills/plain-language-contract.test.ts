@@ -13,7 +13,7 @@ const skillFiles = execFileSync("git", ["ls-files", "skills/**/*.md"], { encodin
 describe("plain-language output rules", () => {
   it("keeps the shared block in the file every route loads", () => {
     expect(rules).toContain("## Plain Language");
-    expect(rules).toContain('Keep Home Assistant names verbatim, never translated ("Bed Light", not "Bettlicht").');
+    expect(rules).toContain('Keep HA names verbatim, never translated, even in parentheses: "Bed Light", not "Bed Light (Bettlicht)".');
     expect(rules).toContain("Never show the user a command to run: you run `ha-nova` yourself");
     expect(rules).toContain("Sole exception: a step only the user can do (setup, a permission, an update without a shell).");
     expect(rules).toContain("Choices are natural questions");

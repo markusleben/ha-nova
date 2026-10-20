@@ -141,7 +141,7 @@ func confirmByWindow(paths runtimePaths, opts verbOptions, id string, noSnapshot
 		defer s.close()
 		return windowStopped(s, "refused", "PLAN_EXPIRED", "plan "+id+" expires before a confirmation window could get an answer", replan)
 	}
-	again := fmt.Sprintf("Tell the user nothing changed. Run ha-nova apply --plan %s again (the window opens again) only after they say they still want it; never ask them for a code. If they saw no window, they can make this change in Home Assistant itself, or turn the windows off in a terminal: ha-nova setup confirm-window off.", id)
+	again := fmt.Sprintf("Tell the user in plain words: the window closed without an answer, nothing changed, and they can ask again. Run ha-nova apply --plan %s again (the window opens again) only after they say they still want it; never ask them for a code. If they saw no window, they can make this change in Home Assistant itself.", id)
 	text := confirmText(fresh, noSnapshot) + "\n\n"
 	switch status {
 	case phoneReady: // the linked phone asks too (confirm_both.go)

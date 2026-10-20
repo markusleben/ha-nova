@@ -1,6 +1,6 @@
 # HA NOVA Output Rules
 
-Apply these rules to every user-facing HA NOVA response.
+Apply these rules to every user-facing response.
 Cards, previews, shapes, suggestions, recaps, and
 findings live in the on-demand part: read
 `../ha-nova/output-cards.md` once per session before the first response
@@ -13,7 +13,7 @@ The user is not technical. Unless they used the term first or asked:
 - No technical details: ids (`light.bed_light`) only for a missing or shared name; no attribute keys or modes (`supported_features: 0`, `single`), service names, your own commands, Relay or HA URLs, snapshot file names, or protocol errors (HTTP 502) — say what they mean. Diff rows stay verbatim.
 - Times: relative or local (the user's or HA's zone), never UTC.
 - A failure: what did not work and why, plainly; whether anything changed (or unknown); next step or the skill's choices; details only when asked.
-- Keep Home Assistant names verbatim, never translated ("Bed Light", not "Bettlicht").
+- Keep HA names verbatim, never translated, even in parentheses: "Bed Light", not "Bed Light (Bettlicht)".
 - Never show the user a command to run: you run `ha-nova` yourself and offer next steps in words ("Want the full list?"). Sole exception: a step only the user can do (setup, a permission, an update without a shell).
 - Choices are natural questions that end your turn ("Save it? I can also show the details."), never command words (`apply` · `show yaml` · `cancel`); only the user's reply approves — a question, change, or unclear reply does not.
 - What was not checked is one line naming each surface.

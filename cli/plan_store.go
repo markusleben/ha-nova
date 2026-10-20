@@ -162,11 +162,17 @@ func sealPlan(e *tierEngine, env *verbEnvelope, plan storedPlan, action any) (st
 	if shownChannel == channelWindow && phoneLinkedHere(e.s.paths) {
 		where = "a confirmation window on their computer and a notification on their linked phone (the first answer counts)"
 	}
+	// A selected server tempts the agent to prefix apply too; Claude Code's
+	// allow rule (claude_apply_rule.go) matches only the bare command.
+	bare := ""
+	if name, _ := requestedServerSelection(); name != "" {
+		bare = " Run that apply exactly as written, as its own command: no HA_NOVA_SERVER= or --server (apply follows its plan's server)."
+	}
 	if where != "" {
-		env.NextStep = fmt.Sprintf("Show `say`. When the user has asked for this change and your workflow has reached this step (a skill's order comes first), run ha-nova apply --plan %s without --confirm and wait for its result (give the command up to 2 minutes): %s asks them. Never ask for a code in chat.", plan.ID, where)
+		env.NextStep = fmt.Sprintf("Show `say`. When the user has asked for this change and your workflow has reached this step (a skill's order comes first), run ha-nova apply --plan %s without --confirm and wait for its result (give the command up to 2 minutes): %s asks them. Never ask for a code in chat.%s", plan.ID, where, bare)
 	}
 	if e.level == tierPreview { // the request is not the approval: an agent once saved in the same turn
-		env.NextStep = fmt.Sprintf("Show the preview ending with `say` and end your turn; run ha-nova apply --plan %s only after the user's own reply approves it.", plan.ID)
+		env.NextStep = fmt.Sprintf("Show the preview ending with `say` and end your turn; run ha-nova apply --plan %s only after the user's own reply approves it.%s", plan.ID, bare)
 	}
 	if plan.Channel == "" { // no code, so where it would be typed does not matter
 		plan.Channel = channelChat
