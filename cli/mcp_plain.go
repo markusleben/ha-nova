@@ -15,16 +15,42 @@ import (
 func addOutcomeSay(envelope map[string]any) {
 	envelope["answer_rule"] = mcpResultRule
 	rows, _ := envelope["verification"].([]any)
-	if envelope["say"] != nil || envelope["error"] != nil || envelope["action"] == nil || len(rows) == 0 {
+	action, _ := envelope["action"].(map[string]any)
+	if envelope["say"] != nil || envelope["error"] != nil || action == nil || action["response"] == true { // a response is the answer
 		return
 	}
-	names := map[string]string{}
+	if len(rows) == 0 { // a targetless call: nothing to read back
+		if envelope["status"] == "accepted" {
+			envelope["say"] = "Sent to Home Assistant."
+		}
+		return
+	}
+	names, seen := map[string]string{}, map[string]int{}
 	resolved, _ := envelope["resolved"].([]any)
 	for _, raw := range resolved {
 		t, _ := raw.(map[string]any)
 		id, _ := t["entity_id"].(string)
 		name, _ := t["name"].(string)
 		names[id] = sayText(name, true)
+		seen[names[id]]++
+	}
+	for id, name := range names { // two targets with one name: the rules allow the id
+		if name != "" && seen[name] > 1 {
+			names[id] = name + " (" + sayText(id, false) + ")"
+		}
+	}
+	inRows := map[string]bool{}
+	for _, raw := range rows {
+		row, _ := raw.(map[string]any)
+		id, _ := row["entity_id"].(string)
+		inRows[id] = true
+	}
+	var ran []string // a scene checked through its members: name the scene
+	for _, raw := range resolved {
+		t, _ := raw.(map[string]any)
+		if id, _ := t["entity_id"].(string); !inRows[id] && names[id] != "" {
+			ran = append(ran, names[id])
+		}
 	}
 	var order []string
 	groups := map[string][]string{}
@@ -45,13 +71,13 @@ func addOutcomeSay(envelope map[string]any) {
 		}
 	}
 	var parts []string
+	if len(ran) > 0 {
+		parts = append(parts, sayList(ran)+" ran.")
+	}
 	for _, key := range order {
 		who := groups[key]
-		if n := unnamed[key]; n > 0 {
-			who = append(who, map[bool]string{true: "1 device", false: fmt.Sprint(n, " devices")}[n == 1])
-		}
-		many := len(who) > 1 || unnamed[key] > 1
-		subject, is, it := sayList(who), map[bool]string{true: " are", false: " is"}[many], map[bool]string{true: "they", false: "it"}[many]
+		many := len(who)+unnamed[key] > 1
+		subject, is, it := sayCount(who, unnamed[key]), map[bool]string{true: " are", false: " is"}[many], map[bool]string{true: "they", false: "it"}[many]
 		outcome, state, _ := strings.Cut(key, "\x00")
 		switch {
 		case outcome == "verified" && state != "":
@@ -71,6 +97,21 @@ func addOutcomeSay(envelope map[string]any) {
 		}
 	}
 	envelope["say"] = strings.Join(parts, " ")
+}
+
+// sayCount lists names plus devices without one: “A”, “B”, “C” and 3 more.
+func sayCount(named []string, unnamed int) string {
+	if unnamed > 0 && len(named)+unnamed > 3 {
+		shown := named[:min(len(named), 3)]
+		if len(shown) == 0 {
+			return fmt.Sprint(unnamed, " devices")
+		}
+		return strings.Join(shown, ", ") + fmt.Sprintf(" and %d more", len(named)+unnamed-len(shown))
+	}
+	if unnamed > 0 {
+		named = append(named, map[bool]string{true: "1 device", false: fmt.Sprint(unnamed, " devices")}[unnamed == 1])
+	}
+	return sayList(named)
 }
 
 // plainStates: the end states a say may name, in plain words; any other

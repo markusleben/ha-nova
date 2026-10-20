@@ -40,10 +40,10 @@ var mcpLegacyVersions = []string{"2025-11-25", "2025-06-18", "2024-11-05"}
 // claude.ai does not pass instructions to the model, and small models
 // follow short, early rules with an example best. Editing them changes three
 // tool descriptions, which resets claude.ai's saved approvals (mcp_plain_test.go).
-const mcpAnswerRules = `Answer in plain words. Keep Home Assistant names exactly as written, never translated: say "Kitchen Lights", not "Küchenlicht". No ids (light.kitchen_lights), "entity", plan ids, or raw states ("unlocked"): say what they mean in the user's language, unless the user asks or two names clash. Look up devices before you suggest or plan with them: list that kind (ha_find with domain light) or call ha_map, since names may be in another language. Never guess ("if there is one"), and never say what is missing or how many there are after a name search. Never guess who or what changed something: name a cause only when the history shows it.`
+const mcpAnswerRules = `Answer in plain words. Keep Home Assistant names exactly as written, never translated: say "Kitchen Lights", not "Küchenlicht". No ids (light.kitchen_lights), "entity", plan ids, or raw states ("armed_away"): say what they mean in the user's language, unless the user asks or two names clash. Look up devices before you suggest or plan with them: list that kind (ha_find with domain light) or call ha_map, since names may be in another language. Never guess ("if there is one"), and never say what is missing or how many there are after a name search. Never guess who or what changed something: name a cause only when the history shows it.`
 
 // mcpResultRule rides on every verb result as answer_rule.
-const mcpResultRule = "Tell the user in plain words, in their language (relay `say` where there is one): names exactly as written, never translated; no ids, plan ids, or raw states."
+const mcpResultRule = "Tell the user in plain words, in their language (relay `say` where there is one): names exactly as written, never translated; no ids, plan ids, or raw states; never guess who or what changed something."
 
 const mcpInstructions = `HA NOVA controls one Home Assistant through typed tools.
 ` + mcpAnswerRules + `

@@ -40,9 +40,7 @@ At first, Claude asks before each HA NOVA step: "Allow once" or "Always allow" (
 1. In Claude, open Settings → Connectors and choose HA NOVA.
 2. You see two groups: read-only tools ("Schreibgeschützte Tools") and write/delete tools ("Schreib-/Lösch-Tools"). Set the read-only tools to "Always allow" ("Immer erlauben").
 3. Under write/delete tools, set "Control a device" to "Always allow" too. Lights and other everyday things then run right away, the same as HA NOVA on a computer.
-4. Leave "Run a confirmed change" on "Needs approval" ("Genehmigung erforderlich"), unless your phone is linked (see "What your phone confirms"). Without a linked phone, the AI can see the code in the chat, so Claude's own question is the extra check before a door unlocks.
-
-With a linked phone, you can set the whole write/delete group to "Always allow": your phone still asks before HA NOVA unlocks a door, opens a garage door or gate, turns off an alarm, or deletes something.
+4. Leave "Run a confirmed change" on "Needs approval" ("Genehmigung erforderlich"). Claude then still asks before a bigger change, like a new automation, unlocking a door, or deleting something. Your linked phone or the code asks too (see "What your phone confirms").
 
 Claude may ask again after an HA NOVA update, or now and then in a new chat. That comes from Claude: choose "Always allow" again.
 
