@@ -33,6 +33,19 @@ This works in Claude on the web, in the desktop app, and in the phone apps. Menu
 2. If Claude asks how to sign in, choose "Sign in now" ("Jetzt anmelden") and "Use Claude's published identity" ("Claudes veröffentlichte Identität verwenden"). Then choose "Add".
 3. Sign in to Home Assistant as its owner when Claude opens the sign-in (if it doesn't, choose "Connect"). The Claude phone app then uses it too.
 
+## Stop Claude from asking before every step
+
+At first, Claude asks before each HA NOVA step: "Allow once" or "Always allow" ("Einmal erlauben" / "Immer erlauben"). To stop that, it takes two clicks:
+
+1. In Claude, open Settings → Connectors and choose HA NOVA.
+2. You see two groups: read-only tools ("Schreibgeschützte Tools") and write/delete tools ("Schreib-/Lösch-Tools"). Set both to "Always allow" ("Immer erlauben").
+
+HA NOVA still asks you itself before it unlocks a door, opens a garage door or gate, turns off an alarm, or deletes something (see "What your phone confirms"). Everyday things like a light run right away, the same as HA NOVA on a computer.
+
+More careful: set only the read-only tools to "Always allow". Then Claude still asks before each change.
+
+Claude may ask again after an HA NOVA update, or now and then in a new chat. That comes from Claude: choose "Always allow" again.
+
 ## Connect ChatGPT (on the web)
 
 ChatGPT has no button that fills this in, so you paste the address. Menu names in German are in brackets.

@@ -65,7 +65,7 @@ func formsStep(envelope map[string]any, step string) string {
 	pending := envelope["status"] == "needs_confirmation" || envelope["status"] == "drift"
 	switch {
 	case pending && plan["confirm"] == "code" && strings.Contains(say, sayFormAsk):
-		return fmt.Sprintf("Show this preview. When the user has asked for this change and your workflow has reached this step (a skill's order comes first), call ha_apply with plan_id %v and no confirm_code: their app asks them to type the one-time code from HA NOVA in a confirmation form you never see. Never ask for it in chat. Tell the user `say` as the confirmation text (in their language; names and state values exactly as printed) and add no other reason.", plan["id"])
+		return fmt.Sprintf("Show this preview in plain words. When the user has asked for this change and your workflow has reached this step (a skill's order comes first), call ha_apply with plan_id %v and no confirm_code: their app asks them to type the one-time code from HA NOVA in a confirmation form you never see. Never ask for it in chat. Tell the user `say` as the confirmation text (in their language; names exactly as printed, states in plain words) and add no other reason.", plan["id"])
 	case errInfo["code"] == "CODE_MISMATCH":
 		return fmt.Sprintf("The one-time code typed in the form did not match; nothing was sent. If the user still wants this, call ha_apply again with plan_id %v to show the form again.", plan["id"])
 	case errInfo["code"] == "CODE_REQUIRED": // a typed plan without form text (made by an older HA NOVA)

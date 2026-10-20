@@ -40,7 +40,7 @@ func TestMCPSkillTool(t *testing.T) {
 	h := newWriteHarness(t, newFakeHA())
 	c := startMCP(t, h.paths)
 	init := c.request("initialize", map[string]any{"protocolVersion": "2025-11-25", "capabilities": map[string]any{}})
-	if instructions := init["result"].(map[string]any)["instructions"].(string); !strings.Contains(instructions, "review or diagnose anything, call ha_skill") ||
+	if instructions := init["result"].(map[string]any)["instructions"].(string); !strings.Contains(instructions, "review, diagnose, or suggest anything, call ha_skill") ||
 		!strings.Contains(instructions, "load it with ha_skill") {
 		t.Fatalf("instructions: %s", instructions)
 	}

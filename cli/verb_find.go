@@ -91,7 +91,7 @@ func runFindCommand(paths runtimePaths, args []string) int {
 				next: "Check the domain: it is the part before the dot of an entity_id (light, switch, sensor, …)."}
 		}
 		if result.Total == 0 && query.phrase != "" {
-			next := "Try a shorter or different phrase, drop --domain/--area, or add --include-disabled."
+			next := "Names may be in another language than the user's: list that kind (--domain light) or the area before you say none exists. Or try a shorter or different phrase, drop --domain/--area, or add --include-disabled."
 			if query.state != "" {
 				next = "Drop --state to see the matching entities and their current state."
 			}
