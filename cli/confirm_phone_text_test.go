@@ -15,8 +15,8 @@ func TestPhoneAskTexts(t *testing.T) {
 		title, body, button string
 		urgent              bool
 	}{
-		{phoneLinkAsk(), "Link this phone to HA NOVA?", "For confirmations from " + host + ". " + phoneHint, "Link", false},
-		{phoneChangeAsk(""), "Stop HA NOVA confirmations here?", "After this, HA NOVA may ask in chat, where your AI assistant can answer. " + requested, "Stop", false},
+		{phoneLinkAsk(), "Use this for HA NOVA confirmations?", requested, "Allow", false},
+		{phoneChangeAsk(""), "Stop getting HA NOVA confirmations?", "After this, HA NOVA may ask in chat, where your AI assistant can answer. " + requested, "Stop", false},
 		{phoneChangeAsk("Anna’s Pixel"), "Move HA NOVA confirmations to “Anna's Pixel”?", requested, "Move", false},
 		{phonePlanAsk([3]string{"Delete", "the automation “Night”"}, true), "Delete the automation “Night”?", "Can't be undone. " + requested, "Delete", true},
 		{phonePlanAsk([3]string{"Turn on", "“Guest mode”", "This also unlocks “Entrance Door” through the automation “Guest”"}, false),

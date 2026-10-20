@@ -108,11 +108,11 @@ func TestBothAskFirstAnswerWins(t *testing.T) {
 		result        string // the phone's result line (prefix)
 	}{
 		"window confirms, phone confirms late": {side{true, true}, side{true, false}, "", channelWindow, "Approved on the computer. Home Assistant confirms it."},
-		"phone confirms, window confirms late": {side{true, false}, side{true, true}, "", channelPhone, "Approved on this phone. Home Assistant confirms it."},
+		"phone confirms, window confirms late": {side{true, false}, side{true, true}, "", channelPhone, "Home Assistant confirms it."},
 		"window cancels, phone confirms late":  {side{false, true}, side{true, false}, "CONFIRM_DECLINED", "", "Cancelled on the computer. Nothing changed."},
 		"phone cancels, window confirms late":  {side{true, false}, side{false, true}, "CONFIRM_DECLINED", "", "Nothing changed."},
 		"window confirms, phone cancels late":  {side{true, true}, side{false, false}, "", channelWindow, "Approved on the computer."},
-		"phone confirms, window cancels late":  {side{false, false}, side{true, true}, "", channelPhone, "Approved on this phone."},
+		"phone confirms, window cancels late":  {side{false, false}, side{true, true}, "", channelPhone, "Home Assistant confirms it."},
 	}
 	for name, c := range cases {
 		for _, stuck := range []bool{false, true} { // a window that can't be closed answers late; it is ignored
@@ -166,7 +166,7 @@ func TestBothAskSimultaneousAnswersApplyAtMostOnce(t *testing.T) {
 			msg := p.last()["message"].(string)
 			switch {
 			case exit == 0 && len(h.posts()) == 1 && env.Plan.Channel == channelWindow && strings.HasPrefix(msg, "Approved on the computer."):
-			case exit == 0 && len(h.posts()) == 1 && phoneConfirms && env.Plan.Channel == channelPhone && strings.HasPrefix(msg, "Approved on this phone."):
+			case exit == 0 && len(h.posts()) == 1 && phoneConfirms && env.Plan.Channel == channelPhone && msg == "Home Assistant confirms it.":
 			case exit == 4 && len(h.posts()) == 0 && !phoneConfirms && env.Error.Code == "CONFIRM_DECLINED" && strings.Contains(env.Error.Message, "phone"):
 			default:
 				t.Fatalf("run %d phone confirms %v: exit %d plan %+v err %+v posts %d phone %q", i, phoneConfirms, exit, env.Plan, env.Error, len(h.posts()), msg)

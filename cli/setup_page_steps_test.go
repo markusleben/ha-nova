@@ -473,7 +473,7 @@ func TestSetupPageLinksThePhoneWithOneTap(t *testing.T) {
 	if ctl.PhoneName != "Anna’s Pixel" || ctl.PhoneProblem != nil {
 		t.Fatalf("control = %+v", ctl)
 	}
-	if strings.Join(phones.services, ",") != "mobile_app_annas_pixel,mobile_app_annas_pixel" || phones.sent[0]["title"] != "Link this phone to HA NOVA?" {
+	if strings.Join(phones.services, ",") != "mobile_app_annas_pixel,mobile_app_annas_pixel" || phones.sent[0]["title"] != phoneLinkTitle {
 		t.Fatalf("notified %v %v", phones.services, phones.sent)
 	}
 	if l := linked(t, h); l == nil || l.DeviceID != "dev-anna" || l.UserID != "anna-id" {
