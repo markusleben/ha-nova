@@ -205,9 +205,10 @@ func openHASignInIngressWith(
 }
 
 // openHASignInIngressNoCode is a sign-in with no code to fall back to:
-// Ctrl+C only stops it.
-func openHASignInIngressNoCode(ctx context.Context, out io.Writer, haURL string) (haSignInSession, error) {
-	return openHASignIn(ctx, out, haURL, nil, nil, haSignInWaitStop)
+// Ctrl+C only stops it. elsewhere, when set, says under the link how to do
+// the same on another device.
+func openHASignInIngressNoCode(ctx context.Context, out io.Writer, haURL, elsewhere string) (haSignInSession, error) {
+	return openHASignIn(ctx, out, haURL, nil, nil, haSignInWaitStop, elsewhere)
 }
 
 // haSignInTab is the setup page's tab: it navigates to Home Assistant
@@ -230,7 +231,7 @@ func openHASignInIngressIn(
 	if prepare != nil {
 		waiting = haSignInWaitStop
 	}
-	return openHASignIn(ctx, out, haURL, prepare, tab, waiting)
+	return openHASignIn(ctx, out, haURL, prepare, tab, waiting, "")
 }
 
 const haSignInWaitStop = "Waiting for you to sign in, Ctrl+C to stop"
@@ -241,7 +242,7 @@ func openHASignIn(
 	haURL string,
 	prepare haSignInPrepare,
 	tab haSignInTab,
-	waiting string,
+	waiting, elsewhere string,
 ) (haSignInSession, error) {
 	origin, err := parseLocalHAOrigin(haURL)
 	if err != nil {
@@ -251,7 +252,7 @@ func openHASignIn(
 	defer stop()
 	flow := haSignInOAuthFlow()
 	open := func(_ context.Context, target string) error {
-		openHASignInBrowser(out, target)
+		openHASignInBrowser(out, target, elsewhere)
 		return nil
 	}
 	if tab != nil {
@@ -373,9 +374,17 @@ func finishHASignIn(
 }
 
 // A launched browser command does not prove a browser appeared, so the link
-// is always shown; it carries only the one-time state, no credential.
-func openHASignInBrowser(out io.Writer, target string) {
+// is always shown; it carries only the one-time state, no credential. It
+// works only on this computer: Home Assistant sends the sign-in back to
+// 127.0.0.1 here, so no sign-in link is ever offered for another device
+// (there it would hand the sign-in to whatever listens on that device). The
+// six-digit code, or NOVA in Home Assistant (elsewhere), is the way to use
+// another device.
+func openHASignInBrowser(out io.Writer, target, elsewhere string) {
 	fmt.Fprintln(out, "  Opening Home Assistant in your browser...")
 	_ = openBrowserForSetup(target)
 	renderSetupLink(out, "If no browser opened, open this link on this computer:", target)
+	if elsewhere != "" {
+		fmt.Fprintln(out, "  "+elsewhere)
+	}
 }

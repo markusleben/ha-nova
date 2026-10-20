@@ -142,6 +142,41 @@ describe("setup page step 1", () => {
   });
 });
 
+describe("setup page sign-in", () => {
+  // Home Assistant sends the sign-in back to 127.0.0.1 on this computer, so
+  // the page never offers its link for another device; the code is that way.
+  const url = "http://10.0.2.2:8123/auth/authorize?state=x";
+  const signingIn = { screen: "connect", signin_url: url, rows: [{ id: "signed_in", state: "run" }], accepts: [] };
+
+  it("points to the six-digit code on step 1, next to the sign-in", async () => {
+    const p = page(found);
+    await p.settle();
+    expect(p.screen.textContent).toContain(p.catalog["setup.page.found.fine_elsewhere"]);
+    expect(p.catalog["setup.page.found.fine_elsewhere"]).toContain(`“${p.catalog["setup.page.button.code"]}”`);
+    const installing = page({ ...found, app: "missing", primary: "install" });
+    await installing.settle();
+    expect(installing.screen.textContent).not.toContain(installing.catalog["setup.page.found.fine_elsewhere"]);
+  });
+
+  it("points to Stop and the code while it waits, with no copy of the sign-in link", async () => {
+    const p = page(signingIn);
+    await p.settle();
+    const line = p.catalog["setup.page.signin.elsewhere"];
+    expect(p.screen.textContent).toContain(line);
+    expect(line).toContain(`“${p.catalog["setup.page.signin.stop"]}”, then “${p.catalog["setup.page.button.code"]}”`);
+    expect(p.screen.textContent).not.toMatch(/copy/i);
+    expect(p.screen.textContent).not.toContain(url);
+    expect(p.screen.all().filter((n) => Object.values(n.attributes).includes(url)).map((n) => n.id)).toEqual(["l-signin"]);
+  });
+
+  it("doesn't promise a code while the App installs", async () => {
+    const p = page({ ...signingIn, rows: [{ id: "signed_in", state: "run" }, { id: "app_add", state: "todo" }] });
+    await p.settle();
+    expect(p.find("b-stop")).toBeTruthy();
+    expect(p.screen.textContent).not.toContain(p.catalog["setup.page.signin.elsewhere"]);
+  });
+});
+
 describe("setup page step 3", () => {
   it("keeps the phone row when the phones couldn't be read, with Check again (lane F4)", async () => {
     const p = page({ screen: "control", accepts: ["finish", "recheck"], control: { window: true, phone: "unread", rule: "offer", rule_count: 2 } });

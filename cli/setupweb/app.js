@@ -178,6 +178,8 @@
       if (primary) {
         fine = [t(primary === 'signin' ? 'setup.page.found.fine_signin' : 'setup.page.found.fine_install'),
           t('setup.page.found.fine_access', { client: `${location.origin}/ha-nova` })];
+        // No "copy the sign-in link": its answer only comes back to this computer.
+        if (primary === 'signin') fine.push(t('setup.page.found.fine_elsewhere'));
       } else if (!asking && state.app) {
         fine = [t('setup.page.found.fine_terminal')];
       }
@@ -205,7 +207,9 @@
         actions.push(el('p', { class: 'fine' }, t('setup.page.signin.waiting')),
           el('div', { class: 'actions' },
             el('a', { id: 'l-signin', class: 'btn btn-primary', href: waiting }, t('setup.page.signin.open')),
-            el('button', { id: 'b-stop', class: 'btn btn-ghost', type: 'button', onclick: () => post('stop') }, t('setup.page.signin.stop'))));
+            el('button', { id: 'b-stop', class: 'btn btn-ghost', type: 'button', onclick: () => post('stop') }, t('setup.page.signin.stop'))),
+          // While the App installs there is no code yet.
+          installs ? null : el('p', { class: 'fine' }, t('setup.page.signin.elsewhere')));
       } else if (state.accepts.length) {
         const links = state.links || {};
         actions.push(el('div', { class: 'actions' },
