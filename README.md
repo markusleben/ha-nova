@@ -158,6 +158,8 @@ With chat apps on, you can ask about your home and change it from Claude (web, d
 
 **What needs your OK:** the same rules as on a computer. Everyday actions run right away and are checked afterwards. Unlocks and deletes wait for a tap on your linked phone. Without a phone, you type a code in the chat. The AI can see that code too, so it protects less than your phone. On the NOVA page, you can require the phone, or let chat apps only read.
 
+**In Claude, tools have plain names, and you can let read-only steps run without asking.** In Claude, open Settings → Connectors → HA NOVA. Set the read-only tools and "Control a device" to "Always allow". Leave "Run a confirmed change" on "Needs approval", so Claude still asks before a bigger change. Claude may ask again after an update. Details: [Stop Claude from asking before every step](docs/reference/chat-apps.md#stop-claude-from-asking-before-every-step).
+
 **Good to know:**
 
 - Access belongs to your Home Assistant account, not to a device. Anyone who can use your Claude or ChatGPT account can reach your home through it.
@@ -185,7 +187,7 @@ Already installed locally? Run `ha-nova cloud add`, or run `ha-nova setup` again
 
 Once setup is done, try: *"Show me all my automations."*
 
-> **More than one Home Assistant?** Add each one with `ha-nova pair --server <name> --relay-url http://<ha-host>:8791`. Each server gets its own profile and its own login. Pick one with the `--server <name>` flag on commands that reach Home Assistant, or with the `HA_NOVA_SERVER` environment variable. Manage them with `ha-nova server list|default|rename|remove`.
+> **More than one Home Assistant?** Add each one with `ha-nova pair --server <name> --relay-url http://<ha-host>:8791`. Each server gets its own profile and its own login. To pick one, add `--server <name>` to a command. This works in every shell, PowerShell too. Manage them with `ha-nova server list|default|rename|remove`. (The `HA_NOVA_SERVER` environment variable still works too.)
 
 > **Upgrading from an earlier HA NOVA?** Everything keeps working through the update. Still on the old shared access? Pair each computer again once with `ha-nova pair`, then choose "Revoke legacy access" on the NOVA page.
 
