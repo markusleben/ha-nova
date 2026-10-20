@@ -31,7 +31,7 @@ This file defines only how the test plan is chosen, presented, and verified.
 - Single confirmation: the Test Plan Card doubles as the runtime-call
   preview (exact service, target, payload, `skip_condition` value, device
   delta). The user's option choice is the natural confirmation bound to that
-  exact preview — do not ask a second time (a typed plan still takes the user's code). Any change to the plan expires
+  exact preview — do not ask a second time (a typed plan still takes its own ask: follow its `say`). Any change to the plan expires
   the choice and requires a fresh card. High-consequence members (locks,
   alarm panels, garage/gate/entry-door covers by `device_class`, and
   physically irreversible actions) keep the one-time code from the

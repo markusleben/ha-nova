@@ -75,7 +75,7 @@ describe("indirect actuation and tier classification (#513)", () => {
       // reload (2026-10-17); siren stays disruptive/preview.
       expect(tierRules).toContain('"siren.turn_on": true, "siren.toggle": true');
       expect(tierRules).toContain('service == "homeassistant.restart" || service == "homeassistant.stop"');
-      expect(skillDoc).toContain("`homeassistant.restart`/`stop` and App/host control (`hassio.*`) take the one-time code");
+      expect(skillDoc).toContain("`homeassistant.restart`/`stop` and App/host control (`hassio.*`) take the typed tier");
       expect(flat(testRunDoc)).toContain(
         "a deliberate superset of the context skill's high-consequence confirmation tier",
       );

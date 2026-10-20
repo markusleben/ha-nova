@@ -122,7 +122,7 @@ describe("indirect actuation and tier classification (#513)", () => {
   it("does not render the ordinary confirmation menu on the typed tier", () => {
     const doc = flat(skillDoc);
     // A gate that assigns a tier and then offers "apply" has assigned nothing.
-    expect(doc).toContain("on the typed tier only the exact code prompt — no menu");
+    expect(doc).toContain("on the typed tier only `say`'s ask — no menu");
     expect(doc).toContain("A code counts only as a reply that is only the code, after the preview; \"yes\" is invalid.");
     expect(doc).toContain("also when a scene, script, or automation run reaches one");
   });

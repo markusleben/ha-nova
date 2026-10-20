@@ -74,7 +74,7 @@ Read-only response services stay here (`raw-routes.md` → Response services), a
 
 Apply `../ha-nova/output-rules.md` to all user-facing output.
 
-Results (exit 0, 6, 7, and after `apply`) use its Verb Results rule; a typed `apply` result restates the effect the code was for and whether it was verified. A preview (exit 2 or 3) closes with `say` (names, a single target's arrow one-liner, warnings, an explicit not-executed-yet line); with several targets, more become the `Field | Before | After` mini table, warnings kept; on the typed tier only the exact code prompt — no menu. A grouped set or Test Plan Card asks once instead of `say`'s last sentence, except on the typed tier.
+Results (exit 0, 6, 7, and after `apply`) use its Verb Results rule; a typed `apply` result restates the effect the code was for and whether it was verified. A preview (exit 2 or 3) closes with `say` (names, a single target's arrow one-liner, warnings, an explicit not-executed-yet line); with several targets, more become the `Field | Before | After` mini table, warnings kept; on the typed tier only `say`'s ask — no menu. A grouped set or Test Plan Card asks once instead of `say`'s last sentence, except on the typed tier.
 
 ## Safety
 
@@ -89,7 +89,7 @@ Results (exit 0, 6, 7, and after `apply`) use its Verb Results rule; a typed `ap
 - No one-time code needed for ordinary service calls.
 - Unlocking or opening a lock, disarming an alarm panel, and opening a garage door, gate, or entry-door cover take the typed tier — also when a scene, script, or automation run reaches one. Locking, closing, and arming stay ordinary; the CLI's tier wins.
 - Never include a `code` field in a payload; never ask for, accept, repeat, or store a PIN in chat. Never auto-retry a security action.
-- `homeassistant.restart`/`stop` and App/host control (`hassio.*`) take the one-time code; `siren.turn_on`/`toggle` preview.
+- `homeassistant.restart`/`stop` and App/host control (`hassio.*`) take the typed tier; `siren.turn_on`/`toggle` preview.
 - Drafts follow `../ha-nova/smallest-solution.md`: the complete requested outcome in the simplest safe design.
 
 ## Guardrails

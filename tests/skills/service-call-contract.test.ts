@@ -108,7 +108,7 @@ describe("service call contract", () => {
 
     it("renders the typed tier without the ordinary menu", () => {
       expect(skillDoc).toContain("an explicit not-executed-yet line");
-      expect(skillDoc).toContain("on the typed tier only the exact code prompt — no menu");
+      expect(skillDoc).toContain("on the typed tier only `say`'s ask — no menu");
     });
 
     it("treats automation and script execution as explicit live runtime actions", () => {

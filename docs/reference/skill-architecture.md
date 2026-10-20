@@ -374,7 +374,7 @@ Rules:
 
 ## Service Call Architecture
 
-`ha-nova:service-call` runs entity service calls through the typed verbs `ha-nova call` / `ha-nova apply`: the CLI resolves and freezes targets, computes the tier (ordinary runs at once and is verified; preview needs natural confirmation; typed needs the user's one-time code), refuses owned services unless `--skill <owner>` names the calling skill, sends exactly one request, and verifies. Response services use `--response`; App/host control uses `--skill ha-nova:service-call` (on-demand `skills/service-call/raw-routes.md`). It owns ordinary HA service calls plus two guarded runtime families:
+`ha-nova:service-call` runs entity service calls through the typed verbs `ha-nova call` / `ha-nova apply`: the CLI resolves and freezes targets, computes the tier (ordinary runs at once and is verified; preview needs natural confirmation; typed needs the user's own confirmation — window or phone, else the one-time code), refuses owned services unless `--skill <owner>` names the calling skill, sends exactly one request, and verifies. Response services use `--response`; App/host control uses `--skill ha-nova:service-call` (on-demand `skills/service-call/raw-routes.md`). It owns ordinary HA service calls plus two guarded runtime families:
 - alarm-panel runtime services with feature bits 1/2/4/8/16/32
 - lock runtime services, with `lock.open` gated by feature bit 1
 

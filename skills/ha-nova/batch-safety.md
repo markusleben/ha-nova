@@ -129,10 +129,10 @@ after the 🗑️ title states in plain language what the workset does today and
 that this stops on delete — a bare count plus manifest path is not a preview:
 
 ```
-🗑️  Delete: 8 automations (reviewed cleanup workset)
-All eight are light schedules that stop running when deleted.
+🗑️  Delete: 8 timer helpers (reviewed cleanup workset)
+All eight are kitchen timers that stop working when deleted.
 Manifest: <path the user can open> — 8 / 20 (cap)
-Impact: no consumers found for 7; "Morning routine" is referenced by script "Wake up" (will break).
+Impact: no consumers found for 7; "Tea timer" is referenced by script "Wake up" (will break).
 Recovery: YAML export written; no automatic rollback after delete.
 Runs one by one — stops at the first error.
 ⚠️  Nothing deleted yet.

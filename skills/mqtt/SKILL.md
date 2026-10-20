@@ -110,6 +110,6 @@ Render the Report shape (output-cards.md). For a listen: the topic, the window l
 
 ## Guardrails
 
-- One topic per window; one publish per `ha-nova call`. A retained-discovery cleanup is several `ha-nova call mqtt.publish` plans, each its own typed plan with its own one-time code — typed one reply each in manifest order per `../ha-nova/batch-safety.md` (no shared batch code): one resolved device, topics taken only from `mqtt/device/debug_info`, never guessed or globbed; command/`set` topics always stay single-target.
+- One topic per window; one publish per `ha-nova call`. A retained-discovery cleanup is several `ha-nova call mqtt.publish` plans, each its own typed plan with its own `say` ask — one reply each in manifest order per `../ha-nova/batch-safety.md` (no shared batch code): one resolved device, topics taken only from `mqtt/device/debug_info`, never guessed or globbed; command/`set` topics always stay single-target.
 - Windows are bounded by the relay (max 100 events / 10 s) — never claim continuous monitoring.
 - Never guess a `device_id` or invent a payload schema; read what the device actually publishes first.
