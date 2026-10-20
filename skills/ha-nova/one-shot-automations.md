@@ -2,10 +2,8 @@
 
 Canonical path: `../ha-nova/one-shot-automations.md`
 
-Split out of `../ha-nova/automation-patterns.md` to keep that file under
-the repo's ~400-line ceiling. Everything here is about automations that must
-not outlive their purpose: fire-once notifications, and actions bounded by a
-duration.
+Automations that must not outlive their purpose: fire-once notifications,
+and actions bounded by a duration.
 
 
 "Only today", "just once", "remind me when the laundry finishes" — the most

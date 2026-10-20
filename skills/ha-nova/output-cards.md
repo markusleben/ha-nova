@@ -18,7 +18,7 @@ Line, a Session Recap, findings, or review output. The core rules still apply.
 - Close every create/update preview with one natural question (save it, show the details, or leave it). Sole exception: intermediate previews inside a grouped change set (`../ha-nova/grouped-change-set.md`) carry none — one final question closes the group.
 - Delete previews must say nothing has been deleted yet and must close with the confirmation ask (a CLI plan's `say`, else the one-time code); never a save question or a selectable menu for destructive confirmation.
 - Never hide the available next actions inside a paragraph.
-- A plan's `say` closes the card, replacing the ⚠️ save-status and options or code lines.
+- A plan's `say` closes the card, replacing the ⚠️ save-status and options or code lines. Ask and result shapes: `../ha-nova/index.md` → Say it.
 
 ## Cards (Write-Flow Visual System)
 
@@ -34,7 +34,6 @@ The three light actions now only run when someone is home.
 |---|---|---|
 | Condition 1 | — | condition state |
 
-Pre-write check: no concerns.
 ⚠️  Nothing saved yet.
 Save it? I can also show the details.
 ```
@@ -48,7 +47,7 @@ Title line: emoji + localized preview label + item type + name. Then one to thre
 Dims the living room lights — that stops when it is gone.
 Used by: nothing else found.
 ⚠️  Nothing deleted yet.
-Type <four digits> to delete.
+Type <four digits> to delete — a plain yes can't confirm this.
 ```
 
 Destructive batch previews and results render the Batch Cards defined in
@@ -58,7 +57,7 @@ Destructive batch previews and results render the Batch Cards defined in
 
 ```
 ✅ Saved: automation "Morning routine"
-Checked: stored and loaded by Home Assistant. Runtime behavior was not exercised.
+Stored and loaded by Home Assistant. I didn't run it yet.
 To undo this change, just say so.
 ```
 

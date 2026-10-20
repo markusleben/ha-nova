@@ -1,6 +1,6 @@
 ---
 name: home-map
-description: Use when the user wants to understand, document, or audit their whole Home Assistant home with exact numbers — "what do I have", "show me my home", "where is this entity used", "review my whole setup", "write down why it is built this way", or the first look after pairing.
+description: Use when the user wants to understand, document, or audit their whole Home Assistant home with exact numbers — "what do I have", "show me my home", "where is X used", "review my whole setup", "write down why it is built this way", or the first look after pairing.
 license: MIT
 compatibility: Requires the ha-nova CLI (run 'ha-nova setup' first) and the HA NOVA Relay in Home Assistant (App, or standalone container on Container/Core).
 ---
@@ -65,8 +65,7 @@ Definitions to keep when you explain a number:
   runs; `restored`: its config is gone, only the registry row remains (an
   orphan for `ha-nova:maintenance`). `never_triggered`: enabled, no run yet.
 - `age` on an unavailable entity is the age of its current state — "for at
-  least 9 days", never "since 9 days ago it broke". `restored` rows are
-  orphans too.
+  least 9 days", never "since 9 days ago it broke".
 - batteries are low battery levels: `low` counts device batteries;
   `levels_low` are charge levels (a car or home storage — low is normal
   there, not a fault); `phones_low` are phones — never suggest a
@@ -86,8 +85,9 @@ problems?").
 
 Resolve the entity, then `ha-nova map --entity <id>`. List every hit by
 name (dashboards: dashboard › view › card); mark `via: device` rows
-as "through its device". Always name the `not_checked` surfaces in one line: an
-empty result means "nothing found where checked", never "unused" or "safe to delete".
+as "through its device". Always name the `not_checked` surfaces in one plain
+line, likeliest first (a sensor: YAML template sensors), never as a raw
+list. An empty result means "nothing found where checked", never "unused" or "safe to delete".
 Deletes and renames: the owning skill.
 
 ### Review my whole setup
@@ -115,8 +115,7 @@ Deletes and renames: the owning skill.
    neither says why, write "purpose not recorded" and ask — never invent a
    reason.
 4. Persistent notes: the "why" belongs in the automation's or script's own
-   `description` field, Home Assistant's native and visible store, which
-   later sessions read back with `get --config`. Offer a proposed
+   `description` field, which later sessions read back. Offer a proposed
    description per item; saving goes through `ha-nova:write` with its usual
    preview and confirmation. The house-wide document stays in this chat for
    the user to keep; nothing else is stored.

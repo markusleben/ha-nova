@@ -108,7 +108,7 @@ Skills reference this section as "context skill → Active Preview Confirmation"
 ## Interactive Choices
 
 When you need the user to choose between options:
-- Present 2–4 options as a **selectable menu if the client provides one** (e.g. Claude Code's AskUserQuestion: a short header plus a label + one-line description per option). Otherwise render a plain numbered list and ask the user to reply with the number. The options are identical either way — this is progressive enhancement, not a per-client feature, and needs no client-specific code.
+- Present 2–4 options as a **selectable menu if the client provides one** (e.g. Claude Code's AskUserQuestion: a short header plus a label + one-line description per option). Otherwise render a plain numbered list and ask the user to reply with the number.
 - Keep options short and mutually exclusive; offer at most 4.
 - Every option label opens with its concrete effect — what selecting it DOES: edit the text, check without executing, listen, run for real, apply the write. Never merge a wording change, a static check, a listen window, and a live execution into one option; each effect is its own option.
 - Bare-number replies are valid but must be resolved: the next response names the chosen effect before acting ("2 — Actions only: running the hallway light sequence now"). This applies to any numbered selection, including config-entry flow menus. Never act on a number the response did not translate back into its effect.
