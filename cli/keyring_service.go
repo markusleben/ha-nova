@@ -415,7 +415,7 @@ func isDesktopKeyringUnavailableError(err error) bool {
 	if errors.Is(err, errDesktopKeyringUnavailable) {
 		return true
 	}
-	message := strings.ToLower(err.Error())
+	message := errorChainText(err) // a CloudError hides its cause text
 	return (strings.Contains(message, "org.freedesktop.secrets") &&
 		(strings.Contains(message, "not provided") || strings.Contains(message, "serviceunknown"))) ||
 		strings.Contains(message, "secret service preflight timed out")
@@ -428,7 +428,7 @@ func isDesktopKeyringSessionUnavailableError(err error) bool {
 	if errors.Is(err, errDesktopKeyringSessionUnavailable) {
 		return true
 	}
-	message := strings.ToLower(err.Error())
+	message := errorChainText(err) // a CloudError hides its cause text
 	return strings.Contains(message, "couldn't determine address of session bus") ||
 		(strings.Contains(message, "dbus-launch") && strings.Contains(message, "not found"))
 }

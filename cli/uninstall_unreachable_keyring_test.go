@@ -294,6 +294,11 @@ func TestLinkKeyringErrorsArePlain(t *testing.T) {
 	if !isLinuxKeyringOutOfReach(busGone) || !strings.HasPrefix(keyringErrorText(busGone), keyringSessionMessage) {
 		t.Fatalf("godbus text inside a CloudError: %q", keyringErrorText(busGone))
 	}
+	noProvider := newCloudError(CloudErrSecretStore, "access OAuth secret store",
+		errors.New("The name org.freedesktop.secrets was not provided by any .service files"))
+	if !isLinuxKeyringOutOfReach(noProvider) || !strings.HasPrefix(keyringErrorText(noProvider), keyringMissingMessage) {
+		t.Fatalf("missing Secret Service inside a CloudError: %q", keyringErrorText(noProvider))
+	}
 	original := deviceCredentialPreflight
 	t.Cleanup(func() { deviceCredentialPreflight = original })
 	deviceCredentialPreflight = func() error { return desktopKeyringLockedError("default Secret Service collection is locked") }
