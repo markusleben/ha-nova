@@ -4,11 +4,8 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import { hasPowerShell, pwshEnv } from "../helpers/pwsh.js";
 import { makeTempDir } from "../helpers/temp-dir.js";
-
-function hasPowerShell(): boolean {
-  return spawnSync("pwsh", ["-NoProfile", "-Command", "exit 0"]).status === 0;
-}
 
 function runPreflightProbe(body: string): { status: number | null; output: string } {
   const tempDir = makeTempDir("ha-nova-windows-preflight-");
@@ -27,7 +24,7 @@ ${body}
   const result = spawnSync(
     "pwsh",
     ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", probe],
-    { encoding: "utf8" },
+    { encoding: "utf8", env: pwshEnv },
   );
   return {
     status: result.status,
