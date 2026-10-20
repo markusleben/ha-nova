@@ -75,7 +75,7 @@ export function isSafeHASlug(value: unknown): value is string {
 // single-line, bounded, adding information beyond the ID itself, and free of
 // the patterns the privacy contract forbids in every mode (URLs, hostnames,
 // IPs, Markdown delimiters, secret-like values). Fail closed — dropping a
-// name loses nothing, the exact ID is always shown.
+// name loses nothing, the exact ID takes its place.
 const FORBIDDEN_NAME_PATTERN = new RegExp(
   [
     String.raw`https?://`,

@@ -133,7 +133,7 @@ Every non-empty block uses the same shape: localized block label; one- or
 two-sentence assessment BEFORE the table; one primary compact table when at
 least two comparable rows exist; one optional action sentence after it.
 Tables hold comparable facts — explanations, uncertainty, and instructions
-stay outside cells; friendly name and exact ID may share one cell; a single
+stay outside cells; a shown ID shares its name's cell; a single
 finding may stay a compact text record; use a stacked record fallback when
 four short columns would be too wide. Severity never depends on color alone:
 pair `🔴`/`🟠`/`🟡` with a plain-language title or status ("act", "check",
@@ -204,9 +204,10 @@ pair `🔴`/`🟠`/`🟡` with a plain-language title or status ("act", "check",
 
 ## Output Format
 
-Apply `../ha-nova/output-rules.md` (including → Progressive Detail: every
-truncation carries total/shown/omitted counts and a precise request for the
-full set — never a bare "N more"): plain words, HA names verbatim; unless asked, no "entity", Relay/HA URLs, snapshots, raw JSON.
+Apply `../ha-nova/output-rules.md`: plain words, HA names verbatim; unless asked or names clash, no ids, "entity", modes, Relay/HA URLs, snapshots, raw JSON.
+Report modes stay visible. Every truncation follows → Progressive Detail:
+total/shown/omitted counts and a precise request for the full set — never a
+bare "N more".
 
 These names are semantic output slots, not literal headings. Do not mix English labels with localized prose unless the label is a Home Assistant state/value.
 Deterministic internal sorting happens before localization; localize every
@@ -224,7 +225,7 @@ step at runtime. No installation-specific text is hard-coded:
 - `Coverage`
 - `Next step`
 
-Keep Home Assistant state values such as `unavailable`, `unknown`, `setup_error`, `setup_retry`, and `not_loaded` literal when they are evidence, with a short localized explanation when helpful; entity IDs stay literal. Do not dump raw JSON, full logs, or full unrequested inventories —
+Keep Home Assistant state values such as `unavailable`, `unknown`, `setup_error`, `setup_retry`, and `not_loaded` literal when they are evidence, with a short localized explanation when helpful; a shown entity ID stays literal. Do not dump raw JSON, full logs, or full unrequested inventories —
 detail follows the mode and the budgets in `availability-analysis.md`.
 
 Choose one safest `Next step` from the same ranked finding ledger as

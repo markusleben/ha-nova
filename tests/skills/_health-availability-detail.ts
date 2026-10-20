@@ -184,17 +184,14 @@ export function buildExampleRenderer(
     );
     return group.count <= 10 ? prioritized : prioritized.slice(0, 5);
   };
+  const shownRows = displayed.flatMap(exampleRowsFor);
   // Shareable mode keeps the identical detail selection but replaces each
   // identity with a deterministic per-type alias assigned by hidden
   // code-point sort of the underlying IDs.
   const aliasByID = new Map<string, string>();
   if (privacyMode === "shareable") {
-    const shownIDs = new Set<string>();
-    for (const group of displayed) {
-      for (const row of exampleRowsFor(group)) shownIDs.add(row.id);
-    }
     const byType = new Map<string, string[]>();
-    for (const id of [...shownIDs].sort(compareCodePoint)) {
+    for (const id of [...new Set(shownRows.map((row) => row.id))].sort(compareCodePoint)) {
       const type = id.split(".", 1)[0] ?? "entity";
       const list = byType.get(type) ?? [];
       list.push(id);
@@ -204,15 +201,28 @@ export function buildExampleRenderer(
       ids.forEach((id, index) => aliasByID.set(id, `${type} ${index + 1}`));
     }
   }
+  // Private shows the name alone; the exact ID joins only when the row has
+  // no safely renderable name or two shown rows share one.
+  const nameUses = new Map<string, number>();
+  for (const row of shownRows) {
+    if (row.name) {
+      const key = row.name.toLowerCase();
+      nameUses.set(key, (nameUses.get(key) ?? 0) + 1);
+    }
+  }
+  const privateLabel = (row: { id: string; name: string }): string =>
+    !row.name
+      ? row.id
+      : (nameUses.get(row.name.toLowerCase()) ?? 0) > 1
+        ? `${row.name} (${row.id})`
+        : row.name;
   return (group: Group): string[] => {
     if (privacyMode === "aggregate") return [];
     const out: string[] = [];
     for (const row of exampleRowsFor(group)) {
-      // Private detail is the exact ID plus the safely renderable friendly
-      // name when one exists; Shareable replaces both with the alias.
       out.push(
         privacyMode === "private"
-          ? `  - ${row.id}${row.name ? ` (${row.name})` : ""}`
+          ? `  - ${privateLabel(row)}`
           : `  - ${aliasByID.get(row.id) ?? "entity"}`,
       );
     }
