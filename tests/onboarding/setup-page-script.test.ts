@@ -320,4 +320,10 @@ describe("setup page re-run (G1)", () => {
     expect(p.screen.querySelector("h1")!.textContent).toBe(p.catalog["setup.page.saved.title"]);
     expect(p.screen.textContent).toContain("Claude Code got its 2 rules");
   });
+
+  it("styles only a row list's own rows, not a list inside a row", () => {
+    // "Show me how" puts an <ol> inside a row; `.rows li` made each step a
+    // three-column grid, one word per line.
+    expect(read("style.css")).not.toMatch(/\.rows[\w.-]*\s+li\b/);
+  });
 });
