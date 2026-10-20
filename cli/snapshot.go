@@ -47,15 +47,19 @@ func runSnapshotSave(paths runtimePaths, args []string) int {
 		printErr("%s", err)
 		return 1
 	}
-	if err := selectServerFlag(fs, *server); err != nil {
-		printErr("%s; no snapshot was written", err)
-		return 1
-	}
+	serverSet := false
 	fs.Visit(func(f *flag.Flag) {
-		if f.Name == "data-file" {
-			dataFileSet = true
-		}
+		dataFileSet = dataFileSet || f.Name == "data-file"
+		serverSet = serverSet || f.Name == "server"
 	})
+	selected := ""
+	if serverSet { // the server must exist; it tags the record
+		var err error
+		if selected, err = snapshotServer(paths, fs, *server); err != nil {
+			printErr("%s; no snapshot was written", err)
+			return 1
+		}
+	}
 	if fs.NArg() != 0 {
 		printErr("snapshot save takes no positional arguments; use --data-file <file> or pipe the record on stdin")
 		return 1
@@ -86,7 +90,7 @@ func runSnapshotSave(paths runtimePaths, args []string) int {
 			return 1
 		}
 	}
-	receipt, err := saveUndoSnapshotBytes(paths, data)
+	receipt, err := saveUndoSnapshotForServer(paths, data, selected)
 	if err != nil {
 		printErr("%s", err)
 		return 1

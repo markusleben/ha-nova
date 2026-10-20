@@ -19,7 +19,7 @@ expiry automation this flow just created (splitting them loses the pairing,
 
 Read and follow `../ha-nova/session-bootstrap.md`. An unreachable Relay answers exit 1 `RELAY_ERROR`
 (then `ha-nova setup`). Multi-server: `--server <name>`
-on every command but `apply`, `diff`, `relay jq`; name non-default servers once per response.
+on every Home Assistant command but `apply`; name non-default servers once per response.
 
 ## Relay Contract
 

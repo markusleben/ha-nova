@@ -449,6 +449,12 @@ func runCheckUpdate(paths runtimePaths, args []string) int {
 		printHumanErr("%s", err)
 		return 1
 	}
+	if *server != "" { // a mistyped server must not count as checked
+		if _, err := loadConfig(paths); err != nil {
+			printHumanErr("%s", err)
+			return 1
+		}
+	}
 
 	result := buildUpdateCheckResult(paths)
 	if *jsonOutput {

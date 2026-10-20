@@ -58,7 +58,9 @@ func TestEveryServerCommandTheSkillsNameTakesServerDemo(t *testing.T) {
 		t.Fatal(err)
 	}
 	exit := 0
-	out := captureStdout(t, func() { exit = dispatch(paths, "ha-nova", []string{"snapshot", "save", "--data-file", record, "--server", "demo"}) })
+	out := captureStdout(t, func() {
+		exit = dispatch(paths, "ha-nova", []string{"snapshot", "save", "--data-file", record, "--server", "demo"})
+	})
 	if exit != 0 {
 		t.Fatalf("snapshot save --server demo exit=%d out=%s", exit, out)
 	}
@@ -80,6 +82,7 @@ func TestServerFlagNeedsAName(t *testing.T) {
 		{"doctor", "--server", " "},
 		{"trace", "latest", "automation.x", "--server"},
 		{"trace", "latest", "automation.x", "--server="},
+		{"trace", "latest", "automation.x", "--server", "--json"},
 		{"snapshot", "save", "--server="},
 	} {
 		exit := 0
@@ -97,5 +100,50 @@ func TestTakeServerArgKeepsOtherArgs(t *testing.T) {
 	rest, err := takeServerArg([]string{"latest", "-server", "cabin", "automation.x", "--json"})
 	if err != nil || strings.Join(rest, " ") != "latest automation.x --json" || serverSelectionOverride != "cabin" {
 		t.Fatalf("rest=%v err=%v override=%q", rest, err, serverSelectionOverride)
+	}
+}
+
+// A named server: an explicit selection must exist, and snapshot save tags
+// the record with it (an untagged record matches every server's revert).
+func TestServerFlagOnANamedServer(t *testing.T) {
+	paths := setupServerCommandTest(t, testV2TwoProfileConfig)
+	run := func(args ...string) (int, string) {
+		serverSelectionOverride = ""
+		exit := 0
+		out := captureStdout(t, func() {
+			os.Stdout.WriteString(captureStderr(t, func() { exit = dispatch(paths, "ha-nova", args) }))
+		})
+		return exit, out
+	}
+	if exit, out := run("check-update", "--quiet", "--server", "cabn"); exit == 0 || !strings.Contains(out, "unknown server profile") {
+		t.Fatalf("a mistyped server must not count as checked: exit=%d out=%s", exit, out)
+	}
+	record := filepath.Join(t.TempDir(), "record.json")
+	write := func(server string) {
+		body := `{"op":"update","domain":"input_boolean","target_id":"guest",` + server + `"before_config":{"name":"a"},"expected_after":{"name":"b"}}`
+		if err := os.WriteFile(record, []byte(body), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write("")
+	if exit, out := run("snapshot", "save", "--data-file", record, "--server", "cabn"); exit == 0 || !strings.Contains(out, "no snapshot was written") {
+		t.Fatalf("snapshot save to a mistyped server: exit=%d out=%s", exit, out)
+	}
+	if exit, out := run("snapshot", "save", "--data-file", record, "--server", "cabin"); exit != 0 {
+		t.Fatalf("snapshot save --server cabin: exit=%d out=%s", exit, out)
+	}
+	write(`"server":"default",`)
+	if exit, out := run("snapshot", "save", "--data-file", record, "--server", "cabin"); exit == 0 || !strings.Contains(out, `the record is for server "default", not "cabin"`) {
+		t.Fatalf("a record for another server: exit=%d out=%s", exit, out)
+	}
+	stack, err := loadUndoSnapshotStack(paths)
+	if err != nil || len(stack.Snapshots) != 1 || stack.Snapshots[0].Server != "cabin" {
+		t.Fatalf("snapshot save --server cabin must tag the record: %+v %v", stack, err)
+	}
+}
+
+func TestMCPRunIDIsNeverAFlag(t *testing.T) {
+	if runIDPattern.MatchString("--server") || !runIDPattern.MatchString("1a2b.c:d-e_f") {
+		t.Fatal("run_id must not start with a dash")
 	}
 }

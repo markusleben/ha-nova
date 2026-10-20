@@ -68,7 +68,7 @@ func loadRuntimeConfig(pathArgs ...runtimePaths) (runtimeConfig, error) {
 	}
 	notSetUp := errors.New("HA NOVA is not set up yet. Run: ha-nova setup")
 	if demoProfileOn(paths) {
-		notSetUp = errors.New("Only the demo house is connected: add --server demo to each ha-nova command but apply (apply follows its plan). To connect your own home, run: ha-nova setup")
+		notSetUp = errors.New("Only the demo house is connected. For it, add --server demo to every ha-nova command that reaches Home Assistant, but not to apply (it follows its plan). To connect your own home, run: ha-nova setup")
 	}
 
 	doc, err := loadConfigDocument(paths.ConfigFile)
