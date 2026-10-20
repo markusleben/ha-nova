@@ -182,6 +182,13 @@ const banner = (version) => [
 const TILE_DOMAINS = ["light", "switch", "cover", "lock", "climate", "fan", "media_player", "vacuum", "humidifier",
   "water_heater", "sensor", "binary_sensor", "button", "input_boolean", "input_number", "input_select",
   "input_text", "input_button", "timer", "counter", "scene", "script", "automation", "camera"];
+// Off the dashboard, still in the house for agents: demo platform entities
+// that do nothing on a tap, on purpose (HA's demo integration shows feature
+// edge cases: a lock that jams, vacuums without controls, players that only
+// browse or search), and demo.yaml's machinery, so no tap switches it off.
+const OFF_DASHBOARD = ["lock.poorly_installed_door", "vacuum.demo_vacuum_3_third_floor",
+  "vacuum.demo_vacuum_4_fourth_floor", "media_player.browse", "media_player.search",
+  "automation.demo_simulated_devices_report_back", "automation.demo_relock_the_entrance_door"];
 
 // The default dashboard: a storage dashboard (HA 2026.10 sends a default
 // "lovelace" panel without a dashboard entry to the new Home panel) with one
@@ -205,7 +212,7 @@ async function saveDashboard(ha) {
     });
   }
   const header = { card: { type: "markdown", text_only: true, content: banner(config.version) } };
-  const live = new Set(states.map((s) => s.entity_id));
+  const live = new Set(states.map((s) => s.entity_id).filter((id) => !OFF_DASHBOARD.includes(id)));
   const deviceArea = Object.fromEntries(devices.map((d) => [d.id, d.area_id]));
   const shown = entities.filter((e) => live.has(e.entity_id) && !e.disabled_by && !e.hidden_by && !e.entity_category
     && TILE_DOMAINS.includes(e.entity_id.split(".")[0]));
@@ -251,11 +258,50 @@ async function nameAppDevice(ha) {
   }
 }
 
+// Onboarding adds a "Map" dashboard. The house has no egress, so its map
+// tiles (/api/map_tiles/, proxied from OpenStreetMap) never load: an empty
+// map and 503s. Not worth a third party in visitors' browsers; the panel goes.
+async function dropMapDashboard(ha) {
+  const map = (await ha.call({ type: "lovelace/dashboards/list" })).find((d) => d.url_path === "map");
+  if (map) await ha.call({ type: "lovelace/dashboards/delete", dashboard_id: map.id });
+}
+
+// Calls the service until the entity shows the state (a command can be lost
+// while nothing listens yet), up to `seconds`.
+async function roundTrip(ha, domain, name, entityId, want, seconds = 30) {
+  const deadline = Date.now() + seconds * 1000;
+  for (;;) {
+    await ha.call(service(domain, name, { entity_id: entityId }));
+    for (let i = 0; i < 4; i++) {
+      await new Promise((r) => setTimeout(r, 500));
+      if ((await ha.call({ type: "get_states" })).find((x) => x.entity_id === entityId)?.state === want) return;
+    }
+    if (Date.now() > deadline) throw new Error(`${entityId} did not become ${want} within ${seconds} s`);
+  }
+}
+
+// demo.yaml's MQTT trigger could not attach at boot (seed.mjs adds the
+// broker entry later), and a reload skips unchanged automations: off and on.
+// HA's MQTT client then still holds new subscriptions back for up to a
+// minute after a reset: wait for a real answer (90 s, inside reset.sh's 120)
+// before the house is exposed.
+async function armSimulatedDevices(ha) {
+  const row = (await ha.call({ type: "config/entity_registry/list" }))
+    .find((e) => e.platform === "automation" && e.unique_id === "demo_simulated_devices");
+  if (!row) throw new Error("automation demo_simulated_devices (config/packages/demo.yaml) is missing");
+  await ha.call(service("automation", "turn_off", { entity_id: row.entity_id }));
+  await ha.call(service("automation", "turn_on", { entity_id: row.entity_id }));
+  await roundTrip(ha, "lock", "unlock", "lock.entrance_door", "unlocked", 90);
+  await roundTrip(ha, "lock", "lock", "lock.entrance_door", "locked");
+}
+
 // After the house is seeded (reset.sh): seed.mjs waited for the demo entities.
 async function dashboard() {
   await withHa(async (ha) => {
     await saveDashboard(ha);
     await nameAppDevice(ha);
+    await dropMapDashboard(ha);
+    await armSimulatedDevices(ha);
   });
 }
 
@@ -327,14 +373,11 @@ async function smoke() {
     if (Number.isNaN(Date.parse(states.find((s) => s.entity_id === "sensor.demo_next_reset").state))) {
       throw new Error("sensor.demo_next_reset is not a timestamp");
     }
-    await ha.call(service("light", "turn_on", { entity_id: "light.bed_light" }));
-    for (let i = 0; ; i++) {
-      const s = (await ha.call({ type: "get_states" })).find((x) => x.entity_id === "light.bed_light");
-      if (s.state === "on") break;
-      if (i === 10) throw new Error("light.bed_light did not turn on");
-      await new Promise((r) => setTimeout(r, 500));
-    }
-    await ha.call(service("light", "turn_off", { entity_id: "light.bed_light" }));
+    await roundTrip(ha, "light", "turn_on", "light.bed_light", "on");
+    await roundTrip(ha, "light", "turn_off", "light.bed_light", "off");
+    // An MQTT device reports back (demo.yaml).
+    await roundTrip(ha, "lock", "unlock", "lock.entrance_door", "unlocked");
+    await roundTrip(ha, "lock", "lock", "lock.entrance_door", "locked");
     console.log(config.version);
   });
   await guard();

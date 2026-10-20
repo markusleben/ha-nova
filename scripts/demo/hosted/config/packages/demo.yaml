@@ -23,3 +23,41 @@ automation:
             Everything changed in the last hour is wiped at :00 UTC. The house comes back pristine about 2 minutes later.
             Public demo, one shared account: never enter real names, addresses, passwords, API keys or tokens,
             and don't connect real accounts or devices.
+
+  # The test bed's MQTT devices (scripts/e2e/testbed/up.sh: entrance lock,
+  # garage, driveway gate, smart plug) have nothing behind them, so a command
+  # never comes back as a state and the tile never moves. In the demo the
+  # house answers for them: each command is published as the new state. The
+  # test bed itself keeps them silent. Its MQTT trigger can only attach once
+  # the broker entry exists (seed.mjs, after boot): demo.mjs dashboard turns
+  # it off and on.
+  - id: demo_simulated_devices
+    alias: "Demo: simulated devices report back"
+    description: Publishes each command to the demo's MQTT devices as their new state. Demo only.
+    mode: queued
+    triggers:
+      - trigger: mqtt
+        topic: testbed/+/set
+    conditions:
+      - condition: template
+        value_template: "{{ trigger.payload in ['LOCK', 'UNLOCK', 'OPEN', 'CLOSE', 'ON', 'OFF'] }}"
+    actions:
+      - action: mqtt.publish
+        data:
+          topic: "{{ trigger.topic[:-4] }}/state"
+          payload: "{{ {'LOCK': 'LOCKED', 'UNLOCK': 'UNLOCKED', 'OPEN': 'open', 'CLOSE': 'closed', 'ON': 'ON', 'OFF': 'OFF'}[trigger.payload] }}"
+          retain: true
+
+  # `ha-nova try` has visitors unlock this door: the next visitor finds it
+  # locked again, not open until the hourly reset.
+  - id: demo_relock_entrance_door
+    alias: "Demo: relock the entrance door"
+    description: Locks the entrance door 2 minutes after it was unlocked. Demo only.
+    triggers:
+      - trigger: state
+        entity_id: lock.entrance_door
+        to: unlocked
+        for: { minutes: 2 }
+    actions:
+      - action: lock.lock
+        target: { entity_id: lock.entrance_door }

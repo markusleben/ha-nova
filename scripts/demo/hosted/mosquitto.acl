@@ -1,5 +1,7 @@
 # Anonymous clients on the Home Assistant listener (see mosquitto.conf).
 topic read #
 topic write testbed/+/set
+# demo_simulated_devices (config/packages/demo.yaml) answers commands here.
+topic write testbed/+/state
 topic write testbed/plug/factory_reset
 topic write testbed/router/restart
