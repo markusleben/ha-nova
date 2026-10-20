@@ -396,3 +396,19 @@ func TestFailedPendingSaveLeavesNoPendingInMemory(t *testing.T) {
 		t.Fatalf("err=%v pending=%+v", err, cfg.Cloud.Pending)
 	}
 }
+
+// After an unknown outcome (a recovery hold) a grant may have existed, so
+// the "never finished" line must not show.
+func TestUnfinishedSignInLineNeedsNoRecoveryHold(t *testing.T) {
+	cfg := unfinishedSignInTestConfig(t)
+	if !cfg.Cloud.unfinishedSignIn() {
+		t.Fatal("plain unfinished sign-in not recognized")
+	}
+	cfg.Cloud.RecoveryHold = &cloudRecoveryHold{
+		Code:        cloudProblemAuthorization,
+		Remediation: cloudRemediationSecurityStop,
+	}
+	if cfg.Cloud.unfinishedSignIn() {
+		t.Fatal("held unknown outcome reported as never finished")
+	}
+}

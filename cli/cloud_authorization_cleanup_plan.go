@@ -147,6 +147,7 @@ func (m *cloudLifecycleMetadata) unfinishedSignIn() bool {
 		m.State == cloudStateAuthorizing &&
 		m.Pending == nil &&
 		m.Current == nil &&
+		m.RecoveryHold == nil && // an unknown outcome may have been revoked by hand
 		!m.cleanupPending()
 }
 
