@@ -81,16 +81,16 @@ func renderUninstallPreflight(out io.Writer, paths runtimePaths, source string, 
 	}
 	renderSimpleHeader(out, session, "HA NOVA Uninstall")
 	fmt.Fprintf(out, "  %s\n", session.style("strong", "Removes from this computer:"))
-	fmt.Fprintf(out, "    %s Skills from installed AI clients\n", session.bullet())
+	fmt.Fprintf(out, "    %s HA NOVA's skills in your AI apps\n", session.bullet())
 	fmt.Fprintf(out, "    %s %s\n", session.bullet(), uninstallRuntimeLineLabel(paths, source))
-	fmt.Fprintf(out, "    %s Managed local state and cache\n", session.bullet())
+	fmt.Fprintf(out, "    %s HA NOVA's own files on this computer\n", session.bullet())
 	fmt.Fprintln(out)
 	fmt.Fprintf(out, "  %s\n", session.style("strong", second))
-	fmt.Fprintf(out, "    %s Home Assistant connection config\n", session.bullet())
+	fmt.Fprintf(out, "    %s HA NOVA's saved Home Assistant address\n", session.bullet())
 	if label := uninstallTokenLineLabel(paths); label != "" {
 		fmt.Fprintf(out, "    %s %s\n", session.bullet(), label)
 	}
-	fmt.Fprintf(out, "    %s Home Assistant Link authorization (when configured)\n", session.bullet())
+	fmt.Fprintf(out, "    %s Your Home Assistant Link sign-in, if you use it\n", session.bullet())
 	fmt.Fprintln(out)
 	if warning := uninstallForeignTokenFileWarning(paths); warning != "" {
 		renderSetupParagraphTight(out, session.style("warning", warning))
@@ -106,9 +106,9 @@ func uninstallRuntimeLineLabel(paths runtimePaths, source string) string {
 	case installSourceLegacyWindowsPackage:
 		return "Legacy Windows package install (remove via Installed Apps / App Installer)"
 	case installSourceBundle:
-		return "Installed CLI runtime (" + filepath.Join(paths.InstallRoot, publicBinaryName()) + ")"
+		return "The ha-nova program"
 	default:
-		return "Installed AI client bindings and local HA NOVA state"
+		return "HA NOVA's connection in your AI apps"
 	}
 }
 
@@ -139,20 +139,20 @@ func uninstallTokenLineLabel(paths runtimePaths) string {
 		if !managed {
 			return ""
 		}
-		return "Relay token file (" + path + ")"
+		return "HA NOVA's key file"
 	}
-	names := uninstallCredentialNames(paths)
-	if dir, err := deviceSecretFileDir(); err == nil && deviceFileBackendMarkerExists() { // headless: files, not the keyring
-		return "Credential files in " + dir + " (" + strings.Join(names, ", ") + ")"
+	keys := "This computer's HA NOVA key"
+	if names := uninstallCredentialNames(paths); len(names) > 1 {
+		keys = fmt.Sprintf("This computer's %d HA NOVA keys", len(names))
 	}
-	store := map[string]string{"darwin": "Keychain", "windows": "Credential Manager"}[runtime.GOOS]
+	if deviceFileBackendMarkerExists() { // headless: files, not the keyring
+		return keys + " (in files)"
+	}
+	store := map[string]string{"darwin": "the Keychain", "windows": "Credential Manager"}[runtime.GOOS]
 	if store == "" {
-		store = "Secure storage"
+		store = "the keyring"
 	}
-	if len(names) == 1 {
-		return store + " entry (" + names[0] + ")"
-	}
-	return store + " entries (" + strings.Join(names, ", ") + ")"
+	return keys + " (in " + store + ")"
 }
 
 // uninstallCredentialNames names the entries the user finds in secure
@@ -187,7 +187,7 @@ func uninstallForeignTokenFileWarning(paths runtimePaths) string {
 }
 
 func uninstallWindowsBundleNote() string {
-	return "Windows bundle note: a short-lived helper finishes the uninstall after the running ha-nova.exe exits. Please wait a moment for the final removal to complete."
+	return "On Windows the last step finishes in the background a few seconds after this. You can close this window; wait a moment before you reinstall."
 }
 
 // collectUninstallPreflight reads the raw default profile (not loadConfig:
@@ -205,7 +205,8 @@ func collectUninstallPreflight(paths runtimePaths) uninstallPreflight {
 	if cfg.RelayBaseURL == "" {
 		return preflight
 	}
-	if _, err := readRelayAuthToken(); err != nil && !isMissingRelayAuthTokenError(err) {
+	// A locked keyring stops a full removal first; a kept pairing just stays.
+	if _, err := readRelayAuthToken(); err != nil && !isMissingRelayAuthTokenError(err) && !isDesktopKeyringLockedError(err) {
 		preflight.tokenUnavailable = relayAuthTokenProblemMessage(err)
 	}
 	return preflight
@@ -236,11 +237,11 @@ func preflightNoteLines(preflight uninstallPreflight) []string {
 	if preflight.haURL != "" && derived != "" &&
 		strings.TrimRight(strings.TrimSpace(preflight.config.RelayBaseURL), "/") == derived {
 		notes = []string{
-			"The NOVA App in Home Assistant stays. Remove it only if no other computer uses HA NOVA: that disconnects every paired computer. Its page: " + haRelayAppPageURL(preflight.haURL),
-			"After removing it, also remove its source: Settings → Apps → App Store → ⋮ → Repositories → " + haNovaRepositoryURL,
+			"The NOVA App in Home Assistant stays. Other computers may use it: removing it disconnects every paired computer. To remove it anyway, open: " + haRelayAppPageURL(preflight.haURL),
+			"Then remove where it came from: Settings → Apps → App Store → ⋮ → Repositories → " + haNovaRepositoryURL,
 		}
 	} else {
-		notes = []string{"The NOVA Relay stays. Remove it only if no other computer uses HA NOVA, together with any \"NOVA\" access token in your Home Assistant profile (Security tab)."}
+		notes = []string{"The NOVA Relay stays. If no other computer uses HA NOVA, remove it, and delete any \"NOVA\" token in your Home Assistant profile (Security tab)."}
 	}
 	if preflight.tokenUnavailable != "" {
 		notes = append(notes, preflight.tokenUnavailable)

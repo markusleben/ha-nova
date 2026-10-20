@@ -143,7 +143,7 @@ If id is ambiguous, ask one clarifying question. Never use raw `get_states`.
 
 ## Output Format
 
-Apply `../ha-nova/output-rules.md` to all user-facing output.
+Apply `../ha-nova/output-rules.md`: plain words, HA names verbatim; unless asked or names clash, no ids, "entity", modes, Relay/HA URLs, snapshots, raw JSON.
 
 After reading a config, present (the bold labels below are semantic slots — localize them at runtime per output-rules.md, never print them as literal English headings):
 
@@ -157,7 +157,7 @@ After reading a config, present (the bold labels below are semantic slots — lo
 
 Explain mode: lead with the behavior narrative; offer the YAML instead of dumping it unless the user also asked for it.
 
-The full YAML only when the user asks for the config or YAML:
+The full YAML only when asked:
 
 ```yaml
 alias: ...
@@ -172,7 +172,6 @@ For list operations, render the List Frame (output-cards.md) with these columns:
 |------|------|
 ```
 
-Never show raw JSON to the user.
 
 ## Trace Debugging
 

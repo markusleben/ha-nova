@@ -238,11 +238,12 @@ func TestUnreachableRelayIsAnOperationalError(t *testing.T) {
 	for _, args := range [][]string{{"call", "cover.open_cover", "cover.garage_door"}, {"plan", "call", "cover.open_cover", "cover.garage_door"}} {
 		command := map[string]func(runtimePaths, []string) int{"call": runCallCommand, "plan": runPlanCommand}[args[0]]
 		exit, env := h.run(command, args[1:]...)
-		if exit != 1 || env.Error == nil || env.Error.Code != "RELAY_ERROR" || env.Tier != "" || env.Plan != nil {
+		// F2: the plain say carries no address and no command for the user.
+		if exit != 1 || env.Error == nil || env.Error.Code != "RELAY_ERROR" || env.Tier != "" || env.Plan != nil || env.Say != relayUnreachableSay {
 			t.Fatalf("%v: exit %d env %+v", args, exit, env)
 		}
 	}
-	if exit, env := h.run(runApplyCommand, "--plan", id, "--confirm", code); exit != 1 || env.Error.Code != "RELAY_ERROR" {
+	if exit, env := h.run(runApplyCommand, "--plan", id, "--confirm", code); exit != 1 || env.Error.Code != "RELAY_ERROR" || env.Say != relayUnreachableSay {
 		t.Fatalf("apply: exit %d env %+v", exit, env)
 	}
 	if files := h.planFiles(); len(files) != 1 || !strings.HasSuffix(files[0], id+".json") {

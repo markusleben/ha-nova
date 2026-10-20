@@ -189,7 +189,7 @@ func collectDeviceCredentialRetirementPurgeTargets(
 		if err := validateDeviceCredentialRetirementBindings(
 			checkpoint,
 		); err != nil {
-			return nil, relayAuthTokenSetupOperationError(
+			return nil, keyringRemovalError(
 				fmt.Sprintf(
 					"validate pending device retirement for server %q",
 					profile,

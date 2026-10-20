@@ -164,6 +164,10 @@ func runServerRemove(paths runtimePaths, args []string) int {
 		if readErr == errSecretNotFound {
 			continue
 		}
+		if isLinuxKeyringError(readErr) {
+			printHumanErr("Nothing was removed. %s", relayAuthTokenProblemMessage(readErr))
+			return 1
+		}
 		printHumanErr("secure storage is not reachable here (%v) — removing %q now would leave its stored credential behind. Make secure storage available (e.g. run from the desktop session), then retry; nothing was removed.", readErr, name)
 		return 1
 	}

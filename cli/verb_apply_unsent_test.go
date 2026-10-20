@@ -16,7 +16,7 @@ func TestApplyReadFailureBeforeSendKeepsThePlan(t *testing.T) {
 	h.f.fail["/api/config/automation/config/a1"] = true
 	exit, env := h.run(runApplyCommand, "--plan", planned.Plan.ID)
 	if exit != 1 || env.Error == nil || env.Error.Code != "RELAY_ERROR" || !strings.Contains(env.Error.Message, "nothing was sent") ||
-		!strings.Contains(env.Error.Next, "retrying is safe") || len(h.writes()) != 0 {
+		!strings.Contains(env.Error.Next, "retrying is safe") || env.Say != "" || len(h.writes()) != 0 {
 		t.Fatalf("exit %d env %+v writes %v", exit, env, h.writes())
 	}
 	h.f.fail["/api/config/automation/config/a1"] = false

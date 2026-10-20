@@ -133,7 +133,7 @@ that this stops on delete — a bare count plus manifest path is not a preview:
 All eight are kitchen timers that stop working when deleted.
 Manifest: <path the user can open> — 8 / 20 (cap)
 Impact: no consumers found for 7; "Tea timer" is referenced by script "Wake up" (will break).
-Recovery: a config snapshot of each is saved first; a restore makes a new ID, so references stay broken.
+Recovery: a config snapshot of each is saved first; a restore makes a new copy, so references stay broken.
 Runs one by one — stops at the first error.
 ⚠️  Nothing deleted yet.
 Type <four digits> to delete all 8 — a plain yes can't confirm this.
@@ -144,7 +144,7 @@ Type <four digits> to delete all 8 — a plain yes can't confirm this.
 ```
 ✅ Deleted: 8 of 8 timer helpers
 Ledger: 8 succeeded · 0 failed · 0 not attempted.
-Checked per item: config gone, entity gone. Unrelated helpers untouched: total went 42 → 34, exactly the 8 deleted.
+Checked per item: gone from Home Assistant. Unrelated helpers untouched: total went 42 → 34, exactly the 8 deleted.
 ```
 
 On partial failure the ✅ line names the applied subset instead, the ledger

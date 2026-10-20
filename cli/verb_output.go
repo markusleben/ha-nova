@@ -195,6 +195,9 @@ func setVerbError(env *verbEnvelope, err error) int {
 	if env.Status != "drift" { // only a drift result carries a stored plan to confirm
 		env.Say, env.NextStep = "", "" // a plan that failed to store has nothing to show or apply
 	}
+	if unreachable := relayUnreachableError(""); errors.As(err, &unreachable) && !activeServerIsDemo() {
+		env.Say = relayUnreachableSay
+	}
 	env.Error = &verbError{Code: failure.code, Message: failure.message, Candidates: failure.candidates, Next: failure.next}
 	return failure.exit
 }

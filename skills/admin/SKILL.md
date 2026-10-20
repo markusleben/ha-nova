@@ -61,7 +61,7 @@ Full relay/upstream error taxonomy: `../ha-nova/relay-api.md` -> Error Handling.
 
 ## Output Format
 
-Apply `../ha-nova/output-rules.md` to all user-facing output. Write previews, delete confirmations, and results render as the Cards defined there (`../ha-nova/output-cards.md`).
+Apply `../ha-nova/output-rules.md`: plain words, HA names verbatim; unless asked or names clash, no ids, "entity", modes, Relay/HA URLs, snapshots, raw JSON. Previews, deletes, and results use the Cards defined there (`../ha-nova/output-cards.md`).
 
 Render the Report shape (output-cards.md); person/zone/user inventories render the List Frame. For persons: name, device trackers, linked user. For zones: name, radius, and which automations depend on them. For users: name, whether they are owner/active/system-generated — never their tokens or credentials. State what was verified after the write.
 
@@ -75,7 +75,7 @@ Render the Report shape (output-cards.md); person/zone/user inventories render t
 - Home Assistant is reached exclusively through the `ha-nova` CLI.
 - Any HA write this skill does not cover: STOP, invoke `ha-nova:fallback` first; never probe unfamiliar write endpoints.
 
-- Drafts follow `../ha-nova/smallest-solution.md`: the complete requested outcome in the simplest safe design, nothing for hypothetical future needs.
+- Drafts follow `../ha-nova/smallest-solution.md`: the complete requested outcome in the simplest safe design, nothing speculative.
 - `search/related` verdicts fail closed: verify `ok=true` and `data` is an object before projecting family keys (`../ha-nova/relay-api.md` → Parsing rule); a failed or unexecuted scan is inconclusive — never a no-consumer result.
 
 - Zone and person deletes take the one-time code, and the preview must first name the automations that depend on them (`search/related`).
