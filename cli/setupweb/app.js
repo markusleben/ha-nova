@@ -14,7 +14,7 @@
   const screenEl = document.getElementById('screen');
   const dotsEl = document.getElementById('dots');
   const statusEl = document.getElementById('status');
-  const finalScreens = ['done', 'closed', 'skipped', 'demo', 'incomplete', 'finished', 'failed', 'stopped', 'idle', 'lost', 'elsewhere'];
+  const finalScreens = ['done', 'closed', 'saved', 'skipped', 'demo', 'incomplete', 'finished', 'failed', 'stopped', 'idle', 'lost', 'elsewhere'];
   const steps = { looking: 1, found: 1, noclient: 1, connect: 2, control: 3, home: 4, done: 4, closed: 4, skipped: 3, incomplete: 4 };
   const downloads = {
     claude_desktop: 'https://claude.com/download',
@@ -221,9 +221,11 @@
     done: () => [...head(t('setup.page.done.eyebrow'), t('setup.page.done.title'), t('setup.page.done.lead', { clients: state.clients || [] })),
       el('p', { class: 'fine' }, t('setup.page.done.fine'))],
   };
-  // Steps 3 and 4 (steps.js).
+  // Steps 3 and 4 (steps.js), and a re-run (rerun.js).
   const announce = (text) => { statusEl.textContent = text; };
-  Object.assign(screens, window.novaSteps({ t, el, row, head, button, link, format, render, post, accepts, announce, state: () => state }));
+  const helpers = { t, el, row, head, button, link, format, render, post, accepts, announce, state: () => state };
+  const later = window.novaSteps(helpers);
+  Object.assign(screens, later, window.novaRerun({ ...helpers, control: later.control }));
   for (const [screen, [eyebrow, title, lead, amber]] of Object.entries(endScreens)) {
     screens[screen] = () => head(t(eyebrow), t(title), t(lead), amber);
   }

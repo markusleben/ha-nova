@@ -37,7 +37,8 @@ type setupPageControl struct {
 // (chatAppsBase) it is one plain line. The page shows the restart
 // consent before it posts "chat"; the click on it is that consent.
 type setupPageChat struct {
-	State      string         `json:"state"`                 // offer, run, on, expired (the owner session ran out), noaddress (no Link, no public HTTPS address)
+	State      string         `json:"state"`                 // offer, run, on, expired (the owner session ran out), noaddress (no Link, no public HTTPS address), page_on/page_off (a re-run: switched in NOVA in Home Assistant)
+	Page       string         `json:"page,omitempty"`        // NOVA in Home Assistant, on a re-run
 	Rows       []setupPageRow `json:"rows,omitempty"`        // while run (and after): on, restart, ready
 	URL        string         `json:"url,omitempty"`         // the connector address, once on
 	ClaudeLink string         `json:"claude_link,omitempty"` // Add to Claude (claudeConnectorLink), once on
@@ -96,6 +97,8 @@ func (f *setupFlow) pageControl() int {
 	}
 	if f.pageLinkOffered() && linkOrigin() != "" {
 		ctl.Link = "offer"
+	} else if f.pageRerunning && f.cfg.Cloud.ready() && f.cfg.RoutePolicy == routePolicyAutomatic {
+		ctl.Link = "on" // the fallback this row offers; other routes stay with `ha-nova server route`
 	}
 	var chat chatAppsOffer
 	chatOK := false
@@ -119,6 +122,13 @@ func (f *setupFlow) pageControl() int {
 		f.pageChatNote(chat.url)
 	case chatOK:
 		ctl.Chat = &setupPageChat{State: "offer", NoRestart: !chat.restart, Phone: chatAppsPhoneName(f.paths, setupSignedInUser, chat.state)}
+	case f.pageRerunning && setupOwnerIngress == nil:
+		ctl.Chat = f.pageRerunChat()
+	}
+	screen := "control"
+	if f.pageRerunOK { // the re-run screen: what is set up, then these rows
+		screen = "rerun"
+		f.pageRerunControl()
 	}
 	show := func() {
 		view := ctl
@@ -129,7 +139,10 @@ func (f *setupFlow) pageControl() int {
 			view.Chat = &row
 		}
 		p.update(func(v *setupPageState) {
-			v.Screen, v.Control, v.Problem, v.Fix, v.Links = "control", &view, nil, "", nil
+			v.Screen, v.Control, v.Problem, v.Fix = screen, &view, nil, ""
+			if !f.pageRerunOK {
+				v.Links = nil
+			}
 		})
 	}
 	for {
@@ -144,6 +157,14 @@ func (f *setupFlow) pageControl() int {
 		if ctl.Chat != nil && ctl.Chat.State == "offer" {
 			accepts = append(accepts, "chat")
 		}
+		if f.pageRerunOK {
+			if name, _ := requestedServerSelection(); name == "" {
+				accepts = append(accepts, "server")
+			}
+			if len(f.pageNewClients) > 0 {
+				accepts = append(accepts, "clients")
+			}
+		}
 		action, err := p.wait(accepts...)
 		if err != nil {
 			f.pageQuit = true // Ctrl+C or idle: setup is done, without the extras
@@ -152,6 +173,10 @@ func (f *setupFlow) pageControl() int {
 		switch action.Action {
 		case "recheck": // its buttons stay disabled while it reads
 			f.pagePhones(&ctl)
+		case "server":
+			return f.pageAddServer()
+		case "clients":
+			return f.pageRerunAddClients()
 		case "phone":
 			if i := slices.IndexFunc(ctl.Phones, func(ph setupPagePhone) bool { return ph.ID == action.Value }); i >= 0 {
 				ctl.Phone, ctl.PhoneName, ctl.PhoneProblem = "waiting", ctl.Phones[i].Name, nil
@@ -218,7 +243,7 @@ func pageFinishChoices(value string) (rule, link, ok bool) {
 // now stays with `ha-nova setup confirm-phone`, which settles it safely.
 func (f *setupFlow) pagePhones(ctl *setupPageControl) {
 	ctl.Phone = "unavailable"
-	if !f.pairedThisRun || f.cloudSetupPaused { // as in the terminal: offered right after a pairing
+	if !(f.pairedThisRun || f.pageRerunning) || f.cloudSetupPaused { // as in the terminal: right after a pairing, and on a re-run
 		return
 	}
 	home, links, ok := f.pageReadPhones()
@@ -332,18 +357,10 @@ func (f *setupFlow) pageAddLink() int {
 		f.pageNotes = append(f.pageNotes, setupPageText("setup.page.home.note_link_failed"))
 		return code
 	}
-	var markers [][]byte
-	if f.pageGeneration != nil {
-		uninstall, errU := readUninstallMarker(f.paths)
-		snapshot, errS := readSetupConfigSnapshot(f.paths)
-		if errU != nil || errS != nil {
-			return failed(1)
-		}
-		markers = [][]byte{f.pageGeneration, uninstall, snapshot}
-		if err := ensureSetupLifecycleCurrent(f.paths, markers...); err != nil {
-			printHumanErr("%s", err)
-			return failed(1)
-		}
+	markers, err := f.pageLifecycleMarkers()
+	if err != nil {
+		printHumanErr("%s", err)
+		return failed(1)
 	}
 	saved, err := loadConfig(f.paths)
 	if err != nil {
@@ -360,27 +377,4 @@ func (f *setupFlow) pageAddLink() int {
 		f.pageNotes = append(f.pageNotes, setupPageText("setup.page.home.note_link"))
 	}
 	return 0
-}
-
-// pageFinish ends a page run: the terminal's banner (step 4 replaces its
-// first look; it clears the screen, so it comes first), step 3, then step
-// 4 until Done.
-func (f *setupFlow) pageFinish() setupStepResult {
-	kind := setupOutcomeComplete
-	switch {
-	case f.cloudSetupPaused:
-		kind = setupOutcomeLinkPaused
-	case f.cfg.Cloud.ready() && f.cfg.RoutePolicy == routePolicyAutomatic:
-		kind = setupOutcomeLinkReady
-	}
-	f.page.text.outcome(setupOutcome{Kind: kind, Clients: f.selectedClients})
-	exit := f.pageControl()
-	if f.pageQuit {
-		f.page.end("skipped") // connected, but step 3's choices weren't applied
-		return setupDone(exit)
-	}
-	fmt.Fprintf(f.page.text.out, "  %s\n", setupT("setup.page.terminal.home"))
-	f.pageHome()
-	f.page.end("closed")
-	return setupDone(exit)
 }
