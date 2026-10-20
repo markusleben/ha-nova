@@ -157,9 +157,12 @@ Throwaway HAOS VM only (never a real home), results in the App bump PR.
 Supervisor reads `main`, so an App version is live for every user the moment
 its PR merges: run these BEFORE the merge, on the PR's published image. On
 the VM, switch the official repository's checkout inside the Supervisor to the
-PR branch, then reload the store:
+PR branch:
 `docker exec hassio_supervisor sh -c 'cd /data/apps/git/2368fcfa && git fetch --depth 1 origin +refs/heads/<branch>:refs/remotes/origin/<branch> && git checkout -B <branch> origin/<branch>'`,
-then `store/reload`. Don't add a `…#<branch>` repository: that is a second App
+then `store/reload`. A reload that finds no git change keeps the cached
+metadata: if the App page doesn't offer the PR's version, restart the
+Supervisor (`ha supervisor restart`) and check the offered version before the
+lanes. Don't add a `…#<branch>` repository: that is a second App
 with the same ports, invisible to the CLI's slug checks. A failure found after
 the merge needs the next patch version. Required for the
 first chat-app release and after a change to the bridge, `nova/integration/`,
