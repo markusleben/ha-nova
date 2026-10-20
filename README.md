@@ -31,9 +31,9 @@
 
 1. **Run the installer.** Copy one command. Setup opens a page in your browser and finds your Home Assistant and your AI apps.
 2. **Sign in with Home Assistant.** Sign in as the owner: the first account made when Home Assistant was set up. If needed, setup installs and starts the NOVA Relay App for you. Then this computer connects by itself.
-3. **Choose your safety net, then look around.** The confirmation window on this computer is on. To add your phone, click **Use this phone**. On a re-run, **Use another phone** moves it to a new phone once the old phone OKs it. The Claude Code rules are on unless you turn them off: they let Claude Code read HA NOVA's files and make changes you already approved, without asking again. You still confirm every unlock or delete. Then you see your home at a glance: things worth a look (like a low battery or devices without a room) and an automation made for your home, to preview and save. Nothing in your home changes unless you save it.
+3. **Choose your safety net, then look around.** The confirmation window on this computer is on. To add your phone, click **Use this phone** (or pick it from the list). On a re-run, **Use another phone** moves it to a new phone once the old phone OKs it. The Claude Code rules are on unless you turn them off: they let Claude Code read HA NOVA's files and make changes you already approved, without asking again. You still confirm every unlock or delete. Then you see your home at a glance: things worth a look (like a low battery or devices without a room) and an automation made for your home, to preview and save. Nothing in your home changes unless you save it.
 
-Signed in, but not as the owner? The page asks the owner to sign in here. If the owner can't come to this computer, they make a six-digit code in NOVA in Home Assistant, and you type it in. Over SSH or with `--no-browser`, setup asks in the terminal instead. No browser here? Then setup shows the NOVA Relay App page (click "Add", then Install and Start; skipped when the App already runs). You pair with a one-time code: the Home Assistant owner clicks **"Connect a device"** on the NOVA page in the sidebar, and you type the six-digit code. Over SSH, this works well on Linux only. On Windows and macOS, run setup in a terminal on that computer's own screen: over SSH, HA NOVA usually can't save its key.
+Signed in, but not as the owner? The page asks the owner to sign in here, or to make a six-digit code for you ([details](#-get-started)). Over SSH or with `--no-browser`, setup asks in the terminal instead. No browser here? Then setup shows the NOVA Relay App page (click "Add", then Install and Start; skipped when the App already runs). You pair with a one-time code: the Home Assistant owner clicks **"Connect a device"** on the NOVA page in the sidebar, and you type the six-digit code. Over SSH, this works well on Linux only. On Windows and macOS, run setup in a terminal on that computer's own screen: over SSH, HA NOVA usually can't save its key.
 
 <p align="center">
   <img src="assets/pairing-flow.png" alt="Pairing with a code: run the installer, click Connect a device on the NOVA page, type the six-digit code">
@@ -132,9 +132,9 @@ The installer selects the latest stable release. Run the command for your system
 
 **On a desktop**, setup goes on in your browser. The page shows the Home Assistant it found, or asks for its address. It also shows the AI apps on this computer and sets them up for you. On HA OS and Supervised, choose "Sign in and install NOVA" and sign in as the owner. Setup then installs and starts the NOVA Relay App and connects this computer, all with that one sign-in. An old App is updated the same way. If an up-to-date App already runs, there is nothing to do. Then choose how you confirm risky changes, and see your home at a glance.
 
-**I use Claude or ChatGPT in the browser.** No AI app on this computer? Choose this on the setup page. The owner signs in, and this computer connects. Then chat apps come first, so you can use HA NOVA in Claude or ChatGPT.
+**Only use Claude or ChatGPT in the browser?** With no AI app on this computer, choose "I use Claude or ChatGPT in the browser" on the setup page. The owner signs in, and this computer connects. Then chat apps come first. They need HA OS or Supervised (see [Use HA NOVA in Claude and ChatGPT](#use-ha-nova-in-claude-and-chatgpt)).
 
-**Not the owner?** The page asks the owner to sign in. If the owner can't come to this computer, they make a six-digit code in NOVA in Home Assistant ("Connect a device"). Can't sign in on this computer at all? Choose "Use a six-digit code instead". The owner can make it on any device.
+**Not the owner?** The page asks the owner to sign in. If the owner can't come to this computer, they make a six-digit code in NOVA in Home Assistant ("Connect a device"), and you type it in the terminal. Can't sign in on this computer at all? Choose "Use a six-digit code instead". The owner can make it on any device. On the browser-only path there is no code: the owner signs in here.
 
 **In the terminal.** Over SSH or with `ha-nova setup --no-browser`, setup asks in the terminal instead.
 
@@ -151,7 +151,7 @@ After pairing, setup offers to link your phone for confirmations: tap "Allow" on
 
 With chat apps on, you can ask about your home and change it from Claude (web, desktop, and phone apps) or ChatGPT (web). No computer needs to run.
 
-**Turn them on** in setup's "You stay in control" step with **Turn on…** (chat apps come first there when you use Claude or ChatGPT in the browser), or later on the NOVA page in the Home Assistant sidebar (Chat apps). Home Assistant restarts once. Then choose "Add to Claude", or paste the address setup shows into ChatGPT. Sign in to Home Assistant as the owner.
+**Turn them on** in setup's "You stay in control" step (**Turn on…**), on a re-run with the chat-app switch, or later on the NOVA page in the Home Assistant sidebar (Chat apps). Home Assistant restarts once. Then choose "Add to Claude", or paste the address setup shows into ChatGPT. Sign in to Home Assistant as the owner.
 
 **You need:**
 
