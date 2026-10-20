@@ -45,6 +45,7 @@
   let sentAddress = false;
   let posting = false;
   let checking = false; // Check again was clicked: "Checking…" until setup waits for a click again
+  let clicks = 0; // posts so far: a poll begun before (or during) one shows the old state
   let failures = 0;
   let timer = 0;
 
@@ -87,6 +88,7 @@
   const post = async (action, value) => {
     if (posting) return;
     posting = true;
+    clicks++;
     if (action === 'recheck') {
       checking = true;
       statusEl.textContent = t('setup.page.button.checking');
@@ -298,7 +300,7 @@
 
   async function poll() {
     const sent = sentAddress; // a poll begun before the address went out shows the old state
-    const rechecked = checking && !posting; // likewise for Check again
+    const seen = posting ? -1 : clicks;
     let response;
     try {
       response = await fetch('/api/state', { cache: 'no-store', credentials: 'same-origin' });
@@ -321,8 +323,10 @@
       return;
     }
     failures = 0;
-    state = await response.json();
-    if (rechecked && ((state.accepts || []).length || state.screen !== lastScreen)) checking = false;
+    const fresh = await response.json();
+    if (seen !== clicks) return; // older than the last click: the poll after it shows where setup stands
+    state = fresh;
+    if ((state.accepts || []).length || state.screen !== lastScreen) checking = false;
     // Setup checks a sent address, then waits for a click again: the field
     // closes (a wrong one comes back with ask_ha).
     if (state.screen !== 'found' || (sent && sentAddress && (state.accepts || []).length)) editing = sentAddress = false;

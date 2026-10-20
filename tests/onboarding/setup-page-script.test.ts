@@ -355,9 +355,11 @@ describe("setup page re-run (G1)", () => {
     await p.settle(1);
     expect(p.find("b-recheck")!.textContent).toBe(p.catalog["setup.page.button.recheck"]);
     p.find("b-recheck")!.dispatch("click");
-    await p.settle(3);
-    expect(p.find("b-recheck")!.textContent).toBe(p.catalog["setup.page.button.checking"]);
-    expect(p.find("b-recheck")!.attributes.disabled).toBe("");
+    for (let round = 0; round < 3; round++) { // a poll begun before the click never re-enables it (Codex #793)
+      await p.settle(1);
+      expect(p.find("b-recheck")!.textContent).toBe(p.catalog["setup.page.button.checking"]);
+      expect(p.find("b-recheck")!.attributes.disabled).toBe("");
+    }
     await p.settle();
     expect(p.find("b-recheck")!.textContent).toBe(p.catalog["setup.page.button.recheck"]);
     expect(p.find("b-recheck")!.attributes.disabled).toBeUndefined();
