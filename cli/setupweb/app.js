@@ -21,7 +21,7 @@
     claude_code: 'https://claude.com/claude-code',
   };
   const primaryLabels = { install: 'setup.page.button.install', update: 'setup.page.button.update', signin: 'setup.page.button.signin' };
-  const fixLabels = { retry: 'setup.page.button.retry', owner: 'setup.page.button.owner' };
+  const fixLabels = { retry: 'setup.page.button.retry', owner: 'setup.page.button.owner', web: 'setup.page.button.web_recheck' };
   const rowStatus = { ok: 'setup.page.status.ok', run: 'setup.page.status.run', fail: 'setup.page.status.fail', todo: 'setup.page.status.todo' };
   const endScreens = {
     incomplete: ['setup.page.incomplete.eyebrow', 'setup.page.incomplete.title', 'setup.page.incomplete.lead', true],
@@ -147,6 +147,11 @@
   // "Use a six-digit code": a text link, since it goes on in the terminal.
   const codeLink = () => el('p', { class: 'fine' }, `${t('setup.page.found.fine_elsewhere')} `,
     el('button', { id: 'b-terminal', class: 'linkish', type: 'button', onclick: () => post('terminal'), ...(accepts('terminal') ? {} : { disabled: '' }) }, t('setup.page.button.code')));
+  // "What's this?": what chat apps need (docs/reference/chat-apps.md), in a new tab.
+  const chatHelp = () => {
+    const href = safeURL((state.links || {}).chat);
+    return href ? el('a', { id: 'l-chat-help', class: 'linkish', href, target: '_blank', rel: 'noopener noreferrer' }, t('setup.page.link.whats_this')) : null;
+  };
   // Why the terminal (state.handover); a question there by default.
   const terminalLeads = { code: 'setup.page.terminal.lead_code', keyring_locked: 'setup.page.terminal.lead_keyring_locked', keyring_setup: 'setup.page.terminal.lead_keyring_setup' };
 
@@ -154,10 +159,12 @@
     looking: () => [...head(t('setup.page.looking.eyebrow'), t('setup.page.looking.title'), t('setup.page.looking.lead')),
       el('ul', { class: 'rows' }, row('run', t('setup.page.ha.key')))],
 
-    // Claude or ChatGPT in the browser goes on without an AI app here.
+    // Claude or ChatGPT in the browser goes on without an AI app here; what
+    // it needs is said under its button, before any sign-in.
     noclient: () => [...head(t('setup.page.noclient.eyebrow'), t('setup.page.noclient.title'), t('setup.page.noclient.lead')),
+      el('div', { class: 'actions' }, button(t('setup.page.noclient.web'), 'web')),
+      el('p', { class: 'fine', id: 'web-needs' }, `${t('setup.page.noclient.web_needs')} `, chatHelp()),
       el('div', { class: 'actions' },
-        button(t('setup.page.noclient.web'), 'web'),
         link(t('setup.page.link.claude_desktop'), downloads.claude_desktop, 'ghost', 'desktop'),
         link(t('setup.page.link.claude_code'), downloads.claude_code, 'ghost', 'code'),
         button(t('setup.page.button.recheck'), 'recheck', 'ghost'))],
@@ -233,10 +240,14 @@
           installs ? null : el('p', { class: 'fine' }, t('setup.page.signin.elsewhere')));
       } else if (state.accepts.length) {
         const links = state.links || {};
+        const webFix = state.fix === 'web' || state.fix === 'web_never';
         actions.push(el('div', { class: 'actions' },
           fixLabels[state.fix] ? button(t(fixLabels[state.fix]), 'signin') : null,
+          // Chat apps can't work here yet: set it up and sign in again, or an AI app on this computer.
+          webFix ? button(t('setup.page.button.local'), 'local', state.fix === 'web' ? 'ghost' : 'primary') : null,
           link(t('setup.page.link.guide'), links.guide, fixLabels[state.fix] ? 'ghost' : 'primary', 'guide'),
           link(t('setup.page.link.app'), links.app, 'ghost', 'app')),
+          webFix ? el('p', { class: 'fine' }, state.fix === 'web' ? `${t('setup.page.connect.web_signin')} ` : null, chatHelp()) : null,
           // Not owner: the owner can still make a code on any device.
           state.fix === 'owner' && !state.web ? el('p', { class: 'fine' }, t('setup.page.found.owner_away')) : null,
           state.web ? null : codeLink());

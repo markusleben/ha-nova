@@ -152,12 +152,21 @@ func (f *setupFlow) stepPage() setupStepResult {
 				v.Rows = nil
 			}
 		})
-		accepts := []string{"address", "terminal"}
-		if app.primary != "" || fix == "retry" { // Try again also checks the App again
+		accepts := []string{"address"}
+		// Claude or ChatGPT in the browser: no six-digit code (chat apps need
+		// the owner's sign-in here), so the terminal only when the page can't
+		// sign in at all, never past pageWebCheck's verdict.
+		if !f.noClient || app.primary == "" && fix != "web" && fix != "web_never" {
+			accepts = append(accepts, "terminal")
+		}
+		if app.primary != "" || fix == "retry" || fix == "web" { // Try again (and check again) also checks the App again
 			accepts = append(accepts, "signin")
 		}
 		if f.cfg.HAURL == "" { // no Home Assistant found: the demo house (spec §8)
 			accepts = append(accepts, "demo")
+		}
+		if fix == "web" || fix == "web_never" { // chat apps can't work here yet (pageWebCheck)
+			accepts = append(accepts, "local")
 		}
 		action, err := p.wait(accepts...)
 		if err != nil {
@@ -168,6 +177,11 @@ func (f *setupFlow) stepPage() setupStepResult {
 		kept := f.pageRetry
 		f.pageRetry = nil
 		switch action.Action {
+		case "local":
+			if result := f.pageUseThisComputer(); result.done {
+				return result
+			}
+			continue
 		case "demo":
 			if setupPageTry(f.paths) == 0 {
 				p.end("demo")
@@ -257,13 +271,18 @@ func (f *setupFlow) pageDiscover() []setupDiscoveryCandidate {
 // (noClient: this computer pairs, no skills), and step 3 shows chat apps
 // first.
 func (f *setupFlow) pageWaitForClient() setupStepResult {
+	// A re-run with no AI app here goes on as the browser path, as the
+	// terminal's no-app path does: the re-run screen says so.
+	rerun := strings.TrimSpace(f.cfg.HAHost) != "" && strings.TrimSpace(f.cfg.HAURL) != ""
+	return f.pageAskForClient(!rerun)
+}
+
+// pageAskForClient: the No-AI-app screen while ask, else the browser path.
+func (f *setupFlow) pageAskForClient(ask bool) setupStepResult {
 	for !hasAvailableSetupClientChoice(f.choices) {
-		// A re-run with no AI app here goes on as the browser path, as the
-		// terminal's no-app path does: the re-run screen says so.
-		rerun := strings.TrimSpace(f.cfg.HAHost) != "" && strings.TrimSpace(f.cfg.HAURL) != ""
 		action := setupPageAction{Action: "web"}
-		if !rerun {
-			f.page.update(func(v *setupPageState) { v.Screen = "noclient" })
+		if ask {
+			f.page.update(func(v *setupPageState) { v.Screen, v.Links = "noclient", map[string]string{"chat": chatAppsGuideURL} })
 			var err error
 			if action, err = f.page.wait("recheck", "web"); err != nil {
 				return f.cancelled()
@@ -379,6 +398,11 @@ func (f *setupFlow) pageSignIn(app setupPageApp) (*setupPageFailure, bool) {
 			signedIn = setupPageText("setup.page.row.signed_in", "name", name)
 		}
 		p.setRow("signed_in", "ok", signedIn)
+		if f.noClient { // Claude or ChatGPT in the browser: before the App or this computer changes
+			if err := pageWebCheck(ctx, socket); err != nil {
+				return err
+			}
+		}
 		if !install {
 			return nil
 		}
@@ -469,6 +493,7 @@ func pagePairingProblem(failure *setupPagePairingError) (*setupPageMsg, *haSignI
 // pageSignInFailure: one plain line and the next step (spec §4, step 2).
 func pageSignInFailure(err error, user HACurrentUser, haURL string) *setupPageFailure {
 	var install *novaAppInstallError
+	var web *setupWebNotReady
 	var certificate *tls.CertificateVerificationError
 	var authority x509.UnknownAuthorityError
 	failure := &setupPageFailure{fix: "retry", links: map[string]string{}}
@@ -478,6 +503,11 @@ func pageSignInFailure(err error, user HACurrentUser, haURL string) *setupPageFa
 		failure.problem = setupPageText("setup.page.problem.not_owner_unnamed")
 		if name := terminalSafeName(user.Name); name != "" {
 			failure.problem = setupPageText("setup.page.problem.not_owner", "name", name)
+		}
+	case errors.As(err, &web):
+		failure.fix, failure.problem, failure.links["chat"] = "web", web.msg, chatAppsGuideURL
+		if web.never {
+			failure.fix = "web_never" // no check again: only this computer instead
 		}
 	case errors.Is(err, errAppInstallNoSupervisor), errors.Is(err, errAppInstallUnsupported):
 		failure.fix = ""

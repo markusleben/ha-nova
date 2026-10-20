@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"testing"
 )
 
@@ -20,6 +21,9 @@ func TestSetupPageGoesOnForClaudeOrChatGPTInTheBrowser(t *testing.T) {
 	t.Cleanup(clearSetupNextPromptSkipsStaleBlankInput) // the sign-in arms it; no terminal prompt follows here
 	setupGoldenHome(t)
 	ha := newFakeSignInHA(t)
+	var external atomic.Value
+	external.Store("https://home.example.com") // chat apps can reach this home
+	webCheckHA(ha, &external)
 	pairs := stubSetupPageHome(t, ha.server.URL, true)
 	page, stdout, done := startSetupPageFlow(t, "")
 
