@@ -43,7 +43,7 @@ Payloads, issue matrix, and gate checklists: `../maintenance/maintenance-referen
 ## Flow
 
 ### Statistics triage
-WS `{"type":"recorder/validate_statistics"}` → group results by issue type and report counts per group with examples — never dump hundreds of IDs. Map each type to its default remediation from the reference matrix (relabel vs. clear vs. report-only). Hundreds of `no_state` orphans are normal on older installs.
+WS `{"type":"recorder/validate_statistics"}` → group results by issue type and report counts per group with examples by name (else ID) — never dump hundreds. Map each type to its default remediation from the reference matrix (relabel vs. clear vs. report-only). Hundreds of `no_state` orphans are normal on older installs.
 
 ### Statistics repair (gated)
 Grouped clears and per-config-entry registry removals are batch operations per `../ha-nova/batch-safety.md` — one issue group or config entry per manifest, one code per manifest, completion ledger; every safety gate below stays unchanged. A registry removal may instead ride a cross-family destructive cleanup manifest (`../ha-nova/grouped-change-set.md`) with every gate below intact.
@@ -79,7 +79,7 @@ Apply `../ha-nova/output-rules.md`: plain words, HA names verbatim; unless asked
 - `Verification`
 - `Next step`
 
-Use stable localized slot labels in this order; omit empty slots. Triage renders the Report shape; grouped ID lists render the List Frame (capped example lists).
+Use stable localized slot labels in this order; omit empty slots. Triage renders the Report shape; grouped lists render the List Frame (capped example lists).
 
 ## Safety
 

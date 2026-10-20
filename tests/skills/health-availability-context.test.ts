@@ -75,7 +75,7 @@ function concentratedFixture(): AvailabilityFixture {
 describe("health availability context acceptance fixtures", () => {
   it("keeps high-fan-out failures aggregate, deterministic, capped, and private", () => {
     // #440: this acceptance case verifies the AGGREGATE privacy mode — the
-    // Private default now legitimately shows entity IDs for small groups.
+    // Private default shows small groups' rows by name.
     const fixture = { ...concentratedFixture(), privacyMode: "aggregate" as const };
     const report = summarizeAvailability(fixture);
 

@@ -82,7 +82,7 @@ describe("health availability privacy and source validity", () => {
     expect(report).toContain("2 entity states: unavailable 2");
   });
 
-  it("renders the safely renderable friendly name beside the exact ID in private mode", () => {
+  it("renders the friendly name alone in private mode, the ID only without a safe name", () => {
     const report = summarizeAvailability({
       states: [
         {
@@ -118,10 +118,37 @@ describe("health availability privacy and source validity", () => {
       ],
       devices: [],
     });
-    expect(report).toContain("  - sensor.private_named (Private kitchen sensor)");
+    expect(report).toContain("  - Private kitchen sensor\n");
+    expect(report).not.toContain("sensor.private_named");
     // A control-character name is not safely renderable — ID only.
     expect(report).toContain("  - sensor.private_hostile\n");
     expect(report).not.toContain("line\nbreak");
+  });
+
+  it("adds the exact ID in private mode only when two shown rows share a name", () => {
+    const row = (id: string, name: string) => ({
+      entity_id: id,
+      state: "unavailable",
+      attributes: { friendly_name: name },
+    });
+    const report = summarizeAvailability({
+      states: [
+        row("sensor.kitchen_a", "Kitchen temperature"),
+        row("sensor.kitchen_b", "kitchen temperature"),
+        row("sensor.hall", "Hall temperature"),
+      ],
+      registry: ["sensor.kitchen_a", "sensor.kitchen_b", "sensor.hall"].map(
+        (id) => ({ entity_id: id, config_entry_id: "entry", platform: "demo" }),
+      ),
+      entries: [
+        { entry_id: "entry", domain: "demo", state: "loaded", title: "Demo" },
+      ],
+      devices: [],
+    });
+    expect(report).toContain("  - Kitchen temperature (sensor.kitchen_a)\n");
+    expect(report).toContain("  - kitchen temperature (sensor.kitchen_b)\n");
+    expect(report).toContain("  - Hall temperature\n");
+    expect(report).not.toContain("sensor.hall");
   });
 
   it("drops display names carrying forbidden privacy patterns", () => {
