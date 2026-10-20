@@ -202,6 +202,7 @@ func (f *setupFlow) pageControl() int {
 			if !ok {
 				continue // never sent by the page
 			}
+			f.pageChatOff = chatAppsOffOnPage(ctl.Chat)
 			if ctl.Chat != nil && choice.chatOn && ctl.Chat.State == "page_off" {
 				// The owner signs in, then the row asks as step 3 does; the
 				// next Done applies the other switches.

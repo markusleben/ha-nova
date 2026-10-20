@@ -299,7 +299,7 @@ describe("setup page step 3: buttons act now, switches wait for the button", () 
     expect(p.screen.textContent).toContain("Tap “Move” on iPhone Anna first. Then tap “Allow” on Pixel Lisa.");
     const refused = page({ ...linked, control: { ...linked.control, phone_problem: { key: "setup.page.control.move_refused", args: { phone: "iPhone Anna" } } } });
     await refused.settle();
-    expect(refused.screen.textContent).toContain("Nothing changed. iPhone Anna didn't OK the move. Lost that phone?");
+    expect(refused.screen.textContent).toContain("Nothing changed. The move didn't go through, and the terminal says why. Lost iPhone Anna?");
   });
 
   it("shows a linked phone as On when there is no other phone", async () => {

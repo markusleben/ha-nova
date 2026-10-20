@@ -85,6 +85,19 @@ func TestSetupPageChatAfterAPhoneMove(t *testing.T) {
 		t.Fatalf("on: %+v", on)
 	}
 	f.pageChatMoved(nil, &chatAppsOffer{}) // no row
+	slow := &setupPageChat{State: "on", Problem: setupPageText("setup.chat.problem_slow")}
+	f.pageChatMoved(slow, &chatAppsOffer{})
+	if slow.Problem.Key != "setup.chat.problem_slow" { // what to do stays
+		t.Fatalf("problem replaced: %+v", slow.Problem)
+	}
+	for row, off := range map[*setupPageChat]bool{
+		nil: true, {State: "offer"}: true, {State: "noaddress"}: true, {State: "page_off"}: true,
+		{State: "on"}: false, {State: "page_on"}: false, {State: "noaddress", Problem: setupPageText("setup.chat.on_noaddress")}: false,
+	} {
+		if got := chatAppsOffOnPage(row); got != off {
+			t.Errorf("%+v: off=%v, want %v", row, got, off)
+		}
+	}
 }
 
 // The browser user gets step 3's chat-app question open; nothing turns on

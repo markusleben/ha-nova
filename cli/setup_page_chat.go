@@ -119,11 +119,17 @@ func (f *setupFlow) pageChatPhone(c *setupPageChat, offer *chatAppsOffer) {
 func (f *setupFlow) pageChatMoved(c *setupPageChat, offer *chatAppsOffer) {
 	switch {
 	case c == nil:
-	case c.State == "on" || c.State == "page_on":
+	case (c.State == "on" || c.State == "page_on") && c.Problem == nil: // a problem shown stays: it says what to do
 		c.Problem = setupPageText("setup.chat.phone_kept")
 	default:
 		c.Phone = chatAppsPhoneName(f.paths, setupSignedInUser, offer.state)
 	}
+}
+
+// chatAppsOffOnPage: the row shows chat apps off (or no row). On without an
+// address (noaddress with its problem) counts as on.
+func chatAppsOffOnPage(c *setupPageChat) bool {
+	return c == nil || !(c.State == "on" || c.State == "page_on" || c.State == "noaddress" && c.Problem != nil)
 }
 
 // pageChatRow is step 3's row from a read through the owner's session:

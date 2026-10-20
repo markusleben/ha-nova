@@ -59,6 +59,7 @@ type setupFlow struct {
 	pageQuit       bool
 	pageNotes      []*setupPageMsg
 	pageChatLink   string
+	pageChatOff    bool // step 3 ended with chat apps off: step 4 tells a browser user what's next
 	pageGeneration []byte
 	// pageRerunning: setup ran on this computer before (setup_page_rerun.go);
 	// pageRerunOK: it works, so the re-run screen with Done ends setup;

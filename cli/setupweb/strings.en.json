@@ -300,7 +300,7 @@
   "setup.page.control.phone_move": "Use another phone",
   "setup.page.control.phone_move_pick": "Pick the new phone. “{phone}” asks you first to OK the move.",
   "setup.page.control.phone_moving": "Tap “Move” on {old} first. Then tap “Allow” on {phone}.",
-  "setup.page.control.move_refused": "Nothing changed. {phone} didn't OK the move. Lost that phone? Remove it in Home Assistant under Settings → Devices & services → Mobile App. Then run ha-nova setup confirm-phone.",
+  "setup.page.control.move_refused": "Nothing changed. The move didn't go through, and the terminal says why. Lost {phone}? Remove it in Home Assistant under Settings → Devices & services → Mobile App. Then run ha-nova setup confirm-phone.",
   "setup.page.control.not_now": "Not now",
   "setup.page.control.phone_pick": "Pick your phone. It gets one notification.",
   "setup.page.control.phone_choice": "{phone} ({person})",
