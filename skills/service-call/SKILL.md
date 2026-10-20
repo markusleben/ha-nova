@@ -63,7 +63,7 @@ Read-only response services stay here (`raw-routes.md` → Response services), a
 `automation.trigger`, direct script execution (`script.<script_id>`), and `script.turn_on` run sequences the CLI previews.
 - Never call them automatically from read, review, write, or post-write verification.
 - The preview states whether `skip_condition` is set. Treat `skip_condition: true` as higher risk.
-- Run only on confirmation bound to that exact runtime-call preview. A Test Plan Card (`../ha-nova/test-run.md`) is built from `ha-nova plan call`; the user's option choice on that card IS the bound confirmation for `ha-nova apply` — but if the CLI put the run on the typed tier, the card choice never replaces the code.
+- Run only on confirmation bound to that exact runtime-call preview. A Test Plan Card (`../ha-nova/test-run.md`) is built from `ha-nova plan call`; the user's option choice on that card IS the bound confirmation for `ha-nova apply` — but if the CLI put the run on the typed tier, the card choice never replaces the typed ask.
 
 ## Error Handling
 

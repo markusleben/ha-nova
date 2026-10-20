@@ -97,7 +97,7 @@ Not via `ha-nova:review`.
 
 ### Phase 5: Test Offer (create/update only)
 
-After the review output, build a Test Plan Card per `../ha-nova/test-run.md`: one recommended option (a real run where acceptable, naming the devices it switches), at most 3 options plus `skip`. Never execute anything unconsented; the user's option choice is the single confirmation bound to that card, except for high-consequence members, where the card confirmation never replaces the one-time code. Runs follow the service-call rules, then test-run.md's follow-up (trace, state verify, restore). After one skip, de-escalate to a single line for later writes. Skip this phase for deletes.
+After the review output, build a Test Plan Card per `../ha-nova/test-run.md`: one recommended option (a real run where acceptable, naming the devices it switches), at most 3 options plus `skip`. Never execute anything unconsented; the user's option choice is the single confirmation bound to that card, except for high-consequence members, where the card confirmation never replaces the typed confirmation. Runs follow the service-call rules, then test-run.md's follow-up (trace, state verify, restore). After one skip, de-escalate to a single line for later writes. Skip this phase for deletes.
 
 ## Output Format
 
