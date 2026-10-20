@@ -34,12 +34,12 @@ swap="$(free | awk '/^Swap:/ { print ($2 > 0) ? int($3 * 100 / $2) : 0 }')"
 # The last reset skipped the public gate (nothing served over TLS); now
 # something is: run the gate through a reset.
 if [[ -e "$PENDING" ]] && tls_served "$DEMO_DOMAIN"; then reset "TLS for $DEMO_DOMAIN is up, public gate pending"; fi
-DEMO_EXTERNAL_URL="https://$DEMO_DOMAIN" timeout 30 node "$HOSTED/demo.mjs" guard "$HA" "$(cat "$TB/.state/ha-llat")" || reset "house check failed"
-# Add to Claude: a deleted or disabled ha_nova entry, or a bridge that lets
-# the owner in (exit 3), resets at once; no answer (a slow HA, the bridge
-# restarting) after 3 minutes in a row.
+timeout 30 node "$HOSTED/demo.mjs" guard "$HA" "$(cat "$TB/.state/ha-llat")" || reset "house check failed"
+# Add to Claude (repairs external_url): a deleted or disabled ha_nova entry,
+# or a bridge that lets the owner in (exit 3), resets at once; no answer (a
+# slow HA, the bridge restarting) after 3 minutes in a row.
 rc=0
-timeout 10 node "$HOSTED/chat.mjs" check "$HA" "$(cat "$TB/.state/ha-llat")" || rc=$?
+timeout 10 node "$HOSTED/chat.mjs" check "$HA" "$(cat "$TB/.state/ha-llat")" "https://$DEMO_DOMAIN" || rc=$?
 ((rc != 3)) || reset "chat-app path broken"
 if ((rc == 0)); then
   rm -f "$CHAT_STRIKES"

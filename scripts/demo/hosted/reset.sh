@@ -111,7 +111,7 @@ main() {
     sleep 2
   done
   for i in $(seq 1 10); do
-    timeout 45 node "$HOSTED/chat.mjs" gate "$HA" "$owner_llat" 2> "$STATE/gate.err" && break
+    timeout 45 node "$HOSTED/chat.mjs" gate "$HA" "$owner_llat" "$DEMO_EXTERNAL_URL" 2> "$STATE/gate.err" && break
     [[ "$i" == 10 ]] && gate_failed "chat gate: $(cat "$STATE/gate.err")"
     sleep 2
   done

@@ -9,9 +9,10 @@
 //   node chat.mjs files <dir> <secret> <relay_token> <origin>
 //                                                     the bridge's files: secret, demo profile, and
 //                                                     chat-apps.json letting only the demo user in
-//   node chat.mjs gate  <ha_url> <owner_llat>         sign in as demo the way Claude does (its published
-//                                                     identity, PKCE), tools work, the owner is refused
-//   node chat.mjs check <ha_url> <owner_llat>         minute check: entry loaded, the owner is refused
+//   node chat.mjs gate  <ha_url> <owner_llat> <origin>   check, then sign in as demo the way Claude
+//                                                        does (its published identity, PKCE), tools work
+//   node chat.mjs check <ha_url> <owner_llat> <origin>   minute check: external_url (repaired), entry
+//                                                        loaded, the owner is refused
 
 import { createHash, randomBytes } from "node:crypto";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -80,12 +81,42 @@ const mcp = (base, token, method, params = {}) => http(`${base}/api/ha_nova/mcp`
 // A definite break (exit 3: guard.sh resets at once), not a slow answer.
 class Broken extends Error {}
 
+// One WebSocket call (config/core/update has no REST twin).
+function wsCall(base, token, payload) {
+  return new Promise((resolve, reject) => {
+    const ws = new WebSocket(`${base.replace(/^http/, "ws")}/api/websocket`);
+    const timer = setTimeout(() => (ws.close(), reject(new Error(`${payload.type}: no answer`))), CALL_MS);
+    ws.onmessage = (event) => {
+      const msg = JSON.parse(event.data);
+      if (msg.type === "auth_required") ws.send(JSON.stringify({ type: "auth", access_token: token }));
+      else if (msg.type === "auth_ok") ws.send(JSON.stringify({ id: 1, ...payload }));
+      else if (msg.type === "auth_invalid" || msg.type === "result") {
+        clearTimeout(timer);
+        ws.close();
+        if (msg.success) resolve(msg.result);
+        else reject(new Error(`${payload.type}: ${JSON.stringify(msg.error ?? msg.message)}`));
+      }
+    };
+    ws.onerror = () => (clearTimeout(timer), reject(new Error(`${payload.type}: websocket error`)));
+  });
+}
+
 // The minute check: the entry is loaded, and the owner's own token reaches
 // the bridge only to be refused (Home Assistant -> integration -> bridge
 // works, and the allow list holds). Mints no token.
-async function check([haUrl, ownerToken]) {
+async function check([haUrl, ownerToken, origin]) {
+  if (!/^https?:\/\/[a-z0-9.:-]+$/.test(origin ?? "")) throw new Error("usage: chat.mjs check <ha_url> <owner_llat> <origin>");
   const base = haUrl.replace(/\/$/, "");
-  const entries = await http(`${base}/api/config/config_entries/entry?domain=ha_nova`, { headers: { authorization: `Bearer ${ownerToken}` } });
+  const auth = { headers: { authorization: `Bearer ${ownerToken}` } };
+  // HA names its OAuth metadata only for this origin, and Settings > Network
+  // can change it (config/core/update has no YAML lock): put it back. REST,
+  // because WS get_config hides external_url from a local-only user.
+  const core = await http(`${base}/api/config`, auth);
+  if (core.status !== 200) throw new Error(`GET /api/config: ${core.status}`);
+  if (core.body.external_url !== origin || core.body.internal_url) {
+    await wsCall(base, ownerToken, { type: "config/core/update", external_url: origin, internal_url: null });
+  }
+  const entries = await http(`${base}/api/config/config_entries/entry?domain=ha_nova`, auth);
   if (entries.status !== 200) throw new Error(`config entries: ${entries.status}`);
   if (entries.body?.length !== 1 || entries.body[0].state !== "loaded") {
     throw new Broken(`ha_nova entry missing or not loaded: ${entries.text.slice(0, 200)}`);
@@ -100,9 +131,9 @@ async function check([haUrl, ownerToken]) {
 // After every reset: the whole Add to Claude path on the tooling port, as
 // claude.ai does it (CIMD client, its callback, PKCE S256), then the refresh
 // token is revoked.
-async function gate([haUrl, ownerToken]) {
+async function gate([haUrl, ownerToken, origin]) {
   const base = haUrl.replace(/\/$/, "");
-  await check([haUrl, ownerToken]);
+  await check([haUrl, ownerToken, origin]);
   const b64 = (buf) => buf.toString("base64url");
   const verifier = b64(randomBytes(32));
   const json = (body) => ({ method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });

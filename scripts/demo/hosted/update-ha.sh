@@ -69,10 +69,10 @@ gates() {
   local ref="$1" version="$2" running got rc=0
   running="$(docker inspect ha-nova-testbed-ha --format '{{.Config.Image}}' 2> /dev/null || true)"
   [[ "$running" == "$ref" ]] || { log "running image $running, expected $ref"; return 1; }
-  got="$(DEMO_EXTERNAL_URL="https://$DEMO_DOMAIN" timeout 120 node "$HOSTED/demo.mjs" smoke "$HA" "$(cat "$TB/.state/ha-llat")")" || return 1
+  got="$(timeout 120 node "$HOSTED/demo.mjs" smoke "$HA" "$(cat "$TB/.state/ha-llat")")" || return 1
   [[ "$got" == "$version" ]] || { log "smoke reports $got, expected $version"; return 1; }
   relay_roundtrip "$HA/relay" "$(cat "$STATE/relay-token")" || return 1
-  timeout 10 node "$HOSTED/chat.mjs" check "$HA" "$(cat "$TB/.state/ha-llat")" || return 1
+  timeout 10 node "$HOSTED/chat.mjs" check "$HA" "$(cat "$TB/.state/ha-llat")" "https://$DEMO_DOMAIN" || return 1
   public_gate "$DEMO_DOMAIN" "$(cat "$STATE/relay-token")" || rc=$?
   ((rc != 2)) || log "the public gate cannot run yet (nothing served over TLS): candidates wait for TLS"
   return "$rc"

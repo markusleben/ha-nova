@@ -18,7 +18,7 @@ video-recording kit, `docs/reference/demo-recording.md`).
 | `guard.sh` | host, every minute | Skips while a reset holds the lock. Disk/swap watchdog; `demo.mjs guard` (30 s cap); `chat.mjs check` (15 s cap); relay round trip (revoked token: reset at once; other failures: after 3 minutes); TLS that came up after a skipped public gate. Anything wrong → full reset. |
 | `update-ha.sh` | host, nightly | Latest stable HA: resolve digest, verify the Sigstore signature, refuse downgrades, candidate reset + gates, promote or roll back, prune old images. |
 | `host-lib.sh` | host | Shared gates: relay round trip, egress/DNS, listeners, public site (with the Add to Claude metadata); Caddy (re)creation; pinned Node/Go/Caddy images; the lock. |
-| `chat.mjs`, `Dockerfile.bridge` | host | Add to Claude (below): `entry` (the seeded `ha_nova` entry), `files` (the bridge's secret, demo profile, `chat-apps.json`), `gate` (sign-in as `demo` the way Claude does, tools work, the owner refused), `check` (guard). The bridge image (`ha-nova serve` + skills of this ref), built once per ref by `bootstrap.sh`. |
+| `chat.mjs`, `Dockerfile.bridge` | host | Add to Claude (below): `entry` (the seeded `ha_nova` entry), `files` (the bridge's secret, demo profile, `chat-apps.json`), `gate` (sign-in as `demo` the way Claude does, tools work, the owner refused), `check` (guard: puts `external_url` back, entry loaded, owner refused). The bridge image (`ha-nova serve` + skills of this ref), built once per ref by `bootstrap.sh`. |
 | `demo.mjs` | host | `setup` (seeded http config check, local-only owner, admin `demo/demo`, drop onboarding extras), `token` (the relay user's LLAT), `dashboard` (also shows the "Demo add-on" device as "Demo app", drops the Map dashboard, arms the simulated MQTT devices), `guard`, `smoke` (incl. an MQTT device round trip). |
 | `edge.yml`, `Caddyfile`, `site/` | host | Caddy in its own compose project: TLS, CSP, blocked paths, landing redirect, restarting page (`site/icon.svg`: a copy of `assets/icon.svg`, kept equal by `tests/config/hosted-demo-icon.test.ts`), `/relay/*`, `/connect.json`, `/abuse`, privacy-filtered access log. |
 | `docker-compose.yml` | host | Overlay over the test bed compose: internal network only, DNS sink, sealed directories, the `ha_nova` integration (read-only), limits, relay and chat bridge settings. |
@@ -344,7 +344,9 @@ Budget `ha-nova-demo-monthly`: 10 USD, account-wide, mail at 80 % actual and
 ## Memory (1 GB RAM)
 
 Measured with every limit: HA 270-310 MiB, Caddy ~29 MiB, relay ~25 MiB,
-broker ~3 MiB. Estimated host total with Ubuntu (~150-200 MiB) and Docker
+chat bridge ~10 MiB (2026-10-20, local), broker ~3 MiB. The bridge image's
+Go build (bootstrap, once per ref, `-p=1`) peaks at about 700 MiB including
+swap (finished under a 400 MiB memory cap with swap, locally). Estimated host total with Ubuntu (~150-200 MiB) and Docker
 (~80-100 MiB): ~600-750 MiB; the 1 GB swapfile absorbs reset peaks (the
 relay image build is cached after the first reset).
 
