@@ -17,7 +17,7 @@ Use for:
 - resolving likely targets before writes
 
 Read-only behavior.
-- No `POST`, `PUT`, `PATCH`, or `DELETE` relay writes; a `POST /api/template` render is a read.
+- No `POST`, `PUT`, `PATCH`, or `DELETE` relay writes. A `POST /api/template` render is a read.
 - If the user moves from discovery to mutation, stop after resolution and hand off to the write-capable skill.
 
 ## Bootstrap (once per session)
@@ -260,7 +260,6 @@ Render the Step 4 shortlist as the List Frame (output-cards.md). Never dump raw 
 - Read-only skill: never issue mutating relay or service calls.
 - For write intent, hand off to the owning skill; unfamiliar writes go through `ha-nova:fallback` first.
 
-- No `POST`, `PUT`, `PATCH`, or `DELETE` relay writes.
 - All communication with Home Assistant goes through `ha-nova relay` exclusively.
 
 ## Guardrails

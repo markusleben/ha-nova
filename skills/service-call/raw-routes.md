@@ -75,10 +75,10 @@ and slug in the preview. If no matching `update` entity exists, stop and ask for
 
 ## Config Check First
 
-Before `homeassistant.restart`, `homeassistant.reload_all`, or `hassio.host_reboot`, check Home Assistant's configuration with `check_config` (above; it changes nothing). Run it before the `ha-nova call`; for a script or automation run, when its preview names one of these, run it before asking.
+Before `homeassistant.restart`, `homeassistant.reload_all`, `hassio.host_reboot`, or `hassio.host_shutdown`, check Home Assistant's configuration with `check_config` (above; it changes nothing). Run it before the `ha-nova call`; for a script or automation run, when its preview names one of these, run it before asking.
 - `"result": "valid"`: go on. The call keeps its tier and confirmation.
-- `"result": "invalid"`: send nothing. Say in plain words what is wrong and where (from `errors`, short, no raw log), say Home Assistant refuses a restart or reload until it is fixed, and hand off to `ha-nova:yaml-config` to fix it. A host reboot is not refused: say Home Assistant may come back with parts missing, and ask whether to fix it first.
-- The check fails or gives no answer: say the configuration could not be checked; never call it valid.
+- `"result": "invalid"`: send nothing. Say in plain words what is wrong and where (from `errors`, short, no raw log) and that Home Assistant refuses a restart or reload until it is fixed. Hand off to the skill that owns the broken file: `automations.yaml`/`scripts.yaml` → `ha-nova:write`, `scenes.yaml` → `ha-nova:scene`, any other file → `ha-nova:yaml-config`. A host reboot or shutdown is not refused: say Home Assistant may come back with parts missing, and ask whether to fix it first. A script or automation run: say its restart step would fail, and offer to fix it first.
+- The check fails or gives no answer: say the configuration could not be checked (never call it valid), then ask whether to go ahead anyway. Home Assistant still checks a restart or reload itself; a host reboot or shutdown it does not. The call keeps its tier.
 
 ## Custom Events And Webhooks
 

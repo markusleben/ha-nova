@@ -99,7 +99,7 @@ When a metadata update targets a SET selected by prefix, domain, area, or label 
 ## Entity / Device Update Fields
 
 Use only exposed metadata fields:
-- entity: `name`, `new_entity_id`, `area_id`, `labels`, `categories`, `disabled_by`, `hidden_by`, `aliases`, `icon`, `device_class`, `options`
+- entity: `name`, `new_entity_id`, `area_id`, `labels`, `categories`, `disabled_by`, `hidden_by`, `aliases`, `icon`, `device_class`, `options_domain`+`options`
 - `icon`, `device_class`, `options`, and area labels or sensors: read `display-fields.md` first
 - device: `name_by_user`, `area_id`, `labels`, `disabled_by`
 

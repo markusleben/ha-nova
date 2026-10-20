@@ -226,7 +226,7 @@ Mutation rules:
 - exact target resolution first
 - every `config/category_registry/*` call includes the exact `scope`
 - rich metadata stays first-class:
-  - areas: `floor_id`, `icon`, `picture`, `aliases`
+  - areas: `floor_id`, `icon`, `picture`, `aliases`, `labels`, `temperature_entity_id`, `humidity_entity_id`
   - floors: `level`, `icon`, `aliases`
   - labels: `color`, `icon`, `description`
   - categories: `icon`

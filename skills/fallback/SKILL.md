@@ -256,7 +256,7 @@ Rules for all experimental relay calls in this skill:
 |------|----------|-------------|----------|
 | Full-document overwrite | Entire config replaced | Read → modify → save full document → read back and verify unrelated content survived | `lovelace/config/save` |
 | Field-level list replace | Omitted keys preserved, provided keys fully replaced | Read existing list → append/modify → save full list → read back and verify pre-existing items survived | `energy/save_prefs` |
-| Merge/patch | Only provided fields updated | Send only changed fields | `config/area_registry/update`, `config/entity_registry/update` |
+| Merge/patch | Only provided fields updated; a list field (`labels`, `aliases`) and an entity's `options` (one whole per-domain object) are replaced whole | Send only changed fields; read first and send the whole list or `options` object | `config/area_registry/update`, `config/entity_registry/update` |
 | Delete | Irreversible for areas/zones/labels | Always `search/related` first, one-time code | `config/area_registry/delete`, `config/label_registry/delete` (entity removal → `ha-nova:maintenance`) |
 
 No HA WS endpoint has optimistic locking (no ETags, no version numbers). Last writer wins silently.

@@ -73,7 +73,7 @@ Raw `ha-nova relay ws` sends only the types on `cli/relay_raw_allow.go` (raw `re
 | `config/category_registry/delete` | Delete category for one `scope` |
 | `config/entity_registry/list` | All entity registry entries |
 | `config/entity_registry/get` | Single entity registry entry |
-| `config/entity_registry/update` | Rename entity, aliases, labels, area, scoped `categories`, disable, hide |
+| `config/entity_registry/update` | Rename entity, aliases, labels, area, scoped `categories`, disable, hide, `icon`, `device_class` (binary sensor "Show as"), `options_domain` + `options` (sensor/number display precision and unit) |
 | `config/entity_registry/remove` | Remove entity from registry |
 | `config/device_registry/list` | All devices |
 | `config/device_registry/update` | Assign device area, labels, name, disable |
