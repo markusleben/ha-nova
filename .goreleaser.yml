@@ -94,7 +94,7 @@ release:
 
     - **Setup waits for a slow Home Assistant.** Connecting this computer no longer gives up after 30 seconds. The page says what went wrong, and Try again often needs no new sign-in.
     - **Plainer answers.** HA NOVA usually leaves out ids, technical settings, raw error text, and addresses, and gives times in your home's time zone, not UTC. If the NOVA Relay App doesn't answer, it says where to look.
-    - **Your AI app says who asks.** Before an unlock or a delete, it says a window or your phone will ask you. It asks for a code only when neither can.
+    - **Your AI app says who asks.** Before an unlock, it says a window or your phone will ask you. It asks for a code only when neither can.
     - **Linux: uninstall unlocks a locked keyring.** `ha-nova uninstall` opens the system window to unlock it first. HA NOVA never sees your password. Over SSH, it stops before any change and says what to do.
     - **Linux: `ha-nova` works in every new terminal.** The installer also adds it to `~/.bashrc`. A locked keyring now gets one plain next step instead of a connection error.
     - **A confirmation window closes with its command.** If you stop the command (Ctrl+C, or a closed terminal), its window closes too. So a late Confirm never lands in a window nobody reads.
