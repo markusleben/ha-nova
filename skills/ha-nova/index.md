@@ -1,9 +1,10 @@
 # HA NOVA Index
 
-Any request about the user's home — its rooms, devices, sensors, lights,
-locks, modes or toggles ("guest mode"), automations, dashboards, or "where is
-X used / why didn't X happen" — is a Home Assistant task: load its task skill
-and use `ha-nova find …`, not file search. Reviews, multi-step tasks,
+Any request about the user's home — rooms, devices, sensors ("room
+temperature"), lights, locks, modes or toggles ("guest mode"), automations,
+dashboards, or "where is X used / why didn't X happen" — is a Home Assistant
+task unless it names code in the open folder: load its task skill and use
+`ha-nova find …`, not file search. Reviews, multi-step tasks,
 and steps citing "context skill → …" (not Safety Core) also load the full context skill `ha-nova:ha-nova`.
 
 ## Safety Core (Home Assistant tasks)
@@ -29,7 +30,7 @@ and steps citing "context skill → …" (not Safety Core) also load the full co
 
 - `ha-nova:service-call` — control now: devices, toggles, modes, scenes, scripts, locks, alarms, timers; enable/disable/trigger automations
 - `ha-nova:entity-discovery` — find devices; "is everything closed?"
-- `ha-nova:read` — list, show, explain automations and scripts
+- `ha-nova:read` — list or explain automations and scripts
 - `ha-nova:write` — automation/script CRUD; "for 30 minutes" actions
 - `ha-nova:review` — audit automations, scripts, helpers
 - `ha-nova:helper` — helpers and timers
@@ -44,8 +45,8 @@ and steps citing "context skill → …" (not Safety Core) also load the full co
 - `ha-nova:admin` — persons, zones, tags, accounts
 - `ha-nova:esphome` — ESPHome configs
 - `ha-nova:maintenance` — statistics repair, history purge
-- Named by their topic: `ha-nova:dashboard`, `ha-nova:history`, `ha-nova:media`, `ha-nova:notify`, `ha-nova:camera`, `ha-nova:mqtt`, `ha-nova:calendar`, `ha-nova:todo`, `ha-nova:backup`, `ha-nova:updates`, `ha-nova:energy`, `ha-nova:hacs`, `ha-nova:assist` (voice), `ha-nova:yaml-config`, `ha-nova:external-sources` (InfluxDB)
+- By topic: `ha-nova:dashboard`, `ha-nova:history`, `ha-nova:media`, `ha-nova:notify`, `ha-nova:camera`, `ha-nova:mqtt`, `ha-nova:calendar`, `ha-nova:todo`, `ha-nova:backup`, `ha-nova:updates`, `ha-nova:energy`, `ha-nova:hacs`, `ha-nova:assist` (voice), `ha-nova:yaml-config`, `ha-nova:external-sources` (InfluxDB)
 - `ha-nova:onboarding` — pairing or connection errors
 - `ha-nova:fallback` — anything else
 - `ha-nova:ha-nova` — capabilities, version, setup audit, starter ideas, recap, config-snapshot list/delete
-- Undo or restore — the item's own skill
+- Undo or restore: the item's skill

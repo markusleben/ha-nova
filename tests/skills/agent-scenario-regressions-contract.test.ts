@@ -153,7 +153,7 @@ describe("agent scenario regressions (2026-10-20)", () => {
 
   it("routes home questions to HA NOVA from the injected index", () => {
     // Scoped to the user's home: the hook injects this into every Claude Code session, coding projects included.
-    expect(index).toContain('Any request about the user\'s home — its rooms, devices, sensors, lights, locks, modes or toggles ("guest mode"), automations, dashboards, or "where is X used / why didn\'t X happen" — is a Home Assistant task');
+    expect(index).toContain('Any request about the user\'s home — rooms, devices, sensors ("room temperature"), lights, locks, modes or toggles ("guest mode"), automations, dashboards, or "where is X used / why didn\'t X happen" — is a Home Assistant task unless it names code in the open folder');
     expect(index).toContain("not file search");
     expect(index).toContain("## Say it (Home Assistant tasks)");
     expect(index).toContain("(like unlocking,");
@@ -185,7 +185,7 @@ describe("agent scenario regressions (2026-10-20)", () => {
     expect(write).toContain("on the entities it triggers on and acts on, minus the item itself");
     expect(flat("skills/ha-nova/smallest-solution.md")).toContain("a fitting new name when an update makes the old one wrong");
     expect(flat("skills/ha-nova/smallest-solution.md")).toContain("with the same flagged defect");
-    expect(flat("skills/service-call/SKILL.md")).toContain("read those entities after `apply` (`ha-nova get`) and say their state, which a delayed step may still change");
+    expect(flat("skills/service-call/SKILL.md")).toContain("After `apply`, read the `members[]` the preview named (the door a mode unlocks) and say their state; a delayed step may still change it.");
     expect(flat("skills/dashboard/SKILL.md")).toContain("`climate` → `thermostat`");
     expect(flat("skills/home-map/SKILL.md")).toContain("likeliest first (a sensor: sensors built from a formula), never as a raw list");
   });

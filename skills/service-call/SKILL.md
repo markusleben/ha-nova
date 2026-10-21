@@ -1,6 +1,6 @@
 ---
 name: service-call
-description: Use when the user wants to control something in Home Assistant right now — turn lights, switches, covers, climate, vacuums, or any device on, off, up, down, open, or closed; run a scene, script, or automation; call any service by name; operate alarm panels and locks — through HA NOVA Relay, also in the demo house (`--server demo`).
+description: Use when the user wants to control something in Home Assistant right now — turn lights, switches, modes ("guest mode"), covers, climate, vacuums, or any device on, off, up, down, open, or closed; run a scene, script, or automation; call any service by name; operate alarm panels and locks — through HA NOVA Relay, also in the demo house (`--server demo`).
 license: MIT
 compatibility: Requires the ha-nova CLI (run 'ha-nova setup' first) and the HA NOVA Relay in Home Assistant (App, or standalone container on Container/Core).
 ---
@@ -73,7 +73,7 @@ Read-only response services stay here (`raw-routes.md` → Response services), a
 
 Apply `../ha-nova/output-rules.md`: plain words, HA names verbatim; unless asked or names clash, no ids, "entity", modes, Relay/HA URLs, snapshots, raw JSON.
 
-Results (exit 0, 6, 7, and after `apply`) use its Verb Results rule; a typed `apply` result restates the effect the code was for and whether it was verified. When the preview named an indirect effect (`members[]`: the door a mode unlocks), read those entities after `apply` (`ha-nova get`) and say their state, which a delayed step may still change. A preview (exit 2 or 3) closes with `say` (names, a single target's arrow one-liner, warnings, an explicit not-executed-yet line); with several targets, more become the `Field | Before | After` mini table, warnings kept; on the typed tier only `say`'s ask — no menu. A grouped set or Test Plan Card asks once instead of `say`'s last sentence, except on the typed tier.
+Results (exit 0, 6, 7, and after `apply`) use its Verb Results rule; a typed `apply` result restates the effect the code was for and whether it was verified. After `apply`, read the `members[]` the preview named (the door a mode unlocks) and say their state; a delayed step may still change it. A preview (exit 2 or 3) closes with `say` (names, a single target's arrow one-liner, warnings, an explicit not-executed-yet line); with several targets, more become the `Field | Before | After` mini table, warnings kept; on the typed tier only `say`'s ask — no menu. A grouped set or Test Plan Card asks once instead of `say`'s last sentence, except on the typed tier.
 
 ## Safety
 

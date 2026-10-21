@@ -14,8 +14,8 @@ Cited ../<x>/<file> paths are relative to the citing file.
    still runs it.
 2. Run one check for every server profile in this session, with its
    `--server <name>`; empty or failed counts, and empty stays silent.
-3. Later status arrives in typed verbs' `notices[]` and `[ha-nova]` relay
-   lines (never a substitute for step 1); never repeat one already surfaced.
+3. Later status arrives in `notices[]` and `[ha-nova]` lines (never a
+   substitute for step 1); never repeat one.
    `--server demo` is the shared demo house, not the user's.
 
 ## HA NOVA Update Callout
