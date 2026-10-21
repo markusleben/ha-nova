@@ -18,7 +18,7 @@ Use for:
 
 Read-only behavior.
 - No `POST`, `PUT`, `PATCH`, or `DELETE` relay writes. A `POST /api/template` render is a read.
-- Discovery that leads to a change with one clear target: hand off to the write-capable skill in the same turn; ask nothing before its preview.
+- When the user asks for a change with one clear target: hand off to the write-capable skill in the same turn; ask only what that skill requires.
 
 ## Bootstrap (once per session)
 

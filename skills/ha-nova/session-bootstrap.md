@@ -12,11 +12,11 @@ Cited ../<x>/<file> paths are relative to the citing file.
    `--server <name>` per command, not on `apply`). Once a typed verb or relay command for that server answered, a
    bare `ha-nova relay health` preflight is done; a skill reading its output
    still runs it.
-2. Run one check for every server profile in this session; empty or failed
-   counts, and empty stays silent.
+2. Run one check for every server profile in this session, with its
+   `--server <name>`; empty or failed counts, and empty stays silent.
 3. Later status arrives in typed verbs' `notices[]` and `[ha-nova]` relay
    lines (never a substitute for step 1); never repeat one already surfaced.
-   `--server demo`: the shared demo house, never the user's home.
+   `--server demo` is the shared demo house, not the user's.
 
 ## HA NOVA Update Callout
 

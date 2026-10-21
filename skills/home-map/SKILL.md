@@ -86,7 +86,7 @@ problems?").
 Resolve the entity, then `ha-nova map --entity <id>`. List every hit by
 name (dashboards: dashboard › view › card); mark `via: device` rows
 as "through its device". Always name the `not_checked` surfaces in one plain
-line, likeliest first (a sensor: YAML template sensors), never as a raw
+line, likeliest first (a sensor: sensors built from a formula), never as a raw
 list. An empty result means "nothing found where checked", never "unused" or "safe to delete".
 Deletes and renames: the owning skill.
 

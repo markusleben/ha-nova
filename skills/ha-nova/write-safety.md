@@ -166,7 +166,7 @@ semantic placeholders; localize them before showing the user:
 |---|---|---|
 <paste the CLI diff rows here, unchanged>
 
-<pre-write check / impact line>
+<pre-write finding, if any>
 ⚠️  <localized: nothing saved yet>
 <localized question: save it? I can also show the details.>
 ```

@@ -173,8 +173,8 @@ HACS-specific consumer discovery FIRST and shows the result in the preview:
   `../ha-nova/search-related-consumers.jq` (recreate it per
   `../ha-nova/relay-api.md` → Parsing rule on flat-copy installs). Fail
   closed: only a verified-shape empty result means "no linked consumers
-  found"; a failed, skipped, or wrong-path scan renders as "consumer check
-  inconclusive", NEVER as a no-consumer claim. The canonical filter covers
+  found"; a failed, skipped, or wrong-path scan renders as "I couldn't check what
+  uses it", NEVER as a no-consumer claim. The canonical filter covers
   exactly those three referencer arrays — helpers and other referencer
   kinds are disclosed as unscanned
 - for frontend packages additionally the Lovelace resource list and storage

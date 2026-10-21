@@ -229,7 +229,7 @@ This shared file is the source of truth for localization, internal-code hiding, 
 
 ## Skill Dispatch (Critical)
 
-**Always invoke exactly ONE ha-nova task skill per user intent** (this context skill may be loaded alongside it). Each task skill is self-contained — it reads, resolves, and reviews internally as needed. Never load two task skills in parallel.
+**Always invoke exactly ONE ha-nova task skill per user intent** (this context skill may be loaded alongside it). Never load two task skills in parallel.
 
 Match user intent to exactly one skill:
 
