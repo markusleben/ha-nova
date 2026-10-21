@@ -50,6 +50,7 @@ const (
 var setupPageAssets = map[string]string{
 	"app.js":          "text/javascript; charset=utf-8",
 	"steps.js":        "text/javascript; charset=utf-8",
+	"chat.js":         "text/javascript; charset=utf-8",
 	"rerun.js":        "text/javascript; charset=utf-8",
 	"style.css":       "text/css; charset=utf-8",
 	"tokens.css":      "text/css; charset=utf-8",
