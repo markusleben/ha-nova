@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"sync/atomic"
 )
 
 // The setup page on a re-run (docs/work/2026-10-18-onboarding-0.27-spec.md
@@ -15,7 +16,8 @@ import (
 // with a button. Anything else shows Fix it, which runs the usual steps on
 // the page (a computer removed on the NOVA page signs in again). While the
 // NOVA App doesn't answer: Check again, or Fix it on step 1, where the
-// address can change and the sign-in installs or starts the App.
+// address can change and the sign-in installs or starts the App. While Home
+// Assistant doesn't answer either, another one found here is offered too.
 
 // pageRerun replaces the terminal's status screen on the page; on a first
 // run (no saved address) handled is false.
@@ -25,6 +27,9 @@ func (f *setupFlow) pageRerun(marker [][]byte) (setupStepResult, bool) {
 	}
 	f.pageRerunning = true
 	before := f.keepClientsSetUpBefore()
+	var discovering atomic.Bool
+	var unreachable []string // found addresses that didn't answer when picked; written under the page's lock
+	var picked *setupPageMsg // why the last pick didn't work
 	for {
 		notReady := f.pageClientsNotReady()
 		f.current.SkillsOK = len(notReady) == 0
@@ -52,9 +57,13 @@ func (f *setupFlow) pageRerun(marker [][]byte) (setupStepResult, bool) {
 		}
 		rows, problem := f.pageRerunRows(app)
 		appDown := problem != nil
+		haDown := appDown && problem.Key == "setup.page.rerun.problem_app"
 		accepts, links, fix := []string{"fix"}, map[string]string{}, ""
 		if appDown {
 			accepts = []string{"recheck", "fix"}
+		}
+		if haDown { // a Home Assistant found here (pageRerunDiscover)
+			accepts = append(accepts, "address")
 		}
 		if appDown && problem.Key == "setup.page.rerun.problem_app_only" { // the App page opens only while Home Assistant answers
 			links["app"] = haInstallRelayAppURL(f.cfg.HAURL)
@@ -63,12 +72,36 @@ func (f *setupFlow) pageRerun(marker [][]byte) (setupStepResult, bool) {
 			problem, fix, accepts = setupPageText("setup.page.rerun.problem_app_old"), "app_update", []string{"recheck", "fix"}
 			links["app"] = haRelayAppPageURL(f.cfg.HAURL) // or update it in Home Assistant, then Check again
 		}
+		if haDown && picked != nil {
+			problem = picked
+		}
+		picked = nil
 		f.page.update(func(v *setupPageState) {
 			v.Screen, v.Rows, v.Problem, v.Links, v.Control, v.Fix = "rerun_fix", rows, problem, links, nil, fix
+			v.Candidates = slices.DeleteFunc(slices.Clone(v.Candidates), func(c setupPageCandidate) bool { return !haDown || slices.Contains(unreachable, c.URL) })
 		})
+		if haDown {
+			f.pageRerunDiscover(&discovering, &unreachable)
+		}
 		action, err := f.page.wait(accepts...)
 		if err != nil {
 			return f.cancelled(), true
+		}
+		if action.Action == "address" { // one found: step 1 with it, as typed under Fix it
+			candidates := f.page.snapshot().Candidates
+			i := slices.IndexFunc(candidates, func(c setupPageCandidate) bool { return c.URL == action.Value })
+			if i < 0 {
+				continue
+			}
+			host, haURL, ok := pageResolveAddress(action.Value)
+			if !ok { // gone since: say so, as step 1 does, and offer the rest
+				f.page.update(func(*setupPageState) { unreachable = append(unreachable, action.Value) })
+				picked = setupPageText("setup.page.problem.address", "address", candidates[i].Host)
+				continue
+			}
+			f.cfg = applySelectedSetupHost(f.cfg, host, haURL, f.relayURLFlag)
+			f.pageRepairing()
+			return setupGoTo(setupStepHost), true
 		}
 		if action.Action == "recheck" {
 			f.current = detectSetupStateForAssessment(f.paths, f.cfg, f.state, f.target, f.savedTokenBeforeSetup, f.hadSavedTokenBeforeSetup)
@@ -86,6 +119,41 @@ func (f *setupFlow) pageRerun(marker [][]byte) (setupStepResult, bool) {
 		f.pageRepairing("connect", "teach")
 		return setupGoTo(next), true
 	}
+}
+
+// pageRerunDiscover looks for a Home Assistant at another address while the
+// saved one doesn't answer (it moved, or this is another home), in the
+// background so the screen shows at once. What it finds is only offered;
+// the click goes the usual way (step 1, sign-in, pairing). One search at a
+// time; Check again starts the next. skip (read under the page's lock):
+// found before, then didn't answer when picked.
+func (f *setupFlow) pageRerunDiscover(running *atomic.Bool, skip *[]string) {
+	if !running.CompareAndSwap(false, true) {
+		return
+	}
+	cfg := f.cfg
+	go func() {
+		// ponytail: pageDiscover flips a global on Windows; safe while this is
+		// the only search (step 1 searches only without a saved address).
+		var found []setupPageCandidate
+		for _, candidate := range pageDiscover(cfg) {
+			if setupDiscoveryEndpointKey(candidate.HAURL) == setupDiscoveryEndpointKey(cfg.HAURL) {
+				continue
+			}
+			name := candidate.Host
+			if via := normalizeHostInput(candidate.Via); via != "" && via != name { // its .local name too
+				name = via + " (" + name + ")"
+			}
+			found = append(found, setupPageCandidate{Host: terminalSafeName(name), URL: candidate.HAURL})
+		}
+		running.Store(false) // before the result shows: Check again after it searches again
+		f.page.update(func(v *setupPageState) {
+			// Still that screen, and Home Assistant still away.
+			if v.Screen == "rerun_fix" && slices.ContainsFunc(v.Rows, func(r setupPageRow) bool { return r.ID == "ha" && r.State == "fail" }) {
+				v.Candidates = slices.DeleteFunc(found, func(c setupPageCandidate) bool { return slices.Contains(*skip, c.URL) })
+			}
+		})
+	}()
 }
 
 // keepClientsSetUpBefore: a re-run works on the AI assistants set up before;

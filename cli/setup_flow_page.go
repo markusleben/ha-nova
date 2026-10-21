@@ -124,7 +124,7 @@ func (f *setupFlow) stepPage() setupStepResult {
 	p := f.page
 	var candidates []setupDiscoveryCandidate
 	if f.cfg.HAURL == "" { // back from a failed pairing, the address stays
-		candidates = f.pageDiscover()
+		candidates = pageDiscover(f.cfg)
 	}
 	if len(candidates) == 1 {
 		f.cfg = applySelectedSetupHost(f.cfg, candidates[0].Host, candidates[0].HAURL, f.relayURLFlag)
@@ -255,12 +255,12 @@ func (f *setupFlow) stepPage() setupStepResult {
 // pageDiscover looks for Home Assistant. On Windows it skips the mDNS
 // search, whose firewall prompt the page can't explain (spec §4.3); the
 // system resolver finds homeassistant.local.
-func (f *setupFlow) pageDiscover() []setupDiscoveryCandidate {
+func pageDiscover(cfg runtimeConfig) []setupDiscoveryCandidate {
 	if runtime.GOOS == "windows" {
 		setupDiscoveryWithoutMDNS = true
 		defer func() { setupDiscoveryWithoutMDNS = false }()
 	}
-	candidates, _ := discoverReachableHAHostsForSetup(f.cfg)
+	candidates, _ := discoverReachableHAHostsForSetup(cfg)
 	return candidates
 }
 
