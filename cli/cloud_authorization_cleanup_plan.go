@@ -92,9 +92,16 @@ func (plan cloudAuthorizationCleanupPlan) explainCloudAuthorizationStop(
 	}
 	copy := *problem
 	copy.linkClient = plan.onlyLinkClient(cfg)
+	// An unfinished sign-in: none stored at all, or (a second sign-in next
+	// to a working connection) none stored for Pending while Current checks
+	// out. Either way only that sign-in is in doubt.
+	pendingUnstored := cfg.Cloud.Pending != nil &&
+		!plan.storesGeneration(cfg.Cloud.Pending.CredentialGeneration)
+	currentChecks := cfg.Cloud.Current == nil ||
+		plan.requireMetadataMatch(cfg, *cfg.Cloud.Current) == nil
 	if cfg.Cloud.State == cloudStateAuthorizing &&
-		cfg.Cloud.Current == nil &&
-		!plan.hasAuthorization() {
+		((cfg.Cloud.Current == nil && !plan.hasAuthorization()) ||
+			(pendingUnstored && currentChecks)) {
 		copy.Detail = "Your sign-in on this computer didn't finish. HA NOVA " +
 			"can't tell if Home Assistant saved it, so it stopped."
 	}

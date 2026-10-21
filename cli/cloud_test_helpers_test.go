@@ -28,7 +28,7 @@ func renderSetupCompletionOutcomeWithCloudPause(
 	cloudSetupPaused bool,
 ) int {
 	if cloudSetupPaused {
-		renderSetupCloudPausedOutcome(out)
+		renderSetupCloudPausedOutcome(out, "")
 		return 0
 	}
 	if cloudSetupIncomplete {

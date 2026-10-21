@@ -342,8 +342,6 @@ func (f *setupFlow) pageFinish() setupStepResult {
 	switch {
 	case f.pageRerunOK:
 		kind = setupOutcomeAlreadyDone
-	case f.cloudSetupPaused:
-		kind = setupOutcomeLinkPaused
 	case f.cfg.Cloud.ready() && f.cfg.RoutePolicy == routePolicyAutomatic:
 		kind = setupOutcomeLinkReady
 	}

@@ -60,18 +60,18 @@ func TestUnprovenSignInStopIsPlain(t *testing.T) {
 	cfg, _ := cloudCleanupTestConfig(t, cloudStateAuthorizing)
 	store := productionCloudTestStore(t, newMemoryOAuthSecretBackend())
 	_, err := inspectCloudAuthorizationCleanup(context.Background(), cfg, store)
-	err = cloudAuthorizationCleanupErrorWithRecoveryCommand(err, defaultServerProfileName)
+	err = cloudAuthorizationCleanupErrorWithRecoveryCommand(err, defaultServerProfileName, "")
 	wrapped := errors.Join(err, errors.New("persist Cloud recovery safety hold: disk full"))
 
 	text := uninstallErrorText(errorsWrap("failed to revoke Home Assistant Link authorization", wrapped))
 	want := strings.Join([]string{
 		"Home Assistant Link: Your sign-in on this computer didn't finish. HA NOVA can't tell if Home Assistant saved it, so it stopped.",
 		"Next, in Home Assistant:",
-		`1. As the owner, open NOVA. If this computer is listed with a "cloud" tag, click Revoke next to it.`,
-		`2. Each person who uses HA NOVA: open Profile > Security, and under "Refresh tokens", delete every entry that ends in "/ha-nova". This also signs out HA NOVA on your other computers.`,
+		`1. As the owner, open the NOVA App page. If this computer is listed with a "cloud" tag, click Revoke next to it.`,
+		`2. Each person who uses HA NOVA: open Profile > Security, and under "Refresh tokens", delete every entry that ends in "/ha-nova". This turns off Home Assistant Link on your other computers too. Their local connection keeps working.`,
+		"   If you don't find any, that's fine. Go to step 3.",
 		"3. Run: ha-nova cloud remove --server default --yes --confirm-remote-access-revoked default",
 		"4. Then run ha-nova uninstall again.",
-		"(code cloud_authorization; next: inspect_security)",
 		"persist Cloud recovery safety hold: disk full",
 	}, "\n")
 	if text != want {
@@ -84,6 +84,7 @@ func TestCloudStopTextOmitsInnerCause(t *testing.T) {
 	err := cloudAuthorizationCleanupErrorWithRecoveryCommand(
 		unverifiableCloudAuthorizationCleanup(errors.New("resume Cloud authorization: IDENTITY_MISMATCH")),
 		defaultServerProfileName,
+		"",
 	)
 	text := uninstallErrorText(errorsWrap("inspect Cloud credentials", err))
 	if strings.Contains(text, "IDENTITY_MISMATCH") || !strings.Contains(text, `ends in "/ha-nova"`) {
@@ -327,6 +328,7 @@ func TestCloudStopTextKeepsNestedJoinedFailures(t *testing.T) {
 	stop := cloudAuthorizationCleanupErrorWithRecoveryCommand(
 		unverifiableCloudAuthorizationCleanup(nil),
 		defaultServerProfileName,
+		"",
 	)
 	err := errors.Join(
 		errors.Join(stop, errors.New("persist Cloud recovery safety hold: disk full")),
@@ -370,6 +372,7 @@ func TestCloudStopTextFindsTheStopProblem(t *testing.T) {
 	stop := cloudAuthorizationCleanupErrorWithRecoveryCommand(
 		unverifiableCloudAuthorizationCleanup(nil),
 		defaultServerProfileName,
+		"",
 	)
 	text, ok := cloudAuthorizationStopText(errors.Join(other, errorsWrap("inspect", stop)))
 	if !ok || !strings.Contains(text, "1. As the owner") || !strings.Contains(text, "relay busy") {

@@ -66,7 +66,9 @@ func (f *setupFlow) stepVerify() setupStepResult {
 	// pairing (this branch is legacy-only; the device branch continues
 	// to the skills above) would win transport resolution on the next run
 	// and wedge the install on a dead pairing — retire it for good.
-	if err := persistInteractiveSetupStateWithRecoveryMode(f.ui.termIn(), f.ui.termOut(), f.paths, f.cfg, &f.state, f.savedTokenBeforeSetup, f.hadSavedTokenBeforeSetup, f.token, &f.secureStorageRecovery, true, f.lifecycleMarker...); err != nil {
+	// Link paused: no retirement (it changes credentials, and Link data
+	// refuses it).
+	if err := persistInteractiveSetupStateWithRecoveryMode(f.ui.termIn(), f.ui.termOut(), f.paths, f.cfg, &f.state, f.savedTokenBeforeSetup, f.hadSavedTokenBeforeSetup, f.token, &f.secureStorageRecovery, !f.cloudPausedAtStart, f.lifecycleMarker...); err != nil {
 		return f.failErr(err)
 	}
 	return setupGoTo(setupStepSkills)
@@ -114,7 +116,7 @@ func (f *setupFlow) verifyDevice() setupStepResult {
 	if err := persistDeviceSetupState(f.paths, f.cfg, &f.state, f.lifecycleMarker...); err != nil {
 		return f.failErr(err)
 	}
-	if f.connectionMode == setupConnectionHybrid && !f.cfg.Cloud.ready() {
+	if f.connectionMode == setupConnectionHybrid && !f.cfg.Cloud.ready() && !f.cloudPausedAtStart {
 		f.ui.show(setupView{Blocks: []setupBlock{setupParagraph(setupText("setup.verify.adding_link"))}})
 		cfg, err := addHybridCloudAfterLocal(
 			f.paths,
@@ -180,10 +182,8 @@ func (f *setupFlow) stepSkills() setupStepResult {
 func (f *setupFlow) afterSkills() setupStepResult {
 	exit := 0
 	onPage := f.page != nil && !f.page.inTerminal()
-	if f.cloudSetupPaused && onPage {
-		f.pageControlled = true // pageFinish shows the paused outcome; the page goes on to step 3
-	} else if f.cloudSetupPaused {
-		f.ui.outcome(setupOutcome{Kind: setupOutcomeLinkPaused})
+	if f.cloudSetupPaused && !onPage { // the page never runs with Link unfinished (setupPageCloudOK)
+		f.showLinkPausedOutcome()
 	} else if f.cloudSetupIncomplete {
 		f.ui.outcome(setupOutcome{Kind: setupOutcomeIncomplete, Issue: setupIssueCloudAccess})
 		exit = 1
@@ -192,7 +192,7 @@ func (f *setupFlow) afterSkills() setupStepResult {
 		// The page asks step 3 itself (phone, Claude Code rule, Link) once
 		// setup is complete, like the terminal's offers in finish.
 		f.pageControlled = true
-	} else if exit == 0 && !f.connectionModeAsked && !f.serviceMode {
+	} else if exit == 0 && !f.connectionModeAsked && !f.serviceMode && !f.cloudSetupPaused {
 		armSetupNextPromptSkipsStaleBlankInput()
 		var cloudAttempted bool
 		var cloudCode int

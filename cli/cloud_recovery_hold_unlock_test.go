@@ -25,7 +25,7 @@ func TestCloudUnlockKeepsHoldsWithoutReadyHealth(t *testing.T) {
 				Code:        cloudProblemIdentityMismatch,
 				Remediation: cloudRemediationSecurityStop,
 			},
-			wantOutput: "recovery remains paused for security review",
+			wantOutput: "keep your home safe",
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {

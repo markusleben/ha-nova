@@ -134,11 +134,12 @@ func runCloudStatusCommand(paths runtimePaths, args []string) int {
 			printCloudStatusJSON(summary)
 			return 1
 		}
+		if printCloudSecurityHold(cfg) {
+			return 1
+		}
 		printHumanErr("%s", hold)
 		if summary.CurrentAvailable {
-			printHumanInfo(
-				"The previously saved Cloud connection was not overwritten.",
-			)
+			printHumanInfo("The previously saved Cloud connection was not overwritten.")
 		}
 		if cloudRecoveryHoldNeedsUnlockForConfig(cfg) {
 			printHumanInfo(
@@ -146,10 +147,7 @@ func runCloudStatusCommand(paths runtimePaths, args []string) int {
 				cloudUnlockCommand(),
 			)
 		}
-		printHumanInfo(
-			"Verified cleanup remains available with: %s",
-			cloudRemoveCommand(),
-		)
+		printHumanInfo("Verified cleanup remains available with: %s", cloudRemoveCommand())
 		return 1
 	}
 	if cfg.Cloud.cleanupPending() {

@@ -121,12 +121,7 @@ func runDoctor(paths runtimePaths, args []string) int {
 		time.Duration(defaultRelayMaxTimeSeconds*float64(time.Second)),
 	)
 	defer cancelDoctorRelay()
-	transport, transportErr := selectRelayTransport(
-		doctorRelayCtx,
-		cfg,
-		"",
-		false,
-	)
+	transport, transportErr := selectRelayTransport(doctorRelayCtx, cfg, "", false)
 	transportBase, transportClient, transportCred, deviceMode :=
 		transport.BaseURL, transport.Client, transport.Credential, transport.DeviceMode
 	pairedConfig := cfg.RelaySecureBaseURL != "" && cfg.RelaySpkiPin != ""
@@ -170,7 +165,10 @@ func runDoctor(paths runtimePaths, args []string) int {
 		return 1
 	} else if transportErr != nil &&
 		effectiveRoutePolicy(cfg.RoutePolicy) != routePolicyLocal {
-		printHumanErr("%s", relayTransportErrorMessage(transportErr))
+		if hold := cloudRecoveryHoldProblem(cfg); !cloudHoldIsSecurityStop(cfg) || relayTransportErrorMessage(transportErr) != hold.humanText() {
+			printHumanErr("%s", relayTransportErrorMessage(transportErr)) // the hold itself: its steps say it
+		}
+		printCloudSecurityHold(cfg)
 		return 1
 	} else if activeServerProfile() != defaultServerProfileName {
 		// Non-default profiles are device-credential-only: never check them with

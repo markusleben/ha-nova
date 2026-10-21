@@ -298,7 +298,7 @@ func (f *setupFlow) pageAddLink() int {
 		return failed(1)
 	}
 	yes := func(string, string, bool) (bool, error) { return true, nil }
-	cfg, attempted, code := offerCloudForCompletedSetup(yes, f.page.text.out, f.paths, saved, false, markers...)
+	cfg, attempted, code := offerCloudForCompletedSetup(yes, f.page.text.out, f.paths, saved, false, false, markers...)
 	f.cfg = cfg
 	switch {
 	case attempted && code != 0:

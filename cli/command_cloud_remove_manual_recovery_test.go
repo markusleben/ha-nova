@@ -84,7 +84,7 @@ func TestCloudRemoveRejectsUnnecessaryManualRecoveryFlag(
 		})
 	})
 	if exit != 1 ||
-		!strings.Contains(output, "accepted only when automatic cleanup") {
+		!strings.Contains(output, "isn't needed.\nRun: ha-nova cloud remove --server default") {
 		t.Fatalf("exit=%d output=%s", exit, output)
 	}
 	if revokeCalled {

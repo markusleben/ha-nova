@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"io"
+	"strings"
 )
 
 func renderCloudCheckpointActions(
@@ -43,6 +44,10 @@ func renderCloudCheckpointActionsForProfile(
 		return
 	}
 	if cfg.Cloud == nil {
+		return
+	}
+	if cloudHoldIsSecurityStop(cfg) {
+		renderCloudSecurityHold(out, cfg, profile, true)
 		return
 	}
 	if cfg.Cloud.ready() {
@@ -91,17 +96,37 @@ func renderCloudCheckpointActionsForProfile(
 	)
 }
 
-func renderSetupCloudPausedOutcome(out io.Writer) {
+// renderSetupLinkPausedNotice: setup goes on with Link paused.
+func renderSetupLinkPausedNotice(out io.Writer) {
+	fmt.Fprintln(out, "  Home Assistant Link isn't finished. Setup goes on without it. You'll see what to do at the end.")
+}
+
+// renderSetupCloudPausedOutcome: local access works, Link waits. steps are
+// its commands (setupCloudPausedSteps): an earlier screen may be gone.
+func renderSetupCloudPausedOutcome(out io.Writer, steps string) {
 	fmt.Fprintln(out)
 	fmt.Fprintln(out, "  Home Assistant Link setup paused")
 	fmt.Fprintln(out)
-	fmt.Fprintln(
-		out,
-		"  Local access and AI client skills are ready. The saved Cloud checkpoint was not changed.",
-	)
-	fmt.Fprintln(
-		out,
-		"  Use the exact resume or verified-cleanup command shown above when ready.",
-	)
+	fmt.Fprintln(out, "  HA NOVA works on this computer. Home Assistant Link isn't finished yet.")
+	fmt.Fprint(out, steps)
 	fmt.Fprintln(out)
+}
+
+// setupCloudPausedSteps: the exact commands to finish or remove Link for
+// this server; legacyToken adds when to switch from the old shared access.
+func setupCloudPausedSteps(paths runtimePaths, cfg runtimeConfig, legacyToken bool) string {
+	var out strings.Builder
+	profile, err := cloudRecoveryCommandProfile(paths)
+	if err != nil || validateServerProfileName(profile) != nil || cfg.Cloud == nil {
+		renderCloudCheckpointActions(&out, paths, cfg, true) // names the repair
+	} else {
+		if cloudRecoveryHoldProblem(cfg) == nil && !cfg.Cloud.cleanupPending() {
+			fmt.Fprintf(&out, "  To finish it, run: %s\n", cloudResumeCommandFor(cfg, profile))
+		}
+		fmt.Fprintf(&out, "  To remove it, run: %s\n", cloudProfileCommandFor("remove", profile))
+	}
+	if legacyToken {
+		fmt.Fprintln(&out, "  Switch to your own access after Link is fixed or removed: run ha-nova setup again.")
+	}
+	return out.String()
 }

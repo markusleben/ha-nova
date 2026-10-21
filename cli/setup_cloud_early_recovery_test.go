@@ -6,6 +6,10 @@ import (
 	"testing"
 )
 
+// Held and disabled end setup at the checkpoint. Pending with "Not now"
+// shows the commands, then goes on with Link paused (setup_flow_link_paused.go)
+// to the client step: here an unknown client, so it ends there, still before
+// any local credential work.
 func TestInteractiveCloudRecoveryPrecedesClientResolution(t *testing.T) {
 	for _, profile := range []string{defaultServerProfileName, "cabin"} {
 		for _, mode := range []string{"pending", "held", "disabled"} {
@@ -81,8 +85,12 @@ func TestInteractiveCloudRecoveryPrecedesClientResolution(t *testing.T) {
 				)
 				output := stdout + stderr
 				wantRemove := "ha-nova cloud remove --server " + profile
+				wentOn := mode == "pending" && profile == defaultServerProfileName
+				if wentOn {
+					wantRemove = "Setup goes on without it." // the commands come at the end
+				}
 				if !strings.Contains(output, wantRemove) ||
-					strings.Contains(output, "unsupported client") ||
+					strings.Contains(output, "unsupported client") != wentOn ||
 					strings.Contains(output, "Which AI client") ||
 					coordinator.addCalls != 0 ||
 					localActivationCalls != 0 ||
@@ -285,7 +293,7 @@ func TestCloudOnlyRecoveryNoticePrecedesClientPrompt(t *testing.T) {
 	}
 
 	var output strings.Builder
-	updated, handled, code := handleInteractiveCloudRecoveryBeforeClients(
+	updated, handled, code, paused := handleInteractiveCloudRecoveryBeforeClients(
 		bufio.NewReader(strings.NewReader("")),
 		&output,
 		paths,
@@ -293,7 +301,7 @@ func TestCloudOnlyRecoveryNoticePrecedesClientPrompt(t *testing.T) {
 		false,
 		false,
 	)
-	if handled || code != 0 || updated.Cloud == nil ||
+	if handled || code != 0 || paused || updated.Cloud == nil ||
 		!strings.Contains(
 			output.String(),
 			"ha-nova cloud add --server default",

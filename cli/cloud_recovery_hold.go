@@ -123,7 +123,10 @@ func cloudProblemFromRecoveryHold(
 	}
 	detail := "Cloud recovery is paused until the saved state is explicitly cleaned up"
 	if hold.Remediation == cloudRemediationSecurityStop {
-		detail = "Cloud recovery is paused for security review; remove the saved Cloud access before starting another authorization"
+		detail = "HA NOVA stopped Home Assistant Link to keep your home safe. Remove Link before you set it up again"
+		if remove := cloudRemoveCommand(); remove != "" {
+			detail = "HA NOVA stopped Home Assistant Link to keep your home safe. To remove Link, run: " + remove
+		}
 	} else if hold.Code == cloudProblemSecureStorage {
 		if hold.StorageVerified {
 			detail = "native secure storage was verified; remove the saved Cloud state before continuing"

@@ -11,8 +11,12 @@ func (f *setupFlow) prepareCredentials() setupStepResult {
 	f.cleanups = append(f.cleanups, func() { restoreTokenFileOverride() })
 	if !f.serviceMode {
 		var liftTokenFileSuppression func()
+		tokenFile := f.cfg.RelayTokenFile
 		f.cfg, f.formerServiceTokenFile, f.formerServiceToken, liftTokenFileSuppression = disableServiceRelayTokenFile(f.paths, f.cfg)
 		f.cleanups = append(f.cleanups, liftTokenFileSuppression)
+		if f.cloudPausedAtStart && f.cfg.RelayTokenFile != tokenFile {
+			return f.stopWhileLinkPaused() // it would move the token out of its file
+		}
 	}
 	if f.serviceMode {
 		if f.target == "all" {
@@ -52,7 +56,7 @@ func (f *setupFlow) prepareCredentials() setupStepResult {
 	// Service credentials stay a client-scoped deployment decision: only
 	// offer the mid-flow switch for a specific target, mirroring the
 	// explicit `--service all` rejection above.
-	if !f.serviceMode && f.target != "all" {
+	if !f.serviceMode && f.target != "all" && !f.cloudPausedAtStart {
 		_, serviceClientID, hasServiceCredentials, serviceErr := selectedClientsServiceCredentialHint(f.paths, f.selectedClients)
 		if serviceErr != nil {
 			return f.failErr(serviceErr)
@@ -110,7 +114,7 @@ func (f *setupFlow) prepareCredentials() setupStepResult {
 		currentLifecycleMarker = nil
 	}
 	onPageRerun := f.page != nil && !f.page.inTerminal() && strings.TrimSpace(f.cfg.HAHost) != "" && strings.TrimSpace(f.cfg.HAURL) != ""
-	if strings.TrimSpace(f.existingToken) != "" && strings.TrimSpace(f.cfg.RelaySecureBaseURL) == "" {
+	if strings.TrimSpace(f.existingToken) != "" && strings.TrimSpace(f.cfg.RelaySecureBaseURL) == "" && !f.cloudPausedAtStart {
 		// The shared-token install: the switch to this computer's own
 		// access comes first. Not now: the terminal's status screen.
 		if f.tokenStoragePreflightErr == nil {
@@ -124,7 +128,11 @@ func (f *setupFlow) prepareCredentials() setupStepResult {
 		}
 	}
 	if f.tokenStoragePreflightErr == nil && !onPageRerun {
-		if handled, code := maybeHandleInteractiveSetupCurrentState(f.ui.termIn(), f.ui.termOut(), f.paths, f.cfg, f.current, f.overrideApplied, f.serviceMode, currentLifecycleMarker...); handled {
+		var paused func()
+		if f.cloudPausedAtStart {
+			paused = f.showLinkPausedOutcome
+		}
+		if handled, code := maybeHandleInteractiveSetupCurrentStateLinkPaused(f.ui.termIn(), f.ui.termOut(), f.paths, f.cfg, f.current, f.overrideApplied, f.serviceMode, paused, currentLifecycleMarker...); handled {
 			return setupDone(code)
 		}
 	}
@@ -143,7 +151,10 @@ func (f *setupFlow) prepareCredentials() setupStepResult {
 // checkTokenStorage reads a token saved before this run, or decides how to
 // go on without a usable keyring.
 func (f *setupFlow) checkTokenStorage() setupStepResult {
-	if f.tokenStoragePreflightErr == nil && !hybridCloudSetupPending(f.cfg) {
+	if f.tokenStoragePreflightErr == nil && hybridCloudSetupPending(f.cfg) {
+		return setupGoOn // a paired install with Link paused: no shared token to read
+	}
+	if f.tokenStoragePreflightErr == nil {
 		if savedToken, err := readRelayAuthTokenForSetup(); err == nil && strings.TrimSpace(savedToken) != "" {
 			f.savedTokenBeforeSetup = strings.TrimSpace(savedToken)
 			f.hadSavedTokenBeforeSetup = true

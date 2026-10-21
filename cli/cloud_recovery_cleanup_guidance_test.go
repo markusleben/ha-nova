@@ -77,10 +77,13 @@ func TestCloudRecoveryHoldGuidanceIsCleanupOnly(t *testing.T) {
 			Remediation: cloudRemediationSecurityStop,
 		},
 	)
+	// No store answers here, so the plain remove (which prints the owner
+	// steps itself when it can't check): setup_link_paused_test.go has both.
 	if !strings.Contains(
 		output.String(),
-		"Verified cleanup: ha-nova cloud remove --server cabin",
+		"To remove Link, run: ha-nova cloud remove --server cabin",
 	) ||
+		strings.Contains(output.String(), "Verified cleanup") ||
 		strings.Contains(output.String(), "Resume:") ||
 		strings.Contains(output.String(), "Reconnect:") {
 		t.Fatalf("hold guidance=%s", output.String())
