@@ -25,6 +25,11 @@
   and in <b>Claude</b> (also on your phone) and <b>ChatGPT</b> on the web, with the NOVA Relay App
 </p>
 
+<p align="center">
+  📱 <b>Use it from your phone.</b> In Claude, or in ChatGPT on the web. No computer needed.<br>
+  <a href="#use-ha-nova-in-claude-and-chatgpt">See how easy it is</a>
+</p>
+
 > *"When I get home, set my main lights to a warm welcome scene"*: you say one sentence and get a checked automation, plus ideas you might not have thought of.
 
 ## ✦ Three steps to connect
@@ -151,15 +156,18 @@ After pairing, setup offers to link your phone for confirmations: tap "Allow" on
 
 ### Use HA NOVA in Claude and ChatGPT
 
-With chat apps on, you can ask about your home and change it from Claude (web, desktop, and phone apps) or ChatGPT (web). No computer needs to run.
+Ask about your home and change it from Claude (web, desktop, and phone apps) or ChatGPT (web). No computer needs to run.
 
-**Turn them on** in setup's "You stay in control" step (**Turn on…**), on a re-run with the chat-app switch, or later on the NOVA page in the Home Assistant sidebar (Chat apps). Home Assistant restarts once. Then choose "Add to Claude", or paste the address setup shows into ChatGPT. Sign in to Home Assistant as the owner.
+**How easy is it?**
+
+1. **Turn on remote access in Home Assistant Link.** Your Home Assistant may still call it Home Assistant Cloud. Your own HTTPS address works too.
+2. **Flip the switch.** In setup, choose **Turn on…** in "You stay in control" (also on a re-run). Or open the NOVA page in the Home Assistant sidebar, then Chat apps. Home Assistant restarts once.
+3. **Click "Add to Claude",** or paste the address setup shows into ChatGPT. Then sign in to Home Assistant as the owner.
 
 **You need:**
 
 - Home Assistant 2026.10 or newer on HA OS or Supervised, with an up-to-date NOVA Relay App.
-- An address Claude and ChatGPT can reach over the internet: Home Assistant Link with remote access on, or your own public HTTPS address with a valid certificate, set as Home Assistant's external URL.
-- Self-signed certificates, plain `http://`, Tailscale, and local addresses don't work, and setup can't check the certificate for you. Without a Link or HTTPS address, setup says so and shows no switch. On the browser path, setup checks the version, HA OS, and that an address is set right after the owner signs in.
+- Home Assistant Link with remote access on, or your own public HTTPS address with a valid certificate, set as Home Assistant's external URL. Self-signed certificates, plain `http://`, Tailscale, and local addresses don't work, and setup can't check the certificate for you. Without a Link or HTTPS address, setup says so and shows no switch.
 - Only the Home Assistant owner can turn chat apps on and use them.
 
 **What needs your OK:** the same rules as on a computer. Everyday actions run right away and are checked afterwards. Unlocks and deletes wait for a tap on your linked phone. Without a phone, you type a code in the chat. The AI can see that code too, so it protects less than your phone. On the NOVA page, you can require the phone, or let chat apps only read.
