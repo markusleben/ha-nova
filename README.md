@@ -195,7 +195,7 @@ Once setup is done, try: *"Show me all my automations."*
 
 > **More than one Home Assistant?** Add each one with `ha-nova pair --server <name> --relay-url http://<ha-host>:8791`. Each server gets its own profile and its own login. To pick one, add `--server <name>` to a command. This works in every shell, PowerShell too. Manage them with `ha-nova server list|default|rename|remove`. (The `HA_NOVA_SERVER` environment variable still works too.)
 
-> **Upgrading from an earlier HA NOVA?** Everything keeps working through the update. Still on the old shared access? Pair each computer again once with `ha-nova pair`, then choose "Revoke legacy access" on the NOVA page.
+> **Upgrading from an earlier HA NOVA?** Everything keeps working through the update. Still on the old shared access? Pair each computer again once with `ha-nova pair`, then choose "Revoke legacy access" on the NOVA page. On Windows with 0.24.x or 0.25.x, update once with the Windows install command above: `ha-nova update` there asks for admin rights or fails.
 
 <details>
 <summary><strong>Platform notes</strong></summary>
