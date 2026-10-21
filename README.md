@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <b><a href="https://hanova.app/">hanova.app</a></b> · the 5-minute tour · <b><a href="https://hanova.app/demo/">the demo house</a></b> · look around before you connect your own
+  <b><a href="https://hanova.app/">hanova.app</a></b> · the 5-minute tour · <b><a href="https://hanova.app/demo/">Try HA NOVA in 1 minute</a></b> · on a demo house, in Claude with no install
 </p>
 
 <h2 align="center">Talk to your home. Every change checked.</h2>
@@ -152,7 +152,7 @@ The installer selects the latest stable release. Run the command for your system
 
 After pairing, setup offers to link your phone for confirmations: tap "Allow" on it. The phone must be signed in to the Home Assistant app as an administrator. Setup ends with a first look at your home.
 
-> **Want to look first?** The [demo house](https://hanova.app/demo/) is a pretend Home Assistant with no real devices. Look around before you connect your own. `ha-nova try` connects your AI app to it (the setup page offers it when it finds no Home Assistant), and `ha-nova try --stop` removes it. To talk to it in Claude with nothing to install, choose "Add to Claude" on the [demo page](https://hanova.app/demo/#claude). Everyone shares one login, and it resets every hour. So never enter real names, passwords, or tokens there. What the demo keeps: [privacy page](https://hanova.app/privacy.html).
+> **Try it first?** [Try HA NOVA in 1 minute](https://hanova.app/demo/) on a shared demo house with no real devices. In Claude, there is nothing to install, and a free account works. On your computer, `ha-nova try` connects your AI app to it (the setup page offers it when it finds no Home Assistant), and `ha-nova try --stop` removes it. Everyone shares one login, and it resets every hour. So never enter real names, passwords, or tokens there. What the demo keeps: [privacy page](https://hanova.app/privacy.html).
 
 ### Use HA NOVA in Claude and ChatGPT
 
