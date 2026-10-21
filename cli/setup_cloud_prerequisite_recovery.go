@@ -21,6 +21,9 @@ func renderSetupCloudRecoveryForValidatedConfig(
 	if cfg.Cloud == nil {
 		return
 	}
+	if printCloudSecurityHold(cfg) { // may run before setup knows a person reads it
+		return
+	}
 	if problem := cloudRecoveryHoldProblem(cfg); problem != nil {
 		renderCloudRecoveryGuidance(os.Stdout, cfg, problem)
 		return

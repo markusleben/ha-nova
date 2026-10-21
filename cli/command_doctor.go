@@ -165,7 +165,7 @@ func runDoctor(paths runtimePaths, args []string) int {
 		return 1
 	} else if transportErr != nil &&
 		effectiveRoutePolicy(cfg.RoutePolicy) != routePolicyLocal {
-		if hold := cloudRecoveryHoldProblem(cfg); hold == nil || relayTransportErrorMessage(transportErr) != hold.humanText() {
+		if hold := cloudRecoveryHoldProblem(cfg); !cloudHoldIsSecurityStop(cfg) || relayTransportErrorMessage(transportErr) != hold.humanText() {
 			printHumanErr("%s", relayTransportErrorMessage(transportErr)) // the hold itself: its steps say it
 		}
 		printCloudSecurityHold(cfg)

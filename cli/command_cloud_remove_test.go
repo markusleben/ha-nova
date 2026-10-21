@@ -368,6 +368,7 @@ func TestCloudRemoveSaysWhetherSharedAccessStillWorks(t *testing.T) {
 			if err := writeDeviceCredential(validCredential(78)); err != nil {
 				t.Fatal(err)
 			}
+			t.Cleanup(func() { _ = deleteDeviceCredential() })
 			if sharedToken {
 				if err := writeRelayAuthToken("shared-token"); err != nil {
 					t.Fatal(err)

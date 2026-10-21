@@ -58,7 +58,9 @@ func cloudStatusHandledInvalidInstallIdentity(
 		return true
 	}
 	printHumanErr("%s", problem)
-	if cfg.Cloud != nil {
+	if cloudHoldIsSecurityStop(cfg) {
+		renderCloudSecurityHold(os.Stdout, cfg, snapshot.ProfileName, false)
+	} else if cfg.Cloud != nil {
 		renderCloudCheckpointActionsForProfile(
 			os.Stdout,
 			cfg,

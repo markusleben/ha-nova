@@ -58,10 +58,7 @@ func runCloudRemoveCommand(paths runtimePaths, args []string) int {
 			printHumanErr("cloud remove requires confirmation; rerun with --yes")
 			return 1
 		}
-		fmt.Fprintln(
-			os.Stdout,
-			"This revokes HA NOVA's Home Assistant Link authorization.",
-		)
+		fmt.Fprintln(os.Stdout, "This revokes HA NOVA's Home Assistant Link authorization.")
 		if remoteOnly {
 			fmt.Fprintln(
 				os.Stdout,
@@ -90,7 +87,7 @@ func runCloudRemoveCommand(paths runtimePaths, args []string) int {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 	var updated runtimeConfig
-	unfinishedSignInOnly := false
+	unfinishedSignInOnly, cleanupStarted := false, false
 	var recoveryExpected cloudRecoveryCheckpointExpectation
 	var recoveryExpectedCaptured bool
 	err = withClientMutationLock(paths, func() (operationErr error) {
@@ -236,6 +233,7 @@ func runCloudRemoveCommand(paths runtimePaths, args []string) int {
 			return err
 		}
 		var deviceRemoved bool
+		cleanupStarted = true
 		if manualRecovery {
 			deviceRemoved, err = confirmRemoteAccessRevokedBeforeOAuth(
 				ctx,
@@ -378,7 +376,7 @@ func runCloudRemoveCommand(paths runtimePaths, args []string) int {
 	})
 	if err != nil {
 		printCloudCommandProblem(err)
-		if errors.Is(err, errCloudAuthorizationCleanupUnverifiable) { // checked before any revoke
+		if !cleanupStarted && errors.Is(err, errCloudAuthorizationCleanupUnverifiable) { // stopped before any revoke
 			printHumanInfo("Nothing was removed yet.")
 		} else {
 			printHumanInfo("Cloud configuration was kept unless revocation had already been verified.")

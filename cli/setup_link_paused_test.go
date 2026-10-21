@@ -276,6 +276,7 @@ func TestPairedLinkPausedEndsOnPausedOutcome(t *testing.T) {
 	if err := writeDeviceCredential(validCredential(91)); err != nil {
 		t.Fatal(err)
 	}
+	t.Cleanup(func() { _ = deleteDeviceCredential() }) // the secret dir is package-wide
 	previous := verifyDeviceHealth
 	verifyDeviceHealth = func(runtimeConfig) deviceHealth { return deviceOK }
 	t.Cleanup(func() { verifyDeviceHealth = previous })
@@ -301,5 +302,23 @@ func TestPairedLinkPausedEndsOnPausedOutcome(t *testing.T) {
 	saved, err := loadConfig(paths)
 	if err != nil || saved.Cloud == nil || saved.Cloud.State != cloudStateTokenStored || saved.Cloud.Pending == nil {
 		t.Fatalf("Link data changed: %+v %v", saved.Cloud, err)
+	}
+}
+
+// Only this computer's Link device key is missing: the sign-in checks out,
+// so the steps say so and name the one sign-in to delete.
+func TestCloudSecurityHoldForMissingDeviceKeyNamesTheSignIn(t *testing.T) {
+	previous := cloudHoldOwnerCleanup
+	cloudHoldOwnerCleanup = func(runtimeConfig, string) (bool, bool, string) { return true, false, "http://127.0.0.1:40000/ha-nova" }
+	t.Cleanup(func() { cloudHoldOwnerCleanup = previous })
+	cfg := hybridCheckpointUXConfig(cloudStateReady, true)
+	cfg.Cloud.RecoveryHold = &cloudRecoveryHold{Code: cloudProblemAuthorization, Remediation: cloudRemediationSecurityStop}
+	var out strings.Builder
+	renderCloudSecurityHold(&out, cfg, "default", true)
+	if !strings.Contains(out.String(), "can't find this computer's Link device key") ||
+		!strings.Contains(out.String(), `delete "http://127.0.0.1:40000/ha-nova".`) ||
+		!strings.Contains(out.String(), "If you don't find it, that's fine.") ||
+		strings.Contains(out.String(), "every entry") || strings.Contains(out.String(), "earlier Link sign-in") {
+		t.Fatalf("device-key hold:\n%s", out.String())
 	}
 }

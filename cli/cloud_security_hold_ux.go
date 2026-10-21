@@ -21,28 +21,31 @@ func cloudHoldIsSecurityStop(cfg runtimeConfig) bool {
 		cfg.Cloud.RecoveryHold.Remediation == cloudRemediationSecurityStop
 }
 
-// cloudHoldOwnerCleanup asks what `cloud remove` would find, read without a
-// prompt: owner true when it can't check the saved sign-in or device and so
-// needs the owner's steps and --confirm-remote-access-revoked; client is
-// the one sign-in address to delete, when known. Anything else (it checks
-// out, a cleanup checkpoint, a locked store) keeps the plain `cloud remove`.
-var cloudHoldOwnerCleanup = func(cfg runtimeConfig) (owner bool, client string) {
+// cloudHoldOwnerCleanup asks what `cloud remove` would find for profile,
+// read without a prompt: owner true when it can't check the saved sign-in
+// (signIn) or this computer's Link device key, and so needs the owner's
+// steps and --confirm-remote-access-revoked; client is the one sign-in
+// address to delete, when known. Anything else (it checks out, a cleanup
+// checkpoint, a locked store) keeps the plain `cloud remove`.
+var cloudHoldOwnerCleanup = func(cfg runtimeConfig, profile string) (owner, signIn bool, client string) {
 	ctx, cancel := context.WithTimeout(context.Background(), cloudHoldOwnerCleanupTimeout)
 	defer cancel()
 	store, err := newCloudSecretStoreForCLI(cfg.ProfileID)
 	if err != nil {
-		return false, ""
+		return false, false, ""
 	}
-	_, authErr := inspectCloudAuthorizationCleanup(ctx, cfg, store)
-	deviceErr := validateCloudDeviceRevocationPlan(ctx, cfg, activeServerProfile())
-	authMissing := errors.Is(authErr, errCloudAuthorizationCleanupUnverifiable)
+	plan, authErr := inspectCloudAuthorizationCleanup(ctx, cfg, store)
+	deviceErr := validateCloudDeviceRevocationPlan(ctx, cfg, profile)
+	signIn = errors.Is(authErr, errCloudAuthorizationCleanupUnverifiable)
 	deviceMissing := errors.Is(deviceErr, errCloudDeviceRevocationCredentialMissing)
-	owner = (authMissing || deviceMissing) &&
-		(authErr == nil || authMissing) && (deviceErr == nil || deviceMissing)
+	owner = (signIn || deviceMissing) &&
+		(authErr == nil || signIn) && (deviceErr == nil || deviceMissing)
 	if problem := cloudAuthorizationStopProblem(authErr); problem != nil {
 		client = problem.linkClient
+	} else if authErr == nil && cfg.Cloud != nil {
+		client = plan.onlyLinkClient(cfg)
 	}
-	return owner, client
+	return owner, signIn, client
 }
 
 // renderCloudSecurityHold says what happened in one sentence and the way
@@ -56,13 +59,17 @@ func renderCloudSecurityHold(out io.Writer, cfg runtimeConfig, profile string, t
 		renderCloudSelectionRepair(out, err)
 		return
 	}
-	owner, client := cloudHoldOwnerCleanup(cfg)
+	owner, signIn, client := cloudHoldOwnerCleanup(cfg, profile)
 	if !owner {
 		fmt.Fprintln(out, "  HA NOVA stopped Home Assistant Link to keep your home safe.")
 		fmt.Fprintf(out, "  To remove Link, run: %s\n", cloudProfileCommandFor("remove", profile))
 		return
 	}
-	fmt.Fprintf(out, "  %s.\n", cloudSignInHoldText)
+	if signIn {
+		fmt.Fprintf(out, "  %s.\n", cloudSignInHoldText)
+	} else {
+		fmt.Fprintln(out, "  HA NOVA stopped Home Assistant Link to keep your home safe. It can't find this computer's Link device key.")
+	}
 	steps := cloudAuthorizationRecoverySteps(profile, client, cfg.HAURL)
 	if !terminal {
 		steps = steps[:strings.LastIndex(steps, "\n3. ")] +
