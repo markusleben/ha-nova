@@ -48,11 +48,11 @@ func (f *setupFlow) offerLegacySwitch(onPage bool) (result setupStepResult, swit
 			},
 			Default: "switch",
 		})
-		if err == errSetupExit {
-			return f.cancelled(), true
-		}
-		if err != nil || choice != "switch" {
+		if err == errSetupBack || (err == nil && choice != "switch") {
 			return setupGoOn, false
+		}
+		if err != nil { // exit, or the terminal failed: as every setup prompt
+			return f.inputFailed(err), true
 		}
 		f.existingToken = ""
 		return setupGoTo(f.routeKnownAddress(setupStepHost)), true

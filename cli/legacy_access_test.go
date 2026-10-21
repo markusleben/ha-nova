@@ -46,8 +46,14 @@ func TestCheckUpdateNamesTheSharedAccessSwitch(t *testing.T) {
 
 // `ha-nova update` names it too, also when already current (Codex review).
 func TestUpdateAlreadyCurrentNamesTheSharedAccessSwitch(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("HA_NOVA_ALLOW_INSECURE_TEST_KEYRING", "1")
+	t.Setenv("HA_NOVA_TEST_KEYRING_FILE", filepath.Join(home, ".test-relay-auth-token"))
 	resetServerProfileSelection(t)
+	if err := writeRelayAuthToken("shared"); err != nil {
+		t.Fatal(err)
+	}
 	paths, err := detectPaths()
 	if err != nil {
 		t.Fatal(err)
@@ -74,5 +80,18 @@ func TestUpdateAlreadyCurrentNamesTheSharedAccessSwitch(t *testing.T) {
 func TestServiceInstallGetsTheFileBackedPair(t *testing.T) {
 	if got := legacyAccessNoticeFor(runtimeConfig{RelayTokenFile: "/etc/ha-nova/token"}); got != legacyAccessServiceNoticeText {
 		t.Fatalf("service notice = %q", got)
+	}
+}
+
+// "It works today" needs the shared token: without one, doctor names that
+// problem instead (Codex review).
+func TestNoSharedAccessNoticeWithoutTheToken(t *testing.T) {
+	paths, _ := doctorTestSetup(t)
+	previous, previousRead := probePairingV1ForNotice, readRelayAuthTokenForDoctor
+	t.Cleanup(func() { probePairingV1ForNotice, readRelayAuthTokenForDoctor = previous, previousRead })
+	probePairingV1ForNotice = func(context.Context, string) bool { return true }
+	readRelayAuthTokenForDoctor = func() (string, error) { return "", nil }
+	if notice := legacyAccessNotice(context.Background(), paths); notice != "" {
+		t.Fatalf("notice without a token = %q", notice)
 	}
 }

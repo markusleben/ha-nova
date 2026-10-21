@@ -47,11 +47,18 @@ func legacyAccessSwitchable(cfg runtimeConfig, probe func(string) bool) bool {
 // ctx; "" when it doesn't apply (paired, can't pair yet, uninstalled).
 func legacyAccessNotice(ctx context.Context, paths runtimePaths) string {
 	cfg, err := loadConfig(paths)
-	if err != nil || installLifecycleStopped(paths) ||
+	if err != nil || installLifecycleStopped(paths) || !legacyTokenReadable() ||
 		!legacyAccessSwitchable(cfg, func(url string) bool { return probePairingV1ForNotice(ctx, url) }) {
 		return ""
 	}
 	return legacyAccessNoticeFor(cfg)
+}
+
+// legacyTokenReadable: "it works today" needs the shared token itself, read
+// without a prompt (a missing or unreadable one is doctor's error to name).
+func legacyTokenReadable() bool {
+	token, err := readRelayAuthTokenForDoctor()
+	return err == nil && strings.TrimSpace(token) != ""
 }
 
 // printLegacyAccessNotice prints it; agent asks the AI assistant to pass it

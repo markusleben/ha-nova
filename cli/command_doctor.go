@@ -81,7 +81,8 @@ func runDoctor(paths runtimePaths, args []string) int {
 	// failure, and not in --quiet's machine contract.
 	if !*quiet {
 		legacyCtx, cancelLegacy := context.WithTimeout(context.Background(), legacyNoticeProbeTimeout)
-		if legacyAccessSwitchable(cfg, func(url string) bool { return probePairingV1ForDoctor(legacyCtx, url) }) {
+		if legacySharedAccess(cfg) && legacyTokenReadable() &&
+			legacyAccessSwitchable(cfg, func(url string) bool { return probePairingV1ForDoctor(legacyCtx, url) }) {
 			printHumanWarn("%s", legacyAccessNoticeFor(cfg))
 		}
 		cancelLegacy()
