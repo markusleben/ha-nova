@@ -237,19 +237,6 @@ func TestSetupPageRerunOffersANewAIAssistant(t *testing.T) {
 	}
 }
 
-// The shared-token install keeps the terminal: its switch to this
-// computer's own credential is a terminal step.
-func TestSetupPageRerunHandsASharedTokenInstallToTheTerminal(t *testing.T) {
-	paths, cfg, state, marker := setupCompletedInstallFixture(t)
-	stubRerunApp(t, true, chatAppsHA{}, errors.New("no chat apps"))
-	page, stdout, done := startSetupPageFlowWith(t, "", &setupFlow{paths: paths, cfg: cfg, state: state, lifecycleMarker: marker,
-		connectionMode: setupConnectionLocal, pairingBackStep: setupStepRelayInstall})
-	code := setupPageExit(t, done, stdout)
-	if code != 0 || !page.ui.inTerminal() || !strings.Contains(stdout.String(), "legacy token") {
-		t.Fatalf("exit %d inTerminal=%v\n%s", code, page.ui.inTerminal(), stdout)
-	}
-}
-
 // An uninstall while the page waited: "Set up … too" installs nothing, and
 // the end screen says so (exit 1).
 func TestSetupPageRerunNewAIAssistantAfterAnUninstallFailsClosed(t *testing.T) {

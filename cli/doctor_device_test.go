@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -18,6 +19,9 @@ func stubDoctorTransport(t *testing.T, base, credential string) {
 		return base, httpClient, credential, true, nil
 	}
 	t.Cleanup(func() { relayFunctionalTransportForDoctor = original })
+	originalProbe := probePairingV1ForDoctor // no real dial for the shared-access notice
+	probePairingV1ForDoctor = func(context.Context, string) bool { return false }
+	t.Cleanup(func() { probePairingV1ForDoctor = originalProbe })
 }
 
 func TestRunDoctorDeviceModeChecksSecureEndpoint(t *testing.T) {
@@ -208,7 +212,7 @@ func TestRunDoctorLegacyHintsAtPairingCapableRelay(t *testing.T) {
 	probeRelayWSPingForReadiness = func(string, string) (relayWSPingResponse, error) {
 		return relayWSPingResponse{StatusCode: http.StatusOK}, nil
 	}
-	probePairingV1ForDoctor = func(string) bool { return true }
+	probePairingV1ForDoctor = func(context.Context, string) bool { return true }
 
 	exitCode, output := captureCommandOutput(t, func() int {
 		return runDoctor(paths, nil)
@@ -216,7 +220,7 @@ func TestRunDoctorLegacyHintsAtPairingCapableRelay(t *testing.T) {
 	if exitCode != 0 {
 		t.Fatalf("doctor exit = %d, want 0:\n%s", exitCode, output)
 	}
-	if !strings.Contains(output, "This relay supports passwordless device pairing.") {
+	if !strings.Contains(output, "WARNING: "+legacyAccessNoticeText) {
 		t.Fatalf("expected pairing upgrade hint for a working legacy install:\n%s", output)
 	}
 
@@ -227,7 +231,14 @@ func TestRunDoctorLegacyHintsAtPairingCapableRelay(t *testing.T) {
 	if exitCode != 0 {
 		t.Fatalf("doctor --quiet exit = %d, want 0:\n%s", exitCode, output)
 	}
-	if strings.Contains(output, "passwordless device pairing") {
+	if strings.Contains(output, "shared access") {
 		t.Fatalf("--quiet must suppress the advisory pairing hint:\n%s", output)
+	}
+
+	// A standalone container can't pair yet: never told to switch.
+	probePairingV1ForDoctor = func(context.Context, string) bool { return false }
+	_, output = captureCommandOutput(t, func() int { return runDoctor(paths, nil) })
+	if strings.Contains(output, "shared access") {
+		t.Fatalf("a relay without pairing must not get the switch notice:\n%s", output)
 	}
 }

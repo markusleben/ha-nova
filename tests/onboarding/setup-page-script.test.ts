@@ -589,6 +589,20 @@ describe("setup page re-run (G1)", () => {
     expect(down.screen.textContent).toContain(down.catalog["setup.page.rerun.problem_app"]);
   });
 
+  it("offers the switch from the old shared access first, or Not now", async () => {
+    const legacy = { screen: "rerun_switch", rows: [...rows.slice(0, 2), { ...rows[2], state: "todo", msg: { key: "setup.page.rerun.computer_legacy" } }], accepts: ["switch", "terminal"] };
+    const p = page(legacy);
+    await p.settle();
+    expect(p.screen.querySelector("h1")!.textContent).toBe(p.catalog["setup.page.rerun.title_switch"]);
+    expect(p.screen.textContent).toContain(p.catalog["setup.page.rerun.lead_switch"]);
+    expect(p.find("b-fix")).toBeUndefined();
+    expect(p.find("b-switch")!.className).toContain("btn-primary");
+    expect(p.find("b-terminal")!.textContent).toBe(p.catalog["setup.page.rerun.later"]);
+    p.find("b-switch")!.dispatch("click");
+    await p.settle();
+    expect(p.posts).toEqual([{ action: "switch" }]);
+  });
+
   it("says Checking… after Check again until setup waits for a click again (A7)", async () => {
     const down = { screen: "rerun_fix", rows, accepts: ["recheck", "fix"], problem: { key: "setup.page.rerun.problem_app_only" } };
     const p = page(down, ...Array(8).fill({ ...down, accepts: [] }), down); // setup checks, then waits again

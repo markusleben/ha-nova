@@ -11,6 +11,8 @@ window.novaRerun = (h) => {
   // A re-run (spec §4): what is set up. All fine (rerun): step 3's rows on
   // the same screen, and AI assistants found since get a button. Else
   // (rerun_fix) Fix it; while the NOVA App doesn't answer, Check again first.
+  // (rerun_switch) Still on the old shared access: Switch to your own
+  // access, or Not now.
   const statusKeys = { ha: 'setup.page.ha.key', app: 'setup.page.app.key', computer: 'setup.page.rerun.computer_key', clients: 'setup.page.clients.key' };
   const rerun = () => {
     const s = h.state();
@@ -25,6 +27,10 @@ window.novaRerun = (h) => {
     };
     const status = el('ul', { class: 'rows' }, (s.rows || []).map((r) => row(r.state, t(statusKeys[r.id]), say(r.msg), side(r))));
     if (s.control) return control(status);
+    if (s.screen === 'rerun_switch') { // still on the old shared access: the switch comes first
+      return [...head(t('setup.page.rerun.eyebrow'), t('setup.page.rerun.title_switch'), t('setup.page.rerun.lead_switch'), true), status,
+        el('div', { class: 'actions' }, button(t('setup.page.rerun.switch'), 'switch'), button(t('setup.page.rerun.later'), 'terminal', 'ghost'))];
+    }
     return [...head(t('setup.page.rerun.eyebrow'), t('setup.page.rerun.title_fix'), t('setup.page.rerun.lead_fix'), true),
       problem(s.problem), status,
       el('div', { class: 'actions' },
@@ -40,5 +46,5 @@ window.novaRerun = (h) => {
   const saved = () => [...head(t('setup.page.saved.eyebrow'), t('setup.page.saved.title'), t('setup.page.saved.lead')),
     ...((h.state().home || {}).notes || []).map((note) => el('p', { class: 'note' }, say(note)))];
 
-  return { rerun, rerun_fix: rerun, repair, saved };
+  return { rerun, rerun_fix: rerun, rerun_switch: rerun, repair, saved };
 };

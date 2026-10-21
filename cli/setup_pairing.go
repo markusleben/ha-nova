@@ -191,7 +191,15 @@ func probePairingV1Detailed(relayBaseURL string) (supported bool, reachable bool
 // (GET /pair/v1/info). Any error or non-v1 answer returns false so the wizard
 // falls back to the legacy code exchange.
 func probePairingV1(relayBaseURL string) bool {
-	req, err := http.NewRequest(http.MethodGet, strings.TrimRight(relayBaseURL, "/")+"/pair/v1/info", nil)
+	return probePairingV1Context(context.Background(), relayBaseURL)
+}
+
+// probePairingV1ForNotice: the legacy-access notice's probe, bounded by
+// its caller (check-update, update).
+var probePairingV1ForNotice = probePairingV1Context
+
+func probePairingV1Context(ctx context.Context, relayBaseURL string) bool {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, strings.TrimRight(relayBaseURL, "/")+"/pair/v1/info", nil)
 	if err != nil {
 		return false
 	}

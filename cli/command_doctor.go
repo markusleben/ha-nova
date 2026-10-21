@@ -12,7 +12,7 @@ import (
 
 var (
 	readRelayAuthTokenForDoctor = readRelayAuthToken
-	probePairingV1ForDoctor     = probePairingV1
+	probePairingV1ForDoctor     = probePairingV1Context
 	firstUseRelayNoticeTimeout  = 4 * time.Second
 )
 
@@ -76,6 +76,15 @@ func runDoctor(paths runtimePaths, args []string) int {
 	} else {
 		printHumanErr("%s", cfgErr)
 		return 1
+	}
+	// Shared access still works in this release: a warning first, never a
+	// failure, and not in --quiet's machine contract.
+	if !*quiet {
+		legacyCtx, cancelLegacy := context.WithTimeout(context.Background(), legacyNoticeProbeTimeout)
+		if legacyAccessSwitchable(cfg, func(url string) bool { return probePairingV1ForDoctor(legacyCtx, url) }) {
+			printHumanWarn("%s", legacyAccessNoticeFor(cfg))
+		}
+		cancelLegacy()
 	}
 	// Multi-server installs: name the checked profile so per-server doctor runs
 	// (ha-nova doctor --server <name>) are unambiguous.
@@ -290,12 +299,6 @@ func runDoctor(paths runtimePaths, args []string) int {
 					doctorInfo("Relay /ws ping succeeded")
 				}
 				doctorInfo("Connected to Home Assistant")
-				// Working legacy install against a pairing-capable relay: point
-				// at the passwordless upgrade once, as information — never a
-				// failure, and skipped in --quiet's machine contract.
-				if !deviceMode && !usingCloud && !*quiet && probePairingV1ForDoctor(cfg.RelayBaseURL) {
-					printHumanInfo("This relay supports passwordless device pairing. Run 'ha-nova pair' and enter a fresh code from the NOVA page to switch this device to its own secure credential.")
-				}
 			case readiness.UpstreamAuthIssue:
 				printHumanErr("Relay reports degraded upstream WS capability")
 				printHumanErr("Relay upstream authentication was rejected; update/restart the App, or replace HA_LLAT for standalone Container/Core")

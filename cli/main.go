@@ -44,6 +44,7 @@ func main() {
 
 func dispatch(paths runtimePaths, argv0 string, args []string) int {
 	removeLegacyCensusState(paths)
+	clearStaleUninstallMarker(paths)
 	if len(args) == 0 {
 		printUsage()
 		return 1
