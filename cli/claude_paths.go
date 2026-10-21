@@ -37,6 +37,11 @@ func warnClaudeProfileRedirect(paths runtimePaths) {
 	line := ""
 	switch claudeHANovaAt(filepath.Join(paths.Home, ".claude"), localVersion(paths)) {
 	case claudeHANovaNone:
+		// Claude Code 2.1.x can leave an install out of its file: only its
+		// own answer for ~/.claude says HA NOVA is missing there.
+		if found, ok := defaultClaudeListsHANova(paths.Home); found || !ok {
+			return
+		}
 		line = "Your other Claude Code setup in ~/.claude doesn't have HA NOVA yet. To add it there, run `ha-nova setup claude` in a terminal without CLAUDE_CONFIG_DIR."
 	case claudeHANovaOlder:
 		line = "Your other Claude Code setup in ~/.claude still has an older HA NOVA. To update it there, run `ha-nova update` in a terminal without CLAUDE_CONFIG_DIR."
@@ -44,6 +49,20 @@ func warnClaudeProfileRedirect(paths runtimePaths) {
 		return
 	}
 	printHumanNotice(humanNotice{level: humanNoticeNote, message: line})
+}
+
+// defaultClaudeListsHANova asks `claude plugin list --json` about ~/.claude
+// itself (CLAUDE_CONFIG_DIR left out); ok=false: no answer. Test seam.
+var defaultClaudeListsHANova = func(home string) (found, ok bool) {
+	env := []string{"HOME=" + home}
+	for _, kv := range os.Environ() {
+		key, _, _ := strings.Cut(kv, "=")
+		if !strings.EqualFold(key, "CLAUDE_CONFIG_DIR") && !strings.EqualFold(key, "HOME") {
+			env = append(env, kv)
+		}
+	}
+	found, _, ok = readClaudePluginListWithEnv(env)
+	return found, ok
 }
 
 const (
