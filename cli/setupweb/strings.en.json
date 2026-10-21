@@ -495,6 +495,7 @@
   "setup.chat.need_address": "Claude and ChatGPT can't reach your home from the internet yet. The easy way: turn on remote access in Home Assistant Link. Or set your own HTTPS address in Home Assistant under Settings → System → Network. Then open NOVA in Home Assistant, then Chat apps.",
   "setup.chat.need_link": "Claude also works on your phone. This needs Home Assistant Link: open it, turn on Remote access, then check again.",
   "setup.chat.still_off": "Still off. Turn on Remote access first.",
+  "setup.chat.check_failed": "HA NOVA couldn't check just now. Try again.",
   "setup.chat.open_link": "Open Home Assistant Link",
   "setup.chat.need_own": "Have your own HTTPS address? Set it in Home Assistant under Settings → System → Network.",
   "setup.chat.need_address_web": "Claude and ChatGPT can't reach your home from the internet yet. The easy way: turn on remote access in Home Assistant Link. Or set your own HTTPS address in Home Assistant under Settings → System → Network.",

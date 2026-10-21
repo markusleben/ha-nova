@@ -25,16 +25,28 @@ func TestSetupPageChatRowChecksLinkAgain(t *testing.T) {
 	}
 	p.click("chat_recheck", "") // remote access still off: the same row
 	s = p.waitFor("still off", accepting("chat_recheck"))
-	if s.Control.Chat.State != "noaddress" {
-		t.Fatalf("chat row %q after Check again with remote access off", s.Control.Chat.State)
+	if c := s.Control.Chat; c.State != "noaddress" || c.Checked != "off" {
+		t.Fatalf("chat row %+v after Check again with remote access off", c)
 	}
+
+	app.mu.Lock()
+	app.getErr = errSetupExit // the App doesn't answer this time
+	app.mu.Unlock()
+	p.click("chat_recheck", "")
+	s = p.waitFor("couldn't read", func(s setupPageState) bool { return s.Control.Chat.Checked == "failed" && slices.Contains(s.Accepts, "chat_recheck") })
+	if c := s.Control.Chat; c.State != "noaddress" || c.LinkPage == "" {
+		t.Fatalf("chat row %+v after a failed Check again", c)
+	}
+	app.mu.Lock()
+	app.getErr = nil
+	app.mu.Unlock()
 
 	mu.Lock()
 	link = chatTestLink // the user turned remote access on
 	mu.Unlock()
 	p.click("chat_recheck", "")
 	s = p.waitFor("the switch", accepting("chat"))
-	if c := s.Control.Chat; c.State != "offer" || c.LinkPage != "" || slices.Contains(s.Accepts, "chat_recheck") {
+	if c := s.Control.Chat; c.State != "offer" || c.LinkPage != "" || c.Checked != "" || slices.Contains(s.Accepts, "chat_recheck") {
 		t.Fatalf("chat row %+v accepts %v, want the offer", c, s.Accepts)
 	}
 	p.click("finish", "")

@@ -415,7 +415,8 @@ describe("setup page: Add to Claude", () => {
   it("offers Link remote access as a muted row, with its page and Check again", async () => {
     const link_page = "http://homeassistant.local:8123/config/cloud";
     const off = { ...control({ state: "noaddress", link_page }), accepts: ["finish", "chat_recheck"] };
-    const p = page(off, { ...off, accepts: [] }, off); // Check again reads, then remote access is still off
+    const stillOff = { ...off, control: { ...off.control, chat: { state: "noaddress", link_page, checked: "off" } } };
+    const p = page(off, { ...off, accepts: [] }, stillOff); // Check again reads, then remote access is still off
     await p.settle();
     for (const key of ["setup.chat.key", "setup.chat.need_link", "setup.chat.need_own"]) expect(p.screen.textContent).toContain(p.catalog[key]);
     expect(p.screen.textContent).not.toContain(p.catalog["setup.chat.still_off"]);
@@ -430,6 +431,10 @@ describe("setup page: Add to Claude", () => {
     expect(p.find("b-chat-ask")).toBeUndefined();
     expect(p.find("b-chat-switch")).toBeUndefined();
     expect(p.find("l-chat-claude")).toBeUndefined();
+    const failed = page({ ...control({ state: "noaddress", checked: "failed" }), accepts: ["finish", "chat_recheck"] });
+    await failed.settle();
+    expect(failed.screen.textContent).toContain(failed.catalog["setup.chat.check_failed"]);
+    expect(failed.screen.textContent).not.toContain(failed.catalog["setup.chat.still_off"]);
     const unsafe = page(control({ state: "noaddress", link_page: "javascript:alert(1)" }));
     await unsafe.settle();
     expect(unsafe.find("l-chat-link")).toBeUndefined();
@@ -720,7 +725,8 @@ describe("setup page: status colors", () => {
 
   it("marks a problem with the amber !, on a first run and a re-run alike", async () => {
     for (const [screen, chat] of [["control", { state: "noaddress", problem: { key: "setup.chat.on_noaddress" } }], ["rerun", { state: "page_on", problem: { key: "setup.chat.on_noaddress" } }],
-      ["control", { state: "expired", problem: { key: "setup.chat.problem_expired" } }], ["control", { state: "offer", problem: { key: "setup.chat.problem_app" } }]] as const) {
+      ["control", { state: "expired", problem: { key: "setup.chat.problem_expired" } }], ["control", { state: "offer", problem: { key: "setup.chat.problem_app" } }],
+      ["control", { state: "on", url: "https://example.invalid/mcp", problem: { key: "setup.chat.problem_phone" } }], ["rerun", { state: "page_on", url: "https://example.invalid/mcp", problem: { key: "setup.chat.problem_slow" } }]] as const) {
       const p = page({ screen, rows: [], accepts: ["finish"], control: { window: true, phone: "none", chat } });
       await p.settle();
       expect(marks(p).at(-1)).toBe("ic fail");

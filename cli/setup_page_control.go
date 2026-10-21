@@ -49,6 +49,7 @@ type setupPageChat struct {
 	ClaudeLink string         `json:"claude_link,omitempty"` // Add to Claude (claudeConnectorLink), once on
 	Phone      string         `json:"phone,omitempty"`       // the phone that confirms for chat apps; "": a code in the chat
 	LinkPage   string         `json:"link_page,omitempty"`   // noaddress, off: Home Assistant's Link page (haLinkPageURL)
+	Checked    string         `json:"checked,omitempty"`     // noaddress, off: the last Check again: off (read, still no address), failed (couldn't read)
 	NoRestart  bool           `json:"no_restart,omitempty"`  // Home Assistant runs the integration already: turning on doesn't restart it
 	Problem    *setupPageMsg  `json:"problem,omitempty"`
 }
@@ -188,8 +189,13 @@ func (f *setupFlow) pageControl() int {
 			f.pagePhones(&ctl)
 		case "chat_recheck": // Link remote access may be on now
 			originRead = false
-			if row := readChat(); row != nil {
+			if row := readChat(); row == nil {
+				ctl.Chat.Checked = "failed" // the old row stays: never a stale "still off"
+			} else {
 				ctl.Chat = row
+				if ctl.Chat.needsLink() {
+					ctl.Chat.Checked = "off"
+				}
 			}
 			if ctl.Link == "" && f.pageLinkOffered() && linkOrigin() != "" {
 				ctl.Link = "offer"
