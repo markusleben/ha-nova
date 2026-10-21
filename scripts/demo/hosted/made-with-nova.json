@@ -1,0 +1,123 @@
+[
+  {
+    "entity_id": "automation.entrance_lights_when_paulus_comes_home_after_dark",
+    "asked": "Turn on the entrance lights when Paulus comes home after dark.",
+    "domain": "automation",
+    "id": "1792616231539",
+    "config": {
+      "id": "1792616231539",
+      "alias": "Entrance lights when Paulus comes home after dark",
+      "description": "Made with HA NOVA from: “Turn on the entrance lights when Paulus comes home after dark.”",
+      "triggers": [
+        {
+          "trigger": "state",
+          "entity_id": "device_tracker.demo_paulus",
+          "to": "home"
+        }
+      ],
+      "conditions": [
+        {
+          "condition": "state",
+          "entity_id": "sun.sun",
+          "state": "below_horizon"
+        }
+      ],
+      "actions": [
+        {
+          "action": "light.turn_on",
+          "target": {
+            "entity_id": "light.entrance_color_white_lights"
+          }
+        }
+      ],
+      "mode": "single"
+    }
+  },
+  {
+    "entity_id": "automation.basement_floor_wet_alert",
+    "asked": "Tell me when the basement floor gets wet.",
+    "domain": "automation",
+    "id": "1792616296088",
+    "config": {
+      "id": "1792616296088",
+      "alias": "Basement floor wet alert",
+      "description": "Made with HA NOVA from: “Tell me when the basement floor gets wet.”",
+      "triggers": [
+        {
+          "trigger": "state",
+          "entity_id": "binary_sensor.basement_floor_wet",
+          "from": "off",
+          "to": "on"
+        }
+      ],
+      "conditions": [],
+      "actions": [
+        {
+          "action": "notify.send_message",
+          "target": {
+            "entity_id": "notify.notifier"
+          },
+          "data": {
+            "title": "Basement",
+            "message": "The basement floor is wet."
+          }
+        }
+      ],
+      "mode": "single"
+    }
+  },
+  {
+    "entity_id": "script.movie_time",
+    "asked": "Make a script for movie time: dim the living room lights to 20 percent and close the living room window.",
+    "domain": "script",
+    "id": "movie_time",
+    "config": {
+      "alias": "Movie Time",
+      "description": "Made with HA NOVA from: “Make a script for movie time: dim the living room lights to 20 percent and close the living room window.”",
+      "sequence": [
+        {
+          "action": "light.turn_on",
+          "target": {
+            "entity_id": "light.living_room_group"
+          },
+          "data": {
+            "brightness_pct": 20
+          }
+        },
+        {
+          "action": "cover.close_cover",
+          "target": {
+            "entity_id": "cover.living_room_window"
+          }
+        }
+      ],
+      "mode": "single",
+      "icon": "mdi:movie-open"
+    }
+  },
+  {
+    "entity_id": "script.good_morning",
+    "asked": "Make a good morning script: open the kitchen window and turn on the kitchen lights.",
+    "domain": "script",
+    "id": "good_morning",
+    "config": {
+      "alias": "Good morning",
+      "description": "Made with HA NOVA from: “Make a good morning script: open the kitchen window and turn on the kitchen lights.”",
+      "sequence": [
+        {
+          "action": "cover.open_cover",
+          "target": {
+            "entity_id": "cover.kitchen_window"
+          }
+        },
+        {
+          "action": "light.turn_on",
+          "target": {
+            "entity_id": "light.kitchen_lights"
+          }
+        }
+      ],
+      "mode": "single"
+    }
+  }
+]

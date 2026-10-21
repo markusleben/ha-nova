@@ -17,6 +17,7 @@
   "tests/config/hosted-demo-icon.test.ts",
   "tests/config/hosted-demo-pins.test.ts",
   "tests/config/hosted-demo-privacy.test.ts",
+  "tests/config/hosted-demo-start-here.test.ts",
   "tests/e2e/codex-skill-bulk-live-validator.test.ts",
   "tests/e2e/codex-skill-live-contract.test.ts",
   "tests/e2e/codex-skill-promoted-live-contract.test.ts",

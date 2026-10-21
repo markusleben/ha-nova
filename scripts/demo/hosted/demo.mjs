@@ -7,7 +7,8 @@
 //                                                  admin user demo/demo, drop onboarding entries
 //   node demo.mjs token     <ha_url> <owner_llat>  prints a long-lived token of the relay's own
 //                                                  admin user (not demo, not the owner)
-//   node demo.mjs dashboard <ha_url> <owner_llat>  default dashboard with the reset banner
+//   node demo.mjs dashboard <ha_url> <owner_llat>  HA NOVA's sample work + default dashboard
+//                                                  ("Start here" first) with the reset banner
 //   node demo.mjs guard     <ha_url> <owner_llat>  minute check; exit 1 = full reset needed
 //   node demo.mjs smoke     <ha_url> <owner_llat>  candidate gate (update-ha.sh); prints the HA version
 
@@ -31,7 +32,12 @@ const PROXY = "10.89.240.2/32"; // Caddy (edge.yml) = trusted_proxies in config/
 const ONBOARDING_EXTRAS = ["met", "google_translate", "radio_browser", "shopping_list"];
 const BANNER_MARK = "**Public demo — everyone shares one account.**";
 const DASHBOARD = "demo-house"; // storage dashboard; the system-wide default panel
-const SMOKE_ENTITIES = ["light.bed_light", "lock.entrance_door", "cover.testbed_garage", "switch.smart_plug",
+// Automations and scripts HA NOVA made on the local test bed (the write skill,
+// run from Claude Code with this repo's skills, 2026-10-21), saved as Home
+// Assistant read them back; only the description is the visitor-facing
+// "Made with HA NOVA from: <what was asked>". Re-generate when the house changes.
+const NOVA_WORK = JSON.parse(readFileSync(new URL("./made-with-nova.json", import.meta.url), "utf8"));
+const SMOKE_ENTITIES = [...NOVA_WORK.map((w) => w.entity_id), "light.bed_light", "lock.entrance_door", "cover.testbed_garage", "switch.smart_plug",
   "sensor.testbed_temperature", "button.router_restart", "light.template_desk_lamp", "input_boolean.guest_mode",
   "automation.a_guest_mode_unlocks_entrance_door", "script.leave_home", "scene.movie_night", "sensor.demo_next_reset"];
 const HANDSHAKE_MS = 15_000;
@@ -194,6 +200,59 @@ const demoAutomationRows = (rows, ids = DEMO_AUTOMATIONS) =>
   ids.map((id) => rows.find((e) => e.platform === "automation" && e.unique_id === id)).filter(Boolean);
 const demoAutomations = async (ha, ids) => demoAutomationRows(await ha.call({ type: "config/entity_registry/list" }), ids);
 
+// The "Start here" view: what HA NOVA is, how to try it, what to say, what it
+// made here, and what it points out ("What is worth a look?": the demo
+// integration's 12 % battery and devices seeded without a room).
+const PROMPTS = [
+  "In the demo house, where is the bed light used?",
+  "In the demo house, turn off the kitchen lights.",
+  "In the demo house, unlock the entrance door.",
+  "In the demo house, lock the entrance door every night at 10 pm.",
+  "In the demo house, what is worth a look?",
+];
+const md = (content) => ({ type: "markdown", content });
+const startSections = () => [
+  { type: "grid", cards: [md([
+    "## This house runs on HA NOVA",
+    "HA NOVA lets your AI app run Home Assistant. You ask in plain words, and it does it. Before a risky step, like unlocking a door, it asks you first.",
+    "",
+    "**Try it:** go to [hanova.app/demo](https://hanova.app/demo/) and pick your AI app. Then keep this page open next to the chat and watch the house change.",
+  ].join("\n"))] },
+  { type: "grid", cards: [{ type: "heading", heading: "Say this to it" }, md([
+    ...PROMPTS.map((p, i) => `${i + 1}. “${p}”${i === 2 ? " It asks you first." : ""}`),
+    "",
+    "You can ask in any language.",
+  ].join("\n"))] },
+  { type: "grid", cards: [{ type: "heading", heading: "Made with HA NOVA" },
+    md(["HA NOVA made these from what was asked:", "", ...NOVA_WORK.map((w) => `- “${w.asked}”`)].join("\n")),
+    ...NOVA_WORK.map((w) => ({ type: "tile", entity: w.entity_id }))] },
+  { type: "grid", cards: [{ type: "heading", heading: "HA NOVA points these out" },
+    md([
+      "Ask “What is worth a look?” and it finds things like these:",
+      "",
+      "- A low battery: Outside Temperature Battery is at {{ states('sensor.outside_temperature_battery') }} %.",
+      "- Devices with no room yet, like the Entrance Color + White Lights. It can suggest a room when the name gives a hint.",
+    ].join("\n"))] },
+];
+
+// HA NOVA's sample work, written the way HA NOVA writes it (the config API
+// that `ha-nova apply` posts to), every reset; HA then reloads.
+async function saveNovaWork(ha) {
+  for (const { domain, id, config } of NOVA_WORK) {
+    const res = await fetch(`${base}/api/config/${domain}/config/${id}`, {
+      method: "POST", headers: { authorization: `Bearer ${token}`, "content-type": "application/json" }, body: JSON.stringify(config),
+    });
+    if (!res.ok) throw new Error(`save ${domain} ${id} -> HTTP ${res.status}`);
+  }
+  for (let i = 0; ; i++) {
+    const live = new Set((await ha.call({ type: "get_states" })).map((s) => s.entity_id));
+    const missing = NOVA_WORK.filter((w) => !live.has(w.entity_id)).map((w) => w.entity_id);
+    if (!missing.length) return;
+    if (i === 20) throw new Error(`HA NOVA's sample work did not load: ${missing.join(", ")}`);
+    await new Promise((r) => setTimeout(r, 500));
+  }
+}
+
 // The default dashboard: a storage dashboard (HA 2026.10 sends a default
 // "lovelace" panel without a dashboard entry to the new Home panel) with one
 // sections view by area and one by domain, every view carrying the banner,
@@ -238,6 +297,7 @@ async function saveDashboard(ha) {
     config: {
       title: "NOVA Demo House",
       views: [
+        { title: "Start here", path: "start", type: "sections", max_columns: 4, header, sections: startSections() },
         { title: "House", path: "house", icon: "mdi:home", type: "sections", max_columns: 4, header, sections: byArea },
         { title: "Everything", path: "everything", icon: "mdi:view-list", type: "sections", max_columns: 4, header, sections: byDomain },
       ],
@@ -311,6 +371,7 @@ async function armSimulatedDevices(ha) {
 // After the house is seeded (reset.sh): seed.mjs waited for the demo entities.
 async function dashboard() {
   await withHa(async (ha) => {
+    await saveNovaWork(ha);
     await saveDashboard(ha);
     await nameAppDevice(ha);
     await dropMapDashboard(ha);
