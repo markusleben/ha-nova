@@ -117,7 +117,7 @@ Full relay/upstream error taxonomy: `../ha-nova/relay-api.md` -> Error Handling.
 
 Apply `../ha-nova/output-rules.md`: plain words, HA names verbatim; unless asked or names clash, no ids, "entity", modes, Relay/HA URLs, snapshots, raw JSON. Previews, deletes, and results use the Cards defined there (`../ha-nova/output-cards.md`).
 
-Report shape (output-cards.md): resolved target, sent title/message, extras used. Discovery: the List Frame by surface (notify targets vs mobile-app services).
+Report shape (output-cards.md): the preview names target, title/message, and extras; after sending, `say` alone. Discovery: the List Frame by surface (notify targets vs mobile-app services).
 
 ## Safety
 

@@ -52,4 +52,4 @@ may have changed.
 
 ## Verb Results
 
-A `ha-nova call` or `ha-nova apply` result's `say` is the result line: relay it verbatim, only translated, then any `notices[]` not yet surfaced this session. Add no result or ✅ line of your own; a read-back the skill requires adds one line with what it found. No `say`: answer a data call with its data, an error per A failure above. No card for calls.
+A `ha-nova call` or `ha-nova apply` result's `say` is the result line: relay it verbatim, only translated, then any `notices[]` not yet surfaced this session. Add no result or ✅ line of your own; a read-back the skill requires follows it. No `say`: answer a data call with its data, an error per A failure above. No card for calls.

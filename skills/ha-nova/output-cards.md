@@ -11,12 +11,13 @@ Line, a Session Recap, findings, or review output. The core rules still apply.
 
 - Prefer plain short labels over decorative Markdown headings in terminal-like clients.
 - Treat names such as `Changes`, `Preview`, `Post-write review`, and `Options` as semantic slots; do not rely on literal Markdown heading markers to make the output understandable.
+- Without a plan's `say`, create/update previews run: summary, changes, pre-write check, ⚠️ not saved, question.
 - Keep delete previews structured in this order: preview summary, consumer-check impact, save status, the confirmation ask (a CLI plan's `say`, else the exact one-time-code prompt).
 - Use stable localized labels for those slots across a conversation. If a slot has content, show it under the same label and in the same order; if it has no content, omit that slot instead of printing an empty placeholder.
 - Close every create/update preview with one natural question (save it, show the details, or leave it). Sole exception: intermediate previews inside a grouped change set (`../ha-nova/grouped-change-set.md`) carry none — one final question closes the group.
 - Delete previews must say nothing has been deleted yet and must close with the confirmation ask (a CLI plan's `say`, else the one-time code); never a save question or a selectable menu for destructive confirmation.
 - Never hide the available next actions inside a paragraph.
-- A plan's `say` closes the card, replacing the title, ⚠️ save-status, and options or code lines (it names the action and item). Ask and result shapes: `../ha-nova/index.md` → Say it.
+- A plan's `say` closes the card, replacing the title, ⚠️ save-status, and options or code lines. Ask and result shapes: `../ha-nova/index.md` → Say it.
 
 ## Cards (Write-Flow Visual System)
 
@@ -88,7 +89,7 @@ write flow renders outside this system:
 | Grouped change set (non-destructive, one logical task) | Preview Cards without options → one final action block → Result Card (`../ha-nova/grouped-change-set.md`) |
 | Snapshot restore (`../ha-nova/config-snapshots.md`) | Preview Card → Result Card |
 | Post-write test offer | Test Plan Card |
-| Runtime action (service call, experimental write) | CLI fast path (`tier: ordinary`): no preview, the result's `say` (`output-rules.md` → Verb Results). Otherwise a preview closing with the plan's `say` (high-consequence actions escalate to the typed tier — context skill → Confirmation Tiers) → the result's `say` (no `say`: Result Card) |
+| Runtime action (service call, experimental write) | CLI fast path (`tier: ordinary`): no preview, the result's `say` (`output-rules.md` → Verb Results). Otherwise a preview closing with the plan's `say` (high-consequence actions escalate to the typed tier — context skill → Confirmation Tiers) → the result's `say` (an experimental write without `say`: Result Card) |
 
 ## Report Shape (Read & Analysis Results)
 

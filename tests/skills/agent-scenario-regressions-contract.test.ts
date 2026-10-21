@@ -170,7 +170,7 @@ describe("agent scenario regressions (2026-10-20)", () => {
     expect(index).toContain("Unless asked: names, not ids; local time, never UTC; no automation modes, plan ids, HA NOVA skill or rule-file names.");
     expect(index).toContain("Answer in the language of the user's sentence, not of a name in it.");
     // One source of truth: the CLI's `say` is the ask and the result line (#803).
-    expect(index).toContain("Relay a CLI `say` (ask or result) verbatim, only translated; add no other result line.");
+    expect(index).toContain("Relay a CLI `say` (ask or result) verbatim, only translated; add only a skill's read-back.");
     expect(index).toContain('"Type <code> to <goal> — a plain yes can\'t confirm this."');
     expect(index).toContain('Verified raw write (no `say`): `✅ Saved: <type> "<name>"` and what was checked.');
     expect(index).toContain('After an undoable save: "To undo this change, just say so."');

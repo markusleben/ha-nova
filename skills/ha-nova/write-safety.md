@@ -140,7 +140,7 @@ should learn one shape and always recognize it:
 4. Save-status slot: explicitly say that nothing has been saved yet (the ⚠️ line).
 5. Options slot: one natural question — save it, show the details, or leave it.
 
-A plan's `say` replaces 1's title line, 4, and 5.
+A plan's `say` replaces 1's title line, 4, and 5, here and in the Shape below.
 
 This is the Preview Card of `../ha-nova/output-cards.md` → Cards; the
 Result Card and Delete Card there frame the post-write and delete sides.
