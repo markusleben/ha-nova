@@ -10,7 +10,7 @@ Line, a Session Recap, findings, or review output. The core rules still apply.
 ## Terminal-Friendly Shape
 
 - Prefer plain short labels over decorative Markdown headings in terminal-like clients.
-- Treat names such as `Changes`, `Preview`, `Post-write review`, and `Options` as semantic slots; do not rely on literal Markdown heading markers to make the output understandable.
+- Treat names such as `Changes`, `Preview`, `Post-write review`, and `Options` as semantic slots, not literal Markdown headings.
 - Keep create/update previews structured in this order: preview summary, changes or summary, pre-write check/impact, save status, options.
 - Keep delete previews structured in this order: preview summary, consumer-check impact, save status, the confirmation ask (a CLI plan's `say`, else the exact one-time-code prompt).
 - Use stable localized labels for those slots across a conversation. If a slot has content, show it under the same label and in the same order; if it has no content, omit that slot instead of printing an empty placeholder.
@@ -53,7 +53,7 @@ Type <four digits> to delete — a plain yes can't confirm this.
 Destructive batch previews and results render the Batch Cards defined in
 `../ha-nova/batch-safety.md` — same emoji vocabulary and rules.
 
-**Result Card** (verified only — line 2 opens with the result's `say`, word for word, unless the skill's own read-back differs (none: name only the proven scope, per `../ha-nova/write-safety.md` → Verification Honesty); findings, if any, follow with 🔴🟠🟡):
+**Result Card** (line 2 opens with the result's `say`, word for word, unless the skill's own read-back differs (none: name only the proven scope, per `../ha-nova/write-safety.md` → Verification Honesty); not verified: no ✅ title, only that line; findings, if any, follow with 🔴🟠🟡):
 
 ```
 ✅ Saved: automation "Morning routine"

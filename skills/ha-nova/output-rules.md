@@ -54,7 +54,7 @@ may have changed.
 
 A `ha-nova call` or `apply` result is at most three lines:
 
-1. no `say`: what ran, with resolved names (area when it disambiguates);
+1. what ran, unless `say` names it, with resolved names (area if ambiguous);
 2. its `say`, word for word, only translated (else the outcome: verified, accepted (sent, effect not observable), unverified, failed, or unknown), plus per-entity states it lacks (a `members[]` state, "still locked after 10s"); `no_change`: only `say`;
 3. `notices[]` not yet surfaced this session.
 
