@@ -336,7 +336,7 @@ func TestGuidedRelayUpdatePollTimeoutStaysHonest(t *testing.T) {
 	if !strings.Contains(out.String(), "did not report a new version") {
 		t.Fatalf("missing honest timeout message: %s", out.String())
 	}
-	if !strings.Contains(out.String(), "Manual path:") {
+	if !strings.Contains(out.String(), relayUpdateManualPath) {
 		t.Fatalf("timeout must include the manual path: %s", out.String())
 	}
 }
@@ -374,7 +374,7 @@ func TestGuidedRelayUpdateRejectedInstallSkipsTheWait(t *testing.T) {
 	if !strings.Contains(out.String(), "Home Assistant rejected the install call.") {
 		t.Fatalf("missing rejection message: %s", out.String())
 	}
-	if !strings.Contains(out.String(), "Manual path:") {
+	if !strings.Contains(out.String(), relayUpdateManualPath) {
 		t.Fatalf("rejection must include the manual path: %s", out.String())
 	}
 }

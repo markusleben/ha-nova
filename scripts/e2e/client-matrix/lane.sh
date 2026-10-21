@@ -216,11 +216,12 @@ check_relay_notice() {
   min="$(sed -n 's/.*"min_relay_version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$H/.local/share/ha-nova/version.json")"
   relay="$(curl -fsS -H "Authorization: Bearer $RELAY_TOKEN" "$RELAY_URL/health" | sed -n 's/.*"version":"\([^"]*\)".*/\1/p')"
   [[ -n "$min" && -n "$relay" ]] || { echo "cannot read min ($min) or relay ($relay) version"; return 1; }
+  # The updating (FROM) binary prints it; older ones say "Relay outdated: …".
   if ver_lt "$relay" "$min"; then
-    grep -q "Relay outdated: v$relay is below minimum v$min" "$LOGS/update.log" &&
+    grep -Eq "Relay outdated: v$relay is below minimum v$min|it has v$relay, HA NOVA needs v$min or newer" "$LOGS/update.log" &&
       echo "note: relay v$relay < min v$min: outdated notice shown (expected)"
   else
-    ! grep -q 'Relay outdated' "$LOGS/update.log" && echo "note: relay v$relay >= min v$min: no outdated notice (correct)"
+    ! grep -Eq 'Relay outdated|NOVA App in Home Assistant needs an update' "$LOGS/update.log" && echo "note: relay v$relay >= min v$min: no outdated notice (correct)"
   fi
 }
 

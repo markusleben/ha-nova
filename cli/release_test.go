@@ -614,7 +614,7 @@ func TestCheckRelayVersionReturnsStructuredOutdatedNotice(t *testing.T) {
 	if notice.level != humanNoticeWarning {
 		t.Fatalf("notice.level = %q, want %q", notice.level, humanNoticeWarning)
 	}
-	if !strings.Contains(notice.message, "Relay outdated: v0.1.0 is below minimum v0.2.0") {
+	if !strings.Contains(notice.message, "The NOVA App in Home Assistant needs an update: it has v0.1.0, HA NOVA needs v0.2.0 or newer.") {
 		t.Fatalf("unexpected relay warning message: %q", notice.message)
 	}
 }
@@ -641,7 +641,7 @@ func TestCheckRelayVersionWarnsOnUnsupportedRelayVersionFormat(t *testing.T) {
 	if notice.level != humanNoticeWarning {
 		t.Fatalf("notice.level = %q, want %q", notice.level, humanNoticeWarning)
 	}
-	if !strings.Contains(notice.message, "unsupported relay version format") {
+	if !strings.Contains(notice.message, "can't read the NOVA App's version (v0.2.0-beta1") {
 		t.Fatalf("unexpected relay warning message: %q", notice.message)
 	}
 }
@@ -670,7 +670,7 @@ func TestCheckRelayVersionReadsTheRealHealthEnvelope(t *testing.T) {
 	if notice.kind != humanNoticeKindRelayOutdated {
 		t.Fatalf("notice.kind = %q, want %q (envelope body must not be skipped)", notice.kind, humanNoticeKindRelayOutdated)
 	}
-	if !strings.Contains(notice.message, "Relay outdated: v0.2.6 is below minimum v0.4.0") {
+	if !strings.Contains(notice.message, "The NOVA App in Home Assistant needs an update: it has v0.2.6, HA NOVA needs v0.4.0 or newer.") {
 		t.Fatalf("unexpected relay warning message: %q", notice.message)
 	}
 }
@@ -712,7 +712,7 @@ func TestRelayFloorNoticeWarnsWhenLiveRelayIsBelowFloor(t *testing.T) {
 	if notice.kind != humanNoticeKindRelayOutdated {
 		t.Fatalf("notice.kind = %q, want %q", notice.kind, humanNoticeKindRelayOutdated)
 	}
-	if !strings.Contains(notice.message, "Relay outdated: v0.2.6 is below minimum v0.4.0") {
+	if !strings.Contains(notice.message, "The NOVA App in Home Assistant needs an update: it has v0.2.6, HA NOVA needs v0.4.0 or newer.") {
 		t.Fatalf("unexpected relay warning message: %q", notice.message)
 	}
 }

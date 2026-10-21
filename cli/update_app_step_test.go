@@ -35,12 +35,16 @@ func TestUpdateAppStepOpensSetupPageOnlyAtADesktop(t *testing.T) {
 	if err := saveConfig(paths, runtimeConfig{HAHost: "192.168.1.5", HAURL: "http://192.168.1.5:8123", RelayBaseURL: "http://192.168.1.5:8791"}); err != nil {
 		t.Fatal(err)
 	}
-	tooOld := humanNotice{level: humanNoticeWarning, kind: humanNoticeKindRelayUpdateAvailable, message: "Relay outdated", appUpdate: true, belowFloor: true}
-	newer := humanNotice{level: humanNoticeWarning, kind: humanNoticeKindRelayUpdateAvailable, message: "Relay update available", appUpdate: true}
+	tooOld := humanNotice{level: humanNoticeWarning, kind: humanNoticeKindRelayUpdateAvailable, message: "Too old. " + relayAppUpdatePath, appUpdate: true, belowFloor: true}
+	newer := humanNotice{level: humanNoticeWarning, kind: humanNoticeKindRelayUpdateAvailable, message: "An update. " + relayAppUpdatePath, appUpdate: true}
 	container := humanNotice{level: humanNoticeWarning, kind: humanNoticeKindRelayOutdated, message: "pull the new image"}
 	run := func(notice humanNotice) string {
 		_, output := captureCommandOutput(t, func() int { offerRelayUpdate(paths, notice); return 0 })
 		return output
+	}
+	// Without the page: the notice says where to update, once.
+	once := func(out string) bool {
+		return strings.Count(out, "Settings > Apps > NOVA Relay") == 1 && strings.Contains(out, relayAppUpdatePath)
 	}
 
 	setupPageAvailable = func() bool { return true }
@@ -53,18 +57,18 @@ func TestUpdateAppStepOpensSetupPageOnlyAtADesktop(t *testing.T) {
 		t.Fatalf("closed page: opened=%d\n%s", opened, out)
 	}
 	// An above-floor App update keeps its guided offer with backup: no page.
-	if out := run(newer); opened != 2 || !strings.Contains(out, relayUpdateManualLine) {
+	if out := run(newer); opened != 2 || !once(out) {
 		t.Fatalf("above floor: opened=%d\n%s", opened, out)
 	}
 	// The page can't update this App (another address, Link only): no page.
 	haAppInstallTargetsThisHAForPage = func(runtimeConfig) bool { return false }
-	if out := run(tooOld); opened != 2 || !strings.Contains(out, relayUpdateManualLine) {
+	if out := run(tooOld); opened != 2 || !once(out) {
 		t.Fatalf("page can't update: opened=%d\n%s", opened, out)
 	}
 	haAppInstallTargetsThisHAForPage = func(runtimeConfig) bool { return true }
 	// SSH, no display, or an AI app running the command: no page.
 	setupPageAvailable = func() bool { return false }
-	if out := run(tooOld); opened != 2 || !strings.Contains(out, relayUpdateManualLine) {
+	if out := run(tooOld); opened != 2 || !once(out) {
 		t.Fatalf("no desktop: opened=%d\n%s", opened, out)
 	}
 	// No App in Home Assistant to update (a standalone Relay): only its notice.

@@ -40,6 +40,11 @@ const (
 	windowSetting    = "confirm_window" // config.json top level; "off" = codes in chat
 )
 
+// windowsBoxStyle (confirm_window_windows.go): MB_OKCANCEL, MB_ICONWARNING,
+// MB_DEFBUTTON2 (Cancel is the default, so a stray Enter cancels),
+// MB_SETFOREGROUND, MB_TOPMOST. Here so every platform's tests check it.
+const windowsBoxStyle = 0x1 | 0x30 | 0x100 | 0x10000 | 0x40000
+
 var (
 	windowWait    = cliWindowWait
 	windowMinWait = 15 * time.Second // less left before expiry: no window or phone ask

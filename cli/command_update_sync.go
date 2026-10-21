@@ -197,8 +197,9 @@ func setupPageCanUpdateApp(paths runtimePaths) bool {
 // offerRelayUpdate: an App below what this version needs, with its update
 // pending in Home Assistant, at a desktop: the setup page opens on its
 // "Update the NOVA App" button. In a terminal otherwise: the guided offer
-// (it asks first). Without a terminal (an AI app ran the command): one plain
-// line where to update it. Nothing installs without the user's click or yes.
+// (it asks first). Without a terminal (an AI app ran the command): only the
+// notice, which says where to update it. Nothing installs without the
+// user's click or yes.
 func offerRelayUpdate(paths runtimePaths, notice humanNotice) {
 	if notice.empty() {
 		return
@@ -217,9 +218,5 @@ func offerRelayUpdate(paths runtimePaths, notice humanNotice) {
 	}
 	if relayUpdateInputIsTTY() && relayUpdateOutputIsTTY() {
 		maybeOfferGuidedRelayUpdate(paths, notice) // says the manual path itself when it can't
-		return
-	}
-	if notice.appUpdate {
-		printHumanInfo("%s", relayUpdateManualLine)
-	}
+	} // else the notice already said where to update it
 }
