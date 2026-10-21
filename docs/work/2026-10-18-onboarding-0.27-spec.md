@@ -106,7 +106,7 @@ The line updates in place and ends with `✓ Done: this computer is connected to
 - Buttons: [Sign in and install NOVA] (or [Sign in with Home Assistant] / [Sign in and update NOVA]) and ghost [Use a six-digit code].
 - Fine print: "You sign in on your own Home Assistant page as the owner. HA NOVA then installs only its own App." Plus one line: "Home Assistant will say 'You're about to give http://127.0.0.1:… access'. That is this page."
 - Sub-states:
-  - nothing found or several found: the HA row becomes "Where is your Home Assistant?" with a field (or a list) and [Connect]. A link reads "No Home Assistant yet? Look around the demo house" (§8);
+  - nothing found or several found: the HA row becomes "Where is your Home Assistant?" with a field (or a list) and [Connect]. A link reads "No Home Assistant yet? Try HA NOVA on a demo house" (§8);
   - code path: "In Home Assistant, open NOVA in the sidebar and click Connect a device." Six boxes, [Connect].
 
 **Step 2: "Setting up NOVA in your Home Assistant."** (eyebrow "Connecting")
@@ -149,7 +149,7 @@ The line updates in place and ends with `✓ Done: this computer is connected to
 - Step 3 runs once setup is complete (as the terminal's offers do), so its writes never race setup's own config checks. Ctrl+C or idle there shows "connected, choices not applied".
 - The Link row is the Home Assistant Link fallback (D2), shown only while Link remote access answers; its sign-in opens in a tab of its own. A Link failure keeps the terminal's exit code, but step 4 still shows with one line. The chat-app row (B4) is in the contract doc, "Setup and CLI (B4)".
 - Step 4 runs the §7.6 verbs as child processes for the server setup connected (`--server`), in their own signal group (Ctrl+C never stops a save halfway). A save posts the plan id the page shows; the CLI saves only a plan this run stored for that preview, once. An unclear outcome is never offered again; a read-back mismatch shows no ✓. Rooms undo is a preview of its own, then a click, and stays offered until an undo is verified. Done, Ctrl+C, or 30 min idle closes setup.
-- No Home Assistant found: step 1 offers "Look around the demo house" (`ha-nova try`; `setup --demo` is the alias).
+- No Home Assistant found: step 1 offers "Try HA NOVA on a demo house" (`ha-nova try`; `setup --demo` is the alias).
 
 **Re-run on a working install** ("HA NOVA is connected"):
 - ✓ rows from doctor's checks;
@@ -362,7 +362,7 @@ Known limits:
 
 ## 8. Demo path (`ha-nova try`)
 
-- `ha-nova try` (A10) and step 1's "Look around the demo house" connect to `demo.hanova.app`:
+- `ha-nova try` (A10) and step 1's "Try HA NOVA on a demo house" connect to `demo.hanova.app`:
   - the relay token comes from `connect.json` (public, shared, no pairing); its `relay_url` must share the origin of `connect.json`, and the relay must answer `/health` before anything is saved;
   - the profile `demo` lives in `demo.json` beside `config.json`, never in it: it cannot become the default, and only `HA_NOVA_SERVER=demo` or `--server demo` selects it;
   - `setup`, `pair`, and `cloud` refuse a demo selection; new server profiles can't be named `demo` (an existing one keeps working, and `try` then refuses);

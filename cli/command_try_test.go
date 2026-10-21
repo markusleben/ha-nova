@@ -319,7 +319,7 @@ func TestDemoResetIsOnePlainLine(t *testing.T) {
 
 // Lane E7: the text names the AI apps that have HA NOVA, not a guess.
 func TestTryNamesTheConfiguredAIApp(t *testing.T) {
-	fakeDemo(t, "")
+	srv := fakeDemo(t, "")
 	withClientRuntimeAvailability(t, map[string]bool{"opencode": true})
 	paths := tryTestPaths(t, "")
 	paths.StateFile = filepath.Join(paths.ConfigDir, "state.json")
@@ -347,6 +347,7 @@ Open OpenCode in a new chat. Say these, one at a time:
   5. "Undo that."
 You can ask in any language.
 
+Watch the house: ` + srv.URL + `/demo-house/house  (log in: demo / demo)
 Done?            ha-nova try --stop
 Your own home?   ha-nova setup
 `
