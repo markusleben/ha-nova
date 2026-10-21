@@ -7,7 +7,7 @@ For the stable installer, lifecycle commands, and general troubleshooting, use [
 ## Setup Choice
 
 - Use the normal HA NOVA installer flow.
-- In the setup wizard, choose `Codex CLI`.
+- The setup page finds Codex CLI on this computer and sets it up. In the terminal wizard, choose `Codex CLI`.
 - Install the Codex client separately; HA NOVA handles the skills and onboarding, not the Codex app itself.
 
 ## Windows Notes

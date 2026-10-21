@@ -1,6 +1,6 @@
 # Privacy
 
-Last updated: 2026-10-14
+Last updated: 2026-10-21
 
 HA NOVA collects no usage data: no analytics, no installation counting, and
 no reports to the maintainer. Update checks only fetch release information
@@ -15,12 +15,30 @@ installation that stops reporting has its record deleted automatically after
 Older releases that were opted in keep reporting weekly until they are
 updated.
 
+## Chat apps (Claude and ChatGPT)
+
+Chat apps are off by default. They need Home Assistant Link with remote access (a subscription from the Home Assistant team) or your own HTTPS address. When the owner turns them on, Claude or ChatGPT
+connect straight to the owner's own Home Assistant, through Home Assistant
+Link or the owner's own HTTPS address. HA NOVA runs no server of its own for this.
+What you ask, and what HA NOVA reads from your home to answer, then goes to
+Anthropic (Claude) or OpenAI (ChatGPT), and their privacy terms apply. Turning
+chat apps off stops HA NOVA from answering them; to sign Claude or ChatGPT out of Home
+Assistant, remove their refresh tokens in your Home Assistant profile.
+
+## Demo house
+
+The demo house (`ha-nova try`, "Add to Claude" on hanova.app) is a shared
+public Home Assistant that the maintainer runs. It is not your home. Other
+visitors see what you enter. Don't enter personal data. What it
+keeps, and for how long, is on its privacy page:
+<https://hanova.app/privacy.html>.
+
 ## Optional Home Assistant Link transport
 
 Home Assistant Link (formerly Home Assistant Cloud) remote access is available
 only in release-gated desktop Beta builds. Selecting `Local only` sends no Home
 Assistant traffic through Home Assistant Link. Selecting either Home Assistant
-Link mode uses the user's Nabu Casa service to reach that user's own Home
+Link mode uses the user's Home Assistant Link service to reach that user's own Home
 Assistant through Home Assistant OAuth and Supervisor Ingress. HA NOVA operates no
 additional public tunnel, hosted broker, or Cloud endpoint for Home Assistant
 requests.

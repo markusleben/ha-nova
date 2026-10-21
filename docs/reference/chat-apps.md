@@ -6,7 +6,7 @@ With chat apps on, you can ask about your home and change it from Claude or Chat
 
 - Home Assistant OS (or Supervised) 2026.10 or newer, with the NOVA App.
 - A way for Claude and ChatGPT to reach your Home Assistant over the internet, one of:
-  - **Home Assistant Link** with remote access turned on.
+  - **Home Assistant Link** with remote access turned on (a subscription from the Home Assistant team).
   - **Your own public HTTPS address**, for example from DuckDNS, your own reverse proxy, or a Cloudflare tunnel, set as the external URL in Home Assistant (Settings → System → Network). A Tailscale address (`.ts.net`) or a local one isn't offered. It must have a valid certificate (for example from Let's Encrypt): Claude and ChatGPT refuse self-signed certificates, and they never use plain `http://`.
 
   No subscription needed if your Home Assistant already has a public HTTPS address; Home Assistant Link is the easiest way. When both are there, HA NOVA uses Home Assistant Link.

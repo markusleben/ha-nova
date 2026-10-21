@@ -7,7 +7,7 @@ For the stable installer, lifecycle commands, and general troubleshooting, use [
 ## Setup Choice
 
 - Use the normal HA NOVA installer flow.
-- In the setup wizard, choose `Google Antigravity`.
+- The setup page finds Google Antigravity on this computer and sets it up. In the terminal wizard, choose `Google Antigravity`.
 - Install the Antigravity client separately; HA NOVA handles the skills and onboarding, not the Antigravity app itself.
 
 ## Former Gemini Users

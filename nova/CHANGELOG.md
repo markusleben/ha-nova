@@ -7,7 +7,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic
 ## [Relay 0.11.0] - 2026-10-20
 
 ### Added
-- Use HA NOVA in Claude and ChatGPT, also on your phone, with no computer running. On the NOVA page, open Chat apps and choose "Turn on chat apps" (or turn them on during `ha-nova setup`). Home Assistant restarts once. Then add HA NOVA in Claude (there is an "Add to Claude" button) or in ChatGPT on the web, and sign in to Home Assistant as the owner. Needs Home Assistant 2026.10 or newer and Home Assistant Link or your own public HTTPS address. Off by default; only the owner can turn it on and use it. Guide: [Use HA NOVA in Claude and ChatGPT](https://github.com/markusleben/ha-nova/blob/main/docs/reference/chat-apps.md). (#756, #758, #760, #762)
+- Use HA NOVA in Claude and ChatGPT, also on your phone, with no computer running. On the NOVA page, open Chat apps and choose "Turn on chat apps" (or turn them on during `ha-nova setup`). Home Assistant restarts once. Then add HA NOVA in Claude (there is an "Add to Claude" button) or in ChatGPT on the web, and sign in to Home Assistant as the owner. Needs Home Assistant 2026.10 or newer and Home Assistant Link with remote access (a subscription from the Home Assistant team) or your own public HTTPS address. Off by default; only the owner can turn it on and use it. Guide: [Use HA NOVA in Claude and ChatGPT](https://github.com/markusleben/ha-nova/blob/main/docs/reference/chat-apps.md). (#756, #758, #760, #762)
 - On the NOVA page you can also let chat apps only read, or turn off codes in the chat so risky changes need your phone. (#756)
 - In Claude, HA NOVA's tools have plain names, and Claude can stop asking before every step: set the read-only tools and "Control a device" to "Always allow", and keep "Run a confirmed change" on "Needs approval". Answers use your names as in Home Assistant, with no ids. Guide: [Stop Claude from asking before every step](https://github.com/markusleben/ha-nova/blob/main/docs/reference/chat-apps.md#stop-claude-from-asking-before-every-step). (#784)
 - Setting up Home Assistant Link as the owner connects a computer with that one sign-in, without the six-digit code. Other users still get the code. (#757)
@@ -20,6 +20,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic
 - Chat apps help on the NOVA page: if ChatGPT says the OAuth callback data is missing right after you create the plugin, choose Connect on it again. (#792)
 - Computers that are already connected stay connected; no re-pairing.
 - Computers on the matching HA NOVA release ask you to update this App; computers on an older release keep working with it.
+- Still on the old shared access (Relay Auth Token)? HA NOVA 0.27 is the last release that accepts it. Run `ha-nova setup` once on each computer to switch (a `--service` install: `ha-nova pair --credential-store=file`). When every computer has switched, choose "Revoke legacy access" on the NOVA page.
 
 ## [Relay 0.10.0] - 2026-10-17
 
