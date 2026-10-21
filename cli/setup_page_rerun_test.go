@@ -130,7 +130,9 @@ func TestSetupPageRerunWhileTheAppDoesNotAnswer(t *testing.T) {
 	stubRerunApp(t, false, chatAppsHA{}, errors.New("unreachable"))
 	previousIdle, previousProbe, previousDiscover := setupPageIdle, probeHTTPForSetup, discoverReachableHAHostsForSetup
 	setupPageIdle = 2 * time.Second
-	t.Cleanup(func() { setupPageIdle, probeHTTPForSetup, discoverReachableHAHostsForSetup = previousIdle, previousProbe, previousDiscover })
+	t.Cleanup(func() {
+		setupPageIdle, probeHTTPForSetup, discoverReachableHAHostsForSetup = previousIdle, previousProbe, previousDiscover
+	})
 	discoverReachableHAHostsForSetup = func(runtimeConfig) ([]setupDiscoveryCandidate, string) { return nil, "" } // nothing else found
 	var haDown atomic.Bool
 	haDown.Store(true)
