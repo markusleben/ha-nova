@@ -694,6 +694,10 @@ func TestSetupPageOffersTheDemoHouse(t *testing.T) {
 			if code := setupPageExit(t, done, stdout); code != 0 || page.ui.snapshot().Screen != "demo" || tries != 1 {
 				t.Fatalf("exit %d screen %s tries %d", code, page.ui.snapshot().Screen, tries)
 			}
+			// The demo screen links the demo's own Home Assistant, to watch next to the chat.
+			if got := page.ui.snapshot().Links["demo"]; got != demoWatchOrigin()+"/demo-house/house" {
+				t.Fatalf("demo watch link = %q", got)
+			}
 		} else {
 			back := page.waitFor("the demo problem", func(s setupPageState) bool { return s.Problem != nil })
 			if back.Problem.Key != "setup.page.problem.demo" || !back.AskHA || tries != 1 {

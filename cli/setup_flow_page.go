@@ -183,6 +183,7 @@ func (f *setupFlow) stepPage() setupStepResult {
 			continue
 		case "demo":
 			if setupPageTry(f.paths) == 0 {
+				p.update(func(v *setupPageState) { v.Links = map[string]string{"demo": demoWatchOrigin() + "/demo-house/house"} })
 				p.end("demo")
 				return setupDone(0)
 			}

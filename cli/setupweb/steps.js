@@ -336,6 +336,8 @@ window.novaSteps = (h) => {
   const demo = () => [...head(t('setup.page.demo.eyebrow'), t('setup.page.demo.title'), t('setup.page.demo.lead')),
     chips([t('setup.page.demo.prompt_used'), t('setup.page.demo.prompt_kitchen'), t('setup.page.demo.prompt_unlock')],
       (h.state().clients || []).includes('Claude Code')),
+    // The demo's own Home Assistant, to watch next to the chat (setup_flow_page.go).
+    el('div', { class: 'actions' }, link(t('setup.page.demo.watch'), (h.state().links || {}).demo, 'ghost btn-small', 'demo-watch')),
     el('p', { class: 'fine' }, t('setup.page.demo.fine'))];
 
   const home = () => {
