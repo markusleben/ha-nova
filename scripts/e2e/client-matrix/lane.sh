@@ -221,7 +221,7 @@ check_relay_notice() {
     grep -Eq "Relay outdated: v$relay is below minimum v$min|it has v$relay, HA NOVA needs v$min or newer" "$LOGS/update.log" &&
       echo "note: relay v$relay < min v$min: outdated notice shown (expected)"
   else
-    ! grep -Eq 'Relay outdated|NOVA App in Home Assistant needs an update' "$LOGS/update.log" && echo "note: relay v$relay >= min v$min: no outdated notice (correct)"
+    ! grep -Eq 'Relay outdated|NOVA App in Home Assistant needs an update:' "$LOGS/update.log" && echo "note: relay v$relay >= min v$min: no outdated notice (correct)"
   fi
 }
 

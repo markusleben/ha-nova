@@ -12,9 +12,9 @@ import (
 
 // Windows: MessageBoxTimeoutW in process, so no program path or environment
 // is involved. Any same-user process can click it (UI Automation), so it
-// guards against slips, not a determined model. Bringing it to the front
-// (raiseBox) moves focus only: Cancel stays the default button, so a key
-// meant for the terminal cancels, never confirms.
+// guards against slips, not a determined model. raiseBox puts it on top
+// without taking the keyboard: keys meant for the terminal (Tab, arrows,
+// Enter) never reach it, so only a click answers it.
 
 var (
 	user32               = syscall.NewLazyDLL("user32.dll")
@@ -27,12 +27,8 @@ var (
 	enumThreadWindows    = user32.NewProc("EnumThreadWindows")
 	getClassName         = user32.NewProc("GetClassNameW")
 	postMessage          = user32.NewProc("PostMessageW")
-	getForegroundWindow  = user32.NewProc("GetForegroundWindow")
-	getWindowThreadPID   = user32.NewProc("GetWindowThreadProcessId")
-	attachThreadInput    = user32.NewProc("AttachThreadInput")
-	isHungAppWindow      = user32.NewProc("IsHungAppWindow")
 	setWindowPos         = user32.NewProc("SetWindowPos")
-	setForegroundWindow  = user32.NewProc("SetForegroundWindow")
+	flashWindowEx        = user32.NewProc("FlashWindowEx")
 	// closeBox posts WM_CLOSE (Cancel's effect on an OK/Cancel box) to each
 	// dialog window of the thread it is enumerated for: only our message box
 	// lives there. One callback each for the process (Go keeps a fixed number).
@@ -43,14 +39,15 @@ var (
 		}
 		return 1 // go on
 	})
-	// frontBox brings that dialog to the front (raiseBox).
-	frontBox = syscall.NewCallback(func(hwnd, _ uintptr) uintptr {
+	// findBox records the dialog of the thread it is enumerated for (raiseBox).
+	findBox = syscall.NewCallback(func(hwnd, thread uintptr) uintptr {
 		if isDialog(hwnd) {
-			bringToFront(hwnd)
+			foundBoxes.Store(thread, hwnd)
 			return 0 // done
 		}
 		return 1
 	})
+	foundBoxes sync.Map // box thread id → its dialog window
 )
 
 // isDialog: a dialog window (class #32770), as a message box is.
@@ -60,54 +57,31 @@ func isDialog(hwnd uintptr) bool {
 	return n > 0 && syscall.UTF16ToString(class[:n]) == "#32770"
 }
 
-// windowThread: the thread that owns a window (0 for none).
-func windowThread(hwnd uintptr) uintptr {
-	if hwnd == 0 {
-		return 0
-	}
-	id, _, _ := getWindowThreadPID.Call(hwnd, 0)
-	return id
-}
-
-// bringToFront makes box the foreground window. MB_SETFOREGROUND alone is
-// refused to a process that has had no input for a while, such as
-// `ha-nova mcp` started by an AI app at session start (0.27 upgrade lane
-// D6): the box then waits behind the terminal. Windows lets a thread whose
-// input is attached to the foreground window's thread set the foreground,
-// so attach for just this call (calling thread and box thread to the
-// foreground thread), then detach. A hung foreground window is left alone:
-// attaching to it could hang this thread too.
-func bringToFront(box uintptr) {
-	fg, _, _ := getForegroundWindow.Call()
-	me, _, _ := getCurrentThreadID.Call()
-	boxThread, fgThread := windowThread(box), windowThread(fg)
-	if fgThread != 0 && fgThread != boxThread {
-		if hung, _, _ := isHungAppWindow.Call(fg); hung == 0 {
-			for _, from := range []uintptr{me, boxThread} {
-				if from != fgThread {
-					if ok, _, _ := attachThreadInput.Call(from, fgThread, 1); ok != 0 {
-						defer attachThreadInput.Call(from, fgThread, 0)
-					}
-				}
-			}
-		}
-	}
-	const hwndTopmost = ^uintptr(0) // HWND_TOPMOST (-1)
-	const swpNoSize, swpNoMove, swpShowWindow = 0x1, 0x2, 0x40
-	_, _, _ = setWindowPos.Call(box, hwndTopmost, 0, 0, 0, 0, swpNoSize|swpNoMove|swpShowWindow)
-	_, _, _ = setForegroundWindow.Call(box)
-}
-
-// raiseBox brings the box on thread to the front once it exists: until it
-// is the foreground window, for at most two seconds, or until stop. Once in
-// front it is left alone, so a user who clicks away keeps that choice.
+// raiseBox puts the box on thread above every other window once it exists
+// (for at most two seconds, or until stop) and flashes its taskbar button
+// until it is clicked. MB_SETFOREGROUND would be refused to `ha-nova mcp`,
+// which an AI app started long ago (0.27 upgrade lane D6: the box waited
+// behind the terminal). It takes no keyboard focus on purpose: with focus,
+// a terminal habit like Tab then Enter could press OK. A window may always
+// move itself on top; that needs no foreground right.
 func raiseBox(thread uintptr, stop <-chan struct{}) {
-	runtime.LockOSThread() // input attaches per OS thread; Go ends it on return
+	defer foundBoxes.Delete(thread)
 	for give := time.Now().Add(2 * time.Second); time.Now().Before(give); {
-		if fg, _, _ := getForegroundWindow.Call(); windowThread(fg) == thread {
+		_, _, _ = enumThreadWindows.Call(thread, findBox, thread)
+		if box, ok := foundBoxes.Load(thread); ok {
+			const hwndTopmost = ^uintptr(0) // HWND_TOPMOST (-1)
+			const swpNoSize, swpNoMove, swpNoActivate, swpShowWindow = 0x1, 0x2, 0x10, 0x40
+			_, _, _ = setWindowPos.Call(box.(uintptr), hwndTopmost, 0, 0, 0, 0, swpNoSize|swpNoMove|swpNoActivate|swpShowWindow)
+			const flashAll, flashUntilFront = 0x3, 0xc // FLASHW_ALL | FLASHW_TIMERNOFG
+			info := struct {
+				size             uint32
+				hwnd             uintptr
+				flags, count, ms uint32
+			}{hwnd: box.(uintptr), flags: flashAll | flashUntilFront}
+			info.size = uint32(unsafe.Sizeof(info))
+			_, _, _ = flashWindowEx.Call(uintptr(unsafe.Pointer(&info)))
 			return
 		}
-		_, _, _ = enumThreadWindows.Call(thread, frontBox, 0)
 		select {
 		case <-stop:
 			return
@@ -143,23 +117,24 @@ func nativeWindow(ctx context.Context, message string, wait time.Duration) windo
 	}
 	done, thread, release := make(chan uintptr, 1), make(chan uintptr, 1), make(chan struct{})
 	defer close(release)
+	var raised sync.WaitGroup
+	raised.Add(1)
 	go func() {
-		// One OS thread for the box, alive until nativeWindow returns, so the
-		// withdrawal below never enumerates a reused thread id.
+		// One OS thread for the box, alive until nativeWindow returns and
+		// raiseBox is done, so neither the withdrawal below nor raiseBox ever
+		// enumerates a reused thread id. nativeWindow itself never waits.
 		runtime.LockOSThread()
 		id, _, _ := getCurrentThreadID.Call()
 		thread <- id
 		r, _, _ := messageBoxTimeout.Call(0, uintptr(unsafe.Pointer(text)), uintptr(unsafe.Pointer(title)), windowsBoxStyle, 0, uintptr(max(wait.Milliseconds(), 1000)))
 		done <- r
 		<-release
+		raised.Wait()
 	}()
 	id := <-thread
-	// Raised while the box thread is alive (release closes after this
-	// defer), so no reused thread id is ever enumerated.
-	stop, raised := make(chan struct{}), sync.WaitGroup{}
-	raised.Add(1)
+	stop := make(chan struct{})
 	go func() { defer raised.Done(); raiseBox(id, stop) }()
-	defer func() { close(stop); raised.Wait() }()
+	defer close(stop) // before release: deferred calls run last-in first-out
 	select {
 	case <-ctx.Done():
 		// Withdraw it by its window handle, retried while the box may not

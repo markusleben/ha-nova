@@ -79,7 +79,7 @@ func maybeOfferGuidedRelayUpdate(paths runtimePaths, notice humanNotice) bool {
 func runGuidedRelayUpdate(paths runtimePaths, cfg config, token string, in *bufio.Reader, out io.Writer) bool {
 	candidate, reason := resolveRelayUpdateCandidate(cfg, token)
 	if candidate.EntityID == "" {
-		fmt.Fprintf(out, "HA NOVA can't start the NOVA App update from here. Nothing was installed.\n%s\nDetails: %s\n", relayUpdateManualPath, reason)
+		fmt.Fprintf(out, "HA NOVA can't start the NOVA App update from here. Nothing was installed.\n%s\n", relayUpdateManualPath) // reason: for tests and logs, not people
 		return false
 	}
 	if !candidate.updateAvailable() {

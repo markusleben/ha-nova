@@ -48,12 +48,12 @@ func TestUpdateAppStepOpensSetupPageOnlyAtADesktop(t *testing.T) {
 	}
 
 	setupPageAvailable = func() bool { return true }
-	if out := run(tooOld); opened != 1 || !strings.Contains(out, `click "Update the NOVA App" there`) || strings.Contains(out, relayUpdateManualLine) {
+	if out := run(tooOld); opened != 1 || !strings.Contains(out, `click "Update the NOVA App" there`) || !once(out) || strings.Contains(out, "too") {
 		t.Fatalf("desktop: opened=%d\n%s", opened, out)
 	}
 	// Closed the page without updating: where to do it later.
 	stillDue = tooOld
-	if out := run(tooOld); opened != 2 || !strings.Contains(out, relayUpdateManualLine) {
+	if out := run(tooOld); opened != 2 || !strings.Contains(out, "Not updated yet. "+relayAppUpdatePath) {
 		t.Fatalf("closed page: opened=%d\n%s", opened, out)
 	}
 	// An above-floor App update keeps its guided offer with backup: no page.
@@ -72,7 +72,7 @@ func TestUpdateAppStepOpensSetupPageOnlyAtADesktop(t *testing.T) {
 		t.Fatalf("no desktop: opened=%d\n%s", opened, out)
 	}
 	// No App in Home Assistant to update (a standalone Relay): only its notice.
-	if out := run(container); opened != 2 || strings.Contains(out, relayUpdateManualLine) || !strings.Contains(out, "pull the new image") {
+	if out := run(container); opened != 2 || strings.Contains(out, relayAppUpdatePath) || !strings.Contains(out, "pull the new image") {
 		t.Fatalf("container: %s", out)
 	}
 	// No App notice: nothing at all.

@@ -309,11 +309,12 @@ func relayNoticeTransport(cfg config) (string, *http.Client, string, bool) {
 }
 
 // Relay notices are plain words for a person (terminal, notices[] text).
-// What an AI app does about one comes from its kind: the skills' Relay
-// Update Callout and the MCP hint (mcpNoticeHints) — never from this text.
+// What an AI app does about one comes from the skills' Relay Update Callout
+// (it reads this text on stderr, or the notices[] kind) and the MCP hint
+// (mcpNoticeHints) — never from instructions in this text.
 const (
 	relayAppUpdatePath       = "In Home Assistant: Settings > Apps > NOVA Relay > Update."
-	relayContainerUpdateLine = "NOVA Relay in your own container? Pull its new image and restart it."
+	relayContainerUpdateLine = "NOVA Relay in your own container? Pull its new image, then recreate the container (a restart keeps the old image)."
 )
 
 // relayUpdateNotice preserves the compatibility-floor warning and, when the
@@ -408,7 +409,7 @@ func checkRelayVersionValue(paths runtimePaths, relayVersion string) humanNotice
 		return humanNotice{
 			level:   humanNoticeWarning,
 			kind:    humanNoticeKindRelayOutdated,
-			message: fmt.Sprintf("HA NOVA can't read the NOVA App's version (v%s; it needs v%s or newer). %s", relayVersion, v.MinRelayVersion, relayAppUpdatePath),
+			message: fmt.Sprintf("HA NOVA can't read the NOVA App's version (v%s). HA NOVA needs v%s or newer. %s", relayVersion, v.MinRelayVersion, relayAppUpdatePath),
 		}
 	}
 	if cmp < 0 {

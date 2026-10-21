@@ -217,8 +217,8 @@ func TestGuidedRelayUpdateContainerFallsBackToManualPath(t *testing.T) {
 	if runGuidedRelayUpdate(paths, config{RelayBaseURL: server.URL}, "token", bufio.NewReader(strings.NewReader("")), &out) {
 		t.Fatalf("container fallback must not report success")
 	}
-	if !strings.Contains(out.String(), "no registry-proven NOVA Relay App update entity found") {
-		t.Fatalf("missing container reason: %s", out.String())
+	if !strings.Contains(out.String(), "can't start the NOVA App update from here") || strings.Contains(out.String(), "registry") {
+		t.Fatalf("container refusal must be plain: %s", out.String())
 	}
 	if !strings.Contains(out.String(), relayUpdateManualPath) {
 		t.Fatalf("container path must stay manual: %s", out.String())

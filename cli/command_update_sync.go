@@ -163,9 +163,6 @@ func printUpdateDone(lead string, result postUpdateSyncResult) {
 	printHumanInfo("%s.", lead)
 }
 
-// relayUpdateManualLine: where a person updates the App by hand.
-const relayUpdateManualLine = "To update the NOVA App: in Home Assistant, open Settings > Apps > NOVA Relay and click Update."
-
 // openSetupPageForAppUpdate runs the NEW binary's `ha-nova setup`: its
 // re-run page leads with "Update the NOVA App", and nothing installs until
 // the owner clicks and signs in. Test seam.
@@ -207,12 +204,12 @@ func offerRelayUpdate(paths runtimePaths, notice humanNotice) {
 	printHumanNotice(notice)
 	if notice.belowFloor && serverSelectionOverride == "" &&
 		activeServerProfile() == defaultServerProfileName && setupPageCanUpdateApp(paths) && setupPageAvailable() {
-		printHumanInfo("The NOVA App in Home Assistant needs an update too. Opening HA NOVA setup: click \"Update the NOVA App\" there.")
+		printHumanInfo("Opening HA NOVA setup: click \"Update the NOVA App\" there.")
 		if err := openSetupPageForAppUpdate(paths); err == nil {
 			if relayUpdateNoticeForUpdate(paths).empty() {
 				return
 			}
-			printHumanInfo("%s", relayUpdateManualLine) // closed without updating: where to do it later
+			printHumanInfo("Not updated yet. %s", relayAppUpdatePath) // closed without updating: where to do it later
 			return
 		}
 	}
