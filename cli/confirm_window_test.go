@@ -250,10 +250,10 @@ func TestWindowPlanWithASelectedServerSaysApplyBare(t *testing.T) {
 	}
 }
 
-// The Windows box: OK/Cancel with Cancel the default, on top, and never
-// asking for the keyboard (with focus, Tab then Enter could press OK);
-// never a service notification (another desktop's box this process can't
-// withdraw).
+// The Windows box: OK/Cancel with Cancel the default, on top, and no
+// MB_SETFOREGROUND (it would take the keyboard before OK is off, and Tab
+// then Enter could press OK); never a service notification (another
+// desktop's box this process can't withdraw).
 func TestWindowsBoxStyle(t *testing.T) {
 	const okCancel, defButton2, setForeground, topmost, serviceNotification = 0x1, 0x100, 0x10000, 0x40000, 0x200000
 	if windowsBoxStyle&0xf != okCancel || windowsBoxStyle&0xf00 != defButton2 {
