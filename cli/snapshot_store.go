@@ -97,6 +97,11 @@ func saveUndoSnapshotBytes(paths runtimePaths, data []byte) (snapshotSaveReceipt
 	return saveUndoSnapshotForServer(paths, data, "")
 }
 
+func redactUndoSnapshot(snap *undoSnapshot) {
+	snap.BeforeConfig = redactSecrets(snap.BeforeConfig, false)
+	snap.ExpectedAfter = redactSecrets(snap.ExpectedAfter, false)
+}
+
 // saveUndoSnapshotForServer: a non-empty server (snapshot save --server)
 // tags an untagged record and refuses one tagged for another server.
 func saveUndoSnapshotForServer(paths runtimePaths, data []byte, server string) (snapshotSaveReceipt, error) {
@@ -104,6 +109,9 @@ func saveUndoSnapshotForServer(paths runtimePaths, data []byte, server string) (
 	if err := unmarshalStrictJSON(data, "snapshot payload", &snap); err != nil {
 		return snapshotSaveReceipt{}, err
 	}
+	// Never a stored code on disk, even one an agent got elsewhere (after
+	// the strict parse: it has stripped a BOM and checked UTF-8).
+	redactUndoSnapshot(&snap)
 	if err := validateUndoSnapshot(snap); err != nil {
 		return snapshotSaveReceipt{}, err
 	}
@@ -132,6 +140,7 @@ func saveUndoSnapshotForServer(paths runtimePaths, data []byte, server string) (
 			action = "replaced"
 			continue
 		}
+		redactUndoSnapshot(&existing) // a record saved before codes were hidden
 		kept = append(kept, existing)
 	}
 	// The cap counts per server, so one house (e.g. the demo) never evicts
@@ -333,6 +342,10 @@ func loadUndoSnapshot(paths runtimePaths) (undoSnapshot, error) {
 // BOTH sides and differ, treat it as drift. A key the stored snapshot omitted
 // (older/filtered read-back) can't be compared, so it is never treated as drift.
 func snapshotMatchesLive(snap undoSnapshot, liveRaw []byte) (bool, error) {
+	// Live reads hide stored codes: hide them on both sides (a record saved
+	// before that still holds one), so a hidden code is never drift.
+	snap.ExpectedAfter = redactSecrets(snap.ExpectedAfter, false)
+	liveRaw = redactSecrets(liveRaw, false)
 	expected, err := configObjectFromBytes(snap.ExpectedAfter)
 	if err != nil {
 		return false, fmt.Errorf("stored snapshot is corrupt: %s", err)

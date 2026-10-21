@@ -348,6 +348,7 @@ Update flow:
 Use the live current options step as the update merge base:
 
 - read current field values from `description.suggested_value`
+- a value shown as hidden is a secret: never submit it; hand the form to the Home Assistant UI
 - if a requested field is exposed but lacks `description.suggested_value`, fail loud instead of guessing the current value
 - carry forward unchanged required fields
 - do not submit read-only fields

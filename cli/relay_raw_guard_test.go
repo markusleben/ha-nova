@@ -377,13 +377,13 @@ func TestRawRelayHidesPhoneWebhookIDs(t *testing.T) {
 	// verb's reader hide its webhook id and the confirmation id, not an
 	// automation's own webhook trigger.
 	body, _ := json.Marshal(map[string]any{"ok": true, "data": tapTrace})
-	if raw := string(redactPhoneSecrets(body, true)); strings.Contains(raw, "deadbeefwebhook") || strings.Contains(raw, "HANOVA_") || !strings.Contains(raw, "my-automation-hook") {
+	if raw := string(redactSecrets(body, true)); strings.Contains(raw, "deadbeefwebhook") || strings.Contains(raw, "HANOVA_") || !strings.Contains(raw, "my-automation-hook") {
 		t.Fatalf("raw trace: %s", raw) // the raw route's filter (relay.go)
 	}
-	if trailing := `{"platform":"mobile_app","unique_id":"deadbeefwebhook_x"} {}`; string(redactPhoneSecrets([]byte(trailing), true)) != trailing {
+	if trailing := `{"platform":"mobile_app","unique_id":"deadbeefwebhook_x"} {}`; string(redactSecrets([]byte(trailing), true)) != trailing {
 		t.Fatal("a response with trailing data was rewritten into a valid one")
 	}
-	if verb := string(redactPhoneSecrets(body, false)); strings.Contains(verb, "deadbeefwebhook") || !strings.Contains(verb, "HANOVA_OK_0123") {
+	if verb := string(redactSecrets(body, false)); strings.Contains(verb, "deadbeefwebhook") || !strings.Contains(verb, "HANOVA_OK_0123") {
 		t.Fatalf("session reads keep action ids for the phone listener: %s", verb)
 	}
 	read, err := readRelayWSJSONResponse(&http.Response{StatusCode: 200, Body: io.NopCloser(bytes.NewReader(body))}, maxRelayResponseBytes)
