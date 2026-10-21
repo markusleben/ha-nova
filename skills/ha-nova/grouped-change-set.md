@@ -50,7 +50,7 @@ ledger.
    families involved. The set as a whole must satisfy the active user
    decisions (context skill → Decision Memory).
 2. Render the full canonical Preview Card for EVERY operation (Cards contract
-   unchanged — behavior narrative, changes block, pre-write check).
+   unchanged — behavior narrative, changes block, pre-write finding when any).
 3. Intermediate previews carry NO options block and no repeated menu — the
    cards end with their save-status line (`⚠️  Nothing saved yet.`). A
    skill's "end the turn" waits for the last one.

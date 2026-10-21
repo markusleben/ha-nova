@@ -73,7 +73,9 @@ describe("ha cross-skill integration", () => {
     expect(writeSkill).toContain("do not block the write");
     expect(writeSkill).toContain("do not require extra confirmation");
     expect(writeSkill).toContain("final else branch is only reached when the earlier entity-state branches are false");
-    expect(writeSkill).toContain('Pre-write check: no issues worth flagging before save.');
+    // 2026-10-20 skills comparison: the mandated clean-case line leaked into 9/12 runs.
+    expect(writeSkill).not.toContain('Pre-write check: no issues worth flagging before save.');
+    expect(writeSkill).toContain('a clean one none');
     expect(writeSkill).toContain('Pre-write check: this draft may not behave as intended.');
   });
 

@@ -218,7 +218,7 @@ Experimental calls may fail with unfamiliar errors. Full relay/upstream error ta
 
 Apply `../ha-nova/output-rules.md`: plain words, HA names verbatim; unless asked or names clash, no ids, "entity", modes, Relay/HA URLs, snapshots, raw JSON. Previews, deletes, and results use the Cards defined there (`../ha-nova/output-cards.md`).
 
-Every experimental call result names the tier (Relay-Ready / Roadmap / External), carries the EXPERIMENTAL marker where required, and summarizes verified outcomes only.
+Every experimental call result carries the plain caution line where required and summarizes verified outcomes only.
 
 ## Safety
 
@@ -245,7 +245,7 @@ Rules for all experimental relay calls in this skill:
 - **Web search before write**: always search for current payload schema before constructing any write payload. HA APIs evolve across versions — the examples in this skill are starting points, not authoritative schemas.
 - **Schema discovery never probes writes**: never send an empty or partial body to a `/core` POST path to elicit a validation error — `/core` has no schema check and may CREATE an object instead — and never send a bare WS `type` you have not verified to be read-only, because a parameterless write command executes immediately (`../ha-nova/relay-api.md` → Write-Probing Asymmetry). Empty-body probing is limited to WS commands already documented as read-only; the write schema still comes from web search.
 - **Pre-delete `search/related` verdicts fail closed**: verify `ok=true` and `data` is an object before projecting family keys (`../ha-nova/relay-api.md` → Parsing rule); a failed or unexecuted scan is inconclusive — never a no-consumer result.
-- Every experimental call must show: "EXPERIMENTAL: No dedicated subskill schema guardrails. Proceed with caution."
+- Every experimental call must say plainly: "HA NOVA has no special safety check for this, so please check it carefully."
 - **No diff or auto-undo here**: these writes have no `## Changes` preview or `revert`. When a write may be hard to reverse, say so plainly and point to Home Assistant Backups (Settings > System > Backups) as the safety net before confirming.
 - One resource at a time (no batch writes)
 - Experimental results may be unexpected — verify data-target match before presenting conclusions (see `../ha-nova/SKILL.md` → Claim-Evidence Binding)
