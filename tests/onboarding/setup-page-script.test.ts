@@ -1,4 +1,4 @@
-// The setup page's script (cli/setupweb/app.js, steps.js, rerun.js) against a small
+// The setup page's script (cli/setupweb/app.js, steps.js, chat.js, rerun.js) against a small
 // fake DOM: what a click shows next. The Go tests cover the CLI side.
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -75,6 +75,7 @@ function page(before: object, ...afterPost: object[]) {
     setTimeout: (fn: () => void) => timers.push(fn),
     clearTimeout: () => undefined,
   };
+  runInNewContext(read("chat.js"), context);
   runInNewContext(read("steps.js"), context);
   runInNewContext(read("rerun.js"), context);
   runInNewContext(read("app.js"), context);

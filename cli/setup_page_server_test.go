@@ -226,7 +226,7 @@ func TestSetupPageHeadersOnEveryResponse(t *testing.T) {
 		path   string
 		header map[string]string
 	}{
-		{path: "/"}, {path: "/assets/app.js"}, {path: "/assets/steps.js"}, {path: "/assets/style.css"}, {path: "/assets/logo.svg"},
+		{path: "/"}, {path: "/assets/app.js"}, {path: "/assets/steps.js"}, {path: "/assets/chat.js"}, {path: "/assets/style.css"}, {path: "/assets/logo.svg"},
 		{path: "/api/state"}, {path: "/nope"}, {path: "/assets/../setup_page_server.go"},
 		{path: "/", header: map[string]string{"Host": "evil.example"}},
 	} {
@@ -271,13 +271,13 @@ func TestSetupPageServesNoInlineCodeAndNoSecrets(t *testing.T) {
 			t.Errorf("inline script tag %s", script)
 		}
 	}
-	for _, name := range []string{"app.js", "steps.js"} {
+	for _, name := range []string{"app.js", "steps.js", "chat.js"} {
 		script, err := os.ReadFile(filepath.Join("setupweb", name))
 		if err != nil {
 			t.Fatal(err)
 		}
 		for _, sink := range []string{"innerHTML", "outerHTML", "insertAdjacentHTML", "document.write", "eval(", "new Function", "setAttribute('on", "srcdoc", "location.assign", "href:"} {
-			if strings.Contains(string(script), sink) && (name == "steps.js" || (sink != "location.assign" && sink != "href:")) {
+			if strings.Contains(string(script), sink) && (name != "app.js" || (sink != "location.assign" && sink != "href:")) {
 				t.Errorf("%s uses %s", name, sink)
 			}
 		}

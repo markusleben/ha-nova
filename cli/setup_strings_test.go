@@ -28,7 +28,7 @@ var setupCatalogFuncs = map[string]int{"setupT": 0, "setupText": 0, "setupStyled
 func setupPageScriptKeys(t *testing.T) []string {
 	t.Helper()
 	var keys []string
-	for _, name := range []string{"app.js", "steps.js", "rerun.js"} {
+	for _, name := range []string{"app.js", "steps.js", "chat.js", "rerun.js"} {
 		script, err := os.ReadFile(filepath.Join("setupweb", name))
 		if err != nil {
 			t.Fatal(err)
